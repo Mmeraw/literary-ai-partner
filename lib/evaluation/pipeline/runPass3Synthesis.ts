@@ -50,6 +50,104 @@ import {
 import { analyzeDialogueAttributionForGate } from "@/lib/evaluation/pov/analyzeDialogueAttribution";
 import { getEvaluationRuntimeConfig } from "@/lib/config/evaluationRuntimeConfig";
 
+function countWords(text: string): number {
+  const trimmed = text.trim();
+  if (!trimmed) return 0;
+  return trimmed.split(/\s+/).filter(Boolean).length;
+}
+
+function computeChunkRanges(chunks: ManuscriptChunkEvidence[]): Array<{ start: number; end: number; index: number }> {
+  let cursor = 0;
+  return chunks.map((chunk, index) => {
+    const content = typeof chunk.content === "string" ? chunk.content.trim() : "";
+    const start = cursor;
+    const end = start + content.length;
+    cursor = end + 1; // joined with "\n"
+    return { start, end, index };
+  });
+}
+
+function chunkIndexForOffset(
+  offset: number,
+  ranges: Array<{ start: number; end: number; index: number }>,
+): number | null {
+  if (!Number.isFinite(offset)) return null;
+  const match = ranges.find((range) => offset >= range.start && offset <= range.end);
+  return match ? match.index : null;
+}
+
+function computeSipocCoverage(args: {
+  manuscriptText: string;
+  manuscriptChunks?: ManuscriptChunkEvidence[];
+  comparisonPacket: ReturnType<typeof buildComparisonPacket>;
+  comparisonPacketChars: number;
+}) {
+  const manuscriptWords = countWords(args.manuscriptText);
+  const chunks = Array.isArray(args.manuscriptChunks) ? args.manuscriptChunks : [];
+  const isLongForm = chunks.length > 0;
+  const chunksCreated = chunks.length;
+
+  const evidenceCountByCriterion = args.comparisonPacket.criteria.reduce<Record<string, number>>((acc, criterion) => {
+    const count = Array.isArray(criterion.pass1_evidence) ? criterion.pass1_evidence.length : 0;
+    acc[criterion.key] = count;
+    return acc;
+  }, {});
+
+  const criteriaWithZeroEvidence = Object.entries(evidenceCountByCriterion)
+    .filter(([, count]) => count === 0)
+    .map(([key]) => key);
+
+  const excerptCount = Object.values(evidenceCountByCriterion).reduce((sum, count) => sum + count, 0);
+
+  let chunksConsumed: number | null = null;
+  let chunkCoveragePct: number | null = null;
+
+  if (isLongForm) {
+    const ranges = computeChunkRanges(chunks);
+    const consumed = new Set<number>();
+
+    for (const criterion of args.comparisonPacket.criteria) {
+      for (const anchor of criterion.pass1_evidence ?? []) {
+        if (typeof anchor.char_start === "number") {
+          const index = chunkIndexForOffset(anchor.char_start, ranges);
+          if (index !== null) consumed.add(index);
+        }
+      }
+
+      const windowStart = criterion.disputed_excerpt_window?.char_start;
+      if (typeof windowStart === "number") {
+        const index = chunkIndexForOffset(windowStart, ranges);
+        if (index !== null) consumed.add(index);
+      }
+    }
+
+    chunksConsumed = consumed.size > 0 ? consumed.size : Math.min(chunksCreated, 1);
+    chunkCoveragePct =
+      chunksCreated > 0
+        ? Math.round((Math.min(chunksConsumed, chunksCreated) / chunksCreated) * 10000) / 100
+        : 0;
+  }
+
+  const totalSourceChars = isLongForm
+    ? chunks.reduce((sum, chunk) => sum + (chunk.content?.trim().length ?? 0), 0)
+    : args.manuscriptText.length;
+  const representationCompressionRatio =
+    totalSourceChars > 0
+      ? Math.round((args.comparisonPacketChars / totalSourceChars) * 10000) / 10000
+      : 0;
+
+  return {
+    manuscript_words: manuscriptWords,
+    chunks_created: chunksCreated,
+    chunks_consumed: chunksConsumed,
+    chunk_coverage_pct: chunkCoveragePct,
+    excerpt_count: excerptCount,
+    evidence_count_by_criterion: evidenceCountByCriterion,
+    representation_compression_ratio: representationCompressionRatio,
+    criteria_with_zero_evidence: criteriaWithZeroEvidence,
+  };
+}
+
 const PASS3_TEMPERATURE = 0.2;
 // Pass 3 model is resolved exclusively via getCanonicalPipelineModel(opts.model). The central
 // resolver in policy.ts enforces the production reasoning-model invariant (forbids o-series
@@ -273,6 +371,15 @@ export async function runPass3Synthesis(opts: RunPass3Options): Promise<Synthesi
     prompt_version: PASS3_PROMPT_VERSION,
     criteria_count_by_state: reducerTelemetry.criteria_count_by_state,
     chunk_count: Array.isArray(opts.manuscriptChunks) ? opts.manuscriptChunks.length : 0,
+    packet_source: comparisonPacket.packet_source,
+    packet_scope: comparisonPacket.packet_scope,
+    packet_evidence_origin: comparisonPacket.packet_evidence_origin,
+    ...computeSipocCoverage({
+      manuscriptText: opts.manuscriptText,
+      manuscriptChunks: opts.manuscriptChunks,
+      comparisonPacket,
+      comparisonPacketChars: comparisonPacketJson.length,
+    }),
     comparison_packet_chars: comparisonPacketJson.length,
     system_prompt_chars: PASS3_SYSTEM_PROMPT.length,
     user_prompt_chars: userPrompt.length,

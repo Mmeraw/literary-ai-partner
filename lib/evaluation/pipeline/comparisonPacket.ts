@@ -25,6 +25,9 @@ export type ComparisonPacketCriterion = {
 export type ComparisonPacket = {
   criteria: ComparisonPacketCriterion[];
   criteria_count_by_state: Record<ComparisonState, number>;
+  packet_source: "long_form_chunks_canonical" | "short_form_initial_text";
+  packet_scope: "criterion_comparison";
+  packet_evidence_origin: "chunk_canonical_window" | "short_form_full_text";
 };
 
 export type BuildComparisonPacketOptions = {
@@ -149,10 +152,20 @@ export function buildComparisonPacket(
       .join("\n");
   };
 
-  const manuscriptTextForExcerptWindow =
-    typeof options.manuscriptText === "string" && options.manuscriptText.length > 0
+  const chunkText = getChunkText();
+  const hasChunkEvidence = chunkText.length > 0;
+  const manuscriptTextForExcerptWindow = hasChunkEvidence
+    ? chunkText
+    : typeof options.manuscriptText === "string" && options.manuscriptText.length > 0
       ? options.manuscriptText
-      : (() => { const t = getChunkText(); return t.length > 0 ? t : undefined; })();
+      : undefined;
+
+  const packetSource: ComparisonPacket["packet_source"] = hasChunkEvidence
+    ? "long_form_chunks_canonical"
+    : "short_form_initial_text";
+  const packetEvidenceOrigin: ComparisonPacket["packet_evidence_origin"] = hasChunkEvidence
+    ? "chunk_canonical_window"
+    : "short_form_full_text";
 
   const excerptRadiusChars = options.excerptRadiusChars ?? DEFAULT_EXCERPT_RADIUS_CHARS;
   const maxEvidencePerCriterion =
@@ -210,5 +223,8 @@ export function buildComparisonPacket(
   return {
     criteria,
     criteria_count_by_state,
+    packet_source: packetSource,
+    packet_scope: "criterion_comparison",
+    packet_evidence_origin: packetEvidenceOrigin,
   };
 }
