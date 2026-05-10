@@ -164,7 +164,7 @@ function synthesizeTelemetryForFailureMode(
     chunks_consumed: null as number | null,
     chunk_coverage_pct: null as number | null,
     excerpt_count: 5,
-    evidence_count_by_criterion: { concept: 2, craft: 2, voice: 1 } as Record<string, number>,
+    evidence_count_by_criterion: { concept: 2, sceneConstruction: 2, voice: 1 } as Record<string, number>,
     comparison_packet_chars: 2830,
     representation_compression_ratio: 0.18,
     criteria_with_zero_evidence: [] as string[],
@@ -207,8 +207,8 @@ function synthesizeTelemetryForFailureMode(
         chunks_created: 4,
         chunks_consumed: 4,
         chunk_coverage_pct: 100,
-        evidence_count_by_criterion: { concept: 3, craft: 0, voice: 0 },
-        criteria_with_zero_evidence: ['craft', 'voice'],
+        evidence_count_by_criterion: { concept: 3, sceneConstruction: 0, voice: 0 },
+        criteria_with_zero_evidence: ['sceneConstruction', 'voice'],
       };
 
     case 'chunk_materialization_mismatch':

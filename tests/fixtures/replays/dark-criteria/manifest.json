@@ -10,7 +10,7 @@
     "telemetry_assertions": [
       { "field": "packet_source", "op": "eq", "value": "long_form_chunks_canonical" },
       { "field": "criteria_with_zero_evidence", "op": "is_array" },
-      { "field": "criteria_with_zero_evidence", "op": "contains", "value": "craft" },
+      { "field": "criteria_with_zero_evidence", "op": "contains", "value": "sceneConstruction" },
       { "field": "evidence_count_by_criterion", "op": "is_record" }
     ]
   },
