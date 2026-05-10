@@ -11,6 +11,7 @@ import type {
 } from "./types";
 import { validateRegistryContents } from "./schema";
 import { syntheticProofEntries } from "./categories/synthetic-proof";
+import { firstRealCategoryEntries } from "./categories/first-real-category";
 
 export type {
   BoundaryCrossingCategory,
@@ -27,7 +28,7 @@ export type {
  * Category files are aggregated here.
  */
 function loadEntries(): ReadonlyArray<RegistryEntry> {
-  return Object.freeze([...syntheticProofEntries]);
+  return Object.freeze([...syntheticProofEntries, ...firstRealCategoryEntries]);
 }
 
 function buildConsumer(): ReadOnlyRegistryConsumer {
