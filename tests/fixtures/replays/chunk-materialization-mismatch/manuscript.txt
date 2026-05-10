@@ -1,0 +1,8 @@
+[Long-form manuscript fixture — chunk materialization mismatch scenario.
+
+This manuscript triggers the long-form route (≥ 25,000 words). The
+pipeline-integration mock injects a deliberate mismatch between
+ensure_chunks_returned_count and persisted_chunk_count, which the
+phase1 fail-closed guard catches per #291.
+
+Manuscript content placeholder.]

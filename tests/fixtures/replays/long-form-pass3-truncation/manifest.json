@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "fixture_id": "long-form-pass3-truncation-v1",
+  "description": "Long-form Pass 3 truncation under high representation_compression_ratio. Reproduces finishReason=length with comparison_packet_chars near max_output_tokens budget.",
+  "failure_mode": "long_form_pass3_truncation",
+  "manuscript_path": "manuscript.txt",
+  "route_override": "long_form",
+  "expected": {
+    "expected_failure_stage": "pass3",
+    "telemetry_assertions": [
+      { "field": "representation_compression_ratio", "op": "lt", "value": 0.10 },
+      { "field": "compression_governance_state", "op": "ne", "value": "pass" }
+    ]
+  },
+  "notes": "Pipeline integration pending. This manifest validates schema and assertion evaluation only in the scaffold commit."
+}
