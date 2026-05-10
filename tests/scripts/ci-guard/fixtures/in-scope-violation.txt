@@ -1,0 +1,1 @@
+This in-scope fixture contains SyntheticInternalToken for scanner validation.

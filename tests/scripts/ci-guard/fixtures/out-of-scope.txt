@@ -1,0 +1,1 @@
+SyntheticInternalToken in tests path should be out of scanner scope by path topology.

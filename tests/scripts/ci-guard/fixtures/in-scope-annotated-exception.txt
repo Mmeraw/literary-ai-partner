@@ -1,0 +1,2 @@
+// @InternalOnly validator-confirmed, not user-facing
+SyntheticInternalToken appears in annotated context.
