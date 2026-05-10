@@ -180,31 +180,33 @@ function detectOutliers(
 ): OutlierRecord[] {
   if (!summary) return [];
 
-  return longForm
-    .map((record) => {
-      const ratio = record.representation_compression_ratio;
-      if (ratio === null || !Number.isFinite(ratio)) return null;
+  const outliers: OutlierRecord[] = [];
 
-      let reason: OutlierRecord["reason"] | null = null;
-      if (ratio < summary.p1) {
-        reason = "below_p1";
-      } else if (ratio > summary.p99) {
-        reason = "above_p99";
-      }
+  for (const record of longForm) {
+    const ratio = record.representation_compression_ratio;
+    if (ratio === null || !Number.isFinite(ratio)) continue;
 
-      if (!reason) return null;
+    let reason: OutlierRecord["reason"] | null = null;
+    if (ratio < summary.p1) {
+      reason = "below_p1";
+    } else if (ratio > summary.p99) {
+      reason = "above_p99";
+    }
 
-      return {
-        job_id: record.job_id,
-        ratio,
-        reason,
-        manuscript_words: record.manuscript_words,
-        manuscript_genre: record.manuscript_genre,
-        manuscript_type: record.manuscript_type,
-        manuscript_class: record.manuscript_class,
-      };
-    })
-    .filter((record): record is OutlierRecord => record !== null);
+    if (!reason) continue;
+
+    outliers.push({
+      job_id: record.job_id,
+      ratio,
+      reason,
+      manuscript_words: record.manuscript_words,
+      manuscript_genre: record.manuscript_genre,
+      manuscript_type: record.manuscript_type,
+      manuscript_class: record.manuscript_class,
+    });
+  }
+
+  return outliers;
 }
 
 function computePerGenreBreakdown(
