@@ -3,7 +3,7 @@ import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
 import { buildComparisonPacket } from "@/lib/evaluation/pipeline/comparisonPacket";
 import { runPass3Synthesis } from "@/lib/evaluation/pipeline/runPass3Synthesis";
 import type { CreateCompletionFn } from "@/lib/evaluation/pipeline/runPass3Synthesis";
-import type { SinglePassOutput } from "@/lib/evaluation/pipeline/types";
+import type { Pass3ReducerTelemetry, SinglePassOutput } from "@/lib/evaluation/pipeline/types";
 import { loadCanonicalRegistry } from "@/lib/governance/canonRegistry";
 
 function makePass(pass: 1 | 2, axis: "craft_execution" | "editorial_literary"): SinglePassOutput {
@@ -114,6 +114,15 @@ describe("#292 packet evidence consumption", () => {
           packet_source: string;
           packet_scope: string;
           packet_evidence_origin: string;
+          manuscript_words: number;
+          chunks_created: number;
+          chunks_consumed: number | null;
+          chunk_coverage_pct: number | null;
+          excerpt_count: number;
+          evidence_count_by_criterion: Record<string, number>;
+          comparison_packet_chars: number;
+          representation_compression_ratio: number;
+          criteria_with_zero_evidence: string[];
         }
       | undefined;
 
@@ -121,7 +130,7 @@ describe("#292 packet evidence consumption", () => {
       pass1,
       pass2,
       manuscriptText: "pre-chunk placeholder text",
-      manuscriptChunks: [{ chunk_index: 0, content: "chunk canonical source text" }],
+      manuscriptChunks: [{ chunk_index: 0, content: "chunk canonical source text ".repeat(1200) }],
       title: "Long Form Test",
       registry,
       openaiApiKey: "sk-test",
@@ -133,16 +142,113 @@ describe("#292 packet evidence consumption", () => {
             packet_source: reducer.packet_source,
             packet_scope: reducer.packet_scope,
             packet_evidence_origin: reducer.packet_evidence_origin,
+            manuscript_words: reducer.manuscript_words,
+            chunks_created: reducer.chunks_created,
+            chunks_consumed: reducer.chunks_consumed,
+            chunk_coverage_pct: reducer.chunk_coverage_pct,
+            excerpt_count: reducer.excerpt_count,
+            evidence_count_by_criterion: reducer.evidence_count_by_criterion,
+            comparison_packet_chars: reducer.comparison_packet_chars,
+            representation_compression_ratio: reducer.representation_compression_ratio,
+            criteria_with_zero_evidence: reducer.criteria_with_zero_evidence,
           };
         }
       },
     });
 
-    expect(telemetry).toEqual({
+    expect(telemetry).toMatchObject({
       packet_source: "long_form_chunks_canonical",
       packet_scope: "criterion_comparison",
       packet_evidence_origin: "chunk_canonical_window",
     });
+
+    expect(telemetry?.manuscript_words).toBeGreaterThan(0);
+    expect(telemetry?.chunks_created).toBe(1);
+    expect(telemetry?.chunks_consumed).toBeGreaterThanOrEqual(0);
+    expect(telemetry?.chunk_coverage_pct).toBeGreaterThanOrEqual(0);
+    expect(telemetry?.chunk_coverage_pct).toBeLessThanOrEqual(100);
+    expect(telemetry?.excerpt_count).toBeGreaterThanOrEqual(0);
+    expect(telemetry?.comparison_packet_chars).toBeGreaterThan(0);
+    expect(telemetry?.representation_compression_ratio).toBeGreaterThan(0);
+    expect(telemetry?.representation_compression_ratio).toBeLessThanOrEqual(1);
+    expect(telemetry?.evidence_count_by_criterion).toBeDefined();
+    expect(Object.keys(telemetry?.evidence_count_by_criterion ?? {}).length).toBe(
+      CRITERIA_KEYS.length,
+    );
+    expect(Array.isArray(telemetry?.criteria_with_zero_evidence)).toBe(true);
+  });
+
+  it("long_form_emits_full_sipoc_coverage_diagnostics", async () => {
+    const registry = loadCanonicalRegistry();
+    const pass1 = makePass(1, "craft_execution");
+    const pass2 = makePass(2, "editorial_literary");
+
+    let reducerTelemetry: Pass3ReducerTelemetry | null = null;
+
+    await runPass3Synthesis({
+      pass1,
+      pass2,
+      manuscriptText: "alpha beta gamma delta epsilon zeta eta theta iota kappa ".repeat(3000),
+      manuscriptChunks: [{ chunk_index: 0, content: "chunk canonical source text with anchored evidence ".repeat(1000) }],
+      title: "Long Form SIPOC",
+      registry,
+      openaiApiKey: "sk-test",
+      _createCompletion: makePass3Completion(),
+      _onCompletion: (capture) => {
+        reducerTelemetry = capture.pass3_reducer_telemetry ?? null;
+      },
+    });
+
+    expect(reducerTelemetry).toBeTruthy();
+    expect(reducerTelemetry?.packet_source).toBe("long_form_chunks_canonical");
+    expect(reducerTelemetry?.packet_scope).toBe("criterion_comparison");
+    expect(reducerTelemetry?.packet_evidence_origin).toBe("chunk_canonical_window");
+
+    expect(reducerTelemetry?.manuscript_words).toBeGreaterThan(0);
+    expect(reducerTelemetry?.chunks_created).toBe(1);
+    expect(reducerTelemetry?.chunks_consumed).toBeGreaterThanOrEqual(0);
+    expect(reducerTelemetry?.chunks_consumed).toBeLessThanOrEqual(reducerTelemetry?.chunks_created ?? 0);
+    expect(reducerTelemetry?.chunk_coverage_pct).toBeGreaterThanOrEqual(0);
+    expect(reducerTelemetry?.chunk_coverage_pct).toBeLessThanOrEqual(100);
+    expect(reducerTelemetry?.excerpt_count).toBeGreaterThanOrEqual(0);
+    expect(reducerTelemetry?.comparison_packet_chars).toBeGreaterThan(0);
+    expect(reducerTelemetry?.representation_compression_ratio).toBeGreaterThan(0);
+    expect(reducerTelemetry?.representation_compression_ratio).toBeLessThan(1);
+    expect(reducerTelemetry?.evidence_count_by_criterion).toBeDefined();
+    expect(Object.keys(reducerTelemetry?.evidence_count_by_criterion ?? {}).length).toBe(CRITERIA_KEYS.length);
+    expect(Array.isArray(reducerTelemetry?.criteria_with_zero_evidence)).toBe(true);
+  });
+
+  it("short_form_emits_input_side_coverage_only", async () => {
+    const registry = loadCanonicalRegistry();
+    const pass1 = makePass(1, "craft_execution");
+    const pass2 = makePass(2, "editorial_literary");
+
+    let reducerTelemetry: Pass3ReducerTelemetry | null = null;
+
+    await runPass3Synthesis({
+      pass1,
+      pass2,
+      manuscriptText: "short manuscript text with full text evidence path",
+      title: "Short Form SIPOC",
+      registry,
+      openaiApiKey: "sk-test",
+      _createCompletion: makePass3Completion(),
+      _onCompletion: (capture) => {
+        reducerTelemetry = capture.pass3_reducer_telemetry ?? null;
+      },
+    });
+
+    expect(reducerTelemetry).toBeTruthy();
+    expect(reducerTelemetry?.packet_source).toBe("short_form_initial_text");
+    expect(reducerTelemetry?.packet_evidence_origin).toBe("short_form_full_text");
+    expect(reducerTelemetry?.manuscript_words).toBeGreaterThan(0);
+    expect(reducerTelemetry?.chunks_created).toBe(0);
+    expect(reducerTelemetry?.chunks_consumed).toBeNull();
+    expect(reducerTelemetry?.chunk_coverage_pct).toBeNull();
+    expect(reducerTelemetry?.excerpt_count).toBeGreaterThanOrEqual(0);
+    expect(reducerTelemetry?.comparison_packet_chars).toBeGreaterThan(0);
+    expect(reducerTelemetry?.representation_compression_ratio).toBeGreaterThan(0);
   });
 
   it("short_form_packet_behavior_unchanged", () => {

@@ -349,7 +349,15 @@ export type Pass3ReducerTelemetry = {
   packet_source: PacketProvenanceTelemetry['packet_source'];
   packet_scope: PacketProvenanceTelemetry['packet_scope'];
   packet_evidence_origin: PacketProvenanceTelemetry['packet_evidence_origin'];
+  manuscript_words: number;
+  chunks_created: number;
+  chunks_consumed: number | null;
+  chunk_coverage_pct: number | null;
+  excerpt_count: number;
+  evidence_count_by_criterion: Record<string, number>;
   comparison_packet_chars: number;
+  representation_compression_ratio: number;
+  criteria_with_zero_evidence: string[];
   system_prompt_chars: number;
   user_prompt_chars: number;
   max_output_tokens: number;
