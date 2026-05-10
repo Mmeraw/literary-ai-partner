@@ -4,7 +4,9 @@
 
 ## Purpose
 
-Provide the analysis tooling required to consume `compression_governance_state` and `representation_compression_ratio` telemetry once the #293 Phase 2 calibration window accumulates ≥ 100 long-form jobs. The tooling produces the distributional analysis artifact required by `PR_293_PHASE_2_PREVIEW_BRIEF.md` prerequisites.
+Provide the analysis tooling required to consume `compression_governance_state` and `representation_compression_ratio` telemetry once the #293 Phase 2 calibration window accumulates sufficient long-form volume for analysis. The tooling produces the distributional analysis artifact required by `PR_293_PHASE_2_PREVIEW_BRIEF.md` prerequisites.
+
+This brief is keyed to the long-form portion of the calibration window; the full Phase 2 prerequisite set still includes the broader traffic conditions described in `PR_293_PHASE_2_PREVIEW_BRIEF.md`.
 
 This is **observation infrastructure**, not enforcement. No production runtime changes. No threshold derivation in this lane.
 
@@ -14,8 +16,8 @@ This is **observation infrastructure**, not enforcement. No production runtime c
    - Reads telemetry records from a JSON input file (or stdin) containing per-job `compression_governance_state` + `representation_compression_ratio` + manuscript metadata.
    - Generates histogram bucket counts.
    - Computes statistical summary: mean, median, p10, p25, p50, p75, p90, p95, p99.
-   - Computes class coverage table: counts per band (`pass | warn | observe | null`).
-   - Identifies outliers (ratio < p1 or ratio > p99).
+   - Computes class coverage table for long-form records only: counts per band (`pass | warn | observe`) plus a separate excluded count for non-long-form / non-finite records.
+   - Identifies outliers using the computed p1 and p99 cutoffs (ratio < p1 or ratio > p99).
    - Outputs structured JSON for downstream visualization + a markdown summary skeleton.
 
 2. `scripts/governance/types.ts` — Typed interfaces for input telemetry records, histogram output, statistical summary, and class coverage table.
@@ -27,7 +29,7 @@ This is **observation infrastructure**, not enforcement. No production runtime c
    - Mixed long-form + short-form input → short-form correctly excluded from band analysis.
    - Outlier detection accuracy.
 
-4. `docs/governance/phase-2-calibration-template.md` — Markdown skeleton for the eventual calibration data artifact (the document that, once filled, satisfies Phase 2 lock prerequisite #2).
+4. `docs/governance/phase-2-calibration-template.md` — Markdown skeleton for the eventual calibration data artifact (the document that, once filled, satisfies the relevant Phase 2 prerequisite sections for calibration analysis, threshold derivation, and reversal mechanics).
 
 ## Scope (out)
 

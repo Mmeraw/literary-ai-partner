@@ -13,7 +13,7 @@
 - [ ] FAIL — Any required case missing or failing.
 
 ## Gate 4 — Markdown calibration template complete
-- [ ] PASS — `docs/governance/phase-2-calibration-template.md` includes all sections required by Phase 2 Prerequisite 2 (histogram, per-genre breakdown, class coverage table, outlier patterns, statistical summary, threshold derivation, reversal mechanism).
+- [ ] PASS — `docs/governance/phase-2-calibration-template.md` includes the sections required across Phase 2 Prerequisites 2–4: histogram, per-genre breakdown, long-form class coverage table, outlier patterns, statistical summary, threshold derivation, and reversal mechanism.
 - [ ] FAIL — Sections missing or under-specified.
 
 ## Gate 5 — No production scope leakage + CI green
