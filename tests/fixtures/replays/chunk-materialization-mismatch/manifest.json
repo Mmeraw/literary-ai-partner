@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "fixture_id": "chunk-materialization-mismatch-v1",
+  "description": "Long-form job fails closed at phase1 when ensure_chunks_returned_count != persisted_chunk_count. Reproduces the LONG_FORM_CHUNK_MATERIALIZATION_FAILED fail-closed path locked in #291.",
+  "failure_mode": "chunk_materialization_mismatch",
+  "manuscript_path": "manuscript.txt",
+  "route_override": "long_form",
+  "expected": {
+    "expected_failure_stage": "phase1",
+    "expected_error_code": "LONG_FORM_CHUNK_MATERIALIZATION_FAILED",
+    "telemetry_assertions": [
+      { "field": "chunk_routing.route", "op": "eq", "value": "long_form" },
+      { "field": "chunk_routing.ensure_chunks_returned_count", "op": "gte", "value": 0 },
+      { "field": "chunk_routing.persisted_chunk_count", "op": "gte", "value": 0 }
+    ]
+  },
+  "notes": "Mismatch fixture validates that #291 fail-closed behavior is permanently regression-protected. Pipeline integration mocks ensureChunksFromText to return a count that disagrees with the persisted count, triggering the error path."
+}

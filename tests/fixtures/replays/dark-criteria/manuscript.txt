@@ -1,0 +1,11 @@
+[Long-form manuscript fixture — dark-criteria scenario.
+
+This manuscript is structured to evaluate well on most criteria but
+deliberately lacks evidence for at least one specific criterion (e.g.,
+voice or structure). The Pass 1 mock returns zero excerpts for that
+criterion, which propagates through Pass 2 packet construction into
+criteria_with_zero_evidence telemetry.
+
+Manuscript content placeholder; replace with realistic long-form text
+≥ 25,000 words in the pipeline-integration commit if integration tests
+require word-count enforcement.]

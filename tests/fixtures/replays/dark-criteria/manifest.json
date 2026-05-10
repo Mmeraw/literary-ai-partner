@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "fixture_id": "dark-criteria-long-form-v1",
+  "description": "Long-form job produces criteria_with_zero_evidence non-empty for at least one criterion. Reproduces the dark-criteria failure mode where Pass 2 packet construction fails to surface evidence for specific criteria.",
+  "failure_mode": "dark_criteria_long_form",
+  "manuscript_path": "manuscript.txt",
+  "route_override": "long_form",
+  "expected": {
+    "expected_failure_stage": null,
+    "telemetry_assertions": [
+      { "field": "packet_source", "op": "eq", "value": "long_form_chunks_canonical" },
+      { "field": "criteria_with_zero_evidence", "op": "is_array" },
+      { "field": "criteria_with_zero_evidence", "op": "contains", "value": "craft" },
+      { "field": "evidence_count_by_criterion", "op": "is_record" }
+    ]
+  },
+  "notes": "Dark-criteria fixture validates that the harness can detect uneven evidence distribution across criteria for long-form jobs. Pipeline integration mocks Pass 1 evidence extraction to return zero excerpts for at least one criterion."
+}

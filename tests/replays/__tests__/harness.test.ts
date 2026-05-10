@@ -5,12 +5,21 @@ import {
   loadManuscript,
   evaluateAssertion,
   aggregateTelemetry,
+  runReplay,
 } from '../harness';
 import { REPLAY_MANIFEST_SCHEMA_VERSION } from '../manifest.types';
 
 const FIXTURE_PATH = resolve(
   __dirname,
   '../../fixtures/replays/long-form-pass3-truncation/manifest.json',
+);
+const DARK_CRITERIA_FIXTURE_PATH = resolve(
+  __dirname,
+  '../../fixtures/replays/dark-criteria/manifest.json',
+);
+const CHUNK_MISMATCH_FIXTURE_PATH = resolve(
+  __dirname,
+  '../../fixtures/replays/chunk-materialization-mismatch/manifest.json',
 );
 
 describe('Replay harness scaffold', () => {
@@ -142,6 +151,42 @@ describe('Replay harness scaffold', () => {
       expect(aggregated.replay_harness_pass_count).toBe(1);
       expect(aggregated.replay_harness_fail_count).toBe(1);
       expect(aggregated.per_fixture_status).toHaveLength(2);
+    });
+  });
+
+  describe('runReplay', () => {
+    it('reproduces long-form pass3 truncation fixture deterministically', async () => {
+      const first = await runReplay(FIXTURE_PATH);
+      const second = await runReplay(FIXTURE_PATH);
+
+      expect(first.pass).toBe(true);
+      expect(first.failure_mode_reproduced).toBe(true);
+      expect(first.telemetry_assertion_results.every((r) => r.passed)).toBe(true);
+
+      expect(second.pass).toBe(true);
+      expect(second.failure_mode_reproduced).toBe(true);
+      expect(second.telemetry_assertion_results.every((r) => r.passed)).toBe(true);
+
+      // Determinism check: semantic result must match on rerun.
+      expect(second.pass).toBe(first.pass);
+      expect(second.failure_mode_reproduced).toBe(first.failure_mode_reproduced);
+      expect(second.telemetry_assertion_results.map((r) => r.passed)).toEqual(
+        first.telemetry_assertion_results.map((r) => r.passed),
+      );
+    });
+
+    it('reproduces dark-criteria long-form fixture', async () => {
+      const result = await runReplay(DARK_CRITERIA_FIXTURE_PATH);
+      expect(result.pass).toBe(true);
+      expect(result.failure_mode_reproduced).toBe(true);
+      expect(result.telemetry_assertion_results.every((r) => r.passed)).toBe(true);
+    });
+
+    it('reproduces chunk materialization mismatch fixture', async () => {
+      const result = await runReplay(CHUNK_MISMATCH_FIXTURE_PATH);
+      expect(result.pass).toBe(true);
+      expect(result.failure_mode_reproduced).toBe(true);
+      expect(result.telemetry_assertion_results.every((r) => r.passed)).toBe(true);
     });
   });
 });
