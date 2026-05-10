@@ -361,6 +361,14 @@ export type Pass3ReducerTelemetry = {
   system_prompt_chars: number;
   user_prompt_chars: number;
   max_output_tokens: number;
+  // Phase 1 seed-band observational governance state
+  // Bands (long-form only):
+  //   ratio >= 0.10 → 'pass'
+  //   0.05 <= ratio < 0.10 → 'warn'
+  //   ratio < 0.05 → 'observe' (Phase 2 may convert to enforcement after calibration)
+  //   short-form or null/non-finite ratio → null
+  // NO 'hard_fail' state in Phase 1 — see PR_293_PHASE_2_PREVIEW_BRIEF.md
+  compression_governance_state: 'pass' | 'warn' | 'observe' | null;
 };
 
 export type PassCompletionCapture = {
