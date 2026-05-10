@@ -2,9 +2,12 @@
 
 ## Status
 
-**DRAFT — UNLOCKED**
+**LOCKED — Implementation may begin**
 
-This brief is staged but not yet locked via governance PR. Lock when #293 Phase 1 implementation is complete and the next-lane sequencing decision is made.
+This brief was promoted from DRAFT to LOCKED via governance PR. Implementation
+PR must adjudicate against `RELIABILITY_HARDENING_ADJUDICATION_TEMPLATE.md`
+and may use `RELIABILITY_HARDENING_PATCH_REPLY_SNIPPETS.md` for narrow
+follow-up patch requests.
 
 ## Purpose
 
