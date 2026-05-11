@@ -2671,13 +2671,13 @@ export async function claimQueuedJobs(
 
   const workerId = options.workerId;
   const batchSizeRaw = Number(options.batchSize ?? evalWorkerBatchSize);
-  const leaseMsRaw = Number(options.leaseMs ?? 360_000);
+  const leaseMsRaw = Number(options.leaseMs ?? 600_000);
   const batchSize = Number.isFinite(batchSizeRaw)
     ? Math.min(5, Math.max(1, Math.floor(batchSizeRaw)))
     : 5;
   const leaseMs = Number.isFinite(leaseMsRaw)
-    ? Math.min(360_000, Math.max(30_000, Math.floor(leaseMsRaw)))
-    : 360_000;
+    ? Math.min(600_000, Math.max(30_000, Math.floor(leaseMsRaw)))
+    : 600_000;
   const leaseToken = randomUUID();
   const leaseExpiresAt = new Date(Date.now() + leaseMs).toISOString();
 
@@ -2741,7 +2741,7 @@ export async function processQueuedJobs(options?: {
   const { evalWorkerBatchSize } = getProcessorRuntimeDeps();
   const effectiveWorkerId = options?.workerId ?? randomUUID();
   const requestedBatchSize = options?.batchSize ?? evalWorkerBatchSize;
-  const requestedLeaseMs = options?.leaseMs ?? 360_000;
+  const requestedLeaseMs = options?.leaseMs ?? 600_000;
 
   console.log('[Processor] Claim assumptions', {
     expected_status: JOB_STATUS.QUEUED,
