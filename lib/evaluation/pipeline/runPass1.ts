@@ -31,6 +31,7 @@ const PASS1_LIMITS = {
   maxEvidencePerCriterion: 1,
   maxEvidenceSnippetChars: 180,
 } as const;
+const DEFAULT_CHUNK_PASS_CONCURRENCY = 10;
 
 /**
  * RCA-PASS1-TOKEN-001: Pass1 model is strictly authoritative.
@@ -126,6 +127,52 @@ function buildEmptyResponseDiagnostic(params: {
     `${typeof usage?.total_tokens === "number" ? ` total_tokens=${usage.total_tokens}` : ""}` +
     `${refusal ? ` refusal=${JSON.stringify(refusal).slice(0, 120)}` : ""})`
   );
+}
+
+function getChunkPassConcurrency(): number {
+  const raw = process.env.EVAL_CHUNK_PASS_CONCURRENCY;
+  if (!raw) return DEFAULT_CHUNK_PASS_CONCURRENCY;
+  const parsed = Number.parseInt(raw, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) return DEFAULT_CHUNK_PASS_CONCURRENCY;
+  return Math.min(24, Math.max(1, parsed));
+}
+
+function getChunkPassMaxPerPass(): number | null {
+  const raw = process.env.EVAL_CHUNK_MAX_PER_PASS;
+  if (!raw) return null;
+  const parsed = Number.parseInt(raw, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) return null;
+  return parsed;
+}
+
+async function runChunksWithConcurrency<T>(
+  chunks: ManuscriptChunkEvidence[],
+  concurrency: number,
+  worker: (chunk: ManuscriptChunkEvidence) => Promise<T>,
+): Promise<Array<PromiseSettledResult<T>>> {
+  const settled: Array<PromiseSettledResult<T>> = new Array(chunks.length);
+  let cursor = 0;
+
+  const runWorker = async (): Promise<void> => {
+    while (true) {
+      const index = cursor;
+      cursor += 1;
+      if (index >= chunks.length) {
+        return;
+      }
+
+      try {
+        const value = await worker(chunks[index]);
+        settled[index] = { status: "fulfilled", value };
+      } catch (reason) {
+        settled[index] = { status: "rejected", reason };
+      }
+    }
+  };
+
+  const workers = Array.from({ length: Math.min(concurrency, chunks.length) }, () => runWorker());
+  await Promise.all(workers);
+  return settled;
 }
 
 /** Function signature for creating a chat completion (enables DI for testing). */
@@ -244,23 +291,69 @@ export async function runPass1(opts: RunPass1Options): Promise<SinglePassOutput>
   // and aggregate results. Otherwise, fall through to single-pass window path.
   const hasChunks = Array.isArray(opts.manuscriptChunks) && opts.manuscriptChunks.length > 1;
   if (hasChunks) {
-    console.log(`[Pass1] Chunk-native path: evaluating ${opts.manuscriptChunks!.length} chunks`);
-    
+    const chunksTotal = opts.manuscriptChunks!.length;
+    const chunkConcurrency = getChunkPassConcurrency();
+    const chunkCap = getChunkPassMaxPerPass();
+    const selectedChunks = chunkCap ? opts.manuscriptChunks!.slice(0, chunkCap) : opts.manuscriptChunks!;
+    const chunkEvalStartMs = nowMs();
+
+    console.log(
+      `[Pass1] Chunk-native path: total=${chunksTotal} attempted=${selectedChunks.length} concurrency=${chunkConcurrency}`,
+    );
+
+    const settled = await runChunksWithConcurrency(
+      selectedChunks,
+      chunkConcurrency,
+      async (chunk) =>
+        runPass1({
+          ...opts,
+          manuscriptText: chunk.content,
+          manuscriptChunks: undefined, // Prevent recursive chunking
+        }),
+    );
+
     const chunkResults: SinglePassOutput[] = [];
-    for (const chunk of opts.manuscriptChunks!) {
-      try {
-        const chunkResult = await runPass1(
-          {
-            ...opts,
-            manuscriptText: chunk.content,
-            manuscriptChunks: undefined, // Prevent recursive chunking
-          },
-        );
-        chunkResults.push(chunkResult);
-      } catch (error) {
-        console.error(`[Pass1] Chunk ${chunk.chunk_index} evaluation failed:`, error);
-        throw error;
+    const failures: Array<{ chunkIndex: number; reason: string }> = [];
+    for (let i = 0; i < settled.length; i += 1) {
+      const result = settled[i];
+      if (!result) continue;
+      if (result.status === "fulfilled") {
+        chunkResults.push(result.value);
+      } else {
+        failures.push({
+          chunkIndex: selectedChunks[i].chunk_index,
+          reason: String(result.reason instanceof Error ? result.reason.message : result.reason),
+        });
       }
+    }
+
+    const chunkEvalTotalMs = nowMs() - chunkEvalStartMs;
+    emitLatencyTrace({
+      job_id: opts.jobId ?? "unknown",
+      stage: "pass1",
+      state: "pass1_chunk_eval",
+      metadata: {
+        chunks_total: chunksTotal,
+        chunks_attempted: selectedChunks.length,
+        chunks_succeeded: chunkResults.length,
+        chunks_failed: failures.length,
+        chunk_concurrency: chunkConcurrency,
+        chunk_eval_total_ms: chunkEvalTotalMs,
+        chunk_cap_applied: chunkCap ? true : false,
+      },
+    });
+
+    if (chunkCap && selectedChunks.length < chunksTotal) {
+      console.warn(
+        `[Pass1] Partial chunk coverage due to EVAL_CHUNK_MAX_PER_PASS=${chunkCap} (attempted ${selectedChunks.length}/${chunksTotal})`,
+      );
+    }
+
+    if (failures.length > 0) {
+      const firstFailure = failures[0];
+      throw new Error(
+        `[Pass1] Chunk evaluation failures: failed=${failures.length}/${selectedChunks.length}; first_chunk=${firstFailure.chunkIndex}; first_error=${firstFailure.reason}`,
+      );
     }
 
     const aggregated = aggregateChunkResults(chunkResults);
