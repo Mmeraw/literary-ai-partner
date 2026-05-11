@@ -79,7 +79,7 @@ export type TimeoutScopeInputScale =
   | "multi_chapter"
   | "full_manuscript";
 
-export const LONG_FORM_TIMEOUT_FLOOR_MS = 600_000;
+export const LONG_FORM_TIMEOUT_FLOOR_MS = 1_200_000;
 
 export interface ScopedTimeoutResolution {
   inputScale: TimeoutScopeInputScale;
@@ -210,14 +210,14 @@ export function resolveEvaluationRuntimeConfig(
     max: 5,
   });
   const leaseMs = parseBoundedInteger(env, "EVAL_WORKER_LEASE_MS", {
-    defaultValue: 300000,
+    defaultValue: 600000,
     min: 30000,
-    max: 600000,
+    max: 1200000,
   });
   const maxExecutionMs = parseBoundedInteger(env, "EVAL_WORKER_MAX_EXECUTION_MS", {
-    defaultValue: 55000,
+    defaultValue: 110000,
     min: 10000,
-    max: 600000,
+    max: 1200000,
   });
 
   if (leaseMs < maxExecutionMs) {

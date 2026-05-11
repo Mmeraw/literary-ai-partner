@@ -5,18 +5,18 @@ describe("validateProductionConfig", () => {
     const result = validateProductionConfig(
       {
         NODE_ENV: "test",
-        EVAL_WORKER_LEASE_MS: "600000",
-        EVAL_WORKER_MAX_EXECUTION_MS: "610000",
+        EVAL_WORKER_LEASE_MS: "1200000",
+        EVAL_WORKER_MAX_EXECUTION_MS: "1210000",
       },
       "/workspaces/literary-ai-partner",
     );
 
     expect(result.valid).toBe(false);
     expect(result.errors).toContain(
-      "EVAL_WORKER_MAX_EXECUTION_MS (610000) must be between 10000 and 600000.",
+      "EVAL_WORKER_MAX_EXECUTION_MS (1210000) must be between 10000 and 1200000.",
     );
     expect(result.errors).toContain(
-      "Invalid worker timing: EVAL_WORKER_LEASE_MS (600000) must be >= EVAL_WORKER_MAX_EXECUTION_MS (610000).",
+      "Invalid worker timing: EVAL_WORKER_LEASE_MS (1200000) must be >= EVAL_WORKER_MAX_EXECUTION_MS (1210000).",
     );
   });
 
@@ -24,10 +24,10 @@ describe("validateProductionConfig", () => {
     const result = validateProductionConfig(
       {
         NODE_ENV: "test",
-        EVAL_OPENAI_TIMEOUT_MS: "600000",
-        EVAL_PASS_TIMEOUT_MS: "600000",
-        EVAL_WORKER_LEASE_MS: "600000",
-        EVAL_WORKER_MAX_EXECUTION_MS: "600000",
+        EVAL_OPENAI_TIMEOUT_MS: "1200000",
+        EVAL_PASS_TIMEOUT_MS: "1200000",
+        EVAL_WORKER_LEASE_MS: "1200000",
+        EVAL_WORKER_MAX_EXECUTION_MS: "1200000",
       },
       "/workspaces/literary-ai-partner",
     );
