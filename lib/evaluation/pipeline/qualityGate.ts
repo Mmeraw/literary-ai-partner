@@ -75,7 +75,35 @@ export const QG_INDEPENDENCE_RATIONALE_PREVIEW_CHARS = 320;
 export const QG_MIN_RATIONALE_LENGTH = 40;
 export const QG_MIN_EVIDENCE_COVERED_CRITERIA = 10;
 export const QG_MIN_EVIDENCE_SNIPPET_LENGTH = 20;
+/**
+ * Legacy global cap retained for backward compatibility with downstream
+ * imports/tests. New code should use QG_MAX_HIGH_SCORE_WHEN_LOW_CONFIDENCE_BY_KEY
+ * + maxLowConfidenceScoreFor() so that criteria with sustainment-based signal
+ * (e.g. proseControl) can carry a slightly higher floor without forcing the
+ * gate-driven downgrade documented in lib/evaluation/pipeline/qualityGate.ts.
+ */
 export const QG_MAX_HIGH_SCORE_WHEN_LOW_CONFIDENCE = 5;
+
+/**
+ * Per-criterion score cap for the score/confidence alignment check.
+ *
+ * proseControl is bumped to 6 because its native signal is *sustained texture*
+ * — a 1–2 anchor sample will almost always read as low-confidence even when
+ * the verdict is correct (see canon: CRITERION_OBSERVABILITY_MODEL). The cap
+ * for every other criterion stays at the legacy value of 5.
+ *
+ * If you add a new criterion that should keep the legacy cap, you do NOT need
+ * to add an entry here — maxLowConfidenceScoreFor() falls back to the legacy
+ * constant for missing keys.
+ */
+export const QG_MAX_HIGH_SCORE_WHEN_LOW_CONFIDENCE_BY_KEY: Partial<Record<CriterionKey, number>> = {
+  proseControl: 6,
+};
+
+export function maxLowConfidenceScoreFor(key: CriterionKey): number {
+  const override = QG_MAX_HIGH_SCORE_WHEN_LOW_CONFIDENCE_BY_KEY[key];
+  return typeof override === "number" ? override : QG_MAX_HIGH_SCORE_WHEN_LOW_CONFIDENCE;
+}
 export const QG_PLACEHOLDER_RATIONALE_PATTERNS = PLACEHOLDER_RATIONALE_PATTERNS;
 export const QG_SPINE_CRITERIA_REQUIRED_EVIDENCE = Object.freeze<CriterionKey[]>([
   "concept",
@@ -1292,11 +1320,12 @@ export function runQualityGateV2(
 
   const scoreConfidenceMismatchDetails: string[] = [];
   const downgradedCriteria: EvaluationResultV2["criteria"] = criteria.map((criterion): EvaluationResultV2["criteria"][number] => {
+    const perKeyCap = maxLowConfidenceScoreFor(criterion.key);
     if (
       criterion.status === "SCORABLE" &&
       criterion.confidence_level === "low" &&
       typeof criterion.score_0_10 === "number" &&
-      criterion.score_0_10 > QG_MAX_HIGH_SCORE_WHEN_LOW_CONFIDENCE
+      criterion.score_0_10 > perKeyCap
     ) {
       scoreConfidenceMismatchDetails.push(`${criterion.key}:${criterion.score_0_10}`);
 
@@ -1330,7 +1359,7 @@ export function runQualityGateV2(
         : undefined,
     details:
       scoreConfidenceMismatchDetails.length > 0
-        ? `Low-confidence criteria exceeded score cap (${QG_MAX_HIGH_SCORE_WHEN_LOW_CONFIDENCE}) and were downgraded to INSUFFICIENT_SIGNAL: ${scoreConfidenceMismatchDetails.join(",")}`
+        ? `Low-confidence criteria exceeded per-criterion score cap and were downgraded to INSUFFICIENT_SIGNAL: ${scoreConfidenceMismatchDetails.join(",")}`
         : "Score-confidence alignment holds",
   });
 

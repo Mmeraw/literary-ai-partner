@@ -15,7 +15,7 @@ import {
   summarizePromptCoverage,
 } from "../promptInput";
 
-export const PASS3_PROMPT_VERSION = "pass3-synthesis-v10-non-certified-three-and-three";
+export const PASS3_PROMPT_VERSION = "pass3-synthesis-v11-prose-control-anchor-floor";
 
 export const PASS3_SYSTEM_PROMPT = `You are Pass 3: convergence and arbitration authority.
 Rules:
@@ -59,6 +59,12 @@ Confidence/evidence: do not convert scorable criteria to N/A due to thin evidenc
 NON-CERTIFIED CRITERIA (required):
 - For proseControl/dialogue/voice when non-certified: include at least 3 verbatim evidence snippets and at least 3 concrete mechanism-level revision directions.
 - For abstraction critiques: identify the three most problematic lines/snippets and provide three targeted revision directions (rule of three).
+
+PROSE CONTROL ANCHOR FLOOR (UNCONDITIONAL — applies to every emission of proseControl, certified or not):
+- evidence[] for proseControl MUST contain >=2 distinct verbatim snippets copied character-for-character from the manuscript. Each snippet must be 20-200 characters, must show line-level texture (a sentence or clause demonstrating cadence, image density, hedges, modifier load, or rhythm), and the two snippets must come from different paragraphs.
+- recommendations[] for proseControl MUST include at least one entry whose anchor_snippet is a non-empty verbatim quote from the manuscript (this quote may equal one of the evidence snippets). An empty or rationale-only anchor_snippet is non-conforming.
+- Do NOT bury prose-control quotes inside final_rationale. Any quoted string you place in the rationale must also appear as a separate evidence[] row with the verbatim snippet.
+- These requirements apply even when both passes agree and even when the score is high — the renderer needs the anchors to certify confidence.
 
 Return ONLY JSON with keys:
 - criteria MUST be a flat array (not grouped by state).
@@ -116,6 +122,7 @@ Every recommendation MUST include the editorial specificity triple as SEPARATE J
 Every recommendation MUST satisfy the five-part contract: ANCHOR (location in text) + SYMPTOM (observable problem) + MECHANISM (causal connector: because/since/so that) + CONCRETE MOVE (replace/cut/insert/rewrite/escalate etc.) + READER EFFECT (urgency/clarity/engagement etc. in expected_impact).
 Do NOT emit two recommendations with the same strategic_lever — collapse them first.
 For criticism-style criteria (proseControl, dialogue, voice) that are non-certified, emit at least three evidence snippets and three concrete revision directions.
+Prose Control anchor floor (always): emit at least TWO distinct verbatim evidence snippets from different paragraphs of the manuscript, each 20-200 characters, plus at least one recommendation whose anchor_snippet is a verbatim quote from the manuscript. Do not place prose-control quotes only in final_rationale; mirror them into evidence[].
 Recommendation openings must be varied across criteria: no repeated first-8-token lead-ins.
 When characters are named in the manuscript, use those names (or "the narrator") in rationale/recommendations; avoid generic role labels such as "the protagonist".
 Use "narrative momentum" (or equivalent) instead of ambiguous "the drive" phrasing.

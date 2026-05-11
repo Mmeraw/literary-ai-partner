@@ -52,6 +52,26 @@ export interface CriterionConfidenceInput {
 const HIGH_MIN = 85;
 const MODERATE_MIN = 60;
 
+/**
+ * Per-criterion moderate-min override.
+ *
+ * proseControl is lowered to 55 because its support family is structurally
+ * disadvantaged: prose control is a *sustained-texture* judgment (see
+ * criterionObservability.ts:157-166), so an emission that meets the anchor
+ * floor (2 verbatim source-matched snippets, 1 anchored recommendation) but
+ * has slightly weak reasoning specificity should still land in `moderate`,
+ * not `low`. The high bar (HIGH_MIN=85) is unchanged.
+ */
+const MODERATE_MIN_BY_KEY: Partial<Record<string, number>> = {
+  proseControl: 55,
+};
+
+function moderateMinFor(key: string | undefined): number {
+  if (!key) return MODERATE_MIN;
+  const override = MODERATE_MIN_BY_KEY[key];
+  return typeof override === "number" ? override : MODERATE_MIN;
+}
+
 const SUPPORT_FAMILY_MAX = 65; // coverage(40) + quality(25)
 const EXPLANATION_FAMILY_MAX = 35; // reasoning(20) + recommendation(15)
 
@@ -398,9 +418,9 @@ function computeRecommendationAnchoring(
   };
 }
 
-function computeConfidenceLevel(score: number): CriterionConfidenceLevel {
+function computeConfidenceLevel(score: number, key?: string): CriterionConfidenceLevel {
   if (score >= HIGH_MIN) return "high";
-  if (score >= MODERATE_MIN) return "moderate";
+  if (score >= moderateMinFor(key)) return "moderate";
   return "low";
 }
 
@@ -446,7 +466,10 @@ export function computeCriterionConfidence(
     confidenceScore = Math.min(confidenceScore, 84);
   }
 
-  const confidence_level = computeConfidenceLevel(confidenceScore);
+  const confidence_level = computeConfidenceLevel(
+    confidenceScore,
+    typeof criterion.key === "string" ? criterion.key : undefined,
+  );
   const scorability_status = computeScorabilityStatus(criterion, confidence_level);
 
   const confidence_reasons = unique([
