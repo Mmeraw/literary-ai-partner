@@ -68,9 +68,9 @@ describe("resolveEvaluationTimeoutConfig", () => {
     }, {});
 
     expect(config.passTimeout.reason).toBe("clamped_to_max");
-    expect(config.passTimeout.valueMs).toBe(180000);
+    expect(config.passTimeout.valueMs).toBe(600000);
     expect(config.openAiTimeout.reason).toBe("clamped_to_max");
-    expect(config.openAiTimeout.valueMs).toBe(180000);
+    expect(config.openAiTimeout.valueMs).toBe(600000);
   });
 
   it("detects when explicit env values override local env file baselines", () => {
