@@ -333,6 +333,8 @@ export interface RunPass3Options {
   registry: CanonRegistry;
   model?: string;
   openaiApiKey?: string;
+  /** Optional provider timeout override from pipeline-level scoped resolution. */
+  openAiTimeoutMs?: number;
   /** Override the completion function (for testing). Production callers omit this. */
   _createCompletion?: CreateCompletionFn;
   _onCompletion?: (capture: PassCompletionCapture) => void;
@@ -348,7 +350,7 @@ export async function runPass3Synthesis(opts: RunPass3Options): Promise<Synthesi
     throw new Error("[Pass3] Canonical registry binding missing");
   }
 
-  const createCompletion = opts._createCompletion ?? defaultCreateCompletion(opts.openaiApiKey);
+  const createCompletion = opts._createCompletion ?? defaultCreateCompletion(opts.openaiApiKey, opts.openAiTimeoutMs);
   const selectedModel = getCanonicalPass3Model(opts.model);
 
   const comparisonPacket = buildComparisonPacket(opts.pass1, opts.pass2, {
@@ -552,12 +554,12 @@ export async function runPass3Synthesis(opts: RunPass3Options): Promise<Synthesi
  * Build the default OpenAI completion function.
  * Separated so the constructor is only called when no DI override is provided.
  */
-function defaultCreateCompletion(openaiApiKey?: string): CreateCompletionFn {
+function defaultCreateCompletion(openaiApiKey?: string, openAiTimeoutMs?: number): CreateCompletionFn {
   const apiKey = openaiApiKey ?? getEvaluationRuntimeConfig().openaiApiKey;
   if (!apiKey) {
     throw new Error("[Pass3] OPENAI_API_KEY is not configured");
   }
-  const timeoutMs = getEvalOpenAiTimeoutMs();
+  const timeoutMs = openAiTimeoutMs ?? getEvalOpenAiTimeoutMs();
   const openai = new OpenAI({ apiKey, maxRetries: OPENAI_SDK_MAX_RETRIES, timeout: timeoutMs });
   return (params) =>
     openai.chat.completions.create(

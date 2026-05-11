@@ -314,6 +314,8 @@ describe("processEvaluationJob long-form chunk routing", () => {
     ].join("\n");
     expect(runPipelineArgs).toEqual(
       expect.objectContaining({
+        _passTimeoutMs: 600000,
+        _openAiTimeoutMs: 600000,
         manuscriptChunks: [
           { chunk_index: 0, content: "Chunk 0 text" },
           { chunk_index: 1, content: "Chunk 1 text" },
@@ -398,6 +400,9 @@ describe("processEvaluationJob long-form chunk routing", () => {
     expect(ensureChunksFromTextMock).not.toHaveBeenCalled();
     expect(ensureChunksMock).not.toHaveBeenCalled();
     expect(runPipelineMock).toHaveBeenCalledTimes(1);
+    const runPipelineArgs = runPipelineMock.mock.calls[0]?.[0];
+    expect(runPipelineArgs?._passTimeoutMs).toBe(runPipelineArgs?._openAiTimeoutMs);
+    expect(runPipelineArgs?._passTimeoutMs).toBeLessThanOrEqual(600000);
 
     const persistCall = supabaseStub.rpcCalls.find(
       (call: { fn: string }) => call.fn === "persist_evaluation_v2_atomic",

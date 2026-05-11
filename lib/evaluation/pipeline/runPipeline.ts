@@ -111,6 +111,8 @@ export interface RunPipelineOptions {
   perplexityApiKey?: string;
   /** Per-pass timeout. Defaults to 60s. */
   _passTimeoutMs?: number;
+  /** Per-pass provider timeout override forwarded to pass runners. */
+  _openAiTimeoutMs?: number;
   /** Maximum accepted manuscript size. Defaults to 1,000,000 chars. */
   _maxManuscriptChars?: number;
   /**
@@ -319,6 +321,10 @@ function validatePipelineInput(opts: RunPipelineOptions): string | null {
 
   if (opts._passTimeoutMs !== undefined && (!Number.isInteger(opts._passTimeoutMs) || opts._passTimeoutMs <= 0)) {
     return "_passTimeoutMs must be a positive integer";
+  }
+
+  if (opts._openAiTimeoutMs !== undefined && (!Number.isInteger(opts._openAiTimeoutMs) || opts._openAiTimeoutMs <= 0)) {
+    return "_openAiTimeoutMs must be a positive integer";
   }
 
   return null;
@@ -592,6 +598,7 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
       executionMode: opts.executionMode,
       openaiApiKey: opts.openaiApiKey,
       jobId: opts.jobId,
+      openAiTimeoutMs: opts._openAiTimeoutMs,
       registry,
             scopeProfile: scopeProfile ?? undefined,
     }),
@@ -633,6 +640,7 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
       openaiApiKey: opts.openaiApiKey,
       manuscriptId: opts.manuscriptId,
       jobId: opts.jobId,
+      openAiTimeoutMs: opts._openAiTimeoutMs,
       registry,
             scopeProfile: scopeProfile ?? undefined,
     }),
@@ -870,6 +878,7 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
         executionMode: opts.executionMode,
         model: opts.model,
         openaiApiKey: opts.openaiApiKey,
+        openAiTimeoutMs: opts._openAiTimeoutMs,
         registry,
               scopeProfile: scopeProfile ?? undefined,
       }),
