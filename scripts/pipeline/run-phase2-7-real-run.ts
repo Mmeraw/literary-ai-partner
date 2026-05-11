@@ -307,6 +307,13 @@ async function main(): Promise<void> {
   };
   writeFileSync(join(outputDir, "usage.json"), JSON.stringify(usage, null, 2), "utf8");
 
+  const resolvedRouting = {
+    pass1Model: getCanonicalPass1Model(model),
+    pass2Model: getCanonicalPass2Model(model),
+    pass3Model: getCanonicalPass3Model(model),
+    pass3FallbackModel: getCanonicalPass3FallbackModel(model),
+  };
+
   const metadata = {
     phase: "2.7",
     run_type: "real_manuscript",
@@ -314,11 +321,14 @@ async function main(): Promise<void> {
     source_title: title,
     work_type: workType,
     model,
+    routing: resolvedRouting,
     pass_timeout_ms: passTimeoutMs ?? null,
     word_count: wordCount,
     generated_at: new Date().toISOString(),
     output_dir: outputDir,
     quality_gate_pass: qualityGate?.pass ?? false,
+    // Recovery metadata from pipeline result (populated when PR1 retry/fallback logic is active)
+    recovery: "recovery" in pipelineResult ? pipelineResult.recovery : undefined,
     pass3_telemetry_artifact: capturedPasses.pass3?.pass3_reducer_telemetry
       ? join(outputDir, "pass3_telemetry.json")
       : null,

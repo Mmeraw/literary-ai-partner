@@ -77,6 +77,13 @@ import {
 } from "@/lib/observability/latencyTrace";
 import { JsonBoundaryError } from "@/lib/llm/jsonParseBoundary";
 import { summarizePropagationIntegrity } from "./propagationIntegrity";
+import {
+  getCanonicalPass1Model,
+  getCanonicalPass2Model,
+  getCanonicalPass3Model,
+  getCanonicalPass3FallbackModel,
+} from "@/lib/evaluation/policy";
+import type { PipelineResultRouting } from "./types";
 import type {
   RuleEvaluationInput,
   RuleStage,
@@ -377,6 +384,14 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
   const pipelineStartMs = nowMs();
   const timings: PipelineTimings = {};
   const latencyJobId = String(opts.jobId ?? opts.manuscriptId ?? 'pipeline-only');
+
+  // Resolve per-pass routing once at pipeline start for audit traceability.
+  const pipelineRouting: PipelineResultRouting = {
+    pass1Model: getCanonicalPass1Model(opts.model),
+    pass2Model: getCanonicalPass2Model(opts.model),
+    pass3Model: getCanonicalPass3Model(opts.model),
+    pass3FallbackModel: getCanonicalPass3FallbackModel(opts.model),
+  };
 
   const _runPass1 = opts._runners?.runPass1 ?? defaultRunPass1;
   const _runPass2 = opts._runners?.runPass2 ?? defaultRunPass2;
@@ -1191,6 +1206,7 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
     quality_gate: qualityGate,
     cross_check: crossCheckResult,
     pass4_governance: pass4Governance,
+    routing: pipelineRouting,
   };
 }
 
