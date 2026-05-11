@@ -1224,6 +1224,7 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
 
 export interface SynthesisToEvaluationResultOptions {
   synthesis: SynthesisOutput;
+  title?: string;
   ids: {
     evaluation_run_id: string;
     job_id?: string;
