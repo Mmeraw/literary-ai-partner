@@ -314,8 +314,6 @@ describe("processEvaluationJob long-form chunk routing", () => {
     ].join("\n");
     expect(runPipelineArgs).toEqual(
       expect.objectContaining({
-        _passTimeoutMs: 600000,
-        _openAiTimeoutMs: 600000,
         manuscriptChunks: [
           { chunk_index: 0, content: "Chunk 0 text" },
           { chunk_index: 1, content: "Chunk 1 text" },
@@ -336,6 +334,13 @@ describe("processEvaluationJob long-form chunk routing", () => {
         final_text_source: "long_form_post_chunk_canonical",
         post_chunk_reresolved: true,
         canonical_path_used: "resolveManuscriptText.post_chunk_reconstruct",
+        timeout_resolution: expect.objectContaining({
+          input_scale: "full_manuscript",
+          floor_applied: true,
+          floor_ms: 600000,
+          resolved_pass_timeout_ms: 600000,
+          resolved_openai_timeout_ms: 600000,
+        }),
         chunk_routing: expect.objectContaining({
           enabled: true,
           route: "long_form",
@@ -400,9 +405,6 @@ describe("processEvaluationJob long-form chunk routing", () => {
     expect(ensureChunksFromTextMock).not.toHaveBeenCalled();
     expect(ensureChunksMock).not.toHaveBeenCalled();
     expect(runPipelineMock).toHaveBeenCalledTimes(1);
-    const runPipelineArgs = runPipelineMock.mock.calls[0]?.[0];
-    expect(runPipelineArgs?._passTimeoutMs).toBe(runPipelineArgs?._openAiTimeoutMs);
-    expect(runPipelineArgs?._passTimeoutMs).toBeLessThanOrEqual(600000);
 
     const persistCall = supabaseStub.rpcCalls.find(
       (call: { fn: string }) => call.fn === "persist_evaluation_v2_atomic",
@@ -412,6 +414,10 @@ describe("processEvaluationJob long-form chunk routing", () => {
       final_text_source: "short_form_initial_text",
       post_chunk_reresolved: false,
       canonical_path_used: "resolveManuscriptText.initial",
+      timeout_resolution: {
+        input_scale: "standard_chapter",
+        floor_applied: false,
+      },
       chunk_routing: {
         enabled: true,
         route: "short_form",
@@ -428,6 +434,18 @@ describe("processEvaluationJob long-form chunk routing", () => {
     );
     expect(persistCall?.args?.p_progress?.chunk_routing).not.toHaveProperty("chunk_source");
     expect(persistCall?.args?.p_progress?.chunk_routing).not.toHaveProperty("verified_at");
+
+    const timeoutResolution = persistCall?.args?.p_progress?.timeout_resolution as
+      | {
+          base_pass_timeout_ms?: number;
+          resolved_pass_timeout_ms?: number;
+          base_openai_timeout_ms?: number;
+          resolved_openai_timeout_ms?: number;
+        }
+      | undefined;
+
+    expect(timeoutResolution?.resolved_pass_timeout_ms).toBe(timeoutResolution?.base_pass_timeout_ms);
+    expect(timeoutResolution?.resolved_openai_timeout_ms).toBe(timeoutResolution?.base_openai_timeout_ms);
   });
 
   test("long_form + persisted_chunk_count = 0 fails with LONG_FORM_CHUNK_MATERIALIZATION_FAILED and does not run pipeline", async () => {
