@@ -23,6 +23,17 @@ export class EvaluationRuntimeConfigError extends Error {
   }
 }
 
+export interface EvaluationPassRouting {
+  /** Resolved model for Pass 1 chunk evaluation. */
+  pass1Model: string;
+  /** Resolved model for Pass 2 chunk evaluation. */
+  pass2Model: string;
+  /** Resolved model for Pass 3 synthesis. */
+  pass3Model: string;
+  /** Resolved fallback model when Pass 3 primary route fails. */
+  pass3FallbackModel: string;
+}
+
 export interface EvaluationRuntimeConfig {
   model: string;
   adjudicationMode: ExternalAdjudicationMode;
@@ -57,6 +68,8 @@ export interface EvaluationRuntimeConfig {
     hostname?: string;
   };
   timeouts: EvaluationTimeoutConfig;
+  /** Resolved per-pass model routing. Single canonical source of truth. */
+  routing: EvaluationPassRouting;
 }
 
 function parseStrictInteger(raw: string, name: string): number {
@@ -171,6 +184,21 @@ export function resolveEvaluationRuntimeConfig(
 
   const nodeEnv = envContract.nodeEnv;
 
+  // Resolve per-pass routing from env vars. Uses the same priority chain as policy.ts
+  // model resolvers but without the circular import (policy.ts imports this module).
+  function resolvePassModel(envKeys: string[]): string {
+    for (const key of envKeys) {
+      const v = env[key];
+      if (typeof v === "string" && v.trim().length > 0) return v.trim();
+    }
+    return model;
+  }
+
+  const pass1Model = resolvePassModel(["EVAL_PASS1_MODEL", "EVAL_CHUNK_MODEL"]);
+  const pass2Model = resolvePassModel(["EVAL_PASS2_MODEL", "EVAL_CHUNK_MODEL"]);
+  const pass3Model = resolvePassModel(["EVAL_PASS3_MODEL", "EVAL_SYNTHESIS_MODEL"]);
+  const pass3FallbackModel = resolvePassModel(["EVAL_PASS3_FALLBACK_MODEL", "EVAL_PASS3_MODEL", "EVAL_SYNTHESIS_MODEL"]);
+
   return {
     model,
     adjudicationMode,
@@ -239,6 +267,12 @@ export function resolveEvaluationRuntimeConfig(
       hostname: env.HOSTNAME,
     },
     timeouts,
+    routing: {
+      pass1Model,
+      pass2Model,
+      pass3Model,
+      pass3FallbackModel,
+    },
   };
 }
 

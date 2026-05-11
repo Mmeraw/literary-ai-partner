@@ -153,6 +153,25 @@ export function getCanonicalSynthesisModel(overrideModel?: string): string {
   return resolveEnvBackedModel(["EVAL_SYNTHESIS_MODEL"], overrideModel);
 }
 
+/**
+ * Pass 3 fallback model resolver.
+ *
+ * Used when the primary Pass 3 route fails with a retryable or schema error and
+ * the pipeline needs to route to a configured stronger model.
+ *
+ * Resolution order:
+ *  1) EVAL_PASS3_FALLBACK_MODEL (non-empty)
+ *  2) falls back to the primary Pass 3 model (EVAL_PASS3_MODEL chain)
+ */
+export function getCanonicalPass3FallbackModel(overrideModel?: string): string {
+  const envValue = process.env.EVAL_PASS3_FALLBACK_MODEL;
+  if (typeof envValue === "string" && envValue.trim().length > 0) {
+    return getCanonicalPipelineModel(envValue);
+  }
+  // Fall back to primary pass3 model when no explicit fallback is configured.
+  return getCanonicalPass3Model(overrideModel);
+}
+
 export function getExternalAdjudicationMode(): ExternalAdjudicationMode {
   return getEvaluationRuntimeConfig().adjudicationMode;
 }
