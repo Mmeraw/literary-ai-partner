@@ -18,7 +18,7 @@ import type { CanonRegistry } from "@/lib/governance/canonRegistry";
 import {
   buildOpenAIOutputTokenParam,
   buildOpenAITemperatureParam,
-  getCanonicalChunkModel,
+  getCanonicalPass2Model,
   OPENAI_SDK_MAX_RETRIES,
 } from "@/lib/evaluation/policy";
 import { getEvalOpenAiTimeoutMs } from "@/lib/evaluation/config";
@@ -30,8 +30,8 @@ const PASS2_TEMPERATURE = 0.3;
 const DEFAULT_CHUNK_PASS_CONCURRENCY = 5;
 const DEFAULT_CHUNK_RETRY_MAX = 3;
 const DEFAULT_CHUNK_RETRY_BASE_MS = 10000;
-// Pass 2 model is resolved via getCanonicalChunkModel(opts.model), allowing
-// EVAL_CHUNK_MODEL to control high-volume map-phase calls.
+// Pass 2 model is resolved via getCanonicalPass2Model(opts.model), allowing
+// EVAL_PASS2_MODEL (or EVAL_CHUNK_MODEL fallback) to control high-volume map-phase calls.
 
 function getRetryPass2MaxTokens(currentMaxTokens: number): number {
   return Math.min(8000, Math.max(4000, currentMaxTokens + 1500));
@@ -335,7 +335,7 @@ export async function runPass2(opts: RunPass2Options): Promise<SinglePassOutput>
   }
 
   const passStartMs = nowMs();
-  const selectedModel = getCanonicalChunkModel(opts.model);
+  const selectedModel = getCanonicalPass2Model(opts.model);
 
   if (!opts.registry || opts.registry.size === 0) {
     throw new Error("[Pass2] Canonical registry binding missing");
@@ -717,7 +717,7 @@ export function parsePass2Response(raw: string, fallbackModel?: string): SingleP
   const resolvedFallback =
     typeof fallbackModel === "string" && fallbackModel.length > 0
       ? fallbackModel
-      : getCanonicalChunkModel(undefined);
+      : getCanonicalPass2Model(undefined);
   // P0: Log raw response preview before parse
   console.log(`[Pass2] raw response preview len=${raw.length}: ${raw.slice(0, 200)}`);
 

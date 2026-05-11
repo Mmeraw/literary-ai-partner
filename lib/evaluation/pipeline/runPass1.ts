@@ -16,7 +16,7 @@ import type { CanonRegistry } from "@/lib/governance/canonRegistry";
 import {
   buildOpenAIOutputTokenParam,
   buildOpenAITemperatureParam,
-  getCanonicalChunkModel,
+  getCanonicalPass1Model,
   OPENAI_SDK_MAX_RETRIES,
 } from "@/lib/evaluation/policy";
 import { getEvalOpenAiTimeoutMs } from "@/lib/evaluation/config";
@@ -39,13 +39,14 @@ const DEFAULT_CHUNK_RETRY_BASE_MS = 10000;
  * Pass 1 model is not caller-controlled.
  *
  * Resolution order:
- *  1) EVAL_CHUNK_MODEL (for map-phase throughput)
- *  2) default baseline model (gpt-4o)
+ *  1) EVAL_PASS1_MODEL
+ *  2) EVAL_CHUNK_MODEL
+ *  3) default baseline model (gpt-4o)
  */
 const PASS1_DEFAULT_MODEL = "gpt-4o";
 
 function resolvePass1Model(): string {
-  return getCanonicalChunkModel(PASS1_DEFAULT_MODEL);
+  return getCanonicalPass1Model(PASS1_DEFAULT_MODEL);
 }
 
 function nowMs(): number {

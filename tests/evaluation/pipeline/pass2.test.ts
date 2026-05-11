@@ -182,6 +182,47 @@ describe("runPass2", () => {
     );
   });
 
+  it("prefers EVAL_PASS2_MODEL over chunk/default routing", async () => {
+    const previousPass2Model = process.env.EVAL_PASS2_MODEL;
+    const previousChunkModel = process.env.EVAL_CHUNK_MODEL;
+    process.env.EVAL_PASS2_MODEL = "gpt-5-mini";
+    process.env.EVAL_CHUNK_MODEL = "gpt-4.1-mini";
+
+    let requestedModel: string | undefined;
+    const captureCompletion: CreateCompletionFn = async (params) => {
+      requestedModel = params.model;
+      return {
+        choices: [{ message: { content: JSON.stringify(makePass2Fixture()) } }],
+      };
+    };
+
+    try {
+      const result = await runPass2({
+        manuscriptText: "She reached for the door handle, her hand trembling.",
+        workType: "literary_fiction",
+        title: "Test Manuscript",
+        registry,
+        openaiApiKey: "sk-test",
+        _createCompletion: captureCompletion,
+      });
+
+      expect(requestedModel).toBe("gpt-5-mini");
+      expect(result.model).toBe("gpt-5-mini");
+    } finally {
+      if (previousPass2Model === undefined) {
+        delete process.env.EVAL_PASS2_MODEL;
+      } else {
+        process.env.EVAL_PASS2_MODEL = previousPass2Model;
+      }
+
+      if (previousChunkModel === undefined) {
+        delete process.env.EVAL_CHUNK_MODEL;
+      } else {
+        process.env.EVAL_CHUNK_MODEL = previousChunkModel;
+      }
+    }
+  });
+
   it("does NOT accept pass1 data in its options (type-level independence)", () => {
     // RunPass2Options must not have a pass1 / pass1Output parameter
     const opts: RunPass2Options = {
