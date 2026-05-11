@@ -1,7 +1,10 @@
 import { describe, expect, it } from "@jest/globals";
 import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
 import { buildComparisonPacket } from "@/lib/evaluation/pipeline/comparisonPacket";
-import { buildDivergenceDiagnosticArtifact } from "@/lib/evaluation/pipeline/divergenceDiagnostics";
+import {
+  buildDivergenceDiagnosticArtifact,
+  derivePass3CriteriaCountByStateFromRawResponse,
+} from "@/lib/evaluation/pipeline/divergenceDiagnostics";
 import type { SinglePassOutput, Pass3CriteriaCountByState } from "@/lib/evaluation/pipeline/types";
 
 function makePass(pass: 1 | 2, axis: "craft_execution" | "editorial_literary"): SinglePassOutput {
@@ -129,5 +132,28 @@ describe("buildDivergenceDiagnosticArtifact", () => {
     });
 
     expect(zeroLength.comparison_packet_retained_ratio).toBe(0);
+  });
+
+  it("derives post-synthesis criterion counts from raw pass3 response deterministically", () => {
+    const rawResponseText = JSON.stringify({
+      criteria: [
+        { key: "concept", craft_score: 7, editorial_score: 7 },
+        { key: "voice", craft_score: 8, editorial_score: 6 },
+        { key: "dialogue", craft_score: 9, editorial_score: 4 },
+        { key: "tone", craft_score: null, editorial_score: 6 },
+      ],
+    });
+
+    const counts = derivePass3CriteriaCountByStateFromRawResponse({
+      rawResponseText,
+      fallback: { agree: 0, soft_divergence: 0, hard_divergence: 0, missing_or_invalid: 0 },
+    });
+
+    expect(counts).toEqual({
+      agree: 1,
+      soft_divergence: 1,
+      hard_divergence: 1,
+      missing_or_invalid: 1,
+    });
   });
 });

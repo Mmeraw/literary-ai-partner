@@ -32,6 +32,75 @@ function buildRationaleOverlapCount(pass1Rationale: string, pass2Rationale: stri
   return overlap;
 }
 
+function classifyFromScores(craftScore: unknown, editorialScore: unknown): Pass3CriteriaCountByState[keyof Pass3CriteriaCountByState] extends never ? never : "agree" | "soft_divergence" | "hard_divergence" | "missing_or_invalid" {
+  if (
+    typeof craftScore !== "number" ||
+    !Number.isFinite(craftScore) ||
+    typeof editorialScore !== "number" ||
+    !Number.isFinite(editorialScore)
+  ) {
+    return "missing_or_invalid";
+  }
+
+  const delta = Math.abs(craftScore - editorialScore);
+  if (delta <= 1) return "agree";
+  if (delta <= 3) return "soft_divergence";
+  return "hard_divergence";
+}
+
+function tryParseRawResponse(rawResponseText: string): unknown {
+  const trimmed = rawResponseText.trim();
+  if (!trimmed) return null;
+
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    // Tolerate fenced responses without affecting runtime control flow.
+    const fenceMatch = trimmed.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+    if (!fenceMatch?.[1]) return null;
+    try {
+      return JSON.parse(fenceMatch[1]);
+    } catch {
+      return null;
+    }
+  }
+}
+
+export function derivePass3CriteriaCountByStateFromRawResponse(args: {
+  rawResponseText: string;
+  fallback: Pass3CriteriaCountByState;
+}): Pass3CriteriaCountByState {
+  const parsed = tryParseRawResponse(args.rawResponseText);
+  if (typeof parsed !== "object" || parsed === null) {
+    return args.fallback;
+  }
+
+  const record = parsed as Record<string, unknown>;
+  if (!Array.isArray(record.criteria)) {
+    return args.fallback;
+  }
+
+  const counts: Pass3CriteriaCountByState = {
+    agree: 0,
+    soft_divergence: 0,
+    hard_divergence: 0,
+    missing_or_invalid: 0,
+  };
+
+  for (const item of record.criteria) {
+    if (typeof item !== "object" || item === null) {
+      counts.missing_or_invalid += 1;
+      continue;
+    }
+
+    const row = item as Record<string, unknown>;
+    const state = classifyFromScores(row.craft_score, row.editorial_score);
+    counts[state] += 1;
+  }
+
+  return counts;
+}
+
 export function buildDivergenceDiagnosticArtifact(
   args: BuildDivergenceDiagnosticArtifactArgs,
 ): DivergenceDiagnosticArtifact {

@@ -29,7 +29,10 @@ import {
   OPENAI_SDK_MAX_RETRIES,
 } from "@/lib/evaluation/policy";
 import { buildComparisonPacket } from "./comparisonPacket";
-import { buildDivergenceDiagnosticArtifact } from "./divergenceDiagnostics";
+import {
+  buildDivergenceDiagnosticArtifact,
+  derivePass3CriteriaCountByStateFromRawResponse,
+} from "./divergenceDiagnostics";
 import { getEvalOpenAiTimeoutMs } from "@/lib/evaluation/config";
 import { summarizePromptCoverage, getDefaultSynthesisReferenceCharBudget } from "./promptInput";
 import { PLACEHOLDER_RATIONALE_PATTERNS } from "./placeholderRationalePatterns";
@@ -354,14 +357,6 @@ export async function runPass3Synthesis(opts: RunPass3Options): Promise<Synthesi
   });
   const promptPacket = buildPromptPacketFromComparison(comparisonPacket);
   const comparisonPacketJson = JSON.stringify(promptPacket);
-  const divergenceDiagnosticArtifact = buildDivergenceDiagnosticArtifact({
-    pass1: opts.pass1,
-    pass2: opts.pass2,
-    comparisonPacket,
-    manuscriptText: opts.manuscriptText,
-    comparisonPacketChars: comparisonPacketJson.length,
-    pass3CriteriaCountByState: comparisonPacket.criteria_count_by_state,
-  });
   const reducerTelemetry = {
     criteria_count_by_state: comparisonPacket.criteria_count_by_state,
   };
@@ -394,7 +389,6 @@ export async function runPass3Synthesis(opts: RunPass3Options): Promise<Synthesi
     user_prompt_chars: userPrompt.length,
     max_output_tokens: getEvaluationRuntimeConfig().pass.pass3MaxTokens,
     compression_governance_state: null, // Will be set by classifier below
-    divergence_diagnostics: divergenceDiagnosticArtifact,
   };
 
   // Phase 1: seed-band divergence-collapse governance classifier
@@ -497,6 +491,20 @@ export async function runPass3Synthesis(opts: RunPass3Options): Promise<Synthesi
   });
 
   const finishReason = typeof firstChoice?.finish_reason === "string" ? firstChoice.finish_reason : "unknown";
+
+  const inferredPostSynthesisCounts = derivePass3CriteriaCountByStateFromRawResponse({
+    rawResponseText: responseText,
+    fallback: comparisonPacket.criteria_count_by_state,
+  });
+
+  pass3ReducerTelemetry.divergence_diagnostics = buildDivergenceDiagnosticArtifact({
+    pass1: opts.pass1,
+    pass2: opts.pass2,
+    comparisonPacket,
+    manuscriptText: opts.manuscriptText,
+    comparisonPacketChars: comparisonPacketJson.length,
+    pass3CriteriaCountByState: inferredPostSynthesisCounts,
+  });
 
   let synthesis: SynthesisOutput;
   try {
