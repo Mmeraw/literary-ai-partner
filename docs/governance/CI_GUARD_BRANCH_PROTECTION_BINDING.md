@@ -1,6 +1,6 @@
 # CI Guard Branch Protection Binding
 
-**Status**: BOUND / VERIFIED
+**Status**: BOUND / VERIFICATION INCOMPLETE
 **Visibility**: [PROTECTED]
 **Repository**: Mmeraw/literary-ai-partner
 **Branch**: main
@@ -48,8 +48,10 @@ Drift is itself a governance event and must be addressed before any further enfo
 - 2026-05-10: Exact required check name confirmed as `CI Guard/ci-guard (pull_request)`.
 - 2026-05-10: Admin binding pending.
 - 2026-05-10: Admin binding completed and verified.
+- 2026-05-10: Rejection drill #430 showed `CI Guard/ci-guard (pull_request)` failed as expected, but PR merged anyway. Drift condition triggered.
+- 2026-05-10: Branch settings review showed classic branch protection was not configured on `main`; required-check enforcement was advisory only.
+- 2026-05-10: [PENDING] Configure classic branch protection on `main` with `CI Guard/ci-guard (pull_request)` required and bypass disabled; then rerun safe non-merge rejection drill.
 
 ## Refs
 
-Refs #416, #417, #418, #419, #420, #421, #422, #423
-- 2026-05-10: Admin binding completed and verified.
+Refs #416, #417, #418, #419, #420, #421, #422, #423, #424, #425, #426, #427, #428, #429, #430, #431
