@@ -88,6 +88,11 @@ import {
 } from '@/lib/evaluation/config';
 import { getEvaluationRuntimeConfig } from '@/lib/config/evaluationRuntimeConfig';
 import {
+  LONG_FORM_TIMEOUT_FLOOR_MS,
+  resolveScopedEvaluationTimeouts,
+  type TimeoutScopeInputScale,
+} from '@/lib/config/evaluationRuntimeConfig';
+import {
   emitLatencyTrace,
   finishLatencyStage,
   startLatencyStage,
@@ -1822,6 +1827,41 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
       ...chunkRouting,
     });
 
+    const timeoutScopeProfile = classifySubmissionScope(
+      resolvedManuscriptText,
+      chunkRouting.chunk_count,
+    );
+
+    const timeoutResolution = resolveScopedEvaluationTimeouts({
+      inputScale: timeoutScopeProfile.inputScale as TimeoutScopeInputScale,
+      passTimeoutMs: evalPassTimeoutMs,
+      openAiTimeoutMs: evalOpenAiTimeoutMs,
+      floorMs: LONG_FORM_TIMEOUT_FLOOR_MS,
+    });
+
+    progressState.timeout_resolution = {
+      input_scale: timeoutResolution.inputScale,
+      floor_applied: timeoutResolution.floorApplied,
+      floor_ms: timeoutResolution.floorMs,
+      base_pass_timeout_ms: timeoutResolution.basePassTimeoutMs,
+      base_openai_timeout_ms: timeoutResolution.baseOpenAiTimeoutMs,
+      resolved_pass_timeout_ms: timeoutResolution.passTimeoutMs,
+      resolved_openai_timeout_ms: timeoutResolution.openAiTimeoutMs,
+    };
+
+    console.log('[Processor][TimeoutResolution]', {
+      job_id: jobId,
+      manuscript_id: manuscriptWithContent.id,
+      input_scale: timeoutResolution.inputScale,
+      manuscript_words: timeoutScopeProfile.wordCount,
+      floor_applied: timeoutResolution.floorApplied,
+      floor_ms: timeoutResolution.floorMs,
+      base_pass_timeout_ms: timeoutResolution.basePassTimeoutMs,
+      base_openai_timeout_ms: timeoutResolution.baseOpenAiTimeoutMs,
+      resolved_pass_timeout_ms: timeoutResolution.passTimeoutMs,
+      resolved_openai_timeout_ms: timeoutResolution.openAiTimeoutMs,
+    });
+
     // 4. Canonical evaluation via governed multi-pass pipeline (fail-closed)
     await markRunning('Running canonical evaluation pipeline', 1, executionPhase);
 
@@ -1846,7 +1886,7 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
       return { success: false, error: missingCrossCheckConfigError };
     }
 
-    console.log(`[Processor] ${jobId}: ENTER runPipeline model=${getCanonicalPipelineModel(openAiModel)} passTimeoutMs=${evalPassTimeoutMs}`);
+    console.log(`[Processor] ${jobId}: ENTER runPipeline model=${getCanonicalPipelineModel(openAiModel)} passTimeoutMs=${timeoutResolution.passTimeoutMs}`);
     const runPipelineStartedAt = startLatencyStage({
       jobId,
       stage: 'pipeline_run',
@@ -1892,7 +1932,8 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
         perplexityApiKey: perplexityApiKey || undefined,
         manuscriptId: String(manuscriptWithContent.id),
         executionMode: 'TRUSTED_PATH',
-        _passTimeoutMs: evalPassTimeoutMs,
+        _passTimeoutMs: timeoutResolution.passTimeoutMs,
+        _openAiTimeoutMs: timeoutResolution.openAiTimeoutMs,
         onHeartbeat: async (stage) => {
           await assertJobWithinSla({
             supabase,

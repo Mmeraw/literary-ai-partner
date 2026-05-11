@@ -343,6 +343,8 @@ export interface RunPass1Options {
    * Omit (undefined) to fall back to getEvaluationRuntimeConfig().openaiApiKey.
    */
   openaiApiKey?: string | null;
+  /** Optional provider timeout override from pipeline-level scoped resolution. */
+  openAiTimeoutMs?: number;
   /** Job ID forwarded from the processor for latency trace correlation. */
   jobId?: string;
   /** Override the completion function (for testing). Production callers omit this. */
@@ -497,7 +499,8 @@ export async function runPass1(opts: RunPass1Options): Promise<SinglePassOutput>
   // Falls back to building a sampled window when chunks are not available
   // or when manuscript is small enough to fit in single evaluation.
 
-  const createCompletion = opts._createCompletion ?? defaultCreateCompletion(opts.openaiApiKey);
+  const effectiveOpenAiTimeoutMs = opts.openAiTimeoutMs ?? getEvalOpenAiTimeoutMs();
+  const createCompletion = opts._createCompletion ?? defaultCreateCompletion(opts.openaiApiKey, effectiveOpenAiTimeoutMs);
 
   const promptAssemblyStartMs = nowMs();
 
@@ -632,7 +635,7 @@ export async function runPass1(opts: RunPass1Options): Promise<SinglePassOutput>
         model_call_ms: modelCallMs,
         parse_validation_ms: parseValidationMs,
         total_ms: totalMs,
-        configured_timeout_ms: getEvalOpenAiTimeoutMs(),
+        configured_timeout_ms: effectiveOpenAiTimeoutMs,
         configured_max_tokens: configuredMaxTokens,
         active_max_tokens: activeMaxTokens,
         retried_for_length: retriedForLength,
@@ -712,7 +715,7 @@ export async function runPass1(opts: RunPass1Options): Promise<SinglePassOutput>
       model_call_ms: modelCallMs,
       parse_validation_ms: parseValidationMs,
       total_ms: totalMs,
-      configured_timeout_ms: getEvalOpenAiTimeoutMs(),
+      configured_timeout_ms: effectiveOpenAiTimeoutMs,
       configured_max_tokens: configuredMaxTokens,
       active_max_tokens: activeMaxTokens,
       retried_for_length: retriedForLength,
@@ -729,14 +732,14 @@ export async function runPass1(opts: RunPass1Options): Promise<SinglePassOutput>
  * Build the default OpenAI completion function.
  * Separated so the constructor is only called when no DI override is provided.
  */
-function defaultCreateCompletion(openaiApiKey?: string | null): CreateCompletionFn {
+function defaultCreateCompletion(openaiApiKey?: string | null, openAiTimeoutMs?: number): CreateCompletionFn {
   // null = explicit "no key" (test sentinel). undefined = fall back to runtime config.
   const apiKey =
     openaiApiKey === null ? undefined : (openaiApiKey ?? getEvaluationRuntimeConfig().openaiApiKey);
   if (!apiKey) {
     throw new Error("[Pass1] OPENAI_API_KEY is not configured");
   }
-  const timeoutMs = getEvalOpenAiTimeoutMs();
+  const timeoutMs = openAiTimeoutMs ?? getEvalOpenAiTimeoutMs();
   const openai = new OpenAI({ apiKey, maxRetries: OPENAI_SDK_MAX_RETRIES, timeout: timeoutMs });
   return (params) =>
     openai.chat.completions.create(

@@ -72,6 +72,58 @@ export interface EvaluationRuntimeConfig {
   routing: EvaluationPassRouting;
 }
 
+export type TimeoutScopeInputScale =
+  | "micro_excerpt"
+  | "light_chapter"
+  | "standard_chapter"
+  | "multi_chapter"
+  | "full_manuscript";
+
+export const LONG_FORM_TIMEOUT_FLOOR_MS = 600_000;
+
+export interface ScopedTimeoutResolution {
+  inputScale: TimeoutScopeInputScale;
+  floorMs: number;
+  floorApplied: boolean;
+  basePassTimeoutMs: number;
+  baseOpenAiTimeoutMs: number;
+  passTimeoutMs: number;
+  openAiTimeoutMs: number;
+}
+
+function isLongFormTimeoutScale(inputScale: TimeoutScopeInputScale): boolean {
+  return inputScale === "multi_chapter" || inputScale === "full_manuscript";
+}
+
+export function resolveScopedEvaluationTimeouts(args: {
+  inputScale: TimeoutScopeInputScale;
+  passTimeoutMs: number;
+  openAiTimeoutMs: number;
+  floorMs?: number;
+}): ScopedTimeoutResolution {
+  const floorMs = args.floorMs ?? LONG_FORM_TIMEOUT_FLOOR_MS;
+  const longFormScale = isLongFormTimeoutScale(args.inputScale);
+
+  const passTimeoutMs = longFormScale
+    ? Math.max(args.passTimeoutMs, floorMs)
+    : args.passTimeoutMs;
+
+  // Keep provider timeout >= pass timeout after scoped floor application.
+  const openAiTimeoutMs = longFormScale
+    ? Math.max(args.openAiTimeoutMs, passTimeoutMs, floorMs)
+    : args.openAiTimeoutMs;
+
+  return {
+    inputScale: args.inputScale,
+    floorMs,
+    floorApplied: passTimeoutMs !== args.passTimeoutMs || openAiTimeoutMs !== args.openAiTimeoutMs,
+    basePassTimeoutMs: args.passTimeoutMs,
+    baseOpenAiTimeoutMs: args.openAiTimeoutMs,
+    passTimeoutMs,
+    openAiTimeoutMs,
+  };
+}
+
 function parseStrictInteger(raw: string, name: string): number {
   const trimmed = raw.trim();
   if (!/^-?\d+$/u.test(trimmed)) {

@@ -1,5 +1,7 @@
 import {
   EvaluationRuntimeConfigError,
+  LONG_FORM_TIMEOUT_FLOOR_MS,
+  resolveScopedEvaluationTimeouts,
   resolveEvaluationRuntimeConfig,
 } from "@/lib/config/evaluationRuntimeConfig";
 
@@ -162,5 +164,67 @@ describe("resolveEvaluationRuntimeConfig", () => {
         USE_REAL_LLM: "true",
       }, {}),
     ).toThrow(EvaluationRuntimeConfigError);
+  });
+});
+
+describe("resolveScopedEvaluationTimeouts", () => {
+  it("applies 600000ms floor for multi_chapter inputs", () => {
+    const resolved = resolveScopedEvaluationTimeouts({
+      inputScale: "multi_chapter",
+      passTimeoutMs: 180000,
+      openAiTimeoutMs: 180000,
+    });
+
+    expect(resolved.floorApplied).toBe(true);
+    expect(resolved.passTimeoutMs).toBe(LONG_FORM_TIMEOUT_FLOOR_MS);
+    expect(resolved.openAiTimeoutMs).toBe(LONG_FORM_TIMEOUT_FLOOR_MS);
+  });
+
+  it("keeps existing larger values for full_manuscript inputs", () => {
+    const resolved = resolveScopedEvaluationTimeouts({
+      inputScale: "full_manuscript",
+      passTimeoutMs: 600000,
+      openAiTimeoutMs: 600000,
+    });
+
+    expect(resolved.floorApplied).toBe(false);
+    expect(resolved.passTimeoutMs).toBe(600000);
+    expect(resolved.openAiTimeoutMs).toBe(600000);
+  });
+
+  it("preserves configured values above the floor for full_manuscript", () => {
+    const resolved = resolveScopedEvaluationTimeouts({
+      inputScale: "full_manuscript",
+      passTimeoutMs: 900000,
+      openAiTimeoutMs: 900000,
+    });
+
+    expect(resolved.floorApplied).toBe(false);
+    expect(resolved.passTimeoutMs).toBe(900000);
+    expect(resolved.openAiTimeoutMs).toBe(900000);
+  });
+
+  it("raises long-form provider timeout to match long-form pass timeout when needed", () => {
+    const resolved = resolveScopedEvaluationTimeouts({
+      inputScale: "multi_chapter",
+      passTimeoutMs: 720000,
+      openAiTimeoutMs: 180000,
+    });
+
+    expect(resolved.floorApplied).toBe(true);
+    expect(resolved.passTimeoutMs).toBe(720000);
+    expect(resolved.openAiTimeoutMs).toBe(720000);
+  });
+
+  it("does not apply floor for standard_chapter inputs", () => {
+    const resolved = resolveScopedEvaluationTimeouts({
+      inputScale: "standard_chapter",
+      passTimeoutMs: 180000,
+      openAiTimeoutMs: 180000,
+    });
+
+    expect(resolved.floorApplied).toBe(false);
+    expect(resolved.passTimeoutMs).toBe(180000);
+    expect(resolved.openAiTimeoutMs).toBe(180000);
   });
 });
