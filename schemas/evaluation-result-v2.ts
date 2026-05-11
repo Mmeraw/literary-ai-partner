@@ -151,6 +151,7 @@ export type EvaluationResultV2 = {
   };
   metrics: {
     manuscript: {
+      title?: string;
       word_count?: number;
       char_count?: number;
       genre?: string;

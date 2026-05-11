@@ -49,6 +49,7 @@ import {
 } from "@/lib/evaluation/signal/criterionObservability";
 import {
   classifySubmissionScope,
+  countWords,
   type SubmissionScopeProfile,
 } from "./submissionScope";
 import {
@@ -1241,6 +1242,8 @@ export interface SynthesisToEvaluationResultOptions {
   sentenceCount?: number;
   /** Optional source text for deterministic anchor/source matching in confidence computation. */
   sourceText?: string;
+  /** Optional manuscript text for metrics enrichment when the caller has it available. */
+  manuscriptText?: string;
 }
 
 const DEFAULT_ADAPTER_CONFIDENCE = 0.85;
@@ -1445,7 +1448,11 @@ export function synthesisToEvaluationResult(
       strategic_revisions,
     },
     metrics: {
-      manuscript: {},
+      manuscript: {
+        title: opts.title?.trim() || undefined,
+        word_count: opts.manuscriptText ? countWords(opts.manuscriptText) : undefined,
+        char_count: opts.manuscriptText?.length,
+      },
       processing: {},
     },
     artifacts: [],
@@ -1597,7 +1604,11 @@ export function synthesisToEvaluationResultV2(
       strategic_revisions,
     },
     metrics: {
-      manuscript: {},
+      manuscript: {
+        title: opts.title?.trim() || undefined,
+        word_count: opts.manuscriptText ? countWords(opts.manuscriptText) : undefined,
+        char_count: opts.manuscriptText?.length,
+      },
       processing: {},
     },
     artifacts: [],

@@ -1,5 +1,6 @@
 // app/evaluate/[jobId]/page.tsx
 // Track D: Minimal Report Surface
+import type { Metadata } from "next";
 import Link from "next/link";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getAuthenticatedUser } from "@/lib/supabase/server";
@@ -22,11 +23,15 @@ import {
   getCriterionSupportLabel,
   isCertifiedCriterion,
 } from "@/lib/evaluation/reportCriterionDisplay";
+import { resolveReportTitle } from "@/lib/evaluation/reportTitle";
 
 type Job = {
   id: string;
   user_id: string;
-  manuscripts?: { user_id: string | null } | Array<{ user_id: string | null }> | null;
+  manuscripts?:
+    | { user_id: string | null; title?: string | null }
+    | Array<{ user_id: string | null; title?: string | null }>
+    | null;
   job_type?: string;
   status: "queued" | "running" | "failed" | "complete";
   phase?: string | null;
@@ -79,7 +84,7 @@ type ArtifactContentV1 = {
     strategic_revisions?: Array<{ action: string; why?: string; effort?: string; impact?: string }>;
   };
   metrics?: {
-    manuscript?: { word_count?: number; char_count?: number; genre?: string };
+    manuscript?: { title?: string; word_count?: number; char_count?: number; genre?: string };
     processing?: { segment_count?: number; total_tokens_estimated?: number; runtime_ms?: number };
   };
   governance?: {
@@ -111,7 +116,7 @@ async function getJob(jobId: string): Promise<Job | null> {
 
     const { data: job, error } = await supabase
       .from("evaluation_jobs")
-      .select("id, user_id, job_type, status, phase, phase_status, total_units, completed_units, failed_units, created_at, updated_at, last_error, manuscripts(user_id)")
+      .select("id, user_id, job_type, status, phase, phase_status, total_units, completed_units, failed_units, created_at, updated_at, last_error, manuscripts(user_id,title)")
       .eq("id", jobId)
       .maybeSingle();
 
@@ -144,6 +149,48 @@ async function getJob(jobId: string): Promise<Job | null> {
     console.error(`[getJob] Unexpected error:`, err);
     return null;
   }
+}
+
+function getRelatedManuscriptTitle(job: Job | null): string | null {
+  if (!job?.manuscripts) return null;
+
+  const relation = Array.isArray(job.manuscripts) ? job.manuscripts[0] : job.manuscripts;
+  const title = relation?.title?.trim();
+
+  return title && title.length > 0 ? title : null;
+}
+
+
+async function getCurrentOwnerId(): Promise<string | null> {
+  const sessionUser = await getAuthenticatedUser();
+  const headerOwnerId =
+    process.env.TEST_MODE === "true" && process.env.ALLOW_HEADER_USER_ID === "true"
+      ? (await headers()).get("x-user-id")?.trim() ?? null
+      : null;
+
+  return sessionUser?.id ?? headerOwnerId;
+}
+
+export async function generateMetadata({
+  params,
+}: {
+  params: { jobId: string };
+}): Promise<Metadata> {
+  const ownerId = await getCurrentOwnerId();
+  if (!ownerId) {
+    return { title: "Evaluation Report" };
+  }
+
+  const job = await getJob(params.jobId);
+  if (!job || job.user_id !== ownerId) {
+    return { title: "Evaluation Report" };
+  }
+
+  const artifactResult = job.status === "complete" ? await getArtifact(params.jobId) : null;
+  const chapterTitle = artifactResult?.data.metrics?.manuscript?.title?.trim() || null;
+  const manuscriptTitle = getRelatedManuscriptTitle(job);
+  const { pageTitle } = resolveReportTitle({ chapterTitle, manuscriptTitle });
+  return { title: pageTitle };
 }
 
 type ArtifactResult = {
@@ -351,6 +398,10 @@ export default async function EvaluationReportPage({
     .filter((criterion): criterion is NonNullable<ArtifactContentV1["criteria"]>[number] => Boolean(criterion));
   const evaluationScope = inferEvaluationScope(job.job_type, artifact?.metrics?.manuscript?.genre);
   const integrityBanner = artifact ? classifyEvaluationIntegrityBanner(artifact) : null;
+  const chapterTitle = artifact?.metrics?.manuscript?.title?.trim() || null;
+  const manuscriptTitle = getRelatedManuscriptTitle(job);
+  const { displayTitle } = resolveReportTitle({ chapterTitle, manuscriptTitle });
+  const wordCount = artifact?.metrics?.manuscript?.word_count ?? null;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -358,9 +409,15 @@ export default async function EvaluationReportPage({
       <div className="mb-6 flex items-start justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Evaluation Report</h1>
+          <p className="mt-1 text-lg font-semibold text-gray-900">{displayTitle}</p>
           <p className="mt-1 text-sm text-gray-500">
             Job ID: <span className="font-mono">{job.id}</span>
           </p>
+          {manuscriptTitle && chapterTitle && manuscriptTitle !== chapterTitle && (
+            <p className="mt-1 text-sm text-gray-500">
+              Manuscript Title: <span className="font-medium text-gray-700">{manuscriptTitle}</span>
+            </p>
+          )}
         </div>
         <Link href="/evaluate" className="text-sm text-blue-600 hover:text-blue-700 underline shrink-0">
           Back to Evaluate
@@ -380,6 +437,28 @@ export default async function EvaluationReportPage({
           </span>
         </div>
       </div>
+
+      <section className="mb-6 rounded-lg border bg-white p-4">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-700">Evaluation Metadata</h2>
+        <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4 text-sm">
+          <div>
+            <p className="text-gray-600">Chapter Title</p>
+            <p className="font-medium text-gray-900">{chapterTitle || manuscriptTitle || "Untitled"}</p>
+          </div>
+          <div>
+            <p className="text-gray-600">Manuscript Title</p>
+            <p className="font-medium text-gray-900">{manuscriptTitle || chapterTitle || "Untitled"}</p>
+          </div>
+          <div>
+            <p className="text-gray-600">Job ID</p>
+            <p className="font-mono text-xs text-gray-900 break-all">{job.id}</p>
+          </div>
+          <div>
+            <p className="text-gray-600">Word Count</p>
+            <p className="font-medium text-gray-900">{typeof wordCount === "number" ? wordCount.toLocaleString() : "N/A"}</p>
+          </div>
+        </div>
+      </section>
 
       <section className="mt-6">
         <EvaluationPoller
