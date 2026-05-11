@@ -78,7 +78,7 @@ describe("editorial diagnostics (observer-only)", () => {
     expect(result.editorial_diagnostics_summary).toBeUndefined();
   });
 
-  it("emits missing_mechanism diagnostics as WARN when mechanism defect is isolated", () => {
+  it("accepts structured editorial fields even when action/impact phrasing is terse", () => {
     const synthesis = makeSynthesis({
       dialogue: {
         recommendations: [
@@ -88,6 +88,33 @@ describe("editorial diagnostics (observer-only)", () => {
               "In the opening exchange, replace the abstract line with a concrete action beat at the same moment for dialogue.",
             expected_impact:
               "Gives the reader stronger urgency and engagement at the turn.",
+            anchor_snippet: "A".repeat(300),
+          },
+        ],
+      },
+    });
+
+    const result = runQualityGate(synthesis);
+    const editorialCheck = result.checks.find((c) => c.check_id === "recommendation_editorial_quality");
+
+    expect(result.pass).toBe(true);
+    expect(editorialCheck?.error_code).toBeUndefined();
+    expect(editorialCheck?.details).toContain("All recommendations meet editorial quality contract");
+    expect(result.editorial_diagnostics).toBeUndefined();
+    expect(result.editorial_diagnostics_summary).toBeUndefined();
+  });
+
+  it("emits missing_mechanism diagnostics as WARN when mechanism is absent across all fields", () => {
+    const synthesis = makeSynthesis({
+      dialogue: {
+        recommendations: [
+          {
+            ...makeRecommendation("dialogue"),
+            action:
+              "In the opening exchange, replace the abstract line with a concrete action beat at the same moment for dialogue.",
+            expected_impact:
+              "Gives the reader stronger urgency and engagement at the turn.",
+            mechanism: "",
             anchor_snippet: "A".repeat(300),
           },
         ],
