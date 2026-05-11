@@ -3,6 +3,7 @@ import type {
   SinglePassOutput,
   Pass3CriteriaCountByState,
   DivergenceDiagnosticArtifact,
+  PreSynthesisCriterionState,
 } from "./types";
 import { collectNgrams, QG_INDEPENDENCE_NGRAM_SIZE } from "./qualityGate";
 
