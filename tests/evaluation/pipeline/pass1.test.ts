@@ -209,6 +209,47 @@ describe("runPass1", () => {
     expect(result.model).toBe("gpt-4o");
   });
 
+  it("prefers EVAL_PASS1_MODEL over chunk/default routing", async () => {
+    const previousPass1Model = process.env.EVAL_PASS1_MODEL;
+    const previousChunkModel = process.env.EVAL_CHUNK_MODEL;
+    process.env.EVAL_PASS1_MODEL = "gpt-5-mini";
+    process.env.EVAL_CHUNK_MODEL = "gpt-4.1-mini";
+
+    let requestedModel: string | undefined;
+    const captureCompletion: CreateCompletionFn = async (params) => {
+      requestedModel = params.model;
+      return {
+        choices: [{ message: { content: JSON.stringify(makePass1Fixture()) } }],
+      };
+    };
+
+    try {
+      const result = await runPass1({
+        manuscriptText: "The river moved slowly through the valley.",
+        workType: "literary_fiction",
+        title: "Test Manuscript",
+        registry,
+        openaiApiKey: "sk-test",
+        _createCompletion: captureCompletion,
+      });
+
+      expect(requestedModel).toBe("gpt-5-mini");
+      expect(result.model).toBe("gpt-5-mini");
+    } finally {
+      if (previousPass1Model === undefined) {
+        delete process.env.EVAL_PASS1_MODEL;
+      } else {
+        process.env.EVAL_PASS1_MODEL = previousPass1Model;
+      }
+
+      if (previousChunkModel === undefined) {
+        delete process.env.EVAL_CHUNK_MODEL;
+      } else {
+        process.env.EVAL_CHUNK_MODEL = previousChunkModel;
+      }
+    }
+  });
+
   it("throws when OPENAI_API_KEY is not configured", async () => {
     // Use openaiApiKey: null as the explicit "no key" sentinel.
     // This bypasses the runtime-config fallback without mutating process.env,

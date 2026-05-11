@@ -16,7 +16,7 @@ import type { CanonRegistry } from "@/lib/governance/canonRegistry";
 import {
   buildOpenAIOutputTokenParam,
   buildOpenAITemperatureParam,
-  getCanonicalPipelineModel,
+  getCanonicalPass1Model,
   OPENAI_SDK_MAX_RETRIES,
 } from "@/lib/evaluation/policy";
 import { getEvalOpenAiTimeoutMs } from "@/lib/evaluation/config";
@@ -31,20 +31,22 @@ const PASS1_LIMITS = {
   maxEvidencePerCriterion: 1,
   maxEvidenceSnippetChars: 180,
 } as const;
-const DEFAULT_CHUNK_PASS_CONCURRENCY = 10;
+const DEFAULT_CHUNK_PASS_CONCURRENCY = 5;
+const DEFAULT_CHUNK_RETRY_MAX = 3;
+const DEFAULT_CHUNK_RETRY_BASE_MS = 10000;
 
 /**
- * RCA-PASS1-TOKEN-001: Pass1 model is strictly authoritative.
- * gpt-4o is the only permitted Pass1 model. Caller model input is not accepted.
- * The o3 experiment path has been removed from this PR; it will be reintroduced
- * after U2 production proof in a separate, dedicated PR.
+ * Pass 1 model is not caller-controlled.
+ *
+ * Resolution order:
+ *  1) EVAL_PASS1_MODEL
+ *  2) EVAL_CHUNK_MODEL
+ *  3) default baseline model (gpt-4o)
  */
-type Pass1Model = "gpt-4o";
-const PASS1_PRODUCTION_MODEL: Pass1Model = "gpt-4o";
+const PASS1_DEFAULT_MODEL = "gpt-4o";
 
-/** No-arg resolver. Returns the single production model unconditionally. No caller influence. */
-function resolvePass1Model(): Pass1Model {
-  return PASS1_PRODUCTION_MODEL;
+function resolvePass1Model(): string {
+  return getCanonicalPass1Model(PASS1_DEFAULT_MODEL);
 }
 
 function nowMs(): number {
@@ -135,6 +137,67 @@ function getChunkPassConcurrency(): number {
   const parsed = Number.parseInt(raw, 10);
   if (!Number.isFinite(parsed) || parsed <= 0) return DEFAULT_CHUNK_PASS_CONCURRENCY;
   return Math.min(24, Math.max(1, parsed));
+}
+
+function getChunkRetryMax(): number {
+  const raw = process.env.EVAL_CHUNK_RETRY_MAX;
+  if (!raw) return DEFAULT_CHUNK_RETRY_MAX;
+  const parsed = Number.parseInt(raw, 10);
+  if (!Number.isFinite(parsed) || parsed < 0) return DEFAULT_CHUNK_RETRY_MAX;
+  return Math.min(10, parsed);
+}
+
+function getChunkRetryBaseMs(): number {
+  const raw = process.env.EVAL_CHUNK_RETRY_BASE_MS;
+  if (!raw) return DEFAULT_CHUNK_RETRY_BASE_MS;
+  const parsed = Number.parseInt(raw, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) return DEFAULT_CHUNK_RETRY_BASE_MS;
+  return Math.min(60_000, Math.max(500, parsed));
+}
+
+function isRateLimitError(reason: unknown): boolean {
+  const text = String(reason instanceof Error ? reason.message : reason).toLowerCase();
+  return text.includes("429") || text.includes("rate limit") || text.includes("tokens per min") || text.includes("tpm");
+}
+
+function parseRetryAfterMs(reason: unknown): number | null {
+  if (typeof reason === "object" && reason !== null) {
+    const maybeHeaders = (reason as { headers?: unknown; response?: { headers?: unknown } }).headers
+      ?? (reason as { response?: { headers?: unknown } }).response?.headers;
+    if (typeof maybeHeaders === "object" && maybeHeaders !== null) {
+      const headersRecord = maybeHeaders as Record<string, unknown>;
+      const retryHeaderRaw = headersRecord["retry-after"] ?? headersRecord["Retry-After"];
+      if (typeof retryHeaderRaw === "string" && retryHeaderRaw.trim() !== "") {
+        const asSeconds = Number.parseFloat(retryHeaderRaw);
+        if (Number.isFinite(asSeconds) && asSeconds > 0) {
+          return Math.ceil(asSeconds * 1000);
+        }
+      } else if (typeof retryHeaderRaw === "number" && Number.isFinite(retryHeaderRaw) && retryHeaderRaw > 0) {
+        return Math.ceil(retryHeaderRaw * 1000);
+      }
+    }
+  }
+
+  const text = String(reason instanceof Error ? reason.message : reason);
+  const secMatch = text.match(/try again in\s+([0-9]+(?:\.[0-9]+)?)s/i);
+  if (secMatch) {
+    const sec = Number.parseFloat(secMatch[1]);
+    if (Number.isFinite(sec) && sec > 0) {
+      return Math.ceil(sec * 1000);
+    }
+  }
+
+  const msMatch = text.match(/retry[-_ ]after\s*[:=]?\s*([0-9]+)\s*ms/i);
+  if (msMatch) {
+    const ms = Number.parseInt(msMatch[1], 10);
+    if (Number.isFinite(ms) && ms > 0) return ms;
+  }
+
+  return null;
+}
+
+function sleepMs(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function getChunkPassMaxPerPass(): number | null {
@@ -281,6 +344,7 @@ export interface RunPass1Options {
  */
 export async function runPass1(opts: RunPass1Options): Promise<SinglePassOutput> {
   const passStartMs = nowMs();
+  const selectedModel = resolvePass1Model();
 
   if (!opts.registry || opts.registry.size === 0) {
     throw new Error("[Pass1] Canonical registry binding missing");
@@ -294,8 +358,17 @@ export async function runPass1(opts: RunPass1Options): Promise<SinglePassOutput>
     const chunksTotal = opts.manuscriptChunks!.length;
     const chunkConcurrency = getChunkPassConcurrency();
     const chunkCap = getChunkPassMaxPerPass();
+    const chunkRetryMax = getChunkRetryMax();
+    const chunkRetryBaseMs = getChunkRetryBaseMs();
     const selectedChunks = chunkCap ? opts.manuscriptChunks!.slice(0, chunkCap) : opts.manuscriptChunks!;
     const chunkEvalStartMs = nowMs();
+    let rateLimitRetryCount = 0;
+    let rateLimitWaitMs = 0;
+    let usagePromptTokensTotal = 0;
+    let usageCompletionTokensTotal = 0;
+    let usageTotalTokensTotal = 0;
+
+    const forwardCompletion = opts._onCompletion;
 
     console.log(
       `[Pass1] Chunk-native path: total=${chunksTotal} attempted=${selectedChunks.length} concurrency=${chunkConcurrency}`,
@@ -304,25 +377,59 @@ export async function runPass1(opts: RunPass1Options): Promise<SinglePassOutput>
     const settled = await runChunksWithConcurrency(
       selectedChunks,
       chunkConcurrency,
-      async (chunk) =>
-        runPass1({
-          ...opts,
-          manuscriptText: chunk.content,
-          manuscriptChunks: undefined, // Prevent recursive chunking
-        }),
+      async (chunk) => {
+        let attempt = 0;
+        while (true) {
+          try {
+            return await runPass1({
+              ...opts,
+              manuscriptText: chunk.content,
+              manuscriptChunks: undefined, // Prevent recursive chunking
+              _onCompletion: (capture) => {
+                if (capture.pass === 1) {
+                  usagePromptTokensTotal += capture.usage?.prompt_tokens ?? 0;
+                  usageCompletionTokensTotal += capture.usage?.completion_tokens ?? 0;
+                  usageTotalTokensTotal += capture.usage?.total_tokens ?? 0;
+                }
+                forwardCompletion?.(capture);
+              },
+            });
+          } catch (error) {
+            if (!isRateLimitError(error) || attempt >= chunkRetryMax) {
+              throw error;
+            }
+
+            const suggestedWait = parseRetryAfterMs(error);
+            const backoffMs = Math.min(90_000, chunkRetryBaseMs * Math.pow(2, attempt));
+            const jitterMs = Math.floor(Math.random() * 750);
+            const waitMs = Math.max(suggestedWait ?? 0, backoffMs) + jitterMs;
+            rateLimitRetryCount += 1;
+            rateLimitWaitMs += waitMs;
+            attempt += 1;
+            console.warn(
+              `[Pass1] Chunk ${chunk.chunk_index} rate-limited; retry ${attempt}/${chunkRetryMax} after ${waitMs}ms`,
+            );
+            await sleepMs(waitMs);
+          }
+        }
+      },
     );
 
     const chunkResults: SinglePassOutput[] = [];
     const failures: Array<{ chunkIndex: number; reason: string }> = [];
+    const chunkFailuresByReason: Record<string, number> = {};
     for (let i = 0; i < settled.length; i += 1) {
       const result = settled[i];
       if (!result) continue;
       if (result.status === "fulfilled") {
         chunkResults.push(result.value);
       } else {
+        const reason = String(result.reason instanceof Error ? result.reason.message : result.reason);
+        const bucket = isRateLimitError(result.reason) ? "RATE_LIMIT_429" : "OTHER";
+        chunkFailuresByReason[bucket] = (chunkFailuresByReason[bucket] ?? 0) + 1;
         failures.push({
           chunkIndex: selectedChunks[i].chunk_index,
-          reason: String(result.reason instanceof Error ? result.reason.message : result.reason),
+          reason,
         });
       }
     }
@@ -342,6 +449,15 @@ export async function runPass1(opts: RunPass1Options): Promise<SinglePassOutput>
         chunk_coverage_pct: chunkCoveragePct,
         chunk_concurrency: chunkConcurrency,
         chunk_eval_total_ms: chunkEvalTotalMs,
+        provider: "openai",
+        model: selectedModel,
+        usage_prompt_tokens_total: usagePromptTokensTotal,
+        usage_completion_tokens_total: usageCompletionTokensTotal,
+        usage_total_tokens_total: usageTotalTokensTotal,
+        rate_limit_retry_count: rateLimitRetryCount,
+        rate_limit_total_wait_ms: rateLimitWaitMs,
+        provider_tpm_limited: (chunkFailuresByReason["RATE_LIMIT_429"] ?? 0) > 0 || rateLimitRetryCount > 0,
+        chunk_failures_by_reason: chunkFailuresByReason,
         chunk_cap_applied: chunkCap ? true : false,
       },
     });
@@ -369,7 +485,6 @@ export async function runPass1(opts: RunPass1Options): Promise<SinglePassOutput>
   // or when manuscript is small enough to fit in single evaluation.
 
   const createCompletion = opts._createCompletion ?? defaultCreateCompletion(opts.openaiApiKey);
-  const selectedModel = getCanonicalPipelineModel(resolvePass1Model());
 
   const promptAssemblyStartMs = nowMs();
 
@@ -574,7 +689,7 @@ function defaultCreateCompletion(openaiApiKey?: string | null): CreateCompletion
  * @returns Validated SinglePassOutput with axis="craft_execution"
  * @throws on invalid structure, empty criteria, or parse errors
  */
-export function parsePass1Response(raw: string, fallbackModel: string = PASS1_PRODUCTION_MODEL): SinglePassOutput {
+export function parsePass1Response(raw: string, fallbackModel: string = PASS1_DEFAULT_MODEL): SinglePassOutput {
   // P0: Log raw response preview before parse
   console.log(`[Pass1] raw response preview len=${raw.length}: ${raw.slice(0, 200)}`);
 

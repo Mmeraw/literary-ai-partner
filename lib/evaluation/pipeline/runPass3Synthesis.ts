@@ -26,7 +26,7 @@ import type { CanonRegistry } from "@/lib/governance/canonRegistry";
 import {
   buildOpenAIOutputTokenParam,
   buildOpenAITemperatureParam,
-  getCanonicalPipelineModel,
+  getCanonicalPass3Model,
   OPENAI_SDK_MAX_RETRIES,
 } from "@/lib/evaluation/policy";
 import { buildComparisonPacket } from "./comparisonPacket";
@@ -154,9 +154,8 @@ function computeSipocCoverage(args: {
 }
 
 const PASS3_TEMPERATURE = 0.2;
-// Pass 3 model is resolved exclusively via getCanonicalPipelineModel(opts.model). The central
-// resolver in policy.ts enforces the production reasoning-model invariant (forbids o-series
-// unless EVAL_ALLOW_REASONING_MODELS=true).
+// Pass 3 model is resolved via getCanonicalPass3Model(opts.model), allowing
+// EVAL_PASS3_MODEL (or EVAL_SYNTHESIS_MODEL fallback) to control reducer/synthesis model selection.
 const PASS3_MIN_RATIONALE_LENGTH = 40;
 const PASS3_PLACEHOLDER_RATIONALE_PATTERNS = PLACEHOLDER_RATIONALE_PATTERNS;
 const PASS3_VOICE_MECHANISM_MARKERS = [
@@ -350,7 +349,7 @@ export async function runPass3Synthesis(opts: RunPass3Options): Promise<Synthesi
   }
 
   const createCompletion = opts._createCompletion ?? defaultCreateCompletion(opts.openaiApiKey);
-  const selectedModel = getCanonicalPipelineModel(opts.model);
+  const selectedModel = getCanonicalPass3Model(opts.model);
 
   const comparisonPacket = buildComparisonPacket(opts.pass1, opts.pass2, {
     manuscriptText: opts.manuscriptText,
@@ -580,7 +579,7 @@ export function parsePass3Response(
   const resolvedFallback =
     typeof fallbackModel === "string" && fallbackModel.length > 0
       ? fallbackModel
-      : getCanonicalPipelineModel(undefined);
+      : getCanonicalPass3Model(undefined);
 
   // P0: Log raw response preview before parse
   console.log(`[Pass3] raw response preview len=${raw.length}: ${raw.slice(0, 200)}`);

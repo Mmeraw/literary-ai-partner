@@ -237,6 +237,65 @@ describe("runPass3Synthesis", () => {
     expect(result.overall.verdict).toBe("revise");
   });
 
+  it("prefers EVAL_PASS3_MODEL over synthesis/default routing", async () => {
+    const previousPass3Model = process.env.EVAL_PASS3_MODEL;
+    const previousSynthesisModel = process.env.EVAL_SYNTHESIS_MODEL;
+    process.env.EVAL_PASS3_MODEL = "gpt-5";
+    process.env.EVAL_SYNTHESIS_MODEL = "gpt-4o";
+
+    const pass1 = makePassOutput(1, "craft_execution");
+    const pass2 = makePassOutput(2, "editorial_literary");
+    let requestedModel: string | undefined;
+
+    const captureCompletion: CreateCompletionFn = async (params) => {
+      requestedModel = params.model;
+      return {
+        choices: [
+          {
+            message: {
+              content: JSON.stringify(
+                makePass3Fixture({
+                  metadata: {
+                    pass1_model: "gpt-4o-mini",
+                    pass2_model: "gpt-4o-mini",
+                    pass3_model: "gpt-5",
+                  },
+                }),
+              ),
+            },
+          },
+        ],
+      };
+    };
+
+    try {
+      const result = await runPass3Synthesis({
+        pass1,
+        pass2,
+        manuscriptText: "The river moved slowly through the valley.",
+        title: "Test Manuscript",
+        registry,
+        openaiApiKey: "sk-test",
+        _createCompletion: captureCompletion,
+      });
+
+      expect(requestedModel).toBe("gpt-5");
+      expect(result.metadata.pass3_model).toBe("gpt-5");
+    } finally {
+      if (previousPass3Model === undefined) {
+        delete process.env.EVAL_PASS3_MODEL;
+      } else {
+        process.env.EVAL_PASS3_MODEL = previousPass3Model;
+      }
+
+      if (previousSynthesisModel === undefined) {
+        delete process.env.EVAL_SYNTHESIS_MODEL;
+      } else {
+        process.env.EVAL_SYNTHESIS_MODEL = previousSynthesisModel;
+      }
+    }
+  });
+
   it("emits pass3 reducer telemetry in completion capture", async () => {
     const pass1 = makePassOutput(1, "craft_execution");
     const pass2 = makePassOutput(2, "editorial_literary");

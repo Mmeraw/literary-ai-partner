@@ -77,6 +77,82 @@ export function getCanonicalPipelineModel(overrideModel?: string): string {
   return candidate;
 }
 
+function resolveEnvBackedModel(envKeys: string[], overrideModel?: string): string {
+  for (const envKey of envKeys) {
+    const envValue = process.env[envKey];
+    if (typeof envValue === "string" && envValue.trim().length > 0) {
+      return getCanonicalPipelineModel(envValue);
+    }
+  }
+
+  return getCanonicalPipelineModel(overrideModel);
+}
+
+/**
+ * Pass 1 model resolver.
+ *
+ * Resolution order:
+ *  1) EVAL_PASS1_MODEL
+ *  2) EVAL_CHUNK_MODEL
+ *  3) optional overrideModel
+ *  4) canonical runtime default (EVAL_OPENAI_MODEL)
+ */
+export function getCanonicalPass1Model(overrideModel?: string): string {
+  return resolveEnvBackedModel(["EVAL_PASS1_MODEL", "EVAL_CHUNK_MODEL"], overrideModel);
+}
+
+/**
+ * Pass 2 model resolver.
+ *
+ * Resolution order:
+ *  1) EVAL_PASS2_MODEL
+ *  2) EVAL_CHUNK_MODEL
+ *  3) optional overrideModel
+ *  4) canonical runtime default (EVAL_OPENAI_MODEL)
+ */
+export function getCanonicalPass2Model(overrideModel?: string): string {
+  return resolveEnvBackedModel(["EVAL_PASS2_MODEL", "EVAL_CHUNK_MODEL"], overrideModel);
+}
+
+/**
+ * Pass 3 model resolver.
+ *
+ * Resolution order:
+ *  1) EVAL_PASS3_MODEL
+ *  2) EVAL_SYNTHESIS_MODEL
+ *  3) optional overrideModel
+ *  4) canonical runtime default (EVAL_OPENAI_MODEL)
+ */
+export function getCanonicalPass3Model(overrideModel?: string): string {
+  return resolveEnvBackedModel(["EVAL_PASS3_MODEL", "EVAL_SYNTHESIS_MODEL"], overrideModel);
+}
+
+/**
+ * Chunk evaluation model resolver (map phase).
+ *
+ * Resolution order:
+ *  1) EVAL_PASS1_MODEL / EVAL_PASS2_MODEL only when explicitly using pass-specific resolvers
+ *  2) EVAL_CHUNK_MODEL (non-empty)
+ *  3) optional overrideModel
+ *  4) canonical runtime default (EVAL_OPENAI_MODEL)
+ */
+export function getCanonicalChunkModel(overrideModel?: string): string {
+  return resolveEnvBackedModel(["EVAL_CHUNK_MODEL"], overrideModel);
+}
+
+/**
+ * Synthesis model resolver (reduce phase).
+ *
+ * Resolution order:
+ *  1) EVAL_PASS3_MODEL only when explicitly using pass-specific resolver
+ *  2) EVAL_SYNTHESIS_MODEL (non-empty)
+ *  3) optional overrideModel
+ *  4) canonical runtime default (EVAL_OPENAI_MODEL)
+ */
+export function getCanonicalSynthesisModel(overrideModel?: string): string {
+  return resolveEnvBackedModel(["EVAL_SYNTHESIS_MODEL"], overrideModel);
+}
+
 export function getExternalAdjudicationMode(): ExternalAdjudicationMode {
   return getEvaluationRuntimeConfig().adjudicationMode;
 }
