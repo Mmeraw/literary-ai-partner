@@ -571,6 +571,7 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
   const pass1Promise = withTimeout(
     _runPass1({
       manuscriptText: opts.manuscriptText,
+      manuscriptChunks: opts.manuscriptChunks,
       workType: opts.workType,
       title: opts.title,
       executionMode: opts.executionMode,
@@ -609,6 +610,7 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
   const pass2Promise = withTimeout(
     _runPass2({
       manuscriptText: opts.manuscriptText,
+      manuscriptChunks: opts.manuscriptChunks,
       workType: opts.workType,
       title: opts.title,
       executionMode: opts.executionMode,

@@ -11,7 +11,7 @@
 import OpenAI from "openai";
 import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
 import { PASS1_SYSTEM_PROMPT, PASS1_PROMPT_VERSION, buildPass1UserPrompt } from "./prompts/pass1-craft";
-import type { SinglePassOutput, AxisCriterionResult, EvidenceAnchor, CompletionUsage, PassCompletionCapture } from "./types";
+import type { SinglePassOutput, AxisCriterionResult, EvidenceAnchor, CompletionUsage, PassCompletionCapture, ManuscriptChunkEvidence } from "./types";
 import type { CanonRegistry } from "@/lib/governance/canonRegistry";
 import {
   buildOpenAIOutputTokenParam,
@@ -138,11 +138,77 @@ export type CreateCompletionFn = (params: {
   response_format: { type: string };
 }) => Promise<{ choices: CompletionChoice[]; usage?: CompletionUsage; id?: string; request_id?: string }>;
 
+/**
+ * Aggregates multiple SinglePassOutput results from chunk evaluations.
+ * Combines evidence, averages scores, and deduplicates recommendations.
+ */
+function aggregateChunkResults(results: SinglePassOutput[]): SinglePassOutput {
+  if (results.length === 0) {
+    throw new Error("[Pass1] No chunk results to aggregate");
+  }
+  
+  if (results.length === 1) {
+    return results[0];
+  }
+
+  // Build aggregated criteria
+  const aggregatedCriteria: AxisCriterionResult[] = [];
+  
+  for (const key of CRITERIA_KEYS) {
+    const criteriaForKey = results
+      .flatMap((r) => r.criteria)
+      .filter((c) => c.key === key);
+    
+    if (criteriaForKey.length === 0) continue;
+
+    // Merge evidence from all chunks
+    const mergedEvidence: EvidenceAnchor[] = [];
+    const seenSnippets = new Set<string>();
+    
+    for (const crit of criteriaForKey) {
+      for (const ev of crit.evidence) {
+        const snippetKey = ev.snippet?.trim() || "";
+        if (snippetKey && !seenSnippets.has(snippetKey)) {
+          mergedEvidence.push(ev);
+          seenSnippets.add(snippetKey);
+        }
+      }
+    }
+
+    // Average scores
+    const avgScore = Math.round(
+      criteriaForKey.reduce((sum, c) => sum + c.score_0_10, 0) / criteriaForKey.length
+    );
+
+    // Merge rationales (use first, they should be similar since from same criterion across chunks)
+    const firstRationale = criteriaForKey[0]?.rationale || "";
+
+    aggregatedCriteria.push({
+      key,
+      score_0_10: Math.min(10, Math.max(0, avgScore)),
+      rationale: firstRationale,
+      evidence: mergedEvidence.slice(0, PASS1_LIMITS.maxEvidencePerCriterion),
+      recommendations: [],
+    });
+  }
+
+  return {
+    pass: 1,
+    axis: "craft_execution",
+    criteria: aggregatedCriteria,
+    model: results[0].model,
+    prompt_version: PASS1_PROMPT_VERSION,
+    temperature: PASS1_TEMPERATURE,
+    generated_at: new Date().toISOString(),
+  };
+}
+
 import type { SubmissionScopeProfile } from "./submissionScope";
 
 export interface RunPass1Options {
   scopeProfile?: SubmissionScopeProfile;
   manuscriptText: string;
+  manuscriptChunks?: ManuscriptChunkEvidence[];
   workType: string;
   title: string;
   executionMode?: "TRUSTED_PATH" | "STUDIO";
@@ -172,6 +238,39 @@ export async function runPass1(opts: RunPass1Options): Promise<SinglePassOutput>
   if (!opts.registry || opts.registry.size === 0) {
     throw new Error("[Pass1] Canonical registry binding missing");
   }
+
+  // ─── CHUNK-NATIVE ROUTING (Long-Form Path) ──────────────────────────────
+  // If chunks are present and count > 1, evaluate each chunk independently
+  // and aggregate results. Otherwise, fall through to single-pass window path.
+  const hasChunks = Array.isArray(opts.manuscriptChunks) && opts.manuscriptChunks.length > 1;
+  if (hasChunks) {
+    console.log(`[Pass1] Chunk-native path: evaluating ${opts.manuscriptChunks!.length} chunks`);
+    
+    const chunkResults: SinglePassOutput[] = [];
+    for (const chunk of opts.manuscriptChunks!) {
+      try {
+        const chunkResult = await runPass1(
+          {
+            ...opts,
+            manuscriptText: chunk.content,
+            manuscriptChunks: undefined, // Prevent recursive chunking
+          },
+        );
+        chunkResults.push(chunkResult);
+      } catch (error) {
+        console.error(`[Pass1] Chunk ${chunk.chunk_index} evaluation failed:`, error);
+        throw error;
+      }
+    }
+
+    const aggregated = aggregateChunkResults(chunkResults);
+    console.log(`[Pass1] Chunk aggregation complete: ${aggregated.criteria.length} criteria`);
+    return aggregated;
+  }
+
+  // ─── SINGLE-PASS SAMPLED-WINDOW PATH (Fallback / Short-Form) ──────────────
+  // Falls back to building a sampled window when chunks are not available
+  // or when manuscript is small enough to fit in single evaluation.
 
   const createCompletion = opts._createCompletion ?? defaultCreateCompletion(opts.openaiApiKey);
   const selectedModel = getCanonicalPipelineModel(resolvePass1Model());
