@@ -328,6 +328,8 @@ export async function runPass1(opts: RunPass1Options): Promise<SinglePassOutput>
     }
 
     const chunkEvalTotalMs = nowMs() - chunkEvalStartMs;
+    const chunkCoveragePct =
+      chunksTotal > 0 ? Number(((chunkResults.length / chunksTotal) * 100).toFixed(2)) : 0;
     emitLatencyTrace({
       job_id: opts.jobId ?? "unknown",
       stage: "pass1",
@@ -337,6 +339,7 @@ export async function runPass1(opts: RunPass1Options): Promise<SinglePassOutput>
         chunks_attempted: selectedChunks.length,
         chunks_succeeded: chunkResults.length,
         chunks_failed: failures.length,
+        chunk_coverage_pct: chunkCoveragePct,
         chunk_concurrency: chunkConcurrency,
         chunk_eval_total_ms: chunkEvalTotalMs,
         chunk_cap_applied: chunkCap ? true : false,
