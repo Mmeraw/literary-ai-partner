@@ -117,19 +117,19 @@ export function resolveEvaluationRuntimeConfig(
   const adjudicationMode = envContract.adjudicationMode;
 
   const pass1MaxTokens = parseBoundedInteger(env, "EVAL_PASS1_MAX_TOKENS", {
-    defaultValue: 3500,
+    defaultValue: 8000,
     min: 1000,
-    max: 8000,
+    max: 16000,
   });
   const pass2MaxTokens = parseBoundedInteger(env, "EVAL_PASS2_MAX_TOKENS", {
-    defaultValue: 3500,
+    defaultValue: 8000,
     min: 1000,
-    max: 8000,
+    max: 16000,
   });
   const pass3MaxTokens = parseBoundedInteger(env, "EVAL_PASS3_MAX_TOKENS", {
-      defaultValue: 16000,
+      defaultValue: 20000,
     min: 2000,
-    max: 20000,
+    max: 30000,
   });
   const pass3PromptMaxChars = parseBoundedInteger(env, "EVAL_PASS3_PROMPT_MAX_CHARS", {
     defaultValue: 40000,

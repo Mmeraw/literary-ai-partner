@@ -12,9 +12,9 @@ describe("resolveEvaluationRuntimeConfig", () => {
 
     expect(config.model).toBe("gpt-4o");
     expect(config.adjudicationMode).toBe("optional");
-    expect(config.pass.pass1MaxTokens).toBe(3500);
-    expect(config.pass.pass2MaxTokens).toBe(3500);
-    expect(config.pass.pass3MaxTokens).toBe(16000);
+    expect(config.pass.pass1MaxTokens).toBe(8000);
+    expect(config.pass.pass2MaxTokens).toBe(8000);
+    expect(config.pass.pass3MaxTokens).toBe(20000);
     expect(config.pass.pass3PromptMaxChars).toBe(40000);
     expect(config.pass.inputCharBudget).toBe(40000);
     expect(config.pass.synthesisRefCharBudget).toBe(8000);
