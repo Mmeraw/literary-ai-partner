@@ -27,7 +27,9 @@ import { JsonBoundaryError, parseJsonObjectBoundary } from "@/lib/llm/jsonParseB
 import { getEvaluationRuntimeConfig } from "@/lib/config/evaluationRuntimeConfig";
 
 const PASS2_TEMPERATURE = 0.3;
-const DEFAULT_CHUNK_PASS_CONCURRENCY = 10;
+const DEFAULT_CHUNK_PASS_CONCURRENCY = 5;
+const DEFAULT_CHUNK_RETRY_MAX = 3;
+const DEFAULT_CHUNK_RETRY_BASE_MS = 10000;
 // Pass 2 model is resolved exclusively via getCanonicalPipelineModel(opts.model). The central resolver in policy.ts enforces the production reasoning-model invariant (forbids o-series unless EVAL_ALLOW_REASONING_MODELS=true).
 
 function getRetryPass2MaxTokens(currentMaxTokens: number): number {
@@ -111,6 +113,67 @@ function getChunkPassConcurrency(): number {
   const parsed = Number.parseInt(raw, 10);
   if (!Number.isFinite(parsed) || parsed <= 0) return DEFAULT_CHUNK_PASS_CONCURRENCY;
   return Math.min(24, Math.max(1, parsed));
+}
+
+function getChunkRetryMax(): number {
+  const raw = process.env.EVAL_CHUNK_RETRY_MAX;
+  if (!raw) return DEFAULT_CHUNK_RETRY_MAX;
+  const parsed = Number.parseInt(raw, 10);
+  if (!Number.isFinite(parsed) || parsed < 0) return DEFAULT_CHUNK_RETRY_MAX;
+  return Math.min(10, parsed);
+}
+
+function getChunkRetryBaseMs(): number {
+  const raw = process.env.EVAL_CHUNK_RETRY_BASE_MS;
+  if (!raw) return DEFAULT_CHUNK_RETRY_BASE_MS;
+  const parsed = Number.parseInt(raw, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) return DEFAULT_CHUNK_RETRY_BASE_MS;
+  return Math.min(60_000, Math.max(500, parsed));
+}
+
+function isRateLimitError(reason: unknown): boolean {
+  const text = String(reason instanceof Error ? reason.message : reason).toLowerCase();
+  return text.includes("429") || text.includes("rate limit") || text.includes("tokens per min") || text.includes("tpm");
+}
+
+function parseRetryAfterMs(reason: unknown): number | null {
+  if (typeof reason === "object" && reason !== null) {
+    const maybeHeaders = (reason as { headers?: unknown; response?: { headers?: unknown } }).headers
+      ?? (reason as { response?: { headers?: unknown } }).response?.headers;
+    if (typeof maybeHeaders === "object" && maybeHeaders !== null) {
+      const headersRecord = maybeHeaders as Record<string, unknown>;
+      const retryHeaderRaw = headersRecord["retry-after"] ?? headersRecord["Retry-After"];
+      if (typeof retryHeaderRaw === "string" && retryHeaderRaw.trim() !== "") {
+        const asSeconds = Number.parseFloat(retryHeaderRaw);
+        if (Number.isFinite(asSeconds) && asSeconds > 0) {
+          return Math.ceil(asSeconds * 1000);
+        }
+      } else if (typeof retryHeaderRaw === "number" && Number.isFinite(retryHeaderRaw) && retryHeaderRaw > 0) {
+        return Math.ceil(retryHeaderRaw * 1000);
+      }
+    }
+  }
+
+  const text = String(reason instanceof Error ? reason.message : reason);
+  const secMatch = text.match(/try again in\s+([0-9]+(?:\.[0-9]+)?)s/i);
+  if (secMatch) {
+    const sec = Number.parseFloat(secMatch[1]);
+    if (Number.isFinite(sec) && sec > 0) {
+      return Math.ceil(sec * 1000);
+    }
+  }
+
+  const msMatch = text.match(/retry[-_ ]after\s*[:=]?\s*([0-9]+)\s*ms/i);
+  if (msMatch) {
+    const ms = Number.parseInt(msMatch[1], 10);
+    if (Number.isFinite(ms) && ms > 0) return ms;
+  }
+
+  return null;
+}
+
+function sleepMs(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function getChunkPassMaxPerPass(): number | null {
@@ -284,8 +347,12 @@ export async function runPass2(opts: RunPass2Options): Promise<SinglePassOutput>
     const chunksTotal = opts.manuscriptChunks!.length;
     const chunkConcurrency = getChunkPassConcurrency();
     const chunkCap = getChunkPassMaxPerPass();
+    const chunkRetryMax = getChunkRetryMax();
+    const chunkRetryBaseMs = getChunkRetryBaseMs();
     const selectedChunks = chunkCap ? opts.manuscriptChunks!.slice(0, chunkCap) : opts.manuscriptChunks!;
     const chunkEvalStartMs = nowMs();
+    let rateLimitRetryCount = 0;
+    let rateLimitWaitMs = 0;
 
     console.log(
       `[Pass2] Chunk-native path: total=${chunksTotal} attempted=${selectedChunks.length} concurrency=${chunkConcurrency}`,
@@ -294,25 +361,51 @@ export async function runPass2(opts: RunPass2Options): Promise<SinglePassOutput>
     const settled = await runChunksWithConcurrency(
       selectedChunks,
       chunkConcurrency,
-      async (chunk) =>
-        runPass2({
-          ...opts,
-          manuscriptText: chunk.content,
-          manuscriptChunks: undefined, // Prevent recursive chunking
-        }),
+      async (chunk) => {
+        let attempt = 0;
+        while (true) {
+          try {
+            return await runPass2({
+              ...opts,
+              manuscriptText: chunk.content,
+              manuscriptChunks: undefined, // Prevent recursive chunking
+            });
+          } catch (error) {
+            if (!isRateLimitError(error) || attempt >= chunkRetryMax) {
+              throw error;
+            }
+
+            const suggestedWait = parseRetryAfterMs(error);
+            const backoffMs = Math.min(90_000, chunkRetryBaseMs * Math.pow(2, attempt));
+            const jitterMs = Math.floor(Math.random() * 750);
+            const waitMs = Math.max(suggestedWait ?? 0, backoffMs) + jitterMs;
+            rateLimitRetryCount += 1;
+            rateLimitWaitMs += waitMs;
+            attempt += 1;
+            console.warn(
+              `[Pass2] Chunk ${chunk.chunk_index} rate-limited; retry ${attempt}/${chunkRetryMax} after ${waitMs}ms`,
+            );
+            await sleepMs(waitMs);
+          }
+        }
+      },
     );
 
     const chunkResults: SinglePassOutput[] = [];
     const failures: Array<{ chunkIndex: number; reason: string }> = [];
+    const chunkFailuresByReason: Record<string, number> = {};
     for (let i = 0; i < settled.length; i += 1) {
       const result = settled[i];
       if (!result) continue;
       if (result.status === "fulfilled") {
         chunkResults.push(result.value);
       } else {
+        const reason = String(result.reason instanceof Error ? result.reason.message : result.reason);
+        const bucket = isRateLimitError(result.reason) ? "RATE_LIMIT_429" : "OTHER";
+        chunkFailuresByReason[bucket] = (chunkFailuresByReason[bucket] ?? 0) + 1;
         failures.push({
           chunkIndex: selectedChunks[i].chunk_index,
-          reason: String(result.reason instanceof Error ? result.reason.message : result.reason),
+          reason,
         });
       }
     }
@@ -332,6 +425,10 @@ export async function runPass2(opts: RunPass2Options): Promise<SinglePassOutput>
         chunk_coverage_pct: chunkCoveragePct,
         chunk_concurrency: chunkConcurrency,
         chunk_eval_total_ms: chunkEvalTotalMs,
+        rate_limit_retry_count: rateLimitRetryCount,
+        rate_limit_total_wait_ms: rateLimitWaitMs,
+        provider_tpm_limited: (chunkFailuresByReason["RATE_LIMIT_429"] ?? 0) > 0 || rateLimitRetryCount > 0,
+        chunk_failures_by_reason: chunkFailuresByReason,
         chunk_cap_applied: chunkCap ? true : false,
       },
     });
