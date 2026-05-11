@@ -73,6 +73,9 @@ describe("buildDivergenceDiagnosticArtifact", () => {
 
     expect(artifact.pass1_pass2_criterion_state_pre_synthesis.concept.apparent_state).toBe("soft_divergence");
     expect(artifact.pass1_pass2_criterion_state_pre_synthesis.voice.apparent_state).toBe("hard_divergence");
+    expect(
+      artifact.pass1_pass2_criterion_state_pre_synthesis.concept.raw_rationale_overlap_count,
+    ).toEqual(expect.any(Number));
     expect(Object.keys(artifact.pass1_pass2_criterion_state_pre_synthesis)).toEqual(CRITERIA_KEYS);
   });
 

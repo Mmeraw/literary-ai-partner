@@ -19,6 +19,7 @@ import type {
   EvidenceAnchor,
   CompletionUsage,
   PassCompletionCapture,
+  Pass3ReducerTelemetry,
   ManuscriptChunkEvidence,
 } from "./types";
 import type { CanonRegistry } from "@/lib/governance/canonRegistry";
@@ -370,7 +371,7 @@ export async function runPass3Synthesis(opts: RunPass3Options): Promise<Synthesi
   });
   assertPass3PromptTripwires(userPrompt);
 
-  const pass3ReducerTelemetry = {
+  const pass3ReducerTelemetry: Pass3ReducerTelemetry = {
     schema_version: "1" as const,
     prompt_version: PASS3_PROMPT_VERSION,
     criteria_count_by_state: reducerTelemetry.criteria_count_by_state,

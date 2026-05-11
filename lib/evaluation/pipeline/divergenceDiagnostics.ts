@@ -118,7 +118,7 @@ export function buildDivergenceDiagnosticArtifact(
       pass1_score: criterion.pass1_score,
       pass2_score: criterion.pass2_score,
       score_delta: criterion.score_delta,
-      rationale_overlap_count: buildRationaleOverlapCount(
+      raw_rationale_overlap_count: buildRationaleOverlapCount(
         String(pass1Criterion?.rationale ?? ""),
         String(pass2Criterion?.rationale ?? ""),
       ),

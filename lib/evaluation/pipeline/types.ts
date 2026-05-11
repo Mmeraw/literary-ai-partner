@@ -340,7 +340,7 @@ export type PreSynthesisCriterionState = {
   pass1_score: number | null;
   pass2_score: number | null;
   score_delta: number | null;
-  rationale_overlap_count: number;
+  raw_rationale_overlap_count: number;
   apparent_state: DivergenceApparentState;
 };
 
