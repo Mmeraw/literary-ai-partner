@@ -188,7 +188,7 @@ describe("parsePass3Response", () => {
     expect(result.criteria[0].delta_explanation).toBeDefined();
   });
 
-  it("hydrates anchorless recommendations from evidence and normalizes concrete fix/move language", () => {
+  it("preserves anchorless recommendations without fabricating actionability fields", () => {
     const fixture = makePass3Fixture();
     fixture.criteria[0] = {
       ...fixture.criteria[0],
@@ -209,13 +209,9 @@ describe("parsePass3Response", () => {
     const result = parsePass3Response(JSON.stringify(fixture), pass1, pass2);
     const rec = result.criteria[0].recommendations[0];
 
-    expect(rec.anchor_snippet.trim().length).toBeGreaterThan(0);
-    expect(rec.specific_fix.trim().length).toBeGreaterThan(0);
-    expect(
-      /\b(rewrite|replace|cut|trim|split|merge|move|reorder|expand|compress|clarify|insert|delete)\b/i.test(
-        rec.action,
-      ),
-    ).toBe(true);
+    expect(rec.anchor_snippet).toBe("");
+    expect(rec.specific_fix).toBe("");
+    expect(rec.action).toContain("Readers will track stakes more clearly");
   });
 
   it("injects weak-criterion mention into summary when omitted", () => {
