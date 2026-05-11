@@ -134,7 +134,7 @@ const QG_EDITORIAL_DIAGNOSTIC_MAX_FAILURE_REASON_CHARS = 220;
 const QG_EDITORIAL_BLOCK_INVALID_RATIO = 0.5;
 const QG_EDITORIAL_BLOCK_CRITERIA_RATIO = 0.5;
 // Minimum number of invalid recommendations to escalate to BLOCK (systemic threshold).
-// Default 8: requires ratio signal OR a genuinely systemic raw count before blocking.
+// Default 12: requires ratio signal OR a genuinely systemic raw count before blocking.
 // Set EVAL_EDITORIAL_BLOCK_MIN_INVALID_RECS env var to override (range: 3–30).
 const QG_EDITORIAL_BLOCK_MIN_INVALID_RECS = (() => {
   const raw = process.env.EVAL_EDITORIAL_BLOCK_MIN_INVALID_RECS;
@@ -142,7 +142,7 @@ const QG_EDITORIAL_BLOCK_MIN_INVALID_RECS = (() => {
     const v = parseInt(raw.trim(), 10);
     if (v >= 3 && v <= 30) return v;
   }
-  return 8;
+  return 12;
 })();
 const QG_EDITORIAL_BLOCK_MIN_DUPLICATE_REASONING = 2;
 
