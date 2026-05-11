@@ -18,7 +18,7 @@ import type { CanonRegistry } from "@/lib/governance/canonRegistry";
 import {
   buildOpenAIOutputTokenParam,
   buildOpenAITemperatureParam,
-  getCanonicalPipelineModel,
+  getCanonicalChunkModel,
   OPENAI_SDK_MAX_RETRIES,
 } from "@/lib/evaluation/policy";
 import { getEvalOpenAiTimeoutMs } from "@/lib/evaluation/config";
@@ -30,7 +30,8 @@ const PASS2_TEMPERATURE = 0.3;
 const DEFAULT_CHUNK_PASS_CONCURRENCY = 5;
 const DEFAULT_CHUNK_RETRY_MAX = 3;
 const DEFAULT_CHUNK_RETRY_BASE_MS = 10000;
-// Pass 2 model is resolved exclusively via getCanonicalPipelineModel(opts.model). The central resolver in policy.ts enforces the production reasoning-model invariant (forbids o-series unless EVAL_ALLOW_REASONING_MODELS=true).
+// Pass 2 model is resolved via getCanonicalChunkModel(opts.model), allowing
+// EVAL_CHUNK_MODEL to control high-volume map-phase calls.
 
 function getRetryPass2MaxTokens(currentMaxTokens: number): number {
   return Math.min(8000, Math.max(4000, currentMaxTokens + 1500));
@@ -334,6 +335,7 @@ export async function runPass2(opts: RunPass2Options): Promise<SinglePassOutput>
   }
 
   const passStartMs = nowMs();
+  const selectedModel = getCanonicalChunkModel(opts.model);
 
   if (!opts.registry || opts.registry.size === 0) {
     throw new Error("[Pass2] Canonical registry binding missing");
@@ -353,6 +355,11 @@ export async function runPass2(opts: RunPass2Options): Promise<SinglePassOutput>
     const chunkEvalStartMs = nowMs();
     let rateLimitRetryCount = 0;
     let rateLimitWaitMs = 0;
+    let usagePromptTokensTotal = 0;
+    let usageCompletionTokensTotal = 0;
+    let usageTotalTokensTotal = 0;
+
+    const forwardCompletion = opts._onCompletion;
 
     console.log(
       `[Pass2] Chunk-native path: total=${chunksTotal} attempted=${selectedChunks.length} concurrency=${chunkConcurrency}`,
@@ -369,6 +376,14 @@ export async function runPass2(opts: RunPass2Options): Promise<SinglePassOutput>
               ...opts,
               manuscriptText: chunk.content,
               manuscriptChunks: undefined, // Prevent recursive chunking
+              _onCompletion: (capture) => {
+                if (capture.pass === 2) {
+                  usagePromptTokensTotal += capture.usage?.prompt_tokens ?? 0;
+                  usageCompletionTokensTotal += capture.usage?.completion_tokens ?? 0;
+                  usageTotalTokensTotal += capture.usage?.total_tokens ?? 0;
+                }
+                forwardCompletion?.(capture);
+              },
             });
           } catch (error) {
             if (!isRateLimitError(error) || attempt >= chunkRetryMax) {
@@ -425,6 +440,11 @@ export async function runPass2(opts: RunPass2Options): Promise<SinglePassOutput>
         chunk_coverage_pct: chunkCoveragePct,
         chunk_concurrency: chunkConcurrency,
         chunk_eval_total_ms: chunkEvalTotalMs,
+        provider: "openai",
+        model: selectedModel,
+        usage_prompt_tokens_total: usagePromptTokensTotal,
+        usage_completion_tokens_total: usageCompletionTokensTotal,
+        usage_total_tokens_total: usageTotalTokensTotal,
         rate_limit_retry_count: rateLimitRetryCount,
         rate_limit_total_wait_ms: rateLimitWaitMs,
         provider_tpm_limited: (chunkFailuresByReason["RATE_LIMIT_429"] ?? 0) > 0 || rateLimitRetryCount > 0,
@@ -456,7 +476,6 @@ export async function runPass2(opts: RunPass2Options): Promise<SinglePassOutput>
   // or when manuscript is small enough to fit in single evaluation.
 
   const createCompletion = opts._createCompletion ?? defaultCreateCompletion(opts.openaiApiKey);
-  const selectedModel = getCanonicalPipelineModel(opts.model);
 
   const promptAssemblyStartMs = nowMs();
 
@@ -698,7 +717,7 @@ export function parsePass2Response(raw: string, fallbackModel?: string): SingleP
   const resolvedFallback =
     typeof fallbackModel === "string" && fallbackModel.length > 0
       ? fallbackModel
-      : getCanonicalPipelineModel(undefined);
+      : getCanonicalChunkModel(undefined);
   // P0: Log raw response preview before parse
   console.log(`[Pass2] raw response preview len=${raw.length}: ${raw.slice(0, 200)}`);
 

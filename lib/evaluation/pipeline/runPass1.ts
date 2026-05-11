@@ -16,7 +16,7 @@ import type { CanonRegistry } from "@/lib/governance/canonRegistry";
 import {
   buildOpenAIOutputTokenParam,
   buildOpenAITemperatureParam,
-  getCanonicalPipelineModel,
+  getCanonicalChunkModel,
   OPENAI_SDK_MAX_RETRIES,
 } from "@/lib/evaluation/policy";
 import { getEvalOpenAiTimeoutMs } from "@/lib/evaluation/config";
@@ -36,17 +36,16 @@ const DEFAULT_CHUNK_RETRY_MAX = 3;
 const DEFAULT_CHUNK_RETRY_BASE_MS = 10000;
 
 /**
- * RCA-PASS1-TOKEN-001: Pass1 model is strictly authoritative.
- * gpt-4o is the only permitted Pass1 model. Caller model input is not accepted.
- * The o3 experiment path has been removed from this PR; it will be reintroduced
- * after U2 production proof in a separate, dedicated PR.
+ * Pass 1 model is not caller-controlled.
+ *
+ * Resolution order:
+ *  1) EVAL_CHUNK_MODEL (for map-phase throughput)
+ *  2) default baseline model (gpt-4o)
  */
-type Pass1Model = "gpt-4o";
-const PASS1_PRODUCTION_MODEL: Pass1Model = "gpt-4o";
+const PASS1_DEFAULT_MODEL = "gpt-4o";
 
-/** No-arg resolver. Returns the single production model unconditionally. No caller influence. */
-function resolvePass1Model(): Pass1Model {
-  return PASS1_PRODUCTION_MODEL;
+function resolvePass1Model(): string {
+  return getCanonicalChunkModel(PASS1_DEFAULT_MODEL);
 }
 
 function nowMs(): number {
@@ -344,6 +343,7 @@ export interface RunPass1Options {
  */
 export async function runPass1(opts: RunPass1Options): Promise<SinglePassOutput> {
   const passStartMs = nowMs();
+  const selectedModel = resolvePass1Model();
 
   if (!opts.registry || opts.registry.size === 0) {
     throw new Error("[Pass1] Canonical registry binding missing");
@@ -363,6 +363,11 @@ export async function runPass1(opts: RunPass1Options): Promise<SinglePassOutput>
     const chunkEvalStartMs = nowMs();
     let rateLimitRetryCount = 0;
     let rateLimitWaitMs = 0;
+    let usagePromptTokensTotal = 0;
+    let usageCompletionTokensTotal = 0;
+    let usageTotalTokensTotal = 0;
+
+    const forwardCompletion = opts._onCompletion;
 
     console.log(
       `[Pass1] Chunk-native path: total=${chunksTotal} attempted=${selectedChunks.length} concurrency=${chunkConcurrency}`,
@@ -379,6 +384,14 @@ export async function runPass1(opts: RunPass1Options): Promise<SinglePassOutput>
               ...opts,
               manuscriptText: chunk.content,
               manuscriptChunks: undefined, // Prevent recursive chunking
+              _onCompletion: (capture) => {
+                if (capture.pass === 1) {
+                  usagePromptTokensTotal += capture.usage?.prompt_tokens ?? 0;
+                  usageCompletionTokensTotal += capture.usage?.completion_tokens ?? 0;
+                  usageTotalTokensTotal += capture.usage?.total_tokens ?? 0;
+                }
+                forwardCompletion?.(capture);
+              },
             });
           } catch (error) {
             if (!isRateLimitError(error) || attempt >= chunkRetryMax) {
@@ -435,6 +448,11 @@ export async function runPass1(opts: RunPass1Options): Promise<SinglePassOutput>
         chunk_coverage_pct: chunkCoveragePct,
         chunk_concurrency: chunkConcurrency,
         chunk_eval_total_ms: chunkEvalTotalMs,
+        provider: "openai",
+        model: selectedModel,
+        usage_prompt_tokens_total: usagePromptTokensTotal,
+        usage_completion_tokens_total: usageCompletionTokensTotal,
+        usage_total_tokens_total: usageTotalTokensTotal,
         rate_limit_retry_count: rateLimitRetryCount,
         rate_limit_total_wait_ms: rateLimitWaitMs,
         provider_tpm_limited: (chunkFailuresByReason["RATE_LIMIT_429"] ?? 0) > 0 || rateLimitRetryCount > 0,
@@ -466,7 +484,6 @@ export async function runPass1(opts: RunPass1Options): Promise<SinglePassOutput>
   // or when manuscript is small enough to fit in single evaluation.
 
   const createCompletion = opts._createCompletion ?? defaultCreateCompletion(opts.openaiApiKey);
-  const selectedModel = getCanonicalPipelineModel(resolvePass1Model());
 
   const promptAssemblyStartMs = nowMs();
 
@@ -671,7 +688,7 @@ function defaultCreateCompletion(openaiApiKey?: string | null): CreateCompletion
  * @returns Validated SinglePassOutput with axis="craft_execution"
  * @throws on invalid structure, empty criteria, or parse errors
  */
-export function parsePass1Response(raw: string, fallbackModel: string = PASS1_PRODUCTION_MODEL): SinglePassOutput {
+export function parsePass1Response(raw: string, fallbackModel: string = PASS1_DEFAULT_MODEL): SinglePassOutput {
   // P0: Log raw response preview before parse
   console.log(`[Pass1] raw response preview len=${raw.length}: ${raw.slice(0, 200)}`);
 

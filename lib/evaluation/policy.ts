@@ -77,6 +77,38 @@ export function getCanonicalPipelineModel(overrideModel?: string): string {
   return candidate;
 }
 
+/**
+ * Chunk evaluation model resolver (map phase).
+ *
+ * Resolution order:
+ *  1) EVAL_CHUNK_MODEL (non-empty)
+ *  2) optional overrideModel
+ *  3) canonical runtime default (EVAL_OPENAI_MODEL)
+ */
+export function getCanonicalChunkModel(overrideModel?: string): string {
+  const envChunkModel = process.env.EVAL_CHUNK_MODEL;
+  if (typeof envChunkModel === "string" && envChunkModel.trim().length > 0) {
+    return getCanonicalPipelineModel(envChunkModel);
+  }
+  return getCanonicalPipelineModel(overrideModel);
+}
+
+/**
+ * Synthesis model resolver (reduce phase).
+ *
+ * Resolution order:
+ *  1) EVAL_SYNTHESIS_MODEL (non-empty)
+ *  2) optional overrideModel
+ *  3) canonical runtime default (EVAL_OPENAI_MODEL)
+ */
+export function getCanonicalSynthesisModel(overrideModel?: string): string {
+  const envSynthesisModel = process.env.EVAL_SYNTHESIS_MODEL;
+  if (typeof envSynthesisModel === "string" && envSynthesisModel.trim().length > 0) {
+    return getCanonicalPipelineModel(envSynthesisModel);
+  }
+  return getCanonicalPipelineModel(overrideModel);
+}
+
 export function getExternalAdjudicationMode(): ExternalAdjudicationMode {
   return getEvaluationRuntimeConfig().adjudicationMode;
 }
