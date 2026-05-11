@@ -159,7 +159,7 @@ export async function POST(req: Request) {
         validity_status: 'pending',
         phase: PHASES.PHASE_1,
         phase_status: 'queued',
-        policy_family: 'standard',
+        policy_family: 'standard', // ci-surface:allow — internal DB column, not returned to user
         voice_preservation_level: 'balanced',
         english_variant: 'us',
         queued_at: new Date().toISOString(),
@@ -195,7 +195,6 @@ export async function POST(req: Request) {
           status: data.status,
           phase: data.phase,
           phase_1_status: data.phase_1_status,
-          policy_family: data.policy_family,
           voice_preservation_level: data.voice_preservation_level,
           english_variant: data.english_variant,
         },

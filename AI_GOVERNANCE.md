@@ -25,6 +25,17 @@ This policy applies to:
 - Copilot-style tools used in this repository
 - External AI systems integrating with RevisionGrade
 
+## 3a. Public Surface Boundary (Two-Tier IP Doctrine)
+
+**`docs/PUBLIC_SURFACE_CANON_v1.md` is binding** for all UI, API, and export work.
+
+- Tier 1 (user-facing): only `PublicEvaluationReport` and `PublicRevisionHandoff` from `types/public-evaluation-report.ts` may cross the public surface.
+- Tier 2 (internal): `EvaluationResultV2`, wave/gate/doctrine identifiers, and all pipeline internals are protected IP and must never appear in user-visible output.
+- The **sole authorized translator** is `lib/evaluation/translateToPublicReport.ts`.
+- CI guard at `scripts/ci-guard/check_public_surface_terms.ts` fails PRs that leak internal identifiers into `app/` or `components/`.
+
+**Do not consume `EvaluationResultV2` directly in any UI component or API response.** Always pass through the translation boundary.
+
 ## 4. Cryptographic Signing Policy
 
 **GPG signing is NOT an approved trust mechanism for this repository.**
