@@ -7,6 +7,12 @@ import { runPass2 } from "@/lib/evaluation/pipeline/runPass2";
 import { runPass3Synthesis } from "@/lib/evaluation/pipeline/runPass3Synthesis";
 import { runQualityGate } from "@/lib/evaluation/pipeline/qualityGate";
 import { runPipeline, synthesisToEvaluationResult } from "@/lib/evaluation/pipeline/runPipeline";
+import {
+  getCanonicalPass1Model,
+  getCanonicalPass2Model,
+  getCanonicalPass3Model,
+  getCanonicalPass3FallbackModel,
+} from "@/lib/evaluation/policy";
 import type {
   SinglePassOutput,
   SynthesisOutput,
@@ -162,6 +168,12 @@ async function main(): Promise<void> {
   const rawSource = readFileSync(sourcePath, "utf8");
   const manuscriptText = extractChapterOne(rawSource);
   const wordCount = countWords(manuscriptText);
+
+  // Emit resolved pass routing at startup for auditability and rollback traceability.
+  console.log(
+    `[Routing] pass1=${getCanonicalPass1Model(model)} pass2=${getCanonicalPass2Model(model)} ` +
+    `pass3=${getCanonicalPass3Model(model)} pass3Fallback=${getCanonicalPass3FallbackModel(model)}`,
+  );
 
   const capturedPasses: CapturedPasses = {};
   let pass1: SinglePassOutput | undefined;
