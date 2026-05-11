@@ -892,15 +892,25 @@ export function runQualityGate(
         const action = (r.action ?? "").trim();
         const expectedImpact = (r.expected_impact ?? "").trim();
         const anchorSnippet = (r.anchor_snippet ?? "").trim();
+        const mechanism = (r.mechanism ?? "").trim();
+        const specificFix = (r.specific_fix ?? "").trim();
+        const readerEffect = (r.reader_effect ?? "").trim();
 
         const hasAnchorContext =
           anchorSnippet.length > 0 ||
           EDITORIAL_CONTEXT_MARKERS.test(action) ||
           EDITORIAL_ANCHOR_HINT_MARKERS.test(action);
         const hasSymptomSignal = EDITORIAL_SYMPTOM_MARKERS.test(action) || EDITORIAL_SYMPTOM_MARKERS.test(expectedImpact);
-        const hasMechanismCause = EDITORIAL_MECHANISM_MARKERS.test(action) || EDITORIAL_MECHANISM_MARKERS.test(expectedImpact);
-        const hasSpecificFixMove = EDITORIAL_FIX_MARKERS.test(action) && hasAnchorContext;
-        const hasReaderEffect = EDITORIAL_READER_EFFECT_MARKERS.test(expectedImpact);
+        const hasMechanismCause =
+          EDITORIAL_MECHANISM_MARKERS.test(action) ||
+          EDITORIAL_MECHANISM_MARKERS.test(expectedImpact) ||
+          EDITORIAL_MECHANISM_MARKERS.test(mechanism);
+        const hasSpecificFixMove =
+          (EDITORIAL_FIX_MARKERS.test(action) || EDITORIAL_FIX_MARKERS.test(specificFix)) &&
+          hasAnchorContext;
+        const hasReaderEffect =
+          EDITORIAL_READER_EFFECT_MARKERS.test(expectedImpact) ||
+          EDITORIAL_READER_EFFECT_MARKERS.test(readerEffect);
 
         const missing: string[] = [];
         if (!hasAnchorContext) missing.push("anchor/context");

@@ -125,7 +125,7 @@ describe("qualityGate recommendation_editorial_quality", () => {
     expect(result.editorial_diagnostics?.find((d) => d.criterion === "dialogue")?.action_applied).toBe("warn");
   });
 
-  it("warns when specific fix or move is missing in an isolated recommendation", () => {
+  it("does not warn when specific_fix field provides a concrete move", () => {
     const synthesis = makeSynthesis({
       pacing: {
         recommendations: [
@@ -144,10 +144,10 @@ describe("qualityGate recommendation_editorial_quality", () => {
     expect(check?.passed).toBe(true);
     expect(check?.error_code).toBeUndefined();
     expect(result.pass).toBe(true);
-    expect(result.editorial_diagnostics?.find((d) => d.criterion === "pacing")?.action_applied).toBe("warn");
+    expect(result.editorial_diagnostics?.find((d) => d.criterion === "pacing")?.action_applied).toBeUndefined();
   });
 
-  it("warns when reader effect is missing in an isolated recommendation", () => {
+  it("does not warn when reader_effect field provides reader-facing outcome", () => {
     const synthesis = makeSynthesis({
       voice: {
         recommendations: [
@@ -165,7 +165,7 @@ describe("qualityGate recommendation_editorial_quality", () => {
     expect(check?.passed).toBe(true);
     expect(check?.error_code).toBeUndefined();
     expect(result.pass).toBe(true);
-    expect(result.editorial_diagnostics?.find((d) => d.criterion === "voice")?.action_applied).toBe("warn");
+    expect(result.editorial_diagnostics?.find((d) => d.criterion === "voice")?.action_applied).toBeUndefined();
   });
 
   it("passes borderline recommendation when mechanism is expressed in expected impact", () => {
