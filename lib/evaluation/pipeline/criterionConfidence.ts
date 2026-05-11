@@ -52,6 +52,29 @@ export interface CriterionConfidenceInput {
 const HIGH_MIN = 85;
 const MODERATE_MIN = 60;
 
+/**
+ * Per-criterion confidence floor overrides.
+ * proseControl is a sustained-texture judgment: a single strong verbatim anchor
+ * plus good reasoning is sufficient to reach moderate. Without this override the
+ * global MODERATE_MIN (60) is unreachable when only 1 anchor is emitted.
+ */
+const CRITERION_MODERATE_FLOOR: Partial<Record<string, number>> = {
+  proseControl: 55,
+  tone: 55,
+};
+
+/**
+ * Per-criterion evidence coverage bonus.
+ * proseControl/tone reward verbatim anchors more aggressively: the model is
+ * producing prose-level quotes, so even a single good anchor carries more
+ * evidential weight than for structural criteria (pacing, narrativeDrive, etc.).
+ * Bonus is added *on top of* the base coverage score computed by computeEvidenceCoverage.
+ */
+const CRITERION_COVERAGE_BONUS: Partial<Record<string, number>> = {
+  proseControl: 8,
+  tone: 5,
+};
+
 const SUPPORT_FAMILY_MAX = 65; // coverage(40) + quality(25)
 const EXPLANATION_FAMILY_MAX = 35; // reasoning(20) + recommendation(15)
 
@@ -94,7 +117,7 @@ const CRITERION_TERMS: Record<string, readonly string[]> = {
   theme: ["theme", "motif", "symbol", "moral", "idea", "meaning", "pattern"],
   worldbuilding: ["world", "setting", "environment", "logic", "system", "rules", "place", "ritual"],
   pacing: ["pacing", "pace", "tempo", "compression", "drag", "acceleration", "rhythm", "movement"],
-  proseControl: ["prose", "sentence", "syntax", "diction", "imagery", "metaphor", "cadence", "line", "paragraph"],
+  proseControl: ["prose", "sentence", "syntax", "diction", "imagery", "metaphor", "cadence", "line", "paragraph", "hedge", "modifier", "image cluster", "rhythm"],
   tone: ["tone", "affect", "register", "atmosphere", "consistency", "control"],
   narrativeClosure: ["closure", "closeout", "aftermath", "consequence", "promise", "climax", "thread"],
   marketability: ["market", "audience", "positioning", "pitch", "genre", "queryability", "readiness"],
@@ -241,17 +264,36 @@ function hasArtifactHygieneIssue(criterion: CriterionConfidenceInput): boolean {
   );
 }
 
-function computeEvidenceCoverage(anchorCount: number): { score: number; reasons: string[] } {
+function computeEvidenceCoverage(
+  anchorCount: number,
+  criterionKey?: unknown,
+): { score: number; reasons: string[] } {
+  let baseScore: number;
+  let reasons: string[];
+
   if (anchorCount <= 0) {
     return { score: 0, reasons: ["No evidence anchors were provided"] };
+  } else if (anchorCount === 1) {
+    baseScore = 20;
+    reasons = ["Only one evidence anchor was provided"];
+  } else if (anchorCount === 2) {
+    baseScore = 35;
+    reasons = ["Two evidence anchors were provided"];
+  } else {
+    baseScore = 40;
+    reasons = ["Three or more evidence anchors were provided"];
   }
-  if (anchorCount === 1) {
-    return { score: 20, reasons: ["Only one evidence anchor was provided"] };
+
+  // Per-criterion coverage bonus: prose-control criteria reward even a single
+  // strong anchor more aggressively than structural criteria.
+  const key = typeof criterionKey === "string" ? criterionKey : undefined;
+  const bonus = key !== undefined ? (CRITERION_COVERAGE_BONUS[key] ?? 0) : 0;
+  if (bonus > 0) {
+    baseScore = Math.min(baseScore + bonus, 40); // never exceed SUPPORT_FAMILY_MAX coverage cap
+    reasons = [...reasons, `Per-criterion coverage bonus applied (+${bonus}) for ${key}`];
   }
-  if (anchorCount === 2) {
-    return { score: 35, reasons: ["Two evidence anchors were provided"] };
-  }
-  return { score: 40, reasons: ["Three or more evidence anchors were provided"] };
+
+  return { score: baseScore, reasons };
 }
 
 function computeEvidenceQuality(
@@ -398,9 +440,19 @@ function computeRecommendationAnchoring(
   };
 }
 
-function computeConfidenceLevel(score: number): CriterionConfidenceLevel {
+function computeConfidenceLevel(
+  score: number,
+  criterionKey?: unknown,
+): CriterionConfidenceLevel {
   if (score >= HIGH_MIN) return "high";
-  if (score >= MODERATE_MIN) return "moderate";
+  // Per-criterion moderate floor: some criteria (proseControl, tone) have a
+  // lower threshold for reaching moderate because texture-level judgment is
+  // inherently thinner in anchor count than structural criteria.
+  const key = typeof criterionKey === "string" ? criterionKey : undefined;
+  const moderateFloor = key !== undefined
+    ? (CRITERION_MODERATE_FLOOR[key] ?? MODERATE_MIN)
+    : MODERATE_MIN;
+  if (score >= moderateFloor) return "moderate";
   return "low";
 }
 
@@ -430,7 +482,7 @@ export function computeCriterionConfidence(
 ): CriterionConfidenceResult {
   const anchors = getEvidenceAnchors(criterion);
 
-  const coverage = computeEvidenceCoverage(anchors.length);
+  const coverage = computeEvidenceCoverage(anchors.length, criterion.key);
   const quality = computeEvidenceQuality(criterion, anchors, sourceText);
   const reasoning = computeReasoningSpecificity(criterion);
   const recommendation = computeRecommendationAnchoring(criterion, sourceText);
@@ -446,7 +498,7 @@ export function computeCriterionConfidence(
     confidenceScore = Math.min(confidenceScore, 84);
   }
 
-  const confidence_level = computeConfidenceLevel(confidenceScore);
+  const confidence_level = computeConfidenceLevel(confidenceScore, criterion.key);
   const scorability_status = computeScorabilityStatus(criterion, confidence_level);
 
   const confidence_reasons = unique([

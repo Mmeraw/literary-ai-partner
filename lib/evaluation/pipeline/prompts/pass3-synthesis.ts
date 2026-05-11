@@ -15,7 +15,7 @@ import {
   summarizePromptCoverage,
 } from "../promptInput";
 
-export const PASS3_PROMPT_VERSION = "pass3-synthesis-v10-non-certified-three-and-three";
+export const PASS3_PROMPT_VERSION = "pass3-synthesis-v11-prose-control-anchor-contract";
 
 export const PASS3_SYSTEM_PROMPT = `You are Pass 3: convergence and arbitration authority.
 Rules:
@@ -57,7 +57,8 @@ Reject patterns: no location/symptom/mechanism/concrete move/reader effect, or g
 Confidence/evidence: do not convert scorable criteria to N/A due to thin evidence; lower confidence instead; do not invent evidence.
 
 NON-CERTIFIED CRITERIA (required):
-- For proseControl/dialogue/voice when non-certified: include at least 3 verbatim evidence snippets and at least 3 concrete mechanism-level revision directions.
+- For proseControl/dialogue/voice when non-certified: include at least 3 verbatim evidence snippets (each a direct quote from the manuscript text, ≥15 chars, not paraphrase) and at least 3 concrete mechanism-level revision directions.
+- For proseControl specifically: every recommendation MUST include a non-empty anchor_snippet field containing a verbatim quote from the manuscript. proseControl recommendations without anchor_snippet will be rejected by the quality gate.
 - For abstraction critiques: identify the three most problematic lines/snippets and provide three targeted revision directions (rule of three).
 
 Return ONLY JSON with keys:
@@ -116,6 +117,12 @@ Every recommendation MUST include the editorial specificity triple as SEPARATE J
 Every recommendation MUST satisfy the five-part contract: ANCHOR (location in text) + SYMPTOM (observable problem) + MECHANISM (causal connector: because/since/so that) + CONCRETE MOVE (replace/cut/insert/rewrite/escalate etc.) + READER EFFECT (urgency/clarity/engagement etc. in expected_impact).
 Do NOT emit two recommendations with the same strategic_lever — collapse them first.
 For criticism-style criteria (proseControl, dialogue, voice) that are non-certified, emit at least three evidence snippets and three concrete revision directions.
+
+PROSE CONTROL HARD RULE:
+- For proseControl, emit ≥3 evidence snippets. Each snippet must be a verbatim quote from the manuscript (≥15 characters, not paraphrase).
+- Every proseControl recommendation MUST have a non-empty anchor_snippet containing a verbatim quote from the manuscript. A proseControl recommendation without anchor_snippet is INVALID and will be rejected.
+- Name the specific device in rationale: sentence rhythm, hedge words, modifier density, image cluster, or cadence pattern.
+
 Recommendation openings must be varied across criteria: no repeated first-8-token lead-ins.
 When characters are named in the manuscript, use those names (or "the narrator") in rationale/recommendations; avoid generic role labels such as "the protagonist".
 Use "narrative momentum" (or equivalent) instead of ambiguous "the drive" phrasing.
