@@ -19,6 +19,7 @@ import type {
   EvidenceAnchor,
   CompletionUsage,
   PassCompletionCapture,
+  Pass3ReducerTelemetry,
   ManuscriptChunkEvidence,
 } from "./types";
 import type { CanonRegistry } from "@/lib/governance/canonRegistry";
@@ -29,6 +30,10 @@ import {
   OPENAI_SDK_MAX_RETRIES,
 } from "@/lib/evaluation/policy";
 import { buildComparisonPacket } from "./comparisonPacket";
+import {
+  buildDivergenceDiagnosticArtifact,
+  derivePass3CriteriaCountByStateFromRawResponse,
+} from "./divergenceDiagnostics";
 import { getEvalOpenAiTimeoutMs } from "@/lib/evaluation/config";
 import { summarizePromptCoverage, getDefaultSynthesisReferenceCharBudget } from "./promptInput";
 import { PLACEHOLDER_RATIONALE_PATTERNS } from "./placeholderRationalePatterns";
@@ -366,7 +371,7 @@ export async function runPass3Synthesis(opts: RunPass3Options): Promise<Synthesi
   });
   assertPass3PromptTripwires(userPrompt);
 
-  const pass3ReducerTelemetry = {
+  const pass3ReducerTelemetry: Pass3ReducerTelemetry = {
     schema_version: "1" as const,
     prompt_version: PASS3_PROMPT_VERSION,
     criteria_count_by_state: reducerTelemetry.criteria_count_by_state,
@@ -487,6 +492,20 @@ export async function runPass3Synthesis(opts: RunPass3Options): Promise<Synthesi
   });
 
   const finishReason = typeof firstChoice?.finish_reason === "string" ? firstChoice.finish_reason : "unknown";
+
+  const inferredPostSynthesisCounts = derivePass3CriteriaCountByStateFromRawResponse({
+    rawResponseText: responseText,
+    fallback: comparisonPacket.criteria_count_by_state,
+  });
+
+  pass3ReducerTelemetry.divergence_diagnostics = buildDivergenceDiagnosticArtifact({
+    pass1: opts.pass1,
+    pass2: opts.pass2,
+    comparisonPacket,
+    manuscriptText: opts.manuscriptText,
+    comparisonPacketChars: comparisonPacketJson.length,
+    pass3CriteriaCountByState: inferredPostSynthesisCounts,
+  });
 
   let synthesis: SynthesisOutput;
   try {

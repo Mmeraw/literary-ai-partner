@@ -330,6 +330,27 @@ export type Pass3CriteriaCountByState = {
   missing_or_invalid: number;
 };
 
+export type DivergenceApparentState =
+  | "agree"
+  | "soft_divergence"
+  | "hard_divergence"
+  | "missing_or_invalid";
+
+export type PreSynthesisCriterionState = {
+  pass1_score: number | null;
+  pass2_score: number | null;
+  score_delta: number | null;
+  raw_rationale_overlap_count: number;
+  apparent_state: DivergenceApparentState;
+};
+
+export type DivergenceDiagnosticArtifact = {
+  pass1_pass2_criterion_state_pre_synthesis: Record<string, PreSynthesisCriterionState>;
+  comparison_packet_retained_ratio: number;
+  pass3_criteria_count_by_state: Pass3CriteriaCountByState;
+  divergence_collapse_detected: boolean;
+};
+
 export interface PacketProvenanceTelemetry {
   packet_source: 'long_form_chunks_canonical' | 'short_form_initial_text';
   packet_scope: 'criterion_comparison' | 'manuscript_summary' | 'divergence_packet';
@@ -369,6 +390,7 @@ export type Pass3ReducerTelemetry = {
   //   short-form or null/non-finite ratio → null
   // NO 'hard_fail' state in Phase 1 — see PR_293_PHASE_2_PREVIEW_BRIEF.md
   compression_governance_state: 'pass' | 'warn' | 'observe' | null;
+  divergence_diagnostics?: DivergenceDiagnosticArtifact;
 };
 
 export type PassCompletionCapture = {
