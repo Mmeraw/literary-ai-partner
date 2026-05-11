@@ -86,6 +86,9 @@ describe("qualityGate recommendation_editorial_quality", () => {
             ...makeRecommendation("concept"),
             action: "This section should be stronger overall to improve quality across the chapter.",
             expected_impact: "Makes it better.",
+            mechanism: "",
+            specific_fix: "",
+            reader_effect: "",
           },
         ],
       },
@@ -111,6 +114,7 @@ describe("qualityGate recommendation_editorial_quality", () => {
               "In the opening exchange, replace the abstract line with a concrete action beat at the same moment for dialogue.",
             expected_impact:
               "Gives the reader stronger urgency and engagement at the turn.",
+            mechanism: "",
           },
         ],
       },
@@ -133,6 +137,7 @@ describe("qualityGate recommendation_editorial_quality", () => {
             ...makeRecommendation("pacing"),
             action:
               "The opening paragraph feels diffuse because the tension signal arrives late, which causes the stakes to blur for pacing.",
+            specific_fix: "",
           },
         ],
       },
@@ -154,6 +159,7 @@ describe("qualityGate recommendation_editorial_quality", () => {
           {
             ...makeRecommendation("voice"),
             expected_impact: "Improves this section and tightens execution across the draft.",
+            reader_effect: "",
           },
         ],
       },
@@ -251,13 +257,13 @@ describe("qualityGate recommendation_editorial_quality", () => {
 
   it("blocks when editorial recommendation degradation is systemic", () => {
     const systemic = makeSynthesis({
-      concept: { recommendations: [{ ...makeRecommendation("concept"), action: "Make this better.", expected_impact: "Improve it." }] },
-      narrativeDrive: { recommendations: [{ ...makeRecommendation("narrativeDrive"), action: "Improve narrative flow.", expected_impact: "Better pacing." }] },
-      character: { recommendations: [{ ...makeRecommendation("character"), action: "Enhance character depth.", expected_impact: "More emotion." }] },
-      voice: { recommendations: [{ ...makeRecommendation("voice"), action: "Strengthen voice quality.", expected_impact: "Sharper writing." }] },
-      sceneConstruction: { recommendations: [{ ...makeRecommendation("sceneConstruction"), action: "Refine scene work.", expected_impact: "Better scenes." }] },
-      dialogue: { recommendations: [{ ...makeRecommendation("dialogue"), action: "Improve dialogue quality.", expected_impact: "Cleaner dialogue." }] },
-      theme: { recommendations: [{ ...makeRecommendation("theme"), action: "Develop themes more.", expected_impact: "Stronger themes." }] },
+      concept: { recommendations: [{ ...makeRecommendation("concept"), action: "Make this better.", expected_impact: "Improve it.", mechanism: "", specific_fix: "", reader_effect: "" }] },
+      narrativeDrive: { recommendations: [{ ...makeRecommendation("narrativeDrive"), action: "Improve narrative flow.", expected_impact: "Better pacing.", mechanism: "", specific_fix: "", reader_effect: "" }] },
+      character: { recommendations: [{ ...makeRecommendation("character"), action: "Enhance character depth.", expected_impact: "More emotion.", mechanism: "", specific_fix: "", reader_effect: "" }] },
+      voice: { recommendations: [{ ...makeRecommendation("voice"), action: "Strengthen voice quality.", expected_impact: "Sharper writing.", mechanism: "", specific_fix: "", reader_effect: "" }] },
+      sceneConstruction: { recommendations: [{ ...makeRecommendation("sceneConstruction"), action: "Refine scene work.", expected_impact: "Better scenes.", mechanism: "", specific_fix: "", reader_effect: "" }] },
+      dialogue: { recommendations: [{ ...makeRecommendation("dialogue"), action: "Improve dialogue quality.", expected_impact: "Cleaner dialogue.", mechanism: "", specific_fix: "", reader_effect: "" }] },
+      theme: { recommendations: [{ ...makeRecommendation("theme"), action: "Develop themes more.", expected_impact: "Stronger themes.", mechanism: "", specific_fix: "", reader_effect: "" }] },
     });
 
     const result = runQualityGate(systemic);
