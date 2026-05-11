@@ -78,7 +78,7 @@ describe("qualityGate recommendation_editorial_quality", () => {
     expect(check?.passed).toBe(true);
   });
 
-  it("fails generic feedback recommendations with QG_EDITORIAL_GENERIC_FEEDBACK", () => {
+  it("warns (does not block) generic feedback recommendations when isolated", () => {
     const synthesis = makeSynthesis({
       concept: {
         recommendations: [
@@ -94,12 +94,14 @@ describe("qualityGate recommendation_editorial_quality", () => {
     const result = runQualityGate(synthesis);
     const check = result.checks.find((c) => c.check_id === "recommendation_editorial_quality");
 
-    expect(check?.passed).toBe(false);
-    expect(check?.error_code).toBe("QG_EDITORIAL_GENERIC_FEEDBACK");
-    expect(result.pass).toBe(false);
+    expect(check?.passed).toBe(true);
+    expect(check?.error_code).toBeUndefined();
+    expect(check?.details).toContain("WARN");
+    expect(result.pass).toBe(true);
+    expect(result.editorial_diagnostics?.[0]?.action_applied).toBe("warn");
   });
 
-  it("fails when mechanism or cause is missing", () => {
+  it("warns when mechanism or cause is missing in an isolated recommendation", () => {
     const synthesis = makeSynthesis({
       dialogue: {
         recommendations: [
@@ -117,11 +119,13 @@ describe("qualityGate recommendation_editorial_quality", () => {
     const result = runQualityGate(synthesis);
     const check = result.checks.find((c) => c.check_id === "recommendation_editorial_quality");
 
-    expect(check?.passed).toBe(false);
-    expect(check?.error_code).toBe("QG_EDITORIAL_GENERIC_FEEDBACK");
+    expect(check?.passed).toBe(true);
+    expect(check?.error_code).toBeUndefined();
+    expect(result.pass).toBe(true);
+    expect(result.editorial_diagnostics?.find((d) => d.criterion === "dialogue")?.action_applied).toBe("warn");
   });
 
-  it("fails when specific fix or move is missing", () => {
+  it("warns when specific fix or move is missing in an isolated recommendation", () => {
     const synthesis = makeSynthesis({
       pacing: {
         recommendations: [
@@ -137,11 +141,13 @@ describe("qualityGate recommendation_editorial_quality", () => {
     const result = runQualityGate(synthesis);
     const check = result.checks.find((c) => c.check_id === "recommendation_editorial_quality");
 
-    expect(check?.passed).toBe(false);
-    expect(check?.error_code).toBe("QG_EDITORIAL_GENERIC_FEEDBACK");
+    expect(check?.passed).toBe(true);
+    expect(check?.error_code).toBeUndefined();
+    expect(result.pass).toBe(true);
+    expect(result.editorial_diagnostics?.find((d) => d.criterion === "pacing")?.action_applied).toBe("warn");
   });
 
-  it("fails when reader effect is missing", () => {
+  it("warns when reader effect is missing in an isolated recommendation", () => {
     const synthesis = makeSynthesis({
       voice: {
         recommendations: [
@@ -156,8 +162,10 @@ describe("qualityGate recommendation_editorial_quality", () => {
     const result = runQualityGate(synthesis);
     const check = result.checks.find((c) => c.check_id === "recommendation_editorial_quality");
 
-    expect(check?.passed).toBe(false);
-    expect(check?.error_code).toBe("QG_EDITORIAL_GENERIC_FEEDBACK");
+    expect(check?.passed).toBe(true);
+    expect(check?.error_code).toBeUndefined();
+    expect(result.pass).toBe(true);
+    expect(result.editorial_diagnostics?.find((d) => d.criterion === "voice")?.action_applied).toBe("warn");
   });
 
   it("passes borderline recommendation when mechanism is expressed in expected impact", () => {
@@ -207,7 +215,7 @@ describe("qualityGate recommendation_editorial_quality", () => {
     expect(genericRecCheck?.error_code).toBe("QG_GENERIC_REC");
   });
 
-  it("fails duplicate editorial reasoning inside a criterion", () => {
+  it("warns duplicate editorial reasoning when issue is isolated", () => {
     const duplicateAction =
       "In the midpoint scene for concept, replace the abstract reaction sentence with a concrete sensory cue because the current phrasing blunts escalation.";
     const duplicateImpact =
@@ -233,9 +241,33 @@ describe("qualityGate recommendation_editorial_quality", () => {
     const result = runQualityGate(synthesis);
     const check = result.checks.find((c) => c.check_id === "recommendation_editorial_quality");
 
+    expect(check?.passed).toBe(true);
+    expect(check?.error_code).toBeUndefined();
+    expect(check?.details).toContain("WARN");
+    expect(check?.details).toContain("duplicate editorial reasoning");
+    // Overall result still fails because the separate no_duplicate_recs gate blocks exact duplicate actions.
+    expect(result.pass).toBe(false);
+  });
+
+  it("blocks when editorial recommendation degradation is systemic", () => {
+    const systemic = makeSynthesis({
+      concept: { recommendations: [{ ...makeRecommendation("concept"), action: "Make this better.", expected_impact: "Improve it." }] },
+      narrativeDrive: { recommendations: [{ ...makeRecommendation("narrativeDrive"), action: "Improve narrative flow.", expected_impact: "Better pacing." }] },
+      character: { recommendations: [{ ...makeRecommendation("character"), action: "Enhance character depth.", expected_impact: "More emotion." }] },
+      voice: { recommendations: [{ ...makeRecommendation("voice"), action: "Strengthen voice quality.", expected_impact: "Sharper writing." }] },
+      sceneConstruction: { recommendations: [{ ...makeRecommendation("sceneConstruction"), action: "Refine scene work.", expected_impact: "Better scenes." }] },
+      dialogue: { recommendations: [{ ...makeRecommendation("dialogue"), action: "Improve dialogue quality.", expected_impact: "Cleaner dialogue." }] },
+      theme: { recommendations: [{ ...makeRecommendation("theme"), action: "Develop themes more.", expected_impact: "Stronger themes." }] },
+    });
+
+    const result = runQualityGate(systemic);
+    const check = result.checks.find((c) => c.check_id === "recommendation_editorial_quality");
+
     expect(check?.passed).toBe(false);
     expect(check?.error_code).toBe("QG_EDITORIAL_GENERIC_FEEDBACK");
-    expect(check?.details).toContain("duplicate editorial reasoning");
+    expect(check?.details).toContain("BLOCK");
+    expect(result.pass).toBe(false);
+    expect(result.editorial_diagnostics?.every((d) => d.action_applied === "block")).toBe(true);
   });
 
   it("passes former #359 failing rhetorical openings once repaired for mechanism+fix contract", () => {

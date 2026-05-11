@@ -142,10 +142,10 @@ describe("v8 five-part contract — compliant recommendations pass the gate", ()
   });
 });
 
-// ── Classification targets: pre-v8 patterns still blocked ────────────────────
+// ── Classification targets: pre-v8 patterns still detected (isolated => WARN) ────────────────────
 
-describe("pre-v8 failure patterns remain blocked (gate unchanged)", () => {
-  it("[missing_mechanism] no causal connector → blocked", () => {
+describe("pre-v8 failure patterns remain visible without collapsing whole eval", () => {
+  it("[missing_mechanism] no causal connector → warn", () => {
     const result = runQualityGate(makeSynthesis({
       pacing: {
         recommendations: [{
@@ -165,12 +165,12 @@ describe("pre-v8 failure patterns remain blocked (gate unchanged)", () => {
     }));
 
     const diag = result.editorial_diagnostics?.find((d) => d.criterion === "pacing");
-    expect(result.pass).toBe(false);
+    expect(result.pass).toBe(true);
     expect(diag?.classification).toBe("missing_mechanism");
-    expect(diag?.action_applied).toBe("block");
+    expect(diag?.action_applied).toBe("warn");
   });
 
-  it("[missing_anchor] no location reference → blocked", () => {
+  it("[missing_anchor] no location reference → warn editorially but still fails no_generic_recs", () => {
     const result = runQualityGate(makeSynthesis({
       character: {
         recommendations: [{
@@ -192,10 +192,10 @@ describe("pre-v8 failure patterns remain blocked (gate unchanged)", () => {
     const diag = result.editorial_diagnostics?.find((d) => d.criterion === "character");
     expect(result.pass).toBe(false);
     expect(diag?.classification).toBe("missing_anchor");
-    expect(diag?.action_applied).toBe("block");
+    expect(diag?.action_applied).toBe("warn");
   });
 
-  it("[missing_reader_effect] expected_impact has no reader-facing word → blocked", () => {
+  it("[missing_reader_effect] expected_impact has no reader-facing word → warn", () => {
     const result = runQualityGate(makeSynthesis({
       sceneConstruction: {
         recommendations: [{
@@ -215,12 +215,12 @@ describe("pre-v8 failure patterns remain blocked (gate unchanged)", () => {
     }));
 
     const diag = result.editorial_diagnostics?.find((d) => d.criterion === "sceneConstruction");
-    expect(result.pass).toBe(false);
+    expect(result.pass).toBe(true);
     expect(diag?.classification).toBe("missing_reader_effect");
-    expect(diag?.action_applied).toBe("block");
+    expect(diag?.action_applied).toBe("warn");
   });
 
-  it("[missing_fix] no active fix-marker verb → blocked", () => {
+  it("[missing_fix] no active fix-marker verb → warn", () => {
     const result = runQualityGate(makeSynthesis({
       theme: {
         recommendations: [{
@@ -240,16 +240,16 @@ describe("pre-v8 failure patterns remain blocked (gate unchanged)", () => {
     }));
 
     const diag = result.editorial_diagnostics?.find((d) => d.criterion === "theme");
-    expect(result.pass).toBe(false);
+    expect(result.pass).toBe(true);
     expect(diag?.classification).toBe("missing_fix");
-    expect(diag?.action_applied).toBe("block");
+    expect(diag?.action_applied).toBe("warn");
   });
 });
 
 // ── Diagnostics summary shape after v8 contract run ──────────────────────────
 
 describe("diagnostics summary shape on mixed pass/fail synthesis", () => {
-  it("summary block_reason_histogram only contains blocked classification counts", () => {
+  it("summary block_reason_histogram is zero when diagnostics are warn-only", () => {
     const synthesis = makeSynthesis({
       dialogue: {
         recommendations: [{
@@ -284,13 +284,14 @@ describe("diagnostics summary shape on mixed pass/fail synthesis", () => {
     });
 
     const result = runQualityGate(synthesis);
-    // dialogue passes; pacing should fail (no reader-facing word in expected_impact)
-    expect(result.pass).toBe(false);
+    // dialogue passes; pacing is flagged but isolated defects are warn-only
+    expect(result.pass).toBe(true);
     expect(result.editorial_diagnostics_summary).toBeDefined();
 
     const histogram = result.editorial_diagnostics_summary?.block_reason_histogram ?? {};
     const totalBlocked = Object.values(histogram).reduce((a, b) => a + b, 0);
-    expect(totalBlocked).toBe(result.editorial_diagnostics?.length ?? 0);
+    expect(totalBlocked).toBe(0);
+    expect(result.editorial_diagnostics?.some((d) => d.action_applied === "warn")).toBe(true);
     // All histogram keys must be canonical EditorialDiagnosticClassification values
     const validKeys = new Set([
       "generic_feedback", "missing_symptom", "missing_mechanism",

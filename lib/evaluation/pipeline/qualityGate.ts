@@ -131,6 +131,10 @@ const QG_EDITORIAL_DIAGNOSTIC_MAX_ACTION_CHARS = 160;
 const QG_EDITORIAL_DIAGNOSTIC_MAX_EXPECTED_IMPACT_CHARS = 160;
 const QG_EDITORIAL_DIAGNOSTIC_MAX_ANCHOR_CHARS = 120;
 const QG_EDITORIAL_DIAGNOSTIC_MAX_FAILURE_REASON_CHARS = 220;
+const QG_EDITORIAL_BLOCK_INVALID_RATIO = 0.5;
+const QG_EDITORIAL_BLOCK_CRITERIA_RATIO = 0.5;
+const QG_EDITORIAL_BLOCK_MIN_INVALID_RECS = 5;
+const QG_EDITORIAL_BLOCK_MIN_DUPLICATE_REASONING = 2;
 
 function normalizeEditorialReasoningKey(text: string): string {
   return text
@@ -862,12 +866,18 @@ export function runQualityGate(
   // — Editorial recommendation quality gate (deterministic) ———————————
   {
     const genericFeedbackFindings: string[] = [];
+    const provisionalDiagnostics: EditorialDiagnostic[] = [];
+    const criteriaWithIssues = new Set<string>();
+    let totalRecommendations = 0;
+    let invalidRecommendations = 0;
+    let duplicateReasoningCount = 0;
 
     for (const c of synthesis.criteria) {
       const reasoningSeen = new Set<string>();
       let recommendationIndex = 0;
 
       for (const r of c.recommendations ?? []) {
+        totalRecommendations += 1;
         recommendationIndex += 1;
         const action = (r.action ?? "").trim();
         const expectedImpact = (r.expected_impact ?? "").trim();
@@ -892,27 +902,34 @@ export function runQualityGate(
         const reasoningKey = `${normalizeEditorialReasoningKey(action)}|${normalizeEditorialReasoningKey(expectedImpact)}`;
         const duplicateReasoning = reasoningSeen.has(reasoningKey);
 
+        const hasIssue = missing.length > 0 || duplicateReasoning;
+
+        if (missing.length > 0 || duplicateReasoning) {
+          invalidRecommendations += 1;
+          criteriaWithIssues.add(c.key);
+        }
+
         if (missing.length > 0) {
           genericFeedbackFindings.push(`${c.key}: missing ${missing.join(",")} in recommendation \"${action.slice(0, 80)}\"`);
         }
 
         if (duplicateReasoning) {
+          duplicateReasoningCount += 1;
           genericFeedbackFindings.push(`${c.key}: duplicate editorial reasoning detected in recommendations`);
         } else {
           reasoningSeen.add(reasoningKey);
         }
 
         const classification = classifyEditorialDiagnostic(missing, duplicateReasoning);
-        const shouldBlock = missing.length > 0 || duplicateReasoning;
-        const failureReason = shouldBlock
+        const failureReason = hasIssue
           ? `Missing fields: ${missing.join(",") || "none"}; duplicate_reasoning=${duplicateReasoning}`
           : "Recommendation satisfies editorial quality contract";
-        const recommendedFixPath = shouldBlock
+        const recommendedFixPath = hasIssue
           ? "Provide Symptom → Cause → Fix → Reader Effect with concrete anchor context"
           : "none";
 
-        if (shouldBlock) {
-          editorialDiagnostics.push({
+        if (hasIssue) {
+          provisionalDiagnostics.push({
             signal_id: buildEditorialSignalId(c.key, action, expectedImpact, recommendationIndex),
             criterion: c.key,
             action: compactAndCap(action, QG_EDITORIAL_DIAGNOSTIC_MAX_ACTION_CHARS),
@@ -921,7 +938,7 @@ export function runQualityGate(
             evaluation_route: "recommendation_editorial_quality",
             missing_fields: missing,
             classification,
-            action_applied: "block",
+            action_applied: "none",
             gate_check_id: "recommendation_editorial_quality",
             error_code: "QG_EDITORIAL_GENERIC_FEEDBACK",
             failure_reason: compactAndCap(failureReason, QG_EDITORIAL_DIAGNOSTIC_MAX_FAILURE_REASON_CHARS),
@@ -931,16 +948,43 @@ export function runQualityGate(
       }
     }
 
+    const criteriaCount = Math.max(synthesis.criteria.length, 1);
+    const invalidRatio = totalRecommendations > 0 ? invalidRecommendations / totalRecommendations : 1;
+    const criteriaIssueRatio = criteriaWithIssues.size / criteriaCount;
+    const hasAnyIssue = genericFeedbackFindings.length > 0;
+    const repeatedTemplateCollapse = duplicateReasoningCount >= QG_EDITORIAL_BLOCK_MIN_DUPLICATE_REASONING;
+    const hasStableRecommendationDenominator = totalRecommendations >= 4;
+    const hasStableCriteriaDenominator = synthesis.criteria.length >= 8;
+    const systemicInvalidity =
+      invalidRecommendations >= QG_EDITORIAL_BLOCK_MIN_INVALID_RECS ||
+      (hasStableRecommendationDenominator && invalidRatio >= QG_EDITORIAL_BLOCK_INVALID_RATIO) ||
+      (hasStableCriteriaDenominator && criteriaIssueRatio >= QG_EDITORIAL_BLOCK_CRITERIA_RATIO) ||
+      repeatedTemplateCollapse;
+    const blockEditorialQuality = hasAnyIssue && (totalRecommendations === 0 || systemicInvalidity);
+
+    for (const diagnostic of provisionalDiagnostics) {
+      editorialDiagnostics.push({
+        ...diagnostic,
+        action_applied: blockEditorialQuality ? "block" : "warn",
+      });
+    }
+
+    if (hasAnyIssue && !blockEditorialQuality) {
+      warnings.push(
+        `[QG_EDITORIAL_GENERIC_FEEDBACK][WARN] isolated recommendation actionability defects: invalid=${invalidRecommendations}/${Math.max(totalRecommendations, 1)} criteria_affected=${criteriaWithIssues.size}/${criteriaCount}`,
+      );
+    }
+
     checks.push({
       check_id: "recommendation_editorial_quality",
-      passed: genericFeedbackFindings.length === 0,
+      passed: !blockEditorialQuality,
       error_code:
-        genericFeedbackFindings.length > 0
+        blockEditorialQuality
           ? "QG_EDITORIAL_GENERIC_FEEDBACK"
           : undefined,
       details:
         genericFeedbackFindings.length > 0
-          ? `${genericFeedbackFindings.length} editorial recommendation quality issue(s): ${genericFeedbackFindings.slice(0, 4).join("; ")}`
+          ? `${blockEditorialQuality ? "BLOCK" : "WARN"}: ${genericFeedbackFindings.length} editorial recommendation quality issue(s): ${genericFeedbackFindings.slice(0, 4).join("; ")}`
           : "All recommendations meet editorial quality contract",
     });
   }
