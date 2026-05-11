@@ -454,6 +454,13 @@ export type GateDiagnostics = {
 
 // ── Pipeline result ──────────────────────────────────────────────────────────
 
+export type PipelineResultRouting = {
+  pass1Model: string;
+  pass2Model: string;
+  pass3Model: string;
+  pass3FallbackModel: string;
+};
+
 export type PipelineResult =
   | {
       ok: true;
@@ -463,12 +470,26 @@ export type PipelineResult =
       cross_check?: import("./perplexityCrossCheck").CrossCheckOutput;
       /** Always present after quality gate passes; undefined only if evaluatePass4Governance throws */
       pass4_governance?: import("@/lib/evaluation/governance/evaluatePass4Governance").GovernanceDecision;
+      /** Resolved pass-level model routing for audit traceability. */
+      routing?: PipelineResultRouting;
+      /** Recovery metadata: retry counts and fallback usage per pass. */
+      recovery?: {
+        retry_counts?: Partial<Record<"pass1" | "pass2" | "pass3", number>>;
+        fallbacks?: Partial<Record<"pass3", boolean>>;
+      };
     }
   | {
       ok: false;
       error: string;
       error_code: string;
       failed_at: "pass1" | "pass2" | "pass3" | "pass4";
+      /** Resolved pass-level model routing for audit traceability. */
+      routing?: PipelineResultRouting;
+      /** Recovery metadata: retry counts and fallback usage per pass. */
+      recovery?: {
+        retry_counts?: Partial<Record<"pass1" | "pass2" | "pass3", number>>;
+        fallbacks?: Partial<Record<"pass3", boolean>>;
+      };
       failure_details?: {
         json_boundary?: {
           code: string;
