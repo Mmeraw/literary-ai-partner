@@ -71,7 +71,8 @@ describe("resolveEvaluationRuntimeConfig", () => {
   it("throws when worker max execution exceeds the lease policy ceiling", () => {
     expect(() =>
       resolveEvaluationRuntimeConfig({
-        EVAL_WORKER_MAX_EXECUTION_MS: "370000",
+        EVAL_WORKER_LEASE_MS: "600000",
+        EVAL_WORKER_MAX_EXECUTION_MS: "610000",
       }, {}),
     ).toThrow(/EVAL_WORKER_MAX_EXECUTION_MS must be between 10000 and 600000/);
   });
