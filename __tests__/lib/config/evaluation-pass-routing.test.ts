@@ -20,8 +20,8 @@ import type { SynthesisOutput, SinglePassOutput } from "@/lib/evaluation/pipelin
 const BASE_ENV = {
   OPENAI_API_KEY: "sk-test",
   EVAL_OPENAI_MODEL: "gpt-4o",
-  EVAL_WORKER_MAX_EXECUTION_MS: "110000",
-  EVAL_WORKER_LEASE_MS: "600000",
+  EVAL_WORKER_MAX_EXECUTION_MS: "800000",
+  EVAL_WORKER_LEASE_MS: "800000",
   CRON_SECRET: "test-secret",
 };
 

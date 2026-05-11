@@ -27,7 +27,7 @@ import { getEvaluationRuntimeConfig } from '@/lib/config/evaluationRuntimeConfig
 
 // Force Node.js runtime (required for crypto module)
 export const runtime = 'nodejs';
-// Allow up to 300 seconds per invocation.
+// Allow up to 800 seconds per invocation.
 export const maxDuration = 800;
 
 
