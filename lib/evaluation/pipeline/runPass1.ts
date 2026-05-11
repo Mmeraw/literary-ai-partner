@@ -5,7 +5,7 @@
  * into a validated SinglePassOutput.
  *
  * Temperature: 0.3 (per Vol III Tools §PASS1)
- * Effective max tokens: 1800 unless a lower runtime cap is configured.
+ * Effective max tokens: runtime-configured budget with one bounded length retry.
  */
 
 import OpenAI from "openai";
@@ -25,7 +25,7 @@ import { JsonBoundaryError, parseJsonObjectBoundary } from "@/lib/llm/jsonParseB
 import { getEvaluationRuntimeConfig } from "@/lib/config/evaluationRuntimeConfig";
 const PASS1_TEMPERATURE = 0.3;
 
-const PASS1_STABILITY_MAX_OUTPUT_TOKENS = 1800;
+const PASS1_LENGTH_RETRY_MAX_OUTPUT_TOKENS = 16000;
 const PASS1_LIMITS = {
   maxRationaleChars: 220,
   maxEvidencePerCriterion: 1,
@@ -62,8 +62,11 @@ type CompletionChoice = {
 };
 
 function getEffectivePass1MaxTokens(): number {
-  const configured = getEvaluationRuntimeConfig().pass.pass1MaxTokens;
-  return Math.min(configured, PASS1_STABILITY_MAX_OUTPUT_TOKENS);
+  return getEvaluationRuntimeConfig().pass.pass1MaxTokens;
+}
+
+function getRetryPass1MaxTokens(currentMaxTokens: number): number {
+  return Math.min(PASS1_LENGTH_RETRY_MAX_OUTPUT_TOKENS, Math.max(4000, currentMaxTokens * 2));
 }
 
 function truncateText(value: unknown, maxChars: number): string {
@@ -108,8 +111,10 @@ function buildEmptyResponseDiagnostic(params: {
   firstChoice: CompletionChoice | undefined;
   rawContent: unknown;
   effectiveMaxTokens: number;
+  jobId?: string;
+  retryExhausted?: boolean;
 }): string {
-  const { model, completion, firstChoice, rawContent, effectiveMaxTokens } = params;
+  const { model, completion, firstChoice, rawContent, effectiveMaxTokens, jobId, retryExhausted } = params;
   const usage = completion.usage;
   const finishReason =
     typeof firstChoice?.finish_reason === "string" ? firstChoice.finish_reason : "unknown";
@@ -118,11 +123,19 @@ function buildEmptyResponseDiagnostic(params: {
   const refusal =
     typeof firstChoice?.message?.refusal === "string" ? firstChoice.message.refusal : undefined;
   const choiceCount = Array.isArray(completion.choices) ? completion.choices.length : 0;
-  const code = finishReason === "length" ? "PASS1_TRUNCATED_EMPTY_RESPONSE" : "PASS1_EMPTY_RESPONSE";
+  const code =
+    finishReason === "length"
+      ? retryExhausted
+        ? "PASS1_LENGTH_RETRY_EXHAUSTED"
+        : "PASS1_TRUNCATED_EMPTY_RESPONSE"
+      : "PASS1_EMPTY_RESPONSE";
+  const safeJobId = typeof jobId === "string" && jobId.trim() !== "" ? jobId : "unknown";
+  const exhaustionMessage = retryExhausted ? "Pass 1 exhausted length retry. " : "";
 
   return (
-    `[Pass1] ${code} Empty response from OpenAI ` +
+    `[Pass1] ${code} ${exhaustionMessage}Empty response from OpenAI ` +
     `(model=${model} finish_reason=${finishReason} content_type=${contentType} choices=${choiceCount} ` +
+    `job_id=${safeJobId} ` +
     `max_output_tokens=${effectiveMaxTokens}` +
     `${typeof usage?.prompt_tokens === "number" ? ` prompt_tokens=${usage.prompt_tokens}` : ""}` +
     `${typeof usage?.completion_tokens === "number" ? ` completion_tokens=${usage.completion_tokens}` : ""}` +
@@ -499,35 +512,80 @@ export async function runPass1(opts: RunPass1Options): Promise<SinglePassOutput>
   const inputChars = opts.manuscriptText.length;
   const promptChars = PASS1_SYSTEM_PROMPT.length + userPrompt.length;
 
-const effectiveMaxTokens = getEffectivePass1MaxTokens();
-    const outputTokenParam = buildOpenAIOutputTokenParam(selectedModel, getEffectivePass1MaxTokens());
-  const configuredMaxTokens =
-    typeof (outputTokenParam as { max_completion_tokens?: unknown }).max_completion_tokens === "number"
-      ? Number((outputTokenParam as { max_completion_tokens: number }).max_completion_tokens)
-      : typeof (outputTokenParam as { max_tokens?: unknown }).max_tokens === "number"
-      ? Number((outputTokenParam as { max_tokens: number }).max_tokens)
-      : null;
+  const requestCompletion = async (maxOutputTokens: number) => {
+    const outputTokenParam = buildOpenAIOutputTokenParam(selectedModel, maxOutputTokens);
+    const configuredMaxTokens =
+      typeof (outputTokenParam as { max_completion_tokens?: unknown }).max_completion_tokens === "number"
+        ? Number((outputTokenParam as { max_completion_tokens: number }).max_completion_tokens)
+        : typeof (outputTokenParam as { max_tokens?: unknown }).max_tokens === "number"
+        ? Number((outputTokenParam as { max_tokens: number }).max_tokens)
+        : null;
+
+    const completion = await createCompletion({
+      model: selectedModel,
+      messages: [
+        { role: "system", content: PASS1_SYSTEM_PROMPT },
+        { role: "user", content: userPrompt },
+      ],
+      ...buildOpenAITemperatureParam(selectedModel, PASS1_TEMPERATURE),
+      ...outputTokenParam,
+      response_format: { type: "json_object" },
+    });
+
+    return { completion, configuredMaxTokens };
+  };
 
   console.log(`[Pass1] completion request model=${selectedModel}`);
 
+  let activeMaxTokens = getEffectivePass1MaxTokens();
   const modelCallStartMs = nowMs();
-  const completion = await createCompletion({
-    model: selectedModel,
-    messages: [
-      { role: "system", content: PASS1_SYSTEM_PROMPT },
-      { role: "user", content: userPrompt },
-    ],
-    ...buildOpenAITemperatureParam(selectedModel, PASS1_TEMPERATURE),
-    ...outputTokenParam,
-    response_format: { type: "json_object" },
-  });
-  const modelCallMs = nowMs() - modelCallStartMs;
+  let { completion, configuredMaxTokens } = await requestCompletion(activeMaxTokens);
+  let modelCallMs = nowMs() - modelCallStartMs;
 
   const parseValidationStartMs = nowMs();
 
-  const firstChoice = completion.choices?.[0] as CompletionChoice | undefined;
-  const rawContent = firstChoice?.message?.content;
-  const responseText = extractResponseText(rawContent);
+  let firstChoice = completion.choices?.[0] as CompletionChoice | undefined;
+  let rawContent = firstChoice?.message?.content;
+  let responseText = extractResponseText(rawContent);
+  let retriedForLength = false;
+  let lengthRetryExhausted = false;
+
+  if (
+    responseText.trim().length === 0 &&
+    typeof firstChoice?.finish_reason === "string" &&
+    firstChoice.finish_reason === "length"
+  ) {
+    retriedForLength = true;
+    const retryMaxTokens = getRetryPass1MaxTokens(activeMaxTokens);
+
+    if (retryMaxTokens > activeMaxTokens) {
+      console.warn("[Pass1] Empty length-limited response; retrying with higher output token budget", {
+        model: selectedModel,
+        job_id: opts.jobId ?? "unknown",
+        initialMaxTokens: activeMaxTokens,
+        retryMaxTokens,
+        usage: completion.usage,
+      });
+
+      activeMaxTokens = retryMaxTokens;
+      const retryStartMs = nowMs();
+      ({ completion, configuredMaxTokens } = await requestCompletion(activeMaxTokens));
+      modelCallMs += nowMs() - retryStartMs;
+
+      firstChoice = completion.choices?.[0] as CompletionChoice | undefined;
+      rawContent = firstChoice?.message?.content;
+      responseText = extractResponseText(rawContent);
+      if (
+        responseText.trim().length === 0 &&
+        typeof firstChoice?.finish_reason === "string" &&
+        firstChoice.finish_reason === "length"
+      ) {
+        lengthRetryExhausted = true;
+      }
+    } else {
+      lengthRetryExhausted = true;
+    }
+  }
 
   if (responseText.trim().length === 0) {
     const diagnosticMessage = buildEmptyResponseDiagnostic({
@@ -535,7 +593,9 @@ const effectiveMaxTokens = getEffectivePass1MaxTokens();
       completion,
       firstChoice,
       rawContent,
-      effectiveMaxTokens,
+      effectiveMaxTokens: activeMaxTokens,
+      jobId: opts.jobId,
+      retryExhausted: lengthRetryExhausted,
     });
 
     console.error("[Pass1] Completion boundary diagnostic", {
@@ -549,7 +609,10 @@ const effectiveMaxTokens = getEffectivePass1MaxTokens();
       contentType: rawContent === null ? "null" : Array.isArray(rawContent) ? "array" : typeof rawContent,
       contentPreview: typeof rawContent === "string" ? rawContent.slice(0, 160) : undefined,
       usage: completion.usage,
-      maxOutputTokens: effectiveMaxTokens,
+      maxOutputTokens: activeMaxTokens,
+      jobId: opts.jobId ?? "unknown",
+      retriedForLength,
+      lengthRetryExhausted,
       refusal:
         typeof firstChoice?.message?.refusal === "string" ? firstChoice.message.refusal : undefined,
     });
@@ -571,7 +634,9 @@ const effectiveMaxTokens = getEffectivePass1MaxTokens();
         total_ms: totalMs,
         configured_timeout_ms: getEvalOpenAiTimeoutMs(),
         configured_max_tokens: configuredMaxTokens,
-        stability_max_tokens: PASS1_STABILITY_MAX_OUTPUT_TOKENS,
+        active_max_tokens: activeMaxTokens,
+        retried_for_length: retriedForLength,
+        length_retry_exhausted: lengthRetryExhausted,
         usage_prompt_tokens: completion.usage?.prompt_tokens ?? null,
         usage_completion_tokens: completion.usage?.completion_tokens ?? null,
         usage_total_tokens: completion.usage?.total_tokens ?? null,
@@ -584,7 +649,7 @@ const effectiveMaxTokens = getEffectivePass1MaxTokens();
   if (finishReasonWarning === "length") {
     console.warn("[Pass1] finish_reason=length — output may be truncated", {
       model: selectedModel,
-      maxOutputTokens: effectiveMaxTokens,
+      maxOutputTokens: activeMaxTokens,
       responseLen: responseText.length,
       usage: completion.usage,
     });
@@ -620,6 +685,7 @@ const effectiveMaxTokens = getEffectivePass1MaxTokens();
       request_id: requestId ?? null,
       finish_reason: finishReason,
       configured_max_tokens: configuredMaxTokens,
+      active_max_tokens: activeMaxTokens,
       usage_prompt_tokens: completion.usage?.prompt_tokens ?? null,
       usage_completion_tokens: completion.usage?.completion_tokens ?? null,
       usage_total_tokens: completion.usage?.total_tokens ?? null,
@@ -648,7 +714,8 @@ const effectiveMaxTokens = getEffectivePass1MaxTokens();
       total_ms: totalMs,
       configured_timeout_ms: getEvalOpenAiTimeoutMs(),
       configured_max_tokens: configuredMaxTokens,
-      stability_max_tokens: PASS1_STABILITY_MAX_OUTPUT_TOKENS,
+      active_max_tokens: activeMaxTokens,
+      retried_for_length: retriedForLength,
       usage_prompt_tokens: completion.usage?.prompt_tokens ?? null,
       usage_completion_tokens: completion.usage?.completion_tokens ?? null,
       usage_total_tokens: completion.usage?.total_tokens ?? null,

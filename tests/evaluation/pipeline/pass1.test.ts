@@ -11,6 +11,7 @@ import { parsePass1Response, runPass1 } from "@/lib/evaluation/pipeline/runPass1
 import type { CreateCompletionFn } from "@/lib/evaluation/pipeline/runPass1";
 import { loadCanonicalRegistry } from "@/lib/governance/canonRegistry";
 import { getCanonicalPipelineModel } from "@/lib/evaluation/policy";
+import { resetEvaluationRuntimeConfigCacheForTests } from "@/lib/config/evaluationRuntimeConfig";
 
 // ── Fixture ──────────────────────────────────────────────────────────────────
 
@@ -304,6 +305,89 @@ describe("runPass1", () => {
     ).rejects.toThrow("finish_reason=length");
   });
 
+  it("honors configured Pass1 max tokens above 1800", async () => {
+    const previousPass1Max = process.env.EVAL_PASS1_MAX_TOKENS;
+    process.env.EVAL_PASS1_MAX_TOKENS = "6000";
+    resetEvaluationRuntimeConfigCacheForTests();
+
+    let seenBudget = 0;
+    const captureBudgetCompletion: CreateCompletionFn = async (params) => {
+      seenBudget =
+        typeof params.max_completion_tokens === "number"
+          ? params.max_completion_tokens
+          : typeof params.max_tokens === "number"
+            ? params.max_tokens
+            : 0;
+
+      return {
+        choices: [{ message: { content: JSON.stringify(makePass1Fixture()) }, finish_reason: "stop" }],
+      };
+    };
+
+    try {
+      const result = await runPass1({
+        manuscriptText: "test",
+        workType: "literary_fiction",
+        title: "Test",
+        registry,
+        openaiApiKey: "sk-test",
+        _createCompletion: captureBudgetCompletion,
+      });
+
+      expect(result.criteria).toHaveLength(13);
+      expect(seenBudget).toBe(6000);
+      expect(seenBudget).toBeGreaterThan(1800);
+    } finally {
+      if (previousPass1Max === undefined) {
+        delete process.env.EVAL_PASS1_MAX_TOKENS;
+      } else {
+        process.env.EVAL_PASS1_MAX_TOKENS = previousPass1Max;
+      }
+      resetEvaluationRuntimeConfigCacheForTests();
+    }
+  });
+
+  it("retries once with a larger token budget after an empty length-limited response", async () => {
+    const seenBudgets: number[] = [];
+    let callCount = 0;
+
+    const retryingCompletion: CreateCompletionFn = async (params) => {
+      const budget =
+        typeof params.max_completion_tokens === "number"
+          ? params.max_completion_tokens
+          : typeof params.max_tokens === "number"
+            ? params.max_tokens
+            : 0;
+      seenBudgets.push(budget);
+
+      if (callCount++ === 0) {
+        return {
+          choices: [{ message: { content: null }, finish_reason: "length" }],
+          usage: { prompt_tokens: 700, completion_tokens: budget, total_tokens: 700 + budget },
+        };
+      }
+
+      return {
+        choices: [{ message: { content: JSON.stringify(makePass1Fixture()) }, finish_reason: "stop" }],
+        usage: { prompt_tokens: 700, completion_tokens: 1200, total_tokens: 1900 },
+      };
+    };
+
+    const result = await runPass1({
+      manuscriptText: "test",
+      workType: "literary_fiction",
+      title: "Test",
+      registry,
+      openaiApiKey: "sk-test",
+      _createCompletion: retryingCompletion,
+    });
+
+    expect(result.criteria).toHaveLength(13);
+    expect(callCount).toBe(2);
+    expect(seenBudgets).toHaveLength(2);
+    expect(seenBudgets[1]).toBeGreaterThan(seenBudgets[0]);
+  });
+
   it("propagates OpenAI errors", async () => {
     await expect(
       runPass1({
@@ -378,6 +462,6 @@ describe("RCA-PASS1-TOKEN-001 — Pass1 model routing and PV115-class reachabili
         openaiApiKey: "sk-test",
         _createCompletion: lengthLimitedEmptyCompletion(),
       }),
-    ).rejects.toThrow("finish_reason=length");
+    ).rejects.toThrow("PASS1_LENGTH_RETRY_EXHAUSTED");
   });
 });

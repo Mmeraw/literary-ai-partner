@@ -103,7 +103,7 @@ type PerplexityResponseShape = {
 
 const PERPLEXITY_BASE_URL = "https://api.perplexity.ai";
 const PERPLEXITY_MODEL = "sonar-reasoning-pro";
-const PERPLEXITY_MAX_TOKENS = 3000;
+const PERPLEXITY_MAX_TOKENS = 8000;
 const PERPLEXITY_REQUEST_TIMEOUT_MS = 60000;
 const DISPUTE_THRESHOLD = 1.0;
 
@@ -301,7 +301,7 @@ function extractPerplexityResponseText(rawContent: unknown): string {
 }
 
 function getRetryPass4MaxTokens(currentMaxTokens: number): number {
-  return Math.min(5000, Math.max(PERPLEXITY_MAX_TOKENS, currentMaxTokens + 1000));
+  return Math.min(16000, Math.max(PERPLEXITY_MAX_TOKENS, currentMaxTokens + 4000));
 }
 
 function isRetryableBoundaryFailure(error: unknown): boolean {

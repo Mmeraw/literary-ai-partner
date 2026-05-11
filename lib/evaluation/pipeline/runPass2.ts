@@ -7,7 +7,7 @@
  *   there is no parameter for Pass 1 data.
  *
  * Temperature: 0.3 (per Vol III Tools §PASS2)
- * Max tokens: 4000 (default, override via EVAL_PASS2_MAX_TOKENS)
+* Max tokens: 8000 (default, override via EVAL_PASS2_MAX_TOKENS)
  */
 
 import OpenAI from "openai";
@@ -34,7 +34,7 @@ const DEFAULT_CHUNK_RETRY_BASE_MS = 10000;
 // EVAL_PASS2_MODEL (or EVAL_CHUNK_MODEL fallback) to control high-volume map-phase calls.
 
 function getRetryPass2MaxTokens(currentMaxTokens: number): number {
-  return Math.min(8000, Math.max(4000, currentMaxTokens + 1500));
+  return Math.min(16000, Math.max(8000, currentMaxTokens + 4000));
 }
 
 function nowMs(): number {
