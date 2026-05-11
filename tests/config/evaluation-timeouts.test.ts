@@ -10,9 +10,9 @@ describe("resolveEvaluationTimeoutConfig", () => {
   it("uses defaults when both timeout vars are unset", () => {
     const config = resolveEvaluationTimeoutConfig({}, {});
 
-    expect(config.passTimeout.valueMs).toBe(180000);
+    expect(config.passTimeout.valueMs).toBe(600000);
     expect(config.passTimeout.reason).toBe("default_fallback");
-    expect(config.openAiTimeout.valueMs).toBe(180000);
+    expect(config.openAiTimeout.valueMs).toBe(600000);
     expect(config.openAiTimeout.reason).toBe("default_fallback");
   });
 
@@ -35,9 +35,9 @@ describe("resolveEvaluationTimeoutConfig", () => {
     }, {});
 
     expect(config.passTimeout.reason).toBe("malformed_env_fallback");
-    expect(config.passTimeout.valueMs).toBe(180000);
+    expect(config.passTimeout.valueMs).toBe(600000);
     expect(config.openAiTimeout.reason).toBe("malformed_env_fallback");
-    expect(config.openAiTimeout.valueMs).toBe(180000);
+    expect(config.openAiTimeout.valueMs).toBe(600000);
   });
 
   it("treats decimal strings as malformed and falls back", () => {
@@ -46,7 +46,7 @@ describe("resolveEvaluationTimeoutConfig", () => {
     }, {});
 
     expect(config.passTimeout.reason).toBe("malformed_env_fallback");
-    expect(config.passTimeout.valueMs).toBe(180000);
+    expect(config.passTimeout.valueMs).toBe(600000);
   });
 
   it("clamps numeric values below the minimum", () => {
@@ -68,9 +68,9 @@ describe("resolveEvaluationTimeoutConfig", () => {
     }, {});
 
     expect(config.passTimeout.reason).toBe("clamped_to_max");
-    expect(config.passTimeout.valueMs).toBe(180000);
+    expect(config.passTimeout.valueMs).toBe(600000);
     expect(config.openAiTimeout.reason).toBe("clamped_to_max");
-    expect(config.openAiTimeout.valueMs).toBe(180000);
+    expect(config.openAiTimeout.valueMs).toBe(600000);
   });
 
   it("detects when explicit env values override local env file baselines", () => {
@@ -118,7 +118,7 @@ describe("resolveEvaluationTimeoutConfig", () => {
       'EVAL_OPENAI_TIMEOUT_MS=conflicting_env_override(180000) ignored_shell="30000" using=.env.local("180000")',
     );
     expect(formatTimeoutResolutionSummary(config)).toContain(
-      'EVAL_PASS_TIMEOUT_MS=malformed_env_fallback(180000) raw="abc"',
+      'EVAL_PASS_TIMEOUT_MS=malformed_env_fallback(600000) raw="abc"',
     );
   });
 

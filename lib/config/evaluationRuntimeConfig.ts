@@ -147,12 +147,12 @@ export function resolveEvaluationRuntimeConfig(
   const leaseMs = parseBoundedInteger(env, "EVAL_WORKER_LEASE_MS", {
     defaultValue: 300000,
     min: 30000,
-    max: 300000,
+    max: 600000,
   });
   const maxExecutionMs = parseBoundedInteger(env, "EVAL_WORKER_MAX_EXECUTION_MS", {
     defaultValue: 55000,
     min: 10000,
-    max: 300000,
+    max: 600000,
   });
 
   if (leaseMs < maxExecutionMs) {

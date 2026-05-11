@@ -15,8 +15,9 @@ export type ValidationResult = {
 
 const WORKER_BATCH_SIZE_MIN = 1;
 const WORKER_BATCH_SIZE_MAX = 5;
+const WORKER_LEASE_MS_DEFAULT = 300_000;
 const WORKER_LEASE_MS_MIN = 30_000;
-const WORKER_LEASE_MS_MAX = 300_000;
+const WORKER_LEASE_MS_MAX = 600_000;
 const WORKER_MAX_EXECUTION_MS_MIN = 10_000;
 const WORKER_MAX_EXECUTION_MS_MAX = WORKER_LEASE_MS_MAX;
 
@@ -87,7 +88,7 @@ export function validateProductionConfig(
     );
   }
 
-  const workerLeaseMs = parseIntEnv(env, "EVAL_WORKER_LEASE_MS", WORKER_LEASE_MS_MAX);
+  const workerLeaseMs = parseIntEnv(env, "EVAL_WORKER_LEASE_MS", WORKER_LEASE_MS_DEFAULT);
   if (workerLeaseMs < WORKER_LEASE_MS_MIN || workerLeaseMs > WORKER_LEASE_MS_MAX) {
     errors.push(
       `EVAL_WORKER_LEASE_MS (${workerLeaseMs}) must be between ${WORKER_LEASE_MS_MIN} and ${WORKER_LEASE_MS_MAX}.`,
