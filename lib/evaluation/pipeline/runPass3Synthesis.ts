@@ -665,6 +665,15 @@ export function parsePass3Response(
       recommendations = backfillRecommendationsFromAxis(pass1, pass2, key);
     }
 
+    recommendations = recommendations.map((recommendation) => {
+      const normalized = normalizeRecommendationContract(recommendation);
+
+      return {
+        ...normalized,
+        action: clampRecommendationAction(normalized.action),
+      };
+    });
+
     const finalRationale = needsRationaleBackfill(key, baselineRationale)
       ? buildBackfilledRationale(key, p1c?.rationale, p2c?.rationale, evidence, manuscriptText)
       : baselineRationale;
@@ -888,7 +897,7 @@ function parseRecommendations(
         return null;
       }
 
-      const normalized = normalizeRecommendationContract(parsed, criterionKey);
+      const normalized = normalizeRecommendationContract(parsed);
 
       if (normalized.anchor_snippet.trim().length === 0) {
         const anchorlessExpectedImpact =
@@ -951,7 +960,6 @@ function parseRecommendations(
 
 function normalizeRecommendationContract(
   recommendation: SynthesizedCriterion["recommendations"][number],
-  criterionKey: SynthesizedCriterion["key"],
 ): SynthesizedCriterion["recommendations"][number] {
   const action = recommendation.action.trim();
   const expectedImpact = recommendation.expected_impact.trim();
@@ -962,16 +970,9 @@ function normalizeRecommendationContract(
   const hasMechanismCause = EDITORIAL_MECHANISM_MARKERS.test(action) || EDITORIAL_MECHANISM_MARKERS.test(expectedImpact);
   const hasReaderEffect = EDITORIAL_READER_EFFECT_MARKERS.test(expectedImpact);
 
-  // hasAnchor controls whether static criterion-aware defaults are permitted as
-  // last-resort fallbacks. For anchorless recs, the triple is resolved from local
-  // evidence only (extraction from action/expected_impact). If extraction also
-  // fails, the fields remain "": the recommendation stays generic and
-  // QG_EDITORIAL_GENERIC_FEEDBACK can fire on true generic content — not bypassed
-  // by static defaults.
-  const hasAnchor = anchorSnippet.length > 0;
-  const mechanism = resolveMechanism(recommendation.mechanism, action, expectedImpact, hasAnchor, criterionKey);
-  const specificFix = resolveSpecificFix(recommendation.specific_fix, action, hasAnchor, criterionKey);
-  const readerEffect = resolveReaderEffect(recommendation.reader_effect, expectedImpact, hasAnchor, criterionKey);
+  const mechanism = resolveMechanism(recommendation.mechanism, action, expectedImpact);
+  const specificFix = resolveSpecificFix(recommendation.specific_fix, action);
+  const readerEffect = resolveReaderEffect(recommendation.reader_effect, expectedImpact);
 
   const finalize = (
     normalizedAction: string,
@@ -991,20 +992,7 @@ function normalizeRecommendationContract(
     return finalize(action, expectedImpact, anchorSnippet);
   }
 
-  // For anchorless recs: do NOT repair action/expected_impact — no manuscript context
-  // to anchor a repair. The triple fields are also not backfilled with static defaults
-  // (handled above by hasAnchor=false). Gate sees the genuine generic content.
-  if (anchorSnippet.length === 0) {
-    return finalize(action, expectedImpact, anchorSnippet);
-  }
-
-  const intentFragment = extractIntentFragment(action);
-  const repairedAction = buildCriterionAwareActionRepair(criterionKey, anchorSnippet, intentFragment);
-  const repairedImpact = hasReaderEffect
-    ? expectedImpact
-    : buildCriterionAwareImpactRepair(criterionKey);
-
-  return finalize(repairedAction, repairedImpact, anchorSnippet);
+  return finalize(action, expectedImpact, anchorSnippet);
 }
 
 /**
@@ -1017,19 +1005,13 @@ function resolveMechanism(
   explicit: string,
   action: string,
   expectedImpact: string,
-  hasAnchor: boolean,
-  criterionKey: SynthesizedCriterion["key"],
 ): string {
   if (explicit.length > 0) return explicit;
-  // Try to extract after a causal connector in action or expected_impact (evidence-derived)
   const mechanismMatch =
     action.match(/\b(?:because|since|so\s+that)\b(.{10,150})/i) ??
     expectedImpact.match(/\b(?:because|since|so\s+that)\b(.{10,150})/i);
   if (mechanismMatch) return mechanismMatch[1].replace(/\.$/, "").trim();
-  // Only apply static criterion-aware default when anchor exists; for anchorless recs
-  // leave empty so QG_EDITORIAL_GENERIC_FEEDBACK can fire on true generic content.
-  if (!hasAnchor) return "";
-  return buildCriterionAwareMechanismDefault(criterionKey);
+  return "";
 }
 
 /**
@@ -1040,18 +1022,12 @@ function resolveMechanism(
 function resolveSpecificFix(
   explicit: string,
   action: string,
-  hasAnchor: boolean,
-  criterionKey: SynthesizedCriterion["key"],
 ): string {
   if (explicit.length > 0) return explicit;
-  // Build extraction regex from the canonical EDITORIAL_FIX_MARKERS source to avoid duplication
   const fixExtractor = new RegExp(EDITORIAL_FIX_MARKERS.source + ".{0,120}", "i");
   const fixMatch = action.match(fixExtractor);
   if (fixMatch) return fixMatch[0].replace(/\s+because.*$/i, "").replace(/\s+since.*$/i, "").trim().slice(0, 120);
-  // Only apply static criterion-aware default when anchor exists; for anchorless recs
-  // leave empty so QG_EDITORIAL_GENERIC_FEEDBACK can fire on true generic content.
-  if (!hasAnchor) return "";
-  return buildCriterionAwareSpecificFixDefault(criterionKey);
+  return "";
 }
 
 /**
@@ -1062,17 +1038,12 @@ function resolveSpecificFix(
 function resolveReaderEffect(
   explicit: string,
   expectedImpact: string,
-  hasAnchor: boolean,
-  criterionKey: SynthesizedCriterion["key"],
 ): string {
   if (explicit.length > 0) return explicit;
   if (EDITORIAL_READER_EFFECT_MARKERS.test(expectedImpact)) {
     return expectedImpact.slice(0, 150);
   }
-  // Only apply static criterion-aware default when anchor exists; for anchorless recs
-  // leave empty so QG_EDITORIAL_GENERIC_FEEDBACK can fire on true generic content.
-  if (!hasAnchor) return "";
-  return buildCriterionAwareReaderEffectDefault(criterionKey);
+  return "";
 }
 
 function buildCriterionAwareMechanismDefault(criterionKey: SynthesizedCriterion["key"]): string {
@@ -1538,7 +1509,7 @@ function backfillRecommendationsFromAxis(
           reader_effect: "",
         };
         // Run through normalizer so the specificity triple is populated/repaired
-        const normalized = normalizeRecommendationContract(base, criterionKey);
+        const normalized = normalizeRecommendationContract(base);
         return {
           ...normalized,
           action: clampRecommendationAction(normalized.action),

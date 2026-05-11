@@ -298,7 +298,7 @@ describe("Pass 3 backfill quality", () => {
     expect(dialogueA!.final_rationale).toBe(dialogueB!.final_rationale);
   });
 
-  test("deterministically repairs generic recommendation actions to concrete fix/move contract", () => {
+  test("does not auto-repair generic recommendation actions (no fabricated actionability)", () => {
     const pass1 = makePass(1);
     const pass2 = makePass(2);
 
@@ -350,13 +350,10 @@ describe("Pass 3 backfill quality", () => {
 
     const rec = character!.recommendations[0];
     expect(rec).toBeDefined();
-    expect(rec.action).not.toBe(
+    expect(rec.action).toBe(
       "In character-driven scenes, deepen character development by adding more personal stakes.",
     );
-    expect(rec.action.toLowerCase()).not.toContain("in the anchored moment");
-    expect(rec.action.toLowerCase()).not.toContain("and a because");
-    expect(rec.action.toLowerCase()).toMatch(/rather than|instead of|pressure|readers|revise|scene momentum|opportunity|cadence/);
-    expect(rec.expected_impact.toLowerCase()).toMatch(/reader|clarity|engagement|immersion|momentum/);
+    expect(rec.expected_impact).toBe("Improves character quality.");
   });
 
   test("recommendation repair is deterministic for identical payload across parses", () => {
@@ -502,7 +499,7 @@ describe("Pass 3 backfill quality", () => {
     expect(repairedA).not.toBe(repairedB);
   });
 
-  test("repairs live failed patterns with criterion-aware concrete moves while preserving intent", () => {
+  test("preserves live failed patterns without synthetic rewrite while keeping intent visible", () => {
     const pass1 = makePass(1);
     const pass2 = makePass(2);
 
@@ -611,22 +608,18 @@ describe("Pass 3 backfill quality", () => {
     const dialogueRec = parsed.criteria.find((c) => c.key === "dialogue")?.recommendations?.[0];
     const pacingRec = parsed.criteria.find((c) => c.key === "pacing")?.recommendations?.[0];
 
-    expect(characterRec?.action.toLowerCase()).toContain("deepen character development");
-    expect(characterRec?.action.toLowerCase()).toMatch(/several lines around|the current draft|rather than|instead of|pressure|readers|revise/);
-
-    expect(sceneRec?.action.toLowerCase()).toMatch(/split|move|replace|rewrite|trim|tighten/);
-    expect(sceneRec?.action.toLowerCase()).toMatch(/scene momentum|structural|scene level|causal|rather than|pressure|decision/);
-
-    expect(dialogueRec?.action.toLowerCase()).toContain("inject more dynamic exchanges");
-    expect(dialogueRec?.action.toLowerCase()).toMatch(/rather than|instead of|pressure|decision|interruption|turn/);
-
-    expect(pacingRec?.action.toLowerCase()).toMatch(/cut|insert|replace|rewrite|trim|tighten/);
-    expect(pacingRec?.action.toLowerCase()).toMatch(/scene momentum|structural|trigger|consequence|pressure/);
-
-    const openings = [characterRec, sceneRec, dialogueRec, pacingRec]
-      .map((rec) => rec?.action?.trim().toLowerCase().split(/\s+/).slice(0, 2).join(" "))
-      .filter((value): value is string => Boolean(value));
-    expect(new Set(openings).size).toBeGreaterThanOrEqual(3);
+    expect(characterRec?.action).toBe(
+      "In character-driven scenes, deepen character development by adding more personal stakes.",
+    );
+    expect(sceneRec?.action).toBe(
+      "In slower scenes, streamline descriptive passages to improve pacing.",
+    );
+    expect(dialogueRec?.action).toBe(
+      "In dialogue-heavy scenes, inject more dynamic exchanges to drive the narrative.",
+    );
+    expect(pacingRec?.action).toBe(
+      "In slower sections, balance reflective passages with more active scenes.",
+    );
   });
 
   test("repair action excludes internal preservation scaffolding for imperative intent fragments", () => {
@@ -745,11 +738,11 @@ describe("Pass 3 backfill quality", () => {
 
     const gate = runQualityGate(minimalSynthesis as any);
     const editorialCheck = gate.checks.find((c) => c.check_id === "recommendation_editorial_quality");
-    expect(editorialCheck?.passed).toBe(false);
-    expect(editorialCheck?.error_code).toBe("QG_EDITORIAL_GENERIC_FEEDBACK");
+    expect(editorialCheck?.passed).toBe(true);
+    expect(editorialCheck?.details).toContain("WARN");
   });
 
-  test("repairs #359 rhetorical openings to satisfy editorial gate contract", () => {
+  test("does not fabricate repairs for #359 rhetorical openings", () => {
     const pass1 = makePass(1);
     const pass2 = makePass(2);
 
@@ -836,13 +829,13 @@ describe("Pass 3 backfill quality", () => {
 
     const parsed = parsePass3Response(raw, pass1, pass2, "o3");
 
-    for (const key of ["dialogue", "pacing", "proseControl"] as const) {
-      const action = parsed.criteria.find((c) => c.key === key)?.recommendations?.[0]?.action ?? "";
-      expect(action).toMatch(/(replace|cut|insert|add|split|move|rewrite|compress|sharpen|reorder|trim|tighten)/i);
-      expect(action).toMatch(/\b(because|since|so\s+that|when|by\s+\w+ing)\b/i);
-      expect(action).toMatch(/[.!?]$/);
-      expect(action.length).toBeGreaterThan(60);
-    }
+    const dialogueAction = parsed.criteria.find((c) => c.key === "dialogue")?.recommendations?.[0]?.action ?? "";
+    const pacingAction = parsed.criteria.find((c) => c.key === "pacing")?.recommendations?.[0]?.action ?? "";
+    const proseAction = parsed.criteria.find((c) => c.key === "proseControl")?.recommendations?.[0]?.action ?? "";
+
+    expect(dialogueAction).toContain("Instead of resolving the moment in exposition");
+    expect(pacingAction).toContain("Scene momentum drops near");
+    expect(proseAction).toContain("The current draft surfaces pressure");
 
     const synthesisForGate = {
       criteria: parsed.criteria.filter((c) => c.key === "dialogue" || c.key === "pacing" || c.key === "proseControl"),
@@ -855,10 +848,10 @@ describe("Pass 3 backfill quality", () => {
     const editorialCheck = gate.checks.find((c) => c.check_id === "recommendation_editorial_quality");
 
     expect(editorialCheck?.passed).toBe(true);
-    expect(editorialCheck?.error_code).toBeUndefined();
+    expect(editorialCheck?.details).toContain("WARN");
   });
 
-  test("enforces editorial gate contract across all canonical criterion keys", () => {
+  test("does not fabricate editorial contract fields across all canonical criterion keys", () => {
     const pass1 = makePass(1);
     const pass2 = makePass(2);
 
@@ -904,10 +897,9 @@ describe("Pass 3 backfill quality", () => {
 
     for (const key of CRITERIA_KEYS) {
       const action = parsed.criteria.find((c) => c.key === key)?.recommendations?.[0]?.action ?? "";
-      expect(action).toMatch(EDITORIAL_FIX_MARKERS);
-      expect(action).toMatch(EDITORIAL_MECHANISM_MARKERS);
-      expect(action.length).toBeGreaterThan(60);
-      expect(action).toMatch(/[.!?]$/);
+      expect(action).toContain("The current draft surfaces pressure");
+      expect(action).not.toMatch(EDITORIAL_FIX_MARKERS);
+      expect(action).not.toMatch(EDITORIAL_MECHANISM_MARKERS);
     }
 
     const gate = runQualityGate({
@@ -918,8 +910,8 @@ describe("Pass 3 backfill quality", () => {
     } as any);
     const editorialCheck = gate.checks.find((c) => c.check_id === "recommendation_editorial_quality");
 
-    expect(editorialCheck?.passed).toBe(true);
-    expect(editorialCheck?.error_code).toBeUndefined();
+    expect(editorialCheck?.passed).toBe(false);
+    expect(editorialCheck?.error_code).toBe("QG_EDITORIAL_GENERIC_FEEDBACK");
   });
 
   // ─────────────────────────────────────────────────────────────────────

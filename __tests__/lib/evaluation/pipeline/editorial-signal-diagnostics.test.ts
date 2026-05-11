@@ -78,7 +78,7 @@ describe("editorial diagnostics (observer-only)", () => {
     expect(result.editorial_diagnostics_summary).toBeUndefined();
   });
 
-  it("keeps fail decision unchanged and emits missing_mechanism diagnostics when mechanism is absent", () => {
+  it("emits missing_mechanism diagnostics as WARN when mechanism defect is isolated", () => {
     const synthesis = makeSynthesis({
       dialogue: {
         recommendations: [
@@ -97,13 +97,14 @@ describe("editorial diagnostics (observer-only)", () => {
     const result = runQualityGate(synthesis);
     const editorialCheck = result.checks.find((c) => c.check_id === "recommendation_editorial_quality");
 
-    expect(result.pass).toBe(false);
-    expect(editorialCheck?.error_code).toBe("QG_EDITORIAL_GENERIC_FEEDBACK");
+    expect(result.pass).toBe(true);
+    expect(editorialCheck?.error_code).toBeUndefined();
+    expect(editorialCheck?.details).toContain("WARN");
 
     const dialogueDiagnostic = result.editorial_diagnostics?.find((d) => d.criterion === "dialogue");
     expect(dialogueDiagnostic).toBeDefined();
     expect(dialogueDiagnostic?.classification).toBe("missing_mechanism");
-    expect(dialogueDiagnostic?.action_applied).toBe("block");
+    expect(dialogueDiagnostic?.action_applied).toBe("warn");
     expect(dialogueDiagnostic?.missing_fields).toContain("mechanism/cause");
     expect(dialogueDiagnostic?.gate_check_id).toBe("recommendation_editorial_quality");
     expect(dialogueDiagnostic?.signal_id).toMatch(/^editorial:dialogue:[a-f0-9]{16}:1$/);
@@ -142,8 +143,9 @@ describe("editorial diagnostics (observer-only)", () => {
       (d) => d.criterion === "concept" && d.classification === "duplicate_reasoning",
     );
 
+    // Overall result remains false because no_duplicate_recs independently blocks exact duplicates.
     expect(result.pass).toBe(false);
     expect(duplicateDiagnostic).toBeDefined();
-    expect(duplicateDiagnostic?.action_applied).toBe("block");
+    expect(duplicateDiagnostic?.action_applied).toBe("warn");
   });
 });
