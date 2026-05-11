@@ -188,6 +188,36 @@ describe("parsePass3Response", () => {
     expect(result.criteria[0].delta_explanation).toBeDefined();
   });
 
+  it("hydrates anchorless recommendations from evidence and normalizes concrete fix/move language", () => {
+    const fixture = makePass3Fixture();
+    fixture.criteria[0] = {
+      ...fixture.criteria[0],
+      evidence: [{ snippet: "Fritz's low growl broke the air before I spoke." }],
+      recommendations: [
+        {
+          priority: "medium",
+          action: "Readers will track stakes more clearly if they moved differently, sniffing, test",
+          expected_impact: "Improves clarity for readers.",
+          anchor_snippet: "",
+          issue_family: "scene_structure",
+          strategic_lever: "scene_goal_clarity",
+          revision_granularity: "scene",
+        },
+      ],
+    } as typeof fixture.criteria[0];
+
+    const result = parsePass3Response(JSON.stringify(fixture), pass1, pass2);
+    const rec = result.criteria[0].recommendations[0];
+
+    expect(rec.anchor_snippet.trim().length).toBeGreaterThan(0);
+    expect(rec.specific_fix.trim().length).toBeGreaterThan(0);
+    expect(
+      /\b(rewrite|replace|cut|trim|split|merge|move|reorder|expand|compress|clarify|insert|delete)\b/i.test(
+        rec.action,
+      ),
+    ).toBe(true);
+  });
+
   it("injects weak-criterion mention into summary when omitted", () => {
     const fixture = makePass3Fixture();
     fixture.criteria = fixture.criteria.map((criterion, index) =>

@@ -665,6 +665,16 @@ export function parsePass3Response(
       recommendations = backfillRecommendationsFromAxis(pass1, pass2, key);
     }
 
+    recommendations = recommendations.map((recommendation) => {
+      const anchored = hydrateRecommendationAnchorFromEvidence(recommendation, evidence);
+      const normalized = normalizeRecommendationContract(anchored, key);
+
+      return {
+        ...normalized,
+        action: clampRecommendationAction(normalized.action),
+      };
+    });
+
     const finalRationale = needsRationaleBackfill(key, baselineRationale)
       ? buildBackfilledRationale(key, p1c?.rationale, p2c?.rationale, evidence, manuscriptText)
       : baselineRationale;
@@ -947,6 +957,28 @@ function parseRecommendations(
         recommendation,
       ): recommendation is SynthesizedCriterion["recommendations"][number] => recommendation !== null,
     );
+}
+
+function hydrateRecommendationAnchorFromEvidence(
+  recommendation: SynthesizedCriterion["recommendations"][number],
+  evidence: EvidenceAnchor[],
+): SynthesizedCriterion["recommendations"][number] {
+  if (recommendation.anchor_snippet.trim().length > 0) {
+    return recommendation;
+  }
+
+  const fallbackAnchor = evidence
+    .map((entry) => entry.snippet.trim())
+    .find((snippet) => snippet.length > 0);
+
+  if (!fallbackAnchor) {
+    return recommendation;
+  }
+
+  return {
+    ...recommendation,
+    anchor_snippet: fallbackAnchor.slice(0, 200),
+  };
 }
 
 function normalizeRecommendationContract(
