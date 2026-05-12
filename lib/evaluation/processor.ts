@@ -2155,6 +2155,11 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
       return { success: false, error: missingCrossCheckResultError };
     }
 
+    const scopeProfileForV2Gate =
+      process.env.EVAL_SCOPE_PROFILE_ENABLED === 'true'
+        ? classifySubmissionScope(manuscriptWithContent.content || '', 1)
+        : undefined;
+
     // v2 adapter: produces EvaluationResultV2 with observability-aware status per criterion
     const evaluationResult = synthesisToEvaluationResultV2({
       synthesis: pipelineResult.synthesis,
@@ -2203,11 +2208,6 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
         final_score_0_10: criterion.final_score_0_10,
       })),
     });
-
-    const scopeProfileForV2Gate =
-      process.env.EVAL_SCOPE_PROFILE_ENABLED === 'true'
-        ? classifySubmissionScope(manuscriptWithContent.content || '', 1)
-        : undefined;
 
     const qualityGateV2 = runQualityGateV2(evaluationResult, {
       criteria: artifactCriteria,
