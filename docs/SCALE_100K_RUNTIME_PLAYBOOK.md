@@ -16,9 +16,9 @@ Provide a fail-closed, auditable, and horizontally scalable evaluation runtime t
 
 ## Current Safety Baseline (Implemented)
 
-- Worker invocation budget: `maxDuration = 900` seconds.
-- Pass timeout cap: `EVAL_PASS_TIMEOUT_MS <= 900000`.
-- OpenAI timeout cap: `EVAL_OPENAI_TIMEOUT_MS <= 900000`.
+- Worker invocation budget: `maxDuration = 800` seconds.
+- Pass timeout cap: `EVAL_PASS_TIMEOUT_MS <= 800000`.
+- OpenAI timeout cap: `EVAL_OPENAI_TIMEOUT_MS <= 800000`.
 - Bounded queue batch: `EVAL_WORKER_BATCH_SIZE` clamped to `1..5` (default `1`).
 - Defense in depth: route provides bounded batch size; processor clamps again.
 

@@ -15,9 +15,9 @@ export type ValidationResult = {
 
 const WORKER_BATCH_SIZE_MIN = 1;
 const WORKER_BATCH_SIZE_MAX = 5;
-const WORKER_LEASE_MS_DEFAULT = 900_000;
+const WORKER_LEASE_MS_DEFAULT = 800_000;
 const WORKER_LEASE_MS_MIN = 30_000;
-const WORKER_LEASE_MS_MAX = 900_000;
+const WORKER_LEASE_MS_MAX = 800_000;
 const WORKER_MAX_EXECUTION_MS_MIN = 10_000;
 const WORKER_MAX_EXECUTION_MS_MAX = WORKER_LEASE_MS_MAX;
 
@@ -95,7 +95,7 @@ export function validateProductionConfig(
     );
   }
 
-  const workerMaxExecutionMs = parseIntEnv(env, "EVAL_WORKER_MAX_EXECUTION_MS", 900_000);
+  const workerMaxExecutionMs = parseIntEnv(env, "EVAL_WORKER_MAX_EXECUTION_MS", 800_000);
   const hasExplicitWorkerMaxExecution =
     typeof env.EVAL_WORKER_MAX_EXECUTION_MS === "string" &&
     env.EVAL_WORKER_MAX_EXECUTION_MS.trim().length > 0;
