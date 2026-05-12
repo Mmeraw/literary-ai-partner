@@ -13,6 +13,7 @@ import { classifyEvaluationIntegrityBanner } from '@/lib/evaluation/warningClass
 import {
   getCertifiedCriteriaSummary,
   getCriterionPrimaryBadge,
+  getCriterionRationalePresentation,
   getCriterionSupportLabel,
 } from '@/lib/evaluation/reportCriterionDisplay';
 import { resolveReportTitle } from '@/lib/evaluation/reportTitle';
@@ -356,9 +357,21 @@ export default async function ReportPage({ params }: { params: { jobId: string }
                     {getCriterionSupportLabel(criterion as Parameters<typeof getCriterionSupportLabel>[0])}
                   </p>
                 )}
-                <p className="text-sm text-gray-600">
-                  {criterion.rationale}
-                </p>
+                {(() => {
+                  const rationalePresentation = getCriterionRationalePresentation(criterion, criterion.rationale);
+                  if (!rationalePresentation) return null;
+
+                  return (
+                    <div className="space-y-1">
+                      {rationalePresentation.label && (
+                        <p className="text-xs font-medium uppercase tracking-wide text-amber-700">
+                          {rationalePresentation.label}
+                        </p>
+                      )}
+                      <p className="text-sm text-gray-600">{rationalePresentation.text}</p>
+                    </div>
+                  );
+                })()}
               </div>
             ))}
           </div>

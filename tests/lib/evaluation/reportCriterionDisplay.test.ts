@@ -1,6 +1,7 @@
 import {
   getCertifiedCriteriaSummary,
   getCriterionPrimaryBadge,
+  getCriterionRationalePresentation,
   getCriterionSupportLabel,
   isCertifiedCriterion,
   sanitizeRenderData,
@@ -28,7 +29,7 @@ describe('reportCriterionDisplay helpers', () => {
     );
     expect(getCriterionPrimaryBadge(criterion).label).not.toContain('/ 10');
     expect(getCriterionSupportLabel(criterion)).toBe(
-      'Score not certified — insufficient evidence anchoring',
+      'Score not certified — technical evidence certification shortfall',
     );
   });
 
@@ -87,5 +88,33 @@ describe('reportCriterionDisplay helpers', () => {
     expect(getCriterionSupportLabel(criterion)).toBe(
       'Score not certified — no observable evidence',
     );
+  });
+
+  test('uncertified rationale is marked as provisional observation', () => {
+    const criterion: RenderableCriterion = {
+      status: 'INSUFFICIENT_SIGNAL',
+      score_0_10: null,
+      scorable: false,
+    };
+
+    expect(getCriterionRationalePresentation(criterion, 'Both passes find the linework confident and vivid.')).toEqual(
+      expect.objectContaining({
+        label: 'Preliminary editorial observation (not evidence-certified)',
+        provisional: true,
+      }),
+    );
+  });
+
+  test('certified rationale is rendered as non-provisional', () => {
+    const criterion: RenderableCriterion = {
+      status: 'SCORABLE',
+      score_0_10: 8,
+      scorable: true,
+    };
+
+    expect(getCriterionRationalePresentation(criterion, 'Anchored rationale text.')).toEqual({
+      text: 'Anchored rationale text.',
+      provisional: false,
+    });
   });
 });

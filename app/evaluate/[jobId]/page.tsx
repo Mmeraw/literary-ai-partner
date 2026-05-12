@@ -20,6 +20,7 @@ import { classifyEvaluationIntegrityBanner } from "@/lib/evaluation/warningClass
 import {
   getCertifiedCriteriaSummary,
   getCriterionPrimaryBadge,
+  getCriterionRationalePresentation,
   getCriterionSupportLabel,
   isCertifiedCriterion,
 } from "@/lib/evaluation/reportCriterionDisplay";
@@ -604,9 +605,21 @@ export default async function EvaluationReportPage({
                         {criterionStatusLabel(c) && (
                           <p className="mt-2 text-xs font-medium text-gray-500">{criterionStatusLabel(c)}</p>
                         )}
-                        {c.rationale && (
-                          <p className="mt-2 text-sm text-gray-600">{c.rationale}</p>
-                        )}
+                        {(() => {
+                          const rationalePresentation = getCriterionRationalePresentation(c, c.rationale);
+                          if (!rationalePresentation) return null;
+
+                          return (
+                            <div className="mt-2 space-y-1">
+                              {rationalePresentation.label && (
+                                <p className="text-xs font-medium uppercase tracking-wide text-amber-700">
+                                  {rationalePresentation.label}
+                                </p>
+                              )}
+                              <p className="text-sm text-gray-600">{rationalePresentation.text}</p>
+                            </div>
+                          );
+                        })()}
                         {!isScorableCriterion(c) && c.insufficient_signal_reason && (
                           <div className="mt-2 text-xs text-gray-500 space-y-1">
                             {Array.isArray(c.insufficient_signal_reason.looked_for) && c.insufficient_signal_reason.looked_for.length > 0 && (

@@ -9,6 +9,12 @@ export type RenderableCriterion = {
   };
 };
 
+export type CriterionRationalePresentation = {
+  label?: string;
+  text: string;
+  provisional: boolean;
+};
+
 export function isCertifiedCriterion(criterion: RenderableCriterion): boolean {
   if (typeof criterion.scorable === "boolean") {
     return criterion.scorable;
@@ -81,7 +87,28 @@ export function getCriterionSupportLabel(criterion: RenderableCriterion): string
   if (criterion.status === "NO_SIGNAL") {
     return "Score not certified — no observable evidence";
   }
-  return "Score not certified — insufficient evidence anchoring";
+  return "Score not certified — technical evidence certification shortfall";
+}
+
+export function getCriterionRationalePresentation(
+  criterion: RenderableCriterion,
+  rationale: string | null | undefined,
+): CriterionRationalePresentation | null {
+  const text = (rationale ?? "").trim();
+  if (!text) return null;
+
+  if (isCertifiedCriterion(criterion)) {
+    return {
+      text,
+      provisional: false,
+    };
+  }
+
+  return {
+    label: "Preliminary editorial observation (not evidence-certified)",
+    text,
+    provisional: true,
+  };
 }
 
 export function getCertifiedCriteriaSummary(criteria: RenderableCriterion[]): string {
