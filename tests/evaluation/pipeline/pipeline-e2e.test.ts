@@ -7,8 +7,13 @@
 
 import { describe, it, expect, jest, beforeEach } from "@jest/globals";
 import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
-import { runPipeline, synthesisToEvaluationResult } from "@/lib/evaluation/pipeline/runPipeline";
+import {
+  runPipeline,
+  synthesisToEvaluationResult,
+  synthesisToEvaluationResultV2,
+} from "@/lib/evaluation/pipeline/runPipeline";
 import { runQualityGate } from "@/lib/evaluation/pipeline/qualityGate";
+import { runQualityGateV2 } from "@/lib/evaluation/pipeline/qualityGate";
 import type {
   SinglePassOutput,
   SynthesisOutput,
@@ -1021,5 +1026,43 @@ describe("synthesisToEvaluationResult adapter", () => {
     expect(Array.isArray(result.criteria)).toBe(true);
     expect(Array.isArray(result.governance.warnings)).toBe(true);
     expect(result.governance.warnings.some((w) => w.includes("INCOMPLETE_CRITERIA_SET"))).toBe(true);
+  });
+
+  it("normalizes the v2 overview summary to include all bottom-score weaknesses before the gate runs", () => {
+    const synthesis = makeAdapterSynthesisOutput();
+    const weakKeys = ["pacing", "proseControl", "narrativeClosure"] as const;
+
+    synthesis.criteria = synthesis.criteria.map((criterion) => {
+      if (!weakKeys.includes(criterion.key as (typeof weakKeys)[number])) {
+        return criterion;
+      }
+
+      return {
+        ...criterion,
+        final_score_0_10: criterion.key === "narrativeClosure" ? 3 : 4,
+        final_rationale: `Synthesized analysis for ${criterion.key}: this is a clear weakness requiring revision.`,
+      };
+    });
+
+    synthesis.overall.one_paragraph_summary =
+      "Strong premise and voice carry the manuscript, but the draft needs targeted revision before submission.";
+
+    const result = synthesisToEvaluationResultV2({
+      synthesis,
+      ids: {
+        evaluation_run_id: "run-v2-weakness-normalized",
+        manuscript_id: 102,
+        user_id: "user-abc",
+      },
+    });
+
+    expect(result.overview.one_paragraph_summary.toLowerCase()).toContain("pacing");
+    expect(result.overview.one_paragraph_summary.toLowerCase()).toContain("prose control");
+    expect(result.overview.one_paragraph_summary.toLowerCase()).toContain("narrative closure");
+
+    const gateResult = runQualityGateV2(result);
+    expect(
+      gateResult.checks.find((check) => check.check_id === "v2_summary_weakness_presence")?.passed,
+    ).toBe(true);
   });
 });

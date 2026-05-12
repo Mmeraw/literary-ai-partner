@@ -487,6 +487,34 @@ describe("runQualityGateV2 integration", () => {
     ).toBe(true);
   });
 
+  it("fails when summary mentions only part of the bottom-score weakness cluster", () => {
+    const fixture = makeBaseV2Fixture();
+    const weakKeys = ["pacing", "theme", "narrativeClosure"] as const;
+
+    for (const key of weakKeys) {
+      const idx = CRITERIA_KEYS.indexOf(key);
+      fixture.criteria[idx] = {
+        ...fixture.criteria[idx],
+        score_0_10: 4,
+        confidence_level: "moderate",
+      } as EvaluationResultV2["criteria"][number];
+    }
+
+    fixture.overview.one_paragraph_summary =
+      "The chapter demonstrates strong atmosphere, but pacing remains the main weakness.";
+
+    const result = runQualityGateV2(fixture);
+    expect(result.pass).toBe(false);
+    expect(
+      result.checks.some(
+        (check) =>
+          check.check_id === "v2_summary_weakness_presence" &&
+          !check.passed &&
+          check.error_code === "QG_SUMMARY_OMITS_WEAKNESS",
+      ),
+    ).toBe(true);
+  });
+
   it("fails propagation integrity when upstream is weak but presentation remains high-authority", () => {
     const fixture = makeBaseV2Fixture();
     const lowConfidenceKeys = [

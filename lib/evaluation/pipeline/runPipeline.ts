@@ -83,7 +83,10 @@ import {
   startLatencyStage,
 } from "@/lib/observability/latencyTrace";
 import { JsonBoundaryError } from "@/lib/llm/jsonParseBoundary";
-import { summarizePropagationIntegrity } from "./propagationIntegrity";
+import {
+  normalizeSummaryWithBottomWeaknesses,
+  summarizePropagationIntegrity,
+} from "./propagationIntegrity";
 import {
   getCanonicalPass1Model,
   getCanonicalPass2Model,
@@ -1579,9 +1582,12 @@ export function synthesisToEvaluationResultV2(
   const coverageLimited =
     certification.route === "LONG_FORM" && !certification.manuscriptWideCertifiable;
 
-  const overviewSummary = coverageLimited
-    ? buildCoverageLimitedSummary(synthesis.coverage_scope)
-    : synthesis.overall.one_paragraph_summary;
+  const overviewSummary = normalizeSummaryWithBottomWeaknesses(
+    coverageLimited
+      ? buildCoverageLimitedSummary(synthesis.coverage_scope)
+      : synthesis.overall.one_paragraph_summary,
+    propagation.bottomScoreCriteria,
+  );
 
   const quickWins = coverageLimited ? [] : quick_wins;
   const strategicRevisions = coverageLimited ? [] : strategic_revisions;
