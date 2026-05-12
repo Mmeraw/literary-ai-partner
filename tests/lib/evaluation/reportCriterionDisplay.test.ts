@@ -90,6 +90,26 @@ describe('reportCriterionDisplay helpers', () => {
     );
   });
 
+  test('technical defect reason is used as primary support label', () => {
+    const criterion: RenderableCriterion = {
+      status: 'INSUFFICIENT_SIGNAL',
+      score_0_10: null,
+      scorable: false,
+      technical_defects: [
+        {
+          code: 'PROSE_CONTROL_ANCHOR_EXTRACTION_FAILED',
+          author_facing_reason:
+            'Prose appears strong, but the system could not attach enough line-specific evidence to certify a numeric score.',
+          retryable: true,
+        },
+      ],
+    };
+
+    expect(getCriterionSupportLabel(criterion)).toBe(
+      'Prose appears strong, but the system could not attach enough line-specific evidence to certify a numeric score.',
+    );
+  });
+
   test('uncertified rationale is marked as provisional observation', () => {
     const criterion: RenderableCriterion = {
       status: 'INSUFFICIENT_SIGNAL',

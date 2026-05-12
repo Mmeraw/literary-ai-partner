@@ -15,7 +15,7 @@ import {
   summarizePromptCoverage,
 } from "../promptInput";
 
-export const PASS3_PROMPT_VERSION = "pass3-synthesis-v10-non-certified-three-and-three";
+export const PASS3_PROMPT_VERSION = "pass3-synthesis-v11-prose-control-anchor-floor";
 
 export const PASS3_SYSTEM_PROMPT = `You are Pass 3: convergence and arbitration authority.
 Rules:
@@ -55,6 +55,12 @@ REC CONTRACT — FIVE PARTS (required for every recommendation):
 Reject patterns: no location/symptom/mechanism/concrete move/reader effect, or generic whole-manuscript advice.
 
 Confidence/evidence: do not convert scorable criteria to N/A due to thin evidence; lower confidence instead; do not invent evidence.
+
+Prose Control certification hard rule:
+- Never certify high Prose Control without at least 2 distinct verbatim manuscript anchors.
+- Positive prose sentiment (award-ready/line-level control/precise syntax) may trigger rescue but cannot substitute for anchors.
+- If proseControl rationale is strongly positive but anchors remain underfilled, prefer explicit uncertified output shape over synthetic score inflation.
+- Never emit truncated recommendation actions; if a rewrite instruction is incomplete, omit it.
 
 NON-CERTIFIED CRITERIA (required):
 - For proseControl/dialogue/voice when non-certified: include at least 3 verbatim evidence snippets and at least 3 concrete mechanism-level revision directions.
@@ -109,6 +115,7 @@ OUTPUT BUDGET BY STATE (STRICT):
 Do NOT emit "Confirmed." as complete rationale for agree criteria. State what was confirmed, the evidence basis, and why it matters.
 Do NOT return criteria as { agree:[], soft_divergence:[] ... }; return a single criteria[] array.
 Every recommendation MUST include: issue_family, strategic_lever, revision_granularity.
+For proseControl specifically: ensure at least one recommendation carries a non-empty anchor_snippet.
 Every recommendation MUST include the editorial specificity triple as SEPARATE JSON FIELDS (not only embedded in action/expected_impact):
   - "mechanism": the causal explanation (non-empty, e.g. "the abstract phrasing diffuses tension before the decision point").
   - "specific_fix": the concrete revision action (non-empty, e.g. "replace the abstract reaction line with a concrete sensory beat").

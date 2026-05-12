@@ -1517,6 +1517,7 @@ export function synthesisToEvaluationResultV2(
             expected_impact: r.expected_impact,
             anchor_snippet: r.anchor_snippet,
           })),
+          technical_defects: c.technical_defects,
         },
         {
           criteriaPlan,

@@ -7,6 +7,11 @@ export type RenderableCriterion = {
     looked_for?: string[];
     not_found?: string[];
   };
+  technical_defects?: Array<{
+    code?: "PROSE_CONTROL_ANCHOR_EXTRACTION_FAILED" | "RECOMMENDATION_TRUNCATED" | string;
+    author_facing_reason?: string;
+    retryable?: boolean;
+  }>;
 };
 
 export type CriterionRationalePresentation = {
@@ -81,6 +86,14 @@ export function getCriterionPrimaryBadge(criterion: RenderableCriterion): {
 
 export function getCriterionSupportLabel(criterion: RenderableCriterion): string | null {
   if (isCertifiedCriterion(criterion)) return null;
+  const primaryDefectReason = criterion.technical_defects
+    ?.map((defect) => (defect?.author_facing_reason ?? "").trim())
+    .find((reason) => reason.length > 0);
+
+  if (primaryDefectReason) {
+    return primaryDefectReason;
+  }
+
   if (criterion.status === "NOT_APPLICABLE") {
     return "N/A — Not applicable for this evaluation context";
   }

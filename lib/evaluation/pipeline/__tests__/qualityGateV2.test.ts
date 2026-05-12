@@ -397,6 +397,53 @@ describe("runQualityGateV2 integration", () => {
     ).toBe(true);
   });
 
+  it("allows proseControl score 6 at low confidence due to per-criterion cap", () => {
+    const fixture = makeBaseV2Fixture();
+    const proseControlIndex = CRITERIA_KEYS.indexOf("proseControl");
+
+    fixture.criteria[proseControlIndex] = {
+      ...fixture.criteria[proseControlIndex],
+      score_0_10: 6,
+      confidence_level: "low",
+      confidence_score_0_100: 45,
+    } as EvaluationResultV2["criteria"][number];
+
+    const result = runQualityGateV2(fixture);
+    expect(result.pass).toBe(true);
+    expect(result.downgradedResult).toBeUndefined();
+    expect(
+      result.checks.some(
+        (check) =>
+          check.check_id === "v2_fidelity_score_confidence_alignment" && check.passed,
+      ),
+    ).toBe(true);
+  });
+
+  it("downgrades proseControl score above cap and tags technical defect", () => {
+    const fixture = makeBaseV2Fixture();
+    const proseControlIndex = CRITERIA_KEYS.indexOf("proseControl");
+
+    fixture.criteria[proseControlIndex] = {
+      ...fixture.criteria[proseControlIndex],
+      score_0_10: 7,
+      confidence_level: "low",
+      confidence_score_0_100: 42,
+    } as EvaluationResultV2["criteria"][number];
+
+    const result = runQualityGateV2(fixture);
+    expect(result.pass).toBe(true);
+    expect(result.downgradedResult).toBeDefined();
+
+    const downgraded = result.downgradedResult?.criteria[proseControlIndex];
+    expect(downgraded?.status).toBe("INSUFFICIENT_SIGNAL");
+    expect(downgraded?.technical_defects).toContainEqual(
+      expect.objectContaining({
+        code: "PROSE_CONTROL_ANCHOR_EXTRACTION_FAILED",
+        retryable: true,
+      }),
+    );
+  });
+
   it("keeps structural fatal checks fail-closed for missing criteria", () => {
     const fixture = makeBaseV2Fixture();
     fixture.criteria = fixture.criteria.slice(0, CRITERIA_KEYS.length - 1);

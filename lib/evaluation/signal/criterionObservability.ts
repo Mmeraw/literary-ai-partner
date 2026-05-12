@@ -7,6 +7,7 @@
  */
 
 import type {
+  CriterionTechnicalDefect,
   CriterionStatus,
   EvaluationCriterionV2,
   InsufficientSignalReason,
@@ -44,6 +45,7 @@ export type RawCriterionInput = {
     expected_impact?: string;
     anchor_snippet?: string;
   }>;
+  technical_defects?: CriterionTechnicalDefect[];
   insufficient_signal_reason?: InsufficientSignalReason;
 };
 
@@ -288,6 +290,17 @@ export function normalizeCriterion(
       anchor_snippet: r.anchor_snippet,
     }));
 
+  const technical_defects = Array.isArray(raw.technical_defects)
+    ? raw.technical_defects
+        .filter((defect) => defect && typeof defect.code === "string")
+        .map((defect) => ({
+          code: defect.code,
+          author_facing_reason: String(defect.author_facing_reason ?? "").trim(),
+          retryable: Boolean(defect.retryable),
+        }))
+        .filter((defect) => defect.author_facing_reason.length > 0)
+    : undefined;
+
   const rationale = (raw.rationale ?? "").trim() || `Criterion ${raw.key} evaluation status was derived by governed observability checks.`;
   const signalStrength = classifySignalStrength(raw, {
     passageCoverageRatio: opts?.passageCoverageRatio,
@@ -342,6 +355,7 @@ export function normalizeCriterion(
       rationale,
       evidence,
       recommendations,
+      technical_defects,
     };
   }
   const hasNumericScore = typeof raw.score_0_10 === "number" && Number.isFinite(raw.score_0_10);
@@ -370,6 +384,7 @@ export function normalizeCriterion(
       rationale,
       evidence,
       recommendations,
+      technical_defects,
     };
   }
 
@@ -391,6 +406,7 @@ export function normalizeCriterion(
     rationale,
     evidence,
     recommendations,
+    technical_defects,
     insufficient_signal_reason: buildStructuredReason(status, raw.insufficient_signal_reason),
   };
 }

@@ -37,6 +37,16 @@ export type InsufficientSignalReason = {
   } | null;
 };
 
+export type TechnicalDefectCode =
+  | "PROSE_CONTROL_ANCHOR_EXTRACTION_FAILED"
+  | "RECOMMENDATION_TRUNCATED";
+
+export type CriterionTechnicalDefect = {
+  code: TechnicalDefectCode;
+  author_facing_reason: string;
+  retryable: boolean;
+};
+
 export type ScoreAdjustmentV2 = {
   reason: "AUTHORITY_CAP_APPLIED";
   composite_0_10: number;
@@ -75,6 +85,7 @@ type CriterionBase = {
     action: string;
     expected_impact: string;
   }>;
+  technical_defects?: CriterionTechnicalDefect[];
 };
 
 export type ScorableCriterionV2 = CriterionBase & {

@@ -13,6 +13,7 @@ export type ArtifactValidationIssueCode =
   | "CRITERION_SCORE_OUT_OF_RANGE"
   | "CRITERION_EVIDENCE_MISSING"
   | "CRITERION_REASONING_MISSING"
+  | "CRITERION_RECOMMENDATION_TRUNCATED"
   | "CRITERION_NON_CANONICAL_KEY"
   | "LONG_FORM_UNCERTIFIED_MANUSCRIPT_WIDE_SCORE";
 
@@ -34,6 +35,12 @@ function hasNonEmptyText(value: unknown): boolean {
     return value.some((item) => typeof item === "string" && item.trim().length > 0);
   }
   return false;
+}
+
+function looksTruncatedRecommendation(action: string): boolean {
+  const normalized = action.trim();
+  if (!normalized) return false;
+  return /\b(with|and|or|to|of|in|on|for|the|a|an)\.?$/i.test(normalized);
 }
 
 export function validateEvaluationArtifact(artifact: unknown): ArtifactValidationResult {
@@ -116,6 +123,17 @@ export function validateEvaluationArtifact(artifact: unknown): ArtifactValidatio
         code: "CRITERION_REASONING_MISSING",
         path: `$.criteria.${key}.rationale`,
         message: `Criterion ${key} must include reasoning.`,
+      });
+    }
+
+    const truncatedRecommendation = criterion.recommendations.find((recommendation) =>
+      looksTruncatedRecommendation(recommendation.action),
+    );
+    if (truncatedRecommendation) {
+      issues.push({
+        code: "CRITERION_RECOMMENDATION_TRUNCATED",
+        path: `$.criteria.${key}.recommendations`,
+        message: `Criterion ${key} contains a truncated recommendation action: ${JSON.stringify(truncatedRecommendation.action)}`,
       });
     }
   }
