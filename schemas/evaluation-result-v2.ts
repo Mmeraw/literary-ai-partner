@@ -245,7 +245,11 @@ export type EvaluationResultV2 = {
       };
       coverage_summary?: {
         partial_evaluation?: boolean;
-        sampling_strategy?: "full_text" | "sampled_beginning_middle_end";
+        sampling_strategy?:
+          | "full_text"
+          | "sampled_beginning_middle_end"
+          | "full_chunk_map_reduce"
+          | "partial_chunk_map_reduce";
         source_word_count?: number;
         analyzed_word_count?: number;
         source_char_count?: number;
