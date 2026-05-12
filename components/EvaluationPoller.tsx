@@ -12,7 +12,7 @@ const ANIMATION_TICK_MS = 400;
 // browser-only display slowly through safe non-terminal stages so the UI does
 // not appear frozen. Completion remains backend-gated and never renders 100%
 // until the job status is actually complete.
-const RUNNING_SOFT_CEILING = 90;
+const RUNNING_SOFT_CEILING = 79;
 const RUNNING_SOFT_FORWARD_TICK_MS = 1200;
 
 // Once the backend marks the job complete, keep animating the client-only
@@ -20,9 +20,20 @@ const RUNNING_SOFT_FORWARD_TICK_MS = 1200;
 // stage labels even when the backend jumps directly from ~33% to complete.
 const COMPLETE_ANIMATION_TICK_MS = 200;
 
+// Keep running jobs below near-complete UI bands until final gates pass and
+// the backend marks the job as complete.
+const RUNNING_MAX_DISPLAY_PROGRESS = 79;
+
 function getInitialDisplayProgress(job: JobState | null): number {
   if (!job) return 0;
   if (job.status === 'complete') return 100;
+  if (job.status === 'running') {
+    // Preserve server-reported progress on first paint so refreshes do not
+    // visually jump backwards to 0% and re-animate from scratch.
+    // While status is still running, keep display progress below near-complete
+    // bands so we do not imply publishable readiness before final QA passes.
+    return Math.max(0, Math.min(RUNNING_MAX_DISPLAY_PROGRESS, Math.round(job.progress)));
+  }
   return 0;
 }
 
@@ -99,7 +110,13 @@ export function EvaluationPoller({
   useEffect(() => {
     if (!job || job.status === 'failed') return;
 
-    const target = job.status === 'complete' ? 100 : Math.max(job.progress, RUNNING_SOFT_CEILING);
+    const target =
+      job.status === 'complete'
+        ? 100
+        : Math.min(
+            RUNNING_MAX_DISPLAY_PROGRESS,
+            Math.max(job.progress, RUNNING_SOFT_CEILING),
+          );
     const tickMs =
       job.status === 'complete'
         ? COMPLETE_ANIMATION_TICK_MS
