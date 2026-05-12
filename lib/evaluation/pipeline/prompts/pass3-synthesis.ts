@@ -16,7 +16,7 @@ import {
   summarizePromptCoverage,
 } from "../promptInput";
 
-export const PASS3_PROMPT_VERSION = "pass3-synthesis-v11-prose-control-anchor-floor";
+export const PASS3_PROMPT_VERSION = "pass3-synthesis-v12-structured-context-contract";
 
 export const PASS3_SYSTEM_PROMPT = `You are Pass 3: convergence and arbitration authority.
 Rules:

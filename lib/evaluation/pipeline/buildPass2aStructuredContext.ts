@@ -6,6 +6,12 @@ import type {
   Pass2aTimelineAnchor,
 } from "./types";
 
+// This builder is intentionally heuristic for PR 1: it creates a deterministic,
+// first-class Pass 2a context without introducing new dependencies or widening
+// scope into full NER. The resulting ledger can include locations, titles, and
+// aliases as separate entries. PR 2 gates must calibrate against that noise
+// profile rather than assuming canonical entity resolution already exists.
+
 const ENTITY_PATTERN = /\b(?:[A-Z][a-z]+(?:['-][A-Za-z]+)?|[A-Z]{2,})(?:\s+(?:[A-Z][a-z]+(?:['-][A-Za-z]+)?|[A-Z]{2,})){0,2}\b/g;
 const AGE_PATTERN = /\b\d{1,3}-year-old\b/gi;
 const DURATION_PATTERN = /\b(?:\d+|multiple|several)\s+(?:years?|months?|weeks?|days?|trips?)\s+(?:later|after)\b/gi;
