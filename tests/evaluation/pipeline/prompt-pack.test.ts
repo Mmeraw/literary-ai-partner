@@ -4,6 +4,12 @@ import { PASS1_SYSTEM_PROMPT, buildPass1UserPrompt } from "@/lib/evaluation/pipe
 import { PASS2_SYSTEM_PROMPT, buildPass2UserPrompt } from "@/lib/evaluation/pipeline/prompts/pass2-editorial";
 import { PASS3_SYSTEM_PROMPT, buildPass3UserPrompt } from "@/lib/evaluation/pipeline/prompts/pass3-synthesis";
 
+const pass2aStructuredContext = {
+  character_ledger: [{ name: "Hyla", first_chunk_index: 0, mention_count: 2, sample_snippet: "Crown Hyla watched the chamber." }],
+  scene_index: [{ chunk_index: 0, scene_preview: "Crown Hyla watched the chamber.", named_entities: ["Hyla"] }],
+  timeline_anchors: [{ chunk_index: 0, anchor_type: "duration" as const, anchor_text: "three years later" }],
+};
+
 describe("prompt pack governance specs", () => {
   it("Pass 1 includes canonical criteria and LLR enforcement language", () => {
     for (const key of CRITERIA_KEYS) {
@@ -64,12 +70,15 @@ describe("prompt pack governance specs", () => {
 
     const userPrompt = buildPass3UserPrompt({
       comparisonPacketJson: "{\"criteria\":[],\"criteria_count_by_state\":{\"agree\":0,\"soft_divergence\":0,\"hard_divergence\":0,\"missing_or_invalid\":0}}",
+      pass2aStructuredContext,
       manuscriptText: "Sample manuscript text.",
       title: "DOMINATUS I:4",
       executionMode: "TRUSTED_PATH",
     });
 
     expect(userPrompt).toContain("Execution mode: TRUSTED_PATH");
+    expect(userPrompt).toContain("PASS2A_STRUCTURED_CONTEXT");
+    expect(userPrompt).toContain("Hyla");
     expect(userPrompt).toContain("Produce explicit agreement_map and divergence_map");
     expect(userPrompt).toContain("identify concrete pressure, then the chapter-level decision (or non-decision), then the resulting consequence");
     expect(userPrompt).toContain("If consequence is deferred, name the risk and expected downstream cost explicitly");

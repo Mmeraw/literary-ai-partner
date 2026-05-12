@@ -6,6 +6,7 @@ import { runPass1 } from "@/lib/evaluation/pipeline/runPass1";
 import { runPass2 } from "@/lib/evaluation/pipeline/runPass2";
 import { runPass3Synthesis } from "@/lib/evaluation/pipeline/runPass3Synthesis";
 import { buildComparisonPacket } from "@/lib/evaluation/pipeline/comparisonPacket";
+import { buildPass2aStructuredContext } from "@/lib/evaluation/pipeline/buildPass2aStructuredContext";
 import { runQualityGate } from "@/lib/evaluation/pipeline/qualityGate";
 import { PASS1_SYSTEM_PROMPT, buildPass1UserPrompt } from "@/lib/evaluation/pipeline/prompts/pass1-craft";
 import { PASS2_SYSTEM_PROMPT, buildPass2UserPrompt } from "@/lib/evaluation/pipeline/prompts/pass2-editorial";
@@ -277,6 +278,7 @@ async function main(): Promise<void> {
           null,
           2,
         ),
+        pass2aStructuredContext: buildPass2aStructuredContext({ manuscriptText }),
         manuscriptText,
         title,
         executionMode: mode,

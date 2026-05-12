@@ -85,6 +85,7 @@ import {
   startLatencyStage,
 } from "@/lib/observability/latencyTrace";
 import { JsonBoundaryError } from "@/lib/llm/jsonParseBoundary";
+import { buildPass2aStructuredContext } from "./buildPass2aStructuredContext";
 import {
   normalizeSummaryWithBottomWeaknesses,
   summarizePropagationIntegrity,
@@ -1024,6 +1025,11 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
     ...pass2aCoverage,
   });
 
+  const pass2aStructuredContext = buildPass2aStructuredContext({
+    manuscriptText: opts.manuscriptText,
+    manuscriptChunks: opts.manuscriptChunks,
+  });
+
   // ── Pass 3: Synthesis & Reconciliation ─────────────────────────────────
   const pass3StartMs = nowMs();
   const pass3StartedAt = startLatencyStage({
@@ -1039,6 +1045,7 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
       _runPass3({
         pass1: pass1Output,
         pass2: pass2Output,
+        pass2aStructuredContext,
         manuscriptText: opts.manuscriptText,
         manuscriptChunks: opts.manuscriptChunks,
         title: opts.title,

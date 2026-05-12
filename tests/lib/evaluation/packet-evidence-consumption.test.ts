@@ -5,6 +5,7 @@ import { runPass3Synthesis } from "@/lib/evaluation/pipeline/runPass3Synthesis";
 import type { CreateCompletionFn } from "@/lib/evaluation/pipeline/runPass3Synthesis";
 import type { Pass3ReducerTelemetry, SinglePassOutput } from "@/lib/evaluation/pipeline/types";
 import { loadCanonicalRegistry } from "@/lib/governance/canonRegistry";
+import { buildPass2aStructuredContext } from "@/lib/evaluation/pipeline/buildPass2aStructuredContext";
 
 function makePass(pass: 1 | 2, axis: "craft_execution" | "editorial_literary"): SinglePassOutput {
   return {
@@ -64,6 +65,10 @@ function makePass3Completion(): CreateCompletionFn {
   return async () => ({
     choices: [{ message: { content: JSON.stringify(payload) } }],
   });
+}
+
+function makePass2aStructuredContext(manuscriptText: string) {
+  return buildPass2aStructuredContext({ manuscriptText });
 }
 
 describe("#292 packet evidence consumption", () => {
@@ -129,6 +134,7 @@ describe("#292 packet evidence consumption", () => {
     await runPass3Synthesis({
       pass1,
       pass2,
+      pass2aStructuredContext: makePass2aStructuredContext("Crown Hyla watched the chamber three years later."),
       manuscriptText: "pre-chunk placeholder text",
       manuscriptChunks: [{ chunk_index: 0, content: "chunk canonical source text ".repeat(1200) }],
       title: "Long Form Test",
@@ -188,6 +194,7 @@ describe("#292 packet evidence consumption", () => {
     await runPass3Synthesis({
       pass1,
       pass2,
+      pass2aStructuredContext: makePass2aStructuredContext("Crown Hyla watched the chamber three years later."),
       manuscriptText: "alpha beta gamma delta epsilon zeta eta theta iota kappa ".repeat(3000),
       manuscriptChunks: [{ chunk_index: 0, content: "chunk canonical source text with anchored evidence ".repeat(1000) }],
       title: "Long Form SIPOC",
@@ -229,6 +236,7 @@ describe("#292 packet evidence consumption", () => {
     await runPass3Synthesis({
       pass1,
       pass2,
+      pass2aStructuredContext: makePass2aStructuredContext("Crown Hyla watched the chamber three years later."),
       manuscriptText: "short manuscript text with full text evidence path",
       title: "Short Form SIPOC",
       registry,

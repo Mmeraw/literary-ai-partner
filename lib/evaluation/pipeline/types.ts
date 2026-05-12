@@ -386,6 +386,31 @@ export type ManuscriptChunkEvidence = {
   content: string;
 };
 
+export type Pass2aCharacterLedgerEntry = {
+  name: string;
+  first_chunk_index: number;
+  mention_count: number;
+  sample_snippet: string;
+};
+
+export type Pass2aSceneIndexEntry = {
+  chunk_index: number;
+  scene_preview: string;
+  named_entities: string[];
+};
+
+export type Pass2aTimelineAnchor = {
+  chunk_index: number;
+  anchor_type: "age" | "duration" | "sequence";
+  anchor_text: string;
+};
+
+export type Pass2aStructuredContext = {
+  character_ledger: Pass2aCharacterLedgerEntry[];
+  scene_index: Pass2aSceneIndexEntry[];
+  timeline_anchors: Pass2aTimelineAnchor[];
+};
+
 export type Pass3ReducerTelemetry = {
   schema_version: "1";
   prompt_version: string;
