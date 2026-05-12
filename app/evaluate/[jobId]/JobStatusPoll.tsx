@@ -113,12 +113,12 @@ export function JobStatusPoll({ jobId, initialJob }: JobStatusPollProps) {
             )}
           </div>
 
-          **{job.progress?.phase && (
+          {job.progress?.phase && (
             <div>
               <span className="text-gray-600">Phase:</span>{" "}
               <span className="font-mono font-medium">{job.progress.phase}</span>
             </div>
-          )}**
+          )}
 
           {/* GOVERNANCE: phase_status is display-only */}
           {job.progress?.phase_status && (
