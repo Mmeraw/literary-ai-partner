@@ -1,5 +1,9 @@
 import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
 import type { EvaluationResultV2 } from "@/schemas/evaluation-result-v2";
+import {
+  computeManuscriptCertification,
+  criterionClaimScope,
+} from "@/lib/evaluation/signal/manuscriptClaimPolicy";
 
 export type ArtifactValidationIssueCode =
   | "ARTIFACT_NOT_OBJECT"
@@ -9,7 +13,8 @@ export type ArtifactValidationIssueCode =
   | "CRITERION_SCORE_OUT_OF_RANGE"
   | "CRITERION_EVIDENCE_MISSING"
   | "CRITERION_REASONING_MISSING"
-  | "CRITERION_NON_CANONICAL_KEY";
+  | "CRITERION_NON_CANONICAL_KEY"
+  | "LONG_FORM_UNCERTIFIED_MANUSCRIPT_WIDE_SCORE";
 
 export type ArtifactValidationIssue = {
   code: ArtifactValidationIssueCode;
@@ -123,6 +128,48 @@ export function validateEvaluationArtifact(artifact: unknown): ArtifactValidatio
         path: `$.criteria.${criterion.key}`,
         message: `Non-canonical criterion key found: ${criterion.key}`,
       });
+    }
+  }
+
+  const transparency = result.governance?.transparency;
+  const coverageSummary = transparency?.coverage_summary;
+  const evaluationScope = transparency?.evaluation_scope;
+  const certification = computeManuscriptCertification({
+    inputScale: evaluationScope?.input_scale,
+    partialEvaluation: coverageSummary?.partial_evaluation ?? false,
+    coverageScope:
+      coverageSummary &&
+      typeof coverageSummary.source_char_count === "number" &&
+      typeof coverageSummary.source_word_count === "number" &&
+      typeof coverageSummary.analyzed_char_count === "number" &&
+      typeof coverageSummary.analyzed_word_count === "number" &&
+      coverageSummary.sampling_strategy
+        ? {
+            sourceChars: coverageSummary.source_char_count,
+            sourceWords: coverageSummary.source_word_count,
+            analyzedChars: coverageSummary.analyzed_char_count,
+            analyzedWords: coverageSummary.analyzed_word_count,
+            strategy: coverageSummary.sampling_strategy,
+          }
+        : undefined,
+    hasSynthesisCriteria: result.criteria.length === CRITERIA_KEYS.length,
+  });
+
+  if (
+    certification.route === "LONG_FORM" &&
+    !certification.manuscriptWideCertifiable
+  ) {
+    for (const criterion of result.criteria) {
+      if (
+        criterionClaimScope(evaluationScope?.input_scale, criterion.key) === "MANUSCRIPT_WIDE" &&
+        criterion.status === "SCORABLE"
+      ) {
+        issues.push({
+          code: "LONG_FORM_UNCERTIFIED_MANUSCRIPT_WIDE_SCORE",
+          path: `$.criteria.${criterion.key}.status`,
+          message: `Historical artifacts without required coverage fields are non-authoritative until backfilled and revalidated; criterion ${criterion.key} cannot remain SCORABLE for uncertified LONG_FORM coverage.`,
+        });
+      }
     }
   }
 

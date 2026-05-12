@@ -50,9 +50,9 @@ If unset, these paths fail loudly by design.
 
 ## Worker Runtime Guardrails (Canonical)
 
-- Worker route runtime budget: `app/api/workers/process-evaluations/route.ts` exports `maxDuration = 300`.
-- Per-pass timeout cap: `EVAL_PASS_TIMEOUT_MS` is clamped to `<= 180000` ms in `lib/evaluation/processor.ts`.
-- OpenAI timeout cap: `EVAL_OPENAI_TIMEOUT_MS` is clamped to `<= 180000` ms in processor and pass runners.
+- Worker route runtime budget: `app/api/workers/process-evaluations/route.ts` exports `maxDuration = 800`.
+- Per-pass timeout cap: `EVAL_PASS_TIMEOUT_MS` is clamped to `<= 800000` ms in `lib/evaluation/processor.ts`.
+- OpenAI timeout cap: `EVAL_OPENAI_TIMEOUT_MS` is clamped to `<= 800000` ms in processor and pass runners.
 - Queue batch-size safety guard: `EVAL_WORKER_BATCH_SIZE` is clamped to `1..5` (default `1`) before queue fetch.
 - Worker route passes bounded `batchSize` into `processQueuedJobs()`; processor enforces clamp again (defense in depth).
 
@@ -97,6 +97,6 @@ The following state is **required** when a route queues a job for Phase 2 execut
 
 Recommended production values:
 ```
-EVAL_PASS_TIMEOUT_MS=180000
-EVAL_OPENAI_TIMEOUT_MS=180000
+EVAL_PASS_TIMEOUT_MS=720000
+EVAL_OPENAI_TIMEOUT_MS=720000
 ```

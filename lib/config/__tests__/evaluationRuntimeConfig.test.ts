@@ -21,11 +21,11 @@ describe("resolveEvaluationRuntimeConfig", () => {
     expect(config.pass.inputCharBudget).toBe(40000);
     expect(config.pass.synthesisRefCharBudget).toBe(8000);
     expect(config.worker.batchSize).toBe(5);
-    expect(config.worker.leaseMs).toBe(300000);
-    expect(config.worker.maxExecutionMs).toBe(55000);
+    expect(config.worker.leaseMs).toBe(800000);
+    expect(config.worker.maxExecutionMs).toBe(800000);
     expect(config.worker.disabled).toBe(false);
-    expect(config.timeouts.passTimeout.valueMs).toBe(600000);
-    expect(config.timeouts.openAiTimeout.valueMs).toBe(600000);
+    expect(config.timeouts.passTimeout.valueMs).toBe(720000);
+    expect(config.timeouts.openAiTimeout.valueMs).toBe(720000);
   });
 
   it("parses worker disabled kill-switch from env", () => {
@@ -73,20 +73,20 @@ describe("resolveEvaluationRuntimeConfig", () => {
   it("throws when worker max execution exceeds the lease policy ceiling", () => {
     expect(() =>
       resolveEvaluationRuntimeConfig({
-        EVAL_WORKER_LEASE_MS: "600000",
-        EVAL_WORKER_MAX_EXECUTION_MS: "610000",
+        EVAL_WORKER_LEASE_MS: "800000",
+        EVAL_WORKER_MAX_EXECUTION_MS: "810000",
       }, {}),
-    ).toThrow(/EVAL_WORKER_MAX_EXECUTION_MS must be between 10000 and 600000/);
+    ).toThrow(/EVAL_WORKER_MAX_EXECUTION_MS must be between 10000 and 800000/);
   });
 
-  it("accepts explicit 600000ms worker max execution when lease is aligned", () => {
+  it("accepts explicit 800000ms worker max execution when lease is aligned", () => {
     const config = resolveWithoutBaseline({
-      EVAL_WORKER_LEASE_MS: "600000",
-      EVAL_WORKER_MAX_EXECUTION_MS: "600000",
+      EVAL_WORKER_LEASE_MS: "800000",
+      EVAL_WORKER_MAX_EXECUTION_MS: "800000",
     });
 
-    expect(config.worker.leaseMs).toBe(600000);
-    expect(config.worker.maxExecutionMs).toBe(600000);
+    expect(config.worker.leaseMs).toBe(800000);
+    expect(config.worker.maxExecutionMs).toBe(800000);
   });
 
   it("throws when adjudication mode requires Perplexity key and key is missing", () => {
@@ -168,11 +168,11 @@ describe("resolveEvaluationRuntimeConfig", () => {
 });
 
 describe("resolveScopedEvaluationTimeouts", () => {
-  it("applies 600000ms floor for multi_chapter inputs", () => {
+  it("applies 720000ms floor for multi_chapter inputs", () => {
     const resolved = resolveScopedEvaluationTimeouts({
       inputScale: "multi_chapter",
-      passTimeoutMs: 180000,
-      openAiTimeoutMs: 180000,
+      passTimeoutMs: 360000,
+      openAiTimeoutMs: 360000,
     });
 
     expect(resolved.floorApplied).toBe(true);
@@ -183,37 +183,37 @@ describe("resolveScopedEvaluationTimeouts", () => {
   it("keeps existing larger values for full_manuscript inputs", () => {
     const resolved = resolveScopedEvaluationTimeouts({
       inputScale: "full_manuscript",
-      passTimeoutMs: 600000,
-      openAiTimeoutMs: 600000,
+      passTimeoutMs: 800000,
+      openAiTimeoutMs: 800000,
     });
 
     expect(resolved.floorApplied).toBe(false);
-    expect(resolved.passTimeoutMs).toBe(600000);
-    expect(resolved.openAiTimeoutMs).toBe(600000);
+    expect(resolved.passTimeoutMs).toBe(800000);
+    expect(resolved.openAiTimeoutMs).toBe(800000);
   });
 
   it("preserves configured values above the floor for full_manuscript", () => {
     const resolved = resolveScopedEvaluationTimeouts({
       inputScale: "full_manuscript",
-      passTimeoutMs: 900000,
-      openAiTimeoutMs: 900000,
+      passTimeoutMs: 860000,
+      openAiTimeoutMs: 860000,
     });
 
     expect(resolved.floorApplied).toBe(false);
-    expect(resolved.passTimeoutMs).toBe(900000);
-    expect(resolved.openAiTimeoutMs).toBe(900000);
+    expect(resolved.passTimeoutMs).toBe(860000);
+    expect(resolved.openAiTimeoutMs).toBe(860000);
   });
 
   it("raises long-form provider timeout to match long-form pass timeout when needed", () => {
     const resolved = resolveScopedEvaluationTimeouts({
       inputScale: "multi_chapter",
-      passTimeoutMs: 720000,
-      openAiTimeoutMs: 180000,
+      passTimeoutMs: 860000,
+      openAiTimeoutMs: 360000,
     });
 
     expect(resolved.floorApplied).toBe(true);
-    expect(resolved.passTimeoutMs).toBe(720000);
-    expect(resolved.openAiTimeoutMs).toBe(720000);
+    expect(resolved.passTimeoutMs).toBe(860000);
+    expect(resolved.openAiTimeoutMs).toBe(860000);
   });
 
   it("does not apply floor for standard_chapter inputs", () => {

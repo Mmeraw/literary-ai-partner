@@ -164,4 +164,33 @@ describe("validateEvaluationArtifact (boundary structural validator)", () => {
       );
     }
   });
+
+  test("rejects uncertified long-form manuscript-wide scores", () => {
+    const artifact = makeValidArtifact();
+    artifact.governance.transparency = {
+      evaluation_scope: {
+        route: "LONG_FORM",
+        input_scale: "full_manuscript",
+        manuscript_wide_certifiable: false,
+        reason_codes: ["LONG_FORM_PARTIAL_EVALUATION", "LONG_FORM_SAMPLED_COVERAGE"],
+        criterion_scope_policy_version: "v0.2",
+      },
+      coverage_summary: {
+        partial_evaluation: true,
+        sampling_strategy: "sampled_beginning_middle_end",
+        source_word_count: 29519,
+        analyzed_word_count: 6263,
+        source_char_count: 160000,
+        analyzed_char_count: 40000,
+      },
+    };
+
+    const result = validateEvaluationArtifact(artifact);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.issues).toContainEqual(
+        expect.objectContaining({ code: "LONG_FORM_UNCERTIFIED_MANUSCRIPT_WIDE_SCORE" }),
+      );
+    }
+  });
 });

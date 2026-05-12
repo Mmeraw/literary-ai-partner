@@ -2167,6 +2167,9 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
       crossCheckResult: pipelineResult.cross_check,
       pass4Governance: pipelineResult.pass4_governance,
       sourceText: manuscriptWithContent.content || "",
+      manuscriptText: manuscriptWithContent.content || "",
+      title: manuscript.title ?? undefined,
+      scopeProfile: scopeProfileForV2Gate,
     });
     console.log(
       `[Processor] ${jobId}: evaluationResult synthesized overall=${evaluationResult.overview.overall_score_0_100}`,
