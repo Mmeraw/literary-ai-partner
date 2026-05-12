@@ -183,7 +183,6 @@ describe("validateEvaluationArtifact (boundary structural validator)", () => {
       );
     }
   });
-
   test("rejects uncertified long-form manuscript-wide scores", () => {
     const artifact = makeValidArtifact();
     artifact.governance.transparency = {
