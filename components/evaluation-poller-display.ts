@@ -9,7 +9,7 @@ export type ProgressDisplay = {
 } | null;
 
 const STAGE_ROADMAP =
-  "Stages: Preparing manuscript → Reading manuscript → Building diagnosis → Reconciling passes → Quality checks → Preparing report → Finalizing report.";
+  "Stages: Preparing manuscript → Reading manuscript → Building diagnosis → Reconciling passes → Final QA checks → Validating report → Finalizing report.";
 
 function toApproxRunningPercentage(rawProgress: number): number {
   // Negative or zero → clamp to 0.
@@ -36,8 +36,8 @@ function toApproxRunningPercentage(rawProgress: number): number {
 function getStageLabel(percentage: number): string {
   if (percentage >= 100) return "Report ready";
   if (percentage >= 95) return "Finalizing report";
-  if (percentage >= 80) return "Preparing report";
-  if (percentage >= 65) return "Quality checks";
+  if (percentage >= 80) return "Validating report";
+  if (percentage >= 65) return "Final QA checks";
   if (percentage >= 45) return "Reconciling passes";
   if (percentage >= 25) return "Building diagnosis";
   if (percentage >= 15) return "Reading manuscript";
