@@ -35,6 +35,7 @@ import type {
   ManuscriptChunkEvidence,
   QualityGateCriterionDiagnostic,
   GateDiagnostics,
+  CoverageStrategy,
 } from "./types";
 import type { EvaluationResultV1 } from "@/schemas/evaluation-result-v1";
 import type { EvaluationResultV2 } from "@/schemas/evaluation-result-v2";
@@ -52,6 +53,7 @@ import {
   countWords,
   type SubmissionScopeProfile,
 } from "./submissionScope";
+import { summarizePromptCoverage } from "./promptInput";
 import {
   buildCriteriaPlanForScale,
   scopePolicy,
@@ -214,6 +216,148 @@ type GovernanceConfidenceDerivation = {
   confidenceLabel: "high" | "medium" | "low" | "withheld";
   confidenceReasons: string[];
 };
+
+type Pass2aCoverageAuthority = {
+  authority: "pass2a";
+  chunkRouted: boolean;
+  fullCoverage: boolean;
+  partialCoverage: boolean;
+  technicalDefect: boolean;
+  reasonCodes: string[];
+  sourceChars: number;
+  sourceWords: number;
+  analyzedChars: number;
+  analyzedWords: number;
+  strategy: CoverageStrategy;
+  expectedChunks: number | null;
+  materializedChunks: number | null;
+  pass1EvaluatedChunks: number | null;
+  pass2EvaluatedChunks: number | null;
+  collationSucceeded: boolean;
+};
+
+function getConfiguredChunkCap(): number | null {
+  const raw = process.env.EVAL_CHUNK_MAX_PER_PASS;
+  if (!raw) return null;
+  const parsed = Number.parseInt(raw, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) return null;
+  return parsed;
+}
+
+function derivePass2aCoverageAuthority(args: {
+  manuscriptText: string;
+  manuscriptChunks?: ManuscriptChunkEvidence[];
+  pass1: SinglePassOutput;
+  pass2: SinglePassOutput;
+}): Pass2aCoverageAuthority {
+  const sourceChars = args.manuscriptText.length;
+  const sourceWords = countWords(args.manuscriptText);
+  const chunkCount = Array.isArray(args.manuscriptChunks) ? args.manuscriptChunks.length : 0;
+  const chunkRouted = chunkCount > 1;
+
+  const collationSucceeded =
+    args.pass1.criteria.length === CRITERIA_KEYS.length &&
+    args.pass2.criteria.length === CRITERIA_KEYS.length;
+
+  if (!chunkRouted) {
+    const promptCoverage = summarizePromptCoverage(args.manuscriptText);
+    const pass1WindowFull = args.pass1.coverage_summary?.fully_evaluated ?? !promptCoverage.truncated;
+    const pass2WindowFull = args.pass2.coverage_summary?.fully_evaluated ?? !promptCoverage.truncated;
+    const fullCoverage = !promptCoverage.truncated && pass1WindowFull && pass2WindowFull && collationSucceeded;
+    const reasonCodes: string[] = [];
+
+    if (promptCoverage.truncated) {
+      reasonCodes.push("PROMPT_WINDOW_TRUNCATED");
+    }
+    if (!pass1WindowFull) {
+      reasonCodes.push("PASS1_DIRECT_WINDOW_INCOMPLETE");
+    }
+    if (!pass2WindowFull) {
+      reasonCodes.push("PASS2_DIRECT_WINDOW_INCOMPLETE");
+    }
+    if (!collationSucceeded) {
+      reasonCodes.push("PASS2A_COLLATION_FAILED");
+    }
+
+    return {
+      authority: "pass2a",
+      chunkRouted,
+      fullCoverage,
+      partialCoverage: !fullCoverage,
+      technicalDefect: false,
+      reasonCodes,
+      sourceChars,
+      sourceWords,
+      analyzedChars: fullCoverage ? sourceChars : promptCoverage.analyzedChars,
+      analyzedWords: fullCoverage ? sourceWords : promptCoverage.analyzedWords,
+      strategy: fullCoverage ? "full_text" : "sampled_beginning_middle_end",
+      expectedChunks: null,
+      materializedChunks: null,
+      pass1EvaluatedChunks: null,
+      pass2EvaluatedChunks: null,
+      collationSucceeded,
+    };
+  }
+
+  const expectedChunks = chunkCount;
+  const materializedChunks = chunkCount;
+
+  const pass1Ledger = args.pass1.coverage_summary?.chunk_ledger;
+  const pass2Ledger = args.pass2.coverage_summary?.chunk_ledger;
+
+  const pass1EvaluatedChunks = pass1Ledger?.evaluated_chunks ?? null;
+  const pass2EvaluatedChunks = pass2Ledger?.evaluated_chunks ?? null;
+
+  const pass1ChunkMode = args.pass1.coverage_summary?.route === "chunk_map_reduce";
+  const pass2ChunkMode = args.pass2.coverage_summary?.route === "chunk_map_reduce";
+
+  const chunkCap = getConfiguredChunkCap();
+  const capApplied =
+    Boolean(pass1Ledger?.cap_applied) ||
+    Boolean(pass2Ledger?.cap_applied) ||
+    (chunkCap !== null && expectedChunks > chunkCap);
+
+  const pass1AllChunks = pass1ChunkMode && pass1EvaluatedChunks === expectedChunks;
+  const pass2AllChunks = pass2ChunkMode && pass2EvaluatedChunks === expectedChunks;
+  const fullCoverage = pass1AllChunks && pass2AllChunks && !capApplied && collationSucceeded;
+
+  const reasonCodes: string[] = [];
+  if (!pass1ChunkMode) reasonCodes.push("PASS1_NOT_CHUNK_ROUTED");
+  if (!pass2ChunkMode) reasonCodes.push("PASS2_NOT_CHUNK_ROUTED");
+  if (capApplied) reasonCodes.push("CHUNK_CAP_APPLIED");
+  if (!pass1AllChunks) reasonCodes.push("PASS1_CHUNK_EVALUATION_INCOMPLETE");
+  if (!pass2AllChunks) reasonCodes.push("PASS2_CHUNK_EVALUATION_INCOMPLETE");
+  if (!collationSucceeded) reasonCodes.push("PASS2A_COLLATION_FAILED");
+
+  const evaluatedFloor = Math.max(
+    0,
+    Math.min(
+      expectedChunks,
+      pass1EvaluatedChunks ?? expectedChunks,
+      pass2EvaluatedChunks ?? expectedChunks,
+    ),
+  );
+  const evaluatedRatio = expectedChunks > 0 ? evaluatedFloor / expectedChunks : 0;
+
+  return {
+    authority: "pass2a",
+    chunkRouted,
+    fullCoverage,
+    partialCoverage: !fullCoverage,
+    technicalDefect: !fullCoverage && reasonCodes.some((code) => code.includes("COLLATION") || code.includes("NOT_CHUNK")),
+    reasonCodes,
+    sourceChars,
+    sourceWords,
+    analyzedChars: fullCoverage ? sourceChars : Math.floor(sourceChars * evaluatedRatio),
+    analyzedWords: fullCoverage ? sourceWords : Math.floor(sourceWords * evaluatedRatio),
+    strategy: fullCoverage ? "full_chunk_map_reduce" : "partial_chunk_map_reduce",
+    expectedChunks,
+    materializedChunks,
+    pass1EvaluatedChunks,
+    pass2EvaluatedChunks,
+    collationSucceeded,
+  };
+}
 
 function logPipelineTimings(
   stage: "success" | "failure",
@@ -427,7 +571,7 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
     try {
       scopeProfile = opts._scopeProfile ?? classifySubmissionScope(
         opts.manuscriptText,
-        1, // chunkCount = 1 for now; can be refined later
+        opts.manuscriptChunks?.length ?? 1,
       );
 
       if (!scopeProfile) {
@@ -867,6 +1011,19 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
     if (llrResult) return llrResult;
   }
 
+  const pass2aCoverage = derivePass2aCoverageAuthority({
+    manuscriptText: opts.manuscriptText,
+    manuscriptChunks: opts.manuscriptChunks,
+    pass1: pass1Output,
+    pass2: pass2Output,
+  });
+
+  console.log("[Pipeline][Pass2aCoverageAuthority]", {
+    manuscript_id: opts.manuscriptId ?? null,
+    title: opts.title,
+    ...pass2aCoverage,
+  });
+
   // ── Pass 3: Synthesis & Reconciliation ─────────────────────────────────
   const pass3StartMs = nowMs();
   const pass3StartedAt = startLatencyStage({
@@ -934,6 +1091,18 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
   }
 
   {
+    pass3Output = {
+      ...pass3Output,
+      partial_evaluation: pass2aCoverage.partialCoverage,
+      coverage_scope: {
+        sourceChars: pass2aCoverage.sourceChars,
+        sourceWords: pass2aCoverage.sourceWords,
+        analyzedChars: pass2aCoverage.analyzedChars,
+        analyzedWords: pass2aCoverage.analyzedWords,
+        strategy: pass2aCoverage.strategy,
+      },
+    };
+
     const criteriaForDerivedPlans = pass3Output.criteria.map((criterion) => ({
       key: criterion.key,
       final_score_0_10: criterion.final_score_0_10,

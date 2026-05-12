@@ -137,8 +137,11 @@ const LONG_FORM_CHUNKING_THRESHOLD_WORDS = 25_000;
 type ChunkRoutingTelemetry = {
   enabled: boolean;
   route: 'long_form' | 'short_form';
+  trigger_reason?: 'word_threshold' | 'prompt_budget_exceeded';
   threshold_words: number;
+  prompt_budget_chars: number;
   manuscript_words: number;
+  manuscript_chars: number;
   chunk_count: number;
   // Long-form chunk materialization proof fields (populated only on long_form route)
   ensure_chunks_returned_count?: number;
@@ -879,13 +882,19 @@ async function maybeEnsureLongFormChunks(args: {
   manuscriptText: string;
 }): Promise<ChunkRoutingTelemetry> {
   const manuscriptWords = countWords(args.manuscriptText);
+  const manuscriptChars = args.manuscriptText.trim().length;
+  const promptBudgetChars = getEvaluationRuntimeConfig().pass.inputCharBudget;
+  const exceedsPromptBudget = manuscriptChars > promptBudgetChars;
+  const shouldChunk = manuscriptWords >= LONG_FORM_CHUNKING_THRESHOLD_WORDS || exceedsPromptBudget;
 
-  if (manuscriptWords < LONG_FORM_CHUNKING_THRESHOLD_WORDS) {
+  if (!shouldChunk) {
     return {
       enabled: true,
       route: 'short_form',
       threshold_words: LONG_FORM_CHUNKING_THRESHOLD_WORDS,
+      prompt_budget_chars: promptBudgetChars,
       manuscript_words: manuscriptWords,
+      manuscript_chars: manuscriptChars,
       chunk_count: 0,
     };
   }
@@ -903,8 +912,14 @@ async function maybeEnsureLongFormChunks(args: {
   return {
     enabled: true,
     route: 'long_form',
+    trigger_reason:
+      manuscriptWords >= LONG_FORM_CHUNKING_THRESHOLD_WORDS
+        ? 'word_threshold'
+        : 'prompt_budget_exceeded',
     threshold_words: LONG_FORM_CHUNKING_THRESHOLD_WORDS,
+    prompt_budget_chars: promptBudgetChars,
     manuscript_words: manuscriptWords,
+    manuscript_chars: manuscriptChars,
     chunk_count: chunkResult.ensured_count,
     ensure_chunks_returned_count: chunkResult.ensured_count,
     persisted_chunk_count: chunkResult.persisted_count,
@@ -2457,21 +2472,51 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
       }
     }
 
+    const synthesisCoverage = pipelineResult.synthesis.coverage_scope;
     const promptCoverage = summarizePromptCoverage(manuscriptWithContent.content || '');
+    const coverageForReporting = synthesisCoverage
+      ? {
+          sourceChars: synthesisCoverage.sourceChars,
+          sourceWords: synthesisCoverage.sourceWords,
+          analyzedChars: synthesisCoverage.analyzedChars,
+          analyzedWords: synthesisCoverage.analyzedWords,
+          strategy: synthesisCoverage.strategy,
+        }
+      : {
+          sourceChars: promptCoverage.sourceChars,
+          sourceWords: promptCoverage.sourceWords,
+          analyzedChars: promptCoverage.analyzedChars,
+          analyzedWords: promptCoverage.analyzedWords,
+          strategy: promptCoverage.strategy,
+        };
+    const coverageIsFull =
+      !pipelineResult.synthesis.partial_evaluation &&
+      (coverageForReporting.strategy === 'full_text' ||
+        coverageForReporting.strategy === 'full_chunk_map_reduce');
+
     effectiveEvaluationResult.metrics.manuscript = {
       ...effectiveEvaluationResult.metrics.manuscript,
-      word_count: promptCoverage.sourceWords,
-      char_count: promptCoverage.sourceChars,
+      word_count: coverageForReporting.sourceWords,
+      char_count: coverageForReporting.sourceChars,
       genre: manuscriptWithContent.work_type || 'Unknown',
     };
     effectiveEvaluationResult.metrics.processing = {
       ...effectiveEvaluationResult.metrics.processing,
-      segment_count: promptCoverage.truncated ? 3 : 1,
+      segment_count:
+        chunkRouting.route === 'long_form'
+          ? Math.max(1, chunkRouting.chunk_count)
+          : coverageForReporting.strategy === 'sampled_beginning_middle_end'
+            ? 3
+            : 1,
     };
     effectiveEvaluationResult.governance.limitations = [
-      promptCoverage.truncated
-        ? `Pass 1 and Pass 2 analyzed a sampled prompt window (~${promptCoverage.analyzedWords} of ${promptCoverage.sourceWords} words; ${promptCoverage.budgetChars}-char budget).`
-        : `Pass 1 and Pass 2 analyzed the full submission (${promptCoverage.sourceWords} words).`,
+      coverageIsFull
+        ? coverageForReporting.strategy === 'full_chunk_map_reduce'
+          ? `Pass 1 and Pass 2 analyzed full submission coverage via chunk map/reduce (${coverageForReporting.sourceWords} words across ${Math.max(1, chunkRouting.chunk_count)} chunk(s)).`
+          : `Pass 1 and Pass 2 analyzed the full submission (${coverageForReporting.sourceWords} words).`
+        : coverageForReporting.strategy === 'partial_chunk_map_reduce'
+          ? `Pass 1 and Pass 2 analyzed partial chunk coverage (~${coverageForReporting.analyzedWords} of ${coverageForReporting.sourceWords} words) and cannot claim manuscript-wide full coverage.`
+          : `Pass 1 and Pass 2 analyzed a sampled prompt window (~${coverageForReporting.analyzedWords} of ${coverageForReporting.sourceWords} words; ${promptCoverage.budgetChars}-char budget).`,
       'Pass 3 synthesis uses a compressed manuscript reference window for arbitration context.',
       ...effectiveEvaluationResult.governance.limitations.filter(
         (item) =>

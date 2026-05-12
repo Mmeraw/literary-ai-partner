@@ -66,6 +66,24 @@ export type EvidenceAnchor = {
   segment_id?: string;
 };
 
+export type CoverageStrategy =
+  | "full_text"
+  | "sampled_beginning_middle_end"
+  | "full_chunk_map_reduce"
+  | "partial_chunk_map_reduce";
+
+export type PassCoverageSummary = {
+  route: "direct_window" | "chunk_map_reduce";
+  fully_evaluated: boolean;
+  chunk_ledger?: {
+    expected_chunks: number;
+    attempted_chunks: number;
+    evaluated_chunks: number;
+    failed_chunks: number;
+    cap_applied: boolean;
+  };
+};
+
 // ── Dialogue Attribution Diagnostics (FR-1: Canonical shared type) ───────────
 
 /**
@@ -150,6 +168,7 @@ export type SinglePassOutput = {
   prompt_version: string;
   temperature: number;
   generated_at: string; // ISO 8601
+  coverage_summary?: PassCoverageSummary;
 };
 
 // ── Pass 3: Synthesized criterion ────────────────────────────────────────────
@@ -263,7 +282,7 @@ export type SynthesisOutput = {
     sourceWords: number;
     analyzedChars: number;
     analyzedWords: number;
-    strategy: "full_text" | "sampled_beginning_middle_end";
+    strategy: CoverageStrategy;
   };
 };
 

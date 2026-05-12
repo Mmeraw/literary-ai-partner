@@ -448,6 +448,83 @@ describe("processEvaluationJob long-form chunk routing", () => {
     expect(timeoutResolution?.resolved_openai_timeout_ms).toBe(timeoutResolution?.base_openai_timeout_ms);
   });
 
+  test("mid-length manuscript exceeding prompt budget routes to long_form chunking", async () => {
+    const manuscriptContent = "alpha beta gamma delta epsilon ".repeat(3200); // ~16k words
+    const supabaseStub = makeSupabaseStub(manuscriptContent, {
+      manuscriptChunks: [
+        { chunk_index: 0, content: "Chunk A text" },
+        { chunk_index: 1, content: "Chunk B text" },
+        { chunk_index: 2, content: "Chunk C text" },
+      ],
+    });
+    createClientMock.mockReturnValue(supabaseStub);
+
+    ensureChunksFromTextMock.mockResolvedValueOnce({
+      ensured_count: 3,
+      persisted_count: 3,
+      chunk_source: "processor_resolved_text",
+      verified_at: new Date().toISOString(),
+    });
+
+    runPipelineMock.mockResolvedValue({
+      ok: true,
+      synthesis: {
+        criteria: [],
+        overall: {
+          overall_score_0_100: 82,
+          verdict: "pass",
+          one_paragraph_summary: "Summary",
+          top_3_strengths: [],
+          top_3_risks: [],
+        },
+        metadata: {
+          pass1_model: "gpt-4o",
+          pass2_model: "o3",
+          pass3_model: "o3",
+          generated_at: new Date().toISOString(),
+        },
+      },
+      quality_gate: {
+        pass: true,
+        checks: [],
+        warnings: [],
+      },
+      pass4_governance: { ok: true },
+    });
+
+    synthesisToEvaluationResultV2Mock.mockReturnValue(buildEvaluationResult());
+    runQualityGateV2Mock.mockReturnValue({
+      pass: true,
+      checks: [],
+      warnings: [],
+    });
+    mapEvaluationResultV2ToGovernanceEnvelopeMock.mockReturnValue({
+      evaluation_run_id: "run-long-form-1",
+      criteria: [],
+    });
+
+    const { processEvaluationJob } = require("../../../lib/evaluation/processor");
+    const result = await processEvaluationJob("job-long-form-routing");
+
+    expect(result.success).toBe(true);
+    expect(ensureChunksFromTextMock).toHaveBeenCalledTimes(1);
+
+    const persistCall = supabaseStub.rpcCalls.find(
+      (call: { fn: string }) => call.fn === "persist_evaluation_v2_atomic",
+    );
+    expect(persistCall).toBeDefined();
+    expect(persistCall?.args?.p_progress?.chunk_routing).toEqual(
+      expect.objectContaining({
+        route: "long_form",
+        trigger_reason: "prompt_budget_exceeded",
+        threshold_words: 25000,
+        chunk_count: 3,
+        ensure_chunks_returned_count: 3,
+        persisted_chunk_count: 3,
+      }),
+    );
+  });
+
   test("long_form + persisted_chunk_count = 0 fails with LONG_FORM_CHUNK_MATERIALIZATION_FAILED and does not run pipeline", async () => {
     const manuscriptContent = "alpha beta gamma delta epsilon zeta eta theta iota kappa ".repeat(2600);
     const supabaseStub = makeSupabaseStub(manuscriptContent);

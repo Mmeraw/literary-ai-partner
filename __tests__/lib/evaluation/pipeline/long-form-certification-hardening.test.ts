@@ -113,4 +113,52 @@ describe("synthesisToEvaluationResultV2 long-form certification hardening", () =
       }),
     );
   });
+
+  test("certifies manuscript-wide scoring when pass2a reports full chunk map/reduce coverage", () => {
+    const synthesis = makeSampledLongFormSynthesis();
+    synthesis.partial_evaluation = false;
+    synthesis.coverage_scope = {
+      sourceChars: 160_000,
+      sourceWords: 29_519,
+      analyzedChars: 160_000,
+      analyzedWords: 29_519,
+      strategy: "full_chunk_map_reduce",
+    };
+    synthesis.criteria = synthesis.criteria.map((criterion) => ({
+      ...criterion,
+      final_rationale: `Criterion ${criterion.key} is supported by full chunk-map coverage.`,
+    }));
+
+    const result = synthesisToEvaluationResultV2({
+      synthesis,
+      ids: {
+        evaluation_run_id: "run-long-form-full-coverage",
+        job_id: "job-long-form-full-coverage",
+        manuscript_id: 5252,
+        user_id: "00000000-0000-0000-0000-000000005252",
+      },
+      scopeProfile: makeFullManuscriptScopeProfile(),
+      manuscriptText: "word ".repeat(29_519),
+      sourceText: "word ".repeat(29_519),
+      title: "Dominatus full coverage fixture",
+    });
+
+    expect(result.overview.overall_score_0_100).not.toBeNull();
+    expect(result.overview.scored_criteria_count).toBeGreaterThan(0);
+    expect(result.governance.warnings).not.toContain("LONG_FORM_CERTIFICATION_WITHHELD");
+    expect(result.governance.transparency?.evaluation_scope).toEqual(
+      expect.objectContaining({
+        route: "LONG_FORM",
+        manuscript_wide_certifiable: true,
+      }),
+    );
+    expect(result.governance.transparency?.coverage_summary).toEqual(
+      expect.objectContaining({
+        partial_evaluation: false,
+        sampling_strategy: "full_chunk_map_reduce",
+        source_word_count: 29_519,
+        analyzed_word_count: 29_519,
+      }),
+    );
+  });
 });
