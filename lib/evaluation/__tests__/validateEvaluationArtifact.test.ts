@@ -165,6 +165,24 @@ describe("validateEvaluationArtifact (boundary structural validator)", () => {
     }
   });
 
+  test("rejects truncated recommendation actions", () => {
+    const artifact = makeValidArtifact();
+    artifact.criteria[0].recommendations = [
+      {
+        priority: "medium",
+        action: "merge 'The cycle is not a circle; it's a network.' with the.",
+        expected_impact: "Improves forward motion.",
+      },
+    ];
+
+    const result = validateEvaluationArtifact(artifact);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.issues).toContainEqual(
+        expect.objectContaining({ code: "CRITERION_RECOMMENDATION_TRUNCATED" }),
+      );
+    }
+  });
   test("rejects uncertified long-form manuscript-wide scores", () => {
     const artifact = makeValidArtifact();
     artifact.governance.transparency = {

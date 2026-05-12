@@ -336,6 +336,7 @@ describe("processEvaluationJob long-form chunk routing", () => {
         canonical_path_used: "resolveManuscriptText.post_chunk_reconstruct",
         timeout_resolution: expect.objectContaining({
           input_scale: "full_manuscript",
+          floor_applied: expect.any(Boolean),
           floor_ms: 720000,
           resolved_pass_timeout_ms: 720000,
           resolved_openai_timeout_ms: 720000,
