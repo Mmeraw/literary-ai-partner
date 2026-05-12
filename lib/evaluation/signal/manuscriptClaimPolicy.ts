@@ -10,7 +10,11 @@ export interface CoverageScopeLike {
   sourceWords: number;
   analyzedChars: number;
   analyzedWords: number;
-  strategy: "full_text" | "sampled_beginning_middle_end";
+  strategy:
+    | "full_text"
+    | "sampled_beginning_middle_end"
+    | "full_chunk_map_reduce"
+    | "partial_chunk_map_reduce";
 }
 
 export interface ManuscriptCertificationDecision {
@@ -64,7 +68,10 @@ export function computeManuscriptCertification(params: {
   if (!params.coverageScope) {
     reasonCodes.push("LONG_FORM_COVERAGE_SCOPE_MISSING");
   } else {
-    if (params.coverageScope.strategy !== "full_text") {
+    if (
+      params.coverageScope.strategy !== "full_text" &&
+      params.coverageScope.strategy !== "full_chunk_map_reduce"
+    ) {
       reasonCodes.push("LONG_FORM_SAMPLED_COVERAGE");
     }
 

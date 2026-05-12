@@ -25,6 +25,7 @@ import { getEvalOpenAiTimeoutMs } from "@/lib/evaluation/config";
 import { emitLatencyTrace } from "@/lib/observability/latencyTrace";
 import { JsonBoundaryError, parseJsonObjectBoundary } from "@/lib/llm/jsonParseBoundary";
 import { getEvaluationRuntimeConfig } from "@/lib/config/evaluationRuntimeConfig";
+import { summarizePromptCoverage } from "./promptInput";
 
 const PASS2_TEMPERATURE = 0.3;
 const DEFAULT_CHUNK_PASS_CONCURRENCY = 5;
@@ -470,7 +471,23 @@ export async function runPass2(opts: RunPass2Options): Promise<SinglePassOutput>
 
     const aggregated = aggregateChunkResults(chunkResults);
     console.log(`[Pass2] Chunk aggregation complete: ${aggregated.criteria.length} criteria`);
-    return aggregated;
+    return {
+      ...aggregated,
+      coverage_summary: {
+        route: "chunk_map_reduce",
+        fully_evaluated:
+          failures.length === 0 &&
+          selectedChunks.length === chunksTotal &&
+          chunkResults.length === chunksTotal,
+        chunk_ledger: {
+          expected_chunks: chunksTotal,
+          attempted_chunks: selectedChunks.length,
+          evaluated_chunks: chunkResults.length,
+          failed_chunks: failures.length,
+          cap_applied: Boolean(chunkCap && selectedChunks.length < chunksTotal),
+        },
+      },
+    };
   }
 
   // ─── SINGLE-PASS SAMPLED-WINDOW PATH (Fallback / Short-Form) ──────────────
@@ -669,7 +686,15 @@ export async function runPass2(opts: RunPass2Options): Promise<SinglePassOutput>
     usage_total_tokens: completion.usage?.total_tokens ?? null,
   });
 
-  return parsedOutput;
+  const promptCoverage = summarizePromptCoverage(opts.manuscriptText);
+
+  return {
+    ...parsedOutput,
+    coverage_summary: {
+      route: "direct_window",
+      fully_evaluated: !promptCoverage.truncated,
+    },
+  };
 }
 
 /**
