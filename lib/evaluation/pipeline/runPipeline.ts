@@ -56,6 +56,12 @@ import {
   buildCriteriaPlanForScale,
   scopePolicy,
 } from "@/lib/evaluation/signal/scopePolicy";
+import {
+  buildCoverageLimitedSummary,
+  computeManuscriptCertification,
+  downgradeCriterionForUncertifiedLongForm,
+  criterionClaimScope,
+} from "@/lib/evaluation/signal/manuscriptClaimPolicy";
 import type { RunPass1Options } from "./runPass1";
 import type { RunPass2Options } from "./runPass2";
 import type { RunPass3Options } from "./runPass3Synthesis";
@@ -1245,6 +1251,7 @@ export interface SynthesisToEvaluationResultOptions {
   sourceText?: string;
   /** Optional manuscript text for metrics enrichment when the caller has it available. */
   manuscriptText?: string;
+  scopeProfile?: SubmissionScopeProfile;
 }
 
 const DEFAULT_ADAPTER_CONFIDENCE = 0.85;
@@ -1521,8 +1528,24 @@ export function synthesisToEvaluationResultV2(
     )
     .map(enforceTextualAnchorConfidence);
 
-  const weighted = computeWeightedScore(criteria);
-  const propagation = summarizePropagationIntegrity(criteria);
+  const certification = computeManuscriptCertification({
+    inputScale: opts.scopeProfile?.inputScale,
+    partialEvaluation: synthesis.partial_evaluation,
+    coverageScope: synthesis.coverage_scope,
+    hasSynthesisCriteria: synthesis.criteria.length === CRITERIA_KEYS.length,
+  });
+
+  const governedCriteria =
+    certification.route === "LONG_FORM" && !certification.manuscriptWideCertifiable
+      ? criteria.map((criterion) =>
+          criterionClaimScope(opts.scopeProfile?.inputScale, criterion.key) === "MANUSCRIPT_WIDE"
+            ? downgradeCriterionForUncertifiedLongForm(criterion, certification.reasonCodes)
+            : criterion,
+        )
+      : criteria;
+
+  const weighted = computeWeightedScore(governedCriteria);
+  const propagation = summarizePropagationIntegrity(governedCriteria);
 
   const derivedConfidence = deriveGovernanceConfidenceFromCriteria(criteria, propagation);
 
@@ -1551,6 +1574,16 @@ export function synthesisToEvaluationResultV2(
         })),
     )
     .slice(0, 5);
+
+  const coverageLimited =
+    certification.route === "LONG_FORM" && !certification.manuscriptWideCertifiable;
+
+  const overviewSummary = coverageLimited
+    ? buildCoverageLimitedSummary(synthesis.coverage_scope)
+    : synthesis.overall.one_paragraph_summary;
+
+  const quickWins = coverageLimited ? [] : quick_wins;
+  const strategicRevisions = coverageLimited ? [] : strategic_revisions;
 
   const observabilityWarnings: string[] = [];
   if (weighted.scored_count === 0) {
@@ -1581,6 +1614,10 @@ export function synthesisToEvaluationResultV2(
     governanceWarnings.push("CONFIDENCE IS CONSTRAINED BY WEAK UPSTREAM EVIDENCE");
   }
 
+  if (coverageLimited) {
+    governanceWarnings.push("LONG_FORM_CERTIFICATION_WITHHELD");
+  }
+
   return {
     schema_version: "evaluation_result_v2",
     score_denominator_policy: "full_canonical",
@@ -1595,14 +1632,14 @@ export function synthesisToEvaluationResultV2(
       verdict: synthesis.overall.verdict,
       overall_score_0_100: weighted.overall_score_0_100,
       scored_criteria_count: weighted.scored_count,
-      one_paragraph_summary: synthesis.overall.one_paragraph_summary,
-      top_3_strengths: synthesis.overall.top_3_strengths,
-      top_3_risks: synthesis.overall.top_3_risks,
+      one_paragraph_summary: overviewSummary,
+      top_3_strengths: coverageLimited ? [] : synthesis.overall.top_3_strengths,
+      top_3_risks: coverageLimited ? ["coverage_limited_long_form_evaluation"] : synthesis.overall.top_3_risks,
     },
-    criteria,
+    criteria: governedCriteria,
     recommendations: {
-      quick_wins,
-      strategic_revisions,
+      quick_wins: quickWins,
+      strategic_revisions: strategicRevisions,
     },
     metrics: {
       manuscript: {
@@ -1628,6 +1665,21 @@ export function synthesisToEvaluationResultV2(
       policy_family: "multi-pass-dual-axis",
       observability_warnings: observabilityWarnings,
       transparency: {
+        evaluation_scope: {
+          route: certification.route,
+          input_scale: opts.scopeProfile?.inputScale,
+          manuscript_wide_certifiable: certification.manuscriptWideCertifiable,
+          reason_codes: certification.reasonCodes,
+          criterion_scope_policy_version: "v0.2",
+        },
+        coverage_summary: {
+          partial_evaluation: synthesis.partial_evaluation,
+          sampling_strategy: synthesis.coverage_scope?.strategy,
+          source_word_count: synthesis.coverage_scope?.sourceWords,
+          analyzed_word_count: synthesis.coverage_scope?.analyzedWords,
+          source_char_count: synthesis.coverage_scope?.sourceChars,
+          analyzed_char_count: synthesis.coverage_scope?.analyzedChars,
+        },
         propagation_summary: {
           low_confidence_count: propagation.lowConfidenceCount,
           moderate_confidence_count: propagation.moderateConfidenceCount,

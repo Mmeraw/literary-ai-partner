@@ -50,6 +50,10 @@ import {
 } from "@/lib/evaluation/signal/criterionObservability";
 import { DIALOGUE_MECHANISM_MARKERS } from "./mechanismMarkers";
 import { scopePolicy } from "@/lib/evaluation/signal/scopePolicy";
+import {
+  computeManuscriptCertification,
+  criterionClaimScope,
+} from "@/lib/evaluation/signal/manuscriptClaimPolicy";
 import type { SubmissionScopeProfile } from "./submissionScope";
 import {
   summarizePropagationIntegrity,
@@ -1145,6 +1149,54 @@ export function runQualityGateV2(
           ? `Scope-policy shape mismatches: ${shapeMismatches.join("; ")}`
           : "All criterion shapes align with scope policy",
     });
+
+      const coverageSummary = result.governance?.transparency?.coverage_summary;
+      const certification = computeManuscriptCertification({
+        inputScale: scopeProfile.inputScale,
+        partialEvaluation: coverageSummary?.partial_evaluation ?? false,
+        coverageScope:
+          coverageSummary &&
+          typeof coverageSummary.source_char_count === "number" &&
+          typeof coverageSummary.source_word_count === "number" &&
+          typeof coverageSummary.analyzed_char_count === "number" &&
+          typeof coverageSummary.analyzed_word_count === "number" &&
+          coverageSummary.sampling_strategy
+            ? {
+                sourceChars: coverageSummary.source_char_count,
+                sourceWords: coverageSummary.source_word_count,
+                analyzedChars: coverageSummary.analyzed_char_count,
+                analyzedWords: coverageSummary.analyzed_word_count,
+                strategy: coverageSummary.sampling_strategy,
+              }
+            : undefined,
+        hasSynthesisCriteria: criteria.length === expectedCount,
+      });
+
+      const uncertifiedManuscriptWide =
+        certification.route === "LONG_FORM" && !certification.manuscriptWideCertifiable
+          ? criteria
+              .filter(
+                (criterion) =>
+                  criterionClaimScope(scopeProfile.inputScale, criterion.key) === "MANUSCRIPT_WIDE" &&
+                  criterion.status === "SCORABLE",
+              )
+              .map((criterion) => criterion.key)
+          : [];
+
+      checks.push({
+        check_id: "long_form_certification",
+        passed: uncertifiedManuscriptWide.length === 0,
+        error_code:
+          uncertifiedManuscriptWide.length > 0
+            ? "QG_CRITERIA_SCOPE_SHAPE_MISMATCH"
+            : undefined,
+        details:
+          uncertifiedManuscriptWide.length > 0
+            ? `Uncertified LONG_FORM manuscript-wide criteria remained SCORABLE: ${uncertifiedManuscriptWide.join(", ")} (reason_codes=${certification.reasonCodes.join(",") || "none"})`
+            : certification.route === "LONG_FORM"
+              ? "LONG_FORM certification state is internally consistent"
+              : "SHORT_FORM route does not require manuscript-wide certification",
+      });
   }
 
   // SLICE SPEC LOCK (per-criterion confidence + evidence-density):

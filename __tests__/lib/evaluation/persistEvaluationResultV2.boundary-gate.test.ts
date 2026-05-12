@@ -346,4 +346,43 @@ describe("persistEvaluationResultV2 Step 1 boundary gate", () => {
       }),
     ).rejects.toThrow(/no artifact_id/i);
   });
+
+  test("rejects uncertified long-form artifact before persistence", async () => {
+    const supabase = makeSupabaseStub();
+    const invalid = makeValidEvaluationResultV2();
+
+    invalid.governance.transparency = {
+      evaluation_scope: {
+        route: "LONG_FORM",
+        input_scale: "full_manuscript",
+        manuscript_wide_certifiable: false,
+        reason_codes: ["LONG_FORM_PARTIAL_EVALUATION", "LONG_FORM_SAMPLED_COVERAGE"],
+        criterion_scope_policy_version: "v0.2",
+      },
+      coverage_summary: {
+        partial_evaluation: true,
+        sampling_strategy: "sampled_beginning_middle_end",
+        source_word_count: 29519,
+        analyzed_word_count: 6263,
+        source_char_count: 160000,
+        analyzed_char_count: 40000,
+      },
+    };
+
+    const result = await persistEvaluationResultV2({
+      supabase: supabase as unknown as SupabaseClient,
+      jobId: "job-step1-long-form-cert-fail",
+      manuscriptId: 107,
+      evaluationResult: invalid,
+      sourceHash: "sha256:long-form-cert-fail",
+      progressSnapshot: { phase: "phase_2", phase_status: "running" },
+      totalUnits: 5,
+      completedUnits: 4,
+    });
+
+    expect(result.persisted).toBe(false);
+    expect(result.gateDecision).toBe("FAIL");
+    expect(supabase.rpcCalls).toHaveLength(0);
+    expect(result.reason).toMatch(/LONG_FORM_UNCERTIFIED_MANUSCRIPT_WIDE_SCORE/);
+  });
 });
