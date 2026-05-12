@@ -1,6 +1,8 @@
 import 'server-only';
 import { unstable_noStore as noStore } from 'next/cache';
 import { notFound } from 'next/navigation';
+import type { Metadata } from 'next';
+import { headers } from 'next/headers';
 import { createClient as createSSRClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { canReleaseEvaluationRead } from '@/lib/jobs/readReleaseGate';
@@ -11,8 +13,10 @@ import { classifyEvaluationIntegrityBanner } from '@/lib/evaluation/warningClass
 import {
   getCertifiedCriteriaSummary,
   getCriterionPrimaryBadge,
+  getCriterionRationalePresentation,
   getCriterionSupportLabel,
 } from '@/lib/evaluation/reportCriterionDisplay';
+import { resolveReportTitle } from '@/lib/evaluation/reportTitle';
 
 // D1 Boundary: server-only. Service key must not leak to client.
 // Hybrid owner-gate: SSR client for auth identity, admin client for
@@ -21,6 +25,11 @@ import {
 // TODO(gate7): migrate to full RLS once evaluation_jobs has user_id column.
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
+
+type EvaluationReportContext = {
+  result: EvaluationResultV1;
+  manuscriptTitle: string | null;
+};
 
 function getConfidenceBadge(criterion: EvaluationResultV1["criteria"][number]): {
   label: string;
@@ -41,7 +50,16 @@ function getConfidenceBadge(criterion: EvaluationResultV1["criteria"][number]): 
   return null;
 }
 
-async function getEvaluationResult(jobId: string, userId: string): Promise<EvaluationResultV1 | null> {
+function extractManuscriptTitle(manuscripts: unknown): string | null {
+  const relation = Array.isArray(manuscripts) ? manuscripts[0] : manuscripts;
+  const title = typeof relation === 'object' && relation && 'title' in relation
+    ? (relation as { title?: unknown }).title
+    : null;
+
+  return typeof title === 'string' && title.trim().length > 0 ? title.trim() : null;
+}
+
+async function getEvaluationResult(jobId: string, userId: string): Promise<EvaluationReportContext | null> {
   noStore();
 
   const admin = createAdminClient();
@@ -55,7 +73,7 @@ async function getEvaluationResult(jobId: string, userId: string): Promise<Evalu
       evaluation_result,
       status,
       validity_status,
-      manuscripts!inner(user_id)
+      manuscripts!inner(user_id,title)
     `)
     .eq('id', jobId)
     .eq('manuscripts.user_id', userId)
@@ -72,7 +90,41 @@ async function getEvaluationResult(jobId: string, userId: string): Promise<Evalu
     return null;
   }
 
-  return result;
+  return {
+    result,
+    manuscriptTitle: extractManuscriptTitle((job as { manuscripts?: unknown }).manuscripts),
+  };
+}
+
+async function getCurrentUserId(): Promise<string | null> {
+  const ssrSupabase = await createSSRClient();
+  const { data: { user } } = await ssrSupabase.auth.getUser();
+
+  if (user) {
+    return user.id;
+  }
+
+  if (process.env.TEST_MODE === 'true' && process.env.ALLOW_HEADER_USER_ID === 'true') {
+    return (await headers()).get('x-user-id')?.trim() ?? null;
+  }
+
+  return null;
+}
+
+export async function generateMetadata({ params }: { params: { jobId: string } }): Promise<Metadata> {
+  const userId = await getCurrentUserId();
+  if (!userId) {
+    return { title: 'Evaluation Report' };
+  }
+
+  const report = await getEvaluationResult(params.jobId, userId);
+  if (!report) {
+    return { title: 'Evaluation Report' };
+  }
+
+  const chapterTitle = report.result.metrics?.manuscript?.title?.trim() || null;
+  const { pageTitle } = resolveReportTitle({ chapterTitle, manuscriptTitle: report.manuscriptTitle });
+  return { title: pageTitle };
 }
 
 export default async function ReportPage({ params }: { params: { jobId: string } }) {
@@ -85,11 +137,15 @@ export default async function ReportPage({ params }: { params: { jobId: string }
   }
 
   // Step 2: Owner-gated privileged read
-  const result = await getEvaluationResult(params.jobId, user.id);
+  const report = await getEvaluationResult(params.jobId, user.id);
 
-  if (!result) {
+  if (!report) {
     notFound();
   }
+
+  const { result, manuscriptTitle } = report;
+  const chapterTitle = result.metrics?.manuscript?.title?.trim() || null;
+  const { displayTitle } = resolveReportTitle({ chapterTitle, manuscriptTitle });
 
   // D2 fail-closed: block forbidden market guarantee language from rendering in agent-facing output.
   if (scanObjectForForbiddenMarketClaims(result)) {
@@ -100,6 +156,9 @@ export default async function ReportPage({ params }: { params: { jobId: string }
             <h1 className="text-4xl font-bold text-gray-900 mb-2">
               Evaluation Report
             </h1>
+            <p className="text-xl font-semibold text-gray-900">
+              {displayTitle}
+            </p>
             <p className="text-gray-600">
               Report unavailable
             </p>
@@ -132,6 +191,9 @@ export default async function ReportPage({ params }: { params: { jobId: string }
             <h1 className="text-4xl font-bold text-gray-900 mb-2">
               Evaluation Report
             </h1>
+            <p className="text-xl font-semibold text-gray-900">
+              {displayTitle}
+            </p>
             <p className="text-gray-600">
               Report unavailable
             </p>
@@ -166,6 +228,14 @@ export default async function ReportPage({ params }: { params: { jobId: string }
           <h1 className="text-4xl font-bold text-gray-900 mb-2">
             Evaluation Report
           </h1>
+          <p className="text-xl font-semibold text-gray-900 mb-1">
+            {displayTitle}
+          </p>
+          {chapterTitle && manuscriptTitle && chapterTitle !== manuscriptTitle && (
+            <p className="text-sm text-gray-500 mb-1">
+              Manuscript Title: <span className="font-medium text-gray-700">{manuscriptTitle}</span>
+            </p>
+          )}
           <p className="text-gray-600">
             Generated {new Date(result.generated_at).toLocaleString()}
           </p>
@@ -206,7 +276,7 @@ export default async function ReportPage({ params }: { params: { jobId: string }
             </div>
           </div>
           <p className="text-gray-700 mb-6 leading-relaxed">
-            {overview.one_paragraph_summary}
+            {chapterTitle ? `In ${displayTitle}, ${overview.one_paragraph_summary}` : overview.one_paragraph_summary}
           </p>
           <div className="grid md:grid-cols-2 gap-6">
             <div>
@@ -287,9 +357,21 @@ export default async function ReportPage({ params }: { params: { jobId: string }
                     {getCriterionSupportLabel(criterion as Parameters<typeof getCriterionSupportLabel>[0])}
                   </p>
                 )}
-                <p className="text-sm text-gray-600">
-                  {criterion.rationale}
-                </p>
+                {(() => {
+                  const rationalePresentation = getCriterionRationalePresentation(criterion, criterion.rationale);
+                  if (!rationalePresentation) return null;
+
+                  return (
+                    <div className="space-y-1">
+                      {rationalePresentation.label && (
+                        <p className="text-xs font-medium uppercase tracking-wide text-amber-700">
+                          {rationalePresentation.label}
+                        </p>
+                      )}
+                      <p className="text-sm text-gray-600">{rationalePresentation.text}</p>
+                    </div>
+                  );
+                })()}
               </div>
             ))}
           </div>
@@ -378,6 +460,22 @@ export default async function ReportPage({ params }: { params: { jobId: string }
         <section className="bg-gray-100 rounded-lg p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Evaluation Metadata</h2>
           <div className="grid md:grid-cols-2 gap-4 text-sm">
+            <div>
+              <p className="text-gray-600">Chapter Title</p>
+              <p className="font-mono text-gray-900">{chapterTitle || manuscriptTitle || 'Untitled'}</p>
+            </div>
+            <div>
+              <p className="text-gray-600">Manuscript Title</p>
+              <p className="font-mono text-gray-900">{manuscriptTitle || chapterTitle || 'Untitled'}</p>
+            </div>
+            <div>
+              <p className="text-gray-600">Job ID</p>
+              <p className="font-mono text-gray-900">{params.jobId}</p>
+            </div>
+            <div>
+              <p className="text-gray-600">Word Count</p>
+              <p className="font-mono text-gray-900">{metrics.manuscript.word_count ? metrics.manuscript.word_count.toLocaleString() : 'N/A'}</p>
+            </div>
             <div>
               <p className="text-gray-600">Model</p>
               <p className="font-mono text-gray-900">{result.engine.model}</p>

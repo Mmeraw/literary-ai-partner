@@ -37,6 +37,16 @@ export type InsufficientSignalReason = {
   } | null;
 };
 
+export type TechnicalDefectCode =
+  | "PROSE_CONTROL_ANCHOR_EXTRACTION_FAILED"
+  | "RECOMMENDATION_TRUNCATED";
+
+export type CriterionTechnicalDefect = {
+  code: TechnicalDefectCode;
+  author_facing_reason: string;
+  retryable: boolean;
+};
+
 export type ScoreAdjustmentV2 = {
   reason: "AUTHORITY_CAP_APPLIED";
   composite_0_10: number;
@@ -75,6 +85,7 @@ type CriterionBase = {
     action: string;
     expected_impact: string;
   }>;
+  technical_defects?: CriterionTechnicalDefect[];
 };
 
 export type ScorableCriterionV2 = CriterionBase & {
@@ -151,6 +162,7 @@ export type EvaluationResultV2 = {
   };
   metrics: {
     manuscript: {
+      title?: string;
       word_count?: number;
       char_count?: number;
       genre?: string;
@@ -218,6 +230,26 @@ export type EvaluationResultV2 = {
         upstream_integrity: "strong" | "mixed" | "weak";
         authority_level: "normal" | "constrained" | "blocked";
         reasons: string[];
+      };
+      evaluation_scope?: {
+        route?: "SHORT_FORM" | "LONG_FORM";
+        input_scale?:
+          | "micro_excerpt"
+          | "light_chapter"
+          | "standard_chapter"
+          | "multi_chapter"
+          | "full_manuscript";
+        manuscript_wide_certifiable?: boolean;
+        reason_codes?: string[];
+        criterion_scope_policy_version?: string;
+      };
+      coverage_summary?: {
+        partial_evaluation?: boolean;
+        sampling_strategy?: "full_text" | "sampled_beginning_middle_end";
+        source_word_count?: number;
+        analyzed_word_count?: number;
+        source_char_count?: number;
+        analyzed_char_count?: number;
       };
     };
   };

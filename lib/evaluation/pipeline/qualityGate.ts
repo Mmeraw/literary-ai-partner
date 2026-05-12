@@ -50,6 +50,10 @@ import {
 } from "@/lib/evaluation/signal/criterionObservability";
 import { DIALOGUE_MECHANISM_MARKERS } from "./mechanismMarkers";
 import { scopePolicy } from "@/lib/evaluation/signal/scopePolicy";
+import {
+  computeManuscriptCertification,
+  criterionClaimScope,
+} from "@/lib/evaluation/signal/manuscriptClaimPolicy";
 import type { SubmissionScopeProfile } from "./submissionScope";
 import {
   summarizePropagationIntegrity,
@@ -76,6 +80,21 @@ export const QG_MIN_RATIONALE_LENGTH = 40;
 export const QG_MIN_EVIDENCE_COVERED_CRITERIA = 10;
 export const QG_MIN_EVIDENCE_SNIPPET_LENGTH = 20;
 export const QG_MAX_HIGH_SCORE_WHEN_LOW_CONFIDENCE = 5;
+export const QG_MAX_HIGH_SCORE_WHEN_LOW_CONFIDENCE_BY_KEY: Record<CriterionKey, number> = {
+  concept: 5,
+  narrativeDrive: 5,
+  character: 5,
+  voice: 5,
+  sceneConstruction: 5,
+  dialogue: 5,
+  theme: 5,
+  worldbuilding: 5,
+  pacing: 5,
+  proseControl: 6,
+  tone: 5,
+  narrativeClosure: 5,
+  marketability: 5,
+};
 export const QG_PLACEHOLDER_RATIONALE_PATTERNS = PLACEHOLDER_RATIONALE_PATTERNS;
 export const QG_SPINE_CRITERIA_REQUIRED_EVIDENCE = Object.freeze<CriterionKey[]>([
   "concept",
@@ -122,6 +141,10 @@ export const QG_POV_MECHANISM_MARKERS = Object.freeze([
   "visceral",
   "somatic",
 ]);
+
+function maxLowConfidenceScoreFor(key: CriterionKey): number {
+  return QG_MAX_HIGH_SCORE_WHEN_LOW_CONFIDENCE_BY_KEY[key] ?? QG_MAX_HIGH_SCORE_WHEN_LOW_CONFIDENCE;
+}
 
 // --- PR-1: Scope governance quality gates ---
 export const QG_INTERNAL_LEAKAGE_PATTERNS = /direct_speech|reported_speech|tagged_speech|tagless_exchange/i;
@@ -1145,6 +1168,54 @@ export function runQualityGateV2(
           ? `Scope-policy shape mismatches: ${shapeMismatches.join("; ")}`
           : "All criterion shapes align with scope policy",
     });
+
+      const coverageSummary = result.governance?.transparency?.coverage_summary;
+      const certification = computeManuscriptCertification({
+        inputScale: scopeProfile.inputScale,
+        partialEvaluation: coverageSummary?.partial_evaluation ?? false,
+        coverageScope:
+          coverageSummary &&
+          typeof coverageSummary.source_char_count === "number" &&
+          typeof coverageSummary.source_word_count === "number" &&
+          typeof coverageSummary.analyzed_char_count === "number" &&
+          typeof coverageSummary.analyzed_word_count === "number" &&
+          coverageSummary.sampling_strategy
+            ? {
+                sourceChars: coverageSummary.source_char_count,
+                sourceWords: coverageSummary.source_word_count,
+                analyzedChars: coverageSummary.analyzed_char_count,
+                analyzedWords: coverageSummary.analyzed_word_count,
+                strategy: coverageSummary.sampling_strategy,
+              }
+            : undefined,
+        hasSynthesisCriteria: criteria.length === expectedCount,
+      });
+
+      const uncertifiedManuscriptWide =
+        certification.route === "LONG_FORM" && !certification.manuscriptWideCertifiable
+          ? criteria
+              .filter(
+                (criterion) =>
+                  criterionClaimScope(scopeProfile.inputScale, criterion.key) === "MANUSCRIPT_WIDE" &&
+                  criterion.status === "SCORABLE",
+              )
+              .map((criterion) => criterion.key)
+          : [];
+
+      checks.push({
+        check_id: "long_form_certification",
+        passed: uncertifiedManuscriptWide.length === 0,
+        error_code:
+          uncertifiedManuscriptWide.length > 0
+            ? "QG_CRITERIA_SCOPE_SHAPE_MISMATCH"
+            : undefined,
+        details:
+          uncertifiedManuscriptWide.length > 0
+            ? `Uncertified LONG_FORM manuscript-wide criteria remained SCORABLE: ${uncertifiedManuscriptWide.join(", ")} (reason_codes=${certification.reasonCodes.join(",") || "none"})`
+            : certification.route === "LONG_FORM"
+              ? "LONG_FORM certification state is internally consistent"
+              : "SHORT_FORM route does not require manuscript-wide certification",
+      });
   }
 
   // SLICE SPEC LOCK (per-criterion confidence + evidence-density):
@@ -1296,9 +1367,21 @@ export function runQualityGateV2(
       criterion.status === "SCORABLE" &&
       criterion.confidence_level === "low" &&
       typeof criterion.score_0_10 === "number" &&
-      criterion.score_0_10 > QG_MAX_HIGH_SCORE_WHEN_LOW_CONFIDENCE
+      criterion.score_0_10 > maxLowConfidenceScoreFor(criterion.key)
     ) {
       scoreConfidenceMismatchDetails.push(`${criterion.key}:${criterion.score_0_10}`);
+
+      const technicalDefects =
+        criterion.key === "proseControl"
+          ? [
+              {
+                code: "PROSE_CONTROL_ANCHOR_EXTRACTION_FAILED" as const,
+                author_facing_reason:
+                  "Prose appears strong, but the system could not attach enough line-specific evidence to certify a numeric score.",
+                retryable: true,
+              },
+            ]
+          : criterion.technical_defects;
 
       return {
         ...criterion,
@@ -1312,6 +1395,7 @@ export function runQualityGateV2(
           looked_for: ["CERTIFIED_ANCHORS_FOR_HIGH_CONFIDENCE_SCORING"],
           not_found: ["LOW_CONFIDENCE_HIGH_SCORE_WITHOUT_CERTIFIED_ANCHORS"],
         },
+        technical_defects: technicalDefects,
       };
     }
 
@@ -1330,7 +1414,7 @@ export function runQualityGateV2(
         : undefined,
     details:
       scoreConfidenceMismatchDetails.length > 0
-        ? `Low-confidence criteria exceeded score cap (${QG_MAX_HIGH_SCORE_WHEN_LOW_CONFIDENCE}) and were downgraded to INSUFFICIENT_SIGNAL: ${scoreConfidenceMismatchDetails.join(",")}`
+        ? `Low-confidence criteria exceeded per-criterion score caps and were downgraded to INSUFFICIENT_SIGNAL: ${scoreConfidenceMismatchDetails.join(",")}`
         : "Score-confidence alignment holds",
   });
 

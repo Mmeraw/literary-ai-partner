@@ -126,10 +126,67 @@ function keyToReadableToken(key: CriterionKey): string {
     .toLowerCase();
 }
 
+export function missingBottomWeaknessCriteria(
+  summary: string,
+  bottomScoreCriteria: CriterionKey[],
+): CriterionKey[] {
+  const normalizedSummary = summary.toLowerCase();
+
+  return bottomScoreCriteria.filter(
+    (key) => !normalizedSummary.includes(keyToReadableToken(key)),
+  );
+}
+
 export function summaryMentionsBottomWeakness(
   summary: string,
   bottomScoreCriteria: CriterionKey[],
 ): boolean {
-  const normalizedSummary = summary.toLowerCase();
-  return bottomScoreCriteria.some((key) => normalizedSummary.includes(keyToReadableToken(key)));
+  return missingBottomWeaknessCriteria(summary, bottomScoreCriteria).length === 0;
+}
+
+function joinCriterionLabels(labels: string[]): string {
+  if (labels.length === 0) return "";
+  if (labels.length === 1) return labels[0];
+  if (labels.length === 2) return `${labels[0]} and ${labels[1]}`;
+  return `${labels.slice(0, -1).join(", ")}, and ${labels[labels.length - 1]}`;
+}
+
+export function normalizeSummaryWithBottomWeaknesses(
+  summary: string,
+  bottomScoreCriteria: CriterionKey[],
+  maxChars = 500,
+): string {
+  const baseSummary = summary.trim();
+  const missingCriteria = missingBottomWeaknessCriteria(summary, bottomScoreCriteria);
+
+  if (missingCriteria.length === 0) {
+    return baseSummary;
+  }
+
+  const weaknessClause = `Main weaknesses center on ${joinCriterionLabels(
+    missingCriteria.map(keyToReadableToken),
+  )}.`;
+
+  if (baseSummary.length === 0) {
+    return weaknessClause.slice(0, maxChars);
+  }
+
+  const separator = /[.!?]$/.test(baseSummary) ? " " : ". ";
+  const combined = `${baseSummary}${separator}${weaknessClause}`;
+
+  if (combined.length <= maxChars) {
+    return combined;
+  }
+
+  const availableBaseChars = maxChars - separator.length - weaknessClause.length;
+  if (availableBaseChars <= 0) {
+    return weaknessClause.slice(0, maxChars);
+  }
+
+  const trimmedBase = baseSummary
+    .slice(0, availableBaseChars)
+    .trim()
+    .replace(/[\s,;:.-]+$/u, "");
+
+  return `${trimmedBase}${separator}${weaknessClause}`;
 }

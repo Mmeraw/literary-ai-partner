@@ -143,6 +143,8 @@ export type EvaluationResultV1 = {
   metrics: {
     /** Manuscript-level metrics */
     manuscript: {
+      /** Chapter/title of the evaluated unit */
+      title?: string;
       /** Total word count */
       word_count?: number;
       /** Total character count */

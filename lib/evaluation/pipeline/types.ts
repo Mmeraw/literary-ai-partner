@@ -222,6 +222,11 @@ export type SynthesizedCriterion = {
   confidence_reasons?: string[];
   /** Scorability semantics separated from confidence semantics. */
   scorability_status?: "scorable" | "scorable_low_confidence" | "non_scorable";
+  technical_defects?: Array<{
+    code: "PROSE_CONTROL_ANCHOR_EXTRACTION_FAILED" | "RECOMMENDATION_TRUNCATED";
+    author_facing_reason: string;
+    retryable: boolean;
+  }>;
 };
 
 // ── Pass 3 output ────────────────────────────────────────────────────────────

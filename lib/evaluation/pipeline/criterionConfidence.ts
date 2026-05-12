@@ -51,6 +51,9 @@ export interface CriterionConfidenceInput {
 
 const HIGH_MIN = 85;
 const MODERATE_MIN = 60;
+const MODERATE_MIN_BY_KEY: Record<string, number> = {
+  proseControl: 55,
+};
 
 const SUPPORT_FAMILY_MAX = 65; // coverage(40) + quality(25)
 const EXPLANATION_FAMILY_MAX = 35; // reasoning(20) + recommendation(15)
@@ -404,6 +407,17 @@ function computeConfidenceLevel(score: number): CriterionConfidenceLevel {
   return "low";
 }
 
+function computeConfidenceLevelForCriterion(
+  criterion: CriterionConfidenceInput,
+  score: number,
+): CriterionConfidenceLevel {
+  if (score >= HIGH_MIN) return "high";
+  const key = typeof criterion.key === "string" ? criterion.key : "";
+  const moderateMin = MODERATE_MIN_BY_KEY[key] ?? MODERATE_MIN;
+  if (score >= moderateMin) return "moderate";
+  return "low";
+}
+
 function computeScorabilityStatus(
   criterion: CriterionConfidenceInput,
   confidenceLevel: CriterionConfidenceLevel,
@@ -446,7 +460,7 @@ export function computeCriterionConfidence(
     confidenceScore = Math.min(confidenceScore, 84);
   }
 
-  const confidence_level = computeConfidenceLevel(confidenceScore);
+  const confidence_level = computeConfidenceLevelForCriterion(criterion, confidenceScore);
   const scorability_status = computeScorabilityStatus(criterion, confidence_level);
 
   const confidence_reasons = unique([
