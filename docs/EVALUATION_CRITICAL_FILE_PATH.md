@@ -38,7 +38,7 @@
 
 | File | Responsibility | Verified By |
 |------|---|---|
-| [app/api/workers/process-evaluations/route.ts](../app/api/workers/process-evaluations/route.ts) | **TRUE production worker entry point**; auth gate; calls processQueuedJobs | **route** — verified; `maxDuration = 800`; imports processor, checkServiceRoleAuth, getEvaluationRuntimeConfig |
+| [app/api/workers/process-evaluations/route.ts](../app/api/workers/process-evaluations/route.ts) | **TRUE production worker entry point**; auth gate; calls processQueuedJobs | **route** — verified; `maxDuration = 900`; imports processor, checkServiceRoleAuth, getEvaluationRuntimeConfig |
 | [lib/auth/api.ts](../lib/auth/api.ts) | Service-role auth guard (`checkServiceRoleAuth`) | **import** — from [app/api/workers/process-evaluations/route.ts](../app/api/workers/process-evaluations/route.ts) |
 | [lib/config/evaluationRuntimeConfig.ts](../lib/config/evaluationRuntimeConfig.ts) | Runtime config resolution (model, lease, batch size, timeouts) | **import** — from [app/api/workers/process-evaluations/route.ts](../app/api/workers/process-evaluations/route.ts) AND [lib/evaluation/processor.ts](../lib/evaluation/processor.ts) |
 

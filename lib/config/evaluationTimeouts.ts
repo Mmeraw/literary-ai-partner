@@ -42,14 +42,14 @@ type TimeoutSpec = {
 
 const TIMEOUT_SPECS: Record<TimeoutSettingName, TimeoutSpec> = {
   EVAL_OPENAI_TIMEOUT_MS: {
-    defaultMs: 720_000,
+    defaultMs: 840_000,
     minMs: 1_000,
-    maxMs: 800_000,
+    maxMs: 900_000,
   },
   EVAL_PASS_TIMEOUT_MS: {
-    defaultMs: 720_000,
+    defaultMs: 840_000,
     minMs: 10_000,
-    maxMs: 800_000,
+    maxMs: 900_000,
   },
 };
 
