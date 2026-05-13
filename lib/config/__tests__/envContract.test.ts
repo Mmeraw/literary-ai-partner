@@ -169,6 +169,40 @@ describe('resolveEvalEnvContract', () => {
       expect(contract.adjudicationMode).toBe('veto');
       expect(contract.requiresPerplexityApiKey).toBe(true);
     });
+
+    it('adjudicationMode defaults to required on Vercel production when unset', () => {
+      // Premium-product default: two-AI adjudication is the contract in prod.
+      // The runtime is expected to fail fast on a missing PERPLEXITY_API_KEY
+      // rather than silently skipping Pass 4.
+      const env: NodeJS.ProcessEnv = {
+        NODE_ENV: 'production',
+        VERCEL_ENV: 'production',
+      };
+      const contract = resolveEvalEnvContract(env);
+      expect(contract.adjudicationMode).toBe('required');
+      expect(contract.requiresPerplexityApiKey).toBe(true);
+    });
+
+    it('adjudicationMode defaults to optional on Vercel preview when unset', () => {
+      const env: NodeJS.ProcessEnv = {
+        NODE_ENV: 'production',
+        VERCEL_ENV: 'preview',
+      };
+      const contract = resolveEvalEnvContract(env);
+      expect(contract.adjudicationMode).toBe('optional');
+      expect(contract.requiresPerplexityApiKey).toBe(false);
+    });
+
+    it('explicit EVAL_EXTERNAL_ADJUDICATION_MODE overrides the prod default', () => {
+      const env: NodeJS.ProcessEnv = {
+        NODE_ENV: 'production',
+        VERCEL_ENV: 'production',
+        EVAL_EXTERNAL_ADJUDICATION_MODE: 'optional',
+      };
+      const contract = resolveEvalEnvContract(env);
+      expect(contract.adjudicationMode).toBe('optional');
+      expect(contract.requiresPerplexityApiKey).toBe(false);
+    });
   });
 
   describe('prod-like env', () => {

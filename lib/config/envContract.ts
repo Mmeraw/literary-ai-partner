@@ -153,7 +153,15 @@ export function resolveEvalEnvContract(
     ? requireNonEmpty('EVAL_OPENAI_MODEL', env.EVAL_OPENAI_MODEL)
     : OPENAI_MODEL_DEFAULT;
 
-  const rawMode = env.EVAL_EXTERNAL_ADJUDICATION_MODE?.trim() ?? 'optional';
+  // Premium-product default: when running on Vercel production, the two-AI
+  // adjudicated evaluation is the contract. If EVAL_EXTERNAL_ADJUDICATION_MODE is
+  // unset on Vercel prod we default to 'required' so the runtime fails fast on
+  // a missing PERPLEXITY_API_KEY instead of silently dropping Pass 4. Dev/test
+  // and Vercel preview continue to default to 'optional' so local CI and PR
+  // previews don't require a Perplexity key.
+  const isVercelProductionForMode = env.VERCEL_ENV === 'production';
+  const adjudicationDefault: AdjudicationMode = isVercelProductionForMode ? 'required' : 'optional';
+  const rawMode = env.EVAL_EXTERNAL_ADJUDICATION_MODE?.trim() ?? adjudicationDefault;
   if (!VALID_ADJUDICATION_MODES.includes(rawMode as AdjudicationMode)) {
     throw new Error(
       `[envContract] EVAL_EXTERNAL_ADJUDICATION_MODE must be one of ${VALID_ADJUDICATION_MODES.join('|')}, got: ${JSON.stringify(rawMode)}`
