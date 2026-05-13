@@ -26,6 +26,7 @@ import {
   isCertifiedCriterion,
 } from "@/lib/evaluation/reportCriterionDisplay";
 import { resolveReportTitle } from "@/lib/evaluation/reportTitle";
+import { normalizeManuscriptId, normalizeTitle } from "@/lib/evaluation/manuscriptTitle";
 
 type Job = {
   id: string;
@@ -179,13 +180,12 @@ function getRelatedManuscriptTitle(job: Job | null): string | null {
   if (!job?.manuscripts) return null;
 
   const relation = Array.isArray(job.manuscripts) ? job.manuscripts[0] : job.manuscripts;
-  const title = relation?.title?.trim();
-
-  return title && title.length > 0 ? title : null;
+  return normalizeTitle(relation?.title ?? null);
 }
 
-async function getManuscriptTitleById(manuscriptId?: number): Promise<string | null> {
-  if (!Number.isFinite(manuscriptId) || (manuscriptId as number) <= 0) {
+async function getManuscriptTitleById(manuscriptId?: number | string | null): Promise<string | null> {
+  const normalizedManuscriptId = normalizeManuscriptId(manuscriptId);
+  if (!normalizedManuscriptId) {
     return null;
   }
 
@@ -194,18 +194,17 @@ async function getManuscriptTitleById(manuscriptId?: number): Promise<string | n
     const { data, error } = await supabase
       .from("manuscripts")
       .select("title")
-      .eq("id", manuscriptId)
+      .eq("id", normalizedManuscriptId)
       .maybeSingle();
 
     if (error) {
-      console.warn(`[getManuscriptTitleById] Failed to load manuscript ${manuscriptId}:`, error.message);
+      console.warn(`[getManuscriptTitleById] Failed to load manuscript ${normalizedManuscriptId}:`, error.message);
       return null;
     }
 
-    const title = data?.title?.trim();
-    return title && title.length > 0 ? title : null;
+    return normalizeTitle(data?.title ?? null);
   } catch (err) {
-    console.warn(`[getManuscriptTitleById] Unexpected error for manuscript ${manuscriptId}:`, err);
+    console.warn(`[getManuscriptTitleById] Unexpected error for manuscript ${normalizedManuscriptId}:`, err);
     return null;
   }
 }

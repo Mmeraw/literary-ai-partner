@@ -18,6 +18,13 @@ describe("Chunk-native routing (Pass 1 and Pass 2)", () => {
   const baseTitle = "Test Manuscript";
   const baseWorkType = "novel";
 
+  function makeChunks(count: number): ManuscriptChunkEvidence[] {
+    return Array.from({ length: count }, (_, idx) => ({
+      chunk_index: idx,
+      content: `Chunk ${idx} content. ${"text ".repeat(20)}`,
+    }));
+  }
+
   describe("Pass 1 chunk routing", () => {
     test("short-form path (no chunks): single Pass 1 call", async () => {
       // Arrange
@@ -273,6 +280,144 @@ describe("Chunk-native routing (Pass 1 and Pass 2)", () => {
       // 4. No infinite loop
 
       expect(pass1RecursiveCallPattern).toContain("manuscriptChunks: undefined");
+    });
+  });
+
+  describe("Call-budget cap policy", () => {
+    const preservedEnv = {
+      EVAL_CHUNK_MAX_PER_PASS: process.env.EVAL_CHUNK_MAX_PER_PASS,
+      EVAL_CHUNK_SAFE_TARGET_PER_PASS: process.env.EVAL_CHUNK_SAFE_TARGET_PER_PASS,
+      EVAL_CHUNK_WARN_TARGET_PER_PASS: process.env.EVAL_CHUNK_WARN_TARGET_PER_PASS,
+      EVAL_CHUNK_HARD_TARGET_PER_PASS: process.env.EVAL_CHUNK_HARD_TARGET_PER_PASS,
+      EVAL_CHUNK_EXPECTED_LATENCY_MS: process.env.EVAL_CHUNK_EXPECTED_LATENCY_MS,
+      EVAL_CHUNK_PASS_BUDGET_SAFETY_FACTOR: process.env.EVAL_CHUNK_PASS_BUDGET_SAFETY_FACTOR,
+      EVAL_PASS_TIMEOUT_MS: process.env.EVAL_PASS_TIMEOUT_MS,
+    };
+
+    afterEach(() => {
+      process.env.EVAL_CHUNK_MAX_PER_PASS = preservedEnv.EVAL_CHUNK_MAX_PER_PASS;
+      process.env.EVAL_CHUNK_SAFE_TARGET_PER_PASS = preservedEnv.EVAL_CHUNK_SAFE_TARGET_PER_PASS;
+      process.env.EVAL_CHUNK_WARN_TARGET_PER_PASS = preservedEnv.EVAL_CHUNK_WARN_TARGET_PER_PASS;
+      process.env.EVAL_CHUNK_HARD_TARGET_PER_PASS = preservedEnv.EVAL_CHUNK_HARD_TARGET_PER_PASS;
+      process.env.EVAL_CHUNK_EXPECTED_LATENCY_MS = preservedEnv.EVAL_CHUNK_EXPECTED_LATENCY_MS;
+      process.env.EVAL_CHUNK_PASS_BUDGET_SAFETY_FACTOR = preservedEnv.EVAL_CHUNK_PASS_BUDGET_SAFETY_FACTOR;
+      process.env.EVAL_PASS_TIMEOUT_MS = preservedEnv.EVAL_PASS_TIMEOUT_MS;
+    });
+
+    test("Pass 1 caps attempted chunk calls at default hard target (48)", async () => {
+      delete process.env.EVAL_CHUNK_MAX_PER_PASS;
+      delete process.env.EVAL_CHUNK_SAFE_TARGET_PER_PASS;
+      delete process.env.EVAL_CHUNK_WARN_TARGET_PER_PASS;
+      delete process.env.EVAL_CHUNK_HARD_TARGET_PER_PASS;
+      delete process.env.EVAL_CHUNK_EXPECTED_LATENCY_MS;
+      delete process.env.EVAL_CHUNK_PASS_BUDGET_SAFETY_FACTOR;
+      process.env.EVAL_PASS_TIMEOUT_MS = "180000";
+
+      const chunks = makeChunks(60);
+      let completionCallCount = 0;
+
+      const mockCompletion = async () => {
+        completionCallCount++;
+        return {
+          choices: [
+            {
+              message: {
+                content: JSON.stringify({
+                  pass: 1,
+                  axis: "craft_execution",
+                  criteria: [
+                    {
+                      key: "concept",
+                      score_0_10: 7,
+                      rationale: "Strong concept.",
+                      evidence: [],
+                      recommendations: [],
+                    },
+                  ],
+                }),
+              },
+              finish_reason: "stop",
+            },
+          ],
+          usage: { prompt_tokens: 100, completion_tokens: 50, total_tokens: 150 },
+        };
+      };
+
+      const result = await runPass1({
+        manuscriptText: "Long manuscript ".repeat(2000),
+        manuscriptChunks: chunks,
+        workType: baseWorkType,
+        title: baseTitle,
+        registry: mockRegistry,
+        openaiApiKey: "test-key",
+        _createCompletion: mockCompletion as any,
+      });
+
+      expect(completionCallCount).toBe(48);
+      expect(result.coverage_summary?.chunk_ledger).toMatchObject({
+        expected_chunks: 60,
+        attempted_chunks: 48,
+        evaluated_chunks: 48,
+        cap_applied: true,
+      });
+    });
+
+    test("Pass 2 caps attempted chunk calls at default hard target (48)", async () => {
+      delete process.env.EVAL_CHUNK_MAX_PER_PASS;
+      delete process.env.EVAL_CHUNK_SAFE_TARGET_PER_PASS;
+      delete process.env.EVAL_CHUNK_WARN_TARGET_PER_PASS;
+      delete process.env.EVAL_CHUNK_HARD_TARGET_PER_PASS;
+      delete process.env.EVAL_CHUNK_EXPECTED_LATENCY_MS;
+      delete process.env.EVAL_CHUNK_PASS_BUDGET_SAFETY_FACTOR;
+      process.env.EVAL_PASS_TIMEOUT_MS = "180000";
+
+      const chunks = makeChunks(60);
+      let completionCallCount = 0;
+
+      const mockCompletion = async () => {
+        completionCallCount++;
+        return {
+          choices: [
+            {
+              message: {
+                content: JSON.stringify({
+                  pass: 2,
+                  axis: "editorial_literary",
+                  criteria: [
+                    {
+                      key: "concept",
+                      score_0_10: 8,
+                      rationale: "Conceptually sound.",
+                      evidence: [],
+                      recommendations: [],
+                    },
+                  ],
+                }),
+              },
+              finish_reason: "stop",
+            },
+          ],
+          usage: { prompt_tokens: 100, completion_tokens: 50, total_tokens: 150 },
+        };
+      };
+
+      const result = await runPass2({
+        manuscriptText: "Long manuscript ".repeat(2000),
+        manuscriptChunks: chunks,
+        workType: baseWorkType,
+        title: baseTitle,
+        registry: mockRegistry,
+        openaiApiKey: "test-key",
+        _createCompletion: mockCompletion as any,
+      });
+
+      expect(completionCallCount).toBe(48);
+      expect(result.coverage_summary?.chunk_ledger).toMatchObject({
+        expected_chunks: 60,
+        attempted_chunks: 48,
+        evaluated_chunks: 48,
+        cap_applied: true,
+      });
     });
   });
 });

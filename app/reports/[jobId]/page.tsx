@@ -17,6 +17,7 @@ import {
   getCriterionSupportLabel,
 } from '@/lib/evaluation/reportCriterionDisplay';
 import { resolveReportTitle } from '@/lib/evaluation/reportTitle';
+import { normalizeManuscriptId, normalizeTitle } from '@/lib/evaluation/manuscriptTitle';
 
 // D1 Boundary: server-only. Service key must not leak to client.
 // Hybrid owner-gate: SSR client for auth identity, admin client for
@@ -56,7 +57,28 @@ function extractManuscriptTitle(manuscripts: unknown): string | null {
     ? (relation as { title?: unknown }).title
     : null;
 
-  return typeof title === 'string' && title.trim().length > 0 ? title.trim() : null;
+  return typeof title === 'string' ? normalizeTitle(title) : null;
+}
+
+async function getManuscriptTitleById(manuscriptId?: number | string | null): Promise<string | null> {
+  const normalizedManuscriptId = normalizeManuscriptId(manuscriptId);
+  if (!normalizedManuscriptId) {
+    return null;
+  }
+
+  const admin = createAdminClient();
+  const { data, error } = await admin
+    .from('manuscripts')
+    .select('title')
+    .eq('id', normalizedManuscriptId)
+    .maybeSingle();
+
+  if (error) {
+    console.warn(`[getManuscriptTitleById] Failed to load manuscript ${normalizedManuscriptId}:`, error.message);
+    return null;
+  }
+
+  return normalizeTitle(data?.title ?? null);
 }
 
 async function getEvaluationResult(jobId: string, userId: string): Promise<EvaluationReportContext | null> {
@@ -71,6 +93,7 @@ async function getEvaluationResult(jobId: string, userId: string): Promise<Evalu
     .from('evaluation_jobs')
     .select(`
       evaluation_result,
+      manuscript_id,
       status,
       validity_status,
       manuscripts!inner(user_id,title)
@@ -90,9 +113,12 @@ async function getEvaluationResult(jobId: string, userId: string): Promise<Evalu
     return null;
   }
 
+  const relationTitle = extractManuscriptTitle((job as { manuscripts?: unknown }).manuscripts);
+  const manuscriptTitle = relationTitle || await getManuscriptTitleById((job as { manuscript_id?: number | string | null }).manuscript_id);
+
   return {
     result,
-    manuscriptTitle: extractManuscriptTitle((job as { manuscripts?: unknown }).manuscripts),
+    manuscriptTitle,
   };
 }
 

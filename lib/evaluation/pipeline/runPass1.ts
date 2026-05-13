@@ -19,7 +19,7 @@ import {
   getCanonicalPass1Model,
   OPENAI_SDK_MAX_RETRIES,
 } from "@/lib/evaluation/policy";
-import { getEvalOpenAiTimeoutMs } from "@/lib/evaluation/config";
+import { getEvalOpenAiTimeoutMs, getEvalPassTimeoutMs } from "@/lib/evaluation/config";
 import { emitLatencyTrace } from "@/lib/observability/latencyTrace";
 import { JsonBoundaryError, parseJsonObjectBoundary } from "@/lib/llm/jsonParseBoundary";
 import { getEvaluationRuntimeConfig } from "@/lib/config/evaluationRuntimeConfig";
@@ -35,6 +35,11 @@ const PASS1_LIMITS = {
 const DEFAULT_CHUNK_PASS_CONCURRENCY = 5;
 const DEFAULT_CHUNK_RETRY_MAX = 3;
 const DEFAULT_CHUNK_RETRY_BASE_MS = 10000;
+const DEFAULT_SAFE_CALL_TARGET_PER_PASS = 32;
+const DEFAULT_WARN_CALL_TARGET_PER_PASS = 40;
+const DEFAULT_HARD_CALL_TARGET_PER_PASS = 48;
+const DEFAULT_EXPECTED_CHUNK_LATENCY_MS = 8000;
+const DEFAULT_PASS_BUDGET_SAFETY_FACTOR = 0.7;
 
 /**
  * Pass 1 model is not caller-controlled.
@@ -153,6 +158,18 @@ function getChunkPassConcurrency(): number {
   return Math.min(24, Math.max(1, parsed));
 }
 
+function resolveChunkPassConcurrency(chunkCount: number): number {
+  const explicitRaw = process.env.EVAL_CHUNK_PASS_CONCURRENCY;
+  if (explicitRaw && explicitRaw.trim().length > 0) {
+    return getChunkPassConcurrency();
+  }
+
+  // Adaptive default: keep long-form map-reduce within a bounded number of waves.
+  // For small inputs we retain the historical concurrency=5 behavior.
+  const adaptive = Math.ceil(chunkCount / 8);
+  return Math.min(16, Math.max(DEFAULT_CHUNK_PASS_CONCURRENCY, adaptive));
+}
+
 function getChunkRetryMax(): number {
   const raw = process.env.EVAL_CHUNK_RETRY_MAX;
   if (!raw) return DEFAULT_CHUNK_RETRY_MAX;
@@ -220,6 +237,63 @@ function getChunkPassMaxPerPass(): number | null {
   const parsed = Number.parseInt(raw, 10);
   if (!Number.isFinite(parsed) || parsed <= 0) return null;
   return parsed;
+}
+
+function getPositiveIntEnv(name: string, fallback: number): number {
+  const raw = process.env[name];
+  if (!raw) return fallback;
+  const parsed = Number.parseInt(raw, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
+  return parsed;
+}
+
+function getBoundedFloatEnv(name: string, fallback: number, min: number, max: number): number {
+  const raw = process.env[name];
+  if (!raw) return fallback;
+  const parsed = Number.parseFloat(raw);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(max, Math.max(min, parsed));
+}
+
+function resolveChunkCallBudget(concurrency: number): {
+  safeTarget: number;
+  warnTarget: number;
+  hardTarget: number;
+  timeoutDerivedMax: number;
+  effectiveMax: number;
+} {
+  const rawSafeTarget = getPositiveIntEnv("EVAL_CHUNK_SAFE_TARGET_PER_PASS", DEFAULT_SAFE_CALL_TARGET_PER_PASS);
+  const rawWarnTarget = getPositiveIntEnv("EVAL_CHUNK_WARN_TARGET_PER_PASS", DEFAULT_WARN_CALL_TARGET_PER_PASS);
+  const rawHardTarget = getPositiveIntEnv("EVAL_CHUNK_HARD_TARGET_PER_PASS", DEFAULT_HARD_CALL_TARGET_PER_PASS);
+
+  const safeTarget = Math.max(1, rawSafeTarget);
+  const warnTarget = Math.max(safeTarget, rawWarnTarget);
+  const hardTarget = Math.max(warnTarget, rawHardTarget);
+
+  const passTimeoutMs = getEvalPassTimeoutMs();
+  const expectedChunkLatencyMs = getPositiveIntEnv(
+    "EVAL_CHUNK_EXPECTED_LATENCY_MS",
+    DEFAULT_EXPECTED_CHUNK_LATENCY_MS,
+  );
+  const safetyFactor = getBoundedFloatEnv(
+    "EVAL_CHUNK_PASS_BUDGET_SAFETY_FACTOR",
+    DEFAULT_PASS_BUDGET_SAFETY_FACTOR,
+    0.1,
+    0.95,
+  );
+
+  const timeoutDerivedMax = Math.max(
+    1,
+    Math.floor((passTimeoutMs / expectedChunkLatencyMs) * Math.max(1, concurrency) * safetyFactor),
+  );
+
+  return {
+    safeTarget,
+    warnTarget,
+    hardTarget,
+    timeoutDerivedMax,
+    effectiveMax: Math.max(1, Math.min(hardTarget, timeoutDerivedMax)),
+  };
 }
 
 async function runChunksWithConcurrency<T>(
@@ -372,11 +446,13 @@ export async function runPass1(opts: RunPass1Options): Promise<SinglePassOutput>
   const hasChunks = Array.isArray(opts.manuscriptChunks) && opts.manuscriptChunks.length > 1;
   if (hasChunks) {
     const chunksTotal = opts.manuscriptChunks!.length;
-    const chunkConcurrency = getChunkPassConcurrency();
-    const chunkCap = getChunkPassMaxPerPass();
+    const chunkConcurrency = resolveChunkPassConcurrency(chunksTotal);
+    const explicitChunkCap = getChunkPassMaxPerPass();
+    const callBudget = resolveChunkCallBudget(chunkConcurrency);
+    const chunkCap = explicitChunkCap ?? callBudget.effectiveMax;
     const chunkRetryMax = getChunkRetryMax();
     const chunkRetryBaseMs = getChunkRetryBaseMs();
-    const selectedChunks = chunkCap ? opts.manuscriptChunks!.slice(0, chunkCap) : opts.manuscriptChunks!;
+    const selectedChunks = opts.manuscriptChunks!.slice(0, chunkCap);
     const chunkEvalStartMs = nowMs();
     let rateLimitRetryCount = 0;
     let rateLimitWaitMs = 0;
@@ -387,8 +463,17 @@ export async function runPass1(opts: RunPass1Options): Promise<SinglePassOutput>
     const forwardCompletion = opts._onCompletion;
 
     console.log(
-      `[Pass1] Chunk-native path: total=${chunksTotal} attempted=${selectedChunks.length} concurrency=${chunkConcurrency}`,
+      `[Pass1] Chunk-native path: total=${chunksTotal} attempted=${selectedChunks.length} concurrency=${chunkConcurrency} ` +
+      `safe=${callBudget.safeTarget} warn=${callBudget.warnTarget} hard=${callBudget.hardTarget} ` +
+      `timeout_derived=${callBudget.timeoutDerivedMax} cap=${chunkCap} cap_source=${explicitChunkCap ? "explicit_env" : "call_budget"}`,
     );
+
+    if (chunksTotal > callBudget.warnTarget) {
+      console.warn(
+        `[Pass1] Chunk count is in warning zone (${chunksTotal} > ${callBudget.warnTarget}); ` +
+        `evaluation will run in coverage-aware degraded mode if capped`,
+      );
+    }
 
     const settled = await runChunksWithConcurrency(
       selectedChunks,
@@ -474,13 +559,22 @@ export async function runPass1(opts: RunPass1Options): Promise<SinglePassOutput>
         rate_limit_total_wait_ms: rateLimitWaitMs,
         provider_tpm_limited: (chunkFailuresByReason["RATE_LIMIT_429"] ?? 0) > 0 || rateLimitRetryCount > 0,
         chunk_failures_by_reason: chunkFailuresByReason,
-        chunk_cap_applied: chunkCap ? true : false,
+        chunk_cap_applied: selectedChunks.length < chunksTotal,
+        chunk_safe_target_per_pass: callBudget.safeTarget,
+        chunk_warn_target_per_pass: callBudget.warnTarget,
+        chunk_hard_target_per_pass: callBudget.hardTarget,
+        chunk_timeout_derived_max_per_pass: callBudget.timeoutDerivedMax,
+        chunk_effective_max_per_pass: chunkCap,
+        chunk_cap_source: explicitChunkCap ? "explicit_env" : "call_budget",
       },
     });
 
-    if (chunkCap && selectedChunks.length < chunksTotal) {
+    if (selectedChunks.length < chunksTotal) {
+      const capLabel = explicitChunkCap
+        ? `EVAL_CHUNK_MAX_PER_PASS=${chunkCap}`
+        : `call-budget cap=${chunkCap}`;
       console.warn(
-        `[Pass1] Partial chunk coverage due to EVAL_CHUNK_MAX_PER_PASS=${chunkCap} (attempted ${selectedChunks.length}/${chunksTotal})`,
+        `[Pass1] Partial chunk coverage due to ${capLabel} (attempted ${selectedChunks.length}/${chunksTotal})`,
       );
     }
 

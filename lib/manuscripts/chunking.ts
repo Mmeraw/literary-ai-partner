@@ -28,9 +28,9 @@ export type ChunkSpec = {
 
 export type ChunkingConfig = {
   minChars: number;        // 3000
-  targetChars: number;     // 8000
-  maxChars: number;        // 12000
-  overlapChars: number;    // 500
+  targetChars: number;     // 12000
+  maxChars: number;        // 20000
+  overlapChars: number;    // 300
 
   // TOC awareness — see issue #382
   /** Min consecutive chapter-pattern lines (within tocMaxGapLines spacing) to declare a TOC region. */
@@ -49,9 +49,9 @@ export type ChunkingConfig = {
 
 const DEFAULTS: ChunkingConfig = {
   minChars: 3000,
-  targetChars: 8000,
-  maxChars: 12000,
-  overlapChars: 500,
+  targetChars: 12000,
+  maxChars: 20000,
+  overlapChars: 300,
   tocMinEntries: 5,
   tocMaxGapLines: 4,
   tocMaxMeanLineLen: 200,
