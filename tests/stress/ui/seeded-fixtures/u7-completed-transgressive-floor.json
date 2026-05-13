@@ -1,0 +1,19 @@
+{
+  "id": "stress-u7-transgressive-floor",
+  "status": "complete",
+  "phase": "Completed",
+  "word_count": 137758,
+  "evaluation_result": {
+    "detected_mode": {
+      "proposedEvaluationMode": "TRANSGRESSIVE",
+      "proposedVoicePreservationMode": "MAXIMUM",
+      "confidence": "HIGH",
+      "evidence": []
+    },
+    "confirmed_mode": {
+      "evaluationMode": "TRANSGRESSIVE",
+      "voicePreservationMode": "MAXIMUM"
+    },
+    "transgressive_floor_active": true
+  }
+}

@@ -102,3 +102,9 @@ worktrees/
 .worktrees/
 *.log
 .env*.local
+
+# Pipeline stress harness output (artifact-only; .gitkeep + smoke evidence tracked)
+stress-results/*
+!stress-results/.gitkeep
+!stress-results/smoke-evidence/
+!stress-results/smoke-evidence/**

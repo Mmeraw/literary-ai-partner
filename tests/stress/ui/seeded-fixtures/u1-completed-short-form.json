@@ -1,0 +1,16 @@
+{
+  "id": "stress-u1-short-form-complete",
+  "status": "complete",
+  "phase": "Completed",
+  "word_count": 5000,
+  "scope": "short_form",
+  "evaluation_result": {
+    "overview": {
+      "verdict": "revise",
+      "overall_score_0_100": 62,
+      "submission_readiness": "close"
+    },
+    "criteria": [],
+    "criteria_note": "Populated at fixture-load time with all CRITERIA_KEYS having score_0_10=6.0."
+  }
+}

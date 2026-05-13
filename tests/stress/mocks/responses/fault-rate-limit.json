@@ -1,0 +1,7 @@
+{
+  "error": {
+    "type": "rate_limit_exceeded",
+    "code": "429",
+    "message": "OpenAI rate limit exceeded (429)"
+  }
+}

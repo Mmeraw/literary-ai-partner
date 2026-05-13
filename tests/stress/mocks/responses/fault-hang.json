@@ -1,0 +1,7 @@
+{
+  "error": {
+    "type": "timeout",
+    "message_template": "pass{N} timed out after {MS}ms",
+    "note": "The harness emits this shape immediately on a 'hang' fault rather than sleeping. The pipeline's classifier matches on the 'timed out after' substring."
+  }
+}

@@ -1,0 +1,4 @@
+{
+  "raw_response_prefix": "{\"criteria\":[{\"key\":\"prose_control\",\"score_0_10\":6,\"rationale\":\"Anchored on",
+  "expected_error_code": "PASS_JSON_BOUNDARY_FAILED"
+}

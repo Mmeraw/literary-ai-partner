@@ -1,0 +1,8 @@
+{
+  "id": "stress-u4-truncated-empty",
+  "status": "failed",
+  "phase": "Failed",
+  "word_count": 25000,
+  "last_error": "Pass 1 returned an empty response",
+  "error_code": "PASS1_TRUNCATED_EMPTY_RESPONSE"
+}

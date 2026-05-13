@@ -1,0 +1,88 @@
+name: Pipeline Stress Harness
+
+"on":
+  pull_request:
+    paths:
+      - "lib/evaluation/**"
+      - "lib/jobs/**"
+      - "app/evaluate/**"
+      - "scripts/pipeline-stress*"
+      - "tests/stress/**"
+      - ".github/workflows/pipeline-stress.yml"
+      - "package.json"
+  workflow_dispatch:
+
+jobs:
+  stress:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      # Stub envs required by middleware/SSR to boot the dev server.
+      # These are NOT secrets — they are placeholders that satisfy the
+      # presence checks; no real Supabase project is contacted.
+      NEXT_PUBLIC_SUPABASE_URL: http://localhost:54321
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: stub-anon-key-for-stress-harness-only
+      SUPABASE_URL: http://localhost:54321
+      SUPABASE_SERVICE_ROLE_KEY: stub-service-role-key-for-stress-harness-only
+      TEST_MODE: "true"
+      STRESS_SEED: "42"
+      STRESS_FAST_RETRY: "1"
+      NODE_ENV: development
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Tier 1 — pipeline stress harness (mock LLM, mock Supabase)
+        run: npm run pipeline:stress
+
+      - name: Start Next.js dev server
+        run: |
+          npm run dev > /tmp/dev-server.log 2>&1 &
+          echo $! > /tmp/dev-server.pid
+
+      - name: Wait for dev server
+        run: |
+          for i in $(seq 1 60); do
+            if curl -fsS http://localhost:3002/ > /dev/null 2>&1 || \
+               curl -fsS -o /dev/null -w "%{http_code}" http://localhost:3002/ | grep -qE "^(2|3)"; then
+              echo "dev server up after ${i}s"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "dev server did not become ready"
+          tail -50 /tmp/dev-server.log || true
+          exit 1
+
+      - name: Tier 3a — Playwright UI stress harness
+        run: npm run pipeline:stress:ui
+        env:
+          STRESS_UI_BASE_URL: http://localhost:3002
+
+      - name: Stop dev server
+        if: always()
+        run: |
+          if [ -f /tmp/dev-server.pid ]; then
+            kill "$(cat /tmp/dev-server.pid)" 2>/dev/null || true
+          fi
+
+      - name: Upload stress-results artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stress-results
+          path: stress-results/
+          if-no-files-found: warn
+          retention-days: 14
