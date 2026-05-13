@@ -281,9 +281,17 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess }) {
                     <div className="text-sm text-gray-500">No documents found in dashboard yet.</div>
                   ) : (
                     visibleDashboardManuscripts.map((doc) => (
-                      <label
+                      <div
                         key={doc.id}
+                        role="button"
+                        tabIndex={0}
                         onClick={() => toggleManuscriptSelection(doc.id)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter" || event.key === " ") {
+                            event.preventDefault();
+                            toggleManuscriptSelection(doc.id);
+                          }
+                        }}
                         className={`flex items-start gap-3 rounded-lg border p-3 cursor-pointer ${
                           selectedManuscriptId === doc.id ? "border-indigo-500 bg-white" : "border-gray-200 bg-white/70"
                         }`}
@@ -292,8 +300,9 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess }) {
                           type="radio"
                           name="dashboard-manuscript"
                           checked={selectedManuscriptId === doc.id}
-                          onChange={() => toggleManuscriptSelection(doc.id)}
-                          className="mt-1"
+                          readOnly
+                          tabIndex={-1}
+                          className="mt-1 pointer-events-none"
                         />
                         <div className="flex min-w-0 flex-1 flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                           <div className="min-w-0">
@@ -327,7 +336,7 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess }) {
                             </button>
                           </div>
                         </div>
-                      </label>
+                      </div>
                     ))
                   )}
                 </div>
