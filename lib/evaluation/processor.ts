@@ -144,6 +144,12 @@ type ChunkRoutingTelemetry = {
   trigger_reason?: 'word_threshold' | 'prompt_budget_exceeded';
   threshold_words: number;
   prompt_budget_chars: number;
+  source_manuscript_words: number;
+  source_manuscript_chars: number;
+  chunk_storage_words?: number;
+  chunk_storage_chars?: number;
+  overlap_words?: number;
+  overlap_chars?: number;
   manuscript_words: number;
   manuscript_chars: number;
   chunk_count: number;
@@ -897,6 +903,8 @@ async function maybeEnsureLongFormChunks(args: {
       route: 'short_form',
       threshold_words: LONG_FORM_CHUNKING_THRESHOLD_WORDS,
       prompt_budget_chars: promptBudgetChars,
+      source_manuscript_words: manuscriptWords,
+      source_manuscript_chars: manuscriptChars,
       manuscript_words: manuscriptWords,
       manuscript_chars: manuscriptChars,
       chunk_count: 0,
@@ -922,6 +930,12 @@ async function maybeEnsureLongFormChunks(args: {
         : 'prompt_budget_exceeded',
     threshold_words: LONG_FORM_CHUNKING_THRESHOLD_WORDS,
     prompt_budget_chars: promptBudgetChars,
+    source_manuscript_words: chunkResult.source_manuscript_words ?? manuscriptWords,
+    source_manuscript_chars: chunkResult.source_manuscript_chars ?? manuscriptChars,
+    chunk_storage_words: chunkResult.chunk_storage_words,
+    chunk_storage_chars: chunkResult.chunk_storage_chars,
+    overlap_words: chunkResult.overlap_words,
+    overlap_chars: chunkResult.overlap_chars,
     manuscript_words: manuscriptWords,
     manuscript_chars: manuscriptChars,
     chunk_count: chunkResult.ensured_count,
@@ -1860,12 +1874,14 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
       ...chunkRouting,
     });
 
-    const timeoutScopeProfile = classifySubmissionScope(
-      chunkRouting.route === 'long_form'
-        ? preChunkSanitizedText
-        : (manuscriptWithContent.content || ''),
-      chunkRouting.chunk_count,
-    );
+    const timeoutSourceText = preChunkSanitizedText;
+    const timeoutPayloadText = manuscriptWithContent.content || '';
+    const sourceWordCount = countWords(timeoutSourceText);
+    const payloadWordCount = countWords(timeoutPayloadText);
+    const timeoutInputText =
+      payloadWordCount >= sourceWordCount ? timeoutPayloadText : timeoutSourceText;
+    const timeoutScopeProfile = classifySubmissionScope(timeoutInputText, chunkRouting.chunk_count);
+    const timeoutWordBasis = countWords(timeoutInputText);
 
     const timeoutResolution = resolveScopedEvaluationTimeouts({
       inputScale: timeoutScopeProfile.inputScale as TimeoutScopeInputScale,
@@ -1882,6 +1898,9 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
       base_openai_timeout_ms: timeoutResolution.baseOpenAiTimeoutMs,
       resolved_pass_timeout_ms: timeoutResolution.passTimeoutMs,
       resolved_openai_timeout_ms: timeoutResolution.openAiTimeoutMs,
+      timeout_word_basis: timeoutWordBasis,
+      timeout_source_word_count: sourceWordCount,
+      timeout_chunk_storage_word_count: payloadWordCount,
     };
 
     console.log('[Processor][TimeoutResolution]', {
@@ -1889,6 +1908,9 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
       manuscript_id: manuscriptWithContent.id,
       input_scale: timeoutResolution.inputScale,
       manuscript_words: timeoutScopeProfile.wordCount,
+      timeout_word_basis: timeoutWordBasis,
+      timeout_source_word_count: sourceWordCount,
+      timeout_chunk_storage_word_count: payloadWordCount,
       floor_applied: timeoutResolution.floorApplied,
       floor_ms: timeoutResolution.floorMs,
       base_pass_timeout_ms: timeoutResolution.basePassTimeoutMs,
