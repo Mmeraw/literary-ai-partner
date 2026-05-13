@@ -1,5 +1,7 @@
 import { createDerivedVersion, getVersionById } from "@/lib/manuscripts/versions";
 import { hydrateSourceVersionIfMissing } from "@/lib/manuscripts/hydrateVersions";
+import { getSupabaseAdminClient } from "@/lib/supabase";
+import { validateConfirmedModeGate } from "@/lib/evaluation/modeGate";
 import { logRevisionEvent } from "./logRevisionEvent";
 import { transitionRevisionSessionState } from "./sessionTransitions";
 import { getRevisionSessionById, listProposalsForSession } from "./sessions";
@@ -13,6 +15,46 @@ type ApplyTelemetryContext = {
   manuscriptId: number;
   manuscriptVersionId: string;
 };
+
+async function assertConfirmedModeForRevision(evaluationRunId: string): Promise<void> {
+  const supabase = getSupabaseAdminClient();
+  if (!supabase) {
+    throw new Error("Revision apply blocked: Supabase admin client unavailable for mode gate validation.");
+  }
+
+  const { data: artifact, error } = await supabase
+    .from("evaluation_artifacts")
+    .select("content")
+    .eq("job_id", evaluationRunId)
+    .eq("artifact_type", "evaluation_result_v2")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error || !artifact?.content || typeof artifact.content !== "object") {
+    throw new Error("Revision apply blocked: canonical evaluation_result_v2 artifact unavailable for mode gate validation.");
+  }
+
+  const confirmedMode = (artifact.content as { confirmed_mode?: unknown }).confirmed_mode as
+    | { evaluationMode: string; voicePreservationMode: string }
+    | null
+    | undefined;
+
+  const gate = validateConfirmedModeGate(
+    confirmedMode
+      ? {
+          evaluationMode: confirmedMode.evaluationMode as any,
+          voicePreservationMode: confirmedMode.voicePreservationMode as any,
+        }
+      : null,
+  );
+
+  if (gate.ok === false) {
+    throw new Error(
+      `${gate.message} Validator boundary refusal: confirmedMode == null for evaluation_run_id=${evaluationRunId}`,
+    );
+  }
+}
 
 function applySingleReplacementAnchoredStrict(
   sourceText: string,
@@ -190,6 +232,8 @@ export async function applyRevisionSession(
       `Revision session ${revisionSessionId} is not ready to apply; current status: ${session.status}`,
     );
   }
+
+  await assertConfirmedModeForRevision(session.evaluation_run_id);
 
   const sourceVersion = await getVersionById(session.source_version_id);
   if (!sourceVersion) {

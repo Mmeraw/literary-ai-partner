@@ -45,7 +45,7 @@ english_variant = 'us'
 ```
 
 **Allowed values**:
-- `policy_family`: `standard` | `dark_fiction` | `trauma_memoir`
+- `policy_family`: `standard` | `dark_fiction` | `testimony`
 - `voice_preservation_level`: `strict` | `balanced` | `expressive`
 - `english_variant`: `us` | `uk` | `ca` | `au`
 
@@ -61,7 +61,7 @@ VOICE_LEVEL="${VOICE_LEVEL:-balanced}"
 ENGLISH_VARIANT="${ENGLISH_VARIANT:-us}"
 
 case "$POLICY_FAMILY" in
-  standard|dark_fiction|trauma_memoir) ;;
+  standard|dark_fiction|testimony) ;;
   *) echo "ERROR: invalid POLICY_FAMILY=$POLICY_FAMILY"; exit 1 ;;
 esac
 
@@ -176,7 +176,7 @@ $ docker exec supabase_db_literary-ai-partner psql -U postgres -d postgres -c \
 
 # ❌ Invalid value rejected by script guardrails
 $ POLICY_FAMILY=invalid bash scripts/test-phase2d-concurrency.sh
-# → ERROR: invalid POLICY_FAMILY=invalid (allowed: standard, dark_fiction, trauma_memoir)
+# → ERROR: invalid POLICY_FAMILY=invalid (allowed: standard, dark_fiction, testimony)
 ```
 
 ---

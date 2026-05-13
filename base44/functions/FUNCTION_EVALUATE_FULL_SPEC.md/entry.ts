@@ -7,7 +7,7 @@
 
 **Accepted Types:**
 - `manuscriptId`: string (required, reference to Manuscript entity)
-- `evaluation_mode`: enum (standard | transgressive | trauma_memoir) - default: standard
+- `evaluation_mode`: enum (standard | transgressive | testimony) - default: standard
 - `language_variant`: enum (en-US | en-UK | en-CA | en-AU) - default: en-US
 - `voice_preservation`: enum (maximum | balanced | polish) - default: balanced
 - `market_path`: enum (mainstream_agent_ready | transgressive_niche | literary_extreme)
@@ -141,7 +141,7 @@ ELSE proceed to full evaluation pipeline
   "user_email": "user@example.com",
   "detected_format": "manuscript",
   "routed_pipeline": "manuscript",
-  "evaluation_mode": "standard | transgressive | trauma_memoir",
+  "evaluation_mode": "standard | transgressive | testimony",
   "language_variant": "en-US | en-UK | en-CA | en-AU",
   "voice_preservation": "maximum | balanced | polish",
   "validators_run": ["matrix_preflight", "work_type_detection", "state_validation"],

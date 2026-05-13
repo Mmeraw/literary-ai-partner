@@ -61,8 +61,8 @@ function makeSynthesis(overrides: Partial<Record<CriterionKey, Partial<Synthesiz
 
 // ── Prompt version ────────────────────────────────────────────────────────────
 
-it("PASS3_PROMPT_VERSION reflects v11 prose-control anchor-floor contract", () => {
-  expect(PASS3_PROMPT_VERSION).toBe("pass3-synthesis-v11-prose-control-anchor-floor");
+it("PASS3_PROMPT_VERSION reflects v12 structured-context contract", () => {
+  expect(PASS3_PROMPT_VERSION).toBe("pass3-synthesis-v12-structured-context-contract");
 });
 
 // ── Five-part contract: passing fixtures ─────────────────────────────────────

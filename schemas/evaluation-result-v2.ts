@@ -11,6 +11,13 @@
  */
 
 import { CRITERIA_KEYS, CriterionKey } from './criteria-keys';
+import type {
+  DetectedMode,
+  EvaluationMode,
+  SectionModeOverride,
+  VoicePreservationMode,
+} from '@/lib/evaluation/modeDetection';
+import type { ModeTelemetryEvent } from '@/lib/evaluation/modeGate';
 
 export type ScoreDenominatorPolicy = "full_canonical" | "scorable_only";
 
@@ -132,6 +139,13 @@ export type EvaluationResultV2 = {
     provider: "openai" | "anthropic" | "other";
     prompt_version: string;
   };
+  detected_mode?: DetectedMode;
+  confirmed_mode?: {
+    evaluationMode: EvaluationMode;
+    voicePreservationMode: VoicePreservationMode;
+    sectionOverrides?: SectionModeOverride[];
+  } | null;
+  mode_telemetry?: ModeTelemetryEvent[];
   overview: {
     verdict: "pass" | "revise" | "fail";
     /**
@@ -295,6 +309,60 @@ export function validateEvaluationResultV2(
   if (!result.ids.evaluation_run_id) errors.push("Missing ids.evaluation_run_id");
   if (!result.ids.manuscript_id) errors.push("Missing ids.manuscript_id");
   if (!result.ids.user_id) errors.push("Missing ids.user_id");
+
+  if (result.detected_mode !== undefined) {
+    const detected = result.detected_mode;
+    if (
+      detected.proposedEvaluationMode !== "STANDARD" &&
+      detected.proposedEvaluationMode !== "TRANSGRESSIVE" &&
+      detected.proposedEvaluationMode !== "TESTIMONY"
+    ) {
+      errors.push("detected_mode.proposedEvaluationMode invalid");
+    }
+
+    if (
+      detected.proposedVoicePreservationMode !== "MAXIMUM" &&
+      detected.proposedVoicePreservationMode !== "BALANCED" &&
+      detected.proposedVoicePreservationMode !== "POLISHED"
+    ) {
+      errors.push("detected_mode.proposedVoicePreservationMode invalid");
+    }
+
+    if (
+      detected.confidence !== "LOW" &&
+      detected.confidence !== "MODERATE" &&
+      detected.confidence !== "HIGH"
+    ) {
+      errors.push("detected_mode.confidence invalid");
+    }
+
+    if (!Array.isArray(detected.evidence) || detected.evidence.length === 0) {
+      errors.push("detected_mode.evidence must be a non-empty array");
+    }
+  }
+
+  if (result.confirmed_mode !== undefined && result.confirmed_mode !== null) {
+    const confirmed = result.confirmed_mode;
+    if (
+      confirmed.evaluationMode !== "STANDARD" &&
+      confirmed.evaluationMode !== "TRANSGRESSIVE" &&
+      confirmed.evaluationMode !== "TESTIMONY"
+    ) {
+      errors.push("confirmed_mode.evaluationMode invalid");
+    }
+
+    if (
+      confirmed.voicePreservationMode !== "MAXIMUM" &&
+      confirmed.voicePreservationMode !== "BALANCED" &&
+      confirmed.voicePreservationMode !== "POLISHED"
+    ) {
+      errors.push("confirmed_mode.voicePreservationMode invalid");
+    }
+  }
+
+  if (result.mode_telemetry !== undefined && !Array.isArray(result.mode_telemetry)) {
+    errors.push("mode_telemetry must be an array when present");
+  }
 
   if (!Array.isArray(result.criteria)) {
     errors.push("criteria must be an array");

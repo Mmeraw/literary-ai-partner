@@ -1,0 +1,266 @@
+{
+  "schemaVersion": "EvaluationReportV1",
+  "route": "SHORTFORM",
+  "evaluationId": "3463bb26-0b94-41f0-bd51-07ebf89c0947",
+  "manuscriptTitle": "Ancient Bloodlines—Love Between Species",
+  "wordCount": 18268,
+  "coverage": {
+    "mode": "FULL",
+    "chunkCoveragePct": 1.0,
+    "wordCoveragePct": 1.0,
+    "disclosure": "Full text evaluated; no sampling-based gaps disclosed"
+  },
+  "overallEmotionalBand": "STRENGTH_PLUS_GROWTH",
+  "criteria": [
+    {
+      "criterionKey": "concept_core_premise",
+      "criterionName": "Concept & Core Premise",
+      "status": "SCORABLE",
+      "score": 7,
+      "confidence": "MODERATE",
+      "fit": "Strong eco-fable premise with interspecies love and survival ethics.",
+      "gap": "Central conflict is implied more than explicitly surfaced in the early pages.",
+      "oneLineFinding": "Strong eco-fable premise with interspecies love and survival ethics; central conflict could be stated more explicitly earlier.",
+      "evidence": [],
+      "readerImpact": "Readers feel the ambition but may need clearer early framing to track stakes.",
+      "revisionRecommendations": [
+        "State the main dilemma in the opening movement so readers can track how each choice bends that line.",
+        "Articulate who risks what, for whom, and against what opposition in the first key scene."
+      ],
+      "emotionalBand": "STRENGTH_PLUS_GROWTH"
+    },
+    {
+      "criterionKey": "narrative_drive_momentum",
+      "criterionName": "Narrative Drive & Momentum",
+      "status": "SCORABLE",
+      "score": 6,
+      "confidence": "MODERATE",
+      "fit": "Bullying, rescues, and herd politics provide real forward pull when on the page.",
+      "gap": "Exposition and lore occasionally stall momentum where conflict could escalate.",
+      "oneLineFinding": "Opening hook is vivid, but momentum sags when exposition and lore displace on-page pressure.",
+      "evidence": [],
+      "readerImpact": "Some readers will admire the world while waiting longer than necessary to feel pulled through events.",
+      "revisionRecommendations": [
+        "Fold essential lore into scenes where a live threat or desire is active.",
+        "Insert conflict beats before or within reflective passages rather than after them."
+      ],
+      "emotionalBand": "STRENGTH_PLUS_GROWTH"
+    },
+    {
+      "criterionKey": "character_depth_psychology",
+      "criterionName": "Character Depth & Psychology",
+      "status": "SCORABLE",
+      "score": 6,
+      "confidence": "MODERATE",
+      "fit": "Roles and motives are clear across Newton, Rana, Twillow, Snappy, Thorander, and elders.",
+      "gap": "Key turns lack fully dramatized interior beats, softening emotional impact.",
+      "oneLineFinding": "Roles and motives are clear, yet key characters need deeper interiority at decision points.",
+      "evidence": [],
+      "readerImpact": "Readers understand choices but feel them less intensely than they could.",
+      "revisionRecommendations": [
+        "Add precise sensory-thought beats at major decision points.",
+        "Let fears, desires, and beliefs surface in on-page interiority before action."
+      ],
+      "emotionalBand": "STRENGTH_PLUS_GROWTH"
+    },
+    {
+      "criterionKey": "pov_voice_tone",
+      "criterionName": "POV, Voice & Tone",
+      "status": "SCORABLE",
+      "score": 6,
+      "confidence": "MODERATE",
+      "fit": "A confident, sometimes mythic narrative presence suits the fable frame.",
+      "gap": "Hybrid registers (comic, didactic, mythic) sometimes collide at high-stakes beats.",
+      "oneLineFinding": "Distinctive, sometimes mythic voice; tonal registers occasionally clash at high-stakes moments.",
+      "evidence": [],
+      "readerImpact": "Voice feels distinctive but can blur emotional intensity when tones mix mid-scene.",
+      "revisionRecommendations": [
+        "Stabilize tone in climactic scenes around the POV character's emotional state.",
+        "Reserve register shifts for deliberate, clearly framed transitions."
+      ],
+      "emotionalBand": "STRENGTH_PLUS_GROWTH"
+    },
+    {
+      "criterionKey": "scene_construction_function",
+      "criterionName": "Scene Construction & Function",
+      "status": "SCORABLE",
+      "score": 6,
+      "confidence": "MODERATE",
+      "fit": "Many scenes have clear situation, stakes, and visible conflict.",
+      "gap": "Some scenes overrun into description and exit without a sharp turn or decision.",
+      "oneLineFinding": "Scenes are well-blocked and purposeful but drift into descriptive overrun instead of turning sharply.",
+      "evidence": [],
+      "readerImpact": "Momentum inside scenes can blur, even when the underlying beats are strong.",
+      "revisionRecommendations": [
+        "Compress description at apex moments.",
+        "End scenes on a decision, reveal, or sharpened question rather than soft taper."
+      ],
+      "emotionalBand": "STRENGTH_PLUS_GROWTH"
+    },
+    {
+      "criterionKey": "dialogue_subtext",
+      "criterionName": "Dialogue & Subtext",
+      "status": "SCORABLE",
+      "score": 5,
+      "confidence": "HIGH",
+      "fit": "Dialogue reliably encodes role, belief, and doctrine.",
+      "gap": "Characters frequently state theme and doctrine outright instead of implying it.",
+      "oneLineFinding": "Role-based dialogue works, though subtext is often replaced by overt thematic statement.",
+      "evidence": [],
+      "readerImpact": "Readers receive the ideas clearly but with less dramatic tension in conversations.",
+      "revisionRecommendations": [
+        "Replace at least one overt thematic line per exchange with an image or implication.",
+        "Let disagreement and misreading between characters carry thematic weight."
+      ],
+      "emotionalBand": "GROWTH"
+    },
+    {
+      "criterionKey": "theme_intelligence",
+      "criterionName": "Theme / Intelligence",
+      "status": "SCORABLE",
+      "score": 7,
+      "confidence": "HIGH",
+      "fit": "Ecological, moral, and social systems are coherent and meaningfully tied to plot outcomes.",
+      "gap": "Some insights arrive as narrated explanation rather than embodied consequence.",
+      "oneLineFinding": "Coherent ecological and moral architecture; theme is sometimes over-explained in narration.",
+      "evidence": [],
+      "readerImpact": "Readers understand the argument but occasionally feel told rather than shown.",
+      "revisionRecommendations": [
+        "Let turning points and costs dramatize the core arguments.",
+        "Use recurring motifs and consequences instead of reiterating thesis-level statements."
+      ],
+      "emotionalBand": "STRENGTH_PLUS_GROWTH"
+    },
+    {
+      "criterionKey": "world_building_logic",
+      "criterionName": "World-Building & Logic",
+      "status": "SCORABLE",
+      "score": 7,
+      "confidence": "HIGH",
+      "fit": "Species dynamics, doctrine, and environmental context feel specific and internally coherent.",
+      "gap": "Some survival rules and ecological constraints remain implicit where explicit rules would help.",
+      "oneLineFinding": "Species dynamics and environmental logic are engaging, but survival rules and costs could be sharper.",
+      "evidence": [],
+      "readerImpact": "Readers trust the world but may not always foresee costs or limits in advance.",
+      "revisionRecommendations": [
+        "State at least one concrete rule in a live scene and immediately show its cost.",
+        "Clarify limits when characters test environmental boundaries."
+      ],
+      "emotionalBand": "STRENGTH_PLUS_GROWTH"
+    },
+    {
+      "criterionKey": "prose_line_level",
+      "criterionName": "Prose / Line-Level Craft",
+      "status": "SCORABLE",
+      "score": 5,
+      "confidence": "MODERATE",
+      "fit": "Prose is vivid and imaginative, with strong sensory textures.",
+      "gap": "Excess description and stacked modifiers can blur focus and slow beats.",
+      "oneLineFinding": "Vivid, inventive prose that can become over-described, softening focus and narrative snap.",
+      "evidence": [],
+      "readerImpact": "Readers get a lush surface experience but may struggle to track what matters most in a moment.",
+      "revisionRecommendations": [
+        "Trim descriptive density at turning points to 1–2 sharp details.",
+        "Vary sentence length to create intentional emphasis and relief."
+      ],
+      "emotionalBand": "GROWTH"
+    },
+    {
+      "criterionKey": "pacing_structural_balance",
+      "criterionName": "Pacing & Structural Balance",
+      "status": "SCORABLE",
+      "score": 5,
+      "confidence": "MODERATE",
+      "fit": "Overall arc supports a full novella-length journey.",
+      "gap": "Local pacing is uneven where reflection or exposition clusters without enough live pressure.",
+      "oneLineFinding": "Structural through-line is sound, yet local pacing is uneven due to long reflective or expository spans.",
+      "evidence": [],
+      "readerImpact": "Some stretches feel heavy relative to the underlying story strength.",
+      "revisionRecommendations": [
+        "Identify and trim the heaviest reflective spans; re-stage key pages with live conflict active.",
+        "Spread necessary exposition across scenes with strong situational stakes."
+      ],
+      "emotionalBand": "GROWTH"
+    },
+    {
+      "criterionKey": "narrative_closure_promises",
+      "criterionName": "Narrative Closure & Promises",
+      "status": "INSUFFICIENT_SIGNAL",
+      "score": null,
+      "confidence": "LOW",
+      "fit": "",
+      "gap": "The provided text does not fully reveal final outcomes for core promises.",
+      "oneLineFinding": "Not evaluated — insufficient evidence in sample.",
+      "evidence": [],
+      "readerImpact": "No responsible manuscript-wide closure judgment is possible from this packet.",
+      "revisionRecommendations": [],
+      "emotionalBand": "INSUFFICIENT_SIGNAL_REASSURANCE"
+    },
+    {
+      "criterionKey": "professional_readiness_market",
+      "criterionName": "Professional Readiness / Market",
+      "status": "SCORABLE",
+      "score": 4,
+      "confidence": "LOW",
+      "fit": "Premise and voice are distinctive and align with eco-fable / allegorical fantasy territory.",
+      "gap": "Current pacing, focus, and positioning would likely hinder successful submission.",
+      "oneLineFinding": "Concept is marketable, but genre positioning and execution need refinement before submission.",
+      "evidence": [],
+      "readerImpact": "Agents/editors may see promise but also significant readiness work.",
+      "revisionRecommendations": [
+        "After structural and line-level revisions, sharpen logline and comps toward a clear shelf.",
+        "Clarify whether to lean into adult eco-fantasy, literary fable, or upper-YA allegory."
+      ],
+      "emotionalBand": "GROWTH"
+    }
+  ],
+  "topRevisionPriorities": [
+    {
+      "rank": 1,
+      "title": "Clarify and front-load the central conflict",
+      "criterionKey": "concept_core_premise",
+      "rationale": "State the eco-moral dilemma and Newton–Rana stakes explicitly in the opening so readers can lock onto what's at risk."
+    },
+    {
+      "rank": 2,
+      "title": "Reduce exposition and keep conflict live in the middle",
+      "criterionKey": "narrative_drive_momentum",
+      "rationale": "Fold lore into scenes with active stakes; insert conflict beats before or within reflective passages to smooth pacing."
+    },
+    {
+      "rank": 3,
+      "title": "Deepen interiority at key choice-points",
+      "criterionKey": "character_depth_psychology",
+      "rationale": "Add sensory-thought beats and emotionally specific reactions before pivotal decisions to ground arcs psychologically."
+    }
+  ],
+  "canonicalCharacters": [
+    "Newton",
+    "Twillow",
+    "Rana",
+    "Thorander",
+    "Snappy",
+    "Lacerta",
+    "Plethodon",
+    "Cinereus",
+    "Grinus",
+    "Triturus",
+    "Woody",
+    "Clover",
+    "Crown Hyla"
+  ],
+  "openPromises": [
+    "Cross-species cooperation and alliance-building",
+    "Healing exchange and interspecies trust",
+    "Reform versus tradition in doctrine",
+    "Herd fracture and eventual reunification or new alliances",
+    "The human threat as looming external force",
+    "Newton and Rana's emotional/romantic trajectory"
+  ],
+  "governanceNotes": {
+    "craftVsIntelligence": "CRAFT (prose, pacing, dialogue, scene construction) scores lower than INTELLIGENCE (theme, world-building, concept), which is appropriate for this manuscript. Future evaluations must preserve this distinction.",
+    "closureHandling": "Narrative Closure & Promises is marked INSUFFICIENT_SIGNAL. This is a deliberate governance decision: the packet does not provide full end-material, so a responsible evaluator cannot claim high confidence in closure scoring. This must not be silently converted to a low score.",
+    "canonContinuity": "All 13 recurring characters listed in canonicalCharacters must appear in Character Depth, World-Building, and Theme commentary. Omitting Twillow, Snappy, or Thorander is a test failure.",
+    "regressionGate": "Any future RevisionGrade update that produces scores outside the tolerance band (±1 per criterion) or that downgrades closure to a numeric score without full packet evidence must fail automated regression."
+  }
+}

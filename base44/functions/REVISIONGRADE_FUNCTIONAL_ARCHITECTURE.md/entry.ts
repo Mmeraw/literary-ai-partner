@@ -207,7 +207,7 @@ ELSE:
 **Modes (from TRANSGRESSIVE_MODE_SPEC.md):**
 - **Standard:** Agent-ready commercial analysis
 - **Transgressive:** Craft over comfort, literary extreme
-- **Trauma Memoir:** Survivor testimony, psychological truth
+- **Testimony:** Survivor testimony, psychological truth
 
 **Impact:** Changes evaluation lens, not content filtering
 

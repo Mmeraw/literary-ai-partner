@@ -22,6 +22,7 @@
     "guard:u3-prereq": "bash scripts/guard-u3-prereq.sh",
     "u2:proof:validate": "node scripts/validate-u2-proof.mjs",
     "test": "jest",
+    "test:benchmark:ancient-bloodlines": "jest --runInBand --runTestsByPath tests/evaluation/benchmarks/ancient-bloodlines.shortform.test.ts tests/evaluation/benchmarks/ancient-bloodlines.fixture.test.ts tests/evaluation/benchmarks/ancient-bloodlines.governance.test.ts",
     "probe:llr003": "tsx -r tsconfig-paths/register scripts/probe-llr003-job.ts",
     "test:ci": "jest --silent",
     "test:polling": "jest --testPathPatterns=polling",

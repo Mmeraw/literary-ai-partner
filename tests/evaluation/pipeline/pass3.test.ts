@@ -12,6 +12,7 @@ import { PASS3_PROMPT_VERSION } from "@/lib/evaluation/pipeline/prompts/pass3-sy
 import type { CreateCompletionFn } from "@/lib/evaluation/pipeline/runPass3Synthesis";
 import type { SinglePassOutput } from "@/lib/evaluation/pipeline/types";
 import { loadCanonicalRegistry } from "@/lib/governance/canonRegistry";
+import { buildPass2aStructuredContext } from "@/lib/evaluation/pipeline/buildPass2aStructuredContext";
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 
@@ -70,6 +71,13 @@ function makePass3Fixture(overrides: Record<string, unknown> = {}) {
     },
     ...overrides,
   };
+}
+
+function makePass2aStructuredContext() {
+  return buildPass2aStructuredContext({
+    manuscriptText:
+      "Crown Hyla watched the chamber. Zimeon arrived three years later and met Thorander in the Dead Zone.",
+  });
 }
 
 /** Helper: build a mock completion function that returns the given JSON string. */
@@ -251,6 +259,7 @@ describe("runPass3Synthesis", () => {
     const result = await runPass3Synthesis({
       pass1,
       pass2,
+      pass2aStructuredContext: makePass2aStructuredContext(),
       manuscriptText: "The river moved slowly through the valley.",
       title: "Test Manuscript",
       registry,
@@ -298,6 +307,7 @@ describe("runPass3Synthesis", () => {
       const result = await runPass3Synthesis({
         pass1,
         pass2,
+        pass2aStructuredContext: makePass2aStructuredContext(),
         manuscriptText: "The river moved slowly through the valley.",
         title: "Test Manuscript",
         registry,
@@ -330,6 +340,7 @@ describe("runPass3Synthesis", () => {
     await runPass3Synthesis({
       pass1,
       pass2,
+      pass2aStructuredContext: makePass2aStructuredContext(),
       manuscriptText: "The river moved slowly through the valley.",
       title: "Test Manuscript",
       registry,
@@ -371,6 +382,7 @@ describe("runPass3Synthesis", () => {
       runPass3Synthesis({
         pass1: makePassOutput(1, "craft_execution"),
         pass2: makePassOutput(2, "editorial_literary"),
+        pass2aStructuredContext: makePass2aStructuredContext(),
         manuscriptText: "test",
         title: "Test",
         registry,
@@ -386,6 +398,7 @@ describe("runPass3Synthesis", () => {
       runPass3Synthesis({
         pass1: makePassOutput(1, "craft_execution"),
         pass2: makePassOutput(2, "editorial_literary"),
+        pass2aStructuredContext: makePass2aStructuredContext(),
         manuscriptText: "test",
         title: "Test",
         registry,
@@ -399,6 +412,7 @@ describe("runPass3Synthesis", () => {
     const result = await runPass3Synthesis({
       pass1: makePassOutput(1, "craft_execution"),
       pass2: makePassOutput(2, "editorial_literary"),
+      pass2aStructuredContext: makePass2aStructuredContext(),
       manuscriptText: "test",
       title: "Test",
       registry,
@@ -415,6 +429,7 @@ describe("runPass3Synthesis", () => {
       runPass3Synthesis({
         pass1: makePassOutput(1, "craft_execution"),
         pass2: makePassOutput(2, "editorial_literary"),
+        pass2aStructuredContext: makePass2aStructuredContext(),
         manuscriptText: "test",
         title: "Test",
         registry,
@@ -422,6 +437,21 @@ describe("runPass3Synthesis", () => {
         _createCompletion: lengthLimitedEmptyCompletion(),
       }),
     ).rejects.toThrow("finish_reason=length");
+  });
+
+  it("fails closed when Pass 2a structured context is missing", async () => {
+    await expect(
+      runPass3Synthesis({
+        pass1: makePassOutput(1, "craft_execution"),
+        pass2: makePassOutput(2, "editorial_literary"),
+        pass2aStructuredContext: undefined as never,
+        manuscriptText: "test",
+        title: "Test",
+        registry,
+        openaiApiKey: "sk-test",
+        _createCompletion: mockCompletion(JSON.stringify(makePass3Fixture())),
+      }),
+    ).rejects.toThrow("PASS2A_STRUCTURED_CONTEXT_MISSING");
   });
 });
 

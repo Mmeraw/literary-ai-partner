@@ -102,7 +102,7 @@
 ### 10. generateRevisionSuggestions
 - **File:** `functions/generateRevisionSuggestions.js`
 - **Trigger:** HTTP (UI action: Revise page "Generate Alternatives", Trusted Path auto-revision)
-- **Responsibility:** Two-stage WAVE revision pipeline: (1) Pattern detection via gpt-4o-mini, (2) Contextual validation via gpt-4o with voice preservation gates. Supports 61+ WAVE checks, voice preservation levels (maximum/balanced/polish), Trusted Path structural gating (blocks sentence polish below 8.0), transgressive/trauma_memoir modes.
+- **Responsibility:** Two-stage WAVE revision pipeline: (1) Pattern detection via gpt-4o-mini, (2) Contextual validation via gpt-4o with voice preservation gates. Supports 61+ WAVE checks, voice preservation levels (maximum/balanced/polish), Trusted Path structural gating (blocks sentence polish below 8.0), transgressive/testimony modes.
 - **Input Contract:** `{ text?, title?, wave_number (1-61), submission_id?, session_id?, evaluation_result?, style_mode, manuscript_score?, voice_preservation_level }`
 - **Output Artifacts:**
   - `RevisionSession` create/update: suggestions[], current_wave, status

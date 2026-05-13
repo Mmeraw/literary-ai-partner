@@ -21,6 +21,7 @@ import type {
   PassCompletionCapture,
   Pass3ReducerTelemetry,
   ManuscriptChunkEvidence,
+  Pass2aStructuredContext,
 } from "./types";
 import type { CanonRegistry } from "@/lib/governance/canonRegistry";
 import {
@@ -326,6 +327,7 @@ export interface RunPass3Options {
   scopeProfile?: SubmissionScopeProfile;
   pass1: SinglePassOutput;
   pass2: SinglePassOutput;
+  pass2aStructuredContext: Pass2aStructuredContext;
   manuscriptText: string;
   manuscriptChunks?: ManuscriptChunkEvidence[];
   title: string;
@@ -340,6 +342,24 @@ export interface RunPass3Options {
   _onCompletion?: (capture: PassCompletionCapture) => void;
 }
 
+function assertPass2aStructuredContext(context: Pass2aStructuredContext | undefined): asserts context is Pass2aStructuredContext {
+  if (!context) {
+    throw new Error("[Pass3] PASS2A_STRUCTURED_CONTEXT_MISSING");
+  }
+
+  if (!Array.isArray(context.character_ledger)) {
+    throw new Error("[Pass3] PASS2A_LEDGER_MISSING");
+  }
+
+  if (!Array.isArray(context.scene_index)) {
+    throw new Error("[Pass3] PASS2A_SCENE_INDEX_MISSING");
+  }
+
+  if (!Array.isArray(context.timeline_anchors)) {
+    throw new Error("[Pass3] PASS2A_TIMELINE_ANCHORS_MISSING");
+  }
+}
+
 /**
  * Run Pass 3 — Synthesis & Reconciliation.
  * Receives both axis outputs and reconciles into a SynthesisOutput.
@@ -349,6 +369,8 @@ export async function runPass3Synthesis(opts: RunPass3Options): Promise<Synthesi
   if (!opts.registry || opts.registry.size === 0) {
     throw new Error("[Pass3] Canonical registry binding missing");
   }
+
+  assertPass2aStructuredContext(opts.pass2aStructuredContext);
 
   const createCompletion = opts._createCompletion ?? defaultCreateCompletion(opts.openaiApiKey, opts.openAiTimeoutMs);
   const selectedModel = getCanonicalPass3Model(opts.model);
@@ -365,6 +387,7 @@ export async function runPass3Synthesis(opts: RunPass3Options): Promise<Synthesi
 
   const userPrompt = buildPass3UserPrompt({
     comparisonPacketJson,
+    pass2aStructuredContext: opts.pass2aStructuredContext,
     manuscriptText: opts.manuscriptText,
     title: opts.title,
     executionMode: opts.executionMode,

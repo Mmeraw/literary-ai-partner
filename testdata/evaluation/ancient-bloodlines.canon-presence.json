@@ -1,0 +1,30 @@
+{
+  "manuscriptId": "ancient-bloodlines-3463bb26",
+  "title": "Ancient Bloodlines—Love Between Species",
+  "requiredRecurringCharacters": [
+    "Newton",
+    "Rana",
+    "Twillow",
+    "Snappy",
+    "Thorander"
+  ],
+  "supportingCharacters": [
+    "Lacerta",
+    "Plethodon",
+    "Cinereus",
+    "Grinus",
+    "Triturus",
+    "Woody",
+    "Clover",
+    "Crown Hyla"
+  ],
+  "canonRules": {
+    "requiredRecurringCharactersMustAppearInCommentary": true,
+    "minimumCharacterMentionThresholdPct": 0.7,
+    "enforceOnCriteria": [
+      "character_depth_psychology",
+      "world_building_logic",
+      "theme_intelligence"
+    ]
+  }
+}

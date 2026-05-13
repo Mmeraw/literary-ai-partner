@@ -16,6 +16,7 @@ import {
   buildTopRecommendations,
   normalizeRecommendationActionForDisplay,
 } from "@/lib/evaluation/reportRecommendations";
+import ModeConfirmationBlock from "@/components/evaluation/ModeConfirmationBlock";
 import { classifyEvaluationIntegrityBanner } from "@/lib/evaluation/warningClassification";
 import {
   getCertifiedCriteriaSummary,
@@ -46,6 +47,27 @@ type Job = {
 };
 
 type ArtifactContentV1 = {
+  detected_mode?: {
+    proposedEvaluationMode: "STANDARD" | "TRANSGRESSIVE" | "TESTIMONY";
+    proposedVoicePreservationMode: "MAXIMUM" | "BALANCED" | "POLISHED";
+    confidence: "LOW" | "MODERATE" | "HIGH";
+    evidence: Array<{ signal: string; where: string }>;
+    alternates?: Array<{ mode: "STANDARD" | "TRANSGRESSIVE" | "TESTIMONY"; reason: string }>;
+    sectionOverrides?: Array<{
+      chapterRange: [number, number];
+      mode: "STANDARD" | "TRANSGRESSIVE" | "TESTIMONY";
+      reason: string;
+    }>;
+  };
+  confirmed_mode?: {
+    evaluationMode: "STANDARD" | "TRANSGRESSIVE" | "TESTIMONY";
+    voicePreservationMode: "MAXIMUM" | "BALANCED" | "POLISHED";
+    sectionOverrides?: Array<{
+      chapterRange: [number, number];
+      mode: "STANDARD" | "TRANSGRESSIVE" | "TESTIMONY";
+      reason: string;
+    }>;
+  } | null;
   // Shape A: from evaluation_artifacts
   summary?: string;
   overall_score?: number;
@@ -403,6 +425,8 @@ export default async function EvaluationReportPage({
   const manuscriptTitle = getRelatedManuscriptTitle(job);
   const { displayTitle } = resolveReportTitle({ chapterTitle, manuscriptTitle });
   const wordCount = artifact?.metrics?.manuscript?.word_count ?? null;
+  const hasDetectedMode = Boolean(artifact?.detected_mode);
+  const hasConfirmedMode = Boolean(artifact?.confirmed_mode);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -520,6 +544,36 @@ export default async function EvaluationReportPage({
         </section>
       ) : (
         <>
+          {hasDetectedMode && artifact?.detected_mode && (
+            <ModeConfirmationBlock
+              jobId={jobId}
+              detectedMode={artifact.detected_mode}
+              confirmedMode={artifact.confirmed_mode ?? null}
+            />
+          )}
+
+          <section className="rounded-lg border bg-white p-6 mb-4">
+            <h2 className="text-xl font-semibold text-gray-900">Revise Access</h2>
+            <p className="mt-2 text-sm text-gray-600">
+              {hasConfirmedMode
+                ? "Mode confirmed. You can proceed to Revise."
+                : "Mode confirmation is required before Revise and Trustpath."}
+            </p>
+            <div className="mt-4">
+              <Link
+                href={hasConfirmedMode ? "/revise" : "#"}
+                aria-disabled={!hasConfirmedMode}
+                className={`inline-flex rounded-md px-4 py-2 text-sm font-medium ${
+                  hasConfirmedMode
+                    ? "bg-indigo-600 text-white hover:bg-indigo-700"
+                    : "bg-gray-200 text-gray-500 cursor-not-allowed pointer-events-none"
+                }`}
+              >
+                Start Revising
+              </Link>
+            </div>
+          </section>
+
           {!isProduction && artifactSource === "inline_job_result" && (
             <div className="mb-4 rounded-md bg-amber-50 border border-amber-300 p-4">
               <p className="text-sm font-medium text-amber-800">

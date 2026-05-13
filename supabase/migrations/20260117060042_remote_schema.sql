@@ -192,7 +192,7 @@ CREATE TABLE IF NOT EXISTS "public"."evaluation_jobs" (
     "voice_preservation_level" "text" NOT NULL,
     "english_variant" "text" NOT NULL,
     CONSTRAINT "chk_eval_jobs_english_variant" CHECK (("english_variant" = ANY (ARRAY['us'::"text", 'uk'::"text", 'ca'::"text", 'au'::"text"]))),
-    CONSTRAINT "chk_eval_jobs_policy_family" CHECK (("policy_family" = ANY (ARRAY['standard'::"text", 'dark_fiction'::"text", 'trauma_memoir'::"text"]))),
+    CONSTRAINT "chk_eval_jobs_policy_family" CHECK (("policy_family" = ANY (ARRAY['standard'::"text", 'dark_fiction'::"text", 'testimony'::"text"]))),
     CONSTRAINT "chk_eval_jobs_voice_preservation_level" CHECK (("voice_preservation_level" = ANY (ARRAY['strict'::"text", 'balanced'::"text", 'expressive'::"text"]))),
     CONSTRAINT "evaluation_jobs_job_type_check" CHECK (("job_type" = ANY (ARRAY['full_evaluation'::"text", 'quick_evaluation'::"text", 'screenplay_evaluation'::"text", 'wave_only'::"text", 'summary_only'::"text", 're_evaluate_chunk'::"text", 're_evaluate_wave'::"text", 'novel_to_screenplay'::"text", 'synopsis_generation'::"text", 'query_package_generation'::"text", 'comparables_generation'::"text", 'governance_validation'::"text", 'backfill_migration'::"text"]))),
     CONSTRAINT "evaluation_jobs_phase_check" CHECK (("phase" = ANY (ARRAY['phase_0'::"text", 'phase_1'::"text", 'phase_2'::"text"]))),

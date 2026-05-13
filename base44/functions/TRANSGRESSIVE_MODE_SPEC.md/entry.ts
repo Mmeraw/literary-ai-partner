@@ -29,7 +29,7 @@ Transgressive Mode is an interpretation overlay, NOT a replacement of WAVE. It e
     },
     "evaluation_mode": {
       "type": "string",
-      "enum": ["standard", "transgressive", "trauma_memoir"],
+      "enum": ["standard", "transgressive", "testimony"],
       "default": "standard",
       "description": "Controls interpretation layer only. Does not change WAVE detectors."
     },
@@ -72,7 +72,7 @@ Transgressive Mode is an interpretation overlay, NOT a replacement of WAVE. It e
   "required": ["manuscript_id", "evaluation_mode", "scores"],
   "properties": {
     "manuscript_id": { "type": "string" },
-    "evaluation_mode": { "type": "string", "enum": ["standard", "transgressive", "trauma_memoir"] },
+    "evaluation_mode": { "type": "string", "enum": ["standard", "transgressive", "testimony"] },
     "market_path": { "type": "string" },
     "scores": {
       "type": "object",

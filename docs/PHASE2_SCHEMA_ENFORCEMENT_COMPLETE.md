@@ -68,7 +68,7 @@ ENGLISH_VARIANT="${ENGLISH_VARIANT:-us}"
 
 # Fail fast if invalid values provided
 case "$POLICY_FAMILY" in
-  standard|dark_fiction|trauma_memoir) ;;
+  standard|dark_fiction|testimony) ;;
   *) echo "ERROR: invalid POLICY_FAMILY=$POLICY_FAMILY"; exit 1 ;;
 esac
 
@@ -121,7 +121,7 @@ ERROR:  null value in column "policy_family" of relation "evaluation_jobs" viola
 ```bash
 $ POLICY_FAMILY=invalid_test_value bash scripts/test-phase2d-concurrency.sh
 
-ERROR: invalid POLICY_FAMILY=invalid_test_value (allowed: standard, dark_fiction, trauma_memoir)
+ERROR: invalid POLICY_FAMILY=invalid_test_value (allowed: standard, dark_fiction, testimony)
 ```
 
 ## Database Constraints (Verified)
@@ -139,7 +139,7 @@ WHERE t.relname = 'evaluation_jobs'
             constraint_name             |      constraint_definition
 ----------------------------------------+--------------------------------------
  chk_eval_jobs_english_variant          | CHECK ((english_variant = ANY (ARRAY['us'::text, 'uk'::text, 'ca'::text, 'au'::text])))
- chk_eval_jobs_policy_family            | CHECK ((policy_family = ANY (ARRAY['standard'::text, 'dark_fiction'::text, 'trauma_memoir'::text])))
+ chk_eval_jobs_policy_family            | CHECK ((policy_family = ANY (ARRAY['standard'::text, 'dark_fiction'::text, 'testimony'::text])))
  chk_eval_jobs_voice_preservation_level | CHECK ((voice_preservation_level = ANY (ARRAY['strict'::text, 'balanced'::text, 'expressive'::text])))
 ```
 

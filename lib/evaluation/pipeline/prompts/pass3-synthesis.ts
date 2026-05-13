@@ -8,6 +8,7 @@
 
 import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
 import type { SubmissionScopeProfile } from "../submissionScope";
+import type { Pass2aStructuredContext } from "../types";
 import {
   buildCoverageDisclosure,
   buildPromptInputWindow,
@@ -15,13 +16,14 @@ import {
   summarizePromptCoverage,
 } from "../promptInput";
 
-export const PASS3_PROMPT_VERSION = "pass3-synthesis-v11-prose-control-anchor-floor";
+export const PASS3_PROMPT_VERSION = "pass3-synthesis-v12-structured-context-contract";
 
 export const PASS3_SYSTEM_PROMPT = `You are Pass 3: convergence and arbitration authority.
 Rules:
 - Do NOT perform a new evaluation.
 - Do NOT silently overwrite disagreement.
 - Use the packet as input; do not expect raw pass payloads.
+- Treat PASS2A_STRUCTURED_CONTEXT as hard input. If it is missing, incomplete, or contradicted by your synthesis, fail rather than infer.
 - Canonical v2 vocabulary only: signal_strength NONE|WEAK|SUFFICIENT|STRONG; status SCORABLE|NOT_APPLICABLE|NO_SIGNAL|INSUFFICIENT_SIGNAL; never MODERATE.
 - For each criterion, explicitly trace pressure signal -> decision inflection -> consequence trajectory (pressure->decision->consequence logic).
 - Classify consequence_status as landed|deferred|dissipated.
@@ -83,6 +85,7 @@ ${CRITERIA_KEYS.join(", ")}`;
 
 export function buildPass3UserPrompt(params: {
   comparisonPacketJson: string;
+  pass2aStructuredContext: Pass2aStructuredContext;
   manuscriptText?: string;
   title: string;
   executionMode?: "TRUSTED_PATH" | "STUDIO";
@@ -100,6 +103,11 @@ export function buildPass3UserPrompt(params: {
     ? buildCoverageDisclosure(synthesisCoverage, "Synthesis reference coverage")
     : "Synthesis reference coverage: unavailable (comparison packet-only execution).";
   const referenceSnippet = synthesisWindow.length > 0 ? synthesisWindow.substring(0, 600) : "[reference omitted]";
+  const structuredContextJson = JSON.stringify({
+    character_ledger: params.pass2aStructuredContext.character_ledger.slice(0, 24),
+    scene_index: params.pass2aStructuredContext.scene_index.slice(0, 16),
+    timeline_anchors: params.pass2aStructuredContext.timeline_anchors.slice(0, 24),
+  });
 
   return `Synthesize these two independent evaluation passes for the manuscript titled "${params.title}".
 
@@ -133,6 +141,9 @@ Coverage truth signal:
 - Reference snippet (context anchor only): ${referenceSnippet}
 ${params.scopeProfile ? `- Submission scope: ${params.scopeProfile.inputScale} (${params.scopeProfile.wordCount} words; ${params.scopeProfile.chunkCount} chunk(s); ${params.scopeProfile.scorableCount}/13 criteria non-NA for this scope; confidence cap ${params.scopeProfile.confidenceCapSummary})` : ""}
 
+## PASS2A_STRUCTURED_CONTEXT (Hard Input)
+${structuredContextJson}
+
 ## PASS 1 / PASS 2 COMPARISON PACKET (Deterministic)
 ${params.comparisonPacketJson.substring(0, 3500)}
 
@@ -142,6 +153,7 @@ Mandatory behavior:
 - Preserve major disagreement visibility.
 - Provide explicit arbitration rationale for divergence.
 - Do not silently merge conflicting conclusions.
+- Use named entities from PASS2A_STRUCTURED_CONTEXT.character_ledger when referring to manuscript actors or locations; do not invent missing entities.
 - Do not request or assume raw pass payloads; use the comparison packet fields as provided.
 - Preserve narrative-mode distinctions when reconciling pacing, narrativeDrive, and character judgments.
 - If a chapter accumulates pressure through archives, reflection, or system mapping, distinguish that from true absence of movement.

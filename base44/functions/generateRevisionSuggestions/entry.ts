@@ -178,7 +178,7 @@ Deno.serve(async (req) => {
       literary: "Dense imagery, subtext layering, mythic elevation. Sophisticated, literary fiction standards.",
       commercial: "Tight pacing, accessible language, hooky dialogue. Reader engagement and momentum.",
       transgressive: "TRANSGRESSIVE MODE (Authorial Intent): Dark realism, grotesque, extremity is assumed intentional. Evaluate CONTROL and PRECISION, not moral alignment. Ask 'Is this precise?' not 'Is this offensive?' Flag ONLY: repetitive shock without escalation, contradicts internal logic, weakens character integrity, collapses into unintentional parody. Do NOT flag: offensive language, violence, disturbing content, moral ambiguity. Preserve dark voice and thematic function.",
-      trauma_memoir: "Survivor testimony. Psychological accuracy is paramount. Respect embodied experience. Flag only: gratuitousness without therapeutic purpose, exploitation of trauma, invented details, or tonal inconsistency. Preserve authentic voice and sensory truth."
+      testimony: "Survivor testimony. Psychological accuracy is paramount. Respect embodied experience. Flag only: gratuitousness without therapeutic purpose, exploitation of trauma, invented details, or tonal inconsistency. Preserve authentic voice and sensory truth."
     }[style_mode] || "Standard industry conventions.";
 
     // STAGE 1: Detect risk patterns (candidates only, not final decisions)
@@ -216,8 +216,8 @@ CRITICAL RULES (NON-NEGOTIABLE):
    - FLAG ONLY IF: repetitive without escalation, contradicts internal logic, weakens character integrity, unintentional parody
    - QUESTION: "Is this precise and controlled?" NOT "Is this appropriate?"
    - Evaluate: thematic function, psychological truth, narrative control
-   ` : style_mode === 'trauma_memoir' ? `
-   - TRAUMA MEMOIR MODE: Treat content as survivor testimony
+   ` : style_mode === 'testimony' ? `
+   - TESTIMONY MODE: Treat content as survivor testimony
    - Do not flag difficult content as "gratuitous" unless it serves no therapeutic/narrative purpose
    - Preserve sensory/embodied experience even when disturbing
    - Flag ONLY: invented details, exploitation framing, tonal breaks
@@ -324,8 +324,8 @@ CRITICAL VALIDATION RULES (NON-NEGOTIABLE):
    - FLAG ONLY IF: repetitive shock (no escalation), contradicts character logic, narrative incoherence, unintentional parody
    - NEVER: soften, moralize, suggest removal of darkness, flag as "gratuitous" or "offensive"
    - PRESERVE: authorial control, dark voice, extremity, moral ambiguity
-   ` : style_mode === 'trauma_memoir' ? `
-   - TRAUMA MEMOIR MODE ACTIVE: Difficult content is testimony, not gratuitousness
+   ` : style_mode === 'testimony' ? `
+   - TESTIMONY MODE ACTIVE: Difficult content is testimony, not gratuitousness
    - Preserve embodied/sensory detail even when disturbing (key to authenticity)
    - Flag ONLY IF: exploitation framing, invented details, breaks psychological truth
    - Do NOT suggest "toning down" survivor experience

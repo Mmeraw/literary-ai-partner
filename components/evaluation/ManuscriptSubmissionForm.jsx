@@ -20,8 +20,6 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess }) {
   const [error, setError] = useState(null);
 
   const [englishVariant, setEnglishVariant] = useState("us");
-  const [evaluationMode, setEvaluationMode] = useState("standard");
-  const [voicePreservationLevel, setVoicePreservationLevel] = useState("balanced");
 
   const wordCount = useMemo(() => {
     return manuscriptText.trim().split(/\s+/).filter(Boolean).length;
@@ -114,8 +112,6 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess }) {
         job_type: "evaluate_full",
         manuscript_title: projectTitle,
         english_variant: englishVariant,
-        evaluation_mode: evaluationMode,
-        voice_preservation_level: voicePreservationLevel,
         ...(hasSelectedManuscript
           ? { manuscript_id: selectedManuscriptId }
           : {
@@ -293,53 +289,11 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess }) {
                 </select>
               </div>
 
-              <div className="rounded-xl border border-gray-200 p-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">Evaluation Mode</label>
-                <div className="space-y-2 text-sm">
-                  <label className="flex items-center gap-2 rounded-md border border-gray-200 p-2">
-                    <input
-                      type="radio"
-                      name="evaluation_mode"
-                      value="standard"
-                      checked={evaluationMode === "standard"}
-                      onChange={() => setEvaluationMode("standard")}
-                    />
-                    <span>Standard (agent-ready defaults)</span>
-                  </label>
-                  <label className="flex items-center gap-2 rounded-md border border-gray-200 p-2">
-                    <input
-                      type="radio"
-                      name="evaluation_mode"
-                      value="transgressive"
-                      checked={evaluationMode === "transgressive"}
-                      onChange={() => setEvaluationMode("transgressive")}
-                    />
-                    <span>Transgressive (craft, not comfort)</span>
-                  </label>
-                  <label className="flex items-center gap-2 rounded-md border border-gray-200 p-2">
-                    <input
-                      type="radio"
-                      name="evaluation_mode"
-                      value="trauma_memoir"
-                      checked={evaluationMode === "trauma_memoir"}
-                      onChange={() => setEvaluationMode("trauma_memoir")}
-                    />
-                    <span>Trauma Memoir (survivor testimony)</span>
-                  </label>
-                </div>
-              </div>
-
-              <div className="rounded-xl border border-gray-200 p-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">Voice Preservation Level</label>
-                <select
-                  value={voicePreservationLevel}
-                  onChange={(e) => setVoicePreservationLevel(e.target.value)}
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
-                >
-                  <option value="maximum">Maximum</option>
-                  <option value="balanced">Balanced</option>
-                  <option value="polish">Polish</option>
-                </select>
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+                <h4 className="text-sm font-semibold text-amber-900 mb-1">Mode confirmation happens after analysis</h4>
+                <p className="text-sm text-amber-800">
+                  Mode will be detected after analysis and confirmed with you before Revise.
+                </p>
               </div>
             </section>
 

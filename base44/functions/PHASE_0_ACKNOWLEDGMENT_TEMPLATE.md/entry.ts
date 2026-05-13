@@ -27,7 +27,7 @@ We will reuse the existing `governedEvaluateEntry` function as the primary entry
 
 **No New Entry Points:**
 
-We will not create alternative entry paths that circumvent governance. Any new evaluation modes (transgressive, trauma memoir, etc.) will be routed through the existing governed entry with mode flags, not separate endpoints.
+We will not create alternative entry paths that circumvent governance. Any new evaluation modes (transgressive, testimony, etc.) will be routed through the existing governed entry with mode flags, not separate endpoints.
 
 **Artifact Reference:**
 - `functions/governedEvaluateEntry.js` (existing)

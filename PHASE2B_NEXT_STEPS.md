@@ -137,7 +137,7 @@ Replace placeholder with real implementation above, then:
 sleep 5
 
 # Queue a job for manuscript ID 1
-# Allowed values: policy_family IN ('standard','dark_fiction','trauma_memoir')
+# Allowed values: policy_family IN ('standard','dark_fiction','testimony')
 #                 voice_preservation_level IN ('strict','balanced','expressive')
 #                 english_variant IN ('us','uk','ca','au')
 docker exec supabase_db_literary-ai-partner psql -U postgres -d postgres -c "

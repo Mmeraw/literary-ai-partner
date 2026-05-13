@@ -44,6 +44,7 @@ const mockListProposalsForSession = jest.fn<
   (revisionSessionId: string) => Promise<ChangeProposal[]>
 >();
 const mockLogRevisionEvent = jest.fn<(input: unknown) => Promise<void>>();
+const mockGetSupabaseAdminClient = jest.fn();
 
 jest.mock("@/lib/manuscripts/versions", () => ({
   createDerivedVersion: mockCreateDerivedVersion,
@@ -65,6 +66,10 @@ jest.mock("@/lib/revision/sessions", () => ({
 
 jest.mock("@/lib/revision/logRevisionEvent", () => ({
   logRevisionEvent: mockLogRevisionEvent,
+}));
+
+jest.mock("@/lib/supabase", () => ({
+  getSupabaseAdminClient: mockGetSupabaseAdminClient,
 }));
 
 const { applyRevisionSession } = require("@/lib/revision/apply") as {
@@ -112,6 +117,32 @@ describe("applyRevisionSession atomicity", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+
+    mockGetSupabaseAdminClient.mockReturnValue({
+      from: () => ({
+        select: () => ({
+          eq: () => ({
+            eq: () => ({
+              order: () => ({
+                limit: () => ({
+                  maybeSingle: async () => ({
+                    data: {
+                      content: {
+                        confirmed_mode: {
+                          evaluationMode: "STANDARD",
+                          voicePreservationMode: "BALANCED",
+                        },
+                      },
+                    },
+                    error: null,
+                  }),
+                }),
+              }),
+            }),
+          }),
+        }),
+      }),
+    });
 
     mockGetRevisionSessionById.mockResolvedValue({
       id: "session-1",
