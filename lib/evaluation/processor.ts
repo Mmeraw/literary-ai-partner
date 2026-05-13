@@ -107,6 +107,10 @@ import { detectContextContamination } from '@/lib/evaluation/governance/contextC
 import { assertClaimedJobsContract } from '@/lib/jobs/contracts/claimEvaluationJobs.contract';
 import { finalizeJobFailure } from '@/lib/jobs/jobStore.supabase';
 import { ensureChunksFromText } from '@/lib/manuscripts/chunks';
+import {
+  buildNonEvaluativeWarning,
+  stripNonEvaluativeSections,
+} from '@/lib/manuscripts/nonEvaluativeSections';
 import type { ManuscriptChunkEvidence } from '@/lib/evaluation/pipeline/types';
 
 // DB bootstrap — intentionally reads process.env directly (not evaluation config).
@@ -1695,16 +1699,19 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
     console.log(`[Processor] Manuscript ${manuscript.id} fetched: "${manuscript.title}"`);
 
     const { text: resolvedManuscriptText } = await resolveManuscriptText(supabase, manuscript as Manuscript);
-    if (!resolvedManuscriptText || resolvedManuscriptText.trim().length === 0) {
+    const stripResult = stripNonEvaluativeSections(resolvedManuscriptText || '');
+    const nonEvaluativeWarning = buildNonEvaluativeWarning(stripResult.excludedSections);
+
+    if (!stripResult.sanitizedText || stripResult.sanitizedText.trim().length === 0) {
       const contentError = 'Manuscript text unavailable: neither manuscripts.content nor manuscript_chunks.content found';
       await markFailed(contentError);
 
       return { success: false, error: contentError };
     }
 
-    if (!isManuscriptTextLongEnough(resolvedManuscriptText, evalMinManuscriptWords)) {
+    if (!isManuscriptTextLongEnough(stripResult.sanitizedText, evalMinManuscriptWords)) {
       const shortContentError =
-        `Manuscript text too short for reliable evaluation: ${resolvedManuscriptText.trim().split(/\s+/).length} words ` +
+        `Manuscript text too short for reliable evaluation: ${stripResult.sanitizedText.trim().split(/\s+/).length} words ` +
         `(minimum ${evalMinManuscriptWords} words)`;
       await markFailed(shortContentError);
 
@@ -1731,13 +1738,24 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
 
     const manuscriptWithContent: Manuscript = {
       ...(manuscript as Manuscript),
-      content: resolvedManuscriptText,
+      content: stripResult.sanitizedText,
     };
+
+    if (stripResult.excludedSections.length > 0) {
+      progressState.excluded_non_evaluative_sections = stripResult.excludedSections.map((section) => ({
+        kind: section.kind,
+        label: section.label,
+        start_line: section.startLine,
+        end_line: section.endLine,
+      }));
+    }
+
+    const preChunkSanitizedText = manuscriptWithContent.content || '';
 
     const chunkRouting = await maybeEnsureLongFormChunks({
       manuscriptId: manuscriptWithContent.id,
       jobId: String(job.id),
-      manuscriptText: manuscriptWithContent.content || '',
+      manuscriptText: preChunkSanitizedText,
     });
     progressState.chunk_routing = chunkRouting;
 
@@ -1843,7 +1861,9 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
     });
 
     const timeoutScopeProfile = classifySubmissionScope(
-      resolvedManuscriptText,
+      chunkRouting.route === 'long_form'
+        ? preChunkSanitizedText
+        : (manuscriptWithContent.content || ''),
       chunkRouting.chunk_count,
     );
 
@@ -2425,6 +2445,7 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
             `[ArtifactValidation:${artifactGateDecision.verdict}] reason_codes=${artifactGateDecision.reasonCodes.join(',')}`,
           ]
         : []),
+      ...(nonEvaluativeWarning ? [nonEvaluativeWarning] : []),
     ];
     effectiveEvaluationResult.governance.transparency = {
       ...(effectiveEvaluationResult.governance.transparency ?? {}),
@@ -2518,6 +2539,7 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
           ? `Pass 1 and Pass 2 analyzed partial chunk coverage (~${coverageForReporting.analyzedWords} of ${coverageForReporting.sourceWords} words) and cannot claim manuscript-wide full coverage.`
           : `Pass 1 and Pass 2 analyzed a sampled prompt window (~${coverageForReporting.analyzedWords} of ${coverageForReporting.sourceWords} words; ${promptCoverage.budgetChars}-char budget).`,
       'Pass 3 synthesis uses a compressed manuscript reference window for arbitration context.',
+      ...(nonEvaluativeWarning ? [nonEvaluativeWarning] : []),
       ...effectiveEvaluationResult.governance.limitations.filter(
         (item) =>
           item !== 'Single-chunk evaluation; multi-chunk synthesis in Phase 2.8' &&

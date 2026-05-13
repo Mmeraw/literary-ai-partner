@@ -4,6 +4,7 @@
 import { getSupabaseAdminClient } from "@/lib/supabase";
 import { randomUUID } from "crypto";
 import { chunkManuscript, ChunkSpec } from "./chunking";
+import { stripNonEvaluativeSections } from "./nonEvaluativeSections";
 
 // Lazy-initialized admin client - returns null when credentials missing
 let _supabase: ReturnType<typeof getSupabaseAdminClient> | undefined;
@@ -752,7 +753,8 @@ export async function ensureChunks(
 
   // Otherwise, fetch manuscript text and chunk it
   const text = await getManuscriptText(manuscriptId);
-  const chunks = await chunkManuscript(text);
+  const { sanitizedText } = stripNonEvaluativeSections(text);
+  const chunks = await chunkManuscript(sanitizedText);
 
   // Upsert chunks (link to job)
   await upsertChunks(manuscriptId, chunks, jobId);
@@ -793,7 +795,9 @@ export async function ensureChunksFromText(
   }
 
   // Chunk the processor-resolved text directly — no re-resolution.
-  const chunks = await chunkManuscript(manuscriptText);
+  // Non-evaluative sections are stripped prior to chunking.
+  const { sanitizedText } = stripNonEvaluativeSections(manuscriptText);
+  const chunks = await chunkManuscript(sanitizedText);
   const ensured_count = chunks.length;
 
   if (ensured_count === 0) {
