@@ -102,3 +102,7 @@ worktrees/
 .worktrees/
 *.log
 .env*.local
+
+# Pipeline stress harness output (artifact-only; .gitkeep tracked)
+stress-results/*
+!stress-results/.gitkeep
