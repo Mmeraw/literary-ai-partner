@@ -1,0 +1,30 @@
+3,4c3,4
+< C-chapter-straddle,W-60k,chunk,chunk:chapter-straddle,success,success,,100.0,true,none,14,0,0,1
+< C-empty,W-25k,chunk,chunk:empty,success,success,,100.0,true,none,16,0,0,0
+---
+> C-chapter-straddle,W-60k,chunk,chunk:chapter-straddle,success,success,,100.0,true,none,14,0,0,0
+> C-empty,W-25k,chunk,chunk:empty,success,success,,100.0,true,none,15,0,0,0
+6,7c6,7
+< L-429,W-25k,llm,llm:rate-limit,fail,fail,PASS1_FAILED,0.0,false,none,1,1,1,
+< L-500,W-25k,llm,llm:server-error,fail,fail,PASS1_FAILED,0.0,false,none,1,0,0,
+---
+> L-429,W-25k,llm,llm:rate-limit,fail,fail,PASS1_FAILED,0.0,false,none,0,0,0,
+> L-500,W-25k,llm,llm:server-error,fail,fail,PASS1_FAILED,0.0,false,none,0,0,0,
+10c10
+< L-finish-length,W-25k,llm,llm:finish-length,fail,fail,PASS1_FAILED,0.0,false,none,1,0,0,
+---
+> L-finish-length,W-25k,llm,llm:finish-length,fail,fail,PASS1_FAILED,0.0,false,none,0,0,0,
+15c15
+< M-no-chap,W-137k,marker,manuscript:no-chapters,success,success,,100.0,true,none,85,0,0,1
+---
+> M-no-chap,W-137k,marker,manuscript:no-chapters,success,success,,100.0,true,none,101,0,0,0
+20,23c20,23
+< W-200k,W-200k,wordcount,none,success,success,,100.0,true,none,152,0,0,0
+< W-25k,W-25k,wordcount,none,success,success,,100.0,true,none,17,0,0,0
+< W-5k,W-5k,wordcount,none,success,success,,100.0,true,none,18,1,0,1
+< W-60k,W-60k,wordcount,none,success,success,,100.0,true,none,37,0,0,0
+---
+> W-200k,W-200k,wordcount,none,success,success,,100.0,true,none,151,0,0,0
+> W-25k,W-25k,wordcount,none,success,success,,100.0,true,none,18,1,1,0
+> W-5k,W-5k,wordcount,none,success,success,,100.0,true,none,18,0,0,0
+> W-60k,W-60k,wordcount,none,success,success,,100.0,true,none,38,0,0,0
