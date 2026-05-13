@@ -783,6 +783,10 @@ export type EnsureChunksFromTextResult = {
   overlap_words?: number;
   /** Derived overlap/duplication chars = chunk_storage_chars - source_manuscript_chars. */
   overlap_chars?: number;
+  /** Largest chunk content length in chars (used by the CHUNK_BUDGET_OVERFLOW post-condition). */
+  max_chunk_chars?: number;
+  /** chunk_index of the chunk whose content matched max_chunk_chars. */
+  max_chunk_index?: number;
 };
 
 function countWordsFromText(text: string): number {
@@ -825,6 +829,15 @@ export async function ensureChunksFromText(
   const chunk_storage_chars = chunks.reduce((acc, chunk) => acc + chunk.content.length, 0);
   const overlap_words = Math.max(0, chunk_storage_words - source_manuscript_words);
   const overlap_chars = Math.max(0, chunk_storage_chars - source_manuscript_chars);
+  let max_chunk_chars = 0;
+  let max_chunk_index = 0;
+  for (const chunk of chunks) {
+    const len = chunk.content.length;
+    if (len > max_chunk_chars) {
+      max_chunk_chars = len;
+      max_chunk_index = chunk.chunk_index;
+    }
+  }
 
   if (ensured_count === 0) {
     throw new Error(
@@ -864,5 +877,7 @@ export async function ensureChunksFromText(
     chunk_storage_chars,
     overlap_words,
     overlap_chars,
+    max_chunk_chars,
+    max_chunk_index,
   };
 }

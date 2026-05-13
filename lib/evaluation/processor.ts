@@ -158,6 +158,9 @@ type ChunkRoutingTelemetry = {
   persisted_chunk_count?: number;
   chunk_source?: 'processor_resolved_text';
   verified_at?: string;
+  // Largest chunk size — surfaced for the CHUNK_BUDGET_OVERFLOW post-condition.
+  max_chunk_chars?: number;
+  max_chunk_index?: number;
 }
 
 type FinalTextProvenance = {
@@ -943,6 +946,8 @@ async function maybeEnsureLongFormChunks(args: {
     persisted_chunk_count: chunkResult.persisted_count,
     chunk_source: chunkResult.chunk_source,
     verified_at: chunkResult.verified_at,
+    max_chunk_chars: chunkResult.max_chunk_chars,
+    max_chunk_index: chunkResult.max_chunk_index,
   };
 }
 
@@ -1798,6 +1803,41 @@ export async function processEvaluationJob(jobId: string): Promise<{ success: bo
         diagnostics: { chunk_routing: chunkRouting },
       });
       return { success: false, error: chunkMaterializationError };
+    }
+
+    // Post-condition: every materialized chunk MUST fit the Pass 1 prompt window.
+    // Audit PR #1 — prevent the Cartel Babies failure class (137 758-word manuscript →
+    // 720 s PASS1_TIMEOUT). Fail closed BEFORE Pass 1 dispatch with a typed
+    // CHUNK_BUDGET_OVERFLOW so the user gets actionable feedback in <100 ms
+    // instead of absorbing the full LONG_FORM_TIMEOUT_FLOOR_MS.
+    if (
+      chunkRouting.route === 'long_form' &&
+      typeof chunkRouting.max_chunk_chars === 'number' &&
+      chunkRouting.max_chunk_chars > 0
+    ) {
+      const charBudget = chunkRouting.prompt_budget_chars;
+      const budgetCeiling = Math.floor(charBudget * 0.95);
+      if (chunkRouting.max_chunk_chars > budgetCeiling) {
+        const violatingIndex = chunkRouting.max_chunk_index ?? 0;
+        const ratio = charBudget > 0 ? chunkRouting.max_chunk_chars / charBudget : 0;
+        const chunkBudgetError =
+          `Chunker post-condition violated: chunk ${violatingIndex} has ` +
+          `char_count=${chunkRouting.max_chunk_chars} which exceeds 95% of ` +
+          `inputCharBudget (${charBudget}). Pass 1 cannot complete within the prompt ` +
+          `window — failing closed before dispatch.`;
+        await markFailed(chunkBudgetError, 'CHUNK_BUDGET_OVERFLOW', {
+          pipelineStage: 'chunking',
+          reasonCodes: ['CHUNK_BUDGET_OVERFLOW'],
+          diagnostics: {
+            chunk_routing: chunkRouting,
+            violating_chunk_index: violatingIndex,
+            chunk_char_count: chunkRouting.max_chunk_chars,
+            char_budget: charBudget,
+            ratio,
+          },
+        });
+        return { success: false, error: chunkBudgetError };
+      }
     }
 
     let manuscriptChunksForPipeline: ManuscriptChunkEvidence[] | undefined;
