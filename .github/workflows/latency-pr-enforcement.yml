@@ -12,8 +12,8 @@ jobs:
       contents: read
 
     steps:
-      - name: Detect exempt-scope diff
-        id: scope
+      - name: Classify PR by diff
+        id: classify
         uses: actions/github-script@v7
         with:
           script: |
@@ -24,97 +24,304 @@ jobs:
               github.rest.pulls.listFiles,
               { owner, repo, pull_number, per_page: 100 }
             );
-
             const changed = files.map((f) => f.filename);
 
-            const isDocs = (name) => name.startsWith("docs/");
-            const isMigration = (name) => name.startsWith("supabase/migrations/");
-            const isAdminUi =
-              (name) =>
-                name.startsWith("app/admin/") ||
-                name.startsWith("components/admin/");
+            const matchesAny = (name, prefixes) =>
+              prefixes.some((p) => name.startsWith(p));
 
-            const exemptOnly =
-              changed.length > 0 &&
-              changed.every((name) => isDocs(name) || isMigration(name) || isAdminUi(name));
+            // Evaluation-pipeline-adjacent code. Every path verified on main
+            // via `git ls-tree main <path>` at the time of this commit.
+            const EVAL_PREFIXES = [
+              "lib/evaluation/",
+              "lib/pipeline/",
+              "lib/canon/",
+              "lib/governance/",
+              "lib/invariants/",
+              "lib/observability/",
+              "lib/monitoring/",
+              "lib/reliability/",
+              "lib/manuscripts/",
+              "lib/llm/",
+              "lib/jobs/",
+              "lib/release/",
+              "lib/artifacts/",
+              "lib/config/",
+              "app/api/workers/",
+              "app/api/evaluations/",
+              "app/api/evaluate/",
+              "app/api/jobs/",
+              "app/api/manuscripts/",
+              "tests/",
+              "__tests__/",
+              "workers/",
+              "schemas/",
+              "types/",
+              "fixtures/",
+              "testdata/",
+              "calibration/",
+              "evidence/",
+              "artifacts/",
+              "protected/",
+              "prompts/",
+            ];
+            const UI_PREFIXES = [
+              "app/admin/",
+              "app/dashboard/",
+              "app/evaluate/",
+              "app/login/",
+              "app/signup/",
+              "app/output/",
+              "app/reports/",
+              "app/revise/",
+              "app/share/",
+              "app/pricing/",
+              "app/marketing-preview/",
+              "app/private-beta/",
+              "app/resources/",
+              "app/storygate/",
+              "app/convert/",
+              "app/your-writing/",
+              "components/",
+              "public/",
+              "lib/ui/",
+              "lib/hooks/",
+            ];
+            // Root-level UI files (exact match, not prefix).
+            const UI_EXACT = new Set([
+              "app/page.tsx",
+              "app/page.jsx",
+              "app/layout.tsx",
+              "app/layout.jsx",
+              "app/globals.css",
+              "app/robots.txt",
+            ]);
+            // Application code that is NOT evaluation-pipeline-adjacent.
+            // Examples: auth, db, admin tooling, security, generic services.
+            const CODE_PREFIXES = [
+              "lib/auth/",
+              "lib/db/",
+              "lib/admin/",
+              "lib/security/",
+              "lib/operations/",
+              "lib/activity/",
+              "lib/errors/",
+              "lib/supabase/",
+              "lib/revision/",
+              "lib/reportShares/",
+              "src/",
+              "entities/",
+              "base44/",
+              "app/api/auth/",
+              "app/api/admin/",
+              "app/api/activity/",
+              "app/api/report-shares/",
+              "app/api/user/",
+            ];
+            const CODE_EXACT = new Set([
+              "lib/audit.js",
+              "lib/governance.js",
+              "lib/supabase.js",
+              "lib/rateLimit.ts",
+            ]);
+            const INFRA_PREFIXES = [
+              ".github/",
+              ".vscode/",
+              ".githooks/",
+              "scripts/",
+              "ops/",
+            ];
+            const INFRA_EXACT = new Set([
+              "vercel.json",
+              "package.json",
+              "package-lock.json",
+              "pnpm-lock.yaml",
+              "yarn.lock",
+              "tsconfig.json",
+              "tsconfig.base.json",
+              "next.config.js",
+              "next.config.mjs",
+              "next.config.ts",
+              "eslint.config.js",
+              "eslint.config.mjs",
+              "tailwind.config.js",
+              "tailwind.config.ts",
+              "postcss.config.js",
+              "postcss.config.mjs",
+              "lighthouserc.yml",
+              "Dockerfile",
+              "Makefile",
+              ".npmrc",
+              ".nvmrc",
+            ]);
+            const DOCS_PREFIXES = ["docs/", "archive/"];
+            const MIGRATION_PREFIXES = ["supabase/migrations/"];
 
-            const skip = exemptOnly;
+            const isEval = (n) => matchesAny(n, EVAL_PREFIXES);
+            const isUi = (n) => matchesAny(n, UI_PREFIXES) || UI_EXACT.has(n);
+            const isCode = (n) => matchesAny(n, CODE_PREFIXES) || CODE_EXACT.has(n);
+            const isInfra = (n) => matchesAny(n, INFRA_PREFIXES) || INFRA_EXACT.has(n);
+            const isDocs = (n) =>
+              matchesAny(n, DOCS_PREFIXES) ||
+              (!n.includes("/") && n.toLowerCase().endsWith(".md"));
+            const isMigration = (n) => matchesAny(n, MIGRATION_PREFIXES);
 
-            core.setOutput("skip", skip ? "true" : "false");
-            core.info(`Changed files: ${changed.length}`);
-            core.info(`exemptOnly=${exemptOnly} skip=${skip}`);
+            const anyEval = changed.some(isEval);
 
-      - name: Skip for exempt-scope PRs
-        if: steps.scope.outputs.skip == 'true'
-        run: |
-          echo "Skipping latency template enforcement: diff limited to docs/migrations/admin-ui paths."
-
-      - name: Validate PR body structure
-        if: steps.scope.outputs.skip != 'true'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const pr = context.payload.pull_request;
-            const body = pr.body || "";
-
-            function assert(condition, message) {
-              if (!condition) {
-                core.setFailed(message);
+            let type;
+            if (anyEval) {
+              type = "evaluation";
+            } else {
+              const buckets = new Set();
+              for (const n of changed) {
+                if (isUi(n)) buckets.add("ui");
+                else if (isInfra(n)) buckets.add("infra");
+                else if (isDocs(n)) buckets.add("docs");
+                else if (isMigration(n)) buckets.add("migration");
+                else if (isCode(n)) buckets.add("code");
+                else buckets.add("unclassified");
+              }
+              if (buckets.has("unclassified")) {
+                core.warning(
+                  "Unclassified path(s) detected — falling back to strict evaluation validator. Update docs/PR_TEMPLATE_TYPED_SCOPE_GOVERNANCE.md to extend the taxonomy."
+                );
+                type = "evaluation";
+              } else if (buckets.size === 1) {
+                type = [...buckets][0];
+              } else {
+                type = "mixed";
+                core.setOutput("buckets", [...buckets].join(","));
               }
             }
 
-            // --- REQUIRED GLOBAL SECTIONS ---
-            assert(body.includes("## Summary"), "Missing: Summary section");
-            assert(body.includes("## Scope"), "Missing: Scope section");
-            assert(body.includes("## Contract Integrity"), "Missing: Contract Integrity section");
-            assert(body.includes("## Behavioral Quality"), "Missing: Behavioral Quality section");
-            assert(body.includes("## Latency Evidence"), "Missing: Latency Evidence section");
-            assert(body.includes("## Risks & Anomalies"), "Missing: Risks & Anomalies section");
+            core.info(`Changed files: ${changed.length}`);
+            core.info(`Classified PR type: ${type}`);
+            core.setOutput("type", type);
 
-            // --- LATENCY TABLE CHECK ---
-            assert(
-              body.includes("Baseline (Pre-change)") &&
-              body.includes("Post-change Runs"),
-              "Missing latency evidence tables (baseline + post-change runs)"
-            );
+      - name: Validate PR body
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const type = "${{ steps.classify.outputs.type }}";
+            const buckets = "${{ steps.classify.outputs.buckets }}";
+            const pr = context.payload.pull_request;
+            const body = pr.body || "";
 
-            // --- MINIMUM RUN COUNT ---
-            assert(body.includes("Run 1"), "Missing: Run 1 evidence");
-            assert(body.includes("Run 2"), "Missing: Run 2 evidence");
+            const failures = [];
+            const assert = (cond, msg) => { if (!cond) failures.push(msg); };
 
-            // --- PASS SELECTION ---
-            const isPass1 = body.includes("[x] Pass 1") || body.includes("[X] Pass 1");
-            const isPass2 = body.includes("[x] Pass 2") || body.includes("[X] Pass 2");
-            const isPass3 = body.includes("[x] Pass 3") || body.includes("[X] Pass 3");
+            const hasSection = (h) => body.includes(h);
+            const hasNoPipelineImpact = () => {
+              const m = body.match(/^No-Pipeline-Impact:\s*(.+)$/m);
+              return !!(m && m[1].trim().length > 0);
+            };
 
-            assert(
-              isPass1 || isPass2 || isPass3,
-              "You must select Pass 1, Pass 2, or Pass 3"
-            );
+            const commonFloor = () => {
+              assert(hasSection("## Summary"), "Missing: Summary section");
+              assert(hasSection("## Scope"), "Missing: Scope section");
+              assert(hasSection("## Risks & Anomalies"), "Missing: Risks & Anomalies section");
+            };
 
-            // --- METRIC SANITY CHECKS ---
-            assert(
-              /pass\d?_?ms|passX_ms/.test(body),
-              "Missing pass latency metric (e.g. pass1_ms / pass2_ms / pass3_ms / passX_ms)"
-            );
-            assert(body.includes("total_ms"), "Missing total_ms metric");
-
-            // --- PASS 3 SPECIAL REQUIREMENT ---
-            if (isPass3) {
+            const validateEvaluation = () => {
+              assert(hasSection("## Summary"), "Missing: Summary section");
+              assert(hasSection("## Scope"), "Missing: Scope section");
+              assert(hasSection("## Contract Integrity"), "Missing: Contract Integrity section");
+              assert(hasSection("## Behavioral Quality"), "Missing: Behavioral Quality section");
+              assert(hasSection("## Latency Evidence"), "Missing: Latency Evidence section");
+              assert(hasSection("## Risks & Anomalies"), "Missing: Risks & Anomalies section");
               assert(
-                body.includes("criteria_count_by_state"),
-                "Pass 3 PRs must include divergence distribution (criteria_count_by_state)"
+                body.includes("Baseline (Pre-change)") && body.includes("Post-change Runs"),
+                "Missing latency evidence tables (baseline + post-change runs)"
               );
+              assert(body.includes("Run 1"), "Missing: Run 1 evidence");
+              assert(body.includes("Run 2"), "Missing: Run 2 evidence");
+
+              const isPass1 = body.includes("[x] Pass 1") || body.includes("[X] Pass 1");
+              const isPass2 = body.includes("[x] Pass 2") || body.includes("[X] Pass 2");
+              const isPass3 = body.includes("[x] Pass 3") || body.includes("[X] Pass 3");
+              assert(isPass1 || isPass2 || isPass3, "You must select Pass 1, Pass 2, or Pass 3");
+
+              assert(/pass\d?_?ms|passX_ms/.test(body), "Missing pass latency metric");
+              assert(body.includes("total_ms"), "Missing total_ms metric");
+              if (isPass3) {
+                assert(
+                  body.includes("criteria_count_by_state"),
+                  "Pass 3 PRs must include divergence distribution (criteria_count_by_state)"
+                );
+              }
+              assert(
+                body.includes("QG_") || body.includes("quality gate") || body.includes("Quality Gate"),
+                "Missing quality gate / anomaly disclosure"
+              );
+              assert(
+                body.includes("not reducing intelligence"),
+                "Missing final principle: must acknowledge quality preservation rule"
+              );
+            };
+
+            const validateUi = () => {
+              commonFloor();
+              assert(hasSection("## Visual Evidence"), "Missing: Visual Evidence section");
+              assert(hasSection("## Accessibility"), "Missing: Accessibility section");
+              assert(hasSection("## Browser Targets"), "Missing: Browser Targets section");
+              assert(hasNoPipelineImpact(), "Missing: No-Pipeline-Impact: <value> line");
+            };
+
+            const validateInfra = () => {
+              commonFloor();
+              assert(hasSection("## CI/Infra Scope"), "Missing: CI/Infra Scope section");
+              assert(hasSection("## Rollback Plan"), "Missing: Rollback Plan section");
+              assert(hasSection("## Affected Workflows"), "Missing: Affected Workflows section");
+              assert(hasNoPipelineImpact(), "Missing: No-Pipeline-Impact: <value> line");
+            };
+
+            const validateDocs = () => {
+              commonFloor();
+              assert(hasNoPipelineImpact(), "Missing: No-Pipeline-Impact: <value> line");
+            };
+
+            const validateMigration = () => {
+              commonFloor();
+              assert(hasSection("## Schema Diff"), "Missing: Schema Diff section");
+              assert(hasSection("## Rollback Plan"), "Missing: Rollback Plan section");
+              assert(hasSection("## Data Backfill"), "Missing: Data Backfill section");
+              assert(hasNoPipelineImpact(), "Missing: No-Pipeline-Impact: <value> line");
+            };
+
+            const validateCode = () => {
+              commonFloor();
+              assert(hasSection("## Tests Updated"), "Missing: Tests Updated section");
+              assert(hasNoPipelineImpact(), "Missing: No-Pipeline-Impact: <value> line");
+            };
+
+            const VALIDATORS = {
+              evaluation: validateEvaluation,
+              ui: validateUi,
+              infra: validateInfra,
+              docs: validateDocs,
+              migration: validateMigration,
+              code: validateCode,
+            };
+
+            core.info(`Running ${type} validator`);
+            if (type === "mixed") {
+              const types = buckets.split(",").filter(Boolean);
+              core.info(`Mixed buckets: ${types.join(", ")}`);
+              for (const t of types) {
+                if (VALIDATORS[t]) {
+                  core.info(`Running mixed-${t} validator`);
+                  VALIDATORS[t]();
+                }
+              }
+            } else if (VALIDATORS[type]) {
+              VALIDATORS[type]();
+            } else {
+              core.setFailed(`Unknown PR type: ${type}`);
+              return;
             }
 
-            // --- QUALITY / ANOMALY DISCLOSURE ---
-            assert(
-              body.includes("QG_") || body.includes("quality gate") || body.includes("Quality Gate"),
-              "Missing quality gate / anomaly disclosure"
-            );
-
-            // --- FINAL RULE PRESENCE ---
-            assert(
-              body.includes("not reducing intelligence"),
-              "Missing final principle: must acknowledge quality preservation rule"
-            );
+            if (failures.length > 0) {
+              for (const f of failures) core.error(f);
+              core.setFailed(`${failures.length} validation failure(s) for PR type "${type}"`);
+            } else {
+              core.info(`✅ PR body passes ${type} validator`);
+            }

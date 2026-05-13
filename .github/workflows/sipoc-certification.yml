@@ -2,13 +2,6 @@ name: SIPOC Certification
 
 "on":
   pull_request:
-    paths:
-      - "docs/SIPOC_EVALUATION_PROCESS.md"
-      - "tests/fixtures/sipoc/**"
-      - "scripts/validate-sipoc-fixtures.ts"
-      - "scripts/run-sipoc-harness.ts"
-      - "scripts/analyze-sipoc-results.ts"
-      - "package.json"
   push:
     branches:
       - main

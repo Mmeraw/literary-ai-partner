@@ -1,0 +1,18 @@
+# CODEOWNERS for literary-ai-partner
+#
+# Governance docs that require explicit owner approval before modification.
+# See docs/GOVERNANCE_AUTHORITY_CHAIN.md for the broader authority model.
+
+docs/MAP_REDUCE_PIPELINE_GOVERNANCE_BRIEF.md   @Mmeraw
+.github/CODEOWNERS                              @Mmeraw
+
+# Typed PR template governance (locked 2026-05-13)
+docs/PR_TEMPLATE_TYPED_SCOPE_GOVERNANCE.md     @Mmeraw
+.github/PULL_REQUEST_TEMPLATE/evaluation.md     @Mmeraw
+.github/PULL_REQUEST_TEMPLATE/ui.md             @Mmeraw
+.github/PULL_REQUEST_TEMPLATE/infra.md          @Mmeraw
+.github/PULL_REQUEST_TEMPLATE/docs.md           @Mmeraw
+.github/PULL_REQUEST_TEMPLATE/migration.md      @Mmeraw
+.github/PULL_REQUEST_TEMPLATE/code.md           @Mmeraw
+.github/pull_request_template.md                @Mmeraw
+.github/workflows/latency-pr-enforcement.yml    @Mmeraw
