@@ -65,3 +65,5 @@ QG_<gate-id>: <description or "no QG_ behavior changes">
 - expected_revisit: yes | no
 - replay_ids_at_risk:
 - replay_ids_targeted:
+
+<!-- pr-type: evaluation -->

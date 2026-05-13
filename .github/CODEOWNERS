@@ -1,0 +1,9 @@
+# Typed PR template governance (locked 2026-05-13)
+docs/PR_TEMPLATE_TYPED_SCOPE_GOVERNANCE.md     @Mmeraw
+.github/PULL_REQUEST_TEMPLATE/evaluation.md     @Mmeraw
+.github/PULL_REQUEST_TEMPLATE/ui.md             @Mmeraw
+.github/PULL_REQUEST_TEMPLATE/infra.md          @Mmeraw
+.github/PULL_REQUEST_TEMPLATE/docs.md           @Mmeraw
+.github/PULL_REQUEST_TEMPLATE/migration.md      @Mmeraw
+.github/pull_request_template.md                @Mmeraw
+.github/workflows/latency-pr-enforcement.yml    @Mmeraw
