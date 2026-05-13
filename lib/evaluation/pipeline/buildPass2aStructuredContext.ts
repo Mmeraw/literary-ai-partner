@@ -16,7 +16,7 @@ const ENTITY_PATTERN =
   /\b(?:\p{Lu}(?:\p{L}+|['’‘]\p{L}+)(?:['’‘-]\p{L}+)*|[A-Z]{2,})(?:\s+(?:\p{Lu}(?:\p{L}+|['’‘]\p{L}+)(?:['’‘-]\p{L}+)*|[A-Z]{2,})){0,2}\b/gu;
 const AGE_PATTERN = /\b\d{1,3}-year-old\b/gi;
 const DURATION_QUANTITY =
-  "(?:\\d+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|a|an|multiple|several|few|couple)";
+  "(?:\\d+|one(?:\\s*(?:-|–|to|through)\\s*)twelve|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|a|an|multiple|several|few|couple)";
 const DURATION_UNIT = "(?:years?|months?|weeks?|days?|trips?|decades?|centuries?|generations?)";
 const DURATION_PATTERN = new RegExp(
   `\\b(?:${DURATION_QUANTITY}\\s+${DURATION_UNIT}\\s+(?:later|after)|after\\s+${DURATION_QUANTITY}\\s+${DURATION_UNIT}|${DURATION_QUANTITY}\\s+${DURATION_UNIT}\\s+after|${DURATION_UNIT}\\s+later)\\b`,

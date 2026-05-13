@@ -10,6 +10,7 @@ describe('buildPass2aStructuredContext prep hardening', () => {
       'A decade later the herd split and reformed.',
       'Centuries later, the doctrine changed.',
       'A generation later, the old promise was tested.',
+      'One through twelve years later, the tribunal spoke again.',
     ].join(' ');
 
     const context = buildPass2aStructuredContext({ manuscriptText });
@@ -24,13 +25,30 @@ describe('buildPass2aStructuredContext prep hardening', () => {
         'a decade later',
         'centuries later',
         'a generation later',
+        'one through twelve years later',
       ]),
     );
   });
 
-  it('keeps timeline anchors non-empty when only spelled-out temporal anchors are present', () => {
-    const manuscriptText =
-      'One year later the ridge was silent. After eleven years the elders returned. A century later the lake remembered.';
+  it('keeps timeline anchors non-empty for Ancient Bloodlines spelled-out-only temporal anchors', () => {
+    const manuscriptText = [
+      'One year later, Newton crossed the ridge again.',
+      'After eleven years, Thorander reopened the old debate.',
+      'A century later, the lake remembered the same wound.',
+    ].join(' ');
+
+    const context = buildPass2aStructuredContext({ manuscriptText });
+
+    expect(context.timeline_anchors.length).toBeGreaterThan(0);
+    expect(context.timeline_anchors.some((a) => a.anchor_type === 'duration')).toBe(true);
+  });
+
+  it('keeps timeline anchors non-empty for Return to the Source styled spelled-out-only anchors', () => {
+    const manuscriptText = [
+      'A decade later, the Ridge law was read in silence.',
+      'After three generations, the Tribunal reopened the record.',
+      'One through twelve years later, the Animas testimony returned.',
+    ].join(' ');
 
     const context = buildPass2aStructuredContext({ manuscriptText });
 
