@@ -49,7 +49,7 @@ async function assertConfirmedModeForRevision(evaluationRunId: string): Promise<
       : null,
   );
 
-  if (!gate.ok) {
+  if (gate.ok === false) {
     throw new Error(
       `${gate.message} Validator boundary refusal: confirmedMode == null for evaluation_run_id=${evaluationRunId}`,
     );

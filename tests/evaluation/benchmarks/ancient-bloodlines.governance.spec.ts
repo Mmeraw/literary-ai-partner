@@ -192,10 +192,8 @@ describe('Ancient Bloodlines — Governance behavior benchmark', () => {
 
     const validation = validateEvaluationArtifact(artifact);
     expect(validation.ok).toBe(false);
-    if (!validation.ok) {
-      expect(
-        validation.issues.some((issue) => issue.code === 'LONG_FORM_UNCERTIFIED_MANUSCRIPT_WIDE_SCORE')
-      ).toBe(true);
+    if (validation.ok === false) {
+      expect(JSON.stringify(validation.issues)).toContain('LONG_FORM_UNCERTIFIED_MANUSCRIPT_WIDE_SCORE');
     }
   });
 

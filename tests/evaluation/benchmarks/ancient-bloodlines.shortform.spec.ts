@@ -149,14 +149,8 @@ describe('Ancient Bloodlines — SHORTFORM evaluation benchmark', () => {
         const min = expectedScore - SCORE_TOLERANCE;
         const max = expectedScore + SCORE_TOLERANCE;
 
-        expect(actualScore).toBeGreaterThanOrEqual(
-          min,
-          `${expectedCriterion.criterionName} score ${actualScore} below minimum ${min}`
-        );
-        expect(actualScore).toBeLessThanOrEqual(
-          max,
-          `${expectedCriterion.criterionName} score ${actualScore} above maximum ${max}`
-        );
+        expect(actualScore).toBeGreaterThanOrEqual(min);
+        expect(actualScore).toBeLessThanOrEqual(max);
       }
     });
 
@@ -412,10 +406,7 @@ describe('Ancient Bloodlines — SHORTFORM evaluation benchmark', () => {
 
       for (const anchor of anchors.anchors) {
         for (const key of anchor.criterionLinks) {
-          expect(reportKeys.has(key)).toBe(
-            true,
-            `Anchor ${anchor.anchorId} links to invalid criterion ${key}`
-          );
+          expect(reportKeys.has(key)).toBe(true);
         }
       }
     });
