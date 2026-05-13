@@ -141,7 +141,7 @@ async function main(): Promise<void> {
 
   const title = getArg("title") ?? inferTitle(sourcePath);
   const workType = getArg("work-type", "novel_chapter")!;
-  const model = getArg("model", "gpt-4o-mini")!;
+  const model = getArg("model", "gpt-5.1")!;
   const requestedPassTimeoutMs = positiveIntOrUndefined(getArg("pass-timeout-ms"));
   if (requestedPassTimeoutMs) {
     process.env.EVAL_PASS_TIMEOUT_MS = String(requestedPassTimeoutMs);

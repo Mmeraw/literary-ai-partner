@@ -20,7 +20,7 @@ describe('resolveEvalEnvContract', () => {
       const contract = resolveEvalEnvContract(BASE_ENV);
       expect(contract.inputCharBudget).toBe(40_000);
       expect(contract.synthesisRefCharBudget).toBe(8_000);
-      expect(contract.openAiModel).toBe('gpt-4o');
+      expect(contract.openAiModel).toBe('gpt-5.1');
       expect(contract.adjudicationMode).toBe('optional');
       expect(contract.latencyTraceEnabled).toBe(false);
       expect(contract.nodeEnv).toBe('test');
@@ -83,7 +83,7 @@ describe('resolveEvalEnvContract', () => {
       // Blank string falls back to default; non-empty but whitespace-only treated as empty
       // This tests that an explicitly set but empty model uses the default (no throw)
       const contract = resolveEvalEnvContract(env);
-      expect(contract.openAiModel).toBe('gpt-4o');
+      expect(contract.openAiModel).toBe('gpt-5.1');
     });
 
     it('throws on invalid NODE_ENV value', () => {
@@ -105,9 +105,9 @@ describe('resolveEvalEnvContract', () => {
       expect(contract.synthesisRefCharBudget).toBe(8_000);
     });
 
-    it('falls back to gpt-4o when EVAL_OPENAI_MODEL is undefined', () => {
+    it('falls back to gpt-5.1 when EVAL_OPENAI_MODEL is undefined', () => {
       const contract = resolveEvalEnvContract(BASE_ENV);
-      expect(contract.openAiModel).toBe('gpt-4o');
+      expect(contract.openAiModel).toBe('gpt-5.1');
     });
   });
 
