@@ -32,7 +32,7 @@ A complete governance package to prevent drift in the job system, especially whe
   - Prevents AI-generated drift
   - Enforces explicit failure over guessing
   
-- **[.github/pull_request_template.md](.github/pull_request_template.md)** — Review checklist
+- **[.github/PULL_REQUEST_TEMPLATE.md](.github/PULL_REQUEST_TEMPLATE.md)** — Review checklist
   - Forces governance consideration in PRs
   - Canon impact assessment
   

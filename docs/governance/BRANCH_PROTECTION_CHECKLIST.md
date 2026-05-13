@@ -61,7 +61,7 @@ At minimum, require the main CI workflow checks that back repo governance.
 Current repo-side governance files:
 
 - `.github/workflows/ci.yml`
-- `.github/pull_request_template.md`
+- `.github/PULL_REQUEST_TEMPLATE.md`
 - `REPO_GOVERNANCE.md`
 
 Suggested required checks once visible in GitHub:
