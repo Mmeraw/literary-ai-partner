@@ -183,8 +183,8 @@ describe("runPass1", () => {
     expect(result.pass).toBe(1);
     expect(result.axis).toBe("craft_execution");
     // RCA-PASS1-TOKEN-001: Pass1 must not use o3 in production.
-    // Default model resolves to gpt-4o (the reliable JSON extraction model).
-    expect(result.model).toBe(getCanonicalPipelineModel("gpt-4o"));
+    // Default model resolves to gpt-5.1 (Tier 1 500k TPM, reliable JSON extraction).
+    expect(result.model).toBe(getCanonicalPipelineModel("gpt-5.1"));
     expect(result.criteria).toHaveLength(13);
   });
 
@@ -206,8 +206,8 @@ describe("runPass1", () => {
       _createCompletion: captureCompletion,
     });
 
-    expect(requestedModel).toBe("gpt-4o");
-    expect(result.model).toBe("gpt-4o");
+    expect(requestedModel).toBe("gpt-5.1");
+    expect(result.model).toBe("gpt-5.1");
   });
 
   it("prefers EVAL_PASS1_MODEL over chunk/default routing", async () => {
@@ -414,7 +414,7 @@ describe("runPass1", () => {
 describe("RCA-PASS1-TOKEN-001 — Pass1 model routing and PV115-class reachability", () => {
   const registry = loadCanonicalRegistry();
 
-  it("E2E-04: production Pass1 always uses gpt-4o regardless of environment", async () => {
+  it("E2E-04: production Pass1 always uses gpt-5.1 regardless of environment", async () => {
     let requestedModel: string | undefined;
     const captureModel: CreateCompletionFn = async (params) => {
       requestedModel = params.model;
@@ -430,7 +430,7 @@ describe("RCA-PASS1-TOKEN-001 — Pass1 model routing and PV115-class reachabili
       _createCompletion: captureModel,
     });
 
-    expect(requestedModel).toBe(getCanonicalPipelineModel("gpt-4o"));
+    expect(requestedModel).toBe(getCanonicalPipelineModel("gpt-5.1"));
   });
 
   it("type-level: RunPass1Options must not accept a model override", () => {

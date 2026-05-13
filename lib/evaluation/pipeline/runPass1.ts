@@ -42,9 +42,9 @@ const DEFAULT_CHUNK_RETRY_BASE_MS = 10000;
  * Resolution order:
  *  1) EVAL_PASS1_MODEL
  *  2) EVAL_CHUNK_MODEL
- *  3) default baseline model (gpt-4o)
+ *  3) default baseline model (gpt-5.1)
  */
-const PASS1_DEFAULT_MODEL = "gpt-4o";
+const PASS1_DEFAULT_MODEL = "gpt-5.1";
 
 function resolvePass1Model(): string {
   return getCanonicalPass1Model(PASS1_DEFAULT_MODEL);

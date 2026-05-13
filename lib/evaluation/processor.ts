@@ -25,7 +25,7 @@
  * ─────────────────────────────────────────────────────────────────────
  * 
  * Real AI Evaluation (OPENAI_API_KEY configured):
- * • Calls OpenAI gpt-4o-mini with manuscript content
+ * • Calls the canonical pipeline model (EVAL_OPENAI_MODEL, default gpt-5.1) with manuscript content
  * • Returns structured EvaluationResultV2 with criterion-specific analysis
  * • Marks governance.warnings with "Real AI analysis" only
  * 

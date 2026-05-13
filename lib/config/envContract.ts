@@ -56,7 +56,7 @@ const SYNTHESIS_REF_CHAR_BUDGET_MIN = 1_000;
 const SYNTHESIS_REF_CHAR_BUDGET_MAX = 50_000;
 const SYNTHESIS_REF_CHAR_BUDGET_DEFAULT = 8_000;
 
-const OPENAI_MODEL_DEFAULT = 'gpt-4o';
+const OPENAI_MODEL_DEFAULT = 'gpt-5.1';
 
 /**
  * Parse a strict positive integer from an env string.

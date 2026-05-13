@@ -21,7 +21,7 @@ export interface CostEntry {
   jobId: string;
   /** Processing phase (e.g., "evaluation", "revision", "conversion") */
   phase: string;
-  /** LLM model used (e.g., "gpt-4o", "gpt-4o-mini") */
+  /** LLM model used (e.g., "gpt-5.1", "gpt-5-mini") */
   model: string;
   /** Input tokens consumed */
   inputTokens: number;
@@ -82,16 +82,30 @@ export interface ModelCostBreakdown {
 
 // ─── Model Pricing (USD per 1K tokens) ─────────────────────────────
 //
-// NOTE: These values are treated as configuration constants for relative tracking,
-// not a billing authority. Cost calculation returns an integer number of cents.
+// Values are OpenAI public standard rates (https://openai.com/api/pricing/)
+// expressed in USD per 1K tokens. Cost calculation returns an integer number
+// of cents. Add new entries here when adopting new models so cost telemetry
+// stays accurate.
+//
+// Last refreshed: 2026-05 — added GPT-5.x families, corrected legacy entries
+// that were previously stored at ~100x the real rate.
 //
 const MODEL_PRICING_USD_PER_1K: Record<string, { input: number; output: number }> = {
-  "gpt-4o": { input: 0.25, output: 1.0 },
-  "gpt-4o-mini": { input: 0.015, output: 0.06 },
-  "gpt-4-turbo": { input: 1.0, output: 3.0 },
-  "gpt-3.5-turbo": { input: 0.05, output: 0.15 },
-  "o3": { input: 10.0, output: 40.0 },
-  "o3-mini": { input: 1.10, output: 4.40 },
+  // GPT-5.x family (current production canonical)
+  "gpt-5.1": { input: 0.00125, output: 0.01 },
+  "gpt-5": { input: 0.00125, output: 0.01 },
+  "gpt-5-mini": { input: 0.00025, output: 0.002 },
+  "gpt-5-nano": { input: 0.00005, output: 0.0004 },
+  "gpt-5.4": { input: 0.0025, output: 0.015 },
+  "gpt-5.5": { input: 0.005, output: 0.03 },
+  // Legacy GPT-4 family (retained for backfill / historical job cost lookups)
+  "gpt-4o": { input: 0.0025, output: 0.01 },
+  "gpt-4o-mini": { input: 0.00015, output: 0.0006 },
+  "gpt-4-turbo": { input: 0.01, output: 0.03 },
+  "gpt-3.5-turbo": { input: 0.0005, output: 0.0015 },
+  // o-series (reasoning, retained for backfill)
+  "o3": { input: 0.002, output: 0.008 },
+  "o3-mini": { input: 0.0011, output: 0.0044 },
 };
 
 function safeNumber(n: unknown, fallback = 0): number {
@@ -107,7 +121,7 @@ export function calculateCostCents(
   outputTokens: number
 ): number {
   const pricing =
-    MODEL_PRICING_USD_PER_1K[model] ?? MODEL_PRICING_USD_PER_1K["gpt-4o-mini"];
+    MODEL_PRICING_USD_PER_1K[model] ?? MODEL_PRICING_USD_PER_1K["gpt-5.1"];
 
   const inTok = Math.max(0, Math.floor(safeNumber(inputTokens, 0)));
   const outTok = Math.max(0, Math.floor(safeNumber(outputTokens, 0)));
