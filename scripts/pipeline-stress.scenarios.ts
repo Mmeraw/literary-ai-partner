@@ -14,6 +14,7 @@
  */
 
 import type { LlmFault } from "../tests/stress/mocks/llm";
+import type { PerplexityFault } from "../tests/stress/mocks/perplexity";
 import type { SupabaseFault } from "../tests/stress/mocks/supabase";
 import type { WordBucket } from "../tests/stress/fixtures/generate";
 
@@ -48,12 +49,19 @@ export interface ScenarioExpectation {
 
 export interface StressRow {
   id: string;
-  category: "wordcount" | "chunk" | "marker" | "llm" | "storage";
+  category: "wordcount" | "chunk" | "marker" | "llm" | "storage" | "pass4";
   bucket: WordBucket;
   /** Override the manuscript text generator. When omitted, uses bucket default. */
   manuscript?: { suppressChapters?: boolean };
   /** LLM fault injected via runPipeline._runners. */
   llmFault: LlmFault;
+  /**
+   * Perplexity (Pass 4) fault injected via runPipeline._runners. When omitted
+   * the harness uses { kind: "none" } and Pass 4 returns a healthy adjudication.
+   * This field exists to lock-in PR #481's hardening: refusal detection, shape
+   * normalizer, canon-invalid rejection.
+   */
+  perplexityFault?: PerplexityFault;
   /** Supabase fault simulated by the in-memory mock. */
   supabaseFault: SupabaseFault;
   /** Chunk-shape override. Not currently consumed by Tier 1 (mock-LLM bypass); recorded for telemetry. */
@@ -315,17 +323,105 @@ const STORAGE_ROWS: StressRow[] = [
   },
 ];
 
+/**
+ * §1.7 Pass 4 (Perplexity adjudicator) faults — 4 rows.
+ *
+ * Locks in the three failure modes hardened by PR #481 (May 13 2026):
+ *   - model refusal (3/11 historical failures)
+ *   - JSON shape variance (analysisMetadata wrapper)
+ *   - canon-invalid response (missing evidence / signals / doctrine trace)
+ *
+ * Outcome semantics: runPipeline catches Pass 4 *execution* errors as
+ * non-fatal (the cross-check is diagnostic; failed execution leaves
+ * crossCheckResult undefined and governance returns ok). It fails the eval
+ * only when governance rejects a *parseable* response. So refuse-twice and
+ * canon-invalid-via-throw still produce outcome=success with no cross_check
+ * surfaced — only a parseable-but-canon-invalid response trips PASS4_CANON_INVALID.
+ */
+const PASS4_ROWS: StressRow[] = [
+  {
+    id: "P4-refuse-once",
+    category: "pass4",
+    bucket: "W-25k",
+    llmFault: NO_LLM_FAULT,
+    perplexityFault: { kind: "refuse-once" },
+    supabaseFault: NO_SB_FAULT,
+    chunkOverride: NO_CHUNK_OVERRIDE,
+    expected: {
+      outcome: "success",
+      coverage_pct_min: 100,
+      max_total_ms: 2 * BUDGET_MS_BY_WORDCOUNT["W-25k"],
+    },
+    notes:
+      "Perplexity refuses on first call ('I cannot evaluate...'); sharpened-prompt retry recovers. Locks in PR #481 refusal handling.",
+  },
+  {
+    id: "P4-refuse-twice",
+    category: "pass4",
+    bucket: "W-25k",
+    llmFault: NO_LLM_FAULT,
+    perplexityFault: { kind: "refuse-twice" },
+    supabaseFault: NO_SB_FAULT,
+    chunkOverride: NO_CHUNK_OVERRIDE,
+    expected: {
+      // Pass 4 throws PerplexityRefusalError on retry; runPipeline catches as
+      // non-fatal (Pass 4 is adjudicative). Eval completes with no cross_check.
+      outcome: "success",
+      coverage_pct_min: 100,
+      max_total_ms: 2 * BUDGET_MS_BY_WORDCOUNT["W-25k"],
+    },
+    notes:
+      "Both Perplexity calls refuse → PerplexityRefusalError → caught as non-fatal → eval completes without cross_check. Locks in graceful degradation.",
+  },
+  {
+    id: "P4-shape-analysisMetadata",
+    category: "pass4",
+    bucket: "W-25k",
+    llmFault: NO_LLM_FAULT,
+    perplexityFault: { kind: "shape-variant-analysisMetadata" },
+    supabaseFault: NO_SB_FAULT,
+    chunkOverride: NO_CHUNK_OVERRIDE,
+    expected: {
+      outcome: "success",
+      coverage_pct_min: 100,
+      max_total_ms: 2 * BUDGET_MS_BY_WORDCOUNT["W-25k"],
+    },
+    notes:
+      "Perplexity returns analysisMetadata wrapper shape variant; normalizeCrossCheckShape unwraps. Locks in PR #481 tolerant normalizer.",
+  },
+  {
+    id: "P4-canon-invalid",
+    category: "pass4",
+    bucket: "W-25k",
+    llmFault: NO_LLM_FAULT,
+    perplexityFault: { kind: "canon-invalid-score-out-of-range" },
+    supabaseFault: NO_SB_FAULT,
+    chunkOverride: NO_CHUNK_OVERRIDE,
+    expected: {
+      // Parseable response, but one criterion has empty evidence / signals /
+      // doctrineTrace -> validateCanonCompleteness fails -> governance returns
+      // PASS4_CANON_INVALID -> pipeline fails closed at Pass 4.
+      outcome: "fail",
+      allowed_codes: ["PASS4_GOVERNANCE_FAILED", "PASS4_CANON_INVALID"],
+      max_total_ms: 2 * BUDGET_MS_BY_WORDCOUNT["W-25k"],
+    },
+    notes:
+      "Parseable but canon-invalid Perplexity response (no evidence/signals/trace on 'concept') → PASS4_CANON_INVALID. Locks in governance enforcement.",
+  },
+];
+
 export const SCENARIOS: StressRow[] = [
   ...WORDCOUNT_ROWS,
   ...CHUNK_ROWS,
   ...MARKER_ROWS,
   ...LLM_ROWS,
   ...STORAGE_ROWS,
+  ...PASS4_ROWS,
 ];
 
-if (SCENARIOS.length !== 22) {
+if (SCENARIOS.length !== 26) {
   throw new Error(
-    `Stress matrix must have exactly 22 rows (Tier 1 spec); got ${SCENARIOS.length}. ` +
+    `Stress matrix must have exactly 26 rows (Tier 1 spec; 22 original + 4 Pass 4); got ${SCENARIOS.length}. ` +
       `Update stress_test_plan.md §1 if intentional.`,
   );
 }

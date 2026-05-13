@@ -156,6 +156,9 @@ export interface RunPipelineOptions {
       pass2: SinglePassOutput,
       manuscriptText?: string,
     ) => QualityGateResult;
+    // Testing-only seam for Pass 4 Perplexity adjudicator. Production callers omit;
+    // the stress harness injects a fault-injecting mock to lock-in PR #481 fixes.
+    runPerplexityCrossCheck?: typeof import("./perplexityCrossCheck").runPerplexityCrossCheck;
   };
   /** Dependency injection for registry loader (testing only). */
   _registryLoader?: () => CanonRegistry;
@@ -1465,7 +1468,10 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
         ]),
       ) as Record<import("./perplexityCrossCheck").CriterionKey, import("./perplexityCrossCheck").OpenAICriterionInput>;
 
-      crossCheckResult = await runPerplexityCrossCheck({
+      // DI seam: stress harness injects a fault-injecting Perplexity mock to
+      // lock-in PR #481 hardening (refusal detection, shape normalizer,
+      // canon-invalid governance). Production callers omit _runners.
+      const pass4CrossCheckArgs = {
         openaiCriteria: criteriaRecord,
         openaiSynthesis: pass3Output.overall?.one_paragraph_summary ?? "",
         manuscriptExcerpt: opts.manuscriptText,
@@ -1473,7 +1479,10 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
         title: opts.title,
         perplexityApiKey: opts.perplexityApiKey,
         jobId: latencyJobId,
-      });
+      };
+      crossCheckResult = opts._runners?.runPerplexityCrossCheck
+        ? await opts._runners.runPerplexityCrossCheck(pass4CrossCheckArgs)
+        : await runPerplexityCrossCheck(pass4CrossCheckArgs);
 
       finishLatencyStage({
         jobId: latencyJobId,

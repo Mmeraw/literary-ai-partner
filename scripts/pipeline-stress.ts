@@ -28,6 +28,7 @@ import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
 import { chunkManuscript } from "@/lib/manuscripts/chunking";
 import { generateManuscript, WORD_BUCKETS, countWords } from "../tests/stress/fixtures/generate";
 import { makeLlmRunners } from "../tests/stress/mocks/llm";
+import { makePerplexityRunner } from "../tests/stress/mocks/perplexity";
 import { makeMockSupabase } from "../tests/stress/mocks/supabase";
 import {
   SCENARIOS,
@@ -176,6 +177,7 @@ async function executeRow(row: StressRow): Promise<ExecutedRow> {
   }
 
   const { runners } = makeLlmRunners(row.llmFault);
+  const { runner: perplexityRunner } = makePerplexityRunner(row.perplexityFault ?? { kind: "none" });
 
   const startMs = Date.now();
   let result: PipelineResult;
@@ -214,6 +216,7 @@ async function executeRow(row: StressRow): Promise<ExecutedRow> {
         }
       },
       runQualityGate: runners.runQualityGate,
+      runPerplexityCrossCheck: perplexityRunner,
     };
 
     // For rows without a chunk override, materialize chunks from the manuscript
@@ -237,6 +240,10 @@ async function executeRow(row: StressRow): Promise<ExecutedRow> {
       title: `stress-${row.id}`,
       manuscriptId: `stress:${row.id}`,
       _passTimeoutMs: 5_000,
+      // Stress fixtures inject a Perplexity mock; production runs read this
+      // from the PERPLEXITY_API_KEY env var. Without a key, the pipeline
+      // silently skips Pass 4 — which is the bug class PR #481 just fixed.
+      perplexityApiKey: "test-stress-fake-key",
       _runners: wrappedRunners as unknown as Parameters<typeof runPipeline>[0]["_runners"],
     });
   } catch (err) {
