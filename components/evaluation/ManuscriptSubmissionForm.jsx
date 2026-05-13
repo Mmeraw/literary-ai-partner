@@ -285,7 +285,12 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess }) {
                         key={doc.id}
                         role="button"
                         tabIndex={0}
-                        onClick={() => toggleManuscriptSelection(doc.id)}
+                        onClick={(event) => {
+                          if (event.target.closest("button") || event.target.closest("input")) {
+                            return;
+                          }
+                          toggleManuscriptSelection(doc.id);
+                        }}
                         onKeyDown={(event) => {
                           if (event.key === "Enter" || event.key === " ") {
                             event.preventDefault();
@@ -300,9 +305,19 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess }) {
                           type="radio"
                           name="dashboard-manuscript"
                           checked={selectedManuscriptId === doc.id}
-                          readOnly
-                          tabIndex={-1}
-                          className="mt-1 pointer-events-none"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            if (selectedManuscriptId === doc.id) {
+                              event.preventDefault();
+                              toggleManuscriptSelection(doc.id);
+                            }
+                          }}
+                          onChange={() => {
+                            if (selectedManuscriptId !== doc.id) {
+                              toggleManuscriptSelection(doc.id);
+                            }
+                          }}
+                          className="mt-1"
                         />
                         <div className="flex min-w-0 flex-1 flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                           <div className="min-w-0">
