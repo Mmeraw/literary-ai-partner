@@ -20,6 +20,31 @@ jobs:
             const { owner, repo } = context.repo;
             const pull_number = context.payload.pull_request.number;
 
+            // Label-override: pr-type:<type> label wins over diff-based classification.
+            // Reads via pulls.get so we see the live label list (webhook payload can be stale).
+            const VALID_TYPES = ["evaluation", "ui", "infra", "docs", "migration", "code"];
+            const { data: prData } = await github.rest.pulls.get({
+              owner, repo, pull_number,
+            });
+            const labelOverride = (prData.labels || [])
+              .map((l) => l.name)
+              .find((name) => name.startsWith("pr-type:"));
+            if (labelOverride) {
+              const overrideType = labelOverride.replace("pr-type:", "").trim();
+              if (VALID_TYPES.includes(overrideType)) {
+                core.info(
+                  `Label override active: ${labelOverride} — skipping diff classification`
+                );
+                core.setOutput("type", overrideType);
+                core.setOutput("buckets", overrideType);
+                return;
+              } else {
+                core.warning(
+                  `Invalid pr-type label "${overrideType}" — falling back to diff classification`
+                );
+              }
+            }
+
             const files = await github.paginate(
               github.rest.pulls.listFiles,
               { owner, repo, pull_number, per_page: 100 }
@@ -51,7 +76,23 @@ jobs:
               "app/api/evaluate/",
               "app/api/jobs/",
               "app/api/manuscripts/",
-              "tests/",
+              // Evaluation-pipeline test subdirs only. `tests/stress/`,
+              // `tests/playwright/`, `tests/ui/`, `tests/components/`,
+              // `tests/api/`, `tests/config/`, `tests/scripts/`,
+              // `tests/test-helpers/`, `tests/operations/`, and
+              // `tests/lib/hooks/` are NOT evaluation — see INFRA_PREFIXES
+              // and UI_PREFIXES below.
+              "tests/canon/",
+              "tests/evaluation/",
+              "tests/sipoc/",
+              "tests/replays/",
+              "tests/anchors/",
+              "tests/failures/",
+              "tests/fixtures/",
+              "tests/protected/",
+              "tests/jobs/",
+              "tests/lib/evaluation/",
+              "tests/lib/jobs/",
               "__tests__/",
               "workers/",
               "schemas/",
@@ -129,6 +170,12 @@ jobs:
               ".githooks/",
               "scripts/",
               "ops/",
+              "tests/stress/",
+              "tests/playwright/",
+              "tests/ui/",
+              "tests/scripts/",
+              "tests/test-helpers/",
+              "tests/config/",
             ];
             const INFRA_EXACT = new Set([
               "vercel.json",
