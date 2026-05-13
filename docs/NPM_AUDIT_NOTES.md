@@ -99,3 +99,15 @@ CI parses this file as the source of truth. Any high/critical advisory not liste
 - Time-boxed expiry: **2026-07-31**
 - Follow-up issue: https://github.com/Mmeraw/literary-ai-partner/issues/254
 - Accepted: transitive-only moderate finding; monitored pending upstream dependency graph fix
+
+### @playwright/test
+- **Status**: KNOWN — dev-only dependency (browser automation harness)
+- Advisory: no high/critical GHSA reported by current `npm audit` run; entry recorded preemptively so future advisories on the stress-harness pin do not surprise CI
+- Accepted: dev-only browser automation; never bundled into the runtime artifact and not exposed to user-controlled input. Pin policy follows the stress-harness anti-flake rules (exact pinned version, no `^` ranges in dev deps)
+- Time-boxed expiry: **2026-07-31** (revisit alongside other dev-tooling advisories)
+
+### playwright
+- **Status**: KNOWN — transitive of `@playwright/test`
+- Advisory: tracked together with `@playwright/test`; advisory IDs (if any) inherit through the transitive chain
+- Accepted: same rationale as `@playwright/test` — dev-only, not in production bundle, not exposed to user input
+- Time-boxed expiry: **2026-07-31**
