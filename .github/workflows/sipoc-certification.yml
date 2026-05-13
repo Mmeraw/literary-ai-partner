@@ -8,10 +8,14 @@ name: SIPOC Certification
     paths:
       - "docs/SIPOC_EVALUATION_PROCESS.md"
       - "tests/fixtures/sipoc/**"
+      - "tests/sipoc/**"
       - "scripts/validate-sipoc-fixtures.ts"
       - "scripts/run-sipoc-harness.ts"
       - "scripts/analyze-sipoc-results.ts"
+      - "lib/evaluation/**"
+      - "lib/jobs/**"
       - "package.json"
+      - ".github/workflows/sipoc-certification.yml"
 
 jobs:
   sipoc-certification:
@@ -32,8 +36,11 @@ jobs:
       - name: Validate SIPOC fixtures
         run: npm run sipoc:validate
 
-      - name: Run SIPOC deterministic harness
-        run: npm run sipoc:harness
+      - name: Run SIPOC coherence harness
+        run: npm run sipoc:coherence
+
+      - name: Run SIPOC runtime harness
+        run: npm run sipoc:runtime
 
       - name: Analyze SIPOC harness results
         run: npm run sipoc:analyze
