@@ -1,0 +1,13 @@
+{
+  "id": "stress-u6-truncated-coverage",
+  "status": "complete",
+  "phase": "Completed",
+  "word_count": 100000,
+  "evaluation_result": {
+    "coverage": {
+      "chunk_coverage_pct": 72,
+      "truncated": true,
+      "reason": "PROMPT_WINDOW_TRUNCATED"
+    }
+  }
+}

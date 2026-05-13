@@ -1,0 +1,19 @@
+{
+  "id": "stress-u5-qg-failed",
+  "status": "failed",
+  "phase": "Failed",
+  "word_count": 60000,
+  "last_error": "Quality gate failed: QG_INDEPENDENCE_VIOLATION",
+  "error_code": "QG_FAILED",
+  "quality_gate": {
+    "pass": false,
+    "checks": [
+      {
+        "check_id": "independence",
+        "passed": false,
+        "error_code": "QG_INDEPENDENCE_VIOLATION",
+        "details": "Pass 2 rationale overlaps with Pass 1 above threshold"
+      }
+    ]
+  }
+}

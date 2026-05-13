@@ -1,0 +1,23 @@
+{
+  "id": "stress-u2-long-form-complete",
+  "status": "complete",
+  "phase": "Completed",
+  "word_count": 137758,
+  "scope": "full_manuscript",
+  "evaluation_result": {
+    "overview": {
+      "verdict": "revise",
+      "overall_score_0_100": 58,
+      "submission_readiness": "close"
+    },
+    "coverage": {
+      "chunk_coverage_pct": 100,
+      "truncated": false
+    },
+    "criteria_count_by_state": {
+      "evaluated": 12,
+      "pending": 0,
+      "errored": 0
+    }
+  }
+}
