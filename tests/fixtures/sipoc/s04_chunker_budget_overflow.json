@@ -1,0 +1,34 @@
+{
+  "fixture_id": "s04b.routing-chunking.fail-closed-on-budget-overflow",
+  "fixture_version": "v1",
+  "stage_id": "S04_ROUTING_CHUNKING",
+  "track": "evaluation_runtime_sipoc",
+  "severity": "critical",
+  "invariant_id": "ROUTING_CHUNKING_BUDGET_OVERFLOW_FAIL_CLOSED",
+  "description": "Chunker must fail closed before Pass 1 dispatch when any materialized chunk's char_count exceeds inputCharBudget * 0.95.",
+  "input_stub": {
+    "routing_mode": "chunked",
+    "input_char_budget": 40000,
+    "max_chunk_chars": 50000,
+    "violating_chunk_index": 0,
+    "ratio_to_budget": 1.25,
+    "failed_at_step": "chunking"
+  },
+  "expected": {
+    "result_type": "fail",
+    "must_fail_closed": true,
+    "required_failure_codes": ["CHUNK_BUDGET_OVERFLOW"],
+    "forbidden_failure_codes": [
+      "PASS1_TIMEOUT",
+      "PASS1_TRUNCATED_EMPTY_RESPONSE",
+      "PASS1_ACCEPTED_WITH_INCOMPLETE_EVIDENCE"
+    ],
+    "notes": "Fail-closed at the chunking boundary (failed_at='chunking', not phase_1) in <100 ms — prevents the LONG_FORM_TIMEOUT_FLOOR_MS absorption path identified by the Cartel Babies audit (PR #1)."
+  },
+  "evidence_artifacts": ["pipeline_failure_envelope", "evaluation_result_v2"],
+  "authority_refs": {
+    "sipoc_contract": "docs/SIPOC_EVALUATION_PROCESS.md",
+    "spec": ["docs/JOB_CONTRACT_v1.md"],
+    "runtime": ["lib/evaluation/processor.ts", "lib/manuscripts/chunks.ts"]
+  }
+}

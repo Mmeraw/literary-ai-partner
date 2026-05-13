@@ -603,4 +603,135 @@ describe("processEvaluationJob long-form chunk routing", () => {
     expect(ensureChunksFromTextMock).toHaveBeenCalledTimes(1);
     expect(runPipelineMock).not.toHaveBeenCalled();
   });
+
+  test("long_form fails closed with CHUNK_BUDGET_OVERFLOW in <100ms when any chunk exceeds inputCharBudget * 0.95 (Cartel Babies regression)", async () => {
+    // 137,758-word manuscript shape — chunker emits a 50,000-char chunk that exceeds
+    // the 40,000-char prompt window. Without this gate, Pass 1 would be dispatched
+    // and absorb the full 720s LONG_FORM_TIMEOUT_FLOOR_MS before failing with PASS1_TIMEOUT.
+    const manuscriptContent =
+      "alpha beta gamma delta epsilon zeta eta theta iota kappa ".repeat(13_776);
+    const supabaseStub = makeSupabaseStub(manuscriptContent);
+    createClientMock.mockReturnValue(supabaseStub);
+
+    ensureChunksFromTextMock.mockResolvedValueOnce({
+      ensured_count: 1,
+      persisted_count: 1,
+      chunk_source: "processor_resolved_text",
+      verified_at: new Date().toISOString(),
+      max_chunk_chars: 50_000,
+      max_chunk_index: 0,
+    });
+
+    const { processEvaluationJob } = require("../../../lib/evaluation/processor");
+    const startedAt = Date.now();
+    const result = await processEvaluationJob("job-long-form-routing");
+    const elapsedMs = Date.now() - startedAt;
+
+    expect(result.success).toBe(false);
+    expect(result.error).toMatch(/chunk 0/);
+    expect(result.error).toMatch(/char_count=50000/);
+    expect(ensureChunksFromTextMock).toHaveBeenCalledTimes(1);
+    expect(runPipelineMock).not.toHaveBeenCalled();
+    // Must fail closed in well under the 720s LONG_FORM_TIMEOUT_FLOOR_MS.
+    expect(elapsedMs).toBeLessThan(100);
+
+    const failureUpdate = supabaseStub.evaluationJobUpdates.find((payload) => {
+      const progress = payload.progress as
+        | {
+            error_code?: string;
+            pipeline_failure_envelope?: {
+              error_code?: string;
+              failed_at?: string;
+              pipeline_stage?: string;
+              reason_codes?: string[];
+            };
+          }
+        | undefined;
+      return (
+        progress?.error_code === "CHUNK_BUDGET_OVERFLOW" ||
+        progress?.pipeline_failure_envelope?.error_code === "CHUNK_BUDGET_OVERFLOW"
+      );
+    });
+    expect(failureUpdate).toBeDefined();
+    const envelope = (failureUpdate?.progress as {
+      pipeline_failure_envelope?: {
+        error_code?: string;
+        failed_at?: string;
+        pipeline_stage?: string;
+        reason_codes?: string[];
+      };
+    })?.pipeline_failure_envelope;
+    expect(envelope?.error_code).toBe("CHUNK_BUDGET_OVERFLOW");
+    expect(envelope?.failed_at).toBe("chunking");
+    expect(envelope?.pipeline_stage).toBe("chunking");
+    expect(envelope?.reason_codes).toEqual(["CHUNK_BUDGET_OVERFLOW"]);
+  });
+
+  test("long_form with max_chunk_chars ≤ 38,000 passes the chunker post-condition and dispatches the pipeline", async () => {
+    const manuscriptContent =
+      "alpha beta gamma delta epsilon zeta eta theta iota kappa ".repeat(2600);
+    const supabaseStub = makeSupabaseStub(manuscriptContent, {
+      manuscriptChunks: [
+        { chunk_index: 0, content: "Chunk 0 text" },
+        { chunk_index: 1, content: "Chunk 1 text" },
+        { chunk_index: 2, content: "Chunk 2 text" },
+        { chunk_index: 3, content: "Chunk 3 text" },
+      ],
+    });
+    createClientMock.mockReturnValue(supabaseStub);
+
+    ensureChunksFromTextMock.mockResolvedValueOnce({
+      ensured_count: 4,
+      persisted_count: 4,
+      chunk_source: "processor_resolved_text",
+      verified_at: new Date().toISOString(),
+      max_chunk_chars: 38_000,
+      max_chunk_index: 1,
+    });
+
+    runPipelineMock.mockResolvedValue({
+      ok: true,
+      synthesis: {
+        criteria: [],
+        overall: {
+          overall_score_0_100: 82,
+          verdict: "pass",
+          one_paragraph_summary: "Summary",
+          top_3_strengths: [],
+          top_3_risks: [],
+        },
+        metadata: {
+          pass1_model: "gpt-4o",
+          pass2_model: "o3",
+          pass3_model: "o3",
+          generated_at: new Date().toISOString(),
+        },
+      },
+      quality_gate: { pass: true, checks: [], warnings: [] },
+      pass4_governance: { ok: true },
+    });
+
+    synthesisToEvaluationResultV2Mock.mockReturnValue(buildEvaluationResult());
+    runQualityGateV2Mock.mockReturnValue({ pass: true, checks: [], warnings: [] });
+    mapEvaluationResultV2ToGovernanceEnvelopeMock.mockReturnValue({
+      evaluation_run_id: "run-long-form-1",
+      criteria: [],
+    });
+
+    const { processEvaluationJob } = require("../../../lib/evaluation/processor");
+    const result = await processEvaluationJob("job-long-form-routing");
+
+    expect(result.success).toBe(true);
+    expect(ensureChunksFromTextMock).toHaveBeenCalledTimes(1);
+    expect(runPipelineMock).toHaveBeenCalledTimes(1);
+
+    // No CHUNK_BUDGET_OVERFLOW envelope persisted.
+    const budgetFailure = supabaseStub.evaluationJobUpdates.find((payload) => {
+      const progress = payload.progress as
+        | { pipeline_failure_envelope?: { error_code?: string } }
+        | undefined;
+      return progress?.pipeline_failure_envelope?.error_code === "CHUNK_BUDGET_OVERFLOW";
+    });
+    expect(budgetFailure).toBeUndefined();
+  });
 });
