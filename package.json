@@ -62,7 +62,8 @@
     "sipoc:harness": "npx tsx -r tsconfig-paths/register scripts/run-sipoc-harness.ts",
     "sipoc:analyze": "npx tsx -r tsconfig-paths/register scripts/analyze-sipoc-results.ts",
     "governance:calibration:analyze": "npx tsx -r tsconfig-paths/register scripts/governance/analyze-phase-2-calibration.ts",
-    "ci-guard": "npx tsx scripts/ci-guard/index.ts"
+    "ci-guard": "npx tsx scripts/ci-guard/index.ts",
+    "pr:check": "node scripts/validate-pr-body.mjs"
   },
   "dependencies": {
     "@base44/sdk": "^0.8.27",

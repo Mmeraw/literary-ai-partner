@@ -4,6 +4,16 @@ This directory contains operational scripts for RevisionGrade: security tooling,
 
 ---
 
+## PR body compliance
+
+- `validate-pr-body.mjs` — mirrors `.github/workflows/latency-pr-enforcement.yml`. Run via `npm run pr:check` (current branch's PR), `npm run pr:check -- --pr <num>`, or `npm run pr:check -- --file <path>`.
+- `gh-pr-create-safe.sh` — wrapper around `gh pr create --body-file` that validates the body file before invoking `gh`. Pass-through to `gh pr create` for all flags. Use it instead of raw `gh pr create --body-file` to avoid landing a non-compliant body in CI.
+- `pre-push.sh` — runs `validate-pr-body.mjs --pr <num>` when a PR already exists for the current branch. Override with `SKIP_PR_BODY_CHECK=1`.
+
+See `docs/governance/PR_BODY_MISTAKE_PROOFING.md` for the full 3-layer system.
+
+---
+
 ## 🔒 Security & Safety Scripts
 
 ### **`install-hooks.sh`** — Git Hooks Installer

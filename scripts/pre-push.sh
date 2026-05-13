@@ -16,6 +16,28 @@ if ! npm run docs:verify; then
   exit 1
 fi
 
+# PR body compliance check — only if a PR already exists for this branch.
+# Override with SKIP_PR_BODY_CHECK=1.
+if [ "${SKIP_PR_BODY_CHECK:-0}" = "1" ]; then
+  echo "⏭  Skipping PR body compliance check (SKIP_PR_BODY_CHECK=1)."
+elif ! command -v gh >/dev/null 2>&1; then
+  echo "⏭  Skipping PR body compliance check (gh CLI not installed)."
+else
+  PR_NUM="$(gh pr view --json number --jq .number 2>/dev/null || true)"
+  if [ -n "${PR_NUM}" ]; then
+    echo ""
+    echo "🔍 PR body compliance check (PR #${PR_NUM})..."
+    if ! node scripts/validate-pr-body.mjs --pr "${PR_NUM}"; then
+      echo ""
+      echo "❌ PRE-PUSH BLOCKED: PR #${PR_NUM} body fails enforce-latency-template."
+      echo "   Run 'npm run pr:check' and fix the missing tokens, or set SKIP_PR_BODY_CHECK=1 to bypass."
+      exit 1
+    fi
+  else
+    echo "⏭  No PR found for current branch — skipping PR body compliance check."
+  fi
+fi
+
 echo ""
 echo "✅ Pre-push verification passed. Proceeding with push..."
 exit 0
