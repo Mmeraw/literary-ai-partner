@@ -292,12 +292,7 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess }) {
                           type="radio"
                           name="dashboard-manuscript"
                           checked={selectedManuscriptId === doc.id}
-                          readOnly
-                          onClick={(event) => {
-                            event.preventDefault();
-                            event.stopPropagation();
-                            toggleManuscriptSelection(doc.id);
-                          }}
+                          onChange={() => toggleManuscriptSelection(doc.id)}
                           className="mt-1"
                         />
                         <div className="flex min-w-0 flex-1 flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
