@@ -8,6 +8,8 @@ This package contains a complete calibration fixture for the RevisionGrade evalu
 
 ### Documentation
 - **[ancient-bloodlines-shortform-model.md](ancient-bloodlines-shortform-model.md)** — Human-readable reference evaluation (merged template format) with full criterion scoring and canonical governance notes.
+- **[ancient-bloodlines-longform-layered-template.md](ancient-bloodlines-longform-layered-template.md)** — Repository-ready multi-layer / multi-voice long-form template.
+- **[ancient-bloodlines-longform-layered.md](ancient-bloodlines-longform-layered.md)** — Completed Ancient Bloodlines long-form gold standard with layer map, score grid, and continuity audit.
 
 ### Test Fixtures
 - **[ancient-bloodlines.shortform.model.json](../../testdata/evaluation/ancient-bloodlines.shortform.model.json)** — Machine-checkable expected output (CriterionBlock schema) with score targets, emotional bands, and governance metadata.
@@ -28,6 +30,8 @@ This package contains a complete calibration fixture for the RevisionGrade evalu
 - **[ancient-bloodlines.fixture.spec.ts](../../tests/evaluation/benchmarks/ancient-bloodlines.fixture.spec.ts)** — Sanity checks validating the fixture itself respects governance invariants.
 
 - **[ancient-bloodlines.governance.spec.ts](../../tests/evaluation/benchmarks/ancient-bloodlines.governance.spec.ts)** — Behavior-governance suite validating computed coverage certification, fail-closed long-form downgrade semantics, criterion-scope locking, and quality-gate rejection before persistence when uncertified manuscript-wide scores remain SCORABLE.
+
+- **[ancient-bloodlines.longform.layered.spec.ts](../../tests/evaluation/benchmarks/ancient-bloodlines.longform.layered.spec.ts)** — Gold-standard documentation regression suite validating that the layered long-form template and completed Ancient Bloodlines evaluation remain present, structured, and canon-anchored in the repo.
 
 - **[github-ancient-bloodlines-gold-standard-brief.md](github-ancient-bloodlines-gold-standard-brief.md)** — Gold-standard acceptance brief for GitHub/PR discussions: benchmark passes only when truth-governance behavior is enforced, not merely fixture presence.
 
