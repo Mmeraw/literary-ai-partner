@@ -29,25 +29,107 @@ jobs:
             const matchesAny = (name, prefixes) =>
               prefixes.some((p) => name.startsWith(p));
 
+            // Evaluation-pipeline-adjacent code. Every path verified on main
+            // via `git ls-tree main <path>` at the time of this commit.
             const EVAL_PREFIXES = [
               "lib/evaluation/",
+              "lib/pipeline/",
+              "lib/canon/",
+              "lib/governance/",
+              "lib/invariants/",
+              "lib/observability/",
+              "lib/monitoring/",
+              "lib/reliability/",
+              "lib/manuscripts/",
+              "lib/llm/",
+              "lib/jobs/",
+              "lib/release/",
+              "lib/artifacts/",
+              "lib/config/",
               "app/api/workers/",
               "app/api/evaluations/",
-              "tests/sipoc/",
+              "app/api/evaluate/",
+              "app/api/jobs/",
+              "app/api/manuscripts/",
+              "tests/",
+              "__tests__/",
+              "workers/",
+              "schemas/",
+              "types/",
+              "fixtures/",
+              "testdata/",
+              "calibration/",
+              "evidence/",
+              "artifacts/",
+              "protected/",
               "prompts/",
             ];
             const UI_PREFIXES = [
               "app/admin/",
               "app/dashboard/",
-              "app/evaluations/",
-              "app/auth/",
-              "app/account/",
-              "app/(admin)/",
-              "app/(dashboard)/",
+              "app/evaluate/",
+              "app/login/",
+              "app/signup/",
+              "app/output/",
+              "app/reports/",
+              "app/revise/",
+              "app/share/",
+              "app/pricing/",
+              "app/marketing-preview/",
+              "app/private-beta/",
+              "app/resources/",
+              "app/storygate/",
+              "app/convert/",
+              "app/your-writing/",
               "components/",
-              "styles/",
+              "public/",
+              "lib/ui/",
+              "lib/hooks/",
             ];
-            const INFRA_PREFIXES = [".github/"];
+            // Root-level UI files (exact match, not prefix).
+            const UI_EXACT = new Set([
+              "app/page.tsx",
+              "app/page.jsx",
+              "app/layout.tsx",
+              "app/layout.jsx",
+              "app/globals.css",
+              "app/robots.txt",
+            ]);
+            // Application code that is NOT evaluation-pipeline-adjacent.
+            // Examples: auth, db, admin tooling, security, generic services.
+            const CODE_PREFIXES = [
+              "lib/auth/",
+              "lib/db/",
+              "lib/admin/",
+              "lib/security/",
+              "lib/operations/",
+              "lib/activity/",
+              "lib/errors/",
+              "lib/supabase/",
+              "lib/revision/",
+              "lib/reportShares/",
+              "src/",
+              "entities/",
+              "base44/",
+              "app/api/auth/",
+              "app/api/admin/",
+              "app/api/activity/",
+              "app/api/report-shares/",
+              "app/api/user/",
+            ];
+            const CODE_EXACT = new Set([
+              "lib/audit.js",
+              "lib/governance.js",
+              "lib/supabase.js",
+              "lib/rateLimit.ts",
+            ]);
+            const INFRA_PREFIXES = [
+              ".github/",
+              ".vscode/",
+              ".githooks/",
+              "scripts/",
+              "ops/",
+            ];
             const INFRA_EXACT = new Set([
               "vercel.json",
               "package.json",
@@ -65,14 +147,18 @@ jobs:
               "tailwind.config.ts",
               "postcss.config.js",
               "postcss.config.mjs",
+              "lighthouserc.yml",
+              "Dockerfile",
+              "Makefile",
               ".npmrc",
               ".nvmrc",
             ]);
-            const DOCS_PREFIXES = ["docs/"];
+            const DOCS_PREFIXES = ["docs/", "archive/"];
             const MIGRATION_PREFIXES = ["supabase/migrations/"];
 
             const isEval = (n) => matchesAny(n, EVAL_PREFIXES);
-            const isUi = (n) => matchesAny(n, UI_PREFIXES);
+            const isUi = (n) => matchesAny(n, UI_PREFIXES) || UI_EXACT.has(n);
+            const isCode = (n) => matchesAny(n, CODE_PREFIXES) || CODE_EXACT.has(n);
             const isInfra = (n) => matchesAny(n, INFRA_PREFIXES) || INFRA_EXACT.has(n);
             const isDocs = (n) =>
               matchesAny(n, DOCS_PREFIXES) ||
@@ -91,6 +177,7 @@ jobs:
                 else if (isInfra(n)) buckets.add("infra");
                 else if (isDocs(n)) buckets.add("docs");
                 else if (isMigration(n)) buckets.add("migration");
+                else if (isCode(n)) buckets.add("code");
                 else buckets.add("unclassified");
               }
               if (buckets.has("unclassified")) {
@@ -200,12 +287,19 @@ jobs:
               assert(hasNoPipelineImpact(), "Missing: No-Pipeline-Impact: <value> line");
             };
 
+            const validateCode = () => {
+              commonFloor();
+              assert(hasSection("## Tests Updated"), "Missing: Tests Updated section");
+              assert(hasNoPipelineImpact(), "Missing: No-Pipeline-Impact: <value> line");
+            };
+
             const VALIDATORS = {
               evaluation: validateEvaluation,
               ui: validateUi,
               infra: validateInfra,
               docs: validateDocs,
               migration: validateMigration,
+              code: validateCode,
             };
 
             core.info(`Running ${type} validator`);

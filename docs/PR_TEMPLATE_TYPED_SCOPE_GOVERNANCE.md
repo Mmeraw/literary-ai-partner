@@ -12,23 +12,24 @@
 
 The `enforce-latency-template` workflow assumed every PR is an evaluation-pipeline PR and demands Pass-selection, latency tables, and quality-gate disclosure on PRs that have nothing to do with the evaluation pipeline — producing false-blocks on docs/governance, UI, infra, and migration PRs while providing zero quality signal on those changes.
 
-## 2. PR Type Taxonomy (the four shapes)
+## 2. PR Type Taxonomy (the six shapes)
 
 | Type | Diff signature (changed paths) | Evidence required | Validator |
 | --- | --- | --- | --- |
-| **evaluation** | Any file under `lib/evaluation/**`, `app/api/(workers\|evaluations)/**`, `tests/sipoc/**`, or `prompts/**` | Pass selection (1/2/3), `pass{N}_ms` + `total_ms` metrics, baseline + 2 post-change runs, quality-gate disclosure (`QG_*` / Quality Gate), Pass 3 PRs additionally require `criteria_count_by_state` | Current strict assertions (unchanged) |
-| **ui** | Any file under `app/(admin\|dashboard\|evaluations\|auth\|account)/**`, `components/**`, or root `app/**/page.tsx` / `app/**/layout.tsx`, **and** no evaluation paths touched | Visual Evidence (before/after screenshot links or "N/A — first render"), Accessibility (a11y notes or "N/A — no interactive surface added"), Browser Targets (default: Chrome/Safari/Firefox latest), No-Pipeline-Impact assertion | UI validator |
-| **infra** | Any file under `.github/**`, `vercel.json`, `package.json` / `package-lock.json` (deps only), `tsconfig*.json`, `next.config.*`, `eslint.config.*`, `tailwind.config.*`, **and** no evaluation paths touched | CI/Infra Scope, Rollback Plan, Affected Workflows (named), No-Pipeline-Impact assertion | Infra validator |
-| **docs** | Any file under `docs/**`, root `*.md`, **and** no other paths touched | Summary, Scope, No-Pipeline-Impact assertion | Docs validator |
+| **evaluation** | Any file under `lib/evaluation/**`, `lib/pipeline/**`, `lib/canon/**`, `lib/governance/**`, `lib/invariants/**`, `lib/observability/**`, `lib/monitoring/**`, `lib/reliability/**`, `lib/manuscripts/**`, `lib/llm/**`, `lib/jobs/**`, `lib/release/**`, `lib/artifacts/**`, `lib/config/**`, `app/api/(workers\|evaluations\|evaluate\|jobs\|manuscripts)/**`, `prompts/**`, `tests/**`, `__tests__/**`, `workers/**`, `schemas/**`, `types/**`, `fixtures/**`, `testdata/**`, `calibration/**`, `evidence/**`, `artifacts/**`, `protected/**` | Pass selection (1/2/3), `pass{N}_ms` + `total_ms` metrics, baseline + 2 post-change runs, quality-gate disclosure (`QG_*` / Quality Gate), Pass 3 PRs additionally require `criteria_count_by_state` | Current strict assertions (unchanged) |
+| **ui** | Any file under `app/(admin\|dashboard\|evaluate\|login\|signup\|output\|reports\|revise\|share\|pricing\|marketing-preview\|private-beta\|resources\|storygate\|convert\|your-writing)/**`, `components/**`, `public/**`, `lib/ui/**`, `lib/hooks/**`, or root `app/page.tsx` / `app/layout.tsx` / `app/globals.css` / `app/robots.txt`, **and** no evaluation paths touched | Visual Evidence (before/after screenshot links or "N/A — first render"), Accessibility (a11y notes or "N/A — no interactive surface added"), Browser Targets (default: Chrome/Safari/Firefox latest), No-Pipeline-Impact assertion | UI validator |
+| **code** | Any file under `lib/(auth\|db\|admin\|security\|operations\|activity\|errors\|supabase\|revision\|reportShares)/**`, `src/**`, `entities/**`, `base44/**`, `app/api/(auth\|admin\|activity\|report-shares\|user)/**`, or root files `lib/audit.js` / `lib/governance.js` / `lib/supabase.js` / `lib/rateLimit.ts`, **and** no evaluation paths touched | Summary, Scope, Tests Updated (list or "N/A — see explanation"), Risks & Anomalies, No-Pipeline-Impact assertion | Code validator |
+| **infra** | Any file under `.github/**`, `.vscode/**`, `.githooks/**`, `scripts/**`, `ops/**`, `vercel.json`, `package.json` / `package-lock.json` / `pnpm-lock.yaml` / `yarn.lock`, `tsconfig*.json`, `next.config.*`, `eslint.config.*`, `tailwind.config.*`, `postcss.config.*`, `lighthouserc.yml`, `Dockerfile`, `Makefile`, **and** no evaluation paths touched | CI/Infra Scope, Rollback Plan, Affected Workflows (named), No-Pipeline-Impact assertion | Infra validator |
+| **docs** | Any file under `docs/**`, `archive/**`, root `*.md`, **and** no other paths touched | Summary, Scope, No-Pipeline-Impact assertion | Docs validator |
 | **migration** | Any file under `supabase/migrations/**`, **and** no evaluation paths touched | Schema Diff (summary of what tables/columns/indexes are added/modified), Rollback Plan (down-migration or operator steps), Data Backfill (yes/no + plan), No-Pipeline-Impact assertion | Migration validator |
-| **mixed** | Diff spans multiple non-evaluation buckets above (e.g. docs + infra) | Union of the relevant sections, no Pass-selection required | Mixed validator (logical AND of each touched type's requirements) |
+| **mixed** | Diff spans multiple non-evaluation buckets above (e.g. docs + infra, code + docs) | Union of the relevant sections, no Pass-selection required | Mixed validator (logical AND of each touched type's requirements) |
 | **evaluation+other** | Any evaluation path touched alongside non-evaluation paths | Full evaluation requirements (the evaluation validator wins — adding a doc change does not buy an exemption) | Evaluation validator (strict) |
 
 ### 2.1 Dispatch rule (deterministic, no human judgment)
 
 1. List changed files via `pulls.listFiles`.
 2. If **any** file matches an `evaluation` path → run **evaluation validator** (strict). Stop.
-3. Else, compute the set of touched buckets (`ui`, `infra`, `docs`, `migration`).
+3. Else, compute the set of touched buckets (`ui`, `code`, `infra`, `docs`, `migration`).
 4. If the set has exactly one element → run that type's validator.
 5. If the set has more than one element → run **mixed validator** (assert each touched type's required sections are present).
 6. If the set is empty (e.g. only a file in a path not yet classified) → run the **evaluation validator** as a safety default (fail-closed). Flag in the workflow log so the taxonomy can be updated.
@@ -44,10 +45,11 @@ GitHub multi-template support is via `.github/PULL_REQUEST_TEMPLATE/` (directory
   PULL_REQUEST_TEMPLATE/
     evaluation.md          # Current strict template (verbatim move from current pull_request_template.md)
     ui.md                  # Visual Evidence + Accessibility + Browser Targets + No-Pipeline-Impact
+    code.md                # Summary + Scope + Tests Updated + Risks + No-Pipeline-Impact
     infra.md               # CI/Infra Scope + Rollback Plan + Affected Workflows + No-Pipeline-Impact
     docs.md                # Summary + Scope + No-Pipeline-Impact
     migration.md           # Schema Diff + Rollback Plan + Data Backfill + No-Pipeline-Impact
-  pull_request_template.md # Chooser stub: lists the 5 templates with ?template= links
+  pull_request_template.md # Chooser stub: lists the 6 templates with ?template= links
 ```
 
 The chooser stub keeps the default-template flow working. Authors can use the chooser or pick a template by URL.
@@ -64,13 +66,13 @@ The validator uses **both** the marker and the diff for dispatch. If they disagr
 
 ## 4. The Common Floor (every PR type)
 
-All five typed templates share three sections — these are non-negotiable for any change going into `main`:
+All six typed templates share three sections — these are non-negotiable for any change going into `main`:
 
 1. `## Summary` — what changed in 1–3 sentences
 2. `## Scope` — what code paths / surfaces this PR touches and what it does NOT touch
 3. `## Risks & Anomalies` — what could go wrong and how it's mitigated
 
-The "not reducing intelligence" final-rule line is **kept only for the evaluation type**, because that line was written for the evaluation pipeline specifically. UI/infra/docs/migration PRs don't make that assertion.
+The "not reducing intelligence" final-rule line is **kept only for the evaluation type**, because that line was written for the evaluation pipeline specifically. UI/code/infra/docs/migration PRs don't make that assertion.
 
 ## 5. Implementation Plan — single PR
 
@@ -122,7 +124,12 @@ Files modified:
 - `No-Pipeline-Impact:` literal followed by a non-empty value on the same line
 - `<!-- pr-type: migration -->` marker (warning if missing)
 
-### 6.6 mixed
+### 6.6 code
+- `## Summary` `## Scope` `## Tests Updated` `## Risks & Anomalies` sections
+- `No-Pipeline-Impact:` literal followed by a non-empty value on the same line
+- `<!-- pr-type: code -->` marker (warning if missing)
+
+### 6.7 mixed
 - All sections required by each touched type (logical AND, deduplicated by section name)
 - All `No-Pipeline-Impact:` lines required (logical AND)
 - No marker required (mixed PRs may be unmarked)
