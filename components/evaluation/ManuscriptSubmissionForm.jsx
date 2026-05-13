@@ -170,6 +170,11 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess }) {
     }
   };
 
+  const toggleManuscriptSelection = (manuscriptId) => {
+    setSelectedManuscriptId((current) => (current === manuscriptId ? null : manuscriptId));
+    setManuscriptText("");
+  };
+
   const triggerDashboardUpload = () => uploadInputRef.current?.click();
   const triggerInlineUpload = () => fileInputRef.current?.click();
 
@@ -248,6 +253,7 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess }) {
               <div className="rounded-xl border border-indigo-100 bg-indigo-50/60 p-4">
                 <h3 className="text-lg font-semibold text-gray-900 mb-2">Writing Details</h3>
                 <p className="text-sm text-gray-600 mb-3">Choose a document from dashboard or upload a new one.</p>
+                <p className="text-xs text-gray-500 mb-3">Tip: Click a selected item again to unselect it.</p>
 
                 <div className="mb-3 flex flex-wrap items-center gap-2">
                   <button
@@ -277,6 +283,7 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess }) {
                     visibleDashboardManuscripts.map((doc) => (
                       <label
                         key={doc.id}
+                        onClick={() => toggleManuscriptSelection(doc.id)}
                         className={`flex items-start gap-3 rounded-lg border p-3 cursor-pointer ${
                           selectedManuscriptId === doc.id ? "border-indigo-500 bg-white" : "border-gray-200 bg-white/70"
                         }`}
@@ -285,9 +292,11 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess }) {
                           type="radio"
                           name="dashboard-manuscript"
                           checked={selectedManuscriptId === doc.id}
-                          onChange={() => {
-                            setSelectedManuscriptId(doc.id);
-                            setManuscriptText("");
+                          readOnly
+                          onClick={(event) => {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            toggleManuscriptSelection(doc.id);
                           }}
                           className="mt-1"
                         />
