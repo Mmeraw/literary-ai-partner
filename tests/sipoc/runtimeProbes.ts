@@ -398,6 +398,7 @@ export const RUNTIME_PROBES: Record<string, ProbeFn> = {
   "s02.queue.canonical-status-only": probeS02,
   "s03.claim.atomic-single-claimer": probeS03,
   "s04.routing-chunking.fail-closed-on-coverage-mismatch": probeS04,
+  "s04b.routing-chunking.fail-closed-on-budget-overflow": probeS04b,
   "s05.pass1.fail-closed-on-timeout-truncation": probeS05,
   "s06.pass2.independence-violation": probeS06,
   "s07.pass3.fail-on-generic-or-incoherent-synthesis": probeS07Generic,
@@ -406,6 +407,6 @@ export const RUNTIME_PROBES: Record<string, ProbeFn> = {
   "s09.qualitygate.generic-editorial-feedback": probeS09,
   "s10.persistence.fail-closed-on-gate-fail": probeS10,
   "s11.renderer.releasability-gate": probeS11,
-  // Added by PR #1 if merged first.
+  // Backward-compatible alias.
   "s04b.chunker.budget-overflow": probeS04b,
 };
