@@ -4,6 +4,13 @@ const createJestConfig = nextJest({
   dir: "./",
 });
 
+const liveParityIgnorePattern =
+  process.env.INCLUDE_LIVE_BENCHMARK_TESTS === "1"
+    ? []
+    : [
+        "<rootDir>/tests/evaluation/benchmarks/ancient-bloodlines.live-parity\\.test\\.ts$",
+      ];
+
 const customJestConfig = {
   testEnvironment: "node",
   testMatch: ["**/?(*.)+(test).[tj]s?(x)"],
@@ -17,6 +24,7 @@ const customJestConfig = {
     "<rootDir>/.worktrees/",
     "<rootDir>/functions/tests/",
     "<rootDir>/supabase/functions/",
+    ...liveParityIgnorePattern,
     "<rootDir>/.*_agent_verification.*\\.test\\.ts$",
     "<rootDir>/.*_industry_.*\\.test\\.ts$",
     "<rootDir>/.*evaluate_quick_submission_scope_s1_micro.*\\.test\\.ts$",
