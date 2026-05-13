@@ -1,24 +1,27 @@
 /**
  * run-sipoc-harness.ts
  *
- * SIPOC Deterministic Contract Harness — PR D
+ * SIPOC Contract Harness — PR D + PR #3 runtime mode
  *
- * Evaluates each fixture in tests/fixtures/sipoc/ against its declared
- * contract using only fixture data + deterministic in-memory rule evaluation.
+ * Two modes:
  *
- * Zero external dependencies:
- *   - No OpenAI calls
- *   - No production pipeline execution
- *   - No DB writes
- *   - No Supabase dependency
- *   - No worker execution
+ *   --mode=coherence  (default; legacy PR-D behavior)
+ *     Validates each fixture's contract for internal coherence (fail-closed
+ *     coherence, declared-code/forbidden disjointness, stage invariants).
+ *     Zero imports from lib/evaluation/.
+ *
+ *   --mode=runtime    (PR #3)
+ *     Invokes the production runtime path tied to each fail-closed fixture
+ *     (runPipeline or the runtime-target named in the fixture) with a
+ *     deterministic in-memory LLM mock and asserts the observed error code
+ *     ∈ required_failure_codes. Closes audit gap #1.
  *
  * Output artifacts (written to artifacts/sipoc/):
- *   sipoc-results.json   — per-fixture pass/fail + violation detail
- *   failure-matrix.json  — failure code coverage by stage
+ *   sipoc-results.json          — coherence-mode per-fixture results
+ *   sipoc-runtime-results.json  — runtime-mode per-fixture results
+ *   failure-matrix.json         — failure code coverage by stage (coherence)
  *
- * Exits 0 if all fixtures pass contract evaluation.
- * Exits 1 if any contract violation is detected.
+ * Exits 0 on success; 1 on any contract violation.
  *
  * Authority: docs/SIPOC_EVALUATION_PROCESS.md
  */
@@ -122,9 +125,11 @@ interface FailureMatrix {
 const FIXTURE_DIR = path.resolve("tests/fixtures/sipoc");
 const ARTIFACT_DIR = path.resolve("artifacts/sipoc");
 const RESULTS_PATH = path.join(ARTIFACT_DIR, "sipoc-results.json");
+const RUNTIME_RESULTS_PATH = path.join(ARTIFACT_DIR, "sipoc-runtime-results.json");
 const FAILURE_MATRIX_PATH = path.join(ARTIFACT_DIR, "failure-matrix.json");
 const EXCLUDED_FILES = new Set(["schema.json", "README.md"]);
 const AUTHORITY = "docs/SIPOC_EVALUATION_PROCESS.md";
+const RUNTIME_BUDGET_MS = 60_000;
 
 // ---------------------------------------------------------------------------
 // Deterministic contract evaluation
@@ -366,6 +371,193 @@ function writeArtifacts(results: HarnessResults, matrix: FailureMatrix): void {
 }
 
 // ---------------------------------------------------------------------------
+// Runtime-mode types + artifacts
+// ---------------------------------------------------------------------------
+
+interface RuntimeFixtureResult {
+  fixture_id: string;
+  stage_id: StageId;
+  invariant_id: string;
+  required_failure_codes: string[];
+  observed_error_codes: string[];
+  pass: boolean;
+  reason: string;
+  detail: string;
+  duration_ms: number;
+}
+
+interface RuntimeHarnessResults {
+  run_at: string;
+  authority: string;
+  fixture_dir: string;
+  total_wall_ms: number;
+  wall_budget_ms: number;
+  summary: {
+    total: number;
+    eligible: number;
+    skipped_pass_contracts: number;
+    passed: number;
+    failed: number;
+  };
+  results: RuntimeFixtureResult[];
+}
+
+function loadFixtures(): { filename: string; fixture: SipocFixture }[] {
+  const allFiles = fs
+    .readdirSync(FIXTURE_DIR)
+    .filter((f) => f.endsWith(".json") && !EXCLUDED_FILES.has(f))
+    .sort();
+
+  if (allFiles.length === 0) {
+    console.error(`[sipoc:harness] ERROR: No fixture files found in ${FIXTURE_DIR}`);
+    process.exit(1);
+  }
+
+  return allFiles.map((filename) => {
+    const filePath = path.join(FIXTURE_DIR, filename);
+    try {
+      const fixture = JSON.parse(fs.readFileSync(filePath, "utf-8")) as SipocFixture;
+      return { filename, fixture };
+    } catch (err) {
+      console.error(`[sipoc:harness] Failed to parse ${filename}: ${String(err)}`);
+      process.exit(1);
+    }
+  });
+}
+
+async function runRuntimeMode(): Promise<void> {
+  // Defer import of probes to runtime-mode only — keeps coherence mode free of
+  // lib/evaluation/ imports (it was deliberately I/O-free per PR D).
+  const { RUNTIME_PROBES } = (await import("../tests/sipoc/runtimeProbes.js")) as typeof import("../tests/sipoc/runtimeProbes");
+
+  const wallStart = Date.now();
+  const fixtures = loadFixtures();
+  const results: RuntimeFixtureResult[] = [];
+  let skippedPassContracts = 0;
+
+  for (const { fixture } of fixtures) {
+    if (fixture.expected.result_type !== "fail") {
+      skippedPassContracts++;
+      continue;
+    }
+
+    const probe = RUNTIME_PROBES[fixture.fixture_id];
+    const start = Date.now();
+
+    if (!probe) {
+      results.push({
+        fixture_id: fixture.fixture_id,
+        stage_id: fixture.stage_id,
+        invariant_id: fixture.invariant_id,
+        required_failure_codes: fixture.expected.required_failure_codes,
+        observed_error_codes: [],
+        pass: false,
+        reason: "no_runtime_probe_registered",
+        detail: `runtime-mode is missing a probe for fixture_id=${fixture.fixture_id}`,
+        duration_ms: Date.now() - start,
+      });
+      continue;
+    }
+
+    let outcome: { observed_error_codes: string[]; detail: string };
+    try {
+      outcome = await probe();
+    } catch (err) {
+      outcome = {
+        observed_error_codes: ["PROBE_THREW"],
+        detail: `probe threw: ${err instanceof Error ? err.message : String(err)}`,
+      };
+    }
+    const duration_ms = Date.now() - start;
+
+    const intersection = outcome.observed_error_codes.filter((c) =>
+      fixture.expected.required_failure_codes.includes(c),
+    );
+    const forbiddenHit = outcome.observed_error_codes.filter((c) =>
+      (fixture.expected.forbidden_failure_codes ?? []).includes(c),
+    );
+
+    const pass = intersection.length > 0 && forbiddenHit.length === 0;
+    const reason = pass
+      ? "observed_in_required_set"
+      : forbiddenHit.length > 0
+        ? "observed_in_forbidden_set"
+        : "observed_not_in_required_set";
+
+    results.push({
+      fixture_id: fixture.fixture_id,
+      stage_id: fixture.stage_id,
+      invariant_id: fixture.invariant_id,
+      required_failure_codes: fixture.expected.required_failure_codes,
+      observed_error_codes: outcome.observed_error_codes,
+      pass,
+      reason,
+      detail: outcome.detail,
+      duration_ms,
+    });
+  }
+
+  const total_wall_ms = Date.now() - wallStart;
+  const eligible = results.length;
+  const passed = results.filter((r) => r.pass).length;
+  const failed = eligible - passed;
+
+  const harnessResults: RuntimeHarnessResults = {
+    run_at: new Date().toISOString(),
+    authority: AUTHORITY,
+    fixture_dir: FIXTURE_DIR,
+    total_wall_ms,
+    wall_budget_ms: RUNTIME_BUDGET_MS,
+    summary: {
+      total: fixtures.length,
+      eligible,
+      skipped_pass_contracts: skippedPassContracts,
+      passed,
+      failed,
+    },
+    results,
+  };
+
+  fs.mkdirSync(ARTIFACT_DIR, { recursive: true });
+  fs.writeFileSync(RUNTIME_RESULTS_PATH, JSON.stringify(harnessResults, null, 2), "utf-8");
+
+  console.log(`\n[sipoc:harness] SIPOC Runtime Harness`);
+  console.log(`  Authority    : ${AUTHORITY}`);
+  console.log(`  Fixture dir  : ${FIXTURE_DIR}`);
+  console.log(`  Total        : ${fixtures.length}`);
+  console.log(`  Skipped pass : ${skippedPassContracts}`);
+  console.log(`  Eligible     : ${eligible}`);
+  console.log(`  Passed       : ${passed}`);
+  console.log(`  Failed       : ${failed}`);
+  console.log(`  Wall time    : ${total_wall_ms}ms (budget ${RUNTIME_BUDGET_MS}ms)`);
+  console.log(`  Results      : ${RUNTIME_RESULTS_PATH}`);
+  console.log("");
+
+  for (const r of results) {
+    const marker = r.pass ? "✓" : "✗";
+    console.log(
+      `${marker} [${r.stage_id}] ${r.fixture_id} required=[${r.required_failure_codes.join(",")}] observed=[${r.observed_error_codes.join(",")}] (${r.duration_ms}ms)`,
+    );
+    if (!r.pass) {
+      console.error(`    · reason=${r.reason} detail=${r.detail}`);
+    }
+  }
+
+  if (total_wall_ms > RUNTIME_BUDGET_MS) {
+    console.error(
+      `\n[sipoc:harness] FAILED: runtime wall-time ${total_wall_ms}ms exceeded budget ${RUNTIME_BUDGET_MS}ms.`,
+    );
+    process.exit(1);
+  }
+  if (failed > 0) {
+    console.error(`\n[sipoc:harness] FAILED: ${failed} runtime probe(s) did not match contract.\n`);
+    process.exit(1);
+  }
+  console.log(`\n✓ All ${eligible} runtime probe(s) matched contract. Artifacts written.\n`);
+  process.exit(0);
+}
+
+// ---------------------------------------------------------------------------
 // Runner
 // ---------------------------------------------------------------------------
 
@@ -498,4 +690,20 @@ function run(): void {
   process.exit(0);
 }
 
-run();
+function parseMode(argv: string[]): "coherence" | "runtime" {
+  for (const arg of argv) {
+    if (arg === "--mode=runtime") return "runtime";
+    if (arg === "--mode=coherence") return "coherence";
+  }
+  return "coherence";
+}
+
+const mode = parseMode(process.argv.slice(2));
+if (mode === "runtime") {
+  runRuntimeMode().catch((err) => {
+    console.error(`[sipoc:harness] runtime mode threw: ${err instanceof Error ? err.stack : String(err)}`);
+    process.exit(1);
+  });
+} else {
+  run();
+}

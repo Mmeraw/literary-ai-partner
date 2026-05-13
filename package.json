@@ -60,6 +60,8 @@
     "gate:replay:strict": "npx tsx -r tsconfig-paths/register scripts/pipeline/gate-replay-check.ts --fail-on-any",
     "sipoc:validate": "npx tsx -r tsconfig-paths/register scripts/validate-sipoc-fixtures.ts",
     "sipoc:harness": "npx tsx -r tsconfig-paths/register scripts/run-sipoc-harness.ts",
+    "sipoc:coherence": "npx tsx -r tsconfig-paths/register scripts/run-sipoc-harness.ts --mode=coherence",
+    "sipoc:runtime": "npx tsx -r ./tests/sipoc/serverOnlyRegister.cjs -r tsconfig-paths/register scripts/run-sipoc-harness.ts --mode=runtime",
     "sipoc:analyze": "npx tsx -r tsconfig-paths/register scripts/analyze-sipoc-results.ts",
     "governance:calibration:analyze": "npx tsx -r tsconfig-paths/register scripts/governance/analyze-phase-2-calibration.ts",
     "ci-guard": "npx tsx scripts/ci-guard/index.ts"
