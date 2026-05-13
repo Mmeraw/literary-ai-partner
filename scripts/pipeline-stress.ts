@@ -20,7 +20,10 @@
 import path from "path";
 import { spawnSync } from "child_process";
 import { runPipeline } from "@/lib/evaluation/pipeline/runPipeline";
-import type { PipelineResult } from "@/lib/evaluation/pipeline/types";
+import type {
+  ManuscriptChunkEvidence,
+  PipelineResult,
+} from "@/lib/evaluation/pipeline/types";
 import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
 import { generateManuscript, WORD_BUCKETS, countWords } from "../tests/stress/fixtures/generate";
 import { makeLlmRunners } from "../tests/stress/mocks/llm";
@@ -28,6 +31,7 @@ import { makeMockSupabase } from "../tests/stress/mocks/supabase";
 import {
   SCENARIOS,
   BUDGET_MS_BY_WORDCOUNT,
+  type ChunkOverride,
   type StressRow,
 } from "./pipeline-stress.scenarios";
 import {
@@ -37,6 +41,50 @@ import {
 } from "./pipeline-stress.report";
 
 const OUT_DIR = path.resolve("stress-results");
+
+/**
+ * Materialize `manuscriptChunks` from a ChunkOverride descriptor so the
+ * chunk-shape guards in runPipeline are exercised by the harness. Without
+ * this wiring, runPipeline only sees `manuscriptText` and the chunk-shape
+ * post-conditions never run.
+ *
+ * Returns `undefined` for `kind: "none"` (preserves the original short-form
+ * path — no chunks supplied).
+ *
+ * Mapping rationale:
+ *   - empty: zero rows → guard returns null → pipeline falls through to
+ *     short-form on manuscriptText. Matches expected outcome=success.
+ *   - single-token: one chunk with a single character → trips the
+ *     MIN_VIABLE_CHUNK_CHARS pre-condition → PIPELINE_INPUT_INVALID.
+ *   - single-100k-token: one chunk far beyond inputCharBudget × 0.95 →
+ *     trips the CHUNK_BUDGET_OVERFLOW post-condition.
+ *   - chapter-straddle: two benign in-budget chunks → both guards pass;
+ *     pipeline proceeds. Matches expected outcome=success.
+ */
+function materializeChunkOverride(
+  override: ChunkOverride,
+): ManuscriptChunkEvidence[] | undefined {
+  switch (override.kind) {
+    case "none":
+      return undefined;
+    case "empty":
+      return [];
+    case "single-token":
+      return [{ chunk_index: 0, content: "x" }];
+    case "single-100k-token":
+      return [{ chunk_index: 0, content: "x".repeat(100_000) }];
+    case "chapter-straddle":
+      // Single in-budget chunk straddling a chapter boundary. One chunk keeps
+      // runPass1 on the single-pass window path (chunk-native triggers at
+      // length > 1) while still exercising the chunk-shape guards.
+      return [
+        {
+          chunk_index: 0,
+          content: "Chapter 1\n\n" + "y".repeat(2_000) + "\n\nChapter 2\n\n" + "y".repeat(2_000),
+        },
+      ];
+  }
+}
 
 interface ParsedArgs {
   tier: "1" | "3a";
@@ -167,8 +215,10 @@ async function executeRow(row: StressRow): Promise<ExecutedRow> {
       runQualityGate: runners.runQualityGate,
     };
 
+    const manuscriptChunks = materializeChunkOverride(row.chunkOverride);
     result = await runPipeline({
       manuscriptText,
+      manuscriptChunks,
       workType: "novel",
       title: `stress-${row.id}`,
       manuscriptId: `stress:${row.id}`,
