@@ -51,7 +51,23 @@ jobs:
               "app/api/evaluate/",
               "app/api/jobs/",
               "app/api/manuscripts/",
-              "tests/",
+              // Evaluation-pipeline test subdirs only. `tests/stress/`,
+              // `tests/playwright/`, `tests/ui/`, `tests/components/`,
+              // `tests/api/`, `tests/config/`, `tests/scripts/`,
+              // `tests/test-helpers/`, `tests/operations/`, and
+              // `tests/lib/hooks/` are NOT evaluation — see INFRA_PREFIXES
+              // and UI_PREFIXES below.
+              "tests/canon/",
+              "tests/evaluation/",
+              "tests/sipoc/",
+              "tests/replays/",
+              "tests/anchors/",
+              "tests/failures/",
+              "tests/fixtures/",
+              "tests/protected/",
+              "tests/jobs/",
+              "tests/lib/evaluation/",
+              "tests/lib/jobs/",
               "__tests__/",
               "workers/",
               "schemas/",
@@ -129,6 +145,12 @@ jobs:
               ".githooks/",
               "scripts/",
               "ops/",
+              "tests/stress/",
+              "tests/playwright/",
+              "tests/ui/",
+              "tests/scripts/",
+              "tests/test-helpers/",
+              "tests/config/",
             ];
             const INFRA_EXACT = new Set([
               "vercel.json",
