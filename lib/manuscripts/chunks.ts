@@ -771,7 +771,24 @@ export type EnsureChunksFromTextResult = {
   chunk_source: 'processor_resolved_text';
   /** ISO timestamp of the persistence verification */
   verified_at: string;
+  /** Deduplicated source manuscript words used for chunking. */
+  source_manuscript_words?: number;
+  /** Deduplicated source manuscript chars used for chunking. */
+  source_manuscript_chars?: number;
+  /** Sum of stored chunk content words (includes overlap/context duplication). */
+  chunk_storage_words?: number;
+  /** Sum of stored chunk content chars (includes overlap/context duplication). */
+  chunk_storage_chars?: number;
+  /** Derived overlap/duplication words = chunk_storage_words - source_manuscript_words. */
+  overlap_words?: number;
+  /** Derived overlap/duplication chars = chunk_storage_chars - source_manuscript_chars. */
+  overlap_chars?: number;
 };
+
+function countWordsFromText(text: string): number {
+  const normalized = text.trim();
+  return normalized.length === 0 ? 0 : normalized.split(/\s+/).length;
+}
 
 /**
  * Materialize chunks from an already-resolved manuscript text.
@@ -797,8 +814,17 @@ export async function ensureChunksFromText(
   // Chunk the processor-resolved text directly — no re-resolution.
   // Non-evaluative sections are stripped prior to chunking.
   const { sanitizedText } = stripNonEvaluativeSections(manuscriptText);
+  const source_manuscript_words = countWordsFromText(sanitizedText);
+  const source_manuscript_chars = sanitizedText.trim().length;
   const chunks = await chunkManuscript(sanitizedText);
   const ensured_count = chunks.length;
+  const chunk_storage_words = chunks.reduce(
+    (acc, chunk) => acc + countWordsFromText(chunk.content),
+    0,
+  );
+  const chunk_storage_chars = chunks.reduce((acc, chunk) => acc + chunk.content.length, 0);
+  const overlap_words = Math.max(0, chunk_storage_words - source_manuscript_words);
+  const overlap_chars = Math.max(0, chunk_storage_chars - source_manuscript_chars);
 
   if (ensured_count === 0) {
     throw new Error(
@@ -832,5 +858,11 @@ export async function ensureChunksFromText(
     persisted_count,
     chunk_source: 'processor_resolved_text',
     verified_at,
+    source_manuscript_words,
+    source_manuscript_chars,
+    chunk_storage_words,
+    chunk_storage_chars,
+    overlap_words,
+    overlap_chars,
   };
 }

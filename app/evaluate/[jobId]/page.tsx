@@ -30,6 +30,7 @@ import { resolveReportTitle } from "@/lib/evaluation/reportTitle";
 type Job = {
   id: string;
   user_id: string;
+  manuscript_id?: number;
   manuscripts?:
     | { user_id: string | null; title?: string | null }
     | Array<{ user_id: string | null; title?: string | null }>
@@ -139,7 +140,7 @@ async function getJob(jobId: string): Promise<Job | null> {
 
     const { data: job, error } = await supabase
       .from("evaluation_jobs")
-      .select("id, user_id, job_type, status, phase, phase_status, total_units, completed_units, failed_units, created_at, updated_at, last_error, manuscripts(user_id,title)")
+      .select("id, user_id, manuscript_id, job_type, status, phase, phase_status, total_units, completed_units, failed_units, created_at, updated_at, last_error, manuscripts(user_id,title)")
       .eq("id", jobId)
       .maybeSingle();
 
@@ -183,6 +184,32 @@ function getRelatedManuscriptTitle(job: Job | null): string | null {
   return title && title.length > 0 ? title : null;
 }
 
+async function getManuscriptTitleById(manuscriptId?: number): Promise<string | null> {
+  if (!Number.isFinite(manuscriptId) || (manuscriptId as number) <= 0) {
+    return null;
+  }
+
+  try {
+    const supabase = createAdminClient();
+    const { data, error } = await supabase
+      .from("manuscripts")
+      .select("title")
+      .eq("id", manuscriptId)
+      .maybeSingle();
+
+    if (error) {
+      console.warn(`[getManuscriptTitleById] Failed to load manuscript ${manuscriptId}:`, error.message);
+      return null;
+    }
+
+    const title = data?.title?.trim();
+    return title && title.length > 0 ? title : null;
+  } catch (err) {
+    console.warn(`[getManuscriptTitleById] Unexpected error for manuscript ${manuscriptId}:`, err);
+    return null;
+  }
+}
+
 
 async function getCurrentOwnerId(): Promise<string | null> {
   const sessionUser = await getAuthenticatedUser();
@@ -211,7 +238,8 @@ export async function generateMetadata({
 
   const artifactResult = job.status === "complete" ? await getArtifact(params.jobId) : null;
   const chapterTitle = artifactResult?.data.metrics?.manuscript?.title?.trim() || null;
-  const manuscriptTitle = getRelatedManuscriptTitle(job);
+  const manuscriptTitle =
+    getRelatedManuscriptTitle(job) || (await getManuscriptTitleById(job.manuscript_id));
   const { pageTitle } = resolveReportTitle({ chapterTitle, manuscriptTitle });
   return { title: pageTitle };
 }
@@ -422,7 +450,8 @@ export default async function EvaluationReportPage({
   const evaluationScope = inferEvaluationScope(job.job_type, artifact?.metrics?.manuscript?.genre);
   const integrityBanner = artifact ? classifyEvaluationIntegrityBanner(artifact) : null;
   const chapterTitle = artifact?.metrics?.manuscript?.title?.trim() || null;
-  const manuscriptTitle = getRelatedManuscriptTitle(job);
+  const manuscriptTitle =
+    getRelatedManuscriptTitle(job) || (await getManuscriptTitleById(job.manuscript_id));
   const { displayTitle } = resolveReportTitle({ chapterTitle, manuscriptTitle });
   const wordCount = artifact?.metrics?.manuscript?.word_count ?? null;
   const hasDetectedMode = Boolean(artifact?.detected_mode);

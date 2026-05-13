@@ -250,6 +250,12 @@ describe("processEvaluationJob long-form chunk routing", () => {
       persisted_count: 4,
       chunk_source: "processor_resolved_text",
       verified_at: new Date().toISOString(),
+      source_manuscript_words: 26000,
+      source_manuscript_chars: 145000,
+      chunk_storage_words: 31500,
+      chunk_storage_chars: 182000,
+      overlap_words: 5500,
+      overlap_chars: 37000,
     });
 
     runPipelineMock.mockResolvedValue({
@@ -346,12 +352,26 @@ describe("processEvaluationJob long-form chunk routing", () => {
           route: "long_form",
           threshold_words: 25000,
           manuscript_words: 26000,
+          source_manuscript_words: 26000,
+          source_manuscript_chars: 145000,
+          chunk_storage_words: 31500,
+          chunk_storage_chars: 182000,
+          overlap_words: 5500,
+          overlap_chars: 37000,
           chunk_count: 4,
           ensure_chunks_returned_count: 4,
           persisted_chunk_count: 4,
           chunk_source: "processor_resolved_text",
           verified_at: expect.any(String),
         }),
+      }),
+    );
+
+    expect(persistCall?.args?.p_progress?.timeout_resolution).toEqual(
+      expect.objectContaining({
+        timeout_word_basis: expect.any(Number),
+        timeout_source_word_count: 26000,
+        timeout_chunk_storage_word_count: expect.any(Number),
       }),
     );
   });
