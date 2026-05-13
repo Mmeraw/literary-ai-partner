@@ -173,7 +173,7 @@ describe('TTL Clamping Tests', () => {
     // Reset job to queued (simulating lease expiration)
     runSql(`
       UPDATE public.evaluation_jobs 
-      SET status = 'queued', lease_until = NULL, worker_id = NULL 
+      SET status = 'queued', phase_status = 'queued', lease_until = NULL, worker_id = NULL 
       WHERE id = '${jobId}';
     `);
     

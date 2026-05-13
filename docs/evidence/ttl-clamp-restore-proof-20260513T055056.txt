@@ -1,0 +1,13 @@
+PASS tests/ttl-clamping.test.ts (13.191 s)
+  TTL Clamping Tests
+    ✓ clamps negative TTL to minimum 30 seconds (2716 ms)
+    ✓ clamps zero TTL to minimum 30 seconds (2356 ms)
+    ✓ clamps huge TTL to maximum 900 seconds (2461 ms)
+    ✓ accepts valid TTL within bounds (300 seconds) (2302 ms)
+    ✓ guarantees lease advances on reclaim (monotonic) (3157 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       5 passed, 5 total
+Snapshots:   0 total
+Time:        13.244 s, estimated 16 s
+Ran all test suites within paths "tests/ttl-clamping.test.ts".
