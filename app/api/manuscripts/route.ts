@@ -160,3 +160,49 @@ export async function POST(req: Request) {
     );
   }
 }
+
+export async function DELETE(req: Request) {
+  try {
+    const user = await getAuthenticatedUser();
+    if (!user?.id) {
+      return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+    }
+
+    const manuscriptIdParam = new URL(req.url).searchParams.get("id");
+    const manuscriptId = Number(manuscriptIdParam);
+
+    if (!manuscriptIdParam || !Number.isInteger(manuscriptId) || manuscriptId <= 0) {
+      return NextResponse.json({ ok: false, error: "Valid manuscript id is required" }, { status: 400 });
+    }
+
+    const supabase = createAdminClient();
+    const { data, error } = await supabase
+      .from("manuscripts")
+      .delete()
+      .eq("user_id", user.id)
+      .eq("id", manuscriptId)
+      .select("id");
+
+    if (error) {
+      return NextResponse.json(
+        { ok: false, error: "Failed to delete manuscript", details: error.message },
+        { status: 500 },
+      );
+    }
+
+    if (!data || data.length === 0) {
+      return NextResponse.json({ ok: false, error: "Manuscript not found" }, { status: 404 });
+    }
+
+    return NextResponse.json({ ok: true, deleted: data[0]?.id ?? manuscriptId }, { status: 200 });
+  } catch (error) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error: "Failed to delete manuscript",
+        details: error instanceof Error ? error.message : String(error),
+      },
+      { status: 500 },
+    );
+  }
+}

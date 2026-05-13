@@ -17,7 +17,7 @@ describe("getProgressDisplay", () => {
       label: "Reconciling passes",
       valueLabel: "~46%",
       helperText:
-        "Approximate progress based on completed pipeline stages. Stages: Preparing manuscript → Reading manuscript → Building diagnosis → Reconciling passes → Final QA checks → Validating report → Finalizing report.",
+        "Approximate progress based on completed pipeline stages. Stages: Preparing manuscript → Reading manuscript → Building diagnosis → Reconciling passes → Final QA checks → Preparing report → Finalizing report.",
       indeterminate: false,
       percentage: 46,
     });
@@ -28,7 +28,7 @@ describe("getProgressDisplay", () => {
     expect(getProgressDisplay({ status: "running", progress: 25 })?.label).toBe("Building diagnosis");
     expect(getProgressDisplay({ status: "running", progress: 45 })?.label).toBe("Reconciling passes");
     expect(getProgressDisplay({ status: "running", progress: 65 })?.label).toBe("Final QA checks");
-    expect(getProgressDisplay({ status: "running", progress: 85 })?.label).toBe("Validating report");
+    expect(getProgressDisplay({ status: "running", progress: 85 })?.label).toBe("Preparing report");
     expect(getProgressDisplay({ status: "running", progress: 100 })?.label).toBe("Report ready");
   });
 
