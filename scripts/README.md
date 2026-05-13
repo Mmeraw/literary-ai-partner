@@ -191,7 +191,7 @@ Verifies Phase A.5 Day 1 (Security) implementation.
 
 ### Canonical Enum Values
 All test scripts use validated enum values:
-- `policy_family`: `'standard'` (default), `'dark_fiction'`, `'trauma_memoir'`
+- `policy_family`: `'standard'` (default), `'dark_fiction'`, `'testimony'`
 - `voice_preservation_level`: `'balanced'` (default), `'strict'`, `'expressive'`
 - `english_variant`: `'us'` (default), `'uk'`, `'ca'`, `'au'`
 

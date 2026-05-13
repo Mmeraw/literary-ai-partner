@@ -34,7 +34,7 @@ RevisionGrade™ is an end-to-end manuscript evaluation and submission preparati
 **Evaluation Modes:**
 - Standard (mainstream agent-ready)
 - Transgressive (literary extreme/experimental)
-- Trauma Memoir (survivor testimony)
+- Testimony (survivor testimony)
 
 **Evaluation Outputs:**
 - Overall RevisionGrade score (0-100)

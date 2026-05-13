@@ -44,7 +44,7 @@ function executeQAChecklist(params) {
     });
     
     // Check 3: Valid evaluation mode
-    const validModes = ['standard', 'transgressive', 'trauma_memoir'];
+    const validModes = ['standard', 'transgressive', 'testimony'];
     checks.push({
         check_name: "valid_evaluation_mode",
         passed: !params.evaluationMode || validModes.includes(params.evaluationMode),

@@ -21,7 +21,7 @@ BEGIN
     
     -- Create test evaluation job
     -- Required NOT NULL fields: policy_family, voice_preservation_level, english_variant
-    -- Allowed values: policy_family IN ('standard','dark_fiction','trauma_memoir')
+    -- Allowed values: policy_family IN ('standard','dark_fiction','testimony')
     --                 voice_preservation_level IN ('strict','balanced','expressive')
     --                 english_variant IN ('us','uk','ca','au')
     INSERT INTO public.evaluation_jobs (

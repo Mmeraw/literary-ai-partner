@@ -203,7 +203,7 @@ export type EvaluationResultV1 = {
     limitations: string[];
     
     /** Policy family used for evaluation */
-    policy_family: string; // e.g., "standard", "dark_fiction", "trauma_memoir"
+    policy_family: string; // e.g., "standard", "dark_fiction", "testimony"
     
     /** D2 Boundary: Optional agent-facing transparency fields (required only on agent-view surfaces) */
     transparency?: {

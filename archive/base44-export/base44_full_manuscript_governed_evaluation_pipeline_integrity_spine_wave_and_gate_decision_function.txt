@@ -35,9 +35,9 @@ TRANSGRESSIVE MODE ACTIVE (Critical Override):
 - FLAG ONLY IF: Repetitive without escalation, contradicts internal logic, weakens character integrity, unintentional parody
 - QUESTION: "Is this precise and controlled?" NOT "Is this appropriate or offensive?"
 - PRESERVE: Dark voice, extremity, authorial control, transgressive aesthetic
-` : evaluationMode === 'trauma_memoir' ? `
+` : evaluationMode === 'testimony' ? `
 
-TRAUMA MEMOIR MODE ACTIVE (Critical Override):
+TESTIMONY MODE ACTIVE (Critical Override):
 - TREAT AS TESTIMONY: Content reflects survivor experience, not gratuitous choice
 - DO NOT PENALIZE: Difficult/disturbing content, embodied sensory detail, psychological accuracy
 - EVALUATE: Authenticity, coherence, therapeutic/narrative function
@@ -138,9 +138,9 @@ async function evaluateChapterWaveTier(chapter, tier, base44, evaluationMode) {
 TRANSGRESSIVE MODE: Extremity is intentional craft. Evaluate precision, not politeness.
 - Do NOT flag: violence, offensive language, disturbing content, moral darkness
 - Flag ONLY: repetitive shock, contradicts logic, weakens character, unintentional parody
-` : evaluationMode === 'trauma_memoir' ? `
+` : evaluationMode === 'testimony' ? `
 
-TRAUMA MEMOIR MODE: Treat as survivor testimony. Respect embodied truth.
+TESTIMONY MODE: Treat as survivor testimony. Respect embodied truth.
 - Do NOT flag: difficult content, sensory detail, psychological accuracy
 - Flag ONLY: exploitation, invented details, tonal breaks
 ` : '';
@@ -780,9 +780,9 @@ TRANSGRESSIVE MODE ACTIVE:
 - DO NOT PENALIZE: Extremity, shock value, offensive content, provocative material
 - EVALUATE: Narrative control, thematic coherence, psychological precision
 - FLAG ONLY IF: Contradicts internal logic, repetitive without escalation, weakens character integrity
-` : evaluationMode === 'trauma_memoir' ? `
+` : evaluationMode === 'testimony' ? `
 
-TRAUMA MEMOIR MODE ACTIVE:
+TESTIMONY MODE ACTIVE:
 - TREAT AS TESTIMONY: Content reflects survivor experience
 - DO NOT PENALIZE: Difficult material, embodied sensory detail, psychological accuracy
 - EVALUATE: Authenticity, coherence, narrative function

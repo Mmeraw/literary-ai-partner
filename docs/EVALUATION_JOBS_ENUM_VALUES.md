@@ -21,13 +21,13 @@ When creating an `evaluation_jobs` record, these fields are required:
 **Check Constraint**: `chk_eval_jobs_policy_family`
 
 ```sql
-CHECK (policy_family = ANY (ARRAY['standard'::text, 'dark_fiction'::text, 'trauma_memoir'::text]))
+CHECK (policy_family = ANY (ARRAY['standard'::text, 'dark_fiction'::text, 'testimony'::text]))
 ```
 
 **Allowed values**:
 - `'standard'` ← **Default/Canonical**
 - `'dark_fiction'`
-- `'trauma_memoir'`
+- `'testimony'`
 
 ### voice_preservation_level
 
@@ -114,7 +114,7 @@ ENGLISH_VARIANT="${ENGLISH_VARIANT:-us}"
 
 # Fail fast if invalid values provided
 case "$POLICY_FAMILY" in
-  standard|dark_fiction|trauma_memoir) ;;
+  standard|dark_fiction|testimony) ;;
   *) echo "ERROR: invalid POLICY_FAMILY=$POLICY_FAMILY"; exit 1 ;;
 esac
 

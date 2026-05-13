@@ -42,6 +42,11 @@ jobs:
       - name: Gate replay (strict codes)
         run: npm run gate:replay -- --run-dir tests/fixtures/gate-replay/ch11b_pass
 
+      - name: Ancient Bloodlines benchmark gate
+        run: npm run test:benchmark:ancient-bloodlines
+        env:
+          CI: true
+
       - name: Test
         run: npm test -- --runInBand --no-coverage --bail
         env:

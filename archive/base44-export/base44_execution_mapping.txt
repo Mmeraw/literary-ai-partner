@@ -214,7 +214,7 @@ Manuscript → Chapter Split → Parallel Evaluation (Agent + WAVE Tiers) → Ag
 - `pipeline: full_manuscript`
 - `feature: evaluate`
 - `manuscript_id: {id}`
-- `evaluation_mode: {standard|transgressive|trauma_memoir}`
+- `evaluation_mode: {standard|transgressive|testimony}`
 
 ---
 

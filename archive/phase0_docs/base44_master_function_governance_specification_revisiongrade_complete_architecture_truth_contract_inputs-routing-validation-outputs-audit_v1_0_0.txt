@@ -122,7 +122,7 @@ While events may land in different database tables, they MUST all include the un
 - **Silent Parsing**: PROHIBITED
 - **User-Provided Metadata**:
   - Title (required)
-  - Evaluation mode: standard/transgressive/trauma_memoir
+  - Evaluation mode: standard/transgressive/testimony
   - Language variant: en-US/en-UK/en-CA/en-AU
   - Voice preservation: maximum/balanced/polish
 
@@ -145,7 +145,7 @@ While events may land in different database tables, they MUST all include the un
 **Soft Fails (Warn but allow):**
 - 3,001-5,000 words → warning banner: "Longer works benefit from full manuscript evaluation"
 - Mixed language detected → warning banner
-- Transgressive/trauma memoir mode → confirmation dialog required
+- Transgressive/testimony mode → confirmation dialog required
 
 **Preflight Blocks:**
 - matrixPreflight returns `allowed: false` → no LLM call

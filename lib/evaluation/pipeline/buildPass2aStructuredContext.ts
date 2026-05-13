@@ -12,9 +12,16 @@ import type {
 // aliases as separate entries. PR 2 gates must calibrate against that noise
 // profile rather than assuming canonical entity resolution already exists.
 
-const ENTITY_PATTERN = /\b(?:[A-Z][a-z]+(?:['-][A-Za-z]+)?|[A-Z]{2,})(?:\s+(?:[A-Z][a-z]+(?:['-][A-Za-z]+)?|[A-Z]{2,})){0,2}\b/g;
+const ENTITY_PATTERN =
+  /\b(?:\p{Lu}(?:\p{L}+|['’‘]\p{L}+)(?:['’‘-]\p{L}+)*|[A-Z]{2,})(?:\s+(?:\p{Lu}(?:\p{L}+|['’‘]\p{L}+)(?:['’‘-]\p{L}+)*|[A-Z]{2,})){0,2}\b/gu;
 const AGE_PATTERN = /\b\d{1,3}-year-old\b/gi;
-const DURATION_PATTERN = /\b(?:\d+|multiple|several)\s+(?:years?|months?|weeks?|days?|trips?)\s+(?:later|after)\b/gi;
+const DURATION_QUANTITY =
+  "(?:\\d+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|a|an|multiple|several|few|couple)";
+const DURATION_UNIT = "(?:years?|months?|weeks?|days?|trips?|decades?|centuries?|generations?)";
+const DURATION_PATTERN = new RegExp(
+  `\\b(?:${DURATION_QUANTITY}\\s+${DURATION_UNIT}\\s+(?:later|after)|after\\s+${DURATION_QUANTITY}\\s+${DURATION_UNIT}|${DURATION_QUANTITY}\\s+${DURATION_UNIT}\\s+after|${DURATION_UNIT}\\s+later)\\b`,
+  "gi",
+);
 const SEQUENCE_PATTERN = /\b(?:first|second|third|next|last)\s+(?:day|night|week|month|year|trip|chapter|scene)\b/gi;
 
 const ENTITY_STOPWORDS = new Set([
@@ -40,6 +47,15 @@ const ENTITY_STOPWORDS = new Set([
   "God",
 ]);
 
+function normalizeEntityComparableText(raw: string): string {
+  return raw
+    .normalize("NFC")
+    .replace(/[’‘]/g, "'")
+    .replace(/[‐‑‒–—―]/g, "-")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function getSourceChunks(args: {
   manuscriptText: string;
   manuscriptChunks?: ManuscriptChunkEvidence[];
@@ -52,7 +68,11 @@ function getSourceChunks(args: {
 }
 
 function normalizeEntityName(raw: string): string | null {
-  const cleaned = raw.replace(/[“”"'.,;:!?()\[\]]+/g, "").trim();
+  const canonicalized = normalizeEntityComparableText(raw);
+  const cleaned = canonicalized
+    .replace(/^[“”"'`.,;:!?()\[\]{}]+/, "")
+    .replace(/[“”"'`.,;:!?()\[\]{}]+$/, "")
+    .trim();
   if (!cleaned || ENTITY_STOPWORDS.has(cleaned)) {
     return null;
   }
@@ -127,8 +147,9 @@ function extractSceneIndex(
   const names = new Set(characterLedger.map((entry) => entry.name));
 
   return chunks.map((chunk) => {
+    const canonicalChunkContent = normalizeEntityComparableText(chunk.content);
     const namedEntities = [...names]
-      .filter((name) => chunk.content.includes(name))
+      .filter((name) => canonicalChunkContent.includes(normalizeEntityComparableText(name)))
       .slice(0, 6);
 
     return {

@@ -282,7 +282,7 @@ Stale leases auto-reclaim on next poll cycle.
 ./scripts/worker-start.sh
 
 # 2. Create test job
-# Allowed values: policy_family IN ('standard','dark_fiction','trauma_memoir')
+# Allowed values: policy_family IN ('standard','dark_fiction','testimony')
 #                 voice_preservation_level IN ('strict','balanced','expressive')
 #                 english_variant IN ('us','uk','ca','au')
 docker exec supabase_db_literary-ai-partner psql -U postgres -d postgres -c "

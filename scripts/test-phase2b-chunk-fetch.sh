@@ -6,7 +6,7 @@ DB_CONTAINER="supabase_db_literary-ai-partner"
 MID=9999
 
 # Canonical job field values (aligned with DB constraints)
-# Allowed: policy_family IN ('standard','dark_fiction','trauma_memoir')
+# Allowed: policy_family IN ('standard','dark_fiction','testimony')
 #          voice_preservation_level IN ('strict','balanced','expressive')
 #          english_variant IN ('us','uk','ca','au')
 POLICY_FAMILY="${POLICY_FAMILY:-standard}"
@@ -15,8 +15,8 @@ ENGLISH_VARIANT="${ENGLISH_VARIANT:-us}"
 
 # Guardrails: fail fast if invalid values provided
 case "$POLICY_FAMILY" in
-  standard|dark_fiction|trauma_memoir) ;;
-  *) echo "ERROR: invalid POLICY_FAMILY=$POLICY_FAMILY (allowed: standard, dark_fiction, trauma_memoir)"; exit 1 ;;
+  standard|dark_fiction|testimony) ;;
+  *) echo "ERROR: invalid POLICY_FAMILY=$POLICY_FAMILY (allowed: standard, dark_fiction, testimony)"; exit 1 ;;
 esac
 
 case "$VOICE_LEVEL" in

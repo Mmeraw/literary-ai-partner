@@ -1,0 +1,233 @@
+{
+  "manuscriptId": "ancient-bloodlines-3463bb26",
+  "title": "Ancient Bloodlines—Love Between Species",
+  "purpose": "Evidence anchors for SHORTFORM evaluation benchmark. These anchors support criterion scores, canon continuity, and thematic intelligence assessment. Use as few-shot examples for future evaluator training and regression validation.",
+  "anchors": [
+    {
+      "anchorId": "AB-001",
+      "type": "SCENE_SETUP",
+      "chapter": 1,
+      "topic": "Opening conflict setup",
+      "characterFocus": ["Twillow", "Newton"],
+      "criterionLinks": ["concept_core_premise", "narrative_drive_momentum"],
+      "pattern": "Bullying/exclusion scene establishing hierarchy conflict",
+      "whyItMatters": "Establishes the central struggle: cross-species prejudice and Newton's outsider status. Vivid but undercuts itself with exposition overlay in same beat.",
+      "revisionLever": "Cut explanatory layer; let bullying speak for itself before doctrine emerges."
+    },
+    {
+      "anchorId": "AB-002",
+      "type": "SCENE_SETUP",
+      "chapter": 1,
+      "topic": "Rana introduction and disease",
+      "characterFocus": ["Rana", "Newton"],
+      "criterionLinks": ["character_depth_psychology", "world_building_logic"],
+      "pattern": "Character in peril; emotional stakes + world-rule revelation",
+      "whyItMatters": "Rana's fungal illness demonstrates environmental logic (toxin cost) and Newton's capacity for cross-species care. Shows both promise and where interiority could deepen.",
+      "revisionLever": "Add Newton's internal resistance/doubt before commitment to care; show stakes through sensory specificity (touch, scent, danger proximity)."
+    },
+    {
+      "anchorId": "AB-003",
+      "type": "DIALOGUE_EXCHANGE",
+      "chapter": 2,
+      "topic": "Doctrine vs. pragmatism",
+      "characterFocus": ["Thorander", "Newton"],
+      "criterionLinks": ["dialogue_subtext", "theme_intelligence"],
+      "pattern": "Authority figure lectures; protagonist questions",
+      "whyItMatters": "Encodes the moral architecture (doctrine / survival / cooperation dilemma) with clarity. But clarity comes from exposition, not from Thorander and Newton's actual conflict of goals.",
+      "revisionLever": "Rewrite as confrontation over a concrete rule-break (Newton broke caste law); let conflict carry theme, not narration."
+    },
+    {
+      "anchorId": "AB-004",
+      "type": "SCENE_BEAT",
+      "chapter": 2,
+      "topic": "Shaming circle",
+      "characterFocus": ["Newton", "Twillow", "Snappy", "elders"],
+      "criterionLinks": ["scene_construction_function", "pov_voice_tone"],
+      "pattern": "Social pressure / public judgment scene",
+      "whyItMatters": "High-stakes pressure moment showing world logic (herd judgment) and character stakes clearly. Canon presence: Twillow antagonist, Snappy arc-shifter.",
+      "revisionLever": "Tighten—this scene currently has good conflict but soft exit. End on a clear pivot (Newton resolves something, or the group fractures)."
+    },
+    {
+      "anchorId": "AB-005",
+      "type": "SCENE_SETUP",
+      "chapter": 3,
+      "topic": "Cross-species healing / care work",
+      "characterFocus": ["Newton", "Rana"],
+      "criterionLinks": ["character_depth_psychology", "theme_intelligence"],
+      "pattern": "Intimate cooperation scene; emotional work meets medical/practical work",
+      "whyItMatters": "Dramatizes the theme (cross-species cooperation is not abstract; it's tactile, risky, daily). Shows Newton's interiority as engagement, not narration.",
+      "revisionLever": "This scene is where Newton's choice to care feels most real. Extend it; show his doubt, his small discoveries about Rana, his commitment emerging from action, not decision."
+    },
+    {
+      "anchorId": "AB-006",
+      "type": "EXPOSITORY_BLOCK",
+      "chapter": 3,
+      "topic": "Herd history and species doctrine",
+      "characterFocus": null,
+      "criterionLinks": ["narrative_drive_momentum", "pacing_structural_balance"],
+      "pattern": "Lore dump (6k+ words across scenes) explaining species backstory, religious law, ecological context",
+      "whyItMatters": "World-building is strong and textually rich. But it clusters in middle sections, creating pacing drag. Necessary information; delivery needs spreading.",
+      "revisionLever": "Identify the three most critical pieces (species hierarchy, fungal threat, forbidden cooperation). Embed one in each of three distinct high-stakes scenes instead of standalone lore blocks."
+    },
+    {
+      "anchorId": "AB-007",
+      "type": "SCENE_SETUP",
+      "chapter": 4,
+      "topic": "Newton confronts Snappy",
+      "characterFocus": ["Newton", "Snappy"],
+      "criterionLinks": ["character_depth_psychology", "dialogue_subtext"],
+      "pattern": "Moral/emotional negotiation; ambiguous motivations",
+      "whyItMatters": "Snappy is neither pure ally nor antagonist; this scene proves it. Canon presence: recurring across arc, not one-scene character.",
+      "revisionLever": "Clear scene; this is a model of subtext-through-conflict. Use as test case when drafting revised dialogue scenes."
+    },
+    {
+      "anchorId": "AB-008",
+      "type": "SCENE_BEAT",
+      "chapter": 4,
+      "topic": "Juniper/fungal remedy discovery",
+      "characterFocus": ["Rana", "Newton", "Thorander"],
+      "criterionLinks": ["world_building_logic", "pacing_structural_balance"],
+      "pattern": "Problem-solving scene; action-driven world-rule application",
+      "whyItMatters": "Shows ecological logic concretely (toxin + antitoxin + social rule about mixing plants). Moves momentum forward. Good scene architecture.",
+      "revisionLever": "Strong as-is. Model it: let world rules emerge through character agency and consequence, not exposition."
+    },
+    {
+      "anchorId": "AB-009",
+      "type": "DESCRIPTIVE_PASSAGE",
+      "chapter": 2,
+      "topic": "Environment/atmosphere prose",
+      "characterFocus": null,
+      "criterionLinks": ["prose_line_level", "pacing_structural_balance"],
+      "pattern": "Sensory-rich description of wetland, species, atmosphere",
+      "whyItMatters": "Prose is vivid and competent. But some passages accumulate modifiers, metaphors, tones, creating baroque overrun instead of sharp image.",
+      "revisionLever": "Sample line: count adjectives. Compress to 1–2 sharp details at pressure peaks. Reserve lush prose for lower-stakes reflective moments."
+    },
+    {
+      "anchorId": "AB-010",
+      "type": "DIALOGUE_EXCHANGE",
+      "chapter": 5,
+      "topic": "Newton's hesitation / doubt",
+      "characterFocus": ["Newton"],
+      "criterionLinks": ["character_depth_psychology", "pov_voice_tone"],
+      "pattern": "Internal monologue or half-voiced question",
+      "whyItMatters": "Shows Newton's agency is not automatic. Hesitation scenes are where interiority wins or loses reader sympathy.",
+      "revisionLever": "Strengthen these moments. Before key commitments, show Newton's felt conflict (physical sensation, sensory anchor) not just thought summary."
+    },
+    {
+      "anchorId": "AB-011",
+      "type": "SCENE_SETUP",
+      "chapter": 2,
+      "topic": "Rana's POV introduction",
+      "characterFocus": ["Rana"],
+      "criterionLinks": ["character_depth_psychology", "dialogue_subtext"],
+      "pattern": "Rana's first substantial interiority",
+      "whyItMatters": "Canon presence: Rana is co-protagonist, not secondary. This scene shows her agency and emotional stakes distinct from Newton's rescue arc.",
+      "revisionLever": "Rana is often told (as disease victim, as object of care) rather than shown (as actor, believer, doubter). Add scenes where Rana makes choices that shift Newton's expectations."
+    },
+    {
+      "anchorId": "AB-012",
+      "type": "SCENE_BEAT",
+      "chapter": 3,
+      "topic": "Twillow's reversal / softening",
+      "characterFocus": ["Twillow", "Newton"],
+      "criterionLinks": ["character_depth_psychology", "narrative_drive_momentum"],
+      "pattern": "Antagonist shows unexpected dimension",
+      "whyItMatters": "Canon: Twillow is recurring (not one-scene bully). This moment hints at complexity. Should deepen, not be silently dropped.",
+      "revisionLever": "If Twillow has a later reversal, foreshadow it earlier with a beat where hardness cracks. If Twillow remains antagonist, lock that choice—don't leave ambiguity."
+    },
+    {
+      "anchorId": "AB-013",
+      "type": "THEMATIC_ANCHOR",
+      "chapter": "Throughout",
+      "topic": "Cooperation as radical act",
+      "characterFocus": ["Newton", "Rana"],
+      "criterionLinks": ["theme_intelligence", "world_building_logic"],
+      "pattern": "Recurring motif: cross-species alliance breaks doctrine; costs escalate",
+      "whyItMatters": "The novella's systemic intelligence: shows that cooperation has social, medical, spiritual costs. This is demonstrated, not explained.",
+      "revisionLever": "Each time Newton/Rana cooperate, show a cost: Twillow's shunning, doctrine breach, resource trade-off, danger escalation. Let consequences accumulate."
+    },
+    {
+      "anchorId": "AB-014",
+      "type": "SCENE_SETUP",
+      "chapter": 4,
+      "topic": "Herd meeting / governance dispute",
+      "characterFocus": ["Thorander", "elders", "Newton", "Snappy"],
+      "criterionLinks": ["world_building_logic", "theme_intelligence"],
+      "pattern": "Political/social pressure scene; shows herd decision-making",
+      "whyItMatters": "World logic made visible: how does herd governance work? What are the actual rules and costs? Canon presence: Thorander, elders, Snappy all materially present.",
+      "revisionLever": "Scene is clear but risks exposition. Tighten: let disagreement carry meaning; end with decision/fracture, not explanation."
+    },
+    {
+      "anchorId": "AB-015",
+      "type": "DIALOGUE_EXCHANGE",
+      "chapter": 5,
+      "topic": "Rana's doctrine doubt",
+      "characterFocus": ["Rana"],
+      "criterionLinks": ["character_depth_psychology", "dialogue_subtext"],
+      "pattern": "Rana articulates her own moral break",
+      "whyItMatters": "Canon: Rana is not just Newton's object of rescue; she has her own doctrinal crisis. This moment proves it.",
+      "revisionLever": "If this exists, it should anchor a later scene where Rana's choice (not Newton's protection) is a turning point. Ensure Rana has agency in the resolution."
+    },
+    {
+      "anchorId": "AB-016",
+      "type": "SCENE_BEAT",
+      "chapter": "varied",
+      "topic": "Sensory anchor moments (touch, scent, sound in crisis)",
+      "characterFocus": ["Newton", "Rana"],
+      "criterionLinks": ["prose_line_level", "character_depth_psychology"],
+      "pattern": "High-stakes moment grounded in one precise sensory detail",
+      "whyItMatters": "These moments anchor emotion and make stakes felt. The novella has some strong sensory work; more would deepen craft.",
+      "revisionLever": "Before key commitments and dangers, add one line of sensory specificity: a touch, a scent, a sound. Show fear/choice through body, not summary."
+    },
+    {
+      "anchorId": "AB-017",
+      "type": "SCENE_BEAT",
+      "chapter": 5,
+      "topic": "Threat escalation (human incursion / environmental crisis)",
+      "characterFocus": ["Newton", "Rana", "Thorander"],
+      "criterionLinks": ["narrative_drive_momentum", "world_building_logic"],
+      "pattern": "External pressure forces herd to adapt or cooperate",
+      "whyItMatters": "Stakes shift from internal hierarchy to survival. Shows how Newton/Rana's cooperation wasn't just personal; it's necessary.",
+      "revisionLever": "This moment (if fully in text) justifies the whole moral arc. Ensure it feels inevitable, not convenient."
+    },
+    {
+      "anchorId": "AB-018",
+      "type": "SCENE_SETUP",
+      "chapter": "end-material (sampled)",
+      "topic": "Resolution sketch / herd fracture or reunification",
+      "characterFocus": ["Newton", "Rana", "Thorander", "Twillow", "Snappy"],
+      "criterionLinks": ["narrative_closure_promises", "character_depth_psychology"],
+      "pattern": "Outcome of Newton/Rana cooperation; herd responds",
+      "whyItMatters": "Canon continuity: all 5 major players materially present. Closure delivers on promises (cooperation, fracture, possible healing).",
+      "revisionLever": "This material is sampled, not fully visible. Future full-manuscript evaluation must assess closure credibility here."
+    },
+    {
+      "anchorId": "AB-019",
+      "type": "TONE_SHIFT",
+      "chapter": "varied",
+      "topic": "Register collisions (mythic + comic + didactic in same beat)",
+      "characterFocus": null,
+      "criterionLinks": ["pov_voice_tone", "prose_line_level"],
+      "pattern": "Scene where two or more tonal registers compete for authority",
+      "whyItMatters": "The voice is distinctive, but this is where it softens high-stakes moments. Fix: stabilize tone near pressure peak.",
+      "revisionLever": "Identify 2–3 scenes where tone wobbles most. Choose one register (mythic or direct) for that scene; remove competing tones."
+    },
+    {
+      "anchorId": "AB-020",
+      "type": "CHARACTER_ROLE",
+      "chapter": "throughout",
+      "topic": "Snappy as ally / mediator / enigma",
+      "characterFocus": ["Snappy"],
+      "criterionLinks": ["character_depth_psychology", "world_building_logic"],
+      "pattern": "Snappy protects, questions, complicates Newton and Rana's arc without clear motive",
+      "whyItMatters": "Canon: Snappy is materially present and recurring. Ambiguous motivations can be strength; ensure they're intentional, not undercooked.",
+      "revisionLever": "Late in arc, clarify Snappy's stake. Is Snappy protecting self-interest, loyalty, or a hidden agenda? Commit to one; let it surface through action."
+    }
+  ],
+  "usageGuidance": {
+    "forTesting": "Use anchors AB-001 through AB-020 to validate that RevisionGrade commentary preserves canon characters and core thematic beats. If an evaluator's output omits Twillow (AB-004, AB-012), Snappy (AB-007, AB-020), or Thorander (AB-003, AB-014, AB-017), raise a canon-loss error.",
+    "forFewShotTraining": "Anchors AB-013 (thematic recurrence), AB-009 (prose craft), AB-005 (dramatized interiority) are good few-shot examples. Use them to show evaluators how to preserve signal while avoiding lore-dump overhead.",
+    "forRevisionGuidance": "Anchors AB-006 (expository clustering), AB-010 (interiority peaks), AB-016 (sensory anchoring) directly support the three top revision priorities. Use these when explaining what needs to change.",
+    "regressionGate": "If future evaluator output drops more than 3 character names from character/world commentary, or conflates craft/intelligence commentary, mark test as FAILED."
+  }
+}

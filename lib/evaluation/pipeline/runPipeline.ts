@@ -39,6 +39,7 @@ import type {
 } from "./types";
 import type { EvaluationResultV1 } from "@/schemas/evaluation-result-v1";
 import type { EvaluationResultV2 } from "@/schemas/evaluation-result-v2";
+import { detectModeFromManuscript } from "@/lib/evaluation/modeDetection";
 import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
 import { PASS1_PROMPT_VERSION } from "./prompts/pass1-craft";
 import { PASS2_PROMPT_VERSION } from "./prompts/pass2-editorial";
@@ -1672,6 +1673,8 @@ export function synthesisToEvaluationResultV2(
     sourceText,
   } = opts;
 
+  const detectedMode = detectModeFromManuscript(opts.manuscriptText || "");
+
   const criteria = synthesis.criteria
     .map((c) =>
       normalizeCriterion(
@@ -1811,6 +1814,9 @@ export function synthesisToEvaluationResultV2(
       provider: "openai",
       prompt_version: `${PASS1_PROMPT_VERSION}+${PASS2_PROMPT_VERSION}+${PASS3_PROMPT_VERSION}`,
     },
+    detected_mode: detectedMode,
+    confirmed_mode: null,
+    mode_telemetry: [],
     overview: {
       verdict: synthesis.overall.verdict,
       overall_score_0_100: weighted.overall_score_0_100,

@@ -15,7 +15,7 @@ ENGLISH_VARIANT="us"
 # ============================================================================
 # ALLOWED ENUM VALUES (from DB check constraints)
 # ============================================================================
-# policy_family: standard | dark_fiction | trauma_memoir
+# policy_family: standard | dark_fiction | testimony
 # voice_preservation_level: strict | balanced | expressive
 # english_variant: us | uk | ca | au
 
@@ -39,7 +39,7 @@ VALUES (
   'queued',            -- status (text)
   'phase_1',           -- phase (text)
   'novel',             -- work_type (text)
-  'standard',          -- policy_family: standard|dark_fiction|trauma_memoir
+  'standard',          -- policy_family: standard|dark_fiction|testimony
   'balanced',          -- voice_preservation_level: strict|balanced|expressive
   'us'                 -- english_variant: us|uk|ca|au
 );
@@ -56,7 +56,7 @@ ENGLISH_VARIANT="${ENGLISH_VARIANT:-us}"
 
 # Fail fast on invalid values
 case "$POLICY_FAMILY" in
-  standard|dark_fiction|trauma_memoir) ;;
+  standard|dark_fiction|testimony) ;;
   *) echo "ERROR: invalid POLICY_FAMILY=$POLICY_FAMILY"; exit 1 ;;
 esac
 
