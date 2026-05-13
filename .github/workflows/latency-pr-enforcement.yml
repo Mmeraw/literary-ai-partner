@@ -33,10 +33,24 @@ jobs:
               (name) =>
                 name.startsWith("app/admin/") ||
                 name.startsWith("components/admin/");
+            // Repo-meta files: CI workflows, CODEOWNERS, PR/issue templates, dependabot, etc.
+            // These have their own dedicated guards (Phase Integrity Guard, kevlar, governance,
+            // Canon Guard) and are not subject to evaluation-pipeline latency requirements.
+            const isRepoMeta = (name) => name.startsWith(".github/");
+            // Top-level repo markdown files (README, CHANGELOG, CONTRIBUTING, LICENSE, etc.)
+            const isRootMarkdown = (name) =>
+              !name.includes("/") && name.toLowerCase().endsWith(".md");
 
             const exemptOnly =
               changed.length > 0 &&
-              changed.every((name) => isDocs(name) || isMigration(name) || isAdminUi(name));
+              changed.every(
+                (name) =>
+                  isDocs(name) ||
+                  isMigration(name) ||
+                  isAdminUi(name) ||
+                  isRepoMeta(name) ||
+                  isRootMarkdown(name),
+              );
 
             const skip = exemptOnly;
 
@@ -47,7 +61,7 @@ jobs:
       - name: Skip for exempt-scope PRs
         if: steps.scope.outputs.skip == 'true'
         run: |
-          echo "Skipping latency template enforcement: diff limited to docs/migrations/admin-ui paths."
+          echo "Skipping latency template enforcement: diff limited to docs / migrations / admin-ui / repo-meta paths."
 
       - name: Validate PR body structure
         if: steps.scope.outputs.skip != 'true'
