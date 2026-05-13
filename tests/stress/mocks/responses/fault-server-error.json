@@ -1,0 +1,7 @@
+{
+  "error": {
+    "type": "server_error",
+    "code": "500",
+    "message": "OpenAI server error (500)"
+  }
+}

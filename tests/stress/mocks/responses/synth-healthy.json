@@ -1,0 +1,18 @@
+{
+  "overall": {
+    "overall_score_0_100": 60,
+    "verdict": "revise",
+    "one_paragraph_summary": "Healthy synthesis from stress mock.",
+    "top_3_strengths": ["pace", "voice", "structure"],
+    "top_3_risks": ["dialogue density", "exposition", "stakes clarity"],
+    "submission_readiness": "close"
+  },
+  "metadata": {
+    "pass1_model": "gpt-4o-2024-08-06",
+    "pass2_model": "gpt-4o-2024-08-06",
+    "pass3_model": "gpt-4o-2024-08-06",
+    "generated_at": "2026-05-13T00:00:00.000Z"
+  },
+  "partial_evaluation": false,
+  "criteria_note": "All criteria from schemas/criteria-keys.ts are populated by the typed factory."
+}

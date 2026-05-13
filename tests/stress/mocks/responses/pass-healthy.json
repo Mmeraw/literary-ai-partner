@@ -1,0 +1,17 @@
+{
+  "pass": 1,
+  "axis": "craft_execution",
+  "model": "gpt-4o-2024-08-06",
+  "prompt_version": "stress-mock-v1",
+  "temperature": 0.2,
+  "generated_at": "2026-05-13T00:00:00.000Z",
+  "coverage_summary": {
+    "fully_evaluated": true,
+    "analyzed_chars": 1024,
+    "source_chars": 1024,
+    "analyzed_words": 200,
+    "source_words": 200,
+    "strategy": "full"
+  },
+  "criteria_note": "All criteria from schemas/criteria-keys.ts are populated with score_0_10=6 and a deterministic rationale by the typed factory in tests/stress/mocks/llm.ts."
+}
