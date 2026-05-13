@@ -93,6 +93,11 @@ export function buildPass3UserPrompt(params: {
 }): string {
   const executionMode = params.executionMode ?? "TRUSTED_PATH";
   const synthesisBudget = getDefaultSynthesisReferenceCharBudget();
+  // DEPRECATED-PATH (2026-05-13): buildPromptInputWindow performs the
+  // 40,000-char silent truncation that produces PASS{1,2,3}_TIMEOUT on
+  // long manuscripts. Will be replaced by chunk-scoped map-reduce in
+  // PR-A of docs/MAP_REDUCE_PIPELINE_GOVERNANCE_BRIEF.md (locked PR #473).
+  // Do NOT add new callers.
   const synthesisWindow = params.manuscriptText
     ? buildPromptInputWindow(params.manuscriptText, synthesisBudget)
     : "";

@@ -92,7 +92,7 @@ npm run build
 - [x] `getEligibleChunks()` filters pending/failed, attempt_count < max ✅
 - [x] `getEligibleChunksWithStuckRecovery()` includes stuck processing chunks ✅
 - [x] `claimChunkForProcessing()` calls RPC, fails fast if missing ✅
-- [x] `unsafeClaimChunk()` has race condition warning ✅
+- [x] `unsafeClaimChunk()` removed 2026-05-13 (was emergency fallback; never used in production)
 - [x] `updateChunkStatus()` filters undefined values ✅
 
 ### lib/jobs/phase1.ts

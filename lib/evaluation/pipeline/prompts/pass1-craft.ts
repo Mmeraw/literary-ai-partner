@@ -80,6 +80,11 @@ export function buildPass1UserPrompt(params: {
 }): string {
   const wordCount = params.manuscriptText.trim().split(/\s+/).length;
   const executionMode = params.executionMode ?? "TRUSTED_PATH";
+  // DEPRECATED-PATH (2026-05-13): buildPromptInputWindow performs the
+  // 40,000-char silent truncation that produces PASS{1,2,3}_TIMEOUT on
+  // long manuscripts. Will be replaced by chunk-scoped map-reduce in
+  // PR-A of docs/MAP_REDUCE_PIPELINE_GOVERNANCE_BRIEF.md (locked PR #473).
+  // Do NOT add new callers.
   const promptWindow = buildPromptInputWindow(params.manuscriptText);
   const coverage = summarizePromptCoverage(params.manuscriptText);
   return `Evaluate this ${params.workType || "manuscript"} excerpt titled "${params.title}" on the CRAFT EXECUTION axis.
