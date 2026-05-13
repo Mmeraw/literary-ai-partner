@@ -54,7 +54,7 @@ import {
   countWords,
   type SubmissionScopeProfile,
 } from "./submissionScope";
-import { summarizePromptCoverage } from "./promptInput";
+import { summarizePromptCoverage, getDefaultPassInputCharBudget } from "./promptInput";
 import {
   buildCriteriaPlanForScale,
   scopePolicy,
@@ -161,6 +161,20 @@ export interface RunPipelineOptions {
 
 const DEFAULT_PASS_TIMEOUT_MS = 60_000;
 const DEFAULT_MAX_MANUSCRIPT_CHARS = 3_000_000;
+
+// Per-chunk char ceiling for the Pass 1 prompt window. Mirrors the 95% factor
+// used by the upstream chunker post-condition in lib/evaluation/processor.ts
+// (added in PR #471). Same invariant, enforced at the runPipeline boundary so
+// callers that bypass processEvaluationJob (stress harness, future map-reduce
+// callers) cannot smuggle oversized chunks past Pass 1 dispatch.
+const CHUNK_BUDGET_RATIO = 0.95;
+
+// Minimum viable Pass 1 input. A single-token chunk is structurally garbage:
+// no prose context, no scene, no anchor — the LLM will hallucinate a healthy
+// response off of nothing. 32 chars ≈ ~6 words, the smallest unit that can
+// carry meaningful prose (one short sentence). Below this floor we fail
+// closed instead of feeding the runner uninterpretable input.
+const MIN_VIABLE_CHUNK_CHARS = 32;
 
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> {
   return new Promise<T>((resolve, reject) => {
@@ -461,6 +475,62 @@ function deriveGovernanceConfidenceFromCriteria(
   };
 }
 
+type ChunkGuardFailure = {
+  error: string;
+  error_code: "CHUNK_BUDGET_OVERFLOW" | "PIPELINE_INPUT_INVALID";
+};
+
+/**
+ * Structural invariants on pre-materialized chunks reaching runPipeline.
+ *
+ * Strengthens the chunker post-condition added in PR #471 so it also catches
+ * chunks that arrive via opts.manuscriptChunks (i.e. without flowing through
+ * processEvaluationJob's chunker call). Without this guard, callers that
+ * inject pre-built chunks — the stress harness, future map-reduce callers,
+ * any caller exercising runPipeline directly — can push oversized or
+ * trivially-small chunks straight into Pass 1.
+ *
+ * Two structural checks, both unconditional (no env toggle, no feature flag):
+ *   - upper bound: chunk.content.length must fit Pass 1's prompt window.
+ *   - lower bound: chunk.content.trim().length must clear MIN_VIABLE_CHUNK_CHARS.
+ *
+ * Idempotent: safe to call multiple times on the same input.
+ */
+function validateManuscriptChunks(
+  chunks: ManuscriptChunkEvidence[],
+): ChunkGuardFailure | null {
+  if (chunks.length === 0) return null;
+  const charBudget = getDefaultPassInputCharBudget();
+  const budgetCeiling = Math.floor(charBudget * CHUNK_BUDGET_RATIO);
+
+  for (const chunk of chunks) {
+    const trimmedLen = chunk.content.trim().length;
+    if (trimmedLen < MIN_VIABLE_CHUNK_CHARS) {
+      return {
+        error:
+          `Pipeline input invalid: chunk ${chunk.chunk_index} has ` +
+          `trimmed_char_count=${trimmedLen} below MIN_VIABLE_CHUNK_CHARS=${MIN_VIABLE_CHUNK_CHARS}. ` +
+          `Undersized chunks cannot produce a faithful Pass 1 evaluation — failing closed before dispatch.`,
+        error_code: "PIPELINE_INPUT_INVALID",
+      };
+    }
+
+    const rawLen = chunk.content.length;
+    if (rawLen > budgetCeiling) {
+      const ratio = charBudget > 0 ? rawLen / charBudget : 0;
+      return {
+        error:
+          `Chunker post-condition violated: chunk ${chunk.chunk_index} has ` +
+          `char_count=${rawLen} which exceeds 95% of inputCharBudget (${charBudget}, ` +
+          `ratio=${ratio.toFixed(3)}). Pass 1 cannot complete within the prompt window — ` +
+          `failing closed before dispatch.`,
+        error_code: "CHUNK_BUDGET_OVERFLOW",
+      };
+    }
+  }
+  return null;
+}
+
 function validatePipelineInput(opts: RunPipelineOptions): string | null {
   const manuscriptText = opts.manuscriptText?.trim();
   const workType = opts.workType?.trim();
@@ -540,6 +610,18 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
       error_code: "PIPELINE_INPUT_INVALID",
       failed_at: "pass1",
     };
+  }
+
+  if (Array.isArray(opts.manuscriptChunks) && opts.manuscriptChunks.length > 0) {
+    const chunkGuardFailure = validateManuscriptChunks(opts.manuscriptChunks);
+    if (chunkGuardFailure) {
+      return {
+        ok: false,
+        error: chunkGuardFailure.error,
+        error_code: chunkGuardFailure.error_code,
+        failed_at: "pass1",
+      };
+    }
   }
 
   const passTimeoutMs = opts._passTimeoutMs ?? DEFAULT_PASS_TIMEOUT_MS;
