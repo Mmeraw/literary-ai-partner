@@ -130,8 +130,8 @@ export function healthySynthesis(): SynthesisOutput {
       overall_score_0_100: 60,
       verdict: "revise",
       one_paragraph_summary: "Healthy synthesis from stress mock.",
-      top_3_strengths: ["pace", "voice", "structure"],
-      top_3_risks: ["dialogue density", "exposition", "stakes clarity"],
+      top_3_strengths: ["pace", "voice", "composition"],
+      top_3_risks: ["dialogue density", "exposition", "urgency clarity"],
       submission_readiness: "close",
     },
     metadata: {

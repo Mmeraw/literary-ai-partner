@@ -32,7 +32,7 @@ export type WordBucket = keyof typeof WORD_BUCKETS;
 const VOCAB = [
   "the", "manuscript", "evidence", "scene", "chapter", "narrator", "character",
   "tension", "voice", "rhythm", "image", "moment", "pressure", "decision",
-  "consequence", "stakes", "memory", "echo", "thread", "silence", "weight",
+  "consequence", "urgency", "memory", "echo", "thread", "silence", "weight",
   "horizon", "edge", "shadow", "promise", "fracture", "thread", "pulse",
   "fragment", "ledger", "anchor", "lattice", "interval", "current", "tide",
 ];
