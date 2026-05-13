@@ -1,0 +1,58 @@
+name: Auto-heal PR body
+
+"on":
+  pull_request:
+    types: [opened, edited, reopened]
+
+permissions:
+  pull-requests: write
+  contents: read
+
+jobs:
+  auto-heal:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Read current PR body
+        run: |
+          gh pr view "${PR_NUMBER}" --json body --jq .body > /tmp/body.md
+          echo "::group::Current body"
+          sed -n '1,80p' /tmp/body.md || true
+          echo "::endgroup::"
+
+      - name: Auto-heal missing tokens
+        id: heal
+        run: |
+          set -e
+          node scripts/auto-heal-pr-body.mjs --in /tmp/body.md --out /tmp/body.new.md 2> /tmp/heal.stderr
+          cat /tmp/heal.stderr
+          if grep -q '^HEALED=1$' /tmp/heal.stderr; then
+            echo "healed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "healed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Edit PR body if healed
+        if: steps.heal.outputs.healed == 'true'
+        run: |
+          gh pr edit "${PR_NUMBER}" --body-file /tmp/body.new.md
+          echo "PR body updated with auto-healed compliance footer."
+
+      - name: Post sticky comment if healed
+        if: steps.heal.outputs.healed == 'true'
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: auto-heal-pr-body
+          message: |
+            🛟 **PR body auto-healed**
+
+            I auto-healed your PR body so `enforce-latency-template` can pass.
+            Please fill in the actual values in the **Compliance Footer** before merge —
+            placeholder values like `N/A — please fill` are not acceptable for merge.
+
+            See `docs/governance/PR_BODY_MISTAKE_PROOFING.md` for context.
