@@ -28,7 +28,7 @@ update({
 
 // AFTER (FIXED):
 // Removed fallback - RPC function is now REQUIRED
-// Added unsafeClaimChunk() for emergency use only (with race condition warning)
+// Removed `unsafeClaimChunk()` (2026-05-13) — `claimChunkForProcessing` is the only supported path.
 if (error) {
   console.warn(`[claimChunk] RPC failed: ${error.message}`);
   return false; // Fail fast - RPC is required

@@ -29,6 +29,13 @@ export function getDefaultSynthesisReferenceCharBudget(): number {
   return getEvaluationRuntimeConfig().pass.synthesisRefCharBudget;
 }
 
+/**
+ * @deprecated 2026-05-13 — pending replacement by chunk-scoped map-reduce
+ * (see docs/MAP_REDUCE_PIPELINE_GOVERNANCE_BRIEF.md PR-A). Do NOT add new
+ * callers. This function silently truncates manuscripts to maxChars and
+ * is the root cause of the PASS_TIMEOUT class of failures on long-form
+ * inputs.
+ */
 export function buildPromptInputWindow(text: string, maxChars?: number): string {
   const effectiveMaxChars = maxChars ?? getEvaluationRuntimeConfig().pass.inputCharBudget;
   const trimmed = text.trim();

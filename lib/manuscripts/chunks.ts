@@ -559,43 +559,6 @@ export async function claimChunkForProcessing(
 }
 
 /**
- * DEPRECATED: Use claimChunkForProcessing instead.
- * Direct update approach - not atomic, kept for emergency fallback only.
- */
-export async function unsafeClaimChunk(chunkId: string): Promise<boolean> {
-  // First, read current attempt_count
-  const { data: current, error: readError } = await supabase
-    .from("manuscript_chunks")
-    .select("attempt_count, status")
-    .eq("id", chunkId)
-    .in("status", ["pending", "failed"])
-    .single();
-
-  if (readError || !current) {
-    return false;
-  }
-
-  // Then update with incremented value (RACE CONDITION POSSIBLE)
-  const { data: updateData, error: updateError } = await supabase
-    .from("manuscript_chunks")
-    .update({
-      status: "processing",
-      attempt_count: current.attempt_count + 1,
-      last_error: null,
-    })
-    .eq("id", chunkId)
-    .in("status", ["pending", "failed"])
-    .select();
-
-  if (updateError) {
-    console.error(`Failed to claim chunk ${chunkId}:`, updateError);
-    return false;
-  }
-
-  return !!(updateData && updateData.length > 0);
-}
-
-/**
  * Get the manuscript text from storage or database
  *
  * This is a placeholder - adapt to your actual manuscript storage strategy.
