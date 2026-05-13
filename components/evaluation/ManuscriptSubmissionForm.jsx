@@ -14,6 +14,7 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess }) {
   const [projectTitle, setProjectTitle] = useState("");
   const [selectedManuscriptId, setSelectedManuscriptId] = useState(null);
   const [dashboardManuscripts, setDashboardManuscripts] = useState([]);
+  const [hiddenManuscriptIds, setHiddenManuscriptIds] = useState([]);
   const [isLoadingDashboard, setIsLoadingDashboard] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -24,6 +25,54 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess }) {
   const wordCount = useMemo(() => {
     return manuscriptText.trim().split(/\s+/).filter(Boolean).length;
   }, [manuscriptText]);
+
+  const visibleDashboardManuscripts = useMemo(
+    () => dashboardManuscripts.filter((doc) => !hiddenManuscriptIds.includes(doc.id)),
+    [dashboardManuscripts, hiddenManuscriptIds],
+  );
+
+  const hideManuscriptHere = (manuscriptId) => {
+    setHiddenManuscriptIds((prev) => (prev.includes(manuscriptId) ? prev : [...prev, manuscriptId]));
+    setSelectedManuscriptId((current) => (current === manuscriptId ? null : current));
+  };
+
+  const deleteManuscriptFromDashboard = async (manuscriptId) => {
+    const target = dashboardManuscripts.find((doc) => doc.id === manuscriptId);
+    const label = target?.title || "this manuscript";
+    const confirmed = window.confirm(
+      `Delete ${label}? This permanently removes it from your dashboard and this window.`,
+    );
+
+    if (!confirmed) return;
+
+    setError(null);
+
+    try {
+      const response = await fetch(`/api/manuscripts?id=${encodeURIComponent(String(manuscriptId))}`, {
+        method: "DELETE",
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Delete failed");
+      }
+
+      setDashboardManuscripts((prev) => prev.filter((doc) => doc.id !== manuscriptId));
+      setHiddenManuscriptIds((prev) => prev.filter((id) => id !== manuscriptId));
+      setSelectedManuscriptId((current) => (current === manuscriptId ? null : current));
+    } catch (err) {
+      setError(err.message || "Delete failed");
+    }
+  };
+
+  const clearThisWindow = () => {
+    setHiddenManuscriptIds(dashboardManuscripts.map((doc) => doc.id));
+    setSelectedManuscriptId(null);
+  };
+
+  const restoreAllInThisWindow = () => {
+    setHiddenManuscriptIds([]);
+  };
 
   useEffect(() => {
     let isMounted = true;
@@ -74,6 +123,7 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess }) {
       if (data.manuscript) {
         setDashboardManuscripts((prev) => [data.manuscript, ...prev.filter((m) => m.id !== data.manuscript.id)]);
         setSelectedManuscriptId(data.manuscript.id);
+        setHiddenManuscriptIds((prev) => prev.filter((id) => id !== data.manuscript.id));
         setManuscriptText("");
       }
     } catch (err) {
@@ -162,13 +212,32 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess }) {
                 <h3 className="text-lg font-semibold text-gray-900 mb-2">Writing Details</h3>
                 <p className="text-sm text-gray-600 mb-3">Choose a document from dashboard or upload a new one.</p>
 
+                <div className="mb-3 flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={clearThisWindow}
+                    disabled={isUploading || isSubmitting || visibleDashboardManuscripts.length === 0}
+                    className="rounded-md border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-60"
+                  >
+                    Clear this window
+                  </button>
+                  <button
+                    type="button"
+                    onClick={restoreAllInThisWindow}
+                    disabled={isUploading || isSubmitting || hiddenManuscriptIds.length === 0}
+                    className="rounded-md border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-60"
+                  >
+                    Restore all items
+                  </button>
+                </div>
+
                 <div className="space-y-2 mb-3 max-h-44 overflow-auto">
                   {isLoadingDashboard ? (
                     <div className="text-sm text-gray-500">Loading dashboard documents...</div>
-                  ) : dashboardManuscripts.length === 0 ? (
+                  ) : visibleDashboardManuscripts.length === 0 ? (
                     <div className="text-sm text-gray-500">No documents found in dashboard yet.</div>
                   ) : (
-                    dashboardManuscripts.map((doc) => (
+                    visibleDashboardManuscripts.map((doc) => (
                       <label
                         key={doc.id}
                         className={`flex items-start gap-3 rounded-lg border p-3 cursor-pointer ${
@@ -189,6 +258,30 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess }) {
                           <div className="font-medium text-sm text-gray-900">{doc.title || "Untitled Manuscript"}</div>
                           <div className="text-xs text-gray-500">
                             {doc.word_count ?? 0} words • {doc.source ?? "unknown"}
+                          </div>
+                          <div className="mt-3 flex flex-col gap-2 border-t border-gray-100 pt-3 text-xs font-medium">
+                            <button
+                              type="button"
+                              onClick={(event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                hideManuscriptHere(doc.id);
+                              }}
+                              className="w-full rounded-md border border-indigo-200 bg-indigo-50 px-3 py-2 text-left text-indigo-700 hover:bg-indigo-100"
+                            >
+                              Hide from this window
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                void deleteManuscriptFromDashboard(doc.id);
+                              }}
+                              className="w-full rounded-md border border-red-200 bg-red-50 px-3 py-2 text-left text-red-700 hover:bg-red-100"
+                            >
+                              Delete permanently
+                            </button>
                           </div>
                         </div>
                       </label>

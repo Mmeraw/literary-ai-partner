@@ -1,4 +1,4 @@
-import { GET, POST } from "@/app/api/manuscripts/route";
+import { DELETE, GET, POST } from "@/app/api/manuscripts/route";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getAuthenticatedUser } from "@/lib/supabase/server";
 
@@ -116,5 +116,47 @@ describe("/api/manuscripts route", () => {
         user_id: "user-1",
       }),
     );
+  });
+
+  test("DELETE removes the authenticated user's manuscript by id", async () => {
+    const selectMock = jest.fn(async () => ({
+      data: [{ id: 321 }],
+      error: null,
+    }));
+
+    const eqIdMock = jest.fn(() => ({
+      select: selectMock,
+    }));
+
+    const eqUserMock = jest.fn(() => ({
+      eq: eqIdMock,
+    }));
+
+    const deleteMock = jest.fn(() => ({
+      eq: eqUserMock,
+    }));
+
+    const supabase = {
+      from: jest.fn(() => ({
+        delete: deleteMock,
+      })),
+    };
+
+    mockCreateAdminClient.mockReturnValue(supabase as never);
+
+    const req = new Request("https://localhost:3000/api/manuscripts?id=321", {
+      method: "DELETE",
+    });
+
+    const response = await DELETE(req);
+    const json = (await response.json()) as { ok: boolean; deleted: number };
+
+    expect(response.status).toBe(200);
+    expect(json.ok).toBe(true);
+    expect(json.deleted).toBe(321);
+    expect(supabase.from).toHaveBeenCalledWith("manuscripts");
+    expect(deleteMock).toHaveBeenCalled();
+    expect(eqUserMock).toHaveBeenCalledWith("user_id", "user-1");
+    expect(eqIdMock).toHaveBeenCalledWith("id", 321);
   });
 });
