@@ -46,9 +46,29 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Probe required secrets
+        id: secrets_probe
+        run: |
+          if [ -z "${{ secrets.OPENAI_API_KEY_STRESS }}" ] || \
+             [ -z "${{ secrets.PERPLEXITY_API_KEY_STRESS }}" ] || \
+             [ -z "${{ secrets.SUPABASE_STRESS_URL }}" ] || \
+             [ -z "${{ secrets.SUPABASE_STRESS_SERVICE_ROLE_KEY }}" ]; then
+            echo "have_secrets=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Tier 2 secrets not configured — skipping live run. Add OPENAI_API_KEY_STRESS, PERPLEXITY_API_KEY_STRESS, SUPABASE_STRESS_URL, SUPABASE_STRESS_SERVICE_ROLE_KEY to repo secrets."
+          else
+            echo "have_secrets=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Tier 2 — pipeline stress harness (live OpenAI + live Perplexity)
+        if: steps.secrets_probe.outputs.have_secrets == 'true'
         id: stress_tier2
-        run: npm run pipeline:stress:tier2 2>&1 | tee /tmp/stress-tier2.log
+        # set -o pipefail so a non-zero exit from the runner propagates past
+        # `tee` and fails the job. Without it, the runner could abort (e.g.
+        # missing secrets) and the workflow would still report success.
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run pipeline:stress:tier2 2>&1 | tee /tmp/stress-tier2.log
 
       - name: Upload worker logs on failure
         if: failure()
