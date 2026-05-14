@@ -43,7 +43,7 @@ Workflow file: `.github/workflows/pipeline-stress-tier2.yml`.
 - ~$100/month for nightly + ~5–10 PR runs
 
 If cost becomes a concern, drop the `schedule` block; PR-triggered runs
-alone still lock the regression.
+alone still exercise the Tier 2 harness on relevant changes.
 
 ## Signal this catches
 
