@@ -41,7 +41,7 @@ const PASS1_LIMITS = {
   maxEvidencePerCriterion: 1,
   maxEvidenceSnippetChars: 180,
 } as const;
-const DEFAULT_CHUNK_PASS_CONCURRENCY = 5;
+const DEFAULT_CHUNK_PASS_CONCURRENCY = 3;
 const DEFAULT_CHUNK_RETRY_MAX = 3;
 const DEFAULT_CHUNK_RETRY_BASE_MS = 10000;
 
