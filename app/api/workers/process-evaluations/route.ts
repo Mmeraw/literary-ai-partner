@@ -24,6 +24,7 @@ import { checkServiceRoleAuth } from '@/lib/auth/api';
 import crypto from 'crypto';
 import os from 'os';
 import { getEvaluationRuntimeConfig } from '@/lib/config/evaluationRuntimeConfig';
+import { isPipelineEnabled, pipelineDisabledResponse } from '@/lib/config/pipelineGuard';
 
 // Force Node.js runtime (required for crypto module)
 export const runtime = 'nodejs';
@@ -430,6 +431,32 @@ export async function GET(request: NextRequest) {
     },
   });
   
+  // Kill switch — checked AFTER auth so unauthorized callers still get 401,
+  // but BEFORE any DB or pipeline work. See OPERATIONS.md.
+  if (!isPipelineEnabled()) {
+    console.warn('[PipelineGuard] EVAL_PIPELINE_ENABLED=false — refusing to process job', {
+      job_id: null,
+    });
+    const durationMs = Date.now() - startTime;
+    structuredLog({
+      traceId,
+      timestamp: new Date().toISOString(),
+      level: 'warn',
+      message: 'Worker invocation skipped: EVAL_PIPELINE_ENABLED=false',
+      data: { authMethod: auth.method, durationMs },
+    });
+    return NextResponse.json(
+      {
+        ...pipelineDisabledResponse(null),
+        traceId,
+        authMethod: auth.method,
+        durationMs,
+        timestamp: new Date().toISOString(),
+      },
+      { status: 200 },
+    );
+  }
+
   try {
     if (isDryRun) {
       // Dry run: return status without processing
