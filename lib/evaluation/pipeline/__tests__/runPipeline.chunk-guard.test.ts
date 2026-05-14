@@ -42,6 +42,16 @@ function chunk(index: number, content: string): ManuscriptChunkEvidence {
   return { chunk_index: index, content };
 }
 
+type PipelineFailure = Extract<Awaited<ReturnType<typeof runPipeline>>, { ok: false }>;
+
+function expectFailure(result: Awaited<ReturnType<typeof runPipeline>>): PipelineFailure {
+  expect(result.ok).toBe(false);
+  if (result.ok) {
+    throw new Error("Expected pipeline failure but got success");
+  }
+  return result as PipelineFailure;
+}
+
 describe("runPipeline chunk-shape guards", () => {
   describe("CHUNK_BUDGET_OVERFLOW (upper bound)", () => {
     test("100k-char single chunk fails closed", async () => {
@@ -49,12 +59,10 @@ describe("runPipeline chunk-shape guards", () => {
         ...BASE_OPTS,
         manuscriptChunks: [chunk(0, "x".repeat(100_000))],
       });
-      expect(result.ok).toBe(false);
-      if (!result.ok) {
-        expect(result.error_code).toBe("CHUNK_BUDGET_OVERFLOW");
-        expect(result.failed_at).toBe("pass1");
-        expect(result.error).toMatch(/chunk 0/);
-      }
+      const failure = expectFailure(result);
+      expect(failure.error_code).toBe("CHUNK_BUDGET_OVERFLOW");
+      expect(failure.failed_at).toBe("pass1");
+      expect(failure.error).toMatch(/chunk 0/);
     });
 
     test("chunk exactly at budget ceiling passes the guard", async () => {
@@ -66,11 +74,9 @@ describe("runPipeline chunk-shape guards", () => {
         ...BASE_OPTS,
         manuscriptChunks: [chunk(0, "x".repeat(ceiling))],
       });
-      expect(result.ok).toBe(false);
-      if (!result.ok) {
-        expect(result.error_code).not.toBe("CHUNK_BUDGET_OVERFLOW");
-        expect(result.error_code).not.toBe("PIPELINE_INPUT_INVALID");
-      }
+      const failure = expectFailure(result);
+      expect(failure.error_code).not.toBe("CHUNK_BUDGET_OVERFLOW");
+      expect(failure.error_code).not.toBe("PIPELINE_INPUT_INVALID");
     });
 
     test("chunk at ceiling - 1 passes the guard", async () => {
@@ -80,11 +86,9 @@ describe("runPipeline chunk-shape guards", () => {
         ...BASE_OPTS,
         manuscriptChunks: [chunk(0, "x".repeat(ceiling - 1))],
       });
-      expect(result.ok).toBe(false);
-      if (!result.ok) {
-        expect(result.error_code).not.toBe("CHUNK_BUDGET_OVERFLOW");
-        expect(result.error_code).not.toBe("PIPELINE_INPUT_INVALID");
-      }
+      const failure = expectFailure(result);
+      expect(failure.error_code).not.toBe("CHUNK_BUDGET_OVERFLOW");
+      expect(failure.error_code).not.toBe("PIPELINE_INPUT_INVALID");
     });
 
     test("chunk at ceiling + 1 trips the guard", async () => {
@@ -94,10 +98,8 @@ describe("runPipeline chunk-shape guards", () => {
         ...BASE_OPTS,
         manuscriptChunks: [chunk(0, "x".repeat(ceiling + 1))],
       });
-      expect(result.ok).toBe(false);
-      if (!result.ok) {
-        expect(result.error_code).toBe("CHUNK_BUDGET_OVERFLOW");
-      }
+      const failure = expectFailure(result);
+      expect(failure.error_code).toBe("CHUNK_BUDGET_OVERFLOW");
     });
 
     test("offending chunk index is surfaced when not first", async () => {
@@ -108,11 +110,9 @@ describe("runPipeline chunk-shape guards", () => {
           chunk(1, "x".repeat(100_000)),
         ],
       });
-      expect(result.ok).toBe(false);
-      if (!result.ok) {
-        expect(result.error_code).toBe("CHUNK_BUDGET_OVERFLOW");
-        expect(result.error).toMatch(/chunk 1/);
-      }
+      const failure = expectFailure(result);
+      expect(failure.error_code).toBe("CHUNK_BUDGET_OVERFLOW");
+      expect(failure.error).toMatch(/chunk 1/);
     });
   });
 
@@ -122,11 +122,9 @@ describe("runPipeline chunk-shape guards", () => {
         ...BASE_OPTS,
         manuscriptChunks: [chunk(0, "x")],
       });
-      expect(result.ok).toBe(false);
-      if (!result.ok) {
-        expect(result.error_code).toBe("PIPELINE_INPUT_INVALID");
-        expect(result.failed_at).toBe("pass1");
-      }
+      const failure = expectFailure(result);
+      expect(failure.error_code).toBe("PIPELINE_INPUT_INVALID");
+      expect(failure.failed_at).toBe("pass1");
     });
 
     test("chunk at MIN_VIABLE_CHUNK_CHARS - 1 trips the guard", async () => {
@@ -134,10 +132,8 @@ describe("runPipeline chunk-shape guards", () => {
         ...BASE_OPTS,
         manuscriptChunks: [chunk(0, "x".repeat(31))],
       });
-      expect(result.ok).toBe(false);
-      if (!result.ok) {
-        expect(result.error_code).toBe("PIPELINE_INPUT_INVALID");
-      }
+      const failure = expectFailure(result);
+      expect(failure.error_code).toBe("PIPELINE_INPUT_INVALID");
     });
 
     test("chunk at MIN_VIABLE_CHUNK_CHARS passes the guard", async () => {
@@ -145,11 +141,9 @@ describe("runPipeline chunk-shape guards", () => {
         ...BASE_OPTS,
         manuscriptChunks: [chunk(0, "x".repeat(32))],
       });
-      expect(result.ok).toBe(false);
-      if (!result.ok) {
-        expect(result.error_code).not.toBe("PIPELINE_INPUT_INVALID");
-        expect(result.error_code).not.toBe("CHUNK_BUDGET_OVERFLOW");
-      }
+      const failure = expectFailure(result);
+      expect(failure.error_code).not.toBe("PIPELINE_INPUT_INVALID");
+      expect(failure.error_code).not.toBe("CHUNK_BUDGET_OVERFLOW");
     });
 
     test("whitespace-only chunk is treated as undersized (trim length=0)", async () => {
@@ -157,10 +151,8 @@ describe("runPipeline chunk-shape guards", () => {
         ...BASE_OPTS,
         manuscriptChunks: [chunk(0, "   \n\n   ")],
       });
-      expect(result.ok).toBe(false);
-      if (!result.ok) {
-        expect(result.error_code).toBe("PIPELINE_INPUT_INVALID");
-      }
+      const failure = expectFailure(result);
+      expect(failure.error_code).toBe("PIPELINE_INPUT_INVALID");
     });
   });
 
@@ -173,11 +165,9 @@ describe("runPipeline chunk-shape guards", () => {
       // Empty array means: no chunk-based input. Pipeline falls through to
       // single-pass window path using manuscriptText. Stub runners throw,
       // proving the guard did not fail closed pre-dispatch.
-      expect(result.ok).toBe(false);
-      if (!result.ok) {
-        expect(result.error_code).not.toBe("CHUNK_BUDGET_OVERFLOW");
-        expect(result.error_code).not.toBe("PIPELINE_INPUT_INVALID");
-      }
+      const failure = expectFailure(result);
+      expect(failure.error_code).not.toBe("CHUNK_BUDGET_OVERFLOW");
+      expect(failure.error_code).not.toBe("PIPELINE_INPUT_INVALID");
     });
 
     test("multiple in-budget chunks all pass", async () => {
@@ -189,11 +179,9 @@ describe("runPipeline chunk-shape guards", () => {
           chunk(2, "c".repeat(3_000)),
         ],
       });
-      expect(result.ok).toBe(false);
-      if (!result.ok) {
-        expect(result.error_code).not.toBe("CHUNK_BUDGET_OVERFLOW");
-        expect(result.error_code).not.toBe("PIPELINE_INPUT_INVALID");
-      }
+      const failure = expectFailure(result);
+      expect(failure.error_code).not.toBe("CHUNK_BUDGET_OVERFLOW");
+      expect(failure.error_code).not.toBe("PIPELINE_INPUT_INVALID");
     });
 
     test("undefined manuscriptChunks (omitted) does not invoke the guard", async () => {
@@ -201,11 +189,9 @@ describe("runPipeline chunk-shape guards", () => {
         ...BASE_OPTS,
         // manuscriptChunks omitted entirely
       });
-      expect(result.ok).toBe(false);
-      if (!result.ok) {
-        expect(result.error_code).not.toBe("CHUNK_BUDGET_OVERFLOW");
-        expect(result.error_code).not.toBe("PIPELINE_INPUT_INVALID");
-      }
+      const failure = expectFailure(result);
+      expect(failure.error_code).not.toBe("CHUNK_BUDGET_OVERFLOW");
+      expect(failure.error_code).not.toBe("PIPELINE_INPUT_INVALID");
     });
   });
 
@@ -220,11 +206,9 @@ describe("runPipeline chunk-shape guards", () => {
           chunk(1, "y".repeat(100_000)),
         ],
       });
-      expect(result.ok).toBe(false);
-      if (!result.ok) {
-        expect(result.error_code).toBe("PIPELINE_INPUT_INVALID");
-        expect(result.error).toMatch(/chunk 0/);
-      }
+      const failure = expectFailure(result);
+      expect(failure.error_code).toBe("PIPELINE_INPUT_INVALID");
+      expect(failure.error).toMatch(/chunk 0/);
     });
   });
 });
