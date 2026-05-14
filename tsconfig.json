@@ -58,6 +58,7 @@
     "integrity_gate_*.test.ts",
     "get_agent_verification_status.test.ts",
     "get_industry_submissions_list.test.ts",
+    "tests/stress/ui/**",
     "reject_agent_verification.test.ts",
     "suspend_industry_user.test.ts",
     "create_agent_verification_request.test.ts",
