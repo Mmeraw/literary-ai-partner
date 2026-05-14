@@ -98,6 +98,19 @@ import {
   getCanonicalPass3FallbackModel,
 } from "@/lib/evaluation/policy";
 import type { PipelineResultRouting } from "./types";
+import {
+  ChunkRoutingNotEngagedError,
+  ManuscriptExceedsHardCeilingError,
+} from "./failures";
+
+// Below this word count we evaluate as a single structural unit (one chunk).
+// Above this, the chunked path MUST engage — see runPipeline guard below.
+const STRUCTURAL_CHUNKING_THRESHOLD_WORDS = 3_000;
+
+// Hard manuscript ceiling for defense-in-depth. Primary check is at job intake
+// in processEvaluationJob; this catches programmatic callers exercising
+// runPipeline directly (stress harness, future map-reduce callers).
+const HARD_MANUSCRIPT_CEILING_WORDS = 300_000;
 import type {
   RuleEvaluationInput,
   RuleStage,
@@ -619,6 +632,53 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
         ok: false,
         error: chunkGuardFailure.error,
         error_code: chunkGuardFailure.error_code,
+        failed_at: "pass1",
+      };
+    }
+  }
+
+  // Hard manuscript ceiling — defense in depth. Primary check is at intake.
+  const pipelineManuscriptWords = countWords(opts.manuscriptText);
+  if (pipelineManuscriptWords > HARD_MANUSCRIPT_CEILING_WORDS) {
+    const err = new ManuscriptExceedsHardCeilingError(
+      `Manuscript exceeds evaluation capacity (${pipelineManuscriptWords} words > ${HARD_MANUSCRIPT_CEILING_WORDS}). ` +
+      `Please split into volumes.`,
+      {
+        code: 'MANUSCRIPT_EXCEEDS_HARD_CEILING',
+        manuscript_words: pipelineManuscriptWords,
+        hard_ceiling_words: HARD_MANUSCRIPT_CEILING_WORDS,
+      },
+    );
+    return {
+      ok: false,
+      error: err.message,
+      error_code: err.code,
+      failed_at: "pass1",
+    };
+  }
+
+  // Fail-closed: above the structural chunking threshold, Pass 1 MUST receive
+  // chunks. The silent fallback to `direct_window` is a bug class that has
+  // caused 12-minute PASS1_TIMEOUT failures on long manuscripts. Refuse to
+  // dispatch — surface a typed, diagnosable error to the caller instead.
+  if (pipelineManuscriptWords >= STRUCTURAL_CHUNKING_THRESHOLD_WORDS) {
+    const chunkCount = opts.manuscriptChunks?.length ?? 0;
+    if (chunkCount <= 1) {
+      const err = new ChunkRoutingNotEngagedError(
+        `Manuscript has ${pipelineManuscriptWords} words (≥ ${STRUCTURAL_CHUNKING_THRESHOLD_WORDS}) but ` +
+        `received ${chunkCount} chunk(s). Chunk-routed evaluation did not engage; ` +
+        `refusing to fall back to direct_window which would silently timeout.`,
+        {
+          code: 'CHUNK_ROUTING_NOT_ENGAGED',
+          manuscript_words: pipelineManuscriptWords,
+          chunk_count: chunkCount,
+          manuscript_chars: opts.manuscriptText.length,
+        },
+      );
+      return {
+        ok: false,
+        error: err.message,
+        error_code: err.code,
         failed_at: "pass1",
       };
     }
@@ -1412,6 +1472,7 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
         workType: opts.workType,
         title: opts.title,
         perplexityApiKey: opts.perplexityApiKey,
+        jobId: latencyJobId,
       });
 
       finishLatencyStage({

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { isTestManuscript, TEST_MANUSCRIPT_ID_MIN } from "@/lib/manuscripts/testRange";
 
 /**
  * GET /api/admin/dead-letter
@@ -46,6 +47,10 @@ export async function GET(req: NextRequest) {
   const failed_before = searchParams.get("failed_before");
   const cursorParam = searchParams.get("cursor");
   const limitParam = searchParams.get("limit");
+  // Test manuscripts (id >= 9000) are hidden by default. Opt in with
+  // `?show_test=1` (or "true"). See OPERATIONS.md "Test manuscript range".
+  const showTestParam = (searchParams.get("show_test") ?? "").toLowerCase();
+  const showTestManuscripts = showTestParam === "1" || showTestParam === "true";
 
   // Parse pagination
   const limit = limitParam ? Math.min(parseInt(limitParam, 10), 100) : 50;
@@ -89,12 +94,26 @@ export async function GET(req: NextRequest) {
 
     // Extract has_more flag and actual jobs
     const has_more = jobs && jobs.length > 0 ? jobs[0].has_more : false;
-    const resultJobs = jobs || [];
+    const rawJobs: Array<Record<string, unknown>> = jobs || [];
+
+    // Test-manuscript filter — post-RPC (admin_list_jobs has no manuscript_id
+    // filter parameter). See OPERATIONS.md.
+    const resultJobs = showTestManuscripts
+      ? rawJobs
+      : rawJobs.filter((j) => {
+          const id = j.manuscript_id;
+          if (id === null || id === undefined) return true;
+          return !isTestManuscript(id as number | string);
+        });
 
     // Generate next cursor from last job
     let nextCursor: string | null = null;
     if (has_more && resultJobs.length > 0) {
-      const lastJob = resultJobs[resultJobs.length - 1];
+      const lastJob = resultJobs[resultJobs.length - 1] as {
+        failed_at: string | null;
+        created_at: string;
+        id: string;
+      };
       const cursorObj: PaginationCursor = {
         failed_at: lastJob.failed_at,
         created_at: lastJob.created_at,
@@ -111,6 +130,10 @@ export async function GET(req: NextRequest) {
         limit,
         has_more,
         next_cursor: nextCursor,
+      },
+      filters: {
+        showTestManuscripts,
+        testManuscriptIdMin: TEST_MANUSCRIPT_ID_MIN,
       },
     });
   } catch (err) {

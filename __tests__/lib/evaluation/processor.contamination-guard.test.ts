@@ -103,7 +103,9 @@ function makeSupabaseStub() {
   const manuscript = {
     id: 789,
     title: "River Chapter",
-    content: "Cliff piloted the skiff across Carpenter Lake. The water moved cold and clear under the hull.".repeat(220),
+    // Sub-threshold (< 3,000 words) so the processor takes the short_form path
+    // and does not invoke ensureChunksFromText (which would need additional mocking).
+    content: "Cliff piloted the skiff across Carpenter Lake. The water moved cold and clear under the hull.".repeat(120),
     work_type: "narrative_nonfiction",
     user_id: "00000000-0000-0000-0000-000000000002",
   };

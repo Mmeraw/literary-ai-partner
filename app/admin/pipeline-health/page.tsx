@@ -61,6 +61,11 @@ interface Diagnostics {
   note: string;
 }
 
+interface PipelineHealthFilters {
+  showTestManuscripts: boolean;
+  testManuscriptIdMin: number;
+}
+
 interface PipelineHealthData {
   generatedAt: string;
   window: string;
@@ -69,6 +74,7 @@ interface PipelineHealthData {
   failureHeatmap: HeatmapEntry[];
   recentJobs: RecentJob[];
   diagnostics: Diagnostics;
+  filters?: PipelineHealthFilters;
 }
 
 // ---------------------------------------------------------------------------
@@ -126,12 +132,14 @@ export default function PipelineHealthPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [windowParam, setWindowParam] = useState("24h");
+  const [showTestManuscripts, setShowTestManuscripts] = useState(false);
 
   const fetchData = useCallback(
-    (win: string) => {
+    (win: string, showTest: boolean) => {
       setLoading(true);
       setError(null);
-      fetch(`/api/admin/pipeline-health?window=${win}&limit=100`)
+      const showTestQs = showTest ? "&show_test=1" : "";
+      fetch(`/api/admin/pipeline-health?window=${win}&limit=100${showTestQs}`)
         .then((res) => {
           if (res.status === 401 || res.status === 403) {
             router.replace("/evaluate");
@@ -154,8 +162,8 @@ export default function PipelineHealthPage() {
   );
 
   useEffect(() => {
-    fetchData(windowParam);
-  }, [windowParam, fetchData]);
+    fetchData(windowParam, showTestManuscripts);
+  }, [windowParam, showTestManuscripts, fetchData]);
 
   // --- Loading ---
   if (loading) {
@@ -199,21 +207,34 @@ export default function PipelineHealthPage() {
           </p>
         </div>
 
-        {/* Window selector */}
-        <div className="flex gap-2">
-          {(["1h", "24h", "7d"] as const).map((w) => (
-            <button
-              key={w}
-              onClick={() => setWindowParam(w)}
-              className={`px-3 py-1 rounded text-sm border ${
-                windowParam === w
-                  ? "bg-blue-600 text-white border-blue-600"
-                  : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
-              }`}
-            >
-              {w}
-            </button>
-          ))}
+        {/* Window selector + test-manuscript toggle */}
+        <div className="flex gap-4 items-center flex-wrap">
+          <div className="flex gap-2">
+            {(["1h", "24h", "7d"] as const).map((w) => (
+              <button
+                key={w}
+                onClick={() => setWindowParam(w)}
+                className={`px-3 py-1 rounded text-sm border ${
+                  windowParam === w
+                    ? "bg-blue-600 text-white border-blue-600"
+                    : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
+                }`}
+              >
+                {w}
+              </button>
+            ))}
+          </div>
+          <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={showTestManuscripts}
+              onChange={(e) => setShowTestManuscripts(e.target.checked)}
+            />
+            Show test manuscripts
+            <span className="text-xs text-gray-400">
+              (id ≥ {data.filters?.testManuscriptIdMin ?? 9000})
+            </span>
+          </label>
         </div>
       </div>
 

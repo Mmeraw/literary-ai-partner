@@ -26,6 +26,9 @@ export const FAILURE_CODES = [
   "RLS_BLOCKED",
   "MANUAL_REVIEW_REQUIRED",
   "EVALUATION_GATE_REJECTED",
+  "MANUSCRIPT_EXCEEDS_HARD_CEILING",
+  "CHUNK_COUNT_EXCEEDS_CAP",
+  "CHUNK_ROUTING_NOT_ENGAGED",
   EVALUATION_ARTIFACT_VALIDATION_FAILED,
 ] as const;
 
@@ -128,6 +131,24 @@ export const FAILURE_CODE_METADATA: Readonly<
     validity_status: "invalid",
     description: "Artifact failed structural validation before persistence.",
   },
+  MANUSCRIPT_EXCEEDS_HARD_CEILING: {
+    classification: "validation",
+    validity_status: "invalid",
+    description:
+      "Manuscript word count exceeds the hard evaluation capacity ceiling. Split into volumes.",
+  },
+  CHUNK_COUNT_EXCEEDS_CAP: {
+    classification: "validation",
+    validity_status: "invalid",
+    description:
+      "Chunk count exceeds the configured per-pass cap (EVAL_CHUNK_MAX_PER_PASS). Fail-closed instead of silent truncation.",
+  },
+  CHUNK_ROUTING_NOT_ENGAGED: {
+    classification: "system",
+    validity_status: "invalid",
+    description:
+      "Manuscript exceeded the structural chunking threshold but Pass 1 received ≤ 1 chunk. Silent direct_window fallback refused.",
+  },
 };
 
 const TRANSIENT_CODES: ReadonlySet<FailureCode> = new Set([
@@ -198,6 +219,59 @@ export class EvaluationGateRejectedError extends Error {
   constructor(message: string, details: Record<string, unknown> = {}) {
     super(message);
     this.name = "EvaluationGateRejectedError";
+    this.details = details;
+  }
+}
+
+/**
+ * Error thrown when a manuscript exceeds the hard evaluation capacity ceiling.
+ * Non-retryable. Surfaced to the user with a "split into volumes" message.
+ */
+export class ManuscriptExceedsHardCeilingError extends Error {
+  public readonly failureCode = "MANUSCRIPT_EXCEEDS_HARD_CEILING" as const;
+  public readonly code = "MANUSCRIPT_EXCEEDS_HARD_CEILING" as const;
+  public readonly retryable = false;
+  public readonly details: Record<string, unknown>;
+
+  constructor(message: string, details: Record<string, unknown> = {}) {
+    super(message);
+    this.name = "ManuscriptExceedsHardCeilingError";
+    this.details = details;
+  }
+}
+
+/**
+ * Error thrown when a manuscript produces more chunks than the configured
+ * per-pass cap (EVAL_CHUNK_MAX_PER_PASS). Replaces the previous silent
+ * truncation behaviour — every word must be evaluated or the job fails.
+ */
+export class ChunkCountExceedsCapError extends Error {
+  public readonly failureCode = "CHUNK_COUNT_EXCEEDS_CAP" as const;
+  public readonly code = "CHUNK_COUNT_EXCEEDS_CAP" as const;
+  public readonly retryable = false;
+  public readonly details: Record<string, unknown>;
+
+  constructor(message: string, details: Record<string, unknown> = {}) {
+    super(message);
+    this.name = "ChunkCountExceedsCapError";
+    this.details = details;
+  }
+}
+
+/**
+ * Error thrown when chunk-routed evaluation fails to engage above the
+ * structural chunking threshold. Kills the silent fallback to direct_window
+ * that produced 12-minute PASS1_TIMEOUT rows on long manuscripts.
+ */
+export class ChunkRoutingNotEngagedError extends Error {
+  public readonly failureCode = "CHUNK_ROUTING_NOT_ENGAGED" as const;
+  public readonly code = "CHUNK_ROUTING_NOT_ENGAGED" as const;
+  public readonly retryable = false;
+  public readonly details: Record<string, unknown>;
+
+  constructor(message: string, details: Record<string, unknown> = {}) {
+    super(message);
+    this.name = "ChunkRoutingNotEngagedError";
     this.details = details;
   }
 }

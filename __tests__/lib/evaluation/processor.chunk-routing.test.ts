@@ -350,7 +350,7 @@ describe("processEvaluationJob long-form chunk routing", () => {
         chunk_routing: expect.objectContaining({
           enabled: true,
           route: "long_form",
-          threshold_words: 25000,
+          threshold_words: 3000,
           manuscript_words: 26000,
           source_manuscript_words: 26000,
           source_manuscript_chars: 145000,
@@ -377,7 +377,8 @@ describe("processEvaluationJob long-form chunk routing", () => {
   });
 
   test("short_form behavior is unchanged (no ensureChunksFromText, no fail-closed)", async () => {
-    const manuscriptContent = "alpha beta gamma delta epsilon zeta eta theta iota kappa ".repeat(300);
+    // Sub-threshold (< STRUCTURAL_CHUNKING_THRESHOLD_WORDS=3000) — must stay short-form.
+    const manuscriptContent = "alpha beta gamma delta epsilon zeta eta theta iota kappa ".repeat(250);
     const supabaseStub = makeSupabaseStub(manuscriptContent);
     createClientMock.mockReturnValue(supabaseStub);
 
@@ -438,13 +439,13 @@ describe("processEvaluationJob long-form chunk routing", () => {
         input_scale: "standard_chapter",
         floor_applied: false,
       },
-      chunk_routing: {
+      chunk_routing: expect.objectContaining({
         enabled: true,
         route: "short_form",
-        threshold_words: 25000,
-        manuscript_words: 3000,
+        threshold_words: 3000,
+        manuscript_words: 2500,
         chunk_count: 0,
-      },
+      }),
     });
     expect(persistCall?.args?.p_progress?.chunk_routing).not.toHaveProperty(
       "ensure_chunks_returned_count",
@@ -468,7 +469,7 @@ describe("processEvaluationJob long-form chunk routing", () => {
     expect(timeoutResolution?.resolved_openai_timeout_ms).toBe(timeoutResolution?.base_openai_timeout_ms);
   });
 
-  test("mid-length manuscript exceeding prompt budget routes to long_form chunking", async () => {
+  test("mid-length manuscript above structural threshold routes to long_form chunking", async () => {
     const manuscriptContent = "alpha beta gamma delta epsilon ".repeat(3200); // ~16k words
     const supabaseStub = makeSupabaseStub(manuscriptContent, {
       manuscriptChunks: [
@@ -536,11 +537,12 @@ describe("processEvaluationJob long-form chunk routing", () => {
     expect(persistCall?.args?.p_progress?.chunk_routing).toEqual(
       expect.objectContaining({
         route: "long_form",
-        trigger_reason: "prompt_budget_exceeded",
-        threshold_words: 25000,
+        trigger_reason: "word_threshold",
+        threshold_words: 3000,
         chunk_count: 3,
         ensure_chunks_returned_count: 3,
         persisted_chunk_count: 3,
+        bracket: "small",
       }),
     );
   });
@@ -667,7 +669,7 @@ describe("processEvaluationJob long-form chunk routing", () => {
     expect(envelope?.reason_codes).toEqual(["CHUNK_BUDGET_OVERFLOW"]);
   });
 
-  test("long_form with max_chunk_chars ≤ 38,000 passes the chunker post-condition and dispatches the pipeline", async () => {
+  test("long_form with max_chunk_chars within adaptive bracket passes the chunker post-condition and dispatches the pipeline", async () => {
     const manuscriptContent =
       "alpha beta gamma delta epsilon zeta eta theta iota kappa ".repeat(2600);
     const supabaseStub = makeSupabaseStub(manuscriptContent, {
@@ -680,12 +682,14 @@ describe("processEvaluationJob long-form chunk routing", () => {
     });
     createClientMock.mockReturnValue(supabaseStub);
 
+    // 26k-word manuscript → SMALL bracket (maxChars=24000). Chunk size below
+    // bracket max AND below 95% of prompt budget (40000 * 0.95 = 38000).
     ensureChunksFromTextMock.mockResolvedValueOnce({
       ensured_count: 4,
       persisted_count: 4,
       chunk_source: "processor_resolved_text",
       verified_at: new Date().toISOString(),
-      max_chunk_chars: 38_000,
+      max_chunk_chars: 22_000,
       max_chunk_index: 1,
     });
 
