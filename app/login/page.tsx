@@ -12,6 +12,12 @@ import {
 } from '@/lib/auth/clientAuthGuards'
 import { trackClientAuthEvent } from '@/lib/auth/telemetry'
 
+const hasSupabaseAuthConfig = Boolean(
+  process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+)
+const AUTH_UNAVAILABLE_MESSAGE =
+  'Authentication is unavailable in this environment. Use production deployment for sign-in.'
+
 function isValidEmail(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
 }
@@ -22,7 +28,6 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const router = useRouter()
-  const supabase = createClient()
 
   const setSafeEmail = (value: string) => {
     setEmail(value)
@@ -43,6 +48,15 @@ export default function LoginPage() {
 
     setLoading(true)
     setError(null)
+
+    if (!hasSupabaseAuthConfig) {
+      trackClientAuthEvent('login', 'blocked_backoff', { reason: 'missing_supabase_env' })
+      setError(AUTH_UNAVAILABLE_MESSAGE)
+      setLoading(false)
+      return
+    }
+
+    const supabase = createClient()
 
     const backoffMs = getAuthBackoffMs('login')
     if (backoffMs > 0) {
@@ -90,6 +104,15 @@ export default function LoginPage() {
     trackClientAuthEvent('oauth', 'attempt', { provider })
     setLoading(true)
     setError(null)
+
+    if (!hasSupabaseAuthConfig) {
+      trackClientAuthEvent('oauth', 'blocked_backoff', { provider, reason: 'missing_supabase_env' })
+      setError(AUTH_UNAVAILABLE_MESSAGE)
+      setLoading(false)
+      return
+    }
+
+    const supabase = createClient()
 
     const backoffMs = getAuthBackoffMs('oauth')
     if (backoffMs > 0) {
@@ -202,7 +225,7 @@ export default function LoginPage() {
             <div>
               <button
                 type="submit"
-                disabled={loading}
+                disabled={loading || !hasSupabaseAuthConfig}
                 className="flex w-full justify-center rounded-md border border-transparent bg-indigo-600 py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {loading ? 'Signing in...' : 'Sign in'}
@@ -224,7 +247,7 @@ export default function LoginPage() {
               <button
                 type="button"
                 onClick={() => handleOAuthLogin('google')}
-                disabled={loading}
+                disabled={loading || !hasSupabaseAuthConfig}
                 className="inline-flex w-full justify-center rounded-md border border-gray-300 bg-white py-2 px-4 text-sm font-medium text-gray-500 shadow-sm hover:bg-gray-50 disabled:opacity-50"
               >
                 <span className="sr-only">Sign in with Google</span>
@@ -238,7 +261,7 @@ export default function LoginPage() {
               <button
                 type="button"
                 onClick={() => handleOAuthLogin('github')}
-                disabled={loading}
+                disabled={loading || !hasSupabaseAuthConfig}
                 className="inline-flex w-full justify-center rounded-md border border-gray-300 bg-white py-2 px-4 text-sm font-medium text-gray-500 shadow-sm hover:bg-gray-50 disabled:opacity-50"
               >
                 <span className="sr-only">Sign in with GitHub</span>

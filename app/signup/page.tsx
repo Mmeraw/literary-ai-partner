@@ -12,6 +12,12 @@ import {
 } from '@/lib/auth/clientAuthGuards'
 import { trackClientAuthEvent } from '@/lib/auth/telemetry'
 
+const hasSupabaseAuthConfig = Boolean(
+  process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+)
+const AUTH_UNAVAILABLE_MESSAGE =
+  'Authentication is unavailable in this environment. Use production deployment for sign-up.'
+
 const PASSWORD_MIN_LENGTH = 10
 
 function isValidEmail(value: string): boolean {
@@ -36,7 +42,6 @@ export default function SignupPage() {
   const [success, setSuccess] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const router = useRouter()
-  const supabase = createClient()
 
   const setSafeEmail = (value: string) => {
     setEmail(value)
@@ -63,6 +68,15 @@ export default function SignupPage() {
     setLoading(true)
     setError(null)
     setSuccess(null)
+
+    if (!hasSupabaseAuthConfig) {
+      trackClientAuthEvent('signup', 'blocked_backoff', { reason: 'missing_supabase_env' })
+      setError(AUTH_UNAVAILABLE_MESSAGE)
+      setLoading(false)
+      return
+    }
+
+    const supabase = createClient()
 
     const backoffMs = getAuthBackoffMs('signup')
     if (backoffMs > 0) {
@@ -227,7 +241,7 @@ export default function SignupPage() {
             <div>
               <button
                 type="submit"
-                disabled={loading}
+                disabled={loading || !hasSupabaseAuthConfig}
                 className="flex w-full justify-center rounded-md border border-transparent bg-indigo-600 py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {loading ? 'Creating account...' : 'Create account'}
