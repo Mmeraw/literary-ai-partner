@@ -288,6 +288,7 @@ export async function getJob(id: string): Promise<Job | null> {
       .from("evaluation_jobs")
       .update({
         status: failedStatus,
+        phase_status: "failed",
         progress: {
           ...job.progress,
           error_code: validationErr,
@@ -493,6 +494,7 @@ export async function acquireLeaseForPhase2(
         .from("evaluation_jobs")
         .update({
           status: failedStatus,
+          phase_status: "failed",
           last_error: errorMessage,
           failure_envelope: {
             error_code: "LEASE_EXPIRED",
@@ -675,6 +677,7 @@ export async function setJobFailed(
     updatePayload = {
       ...updatePayload,
       status: failedStatus,
+      phase_status: "failed",
       next_attempt_at: nextAttemptAt,
       progress: {
         ...job.progress,
@@ -687,6 +690,7 @@ export async function setJobFailed(
     updatePayload = {
       ...updatePayload,
       status: failedStatus,
+      phase_status: "failed",
       failed_at: now,
       progress: {
         ...job.progress,

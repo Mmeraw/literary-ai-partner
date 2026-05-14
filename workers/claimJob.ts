@@ -151,6 +151,7 @@ async function fallbackClaim(workerId: string): Promise<ClaimResult | null> {
       .from('evaluation_jobs')
       .update({
         status: 'running',
+        phase_status: 'running',
         worker_id: workerId,
         lease_token: leaseToken,
         lease_until: leaseUntil,
@@ -226,6 +227,7 @@ export async function releaseJob(jobId: string): Promise<void> {
     .from('evaluation_jobs')
     .update({
       status: 'queued',
+      phase_status: 'queued',
       worker_id: null,
       lease_token: null,
       lease_until: null,
@@ -490,6 +492,7 @@ export async function reconcileExpiredLeases(maxBatch = 50): Promise<number> {
     .from('evaluation_jobs')
     .update({
       status: 'queued',
+      phase_status: 'queued',
       worker_id: null,
       lease_token: null,
       lease_until: null,

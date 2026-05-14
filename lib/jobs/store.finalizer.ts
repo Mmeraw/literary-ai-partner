@@ -455,6 +455,7 @@ export async function markJobInvalid(args: MarkJobInvalidArgs): Promise<void> {
     .from("evaluation_jobs")
     .update({
       status: "complete",
+      phase_status: "complete",
       validity_status: "invalid",
       progress,
       last_error: args.last_error,

@@ -74,6 +74,7 @@ async function resetStuckJobs(specificJobId?: string) {
       .from("evaluation_jobs")
       .update({
         status: "queued",
+        phase_status: "queued",
         progress: resetProgress,
         updated_at: now,
       })
