@@ -25,6 +25,16 @@ const stubRunners = {
   runQualityGate: NEVER_RUN_QG,
 };
 
+type PipelineFailure = Extract<Awaited<ReturnType<typeof runPipeline>>, { ok: false }>;
+
+function expectFailure(result: Awaited<ReturnType<typeof runPipeline>>): PipelineFailure {
+  expect(result.ok).toBe(false);
+  if (result.ok) {
+    throw new Error("Expected pipeline failure but got success");
+  }
+  return result as PipelineFailure;
+}
+
 function generateText(targetWords: number): string {
   const vocab = "the quick brown fox jumps over the lazy dog and considers what to do next".split(" ");
   const parts: string[] = [];
@@ -48,11 +58,9 @@ describe("silent direct_window fallback is killed", () => {
       _runners: stubRunners as unknown as Parameters<typeof runPipeline>[0]["_runners"],
       _maxManuscriptChars: 10_000_000,
     });
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.error_code).toBe("CHUNK_ROUTING_NOT_ENGAGED");
-      expect(result.error).toMatch(/Chunk-routed evaluation did not engage/);
-    }
+    const failure = expectFailure(result);
+    expect(failure.error_code).toBe("CHUNK_ROUTING_NOT_ENGAGED");
+    expect(failure.error).toMatch(/Chunk-routed evaluation did not engage/);
   });
 
   test("10k-word text with exactly 1 chunk → still CHUNK_ROUTING_NOT_ENGAGED", async () => {
@@ -67,10 +75,8 @@ describe("silent direct_window fallback is killed", () => {
       _runners: stubRunners as unknown as Parameters<typeof runPipeline>[0]["_runners"],
       _maxManuscriptChars: 10_000_000,
     });
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.error_code).toBe("CHUNK_ROUTING_NOT_ENGAGED");
-    }
+    const failure = expectFailure(result);
+    expect(failure.error_code).toBe("CHUNK_ROUTING_NOT_ENGAGED");
   });
 
   test("sub-threshold text (2,500 words) with no chunks is OK at the pipeline guard", async () => {
@@ -89,10 +95,8 @@ describe("silent direct_window fallback is killed", () => {
       _runners: stubRunners as unknown as Parameters<typeof runPipeline>[0]["_runners"],
       _maxManuscriptChars: 10_000_000,
     });
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.error_code).not.toBe("CHUNK_ROUTING_NOT_ENGAGED");
-    }
+    const failure = expectFailure(result);
+    expect(failure.error_code).not.toBe("CHUNK_ROUTING_NOT_ENGAGED");
   });
 
   test("manuscript above HARD_MANUSCRIPT_CEILING_WORDS → MANUSCRIPT_EXCEEDS_HARD_CEILING", async () => {
@@ -107,9 +111,7 @@ describe("silent direct_window fallback is killed", () => {
       _runners: stubRunners as unknown as Parameters<typeof runPipeline>[0]["_runners"],
       _maxManuscriptChars: 100_000_000,
     });
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.error_code).toBe("MANUSCRIPT_EXCEEDS_HARD_CEILING");
-    }
+    const failure = expectFailure(result);
+    expect(failure.error_code).toBe("MANUSCRIPT_EXCEEDS_HARD_CEILING");
   });
 });
