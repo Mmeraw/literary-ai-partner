@@ -47,17 +47,19 @@ Missing Pass 4 / cross-check evidence must render as missing evidence, not as a 
 
 ### Required endpoints
 
-- `GET /api/admin/pipeline-health`
-- `GET /api/admin/pipeline-health/jobs`
-- `GET /api/admin/pipeline-health/jobs/[id]/steps`
-- `GET /api/admin/pipeline-health/jobs/[id]/steps/[k]/chunks`
-- `GET /api/admin/pipeline-health/taxonomy`
+- extend `GET /api/admin/pipeline-health`
+- add `GET /api/admin/pipeline-health/jobs`
+- add `GET /api/admin/pipeline-health/jobs/[id]/steps`
+- add `GET /api/admin/pipeline-health/jobs/[id]/steps/[k]/chunks`
+- add `GET /api/admin/pipeline-health/taxonomy`
 
 ### Required DB / read models
 
 - `pipeline_health_kpi_24h`
 - `pipeline_step_observations`
 - `admin_audit_log`
+
+If a view or table is not provisioned yet, the API must return `available:false`; it must not synthesize fake data.
 
 ### Required UI sections
 
