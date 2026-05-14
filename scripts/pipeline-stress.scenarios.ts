@@ -87,8 +87,12 @@ const CHUNK_ROWS: StressRow[] = [
     llmFault: NO_LLM_FAULT,
     supabaseFault: NO_SB_FAULT,
     chunkOverride: { kind: "empty" },
-    expected: { outcome: "success", coverage_pct_min: 0, max_total_ms: 2 * BUDGET_MS_BY_WORDCOUNT["W-25k"] },
-    notes: "Empty chunk row dropped by chunk-evidence filter; pipeline proceeds.",
+    expected: {
+      outcome: "fail",
+      allowed_codes: ["CHUNK_ROUTING_NOT_ENGAGED"],
+      max_total_ms: 2 * BUDGET_MS_BY_WORDCOUNT["W-25k"],
+    },
+    notes: "Empty chunk array above structural threshold must fail closed with CHUNK_ROUTING_NOT_ENGAGED (post-PR contract — silent direct_window fallback is killed).",
   },
   {
     id: "C-single-tok",
@@ -125,8 +129,12 @@ const CHUNK_ROWS: StressRow[] = [
     llmFault: NO_LLM_FAULT,
     supabaseFault: NO_SB_FAULT,
     chunkOverride: { kind: "chapter-straddle" },
-    expected: { outcome: "success", coverage_pct_min: 0, max_total_ms: BUDGET_MS_BY_WORDCOUNT["W-60k"] },
-    notes: "Chapter-straddle is advisory; pipeline still completes.",
+    expected: {
+      outcome: "fail",
+      allowed_codes: ["CHUNK_ROUTING_NOT_ENGAGED"],
+      max_total_ms: BUDGET_MS_BY_WORDCOUNT["W-60k"],
+    },
+    notes: "Single chapter-straddle chunk on a 60k-word manuscript must fail closed with CHUNK_ROUTING_NOT_ENGAGED (chunk count <= 1 above structural threshold).",
   },
 ];
 

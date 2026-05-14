@@ -108,6 +108,11 @@ import { assertClaimedJobsContract } from '@/lib/jobs/contracts/claimEvaluationJ
 import { finalizeJobFailure } from '@/lib/jobs/jobStore.supabase';
 import { ensureChunksFromText } from '@/lib/manuscripts/chunks';
 import {
+  selectChunkerConfig,
+  selectChunkerBracket,
+} from '@/lib/manuscripts/chunking';
+import { ManuscriptExceedsHardCeilingError } from '@/lib/evaluation/pipeline/failures';
+import {
   buildNonEvaluativeWarning,
   stripNonEvaluativeSections,
 } from '@/lib/manuscripts/nonEvaluativeSections';
@@ -141,7 +146,14 @@ function getProcessorRuntimeDeps() {
 }
 
 const EVALUATION_PROGRESS_TOTAL_UNITS = 3;
-const LONG_FORM_CHUNKING_THRESHOLD_WORDS = 25_000;
+
+// Below this word count we evaluate as a single structural unit (one chunk).
+// Above this, the adaptive chunker engages and emits chapter-aligned chunks.
+const STRUCTURAL_CHUNKING_THRESHOLD_WORDS = 3_000;
+
+// Hard manuscript ceiling. Above this, we fail-closed before any AI call.
+// The website upload page displays this as the supported max.
+const HARD_MANUSCRIPT_CEILING_WORDS = 300_000;
 
 type ChunkRoutingTelemetry = {
   enabled: boolean;
@@ -158,6 +170,10 @@ type ChunkRoutingTelemetry = {
   manuscript_words: number;
   manuscript_chars: number;
   chunk_count: number;
+  // Adaptive bracket diagnostics — see selectChunkerConfig in chunking.ts
+  bracket: 'small' | 'mid' | 'large' | 'sub_threshold';
+  chunk_target_chars: number;
+  chunk_max_chars_config: number;
   // Long-form chunk materialization proof fields (populated only on long_form route)
   ensure_chunks_returned_count?: number;
   persisted_chunk_count?: number;
@@ -903,19 +919,38 @@ async function maybeEnsureLongFormChunks(args: {
   const manuscriptChars = args.manuscriptText.trim().length;
   const promptBudgetChars = getEvaluationRuntimeConfig().pass.inputCharBudget;
   const exceedsPromptBudget = manuscriptChars > promptBudgetChars;
-  const shouldChunk = manuscriptWords >= LONG_FORM_CHUNKING_THRESHOLD_WORDS || exceedsPromptBudget;
+
+  // Defense in depth — the primary fail-closed check runs at job intake before
+  // this function is called. This catches programmatic callers that bypass
+  // processEvaluationJob's intake path.
+  if (manuscriptWords > HARD_MANUSCRIPT_CEILING_WORDS) {
+    throw new ManuscriptExceedsHardCeilingError(
+      `Manuscript exceeds evaluation capacity (${manuscriptWords} words > ${HARD_MANUSCRIPT_CEILING_WORDS}). Please split into volumes.`,
+      {
+        code: 'MANUSCRIPT_EXCEEDS_HARD_CEILING',
+        manuscript_words: manuscriptWords,
+        hard_ceiling_words: HARD_MANUSCRIPT_CEILING_WORDS,
+      },
+    );
+  }
+
+  const shouldChunk = manuscriptWords >= STRUCTURAL_CHUNKING_THRESHOLD_WORDS || exceedsPromptBudget;
+  const adaptiveCfg = selectChunkerConfig(manuscriptWords);
 
   if (!shouldChunk) {
     return {
       enabled: true,
       route: 'short_form',
-      threshold_words: LONG_FORM_CHUNKING_THRESHOLD_WORDS,
+      threshold_words: STRUCTURAL_CHUNKING_THRESHOLD_WORDS,
       prompt_budget_chars: promptBudgetChars,
       source_manuscript_words: manuscriptWords,
       source_manuscript_chars: manuscriptChars,
       manuscript_words: manuscriptWords,
       manuscript_chars: manuscriptChars,
       chunk_count: 0,
+      bracket: 'sub_threshold',
+      chunk_target_chars: adaptiveCfg.targetChars,
+      chunk_max_chars_config: adaptiveCfg.maxChars,
     };
   }
 
@@ -933,10 +968,10 @@ async function maybeEnsureLongFormChunks(args: {
     enabled: true,
     route: 'long_form',
     trigger_reason:
-      manuscriptWords >= LONG_FORM_CHUNKING_THRESHOLD_WORDS
+      manuscriptWords >= STRUCTURAL_CHUNKING_THRESHOLD_WORDS
         ? 'word_threshold'
         : 'prompt_budget_exceeded',
-    threshold_words: LONG_FORM_CHUNKING_THRESHOLD_WORDS,
+    threshold_words: STRUCTURAL_CHUNKING_THRESHOLD_WORDS,
     prompt_budget_chars: promptBudgetChars,
     source_manuscript_words: chunkResult.source_manuscript_words ?? manuscriptWords,
     source_manuscript_chars: chunkResult.source_manuscript_chars ?? manuscriptChars,
@@ -947,6 +982,9 @@ async function maybeEnsureLongFormChunks(args: {
     manuscript_words: manuscriptWords,
     manuscript_chars: manuscriptChars,
     chunk_count: chunkResult.ensured_count,
+    bracket: selectChunkerBracket(manuscriptWords),
+    chunk_target_chars: adaptiveCfg.targetChars,
+    chunk_max_chars_config: adaptiveCfg.maxChars,
     ensure_chunks_returned_count: chunkResult.ensured_count,
     persisted_chunk_count: chunkResult.persisted_count,
     chunk_source: chunkResult.chunk_source,
@@ -1759,6 +1797,25 @@ export async function processEvaluationJob(
       return { success: false, error: shortContentError };
     }
 
+    // Hard manuscript ceiling — fail-closed at intake, before any AI call.
+    // Above this, no amount of chunk-routing can keep the evaluation honest at
+    // our 12-min wall budget. Surface a clear "split into volumes" message.
+    const intakeWordCount = countWords(stripResult.sanitizedText);
+    if (intakeWordCount > HARD_MANUSCRIPT_CEILING_WORDS) {
+      const ceilingError =
+        `Manuscript exceeds evaluation capacity (${intakeWordCount} words > ${HARD_MANUSCRIPT_CEILING_WORDS}). ` +
+        `Please split into volumes.`;
+      await markFailed(ceilingError, 'MANUSCRIPT_EXCEEDS_HARD_CEILING', {
+        pipelineStage: 'intake',
+        reasonCodes: ['MANUSCRIPT_EXCEEDS_HARD_CEILING'],
+        diagnostics: {
+          manuscript_words: intakeWordCount,
+          hard_ceiling_words: HARD_MANUSCRIPT_CEILING_WORDS,
+        },
+      });
+      return { success: false, error: ceilingError };
+    }
+
     // Context binding assertion: prove the fetched manuscript belongs to this job
     // before any pipeline invocation (fail-closed isolation guarantee).
     // Both IDs must be finite positive integers and must match.
@@ -1827,11 +1884,10 @@ export async function processEvaluationJob(
       return { success: false, error: chunkMaterializationError };
     }
 
-    // Post-condition: every materialized chunk MUST fit the Pass 1 prompt window.
-    // Audit PR #1 — prevent the Cartel Babies failure class (137 758-word manuscript →
-    // 720 s PASS1_TIMEOUT). Fail closed BEFORE Pass 1 dispatch with a typed
-    // CHUNK_BUDGET_OVERFLOW so the user gets actionable feedback in <100 ms
-    // instead of absorbing the full LONG_FORM_TIMEOUT_FLOOR_MS.
+    // Post-condition: every materialized chunk MUST fit the Pass 1 prompt window
+    // AND respect the adaptive chunker's per-bracket maxChars target. The first
+    // check guards against prompt-window overflow (Pass 1 timeout); the second
+    // ensures the adaptive sizer is producing chunks within its declared bound.
     if (
       chunkRouting.route === 'long_form' &&
       typeof chunkRouting.max_chunk_chars === 'number' &&
@@ -1839,6 +1895,7 @@ export async function processEvaluationJob(
     ) {
       const charBudget = chunkRouting.prompt_budget_chars;
       const budgetCeiling = Math.floor(charBudget * 0.95);
+      const adaptiveMaxChars = chunkRouting.chunk_max_chars_config;
       if (chunkRouting.max_chunk_chars > budgetCeiling) {
         const violatingIndex = chunkRouting.max_chunk_index ?? 0;
         const ratio = charBudget > 0 ? chunkRouting.max_chunk_chars / charBudget : 0;
@@ -1856,6 +1913,26 @@ export async function processEvaluationJob(
             chunk_char_count: chunkRouting.max_chunk_chars,
             char_budget: charBudget,
             ratio,
+          },
+        });
+        return { success: false, error: chunkBudgetError };
+      }
+      if (chunkRouting.max_chunk_chars > adaptiveMaxChars) {
+        const violatingIndex = chunkRouting.max_chunk_index ?? 0;
+        const chunkBudgetError =
+          `Chunker post-condition violated: chunk ${violatingIndex} has ` +
+          `char_count=${chunkRouting.max_chunk_chars} which exceeds adaptive ` +
+          `bracket maxChars=${adaptiveMaxChars} (bracket=${chunkRouting.bracket}). ` +
+          `Failing closed before dispatch.`;
+        await markFailed(chunkBudgetError, 'CHUNK_BUDGET_OVERFLOW', {
+          pipelineStage: 'chunking',
+          reasonCodes: ['CHUNK_BUDGET_OVERFLOW'],
+          diagnostics: {
+            chunk_routing: chunkRouting,
+            violating_chunk_index: violatingIndex,
+            chunk_char_count: chunkRouting.max_chunk_chars,
+            adaptive_max_chars: adaptiveMaxChars,
+            bracket: chunkRouting.bracket,
           },
         });
         return { success: false, error: chunkBudgetError };

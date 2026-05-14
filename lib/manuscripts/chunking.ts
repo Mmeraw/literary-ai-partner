@@ -47,17 +47,79 @@ export type ChunkingConfig = {
   chapterMinFollowingChars: number; // 200
 };
 
-const DEFAULTS: ChunkingConfig = {
-  minChars: 3000,
-  targetChars: 8000,
-  maxChars: 12000,
-  overlapChars: 500,
+export const HARD_MANUSCRIPT_CEILING_WORDS = 300_000;
+
+const TOC_DEFAULTS = {
   tocMinEntries: 5,
   tocMaxGapLines: 4,
   tocMaxMeanLineLen: 200,
   chapterLookaheadLines: 20,
   chapterMinFollowingChars: 200,
 };
+
+// Size brackets — tuned so chunk count stays in 25–48 sweet spot across all
+// supported manuscript sizes. Per-chunk word target rises with manuscript size
+// to keep Pass 2 reduce-step token cost bounded.
+const BRACKET_SMALL: ChunkingConfig = {
+  minChars: 9_000,     // ≈ 1,500 words — merge below this
+  targetChars: 18_000, // ≈ 3,000 words
+  maxChars: 24_000,    // ≈ 4,000 words — force split above
+  overlapChars: 1_800, // 10% of target
+  ...TOC_DEFAULTS,
+};
+
+const BRACKET_MID: ChunkingConfig = {
+  minChars: 12_000,    // ≈ 2,000 words
+  targetChars: 21_000, // ≈ 3,500 words
+  maxChars: 30_000,    // ≈ 5,000 words
+  overlapChars: 2_100, // 10%
+  ...TOC_DEFAULTS,
+};
+
+const BRACKET_LARGE: ChunkingConfig = {
+  minChars: 18_000,    // ≈ 3,000 words
+  targetChars: 30_000, // ≈ 5,000 words
+  maxChars: 42_000,    // ≈ 7,000 words
+  overlapChars: 3_000, // 10%
+  ...TOC_DEFAULTS,
+};
+
+export type ChunkerBracket = 'small' | 'mid' | 'large';
+
+/**
+ * Adaptive chunker config selector.
+ *
+ * Returns the chunker configuration appropriate for the manuscript's word
+ * count. Smaller manuscripts get smaller target-chunk sizes to preserve
+ * chapter-level granularity; larger manuscripts get larger target-chunks to
+ * keep the total chunk count in the 25–48 sweet spot (bounded by Pass 2
+ * reduce-step token cost AND the 48-chunk per-pass OpenAI rate-limit cap).
+ *
+ * Above HARD_MANUSCRIPT_CEILING_WORDS (300,000), the caller MUST fail-closed
+ * before invoking the chunker. This function does not enforce the ceiling —
+ * see processor.ts shouldChunk gate.
+ */
+export function selectChunkerConfig(manuscriptWords: number): ChunkingConfig {
+  if (manuscriptWords <= 60_000) return BRACKET_SMALL;
+  if (manuscriptWords <= 150_000) return BRACKET_MID;
+  return BRACKET_LARGE;
+}
+
+/**
+ * Returns the bracket label for the given manuscript word count. Used for
+ * telemetry so admin dashboards can see which adaptive bracket fired.
+ */
+export function selectChunkerBracket(manuscriptWords: number): ChunkerBracket {
+  if (manuscriptWords <= 60_000) return 'small';
+  if (manuscriptWords <= 150_000) return 'mid';
+  return 'large';
+}
+
+function countWordsForChunkerSelection(text: string): number {
+  const trimmed = text.trim();
+  if (trimmed.length === 0) return 0;
+  return (trimmed.match(/\b\w+\b/g) || []).length;
+}
 
 // ----------------------------------------------------------------------------
 // Boundary line classification
@@ -350,7 +412,8 @@ export async function chunkManuscript(
   rawText: string,
   config: Partial<ChunkingConfig> = {},
 ): Promise<ChunkSpec[]> {
-  const cfg = { ...DEFAULTS, ...config };
+  const adaptiveBase = selectChunkerConfig(countWordsForChunkerSelection(rawText));
+  const cfg = { ...adaptiveBase, ...config };
   const text = normalizeNewlines(rawText);
 
   const { all, hasChapter, hasScene, hasSectionOrBlank } = computeBoundaries(text, cfg);
