@@ -9,6 +9,7 @@ on:
 jobs:
   flow1-proof-pack:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       # Known: GitHub git service occasionally emits transient "RPC failed; HTTP 404" or
       # "expected 'packfile'" during checkout. actions/checkout@v5 has built-in retry logic
@@ -41,8 +42,40 @@ jobs:
       - name: Install deps
         run: npm ci
 
+      - name: Prime Supabase images (best effort)
+        shell: bash
+        timeout-minutes: 8
+        run: |
+          set -euo pipefail
+          # Cold GitHub runners may need extra time to pull Supabase images.
+          # Run a best-effort warmup; if startup is incomplete we still proceed,
+          # because pulled layers are retained for the real start step.
+          if supabase start; then
+            supabase stop || true
+          else
+            echo "::warning::Supabase warmup did not fully complete on first attempt; continuing."
+            supabase stop || true
+          fi
+
       - name: Start Supabase (local)
-        run: supabase start
+        shell: bash
+        timeout-minutes: 12
+        run: |
+          set -euo pipefail
+          for attempt in 1 2; do
+            if supabase start; then
+              exit 0
+            fi
+
+            if [ "$attempt" -lt 2 ]; then
+              echo "::warning::supabase start failed (attempt ${attempt}); retrying after cleanup."
+              supabase stop || true
+              docker system prune -f || true
+            fi
+          done
+
+          echo "::error::supabase start failed after retries."
+          exit 1
 
       - name: Export LOCAL Supabase env for CI
         shell: bash
