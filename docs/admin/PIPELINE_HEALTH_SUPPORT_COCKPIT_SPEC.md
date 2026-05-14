@@ -4,13 +4,11 @@ Status: Canonical implementation authority for `/admin/pipeline-health`; does no
 
 ## Purpose
 
-`/admin/pipeline-health` is an admin-only support-ops cockpit.
-
-It is not a generic metrics dashboard.
+This page is an admin-only support-ops cockpit. It is not a generic metrics dashboard.
 
 Primary workflow:
 
-User reports failure -> admin searches by email / `user_id` / `job_id` / `manuscript_id` / support ticket -> admin finds the failed job in under 20 seconds -> expands the job row -> sees the exact failing step and persisted metric -> retries the job or copies a truthful support reply without leaving the page.
+User reports failure → admin searches by email / `user_id` / `job_id` / `manuscript_id` / support ticket → admin finds the failed job in under 20 seconds → expands the job row → sees the exact failing step and persisted metric → retries the job or copies a truthful support reply without leaving the page.
 
 This document is the implementation authority for `/admin/pipeline-health`.
 
@@ -58,8 +56,6 @@ Missing Pass 4 / cross-check evidence must render as missing evidence, not as a 
 - `pipeline_health_kpi_24h`
 - `pipeline_step_observations`
 - `admin_audit_log`
-
-If a view or table is not provisioned yet, the API must return `available:false`; it must not synthesize fake data.
 
 ### Required UI sections
 
@@ -158,3 +154,13 @@ Expected visible diagnosis:
 ## Acceptance bar
 
 A support admin can paste a user email, find the failed job in under 20 seconds, expand it, see the failing step and persisted metric, copy a truthful support reply, and retry with audit logging — without leaving the page or reading logs.
+
+## Amendment rule
+
+Changes to this spec require:
+
+- a separate docs-only PR
+- a brief rationale block explaining the trigger (incident, fixture, scale issue)
+- no bundled runtime changes
+
+Implementation PRs (B–G) must cite this spec in their PR body.
