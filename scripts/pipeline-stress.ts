@@ -25,6 +25,7 @@ import type {
   PipelineResult,
 } from "@/lib/evaluation/pipeline/types";
 import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
+import { chunkManuscript } from "@/lib/manuscripts/chunking";
 import { generateManuscript, WORD_BUCKETS, countWords } from "../tests/stress/fixtures/generate";
 import { makeLlmRunners } from "../tests/stress/mocks/llm";
 import { makeMockSupabase } from "../tests/stress/mocks/supabase";
@@ -215,7 +216,20 @@ async function executeRow(row: StressRow): Promise<ExecutedRow> {
       runQualityGate: runners.runQualityGate,
     };
 
-    const manuscriptChunks = materializeChunkOverride(row.chunkOverride);
+    // For rows without a chunk override, materialize chunks from the manuscript
+    // text exactly the way the production processor does. This is required by
+    // the post-PR contract: runPipeline fails closed with CHUNK_ROUTING_NOT_ENGAGED
+    // when manuscriptText is above the structural threshold (3,000 words) and
+    // manuscriptChunks.length <= 1. The processor chunks first; the harness
+    // must mirror that flow so it exercises the same code path as production.
+    let manuscriptChunks = materializeChunkOverride(row.chunkOverride);
+    if (row.chunkOverride.kind === "none") {
+      const chunked = await chunkManuscript(manuscriptText);
+      manuscriptChunks = chunked.map((c, i) => ({
+        chunk_index: i,
+        content: manuscriptText.slice(c.char_start, c.char_end),
+      }));
+    }
     result = await runPipeline({
       manuscriptText,
       manuscriptChunks,
