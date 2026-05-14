@@ -4,9 +4,10 @@
  * Canonical source: docs/governance/LONG_FORM_PIPELINE_SUCCESS_CONTRACT.md
  *
  * This module exists to prevent drift between prose contract clauses
- * and runtime/test assertions. Pipeline code, harness assertions, and
- * UI failure renderers should import from this file instead of using
- * inline string literals.
+ * and Tier 2/runtime assertions.
+ *
+ * Current scope: test/contract consumers (Tier 2 and related harnesses).
+ * Runtime/UI imports are intentionally deferred to the follow-on adoption PR.
  *
  * Any change here REQUIRES a corresponding change to the canonical
  * contract document, per the contract's amendment rule.
@@ -58,8 +59,10 @@ export const LONG_FORM_CLAUSE_TITLES: Record<LongFormClauseId, string> = {
  * Fail-closed codes — one per clause, plus the multi-layer addendum.
  *
  * These strings must be the exact values persisted to `failure_code`
- * on a failed evaluation_jobs row. The UI must render these codes;
- * it may not invent a friendlier explanation.
+ * on a failed evaluation_jobs row for long-form contract failures.
+ *
+ * Note: this list is the long-form contract overlay, not the job retry
+ * taxonomy in `lib/jobs/failures.ts`.
  */
 export const LONG_FORM_FAIL_CODES = [
   'CHUNK_ROUTING_NOT_ENGAGED',
@@ -103,16 +106,16 @@ export const LONG_FORM_CLAUSE_TO_FAIL_CODE: Record<LongFormClauseId, LongFormFai
  * Default budgets in milliseconds.
  *
  * These are CONTRACT DEFAULTS for clauses 3, 4, 5, and 11. Production
- * env vars (EVAL_PASS_TIMEOUT_MS, EVAL_TOTAL_TIMEOUT_MS, etc.) override
- * these at runtime; values here exist for harnesses, fixtures, and
- * docs to import a stable reference.
+ * runtime configuration may apply stricter floors or different bounds.
+ * Values here exist for contract-aware tests, fixtures, and docs to import
+ * a stable reference.
  *
  * Sourced from the contract's intent (Tier 2 evidence: 429 backoff
- * legitimately consumes 40-70s, so 180s per-pass is the minimum honest
- * budget).
+ * legitimately consumes 40-70s, so a 720s long-form floor is applied in
+ * runtime config today).
  */
 export const LONG_FORM_BUDGETS_MS = {
-  PASS_TIMEOUT_MS: 180_000,
+  PASS_TIMEOUT_MS: 720_000,
   TOTAL_TIMEOUT_MS: 900_000,
 } as const;
 
@@ -128,12 +131,16 @@ export const LONG_FORM_COVERAGE_MIN_PCT = 100;
 /**
  * Required-mode marker — used by Clauses 6 and 7.
  *
- * Jobs running in 'required' adjudication mode must produce both
- * pass4_governance and cross_check evidence. Jobs in 'optional' mode
- * may omit them without contract failure.
+ * Jobs running in modes that enforce external adjudication evidence
+ * must produce both pass4_governance and cross_check outputs.
  */
 export const LONG_FORM_REQUIRED_MODE = 'required' as const;
-export type LongFormAdjudicationMode = 'required' | 'optional';
+export type LongFormAdjudicationMode = 'required' | 'optional' | 'veto';
+
+export const LONG_FORM_EVIDENCE_REQUIRED_MODES = [
+  'required',
+  'veto',
+] as const satisfies readonly LongFormAdjudicationMode[];
 
 /**
  * Convenience: tier 2 assertion message helper.
