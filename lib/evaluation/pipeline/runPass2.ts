@@ -37,7 +37,7 @@ const PASS2_TEMPERATURE = 0.3;
 // Mirror of processor.ts STRUCTURAL_CHUNKING_THRESHOLD_WORDS. Kept duplicated
 // here to avoid a circular import — processor.ts pulls from pipeline modules.
 const STRUCTURAL_CHUNKING_THRESHOLD_WORDS = 3_000;
-const DEFAULT_CHUNK_PASS_CONCURRENCY = 5;
+const DEFAULT_CHUNK_PASS_CONCURRENCY = 3;
 const DEFAULT_CHUNK_RETRY_MAX = 3;
 const DEFAULT_CHUNK_RETRY_BASE_MS = 10000;
 // Pass 2 model is resolved via getCanonicalPass2Model(opts.model), allowing
