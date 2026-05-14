@@ -29,10 +29,12 @@ Does not apply to:
 
 ### Clause 1 — Routing engaged
 
-The pipeline must route long-form input through `chunkManuscript()` before invoking `runPipeline()`.
+The pipeline must materialize a chunked long-form substrate before invoking `runPipeline()`.
+
+In harnesses this may be `chunkManuscript()`. In production this may be the canonical chunk materialization path, such as `ensureChunks()` or its successor. The invariant is that `runPipeline()` must not receive long-form input without `manuscriptChunks` or an equivalent persisted chunk substrate.
 
 - Fail code: `CHUNK_ROUTING_NOT_ENGAGED`
-- No silent fallback to `direct_window` is permitted.
+- No silent fallback to `direct_window` is permitted for long-form input.
 
 ### Clause 2 — Chunk coverage sufficient
 
