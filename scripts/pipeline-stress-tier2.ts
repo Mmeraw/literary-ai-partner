@@ -87,8 +87,7 @@ function readFixture(fixtureName: string): string {
 interface RunOutcome {
   row: Tier2Row;
   result: PipelineResult | null;
-  total_ms: number;
-  pass4_ms: number | null;
+  pipeline_wall_ms: number;
   threw: Error | null;
 }
 
@@ -101,10 +100,11 @@ async function executeRow(row: Tier2Row, env: ResolvedEnv): Promise<RunOutcome> 
   const startMs = Date.now();
   let result: PipelineResult | null = null;
   let threw: Error | null = null;
-  let pass4_ms: number | null = null;
 
   try {
-    const pass4Start = Date.now();
+    // No _passTimeoutMs override: runPipeline's default per-pass timeout is
+    // correct for long-form. The prior version plumbed a 90s Pass 4 budget in
+    // here, which caused false PASS1/PASS2 timeouts on 50k-word runs.
     result = await runPipeline({
       manuscriptText,
       workType: row.work_type,
@@ -113,12 +113,7 @@ async function executeRow(row: Tier2Row, env: ResolvedEnv): Promise<RunOutcome> 
       jobId,
       openaiApiKey: env.openaiKey,
       perplexityApiKey: env.perplexityKey,
-      _passTimeoutMs: row.expected.max_pass4_ms,
     });
-    // Best-effort Pass 4 timing — we don't have direct hooks here, so we
-    // report total time as an upper bound. Replace with explicit
-    // instrumentation once runPipeline surfaces per-pass timings.
-    pass4_ms = Date.now() - pass4Start;
   } catch (err) {
     threw = err instanceof Error ? err : new Error(String(err));
   }
@@ -126,8 +121,10 @@ async function executeRow(row: Tier2Row, env: ResolvedEnv): Promise<RunOutcome> 
   return {
     row,
     result,
-    total_ms: Date.now() - startMs,
-    pass4_ms,
+    // Total pipeline wall time. NOT a Pass 4 measurement — true Pass 4
+    // duration will be derived from PR #484's `[Pass4] {json}` log stream
+    // in a follow-up (see PR-T2-LOGS).
+    pipeline_wall_ms: Date.now() - startMs,
     threw,
   };
 }
@@ -143,11 +140,11 @@ function isNonEmptyObject(v: unknown): boolean {
 
 function assertRow(outcome: RunOutcome): string[] {
   const failures: string[] = [];
-  const { row, result, total_ms, pass4_ms, threw } = outcome;
+  const { row, result, pipeline_wall_ms, threw } = outcome;
 
-  if (total_ms > row.expected.max_total_ms) {
+  if (pipeline_wall_ms > row.expected.max_pipeline_wall_ms) {
     failures.push(
-      `total_ms=${total_ms} > max_total_ms=${row.expected.max_total_ms}`,
+      `pipeline_wall_ms=${pipeline_wall_ms} > max_pipeline_wall_ms=${row.expected.max_pipeline_wall_ms}`,
     );
   }
 
@@ -185,16 +182,9 @@ function assertRow(outcome: RunOutcome): string[] {
       }
     }
 
-    if (
-      pass4_ms !== null &&
-      pass4_ms > row.expected.max_pass4_ms &&
-      // total budget already failed above; only add this if Pass 4 alone breached
-      total_ms <= row.expected.max_total_ms
-    ) {
-      failures.push(
-        `pass4_ms~=${pass4_ms} > max_pass4_ms=${row.expected.max_pass4_ms}`,
-      );
-    }
+    // A true Pass 4 latency assertion belongs here, but it must be sourced
+    // from PR #484's [Pass4] {json} log stream (by jobId), not from total
+    // pipeline wall time. Wiring deferred to PR-T2-LOGS.
   }
 
   return failures;
@@ -215,7 +205,7 @@ async function main(): Promise<number> {
     const failures = assertRow(outcome);
     if (failures.length === 0) {
       passed += 1;
-      process.stdout.write(`OK (${outcome.total_ms}ms)\n`);
+      process.stdout.write(`OK (${outcome.pipeline_wall_ms}ms)\n`);
     } else {
       failed += 1;
       process.stdout.write(`FAIL: ${failures.join("; ")}\n`);
