@@ -62,6 +62,7 @@
     "suspend_industry_user.test.ts",
     "create_agent_verification_request.test.ts",
     "approve_agent_verification.test.ts",
+    "tests/stress/ui/**",
     "all-branches-export",
     "**/all-branches-export/**",
     "literary-ai-partner-all-branches-bundle.zip",
