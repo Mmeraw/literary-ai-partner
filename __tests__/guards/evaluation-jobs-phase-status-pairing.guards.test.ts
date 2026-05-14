@@ -146,12 +146,12 @@ const SQL_ALLOWLIST: { file: string; lineApprox: number; reason: string }[] = [
   {
     file: 'supabase/migrations/20260405000000_finalizer_completion_authority_rpc.sql',
     lineApprox: 130,
-    reason: 'Historical append-only migration superseded by 20260514023000_finalizer_rpc_phase_status_pairing.sql; retained for migration history immutability.',
+    reason: 'Historical append-only migration superseded by 20260514023000_finalizer_complete_pairing.sql and 20260514023001_finalizer_mark_failed_pairing.sql; retained for migration history immutability.',
   },
   {
     file: 'supabase/migrations/20260405000001_finalizer_completion_authority_failure_rpc.sql',
     lineApprox: 56,
-    reason: 'Historical append-only migration superseded by 20260514023000_finalizer_rpc_phase_status_pairing.sql; retained for migration history immutability.',
+    reason: 'Historical append-only migration superseded by 20260514023000_finalizer_complete_pairing.sql and 20260514023001_finalizer_mark_failed_pairing.sql; retained for migration history immutability.',
   },
   {
     file: 'supabase/migrations/20260417000000_add_validity_status_evaluation_jobs.sql',
