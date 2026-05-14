@@ -1412,6 +1412,7 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
         workType: opts.workType,
         title: opts.title,
         perplexityApiKey: opts.perplexityApiKey,
+        jobId: latencyJobId,
       });
 
       finishLatencyStage({

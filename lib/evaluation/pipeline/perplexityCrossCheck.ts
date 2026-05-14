@@ -18,6 +18,17 @@ import {
   JsonBoundaryError,
   parseJsonObjectBoundary,
 } from "./jsonParseBoundary";
+import {
+  classifyParseError,
+  detectShapeVariant,
+  emitPass4Log,
+  summarizeCriteriaKeys,
+  type Pass4ShapeVariant,
+} from "./perplexityCrossCheckObservability";
+import {
+  buildPerplexityResponseSchema,
+  buildRefusalRetryUserPrompt,
+} from "./perplexityCrossCheckRequest";
 
 export type CriterionKey =
   | "concept"
@@ -333,13 +344,6 @@ function isRetryableBoundaryFailure(error: unknown): boolean {
   );
 }
 
-function parsePerplexityResponse(rawContent: string): PerplexityResponseShape {
-  const boundary = parseJsonObjectBoundary<Record<string, unknown>>(rawContent, {
-    label: "Pass4",
-  });
-  return validateParsedResponse(normalizeCrossCheckShape(boundary.value));
-}
-
 /**
  * Sentinel error thrown when sonar refuses literary judgment with a
  * "I cannot / search-based assistant" reply. Caught upstream to trigger a
@@ -444,82 +448,6 @@ export function normalizeCrossCheckShape(parsed: unknown): unknown {
   return obj;
 }
 
-/**
- * Build a sharpened, refusal-resistant user prompt for the one-shot retry after
- * a refusal is detected. Frames the task as analytical pattern recognition over
- * supplied text, not external research, and reasserts the JSON-only contract.
- */
-function buildRefusalRetryUserPrompt(originalUserPrompt: string): string {
-  return `${originalUserPrompt}
-
-IMPORTANT — RE-FRAMING:
-This is NOT a web research task. You are NOT being asked to look anything up.
-This is a STRUCTURED ANALYSIS task over the manuscript text provided above.
-You are scoring 13 craft criteria from signals you detect IN THE EXCERPT.
-Do not refuse. Do not say "I am search-based." Do not write disclaimers.
-Return ONLY the JSON object specified by the schema. No prose before or after.`;
-}
-
-/**
- * Build a strict JSON schema for Perplexity's response_format parameter.
- * Covers all 13 criteria with score/rationale/evidence/detectedSignals/scoringBand/doctrineTrace
- * required, plus the top-level synthesisNote string.
- */
-function buildPerplexityResponseSchema(): Record<string, unknown> {
-  const criterionSchema: Record<string, unknown> = {
-    type: "object",
-    additionalProperties: false,
-    properties: {
-      score: { type: "number", minimum: 1, maximum: 10 },
-      rationale: { type: "string", minLength: 1 },
-      evidence: {
-        type: "array",
-        minItems: 1,
-        items: {
-          type: "object",
-          additionalProperties: false,
-          properties: {
-            quote: { type: "string", minLength: 1 },
-            explanation: { type: "string", minLength: 1 },
-          },
-          required: ["quote", "explanation"],
-        },
-      },
-      detectedSignals: { type: "array", items: { type: "string" } },
-      scoringBand: { type: "string", enum: ["1-3", "4-6", "7-8", "9-10"] },
-      doctrineTrace: { type: "array", items: { type: "string" } },
-    },
-    required: [
-      "score",
-      "rationale",
-      "evidence",
-      "detectedSignals",
-      "scoringBand",
-      "doctrineTrace",
-    ],
-  };
-
-  const criteriaProps: Record<string, unknown> = {};
-  for (const key of CRITERION_KEYS) {
-    criteriaProps[key] = criterionSchema;
-  }
-
-  return {
-    type: "object",
-    additionalProperties: false,
-    properties: {
-      criteria: {
-        type: "object",
-        additionalProperties: false,
-        properties: criteriaProps,
-        required: [...CRITERION_KEYS],
-      },
-      synthesisNote: { type: "string", minLength: 1 },
-    },
-    required: ["criteria", "synthesisNote"],
-  };
-}
-
 export async function runPerplexityCrossCheck(opts: {
   openaiCriteria: Record<CriterionKey, OpenAICriterionInput>;
   openaiSynthesis: string;
@@ -527,6 +455,11 @@ export async function runPerplexityCrossCheck(opts: {
   workType: string;
   title: string;
   perplexityApiKey: string;
+  /**
+   * Optional caller-supplied job id used purely for grep-by-job log correlation
+   * in `[Pass4] {...}` structured log lines. No effect on behavior.
+   */
+  jobId?: string;
 }): Promise<CrossCheckOutput> {
   const {
     openaiCriteria,
@@ -535,7 +468,11 @@ export async function runPerplexityCrossCheck(opts: {
     workType,
     title,
     perplexityApiKey,
+    jobId,
   } = opts;
+
+  const fnStartMs = Date.now();
+  const logJobId = jobId ?? "unknown";
 
   if (!perplexityApiKey) {
     throw new Error("[Pass4] PERPLEXITY_API_KEY is required.");
@@ -609,12 +546,28 @@ ${openaiSynthesis?.slice(0, 900) ?? "(none)"}
 
 Now return the independent adjudication as JSON.`;
 
-  const responseSchema = buildPerplexityResponseSchema();
+  const responseSchema = buildPerplexityResponseSchema(CRITERION_KEYS);
+
+  const initialPromptChars = systemPrompt.length + userPrompt.length;
+  let attemptCounter = 0;
+
+  emitPass4Log("log", {
+    event: "pass4_start",
+    job_id: logJobId,
+    chunk_count: Object.keys(openaiCriteria ?? {}).length,
+    model: PERPLEXITY_MODEL,
+    prompt_chars: initialPromptChars,
+    max_completion_tokens: PERPLEXITY_MAX_TOKENS,
+    mode: process.env.EVAL_EXTERNAL_ADJUDICATION_MODE ?? null,
+  });
 
   const requestCompletion = async (
     maxTokens: number,
     activeUserPrompt: string = userPrompt,
   ) => {
+    attemptCounter += 1;
+    const attemptNumber = attemptCounter;
+    const attemptStartMs = Date.now();
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), PERPLEXITY_REQUEST_TIMEOUT_MS);
     let response: Response;
@@ -652,6 +605,17 @@ Now return the independent adjudication as JSON.`;
       });
     } catch (error) {
       if (error instanceof Error && error.name === "AbortError") {
+        emitPass4Log("error", {
+          event: "pass4_attempt",
+          job_id: logJobId,
+          attempt: attemptNumber,
+          elapsed_ms_attempt: Date.now() - attemptStartMs,
+          http_status: null,
+          response_bytes: 0,
+          finish_reason: null,
+          usage: null,
+          error: "timeout",
+        });
         throw new Error(
           `[Pass4] Perplexity request timed out after ${PERPLEXITY_REQUEST_TIMEOUT_MS}ms`
         );
@@ -663,6 +627,17 @@ Now return the independent adjudication as JSON.`;
 
     if (!response.ok) {
       const errText = await response.text();
+      emitPass4Log("error", {
+        event: "pass4_attempt",
+        job_id: logJobId,
+        attempt: attemptNumber,
+        elapsed_ms_attempt: Date.now() - attemptStartMs,
+        http_status: response.status,
+        response_bytes: errText.length,
+        finish_reason: null,
+        usage: null,
+        error: "http_error",
+      });
       throw new Error(
         `[Pass4] Perplexity API error ${response.status}: ${errText.slice(0, 400)}`
       );
@@ -674,14 +649,38 @@ Now return the independent adjudication as JSON.`;
     const finishReason = typeof raw?.choices?.[0]?.finish_reason === "string"
       ? raw.choices[0].finish_reason
       : "unknown";
+    const usage = raw && typeof raw === "object" && raw !== null && "usage" in raw
+      ? (raw as { usage?: unknown }).usage ?? null
+      : null;
 
-    return { rawContent, finishReason };
+    let responseBytes = 0;
+    try {
+      responseBytes = JSON.stringify(raw).length;
+    } catch {
+      responseBytes = rawContent.length;
+    }
+
+    emitPass4Log("log", {
+      event: "pass4_attempt",
+      job_id: logJobId,
+      attempt: attemptNumber,
+      elapsed_ms_attempt: Date.now() - attemptStartMs,
+      http_status: response.status,
+      response_bytes: responseBytes,
+      finish_reason: finishReason,
+      usage,
+    });
+
+    return { rawContent, finishReason, attemptNumber };
   };
 
   const warnings: string[] = [];
   let activeMaxTokens = PERPLEXITY_MAX_TOKENS;
   let activeUserPrompt = userPrompt;
-  let { rawContent, finishReason } = await requestCompletion(activeMaxTokens, activeUserPrompt);
+  let attempt1 = await requestCompletion(activeMaxTokens, activeUserPrompt);
+  let rawContent = attempt1.rawContent;
+  let finishReason = attempt1.finishReason;
+  let lastAttemptNumber = attempt1.attemptNumber;
 
   // Refusal detection + one-shot retry with a sharpened prompt. This addresses
   // the 3/11 historical Pass 4 failures where sonar replied with prose like
@@ -690,6 +689,17 @@ Now return the independent adjudication as JSON.`;
   // cleaner error signature + a real recovery attempt.
   const initialRefusal = detectPerplexityRefusal(rawContent);
   if (initialRefusal) {
+    emitPass4Log("warn", {
+      event: "pass4_parse",
+      job_id: logJobId,
+      attempt: lastAttemptNumber,
+      refusal_detected: true,
+      refusal_signature: initialRefusal,
+      shape_variant: "unknown",
+      parse_outcome: "refusal",
+      criteria_keys_seen: [],
+      error_message: `refusal: ${initialRefusal}`.slice(0, 200),
+    });
     warnings.push(
       `Perplexity refused literary judgment ("${initialRefusal}"); retried with sharpened prompt.`,
     );
@@ -699,10 +709,33 @@ Now return the independent adjudication as JSON.`;
       previewLen: rawContent.length,
     });
     activeUserPrompt = buildRefusalRetryUserPrompt(userPrompt);
-    ({ rawContent, finishReason } = await requestCompletion(activeMaxTokens, activeUserPrompt));
+    const retryResp = await requestCompletion(activeMaxTokens, activeUserPrompt);
+    rawContent = retryResp.rawContent;
+    finishReason = retryResp.finishReason;
+    lastAttemptNumber = retryResp.attemptNumber;
 
     const retryRefusal = detectPerplexityRefusal(rawContent);
     if (retryRefusal) {
+      emitPass4Log("error", {
+        event: "pass4_parse",
+        job_id: logJobId,
+        attempt: lastAttemptNumber,
+        refusal_detected: true,
+        refusal_signature: retryRefusal,
+        shape_variant: "unknown",
+        parse_outcome: "refusal",
+        criteria_keys_seen: [],
+        error_message: `refusal: ${retryRefusal}`.slice(0, 200),
+      });
+      emitPass4Log("error", {
+        event: "pass4_failed",
+        job_id: logJobId,
+        total_elapsed_ms: Date.now() - fnStartMs,
+        attempts_made: lastAttemptNumber,
+        final_status: "refusal_exhausted",
+        cross_check_returned: false,
+        error_code: "PASS4_REFUSAL_EXHAUSTED",
+      });
       throw new PerplexityRefusalError(retryRefusal);
     }
   }
@@ -717,9 +750,54 @@ Now return the independent adjudication as JSON.`;
 
   console.log(`[Pass4] raw Perplexity response preview len=${rawContent.length}: ${rawContent.slice(0, 200)}`);
 
+  const parseAndLog = (
+    content: string,
+    attemptNum: number,
+    fnLogJobId: string,
+  ): PerplexityResponseShape => {
+    let preNormalized: unknown = null;
+    let shapeVariant: Pass4ShapeVariant = "unknown";
+    try {
+      const boundary = parseJsonObjectBoundary<Record<string, unknown>>(content, {
+        label: "Pass4",
+      });
+      preNormalized = boundary.value;
+      shapeVariant = detectShapeVariant(preNormalized);
+      const normalized = normalizeCrossCheckShape(preNormalized);
+      const parsed = validateParsedResponse(normalized);
+      emitPass4Log("log", {
+        event: "pass4_parse",
+        job_id: fnLogJobId,
+        attempt: attemptNum,
+        refusal_detected: false,
+        refusal_signature: null,
+        shape_variant: shapeVariant,
+        parse_outcome: "ok",
+        criteria_keys_seen: Object.keys(parsed.criteria),
+        error_message: null,
+      });
+      return parsed;
+    } catch (error) {
+      const { outcome } = classifyParseError(error);
+      const errMsg = error instanceof Error ? error.message : String(error);
+      emitPass4Log("warn", {
+        event: "pass4_parse",
+        job_id: fnLogJobId,
+        attempt: attemptNum,
+        refusal_detected: false,
+        refusal_signature: null,
+        shape_variant: shapeVariant,
+        parse_outcome: outcome,
+        criteria_keys_seen: summarizeCriteriaKeys(preNormalized),
+        error_message: errMsg.slice(0, 200),
+      });
+      throw error;
+    }
+  };
+
   let parsed: PerplexityResponseShape;
   try {
-    parsed = parsePerplexityResponse(rawContent);
+    parsed = parseAndLog(rawContent, lastAttemptNumber, logJobId);
   } catch (error) {
     const shouldRetry = finishReason === "length" || isRetryableBoundaryFailure(error);
     if (shouldRetry) {
@@ -734,7 +812,10 @@ Now return the independent adjudication as JSON.`;
       });
 
       activeMaxTokens = retryMaxTokens;
-      ({ rawContent, finishReason } = await requestCompletion(activeMaxTokens, activeUserPrompt));
+      const truncRetry = await requestCompletion(activeMaxTokens, activeUserPrompt);
+      rawContent = truncRetry.rawContent;
+      finishReason = truncRetry.finishReason;
+      lastAttemptNumber = truncRetry.attemptNumber;
       if (finishReason === "length") {
         console.warn("[Pass4] retry finish_reason=length — response may still be truncated", {
           model: PERPLEXITY_MODEL,
@@ -745,8 +826,18 @@ Now return the independent adjudication as JSON.`;
       console.log(`[Pass4] retry raw Perplexity response preview len=${rawContent.length}: ${rawContent.slice(0, 200)}`);
 
       try {
-        parsed = parsePerplexityResponse(rawContent);
+        parsed = parseAndLog(rawContent, lastAttemptNumber, logJobId);
       } catch (retryError) {
+        const { errorCode, finalStatus } = classifyParseError(retryError);
+        emitPass4Log("error", {
+          event: "pass4_failed",
+          job_id: logJobId,
+          total_elapsed_ms: Date.now() - fnStartMs,
+          attempts_made: lastAttemptNumber,
+          final_status: finalStatus,
+          cross_check_returned: false,
+          error_code: errorCode,
+        });
         if (retryError instanceof JsonBoundaryError) {
           throw new Error(
             `[Pass4] ${retryError.code}: ${retryError.message} (after retry; finish_reason=${finishReason}; preview=${rawContent
@@ -760,10 +851,29 @@ Now return the independent adjudication as JSON.`;
         );
       }
     } else if (error instanceof JsonBoundaryError) {
+      emitPass4Log("error", {
+        event: "pass4_failed",
+        job_id: logJobId,
+        total_elapsed_ms: Date.now() - fnStartMs,
+        attempts_made: lastAttemptNumber,
+        final_status: "schema_invalid",
+        cross_check_returned: false,
+        error_code: `PASS4_${error.code}`,
+      });
       throw new Error(
         `[Pass4] ${error.code}: ${error.message}`
       );
     } else {
+      const { errorCode, finalStatus } = classifyParseError(error);
+      emitPass4Log("error", {
+        event: "pass4_failed",
+        job_id: logJobId,
+        total_elapsed_ms: Date.now() - fnStartMs,
+        attempts_made: lastAttemptNumber,
+        final_status: finalStatus,
+        cross_check_returned: false,
+        error_code: errorCode,
+      });
       throw new Error(
         `[Pass4] JSON parse/validation failed: ${(error as Error).message}`
       );
@@ -859,6 +969,16 @@ Now return the independent adjudication as JSON.`;
   const disputeRatio = disputedCriteria.length / CRITERION_KEYS.length;
   const overallAgreement: CrossCheckOutput["overallAgreement"] =
     disputeRatio === 0 ? "STRONG" : disputeRatio <= 0.3 ? "MODERATE" : "WEAK";
+
+  emitPass4Log("log", {
+    event: "pass4_complete",
+    job_id: logJobId,
+    total_elapsed_ms: Date.now() - fnStartMs,
+    attempts_made: lastAttemptNumber,
+    final_status: "success",
+    cross_check_returned: true,
+    error_code: null,
+  });
 
   return {
     model: PERPLEXITY_MODEL,
