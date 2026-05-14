@@ -24,7 +24,16 @@ import { emitLatencyTrace } from "@/lib/observability/latencyTrace";
 import { JsonBoundaryError, parseJsonObjectBoundary } from "@/lib/llm/jsonParseBoundary";
 import { getEvaluationRuntimeConfig } from "@/lib/config/evaluationRuntimeConfig";
 import { summarizePromptCoverage } from "./promptInput";
+import { countWords } from "./submissionScope";
+import {
+  ChunkCountExceedsCapError,
+  ChunkRoutingNotEngagedError,
+} from "./failures";
 const PASS1_TEMPERATURE = 0.3;
+
+// Mirror of processor.ts STRUCTURAL_CHUNKING_THRESHOLD_WORDS. Kept duplicated
+// here to avoid a circular import — processor.ts pulls from pipeline modules.
+const STRUCTURAL_CHUNKING_THRESHOLD_WORDS = 3_000;
 
 const PASS1_LENGTH_RETRY_MAX_OUTPUT_TOKENS = 16000;
 const PASS1_LIMITS = {
@@ -376,7 +385,21 @@ export async function runPass1(opts: RunPass1Options): Promise<SinglePassOutput>
     const chunkCap = getChunkPassMaxPerPass();
     const chunkRetryMax = getChunkRetryMax();
     const chunkRetryBaseMs = getChunkRetryBaseMs();
-    const selectedChunks = chunkCap ? opts.manuscriptChunks!.slice(0, chunkCap) : opts.manuscriptChunks!;
+    // Fail-closed: NEVER silently truncate chunks. If a manuscript produces
+    // more chunks than the per-pass cap, the evaluation must fail with a clear
+    // diagnostic — "every word is evaluated, or the job fails."
+    if (chunkCap !== null && opts.manuscriptChunks!.length > chunkCap) {
+      throw new ChunkCountExceedsCapError(
+        `Manuscript produced ${opts.manuscriptChunks!.length} chunks; cap is ${chunkCap}. ` +
+        `Please split the manuscript into smaller volumes for evaluation.`,
+        {
+          code: 'CHUNK_COUNT_EXCEEDS_CAP',
+          chunk_count: opts.manuscriptChunks!.length,
+          chunk_cap: chunkCap,
+        },
+      );
+    }
+    const selectedChunks = opts.manuscriptChunks!;
     const chunkEvalStartMs = nowMs();
     let rateLimitRetryCount = 0;
     let rateLimitWaitMs = 0;
@@ -474,15 +497,10 @@ export async function runPass1(opts: RunPass1Options): Promise<SinglePassOutput>
         rate_limit_total_wait_ms: rateLimitWaitMs,
         provider_tpm_limited: (chunkFailuresByReason["RATE_LIMIT_429"] ?? 0) > 0 || rateLimitRetryCount > 0,
         chunk_failures_by_reason: chunkFailuresByReason,
-        chunk_cap_applied: chunkCap ? true : false,
+        chunk_cap_applied: false,
+        chunk_cap_value: chunkCap,
       },
     });
-
-    if (chunkCap && selectedChunks.length < chunksTotal) {
-      console.warn(
-        `[Pass1] Partial chunk coverage due to EVAL_CHUNK_MAX_PER_PASS=${chunkCap} (attempted ${selectedChunks.length}/${chunksTotal})`,
-      );
-    }
 
     if (failures.length > 0) {
       const firstFailure = failures[0];
@@ -506,15 +524,30 @@ export async function runPass1(opts: RunPass1Options): Promise<SinglePassOutput>
           attempted_chunks: selectedChunks.length,
           evaluated_chunks: chunkResults.length,
           failed_chunks: failures.length,
-          cap_applied: Boolean(chunkCap && selectedChunks.length < chunksTotal),
+          cap_applied: false,
         },
       },
     };
   }
 
-  // ─── SINGLE-PASS SAMPLED-WINDOW PATH (Fallback / Short-Form) ──────────────
-  // Falls back to building a sampled window when chunks are not available
-  // or when manuscript is small enough to fit in single evaluation.
+  // ─── SINGLE-PASS SAMPLED-WINDOW PATH (Short-Form ONLY) ────────────────────
+  // Below STRUCTURAL_CHUNKING_THRESHOLD_WORDS this is the correct single-unit
+  // evaluation path. Above it, the upstream runPipeline assert refuses to
+  // route here — this tautological safety net catches any caller that
+  // somehow bypasses the upstream check.
+  const pass1WordCount = countWords(opts.manuscriptText);
+  if (pass1WordCount >= STRUCTURAL_CHUNKING_THRESHOLD_WORDS) {
+    throw new ChunkRoutingNotEngagedError(
+      `Pass 1 received ${pass1WordCount} words (≥ ${STRUCTURAL_CHUNKING_THRESHOLD_WORDS}) with ` +
+      `no chunks; direct_window fallback would silently timeout. Refusing to dispatch.`,
+      {
+        code: 'CHUNK_ROUTING_NOT_ENGAGED',
+        manuscript_words: pass1WordCount,
+        chunk_count: opts.manuscriptChunks?.length ?? 0,
+        guard_location: 'runPass1.direct_window_entry',
+      },
+    );
+  }
 
   const effectiveOpenAiTimeoutMs = opts.openAiTimeoutMs ?? getEvalOpenAiTimeoutMs();
   const createCompletion = opts._createCompletion ?? defaultCreateCompletion(opts.openaiApiKey, effectiveOpenAiTimeoutMs);

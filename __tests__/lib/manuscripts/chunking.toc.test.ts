@@ -25,7 +25,10 @@ const FIXTURE_TOC_PROD = path.resolve(
   "../../fixtures/chunking/toc_production_format.md",
 );
 
-function summarizeSizes(chunks: { char_start: number; char_end: number }[]) {
+function summarizeSizes(
+  chunks: { char_start: number; char_end: number }[],
+  minCharsThreshold = 3000,
+) {
   const sizes = chunks.map((c) => c.char_end - c.char_start).sort((a, b) => a - b);
   const median = sizes[Math.floor(sizes.length / 2)];
   return {
@@ -33,7 +36,7 @@ function summarizeSizes(chunks: { char_start: number; char_end: number }[]) {
     min: sizes[0] ?? 0,
     median: median ?? 0,
     max: sizes[sizes.length - 1] ?? 0,
-    underMinChars: sizes.filter((s) => s < 3000).length,
+    underMinChars: sizes.filter((s) => s < minCharsThreshold).length,
     under200: sizes.filter((s) => s < 200).length,
   };
 }
@@ -43,15 +46,18 @@ describe("chunkManuscript — TOC awareness (issue #382)", () => {
     expect(fs.existsSync(FIXTURE_TOC_PROD)).toBe(true);
     const text = fs.readFileSync(FIXTURE_TOC_PROD, "utf8");
     const chunks = await chunkManuscript(text);
-    const s = summarizeSizes(chunks);
+    // Fixture is ~324k chars, ~55k words → SMALL adaptive bracket
+    // (minChars=9000, targetChars=18000, maxChars=24000).
+    const s = summarizeSizes(chunks, 9000);
 
-    // Fixture is ~324k chars, ~55k words, 37 TOC entries + 37 real chapters.
     // Pre-fix produced 76 chunks with 37 of them at 34 chars apiece.
-    // Post-fix should be roughly one chunk per chapter, each ~minChars-maxChars.
-    expect(s.count).toBeGreaterThanOrEqual(20);
+    // Adaptive SMALL bracket produces roughly one chunk per chapter, larger
+    // than the legacy fixed 8k target — count drops accordingly but still
+    // bounded well above the pre-fix over-segmentation regime.
+    expect(s.count).toBeGreaterThanOrEqual(15);
     expect(s.count).toBeLessThanOrEqual(80);
-    expect(s.min).toBeGreaterThanOrEqual(3000); // min-segment-merge invariant
-    expect(s.median).toBeGreaterThanOrEqual(3000);
+    expect(s.min).toBeGreaterThanOrEqual(9000); // SMALL bracket minChars
+    expect(s.median).toBeGreaterThanOrEqual(9000);
     expect(s.under200).toBe(0);
     expect(s.underMinChars).toBe(0);
   });
