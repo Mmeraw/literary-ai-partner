@@ -33,12 +33,19 @@ export function validateProductionConfig(
 ): ValidationResult {
   const errors: string[] = [];
   const warnings: string[] = [];
+  const vercelEnv = String(env.VERCEL_ENV ?? "").toLowerCase();
+  const isVercelPreview = vercelEnv === "preview";
   const isProduction = env.NODE_ENV === "production";
+  const enforceProductionGuardrails = isProduction && !isVercelPreview;
   const useSupabase = env.USE_SUPABASE_JOBS === "true";
 
-  if (isProduction && !useSupabase) {
+  if (enforceProductionGuardrails && !useSupabase) {
     errors.push(
       "Memory job store is not production-safe. Set USE_SUPABASE_JOBS=true for 100k-user scale.",
+    );
+  } else if (isProduction && isVercelPreview && !useSupabase) {
+    warnings.push(
+      "Skipping strict USE_SUPABASE_JOBS enforcement for Vercel preview build (VERCEL_ENV=preview).",
     );
   }
 

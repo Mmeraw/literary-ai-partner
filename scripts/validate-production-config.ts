@@ -34,6 +34,7 @@ if (result.valid) {
 
   console.log("📊 Configuration Summary:");
   console.log(`   NODE_ENV: ${process.env.NODE_ENV}`);
+  console.log(`   VERCEL_ENV: ${process.env.VERCEL_ENV}`);
   console.log(`   USE_SUPABASE_JOBS: ${process.env.USE_SUPABASE_JOBS}`);
   console.log(`   SUPABASE_URL: ${process.env.SUPABASE_URL ? "✓ Set" : "✗ Missing"}`);
   console.log(`   SUPABASE_ANON_KEY: ${process.env.SUPABASE_ANON_KEY ? "✓ Set" : "✗ Missing"}`);
