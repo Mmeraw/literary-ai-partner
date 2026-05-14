@@ -26,6 +26,7 @@ import path from "path";
 import { randomUUID } from "crypto";
 import { runPipeline } from "@/lib/evaluation/pipeline/runPipeline";
 import type { PipelineResult } from "@/lib/evaluation/pipeline/types";
+import { chunkManuscript } from "@/lib/manuscripts/chunking";
 import { TIER2_SCENARIOS, type Tier2Row } from "../tests/stress/tier2/scenarios";
 
 const PROD_SUPABASE_PROJECT_ID = "xtumxjnzdswuumndcbwc";
@@ -89,8 +90,19 @@ async function executeRow(row: Tier2Row, env: ResolvedEnv): Promise<RunOutcome> 
   let threw: Error | null = null;
 
   try {
+    // Materialize chunks before invoking runPipeline. Required by the
+    // fail-closed chunk-routing assertion added in PR #490: runPipeline
+    // rejects with CHUNK_ROUTING_NOT_ENGAGED when manuscriptChunks is
+    // absent/empty on long-form input. Mirrors the Tier 1 harness pattern.
+    const chunked = await chunkManuscript(manuscriptText);
+    const manuscriptChunks = chunked.map((c) => ({
+      chunk_index: c.chunk_index,
+      content: c.content,
+    }));
+
     result = await runPipeline({
       manuscriptText,
+      manuscriptChunks,
       workType: row.work_type,
       title: `stress-tier2-${row.id}`,
       manuscriptId: jobId,
