@@ -1,18 +1,6 @@
 name: Pipeline Stress Harness — Tier 2 (Live)
 
 "on":
-  schedule:
-    # 08:00 UTC = 01:00 America/Mazatlan, runs overnight.
-    - cron: "0 8 * * *"
-  pull_request:
-    paths:
-      - "lib/evaluation/**"
-      - "prompts/**"
-      - "lib/llm/**"
-      - "lib/evaluation/pipeline/perplexityCrossCheck.ts"
-      - "scripts/pipeline-stress-tier2.ts"
-      - "tests/stress/tier2/**"
-      - ".github/workflows/pipeline-stress-tier2.yml"
   workflow_dispatch:
 
 jobs:
@@ -23,11 +11,11 @@ jobs:
     timeout-minutes: 20
     env:
       NODE_ENV: development
-      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY_STRESS }}
-      PERPLEXITY_API_KEY: ${{ secrets.PERPLEXITY_API_KEY_STRESS }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      PERPLEXITY_API_KEY: ${{ secrets.PERPLEXITY_API_KEY }}
       SUPABASE_STRESS_URL: ${{ secrets.SUPABASE_STRESS_URL }}
-      # Stubs required to boot Next middleware/SSR; the runner reads the
-      # _STRESS variants above and refuses to touch prod Supabase.
+      # Stubs required to boot Next middleware/SSR; the runner reads
+      # SUPABASE_STRESS_URL above and refuses to touch prod Supabase.
       NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_STRESS_URL }}
       NEXT_PUBLIC_SUPABASE_ANON_KEY: stub-anon-key-for-tier2-only
       SUPABASE_URL: ${{ secrets.SUPABASE_STRESS_URL }}
@@ -47,10 +35,11 @@ jobs:
       - name: Probe required secrets
         id: secrets_probe
         run: |
-          if [ -z "${{ secrets.OPENAI_API_KEY_STRESS }}" ] || \
-             [ -z "${{ secrets.PERPLEXITY_API_KEY_STRESS }}" ]; then
+          if [ -z "${{ secrets.OPENAI_API_KEY }}" ] || \
+             [ -z "${{ secrets.PERPLEXITY_API_KEY }}" ]; then
             echo "have_secrets=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::Tier 2 secrets not configured — skipping live run. Add OPENAI_API_KEY_STRESS and PERPLEXITY_API_KEY_STRESS to repo secrets."
+            echo "::error::Tier 2 cannot run — OPENAI_API_KEY or PERPLEXITY_API_KEY missing from repo secrets."
+            exit 1
           else
             echo "have_secrets=true" >> "$GITHUB_OUTPUT"
           fi
@@ -59,8 +48,7 @@ jobs:
         if: steps.secrets_probe.outputs.have_secrets == 'true'
         id: stress_tier2
         # set -o pipefail so a non-zero exit from the runner propagates past
-        # `tee` and fails the job. Without it, the runner could abort (e.g.
-        # missing secrets) and the workflow would still report success.
+        # `tee` and fails the job.
         shell: bash
         run: |
           set -o pipefail
