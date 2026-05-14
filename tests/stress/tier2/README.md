@@ -1,0 +1,105 @@
+# Tier 2 Stress Harness — Live OpenAI + Live Perplexity
+
+## What it does
+
+Runs the full evaluation pipeline (Pass 1 → 2 → 3 → 4) against a real
+~52k-word public-domain manuscript using **live OpenAI** and **live
+Perplexity**. Asserts on the production-shaped result:
+
+- `outcome === "success"`
+- `evaluation_result.cross_check` is a non-empty object
+- `evaluation_result.pass4_governance` is populated
+- chunk coverage ≥ 95%
+- total wall-time ≤ 15 min, Pass 4 ≤ 90s
+
+This is the smallest possible footprint that would have caught prod eval
+`609dc776-6ccd-41dd-9353-1425697f1fb2` (Froggin Noggin, 53,903 words),
+which failed on 2026-05-13 with:
+
+```
+External adjudication mode 'required' requires cross-check output
+```
+
+The Tier 1 mock harness was 100% green for the same change. **Tier 1
+cannot fail on a class it does not cover.** Tier 2 is that cover.
+
+## When it runs
+
+| Trigger             | When                                                    |
+| ------------------- | ------------------------------------------------------- |
+| `schedule`          | Nightly at 08:00 UTC (01:00 America/Mazatlan)           |
+| `pull_request`      | When the PR touches `lib/evaluation/**`, `prompts/**`, `lib/llm/**`, or `perplexityCrossCheck.ts` |
+| `workflow_dispatch` | Manual                                                  |
+
+Workflow file: `.github/workflows/pipeline-stress-tier2.yml`.
+
+## Cost
+
+- ~$2–3 OpenAI per run (Pass 1 + 2 + 3 across ~30 chunks)
+- ~$0.50 Perplexity per run (sonar-reasoning-pro Pass 4)
+- ~$100/month for nightly + ~5–10 PR runs
+
+If cost becomes a concern, drop the `schedule` block; PR-triggered runs
+alone still lock the regression.
+
+## Signal this catches
+
+What Tier 2 catches that Tier 1 (mocks) cannot:
+
+- **Real refusals / shape variants** from OpenAI or Perplexity on
+  production-shaped prompts
+- **Real network/timeout behavior** of Pass 4 against the live Perplexity
+  endpoint
+- **`cross_check` empty/missing** — the silent-skip class that PR #481
+  hardened against and PR-OBS instrumented
+- **Long-form route activation** — fixture is sized to trigger
+  `route=long_form` (threshold = 25k words) and ~30+ chunks, matching the
+  structural shape of the Froggin Noggin failure
+
+What it does **not** catch:
+
+- UI rendering behavior (that's Tier 3a — Playwright)
+- Full E2E worker flow including DB persistence semantics (Tier 3b)
+- Quality-of-output scoring drift (future Q2/Q3 rows)
+
+## Re-running locally
+
+```bash
+# Required env (point at a dev/preview Supabase, NOT prod):
+export OPENAI_API_KEY=sk-...
+export PERPLEXITY_API_KEY=pplx-...
+export SUPABASE_STRESS_URL=https://<dev-project>.supabase.co
+export SUPABASE_STRESS_SERVICE_ROLE_KEY=...
+
+pnpm run pipeline:stress:tier2
+```
+
+The runner hard-aborts if `SUPABASE_URL` resolves to the prod project id
+`xtumxjnzdswuumndcbwc`.
+
+## First-run requirement (post-merge)
+
+Tier 2 needs four GitHub repo secrets before it can pass:
+
+1. `OPENAI_API_KEY_STRESS`
+2. `PERPLEXITY_API_KEY_STRESS`
+3. `SUPABASE_STRESS_URL`
+4. `SUPABASE_STRESS_SERVICE_ROLE_KEY`
+
+Add them at: Settings → Secrets and variables → Actions.
+
+The `_STRESS` suffix is intentional — it prevents accidental cross-wiring
+with the prod-pointing secrets used by `ci.yml`.
+
+## How to disable
+
+Comment out the `schedule:` block in
+`.github/workflows/pipeline-stress-tier2.yml`. PR-triggered runs remain
+active unless the entire `on:` section is removed.
+
+## Adding rows
+
+This file ships with one row by design: `Q-long-real-perplexity`. Adding
+more rows (variant coverage, refusal handling, quality-drift) belongs in
+follow-up PRs — keep each row a separate, reviewable change so cost and
+flake exposure stay bounded.

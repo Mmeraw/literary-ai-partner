@@ -1,0 +1,60 @@
+name: Pipeline Stress Harness — Tier 2 (Live)
+
+"on":
+  schedule:
+    # 08:00 UTC = 01:00 America/Mazatlan, runs overnight.
+    - cron: "0 8 * * *"
+  pull_request:
+    paths:
+      - "lib/evaluation/**"
+      - "prompts/**"
+      - "lib/llm/**"
+      - "lib/evaluation/pipeline/perplexityCrossCheck.ts"
+      - "scripts/pipeline-stress-tier2.ts"
+      - "tests/stress/tier2/**"
+      - ".github/workflows/pipeline-stress-tier2.yml"
+  workflow_dispatch:
+
+jobs:
+  tier2:
+    # Skip on forks — required secrets are not exposed to fork PRs.
+    if: github.repository == 'Mmeraw/literary-ai-partner'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      NODE_ENV: development
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY_STRESS }}
+      PERPLEXITY_API_KEY: ${{ secrets.PERPLEXITY_API_KEY_STRESS }}
+      SUPABASE_STRESS_URL: ${{ secrets.SUPABASE_STRESS_URL }}
+      SUPABASE_STRESS_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_STRESS_SERVICE_ROLE_KEY }}
+      # Stubs required to boot Next middleware/SSR; the runner reads the
+      # _STRESS variants above and refuses to touch prod Supabase.
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_STRESS_URL }}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: stub-anon-key-for-tier2-only
+      SUPABASE_URL: ${{ secrets.SUPABASE_STRESS_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_STRESS_SERVICE_ROLE_KEY }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Tier 2 — pipeline stress harness (live OpenAI + live Perplexity)
+        id: stress_tier2
+        run: npm run pipeline:stress:tier2 2>&1 | tee /tmp/stress-tier2.log
+
+      - name: Upload worker logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stress-tier2-logs
+          path: /tmp/stress-tier2.log
+          if-no-files-found: warn
+          retention-days: 14

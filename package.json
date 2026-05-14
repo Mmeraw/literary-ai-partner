@@ -66,6 +66,7 @@
     "governance:calibration:analyze": "npx tsx -r tsconfig-paths/register scripts/governance/analyze-phase-2-calibration.ts",
     "pipeline:stress": "npx tsx -r ./tests/sipoc/serverOnlyRegister.cjs -r tsconfig-paths/register scripts/pipeline-stress.ts --tier=1",
     "pipeline:stress:ui": "npx tsx -r ./tests/sipoc/serverOnlyRegister.cjs -r tsconfig-paths/register scripts/pipeline-stress.ts --tier=3a",
+    "pipeline:stress:tier2": "npx tsx -r ./tests/sipoc/serverOnlyRegister.cjs -r tsconfig-paths/register scripts/pipeline-stress-tier2.ts",
     "ci-guard": "npx tsx scripts/ci-guard/index.ts"
   },
   "dependencies": {
