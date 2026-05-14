@@ -9,8 +9,11 @@ Perplexity**. Asserts on the production-shaped result:
 - `outcome === "success"`
 - `evaluation_result.cross_check` is a non-empty object
 - `evaluation_result.pass4_governance` is populated
-- chunk coverage ≥ 95%
-- total wall-time ≤ 15 min, Pass 4 ≤ 90s
+- total pipeline wall-time ≤ 15 min
+
+This PR establishes **Tier 2 direct live integration harness infrastructure**.
+It is not a proven regression lock until at least one secret-backed live run
+passes end-to-end.
 
 This is the smallest possible footprint that would have caught prod eval
 `609dc776-6ccd-41dd-9353-1425697f1fb2` (Froggin Noggin, 53,903 words),
@@ -65,31 +68,33 @@ What it does **not** catch:
 ## Re-running locally
 
 ```bash
-# Required env (point at a dev/preview Supabase, NOT prod):
+# Required env:
 export OPENAI_API_KEY=sk-...
 export PERPLEXITY_API_KEY=pplx-...
-export SUPABASE_STRESS_URL=https://<dev-project>.supabase.co
-export SUPABASE_STRESS_SERVICE_ROLE_KEY=...
 
-pnpm run pipeline:stress:tier2
+# Optional safety metadata (for prod-project guard only):
+export SUPABASE_STRESS_URL=https://<dev-project>.supabase.co
+
+npm run pipeline:stress:tier2
 ```
 
-The runner hard-aborts if `SUPABASE_URL` resolves to the prod project id
+If a Supabase URL is provided, the runner hard-aborts when it resolves to the prod project id
 `xtumxjnzdswuumndcbwc`.
 
 ## First-run requirement (post-merge)
 
-Tier 2 needs four GitHub repo secrets before it can pass:
+Tier 2 needs two GitHub repo secrets before a live run can execute:
 
 1. `OPENAI_API_KEY_STRESS`
 2. `PERPLEXITY_API_KEY_STRESS`
-3. `SUPABASE_STRESS_URL`
-4. `SUPABASE_STRESS_SERVICE_ROLE_KEY`
 
 Add them at: Settings → Secrets and variables → Actions.
 
 The `_STRESS` suffix is intentional — it prevents accidental cross-wiring
 with the prod-pointing secrets used by `ci.yml`.
+
+`SUPABASE_STRESS_URL` may be set as optional safety metadata; it is not required
+for direct harness execution.
 
 ## How to disable
 

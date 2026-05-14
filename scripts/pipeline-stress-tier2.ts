@@ -15,8 +15,6 @@
  * Safety constraints:
  *   - Refuses to run against prod Supabase. Hard-aborts if SUPABASE_URL
  *     contains the prod project id `xtumxjnzdswuumndcbwc`.
- *   - Reads SUPABASE_STRESS_URL / SUPABASE_STRESS_SERVICE_ROLE_KEY in CI;
- *     falls back to SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY for local dev.
  *   - Requires OPENAI_API_KEY and PERPLEXITY_API_KEY. Exits non-zero with a
  *     clear message if either is missing.
  *
@@ -36,8 +34,7 @@ const FIXTURES_DIR = path.resolve("tests/stress/tier2/fixtures/manuscripts");
 interface ResolvedEnv {
   openaiKey: string;
   perplexityKey: string;
-  supabaseUrl: string;
-  supabaseServiceRoleKey: string;
+  supabaseUrl: string | null;
 }
 
 function abort(msg: string): never {
@@ -48,24 +45,14 @@ function abort(msg: string): never {
 function resolveEnv(): ResolvedEnv {
   const openaiKey = process.env.OPENAI_API_KEY ?? "";
   const perplexityKey = process.env.PERPLEXITY_API_KEY ?? "";
-  const supabaseUrl =
-    process.env.SUPABASE_STRESS_URL ?? process.env.SUPABASE_URL ?? "";
-  const supabaseServiceRoleKey =
-    process.env.SUPABASE_STRESS_SERVICE_ROLE_KEY ??
-    process.env.SUPABASE_SERVICE_ROLE_KEY ??
-    "";
+  const rawSupabaseUrl = process.env.SUPABASE_STRESS_URL ?? process.env.SUPABASE_URL ?? "";
+  const supabaseUrl = rawSupabaseUrl.trim().length > 0 ? rawSupabaseUrl : null;
 
   if (!openaiKey) abort("OPENAI_API_KEY is required for Tier 2 (live OpenAI).");
   if (!perplexityKey)
     abort("PERPLEXITY_API_KEY is required for Tier 2 (live Perplexity).");
-  if (!supabaseUrl)
-    abort("SUPABASE_STRESS_URL (preferred) or SUPABASE_URL is required.");
-  if (!supabaseServiceRoleKey)
-    abort(
-      "SUPABASE_STRESS_SERVICE_ROLE_KEY (preferred) or SUPABASE_SERVICE_ROLE_KEY is required.",
-    );
 
-  if (supabaseUrl.includes(PROD_SUPABASE_PROJECT_ID)) {
+  if (supabaseUrl && supabaseUrl.includes(PROD_SUPABASE_PROJECT_ID)) {
     abort(
       `SUPABASE_URL points at the production project (${PROD_SUPABASE_PROJECT_ID}). ` +
         "Tier 2 must run against a dev/preview Supabase only. Set SUPABASE_STRESS_URL " +
@@ -73,7 +60,7 @@ function resolveEnv(): ResolvedEnv {
     );
   }
 
-  return { openaiKey, perplexityKey, supabaseUrl, supabaseServiceRoleKey };
+  return { openaiKey, perplexityKey, supabaseUrl };
 }
 
 function readFixture(fixtureName: string): string {
@@ -87,7 +74,7 @@ function readFixture(fixtureName: string): string {
 interface RunOutcome {
   row: Tier2Row;
   result: PipelineResult | null;
-  pipeline_wall_ms: number;
+  total_ms: number;
   threw: Error | null;
 }
 
@@ -102,9 +89,6 @@ async function executeRow(row: Tier2Row, env: ResolvedEnv): Promise<RunOutcome> 
   let threw: Error | null = null;
 
   try {
-    // No _passTimeoutMs override: runPipeline's default per-pass timeout is
-    // correct for long-form. The prior version plumbed a 90s Pass 4 budget in
-    // here, which caused false PASS1/PASS2 timeouts on 50k-word runs.
     result = await runPipeline({
       manuscriptText,
       workType: row.work_type,
@@ -121,10 +105,7 @@ async function executeRow(row: Tier2Row, env: ResolvedEnv): Promise<RunOutcome> 
   return {
     row,
     result,
-    // Total pipeline wall time. NOT a Pass 4 measurement — true Pass 4
-    // duration will be derived from PR #484's `[Pass4] {json}` log stream
-    // in a follow-up (see PR-T2-LOGS).
-    pipeline_wall_ms: Date.now() - startMs,
+    total_ms: Date.now() - startMs,
     threw,
   };
 }
@@ -140,11 +121,11 @@ function isNonEmptyObject(v: unknown): boolean {
 
 function assertRow(outcome: RunOutcome): string[] {
   const failures: string[] = [];
-  const { row, result, pipeline_wall_ms, threw } = outcome;
+  const { row, result, total_ms, threw } = outcome;
 
-  if (pipeline_wall_ms > row.expected.max_pipeline_wall_ms) {
+  if (total_ms > row.expected.max_total_ms) {
     failures.push(
-      `pipeline_wall_ms=${pipeline_wall_ms} > max_pipeline_wall_ms=${row.expected.max_pipeline_wall_ms}`,
+      `total_ms=${total_ms} > max_total_ms=${row.expected.max_total_ms}`,
     );
   }
 
@@ -182,9 +163,6 @@ function assertRow(outcome: RunOutcome): string[] {
       }
     }
 
-    // A true Pass 4 latency assertion belongs here, but it must be sourced
-    // from PR #484's [Pass4] {json} log stream (by jobId), not from total
-    // pipeline wall time. Wiring deferred to PR-T2-LOGS.
   }
 
   return failures;
@@ -192,8 +170,11 @@ function assertRow(outcome: RunOutcome): string[] {
 
 async function main(): Promise<number> {
   const env = resolveEnv();
+  const supabaseLabel = env.supabaseUrl
+    ? env.supabaseUrl.replace(/^https?:\/\//, "").split(".")[0]
+    : "not-configured";
   console.log(
-    `[stress-tier2] starting — ${TIER2_SCENARIOS.length} row(s), supabase=${env.supabaseUrl.replace(/^https?:\/\//, "").split(".")[0]}`,
+    `[stress-tier2] starting — ${TIER2_SCENARIOS.length} row(s), supabase=${supabaseLabel}`,
   );
 
   let passed = 0;
@@ -205,7 +186,7 @@ async function main(): Promise<number> {
     const failures = assertRow(outcome);
     if (failures.length === 0) {
       passed += 1;
-      process.stdout.write(`OK (${outcome.pipeline_wall_ms}ms)\n`);
+      process.stdout.write(`OK (${outcome.total_ms}ms)\n`);
     } else {
       failed += 1;
       process.stdout.write(`FAIL: ${failures.join("; ")}\n`);

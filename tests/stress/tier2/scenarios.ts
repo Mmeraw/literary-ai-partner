@@ -21,12 +21,8 @@ export interface Tier2Expectation {
   cross_check_required: boolean;
   /** evaluation_result.pass4_governance must be populated. */
   pass4_governance_required: boolean;
-  /**
-   * Wall-time ceiling for the full pipeline (ms). NOT a Pass 4 budget —
-   * a true Pass 4 latency assertion will be sourced from PR #484's
-   * [Pass4] {json} log stream in PR-T2-LOGS.
-   */
-  max_pipeline_wall_ms: number;
+  /** Wall-time ceiling for the full pipeline (ms). */
+  max_total_ms: number;
 }
 
 export interface Tier2Row {
@@ -48,7 +44,7 @@ export const TIER2_SCENARIOS: Tier2Row[] = [
       outcome: "success",
       cross_check_required: true,
       pass4_governance_required: true,
-      max_pipeline_wall_ms: 15 * 60 * 1000, // 15 min hard cap on full pipeline wall time
+      max_total_ms: 15 * 60 * 1000, // 15 min hard cap
     },
     notes:
       "Long-form route (>25k words) + real OpenAI + real Perplexity. Catches " +

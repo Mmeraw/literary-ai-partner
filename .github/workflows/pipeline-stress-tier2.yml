@@ -26,13 +26,11 @@ jobs:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY_STRESS }}
       PERPLEXITY_API_KEY: ${{ secrets.PERPLEXITY_API_KEY_STRESS }}
       SUPABASE_STRESS_URL: ${{ secrets.SUPABASE_STRESS_URL }}
-      SUPABASE_STRESS_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_STRESS_SERVICE_ROLE_KEY }}
       # Stubs required to boot Next middleware/SSR; the runner reads the
       # _STRESS variants above and refuses to touch prod Supabase.
       NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_STRESS_URL }}
       NEXT_PUBLIC_SUPABASE_ANON_KEY: stub-anon-key-for-tier2-only
       SUPABASE_URL: ${{ secrets.SUPABASE_STRESS_URL }}
-      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_STRESS_SERVICE_ROLE_KEY }}
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -50,11 +48,9 @@ jobs:
         id: secrets_probe
         run: |
           if [ -z "${{ secrets.OPENAI_API_KEY_STRESS }}" ] || \
-             [ -z "${{ secrets.PERPLEXITY_API_KEY_STRESS }}" ] || \
-             [ -z "${{ secrets.SUPABASE_STRESS_URL }}" ] || \
-             [ -z "${{ secrets.SUPABASE_STRESS_SERVICE_ROLE_KEY }}" ]; then
+             [ -z "${{ secrets.PERPLEXITY_API_KEY_STRESS }}" ]; then
             echo "have_secrets=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::Tier 2 secrets not configured — skipping live run. Add OPENAI_API_KEY_STRESS, PERPLEXITY_API_KEY_STRESS, SUPABASE_STRESS_URL, SUPABASE_STRESS_SERVICE_ROLE_KEY to repo secrets."
+            echo "::warning::Tier 2 secrets not configured — skipping live run. Add OPENAI_API_KEY_STRESS and PERPLEXITY_API_KEY_STRESS to repo secrets."
           else
             echo "have_secrets=true" >> "$GITHUB_OUTPUT"
           fi
