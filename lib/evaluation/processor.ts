@@ -117,6 +117,11 @@ import {
   stripNonEvaluativeSections,
 } from '@/lib/manuscripts/nonEvaluativeSections';
 import type { ManuscriptChunkEvidence } from '@/lib/evaluation/pipeline/types';
+import {
+  isPipelineEnabled,
+  pipelineDisabledResponse,
+  type PipelineSkipResult,
+} from '@/lib/config/pipelineGuard';
 
 // DB bootstrap — intentionally reads process.env directly (not evaluation config).
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -1341,7 +1346,24 @@ export async function failStaleRunningJobs(): Promise<{
 /**
  * Process a single evaluation job
  */
-export async function processEvaluationJob(jobId: string): Promise<{ success: boolean; error?: string }> {
+export async function processEvaluationJob(
+  jobId: string,
+): Promise<{ success: boolean; error?: string; skipped?: true; reason?: PipelineSkipResult['reason'] }> {
+  // Kill switch — MUST be the first thing executed. No DB reads, no AI calls,
+  // no config loading, no logging beyond a single one-liner. See OPERATIONS.md.
+  if (!isPipelineEnabled()) {
+    console.warn('[PipelineGuard] EVAL_PIPELINE_ENABLED=false — refusing to process job', {
+      job_id: jobId ?? null,
+    });
+    const skip = pipelineDisabledResponse(jobId);
+    return {
+      success: false,
+      skipped: true,
+      reason: skip.reason,
+      error: skip.reason,
+    };
+  }
+
   const {
     runtimeConfig,
     openaiApiKey,
@@ -2988,6 +3010,14 @@ export async function processQueuedJobs(options?: {
   claimed: number;
   errors: Array<{ jobId: string; error: string }>;
 }> {
+  // Kill switch — refuse to claim before touching DB or runtime config.
+  if (!isPipelineEnabled()) {
+    console.warn('[PipelineGuard] EVAL_PIPELINE_ENABLED=false — refusing to claim jobs', {
+      job_id: null,
+    });
+    return { processed: 0, succeeded: 0, failed: 0, claimed: 0, errors: [] };
+  }
+
   const { evalWorkerBatchSize } = getProcessorRuntimeDeps();
   const effectiveWorkerId = options?.workerId ?? randomUUID();
   const requestedBatchSize = options?.batchSize ?? evalWorkerBatchSize;

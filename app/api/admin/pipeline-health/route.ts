@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { TEST_MANUSCRIPT_ID_MIN } from "@/lib/manuscripts/testRange";
 
 /**
  * GET /api/admin/pipeline-health
@@ -315,6 +316,10 @@ export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl;
   const windowParam = searchParams.get("window") ?? "24h";
   const limitParam = searchParams.get("limit");
+  // Test manuscripts (id >= 9000) are hidden by default. Opt in with
+  // `?show_test=1` (or "true"). See OPERATIONS.md "Test manuscript range".
+  const showTestParam = (searchParams.get("show_test") ?? "").toLowerCase();
+  const showTestManuscripts = showTestParam === "1" || showTestParam === "true";
 
   const interval = WINDOW_INTERVALS[windowParam] ?? WINDOW_INTERVALS["24h"];
   const limit = limitParam
@@ -326,7 +331,7 @@ export async function GET(req: NextRequest) {
 
     // Parameterized query — no string interpolation of user input.
     // interval is validated against a fixed allowlist above.
-    const { data: jobs, error } = await supabase
+    let jobsQuery = supabase
       .from("evaluation_jobs")
       .select(
         "id, manuscript_id, status, phase, phase_status, progress, last_error, created_at, updated_at"
@@ -334,6 +339,12 @@ export async function GET(req: NextRequest) {
       .gte("created_at", new Date(Date.now() - intervalToMs(interval)).toISOString())
       .order("updated_at", { ascending: false })
       .limit(limit);
+
+    if (!showTestManuscripts) {
+      jobsQuery = jobsQuery.lt("manuscript_id", TEST_MANUSCRIPT_ID_MIN);
+    }
+
+    const { data: jobs, error } = await jobsQuery;
 
     if (error) {
       console.error("[pipeline-health] DB error:", error);
@@ -356,7 +367,14 @@ export async function GET(req: NextRequest) {
 
     const payload = buildPipelineHealth(allJobs, windowParam, artifactKindsByJob);
 
-    return NextResponse.json({ ok: true, ...payload });
+    return NextResponse.json({
+      ok: true,
+      ...payload,
+      filters: {
+        showTestManuscripts,
+        testManuscriptIdMin: TEST_MANUSCRIPT_ID_MIN,
+      },
+    });
   } catch (err) {
     console.error("[pipeline-health] Unexpected error:", err);
     return NextResponse.json(
