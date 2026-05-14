@@ -39,6 +39,19 @@ WAVE canon is binding on long-form evaluation behavior. The WAVE guide is the au
 
 The 13 Story Evaluation Criteria remain the public evaluation spine. Long-form output must evaluate all 13 criteria before WAVE-derived revision guidance is considered complete.
 
+### Canonical route and output-mode rule
+
+This spec does not introduce new lifecycle status values or route enum values.
+
+Canonical evaluation route remains `LONG_FORM` / `SHORT_FORM` where the evaluation artifact uses uppercase route values. Chunk-routing telemetry may use its existing lowercase telemetry values where already defined by code.
+
+Standard long-form and multi-layer / multi-voice long-form are output modes within the long-form route. They must be represented as an output-mode or report-mode distinction, not as a new `JobStatus` or route identifier.
+
+Recommended output-mode labels:
+
+- `standard_long_form`
+- `multi_layer_long_form`
+
 ### Canonical sequence
 
 Long-form evaluation follows this sequence:
@@ -53,20 +66,20 @@ WAVE must not replace the 13 criteria. WAVE is applied after, and through, the c
 
 ---
 
-## Evaluation vs revision-execution boundary
+## Evaluation vs Revise-engine boundary
 
-The long-form evaluation produces diagnosis and revision targets. It does not execute manuscript edits.
+The long-form evaluation produces diagnosis and revision targets. It does not perform manuscript changes.
 
-The WAVE execution layer is a downstream Revise engine concern. The evaluator may emit WAVE-informed revision targets, recommended wave domains, priority order, and rationale, but actual text modification, diffs, manuscript updates, and per-wave module execution belong to a later execution layer.
+The WAVE module layer is a downstream Revise-engine concern. The evaluator may emit WAVE-informed revision targets, recommended wave domains, priority order, and rationale, but manuscript-change application and module result persistence belong to a later Revise workflow.
 
 Canonical separation:
 
 1. **Evaluation output layer** — scores, summaries, criteria findings, WAVE-informed targets, coverage, and revision priorities.
 2. **Mapping / planning layer** — converts evaluation findings into revision targets and recommended wave domains.
-3. **Execution layer** — runs actual WAVE modules against text and returns diffs / modifications.
+3. **Revise module layer** — applies approved revision modules and returns governed module results.
 4. **Governance layer** — validates sequence, completeness, safety, releasability, and auditability.
 
-A long-form evaluation can be complete without executing edits. It cannot be complete without producing the WAVE-informed revision plan needed for later execution.
+A long-form evaluation can be complete without Revise module application. It cannot be complete without producing the WAVE-informed revision plan needed for later Revise work.
 
 ---
 
@@ -120,7 +133,7 @@ This mode extends standard long-form with structural stack analysis, layer and v
 
 Every successful long-form evaluation must produce:
 
-1. Manuscript metadata: title, word count, route, chunk count, coverage statement, confidence, engine/build marker.
+1. Manuscript metadata: title, word count, canonical route, output mode, chunk count, coverage statement, confidence, engine/build marker.
 2. Executive verdict: concise professional summary of ambition, strengths, principal drag, and readiness.
 3. Overall quality score or readiness score.
 4. Full 13-criteria score grid.
@@ -131,7 +144,7 @@ Every successful long-form evaluation must produce:
 9. Coverage / SIPOC appendix sufficient to explain what was actually read and represented.
 10. Releasability state: releasable only if scoring, summaries, coverage, governance, and persistence are complete.
 
-If any required score, summary, criterion block, evidence basis, or route-specific report section is missing, the output is incomplete even if the job completed.
+If any required score, summary, criterion block, evidence basis, or route-specific report section is missing, the output is incomplete even if the job reached terminal lifecycle status `complete`.
 
 ---
 
@@ -145,7 +158,8 @@ LongFormEvaluationReport
 │   ├── title
 │   ├── scope
 │   ├── word_count
-│   ├── route = long_form
+│   ├── route = LONG_FORM
+│   ├── output_mode = standard_long_form
 │   ├── chunk_count
 │   ├── coverage_statement
 │   └── confidence
@@ -213,7 +227,8 @@ MultiLayerLongFormEvaluationReport
 │   ├── title
 │   ├── scope
 │   ├── word_count
-│   ├── route = long_form_multi_layer
+│   ├── route = LONG_FORM
+│   ├── output_mode = multi_layer_long_form
 │   ├── chunk_count
 │   ├── coverage_statement
 │   └── confidence
@@ -320,7 +335,7 @@ The output must not:
 - prescribe line-level polish before unresolved structural failure
 - flatten multi-layer ambition into a generic linear critique
 - reward complexity merely for existing
-- execute edits or claim manuscript modification during evaluation output generation
+- claim Revise-module application during evaluation output generation
 
 ---
 
@@ -328,7 +343,7 @@ The output must not:
 
 A long-form run that times out before producing required scores and summaries is not a successful evaluation.
 
-The system must distinguish:
+The following are descriptive failure modes or reason categories, not new lifecycle `status` values:
 
 - successful evaluated output
 - fail-closed timeout
@@ -336,6 +351,8 @@ The system must distinguish:
 - fail-closed synthesis gap
 - fail-closed quality-gate / governance gap
 - fail-closed persistence gap
+
+If these are persisted, they must live in existing validity / reason-code / governance fields or in an explicitly approved future field. They must not be copied into lifecycle status columns as new status values.
 
 A result is releasable only when the report contains the required mode-specific sections, all 13 criterion surfaces, overall score/verdict, coverage statement, revision priorities, and required persistence artifacts.
 
@@ -384,7 +401,7 @@ Implementation PRs must answer:
 5. Are overall score, verdict, summaries, and revision priorities preserved?
 6. Does the change reduce timeout risk or clearly preserve bounded runtime?
 7. Does the output remain releasable only when all required artifacts exist?
-8. Does the evaluator stop at targets/plans rather than falsely claiming edit execution?
+8. Does the evaluator stop at targets/plans rather than falsely claiming Revise-module application?
 
 ---
 
