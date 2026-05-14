@@ -27,6 +27,9 @@ jobs:
       - name: Run CI Guard
         run: npm run ci-guard -- --base origin/${{ github.base_ref }} --head ${{ github.sha }} --artifact artifacts/ci-guard-report.json
 
+      - name: Enforce Tier2 contract import boundary
+        run: npm run guard:tier2-contract-import-boundary
+
       - name: Upload CI Guard Artifact
         if: always()
         uses: actions/upload-artifact@v4

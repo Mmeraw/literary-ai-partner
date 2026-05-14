@@ -28,6 +28,13 @@ import { runPipeline } from "@/lib/evaluation/pipeline/runPipeline";
 import type { PipelineResult } from "@/lib/evaluation/pipeline/types";
 import { chunkManuscript } from "@/lib/manuscripts/chunking";
 import { TIER2_SCENARIOS, type Tier2Row } from "../tests/stress/tier2/scenarios";
+import {
+  LONG_FORM_CLAUSE_IDS,
+  LONG_FORM_CLAUSE_TO_FAIL_CODE,
+  formatClauseFailureMessage,
+  type LongFormClauseId,
+  type LongFormFailCode,
+} from "@/tests/contract/long-form-contract";
 
 const PROD_SUPABASE_PROJECT_ID = "xtumxjnzdswuumndcbwc";
 const FIXTURES_DIR = path.resolve("tests/stress/tier2/fixtures/manuscripts");
@@ -72,11 +79,70 @@ function readFixture(fixtureName: string): string {
   return fs.readFileSync(fullPath, "utf8");
 }
 
-interface RunOutcome {
+export interface RunOutcome {
   row: Tier2Row;
   result: PipelineResult | null;
   total_ms: number;
   threw: Error | null;
+}
+
+const CLAUSE_IDS_BY_FAIL_CODE: Readonly<Record<LongFormFailCode, LongFormClauseId | null>> =
+  (() => {
+    const byFailCode = Object.create(null) as Record<LongFormFailCode, LongFormClauseId | null>;
+    for (const clauseId of LONG_FORM_CLAUSE_IDS) {
+      const code = LONG_FORM_CLAUSE_TO_FAIL_CODE[clauseId];
+      byFailCode[code] = clauseId;
+    }
+    byFailCode.LAYER_INCOMPLETE = null;
+    return Object.freeze(byFailCode);
+  })();
+
+function renderActual(value: unknown): string {
+  if (value === undefined) return "undefined";
+  if (value === null) return "null";
+  if (typeof value === "string") return JSON.stringify(value);
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return Object.prototype.toString.call(value);
+  }
+}
+
+function pushClauseFailure(args: {
+  failures: string[];
+  clauseId: LongFormClauseId;
+  fieldPath: string;
+  expected: string;
+  actual: unknown;
+  note?: string;
+}): void {
+  const detail =
+    `${args.fieldPath}; expected=${args.expected}; actual=${renderActual(args.actual)}` +
+    (args.note ? `; ${args.note}` : "");
+  args.failures.push(formatClauseFailureMessage(args.clauseId, detail));
+}
+
+function hasNonEmptyString(value: unknown): boolean {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+function inferClauseFromPipelineFailure(result: PipelineResult | null): LongFormClauseId {
+  if (!result || result.ok) {
+    return "CLAUSE_11_TOTAL_RUNTIME_WITHIN_BUDGET";
+  }
+
+  const code = result.error_code as LongFormFailCode;
+  return (
+    CLAUSE_IDS_BY_FAIL_CODE[code] ??
+    (result.failed_at === "pass1"
+      ? "CLAUSE_3_PASS1_WITHIN_BUDGET"
+      : result.failed_at === "pass2"
+        ? "CLAUSE_4_PASS2_WITHIN_BUDGET"
+        : result.failed_at === "pass3"
+          ? "CLAUSE_5_PASS3_WITHIN_BUDGET"
+          : "CLAUSE_8_QUALITY_GATE_PASSES")
+  );
 }
 
 async function executeRow(row: Tier2Row, env: ResolvedEnv): Promise<RunOutcome> {
@@ -131,19 +197,29 @@ function isNonEmptyObject(v: unknown): boolean {
   );
 }
 
-function assertRow(outcome: RunOutcome): string[] {
+export function assertRow(outcome: RunOutcome): string[] {
   const failures: string[] = [];
   const { row, result, total_ms, threw } = outcome;
 
   if (total_ms > row.expected.max_total_ms) {
-    failures.push(
-      `total_ms=${total_ms} > max_total_ms=${row.expected.max_total_ms}`,
-    );
+    pushClauseFailure({
+      failures,
+      clauseId: "CLAUSE_11_TOTAL_RUNTIME_WITHIN_BUDGET",
+      fieldPath: "timing.total_ms",
+      expected: `<= ${row.expected.max_total_ms}`,
+      actual: total_ms,
+    });
   }
 
   if (row.expected.outcome === "success") {
     if (threw) {
-      failures.push(`threw: ${threw.message}`);
+      pushClauseFailure({
+        failures,
+        clauseId: "CLAUSE_11_TOTAL_RUNTIME_WITHIN_BUDGET",
+        fieldPath: "pipeline.execution",
+        expected: "no thrown error",
+        actual: threw.message,
+      });
       return failures;
     }
     if (!result || !result.ok) {
@@ -151,15 +227,61 @@ function assertRow(outcome: RunOutcome): string[] {
         result && "error_code" in result
           ? (result as { error_code: string }).error_code
           : "no-result";
-      failures.push(`expected success, got fail: ${code}`);
+
+      pushClauseFailure({
+        failures,
+        clauseId: inferClauseFromPipelineFailure(result),
+        fieldPath: "pipeline.outcome",
+        expected: "success",
+        actual: code,
+      });
       return failures;
+    }
+
+    if (!Array.isArray(result.synthesis?.criteria) || result.synthesis.criteria.length === 0) {
+      pushClauseFailure({
+        failures,
+        clauseId: "CLAUSE_9_SCORES_PRODUCED",
+        fieldPath: "evaluation_result.synthesis.criteria",
+        expected: "non-empty criteria array",
+        actual: result.synthesis?.criteria,
+      });
+    }
+
+    if (!hasNonEmptyString(result.synthesis?.overall?.one_paragraph_summary)) {
+      pushClauseFailure({
+        failures,
+        clauseId: "CLAUSE_10_SUMMARIES_PRODUCED",
+        fieldPath: "evaluation_result.synthesis.overall.one_paragraph_summary",
+        expected: "non-empty summary string",
+        actual: result.synthesis?.overall?.one_paragraph_summary,
+      });
+    }
+
+    const coverageScope = result.synthesis?.coverage_scope;
+    const coveragePct =
+      coverageScope && coverageScope.sourceWords > 0
+        ? (coverageScope.analyzedWords / coverageScope.sourceWords) * 100
+        : null;
+    if (coveragePct !== null && coveragePct < 100) {
+      pushClauseFailure({
+        failures,
+        clauseId: "CLAUSE_2_COVERAGE_SUFFICIENT",
+        fieldPath: "evaluation_result.synthesis.coverage_scope",
+        expected: "coverage_pct >= 100",
+        actual: coveragePct,
+      });
     }
 
     if (row.expected.cross_check_required) {
       if (!isNonEmptyObject((result as { cross_check?: unknown }).cross_check)) {
-        failures.push(
-          "evaluation_result.cross_check is missing or empty (silent-skip class)",
-        );
+        pushClauseFailure({
+          failures,
+          clauseId: "CLAUSE_7_CROSS_CHECK_PRESENT",
+          fieldPath: "evaluation_result.cross_check",
+          expected: "non-empty cross_check in required/veto mode",
+          actual: (result as { cross_check?: unknown }).cross_check,
+        });
       }
     }
 
@@ -169,9 +291,13 @@ function assertRow(outcome: RunOutcome): string[] {
           (result as { pass4_governance?: unknown }).pass4_governance,
         )
       ) {
-        failures.push(
-          "evaluation_result.pass4_governance is missing or empty",
-        );
+        pushClauseFailure({
+          failures,
+          clauseId: "CLAUSE_6_PASS4_GOVERNANCE_PRESENT",
+          fieldPath: "evaluation_result.pass4_governance",
+          expected: "non-empty pass4_governance in required/veto mode",
+          actual: (result as { pass4_governance?: unknown }).pass4_governance,
+        });
       }
     }
 
@@ -214,9 +340,11 @@ async function main(): Promise<number> {
   return failed === 0 ? 0 : 1;
 }
 
-void main()
-  .then((code) => process.exit(code))
-  .catch((err) => {
-    console.error("[stress-tier2] uncaught:", err);
-    process.exit(2);
-  });
+if (!process.env.JEST_WORKER_ID) {
+  void main()
+    .then((code) => process.exit(code))
+    .catch((err) => {
+      console.error("[stress-tier2] uncaught:", err);
+      process.exit(2);
+    });
+}
