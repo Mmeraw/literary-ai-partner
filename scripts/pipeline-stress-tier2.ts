@@ -30,6 +30,7 @@ import { chunkManuscript } from "@/lib/manuscripts/chunking";
 import { TIER2_SCENARIOS, type Tier2Row } from "../tests/stress/tier2/scenarios";
 import {
   LONG_FORM_CLAUSE_IDS,
+  LONG_FORM_CLAUSE_TITLES,
   LONG_FORM_CLAUSE_TO_FAIL_CODE,
   formatClauseFailureMessage,
   type LongFormClauseId,
@@ -86,14 +87,13 @@ export interface RunOutcome {
   threw: Error | null;
 }
 
-const CLAUSE_IDS_BY_FAIL_CODE: Readonly<Record<LongFormFailCode, LongFormClauseId | null>> =
+const CLAUSE_IDS_BY_FAIL_CODE: Readonly<Partial<Record<LongFormFailCode, LongFormClauseId>>> =
   (() => {
-    const byFailCode = Object.create(null) as Record<LongFormFailCode, LongFormClauseId | null>;
+    const byFailCode = Object.create(null) as Partial<Record<LongFormFailCode, LongFormClauseId>>;
     for (const clauseId of LONG_FORM_CLAUSE_IDS) {
       const code = LONG_FORM_CLAUSE_TO_FAIL_CODE[clauseId];
       byFailCode[code] = clauseId;
     }
-    byFailCode.LAYER_INCOMPLETE = null;
     return Object.freeze(byFailCode);
   })();
 
@@ -109,9 +109,36 @@ function renderActual(value: unknown): string {
   }
 }
 
+function formatTier2ClauseFailure(
+  clauseId: LongFormClauseId,
+  detail: string,
+  failCodeOverride?: string,
+): string {
+  if (!failCodeOverride) {
+    return formatClauseFailureMessage(clauseId, detail);
+  }
+  return `[${clauseId}] ${LONG_FORM_CLAUSE_TITLES[clauseId]} (${failCodeOverride}): ${detail}`;
+}
+
 function pushClauseFailure(args: {
   failures: string[];
   clauseId: LongFormClauseId;
+  fieldPath: string;
+  expected: string;
+  actual: unknown;
+  note?: string;
+  failCodeOverride?: string;
+}): void {
+  const detail =
+    `${args.fieldPath}; expected=${args.expected}; actual=${renderActual(args.actual)}` +
+    (args.note ? `; ${args.note}` : "");
+  args.failures.push(formatTier2ClauseFailure(args.clauseId, detail, args.failCodeOverride));
+}
+
+function pushUnmappedFailure(args: {
+  failures: string[];
+  label: string;
+  failCode: string;
   fieldPath: string;
   expected: string;
   actual: unknown;
@@ -120,7 +147,7 @@ function pushClauseFailure(args: {
   const detail =
     `${args.fieldPath}; expected=${args.expected}; actual=${renderActual(args.actual)}` +
     (args.note ? `; ${args.note}` : "");
-  args.failures.push(formatClauseFailureMessage(args.clauseId, detail));
+  args.failures.push(`[${args.label}] Unmapped pipeline failure (${args.failCode}): ${detail}`);
 }
 
 function hasNonEmptyString(value: unknown): boolean {
@@ -129,26 +156,48 @@ function hasNonEmptyString(value: unknown): boolean {
 
 type PipelineFailureResult = Extract<PipelineResult, { ok: false }>;
 
+type PipelineFailureMapping =
+  | { kind: "clause"; clauseId: LongFormClauseId; failCodeOverride?: string }
+  | { kind: "unmapped"; label: string; failCode: string };
+
 function isPipelineFailureResult(result: PipelineResult | null): result is PipelineFailureResult {
   return !!result && !result.ok;
 }
 
-function inferClauseFromPipelineFailure(result: PipelineResult | null): LongFormClauseId {
+function fallbackClauseForFailedAt(failedAt: PipelineFailureResult["failed_at"]): LongFormClauseId {
+  return failedAt === "pass1"
+    ? "CLAUSE_3_PASS1_WITHIN_BUDGET"
+    : failedAt === "pass2"
+      ? "CLAUSE_4_PASS2_WITHIN_BUDGET"
+      : failedAt === "pass3"
+        ? "CLAUSE_5_PASS3_WITHIN_BUDGET"
+        : "CLAUSE_8_QUALITY_GATE_PASSES";
+}
+
+function inferPipelineFailureMapping(result: PipelineResult | null): PipelineFailureMapping {
   if (!isPipelineFailureResult(result)) {
-    return "CLAUSE_11_TOTAL_RUNTIME_WITHIN_BUDGET";
+    return {
+      kind: "clause",
+      clauseId: "CLAUSE_11_TOTAL_RUNTIME_WITHIN_BUDGET",
+      failCodeOverride: "NO_RESULT",
+    };
   }
 
-  const code = result.error_code as LongFormFailCode;
-  return (
-    CLAUSE_IDS_BY_FAIL_CODE[code] ??
-    (result.failed_at === "pass1"
-      ? "CLAUSE_3_PASS1_WITHIN_BUDGET"
-      : result.failed_at === "pass2"
-        ? "CLAUSE_4_PASS2_WITHIN_BUDGET"
-        : result.failed_at === "pass3"
-          ? "CLAUSE_5_PASS3_WITHIN_BUDGET"
-          : "CLAUSE_8_QUALITY_GATE_PASSES")
-  );
+  const actualCode = result.error_code;
+  const mappedClause = CLAUSE_IDS_BY_FAIL_CODE[actualCode as LongFormFailCode];
+  if (mappedClause) {
+    return { kind: "clause", clauseId: mappedClause };
+  }
+
+  if (actualCode === "LAYER_INCOMPLETE") {
+    return { kind: "unmapped", label: "LAYER_INCOMPLETE", failCode: actualCode };
+  }
+
+  return {
+    kind: "clause",
+    clauseId: fallbackClauseForFailedAt(result.failed_at),
+    failCodeOverride: actualCode,
+  };
 }
 
 async function executeRow(row: Tier2Row, env: ResolvedEnv): Promise<RunOutcome> {
@@ -233,14 +282,28 @@ export function assertRow(outcome: RunOutcome): string[] {
         result && "error_code" in result
           ? (result as { error_code: string }).error_code
           : "no-result";
+      const mapping = inferPipelineFailureMapping(result);
 
-      pushClauseFailure({
-        failures,
-        clauseId: inferClauseFromPipelineFailure(result),
-        fieldPath: "pipeline.outcome",
-        expected: "success",
-        actual: code,
-      });
+      if (mapping.kind === "clause") {
+        pushClauseFailure({
+          failures,
+          clauseId: mapping.clauseId,
+          fieldPath: "pipeline.outcome",
+          expected: "success",
+          actual: code,
+          failCodeOverride: mapping.failCodeOverride,
+        });
+      } else {
+        pushUnmappedFailure({
+          failures,
+          label: mapping.label,
+          failCode: mapping.failCode,
+          fieldPath: "pipeline.outcome",
+          expected: "success",
+          actual: code,
+          note: "not mapped to one of the 12 numbered long-form clauses",
+        });
+      }
       return failures;
     }
 
