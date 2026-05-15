@@ -26,6 +26,12 @@ Purpose:
 - lock truth rule
 - prevent future agent drift
 
+Post-500 alignment (required):
+
+- Tier 2 diagnostics must remain clause-mapped (contract-clause-prefixed failures), matching the PR-C enforcement lane
+- runtime/concurrency references must reflect current setting (Pass 1/Pass 2 concurrency reduced from 5 to 3)
+- failure rendering and taxonomy must preserve canonical overlay/error codes exactly as persisted (no UI reinterpretation)
+
 ## PR B — Truthful failure rendering
 
 Goal:

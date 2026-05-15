@@ -31,6 +31,12 @@ If the UI groups or splits stages for readability, that is a dashboard projectio
 
 No mocked truth. No fake zeroes. No invented failure explanations.
 
+Post-500 contract alignment is mandatory:
+
+- Tier 2/long-form failures must render clause-mapped diagnostics as stored (contract clause prefix + message), not paraphrased summaries.
+- Concurrency-related copy and troubleshooting hints must reflect current runtime truth (Pass 1/Pass 2 concurrency is 3, not 5).
+- Overlay/error codes are canonical persisted identifiers and must be displayed/copied faithfully (no renaming, normalization, or inferred replacements).
+
 If data is not currently backed by persisted storage, the API must return:
 
 - `available: false`
@@ -150,6 +156,7 @@ Expected visible diagnosis:
 - long-form coverage insufficiency is visible
 - front-loaded / partial analysis is visible
 - manuscript-wide certification cannot appear healthy when coverage is insufficient
+- clause-mapped Tier 2 diagnostics and overlay/error codes are visible exactly as persisted
 
 ## Acceptance bar
 
