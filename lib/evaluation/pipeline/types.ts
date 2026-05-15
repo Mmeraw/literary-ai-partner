@@ -522,7 +522,7 @@ export type ExternalAdjudicationMode = "optional" | "required" | "veto";
 
 export type ExternalAdjudicationStatus =
   | {
-      status: "completed";
+      status: "cross_check_completed";
       mode: ExternalAdjudicationMode;
       cross_check_returned: true;
       packet_chars?: number;

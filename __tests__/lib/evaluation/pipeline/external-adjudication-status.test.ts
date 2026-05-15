@@ -11,7 +11,7 @@
  * `external_adjudication` field. `synthesisToEvaluationResultV2` MUST surface it
  * in `governance.transparency.external_adjudication` and MUST set a
  * `EXTERNAL_ADJUDICATION_<STATUS>` governance warning whenever status !==
- * "completed".
+ * "cross_check_completed".
  *
  * Scope locked to surfacing/persistence only. Provider-call telemetry repair,
  * jobs-table schema work, and Pass 3 reducer fixes are tracked separately.
@@ -115,7 +115,7 @@ function adapt(externalAdjudication: ExternalAdjudicationStatus | undefined) {
 describe("PR #506 — Pass 4 external_adjudication contract (synthesisToEvaluationResultV2)", () => {
   test("Froggin Noggin completed required-mode run preserves packet provenance", () => {
     const result = adapt({
-      status: "completed",
+      status: "cross_check_completed",
       mode: "required",
       cross_check_returned: true,
       packet_chars: 29_568,
@@ -123,7 +123,7 @@ describe("PR #506 — Pass 4 external_adjudication contract (synthesisToEvaluati
     });
 
     expect(result.governance.transparency?.external_adjudication).toEqual({
-      status: "completed",
+      status: "cross_check_completed",
       mode: "required",
       cross_check_returned: true,
       packet_chars: 29_568,

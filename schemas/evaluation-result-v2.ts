@@ -278,7 +278,7 @@ export type EvaluationResultV2 = {
        * the silent-skip path that hid Pass 4 absence on the Froggin Noggin run.
        */
       external_adjudication?: {
-        status: "completed" | "skipped" | "failed_soft" | "failed_blocking";
+        status: "cross_check_completed" | "skipped" | "failed_soft" | "failed_blocking";
         mode: "optional" | "required" | "veto";
         cross_check_returned: boolean;
         reason?: string;

@@ -1493,7 +1493,7 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
       });
 
       externalAdjudication = {
-        status: "completed",
+        status: "cross_check_completed",
         mode: adjudicationMode,
         cross_check_returned: true,
         packet_chars: crossCheckResult.packetChars,
@@ -1671,7 +1671,7 @@ export interface SynthesisToEvaluationResultOptions {
   /**
    * Explicit Pass 4 execution outcome — must be threaded from runPipeline(),
    * never inferred. Drives report.governance.transparency.external_adjudication
-   * and blocks long-form certification when status !== "completed" in required mode.
+   * and blocks long-form certification when status !== "cross_check_completed" in required mode.
    */
   externalAdjudication?: ExternalAdjudicationStatus;
   /** Governed applicability map (R/O/NA/C). NA values are converted to NOT_APPLICABLE in v2. */
@@ -1979,7 +1979,7 @@ export function synthesisToEvaluationResultV2(
   // report could masquerade as a successful premium adjudicated evaluation.
   const externalAdjudicationBlocksCertification =
     externalAdjudication !== undefined &&
-    externalAdjudication.status !== "completed" &&
+    externalAdjudication.status !== "cross_check_completed" &&
     (externalAdjudication.mode === "required" ||
       externalAdjudication.mode === "veto");
 
@@ -2086,7 +2086,7 @@ export function synthesisToEvaluationResultV2(
 
   // PR #506 — surface Pass 4 status as a governance warning so the UI banner
   // cannot present a non-completed adjudicated evaluation as fully certified.
-  if (externalAdjudication && externalAdjudication.status !== "completed") {
+  if (externalAdjudication && externalAdjudication.status !== "cross_check_completed") {
     governanceWarnings.push(
       `EXTERNAL_ADJUDICATION_${externalAdjudication.status.toUpperCase()}` +
         ` (mode=${externalAdjudication.mode}` +
@@ -2183,7 +2183,7 @@ export function synthesisToEvaluationResultV2(
                 status: externalAdjudication.status,
                 mode: externalAdjudication.mode,
                 cross_check_returned: externalAdjudication.cross_check_returned,
-                ...(externalAdjudication.status !== "completed" && "reason" in externalAdjudication
+                ...(externalAdjudication.status !== "cross_check_completed" && "reason" in externalAdjudication
                   ? { reason: externalAdjudication.reason }
                   : {}),
                 ...("packet_chars" in externalAdjudication && externalAdjudication.packet_chars !== undefined
