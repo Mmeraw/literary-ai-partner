@@ -14,6 +14,7 @@ import {
 } from "@/lib/evaluation/pipeline/runPipeline";
 import { runQualityGate } from "@/lib/evaluation/pipeline/qualityGate";
 import { runQualityGateV2 } from "@/lib/evaluation/pipeline/qualityGate";
+import { getEvalPassTimeoutMs } from "@/lib/evaluation/config";
 import type {
   SinglePassOutput,
   SynthesisOutput,
@@ -673,19 +674,20 @@ describe("runPipeline (e2e with injected runners)", () => {
   });
 
   it("uses canonical EVAL_PASS_TIMEOUT_MS when _passTimeoutMs is omitted", async () => {
-    // Prove that omitting _passTimeoutMs routes through the canonical env.
-    // We set the env to 100ms so the never-resolving mock Pass 1 exceeds it,
-    // which gives us a deterministic PASS1_TIMEOUT without a real 10s wait.
-    const originalPassTimeout = process.env.EVAL_PASS_TIMEOUT_MS;
-    process.env.EVAL_PASS_TIMEOUT_MS = "100";
+    // Prove that omitting _passTimeoutMs routes through the canonical
+    // timeout resolver path. We use fake timers so this stays deterministic
+    // even when canonical timeout baselines are large in CI.
+    const canonicalPassTimeoutMs = getEvalPassTimeoutMs();
+
+    jest.useFakeTimers();
 
     mockRunPass1.mockImplementationOnce(
-      // Never resolves — canonical 100ms env timeout should fire first.
+      // Never resolves — canonical timeout should fire first.
       () => new Promise<SinglePassOutput>(() => undefined),
     );
 
     try {
-      const result = await runPipeline({
+      const resultPromise = runPipeline({
         manuscriptText: "test",
         workType: "literary_fiction",
         title: "Test",
@@ -698,6 +700,9 @@ describe("runPipeline (e2e with injected runners)", () => {
         },
       });
 
+      await jest.advanceTimersByTimeAsync(canonicalPassTimeoutMs + 1);
+      const result = await resultPromise;
+
       expect(result.ok).toBe(false);
       if (isPipelineFailure(result)) {
         expect(result.error_code).toBe("PASS1_TIMEOUT");
@@ -705,13 +710,9 @@ describe("runPipeline (e2e with injected runners)", () => {
       }
       expect(mockRunPass3).not.toHaveBeenCalled();
     } finally {
-      if (originalPassTimeout === undefined) {
-        delete process.env.EVAL_PASS_TIMEOUT_MS;
-      } else {
-        process.env.EVAL_PASS_TIMEOUT_MS = originalPassTimeout;
-      }
+      jest.useRealTimers();
     }
-  }, 15_000);
+  });
 
   it("fails closed when lessons-learned blocks at post_structural", async () => {
     const evaluateRules = jest.fn<(input: RuleEvaluationInput, stage?: RuleStage) => LessonsLearnedReport>();
