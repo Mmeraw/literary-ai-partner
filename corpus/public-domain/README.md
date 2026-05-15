@@ -1,56 +1,64 @@
-# Public-domain calibration corpus
+# Public Domain Corpus
 
-This directory is for public-domain benchmark fixtures used by RevisionGrade QA. These works are calibration substrate, not runtime authority.
+This directory is the governed substrate for public-domain fiction used by RevisionGrade calibration and benchmark harnesses.
 
-## Canon policy
+## Purpose
 
-Public-domain novels may be used for:
+The corpus exists to support offline evaluation proof, not production prompt injection.
 
-- deterministic text-integrity validation;
-- long-form evaluation regression;
-- score sanity calibration;
-- genre-aware diagnostic QA;
-- optional user-facing benchmark comparison mode.
+Allowed first uses:
 
-Public-domain novels must not be used for:
+- pipeline smoke fixtures
+- long-form routing and chunking proof
+- score drift checks
+- QualityGate fidelity checks
+- golden expected-behavior calibration
 
-- wholesale insertion into ordinary user-evaluation prompts;
-- replacement of RevisionGrade-native gold standards;
-- style imitation targets for modern manuscripts;
-- automatic score control for live user submissions.
+## Non-goals
 
-## Active seed set
+This substrate must not change user-facing evaluation behavior by itself.
 
-The current public-domain long-form calibration seed is declared in:
-
-```text
-corpus/public-domain/registry.json
-```
-
-Current works:
-
-| Work | Calibration role |
-|---|---|
-| Pride and Prejudice | Dialogue, voice, POV control, social tension, character interaction, scene economy. |
-| Dracula | Epistolary structure, suspense escalation, atmosphere, multi-document narration, revelation pacing, genre tension. |
-| Great Expectations | Retrospective first-person voice, character arc, social pressure, motif recurrence, emotional architecture, closure. |
+- No `runPipeline` changes
+- No prompt changes
+- No scoring changes
+- No QualityGate changes
+- No runtime RAG
+- No model fine-tuning
+- No production bundle dependency
 
 ## Directory contract
 
 ```text
-corpus/public-domain/clean/          canonical cleaned source texts
-corpus/public-domain/golden-evals/   frozen evaluation outputs after verified runs
-corpus/public-domain/registry.json   metadata, policy, expected integrity constraints
+corpus/public-domain/
+  manifest.public-domain.json
+  README.md
+  raw/.gitkeep
+  clean/.gitkeep
+  metadata/.gitkeep
 ```
 
-## Verification
+`raw/` is for downloaded source text before cleanup.
 
-Run:
+`clean/` is for story/manuscript text only, after source boilerplate, license headers, footers, transcription notes, and modern editorial material are removed.
 
-```bash
-node scripts/verify-public-domain-corpus.mjs
-```
+`metadata/` may hold per-work provenance notes when a manifest row is not enough.
 
-The verifier checks source-text presence, word-count bounds, apostrophe preservation floors, forbidden publisher/printer/Gutenberg/illustration artifacts, chapter count, and continuous Roman-numeral chapter sequence when configured.
+## Provenance rule
 
-If this verifier fails, do not use the affected text as a benchmark fixture until the clean source text or registry expectation is corrected.
+Every usable work must appear in `manifest.public-domain.json` with:
+
+- stable id
+- title
+- author
+- first publication year
+- source name
+- source URL
+- jurisdiction basis
+- raw text path
+- clean text path
+- allowed uses
+- cleaning status
+
+## Runtime guardrail
+
+Do not import corpus text into production evaluation code. The first integration should be through scripts and tests only.
