@@ -312,6 +312,8 @@ export interface RunPass2Options {
    */
   manuscriptText: string;
   manuscriptChunks?: ManuscriptChunkEvidence[];
+  /** Marks an already-materialized chunk in chunk-native execution. */
+  isChunkUnit?: boolean;
   workType: string;
   title: string;
   executionMode?: "TRUSTED_PATH" | "STUDIO";
@@ -400,6 +402,7 @@ export async function runPass2(opts: RunPass2Options): Promise<SinglePassOutput>
               ...opts,
               manuscriptText: chunk.content,
               manuscriptChunks: undefined, // Prevent recursive chunking
+              isChunkUnit: true,
               _onCompletion: (capture) => {
                 if (capture.pass === 2) {
                   usagePromptTokensTotal += capture.usage?.prompt_tokens ?? 0;
@@ -512,7 +515,7 @@ export async function runPass2(opts: RunPass2Options): Promise<SinglePassOutput>
   // route here — this tautological safety net catches any caller that
   // somehow bypasses the upstream check.
   const pass2WordCount = countWords(opts.manuscriptText);
-  if (pass2WordCount >= STRUCTURAL_CHUNKING_THRESHOLD_WORDS) {
+  if (!opts.isChunkUnit && pass2WordCount >= STRUCTURAL_CHUNKING_THRESHOLD_WORDS) {
     throw new ChunkRoutingNotEngagedError(
       `Pass 2 received ${pass2WordCount} words (≥ ${STRUCTURAL_CHUNKING_THRESHOLD_WORDS}) with ` +
       `no chunks; direct_window fallback would silently timeout. Refusing to dispatch.`,

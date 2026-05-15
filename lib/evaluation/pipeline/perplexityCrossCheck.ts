@@ -65,6 +65,7 @@ export interface PerplexityCriterionResponse {
   detectedSignals: string[];
   scoringBand: "1-3" | "4-6" | "7-8" | "9-10";
   doctrineTrace: string[];
+  validationReasons?: string[];
 }
 
 export interface CanonValidity {
@@ -164,6 +165,27 @@ function assertScore(score: unknown, key: string): number {
   return score;
 }
 
+function normalizePerplexityScore(score: unknown, key: string): { score: number; reasons: string[] } {
+  const reasons: string[] = [];
+
+  if (typeof score !== "number" || Number.isNaN(score)) {
+    reasons.push(`[Pass4] Invalid numeric score for criterion '${key}'.`);
+    return { score: 1, reasons };
+  }
+
+  if (score < 1) {
+    reasons.push(`[Pass4] Score below range for criterion '${key}': ${score}`);
+    return { score: 1, reasons };
+  }
+
+  if (score > 10) {
+    reasons.push(`[Pass4] Score above range for criterion '${key}': ${score}`);
+    return { score: 10, reasons };
+  }
+
+  return { score, reasons };
+}
+
 function asStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
   return value.filter((v): v is string => typeof v === "string" && v.trim().length > 0);
@@ -201,7 +223,7 @@ function validatePerplexityCriterion(
   }
 
   const obj = value as Record<string, unknown>;
-  const score = assertScore(obj.score, key);
+  const normalizedScore = normalizePerplexityScore(obj.score, key);
   const rationale = typeof obj.rationale === "string" ? obj.rationale.trim() : "";
   const evidence = validateEvidenceArray(obj.evidence);
   const detectedSignals = asStringArray(obj.detectedSignals);
@@ -217,12 +239,13 @@ function validatePerplexityCriterion(
   }
 
   return {
-    score,
+    score: normalizedScore.score,
     rationale,
     evidence,
     detectedSignals,
     scoringBand,
     doctrineTrace,
+    validationReasons: normalizedScore.reasons,
   };
 }
 
@@ -259,9 +282,10 @@ function bandForScore(score: number): "1-3" | "4-6" | "7-8" | "9-10" {
 }
 
 function validateCanonCompleteness(
-  criterion: PerplexityCriterionResponse
+  criterion: PerplexityCriterionResponse,
+  extraReasons: string[] = [],
 ): CanonValidity {
-  const reasons: string[] = [];
+  const reasons: string[] = [...extraReasons];
 
   if (!criterion.rationale.trim()) {
     reasons.push("Missing rationale.");
@@ -923,7 +947,7 @@ Now return the independent adjudication as JSON.`;
       continue;
     }
 
-    const canonValidity = validateCanonCompleteness(pplx);
+    const canonValidity = validateCanonCompleteness(pplx, pplx.validationReasons ?? []);
     const invalidPerplexityCriterion = !canonValidity.valid;
     const perplexityScore = invalidPerplexityCriterion ? null : pplx.score;
     const delta =

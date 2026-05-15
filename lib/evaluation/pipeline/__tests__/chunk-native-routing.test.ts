@@ -12,6 +12,7 @@ import { runPass1, parsePass1Response } from "../runPass1";
 import { runPass2 } from "../runPass2";
 import type { ManuscriptChunkEvidence, SinglePassOutput } from "../types";
 import { loadCanonicalRegistry } from "@/lib/governance/canonRegistry";
+import { ChunkRoutingNotEngagedError } from "../failures";
 
 describe("Chunk-native routing (Pass 1 and Pass 2)", () => {
   const mockRegistry = loadCanonicalRegistry();
@@ -19,6 +20,74 @@ describe("Chunk-native routing (Pass 1 and Pass 2)", () => {
   const baseWorkType = "novel";
 
   describe("Pass 1 chunk routing", () => {
+    test("rejects a 3000+ word manuscript when not marked as a chunk unit", async () => {
+      const manuscript = "word ".repeat(3_050);
+      const neverRun = async () => {
+        throw new Error("completion invoked unexpectedly");
+      };
+
+      await expect(
+        runPass1({
+          manuscriptText: manuscript,
+          manuscriptChunks: undefined,
+          workType: baseWorkType,
+          title: baseTitle,
+          registry: mockRegistry,
+          openaiApiKey: "test-key",
+          _createCompletion: neverRun as any,
+        }),
+      ).rejects.toBeInstanceOf(ChunkRoutingNotEngagedError);
+    });
+
+    test("allows a 3000+ word chunk unit to dispatch when explicitly marked", async () => {
+      const manuscript = "word ".repeat(3_050);
+      let completionCallCount = 0;
+
+      const mockCompletion = async () => {
+        completionCallCount += 1;
+        return {
+          choices: [
+            {
+              message: {
+                content: JSON.stringify({
+                  pass: 1,
+                  axis: "craft_execution",
+                  criteria: [
+                    {
+                      key: "concept",
+                      score_0_10: 7,
+                      rationale: "Chunk unit path engaged.",
+                      evidence: [],
+                      recommendations: [],
+                    },
+                  ],
+                }),
+              },
+              finish_reason: "stop",
+            },
+          ],
+          usage: { prompt_tokens: 100, completion_tokens: 50, total_tokens: 150 },
+        };
+      };
+
+      try {
+        await runPass1({
+          manuscriptText: manuscript,
+          manuscriptChunks: undefined,
+          isChunkUnit: true,
+          workType: baseWorkType,
+          title: baseTitle,
+          registry: mockRegistry,
+          openaiApiKey: "test-key",
+          _createCompletion: mockCompletion as any,
+        });
+      } catch {
+        // The test only needs to prove dispatch occurred.
+      }
+
+      expect(completionCallCount).toBe(1);
+    });
+
     test("short-form path (no chunks): single Pass 1 call", async () => {
       // Arrange
       const manuscript = "This is a short manuscript that fits in one evaluation.";
@@ -137,6 +206,74 @@ describe("Chunk-native routing (Pass 1 and Pass 2)", () => {
   });
 
   describe("Pass 2 chunk routing", () => {
+    test("rejects a 3000+ word manuscript when not marked as a chunk unit", async () => {
+      const manuscript = "word ".repeat(3_050);
+      const neverRun = async () => {
+        throw new Error("completion invoked unexpectedly");
+      };
+
+      await expect(
+        runPass2({
+          manuscriptText: manuscript,
+          manuscriptChunks: undefined,
+          workType: baseWorkType,
+          title: baseTitle,
+          registry: mockRegistry,
+          openaiApiKey: "test-key",
+          _createCompletion: neverRun as any,
+        }),
+      ).rejects.toBeInstanceOf(ChunkRoutingNotEngagedError);
+    });
+
+    test("allows a 3000+ word chunk unit to dispatch when explicitly marked", async () => {
+      const manuscript = "word ".repeat(3_050);
+      let completionCallCount = 0;
+
+      const mockCompletion = async () => {
+        completionCallCount += 1;
+        return {
+          choices: [
+            {
+              message: {
+                content: JSON.stringify({
+                  pass: 2,
+                  axis: "editorial_literary",
+                  criteria: [
+                    {
+                      key: "concept",
+                      score_0_10: 8,
+                      rationale: "Chunk unit path engaged.",
+                      evidence: [],
+                      recommendations: [],
+                    },
+                  ],
+                }),
+              },
+              finish_reason: "stop",
+            },
+          ],
+          usage: { prompt_tokens: 100, completion_tokens: 50, total_tokens: 150 },
+        };
+      };
+
+      try {
+        await runPass2({
+          manuscriptText: manuscript,
+          manuscriptChunks: undefined,
+          isChunkUnit: true,
+          workType: baseWorkType,
+          title: baseTitle,
+          registry: mockRegistry,
+          openaiApiKey: "test-key",
+          _createCompletion: mockCompletion as any,
+        });
+      } catch {
+        // The test only needs to prove dispatch occurred.
+      }
+
+      expect(completionCallCount).toBe(1);
+    });
+
     test("short-form path (no chunks): single Pass 2 call", async () => {
       // Arrange
       const manuscript = "This is a short manuscript.";

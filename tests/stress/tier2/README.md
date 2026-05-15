@@ -99,3 +99,8 @@ This file ships with one row by design: `Q-long-real-perplexity`. Adding
 more rows (variant coverage, refusal handling, quality-drift) belongs in
 follow-up PRs — keep each row a separate, reviewable change so cost and
 flake exposure stay bounded.
+
+Internal regression fixture:
+
+- `Q-froggin-noggin-ch1` uses `tests/stress/tier2/fixtures/manuscripts/froggin-noggin-ch1.txt`
+- Set `TIER2_SCENARIO_ID=Q-froggin-noggin-ch1` to run only that row locally
