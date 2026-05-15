@@ -282,6 +282,15 @@ export function assertRow(outcome: RunOutcome): string[] {
         result && "error_code" in result
           ? (result as { error_code: string }).error_code
           : "no-result";
+      // Bug 3 fix: surface raw result.error alongside clause-mapped failure so the
+      // harness does not silently swallow human-readable pipeline error messages
+      // (e.g. "400 max_tokens 20000 too large", "Lessons-learned enforcement blocked at ...").
+      if (result && "error" in result && (result as { error?: unknown }).error) {
+        console.error(
+          "[stress-tier2] pipeline.error:",
+          (result as { error: unknown }).error,
+        );
+      }
       const mapping = inferPipelineFailureMapping(result);
 
       if (mapping.kind === "clause") {

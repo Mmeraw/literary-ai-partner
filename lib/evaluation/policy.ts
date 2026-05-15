@@ -27,13 +27,64 @@ export function isReasoningStyleModel(model: string): boolean {
   );
 }
 
+/**
+ * Per-model hard cap on completion tokens, enforced at the API boundary.
+ *
+ * The OpenAI API rejects requests where max_tokens / max_completion_tokens
+ * exceeds the model's per-request output limit (HTTP 400 invalid_request_error,
+ * "max_tokens too large"). Our internal config (e.g. pass3MaxTokens=20000) is
+ * intentionally not lowered to the smallest cap because callers may legitimately
+ * be running against a larger-cap model. Instead, the cap is applied once, here,
+ * at the structural boundary between our config and the SDK call.
+ *
+ * Caps reflect documented model maximums. Unknown models intentionally pass
+ * through unclamped — better to surface a 400 than to silently truncate when
+ * we don't know the model's real cap.
+ *
+ * Sources: OpenAI model pages and community-confirmed 400 errors.
+ */
+export const MODEL_COMPLETION_TOKEN_CAPS: Readonly<Record<string, number>> = Object.freeze({
+  "gpt-4o": 16384,
+  "gpt-4o-2024-08-06": 16384,
+  "gpt-4o-2024-11-20": 16384,
+  "gpt-4o-mini": 16384,
+  "gpt-4o-mini-2024-07-18": 16384,
+  "gpt-4-turbo": 4096,
+  "gpt-4-turbo-2024-04-09": 4096,
+  "gpt-4-turbo-preview": 4096,
+  "gpt-4-1106-preview": 4096,
+  "gpt-4-0125-preview": 4096,
+  "gpt-5.1": 128000,
+  "gpt-5.1-chat-latest": 128000,
+  "gpt-5.1-codex-max": 128000,
+});
+
+/**
+ * Returns the per-request completion-token cap for a known model, or `null`
+ * for unknown models (passthrough — no clamping). Match is case-insensitive
+ * on the trimmed model name.
+ */
+export function getModelCompletionTokenCap(model: string): number | null {
+  const normalized = model.trim().toLowerCase();
+  if (normalized.length === 0) return null;
+  return MODEL_COMPLETION_TOKEN_CAPS[normalized] ?? null;
+}
+
 export function buildOpenAIOutputTokenParam(
   model: string,
   maxOutputTokens: number,
 ): OpenAIOutputTokenParam {
+  const cap = getModelCompletionTokenCap(model);
+  let effective = maxOutputTokens;
+  if (cap !== null && maxOutputTokens > cap) {
+    console.warn(
+      `[policy] buildOpenAIOutputTokenParam: clamping max_tokens from ${maxOutputTokens} to per-model cap ${cap} for model "${model}"`,
+    );
+    effective = cap;
+  }
   return isReasoningStyleModel(model)
-    ? { max_completion_tokens: maxOutputTokens }
-    : { max_tokens: maxOutputTokens };
+    ? { max_completion_tokens: effective }
+    : { max_tokens: effective };
 }
 
 export function buildOpenAITemperatureParam(
