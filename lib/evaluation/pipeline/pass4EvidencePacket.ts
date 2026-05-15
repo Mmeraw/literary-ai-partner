@@ -13,14 +13,14 @@
  * This builder returns a bounded representative packet:
  *   - Short manuscripts (< 25k words): compact behavior preserved.
  *   - Long manuscripts (>= 25k words): five labeled windows
- *     (opening, early, middle, late, ending) so the adjudicator sees
+ *     (opening, early, middle, late, close) so the adjudicator sees
  *     the beginning, midpoint, and resolution — critical for criteria
  *     like narrativeDrive, pacing, and narrativeClosure.
  *
  * Hard limits
  *   - Target: 18,000 – 30,000 chars for long-form
  *   - Cap:    40,000 chars (hard)
- *   - Always includes the ending for narrativeClosure adjudication.
+ *   - Always includes the close for narrativeClosure adjudication.
  *
  * The packet is markdown-stripped of image references so the model is
  * not distracted by `![alt](url)` tokens.
@@ -34,7 +34,7 @@ export type Pass4WindowLabel =
   | "early"
   | "middle"
   | "late"
-  | "ending";
+  | "close";
 
 export interface Pass4EvidencePacket {
   /** Final prompt-ready text, already labeled with window headers. */
@@ -51,8 +51,8 @@ export interface Pass4EvidencePacket {
   selectedWindows: Pass4WindowLabel[];
   /** True if an opening / first-window slice is included. */
   includesOpening: boolean;
-  /** True if a closing / ending slice is included. */
-  includesEnding: boolean;
+  /** True if a closing / close slice is included. */
+  includesClose: boolean;
 }
 
 export interface Pass4EvidencePacketOptions {
@@ -91,7 +91,7 @@ const LONG_FORM_WINDOW_SIZES: Record<
   early: 5_500,
   middle: 6_000,
   late: 5_500,
-  ending: 7_000,
+  close: 7_000,
 };
 
 const WINDOW_ORDER: Exclude<Pass4WindowLabel, "full">[] = [
@@ -99,7 +99,7 @@ const WINDOW_ORDER: Exclude<Pass4WindowLabel, "full">[] = [
   "early",
   "middle",
   "late",
-  "ending",
+  "close",
 ];
 
 const WINDOW_DISPLAY_LABELS: Record<Pass4WindowLabel, string> = {
@@ -108,10 +108,10 @@ const WINDOW_DISPLAY_LABELS: Record<Pass4WindowLabel, string> = {
   early: "EARLY",
   middle: "MIDDLE",
   late: "LATE",
-  ending: "ENDING",
+  close: "CLOSE",
 };
 
-// Anchor fractions for early / middle / late (opening and ending are
+// Anchor fractions for early / middle / late (opening and close are
 // always at the extremes).
 const WINDOW_ANCHORS: Record<"early" | "middle" | "late", number> = {
   early: 0.15,
@@ -219,7 +219,7 @@ export function buildPass4EvidencePacket(
       compressionRatio: 0,
       selectedWindows: [],
       includesOpening: false,
-      includesEnding: false,
+      includesClose: false,
     };
   }
 
@@ -241,15 +241,15 @@ export function buildPass4EvidencePacket(
             : 0,
         selectedWindows: ["full"],
         includesOpening: true,
-        includesEnding: true,
+        includesClose: true,
       };
     }
 
-    // If short-form content exceeds cap, preserve ending evidence by
-    // emitting a compact OPENING + ENDING packet.
-    const desiredEndingChars = Math.min(7_000, Math.floor(shortCap * 0.45));
-    const endingBody = cleaned.slice(Math.max(0, sourceChars - desiredEndingChars)).trim();
-    const endingSection = buildWindowSection("ending", endingBody);
+    // If short-form content exceeds cap, preserve close evidence by
+    // emitting a compact OPENING + CLOSE packet.
+    const desiredCloseChars = Math.min(7_000, Math.floor(shortCap * 0.45));
+    const closeBody = cleaned.slice(Math.max(0, sourceChars - desiredCloseChars)).trim();
+    const closeSection = buildWindowSection("close", closeBody);
 
     const desiredOpeningChars = Math.min(8_000, Math.floor(shortCap * 0.55));
     const openingRaw = cleaned.slice(0, desiredOpeningChars).trim();
@@ -258,7 +258,7 @@ export function buildPass4EvidencePacket(
     const openingSeparatorBudget = 2; // "\n\n"
     const openingBodyBudget = Math.max(
       0,
-      shortCap - endingSection.length - openingSeparatorBudget - openingHeader.length - openingSuffix.length,
+      shortCap - closeSection.length - openingSeparatorBudget - openingHeader.length - openingSuffix.length,
     );
     const openingBody = openingRaw.slice(0, openingBodyBudget).trim();
 
@@ -269,8 +269,8 @@ export function buildPass4EvidencePacket(
       sections.push(buildWindowSection("opening", openingBody));
       selectedWindows.push("opening");
     }
-    sections.push(endingSection);
-    selectedWindows.push("ending");
+    sections.push(closeSection);
+    selectedWindows.push("close");
 
     const text = sections.join("\n\n");
     return {
@@ -284,7 +284,7 @@ export function buildPass4EvidencePacket(
           : 0,
       selectedWindows,
       includesOpening: selectedWindows.includes("opening"),
-      includesEnding: true,
+      includesClose: true,
     };
   }
 
@@ -304,7 +304,7 @@ export function buildPass4EvidencePacket(
     early: Math.floor(LONG_FORM_WINDOW_SIZES.early * scale),
     middle: Math.floor(LONG_FORM_WINDOW_SIZES.middle * scale),
     late: Math.floor(LONG_FORM_WINDOW_SIZES.late * scale),
-    ending: Math.floor(LONG_FORM_WINDOW_SIZES.ending * scale),
+    close: Math.floor(LONG_FORM_WINDOW_SIZES.close * scale),
   };
 
   const slices: { label: Pass4WindowLabel; body: string }[] = [];
@@ -324,27 +324,27 @@ export function buildPass4EvidencePacket(
     if (body.length > 0) slices.push({ label, body });
   }
 
-  // Ending — always pinned to the absolute end of the manuscript so
+  // Close — always pinned to the absolute end of the manuscript so
   // narrativeClosure adjudication has the final lines. We snap the
   // *start* to a paragraph boundary but never trim the tail.
-  const rawEndingStart = Math.max(0, sourceChars - sized.ending);
+  const rawCloseStart = Math.max(0, sourceChars - sized.close);
   // Look back up to 400 chars for a paragraph break to anchor cleanly,
   // but never extend past sourceChars on the right.
   const lookback = cleaned.slice(
-    Math.max(0, rawEndingStart - 400),
-    rawEndingStart,
+    Math.max(0, rawCloseStart - 400),
+    rawCloseStart,
   );
   const paraIdx = lookback.lastIndexOf("\n\n");
-  const endingStart =
+  const closeStart =
     paraIdx >= 0
-      ? Math.max(0, rawEndingStart - 400) + paraIdx + 2
-      : rawEndingStart;
-  const ending = cleaned.slice(endingStart, sourceChars).trim();
-  if (ending.length > 0) slices.push({ label: "ending", body: ending });
+      ? Math.max(0, rawCloseStart - 400) + paraIdx + 2
+      : rawCloseStart;
+  const close = cleaned.slice(closeStart, sourceChars).trim();
+  if (close.length > 0) slices.push({ label: "close", body: close });
 
   // De-duplicate accidental overlap between adjacent windows on
   // short-ish "long-form" manuscripts (e.g., 25-30k words where
-  // late/ending might collide). If two consecutive slices share the
+  // late/close might collide). If two consecutive slices share the
   // same final 200 chars, trim the later one.
   for (let i = 1; i < slices.length; i++) {
     const prev = slices[i - 1].body;
@@ -363,8 +363,8 @@ export function buildPass4EvidencePacket(
 
   const nonEmptySlices = slices.filter((s) => s.body.length > 0);
 
-  // Assemble text with ending-safe hard-cap handling. We preserve the
-  // ENDING window and trim/drop earlier windows first when needed.
+  // Assemble text with close-safe hard-cap handling. We preserve the
+  // CLOSE window and trim/drop earlier windows first when needed.
   const rawSections = nonEmptySlices.map((s) => ({
     label: s.label,
     body: s.body,
@@ -377,27 +377,27 @@ export function buildPass4EvidencePacket(
   let finalSections = rawSections;
 
   if (fullText.length > opts.hardCapChars) {
-    const ending = rawSections.find((s) => s.label === "ending");
-    const prefix = rawSections.filter((s) => s.label !== "ending");
+    const close = rawSections.find((s) => s.label === "close");
+    const prefix = rawSections.filter((s) => s.label !== "close");
 
-    if (ending) {
-      let endingBody = ending.body;
-      let endingSection = buildWindowSection("ending", endingBody);
+    if (close) {
+      let closeBody = close.body;
+      let closeSection = buildWindowSection("close", closeBody);
 
-      // Pathological tiny hard-cap fallback: keep ENDING intact as a
-      // section and trim from the *front* of ending body if required.
-      if (endingSection.length > opts.hardCapChars) {
+      // Pathological tiny hard-cap fallback: keep CLOSE intact as a
+      // section and trim from the *front* of close body if required.
+      if (closeSection.length > opts.hardCapChars) {
         while (
-          endingBody.length > 0 &&
-          buildWindowSection("ending", endingBody).length > opts.hardCapChars
+          closeBody.length > 0 &&
+          buildWindowSection("close", closeBody).length > opts.hardCapChars
         ) {
-          endingBody = endingBody.slice(1);
+          closeBody = closeBody.slice(1);
         }
-        endingSection = buildWindowSection("ending", endingBody);
+        closeSection = buildWindowSection("close", closeBody);
       }
 
       const keptPrefix: typeof rawSections = [];
-      let used = endingSection.length;
+      let used = closeSection.length;
       for (const candidate of prefix) {
         const separator = keptPrefix.length > 0 ? 2 : 2;
         if (used + separator + candidate.section.length <= opts.hardCapChars) {
@@ -409,13 +409,13 @@ export function buildPass4EvidencePacket(
       finalSections = [
         ...keptPrefix,
         {
-          label: "ending",
-          body: endingBody,
-          section: endingSection,
+          label: "close",
+          body: closeBody,
+          section: closeSection,
         },
       ];
     } else {
-      // Defensive fallback if no ending section exists.
+      // Defensive fallback if no close section exists.
       const kept: typeof rawSections = [];
       let used = 0;
       for (const candidate of rawSections) {
@@ -443,6 +443,6 @@ export function buildPass4EvidencePacket(
         : 0,
     selectedWindows,
     includesOpening: selectedWindows.includes("opening"),
-    includesEnding: selectedWindows.includes("ending"),
+    includesClose: selectedWindows.includes("close"),
   };
 }

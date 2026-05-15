@@ -5,12 +5,12 @@ import { buildPass4EvidencePacket } from "@/lib/evaluation/pipeline/pass4Evidenc
 /**
  * Build a synthetic manuscript of `targetWords` words, with clear
  * positional markers so we can assert that the packet actually pulls
- * from the early / middle / late / ending regions of the text.
+ * from the early / middle / late / close regions of the text.
  *
  * Markers:
  *   - "OPENING_MARKER_ALPHA"  — first paragraph
  *   - "MIDDLE_MARKER_BETA"    — placed ~50% into the manuscript
- *   - "ENDING_MARKER_OMEGA"   — last paragraph
+ *   - "CLOSE_MARKER_OMEGA"   — last paragraph
  */
 function makeSyntheticManuscript(targetWords: number): string {
   // Use short, prose-realistic words (~5 chars + space) so the
@@ -59,7 +59,7 @@ function makeSyntheticManuscript(targetWords: number): string {
   return (
     "OPENING_MARKER_ALPHA " +
     withMid +
-    " ENDING_MARKER_OMEGA"
+    " CLOSE_MARKER_OMEGA"
   );
 }
 
@@ -83,7 +83,7 @@ describe("buildPass4EvidencePacket - short manuscripts", () => {
     expect(packet.packetChars).toBe(0);
     expect(packet.selectedWindows).toEqual([]);
     expect(packet.includesOpening).toBe(false);
-    expect(packet.includesEnding).toBe(false);
+    expect(packet.includesClose).toBe(false);
   });
 
   it("handles whitespace-only input cleanly", () => {
@@ -95,7 +95,7 @@ describe("buildPass4EvidencePacket - short manuscripts", () => {
     expect(packet.packetChars).toBeLessThanOrEqual(18_000);
   });
 
-  it("preserves ENDING evidence when short-form manuscript exceeds 18k chars", () => {
+  it("preserves CLOSE evidence when short-form manuscript exceeds 18k chars", () => {
     // ~5k words is below the long-form threshold but above 18k chars,
     // which exercises the short-form truncation edge case.
     const text = makeSyntheticManuscript(5_000);
@@ -103,10 +103,10 @@ describe("buildPass4EvidencePacket - short manuscripts", () => {
 
     expect(packet.sourceWords).toBeLessThan(25_000);
     expect(packet.sourceChars).toBeGreaterThan(18_000);
-    expect(packet.includesEnding).toBe(true);
-    expect(packet.selectedWindows).toContain("ending");
-    expect(packet.text).toMatch(/--- WINDOW: ENDING/);
-    expect(packet.text).toContain("ENDING_MARKER_OMEGA");
+    expect(packet.includesClose).toBe(true);
+    expect(packet.selectedWindows).toContain("close");
+    expect(packet.text).toMatch(/--- WINDOW: CLOSE/);
+    expect(packet.text).toContain("CLOSE_MARKER_OMEGA");
   });
 });
 
@@ -127,23 +127,23 @@ describe("buildPass4EvidencePacket - long-form manuscripts (>= 25k words)", () =
     expect(packet.text.length).toBeGreaterThan(10_000);
   });
 
-  it("includes opening, middle, and ending windows for novel-length text", () => {
+  it("includes opening, middle, and close windows for novel-length text", () => {
     const packet = buildPass4EvidencePacket(text105k);
 
     expect(packet.selectedWindows).toContain("opening");
     expect(packet.selectedWindows).toContain("middle");
-    expect(packet.selectedWindows).toContain("ending");
+    expect(packet.selectedWindows).toContain("close");
     expect(packet.includesOpening).toBe(true);
-    expect(packet.includesEnding).toBe(true);
+    expect(packet.includesClose).toBe(true);
   });
 
-  it("pulls actual content from early / middle / ending of the source", () => {
+  it("pulls actual content from early / middle / close of the source", () => {
     const packet = buildPass4EvidencePacket(text105k);
 
     // OPENING_MARKER_ALPHA is in the first paragraph, must appear.
     expect(packet.text).toContain("OPENING_MARKER_ALPHA");
-    // ENDING_MARKER_OMEGA is in the last paragraph, must appear.
-    expect(packet.text).toContain("ENDING_MARKER_OMEGA");
+    // CLOSE_MARKER_OMEGA is in the last paragraph, must appear.
+    expect(packet.text).toContain("CLOSE_MARKER_OMEGA");
     // MIDDLE_MARKER_BETA sits at ~50% — `middle` window is anchored
     // at 0.5 so it should be captured.
     expect(packet.text).toContain("MIDDLE_MARKER_BETA");
@@ -153,7 +153,7 @@ describe("buildPass4EvidencePacket - long-form manuscripts (>= 25k words)", () =
     const packet = buildPass4EvidencePacket(text105k);
 
     expect(packet.text).toMatch(/--- WINDOW: OPENING/);
-    expect(packet.text).toMatch(/--- WINDOW: ENDING/);
+    expect(packet.text).toMatch(/--- WINDOW: CLOSE/);
   });
 
   it("respects the hard cap of 40k chars even with default options", () => {
@@ -183,13 +183,13 @@ describe("buildPass4EvidencePacket - long-form manuscripts (>= 25k words)", () =
     expect(packet.compressionRatio).toBeGreaterThanOrEqual(0.03);
   });
 
-  it("always includes the ending window (required for narrativeClosure)", () => {
-    // Even at the threshold (just over 25k words), the ending must
+  it("always includes the close window (required for narrativeClosure)", () => {
+    // Even at the threshold (just over 25k words), the close must
     // be present because narrativeClosure adjudication depends on it.
     const text25k = makeSyntheticManuscript(26_000);
     const packet = buildPass4EvidencePacket(text25k);
-    expect(packet.includesEnding).toBe(true);
-    expect(packet.text).toContain("ENDING_MARKER_OMEGA");
+    expect(packet.includesClose).toBe(true);
+    expect(packet.text).toContain("CLOSE_MARKER_OMEGA");
   });
 
   it("returns metadata fields with expected shape", () => {
@@ -200,7 +200,7 @@ describe("buildPass4EvidencePacket - long-form manuscripts (>= 25k words)", () =
     expect(typeof packet.compressionRatio).toBe("number");
     expect(Array.isArray(packet.selectedWindows)).toBe(true);
     expect(typeof packet.includesOpening).toBe("boolean");
-    expect(typeof packet.includesEnding).toBe("boolean");
+    expect(typeof packet.includesClose).toBe("boolean");
 
     expect(packet.sourceWords).toBeGreaterThan(100_000);
     expect(packet.sourceWords).toBeLessThan(115_000);
@@ -234,17 +234,17 @@ describe("buildPass4EvidencePacket - options", () => {
       longFormWordThreshold: 1_000,
     });
     expect(packet.selectedWindows).not.toEqual(["full"]);
-    expect(packet.includesEnding).toBe(true);
+    expect(packet.includesClose).toBe(true);
   });
 
-  it("enforces hard cap without truncating the ENDING window", () => {
+  it("enforces hard cap without truncating the CLOSE window", () => {
     const text = makeSyntheticManuscript(80_000);
     const packet = buildPass4EvidencePacket(text, { hardCapChars: 12_000 });
 
     expect(packet.packetChars).toBeLessThanOrEqual(12_000);
-    expect(packet.includesEnding).toBe(true);
-    expect(packet.selectedWindows).toContain("ending");
-    expect(packet.text).toMatch(/--- WINDOW: ENDING/);
-    expect(packet.text).toContain("ENDING_MARKER_OMEGA");
+    expect(packet.includesClose).toBe(true);
+    expect(packet.selectedWindows).toContain("close");
+    expect(packet.text).toMatch(/--- WINDOW: CLOSE/);
+    expect(packet.text).toContain("CLOSE_MARKER_OMEGA");
   });
 });

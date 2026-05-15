@@ -563,7 +563,7 @@ export async function runPerplexityCrossCheck(opts: {
 
   // Pass 4 evidence packet: replaces the legacy first-3000-char
   // excerpt with a bounded representative slice spanning opening /
-  // early / middle / late / ending windows. See
+  // early / middle / late / close windows. See
   // lib/evaluation/pipeline/pass4EvidencePacket.ts for the design.
   const evidencePacket = buildPass4EvidencePacket(manuscriptExcerpt);
 
@@ -643,7 +643,7 @@ Now return the independent adjudication as JSON.`;
     pass4_packet_compression_ratio: evidencePacket.compressionRatio,
     pass4_selected_windows: evidencePacket.selectedWindows,
     pass4_includes_opening: evidencePacket.includesOpening,
-    pass4_includes_ending: evidencePacket.includesEnding,
+    pass4_includes_close: evidencePacket.includesClose,
     pass4_source_words: evidencePacket.sourceWords,
   });
 
