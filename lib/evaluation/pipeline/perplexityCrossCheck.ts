@@ -30,6 +30,7 @@ import {
   buildPerplexityResponseSchema,
   buildRefusalRetryUserPrompt,
 } from "./perplexityCrossCheckRequest";
+import { buildPass4EvidencePacket } from "./pass4EvidencePacket";
 
 // CriterionKey is re-exported below from the canonical registry. The local
 // union was removed to eliminate criterion-authority drift between Pass 4 and
@@ -112,7 +113,44 @@ const PERPLEXITY_MODEL = "sonar-reasoning-pro";
 // Premium two-AI adjudication budget. Raised from 8000 -> 12000 after Pass 4 audit
 // observed 2/11 historical truncations at 8000 with sonar-reasoning-pro reasoning headers.
 const PERPLEXITY_MAX_TOKENS = 12000;
-const PERPLEXITY_REQUEST_TIMEOUT_MS = 60000;
+export const DEFAULT_PERPLEXITY_REQUEST_TIMEOUT_MS = 180_000;
+export const MIN_PERPLEXITY_REQUEST_TIMEOUT_MS = 60_000;
+
+/**
+ * Resolve the Perplexity request timeout from the environment.
+ *
+ * Defaults to 180_000ms (180s). Sonar-reasoning-pro on full-novel
+ * packets (~30k chars) routinely takes 90-150s; 60s was the prior
+ * hardcoded ceiling and proved too tight for novel-length runs. The
+ * env var lets production raise/lower without a code change.
+ *
+ * Policy (not just parsing):
+ *   - undefined / empty / whitespace  -> default
+ *   - non-numeric / NaN               -> default
+ *   - value < MIN (60_000ms)          -> default
+ *   - valid value >= MIN              -> use it (no upper clamp)
+ *
+ * Exported for direct unit testing. PERPLEXITY_REQUEST_TIMEOUT_MS is
+ * a module-level constant captured at import time; tests should call
+ * the resolver directly rather than mutating process.env after import.
+ */
+export function resolvePerplexityRequestTimeoutMs(
+  raw: string | undefined = process.env.PERPLEXITY_REQUEST_TIMEOUT_MS,
+): number {
+  if (raw === undefined || raw.trim() === "") {
+    return DEFAULT_PERPLEXITY_REQUEST_TIMEOUT_MS;
+  }
+
+  const parsed = Number.parseInt(raw, 10);
+
+  if (!Number.isFinite(parsed) || parsed < MIN_PERPLEXITY_REQUEST_TIMEOUT_MS) {
+    return DEFAULT_PERPLEXITY_REQUEST_TIMEOUT_MS;
+  }
+
+  return parsed;
+}
+
+const PERPLEXITY_REQUEST_TIMEOUT_MS = resolvePerplexityRequestTimeoutMs();
 const DISPUTE_THRESHOLD = 1.0;
 
 // Phrases observed in 3/11 historical Pass 4 failures where sonar refused
@@ -523,6 +561,12 @@ export async function runPerplexityCrossCheck(opts: {
     return `- ${key}: ${score}/10${rationale}`;
   }).join("\n");
 
+  // Pass 4 evidence packet: replaces the legacy first-3000-char
+  // excerpt with a bounded representative slice spanning opening /
+  // early / middle / late / close windows. See
+  // lib/evaluation/pipeline/pass4EvidencePacket.ts for the design.
+  const evidencePacket = buildPass4EvidencePacket(manuscriptExcerpt);
+
   const systemPrompt = `You are an independent literary evaluation adjudicator performing a canon-governed second-opinion review.
 
 Rules:
@@ -571,8 +615,8 @@ Required schema:
   const userPrompt = `MANUSCRIPT TITLE: "${title}"
 WORK TYPE: ${workType}
 
-MANUSCRIPT EXCERPT (first 3000 chars):
-${manuscriptExcerpt.slice(0, 3000)}
+REPRESENTATIVE MANUSCRIPT EVIDENCE PACKET:
+${evidencePacket.text}
 
 PRIMARY EVALUATOR SCORES:
 ${criteriaBlock}
@@ -595,6 +639,12 @@ Now return the independent adjudication as JSON.`;
     prompt_chars: initialPromptChars,
     max_completion_tokens: PERPLEXITY_MAX_TOKENS,
     mode: process.env.EVAL_EXTERNAL_ADJUDICATION_MODE ?? null,
+    pass4_packet_chars: evidencePacket.packetChars,
+    pass4_packet_compression_ratio: evidencePacket.compressionRatio,
+    pass4_selected_windows: evidencePacket.selectedWindows,
+    pass4_includes_opening: evidencePacket.includesOpening,
+    pass4_includes_close: evidencePacket.includesClose,
+    pass4_source_words: evidencePacket.sourceWords,
   });
 
   const requestCompletion = async (
