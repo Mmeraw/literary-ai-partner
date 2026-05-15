@@ -22,10 +22,11 @@ const SOURCE_FILES = globSync("**/*.{ts,tsx,js,mjs,cjs}", {
   ],
 });
 
+const CONTRACT_IMPORT_RE = String.raw`[^"']*tests\/contract(?:\/[^"']*)?`;
 const IMPORT_PATTERNS = [
-  /from\s+["'][^"']*tests\/contract\//g,
-  /require\(\s*["'][^"']*tests\/contract\//g,
-  /import\(\s*["'][^"']*tests\/contract\//g,
+  new RegExp(String.raw`from\s+["']${CONTRACT_IMPORT_RE}["']`, "g"),
+  new RegExp(String.raw`require\(\s*["']${CONTRACT_IMPORT_RE}["']\s*\)`, "g"),
+  new RegExp(String.raw`import\(\s*["']${CONTRACT_IMPORT_RE}["']\s*\)`, "g"),
 ];
 
 function isAllowedImporter(relativePath) {
