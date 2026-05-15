@@ -74,11 +74,13 @@ export interface CanonValidity {
 }
 
 export interface CrossCheckCriterionResult {
-  openaiScore: number;
+  openaiScore: number | null;
   openaiRationale: string;
   openaiEvidence: string[];
   openaiDetectedSignals: string[];
   openaiScoringBand?: "1-3" | "4-6" | "7-8" | "9-10";
+  invalidOpenaiCriterion?: boolean;
+  missingFromOpenai?: boolean;
 
   perplexityScore: number | null;
   perplexityRationale: string;
@@ -184,6 +186,37 @@ function normalizePerplexityScore(score: unknown, key: string): { score: number;
   }
 
   return { score, reasons };
+}
+
+type OpenAIScoreNormalization =
+  | { kind: "valid"; score: number }
+  | { kind: "missing"; reason: string }
+  | { kind: "invalid"; reason: string };
+
+function normalizeOpenAIScore(
+  item: OpenAICriterionInput | undefined,
+  key: string,
+): OpenAIScoreNormalization {
+  if (!item) {
+    return {
+      kind: "missing",
+      reason: `[Pass4] OpenAI criterion '${key}' missing from Pass 3 output.`,
+    };
+  }
+  const raw = (item as { score?: unknown }).score;
+  if (typeof raw !== "number" || !Number.isFinite(raw)) {
+    return {
+      kind: "invalid",
+      reason: `[Pass4] OpenAI score for criterion '${key}' is non-finite: ${String(raw)}`,
+    };
+  }
+  if (raw < 1 || raw > 10) {
+    return {
+      kind: "invalid",
+      reason: `[Pass4] OpenAI score for criterion '${key}' out of range: ${raw}`,
+    };
+  }
+  return { kind: "valid", score: raw };
 }
 
 function asStringArray(value: unknown): string[] {
@@ -910,11 +943,23 @@ Now return the independent adjudication as JSON.`;
 
   for (const key of CRITERION_KEYS) {
     const openaiItem = openaiCriteria[key];
-    const openaiScore = assertScore(openaiItem?.score ?? 0, key);
+    const openaiNorm = normalizeOpenAIScore(openaiItem, key);
+    const openaiScore = openaiNorm.kind === "valid" ? openaiNorm.score : null;
     const openaiRationale = openaiItem?.rationale ?? "";
     const openaiEvidence = openaiItem?.evidence ?? [];
     const openaiDetectedSignals = openaiItem?.detectedSignals ?? [];
-    const openaiScoringBand = openaiItem?.scoringBand ?? bandForScore(openaiScore);
+    const openaiScoringBand =
+      openaiItem?.scoringBand ??
+      (openaiScore !== null ? bandForScore(openaiScore) : undefined);
+    const openaiMissing = openaiNorm.kind === "missing";
+    const openaiInvalid = openaiNorm.kind === "invalid";
+    const openaiUnusable = openaiMissing || openaiInvalid;
+
+    if (openaiUnusable) {
+      warnings.push(
+        openaiNorm.kind === "missing" ? openaiNorm.reason : openaiNorm.reason,
+      );
+    }
 
     const pplx = parsed.criteria[key];
 
@@ -928,6 +973,8 @@ Now return the independent adjudication as JSON.`;
         openaiEvidence,
         openaiDetectedSignals,
         openaiScoringBand,
+        invalidOpenaiCriterion: openaiInvalid,
+        missingFromOpenai: openaiMissing,
         perplexityScore: null,
         perplexityRationale: "",
         perplexityEvidence: [],
@@ -951,15 +998,33 @@ Now return the independent adjudication as JSON.`;
     const invalidPerplexityCriterion = !canonValidity.valid;
     const perplexityScore = invalidPerplexityCriterion ? null : pplx.score;
     const delta =
-      perplexityScore === null ? null : Math.abs(openaiScore - perplexityScore);
+      openaiScore === null || perplexityScore === null
+        ? null
+        : Math.abs(openaiScore - perplexityScore);
     const disputed =
-      invalidPerplexityCriterion || delta === null || delta > DISPUTE_THRESHOLD;
+      openaiUnusable ||
+      invalidPerplexityCriterion ||
+      delta === null ||
+      delta > DISPUTE_THRESHOLD;
 
-    if (invalidPerplexityCriterion) {
+    if (openaiUnusable || invalidPerplexityCriterion) {
       invalidCriteria.push(key);
     }
     if (disputed) {
       disputedCriteria.push(key);
+    }
+
+    let direction: CrossCheckCriterionResult["direction"];
+    if (openaiMissing) {
+      direction = "MISSING";
+    } else if (openaiInvalid || invalidPerplexityCriterion || perplexityScore === null || openaiScore === null) {
+      direction = "INVALID";
+    } else if (perplexityScore > openaiScore) {
+      direction = "HIGHER";
+    } else if (perplexityScore < openaiScore) {
+      direction = "LOWER";
+    } else {
+      direction = "MATCH";
     }
 
     criteria[key] = {
@@ -968,6 +1033,8 @@ Now return the independent adjudication as JSON.`;
       openaiEvidence,
       openaiDetectedSignals,
       openaiScoringBand,
+      invalidOpenaiCriterion: openaiInvalid,
+      missingFromOpenai: openaiMissing,
       perplexityScore,
       perplexityRationale: pplx.rationale,
       perplexityEvidence: pplx.evidence,
@@ -979,14 +1046,7 @@ Now return the independent adjudication as JSON.`;
       missingFromPerplexity: false,
       invalidPerplexityCriterion,
       canonValidity,
-      direction:
-        invalidPerplexityCriterion || perplexityScore === null
-          ? "INVALID"
-          : perplexityScore > openaiScore
-            ? "HIGHER"
-            : perplexityScore < openaiScore
-              ? "LOWER"
-              : "MATCH",
+      direction,
     };
   }
 

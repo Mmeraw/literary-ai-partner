@@ -269,6 +269,125 @@ describe("runPerplexityCrossCheck", () => {
     expect(secondUser).toMatch(/NOT a web research task/);
   });
 
+  it("preserves cross_check when an OpenAI-side score is out of range (score = 0)", async () => {
+    const payload = makePerplexityPayload();
+    const fetchMock = jest.fn<typeof fetch>().mockResolvedValue(
+      makeFetchResponse(JSON.stringify(payload)) as unknown as Response,
+    );
+    global.fetch = fetchMock;
+
+    const openaiCriteria = makeOpenAICriteria();
+    openaiCriteria.emotionalResonance = {
+      ...openaiCriteria.emotionalResonance,
+      score: 0,
+    };
+
+    const result = await runPerplexityCrossCheck({
+      openaiCriteria,
+      openaiSynthesis: "Primary evaluator synthesis.",
+      manuscriptExcerpt: "The river moved slowly through the valley.",
+      workType: "literary_fiction",
+      title: "The Valley",
+      perplexityApiKey: "pplx-test",
+    });
+
+    expect(result).toBeDefined();
+    expect(result.canonValid).toBe(false);
+    expect(result.invalidCriteria).toContain("emotionalResonance");
+    expect(result.criteria.emotionalResonance.direction).toBe("INVALID");
+    expect(result.criteria.emotionalResonance.openaiScore).toBeNull();
+    expect(result.criteria.emotionalResonance.delta).toBeNull();
+  });
+
+  it("preserves cross_check when an OpenAI-side criterion is missing entirely", async () => {
+    const payload = makePerplexityPayload();
+    const fetchMock = jest.fn<typeof fetch>().mockResolvedValue(
+      makeFetchResponse(JSON.stringify(payload)) as unknown as Response,
+    );
+    global.fetch = fetchMock;
+
+    const openaiCriteria = makeOpenAICriteria();
+    delete (openaiCriteria as Record<string, unknown>).emotionalResonance;
+
+    const result = await runPerplexityCrossCheck({
+      openaiCriteria,
+      openaiSynthesis: "Primary evaluator synthesis.",
+      manuscriptExcerpt: "The river moved slowly through the valley.",
+      workType: "literary_fiction",
+      title: "The Valley",
+      perplexityApiKey: "pplx-test",
+    });
+
+    expect(result).toBeDefined();
+    expect(result.canonValid).toBe(false);
+    expect(result.invalidCriteria).toContain("emotionalResonance");
+    expect(result.criteria.emotionalResonance.direction).toBe("MISSING");
+    expect(result.criteria.emotionalResonance.openaiScore).toBeNull();
+    expect(result.criteria.emotionalResonance.delta).toBeNull();
+  });
+
+  it("flags invalidOpenaiCriterion / missingFromOpenai diagnostics on the criterion result", async () => {
+    const payload = makePerplexityPayload();
+    const fetchMock = jest.fn<typeof fetch>().mockResolvedValue(
+      makeFetchResponse(JSON.stringify(payload)) as unknown as Response,
+    );
+    global.fetch = fetchMock;
+
+    const openaiCriteria = makeOpenAICriteria();
+    openaiCriteria.emotionalResonance = {
+      ...openaiCriteria.emotionalResonance,
+      score: 0,
+    };
+    delete (openaiCriteria as Record<string, unknown>).voice;
+
+    const result = await runPerplexityCrossCheck({
+      openaiCriteria,
+      openaiSynthesis: "Primary evaluator synthesis.",
+      manuscriptExcerpt: "The river moved slowly through the valley.",
+      workType: "literary_fiction",
+      title: "The Valley",
+      perplexityApiKey: "pplx-test",
+    });
+
+    expect(result.criteria.emotionalResonance.invalidOpenaiCriterion).toBe(true);
+    expect(result.criteria.emotionalResonance.missingFromOpenai).toBe(false);
+    expect(result.criteria.voice.missingFromOpenai).toBe(true);
+    expect(result.criteria.voice.invalidOpenaiCriterion).toBe(false);
+    expect(result.invalidCriteria).toEqual(
+      expect.arrayContaining(["emotionalResonance", "voice"]),
+    );
+    expect(result.canonValid).toBe(false);
+  });
+
+  it("leaves other criteria with valid OpenAI scores unaffected when one is invalid", async () => {
+    const payload = makePerplexityPayload();
+    const fetchMock = jest.fn<typeof fetch>().mockResolvedValue(
+      makeFetchResponse(JSON.stringify(payload)) as unknown as Response,
+    );
+    global.fetch = fetchMock;
+
+    const openaiCriteria = makeOpenAICriteria();
+    openaiCriteria.emotionalResonance = {
+      ...openaiCriteria.emotionalResonance,
+      score: 0,
+    };
+
+    const result = await runPerplexityCrossCheck({
+      openaiCriteria,
+      openaiSynthesis: "Primary evaluator synthesis.",
+      manuscriptExcerpt: "The river moved slowly through the valley.",
+      workType: "literary_fiction",
+      title: "The Valley",
+      perplexityApiKey: "pplx-test",
+    });
+
+    expect(result.criteria.concept.openaiScore).toBe(7);
+    expect(result.criteria.concept.perplexityScore).toBe(7);
+    expect(result.criteria.concept.direction).toBe("MATCH");
+    expect(result.criteria.concept.invalidOpenaiCriterion).toBe(false);
+    expect(result.criteria.concept.missingFromOpenai).toBe(false);
+  });
+
   it("throws PerplexityRefusalError when the retry response is still a refusal", async () => {
     const refusalText =
       "I cannot perform literary judgment. I am a search-based assistant and this is outside my design.";
