@@ -2326,6 +2326,36 @@ export async function processEvaluationJob(
       }
 
       console.error(`[Processor] Pipeline failed for job ${jobId}: ${pipelineError}`);
+
+      // PR #506 — persist external_adjudication onto progress for failed jobs
+      // too, so /admin/pipeline-health and the failure UI can show whether the
+      // pipeline died because of a required-mode adjudication failure (vs an
+      // earlier-pass error). Best-effort; non-fatal.
+      if (pipelineResult.external_adjudication) {
+        try {
+          await supabase
+            .from('evaluation_jobs')
+            .update({
+              progress: {
+                ...((job.progress as Record<string, unknown> | null) ?? {}),
+                cross_check_status: pipelineResult.external_adjudication.status,
+                cross_check_reason:
+                  'reason' in pipelineResult.external_adjudication
+                    ? pipelineResult.external_adjudication.reason
+                    : null,
+                external_adjudication_mode: pipelineResult.external_adjudication.mode,
+                external_adjudication_status: pipelineResult.external_adjudication.status,
+              },
+            })
+            .eq('id', job.id);
+        } catch (persistErr) {
+          console.warn(
+            `[Processor] ${jobId}: failed to persist external_adjudication on failure path:`,
+            persistErr instanceof Error ? persistErr.message : String(persistErr),
+          );
+        }
+      }
+
       await markFailed(pipelineError, pipelineResult.error_code || 'PIPELINE_ERROR', {
         pipelineStage: pipelineResult.failed_at,
         reasonCodes: [pipelineResult.error_code || 'PIPELINE_ERROR'],
@@ -2378,11 +2408,46 @@ export async function processEvaluationJob(
       },
       crossCheckResult: pipelineResult.cross_check,
       pass4Governance: pipelineResult.pass4_governance,
+      // PR #506 — thread the explicit Pass 4 status so the report's
+      // governance.transparency.external_adjudication block can render
+      // "External Adjudication: Completed · Required Mode · packet=29568 chars"
+      // (or skipped / failed_soft with reason) without any inference.
+      externalAdjudication: pipelineResult.external_adjudication,
       sourceText: manuscriptWithContent.content || "",
       manuscriptText: manuscriptWithContent.content || "",
       title: manuscript.title ?? undefined,
       scopeProfile: scopeProfileForV2Gate,
     });
+
+    // PR #506 — persist Pass 4 status onto the canonical JobProgress so the jobs
+    // surface (and Supabase) reflect Pass 4 truth instead of leaving cross_check_status
+    // null. JobProgress is a typed-loose jsonb (`[k: string]: unknown`) so no
+    // schema migration is needed.
+    if (pipelineResult.external_adjudication) {
+      try {
+        await supabase
+          .from('evaluation_jobs')
+          .update({
+            progress: {
+              ...((job.progress as Record<string, unknown> | null) ?? {}),
+              cross_check_status: pipelineResult.external_adjudication.status,
+              cross_check_reason:
+                'reason' in pipelineResult.external_adjudication
+                  ? pipelineResult.external_adjudication.reason
+                  : null,
+              external_adjudication_mode: pipelineResult.external_adjudication.mode,
+              external_adjudication_status: pipelineResult.external_adjudication.status,
+            },
+          })
+          .eq('id', job.id);
+      } catch (persistErr) {
+        // Non-fatal: report still carries authoritative status; this is for the jobs surface.
+        console.warn(
+          `[Processor] ${jobId}: failed to persist external_adjudication onto progress:`,
+          persistErr instanceof Error ? persistErr.message : String(persistErr),
+        );
+      }
+    }
     console.log(
       `[Processor] ${jobId}: evaluationResult synthesized overall=${evaluationResult.overview.overall_score_0_100}`,
     );

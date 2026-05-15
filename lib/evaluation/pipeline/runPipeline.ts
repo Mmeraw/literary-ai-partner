@@ -97,8 +97,9 @@ import {
   getCanonicalPass2Model,
   getCanonicalPass3Model,
   getCanonicalPass3FallbackModel,
+  getExternalAdjudicationMode,
 } from "@/lib/evaluation/policy";
-import type { PipelineResultRouting } from "./types";
+import type { PipelineResultRouting, ExternalAdjudicationStatus, ExternalAdjudicationMode } from "./types";
 import {
   ChunkRoutingNotEngagedError,
   ManuscriptExceedsHardCeilingError,
@@ -1440,9 +1441,18 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
     state: 'completed',
   });
 
-  // ── Pass 4b: Optional external cross-check + governance ─────────────────
+  // ── Pass 4b: External cross-check + governance ──────────────────────────
   // Cross-check runs only on the success path (quality gate already passed).
-  // Fail-soft on execution; fail-hard if governance decision is not ok.
+  //
+  // FAIL-CLOSED CONTRACT (PR #506):
+  //   Every code path below produces an explicit `externalAdjudication` status.
+  //   The legacy silent-skip path (Froggin Noggin truth gap) is eliminated:
+  //   if the key is missing, the result MUST carry status="skipped" + reason.
+  //   If Perplexity errors, the result MUST carry status="failed_soft" (optional)
+  //   or "failed_blocking" (required/veto) — never silently undefined.
+  const adjudicationMode: ExternalAdjudicationMode = getExternalAdjudicationMode();
+  let externalAdjudication: ExternalAdjudicationStatus;
+
   if (opts.perplexityApiKey) {
     const pass4CrossCheckStartedAt = startLatencyStage({
       jobId: latencyJobId,
@@ -1481,32 +1491,122 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
         startedAt: pass4CrossCheckStartedAt,
         state: 'completed',
       });
+
+      externalAdjudication = {
+        status: "completed",
+        mode: adjudicationMode,
+        cross_check_returned: true,
+        packet_chars: crossCheckResult.packetChars,
+        packet_compression_ratio: crossCheckResult.packetCompressionRatio,
+      };
     } catch (err) {
+      const reason = err instanceof Error ? err.message : String(err);
+
       finishLatencyStage({
         jobId: latencyJobId,
         stage: 'pass4_cross_check',
         startedAt: pass4CrossCheckStartedAt,
         state: 'failed',
         metadata: {
-          finish_reason: err instanceof Error ? err.message : String(err),
+          finish_reason: reason,
         },
       });
 
       console.warn(
-        "[Pass4] Perplexity cross-check failed (non-fatal):",
-        err instanceof Error ? err.message : String(err),
+        `[Pass4] Perplexity cross-check failed (mode=${adjudicationMode}):`,
+        reason,
       );
+
+      // Fail-closed: required/veto modes must abort the whole evaluation.
+      // Optional mode continues but persists failed_soft so the report cannot
+      // claim a successful external adjudication that did not occur.
+      if (adjudicationMode === "required" || adjudicationMode === "veto") {
+        externalAdjudication = {
+          status: "failed_blocking",
+          mode: adjudicationMode,
+          cross_check_returned: false,
+          reason,
+        };
+
+        timings.total_ms = nowMs() - pipelineStartMs;
+        logPipelineTimings("failure", {
+          manuscriptId: opts.manuscriptId,
+          title: opts.title,
+          workType: opts.workType,
+          failedAt: "pass4",
+          errorCode: "PASS4_EXTERNAL_ADJUDICATION_FAILED",
+          timings,
+        });
+
+        return {
+          ok: false,
+          error: `Pass 4 external adjudication failed in mode '${adjudicationMode}': ${reason}`,
+          error_code: "PASS4_EXTERNAL_ADJUDICATION_FAILED",
+          failed_at: "pass4",
+          external_adjudication: externalAdjudication,
+          routing: pipelineRouting,
+        };
+      }
+
+      externalAdjudication = {
+        status: "failed_soft",
+        mode: adjudicationMode,
+        cross_check_returned: false,
+        reason,
+      };
     }
   } else {
+    // No Perplexity key supplied to the pipeline. In required/veto mode the
+    // upstream processor contract is supposed to catch this before runPipeline,
+    // but enforce it here too so the contract holds regardless of caller.
+    const skipReason =
+      adjudicationMode === "optional" ? "no_api_key" : "no_api_key";
+
     emitLatencyTrace({
       job_id: latencyJobId,
       stage: 'pass4_cross_check',
       state: 'skipped',
       started_at: new Date().toISOString(),
       metadata: {
-        finish_reason: 'missing_perplexity_api_key',
+        finish_reason: skipReason,
+        adjudication_mode: adjudicationMode,
       },
     });
+
+    if (adjudicationMode === "required" || adjudicationMode === "veto") {
+      externalAdjudication = {
+        status: "failed_blocking",
+        mode: adjudicationMode,
+        cross_check_returned: false,
+        reason: skipReason,
+      };
+
+      timings.total_ms = nowMs() - pipelineStartMs;
+      logPipelineTimings("failure", {
+        manuscriptId: opts.manuscriptId,
+        title: opts.title,
+        workType: opts.workType,
+        failedAt: "pass4",
+        errorCode: "PASS4_EXTERNAL_ADJUDICATION_MISSING_KEY",
+        timings,
+      });
+
+      return {
+        ok: false,
+        error: `Pass 4 external adjudication required by mode '${adjudicationMode}' but PERPLEXITY_API_KEY was not provided`,
+        error_code: "PASS4_EXTERNAL_ADJUDICATION_MISSING_KEY",
+        failed_at: "pass4",
+        external_adjudication: externalAdjudication,
+        routing: pipelineRouting,
+      };
+    }
+
+    externalAdjudication = {
+      status: "skipped",
+      mode: adjudicationMode,
+      cross_check_returned: false,
+      reason: skipReason,
+    };
   }
 
   pass4Governance = evaluatePass4Governance(crossCheckResult);
@@ -1528,6 +1628,8 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
       error: `Pass 4 governance failed: ${pass4Governance.message ?? pass4Governance.blockCode ?? "unknown governance error"}`,
       error_code: errorCode,
       failed_at: "pass4",
+      external_adjudication: externalAdjudication,
+      routing: pipelineRouting,
     };
   }
 
@@ -1545,6 +1647,7 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
     quality_gate: qualityGate,
     cross_check: crossCheckResult,
     pass4_governance: pass4Governance,
+    external_adjudication: externalAdjudication,
     routing: pipelineRouting,
   };
 }
@@ -1565,6 +1668,12 @@ export interface SynthesisToEvaluationResultOptions {
   crossCheckResult?: CrossCheckOutput;
   /** Pass 4 governance decision — must be threaded from runPipeline(), never inferred */
   pass4Governance?: Pass4GovernanceResult;
+  /**
+   * Explicit Pass 4 execution outcome — must be threaded from runPipeline(),
+   * never inferred. Drives report.governance.transparency.external_adjudication
+   * and blocks long-form certification when status !== "completed" in required mode.
+   */
+  externalAdjudication?: ExternalAdjudicationStatus;
   /** Governed applicability map (R/O/NA/C). NA values are converted to NOT_APPLICABLE in v2. */
   criteriaPlan?: CriteriaPlanMap;
   /** Optional passage-level coverage hints for observability classification. */
@@ -1810,6 +1919,7 @@ export function synthesisToEvaluationResultV2(
     ids,
     crossCheckResult,
     pass4Governance,
+    externalAdjudication,
     criteriaPlan,
     passageCoverageRatio,
     sentenceCount,
@@ -1854,12 +1964,39 @@ export function synthesisToEvaluationResultV2(
     )
     .map(enforceTextualAnchorConfidence);
 
-  const certification = computeManuscriptCertification({
+  const baseCertification = computeManuscriptCertification({
     inputScale: opts.scopeProfile?.inputScale,
     partialEvaluation: synthesis.partial_evaluation,
     coverageScope: synthesis.coverage_scope,
     hasSynthesisCriteria: synthesis.criteria.length === CRITERIA_KEYS.length,
   });
+
+  // PR #506 — External adjudication truth gate.
+  //
+  // If Pass 4 was required by mode and did not complete (skipped / failed_soft /
+  // failed_blocking), the manuscript MUST NOT be fully certified. This closes
+  // the Froggin Noggin loophole where a completed-with-cross_check_status=null
+  // report could masquerade as a successful premium adjudicated evaluation.
+  const externalAdjudicationBlocksCertification =
+    externalAdjudication !== undefined &&
+    externalAdjudication.status !== "completed" &&
+    (externalAdjudication.mode === "required" ||
+      externalAdjudication.mode === "veto");
+
+  const certificationReasonCodes = externalAdjudicationBlocksCertification
+    ? [
+        ...baseCertification.reasonCodes,
+        `external_adjudication_${externalAdjudication!.status}_in_${externalAdjudication!.mode}_mode`,
+      ]
+    : baseCertification.reasonCodes;
+
+  const certification = externalAdjudicationBlocksCertification
+    ? {
+        ...baseCertification,
+        manuscriptWideCertifiable: false,
+        reasonCodes: certificationReasonCodes,
+      }
+    : baseCertification;
 
   const governedCriteria =
     certification.route === "LONG_FORM" && !certification.manuscriptWideCertifiable
@@ -1947,6 +2084,18 @@ export function synthesisToEvaluationResultV2(
     governanceWarnings.push("LONG_FORM_CERTIFICATION_WITHHELD");
   }
 
+  // PR #506 — surface Pass 4 status as a governance warning so the UI banner
+  // cannot present a non-completed adjudicated evaluation as fully certified.
+  if (externalAdjudication && externalAdjudication.status !== "completed") {
+    governanceWarnings.push(
+      `EXTERNAL_ADJUDICATION_${externalAdjudication.status.toUpperCase()}` +
+        ` (mode=${externalAdjudication.mode}` +
+        ("reason" in externalAdjudication && externalAdjudication.reason
+          ? `, reason=${externalAdjudication.reason})`
+          : ")"),
+    );
+  }
+
   return {
     schema_version: "evaluation_result_v2",
     score_denominator_policy: "full_canonical",
@@ -2023,6 +2172,29 @@ export function synthesisToEvaluationResultV2(
           authority_level: propagation.authorityLevel,
           reasons: propagation.reasons,
         },
+        // PR #506 — Froggin Noggin Pass 4 provenance truth. Always emitted when
+        // runPipeline has computed an externalAdjudication status (which it now
+        // always does on the success path). Allows the report surface to render
+        // "External Adjudication: Completed · Required Mode · Perplexity · 29,568-char
+        // evidence packet" without inferring anything from missing fields.
+        ...(externalAdjudication
+          ? {
+              external_adjudication: {
+                status: externalAdjudication.status,
+                mode: externalAdjudication.mode,
+                cross_check_returned: externalAdjudication.cross_check_returned,
+                ...(externalAdjudication.status !== "completed" && "reason" in externalAdjudication
+                  ? { reason: externalAdjudication.reason }
+                  : {}),
+                ...("packet_chars" in externalAdjudication && externalAdjudication.packet_chars !== undefined
+                  ? { packet_chars: externalAdjudication.packet_chars }
+                  : {}),
+                ...("packet_compression_ratio" in externalAdjudication && externalAdjudication.packet_compression_ratio !== undefined
+                  ? { packet_compression_ratio: externalAdjudication.packet_compression_ratio }
+                  : {}),
+              },
+            }
+          : {}),
       },
     },
   };
