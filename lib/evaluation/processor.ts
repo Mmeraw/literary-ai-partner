@@ -1919,9 +1919,17 @@ export async function processEvaluationJob(
       }
       if (chunkRouting.max_chunk_chars > adaptiveMaxChars) {
         const violatingIndex = chunkRouting.max_chunk_index ?? 0;
+        // The emitted chunk content includes any prepended overlap on non-first
+        // chunks (content = text.slice(baseStart - overlap, baseEnd)). For
+        // diagnostic clarity, surface BOTH the emitted size (which is what the
+        // contract enforces) and the implied base-span size, so a future
+        // overlap-vs-emitted accounting drift is immediately obvious.
+        const emittedChars = chunkRouting.max_chunk_chars;
+        const overlapBudget = chunkRouting.overlap_chars ?? 0;
+        const impliedBaseChars = Math.max(0, emittedChars - overlapBudget);
         const chunkBudgetError =
           `Chunker post-condition violated: chunk ${violatingIndex} has ` +
-          `char_count=${chunkRouting.max_chunk_chars} which exceeds adaptive ` +
+          `char_count=${emittedChars} which exceeds adaptive ` +
           `bracket maxChars=${adaptiveMaxChars} (bracket=${chunkRouting.bracket}). ` +
           `Failing closed before dispatch.`;
         await markFailed(chunkBudgetError, 'CHUNK_BUDGET_OVERFLOW', {
@@ -1930,7 +1938,10 @@ export async function processEvaluationJob(
           diagnostics: {
             chunk_routing: chunkRouting,
             violating_chunk_index: violatingIndex,
-            chunk_char_count: chunkRouting.max_chunk_chars,
+            chunk_char_count: emittedChars,
+            chunk_emitted_chars: emittedChars,
+            chunk_implied_base_chars: impliedBaseChars,
+            chunk_overlap_budget_chars: overlapBudget,
             adaptive_max_chars: adaptiveMaxChars,
             bracket: chunkRouting.bracket,
           },

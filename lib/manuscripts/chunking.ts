@@ -461,6 +461,16 @@ export async function chunkManuscript(
   // Pre-compute segment cut points using look-ahead tail-folding so we never
   // emit a sub-minChars chunk except when the entire segment itself is < minChars.
   // For each segment we plan all cuts before emitting any chunk.
+  //
+  // Overlap-aware planning: emitted chunk content is
+  //   text.slice(baseStart - overlap, baseEnd)
+  // so emitted length = cut + overlap. We honour cfg.maxChars as the
+  // EMITTED-content ceiling (the contract downstream prompt-budgeting and
+  // the chunker post-condition rely on). Therefore each cut is capped at
+  //   maxChars - overlapForThisChunk
+  // where overlapForThisChunk depends on global chunk index AND segment
+  // offset (chunkIndex 0 has no overlap; any chunk whose baseStart >= 0 in
+  // a non-first segment gets the full overlapChars).
   for (let s = 0; s < boundaries.length - 1; s++) {
     const segStart = boundaries[s].index;
     const segEnd = boundaries[s + 1].index;
@@ -468,37 +478,73 @@ export async function chunkManuscript(
 
     // Plan cuts within the segment so no chunk is < minChars except possibly
     // when the entire segment is < minChars (in which case there is no fix).
+    //
+    // Per-cut overlap calculation mirrors the emit-time logic below:
+    //   overlap = (plannedGlobalChunkIndex === 0) ? 0 : min(overlapChars, baseStart)
+    // baseStart inside this segment = segStart + cursor; for s > 0 (any non-
+    // first segment) baseStart >= segStart >= overlapChars in practice, so
+    // the min collapses to overlapChars. We keep the min(...) defensive.
     const cuts: number[] = [];
     let remaining = segLen;
+    let plannedCursor = 0;
+    let plannedGlobalIdx = chunkIndex;
     while (remaining > 0) {
-      const cut = Math.min(cfg.maxChars, remaining);
+      const baseStart = segStart + plannedCursor;
+      const overlapForThisChunk =
+        plannedGlobalIdx === 0 ? 0 : Math.min(cfg.overlapChars, baseStart);
+      const maxBaseCutForThisChunk = Math.max(1, cfg.maxChars - overlapForThisChunk);
+      const cut = Math.min(maxBaseCutForThisChunk, remaining);
       cuts.push(cut);
       remaining -= cut;
+      plannedCursor += cut;
+      plannedGlobalIdx += 1;
     }
     // Rebalance the last two cuts if the tail is < minChars.
     // Borrow from the second-to-last cut down to (but not below) minChars,
     // and give to the tail until it is ≥ minChars or no more can be borrowed.
+    //
+    // The rebalance must not push the tail's BASE cut past its own emitted
+    // ceiling. Since the tail is a non-first chunk in any multi-cut segment,
+    // its emitted ceiling is (maxChars - overlapChars). We compute the
+    // tail's emitted ceiling explicitly so we don't re-inflate a cut past
+    // the per-chunk emitted contract.
     if (cuts.length >= 2) {
       let i = cuts.length - 1;
       while (i > 0 && cuts[i] < cfg.minChars) {
         const need = cfg.minChars - cuts[i];
         const canBorrow = Math.max(0, cuts[i - 1] - cfg.minChars);
-        const borrow = Math.min(need, canBorrow);
+        // The cut at position i is a non-first chunk in this segment, so its
+        // emitted-content ceiling is (cfg.maxChars - cfg.overlapChars). Never
+        // borrow more than would push this cut past that ceiling.
+        const tailEmittedCeiling = Math.max(1, cfg.maxChars - cfg.overlapChars);
+        const headroom = Math.max(0, tailEmittedCeiling - cuts[i]);
+        const borrow = Math.min(need, canBorrow, headroom);
         if (borrow === 0) break;
         cuts[i - 1] -= borrow;
         cuts[i] += borrow;
       }
       // If even after rebalance the tail is still < minChars (segment too short
       // for two min-sized chunks), merge the tail into its predecessor when
-      // doing so doesn't push the predecessor above maxChars.
+      // doing so doesn't push the predecessor above its own emitted ceiling.
+      // Predecessor at index (cuts.length - 2): non-first chunk in this
+      // segment unless cuts.length === 2 AND segment s === 0 AND chunkIndex
+      // at planning start was 0. We use the conservative (maxChars -
+      // overlapChars) ceiling for any predecessor that could carry overlap;
+      // the first-chunk-of-manuscript case is rare and additively safe.
       while (cuts.length >= 2 && cuts[cuts.length - 1] < cfg.minChars) {
         const tail = cuts[cuts.length - 1];
         const prev = cuts[cuts.length - 2];
-        if (prev + tail <= cfg.maxChars) {
+        // The merged predecessor will be emitted at length (prev + tail) +
+        // its own overlap. For chunkIndex 0 there is no overlap; for any
+        // other chunk the overlap is cfg.overlapChars. Pick the conservative
+        // ceiling unconditionally — it is a no-op for the chunkIndex-0 case
+        // because (prev + tail) <= (maxChars - overlapChars) <= maxChars.
+        const prevEmittedCeiling = Math.max(1, cfg.maxChars - cfg.overlapChars);
+        if (prev + tail <= prevEmittedCeiling) {
           cuts[cuts.length - 2] = prev + tail;
           cuts.pop();
         } else {
-          break; // can't merge without exceeding maxChars
+          break; // can't merge without exceeding emitted-content ceiling
         }
       }
     }
