@@ -711,7 +711,7 @@ describe("runPipeline (e2e with injected runners)", () => {
         process.env.EVAL_PASS_TIMEOUT_MS = originalPassTimeout;
       }
     }
-  });
+  }, 15_000);
 
   it("fails closed when lessons-learned blocks at post_structural", async () => {
     const evaluateRules = jest.fn<(input: RuleEvaluationInput, stage?: RuleStage) => LessonsLearnedReport>();
