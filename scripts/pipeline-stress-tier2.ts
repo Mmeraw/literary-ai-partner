@@ -127,8 +127,14 @@ function hasNonEmptyString(value: unknown): boolean {
   return typeof value === "string" && value.trim().length > 0;
 }
 
+type PipelineFailureResult = Extract<PipelineResult, { ok: false }>;
+
+function isPipelineFailureResult(result: PipelineResult | null): result is PipelineFailureResult {
+  return !!result && !result.ok;
+}
+
 function inferClauseFromPipelineFailure(result: PipelineResult | null): LongFormClauseId {
-  if (!result || result.ok) {
+  if (!isPipelineFailureResult(result)) {
     return "CLAUSE_11_TOTAL_RUNTIME_WITHIN_BUDGET";
   }
 
