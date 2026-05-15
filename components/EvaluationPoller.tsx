@@ -56,6 +56,12 @@ export interface JobState {
   created_at: string;
   updated_at: string;
   last_error?: string;
+  // Canonical pipeline-stage fields (additive; may be absent on older API responses).
+  // When present these are authoritative for stage label resolution and are decoupled
+  // from the smoothly-animated visual progress bar.
+  phase?: 'phase_0' | 'phase_1' | 'phase_2' | null;
+  phase_status?: 'queued' | 'running' | 'complete' | 'failed' | null;
+  cross_check_status?: 'queued' | 'running' | 'complete' | 'failed' | null;
 }
 
 interface PollerProps {
@@ -259,7 +265,10 @@ export function EvaluationPoller({
             prev.status === nextJob.status &&
             prev.progress === nextJob.progress &&
             prev.updated_at === nextJob.updated_at &&
-            prev.last_error === nextJob.last_error;
+            prev.last_error === nextJob.last_error &&
+            prev.phase === nextJob.phase &&
+            prev.phase_status === nextJob.phase_status &&
+            prev.cross_check_status === nextJob.cross_check_status;
 
           unchangedCountRef.current = unchanged ? unchangedCountRef.current + 1 : 0;
           return nextJob;
@@ -473,7 +482,16 @@ export function EvaluationPoller({
           // in flight, render through the running-stage label map instead of the
           // terminal complete display, which is intentionally fixed at 100%.
           const displayStatus = isCompletingAnimation ? 'running' : job.status;
-          const pd = getProgressDisplay({ status: displayStatus, progress: displayProgress });
+          // Pass authoritative phase fields through so the stage label reflects the
+          // real pipeline state, while the visual percentage continues to use the
+          // smoothly-animated displayProgress for UX continuity.
+          const pd = getProgressDisplay({
+            status: displayStatus,
+            progress: displayProgress,
+            phase: job.phase ?? null,
+            phase_status: job.phase_status ?? null,
+            cross_check_status: job.cross_check_status ?? null,
+          });
           if (!pd) return null;
           return (
             <div className="space-y-2">
