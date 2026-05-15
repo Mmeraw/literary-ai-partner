@@ -113,7 +113,44 @@ const PERPLEXITY_MODEL = "sonar-reasoning-pro";
 // Premium two-AI adjudication budget. Raised from 8000 -> 12000 after Pass 4 audit
 // observed 2/11 historical truncations at 8000 with sonar-reasoning-pro reasoning headers.
 const PERPLEXITY_MAX_TOKENS = 12000;
-const PERPLEXITY_REQUEST_TIMEOUT_MS = 60000;
+export const DEFAULT_PERPLEXITY_REQUEST_TIMEOUT_MS = 180_000;
+export const MIN_PERPLEXITY_REQUEST_TIMEOUT_MS = 60_000;
+
+/**
+ * Resolve the Perplexity request timeout from the environment.
+ *
+ * Defaults to 180_000ms (180s). Sonar-reasoning-pro on full-novel
+ * packets (~30k chars) routinely takes 90-150s; 60s was the prior
+ * hardcoded ceiling and proved too tight for novel-length runs. The
+ * env var lets production raise/lower without a code change.
+ *
+ * Policy (not just parsing):
+ *   - undefined / empty / whitespace  -> default
+ *   - non-numeric / NaN               -> default
+ *   - value < MIN (60_000ms)          -> default
+ *   - valid value >= MIN              -> use it (no upper clamp)
+ *
+ * Exported for direct unit testing. PERPLEXITY_REQUEST_TIMEOUT_MS is
+ * a module-level constant captured at import time; tests should call
+ * the resolver directly rather than mutating process.env after import.
+ */
+export function resolvePerplexityRequestTimeoutMs(
+  raw: string | undefined = process.env.PERPLEXITY_REQUEST_TIMEOUT_MS,
+): number {
+  if (raw === undefined || raw.trim() === "") {
+    return DEFAULT_PERPLEXITY_REQUEST_TIMEOUT_MS;
+  }
+
+  const parsed = Number.parseInt(raw, 10);
+
+  if (!Number.isFinite(parsed) || parsed < MIN_PERPLEXITY_REQUEST_TIMEOUT_MS) {
+    return DEFAULT_PERPLEXITY_REQUEST_TIMEOUT_MS;
+  }
+
+  return parsed;
+}
+
+const PERPLEXITY_REQUEST_TIMEOUT_MS = resolvePerplexityRequestTimeoutMs();
 const DISPUTE_THRESHOLD = 1.0;
 
 // Phrases observed in 3/11 historical Pass 4 failures where sonar refused

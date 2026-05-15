@@ -104,7 +104,7 @@ describe("buildPass4EvidencePacket - short manuscripts", () => {
     expect(packet.sourceWords).toBeLessThan(25_000);
     expect(packet.sourceChars).toBeGreaterThan(18_000);
     expect(packet.includesEnding).toBe(true);
-    expect(packet.selectedWindows).toContain("final");
+    expect(packet.selectedWindows).toContain("ending");
     expect(packet.text).toMatch(/--- WINDOW: ENDING/);
     expect(packet.text).toContain("ENDING_MARKER_OMEGA");
   });
@@ -132,7 +132,7 @@ describe("buildPass4EvidencePacket - long-form manuscripts (>= 25k words)", () =
 
     expect(packet.selectedWindows).toContain("opening");
     expect(packet.selectedWindows).toContain("middle");
-    expect(packet.selectedWindows).toContain("final");
+    expect(packet.selectedWindows).toContain("ending");
     expect(packet.includesOpening).toBe(true);
     expect(packet.includesEnding).toBe(true);
   });
@@ -243,7 +243,7 @@ describe("buildPass4EvidencePacket - options", () => {
 
     expect(packet.packetChars).toBeLessThanOrEqual(12_000);
     expect(packet.includesEnding).toBe(true);
-    expect(packet.selectedWindows).toContain("final");
+    expect(packet.selectedWindows).toContain("ending");
     expect(packet.text).toMatch(/--- WINDOW: ENDING/);
     expect(packet.text).toContain("ENDING_MARKER_OMEGA");
   });
