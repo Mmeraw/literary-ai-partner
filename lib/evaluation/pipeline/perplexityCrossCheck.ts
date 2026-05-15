@@ -18,6 +18,7 @@ import {
   JsonBoundaryError,
   parseJsonObjectBoundary,
 } from "./jsonParseBoundary";
+import { CRITERIA_KEYS, type CriterionKey } from "@/schemas/criteria-keys";
 import {
   classifyParseError,
   detectShapeVariant,
@@ -30,20 +31,11 @@ import {
   buildRefusalRetryUserPrompt,
 } from "./perplexityCrossCheckRequest";
 
-export type CriterionKey =
-  | "concept"
-  | "narrativeDrive"
-  | "character"
-  | "voice"
-  | "sceneConstruction"
-  | "dialogue"
-  | "theme"
-  | "worldbuilding"
-  | "pacing"
-  | "proseControl"
-  | "tone"
-  | "emotionalResonance"
-  | "marketability";
+// CriterionKey is re-exported below from the canonical registry. The local
+// union was removed to eliminate criterion-authority drift between Pass 4 and
+// the rest of the pipeline (Pass 1/2/3, QualityGate). Do NOT reintroduce.
+export { CRITERIA_KEYS, type CriterionKey } from "@/schemas/criteria-keys";
+
 
 export interface OpenAICriterionInput {
   score: number;
@@ -141,21 +133,8 @@ const REFUSAL_PHRASES: readonly string[] = [
   "as an ai search",
 ];
 
-const CRITERION_KEYS: CriterionKey[] = [
-  "concept",
-  "narrativeDrive",
-  "character",
-  "voice",
-  "sceneConstruction",
-  "dialogue",
-  "theme",
-  "worldbuilding",
-  "pacing",
-  "proseControl",
-  "tone",
-  "emotionalResonance",
-  "marketability",
-];
+// Pass 4 iterates the canonical criterion registry. Single source of truth:
+// schemas/criteria-keys.ts. Do NOT reintroduce a local CRITERIA_KEYS array.
 
 function assertScore(score: unknown, key: string): number {
   if (typeof score !== "number" || Number.isNaN(score)) {
@@ -297,7 +276,7 @@ function validateParsedResponse(parsed: unknown): PerplexityResponseShape {
 
   const criteria = {} as Record<CriterionKey, PerplexityCriterionResponse>;
 
-  for (const key of CRITERION_KEYS) {
+  for (const key of CRITERIA_KEYS) {
     criteria[key] = validatePerplexityCriterion(
       key,
       (criteriaObj as Record<string, unknown>)[key]
@@ -535,7 +514,7 @@ export async function runPerplexityCrossCheck(opts: {
     throw new Error("[Pass4] PERPLEXITY_API_KEY is required.");
   }
 
-  const criteriaBlock = CRITERION_KEYS.map((key) => {
+  const criteriaBlock = CRITERIA_KEYS.map((key) => {
     const item = openaiCriteria[key];
     const score = item?.score ?? 0;
     const rationale = item?.rationale?.trim()
@@ -583,7 +562,7 @@ Required schema:
     "pacing": { ...same shape... },
     "proseControl": { ...same shape... },
     "tone": { ...same shape... },
-    "emotionalResonance": { ...same shape... },
+    "narrativeClosure": { ...same shape... },
     "marketability": { ...same shape... }
   },
   "synthesisNote": "3-5 sentence adjudication summary"
@@ -603,7 +582,7 @@ ${openaiSynthesis?.slice(0, 900) ?? "(none)"}
 
 Now return the independent adjudication as JSON.`;
 
-  const responseSchema = buildPerplexityResponseSchema(CRITERION_KEYS);
+  const responseSchema = buildPerplexityResponseSchema(CRITERIA_KEYS);
 
   const initialPromptChars = systemPrompt.length + userPrompt.length;
   let attemptCounter = 0;
@@ -941,7 +920,7 @@ Now return the independent adjudication as JSON.`;
   const disputedCriteria: CriterionKey[] = [];
   const invalidCriteria: CriterionKey[] = [];
 
-  for (const key of CRITERION_KEYS) {
+  for (const key of CRITERIA_KEYS) {
     const openaiItem = openaiCriteria[key];
     const openaiNorm = normalizeOpenAIScore(openaiItem, key);
     const openaiScore = openaiNorm.kind === "valid" ? openaiNorm.score : null;
@@ -1050,7 +1029,7 @@ Now return the independent adjudication as JSON.`;
     };
   }
 
-  const disputeRatio = disputedCriteria.length / CRITERION_KEYS.length;
+  const disputeRatio = disputedCriteria.length / CRITERIA_KEYS.length;
   const overallAgreement: CrossCheckOutput["overallAgreement"] =
     disputeRatio === 0 ? "STRONG" : disputeRatio <= 0.3 ? "MODERATE" : "WEAK";
 

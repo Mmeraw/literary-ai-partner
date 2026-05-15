@@ -17,7 +17,7 @@ const PASS4_KEYS: CriterionKey[] = [
   "pacing",
   "proseControl",
   "tone",
-  "emotionalResonance",
+  "narrativeClosure",
   "marketability",
 ];
 

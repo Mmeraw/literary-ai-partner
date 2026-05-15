@@ -7,6 +7,7 @@ import {
   type CriterionKey,
   type OpenAICriterionInput,
 } from "@/lib/evaluation/pipeline/perplexityCrossCheck";
+import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
 
 const PASS4_KEYS: CriterionKey[] = [
   "concept",
@@ -20,7 +21,7 @@ const PASS4_KEYS: CriterionKey[] = [
   "pacing",
   "proseControl",
   "tone",
-  "emotionalResonance",
+  "narrativeClosure",
   "marketability",
 ];
 
@@ -277,8 +278,8 @@ describe("runPerplexityCrossCheck", () => {
     global.fetch = fetchMock;
 
     const openaiCriteria = makeOpenAICriteria();
-    openaiCriteria.emotionalResonance = {
-      ...openaiCriteria.emotionalResonance,
+    openaiCriteria.narrativeClosure = {
+      ...openaiCriteria.narrativeClosure,
       score: 0,
     };
 
@@ -293,10 +294,10 @@ describe("runPerplexityCrossCheck", () => {
 
     expect(result).toBeDefined();
     expect(result.canonValid).toBe(false);
-    expect(result.invalidCriteria).toContain("emotionalResonance");
-    expect(result.criteria.emotionalResonance.direction).toBe("INVALID");
-    expect(result.criteria.emotionalResonance.openaiScore).toBeNull();
-    expect(result.criteria.emotionalResonance.delta).toBeNull();
+    expect(result.invalidCriteria).toContain("narrativeClosure");
+    expect(result.criteria.narrativeClosure.direction).toBe("INVALID");
+    expect(result.criteria.narrativeClosure.openaiScore).toBeNull();
+    expect(result.criteria.narrativeClosure.delta).toBeNull();
   });
 
   it("preserves cross_check when an OpenAI-side criterion is missing entirely", async () => {
@@ -307,7 +308,7 @@ describe("runPerplexityCrossCheck", () => {
     global.fetch = fetchMock;
 
     const openaiCriteria = makeOpenAICriteria();
-    delete (openaiCriteria as Record<string, unknown>).emotionalResonance;
+    delete (openaiCriteria as Record<string, unknown>).narrativeClosure;
 
     const result = await runPerplexityCrossCheck({
       openaiCriteria,
@@ -320,10 +321,10 @@ describe("runPerplexityCrossCheck", () => {
 
     expect(result).toBeDefined();
     expect(result.canonValid).toBe(false);
-    expect(result.invalidCriteria).toContain("emotionalResonance");
-    expect(result.criteria.emotionalResonance.direction).toBe("MISSING");
-    expect(result.criteria.emotionalResonance.openaiScore).toBeNull();
-    expect(result.criteria.emotionalResonance.delta).toBeNull();
+    expect(result.invalidCriteria).toContain("narrativeClosure");
+    expect(result.criteria.narrativeClosure.direction).toBe("MISSING");
+    expect(result.criteria.narrativeClosure.openaiScore).toBeNull();
+    expect(result.criteria.narrativeClosure.delta).toBeNull();
   });
 
   it("flags invalidOpenaiCriterion / missingFromOpenai diagnostics on the criterion result", async () => {
@@ -334,8 +335,8 @@ describe("runPerplexityCrossCheck", () => {
     global.fetch = fetchMock;
 
     const openaiCriteria = makeOpenAICriteria();
-    openaiCriteria.emotionalResonance = {
-      ...openaiCriteria.emotionalResonance,
+    openaiCriteria.narrativeClosure = {
+      ...openaiCriteria.narrativeClosure,
       score: 0,
     };
     delete (openaiCriteria as Record<string, unknown>).voice;
@@ -349,12 +350,12 @@ describe("runPerplexityCrossCheck", () => {
       perplexityApiKey: "pplx-test",
     });
 
-    expect(result.criteria.emotionalResonance.invalidOpenaiCriterion).toBe(true);
-    expect(result.criteria.emotionalResonance.missingFromOpenai).toBe(false);
+    expect(result.criteria.narrativeClosure.invalidOpenaiCriterion).toBe(true);
+    expect(result.criteria.narrativeClosure.missingFromOpenai).toBe(false);
     expect(result.criteria.voice.missingFromOpenai).toBe(true);
     expect(result.criteria.voice.invalidOpenaiCriterion).toBe(false);
     expect(result.invalidCriteria).toEqual(
-      expect.arrayContaining(["emotionalResonance", "voice"]),
+      expect.arrayContaining(["narrativeClosure", "voice"]),
     );
     expect(result.canonValid).toBe(false);
   });
@@ -367,8 +368,8 @@ describe("runPerplexityCrossCheck", () => {
     global.fetch = fetchMock;
 
     const openaiCriteria = makeOpenAICriteria();
-    openaiCriteria.emotionalResonance = {
-      ...openaiCriteria.emotionalResonance,
+    openaiCriteria.narrativeClosure = {
+      ...openaiCriteria.narrativeClosure,
       score: 0,
     };
 
@@ -507,5 +508,40 @@ describe("normalizeCrossCheckShape", () => {
     expect(normalizeCrossCheckShape(null)).toBeNull();
     expect(normalizeCrossCheckShape("string")).toBe("string");
     expect(normalizeCrossCheckShape(42)).toBe(42);
+  });
+});
+
+
+describe("Pass 4 canonical-criteria alignment (regression)", () => {
+  it("PASS4_KEYS equals canonical CRITERIA_KEYS in order", () => {
+    expect(PASS4_KEYS).toEqual([...CRITERIA_KEYS]);
+  });
+
+  it("includes narrativeClosure and does not require emotionalResonance", () => {
+    expect(CRITERIA_KEYS).toContain("narrativeClosure");
+    expect(CRITERIA_KEYS as readonly string[]).not.toContain("emotionalResonance");
+  });
+
+  it("runPerplexityCrossCheck output.criteria keyed on canonical registry", async () => {
+    const payload = makePerplexityPayload();
+    const fetchMock = jest.fn<typeof fetch>().mockResolvedValue(
+      makeFetchResponse(JSON.stringify(payload)) as unknown as Response,
+    );
+    global.fetch = fetchMock;
+
+    const result = await runPerplexityCrossCheck({
+      openaiCriteria: makeOpenAICriteria(),
+      openaiSynthesis: "Primary evaluator synthesis.",
+      manuscriptExcerpt: "The river moved slowly through the valley.",
+      workType: "literary_fiction",
+      title: "The Valley",
+      perplexityApiKey: "pplx-test",
+    });
+
+    const keys = Object.keys(result.criteria).sort();
+    const expected = [...CRITERIA_KEYS].sort();
+    expect(keys).toEqual(expected);
+    expect(keys).toContain("narrativeClosure");
+    expect(keys).not.toContain("emotionalResonance");
   });
 });
