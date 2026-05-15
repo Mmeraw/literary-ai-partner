@@ -30,6 +30,7 @@ import {
   buildPerplexityResponseSchema,
   buildRefusalRetryUserPrompt,
 } from "./perplexityCrossCheckRequest";
+import { buildPass4EvidencePacket } from "./pass4EvidencePacket";
 
 // CriterionKey is re-exported below from the canonical registry. The local
 // union was removed to eliminate criterion-authority drift between Pass 4 and
@@ -523,6 +524,12 @@ export async function runPerplexityCrossCheck(opts: {
     return `- ${key}: ${score}/10${rationale}`;
   }).join("\n");
 
+  // Pass 4 evidence packet: replaces the legacy first-3000-char
+  // excerpt with a bounded representative slice spanning opening /
+  // early / middle / late / ending windows. See
+  // lib/evaluation/pipeline/pass4EvidencePacket.ts for the design.
+  const evidencePacket = buildPass4EvidencePacket(manuscriptExcerpt);
+
   const systemPrompt = `You are an independent literary evaluation adjudicator performing a canon-governed second-opinion review.
 
 Rules:
@@ -571,8 +578,8 @@ Required schema:
   const userPrompt = `MANUSCRIPT TITLE: "${title}"
 WORK TYPE: ${workType}
 
-MANUSCRIPT EXCERPT (first 3000 chars):
-${manuscriptExcerpt.slice(0, 3000)}
+REPRESENTATIVE MANUSCRIPT EVIDENCE PACKET:
+${evidencePacket.text}
 
 PRIMARY EVALUATOR SCORES:
 ${criteriaBlock}
@@ -595,6 +602,12 @@ Now return the independent adjudication as JSON.`;
     prompt_chars: initialPromptChars,
     max_completion_tokens: PERPLEXITY_MAX_TOKENS,
     mode: process.env.EVAL_EXTERNAL_ADJUDICATION_MODE ?? null,
+    pass4_packet_chars: evidencePacket.packetChars,
+    pass4_packet_compression_ratio: evidencePacket.compressionRatio,
+    pass4_selected_windows: evidencePacket.selectedWindows,
+    pass4_includes_opening: evidencePacket.includesOpening,
+    pass4_includes_ending: evidencePacket.includesEnding,
+    pass4_source_words: evidencePacket.sourceWords,
   });
 
   const requestCompletion = async (
