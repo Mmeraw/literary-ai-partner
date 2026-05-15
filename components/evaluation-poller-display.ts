@@ -33,6 +33,13 @@ function toApproxRunningPercentage(rawProgress: number): number {
   return Math.round(75 + ((raw - 66) / 34) * 24);
 }
 
+/**
+ * Heuristic stage label derived from the smoothly-animated display percentage.
+ *
+ * Retained as a fallback for cases where the backend has not yet emitted a
+ * canonical `phase` / `phase_status` (older jobs, transient API gaps, queued).
+ * Authoritative stage label resolution should prefer `getStageLabelFromPhase`.
+ */
 function getStageLabel(percentage: number): string {
   if (percentage >= 100) return "Report ready";
   if (percentage >= 95) return "Finalizing report";
@@ -44,8 +51,60 @@ function getStageLabel(percentage: number): string {
   return "Preparing manuscript";
 }
 
+/**
+ * Authoritative stage label derived from the canonical job state surfaced by
+ * the worker: phase + phase_status (+ optional cross_check_status).
+ *
+ * Returns null if there is not enough authoritative data to label the stage,
+ * letting callers fall back to the percentage-driven heuristic.
+ *
+ * Mapping (truth-first, decoupled from the visual bar):
+ *   phase_1 / running    → "Reading manuscript"
+ *   phase_1 / complete   → "Building diagnosis"  (transient handoff)
+ *   phase_2 / running    → "Reconciling passes"
+ *   phase_2 / complete   → "Final QA checks"     (cross-check pending)
+ *   cross_check_status == "running"   → "Final QA checks"
+ *   cross_check_status == "complete"  → "Preparing report"
+ *   cross_check_status == "failed"    → "Final QA checks"
+ *   queued (any phase)   → "Preparing manuscript"
+ *   failed (any phase)   → null  (failure UI is handled elsewhere)
+ */
+export function getStageLabelFromPhase(
+  phase: string | null | undefined,
+  phaseStatus: string | null | undefined,
+  crossCheckStatus: string | null | undefined,
+): string | null {
+  // Cross-check is the terminal QA gate and outranks phase signals when active.
+  if (crossCheckStatus === "running") return "Final QA checks";
+  if (crossCheckStatus === "complete") return "Preparing report";
+
+  if (!phase) return null;
+
+  if (phase === "phase_1") {
+    if (phaseStatus === "queued") return "Preparing manuscript";
+    if (phaseStatus === "running") return "Reading manuscript";
+    if (phaseStatus === "complete") return "Building diagnosis";
+    return null;
+  }
+
+  if (phase === "phase_2") {
+    if (phaseStatus === "queued") return "Building diagnosis";
+    if (phaseStatus === "running") return "Reconciling passes";
+    if (phaseStatus === "complete") return "Final QA checks";
+    return null;
+  }
+
+  return null;
+}
+
+type ProgressDisplayInput = Pick<JobState, "status" | "progress"> & {
+  phase?: string | null;
+  phase_status?: string | null;
+  cross_check_status?: string | null;
+};
+
 export function getProgressDisplay(
-  job: Pick<JobState, "status" | "progress">
+  job: ProgressDisplayInput,
 ): ProgressDisplay {
   if (job.status === "queued") {
     return {
@@ -59,7 +118,15 @@ export function getProgressDisplay(
 
   if (job.status === "running") {
     const percentage = toApproxRunningPercentage(job.progress);
-    const stageLabel = getStageLabel(percentage);
+    // Prefer the authoritative phase-derived label when available.
+    // Fall back to the percentage heuristic for backward compatibility
+    // (e.g., when phase fields are absent from the API response).
+    const phaseLabel = getStageLabelFromPhase(
+      job.phase ?? null,
+      job.phase_status ?? null,
+      job.cross_check_status ?? null,
+    );
+    const stageLabel = phaseLabel ?? getStageLabel(percentage);
 
     return {
       label: stageLabel,

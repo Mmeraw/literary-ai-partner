@@ -1,4 +1,7 @@
-import { getProgressDisplay } from "@/components/evaluation-poller-display";
+import {
+  getProgressDisplay,
+  getStageLabelFromPhase,
+} from "@/components/evaluation-poller-display";
 
 describe("getProgressDisplay", () => {
   test("shows an indeterminate queued progress section", () => {
@@ -23,7 +26,7 @@ describe("getProgressDisplay", () => {
     });
   });
 
-  test("maps running progress to non-revealing stages", () => {
+  test("maps running progress to non-revealing stages (heuristic fallback when phase absent)", () => {
     expect(getProgressDisplay({ status: "running", progress: 0 })?.label).toBe("Preparing manuscript");
     expect(getProgressDisplay({ status: "running", progress: 25 })?.label).toBe("Building diagnosis");
     expect(getProgressDisplay({ status: "running", progress: 45 })?.label).toBe("Reconciling passes");
@@ -46,5 +49,109 @@ describe("getProgressDisplay", () => {
       percentage: 100,
     });
     expect(getProgressDisplay({ status: "failed", progress: 10 })).toBeNull();
+  });
+
+  test("prefers authoritative phase label over heuristic when present", () => {
+    // Visually animated bar may be at 79% (UI soft-ceiling), but the canonical
+    // pipeline is still in phase_1/running. The label must follow the phase,
+    // not the visual bar.
+    expect(
+      getProgressDisplay({
+        status: "running",
+        progress: 79,
+        phase: "phase_1",
+        phase_status: "running",
+      })?.label,
+    ).toBe("Reading manuscript");
+
+    // Same visual percentage, different real phase → different label.
+    expect(
+      getProgressDisplay({
+        status: "running",
+        progress: 79,
+        phase: "phase_2",
+        phase_status: "running",
+      })?.label,
+    ).toBe("Reconciling passes");
+
+    // Cross-check active outranks phase signal.
+    expect(
+      getProgressDisplay({
+        status: "running",
+        progress: 79,
+        phase: "phase_2",
+        phase_status: "complete",
+        cross_check_status: "running",
+      })?.label,
+    ).toBe("Final QA checks");
+
+    // Cross-check complete → preparing report.
+    expect(
+      getProgressDisplay({
+        status: "running",
+        progress: 79,
+        phase: "phase_2",
+        phase_status: "complete",
+        cross_check_status: "complete",
+      })?.label,
+    ).toBe("Preparing report");
+  });
+
+  test("retains existing percentage when phase is provided (animation behavior unchanged)", () => {
+    const out = getProgressDisplay({
+      status: "running",
+      progress: 79,
+      phase: "phase_1",
+      phase_status: "running",
+    });
+    // toApproxRunningPercentage(79): 75 + ((79-66)/34)*24 = 84.176 → 84
+    expect(out?.percentage).toBe(84);
+    expect(out?.valueLabel).toBe("~84%");
+  });
+
+  test("falls back to heuristic label when phase data is missing or non-canonical", () => {
+    expect(
+      getProgressDisplay({
+        status: "running",
+        progress: 42,
+        phase: null,
+        phase_status: null,
+      })?.label,
+    ).toBe("Reconciling passes");
+
+    expect(
+      getProgressDisplay({
+        status: "running",
+        progress: 42,
+        // @ts-expect-error intentionally non-canonical for backward-compat test
+        phase: "unknown_phase",
+        phase_status: "running",
+      })?.label,
+    ).toBe("Reconciling passes");
+  });
+});
+
+describe("getStageLabelFromPhase", () => {
+  test("maps phase_1 lifecycle to user-safe labels", () => {
+    expect(getStageLabelFromPhase("phase_1", "queued", null)).toBe("Preparing manuscript");
+    expect(getStageLabelFromPhase("phase_1", "running", null)).toBe("Reading manuscript");
+    expect(getStageLabelFromPhase("phase_1", "complete", null)).toBe("Building diagnosis");
+  });
+
+  test("maps phase_2 lifecycle to user-safe labels", () => {
+    expect(getStageLabelFromPhase("phase_2", "queued", null)).toBe("Building diagnosis");
+    expect(getStageLabelFromPhase("phase_2", "running", null)).toBe("Reconciling passes");
+    expect(getStageLabelFromPhase("phase_2", "complete", null)).toBe("Final QA checks");
+  });
+
+  test("cross_check_status overrides phase signal", () => {
+    expect(getStageLabelFromPhase("phase_2", "complete", "running")).toBe("Final QA checks");
+    expect(getStageLabelFromPhase("phase_2", "complete", "complete")).toBe("Preparing report");
+  });
+
+  test("returns null when phase data is insufficient", () => {
+    expect(getStageLabelFromPhase(null, null, null)).toBeNull();
+    expect(getStageLabelFromPhase(undefined, undefined, undefined)).toBeNull();
+    expect(getStageLabelFromPhase("phase_1", "unexpected_state", null)).toBeNull();
   });
 });
