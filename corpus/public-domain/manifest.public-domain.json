@@ -1,0 +1,82 @@
+{
+  "schema_version": 1,
+  "purpose": "RevisionGrade public-domain calibration corpus manifest. Substrate only; not a runtime prompt source.",
+  "works": [
+    {
+      "id": "story-of-an-hour",
+      "title": "The Story of an Hour",
+      "author": "Kate Chopin",
+      "first_publication_year": 1894,
+      "source_name": "Project Gutenberg",
+      "source_url": "https://www.gutenberg.org/ebooks/160",
+      "jurisdiction_basis": "U.S. public domain source; verify local jurisdiction before redistribution outside the U.S.",
+      "form": "short_fiction",
+      "raw_text_path": "corpus/public-domain/raw/story-of-an-hour.txt",
+      "clean_text_path": "corpus/public-domain/clean/story-of-an-hour.txt",
+      "allowed_uses": ["manifest_seed", "future_smoke_fixture", "future_calibration_fixture"],
+      "cleaning": {
+        "status": "not_downloaded",
+        "headers_removed": false,
+        "footers_removed": false,
+        "modern_editorial_material_removed": false
+      }
+    },
+    {
+      "id": "tell-tale-heart",
+      "title": "The Tell-Tale Heart",
+      "author": "Edgar Allan Poe",
+      "first_publication_year": 1843,
+      "source_name": "Project Gutenberg",
+      "source_url": "https://www.gutenberg.org/ebooks/2148",
+      "jurisdiction_basis": "U.S. public domain source; verify local jurisdiction before redistribution outside the U.S.",
+      "form": "short_fiction",
+      "raw_text_path": "corpus/public-domain/raw/tell-tale-heart.txt",
+      "clean_text_path": "corpus/public-domain/clean/tell-tale-heart.txt",
+      "allowed_uses": ["manifest_seed", "future_smoke_fixture", "future_calibration_fixture"],
+      "cleaning": {
+        "status": "not_downloaded",
+        "headers_removed": false,
+        "footers_removed": false,
+        "modern_editorial_material_removed": false
+      }
+    },
+    {
+      "id": "dracula",
+      "title": "Dracula",
+      "author": "Bram Stoker",
+      "first_publication_year": 1897,
+      "source_name": "Project Gutenberg",
+      "source_url": "https://www.gutenberg.org/ebooks/345",
+      "jurisdiction_basis": "U.S. public domain source; verify local jurisdiction before redistribution outside the U.S.",
+      "form": "long_novel",
+      "raw_text_path": "corpus/public-domain/raw/dracula.txt",
+      "clean_text_path": "corpus/public-domain/clean/dracula.txt",
+      "allowed_uses": ["manifest_seed", "future_longform_fixture", "future_calibration_fixture"],
+      "cleaning": {
+        "status": "not_downloaded",
+        "headers_removed": false,
+        "footers_removed": false,
+        "modern_editorial_material_removed": false
+      }
+    },
+    {
+      "id": "pride-and-prejudice",
+      "title": "Pride and Prejudice",
+      "author": "Jane Austen",
+      "first_publication_year": 1813,
+      "source_name": "Project Gutenberg",
+      "source_url": "https://www.gutenberg.org/ebooks/1342",
+      "jurisdiction_basis": "U.S. public domain source; verify local jurisdiction before redistribution outside the U.S.",
+      "form": "long_novel",
+      "raw_text_path": "corpus/public-domain/raw/pride-and-prejudice.txt",
+      "clean_text_path": "corpus/public-domain/clean/pride-and-prejudice.txt",
+      "allowed_uses": ["manifest_seed", "future_longform_fixture", "future_calibration_fixture"],
+      "cleaning": {
+        "status": "not_downloaded",
+        "headers_removed": false,
+        "footers_removed": false,
+        "modern_editorial_material_removed": false
+      }
+    }
+  ]
+}
