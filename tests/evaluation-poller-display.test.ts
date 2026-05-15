@@ -123,7 +123,6 @@ describe("getProgressDisplay", () => {
       getProgressDisplay({
         status: "running",
         progress: 42,
-        // @ts-expect-error intentionally non-canonical for backward-compat test
         phase: "unknown_phase",
         phase_status: "running",
       })?.label,
