@@ -55,6 +55,7 @@ import {
   type SubmissionScopeProfile,
 } from "./submissionScope";
 import { summarizePromptCoverage, getDefaultPassInputCharBudget } from "./promptInput";
+import { getEvalPassTimeoutMs } from "@/lib/evaluation/config";
 import {
   buildCriteriaPlanForScale,
   scopePolicy,
@@ -172,7 +173,6 @@ export interface RunPipelineOptions {
   _scopeProfile?: SubmissionScopeProfile;
 }
 
-const DEFAULT_PASS_TIMEOUT_MS = 60_000;
 const DEFAULT_MAX_MANUSCRIPT_CHARS = 3_000_000;
 
 // Per-chunk char ceiling for the Pass 1 prompt window. Mirrors the 95% factor
@@ -684,7 +684,7 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
     }
   }
 
-  const passTimeoutMs = opts._passTimeoutMs ?? DEFAULT_PASS_TIMEOUT_MS;
+  const passTimeoutMs = opts._passTimeoutMs ?? getEvalPassTimeoutMs();
   const pipelineStartMs = nowMs();
   const timings: PipelineTimings = {};
   const latencyJobId = String(opts.jobId ?? opts.manuscriptId ?? 'pipeline-only');

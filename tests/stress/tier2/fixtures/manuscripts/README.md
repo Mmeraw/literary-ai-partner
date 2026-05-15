@@ -24,3 +24,11 @@ If a future change requires a different excerpt:
    (`*** END OF ...`).
 3. Add a short title block at the top citing the source URL + license.
 4. Update this README to reflect the new excerpt.
+
+## `froggin-noggin-ch1.txt`
+
+- **Source:** Repo-local copy of the source-derived Froggin Noggin canary chapter used in the canonical evaluation evidence.
+- **License:** User-provided test content captured in the repository evidence set.
+- **Excerpt:** Chapter 1 - Froggin Noggin.
+- **Word count:** ~4,200 words.
+- **Why this fixture:** Provides a named, repo-local manuscript for proving the internal pipeline against the real Froggin Noggin chapter without relying on synthetic padding.

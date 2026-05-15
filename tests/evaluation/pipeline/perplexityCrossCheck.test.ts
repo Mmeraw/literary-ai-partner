@@ -7,6 +7,7 @@ import {
   type CriterionKey,
   type OpenAICriterionInput,
 } from "@/lib/evaluation/pipeline/perplexityCrossCheck";
+import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
 
 const PASS4_KEYS: CriterionKey[] = [
   "concept",
@@ -20,7 +21,7 @@ const PASS4_KEYS: CriterionKey[] = [
   "pacing",
   "proseControl",
   "tone",
-  "emotionalResonance",
+  "narrativeClosure",
   "marketability",
 ];
 
@@ -209,6 +210,33 @@ describe("runPerplexityCrossCheck", () => {
     expect(body.max_tokens).toBe(12000);
   });
 
+  it("preserves a structured cross-check when a criterion score is out of range", async () => {
+    const payload = makePerplexityPayload();
+    payload.criteria.concept.score = 0;
+    const fetchMock = jest.fn<typeof fetch>().mockResolvedValue(
+      makeFetchResponse(JSON.stringify(payload)) as unknown as Response,
+    );
+    global.fetch = fetchMock;
+
+    const result = await runPerplexityCrossCheck({
+      openaiCriteria: makeOpenAICriteria(),
+      openaiSynthesis: "Primary evaluator synthesis.",
+      manuscriptExcerpt: "The river moved slowly through the valley.",
+      workType: "literary_fiction",
+      title: "The Valley",
+      perplexityApiKey: "pplx-test",
+    });
+
+    expect(result).toBeDefined();
+    expect(result.canonValid).toBe(false);
+    expect(result.invalidCriteria).toContain("concept");
+    expect(result.criteria.concept.invalidPerplexityCriterion).toBe(true);
+    expect(result.criteria.concept.canonValidity.valid).toBe(false);
+    expect(result.criteria.concept.canonValidity.reasons).toEqual(
+      expect.arrayContaining([expect.stringContaining("Score below range")]),
+    );
+  });
+
   it("retries once with a sharpened prompt when the model refuses, then succeeds", async () => {
     const payload = makePerplexityPayload();
     const refusalText =
@@ -240,6 +268,125 @@ describe("runPerplexityCrossCheck", () => {
     const secondUser = secondBody.messages?.find((m: { role: string }) => m.role === "user")?.content ?? "";
     expect(secondUser).toMatch(/RE-FRAMING/);
     expect(secondUser).toMatch(/NOT a web research task/);
+  });
+
+  it("preserves cross_check when an OpenAI-side score is out of range (score = 0)", async () => {
+    const payload = makePerplexityPayload();
+    const fetchMock = jest.fn<typeof fetch>().mockResolvedValue(
+      makeFetchResponse(JSON.stringify(payload)) as unknown as Response,
+    );
+    global.fetch = fetchMock;
+
+    const openaiCriteria = makeOpenAICriteria();
+    openaiCriteria.narrativeClosure = {
+      ...openaiCriteria.narrativeClosure,
+      score: 0,
+    };
+
+    const result = await runPerplexityCrossCheck({
+      openaiCriteria,
+      openaiSynthesis: "Primary evaluator synthesis.",
+      manuscriptExcerpt: "The river moved slowly through the valley.",
+      workType: "literary_fiction",
+      title: "The Valley",
+      perplexityApiKey: "pplx-test",
+    });
+
+    expect(result).toBeDefined();
+    expect(result.canonValid).toBe(false);
+    expect(result.invalidCriteria).toContain("narrativeClosure");
+    expect(result.criteria.narrativeClosure.direction).toBe("INVALID");
+    expect(result.criteria.narrativeClosure.openaiScore).toBeNull();
+    expect(result.criteria.narrativeClosure.delta).toBeNull();
+  });
+
+  it("preserves cross_check when an OpenAI-side criterion is missing entirely", async () => {
+    const payload = makePerplexityPayload();
+    const fetchMock = jest.fn<typeof fetch>().mockResolvedValue(
+      makeFetchResponse(JSON.stringify(payload)) as unknown as Response,
+    );
+    global.fetch = fetchMock;
+
+    const openaiCriteria = makeOpenAICriteria();
+    delete (openaiCriteria as Record<string, unknown>).narrativeClosure;
+
+    const result = await runPerplexityCrossCheck({
+      openaiCriteria,
+      openaiSynthesis: "Primary evaluator synthesis.",
+      manuscriptExcerpt: "The river moved slowly through the valley.",
+      workType: "literary_fiction",
+      title: "The Valley",
+      perplexityApiKey: "pplx-test",
+    });
+
+    expect(result).toBeDefined();
+    expect(result.canonValid).toBe(false);
+    expect(result.invalidCriteria).toContain("narrativeClosure");
+    expect(result.criteria.narrativeClosure.direction).toBe("MISSING");
+    expect(result.criteria.narrativeClosure.openaiScore).toBeNull();
+    expect(result.criteria.narrativeClosure.delta).toBeNull();
+  });
+
+  it("flags invalidOpenaiCriterion / missingFromOpenai diagnostics on the criterion result", async () => {
+    const payload = makePerplexityPayload();
+    const fetchMock = jest.fn<typeof fetch>().mockResolvedValue(
+      makeFetchResponse(JSON.stringify(payload)) as unknown as Response,
+    );
+    global.fetch = fetchMock;
+
+    const openaiCriteria = makeOpenAICriteria();
+    openaiCriteria.narrativeClosure = {
+      ...openaiCriteria.narrativeClosure,
+      score: 0,
+    };
+    delete (openaiCriteria as Record<string, unknown>).voice;
+
+    const result = await runPerplexityCrossCheck({
+      openaiCriteria,
+      openaiSynthesis: "Primary evaluator synthesis.",
+      manuscriptExcerpt: "The river moved slowly through the valley.",
+      workType: "literary_fiction",
+      title: "The Valley",
+      perplexityApiKey: "pplx-test",
+    });
+
+    expect(result.criteria.narrativeClosure.invalidOpenaiCriterion).toBe(true);
+    expect(result.criteria.narrativeClosure.missingFromOpenai).toBe(false);
+    expect(result.criteria.voice.missingFromOpenai).toBe(true);
+    expect(result.criteria.voice.invalidOpenaiCriterion).toBe(false);
+    expect(result.invalidCriteria).toEqual(
+      expect.arrayContaining(["narrativeClosure", "voice"]),
+    );
+    expect(result.canonValid).toBe(false);
+  });
+
+  it("leaves other criteria with valid OpenAI scores unaffected when one is invalid", async () => {
+    const payload = makePerplexityPayload();
+    const fetchMock = jest.fn<typeof fetch>().mockResolvedValue(
+      makeFetchResponse(JSON.stringify(payload)) as unknown as Response,
+    );
+    global.fetch = fetchMock;
+
+    const openaiCriteria = makeOpenAICriteria();
+    openaiCriteria.narrativeClosure = {
+      ...openaiCriteria.narrativeClosure,
+      score: 0,
+    };
+
+    const result = await runPerplexityCrossCheck({
+      openaiCriteria,
+      openaiSynthesis: "Primary evaluator synthesis.",
+      manuscriptExcerpt: "The river moved slowly through the valley.",
+      workType: "literary_fiction",
+      title: "The Valley",
+      perplexityApiKey: "pplx-test",
+    });
+
+    expect(result.criteria.concept.openaiScore).toBe(7);
+    expect(result.criteria.concept.perplexityScore).toBe(7);
+    expect(result.criteria.concept.direction).toBe("MATCH");
+    expect(result.criteria.concept.invalidOpenaiCriterion).toBe(false);
+    expect(result.criteria.concept.missingFromOpenai).toBe(false);
   });
 
   it("throws PerplexityRefusalError when the retry response is still a refusal", async () => {
@@ -361,5 +508,40 @@ describe("normalizeCrossCheckShape", () => {
     expect(normalizeCrossCheckShape(null)).toBeNull();
     expect(normalizeCrossCheckShape("string")).toBe("string");
     expect(normalizeCrossCheckShape(42)).toBe(42);
+  });
+});
+
+
+describe("Pass 4 canonical-criteria alignment (regression)", () => {
+  it("PASS4_KEYS equals canonical CRITERIA_KEYS in order", () => {
+    expect(PASS4_KEYS).toEqual([...CRITERIA_KEYS]);
+  });
+
+  it("includes narrativeClosure and does not require emotionalResonance", () => {
+    expect(CRITERIA_KEYS).toContain("narrativeClosure");
+    expect(CRITERIA_KEYS as readonly string[]).not.toContain("emotionalResonance");
+  });
+
+  it("runPerplexityCrossCheck output.criteria keyed on canonical registry", async () => {
+    const payload = makePerplexityPayload();
+    const fetchMock = jest.fn<typeof fetch>().mockResolvedValue(
+      makeFetchResponse(JSON.stringify(payload)) as unknown as Response,
+    );
+    global.fetch = fetchMock;
+
+    const result = await runPerplexityCrossCheck({
+      openaiCriteria: makeOpenAICriteria(),
+      openaiSynthesis: "Primary evaluator synthesis.",
+      manuscriptExcerpt: "The river moved slowly through the valley.",
+      workType: "literary_fiction",
+      title: "The Valley",
+      perplexityApiKey: "pplx-test",
+    });
+
+    const keys = Object.keys(result.criteria).sort();
+    const expected = [...CRITERIA_KEYS].sort();
+    expect(keys).toEqual(expected);
+    expect(keys).toContain("narrativeClosure");
+    expect(keys).not.toContain("emotionalResonance");
   });
 });
