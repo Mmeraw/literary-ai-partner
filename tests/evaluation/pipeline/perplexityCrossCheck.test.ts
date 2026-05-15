@@ -209,6 +209,33 @@ describe("runPerplexityCrossCheck", () => {
     expect(body.max_tokens).toBe(12000);
   });
 
+  it("preserves a structured cross-check when a criterion score is out of range", async () => {
+    const payload = makePerplexityPayload();
+    payload.criteria.concept.score = 0;
+    const fetchMock = jest.fn<typeof fetch>().mockResolvedValue(
+      makeFetchResponse(JSON.stringify(payload)) as unknown as Response,
+    );
+    global.fetch = fetchMock;
+
+    const result = await runPerplexityCrossCheck({
+      openaiCriteria: makeOpenAICriteria(),
+      openaiSynthesis: "Primary evaluator synthesis.",
+      manuscriptExcerpt: "The river moved slowly through the valley.",
+      workType: "literary_fiction",
+      title: "The Valley",
+      perplexityApiKey: "pplx-test",
+    });
+
+    expect(result).toBeDefined();
+    expect(result.canonValid).toBe(false);
+    expect(result.invalidCriteria).toContain("concept");
+    expect(result.criteria.concept.invalidPerplexityCriterion).toBe(true);
+    expect(result.criteria.concept.canonValidity.valid).toBe(false);
+    expect(result.criteria.concept.canonValidity.reasons).toEqual(
+      expect.arrayContaining([expect.stringContaining("Score below range")]),
+    );
+  });
+
   it("retries once with a sharpened prompt when the model refuses, then succeeds", async () => {
     const payload = makePerplexityPayload();
     const refusalText =

@@ -672,6 +672,47 @@ describe("runPipeline (e2e with injected runners)", () => {
     expect(mockRunPass3).not.toHaveBeenCalled();
   });
 
+  it("uses canonical EVAL_PASS_TIMEOUT_MS when _passTimeoutMs is omitted", async () => {
+    // Prove that omitting _passTimeoutMs routes through the canonical env.
+    // We set the env to 100ms so the never-resolving mock Pass 1 exceeds it,
+    // which gives us a deterministic PASS1_TIMEOUT without a real 10s wait.
+    const originalPassTimeout = process.env.EVAL_PASS_TIMEOUT_MS;
+    process.env.EVAL_PASS_TIMEOUT_MS = "100";
+
+    mockRunPass1.mockImplementationOnce(
+      // Never resolves — canonical 100ms env timeout should fire first.
+      () => new Promise<SinglePassOutput>(() => undefined),
+    );
+
+    try {
+      const result = await runPipeline({
+        manuscriptText: "test",
+        workType: "literary_fiction",
+        title: "Test",
+        openaiApiKey: "sk-test",
+        // _passTimeoutMs is intentionally omitted — canonical env must be used.
+        _runners: {
+          runPass1: mockRunPass1,
+          runPass2: mockRunPass2,
+          runPass3Synthesis: mockRunPass3,
+        },
+      });
+
+      expect(result.ok).toBe(false);
+      if (isPipelineFailure(result)) {
+        expect(result.error_code).toBe("PASS1_TIMEOUT");
+        expect(result.failed_at).toBe("pass1");
+      }
+      expect(mockRunPass3).not.toHaveBeenCalled();
+    } finally {
+      if (originalPassTimeout === undefined) {
+        delete process.env.EVAL_PASS_TIMEOUT_MS;
+      } else {
+        process.env.EVAL_PASS_TIMEOUT_MS = originalPassTimeout;
+      }
+    }
+  });
+
   it("fails closed when lessons-learned blocks at post_structural", async () => {
     const evaluateRules = jest.fn<(input: RuleEvaluationInput, stage?: RuleStage) => LessonsLearnedReport>();
     evaluateRules.mockImplementation((_input, stage) => {

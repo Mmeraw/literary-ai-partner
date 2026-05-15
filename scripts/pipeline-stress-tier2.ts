@@ -377,17 +377,30 @@ export function assertRow(outcome: RunOutcome): string[] {
 
 async function main(): Promise<number> {
   const env = resolveEnv();
+  const scenarioFilter = process.env.TIER2_SCENARIO_ID?.trim();
+  const scenarios = scenarioFilter
+    ? TIER2_SCENARIOS.filter((row) => row.id === scenarioFilter)
+    : TIER2_SCENARIOS;
+
+  if (scenarioFilter && scenarios.length === 0) {
+    abort(
+      `TIER2_SCENARIO_ID=${scenarioFilter} did not match any known scenario id. ` +
+        `Available ids: ${TIER2_SCENARIOS.map((row) => row.id).join(", ")}`,
+    );
+  }
+
   const supabaseLabel = env.supabaseUrl
     ? env.supabaseUrl.replace(/^https?:\/\//, "").split(".")[0]
     : "not-configured";
   console.log(
-    `[stress-tier2] starting — ${TIER2_SCENARIOS.length} row(s), supabase=${supabaseLabel}`,
+    `[stress-tier2] starting — ${scenarios.length} row(s), supabase=${supabaseLabel}` +
+      (scenarioFilter ? `, scenario=${scenarioFilter}` : ""),
   );
 
   let passed = 0;
   let failed = 0;
 
-  for (const row of TIER2_SCENARIOS) {
+  for (const row of scenarios) {
     process.stdout.write(`[stress-tier2] ${row.id.padEnd(28)} `);
     const outcome = await executeRow(row, env);
     const failures = assertRow(outcome);
@@ -404,7 +417,7 @@ async function main(): Promise<number> {
   }
 
   console.log(
-    `\n[stress-tier2] total=${TIER2_SCENARIOS.length} passed=${passed} failed=${failed}`,
+    `\n[stress-tier2] total=${scenarios.length} passed=${passed} failed=${failed}`,
   );
   return failed === 0 ? 0 : 1;
 }
