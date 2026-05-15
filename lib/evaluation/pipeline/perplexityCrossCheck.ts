@@ -101,6 +101,14 @@ export interface CrossCheckOutput {
   canonValid: boolean;
   warnings?: string[];
   rawPerplexityResponse?: string;
+  /**
+   * Evidence-packet telemetry preserved on the artifact so downstream report
+   * provenance can prove the long-form Pass 4 ran on a representative window
+   * (e.g. Froggin Noggin: packetChars=29568, compressionRatio=0.0479).
+   * Optional for backward compatibility with older fixtures.
+   */
+  packetChars?: number;
+  packetCompressionRatio?: number;
 }
 
 type PerplexityResponseShape = {
@@ -1104,5 +1112,9 @@ Now return the independent adjudication as JSON.`;
     canonValid: invalidCriteria.length === 0,
     warnings: warnings.length > 0 ? warnings : undefined,
     rawPerplexityResponse: rawContent,
+    // Evidence-packet provenance — preserved so the report can prove which
+    // window Perplexity actually adjudicated against (Froggin Noggin truth gap).
+    packetChars: evidencePacket.packetChars,
+    packetCompressionRatio: evidencePacket.compressionRatio,
   };
 }

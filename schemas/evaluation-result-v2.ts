@@ -269,6 +269,22 @@ export type EvaluationResultV2 = {
         source_char_count?: number;
         analyzed_char_count?: number;
       };
+      /**
+       * PR #506 — explicit Pass 4 external adjudication provenance.
+       *
+       * Surfaces whether Perplexity cross-check was performed, skipped, or failed,
+       * along with the resolved adjudication mode and the evidence-packet
+       * metadata (packet_chars / compression_ratio) when available. Eliminates
+       * the silent-skip path that hid Pass 4 absence on the Froggin Noggin run.
+       */
+      external_adjudication?: {
+        status: "cross_check_completed" | "skipped" | "failed_soft" | "failed_blocking";
+        mode: "optional" | "required" | "veto";
+        cross_check_returned: boolean;
+        reason?: string;
+        packet_chars?: number;
+        packet_compression_ratio?: number;
+      };
     };
   };
 };
