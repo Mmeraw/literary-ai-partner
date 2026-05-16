@@ -891,7 +891,11 @@ export function parsePass2Response(raw: string, fallbackModel?: string): SingleP
     pass: 2,
     axis: "editorial_literary",
     criteria,
-    model: String(obj["model"] ?? resolvedFallback),
+    // PR-I (2026-05-16): Provenance must reflect the model that actually executed.
+    // The LLM has no reliable knowledge of its own deployment identifier and frequently
+    // emits stale literals (commonly "gpt-4.1") that contaminate downstream report stamps.
+    // Always trust the resolver-determined fallback. Do NOT consult obj["model"].
+    model: String(resolvedFallback),
     prompt_version: PASS2_PROMPT_VERSION,
     temperature: PASS2_TEMPERATURE,
     generated_at: new Date().toISOString(),

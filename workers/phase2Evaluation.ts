@@ -189,7 +189,9 @@ function extractRequestId(err: any): string | undefined {
 // OpenAI call (Phase 2C-1)
 // -----------------------------
 async function callOpenAI(context: EvaluationContext, chunks: Array<{ index: number; content: string }>, log: LogFn) {
-  const model = process.env.OPENAI_MODEL ?? "gpt-4o-mini";
+  // PR-I (2026-05-16): gpt-5.1 floor enforced across revisiongrade.com.
+  // Per RevisionGrade canon, no production code path may default below gpt-5.1.
+  const model = process.env.OPENAI_MODEL ?? "gpt-5.1";
   const temperature = Number(process.env.OPENAI_TEMPERATURE ?? "0.2");
   const max_output_tokens = Number(process.env.OPENAI_MAX_OUTPUT_TOKENS ?? "1200");
   const maxRetries = Number(process.env.OPENAI_MAX_RETRIES ?? "4");
