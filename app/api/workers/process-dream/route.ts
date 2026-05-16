@@ -7,7 +7,7 @@
  * on full-novel evaluations (issue #543, fix/pass3b-async-dream-worker).
  *
  * Lifecycle:
- *   1. Cron fires every 2 minutes (*/2 * * * *)
+ *   1. Cron fires every 2 minutes (every-2-min cron: "*\/2 * * * *")
  *   2. Query: evaluation_jobs WHERE status='complete' AND word_count >= 25000
  *      AND no longform_document_v1 artifact exists yet
  *   3. Load manuscript_chunks for the job
