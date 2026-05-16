@@ -82,41 +82,61 @@ describe("Pass 4 Governance — Severity + Mode Invariants (PR-A)", () => {
     expect(successReturn).toBeDefined();
   });
 
-  test("error severity still blocks regardless of mode (PASS4_CANON_INVALID, PASS4_WEAK_AGREEMENT)", async () => {
+  test("only PASS4_CANON_INVALID is severity:error (PR-G: disagreement is advisory)", async () => {
     const governancePath = path.join(
       process.cwd(),
       "lib/evaluation/governance/evaluatePass4Governance.ts"
     );
     const source = await fs.readFile(governancePath, "utf-8");
 
-    // Verify the governance emitter still tags canon-invalid and weak-agreement
-    // as severity:"error". If a future refactor downgrades these to "warning",
-    // the consumer would no longer block them — this test catches that.
+    // PR-G design: structural canon invalidity is the ONLY hard fail.
+    // Score disagreement (weak overall or per-criterion disputed) is
+    // advisory — the report ships with PRIMARY and SECONDARY verdicts
+    // surfaced per criterion and a human-readable reason for each
+    // conflict. The user deconflicts, not the pipeline.
     const canonInvalidBlock = source.match(
       /blockCode:\s*["']PASS4_CANON_INVALID["'][\s\S]*?severity:\s*["']error["']/
     );
     expect(canonInvalidBlock).toBeDefined();
 
     const weakAgreementBlock = source.match(
-      /blockCode:\s*["']PASS4_WEAK_AGREEMENT["'][\s\S]*?severity:\s*["']error["']/
+      /blockCode:\s*["']PASS4_WEAK_AGREEMENT["'][\s\S]*?severity:\s*["']warning["']/
     );
     expect(weakAgreementBlock).toBeDefined();
+
+    const disputedBlock = source.match(
+      /blockCode:\s*["']PASS4_DISPUTED_CRITERIA["'][\s\S]*?severity:\s*["']warning["']/
+    );
+    expect(disputedBlock).toBeDefined();
   });
 
-  test("disputed-criteria stays as severity:warning (the unblocked case)", async () => {
+  test("every conflicting block attaches criterionConflicts with articulated reasons (PR-G)", async () => {
     const governancePath = path.join(
       process.cwd(),
       "lib/evaluation/governance/evaluatePass4Governance.ts"
     );
     const source = await fs.readFile(governancePath, "utf-8");
 
-    // PASS4_DISPUTED_CRITERIA must remain severity:"warning". If it gets
-    // upgraded to "error", optional-mode jobs would start failing again
-    // on any single disputed criterion, regressing the PR-A fix.
-    const disputedBlock = source.match(
-      /blockCode:\s*["']PASS4_DISPUTED_CRITERIA["'][\s\S]*?severity:\s*["']warning["']/
-    );
-    expect(disputedBlock).toBeDefined();
+    // Every non-ok governance return must carry criterionConflicts so the
+    // user sees per-criterion PRIMARY vs SECONDARY scores, rationales, and
+    // a clear reason for each disagreement. No conflict ships as a bare
+    // criterion key.
+    expect(source).toMatch(/criterionConflicts:\s*invalidConflicts/);
+    expect(source).toMatch(/criterionConflicts:\s*conflicts/);
+
+    // The CriterionConflict shape must carry both verdicts and a reason.
+    expect(source).toContain("primaryScore");
+    expect(source).toContain("primaryRationale");
+    expect(source).toContain("secondaryScore");
+    expect(source).toContain("secondaryRationale");
+    expect(source).toContain("reason");
+
+    // The reason builder must articulate WHY a conflict exists, not just
+    // emit a criterion key — covering at minimum the score-divergence,
+    // missing-evidence, and structurally-invalid cases.
+    expect(source).toMatch(/Secondary scored "\$\{key\}"/);
+    expect(source).toMatch(/Secondary cross-check could not locate evidence/);
+    expect(source).toMatch(/structurally invalid response/);
   });
 
   test("documentation: PR-A invariant matrix (severity × mode → outcome)", () => {
@@ -138,5 +158,15 @@ describe("Pass 4 Governance — Severity + Mode Invariants (PR-A)", () => {
     );
     expect(changed).toHaveLength(1);
     expect(changed[0].outcome).toBe("ok:true + warning");
+
+    // PR-G addendum: under this matrix, only PASS4_CANON_INVALID (the
+    // sole severity:error code) reaches the block outcomes. WEAK and
+    // DISPUTED are severity:warning, so under EVAL_EXTERNAL_ADJUDICATION_MODE
+    // = "optional" (production today) they ship with the report and
+    // surface per-criterion conflicts with articulated reasons.
+    const errorCodes = ["PASS4_CANON_INVALID"];
+    const warningCodes = ["PASS4_WEAK_AGREEMENT", "PASS4_DISPUTED_CRITERIA"];
+    expect(errorCodes).toHaveLength(1);
+    expect(warningCodes).toHaveLength(2);
   });
 });
