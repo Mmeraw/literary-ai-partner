@@ -34,13 +34,39 @@ describe('reportCriterionDisplay helpers', () => {
   });
 
   test('certified-count summary is correct', () => {
+    // PR-J (2026-05-16): updated label semantics. "Certified" misled readers
+    // into assuming every criterion carried equally strong evidence. Replaced
+    // with "scored" + explicit per-criterion confidence variance disclosure.
     const criteria: RenderableCriterion[] = [
       { status: 'SCORABLE', score_0_10: 7, scorable: true },
       { status: 'SCORABLE', score_0_10: 8, scorable: true },
       { status: 'INSUFFICIENT_SIGNAL', score_0_10: null, scorable: false },
     ];
 
-    expect(getCertifiedCriteriaSummary(criteria)).toBe('2 of 3 criteria certified');
+    expect(getCertifiedCriteriaSummary(criteria)).toBe(
+      '2 of 3 criteria scored — 1 non-scorable; confidence varies per criterion (see badges below)',
+    );
+  });
+
+  test('all-scorable summary surfaces confidence variance disclosure', () => {
+    // PR-J: explicit smoke test for the all-scorable branch — ensures the
+    // "confidence varies" wording is present even when every criterion scored,
+    // preventing readers from over-trusting a uniform-looking '13 of 13' line.
+    const criteria: RenderableCriterion[] = Array.from({ length: 13 }, () => ({
+      status: 'SCORABLE' as const,
+      score_0_10: 7,
+      scorable: true,
+    }));
+
+    expect(getCertifiedCriteriaSummary(criteria)).toBe(
+      '13 of 13 criteria scored — confidence varies per criterion (see badges below)',
+    );
+  });
+
+  test('empty criteria yields safe fallback summary', () => {
+    // PR-J: defensive branch for empty input — must not divide-by-zero or
+    // emit '0 of 0 ... 0 non-scorable; confidence varies' nonsense.
+    expect(getCertifiedCriteriaSummary([])).toBe('No criteria scored');
   });
 
   test('scorable criteria still render numeric score normally', () => {
