@@ -50,8 +50,10 @@ type Work = {
   first_publication_year: number;
   source_name: string;
   source_url: string;
+  source_download_url?: string;
   jurisdiction_basis: string;
   form: string;
+  calibration_axes?: string[];
   raw_text_path: string;
   clean_text_path: string;
   allowed_uses: string[];
@@ -81,6 +83,17 @@ function assertBoolean(value: unknown, field: string, workId: string): asserts v
   }
 }
 
+function validateHttpUrl(field: string, value: string, workId: string) {
+  try {
+    const sourceUrl = new URL(value);
+    if (!/^https?:$/.test(sourceUrl.protocol)) {
+      fail(`${workId}: ${field} must use http or https`);
+    }
+  } catch {
+    fail(`${workId}: ${field} must be a valid URL`);
+  }
+}
+
 function validatePath(field: "raw_text_path" | "clean_text_path", value: string, workId: string) {
   if (!value.startsWith("corpus/public-domain/")) {
     fail(`${workId}: ${field} must stay under corpus/public-domain/`);
@@ -92,6 +105,16 @@ function validatePath(field: "raw_text_path" | "clean_text_path", value: string,
 
   if (!value.endsWith(".txt")) {
     fail(`${workId}: ${field} must point to a .txt file`);
+  }
+}
+
+function validateStringArray(field: string, value: unknown, workId: string) {
+  if (!Array.isArray(value) || value.length === 0) {
+    fail(`${workId}: ${field} must be a non-empty array`);
+  }
+
+  for (const item of value) {
+    assertString(item, `${field}[]`, workId);
   }
 }
 
@@ -142,20 +165,24 @@ function validateManifest(manifest: Manifest) {
 
     assertString(work.source_name, "source_name", work.id);
     assertString(work.source_url, "source_url", work.id);
+    validateHttpUrl("source_url", work.source_url, work.id);
 
-    try {
-      const sourceUrl = new URL(work.source_url);
-      if (!/^https?:$/.test(sourceUrl.protocol)) {
-        fail(`${work.id}: source_url must use http or https`);
+    if (work.source_download_url !== undefined) {
+      assertString(work.source_download_url, "source_download_url", work.id);
+      validateHttpUrl("source_download_url", work.source_download_url, work.id);
+      if (!work.source_download_url.endsWith(".txt") && !work.source_download_url.endsWith(".utf-8")) {
+        fail(`${work.id}: source_download_url must point to a plain text resource`);
       }
-    } catch {
-      fail(`${work.id}: source_url must be a valid URL`);
     }
 
     assertString(work.jurisdiction_basis, "jurisdiction_basis", work.id);
 
     if (!ALLOWED_FORMS.has(work.form)) {
       fail(`${work.id}: form must be one of ${Array.from(ALLOWED_FORMS).join(", ")}`);
+    }
+
+    if (work.calibration_axes !== undefined) {
+      validateStringArray("calibration_axes", work.calibration_axes, work.id);
     }
 
     assertString(work.raw_text_path, "raw_text_path", work.id);
@@ -173,13 +200,7 @@ function validateManifest(manifest: Manifest) {
     }
     cleanPaths.add(work.clean_text_path);
 
-    if (!Array.isArray(work.allowed_uses) || work.allowed_uses.length === 0) {
-      fail(`${work.id}: allowed_uses must be a non-empty array`);
-    }
-
-    for (const allowedUse of work.allowed_uses) {
-      assertString(allowedUse, "allowed_uses[]", work.id);
-    }
+    validateStringArray("allowed_uses", work.allowed_uses, work.id);
 
     if (!work.cleaning || typeof work.cleaning !== "object") {
       fail(`${work.id}: cleaning must be an object`);
