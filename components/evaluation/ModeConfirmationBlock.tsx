@@ -15,30 +15,36 @@ export default function ModeConfirmationBlock({ jobId, detectedMode, confirmedMo
   const [error, setError] = useState<string | null>(null);
 
   const [evaluationMode, setEvaluationMode] = useState<EvaluationMode>(
-    confirmedMode?.evaluationMode ?? detectedMode.proposedEvaluationMode,
+    confirmedMode?.evaluationMode ?? "STANDARD",
   );
   const [voicePreservationMode, setVoicePreservationMode] = useState<VoicePreservationMode>(
-    confirmedMode?.voicePreservationMode ?? detectedMode.proposedVoicePreservationMode,
+    confirmedMode?.voicePreservationMode ?? "BALANCED",
   );
 
   const isConfirmed = confirmedMode !== null;
 
   const sortedEvidence = useMemo(() => detectedMode.evidence.slice(0, 5), [detectedMode.evidence]);
 
-  async function submit(action: "keep" | "replace" | "refine") {
+  async function submit() {
     setBusy(true);
     setError(null);
 
     try {
+      const requestedMode = {
+        evaluationMode,
+        voicePreservationMode,
+      };
+      const matchesDetectedProposal =
+        requestedMode.evaluationMode === detectedMode.proposedEvaluationMode &&
+        requestedMode.voicePreservationMode === detectedMode.proposedVoicePreservationMode;
+      const action: "keep" | "replace" = matchesDetectedProposal ? "keep" : "replace";
+
       const payload =
         action === "keep"
           ? { action }
           : {
               action,
-              confirmedMode: {
-                evaluationMode,
-                voicePreservationMode,
-              },
+              confirmedMode: requestedMode,
             };
 
       const res = await fetch(`/api/evaluations/${jobId}/mode`, {
@@ -144,27 +150,11 @@ export default function ModeConfirmationBlock({ jobId, detectedMode, confirmedMo
       <div className="mt-4 flex flex-wrap gap-2">
         <button
           type="button"
-          onClick={() => void submit("keep")}
-          disabled={busy}
-          className="rounded-md bg-emerald-600 px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
-        >
-          Keep
-        </button>
-        <button
-          type="button"
-          onClick={() => void submit("replace")}
-          disabled={busy}
-          className="rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
-        >
-          Replace
-        </button>
-        <button
-          type="button"
-          onClick={() => void submit("refine")}
+          onClick={() => void submit()}
           disabled={busy}
           className="rounded-md bg-indigo-600 px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
         >
-          Refine
+          {isConfirmed ? "Save Mode" : "Confirm Mode"}
         </button>
       </div>
 
