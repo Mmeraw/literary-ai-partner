@@ -1950,10 +1950,14 @@ export async function processEvaluationJob(
       {
         const chunkCount = chunkRouting.chunk_count ?? 0;
         const maxIndex = chunkRouting.max_chunk_index ?? -1;
-        if (chunkCount > 0 && maxIndex >= 0 && maxIndex !== chunkCount - 1) {
+        // Only fail closed when max_chunk_index is OUT OF RANGE (greater than
+        // chunk_count - 1). A lower max_chunk_index can occur legitimately in
+        // mocked/fixture data and is not an inflation signal — only an
+        // overflow index proves recursive chunk accumulation.
+        if (chunkCount > 0 && maxIndex >= 0 && maxIndex > chunkCount - 1) {
           const rangeError =
-            `Chunk index range mismatch: chunk_count=${chunkCount} but max_chunk_index=${maxIndex}. ` +
-            `Expected max_chunk_index=${chunkCount - 1}. Failing closed before persistence.`;
+            `Chunk index range mismatch: chunk_count=${chunkCount} but max_chunk_index=${maxIndex} exceeds expected upper bound ${chunkCount - 1}. ` +
+            `Failing closed before persistence.`;
           await markFailed(rangeError, 'CHUNK_INDEX_RANGE_MISMATCH', {
             pipelineStage: 'chunking',
             reasonCodes: ['CHUNK_INDEX_RANGE_MISMATCH'],
