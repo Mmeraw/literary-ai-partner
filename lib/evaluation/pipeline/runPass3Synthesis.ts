@@ -810,9 +810,15 @@ export function parsePass3Response(
       submission_readiness: parseSubmissionReadiness(rawOverall["submission_readiness"], verdict, criteria),
     },
     metadata: {
-      pass1_model: String(rawMeta["pass1_model"] ?? pass1.model),
-      pass2_model: String(rawMeta["pass2_model"] ?? pass2.model),
-      pass3_model: String(rawMeta["pass3_model"] ?? resolvedFallback),
+      // PR-I (2026-05-16): Provenance must reflect the model that actually executed,
+      // NOT what the LLM hallucinated in its self-reported metadata block.
+      // The LLM has no reliable knowledge of its own deployment identifier and frequently
+      // emits stale literals (commonly "gpt-4.1") that contaminate downstream report stamps.
+      // Always trust the upstream-recorded model identity from pass1/pass2 outputs and the
+      // resolver-determined fallback for pass3. Do NOT consult rawMeta for model names.
+      pass1_model: String(pass1.model),
+      pass2_model: String(pass2.model),
+      pass3_model: String(resolvedFallback),
       generated_at: new Date().toISOString(),
     },
     partial_evaluation: false, // will be overridden by runPass3Synthesis with real value
