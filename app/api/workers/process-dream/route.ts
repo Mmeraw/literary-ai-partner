@@ -212,8 +212,21 @@ async function findPendingDreamJobs(
 
   const alreadyDoneIds = new Set((existingArtifacts ?? []).map((a: { job_id: string }) => a.job_id));
 
-  // Step 3: filter to jobs that still need DREAM synthesis
-  const pending = (candidateJobs as DreamJobRow[]).filter((j) => !alreadyDoneIds.has(j.id));
+  // Step 3: filter to jobs that still need DREAM synthesis.
+  // Supabase returns manuscripts as an array from the !inner join; normalise to DreamJobRow.
+  const pending = ((candidateJobs as unknown) as Array<{
+    id: string;
+    manuscript_id: number;
+    word_count: number | null;
+    manuscripts: Array<{ user_id: string; title: string | null; work_type: string | null }> | { user_id: string; title: string | null; work_type: string | null } | null;
+  }>)
+    .filter((j) => !alreadyDoneIds.has(j.id))
+    .map((j): DreamJobRow => ({
+      id: j.id,
+      manuscript_id: j.manuscript_id,
+      word_count: j.word_count,
+      manuscripts: Array.isArray(j.manuscripts) ? (j.manuscripts[0] ?? null) : j.manuscripts,
+    }));
   return pending.slice(0, limit);
 }
 
@@ -379,7 +392,8 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
   // ── Pipeline guard ─────────────────────────────────────────────────────────
   if (!isPipelineEnabled()) {
-    return pipelineDisabledResponse();
+    console.warn('[DreamWorker] EVAL_PIPELINE_ENABLED=false — skipping DREAM synthesis');
+    return NextResponse.json(pipelineDisabledResponse(), { status: 200 });
   }
 
   // ── Authorization ──────────────────────────────────────────────────────────
