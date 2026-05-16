@@ -274,9 +274,25 @@ function aggregateChunkResults(results: SinglePassOutput[]): SinglePassOutput {
       if (mergedEvidence.length >= 2) break;
     }
 
-    // Average scores
+    // PR-D: Average only over chunks with a valid score in canonical range [1,10].
+    const validScoreEntries = criteriaForKey.filter(
+      (c) => typeof c.score_0_10 === "number" && c.score_0_10 >= 1 && c.score_0_10 <= 10
+    );
+
+    if (validScoreEntries.length === 0) {
+      throw new Error(
+        `PASS2_CHUNK_AGGREGATE_SCORE_MISSING ${JSON.stringify({
+          code: "PASS2_CHUNK_AGGREGATE_SCORE_MISSING",
+          criterion: key,
+          chunks_total: criteriaForKey.length,
+          valid_score_chunks: 0,
+          invalid_score_chunks: criteriaForKey.length,
+        })}`
+      );
+    }
+
     const avgScore = Math.round(
-      criteriaForKey.reduce((sum, c) => sum + c.score_0_10, 0) / criteriaForKey.length
+      validScoreEntries.reduce((sum, c) => sum + c.score_0_10, 0) / validScoreEntries.length
     );
 
     // Merge rationales (use first)
@@ -284,7 +300,8 @@ function aggregateChunkResults(results: SinglePassOutput[]): SinglePassOutput {
 
     aggregatedCriteria.push({
       key,
-      score_0_10: Math.min(10, Math.max(0, avgScore)),
+      // PR-D: canonical floor is 1, never 0
+      score_0_10: Math.min(10, Math.max(1, avgScore)),
       rationale: firstRationale,
       evidence: mergedEvidence,
       recommendations: [],
@@ -840,20 +857,29 @@ export function parsePass2Response(raw: string, fallbackModel?: string): SingleP
         })
       : [];
 
+    // PR-D: Reject missing/non-finite/out-of-range scores instead of silently coercing to 0.
     const rawScore = c["score_0_10"];
-    const score = Number.isFinite(Number(rawScore)) ? Math.round(Number(rawScore)) : 0;
+    const parsedScore = Number(rawScore);
+    const score: number | null =
+      Number.isFinite(parsedScore) && Math.round(parsedScore) >= 1 && Math.round(parsedScore) <= 10
+        ? Math.round(parsedScore)
+        : null;
     const rationale = String(c["rationale"] ?? "");
 
     const reasonCodes: string[] = [];
-    let boundedScore = Math.min(10, Math.max(0, score));
-    if (!hasTextualAnchor(rationale, evidence)) {
+    // PR-D: preserve null sentinel; canonical floor is 1
+    let boundedScore: number | null =
+      score === null ? null : Math.min(10, Math.max(1, score));
+    if (boundedScore !== null && !hasTextualAnchor(rationale, evidence)) {
       reasonCodes.push("NO_TEXTUAL_ANCHOR");
-      boundedScore = Math.min(boundedScore, 5);
+      // Cap at 5 but never below 1
+      boundedScore = Math.max(1, Math.min(boundedScore, 5));
     }
 
     criteria.push({
       key: key as AxisCriterionResult["key"],
-      score_0_10: boundedScore,
+      // null sentinel for invalid scores; downstream aggregator filters these out
+      score_0_10: (boundedScore as unknown) as number,
       reason_codes: reasonCodes.length > 0 ? reasonCodes : undefined,
       rationale,
       evidence,
