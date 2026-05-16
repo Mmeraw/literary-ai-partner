@@ -17,6 +17,8 @@ import { runPass1 as defaultRunPass1 } from "./runPass1";
 import { runPass2 as defaultRunPass2 } from "./runPass2";
 import { enforcePass2LexicalIndependence, PASS2_INDEPENDENCE_FAIL_THRESHOLD } from "./pass2IndependenceGuard";
 import { runPass3Synthesis as defaultRunPass3 } from "./runPass3Synthesis";
+import { runPass3bLongform } from "./runPass3bLongform";
+import type { LongformDreamDocument } from "./runPass3bLongform";
 import { runPerplexityCrossCheck, CrossCheckOutput } from "./perplexityCrossCheck";
 import { evaluatePass4Governance } from "@/lib/evaluation/governance/evaluatePass4Governance";
 import {
@@ -1679,6 +1681,40 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
     timings,
   });
 
+  // ── Pass 3b — Long-Form DREAM Document Synthesis ──────────────────────────
+  // Additive pass: fires only on LONG_FORM route (≥ 25,000 words).
+  // Non-blocking: a failure here warns but does NOT fail the job — the
+  // 13-criterion evaluation has already succeeded and must ship.
+  let longformDoc: LongformDreamDocument | undefined;
+  const isLongForm =
+    scopeProfile?.inputScale === "full_manuscript" ||
+    (scopeProfile == null && pipelineManuscriptWords >= 25000);
+
+  if (isLongForm && Array.isArray(opts.manuscriptChunks) && opts.manuscriptChunks.length > 0) {
+    try {
+      console.log(
+        `[Pass3b] Triggering long-form DREAM synthesis: words=${pipelineManuscriptWords} chunks=${opts.manuscriptChunks.length}`
+      );
+      longformDoc = await runPass3bLongform({
+        criteria: pass3Output.criteria,
+        pass2aStructuredContext,
+        manuscriptChunks: opts.manuscriptChunks,
+        title: opts.title,
+        wordCount: pipelineManuscriptWords,
+        workType: opts.workType,
+        scopeProfile: scopeProfile ?? undefined,
+        model: opts.model,
+        openaiApiKey: opts.openaiApiKey,
+      });
+    } catch (pass3bErr) {
+      const errMsg = pass3bErr instanceof Error ? pass3bErr.message : String(pass3bErr);
+      console.warn(
+        `[Pass3b] Long-form DREAM synthesis failed (non-blocking): ${errMsg}`
+      );
+      // longformDoc stays undefined — downstream consumers must check for presence
+    }
+  }
+
   return {
     ok: true,
     synthesis: pass3Output,
@@ -1687,6 +1723,7 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
     pass4_governance: pass4Governance,
     external_adjudication: externalAdjudication,
     routing: pipelineRouting,
+    ...(longformDoc !== undefined ? { longform_document: longformDoc } : {}),
   };
 }
 
