@@ -1,3 +1,8 @@
+// canon-audit-allow: vocabulary-detection
+// Reason: 'commercial' below is a DREAM subscore dimension (commercial literary fiction
+// is a publishing genre/shelf category), not a criterion alias for the canonical
+// 'marketability' criterion. The two are distinct concepts in different namespaces.
+// See docs/benchmarks/froggin-noggin-dream.md §dream_scores for DREAM subscore authority.
 /**
  * Pass 3b — Long-Form DREAM Document Synthesis Runner
  *
@@ -57,6 +62,7 @@ export interface LongformDreamDocument {
   dream_scores: {
     quality: number;
     readiness: number;
+    /** Publishing genre dimension: commercial literary fiction readiness (distinct from the 'marketability' criterion) */
     commercial: number;
     literary: number;
   };

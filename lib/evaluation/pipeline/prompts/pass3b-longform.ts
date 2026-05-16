@@ -1,3 +1,6 @@
+// canon-audit-allow: vocabulary-detection
+// 'commercial' in this file is a DREAM shelf dimension (commercial literary fiction),
+// not the banned alias for the 'marketability' evaluation criterion.
 /**
  * Pass 3b — Long-Form DREAM Document Synthesis Prompt
  *
@@ -76,7 +79,7 @@ SECTION CONTRACTS
 §1 executive_verdict (string, 150–300 words)
 Name: the manuscript's governing ambition; the primary emotional engine(s); the strongest achievement; the main pressure points; current release recommendation.
 Must name concrete structural elements from the manuscript — not generic thriller/novel language.
-Also produce dream_scores: { quality: number, readiness: number, commercial: number, literary: number } where each is 0–100, derived from the criteria scores.
+Also produce dream_scores: { quality: number, readiness: number, commercial: number, literary: number } where each is 0–100, derived from the criteria scores. ('commercial' here means commercial literary fiction readiness as a publishing shelf dimension, distinct from the marketability evaluation criterion.)
 
 §2 market_shelf (object)
 Keys: best_shelf (string), shelf_neighbors (string[]), comparison_space (string[]), marketable_hook (string), market_danger (string).
