@@ -286,18 +286,18 @@ function aggregateChunkResults(results: SinglePassOutput[]): SinglePassOutput {
 
   // Build aggregated criteria
   const aggregatedCriteria: AxisCriterionResult[] = [];
-  
+
   for (const key of CRITERIA_KEYS) {
     const criteriaForKey = results
       .flatMap((r) => r.criteria)
       .filter((c) => c.key === key);
-    
+
     if (criteriaForKey.length === 0) continue;
 
     // Merge evidence from all chunks
     const mergedEvidence: EvidenceAnchor[] = [];
     const seenSnippets = new Set<string>();
-    
+
     for (const crit of criteriaForKey) {
       for (const ev of crit.evidence) {
         const snippetKey = ev.snippet?.trim() || "";
@@ -308,9 +308,26 @@ function aggregateChunkResults(results: SinglePassOutput[]): SinglePassOutput {
       }
     }
 
-    // Average scores
+    // PR-D: Average only over chunks with a valid score in canonical range [1,10].
+    // Chunks with a missing or invalid score (parser produced null) do not vote.
+    const validScoreEntries = criteriaForKey.filter(
+      (c) => typeof c.score_0_10 === "number" && c.score_0_10 >= 1 && c.score_0_10 <= 10
+    );
+
+    if (validScoreEntries.length === 0) {
+      throw new Error(
+        `PASS1_CHUNK_AGGREGATE_SCORE_MISSING ${JSON.stringify({
+          code: "PASS1_CHUNK_AGGREGATE_SCORE_MISSING",
+          criterion: key,
+          chunks_total: criteriaForKey.length,
+          valid_score_chunks: 0,
+          invalid_score_chunks: criteriaForKey.length,
+        })}`
+      );
+    }
+
     const avgScore = Math.round(
-      criteriaForKey.reduce((sum, c) => sum + c.score_0_10, 0) / criteriaForKey.length
+      validScoreEntries.reduce((sum, c) => sum + c.score_0_10, 0) / validScoreEntries.length
     );
 
     // Merge rationales (use first, they should be similar since from same criterion across chunks)
@@ -318,7 +335,8 @@ function aggregateChunkResults(results: SinglePassOutput[]): SinglePassOutput {
 
     aggregatedCriteria.push({
       key,
-      score_0_10: Math.min(10, Math.max(0, avgScore)),
+      // PR-D: canonical floor is 1, never 0
+      score_0_10: Math.min(10, Math.max(1, avgScore)),
       rationale: firstRationale,
       evidence: mergedEvidence.slice(0, PASS1_LIMITS.maxEvidencePerCriterion),
       recommendations: [],
@@ -862,12 +880,19 @@ export function parsePass1Response(raw: string, fallbackModel: string = PASS1_DE
         })
       : [];
 
+    // PR-D: Reject missing/non-finite/out-of-range scores instead of silently coercing to 0.
+    // Canon range is [1,10]; an invalid score yields null so the aggregator can exclude it.
     const rawScore = c["score_0_10"];
-    const score = Number.isFinite(Number(rawScore)) ? Math.round(Number(rawScore)) : 0;
+    const parsedScore = Number(rawScore);
+    const score: number | null =
+      Number.isFinite(parsedScore) && Math.round(parsedScore) >= 1 && Math.round(parsedScore) <= 10
+        ? Math.round(parsedScore)
+        : null;
 
     criteria.push({
       key: key as AxisCriterionResult["key"],
-      score_0_10: Math.min(10, Math.max(0, score)),
+      // null sentinel for invalid scores; downstream aggregator filters these out
+      score_0_10: (score as unknown) as number,
       rationale: truncateText(c["rationale"], PASS1_LIMITS.maxRationaleChars),
       evidence,
       recommendations: [],

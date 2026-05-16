@@ -648,9 +648,11 @@ export function parsePass3Response(
       : (p2c?.score_0_10 ?? 5);
 
     const rawFinal = rawEntry ? Number(rawEntry["final_score_0_10"]) : NaN;
+    // PR-D: canonical scores are 1..10; Pass 4 rejects anything below 1.
+    // Floor is 1, never 0.
     const finalScore = Number.isFinite(rawFinal)
-      ? Math.min(10, Math.max(0, Math.round(rawFinal)))
-      : Math.min(10, Math.max(0, Math.round((craftScore + editorialScore) / 2)));
+      ? Math.min(10, Math.max(1, Math.round(rawFinal)))
+      : Math.min(10, Math.max(1, Math.round((craftScore + editorialScore) / 2)));
 
     const delta = Math.abs(craftScore - editorialScore);
 
@@ -748,8 +750,9 @@ export function parsePass3Response(
 
     criteria.push({
       key,
-      craft_score: Math.min(10, Math.max(0, craftScore)),
-      editorial_score: Math.min(10, Math.max(0, editorialScore)),
+      // PR-D: canonical scores are 1..10; never emit 0.
+      craft_score: Math.min(10, Math.max(1, craftScore)),
+      editorial_score: Math.min(10, Math.max(1, editorialScore)),
       final_score_0_10: finalScore,
       score_delta: delta,
       delta_explanation:
@@ -772,8 +775,10 @@ export function parsePass3Response(
 
   const avgScore = criteria.reduce((sum, c) => sum + c.final_score_0_10, 0) / criteria.length;
   const overallScore0_100 = typeof rawOverall["overall_score_0_100"] === "number"
-    ? Math.min(100, Math.max(0, Math.round(rawOverall["overall_score_0_100"])))
-    : Math.min(100, Math.max(0, Math.round(avgScore * 10)));
+    // PR-D: overall 0-100 derives from criterion averages where each criterion >= 1,
+    // so the achievable floor is 10. Floor at 10 to reflect canonical constraint.
+    ? Math.min(100, Math.max(10, Math.round(rawOverall["overall_score_0_100"])))
+    : Math.min(100, Math.max(10, Math.round(avgScore * 10)));
 
   const rawVerdict = String(rawOverall["verdict"] ?? "");
   const verdict: "pass" | "revise" | "fail" =

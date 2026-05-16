@@ -91,15 +91,19 @@ describe("parsePass1Response", () => {
     expect(result.temperature).toBe(0.3);
   });
 
-  it("clips scores to integer 0-10 range", () => {
+  it("rejects out-of-range scores to null sentinel (PR-D)", () => {
+    // PR-D: canonical range is [1,10]; out-of-range scores are rejected to null
+    // (the aggregator filters these out instead of letting fake 0/clamps contaminate).
     const fixture = makePass1Fixture();
-    fixture.criteria[0].score_0_10 = 15; // out of range
-    fixture.criteria[1].score_0_10 = -3; // out of range
+    fixture.criteria[0].score_0_10 = 15; // out of range (high)
+    fixture.criteria[1].score_0_10 = -3; // out of range (low)
+    fixture.criteria[2].score_0_10 = 0;  // out of range (Pass 4 rejects < 1)
 
     const result = parsePass1Response(JSON.stringify(fixture));
 
-    expect(result.criteria[0].score_0_10).toBe(10);
-    expect(result.criteria[1].score_0_10).toBe(0);
+    expect(result.criteria[0].score_0_10).toBeNull();
+    expect(result.criteria[1].score_0_10).toBeNull();
+    expect(result.criteria[2].score_0_10).toBeNull();
   });
 
   it("filters out criteria with unknown keys", () => {
