@@ -125,7 +125,9 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: "Missing OPENAI_API_KEY in function secrets" }, 500);
   }
 
-  const model = Deno.env.get("OPENAI_MODEL") || "gpt-4o-mini";
+  // PR-I (2026-05-16): gpt-5.1 floor enforced across revisiongrade.com.
+  // Per RevisionGrade canon, no production code path may default below gpt-5.1.
+  const model = Deno.env.get("OPENAI_MODEL") || "gpt-5.1";
 
   let payload: { text?: string } = {};
   try {

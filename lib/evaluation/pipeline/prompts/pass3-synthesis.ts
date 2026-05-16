@@ -16,7 +16,7 @@ import {
   summarizePromptCoverage,
 } from "../promptInput";
 
-export const PASS3_PROMPT_VERSION = "pass3-synthesis-v12-structured-context-contract";
+export const PASS3_PROMPT_VERSION = "pass3-synthesis-v13-provenance-hardening";
 
 export const PASS3_SYSTEM_PROMPT = `You are Pass 3: convergence and arbitration authority.
 Rules:
@@ -78,7 +78,7 @@ Return ONLY JSON with keys:
 - overall { overall_score_0_100, verdict(pass|revise|fail), one_paragraph_summary<=500, top_3_strengths[3], top_3_risks[3], submission_readiness(queryable_now|close|not_yet) }
   - top_3_strengths and top_3_risks must be non-mirrored aspects.
   - never emit queryable_now when verdict=fail or when 3+ criteria are below 5.
-- metadata { pass1_model, pass2_model, pass3_model, generated_at }
+- metadata { generated_at } (do NOT emit pass1_model/pass2_model/pass3_model; stamped server-side)
 
 Criteria keys:
 ${CRITERIA_KEYS.join(", ")}`;

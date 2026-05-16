@@ -61,8 +61,13 @@ function makeSynthesis(overrides: Partial<Record<CriterionKey, Partial<Synthesiz
 
 // ── Prompt version ────────────────────────────────────────────────────────────
 
-it("PASS3_PROMPT_VERSION reflects v12 structured-context contract", () => {
-  expect(PASS3_PROMPT_VERSION).toBe("pass3-synthesis-v12-structured-context-contract");
+it("PASS3_PROMPT_VERSION reflects v13 provenance hardening", () => {
+  // PR-I (2026-05-16): bumped from v12 to v13 to stop the LLM from emitting
+  // pass1_model/pass2_model/pass3_model in metadata. Model identity is now
+  // stamped server-side from the actually-executed resolver, eliminating the
+  // 'gpt-4.1' hallucination contamination observed in the Froggin Noggin
+  // production run (job 0e6734be-a476-433a-a19d-3ecb9d64eea5).
+  expect(PASS3_PROMPT_VERSION).toBe("pass3-synthesis-v13-provenance-hardening");
 });
 
 // ── Five-part contract: passing fixtures ─────────────────────────────────────
