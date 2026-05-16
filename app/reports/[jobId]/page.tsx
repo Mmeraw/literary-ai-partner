@@ -17,6 +17,7 @@ import {
   getCriterionSupportLabel,
 } from '@/lib/evaluation/reportCriterionDisplay';
 import { resolveReportTitle } from '@/lib/evaluation/reportTitle';
+import type { LongformDreamDocument } from '@/lib/evaluation/pipeline/runPass3bLongform';
 
 // D1 Boundary: server-only. Service key must not leak to client.
 // Hybrid owner-gate: SSR client for auth identity, admin client for
@@ -96,6 +97,29 @@ async function getEvaluationResult(jobId: string, userId: string): Promise<Evalu
   };
 }
 
+/**
+ * Fetch the DREAM long-form artifact for a job.
+ * Returns null if not yet generated (DREAM worker hasn't run yet).
+ * Owner-check not needed here — job ownership already verified by getEvaluationResult.
+ */
+async function getDreamArtifact(jobId: string): Promise<LongformDreamDocument | null> {
+  noStore();
+  const admin = createAdminClient();
+  const { data, error } = await admin
+    .from('evaluation_artifacts')
+    .select('content')
+    .eq('job_id', jobId)
+    .eq('artifact_type', 'longform_document_v1')
+    .maybeSingle();
+
+  if (error || !data?.content) return null;
+
+  const content = data.content as { longform_document?: unknown };
+  if (!content?.longform_document || typeof content.longform_document !== 'object') return null;
+
+  return content.longform_document as LongformDreamDocument;
+}
+
 async function getCurrentUserId(): Promise<string | null> {
   const ssrSupabase = await createSSRClient();
   const { data: { user } } = await ssrSupabase.auth.getUser();
@@ -146,6 +170,11 @@ export default async function ReportPage({ params }: { params: { jobId: string }
   const { result, manuscriptTitle } = report;
   const chapterTitle = result.metrics?.manuscript?.title?.trim() || null;
   const { displayTitle } = resolveReportTitle({ chapterTitle, manuscriptTitle });
+
+  // DREAM long-form artifact — async Pass 3b, may not be ready yet.
+  const wordCount = result.metrics?.manuscript?.word_count ?? 0;
+  const isLongForm = wordCount >= 25000;
+  const dreamDoc = isLongForm ? await getDreamArtifact(params.jobId) : null;
 
   // D2 fail-closed: block forbidden market guarantee language from rendering in agent-facing output.
   if (scanObjectForForbiddenMarketClaims(result)) {
@@ -431,6 +460,78 @@ export default async function ReportPage({ params }: { params: { jobId: string }
             </div>
           )}
         </section>
+
+        {/* DREAM Long-Form Synthesis (Pass 3b — async, long-form manuscripts only) */}
+        {isLongForm && (
+          <section className="bg-white rounded-lg shadow-sm p-6 mb-6 border border-indigo-100">
+            <h2 className="text-2xl font-semibold text-gray-900 mb-1 flex items-center gap-2">
+              <span aria-hidden>&#x1F4D6;</span> DREAM Analysis
+            </h2>
+            <p className="text-sm text-gray-500 mb-4">
+              Deep Read &amp; Editorial Assessment Memo — long-form synthesis
+            </p>
+
+            {dreamDoc ? (
+              <div className="space-y-6">
+                {/* DREAM Scores */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  {(['quality', 'readiness', 'commercial', 'literary'] as const).map((dim) => (
+                    <div key={dim} className="bg-indigo-50 rounded-lg p-3 text-center">
+                      <p className="text-xs text-indigo-600 uppercase font-semibold tracking-wide mb-1">{dim}</p>
+                      <p className="text-2xl font-bold text-indigo-900">{dreamDoc.dream_scores[dim]}</p>
+                      <p className="text-xs text-indigo-500">/100</p>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Executive Verdict */}
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">Executive Verdict</h3>
+                  <p className="text-gray-700 leading-relaxed whitespace-pre-line">{dreamDoc.executive_verdict}</p>
+                </div>
+
+                {/* Market Shelf */}
+                {dreamDoc.market_shelf && (
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">Market Shelf</h3>
+                    <p className="text-sm text-gray-600 mb-1">
+                      <span className="font-medium">Best shelf:</span> {dreamDoc.market_shelf.best_shelf}
+                    </p>
+                    {dreamDoc.market_shelf.marketable_hook && (
+                      <p className="text-sm text-gray-600 mb-1">
+                        <span className="font-medium">Marketable hook:</span> {dreamDoc.market_shelf.marketable_hook}
+                      </p>
+                    )}
+                    {dreamDoc.market_shelf.market_danger && (
+                      <p className="text-sm text-rose-700">
+                        <span className="font-medium">Market danger:</span> {dreamDoc.market_shelf.market_danger}
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {/* What Not To Become */}
+                {Array.isArray(dreamDoc.what_not_to_become) && dreamDoc.what_not_to_become.length > 0 && (
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">Anti-Patterns to Avoid</h3>
+                    <ul className="list-disc list-inside space-y-1">
+                      {dreamDoc.what_not_to_become.map((item, idx) => (
+                        <li key={idx} className="text-sm text-gray-700">{item}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="flex items-center gap-3 py-4">
+                <div className="animate-spin rounded-full h-5 w-5 border-2 border-indigo-400 border-t-transparent" aria-hidden />
+                <p className="text-sm text-gray-500">
+                  DREAM synthesis generating… Refresh in a minute to see the full long-form analysis.
+                </p>
+              </div>
+            )}
+          </section>
+        )}
 
         {/* Artifacts */}
         {artifacts.length > 0 && (
