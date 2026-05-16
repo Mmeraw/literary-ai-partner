@@ -14,7 +14,7 @@
  */
 
 /**
- * Clause IDs — one per numbered clause in §"The 12 Clauses".
+ * Clause IDs — one per numbered clause in §"The 15 Clauses".
  *
  * Use these to tag Tier 2 assertions and pipeline error contexts so
  * every failure points back to a named contract clause.
@@ -32,6 +32,9 @@ export const LONG_FORM_CLAUSE_IDS = [
   'CLAUSE_10_SUMMARIES_PRODUCED',
   'CLAUSE_11_TOTAL_RUNTIME_WITHIN_BUDGET',
   'CLAUSE_12_PERSISTENCE_COMPLETE',
+  'CLAUSE_13_LONGFORM_DOCUMENT_PRODUCED',
+  'CLAUSE_14_LONGFORM_SECTIONS_COMPLETE',
+  'CLAUSE_15_MULTILAYER_ROWS_PRESENT',
 ] as const;
 
 export type LongFormClauseId = (typeof LONG_FORM_CLAUSE_IDS)[number];
@@ -53,6 +56,9 @@ export const LONG_FORM_CLAUSE_TITLES: Record<LongFormClauseId, string> = {
   CLAUSE_10_SUMMARIES_PRODUCED: 'Summaries produced',
   CLAUSE_11_TOTAL_RUNTIME_WITHIN_BUDGET: 'Total runtime within budget',
   CLAUSE_12_PERSISTENCE_COMPLETE: 'Persistence complete',
+  CLAUSE_13_LONGFORM_DOCUMENT_PRODUCED: 'DREAM document produced (LONG_FORM route)',
+  CLAUSE_14_LONGFORM_SECTIONS_COMPLETE: 'DREAM document sections complete',
+  CLAUSE_15_MULTILAYER_ROWS_PRESENT: 'Multi-layer score rows present (multi_layer_long_form)',
 };
 
 /**
@@ -78,6 +84,9 @@ export const LONG_FORM_FAIL_CODES = [
   'TOTAL_TIMEOUT',
   'PERSISTENCE_INCOMPLETE',
   'LAYER_INCOMPLETE',
+  'LONGFORM_DOCUMENT_MISSING',
+  'LONGFORM_SECTIONS_INCOMPLETE',
+  'MULTILAYER_ROWS_MISSING',
 ] as const;
 
 export type LongFormFailCode = (typeof LONG_FORM_FAIL_CODES)[number];
@@ -100,7 +109,96 @@ export const LONG_FORM_CLAUSE_TO_FAIL_CODE: Record<LongFormClauseId, LongFormFai
   CLAUSE_10_SUMMARIES_PRODUCED: 'SUMMARIES_MISSING',
   CLAUSE_11_TOTAL_RUNTIME_WITHIN_BUDGET: 'TOTAL_TIMEOUT',
   CLAUSE_12_PERSISTENCE_COMPLETE: 'PERSISTENCE_INCOMPLETE',
+  CLAUSE_13_LONGFORM_DOCUMENT_PRODUCED: 'LONGFORM_DOCUMENT_MISSING',
+  CLAUSE_14_LONGFORM_SECTIONS_COMPLETE: 'LONGFORM_SECTIONS_INCOMPLETE',
+  CLAUSE_15_MULTILAYER_ROWS_PRESENT: 'MULTILAYER_ROWS_MISSING',
 };
+
+/**
+ * Canonical 13 Story Evaluation Criteria — names and order.
+ *
+ * These must appear in this exact order with these exact names in every
+ * DREAM long-form document. Criteria 12 and 13 have been a drift point;
+ * the authoritative names are defined here.
+ *
+ * Source: docs/governance/DREAM_STATE_LONGFORM_CANON.md
+ */
+export const DREAM_CRITERIA_NAMES = [
+  'Concept & Core Premise',
+  'Narrative Drive & Momentum',
+  'Character Depth & Psychological Coherence',
+  'Point of View & Voice Control',
+  'Scene Construction & Function',
+  'Dialogue Authenticity & Subtext',
+  'Thematic Integration',
+  'World-Building & Environmental Logic',
+  'Pacing & Structural Balance',
+  'Prose Control & Line-Level Craft',
+  'Tonal Authority & Consistency',
+  'Narrative Closure & Promises Kept',
+  'Professional Readiness & Market Positioning',
+] as const;
+
+export type DreamCriterionName = (typeof DREAM_CRITERIA_NAMES)[number];
+
+/**
+ * Multi-layer architecture score row names.
+ *
+ * These 4 rows must appear after the 13 canonical criteria in the score
+ * grid of any multi_layer_long_form DREAM document.
+ *
+ * Source: docs/governance/DREAM_STATE_LONGFORM_CANON.md
+ */
+export const DREAM_MULTILAYER_ROW_NAMES = [
+  'Layer & Mode Integration',
+  'Layer Coherence',
+  'Doctrine / Symbolic System Integrity',
+  'Canon & Continuity Integrity',
+] as const;
+
+export type DreamMultilayerRowName = (typeof DREAM_MULTILAYER_ROW_NAMES)[number];
+
+/**
+ * DREAM output modes.
+ */
+export const DREAM_OUTPUT_MODES = [
+  'standard_long_form',
+  'multi_layer_long_form',
+] as const;
+
+export type DreamOutputMode = (typeof DREAM_OUTPUT_MODES)[number];
+
+/**
+ * DREAM status codes used in Section 13 (Releasability Assessment).
+ */
+export const DREAM_STATUS_CODES = [
+  'DREAM_GOLD_STANDARD',
+  'DREAM_BENCHMARK_CANDIDATE_AFTER_FIXES',
+  'DREAM_LONGFORM_EVAL_COMPLETE_WITH_BLOCKERS',
+  'DREAM_LONGFORM_EVAL_COMPLETE',
+  'DREAM_LONGFORM_EVAL_INCOMPLETE',
+] as const;
+
+export type DreamStatusCode = (typeof DREAM_STATUS_CODES)[number];
+
+/**
+ * DREAM score dimensions.
+ *
+ * Note: 'commercial' is a publishing dimension measuring fit for the
+ * commercial literary fiction market. It is NOT a banned criterion alias.
+ * Do not rename to 'marketability'.
+ */
+export const DREAM_SCORE_DIMENSIONS = [
+  'quality',
+  'readiness',
+  'commercial',
+  'literary',
+] as const;
+
+export type DreamScoreDimension = (typeof DREAM_SCORE_DIMENSIONS)[number];
+
+/** Required section count for a conformant DREAM long-form document. */
+export const DREAM_REQUIRED_SECTION_COUNT = 16 as const;
 
 /**
  * Default budgets in milliseconds.

@@ -25,7 +25,7 @@ Does not apply to:
 - admin-only diagnostic runs
 - harness smoke tests
 
-## The 12 Clauses
+## The 15 Clauses
 
 ### Clause 1 — Routing engaged
 
@@ -112,6 +112,35 @@ All required fields above must be persisted to the evaluation result store befor
 
 - Fail code: `PERSISTENCE_INCOMPLETE`
 - `status = complete` is forbidden when any required field is null in required mode.
+
+### Clause 13 — DREAM document produced (LONG_FORM route)
+
+For jobs on the `LONG_FORM` route, Pass 3b must produce a `longform_document` artifact. A job that produces scores and summaries via short-path synthesis but no `longform_document` artifact is a Clause 13 failure.
+
+- Fail code: `LONGFORM_DOCUMENT_MISSING`
+- `longform_document` must be non-null and persisted on every LONG_FORM job.
+- The UI must not present a long-form result as complete when `longform_document` is absent.
+
+### Clause 14 — DREAM document sections complete
+
+The `longform_document` produced by Clause 13 must contain all 16 required sections as defined in `docs/governance/DREAM_STATE_LONGFORM_CANON.md`.
+
+- Fail code: `LONGFORM_SECTIONS_INCOMPLETE`
+- All 13 canonical criteria must be scored or truthfully caveated in the document.
+- Criterion names 12 and 13 must be `Narrative Closure & Promises Kept` and `Professional Readiness & Market Positioning` respectively.
+- The section count must equal 16 (Sections 1–16 in canonical order).
+
+### Clause 15 — Multi-layer score rows present (multi_layer_long_form)
+
+For jobs producing `output_mode = multi_layer_long_form`, the score grid in the DREAM document must include the 4 architecture rows after criterion 13:
+- Layer & Mode Integration
+- Layer Coherence
+- Doctrine / Symbolic System Integrity
+- Canon & Continuity Integrity
+
+- Fail code: `MULTILAYER_ROWS_MISSING`
+- These rows must be present and scored (or truthfully caveated) when output mode is `multi_layer_long_form`.
+- Absence of these rows when mode is `multi_layer_long_form` is a Clause 15 failure.
 
 ## Multi-layer addendum
 

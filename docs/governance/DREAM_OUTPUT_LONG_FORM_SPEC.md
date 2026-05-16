@@ -302,8 +302,8 @@ Every long-form report must score and summarize all 13 canonical criteria:
 9. Pacing & Structural Balance
 10. Prose Control & Line-Level Craft
 11. Tonal Authority & Consistency
-12. Emotional Resonance & Reader Impact
-13. Market Alignment & Positioning
+12. Narrative Closure & Promises Kept
+13. Professional Readiness & Market Positioning
 
 If evidence is insufficient for a criterion, the report must say `Not evaluated — insufficient evidence` or an equivalent truthful caveat. It must not silently omit the criterion or convert missing evidence into a false score.
 
@@ -373,18 +373,26 @@ At least one standard long-form manuscript must be used as a validation fixture 
 
 ### Multi-layer fixture requirement
 
-The Ancient Bloodlines multi-layer benchmark is the initial shape reference for the multi-layer mode. It proves the required presence of:
+The following files are the canonical multi-layer benchmark fixtures. They prove the required presence of:
 
 - multi-layer / multi-voice mode label
 - structural stack
 - layer and voice map
-- score grid
+- score grid with 13 criteria + 4 architecture rows
 - layer-by-layer analysis
 - cross-layer integration
 - canon / doctrine / symbolic-system audit
 - reader experience
 - top five revision actions
 - sequence recommendation
+
+| File | Manuscript | Notes |
+|---|---|---|
+| `docs/benchmarks/ancient-bloodlines-longform-layered.md` | *Ancient Bloodlines* | Initial shape reference |
+| `docs/benchmarks/froggin-noggin-dream.md` | *Froggin Noggin* | Multi-layer eco-satirical myth; closure ledger benchmark |
+| `docs/benchmarks/cartel-babies-dream.md` | *Cartel Babies* | Multi-layer captivity/family arc; structural defect detection benchmark |
+
+All three must conform to `docs/governance/DREAM_STATE_LONGFORM_CANON.md`.
 
 ---
 
