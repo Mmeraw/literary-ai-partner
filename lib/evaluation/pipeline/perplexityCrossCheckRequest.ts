@@ -14,7 +14,8 @@ This is NOT a web research task. You are NOT being asked to look anything up.
 This is a STRUCTURED ANALYSIS task over the manuscript text provided above.
 You are scoring 13 craft criteria from signals you detect IN THE EXCERPT.
 Do not refuse. Do not say "I am search-based." Do not write disclaimers.
-Return ONLY the JSON object specified by the schema. No prose before or after.`;
+Return ONLY the JSON object specified by the schema. No prose before or after.
+Every criterion MUST populate detectedSignals (>=1 string) AND doctrineTrace (>=1 string). Empty arrays are not permitted.`;
 }
 
 export function buildPerplexityResponseSchema(
@@ -39,9 +40,24 @@ export function buildPerplexityResponseSchema(
           required: ["quote", "explanation"],
         },
       },
-      detectedSignals: { type: "array", items: { type: "string" } },
+      // minItems: 1 keeps this schema in lockstep with
+      // validateCanonCompleteness() in perplexityCrossCheck.ts, which marks
+      // any criterion with an empty detectedSignals array as canon-invalid.
+      // Without minItems, sonar may emit "[]" and trigger PASS4_CANON_INVALID
+      // at runtime. See evaluation_jobs.fdda059f-44e8-45bb-86b6-0c35607ee928.
+      detectedSignals: {
+        type: "array",
+        minItems: 1,
+        items: { type: "string", minLength: 1 },
+      },
       scoringBand: { type: "string", enum: ["1-3", "4-6", "7-8", "9-10"] },
-      doctrineTrace: { type: "array", items: { type: "string" } },
+      // minItems: 1 — same rationale as detectedSignals above. Canon validator
+      // rejects criteria with an empty doctrineTrace array.
+      doctrineTrace: {
+        type: "array",
+        minItems: 1,
+        items: { type: "string", minLength: 1 },
+      },
     },
     required: [
       "score",

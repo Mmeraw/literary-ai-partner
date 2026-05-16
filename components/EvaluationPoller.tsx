@@ -56,6 +56,32 @@ export interface JobState {
   created_at: string;
   updated_at: string;
   last_error?: string;
+  // Canonical pipeline-stage fields (additive; may be absent on older API responses).
+  // When present these are authoritative for stage label resolution and are decoupled
+  // from the smoothly-animated visual progress bar.
+  phase?: 'phase_0' | 'phase_1' | 'phase_2' | null;
+  phase_status?: 'queued' | 'running' | 'complete' | 'failed' | null;
+  cross_check_status?:
+    | 'queued'
+    | 'running'
+    | 'complete'
+    | 'failed'
+    | 'failed_soft'
+    | 'failed_blocking'
+    | 'cross_check_completed'
+    | 'skipped'
+    | null;
+  // Per-stage timestamps (additive; absent on older API responses).
+  // Consumed by the truthful, stage-weighted progress display. Optional so
+  // the type compiles against pre-#509 server responses; the display module
+  // falls back to an indeterminate shimmer when a stage's timestamp is
+  // unavailable, rather than inventing fake forward motion.
+  phase1_started_at?: string | null;
+  phase1_completed_at?: string | null;
+  phase2_started_at?: string | null;
+  phase2_completed_at?: string | null;
+  pass3_started_at?: string | null;
+  pass3_completed_at?: string | null;
 }
 
 interface PollerProps {
@@ -259,7 +285,16 @@ export function EvaluationPoller({
             prev.status === nextJob.status &&
             prev.progress === nextJob.progress &&
             prev.updated_at === nextJob.updated_at &&
-            prev.last_error === nextJob.last_error;
+            prev.last_error === nextJob.last_error &&
+            prev.phase === nextJob.phase &&
+            prev.phase_status === nextJob.phase_status &&
+            prev.cross_check_status === nextJob.cross_check_status &&
+            prev.phase1_started_at === nextJob.phase1_started_at &&
+            prev.phase1_completed_at === nextJob.phase1_completed_at &&
+            prev.phase2_started_at === nextJob.phase2_started_at &&
+            prev.phase2_completed_at === nextJob.phase2_completed_at &&
+            prev.pass3_started_at === nextJob.pass3_started_at &&
+            prev.pass3_completed_at === nextJob.pass3_completed_at;
 
           unchangedCountRef.current = unchanged ? unchangedCountRef.current + 1 : 0;
           return nextJob;
@@ -473,7 +508,22 @@ export function EvaluationPoller({
           // in flight, render through the running-stage label map instead of the
           // terminal complete display, which is intentionally fixed at 100%.
           const displayStatus = isCompletingAnimation ? 'running' : job.status;
-          const pd = getProgressDisplay({ status: displayStatus, progress: displayProgress });
+          // Pass authoritative phase fields through so the stage label reflects the
+          // real pipeline state, while the visual percentage continues to use the
+          // smoothly-animated displayProgress for UX continuity.
+          const pd = getProgressDisplay({
+            status: displayStatus,
+            phase: job.phase ?? null,
+            phase_status: job.phase_status ?? null,
+            cross_check_status: job.cross_check_status ?? null,
+            created_at: job.created_at ?? null,
+            phase1_started_at: job.phase1_started_at ?? null,
+            phase1_completed_at: job.phase1_completed_at ?? null,
+            phase2_started_at: job.phase2_started_at ?? null,
+            phase2_completed_at: job.phase2_completed_at ?? null,
+            pass3_started_at: job.pass3_started_at ?? null,
+            pass3_completed_at: job.pass3_completed_at ?? null,
+          });
           if (!pd) return null;
           return (
             <div className="space-y-2">

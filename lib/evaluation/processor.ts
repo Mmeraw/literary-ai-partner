@@ -2326,6 +2326,63 @@ export async function processEvaluationJob(
       }
 
       console.error(`[Processor] Pipeline failed for job ${jobId}: ${pipelineError}`);
+
+      // PR #506 / PR-B / PR-C — persist external_adjudication + full cross-check
+      // observability onto the in-memory progressState BEFORE markFailed runs.
+      //
+      // Why progressState (not a direct DB write):
+      //   markFailed builds nextProgress as { ...progressState, ... }. Any field
+      //   we write directly to the DB column here gets stomped by that spread.
+      //   Copying onto progressState first guarantees the failure-path write
+      //   includes the audit fields, closing the observability gap that left
+      //   cross_check_output NULL across all jobs and PASS4_CANON_INVALID
+      //   incidents with no audit trail.
+      if (pipelineResult.external_adjudication) {
+        const ext = pipelineResult.external_adjudication;
+        progressState.cross_check_status = ext.status;
+        progressState.cross_check_reason = 'reason' in ext ? ext.reason : null;
+        progressState.external_adjudication_mode = ext.mode;
+        progressState.external_adjudication_status = ext.status;
+      }
+
+      // PR-B: surface the full cross-check output and governance audit context
+      // so a future operator can reconstruct exactly what Pass 4 saw without
+      // having to re-run the job. We persist cross_check_output to the dedicated
+      // jsonb column (which has been unused) AND mirror invalidCriteria into
+      // progress.audit_invalid_criteria so /admin/pipeline-health can render it
+      // without an additional DB read.
+      const crossCheckColumnPatch: Record<string, unknown> = {};
+      if (pipelineResult.cross_check) {
+        progressState.audit_invalid_criteria = pipelineResult.cross_check.invalidCriteria;
+        progressState.audit_canon_valid = pipelineResult.cross_check.canonValid;
+        progressState.audit_overall_agreement = pipelineResult.cross_check.overallAgreement;
+        crossCheckColumnPatch.cross_check_output = pipelineResult.cross_check;
+        crossCheckColumnPatch.cross_check_completed_at =
+          pipelineResult.cross_check.crossCheckedAt ?? new Date().toISOString();
+      }
+      if (pipelineResult.pass4_governance && !pipelineResult.pass4_governance.ok) {
+        progressState.pass4_block_code = pipelineResult.pass4_governance.blockCode ?? null;
+        progressState.pass4_block_severity = pipelineResult.pass4_governance.severity ?? null;
+        progressState.pass4_audit_context =
+          pipelineResult.pass4_governance.auditContext ?? null;
+      }
+
+      if (Object.keys(crossCheckColumnPatch).length > 0) {
+        try {
+          await supabase
+            .from('evaluation_jobs')
+            .update(crossCheckColumnPatch)
+            .eq('id', job.id);
+        } catch (persistErr) {
+          // Non-fatal: progress-mirror persistence below still captures the audit
+          // trail. Logged so we can spot column-write regressions in obs.
+          console.warn(
+            `[Processor] ${jobId}: failed to persist cross_check_output column on failure path:`,
+            persistErr instanceof Error ? persistErr.message : String(persistErr),
+          );
+        }
+      }
+
       await markFailed(pipelineError, pipelineResult.error_code || 'PIPELINE_ERROR', {
         pipelineStage: pipelineResult.failed_at,
         reasonCodes: [pipelineResult.error_code || 'PIPELINE_ERROR'],
@@ -2378,11 +2435,63 @@ export async function processEvaluationJob(
       },
       crossCheckResult: pipelineResult.cross_check,
       pass4Governance: pipelineResult.pass4_governance,
+      // PR #506 — thread the explicit Pass 4 status so the report's
+      // governance.transparency.external_adjudication block can render
+      // "External Adjudication: Completed · Required Mode · packet=29568 chars"
+      // (or skipped / failed_soft with reason) without any inference.
+      externalAdjudication: pipelineResult.external_adjudication,
       sourceText: manuscriptWithContent.content || "",
       manuscriptText: manuscriptWithContent.content || "",
       title: manuscript.title ?? undefined,
       scopeProfile: scopeProfileForV2Gate,
     });
+
+    // PR #506 — persist Pass 4 status onto the canonical JobProgress so the jobs
+    // surface (and Supabase) reflect Pass 4 truth instead of leaving cross_check_status
+    // null. JobProgress is a typed-loose jsonb (`[k: string]: unknown`) so no
+    // schema migration is needed.
+    //
+    // PR-B: also persist cross_check_output to the dedicated jsonb column and
+    // mirror invalidCriteria / agreement / canonValid onto progressState so the
+    // success path leaves the same observability surface as the failure path.
+    if (pipelineResult.external_adjudication) {
+      try {
+        const successColumnPatch: Record<string, unknown> = {
+          progress: {
+            ...((job.progress as Record<string, unknown> | null) ?? {}),
+            cross_check_status: pipelineResult.external_adjudication.status,
+            cross_check_reason:
+              'reason' in pipelineResult.external_adjudication
+                ? pipelineResult.external_adjudication.reason
+                : null,
+            external_adjudication_mode: pipelineResult.external_adjudication.mode,
+            external_adjudication_status: pipelineResult.external_adjudication.status,
+            ...(pipelineResult.cross_check
+              ? {
+                  audit_invalid_criteria: pipelineResult.cross_check.invalidCriteria,
+                  audit_canon_valid: pipelineResult.cross_check.canonValid,
+                  audit_overall_agreement: pipelineResult.cross_check.overallAgreement,
+                }
+              : {}),
+          },
+        };
+        if (pipelineResult.cross_check) {
+          successColumnPatch.cross_check_output = pipelineResult.cross_check;
+          successColumnPatch.cross_check_completed_at =
+            pipelineResult.cross_check.crossCheckedAt ?? new Date().toISOString();
+        }
+        await supabase
+          .from('evaluation_jobs')
+          .update(successColumnPatch)
+          .eq('id', job.id);
+      } catch (persistErr) {
+        // Non-fatal: report still carries authoritative status; this is for the jobs surface.
+        console.warn(
+          `[Processor] ${jobId}: failed to persist external_adjudication onto progress:`,
+          persistErr instanceof Error ? persistErr.message : String(persistErr),
+        );
+      }
+    }
     console.log(
       `[Processor] ${jobId}: evaluationResult synthesized overall=${evaluationResult.overview.overall_score_0_100}`,
     );

@@ -503,6 +503,54 @@ export type GateDiagnostics = {
 
 // ── Pipeline result ──────────────────────────────────────────────────────────
 
+/**
+ * External adjudication status — explicit, fail-closed contract for Pass 4.
+ *
+ * Every PipelineResult MUST carry this. Pass 4 "silently absent" (the original
+ * bug that produced the Froggin Noggin completed-report-without-cross-check
+ * artifact) is no longer representable.
+ *
+ * status semantics:
+ *   - completed:        Perplexity returned a usable cross_check.
+ *   - skipped:          Pass 4 did not run (no key in optional mode, etc.). Always carries a reason.
+ *   - failed_soft:      Pass 4 attempted but failed; optional mode allows the eval to continue.
+ *   - failed_blocking:  Pass 4 attempted/needed but failed; required/veto mode demands abort.
+ *
+ * mode is the EVAL_EXTERNAL_ADJUDICATION_MODE resolved at run time.
+ */
+export type ExternalAdjudicationMode = "optional" | "required" | "veto";
+
+export type ExternalAdjudicationStatus =
+  | {
+      status: "cross_check_completed";
+      mode: ExternalAdjudicationMode;
+      cross_check_returned: true;
+      packet_chars?: number;
+      packet_compression_ratio?: number;
+    }
+  | {
+      status: "skipped";
+      mode: ExternalAdjudicationMode;
+      cross_check_returned: false;
+      reason: "no_api_key" | "adjudication_disabled" | string;
+    }
+  | {
+      status: "failed_soft";
+      mode: ExternalAdjudicationMode;
+      cross_check_returned: false;
+      reason: string;
+      packet_chars?: number;
+      packet_compression_ratio?: number;
+    }
+  | {
+      status: "failed_blocking";
+      mode: ExternalAdjudicationMode;
+      cross_check_returned: false;
+      reason: string;
+      packet_chars?: number;
+      packet_compression_ratio?: number;
+    };
+
 export type PipelineResultRouting = {
   pass1Model: string;
   pass2Model: string;
@@ -519,6 +567,13 @@ export type PipelineResult =
       cross_check?: import("./perplexityCrossCheck").CrossCheckOutput;
       /** Always present after quality gate passes; undefined only if evaluatePass4Governance throws */
       pass4_governance?: import("@/lib/evaluation/governance/evaluatePass4Governance").GovernanceDecision;
+      /**
+       * Explicit Pass 4 execution outcome. Always present on the success path.
+       * Drives processor persistence of progress.cross_check_status /
+       * cross_check_reason / external_adjudication_mode and the report's
+       * governance.transparency.external_adjudication block.
+       */
+      external_adjudication: ExternalAdjudicationStatus;
       /** Resolved pass-level model routing for audit traceability. */
       routing?: PipelineResultRouting;
       /** Recovery metadata: retry counts and fallback usage per pass. */
@@ -532,6 +587,28 @@ export type PipelineResult =
       error: string;
       error_code: string;
       failed_at: "pass1" | "pass2" | "pass3" | "pass4";
+      /**
+       * Pass 4 status snapshot. Present whenever the failure can be attributed
+       * to (or annotated with) external adjudication. When failed_at==="pass4"
+       * and the cause is a required/veto-mode external adjudication failure,
+       * external_adjudication.status will be "failed_blocking".
+       */
+      external_adjudication?: ExternalAdjudicationStatus;
+      /**
+       * PR-B observability: full cross-check output when a Pass 4 governance
+       * failure (PASS4_CANON_INVALID / PASS4_WEAK_AGREEMENT /
+       * PASS4_DISPUTED_CRITERIA) blocks the pipeline. Lets the processor
+       * persist progress.cross_check_output and audit_invalid_criteria before
+       * markFailed runs, preserving the evidence that drove the block.
+       */
+      cross_check?: import("./perplexityCrossCheck").CrossCheckOutput;
+      /**
+       * PR-B observability: the governance decision (block code + audit context
+       * including invalidCriteria, disputedCriteria, overallAgreement) that
+       * caused the failure. Surfaced on the failure variant so the processor
+       * does not have to re-derive it from cross_check.
+       */
+      pass4_governance?: import("@/lib/evaluation/governance/evaluatePass4Governance").GovernanceDecision;
       /** Resolved pass-level model routing for audit traceability. */
       routing?: PipelineResultRouting;
       /** Recovery metadata: retry counts and fallback usage per pass. */
