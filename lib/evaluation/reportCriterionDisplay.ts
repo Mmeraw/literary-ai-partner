@@ -125,9 +125,22 @@ export function getCriterionRationalePresentation(
 }
 
 export function getCertifiedCriteriaSummary(criteria: RenderableCriterion[]): string {
+  // PR-J (2026-05-16): the legacy label "N of N certified" misled readers into
+  // thinking every criterion carried equally strong evidence. "Certified" here
+  // means scorable (the criterion had at least minimal observable signal), not
+  // that it reached high confidence. Confidence is reported per-criterion via
+  // getConfidencePresentation. The new label keeps the count but makes the
+  // confidence variance explicit so readers do not over-trust uniform-looking
+  // scores (e.g. Prose Control rendered alongside a Low Confidence badge).
   const total = criteria.length;
-  const certified = criteria.filter((criterion) => isCertifiedCriterion(criterion)).length;
-  return `${certified} of ${total} criteria certified`;
+  const scorable = criteria.filter((criterion) => isCertifiedCriterion(criterion)).length;
+  if (total === 0) {
+    return "No criteria scored";
+  }
+  if (scorable === total) {
+    return `${scorable} of ${total} criteria scored — confidence varies per criterion (see badges below)`;
+  }
+  return `${scorable} of ${total} criteria scored — ${total - scorable} non-scorable; confidence varies per criterion (see badges below)`;
 }
 
 export function sanitizeRenderData<T>(value: T): T {

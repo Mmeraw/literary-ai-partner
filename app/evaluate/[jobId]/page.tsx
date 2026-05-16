@@ -752,9 +752,12 @@ export default async function EvaluationReportPage({
               <div className="mt-3 rounded-md border bg-gray-50 p-3 text-xs text-gray-700">
                 <p>
                   <span className="font-medium">Score Ledger:</span>{" "}
-                  Raw {artifact.governance.transparency.score_ledger.raw_total} / {artifact.governance.transparency.score_ledger.max_total},
-                  Normalized {artifact.governance.transparency.score_ledger.normalized_total} / 100,
+                  Raw {artifact.governance.transparency.score_ledger.raw_total} / {artifact.governance.transparency.score_ledger.max_total},{" "}
+                  Weighted composite {artifact.governance.transparency.score_ledger.normalized_total} / 10,{" "}
                   Weighting {artifact.governance.transparency.score_ledger.weighting}
+                </p>
+                <p className="mt-1 text-[11px] text-gray-500">
+                  Weighted composite is the canonical 0–10 score (weighted across 13 criteria). The Overall Score above is the same value rescaled to 0–100 for ease of reading.
                 </p>
               </div>
             )}

@@ -78,8 +78,29 @@ export default function ModeConfirmationBlock({ jobId, detectedMode, confirmedMo
       </div>
 
       <p className="mt-2 text-sm text-gray-700">
-        Proposed: <span className="font-semibold">{detectedMode.proposedEvaluationMode}</span> ·{" "}
-        <span className="font-semibold">{detectedMode.proposedVoicePreservationMode}</span>
+        {/*
+          PR-J (2026-05-16): TESTIMONY mode was previously surfaced as a confident
+          "Proposed: TESTIMONY · MAXIMUM" which over-stated the system's certainty
+          and risked appearing to label real lived events. TESTIMONY/STANDARD/
+          TRANSGRESSIVE detection runs on textual markers alone and cannot, by
+          design, distinguish a memoir from a novel that mimics one. The softer
+          "Possible … — confirmation required" wording communicates that this is
+          a triage hint pending author confirmation, not a classification.
+        */}
+        {detectedMode.proposedEvaluationMode === "TESTIMONY" ? (
+          <>
+            Possible testimony / sensitive-material content — confirmation required.{" "}
+            <span className="text-gray-600">
+              Suggested voice preservation:{" "}
+              <span className="font-semibold">{detectedMode.proposedVoicePreservationMode}</span>.
+            </span>
+          </>
+        ) : (
+          <>
+            Proposed: <span className="font-semibold">{detectedMode.proposedEvaluationMode}</span> ·{" "}
+            <span className="font-semibold">{detectedMode.proposedVoicePreservationMode}</span>
+          </>
+        )}
       </p>
 
       <ul className="mt-3 list-disc pl-5 text-sm text-gray-700 space-y-1">
