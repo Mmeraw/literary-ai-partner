@@ -12,16 +12,27 @@
       "source_download_url": "https://www.gutenberg.org/ebooks/1342.txt.utf-8",
       "jurisdiction_basis": "U.S. public domain source; verify local jurisdiction before redistribution outside the U.S.",
       "form": "long_novel",
-      "calibration_axes": ["social_realism", "dialogue", "character_pressure", "irony", "long_form_arc"],
+      "calibration_axes": [
+        "social_realism",
+        "dialogue",
+        "character_pressure",
+        "irony",
+        "long_form_arc"
+      ],
       "raw_text_path": "corpus/public-domain/raw/pride-and-prejudice.txt",
       "clean_text_path": "corpus/public-domain/clean/pride-and-prejudice.txt",
-      "allowed_uses": ["manifest_seed", "future_longform_fixture", "future_calibration_fixture"],
+      "allowed_uses": [
+        "manifest_seed",
+        "future_longform_fixture",
+        "future_calibration_fixture"
+      ],
       "cleaning": {
-        "status": "not_downloaded",
-        "headers_removed": false,
-        "footers_removed": false,
+        "status": "cleaned",
+        "headers_removed": true,
+        "footers_removed": true,
         "modern_editorial_material_removed": false
-      }
+      },
+      "requires_extraction": false
     },
     {
       "id": "tell-tale-heart",
@@ -33,16 +44,27 @@
       "source_download_url": "https://www.gutenberg.org/files/2148/2148-0.txt",
       "jurisdiction_basis": "U.S. public domain source; verify local jurisdiction before redistribution outside the U.S.",
       "form": "short_fiction",
-      "calibration_axes": ["psychological_horror", "unreliable_voice", "compression", "first_person_pressure"],
+      "calibration_axes": [
+        "psychological_horror",
+        "unreliable_voice",
+        "compression",
+        "first_person_pressure"
+      ],
       "raw_text_path": "corpus/public-domain/raw/tell-tale-heart.txt",
       "clean_text_path": "corpus/public-domain/clean/tell-tale-heart.txt",
-      "allowed_uses": ["manifest_seed", "future_smoke_fixture", "future_calibration_fixture"],
+      "allowed_uses": [
+        "manifest_seed",
+        "future_smoke_fixture",
+        "future_calibration_fixture"
+      ],
       "cleaning": {
-        "status": "not_downloaded",
-        "headers_removed": false,
-        "footers_removed": false,
-        "modern_editorial_material_removed": false
-      }
+        "status": "cleaned",
+        "headers_removed": true,
+        "footers_removed": true,
+        "modern_editorial_material_removed": false,
+        "notes": "Collection file; target story extraction still required."
+      },
+      "requires_extraction": true
     },
     {
       "id": "great-expectations",
@@ -54,16 +76,27 @@
       "source_download_url": "https://www.gutenberg.org/ebooks/1400.txt.utf-8",
       "jurisdiction_basis": "U.S. public domain source; verify local jurisdiction before redistribution outside the U.S.",
       "form": "long_novel",
-      "calibration_axes": ["bildungsroman", "serial_structure", "character_arc", "pacing_drag_risk", "long_form_arc"],
+      "calibration_axes": [
+        "bildungsroman",
+        "serial_structure",
+        "character_arc",
+        "pacing_drag_risk",
+        "long_form_arc"
+      ],
       "raw_text_path": "corpus/public-domain/raw/great-expectations.txt",
       "clean_text_path": "corpus/public-domain/clean/great-expectations.txt",
-      "allowed_uses": ["manifest_seed", "future_longform_fixture", "future_calibration_fixture"],
+      "allowed_uses": [
+        "manifest_seed",
+        "future_longform_fixture",
+        "future_calibration_fixture"
+      ],
       "cleaning": {
-        "status": "not_downloaded",
-        "headers_removed": false,
-        "footers_removed": false,
+        "status": "cleaned",
+        "headers_removed": true,
+        "footers_removed": true,
         "modern_editorial_material_removed": false
-      }
+      },
+      "requires_extraction": false
     },
     {
       "id": "strange-case-of-dr-jekyll-and-mr-hyde",
@@ -75,16 +108,27 @@
       "source_download_url": "https://www.gutenberg.org/ebooks/43.txt.utf-8",
       "jurisdiction_basis": "U.S. public domain source; verify local jurisdiction before redistribution outside the U.S.",
       "form": "novella",
-      "calibration_axes": ["gothic", "mystery_reveal", "moral_duality", "novella_structure", "suspense"],
+      "calibration_axes": [
+        "gothic",
+        "mystery_reveal",
+        "moral_duality",
+        "novella_structure",
+        "suspense"
+      ],
       "raw_text_path": "corpus/public-domain/raw/strange-case-of-dr-jekyll-and-mr-hyde.txt",
       "clean_text_path": "corpus/public-domain/clean/strange-case-of-dr-jekyll-and-mr-hyde.txt",
-      "allowed_uses": ["manifest_seed", "future_smoke_fixture", "future_calibration_fixture"],
+      "allowed_uses": [
+        "manifest_seed",
+        "future_smoke_fixture",
+        "future_calibration_fixture"
+      ],
       "cleaning": {
-        "status": "not_downloaded",
-        "headers_removed": false,
-        "footers_removed": false,
+        "status": "cleaned",
+        "headers_removed": true,
+        "footers_removed": true,
         "modern_editorial_material_removed": false
-      }
+      },
+      "requires_extraction": false
     },
     {
       "id": "the-yellow-wallpaper",
@@ -96,16 +140,27 @@
       "source_download_url": "https://www.gutenberg.org/ebooks/1952.txt.utf-8",
       "jurisdiction_basis": "U.S. public domain source; verify local jurisdiction before redistribution outside the U.S.",
       "form": "short_fiction",
-      "calibration_axes": ["psychological_interior", "feminist_literature", "confinement_pov", "voice_destabilization", "theme"],
+      "calibration_axes": [
+        "psychological_interior",
+        "feminist_literature",
+        "confinement_pov",
+        "voice_destabilization",
+        "theme"
+      ],
       "raw_text_path": "corpus/public-domain/raw/the-yellow-wallpaper.txt",
       "clean_text_path": "corpus/public-domain/clean/the-yellow-wallpaper.txt",
-      "allowed_uses": ["manifest_seed", "future_smoke_fixture", "future_calibration_fixture"],
+      "allowed_uses": [
+        "manifest_seed",
+        "future_smoke_fixture",
+        "future_calibration_fixture"
+      ],
       "cleaning": {
-        "status": "not_downloaded",
-        "headers_removed": false,
-        "footers_removed": false,
+        "status": "cleaned",
+        "headers_removed": true,
+        "footers_removed": true,
         "modern_editorial_material_removed": false
-      }
+      },
+      "requires_extraction": false
     },
     {
       "id": "story-of-an-hour",
@@ -117,16 +172,28 @@
       "source_download_url": "https://www.gutenberg.org/ebooks/160.txt.utf-8",
       "jurisdiction_basis": "U.S. public domain source; verify local jurisdiction before redistribution outside the U.S.",
       "form": "short_fiction",
-      "calibration_axes": ["micro_arc", "reversal", "interiority", "narrative_closure", "compressed_theme"],
+      "calibration_axes": [
+        "micro_arc",
+        "reversal",
+        "interiority",
+        "narrative_closure",
+        "compressed_theme"
+      ],
       "raw_text_path": "corpus/public-domain/raw/story-of-an-hour.txt",
       "clean_text_path": "corpus/public-domain/clean/story-of-an-hour.txt",
-      "allowed_uses": ["manifest_seed", "future_smoke_fixture", "future_calibration_fixture"],
+      "allowed_uses": [
+        "manifest_seed",
+        "future_smoke_fixture",
+        "future_calibration_fixture"
+      ],
       "cleaning": {
-        "status": "not_downloaded",
-        "headers_removed": false,
-        "footers_removed": false,
-        "modern_editorial_material_removed": false
-      }
+        "status": "cleaned",
+        "headers_removed": true,
+        "footers_removed": true,
+        "modern_editorial_material_removed": false,
+        "notes": "Collection file; target story extraction still required."
+      },
+      "requires_extraction": true
     },
     {
       "id": "the-time-machine",
@@ -138,16 +205,27 @@
       "source_download_url": "https://www.gutenberg.org/ebooks/35.txt.utf-8",
       "jurisdiction_basis": "U.S. public domain source; verify local jurisdiction before redistribution outside the U.S.",
       "form": "novella",
-      "calibration_axes": ["science_fiction", "speculative_concept", "worldbuilding", "theme", "framing_device"],
+      "calibration_axes": [
+        "science_fiction",
+        "speculative_concept",
+        "worldbuilding",
+        "theme",
+        "framing_device"
+      ],
       "raw_text_path": "corpus/public-domain/raw/the-time-machine.txt",
       "clean_text_path": "corpus/public-domain/clean/the-time-machine.txt",
-      "allowed_uses": ["manifest_seed", "future_smoke_fixture", "future_calibration_fixture"],
+      "allowed_uses": [
+        "manifest_seed",
+        "future_smoke_fixture",
+        "future_calibration_fixture"
+      ],
       "cleaning": {
-        "status": "not_downloaded",
-        "headers_removed": false,
-        "footers_removed": false,
+        "status": "cleaned",
+        "headers_removed": true,
+        "footers_removed": true,
         "modern_editorial_material_removed": false
-      }
+      },
+      "requires_extraction": false
     },
     {
       "id": "dracula",
@@ -159,16 +237,27 @@
       "source_download_url": "https://www.gutenberg.org/ebooks/345.txt.utf-8",
       "jurisdiction_basis": "U.S. public domain source; verify local jurisdiction before redistribution outside the U.S.",
       "form": "long_novel",
-      "calibration_axes": ["gothic_horror", "epistolary_structure", "atmosphere", "long_form_evidence_coverage", "pacing_variance"],
+      "calibration_axes": [
+        "gothic_horror",
+        "epistolary_structure",
+        "atmosphere",
+        "long_form_evidence_coverage",
+        "pacing_variance"
+      ],
       "raw_text_path": "corpus/public-domain/raw/dracula.txt",
       "clean_text_path": "corpus/public-domain/clean/dracula.txt",
-      "allowed_uses": ["manifest_seed", "future_longform_fixture", "future_calibration_fixture"],
+      "allowed_uses": [
+        "manifest_seed",
+        "future_longform_fixture",
+        "future_calibration_fixture"
+      ],
       "cleaning": {
-        "status": "not_downloaded",
-        "headers_removed": false,
-        "footers_removed": false,
+        "status": "cleaned",
+        "headers_removed": true,
+        "footers_removed": true,
         "modern_editorial_material_removed": false
-      }
+      },
+      "requires_extraction": false
     },
     {
       "id": "the-wonderful-wizard-of-oz",
@@ -180,16 +269,27 @@
       "source_download_url": "https://www.gutenberg.org/ebooks/55.txt.utf-8",
       "jurisdiction_basis": "U.S. public domain source; verify local jurisdiction before redistribution outside the U.S.",
       "form": "novel",
-      "calibration_axes": ["childrens_fantasy", "quest_structure", "worldbuilding", "tone_control", "episodic_adventure"],
+      "calibration_axes": [
+        "childrens_fantasy",
+        "quest_structure",
+        "worldbuilding",
+        "tone_control",
+        "episodic_adventure"
+      ],
       "raw_text_path": "corpus/public-domain/raw/the-wonderful-wizard-of-oz.txt",
       "clean_text_path": "corpus/public-domain/clean/the-wonderful-wizard-of-oz.txt",
-      "allowed_uses": ["manifest_seed", "future_smoke_fixture", "future_calibration_fixture"],
+      "allowed_uses": [
+        "manifest_seed",
+        "future_smoke_fixture",
+        "future_calibration_fixture"
+      ],
       "cleaning": {
-        "status": "not_downloaded",
-        "headers_removed": false,
-        "footers_removed": false,
+        "status": "cleaned",
+        "headers_removed": true,
+        "footers_removed": true,
         "modern_editorial_material_removed": false
-      }
+      },
+      "requires_extraction": false
     },
     {
       "id": "the-murder-on-the-links",
@@ -201,16 +301,27 @@
       "source_download_url": "https://www.gutenberg.org/ebooks/58866.txt.utf-8",
       "jurisdiction_basis": "U.S. public domain source; verify local jurisdiction before redistribution outside the U.S.",
       "form": "novel",
-      "calibration_axes": ["detective_fiction", "clue_logic", "plot_mechanics", "marketability", "reveal_sequence"],
+      "calibration_axes": [
+        "detective_fiction",
+        "clue_logic",
+        "plot_mechanics",
+        "marketability",
+        "reveal_sequence"
+      ],
       "raw_text_path": "corpus/public-domain/raw/the-murder-on-the-links.txt",
       "clean_text_path": "corpus/public-domain/clean/the-murder-on-the-links.txt",
-      "allowed_uses": ["manifest_seed", "future_smoke_fixture", "future_calibration_fixture"],
+      "allowed_uses": [
+        "manifest_seed",
+        "future_smoke_fixture",
+        "future_calibration_fixture"
+      ],
       "cleaning": {
-        "status": "not_downloaded",
-        "headers_removed": false,
-        "footers_removed": false,
+        "status": "cleaned",
+        "headers_removed": true,
+        "footers_removed": true,
         "modern_editorial_material_removed": false
-      }
+      },
+      "requires_extraction": false
     }
   ]
 }
