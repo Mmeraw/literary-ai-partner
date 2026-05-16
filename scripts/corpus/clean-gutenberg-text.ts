@@ -39,14 +39,16 @@ export function cleanGutenbergText(input: string): string {
     .concat("\n");
 }
 
-function assertCorpusPath(filePath: string, expectedSegment: "/public-domain/") {
+function assertCorpusPath(filePath: string) {
   const normalizedPath = path.normalize(filePath);
+  const publicDomainRoot = path.normalize("corpus/public-domain/");
+
   if (normalizedPath.includes("..")) {
     throw new Error(`Refusing path with parent-directory traversal: ${filePath}`);
   }
 
-  if (!normalizedPath.includes(expectedSegment)) {
-    throw new Error(`Expected corpus path containing ${expectedSegment}: ${filePath}`);
+  if (!normalizedPath.startsWith(publicDomainRoot)) {
+    throw new Error(`Expected path under corpus/public-domain/: ${filePath}`);
   }
 }
 
@@ -57,8 +59,8 @@ function main() {
     usage();
   }
 
-  assertCorpusPath(rawPath, `${path.sep}public-domain${path.sep}`);
-  assertCorpusPath(cleanPath, `${path.sep}public-domain${path.sep}`);
+  assertCorpusPath(rawPath);
+  assertCorpusPath(cleanPath);
 
   const absoluteRawPath = path.resolve(process.cwd(), rawPath);
   const absoluteCleanPath = path.resolve(process.cwd(), cleanPath);
