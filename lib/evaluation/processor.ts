@@ -849,10 +849,59 @@ async function resolveManuscriptText(
   // Priority 1: Direct content column
   const directContent = typeof manuscript.content === 'string' ? manuscript.content.trim() : '';
   if (directContent.length > 0) {
+    console.log(
+      `[Processor] manuscript ${manuscript.id} resolveManuscriptText.content_column (${directContent.length} chars)`,
+    );
     return { text: directContent };
   }
 
-  // Priority 2: Reconstruct from manuscript_chunks
+  // Priority 2: Decode data URI from file_url (paste submissions store the
+  // canonical text here). This MUST run before any manuscript_chunks
+  // reconstruction so re-evaluations cannot recursively inflate the resolved
+  // text via the chunker's overlap budget. file_url is the canonical source
+  // of truth for paste submissions; chunks are derived state.
+  const fileUrl = typeof manuscript.file_url === 'string' ? manuscript.file_url : '';
+  if (fileUrl.startsWith('data:text/plain')) {
+    // Decode failures here must NOT silently fall through to the chunks
+    // fallback — that is precisely the recursive-inflation bug PR #520
+    // closes. A malformed data URI is a hard failure for this manuscript.
+    const commaIndex = fileUrl.indexOf(',');
+    if (commaIndex < 0) {
+      throw new Error(
+        `resolveManuscriptText.file_url_data_uri decode failed for manuscript ${manuscript.id}: missing comma separator`,
+      );
+    }
+    let decoded: string;
+    try {
+      const encoded = fileUrl.substring(commaIndex + 1);
+      decoded = decodeURIComponent(encoded);
+    } catch (decodeError) {
+      throw new Error(
+        `resolveManuscriptText.file_url_data_uri decode failed for manuscript ${manuscript.id}: ${
+          decodeError instanceof Error ? decodeError.message : String(decodeError)
+        }`,
+      );
+    }
+    if (decoded.trim().length > 0) {
+      console.log(
+        `[Processor] manuscript ${manuscript.id} resolveManuscriptText.file_url_data_uri (${decoded.length} chars)`,
+      );
+      // Canonical file_url path resolved successfully — do NOT query
+      // manuscript_chunks. Returning here is what enforces the "valid
+      // file_url path must not read chunks" invariant.
+      return { text: decoded };
+    }
+    // data:text/plain prefix present but decoded payload was empty/whitespace —
+    // surface as a hard failure rather than silently degrading to chunks.
+    throw new Error(
+      `resolveManuscriptText.file_url_data_uri decode failed for manuscript ${manuscript.id}: empty payload`,
+    );
+  }
+
+  // Priority 3: Reconstruct from manuscript_chunks (last-resort fallback).
+  // Only reached when manuscript.content is empty AND file_url is absent or
+  // not a data:text/plain URI. This path is lossy because chunks include
+  // overlap; treat it strictly as a fallback, not a canonical source.
   const { data: chunks, error: chunkError } = await supabase
     .from('manuscript_chunks')
     .select('chunk_index, content')
@@ -878,32 +927,9 @@ async function resolveManuscriptText(
 
     if (reconstructed.length > 0) {
       evalDebugWarn(
-        `[Processor] manuscript ${manuscript.id} missing manuscripts.content; reconstructed text from ${chunks.length} chunk(s)`,
+        `[Processor] manuscript ${manuscript.id} resolveManuscriptText.manuscript_chunks_fallback; reconstructed text from ${chunks.length} chunk(s)`,
       );
       return { text: reconstructed, loadedChunks: validChunks };
-    }
-  }
-
-  // Priority 3: Decode data URI from file_url (paste submissions store text here)
-  const fileUrl = typeof manuscript.file_url === 'string' ? manuscript.file_url : '';
-  if (fileUrl.startsWith('data:text/plain')) {
-    try {
-      const commaIndex = fileUrl.indexOf(',');
-      if (commaIndex >= 0) {
-        const encoded = fileUrl.substring(commaIndex + 1);
-        const decoded = decodeURIComponent(encoded);
-        if (decoded.trim().length > 0) {
-          console.log(
-            `[Processor] manuscript ${manuscript.id} resolved text from file_url data URI (${decoded.length} chars)`,
-          );
-          return { text: decoded };
-        }
-      }
-    } catch (decodeError) {
-      console.warn(
-        `[Processor] manuscript ${manuscript.id} file_url data URI decode failed:`,
-        decodeError,
-      );
     }
   }
 
@@ -1917,6 +1943,71 @@ export async function processEvaluationJob(
         });
         return { success: false, error: chunkBudgetError };
       }
+      // PR #520 chunk-materialization invariants — run BEFORE the
+      // CHUNK_BUDGET_OVERFLOW adaptive bracket gate so recursive overlap
+      // inflation (the bug that closed Issue #519) is caught at its source
+      // rather than masked by a downstream budget check.
+      {
+        const chunkCount = chunkRouting.chunk_count ?? 0;
+        const maxIndex = chunkRouting.max_chunk_index ?? -1;
+        if (chunkCount > 0 && maxIndex >= 0 && maxIndex !== chunkCount - 1) {
+          const rangeError =
+            `Chunk index range mismatch: chunk_count=${chunkCount} but max_chunk_index=${maxIndex}. ` +
+            `Expected max_chunk_index=${chunkCount - 1}. Failing closed before persistence.`;
+          await markFailed(rangeError, 'CHUNK_INDEX_RANGE_MISMATCH', {
+            pipelineStage: 'chunking',
+            reasonCodes: ['CHUNK_INDEX_RANGE_MISMATCH'],
+            diagnostics: {
+              chunk_routing: chunkRouting,
+              chunk_count: chunkCount,
+              max_chunk_index: maxIndex,
+            },
+          });
+          return { success: false, error: rangeError };
+        }
+        // Inflation check: aggregate emitted chunk size vs the canonical base
+        // span. baseIndexedChars is the resolved-text length (canonical
+        // source); totalOverlapChars is the total overlap budget the chunker
+        // is allowed to add. The sum of emitted chunk content must not exceed
+        // baseIndexedChars + totalOverlapChars by more than a small safety
+        // margin, otherwise the resolver picked up an already-overlap-inflated
+        // source (the Issue #519 failure mode).
+        const baseIndexedChars =
+          typeof (chunkRouting as { base_chars?: unknown }).base_chars === 'number'
+            ? ((chunkRouting as { base_chars: number }).base_chars)
+            : typeof (chunkRouting as { resolved_text_chars?: unknown }).resolved_text_chars === 'number'
+            ? ((chunkRouting as { resolved_text_chars: number }).resolved_text_chars)
+            : 0;
+        const perChunkOverlap = chunkRouting.overlap_chars ?? 0;
+        const totalOverlapChars = chunkCount > 1 ? perChunkOverlap * (chunkCount - 1) : 0;
+        const totalEmittedChars =
+          typeof (chunkRouting as { total_chunk_chars?: unknown }).total_chunk_chars === 'number'
+            ? ((chunkRouting as { total_chunk_chars: number }).total_chunk_chars)
+            : 0;
+        if (
+          baseIndexedChars > 0 &&
+          totalEmittedChars > 0 &&
+          totalEmittedChars > baseIndexedChars + totalOverlapChars + 1024
+        ) {
+          const inflationError =
+            `Chunk content inflation detected: total_emitted_chars=${totalEmittedChars} exceeds ` +
+            `baseIndexedChars=${baseIndexedChars} + totalOverlapChars=${totalOverlapChars} ` +
+            `(margin=1024). Resolver may have read overlap-inflated source. ` +
+            `Failing closed before persistence.`;
+          await markFailed(inflationError, 'CHUNK_CONTENT_INFLATION', {
+            pipelineStage: 'chunking',
+            reasonCodes: ['CHUNK_CONTENT_INFLATION'],
+            diagnostics: {
+              chunk_routing: chunkRouting,
+              base_indexed_chars: baseIndexedChars,
+              total_overlap_chars: totalOverlapChars,
+              total_emitted_chars: totalEmittedChars,
+            },
+          });
+          return { success: false, error: inflationError };
+        }
+      }
+
       if (chunkRouting.max_chunk_chars > adaptiveMaxChars) {
         const violatingIndex = chunkRouting.max_chunk_index ?? 0;
         // The emitted chunk content includes any prepended overlap on non-first
