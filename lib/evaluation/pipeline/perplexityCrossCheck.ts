@@ -585,10 +585,10 @@ Rules:
    - score
    - rationale
    - at least one short quoted manuscript reference
-   - detectedSignals
+   - detectedSignals (a NON-EMPTY array; at least one detected signal per criterion)
    - scoringBand
-   - doctrineTrace
-5. If evidence is absent, the criterion is invalid.
+   - doctrineTrace (a NON-EMPTY array; at least one doctrine reference per criterion)
+5. If evidence is absent, the criterion is invalid. Empty detectedSignals or doctrineTrace arrays are NOT permitted and will be rejected as canon-invalid.
 6. Do not provide revision advice.
 7. Do not perform line-editing or WAVE refinement.
 8. Return ONLY valid JSON.
