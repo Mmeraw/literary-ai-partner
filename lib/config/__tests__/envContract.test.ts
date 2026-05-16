@@ -18,7 +18,7 @@ describe('resolveEvalEnvContract', () => {
   describe('clean defaults', () => {
     it('returns canonical defaults when no env vars are set', () => {
       const contract = resolveEvalEnvContract(BASE_ENV);
-      expect(contract.inputCharBudget).toBe(40_000);
+      expect(contract.inputCharBudget).toBe(50_000);
       expect(contract.synthesisRefCharBudget).toBe(8_000);
       expect(contract.openAiModel).toBe('gpt-5.1');
       expect(contract.adjudicationMode).toBe('optional');
@@ -30,13 +30,13 @@ describe('resolveEvalEnvContract', () => {
     it('accepts explicit valid values matching defaults', () => {
       const env: NodeJS.ProcessEnv = {
         ...BASE_ENV,
-        EVAL_PIPELINE_INPUT_CHAR_BUDGET: '40000',
+        EVAL_PIPELINE_INPUT_CHAR_BUDGET: '50000',
         EVAL_PIPELINE_SYNTHESIS_REF_CHAR_BUDGET: '8000',
         EVAL_OPENAI_MODEL: 'gpt-4o',
         EVAL_EXTERNAL_ADJUDICATION_MODE: 'optional',
       };
       const contract = resolveEvalEnvContract(env);
-      expect(contract.inputCharBudget).toBe(40_000);
+      expect(contract.inputCharBudget).toBe(50_000);
       expect(contract.openAiModel).toBe('gpt-4o');
       expect(contract.adjudicationMode).toBe('optional');
     });
@@ -96,7 +96,7 @@ describe('resolveEvalEnvContract', () => {
     it('uses default when EVAL_PIPELINE_INPUT_CHAR_BUDGET is empty string', () => {
       const env = { ...BASE_ENV, EVAL_PIPELINE_INPUT_CHAR_BUDGET: '' };
       const contract = resolveEvalEnvContract(env);
-      expect(contract.inputCharBudget).toBe(40_000);
+      expect(contract.inputCharBudget).toBe(50_000);
     });
 
     it('uses default when EVAL_PIPELINE_SYNTHESIS_REF_CHAR_BUDGET is empty string', () => {
