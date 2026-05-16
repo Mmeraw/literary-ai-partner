@@ -312,9 +312,12 @@ export async function runPass3bLongform(
 
   let parsed: Record<string, unknown>;
   try {
-    parsed = parseJsonObjectBoundary<Record<string, unknown>>(rawContent, {
-      allowTrailingGarbage: true,
+    // parseJsonObjectBoundary already handles trailing garbage via its
+    // extractBalancedJsonObjects extractor — no extra option needed.
+    const parseResult = parseJsonObjectBoundary<Record<string, unknown>>(rawContent, {
+      label: "Pass3b DREAM",
     });
+    parsed = parseResult.value;
   } catch (err) {
     if (err instanceof JsonBoundaryError) {
       throw new Error(

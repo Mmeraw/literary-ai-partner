@@ -71,6 +71,7 @@ import {
 import type { RunPass1Options } from "./runPass1";
 import type { RunPass2Options } from "./runPass2";
 import type { RunPass3Options } from "./runPass3Synthesis";
+import type { RunPass3bOptions } from "./runPass3bLongform";
 import { loadCanonicalRegistry } from "@/lib/governance/canonRegistry";
 import type { CanonRegistry } from "@/lib/governance/canonRegistry";
 import {
@@ -160,6 +161,8 @@ export interface RunPipelineOptions {
       pass2: SinglePassOutput,
       manuscriptText?: string,
     ) => QualityGateResult;
+    /** Injected for testing — overrides the real runPass3bLongform call. */
+    runPass3bLongform?: (opts: RunPass3bOptions) => Promise<LongformDreamDocument>;
   };
   /** Dependency injection for registry loader (testing only). */
   _registryLoader?: () => CanonRegistry;
@@ -1695,7 +1698,8 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
       console.log(
         `[Pass3b] Triggering long-form DREAM synthesis: words=${pipelineManuscriptWords} chunks=${opts.manuscriptChunks.length}`
       );
-      longformDoc = await runPass3bLongform({
+      const _runPass3bLongform = opts._runners?.runPass3bLongform ?? runPass3bLongform;
+      longformDoc = await _runPass3bLongform({
         criteria: pass3Output.criteria,
         pass2aStructuredContext,
         manuscriptChunks: opts.manuscriptChunks,
