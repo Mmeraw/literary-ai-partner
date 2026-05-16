@@ -238,12 +238,24 @@ describe("parsePass3Response", () => {
     const result = parsePass3Response(JSON.stringify(fixture), pass1, pass2);
     const summary = result.overall.one_paragraph_summary.toLowerCase();
 
-    expect(summary).toContain("key revision pressure remains in");
-    expect(
-      result.criteria
-        .filter((criterion) => criterion.final_score_0_10 <= 5)
-        .some((criterion) => summary.includes(criterion.key.toLowerCase())),
-    ).toBe(true);
+    // PR-K (2026-05-16): Pass 3 now delegates to the canonical
+    // normalizeSummaryWithBottomWeaknesses helper in propagationIntegrity.ts,
+    // which emits "Main weaknesses center on <criteria>." and names EVERY
+    // bottom-score criterion (not just one).
+    expect(summary).toContain("main weaknesses center on");
+    const bottomCriteria = result.criteria.filter(
+      (criterion) => criterion.final_score_0_10 <= 5,
+    );
+    // Every bottom-score criterion's human-readable token must appear in
+    // the summary — this is the parity contract with QualityGateV2's
+    // v2_summary_weakness_presence check.
+    for (const criterion of bottomCriteria) {
+      const readableToken = criterion.key
+        .replace(/([a-z])([A-Z])/g, "$1 $2")
+        .replace(/([A-Z])([A-Z][a-z])/g, "$1 $2")
+        .toLowerCase();
+      expect(summary).toContain(readableToken);
+    }
   });
 });
 
