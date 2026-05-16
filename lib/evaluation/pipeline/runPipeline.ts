@@ -1629,6 +1629,12 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
       error_code: errorCode,
       failed_at: "pass4",
       external_adjudication: externalAdjudication,
+      // PR-B observability: surface the full cross-check output and governance
+      // decision on the failure variant so the processor can persist them onto
+      // progress before markFailed runs. Without this the cross_check_output
+      // column stays NULL and PASS4_CANON_INVALID incidents have no audit trail.
+      cross_check: crossCheckResult,
+      pass4_governance: pass4Governance,
       routing: pipelineRouting,
     };
   }

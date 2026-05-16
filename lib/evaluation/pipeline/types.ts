@@ -594,6 +594,21 @@ export type PipelineResult =
        * external_adjudication.status will be "failed_blocking".
        */
       external_adjudication?: ExternalAdjudicationStatus;
+      /**
+       * PR-B observability: full cross-check output when a Pass 4 governance
+       * failure (PASS4_CANON_INVALID / PASS4_WEAK_AGREEMENT /
+       * PASS4_DISPUTED_CRITERIA) blocks the pipeline. Lets the processor
+       * persist progress.cross_check_output and audit_invalid_criteria before
+       * markFailed runs, preserving the evidence that drove the block.
+       */
+      cross_check?: import("./perplexityCrossCheck").CrossCheckOutput;
+      /**
+       * PR-B observability: the governance decision (block code + audit context
+       * including invalidCriteria, disputedCriteria, overallAgreement) that
+       * caused the failure. Surfaced on the failure variant so the processor
+       * does not have to re-derive it from cross_check.
+       */
+      pass4_governance?: import("@/lib/evaluation/governance/evaluatePass4Governance").GovernanceDecision;
       /** Resolved pass-level model routing for audit traceability. */
       routing?: PipelineResultRouting;
       /** Recovery metadata: retry counts and fallback usage per pass. */
