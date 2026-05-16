@@ -1,7 +1,3 @@
----
-benchmark-schema: canonical-13-v1
----
-
 # Froggin Noggin — DREAM Long-Form Gold Standard Evaluation
 
 **Repository target:** `docs/benchmarks/froggin-noggin-dream.md`  
