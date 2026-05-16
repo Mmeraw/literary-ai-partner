@@ -1612,31 +1612,63 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
   pass4Governance = evaluatePass4Governance(crossCheckResult);
 
   if (pass4Governance && !pass4Governance.ok) {
-    const errorCode = pass4Governance.blockCode ?? "PASS4_GOVERNANCE_FAILED";
-    timings.total_ms = nowMs() - pipelineStartMs;
-    logPipelineTimings("failure", {
-      manuscriptId: opts.manuscriptId,
-      title: opts.title,
-      workType: opts.workType,
-      failedAt: "pass4",
-      errorCode,
-      timings,
-    });
+    // PR-A: Honor severity + adjudication mode.
+    //
+    // Prior behavior: ANY governance !ok failed the entire pipeline, even when
+    // the consumer-emitted severity was "warning" (e.g. PASS4_DISPUTED_CRITERIA)
+    // and the operator had explicitly set EVAL_EXTERNAL_ADJUDICATION_MODE="optional".
+    // This caused jobs to fail-closed on any single disputed criterion delta ≥ 1.0,
+    // throwing away a fully-completed Pass 1–3 synthesis and a fully-returned
+    // Pass 4 cross-check. Job 449e149f is the calibration anchor: only `theme`
+    // disputed, canonValid=true, overallAgreement=MODERATE — yet the job died.
+    //
+    // New behavior: a governance !ok blocks the pipeline only when EITHER
+    //   - severity is "error" (PASS4_CANON_INVALID, PASS4_WEAK_AGREEMENT — these
+    //     always indicate a structurally broken cross-check), OR
+    //   - adjudicationMode is "required" or "veto" (operator opted into strict
+    //     fail-closed semantics regardless of severity).
+    //
+    // Otherwise (warning + optional mode), the pipeline ships ok:true with the
+    // governance decision surfaced on `pass4_governance` so the processor and
+    // UI can render the warning without dropping the entire evaluation.
+    const isBlockingSeverity = pass4Governance.severity === "error";
+    const isStrictMode =
+      adjudicationMode === "required" || adjudicationMode === "veto";
+    const blocking = isBlockingSeverity || isStrictMode;
 
-    return {
-      ok: false,
-      error: `Pass 4 governance failed: ${pass4Governance.message ?? pass4Governance.blockCode ?? "unknown governance error"}`,
-      error_code: errorCode,
-      failed_at: "pass4",
-      external_adjudication: externalAdjudication,
-      // PR-B observability: surface the full cross-check output and governance
-      // decision on the failure variant so the processor can persist them onto
-      // progress before markFailed runs. Without this the cross_check_output
-      // column stays NULL and PASS4_CANON_INVALID incidents have no audit trail.
-      cross_check: crossCheckResult,
-      pass4_governance: pass4Governance,
-      routing: pipelineRouting,
-    };
+    if (blocking) {
+      const errorCode = pass4Governance.blockCode ?? "PASS4_GOVERNANCE_FAILED";
+      timings.total_ms = nowMs() - pipelineStartMs;
+      logPipelineTimings("failure", {
+        manuscriptId: opts.manuscriptId,
+        title: opts.title,
+        workType: opts.workType,
+        failedAt: "pass4",
+        errorCode,
+        timings,
+      });
+
+      return {
+        ok: false,
+        error: `Pass 4 governance failed: ${pass4Governance.message ?? pass4Governance.blockCode ?? "unknown governance error"}`,
+        error_code: errorCode,
+        failed_at: "pass4",
+        external_adjudication: externalAdjudication,
+        // PR-B observability: surface the full cross-check output and governance
+        // decision on the failure variant so the processor can persist them onto
+        // progress before markFailed runs. Without this the cross_check_output
+        // column stays NULL and PASS4_CANON_INVALID incidents have no audit trail.
+        cross_check: crossCheckResult,
+        pass4_governance: pass4Governance,
+        routing: pipelineRouting,
+      };
+    }
+
+    // Non-blocking governance warning in optional mode: log and fall through.
+    // The warning is preserved on `pass4_governance` in the success return.
+    console.warn(
+      `[Pass4] Governance warning (non-blocking in mode=${adjudicationMode}): ${pass4Governance.blockCode ?? "UNKNOWN"} — ${pass4Governance.message ?? ""}`
+    );
   }
 
   timings.total_ms = nowMs() - pipelineStartMs;
