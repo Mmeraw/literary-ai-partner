@@ -1080,7 +1080,9 @@ describe("Pass 3b — long-form DREAM synthesis (pipeline integration)", () => {
     mockRunPass3.mockResolvedValue(makeSynthesisOutput());
   });
 
-  it("includes longform_document in ok=true result when manuscriptChunks supplied and wordCount >= 25k", async () => {
+  // T1: main job completes for long-form manuscripts WITHOUT Pass 3b (decoupled to /api/workers/process-dream).
+  // See fix/pass3b-async-dream-worker (issue #543) — Pass 3b now runs async after job completion.
+  it("T1: main pipeline completes without longform_document for long-form manuscripts (Pass 3b decoupled)", async () => {
     const mockChunks: ManuscriptChunkEvidence[] = Array.from({ length: 10 }, (_, i) => ({
       chunk_index: i,
       content: `Chapter ${i + 1} content. The river moved through the valley in the ${["early", "late", "middle", "morning", "night"][i % 5]} light.`,
@@ -1088,9 +1090,9 @@ describe("Pass 3b — long-form DREAM synthesis (pipeline integration)", () => {
       chunk_id: `chunk-${i}`,
     }));
 
-    const longformDoc = makeLongformDreamDocument();
+    // Pass 3b runner injected but must NOT be called — it belongs to the DREAM worker now.
     const mockRunPass3bLongform = jest.fn<() => Promise<LongformDreamDocument>>();
-    mockRunPass3bLongform.mockResolvedValue(longformDoc);
+    mockRunPass3bLongform.mockRejectedValue(new Error("Should never be called from main pipeline"));
 
     const result = await runPipeline({
       manuscriptText: "a ".repeat(25_001),
@@ -1107,24 +1109,21 @@ describe("Pass 3b — long-form DREAM synthesis (pipeline integration)", () => {
       },
     });
 
+    // T1 assertion: main job must succeed ...
     expect(result.ok).toBe(true);
     if (result.ok) {
-      expect(result.longform_document).toBeDefined();
-      expect(result.longform_document?.dream_scores).toEqual(
-        expect.objectContaining({
-          quality: expect.any(Number),
-          readiness: expect.any(Number),
-          commercial: expect.any(Number),
-          literary: expect.any(Number),
-        }),
-      );
-      expect(result.longform_document?.criterion_analyses).toHaveLength(13);
-      expect(result.longform_document?.manuscript_integrity_issues).toBeInstanceOf(Array);
-      expect(result.longform_document?.revision_plan.length).toBeGreaterThanOrEqual(3);
+      // ... with all 13 criteria scored
+      expect(result.synthesis.criteria).toHaveLength(13);
+      expect(result.quality_gate.pass).toBe(true);
+      // ... and longform_document absent (it lives in evaluation_artifacts, fetched separately)
+      expect((result as Record<string, unknown>).longform_document).toBeUndefined();
     }
+    // ... and Pass 3b was never called from within the pipeline
+    expect(mockRunPass3bLongform).not.toHaveBeenCalled();
   });
 
-  it("does NOT fire Pass 3b for short manuscripts (< 25k words)", async () => {
+  it("short-form manuscripts complete successfully and never have longform_document (< 25k words)", async () => {
+    // Pass 3b is decoupled; even if injected, it must never be called for short-form.
     const mockRunPass3bLongform = jest.fn<() => Promise<LongformDreamDocument>>();
 
     const result = await runPipeline({
@@ -1142,14 +1141,16 @@ describe("Pass 3b — long-form DREAM synthesis (pipeline integration)", () => {
     });
 
     expect(result.ok).toBe(true);
-    // Pass 3b must not be called for short-form manuscripts.
+    // Pass 3b must not be called for short-form manuscripts (not long-form, and decoupled anyway).
     expect(mockRunPass3bLongform).not.toHaveBeenCalled();
     if (result.ok) {
-      expect(result.longform_document).toBeUndefined();
+      expect((result as Record<string, unknown>).longform_document).toBeUndefined();
     }
   });
 
-  it("remains ok=true when Pass 3b throws (fail-soft — main job must ship)", async () => {
+  // T1-ext: even if a broken runPass3bLongform is injected, the main pipeline must NOT
+  // call it (it's decoupled) and must still return ok=true for long-form manuscripts.
+  it("T1-ext: pipeline never calls runPass3bLongform even when injected with a throwing mock (decoupled)", async () => {
     const mockChunks: ManuscriptChunkEvidence[] = Array.from({ length: 5 }, (_, i) => ({
       chunk_index: i,
       content: `Chunk ${i} content for the long-form manuscript.`,
@@ -1157,9 +1158,10 @@ describe("Pass 3b — long-form DREAM synthesis (pipeline integration)", () => {
       chunk_id: `chunk-fail-${i}`,
     }));
 
+    // A throwing mock — if the pipeline calls this, the test will fail via unhandled rejection.
     const mockRunPass3bLongform = jest.fn<() => Promise<LongformDreamDocument>>();
     mockRunPass3bLongform.mockRejectedValue(
-      new Error("[Pass3b] EMPTY_RESPONSE: model=gpt-4o finish_reason=length")
+      new Error("[Pass3b] EMPTY_RESPONSE: model=gpt-4o finish_reason=length — should never be called")
     );
 
     const result = await runPipeline({
@@ -1177,13 +1179,15 @@ describe("Pass 3b — long-form DREAM synthesis (pipeline integration)", () => {
       },
     });
 
-    // Main evaluation must succeed even if Pass 3b fails.
+    // Pass 3b is fully decoupled — the mock must never be called.
+    expect(mockRunPass3bLongform).not.toHaveBeenCalled();
+
+    // Main evaluation must succeed regardless.
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.synthesis.criteria).toHaveLength(13);
       expect(result.quality_gate.pass).toBe(true);
-      // longform_document should be absent when Pass 3b throws.
-      expect(result.longform_document).toBeUndefined();
+      expect((result as Record<string, unknown>).longform_document).toBeUndefined();
     }
   });
 });
@@ -1527,10 +1531,10 @@ describe("Pass 4 — Perplexity DREAM adjudication (pipeline integration)", () =
     }
   });
 
-  it("cross_check and longform_document both present for LONG_FORM route with perplexityApiKey", async () => {
-    // The flagship scenario: Cartel Babies / Froggin Noggin-style evaluation.
-    // Both Pass 3b (DREAM document) and Pass 4 (Perplexity adjudication) must fire
-    // and co-exist in the ok=true result.
+  // Post-decoupling: Pass 3b is removed from the main pipeline. This test verifies
+  // that Pass 4 (Perplexity cross-check) still fires correctly for LONG_FORM manuscripts
+  // and that longform_document is absent from the pipeline result (lives in evaluation_artifacts).
+  it("cross_check present for LONG_FORM route with perplexityApiKey (Pass 3b decoupled to DREAM worker)", async () => {
     const originalFetch = global.fetch;
     global.fetch = jest.fn<typeof fetch>().mockResolvedValue({
       ok: true,
@@ -1570,9 +1574,8 @@ describe("Pass 4 — Perplexity DREAM adjudication (pipeline integration)", () =
       chunk_id: `chunk-dream-${i}`,
     }));
 
-    const longformDoc = makeLongformDreamDocument();
+    // Pass 3b injected but must NOT be called (decoupled to DREAM worker)
     const mockRunPass3bLongform = jest.fn<() => Promise<LongformDreamDocument>>();
-    mockRunPass3bLongform.mockResolvedValue(longformDoc);
 
     try {
       const result = await runPipeline({
@@ -1593,37 +1596,29 @@ describe("Pass 4 — Perplexity DREAM adjudication (pipeline integration)", () =
 
       expect(result.ok).toBe(true);
       if (result.ok) {
-        // Pass 3b — DREAM document must be present
-        expect(result.longform_document).toBeDefined();
-        expect(result.longform_document?.dream_scores).toEqual(
-          expect.objectContaining({
-            quality: expect.any(Number),
-            readiness: expect.any(Number),
-            commercial: expect.any(Number),
-            literary: expect.any(Number),
-          })
-        );
-        expect(result.longform_document?.criterion_analyses).toHaveLength(13);
-        expect(result.longform_document?.revision_plan.length).toBeGreaterThanOrEqual(3);
-        expect(result.longform_document?.repo_summary.benchmark_name).toBe("froggin-noggin-dream");
-
-        // Pass 4 — Perplexity cross-check must also be present
+        // Pass 4 — Perplexity cross-check must be present
         expect(result.cross_check).toBeDefined();
         expect(result.cross_check?.model).toBe("sonar-reasoning-pro");
         expect(Object.keys(result.cross_check?.criteria ?? {})).toHaveLength(13);
 
-        // Both passes co-exist — neither blocks the other
+        // Main pipeline output must be complete
         expect(result.quality_gate.pass).toBe(true);
         expect(result.synthesis.criteria).toHaveLength(13);
+
+        // Pass 3b is decoupled — longform_document NOT in pipeline result
+        expect((result as Record<string, unknown>).longform_document).toBeUndefined();
       }
+
+      // Pass 3b must never be called from the main pipeline
+      expect(mockRunPass3bLongform).not.toHaveBeenCalled();
     } finally {
       global.fetch = originalFetch;
     }
   });
 
   it("remains ok=true when Pass 4 Perplexity network fails on LONG_FORM route (fail-soft)", async () => {
-    // Perplexity network failure must NOT block a valid DREAM evaluation.
-    // Pass 3b should still succeed and the main job must ship.
+    // Perplexity network failure must NOT block the main evaluation.
+    // Pass 3b is now decoupled to the DREAM worker — never runs here.
     const originalFetch = global.fetch;
     global.fetch = jest.fn<typeof fetch>().mockRejectedValue(
       new Error("Network error: ECONNREFUSED")
@@ -1636,9 +1631,8 @@ describe("Pass 4 — Perplexity DREAM adjudication (pipeline integration)", () =
       chunk_id: `chunk-pplx-fail-${i}`,
     }));
 
-    const longformDoc = makeLongformDreamDocument();
+    // Pass 3b runner injected but must NOT be called
     const mockRunPass3bLongform = jest.fn<() => Promise<LongformDreamDocument>>();
-    mockRunPass3bLongform.mockResolvedValue(longformDoc);
 
     try {
       const result = await runPipeline({
@@ -1662,11 +1656,14 @@ describe("Pass 4 — Perplexity DREAM adjudication (pipeline integration)", () =
       if (result.ok) {
         expect(result.synthesis.criteria).toHaveLength(13);
         expect(result.quality_gate.pass).toBe(true);
-        // Pass 3b DREAM must still be present
-        expect(result.longform_document).toBeDefined();
+        // longform_document absent — decoupled to DREAM worker
+        expect((result as Record<string, unknown>).longform_document).toBeUndefined();
         // Pass 4 cross_check absent when Perplexity fails
         expect(result.cross_check).toBeUndefined();
       }
+
+      // Pass 3b must not be called from the main pipeline
+      expect(mockRunPass3bLongform).not.toHaveBeenCalled();
     } finally {
       global.fetch = originalFetch;
     }

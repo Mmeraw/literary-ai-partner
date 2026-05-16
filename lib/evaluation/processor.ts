@@ -3022,48 +3022,8 @@ export async function processEvaluationJob(
         `[Processor] ${jobId}: EXIT persistEvaluationResultV2 artifactId=${persistenceResult.artifactId}`,
       );
 
-      // ── Pass 3b artifact persistence (fail-soft) ───────────────────────────
-      // Store the DREAM long-form document as a separate artifact so the UI
-      // can fetch it independently without bloating the main evaluation_result.
-      // A failure here MUST NOT fail the job — the canonical artifact is already
-      // persisted on the line above.
-      if (pipelineResult.longform_document) {
-        try {
-          const longformSourceHash = stableSourceHash({
-            manuscriptId: manuscript.id,
-            jobId: job.id,
-            userId: manuscriptWithContent.user_id,
-            manuscriptText: manuscriptWithContent.content || '(No content provided)',
-            promptVersion: `longform_document_v1:${pipelineResult.longform_document.prompt_version}`,
-            model: pipelineResult.longform_document.model,
-          });
-
-          await upsertEvaluationArtifact({
-            supabase,
-            jobId: job.id,
-            manuscriptId: job.manuscript_id,
-            artifactType: 'longform_document_v1',
-            artifactVersion: pipelineResult.longform_document.prompt_version,
-            sourceHash: longformSourceHash,
-            content: {
-              schema_version: 'longform_document_v1',
-              created_at: pipelineResult.longform_document.generated_at,
-              job_id: job.id,
-              manuscript_id: manuscript.id,
-              longform_document: pipelineResult.longform_document,
-            },
-          });
-
-          console.log(`[Processor] ${jobId}: persisted longform_document_v1 artifact`);
-        } catch (longformPersistErr) {
-          console.warn(
-            `[Processor] ${jobId}: failed to persist longform_document_v1 (non-fatal):`,
-            longformPersistErr instanceof Error
-              ? longformPersistErr.message
-              : String(longformPersistErr),
-          );
-        }
-      }
+      // Pass 3b artifact persistence moved to /api/workers/process-dream (issue #543).
+      // DREAM worker polls for complete long-form jobs lacking longform_document_v1 artifact.
 
       finishLatencyStage({
         jobId,
