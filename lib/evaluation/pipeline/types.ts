@@ -581,6 +581,13 @@ export type PipelineResult =
         retry_counts?: Partial<Record<"pass1" | "pass2" | "pass3", number>>;
         fallbacks?: Partial<Record<"pass3", boolean>>;
       };
+      /**
+       * Long-form DREAM document — present only when route === "LONG_FORM" (≥ 25,000 words).
+       * Produced by Pass 3b after the quality gate passes.
+       * Contains all 16 DREAM sections per the Froggin Noggin and Cartel Babies benchmarks.
+       * Undefined for SHORT_FORM evaluations — never null, always undefined or the full document.
+       */
+      longform_document?: import("./runPass3bLongform").LongformDreamDocument;
     }
   | {
       ok: false;
