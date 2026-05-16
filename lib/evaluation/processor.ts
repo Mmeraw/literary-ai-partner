@@ -1972,17 +1972,18 @@ export async function processEvaluationJob(
         // baseIndexedChars + totalOverlapChars by more than a small safety
         // margin, otherwise the resolver picked up an already-overlap-inflated
         // source (the Issue #519 failure mode).
+        const routingRecord = chunkRouting as unknown as Record<string, unknown>;
         const baseIndexedChars =
-          typeof (chunkRouting as { base_chars?: unknown }).base_chars === 'number'
-            ? ((chunkRouting as { base_chars: number }).base_chars)
-            : typeof (chunkRouting as { resolved_text_chars?: unknown }).resolved_text_chars === 'number'
-            ? ((chunkRouting as { resolved_text_chars: number }).resolved_text_chars)
+          typeof routingRecord.base_chars === 'number'
+            ? (routingRecord.base_chars as number)
+            : typeof routingRecord.resolved_text_chars === 'number'
+            ? (routingRecord.resolved_text_chars as number)
             : 0;
         const perChunkOverlap = chunkRouting.overlap_chars ?? 0;
         const totalOverlapChars = chunkCount > 1 ? perChunkOverlap * (chunkCount - 1) : 0;
         const totalEmittedChars =
-          typeof (chunkRouting as { total_chunk_chars?: unknown }).total_chunk_chars === 'number'
-            ? ((chunkRouting as { total_chunk_chars: number }).total_chunk_chars)
+          typeof routingRecord.total_chunk_chars === 'number'
+            ? (routingRecord.total_chunk_chars as number)
             : 0;
         if (
           baseIndexedChars > 0 &&
