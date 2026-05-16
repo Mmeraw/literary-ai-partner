@@ -14,10 +14,10 @@ describe("public-domain corpus substrate", () => {
     const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
     expect(manifest.schema_version).toBe(1);
     expect(Array.isArray(manifest.works)).toBe(true);
-    expect(manifest.works.length).toBeGreaterThan(0);
+    expect(manifest.works).toHaveLength(10);
   });
 
-  it("requires each manifest work to carry provenance and cleaning state", () => {
+  it("requires each manifest work to carry provenance, download, calibration, and cleaning state", () => {
     const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
 
     for (const work of manifest.works) {
@@ -27,7 +27,10 @@ describe("public-domain corpus substrate", () => {
       expect(work.first_publication_year).toEqual(expect.any(Number));
       expect(work.source_name).toEqual(expect.any(String));
       expect(work.source_url).toMatch(/^https?:\/\//);
+      expect(work.source_download_url).toMatch(/^https?:\/\/.+\.txt(?:\.utf-8)?$/);
       expect(work.jurisdiction_basis).toEqual(expect.any(String));
+      expect(Array.isArray(work.calibration_axes)).toBe(true);
+      expect(work.calibration_axes.length).toBeGreaterThan(0);
       expect(work.raw_text_path).toMatch(/^corpus\/public-domain\/raw\/.+\.txt$/);
       expect(work.clean_text_path).toMatch(/^corpus\/public-domain\/clean\/.+\.txt$/);
       expect(Array.isArray(work.allowed_uses)).toBe(true);
@@ -39,6 +42,28 @@ describe("public-domain corpus substrate", () => {
         modern_editorial_material_removed: expect.any(Boolean),
       });
     }
+  });
+
+  it("covers multiple forms and calibration axes in the seed set", () => {
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+    const forms = new Set(manifest.works.map((work: { form: string }) => work.form));
+    const axes = new Set(
+      manifest.works.flatMap((work: { calibration_axes: string[] }) => work.calibration_axes),
+    );
+
+    expect(forms).toEqual(
+      expect.arrayContaining(["short_fiction", "novella", "novel", "long_novel"]),
+    );
+    expect(axes).toEqual(
+      expect.arrayContaining([
+        "dialogue",
+        "psychological_horror",
+        "science_fiction",
+        "childrens_fantasy",
+        "detective_fiction",
+        "long_form_evidence_coverage",
+      ]),
+    );
   });
 
   it("strips Project Gutenberg boilerplate from raw text", () => {
