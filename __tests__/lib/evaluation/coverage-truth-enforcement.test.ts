@@ -29,27 +29,29 @@ beforeEach(() => {
 
 describe("Coverage-Truth Enforcement — No Silent Truncation", () => {
   test("summarizePromptCoverage uses runtime default budget when maxChars is omitted", () => {
-    const text = "a".repeat(40_001);
+    // Default budget raised from 40_000 → 50_000 to align with the LARGE
+    // adaptive chunker bracket (see lib/config/envContract.ts).
+    const text = "a".repeat(50_001);
 
     const coverage = summarizePromptCoverage(text);
 
-    expect(coverage.budgetChars).toBe(40_000);
+    expect(coverage.budgetChars).toBe(50_000);
     expect(coverage.truncated).toBe(true);
     expect(coverage.strategy).toBe("sampled_beginning_middle_end");
   });
 
   test("truncated is false for text under the default budget", () => {
-    const text = "a".repeat(39_999);
+    const text = "a".repeat(49_999);
 
     const coverage = summarizePromptCoverage(text);
 
-    expect(coverage.budgetChars).toBe(40_000);
+    expect(coverage.budgetChars).toBe(50_000);
     expect(coverage.truncated).toBe(false);
     expect(coverage.strategy).toBe("full_text");
   });
 
   test("truncated is true for text over the default budget", () => {
-    const text = "a".repeat(40_001);
+    const text = "a".repeat(50_001);
 
     const coverage = summarizePromptCoverage(text);
 

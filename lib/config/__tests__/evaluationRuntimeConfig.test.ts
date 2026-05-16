@@ -18,7 +18,7 @@ describe("resolveEvaluationRuntimeConfig", () => {
     expect(config.pass.pass2MaxTokens).toBe(8000);
     expect(config.pass.pass3MaxTokens).toBe(20000);
     expect(config.pass.pass3PromptMaxChars).toBe(40000);
-    expect(config.pass.inputCharBudget).toBe(40000);
+    expect(config.pass.inputCharBudget).toBe(50000);
     expect(config.pass.synthesisRefCharBudget).toBe(8000);
     expect(config.worker.batchSize).toBe(5);
     expect(config.worker.leaseMs).toBe(800000);

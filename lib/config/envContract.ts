@@ -50,7 +50,16 @@ const VALID_NODE_ENVS: NodeEnv[] = ['development', 'test', 'production'];
 
 const INPUT_CHAR_BUDGET_MIN = 12_000;
 const INPUT_CHAR_BUDGET_MAX = 100_000;
-const INPUT_CHAR_BUDGET_DEFAULT = 40_000;
+// Raised from 40_000 → 50_000 so the chunker post-condition
+// (chunk ≤ floor(inputCharBudget * 0.95) = 47_500) accommodates the LARGE
+// adaptive bracket's emitted-content ceiling (chunking.ts BRACKET_LARGE
+// maxChars=42_000). Without this, 150k+ word manuscripts fail closed at
+// Pass 1 dispatch with CHUNK_BUDGET_OVERFLOW (e.g. job a8d3723c). Pass 1
+// model windows (gpt-5.1) are >> 50_000 chars so this is a budgeting
+// alignment, not a token-window expansion. Per-chunk prompt cost grows by
+// at most ~25% on the largest chunks. Invariant asserted in
+// lib/evaluation/pipeline/__tests__/chunker-budget-invariant.test.ts.
+const INPUT_CHAR_BUDGET_DEFAULT = 50_000;
 
 const SYNTHESIS_REF_CHAR_BUDGET_MIN = 1_000;
 const SYNTHESIS_REF_CHAR_BUDGET_MAX = 50_000;
