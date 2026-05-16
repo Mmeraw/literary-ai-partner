@@ -56,11 +56,13 @@ const DREAM_BATCH_SIZE = 1;
 type DreamJobRow = {
   id: string;
   manuscript_id: number;
+  // word_count comes from manuscripts join, not evaluation_jobs (evaluation_jobs has no word_count column)
   word_count: number | null;
   manuscripts: {
     user_id: string;
     title: string | null;
     work_type: string | null;
+    word_count: number | null;
   } | null;
 };
 
@@ -172,20 +174,19 @@ async function findPendingDreamJobs(
   limit: number,
 ): Promise<DreamJobRow[]> {
   // Step 1: candidate complete long-form jobs
+  // word_count lives on manuscripts, not evaluation_jobs — filter post-join.
   const { data: candidateJobs, error: jobsError } = await supabase
     .from('evaluation_jobs')
     .select(
       `
       id,
       manuscript_id,
-      word_count,
-      manuscripts!inner(user_id, title, work_type)
+      manuscripts!inner(user_id, title, work_type, word_count)
     `,
     )
     .eq('status', 'complete')
-    .gte('word_count', DREAM_WORD_COUNT_THRESHOLD)
     .order('updated_at', { ascending: true }) // oldest completed first
-    .limit(limit * 10); // over-fetch to account for already-done jobs
+    .limit(limit * 20); // over-fetch — we filter by word_count and already-done post-query
 
   if (jobsError) {
     throw new Error(`[DreamWorker] Failed to query candidate jobs: ${jobsError.message}`);
@@ -217,16 +218,20 @@ async function findPendingDreamJobs(
   const pending = ((candidateJobs as unknown) as Array<{
     id: string;
     manuscript_id: number;
-    word_count: number | null;
-    manuscripts: Array<{ user_id: string; title: string | null; work_type: string | null }> | { user_id: string; title: string | null; work_type: string | null } | null;
+    manuscripts: Array<{ user_id: string; title: string | null; work_type: string | null; word_count: number | null }> | { user_id: string; title: string | null; work_type: string | null; word_count: number | null } | null;
   }>)
-    .filter((j) => !alreadyDoneIds.has(j.id))
-    .map((j): DreamJobRow => ({
-      id: j.id,
-      manuscript_id: j.manuscript_id,
-      word_count: j.word_count,
-      manuscripts: Array.isArray(j.manuscripts) ? (j.manuscripts[0] ?? null) : j.manuscripts,
-    }));
+    .map((j): DreamJobRow => {
+      const ms = Array.isArray(j.manuscripts) ? (j.manuscripts[0] ?? null) : j.manuscripts;
+      return {
+        id: j.id,
+        manuscript_id: j.manuscript_id,
+        word_count: ms?.word_count ?? null, // sourced from manuscripts.word_count
+        manuscripts: ms,
+      };
+    })
+    // Apply word_count threshold here (evaluation_jobs has no word_count column)
+    .filter((j) => (j.word_count ?? 0) >= DREAM_WORD_COUNT_THRESHOLD)
+    .filter((j) => !alreadyDoneIds.has(j.id));
   return pending.slice(0, limit);
 }
 
