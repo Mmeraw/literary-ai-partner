@@ -1,5 +1,19 @@
 "use client";
 
+/**
+ * HeaderNav — RevisionGrade canonical navigation shell
+ *
+ * Design language: dark editorial (rg-ink background, rg-cream text, rg-gold accents).
+ * Matches the landing page design system.
+ *
+ * Launch-scope nav items (29-day sprint):
+ *   App routes:    Dashboard · Evaluate · Revise · Resources · Pricing
+ *   Marketing:     Evaluate · Revise · Resources · Pricing
+ *   Both:          Sign In / Sign Out · Pipeline Health (admin only)
+ *
+ * Dropped from scope: Convert · Output · Storygate Studio
+ */
+
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -15,10 +29,8 @@ export default function HeaderNav() {
     pathname.startsWith("/dashboard") ||
     pathname.startsWith("/evaluate") ||
     pathname.startsWith("/revise") ||
-    pathname.startsWith("/convert") ||
-    pathname.startsWith("/output") ||
-    pathname.startsWith("/storygate") ||
-    pathname.startsWith("/admin");
+    pathname.startsWith("/admin") ||
+    pathname.startsWith("/reports");
 
   const isAdmin = isPipelineHealthAdminEmail(email);
   const isAuthed = !!email;
@@ -34,9 +46,7 @@ export default function HeaderNav() {
       .catch(() => {
         if (!cancelled) setEmail(null);
       });
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [pathname]);
 
   async function handleSignOut() {
@@ -57,71 +67,91 @@ export default function HeaderNav() {
     setSigningOut(false);
   }
 
-  const authButton = isAuthed ? (
+  // ── Shared link style ───────────────────────────────────────────────────────
+  const linkCls =
+    "text-xs tracking-widest uppercase font-rg-mono text-rg-cream2 hover:text-rg-cream transition-colors duration-150";
+  const activeLinkCls =
+    "text-xs tracking-widest uppercase font-rg-mono text-rg-gold";
+
+  function NavLink({ href, children }) {
+    const active = pathname === href || pathname.startsWith(href + "/");
+    return (
+      <Link href={href} className={active ? activeLinkCls : linkCls}>
+        {children}
+      </Link>
+    );
+  }
+
+  // ── Auth element ────────────────────────────────────────────────────────────
+  const authEl = isAuthed ? (
     <button
       type="button"
       onClick={handleSignOut}
       disabled={signingOut}
       data-testid="nav-signout"
-      className="ml-2 text-sm text-slate-600 hover:text-slate-900 disabled:opacity-50"
+      className="text-xs tracking-widest uppercase font-rg-mono text-rg-dim hover:text-rg-cream2 transition-colors duration-150 disabled:opacity-40"
     >
-      {signingOut ? "Signing out..." : "Sign out"}
+      {signingOut ? "Signing out…" : "Sign out"}
     </button>
   ) : (
     <Link
       href="/login"
       data-testid="nav-signin"
-      className="ml-2 text-sm font-semibold text-indigo-600 hover:text-indigo-700"
+      className="text-xs tracking-widest uppercase font-rg-mono border border-rg-cream2/40 text-rg-cream px-3 py-1.5 hover:border-rg-gold hover:text-rg-gold transition-colors duration-150"
     >
       Sign in
     </Link>
   );
 
   return (
-    <header className="w-full bg-white border-b">
-      <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
-        <Link href="/" className="flex items-center gap-2 font-semibold text-slate-900">
-          <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-600 text-white">
-            <span className="text-sm">RG</span>
+    <header className="w-full bg-rg-ink border-b border-rg-cream2/10 sticky top-0 z-50">
+      <div className="max-w-7xl mx-auto px-6 h-14 flex items-center justify-between gap-8">
+
+        {/* Logo */}
+        <Link
+          href="/"
+          className="flex items-center gap-3 shrink-0 group"
+        >
+          {/* Monogram mark */}
+          <span className="inline-flex h-8 w-8 items-center justify-center border border-rg-gold/60 text-rg-gold font-rg-serif text-sm group-hover:border-rg-gold transition-colors duration-150">
+            R
           </span>
-          <span>RevisionGrade&#8482;</span>
+          <span className="text-rg-cream font-rg-serif text-sm tracking-wide hidden sm:block">
+            RevisionGrade&#8482;
+          </span>
         </Link>
 
-        {isAppRoute ? (
-          <nav className="flex items-center gap-6 text-sm text-slate-700">
-            <Link href="/dashboard" className="hover:text-slate-900">Dashboard</Link>
-            <Link href="/evaluate" className="hover:text-slate-900">Evaluate</Link>
-            <Link href="/revise" className="hover:text-slate-900">Revise</Link>
-            <Link href="/convert" className="hover:text-slate-900">Convert</Link>
-            <Link href="/output" className="hover:text-slate-900">Output</Link>
-            <Link href="/storygate" className="font-semibold text-red-600 hover:text-red-700">Storygate Studio&#8482;</Link>
-            <Link href="/resources" className="hover:text-slate-900">Resources</Link>
-            <Link href="/pricing" className="hover:text-slate-900">Pricing</Link>
-            {isAdmin && (
-              <Link href="/admin/pipeline-health" className="font-semibold text-indigo-600 hover:text-indigo-700" data-testid="nav-pipeline-health">
-                Pipeline Health
-              </Link>
-            )}
-            {authButton}
-          </nav>
-        ) : (
-          <nav className="flex items-center gap-6 text-sm text-slate-700">
-            <Link href="/#features" className="hover:text-slate-900">Features</Link>
-            <Link href="/#wave" className="hover:text-slate-900">WAVE System</Link>
-            <Link href="/#packages" className="hover:text-slate-900">Packages</Link>
-            <Link href="/resources" className="hover:text-slate-900">Resources</Link>
-            <Link href="/pricing" className="hover:text-slate-900">Pricing</Link>
-            {isAdmin && (
-              <Link href="/admin/pipeline-health" className="font-semibold text-indigo-600 hover:text-indigo-700" data-testid="nav-pipeline-health">
-                Pipeline Health
-              </Link>
-            )}
-            <Link href="/evaluate" className="ml-2 inline-flex items-center rounded-xl bg-indigo-600 px-4 py-2 text-white hover:bg-indigo-700">
-              Get Started &rarr;
-            </Link>
-            {authButton}
-          </nav>
-        )}
+        {/* Nav links */}
+        <nav className="flex items-center gap-6 flex-1 justify-center">
+          {isAppRoute ? (
+            <>
+              <NavLink href="/dashboard">Dashboard</NavLink>
+              <NavLink href="/evaluate">Evaluate</NavLink>
+              <NavLink href="/revise">Revise</NavLink>
+              <NavLink href="/resources">Resources</NavLink>
+              <NavLink href="/pricing">Pricing</NavLink>
+              {isAdmin && (
+                <NavLink href="/admin/pipeline-health">Pipeline</NavLink>
+              )}
+            </>
+          ) : (
+            <>
+              <NavLink href="/evaluate">Evaluate</NavLink>
+              <NavLink href="/revise">Revise</NavLink>
+              <NavLink href="/resources">Resources</NavLink>
+              <NavLink href="/pricing">Pricing</NavLink>
+              {isAdmin && (
+                <NavLink href="/admin/pipeline-health">Pipeline</NavLink>
+              )}
+            </>
+          )}
+        </nav>
+
+        {/* Auth */}
+        <div className="shrink-0">
+          {authEl}
+        </div>
+
       </div>
     </header>
   );
