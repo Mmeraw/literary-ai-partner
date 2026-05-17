@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, afterEach } from "vitest";
+// Uses Jest globals (injected by jest.config.js) — no vitest import needed.
 import {
   normalizeSubmissionReadiness,
   normalizeOverallSubmissionReadiness,
@@ -8,7 +8,7 @@ import {
 
 describe("normalizeSubmissionReadiness", () => {
   afterEach(() => {
-    vi.restoreAllMocks();
+    jest.restoreAllMocks();
   });
 
   it("maps legacy 'close' to 'nearly_ready'", () => {
@@ -36,7 +36,7 @@ describe("normalizeSubmissionReadiness", () => {
   });
 
   it("normalizes unknown string to 'not_yet' with a warning", () => {
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const warn = jest.spyOn(console, "warn").mockImplementation(() => {});
     expect(normalizeSubmissionReadiness("bogus_value")).toBe("not_yet");
     expect(warn).toHaveBeenCalledWith(
       expect.stringContaining("bogus_value"),
