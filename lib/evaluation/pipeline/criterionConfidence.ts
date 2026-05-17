@@ -275,12 +275,25 @@ function looksLikeMetaCommentary(text: string): boolean {
   return META_COMMENTARY_MARKERS.some((pattern) => pattern.test(text));
 }
 
+function looksLikeExplicitExcerpt(text: string): boolean {
+  return (
+    /["'`“”‘’]/.test(text) ||
+    /^\s{0,3}>\s+\S/m.test(text) ||
+    /(^|\s)(["“‘`]).+\2($|\s)/.test(text)
+  );
+}
+
 function isVerbatimAnchor(text: string): boolean {
   const normalized = normalizeText(text);
   if (normalized.length <= 20) return false;
   if (!/\s/.test(normalized)) return false;
   if (looksLikeMetaCommentary(normalized)) return false;
-  return true;
+
+  const normalizedAnchor = normalizeAnchorText(text);
+  if (normalizedAnchor.length <= 20) return false;
+  if (!/\s/.test(normalizedAnchor)) return false;
+
+  return looksLikeExplicitExcerpt(text);
 }
 
 function isCriterionSpecificFromRationaleOrRecs(criterion: CriterionConfidenceInput): boolean {
