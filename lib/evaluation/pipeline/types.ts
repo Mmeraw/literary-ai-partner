@@ -453,6 +453,20 @@ export type PassCompletionCapture = {
   pass3_reducer_telemetry?: Pass3ReducerTelemetry;
 };
 
+export type PipelineProviderTelemetryEntry = {
+  job_id: string;
+  pass: 1 | 2 | 3;
+  provider: "openai" | "perplexity";
+  model: string;
+  request_id?: string;
+  finish_reason?: string;
+  usage?: CompletionUsage;
+  started_at: string;
+  completed_at: string;
+  duration_ms: number;
+  success: boolean;
+};
+
 // ── Phase 2.7 Gate Diagnostics (audit-only, not user-visible) ───────────────
 
 /**
@@ -576,6 +590,8 @@ export type PipelineResult =
       external_adjudication: ExternalAdjudicationStatus;
       /** Resolved pass-level model routing for audit traceability. */
       routing?: PipelineResultRouting;
+      /** Pass-level provider telemetry captured during Pass 1/2/3 completion. */
+      provider_telemetry?: PipelineProviderTelemetryEntry[];
       /** Recovery metadata: retry counts and fallback usage per pass. */
       recovery?: {
         retry_counts?: Partial<Record<"pass1" | "pass2" | "pass3", number>>;

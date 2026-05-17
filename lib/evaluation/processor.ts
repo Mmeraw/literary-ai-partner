@@ -69,6 +69,7 @@ import {
   runPipeline,
   synthesisToEvaluationResultV2,
 } from '@/lib/evaluation/pipeline/runPipeline';
+import type { ProviderTelemetryEntry } from '@/lib/evaluation/pipeline/providerTelemetry';
 import { classifySubmissionScope, countWords } from '@/lib/evaluation/pipeline/submissionScope';
 import { runQualityGateV2, QG_MAX_HIGH_SCORE_WHEN_LOW_CONFIDENCE } from '@/lib/evaluation/pipeline/qualityGate';
 import {
@@ -344,6 +345,116 @@ function buildPipelineFailureEnvelope(args: {
     failed_at: pipelineStage,
     pipeline_stage: pipelineStage,
   };
+}
+
+type ProviderCallPersistenceSummary = {
+  attempted: number;
+  persisted: number;
+  failed: number;
+  skipped: number;
+  pass4_deferred_reason?: string;
+};
+
+function mapPassToPhase(pass: ProviderTelemetryEntry['pass']): 'phase_1' | 'phase_2' | 'phase_3' {
+  if (pass === 1) return 'phase_1';
+  if (pass === 2) return 'phase_2';
+  return 'phase_3';
+}
+
+async function persistPipelineProviderCalls(args: {
+  supabase: any;
+  jobId: string;
+  telemetry?: ProviderTelemetryEntry[];
+  hasPass4CrossCheck: boolean;
+}): Promise<ProviderCallPersistenceSummary> {
+  const summary: ProviderCallPersistenceSummary = {
+    attempted: 0,
+    persisted: 0,
+    failed: 0,
+    skipped: 0,
+  };
+
+  const telemetry = Array.isArray(args.telemetry) ? args.telemetry : [];
+
+  for (const entry of telemetry) {
+    summary.attempted += 1;
+
+    // Current DB constraint allows provider IN ('openai','anthropic','simulated').
+    // Persist OpenAI pass telemetry now; Pass 4 Perplexity persistence requires
+    // explicit schema + contract follow-up.
+    if (entry.provider !== 'openai') {
+      summary.skipped += 1;
+      console.warn('[ProviderTelemetryPersistence] unsupported_provider_for_current_schema', {
+        job_id: args.jobId,
+        provider: entry.provider,
+        pass: entry.pass,
+      });
+      continue;
+    }
+
+    const row = {
+      job_id: args.jobId,
+      phase: mapPassToPhase(entry.pass),
+      provider: 'openai',
+      provider_meta_version: '2c1.v1',
+      request_meta: {
+        model: entry.model,
+        request_id: entry.request_id ?? null,
+        pass: entry.pass,
+      },
+      response_meta: {
+        latency_ms: entry.duration_ms,
+        retries: 0,
+        status_code: entry.success ? 200 : null,
+        finish_reason: entry.finish_reason ?? null,
+        tokens_input: entry.usage?.prompt_tokens ?? null,
+        tokens_output: entry.usage?.completion_tokens ?? null,
+        tokens_total: entry.usage?.total_tokens ?? null,
+        started_at: entry.started_at,
+        ended_at: entry.completed_at,
+        duration_ms: entry.duration_ms,
+      },
+      error_meta: null,
+      result_envelope: {
+        telemetry_version: 'provider_telemetry_v1',
+        pass: entry.pass,
+        provider: entry.provider,
+        success: entry.success,
+      },
+    };
+
+    const { error } = await args.supabase
+      .from('evaluation_provider_calls')
+      .upsert(row, {
+        onConflict: 'job_id,provider,phase',
+        ignoreDuplicates: false,
+      });
+
+    if (error) {
+      summary.failed += 1;
+      console.error('[ProviderTelemetryPersistence] upsert_failed', {
+        job_id: args.jobId,
+        provider: row.provider,
+        phase: row.phase,
+        code: error.code ?? null,
+        message: error.message ?? String(error),
+      });
+      continue;
+    }
+
+    summary.persisted += 1;
+  }
+
+  if (args.hasPass4CrossCheck) {
+    summary.pass4_deferred_reason =
+      'pass4_perplexity_not_persisted_in_processor_path_follow_up_required';
+    console.warn('[ProviderTelemetryPersistence] pass4_perplexity_deferred', {
+      job_id: args.jobId,
+      reason: summary.pass4_deferred_reason,
+    });
+  }
+
+  return summary;
 }
 
 function evalDebugLog(message: string, ...args: unknown[]): void {
@@ -2514,6 +2625,14 @@ export async function processEvaluationJob(
 
       return { success: false, error: missingCrossCheckResultError };
     }
+
+    const providerCallPersistence = await persistPipelineProviderCalls({
+      supabase,
+      jobId: String(job.id),
+      telemetry: pipelineResult.provider_telemetry,
+      hasPass4CrossCheck: Boolean(pipelineResult.cross_check),
+    });
+    progressState.provider_call_persistence = providerCallPersistence;
 
     const scopeProfileForV2Gate =
       process.env.EVAL_SCOPE_PROFILE_ENABLED === 'true'

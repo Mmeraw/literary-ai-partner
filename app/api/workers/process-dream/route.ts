@@ -237,7 +237,17 @@ async function findPendingDreamJobs(
 
 // ── Core: load evaluation artifact to recover criteria + synthesis context ────
 
+// evaluation_result_v2 stores criteria/engine/metrics at the TOP LEVEL of content.
+// evaluation_result_v1 (legacy) wraps them under content.evaluation_result.
+// Both shapes are handled in processDreamJob via extractFromArtifact().
 type EvaluationArtifactContent = {
+  // v2 shape — top-level fields
+  criteria?: unknown[];
+  engine?: { model?: string };
+  metrics?: {
+    manuscript?: { title?: string; word_count?: number; work_type?: string };
+  };
+  // v1 shape — nested under evaluation_result
   evaluation_result?: {
     criteria?: unknown[];
     engine?: { model?: string };
@@ -247,6 +257,25 @@ type EvaluationArtifactContent = {
   };
   [key: string]: unknown;
 };
+
+/** Extract criteria/engine from either v2 (top-level) or v1 (nested) artifact shape. */
+function extractFromArtifact(content: EvaluationArtifactContent) {
+  // v2: criteria at top level
+  if (Array.isArray(content.criteria) && content.criteria.length > 0) {
+    return {
+      criteria: content.criteria,
+      model: (content.engine as { model?: string } | undefined)?.model,
+    };
+  }
+  // v1: criteria nested under evaluation_result
+  if (Array.isArray(content.evaluation_result?.criteria) && (content.evaluation_result?.criteria?.length ?? 0) > 0) {
+    return {
+      criteria: content.evaluation_result!.criteria!,
+      model: content.evaluation_result?.engine?.model,
+    };
+  }
+  return null;
+}
 
 async function loadEvaluationArtifact(
   supabase: ReturnType<typeof createSupabaseAdmin>,
@@ -315,10 +344,11 @@ async function processDreamJob(
     return { success: false, error: 'No evaluation artifact found — job may not have persisted correctly' };
   }
 
-  const rawCriteria = artifactContent?.evaluation_result?.criteria;
-  if (!Array.isArray(rawCriteria) || rawCriteria.length === 0) {
-    return { success: false, error: 'evaluation_result.criteria missing or empty in artifact' };
+  const extracted = extractFromArtifact(artifactContent);
+  if (!extracted) {
+    return { success: false, error: 'criteria missing from artifact (tried v2 top-level and v1 evaluation_result path)' };
   }
+  const { criteria: rawCriteria, model: artifactModel } = extracted;
 
   // 2. Load manuscript chunks
   const manuscriptChunks = await loadManuscriptChunks(supabase, manuscriptId);
@@ -335,7 +365,7 @@ async function processDreamJob(
   });
 
   // 4. Recover model from artifact, fall back to env default
-  const model = artifactContent?.evaluation_result?.engine?.model ?? undefined;
+  const model = artifactModel ?? undefined;
 
   // 5. Run Pass 3b — DREAM synthesis
   const openaiApiKey = process.env.OPENAI_API_KEY ?? '';
