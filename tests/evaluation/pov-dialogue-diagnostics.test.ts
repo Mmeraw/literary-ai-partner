@@ -55,7 +55,7 @@ function makeSynthesis(overrides: Partial<SynthesizedCriterion>[] = []): Synthes
         "A controlled chapter with stable narrative authority and clear thematic progression that can still tighten some transitions.",
       top_3_strengths: ["voice", "theme", "dialogue"],
       top_3_risks: ["pacing", "marketability", "closure"],
-      submission_readiness: "close",
+      submission_readiness: "nearly_ready",
     },
     metadata: {
       pass1_model: "gpt-4o-mini",
