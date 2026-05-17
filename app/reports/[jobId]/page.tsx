@@ -374,7 +374,9 @@ export default async function ReportPage({ params }: { params: { jobId: string }
 
         {/* Criteria Scores */}
         <section className="bg-white rounded-lg shadow-sm p-6 mb-6">
-          <h2 className="text-2xl font-semibold text-gray-900 mb-6">Detailed Scores</h2>
+          <h2 className="text-2xl font-semibold text-gray-900 mb-6">
+            §6 — Detailed Scores / Score Grid
+          </h2>
           <div className="mb-4 rounded-md border bg-gray-50 p-3 text-xs text-gray-700">
             <p className="font-medium">Confidence Guide</p>
             <p className="mt-1">
