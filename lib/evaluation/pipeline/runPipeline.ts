@@ -15,8 +15,9 @@
 
 import { runPass1 as defaultRunPass1 } from "./runPass1";
 import { runPass2 as defaultRunPass2 } from "./runPass2";
-import { enforcePass2LexicalIndependence, PASS2_INDEPENDENCE_FAIL_THRESHOLD } from "./pass2IndependenceGuard";
 import { runPass3Synthesis as defaultRunPass3 } from "./runPass3Synthesis";
+import { recordProviderTelemetry, ProviderTelemetryEntry } from "./providerTelemetry";
+import { enforcePass2LexicalIndependence, PASS2_INDEPENDENCE_FAIL_THRESHOLD } from "./pass2IndependenceGuard";
 // runPass3bLongform runtime import removed — now called from /api/workers/process-dream (issue #543)
 import type { LongformDreamDocument } from "./runPass3bLongform";
 import { runPerplexityCrossCheck, CrossCheckOutput } from "./perplexityCrossCheck";
@@ -838,6 +839,8 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
   let pass1Output: SinglePassOutput;
   let pass2Output: SinglePassOutput;
   let pass3Output: SynthesisOutput;
+  // Provider call telemetry for Pass 1, 2, 3
+  const providerTelemetry: ProviderTelemetryEntry[] = [];
   // Pass 4 state — owned exclusively by runPipeline(), passed explicitly to adapter
   let crossCheckResult: CrossCheckOutput | undefined;
   let pass4Governance: Pass4GovernanceResult | undefined;
@@ -904,7 +907,17 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
       jobId: opts.jobId,
       openAiTimeoutMs: opts._openAiTimeoutMs,
       registry,
-            scopeProfile: scopeProfile ?? undefined,
+      scopeProfile: scopeProfile ?? undefined,
+      _onCompletion: (capture) => {
+        providerTelemetry.push(
+          recordProviderTelemetry({
+            capture,
+            jobId: opts.jobId,
+            provider: "openai",
+            startedAt: pass1StartedAt,
+          })
+        );
+      },
     }),
     passTimeoutMs,
     "Pass 1",
@@ -946,7 +959,17 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
       jobId: opts.jobId,
       openAiTimeoutMs: opts._openAiTimeoutMs,
       registry,
-            scopeProfile: scopeProfile ?? undefined,
+      scopeProfile: scopeProfile ?? undefined,
+      _onCompletion: (capture) => {
+        providerTelemetry.push(
+          recordProviderTelemetry({
+            capture,
+            jobId: opts.jobId,
+            provider: "openai",
+            startedAt: pass2StartedAt,
+          })
+        );
+      },
     }),
     passTimeoutMs,
     "Pass 2",
@@ -1203,7 +1226,17 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
         openaiApiKey: opts.openaiApiKey,
         openAiTimeoutMs: opts._openAiTimeoutMs,
         registry,
-              scopeProfile: scopeProfile ?? undefined,
+        scopeProfile: scopeProfile ?? undefined,
+        _onCompletion: (capture) => {
+          providerTelemetry.push(
+            recordProviderTelemetry({
+              capture,
+              jobId: opts.jobId,
+              provider: "openai",
+              startedAt: pass3StartedAt,
+            })
+          );
+        },
       }),
       passTimeoutMs,
       "Pass 3",
@@ -1701,6 +1734,7 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
     pass4_governance: pass4Governance,
     external_adjudication: externalAdjudication,
     routing: pipelineRouting,
+    provider_telemetry: providerTelemetry,
   };
 }
 
