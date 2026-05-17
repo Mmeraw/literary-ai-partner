@@ -50,6 +50,10 @@ export const maxDuration = 300;
 const DREAM_WORD_COUNT_THRESHOLD = 25000;
 // Process at most 1 job per tick to stay well within maxDuration.
 const DREAM_BATCH_SIZE = 1;
+// Cap OpenAI timeout below Vercel maxDuration (300s) so the SDK errors out
+// before Vercel kills the function — otherwise the catch block never runs
+// and failures are silent.
+const DREAM_OPENAI_TIMEOUT_MS = 270_000;
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -387,6 +391,7 @@ async function processDreamJob(
     workType: manuscript?.work_type ?? 'literary_fiction',
     model,
     openaiApiKey,
+    openAiTimeoutMs: DREAM_OPENAI_TIMEOUT_MS,
   });
 
   console.log(`[DreamWorker] ${jobId}: DREAM synthesis complete — persisting artifact`);
@@ -486,6 +491,19 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       } catch (err) {
         const errMsg = err instanceof Error ? err.message : String(err);
         console.error(`[DreamWorker] ${traceId}: job ${job.id} threw unexpectedly: ${errMsg}`);
+
+        // Write error back to evaluation_jobs.last_error so the failure is
+        // visible in the DB. Without this, Vercel-killed runs (timeout) and
+        // unhandled throws disappear silently from the operator's view.
+        try {
+          await supabase
+            .from('evaluation_jobs')
+            .update({ last_error: `[DreamWorker] ${errMsg.slice(0, 500)}` })
+            .eq('id', job.id);
+        } catch {
+          // best-effort — don't let error reporting crash the worker
+        }
+
         results.push({ jobId: job.id, success: false, error: errMsg });
       }
     }
