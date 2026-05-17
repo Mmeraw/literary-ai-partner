@@ -75,7 +75,7 @@ Return ONLY JSON with keys:
 - Each recommendation.action MUST be one sentence and <= 300 characters.
 - agreement_map[]
 - divergence_map[] with arbitration_rationale
-- overall { overall_score_0_100, verdict(pass|revise|fail), one_paragraph_summary<=500, top_3_strengths[3], top_3_risks[3], submission_readiness(queryable_now|close|not_yet) }
+- overall { overall_score_0_100, verdict(pass|revise|fail), one_paragraph_summary<=500, top_3_strengths[3], top_3_risks[3], submission_readiness(queryable_now|nearly_ready|not_yet) }
   - top_3_strengths and top_3_risks must be non-mirrored aspects.
   - never emit queryable_now when verdict=fail or when 3+ criteria are below 5.
   - one_paragraph_summary MUST name every criterion scoring <=5 by readable key.

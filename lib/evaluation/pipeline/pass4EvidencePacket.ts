@@ -28,6 +28,13 @@
  * No side effects, no I/O. Pure function.
  */
 
+/**
+ * canon-audit-allow: window-label
+ * "close" here is a manuscript structural window label (the closing pages of the manuscript),
+ * NOT the deprecated submission_readiness criterion alias. The AST governance guard must
+ * exempt this type and any Record/array literals keyed from it.
+ * See: https://github.com/Mmeraw/literary-ai-partner/issues/TBD (PR 4 governance spec)
+ */
 export type Pass4WindowLabel =
   | "full"
   | "opening"

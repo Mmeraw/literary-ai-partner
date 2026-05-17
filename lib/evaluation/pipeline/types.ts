@@ -263,10 +263,10 @@ export type SynthesisOutput = {
     /**
      * Writer-facing submission readiness posture.
      * queryable_now — strong enough to submit
-     * close — one focused revision pass would materially improve requestability
+     * nearly_ready — one focused revision pass would materially improve requestability
      * not_yet — substantial issues prevent strong submission posture
      */
-    submission_readiness: "queryable_now" | "close" | "not_yet";
+    submission_readiness: "queryable_now" | "nearly_ready" | "not_yet";
   };
   metadata: {
     pass1_model: string;
