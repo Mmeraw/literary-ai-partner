@@ -352,10 +352,11 @@ describe("regression", () => {
     delete process.env.EVAL_PIPELINE_ENABLED;
   });
 
-  it("regression: Vercel 300s kill — DREAM_OPENAI_TIMEOUT_MS must be <= 280s and wired into call", () => {
-    // Guards: getEvalOpenAiTimeoutMs() returns 720s by default. Vercel maxDuration=300s.
-    // GPT-5 synthesis on 26k words exceeded 300s — Vercel killed silently, artifact never written.
-    // Fix: DREAM_OPENAI_TIMEOUT_MS=270_000 passed as openAiTimeoutMs to runPass3bLongform.
+  it("regression: Vercel timeout kill — DREAM_OPENAI_TIMEOUT_MS must be < maxDuration and wired into call", () => {
+    // Guards: process-dream was incorrectly set to maxDuration=300s (hobby plan limit) while
+    // process-evaluations uses 800s (the actual Vercel Pro plan budget). GPT-5 synthesis on a
+    // 40-chunk novel regularly exceeds 300s — Vercel killed silently, artifact never written.
+    // Fix: maxDuration bumped to 800, DREAM_OPENAI_TIMEOUT_MS=750_000 (50s headroom for DB writes).
     const fs = require("fs");
     const path = require("path");
     const src = fs.readFileSync(
@@ -365,8 +366,9 @@ describe("regression", () => {
     const match = src.match(/DREAM_OPENAI_TIMEOUT_MS\s*=\s*([\d_]+)/);
     expect(match).not.toBeNull();
     const ms = parseInt(match![1].replace(/_/g, ""), 10);
-    expect(ms).toBeLessThanOrEqual(280_000); // must stay inside Vercel 300s budget
+    expect(ms).toBeLessThanOrEqual(780_000); // must stay inside Vercel 800s maxDuration budget
     expect(ms).toBeGreaterThanOrEqual(60_000); // must not be trivially short
+    expect(src).toContain("maxDuration = 800"); // route must declare full budget
     expect(src).toContain("openAiTimeoutMs: DREAM_OPENAI_TIMEOUT_MS"); // must be wired in
   });
 
