@@ -49,6 +49,7 @@ jest.mock("@supabase/supabase-js", () => ({
 function makeSupabaseStub() {
   const evaluationJobUpdates: Array<Record<string, unknown>> = [];
   const rpcCalls: Array<{ fn: string; args?: Record<string, unknown> }> = [];
+  const providerCallUpserts: Array<Record<string, unknown>> = [];
 
   const now = new Date();
   const leaseUntil = new Date(now.getTime() + 5 * 60_000).toISOString();
@@ -82,6 +83,7 @@ function makeSupabaseStub() {
   return {
     evaluationJobUpdates,
     rpcCalls,
+    providerCallUpserts,
     rpc: async (fn: string, args?: Record<string, unknown>) => {
       rpcCalls.push({ fn, args });
 
@@ -131,6 +133,20 @@ function makeSupabaseStub() {
               single: async () => ({ data: manuscript, error: null }),
             }),
           }),
+        };
+      }
+      if (table === "evaluation_provider_calls") {
+        return {
+          upsert: async (
+            payload: Record<string, unknown> | Array<Record<string, unknown>>,
+          ) => {
+            if (Array.isArray(payload)) {
+              providerCallUpserts.push(...payload);
+            } else {
+              providerCallUpserts.push(payload);
+            }
+            return { data: null, error: null };
+          },
         };
       }
             if (table === "evaluation_artifacts") {
@@ -201,6 +217,47 @@ describe("processEvaluationJob canonical pipeline integration", () => {
         warnings: [],
       },
       pass4_governance: { ok: true },
+      provider_telemetry: [
+        {
+          job_id: "job-canonical-pipeline",
+          pass: 1,
+          provider: "openai",
+          model: "gpt-5.1",
+          request_id: "req-pass1",
+          finish_reason: "stop",
+          usage: { prompt_tokens: 100, completion_tokens: 50, total_tokens: 150 },
+          started_at: "2026-05-17T10:00:00.000Z",
+          completed_at: "2026-05-17T10:00:01.000Z",
+          duration_ms: 1000,
+          success: true,
+        },
+        {
+          job_id: "job-canonical-pipeline",
+          pass: 2,
+          provider: "openai",
+          model: "gpt-5.1",
+          request_id: "req-pass2",
+          finish_reason: "stop",
+          usage: { prompt_tokens: 120, completion_tokens: 60, total_tokens: 180 },
+          started_at: "2026-05-17T10:00:02.000Z",
+          completed_at: "2026-05-17T10:00:03.000Z",
+          duration_ms: 1000,
+          success: true,
+        },
+        {
+          job_id: "job-canonical-pipeline",
+          pass: 3,
+          provider: "openai",
+          model: "gpt-5.1",
+          request_id: "req-pass3",
+          finish_reason: "stop",
+          usage: { prompt_tokens: 140, completion_tokens: 70, total_tokens: 210 },
+          started_at: "2026-05-17T10:00:04.000Z",
+          completed_at: "2026-05-17T10:00:05.000Z",
+          duration_ms: 1000,
+          success: true,
+        },
+      ],
     });
 
     synthesisToEvaluationResultV2Mock.mockReturnValue({
@@ -302,6 +359,14 @@ describe("processEvaluationJob canonical pipeline integration", () => {
         (payload: Record<string, unknown>) => payload.status === "failed",
       ),
     ).toBe(false);
+    expect(supabaseStub.providerCallUpserts).toHaveLength(3);
+    expect(supabaseStub.providerCallUpserts[0]).toEqual(
+      expect.objectContaining({
+        job_id: "job-canonical-pipeline",
+        phase: "phase_1",
+        provider: "openai",
+      }),
+    );
 
     expect(consoleLogSpy).toHaveBeenCalledWith(
       "ProcessorStageBoundary",
