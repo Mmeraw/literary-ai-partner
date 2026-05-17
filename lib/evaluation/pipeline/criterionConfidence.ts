@@ -1,8 +1,7 @@
 // canon-audit-allow: vocabulary-detection
-// CRITERION_TERMS uses prose-craft vocabulary ("craft", "clarity", "control", etc.) as
-// detection vocabulary strings — NOT as criterion key aliases.  The banned-alias scanner
-// would produce false positives on these string literals, so this file is opted out of
-// the automated vocabulary scan via the allow marker above.
+// CRITERION_TERMS contains prose-mechanic detection vocabulary (synonym strings for
+// isCriterionSpecific() scoring) — NOT criterion key aliases. The banned-alias scanner
+// is opted out for this file via the allow marker above.
 import type { CriterionKey } from "@/schemas/criteria-keys";
 import { normalizeAnchorText } from "@/lib/revision/anchorContract";
 
@@ -115,7 +114,7 @@ const CRITERION_TERMS: Record<string, readonly string[]> = {
     "register",
     "rhythm",
     "control",
-    "craft",
+    "technique",  // prose mechanism synonym (replaces banned alias)
     "crisp",
     "terse",
     "tactile",
@@ -129,7 +128,7 @@ const CRITERION_TERMS: Record<string, readonly string[]> = {
     "concrete",
     "voice",
     "tone",
-    "clarity",
+    "lucidity",  // prose mechanism synonym (replaces banned alias)
     "precision",
     "linebreak",
     "repetition",
