@@ -1,0 +1,1460 @@
+/**
+ * Phase 2.7 — End-to-End Pipeline Tests
+ *
+ * Exercises the full 4-pass pipeline with injected runner functions (no jest.mock).
+ * Validates the PipelineResult discriminated union and synthesisToEvaluationResult adapter.
+ */
+
+import { afterEach, describe, it, expect, jest, beforeEach } from "@jest/globals";
+
+// PR #501 replay tests need to observe `runPerplexityCrossCheck`'s return value
+// threaded through runPipeline on the failure path (canonValid=false collapses
+// to ok:false without exposing cross_check on the result, and runPipeline has
+// no `_runners` DI hook for the cross-check function). jest.mock +
+// requireActual wraps the real implementation so the patched normalizeOpenAIScore
+// code path still executes end-to-end while the replay tests can capture the
+// return value via mock.results. The default mock delegates to the real
+// implementation so the existing tests in this file are unaffected; the new
+// tests can override with mockResolvedValueOnce when they need a synthetic
+// CrossCheckOutput.
+const mockRunPerplexityCrossCheck = jest.fn();
+
+jest.mock("@/lib/evaluation/pipeline/perplexityCrossCheck", () => {
+  const actual = jest.requireActual("@/lib/evaluation/pipeline/perplexityCrossCheck") as Record<
+    string,
+    unknown
+  >;
+  mockRunPerplexityCrossCheck.mockImplementation(
+    actual.runPerplexityCrossCheck as (...args: unknown[]) => Promise<unknown>,
+  );
+  return {
+    __esModule: true,
+    ...actual,
+    runPerplexityCrossCheck: mockRunPerplexityCrossCheck,
+  };
+});
+
+import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
+import type {
+  CrossCheckOutput,
+  CriterionKey,
+} from "@/lib/evaluation/pipeline/perplexityCrossCheck";
+import type {
+  SinglePassOutput,
+  SynthesisOutput,
+  QualityGateResult,
+  PipelineResult,
+} from "@/lib/evaluation/pipeline/types";
+import type { RunPass1Options } from "@/lib/evaluation/pipeline/runPass1";
+import type { RunPass2Options } from "@/lib/evaluation/pipeline/runPass2";
+import type { RunPass3Options } from "@/lib/evaluation/pipeline/runPass3Synthesis";
+import type { LessonsLearnedReport, RuleStage, RuleEvaluationInput } from "@/lib/governance/lessonsLearned";
+import { JsonBoundaryError } from "@/lib/llm/jsonParseBoundary";
+
+// Use require so module resolution happens AFTER jest.mock has been registered.
+// SWC's jest-transformer hoists jest.mock above other jest.mock calls and
+// require() statements, but not above value imports — so any consumer that
+// transitively imports the cross-check module must be loaded via require to
+// pick up the mocked binding.
+/* eslint-disable @typescript-eslint/no-var-requires */
+const runPipelineModule = require("@/lib/evaluation/pipeline/runPipeline") as typeof import("@/lib/evaluation/pipeline/runPipeline");
+const qualityGateModule = require("@/lib/evaluation/pipeline/qualityGate") as typeof import("@/lib/evaluation/pipeline/qualityGate");
+/* eslint-enable @typescript-eslint/no-var-requires */
+const { runPipeline, synthesisToEvaluationResult, synthesisToEvaluationResultV2 } = runPipelineModule;
+const { runQualityGate, runQualityGateV2 } = qualityGateModule;
+
+function isPipelineFailure(result: PipelineResult): result is Extract<PipelineResult, { ok: false }> {
+  return result.ok === false;
+}
+
+// ── Fixture builders ──────────────────────────────────────────────────────────
+
+function makeSinglePassOutput(pass: 1 | 2): SinglePassOutput {
+  // IMPORTANT: rationale text for pass 1 and pass 2 must NOT share any 6-word
+  // n-gram, otherwise QG check 8 (QG_INDEPENDENCE_VIOLATION) will fire.
+  const rationale =
+    pass === 1
+      ? (key: string) => `Structural craft review of ${key} reveals competent technique with room for improvement.`
+      : (key: string) => `Editorial literary perspective on ${key} shows thematic depth requiring further development.`;
+
+  return {
+    pass,
+    axis: pass === 1 ? "craft_execution" : "editorial_literary",
+    criteria: CRITERIA_KEYS.map((key) => ({
+      key,
+      score_0_10: 7,
+      rationale: rationale(key),
+      evidence: [{ snippet: "The river moved slowly through the valley." }],
+      recommendations: [
+        {
+          priority: "medium",
+          action: `Strengthen the ${key} dimension with more targeted evidence from the manuscript text.`,
+          expected_impact: "Increases specificity and reader connection.",
+          anchor_snippet: '"slowly"',
+          issue_family: "scene_structure",
+          strategic_lever: "scene_goal_clarity",
+          revision_granularity: "scene",
+        },
+      ],
+    })),
+    model: "gpt-4o-mini",
+    prompt_version: pass === 1 ? "pass1-v1" : "pass2-v1",
+    temperature: 0.3,
+    generated_at: new Date().toISOString(),
+  };
+}
+
+function makeSynthesisOutput(): SynthesisOutput {
+  return {
+    criteria: CRITERIA_KEYS.map((key) => ({
+      key,
+      craft_score: 7,
+      editorial_score: 6,
+      final_score_0_10: 7,
+      score_delta: 1,
+      final_rationale: `Synthesized analysis for ${key}: craft and editorial perspectives converge.`,
+      pressure_points: ["Narrative pressure accumulates around this criterion."],
+      decision_points: ["The chapter makes a concrete decision at this criterion."],
+      consequence_status: "landed" as const,
+      evidence: [{ snippet: "The river moved slowly through the valley." }],
+      recommendations: [
+        {
+          priority: "medium",
+          action:
+            `In the opening scene for ${key}, replace the abstract transition beat with a concrete cause-and-effect move because the current phrasing blunts tension before the decision point.`,
+          expected_impact:
+            "Gives the reader a clearer escalation chain, improving urgency and comprehension at the turn.",
+          anchor_snippet: '"slowly"',
+          source_pass: 3 as const,
+          issue_family: "scene_structure",
+          strategic_lever: "scene_goal_clarity",
+          revision_granularity: "scene",
+          mechanism: "the current phrasing blunts tension before the decision point",
+          specific_fix: "replace the abstract transition beat with a concrete cause-and-effect move",
+          reader_effect: "clearer escalation chain, improving urgency and comprehension at the turn",
+        },
+      ],
+    })),
+    overall: {
+      overall_score_0_100: 70,
+      verdict: "revise",
+      one_paragraph_summary:
+        "This manuscript demonstrates solid craft and distinctive literary sensibility, requiring targeted revision before submission.",
+      top_3_strengths: ["Strong narrative voice", "Clear structural arc", "Vivid sensory imagery"],
+      top_3_risks: ["Pacing inconsistencies in act two", "Thin supporting character motivation", "World-building gaps"],
+      submission_readiness: "close",
+    },
+    metadata: {
+      pass1_model: "gpt-4o-mini",
+      pass2_model: "gpt-4o-mini",
+      pass3_model: "gpt-4o-mini",
+      generated_at: new Date().toISOString(),
+    },
+      partial_evaluation: false,
+  };
+}
+
+function makeTruncatedSynthesisOutput(): SynthesisOutput {
+  const full = makeSynthesisOutput();
+  return {
+    ...full,
+    // Only 5 criteria instead of 13 — quality gate should catch this
+    criteria: full.criteria.slice(0, 5),
+    overall: {
+      overall_score_0_100: 50,
+      verdict: "revise",
+      one_paragraph_summary: "Partial output.",
+      top_3_strengths: [],
+      top_3_risks: [],
+      submission_readiness: "not_yet",
+    },
+  };
+}
+
+// ── Mock runners ──────────────────────────────────────────────────────────────
+
+let mockRunPass1: jest.Mock<(opts: RunPass1Options) => Promise<SinglePassOutput>>;
+let mockRunPass2: jest.Mock<(opts: RunPass2Options) => Promise<SinglePassOutput>>;
+let mockRunPass3: jest.Mock<(opts: RunPass3Options) => Promise<SynthesisOutput>>;
+
+const permissiveLessonsLearned = {
+  evaluateRules: () => ({ overall_pass: true, results: [] as LessonsLearnedReport["results"] }),
+  deriveDecision: () => ({ action: "ALLOW" as const, reason: "test default allow" }),
+};
+
+// ── Tests ─────────────────────────────────────────────────────────────────────
+
+describe("runPipeline (e2e with injected runners)", () => {
+  beforeEach(() => {
+    mockRunPass1 = jest.fn<(opts: RunPass1Options) => Promise<SinglePassOutput>>();
+    mockRunPass2 = jest.fn<(opts: RunPass2Options) => Promise<SinglePassOutput>>();
+    mockRunPass3 = jest.fn<(opts: RunPass3Options) => Promise<SynthesisOutput>>();
+
+    mockRunPass1.mockResolvedValue(makeSinglePassOutput(1));
+    mockRunPass2.mockResolvedValue(makeSinglePassOutput(2));
+    mockRunPass3.mockResolvedValue(makeSynthesisOutput());
+  });
+
+  it("returns ok=true with synthesis and quality_gate on success", async () => {
+    const result = await runPipeline({
+      manuscriptText: "The river moved slowly through the valley. She watched from the bank.",
+      workType: "literary_fiction",
+      title: "The Valley",
+      openaiApiKey: "sk-test",
+      _lessonsLearned: permissiveLessonsLearned,
+      _runners: {
+        runPass1: mockRunPass1,
+        runPass2: mockRunPass2,
+        runPass3Synthesis: mockRunPass3,
+      },
+    });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.synthesis.criteria).toHaveLength(13);
+      expect(result.synthesis.overall.overall_score_0_100).toBe(70);
+      expect(result.quality_gate.pass).toBe(true);
+    }
+  });
+
+  it("emits onHeartbeat at expected stage boundaries in order", async () => {
+    const observedStages: string[] = [];
+
+    const result = await runPipeline({
+      manuscriptText: "The river moved slowly through the valley. She watched from the bank.",
+      workType: "literary_fiction",
+      title: "The Valley",
+      openaiApiKey: "sk-test",
+      onHeartbeat: async (stage) => {
+        observedStages.push(stage);
+      },
+      _lessonsLearned: permissiveLessonsLearned,
+      _runners: {
+        runPass1: mockRunPass1,
+        runPass2: mockRunPass2,
+        runPass3Synthesis: mockRunPass3,
+      },
+    });
+
+    expect(result.ok).toBe(true);
+    expect(observedStages).toEqual([
+      "parallel_passes_started",
+      "parallel_passes_settled",
+      "pass3_started",
+      "quality_gate_started",
+      "quality_gate_completed",
+    ]);
+  });
+
+  it("does not block on post-convergence lessons-learned warnings when the stage is recoverable", async () => {
+    const llrReport: LessonsLearnedReport = {
+      overall_pass: false,
+      results: [
+        {
+          rule_id: "LLR-003",
+          name: "No Contradictory Diagnostic Framing",
+          passed: false,
+          severity: "ERROR",
+          violations: [
+            {
+              message: "Contradictory framing found without contextual boundary.",
+              severity: "ERROR",
+              location: "cross-criteria",
+            },
+          ],
+          evidence: {},
+        },
+      ],
+    };
+
+    const result = await runPipeline({
+      manuscriptText: "The river moved slowly through the valley. She watched from the bank.",
+      workType: "literary_fiction",
+      title: "The Valley",
+      openaiApiKey: "sk-test",
+      _runners: {
+        runPass1: mockRunPass1,
+        runPass2: mockRunPass2,
+        runPass3Synthesis: mockRunPass3,
+      },
+      _lessonsLearned: {
+        evaluateRules: (_input: RuleEvaluationInput, stage?: RuleStage) =>
+          stage === "post_convergence" ? llrReport : { overall_pass: true, results: [] },
+        deriveDecision: (report, stage?: RuleStage) => {
+          const hasError = report.results.some((r) => !r.passed && r.severity === "ERROR");
+          if (!hasError) {
+            return { action: "ALLOW", reason: "no violations" };
+          }
+          return stage === "post_convergence"
+            ? { action: "ALLOW_WITH_WARNINGS", reason: "downgraded for post_convergence" }
+            : { action: "BLOCK", reason: "stage missing" };
+        },
+      },
+    });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.quality_gate.pass).toBe(true);
+    }
+  });
+
+  it("returns ok=false with PASS1_FAILED when Pass 1 throws", async () => {
+    mockRunPass1.mockRejectedValueOnce(new Error("OpenAI network error"));
+
+    const result = await runPipeline({
+      manuscriptText: "test",
+      workType: "literary_fiction",
+      title: "Test",
+      openaiApiKey: "sk-test",
+      _runners: {
+        runPass1: mockRunPass1,
+        runPass2: mockRunPass2,
+        runPass3Synthesis: mockRunPass3,
+      },
+    });
+
+    expect(result.ok).toBe(false);
+    if (isPipelineFailure(result)) {
+      expect(result.error_code).toBe("PASS1_FAILED");
+      expect(result.failed_at).toBe("pass1");
+      expect(result.error).toContain("OpenAI network error");
+    }
+  });
+
+  it("returns pass-specific typed code when Pass 1 throws JsonBoundaryError", async () => {
+    mockRunPass1.mockRejectedValueOnce(
+      new JsonBoundaryError({
+        code: "JSON_PARSE_FAILED_NO_OBJECT",
+        message: "[Pass1] response parse failed",
+        raw: "not json",
+        normalized: "not json",
+      }),
+    );
+
+    const result = await runPipeline({
+      manuscriptText: "test",
+      workType: "literary_fiction",
+      title: "Test",
+      openaiApiKey: "sk-test",
+      _runners: {
+        runPass1: mockRunPass1,
+        runPass2: mockRunPass2,
+        runPass3Synthesis: mockRunPass3,
+      },
+    });
+
+    expect(result.ok).toBe(false);
+    if (isPipelineFailure(result)) {
+      expect(result.error_code).toBe("PASS1_JSON_PARSE_FAILED_NO_OBJECT");
+      expect(result.failed_at).toBe("pass1");
+      expect(result.failure_details?.json_boundary?.code).toBe("JSON_PARSE_FAILED_NO_OBJECT");
+    }
+  });
+
+  it("returns ok=false with PASS2_FAILED when Pass 2 throws", async () => {
+    mockRunPass2.mockRejectedValueOnce(new Error("Rate limit exceeded"));
+
+    const result = await runPipeline({
+      manuscriptText: "test",
+      workType: "literary_fiction",
+      title: "Test",
+      openaiApiKey: "sk-test",
+      _runners: {
+        runPass1: mockRunPass1,
+        runPass2: mockRunPass2,
+        runPass3Synthesis: mockRunPass3,
+      },
+    });
+
+    expect(result.ok).toBe(false);
+    if (isPipelineFailure(result)) {
+      expect(result.error_code).toBe("PASS2_FAILED");
+      expect(result.failed_at).toBe("pass2");
+    }
+  });
+
+  it("returns pass-specific typed code when Pass 2 throws JsonBoundaryError", async () => {
+    mockRunPass2.mockRejectedValueOnce(
+      new JsonBoundaryError({
+        code: "JSON_PARSE_FAILED_TRUNCATED",
+        message: "[Pass2] response parse failed",
+        raw: '{"criteria":[{"key":"concept"',
+        normalized: '{"criteria":[{"key":"concept"',
+      }),
+    );
+
+    const result = await runPipeline({
+      manuscriptText: "test",
+      workType: "literary_fiction",
+      title: "Test",
+      openaiApiKey: "sk-test",
+      _runners: {
+        runPass1: mockRunPass1,
+        runPass2: mockRunPass2,
+        runPass3Synthesis: mockRunPass3,
+      },
+    });
+
+    expect(result.ok).toBe(false);
+    if (isPipelineFailure(result)) {
+      expect(result.error_code).toBe("PASS2_JSON_PARSE_FAILED_TRUNCATED");
+      expect(result.failed_at).toBe("pass2");
+      expect(result.failure_details?.json_boundary?.code).toBe("JSON_PARSE_FAILED_TRUNCATED");
+    }
+  });
+
+  it("returns ok=false with PASS3_FAILED when Pass 3 throws", async () => {
+    mockRunPass3.mockRejectedValueOnce(new Error("Context length exceeded"));
+
+    const result = await runPipeline({
+      manuscriptText: "test",
+      workType: "literary_fiction",
+      title: "Test",
+      openaiApiKey: "sk-test",
+      _runners: {
+        runPass1: mockRunPass1,
+        runPass2: mockRunPass2,
+        runPass3Synthesis: mockRunPass3,
+      },
+    });
+
+    expect(result.ok).toBe(false);
+    if (isPipelineFailure(result)) {
+      expect(result.error_code).toBe("PASS3_FAILED");
+      expect(result.failed_at).toBe("pass3");
+    }
+  });
+
+  it("returns pass-specific typed code when Pass 3 throws JsonBoundaryError", async () => {
+    mockRunPass3.mockRejectedValueOnce(
+      new JsonBoundaryError({
+        code: "JSON_PARSE_FAILED_MALFORMED",
+        message: "[Pass3] response parse failed",
+        raw: '{"criteria":[{"key":"concept",}]',
+        normalized: '{"criteria":[{"key":"concept",}]',
+      }),
+    );
+
+    const result = await runPipeline({
+      manuscriptText: "test",
+      workType: "literary_fiction",
+      title: "Test",
+      openaiApiKey: "sk-test",
+      _runners: {
+        runPass1: mockRunPass1,
+        runPass2: mockRunPass2,
+        runPass3Synthesis: mockRunPass3,
+      },
+    });
+
+    expect(result.ok).toBe(false);
+    if (isPipelineFailure(result)) {
+      expect(result.error_code).toBe("PASS3_JSON_PARSE_FAILED_MALFORMED");
+      expect(result.failed_at).toBe("pass3");
+      expect(result.failure_details?.json_boundary?.code).toBe("JSON_PARSE_FAILED_MALFORMED");
+    }
+  });
+
+  it("returns ok=false with quality gate error code when QG rejects output", async () => {
+    mockRunPass3.mockResolvedValueOnce(makeTruncatedSynthesisOutput());
+
+    const result = await runPipeline({
+      manuscriptText: "test",
+      workType: "literary_fiction",
+      title: "Test",
+      openaiApiKey: "sk-test",
+      _runners: {
+        runPass1: mockRunPass1,
+        runPass2: mockRunPass2,
+        runPass3Synthesis: mockRunPass3,
+      },
+    });
+
+    expect(result.ok).toBe(false);
+    if (isPipelineFailure(result)) {
+      expect(result.error_code).toBe("QG_CRITERIA_MISSING");
+      expect(result.failed_at).toBe("pass4");
+    }
+  });
+
+  it("keeps Pass 4 fail-soft when Perplexity returns malformed JSON", async () => {
+    const originalFetch = global.fetch;
+    global.fetch = jest.fn<typeof fetch>().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        choices: [
+          {
+            finish_reason: "stop",
+            message: { content: "{ this: is invalid }" },
+          },
+        ],
+      }),
+      text: async () => "{ this: is invalid }",
+    } as Response);
+
+    try {
+      const result = await runPipeline({
+        manuscriptText: "The river moved slowly through the valley. She watched from the bank.",
+        workType: "literary_fiction",
+        title: "The Valley",
+        openaiApiKey: "sk-test",
+        perplexityApiKey: "pplx-test",
+        _lessonsLearned: permissiveLessonsLearned,
+        _runners: {
+          runPass1: mockRunPass1,
+          runPass2: mockRunPass2,
+          runPass3Synthesis: mockRunPass3,
+        },
+      });
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.quality_gate.pass).toBe(true);
+      }
+    } finally {
+      global.fetch = originalFetch;
+    }
+  });
+
+  it("dedupes duplicate recommendation actions pre-gate so quality gate can pass", async () => {
+    const synthesisWithDupes = makeSynthesisOutput();
+    const duplicateAction =
+      'In the opening scene for concept, replace the abstract transition beat with a concrete cause-and-effect move because the current phrasing blunts tension before the decision point.';
+
+    synthesisWithDupes.criteria[0].recommendations = [
+      {
+        priority: "medium",
+        action: duplicateAction,
+        expected_impact:
+          "Gives the reader a clearer escalation chain, improving urgency and comprehension at the turn.",
+        anchor_snippet: '"slowly"',
+        source_pass: 3,
+        issue_family: "scene_structure",
+        strategic_lever: "scene_goal_clarity",
+        revision_granularity: "scene",
+        mechanism: "the current phrasing blunts tension before the decision point",
+        specific_fix: "replace the abstract transition beat with a concrete cause-and-effect move",
+        reader_effect: "clearer escalation chain, improving urgency and comprehension at the turn",
+      },
+    ];
+
+    synthesisWithDupes.criteria[1].recommendations = [
+      {
+        priority: "medium",
+        action: duplicateAction,
+        expected_impact:
+          "Gives the reader a clearer escalation chain, improving urgency and comprehension at the turn.",
+        anchor_snippet: '"slowly"',
+        source_pass: 3,
+        issue_family: "scene_structure",
+        strategic_lever: "scene_goal_clarity",
+        revision_granularity: "scene",
+        mechanism: "the current phrasing blunts tension before the decision point",
+        specific_fix: "replace the abstract transition beat with a concrete cause-and-effect move",
+        reader_effect: "clearer escalation chain, improving urgency and comprehension at the turn",
+      },
+    ];
+
+    // Guardrail: raw synthesis should fail duplicate check without pre-gate dedupe.
+    const rawGate = runQualityGate(synthesisWithDupes, makeSinglePassOutput(1), makeSinglePassOutput(2));
+    expect(rawGate.pass).toBe(false);
+    expect(rawGate.checks.find((c) => c.error_code === "QG_DUPLICATE_REC")).toBeDefined();
+
+    mockRunPass3.mockResolvedValueOnce(synthesisWithDupes);
+
+    const result = await runPipeline({
+      manuscriptText: "test",
+      workType: "literary_fiction",
+      title: "Test",
+      openaiApiKey: "sk-test",
+      _lessonsLearned: permissiveLessonsLearned,
+      _runners: {
+        runPass1: mockRunPass1,
+        runPass2: mockRunPass2,
+        runPass3Synthesis: mockRunPass3,
+      },
+    });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.quality_gate.pass).toBe(true);
+      const recs0 = result.synthesis.criteria[0].recommendations;
+      const recs1 = result.synthesis.criteria[1].recommendations;
+      expect(recs0).toHaveLength(1);
+      expect(recs1).toHaveLength(0);
+    }
+  });
+
+  it("Pass 1 failure prevents Pass 2 and Pass 3 from running", async () => {
+    mockRunPass1.mockRejectedValueOnce(new Error("fail"));
+
+    await runPipeline({
+      manuscriptText: "test",
+      workType: "literary_fiction",
+      title: "Test",
+      openaiApiKey: "sk-test",
+      _runners: {
+        runPass1: mockRunPass1,
+        runPass2: mockRunPass2,
+        runPass3Synthesis: mockRunPass3,
+      },
+    });
+
+    // Pass 1 + Pass 2 run in parallel by design; Pass 3 must not execute.
+    expect(mockRunPass3).not.toHaveBeenCalled();
+  });
+
+  it("threads a model override to Pass 2 and Pass 3 only", async () => {
+    await runPipeline({
+      manuscriptText: "The river moved slowly through the valley. She watched from the bank.",
+      workType: "literary_fiction",
+      title: "The Valley",
+      model: "gpt-4o",
+      openaiApiKey: "sk-test",
+      _runners: {
+        runPass1: mockRunPass1,
+        runPass2: mockRunPass2,
+        runPass3Synthesis: mockRunPass3,
+      },
+    });
+
+    expect(mockRunPass1).toHaveBeenCalledWith(
+      expect.not.objectContaining({ model: expect.anything() }),
+    );
+    expect(mockRunPass2).toHaveBeenCalledWith(
+      expect.objectContaining({ model: "gpt-4o" }),
+    );
+    expect(mockRunPass3).toHaveBeenCalledWith(
+      expect.objectContaining({ model: "gpt-4o" }),
+    );
+  });
+
+  it("fails closed when canonical registry binding fails", async () => {
+    const result = await runPipeline({
+      manuscriptText: "test",
+      workType: "literary_fiction",
+      title: "Test",
+      openaiApiKey: "sk-test",
+      _registryLoader: () => {
+        throw new Error("registry corrupt");
+      },
+      _runners: {
+        runPass1: mockRunPass1,
+        runPass2: mockRunPass2,
+        runPass3Synthesis: mockRunPass3,
+      },
+    });
+
+    expect(result.ok).toBe(false);
+    if (isPipelineFailure(result)) {
+      expect(result.error_code).toBe("CANON_REGISTRY_BIND_FAILED");
+      expect(result.failed_at).toBe("pass1");
+      expect(result.error).toContain("checkpoint=CANON_REGISTRY_BINDING");
+    }
+
+    expect(mockRunPass1).not.toHaveBeenCalled();
+    expect(mockRunPass2).not.toHaveBeenCalled();
+    expect(mockRunPass3).not.toHaveBeenCalled();
+  });
+
+  it("fails closed when pipeline input is invalid", async () => {
+    const result = await runPipeline({
+      manuscriptText: "   ",
+      workType: "literary_fiction",
+      title: "Test",
+      openaiApiKey: "sk-test",
+      _runners: {
+        runPass1: mockRunPass1,
+        runPass2: mockRunPass2,
+        runPass3Synthesis: mockRunPass3,
+      },
+    });
+
+    expect(result.ok).toBe(false);
+    if (isPipelineFailure(result)) {
+      expect(result.error_code).toBe("PIPELINE_INPUT_INVALID");
+      expect(result.failed_at).toBe("pass1");
+    }
+
+    expect(mockRunPass1).not.toHaveBeenCalled();
+    expect(mockRunPass2).not.toHaveBeenCalled();
+    expect(mockRunPass3).not.toHaveBeenCalled();
+  });
+
+  it("fails closed with PASS1_TIMEOUT when pass exceeds timeout budget", async () => {
+    mockRunPass1.mockImplementationOnce(
+      () => new Promise<SinglePassOutput>((resolve) => setTimeout(() => resolve(makeSinglePassOutput(1)), 50)),
+    );
+
+    const result = await runPipeline({
+      manuscriptText: "test",
+      workType: "literary_fiction",
+      title: "Test",
+      openaiApiKey: "sk-test",
+      _passTimeoutMs: 5,
+      _runners: {
+        runPass1: mockRunPass1,
+        runPass2: mockRunPass2,
+        runPass3Synthesis: mockRunPass3,
+      },
+    });
+
+    expect(result.ok).toBe(false);
+    if (isPipelineFailure(result)) {
+      expect(result.error_code).toBe("PASS1_TIMEOUT");
+      expect(result.failed_at).toBe("pass1");
+    }
+
+    expect(mockRunPass3).not.toHaveBeenCalled();
+  });
+
+  it("uses canonical EVAL_PASS_TIMEOUT_MS when _passTimeoutMs is omitted", async () => {
+    // Prove that omitting _passTimeoutMs routes through the canonical env.
+    // We set the env to 100ms so the never-resolving mock Pass 1 exceeds it,
+    // which gives us a deterministic PASS1_TIMEOUT without a real 10s wait.
+    // Note: 15s Jest timeout to accommodate pipeline setup overhead.
+    const originalPassTimeout = process.env.EVAL_PASS_TIMEOUT_MS;
+    process.env.EVAL_PASS_TIMEOUT_MS = "100";
+
+    mockRunPass1.mockImplementationOnce(
+      // Never resolves — canonical 100ms env timeout should fire first.
+      () => new Promise<SinglePassOutput>(() => undefined),
+    );
+
+    try {
+      const result = await runPipeline({
+        manuscriptText: "test",
+        workType: "literary_fiction",
+        title: "Test",
+        openaiApiKey: "sk-test",
+        // _passTimeoutMs is intentionally omitted — canonical env must be used.
+        _runners: {
+          runPass1: mockRunPass1,
+          runPass2: mockRunPass2,
+          runPass3Synthesis: mockRunPass3,
+        },
+      });
+
+      expect(result.ok).toBe(false);
+      if (isPipelineFailure(result)) {
+        expect(result.error_code).toBe("PASS1_TIMEOUT");
+        expect(result.failed_at).toBe("pass1");
+      }
+      expect(mockRunPass3).not.toHaveBeenCalled();
+    } finally {
+      if (originalPassTimeout === undefined) {
+        delete process.env.EVAL_PASS_TIMEOUT_MS;
+      } else {
+        process.env.EVAL_PASS_TIMEOUT_MS = originalPassTimeout;
+      }
+    }
+  }, 15_000); // 15s: pipeline overhead on cold runner
+
+  it("fails closed when lessons-learned blocks at post_structural", async () => {
+    const evaluateRules = jest.fn<(input: RuleEvaluationInput, stage?: RuleStage) => LessonsLearnedReport>();
+    evaluateRules.mockImplementation((_input, stage) => {
+      if (stage === "post_structural") {
+        return {
+          overall_pass: false,
+          results: [
+            {
+              rule_id: "LLR-001",
+              name: "Blur, Not Multiplicity",
+              passed: false,
+              severity: "ERROR",
+              violations: [{ message: "failed", severity: "ERROR" }],
+            },
+          ],
+        };
+      }
+      return { overall_pass: true, results: [] };
+    });
+
+    const result = await runPipeline({
+      manuscriptText: "test",
+      workType: "literary_fiction",
+      title: "Test",
+      openaiApiKey: "sk-test",
+      _runners: {
+        runPass1: mockRunPass1,
+        runPass2: mockRunPass2,
+        runPass3Synthesis: mockRunPass3,
+      },
+      _lessonsLearned: {
+        evaluateRules,
+      },
+    });
+
+    expect(result.ok).toBe(false);
+    if (isPipelineFailure(result)) {
+      expect(result.error_code).toBe("LLR_POST_STRUCTURAL_BLOCK");
+      expect(result.failed_at).toBe("pass1");
+      expect(result.error).toContain("checkpoint=LLR_POST_STRUCTURAL");
+    }
+
+    // Pass 2 runs in parallel with Pass 1; post_structural block happens before Pass 3.
+    expect(mockRunPass2).toHaveBeenCalledTimes(1);
+    expect(mockRunPass3).not.toHaveBeenCalled();
+  });
+
+  it("fails closed when lessons-learned blocks at pre_artifact_generation", async () => {
+    const evaluateRules = jest.fn<(input: RuleEvaluationInput, stage?: RuleStage) => LessonsLearnedReport>();
+    evaluateRules.mockImplementation((_input, stage) => {
+      if (stage === "pre_artifact_generation") {
+        return {
+          overall_pass: false,
+          results: [
+            {
+              rule_id: "LLR-005",
+              name: "No Generic Canon-Free Critique",
+              passed: false,
+              severity: "ERROR",
+              violations: [{ message: "failed", severity: "ERROR" }],
+            },
+          ],
+        };
+      }
+      return { overall_pass: true, results: [] };
+    });
+
+    const result = await runPipeline({
+      manuscriptText: "test",
+      workType: "literary_fiction",
+      title: "Test",
+      openaiApiKey: "sk-test",
+      _runners: {
+        runPass1: mockRunPass1,
+        runPass2: mockRunPass2,
+        runPass3Synthesis: mockRunPass3,
+      },
+      _lessonsLearned: {
+        evaluateRules,
+      },
+    });
+
+    expect(result.ok).toBe(false);
+    if (isPipelineFailure(result)) {
+      expect(result.error_code).toBe("LLR_PRE_ARTIFACT_GENERATION_BLOCK");
+      expect(result.failed_at).toBe("pass4");
+      expect(result.error).toContain("checkpoint=LLR_PRE_ARTIFACT_GENERATION");
+      expect(result.failure_details?.llr_diagnostic_snapshot).toBeDefined();
+      expect(result.failure_details?.llr_diagnostic_snapshot?.stage).toBe("pre_artifact_generation");
+      expect(result.failure_details?.llr_diagnostic_snapshot?.convergence_result.criteria).toHaveLength(13);
+    }
+
+    expect(mockRunPass1).toHaveBeenCalledTimes(1);
+    expect(mockRunPass2).toHaveBeenCalledTimes(1);
+    expect(mockRunPass3).toHaveBeenCalledTimes(1);
+  });
+
+  it("accepts a manuscript at exactly 3,000,000 characters (new ceiling)", async () => {
+    const result = await runPipeline({
+      manuscriptText: "a".repeat(3_000_000),
+      workType: "literary_fiction",
+      title: "Long Form Test",
+      openaiApiKey: "sk-test",
+      _runners: {
+        runPass1: mockRunPass1,
+        runPass2: mockRunPass2,
+        runPass3Synthesis: mockRunPass3,
+      },
+    });
+
+    // Must NOT fail with PIPELINE_INPUT_INVALID due to length
+    if (!result.ok) {
+      const r = result as Extract<typeof result, { ok: false }>;
+      expect(r.error_code).not.toBe("PIPELINE_INPUT_INVALID");
+    }
+    expect(mockRunPass1).toHaveBeenCalled();
+  });
+
+  it("accepts a 2,000,000-character manuscript (within 3M ceiling)", async () => {
+    const result = await runPipeline({
+      manuscriptText: "a".repeat(2_000_000),
+      workType: "literary_fiction",
+      title: "Mid Long Form Test",
+      openaiApiKey: "sk-test",
+      _runners: {
+        runPass1: mockRunPass1,
+        runPass2: mockRunPass2,
+        runPass3Synthesis: mockRunPass3,
+      },
+    });
+
+    if (!result.ok) {
+      const r = result as Extract<typeof result, { ok: false }>;
+      expect(r.error_code).not.toBe("PIPELINE_INPUT_INVALID");
+    }
+    expect(mockRunPass1).toHaveBeenCalled();
+  });
+
+  it("rejects a manuscript over 3,000,000 characters (exceeds new ceiling)", async () => {
+    const result = await runPipeline({
+      manuscriptText: "a".repeat(3_000_001),
+      workType: "literary_fiction",
+      title: "Over Ceiling Test",
+      openaiApiKey: "sk-test",
+      _runners: {
+        runPass1: mockRunPass1,
+        runPass2: mockRunPass2,
+        runPass3Synthesis: mockRunPass3,
+      },
+    });
+
+    expect(result.ok).toBe(false);
+    if (isPipelineFailure(result)) {
+      expect(result.error_code).toBe("PIPELINE_INPUT_INVALID");
+      expect(result.failed_at).toBe("pass1");
+    }
+    expect(mockRunPass1).not.toHaveBeenCalled();
+    expect(mockRunPass2).not.toHaveBeenCalled();
+    expect(mockRunPass3).not.toHaveBeenCalled();
+  });
+
+  it("fails closed when governance injection map validation fails", async () => {
+    const result = await runPipeline({
+      manuscriptText: "test",
+      workType: "literary_fiction",
+      title: "Test",
+      openaiApiKey: "sk-test",
+      _governanceInjectionMapLoader: () => {
+        throw new Error("missing required checkpoint: QUALITY_GATE");
+      },
+      _runners: {
+        runPass1: mockRunPass1,
+        runPass2: mockRunPass2,
+        runPass3Synthesis: mockRunPass3,
+      },
+    });
+
+    expect(result.ok).toBe(false);
+    if (isPipelineFailure(result)) {
+      expect(result.error_code).toBe("GOVERNANCE_INJECTION_MAP_INVALID");
+      expect(result.failed_at).toBe("pass1");
+    }
+
+    expect(mockRunPass1).not.toHaveBeenCalled();
+    expect(mockRunPass2).not.toHaveBeenCalled();
+    expect(mockRunPass3).not.toHaveBeenCalled();
+  });
+});
+
+describe("synthesisToEvaluationResult adapter", () => {
+  function makeAdapterSynthesisOutput(): SynthesisOutput {
+    return {
+      criteria: CRITERIA_KEYS.map((key) => ({
+        key,
+        craft_score: 7,
+        editorial_score: 6,
+        final_score_0_10: 7,
+        score_delta: 1,
+        final_rationale: `Rationale for ${key}.`,
+        pressure_points: ["Narrative pressure accumulates around this criterion."],
+        decision_points: ["The chapter makes a concrete decision at this criterion."],
+        consequence_status: "landed" as const,
+        evidence: [{ snippet: "The river moved slowly." }],
+        recommendations: [
+          {
+            priority: "high" as const,
+            action: `High priority: improve ${key} by grounding in specific textual moments.`,
+            expected_impact: "Significant improvement.",
+            anchor_snippet: '"slowly"',
+            source_pass: 1 as const,
+            issue_family: "scene_structure",
+            strategic_lever: "scene_goal_clarity",
+            revision_granularity: "scene",
+            mechanism: "the criterion lacks grounding in specific textual moments",
+            specific_fix: `grounding ${key} in specific textual moments`,
+            reader_effect: "significant improvement in criterion quality",
+          },
+          {
+            priority: "medium" as const,
+            action: `Medium priority: continue developing ${key} throughout the manuscript.`,
+            expected_impact: "Incremental improvement.",
+            anchor_snippet: '"moved"',
+            source_pass: 2 as const,
+            issue_family: "scene_structure",
+            strategic_lever: "scene_goal_clarity",
+            revision_granularity: "scene",
+            mechanism: "the criterion needs continued development throughout the manuscript",
+            specific_fix: `developing ${key} throughout the manuscript`,
+            reader_effect: "incremental improvement in criterion quality",
+          },
+        ],
+      })),
+      overall: {
+        overall_score_0_100: 70,
+        verdict: "revise" as const,
+        one_paragraph_summary: "Strong manuscript with clear revision needs.",
+        top_3_strengths: ["Voice", "Arc", "Imagery"],
+        top_3_risks: ["Pacing", "Characters", "World-building"],
+        submission_readiness: "close",
+      },
+      metadata: {
+        pass1_model: "gpt-4o-mini",
+        pass2_model: "gpt-4o-mini",
+        pass3_model: "gpt-4o-mini",
+        generated_at: new Date().toISOString(),
+      },
+      partial_evaluation: false,
+    };
+  }
+
+  it("maps SynthesisOutput to EvaluationResultV1 shape", () => {
+    const synthesis: SynthesisOutput = makeAdapterSynthesisOutput();
+
+    const result = synthesisToEvaluationResult({
+      synthesis,
+      ids: {
+        evaluation_run_id: "run-test-123",
+        manuscript_id: 42,
+        user_id: "user-abc",
+      },
+    });
+
+    expect(result.schema_version).toBe("evaluation_result_v1");
+    expect(result.score_denominator_policy).toBe("full_canonical");
+    expect(result.overview.overall_score_0_100).toBe(70);
+    expect(result.criteria).toHaveLength(13);
+    expect(result.recommendations.quick_wins.length).toBeGreaterThan(0);
+    expect(result.recommendations.strategic_revisions.length).toBeGreaterThan(0);
+    expect(result.governance.policy_family).toBe("multi-pass-dual-axis");
+    expect(result.governance.warnings).toEqual([]);
+    expect(result.governance.confidence).toBe(0.85);
+    expect(result.ids.evaluation_run_id).toBe("run-test-123");
+    expect(result.ids.manuscript_id).toBe(42);
+  });
+
+  it("adds INCOMPLETE_CRITERIA_SET warning and downgrades confidence for placeholder zero-score clusters", () => {
+    const synthesis = makeAdapterSynthesisOutput();
+
+    const degradedKeys = new Set(CRITERIA_KEYS.slice(0, 6));
+    synthesis.criteria = synthesis.criteria.map((criterion) => {
+      if (!degradedKeys.has(criterion.key)) return criterion;
+
+      return {
+        ...criterion,
+        final_score_0_10: 0,
+        final_rationale:
+          "The chapter did not provide a specific score or analysis for this criterion based on available evidence.",
+        evidence: [],
+        recommendations: [],
+      };
+    });
+
+    const result = synthesisToEvaluationResult({
+      synthesis,
+      ids: {
+        evaluation_run_id: "run-placeholder-cluster",
+        manuscript_id: 99,
+        user_id: "user-abc",
+      },
+    });
+
+    expect(result.criteria).toHaveLength(13);
+    expect(result.governance.warnings.some((w) => w.includes("INCOMPLETE_CRITERIA_SET"))).toBe(true);
+    expect(result.governance.warnings.some((w) => w.includes("placeholder_cluster_count=6"))).toBe(true);
+    expect(result.governance.confidence).toBe(0.7);
+  });
+
+  it("adds distinguishable missing-keys warning details when criteria are absent", () => {
+    const synthesis = makeAdapterSynthesisOutput();
+    const expectedMissing = CRITERIA_KEYS.slice(-2);
+    synthesis.criteria = synthesis.criteria.slice(0, 11);
+
+    const result = synthesisToEvaluationResult({
+      synthesis,
+      ids: {
+        evaluation_run_id: "run-missing-keys",
+        manuscript_id: 100,
+        user_id: "user-abc",
+      },
+    });
+
+    expect(result.criteria).toHaveLength(11);
+    const missingWarning = result.governance.warnings.find((w) => w.includes("missing_keys="));
+    expect(missingWarning).toBeDefined();
+    for (const key of expectedMissing) {
+      expect(missingWarning).toContain(key);
+    }
+    expect(result.governance.confidence).toBeCloseTo(0.65, 5);
+  });
+
+  it("keeps a stable evaluation object shape for downstream consumers when incomplete warnings are present", () => {
+    const synthesis = makeAdapterSynthesisOutput();
+    synthesis.criteria = synthesis.criteria.slice(0, 10);
+
+    const result = synthesisToEvaluationResult({
+      synthesis,
+      ids: {
+        evaluation_run_id: "run-stable-shape",
+        manuscript_id: 101,
+        user_id: "user-abc",
+      },
+    });
+
+    expect(result.schema_version).toBe("evaluation_result_v1");
+    expect(result.score_denominator_policy).toBe("full_canonical");
+    expect(result.overview).toEqual(
+      expect.objectContaining({
+        verdict: expect.any(String),
+        overall_score_0_100: expect.any(Number),
+      }),
+    );
+    expect(Array.isArray(result.criteria)).toBe(true);
+    expect(Array.isArray(result.governance.warnings)).toBe(true);
+    expect(result.governance.warnings.some((w) => w.includes("INCOMPLETE_CRITERIA_SET"))).toBe(true);
+  });
+
+  it("normalizes the v2 overview summary to include all bottom-score weaknesses before the gate runs", () => {
+    const synthesis = makeAdapterSynthesisOutput();
+    const weakKeys = ["pacing", "proseControl", "narrativeClosure"] as const;
+
+    synthesis.criteria = synthesis.criteria.map((criterion) => {
+      if (!weakKeys.includes(criterion.key as (typeof weakKeys)[number])) {
+        return criterion;
+      }
+
+      return {
+        ...criterion,
+        final_score_0_10: criterion.key === "narrativeClosure" ? 3 : 4,
+        final_rationale: `Synthesized analysis for ${criterion.key}: this is a clear weakness requiring revision.`,
+      };
+    });
+
+    synthesis.overall.one_paragraph_summary =
+      "Strong premise and voice carry the manuscript, but the draft needs targeted revision before submission.";
+
+    const result = synthesisToEvaluationResultV2({
+      synthesis,
+      ids: {
+        evaluation_run_id: "run-v2-weakness-normalized",
+        manuscript_id: 102,
+        user_id: "user-abc",
+      },
+    });
+
+    expect(result.overview.one_paragraph_summary.toLowerCase()).toContain("pacing");
+    expect(result.overview.one_paragraph_summary.toLowerCase()).toContain("prose control");
+    expect(result.overview.one_paragraph_summary.toLowerCase()).toContain("narrative closure");
+
+    const gateResult = runQualityGateV2(result);
+    expect(
+      gateResult.checks.find((check) => check.check_id === "v2_summary_weakness_presence")?.passed,
+    ).toBe(true);
+  });
+});
+
+// ── Pass 4 cross_check preservation (deterministic replay) ───────────────────
+//
+// Supplementary evidence for PR #501. Proves the structural contract that when
+// Pass 3 emits a pathological score for an OpenAI-side criterion the patched
+// `normalizeOpenAIScore` path threads a populated CrossCheckOutput through
+// runPipeline rather than swallowing the error in the non-fatal try/catch.
+//
+// These tests are NOT a substitute for the live Tier 2 chapter run, which is
+// externally blocked by an OpenAI account spend gate. See PR #501 body
+// "Tier 2 verification — external account block" section.
+describe("runPipeline cross_check preservation (PR #501 replay)", () => {
+  // Use the same canonical 13 keys that perplexityCrossCheck.ts validates against.
+  // narrativeClosure is criterion 12 (canonical CriterionKey). emotionalResonance is a
+  // separate internal pipeline metric (evaluation appeal) — not a CriterionKey.
+  const PASS4_KEYS: CriterionKey[] = [
+    "concept",
+    "narrativeDrive",
+    "character",
+    "voice",
+    "sceneConstruction",
+    "dialogue",
+    "theme",
+    "worldbuilding",
+    "pacing",
+    "proseControl",
+    "tone",
+    "narrativeClosure",
+    "marketability",
+  ];
+
+  const originalFetch = global.fetch;
+  let warnSpy: jest.SpiedFunction<typeof console.warn>;
+
+  beforeEach(() => {
+    mockRunPerplexityCrossCheck.mockClear();
+    mockRunPass1 = jest.fn<(opts: RunPass1Options) => Promise<SinglePassOutput>>();
+    mockRunPass2 = jest.fn<(opts: RunPass2Options) => Promise<SinglePassOutput>>();
+    mockRunPass3 = jest.fn<(opts: RunPass3Options) => Promise<SynthesisOutput>>();
+
+    mockRunPass1.mockResolvedValue(makeSinglePassOutput(1));
+    mockRunPass2.mockResolvedValue(makeSinglePassOutput(2));
+    mockRunPass3.mockResolvedValue(makeSynthesisOutput());
+
+    const healthyPerplexityPayload = {
+      criteria: Object.fromEntries(
+        PASS4_KEYS.map((key) => [
+          key,
+          {
+            score: 7,
+            rationale: `Perplexity rationale for ${key}.`,
+            evidence: [
+              {
+                quote: "The river moved slowly through the valley.",
+                explanation: `Evidence for ${key}.`,
+              },
+            ],
+            detectedSignals: ["scene pressure", "voice consistency"],
+            scoringBand: "7-8",
+            doctrineTrace: ["signal-grounded scoring"],
+          },
+        ]),
+      ),
+      synthesisNote: "Cross-check agrees with the primary evaluation.",
+    };
+
+    const content = JSON.stringify(healthyPerplexityPayload);
+    global.fetch = jest.fn<typeof fetch>().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        choices: [
+          {
+            finish_reason: "stop",
+            message: { content },
+          },
+        ],
+        usage: { total_tokens: 1234 },
+      }),
+      text: async () => JSON.stringify({ choices: [{ message: { content } }] }),
+    } as unknown as Response);
+
+    warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    global.fetch = originalFetch;
+    warnSpy.mockRestore();
+    mockRunPerplexityCrossCheck.mockClear();
+  });
+
+  // narrativeClosure (criterion 12) is used as the "invalid" criterion in these tests.
+  // emotionalResonance is a separate internal pipeline metric (evaluation appeal quality),
+  // not a CriterionKey — it does not appear in CRITERIA_KEYS or PASS4_KEYS.
+  function makeSynthesisWithInvalidNarrativeClosure(): SynthesisOutput {
+    const base = makeSynthesisOutput();
+    return {
+      ...base,
+      criteria: base.criteria.map((c) =>
+        c.key === "narrativeClosure"
+          ? { ...c, final_score_0_10: 0 }
+          : c,
+      ),
+    };
+  }
+
+  async function captureCrossCheck(): Promise<CrossCheckOutput | undefined> {
+    const calls = mockRunPerplexityCrossCheck.mock.results;
+    if (calls.length === 0) return undefined;
+    const last = calls[calls.length - 1];
+    if (last.type !== "return") return undefined;
+    return (await last.value) as CrossCheckOutput;
+  }
+
+  it("preserves cross_check when Pass 3 emits final_score_0_10: 0 for narrativeClosure", async () => {
+    const synthDebug = makeSynthesisWithInvalidNarrativeClosure();
+    // eslint-disable-next-line no-console
+    console.log("[debug-test1] pass3 narrativeClosure:", JSON.stringify(synthDebug.criteria.find((c) => c.key === "narrativeClosure")));
+    mockRunPass3.mockResolvedValueOnce(synthDebug);
+    mockRunPerplexityCrossCheck.mockImplementationOnce(async (opts: unknown) => {
+      const o = opts as { openaiCriteria: Record<string, unknown> };
+      // eslint-disable-next-line no-console
+      console.log("[debug-test1] openaiCriteria.narrativeClosure:", JSON.stringify(o.openaiCriteria?.narrativeClosure));
+      // call through to real
+      const actual = jest.requireActual("@/lib/evaluation/pipeline/perplexityCrossCheck") as { runPerplexityCrossCheck: (...args: unknown[]) => Promise<unknown> };
+      return actual.runPerplexityCrossCheck(opts);
+    });
+
+    const result = await runPipeline({
+      manuscriptText: "The river moved slowly through the valley. She watched from the bank.",
+      workType: "literary_fiction",
+      title: "The Valley",
+      openaiApiKey: "sk-test",
+      perplexityApiKey: "pplx-test",
+      _lessonsLearned: permissiveLessonsLearned,
+      _runners: {
+        runPass1: mockRunPass1,
+        runPass2: mockRunPass2,
+        runPass3Synthesis: mockRunPass3,
+      },
+    });
+
+    expect(mockRunPerplexityCrossCheck).toHaveBeenCalledTimes(1);
+    const crossCheck = await captureCrossCheck();
+
+    // Structural contract: cross_check object is produced (not swallowed by the
+    // non-fatal try/catch in runPipeline.ts:~1443).
+    expect(crossCheck).toBeDefined();
+    expect(crossCheck!.invalidCriteria).toContain("narrativeClosure");
+    expect(crossCheck!.criteria.narrativeClosure.direction).toBe("INVALID");
+    expect(crossCheck!.canonValid).toBe(false);
+
+    // The non-fatal-swallow log line MUST NOT appear — the patched code path
+    // does not throw, so the try/catch never triggers.
+    const swallowedCalls = warnSpy.mock.calls.filter((args) =>
+      String(args[0] ?? "").includes("[Pass4] Perplexity cross-check failed (non-fatal):"),
+    );
+    expect(swallowedCalls).toHaveLength(0);
+
+    // Pipeline result reflects the canon-invalid signal via the governance gate
+    // rather than via an undefined cross_check (the old bug shape).
+    expect(result.ok).toBe(false);
+    if (isPipelineFailure(result)) {
+      expect(result.error_code).toBe("PASS4_CANON_INVALID");
+      expect(result.error_code).not.toBe("CROSS_CHECK_MISSING");
+      expect(result.failed_at).toBe("pass4");
+    }
+  });
+
+  it("preserves cross_check when OpenAI-side criterion is missing entirely", async () => {
+    // The MISSING direction requires `openaiCriteria[key]` to be undefined when
+    // runPerplexityCrossCheck loops the canonical key set. runPipeline derives
+    // openaiCriteria from pass3Output.criteria, and the quality gate enforces
+    // that all 13 canonical criteria are present in Pass 3 — so a Pass 3 with
+    // emotionalResonance absent fails QG before Pass 4 ever runs. To prove the
+    // threading contract specifically for the MISSING shape we substitute the
+    // cross-check call with a synthetic CrossCheckOutput that exercises the
+    // same governance + result-path code in runPipeline.ts.
+    const syntheticMissing: CrossCheckOutput = {
+      model: "sonar-reasoning-pro",
+      crossCheckedAt: new Date().toISOString(),
+      overallAgreement: "WEAK",
+      disputedCriteria: ["narrativeClosure"],
+      invalidCriteria: ["narrativeClosure"],
+      criteria: Object.fromEntries(
+        PASS4_KEYS.map((key) => {
+          if (key === "narrativeClosure") {
+            return [
+              key,
+              {
+                openaiScore: null,
+                openaiRationale: "",
+                openaiEvidence: [],
+                openaiDetectedSignals: [],
+                openaiScoringBand: undefined,
+                invalidOpenaiCriterion: false,
+                missingFromOpenai: true,
+                perplexityScore: 7,
+                perplexityRationale: `Perplexity rationale for ${key}.`,
+                perplexityEvidence: [
+                  { quote: "The river moved slowly through the valley.", explanation: `Evidence for ${key}.` },
+                ],
+                perplexityDetectedSignals: ["scene pressure"],
+                perplexityScoringBand: "7-8" as const,
+                perplexityDoctrineTrace: ["signal-grounded scoring"],
+                delta: null,
+                disputed: true,
+                missingFromPerplexity: false,
+                invalidPerplexityCriterion: false,
+                canonValidity: { valid: true, reasons: [] },
+                direction: "MISSING" as const,
+              },
+            ];
+          }
+          return [
+            key,
+            {
+              openaiScore: 7,
+              openaiRationale: `Synthesized analysis for ${key}.`,
+              openaiEvidence: ["The river moved slowly through the valley."],
+              openaiDetectedSignals: [],
+              openaiScoringBand: "7-8" as const,
+              invalidOpenaiCriterion: false,
+              missingFromOpenai: false,
+              perplexityScore: 7,
+              perplexityRationale: `Perplexity rationale for ${key}.`,
+              perplexityEvidence: [
+                { quote: "The river moved slowly through the valley.", explanation: `Evidence for ${key}.` },
+              ],
+              perplexityDetectedSignals: ["scene pressure"],
+              perplexityScoringBand: "7-8" as const,
+              perplexityDoctrineTrace: ["signal-grounded scoring"],
+              delta: 0,
+              disputed: false,
+              missingFromPerplexity: false,
+              invalidPerplexityCriterion: false,
+              canonValidity: { valid: true, reasons: [] },
+              direction: "MATCH" as const,
+            },
+          ];
+        }),
+      ) as CrossCheckOutput["criteria"],
+      perplexitySynthesisNote: "Adjudication note.",
+      canonValid: false,
+    };
+
+    mockRunPerplexityCrossCheck.mockResolvedValueOnce(syntheticMissing);
+
+    const result = await runPipeline({
+      manuscriptText: "The river moved slowly through the valley. She watched from the bank.",
+      workType: "literary_fiction",
+      title: "The Valley",
+      openaiApiKey: "sk-test",
+      perplexityApiKey: "pplx-test",
+      _lessonsLearned: permissiveLessonsLearned,
+      _runners: {
+        runPass1: mockRunPass1,
+        runPass2: mockRunPass2,
+        runPass3Synthesis: mockRunPass3,
+      },
+    });
+
+    expect(mockRunPerplexityCrossCheck).toHaveBeenCalledTimes(1);
+    const crossCheck = await captureCrossCheck();
+
+    expect(crossCheck).toBeDefined();
+    expect(crossCheck!.invalidCriteria).toContain("narrativeClosure");
+    expect(crossCheck!.criteria.narrativeClosure.direction).toBe("MISSING");
+    expect(crossCheck!.canonValid).toBe(false);
+
+    const swallowedCalls = warnSpy.mock.calls.filter((args) =>
+      String(args[0] ?? "").includes("[Pass4] Perplexity cross-check failed (non-fatal):"),
+    );
+    expect(swallowedCalls).toHaveLength(0);
+
+    expect(result.ok).toBe(false);
+    if (isPipelineFailure(result)) {
+      expect(result.error_code).toBe("PASS4_CANON_INVALID");
+      expect(result.failed_at).toBe("pass4");
+    }
+  });
+
+  it("valid OpenAI-side criteria are unaffected by one invalid sibling", async () => {
+    mockRunPass3.mockResolvedValueOnce(makeSynthesisWithInvalidNarrativeClosure());
+
+    await runPipeline({
+      manuscriptText: "The river moved slowly through the valley. She watched from the bank.",
+      workType: "literary_fiction",
+      title: "The Valley",
+      openaiApiKey: "sk-test",
+      perplexityApiKey: "pplx-test",
+      _lessonsLearned: permissiveLessonsLearned,
+      _runners: {
+        runPass1: mockRunPass1,
+        runPass2: mockRunPass2,
+        runPass3Synthesis: mockRunPass3,
+      },
+    });
+
+    expect(mockRunPerplexityCrossCheck).toHaveBeenCalledTimes(1);
+    const crossCheck = await captureCrossCheck();
+    expect(crossCheck).toBeDefined();
+
+    // The invalid sibling (narrativeClosure) does not contaminate other
+    // criteria — concept still produces a valid cross-check entry with the
+    // injected Pass 3 score of 7 and one of the comparative directions.
+    expect(crossCheck!.criteria.concept.direction).toMatch(/^(MATCH|HIGHER|LOWER)$/);
+    expect(crossCheck!.criteria.concept.openaiScore).toBe(7);
+    expect(crossCheck!.criteria.concept.invalidOpenaiCriterion).toBe(false);
+    expect(crossCheck!.criteria.concept.missingFromOpenai).toBe(false);
+    expect(crossCheck!.invalidCriteria).not.toContain("concept");
+  });
+});

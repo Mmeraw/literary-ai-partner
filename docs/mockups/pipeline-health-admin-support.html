@@ -1,0 +1,506 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=1280, initial-scale=1" />
+<title>/admin/pipeline-health — Admin support landing (SIPOC granular · 100k-user scale)</title>
+<style>
+  :root{
+    --bg:#0b0f14;
+    --panel:#11161d;
+    --panel-2:#0e131a;
+    --border:#1f2731;
+    --border-strong:#2a3340;
+    --text:#e6edf3;
+    --muted:#8b97a7;
+    --muted-2:#5f6b7a;
+    --green:#3fb950;
+    --green-bg:#1b2e22;
+    --yellow:#d29922;
+    --yellow-bg:#322813;
+    --red:#f85149;
+    --red-bg:#3a1a1c;
+    --blue:#58a6ff;
+    --blue-bg:#10243d;
+    --gray:#2a3340;
+    --accent:#a371f7;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font:13px/1.45 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif;}
+  code,kbd,.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;}
+  a{color:var(--blue);text-decoration:none}
+  a:hover{text-decoration:underline}
+  .container{max-width:1480px;margin:0 auto;padding:18px 24px 60px}
+
+  /* Header */
+  .pageheader{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:1px solid var(--border);padding-bottom:14px;margin-bottom:14px}
+
+  /* Search bar */
+  .searchbar{display:flex;gap:8px;align-items:center;background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:14px;flex-wrap:wrap}
+  .searchbar .q{flex:1;min-width:340px;background:#0a0e13;border:1px solid var(--border-strong);color:var(--text);padding:7px 10px;border-radius:6px;font-size:12.5px;font-family:ui-monospace,Menlo,Consolas,monospace}
+  .searchbar .q::placeholder{color:var(--muted-2)}
+  .searchbar .q:focus{outline:none;border-color:var(--blue)}
+  .chips{display:flex;gap:6px;flex-wrap:wrap}
+  .chip{display:inline-block;padding:4px 10px;border-radius:999px;background:var(--panel-2);border:1px solid var(--border-strong);color:var(--muted);font-size:11px;cursor:pointer;user-select:none}
+  .chip.active{color:#fff;background:#1f3a5c;border-color:#2a5485}
+  .chip:hover{border-color:#3a4655}
+  .pageheader h1{margin:0;font-size:22px;font-weight:600;letter-spacing:.2px}
+  .pageheader .sub{color:var(--muted);font-size:12px;margin-top:4px}
+  .pageheader .ctrls{display:flex;gap:8px;align-items:center}
+  .btn{background:var(--panel);border:1px solid var(--border-strong);color:var(--text);padding:6px 12px;border-radius:6px;font-size:12px;cursor:pointer}
+  .btn:hover{border-color:#3a4655}
+  .btn.primary{background:#1f6feb;border-color:#1f6feb;color:#fff}
+  .pill{display:inline-flex;align-items:center;gap:6px;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;border:1px solid var(--border-strong);background:var(--panel-2);color:var(--muted)}
+  .pill .dot{width:6px;height:6px;border-radius:50%;background:var(--muted)}
+  .pill.green{color:var(--green);border-color:#1f4a2a;background:var(--green-bg)} .pill.green .dot{background:var(--green)}
+  .pill.yellow{color:var(--yellow);border-color:#4a3a14;background:var(--yellow-bg)} .pill.yellow .dot{background:var(--yellow)}
+  .pill.red{color:var(--red);border-color:#5a1f23;background:var(--red-bg)} .pill.red .dot{background:var(--red)}
+  .pill.blue{color:var(--blue);border-color:#1d3a5c;background:var(--blue-bg)} .pill.blue .dot{background:var(--blue)}
+  .pill.gray .dot{background:var(--muted-2)}
+
+  /* Top KPI strip */
+  .kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:16px}
+  .kpi{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:10px 12px}
+  .kpi .label{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.5px}
+  .kpi .value{font-size:20px;font-weight:600;margin-top:4px}
+  .kpi .delta{font-size:11px;color:var(--muted);margin-top:2px}
+  .kpi .value.red{color:var(--red)}
+  .kpi .value.green{color:var(--green)}
+  .kpi .value.yellow{color:var(--yellow)}
+
+  /* Section heading */
+  .sec{display:flex;justify-content:space-between;align-items:center;margin:22px 0 10px}
+  .sec h2{font-size:14px;font-weight:600;letter-spacing:.3px;margin:0;color:#cfd7e1;text-transform:uppercase}
+  .sec .hint{color:var(--muted-2);font-size:11px}
+
+  /* SIPOC strip — 11 stages */
+  .sipoc{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:6px;background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:10px}
+  .stage{position:relative;border:1px solid var(--border-strong);border-radius:6px;padding:18px 8px 10px;background:var(--panel-2);min-height:92px;cursor:pointer;transition:border-color .12s;display:flex;flex-direction:column}
+  .stage:hover{border-color:#3a4655}
+  .stage .ix{position:absolute;top:4px;right:6px;font-family:ui-monospace,Menlo,monospace;font-size:9px;color:var(--muted-2)}
+  .stage .name{font-size:10.5px;color:#cfd7e1;font-weight:600;letter-spacing:.2px;line-height:1.2;word-break:normal}
+  .stage .met{font-size:9.5px;color:var(--muted);margin-top:auto;padding-top:6px;font-family:ui-monospace,Menlo,monospace;line-height:1.3}
+  .stage .bar{position:absolute;left:0;bottom:0;height:3px;width:100%;border-radius:0 0 5px 5px;background:var(--gray)}
+  .stage.ok .bar{background:var(--green)}
+  .stage.warn .bar{background:var(--yellow)}
+  .stage.fail .bar{background:var(--red)}
+  .stage.skip .bar{background:var(--gray)}
+  .stage.fail{background:#1c1115}
+  .stage .badge{position:absolute;top:4px;left:6px;font-size:8.5px;font-weight:700;letter-spacing:.4px;padding:1px 4px;border-radius:3px;text-transform:uppercase;line-height:1.2}
+  .stage.ok .badge{background:#1b2e22;color:var(--green)}
+  .stage.warn .badge{background:#322813;color:var(--yellow)}
+  .stage.fail .badge{background:#3a1a1c;color:var(--red)}
+  .stage.skip .badge{background:#1a1f27;color:var(--muted-2)}
+
+  /* Two-column row */
+  .row{display:grid;grid-template-columns:2.2fr 1fr;gap:16px;margin-top:14px}
+
+  /* Recent jobs table */
+  .panel{background:var(--panel);border:1px solid var(--border);border-radius:8px;overflow:hidden}
+  .panel .phead{padding:10px 14px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center}
+  .panel .phead h3{margin:0;font-size:13px;font-weight:600}
+  table{width:100%;border-collapse:collapse;font-size:12px}
+  thead th{text-align:left;font-weight:500;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.4px;padding:8px 10px;border-bottom:1px solid var(--border);background:var(--panel-2)}
+  tbody td{padding:9px 10px;border-bottom:1px solid var(--border);vertical-align:middle}
+  tbody tr:last-child td{border-bottom:none}
+  tbody tr.failrow{background:linear-gradient(90deg, rgba(248,81,73,0.04), transparent 60%)}
+  tbody tr.expandable{cursor:pointer}
+  tbody tr.expandable:hover{background:#141a22}
+  td.mono{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;white-space:nowrap}
+  td{white-space:nowrap}
+  td.userc{white-space:normal}
+  td.expand{white-space:normal}
+  .chev{display:inline-block;width:10px;color:var(--muted-2);font-family:ui-monospace,Menlo,monospace}
+  tr.open .chev{color:var(--blue)}
+
+  /* User column */
+  .userc{min-width:170px;max-width:200px}
+  .userc .uemail{color:#cfd7e1;font-size:11.5px;font-family:ui-monospace,Menlo,monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .userc .umeta{color:var(--muted);font-size:10.5px;margin-top:2px;font-family:ui-monospace,Menlo,monospace}
+  .userc .umeta a{color:var(--blue)}
+  .plan{display:inline-block;font-size:9px;font-weight:700;padding:0 5px;border-radius:3px;text-transform:uppercase;letter-spacing:.4px;vertical-align:1px}
+  .plan.paid{background:#10243d;color:var(--blue);border:1px solid #1d3a5c}
+  .plan.free{background:#1a1f27;color:var(--muted);border:1px solid var(--border-strong)}
+  .plan.trial{background:#322813;color:var(--yellow);border:1px solid #4a3a14}
+  .plan.beta{background:#1c1428;color:var(--accent);border:1px solid #3a2a55}
+  .acts{white-space:nowrap;font-size:13px}
+  .acts a{margin-right:4px;opacity:.7;text-decoration:none}
+  .acts a:hover{opacity:1}
+
+  /* Coverage pill (special — bigger) */
+  .cov{display:inline-flex;align-items:center;gap:6px;padding:3px 9px;border-radius:999px;font-family:ui-monospace,Menlo,monospace;font-size:11.5px;font-weight:600;border:1px solid var(--border-strong)}
+  .cov.green{color:var(--green);background:var(--green-bg);border-color:#1f4a2a}
+  .cov.yellow{color:var(--yellow);background:var(--yellow-bg);border-color:#4a3a14}
+  .cov.red{color:var(--red);background:var(--red-bg);border-color:#5a1f23}
+
+  /* Expanded step contract panel inside the row */
+  .expand{background:#0a0e13;border-top:1px solid var(--border)}
+  .expand-inner{padding:14px 16px}
+  .expand h4{margin:0 0 8px;font-size:12px;color:#cfd7e1;font-weight:600;letter-spacing:.3px;text-transform:uppercase}
+  .step-tbl{width:100%;border-collapse:collapse;font-family:ui-monospace,Menlo,monospace;font-size:11.5px}
+  .step-tbl th{background:#0f141a;color:var(--muted);font-size:10px;font-weight:600;padding:5px 8px;text-align:left;border-bottom:1px solid var(--border);text-transform:uppercase;letter-spacing:.4px}
+  .step-tbl td{padding:5px 8px;border-bottom:1px solid #161c24}
+  .step-tbl tr:last-child td{border-bottom:none}
+  .step-tbl td.k{color:var(--muted-2);width:28px;text-align:right;padding-right:10px}
+  .step-tbl td.nm{color:#cfd7e1;font-weight:600;font-family:-apple-system,sans-serif;width:170px}
+  .check{font-family:ui-monospace,Menlo,monospace;font-size:12px;font-weight:700}
+  .check.ok{color:var(--green)}
+  .check.fail{color:var(--red)}
+  .check.skip{color:var(--muted-2)}
+  .metric-cell{color:var(--text);max-width:380px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .metric-cell .k{color:var(--muted)}
+  .step-tbl tr.r-fail td{background:rgba(248,81,73,0.06)}
+  .step-tbl tr.r-skip td{color:var(--muted-2)}
+  .step-tbl tr.r-skip td.nm{color:var(--muted-2)}
+
+  /* Pass timings strip */
+  .timings{display:grid;grid-template-columns:60px 1fr 70px;gap:10px;align-items:center;margin:3px 0;font-family:ui-monospace,Menlo,monospace;font-size:11px}
+  .timings .lbl{color:var(--muted)}
+  .timings .track{position:relative;height:12px;background:#0f141a;border:1px solid var(--border);border-radius:3px;overflow:hidden}
+  .timings .fill{position:absolute;left:0;top:0;height:100%}
+  .timings .fill.ok{background:linear-gradient(90deg,#1b6e2c,#3fb950)}
+  .timings .fill.warn{background:linear-gradient(90deg,#7a5a13,#d29922)}
+  .timings .fill.fail{background:linear-gradient(90deg,#7a1f23,#f85149)}
+  .timings .budget{position:absolute;top:-2px;bottom:-2px;width:1px;background:#fff;opacity:.45}
+  .timings .ms{color:var(--text);text-align:right}
+  .timings .ms.fail{color:var(--red)}
+
+  /* Right column tiles */
+  .tile{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:12px 14px;margin-bottom:12px}
+  .tile h3{margin:0 0 10px;font-size:13px;font-weight:600;display:flex;justify-content:space-between;align-items:center}
+  .tile .sub{color:var(--muted);font-size:11px}
+  .tile .row-line{display:flex;justify-content:space-between;font-family:ui-monospace,Menlo,monospace;font-size:11.5px;padding:4px 0;border-bottom:1px dashed #1b232d}
+  .tile .row-line:last-child{border-bottom:none}
+  .tile .row-line .k{color:var(--muted)}
+  .tile .row-line .v{color:var(--text)}
+
+  /* Taxonomy heatmap */
+  .taxo{display:grid;grid-template-columns:1fr auto auto;gap:4px 10px;font-family:ui-monospace,Menlo,monospace;font-size:11.5px;align-items:center}
+  .taxo .code{color:var(--text)}
+  .taxo .code.zero{color:var(--muted-2)}
+  .taxo .heat{width:120px;height:10px;background:#0f141a;border:1px solid var(--border);border-radius:2px;position:relative;overflow:hidden}
+  .taxo .heat .h{position:absolute;left:0;top:0;bottom:0}
+  .taxo .heat .h.r{background:var(--red)}
+  .taxo .heat .h.y{background:var(--yellow)}
+  .taxo .heat .h.b{background:var(--blue)}
+  .taxo .count{text-align:right;color:var(--muted);width:36px}
+  .taxo .count.live{color:var(--text)}
+
+  /* SIPOC fixtures grid */
+  .fix-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:6px;margin-top:6px}
+  .fx{position:relative;border:1px solid var(--border-strong);border-radius:5px;padding:8px 6px;background:var(--panel-2);text-align:center;font-family:ui-monospace,Menlo,monospace}
+  .fx .id{font-size:10.5px;font-weight:700;color:#cfd7e1}
+  .fx .nm{font-size:9px;color:var(--muted);margin-top:2px;line-height:1.15;min-height:22px}
+  .fx.ok{border-color:#1f4a2a;background:var(--green-bg)}
+  .fx.ok .id{color:var(--green)}
+  .fx.fail{border-color:#5a1f23;background:var(--red-bg)}
+  .fx.fail .id{color:var(--red)}
+  .fx.miss{border-color:#3a3018;background:var(--yellow-bg)}
+  .fx.miss .id{color:var(--yellow)}
+
+  /* Footer notes */
+  .legend{display:flex;gap:12px;flex-wrap:wrap;margin-top:8px;color:var(--muted);font-size:11px}
+  .legend .lg{display:inline-flex;align-items:center;gap:5px}
+  .legend .lg .sw{width:10px;height:10px;border-radius:2px;display:inline-block}
+
+  .ribbon{background:linear-gradient(90deg,#10243d,transparent);border:1px solid var(--border);border-left:3px solid var(--blue);border-radius:6px;padding:8px 12px;color:#cfd7e1;font-size:11.5px;margin-bottom:14px}
+  .ribbon b{color:#fff}
+
+  details summary{cursor:pointer;color:var(--muted);font-size:11px}
+  details[open] summary{color:var(--text)}
+</style>
+</head>
+<body>
+<div class="container">
+
+  <div class="pageheader">
+    <div>
+      <h1>Pipeline Health <span style="color:var(--muted);font-weight:400;font-size:14px">— /admin/pipeline-health · admin landing</span></h1>
+      <div class="sub">SIPOC step-contract granularity · scale: 100k users · workflow: user reports failure → find their job → diagnose without leaving page · range: <span class="mono">24h</span> · auto-refresh: <span class="mono">30s</span></div>
+    </div>
+    <div class="ctrls">
+      <span class="pill"><span class="dot"></span>updated 12s ago</span>
+      <button class="btn">Range ▾</button>
+      <button class="btn">Saved views ▾</button>
+      <button class="btn primary">Refresh</button>
+    </div>
+  </div>
+
+  <!-- Support search bar — top of page, always visible -->
+  <div class="searchbar">
+    <input type="text" class="q" placeholder="Find a user's job — email · user_id · job_id · manuscript_id · support ticket #" value="" />
+    <button class="btn">Search</button>
+    <span class="chips">
+      <span class="chip active">Failed · 24h</span>
+      <span class="chip">All · 24h</span>
+      <span class="chip">Failed · 7d</span>
+      <span class="chip">Stuck &gt; 5 min</span>
+      <span class="chip">Coverage &lt; 90%</span>
+      <span class="chip">Plan: paid</span>
+    </span>
+  </div>
+
+  <div class="ribbon">
+    <b>Admin support workflow:</b> User reports an evaluation failure. Paste their email or job_id in the search bar → expand the row → step-contract panel shows exactly which SIPOC step failed and why. No docx autopsy, no log diving. At 100k users this is the page that turns a 20-minute diagnosis into a 20-second one.
+  </div>
+
+  <!-- KPI strip -->
+  <div class="kpis">
+    <div class="kpi"><div class="label">Jobs (24h)</div><div class="value">14</div><div class="delta">+3 vs prior 24h</div></div>
+    <div class="kpi"><div class="label">Pass rate</div><div class="value yellow">64.3%</div><div class="delta">9 / 14 PASS</div></div>
+    <div class="kpi"><div class="label">p50 duration</div><div class="value">186 s</div><div class="delta">budget 720 s</div></div>
+    <div class="kpi"><div class="label">Coverage (avg)</div><div class="value yellow">87.4%</div><div class="delta">target ≥ 99.5%</div></div>
+    <div class="kpi"><div class="label">Failed-closed</div><div class="value green">5 / 5</div><div class="delta">no silent fails</div></div>
+    <div class="kpi"><div class="label">SIPOC fixtures</div><div class="value red">9 / 11</div><div class="delta">s05, s08 failing</div></div>
+  </div>
+
+  <!-- SIPOC 11-stage strip -->
+  <div class="sec"><h2>SIPOC Pipeline · 11-stage contract</h2><span class="hint">click a stage to filter jobs · bar = aggregate health (24h)</span></div>
+  <div class="sipoc">
+    <div class="stage ok"><span class="badge">ok</span><span class="ix">0</span><div class="name">Intake</div><div class="met">14 ✓ · word_count<br/>scope captured</div><div class="bar"></div></div>
+    <div class="stage ok"><span class="badge">ok</span><span class="ix">1</span><div class="name">Queue & claim</div><div class="met">14 atomic<br/>0 double-claim</div><div class="bar"></div></div>
+    <div class="stage ok"><span class="badge">ok</span><span class="ix">2</span><div class="name">Routing</div><div class="met">long: 6<br/>short: 8</div><div class="bar"></div></div>
+    <div class="stage ok"><span class="badge">ok</span><span class="ix">3</span><div class="name">Chunking</div><div class="met">Σ words OK<br/>14/14 match</div><div class="bar"></div></div>
+    <div class="stage fail"><span class="badge">fail</span><span class="ix">4</span><div class="name">Pass 1 craft</div><div class="met">3 truncated<br/>cov p50: 87%</div><div class="bar"></div></div>
+    <div class="stage warn"><span class="badge">warn</span><span class="ix">5</span><div class="name">Pass 2 editorial</div><div class="met">11 / 11<br/>div p95: 0.31</div><div class="bar"></div></div>
+    <div class="stage skip"><span class="badge">skip</span><span class="ix">6</span><div class="name">Chapter rollup</div><div class="met">not built<br/>PR-C pending</div><div class="bar"></div></div>
+    <div class="stage warn"><span class="badge">warn</span><span class="ix">7</span><div class="name">Pass 3 synth</div><div class="met">10/11<br/>1 timeout</div><div class="bar"></div></div>
+    <div class="stage fail"><span class="badge">fail</span><span class="ix">8</span><div class="name">Pass 4 xcheck</div><div class="met">2 finish=length<br/>retry: 1/2</div><div class="bar"></div></div>
+    <div class="stage ok"><span class="badge">ok</span><span class="ix">9</span><div class="name">Quality gate</div><div class="met">9 PASS<br/>5 FAIL persisted</div><div class="bar"></div></div>
+    <div class="stage ok"><span class="badge">ok</span><span class="ix">10</span><div class="name">Persistence</div><div class="met">14 canonical<br/>0 dup row_hash</div><div class="bar"></div></div>
+    <div class="stage ok"><span class="badge">ok</span><span class="ix">11</span><div class="name">Renderer</div><div class="met">9 releasable<br/>0 leak on FAIL</div><div class="bar"></div></div>
+  </div>
+
+  <div class="row">
+
+    <!-- LEFT: Recent jobs with step-contract expand -->
+    <div class="panel">
+      <div class="phead">
+        <h3>Recent Jobs <span style="color:var(--muted);font-weight:400">· 14 · sorted by recency</span></h3>
+        <span class="pill">click row to expand step contract</span>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th style="width:18px"></th>
+            <th>Job</th>
+            <th>User</th>
+            <th>Manuscript</th>
+            <th>Words</th>
+            <th>Coverage</th>
+            <th>Stage</th>
+            <th>Duration</th>
+            <th>Status</th>
+            <th style="width:80px">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+
+          <!-- CARTEL BABIES row — expanded by default to demonstrate -->
+          <tr class="expandable failrow open">
+            <td><span class="chev">▾</span></td>
+            <td class="mono">26220f5b…</td>
+            <td class="userc"><div class="uemail">j.alvarez@hotmail.com</div><div class="umeta"><span class="plan paid">paid</span> · u_91204 · <a href="#">tkt #4471</a></div></td>
+            <td>Cartel Babies (6054)</td>
+            <td class="mono">137,758</td>
+            <td><span class="cov red">●  4.9 %</span></td>
+            <td><span class="pill red"><span class="dot"></span>pass1_craft</span></td>
+            <td class="mono">722.4 s</td>
+            <td><span class="pill red"><span class="dot"></span>PASS1_TIMEOUT</span></td>
+            <td class="acts"><a href="#" title="Open user history">👤</a> <a href="#" title="Retry job">↻</a> <a href="#" title="Copy support reply">✉</a></td>
+          </tr>
+          <tr class="failrow">
+            <td colspan="10" class="expand">
+              <div class="expand-inner">
+
+                <h4>Step Contract · job <span class="mono" style="color:var(--blue)">26220f5b-62fe-4079-8804-e69bdc0edc5f</span></h4>
+                <table class="step-tbl">
+                  <thead><tr><th>#</th><th>Step</th><th>input.spec</th><th>Metric persisted</th><th>output.spec</th><th>last_event_at</th></tr></thead>
+                  <tbody>
+                    <tr><td class="k">0</td><td class="nm">Intake</td><td><span class="check ok">✓</span></td><td class="metric-cell"><span class="k">word_count</span>=137758 · <span class="k">scope</span>=manuscript · <span class="k">submission_id</span>=ms_6054</td><td><span class="check ok">✓</span></td><td>10:32:01</td></tr>
+                    <tr><td class="k">1</td><td class="nm">Queue & claim</td><td><span class="check ok">✓</span></td><td class="metric-cell"><span class="k">job_id</span>=26220f5b · <span class="k">claimed_at</span>=10:32:03 · <span class="k">worker_id</span>=w-3</td><td><span class="check ok">✓</span></td><td>10:32:03</td></tr>
+                    <tr><td class="k">2</td><td class="nm">Routing</td><td><span class="check ok">✓</span></td><td class="metric-cell"><span class="k">route</span>=long · <span class="k">threshold</span>=25000 · <span class="k">word_count</span>=137758</td><td><span class="check ok">✓</span></td><td>10:32:03</td></tr>
+                    <tr><td class="k">3</td><td class="nm">Chunking</td><td><span class="check ok">✓</span></td><td class="metric-cell"><span class="k">chunks_expected</span>=98 · <span class="k">chunks_persisted</span>=98 · <span class="k">Σ words</span>=137758</td><td><span class="check ok">✓</span></td><td>10:32:09</td></tr>
+
+                    <tr class="r-fail"><td class="k">4</td><td class="nm">Pass 1 craft</td><td><span class="check ok">✓</span></td><td class="metric-cell"><span class="k">pass1_ms_p50</span>=7,340 · <span class="k">prompt_window_chars</span>=<b style="color:var(--red)">40000</b> · <span class="k">evidence_quote_count</span>=0 (p50) · <span class="k">truncated</span>=<b style="color:var(--red)">true</b> · <span class="k">retried_n</span>=2 · <span class="k">chunks_with_evidence</span>=6/98</td><td><span class="check fail">✗</span></td><td>10:44:03</td></tr>
+
+                    <tr class="r-skip"><td class="k">5</td><td class="nm">Pass 2 editorial</td><td><span class="check skip">—</span></td><td class="metric-cell">never reached (upstream failed-closed)</td><td><span class="check skip">—</span></td><td>—</td></tr>
+                    <tr class="r-skip"><td class="k">6</td><td class="nm">Chapter rollup</td><td><span class="check skip">—</span></td><td class="metric-cell">not built (PR-C pending) · step inert</td><td><span class="check skip">—</span></td><td>—</td></tr>
+                    <tr class="r-skip"><td class="k">7</td><td class="nm">Pass 3 synth</td><td><span class="check skip">—</span></td><td class="metric-cell">never reached</td><td><span class="check skip">—</span></td><td>—</td></tr>
+                    <tr class="r-skip"><td class="k">8</td><td class="nm">Pass 4 xcheck</td><td><span class="check skip">—</span></td><td class="metric-cell">never reached</td><td><span class="check skip">—</span></td><td>—</td></tr>
+                    <tr class="r-skip"><td class="k">9</td><td class="nm">Quality gate</td><td><span class="check skip">—</span></td><td class="metric-cell">never reached</td><td><span class="check skip">—</span></td><td>—</td></tr>
+                    <tr class="r-skip"><td class="k">10</td><td class="nm">Persistence</td><td><span class="check skip">—</span></td><td class="metric-cell">failure persisted: <span class="k">error_code</span>=PASS1_TIMEOUT · <span class="k">row_hash</span>=set</td><td><span class="check ok">✓</span></td><td>10:44:03</td></tr>
+                    <tr class="r-skip"><td class="k">11</td><td class="nm">Renderer</td><td><span class="check ok">✓</span></td><td class="metric-cell"><span class="k">releasable</span>=false · gate=FAIL · UI suppressed</td><td><span class="check ok">✓</span></td><td>10:44:04</td></tr>
+                  </tbody>
+                </table>
+
+                <h4 style="margin-top:14px">Pass timings · 720 s budget</h4>
+                <div class="timings"><div class="lbl">P1 craft</div><div class="track"><div class="fill fail" style="width:100%"></div><div class="budget" style="left:62.5%"></div></div><div class="ms fail">720,000 ms</div></div>
+                <div class="timings"><div class="lbl">P2 edit</div><div class="track"></div><div class="ms">—</div></div>
+                <div class="timings"><div class="lbl">P3 synth</div><div class="track"></div><div class="ms">—</div></div>
+                <div class="timings"><div class="lbl">P4 xcheck</div><div class="track"></div><div class="ms">—</div></div>
+
+                <details style="margin-top:10px"><summary>Per-chunk Pass-1 telemetry (98 chunks) · top 5 longest</summary>
+                  <table class="step-tbl" style="margin-top:8px">
+                    <thead><tr><th>chunk</th><th>words</th><th>pass1_ms</th><th>prompt_window_chars</th><th>truncated</th><th>evidence_count</th></tr></thead>
+                    <tbody>
+                      <tr class="r-fail"><td class="k">14</td><td>1,402</td><td>45,012</td><td>40,000</td><td><span class="check fail">true</span></td><td>0</td></tr>
+                      <tr class="r-fail"><td class="k">22</td><td>1,388</td><td>44,901</td><td>40,000</td><td><span class="check fail">true</span></td><td>0</td></tr>
+                      <tr class="r-fail"><td class="k">31</td><td>1,411</td><td>44,772</td><td>40,000</td><td><span class="check fail">true</span></td><td>0</td></tr>
+                      <tr class="r-fail"><td class="k">47</td><td>1,365</td><td>44,610</td><td>40,000</td><td><span class="check fail">true</span></td><td>1</td></tr>
+                      <tr><td class="k">5</td><td>1,290</td><td>7,182</td><td>38,402</td><td><span class="check ok">false</span></td><td>3</td></tr>
+                    </tbody>
+                  </table>
+                </details>
+
+              </div>
+            </td>
+          </tr>
+
+          <!-- Other jobs -->
+          <tr class="expandable failrow">
+            <td><span class="chev">▸</span></td>
+            <td class="mono">7d4e0a18…</td>
+            <td class="userc"><div class="uemail">k.nakamura@gmail.com</div><div class="umeta"><span class="plan paid">paid</span> · u_88122 · <a href="#">tkt #4470</a></div></td>
+            <td>Borrowed Salt (6053)</td>
+            <td class="mono">82,447</td>
+            <td><span class="cov yellow">●  91.2 %</span></td>
+            <td><span class="pill red"><span class="dot"></span>pass4_xcheck</span></td>
+            <td class="mono">412.7 s</td>
+            <td><span class="pill red"><span class="dot"></span>PASS4_FINISH_LENGTH</span></td>
+            <td class="acts"><a href="#" title="User history">👤</a> <a href="#" title="Retry">↻</a> <a href="#" title="Reply">✉</a></td>
+          </tr>
+          <tr class="expandable failrow">
+            <td><span class="chev">▸</span></td>
+            <td class="mono">2c8a14e1…</td>
+            <td class="userc"><div class="uemail">marisol@cinderspress.co</div><div class="umeta"><span class="plan paid">paid</span> · u_77501 · <a href="#">tkt #4466</a></div></td>
+            <td>House of Cinders (6045)</td>
+            <td class="mono">119,640</td>
+            <td><span class="cov red">●  72.3 %</span></td>
+            <td><span class="pill red"><span class="dot"></span>pass1_craft</span></td>
+            <td class="mono">631.5 s</td>
+            <td><span class="pill red"><span class="dot"></span>PASS1_TRUNCATED</span></td>
+            <td class="acts"><a href="#" title="User history">👤</a> <a href="#" title="Retry">↻</a> <a href="#" title="Reply">✉</a></td>
+          </tr>
+          <tr class="expandable failrow">
+            <td><span class="chev">▸</span></td>
+            <td class="mono">f102bb87…</td>
+            <td class="userc"><div class="uemail">writer2031@proton.me</div><div class="umeta"><span class="plan trial">trial</span> · u_104884</div></td>
+            <td>The Felt Engine (6052)</td>
+            <td class="mono">142,019</td>
+            <td><span class="cov red">●  5.1 %</span></td>
+            <td><span class="pill red"><span class="dot"></span>pass1_craft</span></td>
+            <td class="mono">721.8 s</td>
+            <td><span class="pill red"><span class="dot"></span>PASS1_TIMEOUT</span></td>
+            <td class="acts"><a href="#" title="User history">👤</a> <a href="#" title="Retry">↻</a> <a href="#" title="Reply">✉</a></td>
+          </tr>
+          <tr class="expandable failrow">
+            <td><span class="chev">▸</span></td>
+            <td class="mono">3d8c91a5…</td>
+            <td class="userc"><div class="uemail">a.okafor@pen.house</div><div class="umeta"><span class="plan beta">beta</span> · u_92011</div></td>
+            <td>Saltwater Vespers (6048)</td>
+            <td class="mono">68,114</td>
+            <td><span class="cov red">●  88.4 %</span></td>
+            <td><span class="pill red"><span class="dot"></span>quality_gate</span></td>
+            <td class="mono">512.0 s</td>
+            <td><span class="pill red"><span class="dot"></span>QG_FAILED</span></td>
+            <td class="acts"><a href="#" title="User history">👤</a> <a href="#" title="Retry">↻</a> <a href="#" title="Reply">✉</a></td>
+          </tr>
+
+        </tbody>
+      </table>
+    </div>
+
+    <!-- RIGHT column: tiles -->
+    <div>
+
+      <div class="tile">
+        <h3>Coverage distribution <span class="sub">24h · all jobs</span></h3>
+        <div class="row-line"><span class="k">≥ 99.5 %</span><span class="v">9 jobs</span></div>
+        <div class="row-line"><span class="k">90 – 99.5 %</span><span class="v">2 jobs</span></div>
+        <div class="row-line"><span class="k">&lt; 90 %</span><span class="v" style="color:var(--red)">3 jobs</span></div>
+        <div class="legend" style="margin-top:8px">
+          <span class="lg"><span class="sw" style="background:var(--green)"></span>green ≥ 99.5</span>
+          <span class="lg"><span class="sw" style="background:var(--yellow)"></span>yellow 90–99.5</span>
+          <span class="lg"><span class="sw" style="background:var(--red)"></span>red &lt; 90</span>
+        </div>
+      </div>
+
+      <div class="tile">
+        <h3>Failure taxonomy <span class="sub">live · /api/.../taxonomy</span></h3>
+        <div class="taxo">
+          <span class="code">PASS1_TIMEOUT</span><span class="heat"><span class="h r" style="width:100%"></span></span><span class="count live">2</span>
+          <span class="code">PASS1_TRUNCATED</span><span class="heat"><span class="h r" style="width:50%"></span></span><span class="count live">1</span>
+          <span class="code">PASS4_FINISH_LENGTH</span><span class="heat"><span class="h r" style="width:50%"></span></span><span class="count live">1</span>
+          <span class="code">JSON_PARSE_FAILED_TRUNCATED</span><span class="heat"><span class="h y" style="width:25%"></span></span><span class="count live">1</span>
+          <span class="code zero">LONG_FORM_CHUNK_MATERIALIZATION_FAILED</span><span class="heat"></span><span class="count">0</span>
+          <span class="code zero">PASS3_TIMEOUT</span><span class="heat"></span><span class="count">0</span>
+          <span class="code zero">CHUNK_TIMEOUT</span><span class="heat"></span><span class="count">0</span>
+          <span class="code zero">QG_FAILED_THRESHOLD</span><span class="heat"></span><span class="count">0</span>
+          <span class="code zero">DUP_ROW_HASH</span><span class="heat"></span><span class="count">0</span>
+          <span class="code zero">DOUBLE_CLAIM</span><span class="heat"></span><span class="count">0</span>
+        </div>
+        <div class="sub" style="margin-top:8px">Zero-count rows are visible so absent failures are auditable — not hidden.</div>
+      </div>
+
+      <div class="tile">
+        <h3>SIPOC fixtures <span class="sub">last sipoc-certification.yml run</span></h3>
+        <div class="sub" style="margin-bottom:6px">commit <span class="mono">d1f4a02</span> · 14m ago · <span style="color:var(--red)">9 / 11 passing</span></div>
+        <div class="fix-grid">
+          <div class="fx ok"><div class="id">s01</div><div class="nm">intake</div></div>
+          <div class="fx ok"><div class="id">s02</div><div class="nm">queue</div></div>
+          <div class="fx ok"><div class="id">s03</div><div class="nm">claim</div></div>
+          <div class="fx ok"><div class="id">s04</div><div class="nm">chunking</div></div>
+          <div class="fx fail"><div class="id">s05</div><div class="nm">P1 fail-closed on truncation</div></div>
+          <div class="fx ok"><div class="id">s06</div><div class="nm">P2 per-chunk</div></div>
+          <div class="fx ok"><div class="id">s07</div><div class="nm">P3 reduce</div></div>
+          <div class="fx fail"><div class="id">s08</div><div class="nm">persistence row_hash</div></div>
+          <div class="fx ok"><div class="id">s09</div><div class="nm">quality gate</div></div>
+          <div class="fx ok"><div class="id">s10</div><div class="nm">canonical row</div></div>
+          <div class="fx ok"><div class="id">s11</div><div class="nm">renderer/releasability</div></div>
+          <div class="fx miss"><div class="id">s12?</div><div class="nm">P4 fixture not built</div></div>
+        </div>
+      </div>
+
+      <div class="tile">
+        <h3>Self-recovery engagement</h3>
+        <div class="row-line"><span class="k">retries triggered (24h)</span><span class="v">12</span></div>
+        <div class="row-line"><span class="k">retry success</span><span class="v" style="color:var(--green)">9</span></div>
+        <div class="row-line"><span class="k">retry exhausted (fail-closed)</span><span class="v" style="color:var(--red)">3</span></div>
+        <div class="row-line"><span class="k">silent fail (uncaught)</span><span class="v" style="color:var(--green)">0</span></div>
+        <div class="sub" style="margin-top:8px">Each "fail-closed" event has a persisted ledger entry — visible in step 10 metric.</div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Pagination bar -->
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;padding:8px 12px;background:var(--panel);border:1px solid var(--border);border-radius:8px;font-size:11.5px;color:var(--muted);font-family:ui-monospace,Menlo,monospace">
+    <span>showing <b style="color:var(--text)">1–25</b> of <b style="color:var(--text)">487</b> failed jobs · 24h · all plans · indexed query &lt; <b style="color:var(--green)">40 ms</b></span>
+    <span><button class="btn" disabled style="opacity:.5;cursor:not-allowed">◂ Prev</button> <button class="btn">Next ▸</button></span>
+  </div>
+
+  <!-- Footer source + scale notes -->
+  <div style="margin-top:14px;padding:10px 12px;background:var(--panel);border:1px solid var(--border);border-radius:8px;color:var(--muted);font-size:11px;font-family:ui-monospace,Menlo,monospace">
+    sources: pipeline_step_observations (view) · job_ledger_events · pass1_chunk_findings · pass2_chunk_findings · quality_gate_diagnostics_v1 · pass_outputs_diagnostic_v1 · artifacts/sipoc/sipoc-results.json · auth.users (RLS: admin-only)
+    <br/>
+    endpoints: <span style="color:var(--blue)">GET /api/admin/pipeline-health/jobs?cursor=&filter=…</span> · <span style="color:var(--blue)">/jobs/[id]/steps</span> · <span style="color:var(--blue)">/jobs/[id]/steps/[k]/chunks</span> · <span style="color:var(--blue)">/users/[id]/jobs</span> · <span style="color:var(--blue)">/taxonomy</span>
+    <br/>
+    scale: KPI tiles backed by 5-min materialized view (<span style="color:var(--green)">refresh &lt; 800 ms</span>) · job list = keyset cursor pagination on <code>(created_at desc, id desc)</code> · per-job step contract = single indexed read &lt; 40 ms · admin-only via RLS + middleware role check
+  </div>
+
+</div>
+
+<script>
+  // toggle expand on row click (mockup convenience)
+  document.querySelectorAll('tr.expandable').forEach(tr => {
+    tr.addEventListener('click', () => {
+      tr.classList.toggle('open');
+      const chev = tr.querySelector('.chev');
+      if (chev) chev.textContent = tr.classList.contains('open') ? '▾' : '▸';
+      // collapse/expand sibling — only the Cartel Babies one is wired in this mockup
+    });
+  });
+</script>
+</body>
+</html>

@@ -1,0 +1,385 @@
+diff --git a/tests/evaluation/pipeline/pipeline-e2e.test.ts b/tests/evaluation/pipeline/pipeline-e2e.test.ts
+index 897cfc7b..0e7b51ea 100644
+--- a/tests/evaluation/pipeline/pipeline-e2e.test.ts
++++ b/tests/evaluation/pipeline/pipeline-e2e.test.ts
+@@ -5,15 +5,40 @@
+  * Validates the PipelineResult discriminated union and synthesisToEvaluationResult adapter.
+  */
+ 
+-import { describe, it, expect, jest, beforeEach } from "@jest/globals";
++import { afterEach, describe, it, expect, jest, beforeEach } from "@jest/globals";
++
++// PR #501 replay tests need to observe `runPerplexityCrossCheck`'s return value
++// threaded through runPipeline on the failure path (canonValid=false collapses
++// to ok:false without exposing cross_check on the result, and runPipeline has
++// no `_runners` DI hook for the cross-check function). jest.mock +
++// requireActual wraps the real implementation so the patched normalizeOpenAIScore
++// code path still executes end-to-end while the replay tests can capture the
++// return value via mock.results. The default mock delegates to the real
++// implementation so the existing tests in this file are unaffected; the new
++// tests can override with mockResolvedValueOnce when they need a synthetic
++// CrossCheckOutput.
++const mockRunPerplexityCrossCheck = jest.fn();
++
++jest.mock("@/lib/evaluation/pipeline/perplexityCrossCheck", () => {
++  const actual = jest.requireActual("@/lib/evaluation/pipeline/perplexityCrossCheck") as Record<
++    string,
++    unknown
++  >;
++  mockRunPerplexityCrossCheck.mockImplementation(
++    actual.runPerplexityCrossCheck as (...args: unknown[]) => Promise<unknown>,
++  );
++  return {
++    __esModule: true,
++    ...actual,
++    runPerplexityCrossCheck: mockRunPerplexityCrossCheck,
++  };
++});
++
+ import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
+-import {
+-  runPipeline,
+-  synthesisToEvaluationResult,
+-  synthesisToEvaluationResultV2,
+-} from "@/lib/evaluation/pipeline/runPipeline";
+-import { runQualityGate } from "@/lib/evaluation/pipeline/qualityGate";
+-import { runQualityGateV2 } from "@/lib/evaluation/pipeline/qualityGate";
++import type {
++  CrossCheckOutput,
++  CriterionKey,
++} from "@/lib/evaluation/pipeline/perplexityCrossCheck";
+ import type {
+   SinglePassOutput,
+   SynthesisOutput,
+@@ -26,6 +51,18 @@ import type { RunPass3Options } from "@/lib/evaluation/pipeline/runPass3Synthesi
+ import type { LessonsLearnedReport, RuleStage, RuleEvaluationInput } from "@/lib/governance/lessonsLearned";
+ import { JsonBoundaryError } from "@/lib/llm/jsonParseBoundary";
+ 
++// Use require so module resolution happens AFTER jest.mock has been registered.
++// SWC's jest-transformer hoists jest.mock above other jest.mock calls and
++// require() statements, but not above value imports — so any consumer that
++// transitively imports the cross-check module must be loaded via require to
++// pick up the mocked binding.
++/* eslint-disable @typescript-eslint/no-var-requires */
++const runPipelineModule = require("@/lib/evaluation/pipeline/runPipeline") as typeof import("@/lib/evaluation/pipeline/runPipeline");
++const qualityGateModule = require("@/lib/evaluation/pipeline/qualityGate") as typeof import("@/lib/evaluation/pipeline/qualityGate");
++/* eslint-enable @typescript-eslint/no-var-requires */
++const { runPipeline, synthesisToEvaluationResult, synthesisToEvaluationResultV2 } = runPipelineModule;
++const { runQualityGate, runQualityGateV2 } = qualityGateModule;
++
+ function isPipelineFailure(result: PipelineResult): result is Extract<PipelineResult, { ok: false }> {
+   return result.ok === false;
+ }
+@@ -1106,4 +1143,311 @@ describe("synthesisToEvaluationResult adapter", () => {
+       gateResult.checks.find((check) => check.check_id === "v2_summary_weakness_presence")?.passed,
+     ).toBe(true);
+   });
++});
++
++// ── Pass 4 cross_check preservation (deterministic replay) ───────────────────
++//
++// Supplementary evidence for PR #501. Proves the structural contract that when
++// Pass 3 emits a pathological score for an OpenAI-side criterion the patched
++// `normalizeOpenAIScore` path threads a populated CrossCheckOutput through
++// runPipeline rather than swallowing the error in the non-fatal try/catch.
++//
++// These tests are NOT a substitute for the live Tier 2 chapter run, which is
++// externally blocked by an OpenAI account spend gate. See PR #501 body
++// "Tier 2 verification — external account block" section.
++describe("runPipeline cross_check preservation (PR #501 replay)", () => {
++  const PASS4_KEYS: CriterionKey[] = [
++    "concept",
++    "narrativeDrive",
++    "character",
++    "voice",
++    "sceneConstruction",
++    "dialogue",
++    "theme",
++    "worldbuilding",
++    "pacing",
++    "proseControl",
++    "tone",
++    "emotionalResonance",
++    "marketability",
++  ];
++
++  const originalFetch = global.fetch;
++  let warnSpy: jest.SpiedFunction<typeof console.warn>;
++
++  beforeEach(() => {
++    mockRunPerplexityCrossCheck.mockClear();
++    mockRunPass1 = jest.fn<(opts: RunPass1Options) => Promise<SinglePassOutput>>();
++    mockRunPass2 = jest.fn<(opts: RunPass2Options) => Promise<SinglePassOutput>>();
++    mockRunPass3 = jest.fn<(opts: RunPass3Options) => Promise<SynthesisOutput>>();
++
++    mockRunPass1.mockResolvedValue(makeSinglePassOutput(1));
++    mockRunPass2.mockResolvedValue(makeSinglePassOutput(2));
++    mockRunPass3.mockResolvedValue(makeSynthesisOutput());
++
++    const healthyPerplexityPayload = {
++      criteria: Object.fromEntries(
++        PASS4_KEYS.map((key) => [
++          key,
++          {
++            score: 7,
++            rationale: `Perplexity rationale for ${key}.`,
++            evidence: [
++              {
++                quote: "The river moved slowly through the valley.",
++                explanation: `Evidence for ${key}.`,
++              },
++            ],
++            detectedSignals: ["scene pressure", "voice consistency"],
++            scoringBand: "7-8",
++            doctrineTrace: ["signal-grounded scoring"],
++          },
++        ]),
++      ),
++      synthesisNote: "Cross-check agrees with the primary evaluation.",
++    };
++
++    const content = JSON.stringify(healthyPerplexityPayload);
++    global.fetch = jest.fn<typeof fetch>().mockResolvedValue({
++      ok: true,
++      status: 200,
++      json: async () => ({
++        choices: [
++          {
++            finish_reason: "stop",
++            message: { content },
++          },
++        ],
++        usage: { total_tokens: 1234 },
++      }),
++      text: async () => JSON.stringify({ choices: [{ message: { content } }] }),
++    } as unknown as Response);
++
++    warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
++  });
++
++  afterEach(() => {
++    global.fetch = originalFetch;
++    warnSpy.mockRestore();
++    mockRunPerplexityCrossCheck.mockClear();
++  });
++
++  function makeSynthesisWithInvalidEmotionalResonance(): SynthesisOutput {
++    const base = makeSynthesisOutput();
++    return {
++      ...base,
++      criteria: base.criteria.map((c) =>
++        c.key === "emotionalResonance"
++          ? { ...c, final_score_0_10: 0 }
++          : c,
++      ),
++    };
++  }
++
++  async function captureCrossCheck(): Promise<CrossCheckOutput | undefined> {
++    const calls = mockRunPerplexityCrossCheck.mock.results;
++    if (calls.length === 0) return undefined;
++    const last = calls[calls.length - 1];
++    if (last.type !== "return") return undefined;
++    return (await last.value) as CrossCheckOutput;
++  }
++
++  it("preserves cross_check when Pass 3 emits final_score_0_10: 0 for emotionalResonance", async () => {
++    const synthDebug = makeSynthesisWithInvalidEmotionalResonance();
++    // eslint-disable-next-line no-console
++    console.log("[debug-test1] pass3 emotionalResonance:", JSON.stringify(synthDebug.criteria.find((c) => c.key === "emotionalResonance")));
++    mockRunPass3.mockResolvedValueOnce(synthDebug);
++    mockRunPerplexityCrossCheck.mockImplementationOnce(async (opts: unknown) => {
++      const o = opts as { openaiCriteria: Record<string, unknown> };
++      // eslint-disable-next-line no-console
++      console.log("[debug-test1] openaiCriteria.emotionalResonance:", JSON.stringify(o.openaiCriteria?.emotionalResonance));
++      // call through to real
++      const actual = jest.requireActual("@/lib/evaluation/pipeline/perplexityCrossCheck") as { runPerplexityCrossCheck: (...args: unknown[]) => Promise<unknown> };
++      return actual.runPerplexityCrossCheck(opts);
++    });
++
++    const result = await runPipeline({
++      manuscriptText: "The river moved slowly through the valley. She watched from the bank.",
++      workType: "literary_fiction",
++      title: "The Valley",
++      openaiApiKey: "sk-test",
++      perplexityApiKey: "pplx-test",
++      _lessonsLearned: permissiveLessonsLearned,
++      _runners: {
++        runPass1: mockRunPass1,
++        runPass2: mockRunPass2,
++        runPass3Synthesis: mockRunPass3,
++      },
++    });
++
++    expect(mockRunPerplexityCrossCheck).toHaveBeenCalledTimes(1);
++    const crossCheck = await captureCrossCheck();
++
++    // Structural contract: cross_check object is produced (not swallowed by the
++    // non-fatal try/catch in runPipeline.ts:~1443).
++    expect(crossCheck).toBeDefined();
++    expect(crossCheck!.invalidCriteria).toContain("emotionalResonance");
++    expect(crossCheck!.criteria.emotionalResonance.direction).toBe("INVALID");
++    expect(crossCheck!.canonValid).toBe(false);
++
++    // The non-fatal-swallow log line MUST NOT appear — the patched code path
++    // does not throw, so the try/catch never triggers.
++    const swallowedCalls = warnSpy.mock.calls.filter((args) =>
++      String(args[0] ?? "").includes("[Pass4] Perplexity cross-check failed (non-fatal):"),
++    );
++    expect(swallowedCalls).toHaveLength(0);
++
++    // Pipeline result reflects the canon-invalid signal via the governance gate
++    // rather than via an undefined cross_check (the old bug shape).
++    expect(result.ok).toBe(false);
++    if (isPipelineFailure(result)) {
++      expect(result.error_code).toBe("PASS4_CANON_INVALID");
++      expect(result.error_code).not.toBe("CROSS_CHECK_MISSING");
++      expect(result.failed_at).toBe("pass4");
++    }
++  });
++
++  it("preserves cross_check when OpenAI-side criterion is missing entirely", async () => {
++    // The MISSING direction requires `openaiCriteria[key]` to be undefined when
++    // runPerplexityCrossCheck loops the canonical key set. runPipeline derives
++    // openaiCriteria from pass3Output.criteria, and the quality gate enforces
++    // that all 13 canonical criteria are present in Pass 3 — so a Pass 3 with
++    // emotionalResonance absent fails QG before Pass 4 ever runs. To prove the
++    // threading contract specifically for the MISSING shape we substitute the
++    // cross-check call with a synthetic CrossCheckOutput that exercises the
++    // same governance + result-path code in runPipeline.ts.
++    const syntheticMissing: CrossCheckOutput = {
++      model: "sonar-reasoning-pro",
++      crossCheckedAt: new Date().toISOString(),
++      overallAgreement: "WEAK",
++      disputedCriteria: ["emotionalResonance"],
++      invalidCriteria: ["emotionalResonance"],
++      criteria: Object.fromEntries(
++        PASS4_KEYS.map((key) => {
++          if (key === "emotionalResonance") {
++            return [
++              key,
++              {
++                openaiScore: null,
++                openaiRationale: "",
++                openaiEvidence: [],
++                openaiDetectedSignals: [],
++                openaiScoringBand: undefined,
++                invalidOpenaiCriterion: false,
++                missingFromOpenai: true,
++                perplexityScore: 7,
++                perplexityRationale: `Perplexity rationale for ${key}.`,
++                perplexityEvidence: [
++                  { quote: "The river moved slowly through the valley.", explanation: `Evidence for ${key}.` },
++                ],
++                perplexityDetectedSignals: ["scene pressure"],
++                perplexityScoringBand: "7-8" as const,
++                perplexityDoctrineTrace: ["signal-grounded scoring"],
++                delta: null,
++                disputed: true,
++                missingFromPerplexity: false,
++                invalidPerplexityCriterion: false,
++                canonValidity: { valid: true, reasons: [] },
++                direction: "MISSING" as const,
++              },
++            ];
++          }
++          return [
++            key,
++            {
++              openaiScore: 7,
++              openaiRationale: `Synthesized analysis for ${key}.`,
++              openaiEvidence: ["The river moved slowly through the valley."],
++              openaiDetectedSignals: [],
++              openaiScoringBand: "7-8" as const,
++              invalidOpenaiCriterion: false,
++              missingFromOpenai: false,
++              perplexityScore: 7,
++              perplexityRationale: `Perplexity rationale for ${key}.`,
++              perplexityEvidence: [
++                { quote: "The river moved slowly through the valley.", explanation: `Evidence for ${key}.` },
++              ],
++              perplexityDetectedSignals: ["scene pressure"],
++              perplexityScoringBand: "7-8" as const,
++              perplexityDoctrineTrace: ["signal-grounded scoring"],
++              delta: 0,
++              disputed: false,
++              missingFromPerplexity: false,
++              invalidPerplexityCriterion: false,
++              canonValidity: { valid: true, reasons: [] },
++              direction: "MATCH" as const,
++            },
++          ];
++        }),
++      ) as CrossCheckOutput["criteria"],
++      perplexitySynthesisNote: "Adjudication note.",
++      canonValid: false,
++    };
++
++    mockRunPerplexityCrossCheck.mockResolvedValueOnce(syntheticMissing);
++
++    const result = await runPipeline({
++      manuscriptText: "The river moved slowly through the valley. She watched from the bank.",
++      workType: "literary_fiction",
++      title: "The Valley",
++      openaiApiKey: "sk-test",
++      perplexityApiKey: "pplx-test",
++      _lessonsLearned: permissiveLessonsLearned,
++      _runners: {
++        runPass1: mockRunPass1,
++        runPass2: mockRunPass2,
++        runPass3Synthesis: mockRunPass3,
++      },
++    });
++
++    expect(mockRunPerplexityCrossCheck).toHaveBeenCalledTimes(1);
++    const crossCheck = await captureCrossCheck();
++
++    expect(crossCheck).toBeDefined();
++    expect(crossCheck!.invalidCriteria).toContain("emotionalResonance");
++    expect(crossCheck!.criteria.emotionalResonance.direction).toBe("MISSING");
++    expect(crossCheck!.canonValid).toBe(false);
++
++    const swallowedCalls = warnSpy.mock.calls.filter((args) =>
++      String(args[0] ?? "").includes("[Pass4] Perplexity cross-check failed (non-fatal):"),
++    );
++    expect(swallowedCalls).toHaveLength(0);
++
++    expect(result.ok).toBe(false);
++    if (isPipelineFailure(result)) {
++      expect(result.error_code).toBe("PASS4_CANON_INVALID");
++      expect(result.failed_at).toBe("pass4");
++    }
++  });
++
++  it("valid OpenAI-side criteria are unaffected by one invalid sibling", async () => {
++    mockRunPass3.mockResolvedValueOnce(makeSynthesisWithInvalidEmotionalResonance());
++
++    await runPipeline({
++      manuscriptText: "The river moved slowly through the valley. She watched from the bank.",
++      workType: "literary_fiction",
++      title: "The Valley",
++      openaiApiKey: "sk-test",
++      perplexityApiKey: "pplx-test",
++      _lessonsLearned: permissiveLessonsLearned,
++      _runners: {
++        runPass1: mockRunPass1,
++        runPass2: mockRunPass2,
++        runPass3Synthesis: mockRunPass3,
++      },
++    });
++
++    expect(mockRunPerplexityCrossCheck).toHaveBeenCalledTimes(1);
++    const crossCheck = await captureCrossCheck();
++    expect(crossCheck).toBeDefined();
++
++    // The invalid sibling (emotionalResonance) does not contaminate other
++    // criteria — concept still produces a valid cross-check entry with the
++    // injected Pass 3 score of 7 and one of the comparative directions.
++    expect(crossCheck!.criteria.concept.direction).toMatch(/^(MATCH|HIGHER|LOWER)$/);
++    expect(crossCheck!.criteria.concept.openaiScore).toBe(7);
++    expect(crossCheck!.criteria.concept.invalidOpenaiCriterion).toBe(false);
++    expect(crossCheck!.criteria.concept.missingFromOpenai).toBe(false);
++    expect(crossCheck!.invalidCriteria).not.toContain("concept");
++  });
+ });
+\ No newline at end of file
