@@ -1799,7 +1799,7 @@ function parseSubmissionReadiness(
     throw new Error("[Pass3] overall.submission_readiness is required but was missing from model output");
   }
   const normalized = String(raw).trim().toLowerCase();
-  if (normalized === "queryable_now" || normalized === "close" || normalized === "not_yet") {
+  if (normalized === "queryable_now" || normalized === "nearly_ready" || normalized === "not_yet") {
     return normalized;
   }
 
@@ -1812,7 +1812,7 @@ function parseSubmissionReadiness(
     return "queryable_now";
   }
 
-  return "close";
+  return "nearly_ready";
 }
 
 /**

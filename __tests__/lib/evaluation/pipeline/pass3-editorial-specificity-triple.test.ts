@@ -81,7 +81,7 @@ function buildCompliantPass3Json(overrideRecs?: Partial<Record<string, object[]>
       one_paragraph_summary: "The manuscript has strong potential and needs targeted revision.",
       top_3_strengths: ["voice", "premise", "character"],
       top_3_risks: ["pacing", "tone", "worldbuilding"],
-      submission_readiness: "close",
+      submission_readiness: "nearly_ready",
     },
     metadata: {
       pass1_model: "gpt-4o",
@@ -144,7 +144,7 @@ describe("Pass 3 editorial specificity triple — schema enforcement", () => {
         one_paragraph_summary: "The manuscript has strong potential.",
         top_3_strengths: ["voice", "premise", "character"],
         top_3_risks: ["pacing", "tone", "worldbuilding"],
-        submission_readiness: "close",
+        submission_readiness: "nearly_ready",
       },
       metadata: {
         pass1_model: "gpt-4o",
@@ -183,7 +183,7 @@ describe("Pass 3 editorial specificity triple — schema enforcement", () => {
         one_paragraph_summary: "The manuscript has strong potential.",
         top_3_strengths: ["voice", "premise", "character"],
         top_3_risks: ["pacing", "tone", "worldbuilding"],
-        submission_readiness: "close",
+        submission_readiness: "nearly_ready",
       },
       metadata: {
         pass1_model: "gpt-4o",

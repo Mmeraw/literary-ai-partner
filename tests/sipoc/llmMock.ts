@@ -150,7 +150,7 @@ export function mockPass3GenericSynthesis(): SynthesisOutput {
       one_paragraph_summary: "Generic synthesis.",
       top_3_strengths: ["x", "y", "z"],
       top_3_risks: ["a", "b", "c"],
-      submission_readiness: "close",
+      submission_readiness: "nearly_ready",
     },
     metadata: {
       pass1_model: PASS_MODELS.pass1,
