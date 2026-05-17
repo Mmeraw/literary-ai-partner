@@ -279,8 +279,13 @@ export function resolveEvaluationRuntimeConfig(
 
       return 200;
     })(),
+    // Default raised from 10 → 13: Vercel Pro/Enterprise fluid-compute hard ceiling
+    // is 800s (13m 20s). A 10-minute default killed legitimate large-manuscript jobs
+    // (40–48 chunks) before the Vercel function wall clock was reached. 13 minutes
+    // gives the full function budget while still catching truly crashed jobs before
+    // the next cron tick (~15 min cadence).
     staleRunningMinutes: parseBoundedInteger(env, "EVAL_STALE_RUNNING_MINUTES", {
-      defaultValue: 10,
+      defaultValue: 13,
       min: 1,
       max: 240,
     }),
