@@ -57,12 +57,15 @@ describeOrSkip("Day-1 Evaluation UI Flow", () => {
 
       const jobs = await getAllJobs();
 
-      // Should be sorted newest first
-      const sortedJobs = [...jobs].sort((a, b) => {
-        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-      });
+      // Filter to only the two jobs created in this test, then sort newest first
+      const testJobIds = new Set([job1.id, job2.id]);
+      const sortedJobs = [...jobs]
+        .filter((j) => testJobIds.has(j.id))
+        .sort((a, b) => {
+          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+        });
 
-      expect(sortedJobs.length).toBeGreaterThanOrEqual(2);
+      expect(sortedJobs.length).toBe(2);
       expect(sortedJobs[0].id).toBe(job2.id);
       expect(sortedJobs[1].id).toBe(job1.id);
     });
