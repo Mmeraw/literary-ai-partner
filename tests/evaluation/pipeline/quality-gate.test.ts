@@ -56,7 +56,7 @@ function makeValidSynthesis(criteriaOverrides: Partial<SynthesizedCriterion>[] =
         "This manuscript shows promise in narrative structure but needs tighter editorial work before submission.",
       top_3_strengths: ["Strong voice", "Clear narrative arc", "Memorable dialogue"],
       top_3_risks: ["Weak world-building", "Pacing issues in act two", "Thin character motivation"],
-      submission_readiness: "close",
+      submission_readiness: "nearly_ready",
     },
     metadata: {
       pass1_model: "gpt-4o-mini",
