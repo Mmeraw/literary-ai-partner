@@ -396,9 +396,9 @@ async function loadManuscriptChunks(
 
 // ── Pre-flight: validate all dependencies before committing to synthesis ─────
 
-type PreflightResult =
-  | { ok: true }
-  | { ok: false; reason: string; retryable: boolean };
+type PreflightOk = { ok: true };
+type PreflightFail = { ok: false; reason: string; retryable: boolean };
+type PreflightResult = PreflightOk | PreflightFail;
 
 /**
  * Pre-flight check for a single DREAM job.
@@ -534,12 +534,11 @@ async function processDreamJob(
   const openaiApiKey = process.env.OPENAI_API_KEY ?? '';
   const preflight = await preflightDreamJob(supabase, job, openaiApiKey);
   if (!preflight.ok) {
-    // preflight.reason and preflight.retryable are only on the { ok: false } branch.
-    const { reason, retryable } = preflight;
+    const fail: PreflightFail = preflight;
     return {
       success: false,
-      error: `preflight: ${reason}`,
-      ...(retryable ? { retryable: true } : {}),
+      error: `preflight: ${fail.reason}`,
+      ...(fail.retryable ? { retryable: true } : {}),
     };
   }
 
