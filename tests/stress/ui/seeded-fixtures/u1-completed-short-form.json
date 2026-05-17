@@ -8,7 +8,7 @@
     "overview": {
       "verdict": "revise",
       "overall_score_0_100": 62,
-      "submission_readiness": "close"
+      "submission_readiness": "nearly_ready"
     },
     "criteria": [],
     "criteria_note": "Populated at fixture-load time with all CRITERIA_KEYS having score_0_10=6.0."

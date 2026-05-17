@@ -77,7 +77,7 @@ function makeSynthesisOutput(): SynthesisOutput {
       one_paragraph_summary: "Manuscript shows promise and needs targeted revision before submission.",
       top_3_strengths: ["Strong voice", "Clear arc", "Vivid imagery"],
       top_3_risks: ["Pacing", "Motivation", "World-building"],
-      submission_readiness: "close",
+      submission_readiness: "nearly_ready",
     },
     metadata: {
       pass1_model: "gpt-4o-mini",

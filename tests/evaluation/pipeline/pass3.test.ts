@@ -62,7 +62,7 @@ function makePass3Fixture(overrides: Record<string, unknown> = {}) {
       one_paragraph_summary: "This manuscript shows strong potential but needs targeted revision before submission.",
       top_3_strengths: ["Strong voice", "Clear arc", "Vivid imagery"],
       top_3_risks: ["Pacing gaps", "Thin character motivation", "Weak world-building"],
-      submission_readiness: "close",
+      submission_readiness: "nearly_ready",
     },
     metadata: {
       pass1_model: "gpt-4o-mini",
