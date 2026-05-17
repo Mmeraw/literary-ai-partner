@@ -1005,7 +1005,7 @@ describe("processEvaluationJob canonical pipeline integration", () => {
               one_paragraph_summary: "Summary",
               top_3_strengths: [],
               top_3_risks: [],
-              submission_readiness: "close",
+              submission_readiness: "nearly_ready",
             },
             metadata: {
               pass1_model: "o3",
