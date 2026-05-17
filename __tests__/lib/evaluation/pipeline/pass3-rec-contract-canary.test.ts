@@ -47,7 +47,7 @@ function makeSynthesis(overrides: Partial<Record<CriterionKey, Partial<Synthesiz
       one_paragraph_summary: "The manuscript has strong foundational material but needs targeted scene-level revision.",
       top_3_strengths: ["voice", "premise", "character"],
       top_3_risks: ["pacing", "tension delivery", "closure"],
-      submission_readiness: "close",
+      submission_readiness: "nearly_ready",
     },
     metadata: {
       pass1_model: "gpt-4o",
