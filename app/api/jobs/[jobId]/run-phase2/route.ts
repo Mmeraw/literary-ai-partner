@@ -3,6 +3,7 @@ import { getJob, canRunPhase } from "@/lib/jobs/store";
 import { checkServiceRoleAuth } from "@/lib/auth/api";
 import { PHASES } from "@/lib/jobs/types";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { assertJobNotCancelled } from "@/lib/jobs/cancellationCheck";
 
 type Params = Promise<{ jobId: string }>;
 
@@ -48,6 +49,15 @@ export async function POST(req: NextRequest, ctx: { params: Params }) {
         { status: 409 }
       );
     }
+  }
+
+  // GOVERNANCE: Check if job is cancelled before queuing phase 2
+  const cancellation = await assertJobNotCancelled(jobId, "run_phase2_check");
+  if (cancellation.cancelled) {
+    return NextResponse.json(
+      { ok: false, error: "Job has been cancelled", cancelled_at: cancellation.cancelled_at },
+      { status: 410 }
+    );
   }
 
   const now = new Date().toISOString();
