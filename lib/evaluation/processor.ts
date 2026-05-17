@@ -3281,13 +3281,17 @@ export async function claimQueuedJobs(
 
   const workerId = options.workerId;
   const batchSizeRaw = Number(options.batchSize ?? evalWorkerBatchSize);
-  const leaseMsRaw = Number(options.leaseMs ?? 600_000);
+  const leaseMsRaw = Number(options.leaseMs ?? 800_000);
   const batchSize = Number.isFinite(batchSizeRaw)
     ? Math.min(5, Math.max(1, Math.floor(batchSizeRaw)))
     : 5;
+  // Ceiling raised to 800_000 (Vercel Pro/Enterprise fluid-compute hard limit = 800s).
+  // The previous 600_000 ceiling caused legitimate 48-chunk evaluations to have their
+  // lease expire before the Vercel function wall clock, triggering the stale reaper
+  // and auto-failing jobs that were still running correctly.
   const leaseMs = Number.isFinite(leaseMsRaw)
-    ? Math.min(600_000, Math.max(30_000, Math.floor(leaseMsRaw)))
-    : 600_000;
+    ? Math.min(800_000, Math.max(30_000, Math.floor(leaseMsRaw)))
+    : 800_000;
   const leaseToken = randomUUID();
   const leaseExpiresAt = new Date(Date.now() + leaseMs).toISOString();
 
@@ -3359,7 +3363,7 @@ export async function processQueuedJobs(options?: {
   const { evalWorkerBatchSize } = getProcessorRuntimeDeps();
   const effectiveWorkerId = options?.workerId ?? randomUUID();
   const requestedBatchSize = options?.batchSize ?? evalWorkerBatchSize;
-  const requestedLeaseMs = options?.leaseMs ?? 600_000;
+  const requestedLeaseMs = options?.leaseMs ?? 800_000;
 
   console.log('[Processor] Claim assumptions', {
     expected_status: JOB_STATUS.QUEUED,
