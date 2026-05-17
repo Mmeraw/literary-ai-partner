@@ -174,7 +174,10 @@ async function findPendingDreamJobs(
   limit: number,
 ): Promise<DreamJobRow[]> {
   // Step 1: candidate complete long-form jobs
-  // word_count lives on manuscripts, not evaluation_jobs — filter post-join.
+  // Push word_count threshold to the DB — filtering post-join in JS on a capped result
+  // set caused the worker to silently skip all long-form jobs when short-manuscript jobs
+  // occupied the entire fetch window (fix for: cron finds 0 pending DREAM jobs).
+  // PostgREST supports filter on !inner join columns directly.
   const { data: candidateJobs, error: jobsError } = await supabase
     .from('evaluation_jobs')
     .select(
@@ -185,8 +188,9 @@ async function findPendingDreamJobs(
     `,
     )
     .eq('status', 'complete')
+    .gte('manuscripts.word_count', DREAM_WORD_COUNT_THRESHOLD)
     .order('updated_at', { ascending: true }) // oldest completed first
-    .limit(limit * 20); // over-fetch — we filter by word_count and already-done post-query
+    .limit(limit * 10); // smaller multiplier sufficient — DB pre-filters by word_count
 
   if (jobsError) {
     throw new Error(`[DreamWorker] Failed to query candidate jobs: ${jobsError.message}`);
@@ -229,7 +233,7 @@ async function findPendingDreamJobs(
         manuscripts: ms,
       };
     })
-    // Apply word_count threshold here (evaluation_jobs has no word_count column)
+    // DB already filtered by word_count threshold; JS filter is a belt-and-suspenders guard.
     .filter((j) => (j.word_count ?? 0) >= DREAM_WORD_COUNT_THRESHOLD)
     .filter((j) => !alreadyDoneIds.has(j.id));
   return pending.slice(0, limit);
