@@ -184,11 +184,28 @@ async function findPendingDreamJobs(
   supabase: ReturnType<typeof createSupabaseAdmin>,
   limit: number,
 ): Promise<DreamJobRow[]> {
-  // Step 1: candidate complete long-form jobs
-  // Push word_count threshold to the DB — filtering post-join in JS on a capped result
-  // set caused the worker to silently skip all long-form jobs when short-manuscript jobs
-  // occupied the entire fetch window (fix for: cron finds 0 pending DREAM jobs).
-  // PostgREST supports filter on !inner join columns directly.
+  // Step 1: IDs that already have a longform_document_v1 artifact (real OR _skipped stub).
+  // We exclude these at the DB level before fetching candidates so the candidate window
+  // is never consumed by jobs that don't need synthesis. Without this, the old two-pass
+  // approach fetched candidates ordered by updated_at ASC, and the window was filled
+  // entirely by historical jobs whose _skipped stubs made them look "done" — the
+  // genuinely new jobs were never reached.
+  const { data: existingArtifacts, error: artifactsError } = await supabase
+    .from('evaluation_artifacts')
+    .select('job_id')
+    .eq('artifact_type', 'longform_document_v1');
+
+  if (artifactsError) {
+    throw new Error(
+      `[DreamWorker] Failed to query existing artifacts: ${artifactsError.message}`,
+    );
+  }
+
+  const alreadyDoneIds = (existingArtifacts ?? []).map((a: { job_id: string }) => a.job_id);
+
+  // Step 2: candidate complete long-form jobs that have no artifact yet.
+  // Push word_count threshold and artifact exclusion to the DB — only jobs the worker
+  // itself created (new evaluations) should be synthesised; old jobs have stubs.
   const { data: candidateJobs, error: jobsError } = await supabase
     .from('evaluation_jobs')
     .select(
@@ -200,8 +217,9 @@ async function findPendingDreamJobs(
     )
     .eq('status', 'complete')
     .gte('manuscripts.word_count', DREAM_WORD_COUNT_THRESHOLD)
-    .order('updated_at', { ascending: true }) // oldest completed first
-    .limit(limit * 10); // smaller multiplier sufficient — DB pre-filters by word_count
+    .not('id', 'in', `(${alreadyDoneIds.length > 0 ? alreadyDoneIds.join(',') : '00000000-0000-0000-0000-000000000000'})`)
+    .order('created_at', { ascending: true }) // oldest pending first
+    .limit(limit * 10);
 
   if (jobsError) {
     throw new Error(`[DreamWorker] Failed to query candidate jobs: ${jobsError.message}`);
@@ -211,24 +229,7 @@ async function findPendingDreamJobs(
     return [];
   }
 
-  const candidateIds = candidateJobs.map((j: { id: string }) => j.id);
-
-  // Step 2: which of those already have a longform_document_v1 artifact?
-  const { data: existingArtifacts, error: artifactsError } = await supabase
-    .from('evaluation_artifacts')
-    .select('job_id')
-    .eq('artifact_type', 'longform_document_v1')
-    .in('job_id', candidateIds);
-
-  if (artifactsError) {
-    throw new Error(
-      `[DreamWorker] Failed to query existing artifacts: ${artifactsError.message}`,
-    );
-  }
-
-  const alreadyDoneIds = new Set((existingArtifacts ?? []).map((a: { job_id: string }) => a.job_id));
-
-  // Step 3: filter to jobs that still need DREAM synthesis.
+  // Step 3: normalise Supabase !inner join shape → DreamJobRow.
   // Supabase returns manuscripts as an array from the !inner join; normalise to DreamJobRow.
   const pending = ((candidateJobs as unknown) as Array<{
     id: string;
@@ -245,8 +246,7 @@ async function findPendingDreamJobs(
       };
     })
     // DB already filtered by word_count threshold; JS filter is a belt-and-suspenders guard.
-    .filter((j) => (j.word_count ?? 0) >= DREAM_WORD_COUNT_THRESHOLD)
-    .filter((j) => !alreadyDoneIds.has(j.id));
+    .filter((j) => (j.word_count ?? 0) >= DREAM_WORD_COUNT_THRESHOLD);
   return pending.slice(0, limit);
 }
 
