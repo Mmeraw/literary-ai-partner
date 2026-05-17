@@ -202,20 +202,22 @@ async function loadDreamSynthesisData(
       ? (dreamArtifacts as Array<{ job_id: string; created_at: string }>)[0]?.created_at ?? null
       : null;
 
-  const pendingJobs = (
-    longFormJobs as Array<{
-      id: string;
-      manuscript_id: string;
-      updated_at: string;
-      manuscripts: { title: string; word_count: number };
-    }>
-  )
+  // PostgREST returns joined relations as arrays even with !inner.
+  // Cast through unknown to avoid TS2352 on the array→object shape mismatch.
+  type LongFormJobRow = {
+    id: string;
+    manuscript_id: string;
+    updated_at: string;
+    manuscripts: Array<{ title: string; word_count: number }>;
+  };
+
+  const pendingJobs = (longFormJobs as unknown as LongFormJobRow[])
     .filter((j) => !coveredJobIds.has(j.id))
     .slice(0, 10)
     .map((j) => ({
       jobId: j.id,
-      title: j.manuscripts?.title ?? "Unknown",
-      wordCount: j.manuscripts?.word_count ?? 0,
+      title: j.manuscripts?.[0]?.title ?? "Unknown",
+      wordCount: j.manuscripts?.[0]?.word_count ?? 0,
       updatedAt: j.updated_at,
     }));
 
