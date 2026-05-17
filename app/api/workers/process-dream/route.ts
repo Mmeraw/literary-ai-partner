@@ -158,6 +158,12 @@ function createSupabaseAdmin() {
   }
   return createClient(url, serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false },
+    global: {
+      // 30s fetch timeout per Supabase query — prevents indefinite hangs on
+      // chunk loads or artifact writes from consuming the Vercel 800s budget.
+      fetch: (input, init) =>
+        fetch(input, { ...init, signal: AbortSignal.timeout(30_000) }),
+    },
   });
 }
 

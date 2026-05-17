@@ -500,9 +500,9 @@ describe("regression", () => {
     });
   });
 
-  it("token limit: getPass3bMaxTokens default >= 10000 (16-section DREAM document needs headroom)", () => {
+  it("token limit: getPass3bMaxTokens default >= 14000 (16-section Narrative Synthesis document needs headroom)", () => {
     // Guards Bug 4: at 6000 tokens GPT-5 truncated the 16-section document mid-response →
-    // malformed JSON → validateDreamDocument threw. Default raised to 12000, floor 10000.
+    // malformed JSON → validateDreamDocument threw. Default raised to 16000, floor 12000.
     const fs = require("fs");
     const path = require("path");
     const src = fs.readFileSync(
@@ -513,12 +513,12 @@ describe("regression", () => {
     const defaultMatch = src.match(/function getPass3bMaxTokens[\s\S]*?return\s+(\d+)\s*;/);
     expect(defaultMatch).not.toBeNull();
     const defaultValue = parseInt(defaultMatch![1], 10);
-    expect(defaultValue).toBeGreaterThanOrEqual(10000);
+    expect(defaultValue).toBeGreaterThanOrEqual(14000);
 
-    // Floor for the env-var override must also be >= 10000 — accept no lower override silently.
+    // Floor for the env-var override must also be >= 12000 — accept no lower override silently.
     const floorMatch = src.match(/parsed\s*>=\s*(\d+)\s*&&\s*parsed\s*<=\s*\d+/);
     expect(floorMatch).not.toBeNull();
-    expect(parseInt(floorMatch![1], 10)).toBeGreaterThanOrEqual(10000);
+    expect(parseInt(floorMatch![1], 10)).toBeGreaterThanOrEqual(12000);
   });
 
   it("regression: cron idempotency — job with existing artifact must be excluded from pending", async () => {
