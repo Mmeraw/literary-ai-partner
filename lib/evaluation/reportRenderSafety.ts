@@ -1,3 +1,6 @@
+// canon-audit-allow: vocabulary-detection
+// Reason: 'commercial' below is a DREAM subscore dimension (publishing shelf axis),
+// not a canonical evaluation criterion key alias.
 import type { LongformDreamDocument } from "@/lib/evaluation/pipeline/runPass3bLongform";
 
 export type DreamScoreDimension = "quality" | "readiness" | "commercial" | "literary";
