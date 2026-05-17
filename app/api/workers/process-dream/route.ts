@@ -358,6 +358,21 @@ async function processDreamJob(
   }
   const { criteria: rawCriteria, model: artifactModel } = extracted;
 
+  // Normalize DB-shape criteria → SynthesizedCriterion shape expected by Pass 3b.
+  // evaluation_result_v2 persists fields as `score_0_10`, `rationale`, `confidence_band`,
+  // but runPass3bLongform / buildPass3bUserPrompt / applyTruthfulLongformCriteriaFallback
+  // all read `final_score_0_10`, `final_rationale`, `confidence_level`. Without coalescing,
+  // GPT-5 received undefined scores → returned malformed JSON → validateDreamDocument threw
+  // → artifact was never persisted (silent failure path closed by this PR).
+  // Coalesce, do not force-replace: in-memory criteria that already carry the canonical
+  // SynthesizedCriterion field names must pass through untouched.
+  const normalizedCriteria = (rawCriteria as Array<Record<string, unknown>>).map((c) => ({
+    ...c,
+    final_score_0_10: c.final_score_0_10 ?? c.score_0_10,
+    final_rationale: c.final_rationale ?? c.rationale,
+    confidence_level: c.confidence_level ?? c.confidence_band,
+  }));
+
   // 2. Load manuscript chunks
   const manuscriptChunks = await loadManuscriptChunks(supabase, manuscriptId);
   if (manuscriptChunks.length === 0) {
@@ -383,7 +398,7 @@ async function processDreamJob(
 
   const longformDoc = await runPass3bLongform({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    criteria: rawCriteria as any,
+    criteria: normalizedCriteria as any,
     pass2aStructuredContext,
     manuscriptChunks,
     title,

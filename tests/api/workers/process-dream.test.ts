@@ -343,6 +343,15 @@ describe('GET /api/workers/process-dream', () => {
 // Each test guards a specific production failure discovered May 2026.
 
 describe("regression", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    process.env.NEXT_PUBLIC_SUPABASE_URL = "https://test.supabase.co";
+    process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-key";
+    process.env.CRON_SECRET = "test-cron-secret";
+    process.env.OPENAI_API_KEY = "test-openai-key";
+    delete process.env.EVAL_PIPELINE_ENABLED;
+  });
+
   it("regression: Vercel 300s kill — DREAM_OPENAI_TIMEOUT_MS must be <= 280s and wired into call", () => {
     // Guards: getEvalOpenAiTimeoutMs() returns 720s by default. Vercel maxDuration=300s.
     // GPT-5 synthesis on 26k words exceeded 300s — Vercel killed silently, artifact never written.
@@ -353,9 +362,9 @@ describe("regression", () => {
       path.join(process.cwd(), "app/api/workers/process-dream/route.ts"),
       "utf-8"
     ) as string;
-    const match = src.match(/DREAM_OPENAI_TIMEOUT_MS\s*=\s*(\d+)/);
+    const match = src.match(/DREAM_OPENAI_TIMEOUT_MS\s*=\s*([\d_]+)/);
     expect(match).not.toBeNull();
-    const ms = parseInt(match![1], 10);
+    const ms = parseInt(match![1].replace(/_/g, ""), 10);
     expect(ms).toBeLessThanOrEqual(280_000); // must stay inside Vercel 300s budget
     expect(ms).toBeGreaterThanOrEqual(60_000); // must not be trivially short
     expect(src).toContain("openAiTimeoutMs: DREAM_OPENAI_TIMEOUT_MS"); // must be wired in
@@ -401,6 +410,113 @@ describe("regression", () => {
         openaiApiKey: "test-key",
       })
     ).rejects.toThrow("CRITERIA_INSUFFICIENT");
+  });
+
+  it("normalization: DB-shape criteria (score_0_10/rationale/confidence_band) are coerced to SynthesizedCriterion shape before Pass 3b", async () => {
+    // Guards Bug 3: evaluation_result_v2 persists `score_0_10`/`rationale`/`confidence_band`,
+    // but runPass3bLongform reads `final_score_0_10`/`final_rationale`/`confidence_level`.
+    // Without normalization, GPT-5 receives undefined scores → malformed JSON → silent failure.
+    const table: MockTable = {};
+    supabaseHolder.client = buildSupabaseClient(
+      {
+        candidateJobs: [buildPendingJob("job-norm", 77)],
+        existingArtifacts: [],
+        evaluationArtifactContent: {
+          criteria: [
+            { key: "opening_hook", score_0_10: 8, rationale: "Strong hook.", confidence_band: "HIGH" },
+            { key: "voice", score_0_10: 6, rationale: "Voice is consistent.", confidence_band: "MODERATE" },
+          ],
+          engine: { model: "gpt-5" },
+        },
+        manuscriptChunks: [{ chunk_index: 0, content: "chunk content 0" }],
+      },
+      table,
+    );
+
+    mockRunPass3bLongform.mockResolvedValue(buildLongformDoc());
+
+    const res = await GET(buildRequest());
+    expect(res.status).toBe(200);
+    expect(mockRunPass3bLongform).toHaveBeenCalledTimes(1);
+
+    const callArgs = mockRunPass3bLongform.mock.calls[0][0] as { criteria: Array<Record<string, unknown>> };
+    expect(callArgs.criteria).toHaveLength(2);
+
+    // Field names normalised from DB shape.
+    expect(callArgs.criteria[0]).toMatchObject({
+      key: "opening_hook",
+      final_score_0_10: 8,
+      final_rationale: "Strong hook.",
+      confidence_level: "HIGH",
+    });
+    expect(callArgs.criteria[1]).toMatchObject({
+      key: "voice",
+      final_score_0_10: 6,
+      final_rationale: "Voice is consistent.",
+      confidence_level: "MODERATE",
+    });
+  });
+
+  it("normalization: existing SynthesizedCriterion fields are coalesced (not overwritten) when both shapes are present", async () => {
+    // Guards: normalization must be a coalesce (??), not a force-replace. If a criterion already
+    // carries `final_score_0_10`, keep it — do not let the DB `score_0_10` (which may diverge
+    // when Pass 3 reconciliation has run) clobber the canonical synthesized value.
+    const table: MockTable = {};
+    supabaseHolder.client = buildSupabaseClient(
+      {
+        candidateJobs: [buildPendingJob("job-partial", 78)],
+        existingArtifacts: [],
+        evaluationArtifactContent: {
+          criteria: [
+            {
+              key: "opening_hook",
+              // Both shapes present — canonical fields must win.
+              final_score_0_10: 9,
+              score_0_10: 4,
+              final_rationale: "Synthesized rationale.",
+              rationale: "Raw rationale.",
+              confidence_level: "high",
+              confidence_band: "LOW",
+            },
+          ],
+          engine: { model: "gpt-5" },
+        },
+        manuscriptChunks: [{ chunk_index: 0, content: "chunk content" }],
+      },
+      table,
+    );
+
+    mockRunPass3bLongform.mockResolvedValue(buildLongformDoc());
+
+    await GET(buildRequest());
+
+    const callArgs = mockRunPass3bLongform.mock.calls[0][0] as { criteria: Array<Record<string, unknown>> };
+    expect(callArgs.criteria[0]).toMatchObject({
+      final_score_0_10: 9, // canonical preserved
+      final_rationale: "Synthesized rationale.",
+      confidence_level: "high",
+    });
+  });
+
+  it("token limit: getPass3bMaxTokens default >= 10000 (16-section DREAM document needs headroom)", () => {
+    // Guards Bug 4: at 6000 tokens GPT-5 truncated the 16-section document mid-response →
+    // malformed JSON → validateDreamDocument threw. Default raised to 12000, floor 10000.
+    const fs = require("fs");
+    const path = require("path");
+    const src = fs.readFileSync(
+      path.join(process.cwd(), "lib/evaluation/pipeline/runPass3bLongform.ts"),
+      "utf-8",
+    ) as string;
+    // Match the `return NNNN;` line inside getPass3bMaxTokens (default branch).
+    const defaultMatch = src.match(/function getPass3bMaxTokens[\s\S]*?return\s+(\d+)\s*;/);
+    expect(defaultMatch).not.toBeNull();
+    const defaultValue = parseInt(defaultMatch![1], 10);
+    expect(defaultValue).toBeGreaterThanOrEqual(10000);
+
+    // Floor for the env-var override must also be >= 10000 — accept no lower override silently.
+    const floorMatch = src.match(/parsed\s*>=\s*(\d+)\s*&&\s*parsed\s*<=\s*\d+/);
+    expect(floorMatch).not.toBeNull();
+    expect(parseInt(floorMatch![1], 10)).toBeGreaterThanOrEqual(10000);
   });
 
   it("regression: cron idempotency — job with existing artifact must be excluded from pending", async () => {
