@@ -1404,7 +1404,7 @@ describe("synthesisToEvaluationResult adapter", () => {
 
 function makeCrossCheckOutput(): CrossCheckOutput {
   const criteriaMap = {} as Record<CriterionKey, CrossCheckOutput["criteria"][CriterionKey]>;
-  for (const key of CRITERIA_KEYS as CriterionKey[]) {
+  for (const key of CRITERIA_KEYS as unknown as CriterionKey[]) {
     criteriaMap[key] = {
       openaiScore: 7,
       openaiRationale: `Pass 3 evaluated ${key} as competent with targeted revision areas.`,
@@ -1475,7 +1475,7 @@ describe("Pass 4 — Perplexity DREAM adjudication (pipeline integration)", () =
             message: {
               content: JSON.stringify({
                 criteria: Object.fromEntries(
-                  (CRITERIA_KEYS as CriterionKey[]).map((k) => [
+                  (CRITERIA_KEYS as unknown as CriterionKey[]).map((k) => [
                     k,
                     {
                       score: 7,
@@ -1542,7 +1542,7 @@ describe("Pass 4 — Perplexity DREAM adjudication (pipeline integration)", () =
             message: {
               content: JSON.stringify({
                 criteria: Object.fromEntries(
-                  (CRITERIA_KEYS as CriterionKey[]).map((k) => [
+                  (CRITERIA_KEYS as unknown as CriterionKey[]).map((k) => [
                     k,
                     {
                       score: 7,

@@ -11,6 +11,9 @@ readiness-score: 70 / 100
 commercial-score: 82 / 100
 literary-score: 74 / 100
 ---
+> **Manual gold-standard benchmark.** This file is not a production output claim. It represents a manual reference quality bar for RevisionGrade evaluation calibration.
+
+
 
 # Cartel Babies — DREAM Long-Form Evaluation
 

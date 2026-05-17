@@ -76,16 +76,32 @@ function parseScoreGrid(markdown: string): ParsedRow[] {
       .map((c) => c.trim())
       .filter((c, i, arr) => !(i === 0 || i === arr.length - 1));
     if (cells.length < 4) continue;
-    if (/^-+:?$/.test(cells[1]) || cells[1].toLowerCase() === "score") continue;
 
-    const scoreCell = cells[1].replace(/\*\*/g, "").trim();
+    // Support both 4-col (Criterion | Score | Confidence | ...) and
+    // 5-col (# | Criterion | Score | Confidence | ...) table layouts.
+    // Detect by checking if the second cell looks like a score.
+    let criterionIdx = 0;
+    let scoreIdx = 1;
+    let confidenceIdx = 2;
+    const cell1Stripped = cells[1].replace(/\*\*/g, "").trim();
+    if (!cell1Stripped.match(/^[\d.]+\s*\/\s*10$/) && cells.length >= 5) {
+      // 5-col layout: cells[0]=# cells[1]=Criterion cells[2]=Score cells[3]=Confidence
+      criterionIdx = 1;
+      scoreIdx = 2;
+      confidenceIdx = 3;
+    }
+
+    const header = cells[scoreIdx].toLowerCase();
+    if (/^-+:?$/.test(header) || header === "score") continue;
+
+    const scoreCell = cells[scoreIdx].replace(/\*\*/g, "").trim();
     const scoreMatch = scoreCell.match(/^([\d.]+)\s*\/\s*10$/);
     if (!scoreMatch) continue;
 
     rows.push({
-      criterion: cells[0],
+      criterion: cells[criterionIdx],
       score: parseFloat(scoreMatch[1]),
-      confidence: cells[2],
+      confidence: cells[confidenceIdx],
     });
   }
   return rows;

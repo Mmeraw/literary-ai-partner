@@ -11,6 +11,9 @@ readiness-score: 58 / 100
 commercial-score: 62 / 100
 literary-score: 70 / 100
 ---
+> **Manual gold-standard benchmark.** This file is not a production output claim. It represents a manual reference quality bar for RevisionGrade evaluation calibration.
+
+
 
 # Froggin Noggin — DREAM Long-Form Evaluation
 
