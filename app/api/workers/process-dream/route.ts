@@ -533,12 +533,11 @@ async function processDreamJob(
   // 0. Pre-flight — validate all dependencies and ping OpenAI before doing any work.
   const openaiApiKey = process.env.OPENAI_API_KEY ?? '';
   const preflight = await preflightDreamJob(supabase, job, openaiApiKey);
-  if (!preflight.ok) {
-    const fail: PreflightFail = preflight;
+  if (preflight.ok === false) {
     return {
       success: false,
-      error: `preflight: ${fail.reason}`,
-      ...(fail.retryable ? { retryable: true } : {}),
+      error: `preflight: ${preflight.reason}`,
+      ...(preflight.retryable ? { retryable: true } : {}),
     };
   }
 
