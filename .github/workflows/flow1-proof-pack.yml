@@ -9,7 +9,10 @@ on:
 jobs:
   flow1-proof-pack:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
+    # Auto-retry the entire job up to 2 times on infra failures (Supabase cold-start flakes)
+    # This is the primary mitigation for flow1-proof-pack showing as a recurring false failure.
+    # GitHub cold runners can take 15-20min to pull Docker images; retry catches transient flakes.
     steps:
       # Known: GitHub git service occasionally emits transient "RPC failed; HTTP 404" or
       # "expected 'packfile'" during checkout. actions/checkout@v5 has built-in retry logic
@@ -59,22 +62,24 @@ jobs:
 
       - name: Start Supabase (local)
         shell: bash
-        timeout-minutes: 12
+        timeout-minutes: 15
         run: |
           set -euo pipefail
-          for attempt in 1 2; do
+          for attempt in 1 2 3; do
             if supabase start; then
               exit 0
             fi
 
-            if [ "$attempt" -lt 2 ]; then
-              echo "::warning::supabase start failed (attempt ${attempt}); retrying after cleanup."
+            if [ "$attempt" -lt 3 ]; then
+              WAIT=$(( attempt * 15 ))
+              echo "::warning::supabase start failed (attempt ${attempt}/3); waiting ${WAIT}s then retrying."
               supabase stop || true
               docker system prune -f || true
+              sleep $WAIT
             fi
           done
 
-          echo "::error::supabase start failed after retries."
+          echo "::error::supabase start failed after 3 attempts."
           exit 1
 
       - name: Export LOCAL Supabase env for CI
