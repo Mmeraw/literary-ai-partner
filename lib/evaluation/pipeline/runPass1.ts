@@ -29,6 +29,7 @@ import {
   ChunkCountExceedsCapError,
   ChunkRoutingNotEngagedError,
 } from "./failures";
+import { annotateWeakCriteria, getPass1WeakCriteriaThreshold } from "./weakCriteriaCheck";
 const PASS1_TEMPERATURE = 0.3;
 
 // Mirror of processor.ts STRUCTURAL_CHUNKING_THRESHOLD_WORDS. Kept duplicated
@@ -531,9 +532,19 @@ export async function runPass1(opts: RunPass1Options): Promise<SinglePassOutput>
     }
 
     const aggregated = aggregateChunkResults(chunkResults);
-    console.log(`[Pass1] Chunk aggregation complete: ${aggregated.criteria.length} criteria`);
+    const weakThreshold = getPass1WeakCriteriaThreshold();
+    const weakAnnotated = annotateWeakCriteria(aggregated, weakThreshold);
+
+    if (weakAnnotated.weakKeys.length > 0) {
+      console.warn("[Pass1] weak_criteria_flagged", {
+        threshold: weakThreshold,
+        weak_keys: weakAnnotated.weakKeys,
+      });
+    }
+
+    console.log(`[Pass1] Chunk aggregation complete: ${weakAnnotated.output.criteria.length} criteria`);
     return {
-      ...aggregated,
+      ...weakAnnotated.output,
       coverage_summary: {
         route: "chunk_map_reduce",
         fully_evaluated:
@@ -796,10 +807,20 @@ export async function runPass1(opts: RunPass1Options): Promise<SinglePassOutput>
     },
   });
 
+  const weakThreshold = getPass1WeakCriteriaThreshold();
+  const weakAnnotated = annotateWeakCriteria(parsedOutput, weakThreshold);
+
+  if (weakAnnotated.weakKeys.length > 0) {
+    console.warn("[Pass1] weak_criteria_flagged", {
+      threshold: weakThreshold,
+      weak_keys: weakAnnotated.weakKeys,
+    });
+  }
+
   const promptCoverage = summarizePromptCoverage(opts.manuscriptText);
 
   return {
-    ...parsedOutput,
+    ...weakAnnotated.output,
     coverage_summary: {
       route: "direct_window",
       fully_evaluated: !promptCoverage.truncated,
