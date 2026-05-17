@@ -132,7 +132,7 @@ export function healthySynthesis(): SynthesisOutput {
       one_paragraph_summary: "Healthy synthesis from stress mock.",
       top_3_strengths: ["pace", "voice", "composition"],
       top_3_risks: ["dialogue density", "exposition", "urgency clarity"],
-      submission_readiness: "close",
+      submission_readiness: "nearly_ready",
     },
     metadata: {
       pass1_model: PASS_MODELS.pass1,
