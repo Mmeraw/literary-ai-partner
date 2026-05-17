@@ -6,21 +6,28 @@ import { TEST_MANUSCRIPT_ID_MIN } from "@/lib/manuscripts/testRange";
 /**
  * GET /api/admin/pipeline-health
  *
- * Admin-only pipeline health dashboard API (v1).
- * Reads from evaluation_jobs + evaluation_artifacts — no new tables, no pipeline behavior changes.
+ * Admin-only pipeline health dashboard API (v2).
+ * Reads from evaluation_jobs + evaluation_artifacts + manuscripts — no new tables, no pipeline behavior changes.
  *
  * Query parameters:
  *   window  = 1h | 24h | 7d   (default: 24h)
  *   limit   = number           (default: 100, max: 200)
  *
  * Response shape:
- *   { generatedAt, window, summary, sipoc, failureHeatmap, recentJobs, diagnostics }
+ *   { generatedAt, window, summary, sipoc, failureHeatmap, recentJobs, dreamSynthesis, diagnostics }
  *
  * Governance:
  *   - Read-only. No writes to any table.
  *   - Uses existing admin auth (requireAdmin).
  *   - diagnosticStatus="available" ONLY when both audit artifacts are confirmed present
  *     in evaluation_artifacts. Version flags / in-progress markers are NOT sufficient.
+ *
+ * Changelog:
+ *   v2 (2026-05-17, issue #541):
+ *     - Added dreamSynthesis panel (Section B): pending DREAM jobs, coverage, last synthesized
+ *     - Added Pass 4 adjudication fields to RecentJob (Section A): crossCheckStatus, crossCheckError,
+ *       crossCheckCompletedAt, adjudicationMode
+ *     - Added artifact coverage columns to RecentJob (Section C): hasEvalV2, hasDream, hasPassDiag
  */
 
 export const dynamic = "force-dynamic";
@@ -39,6 +46,9 @@ const STAGES = [
 ] as const;
 
 type SipocStage = (typeof STAGES)[number];
+
+// Word count threshold for DREAM synthesis eligibility
+const DREAM_WORD_COUNT_THRESHOLD = 25_000;
 
 // ---------------------------------------------------------------------------
 // Helpers — pure functions (no DB calls, no side-effects)
@@ -86,10 +96,6 @@ function extractErrorCode(job: Record<string, unknown>): string | null {
   );
 }
 
-/**
- * Extracts a display-only failure text from the canonical `last_error` field.
- * This is NOT a structured error code — use extractErrorCode() for code-based logic.
- */
 function extractLastError(job: Record<string, unknown>): string | null {
   return typeof job.last_error === "string" ? job.last_error : null;
 }
@@ -97,15 +103,10 @@ function extractLastError(job: Record<string, unknown>): string | null {
 type DiagnosticStatus = "available" | "missing" | "blocked_by_307" | "not_applicable";
 
 /**
- * Batch-load audit artifact kinds for a set of job IDs from evaluation_artifacts.
- *
- * Returns a Map<jobId, Set<artifactType>>. Audit artifact types are:
- *   - "pass_outputs_diagnostic_v1"
- *   - "quality_gate_diagnostics_v1"
- *
- * Any DB error returns an empty Map (fail-soft — diagnosticStatus falls back to "missing").
+ * Batch-load ALL artifact kinds for a set of job IDs.
+ * Returns Map<jobId, Set<artifactType>>.
  */
-async function loadPersistedArtifactKinds(
+async function loadAllArtifactKinds(
   supabase: ReturnType<typeof createAdminClient>,
   jobIds: string[]
 ): Promise<Map<string, Set<string>>> {
@@ -114,8 +115,7 @@ async function loadPersistedArtifactKinds(
   const { data, error } = await supabase
     .from("evaluation_artifacts")
     .select("job_id, artifact_type")
-    .in("job_id", jobIds)
-    .in("artifact_type", ["pass_outputs_diagnostic_v1", "quality_gate_diagnostics_v1"]);
+    .in("job_id", jobIds);
 
   if (error || !data) {
     console.warn("[pipeline-health] evaluation_artifacts lookup failed:", error?.message);
@@ -132,36 +132,99 @@ async function loadPersistedArtifactKinds(
   return result;
 }
 
-/**
- * Truthful diagnosticStatus:
- *   "available" ONLY when the quality_gate_diagnostics_v1 audit artifact is
- *   confirmed present in evaluation_artifacts for this job (source of truth).
- *   Version flags / in-progress markers in job progress are NOT sufficient.
- *
- * @param job              - The evaluation_jobs row.
- * @param persistedKinds   - Set of artifact_types confirmed present for this job
- *                           (from loadPersistedArtifactKinds). Undefined = not loaded.
- */
 function diagnosticStatus(
   job: Record<string, unknown>,
   persistedKinds?: Set<string>
 ): DiagnosticStatus {
   if (job.status !== "failed") return "not_applicable";
 
-  // Truthful path: use confirmed artifact presence from evaluation_artifacts.
   if (persistedKinds !== undefined) {
     if (persistedKinds.has("quality_gate_diagnostics_v1")) return "available";
-    // Artifact absent for this job — fall through to legacy signal check.
   }
 
-  // Legacy fallback: jobs that failed before #307 diagnostic persistence was deployed.
-  // Version flags in progress are NOT sufficient for "available" — they only tell us
-  // the persistence was attempted (may have failed). Use them only to distinguish
-  // "blocked_by_307" (pre-deployment QG_ failures) from plain "missing".
   const errorCode = extractErrorCode(job);
   if (typeof errorCode === "string" && errorCode.startsWith("QG_")) return "blocked_by_307";
 
   return "missing";
+}
+
+// ---------------------------------------------------------------------------
+// DREAM synthesis helpers
+// ---------------------------------------------------------------------------
+
+interface DreamSynthesisData {
+  pendingCount: number;
+  coveredCount: number;
+  lastSynthesizedAt: string | null;
+  pendingJobs: Array<{ jobId: string; title: string; wordCount: number; updatedAt: string }>;
+}
+
+async function loadDreamSynthesisData(
+  supabase: ReturnType<typeof createAdminClient>
+): Promise<DreamSynthesisData> {
+  // All complete long-form jobs (word_count >= threshold)
+  const { data: longFormJobs, error: lfError } = await supabase
+    .from("evaluation_jobs")
+    .select("id, manuscript_id, updated_at, manuscripts!inner(title, word_count)")
+    .eq("status", "complete")
+    .gte("manuscripts.word_count", DREAM_WORD_COUNT_THRESHOLD)
+    .lt("manuscript_id", TEST_MANUSCRIPT_ID_MIN)
+    .order("updated_at", { ascending: false })
+    .limit(50);
+
+  if (lfError || !longFormJobs) {
+    console.warn("[pipeline-health] DREAM long-form jobs query failed:", lfError?.message);
+    return { pendingCount: 0, coveredCount: 0, lastSynthesizedAt: null, pendingJobs: [] };
+  }
+
+  const jobIds = (longFormJobs as Array<{ id: string }>).map((j) => j.id);
+
+  // Which of these have longform_document_v1 artifacts?
+  const { data: dreamArtifacts, error: daError } = await supabase
+    .from("evaluation_artifacts")
+    .select("job_id, created_at")
+    .in("job_id", jobIds)
+    .eq("artifact_type", "longform_document_v1")
+    .order("created_at", { ascending: false });
+
+  if (daError) {
+    console.warn("[pipeline-health] DREAM artifact lookup failed:", daError?.message);
+  }
+
+  const coveredJobIds = new Set(
+    ((dreamArtifacts ?? []) as Array<{ job_id: string; created_at: string }>).map(
+      (a) => a.job_id
+    )
+  );
+
+  const lastSynthesizedAt =
+    (dreamArtifacts ?? []).length > 0
+      ? (dreamArtifacts as Array<{ job_id: string; created_at: string }>)[0]?.created_at ?? null
+      : null;
+
+  const pendingJobs = (
+    longFormJobs as Array<{
+      id: string;
+      manuscript_id: string;
+      updated_at: string;
+      manuscripts: { title: string; word_count: number };
+    }>
+  )
+    .filter((j) => !coveredJobIds.has(j.id))
+    .slice(0, 10)
+    .map((j) => ({
+      jobId: j.id,
+      title: j.manuscripts?.title ?? "Unknown",
+      wordCount: j.manuscripts?.word_count ?? 0,
+      updatedAt: j.updated_at,
+    }));
+
+  return {
+    pendingCount: pendingJobs.length,
+    coveredCount: coveredJobIds.size,
+    lastSynthesizedAt,
+    pendingJobs,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -171,7 +234,8 @@ function diagnosticStatus(
 function buildPipelineHealth(
   jobs: Record<string, unknown>[],
   windowParam: string,
-  artifactKindsByJob: Map<string, Set<string>>
+  artifactKindsByJob: Map<string, Set<string>>,
+  dreamSynthesis: DreamSynthesisData
 ) {
   const totalJobs = jobs.length;
   const failedJobs = jobs.filter((j) => j.status === "failed").length;
@@ -180,8 +244,11 @@ function buildPipelineHealth(
     (j) => j.status === "running" || j.status === "queued"
   ).length;
 
+  const jobArtifacts = (job: Record<string, unknown>) =>
+    artifactKindsByJob.get(String(job.id ?? ""));
+
   const jobDiagStatus = (job: Record<string, unknown>): DiagnosticStatus =>
-    diagnosticStatus(job, artifactKindsByJob.get(String(job.id ?? "")));
+    diagnosticStatus(job, jobArtifacts(job));
 
   // Failure heatmap: stage × error_code
   const heatmapAcc: Record<
@@ -240,12 +307,13 @@ function buildPipelineHealth(
     };
   });
 
-  // Recent jobs (up to 100 rows already returned from DB, already sorted by updated_at desc)
+  // Recent jobs — now includes Pass 4 fields + artifact coverage (Sections A + C)
   const recentJobs = jobs.slice(0, 100).map((job) => {
     const progress = (job.progress ?? {}) as Record<string, unknown>;
     const routing = (progress.chunk_routing ?? {}) as Record<string, unknown>;
     const createdAt = String(job.created_at ?? "");
     const updatedAt = String(job.updated_at ?? "");
+    const kinds = jobArtifacts(job) ?? new Set<string>();
 
     return {
       jobId: job.id,
@@ -268,6 +336,15 @@ function buildPipelineHealth(
           ? new Date(updatedAt).getTime() - new Date(createdAt).getTime()
           : null,
       diagnosticStatus: jobDiagStatus(job),
+      // Section A — Pass 4 adjudication fields
+      crossCheckStatus: typeof job.cross_check_status === "string" ? job.cross_check_status : null,
+      crossCheckError: typeof job.cross_check_error === "string" ? job.cross_check_error : null,
+      crossCheckCompletedAt:
+        typeof job.cross_check_completed_at === "string" ? job.cross_check_completed_at : null,
+      // Section C — artifact coverage
+      hasEvalV2: kinds.has("evaluation_result_v2"),
+      hasDream: kinds.has("longform_document_v1"),
+      hasPassDiag: kinds.has("pass_outputs_diagnostic_v1"),
     };
   });
 
@@ -287,6 +364,8 @@ function buildPipelineHealth(
     sipoc,
     failureHeatmap,
     recentJobs,
+    // Section B — DREAM synthesis queue
+    dreamSynthesis,
     diagnostics: {
       allFailedJobsDiagnosticsAuditable: blockedCount === 0,
       missingDiagnosticArtifactCount: blockedCount,
@@ -316,8 +395,6 @@ export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl;
   const windowParam = searchParams.get("window") ?? "24h";
   const limitParam = searchParams.get("limit");
-  // Test manuscripts (id >= 9000) are hidden by default. Opt in with
-  // `?show_test=1` (or "true"). See OPERATIONS.md "Test manuscript range".
   const showTestParam = (searchParams.get("show_test") ?? "").toLowerCase();
   const showTestManuscripts = showTestParam === "1" || showTestParam === "true";
 
@@ -329,12 +406,11 @@ export async function GET(req: NextRequest) {
   try {
     const supabase = createAdminClient();
 
-    // Parameterized query — no string interpolation of user input.
-    // interval is validated against a fixed allowlist above.
     let jobsQuery = supabase
       .from("evaluation_jobs")
       .select(
-        "id, manuscript_id, status, phase, phase_status, progress, last_error, created_at, updated_at"
+        // Section A: added cross_check_* fields
+        "id, manuscript_id, status, phase, phase_status, progress, last_error, created_at, updated_at, cross_check_status, cross_check_error, cross_check_completed_at"
       )
       .gte("created_at", new Date(Date.now() - intervalToMs(interval)).toISOString())
       .order("updated_at", { ascending: false })
@@ -356,16 +432,17 @@ export async function GET(req: NextRequest) {
 
     const allJobs = (jobs ?? []) as Record<string, unknown>[];
 
-    // Batch-load audit artifact presence for failed jobs (single DB round-trip).
-    // diagnosticStatus="available" requires confirmed artifact presence in evaluation_artifacts.
-    const failedJobIds = allJobs
-      .filter((j) => j.status === "failed")
+    // Load ALL artifact kinds for all jobs (one round-trip covers Sections A + C)
+    const allJobIds = allJobs
       .map((j) => String(j.id ?? ""))
       .filter((id) => id.length > 0);
 
-    const artifactKindsByJob = await loadPersistedArtifactKinds(supabase, failedJobIds);
+    const artifactKindsByJob = await loadAllArtifactKinds(supabase, allJobIds);
 
-    const payload = buildPipelineHealth(allJobs, windowParam, artifactKindsByJob);
+    // Section B — DREAM synthesis data (separate query, global scope not window-limited)
+    const dreamSynthesis = await loadDreamSynthesisData(supabase);
+
+    const payload = buildPipelineHealth(allJobs, windowParam, artifactKindsByJob, dreamSynthesis);
 
     return NextResponse.json({
       ok: true,
@@ -395,5 +472,5 @@ export async function GET(req: NextRequest) {
 function intervalToMs(interval: string): number {
   if (interval === "1 hour") return 60 * 60 * 1000;
   if (interval === "7 days") return 7 * 24 * 60 * 60 * 1000;
-  return 24 * 60 * 60 * 1000; // default: 24 hours
+  return 24 * 60 * 60 * 1000;
 }
