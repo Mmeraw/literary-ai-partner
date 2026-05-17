@@ -713,6 +713,7 @@ describe("runPipeline (e2e with injected runners)", () => {
     // Prove that omitting _passTimeoutMs routes through the canonical env.
     // We set the env to 100ms so the never-resolving mock Pass 1 exceeds it,
     // which gives us a deterministic PASS1_TIMEOUT without a real 10s wait.
+    // Note: 15s Jest timeout to accommodate pipeline setup overhead.
     const originalPassTimeout = process.env.EVAL_PASS_TIMEOUT_MS;
     process.env.EVAL_PASS_TIMEOUT_MS = "100";
 
@@ -748,7 +749,7 @@ describe("runPipeline (e2e with injected runners)", () => {
         process.env.EVAL_PASS_TIMEOUT_MS = originalPassTimeout;
       }
     }
-  });
+  }, 15_000); // 15s: pipeline overhead on cold runner
 
   it("fails closed when lessons-learned blocks at post_structural", async () => {
     const evaluateRules = jest.fn<(input: RuleEvaluationInput, stage?: RuleStage) => LessonsLearnedReport>();
@@ -1156,6 +1157,9 @@ describe("synthesisToEvaluationResult adapter", () => {
 // externally blocked by an OpenAI account spend gate. See PR #501 body
 // "Tier 2 verification — external account block" section.
 describe("runPipeline cross_check preservation (PR #501 replay)", () => {
+  // Use the same canonical 13 keys that perplexityCrossCheck.ts validates against.
+  // narrativeClosure is criterion 12 (canonical CriterionKey). emotionalResonance is a
+  // separate internal pipeline metric (evaluation appeal) — not a CriterionKey.
   const PASS4_KEYS: CriterionKey[] = [
     "concept",
     "narrativeDrive",
@@ -1168,7 +1172,7 @@ describe("runPipeline cross_check preservation (PR #501 replay)", () => {
     "pacing",
     "proseControl",
     "tone",
-    "emotionalResonance",
+    "narrativeClosure",
     "marketability",
   ];
 
@@ -1232,12 +1236,15 @@ describe("runPipeline cross_check preservation (PR #501 replay)", () => {
     mockRunPerplexityCrossCheck.mockClear();
   });
 
-  function makeSynthesisWithInvalidEmotionalResonance(): SynthesisOutput {
+  // narrativeClosure (criterion 12) is used as the "invalid" criterion in these tests.
+  // emotionalResonance is a separate internal pipeline metric (evaluation appeal quality),
+  // not a CriterionKey — it does not appear in CRITERIA_KEYS or PASS4_KEYS.
+  function makeSynthesisWithInvalidNarrativeClosure(): SynthesisOutput {
     const base = makeSynthesisOutput();
     return {
       ...base,
       criteria: base.criteria.map((c) =>
-        c.key === "emotionalResonance"
+        c.key === "narrativeClosure"
           ? { ...c, final_score_0_10: 0 }
           : c,
       ),
@@ -1252,15 +1259,15 @@ describe("runPipeline cross_check preservation (PR #501 replay)", () => {
     return (await last.value) as CrossCheckOutput;
   }
 
-  it("preserves cross_check when Pass 3 emits final_score_0_10: 0 for emotionalResonance", async () => {
-    const synthDebug = makeSynthesisWithInvalidEmotionalResonance();
+  it("preserves cross_check when Pass 3 emits final_score_0_10: 0 for narrativeClosure", async () => {
+    const synthDebug = makeSynthesisWithInvalidNarrativeClosure();
     // eslint-disable-next-line no-console
-    console.log("[debug-test1] pass3 emotionalResonance:", JSON.stringify(synthDebug.criteria.find((c) => c.key === "emotionalResonance")));
+    console.log("[debug-test1] pass3 narrativeClosure:", JSON.stringify(synthDebug.criteria.find((c) => c.key === "narrativeClosure")));
     mockRunPass3.mockResolvedValueOnce(synthDebug);
     mockRunPerplexityCrossCheck.mockImplementationOnce(async (opts: unknown) => {
       const o = opts as { openaiCriteria: Record<string, unknown> };
       // eslint-disable-next-line no-console
-      console.log("[debug-test1] openaiCriteria.emotionalResonance:", JSON.stringify(o.openaiCriteria?.emotionalResonance));
+      console.log("[debug-test1] openaiCriteria.narrativeClosure:", JSON.stringify(o.openaiCriteria?.narrativeClosure));
       // call through to real
       const actual = jest.requireActual("@/lib/evaluation/pipeline/perplexityCrossCheck") as { runPerplexityCrossCheck: (...args: unknown[]) => Promise<unknown> };
       return actual.runPerplexityCrossCheck(opts);
@@ -1286,8 +1293,8 @@ describe("runPipeline cross_check preservation (PR #501 replay)", () => {
     // Structural contract: cross_check object is produced (not swallowed by the
     // non-fatal try/catch in runPipeline.ts:~1443).
     expect(crossCheck).toBeDefined();
-    expect(crossCheck!.invalidCriteria).toContain("emotionalResonance");
-    expect(crossCheck!.criteria.emotionalResonance.direction).toBe("INVALID");
+    expect(crossCheck!.invalidCriteria).toContain("narrativeClosure");
+    expect(crossCheck!.criteria.narrativeClosure.direction).toBe("INVALID");
     expect(crossCheck!.canonValid).toBe(false);
 
     // The non-fatal-swallow log line MUST NOT appear — the patched code path
@@ -1320,11 +1327,11 @@ describe("runPipeline cross_check preservation (PR #501 replay)", () => {
       model: "sonar-reasoning-pro",
       crossCheckedAt: new Date().toISOString(),
       overallAgreement: "WEAK",
-      disputedCriteria: ["emotionalResonance"],
-      invalidCriteria: ["emotionalResonance"],
+      disputedCriteria: ["narrativeClosure"],
+      invalidCriteria: ["narrativeClosure"],
       criteria: Object.fromEntries(
         PASS4_KEYS.map((key) => {
-          if (key === "emotionalResonance") {
+          if (key === "narrativeClosure") {
             return [
               key,
               {
@@ -1404,8 +1411,8 @@ describe("runPipeline cross_check preservation (PR #501 replay)", () => {
     const crossCheck = await captureCrossCheck();
 
     expect(crossCheck).toBeDefined();
-    expect(crossCheck!.invalidCriteria).toContain("emotionalResonance");
-    expect(crossCheck!.criteria.emotionalResonance.direction).toBe("MISSING");
+    expect(crossCheck!.invalidCriteria).toContain("narrativeClosure");
+    expect(crossCheck!.criteria.narrativeClosure.direction).toBe("MISSING");
     expect(crossCheck!.canonValid).toBe(false);
 
     const swallowedCalls = warnSpy.mock.calls.filter((args) =>
@@ -1421,7 +1428,7 @@ describe("runPipeline cross_check preservation (PR #501 replay)", () => {
   });
 
   it("valid OpenAI-side criteria are unaffected by one invalid sibling", async () => {
-    mockRunPass3.mockResolvedValueOnce(makeSynthesisWithInvalidEmotionalResonance());
+    mockRunPass3.mockResolvedValueOnce(makeSynthesisWithInvalidNarrativeClosure());
 
     await runPipeline({
       manuscriptText: "The river moved slowly through the valley. She watched from the bank.",
@@ -1441,7 +1448,7 @@ describe("runPipeline cross_check preservation (PR #501 replay)", () => {
     const crossCheck = await captureCrossCheck();
     expect(crossCheck).toBeDefined();
 
-    // The invalid sibling (emotionalResonance) does not contaminate other
+    // The invalid sibling (narrativeClosure) does not contaminate other
     // criteria — concept still produces a valid cross-check entry with the
     // injected Pass 3 score of 7 and one of the comparative directions.
     expect(crossCheck!.criteria.concept.direction).toMatch(/^(MATCH|HIGHER|LOWER)$/);
