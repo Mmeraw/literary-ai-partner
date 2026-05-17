@@ -54,7 +54,7 @@ function makeSampledLongFormSynthesis(): SynthesisOutput {
       one_paragraph_summary: "The sampled packet suggests a promising manuscript with targeted revision needs.",
       top_3_strengths: ["voice", "concept", "character"],
       top_3_risks: ["pacing", "dialogue", "closure"],
-      submission_readiness: "close",
+      submission_readiness: "nearly_ready",
     },
     metadata: {
       pass1_model: "gpt-4o",
