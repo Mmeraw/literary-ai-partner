@@ -12,7 +12,7 @@
  *   docs/benchmarks/froggin-noggin-dream.md
  *   docs/benchmarks/cartel-babies-dream-longform-evaluation.md
  *
- * Temperature: 0.3   Max tokens: 6000
+ * Temperature: 0.3   Max tokens: 16000 (default; see runPass3bLongform getPass3bMaxTokens)
  *
  * DO NOT call this pass for manuscripts < 25,000 words.
  * DO NOT modify the 13-criterion scores — Pass 3b reads them, it does not re-score.

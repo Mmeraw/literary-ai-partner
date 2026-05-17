@@ -54,6 +54,7 @@ export const MODEL_COMPLETION_TOKEN_CAPS: Readonly<Record<string, number>> = Obj
   "gpt-4-turbo-preview": 4096,
   "gpt-4-1106-preview": 4096,
   "gpt-4-0125-preview": 4096,
+  "gpt-5": 32768,
   "gpt-5.1": 128000,
   "gpt-5.1-chat-latest": 128000,
   "gpt-5.1-codex-max": 128000,

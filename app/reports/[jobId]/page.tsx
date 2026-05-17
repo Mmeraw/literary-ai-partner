@@ -498,14 +498,14 @@ export default async function ReportPage({ params }: { params: { jobId: string }
           )}
         </section>
 
-        {/* DREAM Long-Form Synthesis (Pass 3b — async, long-form manuscripts only) */}
+        {/* Narrative Synthesis (Pass 3b — async, long-form manuscripts only) */}
         {isLongForm && (
           <section className="bg-white rounded-lg shadow-sm p-6 mb-6 border border-indigo-100">
             <h2 className="text-2xl font-semibold text-gray-900 mb-1 flex items-center gap-2">
-              <span aria-hidden>&#x1F4D6;</span> DREAM Analysis
+              <span aria-hidden>&#x1F4D6;</span> Narrative Synthesis
             </h2>
             <p className="text-sm text-gray-500 mb-4">
-              Deep Read &amp; Editorial Assessment Memo — long-form synthesis
+              Holistic Craft Assessment — long-form synthesis report
             </p>
 
             {dreamDoc ? (
@@ -794,7 +794,7 @@ export default async function ReportPage({ params }: { params: { jobId: string }
               <div className="flex items-center gap-3 py-4">
                 <div className="animate-spin rounded-full h-5 w-5 border-2 border-indigo-400 border-t-transparent" aria-hidden />
                 <p className="text-sm text-gray-500">
-                  DREAM synthesis generating… Refresh in a minute to see the full long-form analysis.
+                  Narrative Synthesis generating… Refresh in a minute to see the full long-form analysis.
                 </p>
               </div>
             )}

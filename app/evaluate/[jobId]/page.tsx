@@ -812,15 +812,15 @@ export default async function EvaluationReportPage({
             </p>
           </section>
 
-          {/* ── DREAM Long-Form Analysis ── */}
+          {/* ── Narrative Synthesis (long-form) ── */}
           {isLongForm && isComplete && (
             <section className="rounded-lg border border-indigo-100 bg-white p-6 mb-4">
               <div className="mb-5">
                 <h2 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
-                  <span aria-hidden>📖</span> DREAM Analysis
+                  <span aria-hidden>📖</span> Narrative Synthesis
                 </h2>
                 <p className="text-sm text-gray-500 mt-0.5">
-                  Deep Read &amp; Editorial Assessment Memo — long-form synthesis
+                  Holistic Craft Assessment — long-form synthesis report
                 </p>
               </div>
 
@@ -896,7 +896,7 @@ export default async function EvaluationReportPage({
                 <div className="flex items-center gap-3 py-6">
                   <div className="animate-spin rounded-full h-5 w-5 border-2 border-indigo-400 border-t-transparent" aria-hidden />
                   <p className="text-sm text-gray-500">
-                    DREAM synthesis generating — check back in a minute for your full long-form analysis.
+                    Narrative Synthesis generating — check back in a minute for your full long-form analysis.
                   </p>
                 </div>
               )}
