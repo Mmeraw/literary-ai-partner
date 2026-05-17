@@ -99,7 +99,7 @@ describe("#364 integration in parsePass3Response", () => {
         one_paragraph_summary: "Summary.",
         top_3_strengths: [],
         top_3_risks: [],
-        submission_readiness: "close",
+        submission_readiness: "nearly_ready",
       },
     });
   }
