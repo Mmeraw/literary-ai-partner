@@ -26,6 +26,20 @@ import {
   isCertifiedCriterion,
 } from "@/lib/evaluation/reportCriterionDisplay";
 import { resolveReportTitle } from "@/lib/evaluation/reportTitle";
+import type { LongformDreamDocument } from "@/lib/evaluation/pipeline/runPass3bLongform";
+import {
+  LongformExecutiveVerdict,
+  LongformScoreGrid,
+  LongformMarketShelf,
+  LongformStructuralStack,
+  LongformArcMap,
+  LongformCriterionAnalyses,
+  LongformLayerAnalysis,
+  LongformSymbolicAudit,
+  LongformReaderExperience,
+  LongformRevisionPlan,
+  LongformReleasability,
+} from "@/components/reports/longform";
 
 type Job = {
   id: string;
@@ -249,6 +263,26 @@ type ArtifactResult = {
   source: "artifact" | "inline_job_result";
 } | null;
 
+const DREAM_WORD_COUNT_THRESHOLD = 25000;
+
+async function getDreamArtifact(jobId: string): Promise<LongformDreamDocument | null> {
+  try {
+    const supabase = createAdminClient();
+    const { data, error } = await supabase
+      .from("evaluation_artifacts")
+      .select("content")
+      .eq("job_id", jobId)
+      .eq("artifact_type", "longform_document_v1")
+      .maybeSingle();
+    if (error || !data?.content) return null;
+    const content = data.content as { longform_document?: unknown };
+    if (!content?.longform_document || typeof content.longform_document !== "object") return null;
+    return content.longform_document as LongformDreamDocument;
+  } catch {
+    return null;
+  }
+}
+
 async function getArtifact(jobId: string): Promise<ArtifactResult> {
   try {
     const supabase = createAdminClient();
@@ -454,6 +488,8 @@ export default async function EvaluationReportPage({
     getRelatedManuscriptTitle(job) || (await getManuscriptTitleById(job.manuscript_id));
   const { displayTitle } = resolveReportTitle({ chapterTitle, manuscriptTitle });
   const wordCount = artifact?.metrics?.manuscript?.word_count ?? null;
+  const isLongForm = typeof wordCount === "number" && wordCount >= DREAM_WORD_COUNT_THRESHOLD;
+  const dreamDoc = isComplete && isLongForm ? await getDreamArtifact(jobId) : null;
   const hasDetectedMode = Boolean(artifact?.detected_mode);
   const hasConfirmedMode = Boolean(artifact?.confirmed_mode);
 
@@ -775,6 +811,97 @@ export default async function EvaluationReportPage({
               Generated: {artifact.generated_at ? new Date(artifact.generated_at).toLocaleString() : "N/A"}
             </p>
           </section>
+
+          {/* ── DREAM Long-Form Analysis ── */}
+          {isLongForm && isComplete && (
+            <section className="rounded-lg border border-indigo-100 bg-white p-6 mb-4">
+              <div className="mb-5">
+                <h2 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
+                  <span aria-hidden>📖</span> DREAM Analysis
+                </h2>
+                <p className="text-sm text-gray-500 mt-0.5">
+                  Deep Read &amp; Editorial Assessment Memo — long-form synthesis
+                </p>
+              </div>
+
+              {dreamDoc ? (
+                <div className="space-y-8">
+                  {/* §1 Scores + Executive Verdict */}
+                  <div>
+                    <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500 mb-3">Executive Verdict</h3>
+                    <LongformExecutiveVerdict doc={dreamDoc} />
+                  </div>
+
+                  {/* §2 Market Shelf */}
+                  <div>
+                    <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500 mb-3">Market Shelf</h3>
+                    <LongformMarketShelf doc={dreamDoc} />
+                  </div>
+
+                  {/* §4 + §3 Structural Stack + Anti-Patterns */}
+                  <div>
+                    <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500 mb-3">Structural Stack</h3>
+                    <LongformStructuralStack doc={dreamDoc} />
+                  </div>
+
+                  {/* §5 Arc Map */}
+                  <div>
+                    <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500 mb-3">Arc Map</h3>
+                    <LongformArcMap doc={dreamDoc} />
+                  </div>
+
+                  {/* §6 Score Grid */}
+                  <div>
+                    <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500 mb-3">13-Criterion Score Grid</h3>
+                    <LongformScoreGrid doc={dreamDoc} />
+                  </div>
+
+                  {/* §7 Criterion-by-Criterion Analyses */}
+                  <div>
+                    <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500 mb-3">Criterion Analysis</h3>
+                    <LongformCriterionAnalyses doc={dreamDoc} />
+                  </div>
+
+                  {/* §8 + §9 Layer Analysis + Cross-Layer */}
+                  <div>
+                    <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500 mb-3">Layer Analysis</h3>
+                    <LongformLayerAnalysis doc={dreamDoc} />
+                  </div>
+
+                  {/* §10 Symbolic Audit */}
+                  <div>
+                    <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500 mb-3">Symbolic / Doctrine Audit</h3>
+                    <LongformSymbolicAudit doc={dreamDoc} />
+                  </div>
+
+                  {/* §11 Reader Experience */}
+                  <div>
+                    <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500 mb-3">Reader Experience</h3>
+                    <LongformReaderExperience doc={dreamDoc} />
+                  </div>
+
+                  {/* §12 Revision Plan */}
+                  <div>
+                    <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500 mb-3">Revision Plan</h3>
+                    <LongformRevisionPlan doc={dreamDoc} />
+                  </div>
+
+                  {/* §13–§16 Releasability + Acceptance Checks + Integrity */}
+                  <div>
+                    <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500 mb-3">Releasability</h3>
+                    <LongformReleasability doc={dreamDoc} />
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center gap-3 py-6">
+                  <div className="animate-spin rounded-full h-5 w-5 border-2 border-indigo-400 border-t-transparent" aria-hidden />
+                  <p className="text-sm text-gray-500">
+                    DREAM synthesis generating — check back in a minute for your full long-form analysis.
+                  </p>
+                </div>
+              )}
+            </section>
+          )}
 
           {/* ── Evaluation Provenance ── */}
           <section className="rounded-lg border bg-white p-6 mb-4">
