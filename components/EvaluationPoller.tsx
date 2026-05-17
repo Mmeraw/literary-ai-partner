@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { getProgressDisplay } from '@/components/evaluation-poller-display';
 import { useRouter } from 'next/navigation';
+import { CancelEvaluationButton } from './evaluation/CancelEvaluationButton';
 
 // How many ms between each animated +1% tick on the display progress.
 // At 400ms/tick the bar takes ~40 s to traverse 0→100 at full speed.
@@ -527,9 +528,11 @@ export function EvaluationPoller({
           if (!pd) return null;
           return (
             <div className="space-y-2">
-              <div className="flex items-center justify-between">
+              <div className="flex items-start justify-between gap-4">
                 <p className="text-sm font-medium text-gray-700">{pd.label}</p>
-                <p className="text-sm text-gray-600">{pd.valueLabel}</p>
+                <div className="flex flex-col items-end gap-2 text-right">
+                  <p className="text-sm text-gray-600">{pd.valueLabel}</p>
+                </div>
               </div>
               <div className="w-full bg-gray-200 rounded-full h-2">
                 <div
@@ -543,7 +546,7 @@ export function EvaluationPoller({
         })()}
 
         {/* Timestamps */}
-        <div className="grid grid-cols-2 gap-4 text-sm">
+        <div className="grid grid-cols-1 gap-4 text-sm sm:grid-cols-2 lg:grid-cols-3">
           <div>
             <p className="text-gray-600">Created</p>
             <p className="text-gray-900 font-mono">
@@ -556,6 +559,15 @@ export function EvaluationPoller({
               {new Date(job.updated_at).toLocaleString()}
             </p>
           </div>
+          {(job.status === 'queued' || job.status === 'running') && (
+            <div className="flex items-end justify-start sm:justify-end lg:justify-start">
+              <CancelEvaluationButton
+                jobId={jobId}
+                label="STOP"
+                buttonClassName="inline-flex items-center rounded-md border border-red-600 bg-red-600 px-3 py-2 text-xs font-bold tracking-wide text-white shadow-sm hover:bg-red-700"
+              />
+            </div>
+          )}
         </div>
 
         {/* Last Error */}

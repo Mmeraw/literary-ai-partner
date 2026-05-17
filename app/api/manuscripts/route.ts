@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getAuthenticatedUser } from "@/lib/supabase/server";
+import { resolveManuscriptTitle } from "@/lib/manuscripts/title";
 
 const MAX_UPLOAD_WORDS = 250_000;
 const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
@@ -109,10 +110,12 @@ export async function POST(req: Request) {
     }
 
     const fileUrl = `data:text/plain;charset=utf-8,${encodeURIComponent(extractedText)}`;
-    const titleFromUpload =
-      typeof titleEntry === "string" && titleEntry.trim().length > 0
-        ? titleEntry.trim()
-        : fileEntry.name.replace(/\.[^.]+$/, "") || "Untitled Manuscript";
+    const titleFromUpload = resolveManuscriptTitle({
+      explicitTitle: titleEntry,
+      text: extractedText,
+      fileName: fileEntry.name,
+      fallback: "Imported Manuscript",
+    });
     const englishVariant =
       typeof englishVariantEntry === "string" && englishVariantEntry.trim().length > 0
         ? englishVariantEntry.trim().toLowerCase()
@@ -148,7 +151,7 @@ export async function POST(req: Request) {
       );
     }
 
-    return NextResponse.json({ ok: true, manuscript: data }, { status: 201 });
+    return NextResponse.json({ ok: true, manuscript: data, deduped: false }, { status: 201 });
   } catch (error) {
     return NextResponse.json(
       {
