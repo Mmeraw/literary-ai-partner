@@ -46,6 +46,10 @@ EVIDENCE REQUIREMENT
 - Prefer one short direct excerpt or clearly identifiable moment.
 - If no reliable anchor exists for a criterion, use an empty evidence array rather than padding.
 
+PROSE CONTROL CRITERION ADDITIONAL REQUIREMENT
+- For the proseControl criterion specifically, the rationale MUST include at least one explicit craft mechanism term (e.g., cadence, register, diction, imagery, rhythm, syntax, fragment, beat, phrasing, repetition, linebreak) that explains WHY the verbatim quote demonstrates prose control (or lack thereof).
+- The proseControl evidence anchor MUST be a verbatim manuscript sentence, not a meta-observation about the prose. Downstream synthesis expects at least 3 verbatim proseControl anchors aggregated across passes, so emit your one strongest verbatim quote here.
+
 SCORING + CONFIDENCE HANDLING
 - Do not use N/A when the submitted text contains enough material to assess the criterion.
 - If evidence is limited, still provide the best score available and keep rationale bounded.

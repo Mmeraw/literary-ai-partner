@@ -55,7 +55,7 @@ const MODERATE_MIN_BY_KEY: Record<string, number> = {
   proseControl: 55,
 };
 
-const SUPPORT_FAMILY_MAX = 65; // coverage(40) + quality(25)
+const SUPPORT_FAMILY_MAX = 68; // coverage(40) + quality(28)
 const EXPLANATION_FAMILY_MAX = 35; // reasoning(20) + recommendation(15)
 
 const MEANINGFUL_ANCHOR_MIN_CHARS = 20;
@@ -97,7 +97,38 @@ const CRITERION_TERMS: Record<string, readonly string[]> = {
   theme: ["theme", "motif", "symbol", "moral", "idea", "meaning", "pattern"],
   worldbuilding: ["world", "setting", "environment", "logic", "system", "rules", "place", "ritual"],
   pacing: ["pacing", "pace", "tempo", "compression", "drag", "acceleration", "rhythm", "movement"],
-  proseControl: ["prose", "sentence", "syntax", "diction", "imagery", "metaphor", "cadence", "line", "paragraph"],
+  proseControl: [
+    "prose",
+    "sentence",
+    "syntax",
+    "diction",
+    "imagery",
+    "metaphor",
+    "cadence",
+    "line",
+    "paragraph",
+    "register",
+    "rhythm",
+    "control",
+    "craft",
+    "crisp",
+    "terse",
+    "tactile",
+    "verb",
+    "fragment",
+    "beat",
+    "phrasing",
+    "word choice",
+    "image-forward",
+    "abstract",
+    "concrete",
+    "voice",
+    "tone",
+    "clarity",
+    "precision",
+    "linebreak",
+    "repetition",
+  ],
   tone: ["tone", "affect", "register", "atmosphere", "consistency", "control"],
   narrativeClosure: ["closure", "closeout", "aftermath", "consequence", "promise", "climax", "thread"],
   marketability: ["market", "audience", "positioning", "pitch", "genre", "queryability", "readiness"],
@@ -227,6 +258,38 @@ function isCriterionSpecific(criterion: CriterionConfidenceInput, text: string):
   return containsAny(text, criterionTerms(criterion.key));
 }
 
+const META_COMMENTARY_MARKERS: ReadonlyArray<RegExp> = [
+  /\bappears duplicated\b/i,
+  /\bimage-forward\b/i,
+  /\babstract or\b/i,
+  /\bover-specified\b/i,
+  /\bdrafting residue\b/i,
+  /\bactive-voice\b/i,
+];
+
+function looksLikeMetaCommentary(text: string): boolean {
+  return META_COMMENTARY_MARKERS.some((pattern) => pattern.test(text));
+}
+
+function isVerbatimAnchor(text: string): boolean {
+  const normalized = normalizeText(text);
+  if (normalized.length <= 20) return false;
+  if (!/\s/.test(normalized)) return false;
+  if (looksLikeMetaCommentary(normalized)) return false;
+  return true;
+}
+
+function isCriterionSpecificFromRationaleOrRecs(criterion: CriterionConfidenceInput): boolean {
+  const terms = criterionTerms(criterion.key);
+  const rationale = getReasoningText(criterion);
+  if (rationale && containsAny(rationale, terms)) return true;
+  const recommendations = getRecommendations(criterion);
+  return recommendations.some((rec) => {
+    const actionText = normalizeText(rec.action ?? "");
+    return Boolean(actionText) && containsAny(actionText, terms);
+  });
+}
+
 function hasMetaArtifact(text: string): boolean {
   return META_ARTIFACT_PATTERNS.some((pattern) => pattern.test(text));
 }
@@ -267,9 +330,10 @@ function computeEvidenceQuality(
   let score = 0;
 
   const sourceMatched = anchorTexts.filter((text) => sourceContains(sourceText, text));
-  const criterionSpecific = anchorTexts.filter((text) => isCriterionSpecific(criterion, text));
   const nonGeneric = anchorTexts.filter((text) => !looksGeneric(text));
   const meaningfulLength = anchorTexts.filter(isMeaningfulAnchorLength);
+  const verbatimAnchors = anchorTexts.filter(isVerbatimAnchor);
+  const criterionSpecificFromContext = isCriterionSpecificFromRationaleOrRecs(criterion);
 
   if (sourceMatched.length > 0) {
     score += 10;
@@ -278,11 +342,16 @@ function computeEvidenceQuality(
     reasons.push("Evidence anchors were not verified against the submitted text");
   }
 
-  if (criterionSpecific.length > 0) {
+  if (criterionSpecificFromContext) {
     score += 5;
-    reasons.push("Evidence is specific to this story area");
+    reasons.push("Rationale or recommendations name a craft mechanism specific to this story area");
   } else if (anchorTexts.length > 0) {
-    reasons.push("Evidence is weakly matched to this story area");
+    reasons.push("Rationale does not name a craft mechanism specific to this story area");
+  }
+
+  if (verbatimAnchors.length > 0) {
+    score += 3;
+    reasons.push("Evidence contains verbatim manuscript sentences rather than meta-commentary");
   }
 
   if (nonGeneric.length > 0) {
@@ -310,7 +379,7 @@ function computeEvidenceQuality(
     reasons.push("Some evidence anchors are duplicates");
   }
 
-  return { score: clamp(score, 0, 25), reasons };
+  return { score: clamp(score, 0, 28), reasons };
 }
 
 function computeReasoningSpecificity(
