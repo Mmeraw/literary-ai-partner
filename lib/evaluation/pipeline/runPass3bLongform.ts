@@ -44,6 +44,8 @@ import type { SubmissionScopeProfile } from "./submissionScope";
 
 const PASS3B_TEMPERATURE = 0.3;
 
+type DreamConfidence = "High" | "Moderate-High" | "Moderate" | "Low";
+
 function getPass3bMaxTokens(): number {
   const raw = process.env.EVAL_PASS3B_MAX_TOKENS;
   if (raw) {
@@ -190,6 +192,138 @@ export interface RunPass3bOptions {
   openAiTimeoutMs?: number;
 }
 
+export type TruthfulFallbackReport = {
+  autofilled_keys: string[];
+  repaired_keys: string[];
+};
+
+function toDreamConfidence(value?: SynthesizedCriterion["confidence_level"]): DreamConfidence {
+  if (value === "high") return "High";
+  if (value === "low") return "Low";
+  return "Moderate";
+}
+
+function ensureStringArray(value: unknown, fallback: string[]): string[] {
+  if (Array.isArray(value)) {
+    const normalized = value
+      .map((v) => (typeof v === "string" ? v.trim() : ""))
+      .filter(Boolean);
+    if (normalized.length > 0) return normalized;
+  }
+  return fallback;
+}
+
+function buildCriterionFallbackEntry(criterion: SynthesizedCriterion): Record<string, unknown> {
+  const rationale = criterion.final_rationale?.trim() || `${criterion.key} requires focused revision.`;
+  const fitEvidence = (criterion.evidence ?? [])
+    .map((entry) => (entry?.snippet ?? "").trim())
+    .filter(Boolean)
+    .slice(0, 2);
+  const revisionQueue = (criterion.recommendations ?? [])
+    .map((rec) => rec.action?.trim())
+    .filter(Boolean)
+    .slice(0, 3);
+
+  return {
+    key: criterion.key,
+    score: criterion.final_score_0_10,
+    confidence: toDreamConfidence(criterion.confidence_level),
+    fit_evidence:
+      fitEvidence.length > 0
+        ? fitEvidence
+        : [`Pass 3 rationale: ${rationale.slice(0, 180)}`],
+    gap_evidence: [
+      `Pass 3b omitted explicit gap evidence for ${criterion.key}; fallback preserved Pass 3 rationale.`
+    ],
+    revision_queue:
+      revisionQueue.length > 0
+        ? revisionQueue
+        : [`Refine ${criterion.key} with manuscript-grounded revisions from Pass 3 recommendations.`],
+  };
+}
+
+/**
+ * Deterministic truthful fallback for Pass 3b criterion analyses.
+ *
+ * Guarantees all Pass 3 criteria are present in §7 and preserves ledger truth:
+ * - missing criteria are auto-filled from Pass 3 synthesis
+ * - malformed entries are repaired in place
+ * - score is always aligned to Pass 3 final_score_0_10
+ */
+export function applyTruthfulLongformCriteriaFallback(
+  raw: Record<string, unknown>,
+  criteria: SynthesizedCriterion[]
+): { patched: Record<string, unknown>; report: TruthfulFallbackReport } {
+  const report: TruthfulFallbackReport = {
+    autofilled_keys: [],
+    repaired_keys: [],
+  };
+
+  const entries = Array.isArray(raw.criterion_analyses) ? raw.criterion_analyses : [];
+  const byKey = new Map<string, Record<string, unknown>>();
+
+  for (const entry of entries) {
+    if (!entry || typeof entry !== "object") continue;
+    const key = String((entry as Record<string, unknown>).key ?? "").trim();
+    if (!key) continue;
+    if (!byKey.has(key)) byKey.set(key, entry as Record<string, unknown>);
+  }
+
+  const normalized = criteria.map((criterion) => {
+    const key = criterion.key;
+    const existing = byKey.get(key);
+
+    if (!existing) {
+      report.autofilled_keys.push(key);
+      return buildCriterionFallbackEntry(criterion);
+    }
+
+    const fallbackEntry = buildCriterionFallbackEntry(criterion);
+
+    const fit_evidence = ensureStringArray(existing.fit_evidence, fallbackEntry.fit_evidence as string[]);
+    const gap_evidence = ensureStringArray(existing.gap_evidence, fallbackEntry.gap_evidence as string[]);
+    const revision_queue = ensureStringArray(existing.revision_queue, fallbackEntry.revision_queue as string[]);
+
+    const confidenceValue = String(existing.confidence ?? "").trim();
+    const confidence: DreamConfidence =
+      confidenceValue === "High" ||
+      confidenceValue === "Moderate-High" ||
+      confidenceValue === "Moderate" ||
+      confidenceValue === "Low"
+        ? (confidenceValue as DreamConfidence)
+        : toDreamConfidence(criterion.confidence_level);
+
+    const repaired =
+      confidence !== existing.confidence ||
+      fit_evidence !== existing.fit_evidence ||
+      gap_evidence !== existing.gap_evidence ||
+      revision_queue !== existing.revision_queue ||
+      existing.score !== criterion.final_score_0_10;
+
+    if (repaired) {
+      report.repaired_keys.push(key);
+    }
+
+    return {
+      ...existing,
+      key,
+      score: criterion.final_score_0_10,
+      confidence,
+      fit_evidence,
+      gap_evidence,
+      revision_queue,
+    };
+  });
+
+  return {
+    patched: {
+      ...raw,
+      criterion_analyses: normalized,
+    },
+    report,
+  };
+}
+
 // ── OpenAI completion factory ─────────────────────────────────────────────────
 
 function defaultCreateCompletion(apiKey?: string, timeoutMs?: number) {
@@ -333,7 +467,15 @@ export async function runPass3bLongform(
     throw err;
   }
 
-  const document = validateDreamDocument(parsed);
+  const { patched, report } = applyTruthfulLongformCriteriaFallback(parsed, opts.criteria);
+  const document = validateDreamDocument(patched);
+
+  if (report.autofilled_keys.length > 0 || report.repaired_keys.length > 0) {
+    console.warn("[Pass3b] truthful_fallback_applied", {
+      autofilled_keys: report.autofilled_keys,
+      repaired_keys: report.repaired_keys,
+    });
+  }
 
   // Stamp provenance server-side
   document.prompt_version = PASS3B_PROMPT_VERSION;
