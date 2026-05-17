@@ -42,18 +42,19 @@ import type { ManuscriptChunkEvidence } from '@/lib/evaluation/pipeline/types';
 // Force Node.js runtime (required for crypto module)
 export const runtime = 'nodejs';
 // DREAM synthesis only — independent budget from main worker.
-// GPT-5 calls for a 40-chunk novel typically take 60-120s; 300s gives 2.5x headroom.
-export const maxDuration = 300;
+// Matches process-evaluations maxDuration=800 (Vercel Pro/Enterprise plan).
+// GPT-5 synthesis on a 40-chunk novel can take 3-8 min; 800s gives full headroom.
+export const maxDuration = 800;
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const DREAM_WORD_COUNT_THRESHOLD = 25000;
 // Process at most 1 job per tick to stay well within maxDuration.
 const DREAM_BATCH_SIZE = 1;
-// Cap OpenAI timeout below Vercel maxDuration (300s) so the SDK errors out
+// Cap OpenAI timeout below Vercel maxDuration (800s) so the SDK errors out
 // before Vercel kills the function — otherwise the catch block never runs
-// and failures are silent.
-const DREAM_OPENAI_TIMEOUT_MS = 270_000;
+// and failures are silent. 750s leaves 50s headroom for DB writes + response overhead.
+const DREAM_OPENAI_TIMEOUT_MS = 750_000;
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
