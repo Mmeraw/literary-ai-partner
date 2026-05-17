@@ -304,16 +304,16 @@ export default function PipelineHealthPage() {
       </section>
 
       {/* ------------------------------------------------------------------ */}
-      {/* Section B — DREAM Synthesis Queue                                  */}
+      {/* Section B — Narrative Synthesis Queue                              */}
       {/* ------------------------------------------------------------------ */}
       {dreamSynthesis && (
         <section className="rounded-lg border border-gray-200 p-5 space-y-4">
           <div className="flex items-center justify-between flex-wrap gap-2">
-            <h2 className="text-lg font-semibold">DREAM Synthesis Queue</h2>
+            <h2 className="text-lg font-semibold">Narrative Synthesis Queue</h2>
             <div className="flex gap-6 text-sm">
               <span>
                 <span className="font-semibold text-gray-800">{dreamSynthesis.coveredCount}</span>
-                <span className="text-gray-500 ml-1">long-form jobs with DREAM artifact</span>
+                <span className="text-gray-500 ml-1">long-form jobs with synthesis artifact</span>
               </span>
               <span>
                 <span
@@ -330,7 +330,7 @@ export default function PipelineHealthPage() {
 
           {dreamSynthesis.pendingCount > 0 && (
             <div className="rounded bg-amber-50 border border-amber-300 px-4 py-3 text-sm text-amber-900">
-              <strong>⚠ {dreamSynthesis.pendingCount} long-form job{dreamSynthesis.pendingCount !== 1 ? "s" : ""} complete but missing DREAM artifact</strong>
+              <strong>⚠ {dreamSynthesis.pendingCount} long-form job{dreamSynthesis.pendingCount !== 1 ? "s" : ""} complete but missing Narrative Synthesis artifact</strong>
               {" "}— check <code className="font-mono text-xs bg-amber-100 px-1 rounded">process-dream</code> cron.
               If this count is stuck, the cron may be silently skipping jobs (see post-mortem{" "}
               <a
@@ -347,13 +347,13 @@ export default function PipelineHealthPage() {
 
           {dreamSynthesis.pendingCount === 0 && dreamSynthesis.coveredCount > 0 && (
             <div className="rounded bg-green-50 border border-green-200 px-4 py-3 text-sm text-green-800">
-              ✓ All complete long-form jobs have DREAM artifacts. Last synthesized:{" "}
+              ✓ All complete long-form jobs have Narrative Synthesis artifacts. Last synthesized:{" "}
               {dreamSynthesis.lastSynthesizedAt ? fmtDate(dreamSynthesis.lastSynthesizedAt) : "—"}
             </div>
           )}
 
           <div className="text-xs text-gray-500">
-            Last DREAM synthesis:{" "}
+            Last Narrative Synthesis:{" "}
             <span className="font-medium text-gray-700">
               {dreamSynthesis.lastSynthesizedAt ? fmtDate(dreamSynthesis.lastSynthesizedAt) : "Never"}
             </span>
