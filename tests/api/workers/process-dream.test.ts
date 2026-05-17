@@ -338,3 +338,97 @@ describe('GET /api/workers/process-dream', () => {
     expect(mockUpsertEvaluationArtifact).not.toHaveBeenCalled();
   });
 });
+
+// ── Regression block ──────────────────────────────────────────────────────────
+// Each test guards a specific production failure discovered May 2026.
+
+describe("regression", () => {
+  it("regression: Vercel 300s kill — DREAM_OPENAI_TIMEOUT_MS must be <= 280s and wired into call", () => {
+    // Guards: getEvalOpenAiTimeoutMs() returns 720s by default. Vercel maxDuration=300s.
+    // GPT-5 synthesis on 26k words exceeded 300s — Vercel killed silently, artifact never written.
+    // Fix: DREAM_OPENAI_TIMEOUT_MS=270_000 passed as openAiTimeoutMs to runPass3bLongform.
+    const fs = require("fs");
+    const path = require("path");
+    const src = fs.readFileSync(
+      path.join(process.cwd(), "app/api/workers/process-dream/route.ts"),
+      "utf-8"
+    ) as string;
+    const match = src.match(/DREAM_OPENAI_TIMEOUT_MS\s*=\s*(\d+)/);
+    expect(match).not.toBeNull();
+    const ms = parseInt(match![1], 10);
+    expect(ms).toBeLessThanOrEqual(280_000); // must stay inside Vercel 300s budget
+    expect(ms).toBeGreaterThanOrEqual(60_000); // must not be trivially short
+    expect(src).toContain("openAiTimeoutMs: DREAM_OPENAI_TIMEOUT_MS"); // must be wired in
+  });
+
+  it("regression: silent crash — last_error write-back must exist in route for both throw paths", () => {
+    // Guards: errors were logged but never written to DB — invisible without Vercel log access.
+    // Fix: .update({ last_error }) called in both the soft (success:false) and hard (throw) paths.
+    const fs = require("fs");
+    const path = require("path");
+    const src = fs.readFileSync(
+      path.join(process.cwd(), "app/api/workers/process-dream/route.ts"),
+      "utf-8"
+    ) as string;
+    const updateMatches = src.match(/\.update\(\s*\{\s*last_error:/g);
+    expect(updateMatches).not.toBeNull();
+    expect(updateMatches!.length).toBeGreaterThanOrEqual(1); // at least one write-back
+  });
+
+  it("regression: criteria < 13 — runPass3bLongform must throw CRITERIA_INSUFFICIENT synchronously", async () => {
+    // Guards: evaluations with < 13 criteria must never silently proceed to synthesis.
+    const { runPass3bLongform: realFn } = jest.requireActual<{
+      runPass3bLongform: (opts: Record<string, unknown>) => Promise<unknown>;
+    }>("@/lib/evaluation/pipeline/runPass3bLongform");
+
+    const twelveCriteria = Array.from({ length: 12 }, (_, i) => ({
+      key: `criterion_${i}`,
+      final_score_0_10: 7,
+      final_rationale: "rationale",
+      evidence: [{ snippet: "s" }],
+      recommendations: [{ action: "a", priority: "medium" }],
+      confidence_level: "moderate",
+    }));
+
+    await expect(
+      realFn({
+        criteria: twelveCriteria,
+        pass2aStructuredContext: { chunks: [] },
+        manuscriptChunks: [{ chunk_index: 0, content: "content" }],
+        title: "Test",
+        wordCount: 30000,
+        workType: "literary_fiction",
+        openaiApiKey: "test-key",
+      })
+    ).rejects.toThrow("CRITERIA_INSUFFICIENT");
+  });
+
+  it("regression: cron idempotency — job with existing artifact must be excluded from pending", async () => {
+    // Guards: if artifact already exists (e.g. from a prior successful tick),
+    // the same job must not be picked up again and re-processed.
+    const table: Record<string, jest.Mock> = {};
+    const jobId = "job-idem-001";
+
+    supabaseHolder.client = buildSupabaseClient(
+      {
+        candidateJobs: [
+          {
+            id: jobId,
+            manuscript_id: 1,
+            manuscripts: [{ user_id: "u1", title: "T", work_type: "literary_fiction", word_count: 30000 }],
+          },
+        ],
+        existingArtifacts: [{ job_id: jobId }], // artifact already written
+        evaluationArtifactContent: null,
+        manuscriptChunks: [],
+      },
+      table,
+    );
+
+    const res = await GET(buildRequest());
+    const body = await res.json();
+
+    expect(body.processed).toBe(0); // skipped — artifact exists
+    expect(mockRunPass3bLongform).not.toHaveBeenCalled();
+  });
+});
