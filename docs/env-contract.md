@@ -12,7 +12,7 @@ This module imports `'server-only'`. It must never be imported from client compo
 
 | Variable | Required | Default | Description |
 | :--- | :---: | :---: | :--- |
-| `EVAL_PIPELINE_INPUT_CHAR_BUDGET` | No | `40000` | Max characters of manuscript fed to Pass 1. Must be 12 000–100 000. |
+| `EVAL_PIPELINE_INPUT_CHAR_BUDGET` | No | `50000` | Max characters of manuscript fed to Pass 1. Must be 12 000–100 000. Raised from 40 000 → 50 000 so the chunker post-condition ceiling (`floor(budget * 0.95) = 47 500`) accommodates the LARGE adaptive chunker bracket emitting up to 42 000-char chunks. |
 | `EVAL_PIPELINE_SYNTHESIS_REF_CHAR_BUDGET` | No | `8000` | Max characters of synthesis reference material. Must be 1 000–50 000. |
 | `EVAL_OPENAI_MODEL` | No | `gpt-4o` | OpenAI model identifier for evaluation runs. o-series reasoning models (o3, o1, etc.) are rejected in production unless `EVAL_ALLOW_REASONING_MODELS=true`. |
 | `EVAL_ALLOW_REASONING_MODELS` | No | `false` | Operator override that permits o-series models (`/^o[0-9]/`) in `NODE_ENV=production`. When unset/`false`, the contract throws during resolution before any API call if the resolved model is o-series. Set to `true` only for explicit, time-boxed evaluations (not steady-state production). |

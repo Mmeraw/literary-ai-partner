@@ -14,17 +14,21 @@ import {
 } from "@/lib/evaluation/pipeline/runPipeline";
 import { runQualityGate } from "@/lib/evaluation/pipeline/qualityGate";
 import { runQualityGateV2 } from "@/lib/evaluation/pipeline/qualityGate";
+import { getEvalPassTimeoutMs } from "@/lib/evaluation/config";
 import type {
   SinglePassOutput,
   SynthesisOutput,
   QualityGateResult,
   PipelineResult,
+  ManuscriptChunkEvidence,
 } from "@/lib/evaluation/pipeline/types";
 import type { RunPass1Options } from "@/lib/evaluation/pipeline/runPass1";
 import type { RunPass2Options } from "@/lib/evaluation/pipeline/runPass2";
 import type { RunPass3Options } from "@/lib/evaluation/pipeline/runPass3Synthesis";
 import type { LessonsLearnedReport, RuleStage, RuleEvaluationInput } from "@/lib/governance/lessonsLearned";
 import { JsonBoundaryError } from "@/lib/llm/jsonParseBoundary";
+import type { LongformDreamDocument } from "@/lib/evaluation/pipeline/runPass3bLongform";
+import type { CrossCheckOutput, CriterionKey } from "@/lib/evaluation/pipeline/perplexityCrossCheck";
 
 function isPipelineFailure(result: PipelineResult): result is Extract<PipelineResult, { ok: false }> {
   return result.ok === false;
@@ -105,7 +109,7 @@ function makeSynthesisOutput(): SynthesisOutput {
         "This manuscript demonstrates solid craft and distinctive literary sensibility, requiring targeted revision before submission.",
       top_3_strengths: ["Strong narrative voice", "Clear structural arc", "Vivid sensory imagery"],
       top_3_risks: ["Pacing inconsistencies in act two", "Thin supporting character motivation", "World-building gaps"],
-      submission_readiness: "close",
+      submission_readiness: "nearly_ready",
     },
     metadata: {
       pass1_model: "gpt-4o-mini",
@@ -672,6 +676,47 @@ describe("runPipeline (e2e with injected runners)", () => {
     expect(mockRunPass3).not.toHaveBeenCalled();
   });
 
+  it("uses canonical EVAL_PASS_TIMEOUT_MS when _passTimeoutMs is omitted", async () => {
+    // Prove that omitting _passTimeoutMs routes through the canonical
+    // timeout resolver path. We use fake timers so this stays deterministic
+    // even when canonical timeout baselines are large in CI.
+    const canonicalPassTimeoutMs = getEvalPassTimeoutMs();
+
+    jest.useFakeTimers();
+
+    mockRunPass1.mockImplementationOnce(
+      // Never resolves — canonical timeout should fire first.
+      () => new Promise<SinglePassOutput>(() => undefined),
+    );
+
+    try {
+      const resultPromise = runPipeline({
+        manuscriptText: "test",
+        workType: "literary_fiction",
+        title: "Test",
+        openaiApiKey: "sk-test",
+        // _passTimeoutMs is intentionally omitted — canonical env must be used.
+        _runners: {
+          runPass1: mockRunPass1,
+          runPass2: mockRunPass2,
+          runPass3Synthesis: mockRunPass3,
+        },
+      });
+
+      await jest.advanceTimersByTimeAsync(canonicalPassTimeoutMs + 1);
+      const result = await resultPromise;
+
+      expect(result.ok).toBe(false);
+      if (isPipelineFailure(result)) {
+        expect(result.error_code).toBe("PASS1_TIMEOUT");
+        expect(result.failed_at).toBe("pass1");
+      }
+      expect(mockRunPass3).not.toHaveBeenCalled();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
   it("fails closed when lessons-learned blocks at post_structural", async () => {
     const evaluateRules = jest.fn<(input: RuleEvaluationInput, stage?: RuleStage) => LessonsLearnedReport>();
     evaluateRules.mockImplementation((_input, stage) => {
@@ -861,6 +906,292 @@ describe("runPipeline (e2e with injected runners)", () => {
   });
 });
 
+// ── Pass 3b DREAM long-form synthesis tests ─────────────────────────────────
+
+function makeLongformDreamDocument(): LongformDreamDocument {
+  const criterionAnalysis = (key: string) => ({
+    key,
+    score: 7,
+    confidence: "Moderate-High" as const,
+    fit_evidence: [`${key} shows clear strength in the opening sequence.`],
+    gap_evidence: [`${key} loses focus in the middle act transitions.`],
+    revision_queue: [`Compress the ${key} digression in chapter 12.`],
+  });
+
+  return {
+    executive_verdict:
+      "A structurally ambitious long-form manuscript with strong premise and distinct voice. " +
+      "Primary revision task is architectural before stylistic: clarify the collision spine and " +
+      "tighten the payoff ledger across the five major structural layers.",
+    dream_scores: { quality: 66, readiness: 58, commercial: 71, literary: 74 },
+    market_shelf: {
+      best_shelf: "Literary eco-fable / weird satirical fantasy",
+      shelf_neighbors: ["Adult literary fiction", "Weird fiction"],
+      comparison_space: ["Environmental literary fiction"],
+      marketable_hook: "An amphibian civilization destabilized by human addiction and ecological violence.",
+      market_danger: "Could be misread as a children's animal fantasy without strong adult positioning.",
+    },
+    what_not_to_become: [
+      "It should not become a sanitized children's animal fantasy.",
+      "It should not over-explain the toadstone mythology before the reader needs it.",
+    ],
+    structural_stack: [
+      {
+        layer_name: "Human damage layer",
+        function: "Introduces ecological harm and the casual violence that destabilizes Aqua World",
+        status: "strong",
+        revision_note: "Compress the campsite scenes without losing the grotesque comic-horror register.",
+      },
+    ],
+    arc_map: [
+      {
+        act_name: "Opening collision setup",
+        chapter_range: "Ch. 1–3",
+        primary_function: "Establishes premise, characters, and shard mythology",
+        revision_priority: "Reduce density — reader needs the governing spine before the worldbuilding.",
+      },
+    ],
+    criterion_analyses: CRITERIA_KEYS.map((key) => criterionAnalysis(key)),
+    layer_analyses: [
+      { layer_name: "Human damage layer", status: "strong", needed_revision: "Compress campsite scenes." },
+    ],
+    cross_layer_integration: [
+      {
+        motif: "Toadstone / shard complex",
+        description: "Joins ecology, power, reproduction, and human predation into one symbolic object.",
+        integration_quality: "strong",
+        revision_note: "Clarify the object rules before chapter 4.",
+      },
+    ],
+    symbolic_audit: {
+      preserved_symbols: [
+        {
+          symbol: "Toadstone",
+          current_function: "Object of power and ecological contamination",
+          revision_instruction: "Do not simplify to a MacGuffin — its ambivalence is the book's moral center.",
+        },
+      ],
+      doctrine_strengths: ["Gorf / Rancient Code system is internally consistent."],
+      doctrine_risks: ["Sanctuary obligations remain underpaid in the final act."],
+      audit_conclusion: "Preserve the doctrine. Reduce the exposition delivering it.",
+    },
+    reader_experience: {
+      first_act: {
+        reader_question: "What is the shard and what will it cost?",
+        emotional_state: "Curious, slightly disoriented by the dual-world structure.",
+        risk: "Worldbuilding density may overwhelm before the governing story spine is clear.",
+      },
+      middle: {
+        reader_question: "Who will survive the collision between Hyla\'s rule and Zimeon\'s knowledge?",
+        emotional_state: "Invested in Zimeon and Newton but uncertain where the pressure line runs.",
+        risk: "Reform arc can feel like a second book if not tied to the shard crisis.",
+      },
+      final_act: {
+        reader_question: "Does the New World promise pay off the ecological and political debts?",
+        emotional_state: "Moved but uncertain whether the ending has fully resolved the ledger.",
+        risk: "Closure is open rather than earned if the shard and New World arcs are not aligned.",
+      },
+      aftertaste:
+        "A strange, ambitious, adult eco-fable that stays with the reader precisely because its moral ecology is not tidy.",
+    },
+    revision_plan: [
+      {
+        priority: 1,
+        title: "Resolve manuscript integrity issues",
+        goal: "Ensure no duplicate chapter bodies before architectural revision begins.",
+        actions: ["Audit chapter list against table of contents.", "Remove or differentiate duplicated chapter bodies."],
+        acceptance_check:
+          "Zero entries in manuscript_integrity_issues with severity === 'blocking' after revision.",
+      },
+      {
+        priority: 2,
+        title: "Clarify the collision spine",
+        goal: "Make the shard / toadstone / human predation line the unambiguous primary pressure.",
+        actions: ["Seed the shard\'s rules in chapter 1.", "Ensure every council scene changes state."],
+        acceptance_check: "Reader can articulate the central conflict by the end of chapter 3.",
+      },
+      {
+        priority: 3,
+        title: "Compress the worldbuilding",
+        goal: "Information release should follow need, not geography.",
+        actions: ["Cut or defer any doctrine block that arrives before its narrative question."],
+        acceptance_check: "No chapter contains more than one primary worldbuilding payload.",
+      },
+    ],
+    releasability: [
+      { dimension: "Premise", current_status: "Distinctive and strong", verdict: "Ready" },
+      { dimension: "Publication readiness", current_status: "Strong beta candidate after integrity pass", verdict: "Revise" },
+    ],
+    acceptance_checks: {
+      required_detection: [
+        "Duplicate chapter bodies must be flagged as manuscript_integrity_issues.",
+        "All 13 criterion analyses must be present with fit_evidence and gap_evidence.",
+      ],
+      failure_conditions: [
+        "Evaluation that calls the manuscript 'ready' without addressing the integrity issues.",
+        "Evaluation that omits the symbolic audit section.",
+      ],
+    },
+    calibration_notes: [
+      "A manuscript can be worldbuilding-rich and architecturally weak at the same time.",
+      "Voice strength is not a substitute for a clear collision spine.",
+    ],
+    repo_summary: {
+      benchmark_name: "froggin-noggin-dream",
+      source: "docs/benchmarks/froggin-noggin-dream.md",
+      evaluation_type: "long_form_dream",
+      overall_score: 66,
+      readiness_score: 58,
+      primary_strengths: ["Distinctive premise", "World-building depth", "Thematic integration"],
+      primary_blockers: ["Pacing / compression", "Collision spine legibility", "Narrative closure"],
+      gold_standard_requirement:
+        "All 16 DREAM sections present. Criterion analyses expand Pass 3 scores without contradiction.",
+    },
+    manuscript_integrity_issues: [
+      {
+        kind: "duplicate_chapter_body",
+        description: "Chapter 4 and Chapter 16 bodies are identical.",
+        severity: "blocking",
+      },
+    ],
+    prompt_version: "pass3b-longform-v1-dream-benchmark",
+    generated_at: new Date().toISOString(),
+    model: "gpt-4o-mini",
+  };
+}
+
+describe("Pass 3b — long-form DREAM synthesis (pipeline integration)", () => {
+  let mockRunPass1: jest.Mock<(opts: RunPass1Options) => Promise<SinglePassOutput>>;
+  let mockRunPass2: jest.Mock<(opts: RunPass2Options) => Promise<SinglePassOutput>>;
+  let mockRunPass3: jest.Mock<(opts: RunPass3Options) => Promise<SynthesisOutput>>;
+
+  const permissiveLessonsLearned = {
+    evaluateRules: () => ({ overall_pass: true, results: [] as LessonsLearnedReport["results"] }),
+    deriveDecision: () => ({ action: "ALLOW" as const, reason: "test default allow" }),
+  };
+
+  beforeEach(() => {
+    mockRunPass1 = jest.fn<(opts: RunPass1Options) => Promise<SinglePassOutput>>();
+    mockRunPass2 = jest.fn<(opts: RunPass2Options) => Promise<SinglePassOutput>>();
+    mockRunPass3 = jest.fn<(opts: RunPass3Options) => Promise<SynthesisOutput>>();
+
+    mockRunPass1.mockResolvedValue(makeSinglePassOutput(1));
+    mockRunPass2.mockResolvedValue(makeSinglePassOutput(2));
+    mockRunPass3.mockResolvedValue(makeSynthesisOutput());
+  });
+
+  // T1: main job completes for long-form manuscripts WITHOUT Pass 3b (decoupled to /api/workers/process-dream).
+  // See fix/pass3b-async-dream-worker (issue #543) — Pass 3b now runs async after job completion.
+  it("T1: main pipeline completes without longform_document for long-form manuscripts (Pass 3b decoupled)", async () => {
+    const mockChunks: ManuscriptChunkEvidence[] = Array.from({ length: 10 }, (_, i) => ({
+      chunk_index: i,
+      content: `Chapter ${i + 1} content. The river moved through the valley in the ${["early", "late", "middle", "morning", "night"][i % 5]} light.`,
+      word_count: 200,
+      chunk_id: `chunk-${i}`,
+    }));
+
+    // Pass 3b runner injected but must NOT be called — it belongs to the DREAM worker now.
+    const mockRunPass3bLongform = jest.fn<() => Promise<LongformDreamDocument>>();
+    mockRunPass3bLongform.mockRejectedValue(new Error("Should never be called from main pipeline"));
+
+    const result = await runPipeline({
+      manuscriptText: "a ".repeat(25_001),
+      workType: "literary_fiction",
+      title: "Froggin Noggin",
+      openaiApiKey: "sk-test",
+      manuscriptChunks: mockChunks,
+      _lessonsLearned: permissiveLessonsLearned,
+      _runners: {
+        runPass1: mockRunPass1,
+        runPass2: mockRunPass2,
+        runPass3Synthesis: mockRunPass3,
+        runPass3bLongform: mockRunPass3bLongform,
+      },
+    });
+
+    // T1 assertion: main job must succeed ...
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      // ... with all 13 criteria scored
+      expect(result.synthesis.criteria).toHaveLength(13);
+      expect(result.quality_gate.pass).toBe(true);
+      // ... and longform_document absent (it lives in evaluation_artifacts, fetched separately)
+      expect((result as Record<string, unknown>).longform_document).toBeUndefined();
+    }
+    // ... and Pass 3b was never called from within the pipeline
+    expect(mockRunPass3bLongform).not.toHaveBeenCalled();
+  });
+
+  it("short-form manuscripts complete successfully and never have longform_document (< 25k words)", async () => {
+    // Pass 3b is decoupled; even if injected, it must never be called for short-form.
+    const mockRunPass3bLongform = jest.fn<() => Promise<LongformDreamDocument>>();
+
+    const result = await runPipeline({
+      manuscriptText: "The river moved slowly through the valley. She watched from the bank.",
+      workType: "literary_fiction",
+      title: "Short Story",
+      openaiApiKey: "sk-test",
+      _lessonsLearned: permissiveLessonsLearned,
+      _runners: {
+        runPass1: mockRunPass1,
+        runPass2: mockRunPass2,
+        runPass3Synthesis: mockRunPass3,
+        runPass3bLongform: mockRunPass3bLongform,
+      },
+    });
+
+    expect(result.ok).toBe(true);
+    // Pass 3b must not be called for short-form manuscripts (not long-form, and decoupled anyway).
+    expect(mockRunPass3bLongform).not.toHaveBeenCalled();
+    if (result.ok) {
+      expect((result as Record<string, unknown>).longform_document).toBeUndefined();
+    }
+  });
+
+  // T1-ext: even if a broken runPass3bLongform is injected, the main pipeline must NOT
+  // call it (it's decoupled) and must still return ok=true for long-form manuscripts.
+  it("T1-ext: pipeline never calls runPass3bLongform even when injected with a throwing mock (decoupled)", async () => {
+    const mockChunks: ManuscriptChunkEvidence[] = Array.from({ length: 5 }, (_, i) => ({
+      chunk_index: i,
+      content: `Chunk ${i} content for the long-form manuscript.`,
+      word_count: 200,
+      chunk_id: `chunk-fail-${i}`,
+    }));
+
+    // A throwing mock — if the pipeline calls this, the test will fail via unhandled rejection.
+    const mockRunPass3bLongform = jest.fn<() => Promise<LongformDreamDocument>>();
+    mockRunPass3bLongform.mockRejectedValue(
+      new Error("[Pass3b] EMPTY_RESPONSE: model=gpt-4o finish_reason=length — should never be called")
+    );
+
+    const result = await runPipeline({
+      manuscriptText: "a ".repeat(25_001),
+      workType: "literary_fiction",
+      title: "Long Novel",
+      openaiApiKey: "sk-test",
+      manuscriptChunks: mockChunks,
+      _lessonsLearned: permissiveLessonsLearned,
+      _runners: {
+        runPass1: mockRunPass1,
+        runPass2: mockRunPass2,
+        runPass3Synthesis: mockRunPass3,
+        runPass3bLongform: mockRunPass3bLongform,
+      },
+    });
+
+    // Pass 3b is fully decoupled — the mock must never be called.
+    expect(mockRunPass3bLongform).not.toHaveBeenCalled();
+
+    // Main evaluation must succeed regardless.
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.synthesis.criteria).toHaveLength(13);
+      expect(result.quality_gate.pass).toBe(true);
+      expect((result as Record<string, unknown>).longform_document).toBeUndefined();
+    }
+  });
+});
+
 describe("synthesisToEvaluationResult adapter", () => {
   function makeAdapterSynthesisOutput(): SynthesisOutput {
     return {
@@ -910,7 +1241,7 @@ describe("synthesisToEvaluationResult adapter", () => {
         one_paragraph_summary: "Strong manuscript with clear revision needs.",
         top_3_strengths: ["Voice", "Arc", "Imagery"],
         top_3_risks: ["Pacing", "Characters", "World-building"],
-        submission_readiness: "close",
+        submission_readiness: "nearly_ready",
       },
       metadata: {
         pass1_model: "gpt-4o-mini",
@@ -1064,5 +1395,306 @@ describe("synthesisToEvaluationResult adapter", () => {
     expect(
       gateResult.checks.find((check) => check.check_id === "v2_summary_weakness_presence")?.passed,
     ).toBe(true);
+  });
+});
+
+// ── Pass 4 — Perplexity DREAM Adjudication (pipeline integration) ─────────────
+//
+// Pass 4 is the external adjudication stage. It fires when perplexityApiKey is
+// provided, using sonar-reasoning-pro to independently score the 13 criteria.
+// For LONG_FORM manuscripts it co-fires with Pass 3b and enriches the same
+// ok=true result — both longform_document AND cross_check must be present.
+// Pass 4 is always fail-soft: a Perplexity failure does not block the main job.
+
+function makeCrossCheckOutput(): CrossCheckOutput {
+  const criteriaMap = {} as Record<CriterionKey, CrossCheckOutput["criteria"][CriterionKey]>;
+  for (const key of [...CRITERIA_KEYS] as CriterionKey[]) {
+    criteriaMap[key] = {
+      openaiScore: 7,
+      openaiRationale: `Pass 3 evaluated ${key} as competent with targeted revision areas.`,
+      openaiEvidence: [`${key} evidence from Pass 3.`],
+      openaiDetectedSignals: [`${key}_signal`],
+      openaiScoringBand: "7-8" as const,
+      invalidOpenaiCriterion: false,
+      missingFromOpenai: false,
+      perplexityScore: 7,
+      perplexityRationale: `Perplexity adjudication of ${key} confirms Pass 3 assessment.`,
+      perplexityEvidence: [{ quote: "The river moved slowly.", explanation: `Signals ${key} strength.` }],
+      perplexityDetectedSignals: [`${key}_pplx_signal`],
+      perplexityScoringBand: "7-8" as const,
+      perplexityDoctrineTrace: ["Artifact-based evaluation", "No author-intent privilege"],
+      delta: 0,
+      disputed: false,
+      missingFromPerplexity: false,
+      invalidPerplexityCriterion: false,
+      canonValidity: { valid: true, reasons: [] },
+      direction: "MATCH" as const,
+    };
+  }
+  return {
+    model: "sonar-reasoning-pro",
+    crossCheckedAt: new Date().toISOString(),
+    overallAgreement: "STRONG",
+    disputedCriteria: [],
+    invalidCriteria: [],
+    criteria: criteriaMap,
+    perplexitySynthesisNote: "Perplexity adjudication confirms Pass 3 synthesis across all 13 criteria.",
+    canonValid: true,
+    packetChars: 29568,
+    packetCompressionRatio: 0.0479,
+  };
+}
+
+describe("Pass 4 — Perplexity DREAM adjudication (pipeline integration)", () => {
+  const permissiveLessonsLearned = {
+    evaluateRules: () => ({ overall_pass: true, results: [] as LessonsLearnedReport["results"] }),
+    deriveDecision: () => ({ action: "ALLOW" as const, reason: "test default allow" }),
+  };
+
+  let mockRunPass1: jest.Mock<(opts: RunPass1Options) => Promise<SinglePassOutput>>;
+  let mockRunPass2: jest.Mock<(opts: RunPass2Options) => Promise<SinglePassOutput>>;
+  let mockRunPass3: jest.Mock<(opts: RunPass3Options) => Promise<SynthesisOutput>>;
+
+  beforeEach(() => {
+    mockRunPass1 = jest.fn<(opts: RunPass1Options) => Promise<SinglePassOutput>>();
+    mockRunPass2 = jest.fn<(opts: RunPass2Options) => Promise<SinglePassOutput>>();
+    mockRunPass3 = jest.fn<(opts: RunPass3Options) => Promise<SynthesisOutput>>();
+
+    mockRunPass1.mockResolvedValue(makeSinglePassOutput(1));
+    mockRunPass2.mockResolvedValue(makeSinglePassOutput(2));
+    mockRunPass3.mockResolvedValue(makeSynthesisOutput());
+  });
+
+  it("includes cross_check in ok=true result when perplexityApiKey is provided (short-form)", async () => {
+    // Pass 4 fires on all manuscripts when perplexityApiKey is present.
+    // Use global.fetch mock so no actual HTTP call is made.
+    const originalFetch = global.fetch;
+    global.fetch = jest.fn<typeof fetch>().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        choices: [
+          {
+            finish_reason: "stop",
+            message: {
+              content: JSON.stringify({
+                criteria: Object.fromEntries(
+                  ([...CRITERIA_KEYS] as CriterionKey[]).map((k) => [
+                    k,
+                    {
+                      score: 7,
+                      rationale: `Adjudicated ${k}.`,
+                      evidence: [{ quote: "test quote", explanation: "test exp" }],
+                      detectedSignals: [`${k}_signal`],
+                      scoringBand: "7-8",
+                      doctrineTrace: ["artifact-based"],
+                    },
+                  ])
+                ),
+                synthesis_note: "Adjudication complete across 13 criteria.",
+              }),
+            },
+          },
+        ],
+      }),
+      text: async () => "",
+    } as Response);
+
+    try {
+      const result = await runPipeline({
+        manuscriptText: "The river moved slowly through the valley. She watched from the bank.",
+        workType: "literary_fiction",
+        title: "The Valley",
+        openaiApiKey: "sk-test",
+        perplexityApiKey: "pplx-test",
+        _lessonsLearned: permissiveLessonsLearned,
+        _runners: {
+          runPass1: mockRunPass1,
+          runPass2: mockRunPass2,
+          runPass3Synthesis: mockRunPass3,
+        },
+      });
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        // cross_check populated from Perplexity adjudication
+        expect(result.cross_check).toBeDefined();
+        expect(result.cross_check?.model).toBe("sonar-reasoning-pro");
+        expect(result.cross_check?.overallAgreement).toBeDefined();
+        expect(result.cross_check?.criteria).toBeDefined();
+        // All 13 criteria must be adjudicated
+        const crossCheckedKeys = Object.keys(result.cross_check?.criteria ?? {});
+        expect(crossCheckedKeys).toHaveLength(13);
+      }
+    } finally {
+      global.fetch = originalFetch;
+    }
+  });
+
+  // Post-decoupling: Pass 3b is removed from the main pipeline. This test verifies
+  // that Pass 4 (Perplexity cross-check) still fires correctly for LONG_FORM manuscripts
+  // and that longform_document is absent from the pipeline result (lives in evaluation_artifacts).
+  it("cross_check present for LONG_FORM route with perplexityApiKey (Pass 3b decoupled to DREAM worker)", async () => {
+    const originalFetch = global.fetch;
+    global.fetch = jest.fn<typeof fetch>().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        choices: [
+          {
+            finish_reason: "stop",
+            message: {
+              content: JSON.stringify({
+                criteria: Object.fromEntries(
+                  ([...CRITERIA_KEYS] as CriterionKey[]).map((k) => [
+                    k,
+                    {
+                      score: 7,
+                      rationale: `DREAM-adjudicated ${k} for long-form manuscript.`,
+                      evidence: [{ quote: "Long-form evidence.", explanation: "Supporting adjudication." }],
+                      detectedSignals: [`${k}_longform_signal`],
+                      scoringBand: "7-8",
+                      doctrineTrace: ["artifact-based", "no-author-intent"],
+                    },
+                  ])
+                ),
+                synthesis_note: "Long-form DREAM adjudication confirms structural integrity across 13 criteria.",
+              }),
+            },
+          },
+        ],
+      }),
+      text: async () => "",
+    } as Response);
+
+    const mockChunks: ManuscriptChunkEvidence[] = Array.from({ length: 10 }, (_, i) => ({
+      chunk_index: i,
+      content: `Chapter ${i + 1} content. The river moved through the valley in the ${["early", "late", "middle", "morning", "night"][i % 5]} light.`,
+      word_count: 200,
+      chunk_id: `chunk-dream-${i}`,
+    }));
+
+    // Pass 3b injected but must NOT be called (decoupled to DREAM worker)
+    const mockRunPass3bLongform = jest.fn<() => Promise<LongformDreamDocument>>();
+
+    try {
+      const result = await runPipeline({
+        manuscriptText: "a ".repeat(25_001),
+        workType: "literary_fiction",
+        title: "Cartel Babies",
+        openaiApiKey: "sk-test",
+        perplexityApiKey: "pplx-test",
+        manuscriptChunks: mockChunks,
+        _lessonsLearned: permissiveLessonsLearned,
+        _runners: {
+          runPass1: mockRunPass1,
+          runPass2: mockRunPass2,
+          runPass3Synthesis: mockRunPass3,
+          runPass3bLongform: mockRunPass3bLongform,
+        },
+      });
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        // Pass 4 — Perplexity cross-check must be present
+        expect(result.cross_check).toBeDefined();
+        expect(result.cross_check?.model).toBe("sonar-reasoning-pro");
+        expect(Object.keys(result.cross_check?.criteria ?? {})).toHaveLength(13);
+
+        // Main pipeline output must be complete
+        expect(result.quality_gate.pass).toBe(true);
+        expect(result.synthesis.criteria).toHaveLength(13);
+
+        // Pass 3b is decoupled — longform_document NOT in pipeline result
+        expect((result as Record<string, unknown>).longform_document).toBeUndefined();
+      }
+
+      // Pass 3b must never be called from the main pipeline
+      expect(mockRunPass3bLongform).not.toHaveBeenCalled();
+    } finally {
+      global.fetch = originalFetch;
+    }
+  });
+
+  it("remains ok=true when Pass 4 Perplexity network fails on LONG_FORM route (fail-soft)", async () => {
+    // Perplexity network failure must NOT block the main evaluation.
+    // Pass 3b is now decoupled to the DREAM worker — never runs here.
+    const originalFetch = global.fetch;
+    global.fetch = jest.fn<typeof fetch>().mockRejectedValue(
+      new Error("Network error: ECONNREFUSED")
+    );
+
+    const mockChunks: ManuscriptChunkEvidence[] = Array.from({ length: 5 }, (_, i) => ({
+      chunk_index: i,
+      content: `Chunk ${i} long-form content for Perplexity fail-soft test.`,
+      word_count: 200,
+      chunk_id: `chunk-pplx-fail-${i}`,
+    }));
+
+    // Pass 3b runner injected but must NOT be called
+    const mockRunPass3bLongform = jest.fn<() => Promise<LongformDreamDocument>>();
+
+    try {
+      const result = await runPipeline({
+        manuscriptText: "a ".repeat(25_001),
+        workType: "literary_fiction",
+        title: "Froggin Noggin",
+        openaiApiKey: "sk-test",
+        perplexityApiKey: "pplx-test",
+        manuscriptChunks: mockChunks,
+        _lessonsLearned: permissiveLessonsLearned,
+        _runners: {
+          runPass1: mockRunPass1,
+          runPass2: mockRunPass2,
+          runPass3Synthesis: mockRunPass3,
+          runPass3bLongform: mockRunPass3bLongform,
+        },
+      });
+
+      // Main job must succeed even when Perplexity is unavailable
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.synthesis.criteria).toHaveLength(13);
+        expect(result.quality_gate.pass).toBe(true);
+        // longform_document absent — decoupled to DREAM worker
+        expect((result as Record<string, unknown>).longform_document).toBeUndefined();
+        // Pass 4 cross_check absent when Perplexity fails
+        expect(result.cross_check).toBeUndefined();
+      }
+
+      // Pass 3b must not be called from the main pipeline
+      expect(mockRunPass3bLongform).not.toHaveBeenCalled();
+    } finally {
+      global.fetch = originalFetch;
+    }
+  });
+
+  it("external_adjudication status is correctly set for optional mode without API key", async () => {
+    // When no perplexityApiKey is provided and mode is 'optional',
+    // external_adjudication.status must be 'no_api_key' and the pipeline must succeed.
+    const result = await runPipeline({
+      manuscriptText: "The river moved slowly through the valley. She watched from the bank.",
+      workType: "literary_fiction",
+      title: "The Valley",
+      openaiApiKey: "sk-test",
+      // No perplexityApiKey — optional mode default
+      _lessonsLearned: permissiveLessonsLearned,
+      _runners: {
+        runPass1: mockRunPass1,
+        runPass2: mockRunPass2,
+        runPass3Synthesis: mockRunPass3,
+      },
+    });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.cross_check).toBeUndefined();
+      // external_adjudication must be present and reflect no-key status
+      expect(result.external_adjudication).toBeDefined();
+      expect(result.external_adjudication?.status).toBe("skipped");
+      if (result.external_adjudication?.status === "skipped") {
+        expect(result.external_adjudication.reason).toBe("no_api_key");
+      }
+    }
   });
 });

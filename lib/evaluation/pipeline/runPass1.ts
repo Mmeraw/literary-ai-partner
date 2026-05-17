@@ -29,6 +29,7 @@ import {
   ChunkCountExceedsCapError,
   ChunkRoutingNotEngagedError,
 } from "./failures";
+import { annotateWeakCriteria, getPass1WeakCriteriaThreshold } from "./weakCriteriaCheck";
 const PASS1_TEMPERATURE = 0.3;
 
 // Mirror of processor.ts STRUCTURAL_CHUNKING_THRESHOLD_WORDS. Kept duplicated
@@ -286,18 +287,18 @@ function aggregateChunkResults(results: SinglePassOutput[]): SinglePassOutput {
 
   // Build aggregated criteria
   const aggregatedCriteria: AxisCriterionResult[] = [];
-  
+
   for (const key of CRITERIA_KEYS) {
     const criteriaForKey = results
       .flatMap((r) => r.criteria)
       .filter((c) => c.key === key);
-    
+
     if (criteriaForKey.length === 0) continue;
 
     // Merge evidence from all chunks
     const mergedEvidence: EvidenceAnchor[] = [];
     const seenSnippets = new Set<string>();
-    
+
     for (const crit of criteriaForKey) {
       for (const ev of crit.evidence) {
         const snippetKey = ev.snippet?.trim() || "";
@@ -308,9 +309,26 @@ function aggregateChunkResults(results: SinglePassOutput[]): SinglePassOutput {
       }
     }
 
-    // Average scores
+    // PR-D: Average only over chunks with a valid score in canonical range [1,10].
+    // Chunks with a missing or invalid score (parser produced null) do not vote.
+    const validScoreEntries = criteriaForKey.filter(
+      (c) => typeof c.score_0_10 === "number" && c.score_0_10 >= 1 && c.score_0_10 <= 10
+    );
+
+    if (validScoreEntries.length === 0) {
+      throw new Error(
+        `PASS1_CHUNK_AGGREGATE_SCORE_MISSING ${JSON.stringify({
+          code: "PASS1_CHUNK_AGGREGATE_SCORE_MISSING",
+          criterion: key,
+          chunks_total: criteriaForKey.length,
+          valid_score_chunks: 0,
+          invalid_score_chunks: criteriaForKey.length,
+        })}`
+      );
+    }
+
     const avgScore = Math.round(
-      criteriaForKey.reduce((sum, c) => sum + c.score_0_10, 0) / criteriaForKey.length
+      validScoreEntries.reduce((sum, c) => sum + c.score_0_10, 0) / validScoreEntries.length
     );
 
     // Merge rationales (use first, they should be similar since from same criterion across chunks)
@@ -318,7 +336,8 @@ function aggregateChunkResults(results: SinglePassOutput[]): SinglePassOutput {
 
     aggregatedCriteria.push({
       key,
-      score_0_10: Math.min(10, Math.max(0, avgScore)),
+      // PR-D: canonical floor is 1, never 0
+      score_0_10: Math.min(10, Math.max(1, avgScore)),
       rationale: firstRationale,
       evidence: mergedEvidence.slice(0, PASS1_LIMITS.maxEvidencePerCriterion),
       recommendations: [],
@@ -342,6 +361,8 @@ export interface RunPass1Options {
   scopeProfile?: SubmissionScopeProfile;
   manuscriptText: string;
   manuscriptChunks?: ManuscriptChunkEvidence[];
+  /** Marks an already-materialized chunk in chunk-native execution. */
+  isChunkUnit?: boolean;
   workType: string;
   title: string;
   executionMode?: "TRUSTED_PATH" | "STUDIO";
@@ -424,6 +445,7 @@ export async function runPass1(opts: RunPass1Options): Promise<SinglePassOutput>
               ...opts,
               manuscriptText: chunk.content,
               manuscriptChunks: undefined, // Prevent recursive chunking
+              isChunkUnit: true,
               _onCompletion: (capture) => {
                 if (capture.pass === 1) {
                   usagePromptTokensTotal += capture.usage?.prompt_tokens ?? 0;
@@ -510,9 +532,19 @@ export async function runPass1(opts: RunPass1Options): Promise<SinglePassOutput>
     }
 
     const aggregated = aggregateChunkResults(chunkResults);
-    console.log(`[Pass1] Chunk aggregation complete: ${aggregated.criteria.length} criteria`);
+    const weakThreshold = getPass1WeakCriteriaThreshold();
+    const weakAnnotated = annotateWeakCriteria(aggregated, weakThreshold);
+
+    if (weakAnnotated.weakKeys.length > 0) {
+      console.warn("[Pass1] weak_criteria_flagged", {
+        threshold: weakThreshold,
+        weak_keys: weakAnnotated.weakKeys,
+      });
+    }
+
+    console.log(`[Pass1] Chunk aggregation complete: ${weakAnnotated.output.criteria.length} criteria`);
     return {
-      ...aggregated,
+      ...weakAnnotated.output,
       coverage_summary: {
         route: "chunk_map_reduce",
         fully_evaluated:
@@ -536,7 +568,7 @@ export async function runPass1(opts: RunPass1Options): Promise<SinglePassOutput>
   // route here — this tautological safety net catches any caller that
   // somehow bypasses the upstream check.
   const pass1WordCount = countWords(opts.manuscriptText);
-  if (pass1WordCount >= STRUCTURAL_CHUNKING_THRESHOLD_WORDS) {
+  if (!opts.isChunkUnit && pass1WordCount >= STRUCTURAL_CHUNKING_THRESHOLD_WORDS) {
     throw new ChunkRoutingNotEngagedError(
       `Pass 1 received ${pass1WordCount} words (≥ ${STRUCTURAL_CHUNKING_THRESHOLD_WORDS}) with ` +
       `no chunks; direct_window fallback would silently timeout. Refusing to dispatch.`,
@@ -775,10 +807,20 @@ export async function runPass1(opts: RunPass1Options): Promise<SinglePassOutput>
     },
   });
 
+  const weakThreshold = getPass1WeakCriteriaThreshold();
+  const weakAnnotated = annotateWeakCriteria(parsedOutput, weakThreshold);
+
+  if (weakAnnotated.weakKeys.length > 0) {
+    console.warn("[Pass1] weak_criteria_flagged", {
+      threshold: weakThreshold,
+      weak_keys: weakAnnotated.weakKeys,
+    });
+  }
+
   const promptCoverage = summarizePromptCoverage(opts.manuscriptText);
 
   return {
-    ...parsedOutput,
+    ...weakAnnotated.output,
     coverage_summary: {
       route: "direct_window",
       fully_evaluated: !promptCoverage.truncated,
@@ -859,12 +901,19 @@ export function parsePass1Response(raw: string, fallbackModel: string = PASS1_DE
         })
       : [];
 
+    // PR-D: Reject missing/non-finite/out-of-range scores instead of silently coercing to 0.
+    // Canon range is [1,10]; an invalid score yields null so the aggregator can exclude it.
     const rawScore = c["score_0_10"];
-    const score = Number.isFinite(Number(rawScore)) ? Math.round(Number(rawScore)) : 0;
+    const parsedScore = Number(rawScore);
+    const score: number | null =
+      Number.isFinite(parsedScore) && Math.round(parsedScore) >= 1 && Math.round(parsedScore) <= 10
+        ? Math.round(parsedScore)
+        : null;
 
     criteria.push({
       key: key as AxisCriterionResult["key"],
-      score_0_10: Math.min(10, Math.max(0, score)),
+      // null sentinel for invalid scores; downstream aggregator filters these out
+      score_0_10: (score as unknown) as number,
       rationale: truncateText(c["rationale"], PASS1_LIMITS.maxRationaleChars),
       evidence,
       recommendations: [],
@@ -875,7 +924,11 @@ export function parsePass1Response(raw: string, fallbackModel: string = PASS1_DE
     pass: 1,
     axis: "craft_execution",
     criteria,
-    model: String(obj["model"] ?? fallbackModel),
+    // PR-I (2026-05-16): Provenance must reflect the model that actually executed.
+    // The LLM has no reliable knowledge of its own deployment identifier and frequently
+    // emits stale literals (commonly "gpt-4.1") that contaminate downstream report stamps.
+    // Always trust the resolver-determined fallback. Do NOT consult obj["model"].
+    model: String(fallbackModel),
     prompt_version: PASS1_PROMPT_VERSION,
     temperature: PASS1_TEMPERATURE,
     generated_at: new Date().toISOString(),

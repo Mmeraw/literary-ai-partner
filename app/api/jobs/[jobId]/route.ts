@@ -11,23 +11,60 @@ type Params = Promise<{ jobId: string }>;
  * Canonical job status endpoint (per JOBCONTRACT_v1).
  *
  * Response (success):
- *   { ok: true, job: { id, status, progress, created_at, updated_at, last_error?, failure_code? } }
+ *   { ok: true, job: { id, status, progress, created_at, updated_at,
+ *                       phase?, phase_status?, last_error?, failure_code? } }
  *
  * Response (failure):
  *   { ok: false, error: string } with status 401|404|500
  *
  * Status values: "queued" | "running" | "complete" | "failed" (LOCKED)
  * Progress: percentage 0-100
+ * phase / phase_status: canonical pipeline-stage signal, sourced from
+ *   job.progress.{phase, phase_status}. Additive and may be null when the
+ *   worker has not yet emitted a canonical phase. Consumers MUST treat
+ *   both as optional.
  * last_error: present only when status === "failed"
  * failure_code: present only when status === "failed" and a code is available
  */
+type CanonicalPhase = "phase_0" | "phase_1" | "phase_2";
+type CanonicalPhaseStatus = "queued" | "running" | "complete" | "failed";
+type CrossCheckStatus =
+  | "queued"
+  | "running"
+  | "complete"
+  | "failed"
+  | "failed_soft"
+  | "failed_blocking"
+  | "cross_check_completed"
+  | "skipped";
+
 type CanonicalJobResponse = {
   id: string;
   user_id: string;
   status: "queued" | "running" | "complete" | "failed";
-  progress: number; // 0-100
+  progress: number; // 0-100 (legacy unit-counter shape; kept for backward compat)
   created_at: string;
   updated_at: string;
+  phase?: CanonicalPhase | null;
+  phase_status?: CanonicalPhaseStatus | null;
+  /**
+   * Additive: cross-check / Pass 4 status surfaced from progress so the
+   * truthful progress bar can advance into "Final QA checks" and
+   * "Preparing report" stages without relying on inference.
+   */
+  cross_check_status?: CrossCheckStatus | null;
+  /**
+   * Additive: per-stage timestamps used by the client to compute truthful,
+   * stage-weighted progress percentages. All fields are optional ISO strings.
+   * Older jobs that pre-date a given stage timestamp simply omit it; the
+   * client falls back to indeterminate display for that stage.
+   */
+  phase1_started_at?: string | null;
+  phase1_completed_at?: string | null;
+  phase2_started_at?: string | null;
+  phase2_completed_at?: string | null;
+  pass3_started_at?: string | null;
+  pass3_completed_at?: string | null;
   last_error?: string;
   failure_code?: string;
 };
@@ -111,12 +148,51 @@ export async function GET(req: NextRequest, ctx: { params: Params }) {
       },
     };
 
-    // 6) Include last_error only on failure
+    // 6) Surface canonical phase signal additively when present.
+    // Sourced from job.progress (JOB_CONTRACT_v1). Both fields are optional in
+    // the response so existing consumers that ignore them continue to work.
+    const canonicalPhase = extractCanonicalPhase(job);
+    if (canonicalPhase.phase !== undefined) {
+      response.job.phase = canonicalPhase.phase;
+    }
+    if (canonicalPhase.phase_status !== undefined) {
+      response.job.phase_status = canonicalPhase.phase_status;
+    }
+
+    // 6b) Surface cross-check status and per-stage timestamps additively so
+    //     the client can render the truthful, stage-weighted progress bar.
+    //     All fields are optional and validated. Missing/invalid values are
+    //     omitted rather than defaulted, so consumers that ignore them stay
+    //     unaffected.
+    const stageTiming = extractStageTiming(job);
+    if (stageTiming.cross_check_status !== undefined) {
+      response.job.cross_check_status = stageTiming.cross_check_status;
+    }
+    if (stageTiming.phase1_started_at !== undefined) {
+      response.job.phase1_started_at = stageTiming.phase1_started_at;
+    }
+    if (stageTiming.phase1_completed_at !== undefined) {
+      response.job.phase1_completed_at = stageTiming.phase1_completed_at;
+    }
+    if (stageTiming.phase2_started_at !== undefined) {
+      response.job.phase2_started_at = stageTiming.phase2_started_at;
+    }
+    if (stageTiming.phase2_completed_at !== undefined) {
+      response.job.phase2_completed_at = stageTiming.phase2_completed_at;
+    }
+    if (stageTiming.pass3_started_at !== undefined) {
+      response.job.pass3_started_at = stageTiming.pass3_started_at;
+    }
+    if (stageTiming.pass3_completed_at !== undefined) {
+      response.job.pass3_completed_at = stageTiming.pass3_completed_at;
+    }
+
+    // 7) Include last_error only on failure
     if (job.status === "failed" && job.last_error) {
       response.job.last_error = job.last_error;
     }
 
-    // 7) Include failure_code only on failure when available
+    // 8) Include failure_code only on failure when available
     if (job.status === "failed" && job.failure_code) {
       response.job.failure_code = job.failure_code;
     }
@@ -151,4 +227,123 @@ function calculateProgressPercentage(job: Job): number {
   }
 
   return 0;
+}
+
+/**
+ * Extract the canonical pipeline-stage signal (phase, phase_status) from the
+ * job's progress payload without widening the response contract.
+ *
+ * Validates values against the canonical enums and returns `null` for missing
+ * or non-canonical inputs so the UI never surfaces stale or invented stages.
+ * Returns `undefined` for a field when the payload has nothing to say, so the
+ * caller can omit the key entirely from the response.
+ */
+const CANONICAL_PHASES: ReadonlyArray<CanonicalPhase> = [
+  "phase_0",
+  "phase_1",
+  "phase_2",
+];
+const CANONICAL_PHASE_STATUSES: ReadonlyArray<CanonicalPhaseStatus> = [
+  "queued",
+  "running",
+  "complete",
+  "failed",
+];
+
+function extractCanonicalPhase(job: Job): {
+  phase?: CanonicalPhase | null;
+  phase_status?: CanonicalPhaseStatus | null;
+} {
+  if (!job.progress) return {};
+
+  const rawPhase = (job.progress as { phase?: unknown }).phase;
+  const rawPhaseStatus = (job.progress as { phase_status?: unknown }).phase_status;
+
+  let phase: CanonicalPhase | null | undefined;
+  if (typeof rawPhase === "string" && (CANONICAL_PHASES as readonly string[]).includes(rawPhase)) {
+    phase = rawPhase as CanonicalPhase;
+  } else if (rawPhase === null) {
+    phase = null;
+  } else {
+    phase = undefined;
+  }
+
+  let phase_status: CanonicalPhaseStatus | null | undefined;
+  if (
+    typeof rawPhaseStatus === "string" &&
+    (CANONICAL_PHASE_STATUSES as readonly string[]).includes(rawPhaseStatus)
+  ) {
+    phase_status = rawPhaseStatus as CanonicalPhaseStatus;
+  } else if (rawPhaseStatus === null) {
+    phase_status = null;
+  } else {
+    phase_status = undefined;
+  }
+
+  return { phase, phase_status };
+}
+
+/**
+ * Extract cross-check status + per-stage timestamps from job.progress without
+ * widening the response contract beyond what CanonicalJobResponse documents.
+ *
+ * Each field is validated independently:
+ *   - cross_check_status must be one of the canonical enum values
+ *   - timestamps must be strings (clients parse them as ISO; non-strings rejected)
+ *   - missing keys return `undefined` so the GET handler omits them entirely
+ *   - explicit `null` is preserved so a "known absent" signal stays distinct
+ *     from "never written"
+ */
+const CROSS_CHECK_STATUSES: ReadonlyArray<CrossCheckStatus> = [
+  "queued",
+  "running",
+  "complete",
+  "failed",
+  "failed_soft",
+  "failed_blocking",
+  "cross_check_completed",
+  "skipped",
+];
+
+function pickTimestamp(raw: unknown): string | null | undefined {
+  if (raw === null) return null;
+  if (typeof raw === "string" && raw.length > 0) return raw;
+  return undefined;
+}
+
+function extractStageTiming(job: Job): {
+  cross_check_status?: CrossCheckStatus | null;
+  phase1_started_at?: string | null;
+  phase1_completed_at?: string | null;
+  phase2_started_at?: string | null;
+  phase2_completed_at?: string | null;
+  pass3_started_at?: string | null;
+  pass3_completed_at?: string | null;
+} {
+  if (!job.progress) return {};
+
+  const p = job.progress as Record<string, unknown>;
+
+  let cross_check_status: CrossCheckStatus | null | undefined;
+  const rawCc = p.cross_check_status;
+  if (
+    typeof rawCc === "string" &&
+    (CROSS_CHECK_STATUSES as readonly string[]).includes(rawCc)
+  ) {
+    cross_check_status = rawCc as CrossCheckStatus;
+  } else if (rawCc === null) {
+    cross_check_status = null;
+  } else {
+    cross_check_status = undefined;
+  }
+
+  return {
+    cross_check_status,
+    phase1_started_at: pickTimestamp(p.phase1_started_at),
+    phase1_completed_at: pickTimestamp(p.phase1_completed_at),
+    phase2_started_at: pickTimestamp(p.phase2_started_at),
+    phase2_completed_at: pickTimestamp(p.phase2_completed_at),
+    pass3_started_at: pickTimestamp(p.pass3_started_at),
+    pass3_completed_at: pickTimestamp(p.pass3_completed_at),
+  };
 }

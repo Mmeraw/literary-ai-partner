@@ -274,9 +274,25 @@ function aggregateChunkResults(results: SinglePassOutput[]): SinglePassOutput {
       if (mergedEvidence.length >= 2) break;
     }
 
-    // Average scores
+    // PR-D: Average only over chunks with a valid score in canonical range [1,10].
+    const validScoreEntries = criteriaForKey.filter(
+      (c) => typeof c.score_0_10 === "number" && c.score_0_10 >= 1 && c.score_0_10 <= 10
+    );
+
+    if (validScoreEntries.length === 0) {
+      throw new Error(
+        `PASS2_CHUNK_AGGREGATE_SCORE_MISSING ${JSON.stringify({
+          code: "PASS2_CHUNK_AGGREGATE_SCORE_MISSING",
+          criterion: key,
+          chunks_total: criteriaForKey.length,
+          valid_score_chunks: 0,
+          invalid_score_chunks: criteriaForKey.length,
+        })}`
+      );
+    }
+
     const avgScore = Math.round(
-      criteriaForKey.reduce((sum, c) => sum + c.score_0_10, 0) / criteriaForKey.length
+      validScoreEntries.reduce((sum, c) => sum + c.score_0_10, 0) / validScoreEntries.length
     );
 
     // Merge rationales (use first)
@@ -284,7 +300,8 @@ function aggregateChunkResults(results: SinglePassOutput[]): SinglePassOutput {
 
     aggregatedCriteria.push({
       key,
-      score_0_10: Math.min(10, Math.max(0, avgScore)),
+      // PR-D: canonical floor is 1, never 0
+      score_0_10: Math.min(10, Math.max(1, avgScore)),
       rationale: firstRationale,
       evidence: mergedEvidence,
       recommendations: [],
@@ -312,6 +329,8 @@ export interface RunPass2Options {
    */
   manuscriptText: string;
   manuscriptChunks?: ManuscriptChunkEvidence[];
+  /** Marks an already-materialized chunk in chunk-native execution. */
+  isChunkUnit?: boolean;
   workType: string;
   title: string;
   executionMode?: "TRUSTED_PATH" | "STUDIO";
@@ -400,6 +419,7 @@ export async function runPass2(opts: RunPass2Options): Promise<SinglePassOutput>
               ...opts,
               manuscriptText: chunk.content,
               manuscriptChunks: undefined, // Prevent recursive chunking
+              isChunkUnit: true,
               _onCompletion: (capture) => {
                 if (capture.pass === 2) {
                   usagePromptTokensTotal += capture.usage?.prompt_tokens ?? 0;
@@ -512,7 +532,7 @@ export async function runPass2(opts: RunPass2Options): Promise<SinglePassOutput>
   // route here — this tautological safety net catches any caller that
   // somehow bypasses the upstream check.
   const pass2WordCount = countWords(opts.manuscriptText);
-  if (pass2WordCount >= STRUCTURAL_CHUNKING_THRESHOLD_WORDS) {
+  if (!opts.isChunkUnit && pass2WordCount >= STRUCTURAL_CHUNKING_THRESHOLD_WORDS) {
     throw new ChunkRoutingNotEngagedError(
       `Pass 2 received ${pass2WordCount} words (≥ ${STRUCTURAL_CHUNKING_THRESHOLD_WORDS}) with ` +
       `no chunks; direct_window fallback would silently timeout. Refusing to dispatch.`,
@@ -837,20 +857,29 @@ export function parsePass2Response(raw: string, fallbackModel?: string): SingleP
         })
       : [];
 
+    // PR-D: Reject missing/non-finite/out-of-range scores instead of silently coercing to 0.
     const rawScore = c["score_0_10"];
-    const score = Number.isFinite(Number(rawScore)) ? Math.round(Number(rawScore)) : 0;
+    const parsedScore = Number(rawScore);
+    const score: number | null =
+      Number.isFinite(parsedScore) && Math.round(parsedScore) >= 1 && Math.round(parsedScore) <= 10
+        ? Math.round(parsedScore)
+        : null;
     const rationale = String(c["rationale"] ?? "");
 
     const reasonCodes: string[] = [];
-    let boundedScore = Math.min(10, Math.max(0, score));
-    if (!hasTextualAnchor(rationale, evidence)) {
+    // PR-D: preserve null sentinel; canonical floor is 1
+    let boundedScore: number | null =
+      score === null ? null : Math.min(10, Math.max(1, score));
+    if (boundedScore !== null && !hasTextualAnchor(rationale, evidence)) {
       reasonCodes.push("NO_TEXTUAL_ANCHOR");
-      boundedScore = Math.min(boundedScore, 5);
+      // Cap at 5 but never below 1
+      boundedScore = Math.max(1, Math.min(boundedScore, 5));
     }
 
     criteria.push({
       key: key as AxisCriterionResult["key"],
-      score_0_10: boundedScore,
+      // null sentinel for invalid scores; downstream aggregator filters these out
+      score_0_10: (boundedScore as unknown) as number,
       reason_codes: reasonCodes.length > 0 ? reasonCodes : undefined,
       rationale,
       evidence,
@@ -862,7 +891,11 @@ export function parsePass2Response(raw: string, fallbackModel?: string): SingleP
     pass: 2,
     axis: "editorial_literary",
     criteria,
-    model: String(obj["model"] ?? resolvedFallback),
+    // PR-I (2026-05-16): Provenance must reflect the model that actually executed.
+    // The LLM has no reliable knowledge of its own deployment identifier and frequently
+    // emits stale literals (commonly "gpt-4.1") that contaminate downstream report stamps.
+    // Always trust the resolver-determined fallback. Do NOT consult obj["model"].
+    model: String(resolvedFallback),
     prompt_version: PASS2_PROMPT_VERSION,
     temperature: PASS2_TEMPERATURE,
     generated_at: new Date().toISOString(),

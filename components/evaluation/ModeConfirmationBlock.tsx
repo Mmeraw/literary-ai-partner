@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import type { DetectedMode, EvaluationMode, VoicePreservationMode } from "@/lib/evaluation/modeDetection";
 import type { ConfirmedMode } from "@/lib/evaluation/modeGate";
 
@@ -15,30 +15,34 @@ export default function ModeConfirmationBlock({ jobId, detectedMode, confirmedMo
   const [error, setError] = useState<string | null>(null);
 
   const [evaluationMode, setEvaluationMode] = useState<EvaluationMode>(
-    confirmedMode?.evaluationMode ?? detectedMode.proposedEvaluationMode,
+    confirmedMode?.evaluationMode ?? "STANDARD",
   );
   const [voicePreservationMode, setVoicePreservationMode] = useState<VoicePreservationMode>(
-    confirmedMode?.voicePreservationMode ?? detectedMode.proposedVoicePreservationMode,
+    confirmedMode?.voicePreservationMode ?? "BALANCED",
   );
 
   const isConfirmed = confirmedMode !== null;
 
-  const sortedEvidence = useMemo(() => detectedMode.evidence.slice(0, 5), [detectedMode.evidence]);
-
-  async function submit(action: "keep" | "replace" | "refine") {
+  async function submit() {
     setBusy(true);
     setError(null);
 
     try {
+      const requestedMode = {
+        evaluationMode,
+        voicePreservationMode,
+      };
+      const matchesDetectedProposal =
+        requestedMode.evaluationMode === detectedMode.proposedEvaluationMode &&
+        requestedMode.voicePreservationMode === detectedMode.proposedVoicePreservationMode;
+      const action: "keep" | "replace" = matchesDetectedProposal ? "keep" : "replace";
+
       const payload =
         action === "keep"
           ? { action }
           : {
               action,
-              confirmedMode: {
-                evaluationMode,
-                voicePreservationMode,
-              },
+              confirmedMode: requestedMode,
             };
 
       const res = await fetch(`/api/evaluations/${jobId}/mode`, {
@@ -78,17 +82,30 @@ export default function ModeConfirmationBlock({ jobId, detectedMode, confirmedMo
       </div>
 
       <p className="mt-2 text-sm text-gray-700">
-        Proposed: <span className="font-semibold">{detectedMode.proposedEvaluationMode}</span> ·{" "}
-        <span className="font-semibold">{detectedMode.proposedVoicePreservationMode}</span>
+        {/*
+          PR-J (2026-05-16): TESTIMONY mode was previously surfaced as a confident
+          "Proposed: TESTIMONY · MAXIMUM" which over-stated the system's certainty
+          and risked appearing to label real lived events. TESTIMONY/STANDARD/
+          TRANSGRESSIVE detection runs on textual markers alone and cannot, by
+          design, distinguish a memoir from a novel that mimics one. The softer
+          "Possible … — confirmation required" wording communicates that this is
+          a triage hint pending author confirmation, not a classification.
+        */}
+        {detectedMode.proposedEvaluationMode === "TESTIMONY" ? (
+          <>
+            Possible testimony / sensitive-material content — confirmation required.{" "}
+            <span className="text-gray-600">
+              Suggested voice preservation:{" "}
+              <span className="font-semibold">{detectedMode.proposedVoicePreservationMode}</span>.
+            </span>
+          </>
+        ) : (
+          <>
+            Proposed: <span className="font-semibold">{detectedMode.proposedEvaluationMode}</span> ·{" "}
+            <span className="font-semibold">{detectedMode.proposedVoicePreservationMode}</span>
+          </>
+        )}
       </p>
-
-      <ul className="mt-3 list-disc pl-5 text-sm text-gray-700 space-y-1">
-        {sortedEvidence.map((item, idx) => (
-          <li key={`${item.signal}-${idx}`}>
-            {item.signal} <span className="text-gray-500">({item.where})</span>
-          </li>
-        ))}
-      </ul>
 
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
         <label className="text-sm">
@@ -120,30 +137,16 @@ export default function ModeConfirmationBlock({ jobId, detectedMode, confirmedMo
         </label>
       </div>
 
+      <p className="mt-2 text-xs text-gray-500">You can change your selection at any time — confirming does not re-run your evaluation.</p>
+
       <div className="mt-4 flex flex-wrap gap-2">
         <button
           type="button"
-          onClick={() => void submit("keep")}
-          disabled={busy}
-          className="rounded-md bg-emerald-600 px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
-        >
-          Keep
-        </button>
-        <button
-          type="button"
-          onClick={() => void submit("replace")}
-          disabled={busy}
-          className="rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
-        >
-          Replace
-        </button>
-        <button
-          type="button"
-          onClick={() => void submit("refine")}
+          onClick={() => void submit()}
           disabled={busy}
           className="rounded-md bg-indigo-600 px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
         >
-          Refine
+          {isConfirmed ? "Save Mode" : "Confirm Mode"}
         </button>
       </div>
 

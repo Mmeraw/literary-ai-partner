@@ -83,6 +83,13 @@ describe("POST /api/evaluate input contract", () => {
 
     const supabase = {
       from: jest.fn(() => ({
+        select: jest.fn(() => ({
+          eq: jest.fn(() => ({
+            eq: jest.fn(() => ({
+              maybeSingle: async () => ({ data: null, error: null }),
+            })),
+          })),
+        })),
         insert: insertMock,
       })),
     };
@@ -111,6 +118,136 @@ describe("POST /api/evaluate input contract", () => {
 
     expect(supabase.from).toHaveBeenCalledWith("manuscripts");
     expect(supabase.from).toHaveBeenCalledWith("evaluation_jobs");
+  });
+
+  test("derives a meaningful manuscript title when none is provided", async () => {
+    const insertMock = jest
+      .fn()
+      .mockImplementationOnce(() => ({
+        select: () => ({
+          single: async () => ({ data: { id: 246 }, error: null }),
+        }),
+      }))
+      .mockImplementationOnce(() => ({
+        select: () => ({
+          single: async () => ({
+            data: {
+              id: "job-derived-title",
+              status: "queued",
+              phase: "phase_1",
+              phase_1_status: null,
+              policy_family: "standard",
+              voice_preservation_level: "balanced",
+              english_variant: "us",
+            },
+            error: null,
+          }),
+        }),
+      }));
+
+    const maybeSingleMock = async () => ({ data: null, error: null });
+    const eqFileUrlMock = jest.fn(() => ({ maybeSingle: maybeSingleMock }));
+    const eqUserMock = jest.fn(() => ({ eq: eqFileUrlMock }));
+
+    const supabase = {
+      from: jest.fn(() => ({
+        insert: insertMock,
+        select: jest.fn(() => ({
+          eq: eqUserMock,
+        })),
+      })),
+    };
+
+    mockCreateAdminClient.mockReturnValue(supabase as never);
+
+    const req = new Request("https://localhost:3000/api/evaluate", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        manuscript_text: "First line of the story\nSecond line continues",
+        manuscript_title: "Untitled Manuscript",
+      }),
+    });
+
+    const response = await POST(req);
+
+    expect(response.status).toBe(200);
+    expect(insertMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: "First line of the story",
+      }),
+    );
+  });
+
+  test("creates a fresh manuscript row on repeated text submissions", async () => {
+    const insertMock = jest
+      .fn()
+      .mockImplementationOnce(() => ({
+        select: () => ({
+          single: async () => ({ data: { id: 701 }, error: null }),
+        }),
+      }))
+      .mockImplementationOnce(() => ({
+        select: () => ({
+          single: async () => ({
+            data: {
+              id: "job-first",
+              status: "queued",
+              phase: "phase_1",
+              phase_1_status: null,
+              policy_family: "standard",
+              voice_preservation_level: "balanced",
+              english_variant: "us",
+            },
+            error: null,
+          }),
+        }),
+      }))
+      .mockImplementationOnce(() => ({
+        select: () => ({
+          single: async () => ({ data: { id: 702 }, error: null }),
+        }),
+      }))
+      .mockImplementationOnce(() => ({
+        select: () => ({
+          single: async () => ({
+            data: {
+              id: "job-second",
+              status: "queued",
+              phase: "phase_1",
+              phase_1_status: null,
+              policy_family: "standard",
+              voice_preservation_level: "balanced",
+              english_variant: "us",
+            },
+            error: null,
+          }),
+        }),
+      }));
+
+    const supabase = {
+      from: jest.fn(() => ({
+        insert: insertMock,
+      })),
+    };
+
+    mockCreateAdminClient.mockReturnValue(supabase as never);
+
+    const buildRequest = () => new Request("https://localhost:3000/api/evaluate", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        manuscript_text: "Same text, new snapshot",
+        manuscript_title: "Repeatable Draft",
+      }),
+    });
+
+    const firstResponse = await POST(buildRequest());
+    const secondResponse = await POST(buildRequest());
+
+    expect(firstResponse.status).toBe(200);
+    expect(secondResponse.status).toBe(200);
+    expect(insertMock).toHaveBeenCalledTimes(4);
   });
 
   test("returns 200 even when the best-effort worker trigger rejects", async () => {
@@ -146,6 +283,13 @@ describe("POST /api/evaluate input contract", () => {
 
     const supabase = {
       from: jest.fn(() => ({
+        select: jest.fn(() => ({
+          eq: jest.fn(() => ({
+            eq: jest.fn(() => ({
+              maybeSingle: async () => ({ data: null, error: null }),
+            })),
+          })),
+        })),
         insert: insertMock,
       })),
     };

@@ -51,4 +51,19 @@ export const TIER2_SCENARIOS: Tier2Row[] = [
       "the silent-skip class that bit prod eval 609dc776 on 2026-05-13: " +
       "`External adjudication mode 'required' requires cross-check output`.",
   },
+  {
+    id: "Q-froggin-noggin-ch1",
+    manuscript_fixture: "froggin-noggin-ch1.txt",
+    work_type: "novel",
+    english_variant: "american",
+    expected: {
+      outcome: "success",
+      cross_check_required: true,
+      pass4_governance_required: true,
+      max_total_ms: 15 * 60 * 1000,
+    },
+    notes:
+      "Internal Froggin Noggin regression fixture derived from the source chapter text. " +
+      "Use this row when proving the pipeline on the user manuscript before any UI run.",
+  },
 ];

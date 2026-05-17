@@ -270,7 +270,9 @@ async function processJob(job: ClaimResult): Promise<void> {
       provider: process.env.OPENAI_API_KEY ? 'openai' : 'simulated',
       provider_meta_version: '2c1.v1',
       request_meta: {
-        model: process.env.OPENAI_MODEL ?? 'gpt-4o-mini',
+        // PR-I (2026-05-16): gpt-5.1 floor enforced across revisiongrade.com.
+        // Per RevisionGrade canon, no production code path may default below gpt-5.1.
+        model: process.env.OPENAI_MODEL ?? 'gpt-5.1',
         temperature: Number(process.env.OPENAI_TEMPERATURE ?? '0.2'),
         max_output_tokens: Number(process.env.OPENAI_MAX_OUTPUT_TOKENS ?? '1200'),
         prompt_version: 'phase2-v1',
@@ -354,7 +356,9 @@ async function processJob(job: ClaimResult): Promise<void> {
       provider: 'openai',
       provider_meta_version: '2c1.v1',
       request_meta: {
-        model: process.env.OPENAI_MODEL ?? 'gpt-4o-mini',
+        // PR-I (2026-05-16): gpt-5.1 floor enforced across revisiongrade.com.
+        // Per RevisionGrade canon, no production code path may default below gpt-5.1.
+        model: process.env.OPENAI_MODEL ?? 'gpt-5.1',
         temperature: Number(process.env.OPENAI_TEMPERATURE ?? '0.2'),
         max_output_tokens: Number(process.env.OPENAI_MAX_OUTPUT_TOKENS ?? '1200'),
         prompt_version: 'phase2-v1',

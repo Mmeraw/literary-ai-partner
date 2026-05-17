@@ -515,6 +515,51 @@ describe("runQualityGateV2 integration", () => {
     ).toBe(true);
   });
 
+  it("PR-K regression (job a8d47d73 Froggin Noggin): post-enforcement summary that names all 5 bottom-score criteria passes v2_summary_weakness_presence", () => {
+    const fixture = makeBaseV2Fixture();
+    // Same bottom-cluster shape that tripped the live job: pacing,
+    // proseControl, tone, narrativeClosure, marketability.
+    const bottomKeys = [
+      "pacing",
+      "proseControl",
+      "tone",
+      "narrativeClosure",
+      "marketability",
+    ] as const;
+
+    for (const key of bottomKeys) {
+      const idx = CRITERIA_KEYS.indexOf(key);
+      fixture.criteria[idx] = {
+        ...fixture.criteria[idx],
+        score_0_10: 4,
+        confidence_level: "moderate",
+      } as EvaluationResultV2["criteria"][number];
+    }
+
+    // The output of normalizeSummaryWithBottomWeaknesses appended to the
+    // model's original summary: every bottom-score criterion is named by its
+    // human-readable token, which is exactly what Pass 3's enforcer now
+    // guarantees post PR-K.
+    fixture.overview.one_paragraph_summary =
+      "An ambitious literary novel with notable voice and characterization. Main weaknesses center on pacing, prose control, tone, narrative closure, and marketability.";
+
+    const result = runQualityGateV2(fixture);
+    expect(
+      result.checks.some(
+        (check) =>
+          check.check_id === "v2_summary_weakness_presence" &&
+          check.passed === true,
+      ),
+    ).toBe(true);
+    expect(
+      result.checks.some(
+        (check) =>
+          check.check_id === "v2_summary_weakness_presence" &&
+          check.error_code === "QG_SUMMARY_OMITS_WEAKNESS",
+      ),
+    ).toBe(false);
+  });
+
   it("fails propagation integrity when upstream is weak but presentation remains high-authority", () => {
     const fixture = makeBaseV2Fixture();
     const lowConfidenceKeys = [

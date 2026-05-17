@@ -82,6 +82,13 @@ describe("/api/manuscripts route", () => {
 
     const supabase = {
       from: jest.fn(() => ({
+        select: jest.fn(() => ({
+          eq: jest.fn(() => ({
+            eq: jest.fn(() => ({
+              maybeSingle: async () => ({ data: null, error: null }),
+            })),
+          })),
+        })),
         insert: insertMock,
       })),
     };
@@ -116,6 +123,144 @@ describe("/api/manuscripts route", () => {
         user_id: "user-1",
       }),
     );
+  });
+
+  test("POST derives a meaningful title when upload title is blank", async () => {
+    const maybeSingleMock = jest.fn(async () => ({
+      data: null,
+      error: null,
+    }));
+
+    const eqFileUrlMock = jest.fn(() => ({
+      maybeSingle: maybeSingleMock,
+    }));
+
+    const eqUserMock = jest.fn(() => ({
+      eq: eqFileUrlMock,
+    }));
+
+    const selectLookupMock = jest.fn(() => ({
+      eq: eqUserMock,
+    }));
+
+    const singleMock = jest.fn(async () => ({
+      data: {
+        id: 322,
+        title: "The opening sentence of the draft continues.",
+        word_count: 7,
+        file_size: 41,
+        source: "upload",
+        updated_at: "2026-05-04T00:00:00.000Z",
+      },
+      error: null,
+    }));
+
+    const insertMock = jest.fn(() => ({
+      select: jest.fn(() => ({
+        single: singleMock,
+      })),
+    }));
+
+    const supabase = {
+      from: jest.fn((table: string) => {
+        if (table !== "manuscripts") {
+          throw new Error(`Unexpected table: ${table}`);
+        }
+
+        return {
+          select: selectLookupMock,
+          insert: insertMock,
+        };
+      }),
+    };
+
+    mockCreateAdminClient.mockReturnValue(supabase as never);
+
+    const form = new FormData();
+    form.set("title", "Untitled Manuscript");
+    form.set("english_variant", "us");
+    form.set("file", new File(["The opening sentence of the draft continues."], "1766034761970.txt", { type: "text/plain" }));
+
+    const req = new Request("https://localhost:3000/api/manuscripts", {
+      method: "POST",
+      body: form,
+    });
+
+    const response = await POST(req);
+    const json = (await response.json()) as {
+      ok: boolean;
+      manuscript: { id: number; title: string };
+    };
+
+    expect(response.status).toBe(201);
+    expect(json.ok).toBe(true);
+    expect(json.manuscript.id).toBe(322);
+    expect(json.manuscript.title).toBe("The opening sentence of the draft continues.");
+    expect(insertMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: "The opening sentence of the draft continues.",
+      }),
+    );
+  });
+
+  test("POST creates a fresh manuscript row for repeated identical uploads", async () => {
+    const singleMock = jest
+      .fn()
+      .mockResolvedValueOnce({
+        data: {
+          id: 401,
+          title: "Repeated Snapshot",
+          word_count: 4,
+          file_size: 24,
+          source: "upload",
+          updated_at: "2026-05-04T00:00:00.000Z",
+        },
+        error: null,
+      })
+      .mockResolvedValueOnce({
+        data: {
+          id: 402,
+          title: "Repeated Snapshot",
+          word_count: 4,
+          file_size: 24,
+          source: "upload",
+          updated_at: "2026-05-04T00:01:00.000Z",
+        },
+        error: null,
+      });
+
+    const insertMock = jest.fn(() => ({
+      select: jest.fn(() => ({
+        single: singleMock,
+      })),
+    }));
+
+    const supabase = {
+      from: jest.fn(() => ({
+        insert: insertMock,
+      })),
+    };
+
+    mockCreateAdminClient.mockReturnValue(supabase as never);
+
+    const buildRequest = () => {
+      const form = new FormData();
+      form.set("title", "Repeated Snapshot");
+      form.set("english_variant", "us");
+      form.set("file", new File(["Same words every time."], "snapshot.txt", { type: "text/plain" }));
+      return new Request("https://localhost:3000/api/manuscripts", {
+        method: "POST",
+        body: form,
+      });
+    };
+
+    const firstResponse = await POST(buildRequest());
+    const secondResponse = await POST(buildRequest());
+
+    expect(firstResponse.status).toBe(201);
+    expect(secondResponse.status).toBe(201);
+    expect(insertMock).toHaveBeenCalledTimes(2);
+    expect(singleMock).toHaveBeenCalledTimes(2);
   });
 
   test("DELETE removes the authenticated user's manuscript by id", async () => {

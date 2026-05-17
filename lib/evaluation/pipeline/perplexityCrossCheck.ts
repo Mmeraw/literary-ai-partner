@@ -18,6 +18,7 @@ import {
   JsonBoundaryError,
   parseJsonObjectBoundary,
 } from "./jsonParseBoundary";
+import { CRITERIA_KEYS, type CriterionKey } from "@/schemas/criteria-keys";
 import {
   classifyParseError,
   detectShapeVariant,
@@ -29,21 +30,13 @@ import {
   buildPerplexityResponseSchema,
   buildRefusalRetryUserPrompt,
 } from "./perplexityCrossCheckRequest";
+import { buildPass4EvidencePacket } from "./pass4EvidencePacket";
 
-export type CriterionKey =
-  | "concept"
-  | "narrativeDrive"
-  | "character"
-  | "voice"
-  | "sceneConstruction"
-  | "dialogue"
-  | "theme"
-  | "worldbuilding"
-  | "pacing"
-  | "proseControl"
-  | "tone"
-  | "emotionalResonance"
-  | "marketability";
+// CriterionKey is re-exported below from the canonical registry. The local
+// union was removed to eliminate criterion-authority drift between Pass 4 and
+// the rest of the pipeline (Pass 1/2/3, QualityGate). Do NOT reintroduce.
+export { CRITERIA_KEYS, type CriterionKey } from "@/schemas/criteria-keys";
+
 
 export interface OpenAICriterionInput {
   score: number;
@@ -65,6 +58,7 @@ export interface PerplexityCriterionResponse {
   detectedSignals: string[];
   scoringBand: "1-3" | "4-6" | "7-8" | "9-10";
   doctrineTrace: string[];
+  validationReasons?: string[];
 }
 
 export interface CanonValidity {
@@ -73,11 +67,13 @@ export interface CanonValidity {
 }
 
 export interface CrossCheckCriterionResult {
-  openaiScore: number;
+  openaiScore: number | null;
   openaiRationale: string;
   openaiEvidence: string[];
   openaiDetectedSignals: string[];
   openaiScoringBand?: "1-3" | "4-6" | "7-8" | "9-10";
+  invalidOpenaiCriterion?: boolean;
+  missingFromOpenai?: boolean;
 
   perplexityScore: number | null;
   perplexityRationale: string;
@@ -105,6 +101,14 @@ export interface CrossCheckOutput {
   canonValid: boolean;
   warnings?: string[];
   rawPerplexityResponse?: string;
+  /**
+   * Evidence-packet telemetry preserved on the artifact so downstream report
+   * provenance can prove the long-form Pass 4 ran on a representative window
+   * (e.g. Froggin Noggin: packetChars=29568, compressionRatio=0.0479).
+   * Optional for backward compatibility with older fixtures.
+   */
+  packetChars?: number;
+  packetCompressionRatio?: number;
 }
 
 type PerplexityResponseShape = {
@@ -117,7 +121,44 @@ const PERPLEXITY_MODEL = "sonar-reasoning-pro";
 // Premium two-AI adjudication budget. Raised from 8000 -> 12000 after Pass 4 audit
 // observed 2/11 historical truncations at 8000 with sonar-reasoning-pro reasoning headers.
 const PERPLEXITY_MAX_TOKENS = 12000;
-const PERPLEXITY_REQUEST_TIMEOUT_MS = 60000;
+export const DEFAULT_PERPLEXITY_REQUEST_TIMEOUT_MS = 180_000;
+export const MIN_PERPLEXITY_REQUEST_TIMEOUT_MS = 60_000;
+
+/**
+ * Resolve the Perplexity request timeout from the environment.
+ *
+ * Defaults to 180_000ms (180s). Sonar-reasoning-pro on full-novel
+ * packets (~30k chars) routinely takes 90-150s; 60s was the prior
+ * hardcoded ceiling and proved too tight for novel-length runs. The
+ * env var lets production raise/lower without a code change.
+ *
+ * Policy (not just parsing):
+ *   - undefined / empty / whitespace  -> default
+ *   - non-numeric / NaN               -> default
+ *   - value < MIN (60_000ms)          -> default
+ *   - valid value >= MIN              -> use it (no upper clamp)
+ *
+ * Exported for direct unit testing. PERPLEXITY_REQUEST_TIMEOUT_MS is
+ * a module-level constant captured at import time; tests should call
+ * the resolver directly rather than mutating process.env after import.
+ */
+export function resolvePerplexityRequestTimeoutMs(
+  raw: string | undefined = process.env.PERPLEXITY_REQUEST_TIMEOUT_MS,
+): number {
+  if (raw === undefined || raw.trim() === "") {
+    return DEFAULT_PERPLEXITY_REQUEST_TIMEOUT_MS;
+  }
+
+  const parsed = Number.parseInt(raw, 10);
+
+  if (!Number.isFinite(parsed) || parsed < MIN_PERPLEXITY_REQUEST_TIMEOUT_MS) {
+    return DEFAULT_PERPLEXITY_REQUEST_TIMEOUT_MS;
+  }
+
+  return parsed;
+}
+
+const PERPLEXITY_REQUEST_TIMEOUT_MS = resolvePerplexityRequestTimeoutMs();
 const DISPUTE_THRESHOLD = 1.0;
 
 // Phrases observed in 3/11 historical Pass 4 failures where sonar refused
@@ -138,21 +179,8 @@ const REFUSAL_PHRASES: readonly string[] = [
   "as an ai search",
 ];
 
-const CRITERION_KEYS: CriterionKey[] = [
-  "concept",
-  "narrativeDrive",
-  "character",
-  "voice",
-  "sceneConstruction",
-  "dialogue",
-  "theme",
-  "worldbuilding",
-  "pacing",
-  "proseControl",
-  "tone",
-  "emotionalResonance",
-  "marketability",
-];
+// Pass 4 iterates the canonical criterion registry. Single source of truth:
+// schemas/criteria-keys.ts. Do NOT reintroduce a local CRITERIA_KEYS array.
 
 function assertScore(score: unknown, key: string): number {
   if (typeof score !== "number" || Number.isNaN(score)) {
@@ -162,6 +190,58 @@ function assertScore(score: unknown, key: string): number {
     throw new Error(`[Pass4] Score out of range for criterion '${key}': ${score}`);
   }
   return score;
+}
+
+function normalizePerplexityScore(score: unknown, key: string): { score: number; reasons: string[] } {
+  const reasons: string[] = [];
+
+  if (typeof score !== "number" || Number.isNaN(score)) {
+    reasons.push(`[Pass4] Invalid numeric score for criterion '${key}'.`);
+    return { score: 1, reasons };
+  }
+
+  if (score < 1) {
+    reasons.push(`[Pass4] Score below range for criterion '${key}': ${score}`);
+    return { score: 1, reasons };
+  }
+
+  if (score > 10) {
+    reasons.push(`[Pass4] Score above range for criterion '${key}': ${score}`);
+    return { score: 10, reasons };
+  }
+
+  return { score, reasons };
+}
+
+type OpenAIScoreNormalization =
+  | { kind: "valid"; score: number }
+  | { kind: "missing"; reason: string }
+  | { kind: "invalid"; reason: string };
+
+function normalizeOpenAIScore(
+  item: OpenAICriterionInput | undefined,
+  key: string,
+): OpenAIScoreNormalization {
+  if (!item) {
+    return {
+      kind: "missing",
+      reason: `[Pass4] OpenAI criterion '${key}' missing from Pass 3 output.`,
+    };
+  }
+  const raw = (item as { score?: unknown }).score;
+  if (typeof raw !== "number" || !Number.isFinite(raw)) {
+    return {
+      kind: "invalid",
+      reason: `[Pass4] OpenAI score for criterion '${key}' is non-finite: ${String(raw)}`,
+    };
+  }
+  if (raw < 1 || raw > 10) {
+    return {
+      kind: "invalid",
+      reason: `[Pass4] OpenAI score for criterion '${key}' out of range: ${raw}`,
+    };
+  }
+  return { kind: "valid", score: raw };
 }
 
 function asStringArray(value: unknown): string[] {
@@ -201,7 +281,7 @@ function validatePerplexityCriterion(
   }
 
   const obj = value as Record<string, unknown>;
-  const score = assertScore(obj.score, key);
+  const normalizedScore = normalizePerplexityScore(obj.score, key);
   const rationale = typeof obj.rationale === "string" ? obj.rationale.trim() : "";
   const evidence = validateEvidenceArray(obj.evidence);
   const detectedSignals = asStringArray(obj.detectedSignals);
@@ -217,12 +297,13 @@ function validatePerplexityCriterion(
   }
 
   return {
-    score,
+    score: normalizedScore.score,
     rationale,
     evidence,
     detectedSignals,
     scoringBand,
     doctrineTrace,
+    validationReasons: normalizedScore.reasons,
   };
 }
 
@@ -241,7 +322,7 @@ function validateParsedResponse(parsed: unknown): PerplexityResponseShape {
 
   const criteria = {} as Record<CriterionKey, PerplexityCriterionResponse>;
 
-  for (const key of CRITERION_KEYS) {
+  for (const key of CRITERIA_KEYS) {
     criteria[key] = validatePerplexityCriterion(
       key,
       (criteriaObj as Record<string, unknown>)[key]
@@ -259,9 +340,10 @@ function bandForScore(score: number): "1-3" | "4-6" | "7-8" | "9-10" {
 }
 
 function validateCanonCompleteness(
-  criterion: PerplexityCriterionResponse
+  criterion: PerplexityCriterionResponse,
+  extraReasons: string[] = [],
 ): CanonValidity {
-  const reasons: string[] = [];
+  const reasons: string[] = [...extraReasons];
 
   if (!criterion.rationale.trim()) {
     reasons.push("Missing rationale.");
@@ -478,7 +560,7 @@ export async function runPerplexityCrossCheck(opts: {
     throw new Error("[Pass4] PERPLEXITY_API_KEY is required.");
   }
 
-  const criteriaBlock = CRITERION_KEYS.map((key) => {
+  const criteriaBlock = CRITERIA_KEYS.map((key) => {
     const item = openaiCriteria[key];
     const score = item?.score ?? 0;
     const rationale = item?.rationale?.trim()
@@ -486,6 +568,12 @@ export async function runPerplexityCrossCheck(opts: {
       : "";
     return `- ${key}: ${score}/10${rationale}`;
   }).join("\n");
+
+  // Pass 4 evidence packet: replaces the legacy first-3000-char
+  // excerpt with a bounded representative slice spanning opening /
+  // early / middle / late / close windows. See
+  // lib/evaluation/pipeline/pass4EvidencePacket.ts for the design.
+  const evidencePacket = buildPass4EvidencePacket(manuscriptExcerpt);
 
   const systemPrompt = `You are an independent literary evaluation adjudicator performing a canon-governed second-opinion review.
 
@@ -497,10 +585,10 @@ Rules:
    - score
    - rationale
    - at least one short quoted manuscript reference
-   - detectedSignals
+   - detectedSignals (a NON-EMPTY array; at least one detected signal per criterion)
    - scoringBand
-   - doctrineTrace
-5. If evidence is absent, the criterion is invalid.
+   - doctrineTrace (a NON-EMPTY array; at least one doctrine reference per criterion)
+5. If evidence is absent, the criterion is invalid. Empty detectedSignals or doctrineTrace arrays are NOT permitted and will be rejected as canon-invalid.
 6. Do not provide revision advice.
 7. Do not perform line-editing or WAVE refinement.
 8. Return ONLY valid JSON.
@@ -526,7 +614,7 @@ Required schema:
     "pacing": { ...same shape... },
     "proseControl": { ...same shape... },
     "tone": { ...same shape... },
-    "emotionalResonance": { ...same shape... },
+    "narrativeClosure": { ...same shape... },
     "marketability": { ...same shape... }
   },
   "synthesisNote": "3-5 sentence adjudication summary"
@@ -535,8 +623,8 @@ Required schema:
   const userPrompt = `MANUSCRIPT TITLE: "${title}"
 WORK TYPE: ${workType}
 
-MANUSCRIPT EXCERPT (first 3000 chars):
-${manuscriptExcerpt.slice(0, 3000)}
+REPRESENTATIVE MANUSCRIPT EVIDENCE PACKET:
+${evidencePacket.text}
 
 PRIMARY EVALUATOR SCORES:
 ${criteriaBlock}
@@ -546,7 +634,7 @@ ${openaiSynthesis?.slice(0, 900) ?? "(none)"}
 
 Now return the independent adjudication as JSON.`;
 
-  const responseSchema = buildPerplexityResponseSchema(CRITERION_KEYS);
+  const responseSchema = buildPerplexityResponseSchema(CRITERIA_KEYS);
 
   const initialPromptChars = systemPrompt.length + userPrompt.length;
   let attemptCounter = 0;
@@ -559,6 +647,12 @@ Now return the independent adjudication as JSON.`;
     prompt_chars: initialPromptChars,
     max_completion_tokens: PERPLEXITY_MAX_TOKENS,
     mode: process.env.EVAL_EXTERNAL_ADJUDICATION_MODE ?? null,
+    pass4_packet_chars: evidencePacket.packetChars,
+    pass4_packet_compression_ratio: evidencePacket.compressionRatio,
+    pass4_selected_windows: evidencePacket.selectedWindows,
+    pass4_includes_opening: evidencePacket.includesOpening,
+    pass4_includes_close: evidencePacket.includesClose,
+    pass4_source_words: evidencePacket.sourceWords,
   });
 
   const requestCompletion = async (
@@ -884,13 +978,25 @@ Now return the independent adjudication as JSON.`;
   const disputedCriteria: CriterionKey[] = [];
   const invalidCriteria: CriterionKey[] = [];
 
-  for (const key of CRITERION_KEYS) {
+  for (const key of CRITERIA_KEYS) {
     const openaiItem = openaiCriteria[key];
-    const openaiScore = assertScore(openaiItem?.score ?? 0, key);
+    const openaiNorm = normalizeOpenAIScore(openaiItem, key);
+    const openaiScore = openaiNorm.kind === "valid" ? openaiNorm.score : null;
     const openaiRationale = openaiItem?.rationale ?? "";
     const openaiEvidence = openaiItem?.evidence ?? [];
     const openaiDetectedSignals = openaiItem?.detectedSignals ?? [];
-    const openaiScoringBand = openaiItem?.scoringBand ?? bandForScore(openaiScore);
+    const openaiScoringBand =
+      openaiItem?.scoringBand ??
+      (openaiScore !== null ? bandForScore(openaiScore) : undefined);
+    const openaiMissing = openaiNorm.kind === "missing";
+    const openaiInvalid = openaiNorm.kind === "invalid";
+    const openaiUnusable = openaiMissing || openaiInvalid;
+
+    if (openaiUnusable) {
+      warnings.push(
+        openaiNorm.kind === "missing" ? openaiNorm.reason : openaiNorm.reason,
+      );
+    }
 
     const pplx = parsed.criteria[key];
 
@@ -904,6 +1010,8 @@ Now return the independent adjudication as JSON.`;
         openaiEvidence,
         openaiDetectedSignals,
         openaiScoringBand,
+        invalidOpenaiCriterion: openaiInvalid,
+        missingFromOpenai: openaiMissing,
         perplexityScore: null,
         perplexityRationale: "",
         perplexityEvidence: [],
@@ -923,19 +1031,37 @@ Now return the independent adjudication as JSON.`;
       continue;
     }
 
-    const canonValidity = validateCanonCompleteness(pplx);
+    const canonValidity = validateCanonCompleteness(pplx, pplx.validationReasons ?? []);
     const invalidPerplexityCriterion = !canonValidity.valid;
     const perplexityScore = invalidPerplexityCriterion ? null : pplx.score;
     const delta =
-      perplexityScore === null ? null : Math.abs(openaiScore - perplexityScore);
+      openaiScore === null || perplexityScore === null
+        ? null
+        : Math.abs(openaiScore - perplexityScore);
     const disputed =
-      invalidPerplexityCriterion || delta === null || delta > DISPUTE_THRESHOLD;
+      openaiUnusable ||
+      invalidPerplexityCriterion ||
+      delta === null ||
+      delta > DISPUTE_THRESHOLD;
 
-    if (invalidPerplexityCriterion) {
+    if (openaiUnusable || invalidPerplexityCriterion) {
       invalidCriteria.push(key);
     }
     if (disputed) {
       disputedCriteria.push(key);
+    }
+
+    let direction: CrossCheckCriterionResult["direction"];
+    if (openaiMissing) {
+      direction = "MISSING";
+    } else if (openaiInvalid || invalidPerplexityCriterion || perplexityScore === null || openaiScore === null) {
+      direction = "INVALID";
+    } else if (perplexityScore > openaiScore) {
+      direction = "HIGHER";
+    } else if (perplexityScore < openaiScore) {
+      direction = "LOWER";
+    } else {
+      direction = "MATCH";
     }
 
     criteria[key] = {
@@ -944,6 +1070,8 @@ Now return the independent adjudication as JSON.`;
       openaiEvidence,
       openaiDetectedSignals,
       openaiScoringBand,
+      invalidOpenaiCriterion: openaiInvalid,
+      missingFromOpenai: openaiMissing,
       perplexityScore,
       perplexityRationale: pplx.rationale,
       perplexityEvidence: pplx.evidence,
@@ -955,18 +1083,11 @@ Now return the independent adjudication as JSON.`;
       missingFromPerplexity: false,
       invalidPerplexityCriterion,
       canonValidity,
-      direction:
-        invalidPerplexityCriterion || perplexityScore === null
-          ? "INVALID"
-          : perplexityScore > openaiScore
-            ? "HIGHER"
-            : perplexityScore < openaiScore
-              ? "LOWER"
-              : "MATCH",
+      direction,
     };
   }
 
-  const disputeRatio = disputedCriteria.length / CRITERION_KEYS.length;
+  const disputeRatio = disputedCriteria.length / CRITERIA_KEYS.length;
   const overallAgreement: CrossCheckOutput["overallAgreement"] =
     disputeRatio === 0 ? "STRONG" : disputeRatio <= 0.3 ? "MODERATE" : "WEAK";
 
@@ -991,5 +1112,9 @@ Now return the independent adjudication as JSON.`;
     canonValid: invalidCriteria.length === 0,
     warnings: warnings.length > 0 ? warnings : undefined,
     rawPerplexityResponse: rawContent,
+    // Evidence-packet provenance — preserved so the report can prove which
+    // window Perplexity actually adjudicated against (Froggin Noggin truth gap).
+    packetChars: evidencePacket.packetChars,
+    packetCompressionRatio: evidencePacket.compressionRatio,
   };
 }

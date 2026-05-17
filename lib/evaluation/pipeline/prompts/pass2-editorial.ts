@@ -18,7 +18,7 @@ import {
   summarizePromptCoverage,
 } from "../promptInput";
 
-export const PASS2_PROMPT_VERSION = "pass2-editorial-v8-independence";
+export const PASS2_PROMPT_VERSION = "pass2-editorial-v9-provenance-hardening";
 
 export const PASS2_SYSTEM_PROMPT = `You are Pass 2 (editorial_literary), independent from Pass 1.
 
@@ -94,11 +94,12 @@ Return ONLY:
       "recommendations": [{ "priority": "medium", "action": "", "expected_impact": "", "anchor_snippet": "" }]
     }
   ],
-  "model": "<model_id>",
   "prompt_version": "${PASS2_PROMPT_VERSION}",
   "temperature": 0.3,
   "generated_at": "<ISO 8601 timestamp>"
-}`;
+}
+
+Note: do NOT emit a "model" field. Model identity is stamped server-side from the actually-executed resolver. Any "model" value you emit will be ignored.`;
 
 export function buildPass2UserPrompt(params: {
   manuscriptText: string;

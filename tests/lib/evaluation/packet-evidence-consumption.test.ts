@@ -53,7 +53,7 @@ function makePass3Completion(): CreateCompletionFn {
         "Strong baseline, but multiple criteria need concrete scene-level revision before submission.",
       top_3_strengths: ["voice", "concept", "scene energy"],
       top_3_risks: ["pacing", "character pressure", "dialogue attribution"],
-      submission_readiness: "close",
+      submission_readiness: "nearly_ready",
     },
     metadata: {
       pass1_model: "gpt-4o",

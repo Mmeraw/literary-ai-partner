@@ -222,7 +222,7 @@ export async function probeS06(): Promise<ProbeOutcome> {
       one_paragraph_summary: "summary",
       top_3_strengths: ["a", "b", "c"],
       top_3_risks: ["x", "y", "z"],
-      submission_readiness: "close",
+      submission_readiness: "nearly_ready",
     },
     metadata: {
       pass1_model: pass1.model,

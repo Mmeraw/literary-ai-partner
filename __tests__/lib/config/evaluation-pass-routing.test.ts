@@ -164,7 +164,7 @@ function makeStubSynthesis(): SynthesisOutput {
         "This manuscript demonstrates solid craft and distinctive literary sensibility.",
       top_3_strengths: ["Strong narrative voice", "Clear structural arc", "Vivid sensory imagery"],
       top_3_risks: ["Pacing inconsistencies", "Thin character motivation", "World-building gaps"],
-      submission_readiness: "close",
+      submission_readiness: "nearly_ready",
     },
     metadata: {
       pass1_model: "gpt-5-mini",

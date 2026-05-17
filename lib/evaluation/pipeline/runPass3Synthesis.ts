@@ -55,6 +55,19 @@ import {
 } from "./surfaceIntegrity";
 import { analyzeDialogueAttributionForGate } from "@/lib/evaluation/pov/analyzeDialogueAttribution";
 import { getEvaluationRuntimeConfig } from "@/lib/config/evaluationRuntimeConfig";
+// PR-K (2026-05-16): Pass 3 and QualityGateV2 must use the SAME helper for
+// summary weakness enforcement. Previously Pass 3 had a local implementation
+// with "ANY mention satisfies" (.some) + slice(0,3) semantics, while the gate
+// requires EVERY bottom-score criterion to be named. Job a8d47d73 (Froggin
+// Noggin) failed at v2_summary_weakness_presence because 5 bottom criteria
+// were derived but only 3 ever made it into the summary. Sharing the helper
+// gives producer/checker parity by construction.
+import {
+  summarizePropagationIntegrity,
+  normalizeSummaryWithBottomWeaknesses,
+} from "./propagationIntegrity";
+import type { EvaluationResultV2 } from "@/schemas/evaluation-result-v2";
+import type { CriterionKey } from "@/schemas/criteria-keys";
 
 function countWords(text: string): number {
   const trimmed = text.trim();
@@ -648,9 +661,11 @@ export function parsePass3Response(
       : (p2c?.score_0_10 ?? 5);
 
     const rawFinal = rawEntry ? Number(rawEntry["final_score_0_10"]) : NaN;
+    // PR-D: canonical scores are 1..10; Pass 4 rejects anything below 1.
+    // Floor is 1, never 0.
     const finalScore = Number.isFinite(rawFinal)
-      ? Math.min(10, Math.max(0, Math.round(rawFinal)))
-      : Math.min(10, Math.max(0, Math.round((craftScore + editorialScore) / 2)));
+      ? Math.min(10, Math.max(1, Math.round(rawFinal)))
+      : Math.min(10, Math.max(1, Math.round((craftScore + editorialScore) / 2)));
 
     const delta = Math.abs(craftScore - editorialScore);
 
@@ -748,8 +763,9 @@ export function parsePass3Response(
 
     criteria.push({
       key,
-      craft_score: Math.min(10, Math.max(0, craftScore)),
-      editorial_score: Math.min(10, Math.max(0, editorialScore)),
+      // PR-D: canonical scores are 1..10; never emit 0.
+      craft_score: Math.min(10, Math.max(1, craftScore)),
+      editorial_score: Math.min(10, Math.max(1, editorialScore)),
       final_score_0_10: finalScore,
       score_delta: delta,
       delta_explanation:
@@ -772,8 +788,10 @@ export function parsePass3Response(
 
   const avgScore = criteria.reduce((sum, c) => sum + c.final_score_0_10, 0) / criteria.length;
   const overallScore0_100 = typeof rawOverall["overall_score_0_100"] === "number"
-    ? Math.min(100, Math.max(0, Math.round(rawOverall["overall_score_0_100"])))
-    : Math.min(100, Math.max(0, Math.round(avgScore * 10)));
+    // PR-D: overall 0-100 derives from criterion averages where each criterion >= 1,
+    // so the achievable floor is 10. Floor at 10 to reflect canonical constraint.
+    ? Math.min(100, Math.max(10, Math.round(rawOverall["overall_score_0_100"])))
+    : Math.min(100, Math.max(10, Math.round(avgScore * 10)));
 
   const rawVerdict = String(rawOverall["verdict"] ?? "");
   const verdict: "pass" | "revise" | "fail" =
@@ -805,9 +823,15 @@ export function parsePass3Response(
       submission_readiness: parseSubmissionReadiness(rawOverall["submission_readiness"], verdict, criteria),
     },
     metadata: {
-      pass1_model: String(rawMeta["pass1_model"] ?? pass1.model),
-      pass2_model: String(rawMeta["pass2_model"] ?? pass2.model),
-      pass3_model: String(rawMeta["pass3_model"] ?? resolvedFallback),
+      // PR-I (2026-05-16): Provenance must reflect the model that actually executed,
+      // NOT what the LLM hallucinated in its self-reported metadata block.
+      // The LLM has no reliable knowledge of its own deployment identifier and frequently
+      // emits stale literals (commonly "gpt-4.1") that contaminate downstream report stamps.
+      // Always trust the upstream-recorded model identity from pass1/pass2 outputs and the
+      // resolver-determined fallback for pass3. Do NOT consult rawMeta for model names.
+      pass1_model: String(pass1.model),
+      pass2_model: String(pass2.model),
+      pass3_model: String(resolvedFallback),
       generated_at: new Date().toISOString(),
     },
     partial_evaluation: false, // will be overridden by runPass3Synthesis with real value
@@ -1775,7 +1799,7 @@ function parseSubmissionReadiness(
     throw new Error("[Pass3] overall.submission_readiness is required but was missing from model output");
   }
   const normalized = String(raw).trim().toLowerCase();
-  if (normalized === "queryable_now" || normalized === "close" || normalized === "not_yet") {
+  if (normalized === "queryable_now" || normalized === "nearly_ready" || normalized === "not_yet") {
     return normalized;
   }
 
@@ -1788,65 +1812,62 @@ function parseSubmissionReadiness(
     return "queryable_now";
   }
 
-  return "close";
+  return "nearly_ready";
 }
 
-function getBottomScoreCriteriaKeys(criteria: SynthesizedCriterion[]): string[] {
-  const scored = criteria
-    .filter((criterion) => Number.isFinite(criterion.final_score_0_10))
-    .map((criterion) => ({
-      key: criterion.key,
-      score: criterion.final_score_0_10,
-    }));
-
-  if (scored.length === 0) {
-    return [];
-  }
-
-  const minScore = Math.min(...scored.map((criterion) => criterion.score));
-  const threshold = Math.min(5, minScore + 1);
-
-  return scored
-    .filter((criterion) => criterion.score <= threshold)
-    .map((criterion) => criterion.key);
+/**
+ * Project SynthesizedCriterion[] onto the minimal V2-criterion shape required
+ * by summarizePropagationIntegrity#deriveBottomScoreCriteria. Only `key`,
+ * `status` and `score_0_10` are read; the rest are stub fields satisfying the
+ * shape contract.
+ */
+function toV2CriteriaForPropagation(
+  criteria: SynthesizedCriterion[],
+): EvaluationResultV2["criteria"] {
+  return criteria
+    .filter((c) => Number.isFinite(c.final_score_0_10))
+    .map(
+      (c) =>
+        ({
+          key: c.key as CriterionKey,
+          status: "SCORABLE" as const,
+          score_0_10: c.final_score_0_10,
+          scorability_status: "scorable_high_confidence" as const,
+          evidence: [],
+        }) as unknown as EvaluationResultV2["criteria"][number],
+    );
 }
 
-function criterionKeyToReadableToken(key: string): string {
-  return key
-    .replace(/([a-z])([A-Z])/g, "$1 $2")
-    .replace(/([A-Z])([A-Z][a-z])/g, "$1 $2")
-    .toLowerCase();
-}
-
-function summaryMentionsCriteria(summary: string, criteriaKeys: string[]): boolean {
-  const normalizedSummary = summary.toLowerCase();
-  return criteriaKeys.some((key) =>
-    normalizedSummary.includes(criterionKeyToReadableToken(key)),
-  );
-}
-
+/**
+ * PR-K (2026-05-16): Single source of truth with QualityGateV2.
+ * Delegates to normalizeSummaryWithBottomWeaknesses so that any criteria the
+ * gate considers "missing" are guaranteed to appear in the summary before the
+ * gate runs. Replaces the older local enforcer whose ".some() / slice(0,3)"
+ * semantics could leave the gate unsatisfied (see job a8d47d73 — Froggin
+ * Noggin FULL NOVEL — which failed with 5 bottom criteria and only 1 mentioned).
+ */
 function enforceSummaryWeaknessPresence(
   summary: string,
   criteria: SynthesizedCriterion[],
 ): string {
   const trimmedSummary = summary.trim();
-  const bottomScoreCriteria = getBottomScoreCriteriaKeys(criteria);
-
-  if (trimmedSummary.length === 0 || bottomScoreCriteria.length === 0) {
+  if (trimmedSummary.length === 0) {
     return trimmedSummary;
   }
 
-  if (summaryMentionsCriteria(trimmedSummary, bottomScoreCriteria)) {
+  const v2Criteria = toV2CriteriaForPropagation(criteria);
+  if (v2Criteria.length === 0) {
     return trimmedSummary;
   }
 
-  const weaknessTokens = bottomScoreCriteria
-    .slice(0, 3)
-    .map((key) => criterionKeyToReadableToken(key));
-  const weaknessClause = `Key revision pressure remains in ${weaknessTokens.join(", ")}.`;
-  const punctuatedSummary = /[.!?]$/.test(trimmedSummary)
-    ? trimmedSummary
-    : `${trimmedSummary}.`;
+  const { bottomScoreCriteria } = summarizePropagationIntegrity(v2Criteria);
+  if (bottomScoreCriteria.length === 0) {
+    return trimmedSummary;
+  }
 
-  return `${punctuatedSummary} ${weaknessClause}`.substring(0, 500);
+  return normalizeSummaryWithBottomWeaknesses(
+    trimmedSummary,
+    bottomScoreCriteria,
+    500,
+  );
 }
