@@ -37,6 +37,7 @@ import {
   stableSourceHash,
   upsertEvaluationArtifact,
 } from '@/lib/evaluation/artifactPersistence';
+import { checkJobCancellation } from '@/lib/jobs/cancellationCheck';
 import type { ManuscriptChunkEvidence } from '@/lib/evaluation/pipeline/types';
 
 // Force Node.js runtime (required for crypto module)
@@ -350,6 +351,16 @@ async function processDreamJob(
   const userId = manuscript?.user_id ?? '';
   const title = manuscript?.title ?? 'Untitled';
   const wordCount = typeof job.word_count === 'number' ? job.word_count : DREAM_WORD_COUNT_THRESHOLD;
+
+  // GOVERNANCE: Check if job is cancelled before starting DREAM synthesis
+  const cancellation = await checkJobCancellation(jobId);
+  if (cancellation.cancelled) {
+    console.log(`[DreamWorker] ${jobId}: job is cancelled, skipping DREAM synthesis`, {
+      cancelled_at: cancellation.cancelled_at,
+      reason: cancellation.reason,
+    });
+    return { success: false, error: `Job is cancelled: ${cancellation.reason}` };
+  }
 
   console.log(`[DreamWorker] ${jobId}: starting DREAM synthesis — words=${wordCount}`);
 

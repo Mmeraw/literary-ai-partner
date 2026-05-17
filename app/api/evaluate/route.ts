@@ -5,6 +5,7 @@ import { getDevHeaderActor } from '@/lib/auth/devHeaderActor';
 import { getAuthenticatedUser } from '@/lib/supabase/server';
 import { triggerEvaluationWorker } from '@/lib/jobs/triggerWorker';
 import { generateTraceId } from '@/lib/observability/logger';
+import { resolveManuscriptTitle } from '@/lib/manuscripts/title';
 
 export async function POST(req: Request) {
   const trace_id = generateTraceId();
@@ -116,11 +117,16 @@ export async function POST(req: Request) {
       const fileUrl = `data:text/plain;charset=utf-8,${encodedText}`;
       const fileSize = new TextEncoder().encode(trimmedText).length;
       const wordCount = trimmedText.split(/\s+/).filter(Boolean).length;
+      const resolvedTitle = resolveManuscriptTitle({
+        explicitTitle: manuscriptTitleInput,
+        text: trimmedText,
+        fallback: 'Imported Manuscript',
+      });
 
       const { data: manuscript, error: manuscriptError } = await supabase
         .from('manuscripts')
         .insert({
-          title: manuscriptTitleInput.trim() || 'Untitled Manuscript',
+          title: resolvedTitle,
           user_id: userId,
           created_by: userId,
           file_url: fileUrl,

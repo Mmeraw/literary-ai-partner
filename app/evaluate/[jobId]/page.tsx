@@ -17,6 +17,8 @@ import {
   normalizeRecommendationActionForDisplay,
 } from "@/lib/evaluation/reportRecommendations";
 import ModeConfirmationBlock from "@/components/evaluation/ModeConfirmationBlock";
+import { CancelEvaluationButton } from "@/components/evaluation/CancelEvaluationButton";
+import { SynthesisArtifactControls } from "@/components/evaluation/SynthesisArtifactControls";
 import { classifyEvaluationIntegrityBanner } from "@/lib/evaluation/warningClassification";
 import {
   getCertifiedCriteriaSummary,
@@ -525,6 +527,9 @@ export default async function EvaluationReportPage({
           }`}>
             {job.status === "complete" ? "✓ Report ready" : job.status === "failed" ? "⚠ Needs attention" : job.status === "running" ? "⟳ In progress" : "Waiting in queue"}
           </span>
+          {(job.status === "queued" || job.status === "running") && (
+            <CancelEvaluationButton jobId={jobId} />
+          )}
         </div>
       </div>
 
@@ -893,11 +898,21 @@ export default async function EvaluationReportPage({
                   </div>
                 </div>
               ) : (
-                <div className="flex items-center gap-3 py-6">
-                  <div className="animate-spin rounded-full h-5 w-5 border-2 border-indigo-400 border-t-transparent" aria-hidden />
-                  <p className="text-sm text-gray-500">
-                    Narrative Synthesis generating — check back in a minute for your full long-form analysis.
-                  </p>
+                <div className="space-y-4">
+                  <div className="flex items-center gap-3 py-6">
+                    <div className="animate-spin rounded-full h-5 w-5 border-2 border-indigo-400 border-t-transparent" aria-hidden />
+                    <p className="text-sm text-gray-500">
+                      Narrative Synthesis generating — check back in a minute for your full long-form analysis.
+                    </p>
+                  </div>
+                  
+                  {/* Synthesis controls: retry/skip if stuck */}
+                  <div className="rounded-md bg-amber-50 border border-amber-200 p-4">
+                    <p className="text-sm font-medium text-amber-900 mb-3">
+                      Synthesis taking longer than expected?
+                    </p>
+                    <SynthesisArtifactControls jobId={jobId} />
+                  </div>
                 </div>
               )}
             </section>
