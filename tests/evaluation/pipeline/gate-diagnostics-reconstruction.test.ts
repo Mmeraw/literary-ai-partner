@@ -79,7 +79,7 @@ function makeValidSynthesis(
         "This manuscript shows promise in narrative structure but needs work before submission.",
       top_3_strengths: ["Strong voice", "Clear narrative arc", "Memorable dialogue"],
       top_3_risks: ["Weak world-building", "Pacing issues in act two", "Thin motivation"],
-      submission_readiness: "close",
+      submission_readiness: "nearly_ready",
     },
     metadata: {
       pass1_model: "gpt-4o-mini",
