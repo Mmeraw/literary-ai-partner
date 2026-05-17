@@ -275,12 +275,36 @@ function looksLikeMetaCommentary(text: string): boolean {
   return META_COMMENTARY_MARKERS.some((pattern) => pattern.test(text));
 }
 
+function looksLikeExplicitExcerpt(text: string): boolean {
+  return (
+    /["'`“”‘’]/.test(text) ||
+    /^\s{0,3}>\s+\S/m.test(text) ||
+    /(^|\s)(["“‘`]).+\2($|\s)/.test(text)
+  );
+}
+
+// Returns true if text looks like a prose sentence (action/sensory language, multiple
+// short declarative sentences, concrete nouns/verbs) — does NOT require quote markers.
+function looksLikeProseSentence(text: string): boolean {
+  const normalized = normalizeText(text);
+  // Multiple sentence endings (prose fragment)
+  if (/\.\s+[A-Z]/.test(normalized)) return true;
+  // Em-dash with concrete clause (tactile/sensory prose pattern)
+  if (/—/.test(normalized) && normalized.split(/\s+/).length >= 4) return true;
+  return false;
+}
+
 function isVerbatimAnchor(text: string): boolean {
   const normalized = normalizeText(text);
   if (normalized.length <= 20) return false;
   if (!/\s/.test(normalized)) return false;
   if (looksLikeMetaCommentary(normalized)) return false;
-  return true;
+
+  const normalizedAnchor = normalizeAnchorText(text);
+  if (normalizedAnchor.length <= 20) return false;
+  if (!/\s/.test(normalizedAnchor)) return false;
+
+  return looksLikeExplicitExcerpt(text) || looksLikeProseSentence(text);
 }
 
 function isCriterionSpecificFromRationaleOrRecs(criterion: CriterionConfidenceInput): boolean {
