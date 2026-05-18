@@ -42,6 +42,7 @@ export interface EvaluationRuntimeConfig {
   evalDebugEnabled: boolean;
   minManuscriptWords: number;
   staleRunningMinutes: number;
+  frozenHeartbeatSecs: number;
   contextContaminationGuardEnabled: boolean;
   pass: {
     pass1MaxTokens: number;
@@ -332,6 +333,14 @@ export function resolveEvaluationRuntimeConfig(
       defaultValue: 13,
       min: 1,
       max: 240,
+    }),
+    // Fast-fail: jobs whose leaseRenewalLoop stopped firing (Vercel fluid-compute freeze).
+    // If last_heartbeat_at is older than this many seconds, the function is frozen — kill it.
+    // Default 60s: heartbeat fires every 30s, so two missed beats = frozen.
+    frozenHeartbeatSecs: parseBoundedInteger(env, "EVAL_FROZEN_HEARTBEAT_SECS", {
+      defaultValue: 60,
+      min: 35,
+      max: 300,
     }),
     contextContaminationGuardEnabled: (() => {
       const raw = (env.EVAL_CONTEXT_CONTAMINATION_GUARD ?? "auto").trim().toLowerCase();

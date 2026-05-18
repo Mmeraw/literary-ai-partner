@@ -139,6 +139,7 @@ function getProcessorRuntimeDeps() {
     evalMinManuscriptWords: runtimeConfig.minManuscriptWords,
     openAiModel: runtimeConfig.model,
     staleRunningMinutes: runtimeConfig.staleRunningMinutes,
+    frozenHeartbeatSecs: runtimeConfig.frozenHeartbeatSecs,
     evalWorkerBatchSize: getValidatedWorkerBatchSize(runtimeConfig.worker.batchSize, 5),
     evalContextContaminationGuardEnabled: runtimeConfig.contextContaminationGuardEnabled,
     evalPassTimeoutMs: getEvalPassTimeoutMs(),
@@ -1360,53 +1361,387 @@ function extractCriteriaFromAIResult(aiResult: Record<string, unknown>): unknown
   return undefined;
 }
 
+/**
+ * Canonical failure-code classification for the watchdog and resume route.
+ *
+ * INFRASTRUCTURE failures: caused by Vercel, OpenAI, Perplexity, Supabase transient
+ * conditions. Safe to rescue / retry because re-running will produce a different result.
+ *
+ * GOVERNANCE / QUALITY failures: caused by the manuscript content itself or a
+ * deterministic gate. Re-running will produce the SAME failure.  Rescuing these
+ * would mask real product problems and waste compute.
+ *
+ * Rules:
+ *  - Any code that STARTS WITH a prefix in TERMINAL_FAILURE_PREFIXES is terminal.
+ *  - Any code in TERMINAL_FAILURE_EXACT is terminal.
+ *  - Everything else is treated as infrastructure (rescuable) — conservative default.
+ *
+ * Pass4 / Perplexity notes:
+ *  - PASS4_REFUSAL_EXHAUSTED: Perplexity safety-filter refusal after one retry.
+ *    This is a content-driven failure (the manuscript triggered a refusal), NOT an
+ *    infrastructure failure.  Do NOT rescue — it will refusal-loop forever.
+ *  - PASS4_CANON_INVALID / PASS4_WEAK_AGREEMENT: governance errors, terminal.
+ *  - PASS4_DISPUTED_CRITERIA: warning severity, ships ok:true in optional mode,
+ *    never reaches here as a failure code in that mode.
+ *  - PASS4_EXTERNAL_ADJUDICATION_FAILED: Perplexity API error (network/timeout).
+ *    Retryable at the infra level — Perplexity was unreachable, not refusing.
+ */
+const TERMINAL_FAILURE_PREFIXES = [
+  'QG_',                    // All quality gate failures (content-driven)
+  'PASS4_CANON_INVALID',    // Governance: cross-check structural failure
+  'PASS4_WEAK_AGREEMENT',   // Governance: overall agreement too low
+  'PASS4_GOVERNANCE_FAILED',// Governance: generic block
+  'PASS4_REFUSAL_EXHAUSTED',// Perplexity safety filter — content-driven, not infra
+  'PASS4_SCHEMA_INVALID',   // Perplexity returned unparseable schema
+  'PASS4_EXTERNAL_ADJUDICATION_MISSING_KEY', // Config error — not infra
+  'LLR_',                   // Lessons-learned registry block
+  'SCOPE_CLASSIFICATION_FAILED', // Deterministic scope error
+  'GOVERNANCE_INJECTION_MAP_INVALID', // Config-level governance error
+  'CHUNK_BUDGET_OVERFLOW',  // Manuscript permanently too large for chunk budget
+  'MANUSCRIPT_CHUNK_COVERAGE_INCOMPLETE', // Structural manuscript problem
+  'PIPELINE_INPUT_INVALID', // Bad input — won't improve on retry
+  'SCHEMA_INVALID',         // DB schema error — not transient
+  'SCHEMA_VIOLATION',       // DB schema error — not transient
+  'MANUSCRIPT_NOT_FOUND',   // Data missing — won't appear on retry
+  'AUTH_FAILED',            // Credential error — not transient
+  'AUTHORIZATION_ERROR',    // Same
+  'QUOTA_EXCEEDED',         // Monthly quota — admin must resolve
+  'INVALID_INPUT',          // Client-provided invalid data
+  'PASS3_FAILED',           // LEGACY: old code path, treat as terminal
+  'PASS2_INDEPENDENCE_REWRITE_FAILED', // Deterministic editorial failure
+  'EVALUATION_GATE_REJECTED', // Gate rejected — content-driven
+];
+
+/**
+ * Returns true if a failure code is terminal (must NOT be rescued or retried).
+ * A terminal failure means re-running will produce the same failure.
+ */
+export function isTerminalFailureCode(code: string | null | undefined): boolean {
+  if (!code) return false; // Unknown code: assume rescuable (conservative)
+  return TERMINAL_FAILURE_PREFIXES.some((prefix) => code.startsWith(prefix));
+}
+
+/**
+ * Watchdog triage for stale running jobs.  Replaces the old flat "kill everything"
+ * sweeper with a state-aware corrective-action loop.
+ *
+ * Two independent detection signals, each with its own corrective action:
+ *
+ * 1. FROZEN WATCHDOG (60 s no heartbeat, configurable via EVAL_FROZEN_HEARTBEAT_SECS)
+ *    - The leaseRenewalLoop setInterval stops firing when Vercel fluid-compute freezes
+ *      the function (not kills it — freezes it under memory pressure).  Two missed 30s
+ *      beats = 60 s silence = function is frozen.
+ *    - Corrective action is STATE-AWARE with four guards:
+ *        a) Terminal failure code (QG_*, PASS4_REFUSAL_*, governance) → kill, never rescue.
+ *        b) attempt_count >= max_attempts → kill terminally, no more rescues.
+ *        c) Same stage + same error_code repeated twice → kill, not an infra problem.
+ *        d) pass12_handoff_v1 artifact exists → rescue to phase_2/queued.
+ *        e) Otherwise → true freeze mid-pipeline, mark failed (resume button appears).
+ *
+ * 2. AGE-BASED KILL (13 min stale, EVAL_STALE_RUNNING_MINUTES)
+ *    - Existing behavior: belt-and-suspenders for jobs the frozen watchdog missed.
+ *    - Belt-and-suspenders guard: NEVER touch phase_status='complete' rows.
+ *      Those are handed-off jobs waiting for cron pickup — killing them would
+ *      destroy work that already succeeded.
+ *
+ * Both passes skip phase_status='complete' rows — the only safe way to transition
+ * a complete row is through the rescue path above.
+ *
+ * RECOVERY AUDIT: every rescue writes a watchdog_rescue_v1 artifact so the
+ * recovery is forensically provable even after log rotation.
+ */
 export async function failStaleRunningJobs(): Promise<{
   staleFound: number;
   failed: number;
+  rescued: number;
   ids: string[];
 }> {
-  const { staleRunningMinutes } = getProcessorRuntimeDeps();
+  const { staleRunningMinutes, frozenHeartbeatSecs } = getProcessorRuntimeDeps();
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
   const now = new Date().toISOString();
-  const cutoff = new Date(Date.now() - staleRunningMinutes * 60_000).toISOString();
+  const nowMs = Date.now();
   const runningStatus = normalizeEvaluationJobStatus(JOB_STATUS.RUNNING) as JobStatus;
-  const failedStatus = normalizeEvaluationJobStatus(JOB_STATUS.FAILED) as JobStatus;
+  const failedStatus  = normalizeEvaluationJobStatus(JOB_STATUS.FAILED)  as JobStatus;
 
-  // Collect IDs: stale by updated_at cutoff OR expired claim lease
+  // ─── PASS 1: Frozen watchdog (60 s no heartbeat) ────────────────────────────
+  // Fetch full rows with all columns needed for triage decisions.
+  const frozenCutoff = new Date(nowMs - frozenHeartbeatSecs * 1_000).toISOString();
+  const { data: frozenCandidates, error: frozenErr } = await supabase
+    .from('evaluation_jobs')
+    .select('id, manuscript_id, phase_status, progress, failure_code, attempt_count, max_attempts')
+    .eq('status', runningStatus)
+    .not('last_heartbeat_at', 'is', null)
+    .lt('last_heartbeat_at', frozenCutoff)
+    .order('last_heartbeat_at', { ascending: true })
+    .limit(25);
+
+  if (frozenErr) {
+    console.warn('[Watchdog] frozen-heartbeat scan failed:', frozenErr.message);
+  }
+
+  let rescued = 0;
+  const frozenFailIds: string[] = [];
+
+  if (frozenCandidates && frozenCandidates.length > 0) {
+    // Batch-fetch handoff artifacts for all frozen candidates in one query.
+    const frozenIds = frozenCandidates.map((r) => r.id);
+    const { data: handoffArtifacts } = await supabase
+      .from('evaluation_artifacts')
+      .select('job_id')
+      .in('job_id', frozenIds)
+      .eq('artifact_type', 'pass12_handoff_v1');
+
+    const handoffJobIds = new Set((handoffArtifacts ?? []).map((a) => a.job_id));
+
+    const rescueNow = new Date().toISOString();
+    type RescueEntry = { id: string; manuscriptId: number; reason: string; checkpoint: string };
+    const rescueEntries: RescueEntry[] = [];
+    const terminalFailEntries: Array<{ id: string; reason: string }> = [];
+
+    for (const row of frozenCandidates) {
+      const progress = row.progress && typeof row.progress === 'object'
+        ? (row.progress as Record<string, unknown>)
+        : {};
+      const phaseStatusTopLevel = row.phase_status as string | null;
+      const phaseStatusProgress  = progress.phase_status as string | undefined;
+      const lastErrorCode         = (row.failure_code as string | null)
+                                     ?? (progress.error_code as string | undefined)
+                                     ?? null;
+      const attemptCount  = (row.attempt_count  as number | null) ?? 0;
+      const maxAttempts   = (row.max_attempts   as number | null) ?? 3;
+
+      // ─ GUARD A: Terminal failure code — content/governance-driven, never rescue ──
+      if (isTerminalFailureCode(lastErrorCode)) {
+        terminalFailEntries.push({
+          id: row.id,
+          reason: `terminal_failure_code:${lastErrorCode}`,
+        });
+        continue;
+      }
+
+      // ─ GUARD B: Attempt limit exhausted — stop rescue loop ──────────────────
+      if (attemptCount >= maxAttempts) {
+        terminalFailEntries.push({
+          id: row.id,
+          reason: `max_attempts_exhausted:${attemptCount}/${maxAttempts}`,
+        });
+        continue;
+      }
+
+      // ─ GUARD C: Same-stage same-code repeated failure — not an infra problem ──
+      // Detected by checking if progress.watchdog_last_rescue_code === lastErrorCode
+      // AND progress.watchdog_last_rescue_phase === current phase.  If they match,
+      // the previous rescue didn't fix anything — this is deterministic.
+      const lastRescueCode  = progress.watchdog_last_rescue_code  as string | undefined;
+      const lastRescuePhase = progress.watchdog_last_rescue_phase as string | undefined;
+      const currentPhase    = (progress.phase as string | undefined)
+                               ?? phaseStatusTopLevel
+                               ?? 'unknown';
+      if (
+        lastErrorCode &&
+        lastRescueCode  === lastErrorCode &&
+        lastRescuePhase === currentPhase
+      ) {
+        terminalFailEntries.push({
+          id: row.id,
+          reason: `repeated_same_failure:${currentPhase}:${lastErrorCode}`,
+        });
+        continue;
+      }
+
+      // ─ GUARD D: Handoff artifact exists — rescue to phase_2 ──────────────────
+      const alreadyHandedOff =
+        phaseStatusTopLevel === 'complete' ||
+        phaseStatusProgress  === 'complete' ||
+        handoffJobIds.has(row.id);
+
+      if (alreadyHandedOff) {
+        rescueEntries.push({
+          id: row.id,
+          manuscriptId: (row.manuscript_id as number | null) ?? 0,
+          reason: 'handoff_artifact_found',
+          checkpoint: 'pass12_handoff_v1',
+        });
+        continue;
+      }
+
+      // ─ GUARD E: True freeze mid-pipeline — no checkpoint, mark failed ─────────
+      terminalFailEntries.push({
+        id: row.id,
+        reason: 'frozen_no_checkpoint',
+      });
+    }
+
+    // ─── Rescue: transition to queued/phase_2 so next cron tick claims Phase 2 ────
+    if (rescueEntries.length > 0) {
+      // Build progress patch: stamp watchdog_last_rescue_* so Guard C fires if
+      // the same job comes back frozen with the same error code after rescue.
+      // We can't do per-row JSONB patches in a bulk UPDATE, so we add the
+      // rescue stamp individually (still batched — one write per rescued job).
+      const rescueUpdateResults = await Promise.allSettled(
+        rescueEntries.map(async (entry) => {
+          // Fetch current progress to merge stamp without losing existing keys.
+          const { data: currentRow } = await supabase
+            .from('evaluation_jobs')
+            .select('progress, attempt_count')
+            .eq('id', entry.id)
+            .single();
+
+          const currentProgress = (currentRow?.progress && typeof currentRow.progress === 'object')
+            ? (currentRow.progress as Record<string, unknown>)
+            : {};
+          const currentAttempts = (currentRow?.attempt_count as number | null) ?? 0;
+
+          const rescuedProgress = {
+            ...currentProgress,
+            watchdog_last_rescue_at:    rescueNow,
+            watchdog_last_rescue_code:  currentProgress.error_code ?? null,
+            watchdog_last_rescue_phase: currentProgress.phase ?? null,
+            watchdog_rescue_count:      ((currentProgress.watchdog_rescue_count as number | null) ?? 0) + 1,
+          };
+
+          const { data: updateResult, error: updateErr } = await supabase
+            .from('evaluation_jobs')
+            .update({
+              status: JOB_STATUS.QUEUED,
+              phase: 'phase_2',
+              phase_status: JOB_STATUS.QUEUED,
+              claimed_by: null,
+              claimed_at: null,
+              lease_token: null,
+              lease_until: null,
+              lease_expires_at: null,
+              attempt_count: currentAttempts + 1,
+              updated_at: rescueNow,
+              progress: rescuedProgress,
+            })
+            .eq('id', entry.id)
+            .eq('status', runningStatus)
+            .select('id')
+            .single();
+
+          if (updateErr) {
+            console.warn('[Watchdog] rescue update failed for job', entry.id, updateErr.message);
+            return null;
+          }
+
+          // Write durable recovery audit artifact — survives log rotation.
+          // This is best-effort: if it fails, the rescue still happened.
+          try {
+            const { upsertEvaluationArtifact: _upsert } = await import('./artifactPersistence');
+            await _upsert({
+              supabase,
+              jobId: entry.id,
+              manuscriptId: entry.manuscriptId,
+              artifactType: 'watchdog_rescue_v1',
+              content: {
+                event: 'watchdog_rescue',
+                from_status: 'running',
+                to_status: 'queued',
+                from_phase: currentProgress.phase ?? 'phase_1',
+                to_phase: 'phase_2',
+                rescue_reason: entry.reason,
+                checkpoint_used: entry.checkpoint,
+                rescue_count: rescuedProgress.watchdog_rescue_count,
+                attempt_count_after: currentAttempts + 1,
+                rescuedAt: rescueNow,
+              },
+              sourceHash: `watchdog_rescue_${entry.id}_${rescueNow}`,
+              artifactVersion: 'watchdog_rescue_v1',
+            });
+          } catch (artifactErr) {
+            // Non-fatal — rescue already committed to DB
+            console.warn('[Watchdog] recovery audit artifact write failed (non-fatal):', entry.id,
+              artifactErr instanceof Error ? artifactErr.message : String(artifactErr));
+          }
+
+          return updateResult?.id ?? null;
+        }),
+      );
+
+      const successfulRescues = rescueUpdateResults
+        .filter((r) => r.status === 'fulfilled' && r.value !== null)
+        .map((r) => (r as PromiseFulfilledResult<string | null>).value as string);
+
+      rescued = successfulRescues.length;
+      if (rescued > 0) {
+        console.log(`[Watchdog] Rescued ${rescued} frozen job(s) to phase_2/queued`, {
+          rescued_ids: successfulRescues,
+        });
+      }
+    }
+
+    // ─── Terminal fail: governance errors, exhausted attempts, repeat failures ────
+    if (terminalFailEntries.length > 0) {
+      const failIds = terminalFailEntries.map((e) => e.id);
+      const { error: freezeFailErr } = await supabase
+        .from('evaluation_jobs')
+        .update({
+          status: failedStatus,
+          phase_status: 'failed',
+          last_error: 'Auto-failed by watchdog: frozen function with no recoverable checkpoint',
+          claimed_by: null,
+          claimed_at: null,
+          lease_token: null,
+          lease_until: null,
+          lease_expires_at: null,
+          updated_at: rescueNow,
+        })
+        .in('id', failIds)
+        .eq('status', runningStatus);
+
+      if (freezeFailErr) {
+        console.warn('[Watchdog] terminal-fail update failed:', freezeFailErr.message);
+      } else {
+        for (const entry of terminalFailEntries) {
+          console.log(`[Watchdog] Terminal-failed job ${entry.id}: ${entry.reason}`);
+          frozenFailIds.push(entry.id);
+        }
+      }
+    }
+  }
+
+  // ─── PASS 2: Age-based kill (13 min) ────────────────────────────────────────
+  // Belt-and-suspenders for anything the frozen watchdog missed.
+  // NEVER touch phase_status='complete' rows.
+  const ageCutoff = new Date(nowMs - staleRunningMinutes * 60_000).toISOString();
+
   const { data: staleByAge, error: ageError } = await supabase
     .from('evaluation_jobs')
     .select('id')
     .eq('status', runningStatus)
+    .neq('phase_status', 'complete')   // ← guard: never kill handed-off jobs
     .not('last_heartbeat_at', 'is', null)
-    .lt('last_heartbeat_at', cutoff)
+    .lt('last_heartbeat_at', ageCutoff)
     .order('last_heartbeat_at', { ascending: true })
     .limit(25);
 
   if (ageError) {
     console.warn('[Processor] Failed to check stale running jobs (age):', ageError.message);
-    return { staleFound: 0, failed: 0, ids: [] };
+    return { staleFound: 0, failed: frozenFailIds.length, rescued, ids: frozenFailIds };
   }
 
-  // Also collect jobs with expired claim leases. Canonical column is lease_expires_at.
-  // For mixed-schema environments, fall back to legacy lease_until if needed.
+  // Also collect jobs with expired claim leases (skip phase_status='complete').
   let staleByLease: Array<{ id: string }> | null = null;
   let leaseScanUsedLegacyColumn = false;
   let { data: leaseData, error: leaseError } = await supabase
     .from('evaluation_jobs')
     .select('id')
     .eq('status', runningStatus)
+    .neq('phase_status', 'complete')   // ← guard
     .not('lease_expires_at', 'is', null)
     .lt('lease_expires_at', now)
     .order('lease_expires_at', { ascending: true })
     .limit(25);
 
   if (leaseError && isMissingColumnError(leaseError, 'lease_expires_at')) {
-    console.warn('[Processor] lease_expires_at unavailable in this schema; retrying stale-lease scan with lease_until');
+    console.warn('[Processor] lease_expires_at unavailable; retrying with lease_until');
     leaseScanUsedLegacyColumn = true;
     ({ data: leaseData, error: leaseError } = await supabase
       .from('evaluation_jobs')
       .select('id')
       .eq('status', runningStatus)
+      .neq('phase_status', 'complete') // ← guard
       .not('lease_until', 'is', null)
       .lt('lease_until', now)
       .order('lease_until', { ascending: true })
@@ -1419,13 +1754,17 @@ export async function failStaleRunningJobs(): Promise<{
     console.warn('[Processor] Failed to check stale running jobs (lease):', leaseError.message);
   }
 
-  // Merge unique IDs from both sources
-  const ageIds = (staleByAge ?? []).map((r) => r.id);
+  const ageIds   = (staleByAge   ?? []).map((r) => r.id);
   const leaseIds = (staleByLease ?? []).map((r) => r.id);
-  const staleIds = Array.from(new Set([...ageIds, ...leaseIds]));
+  // Exclude IDs already handled by the frozen watchdog in this tick
+  const alreadyHandled = new Set([...frozenFailIds, ...Array.from({ length: rescued }, (_, i) => i)]);
+  const staleIds = Array.from(new Set([...ageIds, ...leaseIds]))
+    .filter((id) => !frozenFailIds.includes(id));
+
+  void alreadyHandled; // suppress lint — kept for documentation clarity
 
   if (staleIds.length === 0) {
-    return { staleFound: 0, failed: 0, ids: [] };
+    return { staleFound: frozenFailIds.length, failed: frozenFailIds.length, rescued, ids: frozenFailIds };
   }
 
   const failureResetPayloadBase = {
@@ -1440,10 +1779,7 @@ export async function failStaleRunningJobs(): Promise<{
   };
 
   const failureResetPayload = leaseScanUsedLegacyColumn
-    ? {
-        ...failureResetPayloadBase,
-        lease_until: null,
-      }
+    ? { ...failureResetPayloadBase, lease_until: null }
     : failureResetPayloadBase;
 
   let { data: failedRows, error: failError } = await supabase
@@ -1451,32 +1787,36 @@ export async function failStaleRunningJobs(): Promise<{
     .update(failureResetPayload)
     .in('id', staleIds)
     .eq('status', runningStatus)
+    .neq('phase_status', 'complete')   // ← final guard on the UPDATE itself
     .select('id');
 
   if (failError && leaseScanUsedLegacyColumn && isMissingColumnError(failError, 'lease_until')) {
-    console.warn('[Processor] lease_until missing; retrying stale-fail update without lease_until clear');
+    console.warn('[Processor] lease_until missing; retrying without it');
     ({ data: failedRows, error: failError } = await supabase
       .from('evaluation_jobs')
       .update(failureResetPayloadBase)
       .in('id', staleIds)
       .eq('status', runningStatus)
+      .neq('phase_status', 'complete') // ← guard
       .select('id'));
   }
 
   if (failError) {
     console.warn('[Processor] Failed to auto-fail stale jobs:', failError.message);
-    return { staleFound: staleIds.length, failed: 0, ids: staleIds };
+    return { staleFound: staleIds.length + frozenFailIds.length, failed: frozenFailIds.length, rescued, ids: staleIds };
   }
 
-  const failedCount = failedRows?.length ?? 0;
-  if (failedCount > 0) {
-    console.log(`[Processor] Auto-failed ${failedCount} stale running job(s)`);
+  const ageFailed = failedRows?.length ?? 0;
+  const totalFailed = ageFailed + frozenFailIds.length;
+  if (totalFailed > 0) {
+    console.log(`[Processor] Auto-failed ${totalFailed} stale running job(s) (age=${ageFailed}, frozen=${frozenFailIds.length})`);
   }
 
   return {
-    staleFound: staleIds.length,
-    failed: failedCount,
-    ids: staleIds,
+    staleFound: staleIds.length + frozenFailIds.length,
+    failed: totalFailed,
+    rescued,
+    ids: [...staleIds, ...frozenFailIds],
   };
 }
 
@@ -2858,12 +3198,15 @@ export async function processEvaluationJob(
     // isChunkRouted already declared above (hoisted for partial-capture rescue scope)
     const pass12BothCaptured = capturedPass1Output !== null && capturedPass2Output !== null;
     const budgetRemaining = hardDeadlineMs - Date.now();
+    // PR-E addendum: unconditional handoff for chunk-routed jobs.
+    // Once Pass1+Pass2 are both captured we ALWAYS hand off — we do not wait for
+    // a budget floor or a Pass3 timeout.  This eliminates the window where the
+    // Vercel function could be frozen between the budget check and the handoff
+    // write, causing the lease to expire and the sweeper to kill a succeeded job.
     const shouldHandoff =
       executionPhase === 'phase_1' &&
       isChunkRouted &&
-      pass12BothCaptured &&
-      (budgetRemaining < PHASE_SPLIT_BUDGET_FLOOR_MS ||
-        (pipelineResult.ok === false && pipelineResult.failed_at === 'pass3'));
+      pass12BothCaptured;
 
     if (shouldHandoff) {
       console.log(
@@ -2871,7 +3214,7 @@ export async function processEvaluationJob(
         {
           budget_remaining_ms: budgetRemaining,
           chunk_count: chunkRouting.chunk_count,
-          triggered_by: budgetRemaining < PHASE_SPLIT_BUDGET_FLOOR_MS ? 'budget' : 'pass3_timeout',
+          triggered_by: 'unconditional_chunk_routed',
         },
       );
 
@@ -2898,22 +3241,40 @@ export async function processEvaluationJob(
           artifactVersion: 'pass12_handoff_v1',
         });
 
-        // Mark phase_1 complete so the cron-tick worker dispatches phase_2.
-        // The trigger requires phase_status IN (NULL, 'queued', 'triggered') when
-        // status='queued', but we're updating a running row here — so we set
-        // phase_status='complete' which satisfies the running path.
+        // Transition directly to phase_2/queued so the next cron tick can
+        // claim and run it without any intermediate state.
+        //
+        // CRITICAL: we must NOT leave status='running' here.  The stale sweeper
+        // scans for status='running' jobs whose lease has expired and kills them.
+        // Phase 1 consumes most of the 800s lease, so by the time the next cron
+        // tick fires the lease may already be past — and the sweeper runs BEFORE
+        // the claim RPC in processQueuedJobs, so a running row is dead on arrival.
+        //
+        // Setting status='queued', phase='phase_2', phase_status='queued' means:
+        //   • Sweeper ignores it (only targets status='running').
+        //   • claim_evaluation_jobs RPC picks it up on the very next cron tick.
+        //   • processEvaluationJob sees status='running' after claim (fresh lease)
+        //     with phase='phase_2' → falls into the isPhase1CompleteHandoff path
+        //     via progress.phase_status='complete' (preserved in the JSONB).
+        const handoffNow = new Date().toISOString();
         await supabase
           .from('evaluation_jobs')
           .update({
-            phase: 'phase_1',
-            phase_status: 'complete',
-            updated_at: new Date().toISOString(),
+            status: JOB_STATUS.QUEUED,
+            phase: 'phase_2',
+            phase_status: JOB_STATUS.QUEUED,
+            claimed_by: null,
+            claimed_at: null,
+            lease_token: null,
+            lease_until: null,
+            lease_expires_at: null,
+            updated_at: handoffNow,
             progress: {
               ...progressState,
-              phase: 'phase_1',
-              phase_status: 'complete',
+              phase: 'phase_1',        // keep phase_1 in JSONB so isPhase1CompleteHandoff fires
+              phase_status: 'complete', // the signal that pass12_handoff_v1 is ready
               message: 'Phase 1 complete — awaiting Pass 3 synthesis',
-              pass12_handoff_written_at: new Date().toISOString(),
+              pass12_handoff_written_at: handoffNow,
             },
           })
           .eq('id', job.id);

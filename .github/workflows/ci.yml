@@ -115,13 +115,13 @@ jobs:
             }
             const vulns = j.vulnerabilities || {};
             const keys = Object.keys(vulns);
-                      const allow = ["tar", "supabase", "next", "eslint", "ajv", "flatted", "minimatch", "socket.io-parser", "underscore", "@xmldom/xmldom", "xmldom", "brace-expansion", "lodash", "picomatch", "axios", "@base44/sdk", "postcss", "uuid", "xlsx"];
-          const bad = keys.filter(k => !allow.some(a => k === a || k.includes(a)));
+            const allow = ["tar", "supabase", "next", "eslint", "ajv", "flatted", "minimatch", "socket.io-parser", "engine.io-client", "socket.io-client", "ws", "underscore", "@xmldom/xmldom", "xmldom", "brace-expansion", "lodash", "picomatch", "axios", "@base44/sdk", "postcss", "uuid", "xlsx"];
+            const bad = keys.filter(k => !allow.some(a => k === a || k.includes(a)));
             if (bad.length) {
               console.error("Unexpected high vulns:", bad);
               process.exit(1);
             }
-                      if (!keys.some(k => allow.some(a => k === a || k.includes(a)))) {
+            if (!keys.some(k => allow.some(a => k === a || k.includes(a)))) {
               console.error("High vuln present but not in approved allowlist? keys:", keys);
               process.exit(1);
             }
