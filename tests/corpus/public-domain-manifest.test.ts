@@ -46,9 +46,13 @@ describe("public-domain corpus substrate", () => {
 
   it("covers multiple forms and calibration axes in the seed set", () => {
     const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
-    const forms = new Set(manifest.works.map((work: { form: string }) => work.form));
-    const axes = new Set(
-      manifest.works.flatMap((work: { calibration_axes: string[] }) => work.calibration_axes),
+    const forms = Array.from(
+      new Set(manifest.works.map((work: { form: string }) => work.form)),
+    );
+    const axes = Array.from(
+      new Set(
+        manifest.works.flatMap((work: { calibration_axes: string[] }) => work.calibration_axes),
+      ),
     );
 
     expect(forms).toEqual(
