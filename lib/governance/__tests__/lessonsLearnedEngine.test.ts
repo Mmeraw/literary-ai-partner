@@ -76,7 +76,7 @@ function makeSynthesis(summary: string, strengths: string[], risks: string[]): S
       one_paragraph_summary: summary,
       top_3_strengths: strengths,
       top_3_risks: risks,
-      submission_readiness: "close",
+      submission_readiness: "nearly_ready",
     },
     metadata: {
       pass1_model: "gpt-4o-mini",
@@ -123,7 +123,7 @@ function makeGenericSynthesis(summary: string, strengths: string[], risks: strin
       one_paragraph_summary: summary,
       top_3_strengths: strengths,
       top_3_risks: risks,
-      submission_readiness: "close",
+      submission_readiness: "nearly_ready",
     },
     metadata: {
       pass1_model: "gpt-4o-mini",

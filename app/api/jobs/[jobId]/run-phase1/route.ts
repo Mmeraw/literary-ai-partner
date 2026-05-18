@@ -3,6 +3,7 @@ import { getJob, canRunPhase } from "@/lib/jobs/store";
 import { runPhase1 } from "@/lib/jobs/phase1";
 import { checkServiceRoleAuth } from "@/lib/auth/api";
 import { PHASES } from "@/lib/jobs/types";
+import { assertJobNotCancelled } from "@/lib/jobs/cancellationCheck";
 
 type Params = Promise<{ jobId: string }>;
 
@@ -29,6 +30,15 @@ export async function POST(req: NextRequest, ctx: { params: Params }) {
   }
 
   console.log("Phase1Started", { job_id: jobId });
+
+  // GOVERNANCE: Check if job is cancelled before starting
+  const cancellation = await assertJobNotCancelled(jobId, "run_phase1_check");
+  if (cancellation.cancelled) {
+    return NextResponse.json(
+      { ok: false, error: "Job has been cancelled", cancelled_at: cancellation.cancelled_at },
+      { status: 410 }
+    );
+  }
 
   // Fire-and-forget - worker will atomically transition queued→running via lease acquisition
   setTimeout(async () => {

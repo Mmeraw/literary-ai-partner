@@ -42,6 +42,28 @@ interface RecentJob {
   pipelineStage: string;
   durationMs: number | null;
   diagnosticStatus: "available" | "missing" | "blocked_by_307" | "not_applicable";
+  // Section A — Pass 4
+  crossCheckStatus: string | null;
+  crossCheckError: string | null;
+  crossCheckCompletedAt: string | null;
+  // Section C — artifact coverage
+  hasEvalV2: boolean;
+  hasDream: boolean;
+  hasPassDiag: boolean;
+}
+
+interface DreamPendingJob {
+  jobId: string;
+  title: string;
+  wordCount: number;
+  updatedAt: string;
+}
+
+interface DreamSynthesisData {
+  pendingCount: number;
+  coveredCount: number;
+  lastSynthesizedAt: string | null;
+  pendingJobs: DreamPendingJob[];
 }
 
 interface Summary {
@@ -73,6 +95,7 @@ interface PipelineHealthData {
   sipoc: SipocStage[];
   failureHeatmap: HeatmapEntry[];
   recentJobs: RecentJob[];
+  dreamSynthesis?: DreamSynthesisData;
   diagnostics: Diagnostics;
   filters?: PipelineHealthFilters;
 }
@@ -96,6 +119,24 @@ function diagBadge(ds: RecentJob["diagnosticStatus"]) {
   if (ds === "blocked_by_307") return `${base} bg-orange-100 text-orange-800`;
   if (ds === "missing") return `${base} bg-red-100 text-red-800`;
   return `${base} bg-gray-100 text-gray-500`;
+}
+
+function crossCheckBadge(status: string | null) {
+  const base = "inline-block px-2 py-0.5 rounded text-xs font-medium";
+  if (status === "completed") return `${base} bg-green-100 text-green-800`;
+  if (status === "skipped") return `${base} bg-gray-100 text-gray-600`;
+  if (status === "failed_soft") return `${base} bg-orange-100 text-orange-800`;
+  if (status === null) return `${base} bg-red-100 text-red-700`;
+  return `${base} bg-gray-100 text-gray-600`;
+}
+
+function artifactDot(has: boolean, isLongForm?: boolean) {
+  if (isLongForm === false) return <span className="text-gray-300 text-xs">n/a</span>;
+  return has ? (
+    <span className="text-green-600 font-bold text-sm">✓</span>
+  ) : (
+    <span className="text-red-500 font-bold text-sm">✗</span>
+  );
 }
 
 function healthDot(health: SipocStage["health"]) {
@@ -165,7 +206,6 @@ export default function PipelineHealthPage() {
     fetchData(windowParam, showTestManuscripts);
   }, [windowParam, showTestManuscripts, fetchData]);
 
-  // --- Loading ---
   if (loading) {
     return (
       <main className="p-6">
@@ -174,7 +214,6 @@ export default function PipelineHealthPage() {
     );
   }
 
-  // --- Error ---
   if (error) {
     return (
       <main className="p-6">
@@ -188,7 +227,7 @@ export default function PipelineHealthPage() {
 
   if (!data) return null;
 
-  const { summary, sipoc, failureHeatmap, recentJobs, diagnostics } = data;
+  const { summary, sipoc, failureHeatmap, recentJobs, diagnostics, dreamSynthesis } = data;
   const failedJobs = recentJobs.filter((j) => j.status === "failed");
 
   return (
@@ -207,7 +246,6 @@ export default function PipelineHealthPage() {
           </p>
         </div>
 
-        {/* Window selector + test-manuscript toggle */}
         <div className="flex gap-4 items-center flex-wrap">
           <div className="flex gap-2">
             {(["1h", "24h", "7d"] as const).map((w) => (
@@ -264,6 +302,109 @@ export default function PipelineHealthPage() {
           {" "}over last {windowParam}
         </p>
       </section>
+
+      {/* ------------------------------------------------------------------ */}
+      {/* Section B — Narrative Synthesis Queue                              */}
+      {/* ------------------------------------------------------------------ */}
+      {dreamSynthesis && (
+        <section className="rounded-lg border border-gray-200 p-5 space-y-4">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <h2 className="text-lg font-semibold">Narrative Synthesis Queue</h2>
+            <div className="flex gap-6 text-sm">
+              <span>
+                <span className="font-semibold text-gray-800">{dreamSynthesis.coveredCount}</span>
+                <span className="text-gray-500 ml-1">long-form jobs with synthesis artifact</span>
+              </span>
+              <span>
+                <span
+                  className={`font-semibold ${
+                    dreamSynthesis.pendingCount > 0 ? "text-red-700" : "text-green-700"
+                  }`}
+                >
+                  {dreamSynthesis.pendingCount}
+                </span>
+                <span className="text-gray-500 ml-1">pending (no artifact yet)</span>
+              </span>
+            </div>
+          </div>
+
+          {dreamSynthesis.pendingCount > 0 && (
+            <div className="rounded bg-amber-50 border border-amber-300 px-4 py-3 text-sm text-amber-900">
+              <strong>⚠ {dreamSynthesis.pendingCount} long-form job{dreamSynthesis.pendingCount !== 1 ? "s" : ""} complete but missing Narrative Synthesis artifact</strong>
+              {" "}— check <code className="font-mono text-xs bg-amber-100 px-1 rounded">process-dream</code> cron.
+              If this count is stuck, the cron may be silently skipping jobs (see post-mortem{" "}
+              <a
+                href="https://github.com/Mmeraw/literary-ai-partner/issues/561"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline"
+              >
+                #561
+              </a>
+              ).
+            </div>
+          )}
+
+          {dreamSynthesis.pendingCount === 0 && dreamSynthesis.coveredCount > 0 && (
+            <div className="rounded bg-green-50 border border-green-200 px-4 py-3 text-sm text-green-800">
+              ✓ All complete long-form jobs have Narrative Synthesis artifacts. Last synthesized:{" "}
+              {dreamSynthesis.lastSynthesizedAt ? fmtDate(dreamSynthesis.lastSynthesizedAt) : "—"}
+            </div>
+          )}
+
+          <div className="text-xs text-gray-500">
+            Last Narrative Synthesis:{" "}
+            <span className="font-medium text-gray-700">
+              {dreamSynthesis.lastSynthesizedAt ? fmtDate(dreamSynthesis.lastSynthesizedAt) : "Never"}
+            </span>
+            {" "}· Threshold: ≥25,000 words
+          </div>
+
+          {dreamSynthesis.pendingJobs.length > 0 && (
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-sm border border-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    {["Job ID", "Title", "Word Count", "Completed At", "Report"].map((h) => (
+                      <th
+                        key={h}
+                        className="px-3 py-2 text-left font-medium text-gray-600 whitespace-nowrap"
+                      >
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {dreamSynthesis.pendingJobs.map((j) => (
+                    <tr key={j.jobId} className="hover:bg-amber-50">
+                      <td className="px-3 py-2 font-mono text-xs text-gray-600">
+                        {j.jobId.slice(0, 8)}…
+                      </td>
+                      <td className="px-3 py-2 text-sm font-medium">{j.title}</td>
+                      <td className="px-3 py-2 text-xs">
+                        {j.wordCount.toLocaleString()} words
+                      </td>
+                      <td className="px-3 py-2 text-xs text-gray-500 whitespace-nowrap">
+                        {fmtDate(j.updatedAt)}
+                      </td>
+                      <td className="px-3 py-2 text-xs">
+                        <Link
+                          href={`/reports/${j.jobId}`}
+                          className="text-blue-600 underline"
+                          target="_blank"
+                        >
+                          /reports/{j.jobId.slice(0, 8)}…
+                        </Link>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      )}
 
       {/* SIPOC strip */}
       <section>
@@ -400,6 +541,9 @@ export default function PipelineHealthPage() {
                     "Chunks",
                     "Duration",
                     "Diagnostics",
+                    "Pass 4",
+                    "P4 Error",
+                    "Artifacts",
                   ].map((h) => (
                     <th
                       key={h}
@@ -411,7 +555,132 @@ export default function PipelineHealthPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {failedJobs.map((job) => (
+                {failedJobs.map((job) => {
+                  const isLongForm =
+                    job.manuscriptWords !== null && job.manuscriptWords >= 25000;
+                  return (
+                    <tr key={job.jobId} className="hover:bg-gray-50">
+                      <td className="px-3 py-2 font-mono text-xs">
+                        <Link
+                          href={`/evaluate/${job.jobId}`}
+                          className="text-blue-600 underline"
+                        >
+                          {job.jobId.slice(0, 8)}…
+                        </Link>
+                      </td>
+                      <td className="px-3 py-2 text-xs text-gray-700">
+                        {job.manuscriptId ?? "—"}
+                      </td>
+                      <td className="px-3 py-2 text-xs text-gray-500 whitespace-nowrap">
+                        {fmtDate(job.createdAt)}
+                      </td>
+                      <td className="px-3 py-2 text-xs text-gray-500 whitespace-nowrap">
+                        {fmtDate(job.updatedAt)}
+                      </td>
+                      <td className="px-3 py-2 font-mono text-xs">{job.pipelineStage}</td>
+                      <td className="px-3 py-2">
+                        {job.errorCode ? (
+                          <span
+                            className={`font-mono text-xs ${
+                              job.errorCode.startsWith("QG_")
+                                ? "text-orange-700 font-semibold"
+                                : "text-red-700"
+                            }`}
+                          >
+                            {job.errorCode}
+                          </span>
+                        ) : (
+                          <span className="text-gray-400 text-xs">—</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-2 text-xs">
+                        <span title={job.lastError ?? "No detail available"}>
+                          {truncateStr(job.lastError)}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2 text-xs">{job.phase ?? "—"}</td>
+                      <td className="px-3 py-2 text-xs">{job.phaseStatus ?? "—"}</td>
+                      <td className="px-3 py-2 text-xs">
+                        {job.manuscriptWords !== null ? job.manuscriptWords.toLocaleString() : "—"}
+                      </td>
+                      <td className="px-3 py-2 text-xs">{job.route ?? "—"}</td>
+                      <td className="px-3 py-2 text-xs">
+                        {job.chunkCount !== null ? job.chunkCount : "—"}
+                      </td>
+                      <td className="px-3 py-2 text-xs">{fmtMs(job.durationMs)}</td>
+                      <td className="px-3 py-2">
+                        <span className={diagBadge(job.diagnosticStatus)}>
+                          {job.diagnosticStatus}
+                        </span>
+                      </td>
+                      {/* Section A — Pass 4 */}
+                      <td className="px-3 py-2">
+                        <span className={crossCheckBadge(job.crossCheckStatus)}>
+                          {job.crossCheckStatus ?? "null"}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2 text-xs text-red-700">
+                        {truncateStr(job.crossCheckError, 40)}
+                      </td>
+                      {/* Section C — artifacts */}
+                      <td className="px-3 py-2 text-xs">
+                        <div className="flex gap-1 items-center">
+                          <span title="eval_v2">{artifactDot(job.hasEvalV2)}</span>
+                          <span className="text-gray-300">|</span>
+                          <span title="dream">{artifactDot(job.hasDream, isLongForm)}</span>
+                          <span className="text-gray-300">|</span>
+                          <span title="pass_diag">{artifactDot(job.hasPassDiag)}</span>
+                        </div>
+                        <div className="text-gray-400 text-xs mt-0.5">v2|drm|diag</div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
+
+      {/* All recent jobs — with Pass 4 + artifact coverage columns */}
+      <section>
+        <h2 className="text-lg font-semibold mb-3">
+          Recent Jobs{" "}
+          <span className="text-sm font-normal text-gray-500">
+            (last {recentJobs.length}, sorted by updated_at desc)
+          </span>
+        </h2>
+        <div className="overflow-x-auto">
+          <table className="min-w-full text-sm border border-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                {[
+                  "Job ID",
+                  "Status",
+                  "Created",
+                  "Updated",
+                  "Stage",
+                  "Error Code",
+                  "Failure Detail",
+                  "Diagnostics",
+                  "Duration",
+                  "Pass 4",
+                  "Artifacts",
+                ].map((h) => (
+                  <th
+                    key={h}
+                    className="px-3 py-2 text-left font-medium text-gray-600 whitespace-nowrap"
+                  >
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-200">
+              {recentJobs.map((job) => {
+                const isLongForm =
+                  job.manuscriptWords !== null && job.manuscriptWords >= 25000;
+                return (
                   <tr key={job.jobId} className="hover:bg-gray-50">
                     <td className="px-3 py-2 font-mono text-xs">
                       <Link
@@ -421,8 +690,10 @@ export default function PipelineHealthPage() {
                         {job.jobId.slice(0, 8)}…
                       </Link>
                     </td>
-                    <td className="px-3 py-2 text-xs text-gray-700">
-                      {job.manuscriptId ?? "—"}
+                    <td className="px-3 py-2">
+                      <span className={statusBadge(String(job.status ?? ""))}>
+                        {String(job.status ?? "")}
+                      </span>
                     </td>
                     <td className="px-3 py-2 text-xs text-gray-500 whitespace-nowrap">
                       {fmtDate(job.createdAt)}
@@ -451,104 +722,32 @@ export default function PipelineHealthPage() {
                         {truncateStr(job.lastError)}
                       </span>
                     </td>
-                    <td className="px-3 py-2 text-xs">{job.phase ?? "—"}</td>
-                    <td className="px-3 py-2 text-xs">{job.phaseStatus ?? "—"}</td>
-                    <td className="px-3 py-2 text-xs">
-                      {job.manuscriptWords !== null ? job.manuscriptWords.toLocaleString() : "—"}
-                    </td>
-                    <td className="px-3 py-2 text-xs">{job.route ?? "—"}</td>
-                    <td className="px-3 py-2 text-xs">
-                      {job.chunkCount !== null ? job.chunkCount : "—"}
-                    </td>
-                    <td className="px-3 py-2 text-xs">{fmtMs(job.durationMs)}</td>
                     <td className="px-3 py-2">
                       <span className={diagBadge(job.diagnosticStatus)}>
                         {job.diagnosticStatus}
                       </span>
                     </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
-      )}
-
-      {/* All recent jobs */}
-      <section>
-        <h2 className="text-lg font-semibold mb-3">
-          Recent Jobs{" "}
-          <span className="text-sm font-normal text-gray-500">
-            (last {recentJobs.length}, sorted by updated_at desc)
-          </span>
-        </h2>
-        <div className="overflow-x-auto">
-          <table className="min-w-full text-sm border border-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                {["Job ID", "Status", "Created", "Updated", "Stage", "Error Code", "Failure Detail", "Diagnostics", "Duration"].map(
-                  (h) => (
-                    <th
-                      key={h}
-                      className="px-3 py-2 text-left font-medium text-gray-600 whitespace-nowrap"
-                    >
-                      {h}
-                    </th>
-                  )
-                )}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
-              {recentJobs.map((job) => (
-                <tr key={job.jobId} className="hover:bg-gray-50">
-                  <td className="px-3 py-2 font-mono text-xs">
-                    <Link
-                      href={`/evaluate/${job.jobId}`}
-                      className="text-blue-600 underline"
-                    >
-                      {job.jobId.slice(0, 8)}…
-                    </Link>
-                  </td>
-                  <td className="px-3 py-2">
-                    <span className={statusBadge(String(job.status ?? ""))}>
-                      {String(job.status ?? "")}
-                    </span>
-                  </td>
-                  <td className="px-3 py-2 text-xs text-gray-500 whitespace-nowrap">
-                    {fmtDate(job.createdAt)}
-                  </td>
-                  <td className="px-3 py-2 text-xs text-gray-500 whitespace-nowrap">
-                    {fmtDate(job.updatedAt)}
-                  </td>
-                  <td className="px-3 py-2 font-mono text-xs">{job.pipelineStage}</td>
-                  <td className="px-3 py-2">
-                    {job.errorCode ? (
-                      <span
-                        className={`font-mono text-xs ${
-                          job.errorCode.startsWith("QG_")
-                            ? "text-orange-700 font-semibold"
-                            : "text-red-700"
-                        }`}
-                      >
-                        {job.errorCode}
+                    <td className="px-3 py-2 text-xs">{fmtMs(job.durationMs)}</td>
+                    {/* Section A — Pass 4 status */}
+                    <td className="px-3 py-2">
+                      <span className={crossCheckBadge(job.crossCheckStatus)}>
+                        {job.crossCheckStatus ?? "—"}
                       </span>
-                    ) : (
-                      <span className="text-gray-400 text-xs">—</span>
-                    )}
-                  </td>
-                  <td className="px-3 py-2 text-xs">
-                    <span title={job.lastError ?? "No detail available"}>
-                      {truncateStr(job.lastError)}
-                    </span>
-                  </td>
-                  <td className="px-3 py-2">
-                    <span className={diagBadge(job.diagnosticStatus)}>
-                      {job.diagnosticStatus}
-                    </span>
-                  </td>
-                  <td className="px-3 py-2 text-xs">{fmtMs(job.durationMs)}</td>
-                </tr>
-              ))}
+                    </td>
+                    {/* Section C — artifact coverage */}
+                    <td className="px-3 py-2 text-xs">
+                      <div className="flex gap-1 items-center">
+                        <span title="eval_v2">{artifactDot(job.hasEvalV2)}</span>
+                        <span className="text-gray-300">|</span>
+                        <span title="dream">{artifactDot(job.hasDream, isLongForm)}</span>
+                        <span className="text-gray-300">|</span>
+                        <span title="pass_diag">{artifactDot(job.hasPassDiag)}</span>
+                      </div>
+                      <div className="text-gray-400 text-xs mt-0.5">v2|drm|diag</div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

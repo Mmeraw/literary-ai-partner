@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import type { DetectedMode, EvaluationMode, VoicePreservationMode } from "@/lib/evaluation/modeDetection";
 import type { ConfirmedMode } from "@/lib/evaluation/modeGate";
 
@@ -22,8 +22,6 @@ export default function ModeConfirmationBlock({ jobId, detectedMode, confirmedMo
   );
 
   const isConfirmed = confirmedMode !== null;
-
-  const sortedEvidence = useMemo(() => detectedMode.evidence.slice(0, 5), [detectedMode.evidence]);
 
   async function submit() {
     setBusy(true);
@@ -109,14 +107,6 @@ export default function ModeConfirmationBlock({ jobId, detectedMode, confirmedMo
         )}
       </p>
 
-      <ul className="mt-3 list-disc pl-5 text-sm text-gray-700 space-y-1">
-        {sortedEvidence.map((item, idx) => (
-          <li key={`${item.signal}-${idx}`}>
-            {item.signal} <span className="text-gray-500">({item.where})</span>
-          </li>
-        ))}
-      </ul>
-
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
         <label className="text-sm">
           <span className="block text-gray-600 mb-1">Evaluation Mode</span>
@@ -146,6 +136,8 @@ export default function ModeConfirmationBlock({ jobId, detectedMode, confirmedMo
           </select>
         </label>
       </div>
+
+      <p className="mt-2 text-xs text-gray-500">You can change your selection at any time — confirming does not re-run your evaluation.</p>
 
       <div className="mt-4 flex flex-wrap gap-2">
         <button

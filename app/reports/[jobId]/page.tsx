@@ -16,6 +16,15 @@ import {
   getCriterionRationalePresentation,
   getCriterionSupportLabel,
 } from '@/lib/evaluation/reportCriterionDisplay';
+import {
+  getDisplayDateTime,
+  getDisplayDreamList,
+  getDisplayDreamMarketField,
+  getDisplayObjectArray,
+  getDisplayRecord,
+  getDisplayDreamScore,
+  getDisplayText,
+} from '@/lib/evaluation/reportRenderSafety';
 import { resolveReportTitle } from '@/lib/evaluation/reportTitle';
 import type { LongformDreamDocument } from '@/lib/evaluation/pipeline/runPass3bLongform';
 
@@ -175,6 +184,32 @@ export default async function ReportPage({ params }: { params: { jobId: string }
   const wordCount = result.metrics?.manuscript?.word_count ?? 0;
   const isLongForm = wordCount >= 25000;
   const dreamDoc = isLongForm ? await getDreamArtifact(params.jobId) : null;
+  const dreamExecutiveVerdict = getDisplayText(dreamDoc?.executive_verdict, "No executive verdict available.");
+  const dreamBestShelf = getDisplayDreamMarketField(dreamDoc, "best_shelf");
+  const dreamMarketableHook = getDisplayDreamMarketField(dreamDoc, "marketable_hook");
+  const dreamMarketDanger = getDisplayDreamMarketField(dreamDoc, "market_danger");
+  const dreamAntiPatterns = getDisplayDreamList(dreamDoc?.what_not_to_become);
+  const dreamStructuralStack = getDisplayObjectArray(dreamDoc?.structural_stack);
+  const dreamArcMap = getDisplayObjectArray(dreamDoc?.arc_map);
+  const dreamCriterionAnalyses = getDisplayObjectArray(dreamDoc?.criterion_analyses);
+  const dreamLayerAnalyses = getDisplayObjectArray(dreamDoc?.layer_analyses);
+  const dreamCrossLayerIntegration = getDisplayObjectArray(dreamDoc?.cross_layer_integration);
+  const dreamSymbolicAudit = getDisplayRecord(dreamDoc?.symbolic_audit);
+  const dreamPreservedSymbols = getDisplayObjectArray(dreamSymbolicAudit?.preserved_symbols);
+  const dreamDoctrineStrengths = getDisplayDreamList(dreamSymbolicAudit?.doctrine_strengths);
+  const dreamDoctrineRisks = getDisplayDreamList(dreamSymbolicAudit?.doctrine_risks);
+  const dreamReaderExperience = getDisplayRecord(dreamDoc?.reader_experience);
+  const dreamReaderFirstAct = getDisplayRecord(dreamReaderExperience?.first_act);
+  const dreamReaderMiddle = getDisplayRecord(dreamReaderExperience?.middle);
+  const dreamReaderFinalAct = getDisplayRecord(dreamReaderExperience?.final_act);
+  const dreamRevisionPlan = getDisplayObjectArray(dreamDoc?.revision_plan);
+  const dreamReleasability = getDisplayObjectArray(dreamDoc?.releasability);
+  const dreamAcceptanceChecks = getDisplayRecord(dreamDoc?.acceptance_checks);
+  const dreamRequiredDetections = getDisplayDreamList(dreamAcceptanceChecks?.required_detection);
+  const dreamFailureConditions = getDisplayDreamList(dreamAcceptanceChecks?.failure_conditions);
+  const dreamCalibrationNotes = getDisplayDreamList(dreamDoc?.calibration_notes);
+  const dreamRepoSummary = getDisplayRecord(dreamDoc?.repo_summary);
+  const dreamIntegrityIssues = getDisplayObjectArray(dreamDoc?.manuscript_integrity_issues);
 
   // D2 fail-closed: block forbidden market guarantee language from rendering in agent-facing output.
   if (scanObjectForForbiddenMarketClaims(result)) {
@@ -266,7 +301,7 @@ export default async function ReportPage({ params }: { params: { jobId: string }
             </p>
           )}
           <p className="text-gray-600">
-            Generated {new Date(result.generated_at).toLocaleString()}
+            Generated {getDisplayDateTime(result.generated_at, "Unknown")}
           </p>
         </header>
 
@@ -339,7 +374,9 @@ export default async function ReportPage({ params }: { params: { jobId: string }
 
         {/* Criteria Scores */}
         <section className="bg-white rounded-lg shadow-sm p-6 mb-6">
-          <h2 className="text-2xl font-semibold text-gray-900 mb-6">Detailed Scores</h2>
+          <h2 className="text-2xl font-semibold text-gray-900 mb-6">
+            §6 — Detailed Scores / Score Grid
+          </h2>
           <div className="mb-4 rounded-md border bg-gray-50 p-3 text-xs text-gray-700">
             <p className="font-medium">Confidence Guide</p>
             <p className="mt-1">
@@ -461,24 +498,24 @@ export default async function ReportPage({ params }: { params: { jobId: string }
           )}
         </section>
 
-        {/* DREAM Long-Form Synthesis (Pass 3b — async, long-form manuscripts only) */}
+        {/* Narrative Synthesis (Pass 3b — async, long-form manuscripts only) */}
         {isLongForm && (
           <section className="bg-white rounded-lg shadow-sm p-6 mb-6 border border-indigo-100">
             <h2 className="text-2xl font-semibold text-gray-900 mb-1 flex items-center gap-2">
-              <span aria-hidden>&#x1F4D6;</span> DREAM Analysis
+              <span aria-hidden>&#x1F4D6;</span> Narrative Synthesis
             </h2>
             <p className="text-sm text-gray-500 mb-4">
-              Deep Read &amp; Editorial Assessment Memo — long-form synthesis
+              Holistic Craft Assessment — long-form synthesis report
             </p>
 
             {dreamDoc ? (
               <div className="space-y-6">
-                {/* DREAM Scores */}
+                {/* §1 — Executive verdict + DREAM scores */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                   {(['quality', 'readiness', 'commercial', 'literary'] as const).map((dim) => (
                     <div key={dim} className="bg-indigo-50 rounded-lg p-3 text-center">
                       <p className="text-xs text-indigo-600 uppercase font-semibold tracking-wide mb-1">{dim}</p>
-                      <p className="text-2xl font-bold text-indigo-900">{dreamDoc.dream_scores[dim]}</p>
+                      <p className="text-2xl font-bold text-indigo-900">{getDisplayDreamScore(dreamDoc, dim)}</p>
                       <p className="text-xs text-indigo-500">/100</p>
                     </div>
                   ))}
@@ -487,46 +524,277 @@ export default async function ReportPage({ params }: { params: { jobId: string }
                 {/* Executive Verdict */}
                 <div>
                   <h3 className="text-lg font-semibold text-gray-900 mb-2">Executive Verdict</h3>
-                  <p className="text-gray-700 leading-relaxed whitespace-pre-line">{dreamDoc.executive_verdict}</p>
+                  <p className="text-gray-700 leading-relaxed whitespace-pre-line">{dreamExecutiveVerdict}</p>
                 </div>
 
-                {/* Market Shelf */}
-                {dreamDoc.market_shelf && (
-                  <div>
-                    <h3 className="text-lg font-semibold text-gray-900 mb-2">Market Shelf</h3>
-                    <p className="text-sm text-gray-600 mb-1">
-                      <span className="font-medium">Best shelf:</span> {dreamDoc.market_shelf.best_shelf}
-                    </p>
-                    {dreamDoc.market_shelf.marketable_hook && (
-                      <p className="text-sm text-gray-600 mb-1">
-                        <span className="font-medium">Marketable hook:</span> {dreamDoc.market_shelf.marketable_hook}
-                      </p>
-                    )}
-                    {dreamDoc.market_shelf.market_danger && (
-                      <p className="text-sm text-rose-700">
-                        <span className="font-medium">Market danger:</span> {dreamDoc.market_shelf.market_danger}
-                      </p>
-                    )}
-                  </div>
-                )}
+                {/* §2 — Market shelf */}
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">Market Shelf</h3>
+                  <p className="text-sm text-gray-600 mb-1">
+                    <span className="font-medium">Best shelf:</span> {dreamBestShelf ?? "—"}
+                  </p>
+                  <p className="text-sm text-gray-600 mb-1">
+                    <span className="font-medium">Marketable hook:</span> {dreamMarketableHook ?? "—"}
+                  </p>
+                  <p className="text-sm text-rose-700">
+                    <span className="font-medium">Market danger:</span> {dreamMarketDanger ?? "—"}
+                  </p>
+                </div>
 
-                {/* What Not To Become */}
-                {Array.isArray(dreamDoc.what_not_to_become) && dreamDoc.what_not_to_become.length > 0 && (
-                  <div>
-                    <h3 className="text-lg font-semibold text-gray-900 mb-2">Anti-Patterns to Avoid</h3>
+                {/* §3 — What not to become */}
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">Anti-Patterns to Avoid</h3>
+                  {dreamAntiPatterns.length > 0 ? (
                     <ul className="list-disc list-inside space-y-1">
-                      {dreamDoc.what_not_to_become.map((item, idx) => (
+                      {dreamAntiPatterns.map((item, idx) => (
                         <li key={idx} className="text-sm text-gray-700">{item}</li>
                       ))}
                     </ul>
+                  ) : (
+                    <p className="text-sm text-gray-500">—</p>
+                  )}
+                </div>
+
+                {/* §4 — Structural stack */}
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">Structural Stack</h3>
+                  {dreamStructuralStack.length > 0 ? (
+                    <div className="space-y-2">
+                      {dreamStructuralStack.map((layer, idx) => (
+                        <div key={idx} className="rounded border border-gray-200 p-3 text-sm">
+                          <p><span className="font-medium">Layer:</span> {getDisplayText(layer.layer_name)}</p>
+                          <p><span className="font-medium">Function:</span> {getDisplayText(layer.function)}</p>
+                          <p><span className="font-medium">Status:</span> {getDisplayText(layer.status)}</p>
+                          <p><span className="font-medium">Revision note:</span> {getDisplayText(layer.revision_note)}</p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-500">—</p>
+                  )}
+                </div>
+
+                {/* §5 — Arc map */}
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">Arc Map</h3>
+                  {dreamArcMap.length > 0 ? (
+                    <div className="space-y-2">
+                      {dreamArcMap.map((arc, idx) => (
+                        <div key={idx} className="rounded border border-gray-200 p-3 text-sm">
+                          <p><span className="font-medium">Act:</span> {getDisplayText(arc.act_name)}</p>
+                          <p><span className="font-medium">Chapter range:</span> {getDisplayText(arc.chapter_range)}</p>
+                          <p><span className="font-medium">Primary function:</span> {getDisplayText(arc.primary_function)}</p>
+                          <p><span className="font-medium">Revision priority:</span> {getDisplayText(arc.revision_priority)}</p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-500">—</p>
+                  )}
+                </div>
+
+                {/* §7 — Criterion analyses */}
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">Criterion Analyses</h3>
+                  {dreamCriterionAnalyses.length > 0 ? (
+                    <div className="space-y-2">
+                      {dreamCriterionAnalyses.map((analysis, idx) => (
+                        <div key={idx} className="rounded border border-gray-200 p-3 text-sm">
+                          <p><span className="font-medium">Criterion:</span> {getDisplayText(analysis.key)}</p>
+                          <p><span className="font-medium">Score:</span> {getDisplayText(analysis.score)}</p>
+                          <p><span className="font-medium">Confidence:</span> {getDisplayText(analysis.confidence)}</p>
+                          <p><span className="font-medium">Fit evidence:</span> {getDisplayDreamList(analysis.fit_evidence).join("; ") || "—"}</p>
+                          <p><span className="font-medium">Gap evidence:</span> {getDisplayDreamList(analysis.gap_evidence).join("; ") || "—"}</p>
+                          <p><span className="font-medium">Revision queue:</span> {getDisplayDreamList(analysis.revision_queue).join("; ") || "—"}</p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-500">—</p>
+                  )}
+                </div>
+
+                {/* §8 — Layer analyses */}
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">Layer Analyses</h3>
+                  {dreamLayerAnalyses.length > 0 ? (
+                    <div className="space-y-2">
+                      {dreamLayerAnalyses.map((layer, idx) => (
+                        <div key={idx} className="rounded border border-gray-200 p-3 text-sm">
+                          <p><span className="font-medium">Layer:</span> {getDisplayText(layer.layer_name)}</p>
+                          <p><span className="font-medium">Status:</span> {getDisplayText(layer.status)}</p>
+                          <p><span className="font-medium">Needed revision:</span> {getDisplayText(layer.needed_revision)}</p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-500">—</p>
+                  )}
+                </div>
+
+                {/* §9 — Cross-layer integration */}
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">Cross-Layer Integration</h3>
+                  {dreamCrossLayerIntegration.length > 0 ? (
+                    <div className="space-y-2">
+                      {dreamCrossLayerIntegration.map((row, idx) => (
+                        <div key={idx} className="rounded border border-gray-200 p-3 text-sm">
+                          <p><span className="font-medium">Motif:</span> {getDisplayText(row.motif)}</p>
+                          <p><span className="font-medium">Description:</span> {getDisplayText(row.description)}</p>
+                          <p><span className="font-medium">Integration quality:</span> {getDisplayText(row.integration_quality)}</p>
+                          <p><span className="font-medium">Revision note:</span> {getDisplayText(row.revision_note)}</p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-500">—</p>
+                  )}
+                </div>
+
+                {/* §10 — Symbolic audit */}
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">Symbolic / Doctrine Audit</h3>
+                  {dreamPreservedSymbols.length > 0 ? (
+                    <div className="space-y-2 mb-2">
+                      {dreamPreservedSymbols.map((symbol, idx) => (
+                        <div key={idx} className="rounded border border-gray-200 p-3 text-sm">
+                          <p><span className="font-medium">Symbol:</span> {getDisplayText(symbol.symbol)}</p>
+                          <p><span className="font-medium">Current function:</span> {getDisplayText(symbol.current_function)}</p>
+                          <p><span className="font-medium">Revision instruction:</span> {getDisplayText(symbol.revision_instruction)}</p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-500 mb-2">Preserved symbols: —</p>
+                  )}
+                  <p className="text-sm text-gray-700"><span className="font-medium">Doctrine strengths:</span> {dreamDoctrineStrengths.join("; ") || "—"}</p>
+                  <p className="text-sm text-gray-700"><span className="font-medium">Doctrine risks:</span> {dreamDoctrineRisks.join("; ") || "—"}</p>
+                  <p className="text-sm text-gray-700"><span className="font-medium">Audit conclusion:</span> {getDisplayText(dreamSymbolicAudit?.audit_conclusion)}</p>
+                </div>
+
+                {/* §11 — Reader experience */}
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">Reader Experience</h3>
+                  <div className="grid md:grid-cols-3 gap-3 text-sm">
+                    <div className="rounded border border-gray-200 p-3">
+                      <p className="font-medium text-gray-900 mb-1">First Act</p>
+                      <p>Reader question: {getDisplayText(dreamReaderFirstAct?.reader_question)}</p>
+                      <p>Emotional state: {getDisplayText(dreamReaderFirstAct?.emotional_state)}</p>
+                      <p>Risk: {getDisplayText(dreamReaderFirstAct?.risk)}</p>
+                    </div>
+                    <div className="rounded border border-gray-200 p-3">
+                      <p className="font-medium text-gray-900 mb-1">Middle</p>
+                      <p>Reader question: {getDisplayText(dreamReaderMiddle?.reader_question)}</p>
+                      <p>Emotional state: {getDisplayText(dreamReaderMiddle?.emotional_state)}</p>
+                      <p>Risk: {getDisplayText(dreamReaderMiddle?.risk)}</p>
+                    </div>
+                    <div className="rounded border border-gray-200 p-3">
+                      <p className="font-medium text-gray-900 mb-1">Final Act</p>
+                      <p>Reader question: {getDisplayText(dreamReaderFinalAct?.reader_question)}</p>
+                      <p>Emotional state: {getDisplayText(dreamReaderFinalAct?.emotional_state)}</p>
+                      <p>Risk: {getDisplayText(dreamReaderFinalAct?.risk)}</p>
+                    </div>
                   </div>
-                )}
+                  <p className="text-sm text-gray-700 mt-2"><span className="font-medium">Aftertaste:</span> {getDisplayText(dreamReaderExperience?.aftertaste)}</p>
+                </div>
+
+                {/* §12 — Revision plan */}
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">Revision Plan</h3>
+                  {dreamRevisionPlan.length > 0 ? (
+                    <div className="space-y-2">
+                      {dreamRevisionPlan.map((planItem, idx) => (
+                        <div key={idx} className="rounded border border-gray-200 p-3 text-sm">
+                          <p><span className="font-medium">Priority:</span> {getDisplayText(planItem.priority)}</p>
+                          <p><span className="font-medium">Title:</span> {getDisplayText(planItem.title)}</p>
+                          <p><span className="font-medium">Goal:</span> {getDisplayText(planItem.goal)}</p>
+                          <p><span className="font-medium">Actions:</span> {getDisplayDreamList(planItem.actions).join("; ") || "—"}</p>
+                          <p><span className="font-medium">Acceptance check:</span> {getDisplayText(planItem.acceptance_check)}</p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-500">—</p>
+                  )}
+                </div>
+
+                {/* §13 — Releasability */}
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">Releasability</h3>
+                  {dreamReleasability.length > 0 ? (
+                    <div className="space-y-2">
+                      {dreamReleasability.map((row, idx) => (
+                        <div key={idx} className="rounded border border-gray-200 p-3 text-sm">
+                          <p><span className="font-medium">Dimension:</span> {getDisplayText(row.dimension)}</p>
+                          <p><span className="font-medium">Current status:</span> {getDisplayText(row.current_status)}</p>
+                          <p><span className="font-medium">Verdict:</span> {getDisplayText(row.verdict)}</p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-500">—</p>
+                  )}
+                </div>
+
+                {/* §14 — Acceptance checks */}
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">Acceptance Checks</h3>
+                  <p className="text-sm text-gray-700"><span className="font-medium">Required detection:</span> {dreamRequiredDetections.join("; ") || "—"}</p>
+                  <p className="text-sm text-gray-700"><span className="font-medium">Failure conditions:</span> {dreamFailureConditions.join("; ") || "—"}</p>
+                </div>
+
+                {/* §15 — Calibration notes */}
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">Calibration Notes</h3>
+                  {dreamCalibrationNotes.length > 0 ? (
+                    <ul className="list-disc list-inside space-y-1">
+                      {dreamCalibrationNotes.map((note, idx) => (
+                        <li key={idx} className="text-sm text-gray-700">{note}</li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-sm text-gray-500">—</p>
+                  )}
+                </div>
+
+                {/* §16 — Repo summary */}
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">Repository Summary</h3>
+                  <div className="rounded border border-gray-200 p-3 text-sm space-y-1">
+                    <p><span className="font-medium">Benchmark:</span> {getDisplayText(dreamRepoSummary?.benchmark_name)}</p>
+                    <p><span className="font-medium">Source:</span> {getDisplayText(dreamRepoSummary?.source)}</p>
+                    <p><span className="font-medium">Evaluation type:</span> {getDisplayText(dreamRepoSummary?.evaluation_type)}</p>
+                    <p><span className="font-medium">Overall score:</span> {getDisplayText(dreamRepoSummary?.overall_score)}</p>
+                    <p><span className="font-medium">Readiness score:</span> {getDisplayText(dreamRepoSummary?.readiness_score)}</p>
+                    <p><span className="font-medium">Primary strengths:</span> {getDisplayDreamList(dreamRepoSummary?.primary_strengths).join("; ") || "—"}</p>
+                    <p><span className="font-medium">Primary blockers:</span> {getDisplayDreamList(dreamRepoSummary?.primary_blockers).join("; ") || "—"}</p>
+                    <p><span className="font-medium">Gold standard requirement:</span> {getDisplayText(dreamRepoSummary?.gold_standard_requirement)}</p>
+                  </div>
+                </div>
+
+                {/* Pre-analysis integrity flags */}
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">Manuscript Integrity Issues</h3>
+                  {dreamIntegrityIssues.length > 0 ? (
+                    <div className="space-y-2">
+                      {dreamIntegrityIssues.map((issue, idx) => (
+                        <div key={idx} className="rounded border border-gray-200 p-3 text-sm">
+                          <p><span className="font-medium">Kind:</span> {getDisplayText(issue.kind)}</p>
+                          <p><span className="font-medium">Severity:</span> {getDisplayText(issue.severity)}</p>
+                          <p><span className="font-medium">Description:</span> {getDisplayText(issue.description)}</p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-500">—</p>
+                  )}
+                </div>
               </div>
             ) : (
               <div className="flex items-center gap-3 py-4">
                 <div className="animate-spin rounded-full h-5 w-5 border-2 border-indigo-400 border-t-transparent" aria-hidden />
                 <p className="text-sm text-gray-500">
-                  DREAM synthesis generating… Refresh in a minute to see the full long-form analysis.
+                  Narrative Synthesis generating… Refresh in a minute to see the full long-form analysis.
                 </p>
               </div>
             )}

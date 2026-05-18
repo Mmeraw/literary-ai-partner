@@ -37,19 +37,25 @@ import {
   stableSourceHash,
   upsertEvaluationArtifact,
 } from '@/lib/evaluation/artifactPersistence';
+import { checkJobCancellation } from '@/lib/jobs/cancellationCheck';
 import type { ManuscriptChunkEvidence } from '@/lib/evaluation/pipeline/types';
 
 // Force Node.js runtime (required for crypto module)
 export const runtime = 'nodejs';
 // DREAM synthesis only — independent budget from main worker.
-// GPT-5 calls for a 40-chunk novel typically take 60-120s; 300s gives 2.5x headroom.
-export const maxDuration = 300;
+// Matches process-evaluations maxDuration=800 (Vercel Pro/Enterprise plan).
+// GPT-5 synthesis on a 40-chunk novel can take 3-8 min; 800s gives full headroom.
+export const maxDuration = 800;
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const DREAM_WORD_COUNT_THRESHOLD = 25000;
 // Process at most 1 job per tick to stay well within maxDuration.
 const DREAM_BATCH_SIZE = 1;
+// Cap OpenAI timeout below Vercel maxDuration (800s) so the SDK errors out
+// before Vercel kills the function — otherwise the catch block never runs
+// and failures are silent. 750s leaves 50s headroom for DB writes + response overhead.
+const DREAM_OPENAI_TIMEOUT_MS = 750_000;
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -153,6 +159,12 @@ function createSupabaseAdmin() {
   }
   return createClient(url, serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false },
+    global: {
+      // 30s fetch timeout per Supabase query — prevents indefinite hangs on
+      // chunk loads or artifact writes from consuming the Vercel 800s budget.
+      fetch: (input, init) =>
+        fetch(input, { ...init, signal: AbortSignal.timeout(30_000) }),
+    },
   });
 }
 
@@ -174,7 +186,10 @@ async function findPendingDreamJobs(
   limit: number,
 ): Promise<DreamJobRow[]> {
   // Step 1: candidate complete long-form jobs
-  // word_count lives on manuscripts, not evaluation_jobs — filter post-join.
+  // Push word_count threshold to the DB — filtering post-join in JS on a capped result
+  // set caused the worker to silently skip all long-form jobs when short-manuscript jobs
+  // occupied the entire fetch window (fix for: cron finds 0 pending DREAM jobs).
+  // PostgREST supports filter on !inner join columns directly.
   const { data: candidateJobs, error: jobsError } = await supabase
     .from('evaluation_jobs')
     .select(
@@ -185,8 +200,9 @@ async function findPendingDreamJobs(
     `,
     )
     .eq('status', 'complete')
+    .gte('manuscripts.word_count', DREAM_WORD_COUNT_THRESHOLD)
     .order('updated_at', { ascending: true }) // oldest completed first
-    .limit(limit * 20); // over-fetch — we filter by word_count and already-done post-query
+    .limit(limit * 10); // smaller multiplier sufficient — DB pre-filters by word_count
 
   if (jobsError) {
     throw new Error(`[DreamWorker] Failed to query candidate jobs: ${jobsError.message}`);
@@ -229,7 +245,7 @@ async function findPendingDreamJobs(
         manuscripts: ms,
       };
     })
-    // Apply word_count threshold here (evaluation_jobs has no word_count column)
+    // DB already filtered by word_count threshold; JS filter is a belt-and-suspenders guard.
     .filter((j) => (j.word_count ?? 0) >= DREAM_WORD_COUNT_THRESHOLD)
     .filter((j) => !alreadyDoneIds.has(j.id));
   return pending.slice(0, limit);
@@ -336,6 +352,16 @@ async function processDreamJob(
   const title = manuscript?.title ?? 'Untitled';
   const wordCount = typeof job.word_count === 'number' ? job.word_count : DREAM_WORD_COUNT_THRESHOLD;
 
+  // GOVERNANCE: Check if job is cancelled before starting DREAM synthesis
+  const cancellation = await checkJobCancellation(jobId);
+  if (cancellation.cancelled) {
+    console.log(`[DreamWorker] ${jobId}: job is cancelled, skipping DREAM synthesis`, {
+      cancelled_at: cancellation.cancelled_at,
+      reason: cancellation.reason,
+    });
+    return { success: false, error: `Job is cancelled: ${cancellation.reason}` };
+  }
+
   console.log(`[DreamWorker] ${jobId}: starting DREAM synthesis — words=${wordCount}`);
 
   // 1. Load evaluation artifact (need criteria array)
@@ -349,6 +375,21 @@ async function processDreamJob(
     return { success: false, error: 'criteria missing from artifact (tried v2 top-level and v1 evaluation_result path)' };
   }
   const { criteria: rawCriteria, model: artifactModel } = extracted;
+
+  // Normalize DB-shape criteria → SynthesizedCriterion shape expected by Pass 3b.
+  // evaluation_result_v2 persists fields as `score_0_10`, `rationale`, `confidence_band`,
+  // but runPass3bLongform / buildPass3bUserPrompt / applyTruthfulLongformCriteriaFallback
+  // all read `final_score_0_10`, `final_rationale`, `confidence_level`. Without coalescing,
+  // GPT-5 received undefined scores → returned malformed JSON → validateDreamDocument threw
+  // → artifact was never persisted (silent failure path closed by this PR).
+  // Coalesce, do not force-replace: in-memory criteria that already carry the canonical
+  // SynthesizedCriterion field names must pass through untouched.
+  const normalizedCriteria = (rawCriteria as Array<Record<string, unknown>>).map((c) => ({
+    ...c,
+    final_score_0_10: c.final_score_0_10 ?? c.score_0_10,
+    final_rationale: c.final_rationale ?? c.rationale,
+    confidence_level: c.confidence_level ?? c.confidence_band,
+  }));
 
   // 2. Load manuscript chunks
   const manuscriptChunks = await loadManuscriptChunks(supabase, manuscriptId);
@@ -375,7 +416,7 @@ async function processDreamJob(
 
   const longformDoc = await runPass3bLongform({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    criteria: rawCriteria as any,
+    criteria: normalizedCriteria as any,
     pass2aStructuredContext,
     manuscriptChunks,
     title,
@@ -383,6 +424,7 @@ async function processDreamJob(
     workType: manuscript?.work_type ?? 'literary_fiction',
     model,
     openaiApiKey,
+    openAiTimeoutMs: DREAM_OPENAI_TIMEOUT_MS,
   });
 
   console.log(`[DreamWorker] ${jobId}: DREAM synthesis complete — persisting artifact`);
@@ -482,6 +524,19 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       } catch (err) {
         const errMsg = err instanceof Error ? err.message : String(err);
         console.error(`[DreamWorker] ${traceId}: job ${job.id} threw unexpectedly: ${errMsg}`);
+
+        // Write error back to evaluation_jobs.last_error so the failure is
+        // visible in the DB. Without this, Vercel-killed runs (timeout) and
+        // unhandled throws disappear silently from the operator's view.
+        try {
+          await supabase
+            .from('evaluation_jobs')
+            .update({ last_error: `[DreamWorker] ${errMsg.slice(0, 500)}` })
+            .eq('id', job.id);
+        } catch {
+          // best-effort — don't let error reporting crash the worker
+        }
+
         results.push({ jobId: job.id, success: false, error: errMsg });
       }
     }

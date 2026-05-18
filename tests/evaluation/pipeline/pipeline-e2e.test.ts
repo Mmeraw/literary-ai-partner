@@ -109,7 +109,7 @@ function makeSynthesisOutput(): SynthesisOutput {
         "This manuscript demonstrates solid craft and distinctive literary sensibility, requiring targeted revision before submission.",
       top_3_strengths: ["Strong narrative voice", "Clear structural arc", "Vivid sensory imagery"],
       top_3_risks: ["Pacing inconsistencies in act two", "Thin supporting character motivation", "World-building gaps"],
-      submission_readiness: "close",
+      submission_readiness: "nearly_ready",
     },
     metadata: {
       pass1_model: "gpt-4o-mini",
@@ -1241,7 +1241,7 @@ describe("synthesisToEvaluationResult adapter", () => {
         one_paragraph_summary: "Strong manuscript with clear revision needs.",
         top_3_strengths: ["Voice", "Arc", "Imagery"],
         top_3_risks: ["Pacing", "Characters", "World-building"],
-        submission_readiness: "close",
+        submission_readiness: "nearly_ready",
       },
       metadata: {
         pass1_model: "gpt-4o-mini",

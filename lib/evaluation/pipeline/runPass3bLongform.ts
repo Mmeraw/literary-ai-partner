@@ -13,7 +13,7 @@
  *   docs/benchmarks/froggin-noggin-dream.md
  *   docs/benchmarks/cartel-babies-dream-longform-evaluation.md
  *
- * Temperature: 0.3   Default max tokens: 6000 (override via EVAL_PASS3B_MAX_TOKENS)
+ * Temperature: 0.3   Default max tokens: 12000 (override via EVAL_PASS3B_MAX_TOKENS)
  *
  * This pass is ADDITIVE. It does not re-score criteria and does not affect the
  * quality gate. Its output is stored as artifact type "longform_document_v1".
@@ -46,13 +46,22 @@ const PASS3B_TEMPERATURE = 0.3;
 
 type DreamConfidence = "High" | "Moderate-High" | "Moderate" | "Low";
 
+// Default raised from 6000 → 16000 for the 16-section Narrative Synthesis document.
+// The output spans 16 mandatory sections (executive verdict, dream_scores, market_shelf,
+// structural_stack, arc_map, criterion_analyses for 13 criteria, layer_analyses,
+// cross_layer_integration, symbolic_audit, reader_experience, revision_plan, releasability,
+// acceptance_checks, calibration_notes, repo_summary, manuscript_integrity_issues).
+// At 6000 tokens GPT-5 was truncating mid-document → response_format=json_object returned
+// malformed JSON → validateDreamDocument threw with "missing required sections".
+// 16000 is generous by design — dial back via EVAL_PASS3B_MAX_TOKENS once reports confirm
+// full document completion. Floor set to 12000 to prevent silently-too-low overrides.
 function getPass3bMaxTokens(): number {
   const raw = process.env.EVAL_PASS3B_MAX_TOKENS;
   if (raw) {
     const parsed = parseInt(raw, 10);
-    if (!isNaN(parsed) && parsed >= 2000 && parsed <= 16000) return parsed;
+    if (!isNaN(parsed) && parsed >= 12000 && parsed <= 16000) return parsed;
   }
-  return 6000;
+  return 16000;
 }
 
 // ── Types ─────────────────────────────────────────────────────────────────────
