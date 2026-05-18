@@ -171,25 +171,99 @@ function createSupabaseAdmin() {
 // ── Core: find jobs that need DREAM synthesis ─────────────────────────────────
 
 /**
- * Query for complete long-form jobs that have no longform_document_v1 artifact yet.
+ * Find complete long-form jobs that need Narrative Synthesis.
  *
- * Strategy: LEFT JOIN evaluation_artifacts on (job_id, artifact_type='longform_document_v1'),
- * filter where artifact IS NULL.
+ * Self-healing: any job whose existing longform_document_v1 artifact is a _skipped stub
+ * (content._skipped===true, written by operator tooling) has its stub deleted and pathway
+ * cleared so it re-enters the synthesis queue. The worker only created real artifacts —
+ * stubs are foreign input and must be evicted before synthesis can proceed.
  *
- * Supabase JS client does not support LEFT JOIN natively, so we do two queries:
- *  1. Fetch complete long-form job IDs (word_count >= threshold)
- *  2. Fetch existing longform_document_v1 artifact job_ids
- *  3. Return the difference
+ * Jobs with real artifacts (content.longform_document present) are permanently skipped.
  */
+/**
+ * Self-heal: delete a _skipped stub artifact so the job re-enters the synthesis queue.
+ * Called when the worker encounters a longform_document_v1 row it did not create
+ * (identified by the presence of `content._skipped === true`).
+ *
+ * Steps:
+ *   1. Delete the stub artifact row
+ *   2. Clear last_error on the job so the failure pathway is clean
+ *   3. Return — the job now has no longform artifact and will be picked up
+ *      by findPendingDreamJobs on the next cron tick (or this tick if capacity allows)
+ */
+async function clearSkippedStubAndRequeue(
+  supabase: ReturnType<typeof createSupabaseAdmin>,
+  jobId: string,
+): Promise<void> {
+  console.log(`[DreamWorker] ${jobId}: _skipped stub detected — clearing pathway and re-queuing`);
+
+  // Delete the stub artifact — after this the job has no longform_document_v1 row
+  // and will be treated as pending by findPendingDreamJobs.
+  const { error: deleteErr } = await supabase
+    .from('evaluation_artifacts')
+    .delete()
+    .eq('job_id', jobId)
+    .eq('artifact_type', 'longform_document_v1');
+
+  if (deleteErr) {
+    // Non-fatal: log and continue. The stub remains but the job is not synthesised
+    // this tick. Next tick will retry the stub check.
+    console.error(`[DreamWorker] ${jobId}: failed to delete stub artifact: ${deleteErr.message}`);
+    return;
+  }
+
+  // Clear last_error so the clean pathway is visible in the DB.
+  await supabase
+    .from('evaluation_jobs')
+    .update({ last_error: null })
+    .eq('id', jobId);
+
+  console.log(`[DreamWorker] ${jobId}: stub cleared — job will be synthesised on next available tick`);
+}
+
 async function findPendingDreamJobs(
   supabase: ReturnType<typeof createSupabaseAdmin>,
   limit: number,
 ): Promise<DreamJobRow[]> {
-  // Step 1: candidate complete long-form jobs
-  // Push word_count threshold to the DB — filtering post-join in JS on a capped result
-  // set caused the worker to silently skip all long-form jobs when short-manuscript jobs
-  // occupied the entire fetch window (fix for: cron finds 0 pending DREAM jobs).
-  // PostgREST supports filter on !inner join columns directly.
+  // Step 1: All existing longform_document_v1 artifact rows — fetch content to detect stubs.
+  // A real artifact has content.longform_document; a _skipped stub has content._skipped===true.
+  // Stubs are self-healed: we delete them and re-queue the job so it gets synthesised
+  // by the current pipeline version. Real artifacts mean the job is done — skip it.
+  const { data: existingArtifacts, error: artifactsError } = await supabase
+    .from('evaluation_artifacts')
+    .select('job_id, content')
+    .eq('artifact_type', 'longform_document_v1');
+
+  if (artifactsError) {
+    throw new Error(
+      `[DreamWorker] Failed to query existing artifacts: ${artifactsError.message}`,
+    );
+  }
+
+  // Partition into real artifacts (skip) vs stubs (self-heal).
+  const realDoneIds = new Set<string>();
+  const stubIds: string[] = [];
+
+  for (const row of existingArtifacts ?? []) {
+    const content = row.content as Record<string, unknown> | null;
+    if (content?._skipped === true) {
+      stubIds.push(row.job_id as string);
+    } else {
+      realDoneIds.add(row.job_id as string);
+    }
+  }
+
+  // Self-heal stubs in parallel (best-effort — failures are logged, not thrown).
+  if (stubIds.length > 0) {
+    console.log(`[DreamWorker] found ${stubIds.length} _skipped stub(s) — self-healing: ${stubIds.join(', ')}`);
+    await Promise.all(stubIds.map((id) => clearSkippedStubAndRequeue(supabase, id)));
+  }
+
+  // Exclude only jobs with REAL artifacts (stubs just got cleared above).
+  const excludeIds = [...realDoneIds];
+
+  // Step 2: candidate complete long-form jobs with no real artifact.
+  // After stub clearance above, formerly-stubbed jobs are now eligible candidates.
   const { data: candidateJobs, error: jobsError } = await supabase
     .from('evaluation_jobs')
     .select(
@@ -201,8 +275,9 @@ async function findPendingDreamJobs(
     )
     .eq('status', 'complete')
     .gte('manuscripts.word_count', DREAM_WORD_COUNT_THRESHOLD)
-    .order('updated_at', { ascending: true }) // oldest completed first
-    .limit(limit * 10); // smaller multiplier sufficient — DB pre-filters by word_count
+    .not('id', 'in', `(${excludeIds.length > 0 ? excludeIds.join(',') : '00000000-0000-0000-0000-000000000000'})`)
+    .order('created_at', { ascending: true }) // oldest pending first
+    .limit(limit * 10);
 
   if (jobsError) {
     throw new Error(`[DreamWorker] Failed to query candidate jobs: ${jobsError.message}`);
@@ -212,25 +287,7 @@ async function findPendingDreamJobs(
     return [];
   }
 
-  const candidateIds = candidateJobs.map((j: { id: string }) => j.id);
-
-  // Step 2: which of those already have a longform_document_v1 artifact?
-  const { data: existingArtifacts, error: artifactsError } = await supabase
-    .from('evaluation_artifacts')
-    .select('job_id')
-    .eq('artifact_type', 'longform_document_v1')
-    .in('job_id', candidateIds);
-
-  if (artifactsError) {
-    throw new Error(
-      `[DreamWorker] Failed to query existing artifacts: ${artifactsError.message}`,
-    );
-  }
-
-  const alreadyDoneIds = new Set((existingArtifacts ?? []).map((a: { job_id: string }) => a.job_id));
-
-  // Step 3: filter to jobs that still need DREAM synthesis.
-  // Supabase returns manuscripts as an array from the !inner join; normalise to DreamJobRow.
+  // Step 3: normalise Supabase !inner join shape → DreamJobRow.
   const pending = ((candidateJobs as unknown) as Array<{
     id: string;
     manuscript_id: number;
@@ -241,13 +298,11 @@ async function findPendingDreamJobs(
       return {
         id: j.id,
         manuscript_id: j.manuscript_id,
-        word_count: ms?.word_count ?? null, // sourced from manuscripts.word_count
+        word_count: ms?.word_count ?? null,
         manuscripts: ms,
       };
     })
-    // DB already filtered by word_count threshold; JS filter is a belt-and-suspenders guard.
-    .filter((j) => (j.word_count ?? 0) >= DREAM_WORD_COUNT_THRESHOLD)
-    .filter((j) => !alreadyDoneIds.has(j.id));
+    .filter((j) => (j.word_count ?? 0) >= DREAM_WORD_COUNT_THRESHOLD);
   return pending.slice(0, limit);
 }
 
@@ -340,6 +395,128 @@ async function loadManuscriptChunks(
     .map((row) => ({ chunk_index: row.chunk_index, content: row.content }));
 }
 
+// ── Pre-flight: validate all dependencies before committing to synthesis ─────
+
+type PreflightOk = { ok: true };
+type PreflightFail = { ok: false; reason: string; retryable: boolean };
+type PreflightResult = PreflightOk | PreflightFail;
+
+/**
+ * Pre-flight check for a single DREAM job.
+ *
+ * Validates every dependency before any OpenAI call is made:
+ *   1. No orphan longform_document_v1 artifact exists (double-stub guard)
+ *   2. evaluation_result_v2 (or v1) artifact is present and has criteria
+ *   3. Manuscript chunks exist and are non-empty
+ *   4. OPENAI_API_KEY is configured
+ *   5. OpenAI ping — fire a minimal /models list call to confirm the API is reachable
+ *      and the key is valid before spending Vercel budget on the full synthesis
+ *
+ * On any failure: writes a structured error to evaluation_jobs.last_error so the
+ * failure is visible in the DB (not silent). Returns { ok: false } so processDreamJob
+ * is never called for a job that would fail immediately.
+ */
+async function preflightDreamJob(
+  supabase: ReturnType<typeof createSupabaseAdmin>,
+  job: DreamJobRow,
+  openaiApiKey: string,
+): Promise<PreflightResult> {
+  const jobId = job.id;
+  const manuscriptId = job.manuscript_id;
+
+  const fail = async (reason: string, retryable: boolean): Promise<PreflightResult> => {
+    console.error(`[DreamWorker] ${jobId}: preflight FAILED — ${reason}`);
+    // Write back to DB so the failure is visible, not silent.
+    await supabase
+      .from('evaluation_jobs')
+      .update({ last_error: `[DreamWorker:preflight] ${reason.slice(0, 500)}` })
+      .eq('id', jobId);
+    return { ok: false, reason, retryable };
+  };
+
+  // ── Check 1: no orphan artifact (double-stub guard) ───────────────────────
+  // The stub-clearance in findPendingDreamJobs should have deleted any stubs before
+  // we reach here, but a race (two cron ticks overlapping) could re-introduce one.
+  const { data: orphanArtifact } = await supabase
+    .from('evaluation_artifacts')
+    .select('content')
+    .eq('job_id', jobId)
+    .eq('artifact_type', 'longform_document_v1')
+    .maybeSingle();
+
+  if (orphanArtifact) {
+    const content = orphanArtifact.content as Record<string, unknown> | null;
+    if (content?._skipped === true) {
+      // Stale stub survived — clear it now and abort this tick (next tick will synthesise).
+      console.warn(`[DreamWorker] ${jobId}: stale _skipped stub found at preflight — clearing and skipping this tick`);
+      await supabase
+        .from('evaluation_artifacts')
+        .delete()
+        .eq('job_id', jobId)
+        .eq('artifact_type', 'longform_document_v1');
+      return { ok: false, reason: 'stale _skipped stub cleared at preflight — will synthesise next tick', retryable: true };
+    }
+    // Real artifact already exists — job is already done.
+    return { ok: false, reason: 'real longform_document_v1 artifact already exists — job already synthesised', retryable: false };
+  }
+
+  // ── Check 2: evaluation_result artifact present with criteria ─────────────
+  const artifactContent = await loadEvaluationArtifact(supabase, jobId);
+  if (!artifactContent) {
+    return fail('No evaluation_result_v2/v1 artifact found — upstream evaluation may not have persisted correctly', true);
+  }
+  const extracted = extractFromArtifact(artifactContent);
+  if (!extracted || extracted.criteria.length < 13) {
+    return fail(
+      `criteria missing or incomplete in artifact (found ${extracted?.criteria?.length ?? 0}/13 required)`,
+      true,
+    );
+  }
+
+  // ── Check 3: manuscript chunks exist ──────────────────────────────────────
+  const { data: chunkCheck, error: chunkErr } = await supabase
+    .from('manuscript_chunks')
+    .select('chunk_index')
+    .eq('manuscript_id', manuscriptId)
+    .limit(1);
+
+  if (chunkErr) {
+    return fail(`manuscript_chunks query failed: ${chunkErr.message}`, true);
+  }
+  if (!chunkCheck || chunkCheck.length === 0) {
+    return fail(`No manuscript chunks found for manuscript_id=${manuscriptId}`, false);
+  }
+
+  // ── Check 4: OPENAI_API_KEY present ───────────────────────────────────────
+  if (!openaiApiKey) {
+    return fail('OPENAI_API_KEY is not configured', false);
+  }
+
+  // ── Check 5: OpenAI ping ───────────────────────────────────────────────────
+  // Fire a lightweight /models request to confirm the API key is valid and the
+  // OpenAI API is reachable before spending the Vercel 800s budget on synthesis.
+  try {
+    const pingRes = await fetch('https://api.openai.com/v1/models?limit=1', {
+      method: 'GET',
+      headers: { Authorization: `Bearer ${openaiApiKey}` },
+      signal: AbortSignal.timeout(10_000), // 10s ping timeout
+    });
+    if (!pingRes.ok) {
+      const body = await pingRes.text().catch(() => '');
+      return fail(
+        `OpenAI API ping failed: HTTP ${pingRes.status} — ${body.slice(0, 200)}`,
+        pingRes.status >= 500 || pingRes.status === 429, // 5xx / rate-limit are retryable
+      );
+    }
+    console.log(`[DreamWorker] ${jobId}: preflight OK — OpenAI reachable (HTTP ${pingRes.status})`);
+  } catch (pingErr) {
+    const msg = pingErr instanceof Error ? pingErr.message : String(pingErr);
+    return fail(`OpenAI API ping threw: ${msg}`, true);
+  }
+
+  return { ok: true };
+}
+
 // ── Core: synthesise and persist one DREAM document ──────────────────────────
 
 async function processDreamJob(
@@ -364,10 +541,22 @@ async function processDreamJob(
 
   console.log(`[DreamWorker] ${jobId}: starting DREAM synthesis — words=${wordCount}`);
 
+  // 0. Pre-flight — validate all dependencies and ping OpenAI before doing any work.
+  const openaiApiKey = process.env.OPENAI_API_KEY ?? '';
+  const preflight = await preflightDreamJob(supabase, job, openaiApiKey);
+  if (preflight.ok === false) {
+    return {
+      success: false,
+      error: `preflight: ${preflight.reason}`,
+      ...(preflight.retryable ? { retryable: true } : {}),
+    };
+  }
+
   // 1. Load evaluation artifact (need criteria array)
+  // Safe to call again — preflight already verified these exist; these are the full payloads.
   const artifactContent = await loadEvaluationArtifact(supabase, jobId);
   if (!artifactContent) {
-    return { success: false, error: 'No evaluation artifact found — job may not have persisted correctly' };
+    return { success: false, error: 'No evaluation artifact found — disappeared between preflight and load (race)' };
   }
 
   const extracted = extractFromArtifact(artifactContent);
@@ -409,11 +598,7 @@ async function processDreamJob(
   const model = artifactModel ?? undefined;
 
   // 5. Run Pass 3b — DREAM synthesis
-  const openaiApiKey = process.env.OPENAI_API_KEY ?? '';
-  if (!openaiApiKey) {
-    return { success: false, error: 'OPENAI_API_KEY not configured' };
-  }
-
+  // openaiApiKey already resolved and validated by preflight (Check 4 + Check 5 ping).
   const longformDoc = await runPass3bLongform({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     criteria: normalizedCriteria as any,
