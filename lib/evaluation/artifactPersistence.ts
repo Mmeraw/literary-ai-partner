@@ -42,7 +42,11 @@ export type ArtifactType =
    * Lifecycle: written during Pass 1, deleted on successful Pass 1 completion.
    * Not user-visible.
    */
-  | "pass1_chunk_cache_v1";
+  | "pass1_chunk_cache_v1"
+  /** Silent report QA layer: character coverage and arc ledger. Does not mutate scores. */
+  | "character_arc_ledger_v1"
+  /** Paid add-on: setting integrity audit. Advisory only. Does not mutate scores or block gate. */
+  | "setting_integrity_audit_v1";
 
 /**
  * Compute SHA256 hex digest of input string

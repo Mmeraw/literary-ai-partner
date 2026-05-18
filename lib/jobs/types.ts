@@ -34,6 +34,12 @@ export const JOB_TYPES = {
   SYNOPSIS_GENERATE: "synopsis_generate",
   QUERY_GENERATE: "query_generate",
   STORYGATE_PACKAGE: "storygate_package",
+
+  // Audit modules — decoupled from main evaluation invocation
+  /** Silent report QA layer. Runs automatically after every eval. Never user-visible as a separate job. */
+  CHARACTER_ARC_AUDIT: "character_arc_audit",
+  /** Paid add-on. Runs on demand from report UI. Advisory only. */
+  SETTING_INTEGRITY_AUDIT: "setting_integrity_audit",
 } as const;
 
 export type JobType = (typeof JOB_TYPES)[keyof typeof JOB_TYPES];
