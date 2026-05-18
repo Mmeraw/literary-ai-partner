@@ -165,3 +165,60 @@ The PR that ships this brief is itself an `infra` PR (it touches `.github/**` an
 
 **Sign-off line for the lock PR body:**
 > This brief is the canonical PR-type taxonomy and validator-dispatch contract as of 2026-05-13. Changes to the type taxonomy, the dispatch rule, or the per-type assertions require a new governance brief and a CODEOWNERS-approved replacement of this file.
+
+---
+
+## Appendix A — Extended Path Taxonomy (v2, 2026-05-18)
+
+The classifier was extended to eliminate false-evaluation triggers from 374 unclassified repo paths. Changes are additive; no existing prefix was removed or narrowed.
+
+### New EVAL_PREFIXES
+| Prefix | Rationale |
+|---|---|
+| `lib/wave-modules/` | Wave scoring modules — evaluation pipeline |
+| `app/api/internal/` | Internal job/revision API routes — pipeline-adjacent |
+| `tests/api/` | API route integration tests |
+| `tests/benchmarks/` | Latency benchmarks |
+| `tests/components/` | Component tests touching evaluation surfaces |
+| `tests/contract/` | Long-form pipeline contract tests |
+| `tests/lib/hooks/` | Hook tests co-located with evaluation lib |
+| `tests/operations/` | Soak / operational harness tests |
+| `logs/` | Live-proof and run logs |
+| `stress-results/` | Stress/smoke evidence artifacts |
+| `manuscripts/` | Source manuscript files |
+| `runs/` | Calibration run outputs |
+| `supabase/functions/` | Supabase Edge Functions (evaluate endpoint) |
+
+### New INFRA_PREFIXES
+| Prefix | Rationale |
+|---|---|
+| `app/api/dev/` | Dev-only metrics smoke routes |
+| `app/api/env-check/` | Environment diagnostic route |
+| `app/api/health/` | Health-check route |
+| `supabase/sql/` | Ad-hoc SQL review scripts (not migrations) |
+
+### New INFRA_EXACT
+`jest.config.js`, `jest.setup.ts`, `tsconfig.test.json`, `tsconfig.workers.json`, `next-env.d.ts`, `jsconfig.json`, `vitest.config.ts`, `vite.config.js`, `instrumentation.ts`, `middleware.ts`, `supabase/.gitignore`, `supabase/config.toml`, `supabase/seed.sql`
+
+### New MIGRATION_PREFIXES
+`migrations/` — root-level SQL migration files (complement to `supabase/migrations/`)
+
+### New UI_EXACT
+`index.html`, `components.json`
+
+### Extension catch-all rules (isByExtension)
+For files that don't match any prefix/exact set, the classifier applies extension-based rules before falling back to the `unclassified` sentinel:
+
+| Pattern | Bucket |
+|---|---|
+| Root dotfiles (`.gitignore`, `.env.*`, `.eslint*`, etc.) | infra |
+| Root `*.sh` | infra |
+| `tests/*.sh` (flat, no subdir) | infra |
+| Root `*.test.ts` / `*.test.js` | eval |
+| Root `*.json` (data snapshots, criteria matrices) | eval |
+| `tests/*.test.ts` (flat, no subdir) | eval |
+| Root `*.sql` | migration |
+| Root `*.txt` / `*.csv` | docs |
+| Root extensionless files | infra |
+
+These rules reduce the surface area that triggers false-evaluation fallback to genuinely novel path patterns only.
