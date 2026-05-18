@@ -24,7 +24,13 @@ export type ArtifactType =
   /** Pass 3b — full 16-section DREAM document for long-form manuscripts (≥ 25,000 words). */
   | "longform_document_v1"
   /** Post-evaluation author-facing editorial translation audit. Does not mutate scores. */
-  | "report_experience_v1";
+  | "report_experience_v1"
+  /**
+   * Inter-invocation handoff: raw Pass 1 + Pass 2 outputs written at end of phase_1
+   * so that a fresh Vercel invocation can resume at Pass 3 without re-running chunk
+   * evaluation. Not user-visible. Consumed and deleted by the phase_2 processor path.
+   */
+  | "pass12_handoff_v1";
 
 /**
  * Compute SHA256 hex digest of input string
