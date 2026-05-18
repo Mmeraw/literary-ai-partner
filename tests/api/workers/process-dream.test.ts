@@ -75,9 +75,12 @@ function buildQuery(result: { data: unknown; error: unknown }) {
   q.eq = jest.fn(chain);
   q.gte = jest.fn(chain);
   q.in = jest.fn(chain);
+  q.not = jest.fn(chain);  // used by .not('id','in',...) in findPendingDreamJobs
+  q.neq = jest.fn(chain);
   q.order = jest.fn(chain);
   q.limit = jest.fn(chain);
   q.update = jest.fn(chain);
+  q.delete = jest.fn(chain);
   q.maybeSingle = jest.fn(async () => result);
   // Thenable so `await q` resolves to `result`.
   q.then = (onFulfilled: (v: unknown) => unknown) =>
@@ -96,23 +99,29 @@ function buildSupabaseClient(scenario: SupabaseScenario, table: MockTable) {
   // Each table.from('X') returns a query builder whose select/eq/... chain
   // resolves to data for that table. We dispatch on table name + sequence.
   //
-  // The route makes these from() calls in order:
-  //   1. from('evaluation_jobs')      — candidate jobs (select + chain)
-  //   2. from('evaluation_artifacts') — existing longform artifacts
-  //   3. from('evaluation_artifacts') — evaluation_result_v2 maybeSingle
-  //   4. from('evaluation_artifacts') — evaluation_result_v1 maybeSingle (only if v2 empty)
-  //   5. from('manuscript_chunks')    — load chunks
-  //   6. from('evaluation_jobs')      — update last_error (only on failure)
+  // The route makes these from() calls in order (after the self-healing refactor):
+  //   1. from('evaluation_artifacts') — Step 1: existing longform artifact ids+content
+  //                                     (to detect stubs vs real artifacts)
+  //   2. from('evaluation_jobs')      — Step 2: candidate jobs (excludes already-done ids)
+  //   3. from('evaluation_artifacts') — preflight check 1: orphan artifact guard (maybeSingle)
+  //   4. from('evaluation_artifacts') — preflight check 2 / processDreamJob:
+  //                                     evaluation_result_v2 (maybeSingle)
+  //   5. from('evaluation_artifacts') — evaluation_result_v1 maybeSingle (only if v2 empty)
+  //   6. from('manuscript_chunks')    — preflight check 3: chunk existence check
+  //   7. from('manuscript_chunks')    — processDreamJob: load full chunks
+  //   8. from('evaluation_jobs')      — update last_error (only on failure)
   let artifactCallNumber = 0;
   let evaluationJobsCallNumber = 0;
+  let chunksCallNumber = 0;
   return {
     from: jest.fn((tableName: string) => {
       if (tableName === 'evaluation_jobs') {
         evaluationJobsCallNumber += 1;
         if (evaluationJobsCallNumber === 1) {
+          // Step 2: candidate jobs query
           return buildQuery({ data: scenario.candidateJobs, error: null });
         }
-        // Subsequent evaluation_jobs call is the update last_error path.
+        // Subsequent evaluation_jobs call is the update last_error / clear last_error path.
         const q = buildQuery({ data: null, error: null });
         const eqFn = q.eq as jest.Mock;
         const updateFn = q.update as jest.Mock;
@@ -129,10 +138,20 @@ function buildSupabaseClient(scenario: SupabaseScenario, table: MockTable) {
       if (tableName === 'evaluation_artifacts') {
         artifactCallNumber += 1;
         if (artifactCallNumber === 1) {
+          // Step 1: existing longform_document_v1 artifacts (job_id + content for stub detection)
+          // existingArtifacts items should have shape { job_id, content } where
+          // content._skipped===true marks a stub, absence of _skipped is a real artifact.
           return buildQuery({ data: scenario.existingArtifacts, error: null });
         }
         if (artifactCallNumber === 2) {
-          // evaluation_result_v2
+          // Preflight check 1: orphan artifact guard — maybeSingle on longform_document_v1
+          // For the happy path, return null (no orphan).
+          return buildQuery({ data: null, error: null });
+        }
+        if (artifactCallNumber === 3 || artifactCallNumber === 4) {
+          // evaluation_result_v2 — called twice:
+          //   call 3: preflight check 2 (loadEvaluationArtifact inside preflightDreamJob)
+          //   call 4: processDreamJob step 1 (loadEvaluationArtifact inside processDreamJob)
           return buildQuery({
             data: scenario.evaluationArtifactContent
               ? { content: scenario.evaluationArtifactContent }
@@ -144,6 +163,9 @@ function buildSupabaseClient(scenario: SupabaseScenario, table: MockTable) {
         return buildQuery({ data: null, error: null });
       }
       if (tableName === 'manuscript_chunks') {
+        chunksCallNumber += 1;
+        // Both the preflight chunk-existence check and the full chunk load
+        // use the same fixture data.
         return buildQuery({ data: scenario.manuscriptChunks, error: null });
       }
       throw new Error(`Unexpected table in test mock: ${tableName}`);
@@ -166,11 +188,21 @@ function buildPendingJob(id = 'job-1', manuscriptId = 42) {
   };
 }
 
+// All 13 canonical criterion keys — preflight requires ≥13 criteria to proceed.
+const CANONICAL_CRITERION_KEYS = [
+  'concept', 'narrativeDrive', 'character', 'voice', 'sceneConstruction',
+  'dialogue', 'theme', 'worldbuilding', 'pacing', 'proseControl',
+  'tone', 'narrativeClosure', 'marketability',
+] as const;
+
 function buildEvaluationArtifactContent() {
   return {
-    criteria: [
-      { key: 'opening_hook', final_score_0_10: 7, craft_score: 7 },
-    ],
+    criteria: CANONICAL_CRITERION_KEYS.map((key) => ({
+      key,
+      final_score_0_10: 7,
+      final_rationale: `Solid ${key} execution with room for refinement.`,
+      confidence_level: 'moderate',
+    })),
     engine: { model: 'gpt-5' },
     metrics: {
       manuscript: { title: 'Test', word_count: 60000, work_type: 'literary_fiction' },
@@ -210,6 +242,13 @@ describe('GET /api/workers/process-dream', () => {
     process.env.CRON_SECRET = 'test-cron-secret';
     process.env.OPENAI_API_KEY = 'test-openai-key';
     delete process.env.EVAL_PIPELINE_ENABLED;
+    // Mock global.fetch for the preflight OpenAI ping (GET /v1/models?limit=1).
+    // All tests get a successful 200 ping by default; individual tests can override.
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () => '',
+    } as Response);
   });
 
   afterAll(() => {
@@ -424,9 +463,13 @@ describe("regression", () => {
         candidateJobs: [buildPendingJob("job-norm", 77)],
         existingArtifacts: [],
         evaluationArtifactContent: {
+          // 2 DB-shape criteria under test + 11 padded canonical criteria to satisfy preflight ≥13 check.
           criteria: [
-            { key: "opening_hook", score_0_10: 8, rationale: "Strong hook.", confidence_band: "HIGH" },
+            { key: "concept", score_0_10: 8, rationale: "Strong hook.", confidence_band: "HIGH" },
             { key: "voice", score_0_10: 6, rationale: "Voice is consistent.", confidence_band: "MODERATE" },
+            ...CANONICAL_CRITERION_KEYS
+              .filter((k) => k !== 'concept' && k !== 'voice')
+              .map((key) => ({ key, final_score_0_10: 7, final_rationale: `${key} ok.`, confidence_level: 'moderate' })),
           ],
           engine: { model: "gpt-5" },
         },
@@ -442,16 +485,18 @@ describe("regression", () => {
     expect(mockRunPass3bLongform).toHaveBeenCalledTimes(1);
 
     const callArgs = mockRunPass3bLongform.mock.calls[0][0] as { criteria: Array<Record<string, unknown>> };
-    expect(callArgs.criteria).toHaveLength(2);
+    expect(callArgs.criteria).toHaveLength(13);
 
-    // Field names normalised from DB shape.
-    expect(callArgs.criteria[0]).toMatchObject({
-      key: "opening_hook",
+    // Field names normalised from DB shape for the two explicitly tested criteria.
+    const conceptCrit = callArgs.criteria.find((c) => c.key === 'concept');
+    const voiceCrit = callArgs.criteria.find((c) => c.key === 'voice');
+    expect(conceptCrit).toMatchObject({
+      key: "concept",
       final_score_0_10: 8,
       final_rationale: "Strong hook.",
       confidence_level: "HIGH",
     });
-    expect(callArgs.criteria[1]).toMatchObject({
+    expect(voiceCrit).toMatchObject({
       key: "voice",
       final_score_0_10: 6,
       final_rationale: "Voice is consistent.",
@@ -469,9 +514,10 @@ describe("regression", () => {
         candidateJobs: [buildPendingJob("job-partial", 78)],
         existingArtifacts: [],
         evaluationArtifactContent: {
+          // 1 criterion under test + 12 padded canonical criteria to satisfy preflight ≥13 check.
           criteria: [
             {
-              key: "opening_hook",
+              key: "concept",
               // Both shapes present — canonical fields must win.
               final_score_0_10: 9,
               score_0_10: 4,
@@ -480,6 +526,9 @@ describe("regression", () => {
               confidence_level: "high",
               confidence_band: "LOW",
             },
+            ...CANONICAL_CRITERION_KEYS
+              .filter((k) => k !== 'concept')
+              .map((key) => ({ key, final_score_0_10: 7, final_rationale: `${key} ok.`, confidence_level: 'moderate' })),
           ],
           engine: { model: "gpt-5" },
         },
@@ -493,8 +542,10 @@ describe("regression", () => {
     await GET(buildRequest());
 
     const callArgs = mockRunPass3bLongform.mock.calls[0][0] as { criteria: Array<Record<string, unknown>> };
-    expect(callArgs.criteria[0]).toMatchObject({
-      final_score_0_10: 9, // canonical preserved
+    const conceptCrit2 = callArgs.criteria.find((c) => c.key === 'concept');
+    expect(conceptCrit2).toMatchObject({
+      key: "concept",
+      final_score_0_10: 9, // canonical preserved — not overwritten by score_0_10: 4
       final_rationale: "Synthesized rationale.",
       confidence_level: "high",
     });
@@ -527,16 +578,14 @@ describe("regression", () => {
     const table: Record<string, jest.Mock> = {};
     const jobId = "job-idem-001";
 
+    // existingArtifacts contains this job's id with no content._skipped (real artifact).
+    // The real DB query uses .not('id','in',[jobId]) to exclude it from candidates.
+    // In the mock, the .not() chain is a no-op, so we simulate the DB exclusion by
+    // returning candidateJobs: [] — the job was already filtered out by the DB.
     supabaseHolder.client = buildSupabaseClient(
       {
-        candidateJobs: [
-          {
-            id: jobId,
-            manuscript_id: 1,
-            manuscripts: [{ user_id: "u1", title: "T", work_type: "literary_fiction", word_count: 30000 }],
-          },
-        ],
-        existingArtifacts: [{ job_id: jobId }], // artifact already written
+        candidateJobs: [],  // DB already excluded the job via .not('id','in',...)
+        existingArtifacts: [{ job_id: jobId, content: {} }], // real artifact (no _skipped)
         evaluationArtifactContent: null,
         manuscriptChunks: [],
       },
@@ -546,7 +595,7 @@ describe("regression", () => {
     const res = await GET(buildRequest());
     const body = await res.json();
 
-    expect(body.processed).toBe(0); // skipped — artifact exists
+    expect(body.processed).toBe(0); // skipped — artifact exists, DB excluded it
     expect(mockRunPass3bLongform).not.toHaveBeenCalled();
   });
 });
