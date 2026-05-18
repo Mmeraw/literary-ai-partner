@@ -368,6 +368,27 @@ function aggregateChunkResults(results: SinglePassOutput[]): SinglePassOutput {
 
 import type { SubmissionScopeProfile } from "./submissionScope";
 
+/**
+ * Shape of a single entry in the pass1_chunk_cache_v1 artifact.
+ * Stored keyed by chunk_index so resume reads can skip already-completed chunks.
+ */
+export interface Pass1ChunkCacheEntry {
+  chunk_index: number;
+  result: SinglePassOutput;
+  completed_at: string; // ISO timestamp
+}
+
+/**
+ * Top-level shape of the pass1_chunk_cache_v1 evaluation_artifact content.
+ */
+export interface Pass1ChunkCacheArtifact {
+  job_id: string;
+  source_hash: string; // SHA-256 of (job_id + manuscript_id + chunk_count) — invalidates stale cache
+  chunks: Record<number, Pass1ChunkCacheEntry>; // key = chunk_index as string in JSON
+  total_expected: number;
+  cached_at: string; // last upsert ISO timestamp
+}
+
 export interface RunPass1Options {
   scopeProfile?: SubmissionScopeProfile;
   manuscriptText: string;
@@ -392,6 +413,26 @@ export interface RunPass1Options {
   /** Override the completion function (for testing). Production callers omit this. */
   _createCompletion?: CreateCompletionFn;
   _onCompletion?: (capture: PassCompletionCapture) => void;
+  /**
+   * PR-E chunk checkpoint: pre-loaded cache from a pass1_chunk_cache_v1 artifact.
+   * When provided, any chunk_index present in this map is returned immediately without
+   * calling OpenAI, allowing Pass 1 to resume from the last checkpoint after a job
+   * is retried following a wall-clock kill.
+   *
+   * Key = chunk_index (number). Value = previously-computed SinglePassOutput.
+   * Production callers: provided by the processor after reading the cache artifact.
+   * Test callers: omit (undefined) for normal execution.
+   */
+  _chunkCache?: Map<number, SinglePassOutput>;
+  /**
+   * PR-E chunk checkpoint: callback fired after each chunk successfully completes
+   * (either from cache or from a fresh OpenAI call). Allows the processor to write
+   * rolling checkpoint upserts to the pass1_chunk_cache_v1 artifact.
+   *
+   * Called with the chunk_index and the SinglePassOutput for that chunk.
+   * Fail-soft: errors thrown by this callback are logged but do NOT fail the chunk.
+   */
+  _onChunkComplete?: (chunk_index: number, result: SinglePassOutput) => Promise<void>;
 }
 
 /**
@@ -441,24 +482,61 @@ export async function runPass1(opts: RunPass1Options): Promise<SinglePassOutput>
     let usageTotalTokensTotal = 0;
 
     const forwardCompletion = opts._onCompletion;
+    const chunkCache = opts._chunkCache; // PR-E: pre-loaded checkpoint cache (may be undefined)
+    const onChunkComplete = opts._onChunkComplete; // PR-E: rolling checkpoint callback (may be undefined)
+
+    // PR-E: count how many chunks will be served from cache vs. requiring OpenAI calls.
+    const cachedChunkCount = chunkCache
+      ? selectedChunks.filter((c) => chunkCache.has(c.chunk_index)).length
+      : 0;
+    const freshChunkCount = selectedChunks.length - cachedChunkCount;
 
     console.log(
-      `[Pass1] Chunk-native path: total=${chunksTotal} attempted=${selectedChunks.length} concurrency=${chunkConcurrency}`,
+      `[Pass1] Chunk-native path: total=${chunksTotal} attempted=${selectedChunks.length} concurrency=${chunkConcurrency}` +
+      (cachedChunkCount > 0
+        ? ` cached=${cachedChunkCount} fresh=${freshChunkCount} (PR-E checkpoint resume)`
+        : ''),
     );
 
     const settled = await runChunksWithConcurrency(
       selectedChunks,
       chunkConcurrency,
       async (chunk) => {
+        // PR-E: If this chunk index is in the pre-loaded cache, return immediately.
+        // No OpenAI call, no retry, no timeout. The cache entry was previously
+        // validated before being stored, so we trust it as-is.
+        if (chunkCache && chunkCache.has(chunk.chunk_index)) {
+          const cached = chunkCache.get(chunk.chunk_index)!;
+          console.log(`[Pass1] Chunk ${chunk.chunk_index} served from checkpoint cache (PR-E)`);
+          // Fire the checkpoint callback for cache hits too — so the rolling upsert
+          // stays coherent and timestamp-refreshed on every attempt.
+          if (onChunkComplete) {
+            try {
+              await onChunkComplete(chunk.chunk_index, cached);
+            } catch (cbErr) {
+              console.warn(
+                `[Pass1] _onChunkComplete (cache hit) threw for chunk ${chunk.chunk_index} (non-fatal)`,
+                cbErr instanceof Error ? cbErr.message : String(cbErr),
+              );
+            }
+          }
+          return cached;
+        }
+
         let attempt = 0;
         while (true) {
           try {
-            return await runPass1({
+            const result = await runPass1({
               ...opts,
               manuscriptText: chunk.content,
               manuscriptChunks: undefined, // Prevent recursive chunking
               isChunkUnit: true,
               openAiTimeoutMs: chunkTimeoutMs,
+              // PR-E: do NOT forward _chunkCache or _onChunkComplete into recursive
+              // single-chunk calls — those paths are not chunk-native and would confuse
+              // the cache lookup (single-unit calls use chunk_index=undefined).
+              _chunkCache: undefined,
+              _onChunkComplete: undefined,
               _onCompletion: (capture) => {
                 if (capture.pass === 1) {
                   usagePromptTokensTotal += capture.usage?.prompt_tokens ?? 0;
@@ -468,6 +546,21 @@ export async function runPass1(opts: RunPass1Options): Promise<SinglePassOutput>
                 forwardCompletion?.(capture);
               },
             });
+
+            // PR-E: Chunk completed successfully — fire rolling checkpoint callback.
+            // Fail-soft: callback errors are logged but do NOT fail the chunk evaluation.
+            if (onChunkComplete) {
+              try {
+                await onChunkComplete(chunk.chunk_index, result);
+              } catch (cbErr) {
+                console.warn(
+                  `[Pass1] _onChunkComplete threw for chunk ${chunk.chunk_index} (non-fatal)`,
+                  cbErr instanceof Error ? cbErr.message : String(cbErr),
+                );
+              }
+            }
+
+            return result;
           } catch (error) {
             if (!isRateLimitError(error) || attempt >= chunkRetryMax) {
               throw error;
@@ -535,6 +628,10 @@ export async function runPass1(opts: RunPass1Options): Promise<SinglePassOutput>
         chunk_failures_by_reason: chunkFailuresByReason,
         chunk_cap_applied: false,
         chunk_cap_value: chunkCap,
+        // PR-E: checkpoint resume telemetry
+        checkpoint_resume: cachedChunkCount > 0,
+        cached_chunk_count: cachedChunkCount,
+        fresh_chunk_count: freshChunkCount,
       },
     });
 

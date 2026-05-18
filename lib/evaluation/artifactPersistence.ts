@@ -30,7 +30,19 @@ export type ArtifactType =
    * so that a fresh Vercel invocation can resume at Pass 3 without re-running chunk
    * evaluation. Not user-visible. Consumed and deleted by the phase_2 processor path.
    */
-  | "pass12_handoff_v1";
+  | "pass12_handoff_v1"
+  /**
+   * Chunk-level checkpoint: rolling save of per-chunk Pass 1 results as each chunk
+   * completes during the chunked scoring loop. Written incrementally — one upsert per
+   * chunk. When a job is retried after a wall-clock kill, Pass 1 reads this cache and
+   * skips already-completed chunk indices, resuming from the interruption point.
+   *
+   * Key: (job_id, artifact_type='pass1_chunk_cache_v1') — one row per job.
+   * Content shape: Pass1ChunkCacheArtifact (see runPass1.ts).
+   * Lifecycle: written during Pass 1, deleted on successful Pass 1 completion.
+   * Not user-visible.
+   */
+  | "pass1_chunk_cache_v1";
 
 /**
  * Compute SHA256 hex digest of input string

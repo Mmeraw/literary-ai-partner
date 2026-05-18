@@ -2576,6 +2576,126 @@ export async function processEvaluationJob(
       '@/lib/evaluation/pipeline/runPass2'
     ).then((m) => ({ runPass2: m.runPass2 }));
 
+    // PR-E: Chunk-level checkpoint — load any existing pass1_chunk_cache_v1 artifact.
+    // If a previous attempt completed some chunks before being killed, we can resume
+    // from those checkpoints rather than starting Pass 1 from scratch.
+    //
+    // The cache is keyed by chunk_index and validated against a source_hash
+    // (SHA-256 of job_id + manuscript_id + chunk_count). A hash mismatch means the
+    // manuscript or job state changed and the cache must be ignored (full re-run).
+    //
+    // Fail-soft: cache read errors are logged but never fail the job.
+    let pass1ChunkCache: Map<number, SinglePassOutput> | undefined;
+    const chunkCacheSourceHash = stableSourceHash({
+      manuscriptId: manuscriptWithContent.id,
+      jobId: job.id,
+      userId: manuscriptWithContent.user_id,
+      manuscriptText: String(manuscriptChunksForPipeline?.length ?? 0), // use chunk count, not full text
+      promptVersion: 'pass1_chunk_cache_v1',
+      model: getCanonicalPipelineModel(openAiModel),
+    });
+    if (isChunkRouted) {
+      try {
+        const { data: cacheRow } = await supabase
+          .from('evaluation_artifacts')
+          .select('content')
+          .eq('job_id', job.id)
+          .eq('artifact_type', 'pass1_chunk_cache_v1')
+          .maybeSingle();
+
+        if (cacheRow?.content) {
+          const cacheArtifact = cacheRow.content as import('@/lib/evaluation/pipeline/runPass1').Pass1ChunkCacheArtifact;
+          // Validate source hash to detect stale/mismatched cache.
+          if (cacheArtifact.source_hash === chunkCacheSourceHash) {
+            const cacheMap = new Map<number, SinglePassOutput>();
+            for (const [k, v] of Object.entries(cacheArtifact.chunks ?? {})) {
+              const idx = Number(k);
+              if (Number.isFinite(idx) && v?.result) {
+                cacheMap.set(idx, v.result);
+              }
+            }
+            if (cacheMap.size > 0) {
+              pass1ChunkCache = cacheMap;
+              console.log(
+                `[Processor] ${jobId}: PR-E checkpoint resume — loaded ${cacheMap.size}/${cacheArtifact.total_expected} cached Pass1 chunks`,
+              );
+              progressState.pass1_checkpoint_resume = {
+                cached_chunks: cacheMap.size,
+                expected_chunks: cacheArtifact.total_expected,
+                cached_at: cacheArtifact.cached_at,
+              };
+            }
+          } else {
+            // Hash mismatch — delete stale cache and do a full re-run.
+            console.warn(
+              `[Processor] ${jobId}: PR-E chunk cache source_hash mismatch — discarding stale cache (full re-run)`,
+              { stored: cacheArtifact.source_hash, expected: chunkCacheSourceHash },
+            );
+            void supabase
+              .from('evaluation_artifacts')
+              .delete()
+              .eq('job_id', job.id)
+              .eq('artifact_type', 'pass1_chunk_cache_v1')
+              .then(({ error: delErr }: { error: { message: string } | null }) => {
+                if (delErr) console.warn(`[Processor] ${jobId}: stale cache delete failed (non-fatal)`, delErr.message);
+              });
+          }
+        }
+      } catch (cacheReadErr) {
+        console.warn(
+          `[Processor] ${jobId}: PR-E chunk cache read failed (non-fatal, proceeding with full run)`,
+          cacheReadErr instanceof Error ? cacheReadErr.message : String(cacheReadErr),
+        );
+      }
+    }
+
+    // PR-E: In-memory accumulator for rolling checkpoint writes.
+    // Updated by _onChunkComplete; serialized to pass1_chunk_cache_v1 on each chunk.
+    const chunkCacheAccumulator: Record<number, import('@/lib/evaluation/pipeline/runPass1').Pass1ChunkCacheEntry> = {};
+    if (pass1ChunkCache) {
+      // Pre-seed accumulator with already-cached entries so the upsert is always complete.
+      for (const [idx, result] of pass1ChunkCache.entries()) {
+        chunkCacheAccumulator[idx] = { chunk_index: idx, result, completed_at: new Date().toISOString() };
+      }
+    }
+
+    const expectedChunkCount = manuscriptChunksForPipeline?.length ?? 0;
+
+    // Rolling checkpoint upsert: called after each chunk completes in Pass 1.
+    // Fail-soft — an upsert failure is logged but never propagated to the chunk worker.
+    const onPass1ChunkComplete = isChunkRouted
+      ? async (chunkIndex: number, result: SinglePassOutput): Promise<void> => {
+          chunkCacheAccumulator[chunkIndex] = {
+            chunk_index: chunkIndex,
+            result,
+            completed_at: new Date().toISOString(),
+          };
+          const cachePayload: import('@/lib/evaluation/pipeline/runPass1').Pass1ChunkCacheArtifact = {
+            job_id: job.id,
+            source_hash: chunkCacheSourceHash,
+            chunks: { ...chunkCacheAccumulator },
+            total_expected: expectedChunkCount,
+            cached_at: new Date().toISOString(),
+          };
+          try {
+            await upsertEvaluationArtifact({
+              supabase,
+              jobId: job.id,
+              manuscriptId: manuscriptWithContent.id,
+              artifactType: 'pass1_chunk_cache_v1',
+              content: cachePayload,
+              sourceHash: chunkCacheSourceHash,
+              artifactVersion: 'pass1_chunk_cache_v1',
+            });
+          } catch (upsertErr) {
+            console.warn(
+              `[Processor] ${jobId}: PR-E chunk cache upsert failed for chunk ${chunkIndex} (non-fatal)`,
+              upsertErr instanceof Error ? upsertErr.message : String(upsertErr),
+            );
+          }
+        }
+      : undefined;
+
     let pipelineResult;
     try {
       pipelineResult = await runPipeline({
@@ -2593,8 +2713,32 @@ export async function processEvaluationJob(
         _openAiTimeoutMs: timeoutResolution.openAiTimeoutMs,
         _runners: {
           runPass1: async (opts) => {
-            const result = await defaultRunPass1Fn(opts);
+            const result = await defaultRunPass1Fn({
+              ...opts,
+              // PR-E: inject checkpoint cache and rolling save callback
+              _chunkCache: pass1ChunkCache,
+              _onChunkComplete: onPass1ChunkComplete,
+            });
             capturedPass1Output = result;
+            // PR-E: Pass 1 succeeded — delete the chunk cache artifact (it has served its purpose).
+            // Fail-soft: deletion failure is non-fatal.
+            if (isChunkRouted) {
+              void supabase
+                .from('evaluation_artifacts')
+                .delete()
+                .eq('job_id', job.id)
+                .eq('artifact_type', 'pass1_chunk_cache_v1')
+                .then(({ error: delErr }: { error: { message: string } | null }) => {
+                  if (delErr) {
+                    console.warn(
+                      `[Processor] ${jobId}: PR-E chunk cache cleanup failed (non-fatal)`,
+                      delErr.message,
+                    );
+                  } else {
+                    console.log(`[Processor] ${jobId}: PR-E chunk cache artifact deleted after successful Pass1`);
+                  }
+                });
+            }
             return result;
           },
           runPass2: async (opts) => {
