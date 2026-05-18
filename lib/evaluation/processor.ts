@@ -2240,11 +2240,22 @@ export async function processEvaluationJob(
     const timeoutScopeProfile = classifySubmissionScope(timeoutInputText, chunkRouting.chunk_count);
     const timeoutWordBasis = countWords(timeoutInputText);
 
+    // Pass expected chunk count so the timeout scales with actual workload.
+    // For a 52-chunk long-form job this yields ~924s instead of the flat 720s
+    // floor, giving the chunk concurrency pool realistic headroom.
+    const expectedChunksForTimeout =
+      chunkRouting.route === 'long_form' &&
+      typeof chunkRouting.persisted_chunk_count === 'number' &&
+      chunkRouting.persisted_chunk_count > 1
+        ? chunkRouting.persisted_chunk_count
+        : undefined;
+
     const timeoutResolution = resolveScopedEvaluationTimeouts({
       inputScale: timeoutScopeProfile.inputScale as TimeoutScopeInputScale,
       passTimeoutMs: evalPassTimeoutMs,
       openAiTimeoutMs: evalOpenAiTimeoutMs,
       floorMs: LONG_FORM_TIMEOUT_FLOOR_MS,
+      expectedChunks: expectedChunksForTimeout,
     });
 
     progressState.timeout_resolution = {
@@ -2258,6 +2269,9 @@ export async function processEvaluationJob(
       timeout_word_basis: timeoutWordBasis,
       timeout_source_word_count: sourceWordCount,
       timeout_chunk_storage_word_count: payloadWordCount,
+      ...(timeoutResolution.chunkScaledFrom !== undefined
+        ? { chunk_scaled_from: timeoutResolution.chunkScaledFrom }
+        : {}),
     };
 
     console.log('[Processor][TimeoutResolution]', {
@@ -2274,6 +2288,9 @@ export async function processEvaluationJob(
       base_openai_timeout_ms: timeoutResolution.baseOpenAiTimeoutMs,
       resolved_pass_timeout_ms: timeoutResolution.passTimeoutMs,
       resolved_openai_timeout_ms: timeoutResolution.openAiTimeoutMs,
+      ...(timeoutResolution.chunkScaledFrom !== undefined
+        ? { chunk_scaled_from: timeoutResolution.chunkScaledFrom }
+        : {}),
     });
 
     // 4. Canonical evaluation via governed multi-pass pipeline (fail-closed)

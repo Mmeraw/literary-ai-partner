@@ -89,6 +89,8 @@ export interface ScopedTimeoutResolution {
   baseOpenAiTimeoutMs: number;
   passTimeoutMs: number;
   openAiTimeoutMs: number;
+  /** Number of chunks used to scale the timeout, if chunk-aware scaling was applied. */
+  chunkScaledFrom?: number;
 }
 
 function isLongFormTimeoutScale(inputScale: TimeoutScopeInputScale): boolean {
@@ -100,27 +102,69 @@ export function resolveScopedEvaluationTimeouts(args: {
   passTimeoutMs: number;
   openAiTimeoutMs: number;
   floorMs?: number;
+  /**
+   * Expected chunk count for the job. When provided and > 1, the pass timeout
+   * is scaled up so that a full chunk sweep at concurrency=8 and a conservative
+   * avg of 30s/chunk still fits within the budget:
+   *   scaled = BASE_MS + PER_CHUNK_MS * chunkCount
+   * Capped at MAX_CHUNK_SCALED_PASS_TIMEOUT_MS.
+   */
+  expectedChunks?: number;
 }): ScopedTimeoutResolution {
   const floorMs = args.floorMs ?? LONG_FORM_TIMEOUT_FLOOR_MS;
   const longFormScale = isLongFormTimeoutScale(args.inputScale);
 
+  // --- Chunk-count-aware timeout scaling -----------------------------------
+  // For long-form jobs the flat 720s floor is insufficient when chunk counts
+  // grow. With concurrency=8 and avg 30s/chunk:
+  //   ceil(52/8) * 30_000 = 7 * 30_000 = 210_000ms  → fits in 720s
+  //   ceil(72/8) * 30_000 = 9 * 30_000 = 270_000ms  → fits in 720s
+  // But a single rate-limit stall or slow provider response can push any
+  // chunk well past 30s. The chunk-scaled timeout adds a per-chunk buffer:
+  //   scaled = 300_000 (base) + 12_000 (per chunk) * N
+  //   @ N=52: 300_000 + 624_000 = 924_000ms (~15.4 min)
+  //   @ N=72: 300_000 + 864_000 = 1_164_000ms (~19.4 min)
+  // This keeps the budget proportional to the workload instead of fixed.
+  const CHUNK_SCALE_BASE_MS = 300_000;
+  const CHUNK_SCALE_PER_CHUNK_MS = 12_000;
+  const MAX_CHUNK_SCALED_PASS_TIMEOUT_MS = 1_800_000; // 30 min hard ceiling
+
+  let chunkScaledFrom: number | undefined;
+  let effectiveFloor = floorMs;
+
+  if (
+    longFormScale &&
+    typeof args.expectedChunks === "number" &&
+    args.expectedChunks > 1
+  ) {
+    const chunkScaled = Math.min(
+      CHUNK_SCALE_BASE_MS + CHUNK_SCALE_PER_CHUNK_MS * args.expectedChunks,
+      MAX_CHUNK_SCALED_PASS_TIMEOUT_MS,
+    );
+    if (chunkScaled > effectiveFloor) {
+      effectiveFloor = chunkScaled;
+      chunkScaledFrom = args.expectedChunks;
+    }
+  }
+
   const passTimeoutMs = longFormScale
-    ? Math.max(args.passTimeoutMs, floorMs)
+    ? Math.max(args.passTimeoutMs, effectiveFloor)
     : args.passTimeoutMs;
 
   // Keep provider timeout >= pass timeout after scoped floor application.
   const openAiTimeoutMs = longFormScale
-    ? Math.max(args.openAiTimeoutMs, passTimeoutMs, floorMs)
+    ? Math.max(args.openAiTimeoutMs, passTimeoutMs, effectiveFloor)
     : args.openAiTimeoutMs;
 
   return {
     inputScale: args.inputScale,
-    floorMs,
+    floorMs: effectiveFloor,
     floorApplied: passTimeoutMs !== args.passTimeoutMs || openAiTimeoutMs !== args.openAiTimeoutMs,
     basePassTimeoutMs: args.passTimeoutMs,
     baseOpenAiTimeoutMs: args.openAiTimeoutMs,
     passTimeoutMs,
     openAiTimeoutMs,
+    ...(chunkScaledFrom !== undefined ? { chunkScaledFrom } : {}),
   };
 }
 

@@ -43,9 +43,27 @@ const PASS1_LIMITS = {
   maxEvidencePerCriterion: 1,
   maxEvidenceSnippetChars: 180,
 } as const;
-const DEFAULT_CHUNK_PASS_CONCURRENCY = 3;
+// Raised from 3 → 7 to keep 52-chunk long-form jobs within budget while
+// staying within OpenAI Tier 1 TPM limits.
+//
+// Tier 1 budget math (Pass1 + Pass2 run in parallel):
+//   tokens/chunk ≈ 13,250 (5,250 input + 8,000 output)
+//   simultaneous calls at c=7: 7 (P1) + 7 (P2) = 14 calls
+//   burst TPM = 14 × 13,250 = 185,500 < 200,000 Tier 1 limit ✅
+// Override with EVAL_CHUNK_PASS_CONCURRENCY env var.
+const DEFAULT_CHUNK_PASS_CONCURRENCY = 7;
 const DEFAULT_CHUNK_RETRY_MAX = 3;
 const DEFAULT_CHUNK_RETRY_BASE_MS = 10000;
+// Per-chunk provider timeout (mirrors runPass2.ts).
+const DEFAULT_PASS1_CHUNK_TIMEOUT_MS = 60_000;
+
+function getPass1ChunkTimeoutMs(): number {
+  const raw = process.env.EVAL_PASS1_CHUNK_TIMEOUT_MS;
+  if (!raw) return DEFAULT_PASS1_CHUNK_TIMEOUT_MS;
+  const parsed = Number.parseInt(raw, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) return DEFAULT_PASS1_CHUNK_TIMEOUT_MS;
+  return Math.min(300_000, Math.max(10_000, parsed));
+}
 
 /**
  * Pass 1 model is not caller-controlled.
@@ -399,6 +417,7 @@ export async function runPass1(opts: RunPass1Options): Promise<SinglePassOutput>
     const chunkCap = getConfiguredChunkCap();
     const chunkRetryMax = getChunkRetryMax();
     const chunkRetryBaseMs = getChunkRetryBaseMs();
+    const chunkTimeoutMs = getPass1ChunkTimeoutMs();
     // Fail-closed: NEVER silently truncate chunks. If a manuscript produces
     // more chunks than the per-pass cap, the evaluation must fail with a clear
     // diagnostic — "every word is evaluated, or the job fails."
@@ -439,6 +458,7 @@ export async function runPass1(opts: RunPass1Options): Promise<SinglePassOutput>
               manuscriptText: chunk.content,
               manuscriptChunks: undefined, // Prevent recursive chunking
               isChunkUnit: true,
+              openAiTimeoutMs: chunkTimeoutMs,
               _onCompletion: (capture) => {
                 if (capture.pass === 1) {
                   usagePromptTokensTotal += capture.usage?.prompt_tokens ?? 0;
@@ -502,6 +522,7 @@ export async function runPass1(opts: RunPass1Options): Promise<SinglePassOutput>
         chunks_failed: failures.length,
         chunk_coverage_pct: chunkCoveragePct,
         chunk_concurrency: chunkConcurrency,
+        chunk_timeout_ms: chunkTimeoutMs,
         chunk_eval_total_ms: chunkEvalTotalMs,
         provider: "openai",
         model: selectedModel,

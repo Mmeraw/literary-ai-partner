@@ -38,9 +38,35 @@ const PASS2_TEMPERATURE = 0.3;
 // Mirror of processor.ts STRUCTURAL_CHUNKING_THRESHOLD_WORDS. Kept duplicated
 // here to avoid a circular import — processor.ts pulls from pipeline modules.
 const STRUCTURAL_CHUNKING_THRESHOLD_WORDS = 3_000;
-const DEFAULT_CHUNK_PASS_CONCURRENCY = 3;
+// Raised from 3 → 7 to keep 52-chunk long-form jobs within budget while
+// staying within OpenAI Tier 1 TPM limits.
+//
+// Tier 1 budget math (Pass1 + Pass2 run in parallel):
+//   tokens/chunk = ~5,250 input + 8,000 output = ~13,250
+//   simultaneous calls at c=7: 7 (P1) + 7 (P2) = 14 calls
+//   burst TPM = 14 × 13,250 = 185,500 < 200,000 Tier 1 limit ✅
+//   burst TPM at c=8 = 16 × 13,250 = 212,000 > 200,000 ❌ EXCEEDS LIMIT
+//
+// Wall-clock math at c=7 for 52 chunks:
+//   ceil(52/7) = 8 rounds × p95 45s/chunk = 360s — well inside Vercel 800s
+// Override with EVAL_CHUNK_PASS_CONCURRENCY env var.
+const DEFAULT_CHUNK_PASS_CONCURRENCY = 7;
 const DEFAULT_CHUNK_RETRY_MAX = 3;
 const DEFAULT_CHUNK_RETRY_BASE_MS = 10000;
+// Per-chunk provider timeout. Each chunk-unit OpenAI call is independently
+// bounded so a single hung socket cannot consume the entire pass budget.
+// A single chunk should complete well within 45s at normal latency; 60s gives
+// a generous margin before we abort and surface PASS2_CHUNK_TIMEOUT.
+// Override with EVAL_PASS2_CHUNK_TIMEOUT_MS env var.
+const DEFAULT_PASS2_CHUNK_TIMEOUT_MS = 60_000;
+
+function getPass2ChunkTimeoutMs(): number {
+  const raw = process.env.EVAL_PASS2_CHUNK_TIMEOUT_MS;
+  if (!raw) return DEFAULT_PASS2_CHUNK_TIMEOUT_MS;
+  const parsed = Number.parseInt(raw, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) return DEFAULT_PASS2_CHUNK_TIMEOUT_MS;
+  return Math.min(300_000, Math.max(10_000, parsed));
+}
 // Pass 2 model is resolved via getCanonicalPass2Model(opts.model), allowing
 // EVAL_PASS2_MODEL (or EVAL_CHUNK_MODEL fallback) to control high-volume map-phase calls.
 
@@ -375,6 +401,9 @@ export async function runPass2(opts: RunPass2Options): Promise<SinglePassOutput>
     const chunkCap = getConfiguredChunkCap();
     const chunkRetryMax = getChunkRetryMax();
     const chunkRetryBaseMs = getChunkRetryBaseMs();
+    // Per-chunk provider timeout: bounds each individual OpenAI call so a
+    // single hung socket cannot stall the entire concurrency pool.
+    const chunkTimeoutMs = getPass2ChunkTimeoutMs();
     // Fail-closed: NEVER silently truncate chunks. See runPass1 for rationale.
     if (opts.manuscriptChunks!.length > chunkCap) {
       throw new ChunkCountExceedsCapError(
@@ -413,6 +442,11 @@ export async function runPass2(opts: RunPass2Options): Promise<SinglePassOutput>
               manuscriptText: chunk.content,
               manuscriptChunks: undefined, // Prevent recursive chunking
               isChunkUnit: true,
+              // Hard-bound each chunk-unit call independently so a single
+              // hung OpenAI socket cannot consume the whole pass budget.
+              // The chunk-unit path uses this as the SDK timeout, giving
+              // per-request abort semantics rather than a pass-level ceiling.
+              openAiTimeoutMs: chunkTimeoutMs,
               _onCompletion: (capture) => {
                 if (capture.pass === 2) {
                   usagePromptTokensTotal += capture.usage?.prompt_tokens ?? 0;
@@ -476,6 +510,7 @@ export async function runPass2(opts: RunPass2Options): Promise<SinglePassOutput>
         chunks_failed: failures.length,
         chunk_coverage_pct: chunkCoveragePct,
         chunk_concurrency: chunkConcurrency,
+        chunk_timeout_ms: chunkTimeoutMs,
         chunk_eval_total_ms: chunkEvalTotalMs,
         provider: "openai",
         model: selectedModel,
