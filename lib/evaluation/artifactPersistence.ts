@@ -22,7 +22,9 @@ export type ArtifactType =
   /** Audit-grade: per-criterion gate diagnostics (independence overlap data) on gate failure. Not user-visible. */
   | "quality_gate_diagnostics_v1"
   /** Pass 3b — full 16-section DREAM document for long-form manuscripts (≥ 25,000 words). */
-  | "longform_document_v1";
+  | "longform_document_v1"
+  /** Post-evaluation author-facing editorial translation audit. Does not mutate scores. */
+  | "report_experience_v1";
 
 /**
  * Compute SHA256 hex digest of input string

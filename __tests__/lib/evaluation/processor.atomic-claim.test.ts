@@ -717,3 +717,65 @@ describe('processEvaluationJob — started_at sanitization', () => {
     expect(runningPayload?.started_at).not.toBe('1970-01-01T00:00:00.000Z');
   });
 });
+
+// ─────────────────────────────────────────────────────────────────
+// regression: lease ceiling must be 800_000, not 600_000
+// ─────────────────────────────────────────────────────────────────
+
+describe('regression: lease clamp ceiling', () => {
+  beforeEach(() => {
+    jest.resetModules();
+    jest.clearAllMocks();
+    process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://example.supabase.co';
+    process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-role-key';
+    process.env.OPENAI_API_KEY = 'sk-test';
+    process.env.EVAL_PASS_TIMEOUT_MS = '180000';
+    process.env.EVAL_OPENAI_TIMEOUT_MS = '180000';
+    process.env.EVAL_EXTERNAL_ADJUDICATION_MODE = 'optional';
+  });
+
+  test('claimQueuedJobs passes lease_expires_at >= 13 minutes from now when leaseMs=800000', async () => {
+    // Regression: previous code had Math.min(600_000, ...) which silently clamped
+    // the lease to 10 minutes regardless of the configured value.  This caused the
+    // stale-running reaper to fire at 10 minutes and kill legitimate large-manuscript
+    // evaluations that were still running under Vercel's 800s function ceiling.
+    const stub = buildSupabaseStub({
+      rpcResult: { data: [makeClaimedRpcRow()], error: null },
+    }) as any;
+    createClientMock.mockReturnValue(stub);
+
+    const before = Date.now();
+    const { claimQueuedJobs } = await import('../../../lib/evaluation/processor');
+    await claimQueuedJobs({ workerId: 'worker-lease-test', leaseMs: 800_000 });
+
+    const rpcCall = stub.rpc.mock.calls[0];
+    expect(rpcCall[0]).toBe('claim_evaluation_jobs');
+
+    const leaseExpiresAt: string = rpcCall[1].p_lease_expires_at;
+    const leaseExpiresMs = new Date(leaseExpiresAt).getTime();
+
+    // Must be at least 13 minutes (780s) from now — not clamped to 600s/10min.
+    const minExpectedMs = before + 780_000;
+    expect(leaseExpiresMs).toBeGreaterThanOrEqual(minExpectedMs);
+  });
+
+  test('claimQueuedJobs default leaseMs is 800_000 (not 600_000)', async () => {
+    // When called without explicit leaseMs, the default must be 800_000.
+    const stub = buildSupabaseStub({
+      rpcResult: { data: [makeClaimedRpcRow()], error: null },
+    }) as any;
+    createClientMock.mockReturnValue(stub);
+
+    const before = Date.now();
+    const { claimQueuedJobs } = await import('../../../lib/evaluation/processor');
+    await claimQueuedJobs({ workerId: 'worker-default-lease' }); // no leaseMs passed
+
+    const rpcCall = stub.rpc.mock.calls[0];
+    const leaseExpiresAt: string = rpcCall[1].p_lease_expires_at;
+    const leaseExpiresMs = new Date(leaseExpiresAt).getTime();
+
+    // Default should give ~800s lease — at least 780s to account for test execution time.
+    const minExpectedMs = before + 780_000;
+    expect(leaseExpiresMs).toBeGreaterThanOrEqual(minExpectedMs);
+  });
+});

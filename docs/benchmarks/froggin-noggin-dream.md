@@ -1,7 +1,12 @@
 ---
 benchmark-schema: canonical-13-v1
+title: Froggin Noggin DREAM Long-Form Gold Standard Evaluation
+manuscript: Froggin Noggin FULL NOVEL (25 Apr 2022)
+author: Michael J. Me Raw
+scope: full-manuscript
+route: LONG_FORM
+output-mode: multi_layer_long_form
 ---
-
 # Froggin Noggin — DREAM Long-Form Gold Standard Evaluation
 
 **Repository target:** `docs/benchmarks/froggin-noggin-dream.md`  
