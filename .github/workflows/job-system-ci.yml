@@ -85,7 +85,7 @@ jobs:
         with:
           fetch-depth: 0
       - name: Debug Supabase URL
-        run: echo "NEXT_PUBLIC_SUPABASE_URL: '${NEXT_PUBLIC_SUPABASE_URL}'"
+        run: echo "NEXT_PUBLIC_SUPABASE_URL length=${#NEXT_PUBLIC_SUPABASE_URL}"
       - name: Setup Node.js
         uses: actions/setup-node@v5
         with:
