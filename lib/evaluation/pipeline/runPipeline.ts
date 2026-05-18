@@ -108,6 +108,7 @@ import {
   ChunkRoutingNotEngagedError,
   ManuscriptExceedsHardCeilingError,
 } from "./failures";
+import { getConfiguredChunkCap } from "./chunkCap";
 
 // Below this word count we evaluate as a single structural unit (one chunk).
 // Above this, the chunked path MUST engage — see runPipeline guard below.
@@ -272,12 +273,76 @@ type Pass2aCoverageAuthority = {
   collationSucceeded: boolean;
 };
 
-function getConfiguredChunkCap(): number | null {
-  const raw = process.env.EVAL_CHUNK_MAX_PER_PASS;
-  if (!raw) return null;
-  const parsed = Number.parseInt(raw, 10);
-  if (!Number.isFinite(parsed) || parsed <= 0) return null;
-  return parsed;
+const MANUSCRIPT_CHUNK_COVERAGE_MIN_RATIO = 0.99;
+
+function buildChunkCoverageFailure(
+  coverage: Pass2aCoverageAuthority,
+): {
+  message: string;
+  details: {
+    reason_codes: string[];
+    chunk_coverage: {
+      chunks_expected: number;
+      chunks_processed_pass1: number;
+      chunks_processed_pass2: number;
+      chunks_processed_effective: number;
+    };
+    word_coverage: {
+      words_submitted: number;
+      words_analyzed: number;
+      analyzed_ratio: number;
+      threshold_ratio: number;
+    };
+  };
+} | null {
+  if (!coverage.chunkRouted) {
+    return null;
+  }
+
+  const expectedChunks = coverage.expectedChunks ?? 0;
+  const pass1Processed = coverage.pass1EvaluatedChunks ?? 0;
+  const pass2Processed = coverage.pass2EvaluatedChunks ?? 0;
+  const effectiveProcessed = Math.min(pass1Processed, pass2Processed);
+
+  const wordsSubmitted = Math.max(coverage.sourceWords, 0);
+  const wordsAnalyzed = Math.max(coverage.analyzedWords, 0);
+  const analyzedRatio = wordsSubmitted > 0 ? wordsAnalyzed / wordsSubmitted : 1;
+
+  const chunkMismatch = effectiveProcessed !== expectedChunks;
+  const coverageDeficit = analyzedRatio < MANUSCRIPT_CHUNK_COVERAGE_MIN_RATIO;
+
+  if (!chunkMismatch && !coverageDeficit) {
+    return null;
+  }
+
+  const details = {
+    reason_codes: Array.from(
+      new Set([
+        ...coverage.reasonCodes,
+        ...(chunkMismatch ? ["CHUNK_COUNT_MISMATCH"] : []),
+        ...(coverageDeficit ? ["WORD_COVERAGE_BELOW_MIN"] : []),
+      ]),
+    ),
+    chunk_coverage: {
+      chunks_expected: expectedChunks,
+      chunks_processed_pass1: pass1Processed,
+      chunks_processed_pass2: pass2Processed,
+      chunks_processed_effective: effectiveProcessed,
+    },
+    word_coverage: {
+      words_submitted: wordsSubmitted,
+      words_analyzed: wordsAnalyzed,
+      analyzed_ratio: Number(analyzedRatio.toFixed(6)),
+      threshold_ratio: MANUSCRIPT_CHUNK_COVERAGE_MIN_RATIO,
+    },
+  };
+
+  return {
+    message:
+      `Manuscript chunk coverage incomplete: processed ${effectiveProcessed}/${expectedChunks} chunks ` +
+      `with analyzed ratio ${details.word_coverage.analyzed_ratio} (< ${MANUSCRIPT_CHUNK_COVERAGE_MIN_RATIO}).`,
+    details,
+  };
 }
 
 function derivePass2aCoverageAuthority(args: {
@@ -351,7 +416,7 @@ function derivePass2aCoverageAuthority(args: {
   const capApplied =
     Boolean(pass1Ledger?.cap_applied) ||
     Boolean(pass2Ledger?.cap_applied) ||
-    (chunkCap !== null && expectedChunks > chunkCap);
+    expectedChunks > chunkCap;
 
   const pass1AllChunks = pass1ChunkMode && pass1EvaluatedChunks === expectedChunks;
   const pass2AllChunks = pass2ChunkMode && pass2EvaluatedChunks === expectedChunks;
@@ -1196,6 +1261,19 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
     title: opts.title,
     ...pass2aCoverage,
   });
+
+  const coverageFailure = buildChunkCoverageFailure(pass2aCoverage);
+  if (coverageFailure) {
+    return {
+      ok: false,
+      error: coverageFailure.message,
+      error_code: "MANUSCRIPT_CHUNK_COVERAGE_INCOMPLETE",
+      failed_at: "pass2",
+      failure_details: {
+        manuscript_chunk_coverage: coverageFailure.details,
+      },
+    };
+  }
 
   const pass2aStructuredContext = buildPass2aStructuredContext({
     manuscriptText: opts.manuscriptText,

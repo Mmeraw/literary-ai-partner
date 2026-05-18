@@ -2,12 +2,22 @@ import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getAuthenticatedUser } from "@/lib/supabase/server";
 import { resolveManuscriptTitle } from "@/lib/manuscripts/title";
+import { selectChunkerConfig } from "@/lib/manuscripts/chunking";
+import { getConfiguredChunkCap } from "@/lib/evaluation/pipeline/chunkCap";
 
 const MAX_UPLOAD_WORDS = 250_000;
 const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
 
 function countWords(text: string): number {
   return text.trim().split(/\s+/).filter(Boolean).length;
+}
+
+function estimateChunkCount(text: string, wordCount: number): number {
+  if (wordCount <= 0) return 0;
+  const cfg = selectChunkerConfig(wordCount);
+  const avgCharsPerWord = Math.max(1, text.length / wordCount);
+  const targetWordsPerChunk = Math.max(1, Math.floor(cfg.targetChars / avgCharsPerWord));
+  return Math.ceil(wordCount / targetWordsPerChunk);
 }
 
 async function extractTextFromUpload(file: File): Promise<string> {
@@ -109,6 +119,25 @@ export async function POST(req: Request) {
       );
     }
 
+    const chunkCap = getConfiguredChunkCap();
+    const estimatedChunkCount = estimateChunkCount(extractedText, wordCount);
+    if (estimatedChunkCount > chunkCap) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            "Your manuscript is currently above our long-form evaluation ceiling. Please contact us about long-form processing.",
+          code: "MANUSCRIPT_CHUNK_CEILING_EXCEEDED",
+          details: {
+            estimated_chunk_count: estimatedChunkCount,
+            chunk_cap: chunkCap,
+            word_count: wordCount,
+          },
+        },
+        { status: 413 },
+      );
+    }
+
     const fileUrl = `data:text/plain;charset=utf-8,${encodeURIComponent(extractedText)}`;
     const titleFromUpload = resolveManuscriptTitle({
       explicitTitle: titleEntry,
@@ -126,6 +155,7 @@ export async function POST(req: Request) {
       .from("manuscripts")
       .insert({
         title: titleFromUpload,
+        content: extractedText,
         user_id: user.id,
         created_by: user.id,
         file_url: fileUrl,

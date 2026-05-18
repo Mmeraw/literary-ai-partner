@@ -25,6 +25,7 @@ import { JsonBoundaryError, parseJsonObjectBoundary } from "@/lib/llm/jsonParseB
 import { getEvaluationRuntimeConfig } from "@/lib/config/evaluationRuntimeConfig";
 import { summarizePromptCoverage } from "./promptInput";
 import { countWords } from "./submissionScope";
+import { getConfiguredChunkCap } from "./chunkCap";
 import {
   ChunkCountExceedsCapError,
   ChunkRoutingNotEngagedError,
@@ -224,14 +225,6 @@ function sleepMs(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function getChunkPassMaxPerPass(): number | null {
-  const raw = process.env.EVAL_CHUNK_MAX_PER_PASS;
-  if (!raw) return null;
-  const parsed = Number.parseInt(raw, 10);
-  if (!Number.isFinite(parsed) || parsed <= 0) return null;
-  return parsed;
-}
-
 async function runChunksWithConcurrency<T>(
   chunks: ManuscriptChunkEvidence[],
   concurrency: number,
@@ -403,13 +396,13 @@ export async function runPass1(opts: RunPass1Options): Promise<SinglePassOutput>
   if (hasChunks) {
     const chunksTotal = opts.manuscriptChunks!.length;
     const chunkConcurrency = getChunkPassConcurrency();
-    const chunkCap = getChunkPassMaxPerPass();
+    const chunkCap = getConfiguredChunkCap();
     const chunkRetryMax = getChunkRetryMax();
     const chunkRetryBaseMs = getChunkRetryBaseMs();
     // Fail-closed: NEVER silently truncate chunks. If a manuscript produces
     // more chunks than the per-pass cap, the evaluation must fail with a clear
     // diagnostic — "every word is evaluated, or the job fails."
-    if (chunkCap !== null && opts.manuscriptChunks!.length > chunkCap) {
+    if (opts.manuscriptChunks!.length > chunkCap) {
       throw new ChunkCountExceedsCapError(
         `Manuscript produced ${opts.manuscriptChunks!.length} chunks; cap is ${chunkCap}. ` +
         `Please split the manuscript into smaller volumes for evaluation.`,
