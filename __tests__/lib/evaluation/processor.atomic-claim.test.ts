@@ -636,8 +636,8 @@ describe('failStaleRunningJobs — expired lease recovery', () => {
       claimed_by: null,
       claimed_at: null,
       lease_token: null,
+      lease_expires_at: null,
     });
-    expect(updatePayload).not.toHaveProperty('lease_expires_at');
   });
 });
 
