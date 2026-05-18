@@ -25,7 +25,7 @@ if (!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY && process.env.SUPABASE_ANON_KEY)
 // Test-only compatibility for lightweight Supabase query-builder mocks.
 // Several focused unit tests use partial fluent-chain stubs. Keep these
 // methods non-enumerable so they do not alter object snapshots/iteration.
-for (const method of ['neq', 'in'] as const) {
+for (const method of ['neq', 'in', 'order'] as const) {
   if (!(method in Object.prototype)) {
     Object.defineProperty(Object.prototype, method, {
       configurable: true,
