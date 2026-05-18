@@ -4,17 +4,25 @@ import HeaderNav from "../components/HeaderNav";
 
 export const metadata = {
   title: "RevisionGrade™",
-  description: "Professional Revision Framework - Operationalized with Governance",
+  description:
+    "A governed revision operating system for serious manuscripts.",
 };
 
 export default function RootLayout({ children }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className="antialiased bg-gray-50" suppressHydrationWarning>
+      {/*
+        Body: rg-ink background throughout.
+        Pages that need full-bleed dark layouts (private-beta, login) override
+        with their own min-h-screen wrapper.
+        Pages that are app routes get the standard max-width content shell.
+      */}
+      <body
+        className="antialiased bg-rg-ink text-rg-cream font-rg-serif"
+        suppressHydrationWarning
+      >
         <HeaderNav />
-        <main className="max-w-5xl mx-auto px-4 py-8">
-          {children}
-        </main>
+        <main>{children}</main>
       </body>
     </html>
   );
