@@ -24,7 +24,11 @@ export type ArtifactType =
   /** Pass 3b — full 16-section DREAM document for long-form manuscripts (≥ 25,000 words). */
   | "longform_document_v1"
   /** Post-evaluation author-facing editorial translation audit. Does not mutate scores. */
-  | "report_experience_v1";
+  | "report_experience_v1"
+  /** Silent report QA layer: character coverage and arc ledger. Does not mutate scores. */
+  | "character_arc_ledger_v1"
+  /** Paid add-on: setting integrity audit. Advisory only. Does not mutate scores or block gate. */
+  | "setting_integrity_audit_v1";
 
 /**
  * Compute SHA256 hex digest of input string
