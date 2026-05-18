@@ -645,6 +645,21 @@ export type PipelineResult =
           normalized_tail?: string;
           candidate_tail?: string;
         };
+        manuscript_chunk_coverage?: {
+          reason_codes: string[];
+          chunk_coverage: {
+            chunks_expected: number;
+            chunks_processed_pass1: number;
+            chunks_processed_pass2: number;
+            chunks_processed_effective: number;
+          };
+          word_coverage: {
+            words_submitted: number;
+            words_analyzed: number;
+            analyzed_ratio: number;
+            threshold_ratio: number;
+          };
+        };
         llr_diagnostic_snapshot?: {
           stage: "post_convergence" | "pre_artifact_generation";
           blocked_rule_ids: string[];
