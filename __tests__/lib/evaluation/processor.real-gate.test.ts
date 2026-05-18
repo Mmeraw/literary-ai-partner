@@ -497,12 +497,15 @@ describe("processEvaluationJob — real synthesisToEvaluationResultV2 + real run
     upsertEvaluationArtifactMock.mockResolvedValue(undefined);
 
     // ── Fixture design ─────────────────────────────────────────────────────────
-    // proseControl: score=7, single snippet "x" (1 char — no textual signal).
+    // proseControl: score=8, single snippet "x" (1 char — no textual signal).
     //   enforceTextualAnchorConfidence (runPipeline.ts) requires a snippet ≥20 chars
     //   or curly-quoted text in the rationale. "x" provides neither, so the
     //   criterion is DETERMINISTICALLY forced to confidence_level="low".
-    //   score=7 > QG_MAX_HIGH_SCORE_WHEN_LOW_CONFIDENCE(5) → the real
-    //   v2_fidelity_score_confidence_alignment check ALWAYS fails.
+    //   score=8 > QG_MAX_HIGH_SCORE_WHEN_LOW_CONFIDENCE_BY_KEY.proseControl(7) →
+    //   the real v2_fidelity_score_confidence_alignment check ALWAYS fails.
+    //   (The proseControl-specific cap was raised 6→7 in this PR; using score=8
+    //   keeps this test deterministically above the cap regardless of key-specific
+    //   overrides.)
     //
     // All other criteria retain the standard 3-anchor fixture (77+ chars each)
     //   with full rationale → hasTextualAnchorSignal=true → confidence stays
@@ -520,10 +523,10 @@ describe("processEvaluationJob — real synthesisToEvaluationResultV2 + real run
       c.key === "proseControl"
         ? {
             ...c,
-            // score=7 with single snippet "x" (1 char) deterministically forces
+            // score=8 with single snippet "x" (1 char) deterministically forces
             // confidence_level="low" via enforceTextualAnchorConfidence.
-            // score=7 > cap=5 → v2_fidelity_score_confidence_alignment always fails.
-            final_score_0_10: 7,
+            // score=8 > cap=7 → v2_fidelity_score_confidence_alignment always fails.
+            final_score_0_10: 8,
             evidence: [{ snippet: "x" }],
             final_rationale:
               "Overall prose is generally fine and works most of the time with some variety.",
@@ -548,7 +551,8 @@ describe("processEvaluationJob — real synthesisToEvaluationResultV2 + real run
 
     // ── Gate must pass overall while downgrading the offending criterion ─────
     // proseControl is deterministically low-confidence (snippet "x", 1 char →
-    // enforceTextualAnchorConfidence forces confidence_level="low") and score=7 > cap=5.
+    // enforceTextualAnchorConfidence forces confidence_level="low") and score=8 > cap=7.
+    // (cap was raised 6→7 in this PR; score=8 stays deterministically above it.)
     // Under PR G semantics, that criterion is downgraded to INSUFFICIENT_SIGNAL,
     // while the overall job remains successful and persists the downgraded V2 result.
     expect(result.success).toBe(true);
@@ -579,7 +583,7 @@ describe("processEvaluationJob — real synthesisToEvaluationResultV2 + real run
         signal_strength: "WEAK",
         score_0_10: null,
         scorability_status: "non_scorable",
-        model_emitted_score_unverified: 7,
+        model_emitted_score_unverified: 8,
         insufficient_signal_reason: {
           looked_for: ["CERTIFIED_ANCHORS_FOR_HIGH_CONFIDENCE_SCORING"],
           not_found: ["LOW_CONFIDENCE_HIGH_SCORE_WITHOUT_CERTIFIED_ANCHORS"],

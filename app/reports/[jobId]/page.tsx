@@ -108,7 +108,9 @@ async function getEvaluationResult(jobId: string, userId: string): Promise<Evalu
 
 /**
  * Fetch the DREAM long-form artifact for a job.
- * Returns null if not yet generated (DREAM worker hasn't run yet).
+ * Returns null for:
+ *   1. Jobs where the DREAM worker hasn't run yet → spinner shown (correct)
+ *   2. Jobs with _skipped stubs (no longform_document key) → spinner shown (acceptable — historical evals not surfaced in UI)
  * Owner-check not needed here — job ownership already verified by getEvaluationResult.
  */
 async function getDreamArtifact(jobId: string): Promise<LongformDreamDocument | null> {

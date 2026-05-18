@@ -425,7 +425,7 @@ describe("runQualityGateV2 integration", () => {
 
     fixture.criteria[proseControlIndex] = {
       ...fixture.criteria[proseControlIndex],
-      score_0_10: 7,
+      score_0_10: 8,
       confidence_level: "low",
       confidence_score_0_100: 42,
     } as EvaluationResultV2["criteria"][number];
