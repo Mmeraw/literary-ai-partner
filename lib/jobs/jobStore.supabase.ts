@@ -92,6 +92,9 @@ const JOB_TYPE_TO_DB: Record<JobType, string> = {
   synopsis_generate: "synopsis_generation",
   query_generate: "query_package_generation",
   storygate_package: "comparables_generation",
+  // Audit modules — stored as-is in the DB (no legacy enum rename needed)
+  character_arc_audit: "character_arc_audit",
+  setting_integrity_audit: "setting_integrity_audit",
 };
 
 const JOB_TYPE_FROM_DB: Record<string, JobType> = {
@@ -101,6 +104,8 @@ const JOB_TYPE_FROM_DB: Record<string, JobType> = {
   synopsis_generation: "synopsis_generate",
   query_package_generation: "query_generate",
   comparables_generation: "storygate_package",
+  character_arc_audit: "character_arc_audit",
+  setting_integrity_audit: "setting_integrity_audit",
 };
 
 const CANON_JOB_STATUS_VALUES = new Set(Object.values(JOB_STATUS));

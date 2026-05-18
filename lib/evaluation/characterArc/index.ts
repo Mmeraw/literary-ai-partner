@@ -1,9 +1,9 @@
 /**
  * Character Arc Ledger — Public exports
  *
- * Types only in PR-578.
- * Extraction worker exported from PR-579.
- * Gate enforcement exported from PR-581.
+ * Types: PR-578
+ * Extraction worker: PR-579 (this PR)
+ * Gate enforcement: PR-581
  */
 export type {
   NarrativeWeightBand,
@@ -18,3 +18,6 @@ export type {
   CharacterArcLedger,
   CharacterArcLedgerArtifactContent,
 } from './types';
+
+export { runCharacterArcExtraction } from './runCharacterArcExtraction';
+export type { ArcExtractionInput, ArcExtractionResult } from './runCharacterArcExtraction';
