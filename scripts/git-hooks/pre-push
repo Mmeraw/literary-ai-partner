@@ -1,0 +1,172 @@
+#!/usr/bin/env bash
+# ============================================================
+# pre-push: catch the three recurring CI failures BEFORE push
+# ============================================================
+# Checks run locally in <5s, saving GitHub Actions credits.
+#
+# 1. governance   — banned alias scan (craft, clarity, etc.)
+# 2. ci/tests     — jest on changed test files
+# 3. enforce-latency-template — PR body template validation
+#
+# To skip in an emergency: git push --no-verify
+# ============================================================
+
+set -euo pipefail
+REPO_ROOT=$(git rev-parse --show-toplevel)
+cd "$REPO_ROOT"
+
+RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; NC='\033[0m'
+FAILED=0
+
+fail() { echo -e "${RED}✗ pre-push: $1${NC}"; FAILED=1; }
+pass() { echo -e "${GREEN}✓ $1${NC}"; }
+warn() { echo -e "${YELLOW}⚠ $1${NC}"; }
+
+echo ""
+echo "═══════════════════════════════════════════"
+echo "  pre-push checks (saves CI credits)"
+echo "═══════════════════════════════════════════"
+
+# ── Check 1: banned alias scan (mirrors canon-audit.sh step 4) ──────────────
+echo ""
+echo "→ [1/3] Banned alias scan..."
+
+PATTERN='("(plot|structure|craft|stakes|clarity)"|'"'"'(plot|structure|craft|stakes|clarity)'"'"'|:\s*(plot|structure|craft|stakes|clarity)\b|key:\s*"(plot|structure|craft|stakes|clarity)"|[(,]\s*"(plot|structure|craft|stakes|clarity)")'
+
+if command -v rg &>/dev/null; then
+  HITS=$(rg "$PATTERN" . \
+    --glob '**/*.ts' --glob '**/*.tsx' --glob '**/*.js' --glob '**/*.jsx' \
+    --glob '!**/*.test.*' --glob '!**/__tests__/**' \
+    --glob '!**/archive/**' --glob '!**/functions/**' \
+    --glob '!**/*.md' --glob '!**/node_modules/**' \
+    --hidden --line-number 2>/dev/null || true)
+  if [ -n "$HITS" ]; then
+    fail "Banned aliases found (will break governance CI):"
+    echo "$HITS" | head -10
+    echo "  Fix: rename or add // canon-audit-allow: vocabulary-detection"
+  else
+    pass "Banned alias scan clean"
+  fi
+else
+  warn "ripgrep not found — skipping banned alias scan"
+fi
+
+# ── Check 2: jest on changed *.test.ts files ─────────────────────────────────
+echo ""
+echo "→ [2/3] Jest on changed test files..."
+
+BRANCH=$(git rev-parse --abbrev-ref HEAD)
+BASE=$(git merge-base HEAD origin/main 2>/dev/null || git merge-base HEAD main 2>/dev/null || echo "")
+
+if [ -n "$BASE" ]; then
+  CHANGED_TESTS=$(git diff --name-only "$BASE" HEAD -- '*.test.ts' '*.test.tsx' 2>/dev/null | head -20)
+  if [ -n "$CHANGED_TESTS" ]; then
+    echo "  Running: $(echo "$CHANGED_TESTS" | wc -l | tr -d ' ') changed test file(s)"
+    if ! npx jest $CHANGED_TESTS --no-coverage --passWithNoTests --silent 2>/dev/null; then
+      fail "Jest failed on changed test files — fix before push"
+    else
+      pass "Jest passed on changed test files"
+    fi
+  else
+    pass "No changed test files"
+  fi
+else
+  warn "Could not find merge base — skipping jest check"
+fi
+
+# ── Check 3: PR body template (enforce-latency-template) ────────────────────
+echo ""
+echo "→ [3/3] PR body template check..."
+
+# Read PR body from .pr-body.md if it exists (created by: gh pr view --json body -q .body > .pr-body.md)
+# Otherwise skip with a reminder.
+PR_BODY_FILE="$REPO_ROOT/.pr-body.md"
+
+if [ -f "$PR_BODY_FILE" ]; then
+  node - "$PR_BODY_FILE" <<'NODE_EOF'
+const fs = require('fs');
+const body = fs.readFileSync(process.argv[1], 'utf8');
+
+const failures = [];
+const assert = (cond, msg) => { if (!cond) failures.push(msg); };
+const hasSection = (h) => body.includes(h);
+
+// Detect PR type from label comment or section presence
+const isEval = body.includes('## Contract Integrity') || body.includes('## Latency Evidence');
+const isUI   = body.includes('## Visual Evidence');
+const isInfra = body.includes('## CI/Infra Scope') || body.includes('## Rollback Plan');
+
+const commonFloor = () => {
+  assert(hasSection('## Summary'),          'Missing: ## Summary');
+  assert(hasSection('## Scope'),            'Missing: ## Scope');
+  assert(hasSection('## Risks & Anomalies'),'Missing: ## Risks & Anomalies');
+};
+
+if (isEval) {
+  commonFloor();
+  assert(hasSection('## Contract Integrity'),  'Missing: ## Contract Integrity');
+  assert(hasSection('## Behavioral Quality'),  'Missing: ## Behavioral Quality');
+  assert(hasSection('## Latency Evidence'),    'Missing: ## Latency Evidence');
+  assert(body.includes('Baseline (Pre-change)') && body.includes('Post-change Runs'),
+    'Missing latency table headers: Baseline (Pre-change) / Post-change Runs');
+  assert(body.includes('Run 1'),  'Missing: Run 1 evidence');
+  assert(body.includes('Run 2'),  'Missing: Run 2 evidence');
+  assert(/pass\d?_?ms|passX_ms/.test(body), 'Missing pass latency metric (pass1_ms etc.)');
+  assert(body.includes('total_ms'),           'Missing: total_ms metric');
+  assert(body.includes('QG_') || body.includes('quality gate') || body.includes('Quality Gate'),
+    'Missing quality gate / anomaly disclosure (QG_ or "quality gate")');
+  assert(body.includes('not reducing intelligence'),
+    'Missing: "not reducing intelligence" principle');
+  assert(body.includes('[x] Pass') || body.includes('[X] Pass'),
+    'Missing: Pass checkbox [x] Pass N');
+} else if (isUI) {
+  commonFloor();
+  assert(hasSection('## Visual Evidence'),  'Missing: ## Visual Evidence');
+  assert(hasSection('## Accessibility'),    'Missing: ## Accessibility');
+  assert(hasSection('## Browser Targets'),  'Missing: ## Browser Targets');
+  assert(body.includes('No-Pipeline-Impact:'), 'Missing: No-Pipeline-Impact: line');
+} else if (isInfra) {
+  commonFloor();
+  assert(hasSection('## CI/Infra Scope'),   'Missing: ## CI/Infra Scope');
+  assert(hasSection('## Rollback Plan'),    'Missing: ## Rollback Plan');
+  assert(hasSection('## Affected Workflows'),'Missing: ## Affected Workflows');
+  assert(body.includes('No-Pipeline-Impact:'), 'Missing: No-Pipeline-Impact: line');
+} else {
+  // generic — just common floor
+  commonFloor();
+}
+
+if (failures.length > 0) {
+  console.error('PR body template failures:');
+  failures.forEach(f => console.error('  ✗ ' + f));
+  process.exit(1);
+}
+console.log('PR body template OK');
+NODE_EOF
+  if [ $? -ne 0 ]; then
+    fail "PR body will fail enforce-latency-template — fix .pr-body.md before push"
+  else
+    pass "PR body template valid"
+  fi
+else
+  warn "No .pr-body.md found — skipping PR body check"
+  warn "  To enable: gh pr view --json body -q .body > .pr-body.md"
+fi
+
+# ── Summary ──────────────────────────────────────────────────────────────────
+echo ""
+if [ $FAILED -ne 0 ]; then
+  echo -e "${RED}═══════════════════════════════════════════${NC}"
+  echo -e "${RED}  pre-push FAILED — push blocked${NC}"
+  echo -e "${RED}  Fix issues above, then re-push${NC}"
+  echo -e "${RED}  Emergency bypass: git push --no-verify${NC}"
+  echo -e "${RED}═══════════════════════════════════════════${NC}"
+  echo ""
+  exit 1
+else
+  echo -e "${GREEN}═══════════════════════════════════════════${NC}"
+  echo -e "${GREEN}  All pre-push checks passed ✓${NC}"
+  echo -e "${GREEN}═══════════════════════════════════════════${NC}"
+  echo ""
+  exit 0
+fi
