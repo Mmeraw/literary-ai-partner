@@ -1,29 +1,45 @@
-// app/layout.jsx
-import "./globals.css";
-import HeaderNav from "../components/HeaderNav";
+import './globals.css'
+import Link from 'next/link'
 
 export const metadata = {
-  title: "RevisionGrade™",
-  description:
-    "A governed revision operating system for serious manuscripts.",
-};
+  title: 'RevisionGrade',
+  description: 'PhD-calibrated literary evaluation and revision tools for serious writers',
+}
+
+const navItems = [
+  { href: '/', label: 'Home' },
+  { href: '/dashboard', label: 'Dashboard' },
+  { href: '/evaluate', label: 'Evaluate' },
+  { href: '/revise', label: 'Revise' },
+  { href: '/resources', label: 'Resources' },
+  { href: '/pricing', label: 'Pricing' },
+  { href: '/login', label: 'Sign In' },
+]
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en" suppressHydrationWarning>
-      {/*
-        Body: rg-ink background throughout.
-        Pages that need full-bleed dark layouts (private-beta, login) override
-        with their own min-h-screen wrapper.
-        Pages that are app routes get the standard max-width content shell.
-      */}
-      <body
-        className="antialiased bg-rg-ink text-rg-cream font-rg-serif"
-        suppressHydrationWarning
-      >
-        <HeaderNav />
+    <html lang="en">
+      <body>
+        <header className="site-header">
+          <div className="site-shell">
+            <div className="site-header-inner">
+              <Link href="/" className="brand-mark">
+                RevisionGrade
+              </Link>
+
+              <nav className="site-nav" aria-label="Primary">
+                {navItems.map((item) => (
+                  <Link key={item.href} href={item.href} className="site-nav-link">
+                    {item.label}
+                  </Link>
+                ))}
+              </nav>
+            </div>
+          </div>
+        </header>
+
         <main>{children}</main>
       </body>
     </html>
-  );
+  )
 }

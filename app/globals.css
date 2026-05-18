@@ -1,3 +1,86 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: Arial, sans-serif;
+  background: #0f0f10;
+  color: #f5f1e8;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.site-header {
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  background: rgba(15, 15, 16, 0.92);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(10px);
+}
+
+.site-shell {
+  width: min(1200px, calc(100% - 32px));
+  margin: 0 auto;
+}
+
+.site-header-inner {
+  min-height: 72px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.brand-mark {
+  font-size: 1.1rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.site-nav {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.site-nav-link {
+  font-size: 0.95rem;
+  color: rgba(245, 241, 232, 0.82);
+  transition: color 0.2s ease;
+}
+
+.site-nav-link:hover {
+  color: #ffffff;
+}
+
+main {
+  min-height: calc(100vh - 72px);
+}
+
+@media (max-width: 900px) {
+  .site-header-inner {
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 14px 0;
+  }
+
+  .site-nav {
+    gap: 14px;
+  }
+}
