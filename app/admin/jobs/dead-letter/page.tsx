@@ -105,9 +105,9 @@ export default function DeadLetterQueuePage() {
       </div>
 
       <div className="mb-6">
-        <h1 className="text-3xl font-bold">Dead-Letter Queue</h1>
+        <h1 className="text-3xl font-bold">Failed Jobs</h1>
         <p className="text-gray-600 mt-2">
-          Failed jobs that have exhausted retries or encountered fatal errors.
+          Jobs in the canonical failed state. Retrying resets status to queued and clears failed_at.
         </p>
       </div>
 

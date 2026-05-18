@@ -6,9 +6,15 @@ import { isTestManuscript, TEST_MANUSCRIPT_ID_MIN } from "@/lib/manuscripts/test
 /**
  * GET /api/admin/dead-letter
  * 
- * Lists all dead-lettered jobs (dead-letter queue) with filtering and pagination.
+ * Lists all failed jobs (the canonical failure state) with filtering and pagination.
  * 
  * **Auth:** Requires admin session (Phase A.5)
+ * 
+ * **Status semantics:** The codebase canonicalized failure to a single
+ * status='failed' state (see finalizeJobFailure in lib/jobs/jobStore.supabase.ts).
+ * The legacy 'dead_lettered' status is no longer written by any code path, so
+ * this route now queries for 'failed'. The route slug and UI title still say
+ * "dead-letter" for URL/bookmark stability; the meaning is "failed jobs".
  * 
  * Query parameters (same as /api/admin/jobs):
  * - job_type: Filter by job type
@@ -20,7 +26,7 @@ import { isTestManuscript, TEST_MANUSCRIPT_ID_MIN } from "@/lib/manuscripts/test
  * - limit: Page size (max 100, default 50)
  * 
  * Governance:
- * - Uses admin_list_jobs RPC with status='dead_lettered'
+ * - Uses admin_list_jobs RPC with status='failed' (canonical failure state)
  * - Keyset pagination for stable results
  * - Audit-grade: does not modify state
  */
@@ -39,7 +45,7 @@ export async function GET(req: NextRequest) {
   const supabase = createAdminClient();
   const { searchParams } = req.nextUrl;
 
-  // Parse filters (status is hardcoded to 'dead_lettered')
+  // Parse filters (status is hardcoded to 'failed' — canonical failure state)
   const job_type = searchParams.get("job_type");
   const phase = searchParams.get("phase");
   const policy_family = searchParams.get("policy_family");
@@ -68,9 +74,10 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    // Call admin_list_jobs RPC with status='dead_lettered'
+    // Call admin_list_jobs RPC with status='failed' (canonical failure state;
+    // 'dead_lettered' is legacy and no longer written by any code path).
     const { data: jobs, error } = await supabase.rpc("admin_list_jobs", {
-      p_status: "dead_lettered",
+      p_status: "failed",
       p_job_type: job_type,
       p_phase: phase,
       p_policy_family: policy_family,

@@ -21,7 +21,6 @@ jobs:
             const pull_number = context.payload.pull_request.number;
 
             // Label-override: pr-type:<type> label wins over diff-based classification.
-            // Reads via pulls.get so we see the live label list (webhook payload can be stale).
             const VALID_TYPES = ["evaluation", "ui", "infra", "docs", "migration", "code"];
             const { data: prData } = await github.rest.pulls.get({
               owner, repo, pull_number,
@@ -32,16 +31,12 @@ jobs:
             if (labelOverride) {
               const overrideType = labelOverride.replace("pr-type:", "").trim();
               if (VALID_TYPES.includes(overrideType)) {
-                core.info(
-                  `Label override active: ${labelOverride} — skipping diff classification`
-                );
+                core.info(`Label override active: ${labelOverride} — skipping diff classification`);
                 core.setOutput("type", overrideType);
                 core.setOutput("buckets", overrideType);
                 return;
               } else {
-                core.warning(
-                  `Invalid pr-type label "${overrideType}" — falling back to diff classification`
-                );
+                core.warning(`Invalid pr-type label "${overrideType}" — falling back to diff classification`);
               }
             }
 
@@ -54,9 +49,10 @@ jobs:
             const matchesAny = (name, prefixes) =>
               prefixes.some((p) => name.startsWith(p));
 
-            // Evaluation-pipeline-adjacent code. Every path verified on main
-            // via `git ls-tree main <path>` at the time of this commit.
+            // ── EVALUATION ────────────────────────────────────────────────
+            // Evaluation-pipeline code, workers, schemas, and test coverage.
             const EVAL_PREFIXES = [
+              // Core pipeline lib
               "lib/evaluation/",
               "lib/pipeline/",
               "lib/canon/",
@@ -71,17 +67,16 @@ jobs:
               "lib/release/",
               "lib/artifacts/",
               "lib/config/",
+              // Wave scoring modules
+              "lib/wave-modules/",
+              // App API — pipeline-adjacent
               "app/api/workers/",
               "app/api/evaluations/",
               "app/api/evaluate/",
               "app/api/jobs/",
               "app/api/manuscripts/",
-              // Evaluation-pipeline test subdirs only. `tests/stress/`,
-              // `tests/playwright/`, `tests/ui/`, `tests/components/`,
-              // `tests/api/`, `tests/config/`, `tests/scripts/`,
-              // `tests/test-helpers/`, `tests/operations/`, and
-              // `tests/lib/hooks/` are NOT evaluation — see INFRA_PREFIXES
-              // and UI_PREFIXES below.
+              "app/api/internal/",
+              // Evaluation tests (named sub-dirs)
               "tests/canon/",
               "tests/evaluation/",
               "tests/sipoc/",
@@ -93,7 +88,15 @@ jobs:
               "tests/jobs/",
               "tests/lib/evaluation/",
               "tests/lib/jobs/",
+              "tests/lib/hooks/",
+              "tests/api/",
+              "tests/benchmarks/",
+              "tests/components/",
+              "tests/contract/",
+              "tests/operations/",
+              // Root-level test dirs
               "__tests__/",
+              // Data / evidence dirs
               "workers/",
               "schemas/",
               "types/",
@@ -104,7 +107,14 @@ jobs:
               "artifacts/",
               "protected/",
               "prompts/",
+              "logs/",
+              "stress-results/",
+              "manuscripts/",
+              "runs/",
+              "supabase/functions/",
             ];
+
+            // ── UI ────────────────────────────────────────────────────────
             const UI_PREFIXES = [
               "app/admin/",
               "app/dashboard/",
@@ -127,7 +137,6 @@ jobs:
               "lib/ui/",
               "lib/hooks/",
             ];
-            // Root-level UI files (exact match, not prefix).
             const UI_EXACT = new Set([
               "app/page.tsx",
               "app/page.jsx",
@@ -135,9 +144,12 @@ jobs:
               "app/layout.jsx",
               "app/globals.css",
               "app/robots.txt",
+              "index.html",
+              "components.json",
             ]);
-            // Application code that is NOT evaluation-pipeline-adjacent.
-            // Examples: auth, db, admin tooling, security, generic services.
+
+            // ── CODE ──────────────────────────────────────────────────────
+            // Non-pipeline app code (auth, db, admin, etc.)
             const CODE_PREFIXES = [
               "lib/auth/",
               "lib/db/",
@@ -164,6 +176,8 @@ jobs:
               "lib/supabase.js",
               "lib/rateLimit.ts",
             ]);
+
+            // ── INFRA ─────────────────────────────────────────────────────
             const INFRA_PREFIXES = [
               ".github/",
               ".vscode/",
@@ -176,41 +190,101 @@ jobs:
               "tests/scripts/",
               "tests/test-helpers/",
               "tests/config/",
+              // App API — health / smoke / dev tooling
+              "app/api/dev/",
+              "app/api/env-check/",
+              "app/api/health/",
+              // Supabase config (not migrations or functions)
+              "supabase/sql/",
             ];
             const INFRA_EXACT = new Set([
+              // Build / package
               "vercel.json",
               "package.json",
               "package-lock.json",
               "pnpm-lock.yaml",
               "yarn.lock",
+              // TypeScript configs
               "tsconfig.json",
               "tsconfig.base.json",
+              "tsconfig.test.json",
+              "tsconfig.workers.json",
+              "next-env.d.ts",
+              "jsconfig.json",
+              // Next.js / framework
               "next.config.js",
               "next.config.mjs",
               "next.config.ts",
+              "instrumentation.ts",
+              "middleware.ts",
+              // Linting / styling
               "eslint.config.js",
               "eslint.config.mjs",
               "tailwind.config.js",
               "tailwind.config.ts",
               "postcss.config.js",
               "postcss.config.mjs",
+              // Test runners
+              "jest.config.js",
+              "jest.setup.ts",
+              "vitest.config.ts",
+              "vite.config.js",
+              // CI / ops
               "lighthouserc.yml",
               "Dockerfile",
               "Makefile",
               ".npmrc",
               ".nvmrc",
+              // Supabase non-migration config
+              "supabase/.gitignore",
+              "supabase/config.toml",
+              "supabase/seed.sql",
             ]);
-            const DOCS_PREFIXES = ["docs/", "archive/"];
-            const MIGRATION_PREFIXES = ["supabase/migrations/"];
 
-            const isEval = (n) => matchesAny(n, EVAL_PREFIXES);
-            const isUi = (n) => matchesAny(n, UI_PREFIXES) || UI_EXACT.has(n);
-            const isCode = (n) => matchesAny(n, CODE_PREFIXES) || CODE_EXACT.has(n);
+            // ── DOCS ──────────────────────────────────────────────────────
+            const DOCS_PREFIXES = ["docs/", "archive/"];
+
+            // ── MIGRATION ─────────────────────────────────────────────────
+            const MIGRATION_PREFIXES = [
+              "supabase/migrations/",
+              "migrations/",          // root-level migration SQL
+            ];
+
+            // ── CLASSIFIER ────────────────────────────────────────────────
+            const isEval  = (n) => matchesAny(n, EVAL_PREFIXES);
+            const isUi    = (n) => matchesAny(n, UI_PREFIXES) || UI_EXACT.has(n);
+            const isCode  = (n) => matchesAny(n, CODE_PREFIXES) || CODE_EXACT.has(n);
             const isInfra = (n) => matchesAny(n, INFRA_PREFIXES) || INFRA_EXACT.has(n);
-            const isDocs = (n) =>
+            const isDocs  = (n) =>
               matchesAny(n, DOCS_PREFIXES) ||
               (!n.includes("/") && n.toLowerCase().endsWith(".md"));
             const isMigration = (n) => matchesAny(n, MIGRATION_PREFIXES);
+
+            // Extended catch-all rules for root-level and tests/ flat files
+            // that have well-known extensions/patterns but no directory prefix match.
+            const isByExtension = (n) => {
+              const hasDir = n.includes("/");
+              const ext = n.includes(".") ? n.split(".").pop().toLowerCase() : "";
+              // Root-level dotfiles (.gitignore, .gitattributes, .env.*, .eslint*) → infra
+              if (!hasDir && n.startsWith(".")) return "infra";
+              // Root-level shell scripts → infra
+              if (!hasDir && ext === "sh") return "infra";
+              // tests/ flat shell scripts → infra
+              if (n.startsWith("tests/") && !n.slice(6).includes("/") && ext === "sh") return "infra";
+              // Root-level *.test.ts / *.test.js → eval
+              if (!hasDir && (ext === "ts" || ext === "js") && n.includes(".test.")) return "eval";
+              // Root-level *.json (data snapshots, criteria matrices, evidence) → eval
+              if (!hasDir && ext === "json") return "eval";
+              // Root-level *.sql → migration
+              if (!hasDir && ext === "sql") return "migration";
+              // Root-level *.txt / *.csv / *.sh / evidence text → docs
+              if (!hasDir && (ext === "txt" || ext === "csv")) return "docs";
+              // tests/ flat *.test.ts (one level deep only, no subdir) → eval
+              if (n.startsWith("tests/") && !n.slice(6).includes("/")) return "eval";
+              // Anything else extensionless at root → infra
+              if (!hasDir && !n.includes(".")) return "infra";
+              return null;
+            };
 
             const anyEval = changed.some(isEval);
 
@@ -220,17 +294,39 @@ jobs:
             } else {
               const buckets = new Set();
               for (const n of changed) {
-                if (isUi(n)) buckets.add("ui");
-                else if (isInfra(n)) buckets.add("infra");
-                else if (isDocs(n)) buckets.add("docs");
+                if      (isUi(n))        buckets.add("ui");
+                else if (isInfra(n))     buckets.add("infra");
+                else if (isDocs(n))      buckets.add("docs");
                 else if (isMigration(n)) buckets.add("migration");
-                else if (isCode(n)) buckets.add("code");
-                else buckets.add("unclassified");
+                else if (isCode(n))      buckets.add("code");
+                else {
+                  const ext = isByExtension(n);
+                  if      (ext === "eval")      buckets.add("eval_catchall");
+                  else if (ext === "infra")     buckets.add("infra");
+                  else if (ext === "docs")      buckets.add("docs");
+                  else if (ext === "migration") buckets.add("migration");
+                  else                          buckets.add("unclassified");
+                }
               }
-              if (buckets.has("unclassified")) {
-                core.warning(
-                  "Unclassified path(s) detected — falling back to strict evaluation validator. Update docs/PR_TEMPLATE_TYPED_SCOPE_GOVERNANCE.md to extend the taxonomy."
-                );
+
+              // If any eval catchall hit, treat as evaluation
+              if (buckets.has("eval_catchall")) {
+                buckets.delete("eval_catchall");
+                buckets.add("evaluation");
+              }
+
+              if (buckets.has("evaluation") || buckets.has("unclassified")) {
+                if (buckets.has("unclassified")) {
+                  const unclassifiedFiles = changed.filter((n) => {
+                    if (isEval(n) || isUi(n) || isCode(n) || isInfra(n) || isDocs(n) || isMigration(n)) return false;
+                    return isByExtension(n) === null;
+                  });
+                  core.warning(
+                    `Unclassified path(s) detected — falling back to strict evaluation validator.\n` +
+                    `Files: ${unclassifiedFiles.join(", ")}\n` +
+                    `Update docs/PR_TEMPLATE_TYPED_SCOPE_GOVERNANCE.md to extend the taxonomy.`
+                  );
+                }
                 type = "evaluation";
               } else if (buckets.size === 1) {
                 type = [...buckets][0];
