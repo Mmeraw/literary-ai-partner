@@ -2343,9 +2343,22 @@ export async function processEvaluationJob(
         // Handoff artifact found — extract pass outputs and jump to Pass3.
         const handoff = handoffRow.content as {
           pass1Output: SinglePassOutput;
-          pass2Output: SinglePassOutput;
+          pass2Output: SinglePassOutput | null; // null when partial_capture=true
           chunk_count: number;
+          partial_capture?: boolean;
         };
+
+        // Mistake-proofing: handle partial handoff (Pass2 was not captured).
+        // If Pass1 succeeded but Pass2 timed out, the handoff has pass2Output=null.
+        // In this case phase_2 must run Pass2 first, then Pass3.
+        // We detect this and inject only Pass1 into _runners — Pass2 will execute normally.
+        if (handoff.partial_capture === true) {
+          console.warn(
+            `[Processor] ${jobId}: phase_2 partial handoff detected — Pass2 was not captured.` +
+            ` Will re-run Pass2 before Pass3.`,
+            { chunk_count: handoff.chunk_count },
+          );
+        }
 
         // Delete the handoff artifact — it has served its purpose.
         // Fail-soft: deletion failure does not abort the job.
@@ -2384,7 +2397,20 @@ export async function processEvaluationJob(
         });
 
         const cachedPass1 = handoff.pass1Output;
-        const cachedPass2 = handoff.pass2Output;
+        const cachedPass2 = handoff.pass2Output; // null if partial_capture — _runners handles this
+
+        // Mistake-proofing: for partial handoffs (cachedPass2 === null), omit the
+        // runPass2 override so runPipeline executes Pass2 normally against the
+        // manuscript chunks. Only Pass1 is injected from cache in this case.
+        const phase2Runners = cachedPass2 !== null
+          ? {
+              runPass1: async () => cachedPass1,
+              runPass2: async () => cachedPass2,
+            }
+          : {
+              // Pass2 was not captured — only inject Pass1. Pass2 will run from chunks.
+              runPass1: async () => cachedPass1,
+            };
 
         const leaseRenewalIntervalMsP2 = 30_000;
         const leaseRenewalLoopP2 = setInterval(() => {
@@ -2420,10 +2446,9 @@ export async function processEvaluationJob(
             _openAiTimeoutMs: timeoutResolution.openAiTimeoutMs,
             // Inject cached pass1+pass2 so runPipeline skips chunk evaluation
             // and runs only Pass3 synthesis.
-            _runners: {
-              runPass1: async () => cachedPass1,
-              runPass2: async () => cachedPass2,
-            },
+            // For partial handoffs (pass2 was not captured), phase2Runners only
+            // injects Pass1 so Pass2 runs normally against the manuscript chunks.
+            _runners: phase2Runners,
             onHeartbeat: async (stage) => {
               await assertJobWithinSla({ supabase, jobId, hardDeadlineMs, stage });
               await renewEvaluationJobLease({
@@ -2501,6 +2526,24 @@ export async function processEvaluationJob(
       stage: 'before_runPipeline',
     });
 
+    // Mistake-proofing: hoist isChunkRouted here so it is available in both
+    // the pre-pipeline budget warning and the partial-capture rescue catch block.
+    const isChunkRouted = chunkRouting.route === 'long_form';
+
+    // Mistake-proofing: warn early if budget is already tight before runPipeline starts.
+    // At N=52 chunks Pass1+Pass2 takes ~600-750s. If less than 700s remains we are
+    // likely to hit the wall clock before Pass3. This is observable in Vercel logs
+    // so operators can triage without waiting for the stale-job sweep.
+    const PHASE_SPLIT_PRE_PIPELINE_WARN_MS = 700_000;
+    const budgetAtPipelineStart = hardDeadlineMs - Date.now();
+    if (isChunkRouted && budgetAtPipelineStart < PHASE_SPLIT_PRE_PIPELINE_WARN_MS) {
+      console.warn(
+        `[Processor] ${jobId}: PRE_PIPELINE_BUDGET_WARNING — only ${Math.round(budgetAtPipelineStart / 1000)}s` +
+        ` remaining before runPipeline on a chunk-routed job (N=${chunkRouting.chunk_count}).` +
+        ` Phase split will activate if Pass1+Pass2 exhaust the budget.`,
+      );
+    }
+
     const leaseRenewalIntervalMs = 30_000;
     const leaseRenewalLoop = setInterval(() => {
       void renewEvaluationJobLease({
@@ -2577,6 +2620,82 @@ export async function processEvaluationJob(
           });
         },
       });
+    } catch (runPipelineErr) {
+      // Mistake-proofing: partial-capture rescue.
+      // If runPipeline throws (SLA exceeded, Vercel wall-clock kill surfaced as uncaught
+      // error, OpenAI timeout, etc.) but we already captured Pass1 output, attempt to
+      // write a partial handoff artifact so phase_2 can re-run Pass2+Pass3 rather than
+      // losing all work. This handles the case where Pass1 succeeds but Pass2 times out.
+      //
+      // Pass1-only partial handoff: capturedPass2Output will be null. phase_2 will
+      // detect the null and re-run Pass2 from the cached Pass1 output only.
+      //
+      // If neither pass was captured (runPipeline threw before any pass completed),
+      // re-throw immediately — no handoff is possible.
+      const hasPartialCapture = capturedPass1Output !== null;
+      if (hasPartialCapture && executionPhase === 'phase_1' && isChunkRouted) {
+        const budgetRemainingOnError = hardDeadlineMs - Date.now();
+        console.warn(
+          `[Processor] ${jobId}: runPipeline threw but partial capture exists — attempting partial handoff`,
+          {
+            pass1_captured: capturedPass1Output !== null,
+            pass2_captured: capturedPass2Output !== null,
+            budget_remaining_ms: budgetRemainingOnError,
+            error: runPipelineErr instanceof Error ? runPipelineErr.message : String(runPipelineErr),
+          },
+        );
+        try {
+          await upsertEvaluationArtifact({
+            supabase,
+            jobId: job.id,
+            manuscriptId: job.manuscript_id,
+            artifactType: 'pass12_handoff_v1',
+            content: {
+              pass1Output: capturedPass1Output,
+              pass2Output: capturedPass2Output, // may be null — phase_2 handles this
+              chunk_count: chunkRouting.chunk_count,
+              captured_at: new Date().toISOString(),
+              partial_capture: capturedPass2Output === null,
+            },
+            sourceHash: stableSourceHash({
+              manuscriptId: manuscript.id,
+              jobId: job.id,
+              userId: manuscriptWithContent.user_id,
+              manuscriptText: manuscriptWithContent.content || '',
+              promptVersion: 'pass12_handoff_v1',
+              model: getCanonicalPipelineModel(openAiModel),
+            }),
+            artifactVersion: 'pass12_handoff_v1',
+          });
+          await supabase
+            .from('evaluation_jobs')
+            .update({
+              phase: 'phase_1',
+              phase_status: 'complete',
+              updated_at: new Date().toISOString(),
+              progress: {
+                ...progressState,
+                phase: 'phase_1',
+                phase_status: 'complete',
+                message: 'Phase 1 partial handoff — Pass1 captured, resuming from Pass2',
+                pass12_handoff_written_at: new Date().toISOString(),
+                pass12_partial_handoff: true,
+              },
+            })
+            .eq('id', job.id);
+          console.log(`[Processor] ${jobId}: partial handoff written — phase_2 will resume from Pass${capturedPass2Output !== null ? '3' : '2'}`);
+          clearInterval(leaseRenewalLoop);
+          return { success: true };
+        } catch (handoffErr) {
+          console.error(
+            `[Processor] ${jobId}: partial handoff write FAILED — re-throwing original error`,
+            handoffErr instanceof Error ? handoffErr.message : String(handoffErr),
+          );
+        }
+      }
+      // No partial capture possible — re-throw so the outer catch marks the job failed
+      clearInterval(leaseRenewalLoop);
+      throw runPipelineErr;
     } finally {
       clearInterval(leaseRenewalLoop);
     }
@@ -2592,7 +2711,7 @@ export async function processEvaluationJob(
     // Threshold: if less than PHASE_SPLIT_BUDGET_FLOOR_MS of the hard deadline
     // remains after Pass1+Pass2, yield to the next invocation.
     const PHASE_SPLIT_BUDGET_FLOOR_MS = 120_000; // 2 min — enough for Pass3 + persistence
-    const isChunkRouted = chunkRouting.route === 'long_form';
+    // isChunkRouted already declared above (hoisted for partial-capture rescue scope)
     const pass12BothCaptured = capturedPass1Output !== null && capturedPass2Output !== null;
     const budgetRemaining = hardDeadlineMs - Date.now();
     const shouldHandoff =
