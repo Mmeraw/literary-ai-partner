@@ -25,6 +25,7 @@ import type {
   SynthesisOutput,
   AxisCriterionResult,
   SynthesizedCriterion,
+  ManuscriptChunkEvidence,
 } from "@/lib/evaluation/pipeline/types";
 import { CRITERIA_KEYS, type CriterionKey } from "@/schemas/criteria-keys";
 
@@ -59,6 +60,11 @@ export interface MockLlmContext {
   invocations: RunnerInvocationLog[];
 }
 
+type StressRunnerOpts = {
+  manuscriptText?: string;
+  manuscriptChunks?: ManuscriptChunkEvidence[];
+};
+
 function loadCanned<T>(filename: string): T {
   const fullPath = path.join(RESPONSE_DIR, filename);
   const raw = fs.readFileSync(fullPath, "utf8");
@@ -76,7 +82,14 @@ function baseCriterion(key: CriterionKey, rationale: string): AxisCriterionResul
 }
 
 /** Healthy single-pass response (mirrors structure used by sipoc llmMock). */
-export function healthyPass(pass: 1 | 2): SinglePassOutput {
+export function healthyPass(pass: 1 | 2, opts: StressRunnerOpts = {}): SinglePassOutput {
+  const sourceChars = opts.manuscriptText?.length ?? 1024;
+  const sourceWords = opts.manuscriptText
+    ? opts.manuscriptText.trim().split(/\s+/).filter(Boolean).length
+    : 200;
+  const chunkCount = Array.isArray(opts.manuscriptChunks) ? opts.manuscriptChunks.length : 0;
+  const chunkRouted = chunkCount > 1;
+
   return {
     pass,
     axis: pass === 1 ? "craft_execution" : "editorial_literary",
@@ -95,11 +108,19 @@ export function healthyPass(pass: 1 | 2): SinglePassOutput {
     generated_at: GENERATED_AT,
     coverage_summary: {
       fully_evaluated: true,
-      analyzed_chars: 1024,
-      source_chars: 1024,
-      analyzed_words: 200,
-      source_words: 200,
-      strategy: "full",
+      analyzed_chars: sourceChars,
+      source_chars: sourceChars,
+      analyzed_words: sourceWords,
+      source_words: sourceWords,
+      strategy: chunkRouted ? "chunk_map_reduce" : "full",
+      route: chunkRouted ? "chunk_map_reduce" : "direct_window",
+      chunk_ledger: chunkRouted
+        ? {
+            expected_chunks: chunkCount,
+            evaluated_chunks: chunkCount,
+            cap_applied: false,
+          }
+        : undefined,
     } as unknown as SinglePassOutput["coverage_summary"],
   };
 }
@@ -181,7 +202,7 @@ export function makeLlmRunners(fault: LlmFault = { kind: "none" }) {
     return null;
   }
 
-  async function runPass1(opts: { manuscriptText?: string }): Promise<SinglePassOutput> {
+  async function runPass1(opts: StressRunnerOpts = {}): Promise<SinglePassOutput> {
     callCounts[1] += 1;
     const idx = callCounts[1];
     const err = maybeFault(1);
@@ -201,10 +222,10 @@ export function makeLlmRunners(fault: LlmFault = { kind: "none" }) {
       outcome: "ok",
       text_length: opts?.manuscriptText?.length ?? 0,
     });
-    return healthyPass(1);
+    return healthyPass(1, opts);
   }
 
-  async function runPass2(opts: { manuscriptText?: string }): Promise<SinglePassOutput> {
+  async function runPass2(opts: StressRunnerOpts = {}): Promise<SinglePassOutput> {
     callCounts[2] += 1;
     const idx = callCounts[2];
     const err = maybeFault(2);
@@ -224,10 +245,10 @@ export function makeLlmRunners(fault: LlmFault = { kind: "none" }) {
       outcome: "ok",
       text_length: opts?.manuscriptText?.length ?? 0,
     });
-    return healthyPass(2);
+    return healthyPass(2, opts);
   }
 
-  async function runPass3Synthesis(opts: { manuscriptText?: string }): Promise<SynthesisOutput> {
+  async function runPass3Synthesis(opts: StressRunnerOpts = {}): Promise<SynthesisOutput> {
     callCounts[3] += 1;
     const idx = callCounts[3];
     const err = maybeFault(3);
