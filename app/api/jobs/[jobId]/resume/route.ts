@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedUser } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { isTerminalFailureCode } from '@/lib/evaluation/processor';
 
 type Params = Promise<{ jobId: string }>;
 
@@ -51,7 +52,7 @@ export async function POST(
     const { data: job, error: jobError } = await admin
       .from('evaluation_jobs')
       .select(
-        'id, status, phase, phase_status, attempt_count, max_attempts, progress, manuscripts!inner(user_id)',
+        'id, status, phase, phase_status, attempt_count, max_attempts, progress, failure_code, manuscripts!inner(user_id)',
       )
       .eq('id', jobId)
       .eq('manuscripts.user_id', user.id)
@@ -61,6 +62,21 @@ export async function POST(
       return NextResponse.json(
         { error: 'Job not found or not owned by user' },
         { status: 404 },
+      );
+    }
+
+    // Only failed jobs can be resumed.
+    // Terminal failure codes (QG_*, governance, schema, auth) are not recoverable
+    // by re-running — resuming would loop forever.  Surface a clear error.
+    const jobFailureCode = (job as Record<string, unknown>).failure_code as string | null | undefined;
+    if (isTerminalFailureCode(jobFailureCode)) {
+      return NextResponse.json(
+        {
+          error: `Job cannot be resumed: failure code '${jobFailureCode}' is a terminal error that cannot be recovered by retrying. Review the evaluation report for details.`,
+          failure_code: jobFailureCode,
+          resumable: false,
+        },
+        { status: 409 },
       );
     }
 

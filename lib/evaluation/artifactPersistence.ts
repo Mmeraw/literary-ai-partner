@@ -42,7 +42,13 @@ export type ArtifactType =
    * Lifecycle: written during Pass 1, deleted on successful Pass 1 completion.
    * Not user-visible.
    */
-  | "pass1_chunk_cache_v1";
+  | "pass1_chunk_cache_v1"
+  /**
+   * Durable watchdog recovery audit: written each time the frozen-heartbeat
+   * watchdog rescues a job to phase_2/queued.  Survives log rotation and
+   * lets operators trace every rescue event.  Not user-visible.
+   */
+  | "watchdog_rescue_v1";
 
 /**
  * Compute SHA256 hex digest of input string
