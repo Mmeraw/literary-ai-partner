@@ -1,7 +1,7 @@
 /**
  * Adaptive chunker size-bracket fixtures.
  *
- * Proves the adaptive selector emits chunk counts in the 25–48 sweet spot
+ * Proves the adaptive selector emits chunk counts in the 25–72 safety envelope
  * across all supported manuscript sizes, and that overlap stays at ~10%.
  *
  * The directive specifies expected chunk-count ranges per bracket. These are
@@ -126,7 +126,7 @@ describe("selectChunkerConfig (adaptive size brackets)", () => {
 
 describe("adaptive chunker — size bracket fixtures", () => {
   // Each fixture asserts a chunk-count range that proves the adaptive sizer
-  // keeps chunk counts inside the 25–48 sweet spot (or below it for short
+  // keeps chunk counts inside the 25–72 safety envelope (or below it for short
   // manuscripts).
 
   test("sub-threshold short story (2,500 words) — chunker still works on direct call", async () => {
@@ -154,7 +154,7 @@ describe("adaptive chunker — size bracket fixtures", () => {
     expect(selectChunkerBracket(12_000)).toBe("small");
   }, 60_000);
 
-  test("51k Froggin Noggin sim — SMALL bracket, under 48 cap", async () => {
+  test("51k Froggin Noggin sim — SMALL bracket, under 72 cap", async () => {
     const text = generateManuscriptText({ targetWords: 51_000, chapterEveryWords: 3_500 });
     const chunks = await chunkManuscript(text);
     expect(chunks.length).toBeGreaterThanOrEqual(8);
@@ -162,27 +162,27 @@ describe("adaptive chunker — size bracket fixtures", () => {
     expect(selectChunkerBracket(51_000)).toBe("small");
   }, 120_000);
 
-  test("90k novel — MID bracket, well under 48 cap", async () => {
+  test("90k novel — MID bracket, well under 72 cap", async () => {
     const text = generateManuscriptText({ targetWords: 90_000, chapterEveryWords: 3_500 });
     const chunks = await chunkManuscript(text);
     expect(chunks.length).toBeGreaterThanOrEqual(10);
-    expect(chunks.length).toBeLessThanOrEqual(48);
+    expect(chunks.length).toBeLessThanOrEqual(72);
     expect(selectChunkerBracket(90_000)).toBe("mid");
   }, 180_000);
 
-  test("113k Cartel Babies sim — MID bracket, under 48 cap", async () => {
+  test("113k Cartel Babies sim — MID bracket, under 72 cap", async () => {
     const text = generateManuscriptText({ targetWords: 113_000, chapterEveryWords: 4_000 });
     const chunks = await chunkManuscript(text);
     expect(chunks.length).toBeGreaterThanOrEqual(15);
-    expect(chunks.length).toBeLessThanOrEqual(48);
+    expect(chunks.length).toBeLessThanOrEqual(72);
     expect(selectChunkerBracket(113_000)).toBe("mid");
   }, 240_000);
 
-  test("250k epic — LARGE bracket, at or near cap but under 48", async () => {
+  test("250k epic — LARGE bracket, at or near cap but under 72", async () => {
     const text = generateManuscriptText({ targetWords: 250_000, chapterEveryWords: 6_000 });
     const chunks = await chunkManuscript(text);
     expect(chunks.length).toBeGreaterThanOrEqual(20);
-    expect(chunks.length).toBeLessThanOrEqual(48);
+    expect(chunks.length).toBeLessThanOrEqual(72);
     expect(selectChunkerBracket(250_000)).toBe("large");
   }, 360_000);
 

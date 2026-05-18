@@ -71,6 +71,23 @@ function makeSinglePassOutput(pass: 1 | 2): SinglePassOutput {
   };
 }
 
+function makeChunkMappedSinglePassOutput(pass: 1 | 2, expectedChunks: number): SinglePassOutput {
+  return {
+    ...makeSinglePassOutput(pass),
+    coverage_summary: {
+      route: "chunk_map_reduce",
+      fully_evaluated: true,
+      chunk_ledger: {
+        expected_chunks: expectedChunks,
+        attempted_chunks: expectedChunks,
+        evaluated_chunks: expectedChunks,
+        failed_chunks: 0,
+        cap_applied: false,
+      },
+    },
+  };
+}
+
 function makeSynthesisOutput(): SynthesisOutput {
   return {
     criteria: CRITERIA_KEYS.map((key) => ({
@@ -1090,6 +1107,9 @@ describe("Pass 3b — long-form DREAM synthesis (pipeline integration)", () => {
       chunk_id: `chunk-${i}`,
     }));
 
+    mockRunPass1.mockResolvedValueOnce(makeChunkMappedSinglePassOutput(1, mockChunks.length));
+    mockRunPass2.mockResolvedValueOnce(makeChunkMappedSinglePassOutput(2, mockChunks.length));
+
     // Pass 3b runner injected but must NOT be called — it belongs to the DREAM worker now.
     const mockRunPass3bLongform = jest.fn<() => Promise<LongformDreamDocument>>();
     mockRunPass3bLongform.mockRejectedValue(new Error("Should never be called from main pipeline"));
@@ -1157,6 +1177,9 @@ describe("Pass 3b — long-form DREAM synthesis (pipeline integration)", () => {
       word_count: 200,
       chunk_id: `chunk-fail-${i}`,
     }));
+
+    mockRunPass1.mockResolvedValueOnce(makeChunkMappedSinglePassOutput(1, mockChunks.length));
+    mockRunPass2.mockResolvedValueOnce(makeChunkMappedSinglePassOutput(2, mockChunks.length));
 
     // A throwing mock — if the pipeline calls this, the test will fail via unhandled rejection.
     const mockRunPass3bLongform = jest.fn<() => Promise<LongformDreamDocument>>();
@@ -1574,6 +1597,9 @@ describe("Pass 4 — Perplexity DREAM adjudication (pipeline integration)", () =
       chunk_id: `chunk-dream-${i}`,
     }));
 
+    mockRunPass1.mockResolvedValueOnce(makeChunkMappedSinglePassOutput(1, mockChunks.length));
+    mockRunPass2.mockResolvedValueOnce(makeChunkMappedSinglePassOutput(2, mockChunks.length));
+
     // Pass 3b injected but must NOT be called (decoupled to DREAM worker)
     const mockRunPass3bLongform = jest.fn<() => Promise<LongformDreamDocument>>();
 
@@ -1630,6 +1656,9 @@ describe("Pass 4 — Perplexity DREAM adjudication (pipeline integration)", () =
       word_count: 200,
       chunk_id: `chunk-pplx-fail-${i}`,
     }));
+
+    mockRunPass1.mockResolvedValueOnce(makeChunkMappedSinglePassOutput(1, mockChunks.length));
+    mockRunPass2.mockResolvedValueOnce(makeChunkMappedSinglePassOutput(2, mockChunks.length));
 
     // Pass 3b runner injected but must NOT be called
     const mockRunPass3bLongform = jest.fn<() => Promise<LongformDreamDocument>>();

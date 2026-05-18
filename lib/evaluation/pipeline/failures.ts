@@ -28,6 +28,7 @@ export const FAILURE_CODES = [
   "EVALUATION_GATE_REJECTED",
   "MANUSCRIPT_EXCEEDS_HARD_CEILING",
   "CHUNK_COUNT_EXCEEDS_CAP",
+  "MANUSCRIPT_CHUNK_COVERAGE_INCOMPLETE",
   "CHUNK_ROUTING_NOT_ENGAGED",
   EVALUATION_ARTIFACT_VALIDATION_FAILED,
 ] as const;
@@ -142,6 +143,12 @@ export const FAILURE_CODE_METADATA: Readonly<
     validity_status: "invalid",
     description:
       "Chunk count exceeds the configured per-pass cap (EVAL_CHUNK_MAX_PER_PASS). Fail-closed instead of silent truncation.",
+  },
+  MANUSCRIPT_CHUNK_COVERAGE_INCOMPLETE: {
+    classification: "validation",
+    validity_status: "invalid",
+    description:
+      "Chunk coverage did not process the full manuscript (chunk mismatch or <99% analyzed-word ratio).",
   },
   CHUNK_ROUTING_NOT_ENGAGED: {
     classification: "system",
