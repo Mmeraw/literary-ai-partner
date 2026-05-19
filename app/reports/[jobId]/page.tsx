@@ -28,6 +28,7 @@ import {
 import { resolveReportTitle } from '@/lib/evaluation/reportTitle';
 import type { LongformDreamDocument } from '@/lib/evaluation/pipeline/runPass3bLongform';
 import { SynthesisPoller } from '@/components/evaluation/SynthesisPoller';
+import DownloadReportButton from '@/components/reports/DownloadReportButton';
 
 // D1 Boundary: server-only. Service key must not leak to client.
 // Hybrid owner-gate: SSR client for auth identity, admin client for
@@ -306,6 +307,9 @@ export default async function ReportPage({ params }: { params: { jobId: string }
           <p className="text-gray-600">
             Generated {getDisplayDateTime(result.generated_at, "Unknown")}
           </p>
+          <div className="mt-4">
+            <DownloadReportButton jobId={params.jobId} />
+          </div>
         </header>
 
         {/* D2 Agent Trust Header (Required) */}
@@ -875,6 +879,10 @@ export default async function ReportPage({ params }: { params: { jobId: string }
             </div>
           )}
         </section>
+
+        <div className="mt-6 flex justify-end">
+          <DownloadReportButton jobId={params.jobId} />
+        </div>
       </div>
     </div>
   );
