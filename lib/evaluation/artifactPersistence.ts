@@ -48,7 +48,15 @@ export type ArtifactType =
    * watchdog rescues a job to phase_2/queued.  Survives log rotation and
    * lets operators trace every rescue event.  Not user-visible.
    */
-  | "watchdog_rescue_v1";
+  | "watchdog_rescue_v1"
+  /**
+   * Durable blocked-resume audit: written when the resume route denies
+   * requeueing due to a terminal failure code.  Records the denial reason,
+   * failure code, and deployed SHA so operators can trace why a user was
+   * unable to resume and what action is needed (code fix, migration, config
+   * change).  Not user-visible.
+   */
+  | "resume_blocked_v1";
 
 /**
  * Compute SHA256 hex digest of input string
