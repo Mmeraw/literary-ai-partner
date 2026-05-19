@@ -18,7 +18,7 @@ import {
 } from "@/lib/evaluation/reportRecommendations";
 import ModeConfirmationBlock from "@/components/evaluation/ModeConfirmationBlock";
 import { CancelEvaluationButton } from "@/components/evaluation/CancelEvaluationButton";
-import { SynthesisArtifactControls } from "@/components/evaluation/SynthesisArtifactControls";
+import { SynthesisPoller } from "@/components/evaluation/SynthesisPoller";
 import { classifyEvaluationIntegrityBanner } from "@/lib/evaluation/warningClassification";
 import {
   getCertifiedCriteriaSummary,
@@ -29,19 +29,6 @@ import {
 } from "@/lib/evaluation/reportCriterionDisplay";
 import { resolveReportTitle } from "@/lib/evaluation/reportTitle";
 import type { LongformDreamDocument } from "@/lib/evaluation/pipeline/runPass3bLongform";
-import {
-  LongformExecutiveVerdict,
-  LongformScoreGrid,
-  LongformMarketShelf,
-  LongformStructuralStack,
-  LongformArcMap,
-  LongformCriterionAnalyses,
-  LongformLayerAnalysis,
-  LongformSymbolicAudit,
-  LongformReaderExperience,
-  LongformRevisionPlan,
-  LongformReleasability,
-} from "@/components/reports/longform";
 
 type Job = {
   id: string;
@@ -829,92 +816,17 @@ export default async function EvaluationReportPage({
                 </p>
               </div>
 
-              {dreamDoc ? (
-                <div className="space-y-8">
-                  {/* §1 Scores + Executive Verdict */}
-                  <div>
-                    <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500 mb-3">Executive Verdict</h3>
-                    <LongformExecutiveVerdict doc={dreamDoc} />
-                  </div>
-
-                  {/* §2 Market Shelf */}
-                  <div>
-                    <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500 mb-3">Market Shelf</h3>
-                    <LongformMarketShelf doc={dreamDoc} />
-                  </div>
-
-                  {/* §4 + §3 Structural Stack + Anti-Patterns */}
-                  <div>
-                    <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500 mb-3">Structural Stack</h3>
-                    <LongformStructuralStack doc={dreamDoc} />
-                  </div>
-
-                  {/* §5 Arc Map */}
-                  <div>
-                    <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500 mb-3">Arc Map</h3>
-                    <LongformArcMap doc={dreamDoc} />
-                  </div>
-
-                  {/* §6 Score Grid */}
-                  <div>
-                    <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500 mb-3">13-Criterion Score Grid</h3>
-                    <LongformScoreGrid doc={dreamDoc} />
-                  </div>
-
-                  {/* §7 Criterion-by-Criterion Analyses */}
-                  <div>
-                    <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500 mb-3">Criterion Analysis</h3>
-                    <LongformCriterionAnalyses doc={dreamDoc} />
-                  </div>
-
-                  {/* §8 + §9 Layer Analysis + Cross-Layer */}
-                  <div>
-                    <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500 mb-3">Layer Analysis</h3>
-                    <LongformLayerAnalysis doc={dreamDoc} />
-                  </div>
-
-                  {/* §10 Symbolic Audit */}
-                  <div>
-                    <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500 mb-3">Symbolic / Doctrine Audit</h3>
-                    <LongformSymbolicAudit doc={dreamDoc} />
-                  </div>
-
-                  {/* §11 Reader Experience */}
-                  <div>
-                    <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500 mb-3">Reader Experience</h3>
-                    <LongformReaderExperience doc={dreamDoc} />
-                  </div>
-
-                  {/* §12 Revision Plan */}
-                  <div>
-                    <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500 mb-3">Revision Plan</h3>
-                    <LongformRevisionPlan doc={dreamDoc} />
-                  </div>
-
-                  {/* §13–§16 Releasability + Acceptance Checks + Integrity */}
-                  <div>
-                    <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500 mb-3">Releasability</h3>
-                    <LongformReleasability doc={dreamDoc} />
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  <div className="flex items-center gap-3 py-6">
-                    <div className="animate-spin rounded-full h-5 w-5 border-2 border-indigo-400 border-t-transparent" aria-hidden />
-                    <p className="text-sm text-gray-500">
-                      Narrative Synthesis generating — check back in a minute for your full long-form analysis.
-                    </p>
-                  </div>
-                  
-                  {/* Synthesis controls: retry/skip if stuck */}
-                  <div className="rounded-md bg-amber-50 border border-amber-200 p-4">
-                    <p className="text-sm font-medium text-amber-900 mb-3">
-                      Synthesis taking longer than expected?
-                    </p>
-                    <SynthesisArtifactControls jobId={jobId} />
-                  </div>
-                </div>
-              )}
+              {/* SynthesisPoller handles both states:
+                  - initialDreamDoc present  → renders immediately (fast path, no polling)
+                  - initialDreamDoc null     → polls /api/jobs/[jobId]/artifacts every 15s,
+                                               updates inline when longform_document_v1 lands
+                  Isolation: the artifacts endpoint now filters by job_id + artifact_type,
+                  so two concurrent evaluations from the same user cannot cross-contaminate. */}
+              <SynthesisPoller
+                jobId={jobId}
+                wordCount={wordCount ?? 0}
+                initialDreamDoc={dreamDoc}
+              />
             </section>
           )}
 

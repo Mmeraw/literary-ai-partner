@@ -68,12 +68,16 @@ export async function GET(_: Request, { params }: Params) {
       return NextResponse.json({ ok: false, error: "Job not releasable" }, { status: 404 });
     }
 
-    // Fetch latest artifact
+    // Fetch the longform_document_v1 artifact for this specific job.
+    // ISOLATION: We filter by both job_id AND artifact_type so that concurrent
+    // evaluations from the same user never bleed into each other. Do NOT use
+    // "latest by created_at" across all types — a user may have two jobs in
+    // flight and the ordering across different artifact types is not meaningful.
     const { data: artifact, error } = await admin
       .from("evaluation_artifacts")
       .select("id, job_id, artifact_type, content, created_at")
       .eq("job_id", jobId)
-      // .eq("artifact_type", "evaluation_result_v1") // enable if needed
+      .eq("artifact_type", "longform_document_v1")
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();

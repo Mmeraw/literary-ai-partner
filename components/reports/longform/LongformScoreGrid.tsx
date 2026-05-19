@@ -9,7 +9,17 @@ const CONFIDENCE_BADGE: Record<string, string> = {
   Low: "bg-rose-100 text-rose-700",
 };
 
-function scoreBar(score: number) {
+function scoreBar(score: number | null) {
+  // score can be null when the LLM returns null for a criterion (e.g. proseControl
+  // in insufficient-signal states). Guard here prevents a runtime crash.
+  if (score === null || score === undefined) {
+    return (
+      <div className="flex items-center gap-2">
+        <span className="w-8 text-right text-sm font-semibold tabular-nums text-gray-400">—</span>
+        <div className="flex-1 h-2 rounded-full bg-gray-100" />
+      </div>
+    );
+  }
   const pct = Math.min(100, Math.max(0, (score / 10) * 100));
   const color =
     score >= 7.5
