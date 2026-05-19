@@ -22,6 +22,12 @@ export interface PipelineLogArgs {
 }
 
 export async function pipelineLog(args: PipelineLogArgs): Promise<void> {
+  // Skip in test environments to avoid async "Cannot log after tests are done"
+  // noise. Tests should mock pipelineLog directly when they want to assert on
+  // its calls. Production behavior is unaffected.
+  if (process.env.NODE_ENV === "test" || process.env.JEST_WORKER_ID !== undefined) {
+    return;
+  }
   try {
     const supabase = createAdminClient({ nullable: true });
     if (!supabase) {
