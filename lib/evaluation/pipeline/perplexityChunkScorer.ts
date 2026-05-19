@@ -275,7 +275,6 @@ async function callPerplexityForChunk(args: {
         return_citations: false,
         disable_search: true,
         reasoning_effort: "high",
-        response_format: { type: "json_object" },
       }),
       signal: controller.signal,
     });
