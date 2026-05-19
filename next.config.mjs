@@ -1,8 +1,3 @@
-// Vercel Workflows SDK integration (spike: feat/vercel-workflows-spike)
-// withWorkflow() enables 'use workflow' and 'use step' directive transforms.
-// Safe to add now — has no effect until WORKFLOW_EVALUATION_ENABLED=true.
-import { withWorkflow } from 'workflow/next';
-
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
@@ -27,4 +22,4 @@ const nextConfig = {
   },
 };
 
-export default withWorkflow(nextConfig);
+export default nextConfig;
