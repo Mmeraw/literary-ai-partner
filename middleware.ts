@@ -65,6 +65,8 @@ export async function middleware(request: NextRequest) {
   const publicPaths = [
     '/private-beta',
     '/login',
+    '/forgot-password',
+    '/reset-password',
     '/api/auth/callback',
     '/auth/callback',
     '/api/cron',

@@ -1,4 +1,4 @@
-export type AuthFlow = 'login' | 'signup' | 'oauth';
+export type AuthFlow = 'login' | 'signup' | 'oauth' | 'reset';
 
 type AuthAttemptState = {
   timestamps: number[];

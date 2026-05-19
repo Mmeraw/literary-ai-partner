@@ -31,7 +31,7 @@ export function trackAuthBypass(reason: 'ci_test_missing_env'): void {
   safeMetricEmit('auth.middleware.bypass', { reason })
 }
 
-export type ClientAuthFlow = 'login' | 'signup' | 'oauth'
+export type ClientAuthFlow = 'login' | 'signup' | 'oauth' | 'reset'
 export type ClientAuthOutcome =
   | 'attempt'
   | 'blocked_backoff'
