@@ -66,7 +66,13 @@ export function deriveCheckpointFromProgress(
     (progress.phase === "phase_1" && progress.phase_status === "complete") ||
     typeof progress.pass12_handoff_written_at === "string" ||
     // pass3_completed_at present = Pass3 ran (handoff existed), job failed in validation
-    typeof progress.pass3_completed_at === "string";
+    typeof progress.pass3_completed_at === "string" ||
+    // Killed while Pass3 was running: phase_1/running with completed_units >= 1
+    // means Pass1+Pass2 finished and handoff was written before the kill
+    (progress.phase === "phase_1" &&
+      progress.phase_status === "running" &&
+      typeof progress.completed_units === "number" &&
+      progress.completed_units >= 1);
 
   const resumeMode: ResumeMode = hasPhase2Handoff
     ? "phase2_handoff"

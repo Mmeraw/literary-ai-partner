@@ -3340,6 +3340,15 @@ export async function processEvaluationJob(
                   model: getCanonicalPipelineModel(openAiModel),
                 }),
                 artifactVersion: 'pass12_handoff_v1',
+              }).then(() => {
+                // Stamp pass12_handoff_written_at into the progress JSONB so the UI
+                // and watchdog can detect the handoff artifact exists even if the job
+                // is killed before the authoritative handoff write fires.
+                void supabase
+                  .rpc('stamp_handoff_progress', { p_job_id: jobId, p_ts: new Date().toISOString() })
+                  .then(({ error: stampErr }: { error: unknown }) => {
+                    if (stampErr) console.warn(`[Processor] ${jobId}: handoff progress stamp failed (non-fatal)`, stampErr);
+                  });
               }).catch((preWriteErr: unknown) => {
                 console.warn(
                   `[Processor] ${jobId}: eager handoff pre-write failed (non-fatal — normal handoff path still runs)`,
