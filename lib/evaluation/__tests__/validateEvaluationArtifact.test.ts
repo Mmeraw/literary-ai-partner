@@ -257,6 +257,29 @@ describe("validateEvaluationArtifact (boundary structural validator)", () => {
       );
     }
   });
+
+  test("accepts phrasal-verb tails with pronoun objects (reins it in, called her up)", () => {
+    // Regression from job 556124ae: "...before he reins it in." is a complete
+    // sentence, not a truncation. The pronoun object between verb and particle
+    // distinguishes phrasal-verb tails from genuine dangling prepositions.
+    const artifact = makeValidArtifact();
+    const character = artifact.criteria.find((c) => c.key === "character")!;
+    const phrasalVerbTails = [
+      "During The Stop, add a one-line sensory trigger that briefly cracks You's tactical calm (e.g., a family detail) before he reins it in.",
+      "Cut the side scene where Alice calls her up.",
+      "Move the confrontation so Bob sets them on.",
+      "Tighten the beat where the captain calls him in.",
+      "Rewrite the moment Eve waves us on.",
+      "Add a glance that pulls you in.",
+    ];
+    for (const action of phrasalVerbTails) {
+      character.recommendations = [
+        { priority: "medium", action, expected_impact: "Sharpens the beat." },
+      ];
+      const result = validateEvaluationArtifact(artifact);
+      expect(result.ok).toBe(true);
+    }
+  });
   test("rejects uncertified long-form manuscript-wide scores", () => {
     const artifact = makeValidArtifact();
     artifact.governance.transparency = {

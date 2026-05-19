@@ -40,11 +40,14 @@ function hasNonEmptyText(value: unknown): boolean {
 function looksTruncatedRecommendation(action: string): boolean {
   const normalized = action.trim();
   if (!normalized) return false;
-  // Negative lookbehind prevents false-positives on compound words joined by
-  // hyphens (-), en dashes (\u2013), or em dashes (\u2014), e.g. "load-in.",
-  // "drive\u2014in.", "run\u2013on.". The match still fires when the preposition
-  // or conjunction is a standalone token at the end of the string.
-  return /(?<![-\u2013\u2014\w])\b(with|and|or|to|of|in|on|for|the|a|an)\.?$/i.test(normalized);
+  // Lookbehinds suppress false positives:
+  //   1. Compound words joined by hyphens/en/em dashes ("load-in.", "drive\u2014in.").
+  //   2. Phrasal-verb tails where a pronoun object sits between verb and particle
+  //      ("reins it in.", "called her up.", "set them on."). These are complete
+  //      sentences, not truncations. Pronouns covered: it/him/her/them/me/us/you.
+  return /(?<![-\u2013\u2014\w])(?<!\b(?:it|him|her|them|me|us|you)\s)\b(with|and|or|to|of|in|on|for|the|a|an)\.?$/i.test(
+    normalized,
+  );
 }
 
 export function validateEvaluationArtifact(artifact: unknown): ArtifactValidationResult {

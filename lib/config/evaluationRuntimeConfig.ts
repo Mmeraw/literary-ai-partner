@@ -242,9 +242,14 @@ export function resolveEvaluationRuntimeConfig(
     max: 16000,
   });
   const pass3MaxTokens = parseBoundedInteger(env, "EVAL_PASS3_MAX_TOKENS", {
-      defaultValue: 20000,
+    // Raised from 20000 → 24000: PR #608 (PASS3_PROMPT_VERSION v15) added the
+    // MANUSCRIPT ENTITY ROSTER block, growing the prompt and squeezing the
+    // response budget. Production job 556124ae truncated a recommendation
+    // mid-sentence; bumping the ceiling gives Pass 3 more headroom for the
+    // full 13×N criteria + recommendations payload. Bound capped at 36000.
+    defaultValue: 24000,
     min: 2000,
-    max: 30000,
+    max: 36000,
   });
   const pass3PromptMaxChars = parseBoundedInteger(env, "EVAL_PASS3_PROMPT_MAX_CHARS", {
     // Raised from 40k/120k: Pass 3 now receives the full manuscript reference
