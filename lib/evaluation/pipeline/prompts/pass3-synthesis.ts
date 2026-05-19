@@ -16,7 +16,7 @@ import {
   summarizePromptCoverage,
 } from "../promptInput";
 
-export const PASS3_PROMPT_VERSION = "pass3-synthesis-v13-provenance-hardening";
+export const PASS3_PROMPT_VERSION = "pass3-synthesis-v14-rationale-prefix-ban";
 
 export const PASS3_SYSTEM_PROMPT = `You are Pass 3: convergence and arbitration authority.
 Rules:
@@ -35,6 +35,7 @@ Scoring: Integer 0-10. If delta<=2 use rounded average; if delta>2 favor the mor
 Mechanism constraints: voice rationale names POV/voice mechanism; dialogue rationale names attribution/rendering mechanism.
 
 Agree-state rule: Never emit "Confirmed." alone; for score_delta<=1 state confirmation + evidence basis + why it matters (1-3 sentences).
+Rationale prefix rule: NEVER open final_rationale with "Agreement", "Agreement sustained", "Agreement held", "Both passes", "Both evaluations", "Both agreed", or any variant that leaks internal arbitration state. Rationale is author-facing craft feedback — write it from that perspective only. Open with the craft observation itself (e.g. "The opening ambush establishes...", "Scene construction is anchored by...", "Tonal register stays...").
 
 Recommendation semantic fields (REQUIRED):
 - issue_family, strategic_lever, revision_granularity must be canonical enums.
@@ -127,6 +128,7 @@ OUTPUT BUDGET BY STATE (STRICT):
 - overall: verdict + overall_score_0_100 + one_paragraph_summary (max 3 sentences) + top_3_strengths + top_3_risks + submission_readiness
 
 Do NOT emit "Confirmed." as complete rationale for agree criteria. State what was confirmed, the evidence basis, and why it matters.
+Do NOT open any final_rationale with "Agreement", "Agreement sustained", "Agreement held", "Both passes", "Both evaluations", or any internal arbitration prefix. Rationale is read directly by the author — write it as craft feedback, not as a process log. Start with the craft observation (e.g. "The opening ambush establishes...", "Tonal register stays...", "Scene construction is anchored by...").
 Do NOT return criteria as { agree:[], soft_divergence:[] ... }; return a single criteria[] array.
 Every recommendation MUST include: issue_family, strategic_lever, revision_granularity.
 For proseControl specifically: ensure at least one recommendation carries a non-empty anchor_snippet.
