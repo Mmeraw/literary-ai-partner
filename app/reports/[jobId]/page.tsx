@@ -27,6 +27,7 @@ import {
 } from '@/lib/evaluation/reportRenderSafety';
 import { resolveReportTitle } from '@/lib/evaluation/reportTitle';
 import type { LongformDreamDocument } from '@/lib/evaluation/pipeline/runPass3bLongform';
+import { SynthesisPoller } from '@/components/evaluation/SynthesisPoller';
 
 // D1 Boundary: server-only. Service key must not leak to client.
 // Hybrid owner-gate: SSR client for auth identity, admin client for
@@ -793,12 +794,11 @@ export default async function ReportPage({ params }: { params: { jobId: string }
                 </div>
               </div>
             ) : (
-              <div className="flex items-center gap-3 py-4">
-                <div className="animate-spin rounded-full h-5 w-5 border-2 border-indigo-400 border-t-transparent" aria-hidden />
-                <p className="text-sm text-gray-500">
-                  Narrative Synthesis generating… Refresh in a minute to see the full long-form analysis.
-                </p>
-              </div>
+              <SynthesisPoller
+                jobId={params.jobId}
+                wordCount={wordCount}
+                initialDreamDoc={null}
+              />
             )}
           </section>
         )}

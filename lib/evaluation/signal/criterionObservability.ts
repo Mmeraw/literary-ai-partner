@@ -156,14 +156,29 @@ export function classifySignalStrength(
   const deduped = dedupeAnchors(raw.evidence ?? []);
   const threshold = minAnchorsFor(raw.key);
 
-  // Prose control sustainment rule (locked):
-  // scorable only if 5+ sentences OR >=30% coverage.
+  // Prose control sustainment rule:
+  // For short excerpts (sentenceCount/passageCoverageRatio provided by caller),
+  // require 5+ sentences OR >=30% coverage.
+  // For full submissions (opts not provided or both zero), the anchor count
+  // itself is the coverage signal — if ≥ threshold anchors are present the
+  // criterion is considered sustained. This prevents every full-submission
+  // proseControl score from being suppressed due to missing sentence metrics.
   if (raw.key === "proseControl") {
     const sentenceCount = opts?.sentenceCount ?? 0;
     const coverage = opts?.passageCoverageRatio ?? 0;
-    const sustained = sentenceCount >= 5 || coverage >= 0.3;
-    if (!sustained) {
-      return deduped.length > 0 ? "WEAK" : "NONE";
+    const metricsProvided = sentenceCount > 0 || coverage > 0;
+    if (metricsProvided) {
+      // Short-excerpt path: apply the original sustainment gate.
+      const sustained = sentenceCount >= 5 || coverage >= 0.3;
+      if (!sustained) {
+        return deduped.length > 0 ? "WEAK" : "NONE";
+      }
+    } else {
+      // Full-submission path: anchors are the coverage signal.
+      // Fall through to the standard anchor-threshold check below.
+      if (deduped.length === 0) return "NONE";
+      if (deduped.length < threshold) return "WEAK";
+      return deduped.length >= threshold + 1 ? "STRONG" : "SUFFICIENT";
     }
   }
 

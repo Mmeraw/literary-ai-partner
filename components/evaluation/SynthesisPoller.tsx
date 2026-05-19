@@ -70,23 +70,39 @@ export function SynthesisPoller({ jobId, wordCount, initialDreamDoc = null }: Pr
 
   const fetchArtifact = useCallback(async () => {
     try {
-      // The artifacts endpoint returns the single most-recent artifact by created_at.
-      // longform_document_v1 is written after evaluation_result_v2, so once synthesis
-      // is done it will be the latest row. We check artifact_type to confirm.
+      // The artifacts endpoint filters by job_id + artifact_type=longform_document_v1.
+      // Once synthesis is complete this will return the doc; until then artifact is null.
       const res = await fetch(`/api/jobs/${jobId}/artifacts`, { cache: "no-store" });
-      if (!res.ok) return;
+      if (!res.ok) {
+        // Non-2xx — log and retry on next interval
+        console.warn(`[SynthesisPoller] artifacts endpoint returned ${res.status} for job ${jobId}`);
+        return;
+      }
       const data = await res.json() as { ok: boolean; artifact?: ArtifactRow | null };
       if (!data.ok || !data.artifact) return;
       if (data.artifact.artifact_type !== "longform_document_v1") return;
-      if (!data.artifact.content?.longform_document) return;
 
-      setDreamDoc(data.artifact.content.longform_document);
+      // content may be a deeply nested object; handle both parsed-object and
+      // raw-JSON-string cases defensively.
+      let content = data.artifact.content;
+      if (typeof content === "string") {
+        try { content = JSON.parse(content); } catch { return; }
+      }
+      const longformDoc = (content as { longform_document?: LongformDreamDocument } | null)
+        ?.longform_document;
+      if (!longformDoc || typeof longformDoc !== "object") return;
 
-      // Stop all polling once we have the doc
+      // Stop polling
       if (pollRef.current) clearInterval(pollRef.current);
       if (elapsedRef.current) clearInterval(elapsedRef.current);
-    } catch {
+
+      // Reload the page so the server-rendered path delivers the full synthesis
+      // with initialDreamDoc pre-populated. This is the same reliable path that
+      // "Skip Synthesis" takes and avoids any client-side hydration edge cases.
+      window.location.reload();
+    } catch (err) {
       // Silent — will retry on next interval
+      console.warn(`[SynthesisPoller] fetch error for job ${jobId}:`, err);
     }
   }, [jobId]);
 
