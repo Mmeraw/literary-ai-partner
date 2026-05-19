@@ -2,6 +2,34 @@
 @tailwind components;
 @tailwind utilities;
 
+/* === Evaluation/readability contrast guard ===
+ *
+ * Evaluation report/status/form surfaces use white cards on a light gray page.
+ * Small Tailwind gray-400/500 helper text is too faint in that context, so the
+ * evaluation shell promotes muted copy to AA-friendly dark grays without
+ * changing layout, pipeline behavior, scoring, or report content.
+ */
+.min-h-screen.bg-gray-50 .text-gray-400,
+.min-h-screen.bg-gray-50 .text-gray-500 {
+  color: #374151;
+}
+
+.min-h-screen.bg-gray-50 .text-gray-600 {
+  color: #1f2937;
+}
+
+.min-h-screen.bg-gray-50 .text-xs.text-gray-400,
+.min-h-screen.bg-gray-50 .text-xs.text-gray-500,
+.min-h-screen.bg-gray-50 .text-sm.text-gray-500 {
+  font-weight: 500;
+}
+
+.min-h-screen.bg-gray-50 input::placeholder,
+.min-h-screen.bg-gray-50 textarea::placeholder {
+  color: #4b5563;
+  opacity: 1;
+}
+
 /* === User evaluation dashboard === */
 
 .rg-dash-page {

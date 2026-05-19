@@ -42,10 +42,10 @@ describe("resolveStageId: backend state -> stage", () => {
     ).toBe("preparing_manuscript");
   });
 
-  test("running in phase_1 -> reading_manuscript (heaviest stage)", () => {
+  test("running in phase_1 -> analyzing_manuscript (heaviest stage)", () => {
     expect(
       resolveStageId({ phase: "phase_1", phase_status: "running" }),
-    ).toBe("reading_manuscript");
+    ).toBe("analyzing_manuscript");
   });
 
   test("complete in phase_1 -> building_diagnosis (handoff)", () => {
@@ -87,7 +87,7 @@ describe("resolveStageId: backend state -> stage", () => {
 
 describe("interpolateWithinStage: never exceeds stage_end - 1%", () => {
   test("clamps to ceiling even when elapsed >> median", () => {
-    const stage = STAGE_BY_ID.reading_manuscript; // 2..64, median 420s
+    const stage = STAGE_BY_ID.analyzing_manuscript; // 2..64, median 420s
     const startedAt = T0;
     const farFuture = Date.parse(T0) + 1_000_000 * 1000; // way past median
     const pct = interpolateWithinStage(stage, startedAt, farFuture);
@@ -96,7 +96,7 @@ describe("interpolateWithinStage: never exceeds stage_end - 1%", () => {
   });
 
   test("starts at stage.start when elapsed=0", () => {
-    const stage = STAGE_BY_ID.reading_manuscript;
+    const stage = STAGE_BY_ID.analyzing_manuscript;
     const pct = interpolateWithinStage(stage, T0, Date.parse(T0));
     expect(pct).toBe(stage.start);
   });
@@ -114,7 +114,7 @@ describe("interpolateWithinStage: never exceeds stage_end - 1%", () => {
   });
 
   test("interpolates linearly inside the slice for elapsed < median", () => {
-    const stage = STAGE_BY_ID.reading_manuscript; // start 2, end 64, median 420
+    const stage = STAGE_BY_ID.analyzing_manuscript; // start 2, end 64, median 420
     // Half of median should put us ~halfway through the slice (clamped to end-1)
     const pct = interpolateWithinStage(
       stage,
@@ -163,8 +163,8 @@ describe("getProgressDisplay: end-to-end behavior", () => {
       },
       now,
     );
-    expect(pd!.label).toBe("Reading manuscript");
-    expect(pd!.percentage).toBe(2); // reading_manuscript.start
+    expect(pd!.label).toBe("Analyzing manuscript");
+    expect(pd!.percentage).toBe(2); // analyzing_manuscript.start
     expect(pd!.indeterminate).toBe(false);
   });
 
@@ -174,14 +174,14 @@ describe("getProgressDisplay: end-to-end behavior", () => {
       phase: "phase_1",
       phase_status: "running",
     });
-    expect(pd!.label).toBe("Reading manuscript");
+    expect(pd!.label).toBe("Analyzing manuscript");
     expect(pd!.indeterminate).toBe(true);
     expect(pd!.percentage).toBe(2);
   });
 
   test("never returns >= stage_end while still in same stage", () => {
-    // Sample many points within reading_manuscript stage (median 420s).
-    const stage = STAGE_BY_ID.reading_manuscript;
+    // Sample many points within analyzing_manuscript stage (median 420s).
+    const stage = STAGE_BY_ID.analyzing_manuscript;
     for (const sec of [1, 30, 100, 250, 420, 600, 1200, 10000]) {
       const pd = getProgressDisplay(
         {
@@ -344,7 +344,7 @@ describe("monotonicity across stage transitions", () => {
 describe("getStageLabelFromPhase: standalone label resolver", () => {
   test("matches getProgressDisplay's label for the same inputs", () => {
     const label = getStageLabelFromPhase("phase_1", "running", null);
-    expect(label).toBe("Reading manuscript");
+    expect(label).toBe("Analyzing manuscript");
   });
 
   test("returns null for queued / unknown so caller can render its own copy", () => {
