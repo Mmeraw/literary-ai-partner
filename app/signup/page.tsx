@@ -192,7 +192,7 @@ export default function SignupPage() {
                   value={email}
                   onChange={(e) => setSafeEmail(e.target.value)}
                   maxLength={254}
-                  className="block w-full appearance-none rounded-md border border-gray-300 px-3 py-2 placeholder-gray-400 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 sm:text-sm"
+                  className="block w-full appearance-none rounded-md border border-gray-300 px-3 py-2 placeholder-gray-500 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 text-base"
                 />
               </div>
             </div>
@@ -211,9 +211,9 @@ export default function SignupPage() {
                   minLength={PASSWORD_MIN_LENGTH}
                   value={password}
                   onChange={(e) => setSafePassword(e.target.value)}
-                  className="block w-full appearance-none rounded-md border border-gray-300 px-3 py-2 placeholder-gray-400 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 sm:text-sm"
+                  className="block w-full appearance-none rounded-md border border-gray-300 px-3 py-2 placeholder-gray-500 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 text-base"
                 />
-                <p className="mt-1 text-xs text-gray-500">
+                <p className="mt-1 text-xs text-gray-700">
                   Use at least {PASSWORD_MIN_LENGTH} characters with uppercase, lowercase, and a number.
                 </p>
               </div>
@@ -233,7 +233,7 @@ export default function SignupPage() {
                   minLength={PASSWORD_MIN_LENGTH}
                   value={confirmPassword}
                   onChange={(e) => setSafeConfirmPassword(e.target.value)}
-                  className="block w-full appearance-none rounded-md border border-gray-300 px-3 py-2 placeholder-gray-400 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 sm:text-sm"
+                  className="block w-full appearance-none rounded-md border border-gray-300 px-3 py-2 placeholder-gray-500 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 text-base"
                 />
               </div>
             </div>
@@ -249,7 +249,7 @@ export default function SignupPage() {
             </div>
           </form>
 
-          <p className="mt-6 text-center text-sm text-gray-600">
+          <p className="mt-6 text-center text-sm text-gray-700">
             Already have an account?{' '}
             <Link href="/login" className="font-medium text-indigo-600 hover:text-indigo-500">
               Sign in

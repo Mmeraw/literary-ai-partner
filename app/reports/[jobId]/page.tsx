@@ -384,12 +384,12 @@ export default async function ReportPage({ params }: { params: { jobId: string }
           <h2 className="text-2xl font-semibold text-gray-900 mb-6">
             §6 — Detailed Scores / Score Grid
           </h2>
-          <div className="mb-4 rounded-md border bg-gray-50 p-3 text-xs text-gray-700">
+          <div className="mb-4 rounded-md border bg-gray-50 p-3 text-sm text-gray-700 leading-relaxed">
             <p className="font-medium">Confidence Guide</p>
             <p className="mt-1">
               Confidence shows how strongly each score and summary is supported by clear examples from your submitted text.
             </p>
-            <ul className="mt-2 list-disc pl-5 space-y-1">
+            <ul className="mt-2 list-disc pl-5 space-y-1 text-sm">
               <li>High (≥85): strong support from the text</li>
               <li>Moderate (60–84): partial or uneven support from the text</li>
               <li>Low (&lt;60): limited support from the text</li>
@@ -426,7 +426,7 @@ export default async function ReportPage({ params }: { params: { jobId: string }
                   </div>
                 </div>
                 {getCriterionSupportLabel(criterion as Parameters<typeof getCriterionSupportLabel>[0]) && (
-                  <p className="mb-2 text-xs font-medium text-gray-500">
+                  <p className="mb-2 text-xs font-medium text-gray-700">
                     {getCriterionSupportLabel(criterion as Parameters<typeof getCriterionSupportLabel>[0])}
                   </p>
                 )}
@@ -441,7 +441,7 @@ export default async function ReportPage({ params }: { params: { jobId: string }
                           {rationalePresentation.label}
                         </p>
                       )}
-                      <p className="text-sm text-gray-600">{rationalePresentation.text}</p>
+                      <p className="text-sm text-gray-700 leading-relaxed">{rationalePresentation.text}</p>
                     </div>
                   );
                 })()}
@@ -472,7 +472,7 @@ export default async function ReportPage({ params }: { params: { jobId: string }
                         {qw.impact} impact
                       </span>
                     </div>
-                    <p className="text-sm text-gray-600">{qw.why}</p>
+                    <p className="text-sm text-gray-700 leading-relaxed">{qw.why}</p>
                   </div>
                 ))}
               </div>
@@ -497,7 +497,7 @@ export default async function ReportPage({ params }: { params: { jobId: string }
                         {sr.impact} impact
                       </span>
                     </div>
-                    <p className="text-sm text-gray-600">{sr.why}</p>
+                    <p className="text-sm text-gray-700 leading-relaxed">{sr.why}</p>
                   </div>
                 ))}
               </div>

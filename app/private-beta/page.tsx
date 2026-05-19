@@ -11,20 +11,20 @@ export default function PrivateBetaPage() {
     <div className="min-h-[calc(100vh-3.5rem)] bg-rg-ink flex flex-col items-center justify-center px-6 py-20">
 
       {/* Breadcrumb label */}
-      <p className="font-rg-mono text-[10px] tracking-[0.25em] uppercase text-rg-dim mb-12">
+      <p className="font-rg-mono text-xs tracking-[0.25em] uppercase text-rg-cream2 mb-12">
         <span className="text-rg-red mr-2">●</span>
         RevisionGrade · Private Beta
       </p>
 
       {/* Headline */}
-      <h1 className="font-rg-serif text-rg-cream text-4xl sm:text-5xl text-center leading-tight mb-3">
+      <h1 className="font-rg-serif text-rg-cream text-5xl sm:text-6xl text-center leading-tight mb-3">
         A{" "}
         <span className="italic text-rg-gold" style={{ textDecorationLine: "underline", textDecorationColor: "#7A2B1A", textUnderlineOffset: "6px" }}>
           governed revision
         </span>
         {" "}operating system
       </h1>
-      <h2 className="font-rg-serif text-rg-cream text-4xl sm:text-5xl text-center leading-tight mb-8">
+      <h2 className="font-rg-serif text-rg-cream text-5xl sm:text-6xl text-center leading-tight mb-8">
         for serious manuscripts.
       </h2>
 
@@ -36,7 +36,7 @@ export default function PrivateBetaPage() {
       {/* Gate card */}
       <div className="border border-rg-cream2/20 bg-rg-ink2 px-10 py-10 max-w-xs w-full text-center">
 
-        <p className="font-rg-mono text-[10px] tracking-[0.2em] uppercase text-rg-dim mb-6">
+        <p className="font-rg-mono text-xs tracking-[0.2em] uppercase text-rg-cream2 mb-6">
           Internal Access
         </p>
 
@@ -47,13 +47,13 @@ export default function PrivateBetaPage() {
           Sign In
         </Link>
 
-        <p className="mt-6 font-rg-serif text-rg-dim text-xs leading-relaxed">
+        <p className="mt-6 font-rg-serif text-rg-cream2 text-xs leading-relaxed">
           Not yet a tester? Contact the administrator for access.
         </p>
       </div>
 
       {/* Footer doctrine line */}
-      <p className="mt-16 font-rg-mono text-[10px] tracking-[0.2em] uppercase text-rg-dim text-center">
+      <p className="mt-16 font-rg-mono text-xs tracking-[0.2em] uppercase text-rg-cream2 text-center">
         Powered by the WAVE Revision System · 13 Story Evaluation Criteria
       </p>
 

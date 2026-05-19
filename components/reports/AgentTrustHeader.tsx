@@ -24,31 +24,30 @@ export default function AgentTrustHeader(props: {
 
       <div className="grid md:grid-cols-2 gap-4 text-sm">
         <div>
-          <p className="text-gray-600">Work Type used</p>
-          <p className="font-mono text-gray-900">{props.finalWorkTypeUsed}</p>
+          <p className="text-gray-700">Work Type used</p>
+          <p className="font-mono text-sm text-gray-900">{props.finalWorkTypeUsed}</p>
         </div>
 
         <div>
-          <p className="text-gray-600">Matrix version</p>
-          <p className="font-mono text-gray-900">{props.matrixVersion}</p>
+          <p className="text-gray-700">Matrix version</p>
+          <p className="font-mono text-sm text-gray-900">{props.matrixVersion}</p>
         </div>
 
         <div>
-          <p className="text-gray-600">Applicability summary</p>
-          <p className="font-mono text-gray-900">
+          <p className="text-gray-700">Applicability summary</p>
+          <p className="font-mono text-sm text-gray-900">
             R={r} · O={o} · NA={na} · C={c}
           </p>
         </div>
 
         <div>
-          <p className="text-gray-600">Repro anchor</p>
-          <p className="font-mono text-gray-900">
-            jobId {props.jobId} · {props.generatedAt} · {props.matrixVersion}
-          </p>
+          <p className="text-gray-700">Repro anchor</p>
+          <p className="font-mono text-sm text-gray-900">jobId {props.jobId}</p>
+          <p className="font-mono text-xs text-gray-700">{props.generatedAt} · {props.matrixVersion}</p>
         </div>
       </div>
 
-      <p className="text-sm text-gray-700 mt-4">
+      <p className="text-sm text-gray-700 mt-4 leading-relaxed">
         NA criteria were structurally excluded and were not evaluated.
       </p>
     </section>

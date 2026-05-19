@@ -31,7 +31,7 @@ function isValidEmail(value: string): boolean {
 // ── Shared input class ──────────────────────────────────────────────────────
 const inputCls =
   'block w-full bg-rg-ink border border-rg-cream2/30 text-rg-cream font-rg-serif text-sm px-4 py-3 ' +
-  'placeholder:text-rg-dim focus:outline-none focus:border-rg-gold transition-colors duration-150'
+  'placeholder:text-rg-cream2/40 focus:outline-none focus:border-rg-gold transition-colors duration-150'
 
 export default function LoginPage() {
   const [email, setEmail]       = useState('')
@@ -167,7 +167,7 @@ export default function LoginPage() {
       </Link>
 
       {/* Section label */}
-      <p className="font-rg-mono text-[10px] tracking-[0.25em] uppercase text-rg-dim mb-8">
+      <p className="font-rg-mono text-xs tracking-[0.25em] uppercase text-rg-cream2 mb-8">
         <span className="text-rg-red mr-2">●</span>
         Internal Access
       </p>
@@ -189,7 +189,7 @@ export default function LoginPage() {
         {/* Email/password form */}
         <form className="space-y-4" onSubmit={handleLogin}>
           <div>
-            <label htmlFor="email" className="block font-rg-mono text-[10px] tracking-widest uppercase text-rg-dim mb-2">
+            <label htmlFor="email" className="block font-rg-mono text-xs tracking-widest uppercase text-rg-cream2 mb-2">
               Email
             </label>
             <input
@@ -210,12 +210,12 @@ export default function LoginPage() {
 
           <div>
             <div className="flex items-baseline justify-between mb-2">
-              <label htmlFor="password" className="block font-rg-mono text-[10px] tracking-widest uppercase text-rg-dim">
+              <label htmlFor="password" className="block font-rg-mono text-xs tracking-widest uppercase text-rg-cream2">
                 Password
               </label>
               <Link
                 href="/forgot-password"
-                className="font-rg-mono text-[10px] tracking-widest uppercase text-rg-dim hover:text-rg-gold transition-colors"
+                className="font-rg-mono text-xs tracking-widest uppercase text-rg-cream2 hover:text-rg-gold transition-colors"
               >
                 Forgot?
               </Link>
@@ -245,7 +245,7 @@ export default function LoginPage() {
         {/* Divider */}
         <div className="my-6 flex items-center gap-3">
           <div className="flex-1 h-px bg-rg-cream2/15" />
-          <span className="font-rg-mono text-[10px] tracking-widest uppercase text-rg-dim">or</span>
+          <span className="font-rg-mono text-xs tracking-widest uppercase text-rg-cream2">or</span>
           <div className="flex-1 h-px bg-rg-cream2/15" />
         </div>
 
@@ -281,7 +281,7 @@ export default function LoginPage() {
         </div>
 
         {/* Sign up link */}
-        <p className="mt-8 text-center font-rg-serif text-rg-dim text-xs">
+        <p className="mt-8 text-center font-rg-serif text-rg-cream2 text-xs">
           No account?{' '}
           <Link href="/signup" className="text-rg-cream2 hover:text-rg-gold transition-colors">
             Sign up
@@ -291,7 +291,7 @@ export default function LoginPage() {
       </div>
 
       {/* Footer doctrine line */}
-      <p className="mt-10 font-rg-mono text-[10px] tracking-[0.2em] uppercase text-rg-dim text-center">
+      <p className="mt-10 font-rg-mono text-xs tracking-[0.2em] uppercase text-rg-cream2 text-center">
         Powered by the WAVE Revision System · 13 Story Evaluation Criteria
       </p>
 

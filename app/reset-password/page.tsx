@@ -32,7 +32,7 @@ function validatePassword(value: string): string | null {
 
 const inputCls =
   'block w-full bg-rg-ink border border-rg-cream2/30 text-rg-cream font-rg-serif text-sm px-4 py-3 ' +
-  'placeholder:text-rg-dim focus:outline-none focus:border-rg-gold transition-colors duration-150'
+  'placeholder:text-rg-cream2/40 focus:outline-none focus:border-rg-gold transition-colors duration-150'
 
 type SessionStatus = 'pending' | 'ready' | 'invalid'
 
@@ -186,7 +186,7 @@ export default function ResetPasswordPage() {
         <span className="font-rg-serif text-rg-cream text-sm tracking-wide">RevisionGrade&#8482;</span>
       </Link>
 
-      <p className="font-rg-mono text-[10px] tracking-[0.25em] uppercase text-rg-dim mb-8">
+      <p className="font-rg-mono text-xs tracking-[0.25em] uppercase text-rg-cream2 mb-8">
         <span className="text-rg-red mr-2">●</span>
         Set New Password
       </p>
@@ -198,7 +198,7 @@ export default function ResetPasswordPage() {
         </h1>
 
         {sessionStatus === 'pending' && (
-          <div className="mb-5 border border-rg-cream2/20 px-4 py-3 font-rg-mono text-xs text-rg-dim leading-relaxed text-center">
+          <div className="mb-5 border border-rg-cream2/20 px-4 py-3 font-rg-mono text-xs text-rg-cream2 leading-relaxed text-center">
             Verifying reset link…
           </div>
         )}
@@ -224,7 +224,7 @@ export default function ResetPasswordPage() {
         {sessionStatus !== 'invalid' && (
           <form className="space-y-4" onSubmit={handleSubmit}>
             <div>
-              <label htmlFor="password" className="block font-rg-mono text-[10px] tracking-widest uppercase text-rg-dim mb-2">
+              <label htmlFor="password" className="block font-rg-mono text-xs tracking-widest uppercase text-rg-cream2 mb-2">
                 New password
               </label>
               <input
@@ -240,13 +240,13 @@ export default function ResetPasswordPage() {
                 placeholder="••••••••"
                 disabled={sessionStatus !== 'ready'}
               />
-              <p className="mt-2 font-rg-mono text-[10px] text-rg-dim leading-relaxed">
+              <p className="mt-2 font-rg-mono text-xs text-rg-cream2 leading-relaxed">
                 At least {PASSWORD_MIN_LENGTH} characters with uppercase, lowercase, and a number.
               </p>
             </div>
 
             <div>
-              <label htmlFor="confirmPassword" className="block font-rg-mono text-[10px] tracking-widest uppercase text-rg-dim mb-2">
+              <label htmlFor="confirmPassword" className="block font-rg-mono text-xs tracking-widest uppercase text-rg-cream2 mb-2">
                 Confirm password
               </label>
               <input
@@ -274,7 +274,7 @@ export default function ResetPasswordPage() {
           </form>
         )}
 
-        <p className="mt-8 text-center font-rg-serif text-rg-dim text-xs">
+        <p className="mt-8 text-center font-rg-serif text-rg-cream2 text-xs">
           {sessionStatus === 'invalid' ? (
             <Link href="/forgot-password" className="text-rg-cream2 hover:text-rg-gold transition-colors">
               Request a new reset link
@@ -288,7 +288,7 @@ export default function ResetPasswordPage() {
 
       </div>
 
-      <p className="mt-10 font-rg-mono text-[10px] tracking-[0.2em] uppercase text-rg-dim text-center">
+      <p className="mt-10 font-rg-mono text-xs tracking-[0.2em] uppercase text-rg-cream2 text-center">
         Powered by the WAVE Revision System · 13 Story Evaluation Criteria
       </p>
 

@@ -32,7 +32,7 @@ function getResetRedirectUrl(): string {
 
 const inputCls =
   'block w-full bg-rg-ink border border-rg-cream2/30 text-rg-cream font-rg-serif text-sm px-4 py-3 ' +
-  'placeholder:text-rg-dim focus:outline-none focus:border-rg-gold transition-colors duration-150'
+  'placeholder:text-rg-cream2/40 focus:outline-none focus:border-rg-gold transition-colors duration-150'
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('')
@@ -111,7 +111,7 @@ export default function ForgotPasswordPage() {
         <span className="font-rg-serif text-rg-cream text-sm tracking-wide">RevisionGrade&#8482;</span>
       </Link>
 
-      <p className="font-rg-mono text-[10px] tracking-[0.25em] uppercase text-rg-dim mb-8">
+      <p className="font-rg-mono text-xs tracking-[0.25em] uppercase text-rg-cream2 mb-8">
         <span className="text-rg-red mr-2">●</span>
         Password Reset
       </p>
@@ -121,7 +121,7 @@ export default function ForgotPasswordPage() {
         <h1 className="font-rg-serif text-rg-cream text-2xl mb-3 text-center">
           Reset your password
         </h1>
-        <p className="font-rg-serif text-rg-dim text-xs text-center mb-6 leading-relaxed">
+        <p className="font-rg-serif text-rg-cream2 text-xs text-center mb-6 leading-relaxed">
           Enter your email and we&apos;ll send you a link to set a new password.
         </p>
 
@@ -139,7 +139,7 @@ export default function ForgotPasswordPage() {
 
         <form className="space-y-4" onSubmit={handleSubmit}>
           <div>
-            <label htmlFor="email" className="block font-rg-mono text-[10px] tracking-widest uppercase text-rg-dim mb-2">
+            <label htmlFor="email" className="block font-rg-mono text-xs tracking-widest uppercase text-rg-cream2 mb-2">
               Email
             </label>
             <input
@@ -167,7 +167,7 @@ export default function ForgotPasswordPage() {
           </button>
         </form>
 
-        <p className="mt-8 text-center font-rg-serif text-rg-dim text-xs">
+        <p className="mt-8 text-center font-rg-serif text-rg-cream2 text-xs">
           Remember your password?{' '}
           <Link href="/login" className="text-rg-cream2 hover:text-rg-gold transition-colors">
             Back to sign in
@@ -176,7 +176,7 @@ export default function ForgotPasswordPage() {
 
       </div>
 
-      <p className="mt-10 font-rg-mono text-[10px] tracking-[0.2em] uppercase text-rg-dim text-center">
+      <p className="mt-10 font-rg-mono text-xs tracking-[0.2em] uppercase text-rg-cream2 text-center">
         Powered by the WAVE Revision System · 13 Story Evaluation Criteria
       </p>
 

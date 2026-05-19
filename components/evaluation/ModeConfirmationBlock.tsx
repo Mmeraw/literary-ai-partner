@@ -81,7 +81,7 @@ export default function ModeConfirmationBlock({ jobId, detectedMode, confirmedMo
         </span>
       </div>
 
-      <p className="mt-2 text-sm text-gray-700">
+      <p className="mt-2 text-sm text-gray-800 leading-relaxed">
         {/*
           PR-J (2026-05-16): TESTIMONY mode was previously surfaced as a confident
           "Proposed: TESTIMONY · MAXIMUM" which over-stated the system's certainty
@@ -94,7 +94,7 @@ export default function ModeConfirmationBlock({ jobId, detectedMode, confirmedMo
         {detectedMode.proposedEvaluationMode === "TESTIMONY" ? (
           <>
             Possible testimony / sensitive-material content — confirmation required.{" "}
-            <span className="text-gray-600">
+            <span className="text-gray-700">
               Suggested voice preservation:{" "}
               <span className="font-semibold">{detectedMode.proposedVoicePreservationMode}</span>.
             </span>
@@ -109,11 +109,11 @@ export default function ModeConfirmationBlock({ jobId, detectedMode, confirmedMo
 
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
         <label className="text-sm">
-          <span className="block text-gray-600 mb-1">Evaluation Mode</span>
+          <span className="block text-gray-700 font-medium mb-1">Evaluation Mode</span>
           <select
             value={evaluationMode}
             onChange={(e) => setEvaluationMode(e.target.value as EvaluationMode)}
-            className="w-full rounded-md border border-gray-300 px-3 py-2"
+            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 bg-white"
             disabled={busy}
           >
             <option value="STANDARD">STANDARD</option>
@@ -123,11 +123,11 @@ export default function ModeConfirmationBlock({ jobId, detectedMode, confirmedMo
         </label>
 
         <label className="text-sm">
-          <span className="block text-gray-600 mb-1">Voice Preservation</span>
+          <span className="block text-gray-700 font-medium mb-1">Voice Preservation</span>
           <select
             value={voicePreservationMode}
             onChange={(e) => setVoicePreservationMode(e.target.value as VoicePreservationMode)}
-            className="w-full rounded-md border border-gray-300 px-3 py-2"
+            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 bg-white"
             disabled={busy}
           >
             <option value="MAXIMUM">MAXIMUM</option>
@@ -137,7 +137,7 @@ export default function ModeConfirmationBlock({ jobId, detectedMode, confirmedMo
         </label>
       </div>
 
-      <p className="mt-2 text-xs text-gray-500">You can change your selection at any time — confirming does not re-run your evaluation.</p>
+      <p className="mt-2 text-sm text-gray-700 leading-relaxed">You can change your selection at any time — confirming does not re-run your evaluation.</p>
 
       <div className="mt-4 flex flex-wrap gap-2">
         <button
@@ -151,7 +151,7 @@ export default function ModeConfirmationBlock({ jobId, detectedMode, confirmedMo
       </div>
 
       {!isConfirmed && (
-        <p className="mt-3 text-sm text-amber-700">
+        <p className="mt-3 text-sm font-medium text-amber-700 leading-relaxed">
           Revise and Trustpath remain hard-disabled until a mode is confirmed.
         </p>
       )}
