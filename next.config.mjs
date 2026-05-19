@@ -22,4 +22,5 @@ const nextConfig = {
   },
 };
 
+// Keep Next config unwrapped until Vercel Workflows is fully production-wired.
 export default nextConfig;
