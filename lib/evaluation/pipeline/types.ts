@@ -440,6 +440,12 @@ export type Pass3ReducerTelemetry = {
   // NO 'hard_fail' state in Phase 1 — see PR_293_PHASE_2_PREVIEW_BRIEF.md
   compression_governance_state: 'pass' | 'warn' | 'observe' | null;
   divergence_diagnostics?: DivergenceDiagnosticArtifact;
+  /**
+   * True when Pass 3 detected truncation on the first GPT call and re-invoked
+   * with an expanded token budget. Mirrors the Perplexity chunk scorer
+   * length-retry pattern (PERPLEXITY_LENGTH_RETRY_MAX_TOKENS).
+   */
+  truncation_retry_fired?: boolean;
 };
 
 export type PassCompletionCapture = {

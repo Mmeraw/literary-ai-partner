@@ -68,6 +68,7 @@ import {
 } from "./propagationIntegrity";
 import type { EvaluationResultV2 } from "@/schemas/evaluation-result-v2";
 import type { CriterionKey } from "@/schemas/criteria-keys";
+import { pipelineLog } from "./pipelineLogger";
 
 function countWords(text: string): number {
   const trimmed = text.trim();
@@ -352,6 +353,11 @@ export interface RunPass3Options {
   manuscriptText: string;
   manuscriptChunks?: ManuscriptChunkEvidence[];
   title: string;
+  /**
+   * Optional evaluation_jobs.id (uuid). When present, structured pipeline
+   * audit-log entries are emitted to the pipeline_logs table.
+   */
+  jobId?: string;
   executionMode?: "TRUSTED_PATH" | "STUDIO";
   registry: CanonRegistry;
   model?: string;
@@ -461,20 +467,69 @@ export async function runPass3Synthesis(opts: RunPass3Options): Promise<Synthesi
 
   console.log(`[Pass3] completion request model=${selectedModel}`);
 
-  const completion = await createCompletion({
-    model: selectedModel,
-    messages: [
-      { role: "system", content: PASS3_SYSTEM_PROMPT },
-      { role: "user", content: userPrompt },
-    ],
-    ...buildOpenAITemperatureParam(selectedModel, PASS3_TEMPERATURE),
-    ...buildOpenAIOutputTokenParam(selectedModel, getEvaluationRuntimeConfig().pass.pass3MaxTokens),
-    response_format: { type: "json_object" },
-  });
+  if (opts.jobId) {
+    void pipelineLog({
+      jobId: opts.jobId,
+      level: "info",
+      stage: "pass3_synthesis",
+      message: "Pass 3 synthesis started",
+      metadata: {
+        promptChars: userPrompt.length,
+        manuscriptChars: opts.manuscriptText.length,
+        hasRoster: Array.isArray(opts.pass2aStructuredContext.character_ledger)
+          && opts.pass2aStructuredContext.character_ledger.length > 0,
+        dualModel: !!opts.perplexityChunkPacket,
+      },
+    });
+  }
 
-  const firstChoice = completion.choices?.[0] as CompletionChoice | undefined;
-  const rawContent = firstChoice?.message?.content;
-  const responseText = extractResponseText(rawContent);
+  const originalMaxTokens = getEvaluationRuntimeConfig().pass.pass3MaxTokens;
+  // Mirror perplexityChunkScorer.ts PERPLEXITY_LENGTH_RETRY_MAX_TOKENS pattern:
+  // on detected truncation, retry ONCE with +4000 tokens.
+  const retryMaxTokens = originalMaxTokens + 4000;
+
+  const invokePass3Completion = (maxTokensForCall: number) =>
+    createCompletion({
+      model: selectedModel,
+      messages: [
+        { role: "system", content: PASS3_SYSTEM_PROMPT },
+        { role: "user", content: userPrompt },
+      ],
+      ...buildOpenAITemperatureParam(selectedModel, PASS3_TEMPERATURE),
+      ...buildOpenAIOutputTokenParam(selectedModel, maxTokensForCall),
+      response_format: { type: "json_object" },
+    });
+
+  let completion = await invokePass3Completion(originalMaxTokens);
+  let firstChoice = completion.choices?.[0] as CompletionChoice | undefined;
+  let rawContent = firstChoice?.message?.content;
+  let responseText = extractResponseText(rawContent);
+  let retryFired = false;
+
+  // Truncation detection: finish_reason="length" OR any recommendation that
+  // hasTruncatedRecommendationAction() flags. Retry ONCE; if it truncates
+  // again, proceed with whatever was returned and let downstream validators
+  // make the call. Mirrors PERPLEXITY_LENGTH_RETRY_MAX_TOKENS pattern.
+  const initialFinishReason =
+    typeof firstChoice?.finish_reason === "string" ? firstChoice.finish_reason : undefined;
+  const initialTruncatedRecommendation = detectTruncatedRecommendationInRawResponse(responseText);
+  if (initialFinishReason === "length" || initialTruncatedRecommendation) {
+    console.warn(
+      "[Pass3] Truncation detected — retrying with expanded token budget",
+      {
+        originalMaxTokens,
+        retryMaxTokens,
+        finishReason: initialFinishReason ?? "unknown",
+        jobId: opts.title || "unknown",
+      },
+    );
+    retryFired = true;
+    completion = await invokePass3Completion(retryMaxTokens);
+    firstChoice = completion.choices?.[0] as CompletionChoice | undefined;
+    rawContent = firstChoice?.message?.content;
+    responseText = extractResponseText(rawContent);
+  }
+  pass3ReducerTelemetry.truncation_retry_fired = retryFired;
 
   if (responseText.trim().length === 0) {
     const diagnosticMessage = buildEmptyResponseDiagnostic({
@@ -581,7 +636,22 @@ export async function runPass3Synthesis(opts: RunPass3Options): Promise<Synthesi
     });
     throw error;
   }
-  
+
+  if (opts.jobId) {
+    void pipelineLog({
+      jobId: opts.jobId,
+      level: "info",
+      stage: "pass3_synthesis",
+      message: "Pass 3 synthesis complete",
+      metadata: {
+        finishReason,
+        truncationDetected:
+          initialFinishReason === "length" || initialTruncatedRecommendation,
+        retryFired,
+      },
+    });
+  }
+
   // Truth enforcement: attach coverage metadata proving whether evaluation was complete or partial
   return {
     ...synthesis,
@@ -976,6 +1046,37 @@ function isStrongPositiveProseRationale(rationale: string): boolean {
     normalized.includes("high-polish") ||
     normalized.includes("prose appears strong")
   );
+}
+
+/**
+ * Best-effort scan of a raw Pass 3 JSON response for truncated recommendation
+ * actions, used by the truncation-retry path BEFORE the response has been
+ * fully parsed via parsePass3Response. Returns true if the raw response
+ * appears to contain at least one criterion with a truncated recommendation
+ * action (per hasTruncatedRecommendationAction). Returns false on parse
+ * failure — let downstream parsing handle malformed JSON.
+ */
+function detectTruncatedRecommendationInRawResponse(rawResponseText: string): boolean {
+  const trimmed = rawResponseText.trim();
+  if (!trimmed) return false;
+  let parsed: unknown;
+  try {
+    const boundary = parseJsonObjectBoundary<Record<string, unknown>>(trimmed, {
+      label: "Pass3RetryScan",
+    });
+    parsed = boundary.value;
+  } catch {
+    return false;
+  }
+  if (!parsed || typeof parsed !== "object") return false;
+  const criteria = (parsed as Record<string, unknown>)["criteria"];
+  if (!Array.isArray(criteria)) return false;
+  return criteria.some((criterion) => {
+    if (!criterion || typeof criterion !== "object") return false;
+    return hasTruncatedRecommendationAction(
+      (criterion as Record<string, unknown>)["recommendations"],
+    );
+  });
 }
 
 function hasTruncatedRecommendationAction(rawRecommendations: unknown): boolean {

@@ -123,6 +123,7 @@ import {
   pipelineDisabledResponse,
   type PipelineSkipResult,
 } from '@/lib/config/pipelineGuard';
+import { pipelineLog } from '@/lib/evaluation/pipeline/pipelineLogger';
 
 // DB bootstrap — intentionally reads process.env directly (not evaluation config).
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -1999,6 +2000,21 @@ export async function processEvaluationJob(
     evalOpenAiTimeoutMs,
     evalContextContaminationGuardEnabled,
   } = getProcessorRuntimeDeps();
+
+  const processorStartMs = Date.now();
+
+  void pipelineLog({
+    jobId,
+    level: 'info',
+    stage: 'processor_preflight',
+    message: 'Processor preflight passed',
+    metadata: {
+      openaiKeyPresent: !!openaiApiKey,
+      perplexityKeyPresent: !!perplexityApiKey,
+      adjudicationMode: runtimeConfig.adjudicationMode,
+    },
+  });
+
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
   let lifecycleStatus: JobStatus | null = null;
   // Hoisted so outer-catch can persist partial progress metadata (#223)
@@ -2233,6 +2249,18 @@ export async function processEvaluationJob(
        * This ensures atomic updates, consistent retry logic, and auditable error codes.
        */
       const now = new Date().toISOString();
+      void pipelineLog({
+        jobId,
+        level: 'error',
+        stage: 'processor_failed',
+        message: 'Job failed',
+        metadata: {
+          status: 'failed',
+          score: null,
+          totalMs: Date.now() - processorStartMs,
+          failureCode: errorCode,
+        },
+      });
       const pipelineFailureEnvelope = buildPipelineFailureEnvelope({
         errorCode,
         errorMessage,
@@ -4382,6 +4410,19 @@ export async function processEvaluationJob(
 
     console.log(`[Processor] Job ${jobId} completed successfully`);
 
+    void pipelineLog({
+      jobId,
+      level: 'info',
+      stage: 'processor_complete',
+      message: 'Job completed',
+      metadata: {
+        status: 'complete',
+        score: pipelineResult.synthesis?.overall?.overall_score_0_100 ?? null,
+        totalMs: Date.now() - processorStartMs,
+        failureCode: null,
+      },
+    });
+
     return { success: true };
 
   } catch (error) {
@@ -4394,6 +4435,19 @@ export async function processEvaluationJob(
 
     const errorMessage = error instanceof Error ? error.message : String(error);
     console.error(`[Processor] Error processing job ${jobId}:`, errorMessage);
+
+    void pipelineLog({
+      jobId,
+      level: 'error',
+      stage: 'processor_uncaught',
+      message: 'Processor uncaught error',
+      metadata: {
+        status: 'failed',
+        score: null,
+        totalMs: Date.now() - processorStartMs,
+        failureCode: 'PROCESSOR_UNCAUGHT_ERROR',
+      },
+    });
 
     const now = new Date().toISOString();
     const failedStatus = normalizeEvaluationJobStatus(JOB_STATUS.FAILED) as JobStatus;

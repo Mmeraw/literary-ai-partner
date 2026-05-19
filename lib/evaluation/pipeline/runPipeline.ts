@@ -1347,6 +1347,7 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
         manuscriptText: opts.manuscriptText,
         manuscriptChunks: opts.manuscriptChunks,
         title: opts.title,
+        jobId: opts.jobId,
         executionMode: opts.executionMode,
         model: opts.model,
         openaiApiKey: opts.openaiApiKey,
