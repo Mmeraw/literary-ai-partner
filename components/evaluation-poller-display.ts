@@ -9,7 +9,7 @@ export type ProgressDisplay = {
 } | null;
 
 const STAGE_ROADMAP =
-  "Stages: Preparing manuscript → Reading manuscript → Building diagnosis → Reconciling passes → Final QA checks → Preparing report → Finalizing report.";
+  "Stages: Preparing manuscript → Analyzing manuscript → Building diagnosis → Reconciling passes → Final QA checks → Preparing report → Finalizing report.";
 
 /**
  * Truthful, stage-weighted progress model.
@@ -18,7 +18,7 @@ const STAGE_ROADMAP =
  * proportional to the median time each stage takes in real pipeline runs:
  *
  *   Preparing manuscript  | 0 →  2%   (phase_1 / queued)
- *   Reading manuscript    | 2 → 64%   (phase_1 / running — heaviest stage)
+ *   Analyzing manuscript  | 2 → 64%   (phase_1 / running — heaviest stage)
  *   Building diagnosis    | 64 → 65%  (phase_1 / complete — transient handoff)
  *   Reconciling passes    | 65 → 83%  (phase_2 / running)
  *   Final QA checks       | 83 → 97%  (phase_2 / complete  +  cross_check running)
@@ -39,7 +39,7 @@ const STAGE_ROADMAP =
 
 type StageId =
   | "preparing_manuscript"
-  | "reading_manuscript"
+  | "analyzing_manuscript"
   | "building_diagnosis"
   | "reconciling_passes"
   | "final_qa_checks"
@@ -68,8 +68,8 @@ const STAGE_BUDGETS: readonly StageBudget[] = [
     medianSeconds: 8,
   },
   {
-    id: "reading_manuscript",
-    label: "Reading manuscript",
+    id: "analyzing_manuscript",
+    label: "Analyzing manuscript",
     start: 2,
     end: 64,
     medianSeconds: 420, // ~7 min on a 127k-word, 37-chunk run
@@ -138,7 +138,7 @@ function resolveStageId(inputs: StageInputs): StageId | null {
 
   if (inputs.phase === "phase_1") {
     if (inputs.phase_status === "queued") return "preparing_manuscript";
-    if (inputs.phase_status === "running") return "reading_manuscript";
+    if (inputs.phase_status === "running") return "analyzing_manuscript";
     if (inputs.phase_status === "complete") return "building_diagnosis";
     return null;
   }
@@ -165,7 +165,7 @@ function getStageStartedAt(
     case "preparing_manuscript":
       // Use job created_at as the start of the queued/preparing stage.
       return job.created_at ?? null;
-    case "reading_manuscript":
+    case "analyzing_manuscript":
       return job.phase1_started_at ?? job.created_at ?? null;
     case "building_diagnosis":
       return job.phase1_completed_at ?? job.phase2_started_at ?? null;
