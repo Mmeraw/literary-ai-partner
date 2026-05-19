@@ -242,9 +242,12 @@ export function resolveEvaluationRuntimeConfig(
     max: 30000,
   });
   const pass3PromptMaxChars = parseBoundedInteger(env, "EVAL_PASS3_PROMPT_MAX_CHARS", {
-    defaultValue: 40000,
+    // Raised from 40k/120k: Pass 3 now receives the full manuscript reference
+    // window (up to 400k chars) so the tripwire must accommodate full novels.
+    // gpt-5 context window supports this comfortably.
+    defaultValue: 500000,
     min: 8000,
-    max: 120000,
+    max: 1000000,
   });
   const inputCharBudget = envContract.inputCharBudget;
   const synthesisRefCharBudget = envContract.synthesisRefCharBudget;

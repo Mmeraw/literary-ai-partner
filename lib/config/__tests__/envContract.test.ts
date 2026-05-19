@@ -19,7 +19,7 @@ describe('resolveEvalEnvContract', () => {
     it('returns canonical defaults when no env vars are set', () => {
       const contract = resolveEvalEnvContract(BASE_ENV);
       expect(contract.inputCharBudget).toBe(50_000);
-      expect(contract.synthesisRefCharBudget).toBe(8_000);
+      expect(contract.synthesisRefCharBudget).toBe(400_000);
       expect(contract.openAiModel).toBe('gpt-5.1');
       expect(contract.adjudicationMode).toBe('optional');
       expect(contract.latencyTraceEnabled).toBe(false);
@@ -102,7 +102,7 @@ describe('resolveEvalEnvContract', () => {
     it('uses default when EVAL_PIPELINE_SYNTHESIS_REF_CHAR_BUDGET is empty string', () => {
       const env = { ...BASE_ENV, EVAL_PIPELINE_SYNTHESIS_REF_CHAR_BUDGET: '' };
       const contract = resolveEvalEnvContract(env);
-      expect(contract.synthesisRefCharBudget).toBe(8_000);
+      expect(contract.synthesisRefCharBudget).toBe(400_000);
     });
 
     it('falls back to gpt-5.1 when EVAL_OPENAI_MODEL is undefined', () => {
