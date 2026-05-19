@@ -183,6 +183,80 @@ describe("validateEvaluationArtifact (boundary structural validator)", () => {
       );
     }
   });
+
+  test("accepts complete recommendation ending in a hyphenated compound noun (load-in)", () => {
+    // Regression: looksTruncatedRecommendation was falsely matching 'in' inside 'load-in.'
+    const artifact = makeValidArtifact();
+    const narrativeDrive = artifact.criteria.find((c) => c.key === "narrativeDrive")!;
+    narrativeDrive.recommendations = [
+      {
+        priority: "medium",
+        action:
+          "To sustain momentum at the end of Chapter 1, tighten one reflective paragraph into two punchy beats before the load-in.",
+        expected_impact: "Sharpens the scene transition.",
+      },
+    ];
+
+    const result = validateEvaluationArtifact(artifact);
+    expect(result.ok).toBe(true);
+  });
+
+  test("accepts complete recommendations ending in other compound nouns (drive-in, check-in, run-on)", () => {
+    const artifact = makeValidArtifact();
+    const narrativeDrive = artifact.criteria.find((c) => c.key === "narrativeDrive")!;
+    const compoundEndings = [
+      "Revise the climactic scene at the drive-in.",
+      "Cut the redundant check-in.",
+      "Shorten the run-on.",
+      "Rewrite the walk-in.",
+      "Tighten the hold-on.",
+    ];
+    for (const action of compoundEndings) {
+      narrativeDrive.recommendations = [{ priority: "medium", action, expected_impact: "Cleaner prose." }];
+      const result = validateEvaluationArtifact(artifact);
+      expect(result.ok).toBe(true);
+    }
+  });
+
+  test("accepts complete recommendations with em dash or en dash compound nouns", () => {
+    // Em dash (\u2014) and en dash (\u2013) used as compound word joiners must
+    // not trigger CRITERION_RECOMMENDATION_TRUNCATED.
+    const artifact = makeValidArtifact();
+    const narrativeDrive = artifact.criteria.find((c) => c.key === "narrativeDrive")!;
+    const dashCompounds = [
+      "Tighten the action before the load\u2014in.",  // em dash: load—in
+      "Revise the scene at the drive\u2014in.",       // em dash: drive—in
+      "Cut the exposition before the check\u2013in.", // en dash: check–in
+      "Shorten the passage to the run\u2013on.",      // en dash: run–on
+    ];
+    for (const action of dashCompounds) {
+      narrativeDrive.recommendations = [{ priority: "medium", action, expected_impact: "Sharper prose." }];
+      const result = validateEvaluationArtifact(artifact);
+      expect(result.ok).toBe(true);
+    }
+  });
+
+  test("still rejects bare-preposition truncations even when a hyphenated word appears earlier in the sentence", () => {
+    // A hyphen mid-sentence (check-in) must NOT suppress detection when the sentence
+    // genuinely ends with a dangling preposition/conjunction.
+    const artifact = makeValidArtifact();
+    artifact.criteria[0].recommendations = [
+      {
+        priority: "medium",
+        // Ends with 'for' — a genuine truncation despite 'check-in' earlier in sentence
+        action: "Revise the check-in scene and trim the exposition for",
+        expected_impact: "Better engagement.",
+      },
+    ];
+
+    const result = validateEvaluationArtifact(artifact);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.issues).toContainEqual(
+        expect.objectContaining({ code: "CRITERION_RECOMMENDATION_TRUNCATED" }),
+      );
+    }
+  });
   test("rejects uncertified long-form manuscript-wide scores", () => {
     const artifact = makeValidArtifact();
     artifact.governance.transparency = {

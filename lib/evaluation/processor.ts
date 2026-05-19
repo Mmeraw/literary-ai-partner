@@ -3205,6 +3205,24 @@ export async function processEvaluationJob(
               // PR-E: inject checkpoint cache and rolling save callback
               _chunkCache: pass1ChunkCache,
               _onChunkComplete: onPass1ChunkComplete,
+              // Forced heartbeat: write last_heartbeat_at after every chunk
+              // so the watchdog never sees silence during a long sweep.
+              // Fail-soft: renewal errors are logged, never thrown.
+              _onChunkHeartbeat: (chunkIndex) => {
+                void renewEvaluationJobLease({
+                  supabase,
+                  jobId,
+                  leaseMs: runtimeConfig.worker.leaseMs,
+                  stage: `pass1_chunk_${chunkIndex}`,
+                  hardDeadlineMs,
+                }).catch((err: unknown) => {
+                  console.warn('[Processor] Pass1 chunk heartbeat renewal failed (non-fatal)', {
+                    job_id: jobId,
+                    chunk_index: chunkIndex,
+                    error: err instanceof Error ? err.message : String(err),
+                  });
+                });
+              },
             });
             capturedPass1Output = result;
             // PR-E: Pass 1 succeeded — delete the chunk cache artifact (it has served its purpose).
@@ -3229,8 +3247,79 @@ export async function processEvaluationJob(
             return result;
           },
           runPass2: async (opts) => {
-            const result = await defaultRunPass2Fn(opts);
+            const result = await defaultRunPass2Fn({
+              ...opts,
+              // Forced heartbeat: write last_heartbeat_at after every chunk
+              // so the watchdog never sees silence during a long sweep.
+              _onChunkHeartbeat: (chunkIndex) => {
+                void renewEvaluationJobLease({
+                  supabase,
+                  jobId,
+                  leaseMs: runtimeConfig.worker.leaseMs,
+                  stage: `pass2_chunk_${chunkIndex}`,
+                  hardDeadlineMs,
+                }).catch((err: unknown) => {
+                  console.warn('[Processor] Pass2 chunk heartbeat renewal failed (non-fatal)', {
+                    job_id: jobId,
+                    chunk_index: chunkIndex,
+                    error: err instanceof Error ? err.message : String(err),
+                  });
+                });
+              },
+            });
             capturedPass2Output = result;
+
+            // ── Eager handoff pre-write ──────────────────────────────────────
+            // Write pass12_handoff_v1 immediately the moment Pass 2 completes,
+            // before runPipeline returns and before Pass 3 starts.
+            //
+            // Rationale: the normal handoff write happens after runPipeline()
+            // returns, but Vercel can kill the invocation at the 800s hard limit
+            // while Pass 3 is still running — or even between runPipeline returning
+            // and the write executing.  By pre-writing here we guarantee the
+            // artifact exists in the DB as soon as Pass 1+2 are both captured,
+            // so the watchdog rescue path (Guard D) can recover to phase_2 even
+            // if the invocation is killed before the normal handoff path fires.
+            //
+            // This is an ARTIFACT-ONLY write — no status transition here.
+            // The status transition (status=queued, phase=phase_2) still happens
+            // in the shouldHandoff block below after runPipeline returns, which
+            // is the authoritative transition.  If the invocation is killed before
+            // that transition, the watchdog sees: status=running + handoff artifact
+            // exists → Guard D rescues it to phase_2/queued on the next tick.
+            //
+            // Fail-soft: pre-write errors are logged but never throw — a failed
+            // pre-write must not abort the pipeline run.
+            if (capturedPass1Output !== null && executionPhase === 'phase_1' && isChunkRouted) {
+              void upsertEvaluationArtifact({
+                supabase,
+                jobId: job.id,
+                manuscriptId: job.manuscript_id,
+                artifactType: 'pass12_handoff_v1',
+                content: {
+                  pass1Output: capturedPass1Output,
+                  pass2Output: result,
+                  chunk_count: chunkRouting.chunk_count,
+                  captured_at: new Date().toISOString(),
+                  pre_write: true, // diagnostic flag — overwritten by the authoritative write below
+                },
+                sourceHash: stableSourceHash({
+                  manuscriptId: manuscript.id,
+                  jobId: job.id,
+                  userId: manuscriptWithContent.user_id,
+                  manuscriptText: manuscriptWithContent.content || '',
+                  promptVersion: 'pass12_handoff_v1',
+                  model: getCanonicalPipelineModel(openAiModel),
+                }),
+                artifactVersion: 'pass12_handoff_v1',
+              }).catch((preWriteErr: unknown) => {
+                console.warn(
+                  `[Processor] ${jobId}: eager handoff pre-write failed (non-fatal — normal handoff path still runs)`,
+                  preWriteErr instanceof Error ? preWriteErr.message : String(preWriteErr),
+                );
+              });
+            }
+
             return result;
           },
         },
@@ -3404,7 +3493,22 @@ export async function processEvaluationJob(
         //     with phase='phase_2' → falls into the isPhase1CompleteHandoff path
         //     via progress.phase_status='complete' (preserved in the JSONB).
         const handoffNow = new Date().toISOString();
-        await supabase
+
+        // CRITICAL: progress spread must use hardcoded phase_status='complete',
+        // NOT progressState.phase_status — progressState is stale from memory
+        // (leaseRenewalLoop updates the DB column but not the in-memory object).
+        // If progressState.phase_status='running' leaks into the spread the DB
+        // constraint (status=queued requires phase_status IN (queued,triggered,NULL))
+        // would reject the update — silently, since we had no .select() check.
+        const handoffProgress = {
+          ...progressState,
+          phase: 'phase_1',         // keep phase_1 in JSONB so isPhase1CompleteHandoff fires
+          phase_status: 'complete', // HARDCODED — never trust progressState here
+          message: 'Phase 1 complete — awaiting Pass 3 synthesis',
+          pass12_handoff_written_at: handoffNow,
+        };
+
+        const { data: handoffRow, error: handoffUpdateErr } = await supabase
           .from('evaluation_jobs')
           .update({
             status: JOB_STATUS.QUEUED,
@@ -3416,17 +3520,37 @@ export async function processEvaluationJob(
             lease_until: null,
             lease_expires_at: null,
             updated_at: handoffNow,
-            progress: {
-              ...progressState,
-              phase: 'phase_1',        // keep phase_1 in JSONB so isPhase1CompleteHandoff fires
-              phase_status: 'complete', // the signal that pass12_handoff_v1 is ready
-              message: 'Phase 1 complete — awaiting Pass 3 synthesis',
-              pass12_handoff_written_at: handoffNow,
-            },
+            progress: handoffProgress,
           })
-          .eq('id', job.id);
+          .eq('id', job.id)
+          .eq('status', JOB_STATUS.RUNNING) // idempotency: only transition from running
+          .select('id, status, phase, phase_status')
+          .single();
 
-        console.log(`[Processor] ${jobId}: phase_1 complete, handoff written, yielding to next cron tick`);
+        if (handoffUpdateErr) {
+          // DB rejected the transition — log and fall through to normal failure path
+          // so the job is explicitly failed rather than silently stalling as running.
+          console.error(
+            `[Processor] ${jobId}: handoff DB transition FAILED (constraint or RLS rejection)`,
+            { error: handoffUpdateErr.message, code: handoffUpdateErr.code },
+          );
+          throw new Error(`Handoff DB transition failed: ${handoffUpdateErr.message}`);
+        }
+
+        if (!handoffRow || handoffRow.status !== JOB_STATUS.QUEUED) {
+          // 0-row result: job was already transitioned by watchdog or another cron tick.
+          // Safe to exit — the job is either already queued for phase_2 or complete.
+          console.warn(
+            `[Processor] ${jobId}: handoff update returned 0 rows — job already transitioned`,
+            { returned: handoffRow ?? null },
+          );
+          return { success: true };
+        }
+
+        console.log(
+          `[Processor] ${jobId}: phase_1 handoff confirmed — status=queued phase=phase_2`,
+          { status: handoffRow.status, phase: handoffRow.phase, phase_status: handoffRow.phase_status },
+        );
         return { success: true };
       } catch (handoffErr) {
         // Handoff write failed — do NOT return early. Fall through to normal
