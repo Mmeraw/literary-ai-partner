@@ -62,8 +62,15 @@ const INPUT_CHAR_BUDGET_MAX = 100_000;
 const INPUT_CHAR_BUDGET_DEFAULT = 50_000;
 
 const SYNTHESIS_REF_CHAR_BUDGET_MIN = 1_000;
-const SYNTHESIS_REF_CHAR_BUDGET_MAX = 50_000;
-const SYNTHESIS_REF_CHAR_BUDGET_DEFAULT = 8_000;
+// Raised from 50_000: gpt-5 / gpt-5.1 context windows are large enough to
+// hold a full-length novel manuscript (600k+ chars). Pass 3 was producing
+// false recommendations because it only saw 1-2% of the text. The 50k cap
+// was a holdover from gpt-4 8k/32k era. 600_000 chars ~= 150k tokens which
+// fits comfortably within gpt-5's context window.
+const SYNTHESIS_REF_CHAR_BUDGET_MAX = 600_000;
+// Default raised to 400k to cover full-length novels. Operators can lower
+// via EVAL_PIPELINE_SYNTHESIS_REF_CHAR_BUDGET for cost control on short works.
+const SYNTHESIS_REF_CHAR_BUDGET_DEFAULT = 400_000;
 
 const OPENAI_MODEL_DEFAULT = 'gpt-5.1';
 

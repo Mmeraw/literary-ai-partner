@@ -153,7 +153,7 @@ ${params.scopeProfile ? `- Submission scope: ${params.scopeProfile.inputScale} (
 ${structuredContextJson}
 
 ## PASS 1 / PASS 2 COMPARISON PACKET (Deterministic)
-${params.comparisonPacketJson.substring(0, 3500)}
+${params.comparisonPacketJson}
 
 Reconcile both perspectives into a unified evaluation.
 Mandatory behavior:
