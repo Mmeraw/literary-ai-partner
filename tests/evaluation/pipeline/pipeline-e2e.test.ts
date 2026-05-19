@@ -461,7 +461,11 @@ describe("runPipeline (e2e with injected runners)", () => {
     }
   });
 
-  it("keeps Pass 4 fail-soft when Perplexity returns malformed JSON", async () => {
+  it("hard-fails when Perplexity returns malformed JSON (probe retries then throws)", async () => {
+    // PR #614: dual-model evaluation is mandatory. Malformed JSON from the
+    // probe causes a parse error which classifies as transient, the scorer
+    // retries once after a 5s backoff, and the second failure trips the
+    // PERPLEXITY_CHUNK_SCORER_TRANSIENT_FAILURE hard-fail.
     const originalFetch = global.fetch;
     global.fetch = jest.fn<typeof fetch>().mockResolvedValue({
       ok: true,
@@ -478,28 +482,25 @@ describe("runPipeline (e2e with injected runners)", () => {
     } as Response);
 
     try {
-      const result = await runPipeline({
-        manuscriptText: "The river moved slowly through the valley. She watched from the bank.",
-        workType: "literary_fiction",
-        title: "The Valley",
-        openaiApiKey: "sk-test",
-        perplexityApiKey: "pplx-test",
-        _lessonsLearned: permissiveLessonsLearned,
-        _runners: {
-          runPass1: mockRunPass1,
-          runPass2: mockRunPass2,
-          runPass3Synthesis: mockRunPass3,
-        },
-      });
-
-      expect(result.ok).toBe(true);
-      if (result.ok) {
-        expect(result.quality_gate.pass).toBe(true);
-      }
+      await expect(
+        runPipeline({
+          manuscriptText: "The river moved slowly through the valley. She watched from the bank.",
+          workType: "literary_fiction",
+          title: "The Valley",
+          openaiApiKey: "sk-test",
+          perplexityApiKey: "pplx-test",
+          _lessonsLearned: permissiveLessonsLearned,
+          _runners: {
+            runPass1: mockRunPass1,
+            runPass2: mockRunPass2,
+            runPass3Synthesis: mockRunPass3,
+          },
+        }),
+      ).rejects.toThrow(/PERPLEXITY_CHUNK_SCORER_TRANSIENT_FAILURE/);
     } finally {
       global.fetch = originalFetch;
     }
-  });
+  }, 15000);
 
   it("dedupes duplicate recommendation actions pre-gate so quality gate can pass", async () => {
     const synthesisWithDupes = makeSynthesisOutput();
@@ -1639,9 +1640,11 @@ describe("Pass 4 — Perplexity DREAM adjudication (pipeline integration)", () =
     }
   });
 
-  it("remains ok=true when Pass 4 Perplexity network fails on LONG_FORM route (fail-soft)", async () => {
-    // Perplexity network failure must NOT block the main evaluation.
-    // Pass 3b is now decoupled to the DREAM worker — never runs here.
+  it("hard-fails when Perplexity network fails on LONG_FORM route (no fail-soft)", async () => {
+    // PR #614: Perplexity network failure must hard-fail dual-model evaluation.
+    // The probe (chunk 0) fails twice (network reject + retry reject) and the
+    // scorer throws PERPLEXITY_CHUNK_SCORER_TRANSIENT_FAILURE, which propagates
+    // out of runPipeline. Pass 3b is decoupled to the DREAM worker — never runs here.
     const originalFetch = global.fetch;
     global.fetch = jest.fn<typeof fetch>().mockRejectedValue(
       new Error("Network error: ECONNREFUSED")
@@ -1649,7 +1652,7 @@ describe("Pass 4 — Perplexity DREAM adjudication (pipeline integration)", () =
 
     const mockChunks: ManuscriptChunkEvidence[] = Array.from({ length: 5 }, (_, i) => ({
       chunk_index: i,
-      content: `Chunk ${i} long-form content for Perplexity fail-soft test.`,
+      content: `Chunk ${i} long-form content for Perplexity hard-fail test.`,
       word_count: 200,
       chunk_id: `chunk-pplx-fail-${i}`,
     }));
@@ -1661,39 +1664,30 @@ describe("Pass 4 — Perplexity DREAM adjudication (pipeline integration)", () =
     const mockRunPass3bLongform = jest.fn<() => Promise<LongformDreamDocument>>();
 
     try {
-      const result = await runPipeline({
-        manuscriptText: "a ".repeat(25_001),
-        workType: "literary_fiction",
-        title: "Froggin Noggin",
-        openaiApiKey: "sk-test",
-        perplexityApiKey: "pplx-test",
-        manuscriptChunks: mockChunks,
-        _lessonsLearned: permissiveLessonsLearned,
-        _runners: {
-          runPass1: mockRunPass1,
-          runPass2: mockRunPass2,
-          runPass3Synthesis: mockRunPass3,
-          runPass3bLongform: mockRunPass3bLongform,
-        },
-      });
-
-      // Main job must succeed even when Perplexity is unavailable
-      expect(result.ok).toBe(true);
-      if (result.ok) {
-        expect(result.synthesis.criteria).toHaveLength(13);
-        expect(result.quality_gate.pass).toBe(true);
-        // longform_document absent — decoupled to DREAM worker
-        expect((result as Record<string, unknown>).longform_document).toBeUndefined();
-        // Pass 4 cross_check absent when Perplexity fails
-        expect(result.cross_check).toBeUndefined();
-      }
+      await expect(
+        runPipeline({
+          manuscriptText: "a ".repeat(25_001),
+          workType: "literary_fiction",
+          title: "Froggin Noggin",
+          openaiApiKey: "sk-test",
+          perplexityApiKey: "pplx-test",
+          manuscriptChunks: mockChunks,
+          _lessonsLearned: permissiveLessonsLearned,
+          _runners: {
+            runPass1: mockRunPass1,
+            runPass2: mockRunPass2,
+            runPass3Synthesis: mockRunPass3,
+            runPass3bLongform: mockRunPass3bLongform,
+          },
+        }),
+      ).rejects.toThrow(/PERPLEXITY_CHUNK_SCORER_TRANSIENT_FAILURE/);
 
       // Pass 3b must not be called from the main pipeline
       expect(mockRunPass3bLongform).not.toHaveBeenCalled();
     } finally {
       global.fetch = originalFetch;
     }
-  });
+  }, 15000);
 
   it("external_adjudication status is correctly set for optional mode without API key", async () => {
     // When no perplexityApiKey is provided and mode is 'optional',
