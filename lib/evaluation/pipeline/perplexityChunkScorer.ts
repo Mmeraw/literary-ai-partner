@@ -36,7 +36,7 @@ const PERPLEXITY_MAX_TOKENS = 8000;
 const PERPLEXITY_LENGTH_RETRY_MAX_TOKENS = 12000;
 
 const DEFAULT_PPLX_CHUNK_CONCURRENCY = 8;
-const DEFAULT_PPLX_CHUNK_TIMEOUT_MS = 120_000;
+const DEFAULT_PPLX_CHUNK_TIMEOUT_MS = 180_000;
 
 const PROMPT_VERSION = "pplx-chunk-scorer-v1";
 
@@ -326,35 +326,62 @@ async function scoreChunk(args: {
     chunkCount: args.chunkCount,
   });
 
+  const chunkIdx = args.chunk.chunk_index;
+
+  async function attempt(maxTokens: number): Promise<{ result: Awaited<ReturnType<typeof callPerplexityForChunk>>; timedOut: boolean }> {
+    try {
+      const result = await callPerplexityForChunk({
+        systemPrompt,
+        userPrompt,
+        perplexityApiKey: args.perplexityApiKey,
+        maxTokens,
+        timeoutMs: args.timeoutMs,
+        fetchFn: args.fetchFn,
+        chunkIndex: chunkIdx,
+      });
+      return { result, timedOut: false };
+    } catch (err) {
+      if (err instanceof Error && err.message.includes("timed out")) {
+        return { result: { rawContent: "", finishReason: "timeout" }, timedOut: true };
+      }
+      throw err;
+    }
+  }
+
   let maxTokens = PERPLEXITY_MAX_TOKENS;
-  let result = await callPerplexityForChunk({
-    systemPrompt,
-    userPrompt,
-    perplexityApiKey: args.perplexityApiKey,
-    maxTokens,
-    timeoutMs: args.timeoutMs,
-    fetchFn: args.fetchFn,
-    chunkIndex: args.chunk.chunk_index,
-  });
+  let { result, timedOut } = await attempt(maxTokens);
+
+  // Retry once on timeout — sonar-reasoning-pro with reasoning_effort=high can
+  // exceed 120s under load; a single retry recovers transient server slowness.
+  if (timedOut) {
+    console.warn(`[PplxChunk] chunk ${chunkIdx} timed out — retrying once`);
+    const retry = await attempt(maxTokens);
+    if (retry.timedOut) {
+      // Both attempts timed out — re-throw so the caller logs it as a failure.
+      throw new Error(`[PplxChunk] Perplexity request timed out after ${args.timeoutMs}ms (retry also timed out)`);
+    }
+    result = retry.result;
+    timedOut = false;
+  }
 
   try {
-    return parseChunkCriteria(result.rawContent, args.chunk.chunk_index);
+    return parseChunkCriteria(result.rawContent, chunkIdx);
   } catch (err) {
     const shouldRetry =
       result.finishReason === "length" || isRetryableBoundary(err);
     if (!shouldRetry) throw err;
 
     maxTokens = PERPLEXITY_LENGTH_RETRY_MAX_TOKENS;
-    result = await callPerplexityForChunk({
+    const lengthRetry = await callPerplexityForChunk({
       systemPrompt,
       userPrompt,
       perplexityApiKey: args.perplexityApiKey,
       maxTokens,
       timeoutMs: args.timeoutMs,
       fetchFn: args.fetchFn,
-      chunkIndex: args.chunk.chunk_index,
+      chunkIndex: chunkIdx,
     });
-    return parseChunkCriteria(result.rawContent, args.chunk.chunk_index);
+    return parseChunkCriteria(lengthRetry.rawContent, chunkIdx);
   }
 }
 

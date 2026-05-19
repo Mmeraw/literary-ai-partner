@@ -43,7 +43,7 @@ export interface EvalEnvContract {
   // --- Dual-model parallel scoring (Perplexity chunk sweep alongside GPT) ---
   /** Worker concurrency for the Perplexity chunk sweep. Default 8. */
   pplxChunkConcurrency: number;
-  /** Per-request timeout (ms) for sonar-reasoning-pro chunk scoring. Default 120_000. */
+  /** Per-request timeout (ms) for sonar-reasoning-pro chunk scoring. Default 180_000. */
   pplxChunkTimeoutMs: number;
 }
 
@@ -83,7 +83,7 @@ const OPENAI_MODEL_DEFAULT = 'gpt-5.1';
 const PPLX_CHUNK_CONCURRENCY_DEFAULT = 8;
 const PPLX_CHUNK_CONCURRENCY_MIN = 1;
 const PPLX_CHUNK_CONCURRENCY_MAX = 20;
-const PPLX_CHUNK_TIMEOUT_MS_DEFAULT = 120_000;
+const PPLX_CHUNK_TIMEOUT_MS_DEFAULT = 180_000;
 const PPLX_CHUNK_TIMEOUT_MS_MIN = 30_000;
 const PPLX_CHUNK_TIMEOUT_MS_MAX = 600_000;
 
