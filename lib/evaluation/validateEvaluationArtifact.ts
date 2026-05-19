@@ -40,10 +40,11 @@ function hasNonEmptyText(value: unknown): boolean {
 function looksTruncatedRecommendation(action: string): boolean {
   const normalized = action.trim();
   if (!normalized) return false;
-  // Negative lookbehind (?<![-\w]) prevents false-positives on hyphenated compound
-  // nouns that end with a preposition/article syllable, e.g. "load-in.", "drive-in.",
-  // "run-on.". The match still fires when the preposition is a standalone token.
-  return /(?<![-\w])\b(with|and|or|to|of|in|on|for|the|a|an)\.?$/i.test(normalized);
+  // Negative lookbehind prevents false-positives on compound words joined by
+  // hyphens (-), en dashes (\u2013), or em dashes (\u2014), e.g. "load-in.",
+  // "drive\u2014in.", "run\u2013on.". The match still fires when the preposition
+  // or conjunction is a standalone token at the end of the string.
+  return /(?<![-\u2013\u2014\w])\b(with|and|or|to|of|in|on|for|the|a|an)\.?$/i.test(normalized);
 }
 
 export function validateEvaluationArtifact(artifact: unknown): ArtifactValidationResult {

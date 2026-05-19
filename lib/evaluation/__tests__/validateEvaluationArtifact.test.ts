@@ -218,6 +218,24 @@ describe("validateEvaluationArtifact (boundary structural validator)", () => {
     }
   });
 
+  test("accepts complete recommendations with em dash or en dash compound nouns", () => {
+    // Em dash (\u2014) and en dash (\u2013) used as compound word joiners must
+    // not trigger CRITERION_RECOMMENDATION_TRUNCATED.
+    const artifact = makeValidArtifact();
+    const narrativeDrive = artifact.criteria.find((c) => c.key === "narrativeDrive")!;
+    const dashCompounds = [
+      "Tighten the action before the load\u2014in.",  // em dash: load—in
+      "Revise the scene at the drive\u2014in.",       // em dash: drive—in
+      "Cut the exposition before the check\u2013in.", // en dash: check–in
+      "Shorten the passage to the run\u2013on.",      // en dash: run–on
+    ];
+    for (const action of dashCompounds) {
+      narrativeDrive.recommendations = [{ priority: "medium", action, expected_impact: "Sharper prose." }];
+      const result = validateEvaluationArtifact(artifact);
+      expect(result.ok).toBe(true);
+    }
+  });
+
   test("still rejects bare-preposition truncations even when a hyphenated word appears earlier in the sentence", () => {
     // A hyphen mid-sentence (check-in) must NOT suppress detection when the sentence
     // genuinely ends with a dangling preposition/conjunction.

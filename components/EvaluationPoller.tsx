@@ -4,6 +4,10 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { getProgressDisplay } from '@/components/evaluation-poller-display';
 import { useRouter } from 'next/navigation';
 import { CancelEvaluationButton } from './evaluation/CancelEvaluationButton';
+import {
+  FailedJobRecovery,
+  useFailedJobRecovery,
+} from './evaluation/FailedJobRecovery';
 
 // How many ms between each animated +1% tick on the display progress.
 // At 400ms/tick the bar takes ~40 s to traverse 0→100 at full speed.
@@ -109,6 +113,28 @@ export function EvaluationPoller({
   const router = useRouter();
   const [job, setJob] = useState<JobState | null>(initialJob);
   const [error, setError] = useState<string | null>(null);
+
+  // PR-E / PR-595: Failed-job recovery — checkpoint detection + resume button.
+  // The hook reads job.progress to derive checkpoint info without an extra
+  // network round-trip. The actual resume is POSTed to /api/jobs/[jobId]/resume.
+  const jobProgressAsRecord =
+    job?.status === 'failed' && job != null
+      ? (job as unknown as { progress?: Record<string, unknown> }).progress ?? null
+      : null;
+  const { checkpoint, resumeLoading, resumeError, resumed, handleResume } =
+    useFailedJobRecovery(
+      jobId,
+      job?.status ?? null,
+      jobProgressAsRecord,
+      // After a successful resume the poller needs to restart. Reset isPolling
+      // by triggering a re-fetch — the hook calls onResumed which we use to
+      // kick off a fresh poll cycle by resetting the job state to null briefly.
+      () => {
+        setJob((prev) =>
+          prev ? { ...prev, status: 'queued' } : prev
+        );
+      },
+    );
   const [transientError, setTransientError] = useState<string | null>(null);
   const [isPolling, setIsPolling] = useState(true);
   const [pollCount, setPollCount] = useState(0);
@@ -570,11 +596,24 @@ export function EvaluationPoller({
           )}
         </div>
 
-        {/* Last Error */}
-        {job.status === 'failed' && job.last_error && (
-          <div className="p-3 bg-red-50 border border-red-200 rounded">
-            <p className="text-xs font-semibold text-red-800 uppercase">Error</p>
-            <p className="text-sm text-red-700 mt-2">{formatUserSafeError(job.last_error)}</p>
+        {/* Failed-job recovery: checkpoint-aware resume button */}
+        {job.status === 'failed' && (
+          <div className="space-y-3">
+            {/* Surface the raw error detail above the recovery panel for transparency */}
+            {job.last_error && (
+              <div className="p-3 bg-red-50 border border-red-200 rounded">
+                <p className="text-xs font-semibold text-red-800 uppercase">Error</p>
+                <p className="text-sm text-red-700 mt-2">{formatUserSafeError(job.last_error)}</p>
+              </div>
+            )}
+            <FailedJobRecovery
+              jobId={jobId}
+              checkpoint={checkpoint}
+              resumeLoading={resumeLoading}
+              resumeError={resumeError}
+              resumed={resumed}
+              onResume={handleResume}
+            />
           </div>
         )}
 
