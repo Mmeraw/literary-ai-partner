@@ -363,6 +363,14 @@ export interface RunPass2Options {
   /** Override the completion function (for testing). Production callers omit this. */
   _createCompletion?: CreateCompletionFn;
   _onCompletion?: (capture: PassCompletionCapture) => void;
+  /**
+   * Forced heartbeat: called after each chunk completes (success or failure).
+   * Fires from inside the chunk worker, so it runs even when Vercel fluid-compute
+   * freezes the event loop between awaits (setInterval stops firing in that state).
+   * The processor wires this to a DB write of last_heartbeat_at so the watchdog
+   * never sees an 8-minute silence during a long chunk sweep.
+   */
+  _onChunkHeartbeat?: (chunkIndex: number) => void;
 }
 
 /**
@@ -425,6 +433,11 @@ export async function runPass2(opts: RunPass2Options): Promise<SinglePassOutput>
     let usageTotalTokensTotal = 0;
 
     const forwardCompletion = opts._onCompletion;
+    // Forced heartbeat: fires from inside the chunk worker after every chunk
+    // settles (success or failure). This is the only reliable way to update
+    // last_heartbeat_at during a long chunk sweep — setInterval stops firing
+    // when Vercel fluid-compute freezes the event loop between awaits.
+    const onChunkHeartbeat = opts._onChunkHeartbeat;
 
     console.log(
       `[Pass2] Chunk-native path: total=${chunksTotal} attempted=${selectedChunks.length} concurrency=${chunkConcurrency}`,
@@ -435,43 +448,59 @@ export async function runPass2(opts: RunPass2Options): Promise<SinglePassOutput>
       chunkConcurrency,
       async (chunk) => {
         let attempt = 0;
-        while (true) {
-          try {
-            return await runPass2({
-              ...opts,
-              manuscriptText: chunk.content,
-              manuscriptChunks: undefined, // Prevent recursive chunking
-              isChunkUnit: true,
-              // Hard-bound each chunk-unit call independently so a single
-              // hung OpenAI socket cannot consume the whole pass budget.
-              // The chunk-unit path uses this as the SDK timeout, giving
-              // per-request abort semantics rather than a pass-level ceiling.
-              openAiTimeoutMs: chunkTimeoutMs,
-              _onCompletion: (capture) => {
-                if (capture.pass === 2) {
-                  usagePromptTokensTotal += capture.usage?.prompt_tokens ?? 0;
-                  usageCompletionTokensTotal += capture.usage?.completion_tokens ?? 0;
-                  usageTotalTokensTotal += capture.usage?.total_tokens ?? 0;
-                }
-                forwardCompletion?.(capture);
-              },
-            });
-          } catch (error) {
-            if (!isRateLimitError(error) || attempt >= chunkRetryMax) {
-              throw error;
-            }
+        try {
+          while (true) {
+            try {
+              const result = await runPass2({
+                ...opts,
+                manuscriptText: chunk.content,
+                manuscriptChunks: undefined, // Prevent recursive chunking
+                isChunkUnit: true,
+                // Hard-bound each chunk-unit call independently so a single
+                // hung OpenAI socket cannot consume the whole pass budget.
+                // The chunk-unit path uses this as the SDK timeout, giving
+                // per-request abort semantics rather than a pass-level ceiling.
+                openAiTimeoutMs: chunkTimeoutMs,
+                _onCompletion: (capture) => {
+                  if (capture.pass === 2) {
+                    usagePromptTokensTotal += capture.usage?.prompt_tokens ?? 0;
+                    usageCompletionTokensTotal += capture.usage?.completion_tokens ?? 0;
+                    usageTotalTokensTotal += capture.usage?.total_tokens ?? 0;
+                  }
+                  forwardCompletion?.(capture);
+                },
+                // Do not forward _onChunkHeartbeat into chunk-unit calls —
+                // it belongs to the outer sweep loop only.
+                _onChunkHeartbeat: undefined,
+              });
+              return result;
+            } catch (error) {
+              if (!isRateLimitError(error) || attempt >= chunkRetryMax) {
+                throw error;
+              }
 
-            const suggestedWait = parseRetryAfterMs(error);
-            const backoffMs = Math.min(90_000, chunkRetryBaseMs * Math.pow(2, attempt));
-            const jitterMs = Math.floor(Math.random() * 750);
-            const waitMs = Math.max(suggestedWait ?? 0, backoffMs) + jitterMs;
-            rateLimitRetryCount += 1;
-            rateLimitWaitMs += waitMs;
-            attempt += 1;
-            console.warn(
-              `[Pass2] Chunk ${chunk.chunk_index} rate-limited; retry ${attempt}/${chunkRetryMax} after ${waitMs}ms`,
-            );
-            await sleepMs(waitMs);
+              const suggestedWait = parseRetryAfterMs(error);
+              const backoffMs = Math.min(90_000, chunkRetryBaseMs * Math.pow(2, attempt));
+              const jitterMs = Math.floor(Math.random() * 750);
+              const waitMs = Math.max(suggestedWait ?? 0, backoffMs) + jitterMs;
+              rateLimitRetryCount += 1;
+              rateLimitWaitMs += waitMs;
+              attempt += 1;
+              console.warn(
+                `[Pass2] Chunk ${chunk.chunk_index} rate-limited; retry ${attempt}/${chunkRetryMax} after ${waitMs}ms`,
+              );
+              await sleepMs(waitMs);
+            }
+          }
+        } finally {
+          // Forced heartbeat: fire unconditionally after each chunk worker
+          // exits (success, failure, or rate-limit exhaustion). This keeps
+          // last_heartbeat_at current during long sweeps regardless of whether
+          // setInterval is frozen by Vercel fluid-compute.
+          try {
+            onChunkHeartbeat?.(chunk.chunk_index);
+          } catch {
+            // Fail-soft: heartbeat errors must never kill a chunk result.
           }
         }
       },
