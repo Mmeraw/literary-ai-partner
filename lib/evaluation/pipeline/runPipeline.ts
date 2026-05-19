@@ -1071,8 +1071,8 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
 
   // ── Perplexity chunk sweep (dual-model parallel scoring) ─────────────
   // Runs alongside GPT Pass 1+2 with full independence (does NOT see GPT
-  // output). Graceful degradation: returns null when PERPLEXITY_API_KEY
-  // is missing or when all chunks fail, so the GPT-only path always works.
+  // output). Hard-fail: throws propagate to the job failure handler. Only
+  // a missing PERPLEXITY_API_KEY produces a null (GPT-only) result.
   const pplxChunkSweepPromise = runPerplexityChunkScorer({
     manuscriptText: opts.manuscriptText,
     manuscriptChunks: opts.manuscriptChunks,
@@ -1080,11 +1080,6 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
     title: opts.title,
     perplexityApiKey: opts.perplexityApiKey,
     jobId: latencyJobId,
-  }).catch((err) => {
-    console.warn(
-      `[Pipeline] Perplexity chunk sweep rejected unexpectedly — falling back to GPT-only path: ${err instanceof Error ? err.message : String(err)}`,
-    );
-    return null;
   });
 
   await opts.onHeartbeat?.("parallel_passes_started");
