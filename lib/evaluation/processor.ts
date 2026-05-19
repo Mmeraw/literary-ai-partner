@@ -264,19 +264,73 @@ type QualitySignalAssessment = {
   warnings: string[];
 };
 
+/**
+ * Five-way source-of-truth failure bucket.
+ *
+ * Determines recovery action, retry policy, and operator routing:
+ *   app_logic            → stop, preserve artifacts, require code/migration change
+ *   vercel_platform      → bounded retry after platform recovery or redeploy
+ *   openai_provider      → budgeted exponential backoff if non-terminal
+ *   perplexity_adjudication → retry only if adjudicator contract/dep restored
+ *   supabase_contract    → freeze unsafe mode, require migration parity proof
+ */
+export type FailureBucket =
+  | 'app_logic'
+  | 'vercel_platform'
+  | 'openai_provider'
+  | 'perplexity_adjudication'
+  | 'supabase_contract';
+
+/**
+ * Classify a failure code into its source-of-truth bucket.
+ * Used by failure envelope, watchdog triage, and operator dashboards.
+ */
+export function classifyFailureBucket(code: string | null | undefined): FailureBucket {
+  if (!code) return 'app_logic';
+  // Perplexity / Pass 4 adjudication
+  if (code.startsWith('PASS4_') || code.startsWith('PERPLEXITY_') || code === 'EXTERNAL_ADJUDICATION_MISSING_KEY') return 'perplexity_adjudication';
+  // Supabase / persistence contract
+  if (code.startsWith('PERSISTENCE_') || code.startsWith('SCHEMA_') || code.startsWith('ARTIFACT_') ||
+      code === 'SUPABASE_CONTRACT_VIOLATED' || code === 'ARTIFACT_PERSISTENCE_FAILED' ||
+      code === 'CONTEXT_CONTAMINATION_DETECTED') return 'supabase_contract';
+  // OpenAI / provider transient
+  if (code.startsWith('OPENAI_') || code === 'QUOTA_EXCEEDED' ||
+      code === 'PASS1_FAILED' || code === 'PASS2_FAILED' || code === 'PASS3_FAILED' ||
+      code === 'PASS2_INDEPENDENCE_REWRITE_FAILED') return 'openai_provider';
+  // Vercel / platform
+  if (code.startsWith('VERCEL_') || code === 'WORKER_TIMEOUT' ||
+      code === 'LEASE_EXPIRED' || code === 'PROCESSOR_UNCAUGHT_ERROR') return 'vercel_platform';
+  // Default: application logic (governance, QG, auth, schema violations, input)
+  return 'app_logic';
+}
+
+/** Short deployed git SHA from Vercel env — 'local' in dev/test. */
+const DEPLOYED_SHA: string =
+  (process.env.VERCEL_GIT_COMMIT_SHA ?? '').substring(0, 7) || 'local';
+
 type PipelineFailureContext = {
   pipelineStage?: string;
   reasonCodes?: string[];
   diagnostics?: unknown;
+  /** Override bucket classification when caller has definitive knowledge of failure source */
+  bucket?: FailureBucket;
+  /** Attempt number at time of failure — stamped into envelope for replay detection */
+  attempt?: number;
 };
 
 type PipelineFailureEnvelope = {
   failure_origin: string;
+  /** Source-of-truth bucket for recovery routing and retry policy */
+  bucket: FailureBucket;
   error_code: string;
   error_message: string;
   reason_codes: string[];
   failed_at: string;
   pipeline_stage: string;
+  /** Short git SHA of the deployed revision — enables same-SHA retry detection */
+  deployed_sha: string;
+  /** Attempt number at time of failure */
+  attempt?: number;
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -338,13 +392,19 @@ function buildPipelineFailureEnvelope(args: {
       ? args.context.pipelineStage
       : 'processor';
 
+  // Caller-supplied bucket takes precedence; otherwise classify by error code.
+  const bucket: FailureBucket = args.context?.bucket ?? classifyFailureBucket(args.errorCode);
+
   return {
     failure_origin: 'processor',
+    bucket,
     error_code: args.errorCode,
     error_message: args.errorMessage,
     reason_codes: normalizeReasonCodes(args.context?.reasonCodes, args.errorCode),
     failed_at: pipelineStage,
     pipeline_stage: pipelineStage,
+    deployed_sha: DEPLOYED_SHA,
+    ...(typeof args.context?.attempt === 'number' ? { attempt: args.context.attempt } : {}),
   };
 }
 
@@ -1820,6 +1880,81 @@ export async function failStaleRunningJobs(): Promise<{
   };
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// PREFLIGHT CHECKS
+// Runs before any DB fetch or LLM call. Fails closed on missing infrastructure.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type PreflightResult =
+  | { ok: true }
+  | { ok: false; reason: string; bucket: FailureBucket };
+
+/**
+ * Verify that required environment variables, provider credentials, and
+ * pipeline configuration are present before accepting a job.
+ *
+ * Failure here means the deployment is misconfigured — NOT a job-specific
+ * error. The job is NOT failed on preflight violation; the cron is blocked
+ * and the operator must fix the environment or feature flag state.
+ *
+ * Checks (fail-closed):
+ *   1. OPENAI_API_KEY — required for all Pass1/Pass2/Pass3 LLM calls
+ *   2. SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY — required for all DB writes
+ *   3. Pass 4 adjudication: if EVAL_PASS4_ENABLED=true, PERPLEXITY_API_KEY must be set
+ *   4. EVAL_PIPELINE_ENABLED must be 'true' (redundant with kill-switch, but belt+suspenders)
+ */
+export function runPreflightChecks(): PreflightResult {
+  // 1. Core LLM provider
+  const openaiKey = process.env.OPENAI_API_KEY;
+  if (!openaiKey || openaiKey.trim() === '' || openaiKey === 'test-key') {
+    // Allow test-key in non-production environments (stress harness)
+    if (process.env.NODE_ENV === 'production') {
+      return {
+        ok: false,
+        reason: 'OPENAI_API_KEY is missing or placeholder in production',
+        bucket: 'vercel_platform',
+      };
+    }
+  }
+
+  // 2. Supabase persistence contract
+  const supabaseUrlEnv = process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.SUPABASE_URL ?? '';
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
+  if (!supabaseUrlEnv || !supabaseKey) {
+    return {
+      ok: false,
+      reason: 'Supabase URL or service role key is missing — persistence contract violated',
+      bucket: 'supabase_contract',
+    };
+  }
+
+  // 3. Pass 4 adjudication — if enabled, Perplexity key must be present
+  const pass4Enabled =
+    process.env.EVAL_PASS4_ENABLED === 'true' ||
+    process.env.EVAL_PASS4_ADJUDICATION_ENABLED === 'true';
+  if (pass4Enabled) {
+    const perplexityKey = process.env.PERPLEXITY_API_KEY ?? '';
+    if (!perplexityKey || perplexityKey.trim() === '') {
+      return {
+        ok: false,
+        reason: 'EVAL_PASS4_ENABLED=true but PERPLEXITY_API_KEY is missing — adjudication contract violated',
+        bucket: 'perplexity_adjudication',
+      };
+    }
+  }
+
+  // 4. Pipeline enabled (belt+suspenders — kill switch is checked first in processEvaluationJob)
+  if (process.env.EVAL_PIPELINE_ENABLED === 'false') {
+    return {
+      ok: false,
+      reason: 'EVAL_PIPELINE_ENABLED=false',
+      bucket: 'vercel_platform',
+    };
+  }
+
+  return { ok: true };
+}
+
 /**
  * Process a single evaluation job
  */
@@ -1839,6 +1974,18 @@ export async function processEvaluationJob(
       reason: skip.reason,
       error: skip.reason,
     };
+  }
+
+  // Preflight: fail closed on missing env/credentials before any DB or LLM work.
+  const preflight = runPreflightChecks();
+  if (preflight.ok === false) {
+    console.error('[Processor] Preflight check failed — job blocked, deployment needs attention', {
+      job_id: jobId,
+      reason: preflight.reason,
+      bucket: preflight.bucket,
+      deployed_sha: DEPLOYED_SHA,
+    });
+    return { success: false, error: `PREFLIGHT_FAILED: ${preflight.reason}` };
   }
 
   const {
