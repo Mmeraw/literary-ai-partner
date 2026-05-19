@@ -242,14 +242,13 @@ export function resolveEvaluationRuntimeConfig(
     max: 16000,
   });
   const pass3MaxTokens = parseBoundedInteger(env, "EVAL_PASS3_MAX_TOKENS", {
-    // Raised from 20000 → 24000: PR #608 (PASS3_PROMPT_VERSION v15) added the
-    // MANUSCRIPT ENTITY ROSTER block, growing the prompt and squeezing the
-    // response budget. Production job 556124ae truncated a recommendation
-    // mid-sentence; bumping the ceiling gives Pass 3 more headroom for the
-    // full 13×N criteria + recommendations payload. Bound capped at 36000.
-    defaultValue: 24000,
+    // Set to gpt-5.1 hard output ceiling (32,768 tokens). Previous caps of
+    // 20k/24k were holdovers from gpt-4 era and caused recurring
+    // CRITERION_RECOMMENDATION_TRUNCATED failures on full-length novels.
+    // No artificial squeeze — let the model be the limit.
+    defaultValue: 32768,
     min: 2000,
-    max: 36000,
+    max: 32768,
   });
   const pass3PromptMaxChars = parseBoundedInteger(env, "EVAL_PASS3_PROMPT_MAX_CHARS", {
     // Raised from 40k/120k: Pass 3 now receives the full manuscript reference
