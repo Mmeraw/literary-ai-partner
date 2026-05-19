@@ -30,8 +30,13 @@ function EvidenceList({ items, label, accent }: { items: string[]; label: string
 function CriterionCard({ a }: { a: LongformDreamDocument["criterion_analyses"][number] }) {
   const [open, setOpen] = useState(false);
   const badge = CONFIDENCE_BADGE[a.confidence] ?? "bg-gray-100 text-gray-600";
+  // score can be null (e.g. proseControl in insufficient-signal state) — guard
+  const safeScore = a.score ?? null;
   const scoreColor =
-    a.score >= 7.5 ? "text-emerald-700" : a.score >= 6 ? "text-amber-600" : "text-rose-600";
+    safeScore !== null && safeScore >= 7.5 ? "text-emerald-700"
+    : safeScore !== null && safeScore >= 6 ? "text-amber-600"
+    : safeScore !== null ? "text-rose-600"
+    : "text-gray-400";
 
   return (
     <div className="rounded-lg border border-gray-200 overflow-hidden">
@@ -41,7 +46,7 @@ function CriterionCard({ a }: { a: LongformDreamDocument["criterion_analyses"][n
       >
         <div className="flex items-center gap-3">
           <span className={`text-xl font-bold tabular-nums ${scoreColor}`}>
-            {a.score.toFixed(1)}
+            {safeScore !== null ? safeScore.toFixed(1) : "—"}
           </span>
           <span className="font-medium text-gray-800 capitalize text-sm">
             {a.key.replace(/_/g, " ")}

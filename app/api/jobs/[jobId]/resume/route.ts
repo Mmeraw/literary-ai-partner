@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedUser } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { isTerminalFailureCode } from '@/lib/evaluation/processor';
+import { isTerminalFailureCode, classifyFailureBucket } from '@/lib/evaluation/processor';
+import { upsertEvaluationArtifact } from '@/lib/evaluation/artifactPersistence';
+
+/** Short deployed git SHA — same pattern as processor.ts */
+const RESUME_DEPLOYED_SHA: string =
+  (process.env.VERCEL_GIT_COMMIT_SHA ?? '').substring(0, 7) || 'local';
 
 type Params = Promise<{ jobId: string }>;
 
@@ -52,7 +57,7 @@ export async function POST(
     const { data: job, error: jobError } = await admin
       .from('evaluation_jobs')
       .select(
-        'id, status, phase, phase_status, attempt_count, max_attempts, progress, failure_code, manuscripts!inner(user_id)',
+        'id, manuscript_id, status, phase, phase_status, attempt_count, max_attempts, progress, failure_code, manuscripts!inner(user_id)',
       )
       .eq('id', jobId)
       .eq('manuscripts.user_id', user.id)
@@ -68,12 +73,54 @@ export async function POST(
     // Only failed jobs can be resumed.
     // Terminal failure codes (QG_*, governance, schema, auth) are not recoverable
     // by re-running — resuming would loop forever.  Surface a clear error.
-    const jobFailureCode = (job as Record<string, unknown>).failure_code as string | null | undefined;
+    const jobRow = job as Record<string, unknown>;
+    const jobFailureCode = jobRow.failure_code as string | null | undefined;
+    const jobManuscriptId = jobRow.manuscript_id as number;
+
     if (isTerminalFailureCode(jobFailureCode)) {
+      const deniedAt = new Date().toISOString();
+      const bucket = classifyFailureBucket(jobFailureCode);
+
+      // Write durable blocked-resume audit artifact — best-effort, non-fatal.
+      // Lets operators trace why a user couldn't resume and what fix is needed.
+      try {
+        await upsertEvaluationArtifact({
+          supabase: admin,
+          jobId,
+          manuscriptId: jobManuscriptId,
+          artifactType: 'resume_blocked_v1',
+          content: {
+            event: 'resume_blocked',
+            reason: 'terminal_failure_code',
+            failure_code: jobFailureCode,
+            bucket,
+            deployed_sha: RESUME_DEPLOYED_SHA,
+            attempt_count: (jobRow.attempt_count as number | null) ?? 0,
+            max_attempts: (jobRow.max_attempts as number | null) ?? 3,
+            phase: (jobRow.phase as string | null) ?? 'unknown',
+            denied_at: deniedAt,
+            operator_action_needed: bucket === 'app_logic'
+              ? 'Code or governance fix required before this job can be re-run'
+              : bucket === 'supabase_contract'
+              ? 'Schema migration or contract fix required'
+              : bucket === 'perplexity_adjudication'
+              ? 'Pass 4 adjudication contract must be restored'
+              : 'Review failure code and deployment state',
+          },
+          sourceHash: `resume_blocked_${jobId}_${deniedAt}`,
+          artifactVersion: 'resume_blocked_v1',
+        });
+      } catch (artifactErr) {
+        // Non-fatal — the 409 response is what matters
+        console.warn('[JobResume] resume_blocked_v1 artifact write failed (non-fatal):', jobId,
+          artifactErr instanceof Error ? artifactErr.message : String(artifactErr));
+      }
+
       return NextResponse.json(
         {
           error: `Job cannot be resumed: failure code '${jobFailureCode}' is a terminal error that cannot be recovered by retrying. Review the evaluation report for details.`,
           failure_code: jobFailureCode,
+          bucket,
           resumable: false,
         },
         { status: 409 },

@@ -1,3 +1,7 @@
+// ARCHIVED: Pass 4 retired in favor of dual-model parallel scoring (Pass 1+2 Perplexity).
+// See feat/dual-model-parallel-scoring. Types (CrossCheckOutput, OpenAICriterionInput,
+// CriterionKey re-export) remain consumed by PipelineResult and the synthesis adapters,
+// but runPerplexityCrossCheck is no longer called from the pipeline.
 /**
  * Pass 4 – Perplexity Cross-Check (Hardened / Canon-Aligned)
  *

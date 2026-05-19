@@ -52,6 +52,11 @@ export interface EvaluationRuntimeConfig {
     inputCharBudget: number;
     synthesisRefCharBudget: number;
   };
+  /** Dual-model parallel scoring (Perplexity chunk sweep alongside GPT). */
+  pplxChunk: {
+    concurrency: number;
+    timeoutMs: number;
+  };
   worker: {
     batchSize: number;
     leaseMs: number;
@@ -237,14 +242,21 @@ export function resolveEvaluationRuntimeConfig(
     max: 16000,
   });
   const pass3MaxTokens = parseBoundedInteger(env, "EVAL_PASS3_MAX_TOKENS", {
-      defaultValue: 20000,
+    // Set to gpt-5.1 hard output ceiling (32,768 tokens). Previous caps of
+    // 20k/24k were holdovers from gpt-4 era and caused recurring
+    // CRITERION_RECOMMENDATION_TRUNCATED failures on full-length novels.
+    // No artificial squeeze — let the model be the limit.
+    defaultValue: 32768,
     min: 2000,
-    max: 30000,
+    max: 32768,
   });
   const pass3PromptMaxChars = parseBoundedInteger(env, "EVAL_PASS3_PROMPT_MAX_CHARS", {
-    defaultValue: 40000,
+    // Raised from 40k/120k: Pass 3 now receives the full manuscript reference
+    // window (up to 400k chars) so the tripwire must accommodate full novels.
+    // gpt-5 context window supports this comfortably.
+    defaultValue: 500000,
     min: 8000,
-    max: 120000,
+    max: 1000000,
   });
   const inputCharBudget = envContract.inputCharBudget;
   const synthesisRefCharBudget = envContract.synthesisRefCharBudget;
@@ -359,6 +371,10 @@ export function resolveEvaluationRuntimeConfig(
       pass3PromptMaxChars,
       inputCharBudget,
       synthesisRefCharBudget,
+    },
+    pplxChunk: {
+      concurrency: envContract.pplxChunkConcurrency,
+      timeoutMs: envContract.pplxChunkTimeoutMs,
     },
     worker: {
       batchSize,

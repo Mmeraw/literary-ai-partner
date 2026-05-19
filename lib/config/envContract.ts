@@ -39,6 +39,12 @@ export interface EvalEnvContract {
   // --- Conditional requirement flag ---
   /** True when adjudicationMode is 'required' or 'veto': PERPLEXITY_API_KEY must be set. */
   requiresPerplexityApiKey: boolean;
+
+  // --- Dual-model parallel scoring (Perplexity chunk sweep alongside GPT) ---
+  /** Worker concurrency for the Perplexity chunk sweep. Default 8. */
+  pplxChunkConcurrency: number;
+  /** Per-request timeout (ms) for sonar-reasoning-pro chunk scoring. Default 120_000. */
+  pplxChunkTimeoutMs: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -62,10 +68,24 @@ const INPUT_CHAR_BUDGET_MAX = 100_000;
 const INPUT_CHAR_BUDGET_DEFAULT = 50_000;
 
 const SYNTHESIS_REF_CHAR_BUDGET_MIN = 1_000;
-const SYNTHESIS_REF_CHAR_BUDGET_MAX = 50_000;
-const SYNTHESIS_REF_CHAR_BUDGET_DEFAULT = 8_000;
+// Raised from 50_000: gpt-5 / gpt-5.1 context windows are large enough to
+// hold a full-length novel manuscript (600k+ chars). Pass 3 was producing
+// false recommendations because it only saw 1-2% of the text. The 50k cap
+// was a holdover from gpt-4 8k/32k era. 600_000 chars ~= 150k tokens which
+// fits comfortably within gpt-5's context window.
+const SYNTHESIS_REF_CHAR_BUDGET_MAX = 600_000;
+// Default raised to 400k to cover full-length novels. Operators can lower
+// via EVAL_PIPELINE_SYNTHESIS_REF_CHAR_BUDGET for cost control on short works.
+const SYNTHESIS_REF_CHAR_BUDGET_DEFAULT = 400_000;
 
 const OPENAI_MODEL_DEFAULT = 'gpt-5.1';
+
+const PPLX_CHUNK_CONCURRENCY_DEFAULT = 8;
+const PPLX_CHUNK_CONCURRENCY_MIN = 1;
+const PPLX_CHUNK_CONCURRENCY_MAX = 20;
+const PPLX_CHUNK_TIMEOUT_MS_DEFAULT = 120_000;
+const PPLX_CHUNK_TIMEOUT_MS_MIN = 30_000;
+const PPLX_CHUNK_TIMEOUT_MS_MAX = 600_000;
 
 /**
  * Parse a strict positive integer from an env string.
@@ -208,6 +228,22 @@ export function resolveEvalEnvContract(
   const requiresPerplexityApiKey =
     adjudicationMode === 'required' || adjudicationMode === 'veto';
 
+  const pplxChunkConcurrency = parseStrictPositiveInt(
+    'EVAL_PPLX_CHUNK_CONCURRENCY',
+    env.EVAL_PPLX_CHUNK_CONCURRENCY,
+    PPLX_CHUNK_CONCURRENCY_DEFAULT,
+    PPLX_CHUNK_CONCURRENCY_MIN,
+    PPLX_CHUNK_CONCURRENCY_MAX,
+  );
+
+  const pplxChunkTimeoutMs = parseStrictPositiveInt(
+    'EVAL_PPLX_CHUNK_TIMEOUT_MS',
+    env.EVAL_PPLX_CHUNK_TIMEOUT_MS,
+    PPLX_CHUNK_TIMEOUT_MS_DEFAULT,
+    PPLX_CHUNK_TIMEOUT_MS_MIN,
+    PPLX_CHUNK_TIMEOUT_MS_MAX,
+  );
+
   return {
     inputCharBudget,
     synthesisRefCharBudget,
@@ -217,6 +253,8 @@ export function resolveEvalEnvContract(
     nodeEnv,
     isEvidenceMode,
     requiresPerplexityApiKey,
+    pplxChunkConcurrency,
+    pplxChunkTimeoutMs,
   };
 }
 

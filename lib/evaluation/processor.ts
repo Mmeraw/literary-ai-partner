@@ -123,6 +123,7 @@ import {
   pipelineDisabledResponse,
   type PipelineSkipResult,
 } from '@/lib/config/pipelineGuard';
+import { pipelineLog } from '@/lib/evaluation/pipeline/pipelineLogger';
 
 // DB bootstrap — intentionally reads process.env directly (not evaluation config).
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -264,19 +265,73 @@ type QualitySignalAssessment = {
   warnings: string[];
 };
 
+/**
+ * Five-way source-of-truth failure bucket.
+ *
+ * Determines recovery action, retry policy, and operator routing:
+ *   app_logic            → stop, preserve artifacts, require code/migration change
+ *   vercel_platform      → bounded retry after platform recovery or redeploy
+ *   openai_provider      → budgeted exponential backoff if non-terminal
+ *   perplexity_adjudication → retry only if adjudicator contract/dep restored
+ *   supabase_contract    → freeze unsafe mode, require migration parity proof
+ */
+export type FailureBucket =
+  | 'app_logic'
+  | 'vercel_platform'
+  | 'openai_provider'
+  | 'perplexity_adjudication'
+  | 'supabase_contract';
+
+/**
+ * Classify a failure code into its source-of-truth bucket.
+ * Used by failure envelope, watchdog triage, and operator dashboards.
+ */
+export function classifyFailureBucket(code: string | null | undefined): FailureBucket {
+  if (!code) return 'app_logic';
+  // Perplexity / Pass 4 adjudication
+  if (code.startsWith('PASS4_') || code.startsWith('PERPLEXITY_') || code === 'EXTERNAL_ADJUDICATION_MISSING_KEY') return 'perplexity_adjudication';
+  // Supabase / persistence contract
+  if (code.startsWith('PERSISTENCE_') || code.startsWith('SCHEMA_') || code.startsWith('ARTIFACT_') ||
+      code === 'SUPABASE_CONTRACT_VIOLATED' || code === 'ARTIFACT_PERSISTENCE_FAILED' ||
+      code === 'CONTEXT_CONTAMINATION_DETECTED') return 'supabase_contract';
+  // OpenAI / provider transient
+  if (code.startsWith('OPENAI_') || code === 'QUOTA_EXCEEDED' ||
+      code === 'PASS1_FAILED' || code === 'PASS2_FAILED' || code === 'PASS3_FAILED' ||
+      code === 'PASS2_INDEPENDENCE_REWRITE_FAILED') return 'openai_provider';
+  // Vercel / platform
+  if (code.startsWith('VERCEL_') || code === 'WORKER_TIMEOUT' ||
+      code === 'LEASE_EXPIRED' || code === 'PROCESSOR_UNCAUGHT_ERROR') return 'vercel_platform';
+  // Default: application logic (governance, QG, auth, schema violations, input)
+  return 'app_logic';
+}
+
+/** Short deployed git SHA from Vercel env — 'local' in dev/test. */
+const DEPLOYED_SHA: string =
+  (process.env.VERCEL_GIT_COMMIT_SHA ?? '').substring(0, 7) || 'local';
+
 type PipelineFailureContext = {
   pipelineStage?: string;
   reasonCodes?: string[];
   diagnostics?: unknown;
+  /** Override bucket classification when caller has definitive knowledge of failure source */
+  bucket?: FailureBucket;
+  /** Attempt number at time of failure — stamped into envelope for replay detection */
+  attempt?: number;
 };
 
 type PipelineFailureEnvelope = {
   failure_origin: string;
+  /** Source-of-truth bucket for recovery routing and retry policy */
+  bucket: FailureBucket;
   error_code: string;
   error_message: string;
   reason_codes: string[];
   failed_at: string;
   pipeline_stage: string;
+  /** Short git SHA of the deployed revision — enables same-SHA retry detection */
+  deployed_sha: string;
+  /** Attempt number at time of failure */
+  attempt?: number;
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -338,13 +393,19 @@ function buildPipelineFailureEnvelope(args: {
       ? args.context.pipelineStage
       : 'processor';
 
+  // Caller-supplied bucket takes precedence; otherwise classify by error code.
+  const bucket: FailureBucket = args.context?.bucket ?? classifyFailureBucket(args.errorCode);
+
   return {
     failure_origin: 'processor',
+    bucket,
     error_code: args.errorCode,
     error_message: args.errorMessage,
     reason_codes: normalizeReasonCodes(args.context?.reasonCodes, args.errorCode),
     failed_at: pipelineStage,
     pipeline_stage: pipelineStage,
+    deployed_sha: DEPLOYED_SHA,
+    ...(typeof args.context?.attempt === 'number' ? { attempt: args.context.attempt } : {}),
   };
 }
 
@@ -1820,6 +1881,81 @@ export async function failStaleRunningJobs(): Promise<{
   };
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// PREFLIGHT CHECKS
+// Runs before any DB fetch or LLM call. Fails closed on missing infrastructure.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type PreflightResult =
+  | { ok: true }
+  | { ok: false; reason: string; bucket: FailureBucket };
+
+/**
+ * Verify that required environment variables, provider credentials, and
+ * pipeline configuration are present before accepting a job.
+ *
+ * Failure here means the deployment is misconfigured — NOT a job-specific
+ * error. The job is NOT failed on preflight violation; the cron is blocked
+ * and the operator must fix the environment or feature flag state.
+ *
+ * Checks (fail-closed):
+ *   1. OPENAI_API_KEY — required for all Pass1/Pass2/Pass3 LLM calls
+ *   2. SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY — required for all DB writes
+ *   3. Pass 4 adjudication: if EVAL_PASS4_ENABLED=true, PERPLEXITY_API_KEY must be set
+ *   4. EVAL_PIPELINE_ENABLED must be 'true' (redundant with kill-switch, but belt+suspenders)
+ */
+export function runPreflightChecks(): PreflightResult {
+  // 1. Core LLM provider
+  const openaiKey = process.env.OPENAI_API_KEY;
+  if (!openaiKey || openaiKey.trim() === '' || openaiKey === 'test-key') {
+    // Allow test-key in non-production environments (stress harness)
+    if (process.env.NODE_ENV === 'production') {
+      return {
+        ok: false,
+        reason: 'OPENAI_API_KEY is missing or placeholder in production',
+        bucket: 'vercel_platform',
+      };
+    }
+  }
+
+  // 2. Supabase persistence contract
+  const supabaseUrlEnv = process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.SUPABASE_URL ?? '';
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
+  if (!supabaseUrlEnv || !supabaseKey) {
+    return {
+      ok: false,
+      reason: 'Supabase URL or service role key is missing — persistence contract violated',
+      bucket: 'supabase_contract',
+    };
+  }
+
+  // 3. Pass 4 adjudication — if enabled, Perplexity key must be present
+  const pass4Enabled =
+    process.env.EVAL_PASS4_ENABLED === 'true' ||
+    process.env.EVAL_PASS4_ADJUDICATION_ENABLED === 'true';
+  if (pass4Enabled) {
+    const perplexityKey = process.env.PERPLEXITY_API_KEY ?? '';
+    if (!perplexityKey || perplexityKey.trim() === '') {
+      return {
+        ok: false,
+        reason: 'EVAL_PASS4_ENABLED=true but PERPLEXITY_API_KEY is missing — adjudication contract violated',
+        bucket: 'perplexity_adjudication',
+      };
+    }
+  }
+
+  // 4. Pipeline enabled (belt+suspenders — kill switch is checked first in processEvaluationJob)
+  if (process.env.EVAL_PIPELINE_ENABLED === 'false') {
+    return {
+      ok: false,
+      reason: 'EVAL_PIPELINE_ENABLED=false',
+      bucket: 'vercel_platform',
+    };
+  }
+
+  return { ok: true };
+}
+
 /**
  * Process a single evaluation job
  */
@@ -1841,6 +1977,18 @@ export async function processEvaluationJob(
     };
   }
 
+  // Preflight: fail closed on missing env/credentials before any DB or LLM work.
+  const preflight = runPreflightChecks();
+  if (preflight.ok === false) {
+    console.error('[Processor] Preflight check failed — job blocked, deployment needs attention', {
+      job_id: jobId,
+      reason: preflight.reason,
+      bucket: preflight.bucket,
+      deployed_sha: DEPLOYED_SHA,
+    });
+    return { success: false, error: `PREFLIGHT_FAILED: ${preflight.reason}` };
+  }
+
   const {
     runtimeConfig,
     openaiApiKey,
@@ -1852,6 +2000,21 @@ export async function processEvaluationJob(
     evalOpenAiTimeoutMs,
     evalContextContaminationGuardEnabled,
   } = getProcessorRuntimeDeps();
+
+  const processorStartMs = Date.now();
+
+  void pipelineLog({
+    jobId,
+    level: 'info',
+    stage: 'processor_preflight',
+    message: 'Processor preflight passed',
+    metadata: {
+      openaiKeyPresent: !!openaiApiKey,
+      perplexityKeyPresent: !!perplexityApiKey,
+      adjudicationMode: runtimeConfig.adjudicationMode,
+    },
+  });
+
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
   let lifecycleStatus: JobStatus | null = null;
   // Hoisted so outer-catch can persist partial progress metadata (#223)
@@ -2086,6 +2249,18 @@ export async function processEvaluationJob(
        * This ensures atomic updates, consistent retry logic, and auditable error codes.
        */
       const now = new Date().toISOString();
+      void pipelineLog({
+        jobId,
+        level: 'error',
+        stage: 'processor_failed',
+        message: 'Job failed',
+        metadata: {
+          status: 'failed',
+          score: null,
+          totalMs: Date.now() - processorStartMs,
+          failureCode: errorCode,
+        },
+      });
       const pipelineFailureEnvelope = buildPipelineFailureEnvelope({
         errorCode,
         errorMessage,
@@ -3058,6 +3233,24 @@ export async function processEvaluationJob(
               // PR-E: inject checkpoint cache and rolling save callback
               _chunkCache: pass1ChunkCache,
               _onChunkComplete: onPass1ChunkComplete,
+              // Forced heartbeat: write last_heartbeat_at after every chunk
+              // so the watchdog never sees silence during a long sweep.
+              // Fail-soft: renewal errors are logged, never thrown.
+              _onChunkHeartbeat: (chunkIndex) => {
+                void renewEvaluationJobLease({
+                  supabase,
+                  jobId,
+                  leaseMs: runtimeConfig.worker.leaseMs,
+                  stage: `pass1_chunk_${chunkIndex}`,
+                  hardDeadlineMs,
+                }).catch((err: unknown) => {
+                  console.warn('[Processor] Pass1 chunk heartbeat renewal failed (non-fatal)', {
+                    job_id: jobId,
+                    chunk_index: chunkIndex,
+                    error: err instanceof Error ? err.message : String(err),
+                  });
+                });
+              },
             });
             capturedPass1Output = result;
             // PR-E: Pass 1 succeeded — delete the chunk cache artifact (it has served its purpose).
@@ -3082,8 +3275,79 @@ export async function processEvaluationJob(
             return result;
           },
           runPass2: async (opts) => {
-            const result = await defaultRunPass2Fn(opts);
+            const result = await defaultRunPass2Fn({
+              ...opts,
+              // Forced heartbeat: write last_heartbeat_at after every chunk
+              // so the watchdog never sees silence during a long sweep.
+              _onChunkHeartbeat: (chunkIndex) => {
+                void renewEvaluationJobLease({
+                  supabase,
+                  jobId,
+                  leaseMs: runtimeConfig.worker.leaseMs,
+                  stage: `pass2_chunk_${chunkIndex}`,
+                  hardDeadlineMs,
+                }).catch((err: unknown) => {
+                  console.warn('[Processor] Pass2 chunk heartbeat renewal failed (non-fatal)', {
+                    job_id: jobId,
+                    chunk_index: chunkIndex,
+                    error: err instanceof Error ? err.message : String(err),
+                  });
+                });
+              },
+            });
             capturedPass2Output = result;
+
+            // ── Eager handoff pre-write ──────────────────────────────────────
+            // Write pass12_handoff_v1 immediately the moment Pass 2 completes,
+            // before runPipeline returns and before Pass 3 starts.
+            //
+            // Rationale: the normal handoff write happens after runPipeline()
+            // returns, but Vercel can kill the invocation at the 800s hard limit
+            // while Pass 3 is still running — or even between runPipeline returning
+            // and the write executing.  By pre-writing here we guarantee the
+            // artifact exists in the DB as soon as Pass 1+2 are both captured,
+            // so the watchdog rescue path (Guard D) can recover to phase_2 even
+            // if the invocation is killed before the normal handoff path fires.
+            //
+            // This is an ARTIFACT-ONLY write — no status transition here.
+            // The status transition (status=queued, phase=phase_2) still happens
+            // in the shouldHandoff block below after runPipeline returns, which
+            // is the authoritative transition.  If the invocation is killed before
+            // that transition, the watchdog sees: status=running + handoff artifact
+            // exists → Guard D rescues it to phase_2/queued on the next tick.
+            //
+            // Fail-soft: pre-write errors are logged but never throw — a failed
+            // pre-write must not abort the pipeline run.
+            if (capturedPass1Output !== null && executionPhase === 'phase_1' && isChunkRouted) {
+              void upsertEvaluationArtifact({
+                supabase,
+                jobId: job.id,
+                manuscriptId: job.manuscript_id,
+                artifactType: 'pass12_handoff_v1',
+                content: {
+                  pass1Output: capturedPass1Output,
+                  pass2Output: result,
+                  chunk_count: chunkRouting.chunk_count,
+                  captured_at: new Date().toISOString(),
+                  pre_write: true, // diagnostic flag — overwritten by the authoritative write below
+                },
+                sourceHash: stableSourceHash({
+                  manuscriptId: manuscript.id,
+                  jobId: job.id,
+                  userId: manuscriptWithContent.user_id,
+                  manuscriptText: manuscriptWithContent.content || '',
+                  promptVersion: 'pass12_handoff_v1',
+                  model: getCanonicalPipelineModel(openAiModel),
+                }),
+                artifactVersion: 'pass12_handoff_v1',
+              }).catch((preWriteErr: unknown) => {
+                console.warn(
+                  `[Processor] ${jobId}: eager handoff pre-write failed (non-fatal — normal handoff path still runs)`,
+                  preWriteErr instanceof Error ? preWriteErr.message : String(preWriteErr),
+                );
+              });
+            }
+
             return result;
           },
         },
@@ -3992,7 +4256,7 @@ export async function processEvaluationJob(
         : coverageForReporting.strategy === 'partial_chunk_map_reduce'
           ? `Pass 1 and Pass 2 analyzed partial chunk coverage (~${coverageForReporting.analyzedWords} of ${coverageForReporting.sourceWords} words) and cannot claim manuscript-wide full coverage.`
           : `Pass 1 and Pass 2 analyzed a sampled prompt window (~${coverageForReporting.analyzedWords} of ${coverageForReporting.sourceWords} words; ${promptCoverage.budgetChars}-char budget).`,
-      'Pass 3 synthesis uses a compressed manuscript reference window for arbitration context.',
+      'Pass 3 synthesis uses the full manuscript for deep context grounding.',
       ...(nonEvaluativeWarning ? [nonEvaluativeWarning] : []),
       ...effectiveEvaluationResult.governance.limitations.filter(
         (item) =>
@@ -4146,6 +4410,19 @@ export async function processEvaluationJob(
 
     console.log(`[Processor] Job ${jobId} completed successfully`);
 
+    void pipelineLog({
+      jobId,
+      level: 'info',
+      stage: 'processor_complete',
+      message: 'Job completed',
+      metadata: {
+        status: 'complete',
+        score: pipelineResult.synthesis?.overall?.overall_score_0_100 ?? null,
+        totalMs: Date.now() - processorStartMs,
+        failureCode: null,
+      },
+    });
+
     return { success: true };
 
   } catch (error) {
@@ -4158,6 +4435,19 @@ export async function processEvaluationJob(
 
     const errorMessage = error instanceof Error ? error.message : String(error);
     console.error(`[Processor] Error processing job ${jobId}:`, errorMessage);
+
+    void pipelineLog({
+      jobId,
+      level: 'error',
+      stage: 'processor_uncaught',
+      message: 'Processor uncaught error',
+      metadata: {
+        status: 'failed',
+        score: null,
+        totalMs: Date.now() - processorStartMs,
+        failureCode: 'PROCESSOR_UNCAUGHT_ERROR',
+      },
+    });
 
     const now = new Date().toISOString();
     const failedStatus = normalizeEvaluationJobStatus(JOB_STATUS.FAILED) as JobStatus;

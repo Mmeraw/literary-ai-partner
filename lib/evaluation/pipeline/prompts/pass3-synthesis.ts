@@ -8,7 +8,7 @@
 
 import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
 import type { SubmissionScopeProfile } from "../submissionScope";
-import type { Pass2aStructuredContext } from "../types";
+import type { Pass2aStructuredContext, SinglePassOutput } from "../types";
 import {
   buildCoverageDisclosure,
   buildPromptInputWindow,
@@ -16,7 +16,7 @@ import {
   summarizePromptCoverage,
 } from "../promptInput";
 
-export const PASS3_PROMPT_VERSION = "pass3-synthesis-v13-provenance-hardening";
+export const PASS3_PROMPT_VERSION = "pass3-synthesis-v15-entity-roster-grounding";
 
 export const PASS3_SYSTEM_PROMPT = `You are Pass 3: convergence and arbitration authority.
 Rules:
@@ -35,6 +35,7 @@ Scoring: Integer 0-10. If delta<=2 use rounded average; if delta>2 favor the mor
 Mechanism constraints: voice rationale names POV/voice mechanism; dialogue rationale names attribution/rendering mechanism.
 
 Agree-state rule: Never emit "Confirmed." alone; for score_delta<=1 state confirmation + evidence basis + why it matters (1-3 sentences).
+Rationale prefix rule: NEVER open final_rationale with "Agreement", "Agreement sustained", "Agreement held", "Both passes", "Both evaluations", "Both agreed", or any variant that leaks internal arbitration state. Rationale is author-facing craft feedback — write it from that perspective only. Open with the craft observation itself (e.g. "The opening ambush establishes...", "Scene construction is anchored by...", "Tonal register stays...").
 
 Recommendation semantic fields (REQUIRED):
 - issue_family, strategic_lever, revision_granularity must be canonical enums.
@@ -84,6 +85,73 @@ Return ONLY JSON with keys:
 Criteria keys:
 ${CRITERIA_KEYS.join(", ")}`;
 
+/**
+ * Build a MANUSCRIPT ENTITY ROSTER block from the Pass2a structured context.
+ * Surfaces the top characters (by mention count) and named entities/locations
+ * harvested across scenes so the criteria commentary section can ground in
+ * specific names rather than abstract role labels. Returns "" when no roster
+ * data is available — callers should treat that as a structural fallback.
+ *
+ * Caps: 15 characters and 12 scene entities to keep the block bounded.
+ */
+function buildEntityRoster(context: Pass2aStructuredContext): string {
+  const ledger = Array.isArray(context.character_ledger) ? context.character_ledger : [];
+  const topCharacters = [...ledger]
+    .sort((a, b) => (b.mention_count ?? 0) - (a.mention_count ?? 0))
+    .slice(0, 15)
+    .map((c) => {
+      const mentionCount = typeof c.mention_count === "number" ? c.mention_count : 0;
+      return `${c.name} (${mentionCount} mention${mentionCount === 1 ? "" : "s"})`;
+    })
+    .filter((line) => line.length > 0);
+
+  const sceneEntities = new Set<string>();
+  for (const scene of context.scene_index ?? []) {
+    for (const entity of scene.named_entities ?? []) {
+      const trimmed = entity.trim();
+      if (trimmed.length > 0) sceneEntities.add(trimmed);
+    }
+    if (sceneEntities.size >= 24) break;
+  }
+  const characterNameSet = new Set(ledger.map((c) => c.name.trim().toLowerCase()));
+  const namedEntities = Array.from(sceneEntities)
+    .filter((entity) => !characterNameSet.has(entity.toLowerCase()))
+    .slice(0, 12);
+
+  if (topCharacters.length === 0 && namedEntities.length === 0) return "";
+
+  const lines: string[] = [];
+  if (topCharacters.length > 0) {
+    lines.push(`Characters (use these exact names, not "the protagonist"): ${topCharacters.join(", ")}.`);
+  }
+  if (namedEntities.length > 0) {
+    lines.push(`Named entities, locations, and motifs from the scene index: ${namedEntities.join(", ")}.`);
+  }
+  return lines.join("\n");
+}
+
+/**
+ * Build a compact summary of the Perplexity dual-model packet for Pass 3.
+ * One line per criterion: score, short rationale, and first evidence snippet.
+ * Cap the rationale length so the prompt stays bounded.
+ */
+function buildPerplexityPacketSummary(packet: SinglePassOutput): string {
+  return packet.criteria
+    .map((c) => {
+      const rationale = (c.rationale ?? "").trim();
+      const truncRationale =
+        rationale.length > 180 ? `${rationale.slice(0, 180).trimEnd()}…` : rationale;
+      const evidenceSnippet = (c.evidence[0]?.snippet ?? "").trim();
+      const truncEvidence =
+        evidenceSnippet.length > 120
+          ? `${evidenceSnippet.slice(0, 120).trimEnd()}…`
+          : evidenceSnippet;
+      const evidencePart = truncEvidence ? ` | evidence: "${truncEvidence}"` : "";
+      return `- ${c.key}: ${c.score_0_10}/10 — ${truncRationale}${evidencePart}`;
+    })
+    .join("\n");
+}
+
 export function buildPass3UserPrompt(params: {
   comparisonPacketJson: string;
   pass2aStructuredContext: Pass2aStructuredContext;
@@ -91,6 +159,18 @@ export function buildPass3UserPrompt(params: {
   title: string;
   executionMode?: "TRUSTED_PATH" | "STUDIO";
   scopeProfile?: SubmissionScopeProfile;
+  /**
+   * Optional independent Perplexity chunk-scoring packet (dual-model parallel scoring).
+   * When provided, the prompt switches to dual-model mode and asks the model to
+   * synthesize across BOTH independent evaluations, flagging divergences > 1 point.
+   */
+  perplexityChunkPacket?: SinglePassOutput;
+  /**
+   * When true, render the dual-model synthesis block. Defaults to true when
+   * perplexityChunkPacket is provided. Allows callers to feature-flag the
+   * dual-model render at the prompt boundary independently of packet presence.
+   */
+  dualModelMode?: boolean;
 }): string {
   const executionMode = params.executionMode ?? "TRUSTED_PATH";
   const synthesisBudget = getDefaultSynthesisReferenceCharBudget();
@@ -115,7 +195,34 @@ export function buildPass3UserPrompt(params: {
     timeline_anchors: params.pass2aStructuredContext.timeline_anchors.slice(0, 24),
   });
 
-  return `Synthesize these two independent evaluation passes for the manuscript titled "${params.title}".
+  const entityRoster = buildEntityRoster(params.pass2aStructuredContext);
+  const entityRosterBlock = entityRoster
+    ? `\n\n## MANUSCRIPT ENTITY ROSTER (REQUIRED GROUNDING SOURCE)\n${entityRoster}\n\nFor EACH of the 13 criteria, the final_rationale and recommendations MUST cite at least 2 specific characters by name (drawn from the roster above or the structured context) and at least 1 specific scene, object, motif, or location from the manuscript. Generic commentary that names no characters and references no specific manuscript content is NOT acceptable and will be rejected as a quality regression. Refer to the manuscript reference window above to identify the relevant motifs and recurring objects for each criterion.`
+    : `\n\n## MANUSCRIPT GROUNDING REQUIREMENT\nFor EACH of the 13 criteria, the final_rationale and recommendations MUST cite at least 2 specific characters by name (drawn from the structured context or manuscript reference window) and at least 1 specific scene, object, motif, or location from the manuscript. Generic commentary that names no characters is NOT acceptable and will be rejected as a quality regression.`;
+
+  const dualModelMode = params.dualModelMode ?? !!params.perplexityChunkPacket;
+  const dualModelBlock =
+    dualModelMode && params.perplexityChunkPacket
+      ? `
+
+## DUAL-MODEL PARALLEL SCORING (Independent Second Evaluation)
+This evaluation has TWO independent scoring sweeps over the manuscript chunks:
+  • PRIMARY: GPT craft + editorial passes (already reconciled into the comparison packet above).
+  • SECONDARY: Perplexity sonar-reasoning-pro chunk sweep (model=${params.perplexityChunkPacket.model}).
+Each model scored the chunks WITHOUT seeing the other's output — agreement is a real signal, not an echo.
+
+PERPLEXITY INDEPENDENT SCORES:
+${buildPerplexityPacketSummary(params.perplexityChunkPacket)}
+
+Dual-model synthesis rules (REQUIRED):
+- Treat the Perplexity packet as a real second opinion. Use it to confirm or challenge the GPT axes.
+- When the Perplexity score and the GPT final_score_0_10 diverge by MORE THAN 1 point on any criterion, flag the divergence in final_rationale: name the gap, name which axis is more diagnostic given the manuscript evidence, and resolve toward the better-supported axis.
+- When the Perplexity score and the GPT axes AGREE (within ±1), this is a stronger signal of validity — keep the synthesis confident, but do not let agreement substitute for evidence; the rationale must still anchor to manuscript craft.
+- Do not import Perplexity's wording verbatim into final_rationale (this is the author-facing surface — keep it craft-voiced, not adjudication-process-voiced).
+- Do not invent disagreement where the two models concur, and do not paper over disagreement where they diverge.`
+      : "";
+
+  return `Synthesize these two independent evaluation passes for the manuscript titled "${params.title}".${dualModelBlock}
 
 Execution mode: ${executionMode}
 
@@ -127,6 +234,7 @@ OUTPUT BUDGET BY STATE (STRICT):
 - overall: verdict + overall_score_0_100 + one_paragraph_summary (max 3 sentences) + top_3_strengths + top_3_risks + submission_readiness
 
 Do NOT emit "Confirmed." as complete rationale for agree criteria. State what was confirmed, the evidence basis, and why it matters.
+Do NOT open any final_rationale with "Agreement", "Agreement sustained", "Agreement held", "Both passes", "Both evaluations", or any internal arbitration prefix. Rationale is read directly by the author — write it as craft feedback, not as a process log. Start with the craft observation (e.g. "The opening ambush establishes...", "Tonal register stays...", "Scene construction is anchored by...").
 Do NOT return criteria as { agree:[], soft_divergence:[] ... }; return a single criteria[] array.
 Every recommendation MUST include: issue_family, strategic_lever, revision_granularity.
 For proseControl specifically: ensure at least one recommendation carries a non-empty anchor_snippet.
@@ -139,6 +247,7 @@ Do NOT emit two recommendations with the same strategic_lever — collapse them 
 For criticism-style criteria (proseControl, dialogue, voice) that are non-certified, emit at least three evidence snippets and three concrete revision directions.
 Recommendation openings must be varied across criteria: no repeated first-8-token lead-ins.
 When characters are named in the manuscript, use those names (or "the narrator") in rationale/recommendations; avoid generic role labels such as "the protagonist".
+Per-criterion specificity floor: Every final_rationale across all 13 criteria MUST name at least 2 specific characters by name (taken from the MANUSCRIPT ENTITY ROSTER above or the character_ledger) and reference at least 1 specific scene, object, motif, or location from the manuscript. Rationales that read as generic craft commentary without naming a single character will be treated as a quality regression. Vary which characters and motifs you cite across the 13 criteria so the report does not echo the same two names everywhere.
 Use "narrative momentum" (or equivalent) instead of ambiguous "the drive" phrasing.
 Target total visible output under 1500 tokens.
 
@@ -148,10 +257,10 @@ Coverage truth signal:
 ${params.scopeProfile ? `- Submission scope: ${params.scopeProfile.inputScale} (${params.scopeProfile.wordCount} words; ${params.scopeProfile.chunkCount} chunk(s); ${params.scopeProfile.scorableCount}/13 criteria non-NA for this scope; confidence cap ${params.scopeProfile.confidenceCapSummary})` : ""}
 
 ## PASS2A_STRUCTURED_CONTEXT (Hard Input)
-${structuredContextJson}
+${structuredContextJson}${entityRosterBlock}
 
 ## PASS 1 / PASS 2 COMPARISON PACKET (Deterministic)
-${params.comparisonPacketJson.substring(0, 3500)}
+${params.comparisonPacketJson}
 
 Reconcile both perspectives into a unified evaluation.
 Mandatory behavior:
