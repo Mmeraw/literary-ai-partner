@@ -691,13 +691,9 @@ Now return the independent adjudication as JSON.`;
           //   - reasoning_effort=high engages sonar-reasoning-pro's deeper analysis path.
           //   - stream_mode=concise reduces chain-of-thought leakage in non-streaming responses.
           // Unsupported fields are ignored server-side, so this stays safe across API versions.
-          response_format: {
-            type: "json_schema",
-            json_schema: { schema: responseSchema, strict: true, name: "pass4_crosscheck" },
-          },
+          response_format: { type: "text" },
           disable_search: true,
           reasoning_effort: "high",
-          stream_mode: "concise",
         }),
         signal: controller.signal,
       });
