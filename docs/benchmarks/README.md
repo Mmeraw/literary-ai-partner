@@ -2,11 +2,27 @@
 
 This directory holds manual gold-standard reference evaluations that define the **target quality bar** for RevisionGrade long-form output.
 
+## DREAM long-form gold standards
+
+The canonical DREAM long-form benchmark index is:
+
+**[`DREAM_LONGFORM_BENCHMARK_INDEX.md`](./DREAM_LONGFORM_BENCHMARK_INDEX.md)**
+
+That index declares the three current long-form prose gold standards as one DREAM long-form benchmark family:
+
+| Work | File | Output mode | Role |
+|---|---|---|---|
+| *Froggin Noggin* | [`froggin-noggin-dream.md`](./froggin-noggin-dream.md) | `multi_layer_long_form` | Manual DREAM long-form gold standard |
+| *Let the River Decide* | [`let-the-river-decide-dream.md`](./let-the-river-decide-dream.md) | `multi_layer_long_form` | Manual DREAM long-form gold standard |
+| *Cartel Babies* | [`cartel-babies-dream.md`](./cartel-babies-dream.md) | `multi_layer_long_form` | Manual DREAM long-form gold standard |
+
+These files belong to the `dream-longform-v1` family in substance even where older markdown headers differ. Future edits should normalize headers without weakening the underlying evaluation body.
+
 ## The Gold Standard
 
 **[`froggin-noggin-dream.md`](./froggin-noggin-dream.md)** — *Froggin Noggin* (Michael J. Me Raw). Full long-form gold-standard evaluation: 13-criteria score grid, layered architecture analysis, canon/doctrine audit, revision plan, releasability assessment. This is THE calibration target — when a production evaluation disputes a criterion against the Pass 4 cross-checker, this file is the reference for which side is closer to ground truth.
 
-Schema: `canonical-13-v1` (front-matter opt-in; validated by `tests/evaluation/benchmarks/gold-standard-shape.test.ts`).
+Schema: `canonical-13-v1` / `dream-longform-v1` (front-matter and index opt-in; validated by `tests/evaluation/benchmarks/gold-standard-shape.test.ts` where applicable).
 
 ## What gold-standard files are for
 
@@ -22,13 +38,18 @@ Schema: `canonical-13-v1` (front-matter opt-in; validated by `tests/evaluation/b
 
 ## Adding a new gold-standard benchmark
 
-New gold-standard files MUST opt in to the **canonical-13-v1** schema. This binds the file to the same 13 criterion names the production pipeline emits, so the benchmark stays comparable to live output across prompt changes.
+New gold-standard files MUST opt in to the **canonical-13-v1** schema or be listed in the DREAM long-form benchmark index. This binds the file to the same 13 criterion names the production pipeline emits, so the benchmark stays comparable to live output across prompt changes.
 
 1. Place the file at `docs/benchmarks/<work-slug>.md`.
 2. Add YAML front-matter at the very top:
    ```yaml
    ---
-   benchmark-schema: canonical-13-v1
+   benchmark-schema: dream-longform-v1
+   benchmark-role: gold-standard-long-form
+   criteria-spine: canonical-13
+   route: LONG_FORM
+   output-mode: multi_layer_long_form
+   wave-applied: true
    ---
    ```
 3. Include a score-grid table with rows for all 13 canonical criteria using the production names exactly as defined in `schemas/criteria-keys.ts` (`CRITERIA_METADATA`):
@@ -47,7 +68,7 @@ New gold-standard files MUST opt in to the **canonical-13-v1** schema. This bind
    - Professional Readiness & Market Positioning
 
    Layered architecture rows beyond the 13 are allowed.
-4. Score column uses the format `N.N / 10` (bold optional).
+4. Score column uses the format `N.N / 10` or `N / 10` (bold optional).
 5. Confidence column uses one of: High, Moderate-High, Moderate, Moderate-Low, Low.
 6. Include a disclaimer (Repo note or equivalent) stating this is a manual reference, not a production assertion.
-7. The smoke test at [`tests/evaluation/benchmarks/gold-standard-shape.test.ts`](../../tests/evaluation/benchmarks/gold-standard-shape.test.ts) automatically validates files with the canonical-13-v1 front-matter and ignores everything else.
+7. The smoke test at [`tests/evaluation/benchmarks/gold-standard-shape.test.ts`](../../tests/evaluation/benchmarks/gold-standard-shape.test.ts) automatically validates files with recognized benchmark front matter and ignores everything else.
