@@ -9,10 +9,17 @@ const SCORE_DIMS = [
   { key: "literary", label: "Literary" },
 ] as const;
 
+/**
+ * Executive Verdict score-color thresholds intentionally mirror the report's
+ * confidence guide so readers see one consistent meaning across the page:
+ *   Low      < 60  → red
+ *   Moderate 60–84 → dark amber
+ *   High     ≥ 85  → dark green
+ */
 function scoreColor(n: number): string {
-  if (n >= 80) return "text-emerald-700";
-  if (n >= 65) return "text-amber-600";
-  return "text-rose-600";
+  if (n >= 85) return "text-emerald-700";
+  if (n >= 60) return "text-amber-700";
+  return "text-red-700";
 }
 
 export default function LongformExecutiveVerdict({ doc }: Props) {
