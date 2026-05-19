@@ -26,6 +26,7 @@ import {
   JsonBoundaryError,
   parseJsonObjectBoundary,
 } from "@/lib/llm/jsonParseBoundary";
+import { pipelineLog } from "./pipelineLogger";
 
 const PERPLEXITY_BASE_URL = "https://api.perplexity.ai";
 const PERPLEXITY_MODEL = "sonar-reasoning-pro";
@@ -441,12 +442,42 @@ export async function runPerplexityChunkScorer(
     console.warn(
       "[PplxChunk] PERPLEXITY_API_KEY missing — skipping Perplexity chunk sweep (graceful degradation to GPT-only)",
     );
+    if (opts.jobId) {
+      void pipelineLog({
+        jobId: opts.jobId,
+        level: "warn",
+        stage: "pplx_chunk_scorer",
+        message: "Perplexity chunk scorer skipped — no API key",
+        metadata: {
+          optsKeyPresent: !!opts.perplexityApiKey,
+          envKeyPresent: !!process.env.PERPLEXITY_API_KEY,
+        },
+      });
+    }
     return null;
   }
 
   const fetchFn = opts._fetch ?? fetch;
   const timeoutMs = getPplxChunkTimeoutMs();
   const concurrency = getPplxChunkConcurrency();
+
+  const hasChunksForLog = Array.isArray(opts.manuscriptChunks) && opts.manuscriptChunks.length > 0;
+  const chunkCountForLog = hasChunksForLog ? opts.manuscriptChunks!.length : 1;
+  if (opts.jobId) {
+    void pipelineLog({
+      jobId: opts.jobId,
+      level: "info",
+      stage: "pplx_chunk_scorer",
+      message: "Perplexity chunk scorer invoked",
+      metadata: {
+        hasKey: !!apiKey,
+        keyLength: apiKey?.length ?? 0,
+        chunkCount: chunkCountForLog,
+        concurrency,
+        timeoutMs,
+      },
+    });
+  }
 
   const hasChunks = Array.isArray(opts.manuscriptChunks) && opts.manuscriptChunks.length > 0;
   const chunks: ManuscriptChunkEvidence[] = hasChunks
@@ -514,6 +545,20 @@ export async function runPerplexityChunkScorer(
     }
 
     const aggregatedCriteria = aggregateChunkCriteria(successes);
+
+    if (opts.jobId) {
+      void pipelineLog({
+        jobId: opts.jobId,
+        level: "info",
+        stage: "pplx_chunk_scorer",
+        message: "Perplexity chunk scorer complete",
+        metadata: {
+          successCount: successes.length,
+          failureCount: failures.length,
+          criteriaCount: aggregatedCriteria.length,
+        },
+      });
+    }
 
     return {
       pass: 1,
