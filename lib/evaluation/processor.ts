@@ -87,7 +87,7 @@ import {
   getEvalOpenAiTimeoutMs,
   getEvalPassTimeoutMs,
 } from '@/lib/evaluation/config';
-import { getEvaluationRuntimeConfig } from '@/lib/config/evaluationRuntimeConfig';
+import { getEvaluationRuntimeConfig, resolveEvaluationRuntimeConfig } from '@/lib/config/evaluationRuntimeConfig';
 import {
   LONG_FORM_TIMEOUT_FLOOR_MS,
   resolveScopedEvaluationTimeouts,
@@ -1517,7 +1517,12 @@ export async function failStaleRunningJobs(): Promise<{
   rescued: number;
   ids: string[];
 }> {
-  const { staleRunningMinutes, frozenHeartbeatSecs } = getProcessorRuntimeDeps();
+  // Watchdog must read fresh env — not the module-level cache — to pick up
+  // runtime changes to EVAL_STALE_RUNNING_MINUTES / EVAL_FROZEN_HEARTBEAT_SECS.
+  const { staleRunningMinutes, frozenHeartbeatSecs } = (() => {
+    const fresh = resolveEvaluationRuntimeConfig(process.env);
+    return { staleRunningMinutes: fresh.staleRunningMinutes, frozenHeartbeatSecs: fresh.frozenHeartbeatSecs };
+  })();
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
   const now = new Date().toISOString();
   const nowMs = Date.now();
