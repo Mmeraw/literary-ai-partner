@@ -433,6 +433,14 @@ export interface RunPass1Options {
    * Fail-soft: errors thrown by this callback are logged but do NOT fail the chunk.
    */
   _onChunkComplete?: (chunk_index: number, result: SinglePassOutput) => Promise<void>;
+  /**
+   * Forced heartbeat: called after each chunk settles (success or failure).
+   * Fires from inside the chunk worker, so it runs even when Vercel fluid-compute
+   * freezes the event loop between awaits (setInterval stops firing in that state).
+   * The processor wires this to a DB write of last_heartbeat_at so the watchdog
+   * never sees an 8-minute silence during a long chunk sweep.
+   */
+  _onChunkHeartbeat?: (chunkIndex: number) => void;
 }
 
 /**
@@ -484,6 +492,9 @@ export async function runPass1(opts: RunPass1Options): Promise<SinglePassOutput>
     const forwardCompletion = opts._onCompletion;
     const chunkCache = opts._chunkCache; // PR-E: pre-loaded checkpoint cache (may be undefined)
     const onChunkComplete = opts._onChunkComplete; // PR-E: rolling checkpoint callback (may be undefined)
+    // Forced heartbeat: fires from inside the chunk worker after every chunk
+    // settles. See _onChunkHeartbeat in RunPass1Options for rationale.
+    const onChunkHeartbeat = opts._onChunkHeartbeat;
 
     // PR-E: count how many chunks will be served from cache vs. requiring OpenAI calls.
     const cachedChunkCount = chunkCache
@@ -524,59 +535,73 @@ export async function runPass1(opts: RunPass1Options): Promise<SinglePassOutput>
         }
 
         let attempt = 0;
-        while (true) {
-          try {
-            const result = await runPass1({
-              ...opts,
-              manuscriptText: chunk.content,
-              manuscriptChunks: undefined, // Prevent recursive chunking
-              isChunkUnit: true,
-              openAiTimeoutMs: chunkTimeoutMs,
-              // PR-E: do NOT forward _chunkCache or _onChunkComplete into recursive
-              // single-chunk calls — those paths are not chunk-native and would confuse
-              // the cache lookup (single-unit calls use chunk_index=undefined).
-              _chunkCache: undefined,
-              _onChunkComplete: undefined,
-              _onCompletion: (capture) => {
-                if (capture.pass === 1) {
-                  usagePromptTokensTotal += capture.usage?.prompt_tokens ?? 0;
-                  usageCompletionTokensTotal += capture.usage?.completion_tokens ?? 0;
-                  usageTotalTokensTotal += capture.usage?.total_tokens ?? 0;
+        try {
+          while (true) {
+            try {
+              const result = await runPass1({
+                ...opts,
+                manuscriptText: chunk.content,
+                manuscriptChunks: undefined, // Prevent recursive chunking
+                isChunkUnit: true,
+                openAiTimeoutMs: chunkTimeoutMs,
+                // PR-E: do NOT forward _chunkCache or _onChunkComplete into recursive
+                // single-chunk calls — those paths are not chunk-native and would confuse
+                // the cache lookup (single-unit calls use chunk_index=undefined).
+                _chunkCache: undefined,
+                _onChunkComplete: undefined,
+                // Do not forward _onChunkHeartbeat into chunk-unit calls.
+                _onChunkHeartbeat: undefined,
+                _onCompletion: (capture) => {
+                  if (capture.pass === 1) {
+                    usagePromptTokensTotal += capture.usage?.prompt_tokens ?? 0;
+                    usageCompletionTokensTotal += capture.usage?.completion_tokens ?? 0;
+                    usageTotalTokensTotal += capture.usage?.total_tokens ?? 0;
+                  }
+                  forwardCompletion?.(capture);
+                },
+              });
+
+              // PR-E: Chunk completed successfully — fire rolling checkpoint callback.
+              // Fail-soft: callback errors are logged but do NOT fail the chunk evaluation.
+              if (onChunkComplete) {
+                try {
+                  await onChunkComplete(chunk.chunk_index, result);
+                } catch (cbErr) {
+                  console.warn(
+                    `[Pass1] _onChunkComplete threw for chunk ${chunk.chunk_index} (non-fatal)`,
+                    cbErr instanceof Error ? cbErr.message : String(cbErr),
+                  );
                 }
-                forwardCompletion?.(capture);
-              },
-            });
-
-            // PR-E: Chunk completed successfully — fire rolling checkpoint callback.
-            // Fail-soft: callback errors are logged but do NOT fail the chunk evaluation.
-            if (onChunkComplete) {
-              try {
-                await onChunkComplete(chunk.chunk_index, result);
-              } catch (cbErr) {
-                console.warn(
-                  `[Pass1] _onChunkComplete threw for chunk ${chunk.chunk_index} (non-fatal)`,
-                  cbErr instanceof Error ? cbErr.message : String(cbErr),
-                );
               }
-            }
 
-            return result;
-          } catch (error) {
-            if (!isRateLimitError(error) || attempt >= chunkRetryMax) {
-              throw error;
-            }
+              return result;
+            } catch (error) {
+              if (!isRateLimitError(error) || attempt >= chunkRetryMax) {
+                throw error;
+              }
 
-            const suggestedWait = parseRetryAfterMs(error);
-            const backoffMs = Math.min(90_000, chunkRetryBaseMs * Math.pow(2, attempt));
-            const jitterMs = Math.floor(Math.random() * 750);
-            const waitMs = Math.max(suggestedWait ?? 0, backoffMs) + jitterMs;
-            rateLimitRetryCount += 1;
-            rateLimitWaitMs += waitMs;
-            attempt += 1;
-            console.warn(
-              `[Pass1] Chunk ${chunk.chunk_index} rate-limited; retry ${attempt}/${chunkRetryMax} after ${waitMs}ms`,
-            );
-            await sleepMs(waitMs);
+              const suggestedWait = parseRetryAfterMs(error);
+              const backoffMs = Math.min(90_000, chunkRetryBaseMs * Math.pow(2, attempt));
+              const jitterMs = Math.floor(Math.random() * 750);
+              const waitMs = Math.max(suggestedWait ?? 0, backoffMs) + jitterMs;
+              rateLimitRetryCount += 1;
+              rateLimitWaitMs += waitMs;
+              attempt += 1;
+              console.warn(
+                `[Pass1] Chunk ${chunk.chunk_index} rate-limited; retry ${attempt}/${chunkRetryMax} after ${waitMs}ms`,
+              );
+              await sleepMs(waitMs);
+            }
+          }
+        } finally {
+          // Forced heartbeat: fire unconditionally after each chunk worker
+          // exits (success, failure, or rate-limit exhaustion). This keeps
+          // last_heartbeat_at current during long sweeps regardless of whether
+          // setInterval is frozen by Vercel fluid-compute.
+          try {
+            onChunkHeartbeat?.(chunk.chunk_index);
+          } catch {
+            // Fail-soft: heartbeat errors must never kill a chunk result.
           }
         }
       },
