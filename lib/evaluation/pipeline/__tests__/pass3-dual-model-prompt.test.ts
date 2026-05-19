@@ -95,3 +95,73 @@ describe("buildPass3UserPrompt — dual-model behavior", () => {
     expect(prompt).not.toContain("DUAL-MODEL PARALLEL SCORING");
   });
 });
+
+describe("buildPass3UserPrompt — manuscript entity roster grounding", () => {
+  test("emits MANUSCRIPT ENTITY ROSTER with character names sorted by mention count", () => {
+    const context: Pass2aStructuredContext = {
+      character_ledger: [
+        { name: "Benjamin", first_chunk_index: 0, mention_count: 42, sample_snippet: "Benjamin walked..." },
+        { name: "Paolito", first_chunk_index: 1, mention_count: 31, sample_snippet: "Paolito laughed..." },
+        { name: "Marisol", first_chunk_index: 2, mention_count: 7, sample_snippet: "Marisol said..." },
+      ],
+      scene_index: [
+        { chunk_index: 0, scene_preview: "opening", named_entities: ["table tennis", "evil eye"] },
+        { chunk_index: 1, scene_preview: "park", named_entities: ["the courtyard"] },
+      ],
+      timeline_anchors: [],
+    };
+
+    const prompt = buildPass3UserPrompt({
+      comparisonPacketJson: "{}",
+      pass2aStructuredContext: context,
+      manuscriptText: "minimal manuscript text",
+      title: "Test",
+    });
+
+    expect(prompt).toContain("MANUSCRIPT ENTITY ROSTER");
+    expect(prompt).toContain("Benjamin");
+    expect(prompt).toContain("Paolito");
+    expect(prompt).toContain("Marisol");
+    expect(prompt).toContain("table tennis");
+    expect(prompt).toContain("evil eye");
+    // Highest-mention character should appear before lower-mention names.
+    expect(prompt.indexOf("Benjamin")).toBeLessThan(prompt.indexOf("Marisol"));
+    expect(prompt).toContain("MUST cite at least 2 specific characters by name");
+    expect(prompt).toContain("Per-criterion specificity floor");
+  });
+
+  test("falls back to MANUSCRIPT GROUNDING REQUIREMENT when context has no characters or entities", () => {
+    const prompt = buildPass3UserPrompt({
+      comparisonPacketJson: "{}",
+      pass2aStructuredContext: emptyContext,
+      manuscriptText: "minimal manuscript text",
+      title: "Test",
+    });
+
+    expect(prompt).not.toContain("## MANUSCRIPT ENTITY ROSTER");
+    expect(prompt).toContain("MANUSCRIPT GROUNDING REQUIREMENT");
+    expect(prompt).toContain("MUST cite at least 2 specific characters by name");
+  });
+
+  test("entity roster coexists with the DUAL-MODEL block when both are active", () => {
+    const context: Pass2aStructuredContext = {
+      character_ledger: [
+        { name: "Benjamin", first_chunk_index: 0, mention_count: 10, sample_snippet: "x" },
+      ],
+      scene_index: [],
+      timeline_anchors: [],
+    };
+    const packet = buildPerplexityPacket();
+    const prompt = buildPass3UserPrompt({
+      comparisonPacketJson: "{}",
+      pass2aStructuredContext: context,
+      manuscriptText: "minimal manuscript text",
+      title: "Test",
+      perplexityChunkPacket: packet,
+    });
+
+    expect(prompt).toContain("MANUSCRIPT ENTITY ROSTER");
+    expect(prompt).toContain("DUAL-MODEL PARALLEL SCORING");
+    expect(prompt).toContain("Benjamin");
+  });
+});
