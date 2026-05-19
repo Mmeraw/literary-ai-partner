@@ -52,6 +52,11 @@ export interface EvaluationRuntimeConfig {
     inputCharBudget: number;
     synthesisRefCharBudget: number;
   };
+  /** Dual-model parallel scoring (Perplexity chunk sweep alongside GPT). */
+  pplxChunk: {
+    concurrency: number;
+    timeoutMs: number;
+  };
   worker: {
     batchSize: number;
     leaseMs: number;
@@ -362,6 +367,10 @@ export function resolveEvaluationRuntimeConfig(
       pass3PromptMaxChars,
       inputCharBudget,
       synthesisRefCharBudget,
+    },
+    pplxChunk: {
+      concurrency: envContract.pplxChunkConcurrency,
+      timeoutMs: envContract.pplxChunkTimeoutMs,
     },
     worker: {
       batchSize,

@@ -1540,14 +1540,13 @@ describe("Pass 4 — Perplexity DREAM adjudication (pipeline integration)", () =
 
       expect(result.ok).toBe(true);
       if (result.ok) {
-        // cross_check populated from Perplexity adjudication
-        expect(result.cross_check).toBeDefined();
-        expect(result.cross_check?.model).toBe("sonar-reasoning-pro");
-        expect(result.cross_check?.overallAgreement).toBeDefined();
-        expect(result.cross_check?.criteria).toBeDefined();
-        // All 13 criteria must be adjudicated
-        const crossCheckedKeys = Object.keys(result.cross_check?.criteria ?? {});
-        expect(crossCheckedKeys).toHaveLength(13);
+        // Pass 4 retired: cross_check is no longer populated by the pipeline.
+        // Dual-model parallel scoring runs Perplexity during Pass 1+2 instead;
+        // the result flows into Pass 3 synthesis rather than a post-hoc cross-check.
+        expect(result.cross_check).toBeUndefined();
+        // external_adjudication still surfaces a status — either skipped (no
+        // dual-model packet) or cross_check_completed (packet present).
+        expect(result.external_adjudication).toBeDefined();
       }
     } finally {
       global.fetch = originalFetch;
@@ -1622,10 +1621,8 @@ describe("Pass 4 — Perplexity DREAM adjudication (pipeline integration)", () =
 
       expect(result.ok).toBe(true);
       if (result.ok) {
-        // Pass 4 — Perplexity cross-check must be present
-        expect(result.cross_check).toBeDefined();
-        expect(result.cross_check?.model).toBe("sonar-reasoning-pro");
-        expect(Object.keys(result.cross_check?.criteria ?? {})).toHaveLength(13);
+        // Pass 4 retired: cross_check is no longer populated by the pipeline.
+        expect(result.cross_check).toBeUndefined();
 
         // Main pipeline output must be complete
         expect(result.quality_gate.pass).toBe(true);
@@ -1718,11 +1715,13 @@ describe("Pass 4 — Perplexity DREAM adjudication (pipeline integration)", () =
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.cross_check).toBeUndefined();
-      // external_adjudication must be present and reflect no-key status
+      // external_adjudication must be present. After Pass 4 retirement the
+      // skipped reason reflects the new contract (dual-model parallel scoring
+      // is the replacement for the post-hoc cross-check).
       expect(result.external_adjudication).toBeDefined();
       expect(result.external_adjudication?.status).toBe("skipped");
       if (result.external_adjudication?.status === "skipped") {
-        expect(result.external_adjudication.reason).toBe("no_api_key");
+        expect(result.external_adjudication.reason).toBe("pass4_retired_dual_model_parallel_scoring");
       }
     }
   });
