@@ -1360,6 +1360,7 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
             })
           );
         },
+        onHeartbeat: opts.onHeartbeat ? () => opts.onHeartbeat!("pass3_synthesis_heartbeat") : undefined,
       }),
       passTimeoutMs,
       "Pass 3",

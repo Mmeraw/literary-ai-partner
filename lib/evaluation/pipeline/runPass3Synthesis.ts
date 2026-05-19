@@ -367,6 +367,8 @@ export interface RunPass3Options {
   /** Override the completion function (for testing). Production callers omit this. */
   _createCompletion?: CreateCompletionFn;
   _onCompletion?: (capture: PassCompletionCapture) => void;
+  /** Optional heartbeat callback — called every 20s during the OpenAI completion call to keep the job lease alive. */
+  onHeartbeat?: () => Promise<void> | void;
 }
 
 function assertPass2aStructuredContext(context: Pass2aStructuredContext | undefined): asserts context is Pass2aStructuredContext {
@@ -500,7 +502,17 @@ export async function runPass3Synthesis(opts: RunPass3Options): Promise<Synthesi
       response_format: { type: "json_object" },
     });
 
-  let completion = await invokePass3Completion(originalMaxTokens);
+  // Heartbeat: fire every 20s during the Pass 3 completion call so the watchdog
+  // doesn't kill the job during a long synthesis (3-5 min for 100k+ word novels).
+  const heartbeatInterval = opts.onHeartbeat
+    ? setInterval(() => { void opts.onHeartbeat?.(); }, 20_000)
+    : null;
+  let completion: Awaited<ReturnType<typeof invokePass3Completion>>;
+  try {
+    completion = await invokePass3Completion(originalMaxTokens);
+  } finally {
+    if (heartbeatInterval) clearInterval(heartbeatInterval);
+  }
   let firstChoice = completion.choices?.[0] as CompletionChoice | undefined;
   let rawContent = firstChoice?.message?.content;
   let responseText = extractResponseText(rawContent);
