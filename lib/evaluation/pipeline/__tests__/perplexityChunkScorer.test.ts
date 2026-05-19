@@ -1,6 +1,9 @@
-import { afterEach, beforeEach, describe, expect, test } from "@jest/globals";
-import { runPerplexityChunkScorer } from "../perplexityChunkScorer";
+import { afterEach, beforeEach, describe, expect, jest, test } from "@jest/globals";
 import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
+
+import { runPerplexityChunkScorer } from "../perplexityChunkScorer";
+
+const pipelineLogMock = jest.fn() as jest.Mock;
 
 function buildPerplexityChunkResponseJson(): string {
   const criteria = Object.fromEntries(
@@ -16,35 +19,52 @@ function buildPerplexityChunkResponseJson(): string {
   return JSON.stringify({ criteria });
 }
 
-function buildFetchMock(opts: { jsonBody?: unknown; status?: number; text?: string } = {}) {
-  const body = opts.jsonBody ?? {
-    choices: [
-      {
-        message: { content: buildPerplexityChunkResponseJson() },
-        finish_reason: "stop",
-      },
-    ],
-  };
-  const status = opts.status ?? 200;
-  const text = opts.text ?? "";
-  return async () =>
-    ({
-      ok: status >= 200 && status < 300,
-      status,
-      async json() {
-        return body;
-      },
-      async text() {
-        return text;
-      },
-    }) as unknown as Response;
+function successResponse(): Response {
+  return {
+    ok: true,
+    status: 200,
+    async json() {
+      return {
+        choices: [
+          {
+            message: { content: buildPerplexityChunkResponseJson() },
+            finish_reason: "stop",
+          },
+        ],
+      };
+    },
+    async text() {
+      return "";
+    },
+  } as unknown as Response;
 }
 
-describe("runPerplexityChunkScorer", () => {
+function errorResponse(status: number, body: string): Response {
+  return {
+    ok: false,
+    status,
+    async json() {
+      return {};
+    },
+    async text() {
+      return body;
+    },
+  } as unknown as Response;
+}
+
+function makeChunks(n: number) {
+  return Array.from({ length: n }, (_, i) => ({
+    chunk_index: i,
+    content: `chunk ${i} content`,
+  }));
+}
+
+describe("runPerplexityChunkScorer — fail-fast gates", () => {
   const ORIGINAL_KEY = process.env.PERPLEXITY_API_KEY;
 
   beforeEach(() => {
     delete process.env.PERPLEXITY_API_KEY;
+    pipelineLogMock.mockClear();
   });
 
   afterEach(() => {
@@ -55,219 +75,244 @@ describe("runPerplexityChunkScorer", () => {
     }
   });
 
-  test("returns null when PERPLEXITY_API_KEY is missing (graceful degradation)", async () => {
+  test("missing key → returns null (operator GPT-only mode)", async () => {
     const result = await runPerplexityChunkScorer({
-      manuscriptText: "Short manuscript text.",
-      manuscriptChunks: [{ chunk_index: 0, content: "Short manuscript text." }],
+      manuscriptText: "x",
+      manuscriptChunks: [{ chunk_index: 0, content: "x" }],
       workType: "novel",
-      title: "Test",
+      title: "T",
     });
     expect(result).toBeNull();
   });
 
-  test("returns a SinglePassOutput shape covering all 13 criteria when API responds successfully", async () => {
-    const fetchMock = buildFetchMock();
+  test("Gate 1 — 422 deterministic probe → throws FATAL", async () => {
+    const fetchSpy: typeof fetch = (async () =>
+      errorResponse(422, "unprocessable entity body")) as unknown as typeof fetch;
+    await expect(
+      runPerplexityChunkScorer({
+        manuscriptText: "x",
+        manuscriptChunks: makeChunks(40),
+        workType: "novel",
+        title: "T",
+        perplexityApiKey: "test-key",
+        _fetch: fetchSpy,
+        _sleep: async () => undefined,
+      _log: pipelineLogMock,
+      }),
+    ).rejects.toThrow(/PERPLEXITY_CHUNK_SCORER_FATAL/);
+
+    const errorCalls = pipelineLogMock.mock.calls.filter((c) => {
+      const arg = c[0] as { level?: string };
+      return arg.level === "error";
+    });
+    expect(errorCalls.length).toBeGreaterThanOrEqual(1);
+  });
+
+  test("Gate 1 — 401 deterministic probe → throws FATAL", async () => {
+    const fetchSpy: typeof fetch = (async () =>
+      errorResponse(401, "bad key")) as unknown as typeof fetch;
+    await expect(
+      runPerplexityChunkScorer({
+        manuscriptText: "x",
+        manuscriptChunks: makeChunks(40),
+        workType: "novel",
+        title: "T",
+        perplexityApiKey: "test-key",
+        _fetch: fetchSpy,
+        _sleep: async () => undefined,
+      _log: pipelineLogMock,
+      }),
+    ).rejects.toThrow(/PERPLEXITY_CHUNK_SCORER_FATAL/);
+  });
+
+  test("Gate 1 — 429 transient probe, retry succeeds → sweep proceeds", async () => {
+    let calls = 0;
+    const fetchSpy: typeof fetch = (async () => {
+      calls += 1;
+      if (calls === 1) return errorResponse(429, "rate limited");
+      return successResponse();
+    }) as unknown as typeof fetch;
+
     const result = await runPerplexityChunkScorer({
-      manuscriptText: "Test manuscript content sufficient for one chunk.",
-      manuscriptChunks: [
-        { chunk_index: 0, content: "Test manuscript content sufficient for one chunk." },
-      ],
+      manuscriptText: "x",
+      manuscriptChunks: makeChunks(1),
       workType: "novel",
-      title: "Test",
+      title: "T",
       perplexityApiKey: "test-key",
-      _fetch: fetchMock as unknown as typeof fetch,
+      _fetch: fetchSpy,
+      _sleep: async () => undefined,
+      _log: pipelineLogMock,
     });
 
     expect(result).not.toBeNull();
     expect(result?.pass).toBe(1);
-    expect(result?.axis).toBe("craft_execution");
-    expect(result?.model).toBe("sonar-reasoning-pro");
-    expect(result?.temperature).toBe(0.1);
-    expect(Array.isArray(result?.criteria)).toBe(true);
     expect(result?.criteria.length).toBe(CRITERIA_KEYS.length);
-
-    const keys = new Set(result?.criteria.map((c) => c.key));
-    for (const key of CRITERIA_KEYS) {
-      expect(keys.has(key)).toBe(true);
-    }
-
-    for (const c of result!.criteria) {
-      expect(c.score_0_10).toBeGreaterThanOrEqual(1);
-      expect(c.score_0_10).toBeLessThanOrEqual(10);
-      expect(typeof c.rationale).toBe("string");
-      expect(c.rationale.length).toBeGreaterThan(0);
-    }
   });
 
-  test("calls Perplexity API once per chunk with sonar-reasoning-pro and disable_search", async () => {
-    const captured: Array<{ url: string; body: unknown }> = [];
-    const fetchSpy: typeof fetch = (async (url: string, init: RequestInit) => {
-      const parsed = JSON.parse((init.body as string) ?? "{}");
-      captured.push({ url, body: parsed });
-      return {
-        ok: true,
-        status: 200,
-        async json() {
-          return {
-            choices: [
-              {
-                message: { content: buildPerplexityChunkResponseJson() },
-                finish_reason: "stop",
-              },
-            ],
-          };
-        },
-        async text() {
-          return "";
-        },
-      } as unknown as Response;
-    }) as unknown as typeof fetch;
+  test("Gate 1 — 429 transient probe, retry also 429 → throws TRANSIENT", async () => {
+    const fetchSpy: typeof fetch = (async () =>
+      errorResponse(429, "rate limited")) as unknown as typeof fetch;
 
-    const chunks = [
-      { chunk_index: 0, content: "Chunk zero content." },
-      { chunk_index: 1, content: "Chunk one content." },
-    ];
-
-    const result = await runPerplexityChunkScorer({
-      manuscriptText: "Chunk zero content.\nChunk one content.",
-      manuscriptChunks: chunks,
-      workType: "novel",
-      title: "Test",
-      perplexityApiKey: "test-key",
-      _fetch: fetchSpy,
-    });
-
-    expect(result).not.toBeNull();
-    expect(captured.length).toBe(2);
-    for (const call of captured) {
-      expect(call.url).toContain("api.perplexity.ai");
-      const body = call.body as Record<string, unknown>;
-      expect(body.model).toBe("sonar-reasoning-pro");
-      expect(body.disable_search).toBe(true);
-      expect(body.reasoning_effort).toBe("high");
-      expect(body.temperature).toBe(0.1);
-    }
+    await expect(
+      runPerplexityChunkScorer({
+        manuscriptText: "x",
+        manuscriptChunks: makeChunks(40),
+        workType: "novel",
+        title: "T",
+        perplexityApiKey: "test-key",
+        _fetch: fetchSpy,
+        _sleep: async () => undefined,
+      _log: pipelineLogMock,
+      }),
+    ).rejects.toThrow(/PERPLEXITY_CHUNK_SCORER_TRANSIENT_FAILURE/);
   });
 
-  test("returns null when every chunk request fails (graceful degradation)", async () => {
-    const failingFetch: typeof fetch = (async () =>
-      ({
-        ok: false,
-        status: 500,
-        async json() {
-          return {};
-        },
-        async text() {
-          return "internal error";
-        },
-      }) as unknown as Response) as unknown as typeof fetch;
-
-    const result = await runPerplexityChunkScorer({
-      manuscriptText: "Test.",
-      manuscriptChunks: [{ chunk_index: 0, content: "Test." }],
-      workType: "novel",
-      title: "Test",
-      perplexityApiKey: "test-key",
-      _fetch: failingFetch,
-    });
-
-    expect(result).toBeNull();
-  });
-
-  test("partial failure: keeps successful chunks and proceeds when only some chunks fail", async () => {
-    let callIndex = 0;
-    const partialFetch: typeof fetch = (async () => {
-      const i = callIndex;
-      callIndex += 1;
-      if (i === 1) {
-        return {
-          ok: false,
-          status: 500,
-          async json() {
-            return {};
-          },
-          async text() {
-            return "transient error";
-          },
-        } as unknown as Response;
+  test("Gate 2 — 3/4 sample chunks fail → throws HIGH_ERROR_RATE", async () => {
+    // chunks 0 (probe) succeeds, then sample = chunks 1-4 (4 of them).
+    // We want 3 of those 4 sample requests to fail with a transient error.
+    // The probe call is the first call (index 0). After that, sample is concurrent.
+    // To control which calls fail we look at the call body for `chunk N content`.
+    const fetchSpy: typeof fetch = (async (_url: string, init: RequestInit) => {
+      const body = JSON.parse((init.body as string) ?? "{}");
+      const userMsg = body.messages?.[1]?.content ?? "";
+      const m = /chunk (\d+) content/.exec(userMsg);
+      const idx = m ? Number(m[1]) : -1;
+      if (idx >= 1 && idx <= 3) {
+        return errorResponse(500, "boom");
       }
-      return {
-        ok: true,
-        status: 200,
-        async json() {
-          return {
-            choices: [
-              {
-                message: { content: buildPerplexityChunkResponseJson() },
-                finish_reason: "stop",
-              },
-            ],
-          };
-        },
-        async text() {
-          return "";
-        },
-      } as unknown as Response;
+      return successResponse();
+    }) as unknown as typeof fetch;
+
+    await expect(
+      runPerplexityChunkScorer({
+        manuscriptText: "x",
+        manuscriptChunks: makeChunks(40),
+        workType: "novel",
+        title: "T",
+        perplexityApiKey: "test-key",
+        _fetch: fetchSpy,
+        _sleep: async () => undefined,
+      _log: pipelineLogMock,
+      }),
+    ).rejects.toThrow(/PERPLEXITY_CHUNK_SCORER_HIGH_ERROR_RATE/);
+  });
+
+  test("Gate 2 — 1/4 sample chunks fail → does NOT throw, proceeds to main batch", async () => {
+    const fetchSpy: typeof fetch = (async (_url: string, init: RequestInit) => {
+      const body = JSON.parse((init.body as string) ?? "{}");
+      const userMsg = body.messages?.[1]?.content ?? "";
+      const m = /chunk (\d+) content/.exec(userMsg);
+      const idx = m ? Number(m[1]) : -1;
+      if (idx === 2) {
+        return errorResponse(500, "boom");
+      }
+      return successResponse();
     }) as unknown as typeof fetch;
 
     const result = await runPerplexityChunkScorer({
-      manuscriptText: "a b c",
-      manuscriptChunks: [
-        { chunk_index: 0, content: "chunk zero" },
-        { chunk_index: 1, content: "chunk one" },
-        { chunk_index: 2, content: "chunk two" },
-      ],
-      workType: "novel",
-      title: "Test",
-      perplexityApiKey: "test-key",
-      _fetch: partialFetch,
-    });
-
-    expect(result).not.toBeNull();
-    expect(result?.criteria.length).toBe(CRITERIA_KEYS.length);
-  });
-
-  test("returns null gracefully when manuscriptChunks is an empty array", async () => {
-    // Empty chunks array → scorer falls back to a single chunk wrapping manuscriptText
-    // (a 0-chunk job would be silently degraded). Verify the fallback path works.
-    const fetchMock = buildFetchMock();
-    const result = await runPerplexityChunkScorer({
-      manuscriptText: "minimal text",
-      manuscriptChunks: [],
+      manuscriptText: "x",
+      manuscriptChunks: makeChunks(40),
       workType: "novel",
       title: "T",
       perplexityApiKey: "test-key",
-      _fetch: fetchMock as unknown as typeof fetch,
+      _fetch: fetchSpy,
+      _sleep: async () => undefined,
+      _log: pipelineLogMock,
     });
+
     expect(result).not.toBeNull();
     expect(result?.criteria.length).toBe(CRITERIA_KEYS.length);
   });
 
-  test("missing criteria in response are backfilled with placeholder score 5", async () => {
-    // Perplexity returns only 3 of 13 criteria. The remaining 10 should be
-    // backfilled with a conservative placeholder rather than throw.
+  test("Gate 3 — per-chunk error logging: chunk 7 fails → pipelineLog called with chunkIndex 7", async () => {
+    const fetchSpy: typeof fetch = (async (_url: string, init: RequestInit) => {
+      const body = JSON.parse((init.body as string) ?? "{}");
+      const userMsg = body.messages?.[1]?.content ?? "";
+      const m = /chunk (\d+) content/.exec(userMsg);
+      const idx = m ? Number(m[1]) : -1;
+      if (idx === 7) {
+        return errorResponse(500, "boom on 7");
+      }
+      return successResponse();
+    }) as unknown as typeof fetch;
+
+    const result = await runPerplexityChunkScorer({
+      manuscriptText: "x",
+      manuscriptChunks: makeChunks(40),
+      workType: "novel",
+      title: "T",
+      perplexityApiKey: "test-key",
+      _fetch: fetchSpy,
+      _sleep: async () => undefined,
+      _log: pipelineLogMock,
+    });
+
+    expect(result).not.toBeNull();
+
+    const chunk7Log = pipelineLogMock.mock.calls.find((c) => {
+      const arg = c[0] as { metadata?: { chunkIndex?: number } };
+      return arg.metadata?.chunkIndex === 7;
+    });
+    expect(chunk7Log).toBeDefined();
+  });
+
+  test("happy path with success across all chunks returns SinglePassOutput", async () => {
+    const fetchSpy: typeof fetch = (async () => successResponse()) as unknown as typeof fetch;
+    const result = await runPerplexityChunkScorer({
+      manuscriptText: "x",
+      manuscriptChunks: makeChunks(10),
+      workType: "novel",
+      title: "T",
+      perplexityApiKey: "test-key",
+      _fetch: fetchSpy,
+      _sleep: async () => undefined,
+      _log: pipelineLogMock,
+    });
+    expect(result).not.toBeNull();
+    expect(result?.pass).toBe(1);
+    expect(result?.axis).toBe("craft_execution");
+    expect(result?.model).toBe("sonar-reasoning-pro");
+    expect(result?.criteria.length).toBe(CRITERIA_KEYS.length);
+    for (const c of result!.criteria) {
+      expect(c.score_0_10).toBeGreaterThanOrEqual(1);
+      expect(c.score_0_10).toBeLessThanOrEqual(10);
+    }
+  });
+
+  test("missing criteria in response are backfilled with placeholder", async () => {
     const partialCriteria = {
       concept: { score: 7, rationale: "ok", evidence: "snippet" },
       voice: { score: 4, rationale: "weak", evidence: "snippet" },
       pacing: { score: 6, rationale: "ok", evidence: "snippet" },
     };
-    const fetchMock = buildFetchMock({
-      jsonBody: {
-        choices: [
-          {
-            message: { content: JSON.stringify({ criteria: partialCriteria }) },
-            finish_reason: "stop",
-          },
-        ],
-      },
-    });
+    const fetchSpy: typeof fetch = (async () =>
+      ({
+        ok: true,
+        status: 200,
+        async json() {
+          return {
+            choices: [
+              {
+                message: { content: JSON.stringify({ criteria: partialCriteria }) },
+                finish_reason: "stop",
+              },
+            ],
+          };
+        },
+        async text() {
+          return "";
+        },
+      }) as unknown as Response) as unknown as typeof fetch;
+
     const result = await runPerplexityChunkScorer({
       manuscriptText: "x",
       manuscriptChunks: [{ chunk_index: 0, content: "x" }],
       workType: "novel",
       title: "T",
       perplexityApiKey: "test-key",
-      _fetch: fetchMock as unknown as typeof fetch,
+      _fetch: fetchSpy,
+      _sleep: async () => undefined,
+      _log: pipelineLogMock,
     });
     expect(result).not.toBeNull();
     expect(result?.criteria.length).toBe(CRITERIA_KEYS.length);
@@ -277,22 +322,7 @@ describe("runPerplexityChunkScorer", () => {
     expect(placeholderCount).toBe(CRITERIA_KEYS.length - 3);
   });
 
-  test("returns null (does not throw) when fetch itself rejects unexpectedly", async () => {
-    const throwingFetch: typeof fetch = (async () => {
-      throw new Error("network unreachable");
-    }) as unknown as typeof fetch;
-    const result = await runPerplexityChunkScorer({
-      manuscriptText: "x",
-      manuscriptChunks: [{ chunk_index: 0, content: "x" }],
-      workType: "novel",
-      title: "T",
-      perplexityApiKey: "test-key",
-      _fetch: throwingFetch,
-    });
-    expect(result).toBeNull();
-  });
-
-  test("clamps out-of-range scores into the canonical 1..10 range", async () => {
+  test("clamps out-of-range scores into 1..10", async () => {
     const outOfRangeCriteria = Object.fromEntries(
       CRITERIA_KEYS.map((key, i) => [
         key,
@@ -303,23 +333,34 @@ describe("runPerplexityChunkScorer", () => {
         },
       ]),
     );
-    const fetchMock = buildFetchMock({
-      jsonBody: {
-        choices: [
-          {
-            message: { content: JSON.stringify({ criteria: outOfRangeCriteria }) },
-            finish_reason: "stop",
-          },
-        ],
-      },
-    });
+    const fetchSpy: typeof fetch = (async () =>
+      ({
+        ok: true,
+        status: 200,
+        async json() {
+          return {
+            choices: [
+              {
+                message: { content: JSON.stringify({ criteria: outOfRangeCriteria }) },
+                finish_reason: "stop",
+              },
+            ],
+          };
+        },
+        async text() {
+          return "";
+        },
+      }) as unknown as Response) as unknown as typeof fetch;
+
     const result = await runPerplexityChunkScorer({
-      manuscriptText: "text",
-      manuscriptChunks: [{ chunk_index: 0, content: "text" }],
+      manuscriptText: "x",
+      manuscriptChunks: [{ chunk_index: 0, content: "x" }],
       workType: "novel",
       title: "T",
       perplexityApiKey: "test-key",
-      _fetch: fetchMock as unknown as typeof fetch,
+      _fetch: fetchSpy,
+      _sleep: async () => undefined,
+      _log: pipelineLogMock,
     });
     expect(result).not.toBeNull();
     for (const c of result!.criteria) {

@@ -8,8 +8,9 @@
  * Concurrency: process.env.EVAL_PPLX_CHUNK_CONCURRENCY (default 8).
  * Timeout per request: process.env.EVAL_PPLX_CHUNK_TIMEOUT_MS (default 120_000).
  *
- * Graceful degradation: if PERPLEXITY_API_KEY is missing, this module
- * returns null and the pipeline continues with the GPT-only path.
+ * Hard-fail policy: dual-model evaluation is mandatory. The only acceptable
+ * GPT-only path is when PERPLEXITY_API_KEY is not configured. Any API error
+ * after the key is present causes the job to fail fast with a typed error.
  *
  * Independence: this scorer never sees GPT scores. It is an independent
  * second evaluation of the manuscript chunks, paired with GPT at Pass 3.
@@ -39,6 +40,24 @@ const DEFAULT_PPLX_CHUNK_TIMEOUT_MS = 120_000;
 
 const PROMPT_VERSION = "pplx-chunk-scorer-v1";
 
+const PROBE_RETRY_DELAY_MS = 5_000;
+const SAMPLE_BATCH_SIZE = 4;
+const SAMPLE_FAIL_THRESHOLD = 3;
+
+const DETERMINISTIC_STATUS_CODES = new Set([400, 401, 403, 422]);
+const TRANSIENT_STATUS_CODES = new Set([429, 500, 502, 503]);
+
+export class PerplexityApiError extends Error {
+  constructor(
+    public readonly statusCode: number,
+    public readonly errorBody: string,
+    public readonly chunkIndex?: number,
+  ) {
+    super(`[PplxChunk] Perplexity API error ${statusCode}: ${errorBody.slice(0, 300)}`);
+    this.name = 'PerplexityApiError';
+  }
+}
+
 export interface PerplexityChunkScorerOptions {
   manuscriptText: string;
   manuscriptChunks?: ManuscriptChunkEvidence[];
@@ -48,6 +67,16 @@ export interface PerplexityChunkScorerOptions {
   jobId?: string;
   /** Override for testing — provide a mock fetch-like function. */
   _fetch?: typeof fetch;
+  /** Override for testing — replace the probe-retry backoff. */
+  _sleep?: (ms: number) => Promise<void>;
+  /** Override for testing — replace pipelineLog with a spy. */
+  _log?: (args: {
+    jobId: string;
+    level: "info" | "warn" | "error";
+    stage: string;
+    message: string;
+    metadata?: Record<string, unknown>;
+  }) => void;
 }
 
 export function getPplxChunkConcurrency(): number {
@@ -223,6 +252,7 @@ async function callPerplexityForChunk(args: {
   maxTokens: number;
   timeoutMs: number;
   fetchFn: typeof fetch;
+  chunkIndex?: number;
 }): Promise<{ rawContent: string; finishReason: string }> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), args.timeoutMs);
@@ -253,9 +283,7 @@ async function callPerplexityForChunk(args: {
 
     if (!response.ok) {
       const errText = await response.text();
-      throw new Error(
-        `[PplxChunk] Perplexity API error ${response.status}: ${errText.slice(0, 400)}`,
-      );
+      throw new PerplexityApiError(response.status, errText, args.chunkIndex);
     }
 
     const raw = (await response.json()) as {
@@ -308,6 +336,7 @@ async function scoreChunk(args: {
     maxTokens,
     timeoutMs: args.timeoutMs,
     fetchFn: args.fetchFn,
+    chunkIndex: args.chunk.chunk_index,
   });
 
   try {
@@ -325,6 +354,7 @@ async function scoreChunk(args: {
       maxTokens,
       timeoutMs: args.timeoutMs,
       fetchFn: args.fetchFn,
+      chunkIndex: args.chunk.chunk_index,
     });
     return parseChunkCriteria(result.rawContent, args.chunk.chunk_index);
   }
@@ -412,15 +442,49 @@ function aggregateChunkCriteria(
   return aggregated;
 }
 
+function classifyProbeError(err: unknown): "deterministic" | "transient" {
+  if (err instanceof PerplexityApiError) {
+    if (DETERMINISTIC_STATUS_CODES.has(err.statusCode)) return "deterministic";
+    if (TRANSIENT_STATUS_CODES.has(err.statusCode)) return "transient";
+    // Unknown HTTP code → treat as deterministic (don't retry into the void).
+    return "deterministic";
+  }
+  if (err instanceof Error) {
+    if (err.name === "AbortError" || err.message.includes("timed out")) {
+      return "transient";
+    }
+  }
+  return "transient";
+}
+
+function probeErrorSummary(err: unknown): { statusCode: number | null; errorBody: string } {
+  if (err instanceof PerplexityApiError) {
+    return { statusCode: err.statusCode, errorBody: err.errorBody };
+  }
+  return {
+    statusCode: null,
+    errorBody: err instanceof Error ? err.message : String(err),
+  };
+}
+
+const defaultSleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
 /**
  * Run Perplexity chunk scoring across all chunks.
  *
  * Returns:
- *   - SinglePassOutput when scoring succeeds (any chunk count >= 1)
- *   - null when graceful degradation kicks in (no API key, or all chunks failed)
+ *   - SinglePassOutput when scoring succeeds for the probe and the sample
+ *     batch, and at least the existing main batch concurrency logic resolves.
+ *   - null ONLY when PERPLEXITY_API_KEY is not configured (operator chose
+ *     GPT-only mode).
  *
- * Never throws — graceful degradation is mandatory. Callers should expect null
- * and fall through to the GPT-only path.
+ * Throws (HARD FAIL — propagates to job failure handler):
+ *   - PERPLEXITY_CHUNK_SCORER_FATAL when the first-chunk probe hits a
+ *     deterministic HTTP error (400/401/403/422).
+ *   - PERPLEXITY_CHUNK_SCORER_TRANSIENT_FAILURE when the probe fails
+ *     transiently twice in a row.
+ *   - PERPLEXITY_CHUNK_SCORER_HIGH_ERROR_RATE when ≥75% of the sample
+ *     batch (3/4) fails.
  */
 export async function runPerplexityChunkScorer(
   opts: PerplexityChunkScorerOptions,
@@ -428,9 +492,6 @@ export async function runPerplexityChunkScorer(
   const optsKey = opts.perplexityApiKey?.trim();
   const envKey = process.env.PERPLEXITY_API_KEY?.trim();
   const apiKey = optsKey || envKey;
-  // Diagnostic: surface whether the scorer was invoked with a key so Vercel
-  // logs can distinguish "scorer never ran" from "scorer ran but key missing"
-  // from "scorer ran with key but Perplexity API rejected it."
   console.log("[PplxChunk] scorer invoked", {
     hasKey: !!apiKey,
     keyLength: apiKey?.length ?? 0,
@@ -440,7 +501,7 @@ export async function runPerplexityChunkScorer(
   });
   if (!apiKey) {
     console.warn(
-      "[PplxChunk] PERPLEXITY_API_KEY missing — skipping Perplexity chunk sweep (graceful degradation to GPT-only)",
+      "[PplxChunk] PERPLEXITY_API_KEY missing — skipping Perplexity chunk sweep (GPT-only mode by operator config)",
     );
     if (opts.jobId) {
       void pipelineLog({
@@ -458,13 +519,29 @@ export async function runPerplexityChunkScorer(
   }
 
   const fetchFn = opts._fetch ?? fetch;
+  const sleep = opts._sleep ?? defaultSleep;
   const timeoutMs = getPplxChunkTimeoutMs();
   const concurrency = getPplxChunkConcurrency();
+  const jobLabel = opts.jobId ?? "unknown";
 
-  const hasChunksForLog = Array.isArray(opts.manuscriptChunks) && opts.manuscriptChunks.length > 0;
-  const chunkCountForLog = hasChunksForLog ? opts.manuscriptChunks!.length : 1;
+  const log = (args: {
+    jobId: string;
+    level: "info" | "warn" | "error";
+    stage: string;
+    message: string;
+    metadata?: Record<string, unknown>;
+  }) => {
+    if (opts._log) opts._log(args);
+    void pipelineLog(args);
+  };
+
+  const hasChunks = Array.isArray(opts.manuscriptChunks) && opts.manuscriptChunks.length > 0;
+  const chunks: ManuscriptChunkEvidence[] = hasChunks
+    ? opts.manuscriptChunks!
+    : [{ chunk_index: 0, content: opts.manuscriptText }];
+
   if (opts.jobId) {
-    void pipelineLog({
+    log({
       jobId: opts.jobId,
       level: "info",
       stage: "pplx_chunk_scorer",
@@ -472,94 +549,102 @@ export async function runPerplexityChunkScorer(
       metadata: {
         hasKey: !!apiKey,
         keyLength: apiKey?.length ?? 0,
-        chunkCount: chunkCountForLog,
+        chunkCount: chunks.length,
         concurrency,
         timeoutMs,
       },
     });
   }
 
-  const hasChunks = Array.isArray(opts.manuscriptChunks) && opts.manuscriptChunks.length > 0;
-  const chunks: ManuscriptChunkEvidence[] = hasChunks
-    ? opts.manuscriptChunks!
-    : [{ chunk_index: 0, content: opts.manuscriptText }];
-
-  const jobLabel = opts.jobId ?? "unknown";
   const startMs = Date.now();
-
   console.log(
     `[PplxChunk] Starting Perplexity chunk sweep: job_id=${jobLabel} chunks=${chunks.length} concurrency=${concurrency} timeout_ms=${timeoutMs}`,
   );
 
+  const runOne = (chunk: ManuscriptChunkEvidence) =>
+    scoreChunk({
+      chunk,
+      chunkCount: chunks.length,
+      title: opts.title,
+      workType: opts.workType,
+      perplexityApiKey: apiKey,
+      timeoutMs,
+      fetchFn,
+    });
+
+  // ── Gate 1: First-chunk probe ─────────────────────────────────────────
+  const probeChunk = chunks[0];
+  let probeResult: AxisCriterionResult[];
   try {
-    const settled = await runChunksWithConcurrency(chunks, concurrency, (chunk) =>
-      scoreChunk({
-        chunk,
-        chunkCount: chunks.length,
-        title: opts.title,
-        workType: opts.workType,
-        perplexityApiKey: apiKey,
-        timeoutMs,
-        fetchFn,
-      }),
+    probeResult = await runOne(probeChunk);
+  } catch (firstErr) {
+    const kind = classifyProbeError(firstErr);
+    const { statusCode, errorBody } = probeErrorSummary(firstErr);
+
+    if (kind === "deterministic") {
+      log({
+        jobId: jobLabel,
+        level: "error",
+        stage: "pplx_chunk_scorer",
+        message: "Perplexity probe failed — deterministic error, aborting job",
+        metadata: { statusCode, errorBody: errorBody.slice(0, 300) },
+      });
+      throw new Error(
+        `PERPLEXITY_CHUNK_SCORER_FATAL: Perplexity API returned ${statusCode ?? "unknown"} — dual-model evaluation cannot proceed. Error: ${errorBody}`,
+      );
+    }
+
+    // Transient — wait and retry once.
+    console.warn(
+      `[PplxChunk] Probe failed transiently (status=${statusCode ?? "n/a"}) — retrying once after ${PROBE_RETRY_DELAY_MS}ms. job_id=${jobLabel}`,
     );
+    await sleep(PROBE_RETRY_DELAY_MS);
 
-    const successes: AxisCriterionResult[][] = [];
-    const failures: Array<{ chunkIndex: number; reason: string }> = [];
-
-    for (let i = 0; i < settled.length; i += 1) {
-      const result = settled[i];
-      if (!result) continue;
-      if (result.status === "fulfilled") {
-        successes.push(result.value);
-      } else {
-        failures.push({
-          chunkIndex: chunks[i].chunk_index,
-          reason:
-            result.reason instanceof Error
-              ? result.reason.message
-              : String(result.reason),
-        });
-      }
+    try {
+      probeResult = await runOne(probeChunk);
+    } catch (secondErr) {
+      const second = probeErrorSummary(secondErr);
+      log({
+        jobId: jobLabel,
+        level: "error",
+        stage: "pplx_chunk_scorer",
+        message: "Perplexity probe failed twice — transient, aborting job",
+        metadata: {
+          firstStatusCode: statusCode,
+          firstErrorBody: errorBody.slice(0, 300),
+          retryStatusCode: second.statusCode,
+          retryErrorBody: second.errorBody.slice(0, 300),
+        },
+      });
+      throw new Error(
+        `PERPLEXITY_CHUNK_SCORER_TRANSIENT_FAILURE: Perplexity probe failed twice (${second.statusCode ?? statusCode ?? "unknown"}) — dual-model evaluation cannot proceed`,
+      );
     }
+  }
 
+  // Probe succeeded. Remaining chunks split into sample (next 4) + main batch.
+  const remaining = chunks.slice(1);
+
+  if (remaining.length === 0) {
+    // Single-chunk job — probe IS the entire sweep.
     const elapsedMs = Date.now() - startMs;
-
-    if (successes.length === 0) {
-      console.warn(
-        `[PplxChunk] All Perplexity chunk requests failed — returning null (graceful degradation). job_id=${jobLabel} failures=${failures.length} elapsed_ms=${elapsedMs}`,
-        failures.slice(0, 3),
-      );
-      return null;
-    }
-
-    if (failures.length > 0) {
-      console.warn(
-        `[PplxChunk] Partial Perplexity chunk sweep — succeeded=${successes.length} failed=${failures.length} job_id=${jobLabel} elapsed_ms=${elapsedMs}`,
-        failures.slice(0, 3),
-      );
-    } else {
-      console.log(
-        `[PplxChunk] Perplexity chunk sweep complete: succeeded=${successes.length}/${chunks.length} job_id=${jobLabel} elapsed_ms=${elapsedMs}`,
-      );
-    }
-
-    const aggregatedCriteria = aggregateChunkCriteria(successes);
-
+    console.log(
+      `[PplxChunk] Perplexity chunk sweep complete (probe-only): job_id=${jobLabel} elapsed_ms=${elapsedMs}`,
+    );
+    const aggregatedCriteria = aggregateChunkCriteria([probeResult]);
     if (opts.jobId) {
-      void pipelineLog({
+      log({
         jobId: opts.jobId,
         level: "info",
         stage: "pplx_chunk_scorer",
         message: "Perplexity chunk scorer complete",
         metadata: {
-          successCount: successes.length,
-          failureCount: failures.length,
+          successCount: 1,
+          failureCount: 0,
           criteriaCount: aggregatedCriteria.length,
         },
       });
     }
-
     return {
       pass: 1,
       axis: "craft_execution",
@@ -569,11 +654,127 @@ export async function runPerplexityChunkScorer(
       temperature: PERPLEXITY_TEMPERATURE,
       generated_at: new Date().toISOString(),
     };
-  } catch (err) {
-    const reason = err instanceof Error ? err.message : String(err);
-    console.warn(
-      `[PplxChunk] Perplexity chunk sweep threw unexpectedly — graceful degradation. job_id=${jobLabel}: ${reason}`,
-    );
-    return null;
   }
+
+  // ── Gate 2: Sample batch (first 4 of remaining) ────────────────────────
+  const sampleChunks = remaining.slice(0, SAMPLE_BATCH_SIZE);
+  const mainChunks = remaining.slice(SAMPLE_BATCH_SIZE);
+
+  const sampleSettled = await runChunksWithConcurrency(
+    sampleChunks,
+    concurrency,
+    runOne,
+  );
+
+  const sampleSuccesses: AxisCriterionResult[][] = [];
+  const sampleFailures: Array<{ chunkIndex: number; reason: string }> = [];
+  for (let i = 0; i < sampleSettled.length; i += 1) {
+    const result = sampleSettled[i];
+    if (!result) continue;
+    const chunkIndex = sampleChunks[i].chunk_index;
+    if (result.status === "fulfilled") {
+      sampleSuccesses.push(result.value);
+    } else {
+      const err = result.reason;
+      const reason =
+        err instanceof PerplexityApiError
+          ? `HTTP ${err.statusCode}: ${err.errorBody.slice(0, 200)}`
+          : String(err).slice(0, 300);
+      sampleFailures.push({ chunkIndex, reason });
+      log({
+        jobId: jobLabel,
+        level: "error",
+        stage: "pplx_chunk_scorer",
+        message: `Chunk ${chunkIndex} failed`,
+        metadata: { chunkIndex, reason },
+      });
+    }
+  }
+
+  if (sampleFailures.length >= SAMPLE_FAIL_THRESHOLD) {
+    const failCount = sampleFailures.length;
+    log({
+      jobId: jobLabel,
+      level: "error",
+      stage: "pplx_chunk_scorer",
+      message: "Perplexity sweep aborted — error rate too high",
+      metadata: { failCount, sampleSize: SAMPLE_BATCH_SIZE },
+    });
+    throw new Error(
+      `PERPLEXITY_CHUNK_SCORER_HIGH_ERROR_RATE: ${failCount}/${SAMPLE_BATCH_SIZE} sample chunks failed — dual-model evaluation cannot proceed`,
+    );
+  }
+
+  // ── Gate 3: Main batch ────────────────────────────────────────────────
+  const mainSettled = await runChunksWithConcurrency(
+    mainChunks,
+    concurrency,
+    runOne,
+  );
+
+  const mainSuccesses: AxisCriterionResult[][] = [];
+  const mainFailures: Array<{ chunkIndex: number; reason: string }> = [];
+  for (let i = 0; i < mainSettled.length; i += 1) {
+    const result = mainSettled[i];
+    if (!result) continue;
+    const chunkIndex = mainChunks[i].chunk_index;
+    if (result.status === "fulfilled") {
+      mainSuccesses.push(result.value);
+    } else {
+      const err = result.reason;
+      const reason =
+        err instanceof PerplexityApiError
+          ? `HTTP ${err.statusCode}: ${err.errorBody.slice(0, 200)}`
+          : String(err).slice(0, 300);
+      mainFailures.push({ chunkIndex, reason });
+      log({
+        jobId: opts.jobId ?? "unknown",
+        level: "error",
+        stage: "pplx_chunk_scorer",
+        message: `Chunk ${chunkIndex} failed`,
+        metadata: { chunkIndex, reason },
+      });
+    }
+  }
+
+  const allSuccesses = [probeResult, ...sampleSuccesses, ...mainSuccesses];
+  const allFailures = [...sampleFailures, ...mainFailures];
+  const elapsedMs = Date.now() - startMs;
+
+  if (allFailures.length > 0) {
+    console.warn(
+      `[PplxChunk] Partial Perplexity chunk sweep — succeeded=${allSuccesses.length} failed=${allFailures.length} job_id=${jobLabel} elapsed_ms=${elapsedMs}`,
+      allFailures.slice(0, 3),
+    );
+  } else {
+    console.log(
+      `[PplxChunk] Perplexity chunk sweep complete: succeeded=${allSuccesses.length}/${chunks.length} job_id=${jobLabel} elapsed_ms=${elapsedMs}`,
+    );
+  }
+
+  const aggregatedCriteria = aggregateChunkCriteria(allSuccesses);
+
+  if (opts.jobId) {
+    log({
+      jobId: opts.jobId,
+      level: "info",
+      stage: "pplx_chunk_scorer",
+      message: "Perplexity chunk scorer complete",
+      metadata: {
+        successCount: allSuccesses.length,
+        failureCount: allFailures.length,
+        criteriaCount: aggregatedCriteria.length,
+      },
+    });
+  }
+
+  return {
+    pass: 1,
+    axis: "craft_execution",
+    criteria: aggregatedCriteria,
+    model: PERPLEXITY_MODEL,
+    prompt_version: PROMPT_VERSION,
+    temperature: PERPLEXITY_TEMPERATURE,
+    generated_at: new Date().toISOString(),
+  };
 }
