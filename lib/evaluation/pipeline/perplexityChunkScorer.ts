@@ -424,7 +424,19 @@ function aggregateChunkCriteria(
 export async function runPerplexityChunkScorer(
   opts: PerplexityChunkScorerOptions,
 ): Promise<SinglePassOutput | null> {
-  const apiKey = opts.perplexityApiKey?.trim() || process.env.PERPLEXITY_API_KEY?.trim();
+  const optsKey = opts.perplexityApiKey?.trim();
+  const envKey = process.env.PERPLEXITY_API_KEY?.trim();
+  const apiKey = optsKey || envKey;
+  // Diagnostic: surface whether the scorer was invoked with a key so Vercel
+  // logs can distinguish "scorer never ran" from "scorer ran but key missing"
+  // from "scorer ran with key but Perplexity API rejected it."
+  console.log("[PplxChunk] scorer invoked", {
+    hasKey: !!apiKey,
+    keyLength: apiKey?.length ?? 0,
+    optsKeyPresent: !!optsKey,
+    envKeyPresent: !!envKey,
+    jobId: opts.jobId ?? "unknown",
+  });
   if (!apiKey) {
     console.warn(
       "[PplxChunk] PERPLEXITY_API_KEY missing — skipping Perplexity chunk sweep (graceful degradation to GPT-only)",

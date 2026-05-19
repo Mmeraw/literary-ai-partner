@@ -16,7 +16,7 @@ describe("resolveEvaluationRuntimeConfig", () => {
     expect(config.adjudicationMode).toBe("optional");
     expect(config.pass.pass1MaxTokens).toBe(8000);
     expect(config.pass.pass2MaxTokens).toBe(8000);
-    expect(config.pass.pass3MaxTokens).toBe(20000);
+    expect(config.pass.pass3MaxTokens).toBe(24000);
     expect(config.pass.pass3PromptMaxChars).toBe(500000);
     expect(config.pass.inputCharBudget).toBe(50000);
     expect(config.pass.synthesisRefCharBudget).toBe(400000);

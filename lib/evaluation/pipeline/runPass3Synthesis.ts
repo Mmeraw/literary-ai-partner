@@ -985,7 +985,12 @@ function hasTruncatedRecommendationAction(rawRecommendations: unknown): boolean 
     if (!entry || typeof entry !== "object") return false;
     const action = String((entry as Record<string, unknown>)["action"] ?? "").trim();
     if (!action) return false;
-    return /\b(with|and|or|to|of|in|on|for|the|a|an)\.?$/i.test(action);
+    // Mirror validateEvaluationArtifact.looksTruncatedRecommendation:
+    // exclude hyphen/em/en dash compounds and pronoun-object phrasal verbs
+    // ("reins it in.") from the truncation heuristic.
+    return /(?<![-–—\w])(?<!\b(?:it|him|her|them|me|us|you)\s)\b(with|and|or|to|of|in|on|for|the|a|an)\.?$/i.test(
+      action,
+    );
   });
 }
 
