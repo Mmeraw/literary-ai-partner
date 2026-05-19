@@ -111,3 +111,63 @@ CI parses this file as the source of truth. Any high/critical advisory not liste
 - Advisory: tracked together with `@playwright/test`; advisory IDs (if any) inherit through the transitive chain
 - Accepted: same rationale as `@playwright/test` — dev-only, not in production bundle, not exposed to user input
 - Time-boxed expiry: **2026-07-31**
+
+### workflow
+- **Status**: KNOWN — direct dependency for workflow spike
+- Accepted: feature-flagged additive spike path only; no production runtime path changed until explicit enablement
+
+### @workflow/astro
+- **Status**: KNOWN — transitive dependency
+- Accepted: SDK ecosystem package not used in runtime request paths; no user-controlled input path
+
+### @workflow/builders
+- **Status**: KNOWN — transitive dependency
+- Accepted: build-time/internal SDK package; not exposed to production request path
+
+### @workflow/cli
+- **Status**: KNOWN — transitive dependency
+- Accepted: tooling package only; not exposed to user input in production runtime
+
+### @workflow/core
+- **Status**: KNOWN — transitive dependency
+- Accepted: internal SDK package; no direct user-controlled input path
+
+### @workflow/nest
+- **Status**: KNOWN — transitive dependency
+- Accepted: framework adapter package not used by this runtime path
+
+### @workflow/nitro
+- **Status**: KNOWN — transitive dependency
+- Accepted: framework adapter package not used by this runtime path
+
+### @workflow/nuxt
+- **Status**: KNOWN — transitive dependency
+- Accepted: framework adapter package not used by this runtime path
+
+### @workflow/rollup
+- **Status**: KNOWN — transitive dependency
+- Accepted: build adapter package; not used in runtime request handling
+
+### @workflow/sveltekit
+- **Status**: KNOWN — transitive dependency
+- Accepted: framework adapter package not used by this runtime path
+
+### @workflow/vite
+- **Status**: KNOWN — transitive dependency
+- Accepted: build adapter package; not used in runtime request handling
+
+### @workflow/world-local
+- **Status**: KNOWN — transitive dependency
+- Accepted: internal SDK package; no direct user-controlled input path
+
+### @workflow/world-vercel
+- **Status**: KNOWN — transitive dependency
+- Accepted: internal SDK package; no direct user-controlled input path
+
+### devalue
+- **Status**: KNOWN — transitive dependency
+- Accepted: internal serialization dependency from workflow SDK chain; not used on user-supplied payloads in request handlers
+
+### undici
+- **Status**: KNOWN — transitive dependency
+- Accepted: transitive HTTP client package in dependency graph; no direct user-controlled request path exposure in this change
