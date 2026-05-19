@@ -341,6 +341,14 @@ export interface RunPass3Options {
   pass1: SinglePassOutput;
   pass2: SinglePassOutput;
   pass2aStructuredContext: Pass2aStructuredContext;
+  /**
+   * Optional independent Perplexity chunk-scoring packet (dual-model parallel scoring).
+   * When present, Pass 3 runs in dual-model mode: it synthesizes across both
+   * independent evaluations, flags criteria where the two models diverge by
+   * more than 1 point, and weights agreement as a stronger signal.
+   * When absent, Pass 3 runs in the legacy GPT-only mode (backward compatible).
+   */
+  perplexityChunkPacket?: SinglePassOutput;
   manuscriptText: string;
   manuscriptChunks?: ManuscriptChunkEvidence[];
   title: string;
@@ -405,6 +413,8 @@ export async function runPass3Synthesis(opts: RunPass3Options): Promise<Synthesi
     title: opts.title,
     executionMode: opts.executionMode,
     scopeProfile: opts.scopeProfile,
+    perplexityChunkPacket: opts.perplexityChunkPacket,
+    dualModelMode: !!opts.perplexityChunkPacket,
   });
   assertPass3PromptTripwires(userPrompt);
 

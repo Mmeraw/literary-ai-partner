@@ -1,3 +1,7 @@
+// ARCHIVED: Pass 4 retired in favor of dual-model parallel scoring (Pass 1+2 Perplexity).
+// See feat/dual-model-parallel-scoring. This evidence-packet builder is no longer
+// invoked by the pipeline. The file is preserved to keep imports from
+// perplexityCrossCheck.ts (also archived) resolvable.
 /**
  * Pass 4 — Representative Long-Form Evidence Packet Builder
  *

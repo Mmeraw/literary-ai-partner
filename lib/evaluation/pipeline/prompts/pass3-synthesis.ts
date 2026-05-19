@@ -8,7 +8,7 @@
 
 import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
 import type { SubmissionScopeProfile } from "../submissionScope";
-import type { Pass2aStructuredContext } from "../types";
+import type { Pass2aStructuredContext, SinglePassOutput } from "../types";
 import {
   buildCoverageDisclosure,
   buildPromptInputWindow,
@@ -85,6 +85,28 @@ Return ONLY JSON with keys:
 Criteria keys:
 ${CRITERIA_KEYS.join(", ")}`;
 
+/**
+ * Build a compact summary of the Perplexity dual-model packet for Pass 3.
+ * One line per criterion: score, short rationale, and first evidence snippet.
+ * Cap the rationale length so the prompt stays bounded.
+ */
+function buildPerplexityPacketSummary(packet: SinglePassOutput): string {
+  return packet.criteria
+    .map((c) => {
+      const rationale = (c.rationale ?? "").trim();
+      const truncRationale =
+        rationale.length > 180 ? `${rationale.slice(0, 180).trimEnd()}…` : rationale;
+      const evidenceSnippet = (c.evidence[0]?.snippet ?? "").trim();
+      const truncEvidence =
+        evidenceSnippet.length > 120
+          ? `${evidenceSnippet.slice(0, 120).trimEnd()}…`
+          : evidenceSnippet;
+      const evidencePart = truncEvidence ? ` | evidence: "${truncEvidence}"` : "";
+      return `- ${c.key}: ${c.score_0_10}/10 — ${truncRationale}${evidencePart}`;
+    })
+    .join("\n");
+}
+
 export function buildPass3UserPrompt(params: {
   comparisonPacketJson: string;
   pass2aStructuredContext: Pass2aStructuredContext;
@@ -92,6 +114,18 @@ export function buildPass3UserPrompt(params: {
   title: string;
   executionMode?: "TRUSTED_PATH" | "STUDIO";
   scopeProfile?: SubmissionScopeProfile;
+  /**
+   * Optional independent Perplexity chunk-scoring packet (dual-model parallel scoring).
+   * When provided, the prompt switches to dual-model mode and asks the model to
+   * synthesize across BOTH independent evaluations, flagging divergences > 1 point.
+   */
+  perplexityChunkPacket?: SinglePassOutput;
+  /**
+   * When true, render the dual-model synthesis block. Defaults to true when
+   * perplexityChunkPacket is provided. Allows callers to feature-flag the
+   * dual-model render at the prompt boundary independently of packet presence.
+   */
+  dualModelMode?: boolean;
 }): string {
   const executionMode = params.executionMode ?? "TRUSTED_PATH";
   const synthesisBudget = getDefaultSynthesisReferenceCharBudget();
@@ -116,7 +150,29 @@ export function buildPass3UserPrompt(params: {
     timeline_anchors: params.pass2aStructuredContext.timeline_anchors.slice(0, 24),
   });
 
-  return `Synthesize these two independent evaluation passes for the manuscript titled "${params.title}".
+  const dualModelMode = params.dualModelMode ?? !!params.perplexityChunkPacket;
+  const dualModelBlock =
+    dualModelMode && params.perplexityChunkPacket
+      ? `
+
+## DUAL-MODEL PARALLEL SCORING (Independent Second Evaluation)
+This evaluation has TWO independent scoring sweeps over the manuscript chunks:
+  • PRIMARY: GPT craft + editorial passes (already reconciled into the comparison packet above).
+  • SECONDARY: Perplexity sonar-reasoning-pro chunk sweep (model=${params.perplexityChunkPacket.model}).
+Each model scored the chunks WITHOUT seeing the other's output — agreement is a real signal, not an echo.
+
+PERPLEXITY INDEPENDENT SCORES:
+${buildPerplexityPacketSummary(params.perplexityChunkPacket)}
+
+Dual-model synthesis rules (REQUIRED):
+- Treat the Perplexity packet as a real second opinion. Use it to confirm or challenge the GPT axes.
+- When the Perplexity score and the GPT final_score_0_10 diverge by MORE THAN 1 point on any criterion, flag the divergence in final_rationale: name the gap, name which axis is more diagnostic given the manuscript evidence, and resolve toward the better-supported axis.
+- When the Perplexity score and the GPT axes AGREE (within ±1), this is a stronger signal of validity — keep the synthesis confident, but do not let agreement substitute for evidence; the rationale must still anchor to manuscript craft.
+- Do not import Perplexity's wording verbatim into final_rationale (this is the author-facing surface — keep it craft-voiced, not adjudication-process-voiced).
+- Do not invent disagreement where the two models concur, and do not paper over disagreement where they diverge.`
+      : "";
+
+  return `Synthesize these two independent evaluation passes for the manuscript titled "${params.title}".${dualModelBlock}
 
 Execution mode: ${executionMode}
 
