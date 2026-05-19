@@ -3058,6 +3058,24 @@ export async function processEvaluationJob(
               // PR-E: inject checkpoint cache and rolling save callback
               _chunkCache: pass1ChunkCache,
               _onChunkComplete: onPass1ChunkComplete,
+              // Forced heartbeat: write last_heartbeat_at after every chunk
+              // so the watchdog never sees silence during a long sweep.
+              // Fail-soft: renewal errors are logged, never thrown.
+              _onChunkHeartbeat: (chunkIndex) => {
+                void renewEvaluationJobLease({
+                  supabase,
+                  jobId,
+                  leaseMs: runtimeConfig.worker.leaseMs,
+                  stage: `pass1_chunk_${chunkIndex}`,
+                  hardDeadlineMs,
+                }).catch((err: unknown) => {
+                  console.warn('[Processor] Pass1 chunk heartbeat renewal failed (non-fatal)', {
+                    job_id: jobId,
+                    chunk_index: chunkIndex,
+                    error: err instanceof Error ? err.message : String(err),
+                  });
+                });
+              },
             });
             capturedPass1Output = result;
             // PR-E: Pass 1 succeeded — delete the chunk cache artifact (it has served its purpose).
@@ -3082,7 +3100,26 @@ export async function processEvaluationJob(
             return result;
           },
           runPass2: async (opts) => {
-            const result = await defaultRunPass2Fn(opts);
+            const result = await defaultRunPass2Fn({
+              ...opts,
+              // Forced heartbeat: write last_heartbeat_at after every chunk
+              // so the watchdog never sees silence during a long sweep.
+              _onChunkHeartbeat: (chunkIndex) => {
+                void renewEvaluationJobLease({
+                  supabase,
+                  jobId,
+                  leaseMs: runtimeConfig.worker.leaseMs,
+                  stage: `pass2_chunk_${chunkIndex}`,
+                  hardDeadlineMs,
+                }).catch((err: unknown) => {
+                  console.warn('[Processor] Pass2 chunk heartbeat renewal failed (non-fatal)', {
+                    job_id: jobId,
+                    chunk_index: chunkIndex,
+                    error: err instanceof Error ? err.message : String(err),
+                  });
+                });
+              },
+            });
             capturedPass2Output = result;
             return result;
           },
