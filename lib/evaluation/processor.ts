@@ -4228,7 +4228,7 @@ export async function processEvaluationJob(
         : coverageForReporting.strategy === 'partial_chunk_map_reduce'
           ? `Pass 1 and Pass 2 analyzed partial chunk coverage (~${coverageForReporting.analyzedWords} of ${coverageForReporting.sourceWords} words) and cannot claim manuscript-wide full coverage.`
           : `Pass 1 and Pass 2 analyzed a sampled prompt window (~${coverageForReporting.analyzedWords} of ${coverageForReporting.sourceWords} words; ${promptCoverage.budgetChars}-char budget).`,
-      'Pass 3 synthesis uses a compressed manuscript reference window for arbitration context.',
+      'Pass 3 synthesis uses the full manuscript for deep context grounding.',
       ...(nonEvaluativeWarning ? [nonEvaluativeWarning] : []),
       ...effectiveEvaluationResult.governance.limitations.filter(
         (item) =>

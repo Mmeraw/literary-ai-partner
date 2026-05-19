@@ -16,7 +16,7 @@ import {
   summarizePromptCoverage,
 } from "../promptInput";
 
-export const PASS3_PROMPT_VERSION = "pass3-synthesis-v14-rationale-prefix-ban";
+export const PASS3_PROMPT_VERSION = "pass3-synthesis-v15-entity-roster-grounding";
 
 export const PASS3_SYSTEM_PROMPT = `You are Pass 3: convergence and arbitration authority.
 Rules:
@@ -86,6 +86,51 @@ Criteria keys:
 ${CRITERIA_KEYS.join(", ")}`;
 
 /**
+ * Build a MANUSCRIPT ENTITY ROSTER block from the Pass2a structured context.
+ * Surfaces the top characters (by mention count) and named entities/locations
+ * harvested across scenes so the criteria commentary section can ground in
+ * specific names rather than abstract role labels. Returns "" when no roster
+ * data is available — callers should treat that as a structural fallback.
+ *
+ * Caps: 15 characters and 12 scene entities to keep the block bounded.
+ */
+function buildEntityRoster(context: Pass2aStructuredContext): string {
+  const ledger = Array.isArray(context.character_ledger) ? context.character_ledger : [];
+  const topCharacters = [...ledger]
+    .sort((a, b) => (b.mention_count ?? 0) - (a.mention_count ?? 0))
+    .slice(0, 15)
+    .map((c) => {
+      const mentionCount = typeof c.mention_count === "number" ? c.mention_count : 0;
+      return `${c.name} (${mentionCount} mention${mentionCount === 1 ? "" : "s"})`;
+    })
+    .filter((line) => line.length > 0);
+
+  const sceneEntities = new Set<string>();
+  for (const scene of context.scene_index ?? []) {
+    for (const entity of scene.named_entities ?? []) {
+      const trimmed = entity.trim();
+      if (trimmed.length > 0) sceneEntities.add(trimmed);
+    }
+    if (sceneEntities.size >= 24) break;
+  }
+  const characterNameSet = new Set(ledger.map((c) => c.name.trim().toLowerCase()));
+  const namedEntities = Array.from(sceneEntities)
+    .filter((entity) => !characterNameSet.has(entity.toLowerCase()))
+    .slice(0, 12);
+
+  if (topCharacters.length === 0 && namedEntities.length === 0) return "";
+
+  const lines: string[] = [];
+  if (topCharacters.length > 0) {
+    lines.push(`Characters (use these exact names, not "the protagonist"): ${topCharacters.join(", ")}.`);
+  }
+  if (namedEntities.length > 0) {
+    lines.push(`Named entities, locations, and motifs from the scene index: ${namedEntities.join(", ")}.`);
+  }
+  return lines.join("\n");
+}
+
+/**
  * Build a compact summary of the Perplexity dual-model packet for Pass 3.
  * One line per criterion: score, short rationale, and first evidence snippet.
  * Cap the rationale length so the prompt stays bounded.
@@ -150,6 +195,11 @@ export function buildPass3UserPrompt(params: {
     timeline_anchors: params.pass2aStructuredContext.timeline_anchors.slice(0, 24),
   });
 
+  const entityRoster = buildEntityRoster(params.pass2aStructuredContext);
+  const entityRosterBlock = entityRoster
+    ? `\n\n## MANUSCRIPT ENTITY ROSTER (REQUIRED GROUNDING SOURCE)\n${entityRoster}\n\nFor EACH of the 13 criteria, the final_rationale and recommendations MUST cite at least 2 specific characters by name (drawn from the roster above or the structured context) and at least 1 specific scene, object, motif, or location from the manuscript. Generic commentary that names no characters and references no specific manuscript content is NOT acceptable and will be rejected as a quality regression. Refer to the manuscript reference window above to identify the relevant motifs and recurring objects for each criterion.`
+    : `\n\n## MANUSCRIPT GROUNDING REQUIREMENT\nFor EACH of the 13 criteria, the final_rationale and recommendations MUST cite at least 2 specific characters by name (drawn from the structured context or manuscript reference window) and at least 1 specific scene, object, motif, or location from the manuscript. Generic commentary that names no characters is NOT acceptable and will be rejected as a quality regression.`;
+
   const dualModelMode = params.dualModelMode ?? !!params.perplexityChunkPacket;
   const dualModelBlock =
     dualModelMode && params.perplexityChunkPacket
@@ -197,6 +247,7 @@ Do NOT emit two recommendations with the same strategic_lever — collapse them 
 For criticism-style criteria (proseControl, dialogue, voice) that are non-certified, emit at least three evidence snippets and three concrete revision directions.
 Recommendation openings must be varied across criteria: no repeated first-8-token lead-ins.
 When characters are named in the manuscript, use those names (or "the narrator") in rationale/recommendations; avoid generic role labels such as "the protagonist".
+Per-criterion specificity floor: Every final_rationale across all 13 criteria MUST name at least 2 specific characters by name (taken from the MANUSCRIPT ENTITY ROSTER above or the character_ledger) and reference at least 1 specific scene, object, motif, or location from the manuscript. Rationales that read as generic craft commentary without naming a single character will be treated as a quality regression. Vary which characters and motifs you cite across the 13 criteria so the report does not echo the same two names everywhere.
 Use "narrative momentum" (or equivalent) instead of ambiguous "the drive" phrasing.
 Target total visible output under 1500 tokens.
 
@@ -206,7 +257,7 @@ Coverage truth signal:
 ${params.scopeProfile ? `- Submission scope: ${params.scopeProfile.inputScale} (${params.scopeProfile.wordCount} words; ${params.scopeProfile.chunkCount} chunk(s); ${params.scopeProfile.scorableCount}/13 criteria non-NA for this scope; confidence cap ${params.scopeProfile.confidenceCapSummary})` : ""}
 
 ## PASS2A_STRUCTURED_CONTEXT (Hard Input)
-${structuredContextJson}
+${structuredContextJson}${entityRosterBlock}
 
 ## PASS 1 / PASS 2 COMPARISON PACKET (Deterministic)
 ${params.comparisonPacketJson}
