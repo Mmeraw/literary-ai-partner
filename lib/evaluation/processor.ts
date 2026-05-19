@@ -3058,6 +3058,24 @@ export async function processEvaluationJob(
               // PR-E: inject checkpoint cache and rolling save callback
               _chunkCache: pass1ChunkCache,
               _onChunkComplete: onPass1ChunkComplete,
+              // Forced heartbeat: write last_heartbeat_at after every chunk
+              // so the watchdog never sees silence during a long sweep.
+              // Fail-soft: renewal errors are logged, never thrown.
+              _onChunkHeartbeat: (chunkIndex) => {
+                void renewEvaluationJobLease({
+                  supabase,
+                  jobId,
+                  leaseMs: runtimeConfig.worker.leaseMs,
+                  stage: `pass1_chunk_${chunkIndex}`,
+                  hardDeadlineMs,
+                }).catch((err: unknown) => {
+                  console.warn('[Processor] Pass1 chunk heartbeat renewal failed (non-fatal)', {
+                    job_id: jobId,
+                    chunk_index: chunkIndex,
+                    error: err instanceof Error ? err.message : String(err),
+                  });
+                });
+              },
             });
             capturedPass1Output = result;
             // PR-E: Pass 1 succeeded — delete the chunk cache artifact (it has served its purpose).
@@ -3082,8 +3100,79 @@ export async function processEvaluationJob(
             return result;
           },
           runPass2: async (opts) => {
-            const result = await defaultRunPass2Fn(opts);
+            const result = await defaultRunPass2Fn({
+              ...opts,
+              // Forced heartbeat: write last_heartbeat_at after every chunk
+              // so the watchdog never sees silence during a long sweep.
+              _onChunkHeartbeat: (chunkIndex) => {
+                void renewEvaluationJobLease({
+                  supabase,
+                  jobId,
+                  leaseMs: runtimeConfig.worker.leaseMs,
+                  stage: `pass2_chunk_${chunkIndex}`,
+                  hardDeadlineMs,
+                }).catch((err: unknown) => {
+                  console.warn('[Processor] Pass2 chunk heartbeat renewal failed (non-fatal)', {
+                    job_id: jobId,
+                    chunk_index: chunkIndex,
+                    error: err instanceof Error ? err.message : String(err),
+                  });
+                });
+              },
+            });
             capturedPass2Output = result;
+
+            // ── Eager handoff pre-write ──────────────────────────────────────
+            // Write pass12_handoff_v1 immediately the moment Pass 2 completes,
+            // before runPipeline returns and before Pass 3 starts.
+            //
+            // Rationale: the normal handoff write happens after runPipeline()
+            // returns, but Vercel can kill the invocation at the 800s hard limit
+            // while Pass 3 is still running — or even between runPipeline returning
+            // and the write executing.  By pre-writing here we guarantee the
+            // artifact exists in the DB as soon as Pass 1+2 are both captured,
+            // so the watchdog rescue path (Guard D) can recover to phase_2 even
+            // if the invocation is killed before the normal handoff path fires.
+            //
+            // This is an ARTIFACT-ONLY write — no status transition here.
+            // The status transition (status=queued, phase=phase_2) still happens
+            // in the shouldHandoff block below after runPipeline returns, which
+            // is the authoritative transition.  If the invocation is killed before
+            // that transition, the watchdog sees: status=running + handoff artifact
+            // exists → Guard D rescues it to phase_2/queued on the next tick.
+            //
+            // Fail-soft: pre-write errors are logged but never throw — a failed
+            // pre-write must not abort the pipeline run.
+            if (capturedPass1Output !== null && executionPhase === 'phase_1' && isChunkRouted) {
+              void upsertEvaluationArtifact({
+                supabase,
+                jobId: job.id,
+                manuscriptId: job.manuscript_id,
+                artifactType: 'pass12_handoff_v1',
+                content: {
+                  pass1Output: capturedPass1Output,
+                  pass2Output: result,
+                  chunk_count: chunkRouting.chunk_count,
+                  captured_at: new Date().toISOString(),
+                  pre_write: true, // diagnostic flag — overwritten by the authoritative write below
+                },
+                sourceHash: stableSourceHash({
+                  manuscriptId: manuscript.id,
+                  jobId: job.id,
+                  userId: manuscriptWithContent.user_id,
+                  manuscriptText: manuscriptWithContent.content || '',
+                  promptVersion: 'pass12_handoff_v1',
+                  model: getCanonicalPipelineModel(openAiModel),
+                }),
+                artifactVersion: 'pass12_handoff_v1',
+              }).catch((preWriteErr: unknown) => {
+                console.warn(
+                  `[Processor] ${jobId}: eager handoff pre-write failed (non-fatal — normal handoff path still runs)`,
+                  preWriteErr instanceof Error ? preWriteErr.message : String(preWriteErr),
+                );
+              });
+            }
+
             return result;
           },
         },
