@@ -174,6 +174,124 @@ describe("runPerplexityChunkScorer", () => {
     expect(result).toBeNull();
   });
 
+  test("partial failure: keeps successful chunks and proceeds when only some chunks fail", async () => {
+    let callIndex = 0;
+    const partialFetch: typeof fetch = (async () => {
+      const i = callIndex;
+      callIndex += 1;
+      if (i === 1) {
+        return {
+          ok: false,
+          status: 500,
+          async json() {
+            return {};
+          },
+          async text() {
+            return "transient error";
+          },
+        } as unknown as Response;
+      }
+      return {
+        ok: true,
+        status: 200,
+        async json() {
+          return {
+            choices: [
+              {
+                message: { content: buildPerplexityChunkResponseJson() },
+                finish_reason: "stop",
+              },
+            ],
+          };
+        },
+        async text() {
+          return "";
+        },
+      } as unknown as Response;
+    }) as unknown as typeof fetch;
+
+    const result = await runPerplexityChunkScorer({
+      manuscriptText: "a b c",
+      manuscriptChunks: [
+        { chunk_index: 0, content: "chunk zero" },
+        { chunk_index: 1, content: "chunk one" },
+        { chunk_index: 2, content: "chunk two" },
+      ],
+      workType: "novel",
+      title: "Test",
+      perplexityApiKey: "test-key",
+      _fetch: partialFetch,
+    });
+
+    expect(result).not.toBeNull();
+    expect(result?.criteria.length).toBe(CRITERIA_KEYS.length);
+  });
+
+  test("returns null gracefully when manuscriptChunks is an empty array", async () => {
+    // Empty chunks array → scorer falls back to a single chunk wrapping manuscriptText
+    // (a 0-chunk job would be silently degraded). Verify the fallback path works.
+    const fetchMock = buildFetchMock();
+    const result = await runPerplexityChunkScorer({
+      manuscriptText: "minimal text",
+      manuscriptChunks: [],
+      workType: "novel",
+      title: "T",
+      perplexityApiKey: "test-key",
+      _fetch: fetchMock as unknown as typeof fetch,
+    });
+    expect(result).not.toBeNull();
+    expect(result?.criteria.length).toBe(CRITERIA_KEYS.length);
+  });
+
+  test("missing criteria in response are backfilled with placeholder score 5", async () => {
+    // Perplexity returns only 3 of 13 criteria. The remaining 10 should be
+    // backfilled with a conservative placeholder rather than throw.
+    const partialCriteria = {
+      concept: { score: 7, rationale: "ok", evidence: "snippet" },
+      voice: { score: 4, rationale: "weak", evidence: "snippet" },
+      pacing: { score: 6, rationale: "ok", evidence: "snippet" },
+    };
+    const fetchMock = buildFetchMock({
+      jsonBody: {
+        choices: [
+          {
+            message: { content: JSON.stringify({ criteria: partialCriteria }) },
+            finish_reason: "stop",
+          },
+        ],
+      },
+    });
+    const result = await runPerplexityChunkScorer({
+      manuscriptText: "x",
+      manuscriptChunks: [{ chunk_index: 0, content: "x" }],
+      workType: "novel",
+      title: "T",
+      perplexityApiKey: "test-key",
+      _fetch: fetchMock as unknown as typeof fetch,
+    });
+    expect(result).not.toBeNull();
+    expect(result?.criteria.length).toBe(CRITERIA_KEYS.length);
+    const placeholderCount = result!.criteria.filter((c) =>
+      c.rationale.includes("criterion missing from response"),
+    ).length;
+    expect(placeholderCount).toBe(CRITERIA_KEYS.length - 3);
+  });
+
+  test("returns null (does not throw) when fetch itself rejects unexpectedly", async () => {
+    const throwingFetch: typeof fetch = (async () => {
+      throw new Error("network unreachable");
+    }) as unknown as typeof fetch;
+    const result = await runPerplexityChunkScorer({
+      manuscriptText: "x",
+      manuscriptChunks: [{ chunk_index: 0, content: "x" }],
+      workType: "novel",
+      title: "T",
+      perplexityApiKey: "test-key",
+      _fetch: throwingFetch,
+    });
+    expect(result).toBeNull();
+  });
+
   test("clamps out-of-range scores into the canonical 1..10 range", async () => {
     const outOfRangeCriteria = Object.fromEntries(
       CRITERIA_KEYS.map((key, i) => [
