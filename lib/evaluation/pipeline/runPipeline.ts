@@ -178,6 +178,8 @@ export interface RunPipelineOptions {
     ) => QualityGateResult;
     /** Injected for testing — overrides the real runPass3bLongform call. */
     runPass3bLongform?: (opts: RunPass3bOptions) => Promise<LongformDreamDocument>;
+    /** Injected for testing — overrides the real runPass1a (character ledger) call. */
+    runPass1a?: (opts: Parameters<typeof runPass1a>[0]) => Promise<RunPass1aResult>;
   };
   /** Dependency injection for registry loader (testing only). */
   _registryLoader?: () => CanonRegistry;
@@ -811,6 +813,7 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
   const _runPass2 = opts._runners?.runPass2 ?? defaultRunPass2;
   const _runPass3 = opts._runners?.runPass3Synthesis ?? defaultRunPass3;
   const _runQualityGate = opts._runners?.runQualityGate ?? defaultRunQualityGate;
+  const _runPass1a = opts._runners?.runPass1a ?? runPass1a;
   const _loadRegistry = opts._registryLoader ?? loadCanonicalRegistry;
   const _loadGovernanceInjectionMap = opts._governanceInjectionMapLoader ?? loadGovernanceInjectionMap;
   const _evaluateLessonsLearned = opts._lessonsLearned?.evaluateRules ?? defaultEvaluateLessonsLearnedRules;
@@ -1166,7 +1169,7 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
     console.log("[Pipeline][Pass1A] Using pre-built character ledger from phase_1a invocation");
   } else {
     // Single-invocation path: run Pass 1A sequentially after Pass 1+2.
-    const pass1aPromise = runPass1a({
+    const pass1aPromise = _runPass1a({
       manuscriptText: opts.manuscriptText,
       manuscriptChunks: opts.manuscriptChunks,
       workType: opts.workType,
