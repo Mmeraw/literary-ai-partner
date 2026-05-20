@@ -1,13 +1,18 @@
 /**
  * Pass 1A Smoke Test — Standalone
  *
- * Pulls 3 chunks from the specified job's manuscript_chunks,
- * runs Pass 1A sweep in isolation, dumps ledger output to artifacts/.
+ * Pulls N chunks from the specified job's manuscript_chunks,
+ * runs Pass 1A sweep in isolation, dumps ledger output to artifacts/smoke-pass1a/.
  *
  * Usage:
- *   npx tsx -r tsconfig-paths/register scripts/pipeline/run-pass1a-smoke.ts \
+ *   node --require ./scripts/server-only-shim.cjs \
+ *     node_modules/.bin/tsx -r tsconfig-paths/register \
+ *     scripts/pipeline/run-pass1a-smoke.ts \
  *     --job-id=24f81c04-7016-4b43-a02d-87899856a193 \
  *     --chunks=3
+ *
+ * Or via package.json script:
+ *   npm run smoke:pass1a
  */
 
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
@@ -47,11 +52,13 @@ async function main() {
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.SUPABASE_URL;
   const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!supabaseUrl || !supabaseKey) throw new Error("Supabase credentials required (NEXT_PUBLIC_SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY)");
+  if (!supabaseUrl || !supabaseKey) {
+    throw new Error("Supabase credentials required (NEXT_PUBLIC_SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY)");
+  }
 
   const supabase = createClient(supabaseUrl, supabaseKey);
 
-  // ── Fetch chunks ──
+  // ── Fetch chunks from Supabase ──
   console.log(`[Smoke] Fetching ${CHUNK_LIMIT} chunks for job ${JOB_ID}...`);
   const { data: rows, error } = await supabase
     .from("manuscript_chunks")
@@ -68,13 +75,18 @@ async function main() {
     content: r.content as string,
   }));
 
-  console.log(`[Smoke] Loaded ${manuscriptChunks.length} chunks. Sizes: ${manuscriptChunks.map(c => `${c.chunk_index}:${c.content.length}ch`).join(", ")}`);
+  console.log(
+    `[Smoke] Loaded ${manuscriptChunks.length} chunks. Sizes: ${manuscriptChunks
+      .map((c) => `${c.chunk_index}:${c.content.length}ch`)
+      .join(", ")}`
+  );
 
-  // ── Run Pass 1A ──
-  console.log("[Smoke] Starting Pass 1A sweep...");
+  // ── Run Pass 1A in isolation ──
+  console.log("[Smoke] Starting Pass 1A sweep...\n");
   const t0 = Date.now();
+
   const result = await runPass1a({
-    manuscriptText: manuscriptChunks.map(c => c.content).join("\n\n"),
+    manuscriptText: manuscriptChunks.map((c) => c.content).join("\n\n"),
     manuscriptChunks,
     title: "Cartel Babies (smoke test)",
     workType: "novel",
@@ -84,7 +96,8 @@ async function main() {
 
   const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
 
-  console.log(`\n[Smoke] ✅ Pass 1A complete in ${elapsed}s`);
+  console.log(`\n[Smoke] ===== Pass 1A Results =====`);
+  console.log(`  elapsed:           ${elapsed}s`);
   console.log(`  total_chunks:      ${result.total_chunks}`);
   console.log(`  successful_chunks: ${result.successful_chunks}`);
   console.log(`  failed_chunks:     ${result.failedChunkIndices.length} → [${result.failedChunkIndices.join(", ")}]`);
@@ -92,8 +105,15 @@ async function main() {
   console.log(`  prompt_version:    ${result.prompt_version}`);
 
   if (result.chunkOutputs.length === 0) {
-    console.error("\n[Smoke] ❌ LEDGER_EMPTY — zero chunk outputs. Pass 1A is broken.");
+    console.error("\n[Smoke] ❌ LEDGER_EMPTY — zero successful chunk outputs.");
+    console.error("[Smoke] Pass 1A is failing on every chunk. Check model availability + API key.");
     process.exit(1);
+  }
+
+  // Per-chunk character summary
+  for (const co of result.chunkOutputs) {
+    const charNames = co.characters.map((c) => c.canonical_name ?? "(unnamed)").join(", ") || "(none)";
+    console.log(`  chunk[${co.chunk_index}] → ${co.characters.length} characters: ${charNames}`);
   }
 
   // ── Build ledgers ──
@@ -110,14 +130,20 @@ async function main() {
     totalChunksInManuscript: manuscriptChunks.length,
   });
 
-  console.log(`\n[Smoke] 📒 Ledger V1`);
+  console.log(`\n[Smoke] ===== Ledger V1 =====`);
   console.log(`  entries:             ${characterLedger.entries.length}`);
   console.log(`  protagonists:        ${characterLedger.coverage_summary.protagonists}`);
   console.log(`  co_protagonists:     ${characterLedger.coverage_summary.co_protagonists}`);
   console.log(`  symbol_payoff_items: ${characterLedger.coverage_summary.symbol_payoff_items.length}`);
   console.log(`  hard_fail_triggers:  ${characterLedger.coverage_summary.hard_fail_triggers.length}`);
 
-  console.log(`\n[Smoke] 📒 Ledger V2`);
+  if (characterLedger.entries.length > 0) {
+    for (const e of characterLedger.entries.slice(0, 5)) {
+      console.log(`    → ${e.canonical_name} (role=${e.role ?? "?"}, mentions=${e.mention_count ?? 0}, chunks=${e.first_chunk_index}–${e.last_chunk_index})`);
+    }
+  }
+
+  console.log(`\n[Smoke] ===== Ledger V2 =====`);
   console.log(`  active_blockers:     ${characterLedgerV2.activeBlockers.length}`);
   console.log(`  relationship_pairs:  ${characterLedgerV2.relationshipLedger.length}`);
   console.log(`  objects_tracked:     ${characterLedgerV2.objectLedger.length}`);
@@ -127,21 +153,28 @@ async function main() {
   const outDir = join(process.cwd(), "artifacts", "smoke-pass1a");
   mkdirSync(outDir, { recursive: true });
   const outPath = join(outDir, `${JOB_ID.slice(0, 8)}-${Date.now()}.json`);
-  writeFileSync(outPath, JSON.stringify({
-    smoke_run: {
-      job_id: JOB_ID,
-      chunks_tested: manuscriptChunks.length,
-      elapsed_sec: parseFloat(elapsed),
-      model: result.model,
-      prompt_version: result.prompt_version,
-    },
-    pass1a_result: result,
-    characterLedger,
-    characterLedgerV2,
-  }, null, 2));
+  writeFileSync(
+    outPath,
+    JSON.stringify(
+      {
+        smoke_run: {
+          job_id: JOB_ID,
+          chunks_tested: manuscriptChunks.length,
+          elapsed_sec: parseFloat(elapsed),
+          model: result.model,
+          prompt_version: result.prompt_version,
+        },
+        pass1a_result: result,
+        characterLedger,
+        characterLedgerV2,
+      },
+      null,
+      2
+    )
+  );
 
   console.log(`\n[Smoke] Output saved → ${outPath}`);
-  console.log("[Smoke] Pass 1A SMOKE TEST PASSED ✅");
+  console.log("[Smoke] ✅ Pass 1A SMOKE TEST PASSED");
 }
 
 main().catch((err) => {

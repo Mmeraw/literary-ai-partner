@@ -27,16 +27,16 @@ import { parseJsonObjectBoundary } from "@/lib/llm/jsonParseBoundary";
 import { getEvaluationRuntimeConfig } from "@/lib/config/evaluationRuntimeConfig";
 
 const PASS1A_TEMPERATURE = 0.2;
-const PASS1A_MAX_OUTPUT_TOKENS = 4096;
+const PASS1A_MAX_OUTPUT_TOKENS = 16_000;          // raised from 4096 — prevents JSON_PARSE_FAILED_TRUNCATED
+const PASS1A_LENGTH_RETRY_MAX_OUTPUT_TOKENS = 16_000; // ceiling for length-retry doubling
 const PASS1A_DEFAULT_MODEL = "gpt-5.1";
 
 // Slightly lower concurrency than Pass 1/2 to avoid TPM ceiling when all 3 run in parallel.
 // Pass 1 (c=7) + Pass 2 (c=7) + Pass 1A (c=5) = 19 simultaneous calls max.
-// Budget math: 19 × ~11,000 tokens = 209,000 — just above Tier 1 limit so we use 5.
 const PASS1A_CHUNK_CONCURRENCY = 5;
-const PASS1A_CHUNK_RETRY_MAX = 2;
+const PASS1A_CHUNK_RETRY_MAX = 3;                  // raised from 2 — extra retry budget for length expansion
 const PASS1A_CHUNK_RETRY_BASE_MS = 8000;
-const PASS1A_CHUNK_TIMEOUT_MS = 45_000;
+const PASS1A_CHUNK_TIMEOUT_MS = 45_000; // kept for reference; actual timeout is OpenAI client-level
 
 // Hard caps — mirror of prompt rules, enforced post-parse
 const CAPS = {
@@ -60,6 +60,32 @@ function sleepMs(ms: number): Promise<void> {
 function isRateLimitError(reason: unknown): boolean {
   const text = String(reason instanceof Error ? reason.message : reason).toLowerCase();
   return text.includes("429") || text.includes("rate limit") || text.includes("tokens per min");
+}
+
+function isTruncationError(reason: unknown): boolean {
+  const text = String(reason instanceof Error ? reason.message : reason).toLowerCase();
+  return (
+    text.includes("truncated") ||
+    text.includes("json_parse_failed_truncated") ||
+    text.includes("json extraction failed")
+  );
+}
+
+function isTimeoutError(reason: unknown): boolean {
+  const text = String(reason instanceof Error ? reason.message : reason).toLowerCase();
+  return (
+    text.includes("request timed out") ||
+    text.includes("timeout") ||
+    text.includes("etimedout") ||
+    text.includes("econnreset") ||
+    text.includes("socket hang up") ||
+    text.includes("network error") ||
+    (reason instanceof Error && reason.name === "AbortError")
+  );
+}
+
+function nextLengthRetryTokens(current: number): number {
+  return Math.min(PASS1A_LENGTH_RETRY_MAX_OUTPUT_TOKENS, Math.max(8000, current * 2));
 }
 
 function parseRetryAfterMs(reason: unknown): number | null {
@@ -153,12 +179,14 @@ async function runSingleChunk(params: {
   });
 
   let lastError: unknown;
+  let activeMaxTokens = PASS1A_MAX_OUTPUT_TOKENS;
+
   for (let attempt = 0; attempt <= PASS1A_CHUNK_RETRY_MAX; attempt++) {
     try {
       const completion = await openai.chat.completions.create({
         model,
         temperature: PASS1A_TEMPERATURE,
-        max_completion_tokens: PASS1A_MAX_OUTPUT_TOKENS,
+        max_completion_tokens: activeMaxTokens,
         response_format: { type: "json_object" },
         messages: [
           { role: "system", content: PASS1A_SYSTEM_PROMPT },
@@ -177,10 +205,24 @@ async function runSingleChunk(params: {
     } catch (err) {
       lastError = err;
       if (attempt < PASS1A_CHUNK_RETRY_MAX) {
-        const retryAfterMs = isRateLimitError(err)
-          ? (parseRetryAfterMs(err) ?? PASS1A_CHUNK_RETRY_BASE_MS * Math.pow(2, attempt))
-          : PASS1A_CHUNK_RETRY_BASE_MS * Math.pow(2, attempt);
-        await sleepMs(retryAfterMs);
+        if (isTruncationError(err)) {
+          // Length retry: double the token budget and retry immediately
+          const expanded = nextLengthRetryTokens(activeMaxTokens);
+          console.warn("[Pass1A] Truncation detected — expanding token budget", {
+            chunk_index: chunk.chunk_index,
+            attempt,
+            old_tokens: activeMaxTokens,
+            new_tokens: expanded,
+          });
+          activeMaxTokens = expanded;
+          // No sleep needed — not a rate limit or server error
+        } else {
+          const retryAfterMs =
+            isRateLimitError(err) || isTimeoutError(err)
+              ? (parseRetryAfterMs(err) ?? PASS1A_CHUNK_RETRY_BASE_MS * Math.pow(2, attempt))
+              : PASS1A_CHUNK_RETRY_BASE_MS * Math.pow(2, attempt);
+          await sleepMs(retryAfterMs);
+        }
       }
     }
   }
