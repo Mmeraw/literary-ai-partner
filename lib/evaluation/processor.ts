@@ -3365,6 +3365,46 @@ export async function processEvaluationJob(
             return result;
           },
         },
+        _onLedgerReady: async (ledger, ledgerV2) => {
+          // Write the character ledger artifact immediately after Pass 1A builds it,
+          // before Pass 3 runs — so it survives any downstream failure (Pass 2 timeout,
+          // Pass 3 failure, Vercel kill, SLA watchdog, etc.).
+          try {
+            await upsertEvaluationArtifact({
+              supabase,
+              jobId: String(job.id),
+              manuscriptId: Number(manuscriptWithContent.id),
+              artifactType: 'pass1a_character_ledger_v1',
+              content: {
+                job_id: String(job.id),
+                manuscript_id: Number(manuscriptWithContent.id),
+                created_at: new Date().toISOString(),
+                schema_version: 'pass1a_character_ledger_v1',
+                ledger_v1: ledger,
+                ledger_v2: ledgerV2,
+                summary: {
+                  entries: ledger.entries.length,
+                  protagonists: ledger.coverage_summary.protagonists,
+                  co_protagonists: ledger.coverage_summary.co_protagonists,
+                  symbol_items: ledger.coverage_summary.symbol_payoff_items.length,
+                  hard_fail_triggers: ledger.coverage_summary.hard_fail_triggers.length,
+                  v2_active_blockers: ledgerV2.activeBlockers.length,
+                  v2_relationship_pairs: ledgerV2.relationshipLedger.length,
+                  v2_objects_tracked: ledgerV2.objectLedger.length,
+                },
+              },
+              sourceHash: `pass1a_ledger_${String(job.id)}`,
+              artifactVersion: 'pass1a_character_ledger_v1',
+            });
+            console.log(`[Processor] ${jobId}: pass1a_character_ledger_v1 artifact written (independent of pipeline outcome)`, {
+              entries: ledger.entries.length,
+              v2_active_blockers: ledgerV2.activeBlockers.length,
+            });
+          } catch (ledgerArtifactErr) {
+            console.warn(`[Processor] ${jobId}: pass1a_character_ledger_v1 artifact write failed (non-fatal)`,
+              ledgerArtifactErr instanceof Error ? ledgerArtifactErr.message : String(ledgerArtifactErr));
+          }
+        },
         onHeartbeat: async (stage) => {
           await assertJobWithinSla({
             supabase,

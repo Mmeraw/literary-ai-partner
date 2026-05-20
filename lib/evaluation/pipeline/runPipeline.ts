@@ -191,6 +191,13 @@ export interface RunPipelineOptions {
   };
   /** Computed submission scope profile (optionally injected for testing). */
   _scopeProfile?: SubmissionScopeProfile;
+  /**
+   * Called immediately after the Pass 1A character ledger (V1 + V2) is built,
+   * before Pass 3 runs. Fires non-blocking — pipeline never waits on this.
+   * Use this to persist the ledger artifact independently of Pass 1/2/3 outcome.
+   * Errors are swallowed; never throws.
+   */
+  _onLedgerReady?: (ledger: Pass1aCharacterLedger, ledgerV2: CharacterLedgerV2) => Promise<void> | void;
 }
 
 const DEFAULT_MAX_MANUSCRIPT_CHARS = 3_000_000;
@@ -973,8 +980,12 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
     },
   });
 
-  const pass1Promise = withTimeout(
-    _runPass1({
+  // Pass 1 and Pass 2 run in parallel with no outer withTimeout wrapper.
+  // Each pass manages its own per-chunk 240s timeout + retry loop internally.
+  // A blunt outer kill was causing PASS1_TIMEOUT / PASS2_TIMEOUT on jobs that
+  // were making valid progress — just slow. The SLA watchdog in processor.ts
+  // is the backstop if a pass truly hangs forever.
+  const pass1Promise = _runPass1({
       manuscriptText: opts.manuscriptText,
       manuscriptChunks: opts.manuscriptChunks,
       workType: opts.workType,
@@ -995,10 +1006,7 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
           })
         );
       },
-    }),
-    passTimeoutMs,
-    "Pass 1",
-  )
+    })
     .then((value) => {
       timings.pass1_ms = nowMs() - pass1StartMs;
       finishLatencyStage({
@@ -1023,8 +1031,7 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
       throw error;
     });
 
-  const pass2Promise = withTimeout(
-    _runPass2({
+  const pass2Promise = _runPass2({
       manuscriptText: opts.manuscriptText,
       manuscriptChunks: opts.manuscriptChunks,
       workType: opts.workType,
@@ -1047,10 +1054,7 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
           })
         );
       },
-    }),
-    passTimeoutMs,
-    "Pass 2",
-  )
+    })
     .then((value) => {
       timings.pass2_ms = nowMs() - pass2StartMs;
       finishLatencyStage({
@@ -1413,6 +1417,22 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
     v2_relationship_pairs: characterLedgerV2.relationshipLedger.length,
     v2_objects_tracked: characterLedgerV2.objectLedger.length,
   });
+
+  // ── Persist ledger artifact immediately (non-blocking) ───────────────────
+  // Fire-and-forget: write the character ledger artifact as soon as it's built,
+  // before Pass 3 runs. If Pass 1, 2, or 3 subsequently fails, the ledger is
+  // still in evaluation_artifacts and can be inspected / resumed from.
+  if (opts._onLedgerReady) {
+    void Promise.resolve()
+      .then(() => opts._onLedgerReady!(characterLedger, characterLedgerV2!))
+      .catch((err: unknown) => {
+        console.warn("[Pipeline][Pass1A] _onLedgerReady callback failed (non-fatal)", {
+          manuscript_id: opts.manuscriptId ?? null,
+          job_id: opts.jobId ?? null,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      });
+  }
 
   // ── Resolve read-ahead (non-blocking — returns fallback if timed out) ──
   const readAheadResult = await readAheadPromise;
