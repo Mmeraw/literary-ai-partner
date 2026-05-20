@@ -2,25 +2,54 @@
 
 This index declares the current manual gold-standard long-form prose evaluations used to calibrate RevisionGrade report quality.
 
-These files are **manual gold-standard references**, not production-output claims. They define the target quality bar for long-form DREAM output: full-manuscript coverage, canonical 13-criteria scoring, WAVE-informed diagnosis, structural stack analysis where applicable, revision priority order, and releasability assessment.
+These files are **manual gold-standard references**, not production-output claims. They define the target quality bar for long-form DREAM output: full-manuscript coverage, canonical 13-criteria scoring, WAVE-informed diagnosis, structural stack analysis where applicable, governed-ledger completeness, revision priority order, and releasability assessment.
 
 ## Canonical schema family
 
 ```yaml
-benchmark-schema: dream-longform-v1
+benchmark-schema: dream-longform-v2-governed-ledgers
 benchmark-role: gold-standard-long-form
 criteria-spine: canonical-13
 route: LONG_FORM
+dream-template-version: pass3b-longform-v2-governed-ledgers
+governed-ledgers: true
 wave-applied: true
 ```
 
 ## Gold-standard long-form prose benchmarks
 
-| Work | Canonical file | Output mode | Status | Notes |
-|---|---|---|---|---|
-| *Froggin Noggin* | [`froggin-noggin-dream.md`](./froggin-noggin-dream.md) | `multi_layer_long_form` | Canonical DREAM long-form | Already carries front matter and uses layered architecture, score grid, criterion analysis, revision plan, and releasability assessment. |
-| *Let the River Decide* | [`let-the-river-decide-dream.md`](./let-the-river-decide-dream.md) | `multi_layer_long_form` | Canonical DREAM long-form | Matches the DREAM long-form shape in substance: metadata, executive verdict, structural stack, layer/voice map, arc map, score grid, criterion analysis, cultural/protocol audit, revision plan, and repo note. |
-| *Cartel Babies* | [`cartel-babies-dream.md`](./cartel-babies-dream.md) | `multi_layer_long_form` | Canonical DREAM long-form; header normalization pending | Matches the DREAM long-form shape in substance: executive verdict, market/shelf positioning, structural stack, arc map, 13-criteria grid, criterion analysis, revision queues, closure/readiness assessment. Header/front-matter should be normalized when the large benchmark body is next edited. |
+| Work | Preserved manual benchmark | V2 governed-ledger addendum | Output mode | Tier | Notes |
+|---|---|---|---|---|---|
+| *Froggin Noggin* | [`froggin-noggin-dream.md`](./froggin-noggin-dream.md) | [`froggin-noggin-dream-v2-governed-ledger-addendum.md`](./froggin-noggin-dream-v2-governed-ledger-addendum.md) | `multi_layer_long_form` | Required gold | Original body remains the manual reference; V2 addendum is the binding governed-ledger compliance layer. |
+| *Cartel Babies* | [`cartel-babies-dream.md`](./cartel-babies-dream.md) | [`cartel-babies-dream-v2-governed-ledger-addendum.md`](./cartel-babies-dream-v2-governed-ledger-addendum.md) | `multi_layer_long_form` | Required gold | Original body remains preserved; V2 addendum supersedes unqualified integrity/coverage findings where DREAM v2 requires more precise classification. |
+| *Let the River Decide* | [`let-the-river-decide-dream.md`](./let-the-river-decide-dream.md) | [`let-the-river-decide-dream-v2-governed-ledger-addendum.md`](./let-the-river-decide-dream-v2-governed-ledger-addendum.md) | `multi_layer_long_form` | Calibration | Calibration-tier governed-ledger example for eco-thriller / memoir-witness / cultural-protocol / research-heavy ambiguity behavior. |
+
+## V2 governance rule
+
+The preserved benchmark body and its V2 addendum must be read together:
+
+```text
+preserved manual benchmark body + V2 governed-ledger addendum = current DREAM benchmark contract
+```
+
+Do not rewrite the original benchmark bodies merely to conform to V2. The addenda are the normalization layer. They preserve historical/manual editorial judgment while making the benchmark comply with the current DREAM governed-ledger template.
+
+## Required DREAM governed ledgers
+
+A DREAM v2 long-form gold-standard benchmark must expose, directly or by addendum:
+
+1. Character Coverage & Arc Ledger.
+2. Relationship Spine Ledger.
+3. Symbol-to-Character Payoff Ledger.
+4. Sensory / Emotional Register Ledger.
+5. Manuscript Integrity Confidence Table.
+6. Evidence Distribution / Confidence Gate.
+
+The ledger specs live at:
+
+```text
+docs/governance/dream-ledgers/
+```
 
 ## Duplicate / legacy path note
 
@@ -48,7 +77,8 @@ A DREAM long-form gold-standard benchmark should expose, at minimum:
 10. Structural stack / layer analysis where manuscript architecture requires it.
 11. Cross-layer or cross-criterion synthesis.
 12. Releasability/readiness assessment.
-13. Repo note stating the file is a manual reference, not a production assertion.
+13. DREAM governed-ledger addendum or equivalent folded ledger sections.
+14. Repo note stating the file is a manual reference, not a production assertion.
 
 ## Normalization rule
 
@@ -58,7 +88,7 @@ When any of the large benchmark bodies are edited, add or preserve this front ma
 
 ```yaml
 ---
-benchmark-schema: dream-longform-v1
+benchmark-schema: dream-longform-v2-governed-ledgers
 title: <work title> DREAM Long-Form Gold Standard Evaluation
 manuscript: <source manuscript name>
 author: <author>
@@ -67,8 +97,10 @@ route: LONG_FORM
 output-mode: multi_layer_long_form
 benchmark-role: gold-standard-long-form
 criteria-spine: canonical-13
+dream-template-version: pass3b-longform-v2-governed-ledgers
+governed-ledgers: true
 wave-applied: true
 ---
 ```
 
-Do not weaken the underlying evaluation body while normalizing headers. Header normalization is metadata only.
+Do not weaken the underlying evaluation body while normalizing headers. Header normalization is metadata only. Addenda are the preferred V2 compliance layer for large manual benchmark bodies.
