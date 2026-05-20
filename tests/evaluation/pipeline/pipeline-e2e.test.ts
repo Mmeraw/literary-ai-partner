@@ -23,6 +23,7 @@ import type {
   ManuscriptChunkEvidence,
 } from "@/lib/evaluation/pipeline/types";
 import type { RunPass1Options } from "@/lib/evaluation/pipeline/runPass1";
+import type { RunPass1aOptions, RunPass1aResult } from "@/lib/evaluation/pipeline/runPass1a";
 import type { RunPass2Options } from "@/lib/evaluation/pipeline/runPass2";
 import type { RunPass3Options } from "@/lib/evaluation/pipeline/runPass3Synthesis";
 import type { LessonsLearnedReport, RuleStage, RuleEvaluationInput } from "@/lib/governance/lessonsLearned";
@@ -160,6 +161,7 @@ function makeTruncatedSynthesisOutput(): SynthesisOutput {
 let mockRunPass1: jest.Mock<(opts: RunPass1Options) => Promise<SinglePassOutput>>;
 let mockRunPass2: jest.Mock<(opts: RunPass2Options) => Promise<SinglePassOutput>>;
 let mockRunPass3: jest.Mock<(opts: RunPass3Options) => Promise<SynthesisOutput>>;
+let mockRunPass1a: jest.Mock<(opts: RunPass1aOptions) => Promise<RunPass1aResult>>;
 
 const permissiveLessonsLearned = {
   evaluateRules: () => ({ overall_pass: true, results: [] as LessonsLearnedReport["results"] }),
@@ -178,10 +180,12 @@ describe("runPipeline (e2e with injected runners)", () => {
     mockRunPass1 = jest.fn<(opts: RunPass1Options) => Promise<SinglePassOutput>>();
     mockRunPass2 = jest.fn<(opts: RunPass2Options) => Promise<SinglePassOutput>>();
     mockRunPass3 = jest.fn<(opts: RunPass3Options) => Promise<SynthesisOutput>>();
+    mockRunPass1a = jest.fn<(opts: RunPass1aOptions) => Promise<RunPass1aResult>>();
 
     mockRunPass1.mockResolvedValue(makeSinglePassOutput(1));
     mockRunPass2.mockResolvedValue(makeSinglePassOutput(2));
     mockRunPass3.mockResolvedValue(makeSynthesisOutput());
+    mockRunPass1a.mockResolvedValue({ chunkOutputs: [] });
   });
 
   it("returns ok=true with synthesis and quality_gate on success", async () => {
@@ -195,6 +199,7 @@ describe("runPipeline (e2e with injected runners)", () => {
         runPass1: mockRunPass1,
         runPass2: mockRunPass2,
         runPass3Synthesis: mockRunPass3,
+        runPass1a: mockRunPass1a,
       },
     });
 
@@ -222,6 +227,7 @@ describe("runPipeline (e2e with injected runners)", () => {
         runPass1: mockRunPass1,
         runPass2: mockRunPass2,
         runPass3Synthesis: mockRunPass3,
+        runPass1a: mockRunPass1a,
       },
     });
 
@@ -265,6 +271,7 @@ describe("runPipeline (e2e with injected runners)", () => {
         runPass1: mockRunPass1,
         runPass2: mockRunPass2,
         runPass3Synthesis: mockRunPass3,
+        runPass1a: mockRunPass1a,
       },
       _lessonsLearned: {
         evaluateRules: (_input: RuleEvaluationInput, stage?: RuleStage) =>
@@ -299,6 +306,7 @@ describe("runPipeline (e2e with injected runners)", () => {
         runPass1: mockRunPass1,
         runPass2: mockRunPass2,
         runPass3Synthesis: mockRunPass3,
+        runPass1a: mockRunPass1a,
       },
     });
 
@@ -329,6 +337,7 @@ describe("runPipeline (e2e with injected runners)", () => {
         runPass1: mockRunPass1,
         runPass2: mockRunPass2,
         runPass3Synthesis: mockRunPass3,
+        runPass1a: mockRunPass1a,
       },
     });
 
@@ -352,6 +361,7 @@ describe("runPipeline (e2e with injected runners)", () => {
         runPass1: mockRunPass1,
         runPass2: mockRunPass2,
         runPass3Synthesis: mockRunPass3,
+        runPass1a: mockRunPass1a,
       },
     });
 
@@ -381,6 +391,7 @@ describe("runPipeline (e2e with injected runners)", () => {
         runPass1: mockRunPass1,
         runPass2: mockRunPass2,
         runPass3Synthesis: mockRunPass3,
+        runPass1a: mockRunPass1a,
       },
     });
 
@@ -404,6 +415,7 @@ describe("runPipeline (e2e with injected runners)", () => {
         runPass1: mockRunPass1,
         runPass2: mockRunPass2,
         runPass3Synthesis: mockRunPass3,
+        runPass1a: mockRunPass1a,
       },
     });
 
@@ -433,6 +445,7 @@ describe("runPipeline (e2e with injected runners)", () => {
         runPass1: mockRunPass1,
         runPass2: mockRunPass2,
         runPass3Synthesis: mockRunPass3,
+        runPass1a: mockRunPass1a,
       },
     });
 
@@ -456,6 +469,7 @@ describe("runPipeline (e2e with injected runners)", () => {
         runPass1: mockRunPass1,
         runPass2: mockRunPass2,
         runPass3Synthesis: mockRunPass3,
+        runPass1a: mockRunPass1a,
       },
     });
 
@@ -499,6 +513,7 @@ describe("runPipeline (e2e with injected runners)", () => {
             runPass1: mockRunPass1,
             runPass2: mockRunPass2,
             runPass3Synthesis: mockRunPass3,
+            runPass1a: mockRunPass1a,
           },
         }),
       ).rejects.toThrow(/PERPLEXITY_CHUNK_SCORER_TRANSIENT_FAILURE/);
@@ -563,6 +578,7 @@ describe("runPipeline (e2e with injected runners)", () => {
         runPass1: mockRunPass1,
         runPass2: mockRunPass2,
         runPass3Synthesis: mockRunPass3,
+        runPass1a: mockRunPass1a,
       },
     });
 
@@ -588,6 +604,7 @@ describe("runPipeline (e2e with injected runners)", () => {
         runPass1: mockRunPass1,
         runPass2: mockRunPass2,
         runPass3Synthesis: mockRunPass3,
+        runPass1a: mockRunPass1a,
       },
     });
 
@@ -606,6 +623,7 @@ describe("runPipeline (e2e with injected runners)", () => {
         runPass1: mockRunPass1,
         runPass2: mockRunPass2,
         runPass3Synthesis: mockRunPass3,
+        runPass1a: mockRunPass1a,
       },
     });
 
@@ -633,6 +651,7 @@ describe("runPipeline (e2e with injected runners)", () => {
         runPass1: mockRunPass1,
         runPass2: mockRunPass2,
         runPass3Synthesis: mockRunPass3,
+        runPass1a: mockRunPass1a,
       },
     });
 
@@ -658,6 +677,7 @@ describe("runPipeline (e2e with injected runners)", () => {
         runPass1: mockRunPass1,
         runPass2: mockRunPass2,
         runPass3Synthesis: mockRunPass3,
+        runPass1a: mockRunPass1a,
       },
     });
 
@@ -687,6 +707,7 @@ describe("runPipeline (e2e with injected runners)", () => {
         runPass1: mockRunPass1,
         runPass2: mockRunPass2,
         runPass3Synthesis: mockRunPass3,
+        runPass1a: mockRunPass1a,
       },
     });
 
@@ -723,6 +744,7 @@ describe("runPipeline (e2e with injected runners)", () => {
           runPass1: mockRunPass1,
           runPass2: mockRunPass2,
           runPass3Synthesis: mockRunPass3,
+          runPass1a: mockRunPass1a,
         },
       });
 
@@ -769,6 +791,7 @@ describe("runPipeline (e2e with injected runners)", () => {
         runPass1: mockRunPass1,
         runPass2: mockRunPass2,
         runPass3Synthesis: mockRunPass3,
+        runPass1a: mockRunPass1a,
       },
       _lessonsLearned: {
         evaluateRules,
@@ -816,6 +839,7 @@ describe("runPipeline (e2e with injected runners)", () => {
         runPass1: mockRunPass1,
         runPass2: mockRunPass2,
         runPass3Synthesis: mockRunPass3,
+        runPass1a: mockRunPass1a,
       },
       _lessonsLearned: {
         evaluateRules,
@@ -847,6 +871,7 @@ describe("runPipeline (e2e with injected runners)", () => {
         runPass1: mockRunPass1,
         runPass2: mockRunPass2,
         runPass3Synthesis: mockRunPass3,
+        runPass1a: mockRunPass1a,
       },
     });
 
@@ -868,6 +893,7 @@ describe("runPipeline (e2e with injected runners)", () => {
         runPass1: mockRunPass1,
         runPass2: mockRunPass2,
         runPass3Synthesis: mockRunPass3,
+        runPass1a: mockRunPass1a,
       },
     });
 
@@ -888,6 +914,7 @@ describe("runPipeline (e2e with injected runners)", () => {
         runPass1: mockRunPass1,
         runPass2: mockRunPass2,
         runPass3Synthesis: mockRunPass3,
+        runPass1a: mockRunPass1a,
       },
     });
 
@@ -914,6 +941,7 @@ describe("runPipeline (e2e with injected runners)", () => {
         runPass1: mockRunPass1,
         runPass2: mockRunPass2,
         runPass3Synthesis: mockRunPass3,
+        runPass1a: mockRunPass1a,
       },
     });
 
@@ -1097,10 +1125,12 @@ describe("Pass 3b — long-form DREAM synthesis (pipeline integration)", () => {
     mockRunPass1 = jest.fn<(opts: RunPass1Options) => Promise<SinglePassOutput>>();
     mockRunPass2 = jest.fn<(opts: RunPass2Options) => Promise<SinglePassOutput>>();
     mockRunPass3 = jest.fn<(opts: RunPass3Options) => Promise<SynthesisOutput>>();
+    mockRunPass1a = jest.fn<(opts: RunPass1aOptions) => Promise<RunPass1aResult>>();
 
     mockRunPass1.mockResolvedValue(makeSinglePassOutput(1));
     mockRunPass2.mockResolvedValue(makeSinglePassOutput(2));
     mockRunPass3.mockResolvedValue(makeSynthesisOutput());
+    mockRunPass1a.mockResolvedValue({ chunkOutputs: [] });
   });
 
   // T1: main job completes for long-form manuscripts WITHOUT Pass 3b (decoupled to /api/workers/process-dream).
@@ -1131,6 +1161,7 @@ describe("Pass 3b — long-form DREAM synthesis (pipeline integration)", () => {
         runPass1: mockRunPass1,
         runPass2: mockRunPass2,
         runPass3Synthesis: mockRunPass3,
+        runPass1a: mockRunPass1a,
         runPass3bLongform: mockRunPass3bLongform,
       },
     });
@@ -1162,6 +1193,7 @@ describe("Pass 3b — long-form DREAM synthesis (pipeline integration)", () => {
         runPass1: mockRunPass1,
         runPass2: mockRunPass2,
         runPass3Synthesis: mockRunPass3,
+        runPass1a: mockRunPass1a,
         runPass3bLongform: mockRunPass3bLongform,
       },
     });
@@ -1204,6 +1236,7 @@ describe("Pass 3b — long-form DREAM synthesis (pipeline integration)", () => {
         runPass1: mockRunPass1,
         runPass2: mockRunPass2,
         runPass3Synthesis: mockRunPass3,
+        runPass1a: mockRunPass1a,
         runPass3bLongform: mockRunPass3bLongform,
       },
     });
@@ -1488,10 +1521,12 @@ describe("Pass 4 — Perplexity DREAM adjudication (pipeline integration)", () =
     mockRunPass1 = jest.fn<(opts: RunPass1Options) => Promise<SinglePassOutput>>();
     mockRunPass2 = jest.fn<(opts: RunPass2Options) => Promise<SinglePassOutput>>();
     mockRunPass3 = jest.fn<(opts: RunPass3Options) => Promise<SynthesisOutput>>();
+    mockRunPass1a = jest.fn<(opts: RunPass1aOptions) => Promise<RunPass1aResult>>();
 
     mockRunPass1.mockResolvedValue(makeSinglePassOutput(1));
     mockRunPass2.mockResolvedValue(makeSinglePassOutput(2));
     mockRunPass3.mockResolvedValue(makeSynthesisOutput());
+    mockRunPass1a.mockResolvedValue({ chunkOutputs: [] });
   });
 
   it("includes cross_check in ok=true result when perplexityApiKey is provided (short-form)", async () => {
@@ -1541,6 +1576,7 @@ describe("Pass 4 — Perplexity DREAM adjudication (pipeline integration)", () =
           runPass1: mockRunPass1,
           runPass2: mockRunPass2,
           runPass3Synthesis: mockRunPass3,
+          runPass1a: mockRunPass1a,
         },
       });
 
@@ -1621,6 +1657,7 @@ describe("Pass 4 — Perplexity DREAM adjudication (pipeline integration)", () =
           runPass1: mockRunPass1,
           runPass2: mockRunPass2,
           runPass3Synthesis: mockRunPass3,
+          runPass1a: mockRunPass1a,
           runPass3bLongform: mockRunPass3bLongform,
         },
       });
@@ -1682,6 +1719,7 @@ describe("Pass 4 — Perplexity DREAM adjudication (pipeline integration)", () =
             runPass1: mockRunPass1,
             runPass2: mockRunPass2,
             runPass3Synthesis: mockRunPass3,
+            runPass1a: mockRunPass1a,
             runPass3bLongform: mockRunPass3bLongform,
           },
         }),
@@ -1708,6 +1746,7 @@ describe("Pass 4 — Perplexity DREAM adjudication (pipeline integration)", () =
         runPass1: mockRunPass1,
         runPass2: mockRunPass2,
         runPass3Synthesis: mockRunPass3,
+        runPass1a: mockRunPass1a,
       },
     });
 
