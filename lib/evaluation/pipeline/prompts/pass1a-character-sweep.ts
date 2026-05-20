@@ -8,7 +8,7 @@
  * Output feeds characterReducer → Pass1aCharacterLedger → Pass 3 + Pass 3b.
  */
 
-export const PASS1A_PROMPT_VERSION = "pass1a-character-sweep-v1";
+export const PASS1A_PROMPT_VERSION = "pass1a-character-sweep-v2-coping-copresence";
 
 export const PASS1A_SYSTEM_PROMPT = `You are Pass 1A (character_evidence_sweep) for RevisionGrade.
 
@@ -56,6 +56,10 @@ where_are_they      — Location signal if present (null if absent)
 when_signal         — Temporal context (null if absent)
 why_signal          — Motivation signal if present (null if absent)
 how_signal          — Method/behavior/coping pattern (null if absent) — include rituals, habits, compulsions
+                      IMPORTANT: Capture EVERY distinct coping behavior, ritual, or habit you observe:
+                      smoking, object-handling, counting, shopping, ordering food, physical routines,
+                      prayer, silence, lining objects up, any repeated self-regulation behavior.
+                      These feed the Recommendation Grounding Gate to prevent false "seed a ritual" recommendations.
 
 ARC SIGNALS (chunk-level only):
 arc_state_in_chunk  — One phrase: character's emotional/situational state entering or during this chunk
