@@ -17,7 +17,7 @@ import {
   summarizePromptCoverage,
 } from "../promptInput";
 
-export const PASS3_PROMPT_VERSION = "pass3-synthesis-v16-character-ledger-read-ahead";
+export const PASS3_PROMPT_VERSION = "pass3-synthesis-v17-grounding-gate";
 
 export const PASS3_SYSTEM_PROMPT = `You are Pass 3: convergence and arbitration authority.
 Rules:
@@ -57,6 +57,41 @@ REC CONTRACT — FIVE PARTS (required for every recommendation):
 - READER EFFECT: expected_impact must include reader-facing outcome (reader/urgency/clarity/momentum/immersion/engagement/stakes/tension/payoff/coherence/trust/comprehension).
 
 Reject patterns: no location/symptom/mechanism/concrete move/reader effect, or generic whole-manuscript advice.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+RECOMMENDATION GROUNDING GATE (HARD RULES — SUPPRESS ANY REC THAT FAILS)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Before emitting any recommendation, validate ALL of the following. A single failure = rec is suppressed entirely (do not emit it, do not downgrade it, do not emit a placeholder).
+
+GATE 1 — EVIDENCE QUOTE REQUIRED
+Every recommendation MUST include an anchor_snippet containing a verbatim or near-verbatim quote from the manuscript. If you cannot locate the exact offending line, the recommendation is suppressed.
+→ This blocks: "glib aside" with no quoted line, "compress by 10%" with no target sentence, "mixed metaphor" with no identified line.
+→ Rule: You may NOT use the phrases "glib aside", "mixed metaphor", "lyrical drift", "unclear orientation", "expository line", "over-translated", or equivalent craft-weakness labels UNLESS anchor_snippet contains the verbatim target. If you cannot locate the offending line in your evidence, OMIT the recommendation entirely.
+
+GATE 2 — CHARACTER CO-PRESENCE VALIDATION
+If a recommendation names two or more characters together in a scene, check the CHARACTER ARC LEDGER coPresenceMap. If their firstSharedChunk is AFTER the target chapter, the recommendation is suppressed.
+→ This blocks: placing Paolito and Benjamin together before their first shared scene, placing Raúl in a scene he does not appear in.
+→ Rule: Never place characters together in a recommendation unless the coPresenceMap or relational_engines ledger confirms they are co-present in that chapter/chunk range.
+
+GATE 3 — NAME-STATE VALIDATION
+Check the CHARACTER ARC LEDGER nameStates for every character referenced. Do not use a name that is not valid for the target chapter/chunk range.
+→ This blocks: using "Paul" before the embassy renaming scene, using an alias before it is introduced.
+→ Rule: If nameStates shows validFromChunk > target chunk, use the earlier valid name instead. If in doubt, omit the character name and suppress the rec.
+
+GATE 4 — EXISTING COPING MECHANISM CHECK
+Before recommending "seed X ritual" or "add X coping mechanism" for any character, check copingMechanisms in the CHARACTER ARC LEDGER. If two or more coping mechanisms already exist for that character, suppress the "seed" recommendation and instead recommend FOREGROUNDING or EARLIER PLACEMENT of an existing mechanism.
+→ This blocks: "seed a coping ritual for Benjamin" when Benjamin already has smoking, pencil-lining, shopping, Starbucks runs in the ledger.
+→ Rule: "Seed" language is only valid when copingMechanisms.length === 0 for that character. Otherwise use "foreground", "surface earlier", or "echo" language.
+
+GATE 5 — MULTI-ZONE EVIDENCE RULE
+For any manuscript ≥ 25,000 words: no criterion recommendation may cite only Opening-zone evidence. Every recommendation must cite evidence from at least two distinct act zones (Opening, MID-EARLY, MID, MID-LATE, LATE, Close). If supporting evidence from mid or late acts cannot be found, mark confidence as LOW and suppress the recommendation.
+→ This blocks: all 13 criteria recommendations anchoring exclusively to Chapter 1 for a 111,732-word novel.
+→ Rule: narrativeClosure recommendations must cite LATE/Close evidence. Recommendations about novel-wide patterns must span at least two act zones.
+
+GATE 6 — LOW-PRIORITY / HIGH-CONFIDENCE SUPPRESSION
+If a recommendation has priority = "low" AND the criterion confidence_band = "HIGH", suppress the recommendation or demote it to a parenthetical note inside the rationale. Do not emit it as a standalone recommendation.
+→ This blocks: "Name a highway marker or ejido" on a worldbuilding criterion already rated High Confidence and 8/10.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Confidence/evidence: do not convert scorable criteria to N/A due to thin evidence; lower confidence instead; do not invent evidence.
 
@@ -178,6 +213,24 @@ function buildCharacterLedgerBlock(ledger?: Pass1aCharacterLedger): string {
     const warnPart = e.warnings.length > 0
       ? ` ⚠ ${e.warnings.map((w) => w.type).join(", ")}`
       : "";
+    // nameStates for grounding gate 3
+    const nameStatePart = (e.nameStates ?? []).length > 0
+      ? `\n  nameStates: ${e.nameStates.map((ns) =>
+          `${ns.name}(chunks ${ns.validFromChunk}→${ns.validUntilChunk ?? "end"})`
+        ).join(" | ")}`
+      : "";
+    // copingMechanisms for grounding gate 4
+    const copingPart = (e.copingMechanisms ?? []).length > 0
+      ? `\n  coping[${e.copingMechanisms.length}]: ${e.copingMechanisms.map((c) =>
+          `"${c.description}"(${c.frequency},ch${c.firstAppearsChunk})`
+        ).slice(0, 5).join(", ")}`
+      : "";
+    // coPresenceMap for grounding gate 2
+    const coPresencePart = Object.keys(e.coPresenceMap ?? {}).length > 0
+      ? `\n  firstMeets: ${Object.entries(e.coPresenceMap).map(([other, v]) =>
+          `${other}@chunk${v.firstSharedChunk}`
+        ).join(", ")}`
+      : "";
     return [
       `• ${e.canonical_name}${aliasPart}`,
       `  role=${e.role} weight=${e.narrative_weight_band}${agePart} gender=${e.gender_identity}`,
@@ -186,6 +239,9 @@ function buildCharacterLedgerBlock(ledger?: Pass1aCharacterLedger): string {
       e.how_signal ? `  behavior: ${e.how_signal}` : null,
       `  arc: ${e.arc_start} → ${e.arc_turning_points.slice(0, 2).join(" → ")} → ${e.arc_end_state}`,
       `  ending: ${e.ending_status}${symbolPart}${relPart}${warnPart}`,
+      nameStatePart || null,
+      copingPart || null,
+      coPresencePart || null,
     ].filter(Boolean).join("\n");
   }).join("\n\n");
 
@@ -216,7 +272,10 @@ LEDGER RULES (REQUIRED):
 - ✓traced symbols must show their full arc in the report (first function → payoff).
 - Children (age_exact / life_stage=child) must be identified as such — do not treat them as generic victims.
 - Characters with disability_neuro_signals (OCD, PTSD, rituals) must have those patterns named.
-- Hard-fail triggers above MUST be addressed before claiming narrative closure.`;
+- Hard-fail triggers above MUST be addressed before claiming narrative closure.
+- GROUNDING GATE 2: Before placing two characters in a scene together in a recommendation, verify coPresenceMap confirms firstSharedChunk ≤ target chunk.
+- GROUNDING GATE 3: Before using any character name, verify nameStates confirms that name is valid for the target chunk range.
+- GROUNDING GATE 4: Before recommending "seed" a coping mechanism, verify copingMechanisms is empty for that character. If coping mechanisms exist, use "foreground" or "surface earlier" instead.`;
 }
 
 // ── Read-ahead primer block builder ───────────────────────────────────────
