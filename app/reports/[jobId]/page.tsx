@@ -53,7 +53,7 @@ function getConfidenceBadge(criterion: EvaluationResultV1["criteria"][number]): 
   label: string;
   classes: string;
 } | null {
-  if (criterion.confidence_level === "high" || (typeof criterion.confidence_score_0_100 === "number" && criterion.confidence_score_0_100 >= 85)) {
+  if (criterion.confidence_level === "high" || (typeof criterion.confidence_score_0_100 === "number" && criterion.confidence_score_0_100 >= 80)) {
     return { label: "High Confidence", classes: "bg-emerald-100 text-emerald-800" };
   }
 
@@ -399,8 +399,8 @@ export default async function ReportPage({ params }: { params: { jobId: string }
               Confidence shows how strongly each score and summary is supported by clear examples from your submitted text.
             </p>
             <ul className="mt-2 list-disc pl-5 space-y-1 text-sm">
-              <li>High (≥85): strong support from the text</li>
-              <li>Moderate (60–84): partial or uneven support from the text</li>
+              <li>High (≥80): strong support from the text</li>
+              <li>Moderate (60–79): partial or uneven support from the text</li>
               <li>Low (&lt;60): limited support from the text</li>
             </ul>
           </div>

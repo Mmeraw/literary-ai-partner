@@ -347,7 +347,7 @@ function getConfidencePresentation(
   const confidenceLevel = c.confidence_level;
   const confidenceScore = c.confidence_score_0_100;
 
-  if (confidenceLevel === "high" || (typeof confidenceScore === "number" && confidenceScore >= 85)) {
+  if (confidenceLevel === "high" || (typeof confidenceScore === "number" && confidenceScore >= 80)) {
     return {
       label: "High Confidence",
       classes: "bg-emerald-100 text-emerald-800",
@@ -679,8 +679,8 @@ export default async function EvaluationReportPage({
                       Confidence shows how strongly each score and summary is supported by clear examples from your submitted text.
                     </p>
                     <ul className="mt-2 list-disc pl-5 space-y-1">
-                      <li>High (≥85): strong support from the text</li>
-                      <li>Moderate (60–84): partial or uneven support from the text</li>
+                      <li>High (≥80): strong support from the text</li>
+                      <li>Moderate (60–79): partial or uneven support from the text</li>
                       <li>Low (&lt;60): limited support from the text</li>
                     </ul>
                   </div>
