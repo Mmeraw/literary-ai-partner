@@ -8,7 +8,7 @@
 
 import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
 import type { SubmissionScopeProfile } from "../submissionScope";
-import type { Pass2aStructuredContext, SinglePassOutput, Pass1aCharacterLedger, CharacterArcLedgerEntry, SymbolPayoffEntry, CharacterLedgerV2 } from "../types";
+import type { Pass2aStructuredContext, SinglePassOutput, Pass1aCharacterLedger, CharacterArcLedgerEntry, SymbolPayoffEntry, CharacterLedgerV2, CharacterStateSnapshot, TerminalLedgerEntry } from "../types";
 import type { Pass3ReadAheadResult } from "../runPass3ReadAhead";
 import { formatActiveBlockersForPrompt } from "../ledgerValidation";
 import {
@@ -192,8 +192,12 @@ function buildPerplexityPacketSummary(packet: SinglePassOutput): string {
 
 // ── Character Arc Ledger block builder ────────────────────────────────────
 
-function buildCharacterLedgerBlock(ledger?: Pass1aCharacterLedger, ledgerV2?: CharacterLedgerV2): string {
-  if (!ledger || ledger.entries.length === 0) return "";
+function buildCharacterLedgerBlock(ledger: Pass1aCharacterLedger, ledgerV2?: CharacterLedgerV2): string {
+  // ledger is always present — assertCharacterLedger() guarantees this upstream.
+  // We keep a defensive check only for the empty-entries case (pipeline data error).
+  if (ledger.entries.length === 0) {
+    return "\n\n## PASS 1A — CHARACTER ARC LEDGER\n⛔ LEDGER_EMPTY: Pass 1A produced zero character entries. Evaluation cannot proceed without character grounding.";
+  }
   const summary = ledger.coverage_summary;
   const rows = ledger.entries.map((e: CharacterArcLedgerEntry) => {
     const agePart = e.age_exact_first !== null
@@ -258,6 +262,53 @@ function buildCharacterLedgerBlock(ledger?: Pass1aCharacterLedger, ledgerV2?: Ch
     ? `\nRELATIONAL ENGINES: ${summary.relational_engines.join(" | ")}`
     : "";
 
+  // Tier 1: inject state timeline (location per character per act zone)
+  // Gives Pass 3 a deterministic map of where each character IS at each act zone —
+  // prevents "Raúl at the overpass" class errors at the prompt grounding level.
+  const stateTimelineBlock = ledgerV2 && ledgerV2.stateTimelines.length > 0
+    ? (() => {
+        // Group by characterId
+        const byChar = new Map<string, CharacterStateSnapshot[]>();
+        for (const snap of ledgerV2.stateTimelines) {
+          if (!byChar.has(snap.characterId)) byChar.set(snap.characterId, []);
+          byChar.get(snap.characterId)!.push(snap);
+        }
+        const lines: string[] = [];
+        for (const [charId, snaps] of byChar) {
+          const displayName = ledger.entries.find(
+            (e) => e.canonical_name.toLowerCase().replace(/\s+/g, "_") === charId
+          )?.canonical_name ?? charId;
+          // One line per snapshot
+          const snapLines = snaps.map((s) => {
+            const loc = s.location ? `loc:${s.location}` : "";
+            const legal = s.legalStatus ? `status:${s.legalStatus}` : "";
+            const psych = s.psychologicalState ? `state:${s.psychologicalState.slice(0, 60)}` : "";
+            const parts = [s.chapterRange, loc, legal, psych].filter(Boolean).join(" | ");
+            return `    ${parts}`;
+          });
+          lines.push(`  ${displayName}:\n${snapLines.join("\n")}`);
+        }
+        return `\n\nCHARACTER STATE TIMELINE (location/status per act zone — REQUIRED for placement validation):\n${lines.join("\n")}\n→ RULE: Never place a character at a location not confirmed in their state timeline above.`;
+      })()
+    : "";
+
+  // Tier 1: inject terminal ledger (deaths, departures, open arcs)
+  // Gives Pass 3 the definitive list of characters who leave the story,
+  // their last known state, and what narrative closure they received.
+  const terminalBlock = ledgerV2 && ledgerV2.terminalLedger.length > 0
+    ? (() => {
+        const lines = (ledgerV2.terminalLedger as TerminalLedgerEntry[]).map((t) => {
+          const displayName = ledger.entries.find(
+            (e) => e.canonical_name.toLowerCase().replace(/\s+/g, "_") === t.characterId
+          )?.canonical_name ?? t.characterId;
+          const unkept = t.promisesUnkept.length > 0 ? ` | unkept:${t.promisesUnkept.slice(0, 2).join(", ")}` : "";
+          const objects = t.objectsPresentAtExit.length > 0 ? ` | objects:${t.objectsPresentAtExit.join(", ")}` : "";
+          return `  ${displayName}: ${t.terminalCondition} @ ${t.terminalChapter ?? "unknown"} | closure:${t.narrativeClosureStatus}${unkept}${objects}`;
+        });
+        return `\n\nTERMINAL LEDGER (characters who exit the story):\n${lines.join("\n")}\n→ RULE: Narrative closure recommendations must account for these terminal states. Characters marked "underpaid" are explicit closure debt.`;
+      })()
+    : "";
+
   // Tier 1: inject CharacterLedgerV2 active blockers if available
   const v2BlockerBlock = ledgerV2
     ? `\n\n${formatActiveBlockersForPrompt(ledgerV2)}`
@@ -266,6 +317,51 @@ function buildCharacterLedgerBlock(ledger?: Pass1aCharacterLedger, ledgerV2?: Ch
   // Tier 1: inject validation query summary (coverage + negative knowledge count)
   const v2ValidationSummary = ledgerV2
     ? `\nLEDGER V2 VALIDATION QUERIES ACTIVE: ${Object.keys(ledgerV2.validationQueries.coPresenceIndex).length} co-presence pairs indexed | ${Object.keys(ledgerV2.validationQueries.nameStateIndex).length} name-state entries | ${Object.keys(ledgerV2.validationQueries.copingIndex).length} coping index entries | ${ledgerV2.activeBlockers.length} active blockers (${ledgerV2.activeBlockers.filter((b) => b.severity === "suppress").length} suppress, ${ledgerV2.activeBlockers.filter((b) => b.severity === "downgrade").length} downgrade, ${ledgerV2.activeBlockers.filter((b) => b.severity === "warn").length} warn)`
+    : "";
+
+  // Tier 1 / v2: inject act-zone evidence coverage map from V2 ledger.
+  // Aggregates characterCoverage across all characters to produce the DEFINITIVE zone map —
+  // grounded in actual evidence from Pass 1A chunk sweep, not position arithmetic.
+  // Pass 3 uses this to enforce Gate 5 (multi-zone evidence rule).
+  const actZoneCoverageBlock = ledgerV2 && ledgerV2.characterCoverage && Object.keys(ledgerV2.characterCoverage).length > 0
+    ? (() => {
+        // Aggregate actZones across all characters
+        const coveredSet = new Set<string>();
+        const missingSet = new Set<string>();
+        const zoneConfMap: Record<string, string[]> = {};
+        let totalChunksMax = 0;
+        let confirmedSum = 0;
+        let charCount = 0;
+        for (const cov of Object.values(ledgerV2.characterCoverage)) {
+          charCount++;
+          confirmedSum += cov.chunksConfirmed ?? 0;
+          if (cov.totalChunks && cov.totalChunks > totalChunksMax) totalChunksMax = cov.totalChunks;
+          for (const z of cov.actZonesCovered ?? []) coveredSet.add(z);
+          for (const z of cov.actZonesMissing ?? []) { if (!coveredSet.has(z)) missingSet.add(z); }
+          for (const [zone, conf] of Object.entries(cov.confidenceByZone ?? {})) {
+            if (!zoneConfMap[zone]) zoneConfMap[zone] = [];
+            zoneConfMap[zone].push(String(conf));
+          }
+        }
+        // Zones confirmed by ANY character count as covered; only add to missing if never covered
+        for (const z of coveredSet) missingSet.delete(z);
+        const covered = Array.from(coveredSet).join(", ") || "none confirmed";
+        const missing = Array.from(missingSet).join(", ") || "none";
+        // Summarize: for each zone take the best confidence seen across characters
+        const CONF_RANK: Record<string, number> = { STRONG: 4, SUFFICIENT: 3, WEAK: 2, NONE: 1, none: 1 };
+        const zoneLines = Object.entries(zoneConfMap).map(([zone, confs]) => {
+          const best = confs.reduce((a, b) => (CONF_RANK[a] ?? 0) >= (CONF_RANK[b] ?? 0) ? a : b, "none");
+          return `    ${zone}: ${best}`;
+        }).join("\n");
+        const avgConfirmed = charCount > 0 ? Math.round(confirmedSum / charCount) : 0;
+        return `\n\nACT-ZONE EVIDENCE MAP (aggregated from Pass 1A — authoritative for Gate 5):\n` +
+          `  Zones with confirmed evidence: ${covered}\n` +
+          `  Zones with NO confirmed evidence: ${missing}\n` +
+          `  Avg confirmed chunks per character: ${avgConfirmed} / ${totalChunksMax} total\n` +
+          (zoneLines ? `  Best confidence by zone:\n${zoneLines}\n` : "") +
+          `→ Gate 5 rule: every recommendation must cite evidence from ≥2 confirmed zones above.\n` +
+          `  If a zone is listed as missing, no recommendation may anchor exclusively to it.`;
+      })()
     : "";
 
   return `\n\n## PASS 1A — CHARACTER ARC LEDGER (Hard Input)
@@ -286,42 +382,129 @@ LEDGER RULES (REQUIRED):
 - Hard-fail triggers above MUST be addressed before claiming narrative closure.
 - GROUNDING GATE 2: Before placing two characters in a scene together in a recommendation, verify coPresenceMap confirms firstSharedChunk ≤ target chunk.
 - GROUNDING GATE 3: Before using any character name, verify nameStates confirms that name is valid for the target chunk range.
-- GROUNDING GATE 4: Before recommending "seed" a coping mechanism, verify copingMechanisms is empty for that character. If coping mechanisms exist, use "foreground" or "surface earlier" instead.${v2BlockerBlock}${v2ValidationSummary}`;
+- GROUNDING GATE 4: Before recommending "seed" a coping mechanism, verify copingMechanisms is empty for that character. If coping mechanisms exist, use "foreground" or "surface earlier" instead.${stateTimelineBlock}${terminalBlock}${actZoneCoverageBlock}${v2BlockerBlock}${v2ValidationSummary}`;
 }
 
-// ── Read-ahead primer block builder ───────────────────────────────────────
+// ── Read-ahead primer block builder (v2-analytical) ─────────────────────────
+//
+// v2: surfaces parked criterion hypotheses, act-zone map, symbol arc predictions,
+// and DIRECT reconciliation instructions that Pass 3 MUST address.
+// Pass 3 is no longer passive about the read-ahead — it must reconcile every
+// WATCH-flagged hypothesis against the inbound scored packet.
 
 function buildReadAheadPrimerBlock(readAhead?: Pass3ReadAheadResult): string {
   if (!readAhead || readAhead.is_fallback) return "";
-  const charList = readAhead.character_first_impressions.slice(0, 10).map((c) => {
+
+  // ── 1. Narrative structure ──────────────────────────────────────────────
+  const nsm = readAhead.narrative_structure_map;
+  const actImp = nsm.act_impressions as Record<string, string>;
+  const structureLines = [
+    `POV: ${nsm.pov_architecture}`,
+    `Tone: ${nsm.dominant_tone} | Setting: ${nsm.dominant_setting} | Scope: ${nsm.temporal_scope}`,
+    `Structural risk: ${nsm.structural_risk ?? "none flagged"}`,
+    `Opening: ${actImp.opening_register ?? "—"}`,
+    `Mid-early: ${actImp.mid_early_register ?? "—"}`,
+    `Mid-act pivot: ${actImp.mid_act_pivot ?? "—"}`,
+    `Mid-late: ${actImp.mid_late_register ?? "—"}`,
+    `Late-act: ${actImp.late_act_pressure ?? "—"}`,
+    `Close: ${actImp.close_register ?? "—"}`,
+  ].join("\n");
+
+  // ── 2. Act-zone map ─────────────────────────────────────────────────────
+  const actZoneMap = Array.isArray(readAhead.act_zone_map) && readAhead.act_zone_map.length > 0
+    ? `\n\nACT-ZONE MAP (read-ahead assignment — use for Gate 5 zone validation):\n` +
+      readAhead.act_zone_map.map((e) => {
+        const conf = e.confidence !== "HIGH" ? ` [${e.confidence}]` : "";
+        return `  ${e.window_label} → ${e.act_zone_assigned}${conf}: ${e.zone_signal}`;
+      }).join("\n")
+    : "";
+
+  // ── 3. Characters ────────────────────────────────────────────────────────
+  const charList = readAhead.character_first_impressions.slice(0, 12).map((c) => {
     const demo = c.demographic_signals.length > 0 ? ` [${c.demographic_signals.slice(0, 3).join(", ")}]` : "";
     const age = c.age_if_stated !== null ? ` age ${c.age_if_stated}` : c.life_stage !== "unknown" ? ` (${c.life_stage})` : "";
     const syms = c.symbolic_objects_attached.length > 0 ? ` | symbols: ${c.symbolic_objects_attached.join(", ")}` : "";
-    return `  ${c.name}${demo}${age} — ${c.role_impression} — ${c.arc_impression}${syms} [${c.present_in.join(", ")}]`;
+    const gap = c.arc_gap_risk && c.arc_gap_risk !== "none"
+      ? `\n    ⚠ gap-risk: ${c.arc_gap_risk}`
+      : "";
+    return `  ${c.name}${demo}${age} — ${c.role_impression} — arc: ${c.arc_impression}\n    predict: ${c.arc_prediction}${syms} [${c.present_in.join(", ")}]${gap}`;
   }).join("\n");
-  const symList = readAhead.symbol_register.map((s) =>
-    `  ${s.object}: ${s.first_window}→${s.last_window_seen} — ${s.function_impression}`
-  ).join("\n");
-  const relList = readAhead.relationship_spine_impressions.map((r) =>
-    `  ${r.pair}: ${r.dynamic_impression}`
-  ).join("\n");
-  const concerns = readAhead.coverage_concerns.length > 0
-    ? `\nCOVERAGE CONCERNS:\n${readAhead.coverage_concerns.map((c) => `  ⚠ ${c}`).join("\n")}`
+
+  // ── 4. Symbols ───────────────────────────────────────────────────────────
+  const symList = Array.isArray(readAhead.symbol_register) && readAhead.symbol_register.length > 0
+    ? readAhead.symbol_register.map((s) => {
+        const sym = s as unknown as Record<string, unknown>;
+        const chars = Array.isArray(sym.attached_characters)
+          ? ` | chars: ${(sym.attached_characters as string[]).join(", ")}`
+          : "";
+        const payoff = typeof sym.payoff_prediction === "string" ? sym.payoff_prediction : "unclear";
+        const traj = typeof sym.trajectory === "string" ? sym.trajectory : "";
+        const flag = payoff === "at_risk" || payoff === "unresolved" ? " ⚠" : "";
+        return `  ${s.object}: ${s.first_window}→${s.last_window_seen} | ${traj} | payoff: ${payoff}${flag}${chars}`;
+      }).join("\n")
+    : "  (none detected)";
+
+  // ── 5. Relationships ─────────────────────────────────────────────────────
+  const relList = Array.isArray(readAhead.relationship_spine_impressions) && readAhead.relationship_spine_impressions.length > 0
+    ? readAhead.relationship_spine_impressions.map((r) => {
+        const zone = (r as Record<string, string>).first_shared_zone ?? "not_confirmed";
+        const traj = (r as Record<string, string>).trajectory_prediction ?? "";
+        return `  ${r.pair}: ${r.dynamic_impression} | first together: ${zone} | predict: ${traj}`;
+      }).join("\n")
+    : "  (none detected)";
+
+  // ── 6. Criterion hypotheses ──────────────────────────────────────────────
+  // Only render WATCH-flagged hypotheses in full + a summary table for all.
+  const hypotheses = Array.isArray(readAhead.criterion_hypotheses) ? readAhead.criterion_hypotheses : [];
+  const watchHypotheses = hypotheses.filter((h) => h.reconciliation_flag === "WATCH");
+  const hypothesisSummary = hypotheses.length > 0
+    ? `\n\nCRITERION HYPOTHESIS SUMMARY (pre-scoring predictions — reconcile against inbound packets):\n` +
+      hypotheses.map((h) => {
+        const range = h.predicted_score_range ? ` (${h.predicted_score_range})` : "";
+        const flag = h.reconciliation_flag === "WATCH" ? " ⚑ WATCH" : "";
+        return `  ${h.key}: ${h.predicted_band}${range}${flag} — ${h.hypothesis_rationale.slice(0, 100)}`;
+      }).join("\n")
     : "";
-  return `\n\n## PASS 3 READ-AHEAD PRIMER (Pre-scoring manuscript impression)
-POV: ${readAhead.narrative_structure_map.pov_architecture}
-Tone: ${readAhead.narrative_structure_map.dominant_tone} | Scope: ${readAhead.narrative_structure_map.temporal_scope}
-Opening: ${readAhead.narrative_structure_map.act_impressions.opening_register}
-Late-act: ${readAhead.narrative_structure_map.act_impressions.late_act_pressure}
-Ending: ${readAhead.narrative_structure_map.act_impressions.ending_register}
+  const watchDetail = watchHypotheses.length > 0
+    ? `\n\nWATCH-FLAGGED HYPOTHESES (Pass 3 MUST address each of these explicitly):\n` +
+      watchHypotheses.map((h) => {
+        const zones = h.hypothesis_evidence_zones.join(", ");
+        return `  ⚑ ${h.key} [${h.predicted_band}${h.predicted_score_range ? ` ${h.predicted_score_range}` : ""}]\n    Evidence zones: ${zones}\n    Hypothesis: ${h.hypothesis_rationale}`;
+      }).join("\n")
+    : "";
 
-CHARACTERS (from read-ahead):
+  // ── 7. Coverage concerns ──────────────────────────────────────────────────
+  const concerns = Array.isArray(readAhead.coverage_concerns) && readAhead.coverage_concerns.length > 0
+    ? `\n\nCOVERAGE CONCERNS:\n${readAhead.coverage_concerns.map((c) => `  ⚠ ${c}`).join("\n")}`
+    : "";
+
+  // ── 8. Reconciliation instructions (MANDATORY) ────────────────────────────
+  const reconcile = Array.isArray(readAhead.reconciliation_instructions) && readAhead.reconciliation_instructions.length > 0
+    ? `\n\nRECONCILIATION INSTRUCTIONS (MANDATORY — Pass 3 must address EACH of these):\n` +
+      readAhead.reconciliation_instructions.map((r, i) => `  ${i + 1}. ${r}`).join("\n")
+    : "";
+
+  return `\n\n${"━".repeat(72)}
+## PASS 3 READ-AHEAD ANALYSIS (v2 — Pre-scoring analytical pre-analysis)
+${"━".repeat(72)}
+⚠ RECONCILIATION REQUIRED: Pass 3 must explicitly compare the inbound scored
+  packets against the parked hypotheses below. For each ⚑ WATCH criterion,
+  state whether the inbound evidence confirms, revises, or contradicts the
+  read-ahead prediction — and why.
+${"━".repeat(72)}
+
+NARRATIVE STRUCTURE:
+${structureLines}${actZoneMap}
+
+CHARACTERS (pre-scoring impressions + arc predictions):
 ${charList || "  (none detected)"}
-SYMBOLS: ${symList || "  (none)"}
-RELATIONSHIPS: ${relList || "  (none)"}${concerns}
 
-SYNTHESIS NOTE: If scored packets are opening-heavy but your read-ahead detected strong arcs/symbols
-in LATE-MIDDLE or ENDING windows, address the late-act content in your synthesis explicitly.`;
+SYMBOL REGISTER (with payoff predictions):
+${symList}
+
+RELATIONSHIPS:
+${relList}${hypothesisSummary}${watchDetail}${concerns}${reconcile}
+${"━".repeat(72)}`;
 }
 
 export function buildPass3UserPrompt(params: {
@@ -344,10 +527,11 @@ export function buildPass3UserPrompt(params: {
    */
   dualModelMode?: boolean;
   /**
-   * Pass 1A character arc ledger — structured identity, arc, and relationship data.
-   * Optional — Pass 3 degrades gracefully without it.
+   * Pass 1A character arc ledger — REQUIRED. Every novel has at least one character.
+   * Pass 3 cannot produce a grounded evaluation without it.
+   * assertCharacterLedger() in runPass3Synthesis enforces this before we reach here.
    */
-  characterLedger?: Pass1aCharacterLedger;
+  characterLedger: Pass1aCharacterLedger;
   /**
    * Tier 1 CharacterLedgerV2 — full six-ledger envelope with active blockers and
    * validation query indices.  When present, overrides the v1 ledger for blocker

@@ -100,10 +100,10 @@ import { JsonBoundaryError } from "@/lib/llm/jsonParseBoundary";
 import { buildPass2aStructuredContext } from "./buildPass2aStructuredContext";
 import { runPass1a } from "./runPass1a";
 import type { RunPass1aResult } from "./runPass1a";
-import { reduceCharacterEvidence } from "./characterReducer";
+import { reduceCharacterEvidence, buildCharacterLedgerV2 } from "./characterReducer";
 import { runPass3ReadAhead } from "./runPass3ReadAhead";
 import type { Pass3ReadAheadResult } from "./runPass3ReadAhead";
-import type { Pass1aCharacterLedger } from "./types";
+import type { Pass1aCharacterLedger, CharacterLedgerV2 } from "./types";
 import {
   normalizeSummaryWithBottomWeaknesses,
   summarizePropagationIntegrity,
@@ -1330,35 +1330,89 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
     manuscriptChunks: opts.manuscriptChunks,
   });
 
-  // ── Resolve Pass 1A → reduce to character ledger ─────────────────────
-  let characterLedger: Pass1aCharacterLedger | undefined;
-  if (pass1aSettled.status === "fulfilled") {
-    const pass1aResult = pass1aSettled.value;
-    if (pass1aResult.chunkOutputs.length > 0) {
-      characterLedger = reduceCharacterEvidence({
-        chunkOutputs: pass1aResult.chunkOutputs,
-        jobId: opts.jobId ?? "unknown",
-        totalChunksInManuscript: Array.isArray(opts.manuscriptChunks)
-          ? opts.manuscriptChunks.length
-          : 1,
-      });
-      console.log("[Pipeline][Pass1A] Character ledger ready", {
-        manuscript_id: opts.manuscriptId ?? null,
-        entries: characterLedger.entries.length,
-        protagonists: characterLedger.coverage_summary.protagonists,
-        co_protagonists: characterLedger.coverage_summary.co_protagonists,
-        symbol_items: characterLedger.coverage_summary.symbol_payoff_items.length,
-        hard_fail_triggers: characterLedger.coverage_summary.hard_fail_triggers.length,
-      });
-    }
-  } else {
-    console.warn("[Pipeline][Pass1A] Sweep failed — Pass 3 running without character ledger", {
+  // ── Resolve Pass 1A → reduce to character ledger (MANDATORY) ─────────
+  // Every novel has at least one character. A missing ledger is a pipeline
+  // failure, not a graceful degradation case. Pass 3 cannot run without it.
+  let characterLedger: Pass1aCharacterLedger;
+  let characterLedgerV2: CharacterLedgerV2 | undefined;
+
+  if (pass1aSettled.status === "rejected") {
+    const reason = pass1aSettled.reason instanceof Error
+      ? pass1aSettled.reason.message
+      : String(pass1aSettled.reason);
+    console.error("[Pipeline][Pass1A] Sweep failed — cannot proceed to Pass 3", {
       manuscript_id: opts.manuscriptId ?? null,
-      error: pass1aSettled.reason instanceof Error
-        ? pass1aSettled.reason.message
-        : String(pass1aSettled.reason),
+      error: reason,
     });
+    timings.total_ms = nowMs() - pipelineStartMs;
+    logPipelineTimings("failure", {
+      manuscriptId: opts.manuscriptId,
+      title: opts.title,
+      workType: opts.workType,
+      failedAt: "pass1",
+      errorCode: "PASS1A_LEDGER_MISSING",
+      timings,
+    });
+    return {
+      ok: false,
+      error: `Pass 1A character sweep failed — ${reason}`,
+      error_code: "PASS1A_LEDGER_MISSING",
+      failed_at: "pass1",
+    };
   }
+
+  const pass1aResult = pass1aSettled.value;
+  if (pass1aResult.chunkOutputs.length === 0) {
+    console.error("[Pipeline][Pass1A] Sweep produced zero chunk outputs — cannot proceed", {
+      manuscript_id: opts.manuscriptId ?? null,
+    });
+    timings.total_ms = nowMs() - pipelineStartMs;
+    logPipelineTimings("failure", {
+      manuscriptId: opts.manuscriptId,
+      title: opts.title,
+      workType: opts.workType,
+      failedAt: "pass1",
+      errorCode: "PASS1A_LEDGER_EMPTY",
+      timings,
+    });
+    return {
+      ok: false,
+      error: "Pass 1A character sweep produced zero chunk outputs — manuscript text may be empty or malformed",
+      error_code: "PASS1A_LEDGER_EMPTY",
+      failed_at: "pass1",
+    };
+  }
+
+  const totalChunks = Array.isArray(opts.manuscriptChunks) ? opts.manuscriptChunks.length : 1;
+
+  characterLedger = reduceCharacterEvidence({
+    chunkOutputs: pass1aResult.chunkOutputs,
+    jobId: opts.jobId ?? "unknown",
+    totalChunksInManuscript: totalChunks,
+  });
+
+  // Build the full Tier 1 CharacterLedgerV2 from the v1 ledger + chunk outputs.
+  // This assembles all 6 ledgers, all 7 validation indices, active blockers,
+  // negative knowledge states, and evidence coverage stats — deterministically.
+  characterLedgerV2 = buildCharacterLedgerV2({
+    ledger: characterLedger,
+    chunkOutputs: pass1aResult.chunkOutputs,
+    jobId: opts.jobId ?? "unknown",
+    totalChunksInManuscript: totalChunks,
+  });
+
+  console.log("[Pipeline][Pass1A] Character ledger ready (V1 + V2)", {
+    manuscript_id: opts.manuscriptId ?? null,
+    entries: characterLedger.entries.length,
+    protagonists: characterLedger.coverage_summary.protagonists,
+    co_protagonists: characterLedger.coverage_summary.co_protagonists,
+    symbol_items: characterLedger.coverage_summary.symbol_payoff_items.length,
+    hard_fail_triggers: characterLedger.coverage_summary.hard_fail_triggers.length,
+    v2_active_blockers: characterLedgerV2.activeBlockers.length,
+    v2_suppress_blockers: characterLedgerV2.activeBlockers.filter((b) => b.severity === "suppress").length,
+    v2_relationship_pairs: characterLedgerV2.relationshipLedger.length,
+    v2_objects_tracked: characterLedgerV2.objectLedger.length,
+  });
 
   // ── Resolve read-ahead (non-blocking — returns fallback if timed out) ──
   const readAheadResult = await readAheadPromise;
@@ -1411,6 +1465,7 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
         pass2: pass2Output,
         pass2aStructuredContext,
         characterLedger: characterLedger,
+        characterLedgerV2: characterLedgerV2,
         readAheadResult: readAheadResult,
         manuscriptText: opts.manuscriptText,
         manuscriptChunks: opts.manuscriptChunks,

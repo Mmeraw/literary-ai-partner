@@ -10,7 +10,7 @@ import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
 import { parsePass3Response, runPass3Synthesis } from "@/lib/evaluation/pipeline/runPass3Synthesis";
 import { PASS3_PROMPT_VERSION } from "@/lib/evaluation/pipeline/prompts/pass3-synthesis";
 import type { CreateCompletionFn } from "@/lib/evaluation/pipeline/runPass3Synthesis";
-import type { SinglePassOutput } from "@/lib/evaluation/pipeline/types";
+import type { SinglePassOutput , Pass1aCharacterLedger } from "@/lib/evaluation/pipeline/types";
 import { loadCanonicalRegistry } from "@/lib/governance/canonRegistry";
 import { buildPass2aStructuredContext } from "@/lib/evaluation/pipeline/buildPass2aStructuredContext";
 
@@ -116,6 +116,70 @@ function lengthLimitedEmptyCompletion(): CreateCompletionFn {
 }
 
 // ── Pure parser tests ─────────────────────────────────────────────────────────
+
+
+// Minimal character ledger stub — satisfies assertCharacterLedger() mandatory guard.
+// Every novel has at least one character. Pass 3 cannot run without this.
+const MINIMAL_CHARACTER_LEDGER: Pass1aCharacterLedger = {
+  schema_version: "pass1a_character_ledger_v1",
+  prompt_version: "test-stub",
+  job_id: "test-job",
+  generated_at: new Date().toISOString(),
+  total_chunks_processed: 1,
+  entries: [{
+    canonical_name: "TestCharacter",
+    aliases: [],
+    pronouns: [],
+    age_exact_first: null,
+    age_exact_last: null,
+    age_signal: null,
+    gender_identity: "unknown",
+    lgbtq_signals: [],
+    racial_ethnic_signals: [],
+    skin_tone_signals: [],
+    language_signals: [],
+    religion_signals: [],
+    socioeconomic_signals: [],
+    nationality_signals: [],
+    disability_neuro_signals: [],
+    role: "protagonist",
+    narrative_weight_band: "major",
+    is_named: true,
+    who_is_this: "Test character for unit testing",
+    what_do_they_want: null,
+    primary_locations: [],
+    why_signal: null,
+    how_signal: null,
+    arc_start: "initial state",
+    arc_pressure: "test pressure",
+    arc_turning_points: [],
+    arc_end_state: "final state",
+    ending_status: "resolved",
+    symbolic_objects: [],
+    relational_engines: [],
+    evidence_anchors: [],
+    report_acknowledgement_status: "adequately_accounted_for",
+    warnings: [],
+    first_chunk_index: 0,
+    last_chunk_index: 0,
+    mention_count: 1,
+    nameStates: [{ name: "TestCharacter", validFromChunk: 0, validUntilChunk: null }],
+    copingMechanisms: [],
+    coPresenceMap: {},
+  }],
+  coverage_summary: {
+    protagonists: ["TestCharacter"],
+    co_protagonists: [],
+    antagonists: [],
+    major_secondary_characters: [],
+    animal_companions: [],
+    relational_engines: [],
+    symbol_payoff_items: [],
+    missing_or_underweighted: [],
+    ending_accountability_warnings: [],
+    hard_fail_triggers: [],
+  },
+};
 
 describe("parsePass3Response", () => {
   const pass1 = makePassOutput(1, "craft_execution");
@@ -277,6 +341,7 @@ describe("runPass3Synthesis", () => {
       registry,
       openaiApiKey: "sk-test",
       _createCompletion: mockCompletion(JSON.stringify(makePass3Fixture())),
+      characterLedger: MINIMAL_CHARACTER_LEDGER,
     });
 
     expect(result.criteria).toHaveLength(13);
@@ -325,7 +390,8 @@ describe("runPass3Synthesis", () => {
         registry,
         openaiApiKey: "sk-test",
         _createCompletion: captureCompletion,
-      });
+      characterLedger: MINIMAL_CHARACTER_LEDGER,
+    });
 
       expect(requestedModel).toBe("gpt-5");
       expect(result.metadata.pass3_model).toBe("gpt-5");
@@ -361,6 +427,7 @@ describe("runPass3Synthesis", () => {
       _onCompletion: (payload) => {
         capture = payload;
       },
+      characterLedger: MINIMAL_CHARACTER_LEDGER,
     });
 
     expect(capture?.pass).toBe(3);
@@ -399,7 +466,8 @@ describe("runPass3Synthesis", () => {
         title: "Test",
         registry,
         openaiApiKey: "",
-      }),
+      characterLedger: MINIMAL_CHARACTER_LEDGER,
+    }),
     ).rejects.toThrow("OPENAI_API_KEY is not configured");
 
     if (savedKey) process.env.OPENAI_API_KEY = savedKey;
@@ -416,7 +484,8 @@ describe("runPass3Synthesis", () => {
         registry,
         openaiApiKey: "sk-test",
         _createCompletion: nullCompletion(),
-      }),
+      characterLedger: MINIMAL_CHARACTER_LEDGER,
+    }),
     ).rejects.toThrow("Empty response from OpenAI");
   });
 
@@ -430,6 +499,7 @@ describe("runPass3Synthesis", () => {
       registry,
       openaiApiKey: "sk-test",
       _createCompletion: arrayContentCompletion(JSON.stringify(makePass3Fixture())),
+      characterLedger: MINIMAL_CHARACTER_LEDGER,
     });
 
     expect(result.criteria).toHaveLength(13);
@@ -447,7 +517,8 @@ describe("runPass3Synthesis", () => {
         registry,
         openaiApiKey: "sk-test",
         _createCompletion: lengthLimitedEmptyCompletion(),
-      }),
+      characterLedger: MINIMAL_CHARACTER_LEDGER,
+    }),
     ).rejects.toThrow("finish_reason=length");
   });
 
@@ -462,7 +533,8 @@ describe("runPass3Synthesis", () => {
         registry,
         openaiApiKey: "sk-test",
         _createCompletion: mockCompletion(JSON.stringify(makePass3Fixture())),
-      }),
+      characterLedger: MINIMAL_CHARACTER_LEDGER,
+    }),
     ).rejects.toThrow("PASS2A_STRUCTURED_CONTEXT_MISSING");
   });
 });

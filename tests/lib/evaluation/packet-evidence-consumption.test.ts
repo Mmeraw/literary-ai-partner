@@ -3,7 +3,7 @@ import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
 import { buildComparisonPacket } from "@/lib/evaluation/pipeline/comparisonPacket";
 import { runPass3Synthesis } from "@/lib/evaluation/pipeline/runPass3Synthesis";
 import type { CreateCompletionFn } from "@/lib/evaluation/pipeline/runPass3Synthesis";
-import type { Pass3ReducerTelemetry, SinglePassOutput } from "@/lib/evaluation/pipeline/types";
+import type { Pass3ReducerTelemetry, SinglePassOutput , Pass1aCharacterLedger } from "@/lib/evaluation/pipeline/types";
 import { loadCanonicalRegistry } from "@/lib/governance/canonRegistry";
 import { buildPass2aStructuredContext } from "@/lib/evaluation/pipeline/buildPass2aStructuredContext";
 
@@ -70,6 +70,70 @@ function makePass3Completion(): CreateCompletionFn {
 function makePass2aStructuredContext(manuscriptText: string) {
   return buildPass2aStructuredContext({ manuscriptText });
 }
+
+
+// Minimal character ledger stub — satisfies assertCharacterLedger() mandatory guard.
+// Every novel has at least one character. Pass 3 cannot run without this.
+const MINIMAL_CHARACTER_LEDGER: Pass1aCharacterLedger = {
+  schema_version: "pass1a_character_ledger_v1",
+  prompt_version: "test-stub",
+  job_id: "test-job",
+  generated_at: new Date().toISOString(),
+  total_chunks_processed: 1,
+  entries: [{
+    canonical_name: "TestCharacter",
+    aliases: [],
+    pronouns: [],
+    age_exact_first: null,
+    age_exact_last: null,
+    age_signal: null,
+    gender_identity: "unknown",
+    lgbtq_signals: [],
+    racial_ethnic_signals: [],
+    skin_tone_signals: [],
+    language_signals: [],
+    religion_signals: [],
+    socioeconomic_signals: [],
+    nationality_signals: [],
+    disability_neuro_signals: [],
+    role: "protagonist",
+    narrative_weight_band: "major",
+    is_named: true,
+    who_is_this: "Test character for unit testing",
+    what_do_they_want: null,
+    primary_locations: [],
+    why_signal: null,
+    how_signal: null,
+    arc_start: "initial state",
+    arc_pressure: "test pressure",
+    arc_turning_points: [],
+    arc_end_state: "final state",
+    ending_status: "resolved",
+    symbolic_objects: [],
+    relational_engines: [],
+    evidence_anchors: [],
+    report_acknowledgement_status: "adequately_accounted_for",
+    warnings: [],
+    first_chunk_index: 0,
+    last_chunk_index: 0,
+    mention_count: 1,
+    nameStates: [{ name: "TestCharacter", validFromChunk: 0, validUntilChunk: null }],
+    copingMechanisms: [],
+    coPresenceMap: {},
+  }],
+  coverage_summary: {
+    protagonists: ["TestCharacter"],
+    co_protagonists: [],
+    antagonists: [],
+    major_secondary_characters: [],
+    animal_companions: [],
+    relational_engines: [],
+    symbol_payoff_items: [],
+    missing_or_underweighted: [],
+    ending_accountability_warnings: [],
+    hard_fail_triggers: [],
+  },
+};
 
 describe("#292 packet evidence consumption", () => {
   it("long_form_packet_consumes_chunk_derived_evidence", () => {
@@ -160,6 +224,7 @@ describe("#292 packet evidence consumption", () => {
           };
         }
       },
+      characterLedger: MINIMAL_CHARACTER_LEDGER,
     });
 
     expect(telemetry).toMatchObject({
@@ -204,6 +269,7 @@ describe("#292 packet evidence consumption", () => {
       _onCompletion: (capture) => {
         reducerTelemetry = capture.pass3_reducer_telemetry ?? null;
       },
+      characterLedger: MINIMAL_CHARACTER_LEDGER,
     });
 
     expect(reducerTelemetry).toBeTruthy();
@@ -245,6 +311,7 @@ describe("#292 packet evidence consumption", () => {
       _onCompletion: (capture) => {
         reducerTelemetry = capture.pass3_reducer_telemetry ?? null;
       },
+      characterLedger: MINIMAL_CHARACTER_LEDGER,
     });
 
     expect(reducerTelemetry).toBeTruthy();

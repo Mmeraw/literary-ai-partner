@@ -23,6 +23,7 @@ import type {
   ManuscriptChunkEvidence,
   Pass2aStructuredContext,
   Pass1aCharacterLedger,
+  CharacterLedgerV2,
 } from "./types";
 import type { Pass3ReadAheadResult } from "./runPass3ReadAhead";
 import type { CanonRegistry } from "@/lib/governance/canonRegistry";
@@ -367,9 +368,15 @@ export interface RunPass3Options {
   /** Optional provider timeout override from pipeline-level scoped resolution. */
   openAiTimeoutMs?: number;
   /**
-   * Pass 1A character arc ledger — optional, Pass 3 degrades gracefully without it.
+   * Pass 1A character arc ledger — REQUIRED. Pass 3 cannot run without it.
+   * Every novel has at least one character. Use assertCharacterLedger() before calling.
    */
-  characterLedger?: Pass1aCharacterLedger;
+  characterLedger: Pass1aCharacterLedger;
+  /**
+   * Tier 1 CharacterLedgerV2 — full six-ledger envelope with active blockers.
+   * Optional: Pass 3 uses V1 ledger gates when absent, V2 blocker injection when present.
+   */
+  characterLedgerV2?: CharacterLedgerV2;
   /**
    * Pass 3 read-ahead result — pre-scoring manuscript primer, optional.
    */
@@ -379,6 +386,23 @@ export interface RunPass3Options {
   _onCompletion?: (capture: PassCompletionCapture) => void;
   /** Optional heartbeat callback — called every 20s during the OpenAI completion call to keep the job lease alive. */
   onHeartbeat?: () => Promise<void> | void;
+}
+
+/**
+ * Hard assertion: Pass 3 requires a character ledger.
+ * Every novel has at least one character. A missing ledger means Pass 1A failed —
+ * the pipeline should have hard-stopped at PASS1A_LEDGER_MISSING before reaching Pass 3.
+ */
+function assertCharacterLedger(ledger: Pass1aCharacterLedger | undefined): asserts ledger is Pass1aCharacterLedger {
+  if (!ledger) {
+    throw new Error("[Pass3] CHARACTER_LEDGER_MISSING — Pass 1A must produce a character ledger before Pass 3 can run. Every novel has at least one character.");
+  }
+  if (!Array.isArray(ledger.entries)) {
+    throw new Error("[Pass3] CHARACTER_LEDGER_MALFORMED — ledger.entries is not an array");
+  }
+  if (ledger.entries.length === 0) {
+    throw new Error("[Pass3] CHARACTER_LEDGER_EMPTY — Pass 1A produced zero character entries. This is a pipeline data error, not an optional condition.");
+  }
 }
 
 function assertPass2aStructuredContext(context: Pass2aStructuredContext | undefined): asserts context is Pass2aStructuredContext {
@@ -410,6 +434,7 @@ export async function runPass3Synthesis(opts: RunPass3Options): Promise<Synthesi
   }
 
   assertPass2aStructuredContext(opts.pass2aStructuredContext);
+  assertCharacterLedger(opts.characterLedger);
 
   const createCompletion = opts._createCompletion ?? defaultCreateCompletion(opts.openaiApiKey, opts.openAiTimeoutMs);
   const selectedModel = getCanonicalPass3Model(opts.model);
@@ -434,6 +459,7 @@ export async function runPass3Synthesis(opts: RunPass3Options): Promise<Synthesi
     perplexityChunkPacket: opts.perplexityChunkPacket,
     dualModelMode: !!opts.perplexityChunkPacket,
     characterLedger: opts.characterLedger,
+    characterLedgerV2: opts.characterLedgerV2,
     readAheadResult: opts.readAheadResult,
   });
   assertPass3PromptTripwires(userPrompt);
