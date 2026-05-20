@@ -1079,17 +1079,16 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
       throw error;
     });
 
-  // ── Pass 1A: Character Evidence Sweep (parallel with Pass 1 + Pass 2) ──
+  // ── Pass 1A: Character Evidence Sweep (sequential — runs AFTER Pass 1+2) ──
   // Independence: Pass 1A receives ONLY manuscript text — never sees P1/P2 output.
-  // Failure policy: non-fatal — Pass 3 degrades gracefully without it.
-  const pass1aPromise: Promise<RunPass1aResult> = runPass1a({
-    manuscriptText: opts.manuscriptText,
-    manuscriptChunks: opts.manuscriptChunks,
-    workType: opts.workType,
-    title: opts.title,
-    openaiApiKey: opts.openaiApiKey,
-    jobId: opts.jobId,
-  });
+  // Sequencing: intentionally deferred until after Pass 1+2 complete so it does
+  // not compete for OpenAI token quota during the 32-chunk scoring sweep.
+  // Running all three passes in parallel on a 32-chunk novel produces 96
+  // concurrent LLM calls — Pass 1A loses the rate-limit race every time.
+  // Failure policy: non-fatal — WAVE gates out gracefully if ledger is absent.
+  // Note: pass1aPromise is a resolved placeholder here; actual run is below
+  // after pass1Settled/pass2Settled are awaited.
+  let pass1aPromise: Promise<RunPass1aResult>;
 
   // ── Pass 3 Read-Ahead: Full manuscript read BEFORE scoring packets arrive ──
   // Starts immediately — reads 4 distributed prose windows while P1/P2/P1A run.
@@ -1119,9 +1118,25 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
 
   await opts.onHeartbeat?.("parallel_passes_started");
 
-  const [pass1Settled, pass2Settled, pass1aSettled] = await Promise.allSettled([pass1Promise, pass2Promise, pass1aPromise]);
+  // Pass 1 and Pass 2 run in parallel — independence is preserved.
+  const [pass1Settled, pass2Settled] = await Promise.allSettled([pass1Promise, pass2Promise]);
 
   await opts.onHeartbeat?.("parallel_passes_settled");
+
+  // Pass 1A runs AFTER Pass 1+2 complete — avoids rate-limit collision on
+  // large manuscripts where 96 concurrent chunk calls starve Pass 1A entirely.
+  // Independence is preserved: Pass 1A only reads manuscript text, never P1/P2.
+  pass1aPromise = runPass1a({
+    manuscriptText: opts.manuscriptText,
+    manuscriptChunks: opts.manuscriptChunks,
+    workType: opts.workType,
+    title: opts.title,
+    openaiApiKey: opts.openaiApiKey,
+    jobId: opts.jobId,
+  });
+  const pass1aSettled = await Promise.allSettled([pass1aPromise]).then(r => r[0]);
+
+  await opts.onHeartbeat?.("pass1a_settled");
 
   const normalizePassFailure = (pass: "pass1" | "pass2" | "pass3", reason: unknown) => {
     const message = String(reason instanceof Error ? reason.message : reason);
