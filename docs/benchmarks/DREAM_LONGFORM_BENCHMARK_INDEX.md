@@ -31,8 +31,11 @@ Public-domain calibration files are teaching benchmarks only. They are useful fo
 | Benchmark | Author | File | Route | Tier | Runtime authority | Governed ledgers |
 |---|---|---|---|---|---|---|
 | *Dracula* | Bram Stoker | [`public-domain/dracula-dream-calibration.md`](./public-domain/dracula-dream-calibration.md) | `LONG_FORM` | public-domain-calibration | `false` | Yes |
+| *Great Expectations* | Charles Dickens | [`public-domain/great-expectations-dream-calibration.md`](./public-domain/great-expectations-dream-calibration.md) | `LONG_FORM` | public-domain-calibration | `false` | Yes |
 
 *Dracula* teaches form-as-plot detection, multi-voice evidence assembly, Mina as structural organizer, Gothic sensory governance, symbolic contagion systems, and the distinction between productive procedural realism and momentum drag. Required detection: epistolary architecture, evidence distribution across acts, character structural weight versus action weight, symbolic lifecycle tracing, and middle pacing drag as a named weakness.
+
+*Great Expectations* teaches moral psychology as plot architecture, shame as an organizing system, false-causality revelation, Joe as quiet ethical ground, Magwitch as benefactor inversion, Satis House as wound-system, tactile moral register, and the difference between Dickensian social breadth and pacing drag.
 
 ## V2 governance rule
 
