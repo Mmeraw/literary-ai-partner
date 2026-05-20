@@ -76,7 +76,7 @@ export async function POST(
     if (!force) {
       updateQuery = updateQuery
         .eq("status", "running")
-        .eq("phase", "phase_1");
+        .eq("phase", "phase_1a");
     }
 
     const { data: updatedRows, error: updateError } = await updateQuery;
