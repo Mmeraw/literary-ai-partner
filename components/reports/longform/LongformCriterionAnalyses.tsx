@@ -28,7 +28,7 @@ function EvidenceList({ items, label, accent }: { items: string[]; label: string
 }
 
 function CriterionCard({ a }: { a: LongformDreamDocument["criterion_analyses"][number] }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(true);
   const badge = CONFIDENCE_BADGE[a.confidence] ?? "bg-gray-100 text-gray-600";
   // score can be null (e.g. proseControl in insufficient-signal state) — guard
   const safeScore = a.score ?? null;
