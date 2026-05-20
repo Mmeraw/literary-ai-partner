@@ -567,6 +567,25 @@ export async function GET(request: NextRequest) {
       leaseMs: workerConfig.leaseMs,
     });
     const durationMs = Date.now() - startTime;
+
+    // Self-chain: if we processed at least one job, fire the next invocation
+    // immediately (fire-and-forget) so phase transitions don't wait up to 60s
+    // for the next cron tick. The cron remains the rescue fallback.
+    // Only self-chain when running on Vercel (not in local dev) to avoid loops.
+    if (results.processed > 0 && process.env.VERCEL_URL) {
+      const selfUrl = `https://${process.env.VERCEL_URL}/api/workers/process-evaluations`;
+      const cronSecret = process.env.CRON_SECRET;
+      if (cronSecret) {
+        // Fire-and-forget — don't await, don't block the response
+        void fetch(selfUrl, {
+          method: 'GET',
+          headers: { 'Authorization': `Bearer ${cronSecret}` },
+          signal: AbortSignal.timeout(5_000), // abandon if doesn't connect in 5s
+        }).catch(() => {
+          // Non-fatal — cron will pick up on next tick
+        });
+      }
+    }
     
     structuredLog({
       traceId,

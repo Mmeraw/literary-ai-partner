@@ -2996,6 +2996,21 @@ export async function processEvaluationJob(
       await markRunning('Running WAVE revision engine', 2, 'phase_3');
       refreshPhaseDeadline(progressState.phase3_started_at as string | undefined);
 
+      // Heartbeat renewal loop — WAVE can run for several minutes on large manuscripts.
+      const leaseRenewalIntervalMsP3 = 30_000;
+      const leaseRenewalLoopP3 = setInterval(() => {
+        void renewEvaluationJobLease({
+          supabase,
+          jobId,
+          leaseMs: runtimeConfig.worker.leaseMs,
+          stage: 'phase_3_wave_renewal',
+          hardDeadlineMs,
+        }).catch((err: unknown) => {
+          console.warn('[Processor] phase_3 lease renewal failed (non-fatal)',
+            err instanceof Error ? err.message : String(err));
+        });
+      }, leaseRenewalIntervalMsP3);
+
       try {
         // Read the persisted evaluation result (synthesis) from artifacts.
         const { data: evalArtifactRow } = await supabase
@@ -3159,6 +3174,7 @@ export async function processEvaluationJob(
         }
 
         // WAVE outcome never blocks job completion — mark complete regardless.
+        clearInterval(leaseRenewalLoopP3);
         console.log(`[Processor] ${jobId}: phase_3 WAVE complete — marking job complete`);
         nextLifecycleStatus(JOB_STATUS.COMPLETE);
         const phase3Now = new Date().toISOString();
@@ -3187,6 +3203,7 @@ export async function processEvaluationJob(
 
         return { success: true };
       } catch (phase3Err) {
+        clearInterval(leaseRenewalLoopP3);
         const errMsg = phase3Err instanceof Error ? phase3Err.message : String(phase3Err);
         console.error(`[Processor] ${jobId}: phase_3 fatal error — evaluation already complete, marking job complete anyway`, errMsg);
         // Phase_3 fatal error: evaluation already persisted from phase_2. Complete anyway.
@@ -3223,6 +3240,23 @@ export async function processEvaluationJob(
       refreshPhaseDeadline(progressState.phase1a_started_at as string | undefined);
 
       const phase1aStartMs = Date.now();
+
+      // Heartbeat renewal loop — keeps lease alive and last_heartbeat_at current
+      // so the watchdog doesn't kill us mid-sweep on a large manuscript.
+      const leaseRenewalIntervalMsP1a = 30_000;
+      const leaseRenewalLoopP1a = setInterval(() => {
+        void renewEvaluationJobLease({
+          supabase,
+          jobId,
+          leaseMs: runtimeConfig.worker.leaseMs,
+          stage: 'phase_1a_pass1a_renewal',
+          hardDeadlineMs,
+        }).catch((err: unknown) => {
+          console.warn('[Processor] phase_1a lease renewal failed (non-fatal)',
+            err instanceof Error ? err.message : String(err));
+        });
+      }, leaseRenewalIntervalMsP1a);
+
       try {
         const pass1aChunks = manuscriptChunksForPipeline;
 
@@ -3403,12 +3437,15 @@ export async function processEvaluationJob(
       } catch (phase1aErr) {
         const errMsg = phase1aErr instanceof Error ? phase1aErr.message : String(phase1aErr);
         console.error(`[Processor] ${jobId}: phase_1a fatal error`, errMsg);
+        clearInterval(leaseRenewalLoopP1a);
         await markFailed(
           `Phase 1A character sweep failed: ${errMsg}`,
           'PASS1A_LEDGER_MISSING',
           { pipelineStage: 'phase_1a', bucket: 'openai_provider' },
         );
         return { success: false, error: errMsg };
+      } finally {
+        clearInterval(leaseRenewalLoopP1a);
       }
     } // end phase_1a execution
 
