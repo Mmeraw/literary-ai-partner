@@ -944,6 +944,31 @@ export interface CharacterArcLedgerEntry {
   first_chunk_index: number;
   last_chunk_index: number;
   mention_count: number;
+
+  // ── Recommendation Grounding Gate fields (added v2) ─────────────────────
+  // Name-state ledger: valid name windows so Pass 3 never uses a name before
+  // the story earns it (e.g. "Paul" only after the renaming scene).
+  nameStates: Array<{
+    name: string;
+    validFromChunk: number;
+    validUntilChunk: number | null; // null = valid through end
+  }>;
+
+  // Coping mechanisms: prevents Pass 3 from recommending "seed a ritual"
+  // when one already exists in the ledger.
+  copingMechanisms: Array<{
+    description: string;
+    firstAppearsChunk: number;
+    frequency: "rare" | "recurring" | "dominant";
+  }>;
+
+  // Co-presence map: first shared chunk index for every relationship pair.
+  // Pass 3 uses this to block recommendations that place two characters
+  // together before they have met.
+  coPresenceMap: Record<string, {
+    firstSharedChunk: number;
+    firstSharedChapterEstimate: string; // e.g. "Chapter 4" or "unknown"
+  }>;
 }
 
 export interface SymbolPayoffEntry {
