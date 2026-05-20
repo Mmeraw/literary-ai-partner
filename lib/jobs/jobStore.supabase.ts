@@ -213,13 +213,13 @@ export async function createJob(input: {
     // Incident hardening: claim_evaluation_jobs eligibility is evaluated against
     // top-level columns (status/phase/phase_status), not progress JSON only.
     // Keep row-level phase fields in sync with progress at creation time.
-    phase: PHASES.PHASE_1,
+    phase: PHASES.PHASE_1A,
     phase_status: JOB_STATUS.QUEUED,
     ...(includeValidityStatus
       ? { validity_status: normalizeEvaluationValidityStatus("pending") }
       : {}),
     progress: {
-      phase: PHASES.PHASE_1,
+      phase: PHASES.PHASE_1A,
       phase_status: JOB_STATUS.QUEUED, // CANON: aligned with JobStatus
       message: "Job created",
     },

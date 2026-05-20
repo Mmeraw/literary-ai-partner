@@ -136,7 +136,7 @@ function resolveStageId(inputs: StageInputs): StageId | null {
 
   if (!inputs.phase) return null;
 
-  if (inputs.phase === "phase_1") {
+  if (inputs.phase === "phase_1" || inputs.phase === "phase_1a") {
     if (inputs.phase_status === "queued") return "preparing_manuscript";
     if (inputs.phase_status === "running") return "analyzing_manuscript";
     if (inputs.phase_status === "complete") return "building_diagnosis";
@@ -148,6 +148,17 @@ function resolveStageId(inputs: StageInputs): StageId | null {
     if (inputs.phase_status === "running") return "reconciling_passes";
     if (inputs.phase_status === "complete") return "final_qa_checks";
     return null;
+  }
+
+  if (inputs.phase === "phase_3") {
+    if (inputs.phase_status === "queued") return "final_qa_checks";
+    if (inputs.phase_status === "running") return "preparing_report";
+    if (inputs.phase_status === "complete") return "finalizing_report";
+    return null;
+  }
+
+  if (inputs.phase === "wave_revision") {
+    return "finalizing_report";
   }
 
   return null;

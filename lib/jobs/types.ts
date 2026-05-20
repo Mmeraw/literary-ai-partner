@@ -11,7 +11,10 @@ import { PHASE_1_STATES } from "./phase1";
 export const PHASES = {
   PHASE_0: "phase_0",
   PHASE_1: "phase_1",
+  PHASE_1A: "phase_1a",
   PHASE_2: "phase_2",
+  PHASE_3: "phase_3",
+  WAVE_REVISION: "wave_revision",
 } as const;
 
 export type Phase = (typeof PHASES)[keyof typeof PHASES];
@@ -46,8 +49,8 @@ export function isPhase1JobType(jobType: JobType): boolean {
 }
 
 export function assertJobTypeAllowedForPhase(phase: Phase, jobType: JobType): void {
-  if (phase === PHASES.PHASE_1 && !isPhase1JobType(jobType)) {
-    throw new Error(`Job type ${jobType} not allowed in Phase 1.`);
+  if ((phase === PHASES.PHASE_1 || phase === PHASES.PHASE_1A) && !isPhase1JobType(jobType)) {
+    throw new Error(`Job type ${jobType} not allowed in ${phase}.`);
   }
 }
 

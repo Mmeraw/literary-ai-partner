@@ -102,7 +102,7 @@ import {
   assertValidJobStatusTransition,
   normalizeEvaluationJobStatus,
 } from '@/lib/evaluation/status';
-import { JOB_STATUS, type JobStatus } from '@/lib/jobs/types';
+import { JOB_STATUS, PHASES, type JobStatus } from '@/lib/jobs/types';
 import { summarizePromptCoverage } from '@/lib/evaluation/pipeline/promptInput';
 import { detectContextContamination } from '@/lib/evaluation/governance/contextContaminationGuard';
 import { assertClaimedJobsContract } from '@/lib/jobs/contracts/claimEvaluationJobs.contract';
@@ -3727,15 +3727,61 @@ export async function processEvaluationJob(
         .maybeSingle();
 
       if (handoffReadError || !handoffRow?.content) {
-        // Handoff artifact missing or unreadable — fall through to full pipeline
-        // re-run rather than failing the job. Log prominently so we can detect
-        // if this becomes a pattern (e.g. artifact expired, write failed).
+        // Handoff artifact missing or unreadable.
+        // LONG-FORM CONTRACT: phase_2 must NOT run the full pipeline (P1+P2+P3 in
+        // one Vercel invocation exceeds the 720s timeout on 100k+ word novels).
+        // If phase_1a artifacts (ledger / preflight) are present, the old phase_2
+        // resume path is the right re-runner — but the handoff being missing here
+        // implies P1+P2 never completed, so requeue back to phase_1a so the 4-phase
+        // sequence restarts cleanly. Short-form (non-chunk-routed) jobs may legitimately
+        // bypass phase_1a and fall through to the full pipeline.
+        const isLongForm = chunkRouting.route === 'long_form';
+        if (isLongForm) {
+          const [{ data: ledgerPresenceRow }, { data: preflightPresenceRow }] = await Promise.all([
+            supabase
+              .from('evaluation_artifacts')
+              .select('job_id')
+              .eq('job_id', job.id)
+              .eq('artifact_type', 'pass1a_character_ledger_v1')
+              .maybeSingle(),
+            supabase
+              .from('evaluation_artifacts')
+              .select('job_id')
+              .eq('job_id', job.id)
+              .eq('artifact_type', 'pass3_preflight_draft_v1')
+              .maybeSingle(),
+          ]);
+          const hasPhase1aArtifacts = !!ledgerPresenceRow || !!preflightPresenceRow;
+          console.error(
+            `[phase_2] ${jobId}: long-form handoff missing — requeueing to phase_1a (hasPhase1aArtifacts=${hasPhase1aArtifacts})`,
+            { handoffReadError: (handoffReadError as { message?: string } | null)?.message ?? 'no_data' },
+          );
+          const requeueNow = new Date().toISOString();
+          const { error: requeueErr } = await supabase
+            .from('evaluation_jobs')
+            .update({
+              status: JOB_STATUS.QUEUED,
+              phase: PHASES.PHASE_1A,
+              phase_status: JOB_STATUS.QUEUED,
+              claimed_by: null,
+              claimed_at: null,
+              lease_token: null,
+              lease_until: null,
+              last_error: 'PHASE2_MISSING_PHASE1A_ARTIFACTS',
+              failure_code: 'PHASE2_MISSING_PHASE1A_ARTIFACTS',
+              updated_at: requeueNow,
+            })
+            .eq('id', job.id);
+          if (requeueErr) {
+            console.error(`[phase_2] ${jobId}: requeue to phase_1a failed`, requeueErr.message);
+          }
+          return { success: true };
+        }
+        // Short-form: legacy fall-through to runPipeline below is permitted.
         console.warn(
-          `[Processor] ${jobId}: phase_2 handoff artifact missing, falling back to full pipeline re-run`,
+          `[Processor] ${jobId}: phase_2 handoff artifact missing (short-form), falling back to full pipeline re-run`,
           { handoffReadError: (handoffReadError as { message?: string } | null)?.message ?? 'no_data' },
         );
-        // Reset executionPhase-dependent logic by continuing below as phase_1.
-        // Achieved by falling through to the runPipeline call without returning.
       } else {
         // Handoff artifact found — extract pass outputs and jump to Pass3.
         const handoff = handoffRow.content as {
