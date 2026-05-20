@@ -410,7 +410,7 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess }) {
                   value={projectTitle}
                   onChange={(e) => setProjectTitle(e.target.value)}
                   placeholder="Helps you organize your submissions"
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 bg-white"
                   disabled={isSubmitting}
                 />
               </div>
@@ -440,7 +440,7 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess }) {
                   }}
                   placeholder="Formatting (italics, bold, spacing) is preserved..."
                   rows={12}
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 bg-white"
                   disabled={isSubmitting}
                 />
                 <input
@@ -463,7 +463,7 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess }) {
                 <select
                   value={englishVariant}
                   onChange={(e) => setEnglishVariant(e.target.value)}
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 bg-white"
                 >
                   <option value="us">US English</option>
                   <option value="uk">UK English</option>
