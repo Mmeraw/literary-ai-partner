@@ -29,9 +29,9 @@ function makeJob(overrides: Record<string, unknown> = {}): Record<string, unknow
     manuscript_id: 42,
     job_type: 'full_evaluation',
     status: 'queued',
-    phase: 'phase_1',
+    phase: 'phase_1a',
     phase_status: 'queued',
-    progress: { phase: 'phase_1', phase_status: 'queued' },
+    progress: { phase: 'phase_1a', phase_status: 'queued' },
     created_at: new Date().toISOString(),
     claimed_by: null,
     claimed_at: null,
@@ -45,7 +45,7 @@ function makeClaimedRpcRow(overrides: Record<string, unknown> = {}): Record<stri
   return {
     id: '11111111-1111-4111-8111-111111111111',
     manuscript_id: 42,
-    phase: 'phase_1',
+    phase: 'phase_1a',
     status: 'running',
     phase_status: 'running',
     claimed_by: 'worker-abc',
@@ -128,7 +128,7 @@ describe('claimQueuedJobs', () => {
     });
     expect(result).toHaveLength(1);
     expect(result[0].id).toBe('11111111-1111-4111-8111-111111111111');
-    expect(result[0].phase).toBe('phase_1');
+    expect(result[0].phase).toBe('phase_1a');
   });
 
   test('returns empty array when RPC returns no rows', async () => {
@@ -180,7 +180,7 @@ describe('claimQueuedJobs', () => {
             data: [
               makeClaimedRpcRow({
                 id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
-                phase: 'phase_1',
+                phase: 'phase_1a',
                 lease_token: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1',
                 claimed_by: 'worker-a',
               }),
@@ -198,7 +198,7 @@ describe('claimQueuedJobs', () => {
           data: [
             makeClaimedRpcRow({
               id: 'cccccccc-cccc-4ccc-8ccc-ccccccccccc1',
-              phase: 'phase_1',
+              phase: 'phase_1a',
               lease_token: 'dddddddd-dddd-4ddd-8ddd-ddddddddddd1',
               claimed_by: 'worker-b',
             }),
@@ -260,7 +260,7 @@ describe('processQueuedJobs — atomic claim path', () => {
     const preClaimedJob = makeJob({
       id: 'j1',
       status: 'running',
-      phase: 'phase_1',
+      phase: 'phase_1a',
       phase_status: 'running',
       claimed_by: 'w',
       lease_token: 'ffffffff-ffff-4fff-8fff-fffffffffff3',
@@ -443,12 +443,12 @@ describe('processEvaluationJob — pre-claimed running job eligibility', () => {
   test('accepts pre-claimed phase_1 running job with canonical lease ownership', async () => {
     const preClaimedJob = makeJob({
       status: 'running',
-      phase: 'phase_1',
+      phase: 'phase_1a',
       phase_status: 'running',
       claimed_by: 'worker-abc',
       lease_token: '22222222-2222-4222-8222-222222222222',
       lease_expires_at: new Date(Date.now() + 180_000).toISOString(),
-      progress: { phase: 'phase_1', phase_status: 'running' },
+      progress: { phase: 'phase_1a', phase_status: 'running' },
     });
 
     const stub = {
@@ -508,10 +508,10 @@ describe('processEvaluationJob — pre-claimed running job eligibility', () => {
   test('rejects running job without canonical ownership (not atomically claimed)', async () => {
     const unclaimedRunning = makeJob({
       status: 'running',
-      phase: 'phase_1',
+      phase: 'phase_1a',
       phase_status: 'running',
       claimed_by: null, // NOT claimed by processor — ineligible
-      progress: { phase: 'phase_1', phase_status: 'running' },
+      progress: { phase: 'phase_1a', phase_status: 'running' },
     });
 
     createClientMock.mockReturnValue(makeStubForJob(unclaimedRunning));
@@ -526,12 +526,12 @@ describe('processEvaluationJob — pre-claimed running job eligibility', () => {
   test('rejects running job with expired lease despite ownership fields', async () => {
     const expiredLeaseJob = makeJob({
       status: 'running',
-      phase: 'phase_1',
+      phase: 'phase_1a',
       phase_status: 'running',
       claimed_by: 'worker-abc',
       lease_token: '44444444-4444-4444-8444-444444444444',
       lease_expires_at: new Date(Date.now() - 60_000).toISOString(),
-      progress: { phase: 'phase_1', phase_status: 'running' },
+      progress: { phase: 'phase_1a', phase_status: 'running' },
     });
 
     createClientMock.mockReturnValue(makeStubForJob(expiredLeaseJob));
@@ -657,14 +657,14 @@ describe('processEvaluationJob — started_at sanitization', () => {
     const createdAt = new Date().toISOString();
     const jobRow = makeJob({
       status: 'running',
-      phase: 'phase_1',
+      phase: 'phase_1a',
       phase_status: 'running',
       created_at: createdAt,
       started_at: '1970-01-01T00:00:00.000Z',
       claimed_by: 'worker-abc',
       lease_token: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
       lease_expires_at: new Date(Date.now() + 180_000).toISOString(),
-      progress: { phase: 'phase_1', phase_status: 'running' },
+      progress: { phase: 'phase_1a', phase_status: 'running' },
     });
 
     const updateMock = jest.fn().mockReturnValue({
