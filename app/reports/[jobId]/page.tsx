@@ -387,7 +387,8 @@ export default async function ReportPage({ params }: { params: { jobId: string }
           </section>
         )}
 
-        {/* Criteria Scores */}
+        {/* Criteria Scores — hidden for long-form once dreamDoc lands (full synthesis is canonical) */}
+        {(!isLongForm || !dreamDoc) && (
         <section className="bg-white rounded-lg shadow-sm p-6 mb-6">
           <h2 className="text-2xl font-semibold text-gray-900 mb-6">
             §6 — Detailed Scores / Score Grid
@@ -457,8 +458,10 @@ export default async function ReportPage({ params }: { params: { jobId: string }
             ))}
           </div>
         </section>
+        )}
 
-        {/* Recommendations */}
+        {/* Action Items — hidden for long-form once dreamDoc lands (revision plan in synthesis is canonical) */}
+        {(!isLongForm || !dreamDoc) && (
         <section className="bg-white rounded-lg shadow-sm p-6 mb-6">
           <h2 className="text-2xl font-semibold text-gray-900 mb-6">Action Items</h2>
           {/* Quick Wins */}
@@ -512,6 +515,7 @@ export default async function ReportPage({ params }: { params: { jobId: string }
             </div>
           )}
         </section>
+        )}
 
         {/* Narrative Synthesis (Pass 3b — async, long-form manuscripts only) */}
         {isLongForm && (
@@ -636,7 +640,8 @@ export default async function ReportPage({ params }: { params: { jobId: string }
                   )}
                 </div>
 
-                {/* §8 — Layer analyses */}
+                {/* §8 — Layer analyses — admin-only (internal pipeline view) */}
+                {process.env.NODE_ENV !== 'production' && (
                 <div>
                   <h3 className="text-lg font-semibold text-gray-900 mb-2">Layer Analyses</h3>
                   {dreamLayerAnalyses.length > 0 ? (
@@ -653,8 +658,10 @@ export default async function ReportPage({ params }: { params: { jobId: string }
                     <p className="text-sm text-gray-500">—</p>
                   )}
                 </div>
+                )}
 
-                {/* §9 — Cross-layer integration */}
+                {/* §9 — Cross-layer integration — admin-only (internal pipeline view) */}
+                {process.env.NODE_ENV !== 'production' && (
                 <div>
                   <h3 className="text-lg font-semibold text-gray-900 mb-2">Cross-Layer Integration</h3>
                   {dreamCrossLayerIntegration.length > 0 ? (
@@ -672,6 +679,7 @@ export default async function ReportPage({ params }: { params: { jobId: string }
                     <p className="text-sm text-gray-500">—</p>
                   )}
                 </div>
+                )}
 
                 {/* §10 — Symbolic audit */}
                 <div>
@@ -740,48 +748,6 @@ export default async function ReportPage({ params }: { params: { jobId: string }
                   )}
                 </div>
 
-                {/* Ledger A — Character Coverage & Arc */}
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-1">Character Coverage &amp; Arc Ledger</h3>
-                  <p className="text-xs text-gray-500 mb-3">Character system coverage — roles, arc movement, ending accountability</p>
-                  <LongformCharacterCoverageArcLedger doc={dreamDoc} />
-                </div>
-
-                {/* Ledger B — Relationship Spine */}
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-1">Relationship Spine Ledger</h3>
-                  <p className="text-xs text-gray-500 mb-3">Load-bearing relationships, bridge mechanisms &amp; trust transfer</p>
-                  <LongformRelationshipSpineLedger doc={dreamDoc} />
-                </div>
-
-                {/* Ledger C — Symbol-to-Character Payoff */}
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-1">Symbol-to-Character Payoff Ledger</h3>
-                  <p className="text-xs text-gray-500 mb-3">Symbol lifecycle — first appearance, transfer, payoff</p>
-                  <LongformSymbolPayoffLedger doc={dreamDoc} />
-                </div>
-
-                {/* Ledger D — Sensory / Emotional Register */}
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-1">Sensory &amp; Emotional Register</h3>
-                  <p className="text-xs text-gray-500 mb-3">Sensory systems, emotional arc, register governance</p>
-                  <LongformSensoryEmotionalRegister doc={dreamDoc} />
-                </div>
-
-                {/* Ledger E — Manuscript Integrity Confidence Table */}
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-1">Manuscript Integrity Table</h3>
-                  <p className="text-xs text-gray-500 mb-3">Document hygiene vs. story craft — classified integrity findings</p>
-                  <LongformManuscriptIntegrityTable doc={dreamDoc} />
-                </div>
-
-                {/* Ledger F — Evidence Distribution / Confidence Gate */}
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-1">Evidence Distribution &amp; Confidence Gate</h3>
-                  <p className="text-xs text-gray-500 mb-3">Confidence per criterion, distribution gaps, coverage failures</p>
-                  <LongformEvidenceDistributionGate doc={dreamDoc} />
-                </div>
-
                 {/* §13 — Releasability */}
                 <div>
                   <h3 className="text-lg font-semibold text-gray-900 mb-2">Releasability</h3>
@@ -800,14 +766,17 @@ export default async function ReportPage({ params }: { params: { jobId: string }
                   )}
                 </div>
 
-                {/* §14 — Acceptance checks */}
+                {/* §14 — Acceptance checks — admin-only */}
+                {process.env.NODE_ENV !== 'production' && (
                 <div>
                   <h3 className="text-lg font-semibold text-gray-900 mb-2">Acceptance Checks</h3>
                   <p className="text-sm text-gray-700"><span className="font-medium">Required detection:</span> {dreamRequiredDetections.join("; ") || "—"}</p>
                   <p className="text-sm text-gray-700"><span className="font-medium">Failure conditions:</span> {dreamFailureConditions.join("; ") || "—"}</p>
                 </div>
+                )}
 
-                {/* §15 — Calibration notes */}
+                {/* §15 — Calibration notes — admin-only */}
+                {process.env.NODE_ENV !== 'production' && (
                 <div>
                   <h3 className="text-lg font-semibold text-gray-900 mb-2">Calibration Notes</h3>
                   {dreamCalibrationNotes.length > 0 ? (
@@ -820,8 +789,10 @@ export default async function ReportPage({ params }: { params: { jobId: string }
                     <p className="text-sm text-gray-500">—</p>
                   )}
                 </div>
+                )}
 
-                {/* §16 — Repo summary */}
+                {/* §16 — Repo summary — admin-only */}
+                {process.env.NODE_ENV !== 'production' && (
                 <div>
                   <h3 className="text-lg font-semibold text-gray-900 mb-2">Repository Summary</h3>
                   <div className="rounded border border-gray-200 p-3 text-sm space-y-1">
@@ -835,24 +806,9 @@ export default async function ReportPage({ params }: { params: { jobId: string }
                     <p><span className="font-medium">Gold standard requirement:</span> {getDisplayText(dreamRepoSummary?.gold_standard_requirement)}</p>
                   </div>
                 </div>
+                )}
 
-                {/* Pre-analysis integrity flags */}
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">Manuscript Integrity Issues</h3>
-                  {dreamIntegrityIssues.length > 0 ? (
-                    <div className="space-y-2">
-                      {dreamIntegrityIssues.map((issue, idx) => (
-                        <div key={idx} className="rounded border border-gray-200 p-3 text-sm">
-                          <p><span className="font-medium">Kind:</span> {getDisplayText(issue.kind)}</p>
-                          <p><span className="font-medium">Severity:</span> {getDisplayText(issue.severity)}</p>
-                          <p><span className="font-medium">Description:</span> {getDisplayText(issue.description)}</p>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-sm text-gray-500">—</p>
-                  )}
-                </div>
+                {/* Pre-analysis integrity flags — prose block removed; LongformManuscriptIntegrityTable (Ledger E peer section) is canonical */}
               </div>
             ) : (
               <SynthesisPoller
@@ -861,6 +817,70 @@ export default async function ReportPage({ params }: { params: { jobId: string }
                 initialDreamDoc={null}
               />
             )}
+          </section>
+        )}
+
+        {/* Character System — Peer Section (shown after Narrative Synthesis lands) */}
+        {isLongForm && dreamDoc && (
+          <section className="bg-white rounded-lg shadow-sm p-6 mb-6 border border-violet-100">
+            <h2 className="text-2xl font-semibold text-gray-900 mb-1 flex items-center gap-2">
+              <span aria-hidden>&#x1F9EC;</span> Character System
+            </h2>
+            <p className="text-sm text-gray-500 mb-6">
+              Character arc coverage, relationship spine, and symbol payoff — evidence-based character ledgers
+            </p>
+            <div className="space-y-8">
+              {/* Ledger A — Character Coverage & Arc */}
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-1">Ledger A — Character Coverage &amp; Arc</h3>
+                <p className="text-xs text-gray-500 mb-3">Character system coverage — roles, arc movement, ending accountability</p>
+                <LongformCharacterCoverageArcLedger doc={dreamDoc} />
+              </div>
+              {/* Ledger B — Relationship Spine */}
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-1">Ledger B — Relationship Spine</h3>
+                <p className="text-xs text-gray-500 mb-3">Load-bearing relationships, bridge mechanisms &amp; trust transfer</p>
+                <LongformRelationshipSpineLedger doc={dreamDoc} />
+              </div>
+              {/* Ledger C — Symbol-to-Character Payoff */}
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-1">Ledger C — Symbol-to-Character Payoff</h3>
+                <p className="text-xs text-gray-500 mb-3">Symbol lifecycle — first appearance, transfer, payoff</p>
+                <LongformSymbolPayoffLedger doc={dreamDoc} />
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* Craft Evidence — Peer Section (shown after Narrative Synthesis lands) */}
+        {isLongForm && dreamDoc && (
+          <section className="bg-white rounded-lg shadow-sm p-6 mb-6 border border-teal-100">
+            <h2 className="text-2xl font-semibold text-gray-900 mb-1 flex items-center gap-2">
+              <span aria-hidden>&#x1F4DD;</span> Craft Evidence
+            </h2>
+            <p className="text-sm text-gray-500 mb-6">
+              Sensory &amp; emotional register, manuscript integrity, and evidence distribution — craft-level ledgers
+            </p>
+            <div className="space-y-8">
+              {/* Ledger D — Sensory / Emotional Register */}
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-1">Ledger D — Sensory &amp; Emotional Register</h3>
+                <p className="text-xs text-gray-500 mb-3">Sensory systems, emotional arc, register governance</p>
+                <LongformSensoryEmotionalRegister doc={dreamDoc} />
+              </div>
+              {/* Ledger E — Manuscript Integrity Confidence Table */}
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-1">Ledger E — Manuscript Integrity Table</h3>
+                <p className="text-xs text-gray-500 mb-3">Document hygiene vs. story craft — classified integrity findings</p>
+                <LongformManuscriptIntegrityTable doc={dreamDoc} />
+              </div>
+              {/* Ledger F — Evidence Distribution / Confidence Gate */}
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-1">Ledger F — Evidence Distribution &amp; Confidence Gate</h3>
+                <p className="text-xs text-gray-500 mb-3">Confidence per criterion, distribution gaps, coverage failures</p>
+                <LongformEvidenceDistributionGate doc={dreamDoc} />
+              </div>
+            </div>
           </section>
         )}
 
