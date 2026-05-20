@@ -168,6 +168,11 @@ const permissiveLessonsLearned = {
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
+// Increase timeout for CI environments under load — these tests use async
+// promise resolution that can exceed the default 5000ms on slow runners.
+jest.setTimeout(15000);
+
+
 describe("runPipeline (e2e with injected runners)", () => {
   beforeEach(() => {
     mockRunPass1 = jest.fn<(opts: RunPass1Options) => Promise<SinglePassOutput>>();
