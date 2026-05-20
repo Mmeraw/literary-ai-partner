@@ -5841,8 +5841,8 @@ export async function processQueuedJobs(options?: {
   console.log('[Processor] Claim assumptions', {
     expected_status: JOB_STATUS.QUEUED,
     expected_phase_status: JOB_STATUS.QUEUED,
-    expected_phases: ['phase_1', 'phase_2'],
-    canonical_ownership_fields: ['claimed_by', 'lease_token', 'lease_expires_at'],
+    expected_phases: ['phase_1', 'phase_1a', 'phase_2', 'phase_3'],
+    canonical_ownership_fields: ['claimed_by', 'lease_token', 'lease_until'],
     worker_id: effectiveWorkerId,
     requested_batch_size: requestedBatchSize,
     requested_lease_ms: requestedLeaseMs,
@@ -5859,10 +5859,12 @@ export async function processQueuedJobs(options?: {
       batchSize: requestedBatchSize,
       leaseMs: requestedLeaseMs,
     });
-  } catch {
+  } catch (claimError) {
     // If claiming fails hard, return early rather than silently double-processing.
-    console.error('[Processor] Fatal error during job claiming; aborting batch');
-    return { processed: 0, succeeded: 0, failed: 0, claimed: 0, errors: [] };
+    const message = claimError instanceof Error ? claimError.message : String(claimError);
+    const stack = claimError instanceof Error ? claimError.stack : undefined;
+    console.error('[Processor] Fatal error during job claiming; aborting batch', { message, stack });
+    return { processed: 0, succeeded: 0, failed: 0, claimed: 0, errors: [{ jobId: 'claim', error: message }] };
   }
 
   if (jobs.length === 0) {
