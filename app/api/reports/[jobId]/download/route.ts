@@ -1,5 +1,6 @@
 import 'server-only';
 import { NextRequest, NextResponse } from 'next/server';
+import PDFDocument from 'pdfkit';
 import { createClient as createSSRClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { canReleaseEvaluationRead } from '@/lib/jobs/readReleaseGate';
@@ -19,6 +20,7 @@ import {
 } from 'docx';
 
 export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -241,6 +243,133 @@ function buildHtmlReport(result: EvaluationResultV1, title: string | null): stri
 </html>`;
 }
 
+
+async function buildPdfReport(result: EvaluationResultV1, title: string | null): Promise<Buffer> {
+  const titleText = title ?? 'Untitled';
+
+  return await new Promise<Buffer>((resolve, reject) => {
+    const doc = new PDFDocument({
+      size: 'LETTER',
+      margin: 54,
+      info: {
+        Title: `Evaluation Report - ${titleText}`,
+        Author: 'RevisionGrade',
+        Subject: 'Evaluation Report',
+      },
+    });
+
+    const chunks: Buffer[] = [];
+    doc.on('data', (chunk: Buffer | Uint8Array) => {
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    });
+    doc.on('end', () => resolve(Buffer.concat(chunks)));
+    doc.on('error', reject);
+
+    const contentWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+
+    const ensureSpace = (height = 90) => {
+      const bottom = doc.page.height - doc.page.margins.bottom;
+      if (doc.y + height > bottom) doc.addPage();
+    };
+
+    const section = (headingText: string) => {
+      ensureSpace(70);
+      doc.moveDown(0.9);
+      doc.font('Helvetica-Bold').fontSize(15).text(headingText, { width: contentWidth });
+      doc.moveDown(0.35);
+      doc.moveTo(doc.page.margins.left, doc.y)
+         .lineTo(doc.page.margins.left + contentWidth, doc.y)
+         .strokeColor('#CCCCCC').stroke();
+      doc.moveDown(0.5);
+      doc.strokeColor('#000000');
+    };
+
+    const paragraph = (text: string) => {
+      ensureSpace(70);
+      doc.font('Helvetica').fontSize(10.5).text(text || '—', { width: contentWidth, align: 'left' });
+      doc.moveDown(0.45);
+    };
+
+    const bullet = (text: string) => {
+      ensureSpace(45);
+      doc.font('Helvetica').fontSize(10.5).text(`\u2022 ${text}`, { width: contentWidth, indent: 12 });
+      doc.moveDown(0.25);
+    };
+
+    // Title block
+    doc.font('Helvetica-Bold').fontSize(24).text('Evaluation Report', { width: contentWidth });
+    doc.moveDown(0.25);
+    doc.font('Helvetica-Bold').fontSize(14).text(titleText, { width: contentWidth });
+    doc.moveDown(0.25);
+    doc.font('Helvetica').fontSize(10).text(`Generated: ${result.generated_at}`, { width: contentWidth });
+    doc.moveDown(0.4);
+    doc.font('Helvetica-Bold').fontSize(12).text(
+      `Verdict: ${result.overview.verdict.toUpperCase()}   |   Score: ${result.overview.overall_score_0_100}/100`,
+      { width: contentWidth },
+    );
+
+    section('Summary');
+    paragraph(result.overview.one_paragraph_summary);
+
+    section('Top Strengths');
+    if (result.overview.top_3_strengths.length === 0) {
+      paragraph('(none)');
+    } else {
+      result.overview.top_3_strengths.forEach(bullet);
+    }
+
+    section('Top Risks');
+    if (result.overview.top_3_risks.length === 0) {
+      paragraph('(none)');
+    } else {
+      result.overview.top_3_risks.forEach(bullet);
+    }
+
+    section('Criteria Scores');
+    result.criteria.forEach((c) => {
+      ensureSpace(90);
+      doc.font('Helvetica-Bold').fontSize(11).text(
+        `${c.key} \u2014 ${c.score_0_10}/10${c.confidence_level ? ` (${c.confidence_level} confidence)` : ''}`,
+        { width: contentWidth },
+      );
+      if (c.rationale) {
+        doc.font('Helvetica').fontSize(10).text(c.rationale, { width: contentWidth });
+      }
+      doc.moveDown(0.5);
+    });
+
+    section('Quick Wins');
+    if (result.recommendations.quick_wins.length === 0) {
+      paragraph('(none)');
+    } else {
+      result.recommendations.quick_wins.forEach((qw, idx) => {
+        ensureSpace(80);
+        doc.font('Helvetica-Bold').fontSize(10.5).text(
+          `${idx + 1}. ${qw.action}  [effort: ${qw.effort}, impact: ${qw.impact}]`,
+          { width: contentWidth },
+        );
+        if (qw.why) paragraph(qw.why);
+      });
+    }
+
+    section('Strategic Revisions');
+    if (result.recommendations.strategic_revisions.length === 0) {
+      paragraph('(none)');
+    } else {
+      result.recommendations.strategic_revisions.forEach((sr, idx) => {
+        ensureSpace(80);
+        doc.font('Helvetica-Bold').fontSize(10.5).text(
+          `${idx + 1}. ${sr.action}  [effort: ${sr.effort}, impact: ${sr.impact}]`,
+          { width: contentWidth },
+        );
+        if (sr.why) paragraph(sr.why);
+      });
+    }
+
+    doc.end();
+  });
+}
+
 async function buildDocx(result: EvaluationResultV1, title: string | null): Promise<Buffer> {
   const titleText = title ?? 'Untitled';
 
@@ -422,10 +551,11 @@ export async function GET(
   }
 
   if (format === 'pdf') {
-    const html = buildHtmlReport(result, title);
-    return new Response(html, {
+    const buffer = await buildPdfReport(result, title);
+    return new Response(new Uint8Array(buffer), {
       headers: {
-        'Content-Type': 'text/html; charset=utf-8',
+        'Content-Type': 'application/pdf',
+        'Content-Disposition': `attachment; filename="${safeFilename(title, jobId, 'pdf')}"`,
         'Cache-Control': 'no-store',
       },
     });
