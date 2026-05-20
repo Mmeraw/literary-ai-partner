@@ -33,7 +33,7 @@ function checkServiceRole(req: Request): boolean {
 }
 
 export function selectEligibleJobs(allJobs: Awaited<ReturnType<typeof getAllJobs>>) {
-  const phase1Candidates = allJobs.filter(
+  const phase1aCandidates = allJobs.filter(
     (j) =>
       j.status === "queued" &&
       j.progress?.phase === PHASES.PHASE_1A &&
@@ -48,7 +48,7 @@ export function selectEligibleJobs(allJobs: Awaited<ReturnType<typeof getAllJobs
   );
 
   return {
-    phase1Candidates,
+    phase1aCandidates,
     phase2Candidates,
   };
 }
@@ -63,16 +63,16 @@ export async function GET(req: Request) {
 
   try {
     const allJobs = await getAllJobs();
-    const { phase1Candidates, phase2Candidates } = selectEligibleJobs(allJobs);
+    const { phase1aCandidates, phase2Candidates } = selectEligibleJobs(allJobs);
 
     return NextResponse.json(
       { 
         ok: true, 
-        phase1_candidates: phase1Candidates,
+        phase1a_candidates: phase1aCandidates,
         phase2_candidates: phase2Candidates,
         summary: {
           total: allJobs.length,
-          phase1_eligible: phase1Candidates.length,
+          phase1a_eligible: phase1aCandidates.length,
           phase2_eligible: phase2Candidates.length
         }
       },
@@ -105,10 +105,14 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
     const { manuscript_id, job_type } = body;
-    const user_id =
-      body?.user_id ??
-      req.headers.get("x-user-id") ??
-      "00000000-0000-0000-0000-000000000001";
+    const user_id: string | undefined =
+      body?.user_id ?? req.headers.get("x-user-id") ?? undefined;
+    if (!user_id) {
+      return NextResponse.json(
+        { ok: false, error: "Missing required field: user_id (header x-user-id or body.user_id)" },
+        { status: 400 }
+      );
+    }
 
     if (!manuscript_id || !job_type) {
       return NextResponse.json(
