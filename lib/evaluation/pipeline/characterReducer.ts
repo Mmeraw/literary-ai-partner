@@ -279,6 +279,7 @@ export function reduceCharacterEvidence(params: {
 
   for (const [canonical, appearances] of grouped) {
     if (!canonical || canonical.length < 2) continue;
+    if (appearances.length === 0) continue; // skip alias stubs with no actual chunk entries
 
     const sorted = [...appearances].sort((a, b) => a.chunk_index - b.chunk_index);
     const entries = sorted.map((s) => s.entry);

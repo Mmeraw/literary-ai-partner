@@ -132,19 +132,30 @@ function parsePass1aResponse(
   raw: string,
   chunkIndex: number,
 ): Pass1aChunkOutput {
-  const parsed = parseJsonObjectBoundary(raw);
+  // parseJsonObjectBoundary returns JsonBoundaryParseResult<T> — the parsed
+  // object lives in .value, not at the top level. Throws JsonBoundaryError on
+  // parse failure (truncated, malformed, etc.) — caught by retry loop above.
+  const result = parseJsonObjectBoundary(raw);
+  const data = result.value;
 
   if (
-    typeof parsed !== "object" ||
-    parsed === null ||
-    !Array.isArray((parsed as Record<string, unknown>).characters)
+    typeof data !== "object" ||
+    data === null ||
+    !Array.isArray((data as Record<string, unknown>).characters)
   ) {
+    const keys = typeof data === "object" && data !== null
+      ? Object.keys(data as object).join(", ")
+      : typeof data;
+    console.error("[Pass1A] Invalid response shape", {
+      chunk_index: chunkIndex,
+      top_level_keys: keys,
+      raw_head: raw.slice(0, 400),
+      raw_tail: raw.slice(-200),
+    });
     throw new Error(
-      `[Pass1A] Chunk ${chunkIndex}: invalid response shape — missing characters array`,
+      `[Pass1A] Chunk ${chunkIndex}: invalid response shape — missing characters array. Top-level keys: [${keys}]`,
     );
   }
-
-  const data = parsed as Record<string, unknown>;
   const characters = (data.characters as Pass1aCharacterChunkEntry[])
     .slice(0, CAPS.maxCharacters)
     .map(enforceCaps);
@@ -195,10 +206,20 @@ async function runSingleChunk(params: {
       });
 
       const rawContent = completion.choices?.[0]?.message?.content;
+      const finishReason = completion.choices?.[0]?.finish_reason;
       if (typeof rawContent !== "string" || rawContent.trim() === "") {
         throw new Error(
-          `[Pass1A] Chunk ${chunk.chunk_index}: empty response (model=${model})`,
+          `[Pass1A] Chunk ${chunk.chunk_index}: empty response (model=${model}, finish_reason=${finishReason})`,
         );
+      }
+
+      // Debug: log finish_reason and first 200 chars of response
+      if (finishReason && finishReason !== "stop") {
+        console.warn("[Pass1A] Non-stop finish_reason", {
+          chunk_index: chunk.chunk_index,
+          finish_reason: finishReason,
+          response_head: rawContent.slice(0, 200),
+        });
       }
 
       return parsePass1aResponse(rawContent, chunk.chunk_index);
