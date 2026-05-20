@@ -376,6 +376,75 @@ export function reduceCharacterEvidence(params: {
       warnings.push({ type: "ending_underpaid", message: `"${canonical}" last appears in chunk ${chunkIndices[chunkIndices.length - 1]} of ${totalChunksInManuscript} — possible abandoned arc` });
     }
 
+    // ── Grounding Gate fields ────────────────────────────────────────────────
+    // nameStates: one entry per distinct name window (name appears → name changes)
+    const nameStates: CharacterArcLedgerEntry["nameStates"] = [];
+    const allNamesInOrder: Array<{ name: string; chunk_index: number }> = entries
+      .flatMap((e, i) => [
+        { name: e.canonical_name, chunk_index: chunkIndices[i] },
+        ...(e.aliases ?? []).map((a) => ({ name: a, chunk_index: chunkIndices[i] })),
+      ])
+      .sort((a, b) => a.chunk_index - b.chunk_index);
+    const distinctNamesInOrder = [...new Set(allNamesInOrder.map((n) => n.name))];
+    for (let ni = 0; ni < distinctNamesInOrder.length; ni++) {
+      const nameStr = distinctNamesInOrder[ni];
+      const firstSeen = allNamesInOrder.find((n) => n.name === nameStr)?.chunk_index ?? 0;
+      // validUntil = chunk before next distinct name appears, or null
+      const nextNameFirstSeen = ni < distinctNamesInOrder.length - 1
+        ? allNamesInOrder.find((n) => n.name === distinctNamesInOrder[ni + 1])?.chunk_index ?? null
+        : null;
+      nameStates.push({
+        name: nameStr,
+        validFromChunk: firstSeen,
+        validUntilChunk: nextNameFirstSeen !== null ? nextNameFirstSeen - 1 : null,
+      });
+    }
+    // Fallback: always include the canonical name as valid from first chunk
+    if (nameStates.length === 0) {
+      nameStates.push({ name: canonical, validFromChunk: chunkIndices[0], validUntilChunk: null });
+    }
+
+    // copingMechanisms: extracted from how_signal across chunks
+    const copingMechanisms: CharacterArcLedgerEntry["copingMechanisms"] = [];
+    const seenCopingDescs = new Set<string>();
+    for (let ei = 0; ei < entries.length; ei++) {
+      const e = entries[ei];
+      if (e.how_signal) {
+        const desc = e.how_signal.toLowerCase().trim();
+        if (!seenCopingDescs.has(desc)) {
+          seenCopingDescs.add(desc);
+          const repeatCount = entries.filter((x) =>
+            x.how_signal?.toLowerCase().trim() === desc
+          ).length;
+          copingMechanisms.push({
+            description: e.how_signal,
+            firstAppearsChunk: chunkIndices[ei],
+            frequency: repeatCount >= 5 ? "dominant" : repeatCount >= 2 ? "recurring" : "rare",
+          });
+        }
+      }
+    }
+    // Also pull disability/neuro signals as coping indicators
+    for (const signal of [...new Set(entries.flatMap((e) => e.disability_neuro_signals ?? []))]) {
+      if (!seenCopingDescs.has(signal.toLowerCase())) {
+        seenCopingDescs.add(signal.toLowerCase());
+        copingMechanisms.push({
+          description: signal,
+          firstAppearsChunk: chunkIndices[0],
+          frequency: "rare",
+        });
+      }
+    }
+
+    // coPresenceMap: for each relational engine, record the first shared chunk
+    const coPresenceMap: CharacterArcLedgerEntry["coPresenceMap"] = {};
+    for (const rel of relationalEngines) {
+      coPresenceMap[rel.other_character] = {
+        firstSharedChunk: rel.chunk_span[0],
+        firstSharedChapterEstimate: `chunk ${rel.chunk_span[0]}`,
+      };
+    }
+
     ledgerEntries.push({
       canonical_name: canonical,
       aliases: allAliases,
@@ -421,6 +490,9 @@ export function reduceCharacterEvidence(params: {
       first_chunk_index: chunkIndices[0],
       last_chunk_index: chunkIndices[chunkIndices.length - 1],
       mention_count: entries.length,
+      nameStates,
+      copingMechanisms,
+      coPresenceMap,
     });
   }
 
