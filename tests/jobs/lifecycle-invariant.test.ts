@@ -51,7 +51,7 @@ function insertTestJob(manuscriptId: number, status: string, overrides: Record<s
     claimed_by: "NULL",
     lease_token: "NULL",
     lease_until: "NULL",
-    phase: "'phase_1'",
+    phase: "'phase_1a'",
     phase_status: `'${status}'`,
     ...overrides,
   };
@@ -99,7 +99,7 @@ run("RCA-JOB-LIFECYCLE-001 — DB invariant enforcement", () => {
           manuscript_id, status, phase, phase_status,
           claimed_by, lease_token, lease_until
         ) VALUES (
-          ${manuscriptId}, 'running', 'phase_1', 'running',
+          ${manuscriptId}, 'running', 'phase_1a', 'running',
           NULL, gen_random_uuid()::text, NOW() + INTERVAL '5 minutes'
         );
       `);
@@ -113,7 +113,7 @@ run("RCA-JOB-LIFECYCLE-001 — DB invariant enforcement", () => {
           manuscript_id, status, phase, phase_status,
           claimed_by, lease_token, lease_until
         ) VALUES (
-          ${manuscriptId}, 'running', 'phase_1', 'running',
+          ${manuscriptId}, 'running', 'phase_1a', 'running',
           gen_random_uuid()::text, NULL, NOW() + INTERVAL '5 minutes'
         );
       `);
@@ -127,7 +127,7 @@ run("RCA-JOB-LIFECYCLE-001 — DB invariant enforcement", () => {
           manuscript_id, status, phase, phase_status,
           claimed_by, lease_token, lease_until
         ) VALUES (
-          ${manuscriptId}, 'running', 'phase_1', 'running',
+          ${manuscriptId}, 'running', 'phase_1a', 'running',
           gen_random_uuid()::text, gen_random_uuid()::text, NULL
         );
       `);
@@ -143,7 +143,7 @@ run("RCA-JOB-LIFECYCLE-001 — DB invariant enforcement", () => {
         manuscript_id, status, phase, phase_status,
         claimed_by, lease_token, lease_until
       ) VALUES (
-        ${manuscriptId}, 'running', 'phase_1', 'running',
+        ${manuscriptId}, 'running', 'phase_1a', 'running',
         '${claimedBy}', '${leaseToken}', NOW() + INTERVAL '5 minutes'
       ) RETURNING id, claimed_by, lease_token, lease_until;
     `);
@@ -209,7 +209,7 @@ run("RCA-JOB-LIFECYCLE-001 — Processor guard enforcement", () => {
           INSERT INTO public.evaluation_jobs (
             manuscript_id, status, phase, phase_status
           ) VALUES (
-            ${manuscriptId}, 'queued', 'phase_1', 'queued'
+            ${manuscriptId}, 'queued', 'phase_1a', 'queued'
           ) RETURNING id;
         `,
         encoding: "utf8",
