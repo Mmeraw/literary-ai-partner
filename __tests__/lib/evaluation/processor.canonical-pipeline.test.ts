@@ -59,7 +59,7 @@ function makeSupabaseStub() {
     manuscript_id: 456,
     job_type: "evaluate_full",
     status: "running",
-    phase: "phase_1",
+    phase: "phase_1a",
     phase_status: "running",
     claimed_by: "test-worker",
     worker_id: "test-worker",
@@ -69,7 +69,7 @@ function makeSupabaseStub() {
     heartbeat_at: now.toISOString(),
     started_at: now.toISOString(),
     created_at: now.toISOString(),
-    progress: { phase: "phase_1", phase_status: "running" },
+    progress: { phase: "phase_1a", phase_status: "running" },
   };
 
   const manuscript = {
@@ -363,7 +363,7 @@ describe("processEvaluationJob canonical pipeline integration", () => {
     expect(supabaseStub.providerCallUpserts[0]).toEqual(
       expect.objectContaining({
         job_id: "job-canonical-pipeline",
-        phase: "phase_1",
+        phase: "phase_1a",
         provider: "openai",
       }),
     );
@@ -714,7 +714,7 @@ describe("processEvaluationJob canonical pipeline integration", () => {
     expect(fallbackWrite).toEqual(
       expect.objectContaining({
         status: "failed",
-        phase: "phase_1",
+        phase: "phase_1a",
         phase_status: "failed",
         failure_code: "PROCESSOR_UNCAUGHT_ERROR",
         claimed_by: null,
@@ -843,14 +843,14 @@ describe("processEvaluationJob canonical pipeline integration", () => {
                     manuscript_id: 456,
                     job_type: "evaluate_full",
                     status: "running",
-                    phase: "phase_1",
+                    phase: "phase_1a",
                     phase_status: "running",
                     claimed_by: "test-worker",
                     lease_token: "test-lease-token",
                     lease_expires_at: new Date(Date.now() + 5 * 60_000).toISOString(),
                     created_at: expiredStartedAt,
                     started_at: expiredStartedAt,
-                    progress: { phase: "phase_1", phase_status: "running" },
+                    progress: { phase: "phase_1a", phase_status: "running" },
                   },
                   error: null,
                 }),
@@ -921,14 +921,14 @@ describe("processEvaluationJob canonical pipeline integration", () => {
                     manuscript_id: 456,
                     job_type: "evaluate_full",
                     status: "running",
-                    phase: "phase_1",
+                    phase: "phase_1a",
                     phase_status: "running",
                     claimed_by: "test-worker",
                     lease_token: "test-lease-token",
                     lease_expires_at: new Date(Date.now() + 5 * 60_000).toISOString(),
                     created_at: expiredStartedAt,
                     started_at: expiredStartedAt,
-                    progress: { phase: "phase_1", phase_status: "running" },
+                    progress: { phase: "phase_1a", phase_status: "running" },
                   },
                   error: null,
                 }),
