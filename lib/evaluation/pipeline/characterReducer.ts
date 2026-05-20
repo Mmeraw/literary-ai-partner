@@ -27,6 +27,19 @@ import type {
   Pass1aGenderIdentity,
   Pass1aAgeSignal,
   CharacterArcEndingStatus,
+  CharacterLedgerV2,
+  CharacterIdentityLedgerEntry,
+  CharacterStateSnapshot,
+  RelationshipLedgerEntry,
+  PsychologyLedgerEntry,
+  CopingMechanismEntry,
+  ObjectLedgerEntry,
+  TerminalLedgerEntry,
+  RecommendationBlocker,
+  NegativeKnowledgeState,
+  EvidenceCoverage,
+  StateConflict,
+  EvidenceConfidence,
 } from "./types";
 import { PASS1A_PROMPT_VERSION } from "./prompts/pass1a-character-sweep";
 
@@ -569,6 +582,461 @@ function buildEmptyLedger(jobId: string): Pass1aCharacterLedger {
       missing_or_underweighted: [],
       ending_accountability_warnings: [],
       hard_fail_triggers: ["WARN: Pass 1A produced no chunk outputs — character ledger empty"],
+    },
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// CHARACTER LEDGER V2 BUILDER
+// Consumes the Pass1aCharacterLedger + all chunk outputs to assemble the full
+// Tier 1 CharacterLedgerV2 with validation query indices, active blockers,
+// negative knowledge states, and evidence coverage stats.
+// Deterministic — no LLM calls.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const ACT_ZONES = ["Opening", "MID-EARLY", "MID", "MID-LATE", "LATE", "Close"] as const;
+
+function chunkToActZone(chunkIndex: number, totalChunks: number): string {
+  if (totalChunks <= 1) return "Opening";
+  const ratio = chunkIndex / (totalChunks - 1);
+  if (ratio < 0.10) return "Opening";
+  if (ratio < 0.28) return "MID-EARLY";
+  if (ratio < 0.50) return "MID";
+  if (ratio < 0.72) return "MID-LATE";
+  if (ratio < 0.90) return "LATE";
+  return "Close";
+}
+
+function makeBlockerId(type: string, ...parts: string[]): string {
+  return `${type}:${parts.join("+")}`;
+}
+
+/**
+ * Build the full Tier 1 CharacterLedgerV2 from a completed Pass1aCharacterLedger
+ * and the raw chunk outputs.  Called after reduceCharacterEvidence().
+ */
+export function buildCharacterLedgerV2(params: {
+  ledger: Pass1aCharacterLedger;
+  chunkOutputs: Pass1aChunkOutput[];
+  jobId: string;
+  totalChunksInManuscript: number;
+}): CharacterLedgerV2 {
+  const { ledger, chunkOutputs, jobId, totalChunksInManuscript } = params;
+  const entries = ledger.entries;
+
+  // ── 1. Identity Ledger ────────────────────────────────────────────────────
+  const identityLedger: CharacterIdentityLedgerEntry[] = entries.map((e) => {
+    const blockers: RecommendationBlocker[] = [];
+
+    // Name-state blockers: any name with validFromChunk > 0 generates a blocker
+    for (const ns of e.nameStates ?? []) {
+      if (ns.validFromChunk > 0) {
+        blockers.push({
+          blockerId: makeBlockerId("name_state_violation", e.canonical_name, ns.name),
+          type: "name_state_violation",
+          severity: "suppress",
+          rule: `Name "${ns.name}" for ${e.canonical_name} is only valid from chunk ${ns.validFromChunk}. Do not use this name in recommendations targeting earlier chapters.`,
+          validAfterChapter: `chunk ${ns.validFromChunk}`,
+          involvedCharacters: [e.canonical_name],
+          affectedRecommendationTypes: ["characterization"],
+        });
+      }
+    }
+
+    return {
+      characterId: e.canonical_name.toLowerCase().replace(/\s+/g, "_"),
+      canonicalName: e.canonical_name,
+      nameHistory: (e.nameStates ?? []).map((ns) => ({
+        name: ns.name,
+        validFromChunk: ns.validFromChunk,
+        validUntilChunk: ns.validUntilChunk,
+        confidence: "explicit" as EvidenceConfidence,
+      })),
+      aliases: e.aliases,
+      narrativeRole: e.role as CharacterIdentityLedgerEntry["narrativeRole"],
+      importanceLevel: e.narrative_weight_band as CharacterIdentityLedgerEntry["importanceLevel"],
+      firstAppearance: { label: `chunk ${e.first_chunk_index}`, chunkIndex: e.first_chunk_index },
+      lastAppearance: { label: `chunk ${e.last_chunk_index}`, chunkIndex: e.last_chunk_index },
+      firstChunkIndex: e.first_chunk_index,
+      lastChunkIndex: e.last_chunk_index,
+      finalStatus: "unresolved",
+      contradictions: [],
+      recommendationBlockers: blockers,
+    };
+  });
+
+  // ── 2. State Timelines ────────────────────────────────────────────────────
+  // One snapshot per character per act zone (coarse — reducer has no location data per chunk)
+  const stateTimelines: CharacterStateSnapshot[] = entries.map((e) => ({
+    characterId: e.canonical_name.toLowerCase().replace(/\s+/g, "_"),
+    chunkRange: [e.first_chunk_index, e.last_chunk_index],
+    chapterRange: `chunk ${e.first_chunk_index}–${e.last_chunk_index}`,
+    nameUsed: e.canonical_name,
+    ageOrLifeStage: e.age_exact_first !== null ? `age ${e.age_exact_first}` : (e.age_signal ?? null),
+    location: e.primary_locations[0] ?? null,
+    country: null,
+    jobOrRole: e.who_is_this ?? null,
+    legalStatus: null,
+    healthState: null,
+    psychologicalState: e.arc_start ?? null,
+    mobilityStatus: null,
+    knowledgeState: [],
+    evidenceQuote: e.evidence_anchors[0]?.excerpt ?? "",
+    confidence: "strong_inference" as EvidenceConfidence,
+  }));
+
+  // ── 3. Relationship Ledger ────────────────────────────────────────────────
+  const relationshipLedger: RelationshipLedgerEntry[] = [];
+  const seenRelPairs = new Set<string>();
+
+  for (const entry of entries) {
+    for (const [otherName, coPresence] of Object.entries(entry.coPresenceMap ?? {})) {
+      const pairKey = [entry.canonical_name, otherName].sort().join("↔");
+      if (seenRelPairs.has(pairKey)) continue;
+      seenRelPairs.add(pairKey);
+
+      relationshipLedger.push({
+        characterA: entry.canonical_name,
+        characterB: otherName,
+        firstCoPresenceChunk: coPresence.firstSharedChunk,
+        firstCoPresenceChapter: coPresence.firstSharedChapterEstimate,
+        invalidBeforeChapter: coPresence.firstSharedChapterEstimate,
+        firstSharedLocation: null,
+        relationshipTypeStart: "unknown",
+        relationshipTypeEnd: "unknown",
+        powerDynamicTimeline: [],
+        pivotMoments: [],
+        sharedObjects: [],
+        sharedActivities: [],
+        unresolvedLedger: [],
+        recommendationBlocker: {
+          blockerId: makeBlockerId("co_presence_violation", entry.canonical_name, otherName),
+          type: "co_presence_violation",
+          severity: "suppress",
+          rule: `${entry.canonical_name} and ${otherName} do not share a scene until chunk ${coPresence.firstSharedChunk} (${coPresence.firstSharedChapterEstimate}). Recommendations must not place them together before this point.`,
+          validAfterChapter: coPresence.firstSharedChapterEstimate,
+          involvedCharacters: [entry.canonical_name, otherName],
+          affectedRecommendationTypes: ["characterization", "scene_structure"],
+        },
+      });
+    }
+  }
+
+  // ── 4. Psychology / Coping Ledger ─────────────────────────────────────────
+  const psychologyLedger: PsychologyLedgerEntry[] = entries.map((e) => {
+    const copingMechanisms: CopingMechanismEntry[] = (e.copingMechanisms ?? []).map((cm) => ({
+      description: cm.description,
+      firstAppearsChunk: cm.firstAppearsChunk,
+      firstAppearsChapter: `chunk ${cm.firstAppearsChunk}`,
+      recurrenceChunks: [],
+      frequency: cm.frequency,
+      triggeredBy: null,
+      manifestsAs: cm.description,
+      psychologicalFunction: "coping / self-regulation",
+      evidenceQuote: "",
+      confidence: "strong_inference" as EvidenceConfidence,
+    }));
+
+    const seedingBlocked = copingMechanisms.length > 0;
+    const seedingBlockMessage = seedingBlocked
+      ? `${e.canonical_name} already has ${copingMechanisms.length} coping mechanism(s): ${copingMechanisms.map((c) => `"${c.description}"`).join(", ")}. Do NOT recommend seeding a coping ritual. Use "foreground", "surface earlier", or "echo" instead.`
+      : "";
+
+    return {
+      characterId: e.canonical_name.toLowerCase().replace(/\s+/g, "_"),
+      copingMechanisms,
+      psychologicalArc: `${e.arc_start} → ${e.arc_end_state}`,
+      seedingBlocked,
+      seedingBlockMessage,
+    };
+  });
+
+  // ── 5. Object Ledger ─────────────────────────────────────────────────────
+  // Built from the symbol payoff table in the coverage summary
+  const objectLedger: ObjectLedgerEntry[] = (ledger.coverage_summary.symbol_payoff_items ?? []).map((sym) => ({
+    objectId: sym.object.toLowerCase().replace(/\s+/g, "_"),
+    objectName: sym.object,
+    attachedCharacters: sym.attached_characters,
+    currentHolder: sym.attached_characters[sym.attached_characters.length - 1] ?? null,
+    firstAppearanceChunk: sym.first_chunk,
+    firstAppearanceChapter: `chunk ${sym.first_chunk}`,
+    lastAppearanceChunk: sym.last_chunk,
+    ownershipPath: sym.attached_characters,
+    transferEvents: [],
+    symbolicFunctionByStage: [
+      {
+        stage: "introduced" as const,
+        chunkRange: [sym.first_chunk, sym.first_chunk] as [number, number],
+        chapterRange: `chunk ${sym.first_chunk}`,
+        function: sym.first_function,
+        evidenceQuote: "",
+      },
+      ...(sym.later_payoff ? [{
+        stage: "paid_off" as const,
+        chunkRange: [sym.last_chunk, sym.last_chunk] as [number, number],
+        chapterRange: `chunk ${sym.last_chunk}`,
+        function: sym.later_payoff,
+        evidenceQuote: "",
+      }] : []),
+    ],
+    payoffChunk: sym.later_payoff ? sym.last_chunk : null,
+    payoffChapter: sym.later_payoff ? `chunk ${sym.last_chunk}` : null,
+    payoffDescription: sym.later_payoff,
+    missedIfAbsentFromReport: sym.traced,
+    status: sym.status,
+    recommendationBlockers: [],
+  }));
+
+  // ── 6. Terminal Ledger ────────────────────────────────────────────────────
+  // Populated for characters with ending_status that implies terminal condition
+  const terminalLedger: TerminalLedgerEntry[] = entries
+    .filter((e) =>
+      e.ending_status === "resolved" ||
+      e.ending_status === "tragically_confirmed" ||
+      e.ending_status === "accidentally_abandoned"
+    )
+    .map((e) => ({
+      characterId: e.canonical_name.toLowerCase().replace(/\s+/g, "_"),
+      terminalCondition: "open" as const,
+      terminalChunk: e.last_chunk_index,
+      terminalChapter: `chunk ${e.last_chunk_index}`,
+      lastLucidChunk: e.last_chunk_index,
+      whoIsPresent: [],
+      finalBeliefState: e.arc_end_state || null,
+      promisesKept: [],
+      promisesUnkept: [],
+      objectsPresentAtExit: [],
+      legacyTransferredTo: null,
+      finalRelationshipStates: [],
+      narrativeClosureStatus:
+        e.ending_status === "resolved" ? "fully_resolved" :
+        e.ending_status === "tragically_confirmed" ? "fully_resolved" :
+        "underpaid",
+      evidenceQuote: e.evidence_anchors[0]?.excerpt ?? "",
+      confidence: "strong_inference" as EvidenceConfidence,
+    }));
+
+  // ── Validation Query Index ────────────────────────────────────────────────
+  const characterPresenceIndex: Record<string, number[]> = {};
+  for (const entry of entries) {
+    const id = entry.canonical_name.toLowerCase().replace(/\s+/g, "_");
+    // Every chunk from first to last appearance (inclusive)
+    const chunks: number[] = [];
+    for (let ci = entry.first_chunk_index; ci <= entry.last_chunk_index; ci++) {
+      chunks.push(ci);
+    }
+    characterPresenceIndex[id] = chunks;
+    // Also index by canonical_name directly (for prompt usage)
+    characterPresenceIndex[entry.canonical_name] = chunks;
+  }
+
+  const coPresenceIndex: Record<string, Record<string, number>> = {};
+  for (const rel of relationshipLedger) {
+    if (!coPresenceIndex[rel.characterA]) coPresenceIndex[rel.characterA] = {};
+    coPresenceIndex[rel.characterA][rel.characterB] = rel.firstCoPresenceChunk;
+    if (!coPresenceIndex[rel.characterB]) coPresenceIndex[rel.characterB] = {};
+    coPresenceIndex[rel.characterB][rel.characterA] = rel.firstCoPresenceChunk;
+  }
+
+  const nameStateIndex: Record<string, Array<{ name: string; validFromChunk: number; validUntilChunk: number | null }>> = {};
+  for (const entry of entries) {
+    const id = entry.canonical_name;
+    nameStateIndex[id] = (entry.nameStates ?? []).map((ns) => ({
+      name: ns.name,
+      validFromChunk: ns.validFromChunk,
+      validUntilChunk: ns.validUntilChunk,
+    }));
+  }
+
+  const copingIndex: Record<string, string[]> = {};
+  for (const psych of psychologyLedger) {
+    copingIndex[psych.characterId] = psych.copingMechanisms.map((c) => c.description);
+    // Also index by display name
+    const displayName = entries.find((e) =>
+      e.canonical_name.toLowerCase().replace(/\s+/g, "_") === psych.characterId
+    )?.canonical_name;
+    if (displayName) copingIndex[displayName] = copingIndex[psych.characterId];
+  }
+
+  const objectPresenceIndex: Record<string, [number, number]> = {};
+  for (const obj of objectLedger) {
+    objectPresenceIndex[obj.objectId] = [obj.firstAppearanceChunk, obj.lastAppearanceChunk];
+  }
+
+  const symbolPayoffIndex: Record<string, boolean> = {};
+  for (const obj of objectLedger) {
+    symbolPayoffIndex[obj.objectId] = obj.payoffChunk !== null;
+  }
+
+  const unresolvedPromisesIndex: Record<string, string[]> = {};
+  for (const term of terminalLedger) {
+    if (term.promisesUnkept.length > 0) {
+      unresolvedPromisesIndex[term.characterId] = term.promisesUnkept;
+    }
+  }
+
+  // ── Active Blockers ───────────────────────────────────────────────────────
+  // Collect all blockers from identity + relationship + psychology ledgers
+  const activeBlockers: RecommendationBlocker[] = [];
+
+  for (const identity of identityLedger) {
+    activeBlockers.push(...identity.recommendationBlockers);
+  }
+  for (const rel of relationshipLedger) {
+    activeBlockers.push(rel.recommendationBlocker);
+  }
+  for (const psych of psychologyLedger) {
+    if (psych.seedingBlocked && psych.seedingBlockMessage) {
+      const displayName = entries.find((e) =>
+        e.canonical_name.toLowerCase().replace(/\s+/g, "_") === psych.characterId
+      )?.canonical_name ?? psych.characterId;
+      activeBlockers.push({
+        blockerId: makeBlockerId("existing_feature_violation", psych.characterId, "coping"),
+        type: "existing_feature_violation",
+        severity: "suppress",
+        rule: psych.seedingBlockMessage,
+        involvedCharacters: [displayName],
+        affectedRecommendationTypes: ["characterization"],
+      });
+    }
+  }
+  // Sort: suppress first, then downgrade, then warn
+  const severityOrder = { suppress: 0, downgrade: 1, warn: 2 };
+  activeBlockers.sort((a, b) => (severityOrder[a.severity] ?? 3) - (severityOrder[b.severity] ?? 3));
+
+  // ── Negative Knowledge States ─────────────────────────────────────────────
+  const negativeKnowledge: NegativeKnowledgeState[] = entries.map((e) => {
+    const id = e.canonical_name.toLowerCase().replace(/\s+/g, "_");
+
+    // Characters this one has not yet met (no coPresenceMap entry)
+    const allOtherCharacters = entries
+      .filter((other) => other.canonical_name !== e.canonical_name)
+      .map((other) => other.canonical_name);
+    const notYetMet = allOtherCharacters.filter(
+      (other) => !(other in (e.coPresenceMap ?? {}))
+    );
+
+    // Names not yet valid at first appearance
+    const nameNotYetValid = (e.nameStates ?? [])
+      .filter((ns) => ns.validFromChunk > e.first_chunk_index)
+      .map((ns) => ({ name: ns.name, validFromChunk: ns.validFromChunk }));
+
+    return {
+      characterId: id,
+      notPresentWith: notYetMet,
+      notYetMet,
+      nameNotYetValid,
+      objectNotYetTransferred: [],
+      doesNotYetKnow: [],
+      asOfChunk: e.first_chunk_index,
+    };
+  });
+
+  // ── State Conflicts ───────────────────────────────────────────────────────
+  const stateConflicts: StateConflict[] = [];
+  // Detect co-presence conflicts: chunk outputs that claim a character is present
+  // in a chunk BEFORE their firstCoPresenceChunk with another character
+  for (const chunkOutput of chunkOutputs) {
+    const coPresent = chunkOutput.characters.flatMap((c) => c.co_presence_confirmed ?? []);
+    const uniquePresent = [...new Set(coPresent)];
+    for (let i = 0; i < uniquePresent.length; i++) {
+      for (let j = i + 1; j < uniquePresent.length; j++) {
+        const charA = uniquePresent[i];
+        const charB = uniquePresent[j];
+        const expectedFirst = coPresenceIndex[charA]?.[charB];
+        if (expectedFirst !== undefined && chunkOutput.chunk_index < expectedFirst) {
+          stateConflicts.push({
+            conflictId: makeBlockerId("state_conflict", charA, charB, String(chunkOutput.chunk_index)),
+            field: "co_presence",
+            characterId: `${charA}+${charB}`,
+            claimA: `co-present in chunk ${chunkOutput.chunk_index} (from chunk output)`,
+            claimB: `first shared chunk is ${expectedFirst} (from relationship ledger)`,
+            sourceA: `pass1a_chunk_${chunkOutput.chunk_index}`,
+            sourceB: "relationship_ledger",
+            resolution: "claimB_wins",  // ledger wins over single chunk signal
+            flagForHumanReview: false,
+          });
+        }
+      }
+    }
+  }
+
+  // ── Evidence Coverage ─────────────────────────────────────────────────────
+  const characterCoverage: Record<string, EvidenceCoverage> = {};
+  for (const entry of entries) {
+    const id = entry.canonical_name;
+    const confirmedChunks = new Set<number>();
+    for (const co of chunkOutputs) {
+      if (co.characters.some((c) =>
+        c.canonical_name === entry.canonical_name ||
+        (c.aliases ?? []).includes(entry.canonical_name)
+      )) {
+        confirmedChunks.add(co.chunk_index);
+      }
+    }
+    const zonesSet = new Set<string>();
+    for (const ci of confirmedChunks) {
+      zonesSet.add(chunkToActZone(ci, totalChunksInManuscript));
+    }
+    const covered = [...zonesSet];
+    const missing = ACT_ZONES.filter((z) => !zonesSet.has(z));
+    const byZone: Record<string, EvidenceConfidence | "none"> = {};
+    for (const z of ACT_ZONES) {
+      byZone[z] = covered.includes(z) ? "explicit" : "none";
+    }
+    characterCoverage[id] = {
+      chunksConfirmed: confirmedChunks.size,
+      totalChunks: totalChunksInManuscript,
+      actZonesCovered: covered,
+      actZonesMissing: missing,
+      confidenceByZone: byZone,
+    };
+  }
+
+  // ── Final Assembly ────────────────────────────────────────────────────────
+  return {
+    schema_version: "character_ledger_v2",
+    prompt_version: PASS1A_PROMPT_VERSION,
+    job_id: jobId,
+    generated_at: new Date().toISOString(),
+    total_chunks_processed: chunkOutputs.length,
+
+    identityLedger,
+    stateTimelines,
+    relationshipLedger,
+    psychologyLedger,
+    objectLedger,
+    terminalLedger,
+
+    validationQueries: {
+      characterPresenceIndex,
+      coPresenceIndex,
+      nameStateIndex,
+      copingIndex,
+      objectPresenceIndex,
+      symbolPayoffIndex,
+      unresolvedPromisesIndex,
+    },
+
+    activeBlockers,
+    negativeKnowledge,
+    stateConflicts,
+    characterCoverage,
+
+    coverage_summary: {
+      protagonists: ledger.coverage_summary.protagonists,
+      co_protagonists: ledger.coverage_summary.co_protagonists,
+      antagonists: ledger.coverage_summary.antagonists,
+      high_value_objects: objectLedger
+        .filter((o) => o.missedIfAbsentFromReport)
+        .map((o) => o.objectId),
+      unresolved_promises: Object.entries(unresolvedPromisesIndex)
+        .filter(([, promises]) => promises.length > 0)
+        .map(([id]) => id),
+      open_terminal_ledgers: terminalLedger
+        .filter((t) => t.narrativeClosureStatus === "underpaid" || t.narrativeClosureStatus === "intentionally_open")
+        .map((t) => t.characterId),
+      hard_fail_triggers: ledger.coverage_summary.hard_fail_triggers,
     },
   };
 }

@@ -864,6 +864,14 @@ export interface Pass1aCharacterChunkEntry {
   evidence_anchors: Array<{
     excerpt: string;
     evidence_type: Pass1aEvidenceType;
+    confidence?: EvidenceConfidence;   // Tier 1: explicit | strong_inference | weak_inference
+  }>;
+  /** Tier 1: characters physically present in the same scene in this chunk */
+  co_presence_confirmed?: string[];
+  /** Tier 1: per-character negative knowledge signals */
+  negative_knowledge?: Array<{
+    character: string;
+    does_not_yet_know: string[];
   }>;
 }
 
@@ -1061,14 +1069,83 @@ export type RecommendationBlockerType =
   | "location_state_violation"   // rec places character at wrong location
   | "knowledge_state_violation"  // rec assumes character knows something they don't yet
   | "object_state_violation"     // rec references object transfer before it occurred
+  | "evidence_absent"            // rec uses a craft label with no manuscript evidence quote
   | "terminal_state_violation";  // rec ignores that character has died/left the story
 
+/**
+ * Blocker severity controls how Pass 3 handles a violating recommendation:
+ *   suppress  — do not emit the recommendation at all (hard block)
+ *   downgrade — emit but lower priority to "low" and add a caveat note
+ *   warn      — emit but prepend a grounding warning to the recommendation action
+ */
+export type BlockerSeverity = "suppress" | "downgrade" | "warn";
+
 export interface RecommendationBlocker {
+  blockerId: string;              // stable unique ID e.g. "co_presence:Paolito+Benjamin"
   type: RecommendationBlockerType;
-  rule: string;         // human-readable enforcement rule
-  validAfterChapter?: string;   // the chapter after which the rec would be valid
+  severity: BlockerSeverity;      // how Pass 3 must handle a rec that trips this blocker
+  rule: string;                   // human-readable enforcement rule
+  validAfterChapter?: string;     // the chapter after which the rec would be valid
   involvedCharacters?: string[];
   involvedObjects?: string[];
+  affectedRecommendationTypes?: string[];  // issue_family or strategic_lever values to match
+}
+
+// ── Evidence Coverage ─────────────────────────────────────────────────────────
+
+/**
+ * Tracks how much of the manuscript was confirmed to have evidence for a given
+ * claim.  Used to compute confidence and trigger suppression under Gate 5.
+ */
+export interface EvidenceCoverage {
+  chunksConfirmed: number;         // number of distinct chunks that confirmed the claim
+  totalChunks: number;             // total chunks in the manuscript
+  actZonesCovered: string[];       // e.g. ["Opening", "MID", "LATE"]
+  actZonesMissing: string[];       // e.g. ["MID-EARLY", "Close"]
+  /** Per-zone confidence — "none" means no chunk in that zone confirmed the claim */
+  confidenceByZone: Record<string, EvidenceConfidence | "none">;
+}
+
+// ── Negative Knowledge State ──────────────────────────────────────────────────
+
+/**
+ * Encodes what we know a character has NOT done / NOT experienced yet at a
+ * given point in the manuscript.  Used to build blockers and block
+ * recommendations that assume future events have already occurred.
+ */
+export interface NegativeKnowledgeState {
+  characterId: string;
+  /** Other character IDs this character has NOT yet shared a scene with */
+  notPresentWith: string[];
+  /** Other character IDs this character has NOT yet met (firstCoPresenceChunk not reached) */
+  notYetMet: string[];
+  /** Names that are NOT yet valid for this character at this chunk range */
+  nameNotYetValid: Array<{ name: string; validFromChunk: number }>;
+  /** Object IDs that have NOT yet been transferred to or encountered by this character */
+  objectNotYetTransferred: string[];
+  /** Knowledge facts this character does NOT yet possess */
+  doesNotYetKnow: string[];
+  /** The chunk index at which this snapshot was computed */
+  asOfChunk: number;
+}
+
+// ── State Conflict ────────────────────────────────────────────────────────────
+
+/**
+ * A detected inconsistency between two ledger claims.  Differs from
+ * Contradiction (which is manuscript-internal) — this is a conflict
+ * between ledger entries or between a ledger entry and a recommendation.
+ */
+export interface StateConflict {
+  conflictId: string;
+  field: string;                   // e.g. "location", "name", "co_presence"
+  characterId: string;
+  claimA: string;                  // first conflicting claim (e.g. "at the camp, chunk 5")
+  claimB: string;                  // second conflicting claim (e.g. "at the overpass, chunk 5")
+  sourceA: string;                 // which ledger / pass produced claimA
+  sourceB: string;                 // which ledger / pass produced claimB
+  resolution: "claimA_wins" | "claimB_wins" | "unresolved";
+  flagForHumanReview: boolean;     // true when resolution = "unresolved"
 }
 
 // ── Contradiction Tracker ──────────────────────────────────────────────────────
@@ -1319,7 +1396,19 @@ export interface CharacterLedgerV2 {
   };
 
   // Global recommendation blockers — injected verbatim into Pass 3 prompt
+  // severity="suppress" blockers are listed first so prompt injection is priority-ordered
   activeBlockers: RecommendationBlocker[];
+
+  // Negative knowledge states — one entry per character, computed at reduce time
+  // Encodes what each character has NOT done/seen/known yet
+  negativeKnowledge: NegativeKnowledgeState[];
+
+  // State conflicts detected during reduce — flagged for human review when unresolved
+  stateConflicts: StateConflict[];
+
+  // Evidence coverage — how much of the manuscript confirmed each character's presence
+  // Key = characterId, value = coverage stats
+  characterCoverage: Record<string, EvidenceCoverage>;
 
   // Integrity summary
   coverage_summary: {

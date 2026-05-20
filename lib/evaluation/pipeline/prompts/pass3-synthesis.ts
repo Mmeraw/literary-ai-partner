@@ -8,8 +8,9 @@
 
 import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
 import type { SubmissionScopeProfile } from "../submissionScope";
-import type { Pass2aStructuredContext, SinglePassOutput, Pass1aCharacterLedger, CharacterArcLedgerEntry, SymbolPayoffEntry } from "../types";
+import type { Pass2aStructuredContext, SinglePassOutput, Pass1aCharacterLedger, CharacterArcLedgerEntry, SymbolPayoffEntry, CharacterLedgerV2 } from "../types";
 import type { Pass3ReadAheadResult } from "../runPass3ReadAhead";
+import { formatActiveBlockersForPrompt } from "../ledgerValidation";
 import {
   buildCoverageDisclosure,
   buildPromptInputWindow,
@@ -17,7 +18,7 @@ import {
   summarizePromptCoverage,
 } from "../promptInput";
 
-export const PASS3_PROMPT_VERSION = "pass3-synthesis-v17-grounding-gate";
+export const PASS3_PROMPT_VERSION = "pass3-synthesis-v18-tier1-ledger";
 
 export const PASS3_SYSTEM_PROMPT = `You are Pass 3: convergence and arbitration authority.
 Rules:
@@ -191,7 +192,7 @@ function buildPerplexityPacketSummary(packet: SinglePassOutput): string {
 
 // ── Character Arc Ledger block builder ────────────────────────────────────
 
-function buildCharacterLedgerBlock(ledger?: Pass1aCharacterLedger): string {
+function buildCharacterLedgerBlock(ledger?: Pass1aCharacterLedger, ledgerV2?: CharacterLedgerV2): string {
   if (!ledger || ledger.entries.length === 0) return "";
   const summary = ledger.coverage_summary;
   const rows = ledger.entries.map((e: CharacterArcLedgerEntry) => {
@@ -257,6 +258,16 @@ function buildCharacterLedgerBlock(ledger?: Pass1aCharacterLedger): string {
     ? `\nRELATIONAL ENGINES: ${summary.relational_engines.join(" | ")}`
     : "";
 
+  // Tier 1: inject CharacterLedgerV2 active blockers if available
+  const v2BlockerBlock = ledgerV2
+    ? `\n\n${formatActiveBlockersForPrompt(ledgerV2)}`
+    : "";
+
+  // Tier 1: inject validation query summary (coverage + negative knowledge count)
+  const v2ValidationSummary = ledgerV2
+    ? `\nLEDGER V2 VALIDATION QUERIES ACTIVE: ${Object.keys(ledgerV2.validationQueries.coPresenceIndex).length} co-presence pairs indexed | ${Object.keys(ledgerV2.validationQueries.nameStateIndex).length} name-state entries | ${Object.keys(ledgerV2.validationQueries.copingIndex).length} coping index entries | ${ledgerV2.activeBlockers.length} active blockers (${ledgerV2.activeBlockers.filter((b) => b.severity === "suppress").length} suppress, ${ledgerV2.activeBlockers.filter((b) => b.severity === "downgrade").length} downgrade, ${ledgerV2.activeBlockers.filter((b) => b.severity === "warn").length} warn)`
+    : "";
+
   return `\n\n## PASS 1A — CHARACTER ARC LEDGER (Hard Input)
 Schema: ${ledger.schema_version} | Chunks: ${ledger.total_chunks_processed}
 Protagonists: ${summary.protagonists.join(", ") || "NONE ⚠"}
@@ -275,7 +286,7 @@ LEDGER RULES (REQUIRED):
 - Hard-fail triggers above MUST be addressed before claiming narrative closure.
 - GROUNDING GATE 2: Before placing two characters in a scene together in a recommendation, verify coPresenceMap confirms firstSharedChunk ≤ target chunk.
 - GROUNDING GATE 3: Before using any character name, verify nameStates confirms that name is valid for the target chunk range.
-- GROUNDING GATE 4: Before recommending "seed" a coping mechanism, verify copingMechanisms is empty for that character. If coping mechanisms exist, use "foreground" or "surface earlier" instead.`;
+- GROUNDING GATE 4: Before recommending "seed" a coping mechanism, verify copingMechanisms is empty for that character. If coping mechanisms exist, use "foreground" or "surface earlier" instead.${v2BlockerBlock}${v2ValidationSummary}`;
 }
 
 // ── Read-ahead primer block builder ───────────────────────────────────────
@@ -337,6 +348,13 @@ export function buildPass3UserPrompt(params: {
    * Optional — Pass 3 degrades gracefully without it.
    */
   characterLedger?: Pass1aCharacterLedger;
+  /**
+   * Tier 1 CharacterLedgerV2 — full six-ledger envelope with active blockers and
+   * validation query indices.  When present, overrides the v1 ledger for blocker
+   * injection and supplies deterministic suppression labels to the system prompt.
+   * Optional — Pass 3 degrades gracefully to v1 ledger rules when absent.
+   */
+  characterLedgerV2?: CharacterLedgerV2;
   /**
    * Pass 3 read-ahead result — manuscript impression formed BEFORE scoring arrived.
    * Optional — Pass 3 degrades gracefully without it.
@@ -427,7 +445,7 @@ Coverage truth signal:
 - Reference snippet (context anchor only): ${referenceSnippet}
 ${params.scopeProfile ? `- Submission scope: ${params.scopeProfile.inputScale} (${params.scopeProfile.wordCount} words; ${params.scopeProfile.chunkCount} chunk(s); ${params.scopeProfile.scorableCount}/13 criteria non-NA for this scope; confidence cap ${params.scopeProfile.confidenceCapSummary})` : ""}
 
-${buildCharacterLedgerBlock(params.characterLedger)}${buildReadAheadPrimerBlock(params.readAheadResult)}
+${buildCharacterLedgerBlock(params.characterLedger, params.characterLedgerV2)}${buildReadAheadPrimerBlock(params.readAheadResult)}
 
 ## PASS2A_STRUCTURED_CONTEXT (Hard Input)
 ${structuredContextJson}${entityRosterBlock}

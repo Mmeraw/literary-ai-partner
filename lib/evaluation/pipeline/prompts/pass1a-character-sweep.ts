@@ -8,7 +8,7 @@
  * Output feeds characterReducer → Pass1aCharacterLedger → Pass 3 + Pass 3b.
  */
 
-export const PASS1A_PROMPT_VERSION = "pass1a-character-sweep-v2-coping-copresence";
+export const PASS1A_PROMPT_VERSION = "pass1a-character-sweep-v3-tier1-grounding";
 
 export const PASS1A_SYSTEM_PROMPT = `You are Pass 1A (character_evidence_sweep) for RevisionGrade.
 
@@ -18,7 +18,7 @@ Do NOT score. Do NOT critique. Do NOT recommend. Evidence capture ONLY.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 HARD CAPS (NEVER exceed these):
 - Max 10 character candidates per chunk
-- Max 2 evidence anchors per character
+- Max 3 evidence anchors per character (increased for Tier 1 grounding)
 - Max 3 relationship signals per character
 - No quoted excerpts longer than 120 characters
 - No prose commentary, no evaluative language
@@ -75,8 +75,21 @@ RELATIONSHIP SIGNALS (max 3):
 relationship_signals — Array of { other_character: string, relationship_type: string, dynamic: string }
                       e.g. { "other_character": "Benjamin", "relationship_type": "protector/protected", "dynamic": "Michael shields Paolito from Navarro" }
 
-EVIDENCE ANCHORS (max 2, verbatim excerpt <=120 chars each):
-evidence_anchors    — Array of { excerpt: string, evidence_type: "appearance"|"choice"|"relationship"|"symbol"|"arc_shift"|"identity"|"ending_payoff" }
+EVIDENCE ANCHORS (max 3, verbatim excerpt <=120 chars each):
+evidence_anchors    — Array of { excerpt: string, evidence_type: "appearance"|"choice"|"relationship"|"symbol"|"arc_shift"|"identity"|"ending_payoff", confidence: "explicit"|"strong_inference"|"weak_inference" }
+
+CO-PRESENCE SIGNALS (REQUIRED for relationship capture):
+co_presence_confirmed — Array of character names who are PHYSICALLY PRESENT in the same scene in this chunk.
+                        e.g. ["Raúl", "Michael"] means both appear in the same scene in this chunk.
+                        This is the primary input for firstCoPresenceChunk computation in the reducer.
+                        Rules: only list characters who are ACTUALLY present together, not merely mentioned;
+                        do NOT list characters who are described from afar or recalled in memory.
+
+NEGATIVE KNOWLEDGE SIGNALS (capture what characters do NOT know/have yet in this chunk):
+negative_knowledge  — Array of { character: string, does_not_yet_know: string[] } where each string
+                      describes something the character explicitly does NOT know or have not yet experienced.
+                      e.g. { "character": "Paolito", "does_not_yet_know": ["Benjamin exists", "he will be renamed Paul"] }
+                      Only emit when the text EXPLICITLY shows ignorance or pre-condition states.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 OUTPUT FORMAT: Valid JSON only. No markdown. No prose.
@@ -117,7 +130,9 @@ OUTPUT FORMAT: Valid JSON only. No markdown. No prose.
       "is_ending_chunk": false,
       "symbolic_objects": [],
       "relationship_signals": [],
-      "evidence_anchors": []
+      "evidence_anchors": [],
+      "co_presence_confirmed": [],
+      "negative_knowledge": []
     }
   ],
   "prompt_version": "${PASS1A_PROMPT_VERSION}",
@@ -139,6 +154,6 @@ ${params.manuscriptText}
 
 Return ONLY the JSON object as specified. No prose. No markdown. No scoring.
 Capture every named character and every unnamed-but-load-bearing figure present.
-Apply all HARD CAPS: max 10 characters, max 2 evidence anchors each, max 3 relationship signals each, no excerpt >120 chars.
+Apply all HARD CAPS: max 10 characters, max 3 evidence anchors each, max 3 relationship signals each, no excerpt >120 chars.
 Fill demographic/identity fields ONLY from explicit text signals — never infer or assume.`;
 }
