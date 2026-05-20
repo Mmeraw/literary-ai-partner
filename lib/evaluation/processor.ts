@@ -433,8 +433,8 @@ type ProviderCallPersistenceSummary = {
   pass4_deferred_reason?: string;
 };
 
-function mapPassToPhase(pass: ProviderTelemetryEntry['pass']): 'phase_1' | 'phase_2' | 'phase_3' {
-  if (pass === 1) return 'phase_1';
+function mapPassToPhase(pass: ProviderTelemetryEntry['pass']): 'phase_1a' | 'phase_2' | 'phase_3' {
+  if (pass === 1) return 'phase_1a';
   if (pass === 2) return 'phase_2';
   return 'phase_3';
 }
@@ -2308,19 +2308,8 @@ export async function processEvaluationJob(
       job.lease_token.trim().length > 0;
     const hasLivePreClaimLease = hasLiveLeaseExpiration(job.lease_expires_at);
 
-    const isPhase1CompleteHandoff =
-      job.status === 'running' &&
-      hasCanonicalPreClaimOwnership &&
-      hasLivePreClaimLease &&
-      (job.phase === 'phase_1' || progress.phase === 'phase_1') &&
-      (job.phase_status === 'complete' || progress.phase_status === 'complete');
-
-    const isPhase1PreClaimed =
-      job.status === 'running' &&
-      hasCanonicalPreClaimOwnership &&
-      hasLivePreClaimLease &&
-      (job.phase === 'phase_1' || progress.phase === 'phase_1') &&
-      (job.phase_status === 'running' || progress.phase_status === 'running');
+    // NOTE: isPhase1CompleteHandoff and isPhase1PreClaimed removed — phase_1 is dead.
+    // All new jobs start at phase_1a. No job will arrive here with phase='phase_1'.
 
     const isPhase1aPreClaimed =
       job.status === 'running' &&
@@ -2328,13 +2317,6 @@ export async function processEvaluationJob(
       hasLivePreClaimLease &&
       (job.phase === 'phase_1a' || progress.phase === 'phase_1a') &&
       (job.phase_status === 'running' || progress.phase_status === 'running');
-
-    const isPhase1aHandoff =
-      job.status === 'running' &&
-      hasCanonicalPreClaimOwnership &&
-      hasLivePreClaimLease &&
-      (job.phase === 'phase_1' || progress.phase === 'phase_1') &&
-      (job.phase_status === 'complete' || progress.phase_status === 'complete');
 
     const isPhase2PreClaimed =
       job.status === 'running' &&
@@ -2350,11 +2332,10 @@ export async function processEvaluationJob(
       (job.phase === 'phase_3' || progress.phase === 'phase_3') &&
       (job.phase_status === 'running' || progress.phase_status === 'running');
 
-    const executionPhase: 'phase_1' | 'phase_1a' | 'phase_2' | 'phase_3' =
+    const executionPhase: 'phase_1a' | 'phase_2' | 'phase_3' =
       isPhase3PreClaimed ? 'phase_3' :
-      isPhase1CompleteHandoff || isPhase2PreClaimed ? 'phase_2' :
-      isPhase1aHandoff || isPhase1aPreClaimed ? 'phase_1a' :
-      'phase_1';
+      isPhase2PreClaimed ? 'phase_2' :
+      'phase_1a'; // default — all new jobs enter at phase_1a
 
     // Hard guard: queued jobs must be atomically claimed before direct processing.
     // This function is execution-only for already-claimed running rows.
@@ -2367,9 +2348,6 @@ export async function processEvaluationJob(
     }
 
     if (
-      !isPhase1CompleteHandoff &&
-      !isPhase1PreClaimed &&
-      !isPhase1aHandoff &&
       !isPhase1aPreClaimed &&
       !isPhase2PreClaimed &&
       !isPhase3PreClaimed
@@ -2445,10 +2423,7 @@ export async function processEvaluationJob(
       const now = new Date().toISOString();
       const stageTimestampPatch: Record<string, unknown> = {};
 
-      if (phase === 'phase_1' && !progressState.phase1_started_at) {
-        stageTimestampPatch.phase1_started_at = now;
-      }
-      if (phase === 'phase_1a' && !progressState.phase1a_started_at) {
+      if (phase === 'phase_1a' && !progressState.phase1a_started_at) {  // phase_1 removed — dead
         stageTimestampPatch.phase1a_started_at = now;
       }
       if (phase === 'phase_2' && !progressState.phase2_started_at) {
@@ -2474,7 +2449,7 @@ export async function processEvaluationJob(
 
       Object.assign(progressState, nextProgress);
 
-      const stageLabel = phase === 'phase_1' ? 'phase1' : phase === 'phase_2' ? 'phase2' : phase as ProcessorStageBoundary;
+      const stageLabel = phase === 'phase_1a' ? 'phase1' : phase === 'phase_2' ? 'phase2' : phase as ProcessorStageBoundary;
       logProcessorStageBoundary({
         jobId,
         stage: (stageLabel === 'phase1' || stageLabel === 'phase2' || stageLabel === 'finalized' || stageLabel === 'pass3') ? stageLabel as ProcessorStageBoundary : 'phase1',
@@ -2557,9 +2532,9 @@ export async function processEvaluationJob(
       });
       const pipelineFailureDiagnostics = normalizeFailureDiagnostics(failureContext?.diagnostics);
       const failedPhase =
-        progressState.phase === 'phase_2' || executionPhase === 'phase_2'
-          ? 'phase_2'
-          : 'phase_1';
+        progressState.phase === 'phase_3' || executionPhase === 'phase_3' ? 'phase_3' :
+        progressState.phase === 'phase_2' || executionPhase === 'phase_2' ? 'phase_2' :
+        'phase_1a';
 
       const nextProgress = {
         ...progressState,
@@ -2818,7 +2793,7 @@ export async function processEvaluationJob(
         `for manuscript ${manuscriptWithContent.id}. ` +
         `Chunk materialization failed. Do not proceed.`;
       await markFailed(chunkMaterializationError, 'LONG_FORM_CHUNK_MATERIALIZATION_FAILED', {
-        pipelineStage: 'phase_1',
+        pipelineStage: 'phase_1a',
         reasonCodes: ['LONG_FORM_CHUNK_MATERIALIZATION_FAILED'],
         diagnostics: { chunk_routing: chunkRouting },
       });
@@ -2994,7 +2969,7 @@ export async function processEvaluationJob(
           const chunkLoadError =
             `Failed to load chunk evidence for manuscript ${manuscriptWithContent.id}: ${chunkRowsError.message}`;
           await markFailed(chunkLoadError, 'CHUNK_EVIDENCE_LOAD_FAILED', {
-            pipelineStage: 'phase_1',
+            pipelineStage: 'phase_1a',
             reasonCodes: ['CHUNK_EVIDENCE_LOAD_FAILED'],
           });
           return { success: false, error: chunkLoadError };
@@ -3099,28 +3074,18 @@ export async function processEvaluationJob(
 
     // 4. Canonical evaluation via governed multi-pass pipeline (fail-closed)
     //
-    // PR-ε PHASE SPLIT
-    // ─────────────────────────────────────────────────────────────────────────
-    // Problem: Pass1+Pass2 chunk evaluation on large manuscripts (52+ chunks)
-    // consumes most of the 800s Vercel wall-clock budget, leaving insufficient
-    // time for Pass3 synthesis + artifact persistence. The stale-running sweeper
-    // then kills the job.
-    //
-    // Fix: split the pipeline across two Vercel invocations:
-    //   Invocation A (phase_1): Run Pass1+Pass2, write pass12_handoff_v1 artifact,
-    //     mark phase_status=complete, exit. Costs ~360-600s for large manuscripts.
-    //   Invocation B (phase_2): Read handoff artifact, skip directly to Pass3+
-    //     persistence. Costs ~60-120s. Triggered by next cron tick (≤15 min).
-    //
-    // The isPhase1CompleteHandoff flag (already resolved above) routes cron-tick
-    // re-entries into the phase_2 path. No new DB columns required — the handoff
-    // payload is stored as a pass12_handoff_v1 evaluation_artifact row.
-    // ─────────────────────────────────────────────────────────────────────────
+    // RELAY RACE ARCHITECTURE (3 Vercel invocations):
+    //   phase_1a → phase_2 → phase_3
+    //   phase_1a: Pass 1A (character ledger) + Pass 3A (preflight) — parallel
+    //             writes: pass1a_character_ledger_v1 + pass3_preflight_draft_v1
+    //             self-chains → phase_2
+    //   phase_2:  Pass 1 + Pass 2 — ledger-informed
+    //             writes: pass12_handoff_v1
+    //             self-chains → phase_3
+    //   phase_3:  Pass 3B synthesis → evaluation_result_v2 + longform_document_v1
+    //             then: WAVE gate (non-fatal, 60s cap) → wave_revision_plan_v1
+    //             then: job → COMPLETE
 
-    // Hoisted so phase_3 (synthesis path) and the legacy phase_1 fallback can
-    // both assign into the same outer let. TDZ-safe: declaration runs before
-    // any phase block that assigns it.
-    // eslint-disable-next-line prefer-const
     let pipelineResult: Awaited<ReturnType<typeof runPipeline>> | undefined;
 
     const externalMode = getExternalAdjudicationMode();
@@ -3970,674 +3935,7 @@ export async function processEvaluationJob(
       }
     } // end phase_2
 
-    // ── PHASE 1 (or phase_2 short-form fallback full-run) ─────────────────────
-    // Only reached when executionPhase === 'phase_1' OR when phase_2 short-form
-    // handoff was missing. Skipped entirely when phase_3 synthesis already ran
-    // (pipelineResult is already set).
-    const _skipPhase1Fallback = !!pipelineResult;
-    if (!_skipPhase1Fallback) {
-    await markRunning('Running canonical evaluation pipeline', 1, executionPhase);
-    // Refresh deadline anchored to this phase's own start timestamp.
-    // For phase_1: phase1_started_at. For phase_2 fallback: phase2_started_at.
-    const _phaseStartKey = executionPhase === 'phase_1' ? 'phase1_started_at' : 'phase2_started_at';
-    refreshPhaseDeadline(progressState[_phaseStartKey as keyof typeof progressState] as string | undefined);
-
-    const pass3StartedAt = new Date().toISOString();
-    progressState.pass3_started_at = pass3StartedAt;
-    logProcessorStageBoundary({
-      jobId,
-      stage: 'pass3',
-      state: 'start',
-      at: pass3StartedAt,
-      metadata: {
-        model: getCanonicalPipelineModel(openAiModel),
-      },
-    });
-
-    if ((externalMode === 'required' || externalMode === 'veto') && !perplexityApiKey) {
-      const missingCrossCheckConfigError =
-        `External adjudication mode '${externalMode}' requires PERPLEXITY_API_KEY`;
-      await markFailed(missingCrossCheckConfigError);
-
-      return { success: false, error: missingCrossCheckConfigError };
-    }
-
-    console.log(`[Processor] ${jobId}: ENTER runPipeline model=${getCanonicalPipelineModel(openAiModel)} passTimeoutMs=${timeoutResolution.passTimeoutMs}`);
-    const runPipelineStartedAt = startLatencyStage({
-      jobId,
-      stage: 'pipeline_run',
-      metadata: {
-        model: getCanonicalPipelineModel(openAiModel),
-      },
-    });
-
-    await assertJobWithinSla({
-      supabase,
-      jobId,
-      hardDeadlineMs,
-      stage: 'before_runPipeline',
-    });
-
-    // Mistake-proofing: hoist isChunkRouted here so it is available in both
-    // the pre-pipeline budget warning and the partial-capture rescue catch block.
-    const isChunkRouted = chunkRouting.route === 'long_form';
-
-    // Mistake-proofing: warn early if budget is already tight before runPipeline starts.
-    // At N=52 chunks Pass1+Pass2 takes ~600-750s. If less than 700s remains we are
-    // likely to hit the wall clock before Pass3. This is observable in Vercel logs
-    // so operators can triage without waiting for the stale-job sweep.
-    const PHASE_SPLIT_PRE_PIPELINE_WARN_MS = 700_000;
-    const budgetAtPipelineStart = hardDeadlineMs - Date.now();
-    if (isChunkRouted && budgetAtPipelineStart < PHASE_SPLIT_PRE_PIPELINE_WARN_MS) {
-      console.warn(
-        `[Processor] ${jobId}: PRE_PIPELINE_BUDGET_WARNING — only ${Math.round(budgetAtPipelineStart / 1000)}s` +
-        ` remaining before runPipeline on a chunk-routed job (N=${chunkRouting.chunk_count}).` +
-        ` Phase split will activate if Pass1+Pass2 exhaust the budget.`,
-      );
-    }
-
-    const leaseRenewalIntervalMs = 30_000;
-    const leaseRenewalLoop = setInterval(() => {
-      void renewEvaluationJobLease({
-        supabase,
-        jobId,
-        leaseMs: runtimeConfig.worker.leaseMs,
-        stage: 'runPipeline.interval',
-        hardDeadlineMs,
-      }).catch((error) => {
-        console.warn('[Processor] In-flight lease renewal failed', {
-          job_id: jobId,
-          stage: 'runPipeline.interval',
-          error: error instanceof Error ? error.message : String(error),
-        });
-      });
-    }, leaseRenewalIntervalMs);
-
-    // PR-ε: capture pass1/pass2 outputs for the inter-invocation handoff artifact.
-    // The _runners DI seam lets us intercept the outputs without forking runPipeline.
-    let capturedPass1Output: SinglePassOutput | null = null;
-    let capturedPass2Output: SinglePassOutput | null = null;
-
-    // Import default runners lazily so we don't break the module-level import graph.
-    // These are the same functions runPipeline uses internally when no _runners override
-    // is provided. We wrap them to capture their return values.
-    const { runPass1: defaultRunPass1Fn } = await import(
-      '@/lib/evaluation/pipeline/runPass1'
-    ).then((m) => ({ runPass1: m.runPass1 }));
-    const { runPass2: defaultRunPass2Fn } = await import(
-      '@/lib/evaluation/pipeline/runPass2'
-    ).then((m) => ({ runPass2: m.runPass2 }));
-
-    // PR-E: Chunk-level checkpoint — load any existing pass1_chunk_cache_v1 artifact.
-    // If a previous attempt completed some chunks before being killed, we can resume
-    // from those checkpoints rather than starting Pass 1 from scratch.
-    //
-    // The cache is keyed by chunk_index and validated against a source_hash
-    // (SHA-256 of job_id + manuscript_id + chunk_count). A hash mismatch means the
-    // manuscript or job state changed and the cache must be ignored (full re-run).
-    //
-    // Fail-soft: cache read errors are logged but never fail the job.
-    let pass1ChunkCache: Map<number, SinglePassOutput> | undefined;
-    const chunkCacheSourceHash = stableSourceHash({
-      manuscriptId: manuscriptWithContent.id,
-      jobId: job.id,
-      userId: manuscriptWithContent.user_id,
-      manuscriptText: String(manuscriptChunksForPipeline?.length ?? 0), // use chunk count, not full text
-      promptVersion: 'pass1_chunk_cache_v1',
-      model: getCanonicalPipelineModel(openAiModel),
-    });
-    if (isChunkRouted) {
-      try {
-        const { data: cacheRow } = await supabase
-          .from('evaluation_artifacts')
-          .select('content')
-          .eq('job_id', job.id)
-          .eq('artifact_type', 'pass1_chunk_cache_v1')
-          .maybeSingle();
-
-        if (cacheRow?.content) {
-          const cacheArtifact = cacheRow.content as import('@/lib/evaluation/pipeline/runPass1').Pass1ChunkCacheArtifact;
-          // Validate source hash to detect stale/mismatched cache.
-          if (cacheArtifact.source_hash === chunkCacheSourceHash) {
-            const cacheMap = new Map<number, SinglePassOutput>();
-            for (const [k, v] of Object.entries(cacheArtifact.chunks ?? {})) {
-              const idx = Number(k);
-              if (Number.isFinite(idx) && v?.result) {
-                cacheMap.set(idx, v.result);
-              }
-            }
-            if (cacheMap.size > 0) {
-              pass1ChunkCache = cacheMap;
-              console.log(
-                `[Processor] ${jobId}: PR-E checkpoint resume — loaded ${cacheMap.size}/${cacheArtifact.total_expected} cached Pass1 chunks`,
-              );
-              progressState.pass1_checkpoint_resume = {
-                cached_chunks: cacheMap.size,
-                expected_chunks: cacheArtifact.total_expected,
-                cached_at: cacheArtifact.cached_at,
-              };
-            }
-          } else {
-            // Hash mismatch — delete stale cache and do a full re-run.
-            console.warn(
-              `[Processor] ${jobId}: PR-E chunk cache source_hash mismatch — discarding stale cache (full re-run)`,
-              { stored: cacheArtifact.source_hash, expected: chunkCacheSourceHash },
-            );
-            void supabase
-              .from('evaluation_artifacts')
-              .delete()
-              .eq('job_id', job.id)
-              .eq('artifact_type', 'pass1_chunk_cache_v1')
-              .then(({ error: delErr }: { error: { message: string } | null }) => {
-                if (delErr) console.warn(`[Processor] ${jobId}: stale cache delete failed (non-fatal)`, delErr.message);
-              });
-          }
-        }
-      } catch (cacheReadErr) {
-        console.warn(
-          `[Processor] ${jobId}: PR-E chunk cache read failed (non-fatal, proceeding with full run)`,
-          cacheReadErr instanceof Error ? cacheReadErr.message : String(cacheReadErr),
-        );
-      }
-    }
-
-    // PR-E: In-memory accumulator for rolling checkpoint writes.
-    // Updated by _onChunkComplete; serialized to pass1_chunk_cache_v1 on each chunk.
-    const chunkCacheAccumulator: Record<number, import('@/lib/evaluation/pipeline/runPass1').Pass1ChunkCacheEntry> = {};
-    if (pass1ChunkCache) {
-      // Pre-seed accumulator with already-cached entries so the upsert is always complete.
-      for (const [idx, result] of pass1ChunkCache.entries()) {
-        chunkCacheAccumulator[idx] = { chunk_index: idx, result, completed_at: new Date().toISOString() };
-      }
-    }
-
-    const expectedChunkCount = manuscriptChunksForPipeline?.length ?? 0;
-
-    // Rolling checkpoint upsert: called after each chunk completes in Pass 1.
-    // Fail-soft — an upsert failure is logged but never propagated to the chunk worker.
-    const onPass1ChunkComplete = isChunkRouted
-      ? async (chunkIndex: number, result: SinglePassOutput): Promise<void> => {
-          chunkCacheAccumulator[chunkIndex] = {
-            chunk_index: chunkIndex,
-            result,
-            completed_at: new Date().toISOString(),
-          };
-          const cachePayload: import('@/lib/evaluation/pipeline/runPass1').Pass1ChunkCacheArtifact = {
-            job_id: job.id,
-            source_hash: chunkCacheSourceHash,
-            chunks: { ...chunkCacheAccumulator },
-            total_expected: expectedChunkCount,
-            cached_at: new Date().toISOString(),
-          };
-          try {
-            await upsertEvaluationArtifact({
-              supabase,
-              jobId: job.id,
-              manuscriptId: manuscriptWithContent.id,
-              artifactType: 'pass1_chunk_cache_v1',
-              content: cachePayload,
-              sourceHash: chunkCacheSourceHash,
-              artifactVersion: 'pass1_chunk_cache_v1',
-            });
-          } catch (upsertErr) {
-            console.warn(
-              `[Processor] ${jobId}: PR-E chunk cache upsert failed for chunk ${chunkIndex} (non-fatal)`,
-              upsertErr instanceof Error ? upsertErr.message : String(upsertErr),
-            );
-          }
-        }
-      : undefined;
-
-    // pipelineResult was hoisted above the phase blocks; reuse it here.
-    try {
-      pipelineResult = await runPipeline({
-        manuscriptText: manuscriptWithContent.content || '',
-        manuscriptChunks: manuscriptChunksForPipeline,
-        workType: manuscriptWithContent.work_type || 'novel',
-        title: manuscriptWithContent.title,
-        jobId: String(job.id),
-        model: getCanonicalPipelineModel(openAiModel),
-        openaiApiKey,
-        perplexityApiKey: perplexityApiKey || undefined,
-        manuscriptId: String(manuscriptWithContent.id),
-        executionMode: 'TRUSTED_PATH',
-        _passTimeoutMs: timeoutResolution.passTimeoutMs,
-        _openAiTimeoutMs: timeoutResolution.openAiTimeoutMs,
-        _runners: {
-          runPass1: async (opts) => {
-            const result = await defaultRunPass1Fn({
-              ...opts,
-              // PR-E: inject checkpoint cache and rolling save callback
-              _chunkCache: pass1ChunkCache,
-              _onChunkComplete: onPass1ChunkComplete,
-              // Forced heartbeat: write last_heartbeat_at after every chunk
-              // so the watchdog never sees silence during a long sweep.
-              // Fail-soft: renewal errors are logged, never thrown.
-              _onChunkHeartbeat: (chunkIndex) => {
-                void renewEvaluationJobLease({
-                  supabase,
-                  jobId,
-                  leaseMs: runtimeConfig.worker.leaseMs,
-                  stage: `pass1_chunk_${chunkIndex}`,
-                  hardDeadlineMs,
-                }).catch((err: unknown) => {
-                  console.warn('[Processor] Pass1 chunk heartbeat renewal failed (non-fatal)', {
-                    job_id: jobId,
-                    chunk_index: chunkIndex,
-                    error: err instanceof Error ? err.message : String(err),
-                  });
-                });
-              },
-            });
-            capturedPass1Output = result;
-            // PR-E: Pass 1 succeeded — delete the chunk cache artifact (it has served its purpose).
-            // Fail-soft: deletion failure is non-fatal.
-            if (isChunkRouted) {
-              void supabase
-                .from('evaluation_artifacts')
-                .delete()
-                .eq('job_id', job.id)
-                .eq('artifact_type', 'pass1_chunk_cache_v1')
-                .then(({ error: delErr }: { error: { message: string } | null }) => {
-                  if (delErr) {
-                    console.warn(
-                      `[Processor] ${jobId}: PR-E chunk cache cleanup failed (non-fatal)`,
-                      delErr.message,
-                    );
-                  } else {
-                    console.log(`[Processor] ${jobId}: PR-E chunk cache artifact deleted after successful Pass1`);
-                  }
-                });
-            }
-            return result;
-          },
-          runPass2: async (opts) => {
-            const result = await defaultRunPass2Fn({
-              ...opts,
-              // Forced heartbeat: write last_heartbeat_at after every chunk
-              // so the watchdog never sees silence during a long sweep.
-              _onChunkHeartbeat: (chunkIndex) => {
-                void renewEvaluationJobLease({
-                  supabase,
-                  jobId,
-                  leaseMs: runtimeConfig.worker.leaseMs,
-                  stage: `pass2_chunk_${chunkIndex}`,
-                  hardDeadlineMs,
-                }).catch((err: unknown) => {
-                  console.warn('[Processor] Pass2 chunk heartbeat renewal failed (non-fatal)', {
-                    job_id: jobId,
-                    chunk_index: chunkIndex,
-                    error: err instanceof Error ? err.message : String(err),
-                  });
-                });
-              },
-            });
-            capturedPass2Output = result;
-
-            // ── Eager handoff pre-write ──────────────────────────────────────
-            // Write pass12_handoff_v1 immediately the moment Pass 2 completes,
-            // before runPipeline returns and before Pass 3 starts.
-            //
-            // Rationale: the normal handoff write happens after runPipeline()
-            // returns, but Vercel can kill the invocation at the 800s hard limit
-            // while Pass 3 is still running — or even between runPipeline returning
-            // and the write executing.  By pre-writing here we guarantee the
-            // artifact exists in the DB as soon as Pass 1+2 are both captured,
-            // so the watchdog rescue path (Guard D) can recover to phase_2 even
-            // if the invocation is killed before the normal handoff path fires.
-            //
-            // This is an ARTIFACT-ONLY write — no status transition here.
-            // The status transition (status=queued, phase=phase_2) still happens
-            // in the shouldHandoff block below after runPipeline returns, which
-            // is the authoritative transition.  If the invocation is killed before
-            // that transition, the watchdog sees: status=running + handoff artifact
-            // exists → Guard D rescues it to phase_2/queued on the next tick.
-            //
-            // Fail-soft: pre-write errors are logged but never throw — a failed
-            // pre-write must not abort the pipeline run.
-            if (capturedPass1Output !== null && executionPhase === 'phase_1' && isChunkRouted) {
-              void upsertEvaluationArtifact({
-                supabase,
-                jobId: job.id,
-                manuscriptId: job.manuscript_id,
-                artifactType: 'pass12_handoff_v1',
-                content: {
-                  pass1Output: capturedPass1Output,
-                  pass2Output: result,
-                  chunk_count: chunkRouting.chunk_count,
-                  captured_at: new Date().toISOString(),
-                  pre_write: true, // diagnostic flag — overwritten by the authoritative write below
-                },
-                sourceHash: stableSourceHash({
-                  manuscriptId: manuscript.id,
-                  jobId: job.id,
-                  userId: manuscriptWithContent.user_id,
-                  manuscriptText: manuscriptWithContent.content || '',
-                  promptVersion: 'pass12_handoff_v1',
-                  model: getCanonicalPipelineModel(openAiModel),
-                }),
-                artifactVersion: 'pass12_handoff_v1',
-              }).then(() => {
-                // Stamp pass12_handoff_written_at into the progress JSONB so the UI
-                // and watchdog can detect the handoff artifact exists even if the job
-                // is killed before the authoritative handoff write fires.
-                void supabase
-                  .rpc('stamp_handoff_progress', { p_job_id: jobId, p_ts: new Date().toISOString() })
-                  .then(({ error: stampErr }: { error: unknown }) => {
-                    if (stampErr) console.warn(`[Processor] ${jobId}: handoff progress stamp failed (non-fatal)`, stampErr);
-                  });
-              }).catch((preWriteErr: unknown) => {
-                console.warn(
-                  `[Processor] ${jobId}: eager handoff pre-write failed (non-fatal — normal handoff path still runs)`,
-                  preWriteErr instanceof Error ? preWriteErr.message : String(preWriteErr),
-                );
-              });
-            }
-
-            return result;
-          },
-        },
-        _onLedgerReady: async (ledger, ledgerV2) => {
-          // Write the character ledger artifact immediately after Pass 1A builds it,
-          // before Pass 3 runs — so it survives any downstream failure (Pass 2 timeout,
-          // Pass 3 failure, Vercel kill, SLA watchdog, etc.).
-          try {
-            await upsertEvaluationArtifact({
-              supabase,
-              jobId: String(job.id),
-              manuscriptId: Number(manuscriptWithContent.id),
-              artifactType: 'pass1a_character_ledger_v1',
-              content: {
-                job_id: String(job.id),
-                manuscript_id: Number(manuscriptWithContent.id),
-                created_at: new Date().toISOString(),
-                schema_version: 'pass1a_character_ledger_v1',
-                ledger_v1: ledger,
-                ledger_v2: ledgerV2,
-                summary: {
-                  entries: ledger.entries.length,
-                  protagonists: ledger.coverage_summary.protagonists,
-                  co_protagonists: ledger.coverage_summary.co_protagonists,
-                  symbol_items: ledger.coverage_summary.symbol_payoff_items.length,
-                  hard_fail_triggers: ledger.coverage_summary.hard_fail_triggers.length,
-                  v2_active_blockers: ledgerV2.activeBlockers.length,
-                  v2_relationship_pairs: ledgerV2.relationshipLedger.length,
-                  v2_objects_tracked: ledgerV2.objectLedger.length,
-                },
-              },
-              sourceHash: `pass1a_ledger_${String(job.id)}`,
-              artifactVersion: 'pass1a_character_ledger_v1',
-            });
-            console.log(`[Processor] ${jobId}: pass1a_character_ledger_v1 artifact written (independent of pipeline outcome)`, {
-              entries: ledger.entries.length,
-              v2_active_blockers: ledgerV2.activeBlockers.length,
-            });
-          } catch (ledgerArtifactErr) {
-            console.warn(`[Processor] ${jobId}: pass1a_character_ledger_v1 artifact write failed (non-fatal)`,
-              ledgerArtifactErr instanceof Error ? ledgerArtifactErr.message : String(ledgerArtifactErr));
-          }
-        },
-        onHeartbeat: async (stage) => {
-          await assertJobWithinSla({
-            supabase,
-            jobId,
-            hardDeadlineMs,
-            stage,
-          });
-
-          await renewEvaluationJobLease({
-            supabase,
-            jobId,
-            leaseMs: runtimeConfig.worker.leaseMs,
-            stage,
-            hardDeadlineMs,
-          });
-        },
-      });
-    } catch (runPipelineErr) {
-      // Mistake-proofing: partial-capture rescue.
-      // If runPipeline throws (SLA exceeded, Vercel wall-clock kill surfaced as uncaught
-      // error, OpenAI timeout, etc.) but we already captured Pass1 output, attempt to
-      // write a partial handoff artifact so phase_2 can re-run Pass2+Pass3 rather than
-      // losing all work. This handles the case where Pass1 succeeds but Pass2 times out.
-      //
-      // Pass1-only partial handoff: capturedPass2Output will be null. phase_2 will
-      // detect the null and re-run Pass2 from the cached Pass1 output only.
-      //
-      // If neither pass was captured (runPipeline threw before any pass completed),
-      // re-throw immediately — no handoff is possible.
-      const hasPartialCapture = capturedPass1Output !== null;
-      if (hasPartialCapture && executionPhase === 'phase_1' && isChunkRouted) {
-        const budgetRemainingOnError = hardDeadlineMs - Date.now();
-        console.warn(
-          `[Processor] ${jobId}: runPipeline threw but partial capture exists — attempting partial handoff`,
-          {
-            pass1_captured: capturedPass1Output !== null,
-            pass2_captured: capturedPass2Output !== null,
-            budget_remaining_ms: budgetRemainingOnError,
-            error: runPipelineErr instanceof Error ? runPipelineErr.message : String(runPipelineErr),
-          },
-        );
-        try {
-          await upsertEvaluationArtifact({
-            supabase,
-            jobId: job.id,
-            manuscriptId: job.manuscript_id,
-            artifactType: 'pass12_handoff_v1',
-            content: {
-              pass1Output: capturedPass1Output,
-              pass2Output: capturedPass2Output, // may be null — phase_2 handles this
-              chunk_count: chunkRouting.chunk_count,
-              captured_at: new Date().toISOString(),
-              partial_capture: capturedPass2Output === null,
-            },
-            sourceHash: stableSourceHash({
-              manuscriptId: manuscript.id,
-              jobId: job.id,
-              userId: manuscriptWithContent.user_id,
-              manuscriptText: manuscriptWithContent.content || '',
-              promptVersion: 'pass12_handoff_v1',
-              model: getCanonicalPipelineModel(openAiModel),
-            }),
-            artifactVersion: 'pass12_handoff_v1',
-          });
-          const partialHandoffNow = new Date().toISOString();
-          await supabase
-            .from('evaluation_jobs')
-            .update({
-              status: JOB_STATUS.QUEUED,
-              phase: 'phase_1a',
-              phase_status: JOB_STATUS.QUEUED,
-              claimed_by: null,
-              claimed_at: null,
-              lease_token: null,
-              lease_until: null,
-              updated_at: partialHandoffNow,
-              progress: {
-                ...progressState,
-                phase: 'phase_1',
-                phase_status: 'complete',
-                message: 'Phase 1 partial handoff — Pass1 captured, queued for Phase 1A',
-                pass12_handoff_written_at: partialHandoffNow,
-                pass12_partial_handoff: true,
-              },
-            })
-            .eq('id', job.id);
-          console.log(`[Processor] ${jobId}: partial handoff written — queued for phase_1a (Pass${capturedPass2Output !== null ? '2+3' : '2'} will re-run from phase_2)`);
-          clearInterval(leaseRenewalLoop);
-          return { success: true };
-        } catch (handoffErr) {
-          console.error(
-            `[Processor] ${jobId}: partial handoff write FAILED — re-throwing original error`,
-            handoffErr instanceof Error ? handoffErr.message : String(handoffErr),
-          );
-        }
-      }
-      // No partial capture possible — re-throw so the outer catch marks the job failed
-      clearInterval(leaseRenewalLoop);
-      throw runPipelineErr;
-    } finally {
-      clearInterval(leaseRenewalLoop);
-    }
-
-    // PR-ε: Phase 1 handoff — if Pass1+Pass2 succeeded, write the handoff artifact
-    // and mark phase_status=complete so the next cron tick picks up phase_2.
-    // Only fires on the phase_1 path (or phase_2 fallback) when:
-    //   1. pipelineResult is ok=false AND failed_at is pass3 (chunk eval succeeded,
-    //      synthesis ran out of wall-clock time), OR
-    //   2. The job is a long-form manuscript (chunk-routed) AND we captured both
-    //      pass outputs AND there is insufficient budget remaining for Pass3+persistence.
-    //
-    // Threshold: if less than PHASE_SPLIT_BUDGET_FLOOR_MS of the hard deadline
-    // remains after Pass1+Pass2, yield to the next invocation.
-    const PHASE_SPLIT_BUDGET_FLOOR_MS = 120_000; // 2 min — enough for Pass3 + persistence
-    // isChunkRouted already declared above (hoisted for partial-capture rescue scope)
-    const pass12BothCaptured = capturedPass1Output !== null && capturedPass2Output !== null;
-    const budgetRemaining = hardDeadlineMs - Date.now();
-    // PR-E addendum: unconditional handoff for chunk-routed jobs.
-    // Once Pass1+Pass2 are both captured we ALWAYS hand off — we do not wait for
-    // a budget floor or a Pass3 timeout.  This eliminates the window where the
-    // Vercel function could be frozen between the budget check and the handoff
-    // write, causing the lease to expire and the sweeper to kill a succeeded job.
-    const shouldHandoff =
-      executionPhase === 'phase_1' &&
-      isChunkRouted &&
-      pass12BothCaptured;
-
-    if (shouldHandoff) {
-      console.log(
-        `[Processor] ${jobId}: phase_1 handoff — writing pass12_handoff_v1 artifact`,
-        {
-          budget_remaining_ms: budgetRemaining,
-          chunk_count: chunkRouting.chunk_count,
-          triggered_by: 'unconditional_chunk_routed',
-        },
-      );
-
-      try {
-        await upsertEvaluationArtifact({
-          supabase,
-          jobId: job.id,
-          manuscriptId: job.manuscript_id,
-          artifactType: 'pass12_handoff_v1',
-          content: {
-            pass1Output: capturedPass1Output,
-            pass2Output: capturedPass2Output,
-            chunk_count: chunkRouting.chunk_count,
-            captured_at: new Date().toISOString(),
-          },
-          sourceHash: stableSourceHash({
-            manuscriptId: manuscript.id,
-            jobId: job.id,
-            userId: manuscriptWithContent.user_id,
-            manuscriptText: manuscriptWithContent.content || '',
-            promptVersion: 'pass12_handoff_v1',
-            model: getCanonicalPipelineModel(openAiModel),
-          }),
-          artifactVersion: 'pass12_handoff_v1',
-        });
-
-        // Transition directly to phase_2/queued so the next cron tick can
-        // claim and run it without any intermediate state.
-        //
-        // CRITICAL: we must NOT leave status='running' here.  The stale sweeper
-        // scans for status='running' jobs whose lease has expired and kills them.
-        // Phase 1 consumes most of the 800s lease, so by the time the next cron
-        // tick fires the lease may already be past — and the sweeper runs BEFORE
-        // the claim RPC in processQueuedJobs, so a running row is dead on arrival.
-        //
-        // Setting status='queued', phase='phase_2', phase_status='queued' means:
-        //   • Sweeper ignores it (only targets status='running').
-        //   • claim_evaluation_jobs RPC picks it up on the very next cron tick.
-        //   • processEvaluationJob sees status='running' after claim (fresh lease)
-        //     with phase='phase_2' → falls into the isPhase1CompleteHandoff path
-        //     via progress.phase_status='complete' (preserved in the JSONB).
-        const handoffNow = new Date().toISOString();
-
-        // CRITICAL: progress spread must use hardcoded phase_status='complete',
-        // NOT progressState.phase_status — progressState is stale from memory
-        // (leaseRenewalLoop updates the DB column but not the in-memory object).
-        // If progressState.phase_status='running' leaks into the spread the DB
-        // constraint (status=queued requires phase_status IN (queued,triggered,NULL))
-        // would reject the update — silently, since we had no .select() check.
-        const handoffProgress = {
-          ...progressState,
-          phase: 'phase_1',         // keep phase_1 in JSONB so isPhase1CompleteHandoff fires
-          phase_status: 'complete', // HARDCODED — never trust progressState here
-          message: 'Phase 1 complete — awaiting Pass 1A character sweep',
-          pass12_handoff_written_at: handoffNow,
-        };
-
-        const { data: handoffRow, error: handoffUpdateErr } = await supabase
-          .from('evaluation_jobs')
-          .update({
-            status: JOB_STATUS.QUEUED,
-            phase: 'phase_1a',
-            phase_status: JOB_STATUS.QUEUED,
-            claimed_by: null,
-            claimed_at: null,
-            lease_token: null,
-            lease_until: null,
-            updated_at: handoffNow,
-            progress: handoffProgress,
-          })
-          .eq('id', job.id)
-          .eq('status', JOB_STATUS.RUNNING) // idempotency: only transition from running
-          .select('id, status, phase, phase_status')
-          .single();
-
-        if (handoffUpdateErr) {
-          // DB rejected the transition — log and fall through to normal failure path
-          // so the job is explicitly failed rather than silently stalling as running.
-          console.error(
-            `[Processor] ${jobId}: handoff DB transition FAILED (constraint or RLS rejection)`,
-            { error: handoffUpdateErr.message, code: handoffUpdateErr.code },
-          );
-          throw new Error(`Handoff DB transition failed: ${handoffUpdateErr.message}`);
-        }
-
-        if (!handoffRow || handoffRow.status !== JOB_STATUS.QUEUED) {
-          // 0-row result: job was already transitioned by watchdog or another cron tick.
-          // Safe to exit — the job is either already queued for phase_2 or complete.
-          console.warn(
-            `[Processor] ${jobId}: handoff update returned 0 rows — job already transitioned`,
-            { returned: handoffRow ?? null },
-          );
-          return { success: true };
-        }
-
-        console.log(
-          `[Processor] ${jobId}: phase_1 handoff confirmed — status=queued phase=phase_1a`,
-          { status: handoffRow.status, phase: handoffRow.phase, phase_status: handoffRow.phase_status },
-        );
-        return { success: true };
-      } catch (handoffErr) {
-        // Handoff write failed — do NOT return early. Fall through to normal
-        // failure handling so the job is marked failed with a proper error code
-        // rather than silently stalling.
-        console.error(
-          `[Processor] ${jobId}: phase_1 handoff write FAILED, falling through to normal failure path`,
-          handoffErr instanceof Error ? handoffErr.message : String(handoffErr),
-        );
-      }
-    }
-
-    finishLatencyStage({
-      jobId,
-      stage: 'pipeline_run',
-      startedAt: runPipelineStartedAt,
-      state: pipelineResult.ok ? 'completed' : 'failed',
-      metadata: {
-        finish_reason: pipelineResult.ok
-          ? 'ok'
-          : ('error_code' in pipelineResult ? pipelineResult.error_code : 'pipeline_failed'),
-      },
-    });
-
-    } // end if (!_skipPhase1Fallback) — phase_1 / short-form fallback
-
-    // pipelineResult is guaranteed assigned here (either by phase_3 synthesis above
-    // or by the phase_1 fallback runPipeline call just above).
+    // pipelineResult is guaranteed assigned here by phase_1a, phase_2, or phase_3 execution above.
     if (!pipelineResult) {
       throw new Error('pipelineResult unexpectedly undefined after phase execution');
     }
@@ -5576,7 +4874,7 @@ export async function processEvaluationJob(
           return { success: true };
         }
 
-        // Default path (phase_1/phase_2 → queue phase_3 for next invocation).
+        // Default path (phase_2 → queue phase_3 for next invocation).
         const { data: phase3QueueRow, error: phase3QueueErr } = await supabase
           .from('evaluation_jobs')
           .update({
@@ -5703,7 +5001,7 @@ export async function processEvaluationJob(
         .from('evaluation_jobs')
         .update({
           status: failedStatus,
-          phase: progressState.phase ?? 'phase_1',
+          phase: progressState.phase ?? 'phase_1a',
           phase_status: 'failed',
           total_units: EVALUATION_PROGRESS_TOTAL_UNITS,
           completed_units: typeof progressState.completed_units === 'number' ? progressState.completed_units : 0,
