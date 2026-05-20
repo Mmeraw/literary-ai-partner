@@ -1591,7 +1591,15 @@ export async function failStaleRunningJobs(): Promise<{
     const preflightJobIds = new Set((preflightArtifacts ?? []).map((a) => a.job_id));
 
     const rescueNow = new Date().toISOString();
-    type RescueEntry = { id: string; manuscriptId: number; reason: string; checkpoint: string };
+    type RescueEntry = {
+      id: string;
+      manuscriptId: number;
+      reason: string;
+      checkpoint: string;
+      // Explicit rescue target — overrides the default phase-based mapping below.
+      // Used by split-brain rescue (pass12_handoff exists while job stuck in phase_1).
+      targetPhase?: string;
+    };
     const rescueEntries: RescueEntry[] = [];
     const terminalFailEntries: Array<{ id: string; reason: string }> = [];
 
@@ -1647,25 +1655,38 @@ export async function failStaleRunningJobs(): Promise<{
       }
 
       // ─ GUARD D: Artifact checkpoint gate ─────────────────────────────────────
+      // If pass12_handoff_v1 exists (or phase_status=complete), Pass 1+2 finished;
+      // the only remaining work is Pass 3 arbitration — rescue straight to phase_3
+      // regardless of which phase the row is currently parked in (split-brain safe).
       const alreadyHandedOff =
         phaseStatusTopLevel === 'complete' ||
         phaseStatusProgress  === 'complete' ||
         handoffJobIds.has(row.id);
 
       if (alreadyHandedOff) {
+        if (currentPhase === 'phase_1' || currentPhase === 'phase_1a') {
+          console.log(`[watchdog] split-brain detected: pass12_handoff exists but job still in phase_1 — advancing to phase_3 (job=${row.id})`);
+        }
         rescueEntries.push({
           id: row.id,
           manuscriptId: (row.manuscript_id as number | null) ?? 0,
           reason: 'handoff_artifact_found',
           checkpoint: 'pass12_handoff_v1',
+          targetPhase: 'phase_3',
         });
         continue;
       }
 
-      // Two-artifact gate for phase_1a frozen jobs:
-      //   ledger + preflight both present → rescue to phase_2
-      //   ledger present, preflight missing + >400s elapsed → rescue to phase_2 (preflight degraded)
-      //   neither present → do NOT rescue yet (P1A+P3A still running)
+      // Frozen-job rescue gate for phase_1 / phase_1a.
+      // NOTE: split-brain (pass12_handoff_v1 present while phase=phase_1/_1a) is
+      // handled higher up by GUARD D, which intercepts the handoff case before
+      // we get here and rescues straight to phase_3.
+      //   Condition 1: ledger + preflight both present → rescue to phase_2
+      //   Condition 2: ledger present, preflight missing + >400s elapsed → rescue
+      //                to phase_2 (preflight degraded)
+      //   Condition 3: neither artifact present AND no handoff → keep waiting,
+      //                BUT if >600s elapsed, mark failed (terminal — no artifacts
+      //                ever written, job can't self-rescue)
       if (currentPhase === 'phase_1a' || currentPhase === 'phase_1') {
         const hasLedger    = ledgerJobIds.has(row.id);
         const hasPreflight = preflightJobIds.has(row.id);
@@ -1674,7 +1695,9 @@ export async function failStaleRunningJobs(): Promise<{
           ? nowMs - new Date(phase1aStartedAt).getTime()
           : 0;
         const PREFLIGHT_TIMEOUT_THRESHOLD_MS = 400_000; // 400s
+        const PHASE1A_HARD_TIMEOUT_MS        = 600_000; // 600s
 
+        // ── Condition 1: both Pass 1A artifacts ready → rescue to phase_2 ──
         if (hasLedger && hasPreflight) {
           rescueEntries.push({
             id: row.id,
@@ -1684,6 +1707,8 @@ export async function failStaleRunningJobs(): Promise<{
           });
           continue;
         }
+
+        // ── Condition 2: ledger ready, preflight timed out → degraded rescue ──
         if (hasLedger && !hasPreflight && elapsedSincePhase1aStartMs > PREFLIGHT_TIMEOUT_THRESHOLD_MS) {
           rescueEntries.push({
             id: row.id,
@@ -1693,6 +1718,17 @@ export async function failStaleRunningJobs(): Promise<{
           });
           continue;
         }
+
+        // ── Condition 3: neither artifact + no handoff. If >600s, terminal. ──
+        if (elapsedSincePhase1aStartMs > PHASE1A_HARD_TIMEOUT_MS) {
+          console.warn(`[watchdog] phase_1a hard timeout: no artifacts after ${Math.round(elapsedSincePhase1aStartMs / 1000)}s — failing job ${row.id}`);
+          terminalFailEntries.push({
+            id: row.id,
+            reason: 'phase_1a timeout: no artifacts written after 600s',
+          });
+          continue;
+        }
+
         // Not enough artifacts yet — let the job keep running
         console.log(`[Watchdog] ${row.id}: phase_1a frozen but artifacts not ready — no rescue (hasLedger=${hasLedger} hasPreflight=${hasPreflight} elapsed=${Math.round(elapsedSincePhase1aStartMs / 1000)}s)`);
         continue;
@@ -1733,12 +1769,14 @@ export async function failStaleRunningJobs(): Promise<{
             watchdog_rescue_count:      ((currentProgress.watchdog_rescue_count as number | null) ?? 0) + 1,
           };
 
-          // Determine rescue target phase based on current phase:
-          //   phase_1  frozen with handoff artifact → rescue to phase_1a
-          //   phase_1a frozen → rescue to phase_2 (Pass 3 will re-run Pass 1A if ledger missing)
-          //   phase_2+ frozen → rescue to phase_2 (safe retry)
+          // Determine rescue target phase:
+          //   - entry.targetPhase set explicitly (split-brain → phase_3) → honor it
+          //   - phase_1  frozen with handoff artifact → rescue to phase_1a
+          //   - phase_1a frozen → rescue to phase_2 (Pass 3 will re-run Pass 1A if ledger missing)
+          //   - phase_2+ frozen → rescue to phase_2 (safe retry)
           const currentPhaseForRescue = (currentProgress.phase as string | undefined) ?? 'phase_1';
-          const rescueTargetPhase = currentPhaseForRescue === 'phase_1' ? 'phase_1a' : 'phase_2';
+          const rescueTargetPhase = entry.targetPhase
+            ?? (currentPhaseForRescue === 'phase_1' ? 'phase_1a' : 'phase_2');
 
           const { data: updateResult, error: updateErr } = await supabase
             .from('evaluation_jobs')

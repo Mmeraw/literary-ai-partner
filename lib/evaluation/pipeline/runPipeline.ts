@@ -104,8 +104,6 @@ import { buildPass2aStructuredContext } from "./buildPass2aStructuredContext";
 import { runPass1a } from "./runPass1a";
 import type { RunPass1aResult } from "./runPass1a";
 import { reduceCharacterEvidence, buildCharacterLedgerV2 } from "./characterReducer";
-import { runPass3ReadAhead } from "./runPass3ReadAhead";
-import type { Pass3ReadAheadResult } from "./runPass3ReadAhead";
 import type { Pass1aCharacterLedger, CharacterLedgerV2 } from "./types";
 import {
   normalizeSummaryWithBottomWeaknesses,
@@ -1135,20 +1133,6 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
   // Pass 1A independence: receives ONLY manuscript text — never sees P1/P2 output.
   let pass1aSettled: PromiseSettledResult<RunPass1aResult>;
 
-  // ── Pass 3 Read-Ahead: Full manuscript read BEFORE scoring packets arrive ──
-  // @deprecated — superseded by Pass 3A (independent preflight reader).
-  // DOCTRINE (LOCKED): Pass 3B = P1 + P2 + compact Pass 3A summary ONLY.
-  // The result is no longer injected into the live Pass 3B prompt path; the
-  // computation is retained for telemetry/non-prompt uses pending removal.
-  const readAheadPromise: Promise<Pass3ReadAheadResult> = runPass3ReadAhead({
-    manuscriptText: opts.manuscriptText,
-    manuscriptChunks: opts.manuscriptChunks,
-    workType: opts.workType,
-    title: opts.title,
-    openaiApiKey: opts.openaiApiKey,
-    jobId: opts.jobId,
-  });
-
   // ── Perplexity chunk sweep (dual-model parallel scoring) ─────────────
   const pplxChunkSweepPromise = runPerplexityChunkScorer({
     manuscriptText: opts.manuscriptText,
@@ -1541,16 +1525,6 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
     v2_available: !!characterLedgerV2,
   });
 
-  // ── Resolve read-ahead (non-blocking — returns fallback if timed out) ──
-  const readAheadResult = await readAheadPromise;
-  if (!readAheadResult.is_fallback) {
-    console.log("[Pipeline][Pass3ReadAhead] Primer ready", {
-      manuscript_id: opts.manuscriptId ?? null,
-      characters_found: readAheadResult.character_first_impressions.length,
-      coverage_concerns: readAheadResult.coverage_concerns.length,
-    });
-  }
-
   // Resolve the parallel Perplexity chunk sweep before kicking off Pass 3.
   // The Pass 3 collator can run in either single-model (GPT-only) or
   // dual-model mode depending on whether the Perplexity packet is available.
@@ -1593,10 +1567,6 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
         pass2aStructuredContext,
         characterLedger: characterLedger,
         characterLedgerV2: characterLedgerV2,
-        // @deprecated — Pass 3A is the independent reader; readAheadResult is no
-        // longer injected into the live Pass 3B prompt path. Kept here only so
-        // the deprecated RunPass3Options field remains structurally satisfied.
-        readAheadResult: readAheadResult,
         // Pass 3A preflight draft compact summary — undefined = PREFLIGHT UNAVAILABLE fallback
         compactPreflightSummary,
         manuscriptText: opts.manuscriptText,
