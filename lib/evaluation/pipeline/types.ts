@@ -798,3 +798,182 @@ export interface AdvisoryPlanItem {
   advisoryLane: AdvisoryLane;
   requiredRevisionScope: "line" | "beat" | "scene" | "chapter" | "manuscript";
 }
+
+// ════════════════════════════════════════════════════════════════════
+// Pass 1A — Character Evidence Types
+// Added: feat(pipeline)/pass1a-character-sweep
+// ════════════════════════════════════════════════════════════════════
+
+export type Pass1aAgeSignal =
+  | "infant" | "toddler" | "child" | "preteen" | "teen"
+  | "young_adult" | "adult" | "middle_aged" | "elderly"
+  | null;
+
+export type Pass1aGenderIdentity =
+  | "man" | "woman" | "boy" | "girl"
+  | "nonbinary" | "trans_man" | "trans_woman" | "genderfluid"
+  | "unknown";
+
+export type Pass1aRoleSignal =
+  | "protagonist" | "co_protagonist" | "antagonist" | "secondary"
+  | "mentor" | "foil" | "animal_companion" | "symbolic_force"
+  | "collective_force" | "unknown";
+
+export type Pass1aNarrativeWeightSignal =
+  | "primary" | "major" | "supporting" | "recurring" | "minor" | "unknown";
+
+export type Pass1aEvidenceType =
+  | "appearance" | "choice" | "relationship" | "symbol"
+  | "arc_shift" | "identity" | "ending_payoff";
+
+export interface Pass1aCharacterChunkEntry {
+  canonical_name: string;
+  aliases: string[];
+  pronouns: string[];
+  age_signal: Pass1aAgeSignal;
+  age_exact: number | null;
+  life_stage_evidence: string | null;
+  gender_identity: Pass1aGenderIdentity;
+  lgbtq_signals: string[];
+  racial_ethnic_signals: string[];
+  skin_tone_signals: string[];
+  language_signals: string[];
+  religion_signals: string[];
+  socioeconomic_signals: string[];
+  nationality_signals: string[];
+  disability_neuro_signals: string[];
+  role_signal: Pass1aRoleSignal;
+  narrative_weight_signal: Pass1aNarrativeWeightSignal;
+  is_named: boolean;
+  who_is_this: string;
+  what_do_they_want: string | null;
+  where_are_they: string | null;
+  when_signal: string | null;
+  why_signal: string | null;
+  how_signal: string | null;
+  arc_state_in_chunk: string;
+  arc_pressure: string | null;
+  arc_shift: string | null;
+  is_ending_chunk: boolean;
+  symbolic_objects: Array<{ object: string; function: string }>;
+  relationship_signals: Array<{
+    other_character: string;
+    relationship_type: string;
+    dynamic: string;
+  }>;
+  evidence_anchors: Array<{
+    excerpt: string;
+    evidence_type: Pass1aEvidenceType;
+  }>;
+}
+
+export interface Pass1aChunkOutput {
+  pass: "1a";
+  axis: "character_evidence_sweep";
+  chunk_index: number;
+  characters: Pass1aCharacterChunkEntry[];
+  prompt_version: string;
+  generated_at: string;
+}
+
+export type CharacterArcEndingStatus =
+  | "resolved" | "transformed" | "tragically_confirmed"
+  | "intentionally_unresolved" | "underpaid"
+  | "accidentally_abandoned" | "missing_from_ending";
+
+export type CharacterReportAcknowledgementStatus =
+  | "adequately_accounted_for"
+  | "underweighted_in_report"
+  | "omitted_from_report";
+
+export interface CharacterArcLedgerEntry {
+  canonical_name: string;
+  aliases: string[];
+  pronouns: string[];
+  age_exact_first: number | null;
+  age_exact_last: number | null;
+  age_signal: Pass1aAgeSignal;
+  gender_identity: Pass1aGenderIdentity;
+  lgbtq_signals: string[];
+  racial_ethnic_signals: string[];
+  skin_tone_signals: string[];
+  language_signals: string[];
+  religion_signals: string[];
+  socioeconomic_signals: string[];
+  nationality_signals: string[];
+  disability_neuro_signals: string[];
+  role: Pass1aRoleSignal;
+  narrative_weight_band: Pass1aNarrativeWeightSignal;
+  is_named: boolean;
+  who_is_this: string;
+  what_do_they_want: string | null;
+  primary_locations: string[];
+  why_signal: string | null;
+  how_signal: string | null;
+  arc_start: string;
+  arc_pressure: string;
+  arc_turning_points: string[];
+  arc_end_state: string;
+  ending_status: CharacterArcEndingStatus;
+  symbolic_objects: Array<{
+    object: string;
+    first_chunk: number;
+    last_chunk: number;
+    function: string;
+    traced: boolean;
+  }>;
+  relational_engines: Array<{
+    other_character: string;
+    relationship_type: string;
+    dynamic: string;
+    chunk_span: [number, number];
+  }>;
+  evidence_anchors: Array<{
+    chunk_index: number;
+    excerpt: string;
+    evidence_type: Pass1aEvidenceType;
+  }>;
+  report_acknowledgement_status: CharacterReportAcknowledgementStatus;
+  warnings: Array<{
+    type:
+      | "pronoun_inconsistency" | "gender_conflict" | "role_underweighted"
+      | "major_character_missing_from_report" | "arc_abandoned"
+      | "ending_underpaid" | "alias_confusion" | "relational_engine_underweighted";
+    message: string;
+  }>;
+  first_chunk_index: number;
+  last_chunk_index: number;
+  mention_count: number;
+}
+
+export interface SymbolPayoffEntry {
+  object: string;
+  attached_characters: string[];
+  first_chunk: number;
+  last_chunk: number;
+  first_function: string;
+  later_payoff: string | null;
+  status: "resolved" | "active" | "dropped" | "intentionally_unresolved";
+  traced: boolean;
+}
+
+export interface Pass1aCharacterLedger {
+  schema_version: "pass1a_character_ledger_v1";
+  prompt_version: string;
+  job_id: string;
+  generated_at: string;
+  total_chunks_processed: number;
+  entries: CharacterArcLedgerEntry[];
+  coverage_summary: {
+    protagonists: string[];
+    co_protagonists: string[];
+    antagonists: string[];
+    major_secondary_characters: string[];
+    animal_companions: string[];
+    relational_engines: string[];
+    symbol_payoff_items: SymbolPayoffEntry[];
+    missing_or_underweighted: string[];
+    ending_accountability_warnings: string[];
+    hard_fail_triggers: string[];
+  };
+}
