@@ -9,7 +9,7 @@
 
 export type ProviderMetaVersion = '2c1.v1';
 export type ProviderType = 'openai' | 'anthropic' | 'simulated';
-export type PhaseType = 'phase_1' | 'phase_2' | 'phase_3';
+export type PhaseType = 'phase_1a' | 'phase_2' | 'phase_3';
 
 /**
  * Request configuration (no secrets, just telemetry + config)
