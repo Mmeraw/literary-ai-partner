@@ -24,6 +24,16 @@ wave-applied: true
 | *Cartel Babies* | [`cartel-babies-dream.md`](./cartel-babies-dream.md) | [`cartel-babies-dream-v2-governed-ledger-addendum.md`](./cartel-babies-dream-v2-governed-ledger-addendum.md) | `multi_layer_long_form` | Required gold | Original body remains preserved; V2 addendum supersedes unqualified integrity/coverage findings where DREAM v2 requires more precise classification. |
 | *Let the River Decide* | [`let-the-river-decide-dream.md`](./let-the-river-decide-dream.md) | [`let-the-river-decide-dream-v2-governed-ledger-addendum.md`](./let-the-river-decide-dream-v2-governed-ledger-addendum.md) | `multi_layer_long_form` | Calibration | Calibration-tier governed-ledger example for eco-thriller / memoir-witness / cultural-protocol / research-heavy ambiguity behavior. |
 
+## Public-domain calibration standards
+
+Public-domain calibration files are teaching benchmarks only. They are useful for evaluator calibration, corpus testing, and public literary architecture references, but they are not RevisionGrade-native runtime authority.
+
+| Benchmark | Author | File | Route | Tier | Runtime authority | Governed ledgers |
+|---|---|---|---|---|---|---|
+| *Dracula* | Bram Stoker | [`public-domain/dracula-dream-calibration.md`](./public-domain/dracula-dream-calibration.md) | `LONG_FORM` | public-domain-calibration | `false` | Yes |
+
+*Dracula* teaches form-as-plot detection, multi-voice evidence assembly, Mina as structural organizer, Gothic sensory governance, symbolic contagion systems, and the distinction between productive procedural realism and momentum drag. Required detection: epistolary architecture, evidence distribution across acts, character structural weight versus action weight, symbolic lifecycle tracing, and middle pacing drag as a named weakness.
+
 ## V2 governance rule
 
 The preserved benchmark body and its V2 addendum must be read together:
@@ -33,6 +43,8 @@ preserved manual benchmark body + V2 governed-ledger addendum = current DREAM be
 ```
 
 Do not rewrite the original benchmark bodies merely to conform to V2. The addenda are the normalization layer. They preserve historical/manual editorial judgment while making the benchmark comply with the current DREAM governed-ledger template.
+
+Public-domain calibration follows the same governed-ledger shape but must remain `runtime-authority: false` unless explicitly promoted through a later governance decision.
 
 ## Required DREAM governed ledgers
 
