@@ -8,9 +8,8 @@
 
 import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
 import type { SubmissionScopeProfile } from "../submissionScope";
-import type { Pass2aStructuredContext, SinglePassOutput, Pass1aCharacterLedger, CharacterArcLedgerEntry, SymbolPayoffEntry, CharacterLedgerV2, CharacterStateSnapshot, TerminalLedgerEntry } from "../types";
+import type { Pass2aStructuredContext, SinglePassOutput } from "../types";
 import type { Pass3ReadAheadResult } from "../runPass3ReadAhead";
-import { formatActiveBlockersForPrompt } from "../ledgerValidation";
 import {
   buildCoverageDisclosure,
   buildPromptInputWindow,
@@ -191,199 +190,15 @@ function buildPerplexityPacketSummary(packet: SinglePassOutput): string {
 
 
 // ── Character Arc Ledger block builder ────────────────────────────────────
+//
+// DOCTRINE (LOCKED): The Pass 3B prompt MUST NOT receive the raw character ledger.
+// The compact preflight summary already carries character blocker signals via
+// arbitrationQuestionsForPass3B in the preflight draft. When the ledger is
+// unavailable upstream, callers pass a `ledgerWarning` string that is injected
+// in place of the legacy block. The previous buildCharacterLedgerBlock helper
+// (with v1/v2 ledger row formatting, state timelines, terminal ledger, blocker
+// blocks, and act-zone coverage maps) has been removed from this module.
 
-function buildCharacterLedgerBlock(ledger: Pass1aCharacterLedger, ledgerV2?: CharacterLedgerV2): string {
-  // ledger is always present — assertCharacterLedger() guarantees this upstream.
-  // We keep a defensive check only for the empty-entries case (pipeline data error).
-  if (ledger.entries.length === 0) {
-    return "\n\n## PASS 1A — CHARACTER ARC LEDGER\n⛔ LEDGER_EMPTY: Pass 1A produced zero character entries. Evaluation cannot proceed without character grounding.";
-  }
-  const summary = ledger.coverage_summary;
-  const rows = ledger.entries.map((e: CharacterArcLedgerEntry) => {
-    const agePart = e.age_exact_first !== null
-      ? ` | age ${e.age_exact_first}${e.age_exact_last !== null ? `→${e.age_exact_last}` : ""}`
-      : e.age_signal ? ` | ${e.age_signal}` : "";
-    const aliasPart = e.aliases.length > 0 ? ` (aka ${e.aliases.join(" / ")})` : "";
-    const identityPart = [
-      ...e.racial_ethnic_signals.slice(0, 2),
-      ...e.lgbtq_signals.slice(0, 2),
-      ...e.disability_neuro_signals.slice(0, 1),
-    ].filter(Boolean).join(", ");
-    const symbolPart = e.symbolic_objects.length > 0
-      ? ` | symbols: ${e.symbolic_objects.map((s) => `${s.object}${s.traced ? " ✓traced" : ""}`).join(", ")}`
-      : "";
-    const relPart = e.relational_engines.length > 0
-      ? ` | rels: ${e.relational_engines.map((r) => `${r.other_character}(${r.relationship_type})`).join(", ")}`
-      : "";
-    const warnPart = e.warnings.length > 0
-      ? ` ⚠ ${e.warnings.map((w) => w.type).join(", ")}`
-      : "";
-    // nameStates for grounding gate 3
-    const nameStatePart = (e.nameStates ?? []).length > 0
-      ? `\n  nameStates: ${e.nameStates.map((ns) =>
-          `${ns.name}(chunks ${ns.validFromChunk}→${ns.validUntilChunk ?? "end"})`
-        ).join(" | ")}`
-      : "";
-    // copingMechanisms for grounding gate 4
-    const copingPart = (e.copingMechanisms ?? []).length > 0
-      ? `\n  coping[${e.copingMechanisms.length}]: ${e.copingMechanisms.map((c) =>
-          `"${c.description}"(${c.frequency},ch${c.firstAppearsChunk})`
-        ).slice(0, 5).join(", ")}`
-      : "";
-    // coPresenceMap for grounding gate 2
-    const coPresencePart = Object.keys(e.coPresenceMap ?? {}).length > 0
-      ? `\n  firstMeets: ${Object.entries(e.coPresenceMap).map(([other, v]) =>
-          `${other}@chunk${v.firstSharedChunk}`
-        ).join(", ")}`
-      : "";
-    return [
-      `• ${e.canonical_name}${aliasPart}`,
-      `  role=${e.role} weight=${e.narrative_weight_band}${agePart} gender=${e.gender_identity}`,
-      identityPart ? `  identity: ${identityPart}` : null,
-      `  who: ${e.who_is_this}`,
-      e.how_signal ? `  behavior: ${e.how_signal}` : null,
-      `  arc: ${e.arc_start} → ${e.arc_turning_points.slice(0, 2).join(" → ")} → ${e.arc_end_state}`,
-      `  ending: ${e.ending_status}${symbolPart}${relPart}${warnPart}`,
-      nameStatePart || null,
-      copingPart || null,
-      coPresencePart || null,
-    ].filter(Boolean).join("\n");
-  }).join("\n\n");
-
-  const hardFails = summary.hard_fail_triggers.length > 0
-    ? `\n\n⛔ HARD-FAIL TRIGGERS:\n${summary.hard_fail_triggers.map((t) => `  ${t}`).join("\n")}`
-    : "";
-  const symbolTable = summary.symbol_payoff_items.length > 0
-    ? `\n\nSYMBOL PAYOFF TABLE:\n${(summary.symbol_payoff_items as SymbolPayoffEntry[]).map((s) =>
-        `  ${s.object} | chars: ${s.attached_characters.join(", ")} | chunks ${s.first_chunk}→${s.last_chunk} | ${s.status}${s.traced ? " ✓traced" : " ✗not-traced"}`
-      ).join("\n")}`
-    : "";
-  const relEngines = summary.relational_engines.length > 0
-    ? `\nRELATIONAL ENGINES: ${summary.relational_engines.join(" | ")}`
-    : "";
-
-  // Tier 1: inject state timeline (location per character per act zone)
-  // Gives Pass 3 a deterministic map of where each character IS at each act zone —
-  // prevents "Raúl at the overpass" class errors at the prompt grounding level.
-  const stateTimelineBlock = ledgerV2 && ledgerV2.stateTimelines.length > 0
-    ? (() => {
-        // Group by characterId
-        const byChar = new Map<string, CharacterStateSnapshot[]>();
-        for (const snap of ledgerV2.stateTimelines) {
-          if (!byChar.has(snap.characterId)) byChar.set(snap.characterId, []);
-          byChar.get(snap.characterId)!.push(snap);
-        }
-        const lines: string[] = [];
-        for (const [charId, snaps] of byChar) {
-          const displayName = ledger.entries.find(
-            (e) => e.canonical_name.toLowerCase().replace(/\s+/g, "_") === charId
-          )?.canonical_name ?? charId;
-          // One line per snapshot
-          const snapLines = snaps.map((s) => {
-            const loc = s.location ? `loc:${s.location}` : "";
-            const legal = s.legalStatus ? `status:${s.legalStatus}` : "";
-            const psych = s.psychologicalState ? `state:${s.psychologicalState.slice(0, 60)}` : "";
-            const parts = [s.chapterRange, loc, legal, psych].filter(Boolean).join(" | ");
-            return `    ${parts}`;
-          });
-          lines.push(`  ${displayName}:\n${snapLines.join("\n")}`);
-        }
-        return `\n\nCHARACTER STATE TIMELINE (location/status per act zone — REQUIRED for placement validation):\n${lines.join("\n")}\n→ RULE: Never place a character at a location not confirmed in their state timeline above.`;
-      })()
-    : "";
-
-  // Tier 1: inject terminal ledger (deaths, departures, open arcs)
-  // Gives Pass 3 the definitive list of characters who leave the story,
-  // their last known state, and what narrative closure they received.
-  const terminalBlock = ledgerV2 && ledgerV2.terminalLedger.length > 0
-    ? (() => {
-        const lines = (ledgerV2.terminalLedger as TerminalLedgerEntry[]).map((t) => {
-          const displayName = ledger.entries.find(
-            (e) => e.canonical_name.toLowerCase().replace(/\s+/g, "_") === t.characterId
-          )?.canonical_name ?? t.characterId;
-          const unkept = t.promisesUnkept.length > 0 ? ` | unkept:${t.promisesUnkept.slice(0, 2).join(", ")}` : "";
-          const objects = t.objectsPresentAtExit.length > 0 ? ` | objects:${t.objectsPresentAtExit.join(", ")}` : "";
-          return `  ${displayName}: ${t.terminalCondition} @ ${t.terminalChapter ?? "unknown"} | closure:${t.narrativeClosureStatus}${unkept}${objects}`;
-        });
-        return `\n\nTERMINAL LEDGER (characters who exit the story):\n${lines.join("\n")}\n→ RULE: Narrative closure recommendations must account for these terminal states. Characters marked "underpaid" are explicit closure debt.`;
-      })()
-    : "";
-
-  // Tier 1: inject CharacterLedgerV2 active blockers if available
-  const v2BlockerBlock = ledgerV2
-    ? `\n\n${formatActiveBlockersForPrompt(ledgerV2)}`
-    : "";
-
-  // Tier 1: inject validation query summary (coverage + negative knowledge count)
-  const v2ValidationSummary = ledgerV2
-    ? `\nLEDGER V2 VALIDATION QUERIES ACTIVE: ${Object.keys(ledgerV2.validationQueries.coPresenceIndex).length} co-presence pairs indexed | ${Object.keys(ledgerV2.validationQueries.nameStateIndex).length} name-state entries | ${Object.keys(ledgerV2.validationQueries.copingIndex).length} coping index entries | ${ledgerV2.activeBlockers.length} active blockers (${ledgerV2.activeBlockers.filter((b) => b.severity === "suppress").length} suppress, ${ledgerV2.activeBlockers.filter((b) => b.severity === "downgrade").length} downgrade, ${ledgerV2.activeBlockers.filter((b) => b.severity === "warn").length} warn)`
-    : "";
-
-  // Tier 1 / v2: inject act-zone evidence coverage map from V2 ledger.
-  // Aggregates characterCoverage across all characters to produce the DEFINITIVE zone map —
-  // grounded in actual evidence from Pass 1A chunk sweep, not position arithmetic.
-  // Pass 3 uses this to enforce Gate 5 (multi-zone evidence rule).
-  const actZoneCoverageBlock = ledgerV2 && ledgerV2.characterCoverage && Object.keys(ledgerV2.characterCoverage).length > 0
-    ? (() => {
-        // Aggregate actZones across all characters
-        const coveredSet = new Set<string>();
-        const missingSet = new Set<string>();
-        const zoneConfMap: Record<string, string[]> = {};
-        let totalChunksMax = 0;
-        let confirmedSum = 0;
-        let charCount = 0;
-        for (const cov of Object.values(ledgerV2.characterCoverage)) {
-          charCount++;
-          confirmedSum += cov.chunksConfirmed ?? 0;
-          if (cov.totalChunks && cov.totalChunks > totalChunksMax) totalChunksMax = cov.totalChunks;
-          for (const z of cov.actZonesCovered ?? []) coveredSet.add(z);
-          for (const z of cov.actZonesMissing ?? []) { if (!coveredSet.has(z)) missingSet.add(z); }
-          for (const [zone, conf] of Object.entries(cov.confidenceByZone ?? {})) {
-            if (!zoneConfMap[zone]) zoneConfMap[zone] = [];
-            zoneConfMap[zone].push(String(conf));
-          }
-        }
-        // Zones confirmed by ANY character count as covered; only add to missing if never covered
-        for (const z of coveredSet) missingSet.delete(z);
-        const covered = Array.from(coveredSet).join(", ") || "none confirmed";
-        const missing = Array.from(missingSet).join(", ") || "none";
-        // Summarize: for each zone take the best confidence seen across characters
-        const CONF_RANK: Record<string, number> = { STRONG: 4, SUFFICIENT: 3, WEAK: 2, NONE: 1, none: 1 };
-        const zoneLines = Object.entries(zoneConfMap).map(([zone, confs]) => {
-          const best = confs.reduce((a, b) => (CONF_RANK[a] ?? 0) >= (CONF_RANK[b] ?? 0) ? a : b, "none");
-          return `    ${zone}: ${best}`;
-        }).join("\n");
-        const avgConfirmed = charCount > 0 ? Math.round(confirmedSum / charCount) : 0;
-        return `\n\nACT-ZONE EVIDENCE MAP (aggregated from Pass 1A — authoritative for Gate 5):\n` +
-          `  Zones with confirmed evidence: ${covered}\n` +
-          `  Zones with NO confirmed evidence: ${missing}\n` +
-          `  Avg confirmed chunks per character: ${avgConfirmed} / ${totalChunksMax} total\n` +
-          (zoneLines ? `  Best confidence by zone:\n${zoneLines}\n` : "") +
-          `→ Gate 5 rule: every recommendation must cite evidence from ≥2 confirmed zones above.\n` +
-          `  If a zone is listed as missing, no recommendation may anchor exclusively to it.`;
-      })()
-    : "";
-
-  return `\n\n## PASS 1A — CHARACTER ARC LEDGER (Hard Input)
-Schema: ${ledger.schema_version} | Chunks: ${ledger.total_chunks_processed}
-Protagonists: ${summary.protagonists.join(", ") || "NONE ⚠"}
-Co-protagonists: ${summary.co_protagonists.join(", ") || "none"}
-Antagonists: ${summary.antagonists.join(", ") || "none"}
-${relEngines}
-
-CHARACTER ENTRIES:
-${rows}${symbolTable}${hardFails}
-
-LEDGER RULES (REQUIRED):
-- Every character above MUST appear in the report by canonical name.
-- ✓traced symbols must show their full arc in the report (first function → payoff).
-- Children (age_exact / life_stage=child) must be identified as such — do not treat them as generic victims.
-- Characters with disability_neuro_signals (OCD, PTSD, rituals) must have those patterns named.
-- Hard-fail triggers above MUST be addressed before claiming narrative closure.
-- GROUNDING GATE 2: Before placing two characters in a scene together in a recommendation, verify coPresenceMap confirms firstSharedChunk ≤ target chunk.
-- GROUNDING GATE 3: Before using any character name, verify nameStates confirms that name is valid for the target chunk range.
-- GROUNDING GATE 4: Before recommending "seed" a coping mechanism, verify copingMechanisms is empty for that character. If coping mechanisms exist, use "foreground" or "surface earlier" instead.${stateTimelineBlock}${terminalBlock}${actZoneCoverageBlock}${v2BlockerBlock}${v2ValidationSummary}`;
-}
 
 // ── Read-ahead primer block builder (v2-analytical) ─────────────────────────
 //
@@ -547,18 +362,19 @@ export function buildPass3UserPrompt(params: {
    */
   dualModelMode?: boolean;
   /**
-   * Pass 1A character arc ledger — REQUIRED. Every novel has at least one character.
-   * Pass 3 cannot produce a grounded evaluation without it.
-   * assertCharacterLedger() in runPass3Synthesis enforces this before we reach here.
+   * DOCTRINE (LOCKED): Pass 3B inputs = P1 + P2 + compact Pass 3A summary ONLY.
+   * The raw character ledger is NEVER injected. When the ledger is unavailable
+   * upstream, callers pass a `ledgerWarning` string so Pass 3B is told to
+   * suppress high-specificity character claims.
    */
-  characterLedger: Pass1aCharacterLedger;
+  ledgerWarning?: string | null;
   /**
-   * Tier 1 CharacterLedgerV2 — full six-ledger envelope with active blockers and
-   * validation query indices.  When present, overrides the v1 ledger for blocker
-   * injection and supplies deterministic suppression labels to the system prompt.
-   * Optional — Pass 3 degrades gracefully to v1 ledger rules when absent.
+   * DEPRECATED — accepted for backwards-compat with older callers/tests but
+   * ignored under Pass 3B doctrine. Raw ledgers are never injected into the prompt.
    */
-  characterLedgerV2?: CharacterLedgerV2;
+  characterLedger?: unknown;
+  /** DEPRECATED — see characterLedger note. Ignored. */
+  characterLedgerV2?: unknown;
   /**
    * Pass 3 read-ahead result — manuscript impression formed BEFORE scoring arrived.
    * Optional — Pass 3 degrades gracefully without it.
@@ -655,7 +471,7 @@ Coverage truth signal:
 - Reference snippet (context anchor only): ${referenceSnippet}
 ${params.scopeProfile ? `- Submission scope: ${params.scopeProfile.inputScale} (${params.scopeProfile.wordCount} words; ${params.scopeProfile.chunkCount} chunk(s); ${params.scopeProfile.scorableCount}/13 criteria non-NA for this scope; confidence cap ${params.scopeProfile.confidenceCapSummary})` : ""}
 
-${buildCharacterLedgerBlock(params.characterLedger, params.characterLedgerV2)}${buildReadAheadPrimerBlock(params.readAheadResult)}
+${params.ledgerWarning ? `\n\n## CHARACTER LEDGER STATUS\n${params.ledgerWarning}\n` : ""}${buildReadAheadPrimerBlock(params.readAheadResult)}
 ${buildPreflightDraftBlock(params.compactPreflightSummary)}
 ## PASS2A_STRUCTURED_CONTEXT (Hard Input)
 ${structuredContextJson}${entityRosterBlock}

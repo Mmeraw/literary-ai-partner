@@ -45,8 +45,6 @@ import { parseJsonObjectBoundary } from "@/lib/llm/jsonParseBoundary";
 // ─── Constants ─────────────────────────────────────────────────────────────────
 
 export const PASS3A_DEFAULT_CHUNK_CONCURRENCY = 2;
-/** Max chars per chunk sent to the chunk-reader LLM */
-const PASS3A_CHUNK_TEXT_CAP = 2500;
 /** Max chars per zone summary sent to the reducer */
 const PASS3A_ZONE_SUMMARY_CAP = 3000;
 const PASS3A_DEFAULT_MODEL = "gpt-4o";
@@ -83,6 +81,49 @@ function nowMs(): number {
 function capText(text: string, maxChars: number): string {
   if (text.length <= maxChars) return text;
   return text.slice(0, maxChars) + " [truncated]";
+}
+
+// Tolerant act-zone normalizer — handles common model casing errors so a
+// "late" emit still routes to the canonical "Late" Pass3AActZone value.
+function normalizeActZone(z: unknown): Pass3AActZone {
+  if (typeof z !== "string") return "Opening";
+  const map: Record<string, Pass3AActZone> = {
+    "opening": "Opening",
+    "early-middle": "Early-Middle",
+    "mid-act": "Mid-Act",
+    "late-middle": "Late-Middle",
+    "late": "Late",
+    "close": "Close",
+  };
+  return map[z.toLowerCase()] ?? (z as Pass3AActZone);
+}
+
+// Tolerant normalizer: accept either the old (`criteriaSignals`, `signalType`,
+// `observation`) or new (`criterionSignals`, `signal`, `provisionalNote`)
+// field shape from the model and normalize to the canonical
+// Pass3AChunkObservation contract before aggregation.
+function normalizeChunkObservation(raw: unknown): Pass3AChunkObservation {
+  const r = (raw ?? {}) as Record<string, unknown>;
+  const rawSignals = (r.criterionSignals ?? r.criteriaSignals ?? []) as Array<Record<string, unknown>>;
+  const allowedSignals = new Set(["strength", "weakness", "mixed", "no_signal"]);
+  const criterionSignals = rawSignals.map((sig) => {
+    const rawSignal = String(sig.signal ?? sig.signalType ?? "no_signal");
+    const normalizedSignal = rawSignal === "ambiguous" ? "mixed" : rawSignal;
+    return {
+      criterion: sig.criterion as CriterionKey,
+      signal: (allowedSignals.has(normalizedSignal) ? normalizedSignal : "no_signal") as
+        | "strength"
+        | "weakness"
+        | "mixed"
+        | "no_signal",
+      evidenceQuotes: Array.isArray(sig.evidenceQuotes) ? (sig.evidenceQuotes as string[]) : [],
+      provisionalNote: String(sig.provisionalNote ?? sig.observation ?? ""),
+    };
+  });
+  return {
+    ...r,
+    criterionSignals,
+  } as Pass3AChunkObservation;
 }
 
 // ─── Zone aggregation (TypeScript, no LLM) ──────────────────────────────────
@@ -364,7 +405,7 @@ export async function runPass3Preflight(
       const { chunk, i } = chunkItems[idx];
 
       const actZone = classifyChunkToZone(i, totalChunks);
-      const chunkText = capText(chunk.content ?? "", PASS3A_CHUNK_TEXT_CAP);
+      const chunkText = chunk.content ?? "";
       const wordCount = (chunk.content ?? "").trim().split(/\s+/).length;
 
       try {
@@ -388,11 +429,11 @@ export async function runPass3Preflight(
           timeoutMs,
         });
 
-        const parsed = parseJsonObjectBoundary(raw) as unknown as Pass3AChunkObservation;
-        // Ensure required fields are present
-        if (typeof parsed !== "object" || parsed === null) {
+        const rawParsed = parseJsonObjectBoundary(raw);
+        if (typeof rawParsed !== "object" || rawParsed === null) {
           throw new Error("Parsed observation is null");
         }
+        const parsed = normalizeChunkObservation(rawParsed);
         parsed.chunkIndex = i;
         parsed.actZone = actZone;
         parsed.wordCount = wordCount;
@@ -495,7 +536,14 @@ export async function runPass3Preflight(
   if (reducerOutput?.criterionDrafts && Array.isArray(reducerOutput.criterionDrafts)) {
     // Ensure all 13 criteria are present
     const draftsMap = new Map<string, Pass3ACriterionDraft>();
-    for (const d of reducerOutput.criterionDrafts as Pass3ACriterionDraft[]) {
+    for (const dRaw of reducerOutput.criterionDrafts as Pass3ACriterionDraft[]) {
+      // Normalize actZonesSupporting casing (e.g. "late" → "Late")
+      const d: Pass3ACriterionDraft = {
+        ...dRaw,
+        actZonesSupporting: Array.isArray(dRaw.actZonesSupporting)
+          ? (dRaw.actZonesSupporting as unknown[]).map(normalizeActZone)
+          : [],
+      };
       if (d.criterion) draftsMap.set(d.criterion, d);
     }
     // Fill any missing criteria with null-score placeholders

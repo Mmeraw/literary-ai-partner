@@ -86,7 +86,7 @@ Now produce your holistic Pass 3A Preflight Draft. Return a JSON object with thi
       "findingStatus": "scored" | "insufficient_preflight_evidence" | "closure_requires_late_evidence",
       "rationale": "<1-2 sentence craft rationale — author-facing — max 220 chars>",
       "evidenceQuotes": ["<verbatim quote ≤80 chars>", ...],  // 0-4 quotes
-      "actZonesSupporting": ["Opening" | "Early-Middle" | "Mid-Act" | "Late-Middle" | "late" | "Close"],
+      "actZonesSupporting": ["Opening" | "Early-Middle" | "Mid-Act" | "Late-Middle" | "Late" | "Close"],
       "strengthFindings": ["<max 100 chars each>"],
       "weaknessFindings": ["<max 100 chars each>"]
     }

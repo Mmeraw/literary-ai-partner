@@ -368,13 +368,16 @@ export interface RunPass3Options {
   /** Optional provider timeout override from pipeline-level scoped resolution. */
   openAiTimeoutMs?: number;
   /**
-   * Pass 1A character arc ledger — REQUIRED. Pass 3 cannot run without it.
-   * Every novel has at least one character. Use assertCharacterLedger() before calling.
+   * Pass 1A character arc ledger — OPTIONAL under Pass 3A/3B doctrine.
+   * When unavailable, Pass 3B receives a degraded-context warning and is told to
+   * suppress high-specificity character-location/name/co-presence claims.
+   * NOTE: Under doctrine the raw ledger is NEVER injected into the Pass 3B prompt —
+   * it is reserved for synthesis-internal use only.
    */
-  characterLedger: Pass1aCharacterLedger;
+  characterLedger?: Pass1aCharacterLedger;
   /**
-   * Tier 1 CharacterLedgerV2 — full six-ledger envelope with active blockers.
-   * Optional: Pass 3 uses V1 ledger gates when absent, V2 blocker injection when present.
+   * Tier 1 CharacterLedgerV2 — six-ledger envelope. Optional.
+   * Pass 3B does not receive the raw ledger; this is held for non-prompt uses.
    */
   characterLedgerV2?: CharacterLedgerV2;
   /**
@@ -394,21 +397,19 @@ export interface RunPass3Options {
   compactPreflightSummary?: string;
 }
 
+const LEDGER_UNAVAILABLE_WARNING =
+  "CHARACTER LEDGER UNAVAILABLE — suppress high-specificity character-location/name/co-presence claims unless supported by P1/P2/Pass3A evidence.";
+
 /**
- * Hard assertion: Pass 3 requires a character ledger.
- * Every novel has at least one character. A missing ledger means Pass 1A failed —
- * the pipeline should have hard-stopped at PASS1A_LEDGER_MISSING before reaching Pass 3.
+ * Soft check: Pass 3B doctrine permits a missing/empty character ledger.
+ * Returns a warning string Pass 3B should be told about when the ledger is unusable,
+ * or null when the ledger has at least one entry.
  */
-function assertCharacterLedger(ledger: Pass1aCharacterLedger | undefined): asserts ledger is Pass1aCharacterLedger {
-  if (!ledger) {
-    throw new Error("[Pass3] CHARACTER_LEDGER_MISSING — Pass 1A must produce a character ledger before Pass 3 can run. Every novel has at least one character.");
+function evaluateCharacterLedger(ledger: Pass1aCharacterLedger | undefined): string | null {
+  if (!ledger || !Array.isArray(ledger.entries) || ledger.entries.length === 0) {
+    return LEDGER_UNAVAILABLE_WARNING;
   }
-  if (!Array.isArray(ledger.entries)) {
-    throw new Error("[Pass3] CHARACTER_LEDGER_MALFORMED — ledger.entries is not an array");
-  }
-  if (ledger.entries.length === 0) {
-    throw new Error("[Pass3] CHARACTER_LEDGER_EMPTY — Pass 1A produced zero character entries. This is a pipeline data error, not an optional condition.");
-  }
+  return null;
 }
 
 function assertPass2aStructuredContext(context: Pass2aStructuredContext | undefined): asserts context is Pass2aStructuredContext {
@@ -440,7 +441,10 @@ export async function runPass3Synthesis(opts: RunPass3Options): Promise<Synthesi
   }
 
   assertPass2aStructuredContext(opts.pass2aStructuredContext);
-  assertCharacterLedger(opts.characterLedger);
+  const ledgerWarning = evaluateCharacterLedger(opts.characterLedger);
+  if (ledgerWarning) {
+    console.warn("[Pass3B] Character ledger unavailable — continuing with degraded context");
+  }
 
   const createCompletion = opts._createCompletion ?? defaultCreateCompletion(opts.openaiApiKey, opts.openAiTimeoutMs);
   const selectedModel = getCanonicalPass3Model(opts.model);
@@ -464,8 +468,7 @@ export async function runPass3Synthesis(opts: RunPass3Options): Promise<Synthesi
     scopeProfile: opts.scopeProfile,
     perplexityChunkPacket: opts.perplexityChunkPacket,
     dualModelMode: !!opts.perplexityChunkPacket,
-    characterLedger: opts.characterLedger,
-    characterLedgerV2: opts.characterLedgerV2,
+    ledgerWarning,
     readAheadResult: opts.readAheadResult,
     compactPreflightSummary: opts.compactPreflightSummary,
   });

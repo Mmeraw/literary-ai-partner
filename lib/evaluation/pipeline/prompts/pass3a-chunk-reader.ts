@@ -9,7 +9,7 @@
  *   - Temperature: 0.4 — allow genuine independent judgment
  *   - Output: Pass3AChunkObservation JSON
  *   - Max evidence quotes: 6 per chunk
- *   - Chunk text capped at ~2500 chars by caller before injection
+ *   - Full chunk text (no cap) — caller passes chunk.content directly.
  */
 
 import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
@@ -44,7 +44,7 @@ Return ONLY valid JSON matching Pass3AChunkObservation. No markdown fences, no c
 export function buildPass3AChunkReaderUserPrompt(params: {
   chunkIndex: number;
   totalChunks: number;
-  chunkText: string;       // already capped at ~2500 chars by caller
+  chunkText: string;       // full chunk content — no caller-side truncation
   actZone: Pass3AActZone;
   wordCount: number;
   title: string;
@@ -70,13 +70,13 @@ Observe this chunk independently. Return a JSON object with this exact shape:
   "narrativeEvents": [
     // array of strings — key events, decisions, or structural beats visible in this chunk
   ],
-  "criteriaSignals": [
+  "criterionSignals": [
     // one entry per criterion where you observed SOMETHING (omit criteria with zero signal)
     {
       "criterion": "<one of the 13 criterion keys>",
-      "signalType": "strength" | "weakness" | "ambiguous",
-      "observation": "<what you saw — max 200 chars>",
-      "provisionalNote": "<optional note about confidence or context — max 100 chars>"
+      "signal": "strength" | "weakness" | "mixed" | "no_signal",
+      "evidenceQuotes": ["<verbatim quote ≤80 chars>"],
+      "provisionalNote": "<what you saw — max 200 chars>"
     }
   ],
   "characterObservations": [
