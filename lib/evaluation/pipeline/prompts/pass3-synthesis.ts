@@ -202,11 +202,12 @@ function buildPerplexityPacketSummary(packet: SinglePassOutput): string {
 
 // ── Read-ahead primer block builder (v2-analytical) ─────────────────────────
 //
-// v2: surfaces parked criterion hypotheses, act-zone map, symbol arc predictions,
-// and DIRECT reconciliation instructions that Pass 3 MUST address.
-// Pass 3 is no longer passive about the read-ahead — it must reconcile every
-// WATCH-flagged hypothesis against the inbound scored packet.
+// @deprecated — removed from live Pass 3B; Pass 3A is now the independent reader.
+// DOCTRINE (LOCKED): Pass 3B inputs = P1 + P2 + compact Pass 3A summary ONLY.
+// This helper is retained for legacy reference only; do not call from the live
+// Pass 3B prompt path.
 
+// @deprecated — removed from live Pass 3B; Pass 3A is now the independent reader
 function buildReadAheadPrimerBlock(readAhead?: Pass3ReadAheadResult): string {
   if (!readAhead || readAhead.is_fallback) return "";
 
@@ -376,8 +377,10 @@ export function buildPass3UserPrompt(params: {
   /** DEPRECATED — see characterLedger note. Ignored. */
   characterLedgerV2?: unknown;
   /**
-   * Pass 3 read-ahead result — manuscript impression formed BEFORE scoring arrived.
-   * Optional — Pass 3 degrades gracefully without it.
+   * @deprecated — Pass 3A is now the independent reader. Accepted for
+   * backwards-compat with callers/tests but no longer injected into the
+   * live Pass 3B prompt path. DOCTRINE (LOCKED): Pass 3B = P1 + P2 +
+   * compact Pass 3A summary ONLY.
    */
   readAheadResult?: Pass3ReadAheadResult;
   /**
@@ -471,7 +474,7 @@ Coverage truth signal:
 - Reference snippet (context anchor only): ${referenceSnippet}
 ${params.scopeProfile ? `- Submission scope: ${params.scopeProfile.inputScale} (${params.scopeProfile.wordCount} words; ${params.scopeProfile.chunkCount} chunk(s); ${params.scopeProfile.scorableCount}/13 criteria non-NA for this scope; confidence cap ${params.scopeProfile.confidenceCapSummary})` : ""}
 
-${params.ledgerWarning ? `\n\n## CHARACTER LEDGER STATUS\n${params.ledgerWarning}\n` : ""}${buildReadAheadPrimerBlock(params.readAheadResult)}
+${params.ledgerWarning ? `\n\n## CHARACTER LEDGER STATUS\n${params.ledgerWarning}\n` : ""}
 ${buildPreflightDraftBlock(params.compactPreflightSummary)}
 ## PASS2A_STRUCTURED_CONTEXT (Hard Input)
 ${structuredContextJson}${entityRosterBlock}

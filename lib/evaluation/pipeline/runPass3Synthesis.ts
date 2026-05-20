@@ -381,7 +381,10 @@ export interface RunPass3Options {
    */
   characterLedgerV2?: CharacterLedgerV2;
   /**
-   * Pass 3 read-ahead result — pre-scoring manuscript primer, optional.
+   * @deprecated — Pass 3A is now the independent reader. Accepted for
+   * backwards-compat with callers but no longer injected into the live
+   * Pass 3B prompt path. DOCTRINE (LOCKED): Pass 3B = P1 + P2 + compact
+   * Pass 3A summary ONLY.
    */
   readAheadResult?: Pass3ReadAheadResult;
   /** Override the completion function (for testing). Production callers omit this. */
@@ -469,7 +472,7 @@ export async function runPass3Synthesis(opts: RunPass3Options): Promise<Synthesi
     perplexityChunkPacket: opts.perplexityChunkPacket,
     dualModelMode: !!opts.perplexityChunkPacket,
     ledgerWarning,
-    readAheadResult: opts.readAheadResult,
+    // readAheadResult deliberately NOT forwarded — Pass 3A is now the independent reader.
     compactPreflightSummary: opts.compactPreflightSummary,
   });
   assertPass3PromptTripwires(userPrompt);

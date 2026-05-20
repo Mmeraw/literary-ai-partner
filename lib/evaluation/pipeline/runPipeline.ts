@@ -1136,9 +1136,10 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
   let pass1aSettled: PromiseSettledResult<RunPass1aResult>;
 
   // ── Pass 3 Read-Ahead: Full manuscript read BEFORE scoring packets arrive ──
-  // Starts immediately — reads 4 distributed prose windows while P1/P2 run.
-  // Gives Pass 3 a pre-scoring narrative impression of the full novel.
-  // Failure policy: non-fatal — returns graceful fallback on any error.
+  // @deprecated — superseded by Pass 3A (independent preflight reader).
+  // DOCTRINE (LOCKED): Pass 3B = P1 + P2 + compact Pass 3A summary ONLY.
+  // The result is no longer injected into the live Pass 3B prompt path; the
+  // computation is retained for telemetry/non-prompt uses pending removal.
   const readAheadPromise: Promise<Pass3ReadAheadResult> = runPass3ReadAhead({
     manuscriptText: opts.manuscriptText,
     manuscriptChunks: opts.manuscriptChunks,
@@ -1592,6 +1593,9 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
         pass2aStructuredContext,
         characterLedger: characterLedger,
         characterLedgerV2: characterLedgerV2,
+        // @deprecated — Pass 3A is the independent reader; readAheadResult is no
+        // longer injected into the live Pass 3B prompt path. Kept here only so
+        // the deprecated RunPass3Options field remains structurally satisfied.
         readAheadResult: readAheadResult,
         // Pass 3A preflight draft compact summary — undefined = PREFLIGHT UNAVAILABLE fallback
         compactPreflightSummary,

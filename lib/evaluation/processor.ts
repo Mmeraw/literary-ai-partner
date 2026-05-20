@@ -3335,13 +3335,13 @@ export async function processEvaluationJob(
       try {
         const pass1aChunks = manuscriptChunksForPipeline;
 
-        // ── phase_1: P1A (c=6) + P3A (c=2) run in parallel ───────────────────────
+        // ── phase_1: P1A (c=5) + P3A (c=2) run in parallel ───────────────────────
         // Both read the raw manuscript independently. Neither waits for the other.
         // P3A is non-fatal: a failed preflight → degraded artifact, job continues.
-        console.log(`[Processor] ${jobId}: phase_1a — launching P1A(c=6) + P3A(c=2) in parallel`);
+        console.log(`[Processor] ${jobId}: phase_1a — launching P1A(c=5) + P3A(c=2) in parallel`);
 
         const [pass1aSettled, pass3aSettled] = await Promise.allSettled([
-          // P1A: character arc sweep, concurrency=6
+          // P1A: character arc sweep, concurrency=5
           runPass1a({
             manuscriptText: manuscriptWithContent.content || '',
             manuscriptChunks: pass1aChunks,
