@@ -32,6 +32,13 @@ export default function HeaderNav() {
     pathname.startsWith("/admin") ||
     pathname.startsWith("/reports");
 
+  // Marketing routes: show Landing link so users can return to homepage
+  const isMarketingRoute =
+    pathname === "/" ||
+    pathname.startsWith("/pricing") ||
+    pathname.startsWith("/resources") ||
+    pathname.startsWith("/private-beta");
+
   const isAdmin = isPipelineHealthAdminEmail(email);
   const isAuthed = !!email;
 
@@ -136,6 +143,8 @@ export default function HeaderNav() {
             </>
           ) : (
             <>
+              {/* Marketing nav — Landing is visible so users can always return home */}
+              <NavLink href="/">Landing</NavLink>
               <NavLink href="/evaluate">Evaluate</NavLink>
               <NavLink href="/revise">Revise</NavLink>
               <NavLink href="/resources">Resources</NavLink>
