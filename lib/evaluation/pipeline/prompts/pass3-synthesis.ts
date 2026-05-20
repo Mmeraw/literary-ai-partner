@@ -22,7 +22,7 @@ export const PASS3_PROMPT_VERSION = "pass3-synthesis-v18-tier1-ledger";
 
 export const PASS3_SYSTEM_PROMPT = `You are Pass 3: convergence and arbitration authority.
 Rules:
-- Do NOT re-evaluate.
+- You have already completed an independent full-manuscript read in Pass 3A (see PREFLIGHT DRAFT below). You are now the final editor-in-chief. Reconcile your independent read with Pass 1 and Pass 2. Defend your independent judgment when your evidence is stronger. Revise your judgment when Pass 1 or Pass 2 provides stronger evidence. Never emit a recommendation without: a verbatim evidence quote, a target chapter and scene, and a concrete revision example.
 - Do NOT silently overwrite disagreement.
 - Use the packet as input; do not expect raw pass payloads.
 - Treat PASS2A_STRUCTURED_CONTEXT as hard input; if missing/incomplete/contradicted, fail.
@@ -507,6 +507,26 @@ ${relList}${hypothesisSummary}${watchDetail}${concerns}${reconcile}
 ${"━".repeat(72)}`;
 }
 
+/**
+ * Builds the PREFLIGHT DRAFT block for Pass 3B prompt injection.
+ * When compactPreflightSummary is absent, emits an UNAVAILABLE notice so Pass 3B
+ * knows to rely solely on Pass 1 and Pass 2.
+ */
+function buildPreflightDraftBlock(compactPreflightSummary?: string): string {
+  if (!compactPreflightSummary) {
+    return `\n\n${'━'.repeat(72)}
+## PASS 3A PREFLIGHT DRAFT
+${'━'.repeat(72)}
+PREFLIGHT UNAVAILABLE — Pass 3A did not complete or produce usable output.
+Synthesize from Pass 1 and Pass 2 only. Do not penalize the manuscript for
+absent preflight data — proceed as a two-source arbitration.
+${'━'.repeat(72)}\n`;
+  }
+  return `\n\n${'━'.repeat(72)}
+${compactPreflightSummary}
+${'━'.repeat(72)}\n`;
+}
+
 export function buildPass3UserPrompt(params: {
   comparisonPacketJson: string;
   pass2aStructuredContext: Pass2aStructuredContext;
@@ -544,6 +564,12 @@ export function buildPass3UserPrompt(params: {
    * Optional — Pass 3 degrades gracefully without it.
    */
   readAheadResult?: Pass3ReadAheadResult;
+  /**
+   * Compact Pass 3A preflight summary — built by buildCompactPreflightSummary().
+   * When present, injected as the PREFLIGHT DRAFT block before the comparison packet.
+   * When absent, Pass 3B synthesizes from P1+P2 only (with an UNAVAILABLE note).
+   */
+  compactPreflightSummary?: string;
 }): string {
   const executionMode = params.executionMode ?? "TRUSTED_PATH";
   const synthesisBudget = getDefaultSynthesisReferenceCharBudget();
@@ -630,7 +656,7 @@ Coverage truth signal:
 ${params.scopeProfile ? `- Submission scope: ${params.scopeProfile.inputScale} (${params.scopeProfile.wordCount} words; ${params.scopeProfile.chunkCount} chunk(s); ${params.scopeProfile.scorableCount}/13 criteria non-NA for this scope; confidence cap ${params.scopeProfile.confidenceCapSummary})` : ""}
 
 ${buildCharacterLedgerBlock(params.characterLedger, params.characterLedgerV2)}${buildReadAheadPrimerBlock(params.readAheadResult)}
-
+${buildPreflightDraftBlock(params.compactPreflightSummary)}
 ## PASS2A_STRUCTURED_CONTEXT (Hard Input)
 ${structuredContextJson}${entityRosterBlock}
 

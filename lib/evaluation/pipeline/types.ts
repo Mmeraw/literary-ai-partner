@@ -1426,3 +1426,176 @@ export interface CharacterLedgerV2 {
     hard_fail_triggers: string[];
   };
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Pass 3A Preflight Types
+// pass3_preflight_draft_v1 — internal only, never user-facing
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type Pass3AActZone =
+  | "Opening"
+  | "Early-Middle"
+  | "Mid-Act"
+  | "Late-Middle"
+  | "Late"
+  | "Close";
+
+export type Pass3AConfidence = "high" | "moderate" | "low";
+
+export type Pass3ABlockerType =
+  | "retrieval_failure_suspected"
+  | "location_violation_suspected"
+  | "name_state_violation_suspected"
+  | "opening_overbias_suspected"
+  | "missing_object_system_suspected"
+  | "co_presence_violation_suspected"
+  | "insufficient_coverage";
+
+/** Per-chunk observation output — holistic reader notes, NO criterion scoring */
+export interface Pass3AChunkObservation {
+  chunkIndex: number;
+  actZone: Pass3AActZone;
+  chapterEstimate: string;           // e.g. "approx Ch. 8-12"
+  status: "success" | "failed" | "skipped";
+  error?: string;
+  /** Approximate word count of this chunk (injected by caller, not LLM-emitted) */
+  wordCount?: number;
+  /** Key narrative events, structural beats, decisions visible in this chunk */
+  narrativeEvents?: string[];
+
+  criterionSignals: Array<{
+    criterion: CriterionKey;
+    signal: "strength" | "weakness" | "mixed" | "no_signal";
+    evidenceQuotes: string[];          // verbatim from text, max 6
+    provisionalNote: string;
+  }>;
+
+  characterObservations: Array<{
+    name: string;                      // exact name as found in THIS chunk
+    locationAtObservation: string;
+    copingBehaviorsObserved: string[];
+    nameStateNote?: string;            // "Uses 'Paolito' here"
+  }>;
+
+  objectSymbolObservations: Array<{
+    objectName: string;
+    ownerAtObservation: string;
+    symbolicNote: string;
+  }>;
+
+  promisePayoffSignals: Array<{
+    type: "promise_opened" | "promise_escalated" | "promise_paid" | "promise_unresolved";
+    description: string;
+  }>;
+
+  closureSignals: Array<{
+    signal: string;
+    strength: "strong" | "partial" | "absent";
+  }>;
+
+  arbitrationWarnings: Array<{
+    warning: string;
+    blockerType: Pass3ABlockerType;
+    evidence: string;
+  }>;
+}
+
+/** Criterion draft produced by the Pass 3A reducer */
+export interface Pass3ACriterionDraft {
+  criterion: CriterionKey;
+  /** null if evidenceQuotes is empty (enforced by enforceEvidenceRules) */
+  provisionalScore: number | null;
+  confidence: Pass3AConfidence;
+  findingStatus:
+    | "scored"
+    | "insufficient_preflight_evidence"
+    | "closure_requires_late_evidence";
+  rationale: string;
+  evidenceQuotes: string[];
+  actZonesSupporting: Pass3AActZone[];
+  strengthFindings: string[];
+  weaknessFindings: string[];
+}
+
+/** Full Pass 3A preflight draft — persisted as pass3_preflight_draft_v1 */
+export interface Pass3PreflightDraft {
+  schema_version: "pass3_preflight_draft_v1";
+  pass: "3A";
+  visibility: "internal_only";
+
+  manuscript_read_status: {
+    received_full_manuscript: boolean;
+    source_word_count: number;
+    source_char_count: number;
+    chunks_expected: number;
+    chunks_received: number;
+    missing_chunks: number[];
+    truncation_detected: boolean;
+    /** chunks_received === chunks_expected && !truncation_detected */
+    full_read_certified: boolean;
+    coverage_status: "full" | "partial" | "windowed_fallback";
+  };
+
+  /** Authority level — downgraded if full_read_certified is false */
+  preflight_authority: "full" | "reduced" | "advisory" | "unavailable";
+
+  criterionDrafts: Pass3ACriterionDraft[];
+
+  whole_novel_read: {
+    premise_read: string;
+    central_spine: string;
+    emotional_engine: string;
+    structural_shape: string;
+    ending_read: string;
+    promise_payoff_assessment: string;
+  };
+
+  character_observations: Array<{
+    character: string;
+    arc_read: string;
+    name_state_notes?: string;
+    coping_behaviors_observed?: string[];
+    relationship_function?: string;
+    location_first_encountered?: string;
+  }>;
+
+  object_symbol_observations: Array<{
+    object_or_motif: string;
+    observed_path: string;
+    symbolic_function: string;
+    payoff_status: "paid_off" | "underpaid" | "active" | "unclear";
+  }>;
+
+  /** THE MOST IMPORTANT FIELD — quality-control handoff to Pass 3B */
+  arbitrationQuestionsForPass3B: Array<{
+    question: string;
+    relatedCriterion: CriterionKey | null;
+    evidence: string;
+    implication: string;
+    blockerType: Pass3ABlockerType;
+  }>;
+
+  coverageLimitations: Array<{
+    zone: Pass3AActZone;
+    limitation:
+      | "not_sampled"
+      | "thin_sample"
+      | "uncertain_chapter_mapping"
+      | "insufficient_late_evidence";
+    consequence: string;
+  }>;
+
+  independentPressurePoints: string[];
+}
+
+/** Zone summary produced by TypeScript aggregation of chunk observations (no LLM) */
+export interface Pass3AZoneSummary {
+  zone: Pass3AActZone;
+  chunkIndices: number[];
+  wordCount: number;
+  /** Formatted summary string (≤3000 chars) passed to the reducer */
+  summary: string;
+  criteriaSignalCount: number;
+  characterNames: string[];
+  arbitrationWarningCount: number;
+}

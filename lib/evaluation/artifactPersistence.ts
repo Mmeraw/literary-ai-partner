@@ -71,7 +71,16 @@ export type ArtifactType =
    * failed/timeout = gate passed but execution failed; retryable=true.
    * User-facing: drives the Revise tab unlock.
    */
-  | "wave_revision_plan_v1";
+  | "wave_revision_plan_v1"
+  /**
+   * Pass 3A preflight draft — independent full-manuscript read built in phase_1
+   * alongside the Pass 1A character ledger. Contains provisional scores, coverage
+   * map, arbitration questions, and character/object observations.
+   * Non-fatal: partial/degraded preflight is persisted with reduced authority.
+   * Consumed by Pass 3B (phase_3) as a prepared peer arbitrator input.
+   * Not user-visible.
+   */
+  | "pass3_preflight_draft_v1";
 
 /**
  * Compute SHA256 hex digest of input string

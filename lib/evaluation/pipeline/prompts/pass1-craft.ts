@@ -82,6 +82,8 @@ export function buildPass1UserPrompt(params: {
   title: string;
   executionMode?: "TRUSTED_PATH" | "STUDIO";
   scopeProfile?: SubmissionScopeProfile;
+  /** Pre-built character ledger block from Pass 1A — injected before manuscript text. */
+  characterLedgerBlock?: string;
 }): string {
   const wordCount = params.manuscriptText.trim().split(/\s+/).length;
   const executionMode = params.executionMode ?? "TRUSTED_PATH";
@@ -92,13 +94,15 @@ export function buildPass1UserPrompt(params: {
   // Do NOT add new callers.
   const promptWindow = buildPromptInputWindow(params.manuscriptText);
   const coverage = summarizePromptCoverage(params.manuscriptText);
+  const ledgerSection = params.characterLedgerBlock
+    ? `\n${params.characterLedgerBlock}\n`
+    : "";
   return `Evaluate this ${params.workType || "manuscript"} excerpt titled "${params.title}" on the CRAFT EXECUTION axis.
 
 Execution mode: ${executionMode}
 Word count: ${wordCount}
 ${buildCoverageDisclosure(coverage)}
-${params.scopeProfile ? `Submission scope: ${params.scopeProfile.inputScale} (${params.scopeProfile.wordCount} words; ${params.scopeProfile.chunkCount} chunk(s); ${params.scopeProfile.scorableCount}/13 criteria non-NA for this scope).` : ""}
-
+${params.scopeProfile ? `Submission scope: ${params.scopeProfile.inputScale} (${params.scopeProfile.wordCount} words; ${params.scopeProfile.chunkCount} chunk(s); ${params.scopeProfile.scorableCount}/13 criteria non-NA for this scope).` : ""}${ledgerSection}
 Manuscript text:
 ${promptWindow}
 

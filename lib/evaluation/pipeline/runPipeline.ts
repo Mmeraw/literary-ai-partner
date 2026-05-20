@@ -53,6 +53,9 @@ import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
 import { PASS1_PROMPT_VERSION } from "./prompts/pass1-craft";
 import { PASS2_PROMPT_VERSION } from "./prompts/pass2-editorial";
 import { PASS3_PROMPT_VERSION } from "./prompts/pass3-synthesis";
+import { buildCompactPreflightSummary } from "./runPass3Preflight";
+import { buildLedgerBlockForPrompt } from "./buildLedgerBlock";
+import type { Pass3PreflightDraft } from "./types";
 import {
   normalizeCriterion,
   computeWeightedScore,
@@ -209,6 +212,13 @@ export interface RunPipelineOptions {
     ledger: Pass1aCharacterLedger;
     ledgerV2: CharacterLedgerV2;
   };
+  /**
+   * Pre-built Pass 3A preflight draft from phase_1 invocation.
+   * When provided, runPipeline builds a compact summary and injects it into Pass 3B.
+   * When absent, Pass 3B receives a PREFLIGHT UNAVAILABLE notice and synthesizes
+   * from Pass 1 + Pass 2 only.
+   */
+  _prebuiltPreflightDraft?: Pass3PreflightDraft;
 }
 
 const DEFAULT_MAX_MANUSCRIPT_CHARS = 3_000_000;
@@ -996,6 +1006,21 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
   // A blunt outer kill was causing PASS1_TIMEOUT / PASS2_TIMEOUT on jobs that
   // were making valid progress — just slow. The SLA watchdog in processor.ts
   // is the backstop if a pass truly hangs forever.
+
+  // Build ledger grounding block for P1 + P2 injection (from phase_1 prebuilt ledger).
+  // buildLedgerBlockForPrompt is fail-soft — returns "" when ledger is absent.
+  const ledgerBlockForP1P2 = opts._prebuiltCharacterLedger
+    ? buildLedgerBlockForPrompt(
+        opts._prebuiltCharacterLedger.ledger,
+        opts._prebuiltCharacterLedger.ledgerV2,
+      )
+    : "";
+
+  // Build compact preflight summary for Pass 3B injection (from phase_1 prebuilt preflight).
+  const compactPreflightSummary = opts._prebuiltPreflightDraft
+    ? buildCompactPreflightSummary(opts._prebuiltPreflightDraft)
+    : undefined;
+
   const pass1Promise = _runPass1({
       manuscriptText: opts.manuscriptText,
       manuscriptChunks: opts.manuscriptChunks,
@@ -1007,6 +1032,10 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
       openAiTimeoutMs: opts._openAiTimeoutMs,
       registry,
       scopeProfile: scopeProfile ?? undefined,
+      // phase_2: 3 concurrent chunks (P1+P2 parallel, peak=6 total)
+      _chunkConcurrency: opts._prebuiltCharacterLedger ? 3 : undefined,
+      // Inject ledger grounding block when available (phase_2 path)
+      characterLedgerBlock: ledgerBlockForP1P2 || undefined,
       _onCompletion: (capture) => {
         providerTelemetry.push(
           recordProviderTelemetry({
@@ -1055,6 +1084,10 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
       openAiTimeoutMs: opts._openAiTimeoutMs,
       registry,
       scopeProfile: scopeProfile ?? undefined,
+      // phase_2: 3 concurrent chunks (P1+P2 parallel, peak=6 total)
+      _chunkConcurrency: opts._prebuiltCharacterLedger ? 3 : undefined,
+      // Inject ledger grounding block when available (phase_2 path)
+      characterLedgerBlock: ledgerBlockForP1P2 || undefined,
       _onCompletion: (capture) => {
         providerTelemetry.push(
           recordProviderTelemetry({
@@ -1560,6 +1593,8 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
         characterLedger: characterLedger,
         characterLedgerV2: characterLedgerV2,
         readAheadResult: readAheadResult,
+        // Pass 3A preflight draft compact summary — undefined = PREFLIGHT UNAVAILABLE fallback
+        compactPreflightSummary,
         manuscriptText: opts.manuscriptText,
         manuscriptChunks: opts.manuscriptChunks,
         title: opts.title,

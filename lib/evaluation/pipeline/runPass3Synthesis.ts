@@ -386,6 +386,12 @@ export interface RunPass3Options {
   _onCompletion?: (capture: PassCompletionCapture) => void;
   /** Optional heartbeat callback — called every 20s during the OpenAI completion call to keep the job lease alive. */
   onHeartbeat?: () => Promise<void> | void;
+  /**
+   * Compact Pass 3A preflight summary — built by buildCompactPreflightSummary().
+   * Injected into the Pass 3B prompt as the PREFLIGHT DRAFT block.
+   * When absent, Pass 3B receives a PREFLIGHT UNAVAILABLE notice.
+   */
+  compactPreflightSummary?: string;
 }
 
 /**
@@ -461,6 +467,7 @@ export async function runPass3Synthesis(opts: RunPass3Options): Promise<Synthesi
     characterLedger: opts.characterLedger,
     characterLedgerV2: opts.characterLedgerV2,
     readAheadResult: opts.readAheadResult,
+    compactPreflightSummary: opts.compactPreflightSummary,
   });
   assertPass3PromptTripwires(userPrompt);
 

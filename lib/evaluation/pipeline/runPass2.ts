@@ -386,6 +386,18 @@ export interface RunPass2Options {
    * never sees an 8-minute silence during a long chunk sweep.
    */
   _onChunkHeartbeat?: (chunkIndex: number) => void;
+  /**
+   * Override chunk concurrency for this run.
+   * Production default: getChunkPassConcurrency() (env: EVAL_CHUNK_PASS_CONCURRENCY, default 7).
+   * phase_2 sets this to 3 (P1+P2 both running, peak=6 concurrent calls).
+   */
+  _chunkConcurrency?: number;
+  /**
+   * Pre-built character ledger block from Pass 1A — injected before manuscript text.
+   * When provided, the LLM receives the 6-ledger character facts as grounding context.
+   * Injected into BOTH the chunk-path (forwarded via ...opts spread) and direct-window path.
+   */
+  characterLedgerBlock?: string;
 }
 
 /**
@@ -420,7 +432,7 @@ export async function runPass2(opts: RunPass2Options): Promise<SinglePassOutput>
   const hasChunks = Array.isArray(opts.manuscriptChunks) && opts.manuscriptChunks.length > 1;
   if (hasChunks) {
     const chunksTotal = opts.manuscriptChunks!.length;
-    const chunkConcurrency = getChunkPassConcurrency();
+    const chunkConcurrency = opts._chunkConcurrency ?? getChunkPassConcurrency();
     const chunkCap = getConfiguredChunkCap();
     const chunkRetryMax = getChunkRetryMax();
     const chunkRetryBaseMs = getChunkRetryBaseMs();
@@ -636,6 +648,7 @@ export async function runPass2(opts: RunPass2Options): Promise<SinglePassOutput>
     title: opts.title,
     executionMode: opts.executionMode,
     scopeProfile: opts.scopeProfile,
+    characterLedgerBlock: opts.characterLedgerBlock,
   });
   const promptAssemblyMs = nowMs() - promptAssemblyStartMs;
   const inputChars = opts.manuscriptText.length;

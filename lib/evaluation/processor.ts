@@ -117,8 +117,9 @@ import {
   buildNonEvaluativeWarning,
   stripNonEvaluativeSections,
 } from '@/lib/manuscripts/nonEvaluativeSections';
-import type { ManuscriptChunkEvidence, SinglePassOutput, Pass1aCharacterLedger, CharacterLedgerV2 } from '@/lib/evaluation/pipeline/types';
+import type { ManuscriptChunkEvidence, SinglePassOutput, Pass1aCharacterLedger, CharacterLedgerV2, Pass3PreflightDraft } from '@/lib/evaluation/pipeline/types';
 import { runPass1a } from '@/lib/evaluation/pipeline/runPass1a';
+import { runPass3Preflight } from '@/lib/evaluation/pipeline/runPass3Preflight';
 import { reduceCharacterEvidence, buildCharacterLedgerV2 } from '@/lib/evaluation/pipeline/characterReducer';
 import {
   isPipelineEnabled,
@@ -1574,6 +1575,21 @@ export async function failStaleRunningJobs(): Promise<{
 
     const handoffJobIds = new Set((handoffArtifacts ?? []).map((a) => a.job_id));
 
+    // Two-artifact gate: batch-fetch ledger + preflight artifacts for phase_1a frozen jobs
+    const { data: ledgerArtifacts } = await supabase
+      .from('evaluation_artifacts')
+      .select('job_id')
+      .in('job_id', frozenIds)
+      .eq('artifact_type', 'pass1a_character_ledger_v1');
+    const ledgerJobIds = new Set((ledgerArtifacts ?? []).map((a) => a.job_id));
+
+    const { data: preflightArtifacts } = await supabase
+      .from('evaluation_artifacts')
+      .select('job_id')
+      .in('job_id', frozenIds)
+      .eq('artifact_type', 'pass3_preflight_draft_v1');
+    const preflightJobIds = new Set((preflightArtifacts ?? []).map((a) => a.job_id));
+
     const rescueNow = new Date().toISOString();
     type RescueEntry = { id: string; manuscriptId: number; reason: string; checkpoint: string };
     const rescueEntries: RescueEntry[] = [];
@@ -1630,7 +1646,7 @@ export async function failStaleRunningJobs(): Promise<{
         continue;
       }
 
-      // ─ GUARD D: Handoff artifact exists — rescue to phase_2 ──────────────────
+      // ─ GUARD D: Artifact checkpoint gate ─────────────────────────────────────
       const alreadyHandedOff =
         phaseStatusTopLevel === 'complete' ||
         phaseStatusProgress  === 'complete' ||
@@ -1643,6 +1659,42 @@ export async function failStaleRunningJobs(): Promise<{
           reason: 'handoff_artifact_found',
           checkpoint: 'pass12_handoff_v1',
         });
+        continue;
+      }
+
+      // Two-artifact gate for phase_1a frozen jobs:
+      //   ledger + preflight both present → rescue to phase_2
+      //   ledger present, preflight missing + >400s elapsed → rescue to phase_2 (preflight degraded)
+      //   neither present → do NOT rescue yet (P1A+P3A still running)
+      if (currentPhase === 'phase_1a' || currentPhase === 'phase_1') {
+        const hasLedger    = ledgerJobIds.has(row.id);
+        const hasPreflight = preflightJobIds.has(row.id);
+        const phase1aStartedAt = progress.phase1a_started_at as string | undefined;
+        const elapsedSincePhase1aStartMs = phase1aStartedAt
+          ? nowMs - new Date(phase1aStartedAt).getTime()
+          : 0;
+        const PREFLIGHT_TIMEOUT_THRESHOLD_MS = 400_000; // 400s
+
+        if (hasLedger && hasPreflight) {
+          rescueEntries.push({
+            id: row.id,
+            manuscriptId: (row.manuscript_id as number | null) ?? 0,
+            reason: 'phase_1a_both_artifacts_ready',
+            checkpoint: 'pass1a_character_ledger_v1+pass3_preflight_draft_v1',
+          });
+          continue;
+        }
+        if (hasLedger && !hasPreflight && elapsedSincePhase1aStartMs > PREFLIGHT_TIMEOUT_THRESHOLD_MS) {
+          rescueEntries.push({
+            id: row.id,
+            manuscriptId: (row.manuscript_id as number | null) ?? 0,
+            reason: 'phase_1a_ledger_ready_preflight_timeout',
+            checkpoint: 'pass1a_character_ledger_v1',
+          });
+          continue;
+        }
+        // Not enough artifacts yet — let the job keep running
+        console.log(`[Watchdog] ${row.id}: phase_1a frozen but artifacts not ready — no rescue (hasLedger=${hasLedger} hasPreflight=${hasPreflight} elapsed=${Math.round(elapsedSincePhase1aStartMs / 1000)}s)`);
         continue;
       }
 
@@ -1864,10 +1916,33 @@ export async function failStaleRunningJobs(): Promise<{
     .select('job_id')
     .in('job_id', staleIds)
     .eq('artifact_type', 'pass12_handoff_v1');
-
   const staleHandoffJobIds = new Set((staleHandoffRows ?? []).map((r) => r.job_id as string));
-  const staleToRescue = staleIds.filter((id) => staleHandoffJobIds.has(id));
-  const staleToFail   = staleIds.filter((id) => !staleHandoffJobIds.has(id));
+
+  // Also check for phase_1a two-artifact gate (ledger + preflight)
+  const { data: staleLedgerRows } = await supabase
+    .from('evaluation_artifacts')
+    .select('job_id')
+    .in('job_id', staleIds)
+    .eq('artifact_type', 'pass1a_character_ledger_v1');
+  const staleLedgerJobIds = new Set((staleLedgerRows ?? []).map((r) => r.job_id as string));
+
+  const { data: stalePreflightRows } = await supabase
+    .from('evaluation_artifacts')
+    .select('job_id')
+    .in('job_id', staleIds)
+    .eq('artifact_type', 'pass3_preflight_draft_v1');
+  const stalePreflightJobIds = new Set((stalePreflightRows ?? []).map((r) => r.job_id as string));
+
+  // Rescue if: handoff OR (ledger + preflight) OR (ledger + stale >400s)
+  const staleToRescue = staleIds.filter((id) => {
+    if (staleHandoffJobIds.has(id)) return true;
+    const hasLedger    = staleLedgerJobIds.has(id);
+    const hasPreflight = stalePreflightJobIds.has(id);
+    if (hasLedger && hasPreflight) return true;
+    if (hasLedger) return true; // stale-by-lease already implies timeout elapsed
+    return false;
+  });
+  const staleToFail = staleIds.filter((id) => !staleToRescue.includes(id));
 
   if (staleToRescue.length > 0) {
     const staleRescueNow = new Date().toISOString();
@@ -3260,14 +3335,56 @@ export async function processEvaluationJob(
       try {
         const pass1aChunks = manuscriptChunksForPipeline;
 
-        const pass1aResult = await runPass1a({
-          manuscriptText: manuscriptWithContent.content || '',
-          manuscriptChunks: pass1aChunks,
-          workType: manuscriptWithContent.work_type || 'novel',
-          title: manuscriptWithContent.title,
-          openaiApiKey,
-          jobId: String(job.id),
-        });
+        // ── phase_1: P1A (c=6) + P3A (c=2) run in parallel ───────────────────────
+        // Both read the raw manuscript independently. Neither waits for the other.
+        // P3A is non-fatal: a failed preflight → degraded artifact, job continues.
+        console.log(`[Processor] ${jobId}: phase_1a — launching P1A(c=6) + P3A(c=2) in parallel`);
+
+        const [pass1aSettled, pass3aSettled] = await Promise.allSettled([
+          // P1A: character arc sweep, concurrency=6
+          runPass1a({
+            manuscriptText: manuscriptWithContent.content || '',
+            manuscriptChunks: pass1aChunks,
+            workType: manuscriptWithContent.work_type || 'novel',
+            title: manuscriptWithContent.title,
+            openaiApiKey,
+            jobId: String(job.id),
+          }),
+          // P3A: independent full-manuscript read, concurrency=2
+          runPass3Preflight({
+            manuscriptChunks: pass1aChunks ?? [],
+            title: manuscriptWithContent.title,
+            workType: manuscriptWithContent.work_type || 'novel',
+            jobId: String(job.id),
+            manuscriptId: Number(job.manuscript_id),
+            openaiApiKey,
+            supabase,
+            _chunkConcurrency: 2,
+            _onChunkHeartbeat: () => {
+              // Non-blocking heartbeat for watchdog — P3A chunks are small, no DB write needed
+            },
+          }),
+        ]);
+
+        // Unwrap P1A result — fatal if failed
+        if (pass1aSettled.status === 'rejected') {
+          throw pass1aSettled.reason instanceof Error
+            ? pass1aSettled.reason
+            : new Error(String(pass1aSettled.reason));
+        }
+        const pass1aResult = pass1aSettled.value;
+
+        // Unwrap P3A result — non-fatal
+        if (pass3aSettled.status === 'rejected') {
+          console.warn(`[Processor] ${jobId}: phase_1a — P3A failed (non-fatal, degraded preflight persisted):`,
+            pass3aSettled.reason instanceof Error ? pass3aSettled.reason.message : String(pass3aSettled.reason));
+        } else {
+          console.log(`[Processor] ${jobId}: phase_1a — P3A complete:`, {
+            authority: pass3aSettled.value.preflight.preflight_authority,
+            coverage: `${pass3aSettled.value.preflight.manuscript_read_status.chunks_received}/${pass3aSettled.value.preflight.manuscript_read_status.chunks_expected}`,
+            duration_ms: pass3aSettled.value.durationMs,
+          });
+        }
 
         if (pass1aResult.chunkOutputs.length === 0) {
           // Soft-skip: the ledger is an enrichment layer, not the paid product.
@@ -3577,6 +3694,30 @@ export async function processEvaluationJob(
             ledgerReadErr instanceof Error ? ledgerReadErr.message : String(ledgerReadErr));
         }
 
+        // Read the Pass 3A preflight artifact (soft — absence is graceful degradation)
+        let prebuiltPreflightDraft: Pass3PreflightDraft | undefined;
+        try {
+          const { data: preflightArtifactP2 } = await supabase
+            .from('evaluation_artifacts')
+            .select('content')
+            .eq('job_id', job.id)
+            .eq('artifact_type', 'pass3_preflight_draft_v1')
+            .maybeSingle();
+
+          if (preflightArtifactP2?.content?.schema_version === 'pass3_preflight_draft_v1') {
+            prebuiltPreflightDraft = preflightArtifactP2.content as Pass3PreflightDraft;
+            console.log(`[Processor] ${jobId}: phase_2 — Pass 3A preflight loaded`, {
+              authority: prebuiltPreflightDraft.preflight_authority,
+              full_read_certified: prebuiltPreflightDraft.manuscript_read_status.full_read_certified,
+            });
+          } else {
+            console.warn(`[Processor] ${jobId}: phase_2 — pass3_preflight_draft_v1 artifact missing; Pass 3B will use PREFLIGHT UNAVAILABLE fallback`);
+          }
+        } catch (preflightReadErr) {
+          console.warn(`[Processor] ${jobId}: phase_2 — failed to read preflight artifact (non-fatal):`,
+            preflightReadErr instanceof Error ? preflightReadErr.message : String(preflightReadErr));
+        }
+
         const leaseRenewalIntervalMsP2 = 30_000;
         const leaseRenewalLoopP2 = setInterval(() => {
           void renewEvaluationJobLease({
@@ -3617,6 +3758,8 @@ export async function processEvaluationJob(
             // Inject prebuilt character ledger (all 6 ledgers built by phase_1a).
             // If absent (ledger artifact missing), runPipeline will re-run Pass 1A inline.
             ...(prebuiltCharacterLedger ? { _prebuiltCharacterLedger: prebuiltCharacterLedger } : {}),
+            // Inject Pass 3A preflight draft (soft — absence triggers PREFLIGHT UNAVAILABLE in Pass 3B).
+            ...(prebuiltPreflightDraft ? { _prebuiltPreflightDraft: prebuiltPreflightDraft } : {}),
             onHeartbeat: async (stage) => {
               await assertJobWithinSla({ supabase, jobId, hardDeadlineMs, stage });
               await renewEvaluationJobLease({
