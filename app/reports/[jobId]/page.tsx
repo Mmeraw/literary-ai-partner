@@ -335,55 +335,57 @@ export default async function ReportPage({ params }: { params: { jobId: string }
           </section>
         )}
 
-        {/* Overview Section */}
-        <section className="bg-white rounded-lg shadow-sm p-6 mb-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-2xl font-semibold text-gray-900">Overview</h2>
-            <div className="flex items-center gap-4">
-              <span className={`px-4 py-2 rounded-full text-sm font-semibold ${
-                overview.verdict === 'pass' ? 'bg-green-100 text-green-800' :
-                overview.verdict === 'revise' ? 'bg-yellow-100 text-yellow-800' :
-                'bg-red-100 text-red-800'
-              }`}>
-                {overview.verdict.toUpperCase()}
-              </span>
-              <span className="text-3xl font-bold text-gray-900">
-                {overview.overall_score_0_100}/100
-              </span>
+        {/* Overview Section — hidden for long-form until Narrative Synthesis (Part 2) lands */}
+        {(!isLongForm || dreamDoc) && (
+          <section className="bg-white rounded-lg shadow-sm p-6 mb-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-2xl font-semibold text-gray-900">Overview</h2>
+              <div className="flex items-center gap-4">
+                <span className={`px-4 py-2 rounded-full text-sm font-semibold ${
+                  overview.verdict === 'pass' ? 'bg-green-100 text-green-800' :
+                  overview.verdict === 'revise' ? 'bg-yellow-100 text-yellow-800' :
+                  'bg-red-100 text-red-800'
+                }`}>
+                  {overview.verdict.toUpperCase()}
+                </span>
+                <span className="text-3xl font-bold text-gray-900">
+                  {overview.overall_score_0_100}/100
+                </span>
+              </div>
             </div>
-          </div>
-          <p className="text-gray-700 mb-6 leading-relaxed">
-            {chapterTitle ? `In ${displayTitle}, ${overview.one_paragraph_summary}` : overview.one_paragraph_summary}
-          </p>
-          <div className="grid md:grid-cols-2 gap-6">
-            <div>
-              <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                <span className="text-green-600">{"\u2713"}</span>
-                Top Strengths
-              </h3>
-              <ul className="space-y-2">
-                {overview.top_3_strengths.map((strength, idx) => (
-                  <li key={idx} className="text-gray-700 pl-4 border-l-2 border-green-500">
-                    {strength}
-                  </li>
-                ))}
-              </ul>
+            <p className="text-gray-700 mb-6 leading-relaxed">
+              {chapterTitle ? `In ${displayTitle}, ${overview.one_paragraph_summary}` : overview.one_paragraph_summary}
+            </p>
+            <div className="grid md:grid-cols-2 gap-6">
+              <div>
+                <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                  <span className="text-green-600">{"\u2713"}</span>
+                  Top Strengths
+                </h3>
+                <ul className="space-y-2">
+                  {overview.top_3_strengths.map((strength, idx) => (
+                    <li key={idx} className="text-gray-700 pl-4 border-l-2 border-green-500">
+                      {strength}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <div>
+                <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                  <span className="text-amber-600">{"\u26A0"}</span>
+                  Top Risks
+                </h3>
+                <ul className="space-y-2">
+                  {overview.top_3_risks.map((risk, idx) => (
+                    <li key={idx} className="text-gray-700 pl-4 border-l-2 border-amber-500">
+                      {risk}
+                    </li>
+                  ))}
+                </ul>
+              </div>
             </div>
-            <div>
-              <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                <span className="text-amber-600">{"\u26A0"}</span>
-                Top Risks
-              </h3>
-              <ul className="space-y-2">
-                {overview.top_3_risks.map((risk, idx) => (
-                  <li key={idx} className="text-gray-700 pl-4 border-l-2 border-amber-500">
-                    {risk}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </div>
-        </section>
+          </section>
+        )}
 
         {/* Criteria Scores */}
         <section className="bg-white rounded-lg shadow-sm p-6 mb-6">
