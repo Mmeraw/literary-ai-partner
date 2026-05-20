@@ -42,7 +42,7 @@ function deriveConfidenceLevel(
   if (typeof score !== "number" || Number.isNaN(score)) {
     return "moderate";
   }
-  if (score >= 85) return "high";
+  if (score >= 80) return "high"; // Canon: GREEN threshold = 80 (StoryGate floor). Was 85 — aligned to canon.
   if (score >= 60) return "moderate";
   return "low";
 }

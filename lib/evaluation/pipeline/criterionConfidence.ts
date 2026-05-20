@@ -53,7 +53,7 @@ export interface CriterionConfidenceInput {
   notes?: string | null;
 }
 
-const HIGH_MIN = 85;
+const HIGH_MIN = 80; // Canon: GREEN threshold = 80 (StoryGate floor). Was 85 — aligned to canon.
 const MODERATE_MIN = 60;
 const MODERATE_MIN_BY_KEY: Record<string, number> = {
   proseControl: 55,
