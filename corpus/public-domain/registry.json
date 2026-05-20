@@ -1,5 +1,6 @@
 {
   "schemaVersion": "public-domain-calibration-registry.v1",
+  "corpusSize": 8,
   "policy": {
     "runtimeAuthority": false,
     "ordinaryEvaluationPromptInjection": false,
@@ -36,6 +37,7 @@
       "author": "Jane Austen",
       "publicationYear": 1813,
       "publicDomainBasis": "pre-1928-us-copyright-expiration",
+      "form": "long_novel",
       "sourceTextPath": "corpus/public-domain/clean/pride-and-prejudice.txt",
       "calibrationDocPath": "docs/benchmarks/public-domain/pride-and-prejudice-dream-calibration.md",
       "goldenEvalPath": "corpus/public-domain/golden-evals/pride-and-prejudice.dream-longform.json",
@@ -49,6 +51,10 @@
         "character interaction",
         "scene economy"
       ],
+      "doNotUseFor": [
+        "modern commercial pacing baseline",
+        "genre action benchmark"
+      ],
       "integrity": {
         "chapterHeadingPattern": "^(?:CHAPTER|Chapter)\\s+([IVXLCDM]+)\\.?$",
         "expectedChapterCount": 61,
@@ -58,39 +64,13 @@
       }
     },
     {
-      "id": "dracula",
-      "title": "Dracula",
-      "author": "Bram Stoker",
-      "publicationYear": 1897,
-      "publicDomainBasis": "pre-1928-us-copyright-expiration",
-      "sourceTextPath": "corpus/public-domain/clean/dracula.txt",
-      "calibrationDocPath": "docs/benchmarks/public-domain/dracula-dream-calibration.md",
-      "goldenEvalPath": "corpus/public-domain/golden-evals/dracula.dream-longform.json",
-      "route": "LONG_FORM",
-      "benchmarkRole": "epistolary_structure_suspense_atmosphere_revelation_pacing",
-      "craftAnchors": [
-        "epistolary architecture",
-        "multi-document narration",
-        "suspense escalation",
-        "Gothic atmosphere",
-        "revelation pacing",
-        "procedural drag detection"
-      ],
-      "integrity": {
-        "chapterHeadingPattern": "^(?:CHAPTER|Chapter)\\s+([IVXLCDM]+)\\.?$",
-        "expectedChapterCount": 27,
-        "strictRomanChapterSequence": true,
-        "wordCount": { "min": 150000, "max": 175000 },
-        "minApostrophes": 500
-      }
-    },
-    {
       "id": "great-expectations",
       "title": "Great Expectations",
       "author": "Charles Dickens",
       "publicationYear": 1861,
       "sourceEdition": "1867 edition baseline when available",
       "publicDomainBasis": "pre-1928-us-copyright-expiration",
+      "form": "long_novel",
       "sourceTextPath": "corpus/public-domain/clean/great-expectations.txt",
       "calibrationDocPath": "docs/benchmarks/public-domain/great-expectations-dream-calibration.md",
       "goldenEvalPath": "corpus/public-domain/golden-evals/great-expectations.dream-longform.json",
@@ -104,12 +84,188 @@
         "motif recurrence",
         "earned closure"
       ],
+      "doNotUseFor": [
+        "pacing template for modern thrillers",
+        "required Dickensian social breadth baseline"
+      ],
       "integrity": {
         "chapterHeadingPattern": "^(?:CHAPTER|Chapter)\\s+([IVXLCDM]+)\\.?$",
         "expectedChapterCount": 59,
         "strictRomanChapterSequence": true,
-        "wordCount": { "min": 175000, "max": 205000 },
+        "wordCount": { "min": 175000, "max": 210000 },
         "minApostrophes": 1000
+      }
+    },
+    {
+      "id": "dracula",
+      "title": "Dracula",
+      "author": "Bram Stoker",
+      "publicationYear": 1897,
+      "publicDomainBasis": "pre-1928-us-copyright-expiration",
+      "form": "long_novel",
+      "sourceTextPath": "corpus/public-domain/clean/dracula.txt",
+      "calibrationDocPath": "docs/benchmarks/public-domain/dracula-dream-calibration.md",
+      "goldenEvalPath": "corpus/public-domain/golden-evals/dracula.dream-longform.json",
+      "route": "LONG_FORM",
+      "benchmarkRole": "epistolary_structure_suspense_atmosphere_revelation_pacing",
+      "craftAnchors": [
+        "epistolary architecture",
+        "multi-document narration",
+        "suspense escalation",
+        "Gothic atmosphere",
+        "revelation pacing",
+        "procedural drag detection"
+      ],
+      "doNotUseFor": [
+        "template for conventional third-person narration scoring",
+        "pacing standard for non-epistolary novels"
+      ],
+      "integrity": {
+        "chapterHeadingPattern": "^(?:CHAPTER|Chapter)\\s+([IVXLCDM]+)\\.?$",
+        "expectedChapterCount": 27,
+        "strictRomanChapterSequence": true,
+        "wordCount": { "min": 150000, "max": 175000 },
+        "minApostrophes": 500
+      }
+    },
+    {
+      "id": "strange-case-of-dr-jekyll-and-mr-hyde",
+      "title": "Strange Case of Dr Jekyll and Mr Hyde",
+      "author": "Robert Louis Stevenson",
+      "publicationYear": 1886,
+      "publicDomainBasis": "pre-1928-us-copyright-expiration",
+      "form": "novella",
+      "sourceTextPath": "corpus/public-domain/clean/strange-case-of-dr-jekyll-and-mr-hyde.txt",
+      "calibrationDocPath": null,
+      "goldenEvalPath": "corpus/public-domain/golden-evals/strange-case-of-dr-jekyll-and-mr-hyde.dream-longform.json",
+      "route": "LONG_FORM",
+      "benchmarkRole": "dual_narrative_moral_duality_mystery_reveal_novella_compression",
+      "craftAnchors": [
+        "Gothic mystery reveal",
+        "moral duality as structure",
+        "third-person frame with embedded confession",
+        "suspense through withheld explanation",
+        "novella compression"
+      ],
+      "doNotUseFor": [
+        "character interiority baseline (protagonist is structurally concealed)",
+        "dialogue richness benchmark"
+      ],
+      "integrity": {
+        "wordCount": { "min": 25000, "max": 45000 },
+        "minApostrophes": 100
+      }
+    },
+    {
+      "id": "the-yellow-wallpaper",
+      "title": "The Yellow Wallpaper",
+      "author": "Charlotte Perkins Gilman",
+      "publicationYear": 1892,
+      "publicDomainBasis": "pre-1928-us-copyright-expiration",
+      "form": "short_fiction",
+      "sourceTextPath": "corpus/public-domain/clean/the-yellow-wallpaper.txt",
+      "calibrationDocPath": null,
+      "goldenEvalPath": "corpus/public-domain/golden-evals/the-yellow-wallpaper.dream-longform.json",
+      "route": "SHORT_FORM",
+      "benchmarkRole": "confinement_pov_voice_destabilization_theme_interiority",
+      "craftAnchors": [
+        "first-person psychological unreliability",
+        "confined POV as structural constraint",
+        "symbol as psychological deterioration marker",
+        "feminist theme through interiority",
+        "short-form arc compression"
+      ],
+      "doNotUseFor": [
+        "dialogue richness benchmark",
+        "multi-character relationship spine baseline"
+      ],
+      "integrity": {
+        "wordCount": { "min": 5000, "max": 8000 },
+        "minApostrophes": 50
+      }
+    },
+    {
+      "id": "the-time-machine",
+      "title": "The Time Machine",
+      "author": "H. G. Wells",
+      "publicationYear": 1895,
+      "publicDomainBasis": "pre-1928-us-copyright-expiration",
+      "form": "novella",
+      "sourceTextPath": "corpus/public-domain/clean/the-time-machine.txt",
+      "calibrationDocPath": null,
+      "goldenEvalPath": "corpus/public-domain/golden-evals/the-time-machine.dream-longform.json",
+      "route": "LONG_FORM",
+      "benchmarkRole": "speculative_concept_worldbuilding_framing_device_theme",
+      "craftAnchors": [
+        "speculative concept as primary engine",
+        "embedded framing device (narrator-within-narrator)",
+        "worldbuilding through observation not exposition",
+        "theme via extrapolation",
+        "science fiction novella compression"
+      ],
+      "doNotUseFor": [
+        "romantic subplot baseline",
+        "character arc benchmark (protagonist unchanged by journey)"
+      ],
+      "integrity": {
+        "wordCount": { "min": 30000, "max": 50000 },
+        "minApostrophes": 100
+      }
+    },
+    {
+      "id": "the-wonderful-wizard-of-oz",
+      "title": "The Wonderful Wizard of Oz",
+      "author": "L. Frank Baum",
+      "publicationYear": 1900,
+      "publicDomainBasis": "pre-1928-us-copyright-expiration",
+      "form": "novel",
+      "sourceTextPath": "corpus/public-domain/clean/the-wonderful-wizard-of-oz.txt",
+      "calibrationDocPath": null,
+      "goldenEvalPath": "corpus/public-domain/golden-evals/the-wonderful-wizard-of-oz.dream-longform.json",
+      "route": "LONG_FORM",
+      "benchmarkRole": "quest_structure_tonal_control_episodic_worldbuilding_childrens_register",
+      "craftAnchors": [
+        "episodic quest architecture",
+        "tonal consistency across register shifts",
+        "ensemble companion characterization",
+        "worldbuilding through encountered obstacles",
+        "children's literature emotional clarity"
+      ],
+      "doNotUseFor": [
+        "psychological complexity baseline",
+        "romantic or adult-register scoring standard"
+      ],
+      "integrity": {
+        "wordCount": { "min": 38000, "max": 55000 },
+        "minApostrophes": 200
+      }
+    },
+    {
+      "id": "the-murder-on-the-links",
+      "title": "The Murder on the Links",
+      "author": "Agatha Christie",
+      "publicationYear": 1923,
+      "publicDomainBasis": "pre-1928-us-copyright-expiration",
+      "form": "novel",
+      "sourceTextPath": "corpus/public-domain/clean/the-murder-on-the-links.txt",
+      "calibrationDocPath": null,
+      "goldenEvalPath": "corpus/public-domain/golden-evals/the-murder-on-the-links.dream-longform.json",
+      "route": "LONG_FORM",
+      "benchmarkRole": "clue_logic_plot_mechanics_reveal_sequence_commercial_pacing",
+      "craftAnchors": [
+        "clue-planting and fair-play mystery architecture",
+        "plot mechanics as primary structural engine",
+        "reveal sequence timing",
+        "commercial genre pacing",
+        "first-person narrator reliability calibration"
+      ],
+      "doNotUseFor": [
+        "literary interiority benchmark",
+        "lyrical prose baseline"
+      ],
+      "integrity": {
+        "wordCount": { "min": 55000, "max": 80000 },
+        "minApostrophes": 300
       }
     }
   ]
