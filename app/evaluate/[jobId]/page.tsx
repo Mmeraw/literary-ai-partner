@@ -389,7 +389,7 @@ function Metric({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="rounded-md border p-3">
       <div className="text-xs text-gray-600">{label}</div>
-      <div className="mt-1 text-sm font-semibold">{value}</div>
+      <div className="mt-1 text-sm font-semibold text-gray-900">{value}</div>
     </div>
   );
 }
@@ -411,7 +411,7 @@ export default async function EvaluationReportPage({
   if (!ownerId) {
     return (
       <main className="mx-auto max-w-3xl p-6">
-        <h1 className="text-2xl font-semibold">Evaluation Report</h1>
+        <h1 className="text-2xl font-semibold text-gray-900">Evaluation Report</h1>
         <div className="mt-4 rounded-md bg-yellow-50 border border-yellow-200 p-4">
           <p className="text-sm text-yellow-800 font-medium">Please sign in to view your evaluation report.</p>
         </div>
@@ -430,7 +430,7 @@ export default async function EvaluationReportPage({
 
     return (
       <main className="mx-auto max-w-3xl p-6">
-        <h1 className="text-2xl font-semibold">Evaluation Report</h1>
+        <h1 className="text-2xl font-semibold text-gray-900">Evaluation Report</h1>
         <div className="mt-4 rounded-md bg-yellow-50 border border-yellow-200 p-4">
           <p className="text-sm text-yellow-800 font-medium">Unable to load evaluation</p>
           <p className="mt-2 text-sm text-yellow-700">
@@ -489,11 +489,11 @@ export default async function EvaluationReportPage({
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Evaluation Report</h1>
           <p className="mt-1 text-lg font-semibold text-gray-900">{displayTitle}</p>
-          <p className="mt-1 text-sm text-gray-500">
+          <p className="mt-1 text-sm text-gray-700">
             Job ID: <span className="font-mono">{job.id}</span>
           </p>
           {manuscriptTitle && chapterTitle && manuscriptTitle !== chapterTitle && (
-            <p className="mt-1 text-sm text-gray-500">
+            <p className="mt-1 text-sm text-gray-700">
               Manuscript Title: <span className="font-medium text-gray-700">{manuscriptTitle}</span>
             </p>
           )}
@@ -524,19 +524,19 @@ export default async function EvaluationReportPage({
         <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-700">Evaluation Metadata</h2>
         <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4 text-sm">
           <div>
-            <p className="text-gray-600">Chapter Title</p>
+            <p className="text-gray-700 font-medium">Chapter Title</p>
             <p className="font-medium text-gray-900">{chapterTitle || manuscriptTitle || "Untitled"}</p>
           </div>
           <div>
-            <p className="text-gray-600">Manuscript Title</p>
+            <p className="text-gray-700 font-medium">Manuscript Title</p>
             <p className="font-medium text-gray-900">{manuscriptTitle || chapterTitle || "Untitled"}</p>
           </div>
           <div>
-            <p className="text-gray-600">Job ID</p>
+            <p className="text-gray-700 font-medium">Job ID</p>
             <p className="font-mono text-xs text-gray-900 break-all">{job.id}</p>
           </div>
           <div>
-            <p className="text-gray-600">Word Count</p>
+            <p className="text-gray-700 font-medium">Word Count</p>
             <p className="font-medium text-gray-900">{typeof wordCount === "number" ? wordCount.toLocaleString() : "N/A"}</p>
           </div>
         </div>
@@ -566,7 +566,7 @@ export default async function EvaluationReportPage({
         </section>
       ) : !isComplete ? (
         <section className="rounded-lg border bg-white p-5">
-          <h2 className="text-lg font-semibold">Report not ready yet</h2>
+          <h2 className="text-lg font-semibold text-gray-900">Report not ready yet</h2>
           <p className="mt-2 text-sm text-gray-600">
             This evaluation hasn't completed. Once the status is "complete," your
             report will appear here automatically.
@@ -574,7 +574,7 @@ export default async function EvaluationReportPage({
           <div className="mt-4">
             <Link
               href="/evaluate"
-              className="inline-flex rounded-md border px-3 py-2 text-sm font-medium"
+              className="inline-flex rounded-md border border-gray-400 px-3 py-2 text-sm font-medium text-gray-900"
             >
               Return to job list
             </Link>
@@ -582,7 +582,7 @@ export default async function EvaluationReportPage({
         </section>
       ) : !artifact ? (
         <section className="rounded-lg border bg-white p-5">
-          <h2 className="text-lg font-semibold">
+          <h2 className="text-lg font-semibold text-gray-900">
             {isProduction ? "Report integrity check failed" : "Report not available yet"}
           </h2>
           <p className="mt-2 text-sm text-gray-600">
@@ -593,7 +593,7 @@ export default async function EvaluationReportPage({
           <div className="mt-4">
             <Link
               href="/evaluate"
-              className="inline-flex rounded-md border px-3 py-2 text-sm font-medium"
+              className="inline-flex rounded-md border border-gray-400 px-3 py-2 text-sm font-medium text-gray-900"
             >
               {isProduction ? "Re-run evaluation" : "Return to job list"}
             </Link>
@@ -811,7 +811,7 @@ export default async function EvaluationReportPage({
                 <h2 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
                   <span aria-hidden>📖</span> Narrative Synthesis
                 </h2>
-                <p className="text-sm text-gray-500 mt-0.5">
+                <p className="text-sm text-gray-700 mt-0.5">
                   Holistic Craft Assessment — long-form synthesis report
                 </p>
               </div>
@@ -835,11 +835,11 @@ export default async function EvaluationReportPage({
             <h2 className="text-xl font-semibold text-gray-900">Evaluation Provenance</h2>
             <div className="mt-3 space-y-2 text-sm">
               <div>
-                <span className="text-gray-600">Engine:</span>{" "}
+                <span className="text-gray-700 font-medium">Engine:</span>{" "}
                 <span className="font-mono">{(artifact as any).engine?.model || "unknown"}</span>
               </div>
               <div>
-                <span className="text-gray-600">Provider:</span>{" "}
+                <span className="text-gray-700 font-medium">Provider:</span>{" "}
                 <span className="font-mono">{(artifact as any).engine?.provider || "unknown"}</span>
               </div>
               <div>
