@@ -58,13 +58,14 @@
         "future_calibration_fixture"
       ],
       "cleaning": {
-        "status": "cleaned",
+        "status": "broken-collection",
         "headers_removed": true,
         "footers_removed": true,
         "modern_editorial_material_removed": false,
-        "notes": "Collection file; target story extraction still required."
+        "notes": "File contains Poe Collected Works Vol II, not a standalone Tell-Tale Heart. Story is present but requires extraction. Replace with a standalone Gutenberg source before using as a calibration fixture."
       },
-      "requires_extraction": true
+      "requires_extraction": true,
+      "registry_status": "excluded-pending-replacement"
     },
     {
       "id": "great-expectations",
@@ -187,13 +188,14 @@
         "future_calibration_fixture"
       ],
       "cleaning": {
-        "status": "cleaned",
+        "status": "broken-collection",
         "headers_removed": true,
         "footers_removed": true,
         "modern_editorial_material_removed": false,
-        "notes": "Collection file; target story extraction still required."
+        "notes": "File contains Kate Chopin Awakening + Selected Short Stories collection. The Story of an Hour is NOT present in this collection. Needs a correct standalone source (search Gutenberg for Bayou Folk or a dedicated Chopin short fiction ebook)."
       },
-      "requires_extraction": true
+      "requires_extraction": false,
+      "registry_status": "excluded-story-absent"
     },
     {
       "id": "the-time-machine",
@@ -323,5 +325,6 @@
       },
       "requires_extraction": false
     }
-  ]
+  ],
+  "_note": "Active corpus: 8 works. tell-tale-heart and story-of-an-hour are excluded (broken collection files) — see registry_status on each. Replace with correct standalone sources to restore to 10."
 }
