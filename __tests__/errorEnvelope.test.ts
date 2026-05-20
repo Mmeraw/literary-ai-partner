@@ -105,7 +105,7 @@ describe('Error Envelope (Phase A.1)', () => {
     it('includes error message from Error instance', () => {
       const error = new Error('Connection failed');
       const envelope = toErrorEnvelope(error, {
-        phase: 'phase_1',
+        phase: 'phase_1a',
         jobId: 'job-789',
       });
 
