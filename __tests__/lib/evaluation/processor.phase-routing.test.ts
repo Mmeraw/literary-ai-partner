@@ -88,15 +88,15 @@ describe("processEvaluationJob phase routing guard", () => {
     expect(firstUpdatePayload?.phase_status).toBe("running");
   });
 
-  test("allows queued phase_1 jobs to continue into processor flow", async () => {
+  test("allows queued phase_1a jobs to continue into processor flow", async () => {
     const now = new Date();
     const leaseUntil = new Date(now.getTime() + 5 * 60_000).toISOString();
-    const queuedPhase1Job = {
-      id: "job-phase1-queued",
+    const queuedPhase1aJob = {
+      id: "job-phase1a-queued",
       manuscript_id: 84,
       job_type: "evaluate_full",
       status: "running",
-      phase: "phase_1",
+      phase: "phase_1a",
       phase_status: "running",
       claimed_by: "test-worker",
       worker_id: "test-worker",
@@ -106,7 +106,7 @@ describe("processEvaluationJob phase routing guard", () => {
       heartbeat_at: now.toISOString(),
       started_at: now.toISOString(),
       progress: {
-        phase: "phase_1",
+        phase: "phase_1a",
         phase_status: "running",
       },
       created_at: new Date().toISOString(),
@@ -118,7 +118,7 @@ describe("processEvaluationJob phase routing guard", () => {
           return {
             select: () => ({
               eq: () => ({
-                single: async () => ({ data: queuedPhase1Job, error: null }),
+                single: async () => ({ data: queuedPhase1aJob, error: null }),
               }),
             }),
             update: () => ({
@@ -144,7 +144,7 @@ describe("processEvaluationJob phase routing guard", () => {
     createClientMock.mockReturnValue(supabaseStub);
 
     const { processEvaluationJob } = await import("../../../lib/evaluation/processor");
-    const result = await processEvaluationJob("job-phase1-queued");
+    const result = await processEvaluationJob("job-phase1a-queued");
 
     expect(result.success).toBe(false);
     expect(result.error).toContain("Manuscript not found");
