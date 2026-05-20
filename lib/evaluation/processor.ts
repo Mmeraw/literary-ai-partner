@@ -1855,6 +1855,79 @@ export async function failStaleRunningJobs(): Promise<{
     return { staleFound: frozenFailIds.length, failed: frozenFailIds.length, rescued, ids: frozenFailIds };
   }
 
+  // ── CHECKPOINT CHECK for lease/age stale jobs ────────────────────────────────
+  // Before bulk-failing, check if any of these jobs already wrote a
+  // pass12_handoff_v1 artifact (Pass 1+2 succeeded but phase transition
+  // was interrupted). Those must be rescued to phase_1a, not failed.
+  const { data: staleHandoffRows } = await supabase
+    .from('evaluation_artifacts')
+    .select('job_id')
+    .in('job_id', staleIds)
+    .eq('artifact_type', 'pass12_handoff_v1');
+
+  const staleHandoffJobIds = new Set((staleHandoffRows ?? []).map((r) => r.job_id as string));
+  const staleToRescue = staleIds.filter((id) => staleHandoffJobIds.has(id));
+  const staleToFail   = staleIds.filter((id) => !staleHandoffJobIds.has(id));
+
+  if (staleToRescue.length > 0) {
+    const staleRescueNow = new Date().toISOString();
+    const staleRescueResults = await Promise.allSettled(
+      staleToRescue.map(async (id) => {
+        const { data: currentRow } = await supabase
+          .from('evaluation_jobs')
+          .select('progress, attempt_count')
+          .eq('id', id)
+          .single();
+
+        const currentProgress = (currentRow?.progress && typeof currentRow.progress === 'object')
+          ? (currentRow.progress as Record<string, unknown>)
+          : {};
+        const currentAttempts = (currentRow?.attempt_count as number | null) ?? 0;
+        const currentPhaseForRescue = (currentProgress.phase as string | undefined) ?? 'phase_1';
+        const rescueTargetPhase = currentPhaseForRescue === 'phase_1' ? 'phase_1a' : 'phase_2';
+
+        const { error: rescueErr } = await supabase
+          .from('evaluation_jobs')
+          .update({
+            status: JOB_STATUS.QUEUED,
+            phase: rescueTargetPhase,
+            phase_status: JOB_STATUS.QUEUED,
+            claimed_by: null,
+            claimed_at: null,
+            lease_token: null,
+            lease_until: null,
+            lease_expires_at: null,
+            attempt_count: currentAttempts + 1,
+            updated_at: staleRescueNow,
+            progress: {
+              ...currentProgress,
+              watchdog_last_rescue_at: staleRescueNow,
+              watchdog_last_rescue_phase: currentPhaseForRescue,
+              watchdog_rescue_count: ((currentProgress.watchdog_rescue_count as number | null) ?? 0) + 1,
+              message: `Watchdog rescued (lease expired with handoff artifact) — queued as ${rescueTargetPhase}`,
+            },
+          })
+          .eq('id', id)
+          .eq('status', runningStatus);
+
+        if (rescueErr) {
+          console.warn('[Watchdog] stale-lease rescue failed for job', id, rescueErr.message);
+          return null;
+        }
+        console.log(`[Watchdog] Rescued stale-lease job ${id} — ${currentPhaseForRescue} → ${rescueTargetPhase}`);
+        rescued++;
+        return id;
+      }),
+    );
+    void staleRescueResults; // results logged per-job above
+  }
+
+  // Only fail jobs that had no recoverable checkpoint
+  const staleIds_final = staleToFail;
+  if (staleIds_final.length === 0) {
+    return { staleFound: staleIds.length + frozenFailIds.length, failed: frozenFailIds.length, rescued, ids: frozenFailIds };
+  }
+
   const failureResetPayloadBase = {
     status: failedStatus,
     phase_status: 'failed',
@@ -1873,7 +1946,7 @@ export async function failStaleRunningJobs(): Promise<{
   let { data: failedRows, error: failError } = await supabase
     .from('evaluation_jobs')
     .update(failureResetPayload)
-    .in('id', staleIds)
+    .in('id', staleIds_final)
     .eq('status', runningStatus)
     .neq('phase_status', 'complete')   // ← final guard on the UPDATE itself
     .select('id');
@@ -1883,7 +1956,7 @@ export async function failStaleRunningJobs(): Promise<{
     ({ data: failedRows, error: failError } = await supabase
       .from('evaluation_jobs')
       .update(failureResetPayloadBase)
-      .in('id', staleIds)
+      .in('id', staleIds_final)
       .eq('status', runningStatus)
       .neq('phase_status', 'complete') // ← guard
       .select('id'));
