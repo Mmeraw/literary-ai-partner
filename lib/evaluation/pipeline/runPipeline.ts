@@ -198,6 +198,17 @@ export interface RunPipelineOptions {
    * Errors are swallowed; never throws.
    */
   _onLedgerReady?: (ledger: Pass1aCharacterLedger, ledgerV2: CharacterLedgerV2) => Promise<void> | void;
+  /**
+   * Pre-built character ledger from phase_1a invocation.
+   * When provided, runPipeline skips Pass 1A entirely and uses this ledger directly.
+   * This is the multi-phase workflow path: phase_1a built the ledger in its own
+   * Vercel invocation; phase_2 injects it here so Pass 3 has full character grounding.
+   * When absent (phase_1 full-run path), Pass 1A runs sequentially after Pass 1+2.
+   */
+  _prebuiltCharacterLedger?: {
+    ledger: Pass1aCharacterLedger;
+    ledgerV2: CharacterLedgerV2;
+  };
 }
 
 const DEFAULT_MAX_MANUSCRIPT_CHARS = 3_000_000;
@@ -1079,19 +1090,20 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
       throw error;
     });
 
-  // ── Pass 1A: Character Evidence Sweep (sequential — runs AFTER Pass 1+2) ──
-  // Independence: Pass 1A receives ONLY manuscript text — never sees P1/P2 output.
-  // Sequencing: intentionally deferred until after Pass 1+2 complete so it does
-  // not compete for OpenAI token quota during the 32-chunk scoring sweep.
-  // Running all three passes in parallel on a 32-chunk novel produces 96
-  // concurrent LLM calls — Pass 1A loses the rate-limit race every time.
-  // Failure policy: non-fatal — WAVE gates out gracefully if ledger is absent.
-  // Note: pass1aPromise is a resolved placeholder here; actual run is below
-  // after pass1Settled/pass2Settled are awaited.
-  let pass1aPromise: Promise<RunPass1aResult>;
+  // ── Pass 1A: Character Evidence Sweep ──────────────────────────────────────
+  // Multi-phase workflow: Pass 1A runs in its own Vercel invocation (phase_1a)
+  // with a fresh 720s execution window. The prebuilt ledger is injected via
+  // opts._prebuiltCharacterLedger when called from the phase_2 resume path.
+  //
+  // Single-invocation fallback (phase_1 full-run): when _prebuiltCharacterLedger
+  // is absent, run Pass 1A sequentially after Pass 1+2 to avoid rate-limit
+  // collision (96 concurrent chunk calls starve Pass 1A on large manuscripts).
+  //
+  // Pass 1A independence: receives ONLY manuscript text — never sees P1/P2 output.
+  let pass1aSettled: PromiseSettledResult<RunPass1aResult>;
 
   // ── Pass 3 Read-Ahead: Full manuscript read BEFORE scoring packets arrive ──
-  // Starts immediately — reads 4 distributed prose windows while P1/P2/P1A run.
+  // Starts immediately — reads 4 distributed prose windows while P1/P2 run.
   // Gives Pass 3 a pre-scoring narrative impression of the full novel.
   // Failure policy: non-fatal — returns graceful fallback on any error.
   const readAheadPromise: Promise<Pass3ReadAheadResult> = runPass3ReadAhead({
@@ -1104,9 +1116,6 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
   });
 
   // ── Perplexity chunk sweep (dual-model parallel scoring) ─────────────
-  // Runs alongside GPT Pass 1+2 with full independence (does NOT see GPT
-  // output). Hard-fail: throws propagate to the job failure handler. Only
-  // a missing PERPLEXITY_API_KEY produces a null (GPT-only) result.
   const pplxChunkSweepPromise = runPerplexityChunkScorer({
     manuscriptText: opts.manuscriptText,
     manuscriptChunks: opts.manuscriptChunks,
@@ -1123,20 +1132,34 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
 
   await opts.onHeartbeat?.("parallel_passes_settled");
 
-  // Pass 1A runs AFTER Pass 1+2 complete — avoids rate-limit collision on
-  // large manuscripts where 96 concurrent chunk calls starve Pass 1A entirely.
-  // Independence is preserved: Pass 1A only reads manuscript text, never P1/P2.
-  pass1aPromise = runPass1a({
-    manuscriptText: opts.manuscriptText,
-    manuscriptChunks: opts.manuscriptChunks,
-    workType: opts.workType,
-    title: opts.title,
-    openaiApiKey: opts.openaiApiKey,
-    jobId: opts.jobId,
-  });
-  const pass1aSettled = await Promise.allSettled([pass1aPromise]).then(r => r[0]);
+  if (opts._prebuiltCharacterLedger) {
+    // Phase_1a already ran in its own invocation — use the pre-built ledger directly.
+    // Synthesize a fulfilled PromiseSettledResult from the prebuilt data.
+    const prebuilt = opts._prebuiltCharacterLedger;
+    // We need to reconstruct a RunPass1aResult from the prebuilt ledger.
+    // Pass 1A chunk outputs are not available in the prebuilt path — but
+    // reduceCharacterEvidence + buildCharacterLedgerV2 have already been run.
+    // We mark this as a synthetic settled result with empty chunkOutputs
+    // (the ledger is already fully built and injected separately below).
+    pass1aSettled = {
+      status: 'fulfilled',
+      value: { chunkOutputs: [] as any[], _prebuiltLedger: prebuilt } as any,
+    };
+    console.log("[Pipeline][Pass1A] Using pre-built character ledger from phase_1a invocation");
+  } else {
+    // Single-invocation path: run Pass 1A sequentially after Pass 1+2.
+    const pass1aPromise = runPass1a({
+      manuscriptText: opts.manuscriptText,
+      manuscriptChunks: opts.manuscriptChunks,
+      workType: opts.workType,
+      title: opts.title,
+      openaiApiKey: opts.openaiApiKey,
+      jobId: opts.jobId,
+    });
+    pass1aSettled = await Promise.allSettled([pass1aPromise]).then(r => r[0]);
+    await opts.onHeartbeat?.("pass1a_settled");
+  }
 
-  await opts.onHeartbeat?.("pass1a_settled");
 
   const normalizePassFailure = (pass: "pass1" | "pass2" | "pass3", reason: unknown) => {
     const message = String(reason instanceof Error ? reason.message : reason);
@@ -1352,73 +1375,112 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
   // ── Resolve Pass 1A → reduce to character ledger (MANDATORY) ─────────
   // Every novel has at least one character. A missing ledger is a pipeline
   // failure, not a graceful degradation case. Pass 3 cannot run without it.
+  //
+  // Two paths:
+  //   A. Prebuilt (multi-phase): opts._prebuiltCharacterLedger carries all 6
+  //      ledgers already assembled by the phase_1a invocation. Use directly.
+  //   B. Single-invocation: pass1aSettled holds fresh chunk outputs; build all
+  //      6 ledgers now via reduceCharacterEvidence + buildCharacterLedgerV2.
   let characterLedger: Pass1aCharacterLedger;
   let characterLedgerV2: CharacterLedgerV2 | undefined;
 
-  if (pass1aSettled.status === "rejected") {
-    const reason = pass1aSettled.reason instanceof Error
-      ? pass1aSettled.reason.message
-      : String(pass1aSettled.reason);
-    console.error("[Pipeline][Pass1A] Sweep failed — cannot proceed to Pass 3", {
+  if (opts._prebuiltCharacterLedger) {
+    // Path A: all 6 ledgers (identity, state-timelines, relationship,
+    // psychology/coping, object, terminal) already built by phase_1a.
+    // Wire them in directly — no re-build needed.
+    characterLedger  = opts._prebuiltCharacterLedger.ledger;
+    characterLedgerV2 = opts._prebuiltCharacterLedger.ledgerV2;
+    console.log("[Pipeline][Pass1A] Pre-built ledger injected (all 6 ledgers ready)", {
       manuscript_id: opts.manuscriptId ?? null,
-      error: reason,
+      entries: characterLedger.entries.length,
+      v2_identity: characterLedgerV2.identityLedger?.length ?? 0,
+      v2_state_timelines: characterLedgerV2.stateTimelines?.length ?? 0,
+      v2_relationship: characterLedgerV2.relationshipLedger?.length ?? 0,
+      v2_psychology: characterLedgerV2.psychologyLedger?.length ?? 0,
+      v2_object: characterLedgerV2.objectLedger?.length ?? 0,
+      v2_terminal: characterLedgerV2.terminalLedger?.length ?? 0,
+      v2_active_blockers: characterLedgerV2.activeBlockers?.length ?? 0,
     });
-    timings.total_ms = nowMs() - pipelineStartMs;
-    logPipelineTimings("failure", {
-      manuscriptId: opts.manuscriptId,
-      title: opts.title,
-      workType: opts.workType,
-      failedAt: "pass1",
-      errorCode: "PASS1A_LEDGER_MISSING",
-      timings,
+  } else {
+    // Path B: resolve from fresh pass1aSettled result.
+    if (pass1aSettled.status === "rejected") {
+      const reason = pass1aSettled.reason instanceof Error
+        ? pass1aSettled.reason.message
+        : String(pass1aSettled.reason);
+      console.error("[Pipeline][Pass1A] Sweep failed — cannot proceed to Pass 3", {
+        manuscript_id: opts.manuscriptId ?? null,
+        error: reason,
+      });
+      timings.total_ms = nowMs() - pipelineStartMs;
+      logPipelineTimings("failure", {
+        manuscriptId: opts.manuscriptId,
+        title: opts.title,
+        workType: opts.workType,
+        failedAt: "pass1",
+        errorCode: "PASS1A_LEDGER_MISSING",
+        timings,
+      });
+      return {
+        ok: false,
+        error: `Pass 1A character sweep failed — ${reason}`,
+        error_code: "PASS1A_LEDGER_MISSING",
+        failed_at: "pass1",
+      };
+    }
+
+    const pass1aResult = pass1aSettled.value;
+    if (pass1aResult.chunkOutputs.length === 0) {
+      console.error("[Pipeline][Pass1A] Sweep produced zero chunk outputs — cannot proceed", {
+        manuscript_id: opts.manuscriptId ?? null,
+      });
+      timings.total_ms = nowMs() - pipelineStartMs;
+      logPipelineTimings("failure", {
+        manuscriptId: opts.manuscriptId,
+        title: opts.title,
+        workType: opts.workType,
+        failedAt: "pass1",
+        errorCode: "PASS1A_LEDGER_EMPTY",
+        timings,
+      });
+      return {
+        ok: false,
+        error: "Pass 1A character sweep produced zero chunk outputs — manuscript text may be empty or malformed",
+        error_code: "PASS1A_LEDGER_EMPTY",
+        failed_at: "pass1",
+      };
+    }
+
+    const totalChunks = Array.isArray(opts.manuscriptChunks) ? opts.manuscriptChunks.length : 1;
+
+    characterLedger = reduceCharacterEvidence({
+      chunkOutputs: pass1aResult.chunkOutputs,
+      jobId: opts.jobId ?? "unknown",
+      totalChunksInManuscript: totalChunks,
     });
-    return {
-      ok: false,
-      error: `Pass 1A character sweep failed — ${reason}`,
-      error_code: "PASS1A_LEDGER_MISSING",
-      failed_at: "pass1",
-    };
+
+    // Build all 6 ledgers (identity, state-timelines, relationship,
+    // psychology/coping, object, terminal) + 7 validation indices,
+    // active blockers, negative knowledge states, evidence coverage.
+    characterLedgerV2 = buildCharacterLedgerV2({
+      ledger: characterLedger,
+      chunkOutputs: pass1aResult.chunkOutputs,
+      jobId: opts.jobId ?? "unknown",
+      totalChunksInManuscript: totalChunks,
+    });
+
+    // Fire-and-forget artifact write (non-blocking)
+    if (opts._onLedgerReady) {
+      void Promise.resolve()
+        .then(() => opts._onLedgerReady!(characterLedger, characterLedgerV2!))
+        .catch((err: unknown) => {
+          console.warn("[Pipeline][Pass1A] _onLedgerReady callback failed (non-fatal)", {
+            manuscript_id: opts.manuscriptId ?? null,
+            job_id: opts.jobId ?? null,
+            error: err instanceof Error ? err.message : String(err),
+          });
+        });
+    }
   }
-
-  const pass1aResult = pass1aSettled.value;
-  if (pass1aResult.chunkOutputs.length === 0) {
-    console.error("[Pipeline][Pass1A] Sweep produced zero chunk outputs — cannot proceed", {
-      manuscript_id: opts.manuscriptId ?? null,
-    });
-    timings.total_ms = nowMs() - pipelineStartMs;
-    logPipelineTimings("failure", {
-      manuscriptId: opts.manuscriptId,
-      title: opts.title,
-      workType: opts.workType,
-      failedAt: "pass1",
-      errorCode: "PASS1A_LEDGER_EMPTY",
-      timings,
-    });
-    return {
-      ok: false,
-      error: "Pass 1A character sweep produced zero chunk outputs — manuscript text may be empty or malformed",
-      error_code: "PASS1A_LEDGER_EMPTY",
-      failed_at: "pass1",
-    };
-  }
-
-  const totalChunks = Array.isArray(opts.manuscriptChunks) ? opts.manuscriptChunks.length : 1;
-
-  characterLedger = reduceCharacterEvidence({
-    chunkOutputs: pass1aResult.chunkOutputs,
-    jobId: opts.jobId ?? "unknown",
-    totalChunksInManuscript: totalChunks,
-  });
-
-  // Build the full Tier 1 CharacterLedgerV2 from the v1 ledger + chunk outputs.
-  // This assembles all 6 ledgers, all 7 validation indices, active blockers,
-  // negative knowledge states, and evidence coverage stats — deterministically.
-  characterLedgerV2 = buildCharacterLedgerV2({
-    ledger: characterLedger,
-    chunkOutputs: pass1aResult.chunkOutputs,
-    jobId: opts.jobId ?? "unknown",
-    totalChunksInManuscript: totalChunks,
-  });
 
   console.log("[Pipeline][Pass1A] Character ledger ready (V1 + V2)", {
     manuscript_id: opts.manuscriptId ?? null,
@@ -1432,22 +1494,6 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
     v2_relationship_pairs: characterLedgerV2.relationshipLedger.length,
     v2_objects_tracked: characterLedgerV2.objectLedger.length,
   });
-
-  // ── Persist ledger artifact immediately (non-blocking) ───────────────────
-  // Fire-and-forget: write the character ledger artifact as soon as it's built,
-  // before Pass 3 runs. If Pass 1, 2, or 3 subsequently fails, the ledger is
-  // still in evaluation_artifacts and can be inspected / resumed from.
-  if (opts._onLedgerReady) {
-    void Promise.resolve()
-      .then(() => opts._onLedgerReady!(characterLedger, characterLedgerV2!))
-      .catch((err: unknown) => {
-        console.warn("[Pipeline][Pass1A] _onLedgerReady callback failed (non-fatal)", {
-          manuscript_id: opts.manuscriptId ?? null,
-          job_id: opts.jobId ?? null,
-          error: err instanceof Error ? err.message : String(err),
-        });
-      });
-  }
 
   // ── Resolve read-ahead (non-blocking — returns fallback if timed out) ──
   const readAheadResult = await readAheadPromise;

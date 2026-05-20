@@ -117,7 +117,9 @@ import {
   buildNonEvaluativeWarning,
   stripNonEvaluativeSections,
 } from '@/lib/manuscripts/nonEvaluativeSections';
-import type { ManuscriptChunkEvidence, SinglePassOutput } from '@/lib/evaluation/pipeline/types';
+import type { ManuscriptChunkEvidence, SinglePassOutput, Pass1aCharacterLedger, CharacterLedgerV2 } from '@/lib/evaluation/pipeline/types';
+import { runPass1a } from '@/lib/evaluation/pipeline/runPass1a';
+import { reduceCharacterEvidence, buildCharacterLedgerV2 } from '@/lib/evaluation/pipeline/characterReducer';
 import {
   isPipelineEnabled,
   pipelineDisabledResponse,
@@ -1679,11 +1681,18 @@ export async function failStaleRunningJobs(): Promise<{
             watchdog_rescue_count:      ((currentProgress.watchdog_rescue_count as number | null) ?? 0) + 1,
           };
 
+          // Determine rescue target phase based on current phase:
+          //   phase_1  frozen with handoff artifact → rescue to phase_1a
+          //   phase_1a frozen → rescue to phase_2 (Pass 3 will re-run Pass 1A if ledger missing)
+          //   phase_2+ frozen → rescue to phase_2 (safe retry)
+          const currentPhaseForRescue = (currentProgress.phase as string | undefined) ?? 'phase_1';
+          const rescueTargetPhase = currentPhaseForRescue === 'phase_1' ? 'phase_1a' : 'phase_2';
+
           const { data: updateResult, error: updateErr } = await supabase
             .from('evaluation_jobs')
             .update({
               status: JOB_STATUS.QUEUED,
-              phase: 'phase_2',
+              phase: rescueTargetPhase,
               phase_status: JOB_STATUS.QUEUED,
               claimed_by: null,
               claimed_at: null,
@@ -1718,7 +1727,7 @@ export async function failStaleRunningJobs(): Promise<{
                 from_status: 'running',
                 to_status: 'queued',
                 from_phase: currentProgress.phase ?? 'phase_1',
-                to_phase: 'phase_2',
+                to_phase: rescueTargetPhase,
                 rescue_reason: entry.reason,
                 checkpoint_used: entry.checkpoint,
                 rescue_count: rescuedProgress.watchdog_rescue_count,
@@ -1744,7 +1753,7 @@ export async function failStaleRunningJobs(): Promise<{
 
       rescued = successfulRescues.length;
       if (rescued > 0) {
-        console.log(`[Watchdog] Rescued ${rescued} frozen job(s) to phase_2/queued`, {
+        console.log(`[Watchdog] Rescued ${rescued} frozen job(s) to next-phase/queued`, {
           rescued_ids: successfulRescues,
         });
       }
@@ -2106,6 +2115,20 @@ export async function processEvaluationJob(
       (job.phase === 'phase_1' || progress.phase === 'phase_1') &&
       (job.phase_status === 'running' || progress.phase_status === 'running');
 
+    const isPhase1aPreClaimed =
+      job.status === 'running' &&
+      hasCanonicalPreClaimOwnership &&
+      hasLivePreClaimLease &&
+      (job.phase === 'phase_1a' || progress.phase === 'phase_1a') &&
+      (job.phase_status === 'running' || progress.phase_status === 'running');
+
+    const isPhase1aHandoff =
+      job.status === 'running' &&
+      hasCanonicalPreClaimOwnership &&
+      hasLivePreClaimLease &&
+      (job.phase === 'phase_1' || progress.phase === 'phase_1') &&
+      (job.phase_status === 'complete' || progress.phase_status === 'complete');
+
     const isPhase2PreClaimed =
       job.status === 'running' &&
       hasCanonicalPreClaimOwnership &&
@@ -2113,8 +2136,18 @@ export async function processEvaluationJob(
       (job.phase === 'phase_2' || progress.phase === 'phase_2') &&
       (job.phase_status === 'running' || progress.phase_status === 'running');
 
-    const executionPhase: 'phase_1' | 'phase_2' =
-      isPhase1CompleteHandoff || isPhase2PreClaimed ? 'phase_2' : 'phase_1';
+    const isPhase3PreClaimed =
+      job.status === 'running' &&
+      hasCanonicalPreClaimOwnership &&
+      hasLivePreClaimLease &&
+      (job.phase === 'phase_3' || progress.phase === 'phase_3') &&
+      (job.phase_status === 'running' || progress.phase_status === 'running');
+
+    const executionPhase: 'phase_1' | 'phase_1a' | 'phase_2' | 'phase_3' =
+      isPhase3PreClaimed ? 'phase_3' :
+      isPhase1CompleteHandoff || isPhase2PreClaimed ? 'phase_2' :
+      isPhase1aHandoff || isPhase1aPreClaimed ? 'phase_1a' :
+      'phase_1';
 
     // Hard guard: queued jobs must be atomically claimed before direct processing.
     // This function is execution-only for already-claimed running rows.
@@ -2129,7 +2162,10 @@ export async function processEvaluationJob(
     if (
       !isPhase1CompleteHandoff &&
       !isPhase1PreClaimed &&
-      !isPhase2PreClaimed
+      !isPhase1aHandoff &&
+      !isPhase1aPreClaimed &&
+      !isPhase2PreClaimed &&
+      !isPhase3PreClaimed
     ) {
       console.warn('[Processor] Job eligibility rejection', {
         job_id: jobId,
@@ -2172,7 +2208,7 @@ export async function processEvaluationJob(
     const markRunning = async (
       message: string,
       completedUnits: number,
-      phase: 'phase_1' | 'phase_2' = 'phase_1',
+      phase: 'phase_1' | 'phase_1a' | 'phase_2' | 'phase_3' = 'phase_1',
     ) => {
       if (!hasCanonicalPreClaimOwnership || !hasLivePreClaimLease) {
         throw new Error('markRunning requires claimed job');
@@ -2184,11 +2220,17 @@ export async function processEvaluationJob(
       if (phase === 'phase_1' && !progressState.phase1_started_at) {
         stageTimestampPatch.phase1_started_at = now;
       }
+      if (phase === 'phase_1a' && !progressState.phase1a_started_at) {
+        stageTimestampPatch.phase1a_started_at = now;
+      }
       if (phase === 'phase_2' && !progressState.phase2_started_at) {
         stageTimestampPatch.phase2_started_at = now;
       }
       if (phase === 'phase_2' && !progressState.phase1_completed_at) {
         stageTimestampPatch.phase1_completed_at = now;
+      }
+      if (phase === 'phase_3' && !progressState.phase3_started_at) {
+        stageTimestampPatch.phase3_started_at = now;
       }
 
       const nextProgress = {
@@ -2204,9 +2246,10 @@ export async function processEvaluationJob(
 
       Object.assign(progressState, nextProgress);
 
+      const stageLabel = phase === 'phase_1' ? 'phase1' : phase === 'phase_2' ? 'phase2' : phase as ProcessorStageBoundary;
       logProcessorStageBoundary({
         jobId,
-        stage: phase === 'phase_1' ? 'phase1' : 'phase2',
+        stage: (stageLabel === 'phase1' || stageLabel === 'phase2' || stageLabel === 'finalized' || stageLabel === 'pass3') ? stageLabel as ProcessorStageBoundary : 'phase1',
         state: 'start',
         at: now,
         metadata: {
@@ -2852,6 +2895,316 @@ export async function processEvaluationJob(
     // The artifact row is deleted after a successful read so it doesn't
     // accumulate; failure to read falls back to a fresh full pipeline run
     // (safe — wastes tokens but never silently corrupts).
+    // ── PHASE 3 EXECUTION PATH (WAVE Revision) ──────────────────────────────
+    // Own 720s Vercel invocation. Reads evaluation result + character ledger
+    // from artifacts, runs WAVE revision engine, marks job complete.
+    if (executionPhase === 'phase_3') {
+      await markRunning('Running WAVE revision engine', 2, 'phase_3');
+
+      try {
+        // Read the persisted evaluation result (synthesis) from artifacts.
+        const { data: evalArtifactRow } = await supabase
+          .from('evaluation_artifacts')
+          .select('content')
+          .eq('job_id', job.id)
+          .eq('artifact_type', 'evaluation_result_v2')
+          .maybeSingle();
+
+        // Read the character ledger artifact written by phase_1a.
+        const { data: ledgerArtifactRow } = await supabase
+          .from('evaluation_artifacts')
+          .select('content')
+          .eq('job_id', job.id)
+          .eq('artifact_type', 'pass1a_character_ledger_v1')
+          .maybeSingle();
+
+        const synthesis = evalArtifactRow?.content?.synthesis ?? null;
+        const wordCount = (evalArtifactRow?.content?.word_count as number | null)
+          ?? (evalArtifactRow?.content?.coverage?.sourceWords as number | null)
+          ?? 0;
+        const characterLedgerV2Phase3 = ledgerArtifactRow?.content?.ledger_v2 as CharacterLedgerV2 | undefined;
+
+        if (!synthesis) {
+          console.error(`[Processor] ${jobId}: phase_3 — evaluation result artifact missing or has no synthesis; cannot run WAVE`);
+          await markFailed(
+            'Phase 3 WAVE: evaluation result artifact missing',
+            'PHASE3_SYNTHESIS_MISSING',
+            { pipelineStage: 'phase_3', bucket: 'app_logic' },
+          );
+          return { success: false, error: 'PHASE3_SYNTHESIS_MISSING' };
+        }
+
+        const waveHandoff = {
+          manuscriptText: manuscriptWithContent.content || '',
+          synthesis,
+          characterLedgerV2: characterLedgerV2Phase3,
+          wordCount,
+          jobId,
+          manuscriptVersionId: (job.manuscript_version_id as string | null) ?? null,
+        };
+
+        const waveStartMs = Date.now();
+        let waveResult: import('@/lib/evaluation/waveRevision').WaveRevisionResult | null = null;
+        try {
+          waveResult = await Promise.race([
+            (await import('@/lib/evaluation/waveRevision')).executeWaveRevision(waveHandoff),
+            new Promise<never>((_, reject) =>
+              setTimeout(() => reject(new Error('WAVE_TIMEOUT')), 60_000)
+            ),
+          ]);
+        } catch (waveErr) {
+          const errMsg = waveErr instanceof Error ? waveErr.message : String(waveErr);
+          const isTimeout = errMsg === 'WAVE_TIMEOUT';
+          console.warn(`[WAVE/Phase3] ${isTimeout ? 'Timeout' : 'Error'} for job ${jobId} (${Date.now() - waveStartMs}ms):`, errMsg);
+
+          const failedPlan = {
+            status: (isTimeout ? 'timeout' : 'failed') as 'timeout' | 'failed',
+            reason: errMsg,
+            retryable: isTimeout,
+            generated_at: new Date().toISOString(),
+          };
+
+          try {
+            const waveFailHash = stableSourceHash({
+              manuscriptId: manuscript.id,
+              jobId: job.id,
+              userId: manuscriptWithContent.user_id,
+              manuscriptText: manuscriptWithContent.content || '',
+              promptVersion: `wave_revision_plan_v1:${failedPlan.status}`,
+              model: 'wave_deterministic',
+            });
+            await upsertEvaluationArtifact({
+              supabase,
+              jobId: job.id,
+              manuscriptId: job.manuscript_id,
+              artifactType: 'wave_revision_plan_v1',
+              artifactVersion: 'wave_revision_plan_v1',
+              sourceHash: waveFailHash,
+              content: failedPlan,
+            });
+          } catch (artifactErr) {
+            console.error(`[WAVE/Phase3] Failed to persist failure artifact for job ${jobId} (non-fatal):`,
+              artifactErr instanceof Error ? artifactErr.message : String(artifactErr));
+          }
+        }
+
+        if (waveResult) {
+          try {
+            const wavePlanHash = stableSourceHash({
+              manuscriptId: manuscript.id,
+              jobId: job.id,
+              userId: manuscriptWithContent.user_id,
+              manuscriptText: manuscriptWithContent.content || '',
+              promptVersion: `wave_revision_plan_v1:${waveResult.plan.status}`,
+              model: 'wave_deterministic',
+            });
+            await upsertEvaluationArtifact({
+              supabase,
+              jobId: job.id,
+              manuscriptId: job.manuscript_id,
+              artifactType: 'wave_revision_plan_v1',
+              artifactVersion: 'wave_revision_plan_v1',
+              sourceHash: wavePlanHash,
+              content: waveResult.plan,
+            });
+            console.log(`[WAVE/Phase3] Artifacts persisted for job ${jobId} — status=${waveResult.plan.status}`);
+          } catch (artifactErr) {
+            console.error(`[WAVE/Phase3] Failed to persist success artifacts for job ${jobId} (non-fatal):`,
+              artifactErr instanceof Error ? artifactErr.message : String(artifactErr));
+          }
+        }
+
+        // WAVE outcome never blocks job completion — mark complete regardless.
+        console.log(`[Processor] ${jobId}: phase_3 WAVE complete — marking job complete`);
+        nextLifecycleStatus(JOB_STATUS.COMPLETE);
+        const phase3Now = new Date().toISOString();
+        const { error: phase3CompleteErr } = await supabase
+          .from('evaluation_jobs')
+          .update({
+            status: JOB_STATUS.COMPLETE,
+            phase: 'phase_3',
+            phase_status: 'complete',
+            completed_at: phase3Now,
+            updated_at: phase3Now,
+            progress: {
+              ...progressState,
+              phase: 'phase_3',
+              phase_status: 'complete',
+              message: 'WAVE revision complete',
+              phase3_completed_at: phase3Now,
+            },
+          })
+          .eq('id', job.id)
+          .eq('status', JOB_STATUS.RUNNING);
+
+        if (phase3CompleteErr) {
+          console.error(`[Processor] ${jobId}: phase_3 completion update failed`, phase3CompleteErr.message);
+        }
+
+        return { success: true };
+      } catch (phase3Err) {
+        const errMsg = phase3Err instanceof Error ? phase3Err.message : String(phase3Err);
+        console.error(`[Processor] ${jobId}: phase_3 fatal error — evaluation already complete, marking job complete anyway`, errMsg);
+        // Phase_3 fatal error: evaluation already persisted from phase_2. Complete anyway.
+        nextLifecycleStatus(JOB_STATUS.COMPLETE);
+        const errNow = new Date().toISOString();
+        await supabase
+          .from('evaluation_jobs')
+          .update({
+            status: JOB_STATUS.COMPLETE,
+            phase: 'phase_3',
+            phase_status: 'complete',
+            completed_at: errNow,
+            updated_at: errNow,
+            progress: {
+              ...progressState,
+              phase: 'phase_3',
+              phase_status: 'complete',
+              message: 'WAVE phase error (non-fatal) — evaluation complete',
+              phase3_error: errMsg,
+            },
+          })
+          .eq('id', job.id)
+          .eq('status', JOB_STATUS.RUNNING);
+        return { success: true };
+      }
+    } // end phase_3 execution
+
+    // ── PHASE 1A EXECUTION PATH (Pass 1A Character Sweep) ─────────────────────
+    // Own 720s Vercel invocation. Reads manuscript, runs Pass 1A character sweep,
+    // builds ledger V1+V2, persists artifact, then queues phase_2.
+    // MANDATORY — if it fails, the job fails (ledger required for Pass 3).
+    if (executionPhase === 'phase_1a') {
+      await markRunning('Running Pass 1A character sweep', 1, 'phase_1a');
+
+      const phase1aStartMs = Date.now();
+      try {
+        const pass1aChunks = manuscriptChunksForPipeline;
+
+        const pass1aResult = await runPass1a({
+          manuscriptText: manuscriptWithContent.content || '',
+          manuscriptChunks: pass1aChunks,
+          workType: manuscriptWithContent.work_type || 'novel',
+          title: manuscriptWithContent.title,
+          openaiApiKey,
+          jobId: String(job.id),
+        });
+
+        if (pass1aResult.chunkOutputs.length === 0) {
+          console.error(`[Processor] ${jobId}: phase_1a — Pass 1A produced zero chunk outputs`);
+          await markFailed(
+            'Phase 1A: Pass 1A character sweep produced zero chunk outputs',
+            'PASS1A_LEDGER_EMPTY',
+            { pipelineStage: 'phase_1a', bucket: 'openai_provider' },
+          );
+          return { success: false, error: 'PASS1A_LEDGER_EMPTY' };
+        }
+
+        const totalChunksPhase1a = Array.isArray(pass1aChunks) ? pass1aChunks.length : 1;
+
+        const characterLedger: Pass1aCharacterLedger = reduceCharacterEvidence({
+          chunkOutputs: pass1aResult.chunkOutputs,
+          jobId: String(job.id),
+          totalChunksInManuscript: totalChunksPhase1a,
+        });
+
+        const characterLedgerV2Phase1a: CharacterLedgerV2 = buildCharacterLedgerV2({
+          ledger: characterLedger,
+          chunkOutputs: pass1aResult.chunkOutputs,
+          jobId: String(job.id),
+          totalChunksInManuscript: totalChunksPhase1a,
+        });
+
+        console.log(`[Processor] ${jobId}: phase_1a — character ledger ready`, {
+          duration_ms: Date.now() - phase1aStartMs,
+          entries: characterLedger.entries.length,
+          v2_active_blockers: characterLedgerV2Phase1a.activeBlockers.length,
+        });
+
+        // Persist the character ledger artifact
+        await upsertEvaluationArtifact({
+          supabase,
+          jobId: String(job.id),
+          manuscriptId: Number(job.manuscript_id),
+          artifactType: 'pass1a_character_ledger_v1',
+          content: {
+            job_id: String(job.id),
+            manuscript_id: Number(job.manuscript_id),
+            created_at: new Date().toISOString(),
+            schema_version: 'pass1a_character_ledger_v1',
+            ledger_v1: characterLedger,
+            ledger_v2: characterLedgerV2Phase1a,
+            summary: {
+              entries: characterLedger.entries.length,
+              protagonists: characterLedger.coverage_summary.protagonists,
+              co_protagonists: characterLedger.coverage_summary.co_protagonists,
+              symbol_items: characterLedger.coverage_summary.symbol_payoff_items.length,
+              hard_fail_triggers: characterLedger.coverage_summary.hard_fail_triggers.length,
+              v2_active_blockers: characterLedgerV2Phase1a.activeBlockers.length,
+              v2_relationship_pairs: characterLedgerV2Phase1a.relationshipLedger.length,
+              v2_objects_tracked: characterLedgerV2Phase1a.objectLedger.length,
+            },
+          },
+          sourceHash: `pass1a_ledger_${String(job.id)}`,
+          artifactVersion: 'pass1a_character_ledger_v1',
+        });
+
+        console.log(`[Processor] ${jobId}: phase_1a — ledger artifact persisted, queuing phase_2`);
+
+        // Transition to phase_2 (Pass 3 synthesis)
+        const phase1aNow = new Date().toISOString();
+        const phase1aHandoffProgress = {
+          ...progressState,
+          phase: 'phase_1a',
+          phase_status: 'complete',
+          message: 'Phase 1A complete — character ledger ready, awaiting Pass 3 synthesis',
+          phase1a_completed_at: phase1aNow,
+          ledger_entries: characterLedger.entries.length,
+        };
+
+        const { data: phase1aHandoffRow, error: phase1aHandoffErr } = await supabase
+          .from('evaluation_jobs')
+          .update({
+            status: JOB_STATUS.QUEUED,
+            phase: 'phase_2',
+            phase_status: JOB_STATUS.QUEUED,
+            claimed_by: null,
+            claimed_at: null,
+            lease_token: null,
+            lease_until: null,
+            lease_expires_at: null,
+            updated_at: phase1aNow,
+            progress: phase1aHandoffProgress,
+          })
+          .eq('id', job.id)
+          .eq('status', JOB_STATUS.RUNNING)
+          .select('id, status, phase, phase_status')
+          .single();
+
+        if (phase1aHandoffErr) {
+          console.error(`[Processor] ${jobId}: phase_1a handoff DB transition FAILED`, phase1aHandoffErr.message);
+          throw new Error(`Phase 1A handoff DB transition failed: ${phase1aHandoffErr.message}`);
+        }
+
+        if (!phase1aHandoffRow || phase1aHandoffRow.status !== JOB_STATUS.QUEUED) {
+          console.warn(`[Processor] ${jobId}: phase_1a handoff 0 rows — job already transitioned`, { returned: phase1aHandoffRow ?? null });
+          return { success: true };
+        }
+
+        console.log(`[Processor] ${jobId}: phase_1a handoff confirmed — status=queued phase=phase_2`);
+        return { success: true };
+      } catch (phase1aErr) {
+        const errMsg = phase1aErr instanceof Error ? phase1aErr.message : String(phase1aErr);
+        console.error(`[Processor] ${jobId}: phase_1a fatal error`, errMsg);
+        await markFailed(
+          `Phase 1A character sweep failed: ${errMsg}`,
+          'PASS1A_LEDGER_MISSING',
+          { pipelineStage: 'phase_1a', bucket: 'openai_provider' },
+        );
+        return { success: false, error: errMsg };
+      }
+    } // end phase_1a execution
+
     if (executionPhase === 'phase_2') {
       await markRunning('Resuming from phase 1 handoff', 1, 'phase_2');
 
@@ -2945,6 +3298,36 @@ export async function processEvaluationJob(
               runPass1: async () => cachedPass1,
             };
 
+        // Read the character ledger artifact built by phase_1a.
+        // All 6 ledgers (identity, state-timelines, relationship, psychology/coping,
+        // object, terminal) are already assembled inside ledger_v2 — inject directly
+        // so runPipeline skips Pass 1A entirely in this invocation.
+        let prebuiltCharacterLedger: { ledger: Pass1aCharacterLedger; ledgerV2: CharacterLedgerV2 } | undefined;
+        try {
+          const { data: ledgerArtifactP2 } = await supabase
+            .from('evaluation_artifacts')
+            .select('content')
+            .eq('job_id', job.id)
+            .eq('artifact_type', 'pass1a_character_ledger_v1')
+            .maybeSingle();
+
+          if (ledgerArtifactP2?.content?.ledger_v1 && ledgerArtifactP2?.content?.ledger_v2) {
+            prebuiltCharacterLedger = {
+              ledger: ledgerArtifactP2.content.ledger_v1 as Pass1aCharacterLedger,
+              ledgerV2: ledgerArtifactP2.content.ledger_v2 as CharacterLedgerV2,
+            };
+            console.log(`[Processor] ${jobId}: phase_2 — prebuilt ledger loaded (all 6 ledgers ready)`, {
+              entries: (prebuiltCharacterLedger.ledger as any)?.entries?.length ?? 0,
+              v2_active_blockers: (prebuiltCharacterLedger.ledgerV2 as any)?.activeBlockers?.length ?? 0,
+            });
+          } else {
+            console.warn(`[Processor] ${jobId}: phase_2 — pass1a_character_ledger_v1 artifact missing or incomplete; Pass 1A will re-run inline`);
+          }
+        } catch (ledgerReadErr) {
+          console.warn(`[Processor] ${jobId}: phase_2 — failed to read ledger artifact (non-fatal, Pass 1A will re-run):`,
+            ledgerReadErr instanceof Error ? ledgerReadErr.message : String(ledgerReadErr));
+        }
+
         const leaseRenewalIntervalMsP2 = 30_000;
         const leaseRenewalLoopP2 = setInterval(() => {
           void renewEvaluationJobLease({
@@ -2982,6 +3365,9 @@ export async function processEvaluationJob(
             // For partial handoffs (pass2 was not captured), phase2Runners only
             // injects Pass1 so Pass2 runs normally against the manuscript chunks.
             _runners: phase2Runners,
+            // Inject prebuilt character ledger (all 6 ledgers built by phase_1a).
+            // If absent (ledger artifact missing), runPipeline will re-run Pass 1A inline.
+            ...(prebuiltCharacterLedger ? { _prebuiltCharacterLedger: prebuiltCharacterLedger } : {}),
             onHeartbeat: async (stage) => {
               await assertJobWithinSla({ supabase, jobId, hardDeadlineMs, stage });
               await renewEvaluationJobLease({
@@ -3482,23 +3868,30 @@ export async function processEvaluationJob(
             }),
             artifactVersion: 'pass12_handoff_v1',
           });
+          const partialHandoffNow = new Date().toISOString();
           await supabase
             .from('evaluation_jobs')
             .update({
-              phase: 'phase_1',
-              phase_status: 'complete',
-              updated_at: new Date().toISOString(),
+              status: JOB_STATUS.QUEUED,
+              phase: 'phase_1a',
+              phase_status: JOB_STATUS.QUEUED,
+              claimed_by: null,
+              claimed_at: null,
+              lease_token: null,
+              lease_until: null,
+              lease_expires_at: null,
+              updated_at: partialHandoffNow,
               progress: {
                 ...progressState,
                 phase: 'phase_1',
                 phase_status: 'complete',
-                message: 'Phase 1 partial handoff — Pass1 captured, resuming from Pass2',
-                pass12_handoff_written_at: new Date().toISOString(),
+                message: 'Phase 1 partial handoff — Pass1 captured, queued for Phase 1A',
+                pass12_handoff_written_at: partialHandoffNow,
                 pass12_partial_handoff: true,
               },
             })
             .eq('id', job.id);
-          console.log(`[Processor] ${jobId}: partial handoff written — phase_2 will resume from Pass${capturedPass2Output !== null ? '3' : '2'}`);
+          console.log(`[Processor] ${jobId}: partial handoff written — queued for phase_1a (Pass${capturedPass2Output !== null ? '2+3' : '2'} will re-run from phase_2)`);
           clearInterval(leaseRenewalLoop);
           return { success: true };
         } catch (handoffErr) {
@@ -3599,7 +3992,7 @@ export async function processEvaluationJob(
           ...progressState,
           phase: 'phase_1',         // keep phase_1 in JSONB so isPhase1CompleteHandoff fires
           phase_status: 'complete', // HARDCODED — never trust progressState here
-          message: 'Phase 1 complete — awaiting Pass 3 synthesis',
+          message: 'Phase 1 complete — awaiting Pass 1A character sweep',
           pass12_handoff_written_at: handoffNow,
         };
 
@@ -3607,7 +4000,7 @@ export async function processEvaluationJob(
           .from('evaluation_jobs')
           .update({
             status: JOB_STATUS.QUEUED,
-            phase: 'phase_2',
+            phase: 'phase_1a',
             phase_status: JOB_STATUS.QUEUED,
             claimed_by: null,
             claimed_at: null,
@@ -3643,7 +4036,7 @@ export async function processEvaluationJob(
         }
 
         console.log(
-          `[Processor] ${jobId}: phase_1 handoff confirmed — status=queued phase=phase_2`,
+          `[Processor] ${jobId}: phase_1 handoff confirmed — status=queued phase=phase_1a`,
           { status: handoffRow.status, phase: handoffRow.phase, phase_status: handoffRow.phase_status },
         );
         return { success: true };
@@ -4454,115 +4847,66 @@ export async function processEvaluationJob(
         at: persistenceResult.completedAt,
       });
 
-      // ─────────────────────────────────────────────────────────────────────────────
-      // WAVE Revision Phase (inline, same execution window, zero LLM calls)
-      //
-      // Runs deterministic revision modules after successful evaluation.
-      // Capped at 60s. Artifacts always written (complete/skipped/failed/timeout)
-      // before job transitions to COMPLETE.
-      //
-      // Does NOT name this “Pass 4” — Pass 4 = QualityGate in this codebase.
-      // ─────────────────────────────────────────────────────────────────────────────
-      try {
-        await markRunning('Running WAVE revision engine', 2, 'phase_2');
-
-        const waveStartMs = Date.now();
-        const waveHandoff = {
-          manuscriptText: manuscriptWithContent.content || '',
-          synthesis: pipelineResult.synthesis,
-          characterLedgerV2: pipelineResult.characterLedgerV2,
-          wordCount: coverageForReporting.sourceWords,
-          jobId,
-          manuscriptVersionId: (job.manuscript_version_id as string | null) ?? null,
-        };
-
-        let waveResult: import('@/lib/evaluation/waveRevision').WaveRevisionResult | null = null;
-        try {
-          waveResult = await Promise.race([
-            (await import('@/lib/evaluation/waveRevision')).executeWaveRevision(waveHandoff),
-            new Promise<never>((_, reject) =>
-              setTimeout(() => reject(new Error('WAVE_TIMEOUT')), 60_000)
-            ),
-          ]);
-        } catch (waveErr) {
-          const errMsg = waveErr instanceof Error ? waveErr.message : String(waveErr);
-          const isTimeout = errMsg === 'WAVE_TIMEOUT';
-          console.warn(`[WAVE] ${isTimeout ? 'Timeout' : 'Error'} for job ${jobId}:`, errMsg);
-
-          const failedPlan = {
-            status: (isTimeout ? 'timeout' : 'failed') as 'timeout' | 'failed',
-            reason: errMsg,
-            retryable: true,
-            generated_at: new Date().toISOString(),
-          };
-
-          // Persist failure artifacts — non-fatal, never throw
-          try {
-            const waveFailSourceHash = stableSourceHash({
-              manuscriptId: manuscript.id,
-              jobId: job.id,
-              userId: manuscriptWithContent.user_id,
-              manuscriptText: manuscriptWithContent.content || '',
-              promptVersion: `wave_revision_plan_v1:${failedPlan.status}`,
-              model: 'wave_deterministic',
-            });
-            await upsertEvaluationArtifact({
-              supabase,
-              jobId: job.id,
-              manuscriptId: job.manuscript_id,
-              artifactType: 'wave_revision_plan_v1',
-              artifactVersion: 'wave_revision_plan_v1',
-              sourceHash: waveFailSourceHash,
-              content: failedPlan,
-            });
-            // wave_runs rows are per-module and persisted by executeWaveModules internally.
-          } catch (waveArtifactErr) {
-            console.error(
-              `[WAVE] Failed to persist WAVE failure artifact for job ${jobId} (non-fatal):`,
-              waveArtifactErr instanceof Error ? waveArtifactErr.message : String(waveArtifactErr),
-            );
-          }
-        }
-
-        if (waveResult) {
-          try {
-            const wavePlanSourceHash = stableSourceHash({
-              manuscriptId: manuscript.id,
-              jobId: job.id,
-              userId: manuscriptWithContent.user_id,
-              manuscriptText: manuscriptWithContent.content || '',
-              promptVersion: `wave_revision_plan_v1:${waveResult.plan.status}`,
-              model: 'wave_deterministic',
-            });
-            await upsertEvaluationArtifact({
-              supabase,
-              jobId: job.id,
-              manuscriptId: job.manuscript_id,
-              artifactType: 'wave_revision_plan_v1',
-              artifactVersion: 'wave_revision_plan_v1',
-              sourceHash: wavePlanSourceHash,
-              content: waveResult.plan,
-            });
-            // wave_runs rows (per-module) are persisted by executeWaveModules internally.
-            console.log(
-              `[WAVE] Artifacts persisted for job ${jobId} — status=${waveResult.plan.status}`,
-            );
-          } catch (waveArtifactErr) {
-            console.error(
-              `[WAVE] Failed to persist WAVE success artifacts for job ${jobId} (non-fatal):`,
-              waveArtifactErr instanceof Error ? waveArtifactErr.message : String(waveArtifactErr),
-            );
-          }
-        }
-      } catch (wavePhaseErr) {
-        // Outer safety net — WAVE phase must never kill a completed evaluation
-        console.error(
-          `[WAVE] Unexpected outer error for job ${jobId} (non-fatal):`,
-          wavePhaseErr instanceof Error ? wavePhaseErr.message : String(wavePhaseErr),
+      // ── Phase 2 → Phase 3 handoff (WAVE revision owns its own 720s invocation) ──
+      // Evaluation is fully complete. If WAVE eligible, queue phase_3 for the next
+      // cron tick. If not eligible, mark job complete now.
+      // WAVE gate: wordCount >= 25,000 AND all 13 criteria final_score_0_10 >= 6.0
+      const phase2Now = new Date().toISOString();
+      const coverageWords = coverageForReporting?.sourceWords ?? 0;
+      const finalScores = pipelineResult.synthesis?.criteria ?? [];
+      const isWaveEligibleWord = coverageWords >= WAVE_MIN_WORDS;
+      const isWaveEligibleCriteria = finalScores.length === 13 &&
+        finalScores.every((c: { final_score_0_10?: number; score_0_10?: number }) =>
+          ((c.final_score_0_10 ?? c.score_0_10 ?? 0) >= WAVE_MIN_CRITERION_SCORE)
         );
+      const isWaveEligible = isWaveEligibleWord && isWaveEligibleCriteria;
+
+      console.log(`[Processor] ${jobId}: phase_2 complete — WAVE eligible=${isWaveEligible}`, {
+        word_count: coverageWords,
+        min_words: WAVE_MIN_WORDS,
+        criteria_count: finalScores.length,
+        wave_eligible_word: isWaveEligibleWord,
+        wave_eligible_criteria: isWaveEligibleCriteria,
+      });
+
+      if (isWaveEligible) {
+        // Queue phase_3 — WAVE runs in its own Vercel invocation with fresh 720s
+        const { data: phase3QueueRow, error: phase3QueueErr } = await supabase
+          .from('evaluation_jobs')
+          .update({
+            status: JOB_STATUS.QUEUED,
+            phase: 'phase_3',
+            phase_status: JOB_STATUS.QUEUED,
+            claimed_by: null,
+            claimed_at: null,
+            lease_token: null,
+            lease_until: null,
+            lease_expires_at: null,
+            updated_at: phase2Now,
+            progress: {
+              ...progressState,
+              phase: 'phase_2',
+              phase_status: 'complete',
+              message: 'Evaluation complete — queued for WAVE revision',
+              phase2_completed_at: phase2Now,
+            },
+          })
+          .eq('id', job.id)
+          .eq('status', JOB_STATUS.RUNNING)
+          .select('id, status, phase, phase_status')
+          .single();
+
+        if (phase3QueueErr) {
+          console.error(`[Processor] ${jobId}: phase_3 queue transition FAILED (non-fatal — evaluation complete)`, phase3QueueErr.message);
+          // Fall through: mark job complete even if WAVE queue fails
+        } else if (phase3QueueRow?.status === JOB_STATUS.QUEUED) {
+          console.log(`[Processor] ${jobId}: phase_2 → phase_3 queued — WAVE will run in next invocation`);
+          return { success: true };
+        }
+        // If queue transition returned 0 rows, job already transitioned — fall through to complete
       }
 
-      // Job is complete regardless of WAVE outcome
+      // Not WAVE eligible (or queue failed) — mark job complete now
       nextLifecycleStatus(JOB_STATUS.COMPLETE);
     } catch (artifactError) {
       finishLatencyStage({
