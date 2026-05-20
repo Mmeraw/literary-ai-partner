@@ -1,0 +1,116 @@
+{
+  "schemaVersion": "public-domain-calibration-registry.v1",
+  "policy": {
+    "runtimeAuthority": false,
+    "ordinaryEvaluationPromptInjection": false,
+    "allowedUses": [
+      "text-integrity validation",
+      "long-form evaluation regression",
+      "score sanity calibration",
+      "genre-aware diagnostic QA",
+      "optional benchmark comparison mode"
+    ],
+    "disallowedUses": [
+      "wholesale insertion into ordinary user-evaluation prompts",
+      "replacement of RevisionGrade-native gold standards",
+      "style imitation targets for modern manuscripts",
+      "automatic score control for live user submissions"
+    ]
+  },
+  "defaultArtifactExclusionPatterns": [
+    "Project Gutenberg",
+    "\\*\\*\\* START",
+    "\\*\\*\\* END",
+    "Produced by",
+    "Transcriber",
+    "\\[Illustration:",
+    "_Copyright",
+    "George Allen",
+    "publisher",
+    "printer"
+  ],
+  "works": [
+    {
+      "id": "pride-and-prejudice",
+      "title": "Pride and Prejudice",
+      "author": "Jane Austen",
+      "publicationYear": 1813,
+      "publicDomainBasis": "pre-1928-us-copyright-expiration",
+      "sourceTextPath": "corpus/public-domain/clean/pride-and-prejudice.txt",
+      "calibrationDocPath": "docs/benchmarks/public-domain/pride-and-prejudice-dream-calibration.md",
+      "goldenEvalPath": "corpus/public-domain/golden-evals/pride-and-prejudice.dream-longform.json",
+      "route": "LONG_FORM",
+      "benchmarkRole": "dialogue_voice_pov_social_tension_scene_economy",
+      "craftAnchors": [
+        "dialogue subtext",
+        "free indirect discourse",
+        "social tension",
+        "POV and voice control",
+        "character interaction",
+        "scene economy"
+      ],
+      "integrity": {
+        "chapterHeadingPattern": "^(?:CHAPTER|Chapter)\\s+([IVXLCDM]+)\\.?$",
+        "expectedChapterCount": 61,
+        "strictRomanChapterSequence": true,
+        "wordCount": { "min": 115000, "max": 130000 },
+        "minApostrophes": 1000
+      }
+    },
+    {
+      "id": "dracula",
+      "title": "Dracula",
+      "author": "Bram Stoker",
+      "publicationYear": 1897,
+      "publicDomainBasis": "pre-1928-us-copyright-expiration",
+      "sourceTextPath": "corpus/public-domain/clean/dracula.txt",
+      "calibrationDocPath": "docs/benchmarks/public-domain/dracula-dream-calibration.md",
+      "goldenEvalPath": "corpus/public-domain/golden-evals/dracula.dream-longform.json",
+      "route": "LONG_FORM",
+      "benchmarkRole": "epistolary_structure_suspense_atmosphere_revelation_pacing",
+      "craftAnchors": [
+        "epistolary architecture",
+        "multi-document narration",
+        "suspense escalation",
+        "Gothic atmosphere",
+        "revelation pacing",
+        "procedural drag detection"
+      ],
+      "integrity": {
+        "chapterHeadingPattern": "^(?:CHAPTER|Chapter)\\s+([IVXLCDM]+)\\.?$",
+        "expectedChapterCount": 27,
+        "strictRomanChapterSequence": true,
+        "wordCount": { "min": 150000, "max": 175000 },
+        "minApostrophes": 500
+      }
+    },
+    {
+      "id": "great-expectations",
+      "title": "Great Expectations",
+      "author": "Charles Dickens",
+      "publicationYear": 1861,
+      "sourceEdition": "1867 edition baseline when available",
+      "publicDomainBasis": "pre-1928-us-copyright-expiration",
+      "sourceTextPath": "corpus/public-domain/clean/great-expectations.txt",
+      "calibrationDocPath": "docs/benchmarks/public-domain/great-expectations-dream-calibration.md",
+      "goldenEvalPath": "corpus/public-domain/golden-evals/great-expectations.dream-longform.json",
+      "route": "LONG_FORM",
+      "benchmarkRole": "retrospective_voice_character_arc_motif_recurrence_closure",
+      "craftAnchors": [
+        "retrospective first-person voice",
+        "moral-psychological arc",
+        "serial revelation structure",
+        "class pressure",
+        "motif recurrence",
+        "earned closure"
+      ],
+      "integrity": {
+        "chapterHeadingPattern": "^(?:CHAPTER|Chapter)\\s+([IVXLCDM]+)\\.?$",
+        "expectedChapterCount": 59,
+        "strictRomanChapterSequence": true,
+        "wordCount": { "min": 175000, "max": 205000 },
+        "minApostrophes": 1000
+      }
+    }
+  ]
+}
