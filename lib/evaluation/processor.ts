@@ -1797,7 +1797,7 @@ export async function failStaleRunningJobs(): Promise<{
           //     based on evaluation_result_v2 presence) → honor it
               //   - phase_1a frozen → rescue to phase_2 (Pass 3 will re-run Pass 1A if ledger missing)
           //   - phase_2+ frozen → rescue to phase_2 (safe retry)
-          const currentPhaseForRescue = (currentProgress.phase as string | undefined) ?? 'phase_1';
+          const currentPhaseForRescue = (currentProgress.phase as string | undefined) ?? 'phase_1a';
           const rescueTargetPhase = entry.targetPhase
             ?? (currentPhaseForRescue === 'phase_1a' ? 'phase_2' : 'phase_2');
 
@@ -1838,7 +1838,7 @@ export async function failStaleRunningJobs(): Promise<{
                 event: 'watchdog_rescue',
                 from_status: 'running',
                 to_status: 'queued',
-                from_phase: currentProgress.phase ?? 'phase_1',
+                from_phase: currentProgress.phase ?? 'phase_1a',
                 to_phase: rescueTargetPhase,
                 rescue_reason: entry.reason,
                 checkpoint_used: entry.checkpoint,
@@ -2017,7 +2017,7 @@ export async function failStaleRunningJobs(): Promise<{
           ? (currentRow.progress as Record<string, unknown>)
           : {};
         const currentAttempts = (currentRow?.attempt_count as number | null) ?? 0;
-        const currentPhaseForRescue = (currentProgress.phase as string | undefined) ?? 'phase_1';
+        const currentPhaseForRescue = (currentProgress.phase as string | undefined) ?? 'phase_1a';
         const rescueTargetPhase = currentPhaseForRescue === 'phase_1a' ? 'phase_2' : 'phase_2';
 
         const { error: rescueErr } = await supabase
