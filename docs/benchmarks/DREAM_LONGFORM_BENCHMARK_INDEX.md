@@ -32,10 +32,13 @@ Public-domain calibration files are teaching benchmarks only. They are useful fo
 |---|---|---|---|---|---|---|
 | *Dracula* | Bram Stoker | [`public-domain/dracula-dream-calibration.md`](./public-domain/dracula-dream-calibration.md) | `LONG_FORM` | public-domain-calibration | `false` | Yes |
 | *Great Expectations* | Charles Dickens | [`public-domain/great-expectations-dream-calibration.md`](./public-domain/great-expectations-dream-calibration.md) | `LONG_FORM` | public-domain-calibration | `false` | Yes |
+| *Pride and Prejudice* | Jane Austen | [`public-domain/pride-and-prejudice-dream-calibration.md`](./public-domain/pride-and-prejudice-dream-calibration.md) | `LONG_FORM` | public-domain-calibration | `false` | Yes |
 
 *Dracula* teaches form-as-plot detection, multi-voice evidence assembly, Mina as structural organizer, Gothic sensory governance, symbolic contagion systems, and the distinction between productive procedural realism and momentum drag. Required detection: epistolary architecture, evidence distribution across acts, character structural weight versus action weight, symbolic lifecycle tracing, and middle pacing drag as a named weakness.
 
 *Great Expectations* teaches moral psychology as plot architecture, shame as an organizing system, false-causality revelation, Joe as quiet ethical ground, Magwitch as benefactor inversion, Satis House as wound-system, tactile moral register, and the difference between Dickensian social breadth and pacing drag.
+
+*Pride and Prejudice* teaches social-pressure plotting as a structural engine, irony as simultaneous prose texture and plot mechanism, dialogue that advances plot / reveals character / signals class position in a single exchange, romantic comedy pacing as governed delay (earned withholding versus stall), the distinction between wit and sentimentality as register choices, and how a manuscript can be emotionally high-stakes while tonally light. Required detection: delayed-revelation romance architecture, comedy-of-manners as moral diagnostic, economic precarity as permanent background pressure, and the difference between Darcy's arc (social humiliation → genuine revision) and Wickham's arc (charm as weaponized surface with no interiority).
 
 ## V2 governance rule
 
@@ -119,3 +122,4 @@ wave-applied: true
 ```
 
 Do not weaken the underlying evaluation body while normalizing headers. Header normalization is metadata only. Addenda are the preferred V2 compliance layer for large manual benchmark bodies.
+
