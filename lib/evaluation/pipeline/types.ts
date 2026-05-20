@@ -1002,3 +1002,333 @@ export interface Pass1aCharacterLedger {
     hard_fail_triggers: string[];
   };
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// CHARACTER LEDGER v2 — Time-Indexed Continuity System
+// "Characters as timelines, not profiles."
+//
+// Six ledgers. Every field is evidence-backed, time-indexed, and usable as a
+// deterministic blocker against bad recommendations.
+// Schema version: character_ledger_v2
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ── Foundation types ──────────────────────────────────────────────────────────
+
+export type EvidenceConfidence = "explicit" | "strong_inference" | "weak_inference";
+
+/**
+ * Every significant claim in the ledger must be grounded in text.
+ * No field may be inferred without a quote and a chapter reference.
+ */
+export interface EvidenceBackedField<T = string> {
+  value: T;
+  confidence: EvidenceConfidence;
+  evidenceQuote: string;       // verbatim or near-verbatim from manuscript
+  chapterRef: string;          // e.g. "Chapter 4" or "chunk 12"
+  sourceChunkId?: number;      // chunk index if available
+}
+
+export interface ChapterRef {
+  label: string;               // "Chapter 4", "Opening", "MID-LATE", etc.
+  chunkIndex?: number;
+}
+
+export type NarrativeRole =
+  | "protagonist" | "co_protagonist" | "antagonist"
+  | "mentor" | "foil" | "secondary" | "symbolic_force" | "collective_force"
+  | "animal_companion" | "unknown";
+
+export type ImportanceLevel = "primary" | "major" | "supporting" | "minor" | "background";
+
+export type RelationshipType =
+  | "captor_captive" | "protector_protected" | "father_son" | "father_daughter"
+  | "romantic_partners" | "found_family" | "adversaries" | "uneasy_alliance"
+  | "mentor_student" | "strangers" | "siblings" | "colleagues" | "unknown";
+
+export type PowerDynamic = "dominant" | "subordinate" | "equal" | "shifting" | "unknown";
+
+export type ObjectSymbolicStage =
+  | "introduced" | "transferred" | "transformed" | "weaponized"
+  | "lost" | "paid_off" | "unresolved";
+
+// ── Recommendation Blockers ────────────────────────────────────────────────────
+
+export type RecommendationBlockerType =
+  | "chronology_violation"       // rec targets a chapter before the condition is valid
+  | "co_presence_violation"      // rec places characters together before they have met
+  | "name_state_violation"       // rec uses a name before the story earns it
+  | "existing_feature_violation" // rec says "add X" but X already exists
+  | "location_state_violation"   // rec places character at wrong location
+  | "knowledge_state_violation"  // rec assumes character knows something they don't yet
+  | "object_state_violation"     // rec references object transfer before it occurred
+  | "terminal_state_violation";  // rec ignores that character has died/left the story
+
+export interface RecommendationBlocker {
+  type: RecommendationBlockerType;
+  rule: string;         // human-readable enforcement rule
+  validAfterChapter?: string;   // the chapter after which the rec would be valid
+  involvedCharacters?: string[];
+  involvedObjects?: string[];
+}
+
+// ── Contradiction Tracker ──────────────────────────────────────────────────────
+
+export interface Contradiction {
+  field: string;
+  values: string[];
+  chapters: string[];
+  resolution: string;
+  confidence: EvidenceConfidence;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// LEDGER 1 — Character Identity Ledger
+// Who the person is across the whole book.
+// ══════════════════════════════════════════════════════════════════════════════
+
+export interface CharacterIdentityLedgerEntry {
+  characterId: string;                          // canonical stable ID
+  canonicalName: string;                        // primary name used in report
+  nameHistory: Array<{
+    name: string;
+    validFromChunk: number;
+    validUntilChunk: number | null;             // null = valid through end
+    reason?: string;                            // e.g. "renamed at embassy departure"
+    confidence: EvidenceConfidence;
+    evidenceQuote?: string;
+  }>;
+  aliases: string[];                            // all names/nicknames observed
+  narrativeRole: NarrativeRole;
+  importanceLevel: ImportanceLevel;
+  firstAppearance: ChapterRef;
+  lastAppearance: ChapterRef;
+  firstChunkIndex: number;
+  lastChunkIndex: number;
+  finalStatus: "alive" | "dead" | "missing" | "transformed" | "unresolved";
+
+  // Identity markers — optional, text-grounded only, never inferred
+  identityMarkers?: {
+    genderIdentity?: EvidenceBackedField;
+    sexualOrientation?: EvidenceBackedField;
+    ethnicity?: EvidenceBackedField[];
+    nationality?: EvidenceBackedField[];
+    religionOrFaithContext?: EvidenceBackedField;
+    ageAtStart?: EvidenceBackedField<number>;
+    ageAtEnd?: EvidenceBackedField<number>;
+    lifeStage?: EvidenceBackedField;
+    textuallyRelevant: boolean;                 // is identity plot-functional?
+  };
+
+  contradictions: Contradiction[];
+  recommendationBlockers: RecommendationBlocker[];
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// LEDGER 2 — Character State Timeline
+// Who they are at each time, place, psychological state.
+// Indexed by chunk range — one entry per significant state change.
+// ══════════════════════════════════════════════════════════════════════════════
+
+export interface CharacterStateSnapshot {
+  characterId: string;
+  chunkRange: [number, number];                 // [fromChunk, toChunk]
+  chapterRange: string;                         // "Chapter 4–7"
+  nameUsed: string;                             // valid name for this range
+  ageOrLifeStage: string | null;
+  location: string | null;
+  country: string | null;
+  jobOrRole: string | null;
+  legalStatus: string | null;                   // "captive" | "free" | "documented" | etc.
+  healthState: string | null;
+  psychologicalState: string | null;
+  mobilityStatus: string | null;                // "captive" | "free movement" | "escorted" | etc.
+  knowledgeState: string[];                     // what does this character know at this point?
+  evidenceQuote: string;
+  confidence: EvidenceConfidence;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// LEDGER 3 — Relationship Ledger
+// Who has met whom, when, where, and how the relationship evolves.
+// This is the primary co-presence blocker.
+// ══════════════════════════════════════════════════════════════════════════════
+
+export interface RelationshipLedgerEntry {
+  characterA: string;
+  characterB: string;
+  firstCoPresenceChunk: number;
+  firstCoPresenceChapter: string;              // "Chapter 72" — the gate value
+  invalidBeforeChapter: string;               // canonical blocker label
+  firstSharedLocation: string | null;
+  relationshipTypeStart: RelationshipType;
+  relationshipTypeEnd: RelationshipType;
+  powerDynamicTimeline: Array<{
+    chunkRange: [number, number];
+    dynamic: PowerDynamic;
+    note?: string;
+  }>;
+  pivotMoments: Array<{
+    chunkIndex: number;
+    chapterRef: string;
+    description: string;
+    evidenceQuote: string;
+  }>;
+  sharedObjects: string[];                    // object IDs from Object Ledger
+  sharedActivities: string[];                 // e.g. "ping-pong", "ball lessons"
+  unresolvedLedger: string[];                 // promises/obligations still open at end
+  recommendationBlocker: RecommendationBlocker; // the enforcement rule
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// LEDGER 4 — Psychology / Coping Ledger
+// What rituals, habits, and coping behaviors each character has.
+// THE primary blocker for "seed a ritual" recommendations.
+// ══════════════════════════════════════════════════════════════════════════════
+
+export interface CopingMechanismEntry {
+  description: string;                         // "lines up pencils before answering"
+  firstAppearsChunk: number;
+  firstAppearsChapter: string;
+  recurrenceChunks: number[];
+  frequency: "rare" | "recurring" | "dominant";
+  triggeredBy: string | null;                  // e.g. "stress", "confrontation"
+  manifestsAs: string;                         // behavioral description
+  psychologicalFunction: string;               // "maintains illusion of control"
+  evidenceQuote: string;
+  confidence: EvidenceConfidence;
+}
+
+export interface PsychologyLedgerEntry {
+  characterId: string;
+  coreFear?: EvidenceBackedField;
+  coreDesire?: EvidenceBackedField;
+  copingMechanisms: CopingMechanismEntry[];
+  psychologicalArc: string;                    // one-phrase arc summary
+  // Enforcement: if copingMechanisms.length > 0, "seed" recs are blocked
+  seedingBlocked: boolean;                     // true when copingMechanisms.length > 0
+  seedingBlockMessage: string;                 // injected into prompt as Gate 4 text
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// LEDGER 5 — Object / Symbol Attachment Ledger
+// Where every significant object lives, who has it, and what it means.
+// Evil eye, cell phone, crates, water, ping-pong, wood marks all live here.
+// ══════════════════════════════════════════════════════════════════════════════
+
+export interface ObjectTransferEvent {
+  fromCharacter: string | null;               // null = introduced without owner
+  toCharacter: string;
+  chunkIndex: number;
+  chapterRef: string;
+  context: string;                            // "Raúl takes it from Michael"
+  evidenceQuote: string;
+  confidence: EvidenceConfidence;
+}
+
+export interface ObjectSymbolicStageEntry {
+  stage: ObjectSymbolicStage;
+  chunkRange: [number, number];
+  chapterRange: string;
+  function: string;
+  evidenceQuote: string;
+}
+
+export interface ObjectLedgerEntry {
+  objectId: string;                           // stable ID e.g. "evil_eye_keychain"
+  objectName: string;                         // display name
+  attachedCharacters: string[];               // all characters who hold/relate to it
+  currentHolder: string | null;               // at last_chunk
+  firstAppearanceChunk: number;
+  firstAppearanceChapter: string;
+  lastAppearanceChunk: number;
+  ownershipPath: string[];                    // e.g. ["Michael", "Raúl", "Raúl's son"]
+  transferEvents: ObjectTransferEvent[];
+  symbolicFunctionByStage: ObjectSymbolicStageEntry[];
+  payoffChunk: number | null;
+  payoffChapter: string | null;
+  payoffDescription: string | null;
+  missedIfAbsentFromReport: boolean;          // true for high-value symbols
+  status: "resolved" | "active" | "dropped" | "intentionally_unresolved";
+  recommendationBlockers: RecommendationBlocker[];
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// LEDGER 6 — Terminal / Legacy Ledger
+// Characters who age, die, disappear, or leave the story.
+// Enables Narrative Closure to evaluate death and unresolved consequence.
+// ══════════════════════════════════════════════════════════════════════════════
+
+export interface TerminalLedgerEntry {
+  characterId: string;
+  terminalCondition: "death" | "departure" | "disappearance" | "transformation" | "open" | "unresolved";
+  terminalChunk: number | null;
+  terminalChapter: string | null;
+  lastLucidChunk: number | null;
+  whoIsPresent: string[];                     // characters present at terminal moment
+  finalBeliefState: string | null;            // what does the character believe at end?
+  promisesKept: string[];
+  promisesUnkept: string[];
+  objectsPresentAtExit: string[];             // object IDs
+  legacyTransferredTo: string | null;         // who inherits their role/objects/arc
+  finalRelationshipStates: Array<{
+    withCharacter: string;
+    state: string;
+    evidenceQuote: string;
+  }>;
+  narrativeClosureStatus: "fully_resolved" | "partially_resolved" | "intentionally_open" | "underpaid";
+  evidenceQuote: string;
+  confidence: EvidenceConfidence;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// MASTER CHARACTER LEDGER v2
+// All six ledgers assembled into one envelope passed to Pass 3.
+// ══════════════════════════════════════════════════════════════════════════════
+
+export interface CharacterLedgerV2 {
+  schema_version: "character_ledger_v2";
+  prompt_version: string;
+  job_id: string;
+  generated_at: string;
+  total_chunks_processed: number;
+
+  // Six ledgers
+  identityLedger: CharacterIdentityLedgerEntry[];
+  stateTimelines: CharacterStateSnapshot[];   // all snapshots, all characters
+  relationshipLedger: RelationshipLedgerEntry[];
+  psychologyLedger: PsychologyLedgerEntry[];
+  objectLedger: ObjectLedgerEntry[];
+  terminalLedger: TerminalLedgerEntry[];
+
+  // Validation query interface (populated at reduce time, used by Pass 3 prompt)
+  validationQueries: {
+    // isCharacterPresent(characterId, chunkIndex) → boolean
+    characterPresenceIndex: Record<string, number[]>;  // characterId → [chunk indices]
+    // haveCharactersMet(charA, charB, targetChunk) → boolean if firstCoPresenceChunk ≤ targetChunk
+    coPresenceIndex: Record<string, Record<string, number>>;  // charA → charB → firstSharedChunk
+    // isNameValidAtChunk(characterId, name, chunkIndex) → boolean
+    nameStateIndex: Record<string, Array<{ name: string; validFromChunk: number; validUntilChunk: number | null }>>;
+    // doesCopingMechanismExist(characterId) → boolean + list
+    copingIndex: Record<string, string[]>;             // characterId → coping descriptions
+    // isObjectAtLocation - object chunk range
+    objectPresenceIndex: Record<string, [number, number]>; // objectId → [first, last] chunk
+    // hasSymbolPaidOff(objectId) → boolean
+    symbolPayoffIndex: Record<string, boolean>;
+    // whatPromisesRemainUnkept(characterId) → string[]
+    unresolvedPromisesIndex: Record<string, string[]>;
+  };
+
+  // Global recommendation blockers — injected verbatim into Pass 3 prompt
+  activeBlockers: RecommendationBlocker[];
+
+  // Integrity summary
+  coverage_summary: {
+    protagonists: string[];
+    co_protagonists: string[];
+    antagonists: string[];
+    high_value_objects: string[];             // objectIds where missedIfAbsentFromReport=true
+    unresolved_promises: string[];
+    open_terminal_ledgers: string[];
+    hard_fail_triggers: string[];
+  };
+}
