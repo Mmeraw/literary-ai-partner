@@ -77,7 +77,7 @@ async function insertTestJob(manuscriptId: number): Promise<string> {
       manuscript_id, job_type, status, phase, policy_family,
       voice_preservation_level, english_variant, work_type
     ) VALUES (
-      ${manuscriptId}, 'full_evaluation', 'queued', 'phase_1', 'standard',
+      ${manuscriptId}, 'full_evaluation', 'queued', 'phase_1a', 'standard',
       'balanced', 'us', 'full_evaluation'
     ) RETURNING id;
   `);
