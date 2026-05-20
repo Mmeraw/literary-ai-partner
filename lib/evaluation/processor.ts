@@ -1590,6 +1590,17 @@ export async function failStaleRunningJobs(): Promise<{
       .eq('artifact_type', 'pass3_preflight_draft_v1');
     const preflightJobIds = new Set((preflightArtifacts ?? []).map((a) => a.job_id));
 
+    // Batch-fetch evaluation_result_v2 (Pass 3B synthesis) artifacts for GUARD D
+    // split-brain routing: if handoff exists AND eval_result exists, advance to
+    // phase_3 (WAVE); if handoff exists but eval_result is missing, route to
+    // phase_2 (Pass 3B synthesis) — WAVE has nothing to work with otherwise.
+    const { data: evalResultArtifacts } = await supabase
+      .from('evaluation_artifacts')
+      .select('job_id')
+      .in('job_id', frozenIds)
+      .eq('artifact_type', 'evaluation_result_v2');
+    const evalResultJobIds = new Set((evalResultArtifacts ?? []).map((a) => a.job_id));
+
     const rescueNow = new Date().toISOString();
     type RescueEntry = {
       id: string;
@@ -1597,7 +1608,9 @@ export async function failStaleRunningJobs(): Promise<{
       reason: string;
       checkpoint: string;
       // Explicit rescue target — overrides the default phase-based mapping below.
-      // Used by split-brain rescue (pass12_handoff exists while job stuck in phase_1).
+      // Used by split-brain rescue: pass12_handoff exists while job is stuck in
+      // phase_1/phase_1a — target is phase_3 if evaluation_result_v2 is present,
+      // phase_2 (Pass 3B synthesis) otherwise.
       targetPhase?: string;
     };
     const rescueEntries: RescueEntry[] = [];
@@ -1655,24 +1668,38 @@ export async function failStaleRunningJobs(): Promise<{
       }
 
       // ─ GUARD D: Artifact checkpoint gate ─────────────────────────────────────
-      // If pass12_handoff_v1 exists (or phase_status=complete), Pass 1+2 finished;
-      // the only remaining work is Pass 3 arbitration — rescue straight to phase_3
-      // regardless of which phase the row is currently parked in (split-brain safe).
+      // If pass12_handoff_v1 exists (or phase_status=complete), Pass 1+2 finished.
+      // Where to rescue depends on whether Pass 3B synthesis already ran:
+      //   - evaluation_result_v2 present → synthesis done, advance to phase_3 (WAVE)
+      //   - evaluation_result_v2 missing → synthesis not done, route to phase_2
+      //     (Pass 3B synthesis). Skipping straight to phase_3 here would land WAVE
+      //     with no synthesis to act on and mark the job complete with no report.
       const alreadyHandedOff =
         phaseStatusTopLevel === 'complete' ||
         phaseStatusProgress  === 'complete' ||
         handoffJobIds.has(row.id);
 
       if (alreadyHandedOff) {
+        const hasEvalResult = evalResultJobIds.has(row.id);
+        const handoffTargetPhase = hasEvalResult ? 'phase_3' : 'phase_2';
+
         if (currentPhase === 'phase_1' || currentPhase === 'phase_1a') {
-          console.log(`[watchdog] split-brain detected: pass12_handoff exists but job still in phase_1 — advancing to phase_3 (job=${row.id})`);
+          if (hasEvalResult) {
+            console.log(`[watchdog] split-brain: handoff + eval_result present — advancing to phase_3 (WAVE) (job=${row.id})`);
+          } else {
+            console.log(`[watchdog] split-brain: handoff present, eval_result missing — advancing to phase_2 (Pass 3B synthesis) (job=${row.id})`);
+          }
         }
         rescueEntries.push({
           id: row.id,
           manuscriptId: (row.manuscript_id as number | null) ?? 0,
-          reason: 'handoff_artifact_found',
-          checkpoint: 'pass12_handoff_v1',
-          targetPhase: 'phase_3',
+          reason: hasEvalResult
+            ? 'handoff_artifact_found_eval_result_present'
+            : 'handoff_artifact_found_eval_result_missing',
+          checkpoint: hasEvalResult
+            ? 'pass12_handoff_v1+evaluation_result_v2'
+            : 'pass12_handoff_v1',
+          targetPhase: handoffTargetPhase,
         });
         continue;
       }
@@ -1770,7 +1797,8 @@ export async function failStaleRunningJobs(): Promise<{
           };
 
           // Determine rescue target phase:
-          //   - entry.targetPhase set explicitly (split-brain → phase_3) → honor it
+          //   - entry.targetPhase set explicitly (split-brain → phase_2 or phase_3
+          //     based on evaluation_result_v2 presence) → honor it
           //   - phase_1  frozen with handoff artifact → rescue to phase_1a
           //   - phase_1a frozen → rescue to phase_2 (Pass 3 will re-run Pass 1A if ledger missing)
           //   - phase_2+ frozen → rescue to phase_2 (safe retry)
@@ -3106,6 +3134,85 @@ export async function processEvaluationJob(
     // Own 720s Vercel invocation. Reads evaluation result + character ledger
     // from artifacts, runs WAVE revision engine, marks job complete.
     if (executionPhase === 'phase_3') {
+      // Safety guard: phase_3 (WAVE) requires evaluation_result_v2 (Pass 3B synthesis).
+      // If a job lands here with no synthesis, WAVE has nothing to work with.
+      //   - synthesis missing + handoff present → requeue to phase_2 (Pass 3B will synthesize)
+      //   - synthesis missing + handoff missing → terminal: nothing to recover from
+      {
+        const { data: evalResultPresenceRow } = await supabase
+          .from('evaluation_artifacts')
+          .select('job_id')
+          .eq('job_id', job.id)
+          .eq('artifact_type', 'evaluation_result_v2')
+          .maybeSingle();
+        const { data: handoffPresenceRow } = await supabase
+          .from('evaluation_artifacts')
+          .select('job_id')
+          .eq('job_id', job.id)
+          .eq('artifact_type', 'pass12_handoff_v1')
+          .maybeSingle();
+
+        const hasEvalResult = !!evalResultPresenceRow;
+        const hasHandoff    = !!handoffPresenceRow;
+
+        if (!hasEvalResult && hasHandoff) {
+          console.warn(`[phase_3] ${jobId}: evaluation_result_v2 missing but pass12_handoff_v1 present — requeueing to phase_2 (Pass 3B synthesis)`);
+          const requeueNow = new Date().toISOString();
+          const { error: requeueErr } = await supabase
+            .from('evaluation_jobs')
+            .update({
+              status: JOB_STATUS.QUEUED,
+              phase: 'phase_2',
+              phase_status: JOB_STATUS.QUEUED,
+              claimed_by: null,
+              claimed_at: null,
+              lease_token: null,
+              lease_until: null,
+              updated_at: requeueNow,
+            })
+            .eq('id', job.id);
+          if (requeueErr) {
+            console.error(`[phase_3] ${jobId}: requeue to phase_2 failed`, requeueErr.message);
+          }
+          return { success: true };
+        }
+
+        if (!hasEvalResult && !hasHandoff) {
+          console.error(`[phase_3] ${jobId}: neither evaluation_result_v2 nor pass12_handoff_v1 found — marking failed`);
+          try {
+            await finalizeJobFailure({
+              jobId,
+              errorEnvelope: {
+                code: 'PHASE3_NO_SYNTHESIS_NO_HANDOFF',
+                message: 'phase_3 entered with neither evaluation_result_v2 nor pass12_handoff_v1 — nothing to work with',
+                retryable: false,
+              },
+            });
+          } catch (finalizeErr) {
+            console.error(`[phase_3] ${jobId}: finalizeJobFailure failed (fallback to direct update)`,
+              finalizeErr instanceof Error ? finalizeErr.message : String(finalizeErr));
+            const failNow = new Date().toISOString();
+            await supabase
+              .from('evaluation_jobs')
+              .update({
+                status: normalizeEvaluationJobStatus(JOB_STATUS.FAILED) as JobStatus,
+                phase: 'phase_3',
+                phase_status: 'failed',
+                last_error: 'phase_3 entered with neither evaluation_result_v2 nor pass12_handoff_v1',
+                failure_code: 'PHASE3_NO_SYNTHESIS_NO_HANDOFF',
+                failed_at: failNow,
+                updated_at: failNow,
+                claimed_by: null,
+                claimed_at: null,
+                lease_token: null,
+                lease_until: null,
+              })
+              .eq('id', job.id);
+          }
+          return { success: true };
+        }
+      }
+
       await markRunning('Running WAVE revision engine', 2, 'phase_3');
       refreshPhaseDeadline(progressState.phase3_started_at as string | undefined);
 
