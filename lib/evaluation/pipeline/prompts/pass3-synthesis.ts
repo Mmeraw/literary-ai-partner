@@ -8,7 +8,8 @@
 
 import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
 import type { SubmissionScopeProfile } from "../submissionScope";
-import type { Pass2aStructuredContext, SinglePassOutput } from "../types";
+import type { Pass2aStructuredContext, SinglePassOutput, Pass1aCharacterLedger, CharacterArcLedgerEntry, SymbolPayoffEntry } from "../types";
+import type { Pass3ReadAheadResult } from "../runPass3ReadAhead";
 import {
   buildCoverageDisclosure,
   buildPromptInputWindow,
@@ -16,7 +17,7 @@ import {
   summarizePromptCoverage,
 } from "../promptInput";
 
-export const PASS3_PROMPT_VERSION = "pass3-synthesis-v15-entity-roster-grounding";
+export const PASS3_PROMPT_VERSION = "pass3-synthesis-v16-character-ledger-read-ahead";
 
 export const PASS3_SYSTEM_PROMPT = `You are Pass 3: convergence and arbitration authority.
 Rules:
@@ -152,6 +153,107 @@ function buildPerplexityPacketSummary(packet: SinglePassOutput): string {
     .join("\n");
 }
 
+
+// ── Character Arc Ledger block builder ────────────────────────────────────
+
+function buildCharacterLedgerBlock(ledger?: Pass1aCharacterLedger): string {
+  if (!ledger || ledger.entries.length === 0) return "";
+  const summary = ledger.coverage_summary;
+  const rows = ledger.entries.map((e: CharacterArcLedgerEntry) => {
+    const agePart = e.age_exact_first !== null
+      ? ` | age ${e.age_exact_first}${e.age_exact_last !== null ? `→${e.age_exact_last}` : ""}`
+      : e.age_signal ? ` | ${e.age_signal}` : "";
+    const aliasPart = e.aliases.length > 0 ? ` (aka ${e.aliases.join(" / ")})` : "";
+    const identityPart = [
+      ...e.racial_ethnic_signals.slice(0, 2),
+      ...e.lgbtq_signals.slice(0, 2),
+      ...e.disability_neuro_signals.slice(0, 1),
+    ].filter(Boolean).join(", ");
+    const symbolPart = e.symbolic_objects.length > 0
+      ? ` | symbols: ${e.symbolic_objects.map((s) => `${s.object}${s.traced ? " ✓traced" : ""}`).join(", ")}`
+      : "";
+    const relPart = e.relational_engines.length > 0
+      ? ` | rels: ${e.relational_engines.map((r) => `${r.other_character}(${r.relationship_type})`).join(", ")}`
+      : "";
+    const warnPart = e.warnings.length > 0
+      ? ` ⚠ ${e.warnings.map((w) => w.type).join(", ")}`
+      : "";
+    return [
+      `• ${e.canonical_name}${aliasPart}`,
+      `  role=${e.role} weight=${e.narrative_weight_band}${agePart} gender=${e.gender_identity}`,
+      identityPart ? `  identity: ${identityPart}` : null,
+      `  who: ${e.who_is_this}`,
+      e.how_signal ? `  behavior: ${e.how_signal}` : null,
+      `  arc: ${e.arc_start} → ${e.arc_turning_points.slice(0, 2).join(" → ")} → ${e.arc_end_state}`,
+      `  ending: ${e.ending_status}${symbolPart}${relPart}${warnPart}`,
+    ].filter(Boolean).join("\n");
+  }).join("\n\n");
+
+  const hardFails = summary.hard_fail_triggers.length > 0
+    ? `\n\n⛔ HARD-FAIL TRIGGERS:\n${summary.hard_fail_triggers.map((t) => `  ${t}`).join("\n")}`
+    : "";
+  const symbolTable = summary.symbol_payoff_items.length > 0
+    ? `\n\nSYMBOL PAYOFF TABLE:\n${(summary.symbol_payoff_items as SymbolPayoffEntry[]).map((s) =>
+        `  ${s.object} | chars: ${s.attached_characters.join(", ")} | chunks ${s.first_chunk}→${s.last_chunk} | ${s.status}${s.traced ? " ✓traced" : " ✗not-traced"}`
+      ).join("\n")}`
+    : "";
+  const relEngines = summary.relational_engines.length > 0
+    ? `\nRELATIONAL ENGINES: ${summary.relational_engines.join(" | ")}`
+    : "";
+
+  return `\n\n## PASS 1A — CHARACTER ARC LEDGER (Hard Input)
+Schema: ${ledger.schema_version} | Chunks: ${ledger.total_chunks_processed}
+Protagonists: ${summary.protagonists.join(", ") || "NONE ⚠"}
+Co-protagonists: ${summary.co_protagonists.join(", ") || "none"}
+Antagonists: ${summary.antagonists.join(", ") || "none"}
+${relEngines}
+
+CHARACTER ENTRIES:
+${rows}${symbolTable}${hardFails}
+
+LEDGER RULES (REQUIRED):
+- Every character above MUST appear in the report by canonical name.
+- ✓traced symbols must show their full arc in the report (first function → payoff).
+- Children (age_exact / life_stage=child) must be identified as such — do not treat them as generic victims.
+- Characters with disability_neuro_signals (OCD, PTSD, rituals) must have those patterns named.
+- Hard-fail triggers above MUST be addressed before claiming narrative closure.`;
+}
+
+// ── Read-ahead primer block builder ───────────────────────────────────────
+
+function buildReadAheadPrimerBlock(readAhead?: Pass3ReadAheadResult): string {
+  if (!readAhead || readAhead.is_fallback) return "";
+  const charList = readAhead.character_first_impressions.slice(0, 10).map((c) => {
+    const demo = c.demographic_signals.length > 0 ? ` [${c.demographic_signals.slice(0, 3).join(", ")}]` : "";
+    const age = c.age_if_stated !== null ? ` age ${c.age_if_stated}` : c.life_stage !== "unknown" ? ` (${c.life_stage})` : "";
+    const syms = c.symbolic_objects_attached.length > 0 ? ` | symbols: ${c.symbolic_objects_attached.join(", ")}` : "";
+    return `  ${c.name}${demo}${age} — ${c.role_impression} — ${c.arc_impression}${syms} [${c.present_in.join(", ")}]`;
+  }).join("\n");
+  const symList = readAhead.symbol_register.map((s) =>
+    `  ${s.object}: ${s.first_window}→${s.last_window_seen} — ${s.function_impression}`
+  ).join("\n");
+  const relList = readAhead.relationship_spine_impressions.map((r) =>
+    `  ${r.pair}: ${r.dynamic_impression}`
+  ).join("\n");
+  const concerns = readAhead.coverage_concerns.length > 0
+    ? `\nCOVERAGE CONCERNS:\n${readAhead.coverage_concerns.map((c) => `  ⚠ ${c}`).join("\n")}`
+    : "";
+  return `\n\n## PASS 3 READ-AHEAD PRIMER (Pre-scoring manuscript impression)
+POV: ${readAhead.narrative_structure_map.pov_architecture}
+Tone: ${readAhead.narrative_structure_map.dominant_tone} | Scope: ${readAhead.narrative_structure_map.temporal_scope}
+Opening: ${readAhead.narrative_structure_map.act_impressions.opening_register}
+Late-act: ${readAhead.narrative_structure_map.act_impressions.late_act_pressure}
+Ending: ${readAhead.narrative_structure_map.act_impressions.ending_register}
+
+CHARACTERS (from read-ahead):
+${charList || "  (none detected)"}
+SYMBOLS: ${symList || "  (none)"}
+RELATIONSHIPS: ${relList || "  (none)"}${concerns}
+
+SYNTHESIS NOTE: If scored packets are opening-heavy but your read-ahead detected strong arcs/symbols
+in LATE-MIDDLE or ENDING windows, address the late-act content in your synthesis explicitly.`;
+}
+
 export function buildPass3UserPrompt(params: {
   comparisonPacketJson: string;
   pass2aStructuredContext: Pass2aStructuredContext;
@@ -171,6 +273,16 @@ export function buildPass3UserPrompt(params: {
    * dual-model render at the prompt boundary independently of packet presence.
    */
   dualModelMode?: boolean;
+  /**
+   * Pass 1A character arc ledger — structured identity, arc, and relationship data.
+   * Optional — Pass 3 degrades gracefully without it.
+   */
+  characterLedger?: Pass1aCharacterLedger;
+  /**
+   * Pass 3 read-ahead result — manuscript impression formed BEFORE scoring arrived.
+   * Optional — Pass 3 degrades gracefully without it.
+   */
+  readAheadResult?: Pass3ReadAheadResult;
 }): string {
   const executionMode = params.executionMode ?? "TRUSTED_PATH";
   const synthesisBudget = getDefaultSynthesisReferenceCharBudget();
@@ -255,6 +367,8 @@ Coverage truth signal:
 - ${coverageDisclosure}
 - Reference snippet (context anchor only): ${referenceSnippet}
 ${params.scopeProfile ? `- Submission scope: ${params.scopeProfile.inputScale} (${params.scopeProfile.wordCount} words; ${params.scopeProfile.chunkCount} chunk(s); ${params.scopeProfile.scorableCount}/13 criteria non-NA for this scope; confidence cap ${params.scopeProfile.confidenceCapSummary})` : ""}
+
+${buildCharacterLedgerBlock(params.characterLedger)}${buildReadAheadPrimerBlock(params.readAheadResult)}
 
 ## PASS2A_STRUCTURED_CONTEXT (Hard Input)
 ${structuredContextJson}${entityRosterBlock}
