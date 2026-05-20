@@ -1710,7 +1710,7 @@ export async function failStaleRunningJobs(): Promise<{
       //   Condition 3: neither artifact present AND no handoff → keep waiting,
       //                BUT if >600s elapsed, mark failed (terminal — no artifacts
       //                ever written, job can't self-rescue)
-      if (currentPhase === 'phase_1a' || currentPhase === 'phase_1') {
+      if (currentPhase === 'phase_1a') {
         const hasLedger    = ledgerJobIds.has(row.id);
         const hasPreflight = preflightJobIds.has(row.id);
         const phase1aStartedAt = progress.phase1a_started_at as string | undefined;
@@ -5138,7 +5138,7 @@ export async function processQueuedJobs(options?: {
   console.log('[Processor] Claim assumptions', {
     expected_status: JOB_STATUS.QUEUED,
     expected_phase_status: JOB_STATUS.QUEUED,
-    expected_phases: ['phase_1', 'phase_1a', 'phase_2', 'phase_3'],
+    expected_phases: ['phase_1a', 'phase_2', 'phase_3'],
     canonical_ownership_fields: ['claimed_by', 'lease_token', 'lease_until'],
     worker_id: effectiveWorkerId,
     requested_batch_size: requestedBatchSize,
