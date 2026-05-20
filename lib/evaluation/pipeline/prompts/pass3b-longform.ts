@@ -25,7 +25,7 @@ import type { SynthesizedCriterion, ManuscriptChunkEvidence, Pass2aStructuredCon
 import { CRITERIA_METADATA } from "@/schemas/criteria-keys";
 import type { CriterionKey } from "@/schemas/criteria-keys";
 
-export const PASS3B_PROMPT_VERSION = "pass3b-longform-v2-governed-ledgers";
+export const PASS3B_PROMPT_VERSION = "pass3b-longform-v3-full-arc-sampling";
 
 // ── Criterion display labels for the score grid ───────────────────────────────
 
@@ -247,31 +247,47 @@ export function buildPass3bUserPrompt(params: {
       score: c.final_score_0_10,
       confidence_level: c.confidence_level ?? "moderate",
       rationale: c.final_rationale,
-      evidence: (c.evidence ?? []).slice(0, 2).map((e) => e.snippet),
-      top_recommendations: (c.recommendations ?? []).slice(0, 2).map((r) => ({
+      // Increased from 2 to 4 evidence snippets per criterion to reduce opening-heavy bias
+      evidence: (c.evidence ?? []).slice(0, 4).map((e) => e.snippet),
+      top_recommendations: (c.recommendations ?? []).slice(0, 3).map((r) => ({
         priority: r.priority,
         action: r.action,
       })),
     }))
   );
 
-  // Build chunk sample — opening, early, middle, late, close windows
+  // Build chunk sample — 11 evenly distributed windows across the full manuscript.
+  // 5 windows at 1200 chars was opening-heavy and missed mid/late-act content.
+  // 11 windows at 2000 chars = ~22,000 chars of manuscript prose across the full arc.
   const sorted = [...params.chunkSample].sort((a, b) => a.chunk_index - b.chunk_index);
   const total = sorted.length;
-  const pick = (idx: number) => sorted[Math.min(idx, total - 1)];
+  const pickAt = (fraction: number) =>
+    sorted[Math.min(Math.floor(total * fraction), total - 1)];
 
-  const windows = {
-    opening: pick(0)?.content?.slice(0, 1200) ?? "",
-    early: pick(Math.floor(total * 0.2))?.content?.slice(0, 1000) ?? "",
-    middle: pick(Math.floor(total * 0.5))?.content?.slice(0, 1000) ?? "",
-    late: pick(Math.floor(total * 0.8))?.content?.slice(0, 1000) ?? "",
-    close: pick(total - 1)?.content?.slice(0, 1200) ?? "",
-  };
+  // 11 sample points: 0%, 10%, 20%, 30%, 40%, 50%, 60%, 70%, 80%, 90%, 100%
+  const SAMPLE_FRACTIONS = [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0];
+  const SAMPLE_LABELS = [
+    "OPENING (0%)",
+    "EARLY-1 (10%)",
+    "EARLY-2 (20%)",
+    "MID-EARLY (30%)",
+    "MID-1 (40%)",
+    "MID-2 (50%)",
+    "MID-LATE (60%)",
+    "LATE-1 (70%)",
+    "LATE-2 (80%)",
+    "LATE-3 (90%)",
+    "CLOSE (100%)",
+  ];
+  const chunkWindows = SAMPLE_FRACTIONS.map((f, i) => ({
+    label: SAMPLE_LABELS[i],
+    content: pickAt(f)?.content?.slice(0, 2000) ?? "",
+  }));
 
   const structuredCtx = JSON.stringify({
-    character_ledger: params.pass2aStructuredContext.character_ledger.slice(0, 20),
-    scene_index: params.pass2aStructuredContext.scene_index.slice(0, 12),
-    timeline_anchors: params.pass2aStructuredContext.timeline_anchors.slice(0, 16),
+    character_ledger: params.pass2aStructuredContext.character_ledger.slice(0, 30),
+    scene_index: params.pass2aStructuredContext.scene_index.slice(0, 20),
+    timeline_anchors: params.pass2aStructuredContext.timeline_anchors.slice(0, 24),
   });
 
   const chapterInfo = params.chapterCount ? `${params.chapterCount} chapters` : "chapter count not provided";
@@ -295,22 +311,8 @@ ${criteriaCompact}
 MANUSCRIPT CONTEXT (Pass 2a structured analysis)
 ${structuredCtx}
 
-MANUSCRIPT CHUNK SAMPLE
-
-[OPENING]
-${windows.opening}
-
-[EARLY ~20%]
-${windows.early}
-
-[MIDDLE ~50%]
-${windows.middle}
-
-[LATE ~80%]
-${windows.late}
-
-[CLOSE]
-${windows.close}
+MANUSCRIPT CHUNK SAMPLE (11 windows across full arc — use ALL zones when writing evidence)
+${chunkWindows.map((w) => `[${w.label}]\n${w.content}`).join("\n\n")}
 
 INSTRUCTIONS
 1. Produce all 16 sections plus manuscript_integrity_issues.
