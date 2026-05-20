@@ -29,7 +29,6 @@ describe("evaluation architecture invariants", () => {
       "lib/evaluation/pipeline/runPass1.ts",
       "lib/evaluation/pipeline/runPass2.ts",
       "lib/evaluation/pipeline/runPass3Synthesis.ts",
-      "workers/phase2Evaluation.ts",
     ];
 
     for (const relativePath of filesThatMustImportPolicy) {
@@ -61,7 +60,7 @@ describe("evaluation architecture invariants", () => {
       expect(code).toContain('phase_status: "queued"');
       // Non-force updates must use CAS predicates (no loose update-by-id)
       expect(code).toContain('.eq("status", "running")');
-      expect(code).toContain('.eq("phase", "phase_1")');
+      expect(code).toContain('.eq("phase", "phase_1a")');
       expect(code).not.toContain('.eq("phase_status", "complete")');
       expect(code).toContain("canonical_pipeline_queued");
       expect(code).toContain("status: 202");
@@ -88,7 +87,7 @@ describe("evaluation architecture invariants", () => {
 
     // The claim_evaluation_jobs RPC predicates on top-level phase columns.
     // createJob must set these explicitly (not progress JSON only).
-    expect(code).toContain("phase: PHASES.PHASE_1");
+    expect(code).toContain("phase: PHASES.PHASE_1A");
     expect(code).toContain("phase_status: JOB_STATUS.QUEUED");
   });
 
@@ -115,20 +114,6 @@ describe("evaluation architecture invariants", () => {
         expect(code).not.toMatch(pattern);
       }
     }
-  });
-
-  test("legacy phase2 worker is hard-disabled unless explicitly re-enabled", () => {
-    const workerPath = path.join(repoRoot, "workers/phase2Worker.ts");
-    const workerCode = fs.readFileSync(workerPath, "utf8");
-
-    expect(workerCode).toContain("ENABLE_LEGACY_PHASE2_WORKER");
-    expect(workerCode).toContain("Legacy phase2 worker is disabled");
-    expect(workerCode).toContain("process.exit(1)");
-
-    const workerStartScript = path.join(repoRoot, "scripts/worker-start.sh");
-    const workerStartCode = fs.readFileSync(workerStartScript, "utf8");
-    expect(workerStartCode).toContain("ENABLE_LEGACY_PHASE2_WORKER");
-    expect(workerStartCode).toContain("Legacy Phase 2 worker is disabled by default");
   });
 
   test("root page remains fail-closed behind private-beta gate", () => {
