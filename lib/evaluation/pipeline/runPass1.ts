@@ -55,7 +55,9 @@ const DEFAULT_CHUNK_PASS_CONCURRENCY = 7;
 const DEFAULT_CHUNK_RETRY_MAX = 3;
 const DEFAULT_CHUNK_RETRY_BASE_MS = 10000;
 // Per-chunk provider timeout (mirrors runPass2.ts).
-const DEFAULT_PASS1_CHUNK_TIMEOUT_MS = 60_000;
+// 240s: full-novel chunks at peak load need generous runway.
+// OpenAI latency spikes at night can push a single chunk past 60s.
+const DEFAULT_PASS1_CHUNK_TIMEOUT_MS = 240_000;
 
 function getPass1ChunkTimeoutMs(): number {
   const raw = process.env.EVAL_PASS1_CHUNK_TIMEOUT_MS;
@@ -201,6 +203,25 @@ function getChunkRetryBaseMs(): number {
 function isRateLimitError(reason: unknown): boolean {
   const text = String(reason instanceof Error ? reason.message : reason).toLowerCase();
   return text.includes("429") || text.includes("rate limit") || text.includes("tokens per min") || text.includes("tpm");
+}
+
+/**
+ * Returns true when the OpenAI SDK throws a network/provider timeout.
+ * These are transient — the chunk should be retried, not failed.
+ * Covers: SDK AbortError, "Request timed out", "timeout", "ETIMEDOUT",
+ * "ECONNRESET", "socket hang up", "network error".
+ */
+function isTimeoutError(reason: unknown): boolean {
+  const text = String(reason instanceof Error ? reason.message : reason).toLowerCase();
+  return (
+    text.includes("request timed out") ||
+    text.includes("timeout") ||
+    text.includes("etimedout") ||
+    text.includes("econnreset") ||
+    text.includes("socket hang up") ||
+    text.includes("network error") ||
+    (reason instanceof Error && reason.name === "AbortError")
+  );
 }
 
 function parseRetryAfterMs(reason: unknown): number | null {
@@ -576,20 +597,28 @@ export async function runPass1(opts: RunPass1Options): Promise<SinglePassOutput>
 
               return result;
             } catch (error) {
-              if (!isRateLimitError(error) || attempt >= chunkRetryMax) {
+              const isRateLimit = isRateLimitError(error);
+              const isTimeout = isTimeoutError(error);
+              if ((!isRateLimit && !isTimeout) || attempt >= chunkRetryMax) {
                 throw error;
               }
 
-              const suggestedWait = parseRetryAfterMs(error);
+              const suggestedWait = isRateLimit ? parseRetryAfterMs(error) : null;
               const backoffMs = Math.min(90_000, chunkRetryBaseMs * Math.pow(2, attempt));
               const jitterMs = Math.floor(Math.random() * 750);
               const waitMs = Math.max(suggestedWait ?? 0, backoffMs) + jitterMs;
-              rateLimitRetryCount += 1;
-              rateLimitWaitMs += waitMs;
+              if (isRateLimit) {
+                rateLimitRetryCount += 1;
+                rateLimitWaitMs += waitMs;
+                console.warn(
+                  `[Pass1] Chunk ${chunk.chunk_index} rate-limited; retry ${attempt + 1}/${chunkRetryMax} after ${waitMs}ms`,
+                );
+              } else {
+                console.warn(
+                  `[Pass1] Chunk ${chunk.chunk_index} timed out; retry ${attempt + 1}/${chunkRetryMax} after ${waitMs}ms`,
+                );
+              }
               attempt += 1;
-              console.warn(
-                `[Pass1] Chunk ${chunk.chunk_index} rate-limited; retry ${attempt}/${chunkRetryMax} after ${waitMs}ms`,
-              );
               await sleepMs(waitMs);
             }
           }
@@ -617,7 +646,7 @@ export async function runPass1(opts: RunPass1Options): Promise<SinglePassOutput>
         chunkResults.push(result.value);
       } else {
         const reason = String(result.reason instanceof Error ? result.reason.message : result.reason);
-        const bucket = isRateLimitError(result.reason) ? "RATE_LIMIT_429" : "OTHER";
+        const bucket = isRateLimitError(result.reason) ? "RATE_LIMIT_429" : isTimeoutError(result.reason) ? "TIMEOUT" : "OTHER";
         chunkFailuresByReason[bucket] = (chunkFailuresByReason[bucket] ?? 0) + 1;
         failures.push({
           chunkIndex: selectedChunks[i].chunk_index,
