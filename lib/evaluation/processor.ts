@@ -1812,7 +1812,6 @@ export async function failStaleRunningJobs(): Promise<{
               claimed_at: null,
               lease_token: null,
               lease_until: null,
-              lease_expires_at: null,
               attempt_count: currentAttempts + 1,
               updated_at: rescueNow,
               progress: rescuedProgress,
@@ -1886,7 +1885,6 @@ export async function failStaleRunningJobs(): Promise<{
           claimed_at: null,
           lease_token: null,
           lease_until: null,
-          lease_expires_at: null,
           updated_at: rescueNow,
         })
         .in('id', failIds)
@@ -2033,7 +2031,6 @@ export async function failStaleRunningJobs(): Promise<{
             claimed_at: null,
             lease_token: null,
             lease_until: null,
-            lease_expires_at: null,
             attempt_count: currentAttempts + 1,
             updated_at: staleRescueNow,
             progress: {
@@ -3727,7 +3724,6 @@ export async function processEvaluationJob(
               claimed_at: null,
               lease_token: null,
               lease_until: null,
-              lease_expires_at: null,
               updated_at: emptyNow,
               progress: {
                 ...progressState,
@@ -3825,7 +3821,6 @@ export async function processEvaluationJob(
             claimed_at: null,
             lease_token: null,
             lease_until: null,
-            lease_expires_at: null,
             updated_at: phase1aNow,
             progress: phase1aHandoffProgress,
           })
@@ -4457,7 +4452,6 @@ export async function processEvaluationJob(
               claimed_at: null,
               lease_token: null,
               lease_until: null,
-              lease_expires_at: null,
               updated_at: partialHandoffNow,
               progress: {
                 ...progressState,
@@ -4584,7 +4578,6 @@ export async function processEvaluationJob(
             claimed_at: null,
             lease_token: null,
             lease_until: null,
-            lease_expires_at: null,
             updated_at: handoffNow,
             progress: handoffProgress,
           })
@@ -5594,7 +5587,6 @@ export async function processEvaluationJob(
             claimed_at: null,
             lease_token: null,
             lease_until: null,
-            lease_expires_at: null,
             updated_at: phase2Now,
             progress: {
               ...progressState,
