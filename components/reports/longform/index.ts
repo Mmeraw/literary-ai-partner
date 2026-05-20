@@ -9,3 +9,10 @@ export { default as LongformSymbolicAudit } from "./LongformSymbolicAudit";
 export { default as LongformReaderExperience } from "./LongformReaderExperience";
 export { default as LongformRevisionPlan } from "./LongformRevisionPlan";
 export { default as LongformReleasability } from "./LongformReleasability";
+// Governed completeness ledger modules (v2)
+export { default as LongformCharacterCoverageArcLedger } from "./LongformCharacterCoverageArcLedger";
+export { default as LongformRelationshipSpineLedger } from "./LongformRelationshipSpineLedger";
+export { default as LongformSymbolPayoffLedger } from "./LongformSymbolPayoffLedger";
+export { default as LongformSensoryEmotionalRegister } from "./LongformSensoryEmotionalRegister";
+export { default as LongformManuscriptIntegrityTable } from "./LongformManuscriptIntegrityTable";
+export { default as LongformEvidenceDistributionGate } from "./LongformEvidenceDistributionGate";
