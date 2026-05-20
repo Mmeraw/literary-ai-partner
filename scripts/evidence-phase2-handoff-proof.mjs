@@ -1,7 +1,3 @@
-// NOTE: This script targets the Phase 2C handoff proof flow.
-// run-phase1 route is retired (410). Script now triggers via worker relay.
-// phase_1 references in regression probes are intentional (dead-phase regression guard).
-
 #!/usr/bin/env node
 import { readFileSync } from 'fs';
 import { createClient } from '@supabase/supabase-js';
@@ -193,15 +189,13 @@ proof.manuscript_id = await createSeedManuscript();
 proof.job_id = await createJob(proof.manuscript_id);
 proof.starting_state = await readJob(proof.job_id, 'start');
 
-// NOTE: run-phase1 route retired (returns 410). Phase 1a is triggered automatically by the worker relay.
-// Directly trigger the worker instead.
-proof.phase1_trigger = await postService('/api/workers/process-evaluations');
+proof.phase1_trigger = await postService(`/api/jobs/${proof.job_id}/run-phase1`);
 console.log('[phase1_trigger]', proof.phase1_trigger.status, proof.phase1_trigger.body.slice(0, 200));
 
 let handoff = null;
 for (let i = 0; i < PHASE1_MAX_POLLS; i++) {
   const snap = await readJob(proof.job_id, `phase1_poll_${i}`);
-  if (snap.status === 'running' && snap.progress_phase === 'phase_1a' && snap.progress_phase_status === 'complete') {
+  if (snap.status === 'running' && snap.progress_phase === 'phase_1' && snap.progress_phase_status === 'complete') {
     handoff = { poll: i, snapshot: snap };
     break;
   }
@@ -276,10 +270,9 @@ if (!terminal) {
 } else if (terminal.status === 'complete') {
   proof.proven_now = 'Phase 1->Phase 2 handoff closes successfully';
 } else {
-  // Check if job regressed to dead phase_1 (should never happen — all jobs start at phase_1a)
   const regressedToPhase1 = proof.transition_trace.some((t) => t.phase === 'phase_1' || t.progress_phase === 'phase_1');
   proof.proven_now = regressedToPhase1
-    ? 'Regression: job entered dead phase_1 (expected phase_1a) — architecture violation'
+    ? 'Regression persists: queued phase_2 job re-entered phase_1 execution'
     : 'Phase handoff respected; failed at a different boundary';
 }
 
