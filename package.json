@@ -72,7 +72,8 @@
     "pipeline:stress": "npx tsx -r ./tests/sipoc/serverOnlyRegister.cjs -r tsconfig-paths/register scripts/pipeline-stress.ts --tier=1",
     "pipeline:stress:ui": "npx tsx -r ./tests/sipoc/serverOnlyRegister.cjs -r tsconfig-paths/register scripts/pipeline-stress.ts --tier=3a",
     "pipeline:stress:tier2": "npx tsx -r ./tests/sipoc/serverOnlyRegister.cjs -r tsconfig-paths/register scripts/pipeline-stress-tier2.ts",
-    "ci-guard": "npx tsx scripts/ci-guard/index.ts"
+    "ci-guard": "npx tsx scripts/ci-guard/index.ts",
+    "corpus:verify": "node scripts/verify-public-domain-corpus.mjs"
   },
   "dependencies": {
     "@base44/sdk": "^0.8.27",
