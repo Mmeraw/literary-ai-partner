@@ -1,0 +1,947 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RevisionGrade — Evaluate</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400;1,600&family=IM+Fell+English:ital@0;1&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+/* === RG DESIGN TOKENS === */
+:root {
+  --rg-ink:    #0D0A05;
+  --rg-ink-2:  #131009;
+  --rg-ink-3:  #1A1610;
+  --rg-cream:  #F5EFE0;
+  --rg-cream-2:#EDE6D3;
+  --rg-gold:   #C8A96E;
+  --rg-gold-2: #B8944A;
+  --rg-red:    #8B2020;
+  --rg-muted:  #9A9080;
+  --rg-faint:  #4A4438;
+  --rg-border: oklch(from #F5EFE0 l c h / 0.08);
+
+  --font-display: 'Playfair Display', 'Georgia', serif;
+  --font-script:  'IM Fell English', 'Georgia', serif;
+  --font-body:    'Inter', 'Helvetica Neue', sans-serif;
+
+  --text-xs:   clamp(0.75rem,  0.7rem  + 0.25vw, 0.875rem);
+  --text-sm:   clamp(0.875rem, 0.8rem  + 0.35vw, 1rem);
+  --text-base: clamp(1rem,     0.95rem + 0.25vw, 1.125rem);
+  --text-lg:   clamp(1.125rem, 1rem    + 0.75vw, 1.5rem);
+  --text-xl:   clamp(1.5rem,   1.2rem  + 1.25vw, 2.25rem);
+  --text-2xl:  clamp(2rem,     1.2rem  + 2.5vw,  3.5rem);
+
+  --space-1: 0.25rem; --space-2: 0.5rem; --space-3: 0.75rem; --space-4: 1rem;
+  --space-5: 1.25rem; --space-6: 1.5rem; --space-8: 2rem; --space-10: 2.5rem;
+  --space-12: 3rem; --space-16: 4rem; --space-20: 5rem;
+
+  --radius-sm: 0.25rem; --radius-md: 0.375rem; --radius-lg: 0.5rem;
+  --transition: 180ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* === BASE === */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; scroll-behavior: smooth; }
+body {
+  min-height: 100dvh;
+  font-family: var(--font-body);
+  font-size: var(--text-base);
+  background: var(--rg-ink);
+  color: var(--rg-cream);
+  line-height: 1.6;
+}
+img, svg { display: block; max-width: 100%; }
+button { cursor: pointer; background: none; border: none; font: inherit; color: inherit; }
+input, textarea, select { font: inherit; color: inherit; }
+h1,h2,h3,h4 { text-wrap: balance; line-height: 1.15; }
+p, li { text-wrap: pretty; }
+a { color: var(--rg-gold); text-decoration: none; transition: color var(--transition); }
+a:hover { color: var(--rg-cream); }
+:focus-visible { outline: 1px solid var(--rg-gold); outline-offset: 3px; border-radius: var(--radius-sm); }
+
+/* === HEADER NAV === */
+.nav {
+  position: sticky; top: 0; z-index: 100;
+  background: var(--rg-ink);
+  border-bottom: 1px solid var(--rg-border);
+  backdrop-filter: blur(12px);
+}
+.nav-inner {
+  max-width: 1200px; margin: 0 auto;
+  padding: var(--space-4) var(--space-8);
+  display: flex; align-items: center; justify-content: space-between; gap: var(--space-6);
+}
+.nav-brand {
+  display: flex; align-items: baseline; gap: var(--space-2);
+  text-decoration: none;
+}
+.nav-monogram {
+  font-family: var(--font-display);
+  font-size: 1.5rem; font-weight: 700;
+  color: var(--rg-gold);
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+.nav-wordmark {
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--rg-muted);
+}
+.nav-links {
+  display: flex; align-items: center; gap: var(--space-6);
+  list-style: none;
+}
+.nav-links a {
+  font-size: var(--text-xs);
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--rg-muted);
+  transition: color var(--transition);
+}
+.nav-links a:hover, .nav-links a.active { color: var(--rg-cream); }
+.nav-links a.active {
+  color: var(--rg-gold);
+  position: relative;
+}
+.nav-links a.active::after {
+  content: '';
+  position: absolute; bottom: -2px; left: 0; right: 0; height: 1px;
+  background: var(--rg-gold);
+}
+.nav-signin {
+  font-size: var(--text-xs);
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--rg-cream);
+  border: 1px solid var(--rg-border);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-sm);
+  transition: border-color var(--transition), color var(--transition);
+}
+.nav-signin:hover { border-color: var(--rg-gold); color: var(--rg-gold); }
+
+/* === PAGE HEADER === */
+.page-header {
+  border-bottom: 1px solid var(--rg-border);
+  padding: var(--space-12) var(--space-8) var(--space-10);
+  max-width: 1200px; margin: 0 auto;
+}
+.page-header-eyebrow {
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--rg-gold);
+  margin-bottom: var(--space-3);
+}
+.page-header-title {
+  font-family: var(--font-display);
+  font-size: var(--text-2xl);
+  font-weight: 700;
+  color: var(--rg-cream);
+  line-height: 1.1;
+  margin-bottom: var(--space-4);
+}
+.page-header-title em {
+  font-style: italic;
+  color: var(--rg-gold);
+}
+.page-header-subtitle {
+  font-family: var(--font-body);
+  font-size: var(--text-base);
+  color: var(--rg-muted);
+  max-width: 60ch;
+  line-height: 1.7;
+}
+
+/* === MAIN LAYOUT === */
+.page-body {
+  max-width: 1200px; margin: 0 auto;
+  padding: var(--space-12) var(--space-8);
+  display: grid;
+  grid-template-columns: 1fr 340px;
+  gap: var(--space-10);
+  align-items: start;
+}
+@media (max-width: 900px) {
+  .page-body { grid-template-columns: 1fr; }
+  .sidebar { order: -1; }
+}
+
+/* === CARD SHELL === */
+.card {
+  background: var(--rg-ink-2);
+  border: 1px solid var(--rg-border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+.card-header {
+  padding: var(--space-6) var(--space-8);
+  border-bottom: 1px solid var(--rg-border);
+  display: flex; align-items: center; justify-content: space-between;
+}
+.card-title {
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: 600;
+  color: var(--rg-cream);
+}
+.card-body { padding: var(--space-8); }
+
+/* === UPLOAD ZONE === */
+.upload-zone {
+  border: 1px dashed var(--rg-faint);
+  border-radius: var(--radius-md);
+  padding: var(--space-12) var(--space-8);
+  text-align: center;
+  cursor: pointer;
+  transition: border-color var(--transition), background var(--transition);
+  position: relative;
+}
+.upload-zone:hover, .upload-zone.drag-over {
+  border-color: var(--rg-gold);
+  background: oklch(from #C8A96E l c h / 0.04);
+}
+.upload-icon {
+  width: 48px; height: 48px; margin: 0 auto var(--space-4);
+  color: var(--rg-faint);
+}
+.upload-zone:hover .upload-icon, .upload-zone.drag-over .upload-icon {
+  color: var(--rg-gold);
+}
+.upload-primary {
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: 600;
+  color: var(--rg-cream);
+  margin-bottom: var(--space-2);
+}
+.upload-secondary {
+  font-size: var(--text-sm);
+  color: var(--rg-muted);
+  margin-bottom: var(--space-6);
+}
+.upload-hint {
+  font-size: var(--text-xs);
+  color: var(--rg-faint);
+  letter-spacing: 0.08em;
+}
+.upload-cta {
+  display: inline-block;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--rg-gold);
+  border: 1px solid var(--rg-gold);
+  padding: var(--space-3) var(--space-6);
+  border-radius: var(--radius-sm);
+  margin-bottom: var(--space-4);
+  transition: background var(--transition), color var(--transition);
+}
+.upload-cta:hover {
+  background: var(--rg-gold);
+  color: var(--rg-ink);
+}
+#file-input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+
+/* === FILE SELECTED STATE === */
+.file-selected { display: none; padding: var(--space-6); align-items: center; gap: var(--space-4); }
+.file-selected.visible { display: flex; }
+.file-icon-wrap {
+  width: 48px; height: 48px; border-radius: var(--radius-md);
+  background: oklch(from #C8A96E l c h / 0.1);
+  border: 1px solid oklch(from #C8A96E l c h / 0.2);
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.file-icon-wrap svg { color: var(--rg-gold); width: 24px; height: 24px; }
+.file-info { flex: 1; min-width: 0; }
+.file-name {
+  font-size: var(--text-sm); font-weight: 500; color: var(--rg-cream);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.file-meta { font-size: var(--text-xs); color: var(--rg-muted); margin-top: var(--space-1); }
+.file-clear { color: var(--rg-muted); padding: var(--space-2); transition: color var(--transition); }
+.file-clear:hover { color: var(--rg-red); }
+
+/* === FORM FIELDS === */
+.form-section { margin-bottom: var(--space-8); }
+.form-section:last-child { margin-bottom: 0; }
+.form-rule {
+  border: none; border-top: 1px solid var(--rg-border);
+  margin: var(--space-8) 0;
+}
+.field { margin-bottom: var(--space-5); }
+.field-label {
+  display: block;
+  font-size: var(--text-xs);
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--rg-muted);
+  margin-bottom: var(--space-2);
+}
+.field-input {
+  width: 100%;
+  background: var(--rg-ink);
+  border: 1px solid var(--rg-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-4);
+  font-size: var(--text-sm);
+  color: var(--rg-cream);
+  transition: border-color var(--transition), box-shadow var(--transition);
+  appearance: none;
+}
+.field-input::placeholder { color: var(--rg-faint); }
+.field-input:focus {
+  outline: none;
+  border-color: var(--rg-gold);
+  box-shadow: 0 0 0 3px oklch(from #C8A96E l c h / 0.12);
+}
+select.field-input { 
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%239A9080' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right var(--space-3) center;
+  padding-right: var(--space-8);
+}
+
+/* === OPTION GRID (genre/tier select) === */
+.option-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: var(--space-2);
+}
+.option-pill {
+  position: relative;
+  display: flex; align-items: center; justify-content: center;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--rg-border);
+  border-radius: var(--radius-md);
+  font-size: var(--text-xs); font-weight: 500;
+  color: var(--rg-muted);
+  cursor: pointer; text-align: center;
+  transition: border-color var(--transition), color var(--transition), background var(--transition);
+}
+.option-pill input { position: absolute; opacity: 0; width: 0; height: 0; }
+.option-pill:hover { border-color: var(--rg-gold-2); color: var(--rg-cream); }
+.option-pill:has(input:checked) {
+  border-color: var(--rg-gold);
+  background: oklch(from #C8A96E l c h / 0.08);
+  color: var(--rg-gold);
+}
+
+/* === SUBMIT BUTTON === */
+.btn-submit {
+  width: 100%;
+  padding: var(--space-4) var(--space-8);
+  background: var(--rg-cream);
+  color: var(--rg-ink);
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  border-radius: var(--radius-sm);
+  transition: background var(--transition), transform var(--transition);
+  margin-top: var(--space-8);
+}
+.btn-submit:hover { background: var(--rg-gold); }
+.btn-submit:active { transform: scale(0.99); }
+.btn-submit:disabled {
+  background: var(--rg-faint); color: var(--rg-ink); cursor: not-allowed;
+}
+
+/* === PROGRESS / JOB STATUS === */
+.job-status { display: none; }
+.job-status.visible { display: block; }
+
+.progress-track {
+  height: 2px;
+  background: var(--rg-faint);
+  border-radius: 999px;
+  overflow: hidden;
+  margin: var(--space-4) 0;
+}
+.progress-bar {
+  height: 100%;
+  background: var(--rg-gold);
+  border-radius: 999px;
+  transition: width 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+  width: 0%;
+}
+
+.pass-list { list-style: none; margin: var(--space-6) 0; }
+.pass-item {
+  display: flex; align-items: flex-start; gap: var(--space-4);
+  padding: var(--space-4) 0;
+  border-bottom: 1px solid var(--rg-border);
+}
+.pass-item:last-child { border-bottom: none; }
+.pass-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--rg-faint); flex-shrink: 0;
+  margin-top: 6px;
+  transition: background var(--transition);
+}
+.pass-item.running .pass-dot { background: var(--rg-gold); animation: pulse 1.5s ease-in-out infinite; }
+.pass-item.done .pass-dot { background: #437a22; }
+.pass-item.error .pass-dot { background: var(--rg-red); }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+.pass-label {
+  font-size: var(--text-sm); font-weight: 500; color: var(--rg-cream);
+}
+.pass-detail {
+  font-size: var(--text-xs); color: var(--rg-muted); margin-top: var(--space-1);
+}
+.pass-item.running .pass-label { color: var(--rg-gold); }
+
+.status-badge {
+  display: inline-flex; align-items: center; gap: var(--space-2);
+  font-size: var(--text-xs); font-weight: 500;
+  letter-spacing: 0.1em; text-transform: uppercase;
+  padding: var(--space-1) var(--space-3); border-radius: var(--radius-sm);
+}
+.status-badge.queued { background: oklch(from #9A9080 l c h / 0.15); color: var(--rg-muted); }
+.status-badge.running { background: oklch(from #C8A96E l c h / 0.12); color: var(--rg-gold); }
+.status-badge.complete { background: oklch(0.35 0.09 145 / 0.25); color: #6daa45; }
+.status-badge.error { background: oklch(from #8B2020 l c h / 0.2); color: #dd6974; }
+
+.job-id-row {
+  display: flex; align-items: center; gap: var(--space-3);
+  margin-top: var(--space-4);
+  font-size: var(--text-xs); color: var(--rg-muted);
+}
+.job-id-mono {
+  font-family: 'SF Mono', 'Cascadia Code', monospace;
+  color: var(--rg-faint); letter-spacing: 0.06em;
+}
+
+/* === VIEW REPORT BUTTON === */
+.btn-report {
+  display: none; width: 100%; margin-top: var(--space-6);
+  padding: var(--space-4);
+  background: transparent;
+  border: 1px solid var(--rg-gold);
+  color: var(--rg-gold);
+  font-size: var(--text-xs); font-weight: 600;
+  letter-spacing: 0.18em; text-transform: uppercase;
+  border-radius: var(--radius-sm);
+  transition: background var(--transition), color var(--transition);
+}
+.btn-report.visible { display: block; }
+.btn-report:hover { background: var(--rg-gold); color: var(--rg-ink); }
+
+/* === SIDEBAR === */
+.sidebar { display: flex; flex-direction: column; gap: var(--space-6); }
+
+.info-block {
+  background: var(--rg-ink-2);
+  border: 1px solid var(--rg-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-6);
+}
+.info-block-title {
+  font-size: var(--text-xs); font-weight: 500;
+  letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--rg-muted); margin-bottom: var(--space-4);
+}
+.info-list { list-style: none; }
+.info-list li {
+  display: flex; align-items: flex-start; gap: var(--space-3);
+  padding: var(--space-3) 0; border-bottom: 1px solid var(--rg-border);
+  font-size: var(--text-sm);
+}
+.info-list li:last-child { border-bottom: none; padding-bottom: 0; }
+.info-list-dot { color: var(--rg-gold); flex-shrink: 0; margin-top: 4px; }
+.info-list-text { color: var(--rg-muted); }
+.info-list strong { color: var(--rg-cream); font-weight: 500; }
+
+.reading-list { list-style: none; }
+.reading-item {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: var(--space-3) 0; border-bottom: 1px solid var(--rg-border);
+}
+.reading-item:last-child { border-bottom: none; }
+.reading-name {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: var(--text-sm); color: var(--rg-cream);
+}
+.reading-score {
+  font-family: 'SF Mono', 'Cascadia Code', monospace;
+  font-size: var(--text-xs); color: var(--rg-gold);
+  letter-spacing: 0.06em;
+}
+
+/* === DIVIDER WITH TEXT === */
+.divider-text {
+  display: flex; align-items: center; gap: var(--space-4);
+  margin: var(--space-8) 0;
+  font-size: var(--text-xs); letter-spacing: 0.14em;
+  text-transform: uppercase; color: var(--rg-faint);
+}
+.divider-text::before, .divider-text::after {
+  content: ''; flex: 1; height: 1px; background: var(--rg-border);
+}
+
+/* === FOOTER === */
+.footer {
+  border-top: 1px solid var(--rg-border);
+  padding: var(--space-8);
+  max-width: 1200px; margin: var(--space-16) auto 0;
+  display: flex; align-items: center; justify-content: space-between;
+  flex-wrap: wrap; gap: var(--space-4);
+}
+.footer-brand {
+  font-family: var(--font-display);
+  font-style: italic; font-size: var(--text-sm); color: var(--rg-faint);
+}
+.footer-links {
+  display: flex; gap: var(--space-6); list-style: none;
+}
+.footer-links a {
+  font-size: var(--text-xs); letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--rg-faint);
+}
+.footer-links a:hover { color: var(--rg-muted); }
+
+/* === MOBILE === */
+@media (max-width: 768px) {
+  .nav-inner { padding: var(--space-4); }
+  .nav-links { display: none; }
+  .page-header { padding: var(--space-8) var(--space-4) var(--space-6); }
+  .page-body { padding: var(--space-8) var(--space-4); gap: var(--space-8); }
+  .card-body { padding: var(--space-5); }
+  .card-header { padding: var(--space-4) var(--space-5); }
+}
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav class="nav" role="navigation" aria-label="Main navigation">
+  <div class="nav-inner">
+    <a href="/" class="nav-brand" aria-label="RevisionGrade home">
+      <span class="nav-monogram">R</span>
+      <span class="nav-wordmark">RevisionGrade</span>
+    </a>
+    <ul class="nav-links" role="list">
+      <li><a href="/dashboard">Dashboard</a></li>
+      <li><a href="/evaluate" class="active" aria-current="page">Evaluate</a></li>
+      <li><a href="/revise">Revise</a></li>
+      <li><a href="/resources">Resources</a></li>
+      <li><a href="/pricing">Pricing</a></li>
+    </ul>
+    <a href="/login" class="nav-signin">Sign In</a>
+  </div>
+</nav>
+
+<!-- PAGE HEADER -->
+<header class="page-header">
+  <p class="page-header-eyebrow">The Instrument</p>
+  <h1 class="page-header-title">Submit Your <em>Manuscript</em></h1>
+  <p class="page-header-subtitle">
+    Upload your work and RevisionGrade will apply five independent literary readings —
+    analysing craft, voice, structure, and market readiness against the gold standard.
+  </p>
+</header>
+
+<!-- MAIN BODY -->
+<div class="page-body">
+
+  <!-- LEFT COLUMN: FORM + JOB STATUS -->
+  <main>
+
+    <!-- UPLOAD CARD -->
+    <div class="card" id="upload-card">
+      <div class="card-header">
+        <h2 class="card-title">Manuscript Upload</h2>
+        <span class="status-badge queued" id="form-status">Ready</span>
+      </div>
+      <div class="card-body">
+        <form id="eval-form" novalidate>
+
+          <!-- DROP ZONE -->
+          <div class="upload-zone" id="drop-zone" role="button" tabindex="0" aria-label="Upload manuscript file">
+            <input type="file" id="file-input" accept=".docx,.txt,.pdf,.rtf" aria-label="Choose file" />
+            <div id="zone-content">
+              <svg class="upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="17 8 12 3 7 8"/>
+                <line x1="12" y1="3" x2="12" y2="15"/>
+              </svg>
+              <p class="upload-primary">Drop your manuscript here</p>
+              <p class="upload-secondary">or browse your files</p>
+              <span class="upload-cta">Choose File</span>
+              <p class="upload-hint">.docx · .txt · .pdf · .rtf · up to 2 MB</p>
+            </div>
+          </div>
+
+          <!-- FILE SELECTED -->
+          <div class="file-selected" id="file-selected" aria-live="polite">
+            <div class="file-icon-wrap">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                <polyline points="14 2 14 8 20 8"/>
+              </svg>
+            </div>
+            <div class="file-info">
+              <div class="file-name" id="file-name-display">—</div>
+              <div class="file-meta" id="file-meta-display">—</div>
+            </div>
+            <button type="button" class="file-clear" id="file-clear" aria-label="Remove file">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+              </svg>
+            </button>
+          </div>
+
+          <hr class="form-rule">
+
+          <!-- MANUSCRIPT DETAILS -->
+          <div class="form-section">
+            <div class="field">
+              <label class="field-label" for="ms-title">Manuscript Title</label>
+              <input class="field-input" type="text" id="ms-title" name="title" placeholder="e.g. Cartel Babies" autocomplete="off" />
+            </div>
+            <div class="field">
+              <label class="field-label" for="ms-author">Author Name</label>
+              <input class="field-input" type="text" id="ms-author" name="author" placeholder="Your name or pen name" autocomplete="name" />
+            </div>
+          </div>
+
+          <hr class="form-rule">
+
+          <!-- GENRE SELECT -->
+          <div class="form-section">
+            <label class="field-label">Genre</label>
+            <div class="option-grid" role="group" aria-label="Select genre">
+              <label class="option-pill"><input type="radio" name="genre" value="literary-fiction" /> Literary Fiction</label>
+              <label class="option-pill"><input type="radio" name="genre" value="commercial-fiction" /> Commercial Fiction</label>
+              <label class="option-pill"><input type="radio" name="genre" value="thriller-mystery" /> Thriller / Mystery</label>
+              <label class="option-pill"><input type="radio" name="genre" value="romance" /> Romance</label>
+              <label class="option-pill"><input type="radio" name="genre" value="sci-fi-fantasy" /> Sci-Fi / Fantasy</label>
+              <label class="option-pill"><input type="radio" name="genre" value="nonfiction" /> Non-Fiction</label>
+              <label class="option-pill"><input type="radio" name="genre" value="memoir" /> Memoir</label>
+              <label class="option-pill"><input type="radio" name="genre" value="other" /> Other</label>
+            </div>
+          </div>
+
+          <hr class="form-rule">
+
+          <!-- EVALUATION TIER -->
+          <div class="form-section">
+            <label class="field-label">Evaluation Depth</label>
+            <div class="option-grid" role="group" aria-label="Select evaluation tier">
+              <label class="option-pill"><input type="radio" name="tier" value="standard" checked /> Standard</label>
+              <label class="option-pill"><input type="radio" name="tier" value="deep" /> Deep Read</label>
+              <label class="option-pill"><input type="radio" name="tier" value="longform" /> Long-Form DREAM</label>
+            </div>
+          </div>
+
+          <button type="submit" class="btn-submit" id="submit-btn" disabled>
+            Begin Evaluation
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <!-- JOB STATUS CARD -->
+    <div class="card job-status" id="job-card" style="margin-top: var(--space-6);" role="status" aria-live="polite" aria-label="Evaluation progress">
+      <div class="card-header">
+        <h2 class="card-title">Evaluation in Progress</h2>
+        <span class="status-badge running" id="job-status-badge">Running</span>
+      </div>
+      <div class="card-body">
+        <div class="progress-track" aria-hidden="true">
+          <div class="progress-bar" id="progress-bar"></div>
+        </div>
+
+        <ul class="pass-list" role="list" aria-label="Evaluation passes">
+          <li class="pass-item" id="pass-1" data-pass="1">
+            <span class="pass-dot" aria-hidden="true"></span>
+            <div>
+              <div class="pass-label">Pass 1 — Lexical Surface</div>
+              <div class="pass-detail">Prose mechanics, word-level craft, sentence rhythm</div>
+            </div>
+          </li>
+          <li class="pass-item" id="pass-2" data-pass="2">
+            <span class="pass-dot" aria-hidden="true"></span>
+            <div>
+              <div class="pass-label">Pass 2 — Structural Architecture</div>
+              <div class="pass-detail">Scene construction, chapter balance, pacing</div>
+            </div>
+          </li>
+          <li class="pass-item" id="pass-3" data-pass="3">
+            <span class="pass-dot" aria-hidden="true"></span>
+            <div>
+              <div class="pass-label">Pass 3 — Voice &amp; Thematic Synthesis</div>
+              <div class="pass-detail">Narrative voice, thematic coherence, subtext</div>
+            </div>
+          </li>
+          <li class="pass-item" id="pass-3b" data-pass="3b">
+            <span class="pass-dot" aria-hidden="true"></span>
+            <div>
+              <div class="pass-label">Pass 3b — Long-Form DREAM</div>
+              <div class="pass-detail">Full 16-section gold-standard evaluation</div>
+            </div>
+          </li>
+          <li class="pass-item" id="pass-4" data-pass="4">
+            <span class="pass-dot" aria-hidden="true"></span>
+            <div>
+              <div class="pass-label">Pass 4 — Perplexity Adjudication</div>
+              <div class="pass-detail">External cross-check against literary standards</div>
+            </div>
+          </li>
+        </ul>
+
+        <div class="job-id-row">
+          <span>Job</span>
+          <span class="job-id-mono" id="job-id-display">—</span>
+        </div>
+
+        <button class="btn-report" id="view-report-btn" type="button">
+          View Full Report
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:middle;margin-left:6px"><line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/></svg>
+        </button>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- RIGHT SIDEBAR -->
+  <aside class="sidebar">
+
+    <div class="info-block">
+      <div class="info-block-title">Five Readings</div>
+      <ul class="info-list" role="list">
+        <li>
+          <span class="info-list-dot" aria-hidden="true">—</span>
+          <span class="info-list-text"><strong>Lexical Surface</strong> · prose mechanics &amp; rhythm</span>
+        </li>
+        <li>
+          <span class="info-list-dot" aria-hidden="true">—</span>
+          <span class="info-list-text"><strong>Structural Architecture</strong> · scene &amp; chapter balance</span>
+        </li>
+        <li>
+          <span class="info-list-dot" aria-hidden="true">—</span>
+          <span class="info-list-text"><strong>Voice &amp; Synthesis</strong> · thematic coherence</span>
+        </li>
+        <li>
+          <span class="info-list-dot" aria-hidden="true">—</span>
+          <span class="info-list-text"><strong>Long-Form DREAM</strong> · 16-section gold standard</span>
+        </li>
+        <li>
+          <span class="info-list-dot" aria-hidden="true">—</span>
+          <span class="info-list-text"><strong>Perplexity Adjudication</strong> · external cross-check</span>
+        </li>
+      </ul>
+    </div>
+
+    <div class="info-block">
+      <div class="info-block-title">Gold Standard Benchmarks</div>
+      <ul class="reading-list" role="list">
+        <li class="reading-item">
+          <span class="reading-name">Cartel Babies</span>
+          <span class="reading-score">DREAM</span>
+        </li>
+        <li class="reading-item">
+          <span class="reading-name">Froggin Noggin</span>
+          <span class="reading-score">DREAM</span>
+        </li>
+        <li class="reading-item">
+          <span class="reading-name">Let the River Decide</span>
+          <span class="reading-score">DREAM</span>
+        </li>
+      </ul>
+    </div>
+
+    <div class="info-block">
+      <div class="info-block-title">Evaluation Notes</div>
+      <ul class="info-list" role="list">
+        <li>
+          <span class="info-list-dot" aria-hidden="true">·</span>
+          <span class="info-list-text">Standard jobs complete in <strong>3–8 minutes</strong></span>
+        </li>
+        <li>
+          <span class="info-list-dot" aria-hidden="true">·</span>
+          <span class="info-list-text">Long-Form DREAM may take <strong>10–15 minutes</strong> for large manuscripts</span>
+        </li>
+        <li>
+          <span class="info-list-dot" aria-hidden="true">·</span>
+          <span class="info-list-text">Reports include 13 scored criteria + DREAM narrative</span>
+        </li>
+        <li>
+          <span class="info-list-dot" aria-hidden="true">·</span>
+          <span class="info-list-text">Maximum file size <strong>2 MB</strong></span>
+        </li>
+      </ul>
+    </div>
+
+  </aside>
+</div>
+
+<!-- FOOTER -->
+<footer class="footer" role="contentinfo">
+  <span class="footer-brand">RevisionGrade — The Standard in Literary Evaluation</span>
+  <ul class="footer-links" role="list">
+    <li><a href="/resources">Resources</a></li>
+    <li><a href="/pricing">Pricing</a></li>
+    <li><a href="/admin/pipeline-health">Pipeline Health</a></li>
+  </ul>
+</footer>
+
+<script>
+// === File upload UX ===
+const dropZone = document.getElementById('drop-zone');
+const fileInput = document.getElementById('file-input');
+const fileSelected = document.getElementById('file-selected');
+const zoneContent = document.getElementById('zone-content');
+const fileNameDisplay = document.getElementById('file-name-display');
+const fileMetaDisplay = document.getElementById('file-meta-display');
+const fileClear = document.getElementById('file-clear');
+const submitBtn = document.getElementById('submit-btn');
+const evalForm = document.getElementById('eval-form');
+const formStatus = document.getElementById('form-status');
+
+let selectedFile = null;
+
+function formatBytes(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / 1048576).toFixed(1) + ' MB';
+}
+
+function showFile(file) {
+  selectedFile = file;
+  fileNameDisplay.textContent = file.name;
+  fileMetaDisplay.textContent = formatBytes(file.size) + ' · ' + (file.name.split('.').pop().toUpperCase());
+  zoneContent.style.display = 'none';
+  fileSelected.classList.add('visible');
+  checkFormReady();
+}
+
+function clearFile() {
+  selectedFile = null;
+  fileInput.value = '';
+  zoneContent.style.display = 'block';
+  fileSelected.classList.remove('visible');
+  checkFormReady();
+}
+
+function checkFormReady() {
+  submitBtn.disabled = !selectedFile;
+}
+
+fileInput.addEventListener('change', (e) => {
+  if (e.target.files[0]) showFile(e.target.files[0]);
+});
+
+fileClear.addEventListener('click', clearFile);
+
+// Drag & drop
+['dragenter','dragover'].forEach(ev => {
+  dropZone.addEventListener(ev, (e) => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+});
+['dragleave','drop'].forEach(ev => {
+  dropZone.addEventListener(ev, () => dropZone.classList.remove('drag-over'));
+});
+dropZone.addEventListener('drop', (e) => {
+  e.preventDefault();
+  const f = e.dataTransfer.files[0];
+  if (f) { fileInput.files = e.dataTransfer.files; showFile(f); }
+});
+
+// Keyboard activate drop zone
+dropZone.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' || e.key === ' ') fileInput.click();
+});
+
+// === MOCK JOB PROGRESS (demo) ===
+const jobCard = document.getElementById('job-card');
+const jobStatusBadge = document.getElementById('job-status-badge');
+const progressBar = document.getElementById('progress-bar');
+const jobIdDisplay = document.getElementById('job-id-display');
+const viewReportBtn = document.getElementById('view-report-btn');
+
+const passes = ['pass-1','pass-2','pass-3','pass-3b','pass-4'];
+const TICK = 1600;
+
+function genJobId() {
+  return 'RG-' + Date.now().toString(36).toUpperCase().slice(-6);
+}
+
+evalForm.addEventListener('submit', (e) => {
+  e.preventDefault();
+  if (!selectedFile) return;
+
+  // Transition to job status
+  jobCard.classList.add('visible');
+  jobCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+  formStatus.className = 'status-badge running';
+  formStatus.textContent = 'Processing';
+  submitBtn.disabled = true;
+  submitBtn.textContent = 'Evaluation Running…';
+
+  const jobId = genJobId();
+  jobIdDisplay.textContent = jobId;
+
+  // Check if longform tier is selected
+  const tier = document.querySelector('input[name="tier"]:checked')?.value || 'standard';
+  const isLongform = tier === 'longform';
+
+  // Determine which passes to run
+  const activePassIds = isLongform
+    ? ['pass-1','pass-2','pass-3','pass-3b','pass-4']
+    : ['pass-1','pass-2','pass-3','pass-4'];
+
+  // Hide 3b if not longform
+  if (!isLongform) {
+    document.getElementById('pass-3b').style.display = 'none';
+  }
+
+  let step = 0;
+  const totalSteps = activePassIds.length;
+
+  function advancePass() {
+    if (step < totalSteps) {
+      if (step > 0) {
+        document.getElementById(activePassIds[step-1]).classList.remove('running');
+        document.getElementById(activePassIds[step-1]).classList.add('done');
+      }
+      document.getElementById(activePassIds[step]).classList.add('running');
+      progressBar.style.width = ((step / totalSteps) * 85 + 10) + '%';
+      step++;
+      setTimeout(advancePass, TICK + Math.random() * 800);
+    } else {
+      // Complete
+      document.getElementById(activePassIds[totalSteps-1]).classList.remove('running');
+      document.getElementById(activePassIds[totalSteps-1]).classList.add('done');
+      progressBar.style.width = '100%';
+      jobStatusBadge.className = 'status-badge complete';
+      jobStatusBadge.textContent = 'Complete';
+      formStatus.className = 'status-badge complete';
+      formStatus.textContent = 'Done';
+      viewReportBtn.classList.add('visible');
+      viewReportBtn.href = '/evaluate/' + jobId;
+    }
+  }
+
+  setTimeout(advancePass, 400);
+});
+
+viewReportBtn.addEventListener('click', () => {
+  // Would navigate to /evaluate/:jobId in real app
+  alert('Report ready. In production, this navigates to /evaluate/' + jobIdDisplay.textContent);
+});
+</script>
+</body>
+</html>
