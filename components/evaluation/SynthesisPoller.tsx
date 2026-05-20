@@ -29,12 +29,7 @@ import {
   LongformReaderExperience,
   LongformRevisionPlan,
   LongformReleasability,
-  LongformCharacterCoverageArcLedger,
-  LongformRelationshipSpineLedger,
-  LongformSymbolPayoffLedger,
-  LongformSensoryEmotionalRegister,
-  LongformManuscriptIntegrityTable,
-  LongformEvidenceDistributionGate,
+  // Ledger A–F components are used in the peer sections in page.tsx, not here
 } from "@/components/reports/longform";
 import { SynthesisArtifactControls } from "./SynthesisArtifactControls";
 
@@ -60,6 +55,9 @@ type Props = {
   // If the server already resolved the artifact (fast path), pass it here
   // and this component renders it immediately without polling.
   initialDreamDoc?: LongformDreamDocument | null;
+  // Called when the artifact lands — lets a client wrapper collapse
+  // the "Part 2 generating…" state without a full page reload.
+  onReady?: (doc: LongformDreamDocument) => void;
 };
 
 type ArtifactRow = {
@@ -67,7 +65,7 @@ type ArtifactRow = {
   content: { longform_document?: LongformDreamDocument } | null;
 };
 
-export function SynthesisPoller({ jobId, wordCount, initialDreamDoc = null }: Props) {
+export function SynthesisPoller({ jobId, wordCount, initialDreamDoc = null, onReady }: Props) {
   const [dreamDoc, setDreamDoc] = useState<LongformDreamDocument | null>(initialDreamDoc);
   const [elapsedMs, setElapsedMs] = useState(0);
   const startRef = useRef(Date.now());
@@ -102,10 +100,15 @@ export function SynthesisPoller({ jobId, wordCount, initialDreamDoc = null }: Pr
       if (pollRef.current) clearInterval(pollRef.current);
       if (elapsedRef.current) clearInterval(elapsedRef.current);
 
-      // Reload the page so the server-rendered path delivers the full synthesis
-      // with initialDreamDoc pre-populated. This is the same reliable path that
-      // "Skip Synthesis" takes and avoids any client-side hydration edge cases.
-      window.location.reload();
+      // If a client wrapper registered onReady, call it so it can update
+      // state in-place (no reload). Otherwise fall back to reload so the
+      // server-rendered path delivers the full synthesis pre-populated.
+      if (onReady) {
+        setDreamDoc(longformDoc);
+        onReady(longformDoc);
+      } else {
+        window.location.reload();
+      }
     } catch (err) {
       // Silent — will retry on next interval
       console.warn(`[SynthesisPoller] fetch error for job ${jobId}:`, err);
@@ -179,30 +182,7 @@ export function SynthesisPoller({ jobId, wordCount, initialDreamDoc = null }: Pr
           <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500 mb-3">Releasability</h3>
           <LongformReleasability doc={dreamDoc} />
         </div>
-        <div>
-          <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500 mb-3">Character Coverage &amp; Arc Ledger</h3>
-          <LongformCharacterCoverageArcLedger doc={dreamDoc} />
-        </div>
-        <div>
-          <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500 mb-3">Relationship Spine Ledger</h3>
-          <LongformRelationshipSpineLedger doc={dreamDoc} />
-        </div>
-        <div>
-          <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500 mb-3">Symbol-to-Character Payoff Ledger</h3>
-          <LongformSymbolPayoffLedger doc={dreamDoc} />
-        </div>
-        <div>
-          <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500 mb-3">Sensory &amp; Emotional Register</h3>
-          <LongformSensoryEmotionalRegister doc={dreamDoc} />
-        </div>
-        <div>
-          <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500 mb-3">Manuscript Integrity Table</h3>
-          <LongformManuscriptIntegrityTable doc={dreamDoc} />
-        </div>
-        <div>
-          <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500 mb-3">Evidence Distribution &amp; Confidence Gate</h3>
-          <LongformEvidenceDistributionGate doc={dreamDoc} />
-        </div>
+        {/* Ledger A–F moved to "Character System" and "Craft Evidence" peer sections in page.tsx */}
       </div>
     );
   }
