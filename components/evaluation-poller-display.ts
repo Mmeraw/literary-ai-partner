@@ -17,9 +17,9 @@ const STAGE_ROADMAP =
  * Each stage owns a contiguous slice of the 0..100 bar. The slice widths are
  * proportional to the median time each stage takes in real pipeline runs:
  *
- *   Preparing manuscript  | 0 →  2%   (phase_1 / queued)
- *   Analyzing manuscript  | 2 → 64%   (phase_1 / running — heaviest stage)
- *   Building diagnosis    | 64 → 65%  (phase_1 / complete — transient handoff)
+ *   Preparing manuscript  | 0 →  2%   (phase_1a / queued — character ledger)
+ *   Analyzing manuscript  | 2 → 64%   (phase_2 / running — heaviest stage: Pass1+Pass2)
+ *   Building diagnosis    | 64 → 90%  (phase_3 / running — Pass 3B synthesis + WAVE)
  *   Reconciling passes    | 65 → 83%  (phase_2 / running)
  *   Final QA checks       | 83 → 97%  (phase_2 / complete  +  cross_check running)
  *   Preparing report      | 97 → 99%  (cross_check_status = complete)
@@ -136,7 +136,7 @@ function resolveStageId(inputs: StageInputs): StageId | null {
 
   if (!inputs.phase) return null;
 
-  if (inputs.phase === "phase_1" || inputs.phase === "phase_1a") {
+  if (inputs.phase === "phase_1a") {
     if (inputs.phase_status === "queued") return "preparing_manuscript";
     if (inputs.phase_status === "running") return "analyzing_manuscript";
     if (inputs.phase_status === "complete") return "building_diagnosis";

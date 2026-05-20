@@ -52,7 +52,7 @@ SELECT
   progress->>'phase_status' as phase_status,
   COALESCE(progress->>'phase','') as phase_coalesced
 FROM public.evaluation_jobs
-WHERE COALESCE(progress->>'phase','') = 'phase_1'
+WHERE COALESCE(progress->>'phase','') IN ('phase_1a','phase_2','phase_3')
 ORDER BY created_at DESC
 LIMIT 20;
 
@@ -66,7 +66,7 @@ SELECT
   CASE 
     WHEN status = 'queued' THEN 'eligible'
     WHEN status = 'running' 
-      AND COALESCE(progress->>'phase','') = 'phase_1'
+      AND COALESCE(progress->>'phase','') IN ('phase_1a','phase_2','phase_3')
       AND COALESCE(progress->>'lease_expires_at','') <> ''
       AND (progress->>'lease_expires_at')::timestamptz <= now() THEN 'eligible (recovery)'
     ELSE 'not eligible'

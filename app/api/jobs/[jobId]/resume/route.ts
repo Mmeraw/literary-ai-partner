@@ -188,11 +188,10 @@ export async function POST(
 
     // ── 3. Requeue the job ───────────────────────────────────────────────────
     // Reset status and phase_status back to 'queued' so the cron worker picks it up.
-    // - If a phase-split handoff exists: route to phase_2 (skip Pass1+Pass2)
-    // - If a chunk cache exists: route to phase_1 (resume Pass1 from checkpoint)
-    // - Otherwise: route to phase_1 (full re-run — honest, no fake resilience claims)
+    // - If a phase-split handoff exists: route to phase_2 (skip phase_1a re-run)
+    // - Otherwise: route to phase_1a (full re-run from character ledger)
     const now = new Date().toISOString();
-    const targetPhase = hasPhase2Handoff ? 'phase_2' : 'phase_1';
+    const targetPhase = hasPhase2Handoff ? 'phase_2' : 'phase_1a';
 
     const existingProgress =
       job.progress && typeof job.progress === 'object'

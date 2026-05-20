@@ -42,7 +42,7 @@ function buildJob(overrides: Partial<Job> = {}): Job {
     job_type: "evaluate_quick",
     status: "running" as JobStatus,
     progress: {
-      phase: "phase_1",
+      phase: "phase_1a",
       phase_status: "running",
       total_units: 10,
       completed_units: 4,
@@ -152,7 +152,7 @@ describe("GET /api/jobs/[jobId]", () => {
     const job = buildJob({
       status: "running" as JobStatus,
       progress: {
-        phase: "phase_1",
+        phase: "phase_1a",
         phase_status: "running",
         total_units: 10,
         completed_units: 4,
@@ -210,7 +210,7 @@ describe("GET /api/jobs/[jobId]", () => {
     const job = buildJob({
       status: "complete" as JobStatus,
       progress: {
-        phase: "phase_1",
+        phase: "phase_1a",
         phase_status: "complete",
         total_units: 10,
         completed_units: 10,
@@ -308,7 +308,7 @@ describe("GET /api/jobs/[jobId]", () => {
     const req = buildRequest({ jobId: "job-1", userId: "user-123" });
     const job = buildJob({
       progress: {
-        phase: "phase_1",
+        phase: "phase_1a",
         phase_status: "running",
         total_units: 0,
         completed_units: 0,
@@ -347,7 +347,7 @@ describe("GET /api/jobs/[jobId]", () => {
     const req = buildRequest({ jobId: "job-1", userId: "user-123" });
     const job = buildJob({
       progress: {
-        phase: "phase_1",
+        phase: "phase_1a",
         phase_status: "running",
         total_units: 10,
         completed_units: 7,
@@ -370,7 +370,7 @@ describe("GET /api/jobs/[jobId]", () => {
     const req = buildRequest({ jobId: "job-1", userId: "user-123" });
     const job = buildJob({
       progress: {
-        phase: "phase_1",
+        phase: "phase_1a",
         phase_status: "running",
         total_units: 3,
         completed_units: 1,

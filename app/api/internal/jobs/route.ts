@@ -36,15 +36,15 @@ export function selectEligibleJobs(allJobs: Awaited<ReturnType<typeof getAllJobs
   const phase1Candidates = allJobs.filter(
     (j) =>
       j.status === "queued" &&
-      j.progress?.phase === PHASES.PHASE_1 &&
+      j.progress?.phase === PHASES.PHASE_1A &&
       j.progress?.phase_status === "queued",
   );
 
   const phase2Candidates = allJobs.filter(
     (j) =>
       j.status === "running" &&
-      j.progress?.phase === PHASES.PHASE_1 &&
-      j.progress?.phase_status === "complete", // Must match PHASE_1_STATES.COMPLETED
+      j.progress?.phase === PHASES.PHASE_1A &&
+      j.progress?.phase_status === "complete",
   );
 
   return {

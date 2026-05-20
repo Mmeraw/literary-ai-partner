@@ -67,7 +67,7 @@ function inferStage(job: Record<string, unknown>): SipocStage {
 
   const stage = typeof raw === "string" ? raw : "unknown";
 
-  if (stage.includes("pass1") || stage.includes("phase_1")) return "pass1_craft";
+  if (stage.includes("pass1") || stage.includes("phase_1a")) return "pass1_craft";
   if (stage.includes("pass2")) return "pass2_editorial";
   if (stage.includes("pass3")) return "pass3_synthesis";
   if (stage.includes("pass4") || stage.includes("quality")) return "quality_gate";

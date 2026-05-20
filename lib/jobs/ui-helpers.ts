@@ -110,7 +110,7 @@ export function getJobDisplayInfo(job: Job): JobDisplayInfo {
   // Phase detail
   let phaseDisplay = "";
   if (phase && phase_status) {
-    const phaseNum = phase === "phase_1" ? "1" : "2"; // Display only
+    const phaseNum = phase === "phase_1a" ? "1A" : phase === "phase_2" ? "2" : phase === "phase_3" ? "3" : "?"; // Display only
     const statusLabel =
       phase_status === "complete"
         ? "Complete"

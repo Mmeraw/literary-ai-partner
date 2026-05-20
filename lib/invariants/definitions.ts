@@ -22,7 +22,7 @@ export interface InvariantDefinition {
 
 // Canonical status values from the job system
 const VALID_STATUSES = new Set(Object.values(JOB_STATUS));
-const VALID_PHASES = new Set(["phase_1", "phase_2", "phase_3"]);
+const VALID_PHASES = new Set(["phase_0", "phase_1a", "phase_2", "phase_3", "wave_revision"]);
 
 /**
  * INV-001: No job should have a non-canonical status value

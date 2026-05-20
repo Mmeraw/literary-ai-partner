@@ -31,12 +31,12 @@ export async function POST(req: NextRequest, ctx: { params: Params }) {
       ? (job.progress as Record<string, unknown>)
       : {};
 
-  const isPhase1CompleteHandoff =
+  const isPhase1aCompleteHandoff =
     job.status === "running" &&
-    progress.phase === "phase_1" &&
+    progress.phase === "phase_1a" &&
     progress.phase_status === "complete";
 
-  if (!isPhase1CompleteHandoff && !force) {
+  if (!isPhase1aCompleteHandoff && !force) {
     const eligibility = canRunPhase(job, PHASES.PHASE_2);
     if (!eligibility.ok) {
       return NextResponse.json(
@@ -87,7 +87,7 @@ export async function POST(req: NextRequest, ctx: { params: Params }) {
   if (!force) {
     updateQuery = updateQuery
       .eq("status", "running")
-      .eq("phase", "phase_1");
+      .eq("phase", "phase_1a");
   }
 
   const { data, error } = await updateQuery;

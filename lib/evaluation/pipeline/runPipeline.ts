@@ -204,14 +204,14 @@ export interface RunPipelineOptions {
    * When provided, runPipeline skips Pass 1A entirely and uses this ledger directly.
    * This is the multi-phase workflow path: phase_1a built the ledger in its own
    * Vercel invocation; phase_2 injects it here so Pass 3 has full character grounding.
-   * When absent (phase_1 full-run path), Pass 1A runs sequentially after Pass 1+2.
+   * When absent (phase_2 path without ledger), Pass 1+2 run without ledger grounding.
    */
   _prebuiltCharacterLedger?: {
     ledger: Pass1aCharacterLedger;
     ledgerV2: CharacterLedgerV2;
   };
   /**
-   * Pre-built Pass 3A preflight draft from phase_1 invocation.
+   * Pre-built Pass 3A preflight draft from phase_1a invocation.
    * When provided, runPipeline builds a compact summary and injects it into Pass 3B.
    * When absent, Pass 3B receives a PREFLIGHT UNAVAILABLE notice and synthesizes
    * from Pass 1 + Pass 2 only.
@@ -1005,7 +1005,7 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
   // were making valid progress — just slow. The SLA watchdog in processor.ts
   // is the backstop if a pass truly hangs forever.
 
-  // Build ledger grounding block for P1 + P2 injection (from phase_1 prebuilt ledger).
+  // Build ledger grounding block for P1 + P2 injection (from phase_1a prebuilt ledger).
   // buildLedgerBlockForPrompt is fail-soft — returns "" when ledger is absent.
   const ledgerBlockForP1P2 = opts._prebuiltCharacterLedger
     ? buildLedgerBlockForPrompt(
@@ -1014,7 +1014,7 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
       )
     : "";
 
-  // Build compact preflight summary for Pass 3B injection (from phase_1 prebuilt preflight).
+  // Build compact preflight summary for Pass 3B injection (from phase_1a prebuilt preflight).
   const compactPreflightSummary = opts._prebuiltPreflightDraft
     ? buildCompactPreflightSummary(opts._prebuiltPreflightDraft)
     : undefined;
@@ -1032,7 +1032,7 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
       scopeProfile: scopeProfile ?? undefined,
       // phase_2: 3 concurrent chunks (P1+P2 parallel, peak=6 total)
       _chunkConcurrency: opts._prebuiltCharacterLedger ? 3 : undefined,
-      // Inject ledger grounding block when available (phase_2 path)
+      // Inject ledger grounding block from phase_1a when available
       characterLedgerBlock: ledgerBlockForP1P2 || undefined,
       _onCompletion: (capture) => {
         providerTelemetry.push(
@@ -1084,7 +1084,7 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
       scopeProfile: scopeProfile ?? undefined,
       // phase_2: 3 concurrent chunks (P1+P2 parallel, peak=6 total)
       _chunkConcurrency: opts._prebuiltCharacterLedger ? 3 : undefined,
-      // Inject ledger grounding block when available (phase_2 path)
+      // Inject ledger grounding block from phase_1a when available
       characterLedgerBlock: ledgerBlockForP1P2 || undefined,
       _onCompletion: (capture) => {
         providerTelemetry.push(
@@ -1126,9 +1126,9 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
   // with a fresh 720s execution window. The prebuilt ledger is injected via
   // opts._prebuiltCharacterLedger when called from the phase_2 resume path.
   //
-  // Single-invocation fallback (phase_1 full-run): when _prebuiltCharacterLedger
-  // is absent, run Pass 1A sequentially after Pass 1+2 to avoid rate-limit
-  // collision (96 concurrent chunk calls starve Pass 1A on large manuscripts).
+  // Phase 2 path: _prebuiltCharacterLedger injected from phase_1a.
+  // If absent (phase_2 without ledger), Pass 1A runs after Pass 1+2 to avoid
+  // rate-limit collision (96 concurrent chunk calls starve Pass 1A).
   //
   // Pass 1A independence: receives ONLY manuscript text — never sees P1/P2 output.
   let pass1aSettled: PromiseSettledResult<RunPass1aResult>;

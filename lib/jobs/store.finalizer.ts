@@ -132,7 +132,7 @@ function mapRowToFinalizerJob(row: any): EvaluationJob {
       case "report":
       case "done":
         return jobPhase;
-      case "phase_1":
+      case "phase_1a":
         return "pass1";
       case "phase_2":
         return "pass2";

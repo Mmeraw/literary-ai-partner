@@ -24,7 +24,7 @@ export async function POST(req: NextRequest, ctx: { params: Params }) {
     return NextResponse.json({ ok: false, error: "Job not found" }, { status: 404 });
   }
 
-  const eligibility = canRunPhase(job, PHASES.PHASE_1);
+  const eligibility = canRunPhase(job, PHASES.PHASE_1A);
   if (!eligibility.ok) {
     return NextResponse.json({ ok: false, error: eligibility.reason }, { status: 409 });
   }

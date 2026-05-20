@@ -47,7 +47,9 @@
  * SPIKE STATUS
  * ─────────────────────────────────────────────────────────────────────
  *
- * This is an RFC/proof-of-concept. It is NOT wired into production routing.
+ * RFC/proof-of-concept only — NOT wired into production routing.
+ * Phase references below (phase_1/phase_2) describe the OLD architecture;
+ * current production uses phase_1a → phase_2 → phase_3 relay race.
  * Gated by WORKFLOW_EVALUATION_ENABLED=true (default: false).
  *
  * Current approach: each step calls processEvaluationJob(jobId) normally.

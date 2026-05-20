@@ -2,11 +2,11 @@ export {
   PHASES,
   JOB_TYPES,
   JOB_STATUS,
-  isPhase1JobType,
+  isEvaluationJobType,
   assertJobTypeAllowedForPhase,
 } from "./types";
 
-// Phase 1 exports (only what actually exists)
+// Legacy phase state machine — kept for backward compat with gates
 export { PHASE_1_STATES } from "./phase1";
 export type { Phase1State } from "./phase1";
 

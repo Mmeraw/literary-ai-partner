@@ -471,7 +471,7 @@ export type FinalizeEvaluationFailureInput = {
   failureEnvelope: PipelineFailureEnvelope;
   lastError: string;
   failureCode?: string;
-  phase: "phase_1" | "phase_2";
+  phase: "phase_1a" | "phase_2" | "phase_3";
   totalUnits: number;
   completedUnits: number;
 };

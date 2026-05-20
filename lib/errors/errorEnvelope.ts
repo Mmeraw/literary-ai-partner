@@ -19,7 +19,7 @@ export interface ErrorEnvelopeV1 {
   retryable: boolean;
   
   /** Which phase failed */
-  phase: 'phase_1' | 'phase_2';
+  phase: 'phase_1a' | 'phase_2' | 'phase_3';
   
   /** AI provider (if applicable) */
   provider?: 'openai' | 'anthropic' | null;
@@ -117,7 +117,7 @@ export function classifyError(error: unknown): { code: ErrorCode; retryable: boo
 export function toErrorEnvelope(
   error: unknown,
   context: {
-    phase: 'phase_1' | 'phase_2';
+    phase: 'phase_1a' | 'phase_2' | 'phase_3';
     jobId?: string;
     manuscriptId?: number;
     provider?: 'openai' | 'anthropic';

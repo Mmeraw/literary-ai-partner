@@ -26,9 +26,9 @@ export function getPhaseSpecificCopy(
     };
   }
 
-  if (phase === PHASES.PHASE_1) {
+  if (phase === PHASES.PHASE_1A) {
     return {
-      phase: PHASES.PHASE_1,
+      phase: PHASES.PHASE_1A,
       displayCopy: "Analyzing structure and craft…",
       description: "Examining narrative elements, pacing, and technical execution",
     };

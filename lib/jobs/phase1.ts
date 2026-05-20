@@ -79,7 +79,7 @@ export async function runPhase1(jobId: string): Promise<void> {
   const initialProgress = job.progress ?? { phase: null, phase_status: null };
   const isPhase1QueuedCandidate =
     job.status === JOB_STATUS.QUEUED &&
-    initialProgress.phase === PHASES.PHASE_1 &&
+    initialProgress.phase === PHASES.PHASE_1A &&
     initialProgress.phase_status === PHASE_1_STATES.QUEUED;
 
   if (!isPhase1QueuedCandidate) {
@@ -107,7 +107,7 @@ export async function runPhase1(jobId: string): Promise<void> {
   if (!leasedJob) {
     console.log("Phase1LeaseNotAcquired", {
       job_id: jobId,
-      phase: PHASES.PHASE_1,
+      phase: PHASES.PHASE_1A,
       reason: "not eligible or already running",
     });
     return;
@@ -169,7 +169,7 @@ export async function runPhase1(jobId: string): Promise<void> {
       total_units: allChunks.length,
       completed_units,
       started_at,
-      phase: PHASES.PHASE_1,
+      phase: PHASES.PHASE_1A,
       phase_status: PHASE_1_STATES.RUNNING,
       phase1_last_processed_index: existing_index,
     },
@@ -200,7 +200,7 @@ export async function runPhase1(jobId: string): Promise<void> {
       if (currentJob.status === JOB_STATUS.FAILED && !!currentJob.progress?.canceled_at) {
         console.log("Phase1Canceled", {
           job_id: jobId,
-          phase: PHASES.PHASE_1,
+          phase: PHASES.PHASE_1A,
           processed_before_cancel: processed,
         });
         return;
@@ -208,7 +208,7 @@ export async function runPhase1(jobId: string): Promise<void> {
 
       const progress = currentJob.progress;
 
-      if (progress.phase !== PHASES.PHASE_1 || progress.phase_status !== PHASE_1_STATES.RUNNING) {
+      if (progress.phase !== PHASES.PHASE_1A || progress.phase_status !== PHASE_1_STATES.RUNNING) {
         console.log("Phase1 invariant failed: phase or phase_status mismatch");
         return;
       }
@@ -216,7 +216,7 @@ export async function runPhase1(jobId: string): Promise<void> {
       if (typeof progress.lease_expires_at === "string" && new Date(progress.lease_expires_at) <= new Date()) {
         console.log("Phase1LeaseExpired", {
           job_id: jobId,
-          phase: PHASES.PHASE_1,
+          phase: PHASES.PHASE_1A,
           lease_id,
           processed_units: processed,
         });
@@ -376,7 +376,7 @@ export async function runPhase1(jobId: string): Promise<void> {
     }
     console.error("Phase1Error", {
       job_id: jobId,
-      phase: PHASES.PHASE_1,
+      phase: PHASES.PHASE_1A,
       error: e instanceof Error ? e.message : String(e),
       stack: e instanceof Error ? e.stack : undefined,
       processed_before_error: processed,
@@ -393,7 +393,7 @@ export async function runPhase1(jobId: string): Promise<void> {
       code: "HEARTBEAT_RENEWAL_FAILED",
       message: heartbeatFatalError,
       retryable: false,
-      phase: PHASES.PHASE_1,
+      phase: PHASES.PHASE_1A,
       provider: null,
       context: {
         consecutive_heartbeat_failures: consecutiveHeartbeatFailures,
@@ -407,7 +407,7 @@ export async function runPhase1(jobId: string): Promise<void> {
         ...job.progress,
         message: heartbeatFatalError,
         finished_at,
-        phase: PHASES.PHASE_1,
+        phase: PHASES.PHASE_1A,
         phase_status: PHASE_1_STATES.FAILED,
         error_code: "HEARTBEAT_RENEWAL_FAILED",
         lease_id: null,
@@ -422,7 +422,7 @@ export async function runPhase1(jobId: string): Promise<void> {
       error: heartbeatFatalError,
     });
 
-    metrics.onJobFailed(jobId, PHASES.PHASE_1, heartbeatFatalError);
+    metrics.onJobFailed(jobId, PHASES.PHASE_1A, heartbeatFatalError);
     return;
   }
 
@@ -487,9 +487,9 @@ export async function runPhase1(jobId: string): Promise<void> {
         progress: {
           message,
           finished_at,
-          phase: PHASES.PHASE_1,
+          phase: PHASES.PHASE_1A,
           phase_status: final_phase_status,
-          retry_phase: PHASES.PHASE_1,
+          retry_phase: PHASES.PHASE_1A,
           retry_count,
           next_retry_at,
           total_units: finalChunks.length,
@@ -502,7 +502,7 @@ export async function runPhase1(jobId: string): Promise<void> {
         progress: {
           message,
           finished_at,
-          phase: PHASES.PHASE_1,
+          phase: PHASES.PHASE_1A,
           phase_status: final_phase_status,
           total_units: finalChunks.length,
           completed_units: finalDoneCount,
@@ -516,7 +516,7 @@ export async function runPhase1(jobId: string): Promise<void> {
       progress: {
         message,
         finished_at,
-        phase: PHASES.PHASE_1,
+        phase: PHASES.PHASE_1A,
         phase_status: final_phase_status,
         total_units: finalChunks.length,
         completed_units: finalDoneCount,
@@ -531,7 +531,7 @@ export async function runPhase1(jobId: string): Promise<void> {
     await updateJob(jobId, {
       progress: {
         message,
-        phase: PHASES.PHASE_1,
+        phase: PHASES.PHASE_1A,
         phase_status: final_phase_status,
         total_units: finalChunks.length,
         completed_units: finalDoneCount,
@@ -554,8 +554,8 @@ export async function runPhase1(jobId: string): Promise<void> {
   // Emit metrics
   const phase1_duration = Date.now() - phase1_start;
   if (final_phase_status === PHASE_1_STATES.COMPLETED) {
-    metrics.onPhaseCompleted(jobId, PHASES.PHASE_1, phase1_duration);
+    metrics.onPhaseCompleted(jobId, PHASES.PHASE_1A, phase1_duration);
   } else if (final_phase_status === PHASE_1_STATES.FAILED) {
-    metrics.onJobFailed(jobId, PHASES.PHASE_1, "Phase 1 failed - all chunks failed");
+    metrics.onJobFailed(jobId, PHASES.PHASE_1A, "Phase 1 failed - all chunks failed");
   }
 }

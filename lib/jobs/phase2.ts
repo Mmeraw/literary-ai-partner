@@ -61,7 +61,7 @@ function sha256Json(input: unknown): string {
  * FAIL-FAST: Validate Phase 1 output is stable and ready for Phase 2
  *
  * Canon contract for Phase 2 input:
- * - job.progress.phase === "phase_1" AND phase_status === "complete"
+ * - job.progress.phase === "phase_1a" AND phase_status === "complete"
  *   OR job.progress.phase === "phase_2" AND phase_status === "running" (normal lease transition)
  * - chunks exist for (manuscript_id, job_id)
  * - no chunks are "processing"
@@ -80,7 +80,7 @@ async function validatePhase1Output(
   });
 
   const isValidPhase1Complete =
-    jobProgress?.phase === PHASES.PHASE_1 && jobProgress?.phase_status === "complete";
+    jobProgress?.phase === PHASES.PHASE_1A && jobProgress?.phase_status === "complete";
   const isValidPhase2Starting =
     jobProgress?.phase === PHASES.PHASE_2 && jobProgress?.phase_status === "running";
 

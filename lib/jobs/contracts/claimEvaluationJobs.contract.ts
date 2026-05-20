@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 const ClaimedJobPhaseSchema = z.enum(['phase_1', 'phase_1a', 'phase_2', 'phase_3'], {
   required_error: 'claimed job must include phase',
-  invalid_type_error: 'claimed job phase must be one of: phase_1, phase_2',
+  invalid_type_error: 'claimed job phase must be one of: phase_1a, phase_2, phase_3',
 });
 
 const ClaimedJobStatusSchema = z.literal('running', {

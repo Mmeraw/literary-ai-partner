@@ -220,7 +220,7 @@ describeOrSkip("Day-1 Evaluation UI Flow", () => {
         ...job,
         status: "running",
         progress: {
-          phase: "phase_1",
+          phase: "phase_1a",
           phase_status: "processing",
           completed_units: 2,
           total_units: 5,
@@ -272,10 +272,10 @@ describeOrSkip("Day-1 Evaluation UI Flow", () => {
   });
 
   describe("Track C: Completion Experience", () => {
-    it("should show phase-specific copy for Phase 1", () => {
-      const phaseInfo = getPhaseSpecificCopy("phase_1", "processing");
+    it("should show phase-specific copy for Phase 1A", () => {
+      const phaseInfo = getPhaseSpecificCopy("phase_1a", "processing");
       
-      expect(phaseInfo.phase).toBe("phase_1");
+      expect(phaseInfo.phase).toBe("phase_1a");
       expect(phaseInfo.displayCopy).toBe("Analyzing structure and craft…");
       expect(phaseInfo.description).toContain("narrative elements");
     });

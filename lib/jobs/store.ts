@@ -170,25 +170,25 @@ export function canRunPhase(
   job: Job,
   phase: Phase,
 ): { ok: boolean; reason?: string } {
-  if (phase === PHASES.PHASE_1) {
+  if (phase === PHASES.PHASE_1A) {
     const progress = job.progress ?? { phase: null, phase_status: null };
     const phase1QueuedCandidate =
       job.status === JOB_STATUS.QUEUED &&
-      progress.phase === PHASES.PHASE_1 &&
+      progress.phase === PHASES.PHASE_1A &&
       progress.phase_status === JOB_STATUS.QUEUED;
 
     if (!phase1QueuedCandidate) {
       return {
         ok: false,
         reason:
-          `Job not eligible for phase_1. status=${job.status}, ` +
+          `Job not eligible for phase_1a. status=${job.status}, ` +
           `phase=${String(progress.phase)}, phase_status=${String(progress.phase_status)}`,
       };
     }
     return { ok: true };
   } else if (phase === PHASES.PHASE_2) {
     if (
-      job.progress.phase !== PHASES.PHASE_1 || job.progress.phase_status !== "complete"
+      job.progress.phase !== PHASES.PHASE_1A || job.progress.phase_status !== "complete"
     ) {
       return {
         ok: false,

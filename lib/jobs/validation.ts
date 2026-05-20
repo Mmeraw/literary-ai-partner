@@ -19,11 +19,11 @@ export function validateProgressForPhase(
   const { phase, phase_status } = job.progress || {};
 
   // Unknown or missing phase
-  if (!phase || (phase !== PHASES.PHASE_1 && phase !== PHASES.PHASE_2)) {
+  if (!phase || (phase !== PHASES.PHASE_1A && phase !== PHASES.PHASE_2)) {
     return "phase_unknown";
   }
 
-  if (phase === PHASES.PHASE_1) {
+  if (phase === PHASES.PHASE_1A) {
     return validatePhase1Progress(job);
   }
 
@@ -143,7 +143,7 @@ export function canStartPhase2(job: Job): boolean {
   const completed_units = progress?.completed_units as number | null | undefined;
 
   // Phase 1 must be complete
-  if (phase !== PHASES.PHASE_1 || phase_status !== "complete") {
+  if (phase !== PHASES.PHASE_1A || phase_status !== "complete") {
     return false;
   }
 

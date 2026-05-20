@@ -438,18 +438,18 @@ export async function acquireLeaseForPhase2(
 
   /**
    * Eligibility:
-   * - Normal entry: phase1 + complete
-   * - Resume entry: phase2 + running (only if lease expired / free)
+   * - Normal entry: phase_1a + complete (ledger built, ready for phase_2)
+   * - Resume entry: phase_2 + running (only if lease expired / free)
    */
-  const isPhase1Complete =
-    existing.progress.phase === PHASES.PHASE_1 &&
+  const isPhase1aComplete =
+    existing.progress.phase === PHASES.PHASE_1A &&
     existing.progress.phase_status === "complete";
 
   const isPhase2Resumable =
     existing.progress.phase === PHASES.PHASE_2 &&
     existing.progress.phase_status === "running";
 
-  if (!isPhase1Complete && !isPhase2Resumable) {
+  if (!isPhase1aComplete && !isPhase2Resumable) {
     return null;
   }
 

@@ -1,8 +1,6 @@
 // lib/jobs/types.ts
 // Canonical job typing — Phase 0 locked
 
-import { PHASE_1_STATES } from "./phase1";
-
 /**
  * Canonical phases.
  * Explicit, finite, and aligned to implemented state machines.
@@ -10,7 +8,6 @@ import { PHASE_1_STATES } from "./phase1";
  */
 export const PHASES = {
   PHASE_0: "phase_0",
-  PHASE_1: "phase_1",
   PHASE_1A: "phase_1a",
   PHASE_2: "phase_2",
   PHASE_3: "phase_3",
@@ -18,11 +15,6 @@ export const PHASES = {
 } as const;
 
 export type Phase = (typeof PHASES)[keyof typeof PHASES];
-
-/**
- * Phase 1 lifecycle states (derived from implementation)
- */
-export type Phase1State = (typeof PHASE_1_STATES)[keyof typeof PHASE_1_STATES];
 
 /**
  * Canonical job types
@@ -44,12 +36,12 @@ export type JobType = (typeof JOB_TYPES)[keyof typeof JOB_TYPES];
 /**
  * Guards
  */
-export function isPhase1JobType(jobType: JobType): boolean {
+export function isEvaluationJobType(jobType: JobType): boolean {
   return jobType === JOB_TYPES.EVALUATE_QUICK || jobType === JOB_TYPES.EVALUATE_FULL;
 }
 
 export function assertJobTypeAllowedForPhase(phase: Phase, jobType: JobType): void {
-  if ((phase === PHASES.PHASE_1 || phase === PHASES.PHASE_1A) && !isPhase1JobType(jobType)) {
+  if (phase === PHASES.PHASE_1A && !isEvaluationJobType(jobType)) {
     throw new Error(`Job type ${jobType} not allowed in ${phase}.`);
   }
 }

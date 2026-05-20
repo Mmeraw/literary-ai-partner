@@ -64,7 +64,7 @@ export interface JobState {
   // Canonical pipeline-stage fields (additive; may be absent on older API responses).
   // When present these are authoritative for stage label resolution and are decoupled
   // from the smoothly-animated visual progress bar.
-  phase?: 'phase_0' | 'phase_1' | 'phase_2' | null;
+  phase?: 'phase_0' | 'phase_1a' | 'phase_2' | 'phase_3' | null;
   phase_status?: 'queued' | 'running' | 'complete' | 'failed' | null;
   cross_check_status?:
     | 'queued'

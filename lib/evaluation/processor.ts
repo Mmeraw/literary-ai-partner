@@ -1608,7 +1608,7 @@ export async function failStaleRunningJobs(): Promise<{
       checkpoint: string;
       // Explicit rescue target — overrides the default phase-based mapping below.
       // Used by split-brain rescue: pass12_handoff exists while job is stuck in
-      // phase_1/phase_1a — target is phase_3 if evaluation_result_v2 is present,
+      // phase_1a — target is phase_3 if evaluation_result_v2 is present,
       // phase_2 (Pass 3B synthesis) otherwise.
       targetPhase?: string;
     };
@@ -1679,7 +1679,7 @@ export async function failStaleRunningJobs(): Promise<{
         const hasEvalResult = evalResultJobIds.has(row.id);
         const handoffTargetPhase = 'phase_3';
 
-        if (currentPhase === 'phase_1' || currentPhase === 'phase_1a' || currentPhase === 'phase_2') {
+        if (currentPhase === 'phase_1a' || currentPhase === 'phase_2') {
           if (hasEvalResult) {
             console.log(`[watchdog] split-brain: handoff + eval_result present — advancing to phase_3 (WAVE) (job=${row.id})`);
           } else {
@@ -1700,7 +1700,7 @@ export async function failStaleRunningJobs(): Promise<{
         continue;
       }
 
-      // Frozen-job rescue gate for phase_1 / phase_1a.
+      // Frozen-job rescue gate for phase_1a.
       // NOTE: split-brain (pass12_handoff_v1 present while phase=phase_1/_1a) is
       // handled higher up by GUARD D, which intercepts the handoff case before
       // we get here and rescues straight to phase_3.
@@ -1795,12 +1795,11 @@ export async function failStaleRunningJobs(): Promise<{
           // Determine rescue target phase:
           //   - entry.targetPhase set explicitly (split-brain → phase_2 or phase_3
           //     based on evaluation_result_v2 presence) → honor it
-          //   - phase_1  frozen with handoff artifact → rescue to phase_1a
-          //   - phase_1a frozen → rescue to phase_2 (Pass 3 will re-run Pass 1A if ledger missing)
+              //   - phase_1a frozen → rescue to phase_2 (Pass 3 will re-run Pass 1A if ledger missing)
           //   - phase_2+ frozen → rescue to phase_2 (safe retry)
           const currentPhaseForRescue = (currentProgress.phase as string | undefined) ?? 'phase_1';
           const rescueTargetPhase = entry.targetPhase
-            ?? (currentPhaseForRescue === 'phase_1' ? 'phase_1a' : 'phase_2');
+            ?? (currentPhaseForRescue === 'phase_1a' ? 'phase_2' : 'phase_2');
 
           const { data: updateResult, error: updateErr } = await supabase
             .from('evaluation_jobs')
@@ -2019,7 +2018,7 @@ export async function failStaleRunningJobs(): Promise<{
           : {};
         const currentAttempts = (currentRow?.attempt_count as number | null) ?? 0;
         const currentPhaseForRescue = (currentProgress.phase as string | undefined) ?? 'phase_1';
-        const rescueTargetPhase = currentPhaseForRescue === 'phase_1' ? 'phase_1a' : 'phase_2';
+        const rescueTargetPhase = currentPhaseForRescue === 'phase_1a' ? 'phase_2' : 'phase_2';
 
         const { error: rescueErr } = await supabase
           .from('evaluation_jobs')
@@ -2383,7 +2382,7 @@ export async function processEvaluationJob(
       fallbackIso: new Date().toISOString(),
     });
     // Hard deadline anchors to THIS INVOCATION's start, not the original job
-    // creation time. Each phase (phase_1, phase_1a, phase_2, phase_3) runs in
+    // creation time. Each phase (phase_1a, phase_2, phase_3) runs in
     // its own fresh Vercel invocation with its own 720s wall clock. Inheriting
     // job.started_at meant later phases had a budget already consumed by prior
     // phases — a 165k-word phase_1 that takes 30 min would leave phase_2 with
@@ -2414,7 +2413,7 @@ export async function processEvaluationJob(
     const markRunning = async (
       message: string,
       completedUnits: number,
-      phase: 'phase_1' | 'phase_1a' | 'phase_2' | 'phase_3' = 'phase_1',
+      phase: 'phase_1a' | 'phase_2' | 'phase_3' = 'phase_1a',
     ) => {
       if (!hasCanonicalPreClaimOwnership || !hasLivePreClaimLease) {
         throw new Error('markRunning requires claimed job');

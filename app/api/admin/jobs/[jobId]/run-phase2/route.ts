@@ -43,12 +43,12 @@ export async function POST(
         : {};
 
     // Canon truth lives in progress.*, not top-level phase helpers.
-    const isPhase1CompleteHandoff =
+    const isPhase1aCompleteHandoff =
       jobRow.status === "running" &&
-      progress.phase === "phase_1" &&
+      progress.phase === "phase_1a" &&
       progress.phase_status === "complete";
 
-    if (!isPhase1CompleteHandoff && !force) {
+    if (!isPhase1aCompleteHandoff && !force) {
       const payload: Err = {
         ok: false,
         error: "Job is not eligible for Phase 2 trigger",

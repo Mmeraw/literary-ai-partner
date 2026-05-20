@@ -134,7 +134,7 @@ export async function scheduleRetry(
         next_retry_at: null,
         retry_phase:
           ((job.progress as Record<string, unknown> | undefined)?.phase as string | undefined) ||
-          PHASES.PHASE_1,
+          PHASES.PHASE_1A,
         lease_id: null,
         lease_expires_at: null,
       } as JobProgress,
@@ -171,7 +171,7 @@ export async function scheduleRetry(
       last_error: error,
       retry_phase:
         ((job.progress as Record<string, unknown> | undefined)?.phase as string | undefined) ||
-        PHASES.PHASE_1,
+        PHASES.PHASE_1A,
       lease_id: null,
       lease_expires_at: null,
     } as JobProgress,

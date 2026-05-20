@@ -33,7 +33,6 @@ export type CanonicalJobStatus = typeof CANONICAL_JOB_STATUS[keyof typeof CANONI
  */
 export const CANONICAL_PHASE = {
   PHASE_0: 'phase_0',  // Pre-processing (if needed)
-  PHASE_1: 'phase_1',  // Legacy structure/craft analysis (kept for backward compat)
   PHASE_1A: 'phase_1a', // Pass 1A character ledger + Pass 3A preflight (parallel)
   PHASE_2: 'phase_2',  // Pass 1 + Pass 2 (ledger-informed, parallel)
   PHASE_3: 'phase_3',  // Pass 3B synthesis only
@@ -77,10 +76,8 @@ const LEGACY_PHASE_STATUS_ALIASES: Record<string, CanonicalPhaseStatus> = {
  */
 const LEGACY_PHASE_ALIASES: Record<string, CanonicalPhase> = {
   'phase0': CANONICAL_PHASE.PHASE_0,
-  'phase1': CANONICAL_PHASE.PHASE_1,
   'phase2': CANONICAL_PHASE.PHASE_2,
   'p0': CANONICAL_PHASE.PHASE_0,
-  'p1': CANONICAL_PHASE.PHASE_1,
   'p2': CANONICAL_PHASE.PHASE_2,
 };
 
@@ -98,7 +95,7 @@ export function assertCanonicalPhase(value: string | null | undefined): asserts 
   if (!Object.values(CANONICAL_PHASE).includes(value as CanonicalPhase)) {
     throw new Error(
       `Non-canonical phase detected: "${value}". ` +
-      `Expected: phase_0, phase_1, phase_1a, phase_2, phase_3, or wave_revision. ` +
+      `Expected: phase_0, phase_1a, phase_2, phase_3, or wave_revision. ` +
       `See docs/CANONICAL_VOCABULARY.md for migration guide.`
     );
   }
@@ -161,7 +158,6 @@ export function toDisplayPhase(phase: CanonicalPhase | null): string {
   
   const map: Record<CanonicalPhase, string> = {
     [CANONICAL_PHASE.PHASE_0]: 'Phase 0',
-    [CANONICAL_PHASE.PHASE_1]: 'Phase 1',
     [CANONICAL_PHASE.PHASE_1A]: 'Phase 1a',
     [CANONICAL_PHASE.PHASE_2]: 'Phase 2',
     [CANONICAL_PHASE.PHASE_3]: 'Phase 3',
