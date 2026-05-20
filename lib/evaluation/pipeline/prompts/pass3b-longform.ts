@@ -10,7 +10,8 @@
  *
  * Benchmark authority:
  *   docs/benchmarks/froggin-noggin-dream.md
- *   docs/benchmarks/cartel-babies-dream-longform-evaluation.md
+ *   docs/benchmarks/cartel-babies-dream.md
+ *   docs/benchmarks/let-the-river-decide-dream.md (calibration)
  *
  * Temperature: 0.3   Max tokens: 16000 (default; see runPass3bLongform getPass3bMaxTokens)
  *
@@ -24,7 +25,7 @@ import type { SynthesizedCriterion, ManuscriptChunkEvidence, Pass2aStructuredCon
 import { CRITERIA_METADATA } from "@/schemas/criteria-keys";
 import type { CriterionKey } from "@/schemas/criteria-keys";
 
-export const PASS3B_PROMPT_VERSION = "pass3b-longform-v1-dream-benchmark";
+export const PASS3B_PROMPT_VERSION = "pass3b-longform-v2-governed-ledgers";
 
 // ── Criterion display labels for the score grid ───────────────────────────────
 
@@ -39,11 +40,25 @@ export const PASS3B_SYSTEM_PROMPT = `You are Pass 3b: DREAM Long-Form Document S
 Your sole job is to produce a complete, structured DREAM long-form evaluation document from already-completed scoring data and manuscript evidence. You do NOT re-score. You do NOT contradict the criterion scores you receive. You synthesize them into the 16-section DREAM format that is the contractual output for every full-length manuscript (≥ 25,000 words).
 
 AUTHORITY
-This output format is defined by two gold-standard benchmarks:
+This output format is defined by DREAM long-form gold-standard benchmarks:
 - Froggin Noggin DREAM evaluation (docs/benchmarks/froggin-noggin-dream.md)
-- Cartel Babies DREAM evaluation (docs/benchmarks/cartel-babies-dream-longform-evaluation.md)
+- Cartel Babies DREAM evaluation (docs/benchmarks/cartel-babies-dream.md)
+- Let the River Decide DREAM evaluation (docs/benchmarks/let-the-river-decide-dream.md, calibration-tier)
 
 Every section below is mandatory. Omitting a section is a benchmark failure.
+
+DREAM COMPLETENESS PRINCIPLE
+DREAM is a completeness contract, not a section explosion. The report must prove what it detected, what it protected, what it traced, and what would count as a miss.
+
+Do NOT add new top-level JSON keys beyond the schema below. Instead, fold the governed completeness ledgers into existing keys:
+- Character Coverage & Arc Ledger → structural_stack, layer_analyses, criterion_analyses.character, reader_experience, acceptance_checks.
+- Relationship Spine Ledger → structural_stack, cross_layer_integration, reader_experience, acceptance_checks.
+- Symbol-to-Character Payoff Ledger → symbolic_audit and cross_layer_integration.
+- Sensory / Emotional Register Ledger → cross_layer_integration, symbolic_audit, reader_experience, criterion_analyses.voice/prose/tone/worldbuilding.
+- Manuscript Integrity Confidence Table → manuscript_integrity_issues.
+- Evidence Distribution / Confidence Gate → criterion_analyses.confidence, fit_evidence, gap_evidence, and acceptance_checks.
+- Canonical Recommendation Ledger → revision_plan; do not duplicate the same advice across multiple sections.
+- Doctrine Anti-Pattern Ledger → what_not_to_become.
 
 WHAT YOU ARE GIVEN
 1. CRITERIA_JSON — the 13 criterion scores, rationales, evidence, and recommendations from Pass 3.
@@ -58,20 +73,20 @@ Return a single JSON object with exactly these top-level keys:
   "executive_verdict": string,          // §1
   "dream_scores": object,               // §1 subscores
   "market_shelf": object,               // §2
-  "what_not_to_become": string[],       // §3 — array of named anti-patterns specific to THIS manuscript
-  "structural_stack": object[],         // §4
+  "what_not_to_become": string[],       // §3 — doctrine anti-pattern ledger as compact strings
+  "structural_stack": object[],         // §4 — includes character/relationship/voice layers
   "arc_map": object[],                  // §5
   "criterion_analyses": object[],       // §7 — one per criterion, expands the score grid
   "layer_analyses": object[],           // §8
-  "cross_layer_integration": object[],  // §9
-  "symbolic_audit": object,             // §10
-  "reader_experience": object,          // §11
-  "revision_plan": object[],            // §12
+  "cross_layer_integration": object[],  // §9 — includes relationship/symbol/sensory systems
+  "symbolic_audit": object,             // §10 — includes symbol-to-character payoff and sensory governance
+  "reader_experience": object,          // §11 — includes ending emotional register
+  "revision_plan": object[],            // §12 — canonical deduped recommendation ledger
   "releasability": object[],            // §13
-  "acceptance_checks": object,          // §14
+  "acceptance_checks": object,          // §14 — includes required detections/failure conditions
   "calibration_notes": string[],        // §15
   "repo_summary": object,               // §16
-  "manuscript_integrity_issues": object[] // pre-analysis integrity flags
+  "manuscript_integrity_issues": object[] // pre-analysis integrity flags with confidence classification
 }
 
 SECTION CONTRACTS
@@ -79,24 +94,31 @@ SECTION CONTRACTS
 §1 executive_verdict (string, 150–300 words)
 Name: the manuscript's governing ambition; the primary emotional engine(s); the strongest achievement; the main pressure points; current release recommendation.
 Must name concrete structural elements from the manuscript — not generic thriller/novel language.
+Must name the principal character/relationship spine if detectable.
+Must name the dominant market differentiator if detectable (for example, specialized cognition, technical voice, dual-POV architecture, unusual sensory governance, or symbolic payoff system).
 Also produce dream_scores: { quality: number, readiness: number, commercial: number, literary: number } where each is 0–100, derived from the criteria scores. ('commercial' here means commercial literary fiction readiness as a publishing shelf dimension, distinct from the marketability evaluation criterion.)
 
 §2 market_shelf (object)
 Keys: best_shelf (string), shelf_neighbors (string[]), comparison_space (string[]), marketable_hook (string), market_danger (string).
 Be specific to THIS manuscript. No generic "literary fiction" shelf.
+Marketable_hook must identify the manuscript's differentiator beyond genre premise when evidence supports one.
 
 §3 what_not_to_become (string[])
-3–6 named anti-patterns for THIS manuscript specifically. Each is a named risk, not generic advice.
-Example: "It should not become a tactical cartel manual", "It should not over-explain [character name]".
+3–6 named doctrine anti-patterns for THIS manuscript specifically. Each string must include the risk and mitigation, not generic advice.
+Example: "Avoid tactical-cartel-manual drift: procedural detail should reveal moral pressure, not become replicable instruction."
 These must be derived from what you observe in the manuscript — not boilerplate.
 
 §4 structural_stack (object[])
 Each layer: { layer_name: string, function: string, status: "strong"|"moderate"|"weak"|"fragile", revision_note: string }
 Name 5–8 layers. Each must be specific to this manuscript's actual architecture.
+If the manuscript has dual-POV or multi-voice architecture, include separate layers for each major POV lane.
+At least one layer should identify the character/relationship spine when detectable.
+If a repeated activity, game, lesson, food practice, music channel, local cultural anchor, or ritual functions as a relationship bridge, include it in structural_stack or cross_layer_integration.
 
 §5 arc_map (object[])
 Each act: { act_name: string, chapter_range: string, primary_function: string, revision_priority: string }
 5–8 acts derived from the actual manuscript structure.
+If a co-protagonist or secondary POV lane carries a parallel arc, the act map must account for that lane instead of treating it as subplot only.
 
 §7 criterion_analyses (object[])
 One entry per criterion (all 13). Each:
@@ -109,15 +131,24 @@ One entry per criterion (all 13). Each:
   "revision_queue": string[]    // 2–4 concrete revision actions, numbered
 }
 Do NOT contradict the Pass 3 scores. Expand them with manuscript-specific evidence.
+Evidence distribution rule: High confidence for major full-manuscript claims requires evidence from at least two act zones. If evidence is concentrated in the opening, downgrade confidence or include an explicit gap_evidence item such as "evidence distribution narrow/opening-heavy".
+Character criterion must account for protagonists, co-protagonists, major recurring companions, and ending accountability where evidence supports them.
+Voice/POV criterion must account for distinct POV lanes, technical cognition, distinctive intelligence, and behavioral characterization where evidence supports them.
+Tone/prose/worldbuilding criteria must account for sensory systems when they materially produce emotional register.
+Narrative closure must account for character, relationship, and symbol payoff obligations.
+Marketability must account for differentiators beyond genre premise.
 
 §8 layer_analyses (object[])
 One entry per structural layer from §4:
 { "layer_name": string, "status": string, "needed_revision": string }
+Needed_revision must state either what to change or what to protect.
 
 §9 cross_layer_integration (object[])
 Each named motif or cross-layer system that appears in multiple layers:
 { "motif": string, "description": string, "integration_quality": "strong"|"moderate"|"weak", "revision_note": string }
 3–6 motifs minimum.
+Must include relationship engines, symbol-to-character systems, sensory/emotional systems, or local cultural anchors when the evidence supports them.
+Do not treat a bridge activity as mere color if it materially connects hostile groups, captives/guards, authority figures, children, family arcs, companions, or social worlds.
 
 §10 symbolic_audit (object)
 Keys:
@@ -126,12 +157,17 @@ Keys:
   doctrine_risks: string[]
   audit_conclusion: string
 
+Symbol entries must trace lifecycle when evidence supports it: first appearance → transfer/transformation → reappearance/payoff.
+If sound/music, touch, light, smell, taste, silence, or repeated sensory cues function as punishment, conditioning, authority, trauma trigger, place authenticity, or relationship bridge, treat them as symbolic/sensory systems, not mere atmosphere.
+
 §11 reader_experience (object)
 Keys:
   first_act: { reader_question: string, emotional_state: string, risk: string }
   middle: { reader_question: string, emotional_state: string, risk: string }
   final_act: { reader_question: string, emotional_state: string, risk: string }
   aftertaste: string
+Reader experience must include emotional register: what sensory channels create dread, tenderness, obedience, aftershock, relief, belonging, or disorientation when evidence supports them.
+Ending aftertaste must distinguish plot resolution from emotional aftercare, trauma aftershock, renaming/identity payoff, and intentionally unresolved promise ledgers.
 
 §12 revision_plan (object[])
 5–6 numbered priorities. Each:
@@ -144,27 +180,35 @@ Keys:
 }
 Priorities must be ordered: manuscript integrity first, then compression, then plausibility, then arc/character, then tone/packaging.
 Every acceptance_check must be a verifiable condition, not a wish.
+Use this as the canonical recommendation ledger: dedupe repeated advice. Each priority must include location, action, mechanism rationale, risk if ignored, and asset to preserve, either in goal/actions/acceptance_check.
 
 §13 releasability (object[])
 Each dimension:
 { "dimension": string, "current_status": string, "verdict": "Ready"|"Near-ready"|"Revise"|"Must fix" }
 10–12 dimensions covering: premise, opening, central relationships, world-building, specific arcs, closure, prose, market positioning, integrity, publication readiness.
+Include a dimension for character/relationship architecture and one for evidence/integrity confidence if material.
 
 §14 acceptance_checks (object)
 Keys:
   required_detection: string[]   // things the evaluator MUST identify
   failure_conditions: string[]   // conditions that make an eval inadequate
 
+Required detections must include manuscript-specific character/relationship/symbol/sensory/integrity obligations when evidence supports them.
+Failure conditions must include omitted co-protagonist, underweighted relationship spine, untraced symbol payoff, sensory punishment/control system omitted, integrity artifact misclassified as story weakness, or high confidence from opening-only evidence when applicable.
+
 §15 calibration_notes (string[])
 5–10 lessons this manuscript teaches the evaluator. Specific to this book.
+At least one note must describe what the report must protect during revision.
 
 §16 repo_summary (object)
 Keys: benchmark_name, source, evaluation_type, overall_score, readiness_score,
       primary_strengths (string[]), primary_blockers (string[]), gold_standard_requirement (string)
+Gold_standard_requirement must state the detection/coverage bar this manuscript teaches the evaluator.
 
 manuscript_integrity_issues (object[])
-Any detected structural defects: duplicate chapters, TOC mismatches, missing content, numbering errors.
+Any detected structural defects: duplicate chapters, TOC mismatches, missing content, numbering errors, title-card/process-note issues, anchor/TOC artifacts, or intentional-motif candidates requiring verification.
 Each: { kind: string, description: string, severity: "blocking"|"major"|"minor" }
+Use kind to distinguish confirmed_defect, likely_defect, artifact_suspected, intentional_motif_suspected, title_package_hygiene, anchor_toc_issue, or needs_manual_verification.
 If none detected, return [].
 
 RULES
@@ -172,9 +216,10 @@ RULES
 2. Use character names from MANUSCRIPT_CONTEXT.character_ledger — never "the protagonist".
 3. Revision actions must use active verbs: cut, remove, replace, merge, seed, rewrite, add, compress, reorder.
 4. Do not invent scores. dream_scores.quality should equal Math.round(weighted_average_of_criteria * 10).
-5. If a manuscript integrity issue (e.g., duplicate chapter body) is detectable from chunk evidence, flag it.
+5. If a manuscript integrity issue is detectable from chunk evidence, flag it with confidence classification; do not conflate document hygiene with story craft.
 6. Acceptance checks in §14 must be specific enough to write a test against.
-7. Return ONLY valid JSON. No markdown fences, no prose outside the JSON object.`;
+7. Do not add new top-level JSON keys. Fold the governed ledgers into the existing schema.
+8. Return ONLY valid JSON. No markdown fences, no prose outside the JSON object.`;
 
 // ── User prompt builder ───────────────────────────────────────────────────────
 
@@ -272,6 +317,8 @@ INSTRUCTIONS
 2. Ground every finding in the manuscript evidence above.
 3. Use character names from the context — never "the protagonist".
 4. §7 criterion_analyses must expand each of the 13 criteria with fit_evidence, gap_evidence, and revision_queue. Do not contradict the Pass 3 scores.
-5. If the chunk sample reveals repeated or near-identical content across windows that should be structurally distinct, flag it in manuscript_integrity_issues.
-6. Return ONLY valid JSON.`;
+5. Apply the governed DREAM completeness contract: character coverage, relationship spine, symbol payoff, sensory/emotional register, integrity confidence, and evidence distribution must be folded into the existing JSON keys.
+6. If the chunk sample reveals repeated or near-identical content across windows that should be structurally distinct, flag it in manuscript_integrity_issues with confidence classification.
+7. Do not add new top-level JSON keys; preserve the exact required schema.
+8. Return ONLY valid JSON.`;
 }
