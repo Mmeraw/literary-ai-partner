@@ -29,6 +29,12 @@ import { resolveReportTitle } from '@/lib/evaluation/reportTitle';
 import type { LongformDreamDocument } from '@/lib/evaluation/pipeline/runPass3bLongform';
 import { SynthesisPoller } from '@/components/evaluation/SynthesisPoller';
 import DownloadReportButton from '@/components/reports/DownloadReportButton';
+import LongformCharacterCoverageArcLedger from '@/components/reports/longform/LongformCharacterCoverageArcLedger';
+import LongformRelationshipSpineLedger from '@/components/reports/longform/LongformRelationshipSpineLedger';
+import LongformSymbolPayoffLedger from '@/components/reports/longform/LongformSymbolPayoffLedger';
+import LongformSensoryEmotionalRegister from '@/components/reports/longform/LongformSensoryEmotionalRegister';
+import LongformManuscriptIntegrityTable from '@/components/reports/longform/LongformManuscriptIntegrityTable';
+import LongformEvidenceDistributionGate from '@/components/reports/longform/LongformEvidenceDistributionGate';
 
 // D1 Boundary: server-only. Service key must not leak to client.
 // Hybrid owner-gate: SSR client for auth identity, admin client for
@@ -723,6 +729,48 @@ export default async function ReportPage({ params }: { params: { jobId: string }
                   ) : (
                     <p className="text-sm text-gray-500">—</p>
                   )}
+                </div>
+
+                {/* Ledger A — Character Coverage & Arc */}
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-1">Character Coverage &amp; Arc Ledger</h3>
+                  <p className="text-xs text-gray-500 mb-3">Character system coverage — roles, arc movement, ending accountability</p>
+                  <LongformCharacterCoverageArcLedger doc={dreamDoc} />
+                </div>
+
+                {/* Ledger B — Relationship Spine */}
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-1">Relationship Spine Ledger</h3>
+                  <p className="text-xs text-gray-500 mb-3">Load-bearing relationships, bridge mechanisms &amp; trust transfer</p>
+                  <LongformRelationshipSpineLedger doc={dreamDoc} />
+                </div>
+
+                {/* Ledger C — Symbol-to-Character Payoff */}
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-1">Symbol-to-Character Payoff Ledger</h3>
+                  <p className="text-xs text-gray-500 mb-3">Symbol lifecycle — first appearance, transfer, payoff</p>
+                  <LongformSymbolPayoffLedger doc={dreamDoc} />
+                </div>
+
+                {/* Ledger D — Sensory / Emotional Register */}
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-1">Sensory &amp; Emotional Register</h3>
+                  <p className="text-xs text-gray-500 mb-3">Sensory systems, emotional arc, register governance</p>
+                  <LongformSensoryEmotionalRegister doc={dreamDoc} />
+                </div>
+
+                {/* Ledger E — Manuscript Integrity Confidence Table */}
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-1">Manuscript Integrity Table</h3>
+                  <p className="text-xs text-gray-500 mb-3">Document hygiene vs. story craft — classified integrity findings</p>
+                  <LongformManuscriptIntegrityTable doc={dreamDoc} />
+                </div>
+
+                {/* Ledger F — Evidence Distribution / Confidence Gate */}
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-1">Evidence Distribution &amp; Confidence Gate</h3>
+                  <p className="text-xs text-gray-500 mb-3">Confidence per criterion, distribution gaps, coverage failures</p>
+                  <LongformEvidenceDistributionGate doc={dreamDoc} />
                 </div>
 
                 {/* §13 — Releasability */}
