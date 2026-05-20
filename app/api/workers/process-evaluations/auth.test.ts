@@ -634,7 +634,7 @@ describe('QC6: DB-Atomic Claim RPC Tests', () => {
         // Safe recovery ONLY for Phase 1 jobs (PHASE GUARD)
         if (
           job.status === 'running' &&
-          job.phase === 'phase_1' &&
+          job.phase === 'phase_1a' &&
           leaseExpired
         ) return true;
 
@@ -652,7 +652,7 @@ describe('QC6: DB-Atomic Claim RPC Tests', () => {
       // Phase 1 job with expired lease - SHOULD be claimable (recovery)
       const phase1Job = {
         status: 'running',
-        phase: 'phase_1',
+        phase: 'phase_1a',
         lease_expires_at: new Date(Date.now() - 60000).toISOString(), // 1 min ago
       };
       expect(isClaimable(phase1Job)).toBe(true);
@@ -668,7 +668,7 @@ describe('QC6: DB-Atomic Claim RPC Tests', () => {
       // Phase 1 job with ACTIVE lease - should NOT be claimable
       const activePhase1Job = {
         status: 'running',
-        phase: 'phase_1',
+        phase: 'phase_1a',
         lease_expires_at: new Date(Date.now() + 60000).toISOString(), // 1 min from now
       };
       expect(isClaimable(activePhase1Job)).toBe(false);
