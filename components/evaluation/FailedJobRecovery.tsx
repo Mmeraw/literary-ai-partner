@@ -5,15 +5,17 @@
  *
  * Recovery UI shown when a job enters status='failed'.
  * Replaces the dead-end error state with a checkpoint-aware panel that offers:
- *   - phase2_handoff: "Final step only" — Pass1+Pass2 complete, just re-run Pass3
- *   - chunk_checkpoint: Resume from cached chunk N of M
- *   - full_restart: No checkpoint — honest full re-run
+ *   - phase2_handoff: "Restart" — Pass1+Pass2 complete, just re-run Pass3
+ *   - chunk_checkpoint: "Resume" — resume Pass1 from cached chunk N of M
+ *   - full_restart: "Start New Evaluation" link — SLA is expired, requeue is
+ *       a trap. Always redirect to /evaluate for a fresh submission instead.
  *
  * Used by both EvaluationPoller (inline on the report page) and JobStatusPoll.
  * All checkpoint detection happens client-side by reading job.progress fields,
  * with a fallback API call to /api/jobs/[jobId]/resume for the actual requeue.
  */
 
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
 export type ResumeMode = "phase2_handoff" | "chunk_checkpoint" | "full_restart";
@@ -167,12 +169,12 @@ export function FailedJobRecovery({
   resumeError,
   onResume,
 }: FailedJobRecoveryProps) {
-  const { hasPhase2Handoff, resumeMode, checked } = checkpoint;
+  const { hasPhase2Handoff, resumeMode, checked, cachedChunks, totalExpectedChunks } = checkpoint;
 
-  // ONE button, context-aware label:
-  //   handoff present  → "Restart"  (piggybacks the handoff, skips Pass1+2)
-  //   no handoff       → "Re-evaluate"  (full re-run from scratch)
-  const buttonLabel = hasPhase2Handoff ? "Restart" : "Re-evaluate";
+  // full_restart = no checkpoint, SLA clock is already expired on this job ID.
+  // Requeueing the same job will always be killed by the SLA watchdog before a
+  // worker picks it up. The only safe path is a fresh submission.
+  const isFullRestart = checked && resumeMode === "full_restart";
 
   const bodyText: React.ReactNode = !checked ? (
     <span className="text-amber-700">Checking for saved progress…</span>
@@ -181,9 +183,17 @@ export function FailedJobRecovery({
       Pass 1 &amp; 2 completed successfully — only the final synthesis step is needed.
       Restart will skip all chunk processing and complete from the saved handoff.
     </span>
-  ) : (
+  ) : resumeMode === "chunk_checkpoint" ? (
     <span>
-      No handoff was saved. Re-evaluate will reprocess the full manuscript from the beginning.
+      {cachedChunks > 0
+        ? `${cachedChunks}${totalExpectedChunks > 0 ? ` of ${totalExpectedChunks}` : ""} chunks cached — Resume will pick up from where processing stopped.`
+        : "Chunk cache found — Resume will pick up from where processing stopped."}
+    </span>
+  ) : (
+    // full_restart — be honest: requeue is broken, send them to /evaluate
+    <span>
+      No checkpoint was saved for this job. The safest path is a new evaluation —
+      submit your manuscript again to start fresh.
     </span>
   );
 
@@ -210,7 +220,7 @@ export function FailedJobRecovery({
               ? "phase 2 handoff"
               : resumeMode === "chunk_checkpoint"
               ? "chunk checkpoint"
-              : "full restart"}
+              : "no checkpoint"}
           </span>
         </div>
       )}
@@ -221,21 +231,32 @@ export function FailedJobRecovery({
         </div>
       )}
 
-      {/* Single action button */}
-      <button
-        onClick={onResume}
-        disabled={resumeLoading || !checked}
-        className="inline-flex items-center gap-2 rounded-md bg-amber-700 px-4 py-2 text-sm font-medium text-white hover:bg-amber-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-      >
-        {resumeLoading ? (
-          <>
-            <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/40 border-t-white" />
-            {hasPhase2Handoff ? "Restarting…" : "Re-evaluating…"}
-          </>
-        ) : (
-          buttonLabel
-        )}
-      </button>
+      {/* Action: full_restart → link to /evaluate; otherwise → Resume/Restart button */}
+      {isFullRestart ? (
+        <Link
+          href="/evaluate"
+          className="inline-flex items-center gap-2 rounded-md bg-amber-700 px-4 py-2 text-sm font-medium text-white hover:bg-amber-800 transition-colors"
+        >
+          Start New Evaluation
+        </Link>
+      ) : (
+        <button
+          onClick={onResume}
+          disabled={resumeLoading || !checked}
+          className="inline-flex items-center gap-2 rounded-md bg-amber-700 px-4 py-2 text-sm font-medium text-white hover:bg-amber-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        >
+          {resumeLoading ? (
+            <>
+              <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+              {hasPhase2Handoff ? "Restarting…" : "Resuming…"}
+            </>
+          ) : hasPhase2Handoff ? (
+            "Restart"
+          ) : (
+            "Resume"
+          )}
+        </button>
+      )}
     </div>
   );
 }
