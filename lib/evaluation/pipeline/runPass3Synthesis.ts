@@ -22,7 +22,9 @@ import type {
   Pass3ReducerTelemetry,
   ManuscriptChunkEvidence,
   Pass2aStructuredContext,
+  Pass1aCharacterLedger,
 } from "./types";
+import type { Pass3ReadAheadResult } from "./runPass3ReadAhead";
 import type { CanonRegistry } from "@/lib/governance/canonRegistry";
 import {
   buildOpenAIOutputTokenParam,
@@ -364,6 +366,14 @@ export interface RunPass3Options {
   openaiApiKey?: string;
   /** Optional provider timeout override from pipeline-level scoped resolution. */
   openAiTimeoutMs?: number;
+  /**
+   * Pass 1A character arc ledger — optional, Pass 3 degrades gracefully without it.
+   */
+  characterLedger?: Pass1aCharacterLedger;
+  /**
+   * Pass 3 read-ahead result — pre-scoring manuscript primer, optional.
+   */
+  readAheadResult?: Pass3ReadAheadResult;
   /** Override the completion function (for testing). Production callers omit this. */
   _createCompletion?: CreateCompletionFn;
   _onCompletion?: (capture: PassCompletionCapture) => void;
@@ -423,6 +433,8 @@ export async function runPass3Synthesis(opts: RunPass3Options): Promise<Synthesi
     scopeProfile: opts.scopeProfile,
     perplexityChunkPacket: opts.perplexityChunkPacket,
     dualModelMode: !!opts.perplexityChunkPacket,
+    characterLedger: opts.characterLedger,
+    readAheadResult: opts.readAheadResult,
   });
   assertPass3PromptTripwires(userPrompt);
 
