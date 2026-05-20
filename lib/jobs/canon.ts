@@ -61,7 +61,6 @@ export type CanonicalPhaseStatus = typeof CANONICAL_PHASE_STATUS[keyof typeof CA
 /**
  * Legacy alias normalization - USE ONLY in one-off migration scripts
  * DO NOT call from runtime storage code
- * TODO: Remove after data migration complete (target: 2026-02-15)
  */
 const LEGACY_PHASE_STATUS_ALIASES: Record<string, CanonicalPhaseStatus> = {
   'starting': CANONICAL_PHASE_STATUS.PENDING,
@@ -72,7 +71,6 @@ const LEGACY_PHASE_STATUS_ALIASES: Record<string, CanonicalPhaseStatus> = {
 /**
  * Legacy phase aliases - USE ONLY in one-off migration scripts
  * DO NOT call from runtime storage code
- * TODO: Remove after data migration complete (target: 2026-02-15)
  */
 const LEGACY_PHASE_ALIASES: Record<string, CanonicalPhase> = {
   'phase0': CANONICAL_PHASE.PHASE_0,
@@ -119,7 +117,6 @@ export function assertCanonicalStatus(value: string | null | undefined): asserts
 
 /**
  * Normalize phase status (for progress.stage → progress.phase_status migration only)
- * TODO: Remove after all data migrated (target: 2026-02-15)
  */
 function toCanonicalPhaseStatus(value: string): CanonicalPhaseStatus | null {
   // Already canonical
@@ -133,7 +130,6 @@ function toCanonicalPhaseStatus(value: string): CanonicalPhaseStatus | null {
 
 /**
  * Normalize phase value (legacy → canonical)
- * TODO: Remove after all data migrated (target: 2026-02-15)
  */
 function toCanonicalPhase(value: string): CanonicalPhase | null {
   // Already canonical
