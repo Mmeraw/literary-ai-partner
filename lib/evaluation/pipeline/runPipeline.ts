@@ -1430,25 +1430,34 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
 
     const pass1aResult = pass1aSettled.value;
     if (pass1aResult.chunkOutputs.length === 0) {
-      console.error("[Pipeline][Pass1A] Sweep produced zero chunk outputs — cannot proceed", {
+      // Soft-skip: the character ledger is an enrichment layer, not the paid product.
+      // Pass 3 can run without it (lower confidence, no WAVE). Build an empty sentinel
+      // so the pipeline continues — WAVE gate will skip with CHARACTER_LEDGER_V2_MISSING.
+      console.warn("[Pipeline][Pass1A] Sweep produced zero chunk outputs — continuing without character ledger (WAVE will be skipped)", {
         manuscript_id: opts.manuscriptId ?? null,
       });
-      timings.total_ms = nowMs() - pipelineStartMs;
-      logPipelineTimings("failure", {
-        manuscriptId: opts.manuscriptId,
-        title: opts.title,
-        workType: opts.workType,
-        failedAt: "pass1",
-        errorCode: "PASS1A_LEDGER_EMPTY",
-        timings,
-      });
-      return {
-        ok: false,
-        error: "Pass 1A character sweep produced zero chunk outputs — manuscript text may be empty or malformed",
-        error_code: "PASS1A_LEDGER_EMPTY",
-        failed_at: "pass1",
+      characterLedger = {
+        schema_version: "pass1a_character_ledger_v1",
+        prompt_version: "empty_sentinel",
+        job_id: opts.jobId ?? "unknown",
+        generated_at: new Date().toISOString(),
+        total_chunks_processed: 0,
+        entries: [],
+        coverage_summary: {
+          protagonists: [],
+          co_protagonists: [],
+          antagonists: [],
+          major_secondary_characters: [],
+          animal_companions: [],
+          relational_engines: [],
+          symbol_payoff_items: [],
+          missing_or_underweighted: [],
+          ending_accountability_warnings: [],
+          hard_fail_triggers: [],
+        },
       };
-    }
+      characterLedgerV2 = undefined;
+    } else {
 
     const totalChunks = Array.isArray(opts.manuscriptChunks) ? opts.manuscriptChunks.length : 1;
 
@@ -1480,7 +1489,8 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
           });
         });
     }
-  }
+    } // end else (chunkOutputs.length > 0)
+  } // end if/else (_prebuiltCharacterLedger)
 
   console.log("[Pipeline][Pass1A] Character ledger ready (V1 + V2)", {
     manuscript_id: opts.manuscriptId ?? null,
@@ -1489,10 +1499,12 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
     co_protagonists: characterLedger.coverage_summary.co_protagonists,
     symbol_items: characterLedger.coverage_summary.symbol_payoff_items.length,
     hard_fail_triggers: characterLedger.coverage_summary.hard_fail_triggers.length,
-    v2_active_blockers: characterLedgerV2.activeBlockers.length,
-    v2_suppress_blockers: characterLedgerV2.activeBlockers.filter((b) => b.severity === "suppress").length,
-    v2_relationship_pairs: characterLedgerV2.relationshipLedger.length,
-    v2_objects_tracked: characterLedgerV2.objectLedger.length,
+    // characterLedgerV2 may be undefined if Pass 1A produced zero chunk outputs
+    v2_active_blockers: characterLedgerV2?.activeBlockers?.length ?? 0,
+    v2_suppress_blockers: characterLedgerV2?.activeBlockers?.filter((b) => b.severity === "suppress").length ?? 0,
+    v2_relationship_pairs: characterLedgerV2?.relationshipLedger?.length ?? 0,
+    v2_objects_tracked: characterLedgerV2?.objectLedger?.length ?? 0,
+    v2_available: !!characterLedgerV2,
   });
 
   // ── Resolve read-ahead (non-blocking — returns fallback if timed out) ──

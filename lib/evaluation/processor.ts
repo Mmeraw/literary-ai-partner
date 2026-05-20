@@ -2925,13 +2925,58 @@ export async function processEvaluationJob(
         const characterLedgerV2Phase3 = ledgerArtifactRow?.content?.ledger_v2 as CharacterLedgerV2 | undefined;
 
         if (!synthesis) {
-          console.error(`[Processor] ${jobId}: phase_3 — evaluation result artifact missing or has no synthesis; cannot run WAVE`);
-          await markFailed(
-            'Phase 3 WAVE: evaluation result artifact missing',
-            'PHASE3_SYNTHESIS_MISSING',
-            { pipelineStage: 'phase_3', bucket: 'app_logic' },
-          );
-          return { success: false, error: 'PHASE3_SYNTHESIS_MISSING' };
+          // WAVE never fails the evaluation — the base evaluation is the paid product.
+          // If the synthesis artifact is missing, persist a failed WAVE artifact and
+          // mark the job COMPLETE. The user still gets their evaluation report.
+          console.error(`[Processor] ${jobId}: phase_3 — evaluation result artifact missing; persisting failed WAVE artifact and completing job`);
+
+          try {
+            const missingHash = `wave_missing_synthesis_${String(job.id)}`;
+            await upsertEvaluationArtifact({
+              supabase,
+              jobId: String(job.id),
+              manuscriptId: Number(job.manuscript_id),
+              artifactType: 'wave_revision_plan_v1',
+              artifactVersion: 'wave_revision_plan_v1',
+              sourceHash: missingHash,
+              content: {
+                status: 'failed',
+                reason_code: 'PHASE3_SYNTHESIS_MISSING',
+                reason: 'Evaluation result artifact missing or has no synthesis',
+                retryable: true,
+                generated_at: new Date().toISOString(),
+              },
+            });
+          } catch (missingArtifactErr) {
+            console.error(`[Processor] ${jobId}: phase_3 — failed to persist missing-synthesis artifact (non-fatal)`,
+              missingArtifactErr instanceof Error ? missingArtifactErr.message : String(missingArtifactErr));
+          }
+
+          // Mark job complete — WAVE is optional, evaluation already persisted
+          nextLifecycleStatus(JOB_STATUS.COMPLETE);
+          const missingNow = new Date().toISOString();
+          await supabase
+            .from('evaluation_jobs')
+            .update({
+              status: JOB_STATUS.COMPLETE,
+              phase: 'phase_3',
+              phase_status: 'complete',
+              completed_at: missingNow,
+              updated_at: missingNow,
+              progress: {
+                ...progressState,
+                phase: 'phase_3',
+                phase_status: 'complete',
+                message: 'WAVE skipped (synthesis artifact missing) — evaluation complete',
+                phase3_wave_status: 'failed',
+                phase3_wave_reason: 'PHASE3_SYNTHESIS_MISSING',
+                phase3_completed_at: missingNow,
+              },
+            })
+            .eq('id', job.id)
+            .eq('status', JOB_STATUS.RUNNING);
+
+          return { success: true };
         }
 
         const waveHandoff = {
@@ -2957,8 +3002,12 @@ export async function processEvaluationJob(
           const isTimeout = errMsg === 'WAVE_TIMEOUT';
           console.warn(`[WAVE/Phase3] ${isTimeout ? 'Timeout' : 'Error'} for job ${jobId} (${Date.now() - waveStartMs}ms):`, errMsg);
 
+          // Normalize: status is always "failed"; use reason_code to distinguish
+          // timeout vs other errors. Keeps the status enum clean:
+          //   complete | skipped | failed
           const failedPlan = {
-            status: (isTimeout ? 'timeout' : 'failed') as 'timeout' | 'failed',
+            status: 'failed' as const,
+            reason_code: isTimeout ? 'WAVE_TIMEOUT' : 'WAVE_ERROR',
             reason: errMsg,
             retryable: isTimeout,
             generated_at: new Date().toISOString(),
@@ -3091,13 +3140,75 @@ export async function processEvaluationJob(
         });
 
         if (pass1aResult.chunkOutputs.length === 0) {
-          console.error(`[Processor] ${jobId}: phase_1a — Pass 1A produced zero chunk outputs`);
-          await markFailed(
-            'Phase 1A: Pass 1A character sweep produced zero chunk outputs',
-            'PASS1A_LEDGER_EMPTY',
-            { pipelineStage: 'phase_1a', bucket: 'openai_provider' },
-          );
-          return { success: false, error: 'PASS1A_LEDGER_EMPTY' };
+          // Soft-skip: the ledger is an enrichment layer, not the paid product.
+          // Persist an empty-sentinel artifact so phase_2 knows the ledger is
+          // unavailable, then queue phase_2 anyway. Pass 3 will run without
+          // character-ledger grounding; WAVE will skip with reason
+          // CHARACTER_LEDGER_V2_MISSING. The evaluation report is still delivered.
+          console.warn(`[Processor] ${jobId}: phase_1a — Pass 1A produced zero chunk outputs — persisting empty sentinel and continuing to phase_2`);
+
+          const emptyLedgerHash = `pass1a_ledger_empty_${String(job.id)}`;
+          try {
+            await upsertEvaluationArtifact({
+              supabase,
+              jobId: String(job.id),
+              manuscriptId: Number(job.manuscript_id),
+              artifactType: 'pass1a_character_ledger_v1',
+              content: {
+                job_id: String(job.id),
+                manuscript_id: Number(job.manuscript_id),
+                created_at: new Date().toISOString(),
+                schema_version: 'pass1a_character_ledger_v1',
+                status: 'empty',
+                reason_code: 'PASS1A_LEDGER_EMPTY',
+                ledger_v1: null,
+                ledger_v2: null,
+                summary: { entries: 0 },
+              },
+              sourceHash: emptyLedgerHash,
+              artifactVersion: 'pass1a_character_ledger_v1',
+            });
+          } catch (emptyArtifactErr) {
+            console.error(`[Processor] ${jobId}: phase_1a — failed to persist empty ledger artifact (non-fatal)`,
+              emptyArtifactErr instanceof Error ? emptyArtifactErr.message : String(emptyArtifactErr));
+          }
+
+          // Queue phase_2 — evaluation must continue
+          const emptyNow = new Date().toISOString();
+          const { data: emptyHandoffRow, error: emptyHandoffErr } = await supabase
+            .from('evaluation_jobs')
+            .update({
+              status: JOB_STATUS.QUEUED,
+              phase: 'phase_2',
+              phase_status: JOB_STATUS.QUEUED,
+              claimed_by: null,
+              claimed_at: null,
+              lease_token: null,
+              lease_until: null,
+              lease_expires_at: null,
+              updated_at: emptyNow,
+              progress: {
+                ...progressState,
+                phase: 'phase_1a',
+                phase_status: 'complete',
+                message: 'Phase 1A produced empty ledger — WAVE will be skipped; proceeding to Pass 3',
+                phase1a_completed_at: emptyNow,
+                ledger_entries: 0,
+                ledger_status: 'empty',
+              },
+            })
+            .eq('id', job.id)
+            .eq('status', JOB_STATUS.RUNNING)
+            .select('id, status, phase, phase_status')
+            .single();
+
+          if (emptyHandoffErr) {
+            console.error(`[Processor] ${jobId}: phase_1a empty-ledger phase_2 queue FAILED`, emptyHandoffErr.message);
+            throw new Error(`Phase 1A empty-ledger handoff failed: ${emptyHandoffErr.message}`);
+          }
+
+          console.log(`[Processor] ${jobId}: phase_1a empty-ledger handoff confirmed — status=queued phase=phase_2`);
+          return { success: true };
         }
 
         const totalChunksPhase1a = Array.isArray(pass1aChunks) ? pass1aChunks.length : 1;
@@ -3208,6 +3319,10 @@ export async function processEvaluationJob(
     if (executionPhase === 'phase_2') {
       await markRunning('Resuming from phase 1 handoff', 1, 'phase_2');
 
+      // Hoisted to phase_2 block scope so the WAVE gate (further down) can access it.
+      // Populated inside the else-branch when the handoff + ledger artifacts are read.
+      let prebuiltCharacterLedger: { ledger: Pass1aCharacterLedger; ledgerV2: CharacterLedgerV2 } | undefined;
+
       const { data: handoffRow, error: handoffReadError } = await supabase
         .from('evaluation_artifacts')
         .select('content')
@@ -3302,7 +3417,7 @@ export async function processEvaluationJob(
         // All 6 ledgers (identity, state-timelines, relationship, psychology/coping,
         // object, terminal) are already assembled inside ledger_v2 — inject directly
         // so runPipeline skips Pass 1A entirely in this invocation.
-        let prebuiltCharacterLedger: { ledger: Pass1aCharacterLedger; ledgerV2: CharacterLedgerV2 } | undefined;
+        // (prebuiltCharacterLedger is declared at phase_2 block scope above)
         try {
           const { data: ledgerArtifactP2 } = await supabase
             .from('evaluation_artifacts')
@@ -4851,6 +4966,7 @@ export async function processEvaluationJob(
       // Evaluation is fully complete. If WAVE eligible, queue phase_3 for the next
       // cron tick. If not eligible, mark job complete now.
       // WAVE gate: wordCount >= 25,000 AND all 13 criteria final_score_0_10 >= 6.0
+      //            AND CharacterLedgerV2 available (not empty/null from phase_1a)
       const phase2Now = new Date().toISOString();
       const coverageWords = coverageForReporting?.sourceWords ?? 0;
       const finalScores = pipelineResult.synthesis?.criteria ?? [];
@@ -4859,7 +4975,11 @@ export async function processEvaluationJob(
         finalScores.every((c: { final_score_0_10?: number; score_0_10?: number }) =>
           ((c.final_score_0_10 ?? c.score_0_10 ?? 0) >= WAVE_MIN_CRITERION_SCORE)
         );
-      const isWaveEligible = isWaveEligibleWord && isWaveEligibleCriteria;
+      // CharacterLedgerV2 gate: must be present and non-empty.
+      // pipelineResult.characterLedgerV2 is undefined when Pass 1A produced zero chunk
+      // outputs (either in phase_1a soft-skip path or single-invocation fallback).
+      const isWaveEligibleLedger = !!pipelineResult.characterLedgerV2;
+      const isWaveEligible = isWaveEligibleWord && isWaveEligibleCriteria && isWaveEligibleLedger;
 
       console.log(`[Processor] ${jobId}: phase_2 complete — WAVE eligible=${isWaveEligible}`, {
         word_count: coverageWords,
@@ -4867,6 +4987,7 @@ export async function processEvaluationJob(
         criteria_count: finalScores.length,
         wave_eligible_word: isWaveEligibleWord,
         wave_eligible_criteria: isWaveEligibleCriteria,
+        wave_eligible_ledger: isWaveEligibleLedger,
       });
 
       if (isWaveEligible) {
