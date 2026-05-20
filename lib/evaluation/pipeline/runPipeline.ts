@@ -98,6 +98,12 @@ import {
 } from "@/lib/observability/latencyTrace";
 import { JsonBoundaryError } from "@/lib/llm/jsonParseBoundary";
 import { buildPass2aStructuredContext } from "./buildPass2aStructuredContext";
+import { runPass1a } from "./runPass1a";
+import type { RunPass1aResult } from "./runPass1a";
+import { reduceCharacterEvidence } from "./characterReducer";
+import { runPass3ReadAhead } from "./runPass3ReadAhead";
+import type { Pass3ReadAheadResult } from "./runPass3ReadAhead";
+import type { Pass1aCharacterLedger } from "./types";
 import {
   normalizeSummaryWithBottomWeaknesses,
   summarizePropagationIntegrity,
@@ -1069,6 +1075,31 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
       throw error;
     });
 
+  // ── Pass 1A: Character Evidence Sweep (parallel with Pass 1 + Pass 2) ──
+  // Independence: Pass 1A receives ONLY manuscript text — never sees P1/P2 output.
+  // Failure policy: non-fatal — Pass 3 degrades gracefully without it.
+  const pass1aPromise: Promise<RunPass1aResult> = runPass1a({
+    manuscriptText: opts.manuscriptText,
+    manuscriptChunks: opts.manuscriptChunks,
+    workType: opts.workType,
+    title: opts.title,
+    openaiApiKey: opts.openaiApiKey,
+    jobId: opts.jobId,
+  });
+
+  // ── Pass 3 Read-Ahead: Full manuscript read BEFORE scoring packets arrive ──
+  // Starts immediately — reads 4 distributed prose windows while P1/P2/P1A run.
+  // Gives Pass 3 a pre-scoring narrative impression of the full novel.
+  // Failure policy: non-fatal — returns graceful fallback on any error.
+  const readAheadPromise: Promise<Pass3ReadAheadResult> = runPass3ReadAhead({
+    manuscriptText: opts.manuscriptText,
+    manuscriptChunks: opts.manuscriptChunks,
+    workType: opts.workType,
+    title: opts.title,
+    openaiApiKey: opts.openaiApiKey,
+    jobId: opts.jobId,
+  });
+
   // ── Perplexity chunk sweep (dual-model parallel scoring) ─────────────
   // Runs alongside GPT Pass 1+2 with full independence (does NOT see GPT
   // output). Hard-fail: throws propagate to the job failure handler. Only
@@ -1084,7 +1115,7 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
 
   await opts.onHeartbeat?.("parallel_passes_started");
 
-  const [pass1Settled, pass2Settled] = await Promise.allSettled([pass1Promise, pass2Promise]);
+  const [pass1Settled, pass2Settled, pass1aSettled] = await Promise.allSettled([pass1Promise, pass2Promise, pass1aPromise]);
 
   await opts.onHeartbeat?.("parallel_passes_settled");
 
@@ -1299,6 +1330,46 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
     manuscriptChunks: opts.manuscriptChunks,
   });
 
+  // ── Resolve Pass 1A → reduce to character ledger ─────────────────────
+  let characterLedger: Pass1aCharacterLedger | undefined;
+  if (pass1aSettled.status === "fulfilled") {
+    const pass1aResult = pass1aSettled.value;
+    if (pass1aResult.chunkOutputs.length > 0) {
+      characterLedger = reduceCharacterEvidence({
+        chunkOutputs: pass1aResult.chunkOutputs,
+        jobId: opts.jobId ?? "unknown",
+        totalChunksInManuscript: Array.isArray(opts.manuscriptChunks)
+          ? opts.manuscriptChunks.length
+          : 1,
+      });
+      console.log("[Pipeline][Pass1A] Character ledger ready", {
+        manuscript_id: opts.manuscriptId ?? null,
+        entries: characterLedger.entries.length,
+        protagonists: characterLedger.coverage_summary.protagonists,
+        co_protagonists: characterLedger.coverage_summary.co_protagonists,
+        symbol_items: characterLedger.coverage_summary.symbol_payoff_items.length,
+        hard_fail_triggers: characterLedger.coverage_summary.hard_fail_triggers.length,
+      });
+    }
+  } else {
+    console.warn("[Pipeline][Pass1A] Sweep failed — Pass 3 running without character ledger", {
+      manuscript_id: opts.manuscriptId ?? null,
+      error: pass1aSettled.reason instanceof Error
+        ? pass1aSettled.reason.message
+        : String(pass1aSettled.reason),
+    });
+  }
+
+  // ── Resolve read-ahead (non-blocking — returns fallback if timed out) ──
+  const readAheadResult = await readAheadPromise;
+  if (!readAheadResult.is_fallback) {
+    console.log("[Pipeline][Pass3ReadAhead] Primer ready", {
+      manuscript_id: opts.manuscriptId ?? null,
+      characters_found: readAheadResult.character_first_impressions.length,
+      coverage_concerns: readAheadResult.coverage_concerns.length,
+    });
+  }
+
   // Resolve the parallel Perplexity chunk sweep before kicking off Pass 3.
   // The Pass 3 collator can run in either single-model (GPT-only) or
   // dual-model mode depending on whether the Perplexity packet is available.
@@ -1339,6 +1410,8 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
         pass1: pass1Output,
         pass2: pass2Output,
         pass2aStructuredContext,
+        characterLedger: characterLedger,
+        readAheadResult: readAheadResult,
         manuscriptText: opts.manuscriptText,
         manuscriptChunks: opts.manuscriptChunks,
         title: opts.title,
