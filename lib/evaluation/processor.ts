@@ -1591,9 +1591,8 @@ export async function failStaleRunningJobs(): Promise<{
     const preflightJobIds = new Set((preflightArtifacts ?? []).map((a) => a.job_id));
 
     // Batch-fetch evaluation_result_v2 (Pass 3B synthesis) artifacts for GUARD D
-    // split-brain routing: if handoff exists AND eval_result exists, advance to
-    // phase_3 (WAVE); if handoff exists but eval_result is missing, route to
-    // phase_2 (Pass 3B synthesis) — WAVE has nothing to work with otherwise.
+    // logging only. Under the new contract, any handoff-present rescue targets
+    // phase_3 (which owns both Pass 3B synthesis and WAVE).
     const { data: evalResultArtifacts } = await supabase
       .from('evaluation_artifacts')
       .select('job_id')
@@ -1669,11 +1668,8 @@ export async function failStaleRunningJobs(): Promise<{
 
       // ─ GUARD D: Artifact checkpoint gate ─────────────────────────────────────
       // If pass12_handoff_v1 exists (or phase_status=complete), Pass 1+2 finished.
-      // Where to rescue depends on whether Pass 3B synthesis already ran:
-      //   - evaluation_result_v2 present → synthesis done, advance to phase_3 (WAVE)
-      //   - evaluation_result_v2 missing → synthesis not done, route to phase_2
-      //     (Pass 3B synthesis). Skipping straight to phase_3 here would land WAVE
-      //     with no synthesis to act on and mark the job complete with no report.
+      // Under the new contract phase_3 owns Pass 3B synthesis AND WAVE, so any
+      // job stuck with a handoff (eval_result present or not) rescues to phase_3.
       const alreadyHandedOff =
         phaseStatusTopLevel === 'complete' ||
         phaseStatusProgress  === 'complete' ||
@@ -1681,13 +1677,13 @@ export async function failStaleRunningJobs(): Promise<{
 
       if (alreadyHandedOff) {
         const hasEvalResult = evalResultJobIds.has(row.id);
-        const handoffTargetPhase = hasEvalResult ? 'phase_3' : 'phase_2';
+        const handoffTargetPhase = 'phase_3';
 
-        if (currentPhase === 'phase_1' || currentPhase === 'phase_1a') {
+        if (currentPhase === 'phase_1' || currentPhase === 'phase_1a' || currentPhase === 'phase_2') {
           if (hasEvalResult) {
             console.log(`[watchdog] split-brain: handoff + eval_result present — advancing to phase_3 (WAVE) (job=${row.id})`);
           } else {
-            console.log(`[watchdog] split-brain: handoff present, eval_result missing — advancing to phase_2 (Pass 3B synthesis) (job=${row.id})`);
+            console.log(`[watchdog] split-brain: handoff present, eval_result missing — advancing to phase_3 (Pass 3B synthesis) (job=${row.id})`);
           }
         }
         rescueEntries.push({
@@ -3124,96 +3120,246 @@ export async function processEvaluationJob(
     // payload is stored as a pass12_handoff_v1 evaluation_artifact row.
     // ─────────────────────────────────────────────────────────────────────────
 
-    // ── PHASE 2 RESUME PATH ──────────────────────────────────────────────────
-    // If this invocation was dispatched as a phase_2 handoff, read the
-    // pass12_handoff_v1 artifact and skip straight to Pass3 + persistence.
-    // The artifact row is deleted after a successful read so it doesn't
-    // accumulate; failure to read falls back to a fresh full pipeline run
-    // (safe — wastes tokens but never silently corrupts).
-    // ── PHASE 3 EXECUTION PATH (WAVE Revision) ──────────────────────────────
-    // Own 720s Vercel invocation. Reads evaluation result + character ledger
-    // from artifacts, runs WAVE revision engine, marks job complete.
+    // Hoisted so phase_3 (synthesis path) and the legacy phase_1 fallback can
+    // both assign into the same outer let. TDZ-safe: declaration runs before
+    // any phase block that assigns it.
+    // eslint-disable-next-line prefer-const
+    let pipelineResult: Awaited<ReturnType<typeof runPipeline>> | undefined;
+
+    // ── PHASE 3 EXECUTION PATH (Pass 3B Synthesis + WAVE Revision) ─────────────
+    // Own 720s Vercel invocation. Owns Pass 3B synthesis AND WAVE revision.
+    //   - If pass12_handoff_v1 missing → terminal failure (PHASE3_MISSING_HANDOFF)
+    //   - If evaluation_result_v2 already exists → skip synthesis, run WAVE inline
+    //   - If evaluation_result_v2 missing + handoff present → run Pass 3B synthesis
+    //     via runPipeline (with cached P1+P2 injected), persist result, then fall
+    //     through to the canonical persistence path. The WAVE-queue block at the
+    //     bottom of the persistence path detects executionPhase==='phase_3' and
+    //     runs WAVE inline instead of re-queueing phase_3.
     if (executionPhase === 'phase_3') {
-      // Safety guard: phase_3 (WAVE) requires evaluation_result_v2 (Pass 3B synthesis).
-      // If a job lands here with no synthesis, WAVE has nothing to work with.
-      //   - synthesis missing + handoff present → requeue to phase_2 (Pass 3B will synthesize)
-      //   - synthesis missing + handoff missing → terminal: nothing to recover from
-      {
-        const { data: evalResultPresenceRow } = await supabase
-          .from('evaluation_artifacts')
-          .select('job_id')
-          .eq('job_id', job.id)
-          .eq('artifact_type', 'evaluation_result_v2')
-          .maybeSingle();
-        const { data: handoffPresenceRow } = await supabase
-          .from('evaluation_artifacts')
-          .select('job_id')
-          .eq('job_id', job.id)
-          .eq('artifact_type', 'pass12_handoff_v1')
-          .maybeSingle();
+      const { data: handoffPresenceRow } = await supabase
+        .from('evaluation_artifacts')
+        .select('job_id')
+        .eq('job_id', job.id)
+        .eq('artifact_type', 'pass12_handoff_v1')
+        .maybeSingle();
+      const { data: evalResultPresenceRow } = await supabase
+        .from('evaluation_artifacts')
+        .select('job_id')
+        .eq('job_id', job.id)
+        .eq('artifact_type', 'evaluation_result_v2')
+        .maybeSingle();
 
-        const hasEvalResult = !!evalResultPresenceRow;
-        const hasHandoff    = !!handoffPresenceRow;
+      const hasHandoff    = !!handoffPresenceRow;
+      const hasEvalResult = !!evalResultPresenceRow;
 
-        if (!hasEvalResult && hasHandoff) {
-          console.warn(`[phase_3] ${jobId}: evaluation_result_v2 missing but pass12_handoff_v1 present — requeueing to phase_2 (Pass 3B synthesis)`);
-          const requeueNow = new Date().toISOString();
-          const { error: requeueErr } = await supabase
+      if (!hasHandoff) {
+        console.error(`[phase_3] ${jobId}: pass12_handoff_v1 missing — terminal failure`);
+        try {
+          await finalizeJobFailure({
+            jobId,
+            errorEnvelope: {
+              code: 'PHASE3_MISSING_HANDOFF',
+              message: 'phase_3 entered without pass12_handoff_v1 — cannot synthesize',
+              retryable: false,
+            },
+          });
+        } catch (finalizeErr) {
+          console.error(`[phase_3] ${jobId}: finalizeJobFailure failed (fallback to direct update)`,
+            finalizeErr instanceof Error ? finalizeErr.message : String(finalizeErr));
+          const failNow = new Date().toISOString();
+          await supabase
             .from('evaluation_jobs')
             .update({
-              status: JOB_STATUS.QUEUED,
-              phase: 'phase_2',
-              phase_status: JOB_STATUS.QUEUED,
+              status: normalizeEvaluationJobStatus(JOB_STATUS.FAILED) as JobStatus,
+              phase: 'phase_3',
+              phase_status: 'failed',
+              last_error: 'PHASE3_MISSING_HANDOFF',
+              failure_code: 'PHASE3_MISSING_HANDOFF',
+              failed_at: failNow,
+              updated_at: failNow,
               claimed_by: null,
               claimed_at: null,
               lease_token: null,
               lease_until: null,
-              updated_at: requeueNow,
             })
             .eq('id', job.id);
-          if (requeueErr) {
-            console.error(`[phase_3] ${jobId}: requeue to phase_2 failed`, requeueErr.message);
-          }
-          return { success: true };
         }
+        return { success: false };
+      }
 
-        if (!hasEvalResult && !hasHandoff) {
-          console.error(`[phase_3] ${jobId}: neither evaluation_result_v2 nor pass12_handoff_v1 found — marking failed`);
+      // ── Pass 3B synthesis path: handoff exists, eval_result missing ──────────
+      // Read handoff + ledger + preflight, build runners, run runPipeline,
+      // assign outer pipelineResult, fall through to persistence path.
+      if (!hasEvalResult) {
+        await markRunning('Running Pass 3B synthesis', 1, 'phase_3');
+        refreshPhaseDeadline(progressState.phase3_started_at as string | undefined);
+
+        const { data: handoffRow, error: handoffReadError } = await supabase
+          .from('evaluation_artifacts')
+          .select('content')
+          .eq('job_id', job.id)
+          .eq('artifact_type', 'pass12_handoff_v1')
+          .maybeSingle();
+
+        if (handoffReadError || !handoffRow?.content) {
+          console.error(`[phase_3] ${jobId}: handoff artifact read failed`,
+            handoffReadError?.message ?? 'no_content');
           try {
             await finalizeJobFailure({
               jobId,
               errorEnvelope: {
-                code: 'PHASE3_NO_SYNTHESIS_NO_HANDOFF',
-                message: 'phase_3 entered with neither evaluation_result_v2 nor pass12_handoff_v1 — nothing to work with',
+                code: 'PHASE3_MISSING_HANDOFF',
+                message: 'phase_3 handoff read failed',
                 retryable: false,
               },
             });
           } catch (finalizeErr) {
-            console.error(`[phase_3] ${jobId}: finalizeJobFailure failed (fallback to direct update)`,
+            console.error(`[phase_3] ${jobId}: finalizeJobFailure failed`,
               finalizeErr instanceof Error ? finalizeErr.message : String(finalizeErr));
-            const failNow = new Date().toISOString();
-            await supabase
-              .from('evaluation_jobs')
-              .update({
-                status: normalizeEvaluationJobStatus(JOB_STATUS.FAILED) as JobStatus,
-                phase: 'phase_3',
-                phase_status: 'failed',
-                last_error: 'phase_3 entered with neither evaluation_result_v2 nor pass12_handoff_v1',
-                failure_code: 'PHASE3_NO_SYNTHESIS_NO_HANDOFF',
-                failed_at: failNow,
-                updated_at: failNow,
-                claimed_by: null,
-                claimed_at: null,
-                lease_token: null,
-                lease_until: null,
-              })
-              .eq('id', job.id);
           }
-          return { success: true };
+          return { success: false };
         }
-      }
 
-      await markRunning('Running WAVE revision engine', 2, 'phase_3');
+        const handoff = handoffRow.content as {
+          pass1Output: SinglePassOutput;
+          pass2Output: SinglePassOutput | null;
+          chunk_count: number;
+          partial_capture?: boolean;
+        };
+
+        const cachedPass1 = handoff.pass1Output;
+        const cachedPass2 = handoff.pass2Output;
+
+        const phase3Runners = cachedPass2 !== null
+          ? {
+              runPass1: async () => cachedPass1,
+              runPass2: async () => cachedPass2,
+            }
+          : {
+              runPass1: async () => cachedPass1,
+            };
+
+        // Read prebuilt character ledger (built by phase_1a)
+        let prebuiltCharacterLedgerP3: { ledger: Pass1aCharacterLedger; ledgerV2: CharacterLedgerV2 } | undefined;
+        try {
+          const { data: ledgerArtifactP3 } = await supabase
+            .from('evaluation_artifacts')
+            .select('content')
+            .eq('job_id', job.id)
+            .eq('artifact_type', 'pass1a_character_ledger_v1')
+            .maybeSingle();
+          if (ledgerArtifactP3?.content?.ledger_v1 && ledgerArtifactP3?.content?.ledger_v2) {
+            prebuiltCharacterLedgerP3 = {
+              ledger: ledgerArtifactP3.content.ledger_v1 as Pass1aCharacterLedger,
+              ledgerV2: ledgerArtifactP3.content.ledger_v2 as CharacterLedgerV2,
+            };
+          } else {
+            console.warn(`[phase_3] ${jobId}: pass1a_character_ledger_v1 missing — Pass 1A will re-run inline`);
+          }
+        } catch (ledgerReadErr) {
+          console.warn(`[phase_3] ${jobId}: ledger artifact read failed (non-fatal)`,
+            ledgerReadErr instanceof Error ? ledgerReadErr.message : String(ledgerReadErr));
+        }
+
+        // Read prebuilt Pass 3A preflight (soft — absence triggers PREFLIGHT UNAVAILABLE in Pass 3B)
+        let prebuiltPreflightDraftP3: Pass3PreflightDraft | undefined;
+        try {
+          const { data: preflightArtifactP3 } = await supabase
+            .from('evaluation_artifacts')
+            .select('content')
+            .eq('job_id', job.id)
+            .eq('artifact_type', 'pass3_preflight_draft_v1')
+            .maybeSingle();
+          if (preflightArtifactP3?.content?.schema_version === 'pass3_preflight_draft_v1') {
+            prebuiltPreflightDraftP3 = preflightArtifactP3.content as Pass3PreflightDraft;
+          } else {
+            console.warn(`[phase_3] ${jobId}: pass3_preflight_draft_v1 missing — Pass 3B will use PREFLIGHT UNAVAILABLE fallback`);
+          }
+        } catch (preflightReadErr) {
+          console.warn(`[phase_3] ${jobId}: preflight artifact read failed (non-fatal)`,
+            preflightReadErr instanceof Error ? preflightReadErr.message : String(preflightReadErr));
+        }
+
+        const pass3StartedAt = new Date().toISOString();
+        progressState.pass3_started_at = pass3StartedAt;
+        logProcessorStageBoundary({
+          jobId,
+          stage: 'pass3',
+          state: 'start',
+          at: pass3StartedAt,
+          metadata: { model: getCanonicalPipelineModel(openAiModel), phase: 'phase_3_synthesis' },
+        });
+
+        const leaseRenewalIntervalMsP3synth = 30_000;
+        const leaseRenewalLoopP3synth = setInterval(() => {
+          void renewEvaluationJobLease({
+            supabase,
+            jobId,
+            leaseMs: runtimeConfig.worker.leaseMs,
+            stage: 'phase_3_pass3b_renewal',
+            hardDeadlineMs,
+          }).catch((err: unknown) => {
+            console.warn('[phase_3] lease renewal failed (non-fatal)',
+              err instanceof Error ? err.message : String(err));
+          });
+        }, leaseRenewalIntervalMsP3synth);
+
+        const runPipelineStartedAtP3 = startLatencyStage({
+          jobId,
+          stage: 'pipeline_run',
+          metadata: { model: getCanonicalPipelineModel(openAiModel), phase: 'phase_3_synthesis' },
+        });
+
+        let pipelineResultP3;
+        try {
+          pipelineResultP3 = await runPipeline({
+            manuscriptText: manuscriptWithContent.content || '',
+            manuscriptChunks: manuscriptChunksForPipeline,
+            workType: manuscriptWithContent.work_type || 'novel',
+            title: manuscriptWithContent.title,
+            jobId: String(job.id),
+            model: getCanonicalPipelineModel(openAiModel),
+            openaiApiKey,
+            perplexityApiKey: perplexityApiKey || undefined,
+            manuscriptId: String(manuscriptWithContent.id),
+            executionMode: 'TRUSTED_PATH',
+            _passTimeoutMs: timeoutResolution.passTimeoutMs,
+            _openAiTimeoutMs: timeoutResolution.openAiTimeoutMs,
+            _runners: phase3Runners,
+            ...(prebuiltCharacterLedgerP3 ? { _prebuiltCharacterLedger: prebuiltCharacterLedgerP3 } : {}),
+            ...(prebuiltPreflightDraftP3 ? { _prebuiltPreflightDraft: prebuiltPreflightDraftP3 } : {}),
+            onHeartbeat: async (stage) => {
+              await assertJobWithinSla({ supabase, jobId, hardDeadlineMs, stage });
+              await renewEvaluationJobLease({
+                supabase, jobId, leaseMs: runtimeConfig.worker.leaseMs, stage, hardDeadlineMs,
+              });
+            },
+          });
+        } finally {
+          clearInterval(leaseRenewalLoopP3synth);
+        }
+
+        finishLatencyStage({
+          jobId,
+          stage: 'pipeline_run',
+          startedAt: runPipelineStartedAtP3,
+          state: pipelineResultP3.ok ? 'completed' : 'failed',
+          metadata: {
+            finish_reason: pipelineResultP3.ok
+              ? 'ok'
+              : ('error_code' in pipelineResultP3 ? pipelineResultP3.error_code : 'pipeline_failed'),
+          },
+        });
+
+        pipelineResult = pipelineResultP3;
+
+        // Fall through to the canonical persistence path. The WAVE-queue block
+        // (search for "phase_2 → phase_3 queued") detects executionPhase==='phase_3'
+        // and runs WAVE inline instead of re-queueing.
+      } else {
+        // ── WAVE-only path: eval_result already exists, skip synthesis ─────────
+        // This is the rerun/retry case. Run WAVE inline + complete.
+        await markRunning('Running WAVE revision engine', 2, 'phase_3');
       refreshPhaseDeadline(progressState.phase3_started_at as string | undefined);
 
       // Heartbeat renewal loop — WAVE can run for several minutes on large manuscripts.
@@ -3449,6 +3595,7 @@ export async function processEvaluationJob(
           .eq('status', JOB_STATUS.RUNNING);
         return { success: true };
       }
+      } // end WAVE-only else
     } // end phase_3 execution
 
     // ── PHASE 1A EXECUTION PATH (Pass 1A Character Sweep) ─────────────────────
@@ -3715,10 +3862,6 @@ export async function processEvaluationJob(
       await markRunning('Resuming from phase 1 handoff', 1, 'phase_2');
       refreshPhaseDeadline(progressState.phase2_started_at as string | undefined);
 
-      // Hoisted to phase_2 block scope so the WAVE gate (further down) can access it.
-      // Populated inside the else-branch when the handoff + ledger artifacts are read.
-      let prebuiltCharacterLedger: { ledger: Pass1aCharacterLedger; ledgerV2: CharacterLedgerV2 } | undefined;
-
       const { data: handoffRow, error: handoffReadError } = await supabase
         .from('evaluation_artifacts')
         .select('content')
@@ -3783,212 +3926,58 @@ export async function processEvaluationJob(
           { handoffReadError: (handoffReadError as { message?: string } | null)?.message ?? 'no_data' },
         );
       } else {
-        // Handoff artifact found — extract pass outputs and jump to Pass3.
-        const handoff = handoffRow.content as {
-          pass1Output: SinglePassOutput;
-          pass2Output: SinglePassOutput | null; // null when partial_capture=true
-          chunk_count: number;
-          partial_capture?: boolean;
-        };
-
-        // Mistake-proofing: handle partial handoff (Pass2 was not captured).
-        // If Pass1 succeeded but Pass2 timed out, the handoff has pass2Output=null.
-        // In this case phase_2 must run Pass2 first, then Pass3.
-        // We detect this and inject only Pass1 into _runners — Pass2 will execute normally.
-        if (handoff.partial_capture === true) {
-          console.warn(
-            `[Processor] ${jobId}: phase_2 partial handoff detected — Pass2 was not captured.` +
-            ` Will re-run Pass2 before Pass3.`,
-            { chunk_count: handoff.chunk_count },
-          );
-        }
-
-        // Delete the handoff artifact — it has served its purpose.
-        // Fail-soft: deletion failure does not abort the job.
-        void supabase
-          .from('evaluation_artifacts')
-          .delete()
-          .eq('job_id', job.id)
-          .eq('artifact_type', 'pass12_handoff_v1')
-          .then(({ error: delErr }: { error: { message: string } | null }) => {
-            if (delErr) {
-              console.warn(
-                `[Processor] ${jobId}: failed to delete pass12_handoff_v1 artifact (non-fatal)`,
-                delErr.message,
-              );
-            }
-          });
-
+        // Handoff artifact found — phase_2 has nothing to do. Pass 3B synthesis
+        // is owned by phase_3 now. Queue phase_3 and return immediately.
+        // DO NOT delete pass12_handoff_v1 — phase_3 reads it for synthesis.
         console.log(
-          `[Processor] ${jobId}: phase_2 resume — pass1+pass2 loaded from handoff artifact`,
-          { chunk_count: handoff.chunk_count },
+          `[Processor] ${jobId}: phase_2 — handoff present, queueing phase_3 (Pass 3B synthesis owns synthesis)`,
         );
 
-        // Synthesise via Pass3 using the recovered pass outputs.
-        // Re-uses the same runPipeline machinery by injecting pre-computed
-        // pass1/pass2 via _runners — the runners simply return the cached output.
-        await markRunning('Running canonical evaluation pipeline', 1, 'phase_2');
-
-        const pass3StartedAt = new Date().toISOString();
-        progressState.pass3_started_at = pass3StartedAt;
-        logProcessorStageBoundary({
-          jobId,
-          stage: 'pass3',
-          state: 'start',
-          at: pass3StartedAt,
-          metadata: { model: getCanonicalPipelineModel(openAiModel), phase: 'phase_2_resume' },
-        });
-
-        const cachedPass1 = handoff.pass1Output;
-        const cachedPass2 = handoff.pass2Output; // null if partial_capture — _runners handles this
-
-        // Mistake-proofing: for partial handoffs (cachedPass2 === null), omit the
-        // runPass2 override so runPipeline executes Pass2 normally against the
-        // manuscript chunks. Only Pass1 is injected from cache in this case.
-        const phase2Runners = cachedPass2 !== null
-          ? {
-              runPass1: async () => cachedPass1,
-              runPass2: async () => cachedPass2,
-            }
-          : {
-              // Pass2 was not captured — only inject Pass1. Pass2 will run from chunks.
-              runPass1: async () => cachedPass1,
-            };
-
-        // Read the character ledger artifact built by phase_1a.
-        // All 6 ledgers (identity, state-timelines, relationship, psychology/coping,
-        // object, terminal) are already assembled inside ledger_v2 — inject directly
-        // so runPipeline skips Pass 1A entirely in this invocation.
-        // (prebuiltCharacterLedger is declared at phase_2 block scope above)
-        try {
-          const { data: ledgerArtifactP2 } = await supabase
-            .from('evaluation_artifacts')
-            .select('content')
-            .eq('job_id', job.id)
-            .eq('artifact_type', 'pass1a_character_ledger_v1')
-            .maybeSingle();
-
-          if (ledgerArtifactP2?.content?.ledger_v1 && ledgerArtifactP2?.content?.ledger_v2) {
-            prebuiltCharacterLedger = {
-              ledger: ledgerArtifactP2.content.ledger_v1 as Pass1aCharacterLedger,
-              ledgerV2: ledgerArtifactP2.content.ledger_v2 as CharacterLedgerV2,
-            };
-            console.log(`[Processor] ${jobId}: phase_2 — prebuilt ledger loaded (all 6 ledgers ready)`, {
-              entries: (prebuiltCharacterLedger.ledger as any)?.entries?.length ?? 0,
-              v2_active_blockers: (prebuiltCharacterLedger.ledgerV2 as any)?.activeBlockers?.length ?? 0,
-            });
-          } else {
-            console.warn(`[Processor] ${jobId}: phase_2 — pass1a_character_ledger_v1 artifact missing or incomplete; Pass 1A will re-run inline`);
-          }
-        } catch (ledgerReadErr) {
-          console.warn(`[Processor] ${jobId}: phase_2 — failed to read ledger artifact (non-fatal, Pass 1A will re-run):`,
-            ledgerReadErr instanceof Error ? ledgerReadErr.message : String(ledgerReadErr));
-        }
-
-        // Read the Pass 3A preflight artifact (soft — absence is graceful degradation)
-        let prebuiltPreflightDraft: Pass3PreflightDraft | undefined;
-        try {
-          const { data: preflightArtifactP2 } = await supabase
-            .from('evaluation_artifacts')
-            .select('content')
-            .eq('job_id', job.id)
-            .eq('artifact_type', 'pass3_preflight_draft_v1')
-            .maybeSingle();
-
-          if (preflightArtifactP2?.content?.schema_version === 'pass3_preflight_draft_v1') {
-            prebuiltPreflightDraft = preflightArtifactP2.content as Pass3PreflightDraft;
-            console.log(`[Processor] ${jobId}: phase_2 — Pass 3A preflight loaded`, {
-              authority: prebuiltPreflightDraft.preflight_authority,
-              full_read_certified: prebuiltPreflightDraft.manuscript_read_status.full_read_certified,
-            });
-          } else {
-            console.warn(`[Processor] ${jobId}: phase_2 — pass3_preflight_draft_v1 artifact missing; Pass 3B will use PREFLIGHT UNAVAILABLE fallback`);
-          }
-        } catch (preflightReadErr) {
-          console.warn(`[Processor] ${jobId}: phase_2 — failed to read preflight artifact (non-fatal):`,
-            preflightReadErr instanceof Error ? preflightReadErr.message : String(preflightReadErr));
-        }
-
-        const leaseRenewalIntervalMsP2 = 30_000;
-        const leaseRenewalLoopP2 = setInterval(() => {
-          void renewEvaluationJobLease({
-            supabase,
-            jobId,
-            leaseMs: runtimeConfig.worker.leaseMs,
-            stage: 'phase2_pass3_renewal',
-            hardDeadlineMs,
-          });
-        }, leaseRenewalIntervalMsP2);
-
-        const runPipelineStartedAtP2 = startLatencyStage({
-          jobId,
-          stage: 'pipeline_run',
-          metadata: { model: getCanonicalPipelineModel(openAiModel), phase: 'phase_2_resume' },
-        });
-
-        let pipelineResultP2;
-        try {
-          pipelineResultP2 = await runPipeline({
-            manuscriptText: manuscriptWithContent.content || '',
-            manuscriptChunks: manuscriptChunksForPipeline,
-            workType: manuscriptWithContent.work_type || 'novel',
-            title: manuscriptWithContent.title,
-            jobId: String(job.id),
-            model: getCanonicalPipelineModel(openAiModel),
-            openaiApiKey,
-            perplexityApiKey: perplexityApiKey || undefined,
-            manuscriptId: String(manuscriptWithContent.id),
-            executionMode: 'TRUSTED_PATH',
-            _passTimeoutMs: timeoutResolution.passTimeoutMs,
-            _openAiTimeoutMs: timeoutResolution.openAiTimeoutMs,
-            // Inject cached pass1+pass2 so runPipeline skips chunk evaluation
-            // and runs only Pass3 synthesis.
-            // For partial handoffs (pass2 was not captured), phase2Runners only
-            // injects Pass1 so Pass2 runs normally against the manuscript chunks.
-            _runners: phase2Runners,
-            // Inject prebuilt character ledger (all 6 ledgers built by phase_1a).
-            // If absent (ledger artifact missing), runPipeline will re-run Pass 1A inline.
-            ...(prebuiltCharacterLedger ? { _prebuiltCharacterLedger: prebuiltCharacterLedger } : {}),
-            // Inject Pass 3A preflight draft (soft — absence triggers PREFLIGHT UNAVAILABLE in Pass 3B).
-            ...(prebuiltPreflightDraft ? { _prebuiltPreflightDraft: prebuiltPreflightDraft } : {}),
-            onHeartbeat: async (stage) => {
-              await assertJobWithinSla({ supabase, jobId, hardDeadlineMs, stage });
-              await renewEvaluationJobLease({
-                supabase, jobId, leaseMs: runtimeConfig.worker.leaseMs, stage, hardDeadlineMs,
-              });
+        const phase3QueueNow = new Date().toISOString();
+        const { data: phase3QueueRow, error: phase3QueueErr } = await supabase
+          .from('evaluation_jobs')
+          .update({
+            status: JOB_STATUS.QUEUED,
+            phase: 'phase_3',
+            phase_status: JOB_STATUS.QUEUED,
+            claimed_by: null,
+            claimed_at: null,
+            lease_token: null,
+            lease_until: null,
+            updated_at: phase3QueueNow,
+            progress: {
+              ...progressState,
+              phase: 'phase_2',
+              phase_status: 'complete',
+              message: 'Phase 1+2 handoff present — queued for Pass 3B synthesis',
+              phase2_completed_at: phase3QueueNow,
             },
-          });
-        } finally {
-          clearInterval(leaseRenewalLoopP2);
+          })
+          .eq('id', job.id)
+          .select('id, status, phase, phase_status')
+          .single();
+
+        if (phase3QueueErr) {
+          console.error(
+            `[Processor] ${jobId}: phase_2 → phase_3 queue transition FAILED`,
+            phase3QueueErr.message,
+          );
+          return { success: false, error: phase3QueueErr.message };
         }
-
-        finishLatencyStage({
-          jobId,
-          stage: 'pipeline_run',
-          startedAt: runPipelineStartedAtP2,
-          state: pipelineResultP2.ok ? 'completed' : 'failed',
-          metadata: {
-            finish_reason: pipelineResultP2.ok
-              ? 'ok'
-              : ('error_code' in pipelineResultP2 ? pipelineResultP2.error_code : 'pipeline_failed'),
-          },
-        });
-
-        // Reassign so the rest of the success/failure path below is unmodified.
-        // TypeScript: we know pipelineResultP2 is assigned because runPipeline
-        // either returns or throws.
-        // @ts-expect-error — reassign let in outer scope via phase_2 resume path
-        pipelineResult = pipelineResultP2;
-
-        // Fall through to the existing pipelineResult.ok check below.
-        // Intentional: the success/failure/persistence paths are identical.
-        // No return here.
+        console.log(
+          `[Processor] ${jobId}: phase_2 → phase_3 queued`,
+          { status: phase3QueueRow?.status, phase: phase3QueueRow?.phase },
+        );
+        return { success: true };
       }
-    } // end phase_2 resume
+    } // end phase_2
 
-    // ── PHASE 1 (or phase_2 fallback full-run) ───────────────────────────────
-    // Only reached when executionPhase === 'phase_1' OR when the phase_2 handoff
-    // artifact was missing (fallback). In both cases we run the full pipeline.
+    // ── PHASE 1 (or phase_2 short-form fallback full-run) ─────────────────────
+    // Only reached when executionPhase === 'phase_1' OR when phase_2 short-form
+    // handoff was missing. Skipped entirely when phase_3 synthesis already ran
+    // (pipelineResult is already set).
+    const _skipPhase1Fallback = !!pipelineResult;
+    if (!_skipPhase1Fallback) {
     await markRunning('Running canonical evaluation pipeline', 1, executionPhase);
     // Refresh deadline anchored to this phase's own start timestamp.
     // For phase_1: phase1_started_at. For phase_2 fallback: phase2_started_at.
@@ -4202,7 +4191,7 @@ export async function processEvaluationJob(
         }
       : undefined;
 
-    let pipelineResult;
+    // pipelineResult was hoisted above the phase blocks; reuse it here.
     try {
       pipelineResult = await runPipeline({
         manuscriptText: manuscriptWithContent.content || '',
@@ -4649,6 +4638,14 @@ export async function processEvaluationJob(
           : ('error_code' in pipelineResult ? pipelineResult.error_code : 'pipeline_failed'),
       },
     });
+
+    } // end if (!_skipPhase1Fallback) — phase_1 / short-form fallback
+
+    // pipelineResult is guaranteed assigned here (either by phase_3 synthesis above
+    // or by the phase_1 fallback runPipeline call just above).
+    if (!pipelineResult) {
+      throw new Error('pipelineResult unexpectedly undefined after phase execution');
+    }
 
     console.log(
       `[Processor] ${jobId}: EXIT runPipeline ok=${pipelineResult.ok}` +
@@ -5321,7 +5318,11 @@ export async function processEvaluationJob(
       stage: 'before_persistence',
     });
 
-    await markRunning('Persisting evaluation artifacts', 2, 'phase_2');
+    await markRunning(
+      'Persisting evaluation artifacts',
+      2,
+      executionPhase === 'phase_3' ? 'phase_3' : 'phase_2',
+    );
 
     const existingProgress = { ...progressState };
 
@@ -5463,7 +5464,124 @@ export async function processEvaluationJob(
       });
 
       if (isWaveEligible) {
-        // Queue phase_3 — WAVE runs in its own Vercel invocation with fresh 720s
+        if (executionPhase === 'phase_3') {
+          // Already in phase_3 (Pass 3B synthesis just ran inline). Run WAVE
+          // inline non-fatally and complete. Never re-queue phase_3.
+          console.log(`[Processor] ${jobId}: phase_3 — synthesis persisted, running WAVE inline`);
+          try {
+            const synthesisP3 = pipelineResult.synthesis;
+            const ledgerV2P3 = pipelineResult.characterLedgerV2 as CharacterLedgerV2 | undefined;
+            const wordCountP3 = coverageForReporting?.sourceWords ?? 0;
+            const waveHandoffP3 = {
+              manuscriptText: manuscriptWithContent.content || '',
+              synthesis: synthesisP3,
+              characterLedgerV2: ledgerV2P3,
+              wordCount: wordCountP3,
+              jobId,
+              manuscriptVersionId: (job.manuscript_version_id as string | null) ?? null,
+            };
+            const waveStartMsP3 = Date.now();
+            let waveResultP3: import('@/lib/evaluation/waveRevision').WaveRevisionResult | null = null;
+            try {
+              waveResultP3 = await Promise.race([
+                (await import('@/lib/evaluation/waveRevision')).executeWaveRevision(waveHandoffP3),
+                new Promise<never>((_, reject) =>
+                  setTimeout(() => reject(new Error('WAVE_TIMEOUT')), 60_000)
+                ),
+              ]);
+            } catch (waveErr) {
+              const errMsg = waveErr instanceof Error ? waveErr.message : String(waveErr);
+              const isTimeout = errMsg === 'WAVE_TIMEOUT';
+              console.warn(`[WAVE/Phase3-inline] ${isTimeout ? 'Timeout' : 'Error'} for job ${jobId} (${Date.now() - waveStartMsP3}ms):`, errMsg);
+              const failedPlan = {
+                status: 'failed' as const,
+                reason_code: isTimeout ? 'WAVE_TIMEOUT' : 'WAVE_ERROR',
+                reason: errMsg,
+                retryable: isTimeout,
+                generated_at: new Date().toISOString(),
+              };
+              try {
+                const waveFailHash = stableSourceHash({
+                  manuscriptId: manuscript.id,
+                  jobId: job.id,
+                  userId: manuscriptWithContent.user_id,
+                  manuscriptText: manuscriptWithContent.content || '',
+                  promptVersion: `wave_revision_plan_v1:${failedPlan.status}`,
+                  model: 'wave_deterministic',
+                });
+                await upsertEvaluationArtifact({
+                  supabase,
+                  jobId: job.id,
+                  manuscriptId: job.manuscript_id,
+                  artifactType: 'wave_revision_plan_v1',
+                  artifactVersion: 'wave_revision_plan_v1',
+                  sourceHash: waveFailHash,
+                  content: failedPlan,
+                });
+              } catch (artifactErr) {
+                console.error(`[WAVE/Phase3-inline] Failed to persist failure artifact for job ${jobId} (non-fatal):`,
+                  artifactErr instanceof Error ? artifactErr.message : String(artifactErr));
+              }
+            }
+            if (waveResultP3) {
+              try {
+                const wavePlanHash = stableSourceHash({
+                  manuscriptId: manuscript.id,
+                  jobId: job.id,
+                  userId: manuscriptWithContent.user_id,
+                  manuscriptText: manuscriptWithContent.content || '',
+                  promptVersion: `wave_revision_plan_v1:${waveResultP3.plan.status}`,
+                  model: 'wave_deterministic',
+                });
+                await upsertEvaluationArtifact({
+                  supabase,
+                  jobId: job.id,
+                  manuscriptId: job.manuscript_id,
+                  artifactType: 'wave_revision_plan_v1',
+                  artifactVersion: 'wave_revision_plan_v1',
+                  sourceHash: wavePlanHash,
+                  content: waveResultP3.plan,
+                });
+                console.log(`[WAVE/Phase3-inline] Artifact persisted for job ${jobId} — status=${waveResultP3.plan.status}`);
+              } catch (artifactErr) {
+                console.error(`[WAVE/Phase3-inline] Failed to persist success artifact for job ${jobId} (non-fatal):`,
+                  artifactErr instanceof Error ? artifactErr.message : String(artifactErr));
+              }
+            }
+          } catch (waveOuterErr) {
+            // WAVE never blocks completion.
+            console.error(`[WAVE/Phase3-inline] ${jobId}: outer WAVE error (non-fatal)`,
+              waveOuterErr instanceof Error ? waveOuterErr.message : String(waveOuterErr));
+          }
+
+          // Complete the job — synthesis persisted, WAVE attempted.
+          nextLifecycleStatus(JOB_STATUS.COMPLETE);
+          const phase3InlineNow = new Date().toISOString();
+          const { error: phase3CompleteErr } = await supabase
+            .from('evaluation_jobs')
+            .update({
+              status: JOB_STATUS.COMPLETE,
+              phase: 'phase_3',
+              phase_status: 'complete',
+              completed_at: phase3InlineNow,
+              updated_at: phase3InlineNow,
+              progress: {
+                ...progressState,
+                phase: 'phase_3',
+                phase_status: 'complete',
+                message: 'Pass 3B synthesis + WAVE complete',
+                phase3_completed_at: phase3InlineNow,
+              },
+            })
+            .eq('id', job.id)
+            .eq('status', JOB_STATUS.RUNNING);
+          if (phase3CompleteErr) {
+            console.error(`[Processor] ${jobId}: phase_3 inline completion update failed`, phase3CompleteErr.message);
+          }
+          return { success: true };
+        }
+
+        // Default path (phase_1/phase_2 → queue phase_3 for next invocation).
         const { data: phase3QueueRow, error: phase3QueueErr } = await supabase
           .from('evaluation_jobs')
           .update({
