@@ -29,6 +29,12 @@ import {
   LongformReaderExperience,
   LongformRevisionPlan,
   LongformReleasability,
+  LongformCharacterCoverageArcLedger,
+  LongformRelationshipSpineLedger,
+  LongformSymbolPayoffLedger,
+  LongformSensoryEmotionalRegister,
+  LongformManuscriptIntegrityTable,
+  LongformEvidenceDistributionGate,
 } from "@/components/reports/longform";
 import { SynthesisArtifactControls } from "./SynthesisArtifactControls";
 
@@ -173,6 +179,30 @@ export function SynthesisPoller({ jobId, wordCount, initialDreamDoc = null }: Pr
           <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500 mb-3">Releasability</h3>
           <LongformReleasability doc={dreamDoc} />
         </div>
+        <div>
+          <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500 mb-3">Character Coverage &amp; Arc Ledger</h3>
+          <LongformCharacterCoverageArcLedger doc={dreamDoc} />
+        </div>
+        <div>
+          <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500 mb-3">Relationship Spine Ledger</h3>
+          <LongformRelationshipSpineLedger doc={dreamDoc} />
+        </div>
+        <div>
+          <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500 mb-3">Symbol-to-Character Payoff Ledger</h3>
+          <LongformSymbolPayoffLedger doc={dreamDoc} />
+        </div>
+        <div>
+          <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500 mb-3">Sensory &amp; Emotional Register</h3>
+          <LongformSensoryEmotionalRegister doc={dreamDoc} />
+        </div>
+        <div>
+          <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500 mb-3">Manuscript Integrity Table</h3>
+          <LongformManuscriptIntegrityTable doc={dreamDoc} />
+        </div>
+        <div>
+          <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500 mb-3">Evidence Distribution &amp; Confidence Gate</h3>
+          <LongformEvidenceDistributionGate doc={dreamDoc} />
+        </div>
       </div>
     );
   }
@@ -191,10 +221,10 @@ export function SynthesisPoller({ jobId, wordCount, initialDreamDoc = null }: Pr
         />
         <div>
           <p className="text-sm text-gray-700 font-medium">
-            Narrative Synthesis is generating automatically.
+            Narrative Synthesis (Part 2 of 2) is generating automatically.
           </p>
           <p className="text-sm text-gray-500 mt-0.5">
-            Expected in approximately {rangeLabel} minutes for this manuscript length
+            Your scores, criteria analyses, and revision plan are ready above. Narrative Synthesis will appear here in approximately {rangeLabel} minutes
             {elapsedMin > 0 ? ` — ${elapsedMin} min elapsed` : ""}.
             This page will update automatically — no refresh needed.
           </p>
