@@ -56,7 +56,22 @@ export type ArtifactType =
    * unable to resume and what action is needed (code fix, migration, config
    * change).  Not user-visible.
    */
-  | "resume_blocked_v1";
+  | "resume_blocked_v1"
+  /**
+   * Pass 1A character ledger — built immediately after Pass 1A sweep completes.
+   * Written independently of Pass 1/2 outcome so the ledger survives a pipeline
+   * timeout. Contains CharacterLedgerV2 (named characters, arcs, relationships,
+   * objects, blockers). User-visible in the report Ledger tab.
+   */
+  | "pass1a_character_ledger_v1"
+  /**
+   * WAVE revision plan — written inline after evaluation persists (same execution
+   * window). status field: complete | skipped | failed | timeout.
+   * skipped = gate did not pass (manuscript too short or criteria below floor).
+   * failed/timeout = gate passed but execution failed; retryable=true.
+   * User-facing: drives the Revise tab unlock.
+   */
+  | "wave_revision_plan_v1";
 
 /**
  * Compute SHA256 hex digest of input string

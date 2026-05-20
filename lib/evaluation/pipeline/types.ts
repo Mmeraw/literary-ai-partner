@@ -598,6 +598,11 @@ export type PipelineResult =
       routing?: PipelineResultRouting;
       /** Pass-level provider telemetry captured during Pass 1/2/3 completion. */
       provider_telemetry?: PipelineProviderTelemetryEntry[];
+      /**
+       * Character ledger built during Pass 1A — threaded for WAVE revision phase.
+       * Undefined if Pass 1A was skipped or ledger build failed (non-fatal).
+       */
+      characterLedgerV2?: CharacterLedgerV2;
       /** Recovery metadata: retry counts and fallback usage per pass. */
       recovery?: {
         retry_counts?: Partial<Record<"pass1" | "pass2" | "pass3", number>>;

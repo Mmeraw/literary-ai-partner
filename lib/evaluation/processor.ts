@@ -124,6 +124,19 @@ import {
   type PipelineSkipResult,
 } from '@/lib/config/pipelineGuard';
 import { pipelineLog } from '@/lib/evaluation/pipeline/pipelineLogger';
+import { createRevisionSession } from '@/lib/revision/sessions';
+import { executeWaveLayer } from '@/lib/pipeline/wave-execution-layer';
+import { executeWaveModules } from '@/lib/revision/wave-executor';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// WAVE Phase 3 constants
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Minimum manuscript word count for WAVE eligibility */
+const WAVE_MIN_WORDS = 25_000;
+
+/** Minimum per-criterion score (0-10) for WAVE eligibility — no red criteria */
+const WAVE_MIN_CRITERION_SCORE = 6.0;
 
 // DB bootstrap — intentionally reads process.env directly (not evaluation config).
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -4441,6 +4454,115 @@ export async function processEvaluationJob(
         at: persistenceResult.completedAt,
       });
 
+      // ─────────────────────────────────────────────────────────────────────────────
+      // WAVE Revision Phase (inline, same execution window, zero LLM calls)
+      //
+      // Runs deterministic revision modules after successful evaluation.
+      // Capped at 60s. Artifacts always written (complete/skipped/failed/timeout)
+      // before job transitions to COMPLETE.
+      //
+      // Does NOT name this “Pass 4” — Pass 4 = QualityGate in this codebase.
+      // ─────────────────────────────────────────────────────────────────────────────
+      try {
+        await markRunning('Running WAVE revision engine', 2, 'phase_2');
+
+        const waveStartMs = Date.now();
+        const waveHandoff = {
+          manuscriptText: manuscriptWithContent.content || '',
+          synthesis: pipelineResult.synthesis,
+          characterLedgerV2: pipelineResult.characterLedgerV2,
+          wordCount: coverageForReporting.sourceWords,
+          jobId,
+          manuscriptVersionId: (job.manuscript_version_id as string | null) ?? null,
+        };
+
+        let waveResult: import('@/lib/evaluation/waveRevision').WaveRevisionResult | null = null;
+        try {
+          waveResult = await Promise.race([
+            (await import('@/lib/evaluation/waveRevision')).executeWaveRevision(waveHandoff),
+            new Promise<never>((_, reject) =>
+              setTimeout(() => reject(new Error('WAVE_TIMEOUT')), 60_000)
+            ),
+          ]);
+        } catch (waveErr) {
+          const errMsg = waveErr instanceof Error ? waveErr.message : String(waveErr);
+          const isTimeout = errMsg === 'WAVE_TIMEOUT';
+          console.warn(`[WAVE] ${isTimeout ? 'Timeout' : 'Error'} for job ${jobId}:`, errMsg);
+
+          const failedPlan = {
+            status: (isTimeout ? 'timeout' : 'failed') as 'timeout' | 'failed',
+            reason: errMsg,
+            retryable: true,
+            generated_at: new Date().toISOString(),
+          };
+
+          // Persist failure artifacts — non-fatal, never throw
+          try {
+            const waveFailSourceHash = stableSourceHash({
+              manuscriptId: manuscript.id,
+              jobId: job.id,
+              userId: manuscriptWithContent.user_id,
+              manuscriptText: manuscriptWithContent.content || '',
+              promptVersion: `wave_revision_plan_v1:${failedPlan.status}`,
+              model: 'wave_deterministic',
+            });
+            await upsertEvaluationArtifact({
+              supabase,
+              jobId: job.id,
+              manuscriptId: job.manuscript_id,
+              artifactType: 'wave_revision_plan_v1',
+              artifactVersion: 'wave_revision_plan_v1',
+              sourceHash: waveFailSourceHash,
+              content: failedPlan,
+            });
+            // wave_runs rows are per-module and persisted by executeWaveModules internally.
+          } catch (waveArtifactErr) {
+            console.error(
+              `[WAVE] Failed to persist WAVE failure artifact for job ${jobId} (non-fatal):`,
+              waveArtifactErr instanceof Error ? waveArtifactErr.message : String(waveArtifactErr),
+            );
+          }
+        }
+
+        if (waveResult) {
+          try {
+            const wavePlanSourceHash = stableSourceHash({
+              manuscriptId: manuscript.id,
+              jobId: job.id,
+              userId: manuscriptWithContent.user_id,
+              manuscriptText: manuscriptWithContent.content || '',
+              promptVersion: `wave_revision_plan_v1:${waveResult.plan.status}`,
+              model: 'wave_deterministic',
+            });
+            await upsertEvaluationArtifact({
+              supabase,
+              jobId: job.id,
+              manuscriptId: job.manuscript_id,
+              artifactType: 'wave_revision_plan_v1',
+              artifactVersion: 'wave_revision_plan_v1',
+              sourceHash: wavePlanSourceHash,
+              content: waveResult.plan,
+            });
+            // wave_runs rows (per-module) are persisted by executeWaveModules internally.
+            console.log(
+              `[WAVE] Artifacts persisted for job ${jobId} — status=${waveResult.plan.status}`,
+            );
+          } catch (waveArtifactErr) {
+            console.error(
+              `[WAVE] Failed to persist WAVE success artifacts for job ${jobId} (non-fatal):`,
+              waveArtifactErr instanceof Error ? waveArtifactErr.message : String(waveArtifactErr),
+            );
+          }
+        }
+      } catch (wavePhaseErr) {
+        // Outer safety net — WAVE phase must never kill a completed evaluation
+        console.error(
+          `[WAVE] Unexpected outer error for job ${jobId} (non-fatal):`,
+          wavePhaseErr instanceof Error ? wavePhaseErr.message : String(wavePhaseErr),
+        );
+      }
+
+      // Job is complete regardless of WAVE outcome
       nextLifecycleStatus(JOB_STATUS.COMPLETE);
     } catch (artifactError) {
       finishLatencyStage({

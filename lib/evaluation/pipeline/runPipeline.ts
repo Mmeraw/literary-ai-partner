@@ -1816,6 +1816,7 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
     external_adjudication: externalAdjudication,
     routing: pipelineRouting,
     provider_telemetry: providerTelemetry,
+    characterLedgerV2: characterLedgerV2,
   };
 }
 
