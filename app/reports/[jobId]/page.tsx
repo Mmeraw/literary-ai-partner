@@ -516,9 +516,16 @@ export default async function ReportPage({ params }: { params: { jobId: string }
           <section className="bg-white rounded-lg shadow-sm p-6 mb-6 border border-indigo-100">
             <h2 className="text-2xl font-semibold text-gray-900 mb-1 flex items-center gap-2">
               <span aria-hidden>&#x1F4D6;</span> Narrative Synthesis
+              {!dreamDoc && (
+                <span className="ml-2 inline-flex items-center rounded-full bg-amber-100 text-amber-800 border border-amber-200 px-2.5 py-0.5 text-xs font-semibold">
+                  Part 2 generating…
+                </span>
+              )}
             </h2>
             <p className="text-sm text-gray-500 mb-4">
-              Holistic Craft Assessment — long-form synthesis report
+              {dreamDoc
+                ? "Holistic Craft Assessment — long-form synthesis report"
+                : "Part 1 of 2 ready — scroll up to review scores and revision plan while Part 2 generates below"}
             </p>
 
             {dreamDoc ? (
