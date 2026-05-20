@@ -1,6 +1,17 @@
 /**
  * Atomic job claiming with lease-based locking
  * Implements exactly-once job execution guarantee
+ *
+ * ARCHITECTURE NOTE (trunk audit 2026-05-20):
+ * This file is a STANDALONE utility used by:
+ *   - workers/phase2d*  proof tests (DB-level concurrency proofs)
+ *   - Direct tooling / scripts
+ *
+ * It is NOT imported by lib/evaluation/processor.ts.
+ * The processor uses the canonical claim_evaluation_jobs RPC directly via
+ * the process-evaluations worker route. Do NOT add a processor import here.
+ *
+ * The updateHeartbeat() function below is @deprecated — use renewLease() instead.
  */
 
 import { createAdminClient } from '../lib/supabase/admin';
