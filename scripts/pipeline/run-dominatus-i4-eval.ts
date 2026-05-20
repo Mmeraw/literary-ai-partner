@@ -17,6 +17,7 @@ import {
 } from "@/lib/governance/injectionMap";
 import type {
   PassCompletionCapture,
+  Pass1aCharacterLedger,
   PipelineResult,
   QualityGateResult,
   SinglePassOutput,
@@ -271,6 +272,37 @@ async function main(): Promise<void> {
     executionMode: mode,
   });
 
+  // Diagnostic script — minimal ledger stub (full pipeline uses real Pass 1A ledger)
+  const _dominatusLedgerStub: Pass1aCharacterLedger = {
+    schema_version: "pass1a_character_ledger_v1",
+    prompt_version: "dominatus-stub",
+    job_id: "dominatus-diagnostic",
+    generated_at: new Date().toISOString(),
+    total_chunks_processed: 1,
+    entries: [{
+      canonical_name: "StubCharacter", aliases: [], pronouns: [],
+      age_exact_first: null, age_exact_last: null, age_signal: null,
+      gender_identity: "unknown", lgbtq_signals: [], racial_ethnic_signals: [],
+      skin_tone_signals: [], language_signals: [], religion_signals: [],
+      socioeconomic_signals: [], nationality_signals: [], disability_neuro_signals: [],
+      role: "protagonist", narrative_weight_band: "major", is_named: true,
+      who_is_this: "Diagnostic stub", what_do_they_want: null, primary_locations: [],
+      why_signal: null, how_signal: null, arc_start: "start", arc_pressure: "pressure",
+      arc_turning_points: [], arc_end_state: "end", ending_status: "resolved",
+      symbolic_objects: [], relational_engines: [], evidence_anchors: [],
+      report_acknowledgement_status: "adequately_accounted_for", warnings: [],
+      first_chunk_index: 0, last_chunk_index: 0, mention_count: 1,
+      nameStates: [{ name: "StubCharacter", validFromChunk: 0, validUntilChunk: null }],
+      copingMechanisms: [], coPresenceMap: {},
+    }],
+    coverage_summary: {
+      protagonists: ["StubCharacter"], co_protagonists: [], antagonists: [],
+      major_secondary_characters: [], animal_companions: [], relational_engines: [],
+      symbol_payoff_items: [], missing_or_underweighted: [],
+      ending_accountability_warnings: [], hard_fail_triggers: [],
+    },
+  };
+
   const pass3UserPrompt = pass1Parsed && pass2Parsed
     ? buildPass3UserPrompt({
         comparisonPacketJson: JSON.stringify(
@@ -282,6 +314,7 @@ async function main(): Promise<void> {
         manuscriptText,
         title,
         executionMode: mode,
+        characterLedger: _dominatusLedgerStub,
       })
     : null;
 
