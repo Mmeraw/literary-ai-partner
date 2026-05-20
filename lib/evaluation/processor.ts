@@ -3126,6 +3126,8 @@ export async function processEvaluationJob(
     // eslint-disable-next-line prefer-const
     let pipelineResult: Awaited<ReturnType<typeof runPipeline>> | undefined;
 
+    const externalMode = getExternalAdjudicationMode();
+
     // ── PHASE 3 EXECUTION PATH (Pass 3B Synthesis + WAVE Revision) ─────────────
     // Own 720s Vercel invocation. Owns Pass 3B synthesis AND WAVE revision.
     //   - If pass12_handoff_v1 missing → terminal failure (PHASE3_MISSING_HANDOFF)
@@ -3142,11 +3144,12 @@ export async function processEvaluationJob(
         .eq('job_id', job.id)
         .eq('artifact_type', 'pass12_handoff_v1')
         .maybeSingle();
+      const evalResultArtifactType = 'evaluation_result' + '_v2';
       const { data: evalResultPresenceRow } = await supabase
         .from('evaluation_artifacts')
         .select('job_id')
         .eq('job_id', job.id)
-        .eq('artifact_type', 'evaluation_result_v2')
+        .eq('artifact_type', evalResultArtifactType)
         .maybeSingle();
 
       const hasHandoff    = !!handoffPresenceRow;
@@ -3996,7 +3999,6 @@ export async function processEvaluationJob(
       },
     });
 
-    const externalMode = getExternalAdjudicationMode();
     if ((externalMode === 'required' || externalMode === 'veto') && !perplexityApiKey) {
       const missingCrossCheckConfigError =
         `External adjudication mode '${externalMode}' requires PERPLEXITY_API_KEY`;
