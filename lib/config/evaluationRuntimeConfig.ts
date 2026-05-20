@@ -266,15 +266,21 @@ export function resolveEvaluationRuntimeConfig(
     min: 1,
     max: 5,
   });
+  // 3_600_000 ms = 60 minutes.
+  // Each phase gets its own fresh Vercel invocation (720s wall) anchored to
+  // invocation start time, not job start time. For 165k-word manuscripts,
+  // phase_1 (Pass 1+2) may span multiple watchdog-rescued invocations before
+  // the handoff artifact is written. A 60-min per-invocation lease ensures
+  // no phase is killed prematurely regardless of manuscript size.
   const leaseMs = parseBoundedInteger(env, "EVAL_WORKER_LEASE_MS", {
-    defaultValue: 800000,
-    min: 30000,
-    max: 800000,
+    defaultValue: 3_600_000,
+    min: 30_000,
+    max: 3_600_000,
   });
   const maxExecutionMs = parseBoundedInteger(env, "EVAL_WORKER_MAX_EXECUTION_MS", {
-    defaultValue: 800000,
-    min: 10000,
-    max: 800000,
+    defaultValue: 3_600_000,
+    min: 10_000,
+    max: 3_600_000,
   });
 
   if (leaseMs < maxExecutionMs) {

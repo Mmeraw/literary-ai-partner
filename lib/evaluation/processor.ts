@@ -2270,13 +2270,34 @@ export async function processEvaluationJob(
       createdAt: (job as Record<string, unknown>).created_at,
       fallbackIso: new Date().toISOString(),
     });
-    const hardDeadlineMs = resolveJobHardDeadlineMs({
-      startedAt:
-        typeof (job as Record<string, unknown>).started_at === 'string'
-          ? ((job as Record<string, unknown>).started_at as string)
-          : canonicalStartedAt,
+    // Hard deadline anchors to THIS INVOCATION's start, not the original job
+    // creation time. Each phase (phase_1, phase_1a, phase_2, phase_3) runs in
+    // its own fresh Vercel invocation with its own 720s wall clock. Inheriting
+    // job.started_at meant later phases had a budget already consumed by prior
+    // phases — a 165k-word phase_1 that takes 30 min would leave phase_2 with
+    // a negative budget before it even starts.
+    //
+    // invocationStartedAt is stamped here and then overwritten below with the
+    // phase-specific timestamp once markRunning() fires (e.g. phase1a_started_at).
+    // resolvePhaseDeadlineMs() reads the canonical per-phase timestamp from
+    // progressState after markRunning so every phase gets a truly fresh 60-min window.
+    const invocationStartedAt = new Date().toISOString();
+    let hardDeadlineMs = resolveJobHardDeadlineMs({
+      startedAt: invocationStartedAt,
       maxExecutionMs: runtimeConfig.worker.maxExecutionMs,
     });
+
+    // Helper: refresh hardDeadlineMs from the phase-specific start timestamp
+    // stamped by markRunning(). Call immediately after markRunning() in each
+    // phase block so the budget is anchored to when THIS PHASE actually began.
+    const refreshPhaseDeadline = (phaseStartedAt: string | undefined) => {
+      const anchor = phaseStartedAt ?? invocationStartedAt;
+      hardDeadlineMs = resolveJobHardDeadlineMs({
+        startedAt: anchor,
+        maxExecutionMs: runtimeConfig.worker.maxExecutionMs,
+      });
+      console.log(`[Processor] ${jobId}: phase deadline refreshed — anchor=${anchor} deadline=${new Date(hardDeadlineMs).toISOString()}`);
+    };
 
     const markRunning = async (
       message: string,
@@ -2973,6 +2994,7 @@ export async function processEvaluationJob(
     // from artifacts, runs WAVE revision engine, marks job complete.
     if (executionPhase === 'phase_3') {
       await markRunning('Running WAVE revision engine', 2, 'phase_3');
+      refreshPhaseDeadline(progressState.phase3_started_at as string | undefined);
 
       try {
         // Read the persisted evaluation result (synthesis) from artifacts.
@@ -3198,6 +3220,7 @@ export async function processEvaluationJob(
     // MANDATORY — if it fails, the job fails (ledger required for Pass 3).
     if (executionPhase === 'phase_1a') {
       await markRunning('Running Pass 1A character sweep', 1, 'phase_1a');
+      refreshPhaseDeadline(progressState.phase1a_started_at as string | undefined);
 
       const phase1aStartMs = Date.now();
       try {
@@ -3391,6 +3414,7 @@ export async function processEvaluationJob(
 
     if (executionPhase === 'phase_2') {
       await markRunning('Resuming from phase 1 handoff', 1, 'phase_2');
+      refreshPhaseDeadline(progressState.phase2_started_at as string | undefined);
 
       // Hoisted to phase_2 block scope so the WAVE gate (further down) can access it.
       // Populated inside the else-branch when the handoff + ledger artifacts are read.
@@ -3595,6 +3619,10 @@ export async function processEvaluationJob(
     // Only reached when executionPhase === 'phase_1' OR when the phase_2 handoff
     // artifact was missing (fallback). In both cases we run the full pipeline.
     await markRunning('Running canonical evaluation pipeline', 1, executionPhase);
+    // Refresh deadline anchored to this phase's own start timestamp.
+    // For phase_1: phase1_started_at. For phase_2 fallback: phase2_started_at.
+    const _phaseStartKey = executionPhase === 'phase_1' ? 'phase1_started_at' : 'phase2_started_at';
+    refreshPhaseDeadline(progressState[_phaseStartKey as keyof typeof progressState] as string | undefined);
 
     const pass3StartedAt = new Date().toISOString();
     progressState.pass3_started_at = pass3StartedAt;
