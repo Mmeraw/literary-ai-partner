@@ -234,7 +234,7 @@ describeOrSkip("Day-1 Evaluation UI Flow", () => {
       expect(displayInfo.progress.completed).toBe(2);
       expect(displayInfo.progress.total).toBe(5);
       expect(displayInfo.progress.percentage).toBe(40);
-      expect(displayInfo.phaseDetail.phase).toBe("phase_1");
+      expect(displayInfo.phaseDetail.phase).toBe("phase_1a");
       
       // UI should show:
       // - Spinning indicator

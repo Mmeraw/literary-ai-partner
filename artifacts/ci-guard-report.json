@@ -1,0 +1,15 @@
+{
+  "outcome": "pass",
+  "scanTargetCount": 2,
+  "inScopeTargetCount": 1,
+  "violationCount": 0,
+  "acceptedExceptionCount": 0,
+  "rejectedExceptionCount": 0,
+  "violations": [],
+  "registryValidationOk": true,
+  "escapeContract": {
+    "markerToken": "@InternalOnly",
+    "requiredValidatorCheck": "path-classification",
+    "auditLogShape": "ci-summary"
+  }
+}

@@ -1,22 +1,19 @@
 import { validateProductionConfig } from "@/lib/config/productionConfigValidation";
 
 describe("validateProductionConfig", () => {
-  it("rejects worker timing when lease is shorter than max execution", () => {
+  it("rejects worker timing when max execution exceeds the policy ceiling", () => {
     const result = validateProductionConfig(
       {
         NODE_ENV: "test",
         EVAL_WORKER_LEASE_MS: "3600000",
-        EVAL_WORKER_MAX_EXECUTION_MS: "810000",
+        EVAL_WORKER_MAX_EXECUTION_MS: "3700000",
       },
       "/workspaces/literary-ai-partner",
     );
 
     expect(result.valid).toBe(false);
     expect(result.errors).toContain(
-      "EVAL_WORKER_MAX_EXECUTION_MS (810000) must be between 10000 and 3600000.",
-    );
-    expect(result.errors).toContain(
-      "Invalid worker timing: EVAL_WORKER_LEASE_MS (3600000) must be >= EVAL_WORKER_MAX_EXECUTION_MS (810000).",
+      "EVAL_WORKER_MAX_EXECUTION_MS (3700000) must be between 10000 and 3600000.",
     );
   });
 

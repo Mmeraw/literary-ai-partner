@@ -59,7 +59,7 @@ function makeSupabaseStub() {
     manuscript_id: 456,
     job_type: "evaluate_full",
     status: "running",
-    phase: "phase_1a",
+    phase: "phase_3",
     phase_status: "running",
     claimed_by: "test-worker",
     worker_id: "test-worker",
@@ -69,7 +69,15 @@ function makeSupabaseStub() {
     heartbeat_at: now.toISOString(),
     started_at: now.toISOString(),
     created_at: now.toISOString(),
-    progress: { phase: "phase_1a", phase_status: "running" },
+    progress: { phase: "phase_3", phase_status: "running" },
+  };
+
+  const pass12HandoffContent = {
+    schema_version: "pass12_handoff_v1",
+    pass1Output: { criteria: [], overall: {}, metadata: {} },
+    pass2Output: { criteria: [], overall: {}, metadata: {} },
+    chunk_count: 1,
+    partial_capture: false,
   };
 
   const manuscript = {
@@ -114,14 +122,17 @@ function makeSupabaseStub() {
           }),
           update: (payload: Record<string, unknown>) => {
             evaluationJobUpdates.push(payload);
-            const query = {
+            const query: any = {
               eq: () => query,
+              select: () => ({
+                single: async () => ({ data: queuedJob, error: null }),
+                maybeSingle: async () => ({ data: queuedJob, error: null }),
+                eq: () => query,
+              }),
               then: (resolve: (value: { error: null }) => void) =>
                 resolve({ error: null }),
             };
-            return {
-              eq: () => query,
-            };
+            return query;
           },
         };
       }
@@ -152,9 +163,21 @@ function makeSupabaseStub() {
             if (table === "evaluation_artifacts") {
         return {
           select: () => {
-            const query = {
-              eq: () => query,
-              maybeSingle: async () => ({ data: { id: "artifact-canonical-pass" }, error: null }),
+            let artifactType = "";
+            const query: any = {
+              eq: (col?: string, val?: any) => {
+                if (col === "artifact_type" && typeof val === "string") artifactType = val;
+                return query;
+              },
+              maybeSingle: async () => {
+                if (artifactType === "pass12_handoff_v1") {
+                  return { data: { content: pass12HandoffContent }, error: null };
+                }
+                if (artifactType === "evaluation_result_v2") {
+                  return { data: null, error: null };
+                }
+                return { data: { id: "artifact-canonical-pass" }, error: null };
+              },
             };
             return query;
           },
@@ -716,7 +739,7 @@ describe("processEvaluationJob canonical pipeline integration", () => {
     expect(fallbackWrite).toEqual(
       expect.objectContaining({
         status: "failed",
-        phase: "phase_1a",
+        phase: "phase_3",
         phase_status: "failed",
         failure_code: "PROCESSOR_UNCAUGHT_ERROR",
         claimed_by: null,
@@ -845,14 +868,14 @@ describe("processEvaluationJob canonical pipeline integration", () => {
                     manuscript_id: 456,
                     job_type: "evaluate_full",
                     status: "running",
-                    phase: "phase_1a",
+                    phase: "phase_3",
                     phase_status: "running",
                     claimed_by: "test-worker",
                     lease_token: "test-lease-token",
                     lease_expires_at: new Date(Date.now() + 5 * 60_000).toISOString(),
                     created_at: expiredStartedAt,
                     started_at: expiredStartedAt,
-                    progress: { phase: "phase_1a", phase_status: "running" },
+                    progress: { phase: "phase_3", phase_status: "running" },
                   },
                   error: null,
                 }),
@@ -922,15 +945,15 @@ describe("processEvaluationJob canonical pipeline integration", () => {
                     id: "job-canonical-pipeline",
                     manuscript_id: 456,
                     job_type: "evaluate_full",
-                    status: "running",
-                    phase: "phase_1a",
-                    phase_status: "running",
+                    status: "failed",
+                    phase: "phase_3",
+                    phase_status: "failed",
                     claimed_by: "test-worker",
                     lease_token: "test-lease-token",
                     lease_expires_at: new Date(Date.now() + 5 * 60_000).toISOString(),
                     created_at: expiredStartedAt,
                     started_at: expiredStartedAt,
-                    progress: { phase: "phase_1a", phase_status: "running" },
+                    progress: { phase: "phase_3", phase_status: "failed" },
                   },
                   error: null,
                 }),
@@ -970,7 +993,26 @@ describe("processEvaluationJob canonical pipeline integration", () => {
           };
         }
 
-        throw new Error(`Unexpected table in SLA terminal-state test stub: ${table}`);
+        if (table === "evaluation_artifacts") {
+          return {
+            select: () => {
+              const query: any = {
+                eq: () => query,
+                maybeSingle: async () => ({ data: null, error: null }),
+              };
+              return query;
+            },
+          };
+        }
+
+        // Other tables (provider_calls, etc.) — absorb writes silently.
+        return {
+          upsert: async () => ({ data: null, error: null }),
+          insert: async () => ({ data: null, error: null }),
+          select: () => ({
+            eq: () => ({ single: async () => ({ data: null, error: null }) }),
+          }),
+        };
       },
     });
 
