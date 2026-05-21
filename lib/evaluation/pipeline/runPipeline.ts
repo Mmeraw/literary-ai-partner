@@ -2179,6 +2179,15 @@ export function synthesisToEvaluationResultV2(
     sourceText,
   } = opts;
 
+  // Derive criteria plan from scope profile when caller does not supply one explicitly.
+  // This is the critical NA-enforcement gate: micro_excerpt → narrativeClosure + marketability
+  // must be NOT_APPLICABLE. Without this, Pass 3B scores them and qualityGateV2 hard-fails.
+  const resolvedCriteriaPlan: CriteriaPlanMap | undefined =
+    criteriaPlan ??
+    (opts.scopeProfile?.inputScale
+      ? buildCriteriaPlanForScale(opts.scopeProfile.inputScale)
+      : undefined);
+
   const detectedMode = detectModeFromManuscript(opts.manuscriptText || "");
 
   const criteria = synthesis.criteria
@@ -2208,7 +2217,7 @@ export function synthesisToEvaluationResultV2(
           technical_defects: c.technical_defects,
         },
         {
-          criteriaPlan,
+          criteriaPlan: resolvedCriteriaPlan,
           passageCoverageRatio,
           sentenceCount,
           sourceText,
