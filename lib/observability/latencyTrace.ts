@@ -1,6 +1,7 @@
 export type LatencyStage =
   | 'job_create'
   | 'worker_kickoff'
+  | 'workflow_kickoff'
   | 'claim'
   | 'fetch_manuscript'
   | 'pipeline_run'
