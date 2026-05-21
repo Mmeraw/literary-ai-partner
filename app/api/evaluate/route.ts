@@ -4,6 +4,7 @@ import { PHASES } from '@/lib/jobs/types';
 import { getDevHeaderActor } from '@/lib/auth/devHeaderActor';
 import { getAuthenticatedUser } from '@/lib/supabase/server';
 import { triggerEvaluationWorker } from '@/lib/jobs/triggerWorker';
+import { triggerEvaluationWorkflow } from '@/lib/jobs/triggerWorkflow';
 import { generateTraceId } from '@/lib/observability/logger';
 import { resolveManuscriptTitle } from '@/lib/manuscripts/title';
 
@@ -182,14 +183,26 @@ export async function POST(req: Request) {
     }
 
     // Belt-and-suspenders dispatch: cron remains fallback.
-    // Use shared helper for consistent auth/observability/fail-soft behavior.
-    void triggerEvaluationWorker({
-      req,
-      jobId: data.id,
-      trace_id,
-      request_id,
-      source: 'api.evaluate.create',
-    });
+    // When WORKFLOW_EVALUATION_ENABLED=true, use durable Vercel Workflow
+    // (each phase gets a fresh 800s budget; overall run has no duration limit).
+    // Otherwise fall back to the cron-based worker path.
+    if (process.env.WORKFLOW_EVALUATION_ENABLED === 'true') {
+      void triggerEvaluationWorkflow({
+        req,
+        jobId: data.id,
+        trace_id,
+        request_id,
+        source: 'api.evaluate.create',
+      });
+    } else {
+      void triggerEvaluationWorker({
+        req,
+        jobId: data.id,
+        trace_id,
+        request_id,
+        source: 'api.evaluate.create',
+      });
+    }
 
     return Response.json(
       {
