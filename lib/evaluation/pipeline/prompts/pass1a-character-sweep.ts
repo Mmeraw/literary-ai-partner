@@ -3,12 +3,12 @@
  *
  * Runs in PARALLEL with Pass 1 and Pass 2 (never depends on their output).
  * Per-chunk: compact evidence capture only — no scoring, no critique.
- * Hard caps enforced in prompt and validated in characterReducer.
+ * Hard caps enforced in prompt and normalized by characterReducer/quarantine.
  *
  * Output feeds characterReducer → Pass1aCharacterLedger → Pass 3 + Pass 3b.
  */
 
-export const PASS1A_PROMPT_VERSION = "pass1a-character-sweep-v3-tier1-grounding";
+export const PASS1A_PROMPT_VERSION = "pass1a-character-sweep-v4-identity-antagonist-grounding";
 
 export const PASS1A_SYSTEM_PROMPT = `You are Pass 1A (character_evidence_sweep) for RevisionGrade.
 
@@ -17,17 +17,43 @@ Do NOT score. Do NOT critique. Do NOT recommend. Evidence capture ONLY.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 HARD CAPS (NEVER exceed these):
-- Max 10 character candidates per chunk
-- Max 3 evidence anchors per character (increased for Tier 1 grounding)
+- Max 15 character candidates per chunk
+- Max 3 evidence anchors per character
 - Max 3 relationship signals per character
 - No quoted excerpts longer than 120 characters
 - No prose commentary, no evaluative language
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+CAPTURE PRIORITY WHEN A SCENE IS DENSE:
+1. POV characters and recurring identity-bearing characters
+2. Antagonists, enforcers, surveillers, coercive figures, and threat-bearing characters
+3. Named recurring characters and named camp/community/family/institutional members
+4. Unnamed but load-bearing figures (e.g. "the nurse", "the cook", "the boy in the Yankees cap")
+
+ANTAGONIST / THREAT SWEEP:
+Any character who disciplines, threatens, surveils, controls, coerces, harms, confines, interrogates, or enforces cartel/institutional power MUST be captured.
+Assign role_signal: "antagonist" for threat-bearing figures regardless of moral complexity, charm, family connection, or intermittent kindness.
+Do not drop antagonists merely because a POV character observes them briefly.
+
+IDENTITY GROUPING — CRITICAL:
+The same person may appear under different names, titles, spellings, languages, aliases, surnames, married names, or narrator labels.
+You MUST group those identity variants using canonical_identity_group.
+
+Examples:
+- If "Michael", "Miguel", "Michael James Salter", "Mr. Salter", "Michael Wagner", or "unnamed narrator" refer to the same person, emit canonical_identity_group: "Michael".
+- If "Benjamin", "Benjamín", "Benjamin Lopez Castro", "Mr. Lopez", or "Benjamin Wagner" refer to the same person, emit canonical_identity_group: "Benjamin".
+- If a cartel nickname and a proper name refer to the same person, use the most stable story identity as canonical_identity_group and put the other labels in aliases.
+
+canonical_name should be the best stable display name for this chunk.
+canonical_identity_group should be the manuscript-level identity bucket used to merge variants across chunks.
+aliases should include all visible names/titles/labels for the same person in this chunk.
+Never create separate identity groups for name variants that the text clearly implies are the same person.
+
 IDENTITY FIELDS (capture every signal present — omit fields where no signal exists):
 
-canonical_name      — Primary name used in this chunk
-aliases             — Other names, nicknames, titles (e.g. "Paolito", "Paul", "El Tomatero")
+canonical_name      — Primary name used in this chunk; prefer the stable identity name when clear
+canonical_identity_group — Stable manuscript-level identity bucket for all variants of the same person; null if truly unknown
+aliases             — Other names, nicknames, titles, labels (e.g. "Paolito", "Paul", "El Tomatero", "Mr. Salter")
 pronouns            — Detected pronouns (he/him, she/her, they/them, etc.)
 
 DEMOGRAPHIC / IDENTITY (capture ONLY what the text explicitly signals):
@@ -70,6 +96,8 @@ is_ending_chunk     — true if this chunk contains resolution/payoff for this c
 SYMBOLIC / OBJECT ATTACHMENTS:
 symbolic_objects    — Array of objects tied to this character in this chunk
                       Each: { object: string, function: string } (e.g. { "object": "blue evil-eye charm", "function": "identity token carried by captive child" })
+                      Capture identity tokens, weapons, surveillance/communication tools, protection charms,
+                      objects used for discipline/control, trauma anchors, domestic anchors, and objects that change hands.
 
 RELATIONSHIP SIGNALS (max 3):
 relationship_signals — Array of { other_character: string, relationship_type: string, dynamic: string }
@@ -81,7 +109,6 @@ evidence_anchors    — Array of { excerpt: string, evidence_type: "appearance"|
 CO-PRESENCE SIGNALS (REQUIRED for relationship capture):
 co_presence_confirmed — Array of character names who are PHYSICALLY PRESENT in the same scene in this chunk.
                         e.g. ["Raúl", "Michael"] means both appear in the same scene in this chunk.
-                        This is the primary input for firstCoPresenceChunk computation in the reducer.
                         Rules: only list characters who are ACTUALLY present together, not merely mentioned;
                         do NOT list characters who are described from afar or recalled in memory.
 
@@ -101,6 +128,7 @@ OUTPUT FORMAT: Valid JSON only. No markdown. No prose.
   "characters": [
     {
       "canonical_name": "",
+      "canonical_identity_group": null,
       "aliases": [],
       "pronouns": [],
       "age_signal": null,
@@ -154,6 +182,8 @@ ${params.manuscriptText}
 
 Return ONLY the JSON object as specified. No prose. No markdown. No scoring.
 Capture every named character and every unnamed-but-load-bearing figure present.
-Apply all HARD CAPS: max 10 characters, max 3 evidence anchors each, max 3 relationship signals each, no excerpt >120 chars.
+Preserve identity continuity: use canonical_identity_group to group name/title/narrator variants that refer to the same person.
+Prioritize POV characters, antagonists/enforcers/threat-bearing figures, named recurring characters, and load-bearing unnamed figures.
+Apply all HARD CAPS: max 15 characters, max 3 evidence anchors each, max 3 relationship signals each, no excerpt >120 chars.
 Fill demographic/identity fields ONLY from explicit text signals — never infer or assume.`;
 }
