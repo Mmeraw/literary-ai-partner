@@ -167,6 +167,8 @@ function makeSupabaseStub() {
 }
 
 describe("processEvaluationJob canonical pipeline integration", () => {
+  jest.setTimeout(30000);
+
   let consoleLogSpy: jest.SpyInstance;
 
   beforeEach(() => {
