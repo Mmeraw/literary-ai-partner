@@ -12,7 +12,8 @@ export type PhaseInfo = {
 };
 
 /**
- * Get phase-specific copy that explains what's happening
+ * Get phase-specific copy that explains what's happening.
+ * Storage values stay canonical; this helper only translates to user-facing copy.
  */
 export function getPhaseSpecificCopy(
   phase: Phase | null,
@@ -29,16 +30,32 @@ export function getPhaseSpecificCopy(
   if (phase === PHASES.PHASE_1A) {
     return {
       phase: PHASES.PHASE_1A,
-      displayCopy: "Analyzing structure and craft…",
-      description: "Examining narrative elements, pacing, and technical execution",
+      displayCopy: "Building evidence ledger…",
+      description: "Reading character continuity and preflight evidence before scoring begins",
     };
   }
 
   if (phase === PHASES.PHASE_2) {
     return {
       phase: PHASES.PHASE_2,
-      displayCopy: "Generating revision guidance…",
-      description: "Creating actionable feedback and recommendations",
+      displayCopy: "Scoring and diagnosing craft…",
+      description: "Running independent craft and editorial passes, then preparing the handoff",
+    };
+  }
+
+  if (phase === PHASES.PHASE_3) {
+    return {
+      phase: PHASES.PHASE_3,
+      displayCopy: "Writing the final report…",
+      description: "Synthesizing the evaluation, running quality checks, and preparing report artifacts",
+    };
+  }
+
+  if (phase === PHASES.WAVE_REVISION) {
+    return {
+      phase: PHASES.WAVE_REVISION,
+      displayCopy: "Preparing WAVE revision plan…",
+      description: "Building the post-report revision plan when the manuscript meets the structural gate",
     };
   }
 
