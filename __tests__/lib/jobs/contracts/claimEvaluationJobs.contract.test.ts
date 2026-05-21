@@ -3,7 +3,7 @@ import { assertClaimedJobsContract } from '@/lib/jobs/contracts/claimEvaluationJ
 function makeCanonicalClaimedRow(overrides: Record<string, unknown> = {}) {
   return {
     id: '11111111-1111-4111-8111-111111111111',
-    phase: 'phase_1',
+    phase: 'phase_1a',
     status: 'running',
     phase_status: 'running',
     claimed_by: 'worker-abc',
@@ -23,7 +23,7 @@ describe('assertClaimedJobsContract', () => {
 
     expect(parsed).toHaveLength(1);
     expect(parsed[0].id).toBe(rows[0].id);
-    expect(parsed[0].phase).toBe('phase_1');
+    expect(parsed[0].phase).toBe('phase_1a');
     expect(parsed[0].status).toBe('running');
   });
 

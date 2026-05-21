@@ -220,7 +220,7 @@ describe("store.finalizer read paths", () => {
       jobRow: {
         id: "job-1",
         status: "retry_pending",
-        phase: "phase_1",
+        phase: "phase_1a",
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
         manuscripts: { user_id: "user-1" },
@@ -240,7 +240,7 @@ describe("store.finalizer read paths", () => {
       jobRow: {
         id: "job-1",
         status: "running",
-        phase: "phase_1",
+        phase: "phase_1a",
         updated_at: new Date().toISOString(),
         manuscripts: { user_id: "user-1" },
         progress: {},

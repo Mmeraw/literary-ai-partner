@@ -16,7 +16,7 @@ function makeDbJobRow(overrides: Partial<DbRow> = {}): DbRow {
     job_type: "full_evaluation",
     status: "running",
     progress: {
-      phase: "phase_1",
+      phase: "phase_1a",
       phase_status: "complete",
       total_units: 10,
       completed_units: 10,
@@ -100,7 +100,7 @@ describe("acquireLeaseForPhase2 lease timeout hardening", () => {
   test("uses default 300-second lease timeout when ttl is omitted", async () => {
     const row = makeDbJobRow({
       progress: {
-        phase: "phase_1",
+        phase: "phase_1a",
         phase_status: "complete",
         lease_id: null,
         lease_expires_at: null,
@@ -141,7 +141,7 @@ describe("acquireLeaseForPhase2 lease timeout hardening", () => {
     const expiredAt = new Date(Date.now() - 60_000).toISOString();
     const row = makeDbJobRow({
       progress: {
-        phase: "phase_1",
+        phase: "phase_1a",
         phase_status: "complete",
         total_units: 10,
         completed_units: 10,
@@ -184,7 +184,7 @@ describe("acquireLeaseForPhase2 lease timeout hardening", () => {
 
     const row = makeDbJobRow({
       progress: {
-        phase: "phase_1",
+        phase: "phase_1a",
         phase_status: "complete",
         total_units: 10,
         completed_units: 10,
@@ -226,7 +226,7 @@ describe("acquireLeaseForPhase2 lease timeout hardening", () => {
     const expiredAt = new Date(Date.now() - 60_000).toISOString();
     const row = makeDbJobRow({
       progress: {
-        phase: "phase_1",
+        phase: "phase_1a",
         phase_status: "complete",
         lease_id: "lease-old",
         lease_expires_at: expiredAt,

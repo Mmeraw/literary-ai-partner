@@ -55,6 +55,7 @@ const upsertEvaluationArtifactMock = jest.fn();
 
 jest.mock("../../../lib/evaluation/artifactPersistence", () => ({
   stableSourceHash: () => "sha256:real-gate-test-hash",
+  sha256Hex: (input: string) => `sha256:${input.slice(0, 16)}`,
   upsertEvaluationArtifact: (...args: any[]) => upsertEvaluationArtifactMock(...args),
 }));
 
@@ -155,7 +156,7 @@ function makeSupabaseStub() {
     manuscript_id: 789,
     job_type: "evaluate_full",
     status: "running",
-    phase: "phase_1",
+    phase: "phase_3",
     phase_status: "running",
     claimed_by: "test-worker",
     worker_id: "test-worker",
@@ -165,7 +166,15 @@ function makeSupabaseStub() {
     heartbeat_at: now.toISOString(),
     started_at: now.toISOString(),
     created_at: now.toISOString(),
-    progress: { phase: "phase_1", phase_status: "running" },
+    progress: { phase: "phase_3", phase_status: "running" },
+  };
+
+  const pass12HandoffContent = {
+    schema_version: "pass12_handoff_v1",
+    pass1Output: { criteria: [], overall: {}, metadata: {} },
+    pass2Output: { criteria: [], overall: {}, metadata: {} },
+    chunk_count: 1,
+    partial_capture: false,
   };
 
   const manuscript = {
@@ -212,12 +221,17 @@ function makeSupabaseStub() {
           }),
           update: (payload: Record<string, unknown>) => {
             evaluationJobUpdates.push(payload);
-            const query = {
+            const query: any = {
               eq: () => query,
+              select: () => ({
+                maybeSingle: async () => ({ data: queuedJob, error: null }),
+                single: async () => ({ data: queuedJob, error: null }),
+                eq: () => query,
+              }),
               then: (resolve: (value: { error: null }) => void) =>
                 resolve({ error: null }),
             };
-            return { eq: () => query };
+            return query;
           },
         };
       }
@@ -233,11 +247,22 @@ function makeSupabaseStub() {
               if (table === "evaluation_artifacts") {
         return {
           select: () => {
-            const query = {
-              eq: () => query,
-              maybeSingle: async () => ({ data: artifactReadBack, error: null }),
+            let artifactType = "";
+            const query: any = {
+              eq: (col?: string, val?: any) => {
+                if (col === "artifact_type" && typeof val === "string") artifactType = val;
+                return query;
+              },
+              maybeSingle: async () => {
+                if (artifactType === "pass12_handoff_v1") {
+                  return { data: { content: pass12HandoffContent }, error: null };
+                }
+                if (artifactType === "evaluation_result_v2") {
+                  return { data: null, error: null };
+                }
+                return { data: artifactReadBack, error: null };
+              },
             };
-
             return query;
           },
         };

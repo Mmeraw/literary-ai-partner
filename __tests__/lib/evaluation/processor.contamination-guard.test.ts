@@ -87,7 +87,7 @@ function makeSupabaseStub() {
     manuscript_id: 789,
     job_type: "evaluate_full",
     status: "running",
-    phase: "phase_1",
+    phase: "phase_3",
     phase_status: "running",
     claimed_by: "test-worker",
     worker_id: "test-worker",
@@ -97,7 +97,15 @@ function makeSupabaseStub() {
     heartbeat_at: now.toISOString(),
     started_at: now.toISOString(),
     created_at: now.toISOString(),
-    progress: { phase: "phase_1", phase_status: "running" },
+    progress: { phase: "phase_3", phase_status: "running" },
+  };
+
+  const pass12HandoffContent = {
+    schema_version: "pass12_handoff_v1",
+    pass1Output: { criteria: [], overall: {}, metadata: {} },
+    pass2Output: { criteria: [], overall: {}, metadata: {} },
+    chunk_count: 1,
+    partial_capture: false,
   };
 
   const manuscript = {
@@ -130,8 +138,14 @@ function makeSupabaseStub() {
           }),
           update: (payload: Record<string, unknown>) => {
             jobUpdates.push(payload);
-            const chain = {
+            const chain: any = {
               eq: () => chain,
+              select: () => ({
+                single: async () => ({ data: queuedJob, error: null }),
+                maybeSingle: async () => ({ data: queuedJob, error: null }),
+                eq: () => chain,
+              }),
+              then: (resolve: any) => resolve({ error: null }),
               error: null,
             };
             return chain;
@@ -146,6 +160,31 @@ function makeSupabaseStub() {
               single: async () => ({ data: manuscript, error: null }),
             }),
           }),
+        };
+      }
+
+      if (table === "evaluation_artifacts") {
+        return {
+          select: () => {
+            let artifactType = "";
+            const query: any = {
+              eq: (col: string, val: any) => {
+                if (col === "artifact_type") artifactType = val;
+                return query;
+              },
+              maybeSingle: async () => {
+                if (artifactType === "pass12_handoff_v1") {
+                  return { data: { content: pass12HandoffContent }, error: null };
+                }
+                if (artifactType === "evaluation_result_v2") {
+                  return { data: null, error: null };
+                }
+                return { data: null, error: null };
+              },
+              single: async () => ({ data: null, error: null }),
+            };
+            return query;
+          },
         };
       }
 

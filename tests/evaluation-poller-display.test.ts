@@ -38,19 +38,19 @@ describe("evaluation-poller-display: stage roadmap invariants", () => {
 describe("resolveStageId: backend state -> stage", () => {
   test("queued in phase_1 -> preparing_manuscript", () => {
     expect(
-      resolveStageId({ phase: "phase_1", phase_status: "queued" }),
+      resolveStageId({ phase: "phase_1a", phase_status: "queued" }),
     ).toBe("preparing_manuscript");
   });
 
   test("running in phase_1 -> analyzing_manuscript (heaviest stage)", () => {
     expect(
-      resolveStageId({ phase: "phase_1", phase_status: "running" }),
+      resolveStageId({ phase: "phase_1a", phase_status: "running" }),
     ).toBe("analyzing_manuscript");
   });
 
   test("complete in phase_1 -> building_diagnosis (handoff)", () => {
     expect(
-      resolveStageId({ phase: "phase_1", phase_status: "complete" }),
+      resolveStageId({ phase: "phase_1a", phase_status: "complete" }),
     ).toBe("building_diagnosis");
   });
 
@@ -157,7 +157,7 @@ describe("getProgressDisplay: end-to-end behavior", () => {
     const pd = getProgressDisplay(
       {
         status: "running",
-        phase: "phase_1",
+        phase: "phase_1a",
         phase_status: "running",
         phase1_started_at: T0,
       },
@@ -171,7 +171,7 @@ describe("getProgressDisplay: end-to-end behavior", () => {
   test("running phase_1 with timing missing -> shimmer at stage start", () => {
     const pd = getProgressDisplay({
       status: "running",
-      phase: "phase_1",
+      phase: "phase_1a",
       phase_status: "running",
     });
     expect(pd!.label).toBe("Analyzing manuscript");
@@ -186,7 +186,7 @@ describe("getProgressDisplay: end-to-end behavior", () => {
       const pd = getProgressDisplay(
         {
           status: "running",
-          phase: "phase_1",
+          phase: "phase_1a",
           phase_status: "running",
           phase1_started_at: T0,
         },
@@ -241,7 +241,7 @@ describe("monotonicity across stage transitions", () => {
     const pd1 = getProgressDisplay(
       {
         status: "running",
-        phase: "phase_1",
+        phase: "phase_1a",
         phase_status: "running",
         phase1_started_at: T0,
       },
@@ -270,7 +270,7 @@ describe("monotonicity across stage transitions", () => {
       getProgressDisplay(
         {
           status: "running",
-          phase: "phase_1",
+          phase: "phase_1a",
           phase_status: "queued",
           created_at: T0,
         },
@@ -282,7 +282,7 @@ describe("monotonicity across stage transitions", () => {
       getProgressDisplay(
         {
           status: "running",
-          phase: "phase_1",
+          phase: "phase_1a",
           phase_status: "running",
           phase1_started_at: T_PLUS(5),
         },
@@ -343,7 +343,7 @@ describe("monotonicity across stage transitions", () => {
 
 describe("getStageLabelFromPhase: standalone label resolver", () => {
   test("matches getProgressDisplay's label for the same inputs", () => {
-    const label = getStageLabelFromPhase("phase_1", "running", null);
+    const label = getStageLabelFromPhase("phase_1a", "running", null);
     expect(label).toBe("Analyzing manuscript");
   });
 

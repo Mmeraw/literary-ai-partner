@@ -30,7 +30,7 @@ function makeSupabaseStub(shortText: string) {
     manuscript_id: 123,
     job_type: "evaluation",
     status: "running",
-    phase: "phase_1",
+    phase: "phase_1a",
     phase_status: "running",
     claimed_by: "test-worker",
     worker_id: "test-worker",
@@ -40,7 +40,7 @@ function makeSupabaseStub(shortText: string) {
     heartbeat_at: now.toISOString(),
     started_at: now.toISOString(),
     created_at: now.toISOString(),
-    progress: { phase: "phase_1", phase_status: "running" },
+    progress: { phase: "phase_1a", phase_status: "running" },
   };
 
   const manuscript = {

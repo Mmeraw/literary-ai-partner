@@ -16,7 +16,7 @@ function makeDbJobRow(overrides: Partial<DbRow> = {}): DbRow {
     job_type: "full_evaluation",
     status: "running",
     progress: {
-      phase: "phase_1",
+      phase: "phase_1a",
       phase_status: "complete",
       total_units: 10,
       completed_units: 10,
