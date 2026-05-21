@@ -3842,44 +3842,171 @@ export async function processEvaluationJob(
         // bypass phase_1a and fall through to the full pipeline.
         const isLongForm = chunkRouting.route === 'long_form';
         if (isLongForm) {
-          const [{ data: ledgerPresenceRow }, { data: preflightPresenceRow }] = await Promise.all([
-            supabase
-              .from('evaluation_artifacts')
-              .select('job_id')
-              .eq('job_id', job.id)
-              .eq('artifact_type', 'pass1a_character_ledger_v1')
-              .maybeSingle(),
-            supabase
-              .from('evaluation_artifacts')
-              .select('job_id')
-              .eq('job_id', job.id)
-              .eq('artifact_type', 'pass3_preflight_draft_v1')
-              .maybeSingle(),
-          ]);
-          const hasPhase1aArtifacts = !!ledgerPresenceRow || !!preflightPresenceRow;
-          console.error(
-            `[phase_2] ${jobId}: long-form handoff missing — requeueing to phase_1a (hasPhase1aArtifacts=${hasPhase1aArtifacts})`,
+          // RELAY CONTRACT: phase_2 owns Pass 1+2 and writes pass12_handoff_v1.
+          // When the handoff is missing it means phase_2 was claimed but did not
+          // complete. Do NOT requeue phase_1a — that creates a phase_1a ↔ phase_2
+          // loop because after phase_1a the handoff will still be missing.
+          // Instead: read the character ledger from phase_1a, run Pass 1+2 via
+          // runPipeline (with cached ledger injected), write pass12_handoff_v1,
+          // then queue phase_3.
+          console.warn(
+            `[phase_2] ${jobId}: long-form handoff missing — running Pass 1+2 to write it`,
             { handoffReadError: (handoffReadError as { message?: string } | null)?.message ?? 'no_data' },
           );
-          const requeueNow = new Date().toISOString();
-          const { error: requeueErr } = await supabase
+
+          // Read prebuilt character ledger from phase_1a (soft — absent = no grounding)
+          let prebuiltLedgerP2: { ledger: Pass1aCharacterLedger; ledgerV2: CharacterLedgerV2 } | undefined;
+          try {
+            const { data: ledgerArtifactP2 } = await supabase
+              .from('evaluation_artifacts')
+              .select('content')
+              .eq('job_id', job.id)
+              .eq('artifact_type', 'pass1a_character_ledger_v1')
+              .maybeSingle();
+            if (ledgerArtifactP2?.content?.ledger_v1 && ledgerArtifactP2?.content?.ledger_v2) {
+              prebuiltLedgerP2 = {
+                ledger: ledgerArtifactP2.content.ledger_v1 as Pass1aCharacterLedger,
+                ledgerV2: ledgerArtifactP2.content.ledger_v2 as CharacterLedgerV2,
+              };
+            } else {
+              console.warn(`[phase_2] ${jobId}: pass1a_character_ledger_v1 missing or incomplete — running Pass 1+2 without ledger grounding`);
+            }
+          } catch (ledgerReadErrP2) {
+            console.warn(`[phase_2] ${jobId}: ledger artifact read failed (non-fatal)`,
+              ledgerReadErrP2 instanceof Error ? ledgerReadErrP2.message : String(ledgerReadErrP2));
+          }
+
+          // Run Pass 1+2 via runPipeline with captured runners — single call, no retry loop.
+          // _runners intercepts the real runPass1/runPass2 outputs so we can write
+          // pass12_handoff_v1. Pass 3B (synthesis) still runs inside this call but its
+          // output is discarded — phase_3 owns synthesis and will re-run it via handoff.
+          const leaseRenewalIntervalMsP2 = 30_000;
+          const leaseRenewalLoopP2 = setInterval(() => {
+            void renewEvaluationJobLease({
+              supabase,
+              jobId,
+              leaseMs: runtimeConfig.worker.leaseMs,
+              stage: 'phase_2_pass12_renewal',
+              hardDeadlineMs,
+            }).catch((err: unknown) => {
+              console.warn('[phase_2] lease renewal failed (non-fatal)',
+                err instanceof Error ? err.message : String(err));
+            });
+          }, leaseRenewalIntervalMsP2);
+
+          let capturedPass1: SinglePassOutput | undefined;
+          let capturedPass2: SinglePassOutput | undefined;
+          const { runPass1: realRunPass1 } = await import('@/lib/evaluation/pipeline/runPass1');
+          const { runPass2: realRunPass2 } = await import('@/lib/evaluation/pipeline/runPass2');
+
+          try {
+            const p2CaptureResult = await runPipeline({
+              manuscriptText: manuscriptWithContent.content || '',
+              manuscriptChunks: manuscriptChunksForPipeline,
+              workType: manuscriptWithContent.work_type || 'novel',
+              title: manuscriptWithContent.title,
+              jobId: String(job.id),
+              model: getCanonicalPipelineModel(openAiModel),
+              openaiApiKey,
+              manuscriptId: String(manuscriptWithContent.id),
+              executionMode: 'TRUSTED_PATH',
+              _passTimeoutMs: timeoutResolution.passTimeoutMs,
+              _openAiTimeoutMs: timeoutResolution.openAiTimeoutMs,
+              ...(prebuiltLedgerP2 ? { _prebuiltCharacterLedger: prebuiltLedgerP2 } : {}),
+              _runners: {
+                runPass1: async (opts) => {
+                  const result = await realRunPass1(opts);
+                  capturedPass1 = result;
+                  return result;
+                },
+                runPass2: async (opts) => {
+                  const result = await realRunPass2(opts);
+                  capturedPass2 = result;
+                  return result;
+                },
+              },
+              onHeartbeat: async (stage) => {
+                await assertJobWithinSla({ supabase, jobId, hardDeadlineMs, stage });
+                await renewEvaluationJobLease({
+                  supabase, jobId, leaseMs: runtimeConfig.worker.leaseMs, stage, hardDeadlineMs,
+                });
+              },
+            });
+
+            if (!p2CaptureResult.ok) {
+              const errCode = 'error_code' in p2CaptureResult ? p2CaptureResult.error_code : 'PHASE2_PASS12_FAILED';
+              console.error(`[phase_2] ${jobId}: Pass 1+2 failed`, errCode);
+              await markFailed(String(errCode), 'PHASE2_PASS12_FAILED', { pipelineStage: 'phase_2' });
+              return { success: false, error: String(errCode) };
+            }
+          } catch (pipelineRunErrP2) {
+            const errMsg = pipelineRunErrP2 instanceof Error ? pipelineRunErrP2.message : String(pipelineRunErrP2);
+            console.error(`[phase_2] ${jobId}: Pass 1+2 pipeline threw`, errMsg);
+            await markFailed(errMsg, 'PHASE2_PASS12_FAILED', { pipelineStage: 'phase_2' });
+            return { success: false, error: errMsg };
+          } finally {
+            clearInterval(leaseRenewalLoopP2);
+          }
+
+          if (!capturedPass1) {
+            const capErr = 'phase_2: Pass 1 output not captured after pipeline run';
+            console.error(`[phase_2] ${jobId}: ${capErr}`);
+            await markFailed(capErr, 'PHASE2_PASS1_MISSING', { pipelineStage: 'phase_2' });
+            return { success: false, error: capErr };
+          }
+
+          const pass1ResultP2: SinglePassOutput = capturedPass1;
+          const pass2ResultP2: SinglePassOutput = capturedPass2 ?? capturedPass1; // Pass 2 present when ok=true
+          // Write pass12_handoff_v1
+          const handoffContentP2 = {
+            pass1Output: pass1ResultP2,
+            pass2Output: pass2ResultP2,
+            chunk_count: manuscriptChunksForPipeline?.length ?? 1,
+            captured_at: new Date().toISOString(),
+            schema_version: 'pass12_handoff_v1',
+          };
+          const handoffHashP2 = stableSourceHash(handoffContentP2);
+          await upsertEvaluationArtifact({
+            supabase,
+            jobId: String(job.id),
+            manuscriptId: Number(job.manuscript_id),
+            artifactType: 'pass12_handoff_v1',
+            content: handoffContentP2,
+            sourceHash: handoffHashP2,
+            artifactVersion: 'pass12_handoff_v1',
+          });
+
+          // Queue phase_3 — same pattern as the handoff-present branch
+          const p2HandoffNow = new Date().toISOString();
+          const { data: p2Phase3Row, error: p2Phase3Err } = await supabase
             .from('evaluation_jobs')
             .update({
               status: JOB_STATUS.QUEUED,
-              phase: PHASES.PHASE_1A,
+              phase: 'phase_3',
               phase_status: JOB_STATUS.QUEUED,
               claimed_by: null,
               claimed_at: null,
               lease_token: null,
               lease_until: null,
-              last_error: 'PHASE2_MISSING_PHASE1A_ARTIFACTS',
-              failure_code: 'PHASE2_MISSING_PHASE1A_ARTIFACTS',
-              updated_at: requeueNow,
+              updated_at: p2HandoffNow,
+              progress: {
+                ...progressState,
+                phase: 'phase_2',
+                phase_status: 'complete',
+                message: 'Pass 1+2 complete — handoff written, queued for Pass 3B synthesis',
+                phase2_completed_at: p2HandoffNow,
+              },
             })
-            .eq('id', job.id);
-          if (requeueErr) {
-            console.error(`[phase_2] ${jobId}: requeue to phase_1a failed`, requeueErr.message);
+            .eq('id', job.id)
+            .select('id, status, phase, phase_status')
+            .single();
+
+          if (p2Phase3Err) {
+            console.error(`[phase_2] ${jobId}: phase_3 queue transition FAILED`, p2Phase3Err.message);
+            return { success: false, error: p2Phase3Err.message };
           }
+          console.log(`[phase_2] ${jobId}: Pass 1+2 → handoff written → phase_3 queued`,
+            { status: p2Phase3Row?.status, phase: p2Phase3Row?.phase });
           return { success: true };
         }
         // Short-form: legacy fall-through to runPipeline below is permitted.
