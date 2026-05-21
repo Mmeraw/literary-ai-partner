@@ -54,7 +54,7 @@ describe('POST /api/internal/jobs kickoff behavior', () => {
         'content-type': 'application/json',
         authorization: 'Bearer service-role-key',
       },
-      body: JSON.stringify({ manuscript_id: 123, job_type: 'evaluate_full' }),
+      body: JSON.stringify({ manuscript_id: 123, job_type: 'evaluate_full', user_id: 'user-1' }),
     });
 
     const response = await POST(req);

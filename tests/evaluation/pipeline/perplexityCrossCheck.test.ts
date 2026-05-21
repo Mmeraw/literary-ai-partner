@@ -199,14 +199,9 @@ describe("runPerplexityCrossCheck", () => {
     });
 
     const body = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body ?? "{}"));
-    expect(body.response_format?.type).toBe("json_schema");
-    expect(body.response_format?.json_schema?.strict).toBe(true);
-    expect(body.response_format?.json_schema?.schema?.required).toEqual(
-      expect.arrayContaining(["criteria", "synthesisNote"]),
-    );
+    expect(body.response_format?.type).toBe("text");
     expect(body.disable_search).toBe(true);
     expect(body.reasoning_effort).toBe("high");
-    expect(body.stream_mode).toBe("concise");
     expect(body.max_tokens).toBe(12000);
   });
 

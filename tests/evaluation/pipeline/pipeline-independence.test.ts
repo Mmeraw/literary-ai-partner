@@ -5,7 +5,7 @@
  * Uses dependency injection to inspect call arguments without jest.mock.
  */
 
-import { describe, it, expect, jest, beforeEach } from "@jest/globals";
+import { describe, it, expect, jest, beforeEach, afterAll } from "@jest/globals";
 import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
 import { runPipeline } from "@/lib/evaluation/pipeline/runPipeline";
 import type {
@@ -105,11 +105,14 @@ let mockRunPass3: jest.Mock<(opts: RunPass3Options) => Promise<SynthesisOutput>>
 let mockRunQualityGate: jest.Mock<
   (synthesis: SynthesisOutput, pass1: SinglePassOutput, pass2: SinglePassOutput) => QualityGateResult
 >;
+const originalPerplexityApiKey = process.env.PERPLEXITY_API_KEY;
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 describe("Pipeline Independence Guarantee (spec §3.2)", () => {
   beforeEach(() => {
+    delete process.env.PERPLEXITY_API_KEY;
+
     mockRunPass1 = jest.fn<(opts: RunPass1Options) => Promise<SinglePassOutput>>();
     mockRunPass2 = jest.fn<(opts: RunPass2Options) => Promise<SinglePassOutput>>();
     mockRunPass3 = jest.fn<(opts: RunPass3Options) => Promise<SynthesisOutput>>();
@@ -121,6 +124,14 @@ describe("Pipeline Independence Guarantee (spec §3.2)", () => {
     mockRunPass2.mockResolvedValue(makeSinglePassOutput(2));
     mockRunPass3.mockResolvedValue(makeSynthesisOutput());
     mockRunQualityGate.mockReturnValue(makePassingQualityGate());
+  });
+
+  afterAll(() => {
+    if (originalPerplexityApiKey === undefined) {
+      delete process.env.PERPLEXITY_API_KEY;
+    } else {
+      process.env.PERPLEXITY_API_KEY = originalPerplexityApiKey;
+    }
   });
 
   it("runPass2 is never called with Pass 1 output in its options", async () => {

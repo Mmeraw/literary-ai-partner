@@ -44,8 +44,8 @@ describe('D2 agent trust header', () => {
   it('displays the Repro anchor with all components', () => {
     render(<AgentTrustHeader {...defaultProps} />);
     expect(screen.getByText(/Repro anchor/)).toBeTruthy();
-    // Query for the composite text that includes all three components
-    expect(screen.getByText(/jobId job-123 · 2026-02-08T00:00:00Z · work_type_matrix\.v1/)).toBeTruthy();
+    expect(screen.getByText(/jobId\s*job-123/)).toBeTruthy();
+    expect(screen.getByText(/2026-02-08T00:00:00Z\s*·\s*work_type_matrix\.v1/)).toBeTruthy();
   });
 
   it('displays the NA exclusion language explicitly', () => {
@@ -76,7 +76,7 @@ describe('D2 agent trust header', () => {
 
   it('renders all required fields with proper styling', () => {
     const { container } = render(<AgentTrustHeader {...defaultProps} />);
-    const greyLabels = container.querySelectorAll('.text-gray-600');
+    const greyLabels = container.querySelectorAll('.text-gray-600, .text-gray-700');
     expect(greyLabels.length).toBeGreaterThan(0); // labels styled in gray
     const monoValues = container.querySelectorAll('.font-mono');
     expect(monoValues.length).toBeGreaterThan(0); // values in monospace

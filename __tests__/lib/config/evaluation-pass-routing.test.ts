@@ -10,6 +10,7 @@
  *  - runPipeline includes resolved routing in ok:true result (audit traceability)
  */
 
+import { afterAll, beforeAll } from "@jest/globals";
 import { resolveEvaluationRuntimeConfig } from "@/lib/config/evaluationRuntimeConfig";
 import { runPipeline } from "@/lib/evaluation/pipeline/runPipeline";
 import type { SynthesisOutput, SinglePassOutput } from "@/lib/evaluation/pipeline/types";
@@ -28,6 +29,20 @@ const BASE_ENV = {
 function buildEnv(overrides: Record<string, string | undefined> = {}) {
   return { ...BASE_ENV, ...overrides } as Record<string, string | undefined>;
 }
+
+const originalPerplexityApiKey = process.env.PERPLEXITY_API_KEY;
+
+beforeAll(() => {
+  delete process.env.PERPLEXITY_API_KEY;
+});
+
+afterAll(() => {
+  if (originalPerplexityApiKey === undefined) {
+    delete process.env.PERPLEXITY_API_KEY;
+  } else {
+    process.env.PERPLEXITY_API_KEY = originalPerplexityApiKey;
+  }
+});
 
 describe("EvaluationRuntimeConfig routing section", () => {
   it("exposes resolved pass models in routing property", () => {
