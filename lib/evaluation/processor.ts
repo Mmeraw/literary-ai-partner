@@ -3965,7 +3965,14 @@ export async function processEvaluationJob(
             captured_at: new Date().toISOString(),
             schema_version: 'pass12_handoff_v1',
           };
-          const handoffHashP2 = stableSourceHash(handoffContentP2);
+          const handoffHashP2 = stableSourceHash({
+            manuscriptId: Number(manuscriptWithContent.id),
+            jobId: String(job.id),
+            userId: String(manuscriptWithContent.user_id ?? ''),
+            manuscriptText: manuscriptWithContent.content || '',
+            promptVersion: 'pass12_handoff_v1',
+            model: getCanonicalPipelineModel(openAiModel),
+          });
           await upsertEvaluationArtifact({
             supabase,
             jobId: String(job.id),
