@@ -2319,31 +2319,40 @@ export async function processEvaluationJob(
     // NOTE: isPhase1CompleteHandoff and isPhase1PreClaimed removed — phase_1 is dead.
     // All new jobs start at phase_1a. No job will arrive here with phase='phase_1'.
 
+    // job.phase (the DB column) is the AUTHORITATIVE source of truth for which
+    // phase to execute. progress.phase is a JSONB shadow that can lag the column
+    // — e.g. after an admin reset that clears job.phase=phase_1a but leaves
+    // progress.phase='phase_3' from the prior run. Routing on progress.phase
+    // caused reset jobs to skip ahead to phase_3 and fail with PHASE3_MISSING_HANDOFF.
     const isPhase1aPreClaimed =
       job.status === 'running' &&
       hasCanonicalPreClaimOwnership &&
       hasLivePreClaimLease &&
-      (job.phase === 'phase_1a' || progress.phase === 'phase_1a') &&
+      job.phase === 'phase_1a' &&
       (job.phase_status === 'running' || progress.phase_status === 'running');
 
     const isPhase2PreClaimed =
       job.status === 'running' &&
       hasCanonicalPreClaimOwnership &&
       hasLivePreClaimLease &&
-      (job.phase === 'phase_2' || progress.phase === 'phase_2') &&
+      job.phase === 'phase_2' &&
       (job.phase_status === 'running' || progress.phase_status === 'running');
 
     const isPhase3PreClaimed =
       job.status === 'running' &&
       hasCanonicalPreClaimOwnership &&
       hasLivePreClaimLease &&
-      (job.phase === 'phase_3' || progress.phase === 'phase_3') &&
+      job.phase === 'phase_3' &&
       (job.phase_status === 'running' || progress.phase_status === 'running');
 
+    // Dispatch on job.phase, not on the precedence of pre-claim flags. With the
+    // flags now keyed strictly on job.phase, at most one is true, so the chain
+    // below is equivalent — but the explicit job.phase switch documents intent
+    // and makes the single-source-of-truth contract impossible to miss.
     const executionPhase: 'phase_1a' | 'phase_2' | 'phase_3' =
-      isPhase3PreClaimed ? 'phase_3' :
-      isPhase2PreClaimed ? 'phase_2' :
-      'phase_1a'; // default — all new jobs enter at phase_1a
+      job.phase === 'phase_3' ? 'phase_3' :
+      job.phase === 'phase_2' ? 'phase_2' :
+      'phase_1a'; // job.phase === 'phase_1a' (or legacy 'phase_1' which is dead)
 
     // Hard guard: queued jobs must be atomically claimed before direct processing.
     // This function is execution-only for already-claimed running rows.
