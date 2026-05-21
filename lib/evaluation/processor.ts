@@ -1599,6 +1599,15 @@ export async function failStaleRunningJobs(): Promise<{
       .eq('artifact_type', 'pass3_preflight_draft_v1');
     const preflightJobIds = new Set((preflightArtifacts ?? []).map((a) => a.job_id));
 
+    // Chunk cache artifacts for frozen phase_1a jobs — chunk_cache present but
+    // ledger missing means ledger can be rebuilt from cache without OpenAI calls.
+    const { data: frozenChunkCacheArtifacts } = await supabase
+      .from('evaluation_artifacts')
+      .select('job_id')
+      .in('job_id', frozenIds)
+      .eq('artifact_type', 'pass1a_chunk_cache_v1');
+    const chunkCacheJobIds = new Set((frozenChunkCacheArtifacts ?? []).map((a) => a.job_id));
+
     // Batch-fetch evaluation_result_v2 (Pass 3B synthesis) artifacts for GUARD D
     // logging only. Under the new contract, any handoff-present rescue targets
     // phase_3 (which owns both Pass 3B synthesis and WAVE).
@@ -1716,12 +1725,14 @@ export async function failStaleRunningJobs(): Promise<{
       //   Condition 1: ledger + preflight both present → rescue to phase_2
       //   Condition 2: ledger present, preflight missing + >400s elapsed → rescue
       //                to phase_2 (preflight degraded)
-      //   Condition 3: neither artifact present AND no handoff → keep waiting,
-      //                BUT if >600s elapsed, mark failed (terminal — no artifacts
-      //                ever written, job can't self-rescue)
+      //   Condition 2b: chunk cache present, ledger missing → rescue to phase_1a
+      //                 (runner will rebuild ledger from cache, zero OpenAI calls)
+      //   Condition 3: neither artifact present AND no handoff. If >600s, terminal
+      //                UNLESS chunk cache exists — then rescue to phase_1a.
       if (currentPhase === 'phase_1a') {
-        const hasLedger    = ledgerJobIds.has(row.id);
-        const hasPreflight = preflightJobIds.has(row.id);
+        const hasLedger      = ledgerJobIds.has(row.id);
+        const hasPreflight   = preflightJobIds.has(row.id);
+        const hasChunkCache  = chunkCacheJobIds.has(row.id);
         const phase1aStartedAt = progress.phase1a_started_at as string | undefined;
         const elapsedSincePhase1aStartMs = phase1aStartedAt
           ? nowMs - new Date(phase1aStartedAt).getTime()
@@ -1751,6 +1762,21 @@ export async function failStaleRunningJobs(): Promise<{
           continue;
         }
 
+        // ── Condition 2b: chunk cache present, ledger missing → rebuild ledger ──
+        // Rescue back to phase_1a so the runner reads the cache, calls
+        // reduceCharacterEvidence + buildCharacterLedgerV2, writes the ledger,
+        // then queues phase_2 — zero OpenAI calls needed.
+        if (hasChunkCache && !hasLedger) {
+          rescueEntries.push({
+            id: row.id,
+            manuscriptId: (row.manuscript_id as number | null) ?? 0,
+            reason: 'phase_1a_chunk_cache_ready_ledger_missing',
+            checkpoint: 'pass1a_chunk_cache_v1',
+            targetPhase: 'phase_1a',
+          });
+          continue;
+        }
+
         // ── Condition 3: neither artifact + no handoff. If >600s, terminal. ──
         if (elapsedSincePhase1aStartMs > PHASE1A_HARD_TIMEOUT_MS) {
           console.warn(`[watchdog] phase_1a hard timeout: no artifacts after ${Math.round(elapsedSincePhase1aStartMs / 1000)}s — failing job ${row.id}`);
@@ -1762,7 +1788,7 @@ export async function failStaleRunningJobs(): Promise<{
         }
 
         // Not enough artifacts yet — let the job keep running
-        console.log(`[Watchdog] ${row.id}: phase_1a frozen but artifacts not ready — no rescue (hasLedger=${hasLedger} hasPreflight=${hasPreflight} elapsed=${Math.round(elapsedSincePhase1aStartMs / 1000)}s)`);
+        console.log(`[Watchdog] ${row.id}: phase_1a frozen but artifacts not ready — no rescue (hasLedger=${hasLedger} hasPreflight=${hasPreflight} hasChunkCache=${hasChunkCache} elapsed=${Math.round(elapsedSincePhase1aStartMs / 1000)}s)`);
         continue;
       }
 
@@ -1807,8 +1833,11 @@ export async function failStaleRunningJobs(): Promise<{
               //   - phase_1a frozen → rescue to phase_2 (Pass 3 will re-run Pass 1A if ledger missing)
           //   - phase_2+ frozen → rescue to phase_2 (safe retry)
           const currentPhaseForRescue = (currentProgress.phase as string | undefined) ?? 'phase_1a';
+          // Default rescue target:
+          //   chunk_cache checkpoint → back to phase_1a (ledger rebuild, no OpenAI)
+          //   anything else in phase_1a, or phase_2+ → phase_2
           const rescueTargetPhase = entry.targetPhase
-            ?? (currentPhaseForRescue === 'phase_1a' ? 'phase_2' : 'phase_2');
+            ?? (entry.checkpoint === 'pass1a_chunk_cache_v1' ? 'phase_1a' : 'phase_2');
 
           const { data: updateResult, error: updateErr } = await supabase
             .from('evaluation_jobs')
@@ -2040,7 +2069,15 @@ export async function failStaleRunningJobs(): Promise<{
           : {};
         const currentAttempts = (currentRow?.attempt_count as number | null) ?? 0;
         const currentPhaseForRescue = (currentProgress.phase as string | undefined) ?? 'phase_1a';
-        const rescueTargetPhase = currentPhaseForRescue === 'phase_1a' ? 'phase_2' : 'phase_2';
+        // If job is stuck in phase_1a with chunk cache but no ledger, rescue back
+        // to phase_1a so the runner can rebuild the ledger from cache (zero OpenAI calls).
+        // All other cases rescue to phase_2.
+        const hasLedgerForStaleJob  = staleLedgerJobIds.has(id);
+        const hasCacheForStaleJob   = staleChunkCacheJobIds.has(id);
+        const rescueTargetPhase =
+          (currentPhaseForRescue === 'phase_1a' && hasCacheForStaleJob && !hasLedgerForStaleJob)
+            ? 'phase_1a'
+            : 'phase_2';
 
         const { error: rescueErr } = await supabase
           .from('evaluation_jobs')
