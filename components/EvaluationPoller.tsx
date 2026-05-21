@@ -9,61 +9,28 @@ import {
   useFailedJobRecovery,
 } from './evaluation/FailedJobRecovery';
 
-// How many ms between each animated +1% tick on the display progress.
-// At 400ms/tick the bar takes ~40 s to traverse 0→100 at full speed.
 const ANIMATION_TICK_MS = 400;
-
-// When the backend holds at a coarse checkpoint such as 33%, continue the
-// browser-only display slowly through safe non-terminal stages so the UI does
-// not appear frozen. Completion remains backend-gated and never renders 100%
-// until the job status is actually complete.
 const RUNNING_SOFT_CEILING = 79;
 const RUNNING_SOFT_FORWARD_TICK_MS = 1200;
-
-// Once the backend marks the job complete, keep animating the client-only
-// progress display to 100 instead of snapping. This lets users see the final
-// stage labels even when the backend jumps directly from ~33% to complete.
 const COMPLETE_ANIMATION_TICK_MS = 200;
-
-// Keep running jobs below near-complete UI bands until final gates pass and
-// the backend marks the job as complete.
 const RUNNING_MAX_DISPLAY_PROGRESS = 79;
 
 function getInitialDisplayProgress(job: JobState | null): number {
   if (!job) return 0;
   if (job.status === 'complete') return 100;
   if (job.status === 'running') {
-    // Preserve server-reported progress on first paint so refreshes do not
-    // visually jump backwards to 0% and re-animate from scratch.
-    // While status is still running, keep display progress below near-complete
-    // bands so we do not imply publishable readiness before final QA passes.
     return Math.max(0, Math.min(RUNNING_MAX_DISPLAY_PROGRESS, Math.round(job.progress)));
   }
   return 0;
 }
 
-/**
- * EvaluationPoller
- *
- * Polling component for GET /api/jobs/[jobId].
- * Fetches job state every 1-2 seconds and renders progress.
- *
- * Props:
- *   - jobId: job UUID to poll
- *   - userId: x-user-id header (for dev/test)
- *   - onComplete: callback on terminal state (complete, failed)
- */
-
 export interface JobState {
   id: string;
   status: 'queued' | 'running' | 'complete' | 'failed';
-  progress: number; // 0-100
+  progress: number;
   created_at: string;
   updated_at: string;
   last_error?: string;
-  // Canonical pipeline-stage fields (additive; may be absent on older API responses).
-  // When present these are authoritative for stage label resolution and are decoupled
-  // from the smoothly-animated visual progress bar.
   phase?: 'phase_0' | 'phase_1a' | 'phase_2' | 'phase_3' | null;
   phase_status?: 'queued' | 'running' | 'complete' | 'failed' | null;
   cross_check_status?:
@@ -76,11 +43,6 @@ export interface JobState {
     | 'cross_check_completed'
     | 'skipped'
     | null;
-  // Per-stage timestamps (additive; absent on older API responses).
-  // Consumed by the truthful, stage-weighted progress display. Optional so
-  // the type compiles against pre-#509 server responses; the display module
-  // falls back to an indeterminate shimmer when a stage's timestamp is
-  // unavailable, rather than inventing fake forward motion.
   phase1_started_at?: string | null;
   phase1_completed_at?: string | null;
   phase2_started_at?: string | null;
@@ -94,7 +56,7 @@ interface PollerProps {
   initialJob?: JobState | null;
   userId?: string;
   onComplete?: (job: JobState, isSuccess: boolean) => void;
-  refreshInterval?: number; // ms, default 500
+  refreshInterval?: number;
   redirectOnComplete?: boolean;
   redirectDelayMs?: number;
   refreshOnComplete?: boolean;
@@ -114,9 +76,6 @@ export function EvaluationPoller({
   const [job, setJob] = useState<JobState | null>(initialJob);
   const [error, setError] = useState<string | null>(null);
 
-  // PR-E / PR-595: Failed-job recovery — checkpoint detection + resume button.
-  // The hook reads job.progress to derive checkpoint info without an extra
-  // network round-trip. The actual resume is POSTed to /api/jobs/[jobId]/resume.
   const jobProgressAsRecord =
     job?.status === 'failed' && job != null
       ? (job as unknown as { progress?: Record<string, unknown> }).progress ?? null
@@ -126,9 +85,6 @@ export function EvaluationPoller({
       jobId,
       job?.status ?? null,
       jobProgressAsRecord,
-      // After a successful resume the poller needs to restart. Reset isPolling
-      // by triggering a re-fetch — the hook calls onResumed which we use to
-      // kick off a fresh poll cycle by resetting the job state to null briefly.
       () => {
         setJob((prev) =>
           prev ? { ...prev, status: 'queued' } : prev
@@ -140,9 +96,6 @@ export function EvaluationPoller({
   const [pollCount, setPollCount] = useState(0);
   const [nextPollDelay, setNextPollDelay] = useState(refreshInterval);
   const [pendingRedirectDelayMs, setPendingRedirectDelayMs] = useState<number | null>(null);
-
-  // Animated display progress: ticks through user-safe display stages while
-  // backend state remains authoritative for terminal completion/failure.
   const [displayProgress, setDisplayProgress] = useState<number>(getInitialDisplayProgress(initialJob));
 
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -156,10 +109,6 @@ export function EvaluationPoller({
   const networkErrorCountRef = useRef(0);
   const redirectedRef = useRef(false);
 
-  // Animate displayProgress toward the current display target, one tick at a time.
-  // Running jobs can soft-forward past coarse backend checkpoints up to a safe
-  // non-terminal ceiling so the UI does not appear frozen at ~35%. Complete jobs
-  // continue to 100 client-side so users do not see a 35% → 100% snap.
   useEffect(() => {
     if (!job || job.status === 'failed') return;
 
@@ -190,9 +139,6 @@ export function EvaluationPoller({
     return () => clearInterval(interval);
   }, [displayProgress, job]);
 
-  // For report pages that need a server refresh after completion, wait until the
-  // client-side animation has reached 100. Otherwise the page refresh can replace
-  // the in-progress card immediately and visually recreate the snap-to-complete bug.
   useEffect(() => {
     if (
       completionRefreshArmedRef.current &&
@@ -213,8 +159,6 @@ export function EvaluationPoller({
       const unchangedDelayMultiplier =
         unchangedCount >= 10 ? 3 : unchangedCount >= 5 ? 2 : unchangedCount >= 2 ? 1.5 : 1;
       const networkDelayMultiplier = networkErrorCount >= 2 ? 2 : 1;
-      // Keep completion visibility snappy: avoid long drift on unchanged snapshots.
-      // This controls UI freshness, not backend pipeline runtime.
       return Math.min(base * unchangedDelayMultiplier * networkDelayMultiplier, 1500);
     },
     [refreshInterval]
@@ -224,12 +168,10 @@ export function EvaluationPoller({
     if (typeof redirectDelayMs === 'number' && Number.isFinite(redirectDelayMs)) {
       return Math.max(0, Math.min(redirectDelayMs, 15000));
     }
-
     const fromEnv = Number(process.env.NEXT_PUBLIC_EVAL_COMPLETE_REDIRECT_DELAY_MS ?? '800');
     if (Number.isFinite(fromEnv)) {
       return Math.max(0, Math.min(fromEnv, 15000));
     }
-
     return 800;
   })();
 
@@ -263,7 +205,6 @@ export function EvaluationPoller({
     [isPolling]
   );
 
-  // Fetch job status
   const fetchJob = useCallback(async () => {
     try {
       const headers: Record<string, string> = {};
@@ -284,14 +225,12 @@ export function EvaluationPoller({
             ? data.error
             : `Failed to fetch job (HTTP ${res.status})`;
 
-        // Treat auth/not-found as terminal fetch failures for this page load.
         if (res.status === 401 || res.status === 404) {
           setError(serverError);
           setIsPolling(false);
           return;
         }
 
-        // Non-terminal API errors: continue polling with temporary backoff.
         networkErrorCountRef.current += 1;
         setTransientError(serverError);
         scheduleNextPoll(getAdaptiveDelay(unchangedCountRef.current, networkErrorCountRef.current));
@@ -329,7 +268,6 @@ export function EvaluationPoller({
 
         setError(null);
 
-        // Stop polling on terminal state
         if (data.job.status === 'complete' || data.job.status === 'failed') {
           setIsPolling(false);
 
@@ -422,7 +360,6 @@ export function EvaluationPoller({
     fetchJobRef.current = fetchJob;
   }, [fetchJob]);
 
-  // Poll loop with adaptive backoff and safe retry behavior.
   useEffect(() => {
     if (!isPolling) {
       if (timeoutRef.current) {
@@ -478,23 +415,40 @@ export function EvaluationPoller({
   const formatUserSafeError = (value: string) =>
     value.replace(/[\u0000-\u001F\u007F]/g, '').trim().slice(0, 600);
 
-  // ========================================
-  // Render
-  // ========================================
+  // ── Design tokens (inline, matches revise workbench) ──
+  const ink       = '#0D0A05';
+  const surface   = '#12100B';
+  const surfaceRaised = '#1C160E';
+  const cream     = '#F5EFE0';
+  const cream2    = '#C8BEA8';
+  const gold      = '#C8A96E';
+  const dim       = '#6B6560';
+  const border    = 'rgba(216,209,192,0.14)';
+  const borderStrong = 'rgba(216,209,192,0.28)';
+  const successColor = '#7FA36B';
+  const dangerColor  = '#A7472A';
+
+  // ── Render ──
 
   if (error && !job) {
     return (
-      <div className="p-4 bg-red-50 border border-red-200 rounded">
-        <p className="text-sm font-semibold text-red-800">Error</p>
-        <p className="text-sm text-red-700 mt-1">{error}</p>
+      <div
+        className="rounded-xl p-4"
+        style={{ background: 'rgba(122,43,26,0.18)', border: `1px solid rgba(167,71,42,0.45)` }}
+      >
+        <p className="text-sm font-semibold" style={{ color: cream }}>Error</p>
+        <p className="text-sm mt-1" style={{ color: cream2 }}>{error}</p>
       </div>
     );
   }
 
   if (!job) {
     return (
-      <div className="p-4 bg-gray-50 border border-gray-200 rounded">
-        <p className="text-sm text-gray-600">Loading job status...</p>
+      <div
+        className="rounded-xl p-4"
+        style={{ background: surfaceRaised, border: `1px solid ${border}` }}
+      >
+        <p className="text-sm" style={{ color: dim }}>Loading job status…</p>
       </div>
     );
   }
@@ -502,39 +456,46 @@ export function EvaluationPoller({
   const isCompletingAnimation = job.status === 'complete' && displayProgress < 100;
 
   const statusLabel = {
-    queued: 'Waiting in queue',
-    running: 'In progress',
-    complete: isCompletingAnimation ? 'In progress' : '✅ Report ready',
-    failed: '⚠ Needs attention',
+    queued:   'Waiting in queue',
+    running:  'In progress',
+    complete: isCompletingAnimation ? 'In progress' : '✓ Report ready',
+    failed:   '⚠ Needs attention',
   }[job.status];
 
   const statusColor = {
-    queued: 'text-gray-600',
-    running: 'text-blue-600',
-    complete: isCompletingAnimation ? 'text-blue-600' : 'text-green-600',
-    failed: 'text-red-600',
+    queued:   gold,
+    running:  gold,
+    complete: isCompletingAnimation ? gold : successColor,
+    failed:   '#e07a5f',
   }[job.status];
 
+  // Progress bar fill color
+  const barColor = job.status === 'failed' ? dangerColor : job.status === 'complete' && !isCompletingAnimation ? successColor : gold;
+
   return (
-    <div className="p-4 border border-gray-200 rounded bg-white">
-      <div className="space-y-4">
-        {/* Header — poller is the single source of truth for live status */}
+    <div
+      className="rounded-xl p-5"
+      style={{
+        background: surfaceRaised,
+        border: `1px solid ${border}`,
+        fontFamily: "'Switzer', system-ui, sans-serif",
+      }}
+    >
+      <div className="space-y-5">
+        {/* Header */}
         <div className="flex items-center justify-between">
-          <h3 className="text-lg font-semibold text-gray-900">Evaluation Status</h3>
-          <p className={`text-lg font-semibold ${statusColor}`}>{statusLabel}</p>
+          <h3
+            className="text-lg font-semibold"
+            style={{ color: cream, fontFamily: "'Instrument Serif', Georgia, serif" }}
+          >
+            Evaluation Status
+          </h3>
+          <p className="text-sm font-semibold" style={{ color: statusColor }}>{statusLabel}</p>
         </div>
 
-                {/* Progress Bar */}
+        {/* Progress Bar */}
         {(() => {
-          // Use the smoothly animated displayProgress so the bar traverses
-          // every stage label at a legible pace regardless of how coarse the
-          // backend progress checkpoints are. While completion animation is still
-          // in flight, render through the running-stage label map instead of the
-          // terminal complete display, which is intentionally fixed at 100%.
           const displayStatus = isCompletingAnimation ? 'running' : job.status;
-          // Pass authoritative phase fields through so the stage label reflects the
-          // real pipeline state, while the visual percentage continues to use the
-          // smoothly-animated displayProgress for UX continuity.
           const pd = getProgressDisplay({
             status: displayStatus,
             phase: job.phase ?? null,
@@ -552,33 +513,38 @@ export function EvaluationPoller({
           return (
             <div className="space-y-2">
               <div className="flex items-start justify-between gap-4">
-                <p className="text-sm font-medium text-gray-700">{pd.label}</p>
-                <div className="flex flex-col items-end gap-2 text-right">
-                  <p className="text-sm text-gray-600">{pd.valueLabel}</p>
-                </div>
+                <p className="text-sm font-medium" style={{ color: cream2 }}>{pd.label}</p>
+                <p className="text-sm" style={{ color: dim }}>{pd.valueLabel}</p>
               </div>
-              <div className="w-full bg-gray-200 rounded-full h-2">
+              {/* Track */}
+              <div
+                className="w-full rounded-full h-1.5"
+                style={{ background: 'rgba(216,209,192,0.12)' }}
+              >
                 <div
-                  className={`h-2 rounded-full transition-all duration-300 ${pd.indeterminate ? 'bg-gray-400 animate-pulse' : 'bg-blue-600'}`}
-                  style={{ width: pd.indeterminate ? '100%' : `${pd.percentage}%` }}
+                  className={`h-1.5 rounded-full transition-all duration-300 ${pd.indeterminate ? 'animate-pulse' : ''}`}
+                  style={{
+                    width: pd.indeterminate ? '100%' : `${pd.percentage}%`,
+                    background: pd.indeterminate ? 'rgba(200,169,110,0.4)' : barColor,
+                  }}
                 />
               </div>
-              <p className="text-xs text-gray-500">{pd.helperText}</p>
+              <p className="text-xs" style={{ color: dim }}>{pd.helperText}</p>
             </div>
           );
         })()}
 
-        {/* Timestamps */}
-        <div className="grid grid-cols-1 gap-4 text-sm sm:grid-cols-2 lg:grid-cols-3">
+        {/* Timestamps + Cancel */}
+        <div className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2 lg:grid-cols-3">
           <div>
-            <p className="text-gray-600">Created</p>
-            <p className="text-gray-900 font-mono">
+            <p className="text-xs uppercase tracking-wide mb-0.5" style={{ color: dim }}>Created</p>
+            <p className="font-mono text-xs" style={{ color: cream2 }}>
               {new Date(job.created_at).toLocaleString()}
             </p>
           </div>
           <div>
-            <p className="text-gray-600">Updated</p>
-            <p className="text-gray-900 font-mono">
+            <p className="text-xs uppercase tracking-wide mb-0.5" style={{ color: dim }}>Updated</p>
+            <p className="font-mono text-xs" style={{ color: cream2 }}>
               {new Date(job.updated_at).toLocaleString()}
             </p>
           </div>
@@ -587,20 +553,24 @@ export function EvaluationPoller({
               <CancelEvaluationButton
                 jobId={jobId}
                 label="Cancel evaluation"
-                buttonClassName="inline-flex items-center rounded-md border border-red-300 bg-white px-3 py-2 text-xs font-medium text-red-700 shadow-sm hover:bg-red-50"
               />
             </div>
           )}
         </div>
 
-        {/* Failed-job recovery: checkpoint-aware resume button */}
+        {/* Failed-job recovery */}
         {job.status === 'failed' && (
           <div className="space-y-3">
-            {/* Surface the raw error detail above the recovery panel for transparency */}
             {job.last_error && (
-              <div className="p-3 bg-red-50 border border-red-200 rounded">
-                <p className="text-xs font-semibold text-red-800 uppercase">Error</p>
-                <p className="text-sm text-red-700 mt-2">{formatUserSafeError(job.last_error)}</p>
+              <div
+                className="p-3 rounded-lg"
+                style={{
+                  background: 'rgba(122,43,26,0.18)',
+                  border: '1px solid rgba(167,71,42,0.4)',
+                }}
+              >
+                <p className="text-xs font-semibold uppercase tracking-wide mb-1" style={{ color: '#e07a5f' }}>Error</p>
+                <p className="text-sm" style={{ color: cream2 }}>{formatUserSafeError(job.last_error)}</p>
               </div>
             )}
             <FailedJobRecovery
@@ -614,14 +584,22 @@ export function EvaluationPoller({
           </div>
         )}
 
-        {/* Transient fetch errors should not be confused with terminal job failure */}
+        {/* Transient fetch errors */}
         {transientError && isPolling && (
-          <div className="p-3 bg-amber-50 border border-amber-200 rounded">
-            <p className="text-xs font-semibold text-amber-800 uppercase">Temporary connection issue</p>
-            <p className="text-sm text-amber-700 mt-2">
+          <div
+            className="p-3 rounded-lg"
+            style={{
+              background: 'rgba(200,169,110,0.08)',
+              border: '1px solid rgba(200,169,110,0.25)',
+            }}
+          >
+            <p className="text-xs font-semibold uppercase tracking-wide mb-1" style={{ color: gold }}>
+              Temporary connection issue
+            </p>
+            <p className="text-sm" style={{ color: cream2 }}>
               {formatUserSafeError(transientError)}
             </p>
-            <p className="text-xs text-amber-700 mt-2">
+            <p className="text-xs mt-1" style={{ color: dim }}>
               Retrying automatically in {Math.ceil(nextPollDelay / 1000)}s.
             </p>
           </div>
@@ -629,8 +607,14 @@ export function EvaluationPoller({
 
         {/* Completion CTA before auto-redirect */}
         {job.status === 'complete' && !isCompletingAnimation && redirectOnComplete && !redirectedRef.current && (
-          <div className="p-3 bg-green-50 border border-green-200 rounded">
-            <p className="text-sm text-green-800">
+          <div
+            className="p-3 rounded-lg"
+            style={{
+              background: 'rgba(127,163,107,0.1)',
+              border: '1px solid rgba(127,163,107,0.35)',
+            }}
+          >
+            <p className="text-sm" style={{ color: cream2 }}>
               Report ready.
               {pendingRedirectDelayMs != null
                 ? ` Redirecting automatically in ${Math.ceil(pendingRedirectDelayMs / 1000)}s.`
@@ -639,16 +623,24 @@ export function EvaluationPoller({
             <button
               type="button"
               onClick={navigateToReport}
-              className="mt-2 inline-flex rounded-md border border-green-300 bg-white px-3 py-1.5 text-xs font-medium text-green-800 hover:bg-green-100"
+              className="mt-2 inline-flex rounded-md px-3 py-1.5 text-xs font-medium transition-colors"
+              style={{
+                background: 'rgba(127,163,107,0.18)',
+                border: '1px solid rgba(127,163,107,0.45)',
+                color: cream,
+              }}
             >
               View report now
             </button>
           </div>
         )}
 
-        {/* Poll Metadata (dev only) */}
+        {/* Dev metadata */}
         {process.env.NODE_ENV === 'development' && (
-          <div className="text-xs text-gray-500 pt-2 border-t border-gray-200">
+          <div
+            className="text-xs pt-2"
+            style={{ borderTop: `1px solid ${border}`, color: dim }}
+          >
             <p>Polling: {isPolling ? 'active' : 'stopped'}</p>
             <p>Polls: {pollCount}</p>
             <p>Next delay: {nextPollDelay}ms</p>
