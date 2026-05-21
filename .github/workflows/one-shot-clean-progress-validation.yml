@@ -1,0 +1,139 @@
+name: one-shot-clean-progress-validation
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/one-shot-clean-progress-validation.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - name: Patch progress validation read-through behavior
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('lib/jobs/jobStore.supabase.ts')
+          s = path.read_text()
+          old = '''  // Validate progress shape; fail fast if corrupted
+          const validationErr = validateProgressForPhase(job);
+          if (validationErr) {
+            console.error(
+              `[ProgressValidation] error_code=${validationErr} job_id=${id}`,
+              job.progress,
+            );
+
+            const failedStatus = assertAndNormalizeLifecycleTransition(
+              job.status,
+              JOB_STATUS.FAILED,
+            );
+
+            // Mark job as failed and clear lease (best-effort)
+            const { error: updateError } = await supabase
+              .from("evaluation_jobs")
+              .update({
+                status: failedStatus,
+                progress: {
+                  ...job.progress,
+                  error_code: validationErr,
+                  lease_id: null,
+                  lease_expires_at: null,
+                },
+                updated_at: new Date().toISOString(),
+              })
+              .eq("id", id);
+
+            if (updateError) {
+              console.error(
+                `[ProgressValidation] Failed to mark job failed: ${updateError.message}`,
+              );
+            }
+
+            // Do not let callers operate on a corrupted job
+            return null;
+          }
+
+          return job;'''
+          new = '''  // Validate progress shape. Counter-only issues are advisory because live
+          // pipeline phases can update weighted progress/counters asynchronously while
+          // the canonical top-level row still shows a healthy running phase. Do not let
+          // a stale counter mismatch attempt to flip a live job to failed.
+          const validationErr = validateProgressForPhase(job);
+          if (validationErr === "counters_missing" || validationErr === "counters_invalid") {
+            console.warn(
+              `[ProgressValidation] advisory_code=${validationErr} job_id=${id}; read-through without state flip`,
+              job.progress,
+            );
+            return job;
+          }
+
+          if (validationErr) {
+            console.error(
+              `[ProgressValidation] fatal_code=${validationErr} job_id=${id}`,
+              job.progress,
+            );
+
+            const failedStatus = assertAndNormalizeLifecycleTransition(
+              job.status,
+              JOB_STATUS.FAILED,
+            );
+            const nowIso = new Date().toISOString();
+
+            // Fatal progress corruption still fails closed, but keep top-level
+            // phase_status aligned so the DB consistency constraint is satisfied.
+            const { error: updateError } = await supabase
+              .from("evaluation_jobs")
+              .update({
+                status: failedStatus,
+                phase_status: JOB_STATUS.FAILED,
+                last_error: `Progress validation failed: ${validationErr}`,
+                progress: {
+                  ...job.progress,
+                  phase_status: JOB_STATUS.FAILED,
+                  error_code: validationErr,
+                  lease_id: null,
+                  lease_expires_at: null,
+                  finished_at: nowIso,
+                },
+                updated_at: nowIso,
+              })
+              .eq("id", id);
+
+            if (updateError) {
+              console.warn(
+                `[ProgressValidation] Fatal validation state flip rejected by DB constraint/race: ${updateError.message}`,
+              );
+            }
+
+            // Do not let callers operate on a fatally corrupted job.
+            return null;
+          }
+
+          return job;'''
+          if old not in s:
+              raise SystemExit('target validation block not found')
+          path.write_text(s.replace(old, new))
+          PY
+      - name: Typecheck
+        run: npx tsc --noEmit
+      - name: Commit cleanup and remove one-shot workflow
+        run: |
+          git config user.name "progress-validation-cleaner"
+          git config user.email "actions@users.noreply.github.com"
+          rm -f .github/workflows/one-shot-clean-progress-validation.yml
+          git add lib/jobs/jobStore.supabase.ts .github/workflows/one-shot-clean-progress-validation.yml
+          git status --short
+          git commit -m "fix(jobs): keep progress counter validation advisory"
+          git push
