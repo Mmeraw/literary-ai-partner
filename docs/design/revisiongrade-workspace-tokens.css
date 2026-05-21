@@ -1,0 +1,43 @@
+:root {
+  /* RevisionGrade shell */
+  --rg-shell-bg: #1A1410;
+  --rg-shell-surface: #211C16;
+  --rg-gold: #B8922A;
+  --rg-oxblood: #8B2E2E;
+  --rg-shell-text: #E8DFD0;
+  --rg-shell-muted: #9A8A78;
+
+  /* RevisionGrade workspace canvas */
+  --rg-ws-bg: #F5F0E8;
+  --rg-ws-surface: #FAF7F2;
+  --rg-ws-surface-alt: #FFFDF9;
+  --rg-ws-border: #D9D0C3;
+  --rg-ws-border-lt: #EAE4DA;
+  --rg-ws-text: #1C1814;
+  --rg-ws-text-muted: #5C5549;
+  --rg-ws-text-faint: #9A9087;
+  --rg-ws-accent: #8B2E2E;
+  --rg-ws-accent-hover: #6B2020;
+  --rg-ws-gold: #B8922A;
+  --rg-ws-gold-tint: #F5E9C8;
+
+  /* RevisionGrade semantic states */
+  --rg-success: #3A6B2A;
+  --rg-success-bg: #EBF4E6;
+  --rg-warning: #8B5E1A;
+  --rg-warning-bg: #FBF1DC;
+  --rg-error: #8B2020;
+  --rg-error-bg: #F9E8E8;
+  --rg-flag: #4A3A8A;
+  --rg-flag-bg: #EEEAF9;
+}
+
+.workspace-dark {
+  --rg-ws-bg: #1C1814;
+  --rg-ws-surface: #231F1A;
+  --rg-ws-surface-alt: #2A2520;
+  --rg-ws-border: #3D362E;
+  --rg-ws-text: #E8DFD0;
+  --rg-ws-text-muted: #9A8A78;
+  --rg-ws-text-faint: #5C5045;
+}
