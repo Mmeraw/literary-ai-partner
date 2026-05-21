@@ -130,6 +130,7 @@ import { pipelineLog } from '@/lib/evaluation/pipeline/pipelineLogger';
 import { createRevisionSession } from '@/lib/revision/sessions';
 import { executeWaveLayer } from '@/lib/pipeline/wave-execution-layer';
 import { executeWaveModules } from '@/lib/revision/wave-executor';
+import { getPhaseStartTimestamps, type PhaseName } from '@/lib/evaluation/phaseTimestamps';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // WAVE Phase 3 constants
@@ -2420,21 +2421,14 @@ export async function processEvaluationJob(
       }
 
       const now = new Date().toISOString();
-      const stageTimestampPatch: Record<string, unknown> = {};
 
-      if (phase === 'phase_1a' && !progressState.phase1a_started_at) {
-        stageTimestampPatch.phase1_started_at = now;  // DB column is phase1_started_at
-      }
-      if (phase === 'phase_2' && !progressState.phase2_started_at) {
-        stageTimestampPatch.phase2_started_at = now;
-      }
-      if (phase === 'phase_2' && !progressState.phase1_completed_at) {
-        stageTimestampPatch.phase1_completed_at = now;
-      }
-      // phase_3 has no dedicated DB timestamp column — tracked in progress JSONB only
-      if (phase === 'phase_3') {
-        progressState.phase3_started_at = now;
-      }
+      // Phase_3 start is JSONB-only (no DB column exists)
+      if (phase === 'phase_3') progressState.phase3_started_at = now;
+
+      // DB column patch — only columns that physically exist on evaluation_jobs.
+      // Never build this inline: use getPhaseStartTimestamps so column drift
+      // is caught by the schema-guard test in CI.
+      const stageTimestampPatch = getPhaseStartTimestamps(phase as PhaseName, now);
 
       const nextProgress = {
         ...progressState,
@@ -2473,12 +2467,8 @@ export async function processEvaluationJob(
         last_heartbeat_at: now,
         heartbeat_at: now,
         updated_at: now,
-        // Per-stage timestamps (R4 observability)
-        ...(stageTimestampPatch as {
-          phase1_started_at?: string;
-          phase2_started_at?: string;
-          phase1_completed_at?: string;
-        }),
+        // Per-stage timestamps — only real DB columns via getPhaseStartTimestamps
+        ...stageTimestampPatch,
       };
 
       const { error: markRunningWriteError } = await supabase
