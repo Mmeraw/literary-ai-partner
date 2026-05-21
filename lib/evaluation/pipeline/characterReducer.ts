@@ -42,6 +42,7 @@ import type {
   EvidenceConfidence,
 } from "./types";
 import { PASS1A_PROMPT_VERSION } from "./prompts/pass1a-character-sweep";
+import { quarantinePass1aChunkOutputs } from "./pass1aQuarantine";
 
 // Hard caps
 const MAX_LEDGER_ENTRIES = 15;
@@ -267,7 +268,21 @@ export function reduceCharacterEvidence(params: {
   jobId: string;
   totalChunksInManuscript: number;
 }): Pass1aCharacterLedger {
-  const { chunkOutputs, jobId, totalChunksInManuscript } = params;
+  const { jobId, totalChunksInManuscript } = params;
+
+  // ── Quarantine: normalize all AI-emitted fields before reduction ──────────
+  // Coerces non-string values, drops unsalvageable entries, emits diagnostics.
+  // One corrupt how_signal / arc_shift / any field never kills the whole job.
+  const quarantine = quarantinePass1aChunkOutputs(params.chunkOutputs);
+  const chunkOutputs = quarantine.chunkOutputs;
+
+  if (quarantine.diagnostics.length > 0) {
+    console.warn('[Pass1AQuarantine] normalized malformed AI output before reduction', {
+      job_id: jobId,
+      summary: quarantine.summary,
+      diagnostics_head: quarantine.diagnostics.slice(0, 25),
+    });
+  }
 
   if (chunkOutputs.length === 0) {
     return buildEmptyLedger(jobId);
