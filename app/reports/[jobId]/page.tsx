@@ -7,7 +7,7 @@ import { createClient as createSSRClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { canReleaseEvaluationRead } from '@/lib/jobs/readReleaseGate';
 import { EvaluationResultV1, isEvaluationResultV1, hasD2TransparencyFields } from '@/schemas/evaluation-result-v1';
-import { isEvaluationResultV2 } from '@/schemas/evaluation-result-v2';
+import { isEvaluationResultV2, EvaluationResultV2 } from '@/schemas/evaluation-result-v2';
 import AgentTrustHeader from '@/components/reports/AgentTrustHeader';
 import { scanObjectForForbiddenMarketClaims } from '@/lib/release/forbiddenMarketClaims';
 import { classifyEvaluationIntegrityBanner } from '@/lib/evaluation/warningClassification';
@@ -46,7 +46,7 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 type EvaluationReportContext = {
-  result: EvaluationResultV1;
+  result: EvaluationResultV1 | EvaluationResultV2;
   manuscriptTitle: string | null;
 };
 
@@ -166,7 +166,8 @@ export async function generateMetadata({ params }: { params: { jobId: string } }
     return { title: 'Evaluation Report' };
   }
 
-  const chapterTitle = report.result.metrics?.manuscript?.title?.trim() || null;
+  const resultForMeta = report.result as EvaluationResultV1;
+  const chapterTitle = resultForMeta.metrics?.manuscript?.title?.trim() || null;
   const { pageTitle } = resolveReportTitle({ chapterTitle, manuscriptTitle: report.manuscriptTitle });
   return { title: pageTitle };
 }
@@ -187,7 +188,11 @@ export default async function ReportPage({ params }: { params: { jobId: string }
     notFound();
   }
 
-  const { result, manuscriptTitle } = report;
+  const { result: resultRaw, manuscriptTitle } = report;
+  // Cast to V1 for rendering — V2 is a structural superset; both share
+  // governance / engine / metrics / criteria / generated_at top-level shape.
+  // The report renderer was written against V1 field names which are present in V2.
+  const result = resultRaw as EvaluationResultV1;
   const chapterTitle = result.metrics?.manuscript?.title?.trim() || null;
   const { displayTitle } = resolveReportTitle({ chapterTitle, manuscriptTitle });
 
