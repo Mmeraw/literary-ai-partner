@@ -618,7 +618,7 @@ export default async function EvaluationReportPage({
             </p>
             <div className="mt-4">
               <Link
-                href={hasConfirmedMode ? "/revise" : "#"}
+                href={hasConfirmedMode ? "/workbench" : "#"}
                 aria-disabled={!hasConfirmedMode}
                 className={`inline-flex rounded-md px-4 py-2 text-sm font-medium ${
                   hasConfirmedMode

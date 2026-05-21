@@ -28,7 +28,7 @@ export default function HeaderNav() {
   const isAppRoute =
     pathname.startsWith("/dashboard") ||
     pathname.startsWith("/evaluate") ||
-    pathname.startsWith("/revise") ||
+    pathname.startsWith("/workbench") ||
     pathname.startsWith("/admin") ||
     pathname.startsWith("/reports");
 
@@ -127,7 +127,7 @@ export default function HeaderNav() {
             <>
               <NavLink href="/dashboard">Dashboard</NavLink>
               <NavLink href="/evaluate">Evaluate</NavLink>
-              <NavLink href="/revise">Revise</NavLink>
+              <NavLink href="/workbench">Revise</NavLink>
               <NavLink href="/resources">Resources</NavLink>
               <NavLink href="/pricing">Pricing</NavLink>
               {isAdmin && (
