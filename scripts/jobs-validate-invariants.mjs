@@ -17,7 +17,7 @@
  *   USE_SUPABASE_JOBS=true node scripts/jobs-validate-invariants.mjs
  *
  * Exit codes:
- *   0 = All invariants pass or invariant validation is not applicable
+ *   0 = All invariants pass or CI persisted-job validation is not applicable
  *   1 = One or more invariants violated
  */
 
@@ -113,12 +113,12 @@ function validateJob(job) {
 async function main() {
   console.log(`Job Invariant Validator - ${new Date().toISOString()}`);
 
-  if (process.env.USE_SUPABASE_JOBS !== "true") {
+  if (process.env.CI === "true" && process.env.USE_SUPABASE_JOBS !== "true") {
     console.log(
-      "USE_SUPABASE_JOBS is not true; skipping persisted job invariant validation.",
+      "CI is running without USE_SUPABASE_JOBS=true; skipping persisted job invariant validation.",
     );
     console.log(
-      "This matches the job-system smoke tests when memory jobs are unavailable in CI.",
+      "This keeps smoke-only CI from calling /api/jobs when persisted Supabase jobs are disabled.",
     );
     process.exit(0);
   }
