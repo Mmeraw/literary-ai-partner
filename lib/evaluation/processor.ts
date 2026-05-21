@@ -57,7 +57,7 @@
  * ─────────────────────────────────────────────────────────────────────
  */
 
-import { randomUUID } from 'crypto';
+import { createHash, randomUUID } from 'crypto';
 import { createClient } from '@supabase/supabase-js';
 import type { EvaluationResultV2 } from '@/schemas/evaluation-result-v2';
 import type { EvaluationResultV1 } from '@/schemas/evaluation-result-v1';
@@ -117,8 +117,8 @@ import {
   buildNonEvaluativeWarning,
   stripNonEvaluativeSections,
 } from '@/lib/manuscripts/nonEvaluativeSections';
-import type { ManuscriptChunkEvidence, SinglePassOutput, Pass1aCharacterLedger, CharacterLedgerV2, Pass3PreflightDraft } from '@/lib/evaluation/pipeline/types';
-import { runPass1a } from '@/lib/evaluation/pipeline/runPass1a';
+import type { ManuscriptChunkEvidence, SinglePassOutput, Pass1aCharacterLedger, CharacterLedgerV2, Pass3PreflightDraft, Pass1aChunkOutput } from '@/lib/evaluation/pipeline/types';
+import { runPass1a, type Pass1aChunkCacheArtifact } from '@/lib/evaluation/pipeline/runPass1a';
 import { runPass3Preflight } from '@/lib/evaluation/pipeline/runPass3Preflight';
 import { reduceCharacterEvidence, buildCharacterLedgerV2 } from '@/lib/evaluation/pipeline/characterReducer';
 import {
@@ -3593,6 +3593,77 @@ export async function processEvaluationJob(
       try {
         const pass1aChunks = manuscriptChunksForPipeline;
 
+        // ── PR-E chunk checkpoint: read existing pass1a_chunk_cache_v1 artifact ──
+        // If the source_hash matches the current job/manuscript/chunk-count
+        // identity, pre-populate the in-memory cache so already-completed chunks
+        // are skipped. Otherwise the cache is ignored and all chunks re-run.
+        const pass1aChunkCount = Array.isArray(pass1aChunks) ? pass1aChunks.length : 1;
+        const pass1aSourceHash = createHash('sha256')
+          .update(`${String(job.id)}:${String(job.manuscript_id)}:${pass1aChunkCount}`)
+          .digest('hex');
+
+        const pass1aCacheMap = new Map<number, Pass1aChunkOutput>();
+
+        try {
+          const { data: pass1aCacheRow } = await supabase
+            .from('evaluation_artifacts')
+            .select('content')
+            .eq('job_id', String(job.id))
+            .eq('artifact_type', 'pass1a_chunk_cache_v1')
+            .maybeSingle();
+
+          const existingPass1aCache = pass1aCacheRow?.content as
+            | Pass1aChunkCacheArtifact
+            | null
+            | undefined;
+
+          if (existingPass1aCache && existingPass1aCache.source_hash === pass1aSourceHash) {
+            for (const [k, v] of Object.entries(existingPass1aCache.chunks ?? {})) {
+              pass1aCacheMap.set(Number(k), v.result);
+            }
+            console.log(
+              `[phase_1a] Resuming from cache: ${pass1aCacheMap.size}/${pass1aChunkCount} chunks already done`,
+            );
+          } else if (existingPass1aCache) {
+            console.log(
+              `[phase_1a] Ignoring stale pass1a_chunk_cache_v1 (source_hash mismatch)`,
+            );
+          }
+        } catch (cacheReadErr) {
+          console.warn(
+            `[phase_1a] pass1a_chunk_cache_v1 read failed (non-fatal, will run fresh)`,
+            cacheReadErr instanceof Error ? cacheReadErr.message : String(cacheReadErr),
+          );
+        }
+
+        const onPass1aChunkComplete = async (
+          chunkIndex: number,
+          result: Pass1aChunkOutput,
+        ): Promise<void> => {
+          pass1aCacheMap.set(chunkIndex, result);
+          const cacheArtifact: Pass1aChunkCacheArtifact = {
+            job_id: String(job.id),
+            source_hash: pass1aSourceHash,
+            chunks: Object.fromEntries(
+              [...pass1aCacheMap.entries()].map(([i, r]) => [
+                i,
+                { chunk_index: i, result: r, completed_at: new Date().toISOString() },
+              ]),
+            ),
+            total_expected: pass1aChunkCount,
+            cached_at: new Date().toISOString(),
+          };
+          await upsertEvaluationArtifact({
+            supabase,
+            jobId: String(job.id),
+            manuscriptId: Number(job.manuscript_id),
+            artifactType: 'pass1a_chunk_cache_v1',
+            content: cacheArtifact,
+            sourceHash: pass1aSourceHash,
+            artifactVersion: 'pass1a_chunk_cache_v1',
+          });
+        };
+
         // ── phase_1: P1A (c=5) + P3A (c=2) run in parallel ───────────────────────
         // Both read the raw manuscript independently. Neither waits for the other.
         // P3A is non-fatal: a failed preflight → degraded artifact, job continues.
@@ -3607,6 +3678,8 @@ export async function processEvaluationJob(
             title: manuscriptWithContent.title,
             openaiApiKey,
             jobId: String(job.id),
+            _chunkCache: pass1aCacheMap,
+            _onChunkComplete: onPass1aChunkComplete,
           }),
           // P3A: independent full-manuscript read, concurrency=2
           runPass3Preflight({

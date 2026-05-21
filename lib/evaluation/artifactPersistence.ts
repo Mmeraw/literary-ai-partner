@@ -44,6 +44,17 @@ export type ArtifactType =
    */
   | "pass1_chunk_cache_v1"
   /**
+   * Pass 1A chunk-level checkpoint: rolling save of per-chunk Pass 1A results as
+   * each character-evidence-sweep chunk completes. Mirrors pass1_chunk_cache_v1
+   * exactly. Lets phase_1a resume from the last completed chunk after a wall-clock
+   * kill instead of refiring all ~40 chunks cold.
+   *
+   * Key: (job_id, artifact_type='pass1a_chunk_cache_v1') — one row per job.
+   * Content shape: Pass1aChunkCacheArtifact (see runPass1a.ts).
+   * Not user-visible.
+   */
+  | "pass1a_chunk_cache_v1"
+  /**
    * Durable watchdog recovery audit: written each time the frozen-heartbeat
    * watchdog rescues a job to phase_2/queued.  Survives log rotation and
    * lets operators trace every rescue event.  Not user-visible.

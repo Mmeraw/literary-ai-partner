@@ -179,8 +179,16 @@ async function runSingleChunk(params: {
   workType: string;
   openai: OpenAI;
   model: string;
+  chunkCache?: Map<number, Pass1aChunkOutput>;
 }): Promise<Pass1aChunkOutput> {
-  const { chunk, title, workType, openai, model } = params;
+  const { chunk, title, workType, openai, model, chunkCache } = params;
+
+  // PR-E chunk checkpoint: if this chunk is already in the pre-loaded cache,
+  // return it immediately without calling OpenAI. The cache entry was previously
+  // validated before being stored, so it is trusted as-is.
+  if (chunkCache?.has(chunk.chunk_index)) {
+    return chunkCache.get(chunk.chunk_index)!;
+  }
 
   const userPrompt = buildPass1aUserPrompt({
     manuscriptText: chunk.content,
@@ -277,6 +285,30 @@ async function runChunksWithConcurrency(
   return settled;
 }
 
+/**
+ * PR-E chunk checkpoint: shape of a single entry in the pass1a_chunk_cache_v1
+ * artifact. Stored keyed by chunk_index so resume reads can skip already-completed
+ * chunks after a wall-clock kill.
+ */
+export interface Pass1aChunkCacheEntry {
+  chunk_index: number;
+  result: Pass1aChunkOutput;
+  completed_at: string; // ISO timestamp
+}
+
+/**
+ * Top-level shape of the pass1a_chunk_cache_v1 evaluation_artifact content.
+ * source_hash formula matches Pass1ChunkCacheArtifact exactly:
+ *   SHA-256 of "${job_id}:${manuscript_id}:${chunk_count}"
+ */
+export interface Pass1aChunkCacheArtifact {
+  job_id: string;
+  source_hash: string;
+  chunks: Record<number, Pass1aChunkCacheEntry>; // key = chunk_index as string in JSON
+  total_expected: number;
+  cached_at: string;
+}
+
 export interface RunPass1aOptions {
   manuscriptText: string;
   manuscriptChunks?: ManuscriptChunkEvidence[];
@@ -284,6 +316,20 @@ export interface RunPass1aOptions {
   workType: string;
   openaiApiKey?: string;
   jobId?: string;
+  /**
+   * PR-E chunk checkpoint: pre-loaded cache from a pass1a_chunk_cache_v1 artifact.
+   * When provided, any chunk_index present in this map is returned immediately
+   * without calling OpenAI, allowing Pass 1A to resume from the last checkpoint
+   * after a job is retried following a wall-clock kill.
+   */
+  _chunkCache?: Map<number, Pass1aChunkOutput>;
+  /**
+   * PR-E chunk checkpoint: callback fired after each chunk successfully completes
+   * (either from cache or from a fresh OpenAI call). Allows the processor to write
+   * rolling checkpoint upserts to the pass1a_chunk_cache_v1 artifact.
+   * Fail-soft: errors thrown by this callback are logged but do NOT fail the chunk.
+   */
+  _onChunkComplete?: (chunk_index: number, result: Pass1aChunkOutput) => Promise<void>;
 }
 
 export interface RunPass1aResult {
@@ -326,17 +372,38 @@ export async function runPass1a(opts: RunPass1aOptions): Promise<RunPass1aResult
     concurrency: PASS1A_CHUNK_CONCURRENCY,
   });
 
+  const chunkCache = opts._chunkCache;
+  const onChunkComplete = opts._onChunkComplete;
+
   const settled = await runChunksWithConcurrency(
     chunks,
     PASS1A_CHUNK_CONCURRENCY,
-    (chunk) =>
-      runSingleChunk({
+    async (chunk) => {
+      const result = await runSingleChunk({
         chunk,
         title: opts.title,
         workType: opts.workType,
         openai,
         model,
-      }),
+        chunkCache,
+      });
+
+      // PR-E: rolling checkpoint upsert. Fail-soft: callback errors are logged
+      // but do NOT fail the chunk. Fires for both cache hits and fresh results
+      // so the rolling artifact stays timestamp-refreshed across retries.
+      if (onChunkComplete) {
+        try {
+          await onChunkComplete(chunk.chunk_index, result);
+        } catch (cbErr) {
+          console.warn(
+            `[Pass1A] _onChunkComplete threw for chunk ${chunk.chunk_index} (non-fatal)`,
+            cbErr instanceof Error ? cbErr.message : String(cbErr),
+          );
+        }
+      }
+
+      return result;
+    },
   );
 
   const chunkOutputs: Pass1aChunkOutput[] = [];
