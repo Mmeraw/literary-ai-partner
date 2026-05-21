@@ -2422,8 +2422,8 @@ export async function processEvaluationJob(
       const now = new Date().toISOString();
       const stageTimestampPatch: Record<string, unknown> = {};
 
-      if (phase === 'phase_1a' && !progressState.phase1a_started_at) {  // phase_1 removed — dead
-        stageTimestampPatch.phase1a_started_at = now;
+      if (phase === 'phase_1a' && !progressState.phase1a_started_at) {
+        stageTimestampPatch.phase1_started_at = now;  // DB column is phase1_started_at
       }
       if (phase === 'phase_2' && !progressState.phase2_started_at) {
         stageTimestampPatch.phase2_started_at = now;
