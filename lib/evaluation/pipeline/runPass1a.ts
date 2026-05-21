@@ -21,7 +21,7 @@ import type {
   Pass1aCharacterChunkEntry,
 } from "./types";
 import type { ManuscriptChunkEvidence, CompletionUsage } from "./types";
-import { getCanonicalPass1Model } from "@/lib/evaluation/policy";
+import { getCanonicalPass1Model, isReasoningStyleModel } from "@/lib/evaluation/policy";
 import { getEvalOpenAiTimeoutMs } from "@/lib/evaluation/config";
 import { parseJsonObjectBoundary } from "@/lib/llm/jsonParseBoundary";
 import { getEvaluationRuntimeConfig } from "@/lib/config/evaluationRuntimeConfig";
@@ -204,7 +204,7 @@ async function runSingleChunk(params: {
     try {
       const completion = await openai.chat.completions.create({
         model,
-        temperature: PASS1A_TEMPERATURE,
+        ...(isReasoningStyleModel(model) ? {} : { temperature: PASS1A_TEMPERATURE }),
         max_completion_tokens: activeMaxTokens,
         response_format: { type: "json_object" },
         messages: [
