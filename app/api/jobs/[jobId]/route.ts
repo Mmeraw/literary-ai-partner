@@ -22,11 +22,12 @@ type Params = Promise<{ jobId: string }>;
  * phase / phase_status: canonical pipeline-stage signal, sourced from
  *   job.progress.{phase, phase_status}. Additive and may be null when the
  *   worker has not yet emitted a canonical phase. Consumers MUST treat
- *   both as optional.
+ *   both as optional. Legacy phase_1/phase1/p1 values are read-time
+ *   normalized to phase_1a and are never returned to clients.
  * last_error: present only when status === "failed"
  * failure_code: present only when status === "failed" and a code is available
  */
-type CanonicalPhase = "phase_0" | "phase_1" | "phase_1a" | "phase_2" | "phase_3" | "wave_revision";
+type CanonicalPhase = "phase_0" | "phase_1a" | "phase_2" | "phase_3" | "wave_revision";
 type CanonicalPhaseStatus = "queued" | "running" | "complete" | "failed";
 type CrossCheckStatus =
   | "queued"
@@ -240,18 +241,31 @@ function calculateProgressPercentage(job: Job): number {
  */
 const CANONICAL_PHASES: ReadonlyArray<CanonicalPhase> = [
   "phase_0",
-  "phase_1",
   "phase_1a",
   "phase_2",
   "phase_3",
   "wave_revision",
 ];
+const LEGACY_PHASE_ALIASES: Readonly<Record<string, CanonicalPhase>> = {
+  phase_1: "phase_1a",
+  phase1: "phase_1a",
+  p1: "phase_1a",
+};
 const CANONICAL_PHASE_STATUSES: ReadonlyArray<CanonicalPhaseStatus> = [
   "queued",
   "running",
   "complete",
   "failed",
 ];
+
+function normalizePhaseForResponse(rawPhase: unknown): CanonicalPhase | null | undefined {
+  if (rawPhase === null) return null;
+  if (typeof rawPhase !== "string") return undefined;
+  if ((CANONICAL_PHASES as readonly string[]).includes(rawPhase)) {
+    return rawPhase as CanonicalPhase;
+  }
+  return LEGACY_PHASE_ALIASES[rawPhase];
+}
 
 function extractCanonicalPhase(job: Job): {
   phase?: CanonicalPhase | null;
@@ -262,14 +276,7 @@ function extractCanonicalPhase(job: Job): {
   const rawPhase = (job.progress as { phase?: unknown }).phase;
   const rawPhaseStatus = (job.progress as { phase_status?: unknown }).phase_status;
 
-  let phase: CanonicalPhase | null | undefined;
-  if (typeof rawPhase === "string" && (CANONICAL_PHASES as readonly string[]).includes(rawPhase)) {
-    phase = rawPhase as CanonicalPhase;
-  } else if (rawPhase === null) {
-    phase = null;
-  } else {
-    phase = undefined;
-  }
+  const phase = normalizePhaseForResponse(rawPhase);
 
   let phase_status: CanonicalPhaseStatus | null | undefined;
   if (
