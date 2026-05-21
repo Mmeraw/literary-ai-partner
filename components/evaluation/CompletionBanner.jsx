@@ -2,56 +2,27 @@
 
 import Link from "next/link";
 
-/**
- * Track C: Completion Banner
- * Track D: Wire to real report route
- * Makes completion feel intentional with prominent CTA
- */
+/** Completion banner — dark design system */
 export default function CompletionBanner({ jobId }) {
   return (
-    <div className="bg-green-50 border-l-4 border-green-500 p-6 mb-6 rounded-r-lg shadow-sm">
-      <div className="flex items-start">
-        <div className="flex-shrink-0">
-          <svg
-            className="h-8 w-8 text-green-500"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-            />
+    <div className="rounded-xl border border-[#7FA36B44] bg-[#7FA36B0D] px-6 py-5 mb-6"
+      style={{ fontFamily: "'Switzer', 'Inter', system-ui, sans-serif" }}>
+      <div className="flex items-start gap-4">
+        <div className="shrink-0 mt-0.5">
+          <svg className="h-6 w-6 text-[#7FA36B]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+              d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
         </div>
-        <div className="ml-4 flex-1">
-          <h3 className="text-lg font-semibold text-green-900">
-            Evaluation Complete!
-          </h3>
-          <p className="mt-1 text-sm text-green-700">
-            Your manuscript has been analyzed. View your comprehensive evaluation report with detailed feedback and revision guidance.
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold text-[#7FA36B] uppercase tracking-widest">Evaluation complete</p>
+          <p className="mt-1 text-sm text-[#B8AE9C]">
+            Your report is ready — scores, rationale, and revision guidance.
           </p>
           <div className="mt-4">
-            <Link
-              href={`/evaluate/${jobId}`}
-              className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors"
-            >
-              <svg
-                className="mr-2 h-5 w-5"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                />
-              </svg>
-              View Evaluation Report
+            <Link href={`/evaluate/${jobId}`}
+              className="inline-flex items-center gap-2 rounded-lg border border-[#C8A96E] bg-[#C8A96E] px-5 py-2.5 text-sm font-semibold text-[#0D0A05] hover:bg-[#D9BB82] transition-colors">
+              View report →
             </Link>
           </div>
         </div>
