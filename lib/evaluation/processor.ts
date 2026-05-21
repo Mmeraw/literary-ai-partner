@@ -130,7 +130,13 @@ import { pipelineLog } from '@/lib/evaluation/pipeline/pipelineLogger';
 import { createRevisionSession } from '@/lib/revision/sessions';
 import { executeWaveLayer } from '@/lib/pipeline/wave-execution-layer';
 import { executeWaveModules } from '@/lib/revision/wave-executor';
-import { getPhaseStartTimestamps, type PhaseName } from '@/lib/evaluation/phaseTimestamps';
+import {
+  getPhaseStartTimestamps,
+  getPhaseCompleteTimestamps,
+  buildWritablePatch,
+  FORBIDDEN_PATCH_COLUMNS,
+  type PhaseName,
+} from '@/lib/evaluation/phaseTimestamps';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // WAVE Phase 3 constants
@@ -667,7 +673,9 @@ export async function renewEvaluationJobLease(args: {
   const nowIso = new Date(now).toISOString();
   const leaseUntilIso = new Date(Math.min(now + args.leaseMs, args.hardDeadlineMs)).toISOString();
 
-  const canonicalHeartbeatPayload = {
+  // buildWritablePatch ensures lease_expires_at and other forbidden columns
+  // can never slip into this payload even if this function is refactored later.
+  const canonicalHeartbeatPayload = buildWritablePatch({
     // Canonical heartbeat fields used by stale sweeper and job forensics
     last_heartbeat_at: nowIso,
     last_heartbeat: nowIso,
@@ -676,7 +684,7 @@ export async function renewEvaluationJobLease(args: {
     // Canonical writable lease source column (lease_expires_at may be generated)
     lease_until: leaseUntilIso,
     updated_at: nowIso,
-  };
+  });
 
   let { error } = await args.supabase
     .from('evaluation_jobs')
@@ -2455,7 +2463,10 @@ export async function processEvaluationJob(
         },
       });
 
-      const runningPayload = {
+      // buildWritablePatch strips any forbidden columns (lease_expires_at,
+      // phase1a_started_at, phase3_started_at, etc.) before hitting Supabase.
+      // This is belt-and-suspenders on top of getPhaseStartTimestamps.
+      const runningPayload = buildWritablePatch({
         status: nextLifecycleStatus(JOB_STATUS.RUNNING),
         phase,
         phase_status: 'running',
@@ -2469,7 +2480,7 @@ export async function processEvaluationJob(
         updated_at: now,
         // Per-stage timestamps — only real DB columns via getPhaseStartTimestamps
         ...stageTimestampPatch,
-      };
+      });
 
       const { error: markRunningWriteError } = await supabase
         .from('evaluation_jobs')
