@@ -3,6 +3,11 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { trackAuthBypass, trackAuthCheck, trackAuthRedirect } from '@/lib/auth/telemetry'
 
 export async function middleware(request: NextRequest) {
+    const matchesPath = (pathname: string, basePath: string): boolean => {
+      if (basePath === '/') return pathname === '/'
+      return pathname === basePath || pathname.startsWith(`${basePath}/`)
+    }
+
   let supabaseResponse = NextResponse.next({
     request,
   })
@@ -105,10 +110,10 @@ export async function middleware(request: NextRequest) {
   ]
 
   const isPublicPath = publicPaths.some(path =>
-    request.nextUrl.pathname.startsWith(path)
+    matchesPath(request.nextUrl.pathname, path)
   )
   const isProtectedPath = protectedPrefixes.some(path =>
-    request.nextUrl.pathname.startsWith(path)
+    matchesPath(request.nextUrl.pathname, path)
   )
 
   // Gate only protected paths for unauthenticated users.

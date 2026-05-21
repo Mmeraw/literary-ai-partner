@@ -137,6 +137,7 @@ describe("evaluation architecture invariants", () => {
     expect(middlewareCode).toContain("/login");
     expect(middlewareCode).toContain("/api/auth/callback");
     expect(middlewareCode).toContain("redirectUrl.pathname = '/private-beta'");
+    expect(middlewareCode).toContain("if (basePath === '/') return pathname === '/'");
   });
 
   test("scripts using runPipeline do not access legacy PipelineResult.criteria", () => {
