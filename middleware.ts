@@ -61,28 +61,58 @@ export async function middleware(request: NextRequest) {
   }
 
   // Public paths that don't require auth.
-  // Keep private beta landing public; allow login + auth callback for authorized testers.
+  // Private beta should be an access layer, not a separate site surface.
+  // Marketing and informational routes remain public; only app/workflow routes are gated.
   const publicPaths = [
+    '/',
+    '/revise',
+    '/pricing',
+    '/resources',
+    '/convert',
+    '/output',
+    '/storygate',
+    '/your-writing',
     '/private-beta',
     '/login',
+    '/signup',
     '/forgot-password',
     '/reset-password',
     '/api/auth/callback',
     '/auth/callback',
+    '/marketing-export',
+    '/marketing-preview',
     '/api/cron',
     '/api/workers',
     '/api/admin/proof/jobs',
-        '/api/health',
-        '/api/evaluate',
-        '/api/jobs',
-        '/api/dev/metrics-smoke',
+    '/api/health',
+    '/api/evaluate',
+    '/api/dev/metrics-smoke',
   ]
+
+  const protectedPrefixes = [
+    '/dashboard',
+    '/evaluate',
+    '/workbench',
+    '/admin',
+    '/reports',
+    '/api/jobs',
+    '/api/evaluations',
+    '/api/internal',
+    '/api/manuscripts',
+    '/api/report-shares',
+    '/api/reports',
+    '/api/workflows/evaluate',
+  ]
+
   const isPublicPath = publicPaths.some(path =>
     request.nextUrl.pathname.startsWith(path)
   )
+  const isProtectedPath = protectedPrefixes.some(path =>
+    request.nextUrl.pathname.startsWith(path)
+  )
 
-  // If not authenticated and not on a public path, redirect to private-beta
-  if (!user && !isPublicPath) {
+  // Gate only protected paths for unauthenticated users.
+  if (!user && isProtectedPath && !isPublicPath) {
     const redirectUrl = request.nextUrl.clone()
     redirectUrl.pathname = '/private-beta'
     trackAuthRedirect('login_required')

@@ -116,20 +116,24 @@ describe("evaluation architecture invariants", () => {
     }
   });
 
-  test("root page remains fail-closed behind private-beta gate", () => {
+  test("root page serves canonical public landing surface", () => {
     const homePagePath = path.join(repoRoot, "app/page.tsx");
     const homePageCode = fs.readFileSync(homePagePath, "utf8");
 
-    expect(homePageCode).toContain('redirect("/private-beta")');
-    expect(homePageCode).not.toContain("Professional Literary Evaluation & Revision");
-    expect(homePageCode).not.toContain("Get Started");
+    expect(homePageCode).toContain('redirect("/marketing-export/main/index.html")');
   });
 
-  test("middleware keeps private-beta lock while allowing tester login flow", () => {
+  test("middleware gates only protected app/workflow routes", () => {
     const middlewarePath = path.join(repoRoot, "middleware.ts");
     const middlewareCode = fs.readFileSync(middlewarePath, "utf8");
 
+    expect(middlewareCode).toContain("protectedPrefixes");
+    expect(middlewareCode).toContain("/dashboard");
+    expect(middlewareCode).toContain("/evaluate");
+    expect(middlewareCode).toContain("/workbench");
     expect(middlewareCode).toContain("/private-beta");
+    expect(middlewareCode).toContain("/marketing-export");
+    expect(middlewareCode).toContain("/revise");
     expect(middlewareCode).toContain("/login");
     expect(middlewareCode).toContain("/api/auth/callback");
     expect(middlewareCode).toContain("redirectUrl.pathname = '/private-beta'");
