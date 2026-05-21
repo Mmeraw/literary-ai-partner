@@ -522,7 +522,7 @@ export function EvaluationPoller({
         <div className="flex items-center justify-between">
           <div>
             <h3 className="text-lg font-semibold text-gray-900">Job Status</h3>
-            <p className="text-sm text-gray-500 mt-1">{job.id}</p>
+            <p className="text-sm text-gray-500 mt-1">ID: {job.id.slice(0, 8)}&hellip;</p>
           </div>
           <p className={`text-lg font-semibold ${statusColor}`}>{statusLabel}</p>
         </div>
