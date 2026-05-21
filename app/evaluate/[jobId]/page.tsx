@@ -17,7 +17,6 @@ import {
   normalizeRecommendationActionForDisplay,
 } from "@/lib/evaluation/reportRecommendations";
 import ModeConfirmationBlock from "@/components/evaluation/ModeConfirmationBlock";
-import { CancelEvaluationButton } from "@/components/evaluation/CancelEvaluationButton";
 import { SynthesisPoller } from "@/components/evaluation/SynthesisPoller";
 import { classifyEvaluationIntegrityBanner } from "@/lib/evaluation/warningClassification";
 import {
@@ -35,8 +34,8 @@ type Job = {
   user_id: string;
   manuscript_id?: number;
   manuscripts?:
-    | { user_id: string | null; title?: string | null }
-    | Array<{ user_id: string | null; title?: string | null }>
+    | { user_id: string | null; title?: string | null; word_count?: number | null }
+    | Array<{ user_id: string | null; title?: string | null; word_count?: number | null }>
     | null;
   job_type?: string;
   status: "queued" | "running" | "failed" | "complete";
@@ -143,7 +142,7 @@ async function getJob(jobId: string): Promise<Job | null> {
 
     const { data: job, error } = await supabase
       .from("evaluation_jobs")
-      .select("id, user_id, manuscript_id, job_type, status, phase, phase_status, total_units, completed_units, failed_units, created_at, updated_at, last_error, manuscripts(user_id,title)")
+      .select("id, user_id, manuscript_id, job_type, status, phase, phase_status, total_units, completed_units, failed_units, created_at, updated_at, last_error, manuscripts(user_id,title,word_count)")
       .eq("id", jobId)
       .maybeSingle();
 
@@ -503,22 +502,18 @@ export default async function EvaluationReportPage({
         </Link>
       </div>
 
-      {/* Job status header card */}
-      <div className="rounded-lg border bg-white p-4 mb-6">
-        <div className="flex flex-wrap items-center gap-4">
-          <span className={`inline-flex items-center rounded-full px-3 py-1 text-sm font-medium ${
-            job.status === "complete" ? "bg-green-100 text-green-800" :
-            job.status === "failed" ? "bg-red-100 text-red-800" :
-            job.status === "running" ? "bg-blue-100 text-blue-800" :
-            "bg-gray-100 text-gray-700"
-          }`}>
-            {job.status === "complete" ? "✓ Report ready" : job.status === "failed" ? "⚠ Needs attention" : job.status === "running" ? "⟳ In progress" : "Waiting in queue"}
-          </span>
-          {(job.status === "queued" || job.status === "running") && (
-            <CancelEvaluationButton jobId={jobId} />
-          )}
+      {/* Terminal status pills only — poller owns queued/running state */}
+      {(job.status === "complete" || job.status === "failed") && (
+        <div className="rounded-lg border bg-white p-4 mb-6">
+          <div className="flex flex-wrap items-center gap-4">
+            <span className={`inline-flex items-center rounded-full px-3 py-1 text-sm font-medium ${
+              job.status === "complete" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
+            }`}>
+              {job.status === "complete" ? "✓ Report ready" : "⚠ Needs attention"}
+            </span>
+          </div>
         </div>
-      </div>
+      )}
 
       <section className="mb-6 rounded-lg border bg-white p-4">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-700">Evaluation Metadata</h2>
@@ -532,15 +527,38 @@ export default async function EvaluationReportPage({
             <p className="font-medium text-gray-900">{manuscriptTitle || chapterTitle || "Untitled"}</p>
           </div>
           <div>
-            <p className="text-gray-700 font-medium">Job ID</p>
-            <p className="font-mono text-xs text-gray-900 break-all">{job.id}</p>
-          </div>
-          <div>
             <p className="text-gray-700 font-medium">Word Count</p>
-            <p className="font-medium text-gray-900">{typeof wordCount === "number" ? wordCount.toLocaleString() : "N/A"}</p>
+            <p className="font-medium text-gray-900">
+              {typeof wordCount === "number"
+                ? wordCount.toLocaleString()
+                : (() => {
+                    const manuscriptWordCount =
+                      job.manuscripts && !Array.isArray(job.manuscripts)
+                        ? (job.manuscripts as any).word_count
+                        : Array.isArray(job.manuscripts)
+                          ? (job.manuscripts[0] as any)?.word_count
+                          : null;
+                    return typeof manuscriptWordCount === "number"
+                      ? manuscriptWordCount.toLocaleString()
+                      : !isComplete
+                        ? "Calculating\u2026"
+                        : "N/A";
+                  })()}
+            </p>
           </div>
         </div>
       </section>
+
+      {/* Technical details — collapsible, keeps Job ID off the main surface */}
+      <details className="mb-6 rounded-lg border bg-white">
+        <summary className="cursor-pointer select-none px-4 py-3 text-xs font-medium text-gray-500 hover:text-gray-700">
+          Technical details
+        </summary>
+        <div className="border-t px-4 py-3 text-xs text-gray-600">
+          <span className="font-medium text-gray-700">Job ID:</span>{" "}
+          <span className="font-mono break-all">{job.id}</span>
+        </div>
+      </details>
 
       <section className="mt-6">
         <EvaluationPoller
@@ -566,10 +584,9 @@ export default async function EvaluationReportPage({
         </section>
       ) : !isComplete ? (
         <section className="rounded-lg border bg-white p-5">
-          <h2 className="text-lg font-semibold text-gray-900">Report not ready yet</h2>
+          <h2 className="text-lg font-semibold text-gray-900">Evaluation in progress</h2>
           <p className="mt-2 text-sm text-gray-600">
-            This evaluation hasn't completed. Once the status is "complete," your
-            report will appear here automatically.
+            Your report will appear here automatically when final QA completes.
           </p>
           <div className="mt-4">
             <Link

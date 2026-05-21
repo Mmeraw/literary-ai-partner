@@ -518,12 +518,9 @@ export function EvaluationPoller({
   return (
     <div className="p-4 border border-gray-200 rounded bg-white">
       <div className="space-y-4">
-        {/* Header */}
+        {/* Header — poller is the single source of truth for live status */}
         <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-lg font-semibold text-gray-900">Job Status</h3>
-            <p className="text-sm text-gray-500 mt-1">{job.id}</p>
-          </div>
+          <h3 className="text-lg font-semibold text-gray-900">Evaluation Status</h3>
           <p className={`text-lg font-semibold ${statusColor}`}>{statusLabel}</p>
         </div>
 
@@ -589,8 +586,8 @@ export function EvaluationPoller({
             <div className="flex items-end justify-start sm:justify-end lg:justify-start">
               <CancelEvaluationButton
                 jobId={jobId}
-                label="STOP"
-                buttonClassName="inline-flex items-center rounded-md border border-red-600 bg-red-600 px-3 py-2 text-xs font-bold tracking-wide text-white shadow-sm hover:bg-red-700"
+                label="Cancel evaluation"
+                buttonClassName="inline-flex items-center rounded-md border border-red-300 bg-white px-3 py-2 text-xs font-medium text-red-700 shadow-sm hover:bg-red-50"
               />
             </div>
           )}
