@@ -107,6 +107,52 @@ function resolveCanonical(name: string, aliasMap: Map<string, string>): string {
   return aliasMap.get(normalize(name)) ?? name.trim();
 }
 
+// ── Signal text normalization ───────────────────────────────────────────────
+
+/**
+ * Safely coerce any LLM-emitted signal value to a trimmed string or null.
+ * Handles: string, array (joined with "; "), object (extracts common keys),
+ * and any other non-string value. Never throws.
+ */
+function normalizeSignalText(value: unknown): string | null {
+  if (value == null) return null;
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : null;
+  }
+
+  if (Array.isArray(value)) {
+    const joined = value
+      .map((item) => normalizeSignalText(item))
+      .filter((item): item is string => !!item)
+      .join('; ');
+    return joined.length > 0 ? joined : null;
+  }
+
+  if (typeof value === 'object') {
+    const record = value as Record<string, unknown>;
+    // Try common natural-language keys first
+    const preferred =
+      normalizeSignalText(record.description) ??
+      normalizeSignalText(record.signal) ??
+      normalizeSignalText(record.value) ??
+      normalizeSignalText(record.text) ??
+      normalizeSignalText(record.mechanism);
+    if (preferred) return preferred;
+    // Fallback: flatten all string-valued fields
+    const flattened = Object.values(record)
+      .map((item) => normalizeSignalText(item))
+      .filter((item): item is string => !!item)
+      .join('; ');
+    return flattened.length > 0 ? flattened : null;
+  }
+
+  // number, boolean, etc. — convert but skip trivially empty
+  const coerced = String(value).trim();
+  return coerced.length > 0 ? coerced : null;
+}
+
 // ── Union helpers ─────────────────────────────────────────────────────────
 
 function unionArrays<T>(...arrays: T[][]): T[] {
@@ -155,7 +201,7 @@ interface RawSymbol {
 function buildSymbolPayoffEntries(rawSymbols: RawSymbol[], totalChunks: number): SymbolPayoffEntry[] {
   const byObject = new Map<string, RawSymbol[]>();
   for (const sym of rawSymbols) {
-    const key = String(sym.object ?? '').trim().toLowerCase();
+    const key = (normalizeSignalText(sym.object) ?? '').toLowerCase();
     if (!byObject.has(key)) byObject.set(key, []);
     byObject.get(key)!.push(sym);
   }
@@ -317,8 +363,8 @@ export function reduceCharacterEvidence(params: {
     const arcStart = firstEntry.arc_state_in_chunk ?? "";
     const arcEnd = lastEntry.arc_shift ?? lastEntry.arc_state_in_chunk ?? "";
     const arcTurningPoints = entries
-      .filter((e) => e.arc_shift != null && String(e.arc_shift).trim())
-      .map((e) => typeof e.arc_shift === 'string' ? e.arc_shift : String(e.arc_shift))
+      .map((e) => normalizeSignalText(e.arc_shift))
+      .filter((s): s is string => !!s)
       .slice(0, 5);
 
     // Five Ws + How — take first non-null across all chunks
@@ -326,9 +372,7 @@ export function reduceCharacterEvidence(params: {
     const whatDoTheyWant = entries.find((e) => e.what_do_they_want)?.what_do_they_want ?? null;
     const primaryLocations = [...new Set(entries.map((e) => e.where_are_they).filter((l): l is string => !!l))];
     const whySignal = entries.find((e) => e.why_signal)?.why_signal ?? null;
-    const howSignal = entries.find((e) => e.how_signal != null)
-      ? String(entries.find((e) => e.how_signal != null)!.how_signal)
-      : null;
+    const howSignal = normalizeSignalText(entries.find((e) => normalizeSignalText(e.how_signal))?.how_signal) ?? null;
 
     // Evidence anchors — pick top MAX_EVIDENCE_ANCHORS, prefer distinct types
     const allAnchors = entries.flatMap((e, i) =>
@@ -425,18 +469,16 @@ export function reduceCharacterEvidence(params: {
     const seenCopingDescs = new Set<string>();
     for (let ei = 0; ei < entries.length; ei++) {
       const e = entries[ei];
-      if (e.how_signal != null) {
-        const howStr = typeof e.how_signal === 'string' ? e.how_signal : String(e.how_signal);
-        const desc = howStr.toLowerCase().trim();
+      const howSignalText = normalizeSignalText(e.how_signal);
+      if (howSignalText) {
+        const desc = howSignalText.toLowerCase().trim();
         if (!seenCopingDescs.has(desc)) {
           seenCopingDescs.add(desc);
-          const repeatCount = entries.filter((x) => {
-            if (x.how_signal == null) return false;
-            const xs = typeof x.how_signal === 'string' ? x.how_signal : String(x.how_signal);
-            return xs.toLowerCase().trim() === desc;
-          }).length;
+          const repeatCount = entries.filter((x) =>
+            normalizeSignalText(x.how_signal)?.toLowerCase().trim() === desc
+          ).length;
           copingMechanisms.push({
-            description: howStr,
+            description: howSignalText,
             firstAppearsChunk: chunkIndices[ei],
             frequency: repeatCount >= 5 ? "dominant" : repeatCount >= 2 ? "recurring" : "rare",
           });
