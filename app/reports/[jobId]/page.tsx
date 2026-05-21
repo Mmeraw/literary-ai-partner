@@ -7,6 +7,7 @@ import { createClient as createSSRClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { canReleaseEvaluationRead } from '@/lib/jobs/readReleaseGate';
 import { EvaluationResultV1, isEvaluationResultV1, hasD2TransparencyFields } from '@/schemas/evaluation-result-v1';
+import { isEvaluationResultV2 } from '@/schemas/evaluation-result-v2';
 import AgentTrustHeader from '@/components/reports/AgentTrustHeader';
 import { scanObjectForForbiddenMarketClaims } from '@/lib/release/forbiddenMarketClaims';
 import { classifyEvaluationIntegrityBanner } from '@/lib/evaluation/warningClassification';
@@ -103,7 +104,7 @@ async function getEvaluationResult(jobId: string, userId: string): Promise<Evalu
 
   const result = job.evaluation_result as unknown;
 
-  if (!isEvaluationResultV1(result)) {
+  if (!isEvaluationResultV1(result) && !isEvaluationResultV2(result)) {
     console.error('Invalid evaluation result format for job:', jobId);
     return null;
   }
