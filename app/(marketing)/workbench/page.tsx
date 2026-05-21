@@ -605,7 +605,7 @@ export default function Page() {
 
 <!-- ── Top bar ─────────────────────────────────────────────────── -->
 <header class="wb-topbar">
-  <a href="revise.html" class="wb-brand">
+  <a href="/revise" class="wb-brand">
     <svg width="22" height="22" viewBox="0 0 32 32" fill="none">
       <rect width="32" height="32" rx="2" fill="currentColor" opacity="0.08"/>
       <path d="M9 8 L9 24 M9 8 L18 8 Q23 8 23 13 Q23 17 19 18 L23 24 M9 16 L18 16"
