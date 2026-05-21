@@ -4016,11 +4016,123 @@ export async function processEvaluationJob(
             { status: p2Phase3Row?.status, phase: p2Phase3Row?.phase });
           return { success: true };
         }
-        // Short-form: legacy fall-through to runPipeline below is permitted.
+        // Short-form: handoff missing — same relay contract as long-form.
+        // Run P1+P2, write handoff, queue phase_3. The old fall-through to a full
+        // runPipeline re-run below is dead code that never sets pipelineResult;
+        // treat short-form exactly like long-form here.
         console.warn(
-          `[Processor] ${jobId}: phase_2 handoff artifact missing (short-form), falling back to full pipeline re-run`,
+          `[Processor] ${jobId}: phase_2 short-form handoff missing — running Pass 1+2 to write it`,
           { handoffReadError: (handoffReadError as { message?: string } | null)?.message ?? 'no_data' },
         );
+
+        // Read prebuilt character ledger (soft — absent = no grounding)
+        let prebuiltLedgerP2Short: { ledger: Pass1aCharacterLedger; ledgerV2: CharacterLedgerV2 } | undefined;
+        try {
+          const { data: ledgerArtifactP2Short } = await supabase
+            .from('evaluation_artifacts')
+            .select('content')
+            .eq('job_id', job.id)
+            .eq('artifact_type', 'pass1a_character_ledger_v1')
+            .maybeSingle();
+          if (ledgerArtifactP2Short?.content?.ledger_v1 && ledgerArtifactP2Short?.content?.ledger_v2) {
+            prebuiltLedgerP2Short = {
+              ledger: ledgerArtifactP2Short.content.ledger_v1 as Pass1aCharacterLedger,
+              ledgerV2: ledgerArtifactP2Short.content.ledger_v2 as CharacterLedgerV2,
+            };
+          }
+        } catch (_ledgerErrShort) { /* non-fatal */ }
+
+        const leaseRenewalLoopP2Short = setInterval(() => {
+          void renewEvaluationJobLease({ supabase, jobId, leaseMs: runtimeConfig.worker.leaseMs, stage: 'phase_2_short_renewal', hardDeadlineMs }).catch(() => {});
+        }, 30_000);
+
+        let capturedPass1Short: SinglePassOutput | undefined;
+        let capturedPass2Short: SinglePassOutput | undefined;
+        const { runPass1: realRunPass1Short } = await import('@/lib/evaluation/pipeline/runPass1');
+        const { runPass2: realRunPass2Short } = await import('@/lib/evaluation/pipeline/runPass2');
+
+        try {
+          const p2ShortResult = await runPipeline({
+            manuscriptText: manuscriptWithContent.content || '',
+            manuscriptChunks: manuscriptChunksForPipeline,
+            workType: manuscriptWithContent.work_type || 'novel',
+            title: manuscriptWithContent.title,
+            jobId: String(job.id),
+            model: getCanonicalPipelineModel(openAiModel),
+            openaiApiKey,
+            manuscriptId: String(manuscriptWithContent.id),
+            executionMode: 'TRUSTED_PATH',
+            _passTimeoutMs: timeoutResolution.passTimeoutMs,
+            _openAiTimeoutMs: timeoutResolution.openAiTimeoutMs,
+            ...(prebuiltLedgerP2Short ? { _prebuiltCharacterLedger: prebuiltLedgerP2Short } : {}),
+            _runners: {
+              runPass1: async (opts) => { const r = await realRunPass1Short(opts); capturedPass1Short = r; return r; },
+              runPass2: async (opts) => { const r = await realRunPass2Short(opts); capturedPass2Short = r; return r; },
+            },
+            onHeartbeat: async (stage) => {
+              await assertJobWithinSla({ supabase, jobId, hardDeadlineMs, stage });
+              await renewEvaluationJobLease({ supabase, jobId, leaseMs: runtimeConfig.worker.leaseMs, stage, hardDeadlineMs });
+            },
+          });
+          if (!p2ShortResult.ok) {
+            const errCode = 'error_code' in p2ShortResult ? p2ShortResult.error_code : 'PHASE2_SHORT_PASS12_FAILED';
+            await markFailed(String(errCode), 'PHASE2_PASS12_FAILED', { pipelineStage: 'phase_2' });
+            return { success: false, error: String(errCode) };
+          }
+        } catch (p2ShortErr) {
+          const errMsg = p2ShortErr instanceof Error ? p2ShortErr.message : String(p2ShortErr);
+          await markFailed(errMsg, 'PHASE2_PASS12_FAILED', { pipelineStage: 'phase_2' });
+          return { success: false, error: errMsg };
+        } finally {
+          clearInterval(leaseRenewalLoopP2Short);
+        }
+
+        if (!capturedPass1Short) {
+          await markFailed('phase_2 short: Pass 1 output not captured', 'PHASE2_PASS1_MISSING', { pipelineStage: 'phase_2' });
+          return { success: false, error: 'phase_2 short: Pass 1 output not captured' };
+        }
+
+        const handoffContentP2Short = {
+          pass1Output: capturedPass1Short,
+          pass2Output: capturedPass2Short ?? capturedPass1Short,
+          chunk_count: manuscriptChunksForPipeline?.length ?? 1,
+          captured_at: new Date().toISOString(),
+          schema_version: 'pass12_handoff_v1',
+        };
+        await upsertEvaluationArtifact({
+          supabase,
+          jobId: String(job.id),
+          manuscriptId: Number(job.manuscript_id),
+          artifactType: 'pass12_handoff_v1',
+          content: handoffContentP2Short,
+          sourceHash: stableSourceHash({
+            manuscriptId: Number(manuscriptWithContent.id),
+            jobId: String(job.id),
+            userId: String(manuscriptWithContent.user_id ?? ''),
+            manuscriptText: manuscriptWithContent.content || '',
+            promptVersion: 'pass12_handoff_v1',
+            model: getCanonicalPipelineModel(openAiModel),
+          }),
+          artifactVersion: 'pass12_handoff_v1',
+        });
+
+        const p2ShortNow = new Date().toISOString();
+        const { error: p2ShortPhase3Err } = await supabase
+          .from('evaluation_jobs')
+          .update({
+            status: JOB_STATUS.QUEUED, phase: 'phase_3', phase_status: JOB_STATUS.QUEUED,
+            claimed_by: null, claimed_at: null, lease_token: null, lease_until: null,
+            updated_at: p2ShortNow,
+            progress: { ...progressState, phase: 'phase_2', phase_status: 'complete',
+              message: 'Pass 1+2 complete (short-form) — handoff written, queued for Pass 3B',
+              phase2_completed_at: p2ShortNow },
+          })
+          .eq('id', job.id);
+        if (p2ShortPhase3Err) {
+          return { success: false, error: p2ShortPhase3Err.message };
+        }
+        console.log(`[phase_2] ${jobId}: short-form Pass 1+2 → handoff written → phase_3 queued`);
+        return { success: true };
       } else {
         // Handoff artifact found — phase_2 has nothing to do. Pass 3B synthesis
         // is owned by phase_3 now. Queue phase_3 and return immediately.
