@@ -2431,8 +2431,9 @@ export async function processEvaluationJob(
       if (phase === 'phase_2' && !progressState.phase1_completed_at) {
         stageTimestampPatch.phase1_completed_at = now;
       }
-      if (phase === 'phase_3' && !progressState.phase3_started_at) {
-        stageTimestampPatch.phase3_started_at = now;
+      // phase_3 has no dedicated DB timestamp column — tracked in progress JSONB only
+      if (phase === 'phase_3') {
+        progressState.phase3_started_at = now;
       }
 
       const nextProgress = {
