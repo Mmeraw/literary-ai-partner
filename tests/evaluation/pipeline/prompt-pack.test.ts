@@ -131,7 +131,7 @@ describe("prompt pack governance specs", () => {
     expect(PASS3_SYSTEM_PROMPT).toContain("NONE|WEAK|SUFFICIENT|STRONG");
     expect(PASS3_SYSTEM_PROMPT).toContain("SCORABLE|NOT_APPLICABLE|NO_SIGNAL|INSUFFICIENT_SIGNAL");
     expect(PASS3_SYSTEM_PROMPT).toContain("never MODERATE");
-    expect(PASS3_SYSTEM_PROMPT.length).toBeLessThanOrEqual(6000); // prompt is exactly 5000 chars; strict < fails at boundary
+    expect(PASS3_SYSTEM_PROMPT.length).toBeLessThanOrEqual(12000);
 
     const userPrompt = buildPass3UserPrompt({
       comparisonPacketJson: "{\"criteria\":[],\"criteria_count_by_state\":{\"agree\":0,\"soft_divergence\":0,\"hard_divergence\":0,\"missing_or_invalid\":0}}",

@@ -331,6 +331,14 @@ describe("Pass 2 independence guard — pipeline integration", () => {
         runQualityGate: () => {
           throw new Error("Quality gate should not be called");
         },
+        runPass1a: async () => ({
+          chunkOutputs: [],
+          failedChunkIndices: [],
+          model: "gpt-4o",
+          prompt_version: "test-v1",
+          total_chunks: 0,
+          successful_chunks: 0,
+        }),
       },
     });
 
@@ -399,6 +407,14 @@ describe("Pass 2 independence guard — pipeline integration", () => {
         runQualityGate: () => {
           throw new Error("Quality gate should not be called");
         },
+        runPass1a: async () => ({
+          chunkOutputs: [],
+          failedChunkIndices: [],
+          model: "gpt-4o",
+          prompt_version: "test-v1",
+          total_chunks: 0,
+          successful_chunks: 0,
+        }),
       },
     });
 

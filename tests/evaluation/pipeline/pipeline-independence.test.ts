@@ -148,6 +148,14 @@ describe("Pipeline Independence Guarantee (spec §3.2)", () => {
         runPass2: mockRunPass2,
         runPass3Synthesis: mockRunPass3,
         runQualityGate: mockRunQualityGate,
+        runPass1a: async () => ({
+          chunkOutputs: [],
+          failedChunkIndices: [],
+          model: "gpt-4o",
+          prompt_version: "test-v1",
+          total_chunks: 0,
+          successful_chunks: 0,
+        }),
       },
     });
 
@@ -182,6 +190,14 @@ describe("Pipeline Independence Guarantee (spec §3.2)", () => {
         runPass2: mockRunPass2,
         runPass3Synthesis: mockRunPass3,
         runQualityGate: mockRunQualityGate,
+        runPass1a: async () => ({
+          chunkOutputs: [],
+          failedChunkIndices: [],
+          model: "gpt-4o",
+          prompt_version: "test-v1",
+          total_chunks: 0,
+          successful_chunks: 0,
+        }),
       },
     });
 
@@ -205,6 +221,14 @@ describe("Pipeline Independence Guarantee (spec §3.2)", () => {
         runPass2: mockRunPass2,
         runPass3Synthesis: mockRunPass3,
         runQualityGate: mockRunQualityGate,
+        runPass1a: async () => ({
+          chunkOutputs: [],
+          failedChunkIndices: [],
+          model: "gpt-4o",
+          prompt_version: "test-v1",
+          total_chunks: 0,
+          successful_chunks: 0,
+        }),
       },
     });
 
@@ -234,6 +258,14 @@ describe("Pipeline Independence Guarantee (spec §3.2)", () => {
         runPass2: mockRunPass2,
         runPass3Synthesis: mockRunPass3,
         runQualityGate: mockRunQualityGate,
+        runPass1a: async () => ({
+          chunkOutputs: [],
+          failedChunkIndices: [],
+          model: "gpt-4o",
+          prompt_version: "test-v1",
+          total_chunks: 0,
+          successful_chunks: 0,
+        }),
       },
     });
 

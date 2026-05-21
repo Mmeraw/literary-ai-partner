@@ -61,14 +61,8 @@ function makeSynthesis(overrides: Partial<Record<CriterionKey, Partial<Synthesiz
 
 // ── Prompt version ────────────────────────────────────────────────────────────
 
-it("PASS3_PROMPT_VERSION reflects v15 entity roster grounding", () => {
-  // Bumped from v14 to v15 to inject MANUSCRIPT ENTITY ROSTER (top characters
-  // and named entities from pass2aStructuredContext) into the synthesis prompt
-  // and require every final_rationale to cite specific characters by name. The
-  // prior version produced criteria commentary that was thin on specifics —
-  // e.g. central characters mentioned only once or missing entirely from the
-  // 13-criteria section despite appearing throughout the manuscript.
-  expect(PASS3_PROMPT_VERSION).toBe("pass3-synthesis-v15-entity-roster-grounding");
+it("PASS3_PROMPT_VERSION reflects the canonical tier1-ledger synthesis prompt", () => {
+  expect(PASS3_PROMPT_VERSION).toBe("pass3-synthesis-v18-tier1-ledger");
 });
 
 // ── Five-part contract: passing fixtures ─────────────────────────────────────

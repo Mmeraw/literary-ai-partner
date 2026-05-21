@@ -211,6 +211,14 @@ describe("runPipeline routing field in pipeline_result", () => {
         runPass1: async () => stub1,
         runPass2: async () => stub2,
         runPass3Synthesis: async () => stub3,
+        runPass1a: async () => ({
+          chunkOutputs: [],
+          failedChunkIndices: [],
+          model: "gpt-4o",
+          prompt_version: "test-v1",
+          total_chunks: 0,
+          successful_chunks: 0,
+        }),
       },
     });
 

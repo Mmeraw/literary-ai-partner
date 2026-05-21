@@ -74,7 +74,7 @@ describe("resolveEvaluationRuntimeConfig", () => {
     expect(() =>
       resolveEvaluationRuntimeConfig({
         EVAL_WORKER_LEASE_MS: "3600000",
-        EVAL_WORKER_MAX_EXECUTION_MS: "810000",
+        EVAL_WORKER_MAX_EXECUTION_MS: "3700000",
       }, {}),
     ).toThrow(/EVAL_WORKER_MAX_EXECUTION_MS must be between 10000 and 3600000/);
   });
