@@ -155,7 +155,7 @@ interface RawSymbol {
 function buildSymbolPayoffEntries(rawSymbols: RawSymbol[], totalChunks: number): SymbolPayoffEntry[] {
   const byObject = new Map<string, RawSymbol[]>();
   for (const sym of rawSymbols) {
-    const key = sym.object.trim().toLowerCase();
+    const key = String(sym.object ?? '').trim().toLowerCase();
     if (!byObject.has(key)) byObject.set(key, []);
     byObject.get(key)!.push(sym);
   }
@@ -317,8 +317,8 @@ export function reduceCharacterEvidence(params: {
     const arcStart = firstEntry.arc_state_in_chunk ?? "";
     const arcEnd = lastEntry.arc_shift ?? lastEntry.arc_state_in_chunk ?? "";
     const arcTurningPoints = entries
-      .filter((e) => e.arc_shift && e.arc_shift.trim())
-      .map((e) => e.arc_shift!)
+      .filter((e) => e.arc_shift != null && String(e.arc_shift).trim())
+      .map((e) => typeof e.arc_shift === 'string' ? e.arc_shift : String(e.arc_shift))
       .slice(0, 5);
 
     // Five Ws + How — take first non-null across all chunks
@@ -326,7 +326,9 @@ export function reduceCharacterEvidence(params: {
     const whatDoTheyWant = entries.find((e) => e.what_do_they_want)?.what_do_they_want ?? null;
     const primaryLocations = [...new Set(entries.map((e) => e.where_are_they).filter((l): l is string => !!l))];
     const whySignal = entries.find((e) => e.why_signal)?.why_signal ?? null;
-    const howSignal = entries.find((e) => e.how_signal)?.how_signal ?? null;
+    const howSignal = entries.find((e) => e.how_signal != null)
+      ? String(entries.find((e) => e.how_signal != null)!.how_signal)
+      : null;
 
     // Evidence anchors — pick top MAX_EVIDENCE_ANCHORS, prefer distinct types
     const allAnchors = entries.flatMap((e, i) =>
@@ -423,15 +425,18 @@ export function reduceCharacterEvidence(params: {
     const seenCopingDescs = new Set<string>();
     for (let ei = 0; ei < entries.length; ei++) {
       const e = entries[ei];
-      if (e.how_signal) {
-        const desc = e.how_signal.toLowerCase().trim();
+      if (e.how_signal != null) {
+        const howStr = typeof e.how_signal === 'string' ? e.how_signal : String(e.how_signal);
+        const desc = howStr.toLowerCase().trim();
         if (!seenCopingDescs.has(desc)) {
           seenCopingDescs.add(desc);
-          const repeatCount = entries.filter((x) =>
-            x.how_signal?.toLowerCase().trim() === desc
-          ).length;
+          const repeatCount = entries.filter((x) => {
+            if (x.how_signal == null) return false;
+            const xs = typeof x.how_signal === 'string' ? x.how_signal : String(x.how_signal);
+            return xs.toLowerCase().trim() === desc;
+          }).length;
           copingMechanisms.push({
-            description: e.how_signal,
+            description: howStr,
             firstAppearsChunk: chunkIndices[ei],
             frequency: repeatCount >= 5 ? "dominant" : repeatCount >= 2 ? "recurring" : "rare",
           });
