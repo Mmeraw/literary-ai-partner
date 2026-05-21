@@ -185,7 +185,7 @@ describe("runPipeline (e2e with injected runners)", () => {
     mockRunPass1.mockResolvedValue(makeSinglePassOutput(1));
     mockRunPass2.mockResolvedValue(makeSinglePassOutput(2));
     mockRunPass3.mockResolvedValue(makeSynthesisOutput());
-    mockRunPass1a.mockResolvedValue({ chunkOutputs: [], failedChunkIndices: [], model: 'gpt-4o', prompt_version: 'test-v1', total_chunks: 0, successful_chunks: 0 });
+    mockRunPass1a.mockResolvedValue({ chunkOutputs: [], failedChunkIndices: [], failedChunkErrors: [], model: 'gpt-4o', prompt_version: 'test-v1', total_chunks: 0, successful_chunks: 0 });
   });
 
   it("returns ok=true with synthesis and quality_gate on success", async () => {
@@ -1123,7 +1123,7 @@ describe("Pass 3b — long-form DREAM synthesis (pipeline integration)", () => {
     mockRunPass1.mockResolvedValue(makeSinglePassOutput(1));
     mockRunPass2.mockResolvedValue(makeSinglePassOutput(2));
     mockRunPass3.mockResolvedValue(makeSynthesisOutput());
-    mockRunPass1a.mockResolvedValue({ chunkOutputs: [], failedChunkIndices: [], model: 'gpt-4o', prompt_version: 'test-v1', total_chunks: 0, successful_chunks: 0 });
+    mockRunPass1a.mockResolvedValue({ chunkOutputs: [], failedChunkIndices: [], failedChunkErrors: [], model: 'gpt-4o', prompt_version: 'test-v1', total_chunks: 0, successful_chunks: 0 });
   });
 
   // T1: main job completes for long-form manuscripts WITHOUT Pass 3b (decoupled to /api/workers/process-dream).
@@ -1519,7 +1519,7 @@ describe("Pass 4 — Perplexity DREAM adjudication (pipeline integration)", () =
     mockRunPass1.mockResolvedValue(makeSinglePassOutput(1));
     mockRunPass2.mockResolvedValue(makeSinglePassOutput(2));
     mockRunPass3.mockResolvedValue(makeSynthesisOutput());
-    mockRunPass1a.mockResolvedValue({ chunkOutputs: [], failedChunkIndices: [], model: 'gpt-4o', prompt_version: 'test-v1', total_chunks: 0, successful_chunks: 0 });
+    mockRunPass1a.mockResolvedValue({ chunkOutputs: [], failedChunkIndices: [], failedChunkErrors: [], model: 'gpt-4o', prompt_version: 'test-v1', total_chunks: 0, successful_chunks: 0 });
   });
 
   it("includes cross_check in ok=true result when perplexityApiKey is provided (short-form)", async () => {

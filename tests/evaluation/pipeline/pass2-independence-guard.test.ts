@@ -334,6 +334,7 @@ describe("Pass 2 independence guard — pipeline integration", () => {
         runPass1a: async () => ({
           chunkOutputs: [],
           failedChunkIndices: [],
+          failedChunkErrors: [],
           model: "gpt-4o",
           prompt_version: "test-v1",
           total_chunks: 0,
@@ -410,6 +411,7 @@ describe("Pass 2 independence guard — pipeline integration", () => {
         runPass1a: async () => ({
           chunkOutputs: [],
           failedChunkIndices: [],
+          failedChunkErrors: [],
           model: "gpt-4o",
           prompt_version: "test-v1",
           total_chunks: 0,

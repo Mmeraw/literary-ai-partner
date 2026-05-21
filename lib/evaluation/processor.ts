@@ -3727,74 +3727,30 @@ export async function processEvaluationJob(
         }
 
         if (pass1aResult.chunkOutputs.length === 0) {
-          // Soft-skip: the ledger is an enrichment layer, not the paid product.
-          // Persist an empty-sentinel artifact so phase_2 knows the ledger is
-          // unavailable, then queue phase_2 anyway. Pass 3 will run without
-          // character-ledger grounding; WAVE will skip with reason
-          // CHARACTER_LEDGER_V2_MISSING. The evaluation report is still delivered.
-          console.warn(`[Processor] ${jobId}: phase_1a — Pass 1A produced zero chunk outputs — persisting empty sentinel and continuing to phase_2`);
+          const firstChunkError = pass1aResult.failedChunkErrors[0]?.error ?? 'unknown_error';
+          const zeroOutputError =
+            `Pass 1A produced zero chunk outputs; total=${pass1aResult.total_chunks}, ` +
+            `successful=${pass1aResult.successful_chunks}, ` +
+            `failed=[${pass1aResult.failedChunkIndices.join(', ')}], ` +
+            `first_error=${firstChunkError}`;
 
-          const emptyLedgerHash = `pass1a_ledger_empty_${String(job.id)}`;
-          try {
-            await upsertEvaluationArtifact({
-              supabase,
-              jobId: String(job.id),
-              manuscriptId: Number(job.manuscript_id),
-              artifactType: 'pass1a_character_ledger_v1',
-              content: {
-                job_id: String(job.id),
-                manuscript_id: Number(job.manuscript_id),
-                created_at: new Date().toISOString(),
-                schema_version: 'pass1a_character_ledger_v1',
-                status: 'empty',
-                reason_code: 'PASS1A_LEDGER_EMPTY',
-                ledger_v1: null,
-                ledger_v2: null,
-                summary: { entries: 0 },
+          await markFailed(
+            zeroOutputError,
+            'PASS1A_ZERO_CHUNK_OUTPUTS',
+            {
+              pipelineStage: 'phase_1a',
+              reasonCodes: ['PASS1A_ZERO_CHUNK_OUTPUTS'],
+              diagnostics: {
+                total_chunks: pass1aResult.total_chunks,
+                successful_chunks: pass1aResult.successful_chunks,
+                failed_chunk_indices: pass1aResult.failedChunkIndices,
+                failed_chunk_errors: pass1aResult.failedChunkErrors,
+                model: pass1aResult.model,
+                prompt_version: pass1aResult.prompt_version,
               },
-              sourceHash: emptyLedgerHash,
-              artifactVersion: 'pass1a_character_ledger_v1',
-            });
-          } catch (emptyArtifactErr) {
-            console.error(`[Processor] ${jobId}: phase_1a — failed to persist empty ledger artifact (non-fatal)`,
-              emptyArtifactErr instanceof Error ? emptyArtifactErr.message : String(emptyArtifactErr));
-          }
-
-          // Queue phase_2 — evaluation must continue
-          const emptyNow = new Date().toISOString();
-          const { data: emptyHandoffRow, error: emptyHandoffErr } = await supabase
-            .from('evaluation_jobs')
-            .update({
-              status: JOB_STATUS.QUEUED,
-              phase: 'phase_2',
-              phase_status: JOB_STATUS.QUEUED,
-              claimed_by: null,
-              claimed_at: null,
-              lease_token: null,
-              lease_until: null,
-              updated_at: emptyNow,
-              progress: {
-                ...progressState,
-                phase: 'phase_1a',
-                phase_status: 'complete',
-                message: 'Phase 1A produced empty ledger — WAVE will be skipped; proceeding to Pass 3',
-                phase1a_completed_at: emptyNow,
-                ledger_entries: 0,
-                ledger_status: 'empty',
-              },
-            })
-            .eq('id', job.id)
-            .eq('status', JOB_STATUS.RUNNING)
-            .select('id, status, phase, phase_status')
-            .single();
-
-          if (emptyHandoffErr) {
-            console.error(`[Processor] ${jobId}: phase_1a empty-ledger phase_2 queue FAILED`, emptyHandoffErr.message);
-            throw new Error(`Phase 1A empty-ledger handoff failed: ${emptyHandoffErr.message}`);
-          }
-
-          console.log(`[Processor] ${jobId}: phase_1a empty-ledger handoff confirmed — status=queued phase=phase_2`);
-          return { success: true };
+            },
+          );
+          return { success: false, error: zeroOutputError };
         }
 
         const totalChunksPhase1a = Array.isArray(pass1aChunks) ? pass1aChunks.length : 1;

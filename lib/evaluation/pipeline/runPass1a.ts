@@ -336,6 +336,8 @@ export interface RunPass1aResult {
   chunkOutputs: Pass1aChunkOutput[];
   /** Chunks that failed after retries — non-fatal: reducer works with partial data */
   failedChunkIndices: number[];
+  /** Per-chunk failure details for diagnostics and explicit zero-output failures */
+  failedChunkErrors: Array<{ chunk_index: number; error: string }>;
   model: string;
   prompt_version: string;
   total_chunks: number;
@@ -408,17 +410,24 @@ export async function runPass1a(opts: RunPass1aOptions): Promise<RunPass1aResult
 
   const chunkOutputs: Pass1aChunkOutput[] = [];
   const failedChunkIndices: number[] = [];
+  const failedChunkErrors: Array<{ chunk_index: number; error: string }> = [];
 
   for (let i = 0; i < settled.length; i++) {
     const result = settled[i];
     if (result.status === "fulfilled") {
       chunkOutputs.push(result.value);
     } else {
-      failedChunkIndices.push(chunks[i].chunk_index);
+      const chunkIndex = chunks[i].chunk_index;
+      const errorText = result.reason instanceof Error ? result.reason.message : String(result.reason);
+      failedChunkIndices.push(chunkIndex);
+      failedChunkErrors.push({
+        chunk_index: chunkIndex,
+        error: errorText,
+      });
       console.error("[Pass1A] Chunk failed after retries", {
         job_id: opts.jobId ?? null,
-        chunk_index: chunks[i].chunk_index,
-        error: result.reason instanceof Error ? result.reason.message : String(result.reason),
+        chunk_index: chunkIndex,
+        error: errorText,
       });
     }
   }
@@ -433,6 +442,7 @@ export async function runPass1a(opts: RunPass1aOptions): Promise<RunPass1aResult
   return {
     chunkOutputs,
     failedChunkIndices,
+    failedChunkErrors,
     model,
     prompt_version: PASS1A_PROMPT_VERSION,
     total_chunks: chunks.length,

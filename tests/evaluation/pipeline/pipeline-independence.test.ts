@@ -151,6 +151,7 @@ describe("Pipeline Independence Guarantee (spec §3.2)", () => {
         runPass1a: async () => ({
           chunkOutputs: [],
           failedChunkIndices: [],
+          failedChunkErrors: [],
           model: "gpt-4o",
           prompt_version: "test-v1",
           total_chunks: 0,
@@ -193,6 +194,7 @@ describe("Pipeline Independence Guarantee (spec §3.2)", () => {
         runPass1a: async () => ({
           chunkOutputs: [],
           failedChunkIndices: [],
+          failedChunkErrors: [],
           model: "gpt-4o",
           prompt_version: "test-v1",
           total_chunks: 0,
@@ -224,6 +226,7 @@ describe("Pipeline Independence Guarantee (spec §3.2)", () => {
         runPass1a: async () => ({
           chunkOutputs: [],
           failedChunkIndices: [],
+          failedChunkErrors: [],
           model: "gpt-4o",
           prompt_version: "test-v1",
           total_chunks: 0,
@@ -261,6 +264,7 @@ describe("Pipeline Independence Guarantee (spec §3.2)", () => {
         runPass1a: async () => ({
           chunkOutputs: [],
           failedChunkIndices: [],
+          failedChunkErrors: [],
           model: "gpt-4o",
           prompt_version: "test-v1",
           total_chunks: 0,
