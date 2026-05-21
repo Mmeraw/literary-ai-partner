@@ -18,6 +18,7 @@ export default function Page() {
   <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&display=swap" />
   <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
   <link href="https://api.fontshare.com/v2/css?f[]=switzer@400,450,500&display=swap" rel="stylesheet" />
 
@@ -173,12 +174,11 @@ export default function Page() {
 
     /* ─── HERO ───────────────────────────────────────────────────────── */
     .hero {
-      min-height: 96vh;
       display: flex;
       flex-direction: column;
       justify-content: center;
       position: relative;
-      padding-block: clamp(4rem, 10vh, 8rem);
+      padding-block: clamp(5rem, 8vh, 7rem);
       overflow: hidden;
     }
     /* subtle noise texture overlay */
@@ -209,7 +209,9 @@ export default function Page() {
       animation-delay: 0.1s;
     }
     .hero-display {
-      font-family: var(--font-display);
+      font-family: 'Instrument Serif', 'Georgia', 'Times New Roman', serif;
+      font-weight: 400;
+      font-style: normal;
       font-size: clamp(72px, 14vw, 180px);
       line-height: 0.92;
       letter-spacing: -0.03em;
@@ -217,7 +219,6 @@ export default function Page() {
       margin-bottom: 1.8rem;
       animation: fadeUp 0.9s var(--ease-out) both;
       animation-delay: 0.2s;
-      /* subtle letter-press gold shadow */
       text-shadow: 0 2px 60px rgba(200,169,110,0.08);
     }
     .hero-subtitle {
@@ -259,7 +260,7 @@ export default function Page() {
     /* ─── THREE PILLARS ─────────────────────────────────────────────── */
     .s-pillars {
       background: var(--surface);
-      padding-block: clamp(5rem, 10vw, 8rem);
+      padding-block: clamp(3rem, 5vw, 5rem);
       border-bottom: 1px solid var(--border);
       position: relative;
       overflow: hidden;
@@ -982,10 +983,11 @@ export default function Page() {
 </body>
 </html>
 `
+
   return (
     <div
+      style={{ all: 'initial', display: 'block' } as React.CSSProperties}
       dangerouslySetInnerHTML={{ __html: html }}
-      style={{ all: 'initial', display: 'block' }}
     />
   )
 }
