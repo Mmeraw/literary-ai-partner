@@ -5,7 +5,7 @@ import HeaderNav from "./HeaderNav";
 
 // Marketing routes are self-contained full HTML pages.
 // Client-side SPA transitions break them — force a hard reload instead.
-const MARKETING_ROUTES = ["/", "/revise", "/pricing", "/resources", "/workbench"];
+const MARKETING_ROUTES = ["/", "/revise", "/pricing", "/resources", "/workbench", "/analytics"];
 
 function isMarketing(path: string) {
   return MARKETING_ROUTES.some(r => path === r || path === r + "/");

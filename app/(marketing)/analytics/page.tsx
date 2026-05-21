@@ -1,0 +1,361 @@
+import type { Metadata } from 'next'
+
+export const metadata: Metadata = {
+  title: 'Writer Analytics Dashboard — RevisionGrade™',
+}
+
+export default function Page() {
+  const html = `<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RevisionGrade Dashboard Revised</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+  <style>
+    :root, [data-theme="light"] {
+      --text-xs: clamp(0.75rem, 0.7rem + 0.25vw, 0.875rem);
+      --text-sm: clamp(0.875rem, 0.8rem + 0.35vw, 1rem);
+      --text-base: clamp(1rem, 0.95rem + 0.25vw, 1.125rem);
+      --text-lg: clamp(1.125rem, 1rem + 0.75vw, 1.5rem);
+      --text-xl: clamp(1.5rem, 1.2rem + 1.25vw, 2.25rem);
+      --space-1: 0.25rem; --space-2: 0.5rem; --space-3: 0.75rem; --space-4: 1rem; --space-5: 1.25rem; --space-6: 1.5rem; --space-8: 2rem; --space-10: 2.5rem; --space-12: 3rem; --space-16: 4rem;
+      --color-bg: #f7f6f2; --color-surface: #f9f8f5; --color-surface-2: #fbfbf9; --color-surface-offset: #edeae5; --color-border: #d4d1ca; --color-divider: #dcd9d5;
+      --color-text: #28251d; --color-text-muted: #6f6c66; --color-text-faint: #a7a39b; --color-text-inverse: #f9f8f4;
+      --color-primary: #01696f; --color-primary-hover: #0c4e54; --color-blue: #006494; --color-gold: #d19900; --color-warning: #964219; --color-success: #437a22; --color-error: #a12c7b;
+      --radius-sm: 0.5rem; --radius-md: 0.8rem; --radius-lg: 1rem; --radius-full: 9999px;
+      --shadow-sm: 0 1px 2px rgba(40, 37, 29, 0.06); --shadow-md: 0 12px 32px rgba(40, 37, 29, 0.08);
+      --font-body: 'Inter', sans-serif;
+    }
+    [data-theme="dark"] {
+      --color-bg: #171614; --color-surface: #1c1b19; --color-surface-2: #201f1d; --color-surface-offset: #2b2927; --color-border: #393836; --color-divider: #262523;
+      --color-text: #cdccca; --color-text-muted: #a09d97; --color-text-faint: #6f6a63; --color-text-inverse: #171614;
+      --color-primary: #4f98a3; --color-primary-hover: #227f8b; --color-blue: #5591c7; --color-gold: #e8af34; --color-warning: #bb653b; --color-success: #6daa45; --color-error: #d163a7;
+      --shadow-sm: 0 1px 2px rgba(0,0,0,0.2); --shadow-md: 0 12px 32px rgba(0,0,0,0.35);
+    }
+    *, *::before, *::after { box-sizing: border-box; }
+    html { -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
+    body {
+      margin: 0; min-height: 100vh; font-family: var(--font-body); font-size: var(--text-base); line-height: 1.5;
+      color: var(--color-text);
+      background: radial-gradient(circle at top right, rgba(1,105,111,0.08), transparent 24%), var(--color-bg);
+    }
+    .shell { max-width: 1360px; margin: 0 auto; padding: var(--space-6); }
+    .skip-link { position:absolute; left:-9999px; }
+    .skip-link:focus { left: var(--space-4); top: var(--space-4); background: var(--color-surface); padding: var(--space-2) var(--space-3); border-radius: var(--radius-sm); }
+    .topbar {
+      display:flex; align-items:center; justify-content:space-between; gap:var(--space-4); margin-bottom: var(--space-6);
+      padding: var(--space-4) var(--space-5); background: color-mix(in srgb, var(--color-surface) 86%, transparent); border: 1px solid rgba(40,37,29,0.09); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); backdrop-filter: blur(12px);
+      position: sticky; top: var(--space-4); z-index: 20;
+    }
+    .brand { display:flex; align-items:center; gap: var(--space-3); }
+    .logo { width: 2.25rem; height: 2.25rem; border-radius: 0.8rem; background: linear-gradient(135deg, var(--color-primary), var(--color-blue)); display:grid; place-items:center; color: white; font-weight: 800; }
+    .brand h1 { font-size: var(--text-lg); margin: 0; }
+    .brand p { margin: 0; font-size: var(--text-sm); color: var(--color-text-muted); }
+    .top-actions { display:flex; gap: var(--space-3); align-items:center; flex-wrap: wrap; }
+    button, .pill {
+      border: 1px solid rgba(40,37,29,0.10); background: var(--color-surface-2); color: var(--color-text); border-radius: var(--radius-full);
+      padding: 0.75rem 1rem; font: inherit; min-height: 44px;
+    }
+    button.primary { background: var(--color-primary); color: var(--color-text-inverse); border-color: transparent; }
+    button:hover { cursor:pointer; }
+    .hero {
+      display:grid; grid-template-columns: 1.5fr 1fr; gap: var(--space-5); margin-bottom: var(--space-5);
+    }
+    .panel {
+      background: var(--color-surface); border: 1px solid rgba(40,37,29,0.08); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm);
+    }
+    .hero-card { padding: var(--space-6); }
+    .eyebrow { display:inline-flex; align-items:center; gap:0.5rem; padding:0.4rem 0.8rem; border-radius: var(--radius-full); background: rgba(1,105,111,0.10); color: var(--color-primary); font-size: var(--text-xs); font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; }
+    .hero h2 { font-size: var(--text-xl); line-height: 1.08; margin: var(--space-4) 0 var(--space-3); max-width: 14ch; }
+    .hero p { color: var(--color-text-muted); max-width: 60ch; }
+    .kpi-grid { display:grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: var(--space-4); margin: var(--space-5) 0; }
+    .kpi { padding: var(--space-4); background: var(--color-surface-2); border-radius: var(--radius-md); border: 1px solid rgba(40,37,29,0.06); }
+    .kpi .label { font-size: var(--text-xs); text-transform: uppercase; letter-spacing: 0.08em; color: var(--color-text-muted); margin-bottom: var(--space-2); }
+    .kpi .value { font-size: clamp(1.6rem, 1.2rem + 1.5vw, 2.3rem); font-weight: 800; }
+    .kpi .delta { margin-top: var(--space-2); color: var(--color-success); font-size: var(--text-sm); }
+    .layout { display:grid; grid-template-columns: 1.6fr 1fr; gap: var(--space-5); }
+    .stack { display:grid; gap: var(--space-5); }
+    .section-head { display:flex; justify-content:space-between; gap:var(--space-3); align-items:flex-start; margin-bottom: var(--space-4); }
+    .section-head h3 { margin: 0; font-size: var(--text-lg); }
+    .section-head p { margin: 0; color: var(--color-text-muted); font-size: var(--text-sm); max-width: 52ch; }
+    .chart-card { padding: var(--space-5); }
+    .chart-wrap { position:relative; height: 340px; }
+    .insight-list { display:grid; gap: var(--space-3); }
+    .insight-item { padding: var(--space-4); border-radius: var(--radius-md); background: var(--color-surface-2); border:1px solid rgba(40,37,29,0.06); }
+    .insight-item strong { display:block; margin-bottom: 0.35rem; }
+    .table-card { padding: var(--space-5); overflow-x:auto; }
+    table { width:100%; border-collapse: collapse; min-width: 620px; }
+    th, td { text-align:left; padding: 0.9rem 0.75rem; border-bottom:1px solid var(--color-divider); }
+    th { font-size: var(--text-xs); text-transform: uppercase; letter-spacing:0.08em; color: var(--color-text-muted); }
+    td { font-size: var(--text-sm); }
+    .tag { display:inline-flex; padding: 0.35rem 0.7rem; border-radius: var(--radius-full); font-size: var(--text-xs); font-weight:700; }
+    .tag.error { background: rgba(161,44,123,0.12); color: var(--color-error); }
+    .tag.warn { background: rgba(150,66,25,0.12); color: var(--color-warning); }
+    .tag.good { background: rgba(67,122,34,0.12); color: var(--color-success); }
+    .mini-note { margin-top: var(--space-3); color: var(--color-text-muted); font-size: var(--text-sm); }
+    .footer-note { padding: var(--space-4) 0; color: var(--color-text-muted); font-size: var(--text-sm); }
+    @media (max-width: 1024px) {
+      .hero, .layout { grid-template-columns: 1fr; }
+      .kpi-grid { grid-template-columns: repeat(2, minmax(0,1fr)); }
+    }
+    @media (max-width: 640px) {
+      .shell { padding: var(--space-4); }
+      .topbar { position: static; }
+      .kpi-grid { grid-template-columns: 1fr; }
+      .topbar, .top-actions, .section-head { flex-direction: column; align-items: stretch; }
+      .chart-wrap { height: 300px; }
+      button, .pill { width: 100%; justify-content: center; }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <div class="shell">
+    <header class="topbar panel">
+      <div class="brand">
+        <div class="logo" aria-hidden="true">RG</div>
+        <div>
+          <h1>RevisionGrade Writer Dashboard</h1>
+          <p>Failure patterns, trendlines, and revision momentum in one view.</p>
+        </div>
+      </div>
+      <div class="top-actions">
+        <span class="pill">Last 12 submissions</span>
+        <button id="themeToggle" aria-label="Switch theme">Toggle theme</button>
+        <button class="primary">Export report</button>
+      </div>
+    </header>
+
+    <main id="main">
+      <section class="hero" aria-label="Overview">
+        <article class="panel hero-card">
+          <span class="eyebrow">Performance overview</span>
+          <h2>Your writing is improving, but sentence-level clarity still leads the failures.</h2>
+          <p>This prototype recreates the dashboard concept you described: a bar graph for failure-type distribution, trend lines for progress over time, and a submission table so improvement is traceable rather than vague.</p>
+          <div class="kpi-grid" aria-label="Key metrics">
+            <div class="kpi"><div class="label">Current score</div><div class="value">84</div><div class="delta">+11 points in 8 weeks</div></div>
+            <div class="kpi"><div class="label">Failure rate</div><div class="value">22%</div><div class="delta">Down from 38%</div></div>
+            <div class="kpi"><div class="label">Strongest area</div><div class="value" style="font-size:1.35rem;">Narrative flow</div><div class="delta">91% pass rate</div></div>
+            <div class="kpi"><div class="label">Watch area</div><div class="value" style="font-size:1.35rem;">Clarity</div><div class="delta" style="color:var(--color-warning)">17 unresolved flags</div></div>
+          </div>
+        </article>
+        <aside class="panel hero-card">
+          <div class="section-head">
+            <div>
+              <h3>What this view answers</h3>
+              <p>It helps a user see whether problems are random, recurring, or trending downward after revision.</p>
+            </div>
+          </div>
+          <div class="insight-list">
+            <div class="insight-item"><strong>Failure type concentration</strong>The bar chart shows whether most breakdowns are grammar, clarity, pacing, evidence, or structure.</div>
+            <div class="insight-item"><strong>Improvement over time</strong>The line chart tracks score growth and falling failure counts across dated submissions.</div>
+            <div class="insight-item"><strong>Revision accountability</strong>The table anchors each point to a real submission so the graph is auditable.</div>
+          </div>
+        </aside>
+      </section>
+
+      <section class="layout" aria-label="Charts and details">
+        <div class="stack">
+          <article class="panel chart-card">
+            <div class="section-head">
+              <div>
+                <h3>Failure types</h3>
+                <p>Bar chart of the most common reasons a submission fails review, weighted by recurring occurrence.</p>
+              </div>
+              <span class="pill">Current cycle</span>
+            </div>
+            <div class="chart-wrap"><canvas id="failureChart" aria-label="Bar chart of failure types" role="img"></canvas></div>
+            <p class="mini-note">Clarity and evidence handling dominate current failures, which suggests the next product coaching prompt should be more diagnostic than motivational.</p>
+          </article>
+
+          <article class="panel chart-card">
+            <div class="section-head">
+              <div>
+                <h3>Improvement trend</h3>
+                <p>Score trend and failure-count trend plotted together so improvement can be seen as both quality gain and defect reduction.</p>
+              </div>
+              <span class="pill">8-week view</span>
+            </div>
+            <div class="chart-wrap"><canvas id="trendChart" aria-label="Line chart of writing improvement over time" role="img"></canvas></div>
+            <p class="mini-note">A useful reading of this view is slope: rising score plus falling failures means the user is truly improving, not just producing one strong outlier.</p>
+          </article>
+        </div>
+
+        <div class="stack">
+          <article class="panel table-card">
+            <div class="section-head">
+              <div>
+                <h3>Submission trail</h3>
+                <p>Example rows showing how the dashboard can tie visual trends back to concrete evaluations.</p>
+              </div>
+            </div>
+            <table>
+              <thead>
+                <tr><th>Date</th><th>Title</th><th>Score</th><th>Primary issue</th><th>Status</th></tr>
+              </thead>
+              <tbody>
+                <tr><td>Mar 12</td><td>Chapter 3 revision</td><td>73</td><td>Sentence clarity</td><td><span class="tag warn">Needs work</span></td></tr>
+                <tr><td>Mar 20</td><td>Dialogue pass</td><td>76</td><td>Pacing</td><td><span class="tag warn">Needs work</span></td></tr>
+                <tr><td>Apr 02</td><td>Scene compression</td><td>79</td><td>Evidence support</td><td><span class="tag warn">Needs work</span></td></tr>
+                <tr><td>Apr 15</td><td>Structure rewrite</td><td>81</td><td>Transitions</td><td><span class="tag good">Improving</span></td></tr>
+                <tr><td>Apr 28</td><td>Line edit pass</td><td>83</td><td>Clarity</td><td><span class="tag good">Improving</span></td></tr>
+                <tr><td>May 10</td><td>Final revision set</td><td>84</td><td>Minor citation issues</td><td><span class="tag good">Strong</span></td></tr>
+              </tbody>
+            </table>
+          </article>
+
+          <article class="panel chart-card">
+            <div class="section-head">
+              <div>
+                <h3>Design note</h3>
+                <p>This is wired as a standalone front-end prototype with embedded sample data, so it opens cleanly and demonstrates the dashboard pattern without depending on backend endpoints.</p>
+              </div>
+            </div>
+            <div class="insight-list">
+              <div class="insight-item"><strong>Next wiring step</strong>Replace the arrays in the script with fetched evaluation history from your real dataset.</div>
+              <div class="insight-item"><strong>Chart choice</strong>Bar for failure categories, line for longitudinal progress, because each chart answers a different question.</div>
+              <div class="insight-item"><strong>UI implication</strong>This can live behind a user account dashboard or as a manuscript-level analytics view.</div>
+            </div>
+          </article>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer-note">Prototype dashboard recreation for RevisionGrade analytics.</footer>
+  </div>
+
+  <script>
+    const root = document.documentElement;
+    let currentTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    root.setAttribute('data-theme', currentTheme);
+    document.getElementById('themeToggle').addEventListener('click', () => {
+      currentTheme = currentTheme === 'dark' ? 'light' : 'dark';
+      root.setAttribute('data-theme', currentTheme);
+      renderCharts();
+    });
+
+    const failureData = {
+      labels: ['Clarity', 'Evidence', 'Grammar', 'Pacing', 'Structure', 'Style'],
+      values: [17, 13, 11, 9, 6, 4]
+    };
+
+    const trendData = {
+      labels: ['Mar 12', 'Mar 20', 'Apr 02', 'Apr 15', 'Apr 28', 'May 10'],
+      scores: [73, 76, 79, 81, 83, 84],
+      failures: [14, 13, 11, 9, 7, 5]
+    };
+
+    let failureChart, trendChart;
+
+    function getCss(name) {
+      return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    }
+
+    function renderCharts() {
+      const textColor = getCss('--color-text');
+      const muted = getCss('--color-text-muted');
+      const divider = getCss('--color-divider');
+      const primary = getCss('--color-primary');
+      const blue = getCss('--color-blue');
+      const gold = getCss('--color-gold');
+      const error = getCss('--color-error');
+
+      Chart.defaults.color = muted;
+      Chart.defaults.borderColor = divider;
+      Chart.defaults.font.family = 'Inter, sans-serif';
+
+      if (failureChart) failureChart.destroy();
+      if (trendChart) trendChart.destroy();
+
+      failureChart = new Chart(document.getElementById('failureChart'), {
+        type: 'bar',
+        data: {
+          labels: failureData.labels,
+          datasets: [{
+            label: 'Occurrences',
+            data: failureData.values,
+            backgroundColor: [primary, blue, gold, error, '#7a39bb', '#437a22'],
+            borderRadius: 10,
+            borderSkipped: false
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: { backgroundColor: textColor, titleColor: '#fff', bodyColor: '#fff' }
+          },
+          scales: {
+            x: { ticks: { color: muted }, grid: { display: false } },
+            y: { beginAtZero: true, ticks: { stepSize: 5, color: muted }, grid: { color: divider } }
+          }
+        }
+      });
+
+      trendChart = new Chart(document.getElementById('trendChart'), {
+        type: 'line',
+        data: {
+          labels: trendData.labels,
+          datasets: [
+            {
+              label: 'Quality score',
+              data: trendData.scores,
+              yAxisID: 'y',
+              borderColor: primary,
+              backgroundColor: primary,
+              tension: 0.35,
+              pointRadius: 4,
+              pointHoverRadius: 5
+            },
+            {
+              label: 'Failure count',
+              data: trendData.failures,
+              yAxisID: 'y1',
+              borderColor: gold,
+              backgroundColor: gold,
+              tension: 0.35,
+              pointRadius: 4,
+              pointHoverRadius: 5
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: { mode: 'index', intersect: false },
+          plugins: {
+            legend: { labels: { color: muted } },
+            tooltip: { backgroundColor: textColor, titleColor: '#fff', bodyColor: '#fff' }
+          },
+          scales: {
+            x: { ticks: { color: muted }, grid: { color: divider } },
+            y: {
+              position: 'left', min: 65, max: 90,
+              ticks: { color: muted }, grid: { color: divider }, title: { display: true, text: 'Score', color: muted }
+            },
+            y1: {
+              position: 'right', min: 0, max: 16,
+              grid: { drawOnChartArea: false }, ticks: { color: muted }, title: { display: true, text: 'Failures', color: muted }
+            }
+          }
+        }
+      });
+    }
+
+    renderCharts();
+  </script>
+</body>
+</html>
+`
+  return (
+    <div
+      dangerouslySetInnerHTML={{ __html: html }}
+      style={{ all: 'initial', display: 'block' }}
+    />
+  )
+}
