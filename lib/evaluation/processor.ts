@@ -1889,6 +1889,7 @@ export async function failStaleRunningJobs(): Promise<{
           status: failedStatus,
           phase_status: 'failed',
           last_error: 'Auto-failed by watchdog: frozen function with no recoverable checkpoint',
+          failure_code: 'WORKER_TIMEOUT_PHASE_1A' as string,
           claimed_by: null,
           claimed_at: null,
           lease_token: null,
@@ -2001,13 +2002,25 @@ export async function failStaleRunningJobs(): Promise<{
     .eq('artifact_type', 'pass3_preflight_draft_v1');
   const stalePreflightJobIds = new Set((stalePreflightRows ?? []).map((r) => r.job_id as string));
 
-  // Rescue if: handoff OR (ledger + preflight) OR (ledger + stale >400s)
+  // Check for pass1a_chunk_cache_v1 — partial checkpoint for full-novel phase_1a timeouts.
+  // When chunk cache exists but ledger is missing, phase_1a can rebuild the ledger from cache
+  // without re-running OpenAI. Treat as rescuable rather than failed.
+  const { data: staleChunkCacheRows } = await supabase
+    .from('evaluation_artifacts')
+    .select('job_id')
+    .in('job_id', staleIds)
+    .eq('artifact_type', 'pass1a_chunk_cache_v1');
+  const staleChunkCacheJobIds = new Set((staleChunkCacheRows ?? []).map((r) => r.job_id as string));
+
+  // Rescue if: handoff OR (ledger + preflight) OR (ledger alone) OR chunk_cache (ledger missing but rebuildable)
   const staleToRescue = staleIds.filter((id) => {
     if (staleHandoffJobIds.has(id)) return true;
-    const hasLedger    = staleLedgerJobIds.has(id);
-    const hasPreflight = stalePreflightJobIds.has(id);
+    const hasLedger     = staleLedgerJobIds.has(id);
+    const hasPreflight  = stalePreflightJobIds.has(id);
+    const hasChunkCache = staleChunkCacheJobIds.has(id);
     if (hasLedger && hasPreflight) return true;
     if (hasLedger) return true; // stale-by-lease already implies timeout elapsed
+    if (hasChunkCache) return true; // chunk cache is a recoverable checkpoint — ledger can be rebuilt
     return false;
   });
   const staleToFail = staleIds.filter((id) => !staleToRescue.includes(id));
@@ -2075,6 +2088,7 @@ export async function failStaleRunningJobs(): Promise<{
     phase_status: 'failed',
     last_error:
       'Auto-failed stale running job: worker timed out or crashed before completion update',
+    failure_code: 'STALE_RUNNING_NO_RECOVERABLE_CHECKPOINT' as string,
     claimed_by: null,
     claimed_at: null,
     lease_token: null,
