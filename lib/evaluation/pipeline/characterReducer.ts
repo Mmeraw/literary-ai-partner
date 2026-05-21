@@ -104,8 +104,61 @@ function normalize(name: string): string {
   return name.trim().toLowerCase();
 }
 
-function resolveCanonical(name: string, aliasMap: Map<string, string>): string {
-  return aliasMap.get(normalize(name)) ?? name.trim();
+function resolveCanonical(
+  name: string,
+  aliasMap: Map<string, string>,
+  identityGroupMap?: Map<string, string>,
+): string {
+  const normalized = normalize(name);
+  const grouped = identityGroupMap?.get(normalized);
+  const resolved = grouped ?? aliasMap.get(normalized) ?? name.trim();
+  return aliasMap.get(normalize(resolved)) ?? resolved.trim();
+}
+
+/**
+ * The Pass 1A prompt now asks models to emit canonical_identity_group, but the
+ * quarantine layer intentionally strips unknown fields. Capture the raw identity
+ * hints before quarantine so the deterministic reducer can use them as the
+ * primary merge key, while still letting quarantine sanitize the rest of the
+ * chunk output.
+ */
+function buildRawIdentityGroupMap(rawChunkOutputs: Pass1aChunkOutput[]): Map<string, string> {
+  const map = new Map<string, string>();
+  const chunks = Array.isArray(rawChunkOutputs) ? rawChunkOutputs : [];
+
+  for (const chunk of chunks) {
+    const characters = Array.isArray(chunk.characters) ? chunk.characters : [];
+    for (const character of characters) {
+      const record = character as Pass1aCharacterChunkEntry & { canonical_identity_group?: unknown };
+      const group = normalizeSignalText(record.canonical_identity_group);
+      if (!group) continue;
+
+      const visibleNames = [
+        group,
+        record.canonical_name,
+        ...(Array.isArray(record.aliases) ? record.aliases : []),
+      ]
+        .map((value) => normalizeSignalText(value))
+        .filter((value): value is string => Boolean(value));
+
+      for (const visibleName of visibleNames) {
+        map.set(normalize(visibleName), group.trim());
+      }
+    }
+  }
+
+  return map;
+}
+
+function normalizeIdentityGroupMap(
+  rawIdentityGroupMap: Map<string, string>,
+  aliasMap: Map<string, string>,
+): Map<string, string> {
+  const normalized = new Map<string, string>();
+  for (const [visibleName, group] of rawIdentityGroupMap.entries()) {
+    normalized.set(visibleName, resolveCanonical(group, aliasMap));
+  }
+  return normalized;
 }
 
 // ── Signal text normalization ───────────────────────────────────────────────
@@ -270,6 +323,11 @@ export function reduceCharacterEvidence(params: {
 }): Pass1aCharacterLedger {
   const { jobId, totalChunksInManuscript } = params;
 
+  // Capture prompt-emitted canonical_identity_group before quarantine strips
+  // unknown fields. This is the primary fix for Michael/Miguel/Salter and
+  // Benjamin/Benjamín/Mr. Lopez fragmentation in Story Ledger P0.
+  const rawIdentityGroupMap = buildRawIdentityGroupMap(params.chunkOutputs);
+
   // ── Quarantine: normalize all AI-emitted fields before reduction ──────────
   // Coerces non-string values, drops unsalvageable entries, emits diagnostics.
   // One corrupt how_signal / arc_shift / any field never kills the whole job.
@@ -289,27 +347,30 @@ export function reduceCharacterEvidence(params: {
   }
 
   // Collect all character names across all chunks
-  const allNames = chunkOutputs.flatMap((co) =>
-    co.characters.map((c) => c.canonical_name),
-  );
+  const allNames = [
+    ...chunkOutputs.flatMap((co) =>
+      co.characters.flatMap((c) => [c.canonical_name, ...(c.aliases ?? [])]),
+    ),
+    ...Array.from(rawIdentityGroupMap.values()),
+  ];
   const aliasMap = buildAliasMap(allNames);
+  const identityGroupMap = normalizeIdentityGroupMap(rawIdentityGroupMap, aliasMap);
 
   // Group all chunk entries by resolved canonical name
   const grouped = new Map<string, Array<{ entry: Pass1aCharacterChunkEntry; chunk_index: number }>>();
 
   for (const chunkOutput of chunkOutputs) {
     for (const char of chunkOutput.characters) {
-      const canonical = resolveCanonical(char.canonical_name, aliasMap);
+      const canonical = resolveCanonical(char.canonical_name, aliasMap, identityGroupMap);
       if (!grouped.has(canonical)) grouped.set(canonical, []);
       grouped.get(canonical)!.push({ entry: char, chunk_index: chunkOutput.chunk_index });
     }
     // Also resolve aliases mentioned in the entry itself
     for (const char of chunkOutput.characters) {
       for (const alias of char.aliases ?? []) {
-        const resolved = resolveCanonical(alias, aliasMap);
-        if (resolved !== resolveCanonical(char.canonical_name, aliasMap)) {
+        const resolved = resolveCanonical(alias, aliasMap, identityGroupMap);
+        if (resolved !== resolveCanonical(char.canonical_name, aliasMap, identityGroupMap)) {
           // This alias resolves to a different canonical — add cross-reference
-          const canonical = resolveCanonical(char.canonical_name, aliasMap);
           if (!grouped.has(resolved)) grouped.set(resolved, []);
           // Don't double-add the same entry
         }
@@ -321,7 +382,7 @@ export function reduceCharacterEvidence(params: {
   const rawSymbols: RawSymbol[] = [];
   for (const chunkOutput of chunkOutputs) {
     for (const char of chunkOutput.characters) {
-      const canonical = resolveCanonical(char.canonical_name, aliasMap);
+      const canonical = resolveCanonical(char.canonical_name, aliasMap, identityGroupMap);
       for (const sym of char.symbolic_objects ?? []) {
         rawSymbols.push({
           object: sym.object,
@@ -410,7 +471,7 @@ export function reduceCharacterEvidence(params: {
     const relationalEngines = entries
       .flatMap((e, i) =>
         (e.relationship_signals ?? []).map((r) => ({
-          other_character: resolveCanonical(r.other_character, aliasMap),
+          other_character: resolveCanonical(r.other_character, aliasMap, identityGroupMap),
           relationship_type: r.relationship_type,
           dynamic: r.dynamic,
           chunk_span: [chunkIndices[i], chunkIndices[i]] as [number, number],
@@ -430,7 +491,7 @@ export function reduceCharacterEvidence(params: {
       const allOccurrences = entries
         .flatMap((e, i) =>
           (e.relationship_signals ?? [])
-            .filter((r) => normalize(resolveCanonical(r.other_character, aliasMap)) === normalize(engine.other_character))
+            .filter((r) => normalize(resolveCanonical(r.other_character, aliasMap, identityGroupMap)) === normalize(engine.other_character))
             .map(() => chunkIndices[i]),
         );
       if (allOccurrences.length > 0) {
@@ -1031,6 +1092,8 @@ export function buildCharacterLedgerV2(params: {
     const confirmedChunks = new Set<number>();
     for (const co of chunkOutputs) {
       if (co.characters.some((c) =>
+        resolveCanonical(c.canonical_name, new Map(), buildRawIdentityGroupMap(chunkOutputs)) === entry.canonical_name ||
+        (c.aliases ?? []).some((alias) => resolveCanonical(alias, new Map(), buildRawIdentityGroupMap(chunkOutputs)) === entry.canonical_name) ||
         c.canonical_name === entry.canonical_name ||
         (c.aliases ?? []).includes(entry.canonical_name)
       )) {
