@@ -99,19 +99,59 @@ function parseRetryAfterMs(reason: unknown): number | null {
 }
 
 /**
+ * Coerce any LLM-emitted signal value to a string or null.
+ * Handles string, array (joined), object (extracts text keys), and primitives.
+ * This mirrors the normalizeSignalText helper in characterReducer.ts so that
+ * corrupt values are sanitized at parse time, before the reducer ever sees them.
+ */
+function normalizeField(value: unknown): string | null {
+  if (value == null) return null;
+  if (typeof value === 'string') {
+    const t = value.trim();
+    return t.length > 0 ? t : null;
+  }
+  if (Array.isArray(value)) {
+    const joined = value.map(normalizeField).filter((s): s is string => !!s).join('; ');
+    return joined.length > 0 ? joined : null;
+  }
+  if (typeof value === 'object') {
+    const r = value as Record<string, unknown>;
+    const preferred = normalizeField(r.description) ?? normalizeField(r.signal) ??
+      normalizeField(r.value) ?? normalizeField(r.text) ?? normalizeField(r.mechanism);
+    if (preferred) return preferred;
+    const flat = Object.values(r).map(normalizeField).filter((s): s is string => !!s).join('; ');
+    return flat.length > 0 ? flat : null;
+  }
+  const s = String(value).trim();
+  return s.length > 0 ? s : null;
+}
+
+/**
  * Enforce hard caps on a single character entry post-parse.
- * Trims arrays silently — never throws.
+ * Also normalizes every string signal field so corrupt LLM values
+ * (arrays, objects, numbers) never reach the character reducer.
+ * Never throws.
  */
 function enforceCaps(entry: Pass1aCharacterChunkEntry): Pass1aCharacterChunkEntry {
   return {
     ...entry,
+    // Normalize all Five-Ws + How signal fields — LLM can return non-string values
+    who_is_this: normalizeField(entry.who_is_this) ?? "",
+    what_do_they_want: normalizeField(entry.what_do_they_want),
+    where_are_they: normalizeField(entry.where_are_they),
+    when_signal: normalizeField(entry.when_signal),
+    why_signal: normalizeField(entry.why_signal),
+    how_signal: normalizeField(entry.how_signal),
+    arc_state_in_chunk: normalizeField(entry.arc_state_in_chunk) ?? "",
+    arc_pressure: normalizeField(entry.arc_pressure),
+    arc_shift: normalizeField(entry.arc_shift),
     evidence_anchors: (entry.evidence_anchors ?? [])
       .slice(0, CAPS.maxEvidenceAnchors)
       .map((a) => ({
         ...a,
         excerpt: typeof a.excerpt === "string"
           ? a.excerpt.slice(0, CAPS.maxExcerptChars)
-          : "",
+          : (normalizeField(a.excerpt) ?? "").slice(0, CAPS.maxExcerptChars),
       })),
     relationship_signals: (entry.relationship_signals ?? []).slice(0, CAPS.maxRelationshipSignals),
     symbolic_objects: (entry.symbolic_objects ?? []).slice(0, CAPS.maxSymbolicObjects),
@@ -156,9 +196,33 @@ function parsePass1aResponse(
       `[Pass1A] Chunk ${chunkIndex}: invalid response shape — missing characters array. Top-level keys: [${keys}]`,
     );
   }
-  const characters = (data.characters as Pass1aCharacterChunkEntry[])
-    .slice(0, CAPS.maxCharacters)
-    .map(enforceCaps);
+
+  // Sanitize each character entry individually — corrupt entries are dropped
+  // (logged) rather than crashing the whole chunk. One bad character in one
+  // chunk must not kill a 40-chunk full-novel sweep.
+  const rawCharacters = data.characters as unknown[];
+  const characters: Pass1aCharacterChunkEntry[] = [];
+  for (let ci = 0; ci < Math.min(rawCharacters.length, CAPS.maxCharacters); ci++) {
+    const entry = rawCharacters[ci];
+    if (typeof entry !== 'object' || entry === null || typeof (entry as Record<string, unknown>).canonical_name !== 'string') {
+      console.warn('[Pass1A] Dropping corrupt character entry', {
+        chunk_index: chunkIndex,
+        entry_index: ci,
+        entry_type: typeof entry,
+        entry_preview: JSON.stringify(entry)?.slice(0, 200),
+      });
+      continue;
+    }
+    try {
+      characters.push(enforceCaps(entry as Pass1aCharacterChunkEntry));
+    } catch (capErr) {
+      console.warn('[Pass1A] enforceCaps threw on character entry (skipping)', {
+        chunk_index: chunkIndex,
+        entry_index: ci,
+        error: capErr instanceof Error ? capErr.message : String(capErr),
+      });
+    }
+  }
 
   return {
     pass: "1a",
@@ -256,7 +320,24 @@ async function runSingleChunk(params: {
     }
   }
 
-  throw lastError;
+  // All retries exhausted — return a degraded zero-character result rather
+  // than throwing. One bad chunk must never abort a 40-chunk full-novel sweep.
+  // The reducer handles partial data gracefully via failedChunkIndices.
+  const errorMsg = lastError instanceof Error ? lastError.message : String(lastError);
+  console.error('[Pass1A] Chunk failed after all retries — returning degraded result (zero characters)', {
+    chunk_index: params.chunk.chunk_index,
+    error: errorMsg,
+  });
+  return {
+    pass: '1a' as const,
+    axis: 'character_evidence_sweep' as const,
+    chunk_index: params.chunk.chunk_index,
+    characters: [],
+    prompt_version: PASS1A_PROMPT_VERSION,
+    generated_at: new Date().toISOString(),
+    _degraded: true,
+    _degraded_reason: errorMsg,
+  } as Pass1aChunkOutput & { _degraded: boolean; _degraded_reason: string };
 }
 
 async function runChunksWithConcurrency(
