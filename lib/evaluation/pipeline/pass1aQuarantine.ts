@@ -27,9 +27,9 @@ import type {
 // ── Diagnostic types ──────────────────────────────────────────────────────
 
 export type Pass1aQuarantineAction =
-  | "coerced"      // value was non-string but usable — converted
-  | "dropped"      // value was present but unusable — discarded
-  | "defaulted"    // required field was missing/unusable — replaced with safe default
+  | "coerced"        // value was malformed but usable — converted
+  | "dropped"        // value was present but unusable — discarded
+  | "defaulted"      // field was missing/unusable — replaced with safe default
   | "entry_dropped"; // entire character entry was too corrupt to salvage
 
 export type Pass1aQuarantineDiagnosticCode =
@@ -37,7 +37,11 @@ export type Pass1aQuarantineDiagnosticCode =
   | "PASS1A_MALFORMED_STRING_DROPPED"
   | "PASS1A_MALFORMED_ARRAY_DEFAULTED"
   | "PASS1A_MALFORMED_BOOLEAN_DEFAULTED"
-  | "PASS1A_MALFORMED_CHARACTER_DROPPED";
+  | "PASS1A_MALFORMED_ENUM_DEFAULTED"
+  | "PASS1A_MALFORMED_NUMBER_DROPPED"
+  | "PASS1A_MALFORMED_NESTED_ITEM_DROPPED"
+  | "PASS1A_MALFORMED_CHARACTER_DROPPED"
+  | "PASS1A_MALFORMED_CHUNK_DROPPED";
 
 export interface Pass1aQuarantineDiagnostic {
   code: Pass1aQuarantineDiagnosticCode;
@@ -97,6 +101,19 @@ const VALID_EVIDENCE_CONFIDENCE = new Set<string>([
   "explicit", "strong_inference", "weak_inference",
 ]);
 
+const ENUM_ALIASES: Record<string, string> = {
+  "young adult": "young_adult",
+  "middle aged": "middle_aged",
+  "co protagonist": "co_protagonist",
+  "co-protagonist": "co_protagonist",
+  "animal companion": "animal_companion",
+  "symbolic force": "symbolic_force",
+  "collective force": "collective_force",
+  "strong inference": "strong_inference",
+  "weak inference": "weak_inference",
+  "ending payoff": "ending_payoff",
+};
+
 // ── Core normalization primitives ─────────────────────────────────────────
 
 function observedType(value: unknown): string {
@@ -105,9 +122,23 @@ function observedType(value: unknown): string {
   return typeof value;
 }
 
+function recordDiagnostic(
+  diagnostics: Pass1aQuarantineDiagnostic[],
+  diagnostic: Pass1aQuarantineDiagnostic,
+): void {
+  diagnostics.push(diagnostic);
+}
+
+function normalizeEnumToken(value: unknown): string | null {
+  const text = normalizeAiString(value);
+  if (!text) return null;
+  const normalized = text.trim().toLowerCase().replace(/[\s-]+/g, "_");
+  return ENUM_ALIASES[text.trim().toLowerCase()] ?? normalized;
+}
+
 /**
  * Safely coerce any LLM-emitted value to a trimmed string or null.
- * Exported so runPass1a.ts and other callers can reuse it.
+ * Handles strings, arrays, objects, primitives, and nested structures.
  */
 export function normalizeAiString(value: unknown): string | null {
   if (value == null) return null;
@@ -127,7 +158,6 @@ export function normalizeAiString(value: unknown): string | null {
 
   if (typeof value === "object") {
     const r = value as Record<string, unknown>;
-    // Try common natural-language keys first
     const preferred =
       normalizeAiString(r.description) ??
       normalizeAiString(r.signal) ??
@@ -135,9 +165,11 @@ export function normalizeAiString(value: unknown): string | null {
       normalizeAiString(r.text) ??
       normalizeAiString(r.mechanism) ??
       normalizeAiString(r.summary) ??
-      normalizeAiString(r.note);
+      normalizeAiString(r.note) ??
+      normalizeAiString(r.label) ??
+      normalizeAiString(r.name);
     if (preferred) return preferred;
-    // Fallback: flatten all leaf string values
+
     const flat = Object.values(r)
       .map((item) => normalizeAiString(item))
       .filter((s): s is string => Boolean(s))
@@ -145,7 +177,7 @@ export function normalizeAiString(value: unknown): string | null {
     return flat.length > 0 ? flat : null;
   }
 
-  if (typeof value === "number" || typeof value === "boolean") {
+  if (typeof value === "number" || typeof value === "boolean" || typeof value === "bigint") {
     return String(value);
   }
 
@@ -165,7 +197,7 @@ function normStr(
 
   if (normalized !== null) {
     if (typeof value !== "string") {
-      diagnostics.push({
+      recordDiagnostic(diagnostics, {
         code: "PASS1A_MALFORMED_STRING_COERCED",
         action: "coerced",
         chunk_index: chunkIndex,
@@ -181,7 +213,7 @@ function normStr(
   if (opts.required) {
     const fallback = opts.fallback ?? "";
     if (value !== null && value !== undefined) {
-      diagnostics.push({
+      recordDiagnostic(diagnostics, {
         code: "PASS1A_MALFORMED_STRING_COERCED",
         action: "defaulted",
         chunk_index: chunkIndex,
@@ -195,7 +227,7 @@ function normStr(
   }
 
   if (value !== null && value !== undefined && value !== "") {
-    diagnostics.push({
+    recordDiagnostic(diagnostics, {
       code: "PASS1A_MALFORMED_STRING_DROPPED",
       action: "dropped",
       chunk_index: chunkIndex,
@@ -224,7 +256,7 @@ function normStrArray(
   if (value !== null && value !== undefined) {
     const coerced = normalizeAiString(value);
     if (coerced) {
-      diagnostics.push({
+      recordDiagnostic(diagnostics, {
         code: "PASS1A_MALFORMED_ARRAY_DEFAULTED",
         action: "coerced",
         chunk_index: chunkIndex,
@@ -235,7 +267,7 @@ function normStrArray(
       });
       return [coerced];
     }
-    diagnostics.push({
+    recordDiagnostic(diagnostics, {
       code: "PASS1A_MALFORMED_ARRAY_DEFAULTED",
       action: "defaulted",
       chunk_index: chunkIndex,
@@ -261,10 +293,10 @@ function normBool(
     if (["true", "yes", "1"].includes(l)) return true;
     if (["false", "no", "0"].includes(l)) return false;
   }
-  if (typeof value === "number") return value !== 0;
+  if (typeof value === "number" && Number.isFinite(value)) return value !== 0;
 
   if (value !== null && value !== undefined) {
-    diagnostics.push({
+    recordDiagnostic(diagnostics, {
       code: "PASS1A_MALFORMED_BOOLEAN_DEFAULTED",
       action: "defaulted",
       chunk_index: chunkIndex,
@@ -277,13 +309,73 @@ function normBool(
   return opts.fallback ?? false;
 }
 
-function normEnum<T extends string>(
+function normEnum<T extends string | null>(
   value: unknown,
   validSet: Set<string>,
   fallback: T,
+  fieldPath: string,
+  chunkIndex: number,
+  diagnostics: Pass1aQuarantineDiagnostic[],
+  characterName?: string,
 ): T {
-  if (typeof value === "string" && validSet.has(value)) return value as T;
+  const token = normalizeEnumToken(value);
+  if (token && validSet.has(token)) return token as T;
+
+  if (value !== null && value !== undefined && value !== fallback) {
+    recordDiagnostic(diagnostics, {
+      code: "PASS1A_MALFORMED_ENUM_DEFAULTED",
+      action: "defaulted",
+      chunk_index: chunkIndex,
+      character_name: characterName,
+      field_path: fieldPath,
+      observed_type: observedType(value),
+      normalized_preview: fallback === null ? "null" : String(fallback),
+    });
+  }
+
   return fallback;
+}
+
+function normNumber(
+  value: unknown,
+  fieldPath: string,
+  chunkIndex: number,
+  diagnostics: Pass1aQuarantineDiagnostic[],
+  characterName?: string,
+): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim().length > 0) {
+    const parsed = Number.parseFloat(value.trim());
+    if (Number.isFinite(parsed)) {
+      recordDiagnostic(diagnostics, {
+        code: "PASS1A_MALFORMED_STRING_COERCED",
+        action: "coerced",
+        chunk_index: chunkIndex,
+        character_name: characterName,
+        field_path: fieldPath,
+        observed_type: "string",
+        normalized_preview: String(parsed),
+      });
+      return parsed;
+    }
+  }
+
+  if (value !== null && value !== undefined) {
+    recordDiagnostic(diagnostics, {
+      code: "PASS1A_MALFORMED_NUMBER_DROPPED",
+      action: "dropped",
+      chunk_index: chunkIndex,
+      character_name: characterName,
+      field_path: fieldPath,
+      observed_type: observedType(value),
+    });
+  }
+
+  return null;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
 // ── Character entry normalizer ────────────────────────────────────────────
@@ -293,8 +385,8 @@ function normalizeCharacterEntry(
   chunkIndex: number,
   diagnostics: Pass1aQuarantineDiagnostic[],
 ): Pass1aCharacterChunkEntry | null {
-  if (raw == null || typeof raw !== "object" || Array.isArray(raw)) {
-    diagnostics.push({
+  if (!isRecord(raw)) {
+    recordDiagnostic(diagnostics, {
       code: "PASS1A_MALFORMED_CHARACTER_DROPPED",
       action: "entry_dropped",
       chunk_index: chunkIndex,
@@ -304,18 +396,16 @@ function normalizeCharacterEntry(
     return null;
   }
 
-  const r = raw as Record<string, unknown>;
+  const r = { ...raw };
 
-  // canonical_name is the minimum viable field — drop the entry if we can't get one
   const rawName = normStr(r.canonical_name, "canonical_name", chunkIndex, diagnostics, {
     required: true,
     fallback: "__UNKNOWN__",
   });
   if (!rawName || rawName === "__UNKNOWN__") {
-    // Only salvage if there's something name-like in the record at all
     const anyName = normalizeAiString(r.name ?? r.character_name ?? r.character ?? r.id);
     if (!anyName) {
-      diagnostics.push({
+      recordDiagnostic(diagnostics, {
         code: "PASS1A_MALFORMED_CHARACTER_DROPPED",
         action: "entry_dropped",
         chunk_index: chunkIndex,
@@ -324,102 +414,164 @@ function normalizeCharacterEntry(
       });
       return null;
     }
-    // Patch it and continue
     r.canonical_name = anyName;
   }
 
   const name = normStr(r.canonical_name, "canonical_name", chunkIndex, diagnostics, {
-    required: true, fallback: "Unknown Character",
+    required: true,
+    fallback: "Unknown Character",
   })!;
 
   const ctx = { characterName: name };
 
-  // Normalize evidence_anchors
-  const rawAnchors = Array.isArray(r.evidence_anchors) ? r.evidence_anchors : [];
-  const evidence_anchors = rawAnchors
-    .filter((a): a is Record<string, unknown> => a != null && typeof a === "object" && !Array.isArray(a))
-    .map((a) => {
-      const excerpt = normalizeAiString(a.excerpt) ?? "";
-      if (excerpt.length === 0) return null; // drop anchor with no text
+  const evidence_anchors = (Array.isArray(r.evidence_anchors) ? r.evidence_anchors : [])
+    .map((anchor, index) => {
+      if (!isRecord(anchor)) {
+        recordDiagnostic(diagnostics, {
+          code: "PASS1A_MALFORMED_NESTED_ITEM_DROPPED",
+          action: "dropped",
+          chunk_index: chunkIndex,
+          character_name: name,
+          field_path: `evidence_anchors[${index}]`,
+          observed_type: observedType(anchor),
+        });
+        return null;
+      }
+
+      const excerpt = normalizeAiString(anchor.excerpt) ?? "";
+      if (excerpt.length === 0) return null;
+
       return {
         excerpt: excerpt.slice(0, 200),
         evidence_type: normEnum<Pass1aEvidenceType>(
-          a.evidence_type, VALID_EVIDENCE_TYPES, "identity"
+          anchor.evidence_type,
+          VALID_EVIDENCE_TYPES,
+          "identity",
+          `evidence_anchors[${index}].evidence_type`,
+          chunkIndex,
+          diagnostics,
+          name,
         ),
-        ...(VALID_EVIDENCE_CONFIDENCE.has(String(a.confidence))
-          ? { confidence: a.confidence as EvidenceConfidence }
+        ...(VALID_EVIDENCE_CONFIDENCE.has(normalizeEnumToken(anchor.confidence) ?? "")
+          ? { confidence: normalizeEnumToken(anchor.confidence) as EvidenceConfidence }
           : {}),
       };
     })
-    .filter((a): a is NonNullable<typeof a> => a !== null);
+    .filter((anchor): anchor is NonNullable<typeof anchor> => anchor !== null);
 
-  // Normalize relationship_signals
-  const rawRels = Array.isArray(r.relationship_signals) ? r.relationship_signals : [];
-  const relationship_signals = rawRels
-    .filter((a): a is Record<string, unknown> => a != null && typeof a === "object")
-    .map((a) => ({
-      other_character: normalizeAiString(a.other_character) ?? "Unknown",
-      relationship_type: normalizeAiString(a.relationship_type) ?? "unknown",
-      dynamic: normalizeAiString(a.dynamic) ?? "",
-    }));
+  const relationship_signals = (Array.isArray(r.relationship_signals) ? r.relationship_signals : [])
+    .map((rel, index) => {
+      if (!isRecord(rel)) {
+        recordDiagnostic(diagnostics, {
+          code: "PASS1A_MALFORMED_NESTED_ITEM_DROPPED",
+          action: "dropped",
+          chunk_index: chunkIndex,
+          character_name: name,
+          field_path: `relationship_signals[${index}]`,
+          observed_type: observedType(rel),
+        });
+        return null;
+      }
 
-  // Normalize symbolic_objects
-  const rawSyms = Array.isArray(r.symbolic_objects) ? r.symbolic_objects : [];
-  const symbolic_objects = rawSyms
-    .filter((a): a is Record<string, unknown> => a != null && typeof a === "object")
-    .map((a) => ({
-      object: normalizeAiString(a.object) ?? "unknown object",
-      function: normalizeAiString(a.function) ?? "",
-    }))
-    .filter((s) => s.object !== "unknown object" || s.function.length > 0);
+      const other = normalizeAiString(rel.other_character);
+      if (!other) return null;
 
-  // Normalize negative_knowledge
-  const rawNK = Array.isArray(r.negative_knowledge) ? r.negative_knowledge : [];
-  const negative_knowledge = rawNK
-    .filter((a): a is Record<string, unknown> => a != null && typeof a === "object")
-    .map((a) => ({
-      character: normalizeAiString(a.character) ?? name,
-      does_not_yet_know: normStrArray(
-        a.does_not_yet_know,
+      return {
+        other_character: other,
+        relationship_type: normalizeAiString(rel.relationship_type) ?? "unknown",
+        dynamic: normalizeAiString(rel.dynamic) ?? "",
+      };
+    })
+    .filter((rel): rel is NonNullable<typeof rel> => rel !== null);
+
+  const symbolic_objects = (Array.isArray(r.symbolic_objects) ? r.symbolic_objects : [])
+    .map((sym, index) => {
+      if (!isRecord(sym)) {
+        recordDiagnostic(diagnostics, {
+          code: "PASS1A_MALFORMED_NESTED_ITEM_DROPPED",
+          action: "dropped",
+          chunk_index: chunkIndex,
+          character_name: name,
+          field_path: `symbolic_objects[${index}]`,
+          observed_type: observedType(sym),
+        });
+        return null;
+      }
+
+      const object = normalizeAiString(sym.object);
+      const fn = normalizeAiString(sym.function);
+      if (!object && !fn) return null;
+
+      return {
+        object: object ?? "unknown object",
+        function: fn ?? "",
+      };
+    })
+    .filter((sym): sym is NonNullable<typeof sym> => sym !== null);
+
+  const negative_knowledge = (Array.isArray(r.negative_knowledge) ? r.negative_knowledge : [])
+    .map((item, index) => {
+      if (!isRecord(item)) {
+        recordDiagnostic(diagnostics, {
+          code: "PASS1A_MALFORMED_NESTED_ITEM_DROPPED",
+          action: "dropped",
+          chunk_index: chunkIndex,
+          character_name: name,
+          field_path: `negative_knowledge[${index}]`,
+          observed_type: observedType(item),
+        });
+        return null;
+      }
+
+      const does_not_yet_know = normStrArray(
+        item.does_not_yet_know,
         "negative_knowledge.does_not_yet_know",
-        chunkIndex, diagnostics, name,
-      ),
-    }))
-    .filter((nk) => nk.does_not_yet_know.length > 0);
+        chunkIndex,
+        diagnostics,
+        name,
+      );
+      if (does_not_yet_know.length === 0) return null;
+
+      return {
+        character: normalizeAiString(item.character) ?? name,
+        does_not_yet_know,
+      };
+    })
+    .filter((item): item is NonNullable<typeof item> => item !== null);
 
   return {
-    canonical_name:          name,
-    aliases:                 normStrArray(r.aliases, "aliases", chunkIndex, diagnostics, name),
-    pronouns:                normStrArray(r.pronouns, "pronouns", chunkIndex, diagnostics, name),
-    age_signal:              normEnum<Pass1aAgeSignal>(r.age_signal, VALID_AGE_SIGNALS, null),
-    age_exact:               typeof r.age_exact === "number" ? r.age_exact : null,
-    life_stage_evidence:     normStr(r.life_stage_evidence, "life_stage_evidence", chunkIndex, diagnostics, ctx),
-    gender_identity:         normEnum<Pass1aGenderIdentity>(r.gender_identity, VALID_GENDER_IDENTITIES, "unknown"),
-    lgbtq_signals:           normStrArray(r.lgbtq_signals, "lgbtq_signals", chunkIndex, diagnostics, name),
-    racial_ethnic_signals:   normStrArray(r.racial_ethnic_signals, "racial_ethnic_signals", chunkIndex, diagnostics, name),
-    skin_tone_signals:       normStrArray(r.skin_tone_signals, "skin_tone_signals", chunkIndex, diagnostics, name),
-    language_signals:        normStrArray(r.language_signals, "language_signals", chunkIndex, diagnostics, name),
-    religion_signals:        normStrArray(r.religion_signals, "religion_signals", chunkIndex, diagnostics, name),
-    socioeconomic_signals:   normStrArray(r.socioeconomic_signals, "socioeconomic_signals", chunkIndex, diagnostics, name),
-    nationality_signals:     normStrArray(r.nationality_signals, "nationality_signals", chunkIndex, diagnostics, name),
+    canonical_name: name,
+    aliases: normStrArray(r.aliases, "aliases", chunkIndex, diagnostics, name),
+    pronouns: normStrArray(r.pronouns, "pronouns", chunkIndex, diagnostics, name),
+    age_signal: normEnum<Pass1aAgeSignal>(r.age_signal, VALID_AGE_SIGNALS, null, "age_signal", chunkIndex, diagnostics, name),
+    age_exact: normNumber(r.age_exact, "age_exact", chunkIndex, diagnostics, name),
+    life_stage_evidence: normStr(r.life_stage_evidence, "life_stage_evidence", chunkIndex, diagnostics, ctx),
+    gender_identity: normEnum<Pass1aGenderIdentity>(r.gender_identity, VALID_GENDER_IDENTITIES, "unknown", "gender_identity", chunkIndex, diagnostics, name),
+    lgbtq_signals: normStrArray(r.lgbtq_signals, "lgbtq_signals", chunkIndex, diagnostics, name),
+    racial_ethnic_signals: normStrArray(r.racial_ethnic_signals, "racial_ethnic_signals", chunkIndex, diagnostics, name),
+    skin_tone_signals: normStrArray(r.skin_tone_signals, "skin_tone_signals", chunkIndex, diagnostics, name),
+    language_signals: normStrArray(r.language_signals, "language_signals", chunkIndex, diagnostics, name),
+    religion_signals: normStrArray(r.religion_signals, "religion_signals", chunkIndex, diagnostics, name),
+    socioeconomic_signals: normStrArray(r.socioeconomic_signals, "socioeconomic_signals", chunkIndex, diagnostics, name),
+    nationality_signals: normStrArray(r.nationality_signals, "nationality_signals", chunkIndex, diagnostics, name),
     disability_neuro_signals: normStrArray(r.disability_neuro_signals, "disability_neuro_signals", chunkIndex, diagnostics, name),
-    role_signal:             normEnum<Pass1aRoleSignal>(r.role_signal, VALID_ROLE_SIGNALS, "unknown"),
-    narrative_weight_signal: normEnum<Pass1aNarrativeWeightSignal>(r.narrative_weight_signal, VALID_NARRATIVE_WEIGHTS, "unknown"),
-    is_named:                normBool(r.is_named, "is_named", chunkIndex, diagnostics, ctx),
-    who_is_this:             normStr(r.who_is_this, "who_is_this", chunkIndex, diagnostics, { ...ctx, required: true, fallback: "" })!,
-    what_do_they_want:       normStr(r.what_do_they_want, "what_do_they_want", chunkIndex, diagnostics, ctx),
-    where_are_they:          normStr(r.where_are_they, "where_are_they", chunkIndex, diagnostics, ctx),
-    when_signal:             normStr(r.when_signal, "when_signal", chunkIndex, diagnostics, ctx),
-    why_signal:              normStr(r.why_signal, "why_signal", chunkIndex, diagnostics, ctx),
-    how_signal:              normStr(r.how_signal, "how_signal", chunkIndex, diagnostics, ctx),
-    arc_state_in_chunk:      normStr(r.arc_state_in_chunk, "arc_state_in_chunk", chunkIndex, diagnostics, { ...ctx, required: true, fallback: "" })!,
-    arc_pressure:            normStr(r.arc_pressure, "arc_pressure", chunkIndex, diagnostics, ctx),
-    arc_shift:               normStr(r.arc_shift, "arc_shift", chunkIndex, diagnostics, ctx),
-    is_ending_chunk:         normBool(r.is_ending_chunk, "is_ending_chunk", chunkIndex, diagnostics, ctx),
+    role_signal: normEnum<Pass1aRoleSignal>(r.role_signal, VALID_ROLE_SIGNALS, "unknown", "role_signal", chunkIndex, diagnostics, name),
+    narrative_weight_signal: normEnum<Pass1aNarrativeWeightSignal>(r.narrative_weight_signal, VALID_NARRATIVE_WEIGHTS, "unknown", "narrative_weight_signal", chunkIndex, diagnostics, name),
+    is_named: normBool(r.is_named, "is_named", chunkIndex, diagnostics, ctx),
+    who_is_this: normStr(r.who_is_this, "who_is_this", chunkIndex, diagnostics, { ...ctx, required: true, fallback: "" })!,
+    what_do_they_want: normStr(r.what_do_they_want, "what_do_they_want", chunkIndex, diagnostics, ctx),
+    where_are_they: normStr(r.where_are_they, "where_are_they", chunkIndex, diagnostics, ctx),
+    when_signal: normStr(r.when_signal, "when_signal", chunkIndex, diagnostics, ctx),
+    why_signal: normStr(r.why_signal, "why_signal", chunkIndex, diagnostics, ctx),
+    how_signal: normStr(r.how_signal, "how_signal", chunkIndex, diagnostics, ctx),
+    arc_state_in_chunk: normStr(r.arc_state_in_chunk, "arc_state_in_chunk", chunkIndex, diagnostics, { ...ctx, required: true, fallback: "" })!,
+    arc_pressure: normStr(r.arc_pressure, "arc_pressure", chunkIndex, diagnostics, ctx),
+    arc_shift: normStr(r.arc_shift, "arc_shift", chunkIndex, diagnostics, ctx),
+    is_ending_chunk: normBool(r.is_ending_chunk, "is_ending_chunk", chunkIndex, diagnostics, ctx),
     symbolic_objects,
     relationship_signals,
     evidence_anchors,
-    co_presence_confirmed:   normStrArray(r.co_presence_confirmed, "co_presence_confirmed", chunkIndex, diagnostics, name),
+    co_presence_confirmed: normStrArray(r.co_presence_confirmed, "co_presence_confirmed", chunkIndex, diagnostics, name),
     negative_knowledge,
   };
 }
@@ -435,24 +587,49 @@ export function quarantinePass1aChunkOutputs(
   rawChunkOutputs: Pass1aChunkOutput[],
 ): Pass1aQuarantineResult {
   const diagnostics: Pass1aQuarantineDiagnostic[] = [];
+  const safeRawChunks = Array.isArray(rawChunkOutputs) ? rawChunkOutputs : [];
   let charactersReceived = 0;
   let charactersReturned = 0;
 
-  const chunkOutputs = rawChunkOutputs.map((chunk) => {
-    const rawChars = Array.isArray(chunk.characters) ? chunk.characters : [];
-    charactersReceived += rawChars.length;
+  const chunkOutputs = safeRawChunks
+    .map((chunk, fallbackIndex) => {
+      if (!isRecord(chunk)) {
+        recordDiagnostic(diagnostics, {
+          code: "PASS1A_MALFORMED_CHUNK_DROPPED",
+          action: "dropped",
+          chunk_index: fallbackIndex,
+          field_path: "chunk",
+          observed_type: observedType(chunk),
+        });
+        return null;
+      }
 
-    const normalizedCharacters = rawChars
-      .map((entry) => normalizeCharacterEntry(entry, chunk.chunk_index, diagnostics))
-      .filter((e): e is Pass1aCharacterChunkEntry => e !== null);
+      const chunkIndex = typeof chunk.chunk_index === "number" && Number.isFinite(chunk.chunk_index)
+        ? chunk.chunk_index
+        : fallbackIndex;
+      const rawChars = Array.isArray(chunk.characters) ? chunk.characters : [];
+      charactersReceived += rawChars.length;
 
-    charactersReturned += normalizedCharacters.length;
+      const normalizedCharacters = rawChars
+        .map((entry) => normalizeCharacterEntry(entry, chunkIndex, diagnostics))
+        .filter((entry): entry is Pass1aCharacterChunkEntry => entry !== null);
 
-    return { ...chunk, characters: normalizedCharacters };
-  });
+      charactersReturned += normalizedCharacters.length;
+
+      return {
+        ...chunk,
+        pass: "1a" as const,
+        axis: "character_evidence_sweep" as const,
+        chunk_index: chunkIndex,
+        characters: normalizedCharacters,
+        prompt_version: normalizeAiString(chunk.prompt_version) ?? "pass1a_quarantined_unknown",
+        generated_at: normalizeAiString(chunk.generated_at) ?? new Date().toISOString(),
+      } satisfies Pass1aChunkOutput;
+    })
+    .filter((chunk): chunk is Pass1aChunkOutput => chunk !== null);
 
   const summary: Pass1aQuarantineSummary = {
-    chunks_received: rawChunkOutputs.length,
+    chunks_received: safeRawChunks.length,
     chunks_returned: chunkOutputs.length,
     characters_received: charactersReceived,
     characters_returned: charactersReturned,
