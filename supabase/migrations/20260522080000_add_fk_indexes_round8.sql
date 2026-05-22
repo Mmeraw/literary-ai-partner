@@ -23,8 +23,24 @@ CREATE INDEX IF NOT EXISTS idx_evaluation_jobs_evaluation_project_id
   ON public.evaluation_jobs (evaluation_project_id);
 
 -- evaluation_jobs.user_id → auth.users
-CREATE INDEX IF NOT EXISTS idx_evaluation_jobs_user_id
-  ON public.evaluation_jobs (user_id);
+DO $$
+BEGIN
+  IF to_regclass('public.evaluation_jobs') IS NULL THEN
+    RAISE NOTICE 'Skipping idx_evaluation_jobs_user_id; evaluation_jobs table is absent';
+  ELSIF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'evaluation_jobs'
+      AND column_name = 'user_id'
+  ) THEN
+    CREATE INDEX IF NOT EXISTS idx_evaluation_jobs_user_id
+      ON public.evaluation_jobs (user_id);
+  ELSE
+    RAISE NOTICE 'Skipping idx_evaluation_jobs_user_id; user_id column is absent';
+  END IF;
+END;
+$$;
 
 -- revision_events.manuscript_id → manuscripts
 CREATE INDEX IF NOT EXISTS idx_revision_events_manuscript_id
