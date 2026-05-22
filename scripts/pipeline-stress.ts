@@ -24,6 +24,7 @@ import type {
   ManuscriptChunkEvidence,
   PipelineResult,
 } from "@/lib/evaluation/pipeline/types";
+import type { RunPass1aResult } from "@/lib/evaluation/pipeline/runPass1a";
 import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
 import { chunkManuscript } from "@/lib/manuscripts/chunking";
 import { generateManuscript, WORD_BUCKETS, countWords } from "../tests/stress/fixtures/generate";
@@ -214,6 +215,20 @@ async function executeRow(row: StressRow): Promise<ExecutedRow> {
         }
       },
       runQualityGate: runners.runQualityGate,
+      // runPass1a stub: return an empty-but-valid character sweep result so
+      // the W-* and L-* scenarios don't try to instantiate the real OpenAI
+      // client (which has no key in the stress environment). Character ledger
+      // coverage is tested by the dedicated identity-groups unit tests; Tier 1
+      // stress focuses on pipeline plumbing, not ledger content.
+      runPass1a: async (): Promise<RunPass1aResult> => ({
+        chunkOutputs: [],
+        failedChunkIndices: [],
+        failedChunkErrors: [],
+        model: "stress-mock-pass1a",
+        prompt_version: "stress-mock",
+        total_chunks: 0,
+        successful_chunks: 0,
+      }),
     };
 
     // For rows without a chunk override, materialize chunks from the manuscript
