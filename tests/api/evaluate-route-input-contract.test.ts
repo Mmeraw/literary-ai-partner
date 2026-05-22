@@ -18,6 +18,22 @@ const mockCreateAdminClient = createAdminClient as jest.MockedFunction<typeof cr
 const mockGetDevHeaderActor = getDevHeaderActor as jest.MockedFunction<typeof getDevHeaderActor>;
 const originalFetch = global.fetch;
 
+// ---------------------------------------------------------------------------
+// Helper: build the evaluation_jobs SELECT-back stub.
+// The route calls:
+//   supabase.from('evaluation_jobs').select('id, status').eq('id', <id>).maybeSingle()
+// after every successful INSERT, to verify the row actually persisted.
+// ---------------------------------------------------------------------------
+function makeJobsSelectBackStub(jobId: string) {
+  return {
+    select: jest.fn(() => ({
+      eq: jest.fn(() => ({
+        maybeSingle: async () => ({ data: { id: jobId, status: "queued" }, error: null }),
+      })),
+    })),
+  };
+}
+
 describe("POST /api/evaluate input contract", () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -57,41 +73,42 @@ describe("POST /api/evaluate input contract", () => {
   });
 
   test("accepts text-only input and creates manuscript + evaluation job", async () => {
-    const insertMock = jest
-      .fn()
-      .mockImplementationOnce(() => ({
-        select: () => ({
-          single: async () => ({ data: { id: 987 }, error: null }),
+    // manuscripts INSERT returns manuscript id=987
+    const manuscriptInsertMock = jest.fn(() => ({
+      select: () => ({
+        single: async () => ({ data: { id: 987 }, error: null }),
+      }),
+    }));
+
+    // evaluation_jobs INSERT returns job id="job-abc"
+    const jobInsertMock = jest.fn(() => ({
+      select: () => ({
+        single: async () => ({
+          data: {
+            id: "job-abc",
+            status: "queued",
+            phase: "phase_1",
+            phase_1_status: null,
+            policy_family: "standard",
+            voice_preservation_level: "balanced",
+            english_variant: "us",
+          },
+          error: null,
         }),
-      }))
-      .mockImplementationOnce(() => ({
-        select: () => ({
-          single: async () => ({
-            data: {
-              id: "job-abc",
-              status: "queued",
-              phase: "phase_1",
-              phase_1_status: null,
-              policy_family: "standard",
-              voice_preservation_level: "balanced",
-              english_variant: "us",
-            },
-            error: null,
-          }),
-        }),
-      }));
+      }),
+    }));
 
     const supabase = {
-      from: jest.fn(() => ({
-        select: jest.fn(() => ({
-          eq: jest.fn(() => ({
-            eq: jest.fn(() => ({
-              maybeSingle: async () => ({ data: null, error: null }),
-            })),
-          })),
-        })),
-        insert: insertMock,
-      })),
+      from: jest.fn((table: string) => {
+        if (table === "manuscripts") {
+          return { insert: manuscriptInsertMock };
+        }
+        // evaluation_jobs: handle both INSERT and SELECT-back
+        return {
+          insert: jobInsertMock,
+          ...makeJobsSelectBackStub("job-abc"),
+        };
+      }),
     };
 
     mockCreateAdminClient.mockReturnValue(supabase as never);
@@ -121,41 +138,41 @@ describe("POST /api/evaluate input contract", () => {
   });
 
   test("derives a meaningful manuscript title when none is provided", async () => {
-    const insertMock = jest
-      .fn()
-      .mockImplementationOnce(() => ({
-        select: () => ({
-          single: async () => ({ data: { id: 246 }, error: null }),
-        }),
-      }))
-      .mockImplementationOnce(() => ({
-        select: () => ({
-          single: async () => ({
-            data: {
-              id: "job-derived-title",
-              status: "queued",
-              phase: "phase_1",
-              phase_1_status: null,
-              policy_family: "standard",
-              voice_preservation_level: "balanced",
-              english_variant: "us",
-            },
-            error: null,
-          }),
-        }),
-      }));
+    // manuscripts INSERT (called once for the text-only path)
+    const manuscriptInsertMock = jest.fn(() => ({
+      select: () => ({
+        single: async () => ({ data: { id: 246 }, error: null }),
+      }),
+    }));
 
-    const maybeSingleMock = async () => ({ data: null, error: null });
-    const eqFileUrlMock = jest.fn(() => ({ maybeSingle: maybeSingleMock }));
-    const eqUserMock = jest.fn(() => ({ eq: eqFileUrlMock }));
+    // evaluation_jobs INSERT
+    const jobInsertMock = jest.fn(() => ({
+      select: () => ({
+        single: async () => ({
+          data: {
+            id: "job-derived-title",
+            status: "queued",
+            phase: "phase_1",
+            phase_1_status: null,
+            policy_family: "standard",
+            voice_preservation_level: "balanced",
+            english_variant: "us",
+          },
+          error: null,
+        }),
+      }),
+    }));
 
     const supabase = {
-      from: jest.fn(() => ({
-        insert: insertMock,
-        select: jest.fn(() => ({
-          eq: eqUserMock,
-        })),
-      })),
+      from: jest.fn((table: string) => {
+        if (table === "manuscripts") {
+          return { insert: manuscriptInsertMock };
+        }
+        return {
+          insert: jobInsertMock,
+          ...makeJobsSelectBackStub("job-derived-title"),
+        };
+      }),
     };
 
     mockCreateAdminClient.mockReturnValue(supabase as never);
@@ -172,7 +189,7 @@ describe("POST /api/evaluate input contract", () => {
     const response = await POST(req);
 
     expect(response.status).toBe(200);
-    expect(insertMock).toHaveBeenCalledWith(
+    expect(manuscriptInsertMock).toHaveBeenCalledWith(
       expect.objectContaining({
         title: "First line of the story",
       }),
@@ -180,13 +197,22 @@ describe("POST /api/evaluate input contract", () => {
   });
 
   test("creates a fresh manuscript row on repeated text submissions", async () => {
-    const insertMock = jest
+    // Four sequential INSERTs: manuscript #1, job #1, manuscript #2, job #2
+    const manuscriptInsertMock = jest
       .fn()
       .mockImplementationOnce(() => ({
         select: () => ({
           single: async () => ({ data: { id: 701 }, error: null }),
         }),
       }))
+      .mockImplementationOnce(() => ({
+        select: () => ({
+          single: async () => ({ data: { id: 702 }, error: null }),
+        }),
+      }));
+
+    const jobInsertMock = jest
+      .fn()
       .mockImplementationOnce(() => ({
         select: () => ({
           single: async () => ({
@@ -201,11 +227,6 @@ describe("POST /api/evaluate input contract", () => {
             },
             error: null,
           }),
-        }),
-      }))
-      .mockImplementationOnce(() => ({
-        select: () => ({
-          single: async () => ({ data: { id: 702 }, error: null }),
         }),
       }))
       .mockImplementationOnce(() => ({
@@ -225,10 +246,31 @@ describe("POST /api/evaluate input contract", () => {
         }),
       }));
 
+    // SELECT-back needs to handle two different job IDs across the two requests.
+    // We use a simple mock that returns a valid stub for any ID.
+    let jobSelectBackCallCount = 0;
+    const jobIds = ["job-first", "job-second"];
+
     const supabase = {
-      from: jest.fn(() => ({
-        insert: insertMock,
-      })),
+      from: jest.fn((table: string) => {
+        if (table === "manuscripts") {
+          return { insert: manuscriptInsertMock };
+        }
+        // evaluation_jobs: INSERT + SELECT-back (alternates per request)
+        const currentJobId = jobIds[jobSelectBackCallCount] ?? "job-first";
+        return {
+          insert: jobInsertMock,
+          select: jest.fn(() => ({
+            eq: jest.fn(() => ({
+              maybeSingle: async () => {
+                const id = jobIds[jobSelectBackCallCount];
+                jobSelectBackCallCount++;
+                return { data: { id, status: "queued" }, error: null };
+              },
+            })),
+          })),
+        };
+      }),
     };
 
     mockCreateAdminClient.mockReturnValue(supabase as never);
@@ -247,7 +289,9 @@ describe("POST /api/evaluate input contract", () => {
 
     expect(firstResponse.status).toBe(200);
     expect(secondResponse.status).toBe(200);
-    expect(insertMock).toHaveBeenCalledTimes(4);
+    // 2 manuscript INSERTs + 2 job INSERTs = 4 total insert calls
+    expect(manuscriptInsertMock).toHaveBeenCalledTimes(2);
+    expect(jobInsertMock).toHaveBeenCalledTimes(2);
   });
 
   test("returns 200 even when the best-effort worker trigger rejects", async () => {
@@ -257,41 +301,39 @@ describe("POST /api/evaluate input contract", () => {
 
     const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
 
-    const insertMock = jest
-      .fn()
-      .mockImplementationOnce(() => ({
-        select: () => ({
-          single: async () => ({ data: { id: 654 }, error: null }),
+    const manuscriptInsertMock = jest.fn(() => ({
+      select: () => ({
+        single: async () => ({ data: { id: 654 }, error: null }),
+      }),
+    }));
+
+    const jobInsertMock = jest.fn(() => ({
+      select: () => ({
+        single: async () => ({
+          data: {
+            id: "job-trigger",
+            status: "queued",
+            phase: "phase_1",
+            phase_1_status: null,
+            policy_family: "standard",
+            voice_preservation_level: "balanced",
+            english_variant: "us",
+          },
+          error: null,
         }),
-      }))
-      .mockImplementationOnce(() => ({
-        select: () => ({
-          single: async () => ({
-            data: {
-              id: "job-trigger",
-              status: "queued",
-              phase: "phase_1",
-              phase_1_status: null,
-              policy_family: "standard",
-              voice_preservation_level: "balanced",
-              english_variant: "us",
-            },
-            error: null,
-          }),
-        }),
-      }));
+      }),
+    }));
 
     const supabase = {
-      from: jest.fn(() => ({
-        select: jest.fn(() => ({
-          eq: jest.fn(() => ({
-            eq: jest.fn(() => ({
-              maybeSingle: async () => ({ data: null, error: null }),
-            })),
-          })),
-        })),
-        insert: insertMock,
-      })),
+      from: jest.fn((table: string) => {
+        if (table === "manuscripts") {
+          return { insert: manuscriptInsertMock };
+        }
+        return {
+          insert: jobInsertMock,
+          ...makeJobsSelectBackStub("job-trigger"),
+        };
+      }),
     };
 
     mockCreateAdminClient.mockReturnValue(supabase as never);
