@@ -506,27 +506,55 @@ $$;
 -- Admin RPCs → revoke anon, keep authenticated (admin UI uses authenticated client)
 DO $$
 BEGIN
-  REVOKE EXECUTE ON FUNCTION public.admin_list_jobs(text, text, text, text, timestamptz, timestamptz, timestamptz, timestamptz, timestamptz, timestamptz, uuid, integer) FROM PUBLIC;
-  REVOKE EXECUTE ON FUNCTION public.admin_list_jobs(text, text, text, text, timestamptz, timestamptz, timestamptz, timestamptz, timestamptz, timestamptz, uuid, integer) FROM anon;
+  IF to_regprocedure('public.admin_list_jobs(text,text,text,text,timestamptz,timestamptz,timestamptz,timestamptz,timestamptz,timestamptz,uuid,integer)') IS NOT NULL THEN
+    REVOKE EXECUTE ON FUNCTION public.admin_list_jobs(text, text, text, text, timestamptz, timestamptz, timestamptz, timestamptz, timestamptz, timestamptz, uuid, integer) FROM PUBLIC;
+    REVOKE EXECUTE ON FUNCTION public.admin_list_jobs(text, text, text, text, timestamptz, timestamptz, timestamptz, timestamptz, timestamptz, timestamptz, uuid, integer) FROM anon;
+  ELSE
+    RAISE NOTICE 'Skipping revoke for admin_list_jobs(...); function overload is absent';
+  END IF;
 
   -- admin_retry_job — 2 overloads
-  REVOKE EXECUTE ON FUNCTION public.admin_retry_job(uuid)                                     FROM PUBLIC;
-  REVOKE EXECUTE ON FUNCTION public.admin_retry_job(uuid)                                     FROM anon;
+  IF to_regprocedure('public.admin_retry_job(uuid)') IS NOT NULL THEN
+    REVOKE EXECUTE ON FUNCTION public.admin_retry_job(uuid)                                     FROM PUBLIC;
+    REVOKE EXECUTE ON FUNCTION public.admin_retry_job(uuid)                                     FROM anon;
+  ELSE
+    RAISE NOTICE 'Skipping revoke for admin_retry_job(uuid); overload is absent';
+  END IF;
 
-  REVOKE EXECUTE ON FUNCTION public.admin_retry_job(uuid, text, uuid)                        FROM PUBLIC;
-  REVOKE EXECUTE ON FUNCTION public.admin_retry_job(uuid, text, uuid)                        FROM anon;
+  IF to_regprocedure('public.admin_retry_job(uuid,text,uuid)') IS NOT NULL THEN
+    REVOKE EXECUTE ON FUNCTION public.admin_retry_job(uuid, text, uuid)                        FROM PUBLIC;
+    REVOKE EXECUTE ON FUNCTION public.admin_retry_job(uuid, text, uuid)                        FROM anon;
+  ELSE
+    RAISE NOTICE 'Skipping revoke for admin_retry_job(uuid,text,uuid); overload is absent';
+  END IF;
 
   -- User-facing share RPCs → authenticated only, never anon
-  REVOKE EXECUTE ON FUNCTION public.create_report_share(uuid, integer)                        FROM PUBLIC;
-  REVOKE EXECUTE ON FUNCTION public.create_report_share(uuid, integer)                        FROM anon;
+  IF to_regprocedure('public.create_report_share(uuid,integer)') IS NOT NULL THEN
+    REVOKE EXECUTE ON FUNCTION public.create_report_share(uuid, integer)                        FROM PUBLIC;
+    REVOKE EXECUTE ON FUNCTION public.create_report_share(uuid, integer)                        FROM anon;
+  ELSE
+    RAISE NOTICE 'Skipping revoke for create_report_share(uuid,integer); function is absent';
+  END IF;
 
-  REVOKE EXECUTE ON FUNCTION public.share_artifact_collection(uuid, integer)                  FROM PUBLIC;
-  REVOKE EXECUTE ON FUNCTION public.share_artifact_collection(uuid, integer)                  FROM anon;
+  IF to_regprocedure('public.share_artifact_collection(uuid,integer)') IS NOT NULL THEN
+    REVOKE EXECUTE ON FUNCTION public.share_artifact_collection(uuid, integer)                  FROM PUBLIC;
+    REVOKE EXECUTE ON FUNCTION public.share_artifact_collection(uuid, integer)                  FROM anon;
+  ELSE
+    RAISE NOTICE 'Skipping revoke for share_artifact_collection(uuid,integer); function is absent';
+  END IF;
 
-  REVOKE EXECUTE ON FUNCTION public.revoke_collection_share_by_token(text)                    FROM PUBLIC;
-  REVOKE EXECUTE ON FUNCTION public.revoke_collection_share_by_token(text)                    FROM anon;
+  IF to_regprocedure('public.revoke_collection_share_by_token(text)') IS NOT NULL THEN
+    REVOKE EXECUTE ON FUNCTION public.revoke_collection_share_by_token(text)                    FROM PUBLIC;
+    REVOKE EXECUTE ON FUNCTION public.revoke_collection_share_by_token(text)                    FROM anon;
+  ELSE
+    RAISE NOTICE 'Skipping revoke for revoke_collection_share_by_token(text); function is absent';
+  END IF;
 
-  REVOKE EXECUTE ON FUNCTION public.revoke_report_share_by_token(text)                        FROM PUBLIC;
-  REVOKE EXECUTE ON FUNCTION public.revoke_report_share_by_token(text)                        FROM anon;
+  IF to_regprocedure('public.revoke_report_share_by_token(text)') IS NOT NULL THEN
+    REVOKE EXECUTE ON FUNCTION public.revoke_report_share_by_token(text)                        FROM PUBLIC;
+    REVOKE EXECUTE ON FUNCTION public.revoke_report_share_by_token(text)                        FROM anon;
+  ELSE
+    RAISE NOTICE 'Skipping revoke for revoke_report_share_by_token(text); function is absent';
+  END IF;
 END;
 $$;
