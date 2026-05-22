@@ -31,6 +31,7 @@
 DROP POLICY IF EXISTS "Admin: view all access logs"  ON public.access_log;
 DROP POLICY IF EXISTS "Author: view own access logs" ON public.access_log;
 
+DROP POLICY IF EXISTS "Role-based SELECT access" ON public.access_log;
 CREATE POLICY "Role-based SELECT access"
   ON public.access_log FOR SELECT
   TO authenticated
@@ -51,6 +52,7 @@ CREATE POLICY "Role-based SELECT access"
 DROP POLICY IF EXISTS "Admin/Enterprise: view aggregate analytics" ON public.analytics;
 DROP POLICY IF EXISTS "Author: view own analytics"                  ON public.analytics;
 
+DROP POLICY IF EXISTS "Role-based SELECT access" ON public.analytics;
 CREATE POLICY "Role-based SELECT access"
   ON public.analytics FOR SELECT
   TO authenticated
@@ -73,6 +75,7 @@ DROP POLICY IF EXISTS "Admin: view evaluations for Storygate manuscripts" ON pub
 DROP POLICY IF EXISTS "Author: view evaluations for own manuscripts"       ON public.evaluations;
 DROP POLICY IF EXISTS "Industry: view curated evaluation summaries"        ON public.evaluations;
 
+DROP POLICY IF EXISTS "Role-based SELECT access" ON public.evaluations;
 CREATE POLICY "Role-based SELECT access"
   ON public.evaluations FOR SELECT
   TO authenticated
@@ -114,6 +117,7 @@ CREATE POLICY "Role-based SELECT access"
 DROP POLICY IF EXISTS "Admin: view Storygate manuscript chunks" ON public.manuscript_chunks;
 DROP POLICY IF EXISTS "Author: view own manuscript chunks"      ON public.manuscript_chunks;
 
+DROP POLICY IF EXISTS "Role-based SELECT access" ON public.manuscript_chunks;
 CREATE POLICY "Role-based SELECT access"
   ON public.manuscript_chunks FOR SELECT
   TO authenticated
@@ -142,6 +146,7 @@ DROP POLICY IF EXISTS "Admin: view Storygate manuscripts"  ON public.manuscripts
 DROP POLICY IF EXISTS "Author: view own manuscripts"       ON public.manuscripts;
 DROP POLICY IF EXISTS "Industry: view opted-in manuscripts" ON public.manuscripts;
 
+DROP POLICY IF EXISTS "Role-based SELECT access" ON public.manuscripts;
 CREATE POLICY "Role-based SELECT access"
   ON public.manuscripts FOR SELECT
   TO authenticated
