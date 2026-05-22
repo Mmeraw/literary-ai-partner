@@ -276,16 +276,16 @@ describeOrSkip("Day-1 Evaluation UI Flow", () => {
       const phaseInfo = getPhaseSpecificCopy("phase_1a", "processing");
       
       expect(phaseInfo.phase).toBe("phase_1a");
-      expect(phaseInfo.displayCopy).toBe("Analyzing structure and craft…");
-      expect(phaseInfo.description).toContain("narrative elements");
+      expect(phaseInfo.displayCopy).toBe("Building evidence ledger…");
+      expect(phaseInfo.description).toContain("character continuity");
     });
 
     it("should show phase-specific copy for Phase 2", () => {
       const phaseInfo = getPhaseSpecificCopy("phase_2", "processing");
       
       expect(phaseInfo.phase).toBe("phase_2");
-      expect(phaseInfo.displayCopy).toBe("Generating revision guidance…");
-      expect(phaseInfo.description).toContain("actionable feedback");
+      expect(phaseInfo.displayCopy).toBe("Scoring and diagnosing craft…");
+      expect(phaseInfo.description).toContain("independent craft");
     });
 
     it("should identify terminal job statuses", () => {

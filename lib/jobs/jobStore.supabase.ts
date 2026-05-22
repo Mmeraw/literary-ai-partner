@@ -245,6 +245,26 @@ export async function createJob(input: {
     throw new Error("Failed to create job: insert/select did not return a typed row with id");
   }
 
+  // MISTAKE-PROOF: SELECT-back verification.
+  // The INSERT+SELECT above is a single PostgREST round-trip, but the transaction
+  // can still be rolled back after the response is sent (trigger, constraint, connection
+  // interruption). A separate read confirms the row actually persists before the caller
+  // is handed a job ID they will navigate to. If the row is gone, throw — the caller
+  // must return an error to the client rather than a phantom job ID.
+  const { data: verifiedRow, error: verifyError } = await supabase
+    .from("evaluation_jobs")
+    .select("id")
+    .eq("id", (data as { id: string }).id)
+    .maybeSingle();
+
+  if (verifyError || !verifiedRow) {
+    throw new Error(
+      `Failed to create job: INSERT appeared to succeed but SELECT-back found no row for id=${
+        (data as { id: string }).id
+      }. Probable silent rollback — refusing to return phantom job ID.`
+    );
+  }
+
   console.log("EvaluationJobCreated", {
     job_id: String(data.id),
     job_type: input.job_type,

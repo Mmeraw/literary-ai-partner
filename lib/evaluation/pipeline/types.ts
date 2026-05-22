@@ -1536,8 +1536,18 @@ export interface Pass3PreflightDraft {
     coverage_status: "full" | "partial" | "windowed_fallback";
   };
 
-  /** Authority level — downgraded if full_read_certified is false */
+  /** Authority level — downgraded if full_read_certified is false OR reducer failed */
   preflight_authority: "full" | "reduced" | "advisory" | "unavailable";
+
+  /**
+   * Whether the Pass 3A reducer produced usable criterion drafts.
+   * "ok" = reducer ran and returned criterion data.
+   * "failed" = reducer threw or returned empty/null output; preflight_authority
+   * is forced to "unavailable" and this artifact must not be injected into
+   * Pass 3B as real evidence.
+   * Absent on artifacts written before this field was added (treat as legacy).
+   */
+  reducer_status?: "ok" | "failed";
 
   criterionDrafts: Pass3ACriterionDraft[];
 
