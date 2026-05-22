@@ -85,3 +85,7 @@ Before a ledger can be approved without admin override:
 - This gate does not generate revision advice.
 - This gate does not decide marketability.
 - This gate only decides whether the story map is trustworthy enough for downstream evaluation.
+
+## Merge sequencing note
+
+This gate should be merged after the base hardening migration chain is green so Flow 1 proof-pack failures do not mask Story Ledger regressions.
