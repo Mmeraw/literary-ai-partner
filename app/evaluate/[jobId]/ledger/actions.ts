@@ -4,12 +4,55 @@ import { redirect } from 'next/navigation';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { getAuthenticatedUser } from '@/lib/supabase/server';
 import { recordEvaluationEvent } from '@/lib/evaluation/workflow/events';
+import { upsertEvaluationArtifact } from '@/lib/evaluation/artifactPersistence';
+
+const LEDGER_ACTIONS = [
+  'merge',
+  'split',
+  'rename',
+  'flag_antagonist',
+  'reassign_pov',
+  'acknowledge_warning',
+  'no_change',
+] as const;
+
+type LedgerCorrectionAction = typeof LEDGER_ACTIONS[number];
+
+type LedgerTrustScore = 'high' | 'medium' | 'low';
+
+type LedgerResponsePacket = {
+  schema_version: 'ledger_response_packet_v1';
+  jobId: string;
+  ledgerArtifactId: string;
+  approvedAt?: string;
+  approvedBy?: string;
+  lastSavedAt: string;
+  lastSavedBy: string;
+  status: 'draft' | 'approved';
+  characterCorrections: Array<{
+    characterId: string;
+    action: LedgerCorrectionAction;
+    targetCharacterId?: string;
+    replacementName?: string;
+    operatorNote?: string;
+  }>;
+  aliasOverrides: Array<{
+    canonical: string;
+    aliases: string[];
+  }>;
+  povOwnerOverrides: string[];
+  symbolObjectNotes: string;
+  antagonistFlagsAdded: string[];
+  globalComments: string;
+  warningsAcknowledged: string[];
+  ledgerTrustScore: LedgerTrustScore;
+};
 
 async function assertOwnedJob(jobId: string, userId: string) {
   const supabase = createAdminClient();
   const { data: job, error } = await supabase
     .from('evaluation_jobs')
-    .select('id, user_id, manuscript_id, evaluation_project_id, manuscripts(user_id,title)')
+    .select('id, user_id, manuscript_id, evaluation_project_id, progress, manuscripts(user_id,title)')
     .eq('id', jobId)
     .maybeSingle();
 
@@ -32,19 +75,11 @@ async function assertOwnedJob(jobId: string, userId: string) {
     id: string;
     manuscript_id: number;
     evaluation_project_id?: string | null;
+    progress?: Record<string, unknown> | null;
   };
 }
 
-export async function approveLedgerAction(formData: FormData): Promise<void> {
-  const jobId = String(formData.get('jobId') ?? '').trim();
-  if (!jobId) throw new Error('Missing job id.');
-
-  const user = await getAuthenticatedUser();
-  if (!user) throw new Error('Please sign in to approve the ledger.');
-
-  const supabase = createAdminClient();
-  const job = await assertOwnedJob(jobId, user.id);
-
+async function loadLedgerArtifact(supabase: ReturnType<typeof createAdminClient>, jobId: string) {
   const { data: ledgerArtifact, error: ledgerError } = await supabase
     .from('evaluation_artifacts')
     .select('id')
@@ -56,13 +91,270 @@ export async function approveLedgerAction(formData: FormData): Promise<void> {
     throw new Error('Story Ledger is not ready yet.');
   }
 
+  return ledgerArtifact as { id: string };
+}
+
+function stringValue(formData: FormData, key: string): string {
+  return String(formData.get(key) ?? '').trim();
+}
+
+function stringArray(formData: FormData, key: string): string[] {
+  const values = formData
+    .getAll(key)
+    .map((value) => String(value ?? '').trim())
+    .filter((value) => value.length > 0);
+
+  const csvValues = stringValue(formData, key)
+    .split(',')
+    .map((value) => value.trim())
+    .filter((value) => value.length > 0);
+
+  return Array.from(new Set([...values, ...csvValues]));
+}
+
+function parseJsonArray(value: string): unknown[] {
+  if (!value) return [];
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function normalizeAction(value: unknown): LedgerCorrectionAction {
+  const candidate = String(value ?? '').trim();
+  return LEDGER_ACTIONS.includes(candidate as LedgerCorrectionAction)
+    ? (candidate as LedgerCorrectionAction)
+    : 'no_change';
+}
+
+function parseCharacterCorrections(formData: FormData): LedgerResponsePacket['characterCorrections'] {
+  const raw = stringValue(formData, 'characterCorrections');
+  const parsed = parseJsonArray(raw);
+  return parsed
+    .filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === 'object' && !Array.isArray(item))
+    .map((item) => ({
+      characterId: String(item.characterId ?? '').trim(),
+      action: normalizeAction(item.action),
+      targetCharacterId: String(item.targetCharacterId ?? '').trim() || undefined,
+      replacementName: String(item.replacementName ?? '').trim() || undefined,
+      operatorNote: String(item.operatorNote ?? '').trim() || undefined,
+    }))
+    .filter((item) => item.characterId.length > 0);
+}
+
+function parseAliasOverrides(formData: FormData): LedgerResponsePacket['aliasOverrides'] {
+  const raw = stringValue(formData, 'aliasOverrides');
+  const parsed = parseJsonArray(raw);
+  return parsed
+    .filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === 'object' && !Array.isArray(item))
+    .map((item) => ({
+      canonical: String(item.canonical ?? '').trim(),
+      aliases: Array.isArray(item.aliases)
+        ? item.aliases.map((alias) => String(alias ?? '').trim()).filter(Boolean)
+        : [],
+    }))
+    .filter((item) => item.canonical.length > 0 && item.aliases.length > 0);
+}
+
+function deriveLedgerTrustScore(packet: Omit<LedgerResponsePacket, 'ledgerTrustScore'>): LedgerTrustScore {
+  const structuralCorrectionCount = packet.characterCorrections.filter((correction) =>
+    correction.action === 'merge' ||
+    correction.action === 'split' ||
+    correction.action === 'rename' ||
+    correction.action === 'flag_antagonist' ||
+    correction.action === 'reassign_pov'
+  ).length;
+  const overrideCount =
+    structuralCorrectionCount +
+    packet.aliasOverrides.length +
+    packet.povOwnerOverrides.length +
+    packet.antagonistFlagsAdded.length;
+
+  if (overrideCount >= 6) return 'low';
+  if (overrideCount >= 2 || packet.globalComments.length >= 500) return 'medium';
+  return 'high';
+}
+
+function buildLedgerResponsePacket(args: {
+  formData: FormData;
+  jobId: string;
+  ledgerArtifactId: string;
+  userId: string;
+  savedAt: string;
+  approved: boolean;
+}): LedgerResponsePacket {
+  const packetWithoutTrust: Omit<LedgerResponsePacket, 'ledgerTrustScore'> = {
+    schema_version: 'ledger_response_packet_v1',
+    jobId: args.jobId,
+    ledgerArtifactId: args.ledgerArtifactId,
+    ...(args.approved ? { approvedAt: args.savedAt, approvedBy: args.userId } : {}),
+    lastSavedAt: args.savedAt,
+    lastSavedBy: args.userId,
+    status: args.approved ? 'approved' : 'draft',
+    characterCorrections: parseCharacterCorrections(args.formData),
+    aliasOverrides: parseAliasOverrides(args.formData),
+    povOwnerOverrides: stringArray(args.formData, 'povOwnerOverrides'),
+    symbolObjectNotes: stringValue(args.formData, 'symbolObjectNotes'),
+    antagonistFlagsAdded: stringArray(args.formData, 'antagonistFlagsAdded'),
+    globalComments: stringValue(args.formData, 'globalComments'),
+    warningsAcknowledged: stringArray(args.formData, 'warningsAcknowledged'),
+  };
+
+  return {
+    ...packetWithoutTrust,
+    ledgerTrustScore: deriveLedgerTrustScore(packetWithoutTrust),
+  };
+}
+
+async function persistLedgerResponsePacket(args: {
+  supabase: ReturnType<typeof createAdminClient>;
+  jobId: string;
+  manuscriptId: number;
+  ledgerArtifactId: string;
+  userId: string;
+  formData: FormData;
+  savedAt: string;
+  approved: boolean;
+}): Promise<string> {
+  const packet = buildLedgerResponsePacket({
+    formData: args.formData,
+    jobId: args.jobId,
+    ledgerArtifactId: args.ledgerArtifactId,
+    userId: args.userId,
+    savedAt: args.savedAt,
+    approved: args.approved,
+  });
+
+  return upsertEvaluationArtifact({
+    supabase: args.supabase,
+    jobId: args.jobId,
+    manuscriptId: args.manuscriptId,
+    artifactType: 'ledger_response_packet_v1',
+    content: packet,
+    sourceHash: `ledger_response_packet_v1_${args.jobId}`,
+    artifactVersion: 'ledger_response_packet_v1',
+  });
+}
+
+export async function submitLedgerFeedbackAction(formData: FormData): Promise<void> {
+  const jobId = String(formData.get('jobId') ?? '').trim();
+  if (!jobId) throw new Error('Missing job id.');
+
+  const user = await getAuthenticatedUser();
+  if (!user) throw new Error('Please sign in to submit ledger feedback.');
+
+  const supabase = createAdminClient();
+  const job = await assertOwnedJob(jobId, user.id);
+  const ledgerArtifact = await loadLedgerArtifact(supabase, jobId);
+  const submittedAt = new Date().toISOString();
+
+  const responsePacketId = await persistLedgerResponsePacket({
+    supabase,
+    jobId,
+    manuscriptId: Number(job.manuscript_id),
+    ledgerArtifactId: ledgerArtifact.id,
+    userId: user.id,
+    formData,
+    savedAt: submittedAt,
+    approved: false,
+  });
+
+  const existingProgress = job.progress && typeof job.progress === 'object' ? job.progress : {};
+  await supabase
+    .from('evaluation_jobs')
+    .update({
+      guided_full_novel_stage: 'ledger_feedback_submitted',
+      progress: {
+        ...existingProgress,
+        guided_full_novel_stage: 'ledger_feedback_submitted',
+        ledger_response_packet_id: responsePacketId,
+        message: 'Story Ledger feedback saved — awaiting approval',
+      },
+      updated_at: submittedAt,
+    })
+    .eq('id', jobId);
+
+  if (job.evaluation_project_id) {
+    await recordEvaluationEvent({
+      supabase,
+      projectId: job.evaluation_project_id,
+      eventType: 'stage_approved',
+      payload: {
+        stage_key: 'ledger',
+        job_id: jobId,
+        artifact_id: ledgerArtifact.id,
+        response_packet_id: responsePacketId,
+        submitted_by: user.id,
+        submitted_at: submittedAt,
+        approval_state: 'feedback_submitted_not_approved',
+      },
+    }).catch((eventError) => {
+      console.warn('[submitLedgerFeedbackAction] feedback event failed', eventError);
+    });
+  }
+
+  redirect(`/evaluate/${jobId}/ledger?feedback=1`);
+}
+
+export async function approveLedgerAction(formData: FormData): Promise<void> {
+  const jobId = String(formData.get('jobId') ?? '').trim();
+  if (!jobId) throw new Error('Missing job id.');
+
+  const user = await getAuthenticatedUser();
+  if (!user) throw new Error('Please sign in to approve the ledger.');
+
+  const supabase = createAdminClient();
+  const job = await assertOwnedJob(jobId, user.id);
+  const ledgerArtifact = await loadLedgerArtifact(supabase, jobId);
   const approvedAt = new Date().toISOString();
+
+  const existingPacket = await supabase
+    .from('evaluation_artifacts')
+    .select('id, content')
+    .eq('job_id', jobId)
+    .eq('artifact_type', 'ledger_response_packet_v1')
+    .maybeSingle();
+
+  const existingContent = existingPacket.data?.content as { status?: string } | null | undefined;
+  const responsePacketId = existingPacket.data?.id && existingContent?.status === 'approved'
+    ? String(existingPacket.data.id)
+    : await persistLedgerResponsePacket({
+        supabase,
+        jobId,
+        manuscriptId: Number(job.manuscript_id),
+        ledgerArtifactId: ledgerArtifact.id,
+        userId: user.id,
+        formData,
+        savedAt: approvedAt,
+        approved: true,
+      });
+
+  const existingProgress = job.progress && typeof job.progress === 'object' ? job.progress : {};
   const { error: updateError } = await supabase
     .from('evaluation_jobs')
     .update({
+      status: 'queued',
+      phase: 'phase_2',
+      phase_status: 'queued',
       ledger_approved_at: approvedAt,
       ledger_approved_by: user.id,
       guided_full_novel_stage: 'ledger_approved',
+      claimed_by: null,
+      claimed_at: null,
+      lease_token: null,
+      lease_until: null,
+      progress: {
+        ...existingProgress,
+        phase: 'phase_2',
+        phase_status: 'queued',
+        guided_full_novel_stage: 'ledger_approved',
+        ledger_approved_at: approvedAt,
+        ledger_approved_by: user.id,
+        ledger_response_packet_id: responsePacketId,
+        message: 'Story Ledger approved with response packet — Stage 2 evaluation queued',
+      },
       updated_at: approvedAt,
     })
     .eq('id', jobId);
@@ -79,8 +371,10 @@ export async function approveLedgerAction(formData: FormData): Promise<void> {
       payload: {
         job_id: jobId,
         artifact_id: ledgerArtifact.id,
+        response_packet_id: responsePacketId,
         approved_by: user.id,
         approved_at: approvedAt,
+        next_phase: 'phase_2',
       },
     }).catch((eventError) => {
       console.warn('[approveLedgerAction] ledger approval event failed', eventError);
