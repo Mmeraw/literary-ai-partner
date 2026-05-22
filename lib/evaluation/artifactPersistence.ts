@@ -76,6 +76,13 @@ export type ArtifactType =
    */
   | "pass1a_character_ledger_v1"
   /**
+   * Author/operator Story Ledger response packet. Written from the interactive
+   * Story Ledger review controls before Stage 2 is queued. Contains per-section
+   * response states and comments that must be injected alongside the ledger into
+   * Phase 2 so evaluation respects accepted corrections and flags.
+   */
+  | "story_ledger_response_packet_v1"
+  /**
    * WAVE revision plan — written inline after evaluation persists (same execution
    * window). status field: complete | skipped | failed | timeout.
    * skipped = gate did not pass (manuscript too short or criteria below floor).
