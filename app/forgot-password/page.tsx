@@ -17,7 +17,7 @@ const hasSupabaseAuthConfig = Boolean(
 const AUTH_UNAVAILABLE_MESSAGE =
   'Authentication is unavailable in this environment. Use production deployment for password reset.'
 
-const PRODUCTION_URL = 'https://literary-ai-partner.vercel.app'
+const PRODUCTION_URL = 'https://www.revisiongrade.com'
 
 function isValidEmail(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
