@@ -1,47 +1,25 @@
-/**
- * Pass 1A — Character Evidence Sweep Runner
- *
- * Runs IN PARALLEL with Pass 1 and Pass 2 via Promise.allSettled.
- * Never receives Pass 1 or Pass 2 output — full independence.
- * Processes all manuscript chunks with the same concurrency pattern as runPass1.
- * Output feeds characterReducer → Pass1aCharacterLedger → Pass 3 + Pass 3b.
- *
- * Temperature: 0.2 (lower than Pass 1/2 — evidence capture, not analysis)
- * Model: same as Pass 1 model (configurable via EVAL_PASS1A_MODEL env)
- */
-
 import OpenAI from "openai";
 import {
   PASS1A_SYSTEM_PROMPT,
   PASS1A_PROMPT_VERSION,
   buildPass1aUserPrompt,
 } from "./prompts/pass1a-character-sweep";
-import type {
-  Pass1aChunkOutput,
-  Pass1aCharacterChunkEntry,
-} from "./types";
-import type { ManuscriptChunkEvidence, CompletionUsage } from "./types";
+import type { Pass1aChunkOutput, Pass1aCharacterChunkEntry, ManuscriptChunkEvidence } from "./types";
 import { getCanonicalPass1Model, isReasoningStyleModel } from "@/lib/evaluation/policy";
 import { getEvalOpenAiTimeoutMs } from "@/lib/evaluation/config";
 import { parseJsonObjectBoundary } from "@/lib/llm/jsonParseBoundary";
-import { getEvaluationRuntimeConfig } from "@/lib/config/evaluationRuntimeConfig";
 
 const PASS1A_TEMPERATURE = 0.2;
-const PASS1A_MAX_OUTPUT_TOKENS = 16_000;          // raised from 4096 — prevents JSON_PARSE_FAILED_TRUNCATED
-const PASS1A_LENGTH_RETRY_MAX_OUTPUT_TOKENS = 16_000; // ceiling for length-retry doubling
+const PASS1A_MAX_OUTPUT_TOKENS = 16_000;
+const PASS1A_LENGTH_RETRY_MAX_OUTPUT_TOKENS = 16_000;
 const PASS1A_DEFAULT_MODEL = "gpt-5.1";
-
-// Slightly lower concurrency than Pass 1/2 to avoid TPM ceiling when all 3 run in parallel.
-// Pass 1 (c=7) + Pass 2 (c=7) + Pass 1A (c=5) = 19 simultaneous calls max.
 const PASS1A_CHUNK_CONCURRENCY = 5;
-const PASS1A_CHUNK_RETRY_MAX = 3;                  // raised from 2 — extra retry budget for length expansion
+const PASS1A_CHUNK_RETRY_MAX = 3;
 const PASS1A_CHUNK_RETRY_BASE_MS = 8000;
-const PASS1A_CHUNK_TIMEOUT_MS = 45_000; // kept for reference; actual timeout is OpenAI client-level
 
-// Hard caps — mirror of prompt rules, enforced post-parse
 const CAPS = {
-  maxCharacters: 10,
-  maxEvidenceAnchors: 2,
+  maxCharacters: 15,
+  maxEvidenceAnchors: 3,
   maxRelationshipSignals: 3,
   maxSymbolicObjects: 6,
   maxExcerptChars: 120,
@@ -64,24 +42,12 @@ function isRateLimitError(reason: unknown): boolean {
 
 function isTruncationError(reason: unknown): boolean {
   const text = String(reason instanceof Error ? reason.message : reason).toLowerCase();
-  return (
-    text.includes("truncated") ||
-    text.includes("json_parse_failed_truncated") ||
-    text.includes("json extraction failed")
-  );
+  return text.includes("truncated") || text.includes("json_parse_failed_truncated") || text.includes("json extraction failed");
 }
 
 function isTimeoutError(reason: unknown): boolean {
   const text = String(reason instanceof Error ? reason.message : reason).toLowerCase();
-  return (
-    text.includes("request timed out") ||
-    text.includes("timeout") ||
-    text.includes("etimedout") ||
-    text.includes("econnreset") ||
-    text.includes("socket hang up") ||
-    text.includes("network error") ||
-    (reason instanceof Error && reason.name === "AbortError")
-  );
+  return text.includes("request timed out") || text.includes("timeout") || text.includes("etimedout") || text.includes("econnreset") || text.includes("socket hang up") || text.includes("network error") || (reason instanceof Error && reason.name === "AbortError");
 }
 
 function nextLengthRetryTokens(current: number): number {
@@ -91,51 +57,81 @@ function nextLengthRetryTokens(current: number): number {
 function parseRetryAfterMs(reason: unknown): number | null {
   const text = String(reason instanceof Error ? reason.message : reason);
   const secMatch = text.match(/try again in\s+([0-9]+(?:\.[0-9]+)?)s/i);
-  if (secMatch) {
-    const sec = Number.parseFloat(secMatch[1]);
-    if (Number.isFinite(sec) && sec > 0) return Math.ceil(sec * 1000);
-  }
-  return null;
+  if (!secMatch) return null;
+  const sec = Number.parseFloat(secMatch[1]);
+  return Number.isFinite(sec) && sec > 0 ? Math.ceil(sec * 1000) : null;
 }
 
-/**
- * Coerce any LLM-emitted signal value to a string or null.
- * Handles string, array (joined), object (extracts text keys), and primitives.
- * This mirrors the normalizeSignalText helper in characterReducer.ts so that
- * corrupt values are sanitized at parse time, before the reducer ever sees them.
- */
 function normalizeField(value: unknown): string | null {
   if (value == null) return null;
-  if (typeof value === 'string') {
+  if (typeof value === "string") {
     const t = value.trim();
     return t.length > 0 ? t : null;
   }
   if (Array.isArray(value)) {
-    const joined = value.map(normalizeField).filter((s): s is string => !!s).join('; ');
+    const joined = value.map(normalizeField).filter((s): s is string => Boolean(s)).join("; ");
     return joined.length > 0 ? joined : null;
   }
-  if (typeof value === 'object') {
+  if (typeof value === "object") {
     const r = value as Record<string, unknown>;
-    const preferred = normalizeField(r.description) ?? normalizeField(r.signal) ??
-      normalizeField(r.value) ?? normalizeField(r.text) ?? normalizeField(r.mechanism);
+    const preferred =
+      normalizeField(r.description) ??
+      normalizeField(r.signal) ??
+      normalizeField(r.value) ??
+      normalizeField(r.text) ??
+      normalizeField(r.mechanism) ??
+      normalizeField(r.summary) ??
+      normalizeField(r.note) ??
+      normalizeField(r.label) ??
+      normalizeField(r.name);
     if (preferred) return preferred;
-    const flat = Object.values(r).map(normalizeField).filter((s): s is string => !!s).join('; ');
+    const flat = Object.values(r).map(normalizeField).filter((s): s is string => Boolean(s)).join("; ");
     return flat.length > 0 ? flat : null;
   }
   const s = String(value).trim();
   return s.length > 0 ? s : null;
 }
 
-/**
- * Enforce hard caps on a single character entry post-parse.
- * Also normalizes every string signal field so corrupt LLM values
- * (arrays, objects, numbers) never reach the character reducer.
- * Never throws.
- */
+function uniqueStringArray(values: unknown): string[] {
+  const array = Array.isArray(values) ? values : [];
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const value of array) {
+    const normalized = normalizeField(value);
+    if (!normalized) continue;
+    const key = normalized.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.push(normalized);
+  }
+  return result;
+}
+
+function sameText(a: string, b: string): boolean {
+  return a.trim().toLowerCase() === b.trim().toLowerCase();
+}
+
+function getIdentityGroup(entry: Pass1aCharacterChunkEntry): string | null {
+  const record = entry as Pass1aCharacterChunkEntry & {
+    canonical_identity_group?: unknown;
+    identity_group?: unknown;
+    identityGroup?: unknown;
+  };
+  return normalizeField(record.canonical_identity_group ?? record.identity_group ?? record.identityGroup);
+}
+
 function enforceCaps(entry: Pass1aCharacterChunkEntry): Pass1aCharacterChunkEntry {
+  const localName = normalizeField(entry.canonical_name) ?? "Unknown Character";
+  const identityGroup = getIdentityGroup(entry);
+  const canonicalName = identityGroup ?? localName;
+  const aliases = uniqueStringArray(entry.aliases);
+  if (identityGroup && !sameText(identityGroup, localName)) aliases.push(localName);
+  const dedupedAliases = uniqueStringArray(aliases).filter((alias) => !sameText(alias, canonicalName));
+
   return {
     ...entry,
-    // Normalize all Five-Ws + How signal fields — LLM can return non-string values
+    canonical_name: canonicalName,
+    aliases: dedupedAliases,
     who_is_this: normalizeField(entry.who_is_this) ?? "",
     what_do_they_want: normalizeField(entry.what_do_they_want),
     where_are_they: normalizeField(entry.where_are_they),
@@ -145,69 +141,49 @@ function enforceCaps(entry: Pass1aCharacterChunkEntry): Pass1aCharacterChunkEntr
     arc_state_in_chunk: normalizeField(entry.arc_state_in_chunk) ?? "",
     arc_pressure: normalizeField(entry.arc_pressure),
     arc_shift: normalizeField(entry.arc_shift),
-    evidence_anchors: (entry.evidence_anchors ?? [])
-      .slice(0, CAPS.maxEvidenceAnchors)
-      .map((a) => ({
-        ...a,
-        excerpt: typeof a.excerpt === "string"
-          ? a.excerpt.slice(0, CAPS.maxExcerptChars)
-          : (normalizeField(a.excerpt) ?? "").slice(0, CAPS.maxExcerptChars),
-      })),
+    evidence_anchors: (entry.evidence_anchors ?? []).slice(0, CAPS.maxEvidenceAnchors).map((anchor) => ({
+      ...anchor,
+      excerpt: (normalizeField(anchor.excerpt) ?? "").slice(0, CAPS.maxExcerptChars),
+    })),
     relationship_signals: (entry.relationship_signals ?? []).slice(0, CAPS.maxRelationshipSignals),
     symbolic_objects: (entry.symbolic_objects ?? []).slice(0, CAPS.maxSymbolicObjects),
-    aliases: Array.isArray(entry.aliases) ? entry.aliases : [],
-    pronouns: Array.isArray(entry.pronouns) ? entry.pronouns : [],
-    lgbtq_signals: Array.isArray(entry.lgbtq_signals) ? entry.lgbtq_signals : [],
-    racial_ethnic_signals: Array.isArray(entry.racial_ethnic_signals) ? entry.racial_ethnic_signals : [],
-    skin_tone_signals: Array.isArray(entry.skin_tone_signals) ? entry.skin_tone_signals : [],
-    language_signals: Array.isArray(entry.language_signals) ? entry.language_signals : [],
-    religion_signals: Array.isArray(entry.religion_signals) ? entry.religion_signals : [],
-    socioeconomic_signals: Array.isArray(entry.socioeconomic_signals) ? entry.socioeconomic_signals : [],
-    nationality_signals: Array.isArray(entry.nationality_signals) ? entry.nationality_signals : [],
-    disability_neuro_signals: Array.isArray(entry.disability_neuro_signals) ? entry.disability_neuro_signals : [],
+    pronouns: uniqueStringArray(entry.pronouns),
+    lgbtq_signals: uniqueStringArray(entry.lgbtq_signals),
+    racial_ethnic_signals: uniqueStringArray(entry.racial_ethnic_signals),
+    skin_tone_signals: uniqueStringArray(entry.skin_tone_signals),
+    language_signals: uniqueStringArray(entry.language_signals),
+    religion_signals: uniqueStringArray(entry.religion_signals),
+    socioeconomic_signals: uniqueStringArray(entry.socioeconomic_signals),
+    nationality_signals: uniqueStringArray(entry.nationality_signals),
+    disability_neuro_signals: uniqueStringArray(entry.disability_neuro_signals),
   };
 }
 
-function parsePass1aResponse(
-  raw: string,
-  chunkIndex: number,
-): Pass1aChunkOutput {
-  // parseJsonObjectBoundary returns JsonBoundaryParseResult<T> — the parsed
-  // object lives in .value, not at the top level. Throws JsonBoundaryError on
-  // parse failure (truncated, malformed, etc.) — caught by retry loop above.
+function normalizeChunkOutput(output: Pass1aChunkOutput): Pass1aChunkOutput {
+  return {
+    ...output,
+    characters: (output.characters ?? []).slice(0, CAPS.maxCharacters).map(enforceCaps),
+    prompt_version: output.prompt_version || PASS1A_PROMPT_VERSION,
+    generated_at: output.generated_at || new Date().toISOString(),
+  };
+}
+
+function parsePass1aResponse(raw: string, chunkIndex: number): Pass1aChunkOutput {
   const result = parseJsonObjectBoundary(raw);
   const data = result.value;
-
-  if (
-    typeof data !== "object" ||
-    data === null ||
-    !Array.isArray((data as Record<string, unknown>).characters)
-  ) {
-    const keys = typeof data === "object" && data !== null
-      ? Object.keys(data as object).join(", ")
-      : typeof data;
-    console.error("[Pass1A] Invalid response shape", {
-      chunk_index: chunkIndex,
-      top_level_keys: keys,
-      raw_head: raw.slice(0, 400),
-      raw_tail: raw.slice(-200),
-    });
-    throw new Error(
-      `[Pass1A] Chunk ${chunkIndex}: invalid response shape — missing characters array. Top-level keys: [${keys}]`,
-    );
+  if (typeof data !== "object" || data === null || !Array.isArray((data as Record<string, unknown>).characters)) {
+    const keys = typeof data === "object" && data !== null ? Object.keys(data as object).join(", ") : typeof data;
+    throw new Error(`[Pass1A] Chunk ${chunkIndex}: invalid response shape — missing characters array. Top-level keys: [${keys}]`);
   }
 
-  // Sanitize each character entry individually — corrupt entries are dropped
-  // (logged) rather than crashing the whole chunk. One bad character in one
-  // chunk must not kill a 40-chunk full-novel sweep.
   const rawCharacters = data.characters as unknown[];
   const characters: Pass1aCharacterChunkEntry[] = [];
-  for (let ci = 0; ci < Math.min(rawCharacters.length, CAPS.maxCharacters); ci++) {
-    const entry = rawCharacters[ci];
-    if (typeof entry !== 'object' || entry === null || typeof (entry as Record<string, unknown>).canonical_name !== 'string') {
-      console.warn('[Pass1A] Dropping corrupt character entry', {
+  for (let i = 0; i < Math.min(rawCharacters.length, CAPS.maxCharacters); i++) {
+    const entry = rawCharacters[i];
+    if (typeof entry !== "object" || entry === null || typeof (entry as Record<string, unknown>).canonical_name !== "string") {
+      console.warn("[Pass1A] Dropping corrupt character entry", {
         chunk_index: chunkIndex,
-        entry_index: ci,
+        entry_index: i,
         entry_type: typeof entry,
         entry_preview: JSON.stringify(entry)?.slice(0, 200),
       });
@@ -215,26 +191,23 @@ function parsePass1aResponse(
     }
     try {
       characters.push(enforceCaps(entry as Pass1aCharacterChunkEntry));
-    } catch (capErr) {
-      console.warn('[Pass1A] enforceCaps threw on character entry (skipping)', {
+    } catch (err) {
+      console.warn("[Pass1A] enforceCaps threw on character entry (skipping)", {
         chunk_index: chunkIndex,
-        entry_index: ci,
-        error: capErr instanceof Error ? capErr.message : String(capErr),
+        entry_index: i,
+        error: err instanceof Error ? err.message : String(err),
       });
     }
   }
 
-  return {
+  return normalizeChunkOutput({
     pass: "1a",
     axis: "character_evidence_sweep",
     chunk_index: chunkIndex,
     characters,
     prompt_version: PASS1A_PROMPT_VERSION,
-    generated_at:
-      typeof data.generated_at === "string"
-        ? data.generated_at
-        : new Date().toISOString(),
-  };
+    generated_at: typeof data.generated_at === "string" ? data.generated_at : new Date().toISOString(),
+  });
 }
 
 async function runSingleChunk(params: {
@@ -246,21 +219,10 @@ async function runSingleChunk(params: {
   chunkCache?: Map<number, Pass1aChunkOutput>;
 }): Promise<Pass1aChunkOutput> {
   const { chunk, title, workType, openai, model, chunkCache } = params;
+  const cached = chunkCache?.get(chunk.chunk_index);
+  if (cached) return normalizeChunkOutput(cached);
 
-  // PR-E chunk checkpoint: if this chunk is already in the pre-loaded cache,
-  // return it immediately without calling OpenAI. The cache entry was previously
-  // validated before being stored, so it is trusted as-is.
-  if (chunkCache?.has(chunk.chunk_index)) {
-    return chunkCache.get(chunk.chunk_index)!;
-  }
-
-  const userPrompt = buildPass1aUserPrompt({
-    manuscriptText: chunk.content,
-    chunkIndex: chunk.chunk_index,
-    title,
-    workType,
-  });
-
+  const userPrompt = buildPass1aUserPrompt({ manuscriptText: chunk.content, chunkIndex: chunk.chunk_index, title, workType });
   let lastError: unknown;
   let activeMaxTokens = PASS1A_MAX_OUTPUT_TOKENS;
 
@@ -276,16 +238,11 @@ async function runSingleChunk(params: {
           { role: "user", content: userPrompt },
         ],
       });
-
       const rawContent = completion.choices?.[0]?.message?.content;
       const finishReason = completion.choices?.[0]?.finish_reason;
       if (typeof rawContent !== "string" || rawContent.trim() === "") {
-        throw new Error(
-          `[Pass1A] Chunk ${chunk.chunk_index}: empty response (model=${model}, finish_reason=${finishReason})`,
-        );
+        throw new Error(`[Pass1A] Chunk ${chunk.chunk_index}: empty response (model=${model}, finish_reason=${finishReason})`);
       }
-
-      // Debug: log finish_reason and first 200 chars of response
       if (finishReason && finishReason !== "stop") {
         console.warn("[Pass1A] Non-stop finish_reason", {
           chunk_index: chunk.chunk_index,
@@ -293,22 +250,12 @@ async function runSingleChunk(params: {
           response_head: rawContent.slice(0, 200),
         });
       }
-
       return parsePass1aResponse(rawContent, chunk.chunk_index);
     } catch (err) {
       lastError = err;
       if (attempt < PASS1A_CHUNK_RETRY_MAX) {
         if (isTruncationError(err)) {
-          // Length retry: double the token budget and retry immediately
-          const expanded = nextLengthRetryTokens(activeMaxTokens);
-          console.warn("[Pass1A] Truncation detected — expanding token budget", {
-            chunk_index: chunk.chunk_index,
-            attempt,
-            old_tokens: activeMaxTokens,
-            new_tokens: expanded,
-          });
-          activeMaxTokens = expanded;
-          // No sleep needed — not a rate limit or server error
+          activeMaxTokens = nextLengthRetryTokens(activeMaxTokens);
         } else {
           const retryAfterMs =
             isRateLimitError(err) || isTimeoutError(err)
@@ -320,18 +267,15 @@ async function runSingleChunk(params: {
     }
   }
 
-  // All retries exhausted — return a degraded zero-character result rather
-  // than throwing. One bad chunk must never abort a 40-chunk full-novel sweep.
-  // The reducer handles partial data gracefully via failedChunkIndices.
   const errorMsg = lastError instanceof Error ? lastError.message : String(lastError);
-  console.error('[Pass1A] Chunk failed after all retries — returning degraded result (zero characters)', {
-    chunk_index: params.chunk.chunk_index,
+  console.error("[Pass1A] Chunk failed after all retries — returning degraded result (zero characters)", {
+    chunk_index: chunk.chunk_index,
     error: errorMsg,
   });
   return {
-    pass: '1a' as const,
-    axis: 'character_evidence_sweep' as const,
-    chunk_index: params.chunk.chunk_index,
+    pass: "1a" as const,
+    axis: "character_evidence_sweep" as const,
+    chunk_index: chunk.chunk_index,
     characters: [],
     prompt_version: PASS1A_PROMPT_VERSION,
     generated_at: new Date().toISOString(),
@@ -347,7 +291,6 @@ async function runChunksWithConcurrency(
 ): Promise<Array<PromiseSettledResult<Pass1aChunkOutput>>> {
   const settled: Array<PromiseSettledResult<Pass1aChunkOutput>> = new Array(chunks.length);
   let cursor = 0;
-
   const runWorker = async (): Promise<void> => {
     while (true) {
       const index = cursor++;
@@ -359,33 +302,20 @@ async function runChunksWithConcurrency(
       }
     }
   };
-
-  await Promise.all(
-    Array.from({ length: Math.min(concurrency, chunks.length) }, () => runWorker()),
-  );
+  await Promise.all(Array.from({ length: Math.min(concurrency, chunks.length) }, () => runWorker()));
   return settled;
 }
 
-/**
- * PR-E chunk checkpoint: shape of a single entry in the pass1a_chunk_cache_v1
- * artifact. Stored keyed by chunk_index so resume reads can skip already-completed
- * chunks after a wall-clock kill.
- */
 export interface Pass1aChunkCacheEntry {
   chunk_index: number;
   result: Pass1aChunkOutput;
-  completed_at: string; // ISO timestamp
+  completed_at: string;
 }
 
-/**
- * Top-level shape of the pass1a_chunk_cache_v1 evaluation_artifact content.
- * source_hash formula matches Pass1ChunkCacheArtifact exactly:
- *   SHA-256 of "${job_id}:${manuscript_id}:${chunk_count}"
- */
 export interface Pass1aChunkCacheArtifact {
   job_id: string;
   source_hash: string;
-  chunks: Record<number, Pass1aChunkCacheEntry>; // key = chunk_index as string in JSON
+  chunks: Record<number, Pass1aChunkCacheEntry>;
   total_expected: number;
   cached_at: string;
 }
@@ -397,27 +327,13 @@ export interface RunPass1aOptions {
   workType: string;
   openaiApiKey?: string;
   jobId?: string;
-  /**
-   * PR-E chunk checkpoint: pre-loaded cache from a pass1a_chunk_cache_v1 artifact.
-   * When provided, any chunk_index present in this map is returned immediately
-   * without calling OpenAI, allowing Pass 1A to resume from the last checkpoint
-   * after a job is retried following a wall-clock kill.
-   */
   _chunkCache?: Map<number, Pass1aChunkOutput>;
-  /**
-   * PR-E chunk checkpoint: callback fired after each chunk successfully completes
-   * (either from cache or from a fresh OpenAI call). Allows the processor to write
-   * rolling checkpoint upserts to the pass1a_chunk_cache_v1 artifact.
-   * Fail-soft: errors thrown by this callback are logged but do NOT fail the chunk.
-   */
   _onChunkComplete?: (chunk_index: number, result: Pass1aChunkOutput) => Promise<void>;
 }
 
 export interface RunPass1aResult {
   chunkOutputs: Pass1aChunkOutput[];
-  /** Chunks that failed after retries — non-fatal: reducer works with partial data */
   failedChunkIndices: number[];
-  /** Per-chunk failure details for diagnostics and explicit zero-output failures */
   failedChunkErrors: Array<{ chunk_index: number; error: string }>;
   model: string;
   prompt_version: string;
@@ -425,23 +341,14 @@ export interface RunPass1aResult {
   successful_chunks: number;
 }
 
-/**
- * Main entry point — called from runPipeline in the parallel block.
- * Returns all successfully-parsed chunk outputs.
- * NEVER throws — partial failure is logged and passed to reducer.
- * Pass 3 degrades gracefully if Pass 1A fails entirely.
- */
 export async function runPass1a(opts: RunPass1aOptions): Promise<RunPass1aResult> {
   const model = resolvePass1aModel();
-  const timeoutMs = getEvalOpenAiTimeoutMs();
-
   const openai = new OpenAI({
     apiKey: opts.openaiApiKey ?? process.env.OPENAI_API_KEY,
-    timeout: timeoutMs,
-    maxRetries: 0, // retries handled in runSingleChunk
+    timeout: getEvalOpenAiTimeoutMs(),
+    maxRetries: 0,
   });
 
-  // Determine chunks — same pattern as runPass1
   const chunks: ManuscriptChunkEvidence[] =
     Array.isArray(opts.manuscriptChunks) && opts.manuscriptChunks.length > 0
       ? [...opts.manuscriptChunks].sort((a, b) => a.chunk_index - b.chunk_index)
@@ -455,39 +362,24 @@ export async function runPass1a(opts: RunPass1aOptions): Promise<RunPass1aResult
     concurrency: PASS1A_CHUNK_CONCURRENCY,
   });
 
-  const chunkCache = opts._chunkCache;
-  const onChunkComplete = opts._onChunkComplete;
-
-  const settled = await runChunksWithConcurrency(
-    chunks,
-    PASS1A_CHUNK_CONCURRENCY,
-    async (chunk) => {
-      const result = await runSingleChunk({
-        chunk,
-        title: opts.title,
-        workType: opts.workType,
-        openai,
-        model,
-        chunkCache,
-      });
-
-      // PR-E: rolling checkpoint upsert. Fail-soft: callback errors are logged
-      // but do NOT fail the chunk. Fires for both cache hits and fresh results
-      // so the rolling artifact stays timestamp-refreshed across retries.
-      if (onChunkComplete) {
-        try {
-          await onChunkComplete(chunk.chunk_index, result);
-        } catch (cbErr) {
-          console.warn(
-            `[Pass1A] _onChunkComplete threw for chunk ${chunk.chunk_index} (non-fatal)`,
-            cbErr instanceof Error ? cbErr.message : String(cbErr),
-          );
-        }
+  const settled = await runChunksWithConcurrency(chunks, PASS1A_CHUNK_CONCURRENCY, async (chunk) => {
+    const result = await runSingleChunk({
+      chunk,
+      title: opts.title,
+      workType: opts.workType,
+      openai,
+      model,
+      chunkCache: opts._chunkCache,
+    });
+    if (opts._onChunkComplete) {
+      try {
+        await opts._onChunkComplete(chunk.chunk_index, result);
+      } catch (err) {
+        console.warn(`[Pass1A] _onChunkComplete threw for chunk ${chunk.chunk_index} (non-fatal)`, err instanceof Error ? err.message : String(err));
       }
-
-      return result;
-    },
-  );
+    }
+    return result;
+  });
 
   const chunkOutputs: Pass1aChunkOutput[] = [];
   const failedChunkIndices: number[] = [];
@@ -496,20 +388,13 @@ export async function runPass1a(opts: RunPass1aOptions): Promise<RunPass1aResult
   for (let i = 0; i < settled.length; i++) {
     const result = settled[i];
     if (result.status === "fulfilled") {
-      chunkOutputs.push(result.value);
+      chunkOutputs.push(normalizeChunkOutput(result.value));
     } else {
       const chunkIndex = chunks[i].chunk_index;
-      const errorText = result.reason instanceof Error ? result.reason.message : String(result.reason);
+      const error = result.reason instanceof Error ? result.reason.message : String(result.reason);
       failedChunkIndices.push(chunkIndex);
-      failedChunkErrors.push({
-        chunk_index: chunkIndex,
-        error: errorText,
-      });
-      console.error("[Pass1A] Chunk failed after retries", {
-        job_id: opts.jobId ?? null,
-        chunk_index: chunkIndex,
-        error: errorText,
-      });
+      failedChunkErrors.push({ chunk_index: chunkIndex, error });
+      console.error("[Pass1A] Chunk failed after retries", { job_id: opts.jobId ?? null, chunk_index: chunkIndex, error });
     }
   }
 
