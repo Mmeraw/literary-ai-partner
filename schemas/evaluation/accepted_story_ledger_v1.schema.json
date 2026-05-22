@@ -1,0 +1,129 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://revisiongrade.com/schema/accepted_story_ledger_v1.json",
+  "title": "accepted_story_ledger_v1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "job_id",
+    "evaluation_project_id",
+    "manuscript_id",
+    "manuscript_version_hash",
+    "artifact_id",
+    "artifact_type",
+    "artifact_version",
+    "source_hash",
+    "generated_at",
+    "source_artifacts",
+    "approval",
+    "story_layer",
+    "governance"
+  ],
+  "properties": {
+    "job_id": { "type": "string", "minLength": 1 },
+    "evaluation_project_id": { "type": ["string", "null"] },
+    "stage_run_id": { "type": ["string", "null"] },
+    "manuscript_id": { "type": "number" },
+    "manuscript_version_hash": { "type": "string", "minLength": 1 },
+    "artifact_id": { "type": "string", "minLength": 1 },
+    "artifact_type": { "const": "accepted_story_ledger_v1" },
+    "artifact_version": { "type": "string", "minLength": 1 },
+    "source_hash": { "type": "string", "minLength": 1 },
+    "generated_at": { "type": "string", "minLength": 1 },
+    "source_artifacts": {
+      "type": "object",
+      "required": ["pass1a_story_layer_v1", "ledger_user_feedback_v1"],
+      "properties": {
+        "pass1a_story_layer_v1": {
+          "type": "object",
+          "required": ["artifact_id", "source_hash"],
+          "properties": {
+            "artifact_id": { "type": "string", "minLength": 1 },
+            "source_hash": { "type": "string", "minLength": 1 }
+          }
+        },
+        "ledger_user_feedback_v1": {
+          "type": "object",
+          "required": ["artifact_id", "source_hash"],
+          "properties": {
+            "artifact_id": { "type": "string", "minLength": 1 },
+            "source_hash": { "type": "string", "minLength": 1 }
+          }
+        }
+      }
+    },
+    "approval": {
+      "type": "object",
+      "required": [
+        "status",
+        "approved_by_user_id",
+        "approved_by_role",
+        "approved_at",
+        "blocking_failures_resolved"
+      ],
+      "properties": {
+        "status": { "enum": ["accepted", "accepted_with_override"] },
+        "approved_by_user_id": { "type": "string", "minLength": 1 },
+        "approved_by_role": { "enum": ["author", "admin", "operator"] },
+        "approved_at": { "type": "string", "minLength": 1 },
+        "blocking_failures_resolved": { "type": "boolean" },
+        "approval_notes": { "type": "string" }
+      }
+    },
+    "story_layer": {
+      "type": "object",
+      "required": [
+        "source_integrity_layer",
+        "pov_structure_layer",
+        "canonical_identity_layer",
+        "cast_role_tier_layer",
+        "relationship_network_layer",
+        "object_symbol_layer",
+        "location_timeline_worldstate_layer",
+        "threat_antagonist_ending_layer"
+      ],
+      "properties": {
+        "source_integrity_layer": { "type": "object" },
+        "pov_structure_layer": { "type": "object" },
+        "canonical_identity_layer": { "type": "object" },
+        "cast_role_tier_layer": { "type": "object" },
+        "relationship_network_layer": { "type": "object" },
+        "object_symbol_layer": { "type": "object" },
+        "location_timeline_worldstate_layer": { "type": "object" },
+        "threat_antagonist_ending_layer": { "type": "object" }
+      }
+    },
+    "governance": {
+      "type": "object",
+      "required": ["gate_status", "warnings"],
+      "properties": {
+        "gate_status": { "enum": ["accepted", "accepted_with_override"] },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true,
+            "required": [
+              "warning_id",
+              "severity",
+              "affected_layer",
+              "evidence_location",
+              "reason",
+              "blocking_status"
+            ],
+            "properties": {
+              "warning_id": { "type": "string", "minLength": 1 },
+              "severity": { "enum": ["info", "soft_fail", "hard_fail"] },
+              "affected_layer": { "type": "string", "minLength": 1 },
+              "affected_character_or_object": { "type": ["string", "null"] },
+              "evidence_location": { "type": "array", "items": { "type": "string" } },
+              "reason": { "type": "string", "minLength": 1 },
+              "suggested_resolution": { "type": "string" },
+              "blocking_status": { "type": "boolean" }
+            }
+          }
+        }
+      }
+    }
+  }
+}
