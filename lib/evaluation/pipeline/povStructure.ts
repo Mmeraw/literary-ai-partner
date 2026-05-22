@@ -184,7 +184,7 @@ export function buildPovStructureFromChunkOutputs(params: {
         narrative_share_pct: Math.round((value.chunks.size / totalChunks) * 100),
         section_labels: Array.from(value.labels),
         is_primary: false,
-      } satisfies PovStructureEntry;
+      } as PovStructureEntry;
     })
     .filter((entry) => entry.narrative_share_pct > 0)
     .sort((a, b) => b.narrative_share_pct - a.narrative_share_pct || a.canonical_name.localeCompare(b.canonical_name));
