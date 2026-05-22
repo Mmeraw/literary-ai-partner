@@ -48,6 +48,22 @@ async function hardenPage(page: Page): Promise<void> {
     content:
       "*, *::before, *::after { animation-duration: 0s !important; transition-duration: 0s !important; }",
   });
+
+  // Intercept calls to the stub Supabase URL (localhost:54321) and return
+  // a minimal stub response. In CI the stub URL has nothing listening, so
+  // the browser-side Supabase client's automatic session-refresh call
+  // (auth/v1/user, auth/v1/token, etc.) would hit connection-refused and
+  // surface as ERR_FAILED console errors, causing false smoke-test failures.
+  // Returning a 401 with an empty body is the correct "no session" signal
+  // and stops the error from ever reaching the browser console.
+  await page.route("http://localhost:54321/**", (route) => {
+    return route.fulfill({
+      status: 401,
+      contentType: "application/json",
+      body: JSON.stringify({ error: "not_authenticated", message: "CI stub" }),
+    });
+  });
+
   // Block any outbound non-localhost network (anti-flake rule 7).
   // Use fulfill() instead of abort() so the browser does not log
   // "Failed to load resource: net::ERR_FAILED" for intentionally blocked

@@ -44,14 +44,14 @@ export function createAdminClient(
 
     if (!url) {
       throw new Error(
-        "Missing Supabase URL. Expected NEXT_PUBLIC_SUPABASE_URL or SUPABASE_URL. " +
-        "In CI, ensure SUPABASE_URL_CI secret is set and workflow overrides canonical names."
+        "Missing Supabase URL. Expected NEXT_PUBLIC_SUPABASE_URL (or SUPABASE_URL as server-side alias). " +
+        "In CI, the workflow injects these from the canonical SUPABASE_URL / SUPABASE_ANON_KEY repository secrets."
       );
     }
 
     throw new Error(
       "Missing SUPABASE_SERVICE_ROLE_KEY. " +
-      "In CI, ensure SUPABASE_SERVICE_ROLE_KEY_CI secret is set and workflow overrides canonical names."
+      "In CI, the workflow injects this from the canonical SUPABASE_SERVICE_ROLE_KEY repository secret."
     );
   }
 

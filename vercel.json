@@ -2,11 +2,15 @@
   "crons": [
     {
       "path": "/api/workers/process-evaluations",
-      "schedule": "*/1 * * * *"
+      "schedule": "*/5 * * * *"
     },
     {
       "path": "/api/workers/process-dream",
-      "schedule": "*/2 * * * *"
+      "schedule": "*/10 * * * *"
+    },
+    {
+      "path": "/api/workers/health-alert",
+      "schedule": "*/30 * * * *"
     }
   ]
 }

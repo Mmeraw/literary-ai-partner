@@ -1,0 +1,128 @@
+name: PR Body Guardian
+
+# Prevents PR bodies from reverting to a stale/blank state.
+#
+# How it works:
+#   1. On `opened`  — captures the initial PR body into .github/pr-bodies/PR-<N>.md
+#                     and commits it to the branch (canonical record).
+#   2. On `synchronize` / `reopened` — reads .github/pr-bodies/PR-<N>.md from the
+#                     branch tip and force-restores the PR body via the GitHub API
+#                     if the file exists and the current body differs.
+#
+# To update a PR body deliberately:
+#   - Edit .github/pr-bodies/PR-<N>.md in your branch and push.
+#   - The guardian will detect the committed change and apply it.
+#   - Never edit the PR body directly in the GitHub UI — it will be overwritten
+#     on the next push.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  guard-body:
+    runs-on: ubuntu-latest
+    # Skip forks — they never have write permissions to the base repo.
+    if: github.event.pull_request.head.repo.full_name == github.repository
+
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 1
+
+      - name: Determine canonical body file path
+        id: paths
+        run: |
+          PR_NUMBER="${{ github.event.pull_request.number }}"
+          BODY_FILE=".github/pr-bodies/PR-${PR_NUMBER}.md"
+          echo "body_file=${BODY_FILE}" >> "$GITHUB_OUTPUT"
+          echo "pr_number=${PR_NUMBER}" >> "$GITHUB_OUTPUT"
+
+      # ── OPEN: capture the initial body if no file exists yet ─────────────
+      - name: Capture initial body on PR open
+        if: github.event.action == 'opened'
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+          BODY_FILE: ${{ steps.paths.outputs.body_file }}
+        run: |
+          if [ -f "$BODY_FILE" ]; then
+            echo "Canonical body file already exists — skipping capture."
+            exit 0
+          fi
+          mkdir -p "$(dirname "$BODY_FILE")"
+          printf '%s' "$PR_BODY" > "$BODY_FILE"
+          echo "Captured initial PR body to $BODY_FILE"
+
+      - name: Commit captured body (open event)
+        if: github.event.action == 'opened'
+        env:
+          BODY_FILE: ${{ steps.paths.outputs.body_file }}
+          PR_NUMBER: ${{ steps.paths.outputs.pr_number }}
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet -- "$BODY_FILE" && git ls-files --error-unmatch "$BODY_FILE" 2>/dev/null; then
+            echo "Body file unchanged in index — nothing to commit."
+            exit 0
+          fi
+          git add "$BODY_FILE"
+          # Only commit if there is something staged
+          if git diff --cached --quiet; then
+            echo "Nothing staged — skipping commit."
+            exit 0
+          fi
+          git commit -m "chore(pr-body): capture canonical body for PR #${PR_NUMBER} [skip ci]"
+          git push origin HEAD:"${{ github.event.pull_request.head.ref }}"
+          echo "Committed and pushed canonical body file."
+
+      # ── SYNC / REOPEN: restore body from committed file ──────────────────
+      - name: Restore PR body from canonical file
+        if: github.event.action == 'synchronize' || github.event.action == 'reopened'
+        uses: actions/github-script@v7
+        env:
+          BODY_FILE: ${{ steps.paths.outputs.body_file }}
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+
+            const bodyFile = process.env.BODY_FILE;
+            const prNumber = context.payload.pull_request.number;
+
+            // If no canonical file is committed yet, nothing to restore.
+            if (!fs.existsSync(bodyFile)) {
+              core.info(`No canonical body file at ${bodyFile} — skipping restore.`);
+              return;
+            }
+
+            const canonical = fs.readFileSync(bodyFile, 'utf8');
+            const current   = context.payload.pull_request.body ?? '';
+
+            if (canonical.trim() === current.trim()) {
+              core.info('PR body matches canonical file — no restore needed.');
+              return;
+            }
+
+            core.warning(
+              `PR body diverged from canonical file.\n` +
+              `Canonical length: ${canonical.length} chars\n` +
+              `Current length:   ${current.length} chars\n` +
+              `Restoring from ${bodyFile}…`
+            );
+
+            await github.rest.pulls.update({
+              owner:      context.repo.owner,
+              repo:       context.repo.repo,
+              pull_number: prNumber,
+              body:        canonical,
+            });
+
+            core.info('✅ PR body restored from canonical file.');
