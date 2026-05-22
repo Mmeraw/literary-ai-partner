@@ -54,42 +54,74 @@ jobs:
           [[ -n "${VERCEL_PROJECT_ID:-}" ]] || { echo "Missing VERCEL_PROJECT_ID"; exit 1; }
           [[ -n "${VERCEL_PROD_ALIAS:-}" ]] || { echo "Missing VERCEL_PROD_ALIAS"; exit 1; }
 
-      - name: Wait for alias deployment at expected SHA
+      - name: Verify Vercel production deployment at expected SHA
         shell: bash
         run: |
           set -euo pipefail
           EXPECTED_SHA="${{ steps.expected.outputs.expected_sha }}"
 
-          deadline=$((SECONDS + 900)) # 15 minutes
-          matched=0
+          # ── Fast-path: check current production deployment first ─────────────
+          # Vercel triggers its own deployment on push to main. By the time this
+          # job reaches this step, the deployment is often already READY.
+          # We check once immediately and exit 0 if it already matches — avoiding
+          # the 15-minute polling loop on every trivial push (CI fixes, doc edits).
+          #
+          # Slow-path: if not yet ready, poll for up to 10 minutes (was 15).
+          # Root cause of needing any wait: Vercel cold-build time, not CI lag.
+          # Do NOT increase the deadline — fix build time instead if it's exceeded.
 
-          while [[ $SECONDS -lt $deadline ]]; do
+          resolve_deployment() {
             INSPECT_OUT="$(npx -y vercel inspect "$VERCEL_PROD_ALIAS" --token "$VERCEL_TOKEN" 2>&1 || true)"
             DEPLOY_ID="$(printf '%s\n' "$INSPECT_OUT" | awk '/^\s*id\s+dpl_/ {print $2; exit}')"
-
             if [[ -z "$DEPLOY_ID" ]]; then
-              echo "Could not resolve deployment ID for alias yet; retrying..."
-              sleep 15
-              continue
+              echo ""
+              return
             fi
-
             META_JSON="$(curl -fsSL -H "Authorization: Bearer $VERCEL_TOKEN" "https://api.vercel.com/v13/deployments/$DEPLOY_ID")"
             READY_STATE="$(printf '%s' "$META_JSON" | jq -r '.readyState // "UNKNOWN"')"
             DEPLOY_SHA="$(printf '%s' "$META_JSON" | jq -r '.meta.githubCommitSha // ""')"
+            echo "${DEPLOY_ID}|${READY_STATE}|${DEPLOY_SHA}"
+          }
 
-            echo "Alias deployment: $DEPLOY_ID | state=$READY_STATE | sha=$DEPLOY_SHA"
+          check_match() {
+            local info="$1"
+            [[ -z "$info" ]] && return 1
+            local state sha
+            state="$(echo "$info" | cut -d'|' -f2)"
+            sha="$(echo "$info" | cut -d'|' -f3)"
+            echo "Deployment: $(echo "$info" | cut -d'|' -f1) | state=$state | sha=$sha"
+            [[ "$state" == "READY" && "$sha" == "$EXPECTED_SHA" ]]
+          }
 
-            if [[ "$READY_STATE" == "READY" && "$DEPLOY_SHA" == "$EXPECTED_SHA" ]]; then
+          # Fast-path check
+          DEPLOY_INFO="$(resolve_deployment)"
+          if check_match "$DEPLOY_INFO"; then
+            echo "✅ Fast-path: Vercel production already at origin/main SHA: $EXPECTED_SHA"
+            exit 0
+          fi
+
+          # Slow-path: poll until READY at expected SHA or deadline
+          # Deadline: 10 min (was 15). Root cause of needing >10 min = Vercel build issue, not CI.
+          deadline=$((SECONDS + 600))
+          matched=0
+
+          while [[ $SECONDS -lt $deadline ]]; do
+            sleep 15
+            DEPLOY_INFO="$(resolve_deployment)"
+            if [[ -z "$DEPLOY_INFO" ]]; then
+              echo "Could not resolve deployment ID for alias yet; retrying..."
+              continue
+            fi
+            if check_match "$DEPLOY_INFO"; then
               matched=1
               break
             fi
-
-            sleep 15
           done
 
           if [[ "$matched" -ne 1 ]]; then
-            echo "❌ Vercel production alias did not converge to origin/main within timeout."
+            echo "❌ Vercel production alias did not converge to origin/main within 10 minutes."
             echo "Expected SHA: $EXPECTED_SHA"
+            echo "If Vercel build time is the blocker, address Vercel build performance — do not increase this deadline."
             exit 1
           fi
 
@@ -111,20 +143,8 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Install Supabase CLI
-        shell: bash
-        run: |
-          set -euo pipefail
-          SUPABASE_VERSION="v2.90.0"
-          SUPABASE_TARBALL="supabase_linux_amd64.tar.gz"
-          SUPABASE_URL="https://github.com/supabase/cli/releases/download/${SUPABASE_VERSION}/${SUPABASE_TARBALL}"
-          SUPABASE_SHA256="34e264108d0502f922f2a11c4481d512335e8a6b621c8d8c25524eb9f25e9576"
-
-          curl -fsSL "$SUPABASE_URL" -o /tmp/$SUPABASE_TARBALL
-          echo "${SUPABASE_SHA256}  /tmp/${SUPABASE_TARBALL}" | sha256sum -c -
-          tar -xzf /tmp/$SUPABASE_TARBALL -C /tmp
-          sudo install -m 0755 /tmp/supabase /usr/local/bin/supabase
-          supabase --version
+      - name: Setup Supabase CLI
+        uses: ./.github/actions/setup-supabase-cli
 
       - name: Verify required Supabase production secrets
         shell: bash
@@ -198,20 +218,8 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Install Supabase CLI
-        shell: bash
-        run: |
-          set -euo pipefail
-          SUPABASE_VERSION="v2.90.0"
-          SUPABASE_TARBALL="supabase_linux_amd64.tar.gz"
-          SUPABASE_URL="https://github.com/supabase/cli/releases/download/${SUPABASE_VERSION}/${SUPABASE_TARBALL}"
-          SUPABASE_SHA256="34e264108d0502f922f2a11c4481d512335e8a6b621c8d8c25524eb9f25e9576"
-
-          curl -fsSL "$SUPABASE_URL" -o /tmp/$SUPABASE_TARBALL
-          echo "${SUPABASE_SHA256}  /tmp/${SUPABASE_TARBALL}" | sha256sum -c -
-          tar -xzf /tmp/$SUPABASE_TARBALL -C /tmp
-          sudo install -m 0755 /tmp/supabase /usr/local/bin/supabase
-          supabase --version
+      - name: Setup Supabase CLI
+        uses: ./.github/actions/setup-supabase-cli
 
       - name: Verify required Supabase production secrets
         shell: bash

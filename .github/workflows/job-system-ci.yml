@@ -222,7 +222,17 @@ jobs:
     needs: proof-availability
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    if: ${{ needs.proof-availability.outputs.secrets_ok == 'true' }}
+    # Run on push events only (not pull_request).
+    #
+    # WHY: This job pushes migrations to and runs contract tests against the
+    # shared CI Supabase instance. Running it on pull_request events causes two
+    # problems:
+    #   1. Two parallel instances race to push migrations and claim jobs on the
+    #      same shared DB, causing flaky test isolation failures.
+    #   2. The push instance already validates the same code moments later —
+    #      the PR instance is pure redundancy that hits production infrastructure.
+    # The push instance (which has full secret access) is the authoritative gate.
+    if: ${{ github.event_name != 'pull_request' && needs.proof-availability.outputs.secrets_ok == 'true' }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
@@ -238,18 +248,7 @@ jobs:
       - name: Create artifacts directory
         run: mkdir -p scripts-artifacts
       - name: Install Supabase CLI
-        shell: bash
-        run: |
-          set -euo pipefail
-          SUPABASE_VERSION="v2.90.0"
-          SUPABASE_TARBALL="supabase_linux_amd64.tar.gz"
-          SUPABASE_URL="https://github.com/supabase/cli/releases/download/${SUPABASE_VERSION}/${SUPABASE_TARBALL}"
-          SUPABASE_SHA256="34e264108d0502f922f2a11c4481d512335e8a6b621c8d8c25524eb9f25e9576"
-          curl -fsSL "$SUPABASE_URL" -o /tmp/$SUPABASE_TARBALL
-          echo "${SUPABASE_SHA256}  /tmp/${SUPABASE_TARBALL}" | sha256sum -c -
-          tar -xzf /tmp/$SUPABASE_TARBALL -C /tmp
-          sudo install -m 0755 /tmp/supabase /usr/local/bin/supabase
-          supabase --version
+        uses: ./.github/actions/setup-supabase-cli
       - name: Validate migration prerequisites
         id: migration_prereqs
         shell: bash
