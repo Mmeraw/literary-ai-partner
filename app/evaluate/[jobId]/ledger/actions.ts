@@ -17,18 +17,14 @@ const LEDGER_ACTIONS = [
 ] as const;
 
 type LedgerCorrectionAction = typeof LEDGER_ACTIONS[number];
-
 type LedgerTrustScore = 'high' | 'medium' | 'low';
 
-type LedgerResponsePacket = {
-  schema_version: 'ledger_response_packet_v1';
+type LedgerUserFeedback = {
+  schema_version: 'ledger_user_feedback_v1';
   jobId: string;
   ledgerArtifactId: string;
-  approvedAt?: string;
-  approvedBy?: string;
   lastSavedAt: string;
   lastSavedBy: string;
-  status: 'draft' | 'approved';
   characterCorrections: Array<{
     characterId: string;
     action: LedgerCorrectionAction;
@@ -45,6 +41,21 @@ type LedgerResponsePacket = {
   antagonistFlagsAdded: string[];
   globalComments: string;
   warningsAcknowledged: string[];
+  ledgerTrustScore: LedgerTrustScore;
+};
+
+type AcceptedStoryLedger = {
+  schema_version: 'accepted_story_ledger_v1';
+  jobId: string;
+  baseLedgerArtifactId: string;
+  userFeedbackArtifactId: string;
+  approvedAt: string;
+  approvedBy: string;
+  acceptedInputBundle: {
+    baseLedger: 'pass1a_character_ledger_v1';
+    userFeedback: 'ledger_user_feedback_v1';
+  };
+  normalizedUserCorrections: LedgerUserFeedback;
   ledgerTrustScore: LedgerTrustScore;
 };
 
@@ -129,7 +140,7 @@ function normalizeAction(value: unknown): LedgerCorrectionAction {
     : 'no_change';
 }
 
-function parseCharacterCorrections(formData: FormData): LedgerResponsePacket['characterCorrections'] {
+function parseCharacterCorrections(formData: FormData): LedgerUserFeedback['characterCorrections'] {
   const raw = stringValue(formData, 'characterCorrections');
   const parsed = parseJsonArray(raw);
   return parsed
@@ -144,7 +155,7 @@ function parseCharacterCorrections(formData: FormData): LedgerResponsePacket['ch
     .filter((item) => item.characterId.length > 0);
 }
 
-function parseAliasOverrides(formData: FormData): LedgerResponsePacket['aliasOverrides'] {
+function parseAliasOverrides(formData: FormData): LedgerUserFeedback['aliasOverrides'] {
   const raw = stringValue(formData, 'aliasOverrides');
   const parsed = parseJsonArray(raw);
   return parsed
@@ -158,8 +169,8 @@ function parseAliasOverrides(formData: FormData): LedgerResponsePacket['aliasOve
     .filter((item) => item.canonical.length > 0 && item.aliases.length > 0);
 }
 
-function deriveLedgerTrustScore(packet: Omit<LedgerResponsePacket, 'ledgerTrustScore'>): LedgerTrustScore {
-  const structuralCorrectionCount = packet.characterCorrections.filter((correction) =>
+function deriveLedgerTrustScore(feedback: Omit<LedgerUserFeedback, 'ledgerTrustScore'>): LedgerTrustScore {
+  const structuralCorrectionCount = feedback.characterCorrections.filter((correction) =>
     correction.action === 'merge' ||
     correction.action === 'split' ||
     correction.action === 'rename' ||
@@ -168,31 +179,28 @@ function deriveLedgerTrustScore(packet: Omit<LedgerResponsePacket, 'ledgerTrustS
   ).length;
   const overrideCount =
     structuralCorrectionCount +
-    packet.aliasOverrides.length +
-    packet.povOwnerOverrides.length +
-    packet.antagonistFlagsAdded.length;
+    feedback.aliasOverrides.length +
+    feedback.povOwnerOverrides.length +
+    feedback.antagonistFlagsAdded.length;
 
   if (overrideCount >= 6) return 'low';
-  if (overrideCount >= 2 || packet.globalComments.length >= 500) return 'medium';
+  if (overrideCount >= 2 || feedback.globalComments.length >= 500) return 'medium';
   return 'high';
 }
 
-function buildLedgerResponsePacket(args: {
+function buildLedgerUserFeedback(args: {
   formData: FormData;
   jobId: string;
   ledgerArtifactId: string;
   userId: string;
   savedAt: string;
-  approved: boolean;
-}): LedgerResponsePacket {
-  const packetWithoutTrust: Omit<LedgerResponsePacket, 'ledgerTrustScore'> = {
-    schema_version: 'ledger_response_packet_v1',
+}): LedgerUserFeedback {
+  const feedbackWithoutTrust: Omit<LedgerUserFeedback, 'ledgerTrustScore'> = {
+    schema_version: 'ledger_user_feedback_v1',
     jobId: args.jobId,
     ledgerArtifactId: args.ledgerArtifactId,
-    ...(args.approved ? { approvedAt: args.savedAt, approvedBy: args.userId } : {}),
     lastSavedAt: args.savedAt,
     lastSavedBy: args.userId,
-    status: args.approved ? 'approved' : 'draft',
     characterCorrections: parseCharacterCorrections(args.formData),
     aliasOverrides: parseAliasOverrides(args.formData),
     povOwnerOverrides: stringArray(args.formData, 'povOwnerOverrides'),
@@ -203,12 +211,12 @@ function buildLedgerResponsePacket(args: {
   };
 
   return {
-    ...packetWithoutTrust,
-    ledgerTrustScore: deriveLedgerTrustScore(packetWithoutTrust),
+    ...feedbackWithoutTrust,
+    ledgerTrustScore: deriveLedgerTrustScore(feedbackWithoutTrust),
   };
 }
 
-async function persistLedgerResponsePacket(args: {
+async function persistLedgerUserFeedback(args: {
   supabase: ReturnType<typeof createAdminClient>;
   jobId: string;
   manuscriptId: number;
@@ -216,25 +224,61 @@ async function persistLedgerResponsePacket(args: {
   userId: string;
   formData: FormData;
   savedAt: string;
-  approved: boolean;
-}): Promise<string> {
-  const packet = buildLedgerResponsePacket({
+}): Promise<{ artifactId: string; feedback: LedgerUserFeedback }> {
+  const feedback = buildLedgerUserFeedback({
     formData: args.formData,
     jobId: args.jobId,
     ledgerArtifactId: args.ledgerArtifactId,
     userId: args.userId,
     savedAt: args.savedAt,
-    approved: args.approved,
   });
+
+  const artifactId = await upsertEvaluationArtifact({
+    supabase: args.supabase,
+    jobId: args.jobId,
+    manuscriptId: args.manuscriptId,
+    artifactType: 'ledger_user_feedback_v1',
+    content: feedback,
+    sourceHash: `ledger_user_feedback_v1_${args.jobId}`,
+    artifactVersion: 'ledger_user_feedback_v1',
+  });
+
+  return { artifactId, feedback };
+}
+
+async function persistAcceptedStoryLedger(args: {
+  supabase: ReturnType<typeof createAdminClient>;
+  jobId: string;
+  manuscriptId: number;
+  baseLedgerArtifactId: string;
+  feedbackArtifactId: string;
+  feedback: LedgerUserFeedback;
+  userId: string;
+  approvedAt: string;
+}): Promise<string> {
+  const acceptedLedger: AcceptedStoryLedger = {
+    schema_version: 'accepted_story_ledger_v1',
+    jobId: args.jobId,
+    baseLedgerArtifactId: args.baseLedgerArtifactId,
+    userFeedbackArtifactId: args.feedbackArtifactId,
+    approvedAt: args.approvedAt,
+    approvedBy: args.userId,
+    acceptedInputBundle: {
+      baseLedger: 'pass1a_character_ledger_v1',
+      userFeedback: 'ledger_user_feedback_v1',
+    },
+    normalizedUserCorrections: args.feedback,
+    ledgerTrustScore: args.feedback.ledgerTrustScore,
+  };
 
   return upsertEvaluationArtifact({
     supabase: args.supabase,
     jobId: args.jobId,
     manuscriptId: args.manuscriptId,
-    artifactType: 'ledger_response_packet_v1',
-    content: packet,
-    sourceHash: `ledger_response_packet_v1_${args.jobId}`,
-    artifactVersion: 'ledger_response_packet_v1',
+    artifactType: 'accepted_story_ledger_v1',
+    content: acceptedLedger,
+    sourceHash: `accepted_story_ledger_v1_${args.jobId}`,
+    artifactVersion: 'accepted_story_ledger_v1',
   });
 }
 
@@ -250,7 +294,7 @@ export async function submitLedgerFeedbackAction(formData: FormData): Promise<vo
   const ledgerArtifact = await loadLedgerArtifact(supabase, jobId);
   const submittedAt = new Date().toISOString();
 
-  const responsePacketId = await persistLedgerResponsePacket({
+  const { artifactId: feedbackArtifactId } = await persistLedgerUserFeedback({
     supabase,
     jobId,
     manuscriptId: Number(job.manuscript_id),
@@ -258,7 +302,6 @@ export async function submitLedgerFeedbackAction(formData: FormData): Promise<vo
     userId: user.id,
     formData,
     savedAt: submittedAt,
-    approved: false,
   });
 
   const existingProgress = job.progress && typeof job.progress === 'object' ? job.progress : {};
@@ -269,7 +312,7 @@ export async function submitLedgerFeedbackAction(formData: FormData): Promise<vo
       progress: {
         ...existingProgress,
         guided_full_novel_stage: 'ledger_feedback_submitted',
-        ledger_response_packet_id: responsePacketId,
+        ledger_user_feedback_id: feedbackArtifactId,
         message: 'Story Ledger feedback saved — awaiting approval',
       },
       updated_at: submittedAt,
@@ -285,7 +328,7 @@ export async function submitLedgerFeedbackAction(formData: FormData): Promise<vo
         stage_key: 'ledger',
         job_id: jobId,
         artifact_id: ledgerArtifact.id,
-        response_packet_id: responsePacketId,
+        user_feedback_artifact_id: feedbackArtifactId,
         submitted_by: user.id,
         submitted_at: submittedAt,
         approval_state: 'feedback_submitted_not_approved',
@@ -310,26 +353,39 @@ export async function approveLedgerAction(formData: FormData): Promise<void> {
   const ledgerArtifact = await loadLedgerArtifact(supabase, jobId);
   const approvedAt = new Date().toISOString();
 
-  const existingPacket = await supabase
+  const existingAccepted = await supabase
     .from('evaluation_artifacts')
-    .select('id, content')
+    .select('id')
     .eq('job_id', jobId)
-    .eq('artifact_type', 'ledger_response_packet_v1')
+    .eq('artifact_type', 'accepted_story_ledger_v1')
     .maybeSingle();
 
-  const existingContent = existingPacket.data?.content as { status?: string } | null | undefined;
-  const responsePacketId = existingPacket.data?.id && existingContent?.status === 'approved'
-    ? String(existingPacket.data.id)
-    : await persistLedgerResponsePacket({
-        supabase,
-        jobId,
-        manuscriptId: Number(job.manuscript_id),
-        ledgerArtifactId: ledgerArtifact.id,
-        userId: user.id,
-        formData,
-        savedAt: approvedAt,
-        approved: true,
-      });
+  let acceptedStoryLedgerId = existingAccepted.data?.id ? String(existingAccepted.data.id) : null;
+  let feedbackArtifactId: string | null = null;
+
+  if (!acceptedStoryLedgerId) {
+    const feedbackResult = await persistLedgerUserFeedback({
+      supabase,
+      jobId,
+      manuscriptId: Number(job.manuscript_id),
+      ledgerArtifactId: ledgerArtifact.id,
+      userId: user.id,
+      formData,
+      savedAt: approvedAt,
+    });
+    feedbackArtifactId = feedbackResult.artifactId;
+
+    acceptedStoryLedgerId = await persistAcceptedStoryLedger({
+      supabase,
+      jobId,
+      manuscriptId: Number(job.manuscript_id),
+      baseLedgerArtifactId: ledgerArtifact.id,
+      feedbackArtifactId: feedbackResult.artifactId,
+      feedback: feedbackResult.feedback,
+      userId: user.id,
+      approvedAt,
+    });
+  }
 
   const existingProgress = job.progress && typeof job.progress === 'object' ? job.progress : {};
   const { error: updateError } = await supabase
@@ -352,8 +408,9 @@ export async function approveLedgerAction(formData: FormData): Promise<void> {
         guided_full_novel_stage: 'ledger_approved',
         ledger_approved_at: approvedAt,
         ledger_approved_by: user.id,
-        ledger_response_packet_id: responsePacketId,
-        message: 'Story Ledger approved with response packet — Stage 2 evaluation queued',
+        ...(feedbackArtifactId ? { ledger_user_feedback_id: feedbackArtifactId } : {}),
+        accepted_story_ledger_id: acceptedStoryLedgerId,
+        message: 'Story Ledger approved — accepted story ledger written and Stage 2 queued',
       },
       updated_at: approvedAt,
     })
@@ -371,7 +428,8 @@ export async function approveLedgerAction(formData: FormData): Promise<void> {
       payload: {
         job_id: jobId,
         artifact_id: ledgerArtifact.id,
-        response_packet_id: responsePacketId,
+        user_feedback_artifact_id: feedbackArtifactId,
+        accepted_story_ledger_id: acceptedStoryLedgerId,
         approved_by: user.id,
         approved_at: approvedAt,
         next_phase: 'phase_2',
