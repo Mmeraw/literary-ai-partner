@@ -65,6 +65,11 @@ async function hardenPage(page: Page): Promise<void> {
   });
 
   // Block any outbound non-localhost network (anti-flake rule 7).
+  // Use fulfill() instead of abort() so the browser does not log
+  // "Failed to load resource: net::ERR_FAILED" for intentionally blocked
+  // requests (e.g. external font preconnects on the marketing page).
+  // abort() causes ERR_FAILED console errors that trip the zero-error policy;
+  // fulfilling with an empty 200 response is silent and equally safe.
   await page.route("**/*", (route) => {
     const url = route.request().url();
     if (url.startsWith("http://localhost") || url.startsWith("ws://localhost")) {
@@ -73,7 +78,7 @@ async function hardenPage(page: Page): Promise<void> {
     if (url.startsWith("data:") || url.startsWith("about:")) {
       return route.continue();
     }
-    return route.abort();
+    return route.fulfill({ status: 200, body: "" });
   });
 }
 
