@@ -3297,7 +3297,30 @@ export async function processEvaluationJob(
             .eq('artifact_type', 'pass3_preflight_draft_v1')
             .maybeSingle();
           if (preflightArtifactP3?.content?.schema_version === 'pass3_preflight_draft_v1') {
-            prebuiltPreflightDraftP3 = preflightArtifactP3.content as Pass3PreflightDraft;
+            const candidate = preflightArtifactP3.content as Pass3PreflightDraft;
+            // Guard: only inject preflight if the reducer actually produced usable output.
+            // A preflight with authority="unavailable" or reducer_status!="ok" is a
+            // failed/placeholder artifact — Pass 3B should use PREFLIGHT UNAVAILABLE
+            // rather than silently consuming null-score criterion drafts as real evidence.
+            const reducerOk =
+              candidate.reducer_status === 'ok' ||
+              // Backward compat: older artifacts without reducer_status are accepted
+              // only when authority is not "unavailable" AND criterionDrafts has real scores.
+              (
+                !candidate.reducer_status &&
+                candidate.preflight_authority !== 'unavailable' &&
+                Array.isArray(candidate.criterionDrafts) &&
+                candidate.criterionDrafts.some(d => d.provisionalScore !== null)
+              );
+            if (reducerOk) {
+              prebuiltPreflightDraftP3 = candidate;
+            } else {
+              console.warn(
+                `[phase_3] ${jobId}: pass3_preflight_draft_v1 found but reducer failed or produced empty output ` +
+                `(authority=${candidate.preflight_authority}, reducer_status=${candidate.reducer_status ?? 'legacy'}) — ` +
+                `Pass 3B will use PREFLIGHT UNAVAILABLE fallback`
+              );
+            }
           } else {
             console.warn(`[phase_3] ${jobId}: pass3_preflight_draft_v1 missing — Pass 3B will use PREFLIGHT UNAVAILABLE fallback`);
           }
