@@ -55,17 +55,16 @@ CREATE POLICY "Owner: view own evaluation projects"
   TO authenticated
   USING ((select auth.uid()) = user_id);
 
--- evaluation_events: authenticated users can view events for their own jobs
--- (join through evaluation_jobs → manuscripts ownership)
+-- evaluation_events: authenticated users can view events for their own projects
+-- (join through evaluation_projects.user_id — evaluation_events has no job_id column)
 CREATE POLICY "Owner: view own evaluation events"
   ON public.evaluation_events FOR SELECT
   TO authenticated
   USING (
     EXISTS (
-      SELECT 1 FROM public.evaluation_jobs j
-      JOIN public.manuscripts m ON m.id = j.manuscript_id
-      WHERE j.id = evaluation_events.job_id
-        AND m.created_by = (select auth.uid())
+      SELECT 1 FROM public.evaluation_projects ep
+      WHERE ep.id = evaluation_events.project_id
+        AND ep.user_id = (select auth.uid())
     )
   );
 
