@@ -422,91 +422,139 @@ CREATE POLICY "Authenticated: insert own evaluations"
 -- INTENTIONALLY NOT revoked (public share link RPCs):
 --   get_public_artifact_collection — unauthenticated share link viewers
 --   get_public_report_share       — unauthenticated share link viewers
+--
+-- NOTE: Wrapped in DO $$ ... $$ blocks to avoid SQLSTATE 42601 when the
+--   Supabase CLI sends statements via the extended query (prepared-statement)
+--   protocol. Each DO block is a single statement at the protocol level.
 -- ─────────────────────────────────────────────────────────────────────────────
 
 -- Worker RPCs → service_role only
-REVOKE EXECUTE ON FUNCTION public.claim_chunk_for_processing(uuid, uuid, integer)            FROM PUBLIC;
-REVOKE EXECUTE ON FUNCTION public.claim_chunk_for_processing(uuid, uuid, integer)            FROM anon;
-REVOKE EXECUTE ON FUNCTION public.claim_chunk_for_processing(uuid, uuid, integer)            FROM authenticated;
-GRANT  EXECUTE ON FUNCTION public.claim_chunk_for_processing(uuid, uuid, integer)            TO service_role;
+DO $$
+BEGIN
+  REVOKE EXECUTE ON FUNCTION public.claim_chunk_for_processing(uuid, uuid, integer)            FROM PUBLIC;
+  REVOKE EXECUTE ON FUNCTION public.claim_chunk_for_processing(uuid, uuid, integer)            FROM anon;
+  REVOKE EXECUTE ON FUNCTION public.claim_chunk_for_processing(uuid, uuid, integer)            FROM authenticated;
+  GRANT  EXECUTE ON FUNCTION public.claim_chunk_for_processing(uuid, uuid, integer)            TO service_role;
 
-REVOKE EXECUTE ON FUNCTION public.claim_evaluation_job_by_id(uuid, text, uuid, timestamptz) FROM PUBLIC;
-REVOKE EXECUTE ON FUNCTION public.claim_evaluation_job_by_id(uuid, text, uuid, timestamptz) FROM anon;
-REVOKE EXECUTE ON FUNCTION public.claim_evaluation_job_by_id(uuid, text, uuid, timestamptz) FROM authenticated;
-GRANT  EXECUTE ON FUNCTION public.claim_evaluation_job_by_id(uuid, text, uuid, timestamptz) TO service_role;
+  REVOKE EXECUTE ON FUNCTION public.claim_evaluation_job_by_id(uuid, text, uuid, timestamptz) FROM PUBLIC;
+  REVOKE EXECUTE ON FUNCTION public.claim_evaluation_job_by_id(uuid, text, uuid, timestamptz) FROM anon;
+  REVOKE EXECUTE ON FUNCTION public.claim_evaluation_job_by_id(uuid, text, uuid, timestamptz) FROM authenticated;
+  GRANT  EXECUTE ON FUNCTION public.claim_evaluation_job_by_id(uuid, text, uuid, timestamptz) TO service_role;
 
-REVOKE EXECUTE ON FUNCTION public.claim_evaluation_job_phase1(uuid, text, integer)          FROM PUBLIC;
-REVOKE EXECUTE ON FUNCTION public.claim_evaluation_job_phase1(uuid, text, integer)          FROM anon;
-REVOKE EXECUTE ON FUNCTION public.claim_evaluation_job_phase1(uuid, text, integer)          FROM authenticated;
-GRANT  EXECUTE ON FUNCTION public.claim_evaluation_job_phase1(uuid, text, integer)          TO service_role;
+  REVOKE EXECUTE ON FUNCTION public.claim_evaluation_job_phase1(uuid, text, integer)          FROM PUBLIC;
+  REVOKE EXECUTE ON FUNCTION public.claim_evaluation_job_phase1(uuid, text, integer)          FROM anon;
+  REVOKE EXECUTE ON FUNCTION public.claim_evaluation_job_phase1(uuid, text, integer)          FROM authenticated;
+  GRANT  EXECUTE ON FUNCTION public.claim_evaluation_job_phase1(uuid, text, integer)          TO service_role;
 
-REVOKE EXECUTE ON FUNCTION public.claim_evaluation_job_phase2(uuid, text, integer)          FROM PUBLIC;
-REVOKE EXECUTE ON FUNCTION public.claim_evaluation_job_phase2(uuid, text, integer)          FROM anon;
-REVOKE EXECUTE ON FUNCTION public.claim_evaluation_job_phase2(uuid, text, integer)          FROM authenticated;
-GRANT  EXECUTE ON FUNCTION public.claim_evaluation_job_phase2(uuid, text, integer)          TO service_role;
+  REVOKE EXECUTE ON FUNCTION public.claim_evaluation_job_phase2(uuid, text, integer)          FROM PUBLIC;
+  REVOKE EXECUTE ON FUNCTION public.claim_evaluation_job_phase2(uuid, text, integer)          FROM anon;
+  REVOKE EXECUTE ON FUNCTION public.claim_evaluation_job_phase2(uuid, text, integer)          FROM authenticated;
+  GRANT  EXECUTE ON FUNCTION public.claim_evaluation_job_phase2(uuid, text, integer)          TO service_role;
 
--- claim_evaluation_jobs has 2 overloads
-REVOKE EXECUTE ON FUNCTION public.claim_evaluation_jobs(integer, text, integer)             FROM PUBLIC;
-REVOKE EXECUTE ON FUNCTION public.claim_evaluation_jobs(integer, text, integer)             FROM anon;
-REVOKE EXECUTE ON FUNCTION public.claim_evaluation_jobs(integer, text, integer)             FROM authenticated;
-GRANT  EXECUTE ON FUNCTION public.claim_evaluation_jobs(integer, text, integer)             TO service_role;
+  -- claim_evaluation_jobs has 2 overloads
+  REVOKE EXECUTE ON FUNCTION public.claim_evaluation_jobs(integer, text, integer)             FROM PUBLIC;
+  REVOKE EXECUTE ON FUNCTION public.claim_evaluation_jobs(integer, text, integer)             FROM anon;
+  REVOKE EXECUTE ON FUNCTION public.claim_evaluation_jobs(integer, text, integer)             FROM authenticated;
+  GRANT  EXECUTE ON FUNCTION public.claim_evaluation_jobs(integer, text, integer)             TO service_role;
 
-REVOKE EXECUTE ON FUNCTION public.claim_evaluation_jobs(integer, text, uuid, timestamptz)  FROM PUBLIC;
-REVOKE EXECUTE ON FUNCTION public.claim_evaluation_jobs(integer, text, uuid, timestamptz)  FROM anon;
-REVOKE EXECUTE ON FUNCTION public.claim_evaluation_jobs(integer, text, uuid, timestamptz)  FROM authenticated;
-GRANT  EXECUTE ON FUNCTION public.claim_evaluation_jobs(integer, text, uuid, timestamptz)  TO service_role;
+  REVOKE EXECUTE ON FUNCTION public.claim_evaluation_jobs(integer, text, uuid, timestamptz)  FROM PUBLIC;
+  REVOKE EXECUTE ON FUNCTION public.claim_evaluation_jobs(integer, text, uuid, timestamptz)  FROM anon;
+  REVOKE EXECUTE ON FUNCTION public.claim_evaluation_jobs(integer, text, uuid, timestamptz)  FROM authenticated;
+  GRANT  EXECUTE ON FUNCTION public.claim_evaluation_jobs(integer, text, uuid, timestamptz)  TO service_role;
 
-REVOKE EXECUTE ON FUNCTION public.finalize_job_failure_atomic(uuid, text, text, boolean)   FROM PUBLIC;
-REVOKE EXECUTE ON FUNCTION public.finalize_job_failure_atomic(uuid, text, text, boolean)   FROM anon;
-REVOKE EXECUTE ON FUNCTION public.finalize_job_failure_atomic(uuid, text, text, boolean)   FROM authenticated;
-GRANT  EXECUTE ON FUNCTION public.finalize_job_failure_atomic(uuid, text, text, boolean)   TO service_role;
+  REVOKE EXECUTE ON FUNCTION public.finalize_job_failure_atomic(uuid, text, text, boolean)   FROM PUBLIC;
+  REVOKE EXECUTE ON FUNCTION public.finalize_job_failure_atomic(uuid, text, text, boolean)   FROM anon;
+  REVOKE EXECUTE ON FUNCTION public.finalize_job_failure_atomic(uuid, text, text, boolean)   FROM authenticated;
+  GRANT  EXECUTE ON FUNCTION public.finalize_job_failure_atomic(uuid, text, text, boolean)   TO service_role;
 
-REVOKE EXECUTE ON FUNCTION public.renew_lease(uuid, text, uuid, timestamptz, integer)      FROM PUBLIC;
-REVOKE EXECUTE ON FUNCTION public.renew_lease(uuid, text, uuid, timestamptz, integer)      FROM anon;
-REVOKE EXECUTE ON FUNCTION public.renew_lease(uuid, text, uuid, timestamptz, integer)      FROM authenticated;
-GRANT  EXECUTE ON FUNCTION public.renew_lease(uuid, text, uuid, timestamptz, integer)      TO service_role;
+  REVOKE EXECUTE ON FUNCTION public.renew_lease(uuid, text, uuid, timestamptz, integer)      FROM PUBLIC;
+  REVOKE EXECUTE ON FUNCTION public.renew_lease(uuid, text, uuid, timestamptz, integer)      FROM anon;
+  REVOKE EXECUTE ON FUNCTION public.renew_lease(uuid, text, uuid, timestamptz, integer)      FROM authenticated;
+  GRANT  EXECUTE ON FUNCTION public.renew_lease(uuid, text, uuid, timestamptz, integer)      TO service_role;
 
--- get_queue_health_snapshot — already revoked in previous migration; re-assert
-REVOKE EXECUTE ON FUNCTION public.get_queue_health_snapshot()                               FROM PUBLIC;
-REVOKE EXECUTE ON FUNCTION public.get_queue_health_snapshot()                               FROM anon;
-REVOKE EXECUTE ON FUNCTION public.get_queue_health_snapshot()                               FROM authenticated;
-GRANT  EXECUTE ON FUNCTION public.get_queue_health_snapshot()                               TO service_role;
+  -- get_queue_health_snapshot — already revoked in previous migration; re-assert
+  REVOKE EXECUTE ON FUNCTION public.get_queue_health_snapshot()                               FROM PUBLIC;
+  REVOKE EXECUTE ON FUNCTION public.get_queue_health_snapshot()                               FROM anon;
+  REVOKE EXECUTE ON FUNCTION public.get_queue_health_snapshot()                               FROM authenticated;
+  GRANT  EXECUTE ON FUNCTION public.get_queue_health_snapshot()                               TO service_role;
+END;
+$$;
 
 -- Trigger functions — revoke PUBLIC; triggers fire as definer, not via RPC role
-REVOKE EXECUTE ON FUNCTION public.evaluation_artifacts_timestamps_guard()                   FROM PUBLIC;
-REVOKE EXECUTE ON FUNCTION public.evaluation_artifacts_timestamps_guard()                   FROM anon;
-REVOKE EXECUTE ON FUNCTION public.evaluation_artifacts_timestamps_guard()                   FROM authenticated;
+DO $$
+BEGIN
+  REVOKE EXECUTE ON FUNCTION public.evaluation_artifacts_timestamps_guard()                   FROM PUBLIC;
+  REVOKE EXECUTE ON FUNCTION public.evaluation_artifacts_timestamps_guard()                   FROM anon;
+  REVOKE EXECUTE ON FUNCTION public.evaluation_artifacts_timestamps_guard()                   FROM authenticated;
 
-REVOKE EXECUTE ON FUNCTION public.evaluation_artifacts_timestamps_insert()                  FROM PUBLIC;
-REVOKE EXECUTE ON FUNCTION public.evaluation_artifacts_timestamps_insert()                  FROM anon;
-REVOKE EXECUTE ON FUNCTION public.evaluation_artifacts_timestamps_insert()                  FROM authenticated;
+  REVOKE EXECUTE ON FUNCTION public.evaluation_artifacts_timestamps_insert()                  FROM PUBLIC;
+  REVOKE EXECUTE ON FUNCTION public.evaluation_artifacts_timestamps_insert()                  FROM anon;
+  REVOKE EXECUTE ON FUNCTION public.evaluation_artifacts_timestamps_insert()                  FROM authenticated;
+END;
+$$;
 
 -- Internal diagnostic — service_role only
-REVOKE EXECUTE ON FUNCTION public.verify_phase2e_rls_policies()                             FROM PUBLIC;
-REVOKE EXECUTE ON FUNCTION public.verify_phase2e_rls_policies()                             FROM anon;
-REVOKE EXECUTE ON FUNCTION public.verify_phase2e_rls_policies()                             FROM authenticated;
-GRANT  EXECUTE ON FUNCTION public.verify_phase2e_rls_policies()                             TO service_role;
+DO $$
+BEGIN
+  REVOKE EXECUTE ON FUNCTION public.verify_phase2e_rls_policies()                             FROM PUBLIC;
+  REVOKE EXECUTE ON FUNCTION public.verify_phase2e_rls_policies()                             FROM anon;
+  REVOKE EXECUTE ON FUNCTION public.verify_phase2e_rls_policies()                             FROM authenticated;
+  GRANT  EXECUTE ON FUNCTION public.verify_phase2e_rls_policies()                             TO service_role;
+END;
+$$;
 
 -- Admin RPCs → revoke anon, keep authenticated (admin UI uses authenticated client)
-REVOKE EXECUTE ON FUNCTION public.admin_list_jobs(text, text, text, text, timestamptz, timestamptz, timestamptz, timestamptz, timestamptz, timestamptz, uuid, integer) FROM PUBLIC;
-REVOKE EXECUTE ON FUNCTION public.admin_list_jobs(text, text, text, text, timestamptz, timestamptz, timestamptz, timestamptz, timestamptz, timestamptz, uuid, integer) FROM anon;
+DO $$
+BEGIN
+  IF to_regprocedure('public.admin_list_jobs(text,text,text,text,timestamptz,timestamptz,timestamptz,timestamptz,timestamptz,timestamptz,uuid,integer)') IS NOT NULL THEN
+    REVOKE EXECUTE ON FUNCTION public.admin_list_jobs(text, text, text, text, timestamptz, timestamptz, timestamptz, timestamptz, timestamptz, timestamptz, uuid, integer) FROM PUBLIC;
+    REVOKE EXECUTE ON FUNCTION public.admin_list_jobs(text, text, text, text, timestamptz, timestamptz, timestamptz, timestamptz, timestamptz, timestamptz, uuid, integer) FROM anon;
+  ELSE
+    RAISE NOTICE 'Skipping revoke for admin_list_jobs(...); function overload is absent';
+  END IF;
 
--- admin_retry_job — 2 overloads
-REVOKE EXECUTE ON FUNCTION public.admin_retry_job(uuid)                                     FROM PUBLIC;
-REVOKE EXECUTE ON FUNCTION public.admin_retry_job(uuid)                                     FROM anon;
+  -- admin_retry_job — 2 overloads
+  IF to_regprocedure('public.admin_retry_job(uuid)') IS NOT NULL THEN
+    REVOKE EXECUTE ON FUNCTION public.admin_retry_job(uuid)                                     FROM PUBLIC;
+    REVOKE EXECUTE ON FUNCTION public.admin_retry_job(uuid)                                     FROM anon;
+  ELSE
+    RAISE NOTICE 'Skipping revoke for admin_retry_job(uuid); overload is absent';
+  END IF;
 
-REVOKE EXECUTE ON FUNCTION public.admin_retry_job(uuid, text, uuid)                        FROM PUBLIC;
-REVOKE EXECUTE ON FUNCTION public.admin_retry_job(uuid, text, uuid)                        FROM anon;
+  IF to_regprocedure('public.admin_retry_job(uuid,text,uuid)') IS NOT NULL THEN
+    REVOKE EXECUTE ON FUNCTION public.admin_retry_job(uuid, text, uuid)                        FROM PUBLIC;
+    REVOKE EXECUTE ON FUNCTION public.admin_retry_job(uuid, text, uuid)                        FROM anon;
+  ELSE
+    RAISE NOTICE 'Skipping revoke for admin_retry_job(uuid,text,uuid); overload is absent';
+  END IF;
 
--- User-facing share RPCs → authenticated only, never anon
-REVOKE EXECUTE ON FUNCTION public.create_report_share(uuid, integer)                        FROM PUBLIC;
-REVOKE EXECUTE ON FUNCTION public.create_report_share(uuid, integer)                        FROM anon;
+  -- User-facing share RPCs → authenticated only, never anon
+  IF to_regprocedure('public.create_report_share(uuid,integer)') IS NOT NULL THEN
+    REVOKE EXECUTE ON FUNCTION public.create_report_share(uuid, integer)                        FROM PUBLIC;
+    REVOKE EXECUTE ON FUNCTION public.create_report_share(uuid, integer)                        FROM anon;
+  ELSE
+    RAISE NOTICE 'Skipping revoke for create_report_share(uuid,integer); function is absent';
+  END IF;
 
-REVOKE EXECUTE ON FUNCTION public.share_artifact_collection(uuid, integer)                  FROM PUBLIC;
-REVOKE EXECUTE ON FUNCTION public.share_artifact_collection(uuid, integer)                  FROM anon;
+  IF to_regprocedure('public.share_artifact_collection(uuid,integer)') IS NOT NULL THEN
+    REVOKE EXECUTE ON FUNCTION public.share_artifact_collection(uuid, integer)                  FROM PUBLIC;
+    REVOKE EXECUTE ON FUNCTION public.share_artifact_collection(uuid, integer)                  FROM anon;
+  ELSE
+    RAISE NOTICE 'Skipping revoke for share_artifact_collection(uuid,integer); function is absent';
+  END IF;
 
-REVOKE EXECUTE ON FUNCTION public.revoke_collection_share_by_token(text)                    FROM PUBLIC;
-REVOKE EXECUTE ON FUNCTION public.revoke_collection_share_by_token(text)                    FROM anon;
+  IF to_regprocedure('public.revoke_collection_share_by_token(text)') IS NOT NULL THEN
+    REVOKE EXECUTE ON FUNCTION public.revoke_collection_share_by_token(text)                    FROM PUBLIC;
+    REVOKE EXECUTE ON FUNCTION public.revoke_collection_share_by_token(text)                    FROM anon;
+  ELSE
+    RAISE NOTICE 'Skipping revoke for revoke_collection_share_by_token(text); function is absent';
+  END IF;
 
-REVOKE EXECUTE ON FUNCTION public.revoke_report_share_by_token(text)                        FROM PUBLIC;
-REVOKE EXECUTE ON FUNCTION public.revoke_report_share_by_token(text)                        FROM anon;
+  IF to_regprocedure('public.revoke_report_share_by_token(text)') IS NOT NULL THEN
+    REVOKE EXECUTE ON FUNCTION public.revoke_report_share_by_token(text)                        FROM PUBLIC;
+    REVOKE EXECUTE ON FUNCTION public.revoke_report_share_by_token(text)                        FROM anon;
+  ELSE
+    RAISE NOTICE 'Skipping revoke for revoke_report_share_by_token(text); function is absent';
+  END IF;
+END;
+$$;
