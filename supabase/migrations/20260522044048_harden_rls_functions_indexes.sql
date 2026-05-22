@@ -144,11 +144,25 @@ $$;
 -- Current: two overlapping policies both WITH CHECK (true) — anon can insert
 -- anything. Replace with a single scoped policy: authenticated only,
 -- user_id must match the calling user.
+--
+-- Guard: user_id column may not exist at this point in migration history
+-- on branches that rename/defer the converge_evaluation_jobs_schema migration.
+-- Skip gracefully if the column is absent — a later migration will add it
+-- along with the appropriate policy.
 -- ─────────────────────────────────────────────────────────────────────────────
 
 DO $$
 BEGIN
-  IF to_regclass('public.evaluation_jobs') IS NOT NULL THEN
+  IF to_regclass('public.evaluation_jobs') IS NULL THEN
+    RAISE NOTICE 'Skipping evaluation_jobs insert policy; table is absent';
+  ELSIF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name   = 'evaluation_jobs'
+      AND column_name  = 'user_id'
+  ) THEN
+    RAISE NOTICE 'Skipping evaluation_jobs insert policy; user_id column is absent (will be added by a later migration)';
+  ELSE
     DROP POLICY IF EXISTS "Allow anon insert on evaluation_jobs"          ON public.evaluation_jobs;
     DROP POLICY IF EXISTS "Enable insert for authenticated users only"     ON public.evaluation_jobs;
     DROP POLICY IF EXISTS "Authenticated: insert own evaluation jobs"       ON public.evaluation_jobs;
@@ -160,8 +174,6 @@ BEGIN
         (select auth.uid()) IS NOT NULL
         AND user_id = (select auth.uid())
       );
-  ELSE
-    RAISE NOTICE 'Skipping evaluation_jobs insert policy; table is absent';
   END IF;
 END;
 $$;
@@ -421,13 +433,25 @@ $$;
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- P3-A: Add missing indexes on unindexed foreign keys when tables exist.
+--
+-- Guard: idx_evaluation_jobs_user_id requires user_id column to exist.
+-- Skip gracefully if the column is absent at this point in migration history.
 -- ─────────────────────────────────────────────────────────────────────────────
 
 DO $$
 BEGIN
   IF to_regclass('public.evaluation_jobs') IS NOT NULL THEN
-    CREATE INDEX IF NOT EXISTS idx_evaluation_jobs_user_id
-      ON public.evaluation_jobs (user_id);
+    IF EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name   = 'evaluation_jobs'
+        AND column_name  = 'user_id'
+    ) THEN
+      CREATE INDEX IF NOT EXISTS idx_evaluation_jobs_user_id
+        ON public.evaluation_jobs (user_id);
+    ELSE
+      RAISE NOTICE 'Skipping idx_evaluation_jobs_user_id; user_id column is absent (will be added by a later migration)';
+    END IF;
   END IF;
 
   IF to_regclass('public.collection_artifacts') IS NOT NULL THEN
