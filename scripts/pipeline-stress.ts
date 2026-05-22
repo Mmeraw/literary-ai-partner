@@ -222,6 +222,12 @@ async function executeRow(row: StressRow): Promise<ExecutedRow> {
       // stress focuses on pipeline plumbing, not ledger content.
       runPass1a: async (): Promise<RunPass1aResult> => ({
         chunkOutputs: [],
+        failedChunkIndices: [],
+        failedChunkErrors: [],
+        model: "stress-mock-pass1a",
+        prompt_version: "stress-mock",
+        total_chunks: 0,
+        successful_chunks: 0,
       }),
     };
 
