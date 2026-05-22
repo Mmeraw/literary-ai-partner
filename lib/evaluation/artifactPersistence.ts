@@ -76,11 +76,16 @@ export type ArtifactType =
    */
   | "pass1a_character_ledger_v1"
   /**
-   * Author/operator Story Ledger response packet. Written from interactive
-   * Story Ledger review controls. Feedback saves are mutable until approval;
-   * after approval the packet is treated as the correction overlay for Phase 2.
+   * Mutable user/operator feedback saved from the interactive Story Ledger UI.
+   * This is not a Phase 2 handoff until the ledger is explicitly approved.
    */
-  | "ledger_response_packet_v1"
+  | "ledger_user_feedback_v1"
+  /**
+   * Approved Story Ledger handoff for Phase 2. Built from the raw Pass 1A ledger
+   * plus normalized ledger_user_feedback_v1 corrections. This is the deterministic
+   * input Phase 2 should consume, not the raw ledger alone.
+   */
+  | "accepted_story_ledger_v1"
   /**
    * WAVE revision plan — written inline after evaluation persists (same execution
    * window). status field: complete | skipped | failed | timeout.
