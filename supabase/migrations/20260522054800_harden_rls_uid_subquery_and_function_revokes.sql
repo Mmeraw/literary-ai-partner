@@ -387,6 +387,7 @@ CREATE POLICY "Users can update own wave runs"
 -- ─────────────────────────────────────────────────────────────────────────────
 
 DROP POLICY IF EXISTS "Enable insert for authenticated users only" ON public.evaluations;
+DROP POLICY IF EXISTS "Authenticated: insert own evaluations" ON public.evaluations;
 
 CREATE POLICY "Authenticated: insert own evaluations"
   ON public.evaluations FOR INSERT TO authenticated

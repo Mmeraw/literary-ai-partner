@@ -76,11 +76,11 @@ jobs:
     runs-on: ubuntu-latest
     env:
       JOBSYSTEM_ENV: ci
-      SUPABASE_URL: ${{ secrets.SUPABASE_URL_CI }}
-      SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY_CI }}
-      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY_CI }}
-      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL_CI }}
-      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY_CI }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
       USE_SUPABASE_JOBS: "true"
       TEST_MODE: "true"
     steps:
