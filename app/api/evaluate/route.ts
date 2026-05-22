@@ -182,6 +182,32 @@ export async function POST(req: Request) {
       );
     }
 
+    // MISTAKE-PROOF: SELECT-back verification before the job ID ever leaves this process.
+    // PostgREST returns HTTP 200 on INSERT even when the transaction is rolled back by a
+    // trigger or constraint — the only reliable truth is reading the row back.
+    // If the row is missing here, the INSERT was silently lost. Return 500 instead of
+    // sending a phantom job ID to the client (which would create a ghost job in the UI).
+    const { data: verifiedJob, error: verifyError } = await supabase
+      .from('evaluation_jobs')
+      .select('id, status')
+      .eq('id', data.id)
+      .maybeSingle();
+
+    if (verifyError || !verifiedJob) {
+      console.error(
+        '[/api/evaluate] Job INSERT appeared to succeed but SELECT-back found no row. ' +
+        'Probable silent rollback. Refusing to send job ID to client.',
+        { job_id: data.id, verifyError }
+      );
+      return Response.json(
+        {
+          ok: false,
+          error: 'Job creation failed — database verification failed. Please try again.',
+        },
+        { status: 500 }
+      );
+    }
+
     // Belt-and-suspenders dispatch: cron remains fallback.
     // When WORKFLOW_EVALUATION_ENABLED=true, use durable Vercel Workflow
     // (each phase gets a fresh 800s budget; overall run has no duration limit).
