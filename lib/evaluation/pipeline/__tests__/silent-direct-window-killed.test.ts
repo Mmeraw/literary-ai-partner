@@ -84,6 +84,8 @@ describe("silent direct_window fallback is killed", () => {
     // correct path. The pipeline-level guard must NOT fire — downstream runners
     // are stubbed to throw, but the failure should be in pass dispatch, not in
     // the chunk-routing guard.
+    // _passTimeoutMs must be << Jest's default 5 000 ms so the pipeline
+    // resolves before Jest kills the test with its own timeout.
     const manuscriptText = generateText(2_500);
     const result = await runPipeline({
       manuscriptText,
@@ -91,13 +93,13 @@ describe("silent direct_window fallback is killed", () => {
       title: "sub-threshold OK",
       manuscriptId: "test:sub-threshold",
       manuscriptChunks: undefined,
-      _passTimeoutMs: 5_000,
+      _passTimeoutMs: 500,
       _runners: stubRunners as unknown as Parameters<typeof runPipeline>[0]["_runners"],
       _maxManuscriptChars: 10_000_000,
     });
     const failure = expectFailure(result);
     expect(failure.error_code).not.toBe("CHUNK_ROUTING_NOT_ENGAGED");
-  });
+  }, 10_000);
 
   test("manuscript above HARD_MANUSCRIPT_CEILING_WORDS → MANUSCRIPT_EXCEEDS_HARD_CEILING", async () => {
     const manuscriptText = generateText(310_000);
