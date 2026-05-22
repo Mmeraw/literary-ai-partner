@@ -53,42 +53,23 @@ jobs:
           echo $! > /tmp/dev-server.pid
 
       - name: Wait for dev server
-        id: devserver
-        # Cold GitHub runners need up to 3 min for Next.js compilation on first boot.
-        # We treat a slow boot as a warning, not a hard failure — Tier 1 (mock pipeline)
-        # is the real correctness gate. Tier 3a is a UI smoke layer.
         run: |
-          for i in $(seq 1 180); do
+          for i in $(seq 1 60); do
             if curl -fsS http://localhost:3002/ > /dev/null 2>&1 || \
                curl -fsS -o /dev/null -w "%{http_code}" http://localhost:3002/ | grep -qE "^(2|3)"; then
               echo "dev server up after ${i}s"
-              echo "ready=true" >> "$GITHUB_OUTPUT"
               exit 0
-            fi
-            # Print a heartbeat every 30s so CI doesn't look stalled
-            if (( i % 30 == 0 )); then
-              echo "still waiting... ${i}s elapsed"
-              tail -5 /tmp/dev-server.log || true
             fi
             sleep 1
           done
-          echo "::warning::dev server did not become ready within 180s — skipping Tier 3a UI harness"
-          tail -80 /tmp/dev-server.log || true
-          echo "ready=false" >> "$GITHUB_OUTPUT"
-          # Do NOT exit 1 here — Tier 1 already passed, Tier 3a is best-effort on cold runners
+          echo "dev server did not become ready"
+          tail -50 /tmp/dev-server.log || true
+          exit 1
 
       - name: Tier 3a — Playwright UI stress harness
-        if: steps.devserver.outputs.ready == 'true'
         run: npm run pipeline:stress:ui
         env:
           STRESS_UI_BASE_URL: http://localhost:3002
-
-      - name: Tier 3a — skipped (dev server did not boot)
-        if: steps.devserver.outputs.ready != 'true'
-        run: |
-          echo "::warning::Tier 3a skipped — Next.js dev server did not boot within 180s on this runner."
-          echo "Tier 1 (mock LLM, mock Supabase) passed. Tier 3a is a best-effort UI smoke layer."
-          echo "If this is consistently slow, consider running Tier 3a as a separate scheduled workflow."
 
       - name: Stop dev server
         if: always()
