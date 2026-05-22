@@ -4,21 +4,42 @@
 
 ## Job Status (Top-Level)
 ```typescript
-"queued" | "running" | "retry_pending" | "failed" | "complete" | "canceled"
+"queued" | "running" | "failed" | "complete"
 ```
-❌ Don't use: `completed`, `done`, `error`, `pending` (as job status)
+❌ Don't use: `completed`, `done`, `error`, `pending` (as job status), `retry_pending`, `canceled`
 
-## Phases (Pipeline Stages)
+## Storage Phases (`evaluation_jobs.phase`)
 ```typescript
-"phase_0" | "phase_1" | "phase_2"
+"phase_0" | "phase_1a" | "phase_2" | "phase_3" | "wave_revision"
 ```
-❌ Don't use: `phase1`, `phase2`, `p1`, `p2`, `Phase 1`
+
+These are **Vercel/Supabase execution envelopes**, not the same thing as editorial passes.
+
+| Storage value | Canonical display name | What runs |
+|---|---|---|
+| `phase_1a` | Phase 1A — Story Ledger Fork | Pass 1A Story/Character Ledger and Pass 3A Preflight run in parallel |
+| `phase_2` | Phase 2 — Pass 1+2 Handoff | Pass 1 craft execution + Pass 2 editorial/literary read; writes `pass12_handoff_v1` |
+| `phase_3` | Phase 3B — Final Synthesis & Report Assembly | Pass 3B synthesis, deterministic Pass 4 Quality Gate, `evaluation_result_v2`, and WAVE plan |
+
+❌ Don't use: `phase_1`, `phase1`, `phase2`, `p1`, `p2`, `Phase 1`.
+
+## Pass / Artifact Labels
+
+| Artifact / pass label | Canonical display name | Notes |
+|---|---|---|
+| `pass1a_chunk_cache_v1` | Pass 1A Chunk Cache | Resume checkpoint for the Story Ledger sweep |
+| `pass1a_character_ledger_v1` | Pass 1A Story Ledger / Character Ledger | Durable ledger used by later passes |
+| `pass3_preflight_draft_v1` | **Phase 3A / Pass 3A Preflight** | Independent preflight read produced during `phase_1a`; consumed by Phase 3B |
+| `pass12_handoff_v1` | Pass 1+2 Handoff | Captured Pass 1 and Pass 2 outputs; not a separate pass |
+| `evaluation_result_v2` | Phase 3B Final Evaluation Result | Final report payload after synthesis and gate |
+
+Binding rule: **Preflight is Phase 3A / Pass 3A by display name.** The current storage envelope may still be `phase_1a` because Phase 3A runs in parallel with Story Ledger work, but operator-facing labels, Supabase comments, dashboards, logs, and docs must not call it plain `phase_3`.
 
 ## Phase Status (Intra-Phase State)
 ```typescript
-"pending" | "running" | "complete" | "failed"
+"queued" | "running" | "complete" | "failed"
 ```
-❌ Don't use: `progress.stage`, `starting`, `processing`, `completed`, `phase2_error`
+❌ Don't use: `progress.stage`, `starting`, `processing`, `completed`, `phase2_error`, `pending` (for `phase_status`)
 
 ## Ownership
 ```typescript
@@ -41,11 +62,10 @@ import {
   CANONICAL_JOB_STATUS,
   CANONICAL_PHASE,
   CANONICAL_PHASE_STATUS,
-  toCanonicalPhase,
   toDisplayPhase,
-  CanonicalPhase,
-  CanonicalJobStatus,
-  CanonicalPhaseStatus,
+  type CanonicalPhase,
+  type CanonicalJobStatus,
+  type CanonicalPhaseStatus,
 } from '@/lib/jobs/canon';
 ```
 
@@ -53,23 +73,18 @@ import {
 ```typescript
 await updateJob(jobId, {
   status: CANONICAL_JOB_STATUS.RUNNING,
-  phase: CANONICAL_PHASE.PHASE_1,
   progress: {
+    phase: CANONICAL_PHASE.PHASE_1A,                // storage envelope
     phase_status: CANONICAL_PHASE_STATUS.RUNNING,  // NOT stage
-    // ...
+    display_stage: "phase_3a_preflight",           // optional display label only
   }
 });
 ```
 
-### Reading from storage (normalize legacy data):
-```typescript
-const job = await getJob(jobId);
-const phase = toCanonicalPhase(job.phase);  // Handles "phase1" → "phase_1"
-```
-
 ### Displaying in UI:
 ```typescript
-const label = toDisplayPhase(job.phase);  // "phase_1" → "Phase 1"
+const label = toDisplayPhase(job.progress?.phase ?? null);
+// For artifacts, map pass3_preflight_draft_v1 → "Phase 3A / Pass 3A Preflight".
 ```
 
 ## Testing for Violations
@@ -80,13 +95,16 @@ Run the canon audit before every commit:
 ```
 
 **Error-level** (blocks merge): Violations in `app/`, `lib/`, `supabase/`, `tests/`  
-**Warning-level** (informational): Violations in `scripts/`, `docs/`
+**Warning-level** (informational): Violations in `scripts/`, `docs/`, archived migrations
 
 ## Common Violations & Fixes
 
 | ❌ Wrong | ✅ Correct |
 |---------|-----------|
-| `phase: "phase1"` | `phase: CANONICAL_PHASE.PHASE_1` |
+| `phase: "phase_1"` | `phase: CANONICAL_PHASE.PHASE_1A` |
+| `phase: "phase1"` | `phase: CANONICAL_PHASE.PHASE_1A` |
+| `message: "Resuming from phase 1 handoff"` | `message: "Resuming from Pass 1+2 handoff"` |
+| `pass3_preflight_draft_v1` displayed as `phase_3` | Display as `Phase 3A / Pass 3A Preflight` |
 | `progress.stage = "processing"` | `progress.phase_status = CANONICAL_PHASE_STATUS.RUNNING` |
 | `if (status === "completed")` | `if (status === CANONICAL_JOB_STATUS.COMPLETE)` |
 | `owner_id UUID` | `user_id UUID` |
@@ -109,10 +127,10 @@ FOR SELECT USING (owner_id = auth.uid());  -- WRONG
 
 ## Migration Notes
 
-- **Read operations**: Wrap with `toCanonical*()` for backward compatibility
-- **Write operations**: Use `CANONICAL_*` constants only
-- **Database**: Run migrations in [CANONICAL_VOCABULARY_MIGRATION.md](./CANONICAL_VOCABULARY_MIGRATION.md)
-- **Tests**: Update all test fixtures to use canonical values
+- **Read operations**: Runtime may tolerate `phase_1` only as a legacy compatibility alias.
+- **Write operations**: Use `CANONICAL_*` constants only; never write `phase_1`.
+- **Artifact display**: `pass3_preflight_draft_v1` is Phase 3A / Pass 3A Preflight.
+- **Tests**: Update fixtures to use canonical storage values and artifact display labels.
 
 ## Full Documentation
 
@@ -120,12 +138,5 @@ FOR SELECT USING (owner_id = auth.uid());  -- WRONG
 - **Migration Guide**: [CANONICAL_VOCABULARY_MIGRATION.md](./CANONICAL_VOCABULARY_MIGRATION.md)
 - **Schema Rules**: [SCHEMA_CODE_NAMING_GOVERNANCE.md](./SCHEMA_CODE_NAMING_GOVERNANCE.md)
 - **Implementation**: [lib/jobs/canon.ts](../lib/jobs/canon.ts)
-
-## Questions?
-
-If you need to use a non-canonical term:
-1. Check if it's a display-only context (UI/logs) → use `toDisplay*()` helper
-2. Check if it's external API compatibility → document in CANONICAL_VOCABULARY.md "Approved Exceptions"
-3. Otherwise → use canonical value
 
 **This is law.** No merge without passing audit.
