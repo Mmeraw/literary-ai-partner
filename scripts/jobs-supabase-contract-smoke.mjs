@@ -295,6 +295,14 @@ async function testClaimContention(jobId) {
 
 /**
  * Test: Lease prevents re-claim
+ *
+ * ISOLATION NOTE: claim_job_atomic claims the next eligible job in the entire
+ * DB — it has no per-job-id filter. In a shared CI environment there may be
+ * real or ambient queued jobs that get claimed by this call. The only
+ * invariant we can safely assert is that OUR specific test job was NOT
+ * re-claimed (its lease is active). We do NOT assert that the RPC returns
+ * an empty array globally, because that would be a false negative whenever
+ * any ambient work happens to be queued.
  */
 async function testLeaseBlocking(jobId) {
   console.log("\n[TEST] Active Lease Blocks Re-claim");
@@ -311,21 +319,38 @@ async function testLeaseBlocking(jobId) {
   if (beforeError) throw new Error(`Failed to fetch job: ${beforeError.message}`);
   const attemptCountBefore = beforeJob.attempt_count || 0;
 
-  // Try to claim while lease is active
+  // Try to claim while our test job's lease is active.
   const { data, error } = await supabase.rpc("claim_job_atomic", {
     p_worker_id: "worker-3",
     p_now: now,
     p_lease_seconds: 30,
   });
 
-  // Should return empty (no claim)
-  if (data && data.length > 0) {
-    throw new Error("Expected no claim while lease active, but got: " + JSON.stringify(data));
+  if (error) throw new Error(`RPC error during lease-block test: ${error.message}`);
+
+  // The RPC may legitimately claim an ambient job from the shared DB.
+  // What must NOT happen: our specific test job (jobId) gets re-claimed.
+  const ourJobClaimed = data && data.some((row) => row.id === jobId);
+  if (ourJobClaimed) {
+    throw new Error(
+      `Active lease did NOT block re-claim of test job ${jobId}. ` +
+      `claim_job_atomic returned our job despite an active lease. ` +
+      `Full result: ` + JSON.stringify(data)
+    );
   }
 
-  console.log("  ✅ Active lease correctly blocks re-claim");
+  if (data && data.length > 0) {
+    console.log(
+      `  ℹ️  RPC claimed ${data.length} ambient job(s) from shared CI DB ` +
+      `(not our test job — lease block confirmed for ${jobId})`
+    );
+  } else {
+    console.log("  ✅ RPC returned no claims (clean environment)");
+  }
 
-  // Verify attempt_count did NOT increment (blocked claim doesn't count)
+  console.log("  ✅ Active lease correctly blocks re-claim of test job");
+
+  // Verify attempt_count on OUR job did NOT increment (blocked claim doesn't count)
   const { data: afterJob, error: afterError } = await supabase
     .from("evaluation_jobs")
     .select("attempt_count")
@@ -337,7 +362,7 @@ async function testLeaseBlocking(jobId) {
 
   if (attemptCountAfter !== attemptCountBefore) {
     throw new Error(
-      `Blocked claim should not increment attempt_count. ` +
+      `Blocked claim should not increment attempt_count on test job. ` +
       `Before: ${attemptCountBefore}, After: ${attemptCountAfter}`
     );
   }
