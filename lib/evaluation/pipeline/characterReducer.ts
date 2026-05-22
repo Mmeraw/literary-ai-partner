@@ -1086,14 +1086,20 @@ export function buildCharacterLedgerV2(params: {
   }
 
   // ── Evidence Coverage ─────────────────────────────────────────────────────
+  // Hoist identity-group map outside the entry × chunk × character triple loop.
+  // Previously this called buildRawIdentityGroupMap(chunkOutputs) on every
+  // character in every chunk in every entry — O(n³) on large manuscripts.
+  // Hoisting to O(1) pre-build eliminates the regression surfaced by the
+  // stress harness on 40-chunk inputs.
+  const coverageIdentityGroupMap = buildRawIdentityGroupMap(chunkOutputs);
   const characterCoverage: Record<string, EvidenceCoverage> = {};
   for (const entry of entries) {
     const id = entry.canonical_name;
     const confirmedChunks = new Set<number>();
     for (const co of chunkOutputs) {
       if (co.characters.some((c) =>
-        resolveCanonical(c.canonical_name, new Map(), buildRawIdentityGroupMap(chunkOutputs)) === entry.canonical_name ||
-        (c.aliases ?? []).some((alias) => resolveCanonical(alias, new Map(), buildRawIdentityGroupMap(chunkOutputs)) === entry.canonical_name) ||
+        resolveCanonical(c.canonical_name, new Map(), coverageIdentityGroupMap) === entry.canonical_name ||
+        (c.aliases ?? []).some((alias) => resolveCanonical(alias, new Map(), coverageIdentityGroupMap) === entry.canonical_name) ||
         c.canonical_name === entry.canonical_name ||
         (c.aliases ?? []).includes(entry.canonical_name)
       )) {
