@@ -8,7 +8,7 @@
  * Output feeds characterReducer → Pass1aCharacterLedger → Pass 3 + Pass 3b.
  */
 
-export const PASS1A_PROMPT_VERSION = "pass1a-character-sweep-v4-identity-antagonist-grounding";
+export const PASS1A_PROMPT_VERSION = "pass1a-character-sweep-v5-pov-structure";
 
 export const PASS1A_SYSTEM_PROMPT = `You are Pass 1A (character_evidence_sweep) for RevisionGrade.
 
@@ -34,6 +34,10 @@ ANTAGONIST / THREAT SWEEP:
 Any character who disciplines, threatens, surveils, controls, coerces, harms, confines, interrogates, or enforces cartel/institutional power MUST be captured.
 Assign role_signal: "antagonist" for threat-bearing figures regardless of moral complexity, charm, family connection, or intermittent kindness.
 Do not drop antagonists merely because a POV character observes them briefly.
+
+SUPPORTING CAST SWEEP:
+Do not drop camp, institutional, family, embassy, school, medical, or community characters merely because they are not protagonists.
+Named recurring secondary figures and unnamed-but-load-bearing figures should be captured when they affect power, danger, plot motion, logistics, moral pressure, or emotional consequence.
 
 IDENTITY GROUPING — CRITICAL:
 The same person may appear under different names, titles, spellings, languages, aliases, surnames, married names, or narrator labels.
@@ -75,6 +79,16 @@ role_signal         — protagonist|co_protagonist|antagonist|secondary|mentor|f
 narrative_weight_signal — primary|major|supporting|recurring|minor|unknown
 is_named            — true if character has a proper name in this chunk, false if unnamed/generic
 
+POV / CAMERA OWNERSHIP:
+pov_signal          — first_person_narrator|close_third_limited|close_third_omniscient|distant_third|not_pov|unknown
+pov_section_label   — Free-text label for the narrative territory this character owns in this chunk, e.g. "Michael — camp sections" or "Benjamin — Culiacán search". Empty string if not_pov.
+Rules:
+- Mark the character whose consciousness/camera owns this chunk as the POV owner.
+- If the narration is first-person and the narrator is identifiable, use first_person_narrator.
+- If a character is strongly focalized in third person, use close_third_limited or close_third_omniscient as applicable.
+- If a character appears but does not own the narrative lens, set pov_signal to not_pov and pov_section_label to "".
+- Do not create separate narrator identities when the text clearly indicates the narrator is a named character; use canonical_identity_group to merge narrator labels into the named identity.
+
 FIVE Ws + HOW (capture only what this chunk reveals):
 who_is_this         — One phrase describing identity function (e.g. "captive boy adopted by cartel")
 what_do_they_want   — Desire/goal visible in this chunk (null if absent)
@@ -98,10 +112,12 @@ symbolic_objects    — Array of objects tied to this character in this chunk
                       Each: { object: string, function: string } (e.g. { "object": "blue evil-eye charm", "function": "identity token carried by captive child" })
                       Capture identity tokens, weapons, surveillance/communication tools, protection charms,
                       objects used for discipline/control, trauma anchors, domestic anchors, and objects that change hands.
+                      Include objects used as tools of violence, control, enforcement, discipline, surveillance, communication, escape, or payoff — not just identity tokens.
 
 RELATIONSHIP SIGNALS (max 3):
 relationship_signals — Array of { other_character: string, relationship_type: string, dynamic: string }
                       e.g. { "other_character": "Benjamin", "relationship_type": "protector/protected", "dynamic": "Michael shields Paolito from Navarro" }
+                      Track relationship origin and evolution when visible: online hookup/contact → in-person relationship → cohabitation/partnership → separation/reunion.
 
 EVIDENCE ANCHORS (max 3, verbatim excerpt <=120 chars each):
 evidence_anchors    — Array of { excerpt: string, evidence_type: "appearance"|"choice"|"relationship"|"symbol"|"arc_shift"|"identity"|"ending_payoff", confidence: "explicit"|"strong_inference"|"weak_inference" }
@@ -146,6 +162,8 @@ OUTPUT FORMAT: Valid JSON only. No markdown. No prose.
       "role_signal": "unknown",
       "narrative_weight_signal": "unknown",
       "is_named": true,
+      "pov_signal": "unknown",
+      "pov_section_label": "",
       "who_is_this": "",
       "what_do_they_want": null,
       "where_are_they": null,
@@ -183,7 +201,9 @@ ${params.manuscriptText}
 Return ONLY the JSON object as specified. No prose. No markdown. No scoring.
 Capture every named character and every unnamed-but-load-bearing figure present.
 Preserve identity continuity: use canonical_identity_group to group name/title/narrator variants that refer to the same person.
+Capture POV ownership with pov_signal and pov_section_label; merge narrator labels into named identities when the text supports it.
 Prioritize POV characters, antagonists/enforcers/threat-bearing figures, named recurring characters, and load-bearing unnamed figures.
+Capture plot-critical objects, including weapons, discipline tools, surveillance/communication objects, charms, and objects that change hands or pay off later.
 Apply all HARD CAPS: max 15 characters, max 3 evidence anchors each, max 3 relationship signals each, no excerpt >120 chars.
 Fill demographic/identity fields ONLY from explicit text signals — never infer or assume.`;
 }
