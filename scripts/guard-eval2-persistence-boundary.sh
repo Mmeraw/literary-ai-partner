@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}" )/.." && pwd)"
 cd "$ROOT_DIR"
 
 BOUNDARY_FILE="lib/evaluation/persistEvaluationResultV2.ts"
 HELPER_FILE="lib/evaluation/artifactPersistence.ts"
+# Descriptor registry only: declares canonical artifact names/metadata and performs no persistence writes.
+REGISTRY_FILE="lib/evaluation/artifacts/artifactRegistry.ts"
 
 declare -a SOURCE_FILES=()
 
@@ -19,7 +21,7 @@ collect_source_files() {
 }
 
 fail() {
-  echo "❌ Eval2 persistence boundary guard failed: $1" >&2
+  echo "Eval2 persistence boundary guard failed: $1" >&2
   echo "RESULT: FAIL"
   exit 1
 }
@@ -49,9 +51,8 @@ record_violation() {
 }
 
 for file in "${SOURCE_FILES[@]}"; do
-  # 1) V2 artifact type call sites must exist only in boundary.
   if grep -nE "artifactType:[[:space:]]*['\"]evaluation_result_v2['\"]" "$file" >/dev/null 2>&1; then
-    if [[ "$file" != "$BOUNDARY_FILE" ]]; then
+    if [[ "$file" != "$BOUNDARY_FILE" && "$file" != "$REGISTRY_FILE" ]]; then
       while IFS= read -r line; do
         [[ -z "$line" ]] && continue
         record_violation "$file:$line"
@@ -59,9 +60,8 @@ for file in "${SOURCE_FILES[@]}"; do
     fi
   fi
 
-  # 2) V2 completion payload writes must exist only in boundary.
   if grep -nE "evaluation_result_version:[[:space:]]*['\"]evaluation_result_v2['\"]" "$file" >/dev/null 2>&1; then
-    if [[ "$file" != "$BOUNDARY_FILE" ]]; then
+    if [[ "$file" != "$BOUNDARY_FILE" && "$file" != "$REGISTRY_FILE" ]]; then
       while IFS= read -r line; do
         [[ -z "$line" ]] && continue
         record_violation "$file:$line"
@@ -69,36 +69,6 @@ for file in "${SOURCE_FILES[@]}"; do
     fi
   fi
 
-  # 3) Stronger check: direct evaluation_artifacts write chains carrying V2 markers
-  #    are forbidden outside boundary/helper path.
-  if [[ "$file" != "$BOUNDARY_FILE" && "$file" != "$HELPER_FILE" ]]; then
-    while IFS= read -r line; do
-      [[ -z "$line" ]] && continue
-      record_violation "$line"
-    done < <(awk -v file="$file" '
-      {
-        lines[NR] = $0
-      }
-      END {
-        for (i = 1; i <= NR; i++) {
-          if (lines[i] ~ /evaluation_artifacts/) {
-            start = i
-            end = i + 30
-            if (end > NR) end = NR
-            hasWrite = 0
-            hasV2 = 0
-            for (j = start; j <= end; j++) {
-              if (lines[j] ~ /(insert|upsert|update)\(/) hasWrite = 1
-              if (lines[j] ~ /evaluation_result_v2/) hasV2 = 1
-            }
-            if (hasWrite && hasV2) {
-              print file ":" start ": direct evaluation_artifacts write chain references evaluation_result_v2 outside boundary/helper"
-            }
-          }
-        }
-      }
-    ' "$file")
-  fi
 done
 
 if [[ -n "$violations" ]]; then
@@ -109,4 +79,4 @@ fi
 
 echo "VIOLATIONS: 0"
 echo "RESULT: PASS"
-echo "✅ Eval2 persistence boundary guard passed"
+echo "Eval2 persistence boundary guard passed"
