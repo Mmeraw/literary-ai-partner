@@ -3,10 +3,11 @@
 -- Compatibility contract:
 -- - Existing unguarded callers may still finalize queued/running jobs by passing
 --   only the original four RPC args.
--- - Guarded callers pass p_expected_lease_token + p_expected_claimed_by; then
---   the UPDATE only succeeds while the row is still running and owned by that
+-- - Guarded callers must pass both p_expected_lease_token and p_expected_claimed_by;
+--   then the UPDATE only succeeds while the row is still running and owned by that
 --   exact claim. If ownership changed, the RPC returns zero rows and the app
 --   must treat that as a lost-lease/no-terminal-write outcome.
+-- - Supplying only one owner field is a caller bug and raises an exception.
 
 DO $migration$
 BEGIN
@@ -33,8 +34,13 @@ BEGIN
     AS $finalize_job_failure_atomic$
     DECLARE
       v_now timestamptz := now();
-      v_guarded boolean := p_expected_lease_token IS NOT NULL OR p_expected_claimed_by IS NOT NULL;
+      v_guarded boolean := p_expected_lease_token IS NOT NULL AND p_expected_claimed_by IS NOT NULL;
     BEGIN
+      IF (p_expected_lease_token IS NULL) <> (p_expected_claimed_by IS NULL) THEN
+        RAISE EXCEPTION 'finalize_job_failure_atomic owner guard requires both expected lease token and claimant'
+          USING ERRCODE = '22023';
+      END IF;
+
       RETURN QUERY
       UPDATE public.evaluation_jobs AS j
       SET
@@ -60,8 +66,6 @@ BEGIN
           OR
           (
             v_guarded = true
-            AND p_expected_lease_token IS NOT NULL
-            AND p_expected_claimed_by IS NOT NULL
             AND j.status = 'running'
             AND j.lease_token = p_expected_lease_token
             AND j.claimed_by = p_expected_claimed_by
