@@ -7,6 +7,7 @@
 
 export const CANONICAL_EVALUATION_ARTIFACT_TYPES = [
   'dream_calibration_packet_v1',
+  'factual_anomalies_detected_v1',
   'pass1a_story_layer_v1',
   'ledger_quality_report_v1',
   'ledger_user_feedback_v1',
@@ -16,6 +17,7 @@ export const CANONICAL_EVALUATION_ARTIFACT_TYPES = [
   'phase2_evaluation_packet_v1',
   'phase2_author_response_v1',
   'evaluation_result_v2',
+  'external_report_crosscheck_v1',
   'wave_revision_plan_v1',
 ] as const;
 
@@ -53,6 +55,7 @@ export type ArtifactAuthority =
   | 'review_trace'
   | 'phase2_enrichment'
   | 'calibration'
+  | 'external_verification'
   | 'downstream_packet'
   | 'final_result'
   | 'wave_revision';
@@ -64,6 +67,7 @@ export type ArtifactPhase =
   | 'approval_normalizer'
   | 'phase_2_story_evaluation'
   | 'phase_3_final_report'
+  | 'phase_4_cross_check'
   | 'phase_4_wave_revision';
 
 export type ArtifactRegistryEntry = {
