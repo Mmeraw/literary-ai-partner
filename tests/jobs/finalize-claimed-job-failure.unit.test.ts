@@ -59,6 +59,7 @@ describe('finalizeClaimedJobFailure', () => {
       p_expected_claimed_by: 'worker-1',
     });
     expect(result).toEqual({
+      outcome: 'written',
       status: 'failed',
       terminalWriteSkipped: false,
       retryEligible: false,
@@ -70,7 +71,7 @@ describe('finalizeClaimedJobFailure', () => {
     });
   });
 
-  test('returns lease_lost instead of throwing when guarded RPC updates zero rows', async () => {
+  test('returns lease_lost outcome while preserving canonical failed status when guarded RPC updates zero rows', async () => {
     rpcMock.mockResolvedValueOnce({ data: [], error: null });
 
     const result = await guarded.finalizeClaimedJobFailure({
@@ -84,7 +85,8 @@ describe('finalizeClaimedJobFailure', () => {
     });
 
     expect(result).toEqual({
-      status: 'lease_lost',
+      outcome: 'lease_lost',
+      status: 'failed',
       terminalWriteSkipped: true,
       retryEligible: false,
       retryExhausted: false,
@@ -93,6 +95,29 @@ describe('finalizeClaimedJobFailure', () => {
       shouldNotify: false,
       failureCode: 'TIMEOUT',
     });
+  });
+
+  test('uses shared retryability policy for transient legacy runtime codes', async () => {
+    rpcMock.mockResolvedValueOnce({
+      data: [{ attempt_count: 1, max_attempts: 3, notified_at: '2026-05-23T00:00:00Z' }],
+      error: null,
+    });
+
+    const result = await guarded.finalizeClaimedJobFailure({
+      jobId: 'job-timeout',
+      expectedLeaseToken: 'lease-token',
+      expectedClaimedBy: 'worker-id',
+      errorEnvelope: {
+        code: 'TIMEOUT',
+        message: 'Provider timed out',
+      },
+    });
+
+    expect(rpcMock).toHaveBeenCalledWith(
+      'finalize_job_failure_atomic',
+      expect.objectContaining({ p_retryable: true }),
+    );
+    expect(result.retryEligible).toBe(true);
   });
 
   test('throws on RPC errors', async () => {
