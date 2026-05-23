@@ -6,6 +6,7 @@ import {
   EvaluationRunnerFatalError,
   RunnerHeartbeatMonitor,
   assertCurrentLeaseOwnership,
+  guardedEvaluationJobUpdate,
 } from '../../lib/evaluation/orchestration/runnerHeartbeat';
 
 type MockJob = {
@@ -18,10 +19,16 @@ type MockJob = {
   last_heartbeat_at?: string;
   lease_until?: string;
   updated_at?: string;
+  status?: string;
+  progress?: Record<string, unknown>;
 };
 
+type Filter =
+  | { op: 'eq'; column: string; value: unknown }
+  | { op: 'gt'; column: string; value: unknown };
+
 class MockSupabaseQuery {
-  private filters: Record<string, unknown> = {};
+  private filters: Filter[] = [];
 
   constructor(
     private readonly table: MockSupabaseTable,
@@ -34,7 +41,12 @@ class MockSupabaseQuery {
   }
 
   eq(column: string, value: unknown): MockSupabaseQuery {
-    this.filters[column] = value;
+    this.filters.push({ op: 'eq', column, value });
+    return this;
+  }
+
+  gt(column: string, value: unknown): MockSupabaseQuery {
+    this.filters.push({ op: 'gt', column, value });
     return this;
   }
 
@@ -64,16 +76,24 @@ class MockSupabaseTable {
     return new MockSupabaseQuery(this, 'update', patch);
   }
 
-  find(filters: Record<string, unknown>): MockJob | null {
-    for (const [key, value] of Object.entries(filters)) {
-      if ((this.job as unknown as Record<string, unknown>)[key] !== value) {
+  find(filters: Filter[]): MockJob | null {
+    for (const filter of filters) {
+      const actual = (this.job as unknown as Record<string, unknown>)[filter.column];
+      if (filter.op === 'eq' && actual !== filter.value) {
         return null;
+      }
+      if (filter.op === 'gt') {
+        const actualMs = Date.parse(String(actual ?? ''));
+        const expectedMs = Date.parse(String(filter.value ?? ''));
+        if (!Number.isFinite(actualMs) || !Number.isFinite(expectedMs) || actualMs <= expectedMs) {
+          return null;
+        }
       }
     }
     return { ...this.job };
   }
 
-  updateRow(filters: Record<string, unknown>, patch: Partial<MockJob>): MockJob | null {
+  updateRow(filters: Filter[], patch: Partial<MockJob>): MockJob | null {
     const found = this.find(filters);
     if (!found) return null;
     this.job = { ...this.job, ...patch };
@@ -102,12 +122,23 @@ function mockSupabase(job: MockJob) {
   };
 }
 
+function futureIso(): string {
+  return new Date(Date.now() + 60_000).toISOString();
+}
+
+function pastIso(): string {
+  return new Date(Date.now() - 60_000).toISOString();
+}
+
 describe('evaluation runner lifecycle guards', () => {
   it('allows only explicit phase_status transitions in the app layer', () => {
     expect(() => validateEvaluationPhaseStatusTransition('queued', 'running')).not.toThrow();
     expect(() => validateEvaluationPhaseStatusTransition('running', 'awaiting_approval')).not.toThrow();
     expect(() => validateEvaluationPhaseStatusTransition('running', 'queued')).not.toThrow();
     expect(() => validateEvaluationPhaseStatusTransition('awaiting_approval', 'queued')).not.toThrow();
+    expect(() => validateEvaluationPhaseStatusTransition('failed', 'queued')).not.toThrow();
+    expect(() => validateEvaluationPhaseStatusTransition('degraded', 'queued')).not.toThrow();
+    expect(() => validateEvaluationPhaseStatusTransition('cancelled', 'queued')).not.toThrow();
     expect(() => validateEvaluationPhaseStatusTransition('complete', 'running')).toThrow(/Illegal evaluation phase_status transition/);
     expect(() => assertEvaluationPhaseStatusTransition('running', 'banana')).toThrow(/Unknown next phase_status/);
   });
@@ -119,6 +150,7 @@ describe('evaluation runner lifecycle guards', () => {
       lease_token: 'token-a',
       phase_status: 'running',
       cancellation_requested: false,
+      lease_until: futureIso(),
     });
 
     const monitor = new RunnerHeartbeatMonitor({
@@ -141,6 +173,7 @@ describe('evaluation runner lifecycle guards', () => {
       lease_token: 'token-a',
       phase_status: 'running',
       cancellation_requested: true,
+      lease_until: futureIso(),
     });
 
     const monitor = new RunnerHeartbeatMonitor({
@@ -160,6 +193,7 @@ describe('evaluation runner lifecycle guards', () => {
       lease_token: 'token-a',
       phase_status: 'running',
       cancellation_requested: false,
+      lease_until: futureIso(),
     });
 
     await expect(assertCurrentLeaseOwnership({
@@ -175,6 +209,7 @@ describe('evaluation runner lifecycle guards', () => {
       lease_token: 'token-b',
       phase_status: 'running',
       cancellation_requested: false,
+      lease_until: futureIso(),
     });
 
     await expect(assertCurrentLeaseOwnership({
@@ -183,5 +218,27 @@ describe('evaluation runner lifecycle guards', () => {
       workerId: 'worker-a',
       leaseToken: 'token-a',
     })).rejects.toThrow(/write attempt blocked/);
+  });
+
+  it('blocks guarded writes after lease expiry', async () => {
+    const { client, table } = mockSupabase({
+      id: 'job-1',
+      worker_id: 'worker-a',
+      lease_token: 'token-a',
+      phase_status: 'running',
+      cancellation_requested: false,
+      lease_until: pastIso(),
+      status: 'running',
+    });
+
+    await expect(guardedEvaluationJobUpdate({
+      supabase: client as never,
+      jobId: 'job-1',
+      workerId: 'worker-a',
+      leaseToken: 'token-a',
+      patch: { status: 'complete', phase_status: 'complete' },
+    })).rejects.toThrow(/lease ownership was not current/);
+
+    expect(table.getJob().status).toBe('running');
   });
 });
