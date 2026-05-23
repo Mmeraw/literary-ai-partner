@@ -13,12 +13,18 @@ import { useEffect, useRef, useState } from "react";
 import { isPipelineHealthAdminEmail } from "@/lib/admin/pipelineHealthAllowlist";
 
 const resourceLinks = [
+  ["The Black Box Problem", "/black-box-problem"],
   ["FAQs", "/resources"],
   ["Methodology", "/methodology"],
   ["Editorial Doctrine", "/reliability"],
 ];
 
-const resourceActiveHrefs = ["/resources", "/methodology"];
+const resourceActiveHrefs = [
+  "/black-box-problem",
+  "/resources",
+  "/methodology",
+  "/reliability",
+];
 
 export default function HeaderNav() {
   const pathname = usePathname() || "/";
