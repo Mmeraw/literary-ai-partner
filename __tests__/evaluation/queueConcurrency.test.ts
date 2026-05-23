@@ -15,13 +15,13 @@ type MockJob = {
   phase_status: string;
   cancellation_requested: boolean;
   heartbeat_at?: string;
+  last_heartbeat_at?: string;
   lease_until?: string;
+  updated_at?: string;
 };
 
 class MockSupabaseQuery {
   private filters: Record<string, unknown> = {};
-  private shouldSelectAfterUpdate = false;
-  private maybeSingleMode = false;
 
   constructor(
     private readonly table: MockSupabaseTable,
@@ -30,7 +30,6 @@ class MockSupabaseQuery {
   ) {}
 
   select(): MockSupabaseQuery {
-    this.shouldSelectAfterUpdate = true;
     return this;
   }
 
@@ -44,10 +43,9 @@ class MockSupabaseQuery {
     return Promise.resolve({ data, error: data ? null : { message: 'row not found' } });
   }
 
-  maybeSingle(): Promise<{ data: { id: string } | MockJob | null; error: null }> {
-    this.maybeSingleMode = true;
+  maybeSingle(): Promise<{ data: { id: string } | null; error: null }> {
     if (this.mode === 'update') {
-      const updated = this.table.update(this.filters, this.patch ?? {});
+      const updated = this.table.updateRow(this.filters, this.patch ?? {});
       return Promise.resolve({ data: updated ? { id: updated.id } : null, error: null });
     }
     const data = this.table.find(this.filters);
@@ -80,10 +78,6 @@ class MockSupabaseTable {
     if (!found) return null;
     this.job = { ...this.job, ...patch };
     return { ...this.job };
-  }
-
-  update(filters: Record<string, unknown>, patch: Partial<MockJob>): MockJob | null {
-    return this.updateRow(filters, patch);
   }
 
   setJob(job: MockJob): void {
