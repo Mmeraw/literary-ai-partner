@@ -7,8 +7,6 @@ import {
 import {
   validateStoryLayerPayload,
   type LedgerQualityReportPayload,
-  type Phase1aArtifactWriter,
-  type Phase1aWriterArtifact,
   type Phase1aWriterMetadata,
   type StoryLayerPayload,
 } from '../phase1a/storyLayerArtifactWriters';
@@ -69,11 +67,16 @@ export type ReviewGateSourceArtifacts = {
   };
 };
 
-export type ApprovalNormalizerArtifact = Phase1aWriterArtifact<{
+export type ApprovalNormalizerArtifactType = 'ledger_user_feedback_v1' | 'accepted_story_ledger_v1';
+
+export type ApprovalNormalizerArtifact<TPayload extends object = {
   feedback?: LedgerUserFeedbackPayload;
   accepted_story_ledger?: AcceptedStoryLedgerPayload;
-}> & {
-  artifact_type: 'ledger_user_feedback_v1' | 'accepted_story_ledger_v1';
+}> = {
+  artifact_type: ApprovalNormalizerArtifactType;
+  artifact_version: 'v1';
+  source_hash: string;
+  content: RuntimeArtifactEnvelope & TPayload;
 };
 
 export type ApprovalNormalizerWriter = (
@@ -107,7 +110,7 @@ function stableStringify(value: unknown): string {
 }
 
 function sourceHashFor(params: {
-  artifactType: ApprovalNormalizerArtifact['artifact_type'];
+  artifactType: ApprovalNormalizerArtifactType;
   metadata: Phase1aWriterMetadata;
   payload: unknown;
 }): string {
@@ -124,13 +127,13 @@ function sourceHashFor(params: {
     .digest('hex');
 }
 
-function deterministicArtifactId(artifactType: ApprovalNormalizerArtifact['artifact_type'], sourceHash: string): string {
+function deterministicArtifactId(artifactType: ApprovalNormalizerArtifactType, sourceHash: string): string {
   return `${artifactType}:${sourceHash.slice(0, 16)}`;
 }
 
 function buildEnvelope(params: {
   metadata: Phase1aWriterMetadata;
-  artifactType: ApprovalNormalizerArtifact['artifact_type'];
+  artifactType: ApprovalNormalizerArtifactType;
   sourceHash: string;
 }): RuntimeArtifactEnvelope {
   return {
@@ -182,7 +185,7 @@ function applyUserCorrections(
 export function buildLedgerUserFeedbackArtifact(params: {
   metadata: Phase1aWriterMetadata;
   feedback: LedgerUserFeedbackPayload;
-}): ApprovalNormalizerArtifact {
+}): ApprovalNormalizerArtifact<{ feedback: LedgerUserFeedbackPayload }> {
   assertCompleteLayerDispositions(params.feedback);
 
   const artifact_type = 'ledger_user_feedback_v1';
@@ -209,7 +212,7 @@ export function buildAcceptedStoryLedgerArtifact(params: {
   feedbackArtifactId: string;
   feedbackSourceHash: string;
   feedback: LedgerUserFeedbackPayload;
-}): ApprovalNormalizerArtifact {
+}): ApprovalNormalizerArtifact<{ accepted_story_ledger: AcceptedStoryLedgerPayload }> {
   if (params.feedback.review_status === 'rejected') {
     throw new Error('rejected ledger feedback must not write accepted_story_ledger_v1');
   }
