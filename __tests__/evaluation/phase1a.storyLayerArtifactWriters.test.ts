@@ -121,15 +121,17 @@ describe('Phase 1A Story Layer artifact writers', () => {
       },
     });
 
-    expect(writes.map((artifact) => artifact.artifact_type)).toEqual([
+    const artifactTypesWritten = writes.map((artifact) => artifact.artifact_type) as string[];
+
+    expect(artifactTypesWritten).toEqual([
       'pass1a_story_layer_v1',
       'ledger_quality_report_v1',
     ]);
     expect(writes).toHaveLength(2);
     expect(result.pass1a_story_layer_v1.artifact_id).toBe('persisted:pass1a_story_layer_v1');
     expect(result.ledger_quality_report_v1.artifact_id).toBe('persisted:ledger_quality_report_v1');
-    expect(writes.some((artifact) => artifact.artifact_type === 'accepted_story_ledger_v1')).toBe(false);
-    expect(writes.some((artifact) => artifact.artifact_type === 'story_shape_signal_map_v1')).toBe(false);
-    expect(writes.some((artifact) => artifact.artifact_type === 'manuscript_signal_appendix_v1')).toBe(false);
+    expect(artifactTypesWritten).not.toContain('accepted_story_ledger_v1');
+    expect(artifactTypesWritten).not.toContain('story_shape_signal_map_v1');
+    expect(artifactTypesWritten).not.toContain('manuscript_signal_appendix_v1');
   });
 });
