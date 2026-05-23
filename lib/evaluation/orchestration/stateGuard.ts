@@ -14,9 +14,11 @@ export const EVALUATION_PHASE_STATUS_TRANSITIONS: Record<EvaluationPhaseStatus, 
   awaiting_approval: ['queued', 'complete', 'completed', 'cancelled'],
   complete: [],
   completed: [],
-  failed: [],
-  degraded: [],
-  cancelled: [],
+  // Operator/admin retry path. Full lifecycle status remains terminal unless the
+  // retry code explicitly resets it; this guard only governs phase_status.
+  failed: ['queued'],
+  degraded: ['queued'],
+  cancelled: ['queued'],
 } as const;
 
 export function isEvaluationPhaseStatus(value: string): value is EvaluationPhaseStatus {
