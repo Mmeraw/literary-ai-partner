@@ -3,34 +3,30 @@
 /**
  * HeaderNav — RevisionGrade canonical navigation shell
  *
- * Design language: dark editorial (rg-ink background, rg-cream text, rg-gold accents).
- * Matches the landing page design system.
- *
- * Launch-scope nav items (29-day sprint):
- *   App routes:    Dashboard · Evaluate · Revise · Resources · Pricing
- *   Marketing:     Evaluate · Revise · Resources · Pricing
- *   Both:          Sign In / Sign Out · Pipeline Health (admin only)
- *
- * Dropped from scope: Convert · Output · Storygate Studio
+ * Governed OS principle: core product actions stay top-level; reference pages
+ * live behind Resources; auth state controls Dashboard vs Sign In/Sign Out.
  */
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { isPipelineHealthAdminEmail } from "@/lib/admin/pipelineHealthAllowlist";
+
+const resourceLinks = [
+  ["FAQs", "/resources"],
+  ["Methodology", "/methodology"],
+  ["Editorial Doctrine", "/reliability"],
+];
+
+const resourceActiveHrefs = ["/resources", "/methodology"];
 
 export default function HeaderNav() {
   const pathname = usePathname() || "/";
   const router = useRouter();
+  const resourcesMenuRef = useRef(null);
   const [email, setEmail] = useState(null);
   const [signingOut, setSigningOut] = useState(false);
-
-  const isAppRoute =
-    pathname.startsWith("/dashboard") ||
-    pathname.startsWith("/evaluate") ||
-    pathname.startsWith("/workbench") ||
-    pathname.startsWith("/admin") ||
-    pathname.startsWith("/reports");
+  const [resourcesOpen, setResourcesOpen] = useState(false);
 
   const isAdmin = isPipelineHealthAdminEmail(email);
   const isAuthed = !!email;
@@ -48,6 +44,30 @@ export default function HeaderNav() {
       });
     return () => { cancelled = true; };
   }, [pathname]);
+
+  useEffect(() => {
+    if (!resourcesOpen) return;
+
+    function handlePointerDown(event) {
+      if (!resourcesMenuRef.current) return;
+      if (!resourcesMenuRef.current.contains(event.target)) {
+        setResourcesOpen(false);
+      }
+    }
+
+    function handleKeyDown(event) {
+      if (event.key === "Escape") {
+        setResourcesOpen(false);
+      }
+    }
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [resourcesOpen]);
 
   async function handleSignOut() {
     if (signingOut) return;
@@ -67,7 +87,6 @@ export default function HeaderNav() {
     setSigningOut(false);
   }
 
-  // ── Shared link style ───────────────────────────────────────────────────────
   const linkCls =
     "text-xs tracking-widest uppercase font-rg-mono text-rg-cream2 hover:text-rg-cream transition-colors duration-150";
   const activeLinkCls =
@@ -82,76 +101,63 @@ export default function HeaderNav() {
     );
   }
 
-  // ── Auth element ────────────────────────────────────────────────────────────
-  const authEl = isAuthed ? (
-    <button
-      type="button"
-      onClick={handleSignOut}
-      disabled={signingOut}
-      data-testid="nav-signout"
-      className="text-xs tracking-widest uppercase font-rg-mono text-rg-dim hover:text-rg-cream2 transition-colors duration-150 disabled:opacity-40"
-    >
-      {signingOut ? "Signing out…" : "Sign out"}
-    </button>
-  ) : (
-    <Link
-      href="/login"
-      data-testid="nav-signin"
-      className="text-xs tracking-widest uppercase font-rg-mono border border-rg-cream2/40 text-rg-cream px-3 py-1.5 hover:border-rg-gold hover:text-rg-gold transition-colors duration-150"
-    >
-      Sign in
-    </Link>
-  );
+  const resourcesActive = resourceActiveHrefs.some((href) => pathname === href || pathname.startsWith(`${href}/`));
 
   return (
     <header className="w-full bg-rg-ink border-b border-rg-cream2/10 sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-6 h-14 flex items-center justify-between gap-8">
-
-        {/* Logo */}
-        <Link
-          href="/"
-          className="flex items-center gap-3 shrink-0 group"
-        >
-          {/* Monogram mark */}
-          <span className="inline-flex h-8 w-8 items-center justify-center border border-rg-gold/60 text-rg-gold font-rg-serif text-sm group-hover:border-rg-gold transition-colors duration-150">
-            R
-          </span>
-          <span className="text-rg-cream font-rg-serif text-sm tracking-wide hidden sm:block">
-            RevisionGrade&#8482;
-          </span>
+        <Link href="/" className="flex items-center gap-3 shrink-0 group">
+          <span className="inline-flex h-8 w-8 items-center justify-center border border-rg-gold/60 text-rg-gold font-rg-serif text-sm group-hover:border-rg-gold transition-colors duration-150">R</span>
+          <span className="text-rg-cream font-rg-serif text-sm tracking-wide hidden sm:block">RevisionGrade&#8482;</span>
         </Link>
 
-        {/* Nav links */}
         <nav className="flex items-center gap-6 flex-1 justify-center">
-          {isAppRoute ? (
-            <>
-              <NavLink href="/dashboard">Dashboard</NavLink>
-              <NavLink href="/evaluate">Evaluate</NavLink>
-              <NavLink href="/workbench">Revise</NavLink>
-              <NavLink href="/resources">Resources</NavLink>
-              <NavLink href="/pricing">Pricing</NavLink>
-              {isAdmin && (
-                <NavLink href="/admin/pipeline-health">Pipeline</NavLink>
-              )}
-            </>
-          ) : (
-            <>
-              <NavLink href="/evaluate">Evaluate</NavLink>
-              <NavLink href="/revise">Revise</NavLink>
-              <NavLink href="/resources">Resources</NavLink>
-              <NavLink href="/pricing">Pricing</NavLink>
-              {isAdmin && (
-                <NavLink href="/admin/pipeline-health">Pipeline</NavLink>
-              )}
-            </>
-          )}
+          <NavLink href="/evaluate">Evaluate</NavLink>
+          <NavLink href="/revise">Revise</NavLink>
+          <NavLink href="/reliability">Reliability</NavLink>
+          <div className="relative" ref={resourcesMenuRef}>
+            <button
+              type="button"
+              onClick={() => setResourcesOpen((value) => !value)}
+              className={resourcesActive ? activeLinkCls : linkCls}
+              aria-expanded={resourcesOpen}
+              aria-haspopup="menu"
+              aria-controls="resources-menu"
+            >
+              Resources
+            </button>
+            {resourcesOpen && (
+              <div id="resources-menu" className="absolute left-1/2 top-8 z-50 w-56 -translate-x-1/2 border border-rg-cream2/15 bg-rg-ink2 p-3 shadow-xl shadow-black/30" role="menu">
+                {resourceLinks.map(([label, href]) => (
+                  <Link key={href} href={href} role="menuitem" onClick={() => setResourcesOpen(false)} className="block px-3 py-2 font-rg-mono text-xs uppercase tracking-[0.14em] text-rg-cream2 hover:text-rg-cream">
+                    {label}
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
+          <NavLink href="/pricing">Pricing</NavLink>
+          {isAuthed && <NavLink href="/dashboard">Dashboard</NavLink>}
+          {isAdmin && <NavLink href="/admin/pipeline-health">Pipeline</NavLink>}
         </nav>
 
-        {/* Auth */}
         <div className="shrink-0">
-          {authEl}
+          {isAuthed ? (
+            <button
+              type="button"
+              onClick={handleSignOut}
+              disabled={signingOut}
+              data-testid="nav-signout"
+              className="text-xs tracking-widest uppercase font-rg-mono text-rg-dim hover:text-rg-cream2 transition-colors duration-150 disabled:opacity-40"
+            >
+              {signingOut ? "Signing out…" : "Sign out"}
+            </button>
+          ) : (
+            <Link href="/login" data-testid="nav-signin" className="text-xs tracking-widest uppercase font-rg-mono border border-rg-gold text-rg-gold px-3 py-1.5 hover:bg-rg-gold hover:text-rg-ink transition-colors duration-150">
+              Sign in
+            </Link>
+          )}
         </div>
-
       </div>
     </header>
   );
