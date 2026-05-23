@@ -13,6 +13,13 @@ describe('processor fatal error categorization', () => {
     expect(isLeaseLostFatal(error)).toBe(true);
   });
 
+  it('classifies RunnerHeartbeatMonitor lost running state as lease-lost fatal', () => {
+    const error = new EvaluationRunnerFatalError('Job job-1 lost running state; phase_status=complete');
+
+    expect(categorizeProcessorError(error)).toBe(FatalErrorCategory.LEASE_LOST);
+    expect(isLeaseLostFatal(error)).toBe(true);
+  });
+
   it('classifies blocked guarded updates as lease-lost fatal', () => {
     expect(categorizeProcessorError(
       new EvaluationRunnerFatalError('Guarded evaluation job update blocked for job job-1; lease ownership was not current.'),
