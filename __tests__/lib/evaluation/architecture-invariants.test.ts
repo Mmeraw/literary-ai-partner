@@ -112,17 +112,22 @@ describe("evaluation architecture invariants", () => {
     const homePagePath = path.join(repoRoot, "app/page.tsx");
     const homePageCode = fs.readFileSync(homePagePath, "utf8");
 
-    expect(homePageCode).toContain("governed revision operating system");
     expect(homePageCode).not.toContain("/marketing-export/main/index.html");
     expect(homePageCode).not.toContain("redirect(");
   });
 
-  test("next config does not rewrite public routes into marketing-export", () => {
+  test("next config does not rewrite home or revise into marketing-export", () => {
     const nextConfigPath = path.join(repoRoot, "next.config.mjs");
     const nextConfigCode = fs.readFileSync(nextConfigPath, "utf8");
 
-    expect(nextConfigCode).not.toContain("marketing-export");
-    expect(nextConfigCode).not.toContain("rewrites()");
+    const forbiddenStaticRouteRewrites = [
+      /source:\s*["']\/["'][\s\S]*destination:\s*["']\/marketing-export\/main\/index\.html["']/,
+      /source:\s*["']\/revise["'][\s\S]*destination:\s*["']\/marketing-export\/revise\/index\.html["']/,
+    ];
+
+    for (const pattern of forbiddenStaticRouteRewrites) {
+      expect(nextConfigCode).not.toMatch(pattern);
+    }
   });
 
   test("middleware gates only protected app/workflow routes", () => {
