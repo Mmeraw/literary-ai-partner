@@ -29,8 +29,12 @@ BEGIN
     RETURN NEW;
   END IF;
 
-  IF OLD.phase_status IN ('complete', 'completed', 'failed', 'degraded', 'cancelled') THEN
+  IF OLD.phase_status IN ('complete', 'completed') THEN
     RAISE EXCEPTION 'CRITICAL_QUEUE_ERROR: Terminal phase_status % cannot be changed to %.', OLD.phase_status, NEW.phase_status;
+  END IF;
+
+  IF OLD.phase_status IN ('failed', 'degraded', 'cancelled') AND NEW.phase_status NOT IN ('queued') THEN
+    RAISE EXCEPTION 'CRITICAL_QUEUE_ERROR: Terminal phase_status % can only be reset to queued by an explicit operator retry, not %.', OLD.phase_status, NEW.phase_status;
   END IF;
 
   IF OLD.phase_status = 'queued' AND NEW.phase_status NOT IN ('running', 'cancelled') THEN
@@ -74,7 +78,8 @@ BEGIN
     AND ej.worker_id = p_worker_id
     AND ej.lease_token = p_lease_token
     AND ej.phase_status = 'running'
-    AND (ej.lease_until IS NULL OR ej.lease_until > now())
+    AND ej.lease_until IS NOT NULL
+    AND ej.lease_until > now()
   LIMIT 1;
 
   IF COALESCE(v_found, false) IS NOT TRUE THEN
