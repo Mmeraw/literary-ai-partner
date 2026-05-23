@@ -9,7 +9,24 @@ const FUTURE = '2026-05-23T12:05:00.000Z';
 const PAST = '2026-05-23T11:59:59.000Z';
 
 describe('claim lease context normalizer', () => {
-  it('resolves canonical worker and lease fields first', () => {
+  it('resolves canonical-only worker and lease fields when legacy fields are null', () => {
+    expect(resolveClaimLeaseContext({
+      id: 'job-1',
+      worker_id: 'worker-canonical',
+      claimed_by: null,
+      lease_token: 'token-1',
+      lease_until: FUTURE,
+      lease_expires_at: null,
+    }, NOW)).toEqual({
+      jobId: 'job-1',
+      workerId: 'worker-canonical',
+      leaseToken: 'token-1',
+      leaseUntil: FUTURE,
+      source: 'canonical',
+    });
+  });
+
+  it('resolves canonical worker and lease fields first when legacy fields disagree', () => {
     expect(resolveClaimLeaseContext({
       id: 'job-1',
       worker_id: 'worker-canonical',
@@ -26,11 +43,13 @@ describe('claim lease context normalizer', () => {
     });
   });
 
-  it('falls back to legacy claim fields when canonical fields are absent', () => {
+  it('falls back to legacy-only claim fields when canonical fields are null', () => {
     expect(resolveClaimLeaseContext({
       id: 'job-1',
+      worker_id: null,
       claimed_by: 'worker-legacy',
       lease_token: 'token-1',
+      lease_until: null,
       lease_expires_at: FUTURE,
     }, NOW)).toEqual({
       jobId: 'job-1',
@@ -54,24 +73,50 @@ describe('claim lease context normalizer', () => {
     });
   });
 
-  it('fails closed for missing worker id, token, or live lease', () => {
+  it('fails closed for null or undefined worker identity', () => {
     expect(resolveClaimLeaseContext({
       id: 'job-1',
+      worker_id: null,
+      claimed_by: undefined,
       lease_token: 'token-1',
       lease_until: FUTURE,
     }, NOW)).toBeNull();
 
     expect(resolveClaimLeaseContext({
       id: 'job-1',
+      lease_token: 'token-1',
+      lease_until: FUTURE,
+    }, NOW)).toBeNull();
+  });
+
+  it('fails closed for missing or empty lease token', () => {
+    expect(resolveClaimLeaseContext({
+      id: 'job-1',
       worker_id: 'worker-1',
       lease_until: FUTURE,
     }, NOW)).toBeNull();
 
+    expect(resolveClaimLeaseContext({
+      id: 'job-1',
+      worker_id: 'worker-1',
+      lease_token: '   ',
+      lease_until: FUTURE,
+    }, NOW)).toBeNull();
+  });
+
+  it('fails closed for expired canonical or legacy leases', () => {
     expect(resolveClaimLeaseContext({
       id: 'job-1',
       worker_id: 'worker-1',
       lease_token: 'token-1',
       lease_until: PAST,
+    }, NOW)).toBeNull();
+
+    expect(resolveClaimLeaseContext({
+      id: 'job-1',
+      claimed_by: 'worker-legacy',
+      lease_token: 'token-1',
+      lease_expires_at: PAST,
     }, NOW)).toBeNull();
   });
 
