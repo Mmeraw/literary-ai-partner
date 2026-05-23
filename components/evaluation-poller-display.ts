@@ -1,346 +1,286 @@
 import type { JobState } from "@/components/EvaluationPoller";
 
+export type ProgressTone = "processing" | "action_required" | "blocked" | "success";
+
 export type ProgressDisplay = {
   label: string;
   valueLabel: string;
   helperText: string;
   indeterminate: boolean;
   percentage: number;
+  tone: ProgressTone;
 } | null;
 
-const STAGE_ROADMAP =
-  "Stages: Preparing manuscript → Analyzing manuscript → Building diagnosis → Reconciling passes → Final QA checks → Preparing report → Finalizing report.";
+const USER_FACING_ROADMAP =
+  "Progress follows verified backend milestones: calibration, manuscript ingest, narrative extraction, review approval, deep diagnostics, report assembly, and final cross-checks.";
 
-/**
- * Truthful, stage-weighted progress model.
- *
- * Each stage owns a contiguous slice of the 0..100 bar. The slice widths are
- * proportional to the median time each stage takes in real pipeline runs:
- *
- *   Preparing manuscript  | 0 →  2%   (phase_1a / queued — character ledger)
- *   Analyzing manuscript  | 2 → 64%   (phase_2 / running — heaviest stage: Pass1+Pass2)
- *   Building diagnosis    | 64 → 90%  (phase_3 / running — Pass 3B synthesis + WAVE)
- *   Reconciling passes    | 65 → 83%  (phase_2 / running)
- *   Final QA checks       | 83 → 97%  (phase_2 / complete  +  cross_check running)
- *   Preparing report      | 97 → 99%  (cross_check_status = complete)
- *   Finalizing report     | 99 → 100% (status = complete)
- *
- * Inside a stage the bar advances by `elapsed / median_duration` of that
- * stage, clamped to `stage_end - 1%` so the bar never "finishes" a stage
- * before the backend says the stage is done. The remaining 1% closes when
- * the backend transitions to the next stage.
- *
- * Trade-off acknowledged: the slice widths are heuristic, calibrated from
- * observed run history. The label IS authoritative (phase-driven). When the
- * percent can't be sub-stage estimated (no elapsed timing fields available),
- * the bar parks at the stage's start boundary and shows an indeterminate
- * shimmer rather than inventing fake forward motion.
- */
+type UxStageId =
+  | "queued"
+  | "initializing"
+  | "calibration"
+  | "manuscript_ingest"
+  | "story_layer_build"
+  | "review_gate"
+  | "story_layer_blocked"
+  | "approval_normalizer"
+  | "phase2_diagnostics"
+  | "report_assembly"
+  | "final_cross_checks"
+  | "complete";
 
-type StageId =
-  | "preparing_manuscript"
-  | "analyzing_manuscript"
-  | "building_diagnosis"
-  | "reconciling_passes"
-  | "final_qa_checks"
-  | "preparing_report"
-  | "finalizing_report";
-
-interface StageBudget {
-  id: StageId;
+interface UxMilestone {
+  id: UxStageId;
   label: string;
-  /** Bar start (inclusive) for this stage's slice. */
-  start: number;
-  /** Bar end (exclusive) for this stage's slice; next stage starts here. */
-  end: number;
-  /** Median real-world duration in seconds; used to interpolate within the slice. */
-  medianSeconds: number;
+  percentage: number;
+  tone: ProgressTone;
+  helperText: string;
+  indeterminate?: boolean;
 }
 
-// Medians calibrated from long-form (50k+ word) pipeline runs.
-// Re-tune if pipeline stage time-shares shift materially.
-const STAGE_BUDGETS: readonly StageBudget[] = [
-  {
-    id: "preparing_manuscript",
-    label: "Preparing manuscript",
-    start: 0,
-    end: 2,
-    medianSeconds: 8,
+const UX_MILESTONES: Record<UxStageId, UxMilestone> = {
+  queued: {
+    id: "queued",
+    label: "Waiting in queue",
+    percentage: 0,
+    tone: "processing",
+    helperText: "Your manuscript is queued. We will begin automatically as soon as a worker is available.",
+    indeterminate: true,
   },
-  {
-    id: "analyzing_manuscript",
-    label: "Analyzing manuscript",
-    start: 2,
-    end: 64,
-    medianSeconds: 420, // ~7 min on a 127k-word, 37-chunk run
+  initializing: {
+    id: "initializing",
+    label: "Preparing manuscript...",
+    percentage: 0,
+    tone: "processing",
+    helperText: `The evaluation worker is initializing. ${USER_FACING_ROADMAP}`,
+    indeterminate: true,
   },
-  {
-    id: "building_diagnosis",
-    label: "Building diagnosis",
-    start: 64,
-    end: 65,
-    medianSeconds: 5,
+  calibration: {
+    id: "calibration",
+    label: "Calibrating benchmark models...",
+    percentage: 10,
+    tone: "processing",
+    helperText: "RevisionGrade is warming up the benchmark standard before manuscript-specific analysis begins.",
   },
-  {
-    id: "reconciling_passes",
-    label: "Reconciling passes",
-    start: 65,
-    end: 83,
-    medianSeconds: 120,
+  manuscript_ingest: {
+    id: "manuscript_ingest",
+    label: "Ingesting manuscript & mapping chapters...",
+    percentage: 25,
+    tone: "processing",
+    helperText: "RevisionGrade is reading the manuscript structure and organizing chapter-level evidence.",
   },
-  {
-    id: "final_qa_checks",
-    label: "Final QA checks",
-    start: 83,
-    end: 97,
-    medianSeconds: 90,
+  story_layer_build: {
+    id: "story_layer_build",
+    label: "Extracting core narrative footprint...",
+    percentage: 45,
+    tone: "processing",
+    helperText: "RevisionGrade is building the factual story map that later diagnostics will rely on.",
   },
-  {
-    id: "preparing_report",
-    label: "Preparing report",
-    start: 97,
-    end: 99,
-    medianSeconds: 6,
+  review_gate: {
+    id: "review_gate",
+    label: "Awaiting Story Layer Approval",
+    percentage: 60,
+    tone: "action_required",
+    helperText: "The progress bar is intentionally paused until the Story Layer is reviewed and approved.",
   },
-  {
-    id: "finalizing_report",
-    label: "Finalizing report",
-    start: 99,
-    end: 100,
-    medianSeconds: 3,
+  story_layer_blocked: {
+    id: "story_layer_blocked",
+    label: "Story Layer Blocked: Narrative conflicts detected",
+    percentage: 60,
+    tone: "blocked",
+    helperText: "RevisionGrade found blocking Story Layer conflicts that must be resolved before deeper evaluation can proceed.",
   },
-];
-
-const STAGE_BY_ID: Record<StageId, StageBudget> = STAGE_BUDGETS.reduce(
-  (acc, s) => {
-    acc[s.id] = s;
-    return acc;
+  approval_normalizer: {
+    id: "approval_normalizer",
+    label: "Freezing approved narrative matrix...",
+    percentage: 65,
+    tone: "processing",
+    helperText: "RevisionGrade is turning the approved Story Layer into the stable reference used by deeper diagnostics.",
   },
-  {} as Record<StageId, StageBudget>,
-);
+  phase2_diagnostics: {
+    id: "phase2_diagnostics",
+    label: "Running deep structural craft diagnostics...",
+    percentage: 80,
+    tone: "processing",
+    helperText: "RevisionGrade is evaluating structure, evidence, and craft against the approved narrative map.",
+  },
+  report_assembly: {
+    id: "report_assembly",
+    label: "Assembling evaluation matrix...",
+    percentage: 90,
+    tone: "processing",
+    helperText: "RevisionGrade is assembling the diagnostic report from the completed analysis.",
+  },
+  final_cross_checks: {
+    id: "final_cross_checks",
+    label: "Running final structural cross-checks...",
+    percentage: 95,
+    tone: "processing",
+    helperText: "RevisionGrade is checking the report for consistency before release.",
+  },
+  complete: {
+    id: "complete",
+    label: "Evaluation complete!",
+    percentage: 100,
+    tone: "success",
+    helperText: "Your evaluation report is ready.",
+  },
+};
 
 type StageInputs = {
   phase?: string | null;
   phase_status?: string | null;
   cross_check_status?: string | null;
+  current_stage?: string | null;
+  latest_artifact_emitted?: string | null;
+  is_blocked_by_gate?: boolean | null;
 };
 
-/**
- * Map authoritative backend state to a stage id. Returns null when the
- * caller has not provided enough state to pick a stage (queued, unknown).
- */
-function resolveStageId(inputs: StageInputs): StageId | null {
-  const cc = inputs.cross_check_status;
-  if (cc === "complete") return "preparing_report";
-  if (cc === "running") return "final_qa_checks";
+type ProgressDisplayInput = Pick<JobState, "status"> & StageInputs;
 
-  if (!inputs.phase) return null;
+function normalizeToken(value: string | null | undefined): string {
+  return String(value ?? "").trim().toLowerCase();
+}
 
-  if (inputs.phase === "phase_1a") {
-    if (inputs.phase_status === "queued") return "preparing_manuscript";
-    if (inputs.phase_status === "running") return "analyzing_manuscript";
-    if (inputs.phase_status === "complete") return "building_diagnosis";
-    return null;
+function stageFromArtifact(artifactType: string | null | undefined): UxStageId | null {
+  switch (artifactType) {
+    case "dream_calibration_packet_v1":
+      return "calibration";
+    case "pass1a_story_layer_v1":
+      return "story_layer_build";
+    case "ledger_quality_report_v1":
+      return "review_gate";
+    case "ledger_user_feedback_v1":
+      return "approval_normalizer";
+    case "accepted_story_ledger_v1":
+    case "story_shape_signal_map_v1":
+    case "manuscript_signal_appendix_v1":
+      return "phase2_diagnostics";
+    case "phase2_evaluation_packet_v1":
+      return "report_assembly";
+    case "evaluation_result_v2":
+      return "final_cross_checks";
+    default:
+      return null;
   }
+}
 
-  if (inputs.phase === "phase_2") {
-    if (inputs.phase_status === "queued") return "building_diagnosis";
-    if (inputs.phase_status === "running") return "reconciling_passes";
-    if (inputs.phase_status === "complete") return "final_qa_checks";
-    return null;
-  }
+function stageFromCurrentStage(currentStage: string | null | undefined): UxStageId | null {
+  const stage = normalizeToken(currentStage);
+  if (!stage) return null;
 
-  if (inputs.phase === "phase_3") {
-    if (inputs.phase_status === "queued") return "final_qa_checks";
-    if (inputs.phase_status === "running") return "preparing_report";
-    if (inputs.phase_status === "complete") return "finalizing_report";
-    return null;
-  }
-
-  if (inputs.phase === "wave_revision") {
-    return "finalizing_report";
-  }
+  if (stage.includes("review_gate") || stage.includes("review gate")) return "review_gate";
+  if (stage.includes("approval_normalizer") || stage.includes("approval normalizer")) return "approval_normalizer";
+  if (stage.includes("phase_4") || stage.includes("cross_check") || stage.includes("qa")) return "final_cross_checks";
+  if (stage.includes("phase_3") || stage.includes("pass3") || stage.includes("synthesis")) return "report_assembly";
+  if (stage.includes("phase_2") || stage.includes("pass2") || stage.includes("diagnostic")) return "phase2_diagnostics";
+  if (stage.includes("phase_1a") || stage.includes("story_layer") || stage.includes("story layer")) return "story_layer_build";
+  if (stage.includes("phase_1") || stage.includes("pass1") || stage.includes("ingest")) return "manuscript_ingest";
+  if (stage.includes("phase_0") || stage.includes("warmup") || stage.includes("calibration")) return "calibration";
 
   return null;
 }
 
 /**
- * Pick the most reliable "stage started at" timestamp for the active stage.
- * Returns ISO string or null if we have no timestamp to interpolate from.
+ * Map authoritative backend state to an author-facing UX milestone.
+ *
+ * This is intentionally not a technical phase label. The UI listens to backend
+ * phase/artifact truth, then translates it into editorial language. Percentages
+ * are fixed milestones, not client-side elapsed-time estimates, so the bar never
+ * drifts past Review Gate or any other hard stop before the backend advances.
  */
-function getStageStartedAt(
-  stageId: StageId,
-  job: TimingFields,
-): string | null {
-  switch (stageId) {
-    case "preparing_manuscript":
-      // Use job created_at as the start of the queued/preparing stage.
-      return job.created_at ?? null;
-    case "analyzing_manuscript":
-      return job.phase1_started_at ?? job.created_at ?? null;
-    case "building_diagnosis":
-      return job.phase1_completed_at ?? job.phase2_started_at ?? null;
-    case "reconciling_passes":
-      return job.phase2_started_at ?? null;
-    case "final_qa_checks":
-      // Either phase_2 just completed (cross-check queued) OR cross-check is
-      // actively running. Both share the same bar slice; phase2_completed_at
-      // is the earliest timestamp we can latch onto.
-      return job.phase2_completed_at ?? job.pass3_started_at ?? null;
-    case "preparing_report":
-      // Cross-check just completed; nothing more granular until "complete".
-      return job.pass3_completed_at ?? null;
-    case "finalizing_report":
-      return job.pass3_completed_at ?? null;
+function resolveUxStageId(inputs: StageInputs): UxStageId | null {
+  if (inputs.is_blocked_by_gate === true) return "story_layer_blocked";
+
+  const artifactStage = stageFromArtifact(inputs.latest_artifact_emitted);
+  if (artifactStage) return artifactStage;
+
+  const currentStage = stageFromCurrentStage(inputs.current_stage);
+  if (currentStage) return currentStage;
+
+  const cc = normalizeToken(inputs.cross_check_status);
+  if (cc === "running" || cc === "complete" || cc === "cross_check_completed") {
+    return "final_cross_checks";
   }
+
+  const phase = normalizeToken(inputs.phase);
+  const phaseStatus = normalizeToken(inputs.phase_status);
+
+  if (phase === "phase_0") return "calibration";
+  if (phase === "phase_1" || phase === "pass_1" || phase === "pass1") return "manuscript_ingest";
+  if (phase === "phase_1a") {
+    return phaseStatus === "complete" ? "review_gate" : "story_layer_build";
+  }
+  if (phase === "review_gate") return "review_gate";
+  if (phase === "approval_normalizer") return "approval_normalizer";
+  if (phase === "phase_2") return "phase2_diagnostics";
+  if (phase === "phase_3") return "report_assembly";
+  if (phase === "phase_4" || phase === "wave_revision") return "final_cross_checks";
+
+  return null;
 }
 
 /**
- * Compute the bar percentage from stage + elapsed time within stage.
- * Clamps to `stage_end - 1` so the bar can never visually finish a stage
- * before the backend reports the stage transition.
- */
-function interpolateWithinStage(
-  stage: StageBudget,
-  startedAt: string | null,
-  nowMs: number,
-): number {
-  const sliceWidth = stage.end - stage.start;
-  const ceiling = stage.end - 1; // reserve last 1% for the stage-complete signal
-  if (!startedAt) return stage.start;
-
-  const startedMs = Date.parse(startedAt);
-  if (!Number.isFinite(startedMs)) return stage.start;
-
-  const elapsedSec = Math.max(0, (nowMs - startedMs) / 1000);
-  const fraction = Math.min(1, elapsedSec / Math.max(1, stage.medianSeconds));
-  const within = stage.start + fraction * sliceWidth;
-  return Math.min(ceiling, Math.max(stage.start, within));
-}
-
-type TimingFields = {
-  created_at?: string | null;
-  phase1_started_at?: string | null;
-  phase1_completed_at?: string | null;
-  phase2_started_at?: string | null;
-  phase2_completed_at?: string | null;
-  pass3_started_at?: string | null;
-  pass3_completed_at?: string | null;
-};
-
-type ProgressDisplayInput = Pick<JobState, "status"> & TimingFields & StageInputs;
-
-/** Format an ISO duration delta as "Xm Ys" or "Ys". */
-function formatElapsed(startedAt: string | null, nowMs: number): string | null {
-  if (!startedAt) return null;
-  const t = Date.parse(startedAt);
-  if (!Number.isFinite(t)) return null;
-  const sec = Math.max(0, Math.round((nowMs - t) / 1000));
-  if (sec < 60) return `${sec}s`;
-  const m = Math.floor(sec / 60);
-  const s = sec % 60;
-  return `${m}m ${s.toString().padStart(2, "0")}s`;
-}
-
-/**
- * Authoritative label, exposed for callers that just want the stage name.
- * Returns null for queued / unknown so callers can render their own copy.
+ * Author-facing label for callers that only need display copy.
  */
 export function getStageLabelFromPhase(
   phase: string | null | undefined,
   phaseStatus: string | null | undefined,
   crossCheckStatus: string | null | undefined,
 ): string | null {
-  const stageId = resolveStageId({
+  const stageId = resolveUxStageId({
     phase,
     phase_status: phaseStatus,
     cross_check_status: crossCheckStatus,
   });
-  return stageId ? STAGE_BY_ID[stageId].label : null;
+  return stageId ? UX_MILESTONES[stageId].label : null;
 }
 
 /**
- * Compute the truthful progress display for a job.
+ * Compute deterministic progress display for a job.
  *
  * Truth contract:
- *   1. Label is phase-driven; never derived from the bar percentage.
- *   2. Percent is stage-weighted by real median durations; never invented.
- *   3. Inside a stage the bar advances at elapsed/median, capped 1% below
- *      the stage's end boundary. Only a real stage transition can move the
- *      bar past that ceiling.
- *   4. When timing data is missing the bar is indeterminate (shimmer)
- *      rather than showing a fake stationary number.
+ *   1. Backend phase/artifact state is authoritative.
+ *   2. The UI never exposes raw phase/pass/artifact names to authors.
+ *   3. Percentages are fixed milestone widths, not client-side timers.
+ *   4. Review Gate and blocked states are hard stops; the bar never creeps
+ *      forward until backend state advances.
  */
-export function getProgressDisplay(
-  job: ProgressDisplayInput,
-  now: Date = new Date(),
-): ProgressDisplay {
+export function getProgressDisplay(job: ProgressDisplayInput): ProgressDisplay {
   if (job.status === "queued") {
-    return {
-      label: "Waiting in queue",
-      valueLabel: "Waiting in queue",
-      helperText:
-        "Your job is queued. We'll begin automatically as soon as a worker is available.",
-      indeterminate: true,
-      percentage: 0,
-    };
+    return milestoneDisplay("queued");
   }
 
   if (job.status === "complete") {
-    return {
-      label: "Report ready",
-      valueLabel: "100%",
-      helperText: "Your report is ready.",
-      indeterminate: false,
-      percentage: 100,
-    };
+    return milestoneDisplay("complete");
+  }
+
+  if (job.status === "failed") {
+    return null;
   }
 
   if (job.status !== "running") {
     return null;
   }
 
-  const stageId = resolveStageId(job);
-  if (!stageId) {
-    // Running but no canonical phase yet — show the bar as indeterminate.
-    return {
-      label: "Preparing manuscript",
-      valueLabel: "Starting",
-      helperText: `Worker is initializing. ${STAGE_ROADMAP}`,
-      indeterminate: true,
-      percentage: 0,
-    };
-  }
+  const stageId = resolveUxStageId(job) ?? "initializing";
+  return milestoneDisplay(stageId);
+}
 
-  const stage = STAGE_BY_ID[stageId];
-  const startedAt = getStageStartedAt(stageId, job);
-  const nowMs = now.getTime();
-  const percentage = Math.round(interpolateWithinStage(stage, startedAt, nowMs));
-  const elapsed = formatElapsed(startedAt, nowMs);
-
-  const helperParts: string[] = [
-    "Progress is weighted by measured stage durations from real pipeline runs.",
-  ];
-  if (elapsed) {
-    helperParts.push(`Elapsed in this stage: ${elapsed}.`);
-  }
-  helperParts.push(STAGE_ROADMAP);
-
+function milestoneDisplay(stageId: UxStageId): Exclude<ProgressDisplay, null> {
+  const milestone = UX_MILESTONES[stageId];
   return {
-    label: stage.label,
-    valueLabel: `${percentage}%`,
-    helperText: helperParts.join(" "),
-    indeterminate: startedAt === null, // shimmer when we can't interpolate
-    percentage,
+    label: milestone.label,
+    valueLabel: `${milestone.percentage}%`,
+    helperText: milestone.helperText,
+    indeterminate: milestone.indeterminate ?? false,
+    percentage: milestone.percentage,
+    tone: milestone.tone,
   };
 }
 
-// Exported for unit tests (stable, stage-weight invariants).
 export const __testing__ = {
-  STAGE_BUDGETS,
-  STAGE_BY_ID,
-  resolveStageId,
-  getStageStartedAt,
-  interpolateWithinStage,
-  formatElapsed,
+  UX_MILESTONES,
+  resolveUxStageId,
+  stageFromArtifact,
+  stageFromCurrentStage,
 };
