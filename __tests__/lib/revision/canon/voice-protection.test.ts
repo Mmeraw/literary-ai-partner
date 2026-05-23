@@ -55,7 +55,7 @@ describe("canon-bound revision voice protection", () => {
 		expect(result.proposedText).toBe('"No time," she rasped. "Move," he said.');
 		expect(result.changes).toEqual([]);
 		expect(result.modifications).toContain("canon-bound:dialogue-tags");
-		expect(result.modifications).toContain("attribution-chain-detected");
+		expect(result.modifications).toContain("criterion:ATTRIBUTION_CLARITY");
 		expect(result.modifications).not.toContain("directive-verify-speaker-cues-without-explicit-tags");
 	});
 
