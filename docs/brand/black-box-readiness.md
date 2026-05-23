@@ -32,6 +32,10 @@ RevisionGrade helps writers separate manuscript readiness from market rejection.
 
 RevisionGrade exists to make manuscript readiness visible before the publishing industry turns uncertainty into silence.
 
+### Pricing line
+
+Before you pay for polish, diagnose readiness.
+
 ## The Black Box
 
 I wrote four novels. Like many writers, I sent them into the publishing industry's black box. At best, I received a template rejection. More often, I received silence.
@@ -45,6 +49,18 @@ From the outside, all of those answers look the same: no diagnosis, no explanati
 Publishing gives writers verdicts, not diagnoses.
 
 Without a diagnosis, a writer cannot systematically improve the work. The result is a costly loop: revise blindly, query again, wait again, and still not know whether the manuscript is structurally failing or simply mismatched to that agent, list, or moment.
+
+## The Editorial Blind Date
+
+Many authors do not know whether they need a developmental editor, a line editor, a copy editor, a proofreader, or market-positioning support.
+
+That uncertainty creates the Editorial Blind Date: the author hires based on credentials, reputation, sample pages, and hope before knowing what kind of editorial intervention the manuscript actually needs.
+
+A manuscript with structural problems may not be ready for copyediting. A manuscript with point-of-view confusion may not need polish first. A manuscript with weak scene pressure may need developmental repair before line-level refinement.
+
+Human editors can be valuable. They are most valuable when the author knows what problem they are hiring them to solve.
+
+RevisionGrade helps diagnose manuscript readiness first, so writers can approach editing with evidence instead of guesswork.
 
 ## The separation principle
 
@@ -76,6 +92,28 @@ RevisionGrade evaluates manuscript readiness across thirteen core dimensions of 
 - Marketability
 
 The Readiness Standard does not exist to generate more words. It exists to diagnose structural friction first. Any revision assistance must remain evidence-bound, author-controlled, and voice-preserving.
+
+## Golden Spine™ and WAVE Revision System™
+
+The Golden Spine™ threshold begins at 25,000 words.
+
+Below 25,000 words, most works can be evaluated through the 13 Story Criteria.
+
+At 25,000 words and above, long-range structure, pacing, character continuity, payoff, and cumulative reader experience require the WAVE Revision System™.
+
+## Pricing doctrine
+
+RevisionGrade uses fixed-price audits and metered repair.
+
+> The audit reveals the condition of the manuscript. Editorial Actions unlock and repair specific opportunities.
+
+Fixed-price audits are used for bounded manuscript diagnosis.
+
+Editorial Actions are used for granular opportunity cards and governed repair proposals.
+
+Unlimited revision is not part of the RevisionGrade doctrine.
+
+The pricing source of truth is `docs/brand/pricing-readiness.md`.
 
 ## Built from systems discipline
 
@@ -113,6 +151,12 @@ Future features should be evaluated against this question:
 If a feature helps the author understand readiness, preserve voice, clarify structural friction, or revise from evidence, it may align with this doctrine.
 
 If a feature merely adds fluent text without diagnosis, traceability, or author control, it fails the Readiness Standard.
+
+Future pricing or Revise features should also answer this question:
+
+> Does the feature preserve the distinction between fixed-price diagnosis and metered repair?
+
+If it implies unlimited revision, bulk extraction of the repair blueprint, token-based commodity pricing, or unchecked generation, it fails the Pricing Readiness Doctrine.
 
 ## Public route ownership
 
