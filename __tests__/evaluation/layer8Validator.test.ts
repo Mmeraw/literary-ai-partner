@@ -13,6 +13,51 @@ describe('Layer 8 narrative pressure validator', () => {
     });
   });
 
+  it('hard-fails when a pressure vector has an unknown source', () => {
+    expect(validateLayer8Governance({
+      narrative_pressure_vectors: [
+        {
+          vector_source: 'plot_vibes' as never,
+          evidence_summary: 'The pressure vector uses a non-canonical source that cannot be governed.',
+          structural_impact_score: 3,
+        },
+      ],
+    })).toMatchObject({
+      severity: 'HARD_FAIL',
+      isValid: false,
+    });
+  });
+
+  it('hard-fails when a pressure vector has insufficient evidence summary', () => {
+    expect(validateLayer8Governance({
+      narrative_pressure_vectors: [
+        {
+          vector_source: 'person',
+          evidence_summary: 'too short',
+          structural_impact_score: 3,
+        },
+      ],
+    })).toMatchObject({
+      severity: 'HARD_FAIL',
+      isValid: false,
+    });
+  });
+
+  it('hard-fails when a pressure vector has an out-of-range impact score', () => {
+    expect(validateLayer8Governance({
+      narrative_pressure_vectors: [
+        {
+          vector_source: 'institution',
+          evidence_summary: 'The institution applies escalating procedural pressure across the plot.',
+          structural_impact_score: 6,
+        },
+      ],
+    })).toMatchObject({
+      severity: 'HARD_FAIL',
+      isValid: false,
+    });
+  });
+
   it('emits a non-blocking warning for present but low-impact pressure vectors', () => {
     const result = validateLayer8Governance({
       narrative_pressure_vectors: [
