@@ -4,7 +4,7 @@
 
 RevisionGrade uses a fixed-price audit and metered repair model.
 
-> The audit reveals the condition of the manuscript. Editorial Actions unlock and repair specific opportunities.
+> The audit reveals the manuscript’s readiness profile. Editorial Actions unlock and repair specific opportunities.
 
 This separates bounded diagnosis from variable-cost revision execution.
 
@@ -54,10 +54,10 @@ The fixed-price audit includes:
 
 - readiness verdict
 - criteria or WAVE results as applicable
-- strengths and weaknesses
+- strengths and priority signals
 - opportunity count
 - severity distribution
-- top systemic risks
+- top systemic readiness risks
 - recommended editorial path
 
 Editorial Actions unlock:
@@ -74,7 +74,7 @@ Editorial Actions unlock:
 
 Unlimited revision is not allowed in the RevisionGrade pricing doctrine.
 
-Revision is variable. A strong manuscript may need only a few targeted repairs. A structurally weak manuscript may produce hundreds of opportunities. Unlimited revision pricing would force strong manuscripts to subsidize weak ones and would encourage low-value generation.
+Revision is variable. Some manuscripts need only a few targeted refinements. Others benefit from deeper staged repair. Unlimited revision pricing would dilute the audit standard and encourage low-value generation instead of focused, high-impact revision work.
 
 ## Action lifecycle doctrine
 
@@ -145,7 +145,7 @@ A Note on Editorial Readiness:
 
 RevisionGrade™ is not a writing tool. It is an editorial audit system.
 
-Each paid audit provides a structural diagnosis of your manuscript’s readiness: where the story is strong, where it is vulnerable, and what kind of editorial support it may need next.
+Each paid audit provides a structural diagnosis of your manuscript’s readiness: where the story is already working, where readiness can be improved, and what kind of editorial support may help next.
 
 Granular Opportunity Cards and governed repair proposals are unlocked through Editorial Actions included with your audit or available in packs.
 
