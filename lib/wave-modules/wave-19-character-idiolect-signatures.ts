@@ -4,6 +4,7 @@ import {
 	isAllowedScope,
 } from "../revision/surgicalEnforcement";
 import { type WaveEntry, WAVE_REGISTRY } from "../revision/waveRegistry";
+import { buildVoiceProtectionModifications } from "../revision/canon/voiceProtection";
 
 export type RevisionTarget = {
 	zone: string;
@@ -62,7 +63,9 @@ export default async function wave19CharacterIdiolectSignatures(
 		"meta:category:character",
 		"meta:scope:scene",
 		"meta:criteria:IDIOLECT_SIGNATURE|CHARACTER_DIFFERENTIATION",
-		"analysis:description:Builds distinct lexical and syntactic fingerprints for principal speakers.",
+		"analysis:description:Builds distinct lexical and syntactic speaker markers.",
+		"canon-bound:voice-protection",
+		...buildVoiceProtectionModifications(text, "wave19-protect"),
 	];
 
 	if (lines.length > 1) {
@@ -78,7 +81,7 @@ export default async function wave19CharacterIdiolectSignatures(
 			mods.push("flag-flat-dialogue-cadence-across-speakers");
 		}
 	}
-	mods.push("directive-strengthen-speaker-specific-lexical-and-rhythmic-fingerprints");
+	mods.push("directive-strengthen-speaker-specific-lexical-and-rhythmic-markers");
 
 	return {
 		waveNumber: WAVE_NUMBER,
