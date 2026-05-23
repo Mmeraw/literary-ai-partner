@@ -4,6 +4,7 @@ import {
 	isAllowedScope,
 } from "../revision/surgicalEnforcement";
 import { type WaveEntry, WAVE_REGISTRY } from "../revision/waveRegistry";
+import { buildVoiceProtectionModifications } from "../revision/canon/voiceProtection";
 
 export type RevisionTarget = {
 	zone: string;
@@ -65,6 +66,8 @@ export default async function wave55RhythmAndCadencePolish(
 		`wave-meta:category:${wave?.category ?? "polish"}`,
 		`wave-meta:scope:${wave?.scope ?? "paragraph"}`,
 		...CRITERIA_IDS.map((id) => `criterion:${id}`),
+		"canon-bound:voice-protection",
+		...buildVoiceProtectionModifications(text, "wave55-protect"),
 	];
 
 	for (let i = 0; i < paragraphs.length; i += 1) {
