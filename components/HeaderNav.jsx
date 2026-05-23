@@ -9,7 +9,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { isPipelineHealthAdminEmail } from "@/lib/admin/pipelineHealthAllowlist";
 
 const resourceLinks = [
@@ -18,9 +18,12 @@ const resourceLinks = [
   ["Editorial Doctrine", "/reliability"],
 ];
 
+const resourceActiveHrefs = ["/resources", "/methodology"];
+
 export default function HeaderNav() {
   const pathname = usePathname() || "/";
   const router = useRouter();
+  const resourcesMenuRef = useRef(null);
   const [email, setEmail] = useState(null);
   const [signingOut, setSigningOut] = useState(false);
   const [resourcesOpen, setResourcesOpen] = useState(false);
@@ -41,6 +44,30 @@ export default function HeaderNav() {
       });
     return () => { cancelled = true; };
   }, [pathname]);
+
+  useEffect(() => {
+    if (!resourcesOpen) return;
+
+    function handlePointerDown(event) {
+      if (!resourcesMenuRef.current) return;
+      if (!resourcesMenuRef.current.contains(event.target)) {
+        setResourcesOpen(false);
+      }
+    }
+
+    function handleKeyDown(event) {
+      if (event.key === "Escape") {
+        setResourcesOpen(false);
+      }
+    }
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [resourcesOpen]);
 
   async function handleSignOut() {
     if (signingOut) return;
@@ -74,7 +101,7 @@ export default function HeaderNav() {
     );
   }
 
-  const resourcesActive = resourceLinks.some(([, href]) => pathname === href || pathname.startsWith(`${href}/`));
+  const resourcesActive = resourceActiveHrefs.some((href) => pathname === href || pathname.startsWith(`${href}/`));
 
   return (
     <header className="w-full bg-rg-ink border-b border-rg-cream2/10 sticky top-0 z-50">
@@ -88,21 +115,21 @@ export default function HeaderNav() {
           <NavLink href="/evaluate">Evaluate</NavLink>
           <NavLink href="/revise">Revise</NavLink>
           <NavLink href="/reliability">Reliability</NavLink>
-          <div className="relative">
+          <div className="relative" ref={resourcesMenuRef}>
             <button
               type="button"
               onClick={() => setResourcesOpen((value) => !value)}
-              onBlur={() => window.setTimeout(() => setResourcesOpen(false), 120)}
               className={resourcesActive ? activeLinkCls : linkCls}
               aria-expanded={resourcesOpen}
               aria-haspopup="menu"
+              aria-controls="resources-menu"
             >
               Resources
             </button>
             {resourcesOpen && (
-              <div className="absolute left-1/2 top-8 z-50 w-56 -translate-x-1/2 border border-rg-cream2/15 bg-rg-ink2 p-3 shadow-xl shadow-black/30" role="menu">
+              <div id="resources-menu" className="absolute left-1/2 top-8 z-50 w-56 -translate-x-1/2 border border-rg-cream2/15 bg-rg-ink2 p-3 shadow-xl shadow-black/30" role="menu">
                 {resourceLinks.map(([label, href]) => (
-                  <Link key={href} href={href} role="menuitem" className="block px-3 py-2 font-rg-mono text-xs uppercase tracking-[0.14em] text-rg-cream2 hover:text-rg-cream">
+                  <Link key={href} href={href} role="menuitem" onClick={() => setResourcesOpen(false)} className="block px-3 py-2 font-rg-mono text-xs uppercase tracking-[0.14em] text-rg-cream2 hover:text-rg-cream">
                     {label}
                   </Link>
                 ))}
