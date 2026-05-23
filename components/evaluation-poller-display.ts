@@ -135,7 +135,17 @@ type StageInputs = {
   is_blocked_by_gate?: boolean | null;
 };
 
-type ProgressDisplayInput = Pick<JobState, "status"> & StageInputs;
+type IgnoredLegacyTimingFields = {
+  created_at?: string | null;
+  phase1_started_at?: string | null;
+  phase1_completed_at?: string | null;
+  phase2_started_at?: string | null;
+  phase2_completed_at?: string | null;
+  pass3_started_at?: string | null;
+  pass3_completed_at?: string | null;
+};
+
+type ProgressDisplayInput = Pick<JobState, "status"> & StageInputs & IgnoredLegacyTimingFields;
 
 function normalizeToken(value: string | null | undefined): string {
   return String(value ?? "").trim().toLowerCase();
@@ -171,7 +181,7 @@ function stageFromCurrentStage(currentStage: string | null | undefined): UxStage
   if (stage.includes("review_gate") || stage.includes("review gate")) return "review_gate";
   if (stage.includes("approval_normalizer") || stage.includes("approval normalizer")) return "approval_normalizer";
   if (stage.includes("phase_4") || stage.includes("cross_check") || stage.includes("qa")) return "final_cross_checks";
-  if (stage.includes("phase_3") || stage.includes("pass3") || stage.includes("synthesis")) return "report_assembly";
+  if (stage.includes("phase_3") || stage.includes("phase_3a") || stage.includes("pass3") || stage.includes("synthesis")) return "report_assembly";
   if (stage.includes("phase_2") || stage.includes("pass2") || stage.includes("diagnostic")) return "phase2_diagnostics";
   if (stage.includes("phase_1a") || stage.includes("story_layer") || stage.includes("story layer")) return "story_layer_build";
   if (stage.includes("phase_1") || stage.includes("pass1") || stage.includes("ingest")) return "manuscript_ingest";
@@ -213,7 +223,7 @@ function resolveUxStageId(inputs: StageInputs): UxStageId | null {
   if (phase === "review_gate") return "review_gate";
   if (phase === "approval_normalizer") return "approval_normalizer";
   if (phase === "phase_2") return "phase2_diagnostics";
-  if (phase === "phase_3") return "report_assembly";
+  if (phase === "phase_3" || phase === "phase_3a") return "report_assembly";
   if (phase === "phase_4" || phase === "wave_revision") return "final_cross_checks";
 
   return null;
