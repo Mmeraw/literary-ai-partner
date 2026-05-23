@@ -8,6 +8,7 @@ const productLinks = [
 ];
 
 const trustLinks = [
+  ["The Black Box Problem", "/black-box-problem"],
   ["Resources", "/resources"],
   ["Reliability", "/reliability"],
   ["Methodology", "/methodology"],
