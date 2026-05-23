@@ -3,15 +3,8 @@
 /**
  * HeaderNav — RevisionGrade canonical navigation shell
  *
- * Design language: dark editorial (rg-ink background, rg-cream text, rg-gold accents).
- * Matches the landing page design system.
- *
- * Launch-scope nav items (29-day sprint):
- *   App routes:    Dashboard · Evaluate · Revise · Resources · Pricing
- *   Marketing:     Evaluate · Revise · Resources · Pricing
- *   Both:          Sign In / Sign Out · Pipeline Health (admin only)
- *
- * Dropped from scope: Convert · Output · Storygate Studio
+ * Public and app surfaces now share the same app-router shell. Public routes
+ * must resolve to native pages, not static marketing-export anchors.
  */
 
 import Link from "next/link";
@@ -67,7 +60,6 @@ export default function HeaderNav() {
     setSigningOut(false);
   }
 
-  // ── Shared link style ───────────────────────────────────────────────────────
   const linkCls =
     "text-xs tracking-widest uppercase font-rg-mono text-rg-cream2 hover:text-rg-cream transition-colors duration-150";
   const activeLinkCls =
@@ -82,7 +74,6 @@ export default function HeaderNav() {
     );
   }
 
-  // ── Auth element ────────────────────────────────────────────────────────────
   const authEl = isAuthed ? (
     <button
       type="button"
@@ -106,22 +97,11 @@ export default function HeaderNav() {
   return (
     <header className="w-full bg-rg-ink border-b border-rg-cream2/10 sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-6 h-14 flex items-center justify-between gap-8">
-
-        {/* Logo */}
-        <Link
-          href="/"
-          className="flex items-center gap-3 shrink-0 group"
-        >
-          {/* Monogram mark */}
-          <span className="inline-flex h-8 w-8 items-center justify-center border border-rg-gold/60 text-rg-gold font-rg-serif text-sm group-hover:border-rg-gold transition-colors duration-150">
-            R
-          </span>
-          <span className="text-rg-cream font-rg-serif text-sm tracking-wide hidden sm:block">
-            RevisionGrade&#8482;
-          </span>
+        <Link href="/" className="flex items-center gap-3 shrink-0 group">
+          <span className="inline-flex h-8 w-8 items-center justify-center border border-rg-gold/60 text-rg-gold font-rg-serif text-sm group-hover:border-rg-gold transition-colors duration-150">R</span>
+          <span className="text-rg-cream font-rg-serif text-sm tracking-wide hidden sm:block">RevisionGrade&#8482;</span>
         </Link>
 
-        {/* Nav links */}
         <nav className="flex items-center gap-6 flex-1 justify-center">
           {isAppRoute ? (
             <>
@@ -130,28 +110,21 @@ export default function HeaderNav() {
               <NavLink href="/workbench">Revise</NavLink>
               <NavLink href="/resources">Resources</NavLink>
               <NavLink href="/pricing">Pricing</NavLink>
-              {isAdmin && (
-                <NavLink href="/admin/pipeline-health">Pipeline</NavLink>
-              )}
+              {isAdmin && <NavLink href="/admin/pipeline-health">Pipeline</NavLink>}
             </>
           ) : (
             <>
-              <NavLink href="/evaluate">Evaluate</NavLink>
+              <NavLink href="/">Home</NavLink>
               <NavLink href="/revise">Revise</NavLink>
+              <NavLink href="/queue">The Queue</NavLink>
               <NavLink href="/resources">Resources</NavLink>
               <NavLink href="/pricing">Pricing</NavLink>
-              {isAdmin && (
-                <NavLink href="/admin/pipeline-health">Pipeline</NavLink>
-              )}
+              {isAdmin && <NavLink href="/admin/pipeline-health">Pipeline</NavLink>}
             </>
           )}
         </nav>
 
-        {/* Auth */}
-        <div className="shrink-0">
-          {authEl}
-        </div>
-
+        <div className="shrink-0">{authEl}</div>
       </div>
     </header>
   );
