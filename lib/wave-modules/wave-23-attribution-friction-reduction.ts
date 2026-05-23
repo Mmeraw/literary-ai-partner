@@ -4,6 +4,11 @@ import {
 	isAllowedScope,
 } from "../revision/surgicalEnforcement";
 import { type WaveEntry, WAVE_REGISTRY } from "../revision/waveRegistry";
+import {
+	CANON_DIALOGUE_TAG_PATTERN_SOURCE,
+	countCanonDialogueTags,
+	hasCanonDialogueTag,
+} from "../revision/canon/vocabulary";
 
 export type RevisionTarget = {
 	zone: string;
@@ -31,6 +36,10 @@ export type WaveModuleResult = {
 
 const WAVE_NUMBER = 23;
 const CRITERIA_IDS = ["ATTRIBUTION_CLARITY", "DIALOGUE_FLOW"];
+const ATTRIBUTION_CHAIN_REGEX = new RegExp(
+	`"[^"]+"\\s*,\\s*[^\\n]{0,25}\\b(?:${CANON_DIALOGUE_TAG_PATTERN_SOURCE})\\b[\\s\\S]{0,60}"[^"]+"`,
+	"i",
+);
 
 function getWave(): WaveEntry | undefined {
 	return WAVE_REGISTRY.find((wave) => wave.id === WAVE_NUMBER);
@@ -56,14 +65,15 @@ export default async function wave23AttributionFrictionReduction(
 		`wave-meta:category:${wave?.category ?? "dialogue"}`,
 		`wave-meta:scope:${wave?.scope ?? "paragraph"}`,
 		...CRITERIA_IDS.map((id) => `criterion:${id}`),
+		"canon-bound:dialogue-tags",
 	];
 
-	const tagMatches = text.match(/\b(said|asked|replied|whispered|shouted|murmured|snapped)\b/gi) ?? [];
-	if (tagMatches.length > 6) modifications.push("flag-heavy-attribution-density");
-	if (/"[^"]+"\s*,\s*[^\n]{0,25}\b(said|asked|replied)\b[\s\S]{0,60}"[^"]+"/i.test(text)) {
+	const tagMatches = countCanonDialogueTags(text);
+	if (tagMatches > 6) modifications.push("flag-heavy-attribution-density");
+	if (ATTRIBUTION_CHAIN_REGEX.test(text)) {
 		modifications.push("attribution-chain-detected");
 	}
-	if (!/\b(said|asked|replied|whispered|shouted|murmured|snapped)\b/i.test(text)) {
+	if (!hasCanonDialogueTag(text)) {
 		modifications.push("directive-verify-speaker-cues-without-explicit-tags");
 	}
 
