@@ -107,6 +107,10 @@ import { summarizePromptCoverage } from '@/lib/evaluation/pipeline/promptInput';
 import { detectContextContamination } from '@/lib/evaluation/governance/contextContaminationGuard';
 import { assertClaimedJobsContract } from '@/lib/jobs/contracts/claimEvaluationJobs.contract';
 import { finalizeJobFailure } from '@/lib/jobs/jobStore.supabase';
+import {
+  finalizeProcessorFailureWithLeaseGuard,
+  isProcessorLeaseLostError,
+} from '@/lib/evaluation/processorLeaseFailureFinalizer';
 import { ensureChunksFromText } from '@/lib/manuscripts/chunks';
 import {
   selectChunkerConfig,
@@ -620,6 +624,8 @@ async function assertJobWithinSla(args: {
   jobId: string;
   hardDeadlineMs: number;
   stage: string;
+  expectedLeaseToken?: string | null;
+  expectedClaimedBy?: string | null;
 }): Promise<void> {
   if (Date.now() < args.hardDeadlineMs) {
     return;
@@ -646,14 +652,27 @@ async function assertJobWithinSla(args: {
     );
   }
 
-  await finalizeJobFailure({
-    jobId: args.jobId,
-    errorEnvelope: {
-      code: 'PIPELINE_SLA_EXCEEDED',
-      message: 'Evaluation exceeded hard SLA; worker aborted before stale sweeper',
-      retryable: false,
-    },
-  });
+  if (args.expectedLeaseToken && args.expectedClaimedBy) {
+    await finalizeProcessorFailureWithLeaseGuard({
+      jobId: args.jobId,
+      expectedLeaseToken: args.expectedLeaseToken,
+      expectedClaimedBy: args.expectedClaimedBy,
+      errorEnvelope: {
+        code: 'PIPELINE_SLA_EXCEEDED',
+        message: 'Evaluation exceeded hard SLA; worker aborted before stale sweeper',
+        retryable: false,
+      },
+    });
+  } else {
+    await finalizeJobFailure({
+      jobId: args.jobId,
+      errorEnvelope: {
+        code: 'PIPELINE_SLA_EXCEEDED',
+        message: 'Evaluation exceeded hard SLA; worker aborted before stale sweeper',
+        retryable: false,
+      },
+    });
+  }
 
   throw new PipelineSlaExceededError();
 }
@@ -2312,6 +2331,8 @@ export async function processEvaluationJob(
   let lifecycleStatus: JobStatus | null = null;
   // Hoisted so outer-catch can persist partial progress metadata (#223)
   let progressState: Record<string, unknown> = {};
+  let expectedLeaseToken: string | null = null;
+  let expectedClaimedBy: string | null = null;
 
   emitLatencyTrace({
     job_id: jobId,
@@ -2444,6 +2465,9 @@ export async function processEvaluationJob(
 
     progressState =
       job.progress && typeof job.progress === 'object' ? { ...job.progress } : {};
+
+    expectedLeaseToken = typeof job.lease_token === 'string' ? job.lease_token : null;
+    expectedClaimedBy = typeof job.claimed_by === 'string' ? job.claimed_by : null;
 
     const canonicalStartedAt = resolveSafeStartedAt({
       candidate: (job as Record<string, unknown>).started_at,
@@ -2654,9 +2678,17 @@ export async function processEvaluationJob(
       };
 
       try {
-        // Route through centralized failure finalizer — atomic, retryable-aware, audited
-        const finalizeResult = await finalizeJobFailure({
+        if (!expectedLeaseToken || !expectedClaimedBy) {
+          throw new Error(
+            `[Processor] Missing verified claimed-owner metadata before failure finalization for job ${jobId}`,
+          );
+        }
+
+        // Route through centralized, lease-guarded failure finalizer.
+        const finalizeResult = await finalizeProcessorFailureWithLeaseGuard({
           jobId,
+          expectedLeaseToken,
+          expectedClaimedBy,
           errorEnvelope: {
             code: errorCode,
             message: errorMessage,
@@ -2668,6 +2700,18 @@ export async function processEvaluationJob(
         console.log(`[Processor] Job ${jobId} failed with code ${errorCode}; retryEligible=${finalizeResult.retryEligible}; attempt=${finalizeResult.attemptCount}/${finalizeResult.maxAttempts}`);
         finalizeSucceeded = true;
       } catch (finalizeError) {
+        if (isProcessorLeaseLostError(finalizeError)) {
+          console.error('[Processor][PROCESSOR_LEASE_LOST] terminal write skipped; no fallback mutation attempted', {
+            job_id: jobId,
+            failure_code: errorCode,
+            message:
+              finalizeError instanceof Error
+                ? finalizeError.message
+                : String(finalizeError),
+          });
+          throw finalizeError;
+        }
+
         console.error(
           `[Processor] finalizeJobFailure failed for ${jobId}; using fallback failure write:`,
           finalizeError instanceof Error ? finalizeError.message : String(finalizeError)
@@ -3180,36 +3224,11 @@ export async function processEvaluationJob(
 
       if (!hasHandoff) {
         console.error(`[phase_3] ${jobId}: pass12_handoff_v1 missing — terminal failure`);
-        try {
-          await finalizeJobFailure({
-            jobId,
-            errorEnvelope: {
-              code: 'PHASE3_MISSING_HANDOFF',
-              message: 'phase_3 entered without pass12_handoff_v1 — cannot synthesize',
-              retryable: false,
-            },
-          });
-        } catch (finalizeErr) {
-          console.error(`[phase_3] ${jobId}: finalizeJobFailure failed (fallback to direct update)`,
-            finalizeErr instanceof Error ? finalizeErr.message : String(finalizeErr));
-          const failNow = new Date().toISOString();
-          await supabase
-            .from('evaluation_jobs')
-            .update({
-              status: normalizeEvaluationJobStatus(JOB_STATUS.FAILED) as JobStatus,
-              phase: 'phase_3',
-              phase_status: 'failed',
-              last_error: 'PHASE3_MISSING_HANDOFF',
-              failure_code: 'PHASE3_MISSING_HANDOFF',
-              failed_at: failNow,
-              updated_at: failNow,
-              claimed_by: null,
-              claimed_at: null,
-              lease_token: null,
-              lease_until: null,
-            })
-            .eq('id', job.id);
-        }
+        await markFailed(
+          'phase_3 entered without pass12_handoff_v1 — cannot synthesize',
+          'PHASE3_MISSING_HANDOFF',
+          { pipelineStage: 'phase_3' },
+        );
         return { success: false };
       }
 
@@ -3230,19 +3249,11 @@ export async function processEvaluationJob(
         if (handoffReadError || !handoffRow?.content) {
           console.error(`[phase_3] ${jobId}: handoff artifact read failed`,
             handoffReadError?.message ?? 'no_content');
-          try {
-            await finalizeJobFailure({
-              jobId,
-              errorEnvelope: {
-                code: 'PHASE3_MISSING_HANDOFF',
-                message: 'phase_3 handoff read failed',
-                retryable: false,
-              },
-            });
-          } catch (finalizeErr) {
-            console.error(`[phase_3] ${jobId}: finalizeJobFailure failed`,
-              finalizeErr instanceof Error ? finalizeErr.message : String(finalizeErr));
-          }
+          await markFailed(
+            'phase_3 handoff read failed',
+            'PHASE3_MISSING_HANDOFF',
+            { pipelineStage: 'phase_3' },
+          );
           return { success: false };
         }
 
@@ -3378,7 +3389,14 @@ export async function processEvaluationJob(
             ...(prebuiltCharacterLedgerP3 ? { _prebuiltCharacterLedger: prebuiltCharacterLedgerP3 } : {}),
             ...(prebuiltPreflightDraftP3 ? { _prebuiltPreflightDraft: prebuiltPreflightDraftP3 } : {}),
             onHeartbeat: async (stage) => {
-              await assertJobWithinSla({ supabase, jobId, hardDeadlineMs, stage });
+              await assertJobWithinSla({
+                supabase,
+                jobId,
+                hardDeadlineMs,
+                stage,
+                expectedLeaseToken,
+                expectedClaimedBy,
+              });
               await renewEvaluationJobLease({
                 supabase, jobId, leaseMs: runtimeConfig.worker.leaseMs, stage, hardDeadlineMs,
               });
@@ -4040,7 +4058,14 @@ export async function processEvaluationJob(
                 },
               },
               onHeartbeat: async (stage) => {
-                await assertJobWithinSla({ supabase, jobId, hardDeadlineMs, stage });
+                await assertJobWithinSla({
+                  supabase,
+                  jobId,
+                  hardDeadlineMs,
+                  stage,
+                  expectedLeaseToken,
+                  expectedClaimedBy,
+                });
                 await renewEvaluationJobLease({
                   supabase, jobId, leaseMs: runtimeConfig.worker.leaseMs, stage, hardDeadlineMs,
                 });
@@ -4184,7 +4209,14 @@ export async function processEvaluationJob(
               runPass2: async (opts) => { const r = await realRunPass2Short(opts); capturedPass2Short = r; return r; },
             },
             onHeartbeat: async (stage) => {
-              await assertJobWithinSla({ supabase, jobId, hardDeadlineMs, stage });
+              await assertJobWithinSla({
+                supabase,
+                jobId,
+                hardDeadlineMs,
+                stage,
+                expectedLeaseToken,
+                expectedClaimedBy,
+              });
               await renewEvaluationJobLease({ supabase, jobId, leaseMs: runtimeConfig.worker.leaseMs, stage, hardDeadlineMs });
             },
           });
@@ -4522,6 +4554,8 @@ export async function processEvaluationJob(
       jobId,
       hardDeadlineMs,
       stage: 'after_runPipeline',
+      expectedLeaseToken,
+      expectedClaimedBy,
     });
 
     const pass3CompletedAt = new Date().toISOString();
@@ -4968,6 +5002,8 @@ export async function processEvaluationJob(
       jobId,
       hardDeadlineMs,
       stage: 'before_persistence',
+      expectedLeaseToken,
+      expectedClaimedBy,
     });
 
     await markRunning(
@@ -5308,6 +5344,14 @@ export async function processEvaluationJob(
     return { success: true };
 
   } catch (error) {
+    if (isProcessorLeaseLostError(error)) {
+      console.error('[Processor][PROCESSOR_LEASE_LOST] processor aborted without fallback mutation', {
+        job_id: jobId,
+        message: error.message,
+      });
+      return { success: false, error: error.message };
+    }
+
     if (error instanceof PipelineSlaExceededError) {
       console.warn('[Processor] Job aborted at SLA boundary', {
         job_id: jobId,
@@ -5339,15 +5383,45 @@ export async function processEvaluationJob(
 
     // Route uncaught errors through centralized failure finalizer
     try {
-      await finalizeJobFailure({
-        jobId,
-        errorEnvelope: {
-          code: 'PROCESSOR_UNCAUGHT_ERROR',
-          message: errorMessage,
-          retryable: false, // Conservative: uncaught errors are terminal until investigated
-        },
-      });
+      if ((expectedLeaseToken && !expectedClaimedBy) || (!expectedLeaseToken && expectedClaimedBy)) {
+        throw new Error(
+          `[Processor] Incomplete claimed-owner metadata in uncaught path for job ${jobId}`,
+        );
+      }
+
+      if (expectedLeaseToken && expectedClaimedBy) {
+        await finalizeProcessorFailureWithLeaseGuard({
+          jobId,
+          expectedLeaseToken,
+          expectedClaimedBy,
+          errorEnvelope: {
+            code: 'PROCESSOR_UNCAUGHT_ERROR',
+            message: errorMessage,
+            retryable: false, // Conservative: uncaught errors are terminal until investigated
+          },
+        });
+      } else {
+        await finalizeJobFailure({
+          jobId,
+          errorEnvelope: {
+            code: 'PROCESSOR_UNCAUGHT_ERROR',
+            message: errorMessage,
+            retryable: false, // Conservative: uncaught errors are terminal until investigated
+          },
+        });
+      }
     } catch (finalizeError) {
+      if (isProcessorLeaseLostError(finalizeError)) {
+        console.error('[Processor][PROCESSOR_LEASE_LOST] terminal write skipped in uncaught path; no fallback mutation attempted', {
+          job_id: jobId,
+          message:
+            finalizeError instanceof Error
+              ? finalizeError.message
+              : String(finalizeError),
+        });
+        return { success: false, error: errorMessage };
+      }
+
       console.error(
         `[Processor] Failed to finalize uncaught error for ${jobId}:`,
         finalizeError instanceof Error ? finalizeError.message : String(finalizeError)
