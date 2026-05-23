@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import Link from 'next/link';
 
 const STORY_LAYER_LABELS = [
@@ -15,7 +16,7 @@ type StoryLayerWorkspacePageProps = {
   params: Promise<{ evaluationProjectId: string }>;
 };
 
-function StatusPill({ children, tone = 'neutral' }: { children: React.ReactNode; tone?: 'neutral' | 'ready' | 'blocked' }) {
+function StatusPill({ children, tone = 'neutral' }: { children: ReactNode; tone?: 'neutral' | 'ready' | 'blocked' }) {
   const toneClass = tone === 'ready'
     ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
     : tone === 'blocked'
