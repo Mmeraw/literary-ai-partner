@@ -23,4 +23,13 @@ describe('terminal finalizer owner guard migration', () => {
     expect(migrationText).toContain('j.lease_token = p_expected_lease_token');
     expect(migrationText).toContain('j.claimed_by = p_expected_claimed_by');
   });
+
+  test('rejects partial owner guard parameters instead of silently returning zero rows', () => {
+    expect(migrationText).toContain(
+      'IF (p_expected_lease_token IS NULL) <> (p_expected_claimed_by IS NULL) THEN',
+    );
+    expect(migrationText).toContain('RAISE EXCEPTION');
+    expect(migrationText).toContain('owner guard requires both expected lease token and claimant');
+    expect(migrationText).toContain("USING ERRCODE = '22023'");
+  });
 });
