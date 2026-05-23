@@ -140,6 +140,14 @@ export class RunnerHeartbeatMonitor {
   }
 }
 
+type LeaseGuardedUpdateParams = {
+  supabase: Pick<SupabaseClient, 'from'>;
+  jobId: string;
+  workerId: string;
+  leaseToken: string;
+  patch: Record<string, unknown>;
+};
+
 export async function assertCurrentLeaseOwnership(params: {
   supabase: Pick<SupabaseClient, 'from'>;
   jobId: string;
@@ -153,6 +161,7 @@ export async function assertCurrentLeaseOwnership(params: {
     .eq('worker_id', params.workerId)
     .eq('lease_token', params.leaseToken)
     .eq('phase_status', 'running')
+    .gt('lease_until', new Date().toISOString())
     .maybeSingle();
 
   if (error) {
@@ -162,6 +171,28 @@ export async function assertCurrentLeaseOwnership(params: {
   if (!data) {
     throw new EvaluationRunnerFatalError(
       `Lease ownership validation failed for job ${params.jobId}; write attempt blocked.`,
+    );
+  }
+}
+
+export async function guardedEvaluationJobUpdate(params: LeaseGuardedUpdateParams): Promise<void> {
+  const { data, error } = await params.supabase
+    .from('evaluation_jobs')
+    .update(params.patch)
+    .eq('id', params.jobId)
+    .eq('worker_id', params.workerId)
+    .eq('lease_token', params.leaseToken)
+    .gt('lease_until', new Date().toISOString())
+    .select('id')
+    .maybeSingle();
+
+  if (error) {
+    throw new EvaluationRunnerFatalError(`Guarded evaluation job update failed: ${error.message}`);
+  }
+
+  if (!data) {
+    throw new EvaluationRunnerFatalError(
+      `Guarded evaluation job update blocked for job ${params.jobId}; lease ownership was not current.`,
     );
   }
 }
