@@ -13,11 +13,11 @@ import {
 describe("getProgressDisplay: canonical state mapping", () => {
   // ── Queued ───────────────────────────────────────────────────────────────
 
-  test("status=queued -> Calibrating benchmark models, 5%, blue", () => {
+  test("status=queued -> Calibrating evaluation standards, 2%, blue", () => {
     const pd = getProgressDisplay({ status: "queued" });
     expect(pd).not.toBeNull();
-    expect(pd!.label).toBe("Calibrating benchmark models...");
-    expect(pd!.percentage).toBe(5);
+    expect(pd!.label).toBe("Calibrating evaluation standards...");
+    expect(pd!.percentage).toBe(2);
     expect(pd!.color).toBe("blue");
     expect(pd!.hardStop).toBe(false);
     expect(pd!.indeterminate).toBe(false);
@@ -44,20 +44,20 @@ describe("getProgressDisplay: canonical state mapping", () => {
 
   // ── Phase 1A ─────────────────────────────────────────────────────────────
 
-  test("phase_1a/running, no fraction -> late position (45%)", () => {
+  test("phase_1a/running, no fraction -> late position (35%)", () => {
     const pd = getProgressDisplay({
       status: "running",
       phase: "phase_1a",
       phase_status: "running",
     });
     expect(pd!.label).toBe("Extracting core narrative footprint...");
-    expect(pd!.percentage).toBe(45);
+    expect(pd!.percentage).toBe(35);
     expect(pd!.color).toBe("blue");
     expect(pd!.hardStop).toBe(false);
     expect(pd!.indeterminate).toBe(false);
   });
 
-  test("phase_1a/running, fraction < 0.5 -> early position (25%)", () => {
+  test("phase_1a/running, fraction < 0.5 -> early position (15%)", () => {
     const pd = getProgressDisplay({
       status: "running",
       phase: "phase_1a",
@@ -65,10 +65,10 @@ describe("getProgressDisplay: canonical state mapping", () => {
       phase_unit_fraction: 0.1,
     });
     expect(pd!.label).toBe("Ingesting manuscript & mapping chapters...");
-    expect(pd!.percentage).toBe(25);
+    expect(pd!.percentage).toBe(15);
   });
 
-  test("phase_1a/running, fraction >= 0.5 -> late position (45%)", () => {
+  test("phase_1a/running, fraction >= 0.5 -> late position (35%)", () => {
     const pd = getProgressDisplay({
       status: "running",
       phase: "phase_1a",
@@ -76,22 +76,22 @@ describe("getProgressDisplay: canonical state mapping", () => {
       phase_unit_fraction: 0.6,
     });
     expect(pd!.label).toBe("Extracting core narrative footprint...");
-    expect(pd!.percentage).toBe(45);
+    expect(pd!.percentage).toBe(35);
   });
 
-  test("phase_1a/queued -> ingesting label, 25%", () => {
+  test("phase_1a/queued -> ingesting label, 15%", () => {
     const pd = getProgressDisplay({
       status: "running",
       phase: "phase_1a",
       phase_status: "queued",
     });
     expect(pd!.label).toBe("Ingesting manuscript & mapping chapters...");
-    expect(pd!.percentage).toBe(25);
+    expect(pd!.percentage).toBe(15);
   });
 
   // ── Review Gate ───────────────────────────────────────────────────────────
 
-  test("phase=review_gate/awaiting_approval -> amber hard stop at 60%", () => {
+  test("phase=review_gate/awaiting_approval -> amber hard stop at 50%", () => {
     const pd = getProgressDisplay({
       status: "queued", // status stays queued while at gate
       phase: "review_gate",
@@ -99,13 +99,13 @@ describe("getProgressDisplay: canonical state mapping", () => {
     });
     expect(pd).not.toBeNull();
     expect(pd!.label).toBe("Awaiting Story Layer Approval");
-    expect(pd!.percentage).toBe(60);
+    expect(pd!.percentage).toBe(50);
     expect(pd!.color).toBe("amber");
     expect(pd!.hardStop).toBe(true);
     expect(pd!.indeterminate).toBe(false);
   });
 
-  test("phase=review_gate + hard_fail_present -> red hard stop at 60%", () => {
+  test("phase=review_gate + hard_fail_present -> red hard stop at 50%", () => {
     const pd = getProgressDisplay({
       status: "queued",
       phase: "review_gate",
@@ -115,7 +115,7 @@ describe("getProgressDisplay: canonical state mapping", () => {
     expect(pd!.label).toBe(
       "Story Layer Blocked: Narrative conflicts detected",
     );
-    expect(pd!.percentage).toBe(60);
+    expect(pd!.percentage).toBe(50);
     expect(pd!.color).toBe("red");
     expect(pd!.hardStop).toBe(true);
   });
@@ -134,38 +134,38 @@ describe("getProgressDisplay: canonical state mapping", () => {
     });
     expect(pdRunning!.hardStop).toBe(true);
     expect(pdQueued!.hardStop).toBe(true);
-    expect(pdRunning!.percentage).toBe(60);
-    expect(pdQueued!.percentage).toBe(60);
+    expect(pdRunning!.percentage).toBe(50);
+    expect(pdQueued!.percentage).toBe(50);
   });
 
   // ── Phase 2 ───────────────────────────────────────────────────────────────
 
-  test("phase_2 -> deep structural craft diagnostics, 80%", () => {
+  test("phase_2 -> deep structural craft diagnostics, 67%", () => {
     const pd = getProgressDisplay({
       status: "running",
       phase: "phase_2",
       phase_status: "running",
     });
     expect(pd!.label).toBe("Running deep structural craft diagnostics...");
-    expect(pd!.percentage).toBe(80);
+    expect(pd!.percentage).toBe(67);
     expect(pd!.color).toBe("blue");
     expect(pd!.hardStop).toBe(false);
   });
 
   // ── Phase 3 / synthesis ───────────────────────────────────────────────────
 
-  test("phase_3 -> Assembling evaluation matrix, 90%", () => {
+  test("phase_3 -> Assembling evaluation matrix, 86%", () => {
     const pd = getProgressDisplay({
       status: "running",
       phase: "phase_3",
     });
     expect(pd!.label).toBe("Assembling evaluation matrix...");
-    expect(pd!.percentage).toBe(90);
+    expect(pd!.percentage).toBe(86);
   });
 
   // ── Cross-check / Final QA ────────────────────────────────────────────────
 
-  test("cross_check_status=running -> final structural cross-checks, 95%", () => {
+  test("cross_check_status=running -> final structural cross-checks, 97%", () => {
     const pd = getProgressDisplay({
       status: "running",
       phase: "phase_2",
@@ -173,16 +173,16 @@ describe("getProgressDisplay: canonical state mapping", () => {
       cross_check_status: "running",
     });
     expect(pd!.label).toBe("Running final structural cross-checks...");
-    expect(pd!.percentage).toBe(95);
+    expect(pd!.percentage).toBe(97);
   });
 
-  test("cross_check_status=queued -> final structural cross-checks, 95%", () => {
+  test("cross_check_status=queued -> final structural cross-checks, 97%", () => {
     const pd = getProgressDisplay({
       status: "running",
       cross_check_status: "queued",
     });
     expect(pd!.label).toBe("Running final structural cross-checks...");
-    expect(pd!.percentage).toBe(95);
+    expect(pd!.percentage).toBe(97);
   });
 
   // ── Unknown running state ─────────────────────────────────────────────────
@@ -190,29 +190,29 @@ describe("getProgressDisplay: canonical state mapping", () => {
   test("running with no phase -> calibrating label, 5%", () => {
     const pd = getProgressDisplay({ status: "running" });
     expect(pd).not.toBeNull();
-    expect(pd!.label).toBe("Calibrating benchmark models...");
+    expect(pd!.label).toBe("Calibrating evaluation standards...");
     expect(pd!.percentage).toBe(5);
   });
 });
 
 describe("getProgressDisplay: hardStop invariants", () => {
-  test("bar never advances past 60% while at review_gate", () => {
+  test("bar never advances past 50% while at review_gate", () => {
     const pd = getProgressDisplay({
       status: "queued",
       phase: "review_gate",
       phase_status: "awaiting_approval",
     });
-    expect(pd!.percentage).toBe(60);
+    expect(pd!.percentage).toBe(50);
     expect(pd!.hardStop).toBe(true);
   });
 
-  test("bar moves past 60% after phase_2 starts", () => {
+  test("bar moves past 50% after phase_2 starts", () => {
     const pd = getProgressDisplay({
       status: "running",
       phase: "phase_2",
       phase_status: "running",
     });
-    expect(pd!.percentage).toBeGreaterThan(60);
+    expect(pd!.percentage).toBeGreaterThan(50);
     expect(pd!.hardStop).toBe(false);
   });
 });

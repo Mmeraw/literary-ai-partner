@@ -27,14 +27,15 @@ export type ProgressDisplay = {
  *
  * | Backend state                                            | Label                                         | % | Color  |
  * |----------------------------------------------------------|-----------------------------------------------|---|--------|
- * | status=queued / initial                                  | Calibrating benchmark models...               | 5 | blue   |
- * | phase=phase_1a, phase_status=running (early)             | Ingesting manuscript & mapping chapters...    | 25| blue   |
- * | phase=phase_1a, phase_status=running (late)              | Extracting core narrative footprint...        | 45| blue   |
- * | phase=review_gate, phase_status=awaiting_approval        | Awaiting Story Layer Approval                 | 60| amber  | HARD STOP
- * | phase=review_gate + hard_fail_present=true               | Story Layer Blocked: Narrative conflicts...   | 60| red    | HARD STOP
- * | phase=phase_2                                            | Running deep structural craft diagnostics...  | 80| blue   |
- * | phase=phase_3 or synthesis                               | Assembling evaluation matrix...               | 90| blue   |
- * | cross_check / final QA                                   | Running final structural cross-checks...      | 95| blue   |
+ * | status=queued / initial (no phase yet)                   | Calibrating evaluation standards...           | 2 | blue   |
+ * | phase=phase_0 (calibration/warmup)                       | Calibrating evaluation standards...           | 5 | blue   |
+ * | phase=phase_1a, phase_status=running (early)             | Ingesting manuscript & mapping chapters...    | 15| blue   |
+ * | phase=phase_1a, phase_status=running (late)              | Extracting core narrative footprint...        | 35| blue   |
+ * | phase=review_gate, phase_status=awaiting_approval        | Awaiting Story Layer Approval                 | 50| amber  | HARD STOP
+ * | phase=review_gate + hard_fail_present=true               | Story Layer Blocked: Narrative conflicts...   | 50| red    | HARD STOP
+ * | phase=phase_2                                            | Running deep structural craft diagnostics...  | 67| blue   |
+ * | phase=phase_3                                            | Assembling evaluation matrix...               | 86| blue   |
+ * | cross_check / final QA / longform synthesis              | Running final structural cross-checks...      | 97| blue   |
  * | status=complete                                          | Evaluation complete!                          |100| green  |
  *
  * "Early" vs "late" phase_1a/running is determined by completed_units/total_units
@@ -90,25 +91,25 @@ export function getProgressDisplay(
       label: hasHardFail
         ? "Story Layer Blocked: Narrative conflicts detected"
         : "Awaiting Story Layer Approval",
-      valueLabel: "60%",
+      valueLabel: "50%",
       helperText: hasHardFail
         ? "The story layer could not be approved automatically. Review the Story Ledger to resolve narrative conflicts before Phase 2 can begin."
         : "Phase 1A is complete. Review your Story Ledger and approve to continue to Phase 2.",
       indeterminate: false,
-      percentage: 60,
+      percentage: 50,
       color: hasHardFail ? "red" : "amber",
       hardStop: true,
     };
   }
 
-  // phase_1a/queued (self-chain gap between batches) must show 25-45%, NOT 10%
+  // phase_1a/queued (self-chain gap between batches) must show 15-35%, NOT 10%
   if (job.phase === 'phase_1a' && job.status === 'queued') {
     const fraction = job.phase_unit_fraction ?? 1;
     const isEarly = fraction < 0.5;
     return {
       label: isEarly ? "Ingesting manuscript..." : "Extracting core narrative...",
-      valueLabel: isEarly ? "25%" : "45%",
-      percentage: isEarly ? 25 : 45,
+      valueLabel: isEarly ? "15%" : "35%",
+      percentage: isEarly ? 15 : 35,
       color: "blue",
       hardStop: false,
       indeterminate: false,
@@ -125,18 +126,18 @@ export function getProgressDisplay(
       color: "blue",
       hardStop: false,
       indeterminate: false,
-      helperText: "Evaluator is internalizing scoring standards before reading your manuscript.",
+      helperText: "The evaluator is loading scoring rules and benchmark standards before reading your manuscript.",
     };
   }
 
   // ── Queued (not yet running, not at gate) ─────────────────────────────────
   if (job.status === "queued") {
     return {
-      label: "Calibrating benchmark models...",
-      valueLabel: "5%",
+      label: "Calibrating evaluation standards...",
+      valueLabel: "2%",
       helperText: "Your job is queued. A worker will begin automatically.",
       indeterminate: false,
-      percentage: 5,
+      percentage: 2,
       color: "blue",
       hardStop: false,
     };
@@ -147,30 +148,30 @@ export function getProgressDisplay(
     return null;
   }
 
-  // cross_check / final QA
+  // cross_check / final QA / longform synthesis
   if (
     job.cross_check_status === "running" ||
     job.cross_check_status === "queued"
   ) {
     return {
       label: "Running final structural cross-checks...",
-      valueLabel: "95%",
+      valueLabel: "97%",
       helperText: "Verifying evaluation integrity before report assembly.",
       indeterminate: false,
-      percentage: 95,
+      percentage: 97,
       color: "blue",
       hardStop: false,
     };
   }
 
-  // Phase 3 or synthesis
+  // Phase 3 — synthesis
   if (job.phase === "phase_3") {
     return {
       label: "Assembling evaluation matrix...",
-      valueLabel: "90%",
+      valueLabel: "86%",
       helperText: "Building the final evaluation matrix and diagnosis.",
       indeterminate: false,
-      percentage: 90,
+      percentage: 86,
       color: "blue",
       hardStop: false,
     };
@@ -180,10 +181,10 @@ export function getProgressDisplay(
   if (job.phase === "phase_2") {
     return {
       label: "Running deep structural craft diagnostics...",
-      valueLabel: "80%",
+      valueLabel: "67%",
       helperText: "Performing deep craft analysis across all evaluation criteria.",
       indeterminate: false,
-      percentage: 80,
+      percentage: 67,
       color: "blue",
       hardStop: false,
     };
@@ -197,12 +198,12 @@ export function getProgressDisplay(
       label: isEarly
         ? "Ingesting manuscript & mapping chapters..."
         : "Extracting core narrative footprint...",
-      valueLabel: isEarly ? "25%" : "45%",
+      valueLabel: isEarly ? "15%" : "35%",
       helperText: isEarly
         ? "Loading manuscript and identifying chapter structure."
         : "Mapping characters, relationships, and narrative structure.",
       indeterminate: false,
-      percentage: isEarly ? 25 : 45,
+      percentage: isEarly ? 15 : 35,
       color: "blue",
       hardStop: false,
     };
@@ -212,10 +213,10 @@ export function getProgressDisplay(
   if (job.phase === "phase_1a") {
     return {
       label: "Ingesting manuscript & mapping chapters...",
-      valueLabel: "25%",
+      valueLabel: "15%",
       helperText: "Loading manuscript for analysis.",
       indeterminate: false,
-      percentage: 25,
+      percentage: 15,
       color: "blue",
       hardStop: false,
     };
@@ -224,9 +225,9 @@ export function getProgressDisplay(
   // Phase 0 — gold standard warm-up (evaluator internalizes criteria)
   if (job.phase === 'phase_0') {
     return {
-      label: "Calibrating benchmark models...",
+      label: "Calibrating evaluation standards...",
       valueLabel: "5%",
-      helperText: "Evaluator is internalizing scoring standards before reading your manuscript.",
+      helperText: "The evaluator is loading scoring rules and benchmark standards before reading your manuscript.",
       indeterminate: false,
       percentage: 5,
       color: "blue",
@@ -234,9 +235,9 @@ export function getProgressDisplay(
     };
   }
 
-  // Unknown running state — fallback
+  // Unknown running state — fallback to calibration warmup
   return {
-    label: "Calibrating benchmark models...",
+    label: "Calibrating evaluation standards...",
     valueLabel: "5%",
     helperText: "Initializing evaluation pipeline.",
     indeterminate: false,
