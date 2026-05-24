@@ -18,7 +18,7 @@
  *   Tarnished Gold #A98E4A
  */
 
-import React, { useState, useTransition } from "react";
+import React, { useState, useRef, useTransition } from "react";
 import { StoryLayerRenderer, LayerCompletionBar } from "@/components/ledger/StoryLedgerLayers";
 
 // ─── Palette ────────────────────────────────────────────────────────────────
@@ -264,16 +264,94 @@ type GovernanceWarning = {
   blocking_status?: boolean;
 };
 
+// ─── Per-layer decision types ────────────────────────────────────────────────
+
+type LayerDecisionStatus = "undecided" | "approved" | "approved_with_comment" | "rejected" | "rejected_with_comment";
+
+type LayerDecision = {
+  status: LayerDecisionStatus;
+  comment: string;
+};
+
+const DECISION_COLORS: Record<LayerDecisionStatus, string> = {
+  undecided: P.ash,
+  approved: P.green,
+  approved_with_comment: P.green,
+  rejected: "#D07070",
+  rejected_with_comment: "#D07070",
+};
+
+const DECISION_LABELS: Record<LayerDecisionStatus, string> = {
+  undecided: "—",
+  approved: "✓ Approved",
+  approved_with_comment: "✓ Approved with comment",
+  rejected: "✗ Rejected",
+  rejected_with_comment: "✗ Rejected with comment",
+};
+
 // ─── Module 1 — Story Layer Map ──────────────────────────────────────────────
 
 function Module1StoryLayer({
   storyLayers,
   layerCompletionSummary,
+  atReviewGate,
+  onAllLayersDecided,
 }: {
   storyLayers: Record<string, Record<string, unknown>> | null;
   layerCompletionSummary: LedgerShellProps["layerCompletionSummary"];
+  atReviewGate: boolean;
+  onAllLayersDecided: (decisions: Record<string, LayerDecision>) => void;
 }) {
   const [activeLayer, setActiveLayer] = useState<string>(LAYER_ORDER[0]);
+  const [decisions, setDecisions] = useState<Record<string, LayerDecision>>(
+    () => Object.fromEntries(LAYER_ORDER.map((k) => [k, { status: "undecided", comment: "" }]))
+  );
+  const [showCommentFor, setShowCommentFor] = useState<string | null>(null);
+  const [pendingComment, setPendingComment] = useState("");
+  const [allDecidedTriggered, setAllDecidedTriggered] = useState(false);
+
+  const decidedCount = LAYER_ORDER.filter((k) => decisions[k].status !== "undecided").length;
+  const allDecided = decidedCount === LAYER_ORDER.length;
+
+  // Auto-advance to review gate when all layers decided
+  React.useEffect(() => {
+    if (allDecided && !allDecidedTriggered && atReviewGate) {
+      setAllDecidedTriggered(true);
+      onAllLayersDecided(decisions);
+    }
+  }, [allDecided, allDecidedTriggered, atReviewGate, decisions, onAllLayersDecided]);
+
+  function setDecision(layerKey: string, status: LayerDecisionStatus, comment = "") {
+    setDecisions((prev) => ({ ...prev, [layerKey]: { status, comment } }));
+  }
+
+  function handleDecisionButton(layerKey: string, status: LayerDecisionStatus) {
+    const needsComment = status === "approved_with_comment" || status === "rejected_with_comment";
+    if (needsComment) {
+      setShowCommentFor(layerKey);
+      setPendingComment(decisions[layerKey].comment ?? "");
+    } else {
+      setShowCommentFor(null);
+      setDecision(layerKey, status);
+      // Advance to next undecided layer
+      const currentIdx = LAYER_ORDER.indexOf(layerKey as typeof LAYER_ORDER[number]);
+      const nextUndecided = LAYER_ORDER.find(
+        (k, i) => i > currentIdx && decisions[k].status === "undecided"
+      ) ?? LAYER_ORDER.find((k) => decisions[k].status === "undecided" && k !== layerKey);
+      if (nextUndecided) setActiveLayer(nextUndecided);
+    }
+  }
+
+  function confirmComment(layerKey: string, status: LayerDecisionStatus) {
+    setDecision(layerKey, status, pendingComment);
+    setShowCommentFor(null);
+    setPendingComment("");
+    const currentIdx = LAYER_ORDER.indexOf(layerKey as typeof LAYER_ORDER[number]);
+    const nextUndecided = LAYER_ORDER.find(
+      (k, i) => i > currentIdx && decisions[k].status === "undecided"
+    ) ?? LAYER_ORDER.find((k) => decisions[k].status === "undecided" && k !== layerKey);
+    if (nextUndecided) setActiveLayer(nextUndecided);
+  }
 
   if (!storyLayers) {
     return (
@@ -290,6 +368,7 @@ function Module1StoryLayer({
   }
 
   const currentData = storyLayers[activeLayer] ?? null;
+  const currentDecision = decisions[activeLayer];
   const populated = LAYER_ORDER.filter((k) => {
     const d = storyLayers[k];
     return d && Object.keys(d).length > 0;
@@ -317,6 +396,36 @@ function Module1StoryLayer({
         </div>
       </Card>
 
+      {/* Instruction banner — only shown when at review gate */}
+      {atReviewGate && (
+        <div style={{
+          background: "rgba(169,142,74,0.10)",
+          border: `1px solid ${P.goldBorder}`,
+          borderRadius: 12,
+          padding: "16px 20px",
+          display: "flex",
+          gap: 14,
+          alignItems: "flex-start",
+        }}>
+          <span style={{ fontSize: 18, flexShrink: 0 }}>📋</span>
+          <div>
+            <p style={{ margin: "0 0 6px", fontWeight: 700, fontSize: 13, color: P.gold }}>Review each layer before approving</p>
+            <p style={{ margin: 0, fontSize: 12, color: P.boneAlt, lineHeight: 1.6 }}>
+              RevisionGrade extracted these story facts from your manuscript. Review each of the 8 layers and mark it Approve, Approve with comment, Reject, or Reject with comment.
+              Once all layers are reviewed, you will be taken to the approval gate automatically.
+            </p>
+            <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{ flex: 1, height: 4, background: P.border, borderRadius: 99 }}>
+                <div style={{ width: `${(decidedCount / LAYER_ORDER.length) * 100}%`, height: "100%", background: P.gold, borderRadius: 99, transition: "width 0.3s" }} />
+              </div>
+              <span style={{ fontSize: 11, color: P.gold, fontWeight: 700, flexShrink: 0 }}>
+                {decidedCount} / {LAYER_ORDER.length} layers reviewed
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Completion bar */}
       <LayerCompletionBar summary={layerCompletionSummary} />
 
@@ -327,6 +436,11 @@ function Module1StoryLayer({
           {LAYER_ORDER.map((key) => {
             const isActive = activeLayer === key;
             const isPopulated = populated.includes(key);
+            const dec = decisions[key];
+            const isDecided = dec.status !== "undecided";
+            const isApproved = dec.status === "approved" || dec.status === "approved_with_comment";
+            const isRejected = dec.status === "rejected" || dec.status === "rejected_with_comment";
+            const dotColor = isDecided ? (isApproved ? P.green : "#D07070") : isPopulated ? P.green : P.ash;
             return (
               <button
                 key={key}
@@ -349,26 +463,166 @@ function Module1StoryLayer({
                 }}
               >
                 <span style={{ fontSize: 14, flexShrink: 0 }}>{LAYER_ICONS[key]}</span>
-                <span style={{ lineHeight: 1.3 }}>{LAYER_LABELS[key]}</span>
-                {!isPopulated && (
-                  <span style={{ marginLeft: "auto", width: 6, height: 6, borderRadius: "50%", background: P.ash, flexShrink: 0 }} />
-                )}
-                {isPopulated && (
-                  <span style={{ marginLeft: "auto", width: 6, height: 6, borderRadius: "50%", background: P.green, flexShrink: 0 }} />
-                )}
+                <span style={{ lineHeight: 1.3, flex: 1 }}>{LAYER_LABELS[key]}</span>
+                {/* Decision indicator */}
+                <span style={{
+                  marginLeft: "auto",
+                  width: 8,
+                  height: 8,
+                  borderRadius: "50%",
+                  background: dotColor,
+                  flexShrink: 0,
+                  outline: isDecided ? `2px solid ${dotColor}40` : "none",
+                }} />
               </button>
             );
           })}
         </div>
 
         {/* Active layer panel */}
-        <div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           <StoryLayerRenderer
             layerKey={activeLayer}
             data={currentData}
           />
+
+          {/* Per-layer decision bar — only shown at review gate */}
+          {atReviewGate && (
+            <Card>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10, marginBottom: 12 }}>
+                <div>
+                  <SectionLabel>Your decision — {LAYER_LABELS[activeLayer]}</SectionLabel>
+                  {currentDecision.status !== "undecided" && (
+                    <p style={{ margin: "4px 0 0", fontSize: 11, color: DECISION_COLORS[currentDecision.status], fontWeight: 600 }}>
+                      {DECISION_LABELS[currentDecision.status]}
+                      {currentDecision.comment ? ` — "${currentDecision.comment.slice(0, 60)}${currentDecision.comment.length > 60 ? "…" : ""}"` : ""}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {showCommentFor === activeLayer ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  <textarea
+                    value={pendingComment}
+                    onChange={(e) => setPendingComment(e.target.value)}
+                    placeholder="Add your comment or correction for this layer..."
+                    rows={3}
+                    autoFocus
+                    style={{
+                      width: "100%",
+                      background: P.surfaceAlt,
+                      border: `1px solid ${P.borderStrong}`,
+                      borderRadius: 8,
+                      padding: "10px 12px",
+                      fontSize: 13,
+                      color: P.bone,
+                      resize: "vertical" as const,
+                      fontFamily: "inherit",
+                      lineHeight: 1.5,
+                      outline: "none",
+                      boxSizing: "border-box" as const,
+                    }}
+                  />
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button
+                      onClick={() => confirmComment(activeLayer, decisions[activeLayer].status === "undecided" ?
+                        (pendingComment.trim() ? "approved_with_comment" : "approved") :
+                        decisions[activeLayer].status.includes("reject") ? "rejected_with_comment" : "approved_with_comment"
+                      )}
+                      style={{ padding: "8px 16px", borderRadius: 8, border: "none", background: P.gold, color: P.bg, fontSize: 12, fontWeight: 700, cursor: "pointer" }}
+                    >
+                      Save comment
+                    </button>
+                    <button
+                      onClick={() => { setShowCommentFor(null); setPendingComment(""); }}
+                      style={{ padding: "8px 16px", borderRadius: 8, border: `1px solid ${P.border}`, background: "transparent", color: P.boneAlt, fontSize: 12, cursor: "pointer" }}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  <button
+                    onClick={() => handleDecisionButton(activeLayer, "approved")}
+                    style={{
+                      padding: "9px 16px", borderRadius: 8,
+                      border: currentDecision.status === "approved" || currentDecision.status === "approved_with_comment" ? `2px solid ${P.green}` : `1px solid ${P.border}`,
+                      background: currentDecision.status === "approved" || currentDecision.status === "approved_with_comment" ? "rgba(52,168,83,0.14)" : "transparent",
+                      color: P.green, fontSize: 12, fontWeight: 600, cursor: "pointer",
+                    }}
+                  >
+                    ✓ Approve
+                  </button>
+                  <button
+                    onClick={() => handleDecisionButton(activeLayer, "approved_with_comment")}
+                    style={{
+                      padding: "9px 16px", borderRadius: 8,
+                      border: `1px solid ${P.border}`,
+                      background: "transparent",
+                      color: P.green, fontSize: 12, fontWeight: 600, cursor: "pointer",
+                    }}
+                  >
+                    ✓ Approve with comment
+                  </button>
+                  <button
+                    onClick={() => handleDecisionButton(activeLayer, "rejected")}
+                    style={{
+                      padding: "9px 16px", borderRadius: 8,
+                      border: currentDecision.status === "rejected" || currentDecision.status === "rejected_with_comment" ? "2px solid #D07070" : `1px solid ${P.border}`,
+                      background: currentDecision.status === "rejected" || currentDecision.status === "rejected_with_comment" ? "rgba(208,112,112,0.14)" : "transparent",
+                      color: "#D07070", fontSize: 12, fontWeight: 600, cursor: "pointer",
+                    }}
+                  >
+                    ✗ Reject
+                  </button>
+                  <button
+                    onClick={() => handleDecisionButton(activeLayer, "rejected_with_comment")}
+                    style={{
+                      padding: "9px 16px", borderRadius: 8,
+                      border: `1px solid ${P.border}`,
+                      background: "transparent",
+                      color: "#D07070", fontSize: 12, fontWeight: 600, cursor: "pointer",
+                    }}
+                  >
+                    ✗ Reject with comment
+                  </button>
+                </div>
+              )}
+            </Card>
+          )}
         </div>
       </div>
+
+      {/* Manual CTA if all decided but auto-advance hasn't fired */}
+      {atReviewGate && allDecided && (
+        <div style={{
+          background: "rgba(52,168,83,0.10)",
+          border: `1px solid rgba(52,168,83,0.40)`,
+          borderRadius: 12,
+          padding: "16px 20px",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          gap: 16,
+          flexWrap: "wrap",
+        }}>
+          <div>
+            <p style={{ margin: "0 0 4px", fontWeight: 700, fontSize: 13, color: P.green }}>All 8 layers reviewed</p>
+            <p style={{ margin: 0, fontSize: 12, color: P.boneAlt }}>Your layer decisions have been recorded. Proceed to the approval gate.</p>
+          </div>
+          <button
+            onClick={() => onAllLayersDecided(decisions)}
+            style={{
+              padding: "11px 24px", borderRadius: 10, border: "none",
+              background: P.gold, color: P.bg, fontSize: 13, fontWeight: 700, cursor: "pointer", flexShrink: 0,
+            }}
+          >
+            Continue to Review Gate →
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -381,6 +635,7 @@ function Module2ReviewGate({
   approved,
   hasHardFails,
   hardFails,
+  layerDecisions,
   approveLedgerAction,
   rejectLedgerAction,
 }: {
@@ -389,6 +644,7 @@ function Module2ReviewGate({
   approved: boolean;
   hasHardFails: boolean;
   hardFails: string[];
+  layerDecisions: Record<string, { status: string; comment: string }>;
   approveLedgerAction: (formData: FormData) => Promise<void>;
   rejectLedgerAction: (formData: FormData) => Promise<void>;
 }) {
@@ -583,6 +839,10 @@ function Module2ReviewGate({
               startTransition(async () => {
                 fd.set("author_notes", notes);
                 fd.set("edit_requests", editText);
+                // Attach per-layer decisions as JSON so they are preserved in the accepted ledger
+                if (Object.keys(layerDecisions).length > 0) {
+                  fd.set("layer_decisions", JSON.stringify(layerDecisions));
+                }
                 await approveLedgerAction(fd);
               });
             }}
@@ -987,6 +1247,8 @@ export function StoryLedgerShell(props: LedgerShellProps) {
   // Review Gate module is always one click away via the stepper.
   const defaultModule: ModuleId = approved ? "accepted_ledger" : "story_layer";
   const [active, setActive] = useState<ModuleId>(defaultModule);
+  // Stores per-layer decisions from Module 1 to pass into Module 2 approve form
+  const layerDecisionsRef = useRef<Record<string, { status: string; comment: string }>>({});
 
   // Determine which modules are "available" (not locked)
   const moduleAvailable: Record<ModuleId, boolean> = {
@@ -1135,6 +1397,13 @@ export function StoryLedgerShell(props: LedgerShellProps) {
             <Module1StoryLayer
               storyLayers={storyLayers}
               layerCompletionSummary={layerCompletionSummary}
+              atReviewGate={atReviewGate}
+              onAllLayersDecided={(decisions) => {
+                // Carry layer decisions into the review gate module via a ref
+                // so the author's per-layer notes are available in the approval form.
+                layerDecisionsRef.current = decisions;
+                setActive("review_gate");
+              }}
             />
           )}
           {active === "review_gate" && (
@@ -1144,6 +1413,7 @@ export function StoryLedgerShell(props: LedgerShellProps) {
               approved={approved}
               hasHardFails={hasHardFails}
               hardFails={hardFails}
+              layerDecisions={layerDecisionsRef.current}
               approveLedgerAction={approveLedgerAction}
               rejectLedgerAction={rejectLedgerAction}
             />
