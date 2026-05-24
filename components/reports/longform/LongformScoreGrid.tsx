@@ -15,7 +15,7 @@ function scoreBar(score: number | null) {
   if (score === null || score === undefined) {
     return (
       <div className="flex items-center gap-2">
-        <span className="w-8 text-right text-sm font-semibold tabular-nums text-gray-400">—</span>
+        <span className="w-8 text-right text-sm font-semibold tabular-nums text-gray-600">—</span>
         <div className="flex-1 h-2 rounded-full bg-gray-100" />
       </div>
     );

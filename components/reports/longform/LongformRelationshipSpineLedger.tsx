@@ -46,7 +46,7 @@ export default function LongformRelationshipSpineLedger({ doc }: Props) {
       {/* Relationship motifs from cross-layer integration */}
       {relationshipMotifs.length > 0 && (
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">
+          <p className="text-xs font-semibold uppercase tracking-wide text-gray-600 mb-2">
             Relationship engines &amp; bridge mechanisms
           </p>
           <div className="space-y-2">
@@ -80,7 +80,7 @@ export default function LongformRelationshipSpineLedger({ doc }: Props) {
       {/* Structural layers identified as relationship spines */}
       {relationshipLayers.length > 0 && (
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">
+          <p className="text-xs font-semibold uppercase tracking-wide text-gray-600 mb-2">
             Structural stack — relationship layers
           </p>
           <div className="space-y-2">
@@ -101,7 +101,7 @@ export default function LongformRelationshipSpineLedger({ doc }: Props) {
       {/* Revision plan items targeting relationship work */}
       {relationshipRevisions.length > 0 && (
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">
+          <p className="text-xs font-semibold uppercase tracking-wide text-gray-600 mb-2">
             Revision priorities — relationship spine
           </p>
           <div className="space-y-2">

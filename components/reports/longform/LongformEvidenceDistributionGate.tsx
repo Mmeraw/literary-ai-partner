@@ -64,7 +64,7 @@ export default function LongformEvidenceDistributionGate({ doc }: Props) {
       {/* Confidence distribution summary */}
       {criteriaWithConfidence.length > 0 && (
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">
+          <p className="text-xs font-semibold uppercase tracking-wide text-gray-600 mb-2">
             Confidence distribution — all 13 criteria
           </p>
           <div className="flex gap-2 flex-wrap mb-3">
@@ -106,7 +106,7 @@ export default function LongformEvidenceDistributionGate({ doc }: Props) {
                       {c.confidence}
                     </span>
                   </div>
-                  <span className="text-gray-500">{c.score}/10</span>
+                  <span className="text-gray-700">{c.score}/10</span>
                   {c.hasDistributionGap && (
                     <p className="text-amber-700 mt-0.5 font-medium">⚠ evidence gap flagged</p>
                   )}
@@ -189,7 +189,7 @@ export default function LongformEvidenceDistributionGate({ doc }: Props) {
       {/* Calibration notes on evidence */}
       {distributionNotes.length > 0 && (
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">
+          <p className="text-xs font-semibold uppercase tracking-wide text-gray-600 mb-2">
             Calibration notes — evidence coverage
           </p>
           <ul className="space-y-1">

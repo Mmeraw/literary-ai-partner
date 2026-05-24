@@ -55,7 +55,7 @@ export default function LongformReleasability({ doc }: Props) {
         <div className="grid sm:grid-cols-2 gap-4">
           {(checks.required_detection?.length ?? 0) > 0 && (
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">
+              <p className="text-xs font-semibold uppercase tracking-wide text-gray-600 mb-2">
                 Required detection
               </p>
               <ul className="space-y-1">
@@ -70,7 +70,7 @@ export default function LongformReleasability({ doc }: Props) {
           )}
           {(checks.failure_conditions?.length ?? 0) > 0 && (
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">
+              <p className="text-xs font-semibold uppercase tracking-wide text-gray-600 mb-2">
                 Failure conditions
               </p>
               <ul className="space-y-1">

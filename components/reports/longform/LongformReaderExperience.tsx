@@ -8,7 +8,7 @@ function ActCard({ label, block }: { label: string; block: ActBlock }) {
   if (!block) return null;
   return (
     <div className="rounded-lg border border-gray-200 p-4 space-y-2">
-      <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">{label}</p>
+      <p className="text-xs font-semibold uppercase tracking-wide text-gray-600">{label}</p>
       {block.reader_question && (
         <p className="text-sm text-gray-800">
           <span className="font-medium">Question:</span> {block.reader_question}
@@ -41,7 +41,7 @@ export default function LongformReaderExperience({ doc }: Props) {
       </div>
       {rx.aftertaste && (
         <p className="text-sm text-gray-700 italic border-l-4 border-indigo-200 pl-3">
-          <span className="not-italic font-medium text-gray-500">Aftertaste: </span>
+          <span className="not-italic font-medium text-gray-700">Aftertaste: </span>
           {rx.aftertaste}
         </p>
       )}

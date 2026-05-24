@@ -507,7 +507,7 @@ export default async function EvaluationReportPage({
           <h1 className="text-3xl font-bold text-gray-900">Evaluation Report</h1>
           <p className="mt-1 text-lg font-semibold text-gray-900">{displayTitle}</p>
           <p className="mt-1 text-sm text-gray-700">
-            Job ID: <span className="font-mono">{job.id}</span>
+            Job ID: <span className="font-mono text-gray-900">{job.id}</span>
           </p>
           {manuscriptTitle && chapterTitle && manuscriptTitle !== chapterTitle && (
             <p className="mt-1 text-sm text-gray-700">
@@ -679,7 +679,7 @@ export default async function EvaluationReportPage({
             <ul className="mt-3 space-y-2 text-sm text-gray-700">
               {buildTopRecommendations(artifact).map((r, i) => (
                 <li key={i} className="flex gap-2">
-                  <span className="mt-0.5 shrink-0 text-gray-400">•</span>
+                  <span className="mt-0.5 shrink-0 text-gray-600">•</span>
                   <span>{r}</span>
                 </li>
               ))}
@@ -731,7 +731,7 @@ export default async function EvaluationReportPage({
                           );
                         })()}
                         {criterionStatusLabel(c) && (
-                          <p className="mt-2 text-xs font-medium text-gray-500">{criterionStatusLabel(c)}</p>
+                          <p className="mt-2 text-xs font-medium text-gray-700">{criterionStatusLabel(c)}</p>
                         )}
                         {(() => {
                           const rationalePresentation = getCriterionRationalePresentation(c, c.rationale);
@@ -749,7 +749,7 @@ export default async function EvaluationReportPage({
                           );
                         })()}
                         {!isScorableCriterion(c) && c.insufficient_signal_reason && (
-                          <div className="mt-2 text-xs text-gray-500 space-y-1">
+                          <div className="mt-2 text-xs text-gray-700 space-y-1">
                             {Array.isArray(c.insufficient_signal_reason.looked_for) && c.insufficient_signal_reason.looked_for.length > 0 && (
                               <p><span className="font-medium">Looked for:</span> {c.insufficient_signal_reason.looked_for.join(", ")}</p>
                             )}
@@ -760,7 +760,7 @@ export default async function EvaluationReportPage({
                         )}
                         {c.recommendations && c.recommendations.length > 0 && (
                           <div className="mt-3">
-                            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Recommendations:</p>
+                            <p className="text-xs font-semibold uppercase tracking-wide text-gray-600">Recommendations:</p>
                             <ul className="mt-2 space-y-2">
                               {c.recommendations.map((r, ri) => (
                                 <li key={ri} className="text-sm text-gray-700">
@@ -772,7 +772,7 @@ export default async function EvaluationReportPage({
                                     }`}>({r.priority})</span>
                                   )}
                                   {r.expected_impact && (
-                                    <span className="ml-1 text-xs text-gray-400">— {r.expected_impact}</span>
+                                    <span className="ml-1 text-xs text-gray-600">— {r.expected_impact}</span>
                                   )}
                                 </li>
                               ))}
@@ -801,7 +801,7 @@ export default async function EvaluationReportPage({
                   Weighted composite {artifact.governance.transparency.score_ledger.normalized_total} / 10,{" "}
                   Weighting {artifact.governance.transparency.score_ledger.weighting}
                 </p>
-                <p className="mt-1 text-[11px] text-gray-500">
+                <p className="mt-1 text-[11px] text-gray-700">
                   Weighted composite is the canonical 0–10 score (weighted across 13 criteria). The Overall Score above is the same value rescaled to 0–100 for ease of reading.
                 </p>
               </div>
@@ -816,7 +816,7 @@ export default async function EvaluationReportPage({
               </div>
             )}
 
-            <p className="mt-3 text-xs text-gray-500">
+            <p className="mt-3 text-xs text-gray-700">
               Generated: {artifact.generated_at ? new Date(artifact.generated_at).toLocaleString() : "N/A"}
             </p>
           </section>
@@ -853,26 +853,26 @@ export default async function EvaluationReportPage({
             <div className="mt-3 space-y-2 text-sm">
               <div>
                 <span className="text-gray-700 font-medium">Engine:</span>{" "}
-                <span className="font-mono">{(artifact as any).engine?.model || "unknown"}</span>
+                <span className="font-mono text-gray-900">{(artifact as any).engine?.model || "unknown"}</span>
               </div>
               <div>
                 <span className="text-gray-700 font-medium">Provider:</span>{" "}
-                <span className="font-mono">{(artifact as any).engine?.provider || "unknown"}</span>
+                <span className="font-mono text-gray-900">{(artifact as any).engine?.provider || "unknown"}</span>
               </div>
               <div>
-                <span className="text-gray-600">Prompt Version:</span>{" "}
-                <span className="font-mono">{(artifact as any).engine?.prompt_version || "unknown"}</span>
+                <span className="text-gray-700 font-medium">Prompt Version:</span>{" "}
+                <span className="font-mono text-gray-900">{(artifact as any).engine?.prompt_version || "unknown"}</span>
               </div>
               {artifact.governance?.confidence && (
                 <div>
-                  <span className="text-gray-600">Confidence:</span>{" "}
+                  <span className="text-gray-700 font-medium">Confidence:</span>{" "}
                   <span className="font-medium">{(artifact.governance.confidence * 100).toFixed(0)}%</span>
                 </div>
               )}
               {artifact.governance?.limitations && artifact.governance.limitations.length > 0 && (
                 <div className="mt-3 pt-3 border-t">
-                  <p className="text-xs font-medium text-gray-500 mb-1">Limitations:</p>
-                  <ul className="list-disc pl-5 text-xs text-gray-600 space-y-1">
+                  <p className="text-xs font-medium text-gray-700 mb-1">Limitations:</p>
+                  <ul className="list-disc pl-5 text-xs text-gray-800 space-y-1">
                     {artifact.governance.limitations.map((limitation, i) => (
                       <li key={i}>{limitation}</li>
                     ))}
