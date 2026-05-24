@@ -10,6 +10,7 @@ import { formatRelativeTime, formatDuration } from "../../lib/ui/time-helpers";
 import { getPhaseSpecificCopy } from "../../lib/ui/phase-helpers";
 import ManuscriptSubmissionForm from "./ManuscriptSubmissionForm";
 import PurgeJobsButton from "./PurgeJobsButton";
+import PhaseBreadcrumb from "./PhaseBreadcrumb";
 import CompletionBanner from "./CompletionBanner";
 import { CancelEvaluationButton } from "./CancelEvaluationButton";
 
@@ -154,8 +155,8 @@ export default function EvaluateEntry() {
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Result
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Eval Stage
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{minWidth: "380px"}}>
+                        Pipeline — Entered &amp; Passed
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Activity
@@ -220,8 +221,12 @@ export default function EvaluateEntry() {
                               {statusBadge.label}
                             </span>
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {displayInfo.phaseDetail.display || "—"}
+                          <td className="px-6 py-4 text-sm text-gray-500" style={{minWidth: "380px"}}>
+                            <PhaseBreadcrumb
+                              phaseLog={job.progress?.phase_log ?? []}
+                              job={job}
+                              compact={true}
+                            />
                           </td>
                           <td className="px-6 py-4 text-sm">
                             <div className="text-gray-900">{progressMessage}</div>

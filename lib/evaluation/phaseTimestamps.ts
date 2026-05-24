@@ -2,15 +2,16 @@
  * Single source of truth for phase → DB timestamp column mapping.
  *
  * The evaluation_jobs table physically has these timestamp columns:
- *   - phase1_started_at     (written when phase_1a begins running)
- *   - phase1_completed_at   (written when phase_1a finishes / phase_2 begins)
- *   - phase2_started_at     (written when phase_2 begins running)
- *   - phase2_completed_at   (written when phase_2 finishes)
- *
- * The following do NOT exist as DB columns and must NEVER be written
- * in top-level Supabase update payloads (progress JSONB only):
- *   - phase1a_started_at, phase1a_completed_at
- *   - phase3_started_at,  phase3_completed_at
+ *   - phase0_started_at       (written when phase_0 calibration begins)
+ *   - phase0_completed_at     (written when phase_0 calibration completes)
+ *   - phase1_started_at       (written when phase_1a begins running)
+ *   - phase1_completed_at     (written when phase_1a finishes)
+ *   - review_gate_entered_at  (written when job enters awaiting_approval)
+ *   - review_gate_passed_at   (written when author approves / gate passes)
+ *   - phase2_started_at       (written when phase_2 begins running)
+ *   - phase2_completed_at     (written when phase_2 finishes)
+ *   - phase3_started_at       (written when phase_3 begins running)
+ *   - phase3_completed_at     (written when phase_3 finishes / job complete)
  *
  * Generated / computed columns that must NEVER be written directly:
  *   - lease_expires_at  (GENERATED ALWAYS AS (lease_until) — write lease_until instead)
@@ -23,14 +24,20 @@
  * It strips forbidden columns at the boundary so they can never reach Supabase.
  */
 
-export type PhaseName = 'phase_1a' | 'phase_2' | 'phase_3';
+export type PhaseName = 'phase_0' | 'phase_1a' | 'review_gate' | 'phase_2' | 'phase_3';
 
 /** Columns that physically exist on evaluation_jobs for phase timestamps. */
 export const PHASE_TIMESTAMP_COLUMNS = [
+  'phase0_started_at',
+  'phase0_completed_at',
   'phase1_started_at',
   'phase1_completed_at',
+  'review_gate_entered_at',
+  'review_gate_passed_at',
   'phase2_started_at',
   'phase2_completed_at',
+  'phase3_started_at',
+  'phase3_completed_at',
 ] as const;
 
 export type PhaseTimestampColumn = (typeof PHASE_TIMESTAMP_COLUMNS)[number];
@@ -38,7 +45,7 @@ export type PhaseTimestampColumn = (typeof PHASE_TIMESTAMP_COLUMNS)[number];
 export type PhaseTimestampPatch = Partial<Record<PhaseTimestampColumn, string>>;
 
 /**
- * Returns the DB column patch to write when a phase transitions to RUNNING.
+ * Returns the DB column patch to write when a phase transitions to RUNNING / ENTERED.
  * Only returns columns that physically exist on evaluation_jobs.
  */
 export function getPhaseStartTimestamps(
@@ -46,8 +53,12 @@ export function getPhaseStartTimestamps(
   nowIso: string,
 ): PhaseTimestampPatch {
   switch (phase) {
+    case 'phase_0':
+      return { phase0_started_at: nowIso };
     case 'phase_1a':
       return { phase1_started_at: nowIso };
+    case 'review_gate':
+      return { review_gate_entered_at: nowIso };
     case 'phase_2':
       // Stamp phase1_completed_at defensively in case the phase_1a terminal
       // write was missed; phase2_started_at is the canonical running mark.
@@ -56,8 +67,7 @@ export function getPhaseStartTimestamps(
         phase2_started_at: nowIso,
       };
     case 'phase_3':
-      // phase_3 has no DB timestamp columns — progress JSONB only.
-      return {};
+      return { phase3_started_at: nowIso };
     default: {
       const _exhaustive: never = phase;
       void _exhaustive;
@@ -67,7 +77,7 @@ export function getPhaseStartTimestamps(
 }
 
 /**
- * Returns the DB column patch to write when a phase transitions to COMPLETE.
+ * Returns the DB column patch to write when a phase transitions to COMPLETE / PASSED.
  * Only returns columns that physically exist on evaluation_jobs.
  */
 export function getPhaseCompleteTimestamps(
@@ -75,13 +85,16 @@ export function getPhaseCompleteTimestamps(
   nowIso: string,
 ): PhaseTimestampPatch {
   switch (phase) {
+    case 'phase_0':
+      return { phase0_completed_at: nowIso };
     case 'phase_1a':
       return { phase1_completed_at: nowIso };
+    case 'review_gate':
+      return { review_gate_passed_at: nowIso };
     case 'phase_2':
       return { phase2_completed_at: nowIso };
     case 'phase_3':
-      // phase_3 has no DB timestamp columns — progress JSONB only.
-      return {};
+      return { phase3_completed_at: nowIso };
     default: {
       const _exhaustive: never = phase;
       void _exhaustive;
@@ -100,16 +113,13 @@ export function getPhaseCompleteTimestamps(
  * - lease_expires_at : GENERATED ALWAYS AS (lease_until) — Postgres rejects any attempt
  *   to write it directly with error 42601.
  * - phase1a_started_at / phase1a_completed_at : do not exist as DB columns.
- * - phase3_started_at  / phase3_completed_at  : do not exist as DB columns.
  *
- * These are tracked in progress JSONB only.
+ * These are tracked in progress JSONB only if needed.
  */
 export const FORBIDDEN_PATCH_COLUMNS = [
   'lease_expires_at',
   'phase1a_started_at',
   'phase1a_completed_at',
-  'phase3_started_at',
-  'phase3_completed_at',
 ] as const;
 
 export type ForbiddenPatchColumn = (typeof FORBIDDEN_PATCH_COLUMNS)[number];
@@ -120,12 +130,6 @@ export type ForbiddenPatchColumn = (typeof FORBIDDEN_PATCH_COLUMNS)[number];
  * Call this on every object passed to `.update()` on evaluation_jobs.
  * The return type omits forbidden keys so TypeScript catches attempted
  * re-additions at compile time.
- *
- * Usage:
- *   const { error } = await supabase
- *     .from('evaluation_jobs')
- *     .update(buildWritablePatch({ status: 'running', lease_until: now, ... }))
- *     .eq('id', jobId);
  */
 export function buildWritablePatch<T extends Record<string, unknown>>(
   patch: T,
@@ -136,7 +140,6 @@ export function buildWritablePatch<T extends Record<string, unknown>>(
     if (!forbidden.has(key)) {
       result[key] = value;
     } else {
-      // Hard warning so it's visible in Vercel logs if someone slips one in.
       console.warn(
         `[buildWritablePatch] Stripped forbidden column "${key}" from evaluation_jobs update patch. ` +
         'This column must not be written as a top-level DB column. ' +
