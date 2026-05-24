@@ -4319,7 +4319,7 @@ export async function processEvaluationJob(
         // CANONICAL transition: phase_1a → review_gate
         // - status remains 'queued' (JobStatus canonical set) so DB constraints hold
         // - phase='review_gate' is NOT claimed by claim_evaluation_jobs RPC
-        //   (ClaimedJobPhaseSchema only accepts phase_1a | phase_2 | phase_3)
+        //   (ClaimedJobPhaseSchema accepts phase_0 | phase_1a | phase_2 | phase_3)
         // - phase_status='awaiting_approval' is the human-readable gate state
         // Worker will never re-claim this job until Review Gate sets phase='phase_2'
         const { data: phase1aHandoffRow, error: phase1aHandoffErr } = await supabase
