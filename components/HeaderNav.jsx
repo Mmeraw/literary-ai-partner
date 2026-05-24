@@ -20,6 +20,15 @@ import { isPipelineHealthAdminEmail } from "@/lib/admin/pipelineHealthAllowlist"
 
 // ── Dropdown configs ──────────────────────────────────────────────────────────
 
+const storygateLinks = [
+  ["Overview",              "/storygate-studio"],
+  ["Prepare a Project",    "/storygate-studio/apply"],
+  ["Request Industry Access", "/storygate-studio/industry"],
+  ["Agent Dashboard",      "/storygate-studio/industry/dashboard"],
+];
+
+const storygateActiveHref = "/storygate-studio";
+
 const resourceLinks = [
   ["The Black Box Problem", "/black-box-problem"],
   ["FAQs", "/resources"],
@@ -54,12 +63,14 @@ export default function HeaderNav() {
 
   const resourcesMenuRef = useRef(null);
   const arpMenuRef       = useRef(null);
+  const sgMenuRef        = useRef(null);
 
-  const [authState,    setAuthState]    = useState("loading");
-  const [email,        setEmail]        = useState(null);
-  const [signingOut,   setSigningOut]   = useState(false);
+  const [authState,     setAuthState]    = useState("loading");
+  const [email,         setEmail]        = useState(null);
+  const [signingOut,    setSigningOut]   = useState(false);
   const [resourcesOpen, setResourcesOpen] = useState(false);
   const [arpOpen,       setArpOpen]       = useState(false);
+  const [sgOpen,        setSgOpen]        = useState(false);
 
   const isAdmin  = isPipelineHealthAdminEmail(email);
   const isAuthed = authState === "authed";
@@ -83,13 +94,14 @@ export default function HeaderNav() {
 
   // ── Dropdown outside-click / Escape ────────────────────────────────────────
   useEffect(() => {
-    if (!resourcesOpen && !arpOpen) return;
+    if (!resourcesOpen && !arpOpen && !sgOpen) return;
     function handlePointerDown(e) {
       if (resourcesOpen && resourcesMenuRef.current && !resourcesMenuRef.current.contains(e.target)) setResourcesOpen(false);
       if (arpOpen      && arpMenuRef.current       && !arpMenuRef.current.contains(e.target))       setArpOpen(false);
+      if (sgOpen       && sgMenuRef.current        && !sgMenuRef.current.contains(e.target))        setSgOpen(false);
     }
     function handleKeyDown(e) {
-      if (e.key === "Escape") { setResourcesOpen(false); setArpOpen(false); }
+      if (e.key === "Escape") { setResourcesOpen(false); setArpOpen(false); setSgOpen(false); }
     }
     document.addEventListener("pointerdown", handlePointerDown);
     document.addEventListener("keydown", handleKeyDown);
@@ -97,7 +109,7 @@ export default function HeaderNav() {
       document.removeEventListener("pointerdown", handlePointerDown);
       document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [resourcesOpen, arpOpen]);
+  }, [resourcesOpen, arpOpen, sgOpen]);
 
   // ── Sign out ───────────────────────────────────────────────────────────────
   async function handleSignOut() {
@@ -145,12 +157,12 @@ export default function HeaderNav() {
           <NavLink href="/evaluate">Evaluate</NavLink>
           <NavLink href="/revise">Revise</NavLink>
 
-          {/* Agent Readiness Package™ dropdown (auth-gated) */}
-          {isAuthed && (
+          {/* Agent Readiness Package™ dropdown — authed: full menu; anon: overview link */}
+          {isAuthed ? (
             <div className="relative" ref={arpMenuRef}>
               <button
                 type="button"
-                onClick={() => { setArpOpen((v) => !v); setResourcesOpen(false); }}
+                onClick={() => { setArpOpen((v) => !v); setResourcesOpen(false); setSgOpen(false); }}
                 className={arpActive ? activeLinkCls : linkCls}
                 aria-expanded={arpOpen}
                 aria-haspopup="menu"
@@ -168,10 +180,32 @@ export default function HeaderNav() {
                 </div>
               )}
             </div>
+          ) : (
+            <NavLink href="/agent-readiness">Agent Readiness&#8482;</NavLink>
           )}
 
-          {/* Storygate Studio™ top-level link (auth-gated) */}
-          {isAuthed && <NavLink href="/storygate-studio">Storygate Studio&#8482;</NavLink>}
+          {/* Storygate Studio™ dropdown — visible to all users */}
+          <div className="relative" ref={sgMenuRef}>
+            <button
+              type="button"
+              onClick={() => { setSgOpen((v) => !v); setArpOpen(false); setResourcesOpen(false); }}
+              className={(pathname === storygateActiveHref || pathname.startsWith(storygateActiveHref + "/") || pathname.startsWith("/storygate")) ? activeLinkCls : linkCls}
+              aria-expanded={sgOpen}
+              aria-haspopup="menu"
+              aria-controls="sg-menu"
+            >
+              Storygate Studio&#8482;
+            </button>
+            {sgOpen && (
+              <div id="sg-menu" className={`${dropdownCls} w-64`} role="menu">
+                {storygateLinks.map(([label, href]) => (
+                  <Link key={href} href={href} role="menuitem" onClick={() => setSgOpen(false)} className={dropdownItemCls}>
+                    {label}
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
 
           {/* Resources dropdown */}
           <div className="relative" ref={resourcesMenuRef}>

@@ -115,6 +115,98 @@ export default function Home() {
           <div className="border border-rg-cream2/12 bg-rg-ink2/60 p-8"><SectionLabel>Conversion surface</SectionLabel><h2 className="mt-4 font-rg-serif text-4xl text-rg-cream">Pricing and resources must be routes, not dead anchors.</h2><p className="mt-5 leading-7 text-rg-cream2/75">Every public navigation destination should be shareable, crawlable, and inside the same app shell as Evaluate and Revise.</p><div className="mt-7 flex flex-wrap gap-4 font-rg-mono text-xs uppercase tracking-[0.18em]"><Link href="/pricing" className="text-rg-gold hover:text-rg-cream">Pricing →</Link><Link href="/resources" className="text-rg-gold hover:text-rg-cream">Resources →</Link></div></div>
         </div>
       </section>
+
+      {/* ── AGENT READINESS PACKAGE™ ────────────────────────────────── */}
+      <section className="border-t border-rg-cream2/10 bg-rg-ink2/50">
+        <div className="mx-auto max-w-7xl px-6 py-20">
+          <div className="grid gap-12 lg:grid-cols-[1fr_1fr] items-start">
+            <div>
+              <SectionLabel>Agent Readiness Package™</SectionLabel>
+              <h2 className="mt-4 font-rg-serif text-4xl text-rg-cream md:text-5xl leading-tight">
+                One manuscript. One professional submission package.
+              </h2>
+              <p className="mt-6 text-base leading-7 text-rg-cream2/75">
+                Generate your query letter, synopsis, elevator pitch, comparables, market positioning, and author bio — then approve each section before export. Built for authors who are ready to submit, not authors who are still drafting.
+              </p>
+              <div className="mt-8 flex flex-wrap gap-4">
+                <Link href="/agent-readiness" className="border border-rg-gold bg-rg-gold px-5 py-3 font-rg-mono text-xs uppercase tracking-[0.18em] text-rg-ink transition hover:bg-transparent hover:text-rg-gold">
+                  Build My Package
+                </Link>
+                <Link href="/agent-readiness" className="border border-rg-cream2/30 px-5 py-3 font-rg-mono text-xs uppercase tracking-[0.18em] text-rg-cream transition hover:border-rg-gold hover:text-rg-gold">
+                  See What&apos;s Included
+                </Link>
+              </div>
+            </div>
+            <div className="grid gap-3">
+              {[
+                ["01", "Query Letter", "Hook, metadata, comparables, differentiator, and bio. 450-word hard cap."],
+                ["02", "Synopsis", "Query (100–150 words), standard (250–500), or extended (700–1,000)."],
+                ["03", "Elevator Pitch", "One sentence. Suitable for query forms, verbal pitching, and metadata."],
+                ["04", "Comparables & Positioning", "2–4 comps with rationale and Agent Appeal Brief."],
+                ["05", "Author Bio", "Third-person, professional. Author-supplied credentials only."],
+                ["06", "Package History / Export", "Approve all sections, then export as DOCX or copy."],
+              ].map(([num, title, desc]) => (
+                <div key={num} className="flex items-start gap-4 border border-rg-cream2/10 bg-rg-ink px-4 py-3">
+                  <span className="font-rg-mono text-xs text-rg-gold shrink-0 mt-0.5">{num}</span>
+                  <div>
+                    <p className="font-rg-mono text-xs uppercase tracking-[0.1em] text-rg-cream">{title}</p>
+                    <p className="mt-1 font-rg-mono text-[0.6875rem] text-rg-cream2/60 leading-5">{desc}</p>
+                  </div>
+                </div>
+              ))}
+              <div className="flex items-start gap-4 border border-rg-cream2/10 bg-rg-ink px-4 py-3 opacity-50">
+                <span className="font-rg-mono text-xs text-rg-gold shrink-0 mt-0.5">07</span>
+                <div>
+                  <p className="font-rg-mono text-xs uppercase tracking-[0.1em] text-rg-cream2/60">Agent Targeting™ — Coming Next</p>
+                  <p className="mt-1 font-rg-mono text-[0.6875rem] text-rg-cream2/40 leading-5">Find target agents. Generate agent-specific query variants.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── STORYGATE STUDIO™ ─────────────────────────────────────── */}
+      <section className="border-t border-rg-cream2/10">
+        <div className="mx-auto max-w-7xl px-6 py-20">
+          <div className="grid gap-12 lg:grid-cols-[1fr_1fr] items-start">
+            <div>
+              <SectionLabel>Storygate Studio™</SectionLabel>
+              <h2 className="mt-4 font-rg-serif text-4xl text-rg-cream md:text-5xl leading-tight">
+                A curated access layer for readiness-vetted projects.
+              </h2>
+              <p className="mt-6 text-base leading-7 text-rg-cream2/75">
+                Projects that clear the 8.0 readiness threshold can enter Storygate Studio — a controlled environment where verified industry professionals request access to specific manuscripts, screenplays, and adaptation packages.
+              </p>
+              <p className="mt-3 text-sm leading-7 text-rg-cream2/60">
+                No public marketplace. No cold outreach. Access is requested, approved by the creator, and logged.
+              </p>
+              <div className="mt-8 flex flex-wrap gap-4">
+                <Link href="/storygate-studio" className="border border-rg-gold bg-rg-gold px-5 py-3 font-rg-mono text-xs uppercase tracking-[0.18em] text-rg-ink transition hover:bg-transparent hover:text-rg-gold">
+                  Learn About Storygate
+                </Link>
+                <Link href="/storygate-studio/industry" className="border border-rg-cream2/30 px-5 py-3 font-rg-mono text-xs uppercase tracking-[0.18em] text-rg-cream transition hover:border-rg-gold hover:text-rg-gold">
+                  Industry Access
+                </Link>
+              </div>
+            </div>
+            <div className="grid gap-3">
+              {[
+                ["Verified Access Only",       "Industry users are approved before viewing any project materials."],
+                ["Creator-Controlled Visibility", "Creators decide what is visible and to whom. Access requires their approval."],
+                ["8.0+ Readiness Gate",        "Projects must clear a minimum readiness threshold before eligibility."],
+                ["Logged Activity",             "All access events are recorded and append-only. No anonymous actions."],
+                ["Not a Marketplace",           "No public search. No cold contact. No fee to submit your project."],
+              ].map(([title, desc]) => (
+                <div key={title} className="border border-rg-cream2/10 bg-rg-ink2/60 px-5 py-4">
+                  <p className="font-rg-mono text-xs uppercase tracking-[0.1em] text-rg-gold">{title}</p>
+                  <p className="mt-1 text-sm text-rg-cream2/65 leading-6">{desc}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
     </div>
   );
 }
