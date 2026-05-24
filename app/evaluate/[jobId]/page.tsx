@@ -11,7 +11,7 @@ import {
   type EvaluationScope,
   type CriterionKey,
 } from "@/schemas/criteria-keys";
-import { EvaluationPoller } from "@/components/EvaluationPoller";
+import { EvaluationPoller, type JobState } from "@/components/EvaluationPoller";
 import {
   buildTopRecommendations,
   normalizeRecommendationActionForDisplay,
@@ -468,6 +468,13 @@ export default async function EvaluationReportPage({
     progress: calculateProgressPercentage(job),
     created_at: job.created_at ?? new Date(0).toISOString(),
     updated_at: job.updated_at ?? new Date(0).toISOString(),
+    // Seed phase/phase_status so the poller renders the correct label
+    // and percentage immediately, without waiting for the first API poll.
+    ...(job.phase != null ? { phase: job.phase as JobState['phase'] } : {}),
+    ...(job.phase_status != null ? { phase_status: job.phase_status as JobState['phase_status'] } : {}),
+    // Seed unit counters for accurate early/late phase_1a label selection.
+    ...(typeof job.total_units === 'number' ? { total_units: job.total_units } : {}),
+    ...(typeof job.completed_units === 'number' ? { completed_units: job.completed_units } : {}),
     ...(job.last_error ? { last_error: job.last_error } : {}),
   };
   const artifactCriteria = artifact?.criteria ?? [];

@@ -43,7 +43,11 @@ export interface JobState {
   // from the smoothly-animated visual progress bar.
   phase?: 'phase_0' | 'phase_1a' | 'review_gate' | 'phase_2' | 'phase_3' | 'wave_revision' | null;
   phase_status?: 'queued' | 'running' | 'complete' | 'failed' | 'awaiting_approval' | null;
-  cross_check_status?:
+  // Raw unit counters — used to compute the within-phase fraction for
+  // early vs late phase_1a label selection. Additive; absent on older jobs.
+  total_units?: number | null;
+  completed_units?: number | null;
+  cross_check_status?
     | 'queued'
     | 'running'
     | 'complete'
@@ -277,6 +281,8 @@ export function EvaluationPoller({
             prev.last_error === nextJob.last_error &&
             prev.phase === nextJob.phase &&
             prev.phase_status === nextJob.phase_status &&
+            prev.total_units === nextJob.total_units &&
+            prev.completed_units === nextJob.completed_units &&
             prev.cross_check_status === nextJob.cross_check_status &&
             prev.phase1_started_at === nextJob.phase1_started_at &&
             prev.phase1_completed_at === nextJob.phase1_completed_at &&
@@ -498,11 +504,11 @@ export function EvaluationPoller({
             phase: job.phase ?? null,
             phase_status: job.phase_status ?? null,
             cross_check_status: job.cross_check_status ?? null,
-            // Early vs late phase_1a: derive fraction from total/completed units
+            // Early vs late phase_1a: use the top-level total_units/completed_units
+            // fields returned by the API (not the rolled-up numeric progress percentage).
             phase_unit_fraction: (() => {
-              const p = job as unknown as { progress?: { total_units?: unknown; completed_units?: unknown } };
-              const total = typeof p.progress?.total_units === 'number' ? p.progress.total_units : null;
-              const done = typeof p.progress?.completed_units === 'number' ? p.progress.completed_units : null;
+              const total = typeof job.total_units === 'number' ? job.total_units : null;
+              const done = typeof job.completed_units === 'number' ? job.completed_units : null;
               if (total && total > 0 && done !== null) return done / total;
               return null;
             })(),
