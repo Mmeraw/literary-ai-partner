@@ -74,6 +74,8 @@ export interface EvaluationRuntimeConfig {
     invocationBudgetMs: number;
     /** Do not start another chunk unless this many ms remain in the budget. Default: 10000ms. */
     safetyMarginMs: number;
+    /** runPass3Preflight chunk concurrency. Default: 1 (conservative — preflight self-chains on budget timeout). */
+    preflightConcurrency: number;
   };
   auth: {
     cronSecret: string;
@@ -405,6 +407,7 @@ export function resolveEvaluationRuntimeConfig(
       concurrency: parseBoundedInteger(env, "EVAL_PHASE1A_CONCURRENCY", { defaultValue: 1, min: 1, max: 5 }),
       invocationBudgetMs: parseBoundedInteger(env, "EVAL_PHASE1A_INVOCATION_BUDGET_MS", { defaultValue: 45_000, min: 10_000, max: 600_000 }),
       safetyMarginMs: parseBoundedInteger(env, "EVAL_PHASE1A_SAFETY_MARGIN_MS", { defaultValue: 10_000, min: 3_000, max: 30_000 }),
+      preflightConcurrency: parseBoundedInteger(env, "EVAL_PHASE1A_PREFLIGHT_CONCURRENCY", { defaultValue: 1, min: 1, max: 5 }),
     },
     auth: {
       cronSecret: env.CRON_SECRET || "",

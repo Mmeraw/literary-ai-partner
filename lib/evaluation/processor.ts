@@ -4488,15 +4488,42 @@ export async function processEvaluationJob(
             .eq('status', JOB_STATUS.RUNNING);
         }
 
-        // ── 5. Pass3 Preflight — runs ONCE after all chunks complete ─────
-        // Guard: skip if preflight already completed on a prior invocation.
+        // ── 5. Pass3 Preflight — resumable 4-state machine ───────────────
+        // States: NOT_STARTED → IN_PROGRESS → DONE (happy path)
+        //         IN_PROGRESS (stale, prior invocation crashed) → reset to NOT_STARTED → re-run
+        //         SELF_CHAINED (budget expired prior invocation) → re-run from start
+        //         DONE → skip block
+        //
+        // Both inputs to runPass3Preflight are durable committed artifacts
+        // (pass1a_chunk_cache_v1 + Phase 0 Gold Primer calibration), so
+        // re-running from scratch is always safe — Phase 0 is never re-run.
         let pass3aResult: Awaited<ReturnType<typeof runPass3Preflight>> | null = null;
 
-        if (preflightStatus !== 'COMPLETE') {
-          console.log(`[phase_1a] ${jobId}: running Pass3 preflight (once, post-all-chunks)`);
+        // Normalize legacy values: 'RUNNING' → 'IN_PROGRESS', 'COMPLETE' → 'DONE'.
+        const normalizedPreflightStatus =
+          preflightStatus === 'RUNNING' ? 'IN_PROGRESS'
+          : preflightStatus === 'COMPLETE' ? 'DONE'
+          : preflightStatus;
+
+        if (normalizedPreflightStatus === 'DONE') {
+          console.log(`[phase_1a] ${jobId}: preflight already DONE — loading from artifact`);
+          // Preflight artifact already persisted by runPass3Preflight on prior invocation.
+          // pass3aResult stays null — ledger assembly below handles this gracefully.
+        } else {
+          // IN_PROGRESS (crashed) / SELF_CHAINED / NOT_STARTED → run preflight.
+          const isCrashRecovery = normalizedPreflightStatus === 'IN_PROGRESS';
+          const isSelfChainResume = normalizedPreflightStatus === 'SELF_CHAINED';
+          if (isCrashRecovery) {
+            console.log(`[phase_1a] ${jobId}: preflight IN_PROGRESS on entry — prior invocation crashed, resetting and re-running`);
+          } else if (isSelfChainResume) {
+            console.log(`[phase_1a] ${jobId}: preflight SELF_CHAINED — resuming with restart-from-scratch (inputs are durable)`);
+          } else {
+            console.log(`[phase_1a] ${jobId}: running Pass3 preflight (first attempt)`);
+          }
+
           const preflightStartAt = new Date().toISOString();
 
-          // Stamp preflight_status=RUNNING in batch state.
+          // Stamp preflight_status=IN_PROGRESS in batch state.
           await supabase
             .from('evaluation_jobs')
             .update({
@@ -4505,31 +4532,153 @@ export async function processEvaluationJob(
                 ...progressState,
                 phase1a_batch_state: {
                   ...((progressState.phase1a_batch_state as Record<string, unknown>) ?? {}),
-                  preflight_status: 'RUNNING',
+                  preflight_status: 'IN_PROGRESS',
                 },
                 phase_log: [
                   ...((progressState.phase_log as unknown[]) ?? []),
-                  { at: preflightStartAt, event: 'phase1a_preflight_started', stage: 'phase_1a' },
+                  {
+                    at: preflightStartAt,
+                    event: 'phase1a_preflight_started',
+                    stage: 'phase_1a',
+                    crash_recovery: isCrashRecovery,
+                    self_chain_resume: isSelfChainResume,
+                  },
                 ],
               },
             })
             .eq('id', jobId)
             .eq('status', JOB_STATUS.RUNNING);
 
+          // Invocation budget guard — race preflight against a timer.
+          const preflightBudgetMs =
+            phase1aConfig.invocationBudgetMs - phase1aConfig.safetyMarginMs;
+          const preflightStartMs = Date.now();
+
+          type PreflightTimeoutSentinel = { __preflightTimedOut: true };
+          const timeoutPromise = new Promise<PreflightTimeoutSentinel>((resolve) => {
+            setTimeout(
+              () => resolve({ __preflightTimedOut: true }),
+              Math.max(1_000, preflightBudgetMs),
+            );
+          });
+
+          const preflightPromise = runPass3Preflight({
+            manuscriptChunks: Array.isArray(allChunks) ? allChunks : [],
+            title: manuscriptWithContent.title,
+            workType: manuscriptWithContent.work_type || 'novel',
+            jobId: String(job.id),
+            manuscriptId: Number(job.manuscript_id),
+            openaiApiKey,
+            supabase,
+            _chunkConcurrency: phase1aConfig.preflightConcurrency,
+            _onChunkHeartbeat: () => {
+              // Non-blocking pulse for watchdog during preflight.
+            },
+          });
+
+          let raceResult:
+            | Awaited<ReturnType<typeof runPass3Preflight>>
+            | PreflightTimeoutSentinel
+            | null = null;
+          let preflightThrew: unknown = null;
           try {
-            pass3aResult = await runPass3Preflight({
-              manuscriptChunks: Array.isArray(allChunks) ? allChunks : [],
-              title: manuscriptWithContent.title,
-              workType: manuscriptWithContent.work_type || 'novel',
-              jobId: String(job.id),
-              manuscriptId: Number(job.manuscript_id),
-              openaiApiKey,
-              supabase,
-              _chunkConcurrency: 2,
-              _onChunkHeartbeat: () => {
-                // Non-blocking pulse for watchdog during preflight.
+            raceResult = await Promise.race([preflightPromise, timeoutPromise]);
+          } catch (err) {
+            preflightThrew = err;
+          }
+
+          const isTimeout =
+            raceResult !== null &&
+            typeof raceResult === 'object' &&
+            (raceResult as PreflightTimeoutSentinel).__preflightTimedOut === true;
+
+          if (isTimeout) {
+            // ── BUDGET EXPIRED → self-chain (NOT a failure) ───────────────
+            // Mark SELF_CHAINED, kick next worker, release lease, return.
+            // Do NOT increment attempt_count. preflightPromise keeps running
+            // in this dying invocation but its results are discarded; the
+            // next invocation restarts from scratch (inputs are durable).
+            const selfChainAt = new Date().toISOString();
+            const elapsedMs = Date.now() - preflightStartMs;
+            console.warn(
+              `[phase_1a] ${jobId}: preflight budget expired after ${elapsedMs}ms (budget=${preflightBudgetMs}ms) — self-chaining`,
+            );
+
+            const selfChainProgress = {
+              ...progressState,
+              phase: 'phase_1a',
+              phase_status: 'queued',
+              message: 'Analyzing manuscript (finalizing review)',
+              phase1a_batch_state: {
+                ...((progressState.phase1a_batch_state as Record<string, unknown>) ?? {}),
+                preflight_status: 'SELF_CHAINED',
               },
-            });
+              phase_log: [
+                ...((progressState.phase_log as unknown[]) ?? []),
+                {
+                  at: selfChainAt,
+                  event: 'phase1a_preflight_self_chain_queued',
+                  stage: 'phase_1a',
+                  elapsed_ms: elapsedMs,
+                  budget_ms: preflightBudgetMs,
+                },
+              ],
+            };
+
+            const { error: preflightChainErr } = await supabase
+              .from('evaluation_jobs')
+              .update({
+                status: JOB_STATUS.QUEUED,
+                phase: PHASES.PHASE_1A,
+                phase_status: JOB_STATUS.QUEUED,
+                claimed_by: null,
+                lease_token: null,
+                lease_until: null,
+                worker_pulse_at: null,
+                updated_at: selfChainAt,
+                progress: selfChainProgress,
+              })
+              .eq('id', jobId)
+              .eq('status', JOB_STATUS.RUNNING);
+
+            if (preflightChainErr) {
+              throw new Error(
+                `Phase 1A preflight self-chain re-queue failed: ${preflightChainErr.message}`,
+              );
+            }
+
+            console.log(
+              `[phase_1a] ${jobId}: preflight self-chained — lease released, kicking next worker`,
+            );
+
+            await kickPhase1aWorker();
+            clearInterval(leaseRenewalLoopP1a);
+            return { success: true };
+          }
+
+          if (preflightThrew) {
+            // Preflight error (not a timeout) — degrade gracefully.
+            console.warn(`[phase_1a] ${jobId}: Pass3 preflight failed (non-fatal):`,
+              preflightThrew instanceof Error ? preflightThrew.message : String(preflightThrew));
+            pass3aResult = null;
+            // Mark DONE (degraded) so we don't retry preflight on every resume.
+            await supabase
+              .from('evaluation_jobs')
+              .update({
+                progress: {
+                  ...progressState,
+                  phase1a_batch_state: {
+                    ...((progressState.phase1a_batch_state as Record<string, unknown>) ?? {}),
+                    preflight_status: 'DONE',
+                    preflight_degraded: true,
+                  },
+                },
+              })
+              .eq('id', jobId)
+              .eq('status', JOB_STATUS.RUNNING);
+          } else {
+            // Happy path — preflight completed within budget.
+            pass3aResult = raceResult as Awaited<ReturnType<typeof runPass3Preflight>>;
             const preflightCompletedAt = new Date().toISOString();
             console.log(`[phase_1a] ${jobId}: Pass3 preflight complete`, {
               authority: pass3aResult.preflight.preflight_authority,
@@ -4537,7 +4686,7 @@ export async function processEvaluationJob(
               duration_ms: pass3aResult.durationMs,
             });
 
-            // Stamp preflight_status=COMPLETE.
+            // Stamp preflight_status=DONE.
             await supabase
               .from('evaluation_jobs')
               .update({
@@ -4546,7 +4695,7 @@ export async function processEvaluationJob(
                   ...progressState,
                   phase1a_batch_state: {
                     ...((progressState.phase1a_batch_state as Record<string, unknown>) ?? {}),
-                    preflight_status: 'COMPLETE',
+                    preflight_status: 'DONE',
                   },
                   phase_log: [
                     ...((progressState.phase_log as unknown[]) ?? []),
@@ -4556,31 +4705,7 @@ export async function processEvaluationJob(
               })
               .eq('id', jobId)
               .eq('status', JOB_STATUS.RUNNING);
-          } catch (preflightErr) {
-            // Preflight is non-fatal — degrade gracefully.
-            console.warn(`[phase_1a] ${jobId}: Pass3 preflight failed (non-fatal):`,
-              preflightErr instanceof Error ? preflightErr.message : String(preflightErr));
-            pass3aResult = null;
-            // Still mark COMPLETE (degraded) so we don't retry preflight on every resume.
-            await supabase
-              .from('evaluation_jobs')
-              .update({
-                progress: {
-                  ...progressState,
-                  phase1a_batch_state: {
-                    ...((progressState.phase1a_batch_state as Record<string, unknown>) ?? {}),
-                    preflight_status: 'COMPLETE',
-                    preflight_degraded: true,
-                  },
-                },
-              })
-              .eq('id', jobId)
-              .eq('status', JOB_STATUS.RUNNING);
           }
-        } else {
-          console.log(`[phase_1a] ${jobId}: Pass3 preflight already complete — loading from artifact`);
-          // Preflight artifact already persisted by runPass3Preflight on prior invocation.
-          // pass3aResult stays null — ledger assembly below handles this gracefully.
         }
 
         // ── 6. Assemble ledger + build Story Layer ────────────────────────
@@ -4741,7 +4866,7 @@ export async function processEvaluationJob(
           phase1a_batch_state: {
             ...((progressState.phase1a_batch_state as Record<string, unknown>) ?? {}),
             ledger_assembly_status: 'COMPLETE',
-            preflight_status: 'COMPLETE',
+            preflight_status: 'DONE',
           },
           phase_log: [
             ...((progressState.phase_log as unknown[]) ?? []),
