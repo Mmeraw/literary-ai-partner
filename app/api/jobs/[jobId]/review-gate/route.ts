@@ -34,6 +34,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { getAuthenticatedUser } from '@/lib/supabase/server';
 import { createHash, randomUUID } from 'crypto';
+import { buildPhaseLogPatch } from '@/lib/evaluation/phaseLog';
 
 type Disposition = 'accepted_without_changes' | 'accepted_with_edits' | 'rejected';
 
@@ -104,7 +105,7 @@ export async function POST(request: NextRequest, { params }: RouteParams): Promi
   const { data: job, error: jobError } = await supabase
     .from('evaluation_jobs')
     .select(
-      'id, user_id, manuscript_id, evaluation_project_id, status, phase, phase_status, manuscripts(user_id)',
+      'id, user_id, manuscript_id, evaluation_project_id, status, phase, phase_status, progress, manuscripts(user_id)',
     )
     .eq('id', jobId)
     .maybeSingle();
@@ -122,8 +123,12 @@ export async function POST(request: NextRequest, { params }: RouteParams): Promi
     status: string;
     phase: string;
     phase_status: string;
+    progress: Record<string, unknown> | null;
     manuscripts?: { user_id: string | null } | Array<{ user_id: string | null }> | null;
   };
+
+  const existingProgress: Record<string, unknown> =
+    jobTyped.progress && typeof jobTyped.progress === 'object' ? jobTyped.progress : {};
 
   const ownerId =
     jobTyped.user_id ??
@@ -221,6 +226,10 @@ export async function POST(request: NextRequest, { params }: RouteParams): Promi
         last_error: 'Author rejected Story Ledger at Review Gate. Revise manuscript and resubmit.',
         failure_code: 'REVIEW_GATE_REJECTED_BY_AUTHOR',
         updated_at: now,
+        progress: {
+          ...existingProgress,
+          ...buildPhaseLogPatch(existingProgress, 'review_gate', 'failed', now),
+        },
       })
       .eq('id', jobId)
       .eq('phase', 'review_gate');
@@ -302,13 +311,31 @@ export async function POST(request: NextRequest, { params }: RouteParams): Promi
   // 7. Transition job to phase_2/queued so worker picks it up on next tick
   // CANON: status stays within JOB_STATUS set (queued/running/failed/complete)
   // phase='review_gate' is never claimed by the worker — phase_2 re-enters the claim queue
+  //
+  // Stamps (in one atomic write):
+  //   review_gate_passed_at  — gate approval timestamp
+  //   phase_2 entered log    — phase_2 is now queued for the worker
+  const progressAfterGate = {
+    ...existingProgress,
+    // review_gate → passed
+    ...buildPhaseLogPatch(existingProgress, 'review_gate', 'passed', now),
+  };
+  // phase_2 entered (queued = worker hasn't claimed yet, but gate is open)
+  const progressWithPhase2Entry = {
+    ...progressAfterGate,
+    ...buildPhaseLogPatch(progressAfterGate, 'phase_2', 'entered', now),
+  };
+
   const { error: transitionErr } = await supabase
     .from('evaluation_jobs')
     .update({
       status: 'queued',
       phase: 'phase_2',
       phase_status: 'queued',
+      review_gate_passed_at: now,
+      phase2_started_at: now,
       updated_at: now,
+      progress: progressWithPhase2Entry,
     })
     .eq('id', jobId)
     .eq('phase', 'review_gate');
