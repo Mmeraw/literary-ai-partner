@@ -2407,7 +2407,7 @@ READY TO EVALUATE.
 
 Phase 0: load rules only. Do not read the manuscript.
 Phase 1A: read the manuscript and build pass1a_story_layer_v1 — the Story Layer / Story Ledger artifact with 8 required layers.
-Phase 2: score only after pass1a_story_layer_v1 is complete and all 8 layers pass completeness checks.
+Phase 2: score only after pass1a_story_layer_v1 is complete.
 
 Failure modes Phase 1A must avoid:
 1. Loudest-lane bias: map ALL lane types (plot / emotional / doctrinal / medicine-object / relationship / environmental).
