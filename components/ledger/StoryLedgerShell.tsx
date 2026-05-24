@@ -21,6 +21,98 @@
 import React, { useState, useRef, useTransition } from "react";
 import { StoryLayerRenderer, LayerCompletionBar } from "@/components/ledger/StoryLedgerLayers";
 
+// ─── Web Speech API mic input ───────────────────────────────────────────────
+
+type SpeechState = "idle" | "listening" | "error";
+
+function useSpeechInput(onTranscript: (text: string) => void) {
+  const [state, setState] = React.useState<SpeechState>("idle");
+  const recognitionRef = React.useRef<any>(null);
+
+  const supported =
+    typeof window !== "undefined" &&
+    ("SpeechRecognition" in window || "webkitSpeechRecognition" in window);
+
+  const start = React.useCallback(() => {
+    if (!supported) return;
+    const SR =
+      (window as any).SpeechRecognition ?? (window as any).webkitSpeechRecognition;
+    const rec = new SR();
+    rec.continuous = true;
+    rec.interimResults = false;
+    rec.lang = "en-US";
+    rec.onresult = (e: any) => {
+      const transcript = Array.from(e.results as ArrayLike<any>)
+        .map((r: any) => r[0].transcript)
+        .join(" ")
+        .trim();
+      if (transcript) onTranscript(transcript);
+    };
+    rec.onerror = () => setState("error");
+    rec.onend = () => setState("idle");
+    recognitionRef.current = rec;
+    rec.start();
+    setState("listening");
+  }, [supported, onTranscript]);
+
+  const stop = React.useCallback(() => {
+    recognitionRef.current?.stop();
+    setState("idle");
+  }, []);
+
+  const toggle = React.useCallback(() => {
+    if (state === "listening") stop();
+    else start();
+  }, [state, start, stop]);
+
+  return { state, toggle, supported };
+}
+
+function MicButton({
+  setValue,
+}: {
+  setValue: React.Dispatch<React.SetStateAction<string>>;
+}) {
+  const { state, toggle, supported } = useSpeechInput((transcript) => {
+    setValue((prev) => (prev ? prev + " " + transcript : transcript));
+  });
+
+  if (!supported) return null;
+
+  const isListening = state === "listening";
+  const isError = state === "error";
+
+  return (
+    <button
+      type="button"
+      onClick={toggle}
+      title={isListening ? "Stop recording" : "Speak to fill this field"}
+      style={{
+        padding: "5px 10px",
+        borderRadius: 7,
+        border: `1px solid ${
+          isListening
+            ? "rgba(122,30,30,0.6)"
+            : isError
+            ? "rgba(230,162,60,0.4)"
+            : "rgba(242,239,234,0.15)"
+        }`,
+        background: isListening ? "rgba(122,30,30,0.22)" : "transparent",
+        color: isListening ? "#D07070" : isError ? "#E6A23C" : "rgba(242,239,234,0.5)",
+        fontSize: 13,
+        cursor: "pointer",
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 5,
+        transition: "all 0.15s",
+        flexShrink: 0,
+      }}
+    >
+      {isListening ? "⏹ Stop" : isError ? "⚠ Retry" : "🎙 Speak"}
+    </button>
+  );
+}
+
 // ─── Palette ────────────────────────────────────────────────────────────────
 
 const P = {
@@ -503,6 +595,10 @@ function Module1StoryLayer({
 
               {showCommentFor === activeLayer ? (
                 <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 2 }}>
+                    <SectionLabel>Comment for {LAYER_LABELS[activeLayer]}</SectionLabel>
+                    <MicButton setValue={setPendingComment} />
+                  </div>
                   <textarea
                     value={pendingComment}
                     onChange={(e) => setPendingComment(e.target.value)}
@@ -834,6 +930,10 @@ function Module2ReviewGate({
 
         {showNotes && (
           <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 4 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <SectionLabel>Author notes</SectionLabel>
+              <MicButton setValue={setNotes} />
+            </div>
             <textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
@@ -854,6 +954,10 @@ function Module2ReviewGate({
                 boxSizing: "border-box" as const,
               }}
             />
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 6 }}>
+              <SectionLabel>Specific edit requests</SectionLabel>
+              <MicButton setValue={setEditText} />
+            </div>
             <textarea
               value={editText}
               onChange={(e) => setEditText(e.target.value)}
