@@ -184,12 +184,13 @@ export default function HeaderNav() {
             <NavLink href="/agent-readiness">Agent Readiness&#8482;</NavLink>
           )}
 
-          {/* Storygate Studio™ dropdown — visible to all users */}
+          {/* Storygate Studio™ dropdown — always red, maximum visibility */}
           <div className="relative" ref={sgMenuRef}>
             <button
               type="button"
               onClick={() => { setSgOpen((v) => !v); setArpOpen(false); setResourcesOpen(false); }}
-              className={(pathname === storygateActiveHref || pathname.startsWith(storygateActiveHref + "/") || pathname.startsWith("/storygate")) ? activeLinkCls : linkCls}
+              className="text-xs tracking-widest uppercase font-rg-mono transition-colors duration-150 hover:opacity-80"
+              style={{ color: "#FF0000" }}
               aria-expanded={sgOpen}
               aria-haspopup="menu"
               aria-controls="sg-menu"
