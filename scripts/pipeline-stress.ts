@@ -90,18 +90,46 @@ function materializeChunkOverride(
 
 interface ParsedArgs {
   tier: "1" | "3a";
+  rows?: number;
 }
 
 function parseArgs(argv: string[]): ParsedArgs {
   let tier: ParsedArgs["tier"] = "1";
+  let rows: number | undefined;
   for (const arg of argv.slice(2)) {
     if (arg.startsWith("--tier=")) {
       const v = arg.split("=")[1];
       if (v === "1" || v === "3a") tier = v;
       else throw new Error(`--tier must be 1 or 3a; got ${v}`);
+    } else if (arg.startsWith("--rows=")) {
+      const raw = Number.parseInt(arg.split("=")[1] ?? "", 10);
+      if (!Number.isFinite(raw) || raw < 1) {
+        throw new Error(`--rows must be an integer >= 1; got ${arg.split("=")[1]}`);
+      }
+      rows = raw;
     }
   }
-  return { tier };
+  return { tier, rows };
+}
+
+function assertNotProductionSupabaseForStress(): void {
+  const prodProjectId = "xtumxjnzdswuumndcbwc";
+  const supabaseUrl =
+    process.env.SUPABASE_URL ??
+    process.env.NEXT_PUBLIC_SUPABASE_URL ??
+    "";
+
+  // Escape hatch for explicit, intentional prod smoke runs.
+  if (process.env.ALLOW_PROD_STRESS === "1") {
+    return;
+  }
+
+  if (supabaseUrl.includes(prodProjectId)) {
+    throw new Error(
+      "[ABORT] scripts/pipeline-stress.ts is pointed at the PRODUCTION Supabase project. " +
+      "Set SUPABASE_URL/NEXT_PUBLIC_SUPABASE_URL to staging/local or set ALLOW_PROD_STRESS=1 for an explicit override.",
+    );
+  }
 }
 
 interface ExecutedRow {
@@ -341,13 +369,14 @@ function assertRow(executed: ExecutedRow): { failures: string[]; exposed_bug: bo
   return { failures, exposed_bug: false, bug_note: null };
 }
 
-async function runTier1(): Promise<number> {
+async function runTier1(rowsLimit?: number): Promise<number> {
+  const scenarios = rowsLimit ? SCENARIOS.slice(0, rowsLimit) : SCENARIOS;
   const results: RowResult[] = [];
   let passed = 0;
   let failed = 0;
   let exposedBugs = 0;
 
-  for (const row of SCENARIOS) {
+  for (const row of scenarios) {
     process.stdout.write(`[stress] ${row.id.padEnd(22)} `);
     const executed = await executeRow(row);
     const { failures, exposed_bug, bug_note } = assertRow(executed);
@@ -409,13 +438,15 @@ function runTier3a(): number {
 }
 
 async function main(): Promise<number> {
-  const { tier } = parseArgs(process.argv);
+  const { tier, rows } = parseArgs(process.argv);
   if (tier === "1") {
+    assertNotProductionSupabaseForStress();
+    const scenarioCount = rows ? Math.min(rows, SCENARIOS.length) : SCENARIOS.length;
     // eslint-disable-next-line no-console
-    console.log(`[stress] Tier 1 — ${SCENARIOS.length} rows, seed=${process.env.STRESS_SEED ?? "42"}`);
+    console.log(`[stress] Tier 1 — ${scenarioCount} rows, seed=${process.env.STRESS_SEED ?? "42"}`);
     const sample = SCENARIOS[0];
     void countWords(generateManuscript({ wordCount: WORD_BUCKETS[sample.bucket] }));
-    return runTier1();
+    return runTier1(rows);
   }
   if (tier === "3a") {
     return runTier3a();
