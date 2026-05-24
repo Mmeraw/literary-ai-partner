@@ -129,6 +129,10 @@ import { buildStoryLayerFromLedger } from '@/lib/evaluation/phase1a/buildStoryLa
 import { buildLedgerQualityReport } from '@/lib/evaluation/phase1a/buildLedgerQualityReport';
 import { writePhase1aReviewGateArtifacts } from '@/lib/evaluation/phase1a/storyLayerArtifactWriters';
 import {
+  shouldFlagStoryLedgerLaneMapWarning,
+  type StoryLedgerExtensions,
+} from '@/lib/evaluation/phase1a/storyLedgerExtensions';
+import {
   isPipelineEnabled,
   pipelineDisabledResponse,
   type PipelineSkipResult,
@@ -2398,6 +2402,25 @@ CONFIDENCE BANDS LOCKED:
 - LOW (<80%) — label uncertainty explicitly, no correctness requirement
 
 READY TO EVALUATE.
+
+## EVALUATION GOVERNANCE RULES (canon_correction_playbook_v1 v1.2.0)
+
+Phase 0: load rules only. Do not read the manuscript.
+Phase 1A: read the manuscript and build pass1a_story_ledger_v1 (8 layers).
+Phase 2: score only after pass1a_story_ledger_v1 is complete.
+
+Failure modes Phase 1A must avoid:
+1. Loudest-lane bias: map ALL lane types (plot / emotional / doctrinal / medicine-object / relationship / environmental).
+2. Relationship spine omission: merge cross-world/cross-species arcs into single spine entries.
+3. Object/medicine blindness: named healing agents and relics are structural — not texture.
+4. Unsupported vocabulary: extract labels from source text; do not impose genre defaults (e.g. "poaching").
+5. Closure deflation: do not score Narrative Closure until Relationship Spine Layer is complete.
+6. Already-present error: do not recommend adding what is already present; use ALREADY_PRESENT.
+
+Phase 2 scoring prohibitions:
+- Narrative Closure MUST NOT be scored if Relationship Spine Layer is empty.
+- Criterion scores MUST NOT finalize before pass1a_story_ledger_v1 exists.
+- Recommendations MUST carry validity: VALID / PARTIALLY_VALID / ALREADY_PRESENT / CANON_FALSE / SOURCE_UNSUPPORTED / VOICE_RISK.
 `;
 
 type Phase0Result =
@@ -4862,6 +4885,31 @@ export async function processEvaluationJob(
           pass1a_story_layer_v1: storyLayerRefs.pass1a_story_layer_v1.artifact_id,
           ledger_quality_report_v1: storyLayerRefs.ledger_quality_report_v1.artifact_id,
         });
+
+        // ── Story Ledger lane map coverage warning (canon_correction_playbook_v1) ─
+        // Flag only — does NOT hard-block Phase 2 in v1. The lane map (Layer 1) is
+        // optional in v1; absence is logged so we can iterate prompt fidelity over
+        // time. When the ledger eventually carries the extensions, the flag goes
+        // away on its own.
+        const storyLedgerExtensionsForWarning =
+          (storyLayerPayload as { extensions?: StoryLedgerExtensions } | null | undefined)
+            ?.extensions ?? null;
+        const storyLedgerLaneMapWarning = shouldFlagStoryLedgerLaneMapWarning(
+          storyLedgerExtensionsForWarning,
+        );
+        if (storyLedgerLaneMapWarning) {
+          const existingMetadata =
+            ((job as { metadata?: Record<string, unknown> }).metadata && typeof (job as { metadata?: Record<string, unknown> }).metadata === 'object')
+              ? (job as { metadata: Record<string, unknown> }).metadata
+              : {};
+          (job as { metadata?: Record<string, unknown> }).metadata = {
+            ...existingMetadata,
+            story_ledger_lane_map_warning: true,
+          };
+          console.warn(
+            `[Processor] ${jobId}: phase_1a — story_ledger_lane_map empty; warning flag set (canon_correction_playbook_v1).`,
+          );
+        }
 
         // ── 7. Open Review Gate ───────────────────────────────────────────
         const phase1aNow = new Date().toISOString();
