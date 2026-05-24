@@ -58,7 +58,7 @@
  */
 
 import { createHash, randomUUID } from 'crypto';
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type { EvaluationResultV2 } from '@/schemas/evaluation-result-v2';
 import type { EvaluationResultV1 } from '@/schemas/evaluation-result-v1';
 import { CRITERIA_KEYS, type CriterionKey } from '@/schemas/criteria-keys';
@@ -1547,7 +1547,7 @@ export function isTerminalFailureCode(code: string | null | undefined): boolean 
  * try to advance an awaiting_approval job past the review gate.
  */
 export async function assertReviewGatePassedBeforeHandoff(
-  supabase: ReturnType<typeof createClient>,
+  supabase: SupabaseClient<any, any, any>,
   jobId: string,
 ): Promise<void> {
   const { data: jobCheck, error: jobCheckErr } = await supabase
@@ -1561,7 +1561,7 @@ export async function assertReviewGatePassedBeforeHandoff(
     );
     throw new Error(`POLICY_VIOLATION: pass12_handoff_v1 gate check failed (${jobCheckErr.message})`);
   }
-  if (!jobCheck?.review_gate_passed_at) {
+  if (!jobCheck || !(jobCheck as { review_gate_passed_at?: string | null }).review_gate_passed_at) {
     console.error(
       `[POLICY VIOLATION] Attempted to write pass12_handoff_v1 for job ${jobId} without review_gate_passed_at. Aborting.`,
     );
