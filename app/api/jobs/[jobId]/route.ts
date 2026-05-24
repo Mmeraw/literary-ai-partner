@@ -284,7 +284,8 @@ function normalizePhaseForResponse(rawPhase: unknown): CanonicalPhase | null | u
   if ((CANONICAL_PHASES as readonly string[]).includes(rawPhase)) {
     return rawPhase as CanonicalPhase;
   }
-  return LEGACY_PHASE_ALIASES[rawPhase];
+  // Use hasOwn to block prototype-pollution lookups (__proto__, constructor, etc.)
+  return Object.hasOwn(LEGACY_PHASE_ALIASES, rawPhase) ? LEGACY_PHASE_ALIASES[rawPhase] : undefined;
 }
 
 function extractCanonicalPhase(job: Job): {
