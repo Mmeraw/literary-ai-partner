@@ -19,7 +19,7 @@ function readRepoFile(repoPath: string): string {
   return fs.readFileSync(path.resolve(__dirname, '../..', repoPath), 'utf8');
 }
 
-function expectAbsent(haystack: string, needle: string, context: string): void {
+function expectAbsent(haystack: string, needle: string): void {
   expect(haystack.includes(needle)).toBe(false);
 }
 
@@ -31,12 +31,12 @@ describe('E2E evaluation naming contract', () => {
 
   it('uses pass1a_story_layer_v1 as the only runtime Phase 1A story artifact name', () => {
     expect(processorSrc).toContain('pass1a_story_layer_v1');
-    expectAbsent(processorSrc, 'pass1a_story_ledger_v1', 'processor.ts');
+    expectAbsent(processorSrc, 'pass1a_story_ledger_v1');
 
     expect(storyExtensionSrc).toContain('pass1a_story_layer_v1');
     // The extension module may use human-facing Story Ledger language, but it
     // must not refer to a non-canonical stored artifact name.
-    expectAbsent(storyExtensionSrc, "canonical code artifact is pass1a_story_ledger_v1", 'storyLedgerExtensions.ts');
+    expectAbsent(storyExtensionSrc, 'canonical code artifact is pass1a_story_ledger_v1');
   });
 
   it('keeps the E2E checklist copy-safe for evaluation_artifacts.job_id', () => {
@@ -54,7 +54,7 @@ describe('E2E evaluation naming contract', () => {
   });
 
   it('uses complete as terminal job status in runtime and copy-safe E2E SQL', () => {
-    expect(processorSrc).toContain("status: JOB_STATUS.COMPLETE");
+    expect(processorSrc).toContain('status: JOB_STATUS.COMPLETE');
     expect(e2eChecklist).toContain("status = 'complete'");
     expect(namingGovernance).toContain('queued | running | failed | complete');
 
@@ -68,8 +68,8 @@ describe('E2E evaluation naming contract', () => {
     expect(e2eChecklist).toContain("phase = 'review_gate'");
     expect(e2eChecklist).toContain("phase_status = 'awaiting_approval'");
 
-    expectAbsent(processorSrc, 'approval_gate', 'processor.ts');
-    expectAbsent(processorSrc, 'pending_approval', 'processor.ts');
+    expectAbsent(processorSrc, 'approval_gate');
+    expectAbsent(processorSrc, 'pending_approval');
   });
 
   it('keeps lease_until as the writable lease expiry field in E2E guidance', () => {
