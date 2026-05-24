@@ -105,10 +105,13 @@ async function rescueIdleJobs(): Promise<{ idleFound: number; idleRescued: numbe
   // Jobs that are running AND have a stale worker_pulse_at (real work has stopped)
   // but whose last_heartbeat_at is still fresh (lease is held — not already dead).
   // NULL worker_pulse_at means the column was never written (pre-migration job) — skip those.
+  // CRITICAL: never rescue awaiting_approval — that is the Review Gate hard stop,
+  // not a frozen worker. The gate is waiting for author input, not a pulse.
   const { data: idleCandidates, error } = await supabase
     .from('evaluation_jobs')
     .select('id, phase, phase_status, attempt_count, max_attempts')
     .eq('status', 'running')
+    .neq('phase_status', 'awaiting_approval')
     .not('worker_pulse_at', 'is', null)
     .lt('worker_pulse_at', pulseCutoff)
     .limit(10);
