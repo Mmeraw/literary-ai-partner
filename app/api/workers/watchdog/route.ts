@@ -200,7 +200,7 @@ async function rescueNullPulseOrphans(): Promise<{ found: number; rescued: numbe
       rescued++;
       console.log(`[Watchdog/nullPulse] Rescued null-pulse orphan ${job.id} phase=${job.phase}`);
     } else {
-      console.warn(`[Watchdog/nullPulse] Could not rescue ${job.id}: ${result.reason}`);
+      console.warn(`[Watchdog/nullPulse] Could not rescue ${job.id}: ${result.rescued === false ? result.reason : 'n/a'}`);
     }
   }
 
