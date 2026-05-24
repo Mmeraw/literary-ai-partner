@@ -6,7 +6,7 @@
  * match the RG editorial design language (rg-ink / rg-cream / rg-gold).
  */
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -34,6 +34,20 @@ const inputCls =
   'placeholder:text-rg-cream2/40 focus:outline-none focus:border-rg-gold transition-colors duration-150'
 
 export default function LoginPage() {
+  const router2 = useRouter()
+
+  // If user is already authenticated, redirect to dashboard immediately
+  useEffect(() => {
+    fetch('/api/auth/user', { credentials: 'include', cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (data && data.user && data.user.email) {
+          router2.replace('/dashboard')
+        }
+      })
+      .catch(() => {/* stay on login */})
+  }, [])
+
   const [email, setEmail]       = useState('')
   const [password, setPassword] = useState('')
   const [error, setError]       = useState<string | null>(null)
