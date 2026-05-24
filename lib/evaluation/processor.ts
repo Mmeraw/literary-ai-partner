@@ -2528,23 +2528,49 @@ async function runPhase0GoldPrimer(args: {
   }
 }
 
-/** Fire-and-forget kick to process-evaluations after Phase 0 re-queues at phase_1a. */
+/**
+ * Fire-and-forget kick to process-evaluations immediately after Phase 0
+ * transitions the job to phase_1a/queued.
+ *
+ * WHY THE 150ms DELAY:
+ * The DB write committing phase_1a/queued must flush before the new worker
+ * call executes, or claim_evaluation_jobs finds 0 eligible rows and returns
+ * immediately. 150ms is enough for the Postgres commit to be visible to
+ * a fresh connection from a new Vercel function invocation.
+ *
+ * WHY POST (not GET):
+ * GET requests can be cached or coalesced by intermediaries. POST is always
+ * a fresh invocation with no caching risk.
+ */
 async function kickPhase1aWorker(): Promise<void> {
   const secret = process.env.CRON_SECRET;
-  if (!secret) return;
+  if (!secret) {
+    console.warn('[kickPhase1aWorker] CRON_SECRET not set — skipping kick');
+    return;
+  }
   const base =
     process.env.NEXT_PUBLIC_APP_URL ??
-    process.env.VERCEL_URL ??
+    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null) ??
     'https://www.revisiongrade.com';
   const url = `${base.startsWith('http') ? base : `https://${base}`}/api/workers/process-evaluations`;
+
+  // 150ms: let the phase_1a/queued DB write commit before the new worker claims
+  await new Promise(r => setTimeout(r, 150));
+
   try {
-    void fetch(url, {
-      method: 'GET',
-      headers: { Authorization: `Bearer ${secret}` },
-      signal: AbortSignal.timeout(5_000),
-    }).catch(() => {});
-  } catch {
-    // best-effort
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${secret}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ source: 'phase0_kick' }),
+      signal: AbortSignal.timeout(10_000),
+    });
+    console.log(`[kickPhase1aWorker] kick sent → HTTP ${res.status}`);
+  } catch (err) {
+    // Best-effort — cron is the fallback if this fails
+    console.warn('[kickPhase1aWorker] kick failed (cron is fallback):', err instanceof Error ? err.message : String(err));
   }
 }
 
@@ -3116,8 +3142,11 @@ export async function processEvaluationJob(
 
       console.log(`[Processor/Phase0] ${jobId}: re-queued at phase_1a — kicking worker`);
 
-      // Kick the worker so phase_1a is claimed immediately (no 5-min cron wait)
-      void kickPhase1aWorker();
+      // Kick the worker so phase_1a is claimed immediately (no 5-min cron wait).
+      // MUST be awaited: if this is void/detached, Vercel may kill the function
+      // before the HTTP request goes out. 150ms delay inside kickPhase1aWorker
+      // ensures the phase_1a/queued write is visible to the new worker.
+      await kickPhase1aWorker();
 
       return { success: true };
     }
