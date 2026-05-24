@@ -11,7 +11,7 @@ export default function PricingPage() {
           <p className="text-2xl font-bold text-indigo-600 mt-2 mb-4">Free</p>
           <ul className="space-y-2 text-sm text-slate-600">
             <li>Single manuscript evaluation</li>
-            <li>Basic WAVE scoring</li>
+            <li>WAVE Revision System™ diagnostics</li>
             <li>Summary feedback</li>
           </ul>
           <Link href="/evaluate" className="mt-6 block text-center rounded-lg bg-indigo-600 px-4 py-2 text-white text-sm font-medium hover:bg-indigo-700">Get Started</Link>
@@ -21,7 +21,7 @@ export default function PricingPage() {
           <p className="text-2xl font-bold text-indigo-600 mt-2 mb-4">$29/mo</p>
           <ul className="space-y-2 text-sm text-slate-600">
             <li>Unlimited evaluations</li>
-            <li>Full WAVE reports</li>
+            <li>Proprietary long-form readiness diagnostics</li>
             <li>Revision tracking</li>
             <li>Content conversion</li>
           </ul>
