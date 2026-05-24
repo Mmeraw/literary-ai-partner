@@ -540,14 +540,12 @@ export default async function EvaluationReportPage({
       <section className="mb-6 rounded-lg border bg-white p-4">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-700">Evaluation Metadata</h2>
         <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4 text-sm">
-          <div>
-{chapterTitle && chapterTitle !== manuscriptTitle && (
-            <>
-            <p className="text-gray-700 font-medium">Chapter Title</p>
-            <p className="font-medium text-gray-900">{chapterTitle}</p>
-            </>
-            )}
-          </div>
+          {chapterTitle && chapterTitle !== manuscriptTitle && (
+            <div>
+              <p className="text-gray-700 font-medium">Chapter Title</p>
+              <p className="font-medium text-gray-900">{chapterTitle}</p>
+            </div>
+          )}
           <div>
             <p className="text-gray-700 font-medium">Manuscript Title</p>
             <p className="font-medium text-gray-900">{manuscriptTitle || chapterTitle || "Untitled"}</p>
@@ -868,7 +866,7 @@ export default async function EvaluationReportPage({
               {artifact.governance?.confidence && (
                 <div>
                   <span className="text-gray-700 font-medium">Confidence:</span>{" "}
-                  <span className="font-medium">{{Math.round(artifact.governance.confidence * 100)}%</span>
+                  <span className="font-medium">{Math.round(artifact.governance.confidence * 100)}%</span>
                 </div>
               )}
               {artifact.governance?.limitations && artifact.governance.limitations.length > 0 && (
