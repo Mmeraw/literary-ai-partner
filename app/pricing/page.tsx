@@ -11,7 +11,7 @@ const auditTiers = [
     name: "Free Opening Diagnostic",
     wordCount: "Up to 3,000 words",
     price: "$0",
-    actionsIncluded: "0",
+    actionAccess: "Readiness preview",
     bestFor: "Testing hook, voice, and narrative pressure.",
     features: ["Opening hook", "Voice signal", "Readiness preview", "No WAVE Revision System"],
   },
@@ -19,41 +19,41 @@ const auditTiers = [
     name: "Short-Form Evaluation",
     wordCount: "Up to 24,999 words",
     price: "$49",
-    actionsIncluded: "5",
+    actionAccess: "Starter Editorial Actions",
     bestFor: "Novellas, short stories, and early concept tests.",
-    features: ["13 Story Criteria", "Readiness verdict", "Editorial path preview", "No WAVE Revision System"],
+    features: ["Core story diagnostics", "Readiness verdict", "Editorial path preview", "No WAVE Revision System"],
   },
   {
     name: "Full Manuscript Readiness Audit",
     wordCount: "25,000–120,000 words",
     price: "$249",
-    actionsIncluded: "25",
+    actionAccess: "Included Editorial Actions",
     bestFor: "The Professional Standard for novels and long-form manuscripts.",
-    features: ["13 Story Criteria", "WAVE Revision System™", "Readiness diagnosis", "Golden Spine™ long-form threshold"],
+    features: ["Core story diagnostics", "WAVE Revision System™", "Readiness diagnosis", "Long-form threshold diagnostics"],
     highlighted: true,
   },
   {
     name: "Long Manuscript Readiness Audit",
     wordCount: "120,001–180,000 words",
     price: "$399",
-    actionsIncluded: "50",
+    actionAccess: "Expanded Editorial Actions",
     bestFor: "Epic-scale manuscripts and longer novels.",
-    features: ["13 Story Criteria", "WAVE Revision System™", "Expanded long-form diagnostics", "Scale-aware opportunity summary"],
+    features: ["Core story diagnostics", "WAVE Revision System™", "Expanded long-form diagnostics", "Scale-aware opportunity summary"],
   },
   {
     name: "Complex Narrative Audit",
     wordCount: "180,001+ words",
     price: "$499+",
-    actionsIncluded: "100",
+    actionAccess: "Priority Editorial Actions",
     bestFor: "Multi-layer, transmedia, or franchise-scale work.",
-    features: ["13 Story Criteria", "WAVE Revision System™", "Multi-POV architecture review", "Custom complexity handling"],
+    features: ["Core story diagnostics", "WAVE Revision System™", "Multi-POV architecture review", "Custom complexity handling"],
   },
 ];
 
 const actionPacks = [
-  { name: "Starter Pack", actions: "25 Editorial Actions", price: "$29" },
-  { name: "Professional Pack", actions: "100 Editorial Actions", price: "$89" },
-  { name: "Studio Pack", actions: "300 Editorial Actions", price: "$199" },
+  { name: "Starter Pack", actions: "Targeted Editorial Actions", price: "$29" },
+  { name: "Professional Pack", actions: "Expanded Editorial Actions", price: "$89" },
+  { name: "Studio Pack", actions: "Studio Editorial Actions", price: "$199" },
 ];
 
 const faqs = [
@@ -63,14 +63,14 @@ const faqs = [
       "An audit is the fixed-price diagnostic: it reveals the manuscript’s readiness profile, including strengths, priority signals, and the kind of editorial support the work may benefit from next. Editorial Actions unlock and repair specific opportunities through granular opportunity cards and governed repair proposals.",
   },
   {
-    question: "Why does the WAVE Revision System™ start at 25,000 words?",
+    question: "When does the WAVE Revision System™ apply?",
     answer:
-      "We call 25,000 words the Golden Spine™ threshold. Below that point, most works can be evaluated through the 13 Story Criteria. At and above that threshold, long-range structure, pacing, character continuity, payoff, and cumulative reader experience require the WAVE Revision System™.",
+      "The WAVE Revision System™ applies when long-range structural and continuity diagnostics are needed. It is designed for complex long-form readiness work where cumulative reader experience and payoff architecture matter most.",
   },
   {
     question: "Can I see every granular opportunity after an audit?",
     answer:
-      "Every paid audit includes a readiness diagnosis and opportunity summary. Granular Opportunity Cards and governed repair proposals are unlocked through Editorial Actions included with your audit or available in packs.",
+      "Every paid audit includes a readiness diagnosis and opportunity summary. Granular Opportunity Cards and governed repair proposals are unlocked through Editorial Actions available with your audit tier or in packs.",
   },
   {
     question: "Why not offer unlimited revisions?",
@@ -147,7 +147,7 @@ export default function PricingPage() {
                   </p>
                   <div className={`mt-6 border-t pt-5 ${tier.highlighted ? "border-rg-ink/15" : "border-rg-cream2/10"}`}>
                     <p className="font-rg-mono text-[0.65rem] uppercase tracking-[0.14em]">
-                      {tier.actionsIncluded} Editorial Actions included
+                      {tier.actionAccess}
                     </p>
                     <ul className={`mt-4 space-y-2 text-sm leading-6 ${tier.highlighted ? "text-rg-ink/75" : "text-rg-cream2/75"}`}>
                       {tier.features.map((feature) => (
@@ -206,7 +206,7 @@ export default function PricingPage() {
               It is an editorial audit system. Each paid audit provides a structural diagnosis of your manuscript’s readiness: where the story is already working, where readiness can be improved, and what kind of editorial support may help next.
             </p>
             <p>
-              Granular Opportunity Cards and governed repair proposals are unlocked through Editorial Actions included with your audit or available in packs.
+              Granular Opportunity Cards and governed repair proposals are unlocked through Editorial Actions available with your audit tier or in packs.
             </p>
             <p className="font-rg-serif text-2xl leading-tight text-rg-ink sm:text-3xl">
               Before you pay for polish, diagnose readiness.
