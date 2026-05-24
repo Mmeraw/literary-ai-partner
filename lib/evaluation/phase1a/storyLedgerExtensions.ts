@@ -1,12 +1,15 @@
 /**
- * Story Ledger extensions (canon_correction_playbook_v1 v1.2.0).
+ * Story Layer / Story Ledger extensions (canon_correction_playbook_v1 v1.3.1).
  *
- * The pass1a_story_ledger_v1 artifact is ONE artifact with 8 layers. The
- * existing eight canonical layers in storyLayerArtifactWriters.ts cover
- * Layers 2-7 (POV, identity, cast, relationships, objects, location, threat).
+ * Human-facing product language may call this the Story Ledger, but the
+ * canonical code artifact is pass1a_story_layer_v1.
  *
- * This module adds the three additional layer payloads from the corrected
- * playbook — all optional and additive:
+ * pass1a_story_layer_v1 is ONE artifact with eight required layers. The
+ * existing canonical layers in storyLayerArtifactWriters.ts are validated by
+ * validateStoryLayerPayload().
+ *
+ * This module defines additive governance payloads described by the corrected
+ * playbook. They are intentionally optional in the first runtime wiring pass:
  *   Layer 1   — Structural Lane Map        (story_ledger_lane_map)
  *   Layer 8a  — Coverage Risk Register     (coverage_risk_register)
  *   Layer 8b  — Source Vocabulary Notes    (vocabulary_extraction_note)
@@ -62,12 +65,13 @@ export interface StoryLedgerVocabNote {
   recommended_replacement?: string;
 }
 
-// ── Story Ledger extension payload ───────────────────────────────────────────
+// ── Story Layer / Story Ledger extension payload ─────────────────────────────
 
 /**
- * Optional fields appended to pass1a_story_ledger_v1. All fields are optional;
- * Phase 1A is not hard-blocked when they are missing. A warning flag is set on
- * the job when the lane map is empty (see processor.ts story_ledger_lane_map_warning).
+ * Optional governance fields associated with pass1a_story_layer_v1. All fields
+ * are optional; Phase 1A is not hard-blocked when they are missing. A warning
+ * flag is set on the job when the lane map is empty (see processor.ts
+ * story_ledger_lane_map_warning).
  */
 export interface StoryLedgerExtensions {
   story_ledger_lane_map?: StoryLedgerLane[];
