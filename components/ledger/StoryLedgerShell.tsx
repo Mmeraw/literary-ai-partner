@@ -983,7 +983,9 @@ export function StoryLedgerShell(props: LedgerShellProps) {
     rejectLedgerAction,
   } = props;
 
-  const defaultModule: ModuleId = atReviewGate ? "review_gate" : approved ? "accepted_ledger" : "story_layer";
+  // Default to Story Layer Map so the author reads the layer content before approving.
+  // Review Gate module is always one click away via the stepper.
+  const defaultModule: ModuleId = approved ? "accepted_ledger" : "story_layer";
   const [active, setActive] = useState<ModuleId>(defaultModule);
 
   // Determine which modules are "available" (not locked)
