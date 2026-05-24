@@ -1,15 +1,17 @@
 # CANON CORRECTION PLAYBOOK V1
 **RevisionGrade Phase 0 Warmup Artifact**
-Version: 1.0.0
+Version: 1.1.0
 Date: 2026-05-24
 Source: Distilled from FROGGIN_100P_EVALUATION_FIT_GAP_V1 and FROGGIN_100P_CANON_FIDELITY_FIXTURE_V1
-Scope: Abstract calibration rules — not manuscript-specific. Safe to load on every evaluation job.
+Scope: Abstract governance rules and ledger contracts only — not manuscript-specific. Safe to load on every evaluation job.
+
+> **Phase boundary:** Phase 0 reads DREAM state golden records, lessons learned documents, and governance playbooks ONLY. Phase 0 does NOT read the actual manuscript. Manuscript-specific analysis begins at Phase 1A.
 
 ---
 
 ## What this playbook is
 
-This is Phase 0's warmup calibration document. It does not describe any specific manuscript. It describes the class of evaluation failure that RegisionGrade's pipeline has produced and must learn to prevent.
+This is Phase 0's warmup calibration document. It does not describe any specific manuscript. It describes the class of evaluation failure that RevisionGrade's pipeline has produced and must learn to prevent.
 
 Load this before scoring begins. Do not load the full benchmark correction documents (truth target, fit-gap) in production — they are training references for humans and regression tests, not live-prompt context.
 
@@ -32,41 +34,46 @@ This failure produces:
 
 ## Phase 0 Warmup Protocol
 
-Before any scoring pass begins, Phase 0 must complete the following structural mapping. Do not proceed to Phase 1A / Story Ledger until this mapping exists.
+Phase 0 is the evaluator's **training room**, not the manuscript reading room. It reads DREAM state golden records, lessons learned documents, and governance playbooks. It does NOT touch the actual manuscript. Manuscript reading begins at Phase 1A.
 
-### Step 1 — Identify all structural lanes
+Phase 0 installs the following into the evaluation session before any manuscript pass begins:
 
-For every manuscript, map the following lane types. Each lane must be explicitly named or ruled out with evidence.
+### Step 1 — Load known failure patterns
 
-| Lane type | What to look for | Common failure mode |
+Phase 0 reads the canonical failure modes documented in benchmark correction packages. The evaluator must enter Phase 1A aware of these failure classes:
+
+| Failure class | Description | Correction rule |
 |---|---|---|
-| **Primary plot lanes** | The loudest action/conflict threads (main antagonist, primary POV character's external goal) | Rarely missed — low risk |
-| **Secondary emotional lanes** | Characters and relationships that carry the manuscript's tenderness, grief, healing, or moral weight — often at lower narrative frequency than plot lanes | **High miss risk** — pipeline over-weights action frequency |
-| **Doctrinal / ideological systems** | Named belief systems, religious structures, philosophical frameworks, competing doctrines | Often collapsed into "worldbuilding flavor" instead of structural engine |
-| **Medicine / object systems** | Named substances, tools, or systems that function as plot engines (healing agents, weapons, currencies, relics) | Frequently classified as descriptive texture rather than structural element |
-| **Relationship spines** | Named character-to-character bonds that anchor emotional, thematic, or arc logic | Cross-world or cross-species relationships especially prone to omission |
-| **Low-frequency / high-payoff characters** | Characters who appear in fewer chapters but carry disproportionate emotional or thematic weight | Pipeline may exclude from analysis if page-count threshold is too high |
-| **Environmental / ecological systems** | Named environmental conditions (blight, contamination, dead zones, weather) that function as plot drivers or thematic anchors | Often reduced to "setting" rather than "structural consequence" |
+| **Loudest-lane bias** | Pipeline over-weights primary plot/action lanes; drops lower-frequency emotional, doctrinal, and medicine/object lanes | Phase 1A must map ALL lane types, not just dominant ones |
+| **Relationship spine omission** | Cross-world or cross-species relationship arcs filed separately and never merged | Phase 1A must build a relationship spine ledger before any scoring |
+| **Object/medicine system blindness** | Named healing agents, relics, or medicine systems classified as descriptive texture rather than plot systems | Phase 1A must extract named object/medicine systems as structural entries |
+| **Unsupported vocabulary** | High-frequency training labels (e.g., "poaching") applied without source-text confirmation | Phase 1A must extract vocabulary from the source; do not impose genre defaults |
+| **Closure score deflation** | Narrative Closure underscored because relationship arcs were not analyzed | Closure must not be scored until the relationship spine ledger is complete |
+| **Already-present recommendation error** | Pipeline recommends adding elements already in the manuscript | All recommendations must pass the Already-Present Gate before entering the Revise queue |
 
-### Step 2 — Build the ledger before scoring
+### Step 2 — Install the Phase 1A ledger contract
 
-Phase 0 must instruct the Story Ledger (Phase 1A) to produce all of the following before any criterion is scored:
+Phase 0 defines what Phase 1A MUST produce after reading the manuscript. Phase 0 does not produce these ledgers itself — it specifies the requirement that Phase 1A must satisfy.
 
+Phase 1A is required to produce:
 1. **Character ledger** — every named character with role, function, and narrative weight
 2. **Relationship spine ledger** — every named relationship with function and structural importance
 3. **Object / medicine / symbol ledger** — every named system with its plot function
 4. **Doctrine / ideology ledger** — every named belief system with its structural role
-5. **Canon coverage risk flags** — any ledger entry with low source evidence should be flagged for human review, not silently dropped
+5. **Structural lane map** — all lanes present in the manuscript, each explicitly included or ruled out with evidence
+6. **Canon coverage risk register** — any element that is present but low-evidence, flagged for Phase 2 attention
+7. **Source vocabulary extraction note** — genre labels or loaded terms Phase 2 plans to use, confirmed against source text
 
-### Step 3 — Validate coverage before scoring
+Phase 1A ledgers must exist before Phase 2 may score any criterion.
 
-Before Phase 2 scores any criterion, the pipeline must confirm:
+### Step 3 — Install the Phase 2 scoring prohibitions
 
-- [ ] All named characters in the ledger have been assigned a role and structural weight
-- [ ] All named relationship spines in the ledger have been flagged as major or minor with evidence
-- [ ] All object/medicine systems in the ledger have been assigned a function
-- [ ] No character, relationship, or system has been dropped without an explicit "minor — excluded with evidence" note
-- [ ] The closure criterion will not be scored until the relationship spine ledger is complete
+Phase 0 installs these scoring prohibitions into the evaluation session. Phase 2 must not violate them:
+
+- Narrative Closure must NOT be scored until the relationship spine ledger is complete
+- Criterion scores must NOT be finalized until all Phase 1A ledgers exist
+- A score reduction must NOT be applied to a criterion if the reduction is caused by a ledger gap rather than a manuscript gap
+- Recommendations must NOT be generated from unsupported vocabulary
 
 ---
 
@@ -132,16 +139,55 @@ Every recommendation generated by the evaluation pipeline must carry one of the 
 
 ---
 
-## What Phase 0 should produce
+## What Phase 0 produces
 
-At the end of Phase 0 warmup, the pipeline should have:
+Phase 0 produces governance artifacts only — no manuscript-specific content. At the end of Phase 0 warmup, the evaluation session has:
 
-1. A **structural lane map** naming all lanes present in the manuscript and flagging any with low evidence
-2. A **calibration understanding** (≥500 words) that describes the manuscript's architecture in its own vocabulary — what the dominant lanes are, what the secondary emotional lanes are, what doctrinal/medicine/object systems exist, and what relationship spines are load-bearing
-3. A **coverage risk register** — any lane, character, or system that is present but low-evidence, flagged for careful attention in Phase 1A
-4. A **vocabulary extraction note** — any genre labels or loaded terms the pipeline plans to use, confirmed against source text before Phase 1A begins
+1. **Warmup calibration summary** — confirmation that known failure modes have been loaded and are active for this session
+2. **Active governance rules** — the five scoring rules (see below) installed and enforced for this session
+3. **Phase 1A ledger contract** — the required output list Phase 1A must satisfy before Phase 2 may score
+4. **Known failure modes register** — the documented failure classes (loudest-lane bias, relationship spine omission, object blindness, unsupported vocabulary, closure deflation, already-present error) active as guards for this session
+5. **Scoring prohibitions** — the explicit list of what Phase 2 may not do until Phase 1A coverage is verified
+6. **Recommendation validity rules** — the six-class validity gate (VALID / PARTIALLY_VALID / ALREADY_PRESENT / CANON_FALSE / SOURCE_UNSUPPORTED / VOICE_RISK) installed and active
+7. **Handoff instruction to Phase 1A** — confirmation that manuscript reading begins at Phase 1A, along with the ledger contract Phase 1A must fulfill
 
-Phase 0 produces zero criterion scores. It produces structural mapping only. The scores come in Phase 2, after the ledgers are built.
+Phase 0 produces zero criterion scores. Phase 0 produces zero manuscript-specific analysis. Phase 0 does not read the source text.
+
+---
+
+## What Phase 1A must produce after reading the manuscript
+
+Phase 1A is where the manuscript is first read. After completing its source analysis, Phase 1A must have produced all of the following. Phase 2 may not begin until this list is satisfied.
+
+1. **Structural lane map** — every structural lane present in the manuscript, each named and either included with evidence or explicitly ruled minor with a reason. Lane types to map:
+   - Primary plot lanes (action/conflict/external goal)
+   - Secondary emotional lanes (tenderness, grief, healing, moral weight — often lower frequency but structurally central)
+   - Doctrinal / ideological systems (named belief systems, competing doctrines)
+   - Medicine / object systems (named substances, tools, healing agents, relics — structural function, not texture)
+   - Relationship spines (named character-to-character bonds anchoring emotional, thematic, or arc logic)
+   - Low-frequency / high-payoff characters (appear in fewer chapters but carry disproportionate weight)
+   - Environmental / ecological systems (named conditions functioning as plot drivers or thematic anchors)
+
+2. **Character ledger** — every named character with: role, structural function, narrative weight, and relationship spine connections
+
+3. **Relationship spine ledger** — every named relationship with: characters involved, function (plot / emotional / thematic), and structural importance (major / minor / ruled out with evidence)
+
+4. **Object / medicine / symbol ledger** — every named object system with: name, structural function, plot engine vs. texture classification, and relationship connections
+
+5. **Doctrine / ideology ledger** — every named belief system with: name, structural role, and relationship to competing doctrines
+
+6. **Canon coverage risk register** — any element present in the source but low-evidence in the ledger, flagged for Phase 2 attention. Format:
+   - Entity name
+   - Entity type (character / relationship / object / doctrine)
+   - Risk description
+   - Source evidence note
+
+7. **Source vocabulary extraction note** — any genre label or loaded term Phase 2 plans to use as an evaluation descriptor, confirmed against source text. Format:
+   - Candidate label
+   - Source-supported: yes / no
+   - Source evidence (if yes) or recommended replacement (if no)
+
+8. **Calibration understanding** (≥500 words) — a written description of the manuscript's structural architecture in its own vocabulary: what the dominant lanes are, what the secondary emotional lanes are, what doctrinal/medicine/object systems exist, and what relationship spines are load-bearing. This is the Phase 1A-produced understanding; Phase 0 does not produce it.
 
 ---
 
@@ -161,10 +207,10 @@ Failure specimen: `fa730c9c-e41b-4fc2-b37e-52db365b9b17` (overall 66/100, delta 
 
 ## One-sentence Phase 0 instruction
 
-> Before scoring, map every structural lane, build every ledger, confirm every name against the source text, and do not proceed until coverage is verified — because a pipeline that only sees the loudest lanes is not evaluating the manuscript.
+> Phase 0 trains the evaluator. Phase 1A reads the manuscript. Phase 2 scores only after Phase 1A coverage is verified — because a pipeline that only sees the loudest lanes is not evaluating the manuscript; it is evaluating its own priors.
 
 ---
 
 *canon_correction_playbook_v1 — RevisionGrade Phase 0 Warmup Artifact*
-*Version 1.0.0 — 2026-05-24*
-*Abstract rules only — safe to load on any manuscript job*
+*Version 1.1.0 — 2026-05-24*
+*Phase 0 governance rules and Phase 1A ledger contract only — no manuscript-specific content — safe to load on any evaluation job*
