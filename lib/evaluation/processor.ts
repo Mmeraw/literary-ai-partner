@@ -2403,7 +2403,7 @@ CONFIDENCE BANDS LOCKED:
 
 READY TO EVALUATE.
 
-## EVALUATION GOVERNANCE RULES (canon_correction_playbook_v1 v1.2.0)
+## EVALUATION GOVERNANCE RULES (canon_correction_playbook_v1 v1.3.0)
 
 Phase 0: load rules only. Do not read the manuscript.
 Phase 1A: read the manuscript and build pass1a_story_ledger_v1 (8 layers).
