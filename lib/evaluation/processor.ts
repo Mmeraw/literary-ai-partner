@@ -1770,6 +1770,7 @@ export async function failStaleRunningJobs(): Promise<{
             manuscriptId: (row.manuscript_id as number | null) ?? 0,
             reason: 'phase_1a_both_artifacts_ready',
             checkpoint: 'pass1a_character_ledger_v1+pass3_preflight_draft_v1',
+            targetPhase: 'review_gate',
           });
           continue;
         }
@@ -1781,6 +1782,7 @@ export async function failStaleRunningJobs(): Promise<{
             manuscriptId: (row.manuscript_id as number | null) ?? 0,
             reason: 'phase_1a_ledger_ready_preflight_timeout',
             checkpoint: 'pass1a_character_ledger_v1',
+            targetPhase: 'review_gate',
           });
           continue;
         }
@@ -1833,7 +1835,7 @@ export async function failStaleRunningJobs(): Promise<{
           // Fetch current progress to merge stamp without losing existing keys.
           const { data: currentRow } = await supabase
             .from('evaluation_jobs')
-            .select('progress, attempt_count')
+            .select('progress, attempt_count, review_gate_entered_at')
             .eq('id', entry.id)
             .single();
 
@@ -1841,14 +1843,6 @@ export async function failStaleRunningJobs(): Promise<{
             ? (currentRow.progress as Record<string, unknown>)
             : {};
           const currentAttempts = (currentRow?.attempt_count as number | null) ?? 0;
-
-          const rescuedProgress = {
-            ...currentProgress,
-            watchdog_last_rescue_at:    rescueNow,
-            watchdog_last_rescue_code:  currentProgress.error_code ?? null,
-            watchdog_last_rescue_phase: currentProgress.phase ?? null,
-            watchdog_rescue_count:      ((currentProgress.watchdog_rescue_count as number | null) ?? 0) + 1,
-          };
 
           // Determine rescue target phase:
           //   - entry.targetPhase set explicitly (split-brain → phase_2 or phase_3
@@ -1861,20 +1855,32 @@ export async function failStaleRunningJobs(): Promise<{
           //   anything else in phase_1a, or phase_2+ → phase_2
           const rescueTargetPhase = entry.targetPhase
             ?? (entry.checkpoint === 'pass1a_chunk_cache_v1' ? 'phase_1a' : 'phase_2');
+          const rescueTargetPhaseStatus = rescueTargetPhase === 'review_gate' ? 'awaiting_approval' : JOB_STATUS.QUEUED;
+          const rescueAttemptCount = rescueTargetPhase === 'review_gate' ? currentAttempts : currentAttempts + 1;
+
+          const rescuedProgress = {
+            ...currentProgress,
+            watchdog_last_rescue_at:    rescueNow,
+            watchdog_last_rescue_code:  currentProgress.error_code ?? null,
+            watchdog_last_rescue_phase: currentProgress.phase ?? null,
+            watchdog_rescue_count:      ((currentProgress.watchdog_rescue_count as number | null) ?? 0) + 1,
+            phase_status:               rescueTargetPhaseStatus,
+          };
 
           const { data: updateResult, error: updateErr } = await supabase
             .from('evaluation_jobs')
             .update({
               status: JOB_STATUS.QUEUED,
               phase: rescueTargetPhase,
-              phase_status: JOB_STATUS.QUEUED,
+              phase_status: rescueTargetPhaseStatus,
               claimed_by: null,
               claimed_at: null,
               lease_token: null,
               lease_until: null,
-              attempt_count: currentAttempts + 1,
+              attempt_count: rescueAttemptCount,
               updated_at: rescueNow,
               progress: rescuedProgress,
+              ...(rescueTargetPhase === 'review_gate' && !currentRow?.review_gate_entered_at ? { review_gate_entered_at: rescueNow } : {}),
             })
             .eq('id', entry.id)
             .eq('status', runningStatus)
@@ -1904,7 +1910,7 @@ export async function failStaleRunningJobs(): Promise<{
                 rescue_reason: entry.reason,
                 checkpoint_used: entry.checkpoint,
                 rescue_count: rescuedProgress.watchdog_rescue_count,
-                attempt_count_after: currentAttempts + 1,
+                attempt_count_after: rescueAttemptCount,
                 rescuedAt: rescueNow,
               },
               sourceHash: `watchdog_rescue_${entry.id}_${rescueNow}`,
