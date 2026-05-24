@@ -67,7 +67,7 @@ export default function ModeConfirmationBlock({ jobId, detectedMode, confirmedMo
   return (
     <section className="rounded-lg border bg-white p-6 mb-4">
       <div className="flex items-center justify-between gap-3">
-        <h2 className="text-xl font-semibold text-gray-900">Mode Confirmation</h2>
+        <h2 className="text-xl font-semibold text-gray-900">Access Confirmation</h2>
         <span
           className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${
             detectedMode.confidence === "HIGH"
@@ -77,7 +77,7 @@ export default function ModeConfirmationBlock({ jobId, detectedMode, confirmedMo
               : "bg-rose-100 text-rose-800"
           }`}
         >
-          {detectedMode.confidence} confidence
+          {detectedMode.confidence} Safety Confidence
         </span>
       </div>
 
@@ -146,13 +146,13 @@ export default function ModeConfirmationBlock({ jobId, detectedMode, confirmedMo
           disabled={busy}
           className="rounded-md bg-indigo-600 px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
         >
-          {isConfirmed ? "Save Mode" : "Confirm Mode"}
+          {isConfirmed ? "Save Mode" : "Confirm Access"}
         </button>
       </div>
 
       {!isConfirmed && (
         <p className="mt-3 text-sm font-medium text-amber-700 leading-relaxed">
-          Revise and Trustpath remain hard-disabled until a mode is confirmed.
+          Revise and Trustpath are locked until access is confirmed.
         </p>
       )}
       {error && <p className="mt-3 text-sm text-red-700">{error}</p>}

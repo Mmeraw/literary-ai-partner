@@ -314,7 +314,7 @@ async function getArtifact(jobId: string): Promise<ArtifactResult> {
 }
 
 function formatScore(n: number): string {
-  return Number.isFinite(n) ? n.toFixed(2) : "N/A";
+  return Number.isFinite(n) ? String(Math.round(n)) : "N/A";
 }
 
 function calculateProgressPercentage(job: Pick<Job, "completed_units" | "total_units">): number {
@@ -541,8 +541,12 @@ export default async function EvaluationReportPage({
         <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-700">Evaluation Metadata</h2>
         <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4 text-sm">
           <div>
+{chapterTitle && chapterTitle !== manuscriptTitle && (
+            <>
             <p className="text-gray-700 font-medium">Chapter Title</p>
-            <p className="font-medium text-gray-900">{chapterTitle || manuscriptTitle || "Untitled"}</p>
+            <p className="font-medium text-gray-900">{chapterTitle}</p>
+            </>
+            )}
           </div>
           <div>
             <p className="text-gray-700 font-medium">Manuscript Title</p>
@@ -797,12 +801,10 @@ export default async function EvaluationReportPage({
               <div className="mt-3 rounded-md border bg-gray-50 p-3 text-xs text-gray-700">
                 <p>
                   <span className="font-medium">Score Ledger:</span>{" "}
-                  Raw {artifact.governance.transparency.score_ledger.raw_total} / {artifact.governance.transparency.score_ledger.max_total},{" "}
-                  Weighted composite {artifact.governance.transparency.score_ledger.normalized_total} / 10,{" "}
-                  Weighting {artifact.governance.transparency.score_ledger.weighting}
+                  Score: {Math.round(artifact.governance.transparency.score_ledger.normalized_total)} / 10 | Weighting: {artifact.governance.transparency.score_ledger.weighting}
                 </p>
                 <p className="mt-1 text-[11px] text-gray-700">
-                  Weighted composite is the canonical 0–10 score (weighted across 13 criteria). The Overall Score above is the same value rescaled to 0–100 for ease of reading.
+                  Score (0–10) is the canonical weighted score. Overall Score (0–100) is the same value rescaled.
                 </p>
               </div>
             )}
@@ -866,7 +868,7 @@ export default async function EvaluationReportPage({
               {artifact.governance?.confidence && (
                 <div>
                   <span className="text-gray-700 font-medium">Confidence:</span>{" "}
-                  <span className="font-medium">{(artifact.governance.confidence * 100).toFixed(0)}%</span>
+                  <span className="font-medium">{{Math.round(artifact.governance.confidence * 100)}%</span>
                 </div>
               )}
               {artifact.governance?.limitations && artifact.governance.limitations.length > 0 && (
