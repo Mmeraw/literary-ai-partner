@@ -38,10 +38,16 @@ import { buildPhaseLogPatch } from '@/lib/evaluation/phaseLog';
 
 type Disposition = 'accepted_without_changes' | 'accepted_with_edits' | 'rejected';
 
+interface LayerDecision {
+  status: string;
+  comment: string;
+}
+
 interface ReviewGateRequestBody {
   disposition: Disposition;
   author_notes?: string;
   edit_requests?: string[];
+  layer_decisions?: Record<string, LayerDecision>;
 }
 
 type RouteParams = {
@@ -85,7 +91,7 @@ export async function POST(request: NextRequest, { params }: RouteParams): Promi
     return NextResponse.json({ ok: false, error: 'Invalid JSON body' }, { status: 400 });
   }
 
-  const { disposition, author_notes, edit_requests } = body;
+  const { disposition, author_notes, edit_requests, layer_decisions } = body;
 
   const VALID_DISPOSITIONS: Disposition[] = [
     'accepted_without_changes',
@@ -97,6 +103,21 @@ export async function POST(request: NextRequest, { params }: RouteParams): Promi
       { ok: false, error: `Invalid disposition. Must be one of: ${VALID_DISPOSITIONS.join(', ')}` },
       { status: 400 },
     );
+  }
+
+  // Phase 2 cannot start unless all 8 layer decisions are present.
+  // On rejected disposition we allow missing decisions (author may bail early).
+  if (disposition !== 'rejected') {
+    const decisionCount = layer_decisions ? Object.keys(layer_decisions).length : 0;
+    if (decisionCount < 8) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: `All 8 layer decisions are required to approve the Story Ledger. Received ${decisionCount}.`,
+        },
+        { status: 400 },
+      );
+    }
   }
 
   const supabase = createAdminClient();
@@ -185,6 +206,7 @@ export async function POST(request: NextRequest, { params }: RouteParams): Promi
     submitted_at: now,
     author_notes: author_notes ?? null,
     edit_requests: edit_requests ?? [],
+    layer_decisions: layer_decisions ?? {},
     pass1a_story_layer_source_hash:
       (storyLayerArtifactRow as { source_hash?: string }).source_hash ?? null,
   };
@@ -269,6 +291,18 @@ export async function POST(request: NextRequest, { params }: RouteParams): Promi
   const storyLayerSourceHash =
     (storyLayerArtifactRow as { source_hash?: string }).source_hash ?? '';
 
+  const decisionValues = Object.values(layer_decisions ?? {});
+  const rejectedCount = decisionValues.filter(
+    (d) => d.status === 'rejected' || d.status === 'rejected_with_comment',
+  ).length;
+  const notedCount = decisionValues.filter((d) => d.status === 'accepted_with_comment').length;
+  const computedApprovalState =
+    rejectedCount > 0
+      ? 'accepted_with_contested_layers'
+      : notedCount > 0
+        ? 'accepted_with_conditions'
+        : 'accepted';
+
   const acceptedLedgerPayload = {
     job_id: jobId,
     evaluation_project_id: jobTyped.evaluation_project_id,
@@ -282,13 +316,14 @@ export async function POST(request: NextRequest, { params }: RouteParams): Promi
       disposition,
       approved_by: user.id,
       approved_at: now,
+      layer_decisions: layer_decisions ?? {},
     }),
     generated_at: now,
     // Story layer layers (carried forward from pass1a_story_layer_v1)
     layers: storyLayerContent.layers ?? {},
     // Governance rail — approval disposition + unresolved warnings preserved
     governance_rail: {
-      approval_state: disposition === 'accepted_without_changes' ? 'accepted' : 'accepted_with_conditions',
+      approval_state: computedApprovalState,
       approved_by: user.id,
       approved_at: now,
       disposition,
@@ -297,6 +332,8 @@ export async function POST(request: NextRequest, { params }: RouteParams): Promi
       pass1a_story_layer_source_hash: storyLayerSourceHash,
       // unresolved warnings from quality report are preserved for Phase 2 context
       unresolved_warnings_preserved: true,
+      contested_layer_count: rejectedCount,
+      layer_decisions: layer_decisions ?? {},
     },
   };
 
