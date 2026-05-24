@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { getProgressDisplay } from '@/components/evaluation-poller-display';
+import { formatRelativeTime, formatDuration } from '@/lib/ui/time-helpers';
 import { useRouter } from 'next/navigation';
 import { CancelEvaluationButton } from './evaluation/CancelEvaluationButton';
 import {
@@ -550,18 +551,22 @@ export function EvaluationPoller({
           );
         })()}
 
-        {/* Timestamps */}
+        {/* Timestamps — show relative/elapsed time, not raw timestamps */}
         <div className="grid grid-cols-1 gap-4 text-sm sm:grid-cols-2 lg:grid-cols-3">
           <div>
-            <p className="text-gray-600">Created</p>
-            <p className="text-gray-900 font-mono">
-              {new Date(job.created_at).toLocaleString()}
+            <p className="text-gray-600">Started</p>
+            <p className="text-gray-900">
+              {formatRelativeTime(job.created_at)}
             </p>
           </div>
           <div>
-            <p className="text-gray-600">Updated</p>
-            <p className="text-gray-900 font-mono">
-              {new Date(job.updated_at).toLocaleString()}
+            <p className="text-gray-600">
+              {job.status === 'complete' ? 'Completed' : 'Updated'}
+            </p>
+            <p className="text-gray-900">
+              {job.status === 'running' || job.status === 'queued'
+                ? `Running for ${formatDuration(job.created_at)}`
+                : formatRelativeTime(job.updated_at)}
             </p>
           </div>
           {(job.status === 'queued' || job.status === 'running') && (
