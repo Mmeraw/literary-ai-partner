@@ -1,6 +1,6 @@
 # CANON CORRECTION PLAYBOOK V1
 **RevisionGrade Phase 0 Warmup Artifact**
-Version: 1.2.0
+Version: 1.3.0
 Date: 2026-05-24
 Source: Distilled from FROGGIN_100P_EVALUATION_FIT_GAP_V1 and FROGGIN_100P_CANON_FIDELITY_FIXTURE_V1
 Scope: Abstract governance rules and ledger contracts only — not manuscript-specific. Safe to load on every evaluation job.
@@ -75,7 +75,7 @@ Phase 1A is required to produce one artifact: **`pass1a_story_ledger_v1`** — a
 Phase 0 installs these scoring prohibitions into the evaluation session. Phase 2 must not violate them:
 
 - Narrative Closure must NOT be scored until the relationship spine ledger is complete
-- Criterion scores must NOT be finalized until all Phase 1A ledgers exist
+- Criterion scores must NOT be finalized until pass1a_story_ledger_v1 is complete and all 8 required layers pass completeness checks
 - A score reduction must NOT be applied to a criterion if the reduction is caused by a ledger gap rather than a manuscript gap
 - Recommendations must NOT be generated from unsupported vocabulary
 
@@ -93,7 +93,7 @@ Narrative Closure measures how well the manuscript's arcs resolve within scope. 
 
 ### Rule 2 — Do not recommend adding what is already present
 
-Before generating any recommendation that begins with "add," "introduce," "establish," or "create" — check the character ledger, relationship spine ledger, and object/medicine ledger. If the recommended element is already listed, the recommendation must be reclassified as:
+Before generating any recommendation that begins with "add," "introduce," "establish," or "create" — check the Character / Entity Layer, Relationship Spine Layer, and Object / Medicine / Symbol Layer inside pass1a_story_ledger_v1. If the recommended element is already listed, the recommendation must be reclassified as:
 
 - `ALREADY_PRESENT` — do not generate as a Revise task
 - Replace with: "elevate," "re-echo," "foreground," "strengthen the payoff of," or "sharpen"
@@ -196,10 +196,10 @@ Failure specimen: `fa730c9c-e41b-4fc2-b37e-52db365b9b17` (overall 66/100, delta 
 
 ## One-sentence Phase 0 instruction
 
-> Phase 0 does not read the manuscript; it loads golden-record lessons and hands Phase 1A the rules required to map structural lanes, build ledgers, confirm source vocabulary, and block Phase 2 scoring until canon coverage is verified.
+> Phase 0 does not read the manuscript; it loads golden-record lessons and hands Phase 1A the rules required to build pass1a_story_ledger_v1, including structural lanes, 8 required layers, source vocabulary checks, and canon coverage verification before Phase 2 scoring.
 
 ---
 
 *canon_correction_playbook_v1 — RevisionGrade Phase 0 Warmup Artifact*
-*Version 1.2.0 — 2026-05-24*
+*Version 1.3.0 — 2026-05-24*
 *Phase 0 governance rules and pass1a_story_ledger_v1 contract only — no manuscript-specific content — safe to load on any evaluation job*
