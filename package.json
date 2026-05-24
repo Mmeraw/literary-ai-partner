@@ -10,6 +10,7 @@
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "canon:guard": "bash ./scripts/canon-guard.sh",
+    "guard:lease-writes": "bash scripts/check-lease-writes.sh",
     "spine:verify": "bash scripts/verify-spine.sh",
     "config:validate": "tsx scripts/validate-production-config.ts",
     "corpus:validate": "tsx scripts/corpus/validate-public-domain-manifest.ts",

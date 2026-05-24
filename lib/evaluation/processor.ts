@@ -3003,7 +3003,7 @@ export async function processEvaluationJob(
           phase_status: JOB_STATUS.QUEUED,
           claimed_by: null,
           lease_token: null,
-          lease_expires_at: null,
+          lease_until: null,
           last_heartbeat_at: null,
           last_heartbeat: null,
           worker_pulse_at: null,
