@@ -47,7 +47,7 @@ export interface JobState {
   // early vs late phase_1a label selection. Additive; absent on older jobs.
   total_units?: number | null;
   completed_units?: number | null;
-  cross_check_status?
+  cross_check_status?:
     | 'queued'
     | 'running'
     | 'complete'

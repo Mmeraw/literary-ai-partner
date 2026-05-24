@@ -2758,6 +2758,26 @@ export async function processEvaluationJob(
     // 2. Update status to running
     await markRunning('Fetching manuscript', 0, executionPhase);
 
+    // PHASE 0 START: stamp phase0_started_at + first worker_pulse_at on the
+    // very first real work — manuscript fetch. This is the canonical Phase 0
+    // ("Preparing manuscript") start signal for the PhaseBreadcrumb timeline.
+    if (executionPhase === 'phase_1a') {
+      const phase0StartNow = new Date().toISOString();
+      void supabase
+        .from('evaluation_jobs')
+        .update({
+          phase0_started_at: phase0StartNow,
+          worker_pulse_at: phase0StartNow,
+          updated_at: phase0StartNow,
+        })
+        .eq('id', jobId)
+        .eq('status', JOB_STATUS.RUNNING)
+        .then(({ error }: { error: unknown }) => {
+          if (error) console.warn('[Processor] phase0_started_at stamp failed (non-fatal)', error);
+          else console.log(`[Processor] ${jobId}: phase0_started_at + worker_pulse_at stamped`);
+        });
+    }
+
     console.log(`[Processor] Job ${jobId} status updated to running`);
 
     // 3. Fetch the manuscript
@@ -3447,6 +3467,19 @@ export async function processEvaluationJob(
           console.warn('[Processor] phase_3 lease renewal failed (non-fatal)',
             err instanceof Error ? err.message : String(err));
         });
+        // IDLE GUARD: phase_3 has no per-chunk callbacks so we pulse on the
+        // lease interval itself — but ONLY write worker_pulse_at here, not
+        // last_heartbeat_at (renewEvaluationJobLease already owns that).
+        // This proves the JS event loop is still spinning inside the invocation.
+        const p3PulseNow = new Date().toISOString();
+        void supabase
+          .from('evaluation_jobs')
+          .update({ worker_pulse_at: p3PulseNow })
+          .eq('id', jobId)
+          .eq('status', JOB_STATUS.RUNNING)
+          .then(({ error }: { error: unknown }) => {
+            if (error) console.warn('[phase_3] worker_pulse_at stamp failed (non-fatal)', error);
+          });
       }, leaseRenewalIntervalMsP3);
 
       try {
@@ -3681,6 +3714,19 @@ export async function processEvaluationJob(
     // builds ledger V1+V2, persists artifact, then queues phase_2.
     // MANDATORY — if it fails, the job fails (ledger required for Pass 3).
     if (executionPhase === 'phase_1a') {
+      // PHASE 0 COMPLETE: stamp phase0_completed_at immediately before phase_1a
+      // begins. Phase 0 = all setup work (manuscript fetch, chunk routing, etc.)
+      const phase0EndNow = new Date().toISOString();
+      void supabase
+        .from('evaluation_jobs')
+        .update({ phase0_completed_at: phase0EndNow, worker_pulse_at: phase0EndNow, updated_at: phase0EndNow })
+        .eq('id', jobId)
+        .eq('status', JOB_STATUS.RUNNING)
+        .then(({ error }: { error: unknown }) => {
+          if (error) console.warn('[Processor] phase0_completed_at stamp failed (non-fatal)', error);
+          else console.log(`[Processor] ${jobId}: phase0_completed_at stamped`);
+        });
+
       await markRunning('Running Pass 1A character sweep', 1, 'phase_1a');
       refreshPhaseDeadline(progressState.phase1a_started_at as string | undefined);
 
@@ -3774,6 +3820,19 @@ export async function processEvaluationJob(
             sourceHash: pass1aSourceHash,
             artifactVersion: 'pass1a_chunk_cache_v1',
           });
+          // IDLE GUARD: stamp worker_pulse_at at every real chunk completion so
+          // the watchdog can distinguish lease-alive-but-work-dead from truly running.
+          // Non-blocking — chunk cache upsert above already proves real work happened.
+          const pulseNow = new Date().toISOString();
+          void supabase
+            .from('evaluation_jobs')
+            .update({ worker_pulse_at: pulseNow, updated_at: pulseNow })
+            .eq('id', String(job.id))
+            .eq('status', JOB_STATUS.RUNNING)
+            .then(({ error }: { error: unknown }) => {
+              if (error) console.warn('[phase_1a] worker_pulse_at stamp failed (non-fatal)', error);
+              else console.log(`[phase_1a] worker_pulse_at stamped chunk=${chunkIndex} at=${pulseNow}`);
+            });
         };
 
         // ── phase_1: P1A (c=5) + P3A (c=2) run in parallel ───────────────────────
@@ -4170,6 +4229,16 @@ export async function processEvaluationJob(
                 await renewEvaluationJobLease({
                   supabase, jobId, leaseMs: runtimeConfig.worker.leaseMs, stage, hardDeadlineMs,
                 });
+                // IDLE GUARD: stamp worker_pulse_at at each phase_2 chunk heartbeat.
+                const p2PulseNow = new Date().toISOString();
+                void supabase
+                  .from('evaluation_jobs')
+                  .update({ worker_pulse_at: p2PulseNow })
+                  .eq('id', jobId)
+                  .eq('status', JOB_STATUS.RUNNING)
+                  .then(({ error }: { error: unknown }) => {
+                    if (error) console.warn('[phase_2] worker_pulse_at stamp failed (non-fatal)', error);
+                  });
               },
             });
 
@@ -4319,6 +4388,16 @@ export async function processEvaluationJob(
                 expectedClaimedBy,
               });
               await renewEvaluationJobLease({ supabase, jobId, leaseMs: runtimeConfig.worker.leaseMs, stage, hardDeadlineMs });
+              // IDLE GUARD: stamp worker_pulse_at at each phase_2 short chunk heartbeat.
+              const p2sPulseNow = new Date().toISOString();
+              void supabase
+                .from('evaluation_jobs')
+                .update({ worker_pulse_at: p2sPulseNow })
+                .eq('id', jobId)
+                .eq('status', JOB_STATUS.RUNNING)
+                .then(({ error }: { error: unknown }) => {
+                  if (error) console.warn('[phase_2_short] worker_pulse_at stamp failed (non-fatal)', error);
+                });
             },
           });
           if (!p2ShortResult.ok) {
