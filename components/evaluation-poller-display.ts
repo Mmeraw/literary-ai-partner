@@ -101,6 +101,34 @@ export function getProgressDisplay(
     };
   }
 
+  // phase_1a/queued (self-chain gap between batches) must show 25-45%, NOT 10%
+  if (job.phase === 'phase_1a' && job.status === 'queued') {
+    const fraction = job.phase_unit_fraction ?? 1;
+    const isEarly = fraction < 0.5;
+    return {
+      label: isEarly ? "Ingesting manuscript..." : "Extracting core narrative...",
+      valueLabel: isEarly ? "25%" : "45%",
+      percentage: isEarly ? 25 : 45,
+      color: "blue",
+      hardStop: false,
+      indeterminate: false,
+      helperText: "Analyzing manuscript structure..."
+    };
+  }
+
+  // phase_0/queued — preparing analysis (don't fall into generic 10%)
+  if (job.phase === 'phase_0' && job.status === 'queued') {
+    return {
+      label: "Preparing analysis...",
+      valueLabel: "5%",
+      percentage: 5,
+      color: "blue",
+      hardStop: false,
+      indeterminate: false,
+      helperText: "Evaluator is internalizing scoring standards before reading your manuscript.",
+    };
+  }
+
   // ── Queued (not yet running, not at gate) ─────────────────────────────────
   if (job.status === "queued") {
     return {
