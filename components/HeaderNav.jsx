@@ -3,19 +3,22 @@
 /**
  * HeaderNav — RevisionGrade canonical navigation shell
  *
- * Governed OS principle: core product actions stay top-level; reference pages
- * live behind Resources; auth state controls Dashboard vs Sign In/Sign Out.
+ * Signed-in nav order (per product doctrine):
+ *   Dashboard · Evaluate · Revise · Agent Readiness Package™ · Storygate Studio™ · Resources · Pricing
+ *   Admin-only: Pipeline
  *
  * Auth states:
- *   authState = "loading"   — session check in-flight; render nav skeleton (no flash)
- *   authState = "authed"    — valid session; show Dashboard + optional Pipeline
- *   authState = "anon"      — no session; show Sign In
+ *   "loading" — session check in-flight; render skeleton (no flash)
+ *   "authed"  — valid session
+ *   "anon"    — no session
  */
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { isPipelineHealthAdminEmail } from "@/lib/admin/pipelineHealthAllowlist";
+
+// ── Dropdown configs ──────────────────────────────────────────────────────────
 
 const resourceLinks = [
   ["The Black Box Problem", "/black-box-problem"],
@@ -31,20 +34,37 @@ const resourceActiveHrefs = [
   "/reliability",
 ];
 
+const arpLinks = [
+  ["Generate Full Agent Package", "/agent-readiness"],
+  ["Query / Cover Letter",        "/agent-readiness/query-letter"],
+  ["Synopsis Builder",            "/agent-readiness/synopsis"],
+  ["Pitch Builder",               "/agent-readiness/pitch"],
+  ["Author Bio",                  "/agent-readiness/bio"],
+  ["Comparables & Positioning",   "/agent-readiness/comparables"],
+  ["Package History / Export",    "/agent-readiness/history"],
+];
+
+const arpActiveHref = "/agent-readiness";
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 export default function HeaderNav() {
   const pathname = usePathname() || "/";
   const router = useRouter();
+
   const resourcesMenuRef = useRef(null);
+  const arpMenuRef       = useRef(null);
 
-  // "loading" prevents the nav from flashing between authed/anon states on mount
-  const [authState, setAuthState] = useState("loading"); // "loading" | "authed" | "anon"
-  const [email, setEmail] = useState(null);
-  const [signingOut, setSigningOut] = useState(false);
+  const [authState,    setAuthState]    = useState("loading");
+  const [email,        setEmail]        = useState(null);
+  const [signingOut,   setSigningOut]   = useState(false);
   const [resourcesOpen, setResourcesOpen] = useState(false);
+  const [arpOpen,       setArpOpen]       = useState(false);
 
-  const isAdmin = isPipelineHealthAdminEmail(email);
+  const isAdmin  = isPipelineHealthAdminEmail(email);
   const isAuthed = authState === "authed";
 
+  // ── Auth check ─────────────────────────────────────────────────────────────
   useEffect(() => {
     let cancelled = false;
     fetch("/api/auth/user", { credentials: "include", cache: "no-store" })
@@ -56,97 +76,108 @@ export default function HeaderNav() {
         setAuthState(resolvedEmail ? "authed" : "anon");
       })
       .catch(() => {
-        if (!cancelled) {
-          setEmail(null);
-          setAuthState("anon");
-        }
+        if (!cancelled) { setEmail(null); setAuthState("anon"); }
       });
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [pathname]);
 
+  // ── Dropdown outside-click / Escape ────────────────────────────────────────
   useEffect(() => {
-    if (!resourcesOpen) return;
-
-    function handlePointerDown(event) {
-      if (!resourcesMenuRef.current) return;
-      if (!resourcesMenuRef.current.contains(event.target)) {
-        setResourcesOpen(false);
-      }
+    if (!resourcesOpen && !arpOpen) return;
+    function handlePointerDown(e) {
+      if (resourcesOpen && resourcesMenuRef.current && !resourcesMenuRef.current.contains(e.target)) setResourcesOpen(false);
+      if (arpOpen      && arpMenuRef.current       && !arpMenuRef.current.contains(e.target))       setArpOpen(false);
     }
-
-    function handleKeyDown(event) {
-      if (event.key === "Escape") {
-        setResourcesOpen(false);
-      }
+    function handleKeyDown(e) {
+      if (e.key === "Escape") { setResourcesOpen(false); setArpOpen(false); }
     }
-
     document.addEventListener("pointerdown", handlePointerDown);
     document.addEventListener("keydown", handleKeyDown);
     return () => {
       document.removeEventListener("pointerdown", handlePointerDown);
       document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [resourcesOpen]);
+  }, [resourcesOpen, arpOpen]);
 
+  // ── Sign out ───────────────────────────────────────────────────────────────
   async function handleSignOut() {
     if (signingOut) return;
     setSigningOut(true);
-    try {
-      await fetch("/api/auth/signout", {
-        method: "POST",
-        credentials: "include",
-        cache: "no-store",
-      });
-    } catch {
-      // best-effort
-    }
-    setEmail(null);
-    setAuthState("anon");
-    router.push("/");
-    router.refresh();
+    try { await fetch("/api/auth/signout", { method: "POST", credentials: "include", cache: "no-store" }); }
+    catch { /* best-effort */ }
+    setEmail(null); setAuthState("anon");
+    router.push("/"); router.refresh();
     setSigningOut(false);
   }
 
-  const linkCls =
-    "text-xs tracking-widest uppercase font-rg-mono text-rg-cream2 hover:text-rg-cream transition-colors duration-150";
-  const activeLinkCls =
-    "text-xs tracking-widest uppercase font-rg-mono text-rg-gold";
+  // ── Style helpers ──────────────────────────────────────────────────────────
+  const linkCls       = "text-xs tracking-widest uppercase font-rg-mono text-rg-cream2 hover:text-rg-cream transition-colors duration-150";
+  const activeLinkCls = "text-xs tracking-widest uppercase font-rg-mono text-rg-gold";
 
   function NavLink({ href, children }) {
     const active = pathname === href || pathname.startsWith(href + "/");
-    return (
-      <Link href={href} className={active ? activeLinkCls : linkCls}>
-        {children}
-      </Link>
-    );
+    return <Link href={href} className={active ? activeLinkCls : linkCls}>{children}</Link>;
   }
 
-  const resourcesActive = resourceActiveHrefs.some(
-    (href) => pathname === href || pathname.startsWith(`${href}/`)
-  );
+  const resourcesActive = resourceActiveHrefs.some((h) => pathname === h || pathname.startsWith(`${h}/`));
+  const arpActive       = pathname === arpActiveHref || pathname.startsWith(`${arpActiveHref}/`);
+
+  // ── Dropdown panel shared style ────────────────────────────────────────────
+  const dropdownCls = "absolute left-1/2 top-8 z-50 -translate-x-1/2 border border-rg-cream2/15 bg-rg-ink2 p-3 shadow-xl shadow-black/30";
+  const dropdownItemCls = "block px-3 py-2 font-rg-mono text-xs uppercase tracking-[0.14em] text-rg-cream2 hover:text-rg-cream whitespace-nowrap";
 
   return (
     <header className="w-full bg-rg-ink border-b border-rg-cream2/10 sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-6 h-14 flex items-center justify-between gap-8">
+
+        {/* Wordmark */}
         <Link href="/" className="flex items-center gap-3 shrink-0 group">
-          <span className="inline-flex h-8 w-8 items-center justify-center border border-rg-gold/60 text-rg-gold font-rg-serif text-sm group-hover:border-rg-gold transition-colors duration-150">
-            R
-          </span>
-          <span className="text-rg-cream font-rg-serif text-sm tracking-wide hidden sm:block">
-            RevisionGrade&#8482;
-          </span>
+          <span className="inline-flex h-8 w-8 items-center justify-center border border-rg-gold/60 text-rg-gold font-rg-serif text-sm group-hover:border-rg-gold transition-colors duration-150">R</span>
+          <span className="text-rg-cream font-rg-serif text-sm tracking-wide hidden sm:block">RevisionGrade&#8482;</span>
         </Link>
 
+        {/* Nav links */}
         <nav className="flex items-center gap-6 flex-1 justify-center">
+
+          {/* Auth-gated: Dashboard first */}
+          {isAuthed && <NavLink href="/dashboard">Dashboard</NavLink>}
+
           <NavLink href="/evaluate">Evaluate</NavLink>
           <NavLink href="/revise">Revise</NavLink>
-          <NavLink href="/reliability">Reliability</NavLink>
+
+          {/* Agent Readiness Package™ dropdown (auth-gated) */}
+          {isAuthed && (
+            <div className="relative" ref={arpMenuRef}>
+              <button
+                type="button"
+                onClick={() => { setArpOpen((v) => !v); setResourcesOpen(false); }}
+                className={arpActive ? activeLinkCls : linkCls}
+                aria-expanded={arpOpen}
+                aria-haspopup="menu"
+                aria-controls="arp-menu"
+              >
+                Agent Readiness&#8482;
+              </button>
+              {arpOpen && (
+                <div id="arp-menu" className={`${dropdownCls} w-64`} role="menu">
+                  {arpLinks.map(([label, href]) => (
+                    <Link key={href} href={href} role="menuitem" onClick={() => setArpOpen(false)} className={dropdownItemCls}>
+                      {label}
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Storygate Studio™ top-level link (auth-gated) */}
+          {isAuthed && <NavLink href="/storygate-studio">Storygate Studio&#8482;</NavLink>}
+
+          {/* Resources dropdown */}
           <div className="relative" ref={resourcesMenuRef}>
             <button
               type="button"
-              onClick={() => setResourcesOpen((value) => !value)}
+              onClick={() => { setResourcesOpen((v) => !v); setArpOpen(false); }}
               className={resourcesActive ? activeLinkCls : linkCls}
               aria-expanded={resourcesOpen}
               aria-haspopup="menu"
@@ -155,36 +186,25 @@ export default function HeaderNav() {
               Resources
             </button>
             {resourcesOpen && (
-              <div
-                id="resources-menu"
-                className="absolute left-1/2 top-8 z-50 w-56 -translate-x-1/2 border border-rg-cream2/15 bg-rg-ink2 p-3 shadow-xl shadow-black/30"
-                role="menu"
-              >
+              <div id="resources-menu" className={`${dropdownCls} w-56`} role="menu">
                 {resourceLinks.map(([label, href]) => (
-                  <Link
-                    key={href}
-                    href={href}
-                    role="menuitem"
-                    onClick={() => setResourcesOpen(false)}
-                    className="block px-3 py-2 font-rg-mono text-xs uppercase tracking-[0.14em] text-rg-cream2 hover:text-rg-cream"
-                  >
+                  <Link key={href} href={href} role="menuitem" onClick={() => setResourcesOpen(false)} className={dropdownItemCls}>
                     {label}
                   </Link>
                 ))}
               </div>
             )}
           </div>
+
           <NavLink href="/pricing">Pricing</NavLink>
 
-          {/* Auth-gated items — only render once auth check resolves (no flash) */}
-          {isAuthed && <NavLink href="/dashboard">Dashboard</NavLink>}
-          {isAuthed && isAdmin && (
-            <NavLink href="/admin/pipeline-health">Pipeline</NavLink>
-          )}
+          {/* Admin-only */}
+          {isAuthed && isAdmin && <NavLink href="/admin/pipeline-health">Pipeline</NavLink>}
+
         </nav>
 
+        {/* Auth button */}
         <div className="shrink-0">
-          {/* While loading: render a ghost placeholder to prevent layout shift */}
           {authState === "loading" && (
             <span className="inline-block w-14 h-5 rounded bg-rg-cream2/10 animate-pulse" />
           )}
@@ -200,15 +220,12 @@ export default function HeaderNav() {
             </button>
           )}
           {authState === "anon" && (
-            <Link
-              href="/login"
-              data-testid="nav-signin"
-              className="text-xs tracking-widest uppercase font-rg-mono border border-rg-gold text-rg-gold px-3 py-1.5 hover:bg-rg-gold hover:text-rg-ink transition-colors duration-150"
-            >
+            <Link href="/login" data-testid="nav-signin" className="text-xs tracking-widest uppercase font-rg-mono border border-rg-gold text-rg-gold px-3 py-1.5 hover:bg-rg-gold hover:text-rg-ink transition-colors duration-150">
               Sign in
             </Link>
           )}
         </div>
+
       </div>
     </header>
   );
