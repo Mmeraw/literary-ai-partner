@@ -2398,7 +2398,7 @@ async function runPhase0GoldPrimer(args: {
       signal: AbortSignal.timeout(phase0TimeoutMs),
       body: JSON.stringify({
         model: openAiModel,
-        max_tokens: 20, // Acknowledgment only — "CALIBRATED" is the entire expected output
+        max_completion_tokens: 20, // Acknowledgment only — "CALIBRATED" is the entire expected output
         temperature: 0,
         messages: [
           {
