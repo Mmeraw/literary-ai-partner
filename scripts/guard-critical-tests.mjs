@@ -5,6 +5,8 @@ const root = process.cwd();
 
 const criticalTests = [
   '__tests__/lib/evaluation/processor.short-text.test.ts',
+  '__tests__/evaluation/storyLedgerExtensions.test.ts',
+  '__tests__/evaluation/e2eNamingContract.test.ts',
 ];
 
 const hasJestBlock = (content) => /\b(test|it)\s*\(/.test(content);
