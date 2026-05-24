@@ -2367,12 +2367,37 @@ When you evaluate the manuscript in the next phase, you will:
   4. Flag confidence honestly — never assert HIGH when evidence is ambiguous
   5. Complete all 13 criteria without exception
 
-Acknowledge with a single word: CALIBRATED
+## INTERNALIZATION PROOF — REQUIRED OUTPUT
+
+Do NOT respond with a single word. You must demonstrate internalization by writing
+a structured calibration lock. Use this exact format:
+
+CALIBRATED
+
+SCORING LOCK:
+- Scale: [0-2 critical failure | 3-4 weak | 5-6 competent | 7-9 professional | 10 mastery]
+- Gate: all 13 criteria must score 7+ for publication readiness
+- Evidence rule: every score requires specific manuscript citation — generic feedback = calibration failure
+
+CRITERIA LOCKED (13):
+[List all 13 criteria names with their one-line definition]
+
+CONFIDENCE BANDS LOCKED:
+- HIGH (≥95%) — only when evidence is unambiguous
+- MEDIUM (80–94%) — when reasonable experts may disagree
+- LOW (<80%) — label uncertainty explicitly, no correctness requirement
+
+READY TO EVALUATE.
 `;
 
 type Phase0Result =
   | { success: true; durationMs: number; acknowledgment: string }
   | { success: false; error: string; durationMs: number };
+
+// Phase 0 must dwell a minimum of 12 seconds regardless of LLM response speed.
+// This guarantees the model has actually processed the full gold standard before
+// the job transitions to phase_1a. "CALIBRATED" in 1s means nothing was internalized.
+const PHASE_0_MIN_DWELL_MS = 12_000;
 
 async function runPhase0GoldPrimer(args: {
   jobId: string;
@@ -2383,10 +2408,10 @@ async function runPhase0GoldPrimer(args: {
   const { jobId, openaiApiKey, openAiModel, evalOpenAiTimeoutMs } = args;
   const startMs = Date.now();
 
-  // Clamp timeout: Phase 0 should complete in 20-30s; cap at 60s.
+  // Clamp timeout: Phase 0 should complete in 12-30s; cap at 60s.
   const phase0TimeoutMs = Math.min(evalOpenAiTimeoutMs, 60_000);
 
-  console.log(`[Phase0] ${jobId}: sending gold-standard primer to ${openAiModel}`);
+  console.log(`[Phase0] ${jobId}: sending gold-standard primer to ${openAiModel} (min dwell ${PHASE_0_MIN_DWELL_MS}ms)`);
 
   try {
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -2398,15 +2423,16 @@ async function runPhase0GoldPrimer(args: {
       signal: AbortSignal.timeout(phase0TimeoutMs),
       body: JSON.stringify({
         model: openAiModel,
-        max_completion_tokens: 20, // Acknowledgment only — "CALIBRATED" is the entire expected output
+        max_completion_tokens: 400, // Must write structured calibration proof — not a one-word ack
         temperature: 0,
         messages: [
           {
             role: 'system',
             content:
               'You are a literary evaluation engine. You are about to receive your evaluation gold standard. ' +
-              'Study it completely. Internalize every criterion, threshold, and evidence contract. ' +
-              'When you have finished, respond with exactly one word: CALIBRATED',
+              'Read it in full. Internalize every criterion, threshold, and evidence contract. ' +
+              'Then write your structured calibration lock exactly as specified at the end of the document. ' +
+              'Do NOT respond with just one word — the calibration lock is required output.',
           },
           {
             role: 'user',
@@ -2416,14 +2442,19 @@ async function runPhase0GoldPrimer(args: {
       }),
     });
 
-    const durationMs = Date.now() - startMs;
+    const llmDurationMs = Date.now() - startMs;
 
     if (!response.ok) {
       const body = await response.text().catch(() => '');
+      // Still enforce min dwell even on failure — do not transition faster on error.
+      const elapsed = Date.now() - startMs;
+      if (elapsed < PHASE_0_MIN_DWELL_MS) {
+        await new Promise(r => setTimeout(r, PHASE_0_MIN_DWELL_MS - elapsed));
+      }
       return {
         success: false,
         error: `OpenAI HTTP ${response.status}: ${body.slice(0, 300)}`,
-        durationMs,
+        durationMs: Date.now() - startMs,
       };
     }
 
@@ -2432,10 +2463,28 @@ async function runPhase0GoldPrimer(args: {
     };
 
     const acknowledgment = json.choices?.[0]?.message?.content?.trim() ?? '';
-    console.log(`[Phase0] ${jobId}: LLM acknowledged in ${durationMs}ms: "${acknowledgment}"`);
+    console.log(`[Phase0] ${jobId}: LLM calibration lock received in ${llmDurationMs}ms (${acknowledgment.length} chars)`);
+
+    // ── Hard minimum dwell ──────────────────────────────────────────────────
+    // Even if OpenAI responds fast, the evaluator brain must sit with the gold
+    // standard for a minimum time before it's trusted to process the manuscript.
+    const elapsed = Date.now() - startMs;
+    if (elapsed < PHASE_0_MIN_DWELL_MS) {
+      const remaining = PHASE_0_MIN_DWELL_MS - elapsed;
+      console.log(`[Phase0] ${jobId}: enforcing minimum dwell — holding ${remaining}ms`);
+      await new Promise(r => setTimeout(r, remaining));
+    }
+    // ── End hard minimum dwell ───────────────────────────────────────────────
+
+    const durationMs = Date.now() - startMs;
+    console.log(`[Phase0] ${jobId}: warm-up complete in ${durationMs}ms (llm=${llmDurationMs}ms, dwell=${Math.max(0, PHASE_0_MIN_DWELL_MS - llmDurationMs)}ms)`);
 
     return { success: true, durationMs, acknowledgment };
   } catch (err) {
+    const elapsed = Date.now() - startMs;
+    if (elapsed < PHASE_0_MIN_DWELL_MS) {
+      await new Promise(r => setTimeout(r, PHASE_0_MIN_DWELL_MS - elapsed));
+    }
     const durationMs = Date.now() - startMs;
     const message = err instanceof Error ? err.message : String(err);
     console.error(`[Phase0] ${jobId}: primer call failed after ${durationMs}ms:`, message);
