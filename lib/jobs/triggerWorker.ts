@@ -31,7 +31,7 @@ export interface TriggerWorkerArgs {
   kickoffDispatchStartedAt?: string;
 }
 
-function getConfiguredAppBaseUrl(): string | null {
+export function getConfiguredAppBaseUrl(): string | null {
   const explicit = process.env.WORKER_KICKOFF_BASE_URL?.trim();
   if (explicit) {
     return explicit;

@@ -145,6 +145,7 @@ import {
   type PhaseName,
 } from '@/lib/evaluation/phaseTimestamps';
 import { buildPhaseLogPatch } from '@/lib/evaluation/phaseLog';
+import { getConfiguredAppBaseUrl } from '@/lib/jobs/triggerWorker';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // WAVE Phase 3 constants
@@ -2536,36 +2537,52 @@ async function runPhase0GoldPrimer(args: {
 }
 
 /**
- * Direct in-process kick: claim and run the next queued Phase 1A batch
- * without any HTTP round-trip.
+ * Fire-and-forget HTTP kick to /api/workers/process-evaluations.
  *
- * WHY DIRECT (not HTTP):
- * All call sites are already inside the processor — going out over HTTP just
- * to come back into processQueuedJobs() adds latency, burns a network hop,
- * and was the root cause of the intermittent 401s on self-chain kicks.
- * processQueuedJobs() is defined later in this file; the async wrapper below
- * is fire-and-forget so callers are not blocked.
+ * WHY HTTP (not direct processQueuedJobs() call):
+ * Each Phase 1A batch must run inside its own fresh Vercel invocation with a
+ * clean maxDuration clock. A direct in-process call re-enters the same
+ * invocation and would recreate the exact timeout risk that self-chaining
+ * was designed to prevent.
+ *
+ * WHY getConfiguredAppBaseUrl() (not VERCEL_URL):
+ * VERCEL_URL resolves to the deployment-specific preview URL, not the
+ * canonical production hostname. WORKER_KICKOFF_BASE_URL → NEXT_PUBLIC_APP_URL
+ * → VERCEL_URL is the correct priority chain already implemented in
+ * triggerWorker.ts. Using the same helper keeps URL resolution consistent.
  *
  * WHY THE 150ms DELAY:
- * The DB write committing phase_1a/queued must flush before the next claim
- * executes, or claim_evaluation_jobs finds 0 eligible rows and returns
- * immediately. 150ms is enough for the Postgres commit to be visible.
+ * The DB write committing phase_1a/queued must flush before the new worker
+ * invocation claims the row. 150ms is enough for the Postgres commit to be
+ * visible to a fresh connection from a new Vercel function invocation.
  */
 async function kickPhase1aWorker(): Promise<void> {
-  // 150ms: let the phase_1a/queued DB write commit before the next claim
+  const secret = process.env.CRON_SECRET;
+  if (!secret) {
+    console.warn('[kickPhase1aWorker] CRON_SECRET not set — skipping kick, cron is fallback');
+    return;
+  }
+
+  const base = getConfiguredAppBaseUrl() ?? 'https://www.revisiongrade.com';
+  const url = new URL('/api/workers/process-evaluations', base).toString();
+
+  // 150ms: let the phase_1a/queued DB write commit before the new worker claims
   await new Promise(r => setTimeout(r, 150));
 
   try {
-    const result = await processQueuedJobs({ workerId: `internal-kick:${randomUUID()}` });
-    console.log('[kickPhase1aWorker] direct in-process kick completed', {
-      claimed: result.claimed,
-      processed: result.processed,
-      succeeded: result.succeeded,
-      failed: result.failed,
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${secret}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ source: 'phase1a_self_chain_kick' }),
+      signal: AbortSignal.timeout(10_000),
     });
+    console.log(`[kickPhase1aWorker] kick sent → HTTP ${res.status} (url=${url})`);
   } catch (err) {
     // Best-effort — cron is the rescue fallback
-    console.warn('[kickPhase1aWorker] direct kick failed (cron is fallback):', err instanceof Error ? err.message : String(err));
+    console.warn('[kickPhase1aWorker] kick failed (cron is fallback):', err instanceof Error ? err.message : String(err));
   }
 }
 
