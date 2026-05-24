@@ -1,6 +1,6 @@
 # CANON CORRECTION PLAYBOOK V1
 **RevisionGrade Phase 0 Warmup Artifact**
-Version: 1.1.0
+Version: 1.2.0
 Date: 2026-05-24
 Source: Distilled from FROGGIN_100P_EVALUATION_FIT_GAP_V1 and FROGGIN_100P_CANON_FIDELITY_FIXTURE_V1
 Scope: Abstract governance rules and ledger contracts only — not manuscript-specific. Safe to load on every evaluation job.
@@ -51,20 +51,24 @@ Phase 0 reads the canonical failure modes documented in benchmark correction pac
 | **Closure score deflation** | Narrative Closure underscored because relationship arcs were not analyzed | Closure must not be scored until the relationship spine ledger is complete |
 | **Already-present recommendation error** | Pipeline recommends adding elements already in the manuscript | All recommendations must pass the Already-Present Gate before entering the Revise queue |
 
-### Step 2 — Install the Phase 1A ledger contract
+### Step 2 — Install the Phase 1A Story Ledger contract
 
-Phase 0 defines what Phase 1A MUST produce after reading the manuscript. Phase 0 does not produce these ledgers itself — it specifies the requirement that Phase 1A must satisfy.
+Phase 0 defines what Phase 1A MUST produce after reading the manuscript. Phase 0 does not build this artifact itself — it installs the contract requirement that Phase 1A must satisfy.
 
-Phase 1A is required to produce:
-1. **Character ledger** — every named character with role, function, and narrative weight
-2. **Relationship spine ledger** — every named relationship with function and structural importance
-3. **Object / medicine / symbol ledger** — every named system with its plot function
-4. **Doctrine / ideology ledger** — every named belief system with its structural role
-5. **Structural lane map** — all lanes present in the manuscript, each explicitly included or ruled out with evidence
-6. **Canon coverage risk register** — any element that is present but low-evidence, flagged for Phase 2 attention
-7. **Source vocabulary extraction note** — genre labels or loaded terms Phase 2 plans to use, confirmed against source text
+Phase 1A is required to produce one artifact: **`pass1a_story_ledger_v1`** — a single Story Ledger with 8 layers.
 
-Phase 1A ledgers must exist before Phase 2 may score any criterion.
+| Layer | Name | Contents |
+|---|---|---|
+| 1 | Structural Lane Map | All structural lanes: plot / emotional / doctrinal / medicine-object / relationship / environmental. Each lane named and either included with evidence or ruled minor with reason. |
+| 2 | Character / Entity Layer | Every named character: role, structural function, narrative weight |
+| 3 | Relationship Spine Layer | Every named relationship: characters involved, function (plot / emotional / thematic), structural importance (major / minor / ruled out) |
+| 4 | Object / Medicine / Symbol Layer | Every named substance, tool, relic, or medicine system: structural function vs. texture classification |
+| 5 | Doctrine / Ideology Layer | Every named belief system: structural role, relationship to competing doctrines |
+| 6 | Environmental / World Logic Layer | Named environmental conditions, ecological systems, dead zones: plot driver vs. setting classification |
+| 7 | Plot Thread / Arc Layer | Named arcs and plot threads with their current payoff status within the evaluated scope |
+| 8 | Coverage Risk / Source Vocabulary Layer | Low-evidence elements flagged for Phase 2 attention; candidate genre labels confirmed or replaced with source vocabulary |
+
+`pass1a_story_ledger_v1` must be complete before Phase 2 may score any criterion.
 
 ### Step 3 — Install the Phase 2 scoring prohibitions
 
@@ -145,11 +149,11 @@ Phase 0 produces governance artifacts only — no manuscript-specific content. A
 
 1. **Warmup calibration summary** — confirmation that known failure modes have been loaded and are active for this session
 2. **Active governance rules** — the five scoring rules (see below) installed and enforced for this session
-3. **Phase 1A ledger contract** — the required output list Phase 1A must satisfy before Phase 2 may score
+3. **`pass1a_story_ledger_v1` contract** — the required 8-layer Story Ledger spec that Phase 1A must satisfy before Phase 2 may score
 4. **Known failure modes register** — the documented failure classes (loudest-lane bias, relationship spine omission, object blindness, unsupported vocabulary, closure deflation, already-present error) active as guards for this session
-5. **Scoring prohibitions** — the explicit list of what Phase 2 may not do until Phase 1A coverage is verified
+5. **Scoring prohibitions** — the explicit list of what Phase 2 may not do until `pass1a_story_ledger_v1` is complete
 6. **Recommendation validity rules** — the six-class validity gate (VALID / PARTIALLY_VALID / ALREADY_PRESENT / CANON_FALSE / SOURCE_UNSUPPORTED / VOICE_RISK) installed and active
-7. **Handoff instruction to Phase 1A** — confirmation that manuscript reading begins at Phase 1A, along with the ledger contract Phase 1A must fulfill
+7. **Handoff instruction to Phase 1A** — confirmation that manuscript reading begins at Phase 1A, along with the `pass1a_story_ledger_v1` contract Phase 1A must fulfill
 
 Phase 0 produces zero criterion scores. Phase 0 produces zero manuscript-specific analysis. Phase 0 does not read the source text.
 
@@ -157,37 +161,22 @@ Phase 0 produces zero criterion scores. Phase 0 produces zero manuscript-specifi
 
 ## What Phase 1A must produce after reading the manuscript
 
-Phase 1A is where the manuscript is first read. After completing its source analysis, Phase 1A must have produced all of the following. Phase 2 may not begin until this list is satisfied.
+Phase 1A is where the manuscript is first read. Phase 1A produces one artifact: **`pass1a_story_ledger_v1`** — a single Story Ledger with 8 layers. Phase 2 may not begin until this artifact is complete.
 
-1. **Structural lane map** — every structural lane present in the manuscript, each named and either included with evidence or explicitly ruled minor with a reason. Lane types to map:
-   - Primary plot lanes (action/conflict/external goal)
-   - Secondary emotional lanes (tenderness, grief, healing, moral weight — often lower frequency but structurally central)
-   - Doctrinal / ideological systems (named belief systems, competing doctrines)
-   - Medicine / object systems (named substances, tools, healing agents, relics — structural function, not texture)
-   - Relationship spines (named character-to-character bonds anchoring emotional, thematic, or arc logic)
-   - Low-frequency / high-payoff characters (appear in fewer chapters but carry disproportionate weight)
-   - Environmental / ecological systems (named conditions functioning as plot drivers or thematic anchors)
+**`pass1a_story_ledger_v1` — 8 layers:**
 
-2. **Character ledger** — every named character with: role, structural function, narrative weight, and relationship spine connections
+| Layer | Name | Required content |
+|---|---|---|
+| 1 | **Structural Lane Map** | Every structural lane named and either included with evidence or explicitly ruled minor with a reason. Lane types: primary plot, secondary emotional, doctrinal/ideological, medicine/object, relationship spine, low-frequency/high-payoff character, environmental/ecological. |
+| 2 | **Character / Entity Layer** | Every named character: role, structural function, narrative weight, relationship spine connections. |
+| 3 | **Relationship Spine Layer** | Every named relationship: characters involved, function (plot / emotional / thematic), structural importance (major / minor / ruled out with evidence). Cross-world and cross-species arcs must be merged into a single spine entry, not filed separately. |
+| 4 | **Object / Medicine / Symbol Layer** | Every named substance, tool, healing agent, relic, or medicine system: name, structural function, plot engine vs. texture classification, relationship connections. |
+| 5 | **Doctrine / Ideology Layer** | Every named belief system: name, structural role, relationship to competing doctrines. Must not be collapsed into "worldbuilding flavor." |
+| 6 | **Environmental / World Logic Layer** | Named environmental conditions, ecological systems, dead zones, blight: plot driver vs. setting classification. |
+| 7 | **Plot Thread / Arc Layer** | Named arcs and plot threads with current payoff status within the evaluated scope. |
+| 8 | **Coverage Risk / Source Vocabulary Layer** | (a) Low-evidence elements flagged for Phase 2 attention with entity type, risk description, and source note. (b) Candidate genre labels confirmed or replaced with source-extracted vocabulary before Phase 2 uses them. |
 
-3. **Relationship spine ledger** — every named relationship with: characters involved, function (plot / emotional / thematic), and structural importance (major / minor / ruled out with evidence)
-
-4. **Object / medicine / symbol ledger** — every named object system with: name, structural function, plot engine vs. texture classification, and relationship connections
-
-5. **Doctrine / ideology ledger** — every named belief system with: name, structural role, and relationship to competing doctrines
-
-6. **Canon coverage risk register** — any element present in the source but low-evidence in the ledger, flagged for Phase 2 attention. Format:
-   - Entity name
-   - Entity type (character / relationship / object / doctrine)
-   - Risk description
-   - Source evidence note
-
-7. **Source vocabulary extraction note** — any genre label or loaded term Phase 2 plans to use as an evaluation descriptor, confirmed against source text. Format:
-   - Candidate label
-   - Source-supported: yes / no
-   - Source evidence (if yes) or recommended replacement (if no)
-
-8. **Calibration understanding** (≥500 words) — a written description of the manuscript's structural architecture in its own vocabulary: what the dominant lanes are, what the secondary emotional lanes are, what doctrinal/medicine/object systems exist, and what relationship spines are load-bearing. This is the Phase 1A-produced understanding; Phase 0 does not produce it.
+**Calibration understanding** (≥500 words) is a companion narrative summary of the Story Ledger — a written description of the manuscript's structural architecture in its own vocabulary. It accompanies `pass1a_story_ledger_v1` but is not a separate artifact. Phase 0 does not produce it.
 
 ---
 
@@ -212,5 +201,5 @@ Failure specimen: `fa730c9c-e41b-4fc2-b37e-52db365b9b17` (overall 66/100, delta 
 ---
 
 *canon_correction_playbook_v1 — RevisionGrade Phase 0 Warmup Artifact*
-*Version 1.1.0 — 2026-05-24*
-*Phase 0 governance rules and Phase 1A ledger contract only — no manuscript-specific content — safe to load on any evaluation job*
+*Version 1.2.0 — 2026-05-24*
+*Phase 0 governance rules and pass1a_story_ledger_v1 contract only — no manuscript-specific content — safe to load on any evaluation job*
