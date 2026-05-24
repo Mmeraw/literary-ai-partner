@@ -2380,7 +2380,7 @@ SCORING LOCK:
 - Evidence rule: every score requires specific manuscript citation — generic feedback = calibration failure
 
 CRITERIA LOCKED (13):
-[For each of the 13 criteria write: the criterion name, its definition as you internalized it, what evidence is required, and what a score of 7+ looks like vs a score below 7. Approximately 30 words per criterion. Do not abbreviate.]
+[For each of the 13 criteria you MUST write a minimum of 40 words. Include: (1) the criterion name, (2) its definition exactly as you internalized it, (3) what specific manuscript evidence is required to score it, (4) what a score of 7 or above looks like, (5) what a score below 7 looks like. Do not abbreviate. Do not combine criteria. Write all 13 in full.]
 
 CONFIDENCE BANDS LOCKED:
 - HIGH (≥95%) — only when evidence is unambiguous
@@ -2403,7 +2403,7 @@ const PHASE_0_MIN_DWELL_MS = 12_000;
 // The required proforma has 4 sections:
 //   CALIBRATED header
 //   SCORING LOCK (scale + gate + evidence rule)
-//   CRITERIA LOCKED — 13 criteria × ~30 words each = ~390 words
+//   CRITERIA LOCKED — 13 criteria × 40 words minimum each = ~520 words
 //   CONFIDENCE BANDS (3 bands defined)
 //   READY TO EVALUATE
 // A fully completed response must be at least 500 words.
@@ -2435,7 +2435,7 @@ async function runPhase0GoldPrimer(args: {
       signal: AbortSignal.timeout(phase0TimeoutMs),
       body: JSON.stringify({
         model: openAiModel,
-        max_completion_tokens: 800, // 500-word proforma minimum: 13 criteria × ~30 words + sections
+        max_completion_tokens: 1000, // 500-word proforma minimum: 13 criteria × 40 words min + sections
         temperature: 0,
         messages: [
           {
