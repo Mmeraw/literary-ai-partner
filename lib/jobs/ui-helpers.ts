@@ -107,19 +107,25 @@ export function getJobDisplayInfo(job: Job): JobDisplayInfo {
     }
   }
 
-  // Phase detail
+  // Phase detail — translate internal phase codes to user-facing eval stage names.
+  // Users never see "phase_1a", "phase_2", etc.
   let phaseDisplay = "";
-  if (phase && phase_status) {
-    const phaseNum = phase === "phase_1a" ? "1A" : phase === "phase_2" ? "2" : phase === "phase_3" ? "3" : "?"; // Display only
+  if (phase) {
+    const stageLabel =
+      phase === "phase_0"       ? "Pre-flight Check"   :
+      phase === "phase_1a"      ? "Story Layer Analysis" :
+      phase === "review_gate"   ? "Story Layer Review" :
+      phase === "phase_2"       ? "Craft Diagnostics"  :
+      phase === "phase_3"       ? "Report Assembly"    :
+      phase === "wave_revision" ? "Revision Plan"      :
+                                  "In Progress";
     const statusLabel =
-      phase_status === "complete"
-        ? "Complete"
-        : phase_status === "failed"
-          ? "Failed"
-          : phase_status === "running"
-            ? "Running"
-            : "Queued";
-    phaseDisplay = `Phase ${phaseNum}: ${statusLabel}`;
+      phase_status === "complete"          ? "Complete"           :
+      phase_status === "failed"            ? "Failed"             :
+      phase_status === "awaiting_approval" ? "Awaiting Approval"  :
+      phase_status === "running"           ? "Running"            :
+                                             "Queued";
+    phaseDisplay = `${stageLabel} — ${statusLabel}`;
   }
 
   const phaseDetail: JobPhaseDetail = {

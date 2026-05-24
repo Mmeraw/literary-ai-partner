@@ -142,22 +142,22 @@ export default function EvaluateEntry() {
                   <thead className="bg-gray-50">
                     <tr>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Manuscript ID
+                        Job ID
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Status
+                        Result
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Phase
+                        Eval Stage
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Progress
+                        Activity
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Created
+                        Submitted
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Action
+                        Report
                       </th>
                     </tr>
                   </thead>
@@ -199,8 +199,14 @@ export default function EvaluateEntry() {
 
                       return (
                         <tr key={job.id} className="hover:bg-gray-50">
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {job.manuscript_id}
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-mono">
+                            <Link
+                              href={`/evaluate/${job.id}`}
+                              className="text-blue-600 hover:text-blue-800 hover:underline"
+                              title={job.id}
+                            >
+                              {job.id.slice(0, 8)}&hellip;
+                            </Link>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${statusBadge.className}`}>
@@ -256,13 +262,16 @@ export default function EvaluateEntry() {
                               </Link>
                             ) : isRunning || isQueued ? (
                               <div className="flex items-center gap-3 flex-wrap">
-                                <div className={`flex items-center ${isRunning ? 'text-blue-600' : 'text-gray-500'}`}>
+                                <Link
+                                  href={`/evaluate/${job.id}`}
+                                  className={`flex items-center ${isRunning ? 'text-blue-600' : 'text-gray-500'} hover:underline`}
+                                >
                                   <svg className={`${isRunning ? 'animate-spin' : ''} h-4 w-4 mr-2`} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                                   </svg>
-                                  <span className="text-xs font-medium">{isRunning ? 'Processing' : 'Queued'}</span>
-                                </div>
+                                  <span className="text-xs font-medium">{isRunning ? 'Live Progress' : 'Queued'}</span>
+                                </Link>
                                 <CancelEvaluationButton
                                   jobId={job.id}
                                   label="STOP"
