@@ -1,7 +1,7 @@
 /**
  * Tests for canon_correction_playbook_v1 wiring:
  *   - Phase 0 governance block injection
- *   - Story Ledger extension type fields
+ *   - Story Layer / Story Ledger extension type fields
  *   - validateClosureScore Phase 2 guard
  *   - RecommendationValidity union
  */
@@ -29,8 +29,12 @@ describe('canon_correction_playbook_v1 — Phase 0 governance block', () => {
     'utf8',
   );
 
-  it('includes the pass1a_story_ledger_v1 artifact name in the governance block', () => {
-    expect(processorSrc).toContain('pass1a_story_ledger_v1');
+  it('includes the canonical pass1a_story_layer_v1 artifact name in the governance block', () => {
+    expect(processorSrc).toContain('pass1a_story_layer_v1');
+  });
+
+  it('does not introduce the non-canonical pass1a_story_ledger_v1 artifact name in the governance block', () => {
+    expect(processorSrc).not.toContain('pass1a_story_ledger_v1');
   });
 
   it('includes the ALREADY_PRESENT recommendation validity in the governance block', () => {
