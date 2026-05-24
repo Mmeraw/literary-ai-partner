@@ -217,7 +217,7 @@ export async function POST(request: NextRequest, { params }: RouteParams): Promi
 
   // 5. Handle rejection path — mark failed, stop here
   if (disposition === 'rejected') {
-    const { error: rejectErr } = await supabase
+    const { data: rejectedRows, error: rejectErr } = await supabase
       .from('evaluation_jobs')
       .update({
         status: 'failed',
@@ -232,10 +232,28 @@ export async function POST(request: NextRequest, { params }: RouteParams): Promi
         },
       })
       .eq('id', jobId)
-      .eq('phase', 'review_gate');
+      .eq('phase', 'review_gate')
+      .eq('phase_status', 'awaiting_approval')
+      .select('id');
 
     if (rejectErr) {
       console.error('[ReviewGate] Failed to mark job rejected', { job_id: jobId, error: rejectErr.message });
+      return NextResponse.json(
+        { ok: false, error: `Failed to reject Story Ledger: ${rejectErr.message}` },
+        { status: 500 },
+      );
+    }
+
+    if (!rejectedRows || rejectedRows.length !== 1) {
+      console.warn('[ReviewGate] Reject transition matched zero rows', {
+        job_id: jobId,
+        expected_phase: 'review_gate',
+        expected_phase_status: 'awaiting_approval',
+      });
+      return NextResponse.json(
+        { ok: false, error: 'Review Gate state changed before rejection could be applied. Refresh and retry.' },
+        { status: 409 },
+      );
     }
 
     return NextResponse.json({
@@ -326,7 +344,7 @@ export async function POST(request: NextRequest, { params }: RouteParams): Promi
     ...buildPhaseLogPatch(progressAfterGate, 'phase_2', 'entered', now),
   };
 
-  const { error: transitionErr } = await supabase
+  const { data: transitionedRows, error: transitionErr } = await supabase
     .from('evaluation_jobs')
     .update({
       status: 'queued',
@@ -338,7 +356,9 @@ export async function POST(request: NextRequest, { params }: RouteParams): Promi
       progress: progressWithPhase2Entry,
     })
     .eq('id', jobId)
-    .eq('phase', 'review_gate');
+    .eq('phase', 'review_gate')
+    .eq('phase_status', 'awaiting_approval')
+    .select('id');
 
   if (transitionErr) {
     console.error('[ReviewGate] Failed to transition to phase_2', {
@@ -348,6 +368,18 @@ export async function POST(request: NextRequest, { params }: RouteParams): Promi
     return NextResponse.json(
       { ok: false, error: `Failed to queue Phase 2: ${transitionErr.message}` },
       { status: 500 },
+    );
+  }
+
+  if (!transitionedRows || transitionedRows.length !== 1) {
+    console.warn('[ReviewGate] Phase 2 transition matched zero rows', {
+      job_id: jobId,
+      expected_phase: 'review_gate',
+      expected_phase_status: 'awaiting_approval',
+    });
+    return NextResponse.json(
+      { ok: false, error: 'Review Gate state changed before Phase 2 could be queued. Refresh and retry.' },
+      { status: 409 },
     );
   }
 
