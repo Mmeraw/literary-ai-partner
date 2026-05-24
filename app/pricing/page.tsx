@@ -13,7 +13,7 @@ const auditTiers = [
     price: "$0",
     actionAccess: "Readiness preview",
     bestFor: "Testing hook, voice, and narrative pressure.",
-    features: ["Opening hook", "Voice signal", "Readiness preview", "No WAVE Revision System"],
+    features: ["Opening hook", "Voice signal", "Readiness preview", "Long-form diagnostics not included"],
   },
   {
     name: "Short-Form Evaluation",
@@ -21,7 +21,7 @@ const auditTiers = [
     price: "$49",
     actionAccess: "Starter Editorial Actions",
     bestFor: "Novellas, short stories, and early concept tests.",
-    features: ["Core story diagnostics", "Readiness verdict", "Editorial path preview", "No WAVE Revision System"],
+    features: ["Core story diagnostics", "Readiness verdict", "Editorial path preview", "Advanced diagnostics not included"],
   },
   {
     name: "Full Manuscript Readiness Audit",
@@ -29,7 +29,7 @@ const auditTiers = [
     price: "$249",
     actionAccess: "Included Editorial Actions",
     bestFor: "The Professional Standard for novels and long-form manuscripts.",
-    features: ["Core story diagnostics", "WAVE Revision System™", "Readiness diagnosis", "Long-form threshold diagnostics"],
+    features: ["Core story diagnostics", "Long-form structural diagnostics", "Readiness diagnosis", "Long-form threshold diagnostics"],
     highlighted: true,
   },
   {
@@ -38,7 +38,7 @@ const auditTiers = [
     price: "$399",
     actionAccess: "Expanded Editorial Actions",
     bestFor: "Epic-scale manuscripts and longer novels.",
-    features: ["Core story diagnostics", "WAVE Revision System™", "Expanded long-form diagnostics", "Scale-aware opportunity summary"],
+    features: ["Core story diagnostics", "Advanced continuity diagnostics", "Expanded long-form diagnostics", "Scale-aware opportunity summary"],
   },
   {
     name: "Complex Narrative Audit",
@@ -46,7 +46,7 @@ const auditTiers = [
     price: "$499+",
     actionAccess: "Priority Editorial Actions",
     bestFor: "Multi-layer, transmedia, or franchise-scale work.",
-    features: ["Core story diagnostics", "WAVE Revision System™", "Multi-POV architecture review", "Custom complexity handling"],
+    features: ["Core story diagnostics", "Long-range readiness analysis", "Multi-POV architecture review", "Custom complexity handling"],
   },
 ];
 
@@ -63,9 +63,9 @@ const faqs = [
       "An audit is the fixed-price diagnostic: it reveals the manuscript’s readiness profile, including strengths, priority signals, and the kind of editorial support the work may benefit from next. Editorial Actions unlock and repair specific opportunities through granular opportunity cards and governed repair proposals.",
   },
   {
-    question: "When does the WAVE Revision System™ apply?",
+    question: "When do advanced long-form diagnostics apply?",
     answer:
-      "The WAVE Revision System™ applies when long-range structural and continuity diagnostics are needed. It is designed for complex long-form readiness work where cumulative reader experience and payoff architecture matter most.",
+      "Advanced long-form diagnostics apply when long-range structural and continuity diagnostics are needed. They are designed for complex long-form readiness work where cumulative reader experience and payoff architecture matter most.",
   },
   {
     question: "Can I see every granular opportunity after an audit?",
