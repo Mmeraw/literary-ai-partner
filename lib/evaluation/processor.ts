@@ -2612,6 +2612,14 @@ export async function processEvaluationJob(
       job.phase === 'phase_3' &&
       (job.phase_status === 'running' || progress.phase_status === 'running');
 
+    // Phase 0 warm-up: same ownership + lease contract as all other phases.
+    const isPhase0PreClaimed =
+      job.status === 'running' &&
+      hasCanonicalPreClaimOwnership &&
+      hasLivePreClaimLease &&
+      job.phase === 'phase_0' &&
+      (job.phase_status === 'running' || progress.phase_status === 'running');
+
     // Dispatch on job.phase, not on the precedence of pre-claim flags. With the
     // flags now keyed strictly on job.phase, at most one is true, so the chain
     // below is equivalent — but the explicit job.phase switch documents intent
@@ -2633,6 +2641,7 @@ export async function processEvaluationJob(
     }
 
     if (
+      !isPhase0PreClaimed &&
       !isPhase1aPreClaimed &&
       !isPhase2PreClaimed &&
       !isPhase3PreClaimed
