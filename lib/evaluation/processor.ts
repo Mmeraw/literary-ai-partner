@@ -2403,11 +2403,11 @@ CONFIDENCE BANDS LOCKED:
 
 READY TO EVALUATE.
 
-## EVALUATION GOVERNANCE RULES (canon_correction_playbook_v1 v1.3.0)
+## EVALUATION GOVERNANCE RULES (canon_correction_playbook_v1 v1.3.1)
 
 Phase 0: load rules only. Do not read the manuscript.
-Phase 1A: read the manuscript and build pass1a_story_ledger_v1 (8 layers).
-Phase 2: score only after pass1a_story_ledger_v1 is complete.
+Phase 1A: read the manuscript and build pass1a_story_layer_v1 — the Story Layer / Story Ledger artifact with 8 required layers.
+Phase 2: score only after pass1a_story_layer_v1 is complete and all 8 layers pass completeness checks.
 
 Failure modes Phase 1A must avoid:
 1. Loudest-lane bias: map ALL lane types (plot / emotional / doctrinal / medicine-object / relationship / environmental).
@@ -2419,7 +2419,7 @@ Failure modes Phase 1A must avoid:
 
 Phase 2 scoring prohibitions:
 - Narrative Closure MUST NOT be scored if Relationship Spine Layer is empty.
-- Criterion scores MUST NOT finalize before pass1a_story_ledger_v1 exists.
+- Criterion scores MUST NOT finalize before pass1a_story_layer_v1 exists and all 8 required layers pass completeness checks.
 - Recommendations MUST carry validity: VALID / PARTIALLY_VALID / ALREADY_PRESENT / CANON_FALSE / SOURCE_UNSUPPORTED / VOICE_RISK.
 `;
 
