@@ -707,6 +707,9 @@ export async function renewEvaluationJobLease(args: {
     heartbeat_at: nowIso,
     // Canonical writable lease source column (lease_expires_at may be generated)
     lease_until: leaseUntilIso,
+    // Liveness signal: every lease renewal (fired every 30s in all phase loops)
+    // writes worker_pulse_at so the watchdog always has a fresh timestamp.
+    worker_pulse_at: nowIso,
     updated_at: nowIso,
   });
 
@@ -6657,40 +6660,10 @@ export async function processQueuedJobs(options?: {
     errors: [] as Array<{ jobId: string; error: string }>
   };
 
-  // Heartbeat: write worker_pulse_at every ~20s during active processing.
-  // Independent of lease renewal — proves the worker is alive on the JS event loop.
-  const supabasePulse = createClient(supabaseUrl, supabaseServiceKey);
-  let lastPulseAt = Date.now();
-  const pulseIntervalMs = 20_000;
-
   // Process each claimed job sequentially
   for (const job of jobs) {
-    if (Date.now() - lastPulseAt >= pulseIntervalMs) {
-      lastPulseAt = Date.now();
-      void supabasePulse
-        .from('evaluation_jobs')
-        .update({ worker_pulse_at: new Date().toISOString() })
-        .eq('id', job.id)
-        .then(({ error }: { error: unknown }) => {
-          if (error) console.warn('[Processor] worker_pulse_at heartbeat failed (non-fatal)', error);
-        })
-        .catch((err: unknown) => console.error('[Processor] worker_pulse_at heartbeat error', err));
-    }
-
     const result = await processEvaluationJob(job.id);
-
-    if (Date.now() - lastPulseAt >= pulseIntervalMs) {
-      lastPulseAt = Date.now();
-      void supabasePulse
-        .from('evaluation_jobs')
-        .update({ worker_pulse_at: new Date().toISOString() })
-        .eq('id', job.id)
-        .then(({ error }: { error: unknown }) => {
-          if (error) console.warn('[Processor] worker_pulse_at heartbeat failed (non-fatal)', error);
-        })
-        .catch((err: unknown) => console.error('[Processor] worker_pulse_at heartbeat error', err));
-    }
-
+    
     if (result.success) {
       results.succeeded++;
     } else {
