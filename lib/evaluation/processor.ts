@@ -125,6 +125,9 @@ import type { ManuscriptChunkEvidence, SinglePassOutput, Pass1aCharacterLedger, 
 import { runPass1a, type Pass1aChunkCacheArtifact } from '@/lib/evaluation/pipeline/runPass1a';
 import { runPass3Preflight } from '@/lib/evaluation/pipeline/runPass3Preflight';
 import { reduceCharacterEvidence, buildCharacterLedgerV2 } from '@/lib/evaluation/pipeline/characterReducer';
+import { buildStoryLayerFromLedger } from '@/lib/evaluation/phase1a/buildStoryLayerFromLedger';
+import { buildLedgerQualityReport } from '@/lib/evaluation/phase1a/buildLedgerQualityReport';
+import { writePhase1aReviewGateArtifacts } from '@/lib/evaluation/phase1a/storyLayerArtifactWriters';
 import {
   isPipelineEnabled,
   pipelineDisabledResponse,
@@ -3894,25 +3897,96 @@ export async function processEvaluationJob(
           artifactVersion: 'pass1a_character_ledger_v1',
         });
 
-        console.log(`[Processor] ${jobId}: phase_1a — ledger artifact persisted, queuing phase_2`);
+        console.log(`[Processor] ${jobId}: phase_1a — ledger artifact persisted, building story layer`);
 
-        // Transition to phase_2 (Pass 3 synthesis)
+        // ── PR12: Build 8-layer Story Layer payload from completed ledger ────────
+        const storyLayerPayload = buildStoryLayerFromLedger(
+          characterLedger,
+          characterLedgerV2Phase1a,
+        );
+
+        const qualityReport = buildLedgerQualityReport(
+          characterLedger,
+          characterLedgerV2Phase1a,
+        );
+
+        console.log(`[Processor] ${jobId}: phase_1a — quality report built`, {
+          gate_ready_status: qualityReport.gate_ready_status,
+          hard_fail_present: qualityReport.hard_fail_present,
+          blocking_reasons_count: qualityReport.blocking_reasons.length,
+        });
+
+        // ── PR12: Persist pass1a_story_layer_v1 + ledger_quality_report_v1 ──────
+        const phase1aMeta = {
+          job_id: String(job.id),
+          evaluation_project_id: (job as Record<string, unknown>).evaluation_project_id as string | null ?? null,
+          manuscript_id: Number(job.manuscript_id),
+          manuscript_version_hash: `manuscript_${String(job.manuscript_id)}_${String(job.id)}`,
+          generated_at: new Date().toISOString(),
+        };
+
+        const storyLayerRefs = await writePhase1aReviewGateArtifacts({
+          metadata: phase1aMeta,
+          storyLayer: storyLayerPayload,
+          qualityReport,
+          writeArtifact: async (artifact) => {
+            const { error: artifactWriteErr } = await supabase
+              .from('evaluation_artifacts')
+              .upsert(
+                {
+                  job_id: String(job.id),
+                  manuscript_id: Number(job.manuscript_id),
+                  artifact_type: artifact.artifact_type,
+                  artifact_version: artifact.artifact_version,
+                  source_hash: artifact.source_hash,
+                  content: artifact.content,
+                  created_at: new Date().toISOString(),
+                },
+                { onConflict: 'job_id,artifact_type', ignoreDuplicates: false },
+              );
+            if (artifactWriteErr) {
+              throw new Error(
+                `Failed to write ${artifact.artifact_type}: ${artifactWriteErr.message}`,
+              );
+            }
+            return { artifact_id: artifact.content.artifact_id };
+          },
+        });
+
+        console.log(`[Processor] ${jobId}: phase_1a — story layer artifacts written`, {
+          pass1a_story_layer_v1: storyLayerRefs.pass1a_story_layer_v1.artifact_id,
+          ledger_quality_report_v1: storyLayerRefs.ledger_quality_report_v1.artifact_id,
+        });
+
+        // ── PR12: Transition to awaiting_approval — stop worker cleanly ─────────
+        // Phase 2 CANNOT run from pass1a_story_layer_v1 directly.
+        // It requires accepted_story_ledger_v1 written by the Review Gate.
         const phase1aNow = new Date().toISOString();
         const phase1aHandoffProgress = {
           ...progressState,
           phase: 'phase_1a',
-          phase_status: 'complete',
-          message: 'Phase 1A complete — character ledger ready, awaiting Pass 3 synthesis',
+          phase_status: 'awaiting_approval',
+          message: 'Phase 1A complete — Story Ledger ready for author review',
           phase1a_completed_at: phase1aNow,
           ledger_entries: characterLedger.entries.length,
+          story_layer_artifact_id: storyLayerRefs.pass1a_story_layer_v1.artifact_id,
+          quality_report_artifact_id: storyLayerRefs.ledger_quality_report_v1.artifact_id,
+          gate_ready_status: qualityReport.gate_ready_status,
+          hard_fail_present: qualityReport.hard_fail_present,
         };
 
+        // CANONICAL transition: phase_1a → review_gate
+        // - status remains 'queued' (JobStatus canonical set) so DB constraints hold
+        // - phase='review_gate' is NOT claimed by claim_evaluation_jobs RPC
+        //   (ClaimedJobPhaseSchema only accepts phase_1a | phase_2 | phase_3)
+        // - phase_status='awaiting_approval' is the human-readable gate state
+        // Worker will never re-claim this job until Review Gate sets phase='phase_2'
         const { data: phase1aHandoffRow, error: phase1aHandoffErr } = await supabase
           .from('evaluation_jobs')
           .update({
             status: JOB_STATUS.QUEUED,
-            phase: 'phase_2',
-            phase_status: JOB_STATUS.QUEUED,
+            phase: 'review_gate',
+            phase_status: 'awaiting_approval',
             claimed_by: null,
             claimed_at: null,
             lease_token: null,
@@ -3926,16 +4000,30 @@ export async function processEvaluationJob(
           .single();
 
         if (phase1aHandoffErr) {
-          console.error(`[Processor] ${jobId}: phase_1a handoff DB transition FAILED`, phase1aHandoffErr.message);
-          throw new Error(`Phase 1A handoff DB transition failed: ${phase1aHandoffErr.message}`);
+          console.error(
+            `[Processor] ${jobId}: phase_1a → review_gate transition FAILED`,
+            phase1aHandoffErr.message,
+          );
+          throw new Error(
+            `Phase 1A → review_gate transition failed: ${phase1aHandoffErr.message}`,
+          );
         }
 
-        if (!phase1aHandoffRow || phase1aHandoffRow.status !== JOB_STATUS.QUEUED) {
-          console.warn(`[Processor] ${jobId}: phase_1a handoff 0 rows — job already transitioned`, { returned: phase1aHandoffRow ?? null });
+        if (!phase1aHandoffRow) {
+          console.warn(
+            `[Processor] ${jobId}: phase_1a → review_gate 0 rows — job already transitioned`,
+            { returned: phase1aHandoffRow ?? null },
+          );
           return { success: true };
         }
 
-        console.log(`[Processor] ${jobId}: phase_1a handoff confirmed — status=queued phase=phase_2`);
+        console.log(
+          `[Processor] ${jobId}: phase_1a handoff confirmed — status=queued phase=review_gate phase_status=awaiting_approval`,
+          {
+            gate_ready_status: qualityReport.gate_ready_status,
+            hard_fail_present: qualityReport.hard_fail_present,
+          },
+        );
         return { success: true };
       } catch (phase1aErr) {
         const errMsg = phase1aErr instanceof Error ? phase1aErr.message : String(phase1aErr);
