@@ -1,11 +1,13 @@
 # CANON CORRECTION PLAYBOOK V1
 **RevisionGrade Phase 0 Warmup Artifact**
-Version: 1.3.0
+Version: 1.3.1
 Date: 2026-05-24
 Source: Distilled from FROGGIN_100P_EVALUATION_FIT_GAP_V1 and FROGGIN_100P_CANON_FIDELITY_FIXTURE_V1
-Scope: Abstract governance rules and ledger contracts only — not manuscript-specific. Safe to load on every evaluation job.
+Scope: Abstract governance rules and Story Layer contract only — not manuscript-specific. Safe to load on every evaluation job.
 
 > **Phase boundary:** Phase 0 reads DREAM state golden records, lessons learned documents, and governance playbooks ONLY. Phase 0 does NOT read the actual manuscript. Manuscript-specific analysis begins at Phase 1A.
+
+> **Artifact naming contract:** Human-facing product language may call this the **Story Ledger**, but the canonical code artifact is **`pass1a_story_layer_v1`**. Do not introduce `pass1a_story_ledger_v1` unless the artifact registry and downstream readers are intentionally migrated.
 
 ---
 
@@ -45,17 +47,17 @@ Phase 0 reads the canonical failure modes documented in benchmark correction pac
 | Failure class | Description | Correction rule |
 |---|---|---|
 | **Loudest-lane bias** | Pipeline over-weights primary plot/action lanes; drops lower-frequency emotional, doctrinal, and medicine/object lanes | Phase 1A must map ALL lane types, not just dominant ones |
-| **Relationship spine omission** | Cross-world or cross-species relationship arcs filed separately and never merged | Phase 1A must build a relationship spine ledger before any scoring |
+| **Relationship spine omission** | Cross-world or cross-species relationship arcs filed separately and never merged | Phase 1A must build the Relationship Spine Layer before any scoring |
 | **Object/medicine system blindness** | Named healing agents, relics, or medicine systems classified as descriptive texture rather than plot systems | Phase 1A must extract named object/medicine systems as structural entries |
 | **Unsupported vocabulary** | High-frequency training labels (e.g., "poaching") applied without source-text confirmation | Phase 1A must extract vocabulary from the source; do not impose genre defaults |
-| **Closure score deflation** | Narrative Closure underscored because relationship arcs were not analyzed | Closure must not be scored until the relationship spine ledger is complete |
+| **Closure score deflation** | Narrative Closure underscored because relationship arcs were not analyzed | Closure must not be scored until the Relationship Spine Layer is complete |
 | **Already-present recommendation error** | Pipeline recommends adding elements already in the manuscript | All recommendations must pass the Already-Present Gate before entering the Revise queue |
 
-### Step 2 — Install the Phase 1A Story Ledger contract
+### Step 2 — Install the Phase 1A Story Layer / Story Ledger contract
 
 Phase 0 defines what Phase 1A MUST produce after reading the manuscript. Phase 0 does not build this artifact itself — it installs the contract requirement that Phase 1A must satisfy.
 
-Phase 1A is required to produce one artifact: **`pass1a_story_ledger_v1`** — a single Story Ledger with 8 layers.
+Phase 1A is required to produce one canonical artifact: **`pass1a_story_layer_v1`** — the Story Layer / Story Ledger artifact with 8 required layers.
 
 | Layer | Name | Contents |
 |---|---|---|
@@ -68,15 +70,15 @@ Phase 1A is required to produce one artifact: **`pass1a_story_ledger_v1`** — a
 | 7 | Plot Thread / Arc Layer | Named arcs and plot threads with their current payoff status within the evaluated scope |
 | 8 | Coverage Risk / Source Vocabulary Layer | Low-evidence elements flagged for Phase 2 attention; candidate genre labels confirmed or replaced with source vocabulary |
 
-`pass1a_story_ledger_v1` must be complete before Phase 2 may score any criterion.
+`pass1a_story_layer_v1` must be complete before Phase 2 may score any criterion.
 
 ### Step 3 — Install the Phase 2 scoring prohibitions
 
 Phase 0 installs these scoring prohibitions into the evaluation session. Phase 2 must not violate them:
 
-- Narrative Closure must NOT be scored until the relationship spine ledger is complete
-- Criterion scores must NOT be finalized until pass1a_story_ledger_v1 is complete and all 8 required layers pass completeness checks
-- A score reduction must NOT be applied to a criterion if the reduction is caused by a ledger gap rather than a manuscript gap
+- Narrative Closure must NOT be scored until the Relationship Spine Layer is complete
+- Criterion scores must NOT be finalized until `pass1a_story_layer_v1` is complete and all 8 required layers pass completeness checks
+- A score reduction must NOT be applied to a criterion if the reduction is caused by a Story Layer gap rather than a manuscript gap
 - Recommendations must NOT be generated from unsupported vocabulary
 
 ---
@@ -87,13 +89,13 @@ These rules must be enforced across all evaluations, on all manuscripts.
 
 ### Rule 1 — Do not score closure without relationship-spine coverage
 
-Narrative Closure measures how well the manuscript's arcs resolve within scope. It cannot be scored accurately if major relationship spines are missing from the analysis. If the relationship spine ledger is incomplete, the Closure score is invalid.
+Narrative Closure measures how well the manuscript's arcs resolve within scope. It cannot be scored accurately if major relationship spines are missing from the analysis. If the Relationship Spine Layer is incomplete, the Closure score is invalid.
 
 > **Closure score must be invalidated and flagged if any relationship spine remains unanalyzed.**
 
 ### Rule 2 — Do not recommend adding what is already present
 
-Before generating any recommendation that begins with "add," "introduce," "establish," or "create" — check the Character / Entity Layer, Relationship Spine Layer, and Object / Medicine / Symbol Layer inside pass1a_story_ledger_v1. If the recommended element is already listed, the recommendation must be reclassified as:
+Before generating any recommendation that begins with "add," "introduce," "establish," or "create" — check the Character / Entity Layer, Relationship Spine Layer, and Object / Medicine / Symbol Layer inside `pass1a_story_layer_v1`. If the recommended element is already listed, the recommendation must be reclassified as:
 
 - `ALREADY_PRESENT` — do not generate as a Revise task
 - Replace with: "elevate," "re-echo," "foreground," "strengthen the payoff of," or "sharpen"
@@ -148,12 +150,12 @@ Every recommendation generated by the evaluation pipeline must carry one of the 
 Phase 0 produces governance artifacts only — no manuscript-specific content. At the end of Phase 0 warmup, the evaluation session has:
 
 1. **Warmup calibration summary** — confirmation that known failure modes have been loaded and are active for this session
-2. **Active governance rules** — the five scoring rules (see below) installed and enforced for this session
-3. **`pass1a_story_ledger_v1` contract** — the required 8-layer Story Ledger spec that Phase 1A must satisfy before Phase 2 may score
+2. **Active governance rules** — the five scoring rules installed and enforced for this session
+3. **`pass1a_story_layer_v1` contract** — the required 8-layer Story Layer / Story Ledger spec that Phase 1A must satisfy before Phase 2 may score
 4. **Known failure modes register** — the documented failure classes (loudest-lane bias, relationship spine omission, object blindness, unsupported vocabulary, closure deflation, already-present error) active as guards for this session
-5. **Scoring prohibitions** — the explicit list of what Phase 2 may not do until `pass1a_story_ledger_v1` is complete
+5. **Scoring prohibitions** — the explicit list of what Phase 2 may not do until `pass1a_story_layer_v1` is complete
 6. **Recommendation validity rules** — the six-class validity gate (VALID / PARTIALLY_VALID / ALREADY_PRESENT / CANON_FALSE / SOURCE_UNSUPPORTED / VOICE_RISK) installed and active
-7. **Handoff instruction to Phase 1A** — confirmation that manuscript reading begins at Phase 1A, along with the `pass1a_story_ledger_v1` contract Phase 1A must fulfill
+7. **Handoff instruction to Phase 1A** — confirmation that manuscript reading begins at Phase 1A, along with the `pass1a_story_layer_v1` contract Phase 1A must fulfill
 
 Phase 0 produces zero criterion scores. Phase 0 produces zero manuscript-specific analysis. Phase 0 does not read the source text.
 
@@ -161,9 +163,9 @@ Phase 0 produces zero criterion scores. Phase 0 produces zero manuscript-specifi
 
 ## What Phase 1A must produce after reading the manuscript
 
-Phase 1A is where the manuscript is first read. Phase 1A produces one artifact: **`pass1a_story_ledger_v1`** — a single Story Ledger with 8 layers. Phase 2 may not begin until this artifact is complete.
+Phase 1A is where the manuscript is first read. Phase 1A produces one canonical artifact: **`pass1a_story_layer_v1`** — the Story Layer / Story Ledger artifact with 8 required layers. Phase 2 may not begin until this artifact is complete.
 
-**`pass1a_story_ledger_v1` — 8 layers:**
+**`pass1a_story_layer_v1` — 8 required layers:**
 
 | Layer | Name | Required content |
 |---|---|---|
@@ -176,7 +178,7 @@ Phase 1A is where the manuscript is first read. Phase 1A produces one artifact: 
 | 7 | **Plot Thread / Arc Layer** | Named arcs and plot threads with current payoff status within the evaluated scope. |
 | 8 | **Coverage Risk / Source Vocabulary Layer** | (a) Low-evidence elements flagged for Phase 2 attention with entity type, risk description, and source note. (b) Candidate genre labels confirmed or replaced with source-extracted vocabulary before Phase 2 uses them. |
 
-**Calibration understanding** (≥500 words) is a companion narrative summary of the Story Ledger — a written description of the manuscript's structural architecture in its own vocabulary. It accompanies `pass1a_story_ledger_v1` but is not a separate artifact. Phase 0 does not produce it.
+**Calibration understanding** (≥500 words) is a companion narrative summary of the Story Layer / Story Ledger — a written description of the manuscript's structural architecture in its own vocabulary. It accompanies `pass1a_story_layer_v1` but is not a separate artifact. Phase 0 does not produce it.
 
 ---
 
@@ -196,10 +198,10 @@ Failure specimen: `fa730c9c-e41b-4fc2-b37e-52db365b9b17` (overall 66/100, delta 
 
 ## One-sentence Phase 0 instruction
 
-> Phase 0 does not read the manuscript; it loads golden-record lessons and hands Phase 1A the rules required to build pass1a_story_ledger_v1, including structural lanes, 8 required layers, source vocabulary checks, and canon coverage verification before Phase 2 scoring.
+> Phase 0 does not read the manuscript; it loads golden-record lessons and hands Phase 1A the rules required to build `pass1a_story_layer_v1`, including structural lanes, 8 required layers, source vocabulary checks, and canon coverage verification before Phase 2 scoring.
 
 ---
 
 *canon_correction_playbook_v1 — RevisionGrade Phase 0 Warmup Artifact*
-*Version 1.3.0 — 2026-05-24*
-*Phase 0 governance rules and pass1a_story_ledger_v1 contract only — no manuscript-specific content — safe to load on any evaluation job*
+*Version 1.3.1 — 2026-05-24*
+*Phase 0 governance rules and `pass1a_story_layer_v1` contract only — no manuscript-specific content — safe to load on any evaluation job*
