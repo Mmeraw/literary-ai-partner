@@ -2536,48 +2536,36 @@ async function runPhase0GoldPrimer(args: {
 }
 
 /**
- * Fire-and-forget kick to process-evaluations immediately after Phase 0
- * transitions the job to phase_1a/queued.
+ * Direct in-process kick: claim and run the next queued Phase 1A batch
+ * without any HTTP round-trip.
+ *
+ * WHY DIRECT (not HTTP):
+ * All call sites are already inside the processor — going out over HTTP just
+ * to come back into processQueuedJobs() adds latency, burns a network hop,
+ * and was the root cause of the intermittent 401s on self-chain kicks.
+ * processQueuedJobs() is defined later in this file; the async wrapper below
+ * is fire-and-forget so callers are not blocked.
  *
  * WHY THE 150ms DELAY:
- * The DB write committing phase_1a/queued must flush before the new worker
- * call executes, or claim_evaluation_jobs finds 0 eligible rows and returns
- * immediately. 150ms is enough for the Postgres commit to be visible to
- * a fresh connection from a new Vercel function invocation.
- *
- * WHY POST (not GET):
- * GET requests can be cached or coalesced by intermediaries. POST is always
- * a fresh invocation with no caching risk.
+ * The DB write committing phase_1a/queued must flush before the next claim
+ * executes, or claim_evaluation_jobs finds 0 eligible rows and returns
+ * immediately. 150ms is enough for the Postgres commit to be visible.
  */
 async function kickPhase1aWorker(): Promise<void> {
-  const secret = process.env.CRON_SECRET;
-  if (!secret) {
-    console.warn('[kickPhase1aWorker] CRON_SECRET not set — skipping kick');
-    return;
-  }
-  const base =
-    process.env.NEXT_PUBLIC_APP_URL ??
-    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null) ??
-    'https://www.revisiongrade.com';
-  const url = `${base.startsWith('http') ? base : `https://${base}`}/api/workers/process-evaluations`;
-
-  // 150ms: let the phase_1a/queued DB write commit before the new worker claims
+  // 150ms: let the phase_1a/queued DB write commit before the next claim
   await new Promise(r => setTimeout(r, 150));
 
   try {
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${secret}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ source: 'phase0_kick' }),
-      signal: AbortSignal.timeout(10_000),
+    const result = await processQueuedJobs({ workerId: `internal-kick:${randomUUID()}` });
+    console.log('[kickPhase1aWorker] direct in-process kick completed', {
+      claimed: result.claimed,
+      processed: result.processed,
+      succeeded: result.succeeded,
+      failed: result.failed,
     });
-    console.log(`[kickPhase1aWorker] kick sent → HTTP ${res.status}`);
   } catch (err) {
-    // Best-effort — cron is the fallback if this fails
-    console.warn('[kickPhase1aWorker] kick failed (cron is fallback):', err instanceof Error ? err.message : String(err));
+    // Best-effort — cron is the rescue fallback
+    console.warn('[kickPhase1aWorker] direct kick failed (cron is fallback):', err instanceof Error ? err.message : String(err));
   }
 }
 
