@@ -144,6 +144,7 @@ import {
   FORBIDDEN_PATCH_COLUMNS,
   type PhaseName,
 } from '@/lib/evaluation/phaseTimestamps';
+import { buildPhaseLogPatch } from '@/lib/evaluation/phaseLog';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // WAVE Phase 3 constants
@@ -2528,6 +2529,7 @@ export async function processEvaluationJob(
       const nextProgress = {
         ...progressState,
         ...stageTimestampPatch,
+        ...buildPhaseLogPatch(progressState, phase, 'entered', now),
         phase,
         phase_status: 'running',
         total_units: EVALUATION_PROGRESS_TOTAL_UNITS,
@@ -3509,8 +3511,10 @@ export async function processEvaluationJob(
               phase_status: 'complete',
               completed_at: missingNow,
               updated_at: missingNow,
+              phase3_completed_at: missingNow,
               progress: {
                 ...progressState,
+                ...buildPhaseLogPatch(progressState, 'phase_3', 'passed', missingNow),
                 phase: 'phase_3',
                 phase_status: 'complete',
                 message: 'WAVE skipped (synthesis artifact missing) — evaluation complete',
@@ -3622,8 +3626,10 @@ export async function processEvaluationJob(
             phase_status: 'complete',
             completed_at: phase3Now,
             updated_at: phase3Now,
+            phase3_completed_at: phase3Now,
             progress: {
               ...progressState,
+              ...buildPhaseLogPatch(progressState, 'phase_3', 'passed', phase3Now),
               phase: 'phase_3',
               phase_status: 'complete',
               message: 'WAVE revision complete',
@@ -3652,9 +3658,11 @@ export async function processEvaluationJob(
             phase: 'phase_3',
             phase_status: 'complete',
             completed_at: errNow,
+            phase3_completed_at: errNow,
             updated_at: errNow,
             progress: {
               ...progressState,
+              ...buildPhaseLogPatch(progressState, 'phase_3', 'passed', errNow),
               phase: 'phase_3',
               phase_status: 'complete',
               message: 'WAVE phase error (non-fatal) — evaluation complete',
@@ -3964,6 +3972,7 @@ export async function processEvaluationJob(
         const phase1aNow = new Date().toISOString();
         const phase1aHandoffProgress = {
           ...progressState,
+          ...buildPhaseLogPatch(progressState, 'phase_1a', 'passed', phase1aNow),
           phase: 'phase_1a',
           phase_status: 'awaiting_approval',
           message: 'Phase 1A complete — Story Ledger ready for author review',
@@ -3991,8 +4000,12 @@ export async function processEvaluationJob(
             claimed_at: null,
             lease_token: null,
             lease_until: null,
+            review_gate_entered_at: phase1aNow,
             updated_at: phase1aNow,
-            progress: phase1aHandoffProgress,
+            progress: {
+              ...phase1aHandoffProgress,
+              ...buildPhaseLogPatch(phase1aHandoffProgress, 'review_gate', 'entered', phase1aNow),
+            },
           })
           .eq('id', job.id)
           .eq('status', JOB_STATUS.RUNNING)

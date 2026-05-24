@@ -1,3 +1,4 @@
+import { buildPhaseLogPatch } from '@/lib/evaluation/phaseLog';
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { EvaluationResultV2, ScoreAdjustmentV2 } from "@/schemas/evaluation-result-v2";
 import { JOB_STATUS, type JobStatus } from "@/lib/jobs/types";
@@ -404,6 +405,7 @@ export async function persistEvaluationResultV2(params: {
     completed_units: params.completedUnits,
     progress: {
       ...params.progressSnapshot,
+      ...buildPhaseLogPatch(params.progressSnapshot as Record<string, unknown>, 'phase_2', 'passed', completionTime),
       finalized_at: completionTime,
       phase: "phase_2",
       phase_status: "complete",
