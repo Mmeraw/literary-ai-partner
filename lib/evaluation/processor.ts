@@ -2380,7 +2380,7 @@ SCORING LOCK:
 - Evidence rule: every score requires specific manuscript citation — generic feedback = calibration failure
 
 CRITERIA LOCKED (13):
-[List all 13 criteria names with their one-line definition]
+[For each of the 13 criteria write: the criterion name, its definition as you internalized it, what evidence is required, and what a score of 7+ looks like vs a score below 7. Approximately 30 words per criterion. Do not abbreviate.]
 
 CONFIDENCE BANDS LOCKED:
 - HIGH (≥95%) — only when evidence is unambiguous
@@ -2391,13 +2391,25 @@ READY TO EVALUATE.
 `;
 
 type Phase0Result =
-  | { success: true; durationMs: number; acknowledgment: string }
+  | { success: true; durationMs: number; acknowledgment: string; wordCount: number }
   | { success: false; error: string; durationMs: number };
 
 // Phase 0 must dwell a minimum of 12 seconds regardless of LLM response speed.
 // This guarantees the model has actually processed the full gold standard before
 // the job transitions to phase_1a. "CALIBRATED" in 1s means nothing was internalized.
 const PHASE_0_MIN_DWELL_MS = 12_000;
+
+// Minimum word count for a valid Phase 0 calibration lock.
+// The required proforma has 4 sections:
+//   CALIBRATED header
+//   SCORING LOCK (scale + gate + evidence rule)
+//   CRITERIA LOCKED — 13 criteria × ~30 words each = ~390 words
+//   CONFIDENCE BANDS (3 bands defined)
+//   READY TO EVALUATE
+// A fully completed response must be at least 500 words.
+// Below this floor the LLM did not write out the criteria properly
+// and Phase 0 is treated as a calibration failure — job fails and retries.
+const PHASE_0_MIN_CALIBRATION_WORDS = 500;
 
 async function runPhase0GoldPrimer(args: {
   jobId: string;
@@ -2423,7 +2435,7 @@ async function runPhase0GoldPrimer(args: {
       signal: AbortSignal.timeout(phase0TimeoutMs),
       body: JSON.stringify({
         model: openAiModel,
-        max_completion_tokens: 400, // Must write structured calibration proof — not a one-word ack
+        max_completion_tokens: 800, // 500-word proforma minimum: 13 criteria × ~30 words + sections
         temperature: 0,
         messages: [
           {
@@ -2463,7 +2475,31 @@ async function runPhase0GoldPrimer(args: {
     };
 
     const acknowledgment = json.choices?.[0]?.message?.content?.trim() ?? '';
-    console.log(`[Phase0] ${jobId}: LLM calibration lock received in ${llmDurationMs}ms (${acknowledgment.length} chars)`);
+    const wordCount = acknowledgment.split(/\s+/).filter(Boolean).length;
+    console.log(`[Phase0] ${jobId}: LLM calibration lock received in ${llmDurationMs}ms (${wordCount} words / ${acknowledgment.length} chars)`);
+
+    // ── Proforma word-count gate ────────────────────────────────────────
+    // The required calibration lock proforma must be fully completed:
+    //   CALIBRATED + SCORING LOCK + CRITERIA LOCKED (13) + CONFIDENCE BANDS + READY TO EVALUATE
+    // A response below PHASE_0_MIN_CALIBRATION_WORDS means the LLM skipped sections
+    // and must be treated as a calibration failure — Phase 0 fails and will retry.
+    if (wordCount < PHASE_0_MIN_CALIBRATION_WORDS) {
+      // Still enforce min dwell before failing — don't exit Phase 0 faster on failure.
+      const elapsed = Date.now() - startMs;
+      if (elapsed < PHASE_0_MIN_DWELL_MS) {
+        await new Promise(r => setTimeout(r, PHASE_0_MIN_DWELL_MS - elapsed));
+      }
+      console.error(
+        `[Phase0] ${jobId}: calibration lock too short — ${wordCount} words < ${PHASE_0_MIN_CALIBRATION_WORDS} minimum. ` +
+        `Response: "${acknowledgment.slice(0, 200)}${acknowledgment.length > 200 ? '...' : ''}"`
+      );
+      return {
+        success: false,
+        error: `CALIBRATION_INSUFFICIENT: ${wordCount}/${PHASE_0_MIN_CALIBRATION_WORDS} words — LLM did not complete the proforma`,
+        durationMs: Date.now() - startMs,
+      };
+    }
+    // ── End proforma word-count gate ───────────────────────────────────
 
     // ── Hard minimum dwell ──────────────────────────────────────────────────
     // Even if OpenAI responds fast, the evaluator brain must sit with the gold
@@ -2477,9 +2513,9 @@ async function runPhase0GoldPrimer(args: {
     // ── End hard minimum dwell ───────────────────────────────────────────────
 
     const durationMs = Date.now() - startMs;
-    console.log(`[Phase0] ${jobId}: warm-up complete in ${durationMs}ms (llm=${llmDurationMs}ms, dwell=${Math.max(0, PHASE_0_MIN_DWELL_MS - llmDurationMs)}ms)`);
+    console.log(`[Phase0] ${jobId}: warm-up PASS — ${wordCount} words, ${durationMs}ms total (llm=${llmDurationMs}ms, dwell=${Math.max(0, PHASE_0_MIN_DWELL_MS - llmDurationMs)}ms)`);
 
-    return { success: true, durationMs, acknowledgment };
+    return { success: true, durationMs, acknowledgment, wordCount };
   } catch (err) {
     const elapsed = Date.now() - startMs;
     if (elapsed < PHASE_0_MIN_DWELL_MS) {
