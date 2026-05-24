@@ -93,7 +93,7 @@ export function getJob(id: string): Job | null {
   return store.get(id) ?? null;
 }
 
-export function getAllJobs(): Job[] {
+export function getAllJobs(_userId?: string): Job[] {
   const store = getStore();
   return Array.from(store.values());
 }

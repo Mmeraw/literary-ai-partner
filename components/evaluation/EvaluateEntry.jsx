@@ -9,6 +9,7 @@ import { getJobDisplayInfo, getJobStatusBadge } from "../../lib/jobs/ui-helpers"
 import { formatRelativeTime, formatDuration } from "../../lib/ui/time-helpers";
 import { getPhaseSpecificCopy } from "../../lib/ui/phase-helpers";
 import ManuscriptSubmissionForm from "./ManuscriptSubmissionForm";
+import PurgeJobsButton from "./PurgeJobsButton";
 import CompletionBanner from "./CompletionBanner";
 import { CancelEvaluationButton } from "./CancelEvaluationButton";
 
@@ -104,9 +105,15 @@ export default function EvaluateEntry() {
 
         {/* Job Status Section */}
         <div className="mt-8">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">
-            Evaluation History
-          </h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-semibold text-gray-900">
+              Evaluation History
+            </h2>
+            <PurgeJobsButton
+              terminalCount={sortedJobs.filter(j => j.status === "failed" || j.status === "complete").length}
+              onPurged={() => window.location.reload()}
+            />
+          </div>
 
           {hasNoJobs ? (
             // Empty State
