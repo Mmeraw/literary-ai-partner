@@ -653,6 +653,22 @@ function Module2ReviewGate({
   const [isPending, startTransition] = useTransition();
   const [editText, setEditText] = useState("");
 
+  const rejectedCount = Object.values(layerDecisions).filter(
+    (d) => d.status === "rejected" || d.status === "rejected_with_comment"
+  ).length;
+  const notedCount = Object.values(layerDecisions).filter(
+    (d) => d.status === "accepted_with_comment" || d.status === "approved_with_comment"
+  ).length;
+  const allDecided = Object.keys(layerDecisions).length === 8;
+
+  const gateState: "A" | "B" | "C" | "incomplete" = !allDecided
+    ? "incomplete"
+    : rejectedCount > 0
+    ? "C"
+    : notedCount > 0
+    ? "B"
+    : "A";
+
   if (approved) {
     return (
       <Card>
@@ -759,6 +775,41 @@ function Module2ReviewGate({
         </div>
       </Card>
 
+      {/* Three-state gate decision card */}
+      {allDecided && (
+        <Card>
+          {gateState === "A" && (
+            <div>
+              <AlertBanner tone="green">Everything checks out. Ready to run Phase 2?</AlertBanner>
+              <p style={{ margin: 0, fontSize: 12, color: P.boneAlt }}>
+                All 8 layers reviewed — no flags, no notes.
+              </p>
+            </div>
+          )}
+          {gateState === "B" && (
+            <div>
+              <AlertBanner tone="gold">Proceed with notes on record?</AlertBanner>
+              <p style={{ margin: 0, fontSize: 12, color: P.boneAlt }}>
+                You left notes on {notedCount} layer{notedCount !== 1 ? "s" : ""}. They will be preserved in the accepted ledger. No layers were flagged as incorrect.
+              </p>
+            </div>
+          )}
+          {gateState === "C" && (
+            <div>
+              <AlertBanner tone="oxblood">
+                You flagged {rejectedCount} layer{rejectedCount !== 1 ? "s" : ""} as incorrect.
+              </AlertBanner>
+              <p style={{ margin: "0 0 8px", fontSize: 13, color: P.bone, fontWeight: 600 }}>
+                This is your manuscript. You decide.
+              </p>
+              <p style={{ margin: 0, fontSize: 12, color: P.boneAlt }}>
+                Proceeding records your flags permanently. Phase 2 will run with the contested layers noted in the governance rail.
+              </p>
+            </div>
+          )}
+        </Card>
+      )}
+
       {/* Author notes toggle */}
       <Card>
         <SectionLabel>Optional — notes for the record</SectionLabel>
@@ -836,19 +887,26 @@ function Module2ReviewGate({
         <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
           <form
             action={async (fd: FormData) => {
-              startTransition(async () => {
-                fd.set("author_notes", notes);
-                fd.set("edit_requests", editText);
-                // Attach per-layer decisions as JSON so they are preserved in the accepted ledger
-                if (Object.keys(layerDecisions).length > 0) {
-                  fd.set("layer_decisions", JSON.stringify(layerDecisions));
-                }
-                await approveLedgerAction(fd);
-              });
+              fd.set("author_notes", notes);
+              fd.set("edit_requests", editText);
+              if (Object.keys(layerDecisions).length > 0) {
+                fd.set("layer_decisions", JSON.stringify(layerDecisions));
+              }
+              await approveLedgerAction(fd);
             }}
           >
             <input type="hidden" name="jobId" value={jobId} />
-            <input type="hidden" name="disposition" value="accepted_without_changes" />
+            <input
+              type="hidden"
+              name="disposition"
+              value={
+                gateState === "A"
+                  ? "accepted_without_changes"
+                  : gateState === "B" || gateState === "C"
+                  ? "accepted_with_edits"
+                  : "accepted_without_changes"
+              }
+            />
             <button
               type="submit"
               disabled={isPending}
@@ -866,16 +924,22 @@ function Module2ReviewGate({
                 letterSpacing: "0.03em",
               }}
             >
-              {isPending ? "Processing…" : "Approve — Run Phase 2"}
+              {isPending
+                ? "Processing…"
+                : gateState === "A"
+                ? "Run Phase 2 →"
+                : gateState === "B"
+                ? "Proceed with notes on record"
+                : gateState === "C"
+                ? "Proceed with flags on record"
+                : "Approve — Run Phase 2"}
             </button>
           </form>
 
           <form
             action={async (fd: FormData) => {
-              startTransition(async () => {
-                fd.set("author_notes", notes);
-                await rejectLedgerAction(fd);
-              });
+              fd.set("author_notes", notes);
+              await rejectLedgerAction(fd);
             }}
           >
             <input type="hidden" name="jobId" value={jobId} />
