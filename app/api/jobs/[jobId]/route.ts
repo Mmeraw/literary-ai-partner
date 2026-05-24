@@ -27,8 +27,8 @@ type Params = Promise<{ jobId: string }>;
  * last_error: present only when status === "failed"
  * failure_code: present only when status === "failed" and a code is available
  */
-type CanonicalPhase = "phase_0" | "phase_1a" | "phase_2" | "phase_3" | "wave_revision";
-type CanonicalPhaseStatus = "queued" | "running" | "complete" | "failed";
+type CanonicalPhase = "phase_0" | "phase_1a" | "review_gate" | "phase_2" | "phase_3" | "wave_revision";
+type CanonicalPhaseStatus = "queued" | "running" | "complete" | "failed" | "awaiting_approval";
 type CrossCheckStatus =
   | "queued"
   | "running"
@@ -260,6 +260,7 @@ function calculateProgressPercentage(job: Job): number {
 const CANONICAL_PHASES: ReadonlyArray<CanonicalPhase> = [
   "phase_0",
   "phase_1a",
+  "review_gate",
   "phase_2",
   "phase_3",
   "wave_revision",
@@ -274,6 +275,7 @@ const CANONICAL_PHASE_STATUSES: ReadonlyArray<CanonicalPhaseStatus> = [
   "running",
   "complete",
   "failed",
+  "awaiting_approval",
 ];
 
 function normalizePhaseForResponse(rawPhase: unknown): CanonicalPhase | null | undefined {
