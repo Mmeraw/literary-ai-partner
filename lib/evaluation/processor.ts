@@ -1539,6 +1539,37 @@ export function isTerminalFailureCode(code: string | null | undefined): boolean 
 }
 
 /**
+ * Policy gate: pass12_handoff_v1 artifacts may ONLY be written for jobs whose
+ * review_gate has been explicitly approved (review_gate_passed_at IS NOT NULL).
+ *
+ * Throws POLICY_VIOLATION if the gate has not been passed. This is defense-in-depth
+ * against any future code path that might bypass the claim allowlist / GUARD E and
+ * try to advance an awaiting_approval job past the review gate.
+ */
+export async function assertReviewGatePassedBeforeHandoff(
+  supabase: ReturnType<typeof createClient>,
+  jobId: string,
+): Promise<void> {
+  const { data: jobCheck, error: jobCheckErr } = await supabase
+    .from('evaluation_jobs')
+    .select('review_gate_passed_at')
+    .eq('id', jobId)
+    .single();
+  if (jobCheckErr) {
+    console.error(
+      `[POLICY VIOLATION] Failed to verify review_gate_passed_at for job ${jobId} before pass12_handoff_v1 write: ${jobCheckErr.message}`,
+    );
+    throw new Error(`POLICY_VIOLATION: pass12_handoff_v1 gate check failed (${jobCheckErr.message})`);
+  }
+  if (!jobCheck?.review_gate_passed_at) {
+    console.error(
+      `[POLICY VIOLATION] Attempted to write pass12_handoff_v1 for job ${jobId} without review_gate_passed_at. Aborting.`,
+    );
+    throw new Error('POLICY_VIOLATION: pass12_handoff_v1 requires review_gate_passed_at');
+  }
+}
+
+/**
  * Watchdog triage for stale running jobs.  Replaces the old flat "kill everything"
  * sweeper with a state-aware corrective-action loop.
  *
@@ -1548,12 +1579,15 @@ export function isTerminalFailureCode(code: string | null | undefined): boolean 
  *    - The leaseRenewalLoop setInterval stops firing when Vercel fluid-compute freezes
  *      the function (not kills it — freezes it under memory pressure).  Two missed 30s
  *      beats = 60 s silence = function is frozen.
- *    - Corrective action is STATE-AWARE with four guards:
+ *    - Corrective action is STATE-AWARE with the following guards (E runs FIRST):
+ *        e) phase=review_gate AND phase_status=awaiting_approval → SKIP entirely
+ *           (policy-conservative: the Review Gate is a hard author-input stop and
+ *           may NEVER be advanced by the watchdog).
  *        a) Terminal failure code (QG_*, PASS4_REFUSAL_*, governance) → kill, never rescue.
  *        b) attempt_count >= max_attempts → kill terminally, no more rescues.
  *        c) Same stage + same error_code repeated twice → kill, not an infra problem.
  *        d) pass12_handoff_v1 artifact exists → rescue to phase_2/queued.
- *        e) Otherwise → true freeze mid-pipeline, mark failed (resume button appears).
+ *        f) Otherwise → true freeze mid-pipeline, mark failed (resume button appears).
  *
  * 2. AGE-BASED KILL (13 min stale, EVAL_STALE_RUNNING_MINUTES)
  *    - Existing behavior: belt-and-suspenders for jobs the frozen watchdog missed.
@@ -1590,7 +1624,7 @@ export async function failStaleRunningJobs(): Promise<{
   const frozenCutoff = new Date(nowMs - frozenHeartbeatSecs * 1_000).toISOString();
   const { data: frozenCandidates, error: frozenErr } = await supabase
     .from('evaluation_jobs')
-    .select('id, manuscript_id, phase_status, progress, failure_code, attempt_count, max_attempts')
+    .select('id, manuscript_id, phase, phase_status, progress, failure_code, attempt_count, max_attempts')
     .eq('status', runningStatus)
     .not('last_heartbeat_at', 'is', null)
     .lt('last_heartbeat_at', frozenCutoff)
@@ -1675,6 +1709,17 @@ export async function failStaleRunningJobs(): Promise<{
                                      ?? null;
       const attemptCount  = (row.attempt_count  as number | null) ?? 0;
       const maxAttempts   = (row.max_attempts   as number | null) ?? 3;
+
+      // ─ GUARD E (phase-conservative): never advance a job sitting at the
+      //   review_gate / awaiting_approval hard stop. The gate is waiting on an
+      //   explicit author approval artifact; advancing it from the watchdog is a
+      //   policy violation. This is the FIRST check — overrides every other path.
+      if ((row as { phase?: string }).phase === 'review_gate' && phaseStatusTopLevel === 'awaiting_approval') {
+        console.warn(
+          `[WATCHDOG GUARD E] Job ${row.id} is at review_gate/awaiting_approval — policy violation to advance. Skipping.`,
+        );
+        continue;
+      }
 
       // ─ GUARD A: Terminal failure code — content/governance-driven, never rescue ──
       if (isTerminalFailureCode(lastErrorCode)) {
@@ -1825,7 +1870,7 @@ export async function failStaleRunningJobs(): Promise<{
         continue;
       }
 
-      // ─ GUARD E: True freeze mid-pipeline — no checkpoint, mark failed ─────────
+      // ─ GUARD F: True freeze mid-pipeline — no checkpoint, mark failed ─────────
       terminalFailEntries.push({
         id: row.id,
         reason: 'frozen_no_checkpoint',
@@ -5170,6 +5215,7 @@ export async function processEvaluationJob(
             promptVersion: 'pass12_handoff_v1',
             model: getCanonicalPipelineModel(openAiModel),
           });
+          await assertReviewGatePassedBeforeHandoff(supabase, String(job.id));
           await upsertEvaluationArtifact({
             supabase,
             jobId: String(job.id),
@@ -5313,6 +5359,7 @@ export async function processEvaluationJob(
           captured_at: new Date().toISOString(),
           schema_version: 'pass12_handoff_v1',
         };
+        await assertReviewGatePassedBeforeHandoff(supabase, String(job.id));
         await upsertEvaluationArtifact({
           supabase,
           jobId: String(job.id),
