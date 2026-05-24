@@ -107,11 +107,63 @@ export function JobStatusPoll({ jobId, initialJob }: JobStatusPollProps) {
   // GOVERNANCE: Only these UI states exist
   if (notFound) {
     return (
-      <div className="rounded-lg border border-red-200 bg-red-50 p-4">
-        <h2 className="text-lg font-semibold text-red-900">Job Not Found</h2>
-        <p className="mt-2 text-sm text-red-700">
-          The requested job could not be found.
+      <div
+        style={{
+          background: '#141414',
+          border: '1px solid #3a1a1a',
+          borderRadius: '4px',
+          padding: '2rem',
+        }}
+      >
+        <p
+          style={{
+            fontFamily: 'var(--font-rg-mono, monospace)',
+            fontSize: '0.65rem',
+            letterSpacing: '0.22em',
+            textTransform: 'uppercase',
+            color: '#7A1E1E',
+            marginBottom: '0.75rem',
+          }}
+        >
+          &#x25CF;&nbsp; Evaluation Job Not Found
         </p>
+        <p
+          style={{
+            fontFamily: 'var(--font-rg-serif, Georgia, serif)',
+            fontSize: '1.1rem',
+            color: '#F2EFEA',
+            marginBottom: '0.5rem',
+          }}
+        >
+          This evaluation no longer exists or was reset.
+        </p>
+        <p
+          style={{
+            fontFamily: 'var(--font-rg-serif, Georgia, serif)',
+            fontSize: '0.9rem',
+            color: 'rgba(242,239,234,0.6)',
+            marginBottom: '1.5rem',
+            lineHeight: '1.6',
+          }}
+        >
+          Return to Evaluate and start a new run.
+        </p>
+        <Link
+          href="/evaluate"
+          style={{
+            display: 'inline-block',
+            fontFamily: 'var(--font-rg-mono, monospace)',
+            fontSize: '0.65rem',
+            letterSpacing: '0.2em',
+            textTransform: 'uppercase',
+            color: '#A98E4A',
+            border: '1px solid rgba(169,142,74,0.5)',
+            padding: '0.5rem 1rem',
+            textDecoration: 'none',
+          }}
+        >
+          Return to Evaluate &rarr;
+        </Link>
       </div>
     );
   }

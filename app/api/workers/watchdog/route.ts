@@ -20,6 +20,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { failStaleRunningJobs } from '@/lib/evaluation/processor';
+import { rescueOrphanedJob } from '@/lib/jobs/rescueOrphanedJob';
 import { createClient } from '@supabase/supabase-js';
 
 export const dynamic = 'force-dynamic';
@@ -155,6 +156,57 @@ async function rescueIdleJobs(): Promise<{ idleFound: number; idleRescued: numbe
   return { idleFound: idleCandidates.length, idleRescued };
 }
 
+// ─── Null-pulse orphan sweep ──────────────────────────────────────────────
+// Detects jobs that were claimed (status=running, claimed_by set) but never
+// wrote worker_pulse_at. These are processor-crashed-before-first-pulse orphans.
+// They are invisible to rescueIdleJobs() which only looks at stale pulses.
+// Threshold: updated_at older than 60 seconds with worker_pulse_at IS NULL.
+const NULL_PULSE_ORPHAN_THRESHOLD_SECS = 60;
+
+async function rescueNullPulseOrphans(): Promise<{ found: number; rescued: number }> {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.SUPABASE_URL ?? '';
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
+  if (!supabaseUrl || !supabaseKey) return { found: 0, rescued: 0 };
+
+  const supabase = createClient(supabaseUrl, supabaseKey);
+  const cutoff = new Date(Date.now() - NULL_PULSE_ORPHAN_THRESHOLD_SECS * 1_000).toISOString();
+
+  // Find running jobs with no pulse that haven't moved in >60s.
+  // Exclude phase_0 from the 60s window — it can legitimately run 20-30s
+  // before stamping phase0_started_at. Give it a full 90s grace period.
+  const phase0Cutoff = new Date(Date.now() - 90_000).toISOString();
+
+  const { data: candidates, error } = await supabase
+    .from('evaluation_jobs')
+    .select('id, phase, phase_status, claimed_by')
+    .eq('status', 'running')
+    .not('claimed_by', 'is', null)           // must have been claimed
+    .is('worker_pulse_at', null)              // never wrote a pulse
+    .or(
+      `phase.neq.phase_0,and(phase.eq.phase_0,updated_at.lt.${phase0Cutoff})`
+    )
+    .lt('updated_at', cutoff)
+    .limit(10);
+
+  if (error || !candidates?.length) return { found: 0, rescued: 0 };
+
+  let rescued = 0;
+  for (const job of candidates) {
+    const result = await rescueOrphanedJob(
+      job.id,
+      `null_pulse_orphan: claimed but no pulse after ${NULL_PULSE_ORPHAN_THRESHOLD_SECS}s`,
+    );
+    if (result.rescued) {
+      rescued++;
+      console.log(`[Watchdog/nullPulse] Rescued null-pulse orphan ${job.id} phase=${job.phase}`);
+    } else {
+      console.warn(`[Watchdog/nullPulse] Could not rescue ${job.id}: ${result.reason}`);
+    }
+  }
+
+  return { found: candidates.length, rescued };
+}
+
 export async function GET(req: NextRequest) {
   if (!isAuthorized(req)) {
     return NextResponse.json({ ok: false, error: 'Unauthorized' }, { status: 401 });
@@ -164,13 +216,17 @@ export async function GET(req: NextRequest) {
   const startMs = Date.now();
 
   try {
-    // Run both sweeps in parallel: frozen-heartbeat (60s) + idle-pulse (30s)
-    const [result, idleResult] = await Promise.all([
+    // Run all three sweeps in parallel:
+    //   1. frozen-heartbeat (60s stale last_heartbeat_at) → fail
+    //   2. idle-pulse (20s stale worker_pulse_at, non-null) → requeue
+    //   3. null-pulse orphan (60s, worker_pulse_at IS NULL) → rescue via canonical RPC
+    const [result, idleResult, nullPulseResult] = await Promise.all([
       failStaleRunningJobs(),
       rescueIdleJobs(),
+      rescueNullPulseOrphans(),
     ]);
 
-    const rescued = (result.rescued ?? 0) + idleResult.idleRescued;
+    const rescued = (result.rescued ?? 0) + idleResult.idleRescued + nullPulseResult.rescued;
     const failed  = result.failed  ?? 0;
     const found   = result.staleFound ?? 0;
 
@@ -194,6 +250,8 @@ export async function GET(req: NextRequest) {
       failed,
       idleFound: idleResult.idleFound,
       idleRescued: idleResult.idleRescued,
+      nullPulseFound: nullPulseResult.found,
+      nullPulseRescued: nullPulseResult.rescued,
       ids: result.ids ?? [],
       timestamp: new Date().toISOString(),
     });
