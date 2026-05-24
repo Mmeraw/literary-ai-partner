@@ -193,7 +193,20 @@ export function getProgressDisplay(
     };
   }
 
-  // Phase 0 or unknown running state — show early-stage label
+  // Phase 0 — gold standard warm-up (evaluator internalizes criteria)
+  if (job.phase === 'phase_0') {
+    return {
+      label: "Calibrating benchmark models...",
+      valueLabel: "5%",
+      helperText: "Evaluator is internalizing scoring standards before reading your manuscript.",
+      indeterminate: false,
+      percentage: 5,
+      color: "blue",
+      hardStop: false,
+    };
+  }
+
+  // Unknown running state — fallback
   return {
     label: "Calibrating benchmark models...",
     valueLabel: "10%",

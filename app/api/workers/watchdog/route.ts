@@ -107,11 +107,16 @@ async function rescueIdleJobs(): Promise<{ idleFound: number; idleRescued: numbe
   // NULL worker_pulse_at means the column was never written (pre-migration job) — skip those.
   // CRITICAL: never rescue awaiting_approval — that is the Review Gate hard stop,
   // not a frozen worker. The gate is waiting for author input, not a pulse.
+  // CRITICAL: never rescue phase_0 — the gold-standard warm-up intentionally takes
+  // 20-30s for the LLM to internalize scoring criteria. The 20s pulse threshold
+  // would wrongly rescue it mid-calibration. Phase 0 gets the full 60s stale-
+  // heartbeat window from failStaleRunningJobs instead.
   const { data: idleCandidates, error } = await supabase
     .from('evaluation_jobs')
     .select('id, phase, phase_status, attempt_count, max_attempts')
     .eq('status', 'running')
     .neq('phase_status', 'awaiting_approval')
+    .neq('phase', 'phase_0')
     .not('worker_pulse_at', 'is', null)
     .lt('worker_pulse_at', pulseCutoff)
     .limit(10);

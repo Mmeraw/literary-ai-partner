@@ -2272,6 +2272,197 @@ export function runPreflightChecks(): PreflightResult {
   return { ok: true };
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// PHASE 0 — Gold Standard Warm-Up
+//
+// Loads the WAVE evaluation gold standard into the LLM's context window as a
+// calibration primer. The evaluator studies what 10/10 looks like — across all
+// 13 criteria, confidence bands, and annotation protocol — BEFORE the manuscript
+// is ever touched. No chunking. No manuscript read. Pure standard internalization.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const PHASE_0_GOLD_STANDARD = `
+# REVISIONGRADE EVALUATION GOLD STANDARD — CALIBRATION PRIMER
+# Authority: RevisionGrade Quality Standard v1.0 (Binding)
+# Purpose: Internalize scoring thresholds before evaluating any manuscript.
+# This is a READ-ONLY calibration pass. Do not generate output. Acknowledge only.
+
+## THE 13 CANONICAL CRITERIA (Immutable)
+
+Scoring scale: 0–10
+  10   = Mastery — industry-publication standard, no meaningful weaknesses
+  7–9  = Professional — publishable, specific improvements may strengthen
+  5–6  = Competent — functional but with craft gaps requiring attention
+  3–4  = Weak — core problems undermine the work; revision required
+  1–2  = Critical failure — structural or craft breakdown; significant rework needed
+  0    = Absent / non-functional
+
+Criteria:
+1.  concept          — Core premise strength, originality, inherent tension
+2.  narrativeDrive   — Forward movement through escalation and consequence
+3.  character        — Psychological coherence, motivation, capacity for change
+4.  voice            — POV stability, intentionality, appropriateness to material
+5.  sceneConstruction — Each scene performs narrative function (reveal/escalate/complicate/resolve)
+6.  dialogue         — Authenticity, subtext, no unnecessary exposition
+7.  theme            — Embedded through action/consequence, not stated directly
+8.  worldbuilding    — Environmental logic, system consistency, credibility
+9.  pacing           — Rhythm of tension/release across the work
+10. proseControl     — Precision, intentionality, no unmotivated repetition
+11. tone             — Tonal integrity, no unintended register drift
+12. narrativeClosure — Narrative promises kept, intentionally subverted, or explicitly left open
+13. marketability    — Professional readiness, control, cohesion
+
+## GOLD-STANDARD CALIBRATION THRESHOLDS
+
+Confidence Bands:
+  HIGH   (≥95%) — Claim correctness target ≥95%. Assert only when evidence is unambiguous.
+  MEDIUM (80–94%) — Acceptable range. Flag when reasonable experts may disagree.
+  LOW    (<80%)  — No correctness requirement. Label uncertainty explicitly.
+
+Release gates (blocking):
+  - Confidence drift >5 percentage points on critical claim types → BLOCK
+  - Increased false certainty (high-confidence claims that are wrong) → BLOCK
+  - Broken determinism (same input → different outputs) → BLOCK
+  - Ambiguity present but not flagged → BLOCK
+
+## ANNOTATION PROTOCOL — WHAT GOLD LOOKS LIKE
+
+For a score of 9–10 on any criterion:
+  - Evidence is specific and unambiguous (cite passage, pattern, or structural beat)
+  - The craft element performs its function consistently across the work
+  - No unmotivated violations — any deviation is intentional and controlled
+  - Professional comparison: the work equals or surpasses published standards in this dimension
+
+For a score of 5–6:
+  - The element functions at a basic level but lacks control or consistency
+  - Weaknesses are identifiable and pattern-based, not isolated incidents
+  - Revision path is clear: the author can fix this without restructuring the work
+
+For a score of 1–4:
+  - The element has broken down or is absent
+  - Root cause is structural, not surface-level
+  - Revision requires significant rewriting, not line editing
+
+## EVIDENCE-BASED ASSESSMENT CONTRACT
+
+  - Every score requires manuscript evidence (specific passage, pattern, or scene)
+  - Generic feedback is a calibration failure — cite the text
+  - Flag weaknesses by WAVE tier: Early (structural), Mid (momentum), Late (polish)
+  - Disagreement zones: do NOT force false certainty — label as ambiguous
+  - Missing criteria = evaluation invalid. All 13 must be scored.
+
+## PUBLICATION READINESS GATE
+
+  All 13 criteria must score 7+ for publication readiness.
+  Any criterion below 7 is a gate closure requiring revision before submission.
+  The evaluator does not soften scores to spare feelings — honest assessment protects the author.
+
+## ACKNOWLEDGMENT CONTRACT
+
+You have now internalized the RevisionGrade evaluation gold standard.
+When you evaluate the manuscript in the next phase, you will:
+  1. Apply these 13 criteria exactly as defined above
+  2. Score according to the calibrated thresholds (not relative to the submission)
+  3. Ground every score in specific manuscript evidence
+  4. Flag confidence honestly — never assert HIGH when evidence is ambiguous
+  5. Complete all 13 criteria without exception
+
+Acknowledge with a single word: CALIBRATED
+`;
+
+type Phase0Result =
+  | { success: true; durationMs: number; acknowledgment: string }
+  | { success: false; error: string; durationMs: number };
+
+async function runPhase0GoldPrimer(args: {
+  jobId: string;
+  openaiApiKey: string;
+  openAiModel: string;
+  evalOpenAiTimeoutMs: number;
+}): Promise<Phase0Result> {
+  const { jobId, openaiApiKey, openAiModel, evalOpenAiTimeoutMs } = args;
+  const startMs = Date.now();
+
+  // Clamp timeout: Phase 0 should complete in 20-30s; cap at 60s.
+  const phase0TimeoutMs = Math.min(evalOpenAiTimeoutMs, 60_000);
+
+  console.log(`[Phase0] ${jobId}: sending gold-standard primer to ${openAiModel}`);
+
+  try {
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${openaiApiKey}`,
+      },
+      signal: AbortSignal.timeout(phase0TimeoutMs),
+      body: JSON.stringify({
+        model: openAiModel,
+        max_tokens: 20, // Acknowledgment only — "CALIBRATED" is the entire expected output
+        temperature: 0,
+        messages: [
+          {
+            role: 'system',
+            content:
+              'You are a literary evaluation engine. You are about to receive your evaluation gold standard. ' +
+              'Study it completely. Internalize every criterion, threshold, and evidence contract. ' +
+              'When you have finished, respond with exactly one word: CALIBRATED',
+          },
+          {
+            role: 'user',
+            content: PHASE_0_GOLD_STANDARD,
+          },
+        ],
+      }),
+    });
+
+    const durationMs = Date.now() - startMs;
+
+    if (!response.ok) {
+      const body = await response.text().catch(() => '');
+      return {
+        success: false,
+        error: `OpenAI HTTP ${response.status}: ${body.slice(0, 300)}`,
+        durationMs,
+      };
+    }
+
+    const json = await response.json() as {
+      choices?: Array<{ message?: { content?: string } }>;
+    };
+
+    const acknowledgment = json.choices?.[0]?.message?.content?.trim() ?? '';
+    console.log(`[Phase0] ${jobId}: LLM acknowledged in ${durationMs}ms: "${acknowledgment}"`);
+
+    return { success: true, durationMs, acknowledgment };
+  } catch (err) {
+    const durationMs = Date.now() - startMs;
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(`[Phase0] ${jobId}: primer call failed after ${durationMs}ms:`, message);
+    return { success: false, error: message, durationMs };
+  }
+}
+
+/** Fire-and-forget kick to process-evaluations after Phase 0 re-queues at phase_1a. */
+async function kickPhase1aWorker(): Promise<void> {
+  const secret = process.env.CRON_SECRET;
+  if (!secret) return;
+  const base =
+    process.env.NEXT_PUBLIC_APP_URL ??
+    process.env.VERCEL_URL ??
+    'https://www.revisiongrade.com';
+  const url = `${base.startsWith('http') ? base : `https://${base}`}/api/workers/process-evaluations`;
+  try {
+    void fetch(url, {
+      method: 'GET',
+      headers: { Authorization: `Bearer ${secret}` },
+      signal: AbortSignal.timeout(5_000),
+    }).catch(() => {});
+  } catch {
+    // best-effort
+  }
+}
+
 /**
  * Process a single evaluation job
  */
@@ -2425,9 +2616,10 @@ export async function processEvaluationJob(
     // flags now keyed strictly on job.phase, at most one is true, so the chain
     // below is equivalent — but the explicit job.phase switch documents intent
     // and makes the single-source-of-truth contract impossible to miss.
-    const executionPhase: 'phase_1a' | 'phase_2' | 'phase_3' =
+    const executionPhase: 'phase_0' | 'phase_1a' | 'phase_2' | 'phase_3' =
       job.phase === 'phase_3' ? 'phase_3' :
       job.phase === 'phase_2' ? 'phase_2' :
+      job.phase === 'phase_0' ? 'phase_0' :
       'phase_1a'; // job.phase === 'phase_1a' (or legacy 'phase_1' which is dead)
 
     // Hard guard: queued jobs must be atomically claimed before direct processing.
@@ -2755,20 +2947,101 @@ export async function processEvaluationJob(
       }
     };
 
-    // 2. Update status to running
-    await markRunning('Fetching manuscript', 0, executionPhase);
-
-    // PHASE 0 START: stamp phase0_started_at + first worker_pulse_at on the
-    // very first real work — manuscript fetch. This is the canonical Phase 0
-    // ("Preparing manuscript") start signal for the PhaseBreadcrumb timeline.
-    if (executionPhase === 'phase_1a') {
+    // ─────────────────────────────────────────────────────────────────────────
+    // PHASE 0 — Gold Standard Warm-Up
+    //
+    // The evaluator STUDIES what success looks like BEFORE touching the
+    // manuscript. No chunking, no manuscript read — just calibration of the
+    // judging standard. The LLM ingests the WAVE gold standard + all 13
+    // criteria definitions + calibration thresholds as a system primer.
+    // Once internalized, the job is re-queued at phase_1a and this worker
+    // returns immediately. A fresh worker claims the phase_1a job.
+    // ─────────────────────────────────────────────────────────────────────────
+    if (executionPhase === 'phase_0') {
       const phase0StartNow = new Date().toISOString();
-      void supabase
+      console.log(`[Processor/Phase0] ${jobId}: starting gold-standard warm-up`);
+
+      // Stamp phase0_started_at + initial pulse
+      await supabase
         .from('evaluation_jobs')
         .update({
           phase0_started_at: phase0StartNow,
           worker_pulse_at: phase0StartNow,
           updated_at: phase0StartNow,
+        })
+        .eq('id', jobId)
+        .eq('status', JOB_STATUS.RUNNING);
+
+      // Run the gold-standard primer — LLM internalizes evaluation criteria
+      const phase0Result = await runPhase0GoldPrimer({
+        jobId,
+        openaiApiKey,
+        openAiModel,
+        evalOpenAiTimeoutMs,
+      });
+
+      if (!phase0Result.success) {
+        const failedResult = phase0Result as { success: false; error: string; durationMs: number };
+        const msg = `Phase 0 warm-up failed: ${failedResult.error}`;
+        console.error(`[Processor/Phase0] ${jobId}: ${msg}`);
+        await markFailed(msg);
+        return { success: false, error: msg };
+      }
+
+      console.log(`[Processor/Phase0] ${jobId}: warm-up complete in ${phase0Result.durationMs}ms — transitioning to phase_1a`);
+
+      // Stamp phase0_completed_at + pulse
+      const phase0EndNow = new Date().toISOString();
+
+      // Re-queue at phase_1a: release lease, transition phase.
+      // A fresh worker will claim and begin manuscript processing.
+      const { error: reQueueErr } = await supabase
+        .from('evaluation_jobs')
+        .update({
+          status: JOB_STATUS.QUEUED,
+          phase: PHASES.PHASE_1A,
+          phase_status: JOB_STATUS.QUEUED,
+          claimed_by: null,
+          lease_token: null,
+          lease_expires_at: null,
+          last_heartbeat_at: null,
+          last_heartbeat: null,
+          worker_pulse_at: null,
+          phase0_completed_at: phase0EndNow,
+          updated_at: phase0EndNow,
+        })
+        .eq('id', jobId)
+        .eq('status', JOB_STATUS.RUNNING);
+
+      if (reQueueErr) {
+        const msg = `Phase 0 → phase_1a re-queue failed: ${reQueueErr.message}`;
+        console.error(`[Processor/Phase0] ${jobId}: ${msg}`);
+        await markFailed(msg);
+        return { success: false, error: msg };
+      }
+
+      console.log(`[Processor/Phase0] ${jobId}: re-queued at phase_1a — kicking worker`);
+
+      // Kick the worker so phase_1a is claimed immediately (no 5-min cron wait)
+      void kickPhase1aWorker();
+
+      return { success: true };
+    }
+
+    // 2. Update status to running
+    await markRunning('Fetching manuscript', 0, executionPhase);
+
+    // PHASE 0 COMPLETE already stamped above when phase_0 ran.
+    // For jobs that entered at phase_1a directly (e.g. legacy / admin retry),
+    // stamp phase0_started_at + phase0_completed_at together at phase_1a entry.
+    if (executionPhase === 'phase_1a') {
+      const phase0Now = new Date().toISOString();
+      void supabase
+        .from('evaluation_jobs')
+        .update({
+          phase0_started_at: phase0Now,
+          worker_pulse_at: phase0Now,
+          updated_at: phase0Now,
         })
         .eq('id', jobId)
         .eq('status', JOB_STATUS.RUNNING)
