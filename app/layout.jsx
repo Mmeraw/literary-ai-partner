@@ -1,6 +1,7 @@
 // app/layout.jsx
 import "./globals.css";
 import HeaderNav from "../components/HeaderNav";
+import SiteFooter from "../components/SiteFooter";
 
 export const metadata = {
   title: "RevisionGrade™",
@@ -23,6 +24,7 @@ export default function RootLayout({ children }) {
       >
         <HeaderNav />
         <main>{children}</main>
+        <SiteFooter />
       </body>
     </html>
   );
