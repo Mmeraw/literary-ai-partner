@@ -27,7 +27,7 @@ export type ProgressDisplay = {
  *
  * | Backend state                                            | Label                                         | % | Color  |
  * |----------------------------------------------------------|-----------------------------------------------|---|--------|
- * | status=queued / initial                                  | Calibrating benchmark models...               | 10| blue   |
+ * | status=queued / initial                                  | Calibrating benchmark models...               | 5 | blue   |
  * | phase=phase_1a, phase_status=running (early)             | Ingesting manuscript & mapping chapters...    | 25| blue   |
  * | phase=phase_1a, phase_status=running (late)              | Extracting core narrative footprint...        | 45| blue   |
  * | phase=review_gate, phase_status=awaiting_approval        | Awaiting Story Layer Approval                 | 60| amber  | HARD STOP
@@ -133,10 +133,10 @@ export function getProgressDisplay(
   if (job.status === "queued") {
     return {
       label: "Calibrating benchmark models...",
-      valueLabel: "10%",
+      valueLabel: "5%",
       helperText: "Your job is queued. A worker will begin automatically.",
       indeterminate: false,
-      percentage: 10,
+      percentage: 5,
       color: "blue",
       hardStop: false,
     };
@@ -237,10 +237,10 @@ export function getProgressDisplay(
   // Unknown running state — fallback
   return {
     label: "Calibrating benchmark models...",
-    valueLabel: "10%",
+    valueLabel: "5%",
     helperText: "Initializing evaluation pipeline.",
     indeterminate: false,
-    percentage: 10,
+    percentage: 5,
     color: "blue",
     hardStop: false,
   };
