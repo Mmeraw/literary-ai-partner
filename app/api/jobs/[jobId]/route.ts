@@ -55,6 +55,13 @@ type CanonicalJobResponse = {
    */
   cross_check_status?: CrossCheckStatus | null;
   /**
+   * Additive: raw unit counters so the UI can compute the true within-phase
+   * fraction (e.g. early vs late phase_1a) without parsing the numeric
+   * progress percentage back into a fraction.
+   */
+  total_units?: number | null;
+  completed_units?: number | null;
+  /**
    * Additive: per-stage timestamps used by the client to compute truthful,
    * stage-weighted progress percentages. All fields are optional ISO strings.
    * Older jobs that pre-date a given stage timestamp simply omit it; the
@@ -160,7 +167,18 @@ export async function GET(req: NextRequest, ctx: { params: Params }) {
       response.job.phase_status = canonicalPhase.phase_status;
     }
 
-    // 6b) Surface cross-check status and per-stage timestamps additively so
+    // 6b) Surface raw unit counters so the UI can compute the within-phase
+    //     fraction without re-parsing the rolled-up percentage.
+    const rawTotalUnits = (job.progress as { total_units?: unknown } | null)?.total_units;
+    const rawCompletedUnits = (job.progress as { completed_units?: unknown } | null)?.completed_units;
+    if (typeof rawTotalUnits === "number") {
+      response.job.total_units = rawTotalUnits;
+    }
+    if (typeof rawCompletedUnits === "number") {
+      response.job.completed_units = rawCompletedUnits;
+    }
+
+    // 6c) Surface cross-check status and per-stage timestamps additively so
     //     the client can render the truthful, stage-weighted progress bar.
     //     All fields are optional and validated. Missing/invalid values are
     //     omitted rather than defaulted, so consumers that ignore them stay

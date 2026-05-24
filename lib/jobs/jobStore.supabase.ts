@@ -331,12 +331,18 @@ export async function getJob(id: string): Promise<Job | null> {
   return job;
 }
 
-export async function getAllJobs(): Promise<Job[]> {
+export async function getAllJobs(userId?: string): Promise<Job[]> {
   const jobSelectFields = await getJobSelectFields();
-  const { data, error } = await supabase
+  let query = supabase
     .from("evaluation_jobs")
     .select(jobSelectFields)
     .order("created_at", { ascending: false });
+
+  if (userId) {
+    query = query.eq("user_id", userId);
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     throw new Error(`Failed to list jobs: ${error.message}`);

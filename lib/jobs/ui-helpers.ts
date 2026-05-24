@@ -107,19 +107,31 @@ export function getJobDisplayInfo(job: Job): JobDisplayInfo {
     }
   }
 
-  // Phase detail
+  // Phase detail — canonical 7-stage user-facing labels.
+  // Internal phase codes (phase_1a, phase_2, etc.) are NEVER shown to users.
   let phaseDisplay = "";
-  if (phase && phase_status) {
-    const phaseNum = phase === "phase_1a" ? "1A" : phase === "phase_2" ? "2" : phase === "phase_3" ? "3" : "?"; // Display only
-    const statusLabel =
-      phase_status === "complete"
-        ? "Complete"
-        : phase_status === "failed"
-          ? "Failed"
-          : phase_status === "running"
-            ? "Running"
-            : "Queued";
-    phaseDisplay = `Phase ${phaseNum}: ${statusLabel}`;
+  if (status === "queued" || phase === "phase_0") {
+    phaseDisplay = "Preparing manuscript";
+  } else if (phase === "phase_1a") {
+    phaseDisplay = phase_status === "complete" ? "Analyzing manuscript — Complete" : "Analyzing manuscript";
+  } else if (phase === "review_gate") {
+    phaseDisplay = phase_status === "awaiting_approval" ? "Awaiting approval" : "Analyzing manuscript";
+  } else if (phase === "phase_2") {
+    const p2Status = phase_status === "complete" ? " — Complete" : phase_status === "failed" ? " — Failed" : "";
+    // Distinguish early phase_2 (building diagnosis) from running (reconciling passes)
+    phaseDisplay = phase_status === "running"
+      ? `Reconciling passes${p2Status}`
+      : `Building diagnosis${p2Status}`;
+  } else if (phase === "phase_3") {
+    phaseDisplay = phase_status === "complete" ? "Finalizing report" : "Preparing report";
+  } else if (phase === "wave_revision") {
+    phaseDisplay = "Finalizing report";
+  } else if (status === "complete") {
+    phaseDisplay = "Finalizing report";
+  } else if (status === "failed") {
+    phaseDisplay = "Failed";
+  } else {
+    phaseDisplay = "In progress";
   }
 
   const phaseDetail: JobPhaseDetail = {

@@ -53,6 +53,28 @@ const NON_TRANSIENT_CODES = new Set<FailureCode>([
   'CRITERION_COMPLETENESS_FAILED',
 ]);
 
+const LEGACY_NON_RETRYABLE_PREFIXES = [
+  'PASS3_FAILED',
+  'LLR_PRE_ARTIFACT_GENERATION_BLOCK',
+  'QG_',
+  'SCHEMA_INVALID',
+  'SCHEMA_VIOLATION',
+  'EVALUATION_INVALID',
+  'MANUSCRIPT_NOT_FOUND',
+  'CHUNK_MISSING',
+  'AUTH_FAILED',
+  'INVALID_INPUT',
+  'QUOTA_EXCEEDED',
+] as const;
+
+const LEGACY_RETRYABLE_SIGNALS = [
+  'NETWORK_ERROR',
+  'TIMEOUT',
+  'RATE_LIMIT',
+  'SERVICE_UNAVAILABLE',
+  'PROVIDER_ERROR',
+] as const;
+
 export function assertValidFailureCode(raw: string): asserts raw is FailureCode {
   if (!(FAILURE_CODES as readonly string[]).includes(raw)) {
     throw new Error(`Unknown failure code: ${raw}`);
@@ -69,6 +91,29 @@ export function isNonTransientFailure(code: FailureCode): boolean {
 
 /** Alias for isTransientFailure — explicitly named for retry decision sites. */
 export const isRetryableFailure = isTransientFailure;
+
+/**
+ * Runtime retryability policy for finalizers that may receive either canonical
+ * FailureCode values or legacy processor/gate codes such as QG_* and PASS3_FAILED.
+ */
+export function isRetryableFailureCode(rawCode: string): boolean {
+  const code = rawCode || '';
+
+  if ((FAILURE_CODES as readonly string[]).includes(code)) {
+    return isTransientFailure(code as FailureCode);
+  }
+
+  if (LEGACY_NON_RETRYABLE_PREFIXES.some((prefix) => code.startsWith(prefix))) {
+    return false;
+  }
+
+  if (LEGACY_RETRYABLE_SIGNALS.some((signal) => code.includes(signal))) {
+    return true;
+  }
+
+  // Fail closed for unknown non-canonical runtime codes.
+  return false;
+}
 
 /**
  * Map an Error to the closest canonical FailureCode.

@@ -11,7 +11,7 @@ import {
   type EvaluationScope,
   type CriterionKey,
 } from "@/schemas/criteria-keys";
-import { EvaluationPoller } from "@/components/EvaluationPoller";
+import { EvaluationPoller, type JobState } from "@/components/EvaluationPoller";
 import {
   buildTopRecommendations,
   normalizeRecommendationActionForDisplay,
@@ -427,21 +427,31 @@ export default async function EvaluationReportPage({
   const job = await getJob(jobId);
 
   if (!job || job.user_id !== ownerId) {
-
+    // Job may be mid-transition (queued after a reset) — do not say "expired".
+    // Offer a reload and a return link. The poller will pick it up once it's live.
     return (
       <main className="mx-auto max-w-3xl p-6">
         <h1 className="text-2xl font-semibold text-gray-900">Evaluation Report</h1>
-        <div className="mt-4 rounded-md bg-yellow-50 border border-yellow-200 p-4">
-          <p className="text-sm text-yellow-800 font-medium">Unable to load evaluation</p>
-          <p className="mt-2 text-sm text-yellow-700">
-            {`We couldn't find job ${jobId}. It may have expired, been deleted, or is not accessible to this account.`}
+        <div className="mt-4 rounded-md border border-gray-200 bg-gray-50 p-4">
+          <p className="text-sm font-medium text-gray-900">Job not available yet</p>
+          <p className="mt-2 text-sm text-gray-600">
+            This evaluation is not accessible right now. If you just submitted or resumed a job,
+            it may still be initialising — wait a moment and reload.
           </p>
-        </div>
-
-        <div className="mt-6">
-          <Link href="/evaluate" className="inline-block text-sm text-blue-600 hover:text-blue-700 underline">
-            Back to Evaluate
-          </Link>
+          <div className="mt-4 flex gap-4">
+            <Link
+              href={`/evaluate/${jobId}`}
+              className="inline-block rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-800 hover:bg-gray-100"
+            >
+              Reload
+            </Link>
+            <Link
+              href="/evaluate"
+              className="inline-block text-sm text-gray-500 underline hover:text-gray-700 py-1.5"
+            >
+              Back to Evaluate
+            </Link>
+          </div>
         </div>
       </main>
     );
@@ -458,6 +468,13 @@ export default async function EvaluationReportPage({
     progress: calculateProgressPercentage(job),
     created_at: job.created_at ?? new Date(0).toISOString(),
     updated_at: job.updated_at ?? new Date(0).toISOString(),
+    // Seed phase/phase_status so the poller renders the correct label
+    // and percentage immediately, without waiting for the first API poll.
+    ...(job.phase != null ? { phase: job.phase as JobState['phase'] } : {}),
+    ...(job.phase_status != null ? { phase_status: job.phase_status as JobState['phase_status'] } : {}),
+    // Seed unit counters for accurate early/late phase_1a label selection.
+    ...(typeof job.total_units === 'number' ? { total_units: job.total_units } : {}),
+    ...(typeof job.completed_units === 'number' ? { completed_units: job.completed_units } : {}),
     ...(job.last_error ? { last_error: job.last_error } : {}),
   };
   const artifactCriteria = artifact?.criteria ?? [];

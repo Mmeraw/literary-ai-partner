@@ -3,89 +3,127 @@
 import { redirect } from 'next/navigation';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { getAuthenticatedUser } from '@/lib/supabase/server';
-import { recordEvaluationEvent } from '@/lib/evaluation/workflow/events';
+import { headers } from 'next/headers';
 
-async function assertOwnedJob(jobId: string, userId: string) {
-  const supabase = createAdminClient();
-  const { data: job, error } = await supabase
-    .from('evaluation_jobs')
-    .select('id, user_id, manuscript_id, evaluation_project_id, manuscripts(user_id,title)')
-    .eq('id', jobId)
-    .maybeSingle();
-
-  if (error || !job) {
-    throw new Error('Unable to load evaluation job.');
-  }
-
-  const ownerId =
-    (job as { user_id?: string | null }).user_id ??
-    ((job as { manuscripts?: { user_id?: string | null } | Array<{ user_id?: string | null }> }).manuscripts &&
-      (Array.isArray((job as { manuscripts?: Array<{ user_id?: string | null }> }).manuscripts)
-        ? (job as { manuscripts?: Array<{ user_id?: string | null }> }).manuscripts?.[0]?.user_id
-        : ((job as { manuscripts?: { user_id?: string | null } }).manuscripts)?.user_id));
-
-  if (ownerId !== userId) {
-    throw new Error('Evaluation job is not accessible to this account.');
-  }
-
-  return job as {
-    id: string;
-    manuscript_id: number;
-    evaluation_project_id?: string | null;
-  };
-}
-
+/**
+ * approveLedgerAction
+ *
+ * Server Action wired to the Review Gate approval form.
+ *
+ * Delegates to the backend-enforced /api/jobs/[jobId]/review-gate POST endpoint.
+ * This action MUST NOT perform the state transition itself — that logic lives
+ * server-side in the review-gate route so it is enforced on every path.
+ *
+ * Disposition is always 'accepted_without_changes' when triggered from the
+ * standard approve button. The UI surfaces 'accepted_with_edits' and 'rejected'
+ * via the extended review panel (additional form fields).
+ */
 export async function approveLedgerAction(formData: FormData): Promise<void> {
   const jobId = String(formData.get('jobId') ?? '').trim();
   if (!jobId) throw new Error('Missing job id.');
 
+  const disposition = String(formData.get('disposition') ?? 'accepted_without_changes').trim();
+  const authorNotes = String(formData.get('author_notes') ?? '').trim() || undefined;
+  const editRequestsRaw = String(formData.get('edit_requests') ?? '').trim();
+  const editRequests = editRequestsRaw
+    ? editRequestsRaw.split('\n').map((s) => s.trim()).filter(Boolean)
+    : undefined;
+
   const user = await getAuthenticatedUser();
   if (!user) throw new Error('Please sign in to approve the ledger.');
 
+  // Verify ownership before forwarding — belt-and-suspenders (review-gate route
+  // also checks ownership, but failing early gives a cleaner error message here).
   const supabase = createAdminClient();
-  const job = await assertOwnedJob(jobId, user.id);
-
-  const { data: ledgerArtifact, error: ledgerError } = await supabase
-    .from('evaluation_artifacts')
-    .select('id')
-    .eq('job_id', jobId)
-    .eq('artifact_type', 'pass1a_character_ledger_v1')
+  const { data: job, error: jobError } = await supabase
+    .from('evaluation_jobs')
+    .select('id, user_id, phase, phase_status, manuscripts(user_id)')
+    .eq('id', jobId)
     .maybeSingle();
 
-  if (ledgerError || !ledgerArtifact?.id) {
-    throw new Error('Story Ledger is not ready yet.');
+  if (jobError || !job) throw new Error('Unable to load evaluation job.');
+
+  type MinimalJob = {
+    user_id?: string | null;
+    phase?: string | null;
+    phase_status?: string | null;
+    manuscripts?: { user_id?: string | null } | Array<{ user_id?: string | null }> | null;
+  };
+  const j = job as MinimalJob;
+  const ownerId =
+    j.user_id ??
+    (Array.isArray(j.manuscripts) ? j.manuscripts[0]?.user_id : j.manuscripts?.user_id);
+
+  if (ownerId !== user.id) throw new Error('Evaluation job is not accessible to this account.');
+
+  // Gate: job must be at review_gate / awaiting_approval
+  // The review-gate route enforces this too, but early validation improves UX
+  // (the error is surfaced before a round-trip to the API).
+  if (j.phase !== 'review_gate' || j.phase_status !== 'awaiting_approval') {
+    throw new Error(
+      `Job is not at the Review Gate (phase=${j.phase ?? 'unknown'}, ` +
+        `phase_status=${j.phase_status ?? 'unknown'}). Refresh and try again.`,
+    );
   }
 
-  const approvedAt = new Date().toISOString();
-  const { error: updateError } = await supabase
-    .from('evaluation_jobs')
-    .update({
-      ledger_approved_at: approvedAt,
-      ledger_approved_by: user.id,
-      guided_full_novel_stage: 'ledger_approved',
-      updated_at: approvedAt,
-    })
-    .eq('id', jobId);
+  // Build absolute URL for the internal API call from a Server Action.
+  // headers() gives us the host so we can form the correct absolute URL.
+  const headersList = await headers();
+  const host = headersList.get('host') ?? 'localhost:3000';
+  const proto = process.env.NODE_ENV === 'production' ? 'https' : 'http';
+  const apiUrl = `${proto}://${host}/api/jobs/${jobId}/review-gate`;
 
-  if (updateError) {
-    throw new Error(`Unable to approve ledger: ${updateError.message}`);
+  // Forward the request to the backend-enforced Review Gate endpoint.
+  // The endpoint re-validates ownership, phase state, and artifact existence.
+  const body: Record<string, unknown> = { disposition };
+  if (authorNotes) body.author_notes = authorNotes;
+  if (editRequests?.length) body.edit_requests = editRequests;
+
+  // Pass the user's session cookie so the review-gate route can authenticate.
+  const cookieHeader = headersList.get('cookie') ?? '';
+
+  const res = await fetch(apiUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Cookie: cookieHeader,
+    },
+    body: JSON.stringify(body),
+    cache: 'no-store',
+  });
+
+  if (!res.ok) {
+    let errMsg = `Review Gate API returned ${res.status}`;
+    try {
+      const json = await res.json();
+      if (json?.error) errMsg = json.error;
+    } catch {
+      // ignore parse errors
+    }
+    throw new Error(errMsg);
   }
 
-  if (job.evaluation_project_id) {
-    await recordEvaluationEvent({
-      supabase,
-      projectId: job.evaluation_project_id,
-      eventType: 'ledger_approved',
-      payload: {
-        job_id: jobId,
-        artifact_id: ledgerArtifact.id,
-        approved_by: user.id,
-        approved_at: approvedAt,
-      },
-    }).catch((eventError) => {
-      console.warn('[approveLedgerAction] ledger approval event failed', eventError);
-    });
-  }
+  // Success — redirect back to the ledger with approval flag so the UI shows
+  // the success banner. Phase 2 is now queued and the worker will pick it up.
+  const redirectTarget =
+    disposition === 'rejected'
+      ? `/evaluate/${jobId}/ledger?rejected=1`
+      : `/evaluate/${jobId}/ledger?approved=1`;
 
-  redirect(`/evaluate/${jobId}/ledger?approved=1`);
+  redirect(redirectTarget);
+}
+
+/**
+ * rejectLedgerAction
+ *
+ * Convenience Server Action for the explicit reject button on the ledger page.
+ * Delegates to approveLedgerAction with disposition='rejected'.
+ */
+export async function rejectLedgerAction(formData: FormData): Promise<void> {
+  const cloned = new FormData();
+  cloned.set('jobId', String(formData.get('jobId') ?? ''));
+  cloned.set('disposition', 'rejected');
+  const authorNotes = formData.get('author_notes');
+  if (authorNotes) cloned.set('author_notes', String(authorNotes));
+  return approveLedgerAction(cloned);
 }

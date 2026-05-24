@@ -107,6 +107,10 @@ import { summarizePromptCoverage } from '@/lib/evaluation/pipeline/promptInput';
 import { detectContextContamination } from '@/lib/evaluation/governance/contextContaminationGuard';
 import { assertClaimedJobsContract } from '@/lib/jobs/contracts/claimEvaluationJobs.contract';
 import { finalizeJobFailure } from '@/lib/jobs/jobStore.supabase';
+import {
+  finalizeProcessorFailureWithLeaseGuard,
+  isProcessorLeaseLostError,
+} from '@/lib/evaluation/processorLeaseFailureFinalizer';
 import { ensureChunksFromText } from '@/lib/manuscripts/chunks';
 import {
   selectChunkerConfig,
@@ -121,6 +125,9 @@ import type { ManuscriptChunkEvidence, SinglePassOutput, Pass1aCharacterLedger, 
 import { runPass1a, type Pass1aChunkCacheArtifact } from '@/lib/evaluation/pipeline/runPass1a';
 import { runPass3Preflight } from '@/lib/evaluation/pipeline/runPass3Preflight';
 import { reduceCharacterEvidence, buildCharacterLedgerV2 } from '@/lib/evaluation/pipeline/characterReducer';
+import { buildStoryLayerFromLedger } from '@/lib/evaluation/phase1a/buildStoryLayerFromLedger';
+import { buildLedgerQualityReport } from '@/lib/evaluation/phase1a/buildLedgerQualityReport';
+import { writePhase1aReviewGateArtifacts } from '@/lib/evaluation/phase1a/storyLayerArtifactWriters';
 import {
   isPipelineEnabled,
   pipelineDisabledResponse,
@@ -137,6 +144,7 @@ import {
   FORBIDDEN_PATCH_COLUMNS,
   type PhaseName,
 } from '@/lib/evaluation/phaseTimestamps';
+import { buildPhaseLogPatch } from '@/lib/evaluation/phaseLog';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // WAVE Phase 3 constants
@@ -620,6 +628,8 @@ async function assertJobWithinSla(args: {
   jobId: string;
   hardDeadlineMs: number;
   stage: string;
+  expectedLeaseToken?: string | null;
+  expectedClaimedBy?: string | null;
 }): Promise<void> {
   if (Date.now() < args.hardDeadlineMs) {
     return;
@@ -646,14 +656,27 @@ async function assertJobWithinSla(args: {
     );
   }
 
-  await finalizeJobFailure({
-    jobId: args.jobId,
-    errorEnvelope: {
-      code: 'PIPELINE_SLA_EXCEEDED',
-      message: 'Evaluation exceeded hard SLA; worker aborted before stale sweeper',
-      retryable: false,
-    },
-  });
+  if (args.expectedLeaseToken && args.expectedClaimedBy) {
+    await finalizeProcessorFailureWithLeaseGuard({
+      jobId: args.jobId,
+      expectedLeaseToken: args.expectedLeaseToken,
+      expectedClaimedBy: args.expectedClaimedBy,
+      errorEnvelope: {
+        code: 'PIPELINE_SLA_EXCEEDED',
+        message: 'Evaluation exceeded hard SLA; worker aborted before stale sweeper',
+        retryable: false,
+      },
+    });
+  } else {
+    await finalizeJobFailure({
+      jobId: args.jobId,
+      errorEnvelope: {
+        code: 'PIPELINE_SLA_EXCEEDED',
+        message: 'Evaluation exceeded hard SLA; worker aborted before stale sweeper',
+        retryable: false,
+      },
+    });
+  }
 
   throw new PipelineSlaExceededError();
 }
@@ -2312,6 +2335,8 @@ export async function processEvaluationJob(
   let lifecycleStatus: JobStatus | null = null;
   // Hoisted so outer-catch can persist partial progress metadata (#223)
   let progressState: Record<string, unknown> = {};
+  let expectedLeaseToken: string | null = null;
+  let expectedClaimedBy: string | null = null;
 
   emitLatencyTrace({
     job_id: jobId,
@@ -2445,6 +2470,9 @@ export async function processEvaluationJob(
     progressState =
       job.progress && typeof job.progress === 'object' ? { ...job.progress } : {};
 
+    expectedLeaseToken = typeof job.lease_token === 'string' ? job.lease_token : null;
+    expectedClaimedBy = typeof job.claimed_by === 'string' ? job.claimed_by : null;
+
     const canonicalStartedAt = resolveSafeStartedAt({
       candidate: (job as Record<string, unknown>).started_at,
       createdAt: (job as Record<string, unknown>).created_at,
@@ -2501,6 +2529,7 @@ export async function processEvaluationJob(
       const nextProgress = {
         ...progressState,
         ...stageTimestampPatch,
+        ...buildPhaseLogPatch(progressState, phase, 'entered', now),
         phase,
         phase_status: 'running',
         total_units: EVALUATION_PROGRESS_TOTAL_UNITS,
@@ -2654,9 +2683,17 @@ export async function processEvaluationJob(
       };
 
       try {
-        // Route through centralized failure finalizer — atomic, retryable-aware, audited
-        const finalizeResult = await finalizeJobFailure({
+        if (!expectedLeaseToken || !expectedClaimedBy) {
+          throw new Error(
+            `[Processor] Missing verified claimed-owner metadata before failure finalization for job ${jobId}`,
+          );
+        }
+
+        // Route through centralized, lease-guarded failure finalizer.
+        const finalizeResult = await finalizeProcessorFailureWithLeaseGuard({
           jobId,
+          expectedLeaseToken,
+          expectedClaimedBy,
           errorEnvelope: {
             code: errorCode,
             message: errorMessage,
@@ -2668,6 +2705,18 @@ export async function processEvaluationJob(
         console.log(`[Processor] Job ${jobId} failed with code ${errorCode}; retryEligible=${finalizeResult.retryEligible}; attempt=${finalizeResult.attemptCount}/${finalizeResult.maxAttempts}`);
         finalizeSucceeded = true;
       } catch (finalizeError) {
+        if (isProcessorLeaseLostError(finalizeError)) {
+          console.error('[Processor][PROCESSOR_LEASE_LOST] terminal write skipped; no fallback mutation attempted', {
+            job_id: jobId,
+            failure_code: errorCode,
+            message:
+              finalizeError instanceof Error
+                ? finalizeError.message
+                : String(finalizeError),
+          });
+          throw finalizeError;
+        }
+
         console.error(
           `[Processor] finalizeJobFailure failed for ${jobId}; using fallback failure write:`,
           finalizeError instanceof Error ? finalizeError.message : String(finalizeError)
@@ -3180,36 +3229,11 @@ export async function processEvaluationJob(
 
       if (!hasHandoff) {
         console.error(`[phase_3] ${jobId}: pass12_handoff_v1 missing — terminal failure`);
-        try {
-          await finalizeJobFailure({
-            jobId,
-            errorEnvelope: {
-              code: 'PHASE3_MISSING_HANDOFF',
-              message: 'phase_3 entered without pass12_handoff_v1 — cannot synthesize',
-              retryable: false,
-            },
-          });
-        } catch (finalizeErr) {
-          console.error(`[phase_3] ${jobId}: finalizeJobFailure failed (fallback to direct update)`,
-            finalizeErr instanceof Error ? finalizeErr.message : String(finalizeErr));
-          const failNow = new Date().toISOString();
-          await supabase
-            .from('evaluation_jobs')
-            .update({
-              status: normalizeEvaluationJobStatus(JOB_STATUS.FAILED) as JobStatus,
-              phase: 'phase_3',
-              phase_status: 'failed',
-              last_error: 'PHASE3_MISSING_HANDOFF',
-              failure_code: 'PHASE3_MISSING_HANDOFF',
-              failed_at: failNow,
-              updated_at: failNow,
-              claimed_by: null,
-              claimed_at: null,
-              lease_token: null,
-              lease_until: null,
-            })
-            .eq('id', job.id);
-        }
+        await markFailed(
+          'phase_3 entered without pass12_handoff_v1 — cannot synthesize',
+          'PHASE3_MISSING_HANDOFF',
+          { pipelineStage: 'phase_3' },
+        );
         return { success: false };
       }
 
@@ -3230,19 +3254,11 @@ export async function processEvaluationJob(
         if (handoffReadError || !handoffRow?.content) {
           console.error(`[phase_3] ${jobId}: handoff artifact read failed`,
             handoffReadError?.message ?? 'no_content');
-          try {
-            await finalizeJobFailure({
-              jobId,
-              errorEnvelope: {
-                code: 'PHASE3_MISSING_HANDOFF',
-                message: 'phase_3 handoff read failed',
-                retryable: false,
-              },
-            });
-          } catch (finalizeErr) {
-            console.error(`[phase_3] ${jobId}: finalizeJobFailure failed`,
-              finalizeErr instanceof Error ? finalizeErr.message : String(finalizeErr));
-          }
+          await markFailed(
+            'phase_3 handoff read failed',
+            'PHASE3_MISSING_HANDOFF',
+            { pipelineStage: 'phase_3' },
+          );
           return { success: false };
         }
 
@@ -3378,7 +3394,14 @@ export async function processEvaluationJob(
             ...(prebuiltCharacterLedgerP3 ? { _prebuiltCharacterLedger: prebuiltCharacterLedgerP3 } : {}),
             ...(prebuiltPreflightDraftP3 ? { _prebuiltPreflightDraft: prebuiltPreflightDraftP3 } : {}),
             onHeartbeat: async (stage) => {
-              await assertJobWithinSla({ supabase, jobId, hardDeadlineMs, stage });
+              await assertJobWithinSla({
+                supabase,
+                jobId,
+                hardDeadlineMs,
+                stage,
+                expectedLeaseToken,
+                expectedClaimedBy,
+              });
               await renewEvaluationJobLease({
                 supabase, jobId, leaseMs: runtimeConfig.worker.leaseMs, stage, hardDeadlineMs,
               });
@@ -3488,8 +3511,10 @@ export async function processEvaluationJob(
               phase_status: 'complete',
               completed_at: missingNow,
               updated_at: missingNow,
+              phase3_completed_at: missingNow,
               progress: {
                 ...progressState,
+                ...buildPhaseLogPatch(progressState, 'phase_3', 'passed', missingNow),
                 phase: 'phase_3',
                 phase_status: 'complete',
                 message: 'WAVE skipped (synthesis artifact missing) — evaluation complete',
@@ -3601,8 +3626,10 @@ export async function processEvaluationJob(
             phase_status: 'complete',
             completed_at: phase3Now,
             updated_at: phase3Now,
+            phase3_completed_at: phase3Now,
             progress: {
               ...progressState,
+              ...buildPhaseLogPatch(progressState, 'phase_3', 'passed', phase3Now),
               phase: 'phase_3',
               phase_status: 'complete',
               message: 'WAVE revision complete',
@@ -3631,9 +3658,11 @@ export async function processEvaluationJob(
             phase: 'phase_3',
             phase_status: 'complete',
             completed_at: errNow,
+            phase3_completed_at: errNow,
             updated_at: errNow,
             progress: {
               ...progressState,
+              ...buildPhaseLogPatch(progressState, 'phase_3', 'passed', errNow),
               phase: 'phase_3',
               phase_status: 'complete',
               message: 'WAVE phase error (non-fatal) — evaluation complete',
@@ -3876,31 +3905,107 @@ export async function processEvaluationJob(
           artifactVersion: 'pass1a_character_ledger_v1',
         });
 
-        console.log(`[Processor] ${jobId}: phase_1a — ledger artifact persisted, queuing phase_2`);
+        console.log(`[Processor] ${jobId}: phase_1a — ledger artifact persisted, building story layer`);
 
-        // Transition to phase_2 (Pass 3 synthesis)
+        // ── PR12: Build 8-layer Story Layer payload from completed ledger ────────
+        const storyLayerPayload = buildStoryLayerFromLedger(
+          characterLedger,
+          characterLedgerV2Phase1a,
+        );
+
+        const qualityReport = buildLedgerQualityReport(
+          characterLedger,
+          characterLedgerV2Phase1a,
+        );
+
+        console.log(`[Processor] ${jobId}: phase_1a — quality report built`, {
+          gate_ready_status: qualityReport.gate_ready_status,
+          hard_fail_present: qualityReport.hard_fail_present,
+          blocking_reasons_count: qualityReport.blocking_reasons.length,
+        });
+
+        // ── PR12: Persist pass1a_story_layer_v1 + ledger_quality_report_v1 ──────
+        const phase1aMeta = {
+          job_id: String(job.id),
+          evaluation_project_id: (job as Record<string, unknown>).evaluation_project_id as string | null ?? null,
+          manuscript_id: Number(job.manuscript_id),
+          manuscript_version_hash: `manuscript_${String(job.manuscript_id)}_${String(job.id)}`,
+          generated_at: new Date().toISOString(),
+        };
+
+        const storyLayerRefs = await writePhase1aReviewGateArtifacts({
+          metadata: phase1aMeta,
+          storyLayer: storyLayerPayload,
+          qualityReport,
+          writeArtifact: async (artifact) => {
+            const { error: artifactWriteErr } = await supabase
+              .from('evaluation_artifacts')
+              .upsert(
+                {
+                  job_id: String(job.id),
+                  manuscript_id: Number(job.manuscript_id),
+                  artifact_type: artifact.artifact_type,
+                  artifact_version: artifact.artifact_version,
+                  source_hash: artifact.source_hash,
+                  content: artifact.content,
+                  created_at: new Date().toISOString(),
+                },
+                { onConflict: 'job_id,artifact_type', ignoreDuplicates: false },
+              );
+            if (artifactWriteErr) {
+              throw new Error(
+                `Failed to write ${artifact.artifact_type}: ${artifactWriteErr.message}`,
+              );
+            }
+            return { artifact_id: artifact.content.artifact_id };
+          },
+        });
+
+        console.log(`[Processor] ${jobId}: phase_1a — story layer artifacts written`, {
+          pass1a_story_layer_v1: storyLayerRefs.pass1a_story_layer_v1.artifact_id,
+          ledger_quality_report_v1: storyLayerRefs.ledger_quality_report_v1.artifact_id,
+        });
+
+        // ── PR12: Transition to awaiting_approval — stop worker cleanly ─────────
+        // Phase 2 CANNOT run from pass1a_story_layer_v1 directly.
+        // It requires accepted_story_ledger_v1 written by the Review Gate.
         const phase1aNow = new Date().toISOString();
         const phase1aHandoffProgress = {
           ...progressState,
+          ...buildPhaseLogPatch(progressState, 'phase_1a', 'passed', phase1aNow),
           phase: 'phase_1a',
-          phase_status: 'complete',
-          message: 'Phase 1A complete — character ledger ready, awaiting Pass 3 synthesis',
+          phase_status: 'awaiting_approval',
+          message: 'Phase 1A complete — Story Ledger ready for author review',
           phase1a_completed_at: phase1aNow,
           ledger_entries: characterLedger.entries.length,
+          story_layer_artifact_id: storyLayerRefs.pass1a_story_layer_v1.artifact_id,
+          quality_report_artifact_id: storyLayerRefs.ledger_quality_report_v1.artifact_id,
+          gate_ready_status: qualityReport.gate_ready_status,
+          hard_fail_present: qualityReport.hard_fail_present,
         };
 
+        // CANONICAL transition: phase_1a → review_gate
+        // - status remains 'queued' (JobStatus canonical set) so DB constraints hold
+        // - phase='review_gate' is NOT claimed by claim_evaluation_jobs RPC
+        //   (ClaimedJobPhaseSchema only accepts phase_1a | phase_2 | phase_3)
+        // - phase_status='awaiting_approval' is the human-readable gate state
+        // Worker will never re-claim this job until Review Gate sets phase='phase_2'
         const { data: phase1aHandoffRow, error: phase1aHandoffErr } = await supabase
           .from('evaluation_jobs')
           .update({
             status: JOB_STATUS.QUEUED,
-            phase: 'phase_2',
-            phase_status: JOB_STATUS.QUEUED,
+            phase: 'review_gate',
+            phase_status: 'awaiting_approval',
             claimed_by: null,
             claimed_at: null,
             lease_token: null,
             lease_until: null,
+            review_gate_entered_at: phase1aNow,
             updated_at: phase1aNow,
-            progress: phase1aHandoffProgress,
+            progress: {
+              ...phase1aHandoffProgress,
+              ...buildPhaseLogPatch(phase1aHandoffProgress, 'review_gate', 'entered', phase1aNow),
+            },
           })
           .eq('id', job.id)
           .eq('status', JOB_STATUS.RUNNING)
@@ -3908,16 +4013,30 @@ export async function processEvaluationJob(
           .single();
 
         if (phase1aHandoffErr) {
-          console.error(`[Processor] ${jobId}: phase_1a handoff DB transition FAILED`, phase1aHandoffErr.message);
-          throw new Error(`Phase 1A handoff DB transition failed: ${phase1aHandoffErr.message}`);
+          console.error(
+            `[Processor] ${jobId}: phase_1a → review_gate transition FAILED`,
+            phase1aHandoffErr.message,
+          );
+          throw new Error(
+            `Phase 1A → review_gate transition failed: ${phase1aHandoffErr.message}`,
+          );
         }
 
-        if (!phase1aHandoffRow || phase1aHandoffRow.status !== JOB_STATUS.QUEUED) {
-          console.warn(`[Processor] ${jobId}: phase_1a handoff 0 rows — job already transitioned`, { returned: phase1aHandoffRow ?? null });
+        if (!phase1aHandoffRow) {
+          console.warn(
+            `[Processor] ${jobId}: phase_1a → review_gate 0 rows — job already transitioned`,
+            { returned: phase1aHandoffRow ?? null },
+          );
           return { success: true };
         }
 
-        console.log(`[Processor] ${jobId}: phase_1a handoff confirmed — status=queued phase=phase_2`);
+        console.log(
+          `[Processor] ${jobId}: phase_1a handoff confirmed — status=queued phase=review_gate phase_status=awaiting_approval`,
+          {
+            gate_ready_status: qualityReport.gate_ready_status,
+            hard_fail_present: qualityReport.hard_fail_present,
+          },
+        );
         return { success: true };
       } catch (phase1aErr) {
         const errMsg = phase1aErr instanceof Error ? phase1aErr.message : String(phase1aErr);
@@ -4040,7 +4159,14 @@ export async function processEvaluationJob(
                 },
               },
               onHeartbeat: async (stage) => {
-                await assertJobWithinSla({ supabase, jobId, hardDeadlineMs, stage });
+                await assertJobWithinSla({
+                  supabase,
+                  jobId,
+                  hardDeadlineMs,
+                  stage,
+                  expectedLeaseToken,
+                  expectedClaimedBy,
+                });
                 await renewEvaluationJobLease({
                   supabase, jobId, leaseMs: runtimeConfig.worker.leaseMs, stage, hardDeadlineMs,
                 });
@@ -4184,7 +4310,14 @@ export async function processEvaluationJob(
               runPass2: async (opts) => { const r = await realRunPass2Short(opts); capturedPass2Short = r; return r; },
             },
             onHeartbeat: async (stage) => {
-              await assertJobWithinSla({ supabase, jobId, hardDeadlineMs, stage });
+              await assertJobWithinSla({
+                supabase,
+                jobId,
+                hardDeadlineMs,
+                stage,
+                expectedLeaseToken,
+                expectedClaimedBy,
+              });
               await renewEvaluationJobLease({ supabase, jobId, leaseMs: runtimeConfig.worker.leaseMs, stage, hardDeadlineMs });
             },
           });
@@ -4522,6 +4655,8 @@ export async function processEvaluationJob(
       jobId,
       hardDeadlineMs,
       stage: 'after_runPipeline',
+      expectedLeaseToken,
+      expectedClaimedBy,
     });
 
     const pass3CompletedAt = new Date().toISOString();
@@ -4968,6 +5103,8 @@ export async function processEvaluationJob(
       jobId,
       hardDeadlineMs,
       stage: 'before_persistence',
+      expectedLeaseToken,
+      expectedClaimedBy,
     });
 
     await markRunning(
@@ -5308,6 +5445,14 @@ export async function processEvaluationJob(
     return { success: true };
 
   } catch (error) {
+    if (isProcessorLeaseLostError(error)) {
+      console.error('[Processor][PROCESSOR_LEASE_LOST] processor aborted without fallback mutation', {
+        job_id: jobId,
+        message: error.message,
+      });
+      return { success: false, error: error.message };
+    }
+
     if (error instanceof PipelineSlaExceededError) {
       console.warn('[Processor] Job aborted at SLA boundary', {
         job_id: jobId,
@@ -5339,15 +5484,45 @@ export async function processEvaluationJob(
 
     // Route uncaught errors through centralized failure finalizer
     try {
-      await finalizeJobFailure({
-        jobId,
-        errorEnvelope: {
-          code: 'PROCESSOR_UNCAUGHT_ERROR',
-          message: errorMessage,
-          retryable: false, // Conservative: uncaught errors are terminal until investigated
-        },
-      });
+      if ((expectedLeaseToken && !expectedClaimedBy) || (!expectedLeaseToken && expectedClaimedBy)) {
+        throw new Error(
+          `[Processor] Incomplete claimed-owner metadata in uncaught path for job ${jobId}`,
+        );
+      }
+
+      if (expectedLeaseToken && expectedClaimedBy) {
+        await finalizeProcessorFailureWithLeaseGuard({
+          jobId,
+          expectedLeaseToken,
+          expectedClaimedBy,
+          errorEnvelope: {
+            code: 'PROCESSOR_UNCAUGHT_ERROR',
+            message: errorMessage,
+            retryable: false, // Conservative: uncaught errors are terminal until investigated
+          },
+        });
+      } else {
+        await finalizeJobFailure({
+          jobId,
+          errorEnvelope: {
+            code: 'PROCESSOR_UNCAUGHT_ERROR',
+            message: errorMessage,
+            retryable: false, // Conservative: uncaught errors are terminal until investigated
+          },
+        });
+      }
     } catch (finalizeError) {
+      if (isProcessorLeaseLostError(finalizeError)) {
+        console.error('[Processor][PROCESSOR_LEASE_LOST] terminal write skipped in uncaught path; no fallback mutation attempted', {
+          job_id: jobId,
+          message:
+            finalizeError instanceof Error
+              ? finalizeError.message
+              : String(finalizeError),
+        });
+        return { success: false, error: errorMessage };
+      }
+
       console.error(
         `[Processor] Failed to finalize uncaught error for ${jobId}:`,
         finalizeError instanceof Error ? finalizeError.message : String(finalizeError)
