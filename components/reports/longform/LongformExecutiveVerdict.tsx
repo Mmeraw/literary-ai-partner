@@ -20,9 +20,12 @@ const VERDICT_LABELS = [
 ];
 
 function scoreColor(n: number): string {
-  if (n >= 80) return "text-emerald-700";
-  if (n >= 65) return "text-amber-600";
-  return "text-rose-600";
+  // 80–100: rich dark green
+  if (n >= 80) return "text-emerald-800";
+  // 60–79: dark amber
+  if (n >= 60) return "text-amber-700";
+  // <60: red
+  return "text-red-700";
 }
 
 /**

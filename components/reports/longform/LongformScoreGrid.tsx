@@ -22,11 +22,11 @@ function scoreBar(score: number | null) {
   }
   const pct = Math.min(100, Math.max(0, (score / 10) * 100));
   const color =
-    score >= 7.5
-      ? "bg-emerald-400"
+    score >= 8
+      ? "bg-emerald-700"
       : score >= 6
-        ? "bg-amber-400"
-        : "bg-rose-400";
+        ? "bg-amber-600"
+        : "bg-red-600";
   return (
     <div className="flex items-center gap-2">
       <span className="w-8 text-right text-sm font-semibold tabular-nums text-gray-800">

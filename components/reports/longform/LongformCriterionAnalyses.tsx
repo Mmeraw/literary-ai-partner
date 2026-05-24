@@ -33,9 +33,9 @@ function CriterionCard({ a }: { a: LongformDreamDocument["criterion_analyses"][n
   // score can be null (e.g. proseControl in insufficient-signal state) — guard
   const safeScore = a.score ?? null;
   const scoreColor =
-    safeScore !== null && safeScore >= 7.5 ? "text-emerald-700"
-    : safeScore !== null && safeScore >= 6 ? "text-amber-600"
-    : safeScore !== null ? "text-rose-600"
+    safeScore !== null && safeScore >= 8 ? "text-emerald-800"
+    : safeScore !== null && safeScore >= 6 ? "text-amber-700"
+    : safeScore !== null ? "text-red-700"
     : "text-gray-600";
 
   return (
