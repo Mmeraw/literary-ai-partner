@@ -207,7 +207,7 @@ Failure specimen: `fa730c9c-e41b-4fc2-b37e-52db365b9b17` (overall 66/100, delta 
 
 ## One-sentence Phase 0 instruction
 
-> Phase 0 trains the evaluator. Phase 1A reads the manuscript. Phase 2 scores only after Phase 1A coverage is verified — because a pipeline that only sees the loudest lanes is not evaluating the manuscript; it is evaluating its own priors.
+> Phase 0 does not read the manuscript; it loads golden-record lessons and hands Phase 1A the rules required to map structural lanes, build ledgers, confirm source vocabulary, and block Phase 2 scoring until canon coverage is verified.
 
 ---
 
