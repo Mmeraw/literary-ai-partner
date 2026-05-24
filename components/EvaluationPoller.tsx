@@ -9,36 +9,13 @@ import {
   useFailedJobRecovery,
 } from './evaluation/FailedJobRecovery';
 
-// How many ms between each animated +1% tick on the display progress.
-// At 400ms/tick the bar takes ~40 s to traverse 0→100 at full speed.
-const ANIMATION_TICK_MS = 400;
-
-// When the backend holds at a coarse checkpoint such as 33%, continue the
-// browser-only display slowly through safe non-terminal stages so the UI does
-// not appear frozen. Completion remains backend-gated and never renders 100%
-// until the job status is actually complete.
-const RUNNING_SOFT_CEILING = 79;
-const RUNNING_SOFT_FORWARD_TICK_MS = 1200;
-
-// Once the backend marks the job complete, keep animating the client-only
-// progress display to 100 instead of snapping. This lets users see the final
-// stage labels even when the backend jumps directly from ~33% to complete.
+// No client-side progress drift. Progress is driven 100% from backend phase state
+// via getProgressDisplay. Constants below retained only for redirect animation.
 const COMPLETE_ANIMATION_TICK_MS = 200;
-
-// Keep running jobs below near-complete UI bands until final gates pass and
-// the backend marks the job as complete.
-const RUNNING_MAX_DISPLAY_PROGRESS = 79;
 
 function getInitialDisplayProgress(job: JobState | null): number {
   if (!job) return 0;
   if (job.status === 'complete') return 100;
-  if (job.status === 'running') {
-    // Preserve server-reported progress on first paint so refreshes do not
-    // visually jump backwards to 0% and re-animate from scratch.
-    // While status is still running, keep display progress below near-complete
-    // bands so we do not imply publishable readiness before final QA passes.
-    return Math.max(0, Math.min(RUNNING_MAX_DISPLAY_PROGRESS, Math.round(job.progress)));
-  }
   return 0;
 }
 
@@ -64,8 +41,8 @@ export interface JobState {
   // Canonical pipeline-stage fields (additive; may be absent on older API responses).
   // When present these are authoritative for stage label resolution and are decoupled
   // from the smoothly-animated visual progress bar.
-  phase?: 'phase_0' | 'phase_1a' | 'phase_2' | 'phase_3' | null;
-  phase_status?: 'queued' | 'running' | 'complete' | 'failed' | null;
+  phase?: 'phase_0' | 'phase_1a' | 'review_gate' | 'phase_2' | 'phase_3' | 'wave_revision' | null;
+  phase_status?: 'queued' | 'running' | 'complete' | 'failed' | 'awaiting_approval' | null;
   cross_check_status?:
     | 'queued'
     | 'running'
@@ -141,8 +118,8 @@ export function EvaluationPoller({
   const [nextPollDelay, setNextPollDelay] = useState(refreshInterval);
   const [pendingRedirectDelayMs, setPendingRedirectDelayMs] = useState<number | null>(null);
 
-  // Animated display progress: ticks through user-safe display stages while
-  // backend state remains authoritative for terminal completion/failure.
+  // displayProgress: used only for the completion-animation sweep to 100.
+  // For all running states the bar width comes directly from getProgressDisplay.
   const [displayProgress, setDisplayProgress] = useState<number>(getInitialDisplayProgress(initialJob));
 
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -156,39 +133,24 @@ export function EvaluationPoller({
   const networkErrorCountRef = useRef(0);
   const redirectedRef = useRef(false);
 
-  // Animate displayProgress toward the current display target, one tick at a time.
-  // Running jobs can soft-forward past coarse backend checkpoints up to a safe
-  // non-terminal ceiling so the UI does not appear frozen at ~35%. Complete jobs
-  // continue to 100 client-side so users do not see a 35% → 100% snap.
+  // Completion sweep: animate displayProgress to 100 only when backend status=complete.
+  // For all running/queued states the bar width is driven directly by getProgressDisplay.
   useEffect(() => {
-    if (!job || job.status === 'failed') return;
-
-    const target =
-      job.status === 'complete'
-        ? 100
-        : Math.min(
-            RUNNING_MAX_DISPLAY_PROGRESS,
-            Math.max(job.progress, RUNNING_SOFT_CEILING),
-          );
-    const tickMs =
-      job.status === 'complete'
-        ? COMPLETE_ANIMATION_TICK_MS
-        : displayProgress >= job.progress
-          ? RUNNING_SOFT_FORWARD_TICK_MS
-          : ANIMATION_TICK_MS;
+    if (!job || job.status !== 'complete') return;
+    if (displayProgress >= 100) return;
 
     const interval = setInterval(() => {
       setDisplayProgress((prev) => {
-        if (prev >= target) {
+        if (prev >= 100) {
           clearInterval(interval);
-          return prev;
+          return 100;
         }
-        return Math.min(prev + 1, target);
+        return prev + 1;
       });
-    }, tickMs);
+    }, COMPLETE_ANIMATION_TICK_MS);
 
     return () => clearInterval(interval);
-  }, [displayProgress, job]);
+  }, [displayProgress, job?.status]);
 
   // For report pages that need a server refresh after completion, wait until the
   // client-side animation has reached 100. Otherwise the page refresh can replace
@@ -527,43 +489,54 @@ export function EvaluationPoller({
           <p className={`text-lg font-semibold ${statusColor}`}>{statusLabel}</p>
         </div>
 
-                {/* Progress Bar */}
+                {/* Progress Bar — driven 100% from backend phase, no client-side drift */}
         {(() => {
-          // Use the smoothly animated displayProgress so the bar traverses
-          // every stage label at a legible pace regardless of how coarse the
-          // backend progress checkpoints are. While completion animation is still
-          // in flight, render through the running-stage label map instead of the
-          // terminal complete display, which is intentionally fixed at 100%.
-          const displayStatus = isCompletingAnimation ? 'running' : job.status;
-          // Pass authoritative phase fields through so the stage label reflects the
-          // real pipeline state, while the visual percentage continues to use the
-          // smoothly-animated displayProgress for UX continuity.
+          // For completion animation: use displayProgress (sweeps 0→100 client-side).
+          // For all other states: use pd.percentage directly (deterministic, phase-driven).
           const pd = getProgressDisplay({
-            status: displayStatus,
+            status: isCompletingAnimation ? 'running' : job.status,
             phase: job.phase ?? null,
             phase_status: job.phase_status ?? null,
             cross_check_status: job.cross_check_status ?? null,
-            created_at: job.created_at ?? null,
-            phase1_started_at: job.phase1_started_at ?? null,
-            phase1_completed_at: job.phase1_completed_at ?? null,
-            phase2_started_at: job.phase2_started_at ?? null,
-            phase2_completed_at: job.phase2_completed_at ?? null,
-            pass3_started_at: job.pass3_started_at ?? null,
-            pass3_completed_at: job.pass3_completed_at ?? null,
+            // Early vs late phase_1a: derive fraction from total/completed units
+            phase_unit_fraction: (() => {
+              const p = job as unknown as { progress?: { total_units?: unknown; completed_units?: unknown } };
+              const total = typeof p.progress?.total_units === 'number' ? p.progress.total_units : null;
+              const done = typeof p.progress?.completed_units === 'number' ? p.progress.completed_units : null;
+              if (total && total > 0 && done !== null) return done / total;
+              return null;
+            })(),
           });
           if (!pd) return null;
+
+          // Bar color classes derived from pd.color
+          const barColorClass = {
+            blue: 'bg-blue-600',
+            amber: 'bg-amber-500',
+            red: 'bg-red-600',
+            green: 'bg-green-600',
+          }[pd.color];
+
+          const labelColorClass = {
+            blue: 'text-gray-700',
+            amber: 'text-amber-800 font-semibold',
+            red: 'text-red-800 font-semibold',
+            green: 'text-green-700',
+          }[pd.color];
+
+          // Completion animation uses displayProgress; all other states use pd.percentage.
+          const barWidth = isCompletingAnimation ? displayProgress : pd.percentage;
+
           return (
             <div className="space-y-2">
               <div className="flex items-start justify-between gap-4">
-                <p className="text-sm font-medium text-gray-700">{pd.label}</p>
-                <div className="flex flex-col items-end gap-2 text-right">
-                  <p className="text-sm text-gray-600">{pd.valueLabel}</p>
-                </div>
+                <p className={`text-sm ${labelColorClass}`}>{pd.label}</p>
+                <p className="text-sm text-gray-600 shrink-0">{pd.valueLabel}</p>
               </div>
               <div className="w-full bg-gray-200 rounded-full h-2">
                 <div
-                  className={`h-2 rounded-full transition-all duration-300 ${pd.indeterminate ? 'bg-gray-400 animate-pulse' : 'bg-blue-600'}`}
-                  style={{ width: pd.indeterminate ? '100%' : `${pd.percentage}%` }}
+                  className={`h-2 rounded-full transition-all duration-300 ${barColorClass}`}
+                  style={{ width: `${barWidth}%` }}
                 />
               </div>
               <p className="text-xs text-gray-500">{pd.helperText}</p>
