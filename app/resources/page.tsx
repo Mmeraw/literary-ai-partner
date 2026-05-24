@@ -6,7 +6,7 @@ const faqs = [
   { q: "What happens after evaluation?", a: "Findings should become a queue of revision opportunities. That queue is the bridge between Evaluate and Revise." },
   { q: "Does the system rewrite my voice?", a: "The Revise layer is framed around voice protection. Zero compression is a valid outcome when a passage should be preserved." },
   { q: "Why does long-form fiction need special handling?", a: "A novel is not a bundle of isolated pages. Character continuity, pacing, theme, scene function, and payoff depend on long-range context." },
-  { q: "Is RevisionGrade in private beta?", a: "Yes. The public pages explain the product surface while protected routes preserve the app workflow and evaluation infrastructure." },
+  { q: "Who can use RevisionGrade?", a: "Any author with a manuscript. Sign in and open Evaluate to begin. Protected routes require an account; public pages are open." },
 ];
 
 export default function ResourcesPage() {
