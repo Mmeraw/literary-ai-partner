@@ -890,6 +890,19 @@ export function CanonicalIdentityLayer({
 
 // ─── Layer 4 — Cast & Role Tier ───────────────────────────────────────────────
 
+const CAST_INTERNAL_FIELDS = new Set([
+  "tier_map",
+  "co_presence_index",
+  "character_presence_index",
+  "character_coverage_index",
+  "schema_version",
+  "antagonist_count",
+  "protagonist_count",
+  "total_cast",
+  "major_secondary_characters",
+  "relational_engines",
+]);
+
 const TIER_MAP_ORDER = [
   "protagonist",
   "co_protagonist",
@@ -1010,11 +1023,10 @@ export function CastRoleTierLayer({
             <div key={tier}>
               <p
                 style={{
-                  margin: "0 0 8px",
-                  fontSize: 11,
+                  margin: "0 0 10px",
+                  fontSize: 12,
                   fontWeight: 700,
-                  letterSpacing: "0.08em",
-                  textTransform: "uppercase" as const,
+                  letterSpacing: "0.04em",
                   color: C.textMuted,
                 }}
               >
@@ -1031,18 +1043,20 @@ export function CastRoleTierLayer({
       </div>
 
       {relationalEngines.length > 0 && (
-        <div style={{ marginTop: 16 }}>
+        <div style={{ marginTop: 20 }}>
           <p
             style={{
-              margin: "0 0 8px",
-              fontSize: 11,
+              margin: "0 0 4px",
+              fontSize: 12,
               fontWeight: 700,
-              letterSpacing: "0.08em",
-              textTransform: "uppercase" as const,
+              letterSpacing: "0.04em",
               color: C.textMuted,
             }}
           >
-            Relational Engines
+            Character Pairs
+          </p>
+          <p style={{ margin: "0 0 10px", fontSize: 12, color: C.textMuted }}>
+            Characters who appear in scenes together.
           </p>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
             {relationalEngines.map((pair, i) => (
@@ -1052,19 +1066,21 @@ export function CastRoleTierLayer({
         </div>
       )}
 
-      {!hasNewSchema && majorSecondary.length > 0 && (
-        <div style={{ marginTop: 16 }}>
+      {majorSecondary.length > 0 && (
+        <div style={{ marginTop: 20 }}>
           <p
             style={{
-              margin: "0 0 8px",
-              fontSize: 11,
+              margin: "0 0 4px",
+              fontSize: 12,
               fontWeight: 700,
-              letterSpacing: "0.08em",
-              textTransform: "uppercase" as const,
+              letterSpacing: "0.04em",
               color: C.textMuted,
             }}
           >
-            Major Secondary
+            System-Suggested Secondary Cast
+          </p>
+          <p style={{ margin: "0 0 10px", fontSize: 12, color: C.textMuted }}>
+            AI-suggested — verify against your own reading of the story.
           </p>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
             {majorSecondary.map((name, i) => (
