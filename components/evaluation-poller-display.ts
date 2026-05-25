@@ -102,6 +102,32 @@ export function getProgressDisplay(
     };
   }
 
+  // phase_3/queued — worker claimed but status column not yet flipped to running
+  if (job.phase === 'phase_3' && job.status === 'queued') {
+    return {
+      label: "Assembling evaluation matrix...",
+      valueLabel: "86%",
+      helperText: "Building the final evaluation matrix and diagnosis.",
+      indeterminate: false,
+      percentage: 86,
+      color: "blue",
+      hardStop: false,
+    };
+  }
+
+  // phase_2/queued — worker claimed but status column not yet flipped to running
+  if (job.phase === 'phase_2' && job.status === 'queued') {
+    return {
+      label: "Running deep structural craft diagnostics...",
+      valueLabel: "67%",
+      helperText: "Performing deep craft analysis across all evaluation criteria.",
+      indeterminate: false,
+      percentage: 67,
+      color: "blue",
+      hardStop: false,
+    };
+  }
+
   // phase_1a/queued (self-chain gap between batches) must show 15-35%, NOT 10%
   if (job.phase === 'phase_1a' && job.status === 'queued') {
     const fraction = job.phase_unit_fraction ?? 1;
