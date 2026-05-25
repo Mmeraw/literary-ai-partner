@@ -21,7 +21,7 @@
 // ── Layer 1 — Structural Lane Map ────────────────────────────────────────────
 
 export type StoryLedgerLaneType =
-  | 'plot'
+  | 'narrative_drive'
   | 'emotional'
   | 'doctrinal'
   | 'medicine_object'

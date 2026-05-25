@@ -653,7 +653,7 @@ export function EvaluationPoller({
             <div className="flex items-end justify-start sm:justify-end lg:justify-start">
               <CancelEvaluationButton
                 jobId={jobId}
-                label="STOP"
+                label="Cancel Evaluation"
                 buttonClassName="inline-flex items-center rounded-md border border-red-600 bg-red-600 px-3 py-2 text-xs font-bold tracking-wide text-white shadow-sm hover:bg-red-700"
               />
             </div>

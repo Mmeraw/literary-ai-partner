@@ -18,7 +18,6 @@ import {
   normalizeRecommendationActionForDisplay,
 } from "@/lib/evaluation/reportRecommendations";
 import ModeConfirmationBlock from "@/components/evaluation/ModeConfirmationBlock";
-import { CancelEvaluationButton } from "@/components/evaluation/CancelEvaluationButton";
 import { SynthesisPoller } from "@/components/evaluation/SynthesisPoller";
 import { classifyEvaluationIntegrityBanner } from "@/lib/evaluation/warningClassification";
 import {
@@ -520,7 +519,7 @@ export default async function EvaluationReportPage({
           )}
         </div>
         <div className="flex items-center gap-4 shrink-0">
-          <DownloadReportButton jobId={jobId} />
+          {isComplete && <DownloadReportButton jobId={jobId} />}
           <Link href="/evaluate" className="text-sm text-blue-600 hover:text-blue-700 underline">
             Back to Evaluate
           </Link>
@@ -559,9 +558,6 @@ export default async function EvaluationReportPage({
           }`}>
             {job.status === "complete" ? "✓ Report ready" : job.status === "failed" ? "⚠ Needs attention" : job.status === "running" ? "⟳ In progress" : "Waiting in queue"}
           </span>
-          {(job.status === "queued" || job.status === "running") && (
-            <CancelEvaluationButton jobId={jobId} />
-          )}
         </div>
       </div>
 
@@ -574,17 +570,25 @@ export default async function EvaluationReportPage({
               <p className="font-medium text-gray-900">{chapterTitle}</p>
             </div>
           )}
-          <div>
-            <p className="text-gray-700 font-medium">Manuscript Title</p>
-            <p className="font-medium text-gray-900">{manuscriptTitle || chapterTitle || "Untitled"}</p>
-          </div>
+          {(manuscriptTitle || chapterTitle) && displayTitle !== (manuscriptTitle || chapterTitle) && (
+            <div>
+              <p className="text-gray-700 font-medium">Manuscript Title</p>
+              <p className="font-medium text-gray-900">{manuscriptTitle || chapterTitle || "Untitled"}</p>
+            </div>
+          )}
           <div>
             <p className="text-gray-700 font-medium">Job ID</p>
             <p className="font-mono text-xs text-gray-900 break-all">{job.id}</p>
           </div>
           <div>
             <p className="text-gray-700 font-medium">Word Count</p>
-            <p className="font-medium text-gray-900">{typeof wordCount === "number" ? wordCount.toLocaleString() : "N/A"}</p>
+            <p className="font-medium text-gray-900">
+              {typeof wordCount === "number"
+                ? wordCount.toLocaleString()
+                : isComplete
+                ? "N/A"
+                : "Calculating…"}
+            </p>
           </div>
         </div>
       </section>
@@ -911,9 +915,11 @@ export default async function EvaluationReportPage({
           </section>
         </>
       )}
-      <div className="mt-8 flex justify-end">
-        <DownloadReportButton jobId={jobId} />
-      </div>
+      {isComplete && (
+        <div className="mt-8 flex justify-end">
+          <DownloadReportButton jobId={jobId} />
+        </div>
+      )}
       </main>
     </div>
   );

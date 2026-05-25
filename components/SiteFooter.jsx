@@ -57,7 +57,7 @@ export default function SiteFooter() {
       <div className="border-t border-rg-cream2/10 px-6 py-5">
         <div className="mx-auto flex max-w-7xl flex-col gap-2 text-xs text-rg-dim md:flex-row md:items-center md:justify-between">
           <span>© {new Date().getFullYear()} RevisionGrade™. All rights reserved.</span>
-          <span>One layout. One navigation model. No ghost marketing routes.</span>
+
         </div>
       </div>
     </footer>
