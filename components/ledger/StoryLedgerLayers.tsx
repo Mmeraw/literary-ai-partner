@@ -84,15 +84,6 @@ const OBJECT_INTERNAL_FIELDS = new Set([
   "symbol_payoff_items_v1",
 ]);
 
-// ─── Hidden internal fields (Location / Timeline / World-state layer) ───────
-const LOCATION_INTERNAL_FIELDS = new Set([
-  "location_count",
-  "state_snapshot_count",
-  "schema_version",
-  "negative_knowledge",
-  "character_timelines",
-]);
-
 // ─── Author-facing layer descriptions (permanent, locked) ───────────────────
 const LAYER_DESCRIPTIONS: Record<string, string> = {
   source_integrity_layer:
@@ -1410,18 +1401,14 @@ export function LocationTimelineWorldstateLayer({
       />
     );
 
-  const snapshots = Array.isArray(data.all_state_snapshots)
-    ? (data.all_state_snapshots as Record<string, unknown>[])
-    : [];
-  const uniqueLocations = Array.isArray(data.unique_locations)
-    ? (data.unique_locations as unknown[]).map((s) => String(s))
-    : [];
-  const stateConflicts = Array.isArray(data.state_conflicts)
-    ? (data.state_conflicts as unknown[])
+  const locations =
+    data.locations ?? data.location_list ?? data.location_entries;
+  const locationArray: Record<string, unknown>[] = Array.isArray(locations)
+    ? (locations as Record<string, unknown>[])
     : [];
 
-  const truncate = (s: string, n: number) =>
-    s.length > n ? s.slice(0, n).trimEnd() + "…" : s;
+  const continuityRisks = data.continuity_risks as string[] | null;
+  const worldStateRules = data.world_state_rules;
 
   return (
     <LayerShell>
@@ -1430,119 +1417,114 @@ export function LocationTimelineWorldstateLayer({
         title="Location · Timeline · World State"
         description={LAYER_DESCRIPTIONS.location_timeline_worldstate_layer}
         badge={
-          snapshots.length > 0
-            ? `${snapshots.length} character ${snapshots.length === 1 ? "snapshot" : "snapshots"}`
+          locationArray.length > 0
+            ? `${locationArray.length} locations`
             : undefined
         }
         badgeTone="neutral"
       />
 
-      {snapshots.length > 0 && (
+      {worldStateRules && (
         <>
-          <SubHeading>Character State Snapshots</SubHeading>
+          <SubHeading>World State Rules</SubHeading>
+          <div
+            style={{
+              background: C.surfaceAlt,
+              borderRadius: 10,
+              padding: "14px 18px",
+              fontSize: 15,
+              color: C.textPrimary,
+              border: `1px solid ${C.border}`,
+              marginBottom: 18,
+              lineHeight: 1.75,
+            }}
+          >
+            {typeof worldStateRules === "string"
+              ? worldStateRules
+              : Array.isArray(worldStateRules)
+                ? (worldStateRules as string[]).map((r, i) => (
+                    <p key={i} style={{ margin: i > 0 ? "8px 0 0" : 0 }}>
+                      {r}
+                    </p>
+                  ))
+                : JSON.stringify(worldStateRules, null, 2)}
+          </div>
+        </>
+      )}
+
+      {locationArray.length > 0 && (
+        <>
+          <SubHeading>Locations</SubHeading>
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            {snapshots.map((snap, i) => {
-              const name = String(snap.nameUsed ?? `Character ${i + 1}`);
-              const location = snap.location ? String(snap.location) : null;
-              const jobOrRole = snap.jobOrRole ? String(snap.jobOrRole) : null;
-              const ageOrLifeStage = snap.ageOrLifeStage
-                ? String(snap.ageOrLifeStage)
-                : null;
-              const psychologicalState = snap.psychologicalState
-                ? String(snap.psychologicalState)
-                : null;
-              const evidenceQuoteRaw = snap.evidenceQuote
-                ? String(snap.evidenceQuote)
-                : null;
-              const evidenceQuote =
-                evidenceQuoteRaw && evidenceQuoteRaw.trim().length > 0
-                  ? truncate(evidenceQuoteRaw.trim(), 120)
-                  : null;
+            {locationArray.map((loc, i) => {
+              const name = String(
+                loc.location_name ?? loc.name ?? `Location ${i + 1}`
+              );
+              const anchors = loc.evidence_anchors as string[] | null;
+              const chars = loc.characters_present as string[] | null;
 
               return (
-                <CharacterCard key={i}>
+                <CharacterCard
+                  key={i}
+                  style={{ borderRadius: 10, padding: "14px 18px" }}
+                >
                   <div
                     style={{
                       display: "flex",
                       justifyContent: "space-between",
-                      alignItems: "flex-start",
                       flexWrap: "wrap",
                       gap: 8,
-                      marginBottom: location || jobOrRole ? 10 : 0,
+                      marginBottom: 10,
                     }}
                   >
                     <span
                       style={{
                         fontWeight: 700,
                         color: C.textPrimary,
-                        fontSize: 16,
-                        letterSpacing: "-0.01em",
+                        fontSize: 15,
                       }}
                     >
                       {name}
                     </span>
-                    {ageOrLifeStage && (
-                      <Pill label={ageOrLifeStage} tone="neutral" />
+                    {chars && chars.length > 0 && (
+                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                        {chars.map((c, j) => (
+                          <Pill key={j} label={c} tone="neutral" />
+                        ))}
+                      </div>
                     )}
                   </div>
-
-                  {location && (
-                    <p
-                      style={{
-                        margin: "0 0 6px",
-                        fontSize: 15,
-                        color: C.textPrimary,
-                        lineHeight: 1.7,
-                      }}
-                    >
-                      {location}
-                    </p>
+                  <div>
+                    {loc.first_appearance && (
+                      <FieldRow
+                        label="First appearance"
+                        value={loc.first_appearance}
+                      />
+                    )}
+                    {loc.movement_path && (
+                      <FieldRow label="Movement path" value={loc.movement_path} />
+                    )}
+                    {loc.time_sequence && (
+                      <FieldRow label="Time sequence" value={loc.time_sequence} />
+                    )}
+                    {loc.world_state_rules && (
+                      <FieldRow
+                        label="World state rules"
+                        value={loc.world_state_rules}
+                      />
+                    )}
+                  </div>
+                  {loc.continuity_risks && (
+                    <WarnBanner reason={String(loc.continuity_risks)} />
                   )}
-
-                  {jobOrRole && (
-                    <p
-                      style={{
-                        margin: "0 0 10px",
-                        fontSize: 13,
-                        color: C.textMuted,
-                        fontStyle: "italic",
-                        lineHeight: 1.6,
-                      }}
+                  {anchors && anchors.length > 0 && (
+                    <div
+                      style={{ marginTop: 10, display: "flex", gap: 6, flexWrap: "wrap" }}
                     >
-                      {jobOrRole}
-                    </p>
-                  )}
-
-                  {psychologicalState && (
-                    <p
-                      style={{
-                        margin: "0 0 10px",
-                        fontSize: 14,
-                        color: C.textMuted,
-                        fontStyle: "italic",
-                        lineHeight: 1.7,
-                      }}
-                    >
-                      {psychologicalState}
-                    </p>
-                  )}
-
-                  {evidenceQuote && (
-                    <blockquote
-                      style={{
-                        margin: "8px 0 0",
-                        padding: "8px 14px",
-                        borderLeft: `2px solid ${C.borderStrong}`,
-                        background: C.surface,
-                        borderRadius: "0 8px 8px 0",
-                        fontSize: 13,
-                        color: C.textFaint,
-                        fontStyle: "italic",
-                        lineHeight: 1.65,
-                      }}
-                    >
-                      {evidenceQuote}
-                    </blockquote>
+                      {anchors.map((a, j) => (
+                        <EvidenceTag key={j} id={a} />
+                      ))}
+                    </div>
                   )}
                 </CharacterCard>
               );
@@ -1551,51 +1533,75 @@ export function LocationTimelineWorldstateLayer({
         </>
       )}
 
-      {uniqueLocations.length > 0 && (
+      {continuityRisks && continuityRisks.length > 0 && (
         <>
-          <SubHeading>Locations referenced in this chapter</SubHeading>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-            {uniqueLocations.map((loc, i) => (
-              <Pill key={i} label={loc} tone="neutral" />
-            ))}
-          </div>
-        </>
-      )}
-
-      {stateConflicts.length > 0 && (
-        <>
-          <SubHeading>State Conflicts</SubHeading>
-          {stateConflicts.map((c, i) => (
-            <WarnBanner
-              key={i}
-              reason={
-                typeof c === "string" ? c : JSON.stringify(c)
-              }
-            />
+          <SubHeading>Global Continuity Risks</SubHeading>
+          {continuityRisks.map((r, i) => (
+            <WarnBanner key={i} reason={r} />
           ))}
         </>
       )}
+
+      {Object.entries(data)
+        .filter(
+          ([k]) =>
+            !["locations", "location_list", "location_entries", "world_state_rules", "continuity_risks"].includes(k)
+        )
+        .filter(
+          ([, v]) =>
+            v !== null && v !== undefined && !Array.isArray(v) && typeof v !== "object"
+        )
+        .map(([k, v]) => (
+          <FieldRow key={k} label={k.replace(/_/g, " ")} value={v} />
+        ))}
     </LayerShell>
   );
 }
 
 // ─── Layer 8 — Threat · Antagonist · Ending ───────────────────────────────────
 
-const ENDING_STATUS_TONE: Record<
+const ANTAGONIST_STATUS_TONE: Record<
   string,
   "green" | "oxblood" | "warn" | "neutral"
 > = {
   resolved: "green",
-  transformed: "green",
-  intentionally_unresolved: "warn",
-  accidentally_abandoned: "oxblood",
-  fate_unknown: "warn",
-  dead: "oxblood",
-  survived: "green",
-  escaped: "green",
-  imprisoned: "oxblood",
-  extracted: "neutral",
-  missing: "warn",
+  defeated: "green",
+  unresolved: "warn",
+};
+
+const THREAT_INTERNAL_FIELDS = new Set([
+  "schema_version",
+  "active_blockers",
+  "suppress_blockers",
+  "active_blocker_count",
+  "terminal_entry_count",
+  "antagonist_count",
+]);
+
+function sentenceCaseId(id: string): string {
+  if (!id) return id;
+  return id
+    .split(/[_\s-]+/)
+    .filter(Boolean)
+    .map((s) => s.charAt(0).toUpperCase() + s.slice(1).toLowerCase())
+    .join(" ");
+}
+
+type Antagonist = {
+  canonical_name?: unknown;
+  character_id?: unknown;
+  final_status?: unknown;
+};
+
+type CopingMechanism = {
+  description?: unknown;
+  manifestsAs?: unknown;
+  psychologicalFunction?: unknown;
+};
+
+type PsychologyEntry = {
+  characterId?: unknown;
+  copingMechanisms?: unknown;
 };
 
 export function ThreatAntagonistEndingLayer({
@@ -1608,239 +1614,204 @@ export function ThreatAntagonistEndingLayer({
       <LayerShell
         empty
         emptyLabel="Threat, antagonist, and ending data not yet populated."
-        emptyDetail="Pressure vectors, antagonists, and final character states will appear here once the manuscript has been analysed."
+        emptyDetail="Antagonists and character pressure profiles will appear here once the manuscript has been analysed."
       />
     );
 
-  const pressureVectors = data.narrative_pressure_vectors as
-    | Record<string, unknown>[]
-    | null;
-  const namedAntagonists = data.named_antagonists as string[] | null;
-  const institutionalForces = data.institutional_forces as string[] | null;
-  const environmentalThreats = data.environmental_threats as string[] | null;
-  const internalPressures = data.internal_psychological_pressures as
-    | string[]
-    | null;
-  const finalStates = data.final_state_by_major_character as
-    | Record<string, unknown>[]
-    | null;
-  const unresolvedPromises = data.unresolved_promises as string[] | null;
-  const intentionallyUnresolved = data.intentionally_unresolved_items as
-    | string[]
-    | null;
-  const accidentallyAbandoned = data.accidentally_abandoned_items as
-    | string[]
-    | null;
-  const escalationPath = data.escalation_path;
-  const victims = data.victims_or_targets as string[] | null;
+  const antagonists = Array.isArray(data.antagonists)
+    ? (data.antagonists as Antagonist[])
+    : [];
+  const antagonistCount =
+    typeof data.antagonist_count === "number"
+      ? data.antagonist_count
+      : antagonists.length;
 
-  const hasAntagonists =
-    (namedAntagonists?.length ?? 0) > 0 ||
-    (institutionalForces?.length ?? 0) > 0;
-  const hasAbandoned = (accidentallyAbandoned?.length ?? 0) > 0;
+  const psychologyLedger = Array.isArray(data.psychology_ledger)
+    ? (data.psychology_ledger as PsychologyEntry[])
+    : [];
+  const psychologyEntries = psychologyLedger.filter((entry) => {
+    const mechs = entry.copingMechanisms;
+    return Array.isArray(mechs) && mechs.length > 0;
+  });
+
+  const accountabilityWarnings = Array.isArray(
+    data.ending_accountability_warnings
+  )
+    ? (data.ending_accountability_warnings as unknown[])
+    : [];
+  const terminalLedger = Array.isArray(data.terminal_ledger)
+    ? (data.terminal_ledger as Record<string, unknown>[])
+    : [];
+  const openTerminalLedgers = Array.isArray(data.open_terminal_ledgers)
+    ? (data.open_terminal_ledgers as Record<string, unknown>[])
+    : [];
+
+  const hasAntagonists = antagonists.length > 0;
+  const badgeLabel = `${antagonistCount} antagonist${antagonistCount === 1 ? "" : "s"}`;
 
   return (
-    <LayerShell
-      tone={!hasAntagonists ? "block" : hasAbandoned ? "warn" : "neutral"}
-    >
+    <LayerShell tone={hasAntagonists ? "neutral" : "block"}>
       <LayerTitle
         icon="⚔️"
         title="Threat · Antagonist · Ending"
         description={LAYER_DESCRIPTIONS.threat_antagonist_ending_layer}
-        badge={hasAntagonists ? "Antagonists mapped" : "No antagonists"}
-        badgeTone={hasAntagonists ? "green" : "oxblood"}
+        badge={badgeLabel}
+        badgeTone={hasAntagonists ? "oxblood" : "neutral"}
       />
 
-      {!hasAntagonists && (
-        <BlockerBanner reason="No named antagonists or institutional forces detected. This is a blocking condition for threat-driven manuscripts." />
-      )}
-      {hasAbandoned && (
-        <WarnBanner reason="Accidentally abandoned story items detected — these block clean approval." />
-      )}
+      <SubHeading>Antagonists</SubHeading>
 
-      {namedAntagonists && namedAntagonists.length > 0 && (
-        <>
-          <SubHeading>Named Antagonists</SubHeading>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-            {namedAntagonists.map((a, i) => (
-              <Pill key={i} label={a} tone="oxblood" />
-            ))}
-          </div>
-        </>
-      )}
+      {hasAntagonists ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {antagonists.map((a, i) => {
+            const name =
+              typeof a.canonical_name === "string" && a.canonical_name
+                ? a.canonical_name
+                : typeof a.character_id === "string"
+                  ? sentenceCaseId(a.character_id)
+                  : `Antagonist ${i + 1}`;
+            const status =
+              typeof a.final_status === "string" ? a.final_status : "";
+            const tone =
+              ANTAGONIST_STATUS_TONE[status.toLowerCase()] ?? "neutral";
 
-      {institutionalForces && institutionalForces.length > 0 && (
-        <>
-          <SubHeading>Institutional Forces</SubHeading>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-            {institutionalForces.map((f, i) => (
-              <Pill key={i} label={f} tone="blue" />
-            ))}
-          </div>
-        </>
-      )}
-
-      {environmentalThreats && environmentalThreats.length > 0 && (
-        <>
-          <SubHeading>Environmental Threats</SubHeading>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-            {environmentalThreats.map((t, i) => (
-              <Pill key={i} label={t} tone="warn" />
-            ))}
-          </div>
-        </>
-      )}
-
-      {internalPressures && internalPressures.length > 0 && (
-        <>
-          <SubHeading>Internal Psychological Pressures</SubHeading>
-          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            {internalPressures.map((p, i) => (
-              <div
-                key={i}
-                style={{
-                  fontSize: 15,
-                  color: C.textMuted,
-                  padding: "8px 14px",
-                  borderLeft: `2px solid ${C.borderStrong}`,
-                  background: C.surfaceAlt,
-                  borderRadius: "0 8px 8px 0",
-                  lineHeight: 1.7,
-                }}
-              >
-                {p}
-              </div>
-            ))}
-          </div>
-        </>
-      )}
-
-      {victims && victims.length > 0 && (
-        <>
-          <SubHeading>Victims / Targets</SubHeading>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-            {victims.map((v, i) => (
-              <Pill key={i} label={v} tone="neutral" />
-            ))}
-          </div>
-        </>
-      )}
-
-      {escalationPath && (
-        <>
-          <SubHeading>Escalation Path</SubHeading>
-          <div
-            style={{
-              background: C.surfaceAlt,
-              borderRadius: 10,
-              padding: "14px 18px",
-              fontSize: 15,
-              color: C.textPrimary,
-              border: `1px solid ${C.border}`,
-              whiteSpace: "pre-wrap",
-              lineHeight: 1.75,
-            }}
-          >
-            {typeof escalationPath === "string"
-              ? escalationPath
-              : JSON.stringify(escalationPath, null, 2)}
-          </div>
-        </>
-      )}
-
-      {pressureVectors && pressureVectors.length > 0 && (
-        <>
-          <SubHeading>Narrative Pressure Vectors</SubHeading>
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {pressureVectors.map((vec, i) => {
-              const source = String(
-                vec.vector_source ?? vec.source ?? `Vector ${i + 1}`
-              );
-              const impact = vec.structural_impact_score;
-              const impactNum = typeof impact === "number" ? impact : null;
-
-              return (
+            return (
+              <CharacterCard key={i}>
                 <div
-                  key={i}
                   style={{
-                    background: C.surfaceAlt,
-                    border: `1px solid ${C.border}`,
-                    borderRadius: 10,
-                    padding: "12px 16px",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    flexWrap: "wrap",
+                    gap: 10,
                   }}
                 >
+                  <span
+                    style={{
+                      fontWeight: 700,
+                      color: C.textPrimary,
+                      fontSize: 16,
+                    }}
+                  >
+                    {name}
+                  </span>
+                  {status && (
+                    <Pill label={status.replace(/_/g, " ")} tone={tone} />
+                  )}
+                </div>
+              </CharacterCard>
+            );
+          })}
+        </div>
+      ) : (
+        <p style={{ color: C.textFaint, fontSize: 15, lineHeight: 1.75 }}>
+          No antagonists identified in this chapter.
+        </p>
+      )}
+
+      {psychologyEntries.length > 0 && (
+        <>
+          <Divider />
+          <SubHeading>Character Pressure Profiles</SubHeading>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            {psychologyEntries.map((entry, i) => {
+              const rawId =
+                typeof entry.characterId === "string" ? entry.characterId : "";
+              const name = rawId ? sentenceCaseId(rawId) : `Character ${i + 1}`;
+              const mechanisms = (entry.copingMechanisms as CopingMechanism[]) ?? [];
+
+              return (
+                <CharacterCard key={i}>
+                  <div
+                    style={{
+                      fontWeight: 700,
+                      color: C.textPrimary,
+                      fontSize: 16,
+                      marginBottom: 10,
+                    }}
+                  >
+                    {name}
+                  </div>
                   <div
                     style={{
                       display: "flex",
-                      justifyContent: "space-between",
-                      flexWrap: "wrap",
-                      gap: 8,
-                      marginBottom: 8,
+                      flexDirection: "column",
+                      gap: 10,
                     }}
                   >
-                    <Pill label={source.replace(/_/g, " ")} tone="oxblood" />
-                    {impactNum !== null && (
-                      <span
-                        style={{
-                          fontSize: 12,
-                          color: C.gold,
-                          fontWeight: 700,
-                        }}
-                      >
-                        Impact {impactNum}/5{" "}
-                        {"★".repeat(impactNum)}
-                        {"☆".repeat(5 - impactNum)}
-                      </span>
-                    )}
+                    {mechanisms.map((mech, j) => {
+                      const prose =
+                        typeof mech.description === "string" && mech.description
+                          ? mech.description
+                          : typeof mech.manifestsAs === "string"
+                            ? mech.manifestsAs
+                            : "";
+                      const fn =
+                        typeof mech.psychologicalFunction === "string"
+                          ? mech.psychologicalFunction
+                          : "";
+
+                      return (
+                        <div
+                          key={j}
+                          style={{
+                            display: "flex",
+                            flexDirection: "column",
+                            gap: 6,
+                          }}
+                        >
+                          {prose && (
+                            <p
+                              style={{
+                                margin: 0,
+                                fontSize: 14,
+                                color: C.textMuted,
+                                lineHeight: 1.75,
+                              }}
+                            >
+                              {prose}
+                            </p>
+                          )}
+                          {fn && (
+                            <div>
+                              <Pill
+                                label={fn.replace(/_/g, " ")}
+                                tone="neutral"
+                              />
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
-                  {vec.evidence_summary && (
-                    <p
-                      style={{
-                        margin: 0,
-                        fontSize: 14,
-                        color: C.textMuted,
-                        lineHeight: 1.75,
-                      }}
-                    >
-                      {String(vec.evidence_summary)}
-                    </p>
-                  )}
-                  {vec.character && (
-                    <p
-                      style={{
-                        margin: "6px 0 0",
-                        fontSize: 13,
-                        color: C.textFaint,
-                      }}
-                    >
-                      Character: {String(vec.character)}
-                    </p>
-                  )}
-                </div>
+                </CharacterCard>
               );
             })}
           </div>
         </>
       )}
 
-      <Divider />
+      {accountabilityWarnings.length > 0 && (
+        <>
+          <Divider />
+          <SubHeading>Ending Accountability Warnings</SubHeading>
+          {accountabilityWarnings.map((warning, i) => (
+            <WarnBanner
+              key={i}
+              reason={
+                typeof warning === "string" ? warning : JSON.stringify(warning)
+              }
+            />
+          ))}
+        </>
+      )}
 
-      <SubHeading>Ending Accountability</SubHeading>
-
-      {finalStates && finalStates.length > 0 ? (
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {finalStates.map((fs, i) => {
-            const name = String(fs.character ?? fs.name ?? `Character ${i + 1}`);
-            const status = String(
-              fs.ending_status ?? fs.status ?? fs.final_state ?? ""
-            );
-            const tone = ENDING_STATUS_TONE[status.toLowerCase()] ?? "neutral";
-            const lastEvidence =
-              fs.last_evidence_reference ?? fs.last_evidence;
-            const outcome =
-              fs.one_line_outcome ?? fs.outcome ?? fs.note;
-
-            return (
+      {(terminalLedger.length > 0 || openTerminalLedgers.length > 0) && (
+        <>
+          <Divider />
+          <SubHeading>Terminal Ledger</SubHeading>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {[...terminalLedger, ...openTerminalLedgers].map((entry, i) => (
               <div
                 key={i}
                 style={{
@@ -1848,111 +1819,15 @@ export function ThreatAntagonistEndingLayer({
                   border: `1px solid ${C.border}`,
                   borderRadius: 10,
                   padding: "12px 16px",
-                  display: "flex",
-                  justifyContent: "space-between",
-                  flexWrap: "wrap",
-                  gap: 10,
-                  alignItems: "flex-start",
-                }}
-              >
-                <div>
-                  <span
-                    style={{
-                      fontWeight: 700,
-                      color: C.textPrimary,
-                      fontSize: 15,
-                    }}
-                  >
-                    {name}
-                  </span>
-                  {outcome && (
-                    <p
-                      style={{
-                        margin: "6px 0 0",
-                        fontSize: 14,
-                        color: C.textMuted,
-                        lineHeight: 1.7,
-                      }}
-                    >
-                      {String(outcome)}
-                    </p>
-                  )}
-                  {lastEvidence && (
-                    <div style={{ marginTop: 8 }}>
-                      <EvidenceTag id={String(lastEvidence)} />
-                    </div>
-                  )}
-                </div>
-                <div
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "flex-end",
-                    gap: 4,
-                  }}
-                >
-                  {status && (
-                    <Pill label={status.replace(/_/g, " ")} tone={tone} />
-                  )}
-                  {status === "accidentally_abandoned" && (
-                    <span style={{ fontSize: 11, color: "#C05050" }}>
-                      ⛔ Blocks approval
-                    </span>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      ) : (
-        <p
-          style={{ color: C.textFaint, fontSize: 15, lineHeight: 1.75 }}
-        >
-          No final character states extracted yet.
-        </p>
-      )}
-
-      {unresolvedPromises && unresolvedPromises.length > 0 && (
-        <>
-          <SubHeading>Unresolved Promises</SubHeading>
-          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            {unresolvedPromises.map((p, i) => (
-              <div
-                key={i}
-                style={{
                   fontSize: 14,
                   color: C.textMuted,
-                  padding: "8px 14px",
-                  borderLeft: "2px solid #6B5B00",
-                  background: C.surfaceAlt,
-                  borderRadius: "0 8px 8px 0",
                   lineHeight: 1.7,
                 }}
               >
-                {p}
+                {typeof entry === "string" ? entry : JSON.stringify(entry)}
               </div>
             ))}
           </div>
-        </>
-      )}
-
-      {intentionallyUnresolved && intentionallyUnresolved.length > 0 && (
-        <>
-          <SubHeading>Intentionally Unresolved</SubHeading>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-            {intentionallyUnresolved.map((item, i) => (
-              <Pill key={i} label={item} tone="warn" />
-            ))}
-          </div>
-        </>
-      )}
-
-      {accidentallyAbandoned && accidentallyAbandoned.length > 0 && (
-        <>
-          <SubHeading>Accidentally Abandoned</SubHeading>
-          {accidentallyAbandoned.map((item, i) => (
-            <BlockerBanner key={i} reason={item} />
-          ))}
         </>
       )}
     </LayerShell>
