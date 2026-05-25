@@ -106,6 +106,97 @@ Return ONLY:
 
 Note: do NOT emit a "model" field. Model identity is stamped server-side from the actually-executed resolver. Any "model" value you emit will be ignored.`;
 
+/**
+ * Builds the Author Corrections Block from accepted_story_ledger_v1.governance_rail.
+ * This block is MANDATORY — author flags and comments take precedence over AI extraction.
+ * Returns null if no corrections or notes were provided.
+ */
+export function buildAuthorCorrectionsBlock(
+  governanceRail: Record<string, unknown> | null | undefined
+): string | null {
+  if (!governanceRail) return null;
+
+  const layerDecisions = governanceRail.layer_decisions as
+    Record<string, { status: string; comment: string }> | undefined;
+
+  const LAYER_LABELS: Record<string, string> = {
+    canonical_identity_layer: "Canonical Identity",
+    cast_role_tier_layer: "Cast / Role Tier",
+    pov_structure_layer: "POV Structure",
+    relationship_network_layer: "Relationship Network",
+    object_symbol_layer: "Object / Symbol",
+    location_timeline_worldstate_layer: "Timeline / Location / World-State",
+    threat_antagonist_ending_layer: "Threat / Pressure / Ending",
+    source_integrity_layer: "Source Integrity",
+  };
+
+  const corrections: string[] = [];
+  const notes: string[] = [];
+
+  if (layerDecisions && Object.keys(layerDecisions).length > 0) {
+    for (const [layerKey, decision] of Object.entries(layerDecisions)) {
+      const label = LAYER_LABELS[layerKey] ?? layerKey;
+      const isRejected =
+        decision?.status === 'rejected' || decision?.status === 'rejected_with_comment';
+      const hasComment =
+        typeof decision?.comment === 'string' && decision.comment.trim().length > 0;
+
+      const commentText = hasComment ? decision.comment.trim() : "";
+      if (isRejected && hasComment) {
+        corrections.push(`- ${label} [FLAGGED AS INCORRECT]: "${commentText}"`);
+      } else if (isRejected) {
+        corrections.push(`- ${label} [FLAGGED AS INCORRECT — no comment provided]`);
+      } else if (hasComment) {
+        notes.push(`- ${label} [Author note]: "${commentText}"`);
+      }
+    }
+  }
+
+  const authorNotes = governanceRail.author_notes as string | null | undefined;
+  const editRequests = governanceRail.edit_requests as string[] | null | undefined;
+
+  if (corrections.length === 0 && notes.length === 0 && !authorNotes && !editRequests?.length) {
+    return null;
+  }
+
+  const lines: string[] = [
+    "## AUTHOR CORRECTIONS — MANDATORY INPUT (takes precedence over AI extraction)",
+    "",
+    "The author reviewed the Story Layer and provided the following corrections and notes.",
+    "These inputs are AUTHORITATIVE. Where the author flags a layer as incorrect,",
+    "treat the author's correction as ground truth and weight your scoring accordingly.",
+    "",
+  ];
+
+  if (corrections.length > 0) {
+    lines.push("### Layers flagged as INCORRECT by author:");
+    lines.push(...corrections);
+    lines.push("");
+  }
+
+  if (notes.length > 0) {
+    lines.push("### Author notes on specific layers:");
+    lines.push(...notes);
+    lines.push("");
+  }
+
+  if (authorNotes?.trim()) {
+    lines.push("### General author notes:");
+    lines.push(authorNotes.trim());
+    lines.push("");
+  }
+
+  if (editRequests?.length) {
+    lines.push("### Author's specific edit requests:");
+    editRequests.forEach((r) => lines.push(`- ${r}`));
+    lines.push("");
+  }
+
+  lines.push("END OF AUTHOR CORRECTIONS");
+
+  return lines.join("\n");
+}
+
 export function buildPass2UserPrompt(params: {
   manuscriptText: string;
   workType: string;
@@ -114,6 +205,8 @@ export function buildPass2UserPrompt(params: {
   scopeProfile?: SubmissionScopeProfile;
   /** Pre-built character ledger block from Pass 1A — injected before manuscript text. */
   characterLedgerBlock?: string;
+  /** Author corrections from accepted_story_ledger_v1.governance_rail — MANDATORY if present. */
+  authorCorrectionsBlock?: string | null;
 }): string {
   const wordCount = params.manuscriptText.trim().split(/\s+/).length;
   const executionMode = params.executionMode ?? "TRUSTED_PATH";
@@ -127,12 +220,15 @@ export function buildPass2UserPrompt(params: {
   const ledgerSection = params.characterLedgerBlock
     ? `\n${params.characterLedgerBlock}\n`
     : "";
+  const correctionsSection = params.authorCorrectionsBlock
+    ? `\n${params.authorCorrectionsBlock}\n`
+    : "";
   return `Evaluate this ${params.workType || "manuscript"} excerpt titled "${params.title}" on the EDITORIAL/LITERARY INSIGHT axis.
 
 Execution mode: ${executionMode}
 Word count: ${wordCount}
 ${buildCoverageDisclosure(coverage)}
-${params.scopeProfile ? `Submission scope: ${params.scopeProfile.inputScale} (${params.scopeProfile.wordCount} words; ${params.scopeProfile.chunkCount} chunk(s); ${params.scopeProfile.scorableCount}/13 criteria non-NA for this scope). Treat scope-limited criteria accordingly.` : ""}${ledgerSection}
+${params.scopeProfile ? `Submission scope: ${params.scopeProfile.inputScale} (${params.scopeProfile.wordCount} words; ${params.scopeProfile.chunkCount} chunk(s); ${params.scopeProfile.scorableCount}/13 criteria non-NA for this scope). Treat scope-limited criteria accordingly.` : ""}${correctionsSection}${ledgerSection}
 Manuscript text:
 ${promptWindow}
 

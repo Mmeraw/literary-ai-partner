@@ -597,6 +597,33 @@ async function processDreamJob(
   // 4. Recover model from artifact, fall back to env default
   const model = artifactModel ?? undefined;
 
+  // 4b. Load author corrections from accepted_story_ledger_v1.governance_rail.
+  // MANDATORY input when present — takes precedence over AI extraction.
+  // Graceful degradation: missing artifact is non-fatal; synthesis continues.
+  let authorCorrectionsBlock: string | null = null;
+  try {
+    const { buildAuthorCorrectionsBlock } = await import('@/lib/evaluation/pipeline/prompts/pass2-editorial');
+    const { data: acceptedLedgerRow } = await supabase
+      .from('evaluation_artifacts')
+      .select('content')
+      .eq('job_id', jobId)
+      .eq('artifact_type', 'accepted_story_ledger_v1')
+      .maybeSingle();
+    if (acceptedLedgerRow?.content) {
+      const content = acceptedLedgerRow.content as Record<string, unknown>;
+      const govRail = content.governance_rail as Record<string, unknown> | undefined;
+      if (govRail) {
+        authorCorrectionsBlock = buildAuthorCorrectionsBlock(govRail);
+        if (authorCorrectionsBlock) {
+          console.log(`[DreamWorker] ${jobId}: author corrections block built (${authorCorrectionsBlock.length} chars)`);
+        }
+      }
+    }
+  } catch (corrErr) {
+    console.warn(`[DreamWorker] ${jobId}: author corrections load failed (non-fatal)`,
+      corrErr instanceof Error ? corrErr.message : String(corrErr));
+  }
+
   // 5. Run Pass 3b — DREAM synthesis
   // openaiApiKey already resolved and validated by preflight (Check 4 + Check 5 ping).
   const longformDoc = await runPass3bLongform({
@@ -610,6 +637,7 @@ async function processDreamJob(
     model,
     openaiApiKey,
     openAiTimeoutMs: DREAM_OPENAI_TIMEOUT_MS,
+    authorCorrectionsBlock,
   });
 
   console.log(`[DreamWorker] ${jobId}: DREAM synthesis complete — persisting artifact`);

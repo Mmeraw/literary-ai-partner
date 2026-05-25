@@ -398,6 +398,11 @@ export interface RunPass2Options {
    * Injected into BOTH the chunk-path (forwarded via ...opts spread) and direct-window path.
    */
   characterLedgerBlock?: string;
+  /**
+   * Author corrections block from accepted_story_ledger_v1.governance_rail.
+   * MANDATORY if present — takes precedence over AI extraction.
+   */
+  authorCorrectionsBlock?: string | null;
 }
 
 /**
@@ -649,6 +654,7 @@ export async function runPass2(opts: RunPass2Options): Promise<SinglePassOutput>
     executionMode: opts.executionMode,
     scopeProfile: opts.scopeProfile,
     characterLedgerBlock: opts.characterLedgerBlock,
+    authorCorrectionsBlock: opts.authorCorrectionsBlock,
   });
   const promptAssemblyMs = nowMs() - promptAssemblyStartMs;
   const inputChars = opts.manuscriptText.length;

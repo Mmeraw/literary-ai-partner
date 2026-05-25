@@ -204,6 +204,8 @@ export interface RunPass3bOptions {
   model?: string;
   openaiApiKey?: string;
   openAiTimeoutMs?: number;
+  /** Author corrections from accepted_story_ledger_v1.governance_rail — MANDATORY if present. */
+  authorCorrectionsBlock?: string | null;
 }
 
 export type TruthfulFallbackReport = {
@@ -439,6 +441,7 @@ export async function runPass3bLongform(
     pass2aStructuredContext: opts.pass2aStructuredContext,
     chunkSample: opts.manuscriptChunks,
     scopeProfile: opts.scopeProfile,
+    authorCorrectionsBlock: opts.authorCorrectionsBlock,
   });
 
   console.log(`[Pass3b] request model=${selectedModel} max_tokens=${maxTokens} title="${opts.title}" words=${opts.wordCount} chunks=${opts.manuscriptChunks.length}`);

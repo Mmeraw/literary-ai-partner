@@ -219,6 +219,12 @@ export interface RunPipelineOptions {
    * from Pass 1 + Pass 2 only.
    */
   _prebuiltPreflightDraft?: Pass3PreflightDraft;
+  /**
+   * Author corrections block built from accepted_story_ledger_v1.governance_rail.
+   * When present, injected into Pass 2 (and Pass 3B if applicable) as MANDATORY
+   * author input that takes precedence over AI extraction.
+   */
+  _authorCorrectionsBlock?: string | null;
 }
 
 const DEFAULT_MAX_MANUSCRIPT_CHARS = 3_000_000;
@@ -1089,6 +1095,8 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
       _chunkConcurrency: opts._prebuiltCharacterLedger ? 3 : undefined,
       // Inject ledger grounding block from phase_1a when available
       characterLedgerBlock: ledgerBlockForP1P2 || undefined,
+      // Inject author corrections block from accepted_story_ledger_v1.governance_rail
+      authorCorrectionsBlock: opts._authorCorrectionsBlock ?? undefined,
       _onCompletion: (capture) => {
         providerTelemetry.push(
           recordProviderTelemetry({

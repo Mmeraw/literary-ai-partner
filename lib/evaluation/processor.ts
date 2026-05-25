@@ -2466,6 +2466,22 @@ Phase 2 scoring prohibitions:
 - Narrative Closure MUST NOT be scored if Relationship Spine Layer is empty.
 - Criterion scores MUST NOT finalize before pass1a_story_layer_v1 exists and all 8 required layers pass completeness checks.
 - Recommendations MUST carry validity: VALID / PARTIALLY_VALID / ALREADY_PRESENT / CANON_FALSE / SOURCE_UNSUPPORTED / VOICE_RISK.
+
+## REVISIONGRADE PLATFORM FIT — WHAT THIS PLATFORM OPTIMIZES FOR
+
+RevisionGrade evaluates manuscripts for submission readiness against professional publishing standards.
+This platform is NOT a general writing assistant. It is a governed revision operating system for serious authors.
+
+Key platform calibration points:
+- The evaluation must serve the author's revision journey — not a publisher's acquisition filter
+- Scores reflect craft quality against professional standards, not marketability alone
+- The 8 canonical story layers (identity, cast, POV, relationships, objects/symbols, location/timeline, threat/ending, source integrity) are the structural backbone — they must inform scoring on all 13 criteria
+- WAVE tier tagging (Early / Mid / Late) is mandatory on all recommendations — it tells the author WHEN to fix something
+- Loudest-lane bias is a calibration failure: all lane types must be mapped (plot / emotional / doctrinal / medicine-object / relationship / environmental)
+- The author is the ultimate authority on their manuscript — conflicting AI extractions must be flagged, not silently resolved
+- Generic feedback ("the pacing is slow") without manuscript evidence is a calibration failure
+- The platform produces ONE evaluation per manuscript section — there is no back-and-forth revision cycle in evaluation mode
+- Scores below 7.0 on any criterion block submission readiness — be honest, be specific, cite the text
 `;
 
 type Phase0Result =
@@ -3724,6 +3740,33 @@ export async function processEvaluationJob(
     //     bottom of the persistence path detects executionPhase==='phase_3' and
     //     runs WAVE inline instead of re-queueing phase_3.
     if (executionPhase === 'phase_3') {
+      // Load author corrections from accepted_story_ledger_v1.governance_rail.
+      // MANDATORY input when present — takes precedence over AI extraction.
+      // Graceful degradation: missing artifact is non-fatal; phase_3 continues.
+      let authorCorrectionsBlockP3: string | null = null;
+      try {
+        const { buildAuthorCorrectionsBlock } = await import('@/lib/evaluation/pipeline/prompts/pass2-editorial');
+        const { data: acceptedLedgerRowP3 } = await supabase
+          .from('evaluation_artifacts')
+          .select('content')
+          .eq('job_id', job.id)
+          .eq('artifact_type', 'accepted_story_ledger_v1')
+          .maybeSingle();
+        if (acceptedLedgerRowP3?.content) {
+          const content = acceptedLedgerRowP3.content as Record<string, unknown>;
+          const govRail = content.governance_rail as Record<string, unknown> | undefined;
+          if (govRail) {
+            authorCorrectionsBlockP3 = buildAuthorCorrectionsBlock(govRail);
+            if (authorCorrectionsBlockP3) {
+              console.log(`[phase_3] ${jobId}: author corrections block built (${authorCorrectionsBlockP3.length} chars)`);
+            }
+          }
+        }
+      } catch (corrErrP3) {
+        console.warn(`[phase_3] ${jobId}: author corrections load failed (non-fatal)`,
+          corrErrP3 instanceof Error ? corrErrP3.message : String(corrErrP3));
+      }
+
       const { data: handoffPresenceRow } = await supabase
         .from('evaluation_artifacts')
         .select('job_id')
@@ -3907,6 +3950,7 @@ export async function processEvaluationJob(
             _runners: phase3Runners,
             ...(prebuiltCharacterLedgerP3 ? { _prebuiltCharacterLedger: prebuiltCharacterLedgerP3 } : {}),
             ...(prebuiltPreflightDraftP3 ? { _prebuiltPreflightDraft: prebuiltPreflightDraftP3 } : {}),
+            ...(authorCorrectionsBlockP3 ? { _authorCorrectionsBlock: authorCorrectionsBlockP3 } : {}),
             onHeartbeat: async (stage) => {
               await assertJobWithinSla({
                 supabase,
@@ -5049,6 +5093,33 @@ export async function processEvaluationJob(
       await markRunning('Resuming from phase 1 handoff', 1, 'phase_2');
       refreshPhaseDeadline(progressState.phase2_started_at as string | undefined);
 
+      // Load author corrections from accepted_story_ledger_v1.governance_rail.
+      // MANDATORY input when present — takes precedence over AI extraction.
+      // Graceful degradation: missing artifact is non-fatal; evaluation continues.
+      let authorCorrectionsBlock: string | null = null;
+      try {
+        const { buildAuthorCorrectionsBlock } = await import('@/lib/evaluation/pipeline/prompts/pass2-editorial');
+        const { data: acceptedLedgerRow } = await supabase
+          .from('evaluation_artifacts')
+          .select('content')
+          .eq('job_id', job.id)
+          .eq('artifact_type', 'accepted_story_ledger_v1')
+          .maybeSingle();
+        if (acceptedLedgerRow?.content) {
+          const content = acceptedLedgerRow.content as Record<string, unknown>;
+          const govRail = content.governance_rail as Record<string, unknown> | undefined;
+          if (govRail) {
+            authorCorrectionsBlock = buildAuthorCorrectionsBlock(govRail);
+            if (authorCorrectionsBlock) {
+              console.log(`[phase_2] ${jobId}: author corrections block built (${authorCorrectionsBlock.length} chars)`);
+            }
+          }
+        }
+      } catch (corrErr) {
+        console.warn(`[phase_2] ${jobId}: author corrections load failed (non-fatal)`,
+          corrErr instanceof Error ? corrErr.message : String(corrErr));
+      }
+
       const { data: handoffRow, error: handoffReadError } = await supabase
         .from('evaluation_artifacts')
         .select('content')
@@ -5138,6 +5209,7 @@ export async function processEvaluationJob(
               _passTimeoutMs: timeoutResolution.passTimeoutMs,
               _openAiTimeoutMs: timeoutResolution.openAiTimeoutMs,
               ...(prebuiltLedgerP2 ? { _prebuiltCharacterLedger: prebuiltLedgerP2 } : {}),
+              ...(authorCorrectionsBlock ? { _authorCorrectionsBlock: authorCorrectionsBlock } : {}),
               _runners: {
                 runPass1: async (opts) => {
                   const result = await realRunPass1(opts);
@@ -5145,7 +5217,7 @@ export async function processEvaluationJob(
                   return result;
                 },
                 runPass2: async (opts) => {
-                  const result = await realRunPass2(opts);
+                  const result = await realRunPass2({ ...opts, authorCorrectionsBlock });
                   capturedPass2 = result;
                   return result;
                 },
@@ -5308,9 +5380,10 @@ export async function processEvaluationJob(
             _passTimeoutMs: timeoutResolution.passTimeoutMs,
             _openAiTimeoutMs: timeoutResolution.openAiTimeoutMs,
             ...(prebuiltLedgerP2Short ? { _prebuiltCharacterLedger: prebuiltLedgerP2Short } : {}),
+            ...(authorCorrectionsBlock ? { _authorCorrectionsBlock: authorCorrectionsBlock } : {}),
             _runners: {
               runPass1: async (opts) => { const r = await realRunPass1Short(opts); capturedPass1Short = r; return r; },
-              runPass2: async (opts) => { const r = await realRunPass2Short(opts); capturedPass2Short = r; return r; },
+              runPass2: async (opts) => { const r = await realRunPass2Short({ ...opts, authorCorrectionsBlock }); capturedPass2Short = r; return r; },
             },
             onHeartbeat: async (stage) => {
               await assertJobWithinSla({
