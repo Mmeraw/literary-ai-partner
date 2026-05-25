@@ -44,7 +44,7 @@ const faqs = [
   },
   {
     q: "What are the evaluation modes?",
-    a: "Short-form evaluations cover submissions under 25,000 words and use the 13 story criteria only. Long-form evaluations begin at 25,000+ words and add manuscript-scale continuity. Long-form multi-layer evaluations add deeper architecture, story-ledger, Golden Spine/WAVE, and governance analysis where appropriate.",
+    a: "Short-form evaluations cover submissions under 25,000 words and use the 13 story criteria only. Long-form evaluations begin at 25,000+ words and add manuscript-scale continuity. Long-form multi-layer evaluations add deeper architecture, layered evidence, proprietary repair governance, and continuity analysis where appropriate.",
   },
   {
     q: "Does RevisionGrade rewrite my voice?",
@@ -69,7 +69,7 @@ export default function ResourcesPage() {
           Resources for serious manuscript evaluation.
         </h1>
         <p className="mt-6 max-w-3xl text-lg leading-8 text-rg-cream2/80">
-          Learn how RevisionGrade separates manuscript readiness from market rejection, evaluates long-form prose, protects author control, and turns diagnosis into revision decisions.
+          Learn how RevisionGrade separates manuscript readiness from market rejection, evaluates long-form prose, protects author control, and turns diagnosis into governed revision decisions.
         </p>
 
         <div className="mt-12 grid gap-4 md:grid-cols-2 lg:grid-cols-3">

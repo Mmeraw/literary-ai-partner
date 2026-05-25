@@ -21,7 +21,7 @@ const auditTiers = [
     price: "$49",
     actionAccess: "13 story criteria only",
     bestFor: "Chapters, excerpts, short stories, openings, and partial submissions.",
-    features: ["13 story criteria", "Evidence-backed diagnosis", "Readiness verdict", "Golden Spine/WAVE not included"],
+    features: ["13 story criteria", "Evidence-backed diagnosis", "Readiness verdict", "Long-form repair layer not included"],
   },
   {
     name: "Full Manuscript Readiness Audit",
@@ -46,7 +46,7 @@ const auditTiers = [
     price: "$499+",
     actionAccess: "Deep architecture audit",
     bestFor: "Multi-POV, multi-timeline, genre-hybrid, experimental, memoir-fiction, or unusually structured long-form prose.",
-    features: ["13 story criteria", "Layered story-ledger analysis", "Golden Spine/WAVE where appropriate", "Custom complexity handling"],
+    features: ["13 story criteria", "Layered evidence analysis", "Proprietary repair governance where appropriate", "Custom complexity handling"],
   },
 ];
 
@@ -70,7 +70,7 @@ const faqs = [
   {
     question: "When does multi-layer analysis apply?",
     answer:
-      "Long-form multi-layer evaluation is the deeper architecture tier for complex manuscripts. It may include layered story ledgers, Golden Spine/WAVE governance, long-form canon/gates, dialogue and speech protection, and deeper continuity logic where appropriate.",
+      "Long-form multi-layer evaluation is the deeper architecture tier for complex manuscripts. It may include layered evidence views, manuscript-scale continuity, proprietary repair governance, dialogue and speech protection, and deeper structural analysis where appropriate.",
   },
   {
     question: "Why not offer unlimited revisions?",
