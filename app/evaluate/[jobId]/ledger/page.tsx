@@ -70,6 +70,74 @@ function relationOwner(job: LedgerJob): string | null {
   return job.user_id ?? relation?.user_id ?? null;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function normalizeCanonicalIdentityLayer(
+  layer: Record<string, unknown> | undefined,
+): Record<string, unknown> | undefined {
+  if (!layer || Object.keys(layer).length === 0) return layer;
+
+  // Writer contract emits `identity_groups`; the current UI renderer consumes
+  // `canonical_identity_group`. Normalize at the page seam so existing
+  // pass1a_story_layer_v1 artifacts display without regeneration.
+  const rawGroups = Array.isArray(layer.identity_groups)
+    ? layer.identity_groups
+    : Array.isArray(layer.canonical_identity_group)
+      ? layer.canonical_identity_group
+      : [];
+
+  if (rawGroups.length === 0) return layer;
+
+  const canonicalIdentityGroup = rawGroups.filter(isRecord).map((group) => {
+    const existingAnchors = Array.isArray(group.evidence_anchors)
+      ? group.evidence_anchors
+      : [];
+    const firstAppearance = group.first_appearance ? String(group.first_appearance) : null;
+    const lastAppearance = group.last_appearance ? String(group.last_appearance) : null;
+    const evidenceAnchors =
+      existingAnchors.length > 0
+        ? existingAnchors
+        : [firstAppearance, lastAppearance].filter(Boolean);
+
+    return {
+      ...group,
+      role: group.role ?? group.narrative_role,
+      legal_name_states: group.legal_name_states ?? group.name_history,
+      post_resolution_name_states:
+        group.post_resolution_name_states ?? group.final_status,
+      evidence_anchors: evidenceAnchors,
+    };
+  });
+
+  return {
+    ...layer,
+    canonical_identity_group: canonicalIdentityGroup,
+    identity_group_count:
+      typeof layer.identity_group_count === 'number'
+        ? layer.identity_group_count
+        : canonicalIdentityGroup.length,
+  };
+}
+
+function normalizeStoryLayersForUi(
+  layers: Record<string, Record<string, unknown>> | null,
+): Record<string, Record<string, unknown>> | null {
+  if (!layers) return null;
+
+  const canonicalIdentityLayer = normalizeCanonicalIdentityLayer(
+    layers.canonical_identity_layer,
+  );
+
+  return {
+    ...layers,
+    ...(canonicalIdentityLayer
+      ? { canonical_identity_layer: canonicalIdentityLayer }
+      : {}),
+  };
+}
+
 // ─── Data fetching ────────────────────────────────────────────────────────────
 
 async function getLedgerContext(jobId: string, userId: string) {
@@ -145,7 +213,8 @@ export default async function StoryLedgerPage({
   const justRejected = searchParams?.rejected === '1';
 
   // ── Story layers (Module 1)
-  const storyLayers = storyLayerContent?.layers ?? null;
+  const rawStoryLayers = storyLayerContent?.layers ?? null;
+  const storyLayers = normalizeStoryLayersForUi(rawStoryLayers);
   const layerCompletionSummary = storyLayerContent?.layer_completion_summary ?? null;
 
   // ── Hard fails (from legacy character ledger, for Module 2 blocking alert)
