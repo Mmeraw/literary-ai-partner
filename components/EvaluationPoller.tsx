@@ -145,10 +145,12 @@ export function EvaluationPoller({
   const networkErrorCountRef = useRef(0);
   const redirectedRef = useRef(false);
 
-  // Completion sweep: animate displayProgress to 100 only when backend status=complete.
-  // For all running/queued states the bar width is driven directly by getProgressDisplay.
+  // Completion sweep: animate displayProgress to 100 only when FINAL complete
+  // (status=complete AND pass3_completed_at present). For interim complete we hold.
   useEffect(() => {
     if (!job || job.status !== 'complete') return;
+    const hasSynthesisNow = !!job.pass3_completed_at;
+    if (!hasSynthesisNow) return;
     if (displayProgress >= 100) return;
 
     const interval = setInterval(() => {
@@ -162,7 +164,7 @@ export function EvaluationPoller({
     }, COMPLETE_ANIMATION_TICK_MS);
 
     return () => clearInterval(interval);
-  }, [displayProgress, job?.status]);
+  }, [displayProgress, job?.status, job?.pass3_completed_at]);
 
   // For report pages that need a server refresh after completion, wait until the
   // client-side animation has reached 100. Otherwise the page refresh can replace
@@ -306,11 +308,14 @@ export function EvaluationPoller({
 
         setError(null);
 
-        // Stop polling on terminal state
-        if (data.job.status === 'complete' || data.job.status === 'failed') {
+        // Stop polling on terminal state.
+        // Interim complete (status=complete but no pass3_completed_at) keeps polling
+        // so we detect when Narrative Synthesis finishes and transition to Final.
+        const hasSynthesisNow = !!data.job.pass3_completed_at;
+        if ((data.job.status === 'complete' && hasSynthesisNow) || data.job.status === 'failed') {
           setIsPolling(false);
 
-          if (data.job.status === 'complete' && redirectOnComplete && !redirectedRef.current) {
+          if (data.job.status === 'complete' && hasSynthesisNow && redirectOnComplete && !redirectedRef.current) {
             if (resolvedRedirectDelayMs === 0) {
               navigateToReport();
             } else {
@@ -323,13 +328,14 @@ export function EvaluationPoller({
             }
           } else if (
             data.job.status === 'complete' &&
+            hasSynthesisNow &&
             refreshOnComplete &&
             !refreshedRef.current
           ) {
             completionRefreshArmedRef.current = true;
           }
 
-          onComplete?.(data.job, data.job.status === 'complete');
+          onComplete?.(data.job, data.job.status === 'complete' && hasSynthesisNow);
           return;
         }
 
@@ -477,11 +483,18 @@ export function EvaluationPoller({
   }
 
   const isCompletingAnimation = job.status === 'complete' && displayProgress < 100;
+  const hasSynthesis = !!job.pass3_completed_at;
+  const isInterimComplete = job.status === 'complete' && !hasSynthesis && !isCompletingAnimation;
+  const isFinalComplete = job.status === 'complete' && hasSynthesis && !isCompletingAnimation;
 
   const statusLabel = {
     queued: 'Waiting in queue',
     running: 'In progress',
-    complete: isCompletingAnimation ? 'In progress' : '✅ Report ready',
+    complete: isCompletingAnimation
+      ? 'In progress'
+      : hasSynthesis
+        ? '✅ Final Report Ready'
+        : '✅ Interim Report Ready',
     failed: '⚠ Needs attention',
   }[job.status];
 
@@ -528,29 +541,57 @@ export function EvaluationPoller({
           });
           if (!pd) return null;
 
-          // Bar color classes derived from pd.color
+          // Override pd for interim/final complete so the bar reflects synthesis state.
+          // Interim: hold at 80% with synthesis-pending copy. Final: 100% with full-report copy.
+          const effectivePd = isInterimComplete
+            ? {
+                ...pd,
+                label: 'Craft diagnostic report ready',
+                valueLabel: '80%',
+                percentage: 80,
+                helperText:
+                  'Your craft diagnostics are complete. Narrative Synthesis is still being generated.',
+                color: 'green' as const,
+                hardStop: false,
+                indeterminate: false,
+              }
+            : isFinalComplete
+              ? {
+                  ...pd,
+                  label: 'Evaluation finalized',
+                  valueLabel: '100%',
+                  percentage: 100,
+                  helperText:
+                    'Your full evaluation report, including Narrative Synthesis, is ready.',
+                  color: 'green' as const,
+                  hardStop: false,
+                  indeterminate: false,
+                }
+              : pd;
+
+          // Bar color classes derived from effectivePd.color
           const barColorClass = {
             blue: 'bg-blue-600',
             amber: 'bg-amber-500',
             red: 'bg-red-600',
             green: 'bg-green-600',
-          }[pd.color];
+          }[effectivePd.color];
 
           const labelColorClass = {
             blue: 'text-gray-700',
             amber: 'text-amber-800 font-semibold',
             red: 'text-red-800 font-semibold',
             green: 'text-green-700',
-          }[pd.color];
+          }[effectivePd.color];
 
-          // Completion animation uses displayProgress; all other states use pd.percentage.
-          const barWidth = isCompletingAnimation ? displayProgress : pd.percentage;
+          // Completion animation uses displayProgress; interim holds at 80%; otherwise pd.percentage.
+          const barWidth = isCompletingAnimation ? displayProgress : effectivePd.percentage;
 
           return (
             <div className="space-y-2">
               <div className="flex items-start justify-between gap-4">
-                <p className={`text-sm ${labelColorClass}`}>{pd.label}</p>
-                <p className="text-sm text-gray-600 shrink-0">{pd.valueLabel}</p>
+                <p className={`text-sm ${labelColorClass}`}>{effectivePd.label}</p>
+                <p className="text-sm text-gray-600 shrink-0">{effectivePd.valueLabel}</p>
               </div>
               <div className="w-full bg-gray-200 rounded-full h-2">
                 <div
@@ -558,8 +599,14 @@ export function EvaluationPoller({
                   style={{ width: `${barWidth}%` }}
                 />
               </div>
-              <p className="text-xs text-gray-500">{pd.helperText}</p>
-              {job.status === 'running' && pollCount > 10 && !pd.hardStop && (
+              <p className="text-xs text-gray-500">{effectivePd.helperText}</p>
+              {isInterimComplete && (
+                <p className="text-xs text-gray-400 mt-1">
+                  This report includes criterion scores, evidence, confidence levels, and revision recommendations.
+                  The final report will be available once Narrative Synthesis is complete.
+                </p>
+              )}
+              {job.status === 'running' && pollCount > 10 && !effectivePd.hardStop && (
                 <p className="text-xs text-gray-500">
                   Experiencing delays?{' '}
                   <button
@@ -579,60 +626,73 @@ export function EvaluationPoller({
              Phase 0 ✓ is proven by phase0_total_duration_ms ≥ 12000 from JSONB telemetry.
              NOT from phase0_completed_at column (that has legacy cosmetic stamp paths).
              Pass 3A preflight is NOT concurrent — it runs after all Phase 1A chunks are cached. */}
-        {(job.phase === 'phase_0' || job.phase === 'phase_1a' || job.phase === 'phase_2' || job.phase === 'phase_3') && job.status !== 'failed' && (() => {
+        {(job.phase === 'phase_0' || job.phase === 'phase_1a' || job.phase === 'phase_2' || job.phase === 'phase_3' || job.status === 'complete') && job.status !== 'failed' && (() => {
           const phase0Proven = typeof job.phase0_total_duration_ms === 'number' && job.phase0_total_duration_ms >= 12000;
           const phase0Running = job.phase === 'phase_0' && job.status === 'running';
           const phase1aActive = job.phase === 'phase_1a';
           const phase2Active = job.phase === 'phase_2';
           const phase3Active = job.phase === 'phase_3';
+          const isAnyComplete = job.status === 'complete';
+          const phase1aComplete = phase2Active || phase3Active || isAnyComplete;
+          const phase2Complete = phase3Active || isAnyComplete;
+          const phase3Complete = isAnyComplete; // craft diagnostics done when status=complete
+          const synthesisComplete = isFinalComplete;
           return (
             <div className="text-xs text-gray-500 space-y-1.5 border-t pt-3">
               {/* Stage 1: Calibration */}
               <div className="flex items-center gap-2">
-                {phase0Proven
+                {phase0Proven || isAnyComplete
                   ? <span className="text-green-700 font-medium">✓</span>
                   : phase0Running
                     ? <span className="h-2 w-2 rounded-full bg-blue-400 animate-pulse inline-block" />
                     : <span className="h-2 w-2 rounded-full bg-gray-300 inline-block" />}
-                <span className={phase0Proven ? 'text-green-800' : phase0Running ? 'text-gray-700' : 'text-gray-400'}>
+                <span className={(phase0Proven || isAnyComplete) ? 'text-green-800' : phase0Running ? 'text-gray-700' : 'text-gray-400'}>
                   {phase0Proven
                     ? `Calibrating evaluation standards — complete (${Math.round((job.phase0_total_duration_ms ?? 0) / 1000)}s · ${job.phase0_calibration_word_count ?? '?'} words)`
-                    : phase0Running
-                      ? 'Calibrating evaluation standards…'
-                      : 'Calibration — pending'}
+                    : isAnyComplete
+                      ? 'Calibrating evaluation standards — complete'
+                      : phase0Running
+                        ? 'Calibrating evaluation standards…'
+                        : 'Calibration — pending'}
                 </span>
               </div>
               {/* Stage 2: Manuscript read + preflight (sequential, after Phase 0) */}
-              {(phase1aActive || phase2Active || phase3Active) && (
+              {(phase1aActive || phase2Active || phase3Active || isAnyComplete) && (
                 <div className="flex items-center gap-2">
-                  {(phase2Active || phase3Active)
+                  {phase1aComplete
                     ? <span className="text-green-700 font-medium">✓</span>
                     : <span className="h-2 w-2 rounded-full bg-blue-400 animate-pulse inline-block" />}
-                  <span className={(phase2Active || phase3Active) ? 'text-green-800' : 'text-gray-700'}>
-                    {(phase2Active || phase3Active)
+                  <span className={phase1aComplete ? 'text-green-800' : 'text-gray-700'}>
+                    {phase1aComplete
                       ? 'Manuscript analysis + structural preflight — complete'
                       : 'Manuscript analysis + structural preflight — in progress…'}
                   </span>
                 </div>
               )}
               {/* Stage 3: Craft diagnostics */}
-              {(phase2Active || phase3Active) && (
+              {phase2Complete && (
                 <div className="flex items-center gap-2">
-                  {phase3Active
+                  {phase3Complete
                     ? <span className="text-green-700 font-medium">✓</span>
                     : <span className="h-2 w-2 rounded-full bg-blue-400 animate-pulse inline-block" />}
-                  <span className={phase3Active ? 'text-green-800' : 'text-gray-700'}>
-                    {phase3Active
+                  <span className={phase3Complete ? 'text-green-800' : 'text-gray-700'}>
+                    {phase3Complete
                       ? 'Craft diagnostics — complete'
                       : 'Craft diagnostics — in progress…'}
                   </span>
                 </div>
               )}
-              {/* Stage 4: Synthesis */}
-              {phase3Active && (
+              {/* Stage 4: Narrative Synthesis */}
+              {(phase3Active || isAnyComplete) && (
                 <div className="flex items-center gap-2">
-                  <span className="h-2 w-2 rounded-full bg-blue-400 animate-pulse inline-block" />
-                  <span className="text-gray-700">Assembling evaluation matrix…</span>
+                  {synthesisComplete
+                    ? <span className="text-green-700 font-medium">✓</span>
+                    : <span className="h-2 w-2 rounded-full bg-blue-400 animate-pulse inline-block" />}
+                  <span className={synthesisComplete ? 'text-green-800' : 'text-gray-700'}>
+                    {synthesisComplete
+                      ? 'Narrative Synthesis — complete'
+                      : 'Narrative Synthesis — in progress…'}
+                  </span>
                 </div>
               )}
             </div>
@@ -702,11 +762,11 @@ export function EvaluationPoller({
           </div>
         )}
 
-        {/* Completion CTA before auto-redirect */}
-        {job.status === 'complete' && !isCompletingAnimation && redirectOnComplete && !redirectedRef.current && (
+        {/* Completion CTA — Final state auto-redirects, Interim state offers manual view */}
+        {isFinalComplete && redirectOnComplete && !redirectedRef.current && (
           <div className="p-3 bg-green-50 border border-green-200 rounded">
             <p className="text-sm text-green-800">
-              Report ready.
+              Final report ready.
               {pendingRedirectDelayMs != null
                 ? ` Redirecting automatically in ${Math.ceil(pendingRedirectDelayMs / 1000)}s.`
                 : ' Redirecting automatically…'}
@@ -716,7 +776,21 @@ export function EvaluationPoller({
               onClick={navigateToReport}
               className="mt-2 inline-flex rounded-md border border-green-300 bg-white px-3 py-1.5 text-xs font-medium text-green-800 hover:bg-green-100"
             >
-              View report now
+              View Final Report
+            </button>
+          </div>
+        )}
+        {isInterimComplete && redirectOnComplete && !redirectedRef.current && (
+          <div className="p-3 bg-amber-50 border border-amber-200 rounded">
+            <p className="text-sm text-amber-800">
+              Interim report ready. Narrative Synthesis is still generating — the final report will appear automatically when complete.
+            </p>
+            <button
+              type="button"
+              onClick={navigateToReport}
+              className="mt-2 inline-flex rounded-md border border-amber-300 bg-white px-3 py-1.5 text-xs font-medium text-amber-800 hover:bg-amber-100"
+            >
+              View Interim Report
             </button>
           </div>
         )}
