@@ -84,6 +84,16 @@ const OBJECT_INTERNAL_FIELDS = new Set([
   "symbol_payoff_items_v1",
 ]);
 
+// ─── Hidden internal fields (Source Integrity layer) ────────────────────────
+const SOURCE_INTERNAL_FIELDS = new Set([
+  "generated_at",
+  "prompt_version",
+  "schema_version",
+  "schema_ledger_version",
+  "hard_fail_count",
+  "state_conflict_count",
+]);
+
 // ─── Author-facing layer descriptions (permanent, locked) ───────────────────
 const LAYER_DESCRIPTIONS: Record<string, string> = {
   source_integrity_layer:
@@ -458,12 +468,31 @@ export function SourceIntegrityLayer({
       />
     );
 
-  const risk = String(data.source_integrity_risk ?? "").toLowerCase();
-  const tone = risk === "high" ? "block" : risk === "medium" ? "warn" : "neutral";
-  const extracted = data.extraction_integrity_status;
-  const missingFlags = data.missing_text_flags as string[] | null;
-  const truncFlags = data.truncation_flags as string[] | null;
-  const chapterMap = data.chapter_scene_map;
+  const integrityStatus =
+    typeof data.integrity_status === "string" ? data.integrity_status : "";
+  const statusUpper = integrityStatus.toUpperCase();
+  const isClean = statusUpper === "CLEAN";
+  const isFailed = statusUpper === "FAILED" || statusUpper === "DEGRADED";
+
+  const hardFailPresent = data.hard_fail_present === true;
+  const hardFailTriggers = Array.isArray(data.hard_fail_triggers)
+    ? (data.hard_fail_triggers as unknown[])
+        .map((t) => (typeof t === "string" ? t : JSON.stringify(t)))
+        .filter((t) => t.length > 0)
+    : [];
+
+  const stateConflicts = Array.isArray(data.state_conflicts)
+    ? (data.state_conflicts as unknown[])
+    : [];
+  const unresolvedConflicts =
+    typeof data.unresolved_conflicts === "number" ? data.unresolved_conflicts : 0;
+
+  const totalChunks =
+    typeof data.total_chunks_processed === "number"
+      ? data.total_chunks_processed
+      : null;
+
+  const tone = isFailed || hardFailPresent ? "block" : "neutral";
 
   return (
     <LayerShell tone={tone}>
@@ -471,91 +500,47 @@ export function SourceIntegrityLayer({
         icon="🔒"
         title="Source Integrity"
         description={LAYER_DESCRIPTIONS.source_integrity_layer}
-        badge={extracted ? String(extracted) : undefined}
-        badgeTone={
-          String(extracted ?? "").toLowerCase() === "verified" ? "green" : "warn"
-        }
+        badge={integrityStatus || undefined}
+        badgeTone={isClean ? "green" : isFailed ? "oxblood" : "neutral"}
       />
 
-      {risk === "high" && (
-        <BlockerBanner reason="High source integrity risk — evaluation results may be unreliable until resolved." />
+      {hardFailPresent ? (
+        <BlockerBanner reason="Hard failure detected during manuscript ingestion — results may be unreliable until resolved." />
+      ) : (
+        <p
+          style={{
+            margin: "0 0 14px",
+            fontSize: 14,
+            color: C.textMuted,
+            lineHeight: 1.7,
+          }}
+        >
+          No hard failures detected.
+        </p>
       )}
-      {risk === "medium" && (
-        <WarnBanner reason="Moderate integrity risk — some evidence spans may be misaligned." />
+
+      {hardFailTriggers.length > 0 && (
+        <>
+          <SubHeading>Hard Failure Triggers</SubHeading>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+            {hardFailTriggers.map((t, i) => (
+              <Pill key={i} label={t} tone="oxblood" />
+            ))}
+          </div>
+        </>
       )}
 
       <div>
-        <FieldRow label="Word count" value={data.word_count} />
-        <FieldRow label="Chapter count" value={data.chapter_count} />
-        <FieldRow label="Evidence spans" value={data.evidence_span_count} />
-        <FieldRow label="Manuscript version" value={data.manuscript_version} />
-      </div>
-
-      {missingFlags && missingFlags.length > 0 && (
-        <>
-          <SubHeading>Missing Text Flags</SubHeading>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-            {missingFlags.map((f, i) => (
-              <Pill key={i} label={f} tone="oxblood" />
-            ))}
-          </div>
-        </>
-      )}
-
-      {truncFlags && truncFlags.length > 0 && (
-        <>
-          <SubHeading>Truncation Flags</SubHeading>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-            {truncFlags.map((f, i) => (
-              <Pill key={i} label={f} tone="warn" />
-            ))}
-          </div>
-        </>
-      )}
-
-      {chapterMap && (
-        <>
-          <SubHeading>Chapter / Scene Map</SubHeading>
-          <pre
-            style={{
-              margin: 0,
-              fontSize: 12,
-              color: C.textPrimary,
-              background: C.surfaceAlt,
-              borderRadius: 8,
-              padding: "12px 16px",
-              overflowX: "auto",
-              border: `1px solid ${C.border}`,
-              lineHeight: 1.6,
-            }}
-          >
-            {typeof chapterMap === "string"
-              ? chapterMap
-              : JSON.stringify(chapterMap, null, 2)}
-          </pre>
-        </>
-      )}
-
-      <div
-        style={{
-          marginTop: 18,
-          borderTop: `1px solid ${C.border}`,
-          paddingTop: 12,
-          display: "flex",
-          gap: 8,
-          flexWrap: "wrap",
-        }}
-      >
-        <Pill
-          label={`Risk: ${String(data.source_integrity_risk ?? "unknown")}`}
-          tone={
-            risk === "high" ? "oxblood" : risk === "medium" ? "warn" : "green"
-          }
-        />
-        {data.evidence_span_count !== undefined && (
-          <Pill label={`${data.evidence_span_count} evidence spans`} tone="blue" />
+        {totalChunks !== null && (
+          <FieldRow label="Manuscript sections processed" value={totalChunks} />
         )}
       </div>
+
+      {(stateConflicts.length > 0 || unresolvedConflicts > 0) && (
+        <WarnBanner
+          reason={`${stateConflicts.length} state conflict${stateConflicts.length === 1 ? "" : "s"} detected${unresolvedConflicts > 0 ? ` — ${unresolvedConflicts} unresolved` : ""}.`}
+        />
+      )}
     </LayerShell>
   );
 }
