@@ -76,6 +76,10 @@ type CanonicalJobResponse = {
   /** Authoritative Phase 0 telemetry from progress JSONB — not column timestamp deltas */
   phase0_total_duration_ms?: number | null;
   phase0_calibration_word_count?: number | null;
+  /** Review-gate quality signal: true when ledger hard-fails block Phase 2 */
+  hard_fail_present?: boolean | null;
+  /** Manuscript word count from chunk_routing JSONB — available before completion */
+  manuscript_word_count?: number | null;
   last_error?: string;
   failure_code?: string;
 };
@@ -213,6 +217,22 @@ export async function GET(req: NextRequest, ctx: { params: Params }) {
     }
     if (stageTiming.phase0_calibration_word_count !== undefined) {
       response.job.phase0_calibration_word_count = stageTiming.phase0_calibration_word_count;
+    }
+
+    // 6d) Surface hard_fail_present for review_gate blocked state display
+    const rawProgress = job.progress as Record<string, unknown> | null;
+    const rawHardFail = rawProgress?.hard_fail_present;
+    if (typeof rawHardFail === 'boolean') {
+      response.job.hard_fail_present = rawHardFail;
+    } else if (rawHardFail === null) {
+      response.job.hard_fail_present = null;
+    }
+
+    // 6e) Surface manuscript word count from chunk_routing JSONB (available pre-completion)
+    const chunkRouting = rawProgress?.chunk_routing as Record<string, unknown> | null | undefined;
+    const rawMsWords = chunkRouting?.manuscript_words ?? chunkRouting?.source_manuscript_words;
+    if (typeof rawMsWords === 'number' && rawMsWords > 0) {
+      response.job.manuscript_word_count = rawMsWords;
     }
 
     // 7) Include last_error only on failure

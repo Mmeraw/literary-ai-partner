@@ -23,7 +23,8 @@ type PhaseInputs = {
   phase_status?: string | null;
   cross_check_status?: string | null;
   phase_unit_fraction?: number | null;
-  hard_fail_present?: boolean;
+  /** Surfaced from jobs API via progress JSONB — true when ledger hard-fails block Phase 2 */
+  hard_fail_present?: boolean | null;
 };
 
 export function getProgressDisplay(

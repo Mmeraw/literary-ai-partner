@@ -48,6 +48,7 @@ type Job = {
   created_at?: string;
   updated_at?: string;
   last_error?: string | null;
+  progress?: Record<string, unknown> | null;
 };
 
 type ArtifactContentV1 = {
@@ -143,7 +144,7 @@ async function getJob(jobId: string): Promise<Job | null> {
 
     const { data: job, error } = await supabase
       .from("evaluation_jobs")
-      .select("id, user_id, manuscript_id, job_type, status, phase, phase_status, total_units, completed_units, failed_units, created_at, updated_at, last_error, manuscripts(user_id,title)")
+      .select("id, user_id, manuscript_id, job_type, status, phase, phase_status, total_units, completed_units, failed_units, created_at, updated_at, last_error, progress, manuscripts(user_id,title)")
       .eq("id", jobId)
       .maybeSingle();
 
@@ -465,6 +466,21 @@ export default async function EvaluationReportPage({
   const artifact = artifactResult?.data ?? null;
   const artifactSource = artifactResult?.source ?? null;
   const isProduction = process.env.NODE_ENV === "production";
+
+  // Extract manuscript_word_count + hard_fail_present from progress JSONB
+  // so they can be seeded into initialPollerJob and shown in the metadata grid
+  // before the artifact is available.
+  const progressJsonb = job.progress ?? null;
+  const chunkRoutingJsonb = progressJsonb?.chunk_routing as Record<string, unknown> | null | undefined;
+  const progressWordCount: number | null =
+    typeof chunkRoutingJsonb?.manuscript_words === 'number' && (chunkRoutingJsonb.manuscript_words as number) > 0
+      ? (chunkRoutingJsonb.manuscript_words as number)
+      : typeof chunkRoutingJsonb?.source_manuscript_words === 'number' && (chunkRoutingJsonb.source_manuscript_words as number) > 0
+      ? (chunkRoutingJsonb.source_manuscript_words as number)
+      : null;
+  const progressHardFail: boolean | null =
+    typeof progressJsonb?.hard_fail_present === 'boolean' ? (progressJsonb.hard_fail_present as boolean) : null;
+
   const initialPollerJob = {
     id: job.id,
     status: job.status,
@@ -479,6 +495,9 @@ export default async function EvaluationReportPage({
     ...(typeof job.total_units === 'number' ? { total_units: job.total_units } : {}),
     ...(typeof job.completed_units === 'number' ? { completed_units: job.completed_units } : {}),
     ...(job.last_error ? { last_error: job.last_error } : {}),
+    // Seed review-gate quality signal and word count for immediate correct display.
+    ...(progressHardFail !== null ? { hard_fail_present: progressHardFail } : {}),
+    ...(progressWordCount !== null ? { manuscript_word_count: progressWordCount } : {}),
   };
   const artifactCriteria = artifact?.criteria ?? [];
   const criteriaByKey = new Map<CriterionKey, NonNullable<ArtifactContentV1["criteria"]>[number]>();
@@ -583,11 +602,12 @@ export default async function EvaluationReportPage({
           <div>
             <p className="text-gray-700 font-medium">Word Count</p>
             <p className="font-medium text-gray-900">
-              {typeof wordCount === "number"
-                ? wordCount.toLocaleString()
-                : isComplete
-                ? "N/A"
-                : "Calculating…"}
+              {(() => {
+                const displayCount = wordCount ?? progressWordCount;
+                if (typeof displayCount === 'number') return displayCount.toLocaleString();
+                if (isComplete) return 'N/A';
+                return 'Calculating…';
+              })()}
             </p>
           </div>
         </div>
@@ -616,10 +636,37 @@ export default async function EvaluationReportPage({
           </div>
         </section>
       ) : !isComplete ? (
+        job.phase === 'review_gate' ? (
+          <section
+            className="rounded-lg border p-5"
+            style={{
+              borderColor: progressHardFail ? '#7A1E1E' : '#A98E4A',
+              backgroundColor: progressHardFail ? '#1a0808' : '#0f0e0d',
+            }}
+          >
+            <h2 className="text-lg font-semibold" style={{ color: '#F2EFEA' }}>
+              {progressHardFail ? 'Story Layer Review Required' : 'Story Layer Ready for Review'}
+            </h2>
+            <p className="mt-2 text-sm" style={{ color: '#7B7B7B' }}>
+              {progressHardFail
+                ? 'The system detected narrative conflicts in the Story Layer that require your input before scoring can proceed. Review each layer, confirm or correct the findings, and submit your decisions.'
+                : 'The Story Layer has been built from your manuscript. Review each of the 8 layers, confirm the findings, and approve to begin the scoring phase.'}
+            </p>
+            <div className="mt-4">
+              <Link
+                href={`/evaluate/${jobId}/ledger`}
+                className="inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm font-semibold transition-colors"
+                style={{ backgroundColor: '#7A1E1E', color: '#F2EFEA' }}
+              >
+                Review Story Ledger →
+              </Link>
+            </div>
+          </section>
+        ) : (
         <section className="rounded-lg border bg-white p-5">
           <h2 className="text-lg font-semibold text-gray-900">Report not ready yet</h2>
           <p className="mt-2 text-sm text-gray-600">
-            This evaluation hasn't completed. Once the status is "complete," your
+            This evaluation hasn&apos;t completed. Once the status is &quot;complete,&quot; your
             report will appear here automatically.
           </p>
           <div className="mt-4">
@@ -631,6 +678,7 @@ export default async function EvaluationReportPage({
             </Link>
           </div>
         </section>
+        )
       ) : !artifact ? (
         <section className="rounded-lg border bg-white p-5">
           <h2 className="text-lg font-semibold text-gray-900">

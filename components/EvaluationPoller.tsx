@@ -72,6 +72,10 @@ export interface JobState {
   /** Authoritative Phase 0 telemetry — from progress JSONB, not column delta */
   phase0_total_duration_ms?: number | null;
   phase0_calibration_word_count?: number | null;
+  /** Review-gate quality signal surfaced from jobs API */
+  hard_fail_present?: boolean | null;
+  /** Manuscript word count from chunk_routing — available before completion */
+  manuscript_word_count?: number | null;
 }
 
 interface PollerProps {
@@ -517,6 +521,7 @@ export function EvaluationPoller({
               if (total && total > 0 && done !== null) return done / total;
               return null;
             })(),
+            hard_fail_present: job.hard_fail_present ?? undefined,
           });
           if (!pd) return null;
 
