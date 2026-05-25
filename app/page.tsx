@@ -17,26 +17,22 @@ const criteria = [
   "Marketability",
 ];
 
-const wavePhases = [
+const publicWaveSignals = [
   {
-    title: "Structural Integrity",
-    copy: "Narrative architecture, scene function, timeline logic, POV stability, act pacing, setup, payoff, and redundancy.",
+    title: "Evidence before repair",
+    copy: "The system does not revise from a vague prompt. It begins with specific manuscript evidence and a diagnosed editorial reason.",
   },
   {
-    title: "Character & Dialogue Systems",
-    copy: "Character arc, psychology, dialogue authenticity, subtext, relationship dynamics, antagonist pressure, and voice differentiation.",
+    title: "Sequenced intervention",
+    copy: "Repairs are ordered by dependency and risk so surface polish does not mask deeper manuscript problems.",
   },
   {
-    title: "Theme & World Logic",
-    copy: "Theme through action, environmental consistency, cultural logic, sensory texture, motif behavior, and research credibility.",
+    title: "Voice protection",
+    copy: "A repair can be blocked, softened, or skipped when changing the sentence would damage the authorial signal.",
   },
   {
-    title: "Pacing & Momentum",
-    copy: "Scene-to-scene pressure, chapter-end hooks, middle-sag diagnosis, escalation, rest beats, information release, and climax architecture.",
-  },
-  {
-    title: "Literary Authority",
-    copy: "Breath mechanics, sound, punctuation authority, echo detection, compression, repetition control, cadence, and late-stage polish.",
+    title: "Author authority",
+    copy: "The author can review, accept, reject, keep the original, or use a governed convenience path on a protected copy.",
   },
 ];
 
@@ -53,13 +49,13 @@ const workflow = [
   },
   {
     step: "03",
-    title: "Build the story ledger",
-    copy: "Long-form work uses manuscript-scale continuity: identity, cast, POV, relationships, objects, timeline, pressure, and source integrity.",
+    title: "Build the evidence layer",
+    copy: "Long-form work can add manuscript-scale continuity and source-integrity checks before repair decisions are generated.",
   },
   {
     step: "04",
     title: "Route into WAVE",
-    copy: "Eligible long-form manuscripts move from diagnosis into the WAVE Revision System: ordered repair waves with governance and voice protection.",
+    copy: "Eligible long-form manuscripts move from diagnosis into a proprietary WAVE repair sequence with governance and voice protection.",
   },
   {
     step: "05",
@@ -71,9 +67,9 @@ const workflow = [
 const proofPoints = [
   "13 story criteria before WAVE",
   "Short-form / long-form / multi-layer modes",
-  "Story Ledger for long-form continuity",
-  "Gate 15 overcorrection protection",
-  "Revise Queue with A/B/C options",
+  "Evidence-backed repair decisions",
+  "Overcorrection protection",
+  "Author-controlled repair queue",
   "TrustedPath™ governed automation",
 ];
 
@@ -120,12 +116,12 @@ export default function Home() {
         <div className="border border-rg-cream2/15 bg-rg-ink2/70 p-6 shadow-2xl shadow-black/30">
           <div className="border border-rg-gold/30 p-6">
             <SectionLabel>The public promise</SectionLabel>
-            <h2 className="mt-4 font-rg-serif text-3xl text-rg-cream">Architecture → Criteria → Gate → WAVE → Readiness.</h2>
+            <h2 className="mt-4 font-rg-serif text-3xl text-rg-cream">Diagnosis first. Governed repair second.</h2>
             <p className="mt-4 text-sm leading-7 text-rg-cream2/75">
-              Story architecture is assessed before refinement. The 13 criteria establish narrative viability. WAVE applies ordered revision only after the manuscript earns the right kind of repair.
+              Story architecture is assessed before refinement. The 13 criteria establish narrative viability. WAVE is the protected repair layer that follows when a manuscript is ready for deeper intervention.
             </p>
             <div className="mt-6 grid gap-2">
-              {["Story diagnosis", "13 criteria", "Story Ledger", "WAVE repair", "Author approval"].map((item, index) => (
+              {["Story diagnosis", "13 criteria", "Evidence layer", "WAVE repair", "Author approval"].map((item, index) => (
                 <div key={item} className="flex items-center gap-4 border border-rg-cream2/10 px-3 py-3">
                   <span className="font-rg-mono text-xs text-rg-gold">0{index + 1}</span>
                   <span className="font-rg-mono text-[0.68rem] uppercase tracking-[0.12em] text-rg-cream2/80">{item}</span>
@@ -152,18 +148,18 @@ export default function Home() {
         <div className="max-w-4xl">
           <SectionLabel>WAVE Revision System™</SectionLabel>
           <h2 className="mt-4 font-rg-serif text-4xl leading-tight text-rg-cream md:text-5xl">
-            WAVE is the ordered repair layer after evaluation.
+            WAVE is the protected repair layer after evaluation.
           </h2>
           <p className="mt-6 max-w-3xl text-lg leading-8 text-rg-cream2/80">
-            The WAVE Revision System™ is not a single rewrite command. It is a sequenced revision methodology organized into phase groups that move from structure to character, theme, momentum, and literary authority.
+            The WAVE Revision System™ is not a single rewrite command. It is a proprietary, sequenced repair methodology that turns evidence-backed findings into governed manuscript interventions while protecting the author&apos;s voice.
           </p>
         </div>
-        <div className="mt-12 grid gap-4 lg:grid-cols-5">
-          {wavePhases.map((phase, index) => (
-            <article key={phase.title} className="border border-rg-cream2/12 bg-rg-ink2/60 p-5">
-              <p className="font-rg-mono text-xs text-rg-gold">WAVE {index + 1}</p>
-              <h3 className="mt-4 font-rg-serif text-xl text-rg-cream">{phase.title}</h3>
-              <p className="mt-3 text-sm leading-6 text-rg-cream2/75">{phase.copy}</p>
+        <div className="mt-12 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          {publicWaveSignals.map((signal) => (
+            <article key={signal.title} className="border border-rg-cream2/12 bg-rg-ink2/60 p-5">
+              <p className="font-rg-mono text-xs uppercase tracking-[0.18em] text-rg-gold">WAVE principle</p>
+              <h3 className="mt-4 font-rg-serif text-xl text-rg-cream">{signal.title}</h3>
+              <p className="mt-3 text-sm leading-6 text-rg-cream2/75">{signal.copy}</p>
             </article>
           ))}
         </div>
@@ -177,7 +173,7 @@ export default function Home() {
               The criteria decide whether a manuscript is ready for WAVE-level repair.
             </h2>
             <p className="mt-6 leading-8 text-rg-ink/70">
-              Short-form work is evaluated against the 13 criteria only. Long-form work can activate deeper manuscript-scale continuity and WAVE repair when appropriate.
+              Short-form work is evaluated against the 13 criteria only. Long-form work can activate deeper manuscript-scale diagnosis and WAVE repair when appropriate.
             </p>
           </div>
           <div className="grid gap-2 sm:grid-cols-2">
@@ -232,7 +228,7 @@ export default function Home() {
             <SectionLabel>Revise Queue</SectionLabel>
             <h2 className="mt-4 font-rg-serif text-4xl text-rg-cream">Manual repair, one opportunity at a time.</h2>
             <p className="mt-5 leading-7 text-rg-cream2/75">
-              WAVE findings become RevisionOpportunity cards with evidence, severity, options, rationale, and author decisions: accept, keep original, reject, defer, or write custom.
+              WAVE findings become RevisionOpportunity cards with evidence, severity, repair options, rationale, and explicit author decisions.
             </p>
             <Link href="/workbench" className="mt-7 inline-block font-rg-mono text-xs uppercase tracking-[0.18em] text-rg-gold hover:text-rg-cream">Open Revise Queue →</Link>
           </div>
