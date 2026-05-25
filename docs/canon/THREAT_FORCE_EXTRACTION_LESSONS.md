@@ -1,9 +1,23 @@
-# Threat Force Extraction Lessons — Story Ledger Layer 8
+# Threat Force Extraction Lessons — Threat / Pressure / Ending
 
 **Status:** Canon addendum / training fixture doctrine  
-**Scope:** Phase 1A Story Ledger extraction, especially `threat_antagonist_ending_layer`  
+**Scope:** Phase 1A Story Ledger extraction, especially the user-facing **Threat / Pressure / Ending** layer  
 **Origin case:** `river_remembers_blood_ch3_threat_force_failure`  
 **Purpose:** Prevent future evaluations from treating threat as only a named-character antagonist.
+
+---
+
+## UI layer-order note
+
+In the current Story Ledger UI, **Threat / Pressure / Ending** is the seventh displayed story layer, and **Source Integrity** is displayed after it.
+
+Older internal code/docs may list `source_integrity_layer` first and `threat_antagonist_ending_layer` later because of artifact object ordering. Product-facing doctrine should refer to this surface by name:
+
+> **Threat / Pressure / Ending**
+
+Avoid calling it “Layer 8” in user-facing or product-facing language.
+
+This doctrine does **not** create a new layer. It broadens what the existing Threat / Pressure / Ending layer must be able to capture.
 
 ---
 
@@ -35,15 +49,14 @@ The failed extraction pattern is:
 named character with role_signal === "antagonist"
 ```
 
-That pattern is insufficient because many literary, memoir, eco-thriller, speculative, historical, and Indigenous/place-based narratives use non-character pressure systems.
+That pattern is insufficient because many literary, memoir, eco-thriller, speculative, historical, and place-based narratives use non-character pressure systems.
 
 Examples:
 
 - a river that judges or remembers
 - a mountain, storm, disease, fire, famine, or landscape
-- a police system, court, cartel, mine, church, school, government, or hospital
-- colonial pressure or industrial encroachment
-- cultural erasure
+- a police system, court, cartel, mine, school, government, or hospital
+- industrial intrusion or cultural encroachment
 - grief, shame, paranoia, addiction, trauma
 - a missing person or unresolved disappearance
 - social exclusion or non-belonging
@@ -55,18 +68,18 @@ If Phase 1A only extracts named antagonists, it will under-read threat-driven ma
 
 ---
 
-## 3. Layer 8 canon
+## 3. Threat / Pressure / Ending canon
 
 `threat_antagonist_ending_layer` must include both:
 
 1. `named_antagonists`
 2. `threat_forces`
 
-This does **not** create Layer 9.
+This does **not** create a new Story Ledger layer.
 
-Threat forces are a required substructure of Layer 8.
+Threat forces are a required substructure of the existing Threat / Pressure / Ending layer.
 
-Recommended Layer 8 shape:
+Recommended shape:
 
 ```ts
 threat_antagonist_ending_layer: {
@@ -108,7 +121,7 @@ export type ThreatForceType =
   | "animal_predator_force"
   | "institutional_force"
   | "cultural_encroachment"
-  | "colonial_industrial_pressure"
+  | "industrial_pressure"
   | "supernatural_or_belief_force"
   | "psychological_threat"
   | "social_pressure"
@@ -166,21 +179,14 @@ Extract threat forces, not only antagonists.
 A threat force is anything that creates pressure, danger, stakes, dread, escalation,
 consequence, mystery, or forward motion.
 
-Threat forces may be:
-- named antagonists
-- unnamed groups or collectives
-- animals or predator systems
-- rivers, weather, fire, disease, hunger, isolation, geography
-- institutions such as police, cartel, courts, mines, churches, governments, hospitals, schools
-- cultural encroachment, colonial pressure, industrial intrusion, class pressure, racism, sexism, homophobia
-- spiritual, mythic, symbolic, or belief-based forces
-- trauma, paranoia, guilt, grief, shame, addiction
-- deadlines, disappearances, scarcity, exposure, pursuit, missing persons
-- unresolved mysteries or ending danger signals
+Threat forces may be named characters, unnamed groups, animals, landscapes,
+institutions, belief systems, psychological pressure, disappearances, scarcity,
+pursuit, unresolved mysteries, or ending danger signals.
 
 Do not require character_id.
 
-If the threat is not a character, emit character_id: null.
+If the threat is not a character, emit character_id: null when the artifact shape supports it.
+When the artifact shape is character-led, represent non-character threats as symbolic_force or collective_force candidates.
 ```
 
 ---
@@ -255,8 +261,8 @@ Use these codes in validators, quality reports, or CI fixtures.
 |---|---:|---|
 | `THREAT_FORCE_UNDEREXTRACTED` | hard fail | No threat forces were captured where pressure signals exist. |
 | `NON_CHARACTER_PRIMARY_THREAT_MISSING` | hard fail | The primary threat is non-character, but no non-character threat force was emitted. |
-| `CHARACTER_ONLY_ANTAGONIST_BIAS` | hard fail | Layer 8 only contains named antagonists even though environmental/institutional/thematic pressure is present. |
-| `THEMATIC_INSTITUTIONAL_PRESSURE_MISSING` | warning | Cultural, institutional, colonial, industrial, or social pressure was likely missed. |
+| `CHARACTER_ONLY_ANTAGONIST_BIAS` | hard fail | The Threat / Pressure / Ending layer only contains named antagonists even though environmental/institutional/thematic pressure is present. |
+| `THEMATIC_INSTITUTIONAL_PRESSURE_MISSING` | warning | Cultural, institutional, industrial, or social pressure was likely missed. |
 | `FALSE_LEAD_NOT_CLASSIFIED` | warning | A psychological or prior-threat residue was treated as absent or primary rather than false lead. |
 | `MIRROR_THREAT_MISCLASSIFIED` | warning | Animal/predator/ecological logic was not classified as mirror threat. |
 | `ENDING_PRESSURE_MISSING` | warning | Final unresolved danger or pressure image was not captured. |
@@ -302,10 +308,10 @@ This is a Phase 1A / Story Ledger extraction-contract improvement.
 
 A future evaluation satisfies this broadened scope when:
 
-- `threat_antagonist_ending_layer.threat_forces` exists.
-- At least one non-character threat can be represented with `character_id: null`.
-- Environmental, institutional, thematic, psychological, animal/predator, and unresolved-mystery threats have valid `threat_type` values.
+- The Threat / Pressure / Ending layer can represent non-character threat forces.
+- At least one non-character threat can be represented with `character_id: null` where the artifact shape supports it.
+- Character-led bridge artifacts can represent non-character threats as `symbolic_force` or `collective_force` candidates.
+- Environmental, institutional, thematic, psychological, animal/predator, and unresolved-mystery threats have valid threat classifications.
 - Named antagonists still work as before.
 - The River Remembers Blood fixture detects `river_judgment_force`.
 - Empty threat lists are blocked or warned when pressure signals are present.
-- Layer 8 exposes `pressure_map` and `extraction_quality`.
