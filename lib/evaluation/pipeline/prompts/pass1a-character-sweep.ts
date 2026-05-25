@@ -8,11 +8,11 @@
  * Output feeds characterReducer → Pass1aCharacterLedger → Pass 3 + Pass 3b.
  */
 
-export const PASS1A_PROMPT_VERSION = "pass1a-character-sweep-v5-pov-structure";
+export const PASS1A_PROMPT_VERSION = "pass1a-character-sweep-v6-threat-force-bridge";
 
 export const PASS1A_SYSTEM_PROMPT = `You are Pass 1A (character_evidence_sweep) for RevisionGrade.
 
-Your ONLY job is compact, structured evidence capture about characters in this manuscript chunk.
+Your ONLY job is compact, structured evidence capture about characters AND threat-bearing story forces in this manuscript chunk.
 Do NOT score. Do NOT critique. Do NOT recommend. Evidence capture ONLY.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -26,7 +26,7 @@ HARD CAPS (NEVER exceed these):
 
 CAPTURE PRIORITY WHEN A SCENE IS DENSE:
 1. POV characters and recurring identity-bearing characters
-2. Antagonists, enforcers, surveillers, coercive figures, and threat-bearing characters
+2. Antagonists, enforcers, surveillers, coercive figures, and threat-bearing symbolic/collective/environmental forces
 3. Named recurring characters and named camp/community/family/institutional members
 4. Unnamed but load-bearing figures (e.g. "the nurse", "the cook", "the boy in the Yankees cap")
 
@@ -34,6 +34,23 @@ ANTAGONIST / THREAT SWEEP:
 Any character who disciplines, threatens, surveils, controls, coerces, harms, confines, interrogates, or enforces cartel/institutional power MUST be captured.
 Assign role_signal: "antagonist" for threat-bearing figures regardless of moral complexity, charm, family connection, or intermittent kindness.
 Do not drop antagonists merely because a POV character observes them briefly.
+
+NON-CHARACTER THREAT FORCE SWEEP:
+You MUST capture threat forces even when they are not named characters.
+A threat force is anything that creates pressure, danger, stakes, dread, escalation, consequence, mystery, or forward motion.
+Threat forces may be rivers, weather, fire, disease, hunger, isolation, geography, animals/predator systems, institutions, police, cartel systems, courts, mines, churches, governments, hospitals, schools, cultural encroachment, colonial pressure, industrial intrusion, class pressure, racism, sexism, homophobia, spiritual/mythic/belief forces, trauma, paranoia, guilt, grief, shame, addiction, deadlines, disappearances, scarcity, exposure, pursuit, missing persons, unresolved mysteries, or ending danger signals.
+
+Because this artifact shape is character-led, represent non-character threat forces as character candidates:
+- Use role_signal: "symbolic_force" for environmental, spiritual, psychological, moral, existential, or symbolic threats.
+- Use role_signal: "collective_force" for institutions, cultures, systems, groups, industrial/colonial pressure, or unnamed collectives.
+- Use role_signal: "animal_companion" ONLY for companion animals. Use "symbolic_force" for predator systems or animals functioning as threat logic.
+- Use is_named: false unless the force has a proper name in the text.
+- canonical_name should be a stable display label such as "The river", "Cultural encroachment", "The missing man", "Predator logic", or "PV115 residue".
+- who_is_this should explain the force as a pressure system, not as a human biography.
+- arc_pressure should state what pressure the force applies.
+- evidence_anchors must include the sentence or phrase that proves the pressure.
+
+Do NOT require a character_id for these forces. The Story Layer builder will promote role_signal symbolic_force / collective_force into Layer 8 threat_forces.
 
 SUPPORTING CAST SWEEP:
 Do not drop camp, institutional, family, embassy, school, medical, or community characters merely because they are not protagonists.
@@ -78,6 +95,11 @@ NARRATIVE ROLE:
 role_signal         — protagonist|co_protagonist|antagonist|secondary|mentor|foil|animal_companion|symbolic_force|collective_force|unknown
 narrative_weight_signal — primary|major|supporting|recurring|minor|unknown
 is_named            — true if character has a proper name in this chunk, false if unnamed/generic
+
+Role rules for threat forces:
+- Environmental, mythic, moral, spiritual, psychological, or symbolic pressure systems: role_signal "symbolic_force".
+- Institutions, cultures, industrial systems, colonial pressure, crowds, unnamed groups: role_signal "collective_force".
+- Human antagonists remain role_signal "antagonist".
 
 POV / CAMERA OWNERSHIP:
 pov_signal          — first_person_narrator|close_third_limited|close_third_omniscient|distant_third|not_pov|unknown
@@ -193,16 +215,16 @@ export function buildPass1aUserPrompt(params: {
   title: string;
   workType: string;
 }): string {
-  return `Sweep this chunk (index ${params.chunkIndex}) of "${params.title}" (${params.workType}) for ALL character evidence.
+  return `Sweep this chunk (index ${params.chunkIndex}) of "${params.title}" (${params.workType}) for ALL character evidence and threat-bearing story forces.
 
 CHUNK TEXT:
 ${params.manuscriptText}
 
 Return ONLY the JSON object as specified. No prose. No markdown. No scoring.
-Capture every named character and every unnamed-but-load-bearing figure present.
+Capture every named character, every unnamed-but-load-bearing figure present, and every non-character threat force that creates danger, pressure, mystery, stakes, escalation, or ending consequence.
 Preserve identity continuity: use canonical_identity_group to group name/title/narrator variants that refer to the same person.
 Capture POV ownership with pov_signal and pov_section_label; merge narrator labels into named identities when the text supports it.
-Prioritize POV characters, antagonists/enforcers/threat-bearing figures, named recurring characters, and load-bearing unnamed figures.
+Prioritize POV characters, antagonists/enforcers/threat-bearing figures, non-character symbolic/collective threat forces, named recurring characters, and load-bearing unnamed figures.
 Capture plot-critical objects, including weapons, discipline tools, surveillance/communication objects, charms, and objects that change hands or pay off later.
 Apply all HARD CAPS: max 15 characters, max 3 evidence anchors each, max 3 relationship signals each, no excerpt >120 chars.
 Fill demographic/identity fields ONLY from explicit text signals — never infer or assume.`;
