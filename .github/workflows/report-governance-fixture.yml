@@ -1,0 +1,31 @@
+name: Report Governance Fixture
+
+on:
+  pull_request:
+    paths:
+      - "scripts/validate-report-governance.mjs"
+      - "docs/governance/report-governance-failure-ledger.md"
+      - "fixtures/report-governance/**"
+      - ".github/workflows/report-governance-fixture.yml"
+  workflow_dispatch:
+
+jobs:
+  report-governance-fixture:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Run report governance regression fixture
+        run: |
+          node scripts/validate-report-governance.mjs \
+            --report ./fixtures/report-governance/cartel-babies/cartel-babies-failed-report.fixture.txt \
+            --source ./fixtures/report-governance/cartel-babies/cartel-babies-source.fixture.txt \
+            --entities ./fixtures/report-governance/cartel-babies/entities.json \
+            --expect-fail-codes REPORT_STATE_CONTRADICTION,SCORE_LEDGER_MISMATCH,CANONICAL_ENTITY_ALIAS_LEAK,QUOTE_FIDELITY_DRIFT
