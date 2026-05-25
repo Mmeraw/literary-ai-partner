@@ -79,6 +79,9 @@ const OBJECT_INTERNAL_FIELDS = new Set([
   "schema_version",
   "symbol_payoff_index",
   "object_presence_index",
+  "object_count",
+  "high_value_object_ids",
+  "symbol_payoff_items_v1",
 ]);
 
 // ─── Author-facing layer descriptions (permanent, locked) ───────────────────
@@ -1210,22 +1213,6 @@ export function RelationshipNetworkLayer({
 
 // ─── Layer 6 — Object / Symbol ────────────────────────────────────────────────
 
-const OBJECT_TYPE_TONE: Record<
-  string,
-  "oxblood" | "warn" | "gold" | "blue" | "neutral"
-> = {
-  weapon: "oxblood",
-  surveillance: "oxblood",
-  identity_token: "gold",
-  totem: "gold",
-  foreshadow: "warn",
-  trauma_anchor: "oxblood",
-  domestic_anchor: "neutral",
-  environmental: "neutral",
-  legal_document: "blue",
-  technology: "blue",
-};
-
 export function ObjectSymbolLayer({
   data,
 }: {
@@ -1245,6 +1232,16 @@ export function ObjectSymbolLayer({
     ? (items as Record<string, unknown>[])
     : [];
 
+  const payoffItems = Array.isArray(data.symbol_payoff_items_v1)
+    ? (data.symbol_payoff_items_v1 as Record<string, unknown>[])
+    : [];
+  const functionByName: Record<string, string> = {};
+  for (const p of payoffItems) {
+    const key = String(p.object ?? "");
+    const fn = p.first_function ? String(p.first_function) : null;
+    if (key && fn) functionByName[key] = fn;
+  }
+
   return (
     <LayerShell>
       <LayerTitle
@@ -1262,22 +1259,19 @@ export function ObjectSymbolLayer({
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           {itemArray.map((item, i) => {
-            const name = String(
-              item.object_name ?? item.name ?? `Object ${i + 1}`
-            );
-            const objectType = String(item.object_type ?? "");
-            const tone = OBJECT_TYPE_TONE[objectType] ?? "neutral";
-            const payoffStatus = String(
-              item.payoff_or_unresolved_status ?? item.payoff_status ?? ""
-            );
-            const anchors = item.evidence_anchors as string[] | null;
-
-            // Filter out internal schema fields
-            const displayFields = Object.entries(item).filter(
-              ([k]) =>
-                !OBJECT_INTERNAL_FIELDS.has(k) &&
-                !["object_name", "name", "object_type", "payoff_or_unresolved_status", "payoff_status", "evidence_anchors"].includes(k)
-            );
+            const name = String(item.object_name ?? item.name ?? `Object ${i + 1}`);
+            const holder = item.current_holder ? String(item.current_holder) : null;
+            const attachedChars = Array.isArray(item.attached_characters)
+              ? (item.attached_characters as unknown[])
+                  .map((c) => String(c))
+                  .filter((c) => c !== holder)
+              : [];
+            const transfers = Array.isArray(item.transfer_events)
+              ? (item.transfer_events as unknown[])
+              : [];
+            const payoff = item.payoff_description ? String(item.payoff_description) : null;
+            const critical = item.missed_if_absent_from_report === true;
+            const narrativeFunction = functionByName[name] ?? null;
 
             return (
               <CharacterCard key={i}>
@@ -1287,8 +1281,8 @@ export function ObjectSymbolLayer({
                     justifyContent: "space-between",
                     alignItems: "flex-start",
                     flexWrap: "wrap",
-                    gap: 10,
-                    marginBottom: 12,
+                    gap: 8,
+                    marginBottom: narrativeFunction ? 8 : 12,
                   }}
                 >
                   <span
@@ -1301,57 +1295,85 @@ export function ObjectSymbolLayer({
                   >
                     {name}
                   </span>
-                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                    {objectType && (
-                      <Pill label={objectType.replace(/_/g, " ")} tone={tone} />
-                    )}
-                    {payoffStatus && (
-                      <Pill
-                        label={payoffStatus.replace(/_/g, " ")}
-                        tone={
-                          payoffStatus.includes("unresolved")
-                            ? "warn"
-                            : payoffStatus.includes("paid")
-                              ? "green"
-                              : "neutral"
-                        }
-                      />
-                    )}
+                  {critical && <Pill label="Story-critical" tone="warn" />}
+                </div>
+
+                {narrativeFunction && (
+                  <p
+                    style={{
+                      margin: "0 0 12px",
+                      fontSize: 14,
+                      color: C.textMuted,
+                      fontStyle: "italic",
+                      lineHeight: 1.65,
+                    }}
+                  >
+                    {narrativeFunction}
+                  </p>
+                )}
+
+                {(holder || attachedChars.length > 0) && (
+                  <div
+                    style={{
+                      display: "flex",
+                      flexWrap: "wrap",
+                      gap: 8,
+                      alignItems: "center",
+                      marginBottom: 8,
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontSize: 12,
+                        color: C.textMuted,
+                        fontWeight: 600,
+                        letterSpacing: "0.04em",
+                      }}
+                    >
+                      Held by
+                    </span>
+                    {holder && <Pill label={holder} tone="neutral" />}
+                    {attachedChars.map((c, j) => (
+                      <Pill key={j} label={c} tone="neutral" />
+                    ))}
                   </div>
-                </div>
+                )}
 
-                <div>
-                  {item.owner_or_holder && (
-                    <FieldRow label="Owner / holder" value={item.owner_or_holder} />
-                  )}
-                  {item.first_appearance && (
-                    <FieldRow label="First appearance" value={item.first_appearance} />
-                  )}
-                  {item.function && (
-                    <FieldRow label="Function" value={item.function} />
-                  )}
-                  {item.recurrence && (
-                    <FieldRow label="Recurrence" value={item.recurrence} />
-                  )}
-                  {item.transformation && (
-                    <FieldRow label="Transformation" value={item.transformation} />
-                  )}
-                  {/* Render any remaining non-internal display fields */}
-                  {displayFields
-                    .filter(([k]) =>
-                      !["owner_or_holder", "first_appearance", "function", "recurrence", "transformation"].includes(k)
-                    )
-                    .filter(([, v]) => v !== null && v !== undefined)
-                    .map(([k, v]) => (
-                      <FieldRow key={k} label={k.replace(/_/g, " ")} value={v} />
-                    ))}
-                </div>
+                {payoff && (
+                  <p
+                    style={{
+                      margin: "8px 0 0",
+                      fontSize: 14,
+                      color: C.textMuted,
+                      lineHeight: 1.65,
+                    }}
+                  >
+                    <span style={{ fontWeight: 600, color: C.textPrimary }}>Payoff: </span>
+                    {payoff}
+                  </p>
+                )}
 
-                {anchors && anchors.length > 0 && (
-                  <div style={{ marginTop: 12, display: "flex", gap: 6, flexWrap: "wrap" }}>
-                    {anchors.map((a, j) => (
-                      <EvidenceTag key={j} id={a} />
-                    ))}
+                {transfers.length > 0 && (
+                  <div style={{ marginTop: 8 }}>
+                    <span
+                      style={{
+                        fontSize: 12,
+                        color: C.textMuted,
+                        fontWeight: 600,
+                        letterSpacing: "0.04em",
+                      }}
+                    >
+                      Changed hands
+                    </span>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 4 }}>
+                      {transfers.map((t, j) => (
+                        <Pill
+                          key={j}
+                          label={typeof t === "object" ? JSON.stringify(t) : String(t)}
+                          tone="neutral"
+                        />
+                      ))}
+                    </div>
                   </div>
                 )}
               </CharacterCard>
@@ -1359,19 +1381,6 @@ export function ObjectSymbolLayer({
           })}
         </div>
       )}
-
-      {/* Top-level scalar fields (excluding array/object keys already rendered) */}
-      {Object.entries(data)
-        .filter(
-          ([k]) =>
-            !["objects", "symbols", "items", "object_list"].includes(k) &&
-            !OBJECT_INTERNAL_FIELDS.has(k) &&
-            !Array.isArray(data[k])
-        )
-        .filter(([, v]) => v !== null && v !== undefined)
-        .map(([k, v]) => (
-          <FieldRow key={k} label={k.replace(/_/g, " ")} value={v} />
-        ))}
     </LayerShell>
   );
 }
