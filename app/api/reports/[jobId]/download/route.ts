@@ -12,7 +12,7 @@ import { Document, Packer, Paragraph, TextRun, HeadingLevel } from 'docx';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 type ExportFormat = 'pdf' | 'docx' | 'txt';
 type ExportableResult = EvaluationResultV1 | EvaluationResultV2;
