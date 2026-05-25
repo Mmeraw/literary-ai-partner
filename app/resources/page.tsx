@@ -1,50 +1,81 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 
 const resourceCards = [
   {
     title: "The Black Box Problem",
     href: "/black-box-problem",
-    copy: "Why writers need diagnosis before submission: publishing gives verdicts, not explanations.",
+    eyebrow: "Why RevisionGrade exists",
+    copy: "Publishing gives writers verdicts, not diagnoses. This page explains how RevisionGrade separates manuscript readiness from market rejection.",
   },
   {
     title: "Methodology",
     href: "/methodology",
-    copy: "How RevisionGrade evaluates manuscripts through criteria, evidence, evaluation depth, and revision restraint.",
+    eyebrow: "How evaluation works",
+    copy: "The criteria, evidence model, evaluation-depth doctrine, and Evaluate → Revise bridge behind manuscript diagnosis.",
   },
   {
     title: "Reliability / Editorial Doctrine",
     href: "/reliability",
-    copy: "Why author control, manuscript sovereignty, evidence, and scope discipline are built into the process.",
+    eyebrow: "Why authors stay in control",
+    copy: "Manuscript sovereignty, evidence over taste, scope discipline, voice protection, and author-in-the-loop revision.",
   },
   {
-    title: "Pricing Doctrine",
-    href: "/pricing",
-    copy: "Fixed-price readiness audit first. Metered, governed repair only after the diagnosis is clear.",
+    title: "Author FAQ",
+    href: "#author-faq",
+    eyebrow: "Before you evaluate",
+    copy: "Practical answers about scores, reports, evaluation modes, revision, human editors, and publishing outcomes.",
   },
   {
-    title: "Agent Readiness™",
-    href: "/agent-readiness",
-    copy: "Build manuscript submission materials: query letter, synopsis, query pitch, comparables, and author bio.",
+    title: "Privacy & Research Controls",
+    href: "#privacy-research-controls",
+    eyebrow: "Manuscript trust",
+    copy: "How uploaded work is treated, what external research means, and why the author controls what happens next.",
   },
   {
-    title: "Storygate Studio™",
-    href: "/storygate-studio",
-    copy: "Controlled manuscript discovery for readiness-vetted projects and verified publishing professionals.",
+    title: "Genre & Classification FAQ",
+    href: "#genre-classification-faq",
+    eyebrow: "Positioning matters",
+    copy: "Why genre selection affects reader expectations, market positioning, and how the report interprets evidence.",
+  },
+  {
+    title: "Storygate Studio™ FAQ",
+    href: "#storygate-faq",
+    eyebrow: "Controlled manuscript access",
+    copy: "How manuscript-only Storygate access, creator approval, package visibility, and verified publishing-professional review fit together.",
   },
 ];
 
-const faqs = [
+const evaluationModes = [
+  {
+    name: "Short-form evaluation",
+    scope: "Under 25,000 words",
+    copy: "For openings, chapters, excerpts, short stories, and partial submissions. Uses the 13 story criteria only; it does not claim full-manuscript continuity or WAVE-level repair governance.",
+  },
+  {
+    name: "Long-form evaluation",
+    scope: "25,000+ words",
+    copy: "For substantial manuscripts where RevisionGrade can assess manuscript-scale behavior: continuity, recurrence, payoff, pacing over distance, character development, and structural readiness.",
+  },
+  {
+    name: "Long-form multi-layer evaluation",
+    scope: "Complex 25,000+ word manuscripts",
+    copy: "For deeper architecture review using layered story evidence, long-form continuity, Golden Spine/WAVE governance where appropriate, and structural repair priorities.",
+  },
+];
+
+const authorFaqs = [
   {
     q: "What does RevisionGrade evaluate?",
-    a: "RevisionGrade evaluates manuscript-level craft, structure, reader trust, and readiness across thirteen story criteria. Longer manuscripts may also qualify for long-form or multi-layer analysis.",
+    a: "RevisionGrade evaluates manuscript-level craft, structure, reader trust, and readiness across thirteen story criteria. Longer manuscripts may qualify for long-form or multi-layer analysis when there is enough text to judge manuscript-scale behavior.",
   },
   {
     q: "Is this only a score?",
-    a: "No. A score is only useful when connected to evidence, confidence, issue severity, and revision priorities. RevisionGrade is designed to produce diagnosis, not just a number.",
+    a: "No. A score is only useful when connected to evidence, confidence, issue severity, and revision priority. RevisionGrade is designed to produce diagnosis, not just a number.",
   },
   {
-    q: "What are the evaluation modes?",
-    a: "Short-form evaluations cover submissions under 25,000 words and use the 13 story criteria only. Long-form evaluations begin at 25,000+ words and add manuscript-scale continuity. Long-form multi-layer evaluations add deeper architecture, layered evidence, proprietary repair governance, and continuity analysis where appropriate.",
+    q: "Does every evaluation get Golden Spine or WAVE analysis?",
+    a: "No. Short-form evaluations under 25,000 words use the 13 story criteria only. Long-form and multi-layer evaluations are the appropriate contexts for manuscript-scale continuity and deeper repair-governance logic.",
   },
   {
     q: "Does RevisionGrade rewrite my voice?",
@@ -52,7 +83,7 @@ const faqs = [
   },
   {
     q: "Does RevisionGrade replace human editors?",
-    a: "No. RevisionGrade solves a different problem: ungoverned editing, scope confusion, and opaque diagnosis. It helps distinguish structural repair, line polish, market positioning, and voice protection before the author spends money on the wrong intervention.",
+    a: "No. RevisionGrade solves a different problem: opaque diagnosis, scope confusion, and ungoverned repair. It helps distinguish structural repair, line polish, market positioning, and voice protection before the author spends money on the wrong intervention.",
   },
   {
     q: "Does RevisionGrade guarantee publication or representation?",
@@ -60,22 +91,74 @@ const faqs = [
   },
 ];
 
+const privacyControls = [
+  "Uploaded manuscripts are treated as author-owned creative work, not public content.",
+  "Reports diagnose the submitted manuscript; they do not claim authorship or replace the author’s judgment.",
+  "External research, where available, should support market/context checks rather than rewrite or expose manuscript text.",
+  "Storygate visibility is creator-controlled and intended for approved manuscript packages, not public indexing.",
+];
+
+const genreFaqs = [
+  {
+    q: "Why does primary genre matter?",
+    a: "Genre changes reader promises. A Gothic horror manuscript, a literary family saga, a thriller, and a memoir create different expectations for pacing, closure, marketability, and evidence interpretation.",
+  },
+  {
+    q: "Can a manuscript have more than one genre?",
+    a: "Yes. RevisionGrade can recognize hybrid signals, but the primary classification still matters because the report needs a stable shelf and reader-expectation frame.",
+  },
+  {
+    q: "Does genre override craft diagnosis?",
+    a: "No. Genre frames expectations; it does not excuse weak evidence, unclear stakes, unstable voice, or missing narrative pressure.",
+  },
+];
+
+const storygateFaqs = [
+  {
+    q: "What is Storygate Studio right now?",
+    a: "Storygate Studio is a controlled manuscript-access layer for readiness-vetted book projects and verified publishing professionals. It is manuscript-first and publishing-facing.",
+  },
+  {
+    q: "Who controls visibility?",
+    a: "The creator controls whether a manuscript project is prepared for Storygate consideration. Access should be requested, approved, and logged rather than treated as open browsing.",
+  },
+  {
+    q: "What materials belong in a manuscript package?",
+    a: "Query letter, synopsis, author bio, comparables, manuscript positioning, sample pages or manuscript access, and a readiness audit where available.",
+  },
+];
+
+function Eyebrow({ children }: { children: ReactNode }) {
+  return <p className="font-rg-mono text-xs uppercase tracking-[0.24em] text-rg-gold">{children}</p>;
+}
+
+function SectionHeader({ eyebrow, title, copy }: { eyebrow: string; title: string; copy: string }) {
+  return (
+    <div className="max-w-4xl">
+      <Eyebrow>{eyebrow}</Eyebrow>
+      <h2 className="mt-4 font-rg-serif text-4xl leading-tight md:text-5xl">{title}</h2>
+      <p className="mt-5 text-lg leading-8 text-rg-cream2/75">{copy}</p>
+    </div>
+  );
+}
+
 export default function ResourcesPage() {
   return (
     <div className="bg-rg-ink text-rg-cream">
       <section className="mx-auto max-w-7xl px-6 py-20">
-        <p className="font-rg-mono text-xs uppercase tracking-[0.24em] text-rg-gold">Resources</p>
+        <Eyebrow>Resources</Eyebrow>
         <h1 className="mt-6 max-w-5xl font-rg-serif text-5xl leading-tight md:text-6xl">
-          Resources for serious manuscript evaluation.
+          The trust center for serious manuscript evaluation.
         </h1>
         <p className="mt-6 max-w-3xl text-lg leading-8 text-rg-cream2/80">
-          Learn how RevisionGrade separates manuscript readiness from market rejection, evaluates long-form prose, protects author control, and turns diagnosis into governed revision decisions.
+          Start here to understand what RevisionGrade evaluates, what it does not promise, how evaluation depth is determined, and how diagnosis turns into author-controlled revision.
         </p>
 
         <div className="mt-12 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {resourceCards.map((item) => (
             <Link key={item.title} href={item.href} className="border border-rg-cream2/12 bg-rg-ink2/60 p-6 transition hover:border-rg-gold/70">
-              <h2 className="font-rg-serif text-2xl text-rg-cream">{item.title}</h2>
+              <p className="font-rg-mono text-[0.65rem] uppercase tracking-[0.18em] text-rg-gold">{item.eyebrow}</p>
+              <h2 className="mt-3 font-rg-serif text-2xl text-rg-cream">{item.title}</h2>
               <p className="mt-4 leading-7 text-rg-cream2/75">{item.copy}</p>
               <p className="mt-5 font-rg-mono text-xs uppercase tracking-[0.18em] text-rg-gold">Open →</p>
             </Link>
@@ -85,12 +168,81 @@ export default function ResourcesPage() {
 
       <section className="border-y border-rg-cream2/10 bg-rg-ink2/50">
         <div className="mx-auto max-w-7xl px-6 py-20">
-          <p className="font-rg-mono text-xs uppercase tracking-[0.24em] text-rg-gold">Author FAQ</p>
-          <h2 className="mt-4 max-w-4xl font-rg-serif text-4xl leading-tight md:text-5xl">
-            Practical answers before you evaluate.
-          </h2>
-          <div className="mt-10 grid gap-4 md:grid-cols-2">
-            {faqs.map((item) => (
+          <SectionHeader
+            eyebrow="Evaluation depth"
+            title="Different manuscript lengths need different promises."
+            copy="RevisionGrade should not pretend a short excerpt can support the same diagnosis as a full manuscript. The evaluation mode controls what the report can responsibly claim."
+          />
+          <div className="mt-10 grid gap-4 lg:grid-cols-3">
+            {evaluationModes.map((mode) => (
+              <article key={mode.name} className="border border-rg-cream2/12 bg-rg-ink/60 p-6">
+                <p className="font-rg-mono text-[0.68rem] uppercase tracking-[0.16em] text-rg-gold">{mode.scope}</p>
+                <h3 className="mt-3 font-rg-serif text-2xl text-rg-cream">{mode.name}</h3>
+                <p className="mt-4 leading-7 text-rg-cream2/75">{mode.copy}</p>
+              </article>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section id="author-faq" className="mx-auto max-w-7xl scroll-mt-24 px-6 py-20">
+        <SectionHeader
+          eyebrow="Author FAQ"
+          title="Practical answers before you evaluate."
+          copy="These answers keep the product promise narrow, credible, and manuscript-first: diagnosis before polish, evidence before verdict, and author control before revision."
+        />
+        <div className="mt-10 grid gap-4 md:grid-cols-2">
+          {authorFaqs.map((item) => (
+            <article key={item.q} className="border border-rg-cream2/12 bg-rg-ink2/60 p-6">
+              <h3 className="font-rg-serif text-2xl text-rg-cream">{item.q}</h3>
+              <p className="mt-4 leading-7 text-rg-cream2/75">{item.a}</p>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section id="privacy-research-controls" className="border-y border-rg-cream2/10 bg-rg-ink2/50 scroll-mt-24">
+        <div className="mx-auto grid max-w-7xl gap-10 px-6 py-20 lg:grid-cols-[0.85fr_1.15fr]">
+          <SectionHeader
+            eyebrow="Privacy & research controls"
+            title="Manuscript trust is part of the product."
+            copy="This hub now surfaces the current privacy doctrine. A dedicated Privacy & Research Controls page should expand this into a full trust document next."
+          />
+          <div className="grid gap-3 sm:grid-cols-2">
+            {privacyControls.map((item) => (
+              <div key={item} className="border border-rg-cream2/12 bg-rg-ink/70 p-5 leading-7 text-rg-cream2/80">
+                {item}
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section id="genre-classification-faq" className="mx-auto max-w-7xl scroll-mt-24 px-6 py-20">
+        <SectionHeader
+          eyebrow="Genre & classification FAQ"
+          title="Classification is not decoration. It controls reader expectations."
+          copy="Genre and form help the system understand what kind of promise the manuscript is making before it diagnoses whether that promise holds."
+        />
+        <div className="mt-10 grid gap-4 md:grid-cols-3">
+          {genreFaqs.map((item) => (
+            <article key={item.q} className="border border-rg-cream2/12 bg-rg-ink2/60 p-6">
+              <h3 className="font-rg-serif text-2xl text-rg-cream">{item.q}</h3>
+              <p className="mt-4 leading-7 text-rg-cream2/75">{item.a}</p>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section id="storygate-faq" className="border-y border-rg-cream2/10 bg-rg-ink2/50 scroll-mt-24">
+        <div className="mx-auto max-w-7xl px-6 py-20">
+          <SectionHeader
+            eyebrow="Storygate Studio FAQ"
+            title="Controlled manuscript access, not open slush."
+            copy="Storygate Studio should remain manuscript-only until additional workflows exist. The current promise is controlled discovery for readiness-vetted book projects and verified publishing professionals."
+          />
+          <div className="mt-10 grid gap-4 md:grid-cols-3">
+            {storygateFaqs.map((item) => (
               <article key={item.q} className="border border-rg-cream2/12 bg-rg-ink/60 p-6">
                 <h3 className="font-rg-serif text-2xl text-rg-cream">{item.q}</h3>
                 <p className="mt-4 leading-7 text-rg-cream2/75">{item.a}</p>
@@ -101,10 +253,13 @@ export default function ResourcesPage() {
       </section>
 
       <section className="mx-auto max-w-5xl px-6 py-20 text-center">
-        <p className="font-rg-mono text-xs uppercase tracking-[0.24em] text-rg-gold">Start with diagnosis</p>
+        <Eyebrow>Start with diagnosis</Eyebrow>
         <h2 className="mt-5 font-rg-serif text-4xl leading-tight md:text-5xl">
           Before you submit, know where the manuscript stands.
         </h2>
+        <p className="mx-auto mt-5 max-w-2xl leading-8 text-rg-cream2/75">
+          Use the resource path to understand the standard, then begin a manuscript evaluation when you are ready for evidence-backed diagnosis.
+        </p>
         <div className="mt-10 flex flex-wrap justify-center gap-4 font-rg-mono text-xs uppercase tracking-[0.18em]">
           <Link href="/evaluate" className="border border-rg-gold bg-rg-gold px-5 py-3 text-rg-ink transition hover:bg-transparent hover:text-rg-gold">Begin Evaluation</Link>
           <Link href="/black-box-problem" className="border border-rg-cream2/30 px-5 py-3 text-rg-cream transition hover:border-rg-gold hover:text-rg-gold">Read the Black Box Problem</Link>
