@@ -101,10 +101,33 @@ function countWords(text: string): number {
   return text.trim().split(/\s+/).filter(Boolean).length;
 }
 
+function downloadTxt(filename: string, content: string) {
+  const blob = new Blob([content], { type: "text/plain" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+const SAVE_BTN: React.CSSProperties = {
+  fontFamily: "monospace",
+  fontSize: "0.6875rem",
+  letterSpacing: "0.08em",
+  textTransform: "uppercase",
+  color: "#7B7B7B",
+  background: "transparent",
+  border: "1px solid #7B7B7B",
+  padding: "0.375rem 0.875rem",
+  cursor: "pointer",
+};
+
 export default function SynopsisPage() {
   const [selected, setSelected] = useState<SynopsisLength>("standard");
   const [content,  setContent]  = useState("");
   const [approved, setApproved] = useState(false);
+  const generatedSynopsis = content;
 
   const wordCount = countWords(content);
   const limits: Record<SynopsisLength, [number, number]> = {
@@ -185,6 +208,25 @@ export default function SynopsisPage() {
             }}
           />
         </div>
+
+        {generatedSynopsis && (
+          <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem" }}>
+            <button
+              type="button"
+              onClick={() => navigator.clipboard.writeText(generatedSynopsis)}
+              style={SAVE_BTN}
+            >
+              Copy
+            </button>
+            <button
+              type="button"
+              onClick={() => downloadTxt("author-synopsis.txt", generatedSynopsis)}
+              style={SAVE_BTN}
+            >
+              Save .txt
+            </button>
+          </div>
+        )}
 
         <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
           {["Generate", "Regenerate", "Improve", "Copy", "Restore Version"].map(label => (

@@ -547,6 +547,18 @@ export function EvaluationPoller({
                 />
               </div>
               <p className="text-xs text-gray-500">{pd.helperText}</p>
+              {job.status === 'running' && pollCount > 10 && !pd.hardStop && (
+                <p className="text-xs text-gray-500">
+                  Experiencing delays?{' '}
+                  <button
+                    type="button"
+                    onClick={() => window.location.reload()}
+                    className="underline text-gray-600 cursor-pointer"
+                  >
+                    Refresh
+                  </button>
+                </p>
+              )}
             </div>
           );
         })()}

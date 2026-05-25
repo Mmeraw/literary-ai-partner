@@ -84,10 +84,33 @@ const T = {
   mono: "'Inter', 'Courier New', monospace",
 };
 
+function downloadTxt(filename: string, content: string) {
+  const blob = new Blob([content], { type: "text/plain" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+const SAVE_BTN: React.CSSProperties = {
+  fontFamily: "monospace",
+  fontSize: "0.6875rem",
+  letterSpacing: "0.08em",
+  textTransform: "uppercase",
+  color: "#7B7B7B",
+  background: "transparent",
+  border: "1px solid #7B7B7B",
+  padding: "0.375rem 0.875rem",
+  cursor: "pointer",
+};
+
 export default function PitchPage() {
   const [elevator,         setElevator]        = useState("");
   const [paragraph,        setParagraph]        = useState("");
   const [elevatorApproved, setElevatorApproved] = useState(false);
+  const generatedPitch = [elevator, paragraph].filter(s => s.trim().length > 0).join("\n\n");
 
   return (
     <div style={{ minHeight: "100vh", backgroundColor: T.bg, color: T.cream, fontFamily: T.mono }}>
@@ -194,6 +217,25 @@ export default function PitchPage() {
             ))}
           </div>
         </div>
+
+        {generatedPitch && (
+          <div style={{ display: "flex", gap: "0.5rem", marginTop: "1.5rem", marginBottom: "1rem" }}>
+            <button
+              type="button"
+              onClick={() => navigator.clipboard.writeText(generatedPitch)}
+              style={SAVE_BTN}
+            >
+              Copy
+            </button>
+            <button
+              type="button"
+              onClick={() => downloadTxt("author-pitch.txt", generatedPitch)}
+              style={SAVE_BTN}
+            >
+              Save .txt
+            </button>
+          </div>
+        )}
 
         <div style={{ marginTop: "2rem" }}>
           <Link href="/agent-readiness" style={{ fontFamily: T.mono, fontSize: "0.5625rem", color: T.dim, letterSpacing: "0.1em", textDecoration: "none" }}>

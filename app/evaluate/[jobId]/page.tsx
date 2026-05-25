@@ -12,6 +12,7 @@ import {
   type CriterionKey,
 } from "@/schemas/criteria-keys";
 import { EvaluationPoller, type JobState } from "@/components/EvaluationPoller";
+import DownloadReportButton from "@/components/reports/DownloadReportButton";
 import {
   buildTopRecommendations,
   normalizeRecommendationActionForDisplay,
@@ -518,9 +519,12 @@ export default async function EvaluationReportPage({
             </p>
           )}
         </div>
-        <Link href="/evaluate" className="text-sm text-blue-600 hover:text-blue-700 underline shrink-0">
-          Back to Evaluate
-        </Link>
+        <div className="flex items-center gap-4 shrink-0">
+          <DownloadReportButton jobId={jobId} />
+          <Link href="/evaluate" className="text-sm text-blue-600 hover:text-blue-700 underline">
+            Back to Evaluate
+          </Link>
+        </div>
       </div>
 
       {showApprovalBanner && !isComplete && (
@@ -907,6 +911,9 @@ export default async function EvaluationReportPage({
           </section>
         </>
       )}
+      <div className="mt-8 flex justify-end">
+        <DownloadReportButton jobId={jobId} />
+      </div>
       </main>
     </div>
   );

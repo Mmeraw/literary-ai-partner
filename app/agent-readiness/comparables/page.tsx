@@ -96,6 +96,28 @@ type Comp = { title: string; author: string; why: string; differentiator: string
 
 const EMPTY_COMP: Comp = { title: "", author: "", why: "", differentiator: "" };
 
+function downloadTxt(filename: string, content: string) {
+  const blob = new Blob([content], { type: "text/plain" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+const SAVE_BTN: React.CSSProperties = {
+  fontFamily: "monospace",
+  fontSize: "0.6875rem",
+  letterSpacing: "0.08em",
+  textTransform: "uppercase",
+  color: "#7B7B7B",
+  background: "transparent",
+  border: "1px solid #7B7B7B",
+  padding: "0.375rem 0.875rem",
+  cursor: "pointer",
+};
+
 export default function ComparablesPage() {
   const [comps,       setComps]       = useState<Comp[]>([{ ...EMPTY_COMP }, { ...EMPTY_COMP }]);
   const [genreLane,   setGenreLane]   = useState("");
@@ -111,6 +133,30 @@ export default function ComparablesPage() {
     positioning: "",
   });
   const [approved, setApproved] = useState(false);
+
+  const generatedComps = (() => {
+    const lines: string[] = [];
+    comps.forEach((c, i) => {
+      const filled = c.title || c.author || c.why || c.differentiator;
+      if (!filled) return;
+      lines.push(`Comp ${i + 1}`);
+      if (c.title) lines.push(`Title: ${c.title}`);
+      if (c.author) lines.push(`Author: ${c.author}`);
+      if (c.why) lines.push(`Why this comp fits: ${c.why}`);
+      if (c.differentiator) lines.push(`Differentiator: ${c.differentiator}`);
+      lines.push("");
+    });
+    if (compSentence) lines.push(`Query Letter Comp Sentence:\n${compSentence}`, "");
+    if (genreLane) lines.push(`Genre Lane: ${genreLane}`);
+    if (audience) lines.push(`Reader Audience: ${audience}`);
+    if (positioning) lines.push("", `Market Positioning Statement:\n${positioning}`);
+    const briefEntries = Object.entries(appealBrief).filter(([, v]) => v && v.trim());
+    if (briefEntries.length > 0) {
+      lines.push("", "Agent Appeal Brief:");
+      for (const [k, v] of briefEntries) lines.push(`  ${k}: ${v}`);
+    }
+    return lines.join("\n").trim();
+  })();
 
   function updateComp(i: number, field: keyof Comp, value: string) {
     setComps(prev => { const n = [...prev]; n[i] = { ...n[i], [field]: value }; return n; });
@@ -292,6 +338,25 @@ export default function ComparablesPage() {
             );
           })}
         </div>
+
+        {generatedComps && (
+          <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem" }}>
+            <button
+              type="button"
+              onClick={() => navigator.clipboard.writeText(generatedComps)}
+              style={SAVE_BTN}
+            >
+              Copy
+            </button>
+            <button
+              type="button"
+              onClick={() => downloadTxt("author-comparables.txt", generatedComps)}
+              style={SAVE_BTN}
+            >
+              Save .txt
+            </button>
+          </div>
+        )}
 
         {/* Actions */}
         <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>

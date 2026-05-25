@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { getAuthenticatedUser } from '@/lib/supabase/server';
 import { approveLedgerAction, rejectLedgerAction } from './actions';
 import { StoryLedgerShell } from '@/components/ledger/StoryLedgerShell';
+import LedgerDownloadButton from '@/components/ledger/LedgerDownloadButton';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -172,20 +173,25 @@ export default async function StoryLedgerPage({
   })();
 
   return (
-    <StoryLedgerShell
-      jobId={job.id}
-      manuscriptTitle={manuscriptTitle}
-      atReviewGate={atReviewGate}
-      approved={approved}
-      justApproved={justApproved}
-      justRejected={justRejected}
-      storyLayers={storyLayers}
-      layerCompletionSummary={layerCompletionSummary}
-      hardFails={hardFails}
-      hasHardFails={hasHardFails}
-      acceptedLedger={acceptedLedger}
-      approveLedgerAction={approveLedgerAction}
-      rejectLedgerAction={rejectLedgerAction}
-    />
+    <>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '1rem 1.5rem 0' }}>
+        <LedgerDownloadButton jobId={job.id} />
+      </div>
+      <StoryLedgerShell
+        jobId={job.id}
+        manuscriptTitle={manuscriptTitle}
+        atReviewGate={atReviewGate}
+        approved={approved}
+        justApproved={justApproved}
+        justRejected={justRejected}
+        storyLayers={storyLayers}
+        layerCompletionSummary={layerCompletionSummary}
+        hardFails={hardFails}
+        hasHardFails={hasHardFails}
+        acceptedLedger={acceptedLedger}
+        approveLedgerAction={approveLedgerAction}
+        rejectLedgerAction={rejectLedgerAction}
+      />
+    </>
   );
 }

@@ -86,6 +86,28 @@ const T = {
   mono: "'Inter', 'Courier New', monospace",
 };
 
+function downloadTxt(filename: string, content: string) {
+  const blob = new Blob([content], { type: "text/plain" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+const SAVE_BTN: React.CSSProperties = {
+  fontFamily: "monospace",
+  fontSize: "0.6875rem",
+  letterSpacing: "0.08em",
+  textTransform: "uppercase",
+  color: "#7B7B7B",
+  background: "transparent",
+  border: "1px solid #7B7B7B",
+  padding: "0.375rem 0.875rem",
+  cursor: "pointer",
+};
+
 const INPUT_FIELDS: { id: string; label: string; placeholder: string; required: boolean; rows?: number }[] = [
   { id: "credits",      label: "Writing Credits",            placeholder: "Published works, titles, publishers, years...",                            required: false },
   { id: "education",    label: "Education",                  placeholder: "Degrees, institutions, fields of study...",                               required: false },
@@ -260,6 +282,26 @@ export default function AuthorBioPage() {
                 boxSizing: "border-box",
               }}
             />
+          </div>
+        )}
+
+        {/* Copy + Save .txt */}
+        {generatedBio && (
+          <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem" }}>
+            <button
+              type="button"
+              onClick={() => navigator.clipboard.writeText(generatedBio)}
+              style={SAVE_BTN}
+            >
+              Copy
+            </button>
+            <button
+              type="button"
+              onClick={() => downloadTxt("author-bio.txt", generatedBio)}
+              style={SAVE_BTN}
+            >
+              Save .txt
+            </button>
           </div>
         )}
 

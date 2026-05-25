@@ -95,10 +95,36 @@ function countWords(text: string): number {
   return text.trim().split(/\s+/).filter(Boolean).length;
 }
 
+function downloadTxt(filename: string, content: string) {
+  const blob = new Blob([content], { type: "text/plain" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+const SAVE_BTN: React.CSSProperties = {
+  fontFamily: "monospace",
+  fontSize: "0.6875rem",
+  letterSpacing: "0.08em",
+  textTransform: "uppercase",
+  color: "#7B7B7B",
+  background: "transparent",
+  border: "1px solid #7B7B7B",
+  padding: "0.375rem 0.875rem",
+  cursor: "pointer",
+};
+
 export default function QueryLetterPage() {
   const [body, setBody] = useState("");
   const [unique, setUnique] = useState("");
   const [approved, setApproved] = useState(false);
+  const generatedLetter = [
+    unique.trim() ? `What Makes This Novel Unique:\n\n${unique.trim()}` : "",
+    body.trim() ? `Query Letter:\n\n${body.trim()}` : "",
+  ].filter(Boolean).join("\n\n---\n\n");
 
   const wordCount = countWords(body);
   const overLimit = wordCount > WORD_LIMIT;
@@ -194,6 +220,25 @@ export default function QueryLetterPage() {
             </p>
           )}
         </div>
+
+        {generatedLetter && (
+          <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem" }}>
+            <button
+              type="button"
+              onClick={() => navigator.clipboard.writeText(generatedLetter)}
+              style={SAVE_BTN}
+            >
+              Copy
+            </button>
+            <button
+              type="button"
+              onClick={() => downloadTxt("query-letter.txt", generatedLetter)}
+              style={SAVE_BTN}
+            >
+              Save .txt
+            </button>
+          </div>
+        )}
 
         {/* Action row */}
         <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", marginBottom: "2rem" }}>
