@@ -595,10 +595,7 @@ function Module1StoryLayer({
 
               {showCommentFor === activeLayer ? (
                 <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 2 }}>
-                    <SectionLabel>Comment for {LAYER_LABELS[activeLayer]}</SectionLabel>
-                    <MicButton setValue={setPendingComment} />
-                  </div>
+                  <SectionLabel>Comment for {LAYER_LABELS[activeLayer]}</SectionLabel>
                   <textarea
                     value={pendingComment}
                     onChange={(e) => setPendingComment(e.target.value)}
@@ -620,7 +617,7 @@ function Module1StoryLayer({
                       boxSizing: "border-box" as const,
                     }}
                   />
-                  <div style={{ display: "flex", gap: 8 }}>
+                  <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                     <button
                       onClick={() => confirmComment(activeLayer, decisions[activeLayer].status === "undecided" ?
                         (pendingComment.trim() ? "approved_with_comment" : "approved") :
@@ -630,6 +627,7 @@ function Module1StoryLayer({
                     >
                       Save comment
                     </button>
+                    <MicButton setValue={setPendingComment} />
                     <button
                       onClick={() => { setShowCommentFor(null); setPendingComment(""); }}
                       style={{ padding: "8px 16px", borderRadius: 8, border: `1px solid ${P.border}`, background: "transparent", color: P.boneAlt, fontSize: 12, cursor: "pointer" }}
@@ -930,10 +928,7 @@ function Module2ReviewGate({
 
         {showNotes && (
           <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 4 }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <SectionLabel>Author notes</SectionLabel>
-              <MicButton setValue={setNotes} />
-            </div>
+            <SectionLabel>Author notes</SectionLabel>
             <textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
@@ -954,10 +949,11 @@ function Module2ReviewGate({
                 boxSizing: "border-box" as const,
               }}
             />
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 6 }}>
-              <SectionLabel>Specific edit requests</SectionLabel>
-              <MicButton setValue={setEditText} />
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <MicButton setValue={setNotes} />
+              <span style={{ fontSize: 11, color: "rgba(242,239,234,0.4)" }}>Speak to add to notes</span>
             </div>
+            <SectionLabel>Specific edit requests</SectionLabel>
             <textarea
               value={editText}
               onChange={(e) => setEditText(e.target.value)}
@@ -978,6 +974,10 @@ function Module2ReviewGate({
                 boxSizing: "border-box" as const,
               }}
             />
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <MicButton setValue={setEditText} />
+              <span style={{ fontSize: 11, color: "rgba(242,239,234,0.4)" }}>Speak to add edit requests</span>
+            </div>
           </div>
         )}
       </Card>
