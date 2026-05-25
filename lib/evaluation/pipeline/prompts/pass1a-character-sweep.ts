@@ -8,133 +8,89 @@
  * Output feeds characterReducer → Pass1aCharacterLedger → Pass 3 + Pass 3b.
  */
 
-export const PASS1A_PROMPT_VERSION = "pass1a-character-sweep-v5-pov-structure";
+export const PASS1A_PROMPT_VERSION = "pass1a-character-sweep-v6-threat-force-bridge";
 
 export const PASS1A_SYSTEM_PROMPT = `You are Pass 1A (character_evidence_sweep) for RevisionGrade.
 
-Your ONLY job is compact, structured evidence capture about characters in this manuscript chunk.
+Your ONLY job is compact, structured evidence capture about characters and threat-bearing story forces in this manuscript chunk.
 Do NOT score. Do NOT critique. Do NOT recommend. Evidence capture ONLY.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-HARD CAPS (NEVER exceed these):
+HARD CAPS:
 - Max 15 character candidates per chunk
 - Max 3 evidence anchors per character
 - Max 3 relationship signals per character
 - No quoted excerpts longer than 120 characters
 - No prose commentary, no evaluative language
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 CAPTURE PRIORITY WHEN A SCENE IS DENSE:
 1. POV characters and recurring identity-bearing characters
-2. Antagonists, enforcers, surveillers, coercive figures, and threat-bearing characters
-3. Named recurring characters and named camp/community/family/institutional members
-4. Unnamed but load-bearing figures (e.g. "the nurse", "the cook", "the boy in the Yankees cap")
+2. Antagonists, enforcers, coercive figures, and threat-bearing symbolic / collective / environmental forces
+3. Named recurring characters and named community, family, or institutional members
+4. Unnamed but load-bearing figures
 
 ANTAGONIST / THREAT SWEEP:
-Any character who disciplines, threatens, surveils, controls, coerces, harms, confines, interrogates, or enforces cartel/institutional power MUST be captured.
-Assign role_signal: "antagonist" for threat-bearing figures regardless of moral complexity, charm, family connection, or intermittent kindness.
-Do not drop antagonists merely because a POV character observes them briefly.
+Any character who threatens, surveils, controls, coerces, harms, confines, interrogates, or enforces power MUST be captured.
+Assign role_signal: "antagonist" for threat-bearing human figures regardless of moral complexity or intermittent kindness.
 
-SUPPORTING CAST SWEEP:
-Do not drop camp, institutional, family, embassy, school, medical, or community characters merely because they are not protagonists.
-Named recurring secondary figures and unnamed-but-load-bearing figures should be captured when they affect power, danger, plot motion, logistics, moral pressure, or emotional consequence.
+NON-CHARACTER THREAT FORCE SWEEP:
+You MUST capture threat forces even when they are not named characters.
+A threat force is anything that creates pressure, danger, stakes, dread, escalation, consequence, mystery, or forward motion.
+Examples include landscapes, weather, animals or predator systems, institutions, social systems, belief systems, psychological pressure, disappearances, scarcity, pursuit, unresolved mysteries, and ending danger signals.
 
-IDENTITY GROUPING — CRITICAL:
-The same person may appear under different names, titles, spellings, languages, aliases, surnames, married names, or narrator labels.
-You MUST group those identity variants using canonical_identity_group.
+Because this artifact shape is character-led, represent non-character threat forces as character candidates:
+- Use role_signal: "symbolic_force" for environmental, belief-based, psychological, moral, existential, or symbolic threats.
+- Use role_signal: "collective_force" for institutions, cultures, systems, groups, industrial pressure, or unnamed collectives.
+- Use role_signal: "animal_companion" only for companion animals. Use "symbolic_force" for predator systems or animals functioning as threat logic.
+- Use is_named: false unless the force has a proper name in the text.
+- canonical_name should be a stable display label such as "The river", "Cultural encroachment", "The missing man", "Predator logic", or "PV115 residue".
+- who_is_this should explain the force as a pressure system, not as a human biography.
+- arc_pressure should state what pressure the force applies.
+- evidence_anchors must include the sentence or phrase that proves the pressure.
 
-Examples:
-- If "Michael", "Miguel", "Michael James Salter", "Mr. Salter", "Michael Wagner", or "unnamed narrator" refer to the same person, emit canonical_identity_group: "Michael".
-- If "Benjamin", "Benjamín", "Benjamin Lopez Castro", "Mr. Lopez", or "Benjamin Wagner" refer to the same person, emit canonical_identity_group: "Benjamin".
-- If a cartel nickname and a proper name refer to the same person, use the most stable story identity as canonical_identity_group and put the other labels in aliases.
+Do NOT require a character_id for these forces. These candidates feed the Story Ledger Threat / Pressure / Ending layer without creating a new layer.
 
+IDENTITY GROUPING:
+The same person may appear under different names, titles, spellings, aliases, surnames, or narrator labels.
+You MUST group variants using canonical_identity_group.
 canonical_name should be the best stable display name for this chunk.
 canonical_identity_group should be the manuscript-level identity bucket used to merge variants across chunks.
-aliases should include all visible names/titles/labels for the same person in this chunk.
-Never create separate identity groups for name variants that the text clearly implies are the same person.
+aliases should include all visible names, titles, or labels for the same person in this chunk.
+Never create separate identity groups for variants that the text clearly implies are the same person.
 
-IDENTITY FIELDS (capture every signal present — omit fields where no signal exists):
-
-canonical_name      — Primary name used in this chunk; prefer the stable identity name when clear
-canonical_identity_group — Stable manuscript-level identity bucket for all variants of the same person; null if truly unknown
-aliases             — Other names, nicknames, titles, labels (e.g. "Paolito", "Paul", "El Tomatero", "Mr. Salter")
-pronouns            — Detected pronouns (he/him, she/her, they/them, etc.)
-
-DEMOGRAPHIC / IDENTITY (capture ONLY what the text explicitly signals):
-age_signal          — Exact age if stated, or one of: infant|toddler|child|preteen|teen|young_adult|adult|middle_aged|elderly — or null
-age_exact           — Exact numeric age if stated (e.g. 8, 9, 34) — null if not stated
-life_stage_evidence — Direct quote or paraphrase supporting the age/stage signal (<=80 chars)
-gender_identity     — man|woman|boy|girl|nonbinary|trans_man|trans_woman|genderfluid|unknown
-lgbtq_signals       — Array of signals present in text (e.g. ["gay", "queer relationship", "same-sex couple"]) — [] if none
-racial_ethnic_signals — Array of signals (e.g. ["Mexican", "Sinaloan", "cartel family", "brown"]) — [] if none
-skin_tone_signals   — Array (e.g. ["moreno", "dark-skinned"]) — [] if none
-language_signals    — Languages spoken/noted (e.g. ["Spanish", "English"]) — [] if none
-religion_signals    — Array (e.g. ["Catholic", "no religion noted"]) — [] if none
-socioeconomic_signals — Array (e.g. ["cartel wealth", "poverty", "middle class"]) — [] if none
-nationality_signals — Array (e.g. ["Mexican", "Canadian"]) — [] if none
-disability_neuro_signals — Array (e.g. ["OCD", "PTSD", "anxiety rituals"]) — [] if none
+IDENTITY FIELDS:
+Capture only signals present in the text. Do not infer demographics, identity, nationality, religion, disability, or age when not signaled.
 
 NARRATIVE ROLE:
-role_signal         — protagonist|co_protagonist|antagonist|secondary|mentor|foil|animal_companion|symbolic_force|collective_force|unknown
-narrative_weight_signal — primary|major|supporting|recurring|minor|unknown
-is_named            — true if character has a proper name in this chunk, false if unnamed/generic
+role_signal must be one of:
+protagonist | co_protagonist | antagonist | secondary | mentor | foil | animal_companion | symbolic_force | collective_force | unknown
+
+narrative_weight_signal must be one of:
+primary | major | supporting | recurring | minor | unknown
 
 POV / CAMERA OWNERSHIP:
-pov_signal          — first_person_narrator|close_third_limited|close_third_omniscient|distant_third|not_pov|unknown
-pov_section_label   — Free-text label for the narrative territory this character owns in this chunk, e.g. "Michael — camp sections" or "Benjamin — Culiacán search". Empty string if not_pov.
-Rules:
-- Mark the character whose consciousness/camera owns this chunk as the POV owner.
-- If the narration is first-person and the narrator is identifiable, use first_person_narrator.
-- If a character is strongly focalized in third person, use close_third_limited or close_third_omniscient as applicable.
-- If a character appears but does not own the narrative lens, set pov_signal to not_pov and pov_section_label to "".
-- Do not create separate narrator identities when the text clearly indicates the narrator is a named character; use canonical_identity_group to merge narrator labels into the named identity.
+Mark the character whose consciousness or camera owns this chunk as the POV owner.
+If a character appears but does not own the narrative lens, set pov_signal to not_pov and pov_section_label to "".
+Do not create separate narrator identities when the text indicates the narrator is a named character.
 
-FIVE Ws + HOW (capture only what this chunk reveals):
-who_is_this         — One phrase describing identity function (e.g. "captive boy adopted by cartel")
-what_do_they_want   — Desire/goal visible in this chunk (null if absent)
-where_are_they      — Location signal if present (null if absent)
-when_signal         — Temporal context (null if absent)
-why_signal          — Motivation signal if present (null if absent)
-how_signal          — Method/behavior/coping pattern (null if absent) — include rituals, habits, compulsions
-                      IMPORTANT: Capture EVERY distinct coping behavior, ritual, or habit you observe:
-                      smoking, object-handling, counting, shopping, ordering food, physical routines,
-                      prayer, silence, lining objects up, any repeated self-regulation behavior.
-                      These feed the Recommendation Grounding Gate to prevent false "seed a ritual" recommendations.
+FIVE Ws + HOW:
+Capture who, want, where, when, why, how, arc_state_in_chunk, arc_pressure, and arc_shift when visible.
+For how_signal, include rituals, habits, repeated self-regulation behaviors, or coping behaviors when present.
 
-ARC SIGNALS (chunk-level only):
-arc_state_in_chunk  — One phrase: character's emotional/situational state entering or during this chunk
-arc_pressure        — One phrase: what is pressing on them here (null if absent)
-arc_shift           — One phrase: any state change within this chunk (null if absent)
-is_ending_chunk     — true if this chunk contains resolution/payoff for this character, false otherwise
+OBJECTS / SYMBOLS:
+Capture objects tied to identity, control, protection, trauma, communication, escape, payoff, or symbolic meaning.
 
-SYMBOLIC / OBJECT ATTACHMENTS:
-symbolic_objects    — Array of objects tied to this character in this chunk
-                      Each: { object: string, function: string } (e.g. { "object": "blue evil-eye charm", "function": "identity token carried by captive child" })
-                      Capture identity tokens, weapons, surveillance/communication tools, protection charms,
-                      objects used for discipline/control, trauma anchors, domestic anchors, and objects that change hands.
-                      Include objects used as tools of violence, control, enforcement, discipline, surveillance, communication, escape, or payoff — not just identity tokens.
+RELATIONSHIP SIGNALS:
+Capture only visible relationship dynamics in this chunk. Max 3.
 
-RELATIONSHIP SIGNALS (max 3):
-relationship_signals — Array of { other_character: string, relationship_type: string, dynamic: string }
-                      e.g. { "other_character": "Benjamin", "relationship_type": "protector/protected", "dynamic": "Michael shields Paolito from Navarro" }
-                      Track relationship origin and evolution when visible: online hookup/contact → in-person relationship → cohabitation/partnership → separation/reunion.
+EVIDENCE ANCHORS:
+Use verbatim excerpts of 120 characters or less. Max 3.
 
-EVIDENCE ANCHORS (max 3, verbatim excerpt <=120 chars each):
-evidence_anchors    — Array of { excerpt: string, evidence_type: "appearance"|"choice"|"relationship"|"symbol"|"arc_shift"|"identity"|"ending_payoff", confidence: "explicit"|"strong_inference"|"weak_inference" }
+CO-PRESENCE:
+Only list characters physically present in the same scene. Do not list characters merely mentioned or remembered.
 
-CO-PRESENCE SIGNALS (REQUIRED for relationship capture):
-co_presence_confirmed — Array of character names who are PHYSICALLY PRESENT in the same scene in this chunk.
-                        e.g. ["Raúl", "Michael"] means both appear in the same scene in this chunk.
-                        Rules: only list characters who are ACTUALLY present together, not merely mentioned;
-                        do NOT list characters who are described from afar or recalled in memory.
+NEGATIVE KNOWLEDGE:
+Only emit when the text explicitly shows ignorance or pre-condition states.
 
-NEGATIVE KNOWLEDGE SIGNALS (capture what characters do NOT know/have yet in this chunk):
-negative_knowledge  — Array of { character: string, does_not_yet_know: string[] } where each string
-                      describes something the character explicitly does NOT know or have not yet experienced.
-                      e.g. { "character": "Paolito", "does_not_yet_know": ["Benjamin exists", "he will be renamed Paul"] }
-                      Only emit when the text EXPLICITLY shows ignorance or pre-condition states.
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 OUTPUT FORMAT: Valid JSON only. No markdown. No prose.
 
 {
@@ -193,17 +149,17 @@ export function buildPass1aUserPrompt(params: {
   title: string;
   workType: string;
 }): string {
-  return `Sweep this chunk (index ${params.chunkIndex}) of "${params.title}" (${params.workType}) for ALL character evidence.
+  return `Sweep this chunk (index ${params.chunkIndex}) of "${params.title}" (${params.workType}) for ALL character evidence and threat-bearing story forces.
 
 CHUNK TEXT:
 ${params.manuscriptText}
 
 Return ONLY the JSON object as specified. No prose. No markdown. No scoring.
-Capture every named character and every unnamed-but-load-bearing figure present.
-Preserve identity continuity: use canonical_identity_group to group name/title/narrator variants that refer to the same person.
-Capture POV ownership with pov_signal and pov_section_label; merge narrator labels into named identities when the text supports it.
-Prioritize POV characters, antagonists/enforcers/threat-bearing figures, named recurring characters, and load-bearing unnamed figures.
-Capture plot-critical objects, including weapons, discipline tools, surveillance/communication objects, charms, and objects that change hands or pay off later.
-Apply all HARD CAPS: max 15 characters, max 3 evidence anchors each, max 3 relationship signals each, no excerpt >120 chars.
-Fill demographic/identity fields ONLY from explicit text signals — never infer or assume.`;
+Capture every named character, every unnamed-but-load-bearing figure present, and every non-character threat force that creates danger, pressure, mystery, stakes, escalation, or ending consequence.
+Preserve identity continuity with canonical_identity_group.
+Capture POV ownership with pov_signal and pov_section_label.
+Prioritize POV characters, antagonists/enforcers/threat-bearing figures, non-character symbolic/collective threat forces, named recurring characters, and load-bearing unnamed figures.
+Capture plot-critical objects.
+Apply all HARD CAPS.
+Fill identity fields ONLY from explicit text signals — never infer or assume.`;
 }
