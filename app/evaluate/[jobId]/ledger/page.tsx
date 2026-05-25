@@ -121,6 +121,90 @@ function normalizeCanonicalIdentityLayer(
   };
 }
 
+const RELATIONSHIP_LABEL_ONLY_TERMS = new Set([
+  'canadian',
+  'driver',
+  'driver from highway',
+  'foreigner',
+  'unnamed',
+  'unknown',
+  'unknown character',
+  'unnamed character',
+  'passenger',
+  'stranger',
+  'man',
+  'woman',
+  'boy',
+  'girl',
+  'old man',
+  'old woman',
+  'guard',
+  'soldier',
+]);
+
+function normalizeRelationshipName(value: unknown): unknown {
+  if (typeof value !== 'string') return value;
+  const trimmed = value.trim();
+  const normalized = trimmed.toLowerCase();
+
+  // Leave true generic descriptors untouched so the relationship renderer can
+  // still reject them as non-named parties.
+  if (!trimmed || RELATIONSHIP_LABEL_ONLY_TERMS.has(normalized)) return value;
+
+  // The current renderer rejects lowercase multi-word names as label-only.
+  // The extractor can emit normalized lowercase proper names, so title-case
+  // likely names only at the UI seam without mutating stored artifacts.
+  if (trimmed === normalized && normalized.includes(' ')) {
+    return trimmed.replace(/\b[\p{L}]/gu, (char) => char.toLocaleUpperCase());
+  }
+
+  return value;
+}
+
+function normalizeRelationshipPair(pair: unknown): unknown {
+  if (!isRecord(pair)) return pair;
+
+  return {
+    ...pair,
+    ...(Object.prototype.hasOwnProperty.call(pair, 'character_a')
+      ? { character_a: normalizeRelationshipName(pair.character_a) }
+      : {}),
+    ...(Object.prototype.hasOwnProperty.call(pair, 'character_b')
+      ? { character_b: normalizeRelationshipName(pair.character_b) }
+      : {}),
+    ...(Object.prototype.hasOwnProperty.call(pair, 'from')
+      ? { from: normalizeRelationshipName(pair.from) }
+      : {}),
+    ...(Object.prototype.hasOwnProperty.call(pair, 'to')
+      ? { to: normalizeRelationshipName(pair.to) }
+      : {}),
+    ...(Object.prototype.hasOwnProperty.call(pair, 'a')
+      ? { a: normalizeRelationshipName(pair.a) }
+      : {}),
+    ...(Object.prototype.hasOwnProperty.call(pair, 'b')
+      ? { b: normalizeRelationshipName(pair.b) }
+      : {}),
+  };
+}
+
+function normalizeRelationshipNetworkLayer(
+  layer: Record<string, unknown> | undefined,
+): Record<string, unknown> | undefined {
+  if (!layer || Object.keys(layer).length === 0) return layer;
+
+  const normalizeArrayField = (key: string) =>
+    Array.isArray(layer[key])
+      ? { [key]: (layer[key] as unknown[]).map(normalizeRelationshipPair) }
+      : {};
+
+  return {
+    ...layer,
+    ...normalizeArrayField('relationship_pairs'),
+    ...normalizeArrayField('pairs'),
+    ...normalizeArrayField('relationships'),
+  };
+}
+
 function normalizeStoryLayersForUi(
   layers: Record<string, Record<string, unknown>> | null,
 ): Record<string, Record<string, unknown>> | null {
@@ -129,11 +213,17 @@ function normalizeStoryLayersForUi(
   const canonicalIdentityLayer = normalizeCanonicalIdentityLayer(
     layers.canonical_identity_layer,
   );
+  const relationshipNetworkLayer = normalizeRelationshipNetworkLayer(
+    layers.relationship_network_layer,
+  );
 
   return {
     ...layers,
     ...(canonicalIdentityLayer
       ? { canonical_identity_layer: canonicalIdentityLayer }
+      : {}),
+    ...(relationshipNetworkLayer
+      ? { relationship_network_layer: relationshipNetworkLayer }
       : {}),
   };
 }
@@ -236,10 +326,7 @@ export default async function StoryLedgerPage({
       }
     : null;
 
-  const manuscriptTitle = (() => {
-    const rel = Array.isArray(job.manuscripts) ? job.manuscripts[0] : job.manuscripts;
-    return rel?.title?.trim() || 'Untitled manuscript';
-  })();
+  const manuscriptTitle = relationTitle(job);
 
   return (
     <>
