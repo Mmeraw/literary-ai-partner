@@ -97,7 +97,7 @@ const SOURCE_INTERNAL_FIELDS = new Set([
 // ─── Author-facing layer descriptions (permanent, locked) ───────────────────
 const LAYER_DESCRIPTIONS: Record<string, string> = {
   source_integrity_layer:
-    "Did the system read your manuscript cleanly? Confirms that your text was extracted without corruption, missing sections, or gaps — so every finding traces back to real pages.",
+    "What peculiarities does your novel have that the RevisionGrade Governance System and Literary-AI Partners might not pick up, but are highly relevant to the story. Sharing this will allow for greater fidelity in the evaluation and revision processes.",
   pov_structure_layer:
     "Whose eyes does the reader see through, and when? Maps the narrative cameras, voice ownership, and any perspective shifts across your story.",
   canonical_identity_layer:
@@ -456,39 +456,22 @@ function CharacterCard({
 
 export function SourceIntegrityLayer({
   data,
+  enrichmentNote,
+  onEnrichmentNoteChange,
 }: {
   data?: Record<string, unknown> | null;
+  enrichmentNote?: string;
+  onEnrichmentNoteChange?: (next: string) => void;
 }) {
-  if (!data || Object.keys(data).length === 0)
-    return (
-      <LayerShell
-        empty
-        emptyLabel="Source integrity data not yet populated."
-        emptyDetail="This layer will populate once your manuscript has been read and processed."
-      />
-    );
-
   const integrityStatus =
-    typeof data.integrity_status === "string" ? data.integrity_status : "";
+    typeof data?.integrity_status === "string" ? data.integrity_status : "";
   const statusUpper = integrityStatus.toUpperCase();
   const isClean = statusUpper === "CLEAN";
   const isFailed = statusUpper === "FAILED" || statusUpper === "DEGRADED";
 
-  const hardFailPresent = data.hard_fail_present === true;
-  const hardFailTriggers = Array.isArray(data.hard_fail_triggers)
-    ? (data.hard_fail_triggers as unknown[])
-        .map((t) => (typeof t === "string" ? t : JSON.stringify(t)))
-        .filter((t) => t.length > 0)
-    : [];
-
-  const stateConflicts = Array.isArray(data.state_conflicts)
-    ? (data.state_conflicts as unknown[])
-    : [];
-  const unresolvedConflicts =
-    typeof data.unresolved_conflicts === "number" ? data.unresolved_conflicts : 0;
-
+  const hardFailPresent = data?.hard_fail_present === true;
   const totalChunks =
-    typeof data.total_chunks_processed === "number"
+    typeof data?.total_chunks_processed === "number"
       ? data.total_chunks_processed
       : null;
 
@@ -500,47 +483,51 @@ export function SourceIntegrityLayer({
         icon="🔒"
         title="Source Integrity"
         description={LAYER_DESCRIPTIONS.source_integrity_layer}
-        badge={integrityStatus || undefined}
-        badgeTone={isClean ? "green" : isFailed ? "oxblood" : "neutral"}
       />
 
-      {hardFailPresent ? (
-        <BlockerBanner reason="Hard failure detected during manuscript ingestion — results may be unreliable until resolved." />
-      ) : (
-        <p
+      {/* Author enrichment note — primary interaction */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 18 }}>
+        <SubHeading>Author Enrichment Context</SubHeading>
+        <textarea
+          value={enrichmentNote ?? ""}
+          onChange={(e) => onEnrichmentNoteChange?.(e.target.value)}
+          placeholder="e.g. The protagonist is gender-ambiguous intentionally. The timeline is non-linear by design. Dialect is authentic and should not be 'corrected'..."
+          rows={5}
           style={{
-            margin: "0 0 14px",
-            fontSize: 14,
-            color: C.textMuted,
+            width: "100%",
+            background: C.surfaceAlt,
+            border: `1px solid ${C.border}`,
+            borderRadius: 10,
+            padding: "12px 14px",
+            fontSize: 15,
+            color: C.textPrimary,
+            resize: "vertical" as const,
+            fontFamily: "inherit",
             lineHeight: 1.7,
+            outline: "none",
+            boxSizing: "border-box" as const,
+            minHeight: 120,
           }}
-        >
-          No hard failures detected.
+        />
+        <p style={{ margin: 0, fontSize: 12, color: C.textMuted, lineHeight: 1.6 }}>
+          What you write here is injected into Phase 2 as <strong>Author Enrichment Context</strong>.
+          The four decision buttons below confirm this enrichment note — they are not auditing machine output.
         </p>
-      )}
-
-      {hardFailTriggers.length > 0 && (
-        <>
-          <SubHeading>Hard Failure Triggers</SubHeading>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-            {hardFailTriggers.map((t, i) => (
-              <Pill key={i} label={t} tone="oxblood" />
-            ))}
-          </div>
-        </>
-      )}
-
-      <div>
-        {totalChunks !== null && (
-          <FieldRow label="Manuscript sections processed" value={totalChunks} />
-        )}
       </div>
 
-      {(stateConflicts.length > 0 || unresolvedConflicts > 0) && (
-        <WarnBanner
-          reason={`${stateConflicts.length} state conflict${stateConflicts.length === 1 ? "" : "s"} detected${unresolvedConflicts > 0 ? ` — ${unresolvedConflicts} unresolved` : ""}.`}
-        />
-      )}
+      {/* Secondary metadata — status badge + hard-fail + chunk count */}
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center", marginBottom: 10 }}>
+        {integrityStatus && (
+          <Pill
+            label={`Source: ${integrityStatus}`}
+            tone={isClean ? "green" : isFailed ? "oxblood" : "neutral"}
+          />
+        )}
+        {hardFailPresent && <Pill label="Hard failure" tone="oxblood" />}
+        {totalChunks !== null && (
+          <Pill label={`${totalChunks} section${totalChunks === 1 ? "" : "s"} processed`} tone="neutral" />
+        )}
+      </div>
     </LayerShell>
   );
 }
@@ -1934,13 +1921,23 @@ export function LayerCompletionBar({
 export function StoryLayerRenderer({
   layerKey,
   data,
+  sourceIntegrityEnrichmentNote,
+  onSourceIntegrityEnrichmentNoteChange,
 }: {
   layerKey: string;
   data: Record<string, unknown> | undefined | null;
+  sourceIntegrityEnrichmentNote?: string;
+  onSourceIntegrityEnrichmentNoteChange?: (next: string) => void;
 }) {
   switch (layerKey) {
     case "source_integrity_layer":
-      return <SourceIntegrityLayer data={data} />;
+      return (
+        <SourceIntegrityLayer
+          data={data}
+          enrichmentNote={sourceIntegrityEnrichmentNote}
+          onEnrichmentNoteChange={onSourceIntegrityEnrichmentNoteChange}
+        />
+      );
     case "pov_structure_layer":
       return <PovStructureLayer data={data} />;
     case "canonical_identity_layer":

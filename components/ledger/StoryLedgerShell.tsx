@@ -847,7 +847,20 @@ function Module1StoryLayer({
 
         {/* Active layer panel */}
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          <StoryLayerRenderer layerKey={activeLayer} data={currentData} />
+          <StoryLayerRenderer
+            layerKey={activeLayer}
+            data={currentData}
+            sourceIntegrityEnrichmentNote={decisions.source_integrity_layer?.comment ?? ""}
+            onSourceIntegrityEnrichmentNoteChange={(next) => {
+              setDecisions((prev) => {
+                const existing = prev.source_integrity_layer ?? { status: "undecided", comment: "" };
+                return {
+                  ...prev,
+                  source_integrity_layer: { ...existing, comment: next },
+                };
+              });
+            }}
+          />
 
           {/* Per-layer decision bar — only shown at review gate */}
           {atReviewGate && (

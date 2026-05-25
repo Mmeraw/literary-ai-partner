@@ -132,6 +132,12 @@ export function buildAuthorCorrectionsBlock(
 
   const corrections: string[] = [];
   const notes: string[] = [];
+  // Source Integrity is the author-enrichment surface: its comment is the
+  // author's description of novel-specific peculiarities (gender-ambiguous
+  // protagonist, intentional non-linear timeline, dialect, etc.) and must be
+  // labelled distinctly so the model treats it as enriching context rather
+  // than as a correction or error report.
+  let sourceIntegrityEnrichment: string | null = null;
 
   if (layerDecisions && Object.keys(layerDecisions).length > 0) {
     for (const [layerKey, decision] of Object.entries(layerDecisions)) {
@@ -142,6 +148,14 @@ export function buildAuthorCorrectionsBlock(
         typeof decision?.comment === 'string' && decision.comment.trim().length > 0;
 
       const commentText = hasComment ? decision.comment.trim() : "";
+
+      if (layerKey === 'source_integrity_layer') {
+        if (hasComment) {
+          sourceIntegrityEnrichment = commentText;
+        }
+        continue;
+      }
+
       if (isRejected && hasComment) {
         corrections.push(`- ${label} [FLAGGED AS INCORRECT]: "${commentText}"`);
       } else if (isRejected) {
@@ -155,7 +169,13 @@ export function buildAuthorCorrectionsBlock(
   const authorNotes = governanceRail.author_notes as string | null | undefined;
   const editRequests = governanceRail.edit_requests as string[] | null | undefined;
 
-  if (corrections.length === 0 && notes.length === 0 && !authorNotes && !editRequests?.length) {
+  if (
+    corrections.length === 0 &&
+    notes.length === 0 &&
+    !authorNotes &&
+    !editRequests?.length &&
+    !sourceIntegrityEnrichment
+  ) {
     return null;
   }
 
@@ -167,6 +187,12 @@ export function buildAuthorCorrectionsBlock(
     "Score with these corrections active. Do not revert to unverified extraction.",
     "",
   ];
+
+  if (sourceIntegrityEnrichment) {
+    lines.push("### Author Enrichment Context (novel-specific peculiarities — treat as ground-truth authorial intent):");
+    lines.push(sourceIntegrityEnrichment);
+    lines.push("");
+  }
 
   if (corrections.length > 0) {
     lines.push("### Layers flagged as INCORRECT by author (treat as contested — author's version is ground truth):");
