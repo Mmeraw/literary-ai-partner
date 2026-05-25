@@ -15,7 +15,7 @@ function formatScore(value: number | null | undefined): string {
 }
 
 function getScoreDelta(current: number | null, previous: number | null): string {
-  if (current == null || previous == null) return 'Awaiting comparison'
+  if (!Number.isFinite(current) || !Number.isFinite(previous)) return 'Awaiting comparison'
   const delta = current - previous
   return `${delta >= 0 ? '+' : ''}${delta.toFixed(1)} vs prior evaluation`
 }
@@ -52,11 +52,8 @@ export default async function DashboardPage() {
   }
 
   const kpis = computeDashboardKpis(rows)
-  const sortedRows = [...rows].sort(
-    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-  )
-  const latest = sortedRows[0]
-  const priorSameManuscript = sortedRows.find(
+  const latest = rows[0]
+  const priorSameManuscript = rows.find(
     (row) => row.manuscriptId === latest.manuscriptId && row.id !== latest.id,
   )
   const latestTopScore = Math.max(latest.overallScore ?? 0, latest.readinessScore ?? 0)
