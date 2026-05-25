@@ -17,60 +17,21 @@ export type ProgressDisplay = {
   hardStop: boolean;
 } | null;
 
-/**
- * Deterministic UX translation map.
- *
- * Drives 100% from backend phase/phase_status/status — never from elapsed time
- * or client-side interpolation. Labels are human-facing; no backend jargon.
- *
- * Canonical table (from session context, locked):
- *
- * | Backend state                                            | Label                                         | % | Color  |
- * |----------------------------------------------------------|-----------------------------------------------|---|--------|
- * | status=queued / initial (no phase yet)                   | Calibrating evaluation standards...           | 2 | blue   |
- * | phase=phase_0 (calibration/warmup)                       | Calibrating evaluation standards...           | 5 | blue   |
- * | phase=phase_1a, phase_status=running (early)             | Ingesting manuscript & mapping chapters...    | 15| blue   |
- * | phase=phase_1a, phase_status=running (late)              | Extracting core narrative footprint...        | 35| blue   |
- * | phase=review_gate, phase_status=awaiting_approval        | Awaiting Story Layer Approval                 | 50| amber  | HARD STOP
- * | phase=review_gate + hard_fail_present=true               | Story Layer Blocked: Narrative conflicts...   | 50| red    | HARD STOP
- * | phase=phase_2                                            | Running deep structural craft diagnostics...  | 67| blue   |
- * | phase=phase_3                                            | Assembling evaluation matrix...               | 86| blue   |
- * | cross_check / final QA / longform synthesis              | Running final structural cross-checks...      | 97| blue   |
- * | status=complete                                          | Evaluation complete!                          |100| green  |
- *
- * "Early" vs "late" phase_1a/running is determined by completed_units/total_units
- * when available in the progress payload. If not available, defaults to "late" (45%).
- */
-
 type PhaseInputs = {
   status: "queued" | "running" | "complete" | "failed";
   phase?: string | null;
   phase_status?: string | null;
   cross_check_status?: string | null;
-  /**
-   * Fraction 0..1 of units completed within current phase.
-   * Used to distinguish phase_1a early (< 0.5) vs late (>= 0.5).
-   * Optional — falls back to "late" position when absent.
-   */
   phase_unit_fraction?: number | null;
-  /**
-   * Whether a hard-fail artifact is present at the review gate.
-   * When true → "red" hard stop instead of amber.
-   */
   hard_fail_present?: boolean;
 };
 
 export function getProgressDisplay(
   job: PhaseInputs,
-  // `now` kept for API compatibility — no longer used for interpolation
   _now: Date = new Date(),
 ): ProgressDisplay {
-  // ── Terminal: failed ──────────────────────────────────────────────────────
-  if (job.status === "failed") {
-    return null;
-  }
+  if (job.status === "failed") return null;
 
-  // ── Terminal: complete ────────────────────────────────────────────────────
   if (job.status === "complete") {
     return {
       label: "Evaluation complete!",
@@ -83,8 +44,6 @@ export function getProgressDisplay(
     };
   }
 
-  // ── Review Gate: hard stop ────────────────────────────────────────────────
-  // Matches regardless of job.status (status stays 'queued' while at gate).
   if (job.phase === "review_gate") {
     const hasHardFail = !!job.hard_fail_present;
     return {
@@ -102,7 +61,6 @@ export function getProgressDisplay(
     };
   }
 
-  // phase_3/queued — worker claimed but status column not yet flipped to running
   if (job.phase === 'phase_3' && job.status === 'queued') {
     return {
       label: "Assembling evaluation matrix...",
@@ -115,7 +73,6 @@ export function getProgressDisplay(
     };
   }
 
-  // phase_2/queued — worker claimed but status column not yet flipped to running
   if (job.phase === 'phase_2' && job.status === 'queued') {
     return {
       label: "Running deep structural craft diagnostics...",
@@ -128,7 +85,6 @@ export function getProgressDisplay(
     };
   }
 
-  // phase_1a/queued (self-chain gap between batches) must show 15-35%, NOT 10%
   if (job.phase === 'phase_1a' && job.status === 'queued') {
     const fraction = job.phase_unit_fraction ?? 1;
     const isEarly = fraction < 0.5;
@@ -143,25 +99,23 @@ export function getProgressDisplay(
     };
   }
 
-  // phase_0/queued — preparing analysis (don't fall into generic 10%)
   if (job.phase === 'phase_0' && job.status === 'queued') {
     return {
-      label: "Preparing analysis...",
+      label: "Preparing evaluation environment",
       valueLabel: "5%",
       percentage: 5,
       color: "blue",
       hardStop: false,
       indeterminate: false,
-      helperText: "The evaluator is loading scoring rules and benchmark standards before reading your manuscript.",
+      helperText: "Your manuscript has been received. RevisionGrade is loading scoring rules, benchmark standards, and routing information before the manuscript is analyzed.",
     };
   }
 
-  // ── Queued (not yet running, not at gate) ─────────────────────────────────
   if (job.status === "queued") {
     return {
-      label: "Calibrating evaluation standards...",
+      label: "Waiting in queue",
       valueLabel: "2%",
-      helperText: "Your job is queued. A worker will begin automatically.",
+      helperText: "Your manuscript has been received and is waiting for an evaluator worker.",
       indeterminate: false,
       percentage: 2,
       color: "blue",
@@ -169,16 +123,9 @@ export function getProgressDisplay(
     };
   }
 
-  // ── Running ───────────────────────────────────────────────────────────────
-  if (job.status !== "running") {
-    return null;
-  }
+  if (job.status !== "running") return null;
 
-  // cross_check / final QA / longform synthesis
-  if (
-    job.cross_check_status === "running" ||
-    job.cross_check_status === "queued"
-  ) {
+  if (job.cross_check_status === "running" || job.cross_check_status === "queued") {
     return {
       label: "Running final structural cross-checks...",
       valueLabel: "97%",
@@ -190,7 +137,6 @@ export function getProgressDisplay(
     };
   }
 
-  // Phase 3 — synthesis
   if (job.phase === "phase_3") {
     return {
       label: "Assembling evaluation matrix...",
@@ -203,7 +149,6 @@ export function getProgressDisplay(
     };
   }
 
-  // Phase 2
   if (job.phase === "phase_2") {
     return {
       label: "Running deep structural craft diagnostics...",
@@ -216,9 +161,8 @@ export function getProgressDisplay(
     };
   }
 
-  // Phase 1A running — early vs late based on unit fraction
   if (job.phase === "phase_1a" && job.phase_status === "running") {
-    const fraction = job.phase_unit_fraction ?? 1; // default to late
+    const fraction = job.phase_unit_fraction ?? 1;
     const isEarly = fraction < 0.5;
     return {
       label: isEarly
@@ -235,7 +179,6 @@ export function getProgressDisplay(
     };
   }
 
-  // Phase 1A queued / any other running state
   if (job.phase === "phase_1a") {
     return {
       label: "Ingesting manuscript & mapping chapters...",
@@ -248,12 +191,11 @@ export function getProgressDisplay(
     };
   }
 
-  // Phase 0 — gold standard warm-up (evaluator internalizes criteria)
   if (job.phase === 'phase_0') {
     return {
-      label: "Calibrating evaluation standards...",
+      label: "Preparing evaluation environment",
       valueLabel: "5%",
-      helperText: "The evaluator is loading scoring rules and benchmark standards before reading your manuscript.",
+      helperText: "RevisionGrade is loading scoring rules, benchmark standards, and routing information before the manuscript is analyzed.",
       indeterminate: false,
       percentage: 5,
       color: "blue",
@@ -261,9 +203,8 @@ export function getProgressDisplay(
     };
   }
 
-  // Unknown running state — fallback to calibration warmup
   return {
-    label: "Calibrating evaluation standards...",
+    label: "Preparing evaluation environment",
     valueLabel: "5%",
     helperText: "Initializing evaluation pipeline.",
     indeterminate: false,
@@ -273,10 +214,6 @@ export function getProgressDisplay(
   };
 }
 
-/**
- * Convenience helper for callers that only need the stage label string.
- * Returns null for terminal/failed states.
- */
 export function getStageLabelFromPhase(
   phase: string | null | undefined,
   phaseStatus: string | null | undefined,
@@ -291,7 +228,6 @@ export function getStageLabelFromPhase(
   return pd?.label ?? null;
 }
 
-// Exported for unit tests.
 export const __testing__ = {
   getProgressDisplay,
   getStageLabelFromPhase,
