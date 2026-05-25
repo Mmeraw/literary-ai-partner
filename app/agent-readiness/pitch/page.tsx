@@ -7,7 +7,74 @@
  */
 
 import Link from "next/link";
-import { useState } from "react";
+import React, { useState } from "react";
+
+// ─── Web Speech API mic input ───────────────────────────────────────────────
+
+type SpeechState = "idle" | "listening" | "error";
+
+function useSpeechInput(setValue: React.Dispatch<React.SetStateAction<string>>) {
+  const [state, setState] = React.useState<SpeechState>("idle");
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const recRef = React.useRef<any>(null);
+  const supported = typeof window !== "undefined" &&
+    ("SpeechRecognition" in window || "webkitSpeechRecognition" in window);
+
+  const toggle = React.useCallback(() => {
+    if (state === "listening") {
+      recRef.current?.stop();
+      setState("idle");
+      return;
+    }
+    if (!supported) return;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const SR = (window as any).SpeechRecognition ?? (window as any).webkitSpeechRecognition;
+    const rec = new SR();
+    rec.continuous = true;
+    rec.interimResults = false;
+    rec.lang = "en-US";
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    rec.onresult = (e: any) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const t = Array.from(e.results as ArrayLike<any>).map((r: any) => r[0].transcript).join(" ").trim();
+      if (t) setValue(prev => prev ? prev + " " + t : t);
+    };
+    rec.onerror = () => setState("error");
+    rec.onend = () => setState("idle");
+    recRef.current = rec;
+    rec.start();
+    setState("listening");
+  }, [state, supported, setValue]);
+
+  return { state, toggle, supported };
+}
+
+function MicButton({ setValue }: { setValue: React.Dispatch<React.SetStateAction<string>> }) {
+  const { state, toggle, supported } = useSpeechInput(setValue);
+  if (!supported) return null;
+  return (
+    <button
+      type="button"
+      onClick={toggle}
+      title={state === "listening" ? "Stop recording" : "Speak to fill this field"}
+      style={{
+        padding: "4px 10px",
+        borderRadius: 6,
+        border: `1px solid ${state === "listening" ? "rgba(122,30,30,0.6)" : "rgba(242,239,234,0.15)"}`,
+        background: state === "listening" ? "rgba(122,30,30,0.22)" : "transparent",
+        color: state === "listening" ? "#D07070" : state === "error" ? "#E6A23C" : "rgba(242,239,234,0.45)",
+        fontSize: 12,
+        cursor: "pointer",
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 4,
+        flexShrink: 0,
+      }}
+    >
+      {state === "listening" ? "⏹ Stop" : state === "error" ? "⚠ Retry" : "🎙 Speak"}
+    </button>
+  );
+}
 
 const T = {
   bg: "#0F0D0A", panel: "#1A1612", border: "#2A2420",
@@ -40,9 +107,12 @@ export default function PitchPage() {
 
         {/* Elevator Pitch */}
         <div style={{ marginBottom: "2.5rem" }}>
-          <label style={{ display: "block", fontSize: "0.5625rem", color: T.dim, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: "0.5rem" }}>
-            Elevator Pitch — one sentence
-          </label>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "0.5rem" }}>
+            <label style={{ fontSize: "0.5625rem", color: T.dim, letterSpacing: "0.1em", textTransform: "uppercase" }}>
+              Elevator Pitch — one sentence
+            </label>
+            <MicButton setValue={setElevator} />
+          </div>
           <p style={{ fontSize: "0.75rem", color: T.cream2, lineHeight: 1.6, marginBottom: "0.875rem" }}>
             A compact, high-impact sentence suitable for query forms, verbal pitching, and manuscript metadata.
           </p>
@@ -90,9 +160,12 @@ export default function PitchPage() {
 
         {/* Paragraph Pitch */}
         <div>
-          <label style={{ display: "block", fontSize: "0.5625rem", color: T.dim, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: "0.5rem" }}>
-            Paragraph Pitch <span style={{ color: "#7B7060", fontWeight: 400 }}>(optional — for email, networking, query forms)</span>
-          </label>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "0.5rem" }}>
+            <label style={{ fontSize: "0.5625rem", color: T.dim, letterSpacing: "0.1em", textTransform: "uppercase" }}>
+              Paragraph Pitch <span style={{ color: "#7B7060", fontWeight: 400 }}>(optional — for email, networking, query forms)</span>
+            </label>
+            <MicButton setValue={setParagraph} />
+          </div>
           <p style={{ fontSize: "0.75rem", color: T.cream2, lineHeight: 1.6, marginBottom: "0.875rem" }}>
             One compact paragraph suitable for email queries, agent networking, and package summaries.
           </p>
