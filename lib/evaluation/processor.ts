@@ -2482,6 +2482,28 @@ Key platform calibration points:
 - Generic feedback ("the pacing is slow") without manuscript evidence is a calibration failure
 - The platform produces ONE evaluation per manuscript section — there is no back-and-forth revision cycle in evaluation mode
 - Scores below 7.0 on any criterion block submission readiness — be honest, be specific, cite the text
+
+## REVISIONGRADE PLATFORM CALIBRATION — EVALUATION GOVERNANCE RULES
+
+These rules apply to every evaluation. They are derived from platform lessons, not manuscript-specific facts.
+
+1. Loudest-lane bias is a calibration failure. Map ALL lane types: plot, emotional, doctrinal, medicine-object, relationship, environmental. Low-frequency lanes are not optional.
+
+2. Medicine and object systems are structural, not texture. Named healing agents, relics, and objects with lifecycle tracking must be included in the Story Layer — do not omit them.
+
+3. Relationship spines must be complete. Cross-world and cross-species arcs merge into single spine entries. Do not omit non-human or cross-boundary relationships.
+
+4. Do not hallucinate unsupported external harms. If the manuscript does not state it, do not infer it. Use SOURCE_UNSUPPORTED or VOICE_RISK validity tags.
+
+5. Author corrections are governing context. If the author flagged a layer as incorrect or provided a correction, that correction takes precedence over AI extraction. Do not silently resolve conflicts in favor of AI output.
+
+6. WAVE tier tagging is mandatory on all recommendations: Early (structural), Mid (momentum), Late (polish). Do not omit the tier.
+
+7. Recommendation validity tags are required: VALID / PARTIALLY_VALID / ALREADY_PRESENT / CANON_FALSE / SOURCE_UNSUPPORTED / VOICE_RISK. Do not omit.
+
+8. Generic feedback is a calibration failure. Every score requires specific manuscript citation.
+
+9. The author is the authority on their own manuscript. The evaluation serves the author's revision journey — not a publisher's acquisition filter.
 `;
 
 type Phase0Result =
@@ -3740,32 +3762,55 @@ export async function processEvaluationJob(
     //     bottom of the persistence path detects executionPhase==='phase_3' and
     //     runs WAVE inline instead of re-queueing phase_3.
     if (executionPhase === 'phase_3') {
-      // Load author corrections from accepted_story_ledger_v1.governance_rail.
-      // MANDATORY input when present — takes precedence over AI extraction.
-      // Graceful degradation: missing artifact is non-fatal; phase_3 continues.
-      let authorCorrectionsBlockP3: string | null = null;
-      try {
-        const { buildAuthorCorrectionsBlock } = await import('@/lib/evaluation/pipeline/prompts/pass2-editorial');
-        const { data: acceptedLedgerRowP3 } = await supabase
-          .from('evaluation_artifacts')
-          .select('content')
-          .eq('job_id', job.id)
-          .eq('artifact_type', 'accepted_story_ledger_v1')
-          .maybeSingle();
-        if (acceptedLedgerRowP3?.content) {
-          const content = acceptedLedgerRowP3.content as Record<string, unknown>;
-          const govRail = content.governance_rail as Record<string, unknown> | undefined;
-          if (govRail) {
-            authorCorrectionsBlockP3 = buildAuthorCorrectionsBlock(govRail);
-            if (authorCorrectionsBlockP3) {
-              console.log(`[phase_3] ${jobId}: author corrections block built (${authorCorrectionsBlockP3.length} chars)`);
-            }
-          }
-        }
-      } catch (corrErrP3) {
-        console.warn(`[phase_3] ${jobId}: author corrections load failed (non-fatal)`,
-          corrErrP3 instanceof Error ? corrErrP3.message : String(corrErrP3));
+      // ── GOVERNANCE GATE: Phase 3 also requires accepted_story_ledger_v1 ──
+      const { buildAuthorCorrectionsBlock: buildCorrectionsBlockP3 } = await import('@/lib/evaluation/pipeline/prompts/pass2-editorial');
+
+      const { data: p3LedgerRow, error: p3LedgerErr } = await supabase
+        .from('evaluation_artifacts')
+        .select('content')
+        .eq('job_id', job.id)
+        .eq('artifact_type', 'accepted_story_ledger_v1')
+        .maybeSingle();
+
+      if (p3LedgerErr || !p3LedgerRow?.content) {
+        console.error(`[phase_3] ${jobId}: accepted_story_ledger_v1 missing — cannot synthesize`);
+        await markFailed(
+          'Phase 3 cannot synthesize without accepted_story_ledger_v1.',
+          'MISSING_ACCEPTED_STORY_LEDGER',
+          { pipelineStage: 'phase_3' }
+        );
+        return { success: false, error: 'MISSING_ACCEPTED_STORY_LEDGER' };
       }
+
+      const p3GovRail = (p3LedgerRow.content as Record<string, unknown>).governance_rail as Record<string, unknown> | undefined;
+      if (!p3GovRail) {
+        console.error(`[phase_3] ${jobId}: governance_rail missing from accepted_story_ledger_v1`);
+        await markFailed(
+          'Phase 3 cannot synthesize without author governance rail.',
+          'MISSING_AUTHOR_GOVERNANCE_RAIL',
+          { pipelineStage: 'phase_3' }
+        );
+        return { success: false, error: 'MISSING_AUTHOR_GOVERNANCE_RAIL' };
+      }
+
+      const p3LayerDecisions = p3GovRail.layer_decisions as Record<string, unknown> | undefined;
+      if (!p3LayerDecisions || Object.keys(p3LayerDecisions).length < 8) {
+        console.error(`[phase_3] ${jobId}: incomplete layer_decisions — found ${Object.keys(p3LayerDecisions ?? {}).length}/8`);
+        await markFailed(
+          'Phase 3 cannot synthesize until all Story Layer layers have author decisions.',
+          'INCOMPLETE_AUTHOR_LAYER_DECISIONS',
+          { pipelineStage: 'phase_3', diagnostics: { found: Object.keys(p3LayerDecisions ?? {}).length, required: 8 } }
+        );
+        return { success: false, error: 'INCOMPLETE_AUTHOR_LAYER_DECISIONS' };
+      }
+
+      const authorCorrectionsBlockP3 = buildCorrectionsBlockP3(p3GovRail);
+      if (authorCorrectionsBlockP3) {
+        console.log(`[phase_3] ${jobId}: AUTHOR CORRECTIONS BLOCK injected (${authorCorrectionsBlockP3.length} chars) — governing context active`);
+      } else {
+        console.log(`[phase_3] ${jobId}: clean approval — no author corrections to inject`);
+      }
+      // ── END GOVERNANCE GATE ──
 
       const { data: handoffPresenceRow } = await supabase
         .from('evaluation_artifacts')
@@ -5093,32 +5138,68 @@ export async function processEvaluationJob(
       await markRunning('Resuming from phase 1 handoff', 1, 'phase_2');
       refreshPhaseDeadline(progressState.phase2_started_at as string | undefined);
 
-      // Load author corrections from accepted_story_ledger_v1.governance_rail.
-      // MANDATORY input when present — takes precedence over AI extraction.
-      // Graceful degradation: missing artifact is non-fatal; evaluation continues.
-      let authorCorrectionsBlock: string | null = null;
-      try {
-        const { buildAuthorCorrectionsBlock } = await import('@/lib/evaluation/pipeline/prompts/pass2-editorial');
-        const { data: acceptedLedgerRow } = await supabase
-          .from('evaluation_artifacts')
-          .select('content')
-          .eq('job_id', job.id)
-          .eq('artifact_type', 'accepted_story_ledger_v1')
-          .maybeSingle();
-        if (acceptedLedgerRow?.content) {
-          const content = acceptedLedgerRow.content as Record<string, unknown>;
-          const govRail = content.governance_rail as Record<string, unknown> | undefined;
-          if (govRail) {
-            authorCorrectionsBlock = buildAuthorCorrectionsBlock(govRail);
-            if (authorCorrectionsBlock) {
-              console.log(`[phase_2] ${jobId}: author corrections block built (${authorCorrectionsBlock.length} chars)`);
-            }
-          }
-        }
-      } catch (corrErr) {
-        console.warn(`[phase_2] ${jobId}: author corrections load failed (non-fatal)`,
-          corrErr instanceof Error ? corrErr.message : String(corrErr));
+      // ── GOVERNANCE GATE: accepted_story_ledger_v1 is required before Phase 2 ──
+      // This is the author-approved contract. Phase 2 must not score from unverified extraction.
+      const { buildAuthorCorrectionsBlock: buildCorrectionsBlock } = await import('@/lib/evaluation/pipeline/prompts/pass2-editorial');
+
+      const { data: acceptedLedgerRow, error: acceptedLedgerErr } = await supabase
+        .from('evaluation_artifacts')
+        .select('content')
+        .eq('job_id', job.id)
+        .eq('artifact_type', 'accepted_story_ledger_v1')
+        .maybeSingle();
+
+      if (acceptedLedgerErr) {
+        console.error(`[phase_2] ${jobId}: accepted_story_ledger_v1 read error`, acceptedLedgerErr.message);
+        await markFailed(
+          'accepted_story_ledger_v1 read error — will retry',
+          'MISSING_ACCEPTED_STORY_LEDGER',
+          { pipelineStage: 'phase_2' }
+        );
+        return { success: false, error: 'MISSING_ACCEPTED_STORY_LEDGER' };
       }
+
+      if (!acceptedLedgerRow?.content) {
+        console.error(`[phase_2] ${jobId}: accepted_story_ledger_v1 missing — author approval required`);
+        await markFailed(
+          'Phase 2 cannot start before author Story Layer approval.',
+          'MISSING_ACCEPTED_STORY_LEDGER',
+          { pipelineStage: 'phase_2' }
+        );
+        return { success: false, error: 'MISSING_ACCEPTED_STORY_LEDGER' };
+      }
+
+      const ledgerContent = acceptedLedgerRow.content as Record<string, unknown>;
+      const govRail = ledgerContent.governance_rail as Record<string, unknown> | undefined;
+
+      if (!govRail) {
+        console.error(`[phase_2] ${jobId}: governance_rail missing from accepted_story_ledger_v1`);
+        await markFailed(
+          'Phase 2 cannot start without author governance rail.',
+          'MISSING_AUTHOR_GOVERNANCE_RAIL',
+          { pipelineStage: 'phase_2' }
+        );
+        return { success: false, error: 'MISSING_AUTHOR_GOVERNANCE_RAIL' };
+      }
+
+      const layerDecisions = govRail.layer_decisions as Record<string, unknown> | undefined;
+      if (!layerDecisions || Object.keys(layerDecisions).length < 8) {
+        console.error(`[phase_2] ${jobId}: incomplete layer_decisions — found ${Object.keys(layerDecisions ?? {}).length}/8`);
+        await markFailed(
+          'Phase 2 cannot start until all Story Layer layers have author decisions.',
+          'INCOMPLETE_AUTHOR_LAYER_DECISIONS',
+          { pipelineStage: 'phase_2', diagnostics: { found: Object.keys(layerDecisions ?? {}).length, required: 8 } }
+        );
+        return { success: false, error: 'INCOMPLETE_AUTHOR_LAYER_DECISIONS' };
+      }
+
+      const authorCorrectionsBlock = buildCorrectionsBlock(govRail);
+      if (authorCorrectionsBlock) {
+        console.log(`[phase_2] ${jobId}: AUTHOR CORRECTIONS BLOCK injected (${authorCorrectionsBlock.length} chars) — governing context active`);
+      } else {
+        console.log(`[phase_2] ${jobId}: clean approval — no author corrections to inject`);
+      }
+      // ── END GOVERNANCE GATE ──
 
       const { data: handoffRow, error: handoffReadError } = await supabase
         .from('evaluation_artifacts')

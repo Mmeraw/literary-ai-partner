@@ -160,16 +160,16 @@ export function buildAuthorCorrectionsBlock(
   }
 
   const lines: string[] = [
-    "## AUTHOR CORRECTIONS — MANDATORY INPUT (takes precedence over AI extraction)",
+    "## AUTHOR CORRECTIONS — MANDATORY GOVERNING CONTEXT",
     "",
-    "The author reviewed the Story Layer and provided the following corrections and notes.",
-    "These inputs are AUTHORITATIVE. Where the author flags a layer as incorrect,",
-    "treat the author's correction as ground truth and weight your scoring accordingly.",
+    "The author reviewed the Story Layer extraction and provided the following corrections and notes.",
+    "These inputs are AUTHORITATIVE. Author corrections take precedence over AI extraction.",
+    "Score with these corrections active. Do not revert to unverified extraction.",
     "",
   ];
 
   if (corrections.length > 0) {
-    lines.push("### Layers flagged as INCORRECT by author:");
+    lines.push("### Layers flagged as INCORRECT by author (treat as contested — author's version is ground truth):");
     lines.push(...corrections);
     lines.push("");
   }
@@ -187,12 +187,12 @@ export function buildAuthorCorrectionsBlock(
   }
 
   if (editRequests?.length) {
-    lines.push("### Author's specific edit requests:");
+    lines.push("### Author's specific edit requests (factor into recommendations):");
     editRequests.forEach((r) => lines.push(`- ${r}`));
     lines.push("");
   }
 
-  lines.push("END OF AUTHOR CORRECTIONS");
+  lines.push("END OF AUTHOR CORRECTIONS — proceed with above as governing context.");
 
   return lines.join("\n");
 }

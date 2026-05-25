@@ -874,9 +874,9 @@ function Module2ReviewGate({
         <Card>
           {gateState === "A" && (
             <div>
-              <AlertBanner tone="green">Everything checks out. Ready to run Phase 2?</AlertBanner>
+              <AlertBanner tone="green">Everything checks out.</AlertBanner>
               <p style={{ margin: 0, fontSize: 12, color: P.boneAlt }}>
-                All 8 layers reviewed — no flags, no notes.
+                Your layer approvals will become governing context for the evaluation. Phase 2 will analyze the manuscript using the extracted Story Layer together with your recorded decisions.
               </p>
             </div>
           )}
@@ -884,20 +884,20 @@ function Module2ReviewGate({
             <div>
               <AlertBanner tone="gold">Proceed with notes on record?</AlertBanner>
               <p style={{ margin: 0, fontSize: 12, color: P.boneAlt }}>
-                You left notes on {notedCount} layer{notedCount !== 1 ? "s" : ""}. They will be preserved in the accepted ledger. No layers were flagged as incorrect.
+                Your notes will be preserved as mandatory context for Phase 2 and Phase 3. The evaluation will use your recorded decisions alongside the extracted Story Layer.
               </p>
             </div>
           )}
           {gateState === "C" && (
             <div>
               <AlertBanner tone="oxblood">
-                You flagged {rejectedCount} layer{rejectedCount !== 1 ? "s" : ""} as incorrect.
+                You rejected {rejectedCount} layer{rejectedCount !== 1 ? "s" : ""}.
               </AlertBanner>
               <p style={{ margin: "0 0 8px", fontSize: 13, color: P.bone, fontWeight: 600 }}>
-                This is your manuscript. You decide.
+                You may still proceed.
               </p>
               <p style={{ margin: 0, fontSize: 12, color: P.boneAlt }}>
-                Proceeding records your flags permanently. Phase 2 will run with the contested layers noted in the governance rail.
+                Your rejections and comments will be preserved as mandatory context for Phase 2 and Phase 3. Contested layers will be treated as flagged — the evaluation will score with your corrections applied.
               </p>
             </div>
           )}
@@ -1035,7 +1035,7 @@ function Module2ReviewGate({
                 : gateState === "B"
                 ? "Proceed with notes on record"
                 : gateState === "C"
-                ? "Proceed with flags on record"
+                ? "Proceed with contested layers on record"
                 : "Approve — Run Phase 2"}
             </button>
           </form>
