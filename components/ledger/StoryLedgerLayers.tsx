@@ -84,6 +84,15 @@ const OBJECT_INTERNAL_FIELDS = new Set([
   "symbol_payoff_items_v1",
 ]);
 
+// ─── Hidden internal fields (Location / Timeline / World-state layer) ───────
+const LOCATION_INTERNAL_FIELDS = new Set([
+  "location_count",
+  "state_snapshot_count",
+  "schema_version",
+  "negative_knowledge",
+  "character_timelines",
+]);
+
 // ─── Author-facing layer descriptions (permanent, locked) ───────────────────
 const LAYER_DESCRIPTIONS: Record<string, string> = {
   source_integrity_layer:
@@ -1401,14 +1410,18 @@ export function LocationTimelineWorldstateLayer({
       />
     );
 
-  const locations =
-    data.locations ?? data.location_list ?? data.location_entries;
-  const locationArray: Record<string, unknown>[] = Array.isArray(locations)
-    ? (locations as Record<string, unknown>[])
+  const snapshots = Array.isArray(data.all_state_snapshots)
+    ? (data.all_state_snapshots as Record<string, unknown>[])
+    : [];
+  const uniqueLocations = Array.isArray(data.unique_locations)
+    ? (data.unique_locations as unknown[]).map((s) => String(s))
+    : [];
+  const stateConflicts = Array.isArray(data.state_conflicts)
+    ? (data.state_conflicts as unknown[])
     : [];
 
-  const continuityRisks = data.continuity_risks as string[] | null;
-  const worldStateRules = data.world_state_rules;
+  const truncate = (s: string, n: number) =>
+    s.length > n ? s.slice(0, n).trimEnd() + "…" : s;
 
   return (
     <LayerShell>
@@ -1417,114 +1430,119 @@ export function LocationTimelineWorldstateLayer({
         title="Location · Timeline · World State"
         description={LAYER_DESCRIPTIONS.location_timeline_worldstate_layer}
         badge={
-          locationArray.length > 0
-            ? `${locationArray.length} locations`
+          snapshots.length > 0
+            ? `${snapshots.length} character ${snapshots.length === 1 ? "snapshot" : "snapshots"}`
             : undefined
         }
         badgeTone="neutral"
       />
 
-      {worldStateRules && (
+      {snapshots.length > 0 && (
         <>
-          <SubHeading>World State Rules</SubHeading>
-          <div
-            style={{
-              background: C.surfaceAlt,
-              borderRadius: 10,
-              padding: "14px 18px",
-              fontSize: 15,
-              color: C.textPrimary,
-              border: `1px solid ${C.border}`,
-              marginBottom: 18,
-              lineHeight: 1.75,
-            }}
-          >
-            {typeof worldStateRules === "string"
-              ? worldStateRules
-              : Array.isArray(worldStateRules)
-                ? (worldStateRules as string[]).map((r, i) => (
-                    <p key={i} style={{ margin: i > 0 ? "8px 0 0" : 0 }}>
-                      {r}
-                    </p>
-                  ))
-                : JSON.stringify(worldStateRules, null, 2)}
-          </div>
-        </>
-      )}
-
-      {locationArray.length > 0 && (
-        <>
-          <SubHeading>Locations</SubHeading>
+          <SubHeading>Character State Snapshots</SubHeading>
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            {locationArray.map((loc, i) => {
-              const name = String(
-                loc.location_name ?? loc.name ?? `Location ${i + 1}`
-              );
-              const anchors = loc.evidence_anchors as string[] | null;
-              const chars = loc.characters_present as string[] | null;
+            {snapshots.map((snap, i) => {
+              const name = String(snap.nameUsed ?? `Character ${i + 1}`);
+              const location = snap.location ? String(snap.location) : null;
+              const jobOrRole = snap.jobOrRole ? String(snap.jobOrRole) : null;
+              const ageOrLifeStage = snap.ageOrLifeStage
+                ? String(snap.ageOrLifeStage)
+                : null;
+              const psychologicalState = snap.psychologicalState
+                ? String(snap.psychologicalState)
+                : null;
+              const evidenceQuoteRaw = snap.evidenceQuote
+                ? String(snap.evidenceQuote)
+                : null;
+              const evidenceQuote =
+                evidenceQuoteRaw && evidenceQuoteRaw.trim().length > 0
+                  ? truncate(evidenceQuoteRaw.trim(), 120)
+                  : null;
 
               return (
-                <CharacterCard
-                  key={i}
-                  style={{ borderRadius: 10, padding: "14px 18px" }}
-                >
+                <CharacterCard key={i}>
                   <div
                     style={{
                       display: "flex",
                       justifyContent: "space-between",
+                      alignItems: "flex-start",
                       flexWrap: "wrap",
                       gap: 8,
-                      marginBottom: 10,
+                      marginBottom: location || jobOrRole ? 10 : 0,
                     }}
                   >
                     <span
                       style={{
                         fontWeight: 700,
                         color: C.textPrimary,
-                        fontSize: 15,
+                        fontSize: 16,
+                        letterSpacing: "-0.01em",
                       }}
                     >
                       {name}
                     </span>
-                    {chars && chars.length > 0 && (
-                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                        {chars.map((c, j) => (
-                          <Pill key={j} label={c} tone="neutral" />
-                        ))}
-                      </div>
+                    {ageOrLifeStage && (
+                      <Pill label={ageOrLifeStage} tone="neutral" />
                     )}
                   </div>
-                  <div>
-                    {loc.first_appearance && (
-                      <FieldRow
-                        label="First appearance"
-                        value={loc.first_appearance}
-                      />
-                    )}
-                    {loc.movement_path && (
-                      <FieldRow label="Movement path" value={loc.movement_path} />
-                    )}
-                    {loc.time_sequence && (
-                      <FieldRow label="Time sequence" value={loc.time_sequence} />
-                    )}
-                    {loc.world_state_rules && (
-                      <FieldRow
-                        label="World state rules"
-                        value={loc.world_state_rules}
-                      />
-                    )}
-                  </div>
-                  {loc.continuity_risks && (
-                    <WarnBanner reason={String(loc.continuity_risks)} />
-                  )}
-                  {anchors && anchors.length > 0 && (
-                    <div
-                      style={{ marginTop: 10, display: "flex", gap: 6, flexWrap: "wrap" }}
+
+                  {location && (
+                    <p
+                      style={{
+                        margin: "0 0 6px",
+                        fontSize: 15,
+                        color: C.textPrimary,
+                        lineHeight: 1.7,
+                      }}
                     >
-                      {anchors.map((a, j) => (
-                        <EvidenceTag key={j} id={a} />
-                      ))}
-                    </div>
+                      {location}
+                    </p>
+                  )}
+
+                  {jobOrRole && (
+                    <p
+                      style={{
+                        margin: "0 0 10px",
+                        fontSize: 13,
+                        color: C.textMuted,
+                        fontStyle: "italic",
+                        lineHeight: 1.6,
+                      }}
+                    >
+                      {jobOrRole}
+                    </p>
+                  )}
+
+                  {psychologicalState && (
+                    <p
+                      style={{
+                        margin: "0 0 10px",
+                        fontSize: 14,
+                        color: C.textMuted,
+                        fontStyle: "italic",
+                        lineHeight: 1.7,
+                      }}
+                    >
+                      {psychologicalState}
+                    </p>
+                  )}
+
+                  {evidenceQuote && (
+                    <blockquote
+                      style={{
+                        margin: "8px 0 0",
+                        padding: "8px 14px",
+                        borderLeft: `2px solid ${C.borderStrong}`,
+                        background: C.surface,
+                        borderRadius: "0 8px 8px 0",
+                        fontSize: 13,
+                        color: C.textFaint,
+                        fontStyle: "italic",
+                        lineHeight: 1.65,
+                      }}
+                    >
+                      {evidenceQuote}
+                    </blockquote>
                   )}
                 </CharacterCard>
               );
@@ -1533,27 +1551,30 @@ export function LocationTimelineWorldstateLayer({
         </>
       )}
 
-      {continuityRisks && continuityRisks.length > 0 && (
+      {uniqueLocations.length > 0 && (
         <>
-          <SubHeading>Global Continuity Risks</SubHeading>
-          {continuityRisks.map((r, i) => (
-            <WarnBanner key={i} reason={r} />
-          ))}
+          <SubHeading>Locations referenced in this chapter</SubHeading>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+            {uniqueLocations.map((loc, i) => (
+              <Pill key={i} label={loc} tone="neutral" />
+            ))}
+          </div>
         </>
       )}
 
-      {Object.entries(data)
-        .filter(
-          ([k]) =>
-            !["locations", "location_list", "location_entries", "world_state_rules", "continuity_risks"].includes(k)
-        )
-        .filter(
-          ([, v]) =>
-            v !== null && v !== undefined && !Array.isArray(v) && typeof v !== "object"
-        )
-        .map(([k, v]) => (
-          <FieldRow key={k} label={k.replace(/_/g, " ")} value={v} />
-        ))}
+      {stateConflicts.length > 0 && (
+        <>
+          <SubHeading>State Conflicts</SubHeading>
+          {stateConflicts.map((c, i) => (
+            <WarnBanner
+              key={i}
+              reason={
+                typeof c === "string" ? c : JSON.stringify(c)
+              }
+            />
+          ))}
+        </>
+      )}
     </LayerShell>
   );
 }
