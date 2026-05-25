@@ -69,6 +69,9 @@ export interface JobState {
   phase2_completed_at?: string | null;
   pass3_started_at?: string | null;
   pass3_completed_at?: string | null;
+  /** Authoritative Phase 0 telemetry — from progress JSONB, not column delta */
+  phase0_total_duration_ms?: number | null;
+  phase0_calibration_word_count?: number | null;
 }
 
 interface PollerProps {
@@ -290,7 +293,8 @@ export function EvaluationPoller({
             prev.phase2_started_at === nextJob.phase2_started_at &&
             prev.phase2_completed_at === nextJob.phase2_completed_at &&
             prev.pass3_started_at === nextJob.pass3_started_at &&
-            prev.pass3_completed_at === nextJob.pass3_completed_at;
+            prev.pass3_completed_at === nextJob.pass3_completed_at &&
+            prev.phase0_total_duration_ms === nextJob.phase0_total_duration_ms;
 
           unchangedCountRef.current = unchanged ? unchangedCountRef.current + 1 : 0;
           return nextJob;
@@ -558,6 +562,70 @@ export function EvaluationPoller({
                     Refresh
                   </button>
                 </p>
+              )}
+            </div>
+          );
+        })()}
+
+        {/* Pipeline stage mini-timeline — sequential, backend-driven only.
+             Phase 0 ✓ is proven by phase0_total_duration_ms ≥ 12000 from JSONB telemetry.
+             NOT from phase0_completed_at column (that has legacy cosmetic stamp paths).
+             Pass 3A preflight is NOT concurrent — it runs after all Phase 1A chunks are cached. */}
+        {(job.phase === 'phase_0' || job.phase === 'phase_1a' || job.phase === 'phase_2' || job.phase === 'phase_3') && job.status !== 'failed' && (() => {
+          const phase0Proven = typeof job.phase0_total_duration_ms === 'number' && job.phase0_total_duration_ms >= 12000;
+          const phase0Running = job.phase === 'phase_0' && job.status === 'running';
+          const phase1aActive = job.phase === 'phase_1a';
+          const phase2Active = job.phase === 'phase_2';
+          const phase3Active = job.phase === 'phase_3';
+          return (
+            <div className="text-xs text-gray-500 space-y-1.5 border-t pt-3">
+              {/* Stage 1: Calibration */}
+              <div className="flex items-center gap-2">
+                {phase0Proven
+                  ? <span className="text-green-700 font-medium">✓</span>
+                  : phase0Running
+                    ? <span className="h-2 w-2 rounded-full bg-blue-400 animate-pulse inline-block" />
+                    : <span className="h-2 w-2 rounded-full bg-gray-300 inline-block" />}
+                <span className={phase0Proven ? 'text-green-800' : phase0Running ? 'text-gray-700' : 'text-gray-400'}>
+                  {phase0Proven
+                    ? `Calibrating evaluation standards — complete (${Math.round((job.phase0_total_duration_ms ?? 0) / 1000)}s · ${job.phase0_calibration_word_count ?? '?'} words)`
+                    : phase0Running
+                      ? 'Calibrating evaluation standards…'
+                      : 'Calibration — pending'}
+                </span>
+              </div>
+              {/* Stage 2: Manuscript read + preflight (sequential, after Phase 0) */}
+              {(phase1aActive || phase2Active || phase3Active) && (
+                <div className="flex items-center gap-2">
+                  {(phase2Active || phase3Active)
+                    ? <span className="text-green-700 font-medium">✓</span>
+                    : <span className="h-2 w-2 rounded-full bg-blue-400 animate-pulse inline-block" />}
+                  <span className={(phase2Active || phase3Active) ? 'text-green-800' : 'text-gray-700'}>
+                    {(phase2Active || phase3Active)
+                      ? 'Manuscript analysis + structural preflight — complete'
+                      : 'Manuscript analysis + structural preflight — in progress…'}
+                  </span>
+                </div>
+              )}
+              {/* Stage 3: Craft diagnostics */}
+              {(phase2Active || phase3Active) && (
+                <div className="flex items-center gap-2">
+                  {phase3Active
+                    ? <span className="text-green-700 font-medium">✓</span>
+                    : <span className="h-2 w-2 rounded-full bg-blue-400 animate-pulse inline-block" />}
+                  <span className={phase3Active ? 'text-green-800' : 'text-gray-700'}>
+                    {phase3Active
+                      ? 'Craft diagnostics — complete'
+                      : 'Craft diagnostics — in progress…'}
+                  </span>
+                </div>
+              )}
+              {/* Stage 4: Synthesis */}
+              {phase3Active && (
+                <div className="flex items-center gap-2">
+                  <span className="h-2 w-2 rounded-full bg-blue-400 animate-pulse inline-block" />
+                  <span className="text-gray-700">Assembling evaluation matrix…</span>
+                </div>
               )}
             </div>
           );

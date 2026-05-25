@@ -73,6 +73,9 @@ type CanonicalJobResponse = {
   phase2_completed_at?: string | null;
   pass3_started_at?: string | null;
   pass3_completed_at?: string | null;
+  /** Authoritative Phase 0 telemetry from progress JSONB — not column timestamp deltas */
+  phase0_total_duration_ms?: number | null;
+  phase0_calibration_word_count?: number | null;
   last_error?: string;
   failure_code?: string;
 };
@@ -204,6 +207,12 @@ export async function GET(req: NextRequest, ctx: { params: Params }) {
     }
     if (stageTiming.pass3_completed_at !== undefined) {
       response.job.pass3_completed_at = stageTiming.pass3_completed_at;
+    }
+    if (stageTiming.phase0_total_duration_ms !== undefined) {
+      response.job.phase0_total_duration_ms = stageTiming.phase0_total_duration_ms;
+    }
+    if (stageTiming.phase0_calibration_word_count !== undefined) {
+      response.job.phase0_calibration_word_count = stageTiming.phase0_calibration_word_count;
     }
 
     // 7) Include last_error only on failure
@@ -350,6 +359,8 @@ function extractStageTiming(job: Job): {
   phase2_completed_at?: string | null;
   pass3_started_at?: string | null;
   pass3_completed_at?: string | null;
+  phase0_total_duration_ms?: number | null;
+  phase0_calibration_word_count?: number | null;
 } {
   if (!job.progress) return {};
 
@@ -376,5 +387,11 @@ function extractStageTiming(job: Job): {
     phase2_completed_at: pickTimestamp(p.phase2_completed_at),
     pass3_started_at: pickTimestamp(p.pass3_started_at),
     pass3_completed_at: pickTimestamp(p.pass3_completed_at),
+    phase0_total_duration_ms: typeof p.phase0_total_duration_ms === 'number' ? p.phase0_total_duration_ms
+      : typeof p.phase0_total_duration_ms === 'string' ? Number(p.phase0_total_duration_ms) || null
+      : null,
+    phase0_calibration_word_count: typeof p.phase0_calibration_word_count === 'number' ? p.phase0_calibration_word_count
+      : typeof p.phase0_calibration_word_count === 'string' ? Number(p.phase0_calibration_word_count) || null
+      : null,
   };
 }

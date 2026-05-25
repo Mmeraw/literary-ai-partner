@@ -2491,9 +2491,9 @@ These rules apply to every evaluation. They are derived from platform lessons, n
 
 2. Counter-systems must be surfaced. Every world with a primary doctrine, culture, or power system may contain a secondary counter-system — an alternative worldview, medicine tradition, or belief structure running in parallel or opposition. Counter-systems are structural, not decorative. Surface them explicitly.
 
-3. Do not assign motivation without source support. Motivations, beliefs, and emotional states attributed to a character must trace to explicit manuscript evidence. If source support is absent, do not assign. Use SOURCE_UNSUPPORTED validity tag.
+3. Relationship spines must be preserved across synthesis. Named relationship spines (A–B pairings with defined dynamics, stakes, and arcs) must survive synthesis intact. Do not reduce a relationship spine to a solo character label.
 
-4. Relationship spines must be preserved across synthesis. Named relationship spines (A–B pairings with defined dynamics, stakes, and arcs) must survive synthesis intact. Do not reduce a relationship spine to a solo character label.
+4. Do not assign motivation without source support. Motivations, beliefs, and emotional states attributed to a character must trace to explicit manuscript evidence. If source support is absent, do not assign. Use SOURCE_UNSUPPORTED validity tag.
 
 5. Medicine and object systems are plot engines, not texture. Named healing agents with ingredients, procedure, risk, and knowledge-transfer are structural elements — include in Story Layer, score in criterion analysis. Do not omit.
 
@@ -3290,25 +3290,10 @@ export async function processEvaluationJob(
     // 2. Update status to running
     await markRunning('Fetching manuscript', 0, executionPhase);
 
-    // PHASE 0 COMPLETE already stamped above when phase_0 ran.
-    // For jobs that entered at phase_1a directly (e.g. legacy / admin retry),
-    // stamp phase0_started_at + phase0_completed_at together at phase_1a entry.
-    if (executionPhase === 'phase_1a') {
-      const phase0Now = new Date().toISOString();
-      void supabase
-        .from('evaluation_jobs')
-        .update({
-          phase0_started_at: phase0Now,
-          worker_pulse_at: phase0Now,
-          updated_at: phase0Now,
-        })
-        .eq('id', jobId)
-        .eq('status', JOB_STATUS.RUNNING)
-        .then(({ error }: { error: unknown }) => {
-          if (error) console.warn('[Processor] phase0_started_at stamp failed (non-fatal)', error);
-          else console.log(`[Processor] ${jobId}: phase0_started_at + worker_pulse_at stamped`);
-        });
-    }
+    // NOTE: phase0_started_at / phase0_completed_at are written ONLY by runPhase0GoldPrimer().
+    // Do NOT stamp them here for direct phase_1a entries — that produces false Phase 0 timings.
+    // Legacy/admin phase_1a entries that bypass Phase 0 are identified by absence of
+    // progress.phase0_total_duration_ms in JSONB telemetry.
 
     console.log(`[Processor] Job ${jobId} status updated to running`);
 
@@ -4297,21 +4282,48 @@ export async function processEvaluationJob(
     // builds ledger V1+V2, persists artifact, then queues phase_2.
     // MANDATORY — if it fails, the job fails (ledger required for Pass 3).
     if (executionPhase === 'phase_1a') {
-      // PHASE 0 COMPLETE: stamp phase0_completed_at immediately before phase_1a
-      // begins. Phase 0 = all setup work (manuscript fetch, chunk routing, etc.)
-      const phase0EndNow = new Date().toISOString();
-      void supabase
-        .from('evaluation_jobs')
-        .update({ phase0_completed_at: phase0EndNow, worker_pulse_at: phase0EndNow, updated_at: phase0EndNow })
-        .eq('id', jobId)
-        .eq('status', JOB_STATUS.RUNNING)
-        .then(({ error }: { error: unknown }) => {
-          if (error) console.warn('[Processor] phase0_completed_at stamp failed (non-fatal)', error);
-          else console.log(`[Processor] ${jobId}: phase0_completed_at stamped`);
-        });
-
+      // phase0_completed_at is written only by runPhase0GoldPrimer() when real Phase 0 runs.
+      // Do NOT stamp it here — this is the phase_1a execution path, not Phase 0 completion.
       await markRunning('Running Pass 1A character sweep', 1, 'phase_1a');
       refreshPhaseDeadline(progressState.phase1a_started_at as string | undefined);
+
+      // ── PHASE_0_NOT_PROVEN guard ────────────────────────────────────────────
+      // Fail-closed: Phase 1A must not proceed unless Phase 0 ran for ≥12,000ms.
+      // progress.phase0_total_duration_ms is written only by runPhase0GoldPrimer()
+      // and is authoritative. The phase0_started_at / phase0_completed_at columns
+      // are NOT reliable (they have legacy cosmetic stamp paths). Use JSONB only.
+      // Exception: jobs with progress.phase0_bypass_reason set (admin/legacy resets).
+      {
+        const p0DurationMs = typeof progressState.phase0_total_duration_ms === 'number'
+          ? progressState.phase0_total_duration_ms
+          : typeof progressState.phase0_total_duration_ms === 'string'
+            ? Number(progressState.phase0_total_duration_ms)
+            : null;
+        const p0BypassReason = progressState.phase0_bypass_reason as string | undefined;
+        const PHASE_0_MIN_PROVEN_MS = 12_000;
+
+        if (!p0BypassReason && (p0DurationMs === null || p0DurationMs < PHASE_0_MIN_PROVEN_MS)) {
+          const actual = p0DurationMs !== null ? `${p0DurationMs}ms` : 'absent';
+          console.error(
+            `[phase_1a] ${jobId}: PHASE_0_NOT_PROVEN — phase0_total_duration_ms=${actual} < ${PHASE_0_MIN_PROVEN_MS}ms. ` +
+            `Phase 0 calibration did not complete. Failing job to prevent uncalibrated evaluation.`
+          );
+          await markFailed(
+            `Phase 0 calibration not proven (phase0_total_duration_ms=${actual}). ` +
+            `The evaluator did not complete the 12-second gold standard warm-up.`,
+            'PHASE_0_NOT_PROVEN',
+            { pipelineStage: 'phase_1a_entry', phase0_total_duration_ms: p0DurationMs }
+          );
+          return { success: false, error: 'PHASE_0_NOT_PROVEN' };
+        }
+
+        if (p0BypassReason) {
+          console.warn(`[phase_1a] ${jobId}: Phase 0 bypassed — reason=${p0BypassReason} (admin/legacy)`);
+        } else {
+          console.log(`[phase_1a] ${jobId}: Phase 0 proven — duration=${p0DurationMs}ms words=${progressState.phase0_calibration_word_count ?? 'unknown'}`);
+        }
+      }
+      // ── End PHASE_0_NOT_PROVEN guard ────────────────────────────────────────
 
 
       // ── Phase 1A: Self-Chaining Batch Mode ─────────────────────────────────
