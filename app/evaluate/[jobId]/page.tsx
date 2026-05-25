@@ -396,10 +396,13 @@ function Metric({ label, value }: { label: string; value: React.ReactNode }) {
 
 export default async function EvaluationReportPage({
   params,
+  searchParams,
 }: {
   params: { jobId: string };
+  searchParams?: { approved?: string };
 }) {
   const { jobId } = params;
+  const showApprovalBanner = searchParams?.approved === '1';
 
   const sessionUser = await getAuthenticatedUser();
   const headerOwnerId =
@@ -519,6 +522,27 @@ export default async function EvaluationReportPage({
           Back to Evaluate
         </Link>
       </div>
+
+      {showApprovalBanner && !isComplete && (
+        <div
+          className="mb-6 rounded-md border-l-4 p-4"
+          style={{
+            borderLeftColor: '#A98E4A',
+            backgroundColor: '#F2EFEA',
+            color: '#0E0E0E',
+          }}
+          role="status"
+          aria-live="polite"
+        >
+          <p className="text-sm font-semibold" style={{ color: '#0E0E0E' }}>
+            ✓ Story Ledger approved — craft diagnosis is now running.
+          </p>
+          <p className="mt-1 text-sm" style={{ color: '#7B7B7B' }}>
+            The system is diagnosing your manuscript across 13 craft criteria. This typically takes 3–8 minutes.
+            Watch the progress bar below — your Diagnostic Report will appear here when complete.
+          </p>
+        </div>
+      )}
 
       {/* Job status header card */}
       <div className="rounded-lg border bg-white p-4 mb-6">

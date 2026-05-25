@@ -119,7 +119,7 @@ export async function approveLedgerAction(formData: FormData): Promise<void> {
   const redirectTarget =
     disposition === 'rejected'
       ? `/evaluate/${jobId}/ledger?rejected=1`
-      : `/evaluate/${jobId}/ledger?approved=1`;
+      : `/evaluate/${jobId}?approved=1`;
 
   redirect(redirectTarget);
 }

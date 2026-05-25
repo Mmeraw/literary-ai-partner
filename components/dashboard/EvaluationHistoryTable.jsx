@@ -83,7 +83,11 @@ export default function EvaluationHistoryTable({ rows }) {
                 </td>
                 <td data-label="Open">
                   <a className="rg-history-open" href={row.reportHref}>
-                    Open report
+                    {row.status === 'running'
+                      ? 'View progress'
+                      : row.status === 'failed'
+                      ? 'View details'
+                      : 'Open report'}
                   </a>
                 </td>
               </tr>
