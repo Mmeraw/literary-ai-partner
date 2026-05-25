@@ -2487,23 +2487,23 @@ Key platform calibration points:
 
 These rules apply to every evaluation. They are derived from platform lessons, not manuscript-specific facts.
 
-1. Loudest-lane bias is a calibration failure. Map ALL lane types: plot, emotional, doctrinal, medicine-object, relationship, environmental. Low-frequency lanes are not optional.
+1. Low-frequency characters can be high-structure. Page volume is not a proxy for structural weight. A character with fewer pages may carry a load-bearing relationship spine, doctrinal role, or thematic arc. Never downgrade structural importance based on word count alone.
 
-2. Medicine and object systems are structural, not texture. Named healing agents, relics, and objects with lifecycle tracking must be included in the Story Layer — do not omit them.
+2. Counter-systems must be surfaced. Every world with a primary doctrine, culture, or power system may contain a secondary counter-system — an alternative worldview, medicine tradition, or belief structure running in parallel or opposition. Counter-systems are structural, not decorative. Surface them explicitly.
 
-3. Relationship spines must be complete. Cross-world and cross-species arcs merge into single spine entries. Do not omit non-human or cross-boundary relationships.
+3. Do not assign motivation without source support. Motivations, beliefs, and emotional states attributed to a character must trace to explicit manuscript evidence. If source support is absent, do not assign. Use SOURCE_UNSUPPORTED validity tag.
 
-4. Do not hallucinate unsupported external harms. If the manuscript does not state it, do not infer it. Use SOURCE_UNSUPPORTED or VOICE_RISK validity tags.
+4. Relationship spines must be preserved across synthesis. Named relationship spines (A–B pairings with defined dynamics, stakes, and arcs) must survive synthesis intact. Do not reduce a relationship spine to a solo character label.
 
-5. Author corrections are governing context. If the author flagged a layer as incorrect or provided a correction, that correction takes precedence over AI extraction. Do not silently resolve conflicts in favor of AI output.
+5. Medicine and object systems are plot engines, not texture. Named healing agents with ingredients, procedure, risk, and knowledge-transfer are structural elements — include in Story Layer, score in criterion analysis. Do not omit.
 
-6. WAVE tier tagging is mandatory on all recommendations: Early (structural), Mid (momentum), Late (polish). Do not omit the tier.
+6. Distinguish excerpt closure from full-novel closure. When evaluating a partial manuscript, score local-arc payoffs — do not penalize for the absence of full-novel closure. Full-novel closure is unavailable by definition in an excerpt submission.
 
-7. Recommendation validity tags are required: VALID / PARTIALLY_VALID / ALREADY_PRESENT / CANON_FALSE / SOURCE_UNSUPPORTED / VOICE_RISK. Do not omit.
+7. Classify every recommendation before issuing it. Use: ADD (genuinely absent) / CLARIFY (present but ambiguous) / SHARPEN (present but underweighted) / ALREADY_PRESENT (exists, no change needed) / VOICE_RISK (improvement risks author's voice) / CANON_ERROR (evaluation made a factual error). Do not issue ADD when the element exists.
 
-8. Generic feedback is a calibration failure. Every score requires specific manuscript citation.
+8. Author corrections are governing context. If the author flagged a layer as incorrect or provided a correction, that correction takes precedence over AI extraction. Do not silently resolve conflicts in favor of AI output.
 
-9. The author is the authority on their own manuscript. The evaluation serves the author's revision journey — not a publisher's acquisition filter.
+9. Aggressive recommendations are a calibration failure. Recommendation volume is not quality. Do not issue ADD recommendations for elements that are present but underweighted — use SHARPEN or ALREADY_PRESENT instead. Generic feedback without manuscript evidence is a calibration failure.
 `;
 
 type Phase0Result =
