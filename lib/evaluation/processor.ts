@@ -4312,7 +4312,7 @@ export async function processEvaluationJob(
             `Phase 0 calibration not proven (phase0_total_duration_ms=${actual}). ` +
             `The evaluator did not complete the 12-second gold standard warm-up.`,
             'PHASE_0_NOT_PROVEN',
-            { pipelineStage: 'phase_1a_entry', phase0_total_duration_ms: p0DurationMs }
+            { pipelineStage: 'phase_1a_entry', diagnostics: { phase0_total_duration_ms: p0DurationMs } }
           );
           return { success: false, error: 'PHASE_0_NOT_PROVEN' };
         }
