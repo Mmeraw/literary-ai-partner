@@ -70,6 +70,164 @@ function relationOwner(job: LedgerJob): string | null {
   return job.user_id ?? relation?.user_id ?? null;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function normalizeCanonicalIdentityLayer(
+  layer: Record<string, unknown> | undefined,
+): Record<string, unknown> | undefined {
+  if (!layer || Object.keys(layer).length === 0) return layer;
+
+  // Writer contract emits `identity_groups`; the current UI renderer consumes
+  // `canonical_identity_group`. Normalize at the page seam so existing
+  // pass1a_story_layer_v1 artifacts display without regeneration.
+  const rawGroups = Array.isArray(layer.identity_groups)
+    ? layer.identity_groups
+    : Array.isArray(layer.canonical_identity_group)
+      ? layer.canonical_identity_group
+      : [];
+
+  if (rawGroups.length === 0) return layer;
+
+  const canonicalIdentityGroup = rawGroups.filter(isRecord).map((group) => {
+    const existingAnchors = Array.isArray(group.evidence_anchors)
+      ? group.evidence_anchors
+      : [];
+    const firstAppearance = group.first_appearance ? String(group.first_appearance) : null;
+    const lastAppearance = group.last_appearance ? String(group.last_appearance) : null;
+    const evidenceAnchors =
+      existingAnchors.length > 0
+        ? existingAnchors
+        : [firstAppearance, lastAppearance].filter(Boolean);
+
+    return {
+      ...group,
+      role: group.role ?? group.narrative_role,
+      legal_name_states: group.legal_name_states ?? group.name_history,
+      post_resolution_name_states:
+        group.post_resolution_name_states ?? group.final_status,
+      evidence_anchors: evidenceAnchors,
+    };
+  });
+
+  return {
+    ...layer,
+    canonical_identity_group: canonicalIdentityGroup,
+    identity_group_count:
+      typeof layer.identity_group_count === 'number'
+        ? layer.identity_group_count
+        : canonicalIdentityGroup.length,
+  };
+}
+
+const RELATIONSHIP_LABEL_ONLY_TERMS = new Set([
+  'canadian',
+  'driver',
+  'driver from highway',
+  'foreigner',
+  'unnamed',
+  'unknown',
+  'unknown character',
+  'unnamed character',
+  'passenger',
+  'stranger',
+  'man',
+  'woman',
+  'boy',
+  'girl',
+  'old man',
+  'old woman',
+  'guard',
+  'soldier',
+]);
+
+function normalizeRelationshipName(value: unknown): unknown {
+  if (typeof value !== 'string') return value;
+  const trimmed = value.trim();
+  const normalized = trimmed.toLowerCase();
+
+  // Leave true generic descriptors untouched so the relationship renderer can
+  // still reject them as non-named parties.
+  if (!trimmed || RELATIONSHIP_LABEL_ONLY_TERMS.has(normalized)) return value;
+
+  // The current renderer rejects lowercase multi-word names as label-only.
+  // The extractor can emit normalized lowercase proper names, so title-case
+  // likely names only at the UI seam without mutating stored artifacts.
+  if (trimmed === normalized && normalized.includes(' ')) {
+    return trimmed.replace(/\b[\p{L}]/gu, (char) => char.toLocaleUpperCase());
+  }
+
+  return value;
+}
+
+function normalizeRelationshipPair(pair: unknown): unknown {
+  if (!isRecord(pair)) return pair;
+
+  return {
+    ...pair,
+    ...(Object.prototype.hasOwnProperty.call(pair, 'character_a')
+      ? { character_a: normalizeRelationshipName(pair.character_a) }
+      : {}),
+    ...(Object.prototype.hasOwnProperty.call(pair, 'character_b')
+      ? { character_b: normalizeRelationshipName(pair.character_b) }
+      : {}),
+    ...(Object.prototype.hasOwnProperty.call(pair, 'from')
+      ? { from: normalizeRelationshipName(pair.from) }
+      : {}),
+    ...(Object.prototype.hasOwnProperty.call(pair, 'to')
+      ? { to: normalizeRelationshipName(pair.to) }
+      : {}),
+    ...(Object.prototype.hasOwnProperty.call(pair, 'a')
+      ? { a: normalizeRelationshipName(pair.a) }
+      : {}),
+    ...(Object.prototype.hasOwnProperty.call(pair, 'b')
+      ? { b: normalizeRelationshipName(pair.b) }
+      : {}),
+  };
+}
+
+function normalizeRelationshipNetworkLayer(
+  layer: Record<string, unknown> | undefined,
+): Record<string, unknown> | undefined {
+  if (!layer || Object.keys(layer).length === 0) return layer;
+
+  const normalizeArrayField = (key: string) =>
+    Array.isArray(layer[key])
+      ? { [key]: (layer[key] as unknown[]).map(normalizeRelationshipPair) }
+      : {};
+
+  return {
+    ...layer,
+    ...normalizeArrayField('relationship_pairs'),
+    ...normalizeArrayField('pairs'),
+    ...normalizeArrayField('relationships'),
+  };
+}
+
+function normalizeStoryLayersForUi(
+  layers: Record<string, Record<string, unknown>> | null,
+): Record<string, Record<string, unknown>> | null {
+  if (!layers) return null;
+
+  const canonicalIdentityLayer = normalizeCanonicalIdentityLayer(
+    layers.canonical_identity_layer,
+  );
+  const relationshipNetworkLayer = normalizeRelationshipNetworkLayer(
+    layers.relationship_network_layer,
+  );
+
+  return {
+    ...layers,
+    ...(canonicalIdentityLayer
+      ? { canonical_identity_layer: canonicalIdentityLayer }
+      : {}),
+    ...(relationshipNetworkLayer
+      ? { relationship_network_layer: relationshipNetworkLayer }
+      : {}),
+  };
+}
+
 // ─── Data fetching ────────────────────────────────────────────────────────────
 
 async function getLedgerContext(jobId: string, userId: string) {
@@ -145,7 +303,8 @@ export default async function StoryLedgerPage({
   const justRejected = searchParams?.rejected === '1';
 
   // ── Story layers (Module 1)
-  const storyLayers = storyLayerContent?.layers ?? null;
+  const rawStoryLayers = storyLayerContent?.layers ?? null;
+  const storyLayers = normalizeStoryLayersForUi(rawStoryLayers);
   const layerCompletionSummary = storyLayerContent?.layer_completion_summary ?? null;
 
   // ── Hard fails (from legacy character ledger, for Module 2 blocking alert)
@@ -167,10 +326,7 @@ export default async function StoryLedgerPage({
       }
     : null;
 
-  const manuscriptTitle = (() => {
-    const rel = Array.isArray(job.manuscripts) ? job.manuscripts[0] : job.manuscripts;
-    return rel?.title?.trim() || 'Untitled manuscript';
-  })();
+  const manuscriptTitle = relationTitle(job);
 
   return (
     <>
