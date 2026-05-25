@@ -12,41 +12,41 @@ const auditTiers = [
     wordCount: "Up to 3,000 words",
     price: "$0",
     actionAccess: "Readiness preview",
-    bestFor: "Testing hook, voice, and narrative pressure.",
-    features: ["Opening hook", "Voice signal", "Readiness preview", "Long-form diagnostics not included"],
+    bestFor: "Testing hook, voice, and opening-page narrative pressure.",
+    features: ["Opening hook", "Voice signal", "Readiness preview", "Full-manuscript diagnostics not included"],
   },
   {
-    name: "Short-Form Evaluation",
+    name: "Short-Form Story Evaluation",
     wordCount: "Up to 24,999 words",
     price: "$49",
-    actionAccess: "Starter Editorial Actions",
-    bestFor: "Novellas, short stories, and early concept tests.",
-    features: ["Core story diagnostics", "Readiness verdict", "Editorial path preview", "Advanced diagnostics not included"],
+    actionAccess: "13 story criteria only",
+    bestFor: "Chapters, excerpts, short stories, openings, and partial submissions.",
+    features: ["13 story criteria", "Evidence-backed diagnosis", "Readiness verdict", "Golden Spine/WAVE not included"],
   },
   {
     name: "Full Manuscript Readiness Audit",
     wordCount: "25,000–120,000 words",
     price: "$249",
-    actionAccess: "Included Editorial Actions",
+    actionAccess: "Long-form evaluation",
     bestFor: "The Professional Standard for novels and long-form manuscripts.",
-    features: ["Core story diagnostics", "Long-form structural diagnostics", "Readiness diagnosis", "Long-form threshold diagnostics"],
+    features: ["13 story criteria", "Manuscript-scale continuity", "Readiness diagnosis", "Setup/payoff and pacing over distance"],
     highlighted: true,
   },
   {
     name: "Long Manuscript Readiness Audit",
     wordCount: "120,001–180,000 words",
     price: "$399",
-    actionAccess: "Expanded Editorial Actions",
+    actionAccess: "Expanded long-form evaluation",
     bestFor: "Epic-scale manuscripts and longer novels.",
-    features: ["Core story diagnostics", "Advanced continuity diagnostics", "Expanded long-form diagnostics", "Scale-aware opportunity summary"],
+    features: ["13 story criteria", "Advanced continuity diagnostics", "Expanded long-form analysis", "Scale-aware opportunity summary"],
   },
   {
-    name: "Complex Narrative Audit",
-    wordCount: "180,001+ words",
+    name: "Multi-Layer Manuscript Audit",
+    wordCount: "Complex long-form projects",
     price: "$499+",
-    actionAccess: "Priority Editorial Actions",
-    bestFor: "Multi-layer, transmedia, or franchise-scale work.",
-    features: ["Core story diagnostics", "Long-range readiness analysis", "Multi-POV architecture review", "Custom complexity handling"],
+    actionAccess: "Deep architecture audit",
+    bestFor: "Multi-POV, multi-timeline, genre-hybrid, experimental, memoir-fiction, or unusually structured long-form prose.",
+    features: ["13 story criteria", "Layered story-ledger analysis", "Golden Spine/WAVE where appropriate", "Custom complexity handling"],
   },
 ];
 
@@ -63,24 +63,24 @@ const faqs = [
       "An audit is the fixed-price diagnostic: it reveals the manuscript’s readiness profile, including strengths, priority signals, and the kind of editorial support the work may benefit from next. Editorial Actions unlock and repair specific opportunities through granular opportunity cards and governed repair proposals.",
   },
   {
-    question: "When do advanced long-form diagnostics apply?",
+    question: "When do long-form diagnostics apply?",
     answer:
-      "Advanced long-form diagnostics apply when long-range structural and continuity diagnostics are needed. They are designed for complex long-form readiness work where cumulative reader experience and payoff architecture matter most.",
+      "Short-form evaluations apply under 25,000 words and use the 13 story criteria only. Long-form evaluation begins at 25,000+ words, where manuscript-scale continuity, recurrence, payoff, pacing over distance, and structural readiness can be judged.",
   },
   {
-    question: "Can I see every granular opportunity after an audit?",
+    question: "When does multi-layer analysis apply?",
     answer:
-      "Every paid audit includes a readiness diagnosis and opportunity summary. Granular Opportunity Cards and governed repair proposals are unlocked through Editorial Actions available with your audit tier or in packs.",
+      "Long-form multi-layer evaluation is the deeper architecture tier for complex manuscripts. It may include layered story ledgers, Golden Spine/WAVE governance, long-form canon/gates, dialogue and speech protection, and deeper continuity logic where appropriate.",
   },
   {
     question: "Why not offer unlimited revisions?",
     answer:
-      "Revision work is variable. Some manuscripts need only a few targeted refinements, while others benefit from deeper staged repair. Fixed-price unlimited revision would dilute the audit standard and encourage low-value generation instead of focused, high-impact revision work.",
+      "Unlimited revision encourages vague rewriting. RevisionGrade uses scoped repair opportunities so each change is tied to evidence, rationale, and author approval.",
   },
   {
     question: "Is RevisionGrade replacing human editors?",
     answer:
-      "No. RevisionGrade helps you understand what kind of editorial help your manuscript may benefit from before you spend money on professional human intervention: developmental editing, line editing, copyediting, proofreading, market positioning, or deeper structural repair.",
+      "No. RevisionGrade helps you understand what kind of editorial help your manuscript may benefit from before you spend money on the wrong intervention: developmental editing, line editing, copyediting, proofreading, market positioning, or deeper structural repair.",
   },
 ];
 
@@ -117,7 +117,7 @@ export default function PricingPage() {
               </h2>
             </div>
             <p className="max-w-xl text-sm leading-7 text-rg-cream2/70">
-              The Full Manuscript Readiness Audit is the professional standard for long-form authors preparing a serious manuscript for revision, editing, or submission.
+              The Full Manuscript Readiness Audit is the professional baseline for authors preparing a serious manuscript for revision, editing, querying, or submission.
             </p>
           </div>
 
@@ -198,18 +198,18 @@ export default function PricingPage() {
           <div>
             <p className="font-rg-mono text-xs uppercase tracking-[0.24em] text-rg-gold">A Note on Editorial Readiness</p>
             <h2 className="mt-4 font-rg-serif text-3xl leading-tight sm:text-4xl md:text-5xl">
-              RevisionGrade™ is not a writing tool.
+              RevisionGrade™ is not a blank-page writing tool.
             </h2>
           </div>
           <div className="space-y-5 text-base leading-8 text-rg-ink/75 sm:text-lg">
             <p>
-              It is an editorial audit system. Each paid audit provides a structural diagnosis of your manuscript’s readiness: where the story is already working, where readiness can be improved, and what kind of editorial support may help next.
+              It is a manuscript readiness and repair system for work that already exists. Each paid audit provides a structural diagnosis: where the story is already working, where readiness can be improved, and what kind of editorial support may help next.
             </p>
             <p>
-              Granular Opportunity Cards and governed repair proposals are unlocked through Editorial Actions available with your audit tier or in packs.
+              Do not buy sentence polish for a structural problem. RevisionGrade diagnoses the level of intervention before you spend money on the wrong one.
             </p>
             <p className="font-rg-serif text-2xl leading-tight text-rg-ink sm:text-3xl">
-              Before you pay for polish, diagnose readiness.
+              Structural problems need structural diagnosis. Polish comes later.
             </p>
           </div>
         </div>

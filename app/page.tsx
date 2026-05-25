@@ -25,8 +25,8 @@ const workflow = [
   },
   {
     step: "02",
-    title: "Evaluate against the canon",
-    copy: "The system scores the manuscript through a governed set of literary criteria, surfacing evidence instead of generic praise or vague warnings.",
+    title: "Evaluate at the right depth",
+    copy: "Short-form uses the 13 story criteria. Long-form adds manuscript-scale continuity. Multi-layer audits add deeper architecture and governance where appropriate.",
   },
   {
     step: "03",
@@ -47,11 +47,11 @@ const workflow = [
 
 const proofPoints = [
   "Evidence-linked findings",
-  "Long-form routing for manuscripts over 25,000 words",
+  "Short-form / long-form / multi-layer evaluation modes",
   "Separate Evaluate and Revise surfaces",
   "Queue-based repair model",
-  "Trust pages as first-class routes",
-  "Shared header, footer, and auth shell",
+  "TrustedPath™ governed automation",
+  "Author-controlled revision decisions",
 ];
 
 function SectionLabel({ children }: { children: ReactNode }) {
@@ -72,18 +72,18 @@ export default function Home() {
             A governed revision operating system for serious manuscripts.
           </h1>
           <p className="mt-8 max-w-2xl text-lg leading-8 text-rg-cream2/85">
-            RevisionGrade is built for authors who need more than encouragement. It evaluates the manuscript, explains the editorial diagnosis, and turns weaknesses into a governed revision path without erasing the writer's voice.
+            RevisionGrade evaluates your manuscript across 13 story criteria, explains the editorial diagnosis with evidence, and turns weaknesses into a controlled revision path without erasing the writer&apos;s voice.
           </p>
           <div className="mt-10 flex flex-wrap gap-4">
-            <Link href="/evaluate" className="border border-rg-gold bg-rg-gold px-5 py-3 font-rg-mono text-xs uppercase tracking-[0.18em] text-rg-ink transition hover:bg-transparent hover:text-rg-gold">Open Evaluate</Link>
-            <Link href="/revise" className="border border-rg-cream2/30 px-5 py-3 font-rg-mono text-xs uppercase tracking-[0.18em] text-rg-cream transition hover:border-rg-gold hover:text-rg-gold">See Revise Layer</Link>
+            <Link href="/evaluate" className="border border-rg-gold bg-rg-gold px-5 py-3 font-rg-mono text-xs uppercase tracking-[0.18em] text-rg-ink transition hover:bg-transparent hover:text-rg-gold">Begin Evaluation</Link>
+            <Link href="/revise" className="border border-rg-cream2/30 px-5 py-3 font-rg-mono text-xs uppercase tracking-[0.18em] text-rg-cream transition hover:border-rg-gold hover:text-rg-gold">See Revision Workbench</Link>
           </div>
         </div>
         <div className="border border-rg-cream2/15 bg-rg-ink2/70 p-6 shadow-2xl shadow-black/30">
           <div className="border border-rg-gold/30 p-6">
-            <SectionLabel>Evaluation canon</SectionLabel>
-            <h2 className="mt-4 font-rg-serif text-3xl text-rg-cream">Two canons. One coherent grade.</h2>
-            <p className="mt-4 text-sm leading-7 text-rg-cream2/75">The public surface gives authors a clear product promise while the governed engine keeps criteria, evidence, and repair decisions aligned.</p>
+            <SectionLabel>Manuscript readiness system</SectionLabel>
+            <h2 className="mt-4 font-rg-serif text-3xl text-rg-cream">Thirteen dimensions. One governed diagnosis.</h2>
+            <p className="mt-4 text-sm leading-7 text-rg-cream2/75">Every score is tied to evidence, editorial criteria, and a revision path the author controls.</p>
             <div className="mt-6 grid grid-cols-1 gap-2 sm:grid-cols-2">
               {criteria.map((criterion) => <div key={criterion} className="border border-rg-cream2/10 px-3 py-2 font-rg-mono text-[0.68rem] uppercase tracking-[0.12em] text-rg-cream2/80">{criterion}</div>)}
             </div>
@@ -93,7 +93,7 @@ export default function Home() {
       <section className="border-y border-rg-cream2/10 bg-rg-ink2/50">
         <div className="mx-auto grid max-w-7xl gap-8 px-6 py-16 md:grid-cols-3">
           <div><SectionLabel>The instrument</SectionLabel><h2 className="mt-4 font-rg-serif text-3xl text-rg-cream">Author-facing diagnosis.</h2><p className="mt-4 leading-7 text-rg-cream2/75">The report is the visible editorial instrument: scores, evidence, confidence, warnings, and revision priorities presented in language an author can act on.</p></div>
-          <div><SectionLabel>The engine</SectionLabel><h2 className="mt-4 font-rg-serif text-3xl text-rg-cream">Governed execution.</h2><p className="mt-4 leading-7 text-rg-cream2/75">The pipeline exists to keep long-form evaluation, criteria coverage, failure states, and repair handoff deterministic enough to trust.</p></div>
+          <div><SectionLabel>The engine</SectionLabel><h2 className="mt-4 font-rg-serif text-3xl text-rg-cream">Governed execution.</h2><p className="mt-4 leading-7 text-rg-cream2/75">The pipeline exists to keep evaluation depth, criteria coverage, failure states, and repair handoff deterministic enough to trust.</p></div>
           <div><SectionLabel>The methodology</SectionLabel><h2 className="mt-4 font-rg-serif text-3xl text-rg-cream">Readable trust layer.</h2><p className="mt-4 leading-7 text-rg-cream2/75">The public methodology explains what RevisionGrade evaluates and why, without exposing private prompt internals or weakening the moat.</p></div>
         </div>
       </section>
@@ -111,12 +111,11 @@ export default function Home() {
       </section>
       <section className="mx-auto max-w-7xl px-6 py-20">
         <div className="grid gap-8 lg:grid-cols-[1fr_1fr]">
-          <div className="border border-rg-cream2/12 bg-rg-ink2/60 p-8"><SectionLabel>Trust surface</SectionLabel><h2 className="mt-4 font-rg-serif text-4xl text-rg-cream">Reliability is not a footer link. It is part of the product promise.</h2><p className="mt-5 leading-7 text-rg-cream2/75">The Reliability page now has to exist as a real route, because your buyers need to understand why the system can be trusted before they upload a manuscript.</p><Link href="/reliability" className="mt-7 inline-block font-rg-mono text-xs uppercase tracking-[0.18em] text-rg-gold hover:text-rg-cream">Read reliability doctrine →</Link></div>
-          <div className="border border-rg-cream2/12 bg-rg-ink2/60 p-8"><SectionLabel>Conversion surface</SectionLabel><h2 className="mt-4 font-rg-serif text-4xl text-rg-cream">Pricing and resources must be routes, not dead anchors.</h2><p className="mt-5 leading-7 text-rg-cream2/75">Every public navigation destination should be shareable, crawlable, and inside the same app shell as Evaluate and Revise.</p><div className="mt-7 flex flex-wrap gap-4 font-rg-mono text-xs uppercase tracking-[0.18em]"><Link href="/pricing" className="text-rg-gold hover:text-rg-cream">Pricing →</Link><Link href="/resources" className="text-rg-gold hover:text-rg-cream">Resources →</Link></div></div>
+          <div className="border border-rg-cream2/12 bg-rg-ink2/60 p-8"><SectionLabel>Trust surface</SectionLabel><h2 className="mt-4 font-rg-serif text-4xl text-rg-cream">Reliability is not a footer link. It is part of the product promise.</h2><p className="mt-5 leading-7 text-rg-cream2/75">The Reliability page explains manuscript sovereignty, evidence-backed diagnosis, scope discipline, and author control before a writer uploads a manuscript.</p><Link href="/reliability" className="mt-7 inline-block font-rg-mono text-xs uppercase tracking-[0.18em] text-rg-gold hover:text-rg-cream">Read reliability doctrine →</Link></div>
+          <div className="border border-rg-cream2/12 bg-rg-ink2/60 p-8"><SectionLabel>Conversion surface</SectionLabel><h2 className="mt-4 font-rg-serif text-4xl text-rg-cream">Pricing and resources must clarify the path.</h2><p className="mt-5 leading-7 text-rg-cream2/75">Every public navigation destination should explain the manuscript-first workflow: Evaluate, Revise, Agent Readiness, and controlled Storygate access where eligible.</p><div className="mt-7 flex flex-wrap gap-4 font-rg-mono text-xs uppercase tracking-[0.18em]"><Link href="/pricing" className="text-rg-gold hover:text-rg-cream">Pricing →</Link><Link href="/resources" className="text-rg-gold hover:text-rg-cream">Resources →</Link></div></div>
         </div>
       </section>
 
-      {/* ── AGENT READINESS PACKAGE™ ────────────────────────────────── */}
       <section className="border-t border-rg-cream2/10 bg-rg-ink2/50">
         <div className="mx-auto max-w-7xl px-6 py-20">
           <div className="grid gap-12 lg:grid-cols-[1fr_1fr] items-start">
@@ -126,7 +125,7 @@ export default function Home() {
                 One manuscript. One professional submission package.
               </h2>
               <p className="mt-6 text-base leading-7 text-rg-cream2/75">
-                Generate your query letter, synopsis, elevator pitch, comparables, market positioning, and author bio — then approve each section before export. Built for authors who are ready to submit, not authors who are still drafting.
+                Generate your query letter, synopsis, query pitch, comparables, manuscript positioning, and author bio — then approve each section before export. Built for authors who are ready to submit, not authors who are still drafting.
               </p>
               <div className="mt-8 flex flex-wrap gap-4">
                 <Link href="/agent-readiness" className="border border-rg-gold bg-rg-gold px-5 py-3 font-rg-mono text-xs uppercase tracking-[0.18em] text-rg-ink transition hover:bg-transparent hover:text-rg-gold">
@@ -141,7 +140,7 @@ export default function Home() {
               {[
                 ["01", "Query Letter", "Hook, metadata, comparables, differentiator, and bio. 450-word hard cap."],
                 ["02", "Synopsis", "Query (100–150 words), standard (250–500), or extended (700–1,000)."],
-                ["03", "Elevator Pitch", "One sentence. Suitable for query forms, verbal pitching, and metadata."],
+                ["03", "Query Pitch", "One sentence and paragraph versions for manuscript submission materials."],
                 ["04", "Comparables & Positioning", "2–4 comps with rationale and Agent Appeal Brief."],
                 ["05", "Author Bio", "Third-person, professional. Author-supplied credentials only."],
                 ["06", "Package History / Export", "Approve all sections, then export as DOCX or copy."],
@@ -166,17 +165,16 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ── STORYGATE STUDIO™ ─────────────────────────────────────── */}
       <section className="border-t border-rg-cream2/10">
         <div className="mx-auto max-w-7xl px-6 py-20">
           <div className="grid gap-12 lg:grid-cols-[1fr_1fr] items-start">
             <div>
               <SectionLabel>Storygate Studio™</SectionLabel>
               <h2 className="mt-4 font-rg-serif text-4xl text-rg-cream md:text-5xl leading-tight">
-                A curated access layer for readiness-vetted projects.
+                A curated access layer for readiness-vetted manuscript projects.
               </h2>
               <p className="mt-6 text-base leading-7 text-rg-cream2/75">
-                Projects that clear the 8.0 readiness threshold can enter Storygate Studio — a controlled environment where verified industry professionals request access to specific manuscripts, screenplays, and adaptation packages.
+                Manuscript projects that clear the readiness threshold can enter Storygate Studio — a controlled environment where verified publishing professionals request access to creator-approved materials.
               </p>
               <p className="mt-3 text-sm leading-7 text-rg-cream2/60">
                 No public marketplace. No cold outreach. Access is requested, approved by the creator, and logged.
@@ -186,13 +184,13 @@ export default function Home() {
                   Learn About Storygate
                 </Link>
                 <Link href="/storygate-studio/industry" className="border border-rg-cream2/30 px-5 py-3 font-rg-mono text-xs uppercase tracking-[0.18em] text-rg-cream transition hover:border-rg-gold hover:text-rg-gold">
-                  Industry Access
+                  Publishing Access
                 </Link>
               </div>
             </div>
             <div className="grid gap-3">
               {[
-                ["Verified Access Only",       "Industry users are approved before viewing any project materials."],
+                ["Verified Access Only",       "Publishing users are approved before viewing any project materials."],
                 ["Creator-Controlled Visibility", "Creators decide what is visible and to whom. Access requires their approval."],
                 ["8.0+ Readiness Gate",        "Projects must clear a minimum readiness threshold before eligibility."],
                 ["Logged Activity",             "All access events are recorded and append-only. No anonymous actions."],
