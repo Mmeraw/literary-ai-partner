@@ -890,40 +890,49 @@ export function CanonicalIdentityLayer({
 
 // ─── Layer 4 — Cast & Role Tier ───────────────────────────────────────────────
 
-const ROLE_TIER_ORDER = [
+const TIER_MAP_ORDER = [
   "protagonist",
-  "secondary_pov",
   "co_protagonist",
-  "complex_antagonist",
   "antagonist",
-  "major_secondary",
-  "supporting_cast",
-  "functional_scene_character",
-  "institutional_actor",
+  "secondary",
+  "foil",
+  "mentor",
+  "animal_companion",
+  "symbolic_force",
+  "collective_force",
+  "unknown",
 ] as const;
 
-const ROLE_DISPLAY: Record<string, string> = {
+const TIER_DISPLAY: Record<string, string> = {
   protagonist: "Protagonist",
-  secondary_pov: "Secondary POV",
   co_protagonist: "Co-Protagonist",
-  complex_antagonist: "Complex Antagonist",
   antagonist: "Antagonist",
-  major_secondary: "Major Secondary",
-  supporting_cast: "Supporting Cast",
-  functional_scene_character: "Functional / Scene",
-  institutional_actor: "Institutional Actor",
+  secondary: "Secondary Cast",
+  foil: "Foil",
+  mentor: "Mentor",
+  animal_companion: "Animal Companion",
+  symbolic_force: "Symbolic Force",
+  collective_force: "Collective Force",
+  unknown: "Uncategorised",
 };
 
-const ROLE_TONE: Record<string, "gold" | "oxblood" | "blue" | "neutral"> = {
+const TIER_TONE: Record<string, "gold" | "oxblood" | "blue" | "neutral"> = {
   protagonist: "gold",
-  secondary_pov: "gold",
   co_protagonist: "gold",
-  complex_antagonist: "oxblood",
   antagonist: "oxblood",
-  major_secondary: "blue",
-  supporting_cast: "neutral",
-  functional_scene_character: "neutral",
-  institutional_actor: "blue",
+  secondary: "blue",
+  foil: "blue",
+  mentor: "blue",
+  animal_companion: "neutral",
+  symbolic_force: "neutral",
+  collective_force: "neutral",
+  unknown: "neutral",
+};
+
+type TierEntry = {
+  character_id?: string;
+  canonical_name?: string;
+  importance_level?: string;
 };
 
 export function CastRoleTierLayer({
@@ -931,7 +940,10 @@ export function CastRoleTierLayer({
 }: {
   data?: Record<string, unknown> | null;
 }) {
-  if (!data || Object.keys(data).length === 0)
+  const tierMap = (data?.tier_map as Record<string, TierEntry[]> | undefined) ?? null;
+  const hasNewSchema = tierMap !== null;
+
+  if (!data || Object.keys(data).length === 0) {
     return (
       <LayerShell
         empty
@@ -939,17 +951,30 @@ export function CastRoleTierLayer({
         emptyDetail="This layer will populate once the full cast has been analysed."
       />
     );
+  }
 
-  const hasAntagonists =
-    ((data.antagonist as unknown[]) ?? []).length > 0 ||
-    ((data.complex_antagonist as unknown[]) ?? []).length > 0;
+  const totalCast = hasNewSchema
+    ? (data.total_cast as number | undefined) ?? 0
+    : TIER_MAP_ORDER.reduce((sum, key) => {
+        const val = data[key];
+        if (Array.isArray(val)) return sum + val.length;
+        if (val) return sum + 1;
+        return sum;
+      }, 0);
 
-  const totalCast = ROLE_TIER_ORDER.reduce((sum, key) => {
-    const val = data[key];
-    if (Array.isArray(val)) return sum + val.length;
-    if (val) return sum + 1;
-    return sum;
-  }, 0);
+  const hasAntagonists = hasNewSchema
+    ? ((data.antagonist_count as number | undefined) ?? 0) > 0 ||
+      (Array.isArray(tierMap?.["antagonist"]) && (tierMap?.["antagonist"]?.length ?? 0) > 0)
+    : ((data.antagonist as unknown[]) ?? []).length > 0 ||
+      ((data.complex_antagonist as unknown[]) ?? []).length > 0;
+
+  const relationalEngines = Array.isArray(data.relational_engines)
+    ? (data.relational_engines as string[])
+    : [];
+
+  const majorSecondary = Array.isArray(data.major_secondary_characters)
+    ? (data.major_secondary_characters as string[])
+    : [];
 
   return (
     <LayerShell tone={!hasAntagonists ? "warn" : "neutral"}>
@@ -962,17 +987,22 @@ export function CastRoleTierLayer({
       />
 
       {!hasAntagonists && (
-        <WarnBanner reason="No antagonists detected. This blocks approval for threat-driven manuscripts." />
+        <WarnBanner reason="No antagonists detected. This may affect threat-driven scoring." />
       )}
 
       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-        {ROLE_TIER_ORDER.map((tier) => {
-          const val = data[tier];
-          if (!val) return null;
+        {TIER_MAP_ORDER.map((tier) => {
+          let entries: string[] = [];
 
-          const entries: string[] = Array.isArray(val)
-            ? (val as string[]).filter(Boolean)
-            : [String(val)];
+          if (hasNewSchema && tierMap) {
+            const raw = tierMap[tier];
+            if (!Array.isArray(raw) || raw.length === 0) return null;
+            entries = raw.map((e) => e.canonical_name ?? e.character_id ?? "Unknown");
+          } else {
+            const val = data[tier];
+            if (!val) return null;
+            entries = Array.isArray(val) ? (val as string[]).filter(Boolean) : [String(val)];
+          }
 
           if (entries.length === 0) return null;
 
@@ -988,11 +1018,11 @@ export function CastRoleTierLayer({
                   color: C.textMuted,
                 }}
               >
-                {ROLE_DISPLAY[tier] ?? tier}
+                {TIER_DISPLAY[tier] ?? tier}
               </p>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                 {entries.map((name, i) => (
-                  <Pill key={i} label={name} tone={ROLE_TONE[tier] ?? "neutral"} />
+                  <Pill key={i} label={name} tone={TIER_TONE[tier] ?? "neutral"} />
                 ))}
               </div>
             </div>
@@ -1000,16 +1030,49 @@ export function CastRoleTierLayer({
         })}
       </div>
 
-      {Object.entries(data)
-        .filter(
-          ([k]) =>
-            !ROLE_TIER_ORDER.includes(k as typeof ROLE_TIER_ORDER[number]) &&
-            !k.startsWith("_")
-        )
-        .filter(([, v]) => v !== null && v !== undefined)
-        .map(([k, v]) => (
-          <FieldRow key={k} label={k.replace(/_/g, " ")} value={v} />
-        ))}
+      {relationalEngines.length > 0 && (
+        <div style={{ marginTop: 16 }}>
+          <p
+            style={{
+              margin: "0 0 8px",
+              fontSize: 11,
+              fontWeight: 700,
+              letterSpacing: "0.08em",
+              textTransform: "uppercase" as const,
+              color: C.textMuted,
+            }}
+          >
+            Relational Engines
+          </p>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+            {relationalEngines.map((pair, i) => (
+              <Pill key={i} label={pair} tone="neutral" />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {!hasNewSchema && majorSecondary.length > 0 && (
+        <div style={{ marginTop: 16 }}>
+          <p
+            style={{
+              margin: "0 0 8px",
+              fontSize: 11,
+              fontWeight: 700,
+              letterSpacing: "0.08em",
+              textTransform: "uppercase" as const,
+              color: C.textMuted,
+            }}
+          >
+            Major Secondary
+          </p>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+            {majorSecondary.map((name, i) => (
+              <Pill key={i} label={name} tone="blue" />
+            ))}
+          </div>
+        </div>
+      )}
     </LayerShell>
   );
 }
