@@ -13,6 +13,7 @@ import {
 // No client-side progress drift. Progress is driven 100% from backend phase state
 // via getProgressDisplay. Constants below retained only for redirect animation.
 const COMPLETE_ANIMATION_TICK_MS = 200;
+const LONGFORM_WORD_COUNT_THRESHOLD = 25000;
 
 function getInitialDisplayProgress(job: JobState | null): number {
   if (!job) return 0;
@@ -76,6 +77,10 @@ export interface JobState {
   hard_fail_present?: boolean | null;
   /** Manuscript word count from chunk_routing — available before completion */
   manuscript_word_count?: number | null;
+}
+
+function isLongFormJob(job: Pick<JobState, 'manuscript_word_count'> | null): boolean {
+  return typeof job?.manuscript_word_count === 'number' && job.manuscript_word_count >= LONGFORM_WORD_COUNT_THRESHOLD;
 }
 
 interface PollerProps {
@@ -145,12 +150,14 @@ export function EvaluationPoller({
   const networkErrorCountRef = useRef(0);
   const redirectedRef = useRef(false);
 
-  // Completion sweep: animate displayProgress to 100 only when FINAL complete
-  // (status=complete AND pass3_completed_at present). For interim complete we hold.
+  // Completion sweep: animate displayProgress to 100 when the customer-facing
+  // report is complete. Long-form waits for Narrative Synthesis; short-form
+  // finishes at normal evaluation completion.
   useEffect(() => {
     if (!job || job.status !== 'complete') return;
-    const hasSynthesisNow = !!job.pass3_completed_at;
-    if (!hasSynthesisNow) return;
+    const hasNarrativeSynthesisNow = !!job.pass3_completed_at;
+    const readyToComplete = !isLongFormJob(job) || hasNarrativeSynthesisNow;
+    if (!readyToComplete) return;
     if (displayProgress >= 100) return;
 
     const interval = setInterval(() => {
@@ -164,7 +171,7 @@ export function EvaluationPoller({
     }, COMPLETE_ANIMATION_TICK_MS);
 
     return () => clearInterval(interval);
-  }, [displayProgress, job?.status, job?.pass3_completed_at]);
+  }, [displayProgress, job?.status, job?.pass3_completed_at, job?.manuscript_word_count]);
 
   // For report pages that need a server refresh after completion, wait until the
   // client-side animation has reached 100. Otherwise the page refresh can replace
@@ -300,6 +307,7 @@ export function EvaluationPoller({
             prev.phase2_completed_at === nextJob.phase2_completed_at &&
             prev.pass3_started_at === nextJob.pass3_started_at &&
             prev.pass3_completed_at === nextJob.pass3_completed_at &&
+            prev.manuscript_word_count === nextJob.manuscript_word_count &&
             prev.phase0_total_duration_ms === nextJob.phase0_total_duration_ms;
 
           unchangedCountRef.current = unchanged ? unchangedCountRef.current + 1 : 0;
@@ -308,14 +316,17 @@ export function EvaluationPoller({
 
         setError(null);
 
-        // Stop polling on terminal state.
-        // Interim complete (status=complete but no pass3_completed_at) keeps polling
-        // so we detect when Narrative Synthesis finishes and transition to Final.
-        const hasSynthesisNow = !!data.job.pass3_completed_at;
-        if ((data.job.status === 'complete' && hasSynthesisNow) || data.job.status === 'failed') {
+        // Stop polling on terminal state. Long-form complete can be interim until
+        // Narrative Synthesis lands; short-form complete is already final.
+        const nextIsLongForm = isLongFormJob(nextJob);
+        const hasNarrativeSynthesisNow = !!nextJob.pass3_completed_at;
+        const isTerminalComplete =
+          nextJob.status === 'complete' && (!nextIsLongForm || hasNarrativeSynthesisNow);
+
+        if (isTerminalComplete || nextJob.status === 'failed') {
           setIsPolling(false);
 
-          if (data.job.status === 'complete' && hasSynthesisNow && redirectOnComplete && !redirectedRef.current) {
+          if (isTerminalComplete && redirectOnComplete && !redirectedRef.current) {
             if (resolvedRedirectDelayMs === 0) {
               navigateToReport();
             } else {
@@ -327,15 +338,14 @@ export function EvaluationPoller({
               }, resolvedRedirectDelayMs);
             }
           } else if (
-            data.job.status === 'complete' &&
-            hasSynthesisNow &&
+            isTerminalComplete &&
             refreshOnComplete &&
             !refreshedRef.current
           ) {
             completionRefreshArmedRef.current = true;
           }
 
-          onComplete?.(data.job, data.job.status === 'complete' && hasSynthesisNow);
+          onComplete?.(nextJob, isTerminalComplete);
           return;
         }
 
@@ -482,19 +492,22 @@ export function EvaluationPoller({
     );
   }
 
-  const isCompletingAnimation = job.status === 'complete' && displayProgress < 100;
-  const hasSynthesis = !!job.pass3_completed_at;
-  const isInterimComplete = job.status === 'complete' && !hasSynthesis && !isCompletingAnimation;
-  const isFinalComplete = job.status === 'complete' && hasSynthesis && !isCompletingAnimation;
+  const isLongForm = isLongFormJob(job);
+  const hasNarrativeSynthesis = isLongForm && !!job.pass3_completed_at;
+  const isCompletingAnimation = job.status === 'complete' && (!isLongForm || hasNarrativeSynthesis) && displayProgress < 100;
+  const isInterimComplete = job.status === 'complete' && isLongForm && !hasNarrativeSynthesis && !isCompletingAnimation;
+  const isFinalComplete = job.status === 'complete' && (!isLongForm || hasNarrativeSynthesis) && !isCompletingAnimation;
 
   const statusLabel = {
     queued: 'Waiting in queue',
     running: 'In progress',
     complete: isCompletingAnimation
       ? 'In progress'
-      : hasSynthesis
-        ? '✅ Final Report Ready'
-        : '✅ Interim Report Ready',
+      : isInterimComplete
+        ? '✅ Interim Report Ready'
+        : isLongForm
+          ? '✅ Final Report Ready'
+          : '✅ Evaluation Report Ready',
     failed: '⚠ Needs attention',
   }[job.status];
 
@@ -561,8 +574,9 @@ export function EvaluationPoller({
                   label: 'Evaluation finalized',
                   valueLabel: '100%',
                   percentage: 100,
-                  helperText:
-                    'Your full evaluation report, including Narrative Synthesis, is ready.',
+                  helperText: isLongForm
+                    ? 'Your full evaluation report, including Narrative Synthesis, is ready.'
+                    : 'Your short-form evaluation report is ready.',
                   color: 'green' as const,
                   hardStop: false,
                   indeterminate: false,
@@ -636,7 +650,8 @@ export function EvaluationPoller({
           const phase1aComplete = phase2Active || phase3Active || isAnyComplete;
           const phase2Complete = phase3Active || isAnyComplete;
           const phase3Complete = isAnyComplete; // craft diagnostics done when status=complete
-          const synthesisComplete = isFinalComplete;
+          const finalStageComplete = isFinalComplete;
+          const finalStageLabel = isLongForm ? 'Narrative Synthesis' : 'Report finalization';
           return (
             <div className="text-xs text-gray-500 space-y-1.5 border-t pt-3">
               {/* Stage 1: Calibration */}
@@ -682,16 +697,16 @@ export function EvaluationPoller({
                   </span>
                 </div>
               )}
-              {/* Stage 4: Narrative Synthesis */}
+              {/* Stage 4: long-form Narrative Synthesis; short-form Report finalization */}
               {(phase3Active || isAnyComplete) && (
                 <div className="flex items-center gap-2">
-                  {synthesisComplete
+                  {finalStageComplete
                     ? <span className="text-green-700 font-medium">✓</span>
                     : <span className="h-2 w-2 rounded-full bg-blue-400 animate-pulse inline-block" />}
-                  <span className={synthesisComplete ? 'text-green-800' : 'text-gray-700'}>
-                    {synthesisComplete
-                      ? 'Narrative Synthesis — complete'
-                      : 'Narrative Synthesis — in progress…'}
+                  <span className={finalStageComplete ? 'text-green-800' : 'text-gray-700'}>
+                    {finalStageComplete
+                      ? `${finalStageLabel} — complete`
+                      : `${finalStageLabel} — in progress…`}
                   </span>
                 </div>
               )}
@@ -766,7 +781,7 @@ export function EvaluationPoller({
         {isFinalComplete && redirectOnComplete && !redirectedRef.current && (
           <div className="p-3 bg-green-50 border border-green-200 rounded">
             <p className="text-sm text-green-800">
-              Final report ready.
+              {isLongForm ? 'Final report ready.' : 'Evaluation report ready.'}
               {pendingRedirectDelayMs != null
                 ? ` Redirecting automatically in ${Math.ceil(pendingRedirectDelayMs / 1000)}s.`
                 : ' Redirecting automatically…'}
@@ -776,7 +791,7 @@ export function EvaluationPoller({
               onClick={navigateToReport}
               className="mt-2 inline-flex rounded-md border border-green-300 bg-white px-3 py-1.5 text-xs font-medium text-green-800 hover:bg-green-100"
             >
-              View Final Report
+              {isLongForm ? 'View Final Report' : 'View Evaluation Report'}
             </button>
           </div>
         )}

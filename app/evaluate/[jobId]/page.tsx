@@ -480,6 +480,7 @@ export default async function EvaluationReportPage({
       : null;
   const progressHardFail: boolean | null =
     typeof progressJsonb?.hard_fail_present === 'boolean' ? (progressJsonb.hard_fail_present as boolean) : null;
+  const pollerWordCount = progressWordCount ?? artifact?.metrics?.manuscript?.word_count ?? null;
 
   const initialPollerJob = {
     id: job.id,
@@ -497,7 +498,7 @@ export default async function EvaluationReportPage({
     ...(job.last_error ? { last_error: job.last_error } : {}),
     // Seed review-gate quality signal and word count for immediate correct display.
     ...(progressHardFail !== null ? { hard_fail_present: progressHardFail } : {}),
-    ...(progressWordCount !== null ? { manuscript_word_count: progressWordCount } : {}),
+    ...(pollerWordCount !== null ? { manuscript_word_count: pollerWordCount } : {}),
   };
   const artifactCriteria = artifact?.criteria ?? [];
   const criteriaByKey = new Map<CriterionKey, NonNullable<ArtifactContentV1["criteria"]>[number]>();
