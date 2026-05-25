@@ -576,9 +576,38 @@ export function PovStructureLayer({
       />
     );
 
-  const owners = data.pov_owners as unknown[] | null;
-  const transitions = data.pov_transition_map as unknown[] | null;
-  const confusionRisks = data.pov_confusion_risks as string[] | null;
+  const povChars = Array.isArray(data.pov_characters)
+    ? (data.pov_characters as Record<string, unknown>[])
+    : [];
+  const povIdentified = data.pov_identified === true;
+  const detectionNote = data.pov_detection_note as string | null | undefined;
+
+  if (!povIdentified && povChars.length === 0)
+    return (
+      <LayerShell
+        empty
+        emptyLabel="No POV characters identified."
+        emptyDetail="The system could not determine narrative perspective owners for this manuscript. This may indicate an unusual or experimental structure."
+      />
+    );
+
+  const POV_ROLE_LABEL: Record<string, string> = {
+    protagonist: "Protagonist",
+    co_protagonist: "Co-Protagonist",
+    antagonist: "Antagonist",
+    narrator: "Narrator",
+    secondary_pov: "Secondary POV",
+  };
+
+  const POV_ROLE_TONE: Record<string, "gold" | "oxblood" | "blue" | "neutral"> = {
+    protagonist: "gold",
+    co_protagonist: "gold",
+    antagonist: "oxblood",
+    narrator: "gold",
+    secondary_pov: "blue",
+  };
+
+  const charCount = povChars.length;
 
   return (
     <LayerShell>
@@ -586,121 +615,54 @@ export function PovStructureLayer({
         icon="👁"
         title="POV Structure"
         description={LAYER_DESCRIPTIONS.pov_structure_layer}
-        badge={
-          data.primary_pov ? `Primary: ${String(data.primary_pov)}` : undefined
-        }
+        badge={charCount > 0 ? `${charCount} POV ${charCount === 1 ? "character" : "characters"}` : undefined}
         badgeTone="gold"
       />
 
-      <div>
-        <FieldRow label="Primary POV" value={data.primary_pov} />
-        <FieldRow label="Secondary POV" value={data.secondary_pov} />
-        <FieldRow label="Camera distance" value={data.camera_distance} />
-        <FieldRow label="Narrative share" value={data.narrative_share_estimate} />
-      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        {povChars.map((char, i) => {
+          const name = String(char.canonical_name ?? char.character_id ?? `Character ${i + 1}`);
+          const role = String(char.narrative_role ?? "");
+          const importance = char.importance_level ? String(char.importance_level) : null;
+          const roleLabel = POV_ROLE_LABEL[role] ?? role;
+          const roleTone = POV_ROLE_TONE[role] ?? "neutral";
 
-      {owners && owners.length > 0 && (
-        <>
-          <SubHeading>POV Owners</SubHeading>
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {(owners as Record<string, unknown>[]).map((owner, i) => (
-              <CharacterCard key={i}>
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    flexWrap: "wrap",
-                    gap: 8,
-                    marginBottom: 8,
-                  }}
-                >
-                  <span style={{ fontWeight: 700, color: C.textPrimary, fontSize: 16 }}>
-                    {String(owner.name ?? owner.character ?? `Owner ${i + 1}`)}
-                  </span>
-                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                    {owner.pov_type && (
-                      <Pill label={String(owner.pov_type)} tone="blue" />
-                    )}
-                    {owner.narrative_share && (
-                      <Pill label={String(owner.narrative_share)} tone="neutral" />
-                    )}
-                  </div>
-                </div>
-                {owner.voice_markers && (
-                  <p style={{ margin: "6px 0 0", fontSize: 14, color: C.textMuted, lineHeight: 1.7 }}>
-                    Voice: {String(owner.voice_markers)}
-                  </p>
-                )}
-                {owner.section_label && (
-                  <p style={{ margin: "4px 0 0", fontSize: 14, color: C.textMuted, lineHeight: 1.7 }}>
-                    Sections: {String(owner.section_label)}
-                  </p>
-                )}
-              </CharacterCard>
-            ))}
-          </div>
-        </>
-      )}
-
-      {data.voice_markers && (
-        <>
-          <SubHeading>Voice Markers</SubHeading>
-          <p style={{ fontSize: 15, color: C.textPrimary, margin: 0, lineHeight: 1.75 }}>
-            {String(data.voice_markers)}
-          </p>
-        </>
-      )}
-
-      {data.focalized_sections && (
-        <>
-          <SubHeading>Focalized Sections</SubHeading>
-          <FieldRow label="" value={data.focalized_sections} />
-        </>
-      )}
-
-      {transitions && transitions.length > 0 && (
-        <>
-          <SubHeading>POV Transition Map</SubHeading>
-          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            {(transitions as Record<string, unknown>[]).map((t, i) => (
+          return (
+            <CharacterCard key={i}>
               <div
-                key={i}
                 style={{
                   display: "flex",
-                  gap: 12,
-                  fontSize: 14,
-                  color: C.textMuted,
-                  background: C.surfaceAlt,
-                  borderRadius: 8,
-                  padding: "9px 12px",
-                  lineHeight: 1.6,
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  flexWrap: "wrap",
+                  gap: 8,
                 }}
               >
-                {t.chapter && (
-                  <span style={{ color: C.gold, fontWeight: 600 }}>
-                    {String(t.chapter)}
-                  </span>
-                )}
-                {t.from && t.to && (
-                  <span>
-                    {String(t.from)} → {String(t.to)}
-                  </span>
-                )}
-                {t.note && <span>{String(t.note)}</span>}
+                <span style={{ fontWeight: 700, color: C.textPrimary, fontSize: 16 }}>
+                  {name}
+                </span>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  {role && <Pill label={roleLabel} tone={roleTone} />}
+                  {importance && (
+                    <Pill
+                      label={importance.charAt(0).toUpperCase() + importance.slice(1)}
+                      tone="neutral"
+                    />
+                  )}
+                </div>
               </div>
-            ))}
-          </div>
-        </>
-      )}
+            </CharacterCard>
+          );
+        })}
+      </div>
 
-      {confusionRisks && confusionRisks.length > 0 && (
-        <>
-          <SubHeading>Confusion Risks</SubHeading>
-          {confusionRisks.map((r, i) => (
-            <WarnBanner key={i} reason={r} />
-          ))}
-        </>
+      {detectionNote && (
+        <div style={{ marginTop: 12, padding: "10px 14px", background: C.surfaceAlt, borderRadius: 8 }}>
+          <p style={{ margin: 0, fontSize: 13, color: C.textMuted, lineHeight: 1.6 }}>
+            <span style={{ fontWeight: 600 }}>System note: </span>
+            {detectionNote}
+          </p>
+        </div>
       )}
     </LayerShell>
   );
@@ -890,19 +852,6 @@ export function CanonicalIdentityLayer({
 
 // ─── Layer 4 — Cast & Role Tier ───────────────────────────────────────────────
 
-const CAST_INTERNAL_FIELDS = new Set([
-  "tier_map",
-  "co_presence_index",
-  "character_presence_index",
-  "character_coverage_index",
-  "schema_version",
-  "antagonist_count",
-  "protagonist_count",
-  "total_cast",
-  "major_secondary_characters",
-  "relational_engines",
-]);
-
 const TIER_MAP_ORDER = [
   "protagonist",
   "co_protagonist",
@@ -1023,10 +972,11 @@ export function CastRoleTierLayer({
             <div key={tier}>
               <p
                 style={{
-                  margin: "0 0 10px",
-                  fontSize: 12,
+                  margin: "0 0 8px",
+                  fontSize: 11,
                   fontWeight: 700,
-                  letterSpacing: "0.04em",
+                  letterSpacing: "0.08em",
+                  textTransform: "uppercase" as const,
                   color: C.textMuted,
                 }}
               >
@@ -1043,20 +993,18 @@ export function CastRoleTierLayer({
       </div>
 
       {relationalEngines.length > 0 && (
-        <div style={{ marginTop: 20 }}>
+        <div style={{ marginTop: 16 }}>
           <p
             style={{
-              margin: "0 0 4px",
-              fontSize: 12,
+              margin: "0 0 8px",
+              fontSize: 11,
               fontWeight: 700,
-              letterSpacing: "0.04em",
+              letterSpacing: "0.08em",
+              textTransform: "uppercase" as const,
               color: C.textMuted,
             }}
           >
-            Character Pairs
-          </p>
-          <p style={{ margin: "0 0 10px", fontSize: 12, color: C.textMuted }}>
-            Characters who appear in scenes together.
+            Relational Engines
           </p>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
             {relationalEngines.map((pair, i) => (
@@ -1066,21 +1014,19 @@ export function CastRoleTierLayer({
         </div>
       )}
 
-      {majorSecondary.length > 0 && (
-        <div style={{ marginTop: 20 }}>
+      {!hasNewSchema && majorSecondary.length > 0 && (
+        <div style={{ marginTop: 16 }}>
           <p
             style={{
-              margin: "0 0 4px",
-              fontSize: 12,
+              margin: "0 0 8px",
+              fontSize: 11,
               fontWeight: 700,
-              letterSpacing: "0.04em",
+              letterSpacing: "0.08em",
+              textTransform: "uppercase" as const,
               color: C.textMuted,
             }}
           >
-            System-Suggested Secondary Cast
-          </p>
-          <p style={{ margin: "0 0 10px", fontSize: 12, color: C.textMuted }}>
-            AI-suggested — verify against your own reading of the story.
+            Major Secondary
           </p>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
             {majorSecondary.map((name, i) => (
