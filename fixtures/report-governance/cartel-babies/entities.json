@@ -1,0 +1,32 @@
+{
+  "canonical_entities": [
+    {
+      "canonical_name": "Michael",
+      "aliases": ["Mike", "Michael Salter", "Miguel", "McGill", "Mr. Salter", "Michael Wagner"],
+      "role": "primary POV / abducted Canadian survivor"
+    },
+    {
+      "canonical_name": "Benjamin",
+      "aliases": ["Benjamin Castro López"],
+      "role": "primary POV / institutional and queer relationship lane"
+    },
+    {
+      "canonical_name": "Paul",
+      "aliases": ["Polito", "Paulito", "Paul Robert Wagner"],
+      "role": "central child arc / resettled son figure"
+    },
+    {
+      "canonical_name": "Raúl",
+      "aliases": ["Raul"],
+      "role": "cartel commander / antagonist-protector axis / father of Polito"
+    }
+  ],
+  "forbidden_patterns": [
+    "\\bNo[’']s\\s+(captivity|abduction|situation|highway|choice|loading|trauma|realization|disciplined|voice|scenes?)\\b",
+    "\\bNo\\s+(is|moves|chooses|does|not breaking|was|has|keeps|starts|arrives|works|gets|remains)\\b",
+    "\\bforeign-captive angle in No\\b",
+    "\\bthe close first-person voice channeled through No\\b",
+    "\\bNo and Raúl\\b",
+    "\\bNo and Raul\\b"
+  ]
+}
