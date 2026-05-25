@@ -17,6 +17,42 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 type ExportFormat = 'pdf' | 'docx' | 'txt';
 type ExportableResult = EvaluationResultV1 | EvaluationResultV2;
 
+type ExportableResultShape = {
+  generated_at?: unknown;
+  schema_version?: unknown;
+  metrics?: { manuscript?: { title?: unknown } };
+  overview?: {
+    verdict?: unknown;
+    overall_score_0_100?: unknown;
+    one_paragraph_summary?: unknown;
+    top_3_strengths?: unknown;
+    top_3_risks?: unknown;
+  };
+  criteria?: unknown;
+  recommendations?: {
+    quick_wins?: unknown;
+    strategic_revisions?: unknown;
+  };
+};
+
+function isExportableResultCandidate(value: unknown): value is ExportableResult {
+  if (isEvaluationResultV1(value) || isEvaluationResultV2(value)) return true;
+
+  if (!value || typeof value !== 'object') return false;
+
+  const candidate = value as ExportableResultShape;
+  return (
+    typeof candidate.generated_at === 'string' &&
+    typeof candidate.overview?.verdict === 'string' &&
+    typeof candidate.overview?.one_paragraph_summary === 'string' &&
+    Array.isArray(candidate.overview?.top_3_strengths) &&
+    Array.isArray(candidate.overview?.top_3_risks) &&
+    Array.isArray(candidate.criteria) &&
+    Array.isArray(candidate.recommendations?.quick_wins) &&
+    Array.isArray(candidate.recommendations?.strategic_revisions)
+  );
+}
+
 function safeFilename(title: string | null, jobId: string, ext: string): string {
   const base = title ? title.replace(/[^a-z0-9]+/gi, '-').toLowerCase().slice(0, 40) : jobId.slice(0, 8);
   return `revision-grade-${base}.${ext}`;
@@ -360,7 +396,7 @@ export async function GET(
   }
 
   const rawResult = job.evaluation_result as unknown;
-  if (!isEvaluationResultV1(rawResult) && !isEvaluationResultV2(rawResult)) {
+  if (!isExportableResultCandidate(rawResult)) {
     return NextResponse.json({ error: 'Invalid result format' }, { status: 500 });
   }
 
