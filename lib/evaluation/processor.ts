@@ -5147,6 +5147,22 @@ export async function processEvaluationJob(
     } // end phase_1a execution
 
     if (executionPhase === 'phase_2') {
+      // GUARD: Phase 2 must never fire at the exact millisecond Phase 1 completes.
+      // Previously job 3b7a549b-ea34-4b3d-ae85-30bc8b234576 had
+      // phase1_completed_at === phase2_started_at to the millisecond, indicating
+      // Phase 2 was triggered without any guard. Insert a deterministic settle
+      // delay so any in-flight Phase 1 commit can land before Phase 2 reads.
+      const phase1CompletedAtRaw = progressState.phase1_completed_at as string | undefined;
+      if (phase1CompletedAtRaw) {
+        const phase1CompletedMs = Date.parse(phase1CompletedAtRaw);
+        const sinceCompleteMs = Date.now() - phase1CompletedMs;
+        if (Number.isFinite(phase1CompletedMs) && sinceCompleteMs < 500) {
+          const settleDelayMs = Math.max(500 - sinceCompleteMs, 0);
+          console.log(`[phase_2] ${jobId}: settle delay ${settleDelayMs}ms (phase1_completed_at is ${sinceCompleteMs}ms ago)`);
+          await new Promise((resolve) => setTimeout(resolve, settleDelayMs));
+        }
+      }
+
       await markRunning('Resuming from phase 1 handoff', 1, 'phase_2');
       refreshPhaseDeadline(progressState.phase2_started_at as string | undefined);
 
@@ -5342,12 +5358,123 @@ export async function processEvaluationJob(
 
             if (!p2CaptureResult.ok) {
               const errCode = 'error_code' in p2CaptureResult ? p2CaptureResult.error_code : 'PHASE2_PASS12_FAILED';
+              // ── SELF-HEALING RECOVERY: CHUNK_ROUTING_NOT_ENGAGED ─────────────
+              // If chunks were materialized (count >= 1), the route is set, and
+              // chunk_routing.enabled is truthy, treat routing as engaged and log
+              // structured diagnostics for future investigation. This protects
+              // against guards that were over-aggressive about single-chunk runs.
+              if (errCode === 'CHUNK_ROUTING_NOT_ENGAGED') {
+                const cr = chunkRouting as Record<string, unknown> | undefined;
+                const route = cr?.route;
+                const enabledRaw = cr?.enabled;
+                const enabledTruthy = enabledRaw === true || enabledRaw === 'true' || enabledRaw === 1;
+                const chunkCount = Array.isArray(manuscriptChunksForPipeline) ? manuscriptChunksForPipeline.length : 0;
+                console.warn('[phase_2] CHUNK_ROUTING_NOT_ENGAGED recovery handler invoked', {
+                  job_id: jobId,
+                  manuscript_id: String(manuscriptWithContent.id),
+                  chunk_routing_snapshot: chunkRouting,
+                  manuscript_chunks_count: chunkCount,
+                  recovery_eligible: chunkCount >= 1 && !!route && enabledTruthy,
+                });
+                if (chunkCount >= 1 && !!route && enabledTruthy) {
+                  console.warn(`[phase_2] ${jobId}: CHUNK_ROUTING_NOT_ENGAGED self-heal — chunks present, treating route as engaged. Failing softly to allow retry pickup.`);
+                  // Do not markFailed permanently. Surface to next cron tick by
+                  // requeuing phase_2 so the corrected dispatch path executes.
+                  try {
+                    const nowSelfHealIso = new Date().toISOString();
+                    await supabase
+                      .from('evaluation_jobs')
+                      .update(buildWritablePatch({
+                        status: JOB_STATUS.QUEUED,
+                        phase: 'phase_2',
+                        phase_status: JOB_STATUS.QUEUED,
+                        claimed_by: null,
+                        claimed_at: null,
+                        lease_token: null,
+                        lease_until: null,
+                        error_code: null,
+                        error_message: null,
+                        failed_at: null,
+                        worker_pulse_at: nowSelfHealIso,
+                        updated_at: nowSelfHealIso,
+                      }))
+                      .eq('id', job.id);
+                  } catch (selfHealErr) {
+                    console.error(`[phase_2] ${jobId}: self-heal requeue failed`,
+                      selfHealErr instanceof Error ? selfHealErr.message : String(selfHealErr));
+                  }
+                  return { success: false, error: 'PHASE2_SELF_HEAL_REQUEUE' };
+                }
+                // True no-chunks case: mark failed with full diagnostic + pulse so
+                // the watchdog doesn't see a limbo job.
+                const noChunkNow = new Date().toISOString();
+                try {
+                  await supabase
+                    .from('evaluation_jobs')
+                    .update(buildWritablePatch({
+                      status: 'failed',
+                      phase_status: 'failed',
+                      error_code: 'CHUNK_ROUTING_NOT_ENGAGED',
+                      error_message: `No chunks materialized despite long-form route (chunk_count=${chunkCount}, route=${String(route)}, enabled=${String(enabledRaw)}). Re-chunking required.`,
+                      worker_pulse_at: noChunkNow,
+                      failed_at: noChunkNow,
+                      updated_at: noChunkNow,
+                    }))
+                    .eq('id', job.id);
+                } catch (markErr) {
+                  console.error(`[phase_2] ${jobId}: failed to mark CHUNK_ROUTING_NOT_ENGAGED no-chunk failure`,
+                    markErr instanceof Error ? markErr.message : String(markErr));
+                }
+                return { success: false, error: 'CHUNK_ROUTING_NOT_ENGAGED' };
+              }
               console.error(`[phase_2] ${jobId}: Pass 1+2 failed`, errCode);
               await markFailed(String(errCode), 'PHASE2_PASS12_FAILED', { pipelineStage: 'phase_2' });
               return { success: false, error: String(errCode) };
             }
           } catch (pipelineRunErrP2) {
             const errMsg = pipelineRunErrP2 instanceof Error ? pipelineRunErrP2.message : String(pipelineRunErrP2);
+            const thrownCode = (pipelineRunErrP2 && typeof pipelineRunErrP2 === 'object' && 'failureCode' in (pipelineRunErrP2 as Record<string, unknown>))
+              ? (pipelineRunErrP2 as { failureCode?: unknown }).failureCode
+              : undefined;
+            if (thrownCode === 'CHUNK_ROUTING_NOT_ENGAGED') {
+              const cr = chunkRouting as Record<string, unknown> | undefined;
+              const route = cr?.route;
+              const enabledRaw = cr?.enabled;
+              const enabledTruthy = enabledRaw === true || enabledRaw === 'true' || enabledRaw === 1;
+              const chunkCount = Array.isArray(manuscriptChunksForPipeline) ? manuscriptChunksForPipeline.length : 0;
+              console.warn('[phase_2] CHUNK_ROUTING_NOT_ENGAGED (thrown) recovery handler invoked', {
+                job_id: jobId,
+                chunk_routing_snapshot: chunkRouting,
+                manuscript_chunks_count: chunkCount,
+                error_message: errMsg,
+              });
+              if (chunkCount >= 1 && !!route && enabledTruthy) {
+                try {
+                  const nowSelfHealIso = new Date().toISOString();
+                  await supabase
+                    .from('evaluation_jobs')
+                    .update(buildWritablePatch({
+                      status: JOB_STATUS.QUEUED,
+                      phase: 'phase_2',
+                      phase_status: JOB_STATUS.QUEUED,
+                      claimed_by: null,
+                      claimed_at: null,
+                      lease_token: null,
+                      lease_until: null,
+                      error_code: null,
+                      error_message: null,
+                      failed_at: null,
+                      worker_pulse_at: nowSelfHealIso,
+                      updated_at: nowSelfHealIso,
+                    }))
+                    .eq('id', job.id);
+                } catch (selfHealErr) {
+                  console.error(`[phase_2] ${jobId}: self-heal requeue (thrown) failed`,
+                    selfHealErr instanceof Error ? selfHealErr.message : String(selfHealErr));
+                }
+                return { success: false, error: 'PHASE2_SELF_HEAL_REQUEUE' };
+              }
+            }
             console.error(`[phase_2] ${jobId}: Pass 1+2 pipeline threw`, errMsg);
             await markFailed(errMsg, 'PHASE2_PASS12_FAILED', { pipelineStage: 'phase_2' });
             return { success: false, error: errMsg };

@@ -432,9 +432,10 @@ export async function runPass2(opts: RunPass2Options): Promise<SinglePassOutput>
   }
 
   // ─── CHUNK-NATIVE ROUTING (Long-Form Path) ──────────────────────────────
-  // If chunks are present and count > 1, evaluate each chunk independently
-  // and aggregate results. Otherwise, fall through to single-pass window path.
-  const hasChunks = Array.isArray(opts.manuscriptChunks) && opts.manuscriptChunks.length > 1;
+  // If chunks are present, evaluate each chunk independently and aggregate.
+  // A single chunk IS chunk-native engagement — the manuscript travelled
+  // through the chunking pipeline. Only zero chunks routes to direct_window.
+  const hasChunks = Array.isArray(opts.manuscriptChunks) && opts.manuscriptChunks.length >= 1 && !opts.isChunkUnit;
   if (hasChunks) {
     const chunksTotal = opts.manuscriptChunks!.length;
     const chunkConcurrency = opts._chunkConcurrency ?? getChunkPassConcurrency();

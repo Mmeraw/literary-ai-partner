@@ -63,12 +63,17 @@ describe("silent direct_window fallback is killed", () => {
     expect(failure.error).toMatch(/Chunk-routed evaluation did not engage/);
   });
 
-  test("10k-word text with exactly 1 chunk → still CHUNK_ROUTING_NOT_ENGAGED", async () => {
+  test("10k-word text with exactly 1 chunk → chunk routing IS engaged (dispatches)", async () => {
+    // A single materialized chunk is legitimate chunk-routed engagement: the
+    // manuscript travelled through the chunking pipeline, was persisted, and
+    // rehydrated. The earlier guard (`chunkCount <= 1`) incorrectly rejected
+    // these runs as silent fallbacks — see job 3b7a549b-ea34-4b3d-ae85-30bc8b234576.
+    // Only zero chunks counts as "did not engage".
     const manuscriptText = generateText(10_000);
     const result = await runPipeline({
       manuscriptText,
       workType: "novel",
-      title: "regression: 1-chunk silent fallback",
+      title: "regression: 1-chunk routing engaged",
       manuscriptId: "test:silent-1-chunk",
       manuscriptChunks: [{ chunk_index: 0, content: manuscriptText.slice(0, 12_000) }],
       _passTimeoutMs: 5_000,
@@ -76,7 +81,7 @@ describe("silent direct_window fallback is killed", () => {
       _maxManuscriptChars: 10_000_000,
     });
     const failure = expectFailure(result);
-    expect(failure.error_code).toBe("CHUNK_ROUTING_NOT_ENGAGED");
+    expect(failure.error_code).not.toBe("CHUNK_ROUTING_NOT_ENGAGED");
   });
 
   test("sub-threshold text (2,500 words) with no chunks is OK at the pipeline guard", async () => {

@@ -776,12 +776,15 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
   }
 
   // Fail-closed: above the structural chunking threshold, Pass 1 MUST receive
-  // chunks. The silent fallback to `direct_window` is a bug class that has
-  // caused 12-minute PASS1_TIMEOUT failures on long manuscripts. Refuse to
-  // dispatch — surface a typed, diagnosable error to the caller instead.
+  // at least one chunk. The silent fallback to `direct_window` (zero chunks)
+  // is the bug class that caused 12-minute PASS1_TIMEOUT failures. A single
+  // chunk IS valid engagement — the manuscript was routed through the chunking
+  // pipeline, persisted, and rehydrated. The previous `<= 1` guard incorrectly
+  // rejected legitimate single-chunk long-form runs (see job
+  // 3b7a549b-ea34-4b3d-ae85-30bc8b234576). Only zero chunks is a real failure.
   if (pipelineManuscriptWords >= STRUCTURAL_CHUNKING_THRESHOLD_WORDS) {
     const chunkCount = opts.manuscriptChunks?.length ?? 0;
-    if (chunkCount <= 1) {
+    if (chunkCount < 1) {
       const err = new ChunkRoutingNotEngagedError(
         `Manuscript has ${pipelineManuscriptWords} words (≥ ${STRUCTURAL_CHUNKING_THRESHOLD_WORDS}) but ` +
         `received ${chunkCount} chunk(s). Chunk-routed evaluation did not engage; ` +
@@ -793,6 +796,14 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
           manuscript_chars: opts.manuscriptText.length,
         },
       );
+      console.error('[runPipeline] CHUNK_ROUTING_NOT_ENGAGED', {
+        manuscript_words: pipelineManuscriptWords,
+        chunk_count: chunkCount,
+        threshold: STRUCTURAL_CHUNKING_THRESHOLD_WORDS,
+        manuscript_id: opts.manuscriptId,
+        job_id: opts.jobId,
+        guard_location: 'runPipeline.preflight',
+      });
       return {
         ok: false,
         error: err.message,
