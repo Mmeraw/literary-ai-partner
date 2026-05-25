@@ -522,6 +522,9 @@ export function EvaluationPoller({
               return null;
             })(),
             hard_fail_present: job.hard_fail_present ?? undefined,
+            phase1_started_at: job.phase1_started_at ?? null,
+            phase2_started_at: job.phase2_started_at ?? null,
+            phase3_started_at: job.pass3_started_at ?? null,
           });
           if (!pd) return null;
 

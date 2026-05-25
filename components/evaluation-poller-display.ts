@@ -25,7 +25,24 @@ type PhaseInputs = {
   phase_unit_fraction?: number | null;
   /** Surfaced from jobs API via progress JSONB — true when ledger hard-fails block Phase 2 */
   hard_fail_present?: boolean | null;
+  /** Phase start timestamps for elapsed-time drift within a phase range. */
+  phase0_started_at?: string | null;
+  phase1_started_at?: string | null;
+  phase2_started_at?: string | null;
+  phase3_started_at?: string | null;
 };
+
+function elapsedDrift(
+  startedAt: string | null | undefined,
+  rangeMin: number,
+  rangeMax: number,
+  now: Date,
+): number {
+  if (!startedAt) return rangeMin;
+  const elapsed = Math.max(0, now.getTime() - new Date(startedAt).getTime()) / 1000;
+  const growth = Math.min(1, Math.log1p(elapsed / 30) / Math.log1p(6));
+  return Math.round(rangeMin + (rangeMax - rangeMin) * growth);
+}
 
 export function getProgressDisplay(
   job: PhaseInputs,
@@ -139,24 +156,26 @@ export function getProgressDisplay(
   }
 
   if (job.phase === "phase_3") {
+    const pct = elapsedDrift(job.phase3_started_at, 86, 96, _now);
     return {
       label: "Assembling evaluation matrix...",
-      valueLabel: "86%",
+      valueLabel: `${pct}%`,
       helperText: "Building the final evaluation matrix and diagnosis.",
       indeterminate: false,
-      percentage: 86,
+      percentage: pct,
       color: "blue",
       hardStop: false,
     };
   }
 
   if (job.phase === "phase_2") {
+    const pct = elapsedDrift(job.phase2_started_at, 67, 82, _now);
     return {
       label: "Running deep structural craft diagnostics...",
-      valueLabel: "67%",
+      valueLabel: `${pct}%`,
       helperText: "Performing deep craft analysis across all evaluation criteria.",
       indeterminate: false,
-      percentage: 67,
+      percentage: pct,
       color: "blue",
       hardStop: false,
     };
@@ -165,40 +184,45 @@ export function getProgressDisplay(
   if (job.phase === "phase_1a" && job.phase_status === "running") {
     const fraction = job.phase_unit_fraction ?? 1;
     const isEarly = fraction < 0.5;
+    const rangeMin = isEarly ? 15 : 35;
+    const rangeMax = isEarly ? 34 : 48;
+    const pct = elapsedDrift(job.phase1_started_at, rangeMin, rangeMax, _now);
     return {
       label: isEarly
         ? "Ingesting manuscript & mapping chapters..."
         : "Extracting core narrative footprint...",
-      valueLabel: isEarly ? "15%" : "35%",
+      valueLabel: `${pct}%`,
       helperText: isEarly
         ? "Loading manuscript and identifying chapter structure."
         : "Mapping characters, relationships, and narrative structure.",
       indeterminate: false,
-      percentage: isEarly ? 15 : 35,
+      percentage: pct,
       color: "blue",
       hardStop: false,
     };
   }
 
   if (job.phase === "phase_1a") {
+    const pct = elapsedDrift(job.phase1_started_at, 15, 34, _now);
     return {
       label: "Ingesting manuscript & mapping chapters...",
-      valueLabel: "15%",
+      valueLabel: `${pct}%`,
       helperText: "Loading manuscript for analysis.",
       indeterminate: false,
-      percentage: 15,
+      percentage: pct,
       color: "blue",
       hardStop: false,
     };
   }
 
   if (job.phase === 'phase_0') {
+    const pct = elapsedDrift(job.phase0_started_at, 5, 12, _now);
     return {
       label: "Preparing evaluation environment",
-      valueLabel: "5%",
+      valueLabel: `${pct}%`,
       helperText: "RevisionGrade is loading scoring rules, benchmark standards, and routing information before the manuscript is analyzed.",
       indeterminate: false,
-      percentage: 5,
+      percentage: pct,
       color: "blue",
       hardStop: false,
     };
