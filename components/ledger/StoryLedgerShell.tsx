@@ -227,6 +227,41 @@ const LAYER_ICONS: Record<string, string> = {
   source_integrity_layer: "🔒",
 };
 
+const LAYER_DEFINITIONS = [
+  {
+    key: "canonical_identity_layer",
+    definition: "Who each major story element is in canon: names, aliases, species, age, defining traits, identity facts, and non-negotiable truths.",
+  },
+  {
+    key: "cast_role_tier_layer",
+    definition: "Who matters structurally: protagonist, antagonist, major secondary cast, minor but recurring figures, functional roles, and story importance.",
+  },
+  {
+    key: "pov_structure_layer",
+    definition: "Who sees what, when, and from what narrative distance: POV ownership, narrator logic, perspective shifts, voice boundaries, and access to knowledge.",
+  },
+  {
+    key: "relationship_network_layer",
+    definition: "How characters connect and change: family, friendship, rivalry, romance, betrayal, obligation, dependency, healing, mentorship, power imbalance.",
+  },
+  {
+    key: "object_symbol_layer",
+    definition: "Important recurring objects, symbols, motifs, tools, medicines, artifacts, weapons, documents, animals, and places-as-symbols.",
+  },
+  {
+    key: "location_timeline_worldstate_layer",
+    definition: "When and where things happen: chronology, age progression, city/country movement, chapter sequence, travel logic, seasonal jumps, location continuity.",
+  },
+  {
+    key: "threat_antagonist_ending_layer",
+    definition: "What forces the story forward: antagonistic pressure, danger, stakes, deadlines, escalation, reversals, climax logic, ending state, unresolved consequences.",
+  },
+  {
+    key: "source_integrity_layer",
+    definition: "The audit trail: what the system actually knows from the manuscript, what is inferred, what is uncertain, what needs author confirmation, and what must not be hallucinated.",
+  },
+] as const;
+
 // ─── 13 Criteria ─────────────────────────────────────────────────────────────
 
 const CRITERIA_13 = [
@@ -471,6 +506,7 @@ function Module1StoryLayer({
   const [showCommentFor, setShowCommentFor] = useState<string | null>(null);
   const [pendingComment, setPendingComment] = useState("");
   const [allDecidedTriggered, setAllDecidedTriggered] = useState(false);
+  const [layerRefOpen, setLayerRefOpen] = useState(true);
 
   const decidedCount = LAYER_ORDER.filter(
     (k) => decisions[k].status !== "undecided"
@@ -594,6 +630,57 @@ function Module1StoryLayer({
           </div>
         </div>
       </Card>
+
+      {/* Layer Reference — always shown, collapsible */}
+      <div style={{ border: `1px solid ${P.border}`, borderRadius: 14, overflow: "hidden" }}>
+        <button
+          onClick={() => setLayerRefOpen(!layerRefOpen)}
+          style={{
+            width: "100%",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            padding: "16px 20px",
+            background: P.surfaceAlt,
+            border: "none",
+            cursor: "pointer",
+            textAlign: "left",
+          }}
+        >
+          <span style={{ fontSize: 14, fontWeight: 700, color: P.gold, letterSpacing: "0.04em" }}>
+            WHAT EACH LAYER CONTAINS
+          </span>
+          <span style={{ fontSize: 12, color: P.ash }}>
+            {layerRefOpen ? "Hide" : "Show"}
+          </span>
+        </button>
+
+        {layerRefOpen && (
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr",
+            gap: 1,
+            background: P.border,
+          }}>
+            {LAYER_DEFINITIONS.map((def) => (
+              <div key={def.key} style={{
+                background: P.bg,
+                padding: "16px 20px",
+              }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                  <span style={{ fontSize: 16 }}>{LAYER_ICONS[def.key]}</span>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: P.bone }}>
+                    {LAYER_LABELS[def.key]}
+                  </span>
+                </div>
+                <p style={{ margin: 0, fontSize: 13, color: P.ash, lineHeight: 1.65 }}>
+                  {def.definition}
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
       {/* Instruction banner — only shown when at review gate */}
       {atReviewGate && (
