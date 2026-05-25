@@ -25,8 +25,6 @@ const storygateLinks = [
   ["Agent Dashboard",      "/storygate-studio/industry/dashboard"],
 ];
 
-const storygateActiveHref = "/storygate-studio";
-
 const resourceLinks = [
   ["The Black Box Problem", "/black-box-problem"],
   ["FAQs", "/resources"],
@@ -104,22 +102,6 @@ export default function HeaderNav() {
       document.removeEventListener("keydown", handleKeyDown);
     };
   }, [resourcesOpen, arpOpen, sgOpen]);
-
-  useEffect(() => {
-    if (!pathname.startsWith("/evaluate/")) return;
-
-    const originalCopy = "This typically takes 3–8 minutes.";
-    const replacementCopy = "For long-form manuscripts, this stage can take 20–60 minutes depending on manuscript length, queue depth, and worker load.";
-    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
-    let node = walker.nextNode();
-
-    while (node) {
-      if (node.nodeValue && node.nodeValue.includes(originalCopy)) {
-        node.nodeValue = node.nodeValue.replace(originalCopy, replacementCopy);
-      }
-      node = walker.nextNode();
-    }
-  }, [pathname]);
 
   async function handleSignOut() {
     if (signingOut) return;
