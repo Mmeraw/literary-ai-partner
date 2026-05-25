@@ -44,13 +44,10 @@ const C = {
 // ─── Label-only relationship guard ──────────────────────────────────────────
 // Author rule: if either party has no proper name, strip the pair.
 const LABEL_ONLY_TERMS = new Set([
-  "narrator",
   "canadian",
   "driver",
   "driver from highway",
-  "unnamed narrator",
   "foreigner",
-  "the narrator",
   "unnamed",
   "unknown",
   "unknown character",
