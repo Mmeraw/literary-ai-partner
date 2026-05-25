@@ -31,6 +31,8 @@ type SessionEntry = {
   itemId: number;
   itemTitle: string;
   decision: Decision;
+  selectedOption?: "A" | "B" | "C";
+  customText?: string;
 };
 
 const OPPORTUNITIES: Opportunity[] = [
@@ -209,22 +211,42 @@ export default function WorkbenchPage() {
   const [activeId, setActiveId] = useState<number>(1);
   const [selectedOption, setSelectedOption] = useState<"A" | "B" | "C">("A");
   const [sessionLog, setSessionLog] = useState<SessionEntry[]>([]);
+  const [isDraftOpen, setIsDraftOpen] = useState(false);
+  const [draftText, setDraftText] = useState("");
 
   const active = useMemo(
     () => OPPORTUNITIES.find((item) => item.id === activeId) ?? OPPORTUNITIES[0],
     [activeId]
   );
 
+  const selectedProposal = useMemo(
+    () => active.options.find((option) => option.key === selectedOption) ?? active.options[0],
+    [active, selectedOption]
+  );
+
   const queueIndex = OPPORTUNITIES.findIndex((item) => item.id === active.id);
   const nextId = queueIndex >= 0 && queueIndex < OPPORTUNITIES.length - 1 ? OPPORTUNITIES[queueIndex + 1].id : null;
 
-  function stampDecision(decision: Decision) {
+  function closeDraftPanel(nextText = "") {
+    setIsDraftOpen(false);
+    setDraftText(nextText);
+  }
+
+  function moveToOpportunity(itemId: number) {
+    setActiveId(itemId);
+    setSelectedOption("A");
+    closeDraftPanel("");
+  }
+
+  function stampDecision(decision: Decision, customText?: string) {
     setSessionLog((prev) => [
       {
         at: new Date().toLocaleTimeString(),
         itemId: active.id,
         itemTitle: active.title,
         decision,
+        selectedOption: decision === "accept" ? selectedOption : undefined,
+        customText: customText?.trim() || undefined,
       },
       ...prev,
     ]);
@@ -233,12 +255,20 @@ export default function WorkbenchPage() {
       setActiveId(nextId);
       setSelectedOption("A");
     }
+
+    closeDraftPanel("");
+  }
+
+  function openDraftPanel() {
+    setDraftText((current) => current || selectedProposal.text);
+    setIsDraftOpen(true);
   }
 
   const accepted = sessionLog.filter((e) => e.decision === "accept").length;
   const rejected = sessionLog.filter((e) => e.decision === "reject").length;
   const custom = sessionLog.filter((e) => e.decision === "custom").length;
   const pending = Math.max(OPPORTUNITIES.length - sessionLog.length, 0);
+  const canSaveDraft = draftText.trim().length > 0;
 
   return (
     <main className="min-h-screen bg-[#0D0A05] text-[#F5EFE4] px-4 py-6 md:px-6 md:py-8">
@@ -272,10 +302,7 @@ export default function WorkbenchPage() {
                 <li key={item.id}>
                   <button
                     type="button"
-                    onClick={() => {
-                      setActiveId(item.id);
-                      setSelectedOption("A");
-                    }}
+                    onClick={() => moveToOpportunity(item.id)}
                     className={`w-full rounded-lg border p-3 text-left transition ${
                       active.id === item.id
                         ? "border-[#C8A96E] bg-[#221B11] shadow-[0_0_0_1px_rgba(200,169,110,0.2)]"
@@ -349,7 +376,10 @@ export default function WorkbenchPage() {
                   <button
                     key={option.key}
                     type="button"
-                    onClick={() => setSelectedOption(option.key)}
+                    onClick={() => {
+                      setSelectedOption(option.key);
+                      if (isDraftOpen) setDraftText(option.text);
+                    }}
                     className={`w-full rounded-lg border p-3 text-left transition ${
                       isSelected
                         ? "border-[#C8A96E] bg-[#221B11] shadow-[0_0_0_1px_rgba(200,169,110,0.2)]"
@@ -377,10 +407,44 @@ export default function WorkbenchPage() {
               <button type="button" onClick={() => stampDecision("reject")} className="rounded border border-[#7A2B1A]/70 bg-transparent px-3 py-2 text-sm text-[#E2B2A6] hover:bg-[#7A2B1A]/20">
                 Reject all three
               </button>
-              <button type="button" onClick={() => stampDecision("custom")} className="rounded border border-[#5D4C31] bg-transparent px-3 py-2 text-sm text-[#E8DABF] hover:border-[#C8A96E]">
+              <button type="button" onClick={openDraftPanel} className="rounded border border-[#C8A96E] bg-[#C8A96E]/10 px-3 py-2 text-sm text-[#F3E3C3] hover:bg-[#C8A96E]/20">
                 Write custom
               </button>
             </section>
+
+            {isDraftOpen && (
+              <section className="mt-4 rounded-lg border border-[#C8A96E]/60 bg-[#120E08] p-4">
+                <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.16em] text-[#C8A96E]">Author custom revision</p>
+                    <p className="mt-1 text-sm text-[#BDAE91]">Edit the selected proposal or write your own repair, then save it to the session log.</p>
+                  </div>
+                  <button type="button" onClick={() => closeDraftPanel("")} className="self-start rounded border border-[#5D4C31] px-2 py-1 text-xs text-[#D6C3A2] hover:border-[#C8A96E]">
+                    Close
+                  </button>
+                </div>
+                <textarea
+                  value={draftText}
+                  onChange={(event) => setDraftText(event.target.value)}
+                  rows={6}
+                  className="mt-3 w-full rounded border border-[#3A3022] bg-[#0D0A05] p-3 font-mono text-sm leading-6 text-[#F7EFDF] outline-none focus:border-[#C8A96E]"
+                  placeholder="Write your custom revision here..."
+                />
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    disabled={!canSaveDraft}
+                    onClick={() => stampDecision("custom", draftText)}
+                    className="rounded border border-[#C8A96E] bg-[#C8A96E] px-3 py-2 text-sm font-medium text-[#1A140C] hover:bg-[#D5B67E] disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Save custom revision
+                  </button>
+                  <button type="button" onClick={() => setDraftText(selectedProposal.text)} className="rounded border border-[#5D4C31] bg-transparent px-3 py-2 text-sm text-[#E8DABF] hover:border-[#C8A96E]">
+                    Reset to selected proposal
+                  </button>
+                </div>
+              </section>
+            )}
           </article>
 
           <aside className="rounded-xl border border-[#3A3022] bg-[#161109] p-4">
@@ -398,6 +462,8 @@ export default function WorkbenchPage() {
                       <span className="uppercase tracking-wider text-[#C8A96E] text-[11px] mr-1">{entry.decision}</span>
                       #{entry.itemId} · {entry.itemTitle}
                     </p>
+                    {entry.selectedOption && <p className="mt-1 text-xs text-[#9F8F75]">Selected option {entry.selectedOption}</p>}
+                    {entry.customText && <pre className="mt-2 whitespace-pre-wrap rounded border border-[#2D2519] bg-[#0D0A05] p-2 text-xs leading-5 text-[#E8DCC4]">{entry.customText}</pre>}
                     <p className="mt-1 text-xs text-[#9F8F75]">{entry.at}</p>
                   </li>
                 ))
