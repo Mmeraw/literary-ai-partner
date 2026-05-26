@@ -151,6 +151,8 @@ import {
 } from '@/lib/evaluation/phaseTimestamps';
 import { buildPhaseLogPatch } from '@/lib/evaluation/phaseLog';
 import { getConfiguredAppBaseUrl } from '@/lib/jobs/triggerWorker';
+import { buildReviewGateHandoff } from '@/lib/evaluation/phase-architecture-v2/reviewGateHandoff';
+import { PASS3A_STATUSES, type Pass3AStatus } from '@/lib/evaluation/phase-architecture-v2/gateValidity';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // WAVE Phase 3 constants
@@ -194,6 +196,7 @@ const STRUCTURAL_CHUNKING_THRESHOLD_WORDS = 3_000;
 // Hard manuscript ceiling. Above this, we fail-closed before any AI call.
 // The website upload page displays this as the supported max.
 const HARD_MANUSCRIPT_CEILING_WORDS = 300_000;
+const PASS3A_STATUS_SET = new Set<string>(PASS3A_STATUSES);
 
 type ChunkRoutingTelemetry = {
   enabled: boolean;
@@ -5065,25 +5068,117 @@ export async function processEvaluationJob(
           );
         }
 
-        // ── 7. Open Review Gate ───────────────────────────────────────────
+        // ── 7. Open Review Gate (Phase Architecture v2 helper) ───────────
         const phase1aNow = new Date().toISOString();
-        const phase1aHandoffProgress = {
+        const { data: pass3aArtifactRow, error: pass3aArtifactErr } = await supabase
+          .from('evaluation_artifacts')
+          .select('artifact_id, source_hash')
+          .eq('job_id', String(job.id))
+          .eq('artifact_type', 'pass3_preflight_draft_v1')
+          .maybeSingle();
+
+        if (pass3aArtifactErr) {
+          throw new Error(`Failed to read pass3_preflight_draft_v1: ${pass3aArtifactErr.message}`);
+        }
+
+        const pass3aArtifactRef =
+          pass3aArtifactRow?.artifact_id && pass3aArtifactRow?.source_hash
+            ? {
+              artifact_id: pass3aArtifactRow.artifact_id,
+              source_hash: pass3aArtifactRow.source_hash,
+            }
+            : undefined;
+
+        const pass3aStatusRaw = progressState.pass3a_status;
+        const pass3aStatus =
+          typeof pass3aStatusRaw === 'string' && PASS3A_STATUS_SET.has(pass3aStatusRaw)
+            ? (pass3aStatusRaw as Pass3AStatus)
+            : (pass3aArtifactRef ? 'done' : 'not_started');
+        const pass3aCompletedAt =
+          typeof progressState.pass3a_completed_at === 'string' && progressState.pass3a_completed_at.trim().length > 0
+            ? progressState.pass3a_completed_at
+            : (pass3aStatus === 'done' ? phase1aNow : undefined);
+
+        const reviewGateHandoff = buildReviewGateHandoff(
+          {
+            pass3a_status: pass3aStatus,
+            pass3a_completed_at: pass3aCompletedAt,
+            degraded_reason: typeof progressState.degraded_reason === 'string' ? progressState.degraded_reason : undefined,
+            degraded_reason_codes: Array.isArray(progressState.degraded_reason_codes)
+              ? progressState.degraded_reason_codes
+                .filter((code): code is string => typeof code === 'string')
+              : undefined,
+            degraded_at: typeof progressState.degraded_at === 'string' ? progressState.degraded_at : undefined,
+          },
+          {
+            pass1a_story_layer_v1: storyLayerRefs.pass1a_story_layer_v1,
+            ledger_quality_report_v1: storyLayerRefs.ledger_quality_report_v1,
+            pass3_preflight_draft_v1: pass3aArtifactRef,
+          },
+        );
+
+        const basePhase1aProgress = {
           ...progressState,
           ...buildPhaseLogPatch(progressState, 'phase_1a', 'passed', phase1aNow),
-          phase: 'phase_1a',
-          phase_status: 'awaiting_approval',
-          message: 'Phase 1A complete — Story Ledger ready for author review',
           phase1a_completed_at: phase1aNow,
           ledger_entries: characterLedger.entries.length,
           story_layer_artifact_id: storyLayerRefs.pass1a_story_layer_v1.artifact_id,
           quality_report_artifact_id: storyLayerRefs.ledger_quality_report_v1.artifact_id,
-          gate_ready_status: qualityReport.gate_ready_status,
-          hard_fail_present: qualityReport.hard_fail_present,
           phase1a_batch_state: {
             ...((progressState.phase1a_batch_state as Record<string, unknown>) ?? {}),
             ledger_assembly_status: 'COMPLETE',
             preflight_status: 'DONE',
           },
+        };
+
+        if (reviewGateHandoff.ok === false) {
+          const blocked = reviewGateHandoff.blocked;
+          const blockedProgress = {
+            ...basePhase1aProgress,
+            ...blocked.progress,
+            pass3a_artifact_id: pass3aArtifactRef?.artifact_id,
+            phase_log: [
+              ...((progressState.phase_log as unknown[]) ?? []),
+              { at: storyLayerPersistedAt, event: 'phase1a_story_layer_persisted', stage: 'phase_1a' },
+              {
+                at: phase1aNow,
+                event: 'review_gate_blocked',
+                stage: 'phase_1a',
+                block_code: blocked.progress.block_code,
+                block_reason: blocked.progress.block_reason,
+              },
+            ],
+          };
+
+          const { error: reviewGateBlockedErr } = await supabase
+            .from('evaluation_jobs')
+            .update({
+              updated_at: phase1aNow,
+              progress: blockedProgress,
+            })
+            .eq('id', job.id)
+            .eq('status', JOB_STATUS.RUNNING);
+
+          if (reviewGateBlockedErr) {
+            throw new Error(`Phase 1A Review Gate blocked patch failed: ${reviewGateBlockedErr.message}`);
+          }
+
+          console.warn(
+            `[Processor] ${jobId}: review_gate blocked after phase_1a`,
+            {
+              block_code: blocked.progress.block_code,
+              block_reason: blocked.progress.block_reason,
+              pass3a_status: blocked.progress.pass3a_status,
+              pass3a_gate_validity: blocked.progress.pass3a_gate_validity,
+            },
+          );
+          return { success: true };
+        }
+
+        const reviewGateReadyHandoff = reviewGateHandoff.handoff;
+        const phase1aHandoffProgress = {
+          ...basePhase1aProgress,
+          ...reviewGateReadyHandoff.progress,
           phase_log: [
             ...((progressState.phase_log as unknown[]) ?? []),
             { at: storyLayerPersistedAt, event: 'phase1a_story_layer_persisted', stage: 'phase_1a' },
@@ -5134,8 +5229,10 @@ export async function processEvaluationJob(
         console.log(
           `[Processor] ${jobId}: phase_1a handoff confirmed — status=queued phase=review_gate phase_status=awaiting_approval`,
           {
-            gate_ready_status: qualityReport.gate_ready_status,
-            hard_fail_present: qualityReport.hard_fail_present,
+            gate_ready_status: reviewGateReadyHandoff.progress.gate_ready_status,
+            hard_fail_present: reviewGateReadyHandoff.progress.hard_fail_present,
+            pass3a_status: reviewGateReadyHandoff.progress.pass3a_status,
+            pass3a_gate_validity: reviewGateReadyHandoff.progress.pass3a_gate_validity,
           },
         );
         return { success: true };
