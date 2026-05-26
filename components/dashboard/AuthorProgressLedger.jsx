@@ -13,6 +13,11 @@ function packageHref(row) {
   return `/agent-readiness?${params.toString()}`
 }
 
+function workbenchHref(row) {
+  const params = new URLSearchParams({ manuscriptId: row.manuscriptId, evaluationJobId: row.jobId })
+  return `/workbench?${params.toString()}`
+}
+
 function trend(rows, latest) {
   return rows
     .filter((r) => r.manuscriptId === latest.manuscriptId && r.status !== 'running' && r.status !== 'failed')
@@ -40,6 +45,7 @@ export default function AuthorProgressLedger({ rows, kpis }) {
           </div>
           <div className="grid gap-2 min-w-56">
             <Link href={latest.reportHref} className="rounded-full bg-neutral-950 px-5 py-3 text-center text-sm font-bold text-white">Open latest report</Link>
+            <Link href={workbenchHref(latest)} className="rounded-full border border-neutral-300 px-5 py-3 text-center text-sm font-bold text-neutral-900">Open Revise Workbench</Link>
             {canPackage && <Link href={packageHref(latest)} className="rounded-full border border-neutral-300 px-5 py-3 text-center text-sm font-bold text-neutral-900">Build Agent Readiness</Link>}
             <Link href="/evaluate" className="rounded-full border border-neutral-300 px-5 py-3 text-center text-sm font-bold text-neutral-900">Run re-evaluation</Link>
           </div>
@@ -96,9 +102,9 @@ export default function AuthorProgressLedger({ rows, kpis }) {
         </article>
         <article className="rounded-3xl border border-dashed border-neutral-300 bg-neutral-50 p-6 text-neutral-950">
           <h2 className="text-2xl font-bold">Revise Analytics</h2>
-          <p className="mt-2 text-sm leading-6 text-neutral-600">Next phase: surface Must / Should / Good opportunities, repair scope, decision history, and issue-type trends after Revise data is persisted.</p>
+          <p className="mt-2 text-sm leading-6 text-neutral-600">Next phase: surface MUST / SHOULD / COULD opportunities, repair scope, decision history, and issue-type trends after Revise data is persisted.</p>
           <div className="mt-6 grid gap-3 sm:grid-cols-3">
-            {['Must Repair', 'Should Repair', 'Good Repair'].map((label) => <div key={label} className="rounded-2xl border border-neutral-300 bg-white p-4"><p className="text-xs font-bold uppercase tracking-wide text-neutral-500">{label}</p><p className="mt-2 text-sm text-neutral-600">Pending Revise queue data</p></div>)}
+            {['MUST', 'SHOULD', 'COULD'].map((label) => <div key={label} className="rounded-2xl border border-neutral-300 bg-white p-4"><p className="text-xs font-bold uppercase tracking-wide text-neutral-500">{label}</p><p className="mt-2 text-sm text-neutral-600">Pending Revise queue data</p></div>)}
           </div>
           <p className="mt-5 text-sm text-neutral-500">No improvement claim appears until the manuscript is revised and re-evaluated.</p>
         </article>
