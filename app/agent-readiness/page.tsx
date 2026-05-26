@@ -3,11 +3,11 @@
 /**
  * Agent Readiness Package™ — Flagship page
  *
- * Generates the full professional query package:
+ * Generates the full professional manuscript submission package:
  *   1. Query Letter          (450-word hard cap)
  *   2. What Makes This Novel Unique
  *   3. Synopsis
- *   4. Elevator Pitch
+ *   4. Query Pitch
  *   5. Comparables
  *   6. Author Bio            (author-supplied credentials only)
  *
@@ -24,7 +24,7 @@ type SectionId =
   | "query-letter"
   | "unique"
   | "synopsis"
-  | "elevator-pitch"
+  | "query-pitch"
   | "comparables"
   | "author-bio";
 
@@ -45,7 +45,7 @@ const REQUIRED_SECTIONS: { id: SectionId; label: string; href: string; descripti
     id: "unique",
     label: "What Makes This Novel Unique",
     href: "/agent-readiness/query-letter",
-    description: "Standalone section and summarized inside the query letter.",
+    description: "A concise differentiator that can stand alone and also support the query letter.",
   },
   {
     id: "synopsis",
@@ -54,16 +54,16 @@ const REQUIRED_SECTIONS: { id: SectionId; label: string; href: string; descripti
     description: "Query synopsis (100–150 words), standard (250–500), or extended (700–1,000). Ending revealed.",
   },
   {
-    id: "elevator-pitch",
-    label: "Elevator Pitch",
+    id: "query-pitch",
+    label: "Query Pitch",
     href: "/agent-readiness/pitch",
-    description: "One sentence. Suitable for query forms, verbal pitching, and metadata.",
+    description: "One-sentence manuscript hook or positioning line for query forms and package summaries.",
   },
   {
     id: "comparables",
     label: "Comparables",
     href: "/agent-readiness/comparables",
-    description: "2–4 comps with rationale. Also integrated into the query letter.",
+    description: "2–4 comps with rationale. Also integrated into the query letter where useful.",
   },
   {
     id: "author-bio",
@@ -178,12 +178,12 @@ function SectionCard({
 
 export default function AgentReadinessPage() {
   const [sectionStates] = useState<Record<SectionId, SectionState>>({
-    "query-letter":  { status: "empty", content: "" },
-    "unique":        { status: "empty", content: "" },
-    "synopsis":      { status: "empty", content: "" },
-    "elevator-pitch":{ status: "empty", content: "" },
-    "comparables":   { status: "empty", content: "" },
-    "author-bio":    { status: "empty", content: "" },
+    "query-letter": { status: "empty", content: "" },
+    "unique":       { status: "empty", content: "" },
+    "synopsis":     { status: "empty", content: "" },
+    "query-pitch":  { status: "empty", content: "" },
+    "comparables":  { status: "empty", content: "" },
+    "author-bio":   { status: "empty", content: "" },
   });
 
   const approvedCount = Object.values(sectionStates).filter(s => s.status === "approved").length;
@@ -240,6 +240,13 @@ export default function AgentReadinessPage() {
             }}>
               Package History / Export
             </Link>
+            <Link href="/agent-readiness/faq" style={{
+              padding: "0.5rem 0.75rem",
+              fontFamily: T.mono, fontSize: "0.6875rem", color: T.dim,
+              textDecoration: "none",
+            }}>
+              Agent Readiness FAQ
+            </Link>
           </nav>
 
           {/* Approval progress */}
@@ -273,10 +280,10 @@ export default function AgentReadinessPage() {
               Agent Readiness Package™
             </p>
             <h1 style={{ fontFamily: T.serif, fontSize: "2rem", color: T.cream, lineHeight: 1.1, marginBottom: "0.875rem" }}>
-              Generate Full Agent Readiness Package
+              Build a Professional Manuscript Submission Package
             </h1>
-            <p style={{ fontSize: "0.875rem", color: T.cream2, lineHeight: 1.65, maxWidth: "600px" }}>
-              One manuscript. One professional submission package. Generate your query letter, synopsis, elevator pitch, comparables, market positioning, and author bio — then approve each section before export.
+            <p style={{ fontSize: "0.875rem", color: T.cream2, lineHeight: 1.65, maxWidth: "640px" }}>
+              One manuscript. One professional submission package. Generate your query letter, query pitch, synopsis, comparables, manuscript positioning, and author bio — then approve each section before export.
             </p>
           </div>
 
@@ -288,7 +295,7 @@ export default function AgentReadinessPage() {
             <span style={{ color: T.gold, fontSize: "0.75rem", flexShrink: 0 }}>ⓘ</span>
             <div>
               <p style={{ fontSize: "0.75rem", color: T.cream2, lineHeight: 1.6 }}>
-                <strong style={{ color: T.cream }}>Eligibility:</strong> Full manuscripts may generate a complete Query Package. Excerpt or chapter submissions are eligible for craft evaluation only. Storygate Studio™ submission requires a readiness score of 8.0 or above.
+                <strong style={{ color: T.cream }}>Eligibility:</strong> Agent Readiness is for manuscript submission materials. Excerpts or chapters are better handled through evaluation first. Storygate Studio™ submission requires a readiness score of 8.0 or above and an approved manuscript package.
               </p>
             </div>
           </div>
@@ -304,7 +311,7 @@ export default function AgentReadinessPage() {
               Generate Complete Package
             </button>
             <p style={{ fontSize: "0.6875rem", color: T.dim, lineHeight: 1.5 }}>
-              Generates all six required sections from your manuscript and provided bio inputs.
+              Generates all six required sections from your manuscript and author-supplied bio inputs.
             </p>
           </div>
 
@@ -326,7 +333,7 @@ export default function AgentReadinessPage() {
                 Agent Targeting™ — Coming Next
               </p>
               <p style={{ fontSize: "0.6875rem", color: T.dim, lineHeight: 1.5 }}>
-                Find three target agents. Generate agent-specific query variants. Build your outreach plan.
+                Identify target agents, generate agent-specific query variants, and build your outreach plan after the core package is approved.
               </p>
             </div>
             <span style={{

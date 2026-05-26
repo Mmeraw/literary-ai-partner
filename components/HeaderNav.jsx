@@ -44,10 +44,11 @@ const arpLinks = [
   ["Generate Full Agent Package", "/agent-readiness"],
   ["Query / Cover Letter",        "/agent-readiness/query-letter"],
   ["Synopsis Builder",            "/agent-readiness/synopsis"],
-  ["Pitch Builder",               "/agent-readiness/pitch"],
+  ["Query Pitch Builder",         "/agent-readiness/pitch"],
   ["Author Bio",                  "/agent-readiness/bio"],
   ["Comparables & Positioning",   "/agent-readiness/comparables"],
   ["Package History / Export",    "/agent-readiness/history"],
+  ["Agent Readiness FAQ",         "/agent-readiness/faq"],
 ];
 
 const arpActiveHref = "/agent-readiness";
