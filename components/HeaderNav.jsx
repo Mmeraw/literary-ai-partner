@@ -28,9 +28,14 @@ const storygateLinks = [
 
 const resourceLinks = [
   ["The Black Box Problem", "/black-box-problem"],
-  ["FAQs", "/resources"],
+  ["Resources Hub", "/resources"],
   ["Methodology", "/methodology"],
   ["Editorial Doctrine", "/reliability"],
+  ["Privacy & Research Controls", "/privacy-research-controls"],
+  ["Security & Access Controls", "/security"],
+  ["Genre & Classification FAQ", "/genre-classification-faq"],
+  ["Storygate Studio FAQ", "/storygate-studio/faq"],
+  ["Agent Readiness FAQ", "/agent-readiness/faq"],
 ];
 
 const resourceActiveHrefs = [
@@ -38,6 +43,11 @@ const resourceActiveHrefs = [
   "/resources",
   "/methodology",
   "/reliability",
+  "/privacy-research-controls",
+  "/security",
+  "/genre-classification-faq",
+  "/storygate-studio/faq",
+  "/agent-readiness/faq",
 ];
 
 const arpLinks = [
