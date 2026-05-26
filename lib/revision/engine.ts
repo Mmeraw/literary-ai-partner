@@ -2,6 +2,7 @@ import { getSupabaseAdminClient } from "@/lib/supabase";
 import { applyRevisionSession } from "./apply";
 import { logRevisionEvent } from "./logRevisionEvent";
 import { createDiagnosticFindingsForEvaluationRun } from "./normalizeFindings";
+import { discoverBaselineManuscriptFindingsForEvaluationRun } from "./manuscriptDiscovery";
 import {
   createProposalsForSessionFromFindings,
   getFindingsSynthesisSummary,
@@ -71,6 +72,14 @@ async function getSourceVersionIdForEvaluationRun(evaluationRunId: string): Prom
   }
 
   return data.manuscript_version_id as string;
+}
+
+async function ensureDiagnosticAndDiscoveryFindings(
+  evaluationRunId: string,
+  sourceVersionId: string,
+) {
+  await createDiagnosticFindingsForEvaluationRun(evaluationRunId, sourceVersionId);
+  await discoverBaselineManuscriptFindingsForEvaluationRun(evaluationRunId, sourceVersionId);
 }
 
 async function findExistingRevisionSessionForEvaluationRun(
@@ -154,7 +163,7 @@ export async function startRevisionEngine(
 
   // `failed` is a terminal state with no valid outbound transitions; create a fresh session.
   if (existing && existing.status !== "failed") {
-    await createDiagnosticFindingsForEvaluationRun(
+    await ensureDiagnosticAndDiscoveryFindings(
       input.evaluation_run_id,
       existing.source_version_id,
     );
@@ -206,7 +215,7 @@ export async function startRevisionEngine(
     event_code: "REVISION_SESSION_CREATED",
   });
 
-  await createDiagnosticFindingsForEvaluationRun(
+  await ensureDiagnosticAndDiscoveryFindings(
     input.evaluation_run_id,
     sourceVersionId,
   );
@@ -318,16 +327,6 @@ export async function finalizeRevisionEngine(
         });
       }
     }
-
-    void logRevisionEvent({
-      revision_session_id: revisionSessionId,
-      manuscript_version_id: readySession?.source_version_id ?? sessionBeforeFinalize?.source_version_id ?? null,
-      evaluation_run_id: readySession?.evaluation_run_id ?? sessionBeforeFinalize?.evaluation_run_id ?? null,
-      event_type: "finalize",
-      severity: "error",
-      event_code: "REVISION_SESSION_FINALIZE_FAILED",
-      message: error instanceof Error ? error.message : String(error),
-    });
 
     throw error;
   }
