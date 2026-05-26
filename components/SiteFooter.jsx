@@ -46,6 +46,7 @@ export default function SiteFooter() {
             Manuscript diagnosis, author-controlled revision, and professional submission preparation.
           </p>
           <p className="mt-5 text-xs text-rg-dim">RevisionGrade. All rights reserved.</p>
+          <p className="mt-2 text-xs text-rg-dim">Operated from Canada and Mexico.</p>
         </div>
 
         <div className="grid gap-6 sm:grid-cols-3">

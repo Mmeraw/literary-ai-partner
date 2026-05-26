@@ -159,6 +159,9 @@ export default function BlackBoxProblemPage() {
             RevisionGrade was founded by Michael J. Meraw, a former Canadian Forces pilot and Major (Retired) with more than twenty years in corporate aerospace.
           </p>
           <p>
+            Operated from British Columbia, Canada, and Sinaloa, Mexico.
+          </p>
+          <p>
             His background in airworthiness, reliability, enterprise information management, and master data management shaped the RevisionGrade operating principle: when the stakes are high, guessing is not a process.
           </p>
           <p>
