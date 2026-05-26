@@ -22,7 +22,7 @@ const resourceCards = [
   },
   {
     title: "Author FAQ",
-    href: "#author-faq",
+    href: "/faq",
     eyebrow: "Before you evaluate",
     copy: "Practical answers about scores, reports, evaluation modes, revision, human editors, and publishing outcomes.",
   },
@@ -211,6 +211,9 @@ export default function ResourcesPage() {
             </article>
           ))}
         </div>
+        <Link href="/faq" className="mt-8 inline-block font-rg-mono text-xs uppercase tracking-[0.18em] text-rg-gold hover:text-rg-cream">
+          Open full Author FAQ →
+        </Link>
       </section>
 
       <section id="privacy-research-controls" className="border-y border-rg-cream2/10 bg-rg-ink2/50 scroll-mt-24">
