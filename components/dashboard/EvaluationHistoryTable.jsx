@@ -44,6 +44,18 @@ function formatScore(value) {
   return typeof value === 'number' && Number.isFinite(value) ? value.toFixed(1) : '—'
 }
 
+function agentReadinessHref(row) {
+  const params = new URLSearchParams({
+    manuscriptId: row.manuscriptId,
+    evaluationJobId: row.jobId,
+  })
+  return `/agent-readiness?${params.toString()}`
+}
+
+function isAgentReadinessEligible(row) {
+  return row.status !== 'running' && row.status !== 'failed'
+}
+
 export default function EvaluationHistoryTable({ rows }) {
   return (
     <section className="rg-history-card" aria-label="Recent evaluations">
@@ -83,8 +95,17 @@ export default function EvaluationHistoryTable({ rows }) {
                 </td>
                 <td data-label="Open">
                   <a className="rg-history-open" href={row.reportHref}>
-                    Open report
+                    {row.status === 'running'
+                      ? 'View progress'
+                      : row.status === 'failed'
+                      ? 'View details'
+                      : 'Open report'}
                   </a>
+                  {isAgentReadinessEligible(row) && (
+                    <a className="rg-history-open" href={agentReadinessHref(row)} style={{ display: 'block', marginTop: '0.5rem' }}>
+                      Build Agent Readiness Package
+                    </a>
+                  )}
                 </td>
               </tr>
             ))}

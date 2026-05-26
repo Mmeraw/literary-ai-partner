@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://revisiongrade.com/schema/ledger_user_feedback_v1.json",
+  "title": "ledger_user_feedback_v1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "job_id",
+    "evaluation_project_id",
+    "manuscript_id",
+    "manuscript_version_hash",
+    "artifact_id",
+    "artifact_type",
+    "artifact_version",
+    "source_hash",
+    "generated_at",
+    "review_status",
+    "reviewer_user_id",
+    "reviewer_role",
+    "layer_dispositions",
+    "feedback_items"
+  ],
+  "properties": {
+    "job_id": { "type": "string", "minLength": 1 },
+    "evaluation_project_id": { "type": ["string", "null"] },
+    "stage_run_id": { "type": ["string", "null"] },
+    "manuscript_id": { "type": "number" },
+    "manuscript_version_hash": { "type": "string", "minLength": 1 },
+    "artifact_id": { "type": "string", "minLength": 1 },
+    "artifact_type": { "const": "ledger_user_feedback_v1" },
+    "artifact_version": { "type": "string", "minLength": 1 },
+    "source_hash": { "type": "string", "minLength": 1 },
+    "generated_at": { "type": "string", "minLength": 1 },
+    "review_status": {
+      "enum": [
+        "accepted_without_changes",
+        "accepted_with_changes",
+        "needs_repair",
+        "override_requested"
+      ]
+    },
+    "reviewer_user_id": { "type": "string", "minLength": 1 },
+    "reviewer_role": { "enum": ["author", "admin", "operator"] },
+    "layer_dispositions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["layer", "status"],
+        "properties": {
+          "layer": {
+            "enum": [
+              "source_integrity_layer",
+              "pov_structure_layer",
+              "canonical_identity_layer",
+              "cast_role_tier_layer",
+              "relationship_network_layer",
+              "object_symbol_layer",
+              "location_timeline_worldstate_layer",
+              "threat_antagonist_ending_layer"
+            ]
+          },
+          "status": {
+            "enum": [
+              "accepted",
+              "needs_changes",
+              "flagged",
+              "repaired",
+              "override_requested"
+            ]
+          }
+        }
+      }
+    },
+    "feedback_items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["feedback_id", "affected_layer", "requested_action", "blocking"],
+        "properties": {
+          "feedback_id": { "type": "string", "minLength": 1 },
+          "affected_layer": { "type": "string", "minLength": 1 },
+          "affected_entity": { "type": ["string", "null"] },
+          "issue_type": { "type": ["string", "null"] },
+          "comment": { "type": ["string", "null"] },
+          "requested_action": { "type": "string", "minLength": 1 },
+          "blocking": { "type": "boolean" }
+        }
+      }
+    }
+  }
+}

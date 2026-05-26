@@ -51,7 +51,7 @@ export default function LongformSensoryEmotionalRegister({ doc }: Props) {
       {/* Sensory/emotional motifs */}
       {sensoryMotifs.length > 0 && (
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">
+          <p className="text-xs font-semibold uppercase tracking-wide text-gray-600 mb-2">
             Sensory &amp; emotional systems
           </p>
           <div className="space-y-2">
@@ -122,7 +122,7 @@ export default function LongformSensoryEmotionalRegister({ doc }: Props) {
       {/* Emotional register arc */}
       {(firstActEmotional || middleEmotional || finalEmotional || aftertaste) && (
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">
+          <p className="text-xs font-semibold uppercase tracking-wide text-gray-600 mb-2">
             Emotional register arc
           </p>
           <div className="grid md:grid-cols-3 gap-2 text-xs mb-3">
@@ -156,7 +156,7 @@ export default function LongformSensoryEmotionalRegister({ doc }: Props) {
       {/* Tone / prose / worldbuilding criteria */}
       {toneOrProseCriteria.length > 0 && (
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">
+          <p className="text-xs font-semibold uppercase tracking-wide text-gray-600 mb-2">
             Craft criteria — tone, prose &amp; world
           </p>
           <div className="space-y-2">

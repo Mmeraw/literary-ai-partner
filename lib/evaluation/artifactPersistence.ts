@@ -91,7 +91,13 @@ export type ArtifactType =
    * Consumed by Pass 3B (phase_3) as a prepared peer arbitrator input.
    * Not user-visible.
    */
-  | "pass3_preflight_draft_v1";
+  | "pass3_preflight_draft_v1"
+  /**
+   * Phase 1A chunk routing manifest — persisted once at Phase 1A start to eliminate
+   * setup-tax on resumed batch invocations. Contains total_chunks, source_hash, and
+   * deploy metadata. Not user-visible.
+   */
+  | "phase1a_chunk_routing_manifest_v1";
 
 /**
  * Compute SHA256 hex digest of input string

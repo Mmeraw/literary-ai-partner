@@ -34,6 +34,7 @@ export type CanonicalJobStatus = typeof CANONICAL_JOB_STATUS[keyof typeof CANONI
 export const CANONICAL_PHASE = {
   PHASE_0: 'phase_0',  // Pre-processing (if needed)
   PHASE_1A: 'phase_1a', // Pass 1A character ledger + Pass 3A preflight (parallel)
+  REVIEW_GATE: 'review_gate', // Awaiting author approval of Story Layer
   PHASE_2: 'phase_2',  // Pass 1 + Pass 2 (ledger-informed, parallel)
   PHASE_3: 'phase_3',  // Pass 3B synthesis only
   WAVE_REVISION: 'wave_revision', // Wave revision plan
@@ -50,6 +51,7 @@ export const CANONICAL_PHASE_STATUS = {
   RUNNING: 'running',
   COMPLETE: 'complete',
   FAILED: 'failed',
+  AWAITING_APPROVAL: 'awaiting_approval',
 } as const;
 
 export type CanonicalPhaseStatus = typeof CANONICAL_PHASE_STATUS[keyof typeof CANONICAL_PHASE_STATUS];
@@ -93,7 +95,7 @@ export function assertCanonicalPhase(value: string | null | undefined): asserts 
   if (!Object.values(CANONICAL_PHASE).includes(value as CanonicalPhase)) {
     throw new Error(
       `Non-canonical phase detected: "${value}". ` +
-      `Expected: phase_0, phase_1a, phase_2, phase_3, or wave_revision. ` +
+      `Expected: phase_0, phase_1a, review_gate, phase_2, phase_3, or wave_revision. ` +
       `See docs/CANONICAL_VOCABULARY.md for migration guide.`
     );
   }
@@ -155,6 +157,7 @@ export function toDisplayPhase(phase: CanonicalPhase | null): string {
   const map: Record<CanonicalPhase, string> = {
     [CANONICAL_PHASE.PHASE_0]: 'Phase 0',
     [CANONICAL_PHASE.PHASE_1A]: 'Phase 1a',
+    [CANONICAL_PHASE.REVIEW_GATE]: 'Review Gate',
     [CANONICAL_PHASE.PHASE_2]: 'Phase 2',
     [CANONICAL_PHASE.PHASE_3]: 'Phase 3',
     [CANONICAL_PHASE.WAVE_REVISION]: 'Wave Revision',
@@ -186,6 +189,7 @@ export function toDisplayPhaseStatus(phaseStatus: CanonicalPhaseStatus): string 
     [CANONICAL_PHASE_STATUS.RUNNING]: 'Processing',
     [CANONICAL_PHASE_STATUS.COMPLETE]: 'Complete',
     [CANONICAL_PHASE_STATUS.FAILED]: 'Failed',
+    [CANONICAL_PHASE_STATUS.AWAITING_APPROVAL]: 'Awaiting Approval',
   };
   
   return map[phaseStatus] || phaseStatus;

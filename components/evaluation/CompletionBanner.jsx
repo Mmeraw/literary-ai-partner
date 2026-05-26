@@ -28,10 +28,10 @@ export default function CompletionBanner({ jobId }) {
         </div>
         <div className="ml-4 flex-1">
           <h3 className="text-lg font-semibold text-green-900">
-            Evaluation Complete!
+            Report ready
           </h3>
           <p className="mt-1 text-sm text-green-700">
-            Your manuscript has been analyzed. View your comprehensive evaluation report with detailed feedback and revision guidance.
+            Your manuscript evaluation is ready. View your full report with scores and detailed feedback.
           </p>
           <div className="mt-4">
             <Link

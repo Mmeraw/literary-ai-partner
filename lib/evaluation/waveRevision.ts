@@ -38,6 +38,13 @@ import type { SynthesisOutput, CharacterLedgerV2 } from '@/lib/evaluation/pipeli
 import { executeWaveLayer } from '@/lib/pipeline/wave-execution-layer';
 import { executeWaveModules } from '@/lib/revision/wave-executor';
 import { createRevisionSession } from '@/lib/revision/sessions';
+import { createAdminClient } from '@/lib/supabase/admin';
+import {
+  createDerivedVersion,
+  createInitialVersion,
+  getVersionById,
+} from '@/lib/manuscripts/versions';
+import { getLatestVersionForManuscript } from '@/lib/db/manuscriptVersions';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Constants
@@ -48,6 +55,11 @@ export const WAVE_MIN_WORDS = 25_000;
 
 /** Minimum per-criterion score (0–10) for WAVE eligibility — no red criteria */
 export const WAVE_MIN_CRITERION_SCORE = 6.0;
+
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const WAVE_SOURCE_VERSION_RESOLUTION_WARN_MS = 1_500;
+const WAVE_SESSION_CREATE_WARN_MS = 1_500;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -91,6 +103,132 @@ export interface WaveRunRecord {
 export interface WaveRevisionResult {
   plan: WaveRevisionPlanArtifact;
   runRecord: WaveRunRecord;
+}
+
+function isUuid(value: string | null | undefined): value is string {
+  return typeof value === 'string' && UUID_RE.test(value.trim());
+}
+
+/**
+ * Resolve a valid manuscript_versions.id for WAVE revision session creation.
+ *
+ * Root-cause fix:
+ * - Older jobs may have null/invalid evaluation_jobs.manuscript_version_id.
+ * - Falling back to jobId violates revision_sessions.source_version_id FK.
+ *
+ * Strategy:
+ * 1) Use handoff.manuscriptVersionId if present and exists.
+ * 2) Else use evaluation_jobs.manuscript_version_id if present and exists.
+ * 3) Else create/bind a manuscript version snapshot from evaluated text.
+ */
+export async function resolveWaveSourceVersionId(handoff: WaveHandoff): Promise<string> {
+  const directCandidate = handoff.manuscriptVersionId?.trim() ?? null;
+  if (isUuid(directCandidate)) {
+    const existing = await getVersionById(directCandidate);
+    if (existing) {
+      return directCandidate;
+    }
+    console.warn(
+      `[WAVE] handoff manuscriptVersionId ${directCandidate} not found; recovering via evaluation job binding`,
+      { job_id: handoff.jobId },
+    );
+  }
+
+  const supabase = createAdminClient();
+  if (!supabase) {
+    throw new Error('WAVE source version resolution failed: Supabase admin client unavailable');
+  }
+
+  const { data: jobRow, error: jobError } = await supabase
+    .from('evaluation_jobs')
+    .select('id, manuscript_id, user_id, manuscript_version_id')
+    .eq('id', handoff.jobId)
+    .single();
+
+  if (jobError || !jobRow) {
+    throw new Error(
+      `WAVE source version resolution failed for job ${handoff.jobId}: ${jobError?.message ?? 'job not found'}`,
+    );
+  }
+
+  const dbCandidate =
+    typeof jobRow.manuscript_version_id === 'string'
+      ? jobRow.manuscript_version_id.trim()
+      : null;
+  if (isUuid(dbCandidate)) {
+    const existing = await getVersionById(dbCandidate);
+    if (existing) {
+      return dbCandidate;
+    }
+    console.warn(
+      `[WAVE] evaluation_jobs.manuscript_version_id ${dbCandidate} not found; creating fresh snapshot`,
+      { job_id: handoff.jobId },
+    );
+  }
+
+  const manuscriptId = Number(jobRow.manuscript_id);
+  if (!Number.isInteger(manuscriptId) || manuscriptId <= 0) {
+    throw new Error(
+      `WAVE source version resolution failed for job ${handoff.jobId}: invalid manuscript_id ${String(jobRow.manuscript_id)}`,
+    );
+  }
+
+  const createdBy = typeof jobRow.user_id === 'string' ? jobRow.user_id : null;
+  const latestVersion = await getLatestVersionForManuscript(manuscriptId);
+
+  let resolvedVersionId: string;
+  if (!latestVersion) {
+    const initial = await createInitialVersion({
+      manuscript_id: manuscriptId,
+      raw_text: handoff.manuscriptText,
+      word_count: handoff.wordCount,
+      created_by: createdBy,
+    });
+    resolvedVersionId = initial.id;
+  } else {
+    const handoffText = handoff.manuscriptText ?? '';
+    const textMatches = latestVersion.raw_text === handoffText;
+    const wordsMatch = latestVersion.word_count === handoff.wordCount;
+
+    if (handoffText.trim().length === 0 || (textMatches && wordsMatch)) {
+      resolvedVersionId = latestVersion.id;
+    } else {
+      const derived = await createDerivedVersion({
+        manuscript_id: manuscriptId,
+        source_version_id: latestVersion.id,
+        raw_text: handoffText,
+        word_count: handoff.wordCount,
+        created_by: createdBy,
+      });
+      resolvedVersionId = derived.id;
+    }
+  }
+
+  const { error: bindError } = await supabase
+    .from('evaluation_jobs')
+    .update({ manuscript_version_id: resolvedVersionId })
+    .eq('id', handoff.jobId);
+
+  if (bindError) {
+    console.warn(
+      `[WAVE] Failed to bind evaluation_jobs.manuscript_version_id for job ${handoff.jobId} (non-fatal): ${bindError.message}`,
+    );
+  }
+
+  if (!isUuid(resolvedVersionId)) {
+    throw new Error(
+      `WAVE_SOURCE_VERSION_RESOLUTION_FAILED: resolved non-uuid source_version_id for job ${handoff.jobId}`,
+    );
+  }
+
+  const finalVersion = await getVersionById(resolvedVersionId);
+  if (!finalVersion) {
+    throw new Error(
+      `WAVE_SOURCE_VERSION_RESOLUTION_FAILED: resolved source_version_id not found for job ${handoff.jobId} (${resolvedVersionId})`,
+    );
+  }
+
+  return resolvedVersionId;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -195,11 +333,32 @@ export async function executeWaveRevision(
 
   // Step 1: Create revision session
   let revisionSessionId: string;
+  let sourceVersionResolutionMs = 0;
+  let revisionSessionCreateMs = 0;
   try {
+    const sourceVersionResolutionStartMs = Date.now();
+    const sourceVersionId = await resolveWaveSourceVersionId(handoff);
+    sourceVersionResolutionMs = Date.now() - sourceVersionResolutionStartMs;
+    if (sourceVersionResolutionMs > WAVE_SOURCE_VERSION_RESOLUTION_WARN_MS) {
+      console.warn(`[WAVE] source version resolution latency high for job ${handoff.jobId}`, {
+        source_version_resolution_ms: sourceVersionResolutionMs,
+        warn_threshold_ms: WAVE_SOURCE_VERSION_RESOLUTION_WARN_MS,
+      });
+    }
+
+    const revisionSessionCreateStartMs = Date.now();
     const session = await createRevisionSession({
       evaluation_run_id: handoff.jobId,
-      source_version_id: handoff.manuscriptVersionId ?? handoff.jobId,
+      source_version_id: sourceVersionId,
     });
+    revisionSessionCreateMs = Date.now() - revisionSessionCreateStartMs;
+    if (revisionSessionCreateMs > WAVE_SESSION_CREATE_WARN_MS) {
+      console.warn(`[WAVE] revision session create latency high for job ${handoff.jobId}`, {
+        revision_session_create_ms: revisionSessionCreateMs,
+        warn_threshold_ms: WAVE_SESSION_CREATE_WARN_MS,
+      });
+    }
+
     revisionSessionId = session.id;
     console.log(`[WAVE] Created revision session ${revisionSessionId} for job ${handoff.jobId}`);
   } catch (sessionErr) {
@@ -266,6 +425,8 @@ export async function executeWaveRevision(
         plan_valid: layerResult.validation.valid,
         violations: layerResult.validation.violations,
         persisted: layerResult.persisted,
+        source_version_resolution_ms: sourceVersionResolutionMs,
+        revision_session_create_ms: revisionSessionCreateMs,
       },
       generated_at: generatedAt,
     },

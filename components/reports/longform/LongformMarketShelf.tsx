@@ -10,14 +10,14 @@ export default function LongformMarketShelf({ doc }: Props) {
     <div className="space-y-4">
       {shelf.best_shelf && (
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">Best shelf</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-gray-600 mb-1">Best shelf</p>
           <p className="text-gray-800 font-medium">{shelf.best_shelf}</p>
         </div>
       )}
 
       {shelf.marketable_hook && (
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">Marketable hook</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-gray-600 mb-1">Marketable hook</p>
           <p className="text-gray-700">{shelf.marketable_hook}</p>
         </div>
       )}
@@ -26,20 +26,20 @@ export default function LongformMarketShelf({ doc }: Props) {
         <div className="grid sm:grid-cols-2 gap-4">
           {shelf.shelf_neighbors?.length > 0 && (
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">Shelf neighbors</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-gray-600 mb-1">Shelf neighbors</p>
               <ul className="space-y-0.5">
                 {shelf.shelf_neighbors.map((n, i) => (
-                  <li key={i} className="text-sm text-gray-600 before:content-['·'] before:mr-1.5 before:text-gray-400">{n}</li>
+                  <li key={i} className="text-sm text-gray-600 before:content-['·'] before:mr-1.5 before:text-gray-500">{n}</li>
                 ))}
               </ul>
             </div>
           )}
           {shelf.comparison_space?.length > 0 && (
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">Comparison space</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-gray-600 mb-1">Comparison space</p>
               <ul className="space-y-0.5">
                 {shelf.comparison_space.map((c, i) => (
-                  <li key={i} className="text-sm text-gray-600 before:content-['·'] before:mr-1.5 before:text-gray-400">{c}</li>
+                  <li key={i} className="text-sm text-gray-600 before:content-['·'] before:mr-1.5 before:text-gray-500">{c}</li>
                 ))}
               </ul>
             </div>

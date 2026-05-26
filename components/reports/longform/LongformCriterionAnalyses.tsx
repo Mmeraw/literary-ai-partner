@@ -33,10 +33,10 @@ function CriterionCard({ a }: { a: LongformDreamDocument["criterion_analyses"][n
   // score can be null (e.g. proseControl in insufficient-signal state) — guard
   const safeScore = a.score ?? null;
   const scoreColor =
-    safeScore !== null && safeScore >= 7.5 ? "text-emerald-700"
-    : safeScore !== null && safeScore >= 6 ? "text-amber-600"
-    : safeScore !== null ? "text-rose-600"
-    : "text-gray-400";
+    safeScore !== null && safeScore >= 8 ? "text-emerald-800"
+    : safeScore !== null && safeScore >= 6 ? "text-amber-700"
+    : safeScore !== null ? "text-red-700"
+    : "text-gray-600";
 
   return (
     <div className="rounded-lg border border-gray-200 overflow-hidden">
@@ -55,7 +55,7 @@ function CriterionCard({ a }: { a: LongformDreamDocument["criterion_analyses"][n
             {a.confidence}
           </span>
         </div>
-        <span className="text-gray-400 text-xs">{open ? "▲" : "▼"}</span>
+        <span className="text-gray-600 text-xs">{open ? "▲" : "▼"}</span>
       </button>
 
       {open && (

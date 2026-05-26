@@ -164,7 +164,7 @@ export async function POST(req: Request) {
         user_id: userId,
         job_type: 'full_evaluation',
         validity_status: 'pending',
-        phase: PHASES.PHASE_1A,  // All new jobs start at phase_1a (relay race)
+        phase: PHASES.PHASE_0,   // All new jobs start at phase_0 (gold-standard warm-up)
         phase_status: 'queued',
         policy_family: 'standard',
         voice_preservation_level: 'balanced',
@@ -178,6 +178,32 @@ export async function POST(req: Request) {
       console.error('Evaluation job insert error:', error);
       return Response.json(
         { ok: false, error: `Database error: ${error.message}` },
+        { status: 500 }
+      );
+    }
+
+    // MISTAKE-PROOF: SELECT-back verification before the job ID ever leaves this process.
+    // PostgREST returns HTTP 200 on INSERT even when the transaction is rolled back by a
+    // trigger or constraint — the only reliable truth is reading the row back.
+    // If the row is missing here, the INSERT was silently lost. Return 500 instead of
+    // sending a phantom job ID to the client (which would create a ghost job in the UI).
+    const { data: verifiedJob, error: verifyError } = await supabase
+      .from('evaluation_jobs')
+      .select('id, status')
+      .eq('id', data.id)
+      .maybeSingle();
+
+    if (verifyError || !verifiedJob) {
+      console.error(
+        '[/api/evaluate] Job INSERT appeared to succeed but SELECT-back found no row. ' +
+        'Probable silent rollback. Refusing to send job ID to client.',
+        { job_id: data.id, verifyError }
+      );
+      return Response.json(
+        {
+          ok: false,
+          error: 'Job creation failed — database verification failed. Please try again.',
+        },
         { status: 500 }
       );
     }

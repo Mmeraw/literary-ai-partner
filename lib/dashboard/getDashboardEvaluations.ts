@@ -1,3 +1,6 @@
+import { createAdminClient } from '@/lib/supabase/admin'
+import { getAuthenticatedUser } from '@/lib/supabase/server'
+
 export type DashboardEvaluationStatus =
   | 'market_ready'
   | 'near_ready'
@@ -34,14 +37,114 @@ export type DashboardKpis = {
   curationReady: DashboardKpi
 }
 
-/**
- * Phase 1 wiring: returns empty until the Supabase adapter PR lands.
- * The dashboard page renders the empty state safely.
- */
 export async function getDashboardEvaluations(
   _opts: { limit?: number } = {},
 ): Promise<{ rows: DashboardEvaluationRow[]; error: Error | null }> {
-  return { rows: [], error: null }
+  try {
+    const user = await getAuthenticatedUser()
+    if (!user) return { rows: [], error: null }
+
+    const supabase = createAdminClient()
+    const limit = _opts.limit ?? 15
+
+    // Two-step ownership trace: manuscripts.user_id is the canonical owner.
+    const { data: manuscripts, error: manuscriptsError } = await supabase
+      .from('manuscripts')
+      .select('id, title')
+      .eq('user_id', user.id)
+
+    if (manuscriptsError) {
+      return { rows: [], error: new Error(manuscriptsError.message) }
+    }
+
+    if (!manuscripts || manuscripts.length === 0) {
+      return { rows: [], error: null }
+    }
+
+    const titleById = new Map<number, string>()
+    const manuscriptIds: number[] = []
+    for (const m of manuscripts as Array<{ id: number; title: string | null }>) {
+      manuscriptIds.push(m.id)
+      titleById.set(m.id, (m.title ?? 'Untitled').trim() || 'Untitled')
+    }
+
+    const { data: jobs, error: jobsError } = await supabase
+      .from('evaluation_jobs')
+      .select('id, status, phase, phase_status, created_at, manuscript_id')
+      .in('manuscript_id', manuscriptIds)
+      .order('created_at', { ascending: false })
+      .limit(limit)
+
+    if (jobsError) {
+      return { rows: [], error: new Error(jobsError.message) }
+    }
+
+    if (!jobs || jobs.length === 0) return { rows: [], error: null }
+
+    const completedJobIds = (jobs as Array<{ id: string; status: string }>)
+      .filter((j) => j.status === 'complete')
+      .map((j) => j.id)
+
+    const scoresByJobId: Record<string, { overall: number | null; readiness: number | null }> = {}
+
+    if (completedJobIds.length > 0) {
+      const { data: artifacts } = await supabase
+        .from('evaluation_artifacts')
+        .select('job_id, content')
+        .in('job_id', completedJobIds)
+        .eq('artifact_type', 'evaluation_result_v2')
+
+      for (const art of (artifacts ?? []) as Array<{ job_id: string; content: Record<string, unknown> }>) {
+        const c = art.content ?? {}
+        const overallRaw = c.overall_score
+        const readinessRaw = c.readiness_score
+        const overall = typeof overallRaw === 'number' ? overallRaw : null
+        const readiness = typeof readinessRaw === 'number' ? readinessRaw : null
+        scoresByJobId[art.job_id] = { overall, readiness }
+      }
+    }
+
+    const rows: DashboardEvaluationRow[] = []
+    for (const job of jobs as Array<{
+      id: string
+      status: string
+      phase: string | null
+      phase_status: string | null
+      created_at: string
+      manuscript_id: number
+    }>) {
+      const title = titleById.get(job.manuscript_id) ?? 'Untitled'
+      const scores = scoresByJobId[job.id] ?? { overall: null, readiness: null }
+
+      let dashStatus: DashboardEvaluationStatus
+      if (job.status === 'complete') {
+        dashStatus = statusFromScores(scores.overall, scores.readiness)
+      } else if (job.status === 'failed') {
+        dashStatus = 'failed'
+      } else {
+        dashStatus = 'running'
+      }
+
+      rows.push({
+        id: job.id,
+        jobId: job.id,
+        manuscriptId: String(job.manuscript_id),
+        manuscriptTitle: title,
+        manuscriptSubtitle: '',
+        createdAt: job.created_at,
+        evaluationType: 'Evaluate',
+        overallScore: scores.overall,
+        readinessScore: scores.readiness,
+        status: dashStatus,
+        reportHref:
+          job.status === 'complete' ? `/reports/${job.id}` : `/evaluate/${job.id}`,
+      })
+    }
+
+    return { rows, error: null }
+  } catch (err) {
+    return { rows: [], error: err instanceof Error ? err : new Error(String(err)) }
+  }
 }
 
 export function statusFromScores(

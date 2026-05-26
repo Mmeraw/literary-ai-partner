@@ -1,0 +1,42 @@
+name: Setup Supabase CLI
+description: >
+  Install a pinned, checksum-verified Supabase CLI binary.
+  Single source of truth — update the version here and all workflows pick it up.
+
+inputs:
+  version:
+    description: Supabase CLI version tag (e.g. v2.90.0)
+    required: false
+    default: "v2.90.0"
+
+runs:
+  using: composite
+  steps:
+    - name: Install Supabase CLI
+      shell: bash
+      env:
+        SUPABASE_VERSION: ${{ inputs.version }}
+      run: |
+        set -euo pipefail
+
+        SUPABASE_TARBALL="supabase_linux_amd64.tar.gz"
+        SUPABASE_URL="https://github.com/supabase/cli/releases/download/${SUPABASE_VERSION}/${SUPABASE_TARBALL}"
+
+        # Checksum map — add new versions here when upgrading.
+        declare -A CHECKSUMS=(
+          ["v2.90.0"]="34e264108d0502f922f2a11c4481d512335e8a6b621c8d8c25524eb9f25e9576"
+        )
+
+        EXPECTED_SHA="${CHECKSUMS[$SUPABASE_VERSION]:-}"
+        if [[ -z "$EXPECTED_SHA" ]]; then
+          echo "::error::No known checksum for Supabase CLI ${SUPABASE_VERSION}."
+          echo "Add it to .github/actions/setup-supabase-cli/action.yml before using this version."
+          exit 1
+        fi
+
+        curl -fsSL "$SUPABASE_URL" -o /tmp/$SUPABASE_TARBALL
+        echo "${EXPECTED_SHA}  /tmp/${SUPABASE_TARBALL}" | sha256sum -c -
+        tar -xzf /tmp/$SUPABASE_TARBALL -C /tmp
+        sudo install -m 0755 /tmp/supabase /usr/local/bin/supabase
+        supabase --version
+        echo "✅ Supabase CLI ${SUPABASE_VERSION} installed"

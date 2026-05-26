@@ -50,15 +50,12 @@ describe("evaluation architecture invariants", () => {
       const filePath = path.join(repoRoot, relativePath);
       const code = fs.readFileSync(filePath, "utf8");
 
-      // Routes must NOT inline-execute the pipeline
       expect(code).not.toContain("processEvaluationJob");
       expect(code).not.toContain("@/lib/evaluation/processor");
       expect(code).not.toContain("runPhase2Aggregation");
       expect(code).not.toContain("@/lib/jobs/phase2");
-      // Routes must write canonical phase_2 queue state
       expect(code).toContain('phase: "phase_2"');
       expect(code).toContain('phase_status: "queued"');
-      // Non-force updates must use CAS predicates (no loose update-by-id)
       expect(code).toContain('.eq("status", "running")');
       expect(code).toContain('.eq("phase", "phase_1a")');
       expect(code).not.toContain('.eq("phase_status", "complete")');
@@ -68,10 +65,7 @@ describe("evaluation architecture invariants", () => {
   });
 
   test("worker entrypoint is wired to canonical processor queue path", () => {
-    const workerRoutePath = path.join(
-      repoRoot,
-      "app/api/workers/process-evaluations/route.ts",
-    );
+    const workerRoutePath = path.join(repoRoot, "app/api/workers/process-evaluations/route.ts");
     const code = fs.readFileSync(workerRoutePath, "utf8");
 
     expect(code).toContain("processQueuedJobs");
@@ -85,8 +79,6 @@ describe("evaluation architecture invariants", () => {
     const storePath = path.join(repoRoot, "lib/jobs/jobStore.supabase.ts");
     const code = fs.readFileSync(storePath, "utf8");
 
-    // The claim_evaluation_jobs RPC predicates on top-level phase columns.
-    // createJob must set these explicitly (not progress JSON only).
     expect(code).toContain("phase: PHASES.PHASE_1A");
     expect(code).toContain("phase_status: JOB_STATUS.QUEUED");
   });
@@ -116,11 +108,26 @@ describe("evaluation architecture invariants", () => {
     }
   });
 
-  test("root page serves canonical public landing surface", () => {
+  test("public homepage is native app-router page, not marketing-export redirect", () => {
     const homePagePath = path.join(repoRoot, "app/page.tsx");
     const homePageCode = fs.readFileSync(homePagePath, "utf8");
 
-    expect(homePageCode).toContain('redirect("/marketing-export/main/index.html")');
+    expect(homePageCode).not.toContain("/marketing-export/main/index.html");
+    expect(homePageCode).not.toContain("redirect(");
+  });
+
+  test("next config does not rewrite home or revise into marketing-export", () => {
+    const nextConfigPath = path.join(repoRoot, "next.config.mjs");
+    const nextConfigCode = fs.readFileSync(nextConfigPath, "utf8");
+
+    const forbiddenStaticRouteRewrites = [
+      /source:\s*["']\/["'][\s\S]*destination:\s*["']\/marketing-export\/main\/index\.html["']/,
+      /source:\s*["']\/revise["'][\s\S]*destination:\s*["']\/marketing-export\/revise\/index\.html["']/,
+    ];
+
+    for (const pattern of forbiddenStaticRouteRewrites) {
+      expect(nextConfigCode).not.toMatch(pattern);
+    }
   });
 
   test("middleware gates only protected app/workflow routes", () => {
@@ -132,7 +139,12 @@ describe("evaluation architecture invariants", () => {
     expect(middlewareCode).toContain("/evaluate");
     expect(middlewareCode).toContain("/workbench");
     expect(middlewareCode).toContain("/private-beta");
-    expect(middlewareCode).toContain("/marketing-export");
+    expect(middlewareCode).toContain("/reliability");
+    expect(middlewareCode).toContain("/methodology");
+    expect(middlewareCode).toContain("/privacy");
+    expect(middlewareCode).toContain("/terms");
+    expect(middlewareCode).toContain("/contact");
+    expect(middlewareCode).not.toContain("/marketing-export");
     expect(middlewareCode).toContain("/revise");
     expect(middlewareCode).toContain("/login");
     expect(middlewareCode).toContain("/api/auth/callback");
@@ -218,17 +230,11 @@ describe("evaluation architecture invariants", () => {
       const code = fs.readFileSync(filePath, "utf8");
 
       if (/status\s*:\s*['\"]completed['\"]/.test(code)) {
-        violations.push({
-          file: path.relative(repoRoot, filePath),
-          reason: "contains status: 'completed'",
-        });
+        violations.push({ file: path.relative(repoRoot, filePath), reason: "contains status: 'completed'" });
       }
 
       if (/phase_status\s*:\s*['\"]completed['\"]/.test(code)) {
-        violations.push({
-          file: path.relative(repoRoot, filePath),
-          reason: "contains phase_status: 'completed'",
-        });
+        violations.push({ file: path.relative(repoRoot, filePath), reason: "contains phase_status: 'completed'" });
       }
     }
 
@@ -239,9 +245,7 @@ describe("evaluation architecture invariants", () => {
     const processorPath = path.join(repoRoot, "lib/evaluation/processor.ts");
     const processorCode = fs.readFileSync(processorPath, "utf8");
 
-    // Must use strict equality check so TypeScript narrows the union under strict:false
     expect(processorCode).toContain("pipelineResult.ok === false");
-    // Must NOT use the negation form which does not narrow under strict:false
     expect(processorCode).not.toContain("if (!pipelineResult.ok)");
   });
 });

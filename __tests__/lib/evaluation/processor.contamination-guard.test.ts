@@ -325,8 +325,23 @@ describe("processEvaluationJob contamination guard enforcement", () => {
       expect.arrayContaining(["maria", "cartel"]),
     );
 
-    // 3. Artifact persistence must NOT have been called
-    expect(supabaseStub.rpcCalls).toHaveLength(0);
+    // 3. Artifact persistence must NOT have been called; contamination must route
+    // through the guarded atomic finalizer exactly once.
+    expect(upsertEvaluationArtifactMock).not.toHaveBeenCalled();
+    expect(supabaseStub.rpcCalls).toHaveLength(1);
+    expect(supabaseStub.rpcCalls[0]).toMatchObject({
+      name: "finalize_job_failure_atomic",
+      payload: expect.objectContaining({
+        p_job_id: "job-contamination-test",
+        p_failure_code: "CONTEXT_CONTAMINATION_DETECTED",
+        p_expected_claimed_by: "test-worker",
+        p_expected_lease_token: "test-lease-token",
+        p_retryable: false,
+      }),
+    });
+    expect(String(supabaseStub.rpcCalls[0].payload.p_error_message)).toContain(
+      '"code":"CONTEXT_CONTAMINATION_DETECTED"',
+    );
   });
 
   test("completes normally and persists artifact when output is clean", async () => {

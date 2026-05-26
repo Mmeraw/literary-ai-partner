@@ -71,20 +71,24 @@ export async function middleware(request: NextRequest) {
   const publicPaths = [
     '/',
     '/revise',
+    '/queue',
     '/pricing',
     '/resources',
+    '/reliability',
+    '/methodology',
+    '/privacy',
+    '/terms',
+    '/contact',
     '/convert',
     '/output',
     '/storygate',
     '/your-writing',
-    '/private-beta',
     '/login',
     '/signup',
     '/forgot-password',
     '/reset-password',
     '/api/auth/callback',
     '/auth/callback',
-    '/marketing-export',
     '/marketing-preview',
     '/api/cron',
     '/api/workers',
@@ -119,13 +123,13 @@ export async function middleware(request: NextRequest) {
   // Gate only protected paths for unauthenticated users.
   if (!user && isProtectedPath && !isPublicPath) {
     const redirectUrl = request.nextUrl.clone()
-    redirectUrl.pathname = '/private-beta'
+    redirectUrl.pathname = '/login'
     trackAuthRedirect('login_required')
     return NextResponse.redirect(redirectUrl)
   }
 
-  // Redirect logged-in users away from private-beta and auth entry pages
-  if (user && (request.nextUrl.pathname === '/private-beta' || request.nextUrl.pathname === '/login' || request.nextUrl.pathname === '/signup')) {
+  // Redirect logged-in users away from auth entry pages
+  if (user && (request.nextUrl.pathname === '/login' || request.nextUrl.pathname === '/signup')) {
     const redirectUrl = request.nextUrl.clone()
     redirectUrl.pathname = '/dashboard'
     trackAuthRedirect('already_authenticated')

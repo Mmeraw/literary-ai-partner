@@ -5,7 +5,8 @@ async function fix() {
   const { data } = await supabase.from('jobs').select('*').eq('status','running').lt('updated_at', cutoff);
   console.log('Found', data?.length || 0, 'stuck jobs');
   for (const j of data || []) {
-    await supabase.from('jobs').update({status:'queued',lease_expires_at:null,lease_owner:null}).eq('id',j.id);
+    // lease_until is the writable source column; lease_expires_at is generated/read-only
+    await supabase.from('jobs').update({status:'queued',lease_until:null,lease_owner:null}).eq('id',j.id);
     console.log('Reset job', j.id);
   }
 }

@@ -69,13 +69,20 @@ export function validateProductionConfig(): {
       errors.push("USE_SUPABASE_JOBS must be 'true' in production");
     }
     
-    // Critical: Supabase connection
-    if (!process.env.SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_URL) {
-      errors.push("SUPABASE_URL is required in production");
+    // Critical: Supabase connection.
+    // NEXT_PUBLIC_SUPABASE_URL is the canonical client-facing name (required by Next.js
+    // for browser bundle inclusion). SUPABASE_URL is the server-side alias — admin.ts
+    // reads whichever is present via `NEXT_PUBLIC_SUPABASE_URL || SUPABASE_URL`.
+    // Guard on NEXT_PUBLIC_SUPABASE_URL as the single source of truth here; if it's
+    // missing the client bundle is broken regardless of SUPABASE_URL.
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
+      errors.push("NEXT_PUBLIC_SUPABASE_URL is required in production");
     }
-    
-    if (!process.env.SUPABASE_ANON_KEY || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
-      errors.push("SUPABASE_ANON_KEY is required in production");
+
+    // NEXT_PUBLIC_SUPABASE_ANON_KEY is the canonical client-facing name.
+    // SUPABASE_ANON_KEY is the server-side alias. Same reasoning as above.
+    if (!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+      errors.push("NEXT_PUBLIC_SUPABASE_ANON_KEY is required in production");
     }
     
     // Warning: Rate limiting works better with these

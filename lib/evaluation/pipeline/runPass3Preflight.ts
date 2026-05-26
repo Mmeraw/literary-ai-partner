@@ -579,6 +579,16 @@ export async function runPass3Preflight(
     }));
   }
 
+  // Track whether the reducer actually produced usable output.
+  // If it failed or returned empty criterion drafts, the preflight authority
+  // must be downgraded to "unavailable" regardless of chunk coverage — chunk
+  // coverage only tells us how much of the manuscript was read, not whether
+  // the reducer synthesized anything actionable from it.
+  const reducerSucceeded =
+    reducerOutput !== null &&
+    Array.isArray(reducerOutput.criterionDrafts) &&
+    reducerOutput.criterionDrafts.length > 0;
+
   // ── STEP 5: ASSEMBLE FULL PREFLIGHT DRAFT ────────────────────────────────
   const sourceWordCount = opts.manuscriptChunks.reduce(
     (sum, c) => sum + (c.content ?? "").trim().split(/\s+/).length,
@@ -608,7 +618,11 @@ export async function runPass3Preflight(
           ? "partial"
           : "windowed_fallback",
     },
-    preflight_authority: preflightAuthority,
+    // If the reducer failed, force authority to "unavailable" so downstream
+    // (buildCompactPreflightSummary + Pass 3B) treats this as PREFLIGHT UNAVAILABLE
+    // rather than silently injecting null-score criterion drafts as real evidence.
+    preflight_authority: reducerSucceeded ? preflightAuthority : "unavailable",
+    reducer_status: reducerSucceeded ? "ok" : "failed",
     criterionDrafts,
     whole_novel_read: reducerOutput?.whole_novel_read ?? {
       premise_read: "Reducer did not produce output.",

@@ -67,4 +67,32 @@ describe('assertClaimedJobsContract', () => {
 
     expect(() => assertClaimedJobsContract(rows)).toThrow('manuscript_id');
   });
+
+  test('phase_0 warm-up job passes contract', () => {
+    // Phase 0 jobs must be claimable — contract must accept phase_0.
+    // Regression guard: schema previously only accepted phase_1a | phase_2 | phase_3.
+    const rows = [makeCanonicalClaimedRow({ phase: 'phase_0' })];
+
+    const parsed = assertClaimedJobsContract(rows);
+
+    expect(parsed).toHaveLength(1);
+    expect(parsed[0].phase).toBe('phase_0');
+  });
+
+  test('unknown phase fails contract', () => {
+    // Guard against future regressions adding unrecognised phase values.
+    const rows = [makeCanonicalClaimedRow({ phase: 'phase_99' })];
+
+    expect(() => assertClaimedJobsContract(rows)).toThrow('contract violation');
+  });
+
+  test('all valid phases pass contract', () => {
+    const validPhases = ['phase_0', 'phase_1a', 'phase_2', 'phase_3'];
+
+    for (const phase of validPhases) {
+      const rows = [makeCanonicalClaimedRow({ phase })];
+      const parsed = assertClaimedJobsContract(rows);
+      expect(parsed[0].phase).toBe(phase);
+    }
+  });
 });

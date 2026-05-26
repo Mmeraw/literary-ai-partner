@@ -1,0 +1,336 @@
+{
+  "fixture_id": "FROGGIN_100P_CANON_FIDELITY_FIXTURE_V1",
+  "version": "1.0.0",
+  "manuscript": "Froggin Noggin",
+  "author": "Michael J. Meraw",
+  "scope": "First 100 pages / 51,252 words",
+  "created": "2026-05-24",
+  "purpose": "Machine-readable gate for RevisionGrade evaluation regression tests. An evaluation of this manuscript FAILS if any REQUIRED check is unmet or any FORBIDDEN check triggers.",
+
+  "forbidden_unsupported_terms": {
+    "description": "These labels are not supported by manuscript source text and must not appear in evaluation output.",
+    "terms": ["poaching", "poacher", "poachers"],
+    "permitted_replacements": [
+      "frog capture",
+      "human cruelty",
+      "fishing-line injury",
+      "environmental degradation",
+      "ecological contamination",
+      "fungal blight",
+      "predation"
+    ],
+    "gate_behavior": "CANON_GROUNDING_ERROR — evaluation must be rejected if any forbidden term appears without direct manuscript citation."
+  },
+
+  "required_entities": {
+    "description": "Tiered treatment requirements. Each tier must be satisfied independently; meeting a lower tier does not satisfy a higher tier.",
+    "entities": [
+      {
+        "entity": "Newton",
+        "aliases": ["Newbie"],
+        "tier_1_mention": true,
+        "tier_2_role": "Intellectually adaptive / mocked / partially disabled newt; bullied by Twillow; comforted by Lacerta via Twen doctrine",
+        "tier_3_relationship": ["Newton–Lacerta (maternal bond)", "Newton–Twillow (bully/victim)", "Rana–Newton (rescue / healing arc)"],
+        "tier_4_criterion_integration": ["Character Depth", "Worldbuilding", "Thematic Integration"],
+        "tier_5_recommendation_check": "Do not recommend 'adding Newton.' Newton is present. Recommend sharpening or re-echoing only.",
+        "minimum_passing_tier": 3
+      },
+      {
+        "entity": "Lacerta",
+        "tier_1_mention": true,
+        "tier_2_role": "Newton's mother; maternal anchor; delivers Twen-centered comfort doctrine",
+        "tier_3_relationship": ["Newton–Lacerta (maternal bond)"],
+        "tier_4_criterion_integration": ["Character Depth", "Worldbuilding"],
+        "tier_5_recommendation_check": "Do not recommend 'adding Lacerta.' Lacerta is present. Identify her as Newton's mother explicitly.",
+        "minimum_passing_tier": 2
+      },
+      {
+        "entity": "Twillow",
+        "tier_1_mention": true,
+        "tier_2_role": "Social antagonist / bully-catalyst; persecutes Newton; reveals Gorfian enforcement at micro level",
+        "tier_3_relationship": ["Newton–Twillow (bully/victim)", "Twillow–Gorf doctrine (enforcement at social scale)"],
+        "tier_4_criterion_integration": ["Character Depth", "Scene Construction", "Thematic Integration"],
+        "tier_5_recommendation_check": "Do not recommend 'adding a bully character.' Twillow IS the bully. Recommend amplifying Twillow's doctrinal function.",
+        "minimum_passing_tier": 2
+      },
+      {
+        "entity": "Twen",
+        "aliases": ["Newtlore", "Twen doctrine"],
+        "tier_1_mention": true,
+        "tier_2_role": "Doctrinal counter-system to Gorf; comfort language for newts; functions as moral/ecological alternative, not merely superstition",
+        "tier_3_relationship": ["Twen doctrine–Gorf doctrine (parallel systems)", "Lacerta–Twen (delivery agent)", "Newton–Twen (identity anchor)"],
+        "tier_4_criterion_integration": ["Worldbuilding", "Thematic Integration", "Tonal Authority"],
+        "tier_5_recommendation_check": "Do not describe Twen as 'background religion.' Twen is a doctrinal counter-system. Do not recommend 'clarifying' unless treatment is genuinely unclear.",
+        "minimum_passing_tier": 2,
+        "warning": "Do NOT frame Twen/Newtlore as an 'active threat' to Gorf unless source text explicitly dramatizes Gorfian authority reacting to it."
+      },
+      {
+        "entity": "Rana",
+        "tier_1_mention": true,
+        "tier_2_role": "Frog protagonist; student of Thorander; develops cross-species healing cooperation with Newton",
+        "tier_3_relationship": ["Rana–Newton (rescue/friendship/healing)", "Rana–Thorander (student/teacher)", "Hyla–Rana (authority/obedience)"],
+        "tier_4_criterion_integration": ["Character Depth", "Narrative Drive", "Narrative Closure"],
+        "tier_5_recommendation_check": "Rana–Newton healing arc is a PRIMARY SPINE, not background. Closure score must reflect this arc.",
+        "minimum_passing_tier": 3
+      },
+      {
+        "entity": "Thorander",
+        "tier_1_mention": true,
+        "tier_2_role": "Major Orgon elder / cosmologist / reform-pressure figure; teaches Rana; represents soft-power alternative to Hyla's hard authority",
+        "tier_3_relationship": ["Rana–Thorander (teacher/student)", "Thorander–Orgon (elder/doctrine)"],
+        "tier_4_criterion_integration": ["Worldbuilding", "Thematic Integration"],
+        "minimum_passing_tier": 2
+      },
+      {
+        "entity": "Brutus",
+        "tier_1_mention": true,
+        "tier_2_role": "Human antagonist; represents human nihilism/cruelty; primary agent of ecological harm in human damage lane",
+        "tier_3_relationship": ["Brutus–Chey (human nihilism pair)"],
+        "minimum_passing_tier": 1
+      },
+      {
+        "entity": "Hyla",
+        "tier_1_mention": true,
+        "tier_2_role": "Frog authority; toadstone holder; Gorfian doctrine enforcer",
+        "tier_3_relationship": ["Hyla–Zimeon (authority pair)", "Hyla–Rana (authority/obedience)"],
+        "minimum_passing_tier": 1
+      },
+      {
+        "entity": "Zimeon",
+        "tier_1_mention": true,
+        "tier_2_role": "Frog polity operator; shard-addiction subplot; subordinate to Hyla",
+        "tier_3_relationship": ["Hyla–Zimeon (authority pair)"],
+        "minimum_passing_tier": 1
+      }
+    ]
+  },
+
+  "required_relationships": {
+    "description": "These relationship spines must be evaluated, not merely mentioned. Each has a minimum treatment level.",
+    "relationships": [
+      {
+        "spine": "Rana–Newton",
+        "function": "Cross-species rescue / healing / friendship",
+        "minimum_treatment": "Must be evaluated as a structural spine with criterion-level impact on Closure and Character",
+        "critical": true,
+        "gate_note": "If Rana–Newton is omitted, Narrative Closure score MUST NOT exceed 6/10. A high Closure score without this spine is a scoring error."
+      },
+      {
+        "spine": "Newton–Lacerta",
+        "function": "Maternal bond / Twen delivery / emotional anchor",
+        "minimum_treatment": "Must identify Lacerta as Newton's mother and Twen as the comfort doctrine she delivers",
+        "critical": true
+      },
+      {
+        "spine": "Newton–Twillow",
+        "function": "Bully/victim dynamic; Gorf enforcement at micro/social scale",
+        "minimum_treatment": "Must identify Twillow as Newton's bully and connect to doctrinal enforcement theme",
+        "critical": true
+      },
+      {
+        "spine": "Gorf doctrine–Twen doctrine",
+        "function": "Competing doctrinal systems; domination vs. healing/adaptation",
+        "minimum_treatment": "Must treat as parallel systems, not hierarchy",
+        "critical": true
+      },
+      {
+        "spine": "Brutus–Chey",
+        "function": "Human nihilism / cruelty; source of ecological harm",
+        "minimum_treatment": "Must identify as human damage lane",
+        "critical": false
+      },
+      {
+        "spine": "Rana–Thorander",
+        "function": "Pedagogy / reform-pressure / cosmological grounding",
+        "minimum_treatment": "Must identify Thorander as Rana's teacher and an Orgon reform-pressure figure",
+        "critical": false
+      }
+    ]
+  },
+
+  "required_object_systems": {
+    "description": "These objects/systems must be evaluated as functional elements of the manuscript, not merely named.",
+    "objects": [
+      {
+        "object": "Juniper berry / fungus-blight medicine",
+        "aliases": ["juniper", "witch hazel", "wild lettuce", "parotoid-gland slime", "newt slime", "Newtlore medicine"],
+        "function": "Biological survival system; counter-toadstone; solution to environmental blight; vehicle for Rana–Newton cooperation",
+        "minimum_treatment": "Must be evaluated as a medicine/object SYSTEM, not a passing reference. Must connect to Rana–Newton arc and environmental blight.",
+        "critical": true
+      },
+      {
+        "object": "Toadstone",
+        "function": "Hierarchical authority icon; Hyla's instrument of Gorfian power",
+        "minimum_treatment": "Must be connected to Gorf doctrine and authority system",
+        "critical": false
+      },
+      {
+        "object": "Shard",
+        "function": "Forbidden pleasure / addiction vector; Zimeon subplot",
+        "minimum_treatment": "Must be noted in object/symbol system",
+        "critical": false
+      },
+      {
+        "object": "Dead Zone",
+        "function": "Environmental contamination marker; spatial consequence of Brutus/Chey human damage",
+        "minimum_treatment": "Must be evaluated as environmental/spatial consequence, not merely named",
+        "critical": false,
+        "note": "Architecture revision priority: shift Dead Zone framing from 'where frogs get netted' to 'where the ecosystem dies / newt habitat is contaminated.'"
+      },
+      {
+        "object": "Songs / chants / Dominatus / Gorf doctrine",
+        "aliases": ["Dominatus", "Maalik", "doctrine", "chants", "liturgy"],
+        "function": "Doctrine engine; ideological authority; tonal register setter",
+        "minimum_treatment": "Must evaluate function, not merely acknowledge presence. Do not recommend 'pruning' without specifically identifying what to prune and why.",
+        "critical": false
+      }
+    ]
+  },
+
+  "required_structural_lanes": {
+    "description": "These structural lanes must be represented in the evaluation. Missing an entire lane is a STRUCTURAL_LANE_OMISSION failure.",
+    "lanes": [
+      {
+        "lane": "Newt / salamander counter-world",
+        "key_entities": ["Newton", "Lacerta", "Twillow", "Twen/Newtlore"],
+        "failure_type": "STRUCTURAL_LANE_OMISSION",
+        "critical": true
+      },
+      {
+        "lane": "Rana–Newton healing / cooperation lane",
+        "key_entities": ["Rana", "Newton", "juniper medicine", "Rana–Newton relationship"],
+        "failure_type": "STRUCTURAL_LANE_OMISSION",
+        "critical": true
+      },
+      {
+        "lane": "Environmental medicine / blight lane",
+        "key_entities": ["juniper berry", "fungus/blight", "Dead Zone", "witch hazel", "wild lettuce"],
+        "failure_type": "STRUCTURAL_LANE_OMISSION",
+        "critical": true
+      },
+      {
+        "lane": "Human damage lane",
+        "key_entities": ["Brutus", "Chey"],
+        "failure_type": "STRUCTURAL_LANE_OMISSION",
+        "critical": false
+      },
+      {
+        "lane": "Frog polity / Gorf doctrine lane",
+        "key_entities": ["Hyla", "Zimeon", "Rana", "Aqua World", "Gorf", "toadstone"],
+        "failure_type": "STRUCTURAL_LANE_OMISSION",
+        "critical": false
+      },
+      {
+        "lane": "Thorander / Orgon reform-pressure lane",
+        "key_entities": ["Thorander", "Orgon"],
+        "failure_type": "STRUCTURAL_LANE_OMISSION",
+        "critical": false
+      }
+    ]
+  },
+
+  "closure_score_governance": {
+    "description": "Scoring governance rule: Narrative Closure score must reflect the presence or absence of the Rana–Newton arc.",
+    "rule": "If the evaluation omits the Rana–Newton healing arc, Narrative Closure MUST NOT be scored above 6/10.",
+    "corollary": "A Closure score of 7/10 or higher is only valid if the evaluation explicitly accounts for the Rana–Newton arc and the juniper medicine system.",
+    "offending_evaluation_violation": "fa730c9c scored Closure at 4/10 without identifying the arc — undercounted the partial closure already present. Truth target: 6/10."
+  },
+
+  "recommendation_already_present_guard": {
+    "description": "Any recommendation to 'add,' 'introduce,' or 'create' the following elements is a RECOMMENDATION_ERROR. These elements are already present in the manuscript.",
+    "already_present": [
+      "Newton",
+      "Lacerta as Newton's mother",
+      "Twillow as social antagonist / bully",
+      "Twen / Newtlore doctrinal system",
+      "Rana–Newton rescue / friendship arc",
+      "Juniper berry / medicine system",
+      "Fungus / blight environmental threat",
+      "Thorander as Orgon elder",
+      "Songs / chants / Gorf liturgy",
+      "Shard as addiction vector",
+      "Toadstone as authority symbol"
+    ],
+    "correct_recommendation_verbs": ["sharpen", "re-echo", "elevate", "clarify the stakes of", "foreground", "strengthen the payoff of"],
+    "forbidden_recommendation_verbs": ["add", "introduce", "create", "establish", "develop from scratch"]
+  },
+
+  "revise_queue_protections": {
+    "description": "Rules for what may and may not enter the Revise queue from an evaluation of this manuscript.",
+    "blocked_from_revise_queue": [
+      "Any task generated from 'poaching' / 'poacher' language",
+      "Any task recommending 'add Newton' (Newton is present)",
+      "Any task recommending 'add Lacerta' (Lacerta is present)",
+      "Any task recommending 'add a bully character' (Twillow is the bully; he is present)",
+      "Any task recommending 'add a medicine system' (juniper medicine is present)",
+      "Any task recommending 'clarify the newt world' without citing a specific gap"
+    ],
+    "required_revise_queue_entries": [
+      "Re-echo Rana–Newton healing spine near excerpt hinge",
+      "Clarify spatial stakes of the Dead Zone as ecosystem death, not just frog netting site",
+      "Sharpen Twillow's Gorfian-doctrine function at micro/social scale",
+      "Strengthen Twen/Newtlore as a doctrinal counter-system (not background superstition)",
+      "Foreground juniper berry / medicine arc as counter-toadstone"
+    ]
+  },
+
+  "ci_acceptance_gate": {
+    "description": "A future evaluation of Froggin Noggin PASSES this fixture if ALL of the following return true.",
+    "required_passing_checks": [
+      "newton_mentioned_and_role_described",
+      "lacerta_identified_as_newtons_mother",
+      "twillow_identified_as_bully_or_antagonist",
+      "twen_newtlore_identified_as_doctrinal_system",
+      "rana_newton_evaluated_as_relationship_spine",
+      "juniper_medicine_evaluated_as_object_system",
+      "fungus_blight_mentioned",
+      "thorander_identified_as_orgon_or_reform_figure",
+      "no_forbidden_terms_present",
+      "no_recommendation_to_add_already_present_elements",
+      "closure_score_consistent_with_rana_newton_presence"
+    ],
+    "truth_target_scores": {
+      "overall": 74,
+      "quality": 78,
+      "readiness": 68,
+      "commercial": 66,
+      "literary": 82
+    },
+    "acceptable_score_delta": {
+      "description": "A future evaluation passes if its scores fall within this delta from the truth target.",
+      "overall_delta": 5,
+      "individual_criterion_delta": 1.5
+    }
+  },
+
+  "known_failure_specimen": {
+    "job_id": "fa730c9c-e41b-4fc2-b37e-52db365b9b17",
+    "label": "original_offending_evaluation_v1",
+    "status": "failed_by_author_review",
+    "overall_score": 66,
+    "delta_from_truth_target": -8,
+    "critical_misses": [
+      "Newton omitted entirely",
+      "Lacerta omitted entirely",
+      "Twillow omitted entirely",
+      "Twen/Newtlore omitted entirely",
+      "Rana–Newton relationship omitted entirely",
+      "Juniper berry / medicine system omitted entirely"
+    ],
+    "forbidden_term_violations": [
+      { "term": "poaching", "occurrences": 8 }
+    ],
+    "structural_lanes_missing": [
+      "newt/salamander counter-world",
+      "Rana–Newton healing/cooperation lane",
+      "environmental medicine/blight lane"
+    ],
+    "largest_criterion_gap": {
+      "criterion": "Narrative Closure",
+      "offending_score": 4.0,
+      "truth_target_score": 6.0,
+      "delta": -2.0,
+      "cause": "Arc blindness — Rana–Newton arc omitted, so closure architecture was invisible to evaluator"
+    }
+  }
+}

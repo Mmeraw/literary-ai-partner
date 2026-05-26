@@ -53,7 +53,7 @@ export default function LongformCharacterCoverageArcLedger({ doc }: Props) {
       {/* Character / Arc layers from structural stack */}
       {characterLayers.length > 0 && (
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">
+          <p className="text-xs font-semibold uppercase tracking-wide text-gray-600 mb-2">
             Structural layers — character & arc
           </p>
           <div className="space-y-2">
@@ -91,7 +91,7 @@ export default function LongformCharacterCoverageArcLedger({ doc }: Props) {
       {/* Layer-level character analysis */}
       {characterLayerAnalyses.length > 0 && (
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">
+          <p className="text-xs font-semibold uppercase tracking-wide text-gray-600 mb-2">
             Layer analysis — character system
           </p>
           <div className="space-y-2">
@@ -99,7 +99,7 @@ export default function LongformCharacterCoverageArcLedger({ doc }: Props) {
               <div key={i} className="rounded-lg border border-gray-200 p-3 text-sm">
                 <p className="font-medium text-gray-800 mb-0.5">{l.layer_name}</p>
                 <p className="text-xs text-gray-600 mb-1">
-                  <span className="font-medium text-gray-500">Status:</span> {l.status}
+                  <span className="font-medium text-gray-700">Status:</span> {l.status}
                 </p>
                 <p className="text-xs text-indigo-600">
                   <span className="font-medium">Needed revision:</span> {l.needed_revision}
@@ -113,7 +113,7 @@ export default function LongformCharacterCoverageArcLedger({ doc }: Props) {
       {/* Character criterion deep-dive */}
       {characterCriterion && (
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">
+          <p className="text-xs font-semibold uppercase tracking-wide text-gray-600 mb-2">
             Character criterion — score &amp; evidence
           </p>
           <CriterionMiniBlock criterion={characterCriterion} />
@@ -123,7 +123,7 @@ export default function LongformCharacterCoverageArcLedger({ doc }: Props) {
       {/* Voice / POV criterion */}
       {voiceCriterion && (
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">
+          <p className="text-xs font-semibold uppercase tracking-wide text-gray-600 mb-2">
             Voice &amp; POV — character expression
           </p>
           <CriterionMiniBlock criterion={voiceCriterion} />
@@ -133,7 +133,7 @@ export default function LongformCharacterCoverageArcLedger({ doc }: Props) {
       {/* Closure criterion — ending accountability */}
       {closureCriterion && (
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">
+          <p className="text-xs font-semibold uppercase tracking-wide text-gray-600 mb-2">
             Narrative closure — ending accountability
           </p>
           <CriterionMiniBlock criterion={closureCriterion} />

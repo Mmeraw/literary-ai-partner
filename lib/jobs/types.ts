@@ -9,6 +9,7 @@
 export const PHASES = {
   PHASE_0: "phase_0",
   PHASE_1A: "phase_1a",
+  REVIEW_GATE: "review_gate",
   PHASE_2: "phase_2",
   PHASE_3: "phase_3",
   WAVE_REVISION: "wave_revision",
@@ -63,7 +64,7 @@ export type JobStatus = (typeof JOB_STATUS)[keyof typeof JOB_STATUS];
  * PhaseStatus is canonical JobStatus (or null).
  * Worker contract: selects jobs where status='queued' AND phase_status='queued'.
  */
-export type PhaseStatus = JobStatus | null;
+export type PhaseStatus = JobStatus | "awaiting_approval" | null;
 
 /**
  * JOB_CONTRACT_v1 — CANON progress shape (minimum)

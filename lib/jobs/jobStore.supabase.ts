@@ -213,15 +213,17 @@ export async function createJob(input: {
     // Incident hardening: claim_evaluation_jobs eligibility is evaluated against
     // top-level columns (status/phase/phase_status), not progress JSON only.
     // Keep row-level phase fields in sync with progress at creation time.
-    phase: PHASES.PHASE_1A,
+    // Jobs start at phase_0 (gold-standard warm-up) — the evaluator internalizes
+    // scoring criteria BEFORE the manuscript is touched.
+    phase: PHASES.PHASE_0,
     phase_status: JOB_STATUS.QUEUED,
     ...(includeValidityStatus
       ? { validity_status: normalizeEvaluationValidityStatus("pending") }
       : {}),
     progress: {
-      phase: PHASES.PHASE_1A,
+      phase: PHASES.PHASE_0,
       phase_status: JOB_STATUS.QUEUED, // CANON: aligned with JobStatus
-      message: "Job created",
+      message: "Job created — awaiting gold-standard calibration",
     },
     policy_family: "standard",
     voice_preservation_level: "balanced",
@@ -243,6 +245,26 @@ export async function createJob(input: {
 
   if (!hasObjectId(data)) {
     throw new Error("Failed to create job: insert/select did not return a typed row with id");
+  }
+
+  // MISTAKE-PROOF: SELECT-back verification.
+  // The INSERT+SELECT above is a single PostgREST round-trip, but the transaction
+  // can still be rolled back after the response is sent (trigger, constraint, connection
+  // interruption). A separate read confirms the row actually persists before the caller
+  // is handed a job ID they will navigate to. If the row is gone, throw — the caller
+  // must return an error to the client rather than a phantom job ID.
+  const { data: verifiedRow, error: verifyError } = await supabase
+    .from("evaluation_jobs")
+    .select("id")
+    .eq("id", (data as { id: string }).id)
+    .maybeSingle();
+
+  if (verifyError || !verifiedRow) {
+    throw new Error(
+      `Failed to create job: INSERT appeared to succeed but SELECT-back found no row for id=${
+        (data as { id: string }).id
+      }. Probable silent rollback — refusing to return phantom job ID.`
+    );
   }
 
   console.log("EvaluationJobCreated", {
@@ -311,12 +333,18 @@ export async function getJob(id: string): Promise<Job | null> {
   return job;
 }
 
-export async function getAllJobs(): Promise<Job[]> {
+export async function getAllJobs(userId?: string): Promise<Job[]> {
   const jobSelectFields = await getJobSelectFields();
-  const { data, error } = await supabase
+  let query = supabase
     .from("evaluation_jobs")
     .select(jobSelectFields)
     .order("created_at", { ascending: false });
+
+  if (userId) {
+    query = query.eq("user_id", userId);
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     throw new Error(`Failed to list jobs: ${error.message}`);

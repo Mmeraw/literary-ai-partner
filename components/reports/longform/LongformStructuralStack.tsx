@@ -51,7 +51,7 @@ export default function LongformStructuralStack({ doc }: Props) {
 
       {antiPatterns.length > 0 && (
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">
+          <p className="text-xs font-semibold uppercase tracking-wide text-gray-600 mb-2">
             What this manuscript must not become
           </p>
           <ul className="space-y-1.5">

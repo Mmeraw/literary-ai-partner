@@ -435,14 +435,22 @@ export async function GET() {
     );
   }
 
+  // Auth gate — only return jobs belonging to the authenticated user
+  const user = await getAuthenticatedUser();
+  if (!user) {
+    return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+  }
+  const userId = user.id;
+
   try {
     logger.info("GET /api/jobs request received", {
       trace_id,
       request_id,
       event: "api.jobs.list.request",
+      user_id: userId,
     });
 
-    const jobs = await getAllJobs();
+    const jobs = await getAllJobs(userId);
 
     logger.info("Jobs retrieved", {
       trace_id,

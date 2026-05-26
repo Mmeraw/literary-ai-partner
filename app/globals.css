@@ -2,6 +2,38 @@
 @tailwind components;
 @tailwind utilities;
 
+/* === Evaluation workspace shell ===
+ *
+ * Authenticated evaluation/report surfaces are task workspaces, not marketing
+ * pages. Keep the calm light background, but use app-style typography and
+ * card polish so long-running evaluations feel operational and stable.
+ */
+.min-h-screen.bg-gray-50 {
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: #111827;
+}
+
+.min-h-screen.bg-gray-50 h1,
+.min-h-screen.bg-gray-50 h2,
+.min-h-screen.bg-gray-50 h3,
+.min-h-screen.bg-gray-50 p,
+.min-h-screen.bg-gray-50 a,
+.min-h-screen.bg-gray-50 button,
+.min-h-screen.bg-gray-50 span,
+.min-h-screen.bg-gray-50 div {
+  font-family: inherit;
+}
+
+.min-h-screen.bg-gray-50 main {
+  padding-top: 2.25rem;
+}
+
+.min-h-screen.bg-gray-50 section,
+.min-h-screen.bg-gray-50 .rounded-lg.border.bg-white {
+  border-color: #d8dee8;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
 /* === Evaluation/readability contrast guard ===
  *
  * Evaluation report/status/form surfaces use white cards on a light gray page.
@@ -28,6 +60,37 @@
 .min-h-screen.bg-gray-50 textarea::placeholder {
   color: #4b5563;
   opacity: 1;
+}
+
+/* === Evaluation report paragraph rhythm ===
+ *
+ * Long-form reports contain dense rationale/evidence prose. Preserve the same
+ * text, but give adjacent paragraphs, ledger rows, and list items more vertical
+ * rhythm so author-facing reports read like editorial analysis instead of a
+ * compressed database dump.
+ */
+.min-h-screen.bg-gray-50 section p {
+  line-height: 1.75;
+}
+
+.min-h-screen.bg-gray-50 section p + p {
+  margin-top: 0.55rem;
+}
+
+.min-h-screen.bg-gray-50 section li {
+  line-height: 1.7;
+}
+
+.min-h-screen.bg-gray-50 section .rounded.border.border-gray-200.p-3.text-sm {
+  padding: 1rem;
+}
+
+.min-h-screen.bg-gray-50 section .rounded.border.border-gray-200.p-3.text-sm p + p {
+  margin-top: 0.65rem;
+}
+
+.min-h-screen.bg-gray-50 section .space-y-2 > .rounded.border.border-gray-200.p-3.text-sm + .rounded.border.border-gray-200.p-3.text-sm {
+  margin-top: 1rem;
 }
 
 /* === User evaluation dashboard === */
@@ -58,7 +121,9 @@
 .rg-dash-header,
 .rg-kpi-card,
 .rg-history-card,
-.rg-empty-state {
+.rg-empty-state,
+.rg-current-focus,
+.rg-progress-preview {
   background: var(--rg-surface);
   border: 1px solid var(--rg-border);
   border-radius: 20px;
@@ -87,12 +152,12 @@
   font-size: clamp(1.8rem, 3vw, 2.6rem);
   line-height: 1.1;
   color: var(--rg-ink);
-  max-width: 22ch;
+  max-width: 24ch;
 }
 
 .rg-dash-subtitle {
   margin: 0 0 28px;
-  max-width: 62ch;
+  max-width: 72ch;
   line-height: 1.7;
   color: var(--rg-ink-muted);
   font-size: 1rem;
@@ -155,6 +220,108 @@
 .rg-kpi-delta--gold {
   color: var(--rg-gold);
   font-weight: 700;
+}
+
+.rg-current-focus {
+  display: grid;
+  grid-template-columns: 0.85fr 1.15fr;
+  gap: 20px;
+  margin-bottom: 28px;
+  padding: 24px;
+}
+
+.rg-current-focus h2,
+.rg-progress-preview h2 {
+  margin: 8px 0 10px;
+  color: var(--rg-ink);
+  font-size: clamp(1.5rem, 2.4vw, 2.2rem);
+  line-height: 1.15;
+}
+
+.rg-current-focus p,
+.rg-progress-preview p {
+  margin: 0;
+  color: var(--rg-ink-muted);
+  line-height: 1.65;
+}
+
+.rg-current-focus-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.rg-current-focus-metric,
+.rg-current-focus-actions,
+.rg-progress-preview-grid > div {
+  background: var(--rg-surface-2);
+  border: 1px solid var(--rg-border);
+  border-radius: 14px;
+  padding: 16px;
+}
+
+.rg-current-focus-metric span,
+.rg-progress-preview-grid strong {
+  display: block;
+  color: var(--rg-ink-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.rg-current-focus-metric strong {
+  display: block;
+  margin-top: 8px;
+  color: var(--rg-ink);
+  font-size: 2rem;
+}
+
+.rg-current-focus-metric small,
+.rg-progress-preview-grid span {
+  display: block;
+  margin-top: 8px;
+  color: var(--rg-ink-muted);
+  line-height: 1.45;
+}
+
+.rg-current-focus-actions {
+  display: grid;
+  gap: 8px;
+}
+
+.rg-current-primary,
+.rg-current-secondary {
+  border-radius: 999px;
+  padding: 10px 12px;
+  text-align: center;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.rg-current-primary {
+  background: var(--rg-primary);
+  color: white;
+}
+
+.rg-current-secondary {
+  border: 1px solid var(--rg-border);
+  color: var(--rg-primary);
+}
+
+.rg-progress-preview {
+  display: grid;
+  grid-template-columns: 0.9fr 1.1fr;
+  gap: 20px;
+  margin-bottom: 28px;
+  padding: 24px;
+}
+
+.rg-progress-preview-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
 }
 
 .rg-history-card {
@@ -283,8 +450,15 @@
 
 @media (max-width: 1100px) {
   .rg-dash-context,
-  .rg-kpi-row {
+  .rg-kpi-row,
+  .rg-current-focus,
+  .rg-progress-preview {
     grid-template-columns: repeat(2, 1fr);
+  }
+
+  .rg-current-focus-grid,
+  .rg-progress-preview-grid {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -294,7 +468,11 @@
   }
 
   .rg-dash-context,
-  .rg-kpi-row {
+  .rg-kpi-row,
+  .rg-current-focus,
+  .rg-current-focus-grid,
+  .rg-progress-preview,
+  .rg-progress-preview-grid {
     grid-template-columns: 1fr;
   }
 

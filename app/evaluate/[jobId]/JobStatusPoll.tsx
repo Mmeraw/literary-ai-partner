@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import type { GetJobApiResponse, JobRecord } from "@/lib/jobs/types";
 import { toUiText } from "@/lib/jobs/ui-helpers";
 import {
@@ -14,10 +15,21 @@ import {
 
 const POLL_INTERVAL_MS = 1500;
 
+// How often to poll when job is at the Review Gate.
+// Slower cadence — author is reading, no worker activity needed.
+const REVIEW_GATE_POLL_INTERVAL_MS = 5000;
+
 type JobStatusPollProps = {
   jobId: string;
   initialJob?: JobRecord | null;
 };
+
+// CANON: phase='review_gate' + phase_status='awaiting_approval'
+// status is still 'queued' — the worker never claims review_gate jobs.
+function isAtReviewGate(job: JobRecord): boolean {
+  const j = job as unknown as { phase?: string; phase_status?: string };
+  return j.phase === "review_gate" && j.phase_status === "awaiting_approval";
+}
 
 export function JobStatusPoll({ jobId, initialJob }: JobStatusPollProps) {
   const [job, setJob] = useState<JobRecord | null>(initialJob ?? null);
@@ -25,7 +37,7 @@ export function JobStatusPoll({ jobId, initialJob }: JobStatusPollProps) {
 
   // PR-E: checkpoint / resume — shared hook + component
   const jobProgressAsRecord =
-    job?.status === 'failed'
+    job?.status === "failed"
       ? (job as unknown as { progress?: Record<string, unknown> }).progress ?? null
       : null;
   const { checkpoint, resumeLoading, resumeError, resumed, handleResume } =
@@ -33,7 +45,7 @@ export function JobStatusPoll({ jobId, initialJob }: JobStatusPollProps) {
       jobId,
       job?.status ?? null,
       jobProgressAsRecord,
-      () => setJob((prev) => prev ? { ...prev, status: 'queued' } : prev),
+      () => setJob((prev) => (prev ? { ...prev, status: "queued" } : prev)),
     );
 
   useEffect(() => {
@@ -58,7 +70,9 @@ export function JobStatusPoll({ jobId, initialJob }: JobStatusPollProps) {
         if (mounted && data.ok) {
           setJob(data.job);
 
-          // CANON: Stop polling on terminal statuses (complete or failed only)
+          // CANON: Stop polling on terminal statuses (complete or failed only).
+          // review_gate / awaiting_approval is NOT terminal — continue polling
+          // so the UI updates if the author approves in another tab.
           if (data.job.status === "complete" || data.job.status === "failed") {
             if (interval) clearInterval(interval);
           }
@@ -76,7 +90,12 @@ export function JobStatusPoll({ jobId, initialJob }: JobStatusPollProps) {
       !initialJob ||
       (initialJob.status !== "complete" && initialJob.status !== "failed")
     ) {
-      interval = setInterval(fetchJob, POLL_INTERVAL_MS);
+      // Use slower poll cadence at the Review Gate
+      const pollMs =
+        initialJob && isAtReviewGate(initialJob)
+          ? REVIEW_GATE_POLL_INTERVAL_MS
+          : POLL_INTERVAL_MS;
+      interval = setInterval(fetchJob, pollMs);
     }
 
     return () => {
@@ -88,11 +107,63 @@ export function JobStatusPoll({ jobId, initialJob }: JobStatusPollProps) {
   // GOVERNANCE: Only these UI states exist
   if (notFound) {
     return (
-      <div className="rounded-lg border border-red-200 bg-red-50 p-4">
-        <h2 className="text-lg font-semibold text-red-900">Job Not Found</h2>
-        <p className="mt-2 text-sm text-red-700">
-          The requested job could not be found.
+      <div
+        style={{
+          background: '#141414',
+          border: '1px solid #3a1a1a',
+          borderRadius: '4px',
+          padding: '2rem',
+        }}
+      >
+        <p
+          style={{
+            fontFamily: 'var(--font-rg-mono, monospace)',
+            fontSize: '0.65rem',
+            letterSpacing: '0.22em',
+            textTransform: 'uppercase',
+            color: '#7A1E1E',
+            marginBottom: '0.75rem',
+          }}
+        >
+          &#x25CF;&nbsp; Evaluation Job Not Found
         </p>
+        <p
+          style={{
+            fontFamily: 'var(--font-rg-serif, Georgia, serif)',
+            fontSize: '1.1rem',
+            color: '#F2EFEA',
+            marginBottom: '0.5rem',
+          }}
+        >
+          This evaluation no longer exists or was reset.
+        </p>
+        <p
+          style={{
+            fontFamily: 'var(--font-rg-serif, Georgia, serif)',
+            fontSize: '0.9rem',
+            color: 'rgba(242,239,234,0.6)',
+            marginBottom: '1.5rem',
+            lineHeight: '1.6',
+          }}
+        >
+          Return to Evaluate and start a new run.
+        </p>
+        <Link
+          href="/evaluate"
+          style={{
+            display: 'inline-block',
+            fontFamily: 'var(--font-rg-mono, monospace)',
+            fontSize: '0.65rem',
+            letterSpacing: '0.2em',
+            textTransform: 'uppercase',
+            color: '#A98E4A',
+            border: '1px solid rgba(169,142,74,0.5)',
+            padding: '0.5rem 1rem',
+            textDecoration: 'none',
+          }}
+        >
+          Return to Evaluate &rarr;
+        </Link>
       </div>
     );
   }
@@ -112,6 +183,7 @@ export function JobStatusPoll({ jobId, initialJob }: JobStatusPollProps) {
   // Terminal statuses per JOB_CONTRACT_v1: complete, failed only
   const isTerminal = job.status === "complete" || job.status === "failed";
   const isActive = job.status === "queued" || job.status === "running";
+  const atReviewGate = isAtReviewGate(job);
 
   return (
     <div className="space-y-6">
@@ -121,38 +193,50 @@ export function JobStatusPoll({ jobId, initialJob }: JobStatusPollProps) {
           <div>
             <span className="text-gray-600">Status:</span>{" "}
             {/* GOVERNANCE: Filter to canonical statuses only */}
-            {(job.status === "queued" ||
-              job.status === "running" ||
-              job.status === "complete" ||
-              job.status === "failed") ? (
+            {job.status === "queued" ||
+            job.status === "running" ||
+            job.status === "complete" ||
+            job.status === "failed" ? (
               <StatusBadge status={job.status} />
             ) : (
               <span className="font-mono text-xs">{job.status}</span>
             )}
           </div>
 
-          {job.progress?.phase && (
+          {/* Phase badge — show review_gate visually distinct */}
+          {(job as unknown as { phase?: string }).phase && (
             <div>
               <span className="text-gray-600">Phase:</span>{" "}
-              <span className="font-mono font-medium">{job.progress.phase}</span>
-            </div>
-          )}
-
-          {/* GOVERNANCE: phase_status is display-only */}
-          {job.progress?.phase_status && (
-            <div>
-              <span className="text-gray-600">Phase Status:</span>{" "}
-              <span className="font-mono text-xs">{job.progress.phase_status}</span>
+              <PhaseBadge
+                phase={(job as unknown as { phase: string }).phase}
+                phaseStatus={
+                  (job as unknown as { phase_status?: string }).phase_status
+                }
+              />
             </div>
           )}
 
           {/* GOVERNANCE: Only show progress if both values exist */}
-          {job.progress?.completed_units != null &&
-            job.progress?.total_units != null && (
+          {(job as unknown as { progress?: { completed_units?: unknown; total_units?: unknown } }).progress
+            ?.completed_units != null &&
+            (job as unknown as { progress?: { completed_units?: unknown; total_units?: unknown } }).progress
+              ?.total_units != null && (
               <div>
                 <span className="text-gray-600">Progress:</span>{" "}
                 <span className="font-medium">
-                  {toUiText(job.progress.completed_units)} / {toUiText(job.progress.total_units)}
+                  {toUiText(
+                    (
+                      job as unknown as {
+                        progress: { completed_units: unknown };
+                      }
+                    ).progress.completed_units,
+                  )}{" "}
+                  /{" "}
+                  {toUiText(
+                    (
+                      job as unknown as { progress: { total_units: unknown } }
+                    ).progress.total_units,
+                  )}
                 </span>
               </div>
             )}
@@ -174,8 +258,71 @@ export function JobStatusPoll({ jobId, initialJob }: JobStatusPollProps) {
         </div>
       </div>
 
-      {/* Active Job Message */}
-      {isActive && !isTerminal && (
+      {/* ── REVIEW GATE CTA ─────────────────────────────────────────────── */}
+      {/* Phase 1A complete. Author must review the Story Ledger before      */}
+      {/* Phase 2 can be queued. This is a hard gate — backend enforced.     */}
+      {atReviewGate && (
+        <div className="rounded-lg border border-amber-300 bg-amber-50 p-5">
+          <div className="flex items-start gap-4">
+            {/* Gate icon */}
+            <div className="flex-shrink-0 mt-0.5">
+              <svg
+                className="h-6 w-6 text-amber-600"
+                fill="none"
+                viewBox="0 0 24 24"
+                strokeWidth={1.8}
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M9 12.75 11.25 15 15 9.75m-3-7.036A11.959 11.959 0 0 1 3.598 6 11.99 11.99 0 0 0 3 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285Z"
+                />
+              </svg>
+            </div>
+            <div className="flex-1">
+              <h3 className="text-base font-semibold text-amber-900">
+                Story Ledger Ready — Review Gate
+              </h3>
+              <p className="mt-1 text-sm text-amber-800 leading-relaxed">
+                Phase 1A is complete. RevisionGrade has built your Story Ledger
+                — an 8-layer story map of your manuscript. Review it, then
+                approve or reject to control whether Phase 2 (craft diagnostic)
+                runs.
+              </p>
+              <div className="mt-4 flex flex-wrap gap-3">
+                <Link
+                  href={`/evaluate/${jobId}/ledger`}
+                  className="inline-flex items-center gap-2 rounded-md bg-amber-600 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-600"
+                  data-testid="button-review-story-ledger"
+                >
+                  Review Story Ledger
+                  <svg
+                    className="h-4 w-4"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    strokeWidth={2}
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3"
+                    />
+                  </svg>
+                </Link>
+              </div>
+              <p className="mt-3 text-xs text-amber-700">
+                Phase 2 will not start until you approve. This gate cannot be
+                bypassed from the frontend.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Active Job Message — only when running/queued and NOT at review gate */}
+      {isActive && !isTerminal && !atReviewGate && (
         <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
           <div className="flex items-center gap-3">
             <div className="h-4 w-4 animate-spin rounded-full border-2 border-blue-300 border-t-blue-600" />
@@ -186,7 +333,8 @@ export function JobStatusPoll({ jobId, initialJob }: JobStatusPollProps) {
                   : "Evaluation in progress"}
               </p>
               <p className="mt-1 text-xs text-blue-700">
-                This page updates automatically every {POLL_INTERVAL_MS / 1000} seconds.
+                This page updates automatically every{" "}
+                {POLL_INTERVAL_MS / 1000} seconds.
               </p>
             </div>
           </div>
@@ -238,6 +386,37 @@ function StatusBadge({
       className={`inline-flex items-center rounded-md border px-2 py-0.5 font-mono text-xs font-medium ${styles[status]}`}
     >
       {status}
+    </span>
+  );
+}
+
+/**
+ * PhaseBadge — renders the phase + phase_status pair.
+ * review_gate/awaiting_approval gets a distinct amber treatment.
+ */
+function PhaseBadge({
+  phase,
+  phaseStatus,
+}: {
+  phase: string;
+  phaseStatus?: string | null;
+}) {
+  const isGate =
+    phase === "review_gate" && phaseStatus === "awaiting_approval";
+
+  if (isGate) {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-md border border-amber-300 bg-amber-100 px-2 py-0.5 font-mono text-xs font-medium text-amber-800">
+        <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+        review_gate · awaiting_approval
+      </span>
+    );
+  }
+
+  return (
+    <span className="inline-flex items-center rounded-md border border-gray-200 bg-gray-50 px-2 py-0.5 font-mono text-xs font-medium text-gray-700">
+      {phase}
+      {phaseStatus ? ` · ${phaseStatus}` : ""}
     </span>
   );
 }

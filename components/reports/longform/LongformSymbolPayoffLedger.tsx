@@ -22,7 +22,7 @@ export default function LongformSymbolPayoffLedger({ doc }: Props) {
       {/* Symbol lifecycle traces */}
       {symbols.length > 0 && (
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">
+          <p className="text-xs font-semibold uppercase tracking-wide text-gray-600 mb-2">
             Symbol lifecycle — appearance → transfer → payoff
           </p>
           <div className="space-y-3">
@@ -30,7 +30,7 @@ export default function LongformSymbolPayoffLedger({ doc }: Props) {
               <div key={i} className="rounded-lg border border-gray-200 p-3 text-sm">
                 <p className="font-semibold text-gray-800 mb-1">{s.symbol}</p>
                 <p className="text-xs text-gray-600 mb-2">
-                  <span className="font-medium text-gray-500">Current function:</span>{" "}
+                  <span className="font-medium text-gray-700">Current function:</span>{" "}
                   {s.current_function}
                 </p>
                 <p className="text-xs text-indigo-600 border-l-2 border-indigo-200 pl-2">
@@ -46,7 +46,7 @@ export default function LongformSymbolPayoffLedger({ doc }: Props) {
       {/* Symbol motifs from cross-layer integration */}
       {symbolMotifs.length > 0 && (
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">
+          <p className="text-xs font-semibold uppercase tracking-wide text-gray-600 mb-2">
             Symbol &amp; motif integration
           </p>
           <div className="space-y-2">

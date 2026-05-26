@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { getProgressDisplay } from '@/components/evaluation-poller-display';
+import { formatRelativeTime, formatDuration } from '@/lib/ui/time-helpers';
 import { useRouter } from 'next/navigation';
 import { CancelEvaluationButton } from './evaluation/CancelEvaluationButton';
 import {
@@ -9,36 +10,14 @@ import {
   useFailedJobRecovery,
 } from './evaluation/FailedJobRecovery';
 
-// How many ms between each animated +1% tick on the display progress.
-// At 400ms/tick the bar takes ~40 s to traverse 0→100 at full speed.
-const ANIMATION_TICK_MS = 400;
-
-// When the backend holds at a coarse checkpoint such as 33%, continue the
-// browser-only display slowly through safe non-terminal stages so the UI does
-// not appear frozen. Completion remains backend-gated and never renders 100%
-// until the job status is actually complete.
-const RUNNING_SOFT_CEILING = 79;
-const RUNNING_SOFT_FORWARD_TICK_MS = 1200;
-
-// Once the backend marks the job complete, keep animating the client-only
-// progress display to 100 instead of snapping. This lets users see the final
-// stage labels even when the backend jumps directly from ~33% to complete.
+// No client-side progress drift. Progress is driven 100% from backend phase state
+// via getProgressDisplay. Constants below retained only for redirect animation.
 const COMPLETE_ANIMATION_TICK_MS = 200;
-
-// Keep running jobs below near-complete UI bands until final gates pass and
-// the backend marks the job as complete.
-const RUNNING_MAX_DISPLAY_PROGRESS = 79;
+const LONGFORM_WORD_COUNT_THRESHOLD = 25000;
 
 function getInitialDisplayProgress(job: JobState | null): number {
   if (!job) return 0;
   if (job.status === 'complete') return 100;
-  if (job.status === 'running') {
-    // Preserve server-reported progress on first paint so refreshes do not
-    // visually jump backwards to 0% and re-animate from scratch.
-    // While status is still running, keep display progress below near-complete
-    // bands so we do not imply publishable readiness before final QA passes.
-    return Math.max(0, Math.min(RUNNING_MAX_DISPLAY_PROGRESS, Math.round(job.progress)));
-  }
   return 0;
 }
 
@@ -64,8 +43,12 @@ export interface JobState {
   // Canonical pipeline-stage fields (additive; may be absent on older API responses).
   // When present these are authoritative for stage label resolution and are decoupled
   // from the smoothly-animated visual progress bar.
-  phase?: 'phase_0' | 'phase_1a' | 'phase_2' | 'phase_3' | null;
-  phase_status?: 'queued' | 'running' | 'complete' | 'failed' | null;
+  phase?: 'phase_0' | 'phase_1a' | 'review_gate' | 'phase_2' | 'phase_3' | 'wave_revision' | null;
+  phase_status?: 'queued' | 'running' | 'complete' | 'failed' | 'awaiting_approval' | null;
+  // Raw unit counters — used to compute the within-phase fraction for
+  // early vs late phase_1a label selection. Additive; absent on older jobs.
+  total_units?: number | null;
+  completed_units?: number | null;
   cross_check_status?:
     | 'queued'
     | 'running'
@@ -87,6 +70,17 @@ export interface JobState {
   phase2_completed_at?: string | null;
   pass3_started_at?: string | null;
   pass3_completed_at?: string | null;
+  /** Authoritative Phase 0 telemetry — from progress JSONB, not column delta */
+  phase0_total_duration_ms?: number | null;
+  phase0_calibration_word_count?: number | null;
+  /** Review-gate quality signal surfaced from jobs API */
+  hard_fail_present?: boolean | null;
+  /** Manuscript word count from chunk_routing — available before completion */
+  manuscript_word_count?: number | null;
+}
+
+function isLongFormJob(job: Pick<JobState, 'manuscript_word_count'> | null): boolean {
+  return typeof job?.manuscript_word_count === 'number' && job.manuscript_word_count >= LONGFORM_WORD_COUNT_THRESHOLD;
 }
 
 interface PollerProps {
@@ -141,8 +135,8 @@ export function EvaluationPoller({
   const [nextPollDelay, setNextPollDelay] = useState(refreshInterval);
   const [pendingRedirectDelayMs, setPendingRedirectDelayMs] = useState<number | null>(null);
 
-  // Animated display progress: ticks through user-safe display stages while
-  // backend state remains authoritative for terminal completion/failure.
+  // displayProgress: used only for the completion-animation sweep to 100.
+  // For all running states the bar width comes directly from getProgressDisplay.
   const [displayProgress, setDisplayProgress] = useState<number>(getInitialDisplayProgress(initialJob));
 
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -156,39 +150,28 @@ export function EvaluationPoller({
   const networkErrorCountRef = useRef(0);
   const redirectedRef = useRef(false);
 
-  // Animate displayProgress toward the current display target, one tick at a time.
-  // Running jobs can soft-forward past coarse backend checkpoints up to a safe
-  // non-terminal ceiling so the UI does not appear frozen at ~35%. Complete jobs
-  // continue to 100 client-side so users do not see a 35% → 100% snap.
+  // Completion sweep: animate displayProgress to 100 when the customer-facing
+  // report is complete. Long-form waits for Narrative Synthesis; short-form
+  // finishes at normal evaluation completion.
   useEffect(() => {
-    if (!job || job.status === 'failed') return;
-
-    const target =
-      job.status === 'complete'
-        ? 100
-        : Math.min(
-            RUNNING_MAX_DISPLAY_PROGRESS,
-            Math.max(job.progress, RUNNING_SOFT_CEILING),
-          );
-    const tickMs =
-      job.status === 'complete'
-        ? COMPLETE_ANIMATION_TICK_MS
-        : displayProgress >= job.progress
-          ? RUNNING_SOFT_FORWARD_TICK_MS
-          : ANIMATION_TICK_MS;
+    if (!job || job.status !== 'complete') return;
+    const hasNarrativeSynthesisNow = !!job.pass3_completed_at;
+    const readyToComplete = !isLongFormJob(job) || hasNarrativeSynthesisNow;
+    if (!readyToComplete) return;
+    if (displayProgress >= 100) return;
 
     const interval = setInterval(() => {
       setDisplayProgress((prev) => {
-        if (prev >= target) {
+        if (prev >= 100) {
           clearInterval(interval);
-          return prev;
+          return 100;
         }
-        return Math.min(prev + 1, target);
+        return prev + 1;
       });
-    }, tickMs);
+    }, COMPLETE_ANIMATION_TICK_MS);
 
     return () => clearInterval(interval);
-  }, [displayProgress, job]);
+  }, [displayProgress, job?.status, job?.pass3_completed_at, job?.manuscript_word_count]);
 
   // For report pages that need a server refresh after completion, wait until the
   // client-side animation has reached 100. Otherwise the page refresh can replace
@@ -315,13 +298,17 @@ export function EvaluationPoller({
             prev.last_error === nextJob.last_error &&
             prev.phase === nextJob.phase &&
             prev.phase_status === nextJob.phase_status &&
+            prev.total_units === nextJob.total_units &&
+            prev.completed_units === nextJob.completed_units &&
             prev.cross_check_status === nextJob.cross_check_status &&
             prev.phase1_started_at === nextJob.phase1_started_at &&
             prev.phase1_completed_at === nextJob.phase1_completed_at &&
             prev.phase2_started_at === nextJob.phase2_started_at &&
             prev.phase2_completed_at === nextJob.phase2_completed_at &&
             prev.pass3_started_at === nextJob.pass3_started_at &&
-            prev.pass3_completed_at === nextJob.pass3_completed_at;
+            prev.pass3_completed_at === nextJob.pass3_completed_at &&
+            prev.manuscript_word_count === nextJob.manuscript_word_count &&
+            prev.phase0_total_duration_ms === nextJob.phase0_total_duration_ms;
 
           unchangedCountRef.current = unchanged ? unchangedCountRef.current + 1 : 0;
           return nextJob;
@@ -329,11 +316,17 @@ export function EvaluationPoller({
 
         setError(null);
 
-        // Stop polling on terminal state
-        if (data.job.status === 'complete' || data.job.status === 'failed') {
+        // Stop polling on terminal state. Long-form complete can be interim until
+        // Narrative Synthesis lands; short-form complete is already final.
+        const nextIsLongForm = isLongFormJob(nextJob);
+        const hasNarrativeSynthesisNow = !!nextJob.pass3_completed_at;
+        const isTerminalComplete =
+          nextJob.status === 'complete' && (!nextIsLongForm || hasNarrativeSynthesisNow);
+
+        if (isTerminalComplete || nextJob.status === 'failed') {
           setIsPolling(false);
 
-          if (data.job.status === 'complete' && redirectOnComplete && !redirectedRef.current) {
+          if (isTerminalComplete && redirectOnComplete && !redirectedRef.current) {
             if (resolvedRedirectDelayMs === 0) {
               navigateToReport();
             } else {
@@ -345,14 +338,14 @@ export function EvaluationPoller({
               }, resolvedRedirectDelayMs);
             }
           } else if (
-            data.job.status === 'complete' &&
+            isTerminalComplete &&
             refreshOnComplete &&
             !refreshedRef.current
           ) {
             completionRefreshArmedRef.current = true;
           }
 
-          onComplete?.(data.job, data.job.status === 'complete');
+          onComplete?.(nextJob, isTerminalComplete);
           return;
         }
 
@@ -499,12 +492,22 @@ export function EvaluationPoller({
     );
   }
 
-  const isCompletingAnimation = job.status === 'complete' && displayProgress < 100;
+  const isLongForm = isLongFormJob(job);
+  const hasNarrativeSynthesis = isLongForm && !!job.pass3_completed_at;
+  const isCompletingAnimation = job.status === 'complete' && (!isLongForm || hasNarrativeSynthesis) && displayProgress < 100;
+  const isInterimComplete = job.status === 'complete' && isLongForm && !hasNarrativeSynthesis && !isCompletingAnimation;
+  const isFinalComplete = job.status === 'complete' && (!isLongForm || hasNarrativeSynthesis) && !isCompletingAnimation;
 
   const statusLabel = {
     queued: 'Waiting in queue',
     running: 'In progress',
-    complete: isCompletingAnimation ? 'In progress' : '✅ Report ready',
+    complete: isCompletingAnimation
+      ? 'In progress'
+      : isInterimComplete
+        ? '✅ Interim Report Ready'
+        : isLongForm
+          ? '✅ Final Report Ready'
+          : '✅ Evaluation Report Ready',
     failed: '⚠ Needs attention',
   }[job.status];
 
@@ -527,69 +530,213 @@ export function EvaluationPoller({
           <p className={`text-lg font-semibold ${statusColor}`}>{statusLabel}</p>
         </div>
 
-                {/* Progress Bar */}
+                {/* Progress Bar — driven 100% from backend phase, no client-side drift */}
         {(() => {
-          // Use the smoothly animated displayProgress so the bar traverses
-          // every stage label at a legible pace regardless of how coarse the
-          // backend progress checkpoints are. While completion animation is still
-          // in flight, render through the running-stage label map instead of the
-          // terminal complete display, which is intentionally fixed at 100%.
-          const displayStatus = isCompletingAnimation ? 'running' : job.status;
-          // Pass authoritative phase fields through so the stage label reflects the
-          // real pipeline state, while the visual percentage continues to use the
-          // smoothly-animated displayProgress for UX continuity.
+          // For completion animation: use displayProgress (sweeps 0→100 client-side).
+          // For all other states: use pd.percentage directly (deterministic, phase-driven).
           const pd = getProgressDisplay({
-            status: displayStatus,
+            status: isCompletingAnimation ? 'running' : job.status,
             phase: job.phase ?? null,
             phase_status: job.phase_status ?? null,
             cross_check_status: job.cross_check_status ?? null,
-            created_at: job.created_at ?? null,
+            // Early vs late phase_1a: use the top-level total_units/completed_units
+            // fields returned by the API (not the rolled-up numeric progress percentage).
+            phase_unit_fraction: (() => {
+              const total = typeof job.total_units === 'number' ? job.total_units : null;
+              const done = typeof job.completed_units === 'number' ? job.completed_units : null;
+              if (total && total > 0 && done !== null) return done / total;
+              return null;
+            })(),
+            hard_fail_present: job.hard_fail_present ?? undefined,
             phase1_started_at: job.phase1_started_at ?? null,
-            phase1_completed_at: job.phase1_completed_at ?? null,
             phase2_started_at: job.phase2_started_at ?? null,
-            phase2_completed_at: job.phase2_completed_at ?? null,
-            pass3_started_at: job.pass3_started_at ?? null,
-            pass3_completed_at: job.pass3_completed_at ?? null,
+            phase3_started_at: job.pass3_started_at ?? null,
           });
           if (!pd) return null;
+
+          // Override pd for interim/final complete so the bar reflects synthesis state.
+          // Interim: hold at 80% with synthesis-pending copy. Final: 100% with full-report copy.
+          const effectivePd = isInterimComplete
+            ? {
+                ...pd,
+                label: 'Craft diagnostic report ready',
+                valueLabel: '80%',
+                percentage: 80,
+                helperText:
+                  'Your craft diagnostics are complete. Narrative Synthesis is still being generated.',
+                color: 'green' as const,
+                hardStop: false,
+                indeterminate: false,
+              }
+            : isFinalComplete
+              ? {
+                  ...pd,
+                  label: 'Evaluation finalized',
+                  valueLabel: '100%',
+                  percentage: 100,
+                  helperText: isLongForm
+                    ? 'Your full evaluation report, including Narrative Synthesis, is ready.'
+                    : 'Your short-form evaluation report is ready.',
+                  color: 'green' as const,
+                  hardStop: false,
+                  indeterminate: false,
+                }
+              : pd;
+
+          // Bar color classes derived from effectivePd.color
+          const barColorClass = {
+            blue: 'bg-blue-600',
+            amber: 'bg-amber-500',
+            red: 'bg-red-600',
+            green: 'bg-green-600',
+          }[effectivePd.color];
+
+          const labelColorClass = {
+            blue: 'text-gray-700',
+            amber: 'text-amber-800 font-semibold',
+            red: 'text-red-800 font-semibold',
+            green: 'text-green-700',
+          }[effectivePd.color];
+
+          // Completion animation uses displayProgress; interim holds at 80%; otherwise pd.percentage.
+          const barWidth = isCompletingAnimation ? displayProgress : effectivePd.percentage;
+
           return (
             <div className="space-y-2">
               <div className="flex items-start justify-between gap-4">
-                <p className="text-sm font-medium text-gray-700">{pd.label}</p>
-                <div className="flex flex-col items-end gap-2 text-right">
-                  <p className="text-sm text-gray-600">{pd.valueLabel}</p>
-                </div>
+                <p className={`text-sm ${labelColorClass}`}>{effectivePd.label}</p>
+                <p className="text-sm text-gray-600 shrink-0">{effectivePd.valueLabel}</p>
               </div>
               <div className="w-full bg-gray-200 rounded-full h-2">
                 <div
-                  className={`h-2 rounded-full transition-all duration-300 ${pd.indeterminate ? 'bg-gray-400 animate-pulse' : 'bg-blue-600'}`}
-                  style={{ width: pd.indeterminate ? '100%' : `${pd.percentage}%` }}
+                  className={`h-2 rounded-full transition-all duration-300 ${barColorClass}`}
+                  style={{ width: `${barWidth}%` }}
                 />
               </div>
-              <p className="text-xs text-gray-500">{pd.helperText}</p>
+              <p className="text-xs text-gray-500">{effectivePd.helperText}</p>
+              {isInterimComplete && (
+                <p className="text-xs text-gray-400 mt-1">
+                  This report includes criterion scores, evidence, confidence levels, and revision recommendations.
+                  The final report will be available once Narrative Synthesis is complete.
+                </p>
+              )}
+              {job.status === 'running' && pollCount > 10 && !effectivePd.hardStop && (
+                <p className="text-xs text-gray-500">
+                  Experiencing delays?{' '}
+                  <button
+                    type="button"
+                    onClick={() => window.location.reload()}
+                    className="underline text-gray-600 cursor-pointer"
+                  >
+                    Refresh
+                  </button>
+                </p>
+              )}
             </div>
           );
         })()}
 
-        {/* Timestamps */}
+        {/* Pipeline stage mini-timeline — sequential, backend-driven only.
+             Phase 0 ✓ is proven by phase0_total_duration_ms ≥ 12000 from JSONB telemetry.
+             NOT from phase0_completed_at column (that has legacy cosmetic stamp paths).
+             Pass 3A preflight is NOT concurrent — it runs after all Phase 1A chunks are cached. */}
+        {(job.phase === 'phase_0' || job.phase === 'phase_1a' || job.phase === 'phase_2' || job.phase === 'phase_3' || job.status === 'complete') && job.status !== 'failed' && (() => {
+          const phase0Proven = typeof job.phase0_total_duration_ms === 'number' && job.phase0_total_duration_ms >= 12000;
+          const phase0Running = job.phase === 'phase_0' && job.status === 'running';
+          const phase1aActive = job.phase === 'phase_1a';
+          const phase2Active = job.phase === 'phase_2';
+          const phase3Active = job.phase === 'phase_3';
+          const isAnyComplete = job.status === 'complete';
+          const phase1aComplete = phase2Active || phase3Active || isAnyComplete;
+          const phase2Complete = phase3Active || isAnyComplete;
+          const phase3Complete = isAnyComplete; // craft diagnostics done when status=complete
+          const finalStageComplete = isFinalComplete;
+          const finalStageLabel = isLongForm ? 'Narrative Synthesis' : 'Report finalization';
+          return (
+            <div className="text-xs text-gray-500 space-y-1.5 border-t pt-3">
+              {/* Stage 1: Calibration */}
+              <div className="flex items-center gap-2">
+                {phase0Proven || isAnyComplete
+                  ? <span className="text-green-700 font-medium">✓</span>
+                  : phase0Running
+                    ? <span className="h-2 w-2 rounded-full bg-blue-400 animate-pulse inline-block" />
+                    : <span className="h-2 w-2 rounded-full bg-gray-300 inline-block" />}
+                <span className={(phase0Proven || isAnyComplete) ? 'text-green-800' : phase0Running ? 'text-gray-700' : 'text-gray-400'}>
+                  {phase0Proven
+                    ? `Calibrating evaluation standards — complete (${Math.round((job.phase0_total_duration_ms ?? 0) / 1000)}s · ${job.phase0_calibration_word_count ?? '?'} words)`
+                    : isAnyComplete
+                      ? 'Calibrating evaluation standards — complete'
+                      : phase0Running
+                        ? 'Calibrating evaluation standards…'
+                        : 'Calibration — pending'}
+                </span>
+              </div>
+              {/* Stage 2: Manuscript read + preflight (sequential, after Phase 0) */}
+              {(phase1aActive || phase2Active || phase3Active || isAnyComplete) && (
+                <div className="flex items-center gap-2">
+                  {phase1aComplete
+                    ? <span className="text-green-700 font-medium">✓</span>
+                    : <span className="h-2 w-2 rounded-full bg-blue-400 animate-pulse inline-block" />}
+                  <span className={phase1aComplete ? 'text-green-800' : 'text-gray-700'}>
+                    {phase1aComplete
+                      ? 'Manuscript analysis + structural preflight — complete'
+                      : 'Manuscript analysis + structural preflight — in progress…'}
+                  </span>
+                </div>
+              )}
+              {/* Stage 3: Craft diagnostics */}
+              {phase2Complete && (
+                <div className="flex items-center gap-2">
+                  {phase3Complete
+                    ? <span className="text-green-700 font-medium">✓</span>
+                    : <span className="h-2 w-2 rounded-full bg-blue-400 animate-pulse inline-block" />}
+                  <span className={phase3Complete ? 'text-green-800' : 'text-gray-700'}>
+                    {phase3Complete
+                      ? 'Craft diagnostics — complete'
+                      : 'Craft diagnostics — in progress…'}
+                  </span>
+                </div>
+              )}
+              {/* Stage 4: long-form Narrative Synthesis; short-form Report finalization */}
+              {(phase3Active || isAnyComplete) && (
+                <div className="flex items-center gap-2">
+                  {finalStageComplete
+                    ? <span className="text-green-700 font-medium">✓</span>
+                    : <span className="h-2 w-2 rounded-full bg-blue-400 animate-pulse inline-block" />}
+                  <span className={finalStageComplete ? 'text-green-800' : 'text-gray-700'}>
+                    {finalStageComplete
+                      ? `${finalStageLabel} — complete`
+                      : `${finalStageLabel} — in progress…`}
+                  </span>
+                </div>
+              )}
+            </div>
+          );
+        })()}
+
+        {/* Timestamps — show relative/elapsed time, not raw timestamps */}
         <div className="grid grid-cols-1 gap-4 text-sm sm:grid-cols-2 lg:grid-cols-3">
           <div>
-            <p className="text-gray-600">Created</p>
-            <p className="text-gray-900 font-mono">
-              {new Date(job.created_at).toLocaleString()}
+            <p className="text-gray-600">Started</p>
+            <p className="text-gray-900">
+              {formatRelativeTime(job.created_at)}
             </p>
           </div>
           <div>
-            <p className="text-gray-600">Updated</p>
-            <p className="text-gray-900 font-mono">
-              {new Date(job.updated_at).toLocaleString()}
+            <p className="text-gray-600">
+              {job.status === 'complete' ? 'Completed' : 'Updated'}
+            </p>
+            <p className="text-gray-900">
+              {job.status === 'running' || job.status === 'queued'
+                ? `Running for ${formatDuration(job.created_at)}`
+                : formatRelativeTime(job.updated_at)}
             </p>
           </div>
           {(job.status === 'queued' || job.status === 'running') && (
             <div className="flex items-end justify-start sm:justify-end lg:justify-start">
               <CancelEvaluationButton
                 jobId={jobId}
-                label="STOP"
+                label="Cancel Evaluation"
                 buttonClassName="inline-flex items-center rounded-md border border-red-600 bg-red-600 px-3 py-2 text-xs font-bold tracking-wide text-white shadow-sm hover:bg-red-700"
               />
             </div>
@@ -630,11 +777,11 @@ export function EvaluationPoller({
           </div>
         )}
 
-        {/* Completion CTA before auto-redirect */}
-        {job.status === 'complete' && !isCompletingAnimation && redirectOnComplete && !redirectedRef.current && (
+        {/* Completion CTA — Final state auto-redirects, Interim state offers manual view */}
+        {isFinalComplete && redirectOnComplete && !redirectedRef.current && (
           <div className="p-3 bg-green-50 border border-green-200 rounded">
             <p className="text-sm text-green-800">
-              Report ready.
+              {isLongForm ? 'Final report ready.' : 'Evaluation report ready.'}
               {pendingRedirectDelayMs != null
                 ? ` Redirecting automatically in ${Math.ceil(pendingRedirectDelayMs / 1000)}s.`
                 : ' Redirecting automatically…'}
@@ -644,7 +791,21 @@ export function EvaluationPoller({
               onClick={navigateToReport}
               className="mt-2 inline-flex rounded-md border border-green-300 bg-white px-3 py-1.5 text-xs font-medium text-green-800 hover:bg-green-100"
             >
-              View report now
+              {isLongForm ? 'View Final Report' : 'View Evaluation Report'}
+            </button>
+          </div>
+        )}
+        {isInterimComplete && redirectOnComplete && !redirectedRef.current && (
+          <div className="p-3 bg-amber-50 border border-amber-200 rounded">
+            <p className="text-sm text-amber-800">
+              Interim report ready. Narrative Synthesis is still generating — the final report will appear automatically when complete.
+            </p>
+            <button
+              type="button"
+              onClick={navigateToReport}
+              className="mt-2 inline-flex rounded-md border border-amber-300 bg-white px-3 py-1.5 text-xs font-medium text-amber-800 hover:bg-amber-100"
+            >
+              View Interim Report
             </button>
           </div>
         )}

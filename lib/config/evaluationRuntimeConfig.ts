@@ -64,6 +64,19 @@ export interface EvaluationRuntimeConfig {
     allowDevServiceRole: boolean;
     disabled: boolean;
   };
+  /** Phase 1A self-chaining batch controls. */
+  phase1a: {
+    /** Chunks to process per invocation. Conservative default: 2. Increase after telemetry proves safety. */
+    batchSize: number;
+    /** OpenAI call concurrency within a single batch. Default: 1 (conservative). */
+    concurrency: number;
+    /** Max milliseconds this invocation is allowed to run before self-chaining. Default: 45000ms. */
+    invocationBudgetMs: number;
+    /** Do not start another chunk unless this many ms remain in the budget. Default: 10000ms. */
+    safetyMarginMs: number;
+    /** runPass3Preflight chunk concurrency. Default: 1 (conservative — preflight self-chains on budget timeout). */
+    preflightConcurrency: number;
+  };
   auth: {
     cronSecret: string;
   };
@@ -388,6 +401,13 @@ export function resolveEvaluationRuntimeConfig(
       maxExecutionMs,
       allowDevServiceRole: env.WORKER_ALLOW_SERVICE_ROLE_DEV === "1",
       disabled: env.EVAL_WORKER_DISABLED === "true" || env.EVAL_WORKER_DISABLED === "1",
+    },
+    phase1a: {
+      batchSize: parseBoundedInteger(env, "EVAL_PHASE1A_BATCH_SIZE", { defaultValue: 2, min: 1, max: 10 }),
+      concurrency: parseBoundedInteger(env, "EVAL_PHASE1A_CONCURRENCY", { defaultValue: 1, min: 1, max: 5 }),
+      invocationBudgetMs: parseBoundedInteger(env, "EVAL_PHASE1A_INVOCATION_BUDGET_MS", { defaultValue: 45_000, min: 10_000, max: 600_000 }),
+      safetyMarginMs: parseBoundedInteger(env, "EVAL_PHASE1A_SAFETY_MARGIN_MS", { defaultValue: 10_000, min: 3_000, max: 30_000 }),
+      preflightConcurrency: parseBoundedInteger(env, "EVAL_PHASE1A_PREFLIGHT_CONCURRENCY", { defaultValue: 1, min: 1, max: 5 }),
     },
     auth: {
       cronSecret: env.CRON_SECRET || "",
