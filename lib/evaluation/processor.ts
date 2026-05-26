@@ -4151,6 +4151,13 @@ export async function processEvaluationJob(
         } catch (waveErr) {
           const errMsg = waveErr instanceof Error ? waveErr.message : String(waveErr);
           const isTimeout = errMsg === 'WAVE_TIMEOUT';
+          const reasonCode = isTimeout
+            ? 'WAVE_TIMEOUT'
+            : errMsg.includes('WAVE_SOURCE_VERSION_RESOLUTION_FAILED')
+              ? 'WAVE_SOURCE_VERSION_RESOLUTION_FAILED'
+              : errMsg.includes('createRevisionSession failed')
+                ? 'WAVE_SESSION_CREATE_FAILED'
+                : 'WAVE_ERROR';
           console.warn(`[WAVE/Phase3] ${isTimeout ? 'Timeout' : 'Error'} for job ${jobId} (${Date.now() - waveStartMs}ms):`, errMsg);
 
           // Normalize: status is always "failed"; use reason_code to distinguish
@@ -4158,7 +4165,7 @@ export async function processEvaluationJob(
           //   complete | skipped | failed
           const failedPlan = {
             status: 'failed' as const,
-            reason_code: isTimeout ? 'WAVE_TIMEOUT' : 'WAVE_ERROR',
+            reason_code: reasonCode,
             reason: errMsg,
             retryable: isTimeout,
             generated_at: new Date().toISOString(),
@@ -5229,6 +5236,110 @@ export async function processEvaluationJob(
       }
       // ── END GOVERNANCE GATE ──
 
+      const runPass12ForHandoffRecovery = async (
+        prebuiltLedger:
+          | { ledger: Pass1aCharacterLedger; ledgerV2: CharacterLedgerV2 }
+          | undefined,
+      ): Promise<
+        | { ok: true; pass1Output: SinglePassOutput; pass2Output: SinglePassOutput }
+        | { ok: false; error: string; errorCode: string }
+      > => {
+        try {
+          const [{ runPass1 }, { runPass2 }, { enforcePass2LexicalIndependence }, { loadCanonicalRegistry }, { buildLedgerBlockForPrompt }] = await Promise.all([
+            import('@/lib/evaluation/pipeline/runPass1'),
+            import('@/lib/evaluation/pipeline/runPass2'),
+            import('@/lib/evaluation/pipeline/pass2IndependenceGuard'),
+            import('@/lib/governance/canonRegistry'),
+            import('@/lib/evaluation/pipeline/buildLedgerBlock'),
+          ]);
+
+          const registry = loadCanonicalRegistry();
+          const ledgerBlock = prebuiltLedger
+            ? buildLedgerBlockForPrompt(prebuiltLedger.ledger, prebuiltLedger.ledgerV2)
+            : '';
+
+          const chunkHeartbeat = () => {
+            const pulseNow = new Date().toISOString();
+            void supabase
+              .from('evaluation_jobs')
+              .update({ worker_pulse_at: pulseNow })
+              .eq('id', jobId)
+              .eq('status', JOB_STATUS.RUNNING)
+              .then(({ error }: { error: unknown }) => {
+                if (error) {
+                  console.warn('[phase_2] worker_pulse_at stamp failed (non-fatal)', error);
+                }
+              });
+          };
+
+          const [pass1Settled, pass2Settled] = await Promise.allSettled([
+            runPass1({
+              manuscriptText: manuscriptWithContent.content || '',
+              manuscriptChunks: manuscriptChunksForPipeline,
+              workType: manuscriptWithContent.work_type || 'novel',
+              title: manuscriptWithContent.title,
+              executionMode: 'TRUSTED_PATH',
+              openaiApiKey,
+              jobId: String(job.id),
+              openAiTimeoutMs: timeoutResolution.openAiTimeoutMs,
+              registry,
+              _chunkConcurrency: prebuiltLedger ? 3 : undefined,
+              characterLedgerBlock: ledgerBlock || undefined,
+              _onChunkHeartbeat: chunkHeartbeat,
+            }),
+            runPass2({
+              manuscriptText: manuscriptWithContent.content || '',
+              manuscriptChunks: manuscriptChunksForPipeline,
+              workType: manuscriptWithContent.work_type || 'novel',
+              title: manuscriptWithContent.title,
+              executionMode: 'TRUSTED_PATH',
+              model: getCanonicalPass2Model(openAiModel),
+              openaiApiKey,
+              manuscriptId: String(manuscriptWithContent.id),
+              jobId: String(job.id),
+              openAiTimeoutMs: timeoutResolution.openAiTimeoutMs,
+              registry,
+              _chunkConcurrency: prebuiltLedger ? 3 : undefined,
+              characterLedgerBlock: ledgerBlock || undefined,
+              authorCorrectionsBlock,
+              _onChunkHeartbeat: chunkHeartbeat,
+            }),
+          ]);
+
+          if (pass1Settled.status === 'rejected') {
+            const msg = pass1Settled.reason instanceof Error ? pass1Settled.reason.message : String(pass1Settled.reason);
+            const code = msg.includes('CHUNK_ROUTING_NOT_ENGAGED') ? 'CHUNK_ROUTING_NOT_ENGAGED' : 'PASS1_FAILED';
+            return { ok: false, error: msg, errorCode: code };
+          }
+
+          if (pass2Settled.status === 'rejected') {
+            const msg = pass2Settled.reason instanceof Error ? pass2Settled.reason.message : String(pass2Settled.reason);
+            const code = msg.includes('CHUNK_ROUTING_NOT_ENGAGED') ? 'CHUNK_ROUTING_NOT_ENGAGED' : 'PASS2_FAILED';
+            return { ok: false, error: msg, errorCode: code };
+          }
+
+          const pass1Output = pass1Settled.value;
+          const independenceResult = enforcePass2LexicalIndependence(pass1Output, pass2Settled.value);
+          if (!independenceResult.ok) {
+            return {
+              ok: false,
+              error: `Pass 2 lexical independence guard failed after rewrite (keys: ${independenceResult.failedKeys.join(', ')})`,
+              errorCode: 'PASS2_INDEPENDENCE_REWRITE_FAILED',
+            };
+          }
+
+          return {
+            ok: true,
+            pass1Output,
+            pass2Output: independenceResult.output,
+          };
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          const code = msg.includes('CHUNK_ROUTING_NOT_ENGAGED') ? 'CHUNK_ROUTING_NOT_ENGAGED' : 'PHASE2_PASS12_FAILED';
+          return { ok: false, error: msg, errorCode: code };
+        }
+      };
+
       const { data: handoffRow, error: handoffReadError } = await supabase
         .from('evaluation_artifacts')
         .select('content')
@@ -5301,183 +5412,19 @@ export async function processEvaluationJob(
 
           let capturedPass1: SinglePassOutput | undefined;
           let capturedPass2: SinglePassOutput | undefined;
-          const { runPass1: realRunPass1 } = await import('@/lib/evaluation/pipeline/runPass1');
-          const { runPass2: realRunPass2 } = await import('@/lib/evaluation/pipeline/runPass2');
 
           try {
-            const p2CaptureResult = await runPipeline({
-              manuscriptText: manuscriptWithContent.content || '',
-              manuscriptChunks: manuscriptChunksForPipeline,
-              workType: manuscriptWithContent.work_type || 'novel',
-              title: manuscriptWithContent.title,
-              jobId: String(job.id),
-              model: getCanonicalPipelineModel(openAiModel),
-              openaiApiKey,
-              manuscriptId: String(manuscriptWithContent.id),
-              executionMode: 'TRUSTED_PATH',
-              _passTimeoutMs: timeoutResolution.passTimeoutMs,
-              _openAiTimeoutMs: timeoutResolution.openAiTimeoutMs,
-              ...(prebuiltLedgerP2 ? { _prebuiltCharacterLedger: prebuiltLedgerP2 } : {}),
-              ...(authorCorrectionsBlock ? { _authorCorrectionsBlock: authorCorrectionsBlock } : {}),
-              _runners: {
-                runPass1: async (opts) => {
-                  const result = await realRunPass1(opts);
-                  capturedPass1 = result;
-                  return result;
-                },
-                runPass2: async (opts) => {
-                  const result = await realRunPass2({ ...opts, authorCorrectionsBlock });
-                  capturedPass2 = result;
-                  return result;
-                },
-              },
-              onHeartbeat: async (stage) => {
-                await assertJobWithinSla({
-                  supabase,
-                  jobId,
-                  hardDeadlineMs,
-                  stage,
-                  expectedLeaseToken,
-                  expectedClaimedBy,
-                });
-                await renewEvaluationJobLease({
-                  supabase, jobId, leaseMs: runtimeConfig.worker.leaseMs, stage, hardDeadlineMs,
-                });
-                // IDLE GUARD: stamp worker_pulse_at at each phase_2 chunk heartbeat.
-                const p2PulseNow = new Date().toISOString();
-                void supabase
-                  .from('evaluation_jobs')
-                  .update({ worker_pulse_at: p2PulseNow })
-                  .eq('id', jobId)
-                  .eq('status', JOB_STATUS.RUNNING)
-                  .then(({ error }: { error: unknown }) => {
-                    if (error) console.warn('[phase_2] worker_pulse_at stamp failed (non-fatal)', error);
-                  });
-              },
-            });
-
-            if (!p2CaptureResult.ok) {
-              const errCode = 'error_code' in p2CaptureResult ? p2CaptureResult.error_code : 'PHASE2_PASS12_FAILED';
-              // ── SELF-HEALING RECOVERY: CHUNK_ROUTING_NOT_ENGAGED ─────────────
-              // If chunks were materialized (count >= 1), the route is set, and
-              // chunk_routing.enabled is truthy, treat routing as engaged and log
-              // structured diagnostics for future investigation. This protects
-              // against guards that were over-aggressive about single-chunk runs.
-              if (errCode === 'CHUNK_ROUTING_NOT_ENGAGED') {
-                const cr = chunkRouting as Record<string, unknown> | undefined;
-                const route = cr?.route;
-                const enabledRaw = cr?.enabled;
-                const enabledTruthy = enabledRaw === true || enabledRaw === 'true' || enabledRaw === 1;
-                const chunkCount = Array.isArray(manuscriptChunksForPipeline) ? manuscriptChunksForPipeline.length : 0;
-                console.warn('[phase_2] CHUNK_ROUTING_NOT_ENGAGED recovery handler invoked', {
-                  job_id: jobId,
-                  manuscript_id: String(manuscriptWithContent.id),
-                  chunk_routing_snapshot: chunkRouting,
-                  manuscript_chunks_count: chunkCount,
-                  recovery_eligible: chunkCount >= 1 && !!route && enabledTruthy,
-                });
-                if (chunkCount >= 1 && !!route && enabledTruthy) {
-                  console.warn(`[phase_2] ${jobId}: CHUNK_ROUTING_NOT_ENGAGED self-heal — chunks present, treating route as engaged. Failing softly to allow retry pickup.`);
-                  // Do not markFailed permanently. Surface to next cron tick by
-                  // requeuing phase_2 so the corrected dispatch path executes.
-                  try {
-                    const nowSelfHealIso = new Date().toISOString();
-                    await supabase
-                      .from('evaluation_jobs')
-                      .update(buildWritablePatch({
-                        status: JOB_STATUS.QUEUED,
-                        phase: 'phase_2',
-                        phase_status: JOB_STATUS.QUEUED,
-                        claimed_by: null,
-                        claimed_at: null,
-                        lease_token: null,
-                        lease_until: null,
-                        error_code: null,
-                        error_message: null,
-                        failed_at: null,
-                        worker_pulse_at: nowSelfHealIso,
-                        updated_at: nowSelfHealIso,
-                      }))
-                      .eq('id', job.id);
-                  } catch (selfHealErr) {
-                    console.error(`[phase_2] ${jobId}: self-heal requeue failed`,
-                      selfHealErr instanceof Error ? selfHealErr.message : String(selfHealErr));
-                  }
-                  return { success: false, error: 'PHASE2_SELF_HEAL_REQUEUE' };
-                }
-                // True no-chunks case: mark failed with full diagnostic + pulse so
-                // the watchdog doesn't see a limbo job.
-                const noChunkNow = new Date().toISOString();
-                try {
-                  await supabase
-                    .from('evaluation_jobs')
-                    .update(buildWritablePatch({
-                      status: 'failed',
-                      phase_status: 'failed',
-                      error_code: 'CHUNK_ROUTING_NOT_ENGAGED',
-                      error_message: `No chunks materialized despite long-form route (chunk_count=${chunkCount}, route=${String(route)}, enabled=${String(enabledRaw)}). Re-chunking required.`,
-                      worker_pulse_at: noChunkNow,
-                      failed_at: noChunkNow,
-                      updated_at: noChunkNow,
-                    }))
-                    .eq('id', job.id);
-                } catch (markErr) {
-                  console.error(`[phase_2] ${jobId}: failed to mark CHUNK_ROUTING_NOT_ENGAGED no-chunk failure`,
-                    markErr instanceof Error ? markErr.message : String(markErr));
-                }
-                return { success: false, error: 'CHUNK_ROUTING_NOT_ENGAGED' };
-              }
-              console.error(`[phase_2] ${jobId}: Pass 1+2 failed`, errCode);
-              await markFailed(String(errCode), 'PHASE2_PASS12_FAILED', { pipelineStage: 'phase_2' });
-              return { success: false, error: String(errCode) };
-            }
-          } catch (pipelineRunErrP2) {
-            const errMsg = pipelineRunErrP2 instanceof Error ? pipelineRunErrP2.message : String(pipelineRunErrP2);
-            const thrownCode = (pipelineRunErrP2 && typeof pipelineRunErrP2 === 'object' && 'failureCode' in (pipelineRunErrP2 as Record<string, unknown>))
-              ? (pipelineRunErrP2 as { failureCode?: unknown }).failureCode
-              : undefined;
-            if (thrownCode === 'CHUNK_ROUTING_NOT_ENGAGED') {
-              const cr = chunkRouting as Record<string, unknown> | undefined;
-              const route = cr?.route;
-              const enabledRaw = cr?.enabled;
-              const enabledTruthy = enabledRaw === true || enabledRaw === 'true' || enabledRaw === 1;
-              const chunkCount = Array.isArray(manuscriptChunksForPipeline) ? manuscriptChunksForPipeline.length : 0;
-              console.warn('[phase_2] CHUNK_ROUTING_NOT_ENGAGED (thrown) recovery handler invoked', {
-                job_id: jobId,
-                chunk_routing_snapshot: chunkRouting,
-                manuscript_chunks_count: chunkCount,
-                error_message: errMsg,
+            const pass12Recovery = await runPass12ForHandoffRecovery(prebuiltLedgerP2);
+            if (!pass12Recovery.ok) {
+              console.error(`[phase_2] ${jobId}: Pass 1+2 handoff recovery failed`, {
+                error_code: pass12Recovery.errorCode,
+                error: pass12Recovery.error,
               });
-              if (chunkCount >= 1 && !!route && enabledTruthy) {
-                try {
-                  const nowSelfHealIso = new Date().toISOString();
-                  await supabase
-                    .from('evaluation_jobs')
-                    .update(buildWritablePatch({
-                      status: JOB_STATUS.QUEUED,
-                      phase: 'phase_2',
-                      phase_status: JOB_STATUS.QUEUED,
-                      claimed_by: null,
-                      claimed_at: null,
-                      lease_token: null,
-                      lease_until: null,
-                      error_code: null,
-                      error_message: null,
-                      failed_at: null,
-                      worker_pulse_at: nowSelfHealIso,
-                      updated_at: nowSelfHealIso,
-                    }))
-                    .eq('id', job.id);
-                } catch (selfHealErr) {
-                  console.error(`[phase_2] ${jobId}: self-heal requeue (thrown) failed`,
-                    selfHealErr instanceof Error ? selfHealErr.message : String(selfHealErr));
-                }
-                return { success: false, error: 'PHASE2_SELF_HEAL_REQUEUE' };
-              }
+              await markFailed(pass12Recovery.error, 'PHASE2_PASS12_FAILED', { pipelineStage: 'phase_2' });
+              return { success: false, error: pass12Recovery.errorCode };
             }
-            console.error(`[phase_2] ${jobId}: Pass 1+2 pipeline threw`, errMsg);
-            await markFailed(errMsg, 'PHASE2_PASS12_FAILED', { pipelineStage: 'phase_2' });
-            return { success: false, error: errMsg };
+            capturedPass1 = pass12Recovery.pass1Output;
+            capturedPass2 = pass12Recovery.pass2Output;
           } finally {
             clearInterval(leaseRenewalLoopP2);
           }
@@ -5583,59 +5530,15 @@ export async function processEvaluationJob(
 
         let capturedPass1Short: SinglePassOutput | undefined;
         let capturedPass2Short: SinglePassOutput | undefined;
-        const { runPass1: realRunPass1Short } = await import('@/lib/evaluation/pipeline/runPass1');
-        const { runPass2: realRunPass2Short } = await import('@/lib/evaluation/pipeline/runPass2');
 
         try {
-          const p2ShortResult = await runPipeline({
-            manuscriptText: manuscriptWithContent.content || '',
-            manuscriptChunks: manuscriptChunksForPipeline,
-            workType: manuscriptWithContent.work_type || 'novel',
-            title: manuscriptWithContent.title,
-            jobId: String(job.id),
-            model: getCanonicalPipelineModel(openAiModel),
-            openaiApiKey,
-            manuscriptId: String(manuscriptWithContent.id),
-            executionMode: 'TRUSTED_PATH',
-            _passTimeoutMs: timeoutResolution.passTimeoutMs,
-            _openAiTimeoutMs: timeoutResolution.openAiTimeoutMs,
-            ...(prebuiltLedgerP2Short ? { _prebuiltCharacterLedger: prebuiltLedgerP2Short } : {}),
-            ...(authorCorrectionsBlock ? { _authorCorrectionsBlock: authorCorrectionsBlock } : {}),
-            _runners: {
-              runPass1: async (opts) => { const r = await realRunPass1Short(opts); capturedPass1Short = r; return r; },
-              runPass2: async (opts) => { const r = await realRunPass2Short({ ...opts, authorCorrectionsBlock }); capturedPass2Short = r; return r; },
-            },
-            onHeartbeat: async (stage) => {
-              await assertJobWithinSla({
-                supabase,
-                jobId,
-                hardDeadlineMs,
-                stage,
-                expectedLeaseToken,
-                expectedClaimedBy,
-              });
-              await renewEvaluationJobLease({ supabase, jobId, leaseMs: runtimeConfig.worker.leaseMs, stage, hardDeadlineMs });
-              // IDLE GUARD: stamp worker_pulse_at at each phase_2 short chunk heartbeat.
-              const p2sPulseNow = new Date().toISOString();
-              void supabase
-                .from('evaluation_jobs')
-                .update({ worker_pulse_at: p2sPulseNow })
-                .eq('id', jobId)
-                .eq('status', JOB_STATUS.RUNNING)
-                .then(({ error }: { error: unknown }) => {
-                  if (error) console.warn('[phase_2_short] worker_pulse_at stamp failed (non-fatal)', error);
-                });
-            },
-          });
-          if (!p2ShortResult.ok) {
-            const errCode = 'error_code' in p2ShortResult ? p2ShortResult.error_code : 'PHASE2_SHORT_PASS12_FAILED';
-            await markFailed(String(errCode), 'PHASE2_PASS12_FAILED', { pipelineStage: 'phase_2' });
-            return { success: false, error: String(errCode) };
+          const pass12Recovery = await runPass12ForHandoffRecovery(prebuiltLedgerP2Short);
+          if (!pass12Recovery.ok) {
+            await markFailed(pass12Recovery.error, 'PHASE2_PASS12_FAILED', { pipelineStage: 'phase_2' });
+            return { success: false, error: pass12Recovery.errorCode };
           }
-        } catch (p2ShortErr) {
-          const errMsg = p2ShortErr instanceof Error ? p2ShortErr.message : String(p2ShortErr);
-          await markFailed(errMsg, 'PHASE2_PASS12_FAILED', { pipelineStage: 'phase_2' });
-          return { success: false, error: errMsg };
+          capturedPass1Short = pass12Recovery.pass1Output;
+          capturedPass2Short = pass12Recovery.pass2Output;
         } finally {
           clearInterval(leaseRenewalLoopP2Short);
         }
@@ -6622,10 +6525,17 @@ export async function processEvaluationJob(
             } catch (waveErr) {
               const errMsg = waveErr instanceof Error ? waveErr.message : String(waveErr);
               const isTimeout = errMsg === 'WAVE_TIMEOUT';
+              const reasonCode = isTimeout
+                ? 'WAVE_TIMEOUT'
+                : errMsg.includes('WAVE_SOURCE_VERSION_RESOLUTION_FAILED')
+                  ? 'WAVE_SOURCE_VERSION_RESOLUTION_FAILED'
+                  : errMsg.includes('createRevisionSession failed')
+                    ? 'WAVE_SESSION_CREATE_FAILED'
+                    : 'WAVE_ERROR';
               console.warn(`[WAVE/Phase3-inline] ${isTimeout ? 'Timeout' : 'Error'} for job ${jobId} (${Date.now() - waveStartMsP3}ms):`, errMsg);
               const failedPlan = {
                 status: 'failed' as const,
-                reason_code: isTimeout ? 'WAVE_TIMEOUT' : 'WAVE_ERROR',
+                reason_code: reasonCode,
                 reason: errMsg,
                 retryable: isTimeout,
                 generated_at: new Date().toISOString(),
