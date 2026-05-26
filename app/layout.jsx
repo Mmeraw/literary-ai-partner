@@ -20,7 +20,7 @@ export default function RootLayout({ children }) {
         Pages that are app routes get the standard max-width content shell.
       */}
       <body
-        className="antialiased bg-rg-ink text-rg-cream font-rg-serif"
+        className="overflow-x-hidden antialiased bg-rg-ink text-rg-cream font-rg-serif"
         suppressHydrationWarning
       >
         <ReportColorSystemHydrator />
