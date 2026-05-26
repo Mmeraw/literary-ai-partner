@@ -28,7 +28,7 @@ const resourceCards = [
   },
   {
     title: "Privacy & Research Controls",
-    href: "#privacy-research-controls",
+    href: "/privacy-research-controls",
     eyebrow: "Manuscript trust",
     copy: "How uploaded work is treated, what external research means, and why the author controls what happens next.",
   },
@@ -206,14 +206,19 @@ export default function ResourcesPage() {
           <SectionHeader
             eyebrow="Privacy & research controls"
             title="Manuscript trust is part of the product."
-            copy="This hub now surfaces the current privacy doctrine. A dedicated Privacy & Research Controls page should expand this into a full trust document next."
+            copy="This hub now surfaces the current privacy doctrine. A dedicated Privacy & Research Controls page expands this into a full trust document."
           />
-          <div className="grid gap-3 sm:grid-cols-2">
-            {privacyControls.map((item) => (
-              <div key={item} className="border border-rg-cream2/12 bg-rg-ink/70 p-5 leading-7 text-rg-cream2/80">
-                {item}
-              </div>
-            ))}
+          <div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {privacyControls.map((item) => (
+                <div key={item} className="border border-rg-cream2/12 bg-rg-ink/70 p-5 leading-7 text-rg-cream2/80">
+                  {item}
+                </div>
+              ))}
+            </div>
+            <Link href="/privacy-research-controls" className="mt-6 inline-block font-rg-mono text-xs uppercase tracking-[0.18em] text-rg-gold hover:text-rg-cream">
+              Read Privacy & Research Controls →
+            </Link>
           </div>
         </div>
       </section>
