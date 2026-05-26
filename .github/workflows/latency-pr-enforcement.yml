@@ -4,6 +4,10 @@ name: Latency PR Enforcement
   pull_request:
     types: [opened, edited, synchronize, reopened]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   enforce-latency-template:
     runs-on: ubuntu-latest
@@ -448,6 +452,12 @@ jobs:
               assert(hasSection("## Visual Evidence"), "Missing: Visual Evidence section");
               assert(hasSection("## Accessibility"), "Missing: Accessibility section");
               assert(hasSection("## Browser Targets"), "Missing: Browser Targets section");
+              assert(hasSection("## Unauthorized Input Sources"), "Missing: Unauthorized Input Sources section");
+              assert(hasSection("## Internal Process Leakage"), "Missing: Internal Process Leakage section");
+              assert(hasSection("## Input → Action → Output"), "Missing: Input → Action → Output section");
+              assert(hasSection("## Public-Safe Quality/Status Metrics"), "Missing: Public-Safe Quality/Status Metrics section");
+              assert(hasSection("## Runtime/Pipeline Expansion"), "Missing: Runtime/Pipeline Expansion section");
+              assert(hasSection("## Latency Impact"), "Missing: Latency Impact section");
               assert(hasNoPipelineImpact(), "Missing: No-Pipeline-Impact: <value> line");
             };
 

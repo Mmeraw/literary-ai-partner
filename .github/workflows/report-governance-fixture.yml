@@ -9,6 +9,10 @@ on:
       - ".github/workflows/report-governance-fixture.yml"
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   report-governance-fixture:
     runs-on: ubuntu-latest
