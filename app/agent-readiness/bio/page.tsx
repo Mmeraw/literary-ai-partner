@@ -15,6 +15,18 @@ import React, { useRef, useState } from "react";
 
 type SpeechState = "idle" | "listening" | "error";
 type AuthorProfileSourceUploadStatus = "idle" | "reading" | "success" | "error";
+type AuthorProfileSourceType =
+  | "author_bio"
+  | "resume_cv"
+  | "linkedin_profile"
+  | "author_website"
+  | "publication_credits"
+  | "awards_recognition"
+  | "education"
+  | "professional_background"
+  | "subject_matter_expertise"
+  | "infer"
+  | "other";
 
 const AUTHOR_PROFILE_SOURCE_MAX_BYTES = 5 * 1024 * 1024;
 const AUTHOR_PROFILE_SOURCE_UPLOAD_FORMATS = "DOCX, TXT, MD, and CSV";
@@ -28,6 +40,27 @@ const TEXT_SOURCE_MIME_TYPES = new Set([
   "application/vnd.ms-excel",
 ]);
 const TEXT_SOURCE_EXTENSIONS = new Set([".txt", ".md", ".markdown", ".csv"]);
+const AUTHOR_PROFILE_SOURCE_TYPE_OPTIONS: { value: AuthorProfileSourceType; label: string }[] = [
+  { value: "infer", label: "Let RevisionGrade infer source type" },
+  { value: "author_bio", label: "Author Bio" },
+  { value: "resume_cv", label: "Résumé / CV" },
+  { value: "linkedin_profile", label: "LinkedIn Profile" },
+  { value: "author_website", label: "Author Website" },
+  { value: "publication_credits", label: "Publication Credits" },
+  { value: "awards_recognition", label: "Awards / Recognition" },
+  { value: "education", label: "Education" },
+  { value: "professional_background", label: "Professional Background" },
+  { value: "subject_matter_expertise", label: "Subject-Matter Expertise" },
+  { value: "other", label: "Other" },
+];
+
+function authorProfileSourceTypeLabel(value: AuthorProfileSourceType): string {
+  return AUTHOR_PROFILE_SOURCE_TYPE_OPTIONS.find(option => option.value === value)?.label ?? "Author Profile Source";
+}
+
+function uploadedSourceHeadingLabel(value: AuthorProfileSourceType): string {
+  return value === "infer" ? "Author Profile Source" : authorProfileSourceTypeLabel(value);
+}
 
 function useSpeechInput(setValue: React.Dispatch<React.SetStateAction<string>>) {
   const [state, setState] = React.useState<SpeechState>("idle");
@@ -175,21 +208,27 @@ export default function AuthorBioPage() {
   const [confirmed,    setConfirmed]    = useState(false);
   const [approved,     setApproved]     = useState(false);
   const [generatedBio, setGeneratedBio] = useState("");
+  const [authorProfileSourceType, setAuthorProfileSourceType] = useState<AuthorProfileSourceType>("infer");
   const [authorProfileSourceUploadName, setAuthorProfileSourceUploadName] = useState("");
   const [authorProfileSourceUploadStatus, setAuthorProfileSourceUploadStatus] = useState<AuthorProfileSourceUploadStatus>("idle");
   const [authorProfileSourceUploadMessage, setAuthorProfileSourceUploadMessage] = useState("");
   const authorProfileSourceUploadRef = useRef<HTMLInputElement | null>(null);
   const previousResumeTextRef = useRef(resumeText);
+  const previousAuthorProfileSourceTypeRef = useRef(authorProfileSourceType);
 
   const canApprove = generatedBio.trim().length > 0 && confirmed;
 
   React.useEffect(() => {
-    if (previousResumeTextRef.current === resumeText) return;
+    const sourceTextChanged = previousResumeTextRef.current !== resumeText;
+    const sourceTypeChanged = previousAuthorProfileSourceTypeRef.current !== authorProfileSourceType;
+    if (!sourceTextChanged && !sourceTypeChanged) return;
+
     previousResumeTextRef.current = resumeText;
+    previousAuthorProfileSourceTypeRef.current = authorProfileSourceType;
     setGeneratedBio("");
     setApproved(false);
     setConfirmed(false);
-  }, [resumeText]);
+  }, [resumeText, authorProfileSourceType]);
 
   async function handleAuthorProfileSourceUpload(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -208,11 +247,11 @@ export default function AuthorBioPage() {
       }
 
       setResumeText(prev => {
-        const heading = `--- Uploaded Author Profile Source: ${file.name} ---`;
+        const heading = `--- Uploaded ${uploadedSourceHeadingLabel(authorProfileSourceType)}: ${file.name} ---`;
         return prev.trim() ? `${prev.trim()}\n\n${heading}\n${extracted}` : `${heading}\n${extracted}`;
       });
       setAuthorProfileSourceUploadStatus("success");
-      setAuthorProfileSourceUploadMessage(`Imported ${file.name} into Author Profile Sources.`);
+      setAuthorProfileSourceUploadMessage(`Imported ${file.name} as ${uploadedSourceHeadingLabel(authorProfileSourceType)}.`);
     } catch (err) {
       setAuthorProfileSourceUploadStatus("error");
       if (err instanceof Error && err.message === "FILE_TOO_LARGE") {
@@ -305,7 +344,7 @@ export default function AuthorBioPage() {
                   flexShrink: 0,
                 }}
               >
-                ⬆ Upload Sources
+                ⬆ Upload Source
               </button>
               <MicButton setValue={setResumeText} />
             </div>
@@ -319,6 +358,35 @@ export default function AuthorBioPage() {
           <p style={{ fontSize: "0.6875rem", color: T.dim, lineHeight: 1.5, marginBottom: "0.625rem" }}>
             Supported uploads: {AUTHOR_PROFILE_SOURCE_UPLOAD_FORMATS}. You may also paste a LinkedIn or author-website URL as a reference. RevisionGrade will not add facts not present in these sources.
           </p>
+
+          <div style={{ marginBottom: "0.875rem" }}>
+            <label style={{ display: "block", fontSize: "0.5625rem", color: T.dim, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: "0.375rem" }}>
+              Source Type
+            </label>
+            <p style={{ fontSize: "0.6875rem", color: T.dim, lineHeight: 1.5, marginBottom: "0.5rem" }}>
+              Optional. Labeling the source helps RevisionGrade preserve credential accuracy, but you may leave this to the system.
+            </p>
+            <select
+              value={authorProfileSourceType}
+              onChange={(e) => setAuthorProfileSourceType(e.target.value as AuthorProfileSourceType)}
+              style={{
+                width: "100%",
+                fontFamily: T.mono,
+                fontSize: "0.8125rem",
+                color: T.cream,
+                backgroundColor: T.panel,
+                border: `1px solid ${T.border}`,
+                padding: "0.75rem",
+                outline: "none",
+                boxSizing: "border-box",
+              }}
+            >
+              {AUTHOR_PROFILE_SOURCE_TYPE_OPTIONS.map(option => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </select>
+          </div>
+
           <input
             ref={authorProfileSourceUploadRef}
             type="file"
