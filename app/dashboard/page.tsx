@@ -8,7 +8,7 @@ import {
 export const dynamic = 'force-dynamic'
 
 export default async function DashboardPage() {
-  const { rows, error } = await getDashboardEvaluations({ limit: 15 })
+  const { rows, reviseAnalytics, error } = await getDashboardEvaluations({ limit: 15 })
 
   if (error) {
     return (
@@ -40,7 +40,7 @@ export default async function DashboardPage() {
 
   return (
     <div className="rg-dash-page">
-      <AuthorProgressLedger rows={rows} kpis={kpis} />
+      <AuthorProgressLedger rows={rows} kpis={kpis} reviseAnalytics={reviseAnalytics} />
       <p className="rg-dash-footnote">
         Submission readiness indicates a manuscript has reached a RevisionGrade quality
         threshold associated with stronger submission potential. It is a curation
