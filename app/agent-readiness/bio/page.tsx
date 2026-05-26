@@ -9,11 +9,12 @@
  */
 
 import Link from "next/link";
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 
 // ─── Web Speech API mic input ───────────────────────────────────────────────
 
 type SpeechState = "idle" | "listening" | "error";
+type ResumeUploadStatus = "idle" | "reading" | "success" | "error";
 
 function useSpeechInput(setValue: React.Dispatch<React.SetStateAction<string>>) {
   const [state, setState] = React.useState<SpeechState>("idle");
@@ -96,6 +97,16 @@ function downloadTxt(filename: string, content: string) {
   URL.revokeObjectURL(url);
 }
 
+async function extractResumeUploadText(file: File): Promise<string> {
+  const name = file.name.toLowerCase();
+  if (name.endsWith(".docx")) {
+    const mammoth = await import("mammoth");
+    const result = await mammoth.extractRawText({ arrayBuffer: await file.arrayBuffer() });
+    return result.value ?? "";
+  }
+  return await file.text();
+}
+
 const SAVE_BTN: React.CSSProperties = {
   fontFamily: "monospace",
   fontSize: "0.6875rem",
@@ -126,8 +137,45 @@ export default function AuthorBioPage() {
   const [confirmed,    setConfirmed]    = useState(false);
   const [approved,     setApproved]     = useState(false);
   const [generatedBio, setGeneratedBio] = useState("");
+  const [resumeUploadName, setResumeUploadName] = useState("");
+  const [resumeUploadStatus, setResumeUploadStatus] = useState<ResumeUploadStatus>("idle");
+  const [resumeUploadMessage, setResumeUploadMessage] = useState("");
+  const resumeUploadRef = useRef<HTMLInputElement | null>(null);
 
   const canApprove = generatedBio.trim().length > 0 && confirmed;
+
+  async function handleResumeUpload(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setResumeUploadName(file.name);
+    setResumeUploadStatus("reading");
+    setResumeUploadMessage("Reading uploaded résumé / CV...");
+
+    try {
+      const extracted = (await extractResumeUploadText(file)).trim();
+      if (!extracted) {
+        setResumeUploadStatus("error");
+        setResumeUploadMessage("No readable text was found. Please paste the résumé / CV text manually.");
+        return;
+      }
+
+      setResumeText(prev => {
+        const heading = `--- Uploaded résumé / CV: ${file.name} ---`;
+        return prev.trim() ? `${prev.trim()}\n\n${heading}\n${extracted}` : extracted;
+      });
+      setGeneratedBio("");
+      setApproved(false);
+      setConfirmed(false);
+      setResumeUploadStatus("success");
+      setResumeUploadMessage(`Imported ${file.name} into Resume / CV / Bio Text.`);
+    } catch {
+      setResumeUploadStatus("error");
+      setResumeUploadMessage("This file could not be imported. Please upload a DOCX/TXT/MD/RTF file or paste the text manually.");
+    } finally {
+      event.target.value = "";
+    }
+  }
 
   return (
     <div style={{ minHeight: "100vh", backgroundColor: T.bg, color: T.cream, fontFamily: T.mono }}>
@@ -183,22 +231,67 @@ export default function AuthorBioPage() {
           />
         </div>
 
-        {/* Resume / bio paste */}
+        {/* Resume / CV / bio source */}
         <div style={{ marginBottom: "1.5rem" }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "0.5rem" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.75rem", marginBottom: "0.5rem" }}>
             <label style={{ fontSize: "0.5625rem", color: T.dim, letterSpacing: "0.1em", textTransform: "uppercase" }}>
-              Resume / Bio Text <span style={{ color: "#7A1E1E" }}>*</span>
+              Résumé / CV / Bio Text <span style={{ color: "#7A1E1E" }}>*</span>
             </label>
-            <MicButton setValue={setResumeText} />
+            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexShrink: 0 }}>
+              <button
+                type="button"
+                onClick={() => resumeUploadRef.current?.click()}
+                style={{
+                  padding: "4px 10px",
+                  borderRadius: 6,
+                  border: `1px solid ${T.gold}80`,
+                  background: "transparent",
+                  color: T.gold,
+                  fontSize: 12,
+                  cursor: "pointer",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 4,
+                  flexShrink: 0,
+                }}
+              >
+                ⬆ Upload Résumé / CV
+              </button>
+              <MicButton setValue={setResumeText} />
+            </div>
           </div>
           <p style={{ fontSize: "0.6875rem", color: T.dim, lineHeight: 1.5, marginBottom: "0.625rem" }}>
-            Paste your resume, CV, or existing author bio here. This is the primary source. The system will not add facts not present in this text.
+            Upload a résumé/CV or paste an existing author bio here. Supported upload formats: DOCX, TXT, MD, RTF, and CSV. This is the primary source. The system will not add facts not present in this text.
           </p>
+          <input
+            ref={resumeUploadRef}
+            type="file"
+            accept=".docx,.txt,.md,.markdown,.rtf,.csv,text/plain,text/markdown,text/rtf,text/csv,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            onChange={handleResumeUpload}
+            style={{ display: "none" }}
+          />
+          {(resumeUploadName || resumeUploadStatus !== "idle") && (
+            <div style={{
+              border: `1px solid ${resumeUploadStatus === "error" ? T.oxblood : T.border}`,
+              backgroundColor: resumeUploadStatus === "error" ? "rgba(122,30,30,0.08)" : "rgba(169,142,74,0.06)",
+              color: resumeUploadStatus === "error" ? "#D07070" : T.cream2,
+              padding: "0.5rem 0.625rem",
+              marginBottom: "0.75rem",
+              fontSize: "0.6875rem",
+              lineHeight: 1.5,
+            }}>
+              <strong style={{ color: resumeUploadStatus === "success" ? T.gold : "inherit" }}>
+                {resumeUploadStatus === "reading" ? "Reading" : resumeUploadStatus === "success" ? "Uploaded" : resumeUploadStatus === "error" ? "Upload issue" : "Selected"}
+              </strong>
+              {resumeUploadName ? ` — ${resumeUploadName}` : ""}
+              {resumeUploadMessage ? `: ${resumeUploadMessage}` : ""}
+            </div>
+          )}
           <textarea
             value={resumeText}
             onChange={(e) => setResumeText(e.target.value)}
             rows={8}
-            placeholder="Paste your resume, CV, or existing author bio here..."
+            placeholder="Paste your résumé, CV, or existing author bio here..."
             style={{
               width: "100%", fontFamily: T.mono, fontSize: "0.8125rem", color: T.cream,
               backgroundColor: T.panel, border: `1px solid ${T.border}`,
@@ -315,7 +408,7 @@ export default function AuthorBioPage() {
               style={{ marginTop: "2px", accentColor: T.gold, flexShrink: 0 }}
             />
             <p style={{ fontSize: "0.75rem", color: T.cream2, lineHeight: 1.6 }}>
-              I confirm these credentials are accurate and supported by my uploaded resume or bio text.
+              I confirm these credentials are accurate and supported by my uploaded résumé / CV or bio text.
               RevisionGrade does not verify author credentials; the author assumes full responsibility for accuracy.
             </p>
           </label>
