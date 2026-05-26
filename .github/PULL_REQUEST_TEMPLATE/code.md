@@ -12,6 +12,36 @@
 
 - Tests added/modified: <!-- list or "N/A — see explanation" -->
 
+## Unauthorized Input Sources
+
+<!-- Explicitly state all input sources used by this code path (request body/query/headers/cookies, storage, env, files, queue messages, etc.).
+For each, describe authorization boundary and validation/sanitization path. If none: state "None". -->
+
+## Internal Process Leakage
+
+<!-- Confirm no internal process details are exposed (internal IDs, stack traces, worker internals, control-flow internals).
+List any sensitive fields reviewed and redacted/omitted. -->
+
+## Input → Action → Output
+
+<!-- Provide a concise flow map of input, action taken, and output returned/rendered.
+Include failure-path behavior and user-facing safe error contract. -->
+
+## Public-Safe Quality/Status Metrics
+
+<!-- List user/public-visible quality/status metrics and confirm they are safe (no internal-only telemetry leakage).
+If not applicable: state "N/A" with reason. -->
+
+## Runtime/Pipeline Expansion
+
+<!-- Declare whether this PR adds any new runtime calls, workers, API routes, jobs, or pipeline paths.
+If none: state "None" and explain why execution surface is unchanged. -->
+
+## Latency Impact
+
+<!-- Provide before/after latency evidence where measurable, or explain why no unnecessary latency increase is expected.
+If impact exists, include mitigation and acceptance rationale. -->
+
 ## Branch Freshness (Never Behind)
 
 <!-- Required merge gate: PR head must include current base HEAD. -->

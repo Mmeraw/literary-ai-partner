@@ -362,6 +362,15 @@ jobs:
               return !!(m && m[1].trim().length > 0);
             };
 
+            const validateMandatoryTrustProof = () => {
+              assert(hasSection("## Unauthorized Input Sources"), "Missing: Unauthorized Input Sources section");
+              assert(hasSection("## Internal Process Leakage"), "Missing: Internal Process Leakage section");
+              assert(hasSection("## Input → Action → Output"), "Missing: Input → Action → Output section");
+              assert(hasSection("## Public-Safe Quality/Status Metrics"), "Missing: Public-Safe Quality/Status Metrics section");
+              assert(hasSection("## Runtime/Pipeline Expansion"), "Missing: Runtime/Pipeline Expansion section");
+              assert(hasSection("## Latency Impact"), "Missing: Latency Impact section");
+            };
+
             const commonFloor = () => {
               assert(hasSection("## Summary"), "Missing: Summary section");
               assert(hasSection("## Scope"), "Missing: Scope section");
@@ -458,12 +467,7 @@ jobs:
               assert(hasSection("## Visual Evidence"), "Missing: Visual Evidence section");
               assert(hasSection("## Accessibility"), "Missing: Accessibility section");
               assert(hasSection("## Browser Targets"), "Missing: Browser Targets section");
-              assert(hasSection("## Unauthorized Input Sources"), "Missing: Unauthorized Input Sources section");
-              assert(hasSection("## Internal Process Leakage"), "Missing: Internal Process Leakage section");
-              assert(hasSection("## Input → Action → Output"), "Missing: Input → Action → Output section");
-              assert(hasSection("## Public-Safe Quality/Status Metrics"), "Missing: Public-Safe Quality/Status Metrics section");
-              assert(hasSection("## Runtime/Pipeline Expansion"), "Missing: Runtime/Pipeline Expansion section");
-              assert(hasSection("## Latency Impact"), "Missing: Latency Impact section");
+              validateMandatoryTrustProof();
               assert(hasNoPipelineImpact(), "Missing: No-Pipeline-Impact: <value> line");
             };
 
@@ -472,11 +476,13 @@ jobs:
               assert(hasSection("## CI/Infra Scope"), "Missing: CI/Infra Scope section");
               assert(hasSection("## Rollback Plan"), "Missing: Rollback Plan section");
               assert(hasSection("## Affected Workflows"), "Missing: Affected Workflows section");
+              validateMandatoryTrustProof();
               assert(hasNoPipelineImpact(), "Missing: No-Pipeline-Impact: <value> line");
             };
 
             const validateDocs = () => {
               commonFloor();
+              validateMandatoryTrustProof();
               assert(hasNoPipelineImpact(), "Missing: No-Pipeline-Impact: <value> line");
             };
 
@@ -485,12 +491,14 @@ jobs:
               assert(hasSection("## Schema Diff"), "Missing: Schema Diff section");
               assert(hasSection("## Rollback Plan"), "Missing: Rollback Plan section");
               assert(hasSection("## Data Backfill"), "Missing: Data Backfill section");
+              validateMandatoryTrustProof();
               assert(hasNoPipelineImpact(), "Missing: No-Pipeline-Impact: <value> line");
             };
 
             const validateCode = () => {
               commonFloor();
               assert(hasSection("## Tests Updated"), "Missing: Tests Updated section");
+              validateMandatoryTrustProof();
               assert(hasNoPipelineImpact(), "Missing: No-Pipeline-Impact: <value> line");
             };
 
