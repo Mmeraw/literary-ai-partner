@@ -12,7 +12,75 @@
  */
 
 import Link from "next/link";
-import { useState } from "react";
+import React, { useState } from "react";
+import PackageSectionsSidebar from "../PackageSectionsSidebar";
+
+// ─── Web Speech API mic input ───────────────────────────────────────────────
+
+type SpeechState = "idle" | "listening" | "error";
+
+function useSpeechInput(setValue: React.Dispatch<React.SetStateAction<string>>) {
+  const [state, setState] = React.useState<SpeechState>("idle");
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const recRef = React.useRef<any>(null);
+  const supported = typeof window !== "undefined" &&
+    ("SpeechRecognition" in window || "webkitSpeechRecognition" in window);
+
+  const toggle = React.useCallback(() => {
+    if (state === "listening") {
+      recRef.current?.stop();
+      setState("idle");
+      return;
+    }
+    if (!supported) return;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const SR = (window as any).SpeechRecognition ?? (window as any).webkitSpeechRecognition;
+    const rec = new SR();
+    rec.continuous = true;
+    rec.interimResults = false;
+    rec.lang = "en-US";
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    rec.onresult = (e: any) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const t = Array.from(e.results as ArrayLike<any>).map((r: any) => r[0].transcript).join(" ").trim();
+      if (t) setValue(prev => prev ? prev + " " + t : t);
+    };
+    rec.onerror = () => setState("error");
+    rec.onend = () => setState("idle");
+    recRef.current = rec;
+    rec.start();
+    setState("listening");
+  }, [state, supported, setValue]);
+
+  return { state, toggle, supported };
+}
+
+function MicButton({ setValue }: { setValue: React.Dispatch<React.SetStateAction<string>> }) {
+  const { state, toggle, supported } = useSpeechInput(setValue);
+  if (!supported) return null;
+  return (
+    <button
+      type="button"
+      onClick={toggle}
+      title={state === "listening" ? "Stop recording" : "Speak to fill this field"}
+      style={{
+        padding: "4px 10px",
+        borderRadius: 6,
+        border: `1px solid ${state === "listening" ? "rgba(122,30,30,0.6)" : "rgba(242,239,234,0.15)"}`,
+        background: state === "listening" ? "rgba(122,30,30,0.22)" : "transparent",
+        color: state === "listening" ? "#D07070" : state === "error" ? "#E6A23C" : "rgba(242,239,234,0.45)",
+        fontSize: 12,
+        cursor: "pointer",
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 4,
+        flexShrink: 0,
+      }}
+    >
+      {state === "listening" ? "⏹ Stop" : state === "error" ? "⚠ Retry" : "🎙 Speak"}
+    </button>
+  );
+}
 
 const T = {
   bg: "#0F0D0A", panel: "#1A1612", border: "#2A2420",
@@ -34,10 +102,33 @@ function countWords(text: string): number {
   return text.trim().split(/\s+/).filter(Boolean).length;
 }
 
+function downloadTxt(filename: string, content: string) {
+  const blob = new Blob([content], { type: "text/plain" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+const SAVE_BTN: React.CSSProperties = {
+  fontFamily: "monospace",
+  fontSize: "0.6875rem",
+  letterSpacing: "0.08em",
+  textTransform: "uppercase",
+  color: "#7B7B7B",
+  background: "transparent",
+  border: "1px solid #7B7B7B",
+  padding: "0.375rem 0.875rem",
+  cursor: "pointer",
+};
+
 export default function SynopsisPage() {
   const [selected, setSelected] = useState<SynopsisLength>("standard");
   const [content,  setContent]  = useState("");
   const [approved, setApproved] = useState(false);
+  const generatedSynopsis = content;
 
   const wordCount = countWords(content);
   const limits: Record<SynopsisLength, [number, number]> = {
@@ -51,7 +142,9 @@ export default function SynopsisPage() {
 
   return (
     <div style={{ minHeight: "100vh", backgroundColor: T.bg, color: T.cream, fontFamily: T.mono }}>
-      <div style={{ maxWidth: "860px", margin: "0 auto", padding: "3rem 2rem 6rem" }}>
+      <div className="mx-auto grid max-w-[1220px] gap-8 px-6 py-12 lg:grid-cols-[260px_minmax(0,1fr)]">
+        <PackageSectionsSidebar />
+        <div style={{ maxWidth: "860px" }}>
 
         <p style={{ fontSize: "0.5625rem", color: T.dim, letterSpacing: "0.1em", marginBottom: "1.5rem" }}>
           <Link href="/agent-readiness" style={{ color: T.gold, textDecoration: "none" }}>Agent Readiness Package™</Link>
@@ -90,16 +183,19 @@ export default function SynopsisPage() {
         </div>
 
         <div style={{ marginBottom: "1.75rem" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "0.5rem" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem", gap: "0.75rem" }}>
             <label style={{ fontSize: "0.5625rem", color: T.dim, letterSpacing: "0.1em", textTransform: "uppercase" }}>
               {LENGTHS.find(l => l.id === selected)?.label}
             </label>
-            <span style={{
-              fontFamily: T.mono, fontSize: "0.6875rem",
-              color: overLimit ? "#7A1E1E" : underMin ? T.gold : T.dim,
-            }}>
-              {wordCount} / {max} words
-            </span>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+              <span style={{
+                fontFamily: T.mono, fontSize: "0.6875rem",
+                color: overLimit ? "#7A1E1E" : underMin ? T.gold : T.dim,
+              }}>
+                {wordCount} / {max} words
+              </span>
+              <MicButton setValue={setContent} />
+            </div>
           </div>
           <textarea
             value={content}
@@ -115,6 +211,25 @@ export default function SynopsisPage() {
             }}
           />
         </div>
+
+        {generatedSynopsis && (
+          <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem" }}>
+            <button
+              type="button"
+              onClick={() => navigator.clipboard.writeText(generatedSynopsis)}
+              style={SAVE_BTN}
+            >
+              Copy
+            </button>
+            <button
+              type="button"
+              onClick={() => downloadTxt("author-synopsis.txt", generatedSynopsis)}
+              style={SAVE_BTN}
+            >
+              Save .txt
+            </button>
+          </div>
+        )}
 
         <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
           {["Generate", "Regenerate", "Improve", "Copy", "Restore Version"].map(label => (
@@ -151,6 +266,7 @@ export default function SynopsisPage() {
           <Link href="/agent-readiness" style={{ fontFamily: T.mono, fontSize: "0.5625rem", color: T.dim, letterSpacing: "0.1em", textDecoration: "none" }}>
             ← Back to Package Overview
           </Link>
+        </div>
         </div>
       </div>
     </div>

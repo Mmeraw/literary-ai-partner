@@ -59,10 +59,15 @@ function getPass3bMaxTokens(): number {
   const raw = process.env.EVAL_PASS3B_MAX_TOKENS;
   if (raw) {
     const parsed = parseInt(raw, 10);
-    if (!isNaN(parsed) && parsed >= 12000 && parsed <= 16000) return parsed;
+    // Allow 12000–32000; gpt-5.1 supports up to 128k output tokens
+    if (!isNaN(parsed) && parsed >= 12000 && parsed <= 32000) return parsed;
   }
-  return 16000;
+  // Raised from 16000 → 24000: the 16-section DREAM document reliably exceeds 16k tokens
+  // on full novels with gpt-5.1. 24000 gives headroom without excessive cost.
+  return 24000;
 }
+
+const PASS3B_MAX_TOKENS_CEILING = 32000;
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -199,6 +204,8 @@ export interface RunPass3bOptions {
   model?: string;
   openaiApiKey?: string;
   openAiTimeoutMs?: number;
+  /** Author corrections from accepted_story_ledger_v1.governance_rail — MANDATORY if present. */
+  authorCorrectionsBlock?: string | null;
 }
 
 export type TruthfulFallbackReport = {
@@ -434,46 +441,63 @@ export async function runPass3bLongform(
     pass2aStructuredContext: opts.pass2aStructuredContext,
     chunkSample: opts.manuscriptChunks,
     scopeProfile: opts.scopeProfile,
+    authorCorrectionsBlock: opts.authorCorrectionsBlock,
   });
 
   console.log(`[Pass3b] request model=${selectedModel} max_tokens=${maxTokens} title="${opts.title}" words=${opts.wordCount} chunks=${opts.manuscriptChunks.length}`);
 
   const createCompletion = defaultCreateCompletion(opts.openaiApiKey, opts.openAiTimeoutMs);
 
-  const completion = await createCompletion({
-    model: selectedModel,
-    messages: [
-      { role: "system", content: PASS3B_SYSTEM_PROMPT },
-      { role: "user", content: userPrompt },
-    ],
-    ...buildOpenAITemperatureParam(selectedModel, PASS3B_TEMPERATURE),
-    ...buildOpenAIOutputTokenParam(selectedModel, maxTokens),
-    response_format: { type: "json_object" },
-  });
+  async function attemptCompletion(tokenBudget: number): Promise<Record<string, unknown>> {
+    const completion = await createCompletion({
+      model: selectedModel,
+      messages: [
+        { role: "system", content: PASS3B_SYSTEM_PROMPT },
+        { role: "user", content: userPrompt },
+      ],
+      ...buildOpenAITemperatureParam(selectedModel, PASS3B_TEMPERATURE),
+      ...buildOpenAIOutputTokenParam(selectedModel, tokenBudget),
+      response_format: { type: "json_object" },
+    });
 
-  const rawContent = completion.choices?.[0]?.message?.content ?? "";
+    const rawContent = completion.choices?.[0]?.message?.content ?? "";
 
-  if (!rawContent.trim()) {
-    throw new Error(
-      `[Pass3b] EMPTY_RESPONSE: model=${selectedModel} finish_reason=${completion.choices?.[0]?.finish_reason ?? "unknown"}`
-    );
+    if (!rawContent.trim()) {
+      throw new Error(
+        `[Pass3b] EMPTY_RESPONSE: model=${selectedModel} finish_reason=${completion.choices?.[0]?.finish_reason ?? "unknown"}`
+      );
+    }
+
+    const parseResult = parseJsonObjectBoundary<Record<string, unknown>>(rawContent, {
+      label: "Pass3b DREAM",
+    });
+    return parseResult.value;
   }
 
   let parsed: Record<string, unknown>;
   try {
-    // parseJsonObjectBoundary already handles trailing garbage via its
-    // extractBalancedJsonObjects extractor — no extra option needed.
-    const parseResult = parseJsonObjectBoundary<Record<string, unknown>>(rawContent, {
-      label: "Pass3b DREAM",
-    });
-    parsed = parseResult.value;
+    parsed = await attemptCompletion(maxTokens);
   } catch (err) {
-    if (err instanceof JsonBoundaryError) {
+    if (err instanceof JsonBoundaryError && err.code === "JSON_PARSE_FAILED_TRUNCATED") {
+      const retryTokens = Math.min(Math.ceil(maxTokens * 1.5), PASS3B_MAX_TOKENS_CEILING);
+      console.warn(`[Pass3b] TRUNCATION_RETRY: first attempt truncated, retrying with max_tokens=${retryTokens}`);
+      try {
+        parsed = await attemptCompletion(retryTokens);
+      } catch (retryErr) {
+        if (retryErr instanceof JsonBoundaryError) {
+          throw new Error(
+            `[Pass3b] JSON_PARSE_FAILURE: ${retryErr.message} (after truncation retry at max_tokens=${retryTokens})`
+          );
+        }
+        throw retryErr;
+      }
+    } else if (err instanceof JsonBoundaryError) {
       throw new Error(
-        `[Pass3b] JSON_PARSE_FAILURE: ${err.message} raw_head=${rawContent.slice(0, 200)}`
+        `[Pass3b] JSON_PARSE_FAILURE: ${err.message}`
       );
+    } else {
+      throw err;
     }
-    throw err;
   }
 
   const { patched, report } = applyTruthfulLongformCriteriaFallback(parsed, opts.criteria);

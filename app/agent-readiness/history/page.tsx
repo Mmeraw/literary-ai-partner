@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import PackageSectionsSidebar from "../PackageSectionsSidebar";
 
 const T = {
   bg: "#0F0D0A", panel: "#1A1612", border: "#2A2420",
@@ -13,7 +14,9 @@ const T = {
 export default function PackageHistoryPage() {
   return (
     <div style={{ minHeight: "100vh", backgroundColor: T.bg, color: T.cream, fontFamily: T.mono }}>
-      <div style={{ maxWidth: "860px", margin: "0 auto", padding: "3rem 2rem 6rem" }}>
+      <div className="mx-auto grid max-w-[1220px] gap-8 px-6 py-12 lg:grid-cols-[260px_minmax(0,1fr)]">
+        <PackageSectionsSidebar />
+        <div style={{ maxWidth: "860px" }}>
 
         <p style={{ fontSize: "0.5625rem", color: T.dim, letterSpacing: "0.1em", marginBottom: "1.5rem" }}>
           <Link href="/agent-readiness" style={{ color: T.gold, textDecoration: "none" }}>Agent Readiness Package™</Link>
@@ -61,6 +64,7 @@ export default function PackageHistoryPage() {
           </p>
         </div>
 
+        </div>
       </div>
     </div>
   );

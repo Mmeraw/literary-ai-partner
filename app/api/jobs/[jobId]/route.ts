@@ -27,8 +27,8 @@ type Params = Promise<{ jobId: string }>;
  * last_error: present only when status === "failed"
  * failure_code: present only when status === "failed" and a code is available
  */
-type CanonicalPhase = "phase_0" | "phase_1a" | "phase_2" | "phase_3" | "wave_revision";
-type CanonicalPhaseStatus = "queued" | "running" | "complete" | "failed";
+type CanonicalPhase = "phase_0" | "phase_1a" | "review_gate" | "phase_2" | "phase_3" | "wave_revision";
+type CanonicalPhaseStatus = "queued" | "running" | "complete" | "failed" | "awaiting_approval";
 type CrossCheckStatus =
   | "queued"
   | "running"
@@ -73,6 +73,13 @@ type CanonicalJobResponse = {
   phase2_completed_at?: string | null;
   pass3_started_at?: string | null;
   pass3_completed_at?: string | null;
+  /** Authoritative Phase 0 telemetry from progress JSONB — not column timestamp deltas */
+  phase0_total_duration_ms?: number | null;
+  phase0_calibration_word_count?: number | null;
+  /** Review-gate quality signal: true when ledger hard-fails block Phase 2 */
+  hard_fail_present?: boolean | null;
+  /** Manuscript word count from chunk_routing JSONB — available before completion */
+  manuscript_word_count?: number | null;
   last_error?: string;
   failure_code?: string;
 };
@@ -205,6 +212,28 @@ export async function GET(req: NextRequest, ctx: { params: Params }) {
     if (stageTiming.pass3_completed_at !== undefined) {
       response.job.pass3_completed_at = stageTiming.pass3_completed_at;
     }
+    if (stageTiming.phase0_total_duration_ms !== undefined) {
+      response.job.phase0_total_duration_ms = stageTiming.phase0_total_duration_ms;
+    }
+    if (stageTiming.phase0_calibration_word_count !== undefined) {
+      response.job.phase0_calibration_word_count = stageTiming.phase0_calibration_word_count;
+    }
+
+    // 6d) Surface hard_fail_present for review_gate blocked state display
+    const rawProgress = job.progress as Record<string, unknown> | null;
+    const rawHardFail = rawProgress?.hard_fail_present;
+    if (typeof rawHardFail === 'boolean') {
+      response.job.hard_fail_present = rawHardFail;
+    } else if (rawHardFail === null) {
+      response.job.hard_fail_present = null;
+    }
+
+    // 6e) Surface manuscript word count from chunk_routing JSONB (available pre-completion)
+    const chunkRouting = rawProgress?.chunk_routing as Record<string, unknown> | null | undefined;
+    const rawMsWords = chunkRouting?.manuscript_words ?? chunkRouting?.source_manuscript_words;
+    if (typeof rawMsWords === 'number' && rawMsWords > 0) {
+      response.job.manuscript_word_count = rawMsWords;
+    }
 
     // 7) Include last_error only on failure
     if (job.status === "failed" && job.last_error) {
@@ -260,6 +289,7 @@ function calculateProgressPercentage(job: Job): number {
 const CANONICAL_PHASES: ReadonlyArray<CanonicalPhase> = [
   "phase_0",
   "phase_1a",
+  "review_gate",
   "phase_2",
   "phase_3",
   "wave_revision",
@@ -274,6 +304,7 @@ const CANONICAL_PHASE_STATUSES: ReadonlyArray<CanonicalPhaseStatus> = [
   "running",
   "complete",
   "failed",
+  "awaiting_approval",
 ];
 
 function normalizePhaseForResponse(rawPhase: unknown): CanonicalPhase | null | undefined {
@@ -282,7 +313,8 @@ function normalizePhaseForResponse(rawPhase: unknown): CanonicalPhase | null | u
   if ((CANONICAL_PHASES as readonly string[]).includes(rawPhase)) {
     return rawPhase as CanonicalPhase;
   }
-  return LEGACY_PHASE_ALIASES[rawPhase];
+  // Use hasOwn to block prototype-pollution lookups (__proto__, constructor, etc.)
+  return Object.hasOwn(LEGACY_PHASE_ALIASES, rawPhase) ? LEGACY_PHASE_ALIASES[rawPhase] : undefined;
 }
 
 function extractCanonicalPhase(job: Job): {
@@ -347,6 +379,8 @@ function extractStageTiming(job: Job): {
   phase2_completed_at?: string | null;
   pass3_started_at?: string | null;
   pass3_completed_at?: string | null;
+  phase0_total_duration_ms?: number | null;
+  phase0_calibration_word_count?: number | null;
 } {
   if (!job.progress) return {};
 
@@ -373,5 +407,11 @@ function extractStageTiming(job: Job): {
     phase2_completed_at: pickTimestamp(p.phase2_completed_at),
     pass3_started_at: pickTimestamp(p.pass3_started_at),
     pass3_completed_at: pickTimestamp(p.pass3_completed_at),
+    phase0_total_duration_ms: typeof p.phase0_total_duration_ms === 'number' ? p.phase0_total_duration_ms
+      : typeof p.phase0_total_duration_ms === 'string' ? Number(p.phase0_total_duration_ms) || null
+      : null,
+    phase0_calibration_word_count: typeof p.phase0_calibration_word_count === 'number' ? p.phase0_calibration_word_count
+      : typeof p.phase0_calibration_word_count === 'string' ? Number(p.phase0_calibration_word_count) || null
+      : null,
   };
 }

@@ -233,6 +233,8 @@ export function buildPass3bUserPrompt(params: {
   pass2aStructuredContext: Pass2aStructuredContext;
   chunkSample: ManuscriptChunkEvidence[];
   scopeProfile?: SubmissionScopeProfile;
+  /** Author corrections from accepted_story_ledger_v1.governance_rail — MANDATORY if present. */
+  authorCorrectionsBlock?: string | null;
 }): string {
   // Build the score grid summary so Pass 3b has all 13 scores in compact form
   const scoreSummary = params.criteria.map((c) => {
@@ -292,8 +294,12 @@ export function buildPass3bUserPrompt(params: {
 
   const chapterInfo = params.chapterCount ? `${params.chapterCount} chapters` : "chapter count not provided";
 
-  return `Produce the DREAM long-form evaluation document for the manuscript titled "${params.title}".
+  const correctionsSection = params.authorCorrectionsBlock
+    ? `\n${params.authorCorrectionsBlock}\n\n`
+    : "";
 
+  return `Produce the DREAM long-form evaluation document for the manuscript titled "${params.title}".
+${correctionsSection}
 MANUSCRIPT FACTS
 - Title: ${params.title}
 - Work type: ${params.workType}

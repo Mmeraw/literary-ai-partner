@@ -5,8 +5,12 @@
       "schedule": "*/5 * * * *"
     },
     {
+      "path": "/api/workers/watchdog",
+      "schedule": "* * * * *"
+    },
+    {
       "path": "/api/workers/process-dream",
-      "schedule": "*/10 * * * *"
+      "schedule": "*/2 * * * *"
     },
     {
       "path": "/api/workers/health-alert",

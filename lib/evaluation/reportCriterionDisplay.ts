@@ -63,7 +63,7 @@ export function getCriterionPrimaryBadge(criterion: RenderableCriterion): {
   const scoreValue = criterion.score_0_10;
   if (typeof scoreValue === "number" && scoreValue >= 8) {
     return {
-      label: `${scoreValue} / 10`,
+      label: `${Math.round(scoreValue)} / 10`,
       classes: "bg-green-100 text-green-800",
       numeric: true,
     };
@@ -71,14 +71,14 @@ export function getCriterionPrimaryBadge(criterion: RenderableCriterion): {
 
   if (typeof scoreValue === "number" && scoreValue >= 6) {
     return {
-      label: `${scoreValue} / 10`,
+      label: `${Math.round(scoreValue)} / 10`,
       classes: "bg-yellow-100 text-yellow-800",
       numeric: true,
     };
   }
 
   return {
-    label: `${scoreValue ?? "—"} / 10`,
+    label: `${typeof scoreValue === "number" ? Math.round(scoreValue) : "—"} / 10`,
     classes: "bg-red-100 text-red-800",
     numeric: true,
   };

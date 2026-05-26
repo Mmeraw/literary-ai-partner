@@ -14,7 +14,7 @@ export default function LongformSymbolicAudit({ doc }: Props) {
     <div className="space-y-5">
       {symbols.length > 0 && (
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">
+          <p className="text-xs font-semibold uppercase tracking-wide text-gray-600 mb-2">
             Preserved symbols
           </p>
           <div className="space-y-2">
@@ -22,7 +22,7 @@ export default function LongformSymbolicAudit({ doc }: Props) {
               <div key={i} className="rounded-lg border border-gray-200 p-3 text-sm">
                 <p className="font-medium text-gray-800 mb-0.5">{s.symbol}</p>
                 <p className="text-xs text-gray-600 mb-1">
-                  <span className="font-medium text-gray-500">Current function:</span>{" "}
+                  <span className="font-medium text-gray-700">Current function:</span>{" "}
                   {s.current_function}
                 </p>
                 <p className="text-xs text-indigo-600">

@@ -17,59 +17,39 @@ export type ProgressDisplay = {
   hardStop: boolean;
 } | null;
 
-/**
- * Deterministic UX translation map.
- *
- * Drives 100% from backend phase/phase_status/status — never from elapsed time
- * or client-side interpolation. Labels are human-facing; no backend jargon.
- *
- * Canonical table (from session context, locked):
- *
- * | Backend state                                            | Label                                         | % | Color  |
- * |----------------------------------------------------------|-----------------------------------------------|---|--------|
- * | status=queued / initial                                  | Calibrating benchmark models...               | 10| blue   |
- * | phase=phase_1a, phase_status=running (early)             | Ingesting manuscript & mapping chapters...    | 25| blue   |
- * | phase=phase_1a, phase_status=running (late)              | Extracting core narrative footprint...        | 45| blue   |
- * | phase=review_gate, phase_status=awaiting_approval        | Awaiting Story Layer Approval                 | 60| amber  | HARD STOP
- * | phase=review_gate + hard_fail_present=true               | Story Layer Blocked: Narrative conflicts...   | 60| red    | HARD STOP
- * | phase=phase_2                                            | Running deep structural craft diagnostics...  | 80| blue   |
- * | phase=phase_3 or synthesis                               | Assembling evaluation matrix...               | 90| blue   |
- * | cross_check / final QA                                   | Running final structural cross-checks...      | 95| blue   |
- * | status=complete                                          | Evaluation complete!                          |100| green  |
- *
- * "Early" vs "late" phase_1a/running is determined by completed_units/total_units
- * when available in the progress payload. If not available, defaults to "late" (45%).
- */
-
 type PhaseInputs = {
   status: "queued" | "running" | "complete" | "failed";
   phase?: string | null;
   phase_status?: string | null;
   cross_check_status?: string | null;
-  /**
-   * Fraction 0..1 of units completed within current phase.
-   * Used to distinguish phase_1a early (< 0.5) vs late (>= 0.5).
-   * Optional — falls back to "late" position when absent.
-   */
   phase_unit_fraction?: number | null;
-  /**
-   * Whether a hard-fail artifact is present at the review gate.
-   * When true → "red" hard stop instead of amber.
-   */
-  hard_fail_present?: boolean;
+  /** Surfaced from jobs API via progress JSONB — true when ledger hard-fails block Phase 2 */
+  hard_fail_present?: boolean | null;
+  /** Phase start timestamps for elapsed-time drift within a phase range. */
+  phase0_started_at?: string | null;
+  phase1_started_at?: string | null;
+  phase2_started_at?: string | null;
+  phase3_started_at?: string | null;
 };
+
+function elapsedDrift(
+  startedAt: string | null | undefined,
+  rangeMin: number,
+  rangeMax: number,
+  now: Date,
+): number {
+  if (!startedAt) return rangeMin;
+  const elapsed = Math.max(0, now.getTime() - new Date(startedAt).getTime()) / 1000;
+  const growth = Math.min(1, Math.log1p(elapsed / 30) / Math.log1p(6));
+  return Math.round(rangeMin + (rangeMax - rangeMin) * growth);
+}
 
 export function getProgressDisplay(
   job: PhaseInputs,
-  // `now` kept for API compatibility — no longer used for interpolation
   _now: Date = new Date(),
 ): ProgressDisplay {
-  // ── Terminal: failed ──────────────────────────────────────────────────────
-  if (job.status === "failed") {
-    return null;
-  }
+  if (job.status === "failed") return null;
 
-  // ── Terminal: complete ────────────────────────────────────────────────────
   if (job.status === "complete") {
     return {
       label: "Evaluation complete!",
@@ -82,133 +62,183 @@ export function getProgressDisplay(
     };
   }
 
-  // ── Review Gate: hard stop ────────────────────────────────────────────────
-  // Matches regardless of job.status (status stays 'queued' while at gate).
   if (job.phase === "review_gate") {
     const hasHardFail = !!job.hard_fail_present;
     return {
       label: hasHardFail
         ? "Story Layer Blocked: Narrative conflicts detected"
         : "Awaiting Story Layer Approval",
-      valueLabel: "60%",
+      valueLabel: "50%",
       helperText: hasHardFail
         ? "The story layer could not be approved automatically. Review the Story Ledger to resolve narrative conflicts before Phase 2 can begin."
         : "Phase 1A is complete. Review your Story Ledger and approve to continue to Phase 2.",
       indeterminate: false,
-      percentage: 60,
+      percentage: 50,
       color: hasHardFail ? "red" : "amber",
       hardStop: true,
     };
   }
 
-  // ── Queued (not yet running, not at gate) ─────────────────────────────────
-  if (job.status === "queued") {
-    return {
-      label: "Calibrating benchmark models...",
-      valueLabel: "10%",
-      helperText: "Your job is queued. A worker will begin automatically.",
-      indeterminate: false,
-      percentage: 10,
-      color: "blue",
-      hardStop: false,
-    };
-  }
-
-  // ── Running ───────────────────────────────────────────────────────────────
-  if (job.status !== "running") {
-    return null;
-  }
-
-  // cross_check / final QA
-  if (
-    job.cross_check_status === "running" ||
-    job.cross_check_status === "queued"
-  ) {
-    return {
-      label: "Running final structural cross-checks...",
-      valueLabel: "95%",
-      helperText: "Verifying evaluation integrity before report assembly.",
-      indeterminate: false,
-      percentage: 95,
-      color: "blue",
-      hardStop: false,
-    };
-  }
-
-  // Phase 3 or synthesis
-  if (job.phase === "phase_3") {
+  if (job.phase === 'phase_3' && job.status === 'queued') {
     return {
       label: "Assembling evaluation matrix...",
-      valueLabel: "90%",
+      valueLabel: "86%",
       helperText: "Building the final evaluation matrix and diagnosis.",
       indeterminate: false,
-      percentage: 90,
+      percentage: 86,
       color: "blue",
       hardStop: false,
     };
   }
 
-  // Phase 2
-  if (job.phase === "phase_2") {
+  if (job.phase === 'phase_2' && job.status === 'queued') {
     return {
       label: "Running deep structural craft diagnostics...",
-      valueLabel: "80%",
+      valueLabel: "67%",
       helperText: "Performing deep craft analysis across all evaluation criteria.",
       indeterminate: false,
-      percentage: 80,
+      percentage: 67,
       color: "blue",
       hardStop: false,
     };
   }
 
-  // Phase 1A running — early vs late based on unit fraction
-  if (job.phase === "phase_1a" && job.phase_status === "running") {
-    const fraction = job.phase_unit_fraction ?? 1; // default to late
+  if (job.phase === 'phase_1a' && job.status === 'queued') {
+    const fraction = job.phase_unit_fraction ?? 1;
     const isEarly = fraction < 0.5;
+    return {
+      label: isEarly ? "Ingesting manuscript..." : "Extracting core narrative...",
+      valueLabel: isEarly ? "15%" : "35%",
+      percentage: isEarly ? 15 : 35,
+      color: "blue",
+      hardStop: false,
+      indeterminate: false,
+      helperText: "Analyzing manuscript structure..."
+    };
+  }
+
+  if (job.phase === 'phase_0' && job.status === 'queued') {
+    return {
+      label: "Preparing evaluation environment",
+      valueLabel: "5%",
+      percentage: 5,
+      color: "blue",
+      hardStop: false,
+      indeterminate: false,
+      helperText: "Your manuscript has been received. RevisionGrade is loading scoring rules, benchmark standards, and routing information before the manuscript is analyzed.",
+    };
+  }
+
+  if (job.status === "queued") {
+    return {
+      label: "Waiting in queue",
+      valueLabel: "2%",
+      helperText: "Your manuscript has been received and is waiting for an evaluator worker.",
+      indeterminate: false,
+      percentage: 2,
+      color: "blue",
+      hardStop: false,
+    };
+  }
+
+  if (job.status !== "running") return null;
+
+  if (job.cross_check_status === "running" || job.cross_check_status === "queued") {
+    return {
+      label: "Running final structural cross-checks...",
+      valueLabel: "97%",
+      helperText: "Verifying evaluation integrity before report assembly.",
+      indeterminate: false,
+      percentage: 97,
+      color: "blue",
+      hardStop: false,
+    };
+  }
+
+  if (job.phase === "phase_3") {
+    const pct = elapsedDrift(job.phase3_started_at, 86, 96, _now);
+    return {
+      label: "Assembling evaluation matrix...",
+      valueLabel: `${pct}%`,
+      helperText: "Building the final evaluation matrix and diagnosis.",
+      indeterminate: false,
+      percentage: pct,
+      color: "blue",
+      hardStop: false,
+    };
+  }
+
+  if (job.phase === "phase_2") {
+    const pct = elapsedDrift(job.phase2_started_at, 67, 82, _now);
+    return {
+      label: "Running deep structural craft diagnostics...",
+      valueLabel: `${pct}%`,
+      helperText: "Performing deep craft analysis across all evaluation criteria.",
+      indeterminate: false,
+      percentage: pct,
+      color: "blue",
+      hardStop: false,
+    };
+  }
+
+  if (job.phase === "phase_1a" && job.phase_status === "running") {
+    const fraction = job.phase_unit_fraction ?? 1;
+    const isEarly = fraction < 0.5;
+    const rangeMin = isEarly ? 15 : 35;
+    const rangeMax = isEarly ? 34 : 48;
+    const pct = elapsedDrift(job.phase1_started_at, rangeMin, rangeMax, _now);
     return {
       label: isEarly
         ? "Ingesting manuscript & mapping chapters..."
         : "Extracting core narrative footprint...",
-      valueLabel: isEarly ? "25%" : "45%",
+      valueLabel: `${pct}%`,
       helperText: isEarly
         ? "Loading manuscript and identifying chapter structure."
         : "Mapping characters, relationships, and narrative structure.",
       indeterminate: false,
-      percentage: isEarly ? 25 : 45,
+      percentage: pct,
       color: "blue",
       hardStop: false,
     };
   }
 
-  // Phase 1A queued / any other running state
   if (job.phase === "phase_1a") {
+    const pct = elapsedDrift(job.phase1_started_at, 15, 34, _now);
     return {
       label: "Ingesting manuscript & mapping chapters...",
-      valueLabel: "25%",
+      valueLabel: `${pct}%`,
       helperText: "Loading manuscript for analysis.",
       indeterminate: false,
-      percentage: 25,
+      percentage: pct,
       color: "blue",
       hardStop: false,
     };
   }
 
-  // Phase 0 or unknown running state — show early-stage label
+  if (job.phase === 'phase_0') {
+    const pct = elapsedDrift(job.phase0_started_at, 5, 12, _now);
+    return {
+      label: "Preparing evaluation environment",
+      valueLabel: `${pct}%`,
+      helperText: "RevisionGrade is loading scoring rules, benchmark standards, and routing information before the manuscript is analyzed.",
+      indeterminate: false,
+      percentage: pct,
+      color: "blue",
+      hardStop: false,
+    };
+  }
+
   return {
-    label: "Calibrating benchmark models...",
-    valueLabel: "10%",
+    label: "Preparing evaluation environment",
+    valueLabel: "5%",
     helperText: "Initializing evaluation pipeline.",
     indeterminate: false,
-    percentage: 10,
+    percentage: 5,
     color: "blue",
     hardStop: false,
   };
 }
 
-/**
- * Convenience helper for callers that only need the stage label string.
- * Returns null for terminal/failed states.
- */
 export function getStageLabelFromPhase(
   phase: string | null | undefined,
   phaseStatus: string | null | undefined,
@@ -223,7 +253,6 @@ export function getStageLabelFromPhase(
   return pd?.label ?? null;
 }
 
-// Exported for unit tests.
 export const __testing__ = {
   getProgressDisplay,
   getStageLabelFromPhase,

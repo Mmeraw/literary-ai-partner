@@ -213,15 +213,17 @@ export async function createJob(input: {
     // Incident hardening: claim_evaluation_jobs eligibility is evaluated against
     // top-level columns (status/phase/phase_status), not progress JSON only.
     // Keep row-level phase fields in sync with progress at creation time.
-    phase: PHASES.PHASE_1A,
+    // Jobs start at phase_0 (gold-standard warm-up) — the evaluator internalizes
+    // scoring criteria BEFORE the manuscript is touched.
+    phase: PHASES.PHASE_0,
     phase_status: JOB_STATUS.QUEUED,
     ...(includeValidityStatus
       ? { validity_status: normalizeEvaluationValidityStatus("pending") }
       : {}),
     progress: {
-      phase: PHASES.PHASE_1A,
+      phase: PHASES.PHASE_0,
       phase_status: JOB_STATUS.QUEUED, // CANON: aligned with JobStatus
-      message: "Job created",
+      message: "Job created — awaiting gold-standard calibration",
     },
     policy_family: "standard",
     voice_preservation_level: "balanced",

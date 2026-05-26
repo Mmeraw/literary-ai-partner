@@ -27,7 +27,7 @@ export default function LongformLayerAnalysis({ doc }: Props) {
                 </div>
                 <div>
                   <p className="text-sm font-medium text-gray-800">{layer.layer_name}</p>
-                  <p className="text-xs text-gray-500 capitalize mb-1">{layer.status}</p>
+                  <p className="text-xs text-gray-700 capitalize mb-1">{layer.status}</p>
                   <p className="text-xs text-gray-600 leading-relaxed">{layer.needed_revision}</p>
                 </div>
               </div>
@@ -38,7 +38,7 @@ export default function LongformLayerAnalysis({ doc }: Props) {
 
       {crossLayer.length > 0 && (
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">
+          <p className="text-xs font-semibold uppercase tracking-wide text-gray-600 mb-2">
             Cross-layer integration
           </p>
           <div className="space-y-2">

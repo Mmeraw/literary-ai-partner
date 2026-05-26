@@ -5,7 +5,7 @@
  * Validates the PipelineResult discriminated union and synthesisToEvaluationResult adapter.
  */
 
-import { describe, it, expect, jest, beforeEach } from "@jest/globals";
+import { describe, it, expect, jest, beforeEach, afterAll } from "@jest/globals";
 import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
 import {
   runPipeline,
@@ -174,6 +174,22 @@ const permissiveLessonsLearned = {
 // promise resolution that can exceed the default 5000ms on slow runners.
 jest.setTimeout(30000);
 
+// ── Env isolation ────────────────────────────────────────────────────────────
+// Strip ambient PERPLEXITY_API_KEY before every test so tests that do not
+// explicitly opt into Perplexity do not hit the real external API.
+// Tests that intentionally exercise Perplexity pass perplexityApiKey: "pplx-test"
+// explicitly and stub global.fetch themselves.
+const _origPplxKey = process.env.PERPLEXITY_API_KEY;
+beforeEach(() => {
+  delete process.env.PERPLEXITY_API_KEY;
+});
+afterAll(() => {
+  if (_origPplxKey !== undefined) {
+    process.env.PERPLEXITY_API_KEY = _origPplxKey;
+  } else {
+    delete process.env.PERPLEXITY_API_KEY;
+  }
+});
 
 describe("runPipeline (e2e with injected runners)", () => {
   beforeEach(() => {

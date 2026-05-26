@@ -219,6 +219,12 @@ export interface RunPipelineOptions {
    * from Pass 1 + Pass 2 only.
    */
   _prebuiltPreflightDraft?: Pass3PreflightDraft;
+  /**
+   * Author corrections block built from accepted_story_ledger_v1.governance_rail.
+   * When present, injected into Pass 2 (and Pass 3B if applicable) as MANDATORY
+   * author input that takes precedence over AI extraction.
+   */
+  _authorCorrectionsBlock?: string | null;
 }
 
 const DEFAULT_MAX_MANUSCRIPT_CHARS = 3_000_000;
@@ -770,12 +776,15 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
   }
 
   // Fail-closed: above the structural chunking threshold, Pass 1 MUST receive
-  // chunks. The silent fallback to `direct_window` is a bug class that has
-  // caused 12-minute PASS1_TIMEOUT failures on long manuscripts. Refuse to
-  // dispatch — surface a typed, diagnosable error to the caller instead.
+  // at least one chunk. The silent fallback to `direct_window` (zero chunks)
+  // is the bug class that caused 12-minute PASS1_TIMEOUT failures. A single
+  // chunk IS valid engagement — the manuscript was routed through the chunking
+  // pipeline, persisted, and rehydrated. The previous `<= 1` guard incorrectly
+  // rejected legitimate single-chunk long-form runs (see job
+  // 3b7a549b-ea34-4b3d-ae85-30bc8b234576). Only zero chunks is a real failure.
   if (pipelineManuscriptWords >= STRUCTURAL_CHUNKING_THRESHOLD_WORDS) {
     const chunkCount = opts.manuscriptChunks?.length ?? 0;
-    if (chunkCount <= 1) {
+    if (chunkCount < 1) {
       const err = new ChunkRoutingNotEngagedError(
         `Manuscript has ${pipelineManuscriptWords} words (≥ ${STRUCTURAL_CHUNKING_THRESHOLD_WORDS}) but ` +
         `received ${chunkCount} chunk(s). Chunk-routed evaluation did not engage; ` +
@@ -787,6 +796,14 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
           manuscript_chars: opts.manuscriptText.length,
         },
       );
+      console.error('[runPipeline] CHUNK_ROUTING_NOT_ENGAGED', {
+        manuscript_words: pipelineManuscriptWords,
+        chunk_count: chunkCount,
+        threshold: STRUCTURAL_CHUNKING_THRESHOLD_WORDS,
+        manuscript_id: opts.manuscriptId,
+        job_id: opts.jobId,
+        guard_location: 'runPipeline.preflight',
+      });
       return {
         ok: false,
         error: err.message,
@@ -1089,6 +1106,8 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
       _chunkConcurrency: opts._prebuiltCharacterLedger ? 3 : undefined,
       // Inject ledger grounding block from phase_1a when available
       characterLedgerBlock: ledgerBlockForP1P2 || undefined,
+      // Inject author corrections block from accepted_story_ledger_v1.governance_rail
+      authorCorrectionsBlock: opts._authorCorrectionsBlock ?? undefined,
       _onCompletion: (capture) => {
         providerTelemetry.push(
           recordProviderTelemetry({

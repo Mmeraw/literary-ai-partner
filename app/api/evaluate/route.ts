@@ -164,7 +164,7 @@ export async function POST(req: Request) {
         user_id: userId,
         job_type: 'full_evaluation',
         validity_status: 'pending',
-        phase: PHASES.PHASE_1A,  // All new jobs start at phase_1a (relay race)
+        phase: PHASES.PHASE_0,   // All new jobs start at phase_0 (gold-standard warm-up)
         phase_status: 'queued',
         policy_family: 'standard',
         voice_preservation_level: 'balanced',

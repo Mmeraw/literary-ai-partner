@@ -12,12 +12,12 @@ import {
   type CriterionKey,
 } from "@/schemas/criteria-keys";
 import { EvaluationPoller, type JobState } from "@/components/EvaluationPoller";
+import DownloadReportButton from "@/components/reports/DownloadReportButton";
 import {
   buildTopRecommendations,
   normalizeRecommendationActionForDisplay,
 } from "@/lib/evaluation/reportRecommendations";
 import ModeConfirmationBlock from "@/components/evaluation/ModeConfirmationBlock";
-import { CancelEvaluationButton } from "@/components/evaluation/CancelEvaluationButton";
 import { SynthesisPoller } from "@/components/evaluation/SynthesisPoller";
 import { classifyEvaluationIntegrityBanner } from "@/lib/evaluation/warningClassification";
 import {
@@ -48,6 +48,7 @@ type Job = {
   created_at?: string;
   updated_at?: string;
   last_error?: string | null;
+  progress?: Record<string, unknown> | null;
 };
 
 type ArtifactContentV1 = {
@@ -143,7 +144,7 @@ async function getJob(jobId: string): Promise<Job | null> {
 
     const { data: job, error } = await supabase
       .from("evaluation_jobs")
-      .select("id, user_id, manuscript_id, job_type, status, phase, phase_status, total_units, completed_units, failed_units, created_at, updated_at, last_error, manuscripts(user_id,title)")
+      .select("id, user_id, manuscript_id, job_type, status, phase, phase_status, total_units, completed_units, failed_units, created_at, updated_at, last_error, progress, manuscripts(user_id,title)")
       .eq("id", jobId)
       .maybeSingle();
 
@@ -314,7 +315,7 @@ async function getArtifact(jobId: string): Promise<ArtifactResult> {
 }
 
 function formatScore(n: number): string {
-  return Number.isFinite(n) ? n.toFixed(2) : "N/A";
+  return Number.isFinite(n) ? String(Math.round(n)) : "N/A";
 }
 
 function calculateProgressPercentage(job: Pick<Job, "completed_units" | "total_units">): number {
@@ -396,10 +397,13 @@ function Metric({ label, value }: { label: string; value: React.ReactNode }) {
 
 export default async function EvaluationReportPage({
   params,
+  searchParams,
 }: {
   params: { jobId: string };
+  searchParams?: { approved?: string };
 }) {
   const { jobId } = params;
+  const showApprovalBanner = searchParams?.approved === '1';
 
   const sessionUser = await getAuthenticatedUser();
   const headerOwnerId =
@@ -462,6 +466,22 @@ export default async function EvaluationReportPage({
   const artifact = artifactResult?.data ?? null;
   const artifactSource = artifactResult?.source ?? null;
   const isProduction = process.env.NODE_ENV === "production";
+
+  // Extract manuscript_word_count + hard_fail_present from progress JSONB
+  // so they can be seeded into initialPollerJob and shown in the metadata grid
+  // before the artifact is available.
+  const progressJsonb = job.progress ?? null;
+  const chunkRoutingJsonb = progressJsonb?.chunk_routing as Record<string, unknown> | null | undefined;
+  const progressWordCount: number | null =
+    typeof chunkRoutingJsonb?.manuscript_words === 'number' && (chunkRoutingJsonb.manuscript_words as number) > 0
+      ? (chunkRoutingJsonb.manuscript_words as number)
+      : typeof chunkRoutingJsonb?.source_manuscript_words === 'number' && (chunkRoutingJsonb.source_manuscript_words as number) > 0
+      ? (chunkRoutingJsonb.source_manuscript_words as number)
+      : null;
+  const progressHardFail: boolean | null =
+    typeof progressJsonb?.hard_fail_present === 'boolean' ? (progressJsonb.hard_fail_present as boolean) : null;
+  const pollerWordCount = progressWordCount ?? artifact?.metrics?.manuscript?.word_count ?? null;
+
   const initialPollerJob = {
     id: job.id,
     status: job.status,
@@ -476,6 +496,9 @@ export default async function EvaluationReportPage({
     ...(typeof job.total_units === 'number' ? { total_units: job.total_units } : {}),
     ...(typeof job.completed_units === 'number' ? { completed_units: job.completed_units } : {}),
     ...(job.last_error ? { last_error: job.last_error } : {}),
+    // Seed review-gate quality signal and word count for immediate correct display.
+    ...(progressHardFail !== null ? { hard_fail_present: progressHardFail } : {}),
+    ...(pollerWordCount !== null ? { manuscript_word_count: pollerWordCount } : {}),
   };
   const artifactCriteria = artifact?.criteria ?? [];
   const criteriaByKey = new Map<CriterionKey, NonNullable<ArtifactContentV1["criteria"]>[number]>();
@@ -507,7 +530,7 @@ export default async function EvaluationReportPage({
           <h1 className="text-3xl font-bold text-gray-900">Evaluation Report</h1>
           <p className="mt-1 text-lg font-semibold text-gray-900">{displayTitle}</p>
           <p className="mt-1 text-sm text-gray-700">
-            Job ID: <span className="font-mono">{job.id}</span>
+            Job ID: <span className="font-mono text-gray-900">{job.id}</span>
           </p>
           {manuscriptTitle && chapterTitle && manuscriptTitle !== chapterTitle && (
             <p className="mt-1 text-sm text-gray-700">
@@ -515,10 +538,34 @@ export default async function EvaluationReportPage({
             </p>
           )}
         </div>
-        <Link href="/evaluate" className="text-sm text-blue-600 hover:text-blue-700 underline shrink-0">
-          Back to Evaluate
-        </Link>
+        <div className="flex items-center gap-4 shrink-0">
+          {isComplete && <DownloadReportButton jobId={jobId} />}
+          <Link href="/evaluate" className="text-sm text-blue-600 hover:text-blue-700 underline">
+            Back to Evaluate
+          </Link>
+        </div>
       </div>
+
+      {showApprovalBanner && !isComplete && (
+        <div
+          className="mb-6 rounded-md border-l-4 p-4"
+          style={{
+            borderLeftColor: '#A98E4A',
+            backgroundColor: '#F2EFEA',
+            color: '#0E0E0E',
+          }}
+          role="status"
+          aria-live="polite"
+        >
+          <p className="text-sm font-semibold" style={{ color: '#0E0E0E' }}>
+            ✓ Story Ledger approved — craft diagnosis is now running.
+          </p>
+          <p className="mt-1 text-sm" style={{ color: '#7B7B7B' }}>
+            The system is diagnosing your manuscript across 13 craft criteria. This typically takes 3–8 minutes.
+            Watch the progress bar below — your Diagnostic Report will appear here when complete.
+          </p>
+        </div>
+      )}
 
       {/* Job status header card */}
       <div className="rounded-lg border bg-white p-4 mb-6">
@@ -531,30 +578,38 @@ export default async function EvaluationReportPage({
           }`}>
             {job.status === "complete" ? "✓ Report ready" : job.status === "failed" ? "⚠ Needs attention" : job.status === "running" ? "⟳ In progress" : "Waiting in queue"}
           </span>
-          {(job.status === "queued" || job.status === "running") && (
-            <CancelEvaluationButton jobId={jobId} />
-          )}
         </div>
       </div>
 
       <section className="mb-6 rounded-lg border bg-white p-4">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-700">Evaluation Metadata</h2>
         <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4 text-sm">
-          <div>
-            <p className="text-gray-700 font-medium">Chapter Title</p>
-            <p className="font-medium text-gray-900">{chapterTitle || manuscriptTitle || "Untitled"}</p>
-          </div>
-          <div>
-            <p className="text-gray-700 font-medium">Manuscript Title</p>
-            <p className="font-medium text-gray-900">{manuscriptTitle || chapterTitle || "Untitled"}</p>
-          </div>
+          {chapterTitle && chapterTitle !== manuscriptTitle && (
+            <div>
+              <p className="text-gray-700 font-medium">Chapter Title</p>
+              <p className="font-medium text-gray-900">{chapterTitle}</p>
+            </div>
+          )}
+          {(manuscriptTitle || chapterTitle) && displayTitle !== (manuscriptTitle || chapterTitle) && (
+            <div>
+              <p className="text-gray-700 font-medium">Manuscript Title</p>
+              <p className="font-medium text-gray-900">{manuscriptTitle || chapterTitle || "Untitled"}</p>
+            </div>
+          )}
           <div>
             <p className="text-gray-700 font-medium">Job ID</p>
             <p className="font-mono text-xs text-gray-900 break-all">{job.id}</p>
           </div>
           <div>
             <p className="text-gray-700 font-medium">Word Count</p>
-            <p className="font-medium text-gray-900">{typeof wordCount === "number" ? wordCount.toLocaleString() : "N/A"}</p>
+            <p className="font-medium text-gray-900">
+              {(() => {
+                const displayCount = wordCount ?? progressWordCount;
+                if (typeof displayCount === 'number') return displayCount.toLocaleString();
+                if (isComplete) return 'N/A';
+                return 'Calculating…';
+              })()}
+            </p>
           </div>
         </div>
       </section>
@@ -582,10 +637,37 @@ export default async function EvaluationReportPage({
           </div>
         </section>
       ) : !isComplete ? (
+        job.phase === 'review_gate' ? (
+          <section
+            className="rounded-lg border p-5"
+            style={{
+              borderColor: progressHardFail ? '#7A1E1E' : '#A98E4A',
+              backgroundColor: progressHardFail ? '#1a0808' : '#0f0e0d',
+            }}
+          >
+            <h2 className="text-lg font-semibold" style={{ color: '#F2EFEA' }}>
+              {progressHardFail ? 'Story Layer Review Required' : 'Story Layer Ready for Review'}
+            </h2>
+            <p className="mt-2 text-sm" style={{ color: '#7B7B7B' }}>
+              {progressHardFail
+                ? 'The system detected narrative conflicts in the Story Layer that require your input before scoring can proceed. Review each layer, confirm or correct the findings, and submit your decisions.'
+                : 'The Story Layer has been built from your manuscript. Review each of the 8 layers, confirm the findings, and approve to begin the scoring phase.'}
+            </p>
+            <div className="mt-4">
+              <Link
+                href={`/evaluate/${jobId}/ledger`}
+                className="inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm font-semibold transition-colors"
+                style={{ backgroundColor: '#7A1E1E', color: '#F2EFEA' }}
+              >
+                Review Story Ledger →
+              </Link>
+            </div>
+          </section>
+        ) : (
         <section className="rounded-lg border bg-white p-5">
           <h2 className="text-lg font-semibold text-gray-900">Report not ready yet</h2>
           <p className="mt-2 text-sm text-gray-600">
-            This evaluation hasn't completed. Once the status is "complete," your
+            This evaluation hasn&apos;t completed. Once the status is &quot;complete,&quot; your
             report will appear here automatically.
           </p>
           <div className="mt-4">
@@ -597,6 +679,7 @@ export default async function EvaluationReportPage({
             </Link>
           </div>
         </section>
+        )
       ) : !artifact ? (
         <section className="rounded-lg border bg-white p-5">
           <h2 className="text-lg font-semibold text-gray-900">
@@ -679,7 +762,7 @@ export default async function EvaluationReportPage({
             <ul className="mt-3 space-y-2 text-sm text-gray-700">
               {buildTopRecommendations(artifact).map((r, i) => (
                 <li key={i} className="flex gap-2">
-                  <span className="mt-0.5 shrink-0 text-gray-400">•</span>
+                  <span className="mt-0.5 shrink-0 text-gray-600">•</span>
                   <span>{r}</span>
                 </li>
               ))}
@@ -731,7 +814,7 @@ export default async function EvaluationReportPage({
                           );
                         })()}
                         {criterionStatusLabel(c) && (
-                          <p className="mt-2 text-xs font-medium text-gray-500">{criterionStatusLabel(c)}</p>
+                          <p className="mt-2 text-xs font-medium text-gray-700">{criterionStatusLabel(c)}</p>
                         )}
                         {(() => {
                           const rationalePresentation = getCriterionRationalePresentation(c, c.rationale);
@@ -749,7 +832,7 @@ export default async function EvaluationReportPage({
                           );
                         })()}
                         {!isScorableCriterion(c) && c.insufficient_signal_reason && (
-                          <div className="mt-2 text-xs text-gray-500 space-y-1">
+                          <div className="mt-2 text-xs text-gray-700 space-y-1">
                             {Array.isArray(c.insufficient_signal_reason.looked_for) && c.insufficient_signal_reason.looked_for.length > 0 && (
                               <p><span className="font-medium">Looked for:</span> {c.insufficient_signal_reason.looked_for.join(", ")}</p>
                             )}
@@ -760,7 +843,7 @@ export default async function EvaluationReportPage({
                         )}
                         {c.recommendations && c.recommendations.length > 0 && (
                           <div className="mt-3">
-                            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Recommendations:</p>
+                            <p className="text-xs font-semibold uppercase tracking-wide text-gray-600">Recommendations:</p>
                             <ul className="mt-2 space-y-2">
                               {c.recommendations.map((r, ri) => (
                                 <li key={ri} className="text-sm text-gray-700">
@@ -772,7 +855,7 @@ export default async function EvaluationReportPage({
                                     }`}>({r.priority})</span>
                                   )}
                                   {r.expected_impact && (
-                                    <span className="ml-1 text-xs text-gray-400">— {r.expected_impact}</span>
+                                    <span className="ml-1 text-xs text-gray-600">— {r.expected_impact}</span>
                                   )}
                                 </li>
                               ))}
@@ -797,12 +880,10 @@ export default async function EvaluationReportPage({
               <div className="mt-3 rounded-md border bg-gray-50 p-3 text-xs text-gray-700">
                 <p>
                   <span className="font-medium">Score Ledger:</span>{" "}
-                  Raw {artifact.governance.transparency.score_ledger.raw_total} / {artifact.governance.transparency.score_ledger.max_total},{" "}
-                  Weighted composite {artifact.governance.transparency.score_ledger.normalized_total} / 10,{" "}
-                  Weighting {artifact.governance.transparency.score_ledger.weighting}
+                  Score: {Math.round(artifact.governance.transparency.score_ledger.normalized_total)} / 10 | Weighting: {artifact.governance.transparency.score_ledger.weighting}
                 </p>
-                <p className="mt-1 text-[11px] text-gray-500">
-                  Weighted composite is the canonical 0–10 score (weighted across 13 criteria). The Overall Score above is the same value rescaled to 0–100 for ease of reading.
+                <p className="mt-1 text-[11px] text-gray-700">
+                  Score (0–10) is the canonical weighted score. Overall Score (0–100) is the same value rescaled.
                 </p>
               </div>
             )}
@@ -816,7 +897,7 @@ export default async function EvaluationReportPage({
               </div>
             )}
 
-            <p className="mt-3 text-xs text-gray-500">
+            <p className="mt-3 text-xs text-gray-700">
               Generated: {artifact.generated_at ? new Date(artifact.generated_at).toLocaleString() : "N/A"}
             </p>
           </section>
@@ -853,26 +934,26 @@ export default async function EvaluationReportPage({
             <div className="mt-3 space-y-2 text-sm">
               <div>
                 <span className="text-gray-700 font-medium">Engine:</span>{" "}
-                <span className="font-mono">{(artifact as any).engine?.model || "unknown"}</span>
+                <span className="font-mono text-gray-900">{(artifact as any).engine?.model || "unknown"}</span>
               </div>
               <div>
                 <span className="text-gray-700 font-medium">Provider:</span>{" "}
-                <span className="font-mono">{(artifact as any).engine?.provider || "unknown"}</span>
+                <span className="font-mono text-gray-900">{(artifact as any).engine?.provider || "unknown"}</span>
               </div>
               <div>
-                <span className="text-gray-600">Prompt Version:</span>{" "}
-                <span className="font-mono">{(artifact as any).engine?.prompt_version || "unknown"}</span>
+                <span className="text-gray-700 font-medium">Prompt Version:</span>{" "}
+                <span className="font-mono text-gray-900">{(artifact as any).engine?.prompt_version || "unknown"}</span>
               </div>
               {artifact.governance?.confidence && (
                 <div>
-                  <span className="text-gray-600">Confidence:</span>{" "}
-                  <span className="font-medium">{(artifact.governance.confidence * 100).toFixed(0)}%</span>
+                  <span className="text-gray-700 font-medium">Confidence:</span>{" "}
+                  <span className="font-medium">{Math.round(artifact.governance.confidence * 100)}%</span>
                 </div>
               )}
               {artifact.governance?.limitations && artifact.governance.limitations.length > 0 && (
                 <div className="mt-3 pt-3 border-t">
-                  <p className="text-xs font-medium text-gray-500 mb-1">Limitations:</p>
-                  <ul className="list-disc pl-5 text-xs text-gray-600 space-y-1">
+                  <p className="text-xs font-medium text-gray-700 mb-1">Limitations:</p>
+                  <ul className="list-disc pl-5 text-xs text-gray-800 space-y-1">
                     {artifact.governance.limitations.map((limitation, i) => (
                       <li key={i}>{limitation}</li>
                     ))}
@@ -882,6 +963,11 @@ export default async function EvaluationReportPage({
             </div>
           </section>
         </>
+      )}
+      {isComplete && (
+        <div className="mt-8 flex justify-end">
+          <DownloadReportButton jobId={jobId} />
+        </div>
       )}
       </main>
     </div>

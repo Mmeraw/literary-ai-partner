@@ -1,4 +1,6 @@
 import type { LongformDreamDocument } from "@/lib/evaluation/pipeline/runPass3bLongform";
+import { CRITERIA_METADATA } from "@/schemas/criteria-keys";
+import type { CriterionKey } from "@/schemas/criteria-keys";
 
 type Props = { doc: LongformDreamDocument };
 
@@ -15,22 +17,22 @@ function scoreBar(score: number | null) {
   if (score === null || score === undefined) {
     return (
       <div className="flex items-center gap-2">
-        <span className="w-8 text-right text-sm font-semibold tabular-nums text-gray-400">—</span>
+        <span className="w-8 text-right text-sm font-semibold tabular-nums text-gray-600">—</span>
         <div className="flex-1 h-2 rounded-full bg-gray-100" />
       </div>
     );
   }
   const pct = Math.min(100, Math.max(0, (score / 10) * 100));
   const color =
-    score >= 7.5
-      ? "bg-emerald-400"
+    score >= 8
+      ? "bg-emerald-700"
       : score >= 6
-        ? "bg-amber-400"
-        : "bg-rose-400";
+        ? "bg-amber-600"
+        : "bg-red-600";
   return (
     <div className="flex items-center gap-2">
       <span className="w-8 text-right text-sm font-semibold tabular-nums text-gray-800">
-        {score.toFixed(1)}
+        {Math.round(score)}
       </span>
       <div className="flex-1 h-2 rounded-full bg-gray-100 overflow-hidden">
         <div className={`h-full rounded-full ${color}`} style={{ width: `${pct}%` }} />
@@ -60,8 +62,8 @@ export default function LongformScoreGrid({ doc }: Props) {
             const summary = a.fit_evidence?.[0] ?? "—";
             return (
               <tr key={i} className="border-b border-gray-100 align-top">
-                <td className="py-2.5 pr-4 font-medium text-gray-800 capitalize">
-                  {a.key.replace(/_/g, " ")}
+                <td className="py-2.5 pr-4 font-medium text-gray-800">
+                  {CRITERIA_METADATA[a.key as CriterionKey]?.label ?? a.key.replace(/_/g, " ")}
                 </td>
                 <td className="py-2.5 pr-6">{scoreBar(a.score)}</td>
                 <td className="py-2.5 pr-4">

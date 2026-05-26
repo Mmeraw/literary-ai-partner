@@ -112,8 +112,8 @@ export default async function SharePage({
     <main className="p-8">
       <h1 className="text-2xl font-bold">Evaluation Report</h1>
 
-      <p className="text-sm text-gray-500">Job: {row.job_id}</p>
-      <p className="text-sm text-gray-500">Updated: {row.updated_at}</p>
+      <p className="text-sm text-gray-700">Job: {row.job_id}</p>
+      <p className="text-sm text-gray-700">Updated: {row.updated_at}</p>
 
       <section className="mt-6">
         <h2 className="text-xl font-semibold">Summary</h2>

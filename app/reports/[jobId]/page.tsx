@@ -312,7 +312,7 @@ export default async function ReportPage({ params }: { params: { jobId: string }
             {displayTitle}
           </p>
           {chapterTitle && manuscriptTitle && chapterTitle !== manuscriptTitle && (
-            <p className="text-sm text-gray-500 mb-1">
+            <p className="text-sm text-gray-700 mb-1">
               Manuscript Title: <span className="font-medium text-gray-700">{manuscriptTitle}</span>
             </p>
           )}
@@ -534,7 +534,7 @@ export default async function ReportPage({ params }: { params: { jobId: string }
                 </span>
               )}
             </h2>
-            <p className="text-sm text-gray-500 mb-4">
+            <p className="text-sm text-gray-700 mb-4">
               {dreamDoc
                 ? "Holistic Craft Assessment — long-form synthesis report"
                 : "Part 1 of 2 ready — scroll up to review scores and revision plan while Part 2 generates below"}
@@ -583,7 +583,7 @@ export default async function ReportPage({ params }: { params: { jobId: string }
                       ))}
                     </ul>
                   ) : (
-                    <p className="text-sm text-gray-500">—</p>
+                    <p className="text-sm text-gray-700">—</p>
                   )}
                 </div>
 
@@ -602,7 +602,7 @@ export default async function ReportPage({ params }: { params: { jobId: string }
                       ))}
                     </div>
                   ) : (
-                    <p className="text-sm text-gray-500">—</p>
+                    <p className="text-sm text-gray-700">—</p>
                   )}
                 </div>
 
@@ -621,7 +621,7 @@ export default async function ReportPage({ params }: { params: { jobId: string }
                       ))}
                     </div>
                   ) : (
-                    <p className="text-sm text-gray-500">—</p>
+                    <p className="text-sm text-gray-700">—</p>
                   )}
                 </div>
 
@@ -642,7 +642,7 @@ export default async function ReportPage({ params }: { params: { jobId: string }
                       ))}
                     </div>
                   ) : (
-                    <p className="text-sm text-gray-500">—</p>
+                    <p className="text-sm text-gray-700">—</p>
                   )}
                 </div>
 
@@ -661,7 +661,7 @@ export default async function ReportPage({ params }: { params: { jobId: string }
                       ))}
                     </div>
                   ) : (
-                    <p className="text-sm text-gray-500">—</p>
+                    <p className="text-sm text-gray-700">—</p>
                   )}
                 </div>
                 )}
@@ -682,7 +682,7 @@ export default async function ReportPage({ params }: { params: { jobId: string }
                       ))}
                     </div>
                   ) : (
-                    <p className="text-sm text-gray-500">—</p>
+                    <p className="text-sm text-gray-700">—</p>
                   )}
                 </div>
                 )}
@@ -701,7 +701,7 @@ export default async function ReportPage({ params }: { params: { jobId: string }
                       ))}
                     </div>
                   ) : (
-                    <p className="text-sm text-gray-500 mb-2">Preserved symbols: —</p>
+                    <p className="text-sm text-gray-700 mb-2">Preserved symbols: —</p>
                   )}
                   <p className="text-sm text-gray-700"><span className="font-medium">Doctrine strengths:</span> {dreamDoctrineStrengths.join("; ") || "—"}</p>
                   <p className="text-sm text-gray-700"><span className="font-medium">Doctrine risks:</span> {dreamDoctrineRisks.join("; ") || "—"}</p>
@@ -750,7 +750,7 @@ export default async function ReportPage({ params }: { params: { jobId: string }
                       ))}
                     </div>
                   ) : (
-                    <p className="text-sm text-gray-500">—</p>
+                    <p className="text-sm text-gray-700">—</p>
                   )}
                 </div>
 
@@ -768,7 +768,7 @@ export default async function ReportPage({ params }: { params: { jobId: string }
                       ))}
                     </div>
                   ) : (
-                    <p className="text-sm text-gray-500">—</p>
+                    <p className="text-sm text-gray-700">—</p>
                   )}
                 </div>
 
@@ -792,7 +792,7 @@ export default async function ReportPage({ params }: { params: { jobId: string }
                       ))}
                     </ul>
                   ) : (
-                    <p className="text-sm text-gray-500">—</p>
+                    <p className="text-sm text-gray-700">—</p>
                   )}
                 </div>
                 )}
@@ -832,26 +832,26 @@ export default async function ReportPage({ params }: { params: { jobId: string }
             <h2 className="text-2xl font-semibold text-gray-900 mb-1 flex items-center gap-2">
               <span aria-hidden>&#x1F9EC;</span> Character System
             </h2>
-            <p className="text-sm text-gray-500 mb-6">
+            <p className="text-sm text-gray-700 mb-6">
               Character arc coverage, relationship spine, and symbol payoff — evidence-based character ledgers
             </p>
             <div className="space-y-8">
               {/* Ledger A — Character Coverage & Arc */}
               <div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-1">Ledger A — Character Coverage &amp; Arc</h3>
-                <p className="text-xs text-gray-500 mb-3">Character system coverage — roles, arc movement, ending accountability</p>
+                <p className="text-xs text-gray-700 mb-3">Character system coverage — roles, arc movement, ending accountability</p>
                 <LongformCharacterCoverageArcLedger doc={dreamDoc} />
               </div>
               {/* Ledger B — Relationship Spine */}
               <div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-1">Ledger B — Relationship Spine</h3>
-                <p className="text-xs text-gray-500 mb-3">Load-bearing relationships, bridge mechanisms &amp; trust transfer</p>
+                <p className="text-xs text-gray-700 mb-3">Load-bearing relationships, bridge mechanisms &amp; trust transfer</p>
                 <LongformRelationshipSpineLedger doc={dreamDoc} />
               </div>
               {/* Ledger C — Symbol-to-Character Payoff */}
               <div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-1">Ledger C — Symbol-to-Character Payoff</h3>
-                <p className="text-xs text-gray-500 mb-3">Symbol lifecycle — first appearance, transfer, payoff</p>
+                <p className="text-xs text-gray-700 mb-3">Symbol lifecycle — first appearance, transfer, payoff</p>
                 <LongformSymbolPayoffLedger doc={dreamDoc} />
               </div>
             </div>
@@ -864,26 +864,26 @@ export default async function ReportPage({ params }: { params: { jobId: string }
             <h2 className="text-2xl font-semibold text-gray-900 mb-1 flex items-center gap-2">
               <span aria-hidden>&#x1F4DD;</span> Craft Evidence
             </h2>
-            <p className="text-sm text-gray-500 mb-6">
+            <p className="text-sm text-gray-700 mb-6">
               Sensory &amp; emotional register, manuscript integrity, and evidence distribution — craft-level ledgers
             </p>
             <div className="space-y-8">
               {/* Ledger D — Sensory / Emotional Register */}
               <div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-1">Ledger D — Sensory &amp; Emotional Register</h3>
-                <p className="text-xs text-gray-500 mb-3">Sensory systems, emotional arc, register governance</p>
+                <p className="text-xs text-gray-700 mb-3">Sensory systems, emotional arc, register governance</p>
                 <LongformSensoryEmotionalRegister doc={dreamDoc} />
               </div>
               {/* Ledger E — Manuscript Integrity Confidence Table */}
               <div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-1">Ledger E — Manuscript Integrity Table</h3>
-                <p className="text-xs text-gray-500 mb-3">Document hygiene vs. story craft — classified integrity findings</p>
+                <p className="text-xs text-gray-700 mb-3">Document hygiene vs. story craft — classified integrity findings</p>
                 <LongformManuscriptIntegrityTable doc={dreamDoc} />
               </div>
               {/* Ledger F — Evidence Distribution / Confidence Gate */}
               <div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-1">Ledger F — Evidence Distribution &amp; Confidence Gate</h3>
-                <p className="text-xs text-gray-500 mb-3">Confidence per criterion, distribution gaps, coverage failures</p>
+                <p className="text-xs text-gray-700 mb-3">Confidence per criterion, distribution gaps, coverage failures</p>
                 <LongformEvidenceDistributionGate doc={dreamDoc} />
               </div>
             </div>

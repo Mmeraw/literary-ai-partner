@@ -18,44 +18,50 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { isPipelineHealthAdminEmail } from "@/lib/admin/pipelineHealthAllowlist";
 
-// ── Dropdown configs ──────────────────────────────────────────────────────────
-
 const storygateLinks = [
   ["Overview",              "/storygate-studio"],
   ["Prepare a Project",    "/storygate-studio/apply"],
+  ["Storygate FAQ",        "/storygate-studio/faq"],
   ["Request Industry Access", "/storygate-studio/industry"],
   ["Agent Dashboard",      "/storygate-studio/industry/dashboard"],
 ];
 
-const storygateActiveHref = "/storygate-studio";
-
 const resourceLinks = [
-  ["The Black Box Problem", "/black-box-problem"],
-  ["FAQs", "/resources"],
-  ["Methodology", "/methodology"],
-  ["Editorial Doctrine", "/reliability"],
+  ["Resources Hub",                 "/resources"],
+  ["The Black Box Problem",         "/black-box-problem"],
+  ["Methodology",                   "/methodology"],
+  ["Editorial Doctrine",            "/reliability"],
+  ["Privacy & Research Controls",   "/privacy-research-controls"],
+  ["Security & Access Controls",    "/security"],
+  ["Genre & Classification FAQ",    "/genre-classification-faq"],
+  ["Storygate Studio FAQ",          "/storygate-studio/faq"],
+  ["Agent Readiness FAQ",           "/agent-readiness/faq"],
 ];
 
 const resourceActiveHrefs = [
-  "/black-box-problem",
   "/resources",
+  "/black-box-problem",
   "/methodology",
   "/reliability",
+  "/privacy-research-controls",
+  "/security",
+  "/genre-classification-faq",
+  "/storygate-studio/faq",
+  "/agent-readiness/faq",
 ];
 
 const arpLinks = [
-  ["Generate Full Agent Package", "/agent-readiness"],
-  ["Query / Cover Letter",        "/agent-readiness/query-letter"],
-  ["Synopsis Builder",            "/agent-readiness/synopsis"],
-  ["Pitch Builder",               "/agent-readiness/pitch"],
-  ["Author Bio",                  "/agent-readiness/bio"],
-  ["Comparables & Positioning",   "/agent-readiness/comparables"],
-  ["Package History / Export",    "/agent-readiness/history"],
+  ["Package Workspace",          "/agent-readiness"],
+  ["Query Letter",               "/agent-readiness/query-letter"],
+  ["Synopsis Builder",           "/agent-readiness/synopsis"],
+  ["Query Pitch Builder",        "/agent-readiness/pitch"],
+  ["Author Bio",                 "/agent-readiness/bio"],
+  ["Comparables & Positioning",  "/agent-readiness/comparables"],
+  ["Package History / Export",   "/agent-readiness/history"],
+  ["Agent Readiness FAQ",        "/agent-readiness/faq"],
 ];
 
 const arpActiveHref = "/agent-readiness";
-
-// ─────────────────────────────────────────────────────────────────────────────
 
 export default function HeaderNav() {
   const pathname = usePathname() || "/";
@@ -75,7 +81,6 @@ export default function HeaderNav() {
   const isAdmin  = isPipelineHealthAdminEmail(email);
   const isAuthed = authState === "authed";
 
-  // ── Auth check ─────────────────────────────────────────────────────────────
   useEffect(() => {
     let cancelled = false;
     fetch("/api/auth/user", { credentials: "include", cache: "no-store" })
@@ -92,7 +97,6 @@ export default function HeaderNav() {
     return () => { cancelled = true; };
   }, [pathname]);
 
-  // ── Dropdown outside-click / Escape ────────────────────────────────────────
   useEffect(() => {
     if (!resourcesOpen && !arpOpen && !sgOpen) return;
     function handlePointerDown(e) {
@@ -111,7 +115,6 @@ export default function HeaderNav() {
     };
   }, [resourcesOpen, arpOpen, sgOpen]);
 
-  // ── Sign out ───────────────────────────────────────────────────────────────
   async function handleSignOut() {
     if (signingOut) return;
     setSigningOut(true);
@@ -122,7 +125,6 @@ export default function HeaderNav() {
     setSigningOut(false);
   }
 
-  // ── Style helpers ──────────────────────────────────────────────────────────
   const linkCls       = "text-xs tracking-widest uppercase font-rg-mono text-rg-cream2 hover:text-rg-cream transition-colors duration-150";
   const activeLinkCls = "text-xs tracking-widest uppercase font-rg-mono text-rg-gold";
 
@@ -134,30 +136,23 @@ export default function HeaderNav() {
   const resourcesActive = resourceActiveHrefs.some((h) => pathname === h || pathname.startsWith(`${h}/`));
   const arpActive       = pathname === arpActiveHref || pathname.startsWith(`${arpActiveHref}/`);
 
-  // ── Dropdown panel shared style ────────────────────────────────────────────
   const dropdownCls = "absolute left-1/2 top-8 z-50 -translate-x-1/2 border border-rg-cream2/15 bg-rg-ink2 p-3 shadow-xl shadow-black/30";
   const dropdownItemCls = "block px-3 py-2 font-rg-mono text-xs uppercase tracking-[0.14em] text-rg-cream2 hover:text-rg-cream whitespace-nowrap";
 
   return (
     <header className="w-full bg-rg-ink border-b border-rg-cream2/10 sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-6 h-14 flex items-center justify-between gap-8">
-
-        {/* Wordmark */}
         <Link href="/" className="flex items-center gap-3 shrink-0 group">
           <span className="inline-flex h-8 w-8 items-center justify-center border border-rg-gold/60 text-rg-gold font-rg-serif text-sm group-hover:border-rg-gold transition-colors duration-150">R</span>
           <span className="text-rg-cream font-rg-serif text-sm tracking-wide hidden sm:block">RevisionGrade&#8482;</span>
         </Link>
 
-        {/* Nav links */}
         <nav className="flex items-center gap-6 flex-1 justify-center">
-
-          {/* Auth-gated: Dashboard first */}
           {isAuthed && <NavLink href="/dashboard">Dashboard</NavLink>}
 
           <NavLink href="/evaluate">Evaluate</NavLink>
           <NavLink href="/revise">Revise</NavLink>
 
-          {/* Agent Readiness Package™ dropdown — authed: full menu; anon: overview link */}
           {isAuthed ? (
             <div className="relative" ref={arpMenuRef}>
               <button
@@ -184,7 +179,6 @@ export default function HeaderNav() {
             <NavLink href="/agent-readiness">Agent Readiness&#8482;</NavLink>
           )}
 
-          {/* Storygate Studio™ dropdown — always red, maximum visibility */}
           <div className="relative" ref={sgMenuRef}>
             <button
               type="button"
@@ -208,7 +202,6 @@ export default function HeaderNav() {
             )}
           </div>
 
-          {/* Resources dropdown */}
           <div className="relative" ref={resourcesMenuRef}>
             <button
               type="button"
@@ -221,7 +214,7 @@ export default function HeaderNav() {
               Resources
             </button>
             {resourcesOpen && (
-              <div id="resources-menu" className={`${dropdownCls} w-56`} role="menu">
+              <div id="resources-menu" className={`${dropdownCls} w-72`} role="menu">
                 {resourceLinks.map(([label, href]) => (
                   <Link key={href} href={href} role="menuitem" onClick={() => setResourcesOpen(false)} className={dropdownItemCls}>
                     {label}
@@ -232,13 +225,9 @@ export default function HeaderNav() {
           </div>
 
           <NavLink href="/pricing">Pricing</NavLink>
-
-          {/* Admin-only */}
           {isAuthed && isAdmin && <NavLink href="/admin/pipeline-health">Pipeline</NavLink>}
-
         </nav>
 
-        {/* Auth button */}
         <div className="shrink-0">
           {authState === "loading" && (
             <span className="inline-block w-14 h-5 rounded bg-rg-cream2/10 animate-pulse" />
@@ -260,7 +249,6 @@ export default function HeaderNav() {
             </Link>
           )}
         </div>
-
       </div>
     </header>
   );

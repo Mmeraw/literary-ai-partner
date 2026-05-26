@@ -24,7 +24,7 @@ export function resolveReportTitle(input: ReportTitleInput): ReportTitleResoluti
 
   return {
     displayTitle,
-    pageTitle: `${displayTitle} — Evaluation Report`,
+    pageTitle: "Evaluation Report",
     chapterTitle,
     manuscriptTitle,
   };

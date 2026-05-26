@@ -20,6 +20,7 @@ export function CancelEvaluationButton({
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const displayLabel = label === 'STOP' ? 'Cancel Evaluation' : label;
 
   const handleCancel = async () => {
     setIsLoading(true);
@@ -57,7 +58,7 @@ export function CancelEvaluationButton({
         className={buttonClassName}
         disabled={isLoading}
       >
-        {isLoading ? 'Cancelling...' : label}
+        {isLoading ? 'Cancelling...' : displayLabel}
       </button>
 
       {/* Modal Backdrop */}
@@ -66,13 +67,13 @@ export function CancelEvaluationButton({
           <div className="bg-white rounded-lg shadow-lg max-w-md w-full mx-4">
             {/* Modal Header */}
             <div className="px-6 py-4 border-b border-gray-200">
-              <h2 className="text-lg font-semibold text-gray-900">Cancel Evaluation?</h2>
+              <h2 className="text-lg font-semibold text-gray-900">Cancel this evaluation?</h2>
             </div>
 
             {/* Modal Body */}
             <div className="px-6 py-4">
               <p className="text-sm text-gray-700">
-                Cancel this evaluation? Work in progress will be discarded, and no final report will be generated unless the core evaluation has already completed.
+                This will stop the job and no final report will be generated unless the core evaluation has already completed. You will not be charged if analysis has not begun.
               </p>
               {error && (
                 <div className="mt-4 rounded-md bg-red-50 border border-red-200 p-3">
@@ -88,14 +89,14 @@ export function CancelEvaluationButton({
                 disabled={isLoading}
                 className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors disabled:opacity-50"
               >
-                Keep Evaluating
+                Keep Running
               </button>
               <button
                 onClick={handleCancel}
                 disabled={isLoading}
                 className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-md transition-colors disabled:opacity-50"
               >
-                {isLoading ? 'Cancelling...' : 'Yes, Cancel'}
+                {isLoading ? 'Cancelling...' : 'Cancel Evaluation'}
               </button>
             </div>
           </div>

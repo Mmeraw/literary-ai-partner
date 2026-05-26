@@ -58,7 +58,7 @@
  */
 
 import { createHash, randomUUID } from 'crypto';
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type { EvaluationResultV2 } from '@/schemas/evaluation-result-v2';
 import type { EvaluationResultV1 } from '@/schemas/evaluation-result-v1';
 import { CRITERIA_KEYS, type CriterionKey } from '@/schemas/criteria-keys';
@@ -80,6 +80,7 @@ import { buildExcellenceFilter } from '@/lib/evaluation/pipeline/buildExcellence
 import { mapEvaluationResultV2ToGovernanceEnvelope } from '@/lib/governance/evaluationBridge';
 import {
   getCanonicalPipelineModel,
+  getCanonicalPass2Model,
   getExternalAdjudicationMode,
 } from '@/lib/evaluation/policy';
 import {
@@ -129,6 +130,10 @@ import { buildStoryLayerFromLedger } from '@/lib/evaluation/phase1a/buildStoryLa
 import { buildLedgerQualityReport } from '@/lib/evaluation/phase1a/buildLedgerQualityReport';
 import { writePhase1aReviewGateArtifacts } from '@/lib/evaluation/phase1a/storyLayerArtifactWriters';
 import {
+  shouldFlagStoryLedgerLaneMapWarning,
+  type StoryLedgerExtensions,
+} from '@/lib/evaluation/phase1a/storyLedgerExtensions';
+import {
   isPipelineEnabled,
   pipelineDisabledResponse,
   type PipelineSkipResult,
@@ -145,6 +150,7 @@ import {
   type PhaseName,
 } from '@/lib/evaluation/phaseTimestamps';
 import { buildPhaseLogPatch } from '@/lib/evaluation/phaseLog';
+import { getConfiguredAppBaseUrl } from '@/lib/jobs/triggerWorker';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // WAVE Phase 3 constants
@@ -706,6 +712,9 @@ export async function renewEvaluationJobLease(args: {
     heartbeat_at: nowIso,
     // Canonical writable lease source column (lease_expires_at may be generated)
     lease_until: leaseUntilIso,
+    // Liveness signal: every lease renewal (fired every 30s in all phase loops)
+    // writes worker_pulse_at so the watchdog always has a fresh timestamp.
+    worker_pulse_at: nowIso,
     updated_at: nowIso,
   });
 
@@ -1531,6 +1540,37 @@ export function isTerminalFailureCode(code: string | null | undefined): boolean 
 }
 
 /**
+ * Policy gate: pass12_handoff_v1 artifacts may ONLY be written for jobs whose
+ * review_gate has been explicitly approved (review_gate_passed_at IS NOT NULL).
+ *
+ * Throws POLICY_VIOLATION if the gate has not been passed. This is defense-in-depth
+ * against any future code path that might bypass the claim allowlist / GUARD E and
+ * try to advance an awaiting_approval job past the review gate.
+ */
+export async function assertReviewGatePassedBeforeHandoff(
+  supabase: SupabaseClient<any, any, any>,
+  jobId: string,
+): Promise<void> {
+  const { data: jobCheck, error: jobCheckErr } = await supabase
+    .from('evaluation_jobs')
+    .select('review_gate_passed_at')
+    .eq('id', jobId)
+    .single();
+  if (jobCheckErr) {
+    console.error(
+      `[POLICY VIOLATION] Failed to verify review_gate_passed_at for job ${jobId} before pass12_handoff_v1 write: ${jobCheckErr.message}`,
+    );
+    throw new Error(`POLICY_VIOLATION: pass12_handoff_v1 gate check failed (${jobCheckErr.message})`);
+  }
+  if (!jobCheck || !(jobCheck as { review_gate_passed_at?: string | null }).review_gate_passed_at) {
+    console.error(
+      `[POLICY VIOLATION] Attempted to write pass12_handoff_v1 for job ${jobId} without review_gate_passed_at. Aborting.`,
+    );
+    throw new Error('POLICY_VIOLATION: pass12_handoff_v1 requires review_gate_passed_at');
+  }
+}
+
+/**
  * Watchdog triage for stale running jobs.  Replaces the old flat "kill everything"
  * sweeper with a state-aware corrective-action loop.
  *
@@ -1540,12 +1580,15 @@ export function isTerminalFailureCode(code: string | null | undefined): boolean 
  *    - The leaseRenewalLoop setInterval stops firing when Vercel fluid-compute freezes
  *      the function (not kills it — freezes it under memory pressure).  Two missed 30s
  *      beats = 60 s silence = function is frozen.
- *    - Corrective action is STATE-AWARE with four guards:
+ *    - Corrective action is STATE-AWARE with the following guards (E runs FIRST):
+ *        e) phase=review_gate AND phase_status=awaiting_approval → SKIP entirely
+ *           (policy-conservative: the Review Gate is a hard author-input stop and
+ *           may NEVER be advanced by the watchdog).
  *        a) Terminal failure code (QG_*, PASS4_REFUSAL_*, governance) → kill, never rescue.
  *        b) attempt_count >= max_attempts → kill terminally, no more rescues.
  *        c) Same stage + same error_code repeated twice → kill, not an infra problem.
  *        d) pass12_handoff_v1 artifact exists → rescue to phase_2/queued.
- *        e) Otherwise → true freeze mid-pipeline, mark failed (resume button appears).
+ *        f) Otherwise → true freeze mid-pipeline, mark failed (resume button appears).
  *
  * 2. AGE-BASED KILL (13 min stale, EVAL_STALE_RUNNING_MINUTES)
  *    - Existing behavior: belt-and-suspenders for jobs the frozen watchdog missed.
@@ -1582,7 +1625,7 @@ export async function failStaleRunningJobs(): Promise<{
   const frozenCutoff = new Date(nowMs - frozenHeartbeatSecs * 1_000).toISOString();
   const { data: frozenCandidates, error: frozenErr } = await supabase
     .from('evaluation_jobs')
-    .select('id, manuscript_id, phase_status, progress, failure_code, attempt_count, max_attempts')
+    .select('id, manuscript_id, phase, phase_status, progress, failure_code, attempt_count, max_attempts')
     .eq('status', runningStatus)
     .not('last_heartbeat_at', 'is', null)
     .lt('last_heartbeat_at', frozenCutoff)
@@ -1667,6 +1710,17 @@ export async function failStaleRunningJobs(): Promise<{
                                      ?? null;
       const attemptCount  = (row.attempt_count  as number | null) ?? 0;
       const maxAttempts   = (row.max_attempts   as number | null) ?? 3;
+
+      // ─ GUARD E (phase-conservative): never advance a job sitting at the
+      //   review_gate / awaiting_approval hard stop. The gate is waiting on an
+      //   explicit author approval artifact; advancing it from the watchdog is a
+      //   policy violation. This is the FIRST check — overrides every other path.
+      if ((row as { phase?: string }).phase === 'review_gate' && phaseStatusTopLevel === 'awaiting_approval') {
+        console.warn(
+          `[WATCHDOG GUARD E] Job ${row.id} is at review_gate/awaiting_approval — policy violation to advance. Skipping.`,
+        );
+        continue;
+      }
 
       // ─ GUARD A: Terminal failure code — content/governance-driven, never rescue ──
       if (isTerminalFailureCode(lastErrorCode)) {
@@ -1770,6 +1824,7 @@ export async function failStaleRunningJobs(): Promise<{
             manuscriptId: (row.manuscript_id as number | null) ?? 0,
             reason: 'phase_1a_both_artifacts_ready',
             checkpoint: 'pass1a_character_ledger_v1+pass3_preflight_draft_v1',
+            targetPhase: 'review_gate',
           });
           continue;
         }
@@ -1781,6 +1836,7 @@ export async function failStaleRunningJobs(): Promise<{
             manuscriptId: (row.manuscript_id as number | null) ?? 0,
             reason: 'phase_1a_ledger_ready_preflight_timeout',
             checkpoint: 'pass1a_character_ledger_v1',
+            targetPhase: 'review_gate',
           });
           continue;
         }
@@ -1815,7 +1871,7 @@ export async function failStaleRunningJobs(): Promise<{
         continue;
       }
 
-      // ─ GUARD E: True freeze mid-pipeline — no checkpoint, mark failed ─────────
+      // ─ GUARD F: True freeze mid-pipeline — no checkpoint, mark failed ─────────
       terminalFailEntries.push({
         id: row.id,
         reason: 'frozen_no_checkpoint',
@@ -1833,7 +1889,7 @@ export async function failStaleRunningJobs(): Promise<{
           // Fetch current progress to merge stamp without losing existing keys.
           const { data: currentRow } = await supabase
             .from('evaluation_jobs')
-            .select('progress, attempt_count')
+            .select('progress, attempt_count, review_gate_entered_at')
             .eq('id', entry.id)
             .single();
 
@@ -1841,14 +1897,6 @@ export async function failStaleRunningJobs(): Promise<{
             ? (currentRow.progress as Record<string, unknown>)
             : {};
           const currentAttempts = (currentRow?.attempt_count as number | null) ?? 0;
-
-          const rescuedProgress = {
-            ...currentProgress,
-            watchdog_last_rescue_at:    rescueNow,
-            watchdog_last_rescue_code:  currentProgress.error_code ?? null,
-            watchdog_last_rescue_phase: currentProgress.phase ?? null,
-            watchdog_rescue_count:      ((currentProgress.watchdog_rescue_count as number | null) ?? 0) + 1,
-          };
 
           // Determine rescue target phase:
           //   - entry.targetPhase set explicitly (split-brain → phase_2 or phase_3
@@ -1861,20 +1909,32 @@ export async function failStaleRunningJobs(): Promise<{
           //   anything else in phase_1a, or phase_2+ → phase_2
           const rescueTargetPhase = entry.targetPhase
             ?? (entry.checkpoint === 'pass1a_chunk_cache_v1' ? 'phase_1a' : 'phase_2');
+          const rescueTargetPhaseStatus = rescueTargetPhase === 'review_gate' ? 'awaiting_approval' : JOB_STATUS.QUEUED;
+          const rescueAttemptCount = rescueTargetPhase === 'review_gate' ? currentAttempts : currentAttempts + 1;
+
+          const rescuedProgress = {
+            ...currentProgress,
+            watchdog_last_rescue_at:    rescueNow,
+            watchdog_last_rescue_code:  currentProgress.error_code ?? null,
+            watchdog_last_rescue_phase: currentProgress.phase ?? null,
+            watchdog_rescue_count:      ((currentProgress.watchdog_rescue_count as number | null) ?? 0) + 1,
+            phase_status:               rescueTargetPhaseStatus,
+          };
 
           const { data: updateResult, error: updateErr } = await supabase
             .from('evaluation_jobs')
             .update({
               status: JOB_STATUS.QUEUED,
               phase: rescueTargetPhase,
-              phase_status: JOB_STATUS.QUEUED,
+              phase_status: rescueTargetPhaseStatus,
               claimed_by: null,
               claimed_at: null,
               lease_token: null,
               lease_until: null,
-              attempt_count: currentAttempts + 1,
+              attempt_count: rescueAttemptCount,
               updated_at: rescueNow,
               progress: rescuedProgress,
+              ...(rescueTargetPhase === 'review_gate' && !currentRow?.review_gate_entered_at ? { review_gate_entered_at: rescueNow } : {}),
             })
             .eq('id', entry.id)
             .eq('status', runningStatus)
@@ -1904,7 +1964,7 @@ export async function failStaleRunningJobs(): Promise<{
                 rescue_reason: entry.reason,
                 checkpoint_used: entry.checkpoint,
                 rescue_count: rescuedProgress.watchdog_rescue_count,
-                attempt_count_after: currentAttempts + 1,
+                attempt_count_after: rescueAttemptCount,
                 rescuedAt: rescueNow,
               },
               sourceHash: `watchdog_rescue_${entry.id}_${rescueNow}`,
@@ -2272,6 +2332,370 @@ export function runPreflightChecks(): PreflightResult {
   return { ok: true };
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// PHASE 0 — Gold Standard Warm-Up
+//
+// Loads the WAVE evaluation gold standard into the LLM's context window as a
+// calibration primer. The evaluator studies what 10/10 looks like — across all
+// 13 criteria, confidence bands, and annotation protocol — BEFORE the manuscript
+// is ever touched. No chunking. No manuscript read. Pure standard internalization.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const PHASE_0_GOLD_STANDARD = `
+# REVISIONGRADE EVALUATION GOLD STANDARD — CALIBRATION PRIMER
+# Authority: RevisionGrade Quality Standard v1.0 (Binding)
+# Purpose: Internalize scoring thresholds before evaluating any manuscript.
+# This is a READ-ONLY calibration pass. Do not generate output. Acknowledge only.
+
+## THE 13 CANONICAL CRITERIA (Immutable)
+
+Scoring scale: 0–10
+  10   = Mastery — industry-publication standard, no meaningful weaknesses
+  7–9  = Professional — publishable, specific improvements may strengthen
+  5–6  = Competent — functional but with craft gaps requiring attention
+  3–4  = Weak — core problems undermine the work; revision required
+  1–2  = Critical failure — structural or craft breakdown; significant rework needed
+  0    = Absent / non-functional
+
+Criteria:
+1.  concept          — Core premise strength, originality, inherent tension
+2.  narrativeDrive   — Forward movement through escalation and consequence
+3.  character        — Psychological coherence, motivation, capacity for change
+4.  voice            — POV stability, intentionality, appropriateness to material
+5.  sceneConstruction — Each scene performs narrative function (reveal/escalate/complicate/resolve)
+6.  dialogue         — Authenticity, subtext, no unnecessary exposition
+7.  theme            — Embedded through action/consequence, not stated directly
+8.  worldbuilding    — Environmental logic, system consistency, credibility
+9.  pacing           — Rhythm of tension/release across the work
+10. proseControl     — Precision, intentionality, no unmotivated repetition
+11. tone             — Tonal integrity, no unintended register drift
+12. narrativeClosure — Narrative promises kept, intentionally subverted, or explicitly left open
+13. marketability    — Professional readiness, control, cohesion
+
+## GOLD-STANDARD CALIBRATION THRESHOLDS
+
+Confidence Bands:
+  HIGH   (≥95%) — Claim correctness target ≥95%. Assert only when evidence is unambiguous.
+  MEDIUM (80–94%) — Acceptable range. Flag when reasonable experts may disagree.
+  LOW    (<80%)  — No correctness requirement. Label uncertainty explicitly.
+
+Release gates (blocking):
+  - Confidence drift >5 percentage points on critical claim types → BLOCK
+  - Increased false certainty (high-confidence claims that are wrong) → BLOCK
+  - Broken determinism (same input → different outputs) → BLOCK
+  - Ambiguity present but not flagged → BLOCK
+
+## ANNOTATION PROTOCOL — WHAT GOLD LOOKS LIKE
+
+For a score of 9–10 on any criterion:
+  - Evidence is specific and unambiguous (cite passage, pattern, or structural beat)
+  - The craft element performs its function consistently across the work
+  - No unmotivated violations — any deviation is intentional and controlled
+  - Professional comparison: the work equals or surpasses published standards in this dimension
+
+For a score of 5–6:
+  - The element functions at a basic level but lacks control or consistency
+  - Weaknesses are identifiable and pattern-based, not isolated incidents
+  - Revision path is clear: the author can fix this without restructuring the work
+
+For a score of 1–4:
+  - The element has broken down or is absent
+  - Root cause is structural, not surface-level
+  - Revision requires significant rewriting, not line editing
+
+## EVIDENCE-BASED ASSESSMENT CONTRACT
+
+  - Every score requires manuscript evidence (specific passage, pattern, or scene)
+  - Generic feedback is a calibration failure — cite the text
+  - Flag weaknesses by WAVE tier: Early (structural), Mid (momentum), Late (polish)
+  - Disagreement zones: do NOT force false certainty — label as ambiguous
+  - Missing criteria = evaluation invalid. All 13 must be scored.
+
+## PUBLICATION READINESS GATE
+
+  All 13 criteria must score 7+ for publication readiness.
+  Any criterion below 7 is a gate closure requiring revision before submission.
+  The evaluator does not soften scores to spare feelings — honest assessment protects the author.
+
+## ACKNOWLEDGMENT CONTRACT
+
+You have now internalized the RevisionGrade evaluation gold standard.
+When you evaluate the manuscript in the next phase, you will:
+  1. Apply these 13 criteria exactly as defined above
+  2. Score according to the calibrated thresholds (not relative to the submission)
+  3. Ground every score in specific manuscript evidence
+  4. Flag confidence honestly — never assert HIGH when evidence is ambiguous
+  5. Complete all 13 criteria without exception
+
+## INTERNALIZATION PROOF — REQUIRED OUTPUT
+
+Do NOT respond with a single word. You must demonstrate internalization by writing
+a structured calibration lock. Use this exact format:
+
+CALIBRATED
+
+SCORING LOCK:
+- Scale: [0-2 critical failure | 3-4 weak | 5-6 competent | 7-9 professional | 10 mastery]
+- Gate: all 13 criteria must score 7+ for publication readiness
+- Evidence rule: every score requires specific manuscript citation — generic feedback = calibration failure
+
+CRITERIA LOCKED (13):
+[For each of the 13 criteria you MUST write a minimum of 40 words. Include: (1) the criterion name, (2) its definition exactly as you internalized it, (3) what specific manuscript evidence is required to score it, (4) what a score of 7 or above looks like, (5) what a score below 7 looks like. Do not abbreviate. Do not combine criteria. Write all 13 in full.]
+
+CONFIDENCE BANDS LOCKED:
+- HIGH (≥95%) — only when evidence is unambiguous
+- MEDIUM (80–94%) — when reasonable experts may disagree
+- LOW (<80%) — label uncertainty explicitly, no correctness requirement
+
+READY TO EVALUATE.
+
+## EVALUATION GOVERNANCE RULES (canon_correction_playbook_v1 v1.3.1)
+
+Phase 0: load rules only. Do not read the manuscript.
+Phase 1A: read the manuscript and build pass1a_story_layer_v1 — the Story Layer / Story Ledger artifact with 8 required layers.
+Phase 2: score only after pass1a_story_layer_v1 is complete.
+
+Failure modes Phase 1A must avoid:
+1. Loudest-lane bias: map ALL lane types (plot / emotional / doctrinal / medicine-object / relationship / environmental).
+2. Relationship spine omission: merge cross-world/cross-species arcs into single spine entries.
+3. Object/medicine blindness: named healing agents and relics are structural — not texture.
+4. Unsupported vocabulary: extract labels from source text; do not impose genre defaults (e.g. "poaching").
+5. Closure deflation: do not score Narrative Closure until Relationship Spine Layer is complete.
+6. Already-present error: do not recommend adding what is already present; use ALREADY_PRESENT.
+
+Phase 2 scoring prohibitions:
+- Narrative Closure MUST NOT be scored if Relationship Spine Layer is empty.
+- Criterion scores MUST NOT finalize before pass1a_story_layer_v1 exists and all 8 required layers pass completeness checks.
+- Recommendations MUST carry validity: VALID / PARTIALLY_VALID / ALREADY_PRESENT / CANON_FALSE / SOURCE_UNSUPPORTED / VOICE_RISK.
+
+## REVISIONGRADE PLATFORM FIT — WHAT THIS PLATFORM OPTIMIZES FOR
+
+RevisionGrade evaluates manuscripts for submission readiness against professional publishing standards.
+This platform is NOT a general writing assistant. It is a governed revision operating system for serious authors.
+
+Key platform calibration points:
+- The evaluation must serve the author's revision journey — not a publisher's acquisition filter
+- Scores reflect craft quality against professional standards, not marketability alone
+- The 8 canonical story layers (identity, cast, POV, relationships, objects/symbols, location/timeline, threat/ending, source integrity) are the structural backbone — they must inform scoring on all 13 criteria
+- WAVE tier tagging (Early / Mid / Late) is mandatory on all recommendations — it tells the author WHEN to fix something
+- Loudest-lane bias is a calibration failure: all lane types must be mapped (plot / emotional / doctrinal / medicine-object / relationship / environmental)
+- The author is the ultimate authority on their manuscript — conflicting AI extractions must be flagged, not silently resolved
+- Generic feedback ("the pacing is slow") without manuscript evidence is a calibration failure
+- The platform produces ONE evaluation per manuscript section — there is no back-and-forth revision cycle in evaluation mode
+- Scores below 7.0 on any criterion block submission readiness — be honest, be specific, cite the text
+
+## REVISIONGRADE PLATFORM CALIBRATION — EVALUATION GOVERNANCE RULES
+
+These rules apply to every evaluation. They are derived from platform lessons, not manuscript-specific facts.
+
+1. Low-frequency characters can be high-structure. Page volume is not a proxy for structural weight. A character with fewer pages may carry a load-bearing relationship spine, doctrinal role, or thematic arc. Never downgrade structural importance based on word count alone.
+
+2. Counter-systems must be surfaced. Every world with a primary doctrine, culture, or power system may contain a secondary counter-system — an alternative worldview, medicine tradition, or belief structure running in parallel or opposition. Counter-systems are structural, not decorative. Surface them explicitly.
+
+3. Relationship spines must be preserved across synthesis. Named relationship spines (A–B pairings with defined dynamics, stakes, and arcs) must survive synthesis intact. Do not reduce a relationship spine to a solo character label.
+
+4. Do not assign motivation without source support. Motivations, beliefs, and emotional states attributed to a character must trace to explicit manuscript evidence. If source support is absent, do not assign. Use SOURCE_UNSUPPORTED validity tag.
+
+5. Medicine and object systems are plot engines, not texture. Named healing agents with ingredients, procedure, risk, and knowledge-transfer are structural elements — include in Story Layer, score in criterion analysis. Do not omit.
+
+6. Distinguish excerpt closure from full-novel closure. When evaluating a partial manuscript, score local-arc payoffs — do not penalize for the absence of full-novel closure. Full-novel closure is unavailable by definition in an excerpt submission.
+
+7. Classify every recommendation before issuing it. Use: ADD (genuinely absent) / CLARIFY (present but ambiguous) / SHARPEN (present but underweighted) / ALREADY_PRESENT (exists, no change needed) / VOICE_RISK (improvement risks author's voice) / CANON_ERROR (evaluation made a factual error). Do not issue ADD when the element exists.
+
+8. Author corrections are governing context. If the author flagged a layer as incorrect or provided a correction, that correction takes precedence over AI extraction. Do not silently resolve conflicts in favor of AI output.
+
+9. Aggressive recommendations are a calibration failure. Recommendation volume is not quality. Do not issue ADD recommendations for elements that are present but underweighted — use SHARPEN or ALREADY_PRESENT instead. Generic feedback without manuscript evidence is a calibration failure.
+`;
+
+type Phase0Result =
+  | { success: true; durationMs: number; llmDurationMs: number; dwellDurationMs: number; acknowledgment: string; wordCount: number }
+  | { success: false; error: string; durationMs: number };
+
+// Phase 0 must dwell a minimum of 12 seconds regardless of LLM response speed.
+// This guarantees the model has actually processed the full gold standard before
+// the job transitions to phase_1a. "CALIBRATED" in 1s means nothing was internalized.
+const PHASE_0_MIN_DWELL_MS = 12_000;
+
+// Minimum word count for a valid Phase 0 calibration lock.
+// The required proforma has 4 sections:
+//   CALIBRATED header
+//   SCORING LOCK (scale + gate + evidence rule)
+//   CRITERIA LOCKED — 13 criteria × 40 words minimum each = ~520 words
+//   CONFIDENCE BANDS (3 bands defined)
+//   READY TO EVALUATE
+// A fully completed response must be at least 500 words.
+// Below this floor the LLM did not write out the criteria properly
+// and Phase 0 is treated as a calibration failure — job fails and retries.
+const PHASE_0_MIN_CALIBRATION_WORDS = 500;
+
+async function runPhase0GoldPrimer(args: {
+  jobId: string;
+  openaiApiKey: string;
+  openAiModel: string;
+  evalOpenAiTimeoutMs: number;
+}): Promise<Phase0Result> {
+  const { jobId, openaiApiKey, openAiModel, evalOpenAiTimeoutMs } = args;
+  const startMs = Date.now();
+
+  // Clamp timeout: Phase 0 should complete in 12-30s; cap at 60s.
+  const phase0TimeoutMs = Math.min(evalOpenAiTimeoutMs, 60_000);
+
+  console.log(`[Phase0] ${jobId}: sending gold-standard primer to ${openAiModel} (min dwell ${PHASE_0_MIN_DWELL_MS}ms)`);
+
+  try {
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${openaiApiKey}`,
+      },
+      signal: AbortSignal.timeout(phase0TimeoutMs),
+      body: JSON.stringify({
+        model: openAiModel,
+        max_completion_tokens: 1000, // 500-word proforma minimum: 13 criteria × 40 words min + sections
+        temperature: 0,
+        messages: [
+          {
+            role: 'system',
+            content:
+              'You are a literary evaluation engine. You are about to receive your evaluation gold standard. ' +
+              'Read it in full. Internalize every criterion, threshold, and evidence contract. ' +
+              'Then write your structured calibration lock exactly as specified at the end of the document. ' +
+              'Do NOT respond with just one word — the calibration lock is required output.',
+          },
+          {
+            role: 'user',
+            content: PHASE_0_GOLD_STANDARD,
+          },
+        ],
+      }),
+    });
+
+    const llmDurationMs = Date.now() - startMs;
+
+    if (!response.ok) {
+      const body = await response.text().catch(() => '');
+      // Still enforce min dwell even on failure — do not transition faster on error.
+      const elapsed = Date.now() - startMs;
+      if (elapsed < PHASE_0_MIN_DWELL_MS) {
+        await new Promise(r => setTimeout(r, PHASE_0_MIN_DWELL_MS - elapsed));
+      }
+      return {
+        success: false,
+        error: `OpenAI HTTP ${response.status}: ${body.slice(0, 300)}`,
+        durationMs: Date.now() - startMs,
+      };
+    }
+
+    const json = await response.json() as {
+      choices?: Array<{ message?: { content?: string } }>;
+    };
+
+    const acknowledgment = json.choices?.[0]?.message?.content?.trim() ?? '';
+    const wordCount = acknowledgment.split(/\s+/).filter(Boolean).length;
+    console.log(`[Phase0] ${jobId}: LLM calibration lock received in ${llmDurationMs}ms (${wordCount} words / ${acknowledgment.length} chars)`);
+
+    // ── Proforma word-count gate ────────────────────────────────────────
+    // The required calibration lock proforma must be fully completed:
+    //   CALIBRATED + SCORING LOCK + CRITERIA LOCKED (13) + CONFIDENCE BANDS + READY TO EVALUATE
+    // A response below PHASE_0_MIN_CALIBRATION_WORDS means the LLM skipped sections
+    // and must be treated as a calibration failure — Phase 0 fails and will retry.
+    if (wordCount < PHASE_0_MIN_CALIBRATION_WORDS) {
+      // Still enforce min dwell before failing — don't exit Phase 0 faster on failure.
+      const elapsed = Date.now() - startMs;
+      if (elapsed < PHASE_0_MIN_DWELL_MS) {
+        await new Promise(r => setTimeout(r, PHASE_0_MIN_DWELL_MS - elapsed));
+      }
+      console.error(
+        `[Phase0] ${jobId}: calibration lock too short — ${wordCount} words < ${PHASE_0_MIN_CALIBRATION_WORDS} minimum. ` +
+        `Response: "${acknowledgment.slice(0, 200)}${acknowledgment.length > 200 ? '...' : ''}"`
+      );
+      return {
+        success: false,
+        error: `CALIBRATION_INSUFFICIENT: ${wordCount}/${PHASE_0_MIN_CALIBRATION_WORDS} words — LLM did not complete the proforma`,
+        durationMs: Date.now() - startMs,
+      };
+    }
+    // ── End proforma word-count gate ───────────────────────────────────
+
+    // ── Hard minimum dwell ──────────────────────────────────────────────────
+    // Even if OpenAI responds fast, the evaluator brain must sit with the gold
+    // standard for a minimum time before it's trusted to process the manuscript.
+    const elapsed = Date.now() - startMs;
+    if (elapsed < PHASE_0_MIN_DWELL_MS) {
+      const remaining = PHASE_0_MIN_DWELL_MS - elapsed;
+      console.log(`[Phase0] ${jobId}: enforcing minimum dwell — holding ${remaining}ms`);
+      await new Promise(r => setTimeout(r, remaining));
+    }
+    // ── End hard minimum dwell ───────────────────────────────────────────────
+
+    const durationMs = Date.now() - startMs;
+    const dwellDurationMs = Math.max(0, PHASE_0_MIN_DWELL_MS - llmDurationMs);
+    console.log(`[Phase0] ${jobId}: warm-up PASS — ${wordCount} words, ${durationMs}ms total (llm=${llmDurationMs}ms, dwell=${dwellDurationMs}ms)`);
+
+    return { success: true, durationMs, llmDurationMs, dwellDurationMs, acknowledgment, wordCount };
+  } catch (err) {
+    const elapsed = Date.now() - startMs;
+    if (elapsed < PHASE_0_MIN_DWELL_MS) {
+      await new Promise(r => setTimeout(r, PHASE_0_MIN_DWELL_MS - elapsed));
+    }
+    const durationMs = Date.now() - startMs;
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(`[Phase0] ${jobId}: primer call failed after ${durationMs}ms:`, message);
+    return { success: false, error: message, durationMs };
+  }
+}
+
+/**
+ * Fire-and-forget HTTP kick to /api/workers/process-evaluations.
+ *
+ * WHY HTTP (not direct processQueuedJobs() call):
+ * Each Phase 1A batch must run inside its own fresh Vercel invocation with a
+ * clean maxDuration clock. A direct in-process call re-enters the same
+ * invocation and would recreate the exact timeout risk that self-chaining
+ * was designed to prevent.
+ *
+ * WHY getConfiguredAppBaseUrl() (not VERCEL_URL):
+ * VERCEL_URL resolves to the deployment-specific preview URL, not the
+ * canonical production hostname. WORKER_KICKOFF_BASE_URL → NEXT_PUBLIC_APP_URL
+ * → VERCEL_URL is the correct priority chain already implemented in
+ * triggerWorker.ts. Using the same helper keeps URL resolution consistent.
+ *
+ * WHY THE 150ms DELAY:
+ * The DB write committing phase_1a/queued must flush before the new worker
+ * invocation claims the row. 150ms is enough for the Postgres commit to be
+ * visible to a fresh connection from a new Vercel function invocation.
+ */
+async function kickPhase1aWorker(): Promise<void> {
+  const secret = process.env.CRON_SECRET;
+  if (!secret) {
+    console.warn('[kickPhase1aWorker] CRON_SECRET not set — skipping kick, cron is fallback');
+    return;
+  }
+
+  const base = getConfiguredAppBaseUrl() ?? 'https://www.revisiongrade.com';
+  const url = new URL('/api/workers/process-evaluations', base).toString();
+
+  // 150ms: let the phase_1a/queued DB write commit before the new worker claims
+  await new Promise(r => setTimeout(r, 150));
+
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${secret}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ source: 'phase1a_self_chain_kick' }),
+      signal: AbortSignal.timeout(10_000),
+    });
+    console.log(`[kickPhase1aWorker] kick sent → HTTP ${res.status} (url=${url})`);
+  } catch (err) {
+    // Best-effort — cron is the rescue fallback
+    console.warn('[kickPhase1aWorker] kick failed (cron is fallback):', err instanceof Error ? err.message : String(err));
+  }
+}
+
 /**
  * Process a single evaluation job
  */
@@ -2421,13 +2845,22 @@ export async function processEvaluationJob(
       job.phase === 'phase_3' &&
       (job.phase_status === 'running' || progress.phase_status === 'running');
 
+    // Phase 0 warm-up: same ownership + lease contract as all other phases.
+    const isPhase0PreClaimed =
+      job.status === 'running' &&
+      hasCanonicalPreClaimOwnership &&
+      hasLivePreClaimLease &&
+      job.phase === 'phase_0' &&
+      (job.phase_status === 'running' || progress.phase_status === 'running');
+
     // Dispatch on job.phase, not on the precedence of pre-claim flags. With the
     // flags now keyed strictly on job.phase, at most one is true, so the chain
     // below is equivalent — but the explicit job.phase switch documents intent
     // and makes the single-source-of-truth contract impossible to miss.
-    const executionPhase: 'phase_1a' | 'phase_2' | 'phase_3' =
+    const executionPhase: 'phase_0' | 'phase_1a' | 'phase_2' | 'phase_3' =
       job.phase === 'phase_3' ? 'phase_3' :
       job.phase === 'phase_2' ? 'phase_2' :
+      job.phase === 'phase_0' ? 'phase_0' :
       'phase_1a'; // job.phase === 'phase_1a' (or legacy 'phase_1' which is dead)
 
     // Hard guard: queued jobs must be atomically claimed before direct processing.
@@ -2441,6 +2874,7 @@ export async function processEvaluationJob(
     }
 
     if (
+      !isPhase0PreClaimed &&
       !isPhase1aPreClaimed &&
       !isPhase2PreClaimed &&
       !isPhase3PreClaimed
@@ -2755,8 +3189,112 @@ export async function processEvaluationJob(
       }
     };
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // PHASE 0 — Gold Standard Warm-Up
+    //
+    // The evaluator STUDIES what success looks like BEFORE touching the
+    // manuscript. No chunking, no manuscript read — just calibration of the
+    // judging standard. The LLM ingests the WAVE gold standard + all 13
+    // criteria definitions + calibration thresholds as a system primer.
+    // Once internalized, the job is re-queued at phase_1a and this worker
+    // returns immediately. A fresh worker claims the phase_1a job.
+    // ─────────────────────────────────────────────────────────────────────────
+    if (executionPhase === 'phase_0') {
+      const phase0StartNow = new Date().toISOString();
+      console.log(`[Processor/Phase0] ${jobId}: starting gold-standard warm-up`);
+
+      // Stamp phase0_started_at + initial pulse
+      await supabase
+        .from('evaluation_jobs')
+        .update({
+          phase0_started_at: phase0StartNow,
+          worker_pulse_at: phase0StartNow,
+          updated_at: phase0StartNow,
+        })
+        .eq('id', jobId)
+        .eq('status', JOB_STATUS.RUNNING);
+
+      // Run the gold-standard primer — LLM internalizes evaluation criteria
+      const phase0Result = await runPhase0GoldPrimer({
+        jobId,
+        openaiApiKey,
+        openAiModel,
+        evalOpenAiTimeoutMs,
+      });
+
+      if (!phase0Result.success) {
+        const failedResult = phase0Result as { success: false; error: string; durationMs: number };
+        const msg = `Phase 0 warm-up failed: ${failedResult.error}`;
+        console.error(`[Processor/Phase0] ${jobId}: ${msg}`);
+        await markFailed(msg);
+        return { success: false, error: msg };
+      }
+
+      console.log(`[Processor/Phase0] ${jobId}: warm-up complete in ${phase0Result.durationMs}ms — transitioning to phase_1a`);
+
+      // Stamp phase0_completed_at + pulse + explicit telemetry
+      const phase0EndNow = new Date().toISOString();
+
+      // Build Phase 0 telemetry patch for progress JSONB.
+      // These fields are the authoritative proof of Phase 0 dwell behavior.
+      // Do NOT derive dwell from timestamp deltas — store the actual measured values.
+      const successResult = phase0Result as { success: true; durationMs: number; llmDurationMs: number; dwellDurationMs: number; acknowledgment: string; wordCount: number };
+      const phase0TelemetryPatch = {
+        phase0_total_duration_ms: successResult.durationMs,
+        phase0_llm_duration_ms: successResult.llmDurationMs,
+        phase0_dwell_duration_ms: successResult.dwellDurationMs,
+        phase0_calibration_word_count: successResult.wordCount,
+        phase0_model: openAiModel,
+        phase0_deploy_sha: DEPLOYED_SHA,
+        phase0_completed_at: phase0EndNow,
+      };
+
+      // Re-queue at phase_1a: release lease, transition phase.
+      // A fresh worker will claim and begin manuscript processing.
+      const { error: reQueueErr } = await supabase
+        .from('evaluation_jobs')
+        .update({
+          status: JOB_STATUS.QUEUED,
+          phase: PHASES.PHASE_1A,
+          phase_status: JOB_STATUS.QUEUED,
+          claimed_by: null,
+          lease_token: null,
+          lease_until: null,
+          last_heartbeat_at: null,
+          last_heartbeat: null,
+          worker_pulse_at: null,
+          phase0_completed_at: phase0EndNow,
+          updated_at: phase0EndNow,
+          progress: { ...progressState, ...phase0TelemetryPatch },
+        })
+        .eq('id', jobId)
+        .eq('status', JOB_STATUS.RUNNING);
+
+      if (reQueueErr) {
+        const msg = `Phase 0 → phase_1a re-queue failed: ${reQueueErr.message}`;
+        console.error(`[Processor/Phase0] ${jobId}: ${msg}`);
+        await markFailed(msg);
+        return { success: false, error: msg };
+      }
+
+      console.log(`[Processor/Phase0] ${jobId}: re-queued at phase_1a — kicking worker`);
+
+      // Kick the worker so phase_1a is claimed immediately (no 5-min cron wait).
+      // MUST be awaited: if this is void/detached, Vercel may kill the function
+      // before the HTTP request goes out. 150ms delay inside kickPhase1aWorker
+      // ensures the phase_1a/queued write is visible to the new worker.
+      await kickPhase1aWorker();
+
+      return { success: true };
+    }
+
     // 2. Update status to running
     await markRunning('Fetching manuscript', 0, executionPhase);
+
+    // NOTE: phase0_started_at / phase0_completed_at are written ONLY by runPhase0GoldPrimer().
+    // Do NOT stamp them here for direct phase_1a entries — that produces false Phase 0 timings.
+    // Legacy/admin phase_1a entries that bypass Phase 0 are identified by absence of
+    // progress.phase0_total_duration_ms in JSONB telemetry.
 
     console.log(`[Processor] Job ${jobId} status updated to running`);
 
@@ -3210,6 +3748,56 @@ export async function processEvaluationJob(
     //     bottom of the persistence path detects executionPhase==='phase_3' and
     //     runs WAVE inline instead of re-queueing phase_3.
     if (executionPhase === 'phase_3') {
+      // ── GOVERNANCE GATE: Phase 3 also requires accepted_story_ledger_v1 ──
+      const { buildAuthorCorrectionsBlock: buildCorrectionsBlockP3 } = await import('@/lib/evaluation/pipeline/prompts/pass2-editorial');
+
+      const { data: p3LedgerRow, error: p3LedgerErr } = await supabase
+        .from('evaluation_artifacts')
+        .select('content')
+        .eq('job_id', job.id)
+        .eq('artifact_type', 'accepted_story_ledger_v1')
+        .maybeSingle();
+
+      if (p3LedgerErr || !p3LedgerRow?.content) {
+        console.error(`[phase_3] ${jobId}: accepted_story_ledger_v1 missing — cannot synthesize`);
+        await markFailed(
+          'Phase 3 cannot synthesize without accepted_story_ledger_v1.',
+          'MISSING_ACCEPTED_STORY_LEDGER',
+          { pipelineStage: 'phase_3' }
+        );
+        return { success: false, error: 'MISSING_ACCEPTED_STORY_LEDGER' };
+      }
+
+      const p3GovRail = (p3LedgerRow.content as Record<string, unknown>).governance_rail as Record<string, unknown> | undefined;
+      if (!p3GovRail) {
+        console.error(`[phase_3] ${jobId}: governance_rail missing from accepted_story_ledger_v1`);
+        await markFailed(
+          'Phase 3 cannot synthesize without author governance rail.',
+          'MISSING_AUTHOR_GOVERNANCE_RAIL',
+          { pipelineStage: 'phase_3' }
+        );
+        return { success: false, error: 'MISSING_AUTHOR_GOVERNANCE_RAIL' };
+      }
+
+      const p3LayerDecisions = p3GovRail.layer_decisions as Record<string, unknown> | undefined;
+      if (!p3LayerDecisions || Object.keys(p3LayerDecisions).length < 8) {
+        console.error(`[phase_3] ${jobId}: incomplete layer_decisions — found ${Object.keys(p3LayerDecisions ?? {}).length}/8`);
+        await markFailed(
+          'Phase 3 cannot synthesize until all Story Layer layers have author decisions.',
+          'INCOMPLETE_AUTHOR_LAYER_DECISIONS',
+          { pipelineStage: 'phase_3', diagnostics: { found: Object.keys(p3LayerDecisions ?? {}).length, required: 8 } }
+        );
+        return { success: false, error: 'INCOMPLETE_AUTHOR_LAYER_DECISIONS' };
+      }
+
+      const authorCorrectionsBlockP3 = buildCorrectionsBlockP3(p3GovRail);
+      if (authorCorrectionsBlockP3) {
+        console.log(`[phase_3] ${jobId}: AUTHOR CORRECTIONS BLOCK injected (${authorCorrectionsBlockP3.length} chars) — governing context active`);
+      } else {
+        console.log(`[phase_3] ${jobId}: clean approval — no author corrections to inject`);
+      }
+      // ── END GOVERNANCE GATE ──
+
       const { data: handoffPresenceRow } = await supabase
         .from('evaluation_artifacts')
         .select('job_id')
@@ -3393,6 +3981,7 @@ export async function processEvaluationJob(
             _runners: phase3Runners,
             ...(prebuiltCharacterLedgerP3 ? { _prebuiltCharacterLedger: prebuiltCharacterLedgerP3 } : {}),
             ...(prebuiltPreflightDraftP3 ? { _prebuiltPreflightDraft: prebuiltPreflightDraftP3 } : {}),
+            ...(authorCorrectionsBlockP3 ? { _authorCorrectionsBlock: authorCorrectionsBlockP3 } : {}),
             onHeartbeat: async (stage) => {
               await assertJobWithinSla({
                 supabase,
@@ -3447,6 +4036,19 @@ export async function processEvaluationJob(
           console.warn('[Processor] phase_3 lease renewal failed (non-fatal)',
             err instanceof Error ? err.message : String(err));
         });
+        // IDLE GUARD: phase_3 has no per-chunk callbacks so we pulse on the
+        // lease interval itself — but ONLY write worker_pulse_at here, not
+        // last_heartbeat_at (renewEvaluationJobLease already owns that).
+        // This proves the JS event loop is still spinning inside the invocation.
+        const p3PulseNow = new Date().toISOString();
+        void supabase
+          .from('evaluation_jobs')
+          .update({ worker_pulse_at: p3PulseNow })
+          .eq('id', jobId)
+          .eq('status', JOB_STATUS.RUNNING)
+          .then(({ error }: { error: unknown }) => {
+            if (error) console.warn('[phase_3] worker_pulse_at stamp failed (non-fatal)', error);
+          });
       }, leaseRenewalIntervalMsP3);
 
       try {
@@ -3550,6 +4152,13 @@ export async function processEvaluationJob(
         } catch (waveErr) {
           const errMsg = waveErr instanceof Error ? waveErr.message : String(waveErr);
           const isTimeout = errMsg === 'WAVE_TIMEOUT';
+          const reasonCode = isTimeout
+            ? 'WAVE_TIMEOUT'
+            : errMsg.includes('WAVE_SOURCE_VERSION_RESOLUTION_FAILED')
+              ? 'WAVE_SOURCE_VERSION_RESOLUTION_FAILED'
+              : errMsg.includes('createRevisionSession failed')
+                ? 'WAVE_SESSION_CREATE_FAILED'
+                : 'WAVE_ERROR';
           console.warn(`[WAVE/Phase3] ${isTimeout ? 'Timeout' : 'Error'} for job ${jobId} (${Date.now() - waveStartMs}ms):`, errMsg);
 
           // Normalize: status is always "failed"; use reason_code to distinguish
@@ -3557,7 +4166,7 @@ export async function processEvaluationJob(
           //   complete | skipped | failed
           const failedPlan = {
             status: 'failed' as const,
-            reason_code: isTimeout ? 'WAVE_TIMEOUT' : 'WAVE_ERROR',
+            reason_code: reasonCode,
             reason: errMsg,
             retryable: isTimeout,
             generated_at: new Date().toISOString(),
@@ -3681,20 +4290,84 @@ export async function processEvaluationJob(
     // builds ledger V1+V2, persists artifact, then queues phase_2.
     // MANDATORY — if it fails, the job fails (ledger required for Pass 3).
     if (executionPhase === 'phase_1a') {
+      // phase0_completed_at is written only by runPhase0GoldPrimer() when real Phase 0 runs.
+      // Do NOT stamp it here — this is the phase_1a execution path, not Phase 0 completion.
       await markRunning('Running Pass 1A character sweep', 1, 'phase_1a');
       refreshPhaseDeadline(progressState.phase1a_started_at as string | undefined);
 
-      const phase1aStartMs = Date.now();
+      // ── PHASE_0_NOT_PROVEN guard ────────────────────────────────────────────
+      // Fail-closed: Phase 1A must not proceed unless Phase 0 ran for ≥12,000ms.
+      // progress.phase0_total_duration_ms is written only by runPhase0GoldPrimer()
+      // and is authoritative. The phase0_started_at / phase0_completed_at columns
+      // are NOT reliable (they have legacy cosmetic stamp paths). Use JSONB only.
+      // Exception: jobs with progress.phase0_bypass_reason set (admin/legacy resets).
+      {
+        const p0DurationMs = typeof progressState.phase0_total_duration_ms === 'number'
+          ? progressState.phase0_total_duration_ms
+          : typeof progressState.phase0_total_duration_ms === 'string'
+            ? Number(progressState.phase0_total_duration_ms)
+            : null;
+        const p0BypassReason = progressState.phase0_bypass_reason as string | undefined;
+        const PHASE_0_MIN_PROVEN_MS = 12_000;
 
-      // Heartbeat renewal loop — keeps lease alive and last_heartbeat_at current
-      // so the watchdog doesn't kill us mid-sweep on a large manuscript.
+        if (!p0BypassReason && (p0DurationMs === null || p0DurationMs < PHASE_0_MIN_PROVEN_MS)) {
+          const actual = p0DurationMs !== null ? `${p0DurationMs}ms` : 'absent';
+          console.error(
+            `[phase_1a] ${jobId}: PHASE_0_NOT_PROVEN — phase0_total_duration_ms=${actual} < ${PHASE_0_MIN_PROVEN_MS}ms. ` +
+            `Phase 0 calibration did not complete. Failing job to prevent uncalibrated evaluation.`
+          );
+          await markFailed(
+            `Phase 0 calibration not proven (phase0_total_duration_ms=${actual}). ` +
+            `The evaluator did not complete the 12-second gold standard warm-up.`,
+            'PHASE_0_NOT_PROVEN',
+            { pipelineStage: 'phase_1a_entry', diagnostics: { phase0_total_duration_ms: p0DurationMs } }
+          );
+          return { success: false, error: 'PHASE_0_NOT_PROVEN' };
+        }
+
+        if (p0BypassReason) {
+          console.warn(`[phase_1a] ${jobId}: Phase 0 bypassed — reason=${p0BypassReason} (admin/legacy)`);
+        } else {
+          console.log(`[phase_1a] ${jobId}: Phase 0 proven — duration=${p0DurationMs}ms words=${progressState.phase0_calibration_word_count ?? 'unknown'}`);
+        }
+      }
+      // ── End PHASE_0_NOT_PROVEN guard ────────────────────────────────────────
+
+
+      // ── Phase 1A: Self-Chaining Batch Mode ─────────────────────────────────
+      //
+      // WHY SELF-CHAINING:
+      // Production evidence shows Phase 1A claims, runs briefly (60–75s), then
+      // re-queues without completing. Root cause: the previous design attempted
+      // all chunks plus preflight in a single invocation, which exceeds the
+      // observed effective runtime ceiling regardless of maxDuration config.
+      //
+      // This implementation processes a bounded chunk batch per invocation,
+      // persists progress, then intentionally re-queues phase_1a and kicks the
+      // next worker. Intentional self-chain is NOT a failure — attempt_count
+      // must not increment. Each invocation loads cached results and resumes
+      // from the last cursor position.
+      //
+      // SUBSTEP ORDER (per complete Phase 1A lifecycle):
+      //   1. Build or load chunk_routing_manifest (setup-tax elimination)
+      //   2. Load pass1a_chunk_cache_v1 (skip completed chunks)
+      //   3. LOOP: process bounded batches, self-chain until all chunks done
+      //   4. Run runPass3Preflight ONCE after all chunks are cached
+      //   5. Assemble ledger + build Story Layer
+      //   6. Persist Story Layer artifact
+      //   7. Open Review Gate (phase_1a → awaiting_approval)
+
+      const phase1aInvocationStartMs = Date.now();
+      const phase1aConfig = runtimeConfig.phase1a;
+
+      // Heartbeat renewal loop — keeps lease alive during chunk LLM calls.
       const leaseRenewalIntervalMsP1a = 30_000;
       const leaseRenewalLoopP1a = setInterval(() => {
         void renewEvaluationJobLease({
           supabase,
           jobId,
           leaseMs: runtimeConfig.worker.leaseMs,
-          stage: 'phase_1a_pass1a_renewal',
+          stage: 'phase_1a_batch_renewal',
           hardDeadlineMs,
         }).catch((err: unknown) => {
           console.warn('[Processor] phase_1a lease renewal failed (non-fatal)',
@@ -3703,15 +4376,40 @@ export async function processEvaluationJob(
       }, leaseRenewalIntervalMsP1a);
 
       try {
-        const pass1aChunks = manuscriptChunksForPipeline;
+        const allChunks = manuscriptChunksForPipeline;
+        const totalChunks = Array.isArray(allChunks) ? allChunks.length : 1;
 
-        // ── PR-E chunk checkpoint: read existing pass1a_chunk_cache_v1 artifact ──
-        // If the source_hash matches the current job/manuscript/chunk-count
-        // identity, pre-populate the in-memory cache so already-completed chunks
-        // are skipped. Otherwise the cache is ignored and all chunks re-run.
-        const pass1aChunkCount = Array.isArray(pass1aChunks) ? pass1aChunks.length : 1;
+        // ── 1. Chunk routing manifest (setup-tax elimination) ─────────────
+        // On first invocation: build routing manifest and persist as artifact
+        // so resumed invocations skip expensive manuscript fetch + routing.
+        const routingManifestType = 'phase1a_chunk_routing_manifest_v1';
+        const routingManifestHash = createHash('sha256')
+          .update(`${String(job.id)}:${String(job.manuscript_id)}:routing:${totalChunks}`)
+          .digest('hex');
+
+        // Persist routing manifest on first invocation (idempotent upsert).
+        const routingManifestContent = {
+          job_id: String(job.id),
+          manuscript_id: Number(job.manuscript_id),
+          total_chunks: totalChunks,
+          source_hash: routingManifestHash,
+          created_at: new Date().toISOString(),
+          deploy_sha: DEPLOYED_SHA,
+        };
+        await upsertEvaluationArtifact({
+          supabase,
+          jobId: String(job.id),
+          manuscriptId: Number(job.manuscript_id),
+          artifactType: routingManifestType,
+          content: routingManifestContent,
+          sourceHash: routingManifestHash,
+          artifactVersion: routingManifestType,
+        });
+        console.log(`[phase_1a] ${jobId}: routing manifest persisted (${totalChunks} chunks)`);
+
+        // ── 2. Load pass1a chunk cache ────────────────────────────────────
         const pass1aSourceHash = createHash('sha256')
-          .update(`${String(job.id)}:${String(job.manuscript_id)}:${pass1aChunkCount}`)
+          .update(`${String(job.id)}:${String(job.manuscript_id)}:${totalChunks}`)
           .digest('hex');
 
         const pass1aCacheMap = new Map<number, Pass1aChunkOutput>();
@@ -3724,160 +4422,534 @@ export async function processEvaluationJob(
             .eq('artifact_type', 'pass1a_chunk_cache_v1')
             .maybeSingle();
 
-          const existingPass1aCache = pass1aCacheRow?.content as
-            | Pass1aChunkCacheArtifact
-            | null
-            | undefined;
-
-          if (existingPass1aCache && existingPass1aCache.source_hash === pass1aSourceHash) {
-            for (const [k, v] of Object.entries(existingPass1aCache.chunks ?? {})) {
+          const existingCache = pass1aCacheRow?.content as Pass1aChunkCacheArtifact | null | undefined;
+          if (existingCache && existingCache.source_hash === pass1aSourceHash) {
+            for (const [k, v] of Object.entries(existingCache.chunks ?? {})) {
               pass1aCacheMap.set(Number(k), v.result);
             }
-            console.log(
-              `[phase_1a] Resuming from cache: ${pass1aCacheMap.size}/${pass1aChunkCount} chunks already done`,
-            );
-          } else if (existingPass1aCache) {
-            console.log(
-              `[phase_1a] Ignoring stale pass1a_chunk_cache_v1 (source_hash mismatch)`,
-            );
+            console.log(`[phase_1a] ${jobId}: cache loaded — ${pass1aCacheMap.size}/${totalChunks} chunks already done`);
+          } else if (existingCache) {
+            console.log(`[phase_1a] ${jobId}: stale cache (hash mismatch) — starting fresh`);
           }
         } catch (cacheReadErr) {
-          console.warn(
-            `[phase_1a] pass1a_chunk_cache_v1 read failed (non-fatal, will run fresh)`,
-            cacheReadErr instanceof Error ? cacheReadErr.message : String(cacheReadErr),
-          );
+          console.warn(`[phase_1a] ${jobId}: cache read failed (non-fatal, will run fresh)`,
+            cacheReadErr instanceof Error ? cacheReadErr.message : String(cacheReadErr));
         }
 
-        const onPass1aChunkComplete = async (
-          chunkIndex: number,
-          result: Pass1aChunkOutput,
-        ): Promise<void> => {
-          pass1aCacheMap.set(chunkIndex, result);
-          const cacheArtifact: Pass1aChunkCacheArtifact = {
-            job_id: String(job.id),
-            source_hash: pass1aSourceHash,
-            chunks: Object.fromEntries(
-              [...pass1aCacheMap.entries()].map(([i, r]) => [
-                i,
-                { chunk_index: i, result: r, completed_at: new Date().toISOString() },
-              ]),
-            ),
-            total_expected: pass1aChunkCount,
-            cached_at: new Date().toISOString(),
+        // ── 3. Build batch state from progress JSONB ──────────────────────
+        const existingBatchState = progressState.phase1a_batch_state as Record<string, unknown> | undefined;
+
+        // Cursor = next chunk index to process. Derived from cache (source of
+        // truth) rather than stored cursor to handle cache-ahead-of-cursor edge cases.
+        const completedIndexes = new Set<number>(pass1aCacheMap.keys());
+        const allChunkIndexes = Array.isArray(allChunks)
+          ? allChunks.map(c => c.chunk_index ?? 0)
+          : [0];
+        const pendingIndexes = allChunkIndexes.filter(i => !completedIndexes.has(i));
+
+        const batchIndex = (existingBatchState?.batch_index as number | undefined) ?? 0;
+        const batchesTotal = Math.ceil(totalChunks / phase1aConfig.batchSize);
+
+        console.log(`[phase_1a] ${jobId}: batch state — completed=${completedIndexes.size}/${totalChunks} pending=${pendingIndexes.length} batchIndex=${batchIndex}`);
+
+        // ── 4. Determine what this invocation should do ───────────────────
+        const allChunksDone = pendingIndexes.length === 0;
+        const preflightStatus = (existingBatchState?.preflight_status as string | undefined) ?? 'NOT_STARTED';
+        const ledgerAssemblyStatus = (existingBatchState?.ledger_assembly_status as string | undefined) ?? 'NOT_STARTED';
+
+        if (!allChunksDone) {
+          // ── CHUNK BATCH EXECUTION PATH ──────────────────────────────────
+          // Select next safe chunk slice — respect invocation budget.
+          const budgetMs = phase1aConfig.invocationBudgetMs;
+          const safetyMarginMs = phase1aConfig.safetyMarginMs;
+
+          // Select next N pending chunks up to batchSize.
+          const batchSliceIndexes = pendingIndexes.slice(0, phase1aConfig.batchSize);
+          const batchChunks = Array.isArray(allChunks)
+            ? allChunks.filter(c => batchSliceIndexes.includes(c.chunk_index ?? 0))
+            : [{ chunk_index: 0, content: manuscriptWithContent.content || '' }];
+
+          const batchStartedAt = new Date().toISOString();
+          const batchStartMs = Date.now();
+
+          // Append phase_log: batch started
+          const batchStartedLogEntry = {
+            at: batchStartedAt,
+            event: 'phase1a_batch_started',
+            stage: 'phase_1a',
+            batch_index: batchIndex,
+            chunks_in_batch: batchChunks.length,
+            chunks_completed_so_far: completedIndexes.size,
+            chunks_remaining: pendingIndexes.length,
+            total_chunks: totalChunks,
+            worker_id: job.claimed_by ?? 'unknown',
+            deploy_sha: DEPLOYED_SHA,
           };
-          await upsertEvaluationArtifact({
-            supabase,
-            jobId: String(job.id),
-            manuscriptId: Number(job.manuscript_id),
-            artifactType: 'pass1a_chunk_cache_v1',
-            content: cacheArtifact,
-            sourceHash: pass1aSourceHash,
-            artifactVersion: 'pass1a_chunk_cache_v1',
-          });
-        };
+          await markRunning('Analyzing manuscript', 1, 'phase_1a');
 
-        // ── phase_1: P1A (c=5) + P3A (c=2) run in parallel ───────────────────────
-        // Both read the raw manuscript independently. Neither waits for the other.
-        // P3A is non-fatal: a failed preflight → degraded artifact, job continues.
-        console.log(`[Processor] ${jobId}: phase_1a — launching P1A(c=5) + P3A(c=2) in parallel`);
+          console.log(`[phase_1a] ${jobId}: batch ${batchIndex + 1}/${batchesTotal} — processing chunks [${batchSliceIndexes.join(',')}] budget=${budgetMs}ms`);
 
-        const [pass1aSettled, pass3aSettled] = await Promise.allSettled([
-          // P1A: character arc sweep, concurrency=5
-          runPass1a({
-            manuscriptText: manuscriptWithContent.content || '',
-            manuscriptChunks: pass1aChunks,
-            workType: manuscriptWithContent.work_type || 'novel',
-            title: manuscriptWithContent.title,
-            openaiApiKey,
-            jobId: String(job.id),
-            _chunkCache: pass1aCacheMap,
-            _onChunkComplete: onPass1aChunkComplete,
-          }),
-          // P3A: independent full-manuscript read, concurrency=2
-          runPass3Preflight({
-            manuscriptChunks: pass1aChunks ?? [],
-            title: manuscriptWithContent.title,
-            workType: manuscriptWithContent.work_type || 'novel',
-            jobId: String(job.id),
-            manuscriptId: Number(job.manuscript_id),
-            openaiApiKey,
-            supabase,
-            _chunkConcurrency: 2,
-            _onChunkHeartbeat: () => {
-              // Non-blocking heartbeat for watchdog — P3A chunks are small, no DB write needed
-            },
-          }),
-        ]);
+          // onChunkComplete: persist cache entry + pulse after each chunk.
+          const onPass1aChunkComplete = async (
+            chunkIndex: number,
+            result: Pass1aChunkOutput,
+          ): Promise<void> => {
+            pass1aCacheMap.set(chunkIndex, result);
+            const cacheArtifact: Pass1aChunkCacheArtifact = {
+              job_id: String(job.id),
+              source_hash: pass1aSourceHash,
+              chunks: Object.fromEntries(
+                [...pass1aCacheMap.entries()].map(([i, r]) => [
+                  i,
+                  { chunk_index: i, result: r, completed_at: new Date().toISOString() },
+                ]),
+              ),
+              total_expected: totalChunks,
+              cached_at: new Date().toISOString(),
+            };
+            await upsertEvaluationArtifact({
+              supabase,
+              jobId: String(job.id),
+              manuscriptId: Number(job.manuscript_id),
+              artifactType: 'pass1a_chunk_cache_v1',
+              content: cacheArtifact,
+              sourceHash: pass1aSourceHash,
+              artifactVersion: 'pass1a_chunk_cache_v1',
+            });
+            // Pulse after each chunk — confirms real work to watchdog.
+            const pulseNow = new Date().toISOString();
+            void supabase
+              .from('evaluation_jobs')
+              .update({ worker_pulse_at: pulseNow, updated_at: pulseNow })
+              .eq('id', String(job.id))
+              .eq('status', JOB_STATUS.RUNNING)
+              .then(({ error }: { error: unknown }) => {
+                if (error) console.warn(`[phase_1a] worker_pulse_at stamp failed chunk=${chunkIndex}`, error);
+                else console.log(`[phase_1a] worker_pulse_at stamped chunk=${chunkIndex} at=${pulseNow}`);
+              });
+          };
 
-        // Unwrap P1A result — fatal if failed
-        if (pass1aSettled.status === 'rejected') {
-          throw pass1aSettled.reason instanceof Error
-            ? pass1aSettled.reason
-            : new Error(String(pass1aSettled.reason));
-        }
-        const pass1aResult = pass1aSettled.value;
+          // Budget check before running: bail if insufficient time.
+          const elapsedBeforeBatch = Date.now() - phase1aInvocationStartMs;
+          const remainingBudgetMs = budgetMs - elapsedBeforeBatch;
+          if (remainingBudgetMs < safetyMarginMs) {
+            // Not enough time — self-chain immediately without processing.
+            console.warn(`[phase_1a] ${jobId}: budget exhausted before batch start (remaining=${remainingBudgetMs}ms < margin=${safetyMarginMs}ms) — self-chaining`);
+          } else {
+            // Run the bounded chunk batch.
+            const pass1aBatchResult = await runPass1a({
+              manuscriptText: manuscriptWithContent.content || '',
+              manuscriptChunks: batchChunks,
+              workType: manuscriptWithContent.work_type || 'novel',
+              title: manuscriptWithContent.title,
+              openaiApiKey,
+              jobId: String(job.id),
+              _chunkCache: pass1aCacheMap,
+              _onChunkComplete: onPass1aChunkComplete,
+            });
 
-        // Unwrap P3A result — non-fatal
-        if (pass3aSettled.status === 'rejected') {
-          console.warn(`[Processor] ${jobId}: phase_1a — P3A failed (non-fatal, degraded preflight persisted):`,
-            pass3aSettled.reason instanceof Error ? pass3aSettled.reason.message : String(pass3aSettled.reason));
-        } else {
-          console.log(`[Processor] ${jobId}: phase_1a — P3A complete:`, {
-            authority: pass3aSettled.value.preflight.preflight_authority,
-            coverage: `${pass3aSettled.value.preflight.manuscript_read_status.chunks_received}/${pass3aSettled.value.preflight.manuscript_read_status.chunks_expected}`,
-            duration_ms: pass3aSettled.value.durationMs,
-          });
-        }
+            const batchDurationMs = Date.now() - batchStartMs;
 
-        if (pass1aResult.chunkOutputs.length === 0) {
-          const firstChunkError = pass1aResult.failedChunkErrors[0]?.error ?? 'unknown_error';
-          const zeroOutputError =
-            `Pass 1A produced zero chunk outputs; total=${pass1aResult.total_chunks}, ` +
-            `successful=${pass1aResult.successful_chunks}, ` +
-            `failed=[${pass1aResult.failedChunkIndices.join(', ')}], ` +
-            `first_error=${firstChunkError}`;
+            console.log(`[phase_1a] ${jobId}: batch ${batchIndex + 1} complete in ${batchDurationMs}ms — success=${pass1aBatchResult.successful_chunks} failed=${pass1aBatchResult.failedChunkIndices.length}`);
 
-          await markFailed(
-            zeroOutputError,
-            'PASS1A_ZERO_CHUNK_OUTPUTS',
-            {
-              pipelineStage: 'phase_1a',
-              reasonCodes: ['PASS1A_ZERO_CHUNK_OUTPUTS'],
-              diagnostics: {
-                total_chunks: pass1aResult.total_chunks,
-                successful_chunks: pass1aResult.successful_chunks,
-                failed_chunk_indices: pass1aResult.failedChunkIndices,
-                failed_chunk_errors: pass1aResult.failedChunkErrors,
-                model: pass1aResult.model,
-                prompt_version: pass1aResult.prompt_version,
+            if (pass1aBatchResult.successful_chunks === 0 && pass1aBatchResult.total_chunks > 0) {
+              // All chunks in this batch failed — this is a real failure, not self-chain.
+              const firstErr = pass1aBatchResult.failedChunkErrors[0]?.error ?? 'unknown_error';
+              throw new Error(`Phase 1A batch ${batchIndex + 1}: all ${batchChunks.length} chunks failed. First error: ${firstErr}`);
+            }
+          }
+
+          // Recompute pending after batch.
+          const completedAfterBatch = new Set<number>(pass1aCacheMap.keys());
+          const pendingAfterBatch = allChunkIndexes.filter(i => !completedAfterBatch.has(i));
+          const batchCompletedAt = new Date().toISOString();
+
+          // Update phase1a_batch_state in progress.
+          const updatedBatchState = {
+            batch_index: batchIndex + 1,
+            batches_total: batchesTotal,
+            batch_size: phase1aConfig.batchSize,
+            concurrency: phase1aConfig.concurrency,
+            invocation_budget_ms: phase1aConfig.invocationBudgetMs,
+            safety_margin_ms: phase1aConfig.safetyMarginMs,
+            total_chunks: totalChunks,
+            completed_chunk_indexes: [...completedAfterBatch],
+            pending_chunk_indexes: pendingAfterBatch,
+            chunks_completed: completedAfterBatch.size,
+            chunks_remaining: pendingAfterBatch.length,
+            last_batch_started_at: batchStartedAt,
+            last_batch_completed_at: batchCompletedAt,
+            last_worker_id: job.claimed_by ?? 'unknown',
+            last_deploy_sha: DEPLOYED_SHA,
+            preflight_status: preflightStatus,
+            ledger_assembly_status: ledgerAssemblyStatus,
+          };
+
+          const batchCompletedLogEntry = {
+            at: batchCompletedAt,
+            event: 'phase1a_batch_completed',
+            stage: 'phase_1a',
+            batch_index: batchIndex,
+            chunks_completed: completedAfterBatch.size,
+            chunks_remaining: pendingAfterBatch.length,
+            total_chunks: totalChunks,
+          };
+
+          if (pendingAfterBatch.length > 0) {
+            // ── SELF-CHAIN: more chunks remain ──────────────────────────
+            // Intentional continuation — NOT a failure.
+            // Re-queue phase_1a, release lease, kick next worker.
+            // DO NOT increment attempt_count.
+            const selfChainAt = new Date().toISOString();
+            const selfChainLogEntry = {
+              at: selfChainAt,
+              event: 'phase1a_self_chain_queued',
+              stage: 'phase_1a',
+              next_batch_index: batchIndex + 1,
+              chunks_remaining: pendingAfterBatch.length,
+              chunks_completed: completedAfterBatch.size,
+              total_chunks: totalChunks,
+            };
+
+            const updatedProgress = {
+              ...progressState,
+              phase: 'phase_1a',
+              phase_status: 'queued',
+              message: `Analyzing manuscript (${completedAfterBatch.size}/${totalChunks} sections)`,
+              phase1a_batch_state: updatedBatchState,
+              phase_log: [
+                ...((progressState.phase_log as unknown[]) ?? []),
+                batchStartedLogEntry,
+                batchCompletedLogEntry,
+                selfChainLogEntry,
+              ],
+            };
+
+            const { error: selfChainErr } = await supabase
+              .from('evaluation_jobs')
+              .update({
+                status: JOB_STATUS.QUEUED,
+                phase: PHASES.PHASE_1A,
+                phase_status: JOB_STATUS.QUEUED,
+                claimed_by: null,
+                lease_token: null,
+                lease_until: null,
+                worker_pulse_at: null,
+                updated_at: selfChainAt,
+                progress: updatedProgress,
+              })
+              .eq('id', jobId)
+              .eq('status', JOB_STATUS.RUNNING);
+
+            if (selfChainErr) {
+              // Self-chain write failed — do not swallow this, it will cause orphan.
+              throw new Error(`Phase 1A self-chain re-queue failed: ${selfChainErr.message}`);
+            }
+
+            console.log(`[phase_1a] ${jobId}: self-chained — batch ${batchIndex + 1}/${batchesTotal} done, ${pendingAfterBatch.length} chunks remain`);
+
+            // Kick the next worker immediately — 150ms delay for DB commit visibility.
+            await new Promise(r => setTimeout(r, 150));
+            await kickPhase1aWorker();
+
+            clearInterval(leaseRenewalLoopP1a);
+            return { success: true };
+          }
+
+          // All chunks are done after this batch — fall through to preflight + ledger.
+          console.log(`[phase_1a] ${jobId}: all ${totalChunks} chunks cached — proceeding to preflight`);
+
+          // Persist final batch state before preflight.
+          await supabase
+            .from('evaluation_jobs')
+            .update({
+              worker_pulse_at: new Date().toISOString(),
+              progress: {
+                ...progressState,
+                phase1a_batch_state: { ...updatedBatchState, preflight_status: 'NOT_STARTED' },
+                phase_log: [
+                  ...((progressState.phase_log as unknown[]) ?? []),
+                  batchStartedLogEntry,
+                  batchCompletedLogEntry,
+                  { at: new Date().toISOString(), event: 'phase1a_all_chunks_complete', stage: 'phase_1a', total_chunks: totalChunks },
+                ],
               },
-            },
-          );
-          return { success: false, error: zeroOutputError };
+            })
+            .eq('id', jobId)
+            .eq('status', JOB_STATUS.RUNNING);
         }
 
-        const totalChunksPhase1a = Array.isArray(pass1aChunks) ? pass1aChunks.length : 1;
+        // ── 5. Pass3 Preflight — resumable 4-state machine ───────────────
+        // States: NOT_STARTED → IN_PROGRESS → DONE (happy path)
+        //         IN_PROGRESS (stale, prior invocation crashed) → reset to NOT_STARTED → re-run
+        //         SELF_CHAINED (budget expired prior invocation) → re-run from start
+        //         DONE → skip block
+        //
+        // Both inputs to runPass3Preflight are durable committed artifacts
+        // (pass1a_chunk_cache_v1 + Phase 0 Gold Primer calibration), so
+        // re-running from scratch is always safe — Phase 0 is never re-run.
+        let pass3aResult: Awaited<ReturnType<typeof runPass3Preflight>> | null = null;
+
+        // Normalize legacy values: 'RUNNING' → 'IN_PROGRESS', 'COMPLETE' → 'DONE'.
+        const normalizedPreflightStatus =
+          preflightStatus === 'RUNNING' ? 'IN_PROGRESS'
+          : preflightStatus === 'COMPLETE' ? 'DONE'
+          : preflightStatus;
+
+        if (normalizedPreflightStatus === 'DONE') {
+          console.log(`[phase_1a] ${jobId}: preflight already DONE — loading from artifact`);
+          // Preflight artifact already persisted by runPass3Preflight on prior invocation.
+          // pass3aResult stays null — ledger assembly below handles this gracefully.
+        } else {
+          // IN_PROGRESS (crashed) / SELF_CHAINED / NOT_STARTED → run preflight.
+          const isCrashRecovery = normalizedPreflightStatus === 'IN_PROGRESS';
+          const isSelfChainResume = normalizedPreflightStatus === 'SELF_CHAINED';
+          if (isCrashRecovery) {
+            console.log(`[phase_1a] ${jobId}: preflight IN_PROGRESS on entry — prior invocation crashed, resetting and re-running`);
+          } else if (isSelfChainResume) {
+            console.log(`[phase_1a] ${jobId}: preflight SELF_CHAINED — resuming with restart-from-scratch (inputs are durable)`);
+          } else {
+            console.log(`[phase_1a] ${jobId}: running Pass3 preflight (first attempt)`);
+          }
+
+          const preflightStartAt = new Date().toISOString();
+
+          // Stamp preflight_status=IN_PROGRESS in batch state.
+          await supabase
+            .from('evaluation_jobs')
+            .update({
+              worker_pulse_at: preflightStartAt,
+              progress: {
+                ...progressState,
+                phase1a_batch_state: {
+                  ...((progressState.phase1a_batch_state as Record<string, unknown>) ?? {}),
+                  preflight_status: 'IN_PROGRESS',
+                },
+                phase_log: [
+                  ...((progressState.phase_log as unknown[]) ?? []),
+                  {
+                    at: preflightStartAt,
+                    event: 'phase1a_preflight_started',
+                    stage: 'phase_1a',
+                    crash_recovery: isCrashRecovery,
+                    self_chain_resume: isSelfChainResume,
+                  },
+                ],
+              },
+            })
+            .eq('id', jobId)
+            .eq('status', JOB_STATUS.RUNNING);
+
+          // Invocation budget guard — race preflight against a timer.
+          const preflightBudgetMs =
+            phase1aConfig.invocationBudgetMs - phase1aConfig.safetyMarginMs;
+          const preflightStartMs = Date.now();
+
+          type PreflightTimeoutSentinel = { __preflightTimedOut: true };
+          const timeoutPromise = new Promise<PreflightTimeoutSentinel>((resolve) => {
+            setTimeout(
+              () => resolve({ __preflightTimedOut: true }),
+              Math.max(1_000, preflightBudgetMs),
+            );
+          });
+
+          const preflightPromise = runPass3Preflight({
+            manuscriptChunks: Array.isArray(allChunks) ? allChunks : [],
+            title: manuscriptWithContent.title,
+            workType: manuscriptWithContent.work_type || 'novel',
+            jobId: String(job.id),
+            manuscriptId: Number(job.manuscript_id),
+            openaiApiKey,
+            supabase,
+            _chunkConcurrency: phase1aConfig.preflightConcurrency,
+            _onChunkHeartbeat: () => {
+              // Non-blocking pulse for watchdog during preflight.
+            },
+          });
+
+          let raceResult:
+            | Awaited<ReturnType<typeof runPass3Preflight>>
+            | PreflightTimeoutSentinel
+            | null = null;
+          let preflightThrew: unknown = null;
+          try {
+            raceResult = await Promise.race([preflightPromise, timeoutPromise]);
+          } catch (err) {
+            preflightThrew = err;
+          }
+
+          const isTimeout =
+            raceResult !== null &&
+            typeof raceResult === 'object' &&
+            (raceResult as PreflightTimeoutSentinel).__preflightTimedOut === true;
+
+          if (isTimeout) {
+            // ── BUDGET EXPIRED → self-chain (NOT a failure) ───────────────
+            // Mark SELF_CHAINED, kick next worker, release lease, return.
+            // Do NOT increment attempt_count. preflightPromise keeps running
+            // in this dying invocation but its results are discarded; the
+            // next invocation restarts from scratch (inputs are durable).
+            const selfChainAt = new Date().toISOString();
+            const elapsedMs = Date.now() - preflightStartMs;
+            console.warn(
+              `[phase_1a] ${jobId}: preflight budget expired after ${elapsedMs}ms (budget=${preflightBudgetMs}ms) — self-chaining`,
+            );
+
+            const selfChainProgress = {
+              ...progressState,
+              phase: 'phase_1a',
+              phase_status: 'queued',
+              message: 'Analyzing manuscript (finalizing review)',
+              phase1a_batch_state: {
+                ...((progressState.phase1a_batch_state as Record<string, unknown>) ?? {}),
+                preflight_status: 'SELF_CHAINED',
+              },
+              phase_log: [
+                ...((progressState.phase_log as unknown[]) ?? []),
+                {
+                  at: selfChainAt,
+                  event: 'phase1a_preflight_self_chain_queued',
+                  stage: 'phase_1a',
+                  elapsed_ms: elapsedMs,
+                  budget_ms: preflightBudgetMs,
+                },
+              ],
+            };
+
+            const { error: preflightChainErr } = await supabase
+              .from('evaluation_jobs')
+              .update({
+                status: JOB_STATUS.QUEUED,
+                phase: PHASES.PHASE_1A,
+                phase_status: JOB_STATUS.QUEUED,
+                claimed_by: null,
+                lease_token: null,
+                lease_until: null,
+                worker_pulse_at: null,
+                updated_at: selfChainAt,
+                progress: selfChainProgress,
+              })
+              .eq('id', jobId)
+              .eq('status', JOB_STATUS.RUNNING);
+
+            if (preflightChainErr) {
+              throw new Error(
+                `Phase 1A preflight self-chain re-queue failed: ${preflightChainErr.message}`,
+              );
+            }
+
+            console.log(
+              `[phase_1a] ${jobId}: preflight self-chained — lease released, kicking next worker`,
+            );
+
+            await kickPhase1aWorker();
+            clearInterval(leaseRenewalLoopP1a);
+            return { success: true };
+          }
+
+          if (preflightThrew) {
+            // Preflight error (not a timeout) — degrade gracefully.
+            console.warn(`[phase_1a] ${jobId}: Pass3 preflight failed (non-fatal):`,
+              preflightThrew instanceof Error ? preflightThrew.message : String(preflightThrew));
+            pass3aResult = null;
+            // Mark DONE (degraded) so we don't retry preflight on every resume.
+            await supabase
+              .from('evaluation_jobs')
+              .update({
+                progress: {
+                  ...progressState,
+                  phase1a_batch_state: {
+                    ...((progressState.phase1a_batch_state as Record<string, unknown>) ?? {}),
+                    preflight_status: 'DONE',
+                    preflight_degraded: true,
+                  },
+                },
+              })
+              .eq('id', jobId)
+              .eq('status', JOB_STATUS.RUNNING);
+          } else {
+            // Happy path — preflight completed within budget.
+            pass3aResult = raceResult as Awaited<ReturnType<typeof runPass3Preflight>>;
+            const preflightCompletedAt = new Date().toISOString();
+            console.log(`[phase_1a] ${jobId}: Pass3 preflight complete`, {
+              authority: pass3aResult.preflight.preflight_authority,
+              coverage: `${pass3aResult.preflight.manuscript_read_status.chunks_received}/${pass3aResult.preflight.manuscript_read_status.chunks_expected}`,
+              duration_ms: pass3aResult.durationMs,
+            });
+
+            // Stamp preflight_status=DONE.
+            await supabase
+              .from('evaluation_jobs')
+              .update({
+                worker_pulse_at: preflightCompletedAt,
+                progress: {
+                  ...progressState,
+                  phase1a_batch_state: {
+                    ...((progressState.phase1a_batch_state as Record<string, unknown>) ?? {}),
+                    preflight_status: 'DONE',
+                  },
+                  phase_log: [
+                    ...((progressState.phase_log as unknown[]) ?? []),
+                    { at: preflightCompletedAt, event: 'phase1a_preflight_complete', stage: 'phase_1a', duration_ms: pass3aResult.durationMs },
+                  ],
+                },
+              })
+              .eq('id', jobId)
+              .eq('status', JOB_STATUS.RUNNING);
+          }
+        }
+
+        // ── 6. Assemble ledger + build Story Layer ────────────────────────
+        // Reconstruct full chunkOutputs from the completed cache map.
+        if (pass1aCacheMap.size < totalChunks) {
+          // Should not happen if we passed the allChunksDone gate, but guard anyway.
+          throw new Error(`Phase 1A ledger: cache has ${pass1aCacheMap.size}/${totalChunks} chunks — cannot assemble ledger`);
+        }
+
+        // Sort chunks by index to ensure consistent ledger ordering.
+        const sortedChunkOutputs: Pass1aChunkOutput[] = [...pass1aCacheMap.entries()]
+          .sort(([a], [b]) => a - b)
+          .map(([, output]) => output);
+
+        const ledgerAssemblyStartedAt = new Date().toISOString();
+        await supabase
+          .from('evaluation_jobs')
+          .update({
+            worker_pulse_at: ledgerAssemblyStartedAt,
+            progress: {
+              ...progressState,
+              phase1a_batch_state: {
+                ...((progressState.phase1a_batch_state as Record<string, unknown>) ?? {}),
+                ledger_assembly_status: 'RUNNING',
+              },
+              phase_log: [
+                ...((progressState.phase_log as unknown[]) ?? []),
+                { at: ledgerAssemblyStartedAt, event: 'phase1a_ledger_assembly_started', stage: 'phase_1a' },
+              ],
+            },
+          })
+          .eq('id', jobId)
+          .eq('status', JOB_STATUS.RUNNING);
 
         const characterLedger: Pass1aCharacterLedger = reduceCharacterEvidence({
-          chunkOutputs: pass1aResult.chunkOutputs,
+          chunkOutputs: sortedChunkOutputs,
           jobId: String(job.id),
-          totalChunksInManuscript: totalChunksPhase1a,
+          totalChunksInManuscript: totalChunks,
         });
 
         const characterLedgerV2Phase1a: CharacterLedgerV2 = buildCharacterLedgerV2({
           ledger: characterLedger,
-          chunkOutputs: pass1aResult.chunkOutputs,
+          chunkOutputs: sortedChunkOutputs,
           jobId: String(job.id),
-          totalChunksInManuscript: totalChunksPhase1a,
+          totalChunksInManuscript: totalChunks,
         });
 
         console.log(`[Processor] ${jobId}: phase_1a — character ledger ready`, {
-          duration_ms: Date.now() - phase1aStartMs,
           entries: characterLedger.entries.length,
           v2_active_blockers: characterLedgerV2Phase1a.activeBlockers.length,
         });
 
-        // Persist the character ledger artifact
+        // Persist character ledger artifact.
         await upsertEvaluationArtifact({
           supabase,
           jobId: String(job.id),
@@ -3886,12 +4958,13 @@ export async function processEvaluationJob(
           content: {
             job_id: String(job.id),
             manuscript_id: Number(job.manuscript_id),
-            created_at: new Date().toISOString(),
-            schema_version: 'pass1a_character_ledger_v1',
-            ledger_v1: characterLedger,
+            ...characterLedger,
             ledger_v2: characterLedgerV2Phase1a,
-            summary: {
-              entries: characterLedger.entries.length,
+            generated_at: new Date().toISOString(),
+            pipeline_stats: {
+              total_chunks: totalChunks,
+              successful_chunks: sortedChunkOutputs.length,
+              failed_chunks: 0,
               protagonists: characterLedger.coverage_summary.protagonists,
               co_protagonists: characterLedger.coverage_summary.co_protagonists,
               symbol_items: characterLedger.coverage_summary.symbol_payoff_items.length,
@@ -3907,7 +4980,7 @@ export async function processEvaluationJob(
 
         console.log(`[Processor] ${jobId}: phase_1a — ledger artifact persisted, building story layer`);
 
-        // ── PR12: Build 8-layer Story Layer payload from completed ledger ────────
+        // ── PR12: Build 8-layer Story Layer payload from completed ledger ──
         const storyLayerPayload = buildStoryLayerFromLedger(
           characterLedger,
           characterLedgerV2Phase1a,
@@ -3924,7 +4997,7 @@ export async function processEvaluationJob(
           blocking_reasons_count: qualityReport.blocking_reasons.length,
         });
 
-        // ── PR12: Persist pass1a_story_layer_v1 + ledger_quality_report_v1 ──────
+        // ── PR12: Persist pass1a_story_layer_v1 + ledger_quality_report_v1 ─
         const phase1aMeta = {
           job_id: String(job.id),
           evaluation_project_id: (job as Record<string, unknown>).evaluation_project_id as string | null ?? null,
@@ -3961,14 +5034,38 @@ export async function processEvaluationJob(
           },
         });
 
+        const storyLayerPersistedAt = new Date().toISOString();
         console.log(`[Processor] ${jobId}: phase_1a — story layer artifacts written`, {
           pass1a_story_layer_v1: storyLayerRefs.pass1a_story_layer_v1.artifact_id,
           ledger_quality_report_v1: storyLayerRefs.ledger_quality_report_v1.artifact_id,
         });
 
-        // ── PR12: Transition to awaiting_approval — stop worker cleanly ─────────
-        // Phase 2 CANNOT run from pass1a_story_layer_v1 directly.
-        // It requires accepted_story_ledger_v1 written by the Review Gate.
+        // ── Story Ledger lane map coverage warning (canon_correction_playbook_v1) ─
+        // Flag only — does NOT hard-block Phase 2 in v1. The lane map (Layer 1) is
+        // optional in v1; absence is logged so we can iterate prompt fidelity over
+        // time. When the ledger eventually carries the extensions, the flag goes
+        // away on its own.
+        const storyLedgerExtensionsForWarning =
+          (storyLayerPayload as { extensions?: StoryLedgerExtensions } | null | undefined)
+            ?.extensions ?? null;
+        const storyLedgerLaneMapWarning = shouldFlagStoryLedgerLaneMapWarning(
+          storyLedgerExtensionsForWarning,
+        );
+        if (storyLedgerLaneMapWarning) {
+          const existingMetadata =
+            ((job as { metadata?: Record<string, unknown> }).metadata && typeof (job as { metadata?: Record<string, unknown> }).metadata === 'object')
+              ? (job as { metadata: Record<string, unknown> }).metadata
+              : {};
+          (job as { metadata?: Record<string, unknown> }).metadata = {
+            ...existingMetadata,
+            story_ledger_lane_map_warning: true,
+          };
+          console.warn(
+            `[Processor] ${jobId}: phase_1a — story_ledger_lane_map empty; warning flag set (canon_correction_playbook_v1).`,
+          );
+        }
+
+        // ── 7. Open Review Gate ───────────────────────────────────────────
         const phase1aNow = new Date().toISOString();
         const phase1aHandoffProgress = {
           ...progressState,
@@ -3982,14 +5079,18 @@ export async function processEvaluationJob(
           quality_report_artifact_id: storyLayerRefs.ledger_quality_report_v1.artifact_id,
           gate_ready_status: qualityReport.gate_ready_status,
           hard_fail_present: qualityReport.hard_fail_present,
+          phase1a_batch_state: {
+            ...((progressState.phase1a_batch_state as Record<string, unknown>) ?? {}),
+            ledger_assembly_status: 'COMPLETE',
+            preflight_status: 'DONE',
+          },
+          phase_log: [
+            ...((progressState.phase_log as unknown[]) ?? []),
+            { at: storyLayerPersistedAt, event: 'phase1a_story_layer_persisted', stage: 'phase_1a' },
+            { at: phase1aNow, event: 'review_gate_opened', stage: 'phase_1a' },
+          ],
         };
 
-        // CANONICAL transition: phase_1a → review_gate
-        // - status remains 'queued' (JobStatus canonical set) so DB constraints hold
-        // - phase='review_gate' is NOT claimed by claim_evaluation_jobs RPC
-        //   (ClaimedJobPhaseSchema only accepts phase_1a | phase_2 | phase_3)
-        // - phase_status='awaiting_approval' is the human-readable gate state
-        // Worker will never re-claim this job until Review Gate sets phase='phase_2'
         const { data: phase1aHandoffRow, error: phase1aHandoffErr } = await supabase
           .from('evaluation_jobs')
           .update({
@@ -4054,8 +5155,191 @@ export async function processEvaluationJob(
     } // end phase_1a execution
 
     if (executionPhase === 'phase_2') {
+      // GUARD: Phase 2 must never fire at the exact millisecond Phase 1 completes.
+      // Previously job 3b7a549b-ea34-4b3d-ae85-30bc8b234576 had
+      // phase1_completed_at === phase2_started_at to the millisecond, indicating
+      // Phase 2 was triggered without any guard. Insert a deterministic settle
+      // delay so any in-flight Phase 1 commit can land before Phase 2 reads.
+      const phase1CompletedAtRaw = progressState.phase1_completed_at as string | undefined;
+      if (phase1CompletedAtRaw) {
+        const phase1CompletedMs = Date.parse(phase1CompletedAtRaw);
+        const sinceCompleteMs = Date.now() - phase1CompletedMs;
+        if (Number.isFinite(phase1CompletedMs) && sinceCompleteMs < 500) {
+          const settleDelayMs = Math.max(500 - sinceCompleteMs, 0);
+          console.log(`[phase_2] ${jobId}: settle delay ${settleDelayMs}ms (phase1_completed_at is ${sinceCompleteMs}ms ago)`);
+          await new Promise((resolve) => setTimeout(resolve, settleDelayMs));
+        }
+      }
+
       await markRunning('Resuming from phase 1 handoff', 1, 'phase_2');
       refreshPhaseDeadline(progressState.phase2_started_at as string | undefined);
+
+      // ── GOVERNANCE GATE: accepted_story_ledger_v1 is required before Phase 2 ──
+      // This is the author-approved contract. Phase 2 must not score from unverified extraction.
+      const { buildAuthorCorrectionsBlock: buildCorrectionsBlock } = await import('@/lib/evaluation/pipeline/prompts/pass2-editorial');
+
+      const { data: acceptedLedgerRow, error: acceptedLedgerErr } = await supabase
+        .from('evaluation_artifacts')
+        .select('content')
+        .eq('job_id', job.id)
+        .eq('artifact_type', 'accepted_story_ledger_v1')
+        .maybeSingle();
+
+      if (acceptedLedgerErr) {
+        console.error(`[phase_2] ${jobId}: accepted_story_ledger_v1 read error`, acceptedLedgerErr.message);
+        await markFailed(
+          'accepted_story_ledger_v1 read error — will retry',
+          'MISSING_ACCEPTED_STORY_LEDGER',
+          { pipelineStage: 'phase_2' }
+        );
+        return { success: false, error: 'MISSING_ACCEPTED_STORY_LEDGER' };
+      }
+
+      if (!acceptedLedgerRow?.content) {
+        console.error(`[phase_2] ${jobId}: accepted_story_ledger_v1 missing — author approval required`);
+        await markFailed(
+          'Phase 2 cannot start before author Story Layer approval.',
+          'MISSING_ACCEPTED_STORY_LEDGER',
+          { pipelineStage: 'phase_2' }
+        );
+        return { success: false, error: 'MISSING_ACCEPTED_STORY_LEDGER' };
+      }
+
+      const ledgerContent = acceptedLedgerRow.content as Record<string, unknown>;
+      const govRail = ledgerContent.governance_rail as Record<string, unknown> | undefined;
+
+      if (!govRail) {
+        console.error(`[phase_2] ${jobId}: governance_rail missing from accepted_story_ledger_v1`);
+        await markFailed(
+          'Phase 2 cannot start without author governance rail.',
+          'MISSING_AUTHOR_GOVERNANCE_RAIL',
+          { pipelineStage: 'phase_2' }
+        );
+        return { success: false, error: 'MISSING_AUTHOR_GOVERNANCE_RAIL' };
+      }
+
+      const layerDecisions = govRail.layer_decisions as Record<string, unknown> | undefined;
+      if (!layerDecisions || Object.keys(layerDecisions).length < 8) {
+        console.error(`[phase_2] ${jobId}: incomplete layer_decisions — found ${Object.keys(layerDecisions ?? {}).length}/8`);
+        await markFailed(
+          'Phase 2 cannot start until all Story Layer layers have author decisions.',
+          'INCOMPLETE_AUTHOR_LAYER_DECISIONS',
+          { pipelineStage: 'phase_2', diagnostics: { found: Object.keys(layerDecisions ?? {}).length, required: 8 } }
+        );
+        return { success: false, error: 'INCOMPLETE_AUTHOR_LAYER_DECISIONS' };
+      }
+
+      const authorCorrectionsBlock = buildCorrectionsBlock(govRail);
+      if (authorCorrectionsBlock) {
+        console.log(`[phase_2] ${jobId}: AUTHOR CORRECTIONS BLOCK injected (${authorCorrectionsBlock.length} chars) — governing context active`);
+      } else {
+        console.log(`[phase_2] ${jobId}: clean approval — no author corrections to inject`);
+      }
+      // ── END GOVERNANCE GATE ──
+
+      const runPass12ForHandoffRecovery = async (
+        prebuiltLedger:
+          | { ledger: Pass1aCharacterLedger; ledgerV2: CharacterLedgerV2 }
+          | undefined,
+      ): Promise<
+        | { ok: true; pass1Output: SinglePassOutput; pass2Output: SinglePassOutput }
+        | { ok: false; error: string; errorCode: string }
+      > => {
+        try {
+          const [{ runPass1 }, { runPass2 }, { enforcePass2LexicalIndependence }, { loadCanonicalRegistry }, { buildLedgerBlockForPrompt }] = await Promise.all([
+            import('@/lib/evaluation/pipeline/runPass1'),
+            import('@/lib/evaluation/pipeline/runPass2'),
+            import('@/lib/evaluation/pipeline/pass2IndependenceGuard'),
+            import('@/lib/governance/canonRegistry'),
+            import('@/lib/evaluation/pipeline/buildLedgerBlock'),
+          ]);
+
+          const registry = loadCanonicalRegistry();
+          const ledgerBlock = prebuiltLedger
+            ? buildLedgerBlockForPrompt(prebuiltLedger.ledger, prebuiltLedger.ledgerV2)
+            : '';
+
+          const chunkHeartbeat = () => {
+            const pulseNow = new Date().toISOString();
+            void supabase
+              .from('evaluation_jobs')
+              .update({ worker_pulse_at: pulseNow })
+              .eq('id', jobId)
+              .eq('status', JOB_STATUS.RUNNING)
+              .then(({ error }: { error: unknown }) => {
+                if (error) {
+                  console.warn('[phase_2] worker_pulse_at stamp failed (non-fatal)', error);
+                }
+              });
+          };
+
+          const [pass1Settled, pass2Settled] = await Promise.allSettled([
+            runPass1({
+              manuscriptText: manuscriptWithContent.content || '',
+              manuscriptChunks: manuscriptChunksForPipeline,
+              workType: manuscriptWithContent.work_type || 'novel',
+              title: manuscriptWithContent.title,
+              executionMode: 'TRUSTED_PATH',
+              openaiApiKey,
+              jobId: String(job.id),
+              openAiTimeoutMs: timeoutResolution.openAiTimeoutMs,
+              registry,
+              _chunkConcurrency: prebuiltLedger ? 3 : undefined,
+              characterLedgerBlock: ledgerBlock || undefined,
+              _onChunkHeartbeat: chunkHeartbeat,
+            }),
+            runPass2({
+              manuscriptText: manuscriptWithContent.content || '',
+              manuscriptChunks: manuscriptChunksForPipeline,
+              workType: manuscriptWithContent.work_type || 'novel',
+              title: manuscriptWithContent.title,
+              executionMode: 'TRUSTED_PATH',
+              model: getCanonicalPass2Model(openAiModel),
+              openaiApiKey,
+              manuscriptId: String(manuscriptWithContent.id),
+              jobId: String(job.id),
+              openAiTimeoutMs: timeoutResolution.openAiTimeoutMs,
+              registry,
+              _chunkConcurrency: prebuiltLedger ? 3 : undefined,
+              characterLedgerBlock: ledgerBlock || undefined,
+              authorCorrectionsBlock,
+              _onChunkHeartbeat: chunkHeartbeat,
+            }),
+          ]);
+
+          if (pass1Settled.status === 'rejected') {
+            const msg = pass1Settled.reason instanceof Error ? pass1Settled.reason.message : String(pass1Settled.reason);
+            const code = msg.includes('CHUNK_ROUTING_NOT_ENGAGED') ? 'CHUNK_ROUTING_NOT_ENGAGED' : 'PASS1_FAILED';
+            return { ok: false, error: msg, errorCode: code };
+          }
+
+          if (pass2Settled.status === 'rejected') {
+            const msg = pass2Settled.reason instanceof Error ? pass2Settled.reason.message : String(pass2Settled.reason);
+            const code = msg.includes('CHUNK_ROUTING_NOT_ENGAGED') ? 'CHUNK_ROUTING_NOT_ENGAGED' : 'PASS2_FAILED';
+            return { ok: false, error: msg, errorCode: code };
+          }
+
+          const pass1Output = pass1Settled.value;
+          const independenceResult = enforcePass2LexicalIndependence(pass1Output, pass2Settled.value);
+          if (!independenceResult.ok) {
+            return {
+              ok: false,
+              error: `Pass 2 lexical independence guard failed after rewrite (keys: ${independenceResult.failedKeys.join(', ')})`,
+              errorCode: 'PASS2_INDEPENDENCE_REWRITE_FAILED',
+            };
+          }
+
+          return {
+            ok: true,
+            pass1Output,
+            pass2Output: independenceResult.output,
+          };
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          const code = msg.includes('CHUNK_ROUTING_NOT_ENGAGED') ? 'CHUNK_ROUTING_NOT_ENGAGED' : 'PHASE2_PASS12_FAILED';
+          return { ok: false, error: msg, errorCode: code };
+        }
+      };
 
       const { data: handoffRow, error: handoffReadError } = await supabase
         .from('evaluation_artifacts')
@@ -4129,61 +5413,19 @@ export async function processEvaluationJob(
 
           let capturedPass1: SinglePassOutput | undefined;
           let capturedPass2: SinglePassOutput | undefined;
-          const { runPass1: realRunPass1 } = await import('@/lib/evaluation/pipeline/runPass1');
-          const { runPass2: realRunPass2 } = await import('@/lib/evaluation/pipeline/runPass2');
 
           try {
-            const p2CaptureResult = await runPipeline({
-              manuscriptText: manuscriptWithContent.content || '',
-              manuscriptChunks: manuscriptChunksForPipeline,
-              workType: manuscriptWithContent.work_type || 'novel',
-              title: manuscriptWithContent.title,
-              jobId: String(job.id),
-              model: getCanonicalPipelineModel(openAiModel),
-              openaiApiKey,
-              manuscriptId: String(manuscriptWithContent.id),
-              executionMode: 'TRUSTED_PATH',
-              _passTimeoutMs: timeoutResolution.passTimeoutMs,
-              _openAiTimeoutMs: timeoutResolution.openAiTimeoutMs,
-              ...(prebuiltLedgerP2 ? { _prebuiltCharacterLedger: prebuiltLedgerP2 } : {}),
-              _runners: {
-                runPass1: async (opts) => {
-                  const result = await realRunPass1(opts);
-                  capturedPass1 = result;
-                  return result;
-                },
-                runPass2: async (opts) => {
-                  const result = await realRunPass2(opts);
-                  capturedPass2 = result;
-                  return result;
-                },
-              },
-              onHeartbeat: async (stage) => {
-                await assertJobWithinSla({
-                  supabase,
-                  jobId,
-                  hardDeadlineMs,
-                  stage,
-                  expectedLeaseToken,
-                  expectedClaimedBy,
-                });
-                await renewEvaluationJobLease({
-                  supabase, jobId, leaseMs: runtimeConfig.worker.leaseMs, stage, hardDeadlineMs,
-                });
-              },
-            });
-
-            if (!p2CaptureResult.ok) {
-              const errCode = 'error_code' in p2CaptureResult ? p2CaptureResult.error_code : 'PHASE2_PASS12_FAILED';
-              console.error(`[phase_2] ${jobId}: Pass 1+2 failed`, errCode);
-              await markFailed(String(errCode), 'PHASE2_PASS12_FAILED', { pipelineStage: 'phase_2' });
-              return { success: false, error: String(errCode) };
+            const pass12Recovery = await runPass12ForHandoffRecovery(prebuiltLedgerP2);
+            if (pass12Recovery.ok === false) {
+              console.error(`[phase_2] ${jobId}: Pass 1+2 handoff recovery failed`, {
+                error_code: pass12Recovery.errorCode,
+                error: pass12Recovery.error,
+              });
+              await markFailed(pass12Recovery.error, 'PHASE2_PASS12_FAILED', { pipelineStage: 'phase_2' });
+              return { success: false, error: pass12Recovery.errorCode };
             }
-          } catch (pipelineRunErrP2) {
-            const errMsg = pipelineRunErrP2 instanceof Error ? pipelineRunErrP2.message : String(pipelineRunErrP2);
-            console.error(`[phase_2] ${jobId}: Pass 1+2 pipeline threw`, errMsg);
-            await markFailed(errMsg, 'PHASE2_PASS12_FAILED', { pipelineStage: 'phase_2' });
-            return { success: false, error: errMsg };
+            capturedPass1 = pass12Recovery.pass1Output;
+            capturedPass2 = pass12Recovery.pass2Output;
           } finally {
             clearInterval(leaseRenewalLoopP2);
           }
@@ -4213,6 +5455,7 @@ export async function processEvaluationJob(
             promptVersion: 'pass12_handoff_v1',
             model: getCanonicalPipelineModel(openAiModel),
           });
+          await assertReviewGatePassedBeforeHandoff(supabase, String(job.id));
           await upsertEvaluationArtifact({
             supabase,
             jobId: String(job.id),
@@ -4288,48 +5531,15 @@ export async function processEvaluationJob(
 
         let capturedPass1Short: SinglePassOutput | undefined;
         let capturedPass2Short: SinglePassOutput | undefined;
-        const { runPass1: realRunPass1Short } = await import('@/lib/evaluation/pipeline/runPass1');
-        const { runPass2: realRunPass2Short } = await import('@/lib/evaluation/pipeline/runPass2');
 
         try {
-          const p2ShortResult = await runPipeline({
-            manuscriptText: manuscriptWithContent.content || '',
-            manuscriptChunks: manuscriptChunksForPipeline,
-            workType: manuscriptWithContent.work_type || 'novel',
-            title: manuscriptWithContent.title,
-            jobId: String(job.id),
-            model: getCanonicalPipelineModel(openAiModel),
-            openaiApiKey,
-            manuscriptId: String(manuscriptWithContent.id),
-            executionMode: 'TRUSTED_PATH',
-            _passTimeoutMs: timeoutResolution.passTimeoutMs,
-            _openAiTimeoutMs: timeoutResolution.openAiTimeoutMs,
-            ...(prebuiltLedgerP2Short ? { _prebuiltCharacterLedger: prebuiltLedgerP2Short } : {}),
-            _runners: {
-              runPass1: async (opts) => { const r = await realRunPass1Short(opts); capturedPass1Short = r; return r; },
-              runPass2: async (opts) => { const r = await realRunPass2Short(opts); capturedPass2Short = r; return r; },
-            },
-            onHeartbeat: async (stage) => {
-              await assertJobWithinSla({
-                supabase,
-                jobId,
-                hardDeadlineMs,
-                stage,
-                expectedLeaseToken,
-                expectedClaimedBy,
-              });
-              await renewEvaluationJobLease({ supabase, jobId, leaseMs: runtimeConfig.worker.leaseMs, stage, hardDeadlineMs });
-            },
-          });
-          if (!p2ShortResult.ok) {
-            const errCode = 'error_code' in p2ShortResult ? p2ShortResult.error_code : 'PHASE2_SHORT_PASS12_FAILED';
-            await markFailed(String(errCode), 'PHASE2_PASS12_FAILED', { pipelineStage: 'phase_2' });
-            return { success: false, error: String(errCode) };
+          const pass12Recovery = await runPass12ForHandoffRecovery(prebuiltLedgerP2Short);
+          if (pass12Recovery.ok === false) {
+            await markFailed(pass12Recovery.error, 'PHASE2_PASS12_FAILED', { pipelineStage: 'phase_2' });
+            return { success: false, error: pass12Recovery.errorCode };
           }
-        } catch (p2ShortErr) {
-          const errMsg = p2ShortErr instanceof Error ? p2ShortErr.message : String(p2ShortErr);
-          await markFailed(errMsg, 'PHASE2_PASS12_FAILED', { pipelineStage: 'phase_2' });
-          return { success: false, error: errMsg };
+          capturedPass1Short = pass12Recovery.pass1Output;
+          capturedPass2Short = pass12Recovery.pass2Output;
         } finally {
           clearInterval(leaseRenewalLoopP2Short);
         }
@@ -4346,6 +5556,7 @@ export async function processEvaluationJob(
           captured_at: new Date().toISOString(),
           schema_version: 'pass12_handoff_v1',
         };
+        await assertReviewGatePassedBeforeHandoff(supabase, String(job.id));
         await upsertEvaluationArtifact({
           supabase,
           jobId: String(job.id),
@@ -4996,8 +6207,42 @@ export async function processEvaluationJob(
         : []),
       ...(nonEvaluativeWarning ? [nonEvaluativeWarning] : []),
     ];
+    // D2 transparency fields — required by hasD2TransparencyFields() to release the report.
+    // Build criteria_plan from the actual scored criteria: NOT_APPLICABLE → NA, all others → R.
+    const d2CriteriaPlanR: string[] = [];
+    const d2CriteriaPlanNA: string[] = [];
+    for (const c of effectiveEvaluationResult.criteria) {
+      if ((c as { status?: string }).status === 'NOT_APPLICABLE') {
+        d2CriteriaPlanNA.push(c.key);
+      } else {
+        d2CriteriaPlanR.push(c.key);
+      }
+    }
+    // Ensure every canonical key is accounted for (fail-safe: any missing key goes to R)
+    for (const key of CRITERIA_KEYS) {
+      if (!d2CriteriaPlanR.includes(key) && !d2CriteriaPlanNA.includes(key)) {
+        d2CriteriaPlanR.push(key);
+      }
+    }
+    const d2EvalRunId = effectiveEvaluationResult.ids?.evaluation_run_id ?? crypto.randomUUID();
+    const d2MatrixVersion = 'work_type_matrix.v1';
+    const d2WorkType = (manuscriptWithContent.work_type || 'novel').toLowerCase().replace(/\s+/g, '_');
+    const d2GeneratedAt = new Date().toISOString();
+    const d2ReproAnchor = `${d2EvalRunId}|${d2GeneratedAt}|${d2MatrixVersion}`;
+
     effectiveEvaluationResult.governance.transparency = {
       ...(effectiveEvaluationResult.governance.transparency ?? {}),
+      // D2 required fields (must remain non-empty for report gate to pass)
+      final_work_type_used: d2WorkType,
+      matrix_version: d2MatrixVersion,
+      repro_anchor: d2ReproAnchor,
+      criteria_plan: {
+        R: d2CriteriaPlanR,
+        O: [],
+        NA: d2CriteriaPlanNA,
+        C: [],
+      },
+      // Existing fields
       artifact_validation_result: artifactGateDecision.verdict,
       artifact_reason_codes: artifactGateDecision.reasonCodes,
       artifact_validated_at: artifactGateDecision.validatedAt,
@@ -5281,10 +6526,17 @@ export async function processEvaluationJob(
             } catch (waveErr) {
               const errMsg = waveErr instanceof Error ? waveErr.message : String(waveErr);
               const isTimeout = errMsg === 'WAVE_TIMEOUT';
+              const reasonCode = isTimeout
+                ? 'WAVE_TIMEOUT'
+                : errMsg.includes('WAVE_SOURCE_VERSION_RESOLUTION_FAILED')
+                  ? 'WAVE_SOURCE_VERSION_RESOLUTION_FAILED'
+                  : errMsg.includes('createRevisionSession failed')
+                    ? 'WAVE_SESSION_CREATE_FAILED'
+                    : 'WAVE_ERROR';
               console.warn(`[WAVE/Phase3-inline] ${isTimeout ? 'Timeout' : 'Error'} for job ${jobId} (${Date.now() - waveStartMsP3}ms):`, errMsg);
               const failedPlan = {
                 status: 'failed' as const,
-                reason_code: isTimeout ? 'WAVE_TIMEOUT' : 'WAVE_ERROR',
+                reason_code: reasonCode,
                 reason: errMsg,
                 retryable: isTimeout,
                 generated_at: new Date().toISOString(),

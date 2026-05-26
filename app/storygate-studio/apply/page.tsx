@@ -1,27 +1,67 @@
 /**
  * /storygate-studio/apply — Creator eligibility + preparation page
  * Public. Canonical Storygate palette.
+ *
+ * Current public scope: manuscript-first, publishing-facing controlled access.
  */
 
 import Link from "next/link";
 
 const C = {
-  bg:        "#0E0E0E",
-  text:      "#F2EFEA",
-  gold:      "#A98E4A",
-  oxblood:   "#7A1E1E",
-  ash:       "#7B7B7B",
-  panel:     "#161616",
-  border:    "rgba(161,142,74,0.18)",
+  bg: "#0E0E0E",
+  text: "#F2EFEA",
+  gold: "#A98E4A",
+  ash: "#7B7B7B",
+  panel: "#161616",
+  border: "rgba(161,142,74,0.18)",
   borderAsh: "rgba(123,123,123,0.18)",
 } as const;
+
+const packageItems = [
+  {
+    type: "Novels and long-form fiction",
+    items: [
+      "Query letter with a clear hook paragraph",
+      "Synopsis",
+      "Author bio",
+      "Sample pages or manuscript materials",
+      "Optional evaluation summary or readiness assessment",
+    ],
+  },
+  {
+    type: "Memoir and supported prose projects",
+    items: [
+      "Professional query or cover letter",
+      "Synopsis or project summary",
+      "Author bio with relevant context",
+      "Sample pages or manuscript materials",
+      "Optional comparables and positioning notes",
+    ],
+  },
+  {
+    type: "Complex manuscripts",
+    items: [
+      "Manuscript package appropriate to the work",
+      "Clear genre, audience, and structure positioning",
+      "Comparables with rationale where available",
+      "Professional readiness evidence",
+      "Optional full-manuscript or multi-layer audit summary",
+    ],
+  },
+];
+
+const prepSteps = [
+  ["Evaluate", "Upload the manuscript and receive the correct evaluation mode: short-form, long-form, or long-form multi-layer."],
+  ["Revise", "Work through the Revise Queue or use TrustedPath™ to address identified weaknesses before submission."],
+  ["Agent Readiness Package™", "Generate the query letter, synopsis, query pitch, comparables, and author bio."],
+  ["Storygate Submission", "Once the readiness threshold and package approvals are met, Storygate submission can unlock."],
+];
 
 export default function StorygateApply() {
   return (
     <main
       style={{ backgroundColor: C.bg, color: C.text, fontFamily: "Inter, system-ui, sans-serif", minHeight: "100vh" }}
     >
-      {/* Header */}
       <section className="pt-24 pb-16 px-6 max-w-3xl mx-auto">
         <p className="text-xs tracking-[0.22em] uppercase font-mono mb-4" style={{ color: C.gold }}>
           Storygate Studio™ — Creators
@@ -30,10 +70,10 @@ export default function StorygateApply() {
           className="text-4xl font-bold mb-6 leading-tight"
           style={{ fontFamily: "Playfair Display, Georgia, serif" }}
         >
-          Prepare a Project for Storygate
+          Prepare a Manuscript Project for Storygate
         </h1>
         <p className="text-base leading-relaxed mb-4" style={{ color: C.ash }}>
-          Storygate Studio is not open to all projects. Placement requires two gates — a professional presentation package and a minimum readiness threshold. Here is what you need to prepare.
+          Storygate Studio is not open to all projects. Placement requires two gates: a professional manuscript package and a minimum readiness threshold.
         </p>
         <p
           className="text-xs px-4 py-3 border"
@@ -43,7 +83,6 @@ export default function StorygateApply() {
         </p>
       </section>
 
-      {/* Gate 1 */}
       <section
         className="px-6 pb-16 max-w-3xl mx-auto"
         style={{ borderTop: `1px solid ${C.borderAsh}`, paddingTop: "3rem" }}
@@ -53,26 +92,13 @@ export default function StorygateApply() {
           className="text-2xl font-bold mb-4"
           style={{ fontFamily: "Playfair Display, Georgia, serif" }}
         >
-          Professional Presentation Package
+          Professional Manuscript Package
         </h2>
         <p className="text-sm mb-8 leading-relaxed" style={{ color: C.ash }}>
-          Depending on project type, your package must include the relevant materials below. All materials must be professionally formatted and submission-ready — not works in progress.
+          Your package must be professionally formatted and submission-ready. Current Storygate scope is manuscript-first and publishing-facing.
         </p>
 
-        {[
-          {
-            type: "Manuscript / Publishing",
-            items: ["Query letter or professional pitch material", "Synopsis or series overview", "Author bio", "Sample pages (typically first 10–50 pages)", "Optional: evaluation summary or readiness assessment"],
-          },
-          {
-            type: "Screen / Adaptation",
-            items: ["Film/TV pitch deck or equivalent screen-development package", "Source-material summary", "Lookbook (optional but recommended)", "Comparable titles and audience positioning", "Optional: adaptation notes or development memo"],
-          },
-          {
-            type: "Series / Franchise",
-            items: ["Series overview", "World or character materials", "Adaptation positioning", "Multi-volume or multi-season development package"],
-          },
-        ].map(({ type, items }) => (
+        {packageItems.map(({ type, items }) => (
           <div key={type} className="mb-6 p-6" style={{ backgroundColor: C.panel, border: `1px solid ${C.borderAsh}` }}>
             <p className="text-xs tracking-[0.14em] uppercase font-mono mb-4" style={{ color: C.gold }}>{type}</p>
             <ul className="space-y-2">
@@ -87,7 +113,6 @@ export default function StorygateApply() {
         ))}
       </section>
 
-      {/* Gate 2 */}
       <section
         className="px-6 pb-16 max-w-3xl mx-auto"
         style={{ borderTop: `1px solid ${C.borderAsh}`, paddingTop: "3rem" }}
@@ -100,28 +125,20 @@ export default function StorygateApply() {
           Minimum Readiness Threshold
         </h2>
         <p className="text-sm mb-8 leading-relaxed" style={{ color: C.ash }}>
-          Your project must demonstrate a minimum professional standard through one of the following:
+          Your manuscript project must demonstrate a minimum professional standard through one of the following:
         </p>
         <div className="space-y-4">
-          {[
-            {
-              label: "RevisionGrade Score 8.0+",
-              desc: "A RevisionGrade evaluation score of 8.0 or higher in the relevant manuscript or script evaluation. The score must be from a full-manuscript evaluation, not an excerpt.",
-            },
-            {
-              label: "Equivalent Professional Assessment",
-              desc: "A written assessment from a qualified third party — a literary agent, acquiring editor, producer, development executive, or recognized industry evaluator — confirming the project is submission-ready or professionally prepared.",
-            },
-          ].map(({ label, desc }) => (
-            <div key={label} className="p-6" style={{ border: `1px solid ${C.border}` }}>
-              <p className="text-sm font-semibold mb-2" style={{ fontFamily: "Playfair Display, Georgia, serif", color: C.text }}>{label}</p>
-              <p className="text-sm leading-relaxed" style={{ color: C.ash }}>{desc}</p>
-            </div>
-          ))}
+          <div className="p-6" style={{ border: `1px solid ${C.border}` }}>
+            <p className="text-sm font-semibold mb-2" style={{ fontFamily: "Playfair Display, Georgia, serif", color: C.text }}>RevisionGrade Score 8.0+</p>
+            <p className="text-sm leading-relaxed" style={{ color: C.ash }}>A RevisionGrade score of 8.0 or higher from a full-manuscript evaluation, not a short excerpt.</p>
+          </div>
+          <div className="p-6" style={{ border: `1px solid ${C.border}` }}>
+            <p className="text-sm font-semibold mb-2" style={{ fontFamily: "Playfair Display, Georgia, serif", color: C.text }}>Equivalent Professional Assessment</p>
+            <p className="text-sm leading-relaxed" style={{ color: C.ash }}>A written assessment from a qualified publishing professional confirming the manuscript is submission-ready or professionally prepared.</p>
+          </div>
         </div>
       </section>
 
-      {/* How to use RevisionGrade */}
       <section
         className="px-6 pb-16 max-w-3xl mx-auto"
         style={{ borderTop: `1px solid ${C.borderAsh}`, paddingTop: "3rem" }}
@@ -133,15 +150,10 @@ export default function StorygateApply() {
           Using RevisionGrade to Prepare
         </h2>
         <p className="text-sm mb-8 leading-relaxed" style={{ color: C.ash }}>
-          If you want to use RevisionGrade to build your package and meet Gate 2, the path is:
+          If you want to use RevisionGrade to build your package and meet Gate 2, the manuscript-first path is:
         </p>
         <div className="space-y-3">
-          {[
-            ["Evaluate", "Upload your full manuscript. Receive a scored evaluation across the literary criteria canon."],
-            ["Revise", "Work through the revision queue to address identified weaknesses before submission."],
-            ["Agent Readiness Package™", "Generate your query letter, synopsis, elevator pitch, comparables, and author bio."],
-            ["Storygate Submission", "Once your score reaches 8.0+ and all package sections are approved, the Storygate submission option unlocks."],
-          ].map(([step, desc], i) => (
+          {prepSteps.map(([step, desc], i) => (
             <div key={step} className="flex items-start gap-4 px-4 py-3" style={{ backgroundColor: C.panel, border: `1px solid ${C.borderAsh}` }}>
               <span className="font-mono text-xs shrink-0 mt-0.5" style={{ color: C.gold }}>0{i + 1}</span>
               <div>
@@ -169,13 +181,12 @@ export default function StorygateApply() {
         </div>
       </section>
 
-      {/* Footer note */}
       <footer
         className="py-8 px-6 text-center"
         style={{ borderTop: `1px solid ${C.borderAsh}` }}
       >
         <p className="text-xs max-w-xl mx-auto leading-relaxed" style={{ color: C.ash }}>
-          Storygate Studio™ does not guarantee representation, publication, sale, option, financing, or production. It provides a controlled access environment for professionally prepared projects.
+          Storygate Studio™ does not guarantee representation, publication, placement, or any specific market response. It provides a controlled access environment for professionally prepared manuscript projects.
         </p>
         <p className="mt-4">
           <Link href="/storygate-studio" className="text-xs font-mono tracking-[0.14em] uppercase transition-opacity hover:opacity-70" style={{ color: C.gold }}>

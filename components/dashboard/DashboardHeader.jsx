@@ -1,13 +1,12 @@
 export default function DashboardHeader() {
   return (
     <header className="rg-dash-header">
-      <div className="rg-dash-eyebrow">Dashboard · Submission readiness</div>
+      <div className="rg-dash-eyebrow">Dashboard · Manuscript progress</div>
       <h1 className="rg-dash-title">
-        Track revision progress toward submission readiness.
+        See where each manuscript stands and what to do next.
       </h1>
       <p className="rg-dash-subtitle">
-        Review recent evaluations, open reports, and see which manuscripts are
-        approaching the 8.0 curation threshold.
+        Track readiness movement, recent evaluations, and the next best action for your current manuscript. Revision activity is not the same as measured improvement; follow-up evaluations confirm movement.
       </p>
 
       <div className="rg-dash-context">
@@ -15,21 +14,21 @@ export default function DashboardHeader() {
           <div className="rg-dash-context-label">Readiness rule</div>
           <div className="rg-dash-context-value">8.0 / 10</div>
           <div className="rg-dash-context-note">
-            Crossing 8.0 marks curation-ready status.
+            Marks manuscript readiness review eligibility, not a guarantee of market response.
           </div>
         </div>
         <div className="rg-dash-context-card">
-          <div className="rg-dash-context-label">Visible rows</div>
-          <div className="rg-dash-context-value">Latest 15</div>
+          <div className="rg-dash-context-label">Progress doctrine</div>
+          <div className="rg-dash-context-value">Measure</div>
           <div className="rg-dash-context-note">
-            Older evaluations load via deeper history.
+            Accepted revisions become improvement only when a later evaluation confirms movement.
           </div>
         </div>
         <div className="rg-dash-context-card">
-          <div className="rg-dash-context-label">Current focus</div>
-          <div className="rg-dash-context-value">Evaluation history</div>
+          <div className="rg-dash-context-label">Next layer</div>
+          <div className="rg-dash-context-value">Revise</div>
           <div className="rg-dash-context-note">
-            Charts and insights ship in a later release.
+            Use reports to repair, then re-evaluate to track score and issue reduction.
           </div>
         </div>
       </div>

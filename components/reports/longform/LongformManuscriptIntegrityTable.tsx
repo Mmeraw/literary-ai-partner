@@ -39,7 +39,7 @@ export default function LongformManuscriptIntegrityTable({ doc }: Props) {
 
   if (issues.length === 0 && integrityReleasability.length === 0) {
     return (
-      <p className="text-sm text-gray-500 italic">
+      <p className="text-sm text-gray-700 italic">
         No manuscript integrity issues detected.
       </p>
     );
@@ -91,7 +91,7 @@ export default function LongformManuscriptIntegrityTable({ doc }: Props) {
                   >
                     {issue.severity}
                   </span>
-                  <span className="text-xs text-gray-500 font-medium">{kindLabel}</span>
+                  <span className="text-xs text-gray-700 font-medium">{kindLabel}</span>
                 </div>
                 <p className="text-gray-700">{issue.description}</p>
               </div>
@@ -103,7 +103,7 @@ export default function LongformManuscriptIntegrityTable({ doc }: Props) {
       {/* Integrity-related releasability dimensions */}
       {integrityReleasability.length > 0 && (
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">
+          <p className="text-xs font-semibold uppercase tracking-wide text-gray-600 mb-2">
             Releasability — integrity &amp; confidence
           </p>
           <div className="space-y-2">

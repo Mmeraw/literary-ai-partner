@@ -29,6 +29,16 @@ export async function approveLedgerAction(formData: FormData): Promise<void> {
     ? editRequestsRaw.split('\n').map((s) => s.trim()).filter(Boolean)
     : undefined;
 
+  const layerDecisionsRaw = formData.get('layer_decisions');
+  let layerDecisions: Record<string, { status: string; comment: string }> | undefined;
+  if (layerDecisionsRaw) {
+    try {
+      layerDecisions = JSON.parse(layerDecisionsRaw as string);
+    } catch {
+      throw new Error('Invalid layer_decisions payload.');
+    }
+  }
+
   const user = await getAuthenticatedUser();
   if (!user) throw new Error('Please sign in to approve the ledger.');
 
@@ -78,6 +88,7 @@ export async function approveLedgerAction(formData: FormData): Promise<void> {
   const body: Record<string, unknown> = { disposition };
   if (authorNotes) body.author_notes = authorNotes;
   if (editRequests?.length) body.edit_requests = editRequests;
+  if (layerDecisions) body.layer_decisions = layerDecisions;
 
   // Pass the user's session cookie so the review-gate route can authenticate.
   const cookieHeader = headersList.get('cookie') ?? '';
@@ -108,7 +119,7 @@ export async function approveLedgerAction(formData: FormData): Promise<void> {
   const redirectTarget =
     disposition === 'rejected'
       ? `/evaluate/${jobId}/ledger?rejected=1`
-      : `/evaluate/${jobId}/ledger?approved=1`;
+      : `/evaluate/${jobId}?approved=1`;
 
   redirect(redirectTarget);
 }
