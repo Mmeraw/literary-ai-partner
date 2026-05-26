@@ -1,7 +1,7 @@
 import { getSupabaseAdminClient } from "@/lib/supabase";
 import { applyRevisionSession } from "./apply";
 import { logRevisionEvent } from "./logRevisionEvent";
-import { createDiagnosticFindingsForEvaluationRun } from "./normalizeFindings";
+import { ensureOperationalRevisionFindings } from "./operationalQueueBuilder";
 import {
   createProposalsForSessionFromFindings,
   getFindingsSynthesisSummary,
@@ -154,7 +154,7 @@ export async function startRevisionEngine(
 
   // `failed` is a terminal state with no valid outbound transitions; create a fresh session.
   if (existing && existing.status !== "failed") {
-    await createDiagnosticFindingsForEvaluationRun(
+    await ensureOperationalRevisionFindings(
       input.evaluation_run_id,
       existing.source_version_id,
     );
@@ -206,7 +206,7 @@ export async function startRevisionEngine(
     event_code: "REVISION_SESSION_CREATED",
   });
 
-  await createDiagnosticFindingsForEvaluationRun(
+  await ensureOperationalRevisionFindings(
     input.evaluation_run_id,
     sourceVersionId,
   );
@@ -237,98 +237,4 @@ export async function startRevisionEngine(
     findings_count: synthesisSummary.findings_count,
     actionable_findings_count: synthesisSummary.actionable_findings_count,
   };
-}
-
-export async function finalizeRevisionEngine(
-  revisionSessionId: string,
-): Promise<FinalizeRevisionEngineResult> {
-  const sessionBeforeFinalize = await getRevisionSessionById(revisionSessionId);
-  
-  if (!sessionBeforeFinalize) {
-    throw new Error(
-      `finalizeRevisionEngine failed: revision session not found: ${revisionSessionId}`,
-    );
-  }
-
-  // MANDATORY: Check governance eligibility before finalizing refinement
-  // This gates access from the finalize API endpoint, preventing bypass
-  await checkRefinementEligibilityByEvaluationRun(
-    supabase,
-    sessionBeforeFinalize.evaluation_run_id,
-  );
-
-  const readySession = await ensureRevisionSessionReadyForFinalize(
-    sessionBeforeFinalize,
-  );
-
-  try {
-    const applyResult = await applyRevisionSession(revisionSessionId);
-
-    const revisionSession = await getRevisionSessionById(revisionSessionId);
-    if (!revisionSession) {
-      throw new Error(
-        `finalizeRevisionEngine failed: revision session not found after apply: ${revisionSessionId}`,
-      );
-    }
-
-    const sourceVersion = await supabase
-      .from("manuscript_versions")
-      .select("id, manuscript_id")
-      .eq("id", revisionSession.source_version_id)
-      .maybeSingle();
-
-    void logRevisionEvent({
-      revision_session_id: revisionSessionId,
-      manuscript_id: sourceVersion.data?.manuscript_id ?? null,
-      manuscript_version_id: revisionSession.source_version_id,
-      evaluation_run_id: revisionSession.evaluation_run_id,
-      event_type: "finalize",
-      event_code: "REVISION_SESSION_FINALIZED",
-      metadata: {
-        result_version_id: applyResult.result_version_id,
-        accepted_count: applyResult.accepted_count,
-        modified_count: applyResult.modified_count,
-      },
-    });
-
-    return {
-      revision_session: revisionSession,
-      apply_result: applyResult,
-    };
-  } catch (error) {
-    if (readySession && readySession.status !== "applied" && readySession.status !== "failed") {
-      try {
-        await transitionRevisionSessionState(revisionSessionId, {
-          nextStatus: "failed",
-          findings_count: readySession.findings_count,
-          actionable_findings_count: readySession.actionable_findings_count,
-          proposal_ready_actionable_findings_count:
-            readySession.proposal_ready_actionable_findings_count,
-          proposals_created_count: readySession.proposals_created_count,
-          failure_code: "REVISION_FINALIZE_FAILED",
-          failure_message: error instanceof Error ? error.message : String(error),
-        });
-      } catch (transitionError) {
-        console.error("Failed to persist revision session failure state", {
-          revisionSessionId,
-          error:
-            transitionError instanceof Error
-              ? transitionError.message
-              : String(transitionError),
-        });
-      }
-    }
-
-    void logRevisionEvent({
-      revision_session_id: revisionSessionId,
-      manuscript_version_id: readySession?.source_version_id ?? sessionBeforeFinalize?.source_version_id ?? null,
-      evaluation_run_id: readySession?.evaluation_run_id ?? sessionBeforeFinalize?.evaluation_run_id ?? null,
-      event_type: "finalize",
-      severity: "error",
-      event_code: "REVISION_SESSION_FINALIZE_FAILED",
-      message: error instanceof Error ? error.message : String(error),
-    });
-
-    throw error;
-  }
 }
