@@ -1,7 +1,7 @@
 import { getSupabaseAdminClient } from "@/lib/supabase";
 import { applyRevisionSession } from "./apply";
 import { logRevisionEvent } from "./logRevisionEvent";
-import { createDiagnosticFindingsForEvaluationRun } from "./normalizeFindings";
+import { ensureOperationalRevisionFindings } from "./operationalQueueBuilder";
 import {
   createProposalsForSessionFromFindings,
   getFindingsSynthesisSummary,
@@ -154,7 +154,7 @@ export async function startRevisionEngine(
 
   // `failed` is a terminal state with no valid outbound transitions; create a fresh session.
   if (existing && existing.status !== "failed") {
-    await createDiagnosticFindingsForEvaluationRun(
+    await ensureOperationalRevisionFindings(
       input.evaluation_run_id,
       existing.source_version_id,
     );
@@ -206,7 +206,7 @@ export async function startRevisionEngine(
     event_code: "REVISION_SESSION_CREATED",
   });
 
-  await createDiagnosticFindingsForEvaluationRun(
+  await ensureOperationalRevisionFindings(
     input.evaluation_run_id,
     sourceVersionId,
   );
@@ -243,7 +243,7 @@ export async function finalizeRevisionEngine(
   revisionSessionId: string,
 ): Promise<FinalizeRevisionEngineResult> {
   const sessionBeforeFinalize = await getRevisionSessionById(revisionSessionId);
-  
+
   if (!sessionBeforeFinalize) {
     throw new Error(
       `finalizeRevisionEngine failed: revision session not found: ${revisionSessionId}`,
