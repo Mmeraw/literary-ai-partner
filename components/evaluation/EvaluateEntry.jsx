@@ -7,9 +7,7 @@ import { appendUserActivity } from "@/lib/activity/userActivity";
 import { useJobs } from "../../lib/jobs/useJobs";
 import { getJobDisplayInfo, getJobStatusBadge } from "../../lib/jobs/ui-helpers";
 import { formatRelativeTime, formatDuration } from "../../lib/ui/time-helpers";
-import { getPhaseSpecificCopy } from "../../lib/ui/phase-helpers";
 import ManuscriptSubmissionForm from "./ManuscriptSubmissionForm";
-import PhaseBreadcrumb from "./PhaseBreadcrumb";
 import CompletionBanner from "./CompletionBanner";
 import { CancelEvaluationButton } from "./CancelEvaluationButton";
 
@@ -50,6 +48,46 @@ function getStatusTone(status) {
   return "border-stone-200 bg-stone-50 text-stone-700";
 }
 
+function getPublicCheckpoint(job, displayInfo) {
+  if (job.status === "complete") {
+    return {
+      action: "Completed",
+      output: "Report ready",
+      quality: "Ready for author review",
+    };
+  }
+
+  if (job.status === "failed") {
+    return {
+      action: "Needs attention",
+      output: "No report released",
+      quality: "Open details for next step",
+    };
+  }
+
+  if (job.status === "running") {
+    return {
+      action: "Analyzing manuscript",
+      output: "Report pending",
+      quality: `${displayInfo.progress.percentage || 0}% complete`,
+    };
+  }
+
+  if (job.status === "queued") {
+    return {
+      action: "Waiting to begin",
+      output: "Report pending",
+      quality: "Queued for evaluation",
+    };
+  }
+
+  return {
+    action: "Status available",
+    output: "Open details",
+    quality: "Review available status",
+  };
+}
+
 function EvaluationHistoryCard({ job }) {
   const displayInfo = getJobDisplayInfo(job);
   const statusBadge = getJobStatusBadge(displayInfo.badge);
@@ -58,8 +96,8 @@ function EvaluationHistoryCard({ job }) {
   const isRunning = job.status === "running";
   const isFailed = job.status === "failed";
   const relativeTime = formatRelativeTime(job.created_at);
-  const phaseInfo = getPhaseSpecificCopy(displayInfo.phaseDetail.phase, displayInfo.phaseDetail.phase_status);
   const statusTone = getStatusTone(job.status);
+  const publicCheckpoint = getPublicCheckpoint(job, displayInfo);
 
   let progressMessage = displayInfo.message || displayInfo.progress.display;
   let subMessage = null;
@@ -69,8 +107,8 @@ function EvaluationHistoryCard({ job }) {
     subMessage = "This usually takes about 2–3 minutes.";
   } else if (isRunning) {
     const duration = formatDuration(job.created_at);
-    progressMessage = phaseInfo.displayCopy;
-    subMessage = `Running for ${duration}. ${phaseInfo.description}`;
+    progressMessage = "Evaluation in progress";
+    subMessage = `Running for ${duration}. Your manuscript is being analyzed and checked before the report is released.`;
   } else if (isComplete) {
     progressMessage = "Evaluation complete";
     subMessage = "Your report is ready to review.";
@@ -169,10 +207,24 @@ function EvaluationHistoryCard({ job }) {
         </div>
 
         <div>
-          <p className="font-rg-mono text-[0.68rem] uppercase tracking-[0.16em] text-stone-400">Process checkpoint</p>
-          <div className="mt-2 rounded-2xl border border-stone-200 bg-[#FBFAF7] p-3">
-            <PhaseBreadcrumb phaseLog={job.progress?.phase_log ?? []} job={job} compact={true} />
+          <p className="font-rg-mono text-[0.68rem] uppercase tracking-[0.16em] text-stone-400">Input → Action → Output</p>
+          <div className="mt-2 grid gap-2 rounded-2xl border border-stone-200 bg-[#FBFAF7] p-3 sm:grid-cols-3">
+            <div>
+              <p className="font-rg-mono text-[0.62rem] uppercase tracking-[0.14em] text-stone-400">Input</p>
+              <p className="mt-1 text-sm text-stone-700">Submitted manuscript</p>
+            </div>
+            <div>
+              <p className="font-rg-mono text-[0.62rem] uppercase tracking-[0.14em] text-stone-400">Action</p>
+              <p className="mt-1 text-sm text-stone-700">{publicCheckpoint.action}</p>
+            </div>
+            <div>
+              <p className="font-rg-mono text-[0.62rem] uppercase tracking-[0.14em] text-stone-400">Output</p>
+              <p className="mt-1 text-sm text-stone-700">{publicCheckpoint.output}</p>
+            </div>
           </div>
+          <p className="mt-2 text-xs leading-5 text-stone-500">
+            Quality status: {publicCheckpoint.quality}.
+          </p>
         </div>
       </div>
     </article>
