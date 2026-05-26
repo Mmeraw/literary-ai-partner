@@ -11,6 +11,8 @@ const {
   getValidatedWorkerBatchSize,
   resolveJobHardDeadlineMs,
   renewEvaluationJobLease,
+  toPhaseV2ArtifactSet,
+  derivePhaseV2ReviewGateProgress,
 } = require("../../../lib/evaluation/processor");
 const { CRITERIA_KEYS } = require("../../../schemas/criteria-keys");
 
@@ -397,5 +399,74 @@ describe("SLA helpers", () => {
     expect(Date.parse(payload.lease_until)).toBeLessThanOrEqual(hardDeadlineMs);
 
     dateNowSpy.mockRestore();
+  });
+});
+
+describe("Review Gate wiring helpers", () => {
+  test("maps phase v2 artifact refs from evaluation_artifacts rows using content.artifact_id fallback to row id", () => {
+    const refs = toPhaseV2ArtifactSet([
+      {
+        artifact_type: "pass1a_story_layer_v1",
+        id: "row-story",
+        source_hash: "sha256:story",
+        content: { artifact_id: "envelope-story" },
+      },
+      {
+        artifact_type: "ledger_quality_report_v1",
+        id: "row-quality",
+        source_hash: "sha256:quality",
+        content: {},
+      },
+      {
+        artifact_type: "pass3_preflight_draft_v1",
+        id: "row-preflight",
+        source_hash: "sha256:preflight",
+        content: { artifact_id: "envelope-preflight" },
+      },
+    ]);
+
+    expect(refs.pass1a_story_layer_v1).toEqual({
+      artifact_id: "envelope-story",
+      source_hash: "sha256:story",
+    });
+    expect(refs.ledger_quality_report_v1).toEqual({
+      artifact_id: "row-quality",
+      source_hash: "sha256:quality",
+    });
+    expect(refs.pass3_preflight_draft_v1).toEqual({
+      artifact_id: "envelope-preflight",
+      source_hash: "sha256:preflight",
+    });
+  });
+
+  test("derives Pass 3A done/degraded from legacy phase1a_batch_state preflight status", () => {
+    const doneDerived = derivePhaseV2ReviewGateProgress(
+      {
+        phase1a_batch_state: {
+          preflight_status: "DONE",
+        },
+      },
+      true,
+      "2026-05-26T00:00:00.000Z",
+    );
+
+    expect(doneDerived.pass3a_status).toBe("done");
+    expect(doneDerived.pass3a_completed_at).toBe("2026-05-26T00:00:00.000Z");
+
+    const degradedDerived = derivePhaseV2ReviewGateProgress(
+      {
+        phase1a_batch_state: {
+          preflight_status: "DONE",
+          preflight_degraded: true,
+        },
+      },
+      true,
+      "2026-05-26T00:00:00.000Z",
+    );
+
+    expect(degradedDerived.pass3a_status).toBe("degraded");
+    expect(degradedDerived.degraded_reason).toBe("PASS3A_PREFLIGHT_DEGRADED");
+    expect(degradedDerived.degraded_reason_codes).toEqual(["PASS3A_PREFLIGHT_DEGRADED"]);
+    expect(degradedDerived.degraded_at).toBe("2026-05-26T00:00:00.000Z");
   });
 });

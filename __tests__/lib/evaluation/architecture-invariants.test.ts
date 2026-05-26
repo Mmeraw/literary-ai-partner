@@ -249,6 +249,13 @@ describe("evaluation architecture invariants", () => {
     expect(processorCode).not.toContain("if (!pipelineResult.ok)");
   });
 
+  test("processor does not persist non-canonical progress phase_status='blocked'", () => {
+    const processorPath = path.join(repoRoot, "lib/evaluation/processor.ts");
+    const processorCode = fs.readFileSync(processorPath, "utf8");
+
+    expect(processorCode).not.toContain("phase_status: 'blocked'");
+  });
+
   test("phase_1a review gate handoff is wired through phase-architecture-v2 helper", () => {
     const processorPath = path.join(repoRoot, "lib/evaluation/processor.ts");
     const processorCode = fs.readFileSync(processorPath, "utf8");

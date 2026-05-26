@@ -266,6 +266,134 @@ function isMissingColumnError(error: unknown, columnName: string): boolean {
   return schemaCacheMissing || postgresMissing;
 }
 
+const PASS3A_STATUS_VALUES: Pass3AStatus[] = [
+  'not_started',
+  'running',
+  'map_done',
+  'reduce_running',
+  'done',
+  'degraded',
+  'failed',
+];
+
+function isNonEmptyTrimmedString(value: unknown): value is string {
+  return typeof value === 'string' && value.trim().length > 0;
+}
+
+function coercePass3aStatus(value: unknown): Pass3AStatus | undefined {
+  return isNonEmptyTrimmedString(value) && PASS3A_STATUS_VALUES.includes(value as Pass3AStatus)
+    ? (value as Pass3AStatus)
+    : undefined;
+}
+
+export function toPhaseV2ArtifactSet(
+  rows: Array<{
+    artifact_type?: unknown;
+    id?: unknown;
+    content?: unknown;
+    source_hash?: unknown;
+  }> | null | undefined,
+): PhaseV2ArtifactSet {
+  const artifactRefsByType = new Map<string, { artifact_id?: string | null; source_hash?: string | null }>();
+
+  for (const row of rows ?? []) {
+    if (!row || typeof row !== 'object' || typeof row.artifact_type !== 'string') {
+      continue;
+    }
+
+    const contentRecord =
+      row.content && typeof row.content === 'object' ? (row.content as Record<string, unknown>) : null;
+    const envelopeArtifactId =
+      contentRecord && typeof contentRecord.artifact_id === 'string' ? contentRecord.artifact_id : null;
+    const rowId = typeof row.id === 'string' ? row.id : null;
+    const sourceHash = typeof row.source_hash === 'string' ? row.source_hash : null;
+
+    artifactRefsByType.set(row.artifact_type, {
+      artifact_id: envelopeArtifactId ?? rowId,
+      source_hash: sourceHash,
+    });
+  }
+
+  return {
+    pass1a_story_layer_v1: artifactRefsByType.get('pass1a_story_layer_v1') ?? null,
+    ledger_quality_report_v1: artifactRefsByType.get('ledger_quality_report_v1') ?? null,
+    pass3_preflight_draft_v1: artifactRefsByType.get('pass3_preflight_draft_v1') ?? null,
+  };
+}
+
+export function derivePhaseV2ReviewGateProgress(
+  progressState: Record<string, unknown>,
+  hasPass3PreflightArtifact: boolean,
+  nowIso: string,
+): PhaseV2Progress {
+  const batchState =
+    progressState.phase1a_batch_state && typeof progressState.phase1a_batch_state === 'object'
+      ? (progressState.phase1a_batch_state as Record<string, unknown>)
+      : {};
+
+  const preflightStatusRaw = batchState.preflight_status;
+  const preflightStatus =
+    typeof preflightStatusRaw === 'string' ? preflightStatusRaw.toUpperCase().trim() : 'NOT_STARTED';
+  const preflightDegraded = batchState.preflight_degraded === true;
+
+  const explicitStatus = coercePass3aStatus(progressState.pass3a_status);
+  const derivedStatusFromLegacyState: Pass3AStatus = (() => {
+    if (preflightStatus === 'DONE' || preflightStatus === 'COMPLETE') {
+      return preflightDegraded ? 'degraded' : 'done';
+    }
+    if (
+      preflightStatus === 'IN_PROGRESS' ||
+      preflightStatus === 'RUNNING' ||
+      preflightStatus === 'SELF_CHAINED'
+    ) {
+      return 'running';
+    }
+    return 'not_started';
+  })();
+
+  const pass3aStatus = explicitStatus ?? derivedStatusFromLegacyState;
+
+  const completedAt =
+    isNonEmptyTrimmedString(progressState.pass3a_completed_at)
+      ? progressState.pass3a_completed_at
+      : (pass3aStatus === 'done' && hasPass3PreflightArtifact
+          ? nowIso
+          : undefined);
+
+  const existingDegradedReason =
+    isNonEmptyTrimmedString(progressState.degraded_reason)
+      ? progressState.degraded_reason
+      : undefined;
+  const existingDegradedReasonCodes = Array.isArray(progressState.degraded_reason_codes)
+    ? progressState.degraded_reason_codes
+        .filter((code): code is string => isNonEmptyTrimmedString(code))
+    : [];
+  const existingDegradedAt =
+    isNonEmptyTrimmedString(progressState.degraded_at)
+      ? progressState.degraded_at
+      : undefined;
+
+  const degradedReason =
+    pass3aStatus === 'degraded'
+      ? existingDegradedReason ?? 'PASS3A_PREFLIGHT_DEGRADED'
+      : undefined;
+  const degradedReasonCodes =
+    pass3aStatus === 'degraded'
+      ? (existingDegradedReasonCodes.length > 0
+          ? existingDegradedReasonCodes
+          : ['PASS3A_PREFLIGHT_DEGRADED'])
+      : undefined;
+  const degradedAt = pass3aStatus === 'degraded' ? existingDegradedAt ?? nowIso : undefined;
+
+  return {
+    pass3a_status: pass3aStatus,
+    pass3a_completed_at: completedAt,
+    degraded_reason: degradedReason,
+    degraded_reason_codes: degradedReasonCodes,
+    degraded_at: degradedAt,
+  };
+}
+
 interface EvaluationJob {
   id: string;
   manuscript_id: number;
@@ -5073,43 +5201,6 @@ export async function processEvaluationJob(
 
         // ── 7. Review Gate handoff (Phase Architecture v2 helper) ─────────
         const phase1aNow = new Date().toISOString();
-        const validPass3aStatuses: Pass3AStatus[] = [
-          'not_started',
-          'running',
-          'map_done',
-          'reduce_running',
-          'done',
-          'degraded',
-          'failed',
-        ];
-        const rawPass3aStatus = progressState.pass3a_status;
-        const pass3aStatus: Pass3AStatus | undefined =
-          typeof rawPass3aStatus === 'string' &&
-          validPass3aStatuses.includes(rawPass3aStatus as Pass3AStatus)
-            ? (rawPass3aStatus as Pass3AStatus)
-            : undefined;
-
-        const phaseV2Progress: PhaseV2Progress = {
-          pass3a_status: pass3aStatus,
-          pass3a_completed_at:
-            typeof progressState.pass3a_completed_at === 'string'
-              ? progressState.pass3a_completed_at
-              : undefined,
-          degraded_reason:
-            typeof progressState.degraded_reason === 'string'
-              ? progressState.degraded_reason
-              : undefined,
-          degraded_reason_codes: Array.isArray(progressState.degraded_reason_codes)
-            ? progressState.degraded_reason_codes.filter(
-                (code): code is string => typeof code === 'string' && code.trim().length > 0,
-              )
-            : undefined,
-          degraded_at:
-            typeof progressState.degraded_at === 'string'
-              ? progressState.degraded_at
-              : undefined,
-        };
-
         const reviewGateArtifactTypes = [
           'pass1a_story_layer_v1',
           'ledger_quality_report_v1',
@@ -5118,7 +5209,7 @@ export async function processEvaluationJob(
 
         const { data: reviewGateArtifacts, error: reviewGateArtifactsErr } = await supabase
           .from('evaluation_artifacts')
-          .select('artifact_type, artifact_id, source_hash')
+          .select('artifact_type, id, content, source_hash')
           .eq('job_id', job.id)
           .in('artifact_type', reviewGateArtifactTypes);
 
@@ -5128,30 +5219,12 @@ export async function processEvaluationJob(
           );
         }
 
-        const artifactRefsByType = new Map<string, { artifact_id?: string | null; source_hash?: string | null }>();
-        for (const artifact of reviewGateArtifacts ?? []) {
-          if (!artifact || typeof artifact !== 'object') {
-            continue;
-          }
-          const typed = artifact as {
-            artifact_type?: unknown;
-            artifact_id?: unknown;
-            source_hash?: unknown;
-          };
-          if (typeof typed.artifact_type !== 'string') {
-            continue;
-          }
-          artifactRefsByType.set(typed.artifact_type, {
-            artifact_id: typeof typed.artifact_id === 'string' ? typed.artifact_id : null,
-            source_hash: typeof typed.source_hash === 'string' ? typed.source_hash : null,
-          });
-        }
-
-        const phaseV2Artifacts: PhaseV2ArtifactSet = {
-          pass1a_story_layer_v1: artifactRefsByType.get('pass1a_story_layer_v1') ?? null,
-          ledger_quality_report_v1: artifactRefsByType.get('ledger_quality_report_v1') ?? null,
-          pass3_preflight_draft_v1: artifactRefsByType.get('pass3_preflight_draft_v1') ?? null,
-        };
+        const phaseV2Artifacts = toPhaseV2ArtifactSet(reviewGateArtifacts);
+        const phaseV2Progress = derivePhaseV2ReviewGateProgress(
+          progressState,
+          Boolean(phaseV2Artifacts.pass3_preflight_draft_v1?.artifact_id),
+          phase1aNow,
+        );
 
         const reviewGateHandoffResult = buildReviewGateHandoff(
           phaseV2Progress,
@@ -5163,7 +5236,7 @@ export async function processEvaluationJob(
           const blockedProgress = {
             ...progressState,
             phase: 'phase_1a',
-            phase_status: 'blocked',
+            phase_status: JOB_STATUS.QUEUED,
             message: reviewGateHandoffResult.blocked.progress.message,
             phase1a_completed_at: blockedNow,
             ledger_entries: characterLedger.entries.length,
