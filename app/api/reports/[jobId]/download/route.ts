@@ -139,6 +139,22 @@ function cleanReportText(text: unknown, fallback = '—', options: { blockTrunca
   return cleaned;
 }
 
+function toPdfSafeText(value: unknown, fallback = '-'): string {
+  return cleanReportText(value, fallback)
+    .normalize('NFKC')
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '')
+    .replace(/[\u2018\u2019\u201A\u201B]/g, "'")
+    .replace(/[\u201C\u201D\u201E\u201F]/g, '"')
+    .replace(/[\u2013\u2014\u2212]/g, '-')
+    .replace(/\u2022/g, '-')
+    .replace(/\u2122/g, '(TM)')
+    .replace(/\u00AE/g, '(R)')
+    .replace(/\u00A9/g, '(C)')
+    .replace(/\u00A0/g, ' ')
+    .replace(/[^\x09\x0A\x0D\x20-\x7E]/g, '?')
+    .trim();
+}
+
 function buildMetadata(result: ExportableResult, title: string | null, dream: LongformDreamDocument | null): ReportMetadata {
   const wordCount = typeof result.metrics?.manuscript?.word_count === 'number' ? result.metrics.manuscript.word_count : null;
   const displayTitle = title ?? result.metrics?.manuscript?.title ?? 'Untitled Manuscript';
@@ -345,36 +361,37 @@ async function buildPdfReport(result: ExportableResult, title: string | null, jo
     const ensureSpace = (height = 90) => {
       if (doc.y + height > bottomY()) doc.addPage();
     };
-    const section = (text: string) => {
+    const section = (text: unknown) => {
       ensureSpace(72);
       doc.moveDown(0.8);
-      doc.font('Helvetica-Bold').fontSize(15).fillColor('#111827').text(text, { width: contentWidth });
+      doc.font('Helvetica-Bold').fontSize(15).fillColor('#111827').text(toPdfSafeText(text), { width: contentWidth });
       doc.moveDown(0.35);
       doc.moveTo(doc.page.margins.left, doc.y).lineTo(doc.page.margins.left + contentWidth, doc.y).strokeColor('#D1D5DB').stroke();
       doc.strokeColor('#000000');
       doc.moveDown(0.5);
     };
-    const paragraph = (text: string) => {
+    const paragraph = (text: unknown) => {
       ensureSpace(70);
-      doc.font('Helvetica').fontSize(10.5).fillColor('#111827').text(cleanReportText(text), { width: contentWidth, lineGap: 2 });
+      doc.font('Helvetica').fontSize(10.5).fillColor('#111827').text(toPdfSafeText(text), { width: contentWidth, lineGap: 2 });
       doc.moveDown(0.45);
     };
-    const bullet = (text: string) => {
+    const bullet = (text: unknown) => {
       ensureSpace(45);
-      doc.font('Helvetica').fontSize(10.5).fillColor('#111827').text(`• ${cleanReportText(text)}`, { width: contentWidth, indent: 12, lineGap: 2 });
+      doc.font('Helvetica').fontSize(10.5).fillColor('#111827').text(`- ${toPdfSafeText(text)}`, { width: contentWidth, indent: 12, lineGap: 2 });
       doc.moveDown(0.25);
     };
-    const labelValue = (label: string, value: string | null) => {
-      if (!value) return;
-      doc.font('Helvetica-Bold').fontSize(10).fillColor('#374151').text(`${label}: `, { continued: true });
-      doc.font('Helvetica').fillColor('#111827').text(value, { width: contentWidth });
+    const labelValue = (label: string, value: unknown) => {
+      const safeValue = toPdfSafeText(value, '');
+      if (!safeValue) return;
+      doc.font('Helvetica-Bold').fontSize(10).fillColor('#374151').text(`${toPdfSafeText(label)}: `, { continued: true });
+      doc.font('Helvetica').fillColor('#111827').text(safeValue, { width: contentWidth });
       doc.moveDown(0.25);
     };
 
     // Cover page
-    doc.font('Helvetica-Bold').fontSize(25).fillColor('#111827').text('RevisionGrade™ Evaluation Report', { width: contentWidth });
+    doc.font('Helvetica-Bold').fontSize(25).fillColor('#111827').text(toPdfSafeText('RevisionGrade™ Evaluation Report'), { width: contentWidth });
     doc.moveDown(0.4);
-    doc.font('Helvetica-Bold').fontSize(17).text(metadata.displayTitle, { width: contentWidth });
+    doc.font('Helvetica-Bold').fontSize(17).text(toPdfSafeText(metadata.displayTitle), { width: contentWidth });
     doc.moveDown(1.2);
     labelValue('Report Type', metadata.reportType);
     labelValue('Genre', metadata.genre);
@@ -387,7 +404,7 @@ async function buildPdfReport(result: ExportableResult, title: string | null, jo
     labelValue('Confidentiality', 'Prepared for author/editorial use');
     doc.moveDown(1.2);
     doc.font('Helvetica').fontSize(9.5).fillColor('#4B5563').text(
-      'Powered by RevisionGrade™. Author retains ownership of manuscript content.',
+      toPdfSafeText('Powered by RevisionGrade™. Author retains ownership of manuscript content.'),
       { width: contentWidth },
     );
 
@@ -406,44 +423,44 @@ async function buildPdfReport(result: ExportableResult, title: string | null, jo
     result.criteria.forEach((c) => {
       ensureSpace(90);
       doc.font('Helvetica-Bold').fontSize(11).fillColor('#111827').text(
-        `${c.key} — ${scoreLabel(c.score_0_10, 10)}${c.confidence_level ? ` (${c.confidence_level} confidence)` : ''}`,
+        toPdfSafeText(`${c.key} - ${scoreLabel(c.score_0_10, 10)}${c.confidence_level ? ` (${c.confidence_level} confidence)` : ''}`),
         { width: contentWidth },
       );
-      if (c.rationale) paragraph(cleanReportText(c.rationale));
+      if (c.rationale) paragraph(c.rationale);
     });
 
     section('Quick Wins');
     result.recommendations.quick_wins.length ? result.recommendations.quick_wins.forEach((qw, idx) => {
       ensureSpace(80);
-      doc.font('Helvetica-Bold').fontSize(10.5).fillColor('#111827').text(`${idx + 1}. ${cleanReportText(qw.action)}  [effort: ${qw.effort}, impact: ${qw.impact}]`, { width: contentWidth });
-      if (qw.why) paragraph(cleanReportText(qw.why));
+      doc.font('Helvetica-Bold').fontSize(10.5).fillColor('#111827').text(toPdfSafeText(`${idx + 1}. ${cleanReportText(qw.action)}  [effort: ${qw.effort}, impact: ${qw.impact}]`), { width: contentWidth });
+      if (qw.why) paragraph(qw.why);
     }) : paragraph('(none)');
 
     section('Strategic Revisions');
     result.recommendations.strategic_revisions.length ? result.recommendations.strategic_revisions.forEach((sr, idx) => {
       ensureSpace(80);
-      doc.font('Helvetica-Bold').fontSize(10.5).fillColor('#111827').text(`${idx + 1}. ${cleanReportText(sr.action)}  [effort: ${sr.effort}, impact: ${sr.impact}]`, { width: contentWidth });
-      if (sr.why) paragraph(cleanReportText(sr.why));
+      doc.font('Helvetica-Bold').fontSize(10.5).fillColor('#111827').text(toPdfSafeText(`${idx + 1}. ${cleanReportText(sr.action)}  [effort: ${sr.effort}, impact: ${sr.impact}]`), { width: contentWidth });
+      if (sr.why) paragraph(sr.why);
     }) : paragraph('(none)');
 
     if (dream) {
       section('Narrative Synthesis');
-      paragraph(`Quality: ${dream.dream_scores?.quality ?? '—'}/100 | Readiness: ${dream.dream_scores?.readiness ?? '—'}/100 | Commercial: ${dream.dream_scores?.commercial ?? '—'}/100 | Literary: ${dream.dream_scores?.literary ?? '—'}/100`);
-      doc.font('Helvetica-Bold').fontSize(12).fillColor('#111827').text('Executive Verdict', { width: contentWidth });
-      paragraph(cleanReportText(dream.executive_verdict));
+      paragraph(`Quality: ${dream.dream_scores?.quality ?? '-'} /100 | Readiness: ${dream.dream_scores?.readiness ?? '-'} /100 | Commercial: ${dream.dream_scores?.commercial ?? '-'} /100 | Literary: ${dream.dream_scores?.literary ?? '-'} /100`);
+      doc.font('Helvetica-Bold').fontSize(12).fillColor('#111827').text(toPdfSafeText('Executive Verdict'), { width: contentWidth });
+      paragraph(dream.executive_verdict);
 
       if (dream.market_shelf) {
         section('Market Shelf');
-        labelValue('Best Shelf', cleanReportText(dream.market_shelf.best_shelf));
-        labelValue('Marketable Hook', cleanReportText(dream.market_shelf.marketable_hook));
-        labelValue('Market Danger', cleanReportText(dream.market_shelf.market_danger));
+        labelValue('Best Shelf', dream.market_shelf.best_shelf);
+        labelValue('Marketable Hook', dream.market_shelf.marketable_hook);
+        labelValue('Market Danger', dream.market_shelf.market_danger);
       }
 
       if (Array.isArray(dream.structural_stack) && dream.structural_stack.length > 0) {
         section('Structural Stack');
         dream.structural_stack.forEach((layer) => {
           ensureSpace(90);
-          doc.font('Helvetica-Bold').fontSize(10.5).fillColor('#111827').text(`${cleanReportText(layer.layer_name)} — ${layer.status}`, { width: contentWidth });
+          doc.font('Helvetica-Bold').fontSize(10.5).fillColor('#111827').text(toPdfSafeText(`${cleanReportText(layer.layer_name)} - ${layer.status}`), { width: contentWidth });
           paragraph(`Function: ${cleanReportText(layer.function)}`);
           paragraph(`Revision note: ${cleanReportText(layer.revision_note)}`);
         });
@@ -453,7 +470,7 @@ async function buildPdfReport(result: ExportableResult, title: string | null, jo
         section('Arc Map');
         dream.arc_map.forEach((act) => {
           ensureSpace(80);
-          doc.font('Helvetica-Bold').fontSize(10.5).fillColor('#111827').text(`${cleanReportText(act.act_name)} (${cleanReportText(act.chapter_range)})`, { width: contentWidth });
+          doc.font('Helvetica-Bold').fontSize(10.5).fillColor('#111827').text(toPdfSafeText(`${cleanReportText(act.act_name)} (${cleanReportText(act.chapter_range)})`), { width: contentWidth });
           paragraph(`Function: ${cleanReportText(act.primary_function)}`);
           paragraph(`Revision priority: ${cleanReportText(act.revision_priority)}`);
         });
@@ -463,7 +480,7 @@ async function buildPdfReport(result: ExportableResult, title: string | null, jo
         section('Revision Plan');
         dream.revision_plan.forEach((item) => {
           ensureSpace(90);
-          doc.font('Helvetica-Bold').fontSize(10.5).fillColor('#111827').text(`Priority ${item.priority}: ${cleanReportText(item.title)}`, { width: contentWidth });
+          doc.font('Helvetica-Bold').fontSize(10.5).fillColor('#111827').text(toPdfSafeText(`Priority ${item.priority}: ${cleanReportText(item.title)}`), { width: contentWidth });
           paragraph(`Goal: ${cleanReportText(item.goal)}`);
           if (Array.isArray(item.actions) && item.actions.length > 0) item.actions.forEach(bullet);
           if (item.acceptance_check) paragraph(`Acceptance check: ${cleanReportText(item.acceptance_check)}`);
@@ -482,9 +499,9 @@ async function buildPdfReport(result: ExportableResult, title: string | null, jo
       const footer =
         pageNumber === 1
           ? 'Powered by RevisionGrade™'
-          : `RevisionGrade™ Evaluation Report · Confidential · Page ${pageNumber}`;
+          : `RevisionGrade™ Evaluation Report - Confidential - Page ${pageNumber}`;
       doc.font('Helvetica').fontSize(7).fillColor('#4B5563').text(
-        footer,
+        toPdfSafeText(footer),
         doc.page.margins.left,
         doc.page.height - 42,
         { width: contentWidth, align: 'center' },
@@ -693,14 +710,33 @@ export async function GET(
   }
 
   if (format === 'pdf') {
-    const buffer = await buildPdfReport(result, title, jobId, dream);
-    return new Response(new Uint8Array(buffer), {
-      headers: {
-        'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename="${safeFilename(title, jobId, 'pdf')}"`,
-        'Cache-Control': 'no-store',
-      },
-    });
+    try {
+      const buffer = await buildPdfReport(result, title, jobId, dream);
+      return new Response(new Uint8Array(buffer), {
+        headers: {
+          'Content-Type': 'application/pdf',
+          'Content-Disposition': `attachment; filename="${safeFilename(title, jobId, 'pdf')}"`,
+          'Cache-Control': 'no-store',
+        },
+      });
+    } catch (err) {
+      console.error('[report-download] PDF export failed', {
+        jobId,
+        error: err instanceof Error ? err.message : String(err),
+        stack: err instanceof Error ? err.stack : undefined,
+      });
+
+      const body = buildTxtReport(result, title, jobId, dream);
+      return new Response(body, {
+        status: 200,
+        headers: {
+          'Content-Type': 'text/plain; charset=utf-8',
+          'Content-Disposition': `attachment; filename="${safeFilename(title, jobId, 'txt')}"`,
+          'Cache-Control': 'no-store',
+          'X-RevisionGrade-Export-Fallback': 'pdf-to-txt',
+        },
+      });
+    }
   }
 
   const buffer = await buildDocx(result, title, jobId, dream);
