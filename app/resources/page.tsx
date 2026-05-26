@@ -33,6 +33,12 @@ const resourceCards = [
     copy: "How uploaded work is treated, what external research means, and why the author controls what happens next.",
   },
   {
+    title: "Security & Access Controls",
+    href: "/security",
+    eyebrow: "Controlled workspace",
+    copy: "A plain-language trust page covering account-gated workspaces, manuscript boundaries, controlled downloads, and logged access.",
+  },
+  {
     title: "Genre & Classification FAQ",
     href: "/genre-classification-faq",
     eyebrow: "Positioning matters",
@@ -43,6 +49,12 @@ const resourceCards = [
     href: "/storygate-studio/faq",
     eyebrow: "Controlled manuscript access",
     copy: "How manuscript-only Storygate access, creator approval, package visibility, and verified publishing-professional review fit together.",
+  },
+  {
+    title: "Agent Readiness FAQ",
+    href: "/agent-readiness/faq",
+    eyebrow: "Submission package support",
+    copy: "How query letters, synopses, comparables, author bios, package approval, and manuscript-specific readiness materials fit together.",
   },
 ];
 
