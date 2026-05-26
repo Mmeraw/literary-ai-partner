@@ -27,6 +27,12 @@ const resourceCards = [
     copy: "Practical answers about scores, reports, evaluation modes, revision, human editors, and publishing outcomes.",
   },
   {
+    title: "Dashboard Examples",
+    href: "/dashboard-examples",
+    eyebrow: "Progress over time",
+    copy: "Visual examples of readiness trends, issue reduction, recent wins, and how the author dashboard turns evaluation into a progress ledger.",
+  },
+  {
     title: "Privacy & Research Controls",
     href: "/privacy-research-controls",
     eyebrow: "Manuscript trust",
