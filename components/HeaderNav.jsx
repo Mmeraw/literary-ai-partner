@@ -28,6 +28,7 @@ const storygateLinks = [
 
 const resourceLinks = [
   ["Resources Hub",                 "/resources"],
+  ["Author FAQ",                    "/faq"],
   ["The Black Box Problem",         "/black-box-problem"],
   ["Methodology",                   "/methodology"],
   ["Editorial Doctrine",            "/reliability"],
@@ -40,6 +41,7 @@ const resourceLinks = [
 
 const resourceActiveHrefs = [
   "/resources",
+  "/faq",
   "/black-box-problem",
   "/methodology",
   "/reliability",
