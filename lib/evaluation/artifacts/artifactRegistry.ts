@@ -6,6 +6,7 @@ import {
 
 const CONTRACT_DOC = 'docs/canon/STORY_LAYER_CONTRACT_V1.md';
 const SUPPORT_CONTRACT_DOC = 'docs/canon/SUPPORTING_SIGNAL_ARTIFACTS_CONTRACT_V1.md';
+const PROVIDER_VERIFICATION_CONTRACT_DOC = 'docs/canon/EVAL2_PROVIDER_VERIFICATION_CONTRACT_V1.md';
 
 export const ARTIFACT_REGISTRY: Record<CanonicalEvaluationArtifactType, ArtifactRegistryEntry> = {
   dream_calibration_packet_v1: {
@@ -14,6 +15,17 @@ export const ARTIFACT_REGISTRY: Record<CanonicalEvaluationArtifactType, Artifact
     schemaPath: null,
     contractDocPath: CONTRACT_DOC,
     authority: 'calibration',
+    phase: 'phase_0_calibration',
+    phase2StoryAuthority: false,
+    supportArtifact: false,
+    createsStoryLayer: false,
+  },
+  factual_anomalies_detected_v1: {
+    artifactType: 'factual_anomalies_detected_v1',
+    artifactVersion: 'v1',
+    schemaPath: null,
+    contractDocPath: PROVIDER_VERIFICATION_CONTRACT_DOC,
+    authority: 'external_verification',
     phase: 'phase_0_calibration',
     phase2StoryAuthority: false,
     supportArtifact: false,
@@ -114,6 +126,17 @@ export const ARTIFACT_REGISTRY: Record<CanonicalEvaluationArtifactType, Artifact
     contractDocPath: CONTRACT_DOC,
     authority: 'final_result',
     phase: 'phase_3_final_report',
+    phase2StoryAuthority: false,
+    supportArtifact: false,
+    createsStoryLayer: false,
+  },
+  external_report_crosscheck_v1: {
+    artifactType: 'external_report_crosscheck_v1',
+    artifactVersion: 'v1',
+    schemaPath: null,
+    contractDocPath: PROVIDER_VERIFICATION_CONTRACT_DOC,
+    authority: 'external_verification',
+    phase: 'phase_4_cross_check',
     phase2StoryAuthority: false,
     supportArtifact: false,
     createsStoryLayer: false,
