@@ -119,7 +119,7 @@ const faqSections = [
         a: "Storygate Studio™ is a controlled manuscript-access layer for readiness-vetted book projects and verified publishing professionals. Current public scope is manuscript-first and publishing-facing.",
       },
       {
-        q: "Does Storygate include film, TV, screenplay, or adaptation workflows?",
+        q: "Does Storygate include non-book workflows today?",
         a: "Not in the current public scope. Storygate should stay focused on books, manuscripts, query packages, synopses, author bios, comparables, and controlled publishing-facing access until additional workflows exist.",
       },
       {
@@ -166,7 +166,7 @@ export default function AuthorFaqPage() {
           <Eyebrow>Current scope</Eyebrow>
           <h2 className="mt-4 font-rg-serif text-3xl leading-tight">Manuscripts, readiness, revision, and publishing-facing preparation.</h2>
           <p className="mt-5 text-sm leading-7 text-rg-cream2/80">
-            This FAQ intentionally avoids unsupported film, TV, screenplay, and adaptation claims. The current product promise is manuscript-first.
+            This FAQ intentionally avoids unsupported non-book claims. The current product promise is manuscript-first.
           </p>
         </div>
       </section>

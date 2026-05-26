@@ -22,6 +22,12 @@
 
 <!-- What this touches. What it explicitly does NOT touch. -->
 
+## Branch Freshness (Never Behind)
+
+<!-- Required: PR head must include current base HEAD. Keep this at 0 before merge/close. -->
+
+Branch-Behind-Base: 0
+
 ## Risks & Anomalies
 
 <!-- What could go wrong; how it's mitigated. -->

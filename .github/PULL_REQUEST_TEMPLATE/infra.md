@@ -20,6 +20,12 @@
 
 - `.github/workflows/<filename>.yml` — what changes
 
+## Branch Freshness (Never Behind)
+
+<!-- Required merge gate: PR head must include current base HEAD. -->
+
+Branch-Behind-Base: 0
+
 ## Risks & Anomalies
 
 <!-- What could go wrong; how it's mitigated. -->
