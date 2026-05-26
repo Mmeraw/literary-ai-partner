@@ -31,6 +31,154 @@ const evaluationModes = [
   },
 ];
 
+function getJobTitle(job) {
+  return (
+    job.manuscript_title ||
+    job.manuscriptTitle ||
+    job.title ||
+    job.chapter_title ||
+    job.chapterTitle ||
+    `Evaluation ${job.id.slice(0, 8)}…`
+  );
+}
+
+function getStatusTone(status) {
+  if (status === "complete") return "border-green-200 bg-green-50 text-green-900";
+  if (status === "failed") return "border-red-200 bg-red-50 text-red-900";
+  if (status === "running") return "border-blue-200 bg-blue-50 text-blue-900";
+  if (status === "queued") return "border-amber-200 bg-amber-50 text-amber-900";
+  return "border-stone-200 bg-stone-50 text-stone-700";
+}
+
+function EvaluationHistoryCard({ job }) {
+  const displayInfo = getJobDisplayInfo(job);
+  const statusBadge = getJobStatusBadge(displayInfo.badge);
+  const isComplete = job.status === "complete";
+  const isQueued = job.status === "queued";
+  const isRunning = job.status === "running";
+  const isFailed = job.status === "failed";
+  const relativeTime = formatRelativeTime(job.created_at);
+  const phaseInfo = getPhaseSpecificCopy(displayInfo.phaseDetail.phase, displayInfo.phaseDetail.phase_status);
+  const statusTone = getStatusTone(job.status);
+
+  let progressMessage = displayInfo.message || displayInfo.progress.display;
+  let subMessage = null;
+
+  if (isQueued) {
+    progressMessage = "Preparing evaluation…";
+    subMessage = "This usually takes about 2–3 minutes.";
+  } else if (isRunning) {
+    const duration = formatDuration(job.created_at);
+    progressMessage = phaseInfo.displayCopy;
+    subMessage = `Running for ${duration}. ${phaseInfo.description}`;
+  } else if (isComplete) {
+    progressMessage = "Evaluation complete";
+    subMessage = "Your report is ready to review.";
+  } else if (isFailed) {
+    progressMessage = "Evaluation failed";
+    subMessage = displayInfo.message || "An error occurred during processing.";
+  }
+
+  return (
+    <article className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm transition hover:border-rg-gold/60 hover:shadow-md">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${statusTone}`}>
+              {statusBadge.label}
+            </span>
+            <span className="font-rg-mono text-[0.68rem] uppercase tracking-[0.16em] text-stone-400">
+              Submitted {relativeTime}
+            </span>
+          </div>
+
+          <h3 className="mt-3 font-rg-serif text-2xl leading-tight text-stone-950">
+            {getJobTitle(job)}
+          </h3>
+
+          <p className="mt-2 text-sm leading-6 text-stone-600">
+            {progressMessage}
+          </p>
+          {subMessage && <p className="mt-1 text-xs leading-5 text-stone-500">{subMessage}</p>}
+        </div>
+
+        <div className="flex flex-wrap gap-2 lg:justify-end">
+          {isComplete ? (
+            <Link
+              href={`/evaluate/${job.id}`}
+              onClick={() => {
+                appendUserActivity({
+                  event: "evaluate.report.opened",
+                  route: "/evaluate",
+                  href: `/evaluate/${job.id}`,
+                  linkLabel: "Open evaluation report",
+                  detail: `job_id=${job.id}`,
+                });
+              }}
+              className="inline-flex items-center rounded-xl bg-green-700 px-4 py-2 font-rg-mono text-xs font-semibold uppercase tracking-[0.12em] text-white shadow-sm transition hover:bg-green-800"
+            >
+              Open Report
+            </Link>
+          ) : isRunning || isQueued ? (
+            <>
+              <Link
+                href={`/evaluate/${job.id}`}
+                className={`inline-flex items-center rounded-xl border px-4 py-2 font-rg-mono text-xs font-semibold uppercase tracking-[0.12em] transition ${isRunning ? "border-blue-200 bg-blue-50 text-blue-800 hover:bg-blue-100" : "border-stone-200 bg-stone-50 text-stone-600 hover:bg-stone-100"}`}
+              >
+                {isRunning && (
+                  <svg className="mr-2 h-4 w-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                )}
+                {isRunning ? "Live Progress" : "Queued"}
+              </Link>
+              <CancelEvaluationButton jobId={job.id} label="STOP" buttonClassName="inline-flex items-center rounded-xl bg-red-700 px-4 py-2 font-rg-mono text-xs font-bold uppercase tracking-[0.12em] text-white shadow-sm transition-colors hover:bg-red-800" />
+            </>
+          ) : (
+            <Link
+              href={`/evaluate/${job.id}`}
+              className="inline-flex items-center rounded-xl border border-stone-200 bg-stone-50 px-4 py-2 font-rg-mono text-xs font-semibold uppercase tracking-[0.12em] text-stone-600 transition hover:bg-stone-100"
+            >
+              View Details
+            </Link>
+          )}
+        </div>
+      </div>
+
+      {isRunning && displayInfo.progress.total > 0 && (
+        <div className="mt-5 rounded-2xl border border-blue-100 bg-blue-50/60 p-4">
+          <div className="mb-2 flex items-center justify-between font-rg-mono text-[0.68rem] uppercase tracking-[0.14em] text-blue-900/70">
+            <span>Progress</span>
+            <span>{displayInfo.progress.percentage}%</span>
+          </div>
+          <div className="h-2 w-full rounded-full bg-blue-100">
+            <div className="h-2 rounded-full bg-blue-700 transition-all duration-500" style={{ width: `${displayInfo.progress.percentage}%` }} />
+          </div>
+        </div>
+      )}
+
+      <div className="mt-5 grid gap-4 border-t border-stone-100 pt-5 lg:grid-cols-[1fr_1.35fr]">
+        <div>
+          <p className="font-rg-mono text-[0.68rem] uppercase tracking-[0.16em] text-stone-400">Evaluation ID</p>
+          <Link href={`/evaluate/${job.id}`} className="mt-1 block truncate font-mono text-sm text-stone-600 hover:text-stone-950 hover:underline" title={job.id}>
+            {job.id}
+          </Link>
+          <p className="mt-3 font-rg-mono text-[0.68rem] uppercase tracking-[0.16em] text-stone-400">Submitted</p>
+          <p className="mt-1 text-sm text-stone-600">{new Date(job.created_at).toLocaleString()}</p>
+        </div>
+
+        <div>
+          <p className="font-rg-mono text-[0.68rem] uppercase tracking-[0.16em] text-stone-400">Process checkpoint</p>
+          <div className="mt-2 rounded-2xl border border-stone-200 bg-[#FBFAF7] p-3">
+            <PhaseBreadcrumb phaseLog={job.progress?.phase_log ?? []} job={job} compact={true} />
+          </div>
+        </div>
+      </div>
+    </article>
+  );
+}
+
 export default function EvaluateEntry() {
   const router = useRouter();
   const { jobs, isLoading, isError } = useJobs();
@@ -46,7 +194,7 @@ export default function EvaluateEntry() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-[#F7F4EF]">
+      <div className="flex min-h-screen items-center justify-center bg-[#F7F4EF]">
         <div className="text-stone-600">Loading evaluations…</div>
       </div>
     );
@@ -54,7 +202,7 @@ export default function EvaluateEntry() {
 
   if (isError) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-[#F7F4EF]">
+      <div className="flex min-h-screen items-center justify-center bg-[#F7F4EF]">
         <div className="text-red-700">Failed to load evaluations.</div>
       </div>
     );
@@ -67,7 +215,7 @@ export default function EvaluateEntry() {
 
   return (
     <div className="min-h-screen bg-[#F7F4EF] py-8 text-stone-950">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <section className="mb-8 rounded-3xl border border-stone-200 bg-white/80 p-6 shadow-sm md:p-8">
           <p className="font-rg-mono text-xs uppercase tracking-[0.24em] text-rg-gold">Evaluate</p>
           <div className="mt-4 grid gap-8 lg:grid-cols-[1.05fr_0.95fr] lg:items-end">
@@ -115,11 +263,13 @@ export default function EvaluateEntry() {
         )}
 
         <section className="mt-8 rounded-3xl border border-stone-200 bg-white p-6 shadow-sm">
-          <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+          <div className="mb-6 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <p className="font-rg-mono text-xs uppercase tracking-[0.18em] text-rg-gold">History</p>
               <h2 className="mt-1 font-rg-serif text-3xl text-stone-950">Recent evaluations</h2>
-              <p className="mt-1 text-sm text-stone-600">Track submitted jobs, live progress, completed reports, and failed runs.</p>
+              <p className="mt-1 max-w-2xl text-sm leading-6 text-stone-600">
+                Your evaluations are shown as readable manuscript cards with status, progress, report access, and submission timing.
+              </p>
             </div>
           </div>
 
@@ -145,120 +295,10 @@ export default function EvaluateEntry() {
               </div>
             </div>
           ) : (
-            <div className="overflow-hidden rounded-2xl border border-stone-200 bg-white">
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-stone-200">
-                  <thead className="bg-stone-50">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-stone-500">Job ID</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-stone-500">Result</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-stone-500" style={{ minWidth: "380px" }}>Pipeline — Entered &amp; Passed</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-stone-500">Activity</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-stone-500">Submitted</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-stone-500">Report</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-stone-200 bg-white">
-                    {sortedJobs.map((job) => {
-                      const displayInfo = getJobDisplayInfo(job);
-                      const statusBadge = getJobStatusBadge(displayInfo.badge);
-                      const isComplete = job.status === "complete";
-                      const isQueued = job.status === "queued";
-                      const isRunning = job.status === "running";
-                      const isFailed = job.status === "failed";
-                      const relativeTime = formatRelativeTime(job.created_at);
-                      const phaseInfo = getPhaseSpecificCopy(displayInfo.phaseDetail.phase, displayInfo.phaseDetail.phase_status);
-
-                      let progressMessage = displayInfo.message || displayInfo.progress.display;
-                      let subMessage = null;
-
-                      if (isQueued) {
-                        progressMessage = "Preparing evaluation…";
-                        subMessage = "This usually takes ~2–3 minutes";
-                      } else if (isRunning) {
-                        const duration = formatDuration(job.created_at);
-                        progressMessage = phaseInfo.displayCopy;
-                        subMessage = `Running for ${duration} • ${phaseInfo.description}`;
-                      } else if (isComplete) {
-                        progressMessage = "Evaluation complete";
-                        subMessage = "Ready to view your report";
-                      } else if (isFailed) {
-                        progressMessage = "Evaluation failed";
-                        subMessage = displayInfo.message || "An error occurred during processing";
-                      }
-
-                      return (
-                        <tr key={job.id} className="hover:bg-stone-50">
-                          <td className="whitespace-nowrap px-6 py-4 font-mono text-sm">
-                            <Link href={`/evaluate/${job.id}`} className="text-blue-700 hover:text-blue-900 hover:underline" title={job.id}>
-                              {job.id.slice(0, 8)}&hellip;
-                            </Link>
-                          </td>
-                          <td className="whitespace-nowrap px-6 py-4">
-                            <span className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ${statusBadge.className}`}>
-                              {statusBadge.label}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 text-sm text-stone-500" style={{ minWidth: "380px" }}>
-                            <PhaseBreadcrumb phaseLog={job.progress?.phase_log ?? []} job={job} compact={true} />
-                          </td>
-                          <td className="px-6 py-4 text-sm">
-                            <div className="text-stone-900">{progressMessage}</div>
-                            {subMessage && <div className="mt-1 text-xs text-stone-500">{subMessage}</div>}
-                            {isRunning && displayInfo.progress.total > 0 && (
-                              <div className="mt-2">
-                                <div className="mb-1 flex items-center justify-between text-xs text-stone-500">
-                                  <span>Progress</span>
-                                  <span>{displayInfo.progress.percentage}%</span>
-                                </div>
-                                <div className="h-1.5 w-full rounded-full bg-stone-200">
-                                  <div className="h-1.5 rounded-full bg-blue-600 transition-all duration-500" style={{ width: `${displayInfo.progress.percentage}%` }} />
-                                </div>
-                              </div>
-                            )}
-                          </td>
-                          <td className="whitespace-nowrap px-6 py-4 text-sm text-stone-500">
-                            <div>{relativeTime}</div>
-                            <div className="mt-1 text-xs text-stone-400">{new Date(job.created_at).toLocaleString()}</div>
-                          </td>
-                          <td className="whitespace-nowrap px-6 py-4 text-sm">
-                            {isComplete ? (
-                              <Link
-                                href={`/evaluate/${job.id}`}
-                                onClick={() => {
-                                  appendUserActivity({
-                                    event: "evaluate.report.opened",
-                                    route: "/evaluate",
-                                    href: `/evaluate/${job.id}`,
-                                    linkLabel: "Open evaluation report",
-                                    detail: `job_id=${job.id}`,
-                                  });
-                                }}
-                                className="inline-flex items-center rounded-md border border-transparent bg-green-700 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-green-800"
-                              >
-                                View Report
-                              </Link>
-                            ) : isRunning || isQueued ? (
-                              <div className="flex flex-wrap items-center gap-3">
-                                <Link href={`/evaluate/${job.id}`} className={`flex items-center ${isRunning ? "text-blue-700" : "text-stone-500"} hover:underline`}>
-                                  <svg className={`${isRunning ? "animate-spin" : ""} mr-2 h-4 w-4`} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                  </svg>
-                                  <span className="text-xs font-medium">{isRunning ? "Live Progress" : "Queued"}</span>
-                                </Link>
-                                <CancelEvaluationButton jobId={job.id} label="STOP" buttonClassName="inline-flex items-center rounded-md bg-red-700 px-3 py-1.5 text-xs font-bold tracking-wide text-white shadow-sm transition-colors hover:bg-red-800" />
-                              </div>
-                            ) : (
-                              <span className="text-xs text-stone-400">{statusBadge.label}</span>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
+            <div className="space-y-4">
+              {sortedJobs.map((job) => (
+                <EvaluationHistoryCard key={job.id} job={job} />
+              ))}
             </div>
           )}
         </section>
