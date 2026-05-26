@@ -62,6 +62,12 @@ function uploadedSourceHeadingLabel(value: AuthorProfileSourceType): string {
   return value === "infer" ? "Author Profile Source" : authorProfileSourceTypeLabel(value);
 }
 
+function compactSourceExcerpt(text: string, maxLength = 520): string {
+  const normalized = text.replace(/\s+/g, " ").trim();
+  if (normalized.length <= maxLength) return normalized;
+  return `${normalized.slice(0, maxLength).trim()}…`;
+}
+
 function useSpeechInput(setValue: React.Dispatch<React.SetStateAction<string>>) {
   const [state, setState] = React.useState<SpeechState>("idle");
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -208,27 +214,71 @@ export default function AuthorBioPage() {
   const [confirmed,    setConfirmed]    = useState(false);
   const [approved,     setApproved]     = useState(false);
   const [generatedBio, setGeneratedBio] = useState("");
+  const [bioGenerationMessage, setBioGenerationMessage] = useState("");
   const [authorProfileSourceType, setAuthorProfileSourceType] = useState<AuthorProfileSourceType>("infer");
   const [authorProfileSourceUploadName, setAuthorProfileSourceUploadName] = useState("");
   const [authorProfileSourceUploadStatus, setAuthorProfileSourceUploadStatus] = useState<AuthorProfileSourceUploadStatus>("idle");
   const [authorProfileSourceUploadMessage, setAuthorProfileSourceUploadMessage] = useState("");
   const authorProfileSourceUploadRef = useRef<HTMLInputElement | null>(null);
-  const previousResumeTextRef = useRef(resumeText);
-  const previousAuthorProfileSourceTypeRef = useRef(authorProfileSourceType);
+  const authorProfileFactSignature = JSON.stringify({ resumeText, authorProfileSourceType, penName, isDebut, fields });
+  const previousAuthorProfileFactSignatureRef = useRef(authorProfileFactSignature);
 
   const canApprove = generatedBio.trim().length > 0 && confirmed;
 
   React.useEffect(() => {
-    const sourceTextChanged = previousResumeTextRef.current !== resumeText;
-    const sourceTypeChanged = previousAuthorProfileSourceTypeRef.current !== authorProfileSourceType;
-    if (!sourceTextChanged && !sourceTypeChanged) return;
+    if (previousAuthorProfileFactSignatureRef.current === authorProfileFactSignature) return;
 
-    previousResumeTextRef.current = resumeText;
-    previousAuthorProfileSourceTypeRef.current = authorProfileSourceType;
+    previousAuthorProfileFactSignatureRef.current = authorProfileFactSignature;
     setGeneratedBio("");
     setApproved(false);
     setConfirmed(false);
-  }, [resumeText, authorProfileSourceType]);
+    setBioGenerationMessage("");
+  }, [authorProfileFactSignature]);
+
+  function hasAuthorProfileFacts(): boolean {
+    return Boolean(
+      penName.trim() ||
+      resumeText.trim() ||
+      isDebut ||
+      INPUT_FIELDS.some(field => fields[field.id]?.trim()),
+    );
+  }
+
+  function buildAuthorBioDraft(): string {
+    const displayName = penName.trim() || "The author";
+    const sentences: string[] = [`${displayName} is an author.`];
+
+    if (isDebut) {
+      sentences.push(`${displayName} has identified this submission as a debut-author profile.`);
+    }
+
+    INPUT_FIELDS.forEach(field => {
+      const value = fields[field.id]?.trim();
+      if (value) sentences.push(`${field.label}: ${value}`);
+    });
+
+    const sourceExcerpt = compactSourceExcerpt(resumeText);
+    if (sourceExcerpt) {
+      sentences.push(`Author Profile Sources supplied by the author: ${sourceExcerpt}`);
+    }
+
+    return sentences.join("\n\n");
+  }
+
+  function handleGenerateBio() {
+    if (!hasAuthorProfileFacts()) {
+      setGeneratedBio("");
+      setApproved(false);
+      setConfirmed(false);
+      setBioGenerationMessage("Add Author Profile Sources, writing credentials, or relevant background before generating an author bio.");
+      return;
+    }
+
+    setGeneratedBio(buildAuthorBioDraft());
+    setApproved(false);
+    setConfirmed(false);
+    setBioGenerationMessage("Draft generated only from facts currently supplied on this page. Review and edit before approval.");
+  }
 
   async function handleAuthorProfileSourceUpload(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -460,7 +510,7 @@ export default function AuthorBioPage() {
         {/* Generate */}
         <div style={{ display: "flex", gap: "0.75rem", marginBottom: "1.5rem", flexWrap: "wrap" }}>
           <button
-            onClick={() => setGeneratedBio("Michael J. Meraw is a former Canadian Armed Forces pilot and aerospace executive turned novelist. He writes literary suspense, eco-horror, and speculative fiction about survival, moral consequence, and the systems — natural and human — that trap people inside them. Splitting his time between Canada and Sinaloa, Mexico, he draws on lived regional experience for his work. Meraw previously founded a startup and pitched on CBC's Dragons' Den.")}
+            onClick={handleGenerateBio}
             style={{
               fontFamily: T.mono, fontSize: "0.6875rem", fontWeight: 700,
               letterSpacing: "0.1em", textTransform: "uppercase",
@@ -478,6 +528,12 @@ export default function AuthorBioPage() {
             }}>{label}</button>
           ))}
         </div>
+
+        {bioGenerationMessage && (
+          <p style={{ fontSize: "0.75rem", color: generatedBio ? T.cream2 : "#D07070", lineHeight: 1.6, marginBottom: "1rem" }}>
+            {bioGenerationMessage}
+          </p>
+        )}
 
         {/* Generated bio */}
         {generatedBio && (
