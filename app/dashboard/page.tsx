@@ -20,6 +20,18 @@ function getScoreDelta(current: number | null, previous: number | null): string 
   return `${delta >= 0 ? '+' : ''}${delta.toFixed(1)} vs prior evaluation`
 }
 
+function getAgentReadinessHref(row: { manuscriptId: string; jobId: string }): string {
+  const params = new URLSearchParams({
+    manuscriptId: row.manuscriptId,
+    evaluationJobId: row.jobId,
+  })
+  return `/agent-readiness?${params.toString()}`
+}
+
+function canBuildAgentReadiness(status: string): boolean {
+  return status !== 'failed' && status !== 'running'
+}
+
 export default async function DashboardPage() {
   const { rows, error } = await getDashboardEvaluations({ limit: 15 })
 
@@ -59,6 +71,7 @@ export default async function DashboardPage() {
   const latestTopScore = Math.max(latest.overallScore ?? 0, latest.readinessScore ?? 0)
   const latestIsReady = latestTopScore >= 8
   const latestIsActionable = latest.status === 'failed' || latest.status === 'running'
+  const latestCanBuildAgentReadiness = canBuildAgentReadiness(latest.status)
 
   return (
     <div className="rg-dash-page">
@@ -93,6 +106,11 @@ export default async function DashboardPage() {
             <Link href={latest.reportHref} className="rg-current-primary">
               {latestIsActionable ? 'Open details' : 'Open latest report'}
             </Link>
+            {latestCanBuildAgentReadiness && (
+              <Link href={getAgentReadinessHref(latest)} className="rg-current-secondary">
+                Build Agent Readiness Package
+              </Link>
+            )}
             <Link href="/revise" className="rg-current-secondary">
               Continue Revise
             </Link>
