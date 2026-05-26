@@ -40,6 +40,9 @@ type LedgerEntry = {
   customText?: string;
 };
 
+const SEVERITY_ORDER: Record<Severity, number> = { must: 0, should: 1, could: 2 };
+const SCOPES: Scope[] = ["Line", "Passage", "Scene", "Chapter", "Structural", "Manuscript"];
+
 const OPPORTUNITIES: Opportunity[] = [
   {
     id: 1,
@@ -187,6 +190,8 @@ const OPPORTUNITIES: Opportunity[] = [
   },
 ];
 
+const SORTED_OPPORTUNITIES = [...OPPORTUNITIES].sort((a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity] || a.id - b.id);
+
 function severityClasses(severity: Severity) {
   switch (severity) {
     case "must":
@@ -200,6 +205,10 @@ function severityClasses(severity: Severity) {
 
 function countBySeverity(severity: Severity) {
   return OPPORTUNITIES.filter((item) => item.severity === severity).length;
+}
+
+function countByScope(scope: Scope) {
+  return OPPORTUNITIES.filter((item) => item.scope === scope).length;
 }
 
 function decisionLabel(entry: LedgerEntry) {
@@ -230,17 +239,17 @@ function rebuildDecisionMap(entries: LedgerEntry[]): Record<number, DecisionStat
 }
 
 export default function WorkbenchPage() {
-  const [activeId, setActiveId] = useState<number>(1);
+  const [activeId, setActiveId] = useState<number>(SORTED_OPPORTUNITIES[0].id);
   const [selectedOption, setSelectedOption] = useState<"A" | "B" | "C">("A");
   const [ledger, setLedger] = useState<LedgerEntry[]>([]);
   const [decisionById, setDecisionById] = useState<Record<number, DecisionState>>({});
   const [isDraftOpen, setIsDraftOpen] = useState(false);
   const [draftText, setDraftText] = useState("");
 
-  const active = useMemo(() => OPPORTUNITIES.find((item) => item.id === activeId) ?? OPPORTUNITIES[0], [activeId]);
+  const active = useMemo(() => SORTED_OPPORTUNITIES.find((item) => item.id === activeId) ?? SORTED_OPPORTUNITIES[0], [activeId]);
   const selectedProposal = useMemo(() => active.options.find((option) => option.key === selectedOption) ?? active.options[0], [active, selectedOption]);
-  const queueIndex = OPPORTUNITIES.findIndex((item) => item.id === active.id);
-  const nextId = queueIndex >= 0 && queueIndex < OPPORTUNITIES.length - 1 ? OPPORTUNITIES[queueIndex + 1].id : null;
+  const queueIndex = SORTED_OPPORTUNITIES.findIndex((item) => item.id === active.id);
+  const nextId = queueIndex >= 0 && queueIndex < SORTED_OPPORTUNITIES.length - 1 ? SORTED_OPPORTUNITIES[queueIndex + 1].id : null;
 
   const accepted = Object.values(decisionById).filter((d) => d.startsWith("accepted")).length;
   const rejected = Object.values(decisionById).filter((d) => d === "reject").length;
@@ -283,7 +292,14 @@ export default function WorkbenchPage() {
             <div><span className="text-[#C8A96E]">Priority:</span> {countBySeverity("must")} MUST · {countBySeverity("should")} SHOULD · {countBySeverity("could")} COULD</div>
             <div><span className="text-[#C8A96E]">Decisions:</span> {deferred} Deferred · {accepted} Accepted · {custom} Custom · {rejected} Rejected · {pending} Pending</div>
           </div>
-          <p className="mt-2 text-xs text-[#A9987D]">Recommended path: resolve MUST items before lower-level polish.</p>
+          <div className="mt-3 rounded-lg border border-[#2D2519] bg-[#110D07] p-3">
+            <p className="text-[11px] uppercase tracking-[0.18em] text-[#C8A96E]">Total revisions by category</p>
+            <div className="mt-2 grid gap-2 text-xs text-[#D8C6A4] md:grid-cols-2">
+              <div>{countBySeverity("must")} MUST · {countBySeverity("should")} SHOULD · {countBySeverity("could")} COULD</div>
+              <div>{SCOPES.map((scope) => `${countByScope(scope)} ${scope}`).join(" · ")}</div>
+            </div>
+          </div>
+          <p className="mt-2 text-xs text-[#A9987D]">First batch is sorted by editorial priority: MUST first, then SHOULD, then COULD. Recommended path: resolve MUST items before lower-level polish.</p>
           <div className="mt-4 flex flex-wrap gap-3 text-xs">
             <Link href="/revise" className="rounded border border-[#6D5A3B] px-3 py-1.5 text-[#E8D8BA] hover:border-[#C8A96E]">← Revise landing</Link>
             <Link href="/evaluate" className="rounded border border-[#6D5A3B] px-3 py-1.5 text-[#E8D8BA] hover:border-[#C8A96E]">Evaluate</Link>
@@ -292,9 +308,10 @@ export default function WorkbenchPage() {
 
         <section className="grid gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
           <aside className="rounded-xl border border-[#3A3022] bg-[#161109] p-4">
-            <div className="mb-4 flex items-center justify-between"><h2 className="text-sm uppercase tracking-[0.18em] text-[#D7C4A1]">Repair Queue</h2><span className="rounded-full border border-[#5D4C31] px-2 py-0.5 text-[11px] text-[#C8A96E]">{OPPORTUNITIES.length} queued</span></div>
+            <div className="mb-4 flex items-center justify-between"><h2 className="text-sm uppercase tracking-[0.18em] text-[#D7C4A1]">First Batch</h2><span className="rounded-full border border-[#5D4C31] px-2 py-0.5 text-[11px] text-[#C8A96E]">{SORTED_OPPORTUNITIES.length} queued</span></div>
+            <p className="mb-3 text-xs leading-5 text-[#A9987D]">MUST items are shown first so the author starts with readiness blockers before lower-level repairs.</p>
             <ol className="space-y-3">
-              {OPPORTUNITIES.map((item) => {
+              {SORTED_OPPORTUNITIES.map((item) => {
                 const decision = decisionById[item.id];
                 return (
                   <li key={item.id}>
