@@ -1,5 +1,6 @@
 // app/layout.jsx
 import "./globals.css";
+import "./mobile-responsive-guard.css";
 import HeaderNav from "../components/HeaderNav";
 import SiteFooter from "../components/SiteFooter";
 import ReportColorSystemHydrator from "../components/reports/ReportColorSystemHydrator";
