@@ -164,7 +164,7 @@ function hasPressureSignals(payload: unknown): boolean {
     "trespass",
     "poison",
     "imbalance",
-    "ending",
+    "closure",
     "unresolved",
   ];
 

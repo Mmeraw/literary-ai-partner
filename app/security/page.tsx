@@ -52,7 +52,7 @@ const notClaims = [
   "No promise that a completed evaluation makes the manuscript publicly discoverable.",
   "No unsupported claim of agent interest, publication, or sales outcome.",
   "No public exposure of raw operational traces as part of the normal author experience.",
-  "No film, TV, screenplay, or adaptation routing as a current public workflow.",
+  "No unsupported scripted-media routing as a current public workflow.",
   "No claim here of a formal compliance certification such as SOC 2 unless and until that certification exists.",
 ];
 
