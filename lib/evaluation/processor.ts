@@ -5416,7 +5416,7 @@ export async function processEvaluationJob(
 
           try {
             const pass12Recovery = await runPass12ForHandoffRecovery(prebuiltLedgerP2);
-            if (!pass12Recovery.ok) {
+            if (pass12Recovery.ok === false) {
               console.error(`[phase_2] ${jobId}: Pass 1+2 handoff recovery failed`, {
                 error_code: pass12Recovery.errorCode,
                 error: pass12Recovery.error,
