@@ -22,6 +22,12 @@
 
 <!-- Yes/No. If yes: estimated row count, runtime, lock impact, and whether it runs inside or outside the migration transaction. -->
 
+## Branch Freshness (Never Behind)
+
+<!-- Required merge gate: PR head must include current base HEAD. -->
+
+Branch-Behind-Base: 0
+
 ## Risks & Anomalies
 
 <!-- Lock contention, downtime, replica lag, application compatibility, etc. -->
