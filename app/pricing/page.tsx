@@ -78,6 +78,11 @@ const faqs = [
       "Unlimited revision encourages vague rewriting. RevisionGrade uses scoped repair opportunities so each change is tied to evidence, rationale, and author approval.",
   },
   {
+    question: "Are evaluation purchases refundable?",
+    answer:
+      "Paid evaluations are final once processing begins because each report is a custom digital analysis that consumes editorial, computational, and system resources immediately. Refunds are not offered for disagreement with the score, editorial findings, change of mind, or agent/market outcome. Billing errors, duplicate charges, or verified non-delivery will be reviewed.",
+  },
+  {
     question: "Is RevisionGrade replacing human editors?",
     answer:
       "No. RevisionGrade helps you understand what kind of editorial help your manuscript may benefit from before you spend money on the wrong intervention: developmental editing, line editing, copyediting, proofreading, market positioning, or deeper structural repair.",
@@ -168,6 +173,16 @@ export default function PricingPage() {
                 </Link>
               </article>
             ))}
+          </div>
+
+          <div className="mt-8 rounded-2xl border border-rg-gold/30 bg-rg-ink/80 p-5 text-sm leading-7 text-rg-cream2/80">
+            <p className="font-rg-mono text-[0.65rem] uppercase tracking-[0.18em] text-rg-gold">Refund policy</p>
+            <p className="mt-3">
+              RevisionGrade evaluations are custom digital services. Paid evaluation purchases are final once processing begins. Refunds are not provided for disagreement with results, change of mind, editorial judgment, score outcome, or agent/market response. Billing errors, duplicate charges, or verified non-delivery will be reviewed.
+            </p>
+            <Link href="/terms" className="mt-3 inline-block font-rg-mono text-xs uppercase tracking-[0.16em] text-rg-gold hover:text-rg-cream">
+              Read terms →
+            </Link>
           </div>
         </div>
       </section>
