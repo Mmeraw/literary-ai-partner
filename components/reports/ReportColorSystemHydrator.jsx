@@ -6,18 +6,18 @@ import { usePathname } from "next/navigation";
 const TONES = {
   high: {
     background: "#ecfdf5",
-    color: "#065f46",
-    border: "#a7f3d0",
+    color: "#14532d",
+    border: "#86efac",
   },
   moderate: {
     background: "#fffbeb",
-    color: "#92400e",
-    border: "#fde68a",
+    color: "#78350f",
+    border: "#f59e0b",
   },
   low: {
-    background: "#fff1f2",
-    color: "#9f1239",
-    border: "#fecdd3",
+    background: "#fef2f2",
+    color: "#991b1b",
+    border: "#fca5a5",
   },
 };
 
