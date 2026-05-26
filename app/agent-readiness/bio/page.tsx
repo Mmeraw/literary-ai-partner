@@ -463,7 +463,7 @@ export default function AuthorBioPage() {
         {/* Generate */}
         <div style={{ display: "flex", gap: "0.75rem", marginBottom: "1.5rem", flexWrap: "wrap" }}>
           <button
-            onClick={() => setGeneratedBio("Michael J. Meraw is a former Canadian Armed Forces pilot and aerospace executive turned novelist. He writes literary suspense, eco-horror, and speculative fiction about survival, moral consequence, and the systems — natural and human — that trap people inside them. Splitting his time between Canada and Sinaloa, Mexico, he draws on lived regional experience for his work. Meraw previously founded a startup and pitched on CBC's Dragons' Den.")}
+            onClick={() => setGeneratedBio("Michael J. Meraw is a former Canadian Armed Forces pilot and aerospace executive turned novelist. He writes literary suspense, eco-horror, and speculative fiction about survival, moral consequence, and the systems — natural and human — that trap people inside them. Operated from British Columbia, Canada, and Sinaloa, Mexico. Meraw draws on lived regional experience for his work and previously founded a startup and pitched on CBC's Dragons' Den.")}
             style={{
               fontFamily: T.mono, fontSize: "0.6875rem", fontWeight: 700,
               letterSpacing: "0.1em", textTransform: "uppercase",
