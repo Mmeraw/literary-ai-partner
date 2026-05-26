@@ -22,6 +22,33 @@
 
 <!-- Yes/No. If yes: estimated row count, runtime, lock impact, and whether it runs inside or outside the migration transaction. -->
 
+## Unauthorized Input Sources
+
+<!-- Explicitly state all input sources this migration consumes (existing table data, migration params, env-driven behavior, operator inputs).
+For each, describe authorization boundary and validation/safety handling. If none: state "None". -->
+
+## Internal Process Leakage
+
+<!-- Confirm migration/runtime responses and docs do not leak internal process details (raw errors, internals, sensitive IDs) to public surfaces. -->
+
+## Input → Action → Output
+
+<!-- Provide a concise flow map: input state/data, migration action, output state/schema contract.
+Include failure-path behavior and rollback posture. -->
+
+## Public-Safe Quality/Status Metrics
+
+<!-- List visible migration status/quality indicators and confirm they are public-safe (no secret/internal telemetry leakage). -->
+
+## Runtime/Pipeline Expansion
+
+<!-- Declare whether this migration adds hidden runtime/pipeline expansion (new workers/routes/paths).
+If none: state "None" and explain. -->
+
+## Latency Impact
+
+<!-- Provide migration/runtime latency impact evidence (query/runtime/lock duration) or explain why no unnecessary latency increase is expected. -->
+
 ## Branch Freshness (Never Behind)
 
 <!-- Required merge gate: PR head must include current base HEAD. -->

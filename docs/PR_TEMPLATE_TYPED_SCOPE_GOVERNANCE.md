@@ -17,11 +17,11 @@ The `enforce-latency-template` workflow assumed every PR is an evaluation-pipeli
 | Type | Diff signature (changed paths) | Evidence required | Validator |
 | --- | --- | --- | --- |
 | **evaluation** | Any file under `lib/evaluation/**`, `lib/pipeline/**`, `lib/canon/**`, `lib/governance/**`, `lib/invariants/**`, `lib/observability/**`, `lib/monitoring/**`, `lib/reliability/**`, `lib/manuscripts/**`, `lib/llm/**`, `lib/jobs/**`, `lib/release/**`, `lib/artifacts/**`, `lib/config/**`, `app/api/(workers\|evaluations\|evaluate\|jobs\|manuscripts)/**`, `prompts/**`, evaluation-pipeline test subdirs (`tests/canon/**`, `tests/evaluation/**`, `tests/sipoc/**`, `tests/replays/**`, `tests/anchors/**`, `tests/failures/**`, `tests/fixtures/**`, `tests/protected/**`, `tests/jobs/**`, `tests/lib/evaluation/**`, `tests/lib/jobs/**`), `__tests__/**`, `workers/**`, `schemas/**`, `types/**`, `fixtures/**`, `testdata/**`, `calibration/**`, `evidence/**`, `artifacts/**`, `protected/**` | Pass selection (1/2/3), `pass{N}_ms` + `total_ms` metrics, baseline + 2 post-change runs, quality-gate disclosure (`QG_*` / Quality Gate), Pass 3 PRs additionally require `criteria_count_by_state` | Current strict assertions (unchanged) |
-| **ui** | Any file under `app/(admin\|dashboard\|evaluate\|login\|signup\|output\|reports\|revise\|share\|pricing\|marketing-preview\|private-beta\|resources\|storygate\|convert\|your-writing)/**`, `components/**`, `public/**`, `lib/ui/**`, `lib/hooks/**`, or root `app/page.tsx` / `app/layout.tsx` / `app/globals.css` / `app/robots.txt`, **and** no evaluation paths touched | Visual Evidence (before/after screenshot links or "N/A — first render"), Accessibility (a11y notes or "N/A — no interactive surface added"), Browser Targets (default: Chrome/Safari/Firefox latest), No-Pipeline-Impact assertion | UI validator |
-| **code** | Any file under `lib/(auth\|db\|admin\|security\|operations\|activity\|errors\|supabase\|revision\|reportShares)/**`, `src/**`, `entities/**`, `base44/**`, `app/api/(auth\|admin\|activity\|report-shares\|user)/**`, or root files `lib/audit.js` / `lib/governance.js` / `lib/supabase.js` / `lib/rateLimit.ts`, **and** no evaluation paths touched | Summary, Scope, Tests Updated (list or "N/A — see explanation"), Risks & Anomalies, No-Pipeline-Impact assertion | Code validator |
-| **infra** | Any file under `.github/**`, `.vscode/**`, `.githooks/**`, `scripts/**`, `ops/**`, infra-class test subdirs (`tests/stress/**`, `tests/playwright/**`, `tests/ui/**`, `tests/scripts/**`, `tests/test-helpers/**`, `tests/config/**`), `vercel.json`, `package.json` / `package-lock.json` / `pnpm-lock.yaml` / `yarn.lock`, `tsconfig*.json`, `next.config.*`, `eslint.config.*`, `tailwind.config.*`, `postcss.config.*`, `lighthouserc.yml`, `Dockerfile`, `Makefile`, **and** no evaluation paths touched | CI/Infra Scope, Rollback Plan, Affected Workflows (named), No-Pipeline-Impact assertion | Infra validator |
-| **docs** | Any file under `docs/**`, `archive/**`, root `*.md`, **and** no other paths touched | Summary, Scope, No-Pipeline-Impact assertion | Docs validator |
-| **migration** | Any file under `supabase/migrations/**`, **and** no evaluation paths touched | Schema Diff (summary of what tables/columns/indexes are added/modified), Rollback Plan (down-migration or operator steps), Data Backfill (yes/no + plan), No-Pipeline-Impact assertion | Migration validator |
+| **ui** | Any file under `app/(admin\|dashboard\|evaluate\|login\|signup\|output\|reports\|revise\|share\|pricing\|marketing-preview\|private-beta\|resources\|storygate\|convert\|your-writing)/**`, `components/**`, `public/**`, `lib/ui/**`, `lib/hooks/**`, or root `app/page.tsx` / `app/layout.tsx` / `app/globals.css` / `app/robots.txt`, **and** no evaluation paths touched | Visual Evidence, Accessibility, Browser Targets, **Unauthorized Input Sources**, **Internal Process Leakage**, **Input → Action → Output**, **Public-Safe Quality/Status Metrics**, **Runtime/Pipeline Expansion**, **Latency Impact**, No-Pipeline-Impact assertion | UI validator |
+| **code** | Any file under `lib/(auth\|db\|admin\|security\|operations\|activity\|errors\|supabase\|revision\|reportShares)/**`, `src/**`, `entities/**`, `base44/**`, `app/api/(auth\|admin\|activity\|report-shares\|user)/**`, or root files `lib/audit.js` / `lib/governance.js` / `lib/supabase.js` / `lib/rateLimit.ts`, **and** no evaluation paths touched | Summary, Scope, Tests Updated, Risks & Anomalies, **Unauthorized Input Sources**, **Internal Process Leakage**, **Input → Action → Output**, **Public-Safe Quality/Status Metrics**, **Runtime/Pipeline Expansion**, **Latency Impact**, No-Pipeline-Impact assertion | Code validator |
+| **infra** | Any file under `.github/**`, `.vscode/**`, `.githooks/**`, `scripts/**`, `ops/**`, infra-class test subdirs (`tests/stress/**`, `tests/playwright/**`, `tests/ui/**`, `tests/scripts/**`, `tests/test-helpers/**`, `tests/config/**`), `vercel.json`, `package.json` / `package-lock.json` / `pnpm-lock.yaml` / `yarn.lock`, `tsconfig*.json`, `next.config.*`, `eslint.config.*`, `tailwind.config.*`, `postcss.config.*`, `lighthouserc.yml`, `Dockerfile`, `Makefile`, **and** no evaluation paths touched | CI/Infra Scope, Rollback Plan, Affected Workflows, **Unauthorized Input Sources**, **Internal Process Leakage**, **Input → Action → Output**, **Public-Safe Quality/Status Metrics**, **Runtime/Pipeline Expansion**, **Latency Impact**, No-Pipeline-Impact assertion | Infra validator |
+| **docs** | Any file under `docs/**`, `archive/**`, root `*.md`, **and** no other paths touched | Summary, Scope, Risks & Anomalies, **Unauthorized Input Sources**, **Internal Process Leakage**, **Input → Action → Output**, **Public-Safe Quality/Status Metrics**, **Runtime/Pipeline Expansion**, **Latency Impact**, No-Pipeline-Impact assertion | Docs validator |
+| **migration** | Any file under `supabase/migrations/**`, **and** no evaluation paths touched | Schema Diff, Rollback Plan, Data Backfill, Risks & Anomalies, **Unauthorized Input Sources**, **Internal Process Leakage**, **Input → Action → Output**, **Public-Safe Quality/Status Metrics**, **Runtime/Pipeline Expansion**, **Latency Impact**, No-Pipeline-Impact assertion | Migration validator |
 | **mixed** | Diff spans multiple non-evaluation buckets above (e.g. docs + infra, code + docs) | Union of the relevant sections, no Pass-selection required | Mixed validator (logical AND of each touched type's requirements) |
 | **evaluation+other** | Any evaluation path touched alongside non-evaluation paths | Full evaluation requirements (the evaluation validator wins — adding a doc change does not buy an exemption) | Evaluation validator (strict) |
 
@@ -114,26 +114,61 @@ Files modified:
 
 ### 6.2 ui
 - `## Summary` `## Scope` `## Visual Evidence` `## Accessibility` `## Browser Targets` `## Risks & Anomalies` sections
+- Mandatory trust-proof sections:
+  - `## Unauthorized Input Sources`
+  - `## Internal Process Leakage`
+  - `## Input → Action → Output`
+  - `## Public-Safe Quality/Status Metrics`
+  - `## Runtime/Pipeline Expansion`
+  - `## Latency Impact`
 - `No-Pipeline-Impact:` literal followed by a non-empty value on the same line
 - `<!-- pr-type: ui -->` marker (warning if missing, not blocking)
 
 ### 6.3 infra
 - `## Summary` `## Scope` `## CI/Infra Scope` `## Rollback Plan` `## Affected Workflows` `## Risks & Anomalies` sections
+- Mandatory trust-proof sections:
+  - `## Unauthorized Input Sources`
+  - `## Internal Process Leakage`
+  - `## Input → Action → Output`
+  - `## Public-Safe Quality/Status Metrics`
+  - `## Runtime/Pipeline Expansion`
+  - `## Latency Impact`
 - `No-Pipeline-Impact:` literal followed by a non-empty value on the same line
 - `<!-- pr-type: infra -->` marker (warning if missing)
 
 ### 6.4 docs
 - `## Summary` `## Scope` `## Risks & Anomalies` sections
+- Mandatory trust-proof sections:
+  - `## Unauthorized Input Sources`
+  - `## Internal Process Leakage`
+  - `## Input → Action → Output`
+  - `## Public-Safe Quality/Status Metrics`
+  - `## Runtime/Pipeline Expansion`
+  - `## Latency Impact`
 - `No-Pipeline-Impact:` literal followed by a non-empty value on the same line
 - `<!-- pr-type: docs -->` marker (warning if missing)
 
 ### 6.5 migration
 - `## Summary` `## Scope` `## Schema Diff` `## Rollback Plan` `## Data Backfill` `## Risks & Anomalies` sections
+- Mandatory trust-proof sections:
+  - `## Unauthorized Input Sources`
+  - `## Internal Process Leakage`
+  - `## Input → Action → Output`
+  - `## Public-Safe Quality/Status Metrics`
+  - `## Runtime/Pipeline Expansion`
+  - `## Latency Impact`
 - `No-Pipeline-Impact:` literal followed by a non-empty value on the same line
 - `<!-- pr-type: migration -->` marker (warning if missing)
 
 ### 6.6 code
 - `## Summary` `## Scope` `## Tests Updated` `## Risks & Anomalies` sections
+- Mandatory trust-proof sections:
+  - `## Unauthorized Input Sources`
+  - `## Internal Process Leakage`
+  - `## Input → Action → Output`
+  - `## Public-Safe Quality/Status Metrics`
+  - `## Runtime/Pipeline Expansion`
+  - `## Latency Impact`
 - `No-Pipeline-Impact:` literal followed by a non-empty value on the same line
 - `<!-- pr-type: code -->` marker (warning if missing)
 

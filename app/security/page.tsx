@@ -4,19 +4,19 @@ import type { ReactNode } from "react";
 const commitments = [
   {
     title: "Account-gated workspaces",
-    copy: "Evaluation, dashboard, report, revise, and package surfaces should be available only through the user’s authenticated workspace unless the author explicitly exports or shares material.",
+    copy: "Evaluation, dashboard, report, revise, and package surfaces must be available only through the user’s authenticated workspace unless the author explicitly exports or shares material.",
   },
   {
     title: "Manuscript storage boundaries",
-    copy: "Uploaded manuscripts and generated reports should be treated as private project materials, not public content, marketing samples, or open browsing inventory.",
+    copy: "Uploaded manuscripts and generated reports must be treated as private project materials, not public content, marketing samples, or open browsing inventory.",
   },
   {
     title: "Controlled downloads",
-    copy: "Report exports should be author-facing files created for the user’s own review, records, and submission preparation. Downloaded files should avoid foregrounding internal job IDs or machine residue.",
+    copy: "Report exports must be author-facing files created for the user’s own review, records, and submission preparation. Downloaded files must avoid foregrounding internal job IDs or machine residue.",
   },
   {
     title: "Logged controlled access",
-    copy: "Storygate-style project access should be requested, approved, and logged. Controlled manuscript discovery is not the same as public indexing.",
+    copy: "Storygate-style project access must be requested, approved, and logged. Controlled manuscript discovery is not the same as public indexing.",
   },
 ];
 
@@ -31,11 +31,11 @@ const securityBoundaries = [
   },
   {
     name: "Storygate boundary",
-    copy: "Storygate materials should be creator-approved, access-controlled, and visible only to appropriate verified publishing professionals when the author chooses that path.",
+    copy: "Storygate materials must be creator-approved, access-controlled, and visible only to appropriate verified publishing professionals when the author chooses that path.",
   },
   {
     name: "Admin boundary",
-    copy: "Internal operational details, job IDs, raw errors, worker traces, and maintenance controls should not dominate normal author-facing pages.",
+    copy: "Internal operational details, job IDs, raw errors, worker traces, and maintenance controls must not dominate normal author-facing pages.",
   },
 ];
 
@@ -62,24 +62,24 @@ const faqs = [
     a: "No. This is a plain-language security and access-control trust page. Formal legal, privacy, and security policies can still define the binding terms for account, data, and infrastructure handling.",
   },
   {
-    q: "Should manuscripts appear in public search?",
-    a: "No. The product posture is that manuscripts are private author materials unless the author intentionally exports or approves a controlled package workflow.",
+    q: "Can manuscripts appear in public search?",
+    a: "No. Manuscripts are private author materials unless the author intentionally exports or approves a controlled package workflow.",
   },
   {
-    q: "What should happen when a report is downloaded?",
-    a: "The downloaded file should be a professional author-facing artifact: readable, branded, useful for review, and stripped of avoidable machine-looking residue.",
+    q: "What must happen when a report is downloaded?",
+    a: "The downloaded file must be a professional author-facing artifact: readable, branded, useful for review, and stripped of avoidable machine-looking residue.",
   },
   {
-    q: "What should be logged in Storygate-style access?",
-    a: "Access requests, approvals, and material-viewing events should be treated as controlled activity. The public promise is controlled manuscript discovery, not open browsing.",
+    q: "What must be logged in Storygate-style access?",
+    a: "Access requests, approvals, and material-viewing events must be treated as controlled activity. The public promise is controlled manuscript discovery, not open browsing.",
   },
   {
     q: "Where do technical failure details belong?",
-    a: "Technical diagnostics belong in support, admin, or operational views. Normal author-facing pages should use clear human status messages and hide raw internals unless needed for support.",
+    a: "Technical diagnostics belong in support, admin, or operational views. Normal author-facing pages must use clear human status messages and hide raw internals unless needed for support.",
   },
   {
     q: "Does this page claim legal compliance certification?",
-    a: "No. It states the intended product trust posture and user-facing access model. Compliance claims should only be added when they are verified and current.",
+    a: "No. It states the intended product trust posture and user-facing access model. Compliance claims must only be added when they are verified and current.",
   },
 ];
 
@@ -107,7 +107,7 @@ export default function SecurityPage() {
             Serious manuscripts need controlled workspaces.
           </h1>
           <p className="mt-8 max-w-3xl text-lg leading-8 text-rg-cream2/85">
-            RevisionGrade should feel like a private editorial desk, not a public posting tool. This page explains the security and access-control posture authors should expect when they upload, evaluate, revise, export, or prepare manuscript materials.
+            RevisionGrade is designed to feel like a private editorial desk, not a public posting tool. This page explains the security and access-control posture authors can expect when they upload, evaluate, revise, export, or prepare manuscript materials.
           </p>
           <div className="mt-10 flex flex-wrap gap-4 font-rg-mono text-xs uppercase tracking-[0.18em]">
             <Link href="/privacy-research-controls" className="border border-rg-gold bg-rg-gold px-5 py-3 text-rg-ink transition hover:bg-transparent hover:text-rg-gold">Privacy Controls</Link>
@@ -121,7 +121,7 @@ export default function SecurityPage() {
           <div className="mt-6 space-y-3 text-sm leading-7 text-rg-cream2/80">
             <p>Evaluation work belongs in the author’s account workspace.</p>
             <p>Downloads are deliberate author actions.</p>
-            <p>Storygate access should be controlled, approved, and logged.</p>
+            <p>Storygate access must be controlled, approved, and logged.</p>
           </div>
         </div>
       </section>
@@ -130,7 +130,7 @@ export default function SecurityPage() {
         <div className="mx-auto max-w-7xl px-6 py-20">
           <SectionHeading
             eyebrow="Security commitments"
-            title="The author-facing experience should reduce exposure, not create it."
+            title="The author-facing experience must reduce exposure, not create it."
             copy="These commitments describe the product posture for uploaded manuscripts, generated reports, revision decisions, downloads, and controlled-access packages."
           />
           <div className="mt-10 grid gap-4 md:grid-cols-2">
@@ -148,7 +148,7 @@ export default function SecurityPage() {
         <SectionHeading
           eyebrow="Access boundaries"
           title="Every surface needs a clear boundary."
-          copy="Authors should understand which areas are private, which actions create exports, and which package surfaces require explicit approval."
+          copy="Authors need to understand which areas are private, which actions create exports, and which package surfaces require explicit approval."
         />
         <div className="space-y-4">
           {securityBoundaries.map((item) => (
@@ -165,7 +165,7 @@ export default function SecurityPage() {
           <SectionHeading
             eyebrow="Author controls"
             title="The author decides when work moves outward."
-            copy="Evaluation and revision create private working materials first. Exports, packages, and submissions should be author-directed actions."
+            copy="Evaluation and revision create private working materials first. Exports, packages, and submissions must be author-directed actions."
           />
           <div className="grid gap-3 sm:grid-cols-2">
             {authorControls.map((item) => (
@@ -180,7 +180,7 @@ export default function SecurityPage() {
       <section className="mx-auto grid max-w-7xl gap-10 px-6 py-20 lg:grid-cols-[0.8fr_1.2fr]">
         <SectionHeading
           eyebrow="What this page does not claim"
-          title="Security language should stay precise."
+          title="Security language must stay precise."
           copy="Trust is weakened when public pages claim certifications, workflows, or sharing models the product does not yet support."
         />
         <div className="grid gap-3 sm:grid-cols-2">
@@ -213,7 +213,7 @@ export default function SecurityPage() {
       <section className="mx-auto max-w-5xl px-6 py-20 text-center">
         <Eyebrow>Trust by design</Eyebrow>
         <h2 className="mt-5 font-rg-serif text-4xl leading-tight md:text-5xl">
-          A manuscript-readiness system should protect the manuscript while it diagnoses it.
+          A manuscript-readiness system must protect the manuscript while it diagnoses it.
         </h2>
         <p className="mx-auto mt-5 max-w-2xl leading-8 text-rg-cream2/75">
           Continue to Privacy & Research Controls for the companion trust doctrine, or begin an evaluation when ready.
