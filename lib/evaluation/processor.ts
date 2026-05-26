@@ -80,6 +80,7 @@ import { buildExcellenceFilter } from '@/lib/evaluation/pipeline/buildExcellence
 import { mapEvaluationResultV2ToGovernanceEnvelope } from '@/lib/governance/evaluationBridge';
 import {
   getCanonicalPipelineModel,
+  getCanonicalPass2Model,
   getExternalAdjudicationMode,
 } from '@/lib/evaluation/policy';
 import {
