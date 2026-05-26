@@ -1,5 +1,7 @@
 ## Summary
 
+> Validation rule: blank sections, placeholder-only answers (for example, `TBD`, `TODO`, bare `N/A`) fail. Use `N/A — <reason>` when a section truly does not apply.
+
 <!-- 1–3 sentences describing what schema changes and why. -->
 
 ## Scope
@@ -21,6 +23,30 @@
 ## Data Backfill
 
 <!-- Yes/No. If yes: estimated row count, runtime, lock impact, and whether it runs inside or outside the migration transaction. -->
+
+## Rollback Posture
+
+<!-- State whether rollback is reversible, irreversible, or operator-gated.
+Describe the trigger to roll back, the blast-radius containment plan, and what evidence would tell operators to stop. -->
+
+## Lock / Table-Scan Risk
+
+<!-- Describe expected lock scope, table-scan risk, index creation mode, and any production concurrency impact.
+If none: use "None — <reason>". -->
+
+## Data Backfill Risk
+
+<!-- Describe batching, resumability, idempotency, failure handling, and recovery posture for any backfill.
+If no backfill is required: use "None — no backfill required because ...". -->
+
+## RLS / Access Impact
+
+<!-- Describe any row-level security, grants, role, or access-path impact.
+If none: use "None — no access-control change." -->
+
+## Production Verification Query
+
+<!-- Provide the exact safe read-only SQL query or verification steps operators should run after deploy to prove the migration succeeded. -->
 
 ## Unauthorized Input Sources
 
