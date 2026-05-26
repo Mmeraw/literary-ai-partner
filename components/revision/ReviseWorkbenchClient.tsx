@@ -1,21 +1,86 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import type { WorkbenchOpportunity, WorkbenchQueuePayload } from "@/lib/revision/workbenchQueue";
 
 type DecisionState = "pending" | "accepted_a" | "accepted_b" | "accepted_c" | "custom" | "keep_original" | "reject" | "deferred";
+type SyncStatus = "pending" | "synced" | "failed";
 
 type LedgerEntry = {
+  localId: string;
+  serverId?: string;
   at: string;
+  createdAtIso: string;
   itemId: string;
   itemTitle: string;
   decision: DecisionState;
   selectedOption?: "A" | "B" | "C";
   customText?: string;
+  syncStatus: SyncStatus;
+};
+
+type ServerLedgerEntry = {
+  id: string;
+  local_id: string;
+  opportunity_id: string;
+  opportunity_title: string;
+  decision: Exclude<DecisionState, "pending">;
+  selected_option: "A" | "B" | "C" | null;
+  custom_text: string | null;
+  client_created_at: string | null;
+  client_synced_at: string;
+};
+
+type LocalWorkbenchCache = {
+  version: 1;
+  cachedAt: string;
+  payload: WorkbenchQueuePayload;
+  ledger: LedgerEntry[];
 };
 
 const SCOPES = ["Line", "Passage", "Scene", "Chapter", "Structural", "Manuscript"] as const;
+const CACHE_PREFIX = "revisiongrade:revise-workbench:v1";
+
+function cacheKey(payload: WorkbenchQueuePayload) {
+  const manuscript = payload.manuscriptId ?? "unknown-manuscript";
+  const evaluation = payload.evaluationJobId ?? "unknown-evaluation";
+  return `${CACHE_PREFIX}:${manuscript}:${evaluation}`;
+}
+
+function localId() {
+  return `local-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+function loadLocalCache(key: string): LocalWorkbenchCache | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(key);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as LocalWorkbenchCache;
+    if (parsed?.version !== 1 || !parsed.payload) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function saveLocalCache(key: string, payload: WorkbenchQueuePayload, ledger: LedgerEntry[]) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(
+      key,
+      JSON.stringify({
+        version: 1,
+        cachedAt: new Date().toISOString(),
+        payload,
+        ledger,
+      } satisfies LocalWorkbenchCache),
+    );
+  } catch {
+    // Local cache is a resilience layer. Never block author decisions if storage is unavailable.
+  }
+}
 
 function severityClasses(severity: WorkbenchOpportunity["severity"]) {
   switch (severity) {
@@ -55,13 +120,41 @@ function rebuildDecisionMap(entries: LedgerEntry[]): Record<string, DecisionStat
   return next;
 }
 
-function EmptyWorkbench({ payload }: { payload: WorkbenchQueuePayload }) {
+function rowToLedgerEntry(row: ServerLedgerEntry): LedgerEntry {
+  const created = row.client_created_at ?? row.client_synced_at ?? new Date().toISOString();
+  return {
+    localId: row.local_id,
+    serverId: row.id,
+    at: new Date(created).toLocaleTimeString(),
+    createdAtIso: created,
+    itemId: row.opportunity_id,
+    itemTitle: row.opportunity_title,
+    decision: row.decision,
+    selectedOption: row.selected_option ?? undefined,
+    customText: row.custom_text ?? undefined,
+    syncStatus: "synced",
+  };
+}
+
+function mergeLedger(local: LedgerEntry[], remote: LedgerEntry[]) {
+  const byLocalId = new Map<string, LedgerEntry>();
+  [...remote, ...local].forEach((entry) => {
+    const existing = byLocalId.get(entry.localId);
+    if (!existing || existing.syncStatus !== "pending") {
+      byLocalId.set(entry.localId, entry);
+    }
+  });
+  return [...byLocalId.values()].sort((a, b) => b.createdAtIso.localeCompare(a.createdAtIso));
+}
+
+function EmptyWorkbench({ payload, cachedAt }: { payload: WorkbenchQueuePayload; cachedAt?: string | null }) {
   return (
     <main className="min-h-screen bg-[#0D0A05] px-4 py-6 text-[#F5EFE4] md:px-6 md:py-8">
       <div className="mx-auto max-w-4xl rounded-xl border border-[#3A3022] bg-[#1C160E]/80 p-8">
         <p className="text-[11px] uppercase tracking-[0.22em] text-[#C8A96E]">Revise Workspace</p>
         <h1 className="mt-3 text-4xl text-[#F8F1E6]" style={{ fontFamily: "Instrument Serif, Georgia, serif" }}>No live revision queue available yet.</h1>
         <p className="mt-4 leading-7 text-[#CBBDA4]">{payload.error ?? "This evaluation did not persist revision opportunities. Re-run evaluation or generate a Revise queue."}</p>
+        {cachedAt && <p className="mt-3 text-sm text-[#A9987D]">Last local cache: {cachedAt}</p>}
         <div className="mt-6 flex flex-wrap gap-3 text-xs">
           <Link href="/dashboard" className="rounded border border-[#6D5A3B] px-3 py-1.5 text-[#E8D8BA] hover:border-[#C8A96E]">Dashboard</Link>
           <Link href="/evaluate" className="rounded border border-[#6D5A3B] px-3 py-1.5 text-[#E8D8BA] hover:border-[#C8A96E]">Evaluate</Link>
@@ -72,7 +165,14 @@ function EmptyWorkbench({ payload }: { payload: WorkbenchQueuePayload }) {
 }
 
 export default function ReviseWorkbenchClient({ payload }: { payload: WorkbenchQueuePayload }) {
-  const opportunities = payload.opportunities;
+  const [cachedPayload, setCachedPayload] = useState<WorkbenchQueuePayload | null>(null);
+  const [cachedAt, setCachedAt] = useState<string | null>(null);
+  const [isOnline, setIsOnline] = useState(true);
+  const [syncMessage, setSyncMessage] = useState<string | null>(null);
+  const effectivePayload = payload.ok && payload.opportunities.length > 0 ? payload : (cachedPayload ?? payload);
+  const opportunities = effectivePayload.opportunities;
+  const key = cacheKey(effectivePayload);
+
   const [activeId, setActiveId] = useState<string>(opportunities[0]?.id ?? "");
   const [selectedOption, setSelectedOption] = useState<"A" | "B" | "C">("A");
   const [ledger, setLedger] = useState<LedgerEntry[]>([]);
@@ -80,19 +180,147 @@ export default function ReviseWorkbenchClient({ payload }: { payload: WorkbenchQ
   const [isDraftOpen, setIsDraftOpen] = useState(false);
   const [draftText, setDraftText] = useState("");
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    setIsOnline(window.navigator.onLine);
+    const onOnline = () => setIsOnline(true);
+    const onOffline = () => setIsOnline(false);
+    window.addEventListener("online", onOnline);
+    window.addEventListener("offline", onOffline);
+    return () => {
+      window.removeEventListener("online", onOnline);
+      window.removeEventListener("offline", onOffline);
+    };
+  }, []);
+
+  useEffect(() => {
+    const liveKey = cacheKey(payload);
+    const cached = loadLocalCache(liveKey);
+    if (cached) {
+      setCachedPayload(cached.payload);
+      setCachedAt(cached.cachedAt);
+      setLedger(cached.ledger ?? []);
+      setDecisionById(rebuildDecisionMap(cached.ledger ?? []));
+      setActiveId((current) => current || cached.payload.opportunities[0]?.id || "");
+    }
+
+    if (payload.ok && payload.opportunities.length > 0) {
+      saveLocalCache(liveKey, payload, cached?.ledger ?? []);
+      setCachedPayload(payload);
+      setCachedAt(new Date().toISOString());
+      setActiveId((current) => current || payload.opportunities[0]?.id || "");
+    }
+  }, [payload]);
+
+  useEffect(() => {
+    if (!effectivePayload.ok || effectivePayload.opportunities.length === 0) return;
+    saveLocalCache(key, effectivePayload, ledger);
+    setCachedAt(new Date().toISOString());
+  }, [effectivePayload, key, ledger]);
+
+  useEffect(() => {
+    if (!isOnline || !effectivePayload.manuscriptId || !effectivePayload.evaluationJobId) return;
+    let cancelled = false;
+
+    async function loadServerLedger() {
+      try {
+        const params = new URLSearchParams({
+          manuscriptId: effectivePayload.manuscriptId ?? "",
+          evaluationJobId: effectivePayload.evaluationJobId ?? "",
+        });
+        const response = await fetch(`/api/revision-ledger?${params.toString()}`);
+        if (!response.ok) return;
+        const json = await response.json();
+        if (!json?.ok || !Array.isArray(json.entries) || cancelled) return;
+        const remote = (json.entries as ServerLedgerEntry[]).map(rowToLedgerEntry);
+        setLedger((current) => {
+          const merged = mergeLedger(current, remote);
+          setDecisionById(rebuildDecisionMap(merged));
+          saveLocalCache(key, effectivePayload, merged);
+          return merged;
+        });
+      } catch {
+        // Offline cache remains authoritative locally until sync succeeds.
+      }
+    }
+
+    void loadServerLedger();
+    return () => {
+      cancelled = true;
+    };
+  }, [effectivePayload, isOnline, key]);
+
+  useEffect(() => {
+    if (!isOnline || !effectivePayload.manuscriptId || !effectivePayload.evaluationJobId) return;
+    const pendingEntries = ledger.filter((entry) => entry.syncStatus !== "synced" && entry.decision !== "pending");
+    if (pendingEntries.length === 0) return;
+    let cancelled = false;
+
+    async function syncPending() {
+      try {
+        const response = await fetch("/api/revision-ledger", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            manuscriptId: effectivePayload.manuscriptId,
+            evaluationJobId: effectivePayload.evaluationJobId,
+            entries: pendingEntries.map((entry) => ({
+              localId: entry.localId,
+              opportunityId: entry.itemId,
+              opportunityTitle: entry.itemTitle,
+              decision: entry.decision,
+              selectedOption: entry.selectedOption ?? null,
+              customText: entry.customText ?? null,
+              clientCreatedAt: entry.createdAtIso,
+              metadata: { source: "workbench-local-first" },
+            })),
+          }),
+        });
+
+        const json = await response.json().catch(() => null);
+        if (!response.ok || !json?.ok || !Array.isArray(json.entries)) {
+          throw new Error(json?.error ?? "Ledger sync failed");
+        }
+
+        const syncedIds = new Map((json.entries as ServerLedgerEntry[]).map((row) => [row.local_id, row]));
+        if (cancelled) return;
+        setLedger((current) => {
+          const next = current.map((entry) => {
+            const row = syncedIds.get(entry.localId);
+            if (!row) return entry;
+            return { ...entry, serverId: row.id, syncStatus: "synced" as const };
+          });
+          saveLocalCache(key, effectivePayload, next);
+          return next;
+        });
+        setSyncMessage("Synced");
+      } catch (error) {
+        if (cancelled) return;
+        setLedger((current) => current.map((entry) => pendingEntries.some((p) => p.localId === entry.localId) ? { ...entry, syncStatus: "failed" as const } : entry));
+        setSyncMessage(error instanceof Error ? error.message : "Ledger sync failed");
+      }
+    }
+
+    void syncPending();
+    return () => {
+      cancelled = true;
+    };
+  }, [effectivePayload, isOnline, key, ledger]);
+
   const active = useMemo(() => opportunities.find((item) => item.id === activeId) ?? opportunities[0], [activeId, opportunities]);
   const selectedProposal = useMemo(() => active?.options.find((option) => option.key === selectedOption) ?? active?.options[0], [active, selectedOption]);
   const queueIndex = opportunities.findIndex((item) => item.id === active?.id);
   const nextId = queueIndex >= 0 && queueIndex < opportunities.length - 1 ? opportunities[queueIndex + 1].id : null;
 
-  if (!payload.ok || opportunities.length === 0 || !active) {
-    return <EmptyWorkbench payload={payload} />;
+  if (!effectivePayload.ok || opportunities.length === 0 || !active) {
+    return <EmptyWorkbench payload={effectivePayload} cachedAt={cachedAt} />;
   }
 
   const accepted = Object.values(decisionById).filter((d) => d.startsWith("accepted")).length;
   const rejected = Object.values(decisionById).filter((d) => d === "reject").length;
   const custom = Object.values(decisionById).filter((d) => d === "custom").length;
   const deferred = Object.values(decisionById).filter((d) => d === "deferred").length;
+  const pendingSync = ledger.filter((entry) => entry.syncStatus !== "synced").length;
   const pending = opportunities.length - Object.keys(decisionById).length;
 
   function moveToOpportunity(itemId: string) {
@@ -104,10 +332,22 @@ export default function ReviseWorkbenchClient({ payload }: { payload: WorkbenchQ
 
   function stampDecision(decision: DecisionState, customText?: string) {
     const normalized = decision === "accepted_a" || decision === "accepted_b" || decision === "accepted_c" ? (`accepted_${selectedOption.toLowerCase()}` as DecisionState) : decision;
-    const entry: LedgerEntry = { at: new Date().toLocaleTimeString(), itemId: active.id, itemTitle: active.title, decision: normalized, selectedOption: normalized.startsWith("accepted") ? selectedOption : undefined, customText: customText?.trim() || undefined };
+    const createdAtIso = new Date().toISOString();
+    const entry: LedgerEntry = {
+      localId: localId(),
+      at: new Date(createdAtIso).toLocaleTimeString(),
+      createdAtIso,
+      itemId: active.id,
+      itemTitle: active.title,
+      decision: normalized,
+      selectedOption: normalized.startsWith("accepted") ? selectedOption : undefined,
+      customText: customText?.trim() || undefined,
+      syncStatus: "pending",
+    };
     const nextLedger = [entry, ...ledger];
     setLedger(nextLedger);
     setDecisionById(rebuildDecisionMap(nextLedger));
+    saveLocalCache(key, effectivePayload, nextLedger);
     if (nextId) moveToOpportunity(nextId);
   }
 
@@ -116,6 +356,7 @@ export default function ReviseWorkbenchClient({ payload }: { payload: WorkbenchQ
     const nextLedger = ledger.filter((_, i) => i !== index);
     setLedger(nextLedger);
     setDecisionById(rebuildDecisionMap(nextLedger));
+    saveLocalCache(key, effectivePayload, nextLedger);
     if (removed) moveToOpportunity(removed.itemId);
   }
 
@@ -124,17 +365,25 @@ export default function ReviseWorkbenchClient({ payload }: { payload: WorkbenchQ
       <div className="mx-auto max-w-[1500px]">
         <header className="mb-5 rounded-xl border border-[#3A3022] bg-[#1C160E]/80 p-6">
           <p className="text-[11px] uppercase tracking-[0.22em] text-[#C8A96E]">Revise Workspace · live queue</p>
-          <h1 className="mt-2 text-3xl leading-tight text-[#F8F1E6] md:text-4xl" style={{ fontFamily: "Instrument Serif, Georgia, serif" }}>{payload.manuscriptTitle}</h1>
+          <h1 className="mt-2 text-3xl leading-tight text-[#F8F1E6] md:text-4xl" style={{ fontFamily: "Instrument Serif, Georgia, serif" }}>{effectivePayload.manuscriptTitle}</h1>
           <p className="mt-3 max-w-3xl text-sm text-[#CBBDA4]">RevisionGrade loaded this queue from the completed evaluation and baseline manuscript discovery. Start with MUST repairs before lower-level polish.</p>
+          <div className="mt-4 flex flex-wrap gap-2 text-xs">
+            <span className={`rounded border px-2 py-1 ${isOnline ? "border-[#48603F] text-[#B8D6AD]" : "border-[#7A2B1A]/70 text-[#E9B19F]"}`}>{isOnline ? "Online" : "Offline"}</span>
+            <span className="rounded border border-[#5D4C31] px-2 py-1 text-[#D8C6A4]">Local cache active</span>
+            <span className="rounded border border-[#5D4C31] px-2 py-1 text-[#D8C6A4]">Server ledger enabled</span>
+            {pendingSync > 0 && <span className="rounded border border-[#C8A96E]/45 px-2 py-1 text-[#E9D9B7]">{pendingSync} pending sync</span>}
+            {syncMessage && <span className="rounded border border-[#5D4C31] px-2 py-1 text-[#A9987D]">{syncMessage}</span>}
+            {cachedAt && <span className="rounded border border-[#5D4C31] px-2 py-1 text-[#A9987D]">Cached {new Date(cachedAt).toLocaleString()}</span>}
+          </div>
           <div className="mt-5 grid gap-3 rounded-lg border border-[#2D2519] bg-[#110D07] p-3 text-xs text-[#D8C6A4] md:grid-cols-2">
-            <div><span className="text-[#C8A96E]">Priority:</span> {payload.totals.must} MUST · {payload.totals.should} SHOULD · {payload.totals.could} COULD</div>
+            <div><span className="text-[#C8A96E]">Priority:</span> {effectivePayload.totals.must} MUST · {effectivePayload.totals.should} SHOULD · {effectivePayload.totals.could} COULD</div>
             <div><span className="text-[#C8A96E]">Decisions:</span> {deferred} Deferred · {accepted} Accepted · {custom} Custom · {rejected} Rejected · {pending} Pending</div>
           </div>
           <div className="mt-3 rounded-lg border border-[#2D2519] bg-[#110D07] p-3">
             <p className="text-[11px] uppercase tracking-[0.18em] text-[#C8A96E]">Total revisions by category</p>
             <div className="mt-2 grid gap-2 text-xs text-[#D8C6A4] md:grid-cols-2">
-              <div>{payload.totals.must} MUST · {payload.totals.should} SHOULD · {payload.totals.could} COULD</div>
-              <div>{SCOPES.map((scope) => `${payload.scopes[scope]} ${scope}`).join(" · ")}</div>
+              <div>{effectivePayload.totals.must} MUST · {effectivePayload.totals.should} SHOULD · {effectivePayload.totals.could} COULD</div>
+              <div>{SCOPES.map((scope) => `${effectivePayload.scopes[scope]} ${scope}`).join(" · ")}</div>
             </div>
           </div>
         </header>
@@ -165,8 +414,8 @@ export default function ReviseWorkbenchClient({ payload }: { payload: WorkbenchQ
         </section>
 
         <section className="mt-4 rounded-xl border border-[#3A3022] bg-[#161109] p-4">
-          <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between"><div><h2 className="text-sm uppercase tracking-[0.18em] text-[#D7C4A1]">Revision Ledger</h2><p className="mt-1 text-xs text-[#A9987D]">A running list of author decisions for this session. Persistence comes in the next PR.</p></div>{ledger.length > 0 && <button type="button" onClick={() => undoLedgerEntry(0)} className="self-start rounded border border-[#5D4C31] px-3 py-1.5 text-xs text-[#E8D8BA] hover:border-[#C8A96E] md:self-auto">Undo last decision</button>}</div>
-          <ol className="mt-4 grid gap-2 xl:grid-cols-2">{ledger.length === 0 ? <li className="rounded-lg border border-[#2D2519] bg-[#120E08] p-3 text-sm text-[#B3A185]"><strong>No revision decisions yet.</strong><br />Accept proposals, keep originals, write custom repairs, reject, or defer work to begin the ledger.</li> : ledger.map((entry, i) => <li key={`${entry.at}-${entry.itemId}-${i}`} className="rounded-lg border border-[#2D2519] bg-[#120E08] p-3 text-sm"><div className="flex items-start justify-between gap-3"><p className="text-[#E9DCC4]"><span className="mr-1 text-[11px] uppercase tracking-wider text-[#C8A96E]">{decisionLabel(entry)}</span> — {entry.itemTitle}</p><button type="button" onClick={() => undoLedgerEntry(i)} className="shrink-0 rounded border border-[#5D4C31] px-2 py-1 text-[11px] text-[#D8C6A4] hover:border-[#C8A96E]">Undo</button></div>{entry.customText && <pre className="mt-2 whitespace-pre-wrap rounded border border-[#2D2519] bg-[#0D0A05] p-2 text-xs leading-5 text-[#E8DCC4]">{entry.customText}</pre>}<p className="mt-1 text-xs text-[#9F8F75]">{entry.at}</p></li>)}</ol>
+          <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between"><div><h2 className="text-sm uppercase tracking-[0.18em] text-[#D7C4A1]">Revision Ledger</h2><p className="mt-1 text-xs text-[#A9987D]">A running list of author decisions. Queue and ledger are cached locally for offline review and synced to the server for cross-device history.</p></div>{ledger.length > 0 && <button type="button" onClick={() => undoLedgerEntry(0)} className="self-start rounded border border-[#5D4C31] px-3 py-1.5 text-xs text-[#E8D8BA] hover:border-[#C8A96E] md:self-auto">Undo last decision</button>}</div>
+          <ol className="mt-4 grid gap-2 xl:grid-cols-2">{ledger.length === 0 ? <li className="rounded-lg border border-[#2D2519] bg-[#120E08] p-3 text-sm text-[#B3A185]"><strong>No revision decisions yet.</strong><br />Accept proposals, keep originals, write custom repairs, reject, or defer work to begin the ledger.</li> : ledger.map((entry, i) => <li key={entry.localId} className="rounded-lg border border-[#2D2519] bg-[#120E08] p-3 text-sm"><div className="flex items-start justify-between gap-3"><p className="text-[#E9DCC4]"><span className="mr-1 text-[11px] uppercase tracking-wider text-[#C8A96E]">{decisionLabel(entry)}</span> — {entry.itemTitle}</p><button type="button" onClick={() => undoLedgerEntry(i)} className="shrink-0 rounded border border-[#5D4C31] px-2 py-1 text-[11px] text-[#D8C6A4] hover:border-[#C8A96E]">Undo</button></div>{entry.customText && <pre className="mt-2 whitespace-pre-wrap rounded border border-[#2D2519] bg-[#0D0A05] p-2 text-xs leading-5 text-[#E8DCC4]">{entry.customText}</pre>}<p className="mt-1 text-xs text-[#9F8F75]">{entry.at} · {entry.syncStatus === "synced" ? "Synced" : entry.syncStatus === "failed" ? "Sync failed — will retry" : "Pending sync"}</p></li>)}</ol>
         </section>
       </div>
     </main>
