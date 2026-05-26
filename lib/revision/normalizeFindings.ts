@@ -80,8 +80,8 @@ function toSeverity(raw: unknown, scoreOverride?: unknown): ProposalSeverity {
     return "low";
   }
   const v = typeof raw === "string" ? raw.trim().toLowerCase() : "";
-  if (v === "high" || v === "critical" || v === "major") return "high";
-  if (v === "low" || v === "minor") return "low";
+  if (v === "must" || v === "high" || v === "critical" || v === "major") return "high";
+  if (v === "could" || v === "low" || v === "minor") return "low";
   return "medium";
 }
 
@@ -114,7 +114,223 @@ function normalizeCriterionKey(raw: unknown): string {
   return key.replace(/\s+/g, "_").toUpperCase();
 }
 
-function buildFindingsFromPayload(
+function normalizeDeepKey(raw: string): string {
+  return raw.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
+}
+
+function isRevisionGuidanceKey(key: string): boolean {
+  const normalized = normalizeDeepKey(key);
+  return (
+    normalized === "revisionqueue" ||
+    normalized === "revisionplan" ||
+    normalized === "revisionnote" ||
+    normalized === "revisionnotes" ||
+    normalized === "revisionpriority" ||
+    normalized === "revisionpriorities" ||
+    normalized === "repairqueue" ||
+    normalized === "repairplan" ||
+    normalized === "repairnote" ||
+    normalized === "whatwerepairing" ||
+    normalized === "revisionguidance"
+  );
+}
+
+function splitRevisionGuidanceText(value: string): string[] {
+  const text = value.trim();
+  if (!text) return [];
+
+  const numbered = text
+    .split(/(?:^|\s)(?:\d+\.|[-•])\s+/g)
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+  if (numbered.length > 1) return numbered;
+
+  return text
+    .split(/;\s+(?=[A-Z0-9'“\"])/g)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+type DeepRevisionItem = {
+  value: unknown;
+  path: string;
+  context: Record<string, unknown>;
+  sourceKey: string;
+};
+
+function objectContext(value: any): Record<string, unknown> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  return {
+    criterion: value.criterion ?? value.criterion_key ?? value.key,
+    title: value.title ?? value.name ?? value.layer ?? value.act ?? value.section,
+    summary: value.summary ?? value.function ?? value.status,
+    evidence: value.evidence ?? value.fit_evidence ?? value.gap_evidence,
+    score: value.score ?? value.score_0_10 ?? value.final_score_0_10,
+    confidence: value.confidence,
+    severity: value.severity ?? value.priority,
+  };
+}
+
+function collectDeepRevisionItems(value: unknown, path: string[] = [], context: Record<string, unknown> = {}): DeepRevisionItem[] {
+  if (Array.isArray(value)) {
+    return value.flatMap((item, index) => collectDeepRevisionItems(item, [...path, String(index)], context));
+  }
+
+  if (!value || typeof value !== "object") return [];
+
+  const node = value as Record<string, unknown>;
+  const nextContext = { ...context, ...objectContext(node) };
+  const items: DeepRevisionItem[] = [];
+
+  for (const [key, child] of Object.entries(node)) {
+    const childPath = [...path, key];
+    if (isRevisionGuidanceKey(key)) {
+      if (typeof child === "string") {
+        for (const text of splitRevisionGuidanceText(child)) {
+          items.push({ value: text, path: childPath.join("."), context: nextContext, sourceKey: key });
+        }
+      } else if (Array.isArray(child)) {
+        child.forEach((entry, index) => {
+          if (typeof entry === "string") {
+            for (const text of splitRevisionGuidanceText(entry)) {
+              items.push({ value: text, path: [...childPath, String(index)].join("."), context: nextContext, sourceKey: key });
+            }
+          } else {
+            items.push({ value: entry, path: [...childPath, String(index)].join("."), context: nextContext, sourceKey: key });
+          }
+        });
+      } else if (child && typeof child === "object") {
+        items.push({ value: child, path: childPath.join("."), context: nextContext, sourceKey: key });
+      }
+      continue;
+    }
+
+    items.push(...collectDeepRevisionItems(child, childPath, nextContext));
+  }
+
+  return items;
+}
+
+function sourceLabel(sourceKey: string): string {
+  const normalized = normalizeDeepKey(sourceKey);
+  if (normalized.includes("queue")) return "revision_queue";
+  if (normalized.includes("priority")) return "revision_priority";
+  if (normalized.includes("plan")) return "revision_plan";
+  if (normalized.includes("repair")) return "repair_guidance";
+  return "revision_note";
+}
+
+function buildFindingFromDeepRevisionItem(
+  evaluationRunId: string,
+  manuscriptVersionId: string | null,
+  artifactId: string,
+  item: DeepRevisionItem,
+  index: number,
+): CreateDiagnosticFindingInput | null {
+  const raw = item.value;
+  const rawObject = raw && typeof raw === "object" && !Array.isArray(raw) ? (raw as Record<string, unknown>) : null;
+
+  const recommendation = cleanSnippet(
+    typeof raw === "string"
+      ? raw
+      : firstNonEmptyString(
+          rawObject?.recommendation,
+          rawObject?.revision_note,
+          rawObject?.revisionNote,
+          rawObject?.revision_priority,
+          rawObject?.revisionPriority,
+          rawObject?.revision_plan,
+          rawObject?.revisionPlan,
+          rawObject?.repair_plan,
+          rawObject?.repairPlan,
+          rawObject?.action,
+          rawObject?.text,
+          rawObject?.value,
+        ),
+  );
+
+  if (!recommendation) return null;
+
+  const criterion = firstNonEmptyString(
+    rawObject?.criterion,
+    rawObject?.criterion_key,
+    rawObject?.key,
+    item.context.criterion,
+    item.context.title,
+    "GENERAL",
+  );
+
+  const title = firstNonEmptyString(
+    rawObject?.diagnosis,
+    rawObject?.issue,
+    rawObject?.problem,
+    rawObject?.title,
+    rawObject?.summary,
+    item.context.summary,
+    `Revision guidance from ${item.path}`,
+  );
+
+  const evidence = cleanSnippet(
+    firstNonEmptyString(
+      rawObject?.evidence_excerpt,
+      rawObject?.evidence_snippet,
+      rawObject?.evidence,
+      rawObject?.quote,
+      item.context.evidence,
+    ),
+  );
+
+  return {
+    evaluation_job_id: evaluationRunId,
+    manuscript_version_id: manuscriptVersionId,
+    artifact_id: artifactId,
+    criterion_key: normalizeCriterionKey(criterion),
+    wave_id: firstNonEmptyString(rawObject?.wave_id, rawObject?.waveId) || null,
+    finding_type: normalizeFindingType(sourceLabel(item.sourceKey)),
+    severity: toSeverity(rawObject?.severity ?? rawObject?.priority ?? item.context.severity, item.context.score),
+    confidence: toConfidence(rawObject?.confidence ?? item.context.confidence),
+    location_ref: firstNonEmptyString(rawObject?.location_ref, rawObject?.locationRef, item.path) || `revision_guidance:${index + 1}`,
+    original_text: evidence,
+    evidence_excerpt: evidence,
+    diagnosis: title,
+    recommendation,
+    action_hint: toActionHint(rawObject?.action_hint ?? rawObject?.action_type ?? rawObject?.action) ?? "refine",
+  };
+}
+
+function buildDeepRevisionFindings(
+  evaluationRunId: string,
+  manuscriptVersionId: string | null,
+  artifactId: string,
+  payload: any,
+): CreateDiagnosticFindingInput[] {
+  const rawItems = collectDeepRevisionItems(payload);
+  const seen = new Set<string>();
+  const findings: CreateDiagnosticFindingInput[] = [];
+
+  rawItems.forEach((item, index) => {
+    const finding = buildFindingFromDeepRevisionItem(
+      evaluationRunId,
+      manuscriptVersionId,
+      artifactId,
+      item,
+      index,
+    );
+    if (!finding) return;
+
+    const signature = [finding.criterion_key, finding.finding_type, finding.location_ref, finding.recommendation]
+      .join("|")
+      .toLowerCase();
+    if (seen.has(signature)) return;
+    seen.add(signature);
+    findings.push(finding);
+  });
+
+  return findings;
+}
+
+export function buildFindingsFromPayload(
   evaluationRunId: string,
   manuscriptVersionId: string | null,
   artifactId: string,
@@ -284,7 +500,12 @@ function buildFindingsFromPayload(
       }))
     : [];
 
-  findings.push(...fromCriteria, ...fromRecommendations, ...fromSuggestions);
+  findings.push(
+    ...fromCriteria,
+    ...fromRecommendations,
+    ...fromSuggestions,
+    ...buildDeepRevisionFindings(evaluationRunId, manuscriptVersionId, artifactId, payload),
+  );
   return findings;
 }
 
