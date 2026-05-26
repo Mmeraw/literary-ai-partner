@@ -21,7 +21,7 @@ The `enforce-latency-template` workflow assumed every PR is an evaluation-pipeli
 | **code** | Any file under `lib/(auth\|db\|admin\|security\|operations\|activity\|errors\|supabase\|revision\|reportShares)/**`, `src/**`, `entities/**`, `base44/**`, `app/api/(auth\|admin\|activity\|report-shares\|user)/**`, or root files `lib/audit.js` / `lib/governance.js` / `lib/supabase.js` / `lib/rateLimit.ts`, **and** no evaluation paths touched | Summary, Scope, Tests Updated, Risks & Anomalies, **Unauthorized Input Sources**, **Internal Process Leakage**, **Input → Action → Output**, **Public-Safe Quality/Status Metrics**, **Runtime/Pipeline Expansion**, **Latency Impact**, No-Pipeline-Impact assertion | Code validator |
 | **infra** | Any file under `.github/**`, `.vscode/**`, `.githooks/**`, `scripts/**`, `ops/**`, infra-class test subdirs (`tests/stress/**`, `tests/playwright/**`, `tests/ui/**`, `tests/scripts/**`, `tests/test-helpers/**`, `tests/config/**`), `vercel.json`, `package.json` / `package-lock.json` / `pnpm-lock.yaml` / `yarn.lock`, `tsconfig*.json`, `next.config.*`, `eslint.config.*`, `tailwind.config.*`, `postcss.config.*`, `lighthouserc.yml`, `Dockerfile`, `Makefile`, **and** no evaluation paths touched | CI/Infra Scope, Rollback Plan, Affected Workflows, **Unauthorized Input Sources**, **Internal Process Leakage**, **Input → Action → Output**, **Public-Safe Quality/Status Metrics**, **Runtime/Pipeline Expansion**, **Latency Impact**, No-Pipeline-Impact assertion | Infra validator |
 | **docs** | Any file under `docs/**`, `archive/**`, root `*.md`, **and** no other paths touched | Summary, Scope, Risks & Anomalies, **Unauthorized Input Sources**, **Internal Process Leakage**, **Input → Action → Output**, **Public-Safe Quality/Status Metrics**, **Runtime/Pipeline Expansion**, **Latency Impact**, No-Pipeline-Impact assertion | Docs validator |
-| **migration** | Any file under `supabase/migrations/**`, **and** no evaluation paths touched | Schema Diff, Rollback Plan, Data Backfill, Risks & Anomalies, **Unauthorized Input Sources**, **Internal Process Leakage**, **Input → Action → Output**, **Public-Safe Quality/Status Metrics**, **Runtime/Pipeline Expansion**, **Latency Impact**, No-Pipeline-Impact assertion | Migration validator |
+| **migration** | Any file under `supabase/migrations/**`, **and** no evaluation paths touched | Schema Diff, Rollback Plan, Data Backfill, **Rollback Posture**, **Lock / Table-Scan Risk**, **Data Backfill Risk**, **RLS / Access Impact**, **Production Verification Query**, Risks & Anomalies, **Unauthorized Input Sources**, **Internal Process Leakage**, **Input → Action → Output**, **Public-Safe Quality/Status Metrics**, **Runtime/Pipeline Expansion**, **Latency Impact**, No-Pipeline-Impact assertion | Migration validator |
 | **mixed** | Diff spans multiple non-evaluation buckets above (e.g. docs + infra, code + docs) | Union of the relevant sections, no Pass-selection required | Mixed validator (logical AND of each touched type's requirements) |
 | **evaluation+other** | Any evaluation path touched alongside non-evaluation paths | Full evaluation requirements (the evaluation validator wins — adding a doc change does not buy an exemption) | Evaluation validator (strict) |
 
@@ -82,6 +82,18 @@ All six typed templates share three sections — these are non-negotiable for an
 
 The "not reducing intelligence" final-rule line is **kept only for the evaluation type**, because that line was written for the evaluation pipeline specifically. UI/code/infra/docs/migration PRs don't make that assertion.
 
+### 4.1 Evidence quality rule (non-evaluation PRs)
+
+For `ui`, `code`, `infra`, `docs`, and `migration` PRs, required sections must be more than headings:
+
+- Missing sections fail.
+- Blank sections fail.
+- Placeholder-only answers fail (for example: `TBD`, `TODO`, bare `N/A`).
+- `N/A` is allowed only as `N/A — <reason>`.
+- `None` is allowed when true, but it should still be explicit and truthful.
+
+This rule is intentionally semantic enough to reject performative checkbox compliance while still allowing concise, accurate non-applicability statements.
+
 ## 5. Implementation Plan — single PR
 
 **PR-T1 — `feat(ci): typed PR templates + diff-driven validator dispatch`**
@@ -113,7 +125,7 @@ Files modified:
 - `not reducing intelligence` literal
 
 ### 6.2 ui
-- `## Summary` `## Scope` `## Visual Evidence` `## Accessibility` `## Browser Targets` `## Risks & Anomalies` sections
+- `## Summary` `## Scope` `## Visual Evidence` `## Accessibility` `## Browser Targets` `## Risks & Anomalies` sections with non-placeholder content
 - Mandatory trust-proof sections:
   - `## Unauthorized Input Sources`
   - `## Internal Process Leakage`
@@ -125,7 +137,7 @@ Files modified:
 - `<!-- pr-type: ui -->` marker (warning if missing, not blocking)
 
 ### 6.3 infra
-- `## Summary` `## Scope` `## CI/Infra Scope` `## Rollback Plan` `## Affected Workflows` `## Risks & Anomalies` sections
+- `## Summary` `## Scope` `## CI/Infra Scope` `## Rollback Plan` `## Affected Workflows` `## Risks & Anomalies` sections with non-placeholder content
 - Mandatory trust-proof sections:
   - `## Unauthorized Input Sources`
   - `## Internal Process Leakage`
@@ -137,7 +149,7 @@ Files modified:
 - `<!-- pr-type: infra -->` marker (warning if missing)
 
 ### 6.4 docs
-- `## Summary` `## Scope` `## Risks & Anomalies` sections
+- `## Summary` `## Scope` `## Risks & Anomalies` sections with non-placeholder content
 - Mandatory trust-proof sections:
   - `## Unauthorized Input Sources`
   - `## Internal Process Leakage`
@@ -149,7 +161,13 @@ Files modified:
 - `<!-- pr-type: docs -->` marker (warning if missing)
 
 ### 6.5 migration
-- `## Summary` `## Scope` `## Schema Diff` `## Rollback Plan` `## Data Backfill` `## Risks & Anomalies` sections
+- `## Summary` `## Scope` `## Schema Diff` `## Rollback Plan` `## Data Backfill` `## Risks & Anomalies` sections with non-placeholder content
+- Migration-specific mandatory sections:
+  - `## Rollback Posture`
+  - `## Lock / Table-Scan Risk`
+  - `## Data Backfill Risk`
+  - `## RLS / Access Impact`
+  - `## Production Verification Query`
 - Mandatory trust-proof sections:
   - `## Unauthorized Input Sources`
   - `## Internal Process Leakage`
@@ -161,7 +179,7 @@ Files modified:
 - `<!-- pr-type: migration -->` marker (warning if missing)
 
 ### 6.6 code
-- `## Summary` `## Scope` `## Tests Updated` `## Risks & Anomalies` sections
+- `## Summary` `## Scope` `## Tests Updated` `## Risks & Anomalies` sections with non-placeholder content
 - Mandatory trust-proof sections:
   - `## Unauthorized Input Sources`
   - `## Internal Process Leakage`
@@ -176,6 +194,16 @@ Files modified:
 - All sections required by each touched type (logical AND, deduplicated by section name)
 - All `No-Pipeline-Impact:` lines required (logical AND)
 - No marker required (mixed PRs may be unmarked)
+
+### 6.8 Auditable hotfix bypass (non-evaluation PRs only)
+
+Urgent production fixes may bypass the non-evaluation semantic trust-proof checks only when **all** of the following are true:
+
+- PR carries label `hotfix:trust-proof-bypass`
+- PR body includes `Hotfix-Justification: <reason>`
+- PR body includes `Hotfix-Approved-By: @Mmeraw`
+
+This bypass is intentionally explicit and auditable. It does **not** bypass diff classification, branch freshness, or evaluation-pipeline assertions. It exists to preserve emergency response speed without normalizing silent governance exemptions.
 
 ## 7. Self-Validation (the meta-rule)
 
@@ -195,6 +223,17 @@ The PR that ships this brief is itself an `infra` PR (it touches `.github/**` an
 - Splitting the latency-template check into multiple check names. It remains a single check; what it asserts is now diff-driven internally.
 - Changing CODEOWNERS scope beyond the new templates + workflow + this brief.
 - Issue/PR template wizard customization beyond what GitHub supports natively.
+
+## 10. Workflow Syntax Lint Enforcement (2026-05-26)
+
+To make workflow validation independent of local machine tooling, repository CI now includes a dedicated workflow syntax lint guard:
+
+- Workflow: `.github/workflows/workflow-lint-guard.yml`
+- Tool: `actionlint`
+- Triggers: pull requests and pushes to `main`
+- Failure mode: fail-closed (workflow run fails on lint violations)
+
+This closes the environment gap where local `actionlint` availability could not be assumed.
 
 ---
 
