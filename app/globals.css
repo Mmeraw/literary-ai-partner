@@ -62,6 +62,37 @@
   opacity: 1;
 }
 
+/* === Evaluation report paragraph rhythm ===
+ *
+ * Long-form reports contain dense rationale/evidence prose. Preserve the same
+ * text, but give adjacent paragraphs, ledger rows, and list items more vertical
+ * rhythm so author-facing reports read like editorial analysis instead of a
+ * compressed database dump.
+ */
+.min-h-screen.bg-gray-50 section p {
+  line-height: 1.75;
+}
+
+.min-h-screen.bg-gray-50 section p + p {
+  margin-top: 0.55rem;
+}
+
+.min-h-screen.bg-gray-50 section li {
+  line-height: 1.7;
+}
+
+.min-h-screen.bg-gray-50 section .rounded.border.border-gray-200.p-3.text-sm {
+  padding: 1rem;
+}
+
+.min-h-screen.bg-gray-50 section .rounded.border.border-gray-200.p-3.text-sm p + p {
+  margin-top: 0.65rem;
+}
+
+.min-h-screen.bg-gray-50 section .space-y-2 > .rounded.border.border-gray-200.p-3.text-sm + .rounded.border.border-gray-200.p-3.text-sm {
+  margin-top: 1rem;
+}
+
 /* === User evaluation dashboard === */
 
 .rg-dash-page {
