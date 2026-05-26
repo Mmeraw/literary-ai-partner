@@ -221,6 +221,14 @@ function decisionLabel(entry: LedgerEntry) {
   }
 }
 
+function rebuildDecisionMap(entries: LedgerEntry[]): Record<number, DecisionState> {
+  const next: Record<number, DecisionState> = {};
+  [...entries].reverse().forEach((entry) => {
+    next[entry.itemId] = entry.decision;
+  });
+  return next;
+}
+
 export default function WorkbenchPage() {
   const [activeId, setActiveId] = useState<number>(1);
   const [selectedOption, setSelectedOption] = useState<"A" | "B" | "C">("A");
@@ -249,9 +257,19 @@ export default function WorkbenchPage() {
 
   function stampDecision(decision: DecisionState, customText?: string) {
     const normalized = decision === "accepted_a" || decision === "accepted_b" || decision === "accepted_c" ? (`accepted_${selectedOption.toLowerCase()}` as DecisionState) : decision;
-    setDecisionById((prev) => ({ ...prev, [active.id]: normalized }));
-    setLedger((prev) => [{ at: new Date().toLocaleTimeString(), itemId: active.id, itemTitle: active.title, decision: normalized, selectedOption: normalized.startsWith("accepted") ? selectedOption : undefined, customText: customText?.trim() || undefined }, ...prev]);
+    const entry: LedgerEntry = { at: new Date().toLocaleTimeString(), itemId: active.id, itemTitle: active.title, decision: normalized, selectedOption: normalized.startsWith("accepted") ? selectedOption : undefined, customText: customText?.trim() || undefined };
+    const nextLedger = [entry, ...ledger];
+    setLedger(nextLedger);
+    setDecisionById(rebuildDecisionMap(nextLedger));
     if (nextId) moveToOpportunity(nextId);
+  }
+
+  function undoLedgerEntry(index: number) {
+    const removed = ledger[index];
+    const nextLedger = ledger.filter((_, i) => i !== index);
+    setLedger(nextLedger);
+    setDecisionById(rebuildDecisionMap(nextLedger));
+    if (removed) moveToOpportunity(removed.itemId);
   }
 
   return (
@@ -272,7 +290,7 @@ export default function WorkbenchPage() {
           </div>
         </header>
 
-        <section className="grid gap-4 xl:grid-cols-[360px_minmax(0,1fr)_360px]">
+        <section className="grid gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
           <aside className="rounded-xl border border-[#3A3022] bg-[#161109] p-4">
             <div className="mb-4 flex items-center justify-between"><h2 className="text-sm uppercase tracking-[0.18em] text-[#D7C4A1]">Repair Queue</h2><span className="rounded-full border border-[#5D4C31] px-2 py-0.5 text-[11px] text-[#C8A96E]">{OPPORTUNITIES.length} queued</span></div>
             <ol className="space-y-3">
@@ -307,11 +325,14 @@ export default function WorkbenchPage() {
 
             {isDraftOpen && <section className="mt-4 rounded-lg border border-[#C8A96E]/60 bg-[#120E08] p-4"><p className="text-xs uppercase tracking-[0.16em] text-[#C8A96E]">Author custom revision</p><textarea value={draftText} onChange={(event) => setDraftText(event.target.value)} rows={6} className="mt-3 w-full rounded border border-[#3A3022] bg-[#0D0A05] p-3 font-mono text-sm leading-6 text-[#F7EFDF] outline-none focus:border-[#C8A96E]" placeholder="Write your custom repair here..." /><div className="mt-3 flex flex-wrap gap-2"><button type="button" disabled={!draftText.trim()} onClick={() => stampDecision("custom", draftText)} className="rounded border border-[#C8A96E] bg-[#C8A96E] px-3 py-2 text-sm font-medium text-[#1A140C] disabled:opacity-50">Save custom revision</button><button type="button" onClick={() => setIsDraftOpen(false)} className="rounded border border-[#5D4C31] px-3 py-2 text-sm text-[#E8DABF] hover:border-[#C8A96E]">Close</button></div></section>}
           </article>
+        </section>
 
-          <aside className="rounded-xl border border-[#3A3022] bg-[#161109] p-4">
-            <h2 className="text-sm uppercase tracking-[0.18em] text-[#D7C4A1]">Revision Ledger</h2><p className="mt-1 text-xs text-[#A9987D]">Every decision is recorded here for dashboard and recheck history.</p>
-            <ol className="mt-4 space-y-2">{ledger.length === 0 ? <li className="rounded-lg border border-[#2D2519] bg-[#120E08] p-3 text-sm text-[#B3A185]"><strong>No revision decisions yet.</strong><br />Accept proposals, keep originals, write custom repairs, reject, or defer work to begin the ledger.</li> : ledger.map((entry, i) => <li key={`${entry.at}-${entry.itemId}-${i}`} className="rounded-lg border border-[#2D2519] bg-[#120E08] p-3 text-sm"><p className="text-[#E9DCC4]"><span className="mr-1 text-[11px] uppercase tracking-wider text-[#C8A96E]">{decisionLabel(entry)}</span> — {entry.itemTitle}</p>{entry.customText && <pre className="mt-2 whitespace-pre-wrap rounded border border-[#2D2519] bg-[#0D0A05] p-2 text-xs leading-5 text-[#E8DCC4]">{entry.customText}</pre>}<p className="mt-1 text-xs text-[#9F8F75]">{entry.at}</p></li>)}</ol>
-          </aside>
+        <section className="mt-4 rounded-xl border border-[#3A3022] bg-[#161109] p-4">
+          <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+            <div><h2 className="text-sm uppercase tracking-[0.18em] text-[#D7C4A1]">Revision Ledger</h2><p className="mt-1 text-xs text-[#A9987D]">A running list of author decisions. Undo returns the opportunity to active review and recalculates the queue state.</p></div>
+            {ledger.length > 0 && <button type="button" onClick={() => undoLedgerEntry(0)} className="self-start rounded border border-[#5D4C31] px-3 py-1.5 text-xs text-[#E8D8BA] hover:border-[#C8A96E] md:self-auto">Undo last decision</button>}
+          </div>
+          <ol className="mt-4 grid gap-2 xl:grid-cols-2">{ledger.length === 0 ? <li className="rounded-lg border border-[#2D2519] bg-[#120E08] p-3 text-sm text-[#B3A185]"><strong>No revision decisions yet.</strong><br />Accept proposals, keep originals, write custom repairs, reject, or defer work to begin the ledger.</li> : ledger.map((entry, i) => <li key={`${entry.at}-${entry.itemId}-${i}`} className="rounded-lg border border-[#2D2519] bg-[#120E08] p-3 text-sm"><div className="flex items-start justify-between gap-3"><p className="text-[#E9DCC4]"><span className="mr-1 text-[11px] uppercase tracking-wider text-[#C8A96E]">{decisionLabel(entry)}</span> — {entry.itemTitle}</p><button type="button" onClick={() => undoLedgerEntry(i)} className="shrink-0 rounded border border-[#5D4C31] px-2 py-1 text-[11px] text-[#D8C6A4] hover:border-[#C8A96E]">Undo</button></div>{entry.customText && <pre className="mt-2 whitespace-pre-wrap rounded border border-[#2D2519] bg-[#0D0A05] p-2 text-xs leading-5 text-[#E8DCC4]">{entry.customText}</pre>}<p className="mt-1 text-xs text-[#9F8F75]">{entry.at}</p></li>)}</ol>
         </section>
       </div>
     </main>
