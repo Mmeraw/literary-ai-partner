@@ -5534,7 +5534,7 @@ export async function processEvaluationJob(
 
         try {
           const pass12Recovery = await runPass12ForHandoffRecovery(prebuiltLedgerP2Short);
-          if (!pass12Recovery.ok) {
+          if (pass12Recovery.ok === false) {
             await markFailed(pass12Recovery.error, 'PHASE2_PASS12_FAILED', { pipelineStage: 'phase_2' });
             return { success: false, error: pass12Recovery.errorCode };
           }
