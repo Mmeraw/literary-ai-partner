@@ -348,27 +348,123 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
+            const { owner } = context.repo;
             const type = "${{ steps.classify.outputs.type }}";
             const buckets = "${{ steps.classify.outputs.buckets }}";
             const pr = context.payload.pull_request;
             const body = pr.body || "";
+            const labels = (pr.labels || []).map((label) => label.name);
 
             const failures = [];
             const assert = (cond, msg) => { if (!cond) failures.push(msg); };
 
             const hasSection = (h) => body.includes(h);
+            const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+            const stripHtmlComments = (value) => value.replace(/<!--[\s\S]*?-->/g, "");
+            const extractSectionBody = (heading) => {
+              const start = body.indexOf(heading);
+              if (start === -1) return null;
+
+              const afterHeading = body.slice(start + heading.length);
+              const nextHeadingIndex = afterHeading.search(/\n##\s+/);
+              const raw = nextHeadingIndex === -1
+                ? afterHeading
+                : afterHeading.slice(0, nextHeadingIndex);
+
+              return raw.split(/\n---\s*\n/)[0].trim();
+            };
+            const normalizeSectionBody = (value) =>
+              stripHtmlComments(value)
+                .replace(/^\s*[-*]\s*$/gm, "")
+                .trim();
+            const isPlaceholderOnly = (value) => {
+              const compact = value.toLowerCase().replace(/\s+/g, " ").trim();
+              if (!compact) return true;
+
+              return (
+                ["tbd", "todo", "pending", "unknown", "placeholder", "lorem ipsum", "na", "n/a"].includes(compact) ||
+                /^tbd\b/.test(compact) ||
+                /^todo\b/.test(compact)
+              );
+            };
+            const isExplainedNa = (value) => /^(n\/a|na)\s*[—:-]\s*\S.{8,}$/i.test(value.trim());
+            const assertMeaningfulSection = (heading, label = heading.replace(/^##\s+/, "")) => {
+              assert(hasSection(heading), `Missing: ${label} section`);
+
+              const raw = extractSectionBody(heading);
+              const normalized = normalizeSectionBody(raw || "");
+
+              assert(normalized.length > 0, `${label} must not be blank`);
+              assert(!isPlaceholderOnly(normalized), `${label} must not be placeholder-only (for example: TBD)`);
+
+              if (/^(n\/a|na)$/i.test(normalized)) {
+                assert(false, `${label} must explain why it is N/A`);
+                return;
+              }
+
+              if (/^(n\/a|na)\b/i.test(normalized)) {
+                assert(isExplainedNa(normalized), `${label} must use \"N/A — <reason>\" when not applicable`);
+              }
+            };
             const hasNoPipelineImpact = () => {
               const m = body.match(/^No-Pipeline-Impact:\s*(.+)$/m);
               return !!(m && m[1].trim().length > 0);
             };
+            const HOTFIX_TRUST_PROOF_BYPASS_LABEL = "hotfix:trust-proof-bypass";
+            const validateHotfixBypass = () => {
+              if (!labels.includes(HOTFIX_TRUST_PROOF_BYPASS_LABEL)) return false;
+
+              const justification = body.match(/^Hotfix-Justification:\s*(.+)$/m);
+              const approvedBy = body.match(/^Hotfix-Approved-By:\s*@?([A-Za-z0-9_.-]+)\s*$/m);
+
+              assert(
+                !!justification && justification[1].trim().length > 0,
+                `Hotfix bypass requires \"Hotfix-Justification: <reason>\" when label ${HOTFIX_TRUST_PROOF_BYPASS_LABEL} is set`
+              );
+              assert(
+                !!approvedBy,
+                `Hotfix bypass requires \"Hotfix-Approved-By: @${owner}\" when label ${HOTFIX_TRUST_PROOF_BYPASS_LABEL} is set`
+              );
+              if (approvedBy) {
+                assert(
+                  approvedBy[1].toLowerCase() === owner.toLowerCase(),
+                  `Hotfix bypass must be approved by @${owner}`
+                );
+              }
+
+              const approved =
+                !!justification && justification[1].trim().length > 0 &&
+                !!approvedBy && approvedBy[1].toLowerCase() === owner.toLowerCase();
+
+              if (approved) {
+                core.warning(
+                  `Auditable hotfix bypass active via label ${HOTFIX_TRUST_PROOF_BYPASS_LABEL} approved by @${owner}`
+                );
+              }
+
+              return approved;
+            };
+            const hotfixBypassApproved = validateHotfixBypass();
 
             const validateMandatoryTrustProof = () => {
-              assert(hasSection("## Unauthorized Input Sources"), "Missing: Unauthorized Input Sources section");
-              assert(hasSection("## Internal Process Leakage"), "Missing: Internal Process Leakage section");
-              assert(hasSection("## Input → Action → Output"), "Missing: Input → Action → Output section");
-              assert(hasSection("## Public-Safe Quality/Status Metrics"), "Missing: Public-Safe Quality/Status Metrics section");
-              assert(hasSection("## Runtime/Pipeline Expansion"), "Missing: Runtime/Pipeline Expansion section");
-              assert(hasSection("## Latency Impact"), "Missing: Latency Impact section");
+              if (hotfixBypassApproved) return;
+
+              assertMeaningfulSection("## Unauthorized Input Sources");
+              assertMeaningfulSection("## Internal Process Leakage");
+              assertMeaningfulSection("## Input → Action → Output");
+              assertMeaningfulSection("## Public-Safe Quality/Status Metrics");
+              assertMeaningfulSection("## Runtime/Pipeline Expansion");
+              assertMeaningfulSection("## Latency Impact");
+            };
+
+            const validateMigrationSpecificProof = () => {
+              if (hotfixBypassApproved) return;
+
+              assertMeaningfulSection("## Rollback Posture");
+              assertMeaningfulSection("## Lock / Table-Scan Risk");
+              assertMeaningfulSection("## Data Backfill Risk");
+              assertMeaningfulSection("## RLS / Access Impact");
+              assertMeaningfulSection("## Production Verification Query");
             };
 
             const commonFloor = () => {
@@ -464,40 +560,56 @@ jobs:
 
             const validateUi = () => {
               commonFloor();
-              assert(hasSection("## Visual Evidence"), "Missing: Visual Evidence section");
-              assert(hasSection("## Accessibility"), "Missing: Accessibility section");
-              assert(hasSection("## Browser Targets"), "Missing: Browser Targets section");
+              assertMeaningfulSection("## Summary");
+              assertMeaningfulSection("## Scope");
+              assertMeaningfulSection("## Visual Evidence");
+              assertMeaningfulSection("## Accessibility");
+              assertMeaningfulSection("## Browser Targets");
+              assertMeaningfulSection("## Risks & Anomalies");
               validateMandatoryTrustProof();
               assert(hasNoPipelineImpact(), "Missing: No-Pipeline-Impact: <value> line");
             };
 
             const validateInfra = () => {
               commonFloor();
-              assert(hasSection("## CI/Infra Scope"), "Missing: CI/Infra Scope section");
-              assert(hasSection("## Rollback Plan"), "Missing: Rollback Plan section");
-              assert(hasSection("## Affected Workflows"), "Missing: Affected Workflows section");
+              assertMeaningfulSection("## Summary");
+              assertMeaningfulSection("## Scope");
+              assertMeaningfulSection("## CI/Infra Scope");
+              assertMeaningfulSection("## Rollback Plan");
+              assertMeaningfulSection("## Affected Workflows");
+              assertMeaningfulSection("## Risks & Anomalies");
               validateMandatoryTrustProof();
               assert(hasNoPipelineImpact(), "Missing: No-Pipeline-Impact: <value> line");
             };
 
             const validateDocs = () => {
               commonFloor();
+              assertMeaningfulSection("## Summary");
+              assertMeaningfulSection("## Scope");
+              assertMeaningfulSection("## Risks & Anomalies");
               validateMandatoryTrustProof();
               assert(hasNoPipelineImpact(), "Missing: No-Pipeline-Impact: <value> line");
             };
 
             const validateMigration = () => {
               commonFloor();
-              assert(hasSection("## Schema Diff"), "Missing: Schema Diff section");
-              assert(hasSection("## Rollback Plan"), "Missing: Rollback Plan section");
-              assert(hasSection("## Data Backfill"), "Missing: Data Backfill section");
+              assertMeaningfulSection("## Summary");
+              assertMeaningfulSection("## Scope");
+              assertMeaningfulSection("## Schema Diff");
+              assertMeaningfulSection("## Rollback Plan");
+              assertMeaningfulSection("## Data Backfill");
+              assertMeaningfulSection("## Risks & Anomalies");
               validateMandatoryTrustProof();
+              validateMigrationSpecificProof();
               assert(hasNoPipelineImpact(), "Missing: No-Pipeline-Impact: <value> line");
             };
 
             const validateCode = () => {
               commonFloor();
-              assert(hasSection("## Tests Updated"), "Missing: Tests Updated section");
+              assertMeaningfulSection("## Summary");
+              assertMeaningfulSection("## Scope");
+              assertMeaningfulSection("## Tests Updated");
+              assertMeaningfulSection("## Risks & Anomalies");
               validateMandatoryTrustProof();
               assert(hasNoPipelineImpact(), "Missing: No-Pipeline-Impact: <value> line");
             };

@@ -1,5 +1,7 @@
 ## Summary
 
+> Validation rule: blank sections, placeholder-only answers (for example, `TBD`, `TODO`, bare `N/A`) fail. Use `N/A — <reason>` when a section truly does not apply.
+
 <!-- 1–3 sentences describing what doc changes and why. -->
 
 ## Scope

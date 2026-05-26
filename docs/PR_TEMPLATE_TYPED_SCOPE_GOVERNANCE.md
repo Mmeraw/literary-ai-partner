@@ -207,7 +207,7 @@ This bypass is intentionally explicit and auditable. It does **not** bypass diff
 
 ## 7. Self-Validation (the meta-rule)
 
-The PR that ships this brief is itself an `infra` PR (it touches `.github/**` and `docs/**`, but the docs file is governance about the infra change, so the dominant type is infra). It MUST use the new `infra` template and pass the new validator on its own first push. If it cannot self-validate, the design is wrong and the PR is recalled.
+The PR that ships this brief is a `mixed` `infra+docs` PR whenever it touches both `.github/**` and `docs/**`. It MUST satisfy the union of infra and docs validator requirements on its own first push. If the PR body artifact is committed under `.github/pr-bodies/`, it remains within the `infra` bucket; if governance/docs files under `docs/**` are also touched, the mixed validator still applies. If the change cannot self-validate under the classifier's actual touched-path rules, the design is wrong and the PR is recalled.
 
 ## 8. Decision Log
 
@@ -234,6 +234,14 @@ To make workflow validation independent of local machine tooling, repository CI 
 - Failure mode: fail-closed (workflow run fails on lint violations)
 
 This closes the environment gap where local `actionlint` availability could not be assumed.
+
+### 10.1 Required-check promotion is separate and append-only
+
+This workflow existing in the repo is **not** the same thing as branch protection requiring it for merge. If owners decide to promote `actionlint` to a required status check, that is a separate GitHub control-plane step and must be handled conservatively:
+
+- Update the existing branch protection / ruleset in GitHub UI (or via a full-fidelity API read-modify-write), preserving all existing required checks.
+- Append `actionlint` to the current required-check set; do **not** rebuild the rules array from memory or from a partial payload.
+- This governance change does not itself modify the branch-protection ruleset.
 
 ---
 
