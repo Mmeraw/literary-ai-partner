@@ -6,6 +6,7 @@ import EmptyState from '@/components/dashboard/EmptyState'
 import {
   getDashboardEvaluations,
   computeDashboardKpis,
+  type DashboardEvaluationRow,
 } from '@/lib/dashboard/getDashboardEvaluations'
 
 export const dynamic = 'force-dynamic'
@@ -30,6 +31,50 @@ function getAgentReadinessHref(row: { manuscriptId: string; jobId: string }): st
 
 function canBuildAgentReadiness(status: string): boolean {
   return status !== 'failed' && status !== 'running'
+}
+
+function getCompletedRowsForLatestManuscript(rows: DashboardEvaluationRow[]): DashboardEvaluationRow[] {
+  const latest = rows[0]
+  if (!latest) return []
+  return rows
+    .filter((row) => row.manuscriptId === latest.manuscriptId && row.status !== 'running' && row.status !== 'failed')
+    .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+}
+
+function getPercent(value: number | null | undefined): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return 0
+  return Math.max(0, Math.min(100, value * 10))
+}
+
+function getReadinessDeltaLabel(points: DashboardEvaluationRow[]): string {
+  if (points.length < 2) return 'Needs a second completed evaluation'
+  const first = points[0].readinessScore
+  const last = points[points.length - 1].readinessScore
+  if (first == null || last == null) return 'Awaiting comparable readiness scores'
+  const delta = last - first
+  return `${delta >= 0 ? '+' : ''}${delta.toFixed(1)} readiness since first tracked run`
+}
+
+function formatShortDate(value: string): string {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return '—'
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+}
+
+function countByStatus(rows: DashboardEvaluationRow[]): Array<{ label: string; count: number; className: string }> {
+  const buckets = [
+    { key: 'market_ready', label: 'Ready', className: 'rg-analytics-bar--gold' },
+    { key: 'near_ready', label: 'Near', className: 'rg-analytics-bar--amber' },
+    { key: 'improving', label: 'Improving', className: 'rg-analytics-bar--teal' },
+    { key: 'below_standard', label: 'Below', className: 'rg-analytics-bar--muted' },
+    { key: 'running', label: 'Running', className: 'rg-analytics-bar--blue' },
+    { key: 'failed', label: 'Failed', className: 'rg-analytics-bar--red' },
+  ]
+  return buckets.map((bucket) => ({
+    label: bucket.label,
+    className: bucket.className,
+    count: rows.filter((row) => row.status === bucket.key).length,
+  }))
 }
 
 export default async function DashboardPage() {
@@ -72,6 +117,9 @@ export default async function DashboardPage() {
   const latestIsReady = latestTopScore >= 8
   const latestIsActionable = latest.status === 'failed' || latest.status === 'running'
   const latestCanBuildAgentReadiness = canBuildAgentReadiness(latest.status)
+  const latestManuscriptPoints = getCompletedRowsForLatestManuscript(rows)
+  const statusBuckets = countByStatus(rows)
+  const maxStatusCount = Math.max(1, ...statusBuckets.map((bucket) => bucket.count))
 
   return (
     <div className="rg-dash-page">
@@ -152,18 +200,100 @@ export default async function DashboardPage() {
         />
       </section>
 
-      <section className="rg-progress-preview" aria-label="Revision progress analytics preview">
-        <div>
-          <div className="rg-dash-context-label">Progress analytics</div>
-          <h2>Diagnosis, repair, measurement.</h2>
-          <p>
-            This dashboard will track category movement, recurring issue reduction, Revise decisions, TrustedPath batches, and before/after evaluation deltas. Until a follow-up evaluation runs, revision activity is shown as activity—not confirmed improvement.
-          </p>
+      <section className="rg-analytics-board" aria-label="Progress analytics">
+        <div className="rg-analytics-intro">
+          <div>
+            <div className="rg-dash-context-label">Progress analytics</div>
+            <h2>Measured movement, not vanity telemetry.</h2>
+            <p>
+              The charts below use evaluation data already available today. Deeper issue-frequency, Revise-decision, TrustedPath, and before/after repair analytics remain clearly marked until those runtime events are persisted.
+            </p>
+          </div>
+          <div className="rg-analytics-note">
+            <strong>{getReadinessDeltaLabel(latestManuscriptPoints)}</strong>
+            <span>{latestManuscriptPoints.length} completed evaluation{latestManuscriptPoints.length === 1 ? '' : 's'} tracked for the current manuscript.</span>
+          </div>
         </div>
-        <div className="rg-progress-preview-grid">
-          <div><strong>Criteria movement</strong><span>Score deltas across the 13 story criteria.</span></div>
-          <div><strong>Issue frequency</strong><span>Recurring failure types reduced, unchanged, or increased.</span></div>
-          <div><strong>Revise decisions</strong><span>Accepted, custom, rejected, kept original, deferred, and TrustedPath activity.</span></div>
+
+        <div className="rg-analytics-grid">
+          <article className="rg-analytics-card rg-analytics-card--wide">
+            <div className="rg-analytics-card-head">
+              <h3>Readiness over time</h3>
+              <span>Current manuscript</span>
+            </div>
+            <div className="rg-trend-bars" role="list" aria-label="Readiness trend by completed evaluation">
+              {latestManuscriptPoints.length > 0 ? latestManuscriptPoints.map((point) => (
+                <div className="rg-trend-point" role="listitem" key={point.id}>
+                  <div className="rg-trend-track">
+                    <span style={{ height: `${getPercent(point.readinessScore)}%` }} />
+                  </div>
+                  <strong>{formatScore(point.readinessScore)}</strong>
+                  <small>{formatShortDate(point.createdAt)}</small>
+                </div>
+              )) : (
+                <p className="rg-analytics-empty">No completed evaluations yet for this manuscript.</p>
+              )}
+            </div>
+          </article>
+
+          <article className="rg-analytics-card">
+            <div className="rg-analytics-card-head">
+              <h3>Latest score bars</h3>
+              <span>0–10 scale</span>
+            </div>
+            <div className="rg-score-bars">
+              <div>
+                <span>Overall</span>
+                <div><i style={{ width: `${getPercent(latest.overallScore)}%` }} /></div>
+                <strong>{formatScore(latest.overallScore)}</strong>
+              </div>
+              <div>
+                <span>Readiness</span>
+                <div><i style={{ width: `${getPercent(latest.readinessScore)}%` }} /></div>
+                <strong>{formatScore(latest.readinessScore)}</strong>
+              </div>
+            </div>
+          </article>
+
+          <article className="rg-analytics-card">
+            <div className="rg-analytics-card-head">
+              <h3>Evaluation status mix</h3>
+              <span>Recent activity</span>
+            </div>
+            <div className="rg-status-bars">
+              {statusBuckets.map((bucket) => (
+                <div key={bucket.label}>
+                  <span>{bucket.label}</span>
+                  <div><i className={bucket.className} style={{ width: `${(bucket.count / maxStatusCount) * 100}%` }} /></div>
+                  <strong>{bucket.count}</strong>
+                </div>
+              ))}
+            </div>
+          </article>
+
+          <article className="rg-analytics-card rg-analytics-card--pending">
+            <div className="rg-analytics-card-head">
+              <h3>Issue frequency</h3>
+              <span>Pending runtime data</span>
+            </div>
+            <p>Will show recurring failure types reduced, unchanged, or increased once criterion-level issue events are persisted.</p>
+          </article>
+
+          <article className="rg-analytics-card rg-analytics-card--pending">
+            <div className="rg-analytics-card-head">
+              <h3>Revise decisions</h3>
+              <span>Pending runtime data</span>
+            </div>
+            <p>Will separate accepted A/B/C options, custom rewrites, keep-original decisions, rejects, deferrals, and TrustedPath batches.</p>
+          </article>
+
+          <article className="rg-analytics-card rg-analytics-card--pending">
+            <div className="rg-analytics-card-head">
+              <h3>Before / after deltas</h3>
+              <span>Requires re-evaluation</span>
+            </div>
+            <p>Will compare pre-revision and post-revision evaluations before claiming manuscript improvement.</p>
+          </article>
         </div>
       </section>
 
