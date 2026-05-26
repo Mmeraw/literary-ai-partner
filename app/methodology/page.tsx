@@ -10,7 +10,7 @@ const methods = [
 const modes = [
   { title: "Short-Form Evaluation", range: "Under 25,000 words", copy: "Evaluates the submitted pages against the 13 story criteria only. Designed for openings, chapters, excerpts, short stories, and shorter works where full manuscript continuity cannot yet be judged." },
   { title: "Long-Form Evaluation", range: "25,000+ words", copy: "Adds manuscript-scale analysis: continuity, recurrence, setup/payoff, pacing over distance, character behavior, structural readiness, and cumulative reader experience." },
-  { title: "Long-Form Multi-Layer Evaluation", range: "Complex long-form manuscripts", copy: "A deeper architecture audit for manuscripts that need layered story ledgers, Golden Spine/WAVE governance, long-form canon/gates, dialogue and speech protection, and deeper continuity analysis." },
+  { title: "Long-Form Multi-Layer Evaluation", range: "Complex long-form manuscripts", copy: "A deeper architecture audit for manuscripts that need layered evidence views, manuscript-scale continuity, proprietary repair governance, dialogue and speech protection, and deeper structural analysis where appropriate." },
 ];
 
 const criteria = ["Concept", "Narrative Drive", "Character", "Voice", "Scene Construction", "Dialogue", "Theme", "Worldbuilding", "Pacing", "Prose Control", "Tone", "Narrative Closure", "Marketability"];
