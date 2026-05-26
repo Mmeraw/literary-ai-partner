@@ -7,7 +7,7 @@ import {
   validateManuscriptSize,
   type RateLimitResult,
 } from "@/lib/jobs/rateLimiter";
-import { JOB_TYPES, type JobType } from "@/lib/jobs/types";
+import { JOB_TYPES, isEvaluationJobType, type JobType } from "@/lib/jobs/types";
 import { generateTraceId, logger, jobLogger } from "@/lib/observability/logger";
 import { emitLatencyTrace } from "@/lib/observability/latencyTrace";
 import { getAuthenticatedUser } from "@/lib/supabase/server";
@@ -76,6 +76,7 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json();
+  const processing_terms_accepted = body?.processing_terms_accepted;
 
     let manuscript_id = body?.manuscript_id;
     const job_type = body?.job_type;
@@ -156,6 +157,24 @@ export async function POST(req: Request) {
     }
 
     const validatedJobType = job_type as JobType;
+
+    if (isEvaluationJobType(validatedJobType) && processing_terms_accepted !== true) {
+      logger.warn("Job creation validation failed: processing terms acknowledgement missing", {
+        trace_id,
+        request_id,
+        event: "api.jobs.create.processing_terms_ack_missing",
+      });
+
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            "Please acknowledge that RevisionGrade evaluations are custom digital services and that processing begins after submission.",
+          trace_id,
+        },
+        { status: 400 }
+      );
+    }
 
     const resolvedManuscriptSize =
       typeof manuscript_size === "number"
