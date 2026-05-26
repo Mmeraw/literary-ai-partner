@@ -77,6 +77,7 @@ export default function HeaderNav() {
   const [resourcesOpen, setResourcesOpen] = useState(false);
   const [arpOpen,       setArpOpen]       = useState(false);
   const [sgOpen,        setSgOpen]        = useState(false);
+  const [mobileOpen,    setMobileOpen]    = useState(false);
 
   const isAdmin  = isPipelineHealthAdminEmail(email);
   const isAuthed = authState === "authed";
@@ -98,6 +99,13 @@ export default function HeaderNav() {
   }, [pathname]);
 
   useEffect(() => {
+    setMobileOpen(false);
+    setResourcesOpen(false);
+    setArpOpen(false);
+    setSgOpen(false);
+  }, [pathname]);
+
+  useEffect(() => {
     if (!resourcesOpen && !arpOpen && !sgOpen) return;
     function handlePointerDown(e) {
       if (resourcesOpen && resourcesMenuRef.current && !resourcesMenuRef.current.contains(e.target)) setResourcesOpen(false);
@@ -105,7 +113,7 @@ export default function HeaderNav() {
       if (sgOpen       && sgMenuRef.current        && !sgMenuRef.current.contains(e.target))        setSgOpen(false);
     }
     function handleKeyDown(e) {
-      if (e.key === "Escape") { setResourcesOpen(false); setArpOpen(false); setSgOpen(false); }
+      if (e.key === "Escape") { setResourcesOpen(false); setArpOpen(false); setSgOpen(false); setMobileOpen(false); }
     }
     document.addEventListener("pointerdown", handlePointerDown);
     document.addEventListener("keydown", handleKeyDown);
@@ -127,10 +135,17 @@ export default function HeaderNav() {
 
   const linkCls       = "text-xs tracking-widest uppercase font-rg-mono text-rg-cream2 hover:text-rg-cream transition-colors duration-150";
   const activeLinkCls = "text-xs tracking-widest uppercase font-rg-mono text-rg-gold";
+  const mobileLinkCls = "block rounded-sm border border-rg-cream2/10 px-3 py-3 font-rg-mono text-xs uppercase tracking-[0.16em] text-rg-cream2 transition hover:border-rg-gold/50 hover:text-rg-cream";
+  const mobileActiveLinkCls = "block rounded-sm border border-rg-gold/50 px-3 py-3 font-rg-mono text-xs uppercase tracking-[0.16em] text-rg-gold";
 
   function NavLink({ href, children }) {
     const active = pathname === href || pathname.startsWith(href + "/");
     return <Link href={href} className={active ? activeLinkCls : linkCls}>{children}</Link>;
+  }
+
+  function MobileLink({ href, children }) {
+    const active = pathname === href || pathname.startsWith(href + "/");
+    return <Link href={href} className={active ? mobileActiveLinkCls : mobileLinkCls}>{children}</Link>;
   }
 
   const resourcesActive = resourceActiveHrefs.some((h) => pathname === h || pathname.startsWith(`${h}/`));
@@ -140,14 +155,14 @@ export default function HeaderNav() {
   const dropdownItemCls = "block px-3 py-2 font-rg-mono text-xs uppercase tracking-[0.14em] text-rg-cream2 hover:text-rg-cream whitespace-nowrap";
 
   return (
-    <header className="w-full bg-rg-ink border-b border-rg-cream2/10 sticky top-0 z-50">
-      <div className="max-w-7xl mx-auto px-6 h-14 flex items-center justify-between gap-8">
-        <Link href="/" className="flex items-center gap-3 shrink-0 group">
-          <span className="inline-flex h-8 w-8 items-center justify-center border border-rg-gold/60 text-rg-gold font-rg-serif text-sm group-hover:border-rg-gold transition-colors duration-150">R</span>
-          <span className="text-rg-cream font-rg-serif text-sm tracking-wide hidden sm:block">RevisionGrade&#8482;</span>
+    <header className="sticky top-0 z-50 w-full max-w-full border-b border-rg-cream2/10 bg-rg-ink">
+      <div className="mx-auto flex h-14 max-w-7xl items-center justify-between gap-4 px-4 sm:px-6">
+        <Link href="/" className="flex min-w-0 shrink-0 items-center gap-3 group">
+          <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center border border-rg-gold/60 text-rg-gold font-rg-serif text-sm group-hover:border-rg-gold transition-colors duration-150">R</span>
+          <span className="hidden text-rg-cream font-rg-serif text-sm tracking-wide sm:block">RevisionGrade&#8482;</span>
         </Link>
 
-        <nav className="flex items-center gap-6 flex-1 justify-center">
+        <nav className="hidden items-center justify-center gap-6 lg:flex lg:flex-1">
           {isAuthed && <NavLink href="/dashboard">Dashboard</NavLink>}
 
           <NavLink href="/evaluate">Evaluate</NavLink>
@@ -228,7 +243,7 @@ export default function HeaderNav() {
           {isAuthed && isAdmin && <NavLink href="/admin/pipeline-health">Pipeline</NavLink>}
         </nav>
 
-        <div className="shrink-0">
+        <div className="hidden shrink-0 lg:block">
           {authState === "loading" && (
             <span className="inline-block w-14 h-5 rounded bg-rg-cream2/10 animate-pulse" />
           )}
@@ -249,7 +264,54 @@ export default function HeaderNav() {
             </Link>
           )}
         </div>
+
+        <button
+          type="button"
+          className="inline-flex shrink-0 items-center justify-center border border-rg-gold/60 px-3 py-2 font-rg-mono text-[0.68rem] uppercase tracking-[0.16em] text-rg-gold transition hover:border-rg-gold hover:text-rg-cream lg:hidden"
+          aria-expanded={mobileOpen}
+          aria-controls="mobile-nav"
+          onClick={() => setMobileOpen((v) => !v)}
+        >
+          {mobileOpen ? "Close" : "Menu"}
+        </button>
       </div>
+
+      {mobileOpen && (
+        <div id="mobile-nav" className="border-t border-rg-cream2/10 bg-rg-ink lg:hidden">
+          <nav className="mx-auto grid max-w-7xl gap-2 px-4 py-4 sm:px-6" aria-label="Mobile navigation">
+            {isAuthed && <MobileLink href="/dashboard">Dashboard</MobileLink>}
+            <MobileLink href="/evaluate">Evaluate</MobileLink>
+            <MobileLink href="/revise">Revise</MobileLink>
+            <MobileLink href="/agent-readiness">Agent Readiness&#8482;</MobileLink>
+            <MobileLink href="/storygate-studio">Storygate Studio&#8482;</MobileLink>
+            <MobileLink href="/resources">Resources</MobileLink>
+            <MobileLink href="/pricing">Pricing</MobileLink>
+            {isAuthed && isAdmin && <MobileLink href="/admin/pipeline-health">Pipeline</MobileLink>}
+
+            <div className="mt-2 border-t border-rg-cream2/10 pt-4">
+              {authState === "loading" && (
+                <span className="inline-block h-5 w-20 rounded bg-rg-cream2/10 animate-pulse" />
+              )}
+              {authState === "authed" && (
+                <button
+                  type="button"
+                  onClick={handleSignOut}
+                  disabled={signingOut}
+                  data-testid="mobile-nav-signout"
+                  className="w-full border border-rg-cream2/20 px-3 py-3 text-left font-rg-mono text-xs uppercase tracking-[0.16em] text-rg-cream2 transition hover:border-rg-gold/50 hover:text-rg-cream disabled:opacity-40"
+                >
+                  {signingOut ? "Signing out…" : "Sign out"}
+                </button>
+              )}
+              {authState === "anon" && (
+                <Link href="/login" data-testid="mobile-nav-signin" className="block border border-rg-gold px-3 py-3 font-rg-mono text-xs uppercase tracking-[0.16em] text-rg-gold transition hover:bg-rg-gold hover:text-rg-ink">
+                  Sign in
+                </Link>
+              )}
+            </div>
+          </nav>
+        </div>
+      )}
     </header>
   );
 }
