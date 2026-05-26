@@ -83,6 +83,27 @@ describe("POST /api/jobs input contract", () => {
     expect(mockCreateJob).not.toHaveBeenCalled();
   });
 
+  test("returns 400 when evaluation processing terms acknowledgement is missing", async () => {
+    const req = new Request("https://localhost:3000/api/jobs", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        manuscript_id: 777,
+        job_type: "evaluate_full",
+      }),
+    });
+
+    const response = await POST(req);
+    const json = (await response.json()) as { ok: boolean; error: string };
+
+    expect(response.status).toBe(400);
+    expect(json.ok).toBe(false);
+    expect(json.error).toBe(
+      "Please acknowledge that RevisionGrade evaluations are custom digital services and that processing begins after submission.",
+    );
+    expect(mockCreateJob).not.toHaveBeenCalled();
+  });
+
   test("accepts text-only input and creates fresh manuscript-backed job", async () => {
     const supabase = {
       from: jest.fn(() => ({
@@ -110,6 +131,7 @@ describe("POST /api/jobs input contract", () => {
         manuscript_text: "Fresh chapter text",
         manuscript_title: "Let the River Decide",
         job_type: "evaluate_full",
+        processing_terms_accepted: true,
       }),
     });
 
@@ -145,6 +167,7 @@ describe("POST /api/jobs input contract", () => {
       body: JSON.stringify({
         manuscript_id: 999,
         job_type: "evaluate_full",
+        processing_terms_accepted: true,
       }),
     });
 
@@ -177,6 +200,7 @@ describe("POST /api/jobs input contract", () => {
       body: JSON.stringify({
         manuscript_id: 1002,
         job_type: "evaluate_full",
+        processing_terms_accepted: true,
       }),
     });
 
@@ -213,6 +237,7 @@ describe("POST /api/jobs input contract", () => {
         body: JSON.stringify({
           manuscript_id: 1000,
           job_type: "evaluate_full",
+          processing_terms_accepted: true,
         }),
       });
 
@@ -241,6 +266,7 @@ describe("POST /api/jobs input contract", () => {
         body: JSON.stringify({
           manuscript_id: 1001,
           job_type: "evaluate_full",
+          processing_terms_accepted: true,
         }),
       });
 
@@ -265,6 +291,7 @@ describe("POST /api/jobs input contract", () => {
       body: JSON.stringify({
         manuscript_id: 1003,
         job_type: "evaluate_full",
+        processing_terms_accepted: true,
       }),
     });
 
