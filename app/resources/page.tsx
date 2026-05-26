@@ -34,13 +34,13 @@ const resourceCards = [
   },
   {
     title: "Genre & Classification FAQ",
-    href: "#genre-classification-faq",
+    href: "/genre-classification-faq",
     eyebrow: "Positioning matters",
     copy: "Why genre selection affects reader expectations, market positioning, and how the report interprets evidence.",
   },
   {
     title: "Storygate Studio™ FAQ",
-    href: "#storygate-faq",
+    href: "/storygate-studio/faq",
     eyebrow: "Controlled manuscript access",
     copy: "How manuscript-only Storygate access, creator approval, package visibility, and verified publishing-professional review fit together.",
   },
@@ -60,7 +60,7 @@ const evaluationModes = [
   {
     name: "Long-form multi-layer evaluation",
     scope: "Complex 25,000+ word manuscripts",
-    copy: "For deeper architecture review using layered story evidence, long-form continuity, Golden Spine/WAVE governance where appropriate, and structural repair priorities.",
+    copy: "For deeper architecture review using layered story evidence, long-form continuity, proprietary repair governance where appropriate, and structural repair priorities.",
   },
 ];
 
@@ -206,7 +206,7 @@ export default function ResourcesPage() {
           <SectionHeader
             eyebrow="Privacy & research controls"
             title="Manuscript trust is part of the product."
-            copy="This hub now surfaces the current privacy doctrine. A dedicated Privacy & Research Controls page expands this into a full trust document."
+            copy="This hub surfaces the current privacy doctrine. The dedicated Privacy & Research Controls page expands this into a full trust document."
           />
           <div>
             <div className="grid gap-3 sm:grid-cols-2">
@@ -237,6 +237,9 @@ export default function ResourcesPage() {
             </article>
           ))}
         </div>
+        <Link href="/genre-classification-faq" className="mt-8 inline-block font-rg-mono text-xs uppercase tracking-[0.18em] text-rg-gold hover:text-rg-cream">
+          Open full Genre & Classification FAQ →
+        </Link>
       </section>
 
       <section id="storygate-faq" className="border-y border-rg-cream2/10 bg-rg-ink2/50 scroll-mt-24">
@@ -254,6 +257,9 @@ export default function ResourcesPage() {
               </article>
             ))}
           </div>
+          <Link href="/storygate-studio/faq" className="mt-8 inline-block font-rg-mono text-xs uppercase tracking-[0.18em] text-rg-gold hover:text-rg-cream">
+            Open full Storygate Studio FAQ →
+          </Link>
         </div>
       </section>
 
