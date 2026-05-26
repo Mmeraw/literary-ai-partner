@@ -17,6 +17,9 @@ export type SyncRevisionLedgerEntryInput = {
   decision: RevisionLedgerDecision;
   selectedOption?: "A" | "B" | "C" | null;
   customText?: string | null;
+  selectedText?: string | null;
+  sourceExcerpt?: string | null;
+  sourceLocation?: string | null;
   clientCreatedAt?: string | null;
   isUndo?: boolean;
   undoneLocalId?: string | null;
@@ -37,6 +40,9 @@ export type SyncedRevisionLedgerRow = {
   decision: RevisionLedgerDecision;
   selected_option: "A" | "B" | "C" | null;
   custom_text: string | null;
+  selected_text: string | null;
+  source_excerpt: string | null;
+  source_location: string | null;
   client_created_at: string | null;
   client_synced_at: string;
   is_undo: boolean;
@@ -56,6 +62,9 @@ const DECISIONS = new Set<RevisionLedgerDecision>([
   "deferred",
 ]);
 
+const LEDGER_SELECT =
+  "id, local_id, opportunity_id, opportunity_title, decision, selected_option, custom_text, selected_text, source_excerpt, source_location, client_created_at, client_synced_at, is_undo, undone_local_id, metadata, created_at, updated_at";
+
 function isUuid(value: string | null | undefined): boolean {
   return Boolean(value && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value));
 }
@@ -67,6 +76,10 @@ function normalizeDecision(value: unknown): RevisionLedgerDecision | null {
 
 function normalizeOption(value: unknown): "A" | "B" | "C" | null {
   return value === "A" || value === "B" || value === "C" ? value : null;
+}
+
+function normalizeText(value: unknown): string | null {
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
 }
 
 async function assertOwnedEvaluation(input: { manuscriptId: string | number; evaluationJobId: string }) {
@@ -114,7 +127,16 @@ function validateEntry(entry: SyncRevisionLedgerEntryInput): SyncRevisionLedgerE
   }
   const decision = normalizeDecision(entry.decision);
   if (!decision) throw new Error(`Invalid ledger decision: ${String(entry.decision)}`);
-  return { ...entry, decision, selectedOption: normalizeOption(entry.selectedOption) };
+
+  return {
+    ...entry,
+    decision,
+    selectedOption: normalizeOption(entry.selectedOption),
+    customText: normalizeText(entry.customText),
+    selectedText: normalizeText(entry.selectedText),
+    sourceExcerpt: normalizeText(entry.sourceExcerpt),
+    sourceLocation: normalizeText(entry.sourceLocation),
+  };
 }
 
 export async function syncRevisionLedgerDecisions(input: SyncRevisionLedgerInput): Promise<SyncedRevisionLedgerRow[]> {
@@ -132,6 +154,9 @@ export async function syncRevisionLedgerDecisions(input: SyncRevisionLedgerInput
     decision: entry.decision,
     selected_option: entry.selectedOption ?? null,
     custom_text: entry.customText ?? null,
+    selected_text: entry.selectedText ?? entry.customText ?? null,
+    source_excerpt: entry.sourceExcerpt ?? null,
+    source_location: entry.sourceLocation ?? null,
     local_id: entry.localId,
     client_created_at: entry.clientCreatedAt ?? null,
     client_synced_at: new Date().toISOString(),
@@ -144,7 +169,7 @@ export async function syncRevisionLedgerDecisions(input: SyncRevisionLedgerInput
   const { data, error } = await supabase
     .from("revision_ledger_decisions")
     .upsert(rows, { onConflict: "user_id,evaluation_job_id,local_id" })
-    .select("id, local_id, opportunity_id, opportunity_title, decision, selected_option, custom_text, client_created_at, client_synced_at, is_undo, undone_local_id, metadata, created_at, updated_at")
+    .select(LEDGER_SELECT)
     .order("created_at", { ascending: true });
 
   if (error) throw new Error(error.message);
@@ -159,7 +184,7 @@ export async function listRevisionLedgerDecisions(input: {
 
   const { data, error } = await supabase
     .from("revision_ledger_decisions")
-    .select("id, local_id, opportunity_id, opportunity_title, decision, selected_option, custom_text, client_created_at, client_synced_at, is_undo, undone_local_id, metadata, created_at, updated_at")
+    .select(LEDGER_SELECT)
     .eq("user_id", userId)
     .eq("manuscript_id", manuscriptId)
     .eq("evaluation_job_id", input.evaluationJobId)
