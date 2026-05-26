@@ -27,20 +27,20 @@ const storygateLinks = [
 ];
 
 const resourceLinks = [
-  ["The Black Box Problem", "/black-box-problem"],
-  ["Resources Hub", "/resources"],
-  ["Methodology", "/methodology"],
-  ["Editorial Doctrine", "/reliability"],
-  ["Privacy & Research Controls", "/privacy-research-controls"],
-  ["Security & Access Controls", "/security"],
-  ["Genre & Classification FAQ", "/genre-classification-faq"],
-  ["Storygate Studio FAQ", "/storygate-studio/faq"],
-  ["Agent Readiness FAQ", "/agent-readiness/faq"],
+  ["Resources Hub",                 "/resources"],
+  ["The Black Box Problem",         "/black-box-problem"],
+  ["Methodology",                   "/methodology"],
+  ["Editorial Doctrine",            "/reliability"],
+  ["Privacy & Research Controls",   "/privacy-research-controls"],
+  ["Security & Access Controls",    "/security"],
+  ["Genre & Classification FAQ",    "/genre-classification-faq"],
+  ["Storygate Studio FAQ",          "/storygate-studio/faq"],
+  ["Agent Readiness FAQ",           "/agent-readiness/faq"],
 ];
 
 const resourceActiveHrefs = [
-  "/black-box-problem",
   "/resources",
+  "/black-box-problem",
   "/methodology",
   "/reliability",
   "/privacy-research-controls",
@@ -51,14 +51,14 @@ const resourceActiveHrefs = [
 ];
 
 const arpLinks = [
-  ["Generate Full Agent Package", "/agent-readiness"],
-  ["Query / Cover Letter",        "/agent-readiness/query-letter"],
-  ["Synopsis Builder",            "/agent-readiness/synopsis"],
-  ["Query Pitch Builder",         "/agent-readiness/pitch"],
-  ["Author Bio",                  "/agent-readiness/bio"],
-  ["Comparables & Positioning",   "/agent-readiness/comparables"],
-  ["Package History / Export",    "/agent-readiness/history"],
-  ["Agent Readiness FAQ",         "/agent-readiness/faq"],
+  ["Package Workspace",          "/agent-readiness"],
+  ["Query Letter",               "/agent-readiness/query-letter"],
+  ["Synopsis Builder",           "/agent-readiness/synopsis"],
+  ["Query Pitch Builder",        "/agent-readiness/pitch"],
+  ["Author Bio",                 "/agent-readiness/bio"],
+  ["Comparables & Positioning",  "/agent-readiness/comparables"],
+  ["Package History / Export",   "/agent-readiness/history"],
+  ["Agent Readiness FAQ",        "/agent-readiness/faq"],
 ];
 
 const arpActiveHref = "/agent-readiness";
@@ -214,7 +214,7 @@ export default function HeaderNav() {
               Resources
             </button>
             {resourcesOpen && (
-              <div id="resources-menu" className={`${dropdownCls} w-56`} role="menu">
+              <div id="resources-menu" className={`${dropdownCls} w-72`} role="menu">
                 {resourceLinks.map(([label, href]) => (
                   <Link key={href} href={href} role="menuitem" onClick={() => setResourcesOpen(false)} className={dropdownItemCls}>
                     {label}
