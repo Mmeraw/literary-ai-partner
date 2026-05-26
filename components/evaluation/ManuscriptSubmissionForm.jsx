@@ -93,6 +93,7 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess }) {
   const [isUploading, setIsUploading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState(null);
+  const [processingTermsAccepted, setProcessingTermsAccepted] = useState(false);
 
   const [englishVariant, setEnglishVariant] = useState("us");
 
@@ -259,6 +260,11 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess }) {
     const hasSelectedManuscript = Number.isInteger(selectedManuscriptId);
     const hasPastedText = manuscriptText.trim().length > 0;
 
+    if (!processingTermsAccepted) {
+      setError("Please confirm the processing terms before continuing.");
+      return;
+    }
+
     if (!hasSelectedManuscript && !hasPastedText) {
       setError("Select a saved manuscript, upload a file, or paste text to continue.");
       return;
@@ -279,6 +285,7 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess }) {
         job_type: "evaluate_full",
         manuscript_title: projectTitle,
         english_variant: englishVariant,
+        processing_terms_accepted: true,
         ...(hasSelectedManuscript
           ? { manuscript_id: selectedManuscriptId }
           : {
@@ -301,6 +308,7 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess }) {
       }
 
       setManuscriptText("");
+      setProcessingTermsAccepted(false);
       if (onSubmitSuccess) {
         onSubmitSuccess(data);
       }
@@ -595,6 +603,25 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess }) {
             </aside>
           </div>
 
+          <label className="mt-6 flex gap-3 rounded-2xl border border-rg-gold/30 bg-[#FBFAF7] p-4 text-left">
+            <input
+              type="checkbox"
+              checked={processingTermsAccepted}
+              onChange={(event) => {
+                setProcessingTermsAccepted(event.target.checked);
+                if (event.target.checked) setError(null);
+              }}
+              disabled={isSubmitting || isUploading}
+              className="mt-1"
+            />
+            <span className="text-sm leading-6 text-stone-700">
+              I understand that RevisionGrade evaluations are custom digital services, that processing starts after submission, and that I agree to the processing and refund terms.
+              <a href="/terms" className="ml-1 font-semibold text-rg-gold hover:text-stone-950" target="_blank" rel="noreferrer">
+                Read terms.
+              </a>
+            </span>
+          </label>
+
           {error && (
             <div className="mt-4 rounded-md border border-red-200 bg-red-50 p-3">
               <p className="text-sm text-red-800">{error}</p>
@@ -603,7 +630,7 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess }) {
 
           <button
             type="submit"
-            disabled={isSubmitting || isUploading}
+            disabled={isSubmitting || isUploading || !processingTermsAccepted}
             className="mt-6 w-full rounded-xl bg-rg-gold px-6 py-4 font-rg-mono text-xs font-semibold uppercase tracking-[0.18em] text-stone-950 shadow-sm hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {isSubmitting ? "Starting Evaluation..." : "Begin Editorial Evaluation"}
