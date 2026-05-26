@@ -1,0 +1,68 @@
+name: PR Head Freshness Guard
+
+"on":
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pr-head-freshness:
+    name: pr-head-freshness
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+
+    steps:
+      - name: Enforce PR branch freshness against base HEAD
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const pr = context.payload.pull_request;
+
+            if (!pr) {
+              core.setFailed('No pull_request payload found.');
+              return;
+            }
+
+            const baseRef = pr.base.ref;
+            const baseSha = pr.base.sha;
+            const headSha = pr.head.sha;
+
+            const { data: cmp } = await github.rest.repos.compareCommits({
+              owner,
+              repo,
+              base: baseSha,
+              head: headSha,
+            });
+
+            core.info(`PR #${pr.number}`);
+            core.info(`baseRef=${baseRef}`);
+            core.info(`baseSha=${baseSha}`);
+            core.info(`headSha=${headSha}`);
+            core.info(`status=${cmp.status}, ahead_by=${cmp.ahead_by}, behind_by=${cmp.behind_by}`);
+
+            // pass only when PR head includes current base tip
+            // compare status semantics (base...head):
+            // - ahead: head contains base and extra commits (expected for up-to-date PR)
+            // - identical: head == base (unlikely for PR but valid)
+            // - diverged/behind: head is missing base commits (must fail)
+            const isFresh = (cmp.status === 'ahead' || cmp.status === 'identical');
+
+            if (!isFresh) {
+              core.setFailed(
+                [
+                  `PR branch is not up-to-date with base '${baseRef}'.`,
+                  `compare_status=${cmp.status}, ahead_by=${cmp.ahead_by}, behind_by=${cmp.behind_by}.`,
+                  'Rebase or reset this branch onto current base HEAD, then push again.',
+                ].join(' ')
+              );
+              return;
+            }
+
+            core.info('✅ PR head is up-to-date with current base HEAD.');

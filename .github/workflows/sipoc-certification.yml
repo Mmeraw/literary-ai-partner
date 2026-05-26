@@ -17,6 +17,10 @@ name: SIPOC Certification
       - "package.json"
       - ".github/workflows/sipoc-certification.yml"
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   sipoc-certification:
     runs-on: ubuntu-latest

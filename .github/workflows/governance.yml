@@ -12,6 +12,10 @@ on:
       - develop
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   # ===============================================================
   # GOVERNANCE UNIT TESTS
@@ -90,6 +94,24 @@ jobs:
         run: npm run guard:phase-integrity
 
   # ===============================================================
+  # HARDENING CONTRACT GUARD
+  # Enforces auth/input/output/quality/latency hardening contracts
+  # ===============================================================
+  hardening-contract-guard:
+    name: Hardening Contract Guard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "24"
+      - run: npm ci
+      - name: Run hardening contract guard
+        run: npm run guard:hardening-contract
+
+  # ===============================================================
   # ENFORCEMENT SUMMARY
   # All governance gates must pass before merge
   # ===============================================================
@@ -100,6 +122,7 @@ jobs:
       - governance-coverage
       - canon-guard
       - phase-integrity-guard
+      - hardening-contract-guard
     runs-on: ubuntu-latest
     steps:
       - name: All governance checks passed

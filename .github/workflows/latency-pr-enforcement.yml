@@ -4,6 +4,10 @@ name: Latency PR Enforcement
   pull_request:
     types: [opened, edited, synchronize, reopened]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   enforce-latency-template:
     runs-on: ubuntu-latest
@@ -361,10 +365,17 @@ jobs:
             const commonFloor = () => {
               assert(hasSection("## Summary"), "Missing: Summary section");
               assert(hasSection("## Scope"), "Missing: Scope section");
+              assert(hasSection("## Branch Freshness (Never Behind)"), "Missing: Branch Freshness (Never Behind) section");
+              const branchBehindLine = body.match(/^Branch-Behind-Base:\s*(\d+)\s*$/m);
+              assert(!!branchBehindLine, 'Missing: Branch-Behind-Base: <integer> line');
+              if (branchBehindLine) {
+                assert(branchBehindLine[1] === "0", "Branch-Behind-Base must be 0 before merge");
+              }
               assert(hasSection("## Risks & Anomalies"), "Missing: Risks & Anomalies section");
             };
 
             const validateEvaluation = () => {
+              commonFloor();
               assert(hasSection("## Summary"), "Missing: Summary section");
               assert(hasSection("## Scope"), "Missing: Scope section");
               assert(
@@ -374,7 +385,6 @@ jobs:
               assert(hasSection("## Contract Integrity"), "Missing: Contract Integrity section");
               assert(hasSection("## Behavioral Quality"), "Missing: Behavioral Quality section");
               assert(hasSection("## Latency Evidence"), "Missing: Latency Evidence section");
-              assert(hasSection("## Risks & Anomalies"), "Missing: Risks & Anomalies section");
 
               const processChangeMatch = body.match(/^Process Change:\s*(yes|no)\s*$/im);
               assert(
@@ -448,6 +458,12 @@ jobs:
               assert(hasSection("## Visual Evidence"), "Missing: Visual Evidence section");
               assert(hasSection("## Accessibility"), "Missing: Accessibility section");
               assert(hasSection("## Browser Targets"), "Missing: Browser Targets section");
+              assert(hasSection("## Unauthorized Input Sources"), "Missing: Unauthorized Input Sources section");
+              assert(hasSection("## Internal Process Leakage"), "Missing: Internal Process Leakage section");
+              assert(hasSection("## Input → Action → Output"), "Missing: Input → Action → Output section");
+              assert(hasSection("## Public-Safe Quality/Status Metrics"), "Missing: Public-Safe Quality/Status Metrics section");
+              assert(hasSection("## Runtime/Pipeline Expansion"), "Missing: Runtime/Pipeline Expansion section");
+              assert(hasSection("## Latency Impact"), "Missing: Latency Impact section");
               assert(hasNoPipelineImpact(), "Missing: No-Pipeline-Impact: <value> line");
             };
 
