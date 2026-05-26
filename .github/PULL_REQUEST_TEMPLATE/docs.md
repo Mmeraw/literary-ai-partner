@@ -6,6 +6,12 @@
 
 <!-- Which docs / governance briefs / READMEs are affected. -->
 
+## Branch Freshness (Never Behind)
+
+<!-- Required merge gate: PR head must include current base HEAD. -->
+
+Branch-Behind-Base: 0
+
 ## Risks & Anomalies
 
 <!-- What could go wrong (e.g. doc contradicts code; outdated link; misleading example); how it's mitigated. -->
