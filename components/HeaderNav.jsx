@@ -21,6 +21,7 @@ import { isPipelineHealthAdminEmail } from "@/lib/admin/pipelineHealthAllowlist"
 const storygateLinks = [
   ["Overview",              "/storygate-studio"],
   ["Prepare a Project",    "/storygate-studio/apply"],
+  ["Storygate FAQ",        "/storygate-studio/faq"],
   ["Request Industry Access", "/storygate-studio/industry"],
   ["Agent Dashboard",      "/storygate-studio/industry/dashboard"],
 ];
