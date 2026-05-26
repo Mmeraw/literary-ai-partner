@@ -21,6 +21,28 @@ Out of scope:
 
 -
 
+## Evaluation Process Change Declaration
+
+Process Change: no | yes
+
+<!--
+If this PR changes evaluation process sequencing, gating, phase ownership, or recovery behavior,
+set "Process Change: yes" and complete all checks below with [x].
+-->
+
+- [ ] Sequential phase-gate doctrine preserved (parallelism only within safe sub-workloads).
+- [ ] Phase 0 remains first and is proven before downstream processing.
+- [ ] Phase 2 remains blocked on accepted_story_ledger_v1 (Review Gate authority).
+- [ ] Phase 3 remains blocked on pass12_handoff_v1 and is sole owner of Pass 3B synthesis.
+- [ ] Deterministic quality gates run after Pass 3B and before completion.
+- [ ] WAVE remains post-evaluation (after evaluation_result_v2) and non-fatal to base evaluation.
+
+One-line doctrine: The pipeline is sequential at the phase/gate level and parallel only inside safe sub-workloads.
+
+Process-Change Impact Summary (required when Process Change: yes):
+
+-
+
 ## Contract Integrity
 
 -

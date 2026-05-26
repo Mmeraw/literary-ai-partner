@@ -367,10 +367,52 @@ jobs:
             const validateEvaluation = () => {
               assert(hasSection("## Summary"), "Missing: Summary section");
               assert(hasSection("## Scope"), "Missing: Scope section");
+              assert(
+                hasSection("## Evaluation Process Change Declaration"),
+                "Missing: Evaluation Process Change Declaration section"
+              );
               assert(hasSection("## Contract Integrity"), "Missing: Contract Integrity section");
               assert(hasSection("## Behavioral Quality"), "Missing: Behavioral Quality section");
               assert(hasSection("## Latency Evidence"), "Missing: Latency Evidence section");
               assert(hasSection("## Risks & Anomalies"), "Missing: Risks & Anomalies section");
+
+              const processChangeMatch = body.match(/^Process Change:\s*(yes|no)\s*$/im);
+              assert(
+                !!processChangeMatch,
+                'Missing or invalid process declaration: use "Process Change: yes" or "Process Change: no"'
+              );
+
+              const processChangeYes = !!processChangeMatch && processChangeMatch[1].toLowerCase() === "yes";
+              if (processChangeYes) {
+                const requiredCheckedItems = [
+                  "Sequential phase-gate doctrine preserved (parallelism only within safe sub-workloads).",
+                  "Phase 0 remains first and is proven before downstream processing.",
+                  "Phase 2 remains blocked on accepted_story_ledger_v1 (Review Gate authority).",
+                  "Phase 3 remains blocked on pass12_handoff_v1 and is sole owner of Pass 3B synthesis.",
+                  "Deterministic quality gates run after Pass 3B and before completion.",
+                  "WAVE remains post-evaluation (after evaluation_result_v2) and non-fatal to base evaluation.",
+                ];
+
+                for (const item of requiredCheckedItems) {
+                  const escaped = item.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+                  const checkedRe = new RegExp(`^-\\s*\\[[xX]\\]\\s*${escaped}\\s*$`, "m");
+                  assert(checkedRe.test(body), `Process Change requires checked item: ${item}`);
+                }
+
+                assert(
+                  body.includes("One-line doctrine: The pipeline is sequential at the phase/gate level and parallel only inside safe sub-workloads."),
+                  "Missing one-line doctrine statement for process-change PR"
+                );
+
+                const impactSummaryMatch = body.match(
+                  /^Process-Change Impact Summary \(required when Process Change: yes\):\s*[\r\n]+-\s*(.+)$/im
+                );
+                assert(
+                  !!impactSummaryMatch && impactSummaryMatch[1].trim() !== "",
+                  "Process Change requires a non-empty Process-Change Impact Summary"
+                );
+              }
+
               assert(
                 body.includes("Baseline (Pre-change)") && body.includes("Post-change Runs"),
                 "Missing latency evidence tables (baseline + post-change runs)"
