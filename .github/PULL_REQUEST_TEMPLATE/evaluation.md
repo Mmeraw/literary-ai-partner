@@ -75,6 +75,12 @@ This PR is not reducing intelligence.
 
 QG_<gate-id>: <description or "no QG_ behavior changes">
 
+## Branch Freshness (Never Behind)
+
+<!-- Required merge gate: PR head must include current base HEAD. -->
+
+Branch-Behind-Base: 0
+
 ## Risks & Anomalies
 
 -

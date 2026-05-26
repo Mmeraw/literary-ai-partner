@@ -102,6 +102,17 @@ A task is NOT complete unless:
 - tests prove enforcement
 - no bypass paths exist
 - CI guard passes
+- PR branch freshness is proven (`Branch-Behind-Base: 0`) and branch is not behind/diverged from base head
+
+---
+
+## 🔄 PR Freshness Contract (Never Behind)
+
+- All PRs must be up-to-date with the latest base branch head at merge time.
+- If a PR is `behind` or `diverged`, it must be rebased/reset before merge.
+- The PR body must declare:
+	- `Branch-Behind-Base: 0`
+- This is enforced by CI and required for close/merge readiness.
 
 ---
 

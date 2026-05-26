@@ -12,6 +12,12 @@
 
 - Tests added/modified: <!-- list or "N/A — see explanation" -->
 
+## Branch Freshness (Never Behind)
+
+<!-- Required merge gate: PR head must include current base HEAD. -->
+
+Branch-Behind-Base: 0
+
 ## Risks & Anomalies
 
 <!-- What could go wrong; how it's mitigated. -->

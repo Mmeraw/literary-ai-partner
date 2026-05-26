@@ -365,10 +365,17 @@ jobs:
             const commonFloor = () => {
               assert(hasSection("## Summary"), "Missing: Summary section");
               assert(hasSection("## Scope"), "Missing: Scope section");
+              assert(hasSection("## Branch Freshness (Never Behind)"), "Missing: Branch Freshness (Never Behind) section");
+              const branchBehindLine = body.match(/^Branch-Behind-Base:\s*(\d+)\s*$/m);
+              assert(!!branchBehindLine, 'Missing: Branch-Behind-Base: <integer> line');
+              if (branchBehindLine) {
+                assert(branchBehindLine[1] === "0", "Branch-Behind-Base must be 0 before merge");
+              }
               assert(hasSection("## Risks & Anomalies"), "Missing: Risks & Anomalies section");
             };
 
             const validateEvaluation = () => {
+              commonFloor();
               assert(hasSection("## Summary"), "Missing: Summary section");
               assert(hasSection("## Scope"), "Missing: Scope section");
               assert(
@@ -378,7 +385,6 @@ jobs:
               assert(hasSection("## Contract Integrity"), "Missing: Contract Integrity section");
               assert(hasSection("## Behavioral Quality"), "Missing: Behavioral Quality section");
               assert(hasSection("## Latency Evidence"), "Missing: Latency Evidence section");
-              assert(hasSection("## Risks & Anomalies"), "Missing: Risks & Anomalies section");
 
               const processChangeMatch = body.match(/^Process Change:\s*(yes|no)\s*$/im);
               assert(
