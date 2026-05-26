@@ -27,17 +27,27 @@ const storygateLinks = [
 ];
 
 const resourceLinks = [
-  ["The Black Box Problem", "/black-box-problem"],
-  ["FAQs", "/resources"],
-  ["Methodology", "/methodology"],
-  ["Editorial Doctrine", "/reliability"],
+  ["Resources Hub",                  "/resources"],
+  ["The Black Box Problem",          "/black-box-problem"],
+  ["Methodology",                    "/methodology"],
+  ["Editorial Doctrine",             "/reliability"],
+  ["Privacy & Research Controls",    "/privacy-research-controls"],
+  ["Security & Access Controls",     "/security"],
+  ["Genre & Classification FAQ",     "/genre-classification-faq"],
+  ["Agent Readiness FAQ",            "/agent-readiness/faq"],
+  ["Storygate Studio FAQ",           "/storygate-studio/faq"],
 ];
 
 const resourceActiveHrefs = [
-  "/black-box-problem",
   "/resources",
+  "/black-box-problem",
   "/methodology",
   "/reliability",
+  "/privacy-research-controls",
+  "/security",
+  "/genre-classification-faq",
+  "/agent-readiness/faq",
+  "/storygate-studio/faq",
 ];
 
 const arpLinks = [
@@ -204,7 +214,7 @@ export default function HeaderNav() {
               Resources
             </button>
             {resourcesOpen && (
-              <div id="resources-menu" className={`${dropdownCls} w-56`} role="menu">
+              <div id="resources-menu" className={`${dropdownCls} w-72`} role="menu">
                 {resourceLinks.map(([label, href]) => (
                   <Link key={href} href={href} role="menuitem" onClick={() => setResourcesOpen(false)} className={dropdownItemCls}>
                     {label}
