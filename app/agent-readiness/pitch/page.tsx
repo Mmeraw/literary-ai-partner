@@ -8,6 +8,7 @@
 
 import Link from "next/link";
 import React, { useState } from "react";
+import PackageSectionsSidebar from "../PackageSectionsSidebar";
 
 // ─── Web Speech API mic input ───────────────────────────────────────────────
 
@@ -114,7 +115,9 @@ export default function PitchPage() {
 
   return (
     <div style={{ minHeight: "100vh", backgroundColor: T.bg, color: T.cream, fontFamily: T.mono }}>
-      <div style={{ maxWidth: "860px", margin: "0 auto", padding: "3rem 2rem 6rem" }}>
+      <div className="mx-auto grid max-w-[1220px] gap-8 px-6 py-12 lg:grid-cols-[260px_minmax(0,1fr)]">
+        <PackageSectionsSidebar />
+        <div style={{ maxWidth: "860px" }}>
 
         <p style={{ fontSize: "0.5625rem", color: T.dim, letterSpacing: "0.1em", marginBottom: "1.5rem" }}>
           <Link href="/agent-readiness" style={{ color: T.gold, textDecoration: "none" }}>Agent Readiness Package™</Link>
@@ -241,6 +244,7 @@ export default function PitchPage() {
           <Link href="/agent-readiness" style={{ fontFamily: T.mono, fontSize: "0.5625rem", color: T.dim, letterSpacing: "0.1em", textDecoration: "none" }}>
             ← Back to Package Overview
           </Link>
+        </div>
         </div>
       </div>
     </div>

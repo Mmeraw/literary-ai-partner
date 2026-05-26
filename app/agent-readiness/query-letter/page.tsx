@@ -12,6 +12,7 @@
 
 import Link from "next/link";
 import React, { useCallback, useState } from "react";
+import PackageSectionsSidebar from "../PackageSectionsSidebar";
 
 // ─── Web Speech API mic input ───────────────────────────────────────────────
 
@@ -141,7 +142,9 @@ export default function QueryLetterPage() {
 
   return (
     <div style={{ minHeight: "100vh", backgroundColor: T.bg, color: T.cream, fontFamily: T.mono }}>
-      <div style={{ maxWidth: "860px", margin: "0 auto", padding: "3rem 2rem 6rem" }}>
+      <div className="mx-auto grid max-w-[1220px] gap-8 px-6 py-12 lg:grid-cols-[260px_minmax(0,1fr)]">
+        <PackageSectionsSidebar />
+        <div style={{ maxWidth: "860px" }}>
 
         {/* Breadcrumb */}
         <p style={{ fontSize: "0.5625rem", color: T.dim, letterSpacing: "0.1em", marginBottom: "1.5rem" }}>
@@ -160,7 +163,7 @@ export default function QueryLetterPage() {
         </p>
 
         {/* What Makes This Novel Unique — standalone field */}
-        <div style={{ marginBottom: "1.75rem" }}>
+        <div id="what-makes-this-novel-unique" style={{ marginBottom: "1.75rem" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "0.5rem" }}>
             <label style={{ fontSize: "0.5625rem", color: T.dim, letterSpacing: "0.1em", textTransform: "uppercase" }}>
               What Makes This Novel Unique <span style={{ color: T.cream2 }}>(standalone section — also appears inside the letter)</span>
@@ -182,7 +185,7 @@ export default function QueryLetterPage() {
         </div>
 
         {/* Query letter body */}
-        <div style={{ marginBottom: "1rem" }}>
+        <div id="query-letter-body" style={{ marginBottom: "1rem" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem", gap: "0.75rem" }}>
             <label style={{ fontSize: "0.5625rem", color: T.dim, letterSpacing: "0.1em", textTransform: "uppercase" }}>
               Query Letter Body
@@ -316,6 +319,7 @@ export default function QueryLetterPage() {
           }}>
             ← Back to Package Overview
           </Link>
+        </div>
         </div>
       </div>
     </div>
