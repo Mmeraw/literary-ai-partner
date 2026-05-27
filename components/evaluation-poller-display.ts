@@ -30,7 +30,13 @@ type PhaseInputs = {
   phase1_started_at?: string | null;
   phase2_started_at?: string | null;
   phase3_started_at?: string | null;
+  /** Narrative Synthesis (Pass 3b) completion timestamp — null/absent while synthesis is still running */
+  pass3_completed_at?: string | null;
+  /** Manuscript word count — used to determine if this is a long-form job (≥25k words) */
+  manuscript_word_count?: number | null;
 };
+
+const LONGFORM_WORD_COUNT_THRESHOLD = 25000;
 
 function elapsedDrift(
   startedAt: string | null | undefined,
@@ -51,10 +57,32 @@ export function getProgressDisplay(
   if (job.status === "failed") return null;
 
   if (job.status === "complete") {
+    const isLongForm = typeof job.manuscript_word_count === 'number'
+      && job.manuscript_word_count >= LONGFORM_WORD_COUNT_THRESHOLD;
+    const hasSynthesis = !!job.pass3_completed_at;
+
+    if (isLongForm && !hasSynthesis) {
+      return {
+        label: "Craft diagnostics complete — Narrative Synthesis in progress\u2026",
+        valueLabel: "92%",
+        helperText:
+          "Your 13-criteria diagnostic report is ready below. " +
+          "Narrative Synthesis is still generating and will appear when complete.",
+        indeterminate: false,
+        percentage: 92,
+        color: "blue",
+        hardStop: false,
+      };
+    }
+
     return {
-      label: "Evaluation complete!",
+      label: isLongForm
+        ? "Evaluation finalized — full report ready"
+        : "Evaluation complete!",
       valueLabel: "100%",
-      helperText: "Your evaluation report is ready.",
+      helperText: isLongForm
+        ? "Your full evaluation report, including Narrative Synthesis, is ready."
+        : "Your evaluation report is ready.",
       indeterminate: false,
       percentage: 100,
       color: "green",

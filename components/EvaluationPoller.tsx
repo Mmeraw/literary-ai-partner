@@ -15,12 +15,13 @@ import {
 const COMPLETE_ANIMATION_TICK_MS = 200;
 const LONGFORM_WORD_COUNT_THRESHOLD = 25000;
 
-function getInitialDisplayProgress(job: Parameters<typeof getProgressDisplay>[0]): number {
+function getInitialDisplayProgress(job: Parameters<typeof getProgressDisplay>[0] & Pick<JobState, 'pass3_completed_at' | 'manuscript_word_count'> | null): number {
   if (!job) return 0;
-  if (job.status === 'complete') return 100;
   if (job.status === 'failed') return 0;
-  // Seed from backend phase anchor on reload — bar never resets to 0 mid-run.
-  return getProgressDisplay(job).percentage ?? 0;
+  // Seed from getProgressDisplay which now handles interim-complete (synthesis pending)
+  // long-form jobs at 92% instead of 100%. This prevents the bar from snapping to
+  // 100% when Narrative Synthesis is still running.
+  return getProgressDisplay(job)?.percentage ?? 0;
 }
 
 /**
@@ -506,17 +507,17 @@ export function EvaluationPoller({
     complete: isCompletingAnimation
       ? 'In progress'
       : isInterimComplete
-        ? '✅ Interim Report Ready'
+        ? 'Diagnostic Report Ready — Synthesis in progress'
         : isLongForm
-          ? '✅ Final Report Ready'
-          : '✅ Evaluation Report Ready',
+          ? 'Full Report Ready'
+          : 'Evaluation Report Ready',
     failed: '⚠ Needs attention',
   }[job.status];
 
   const statusColor = {
     queued: 'text-gray-600',
     running: 'text-blue-600',
-    complete: isCompletingAnimation ? 'text-blue-600' : 'text-green-600',
+    complete: isCompletingAnimation || isInterimComplete ? 'text-blue-600' : 'text-green-600',
     failed: 'text-red-600',
   }[job.status];
 
@@ -541,8 +542,6 @@ export function EvaluationPoller({
             phase: job.phase ?? null,
             phase_status: job.phase_status ?? null,
             cross_check_status: job.cross_check_status ?? null,
-            // Early vs late phase_1a: use the top-level total_units/completed_units
-            // fields returned by the API (not the rolled-up numeric progress percentage).
             phase_unit_fraction: (() => {
               const total = typeof job.total_units === 'number' ? job.total_units : null;
               const done = typeof job.completed_units === 'number' ? job.completed_units : null;
@@ -553,37 +552,14 @@ export function EvaluationPoller({
             phase1_started_at: job.phase1_started_at ?? null,
             phase2_started_at: job.phase2_started_at ?? null,
             phase3_started_at: job.pass3_started_at ?? null,
+            pass3_completed_at: job.pass3_completed_at ?? null,
+            manuscript_word_count: job.manuscript_word_count ?? null,
           });
           if (!pd) return null;
 
-          // Override pd for interim/final complete so the bar reflects synthesis state.
-          // Interim: hold at 80% with synthesis-pending copy. Final: 100% with full-report copy.
-          const effectivePd = isInterimComplete
-            ? {
-                ...pd,
-                label: 'Craft diagnostic report ready',
-                valueLabel: '80%',
-                percentage: 80,
-                helperText:
-                  'Your craft diagnostics are complete. Narrative Synthesis is still being generated.',
-                color: 'green' as const,
-                hardStop: false,
-                indeterminate: false,
-              }
-            : isFinalComplete
-              ? {
-                  ...pd,
-                  label: 'Evaluation finalized',
-                  valueLabel: '100%',
-                  percentage: 100,
-                  helperText: isLongForm
-                    ? 'Your full evaluation report, including Narrative Synthesis, is ready.'
-                    : 'Your short-form evaluation report is ready.',
-                  color: 'green' as const,
-                  hardStop: false,
-                  indeterminate: false,
-                }
-              : pd;
+          // getProgressDisplay now handles interim-complete (synthesis pending)
+          // and final-complete states natively — no client-side overrides needed.
+          const effectivePd = pd;
 
           // Bar color classes derived from effectivePd.color
           const barColorClass = {
@@ -805,16 +781,16 @@ export function EvaluationPoller({
           </div>
         )}
         {isInterimComplete && redirectOnComplete && !redirectedRef.current && (
-          <div className="p-3 bg-amber-50 border border-amber-200 rounded">
-            <p className="text-sm text-amber-800">
-              Interim report ready. Narrative Synthesis is still generating — the final report will appear automatically when complete.
+          <div className="p-3 bg-blue-50 border border-blue-200 rounded">
+            <p className="text-sm text-blue-800">
+              Diagnostic report ready. Narrative Synthesis is still generating — the full report will appear automatically when complete.
             </p>
             <button
               type="button"
               onClick={navigateToReport}
-              className="mt-2 inline-flex rounded-md border border-amber-300 bg-white px-3 py-1.5 text-xs font-medium text-amber-800 hover:bg-amber-100"
+              className="mt-2 inline-flex rounded-md border border-blue-300 bg-white px-3 py-1.5 text-xs font-medium text-blue-800 hover:bg-blue-100"
             >
-              View Interim Report
+              View Diagnostic Report
             </button>
           </div>
         )}

@@ -482,6 +482,13 @@ export default async function EvaluationReportPage({
     typeof progressJsonb?.hard_fail_present === 'boolean' ? (progressJsonb.hard_fail_present as boolean) : null;
   const pollerWordCount = progressWordCount ?? artifact?.metrics?.manuscript?.word_count ?? null;
 
+  // Seed pass3_completed_at from progress JSONB so the poller can distinguish
+  // interim-complete (synthesis pending) from final-complete on first render.
+  const progressPass3CompletedAt: string | null = (() => {
+    const raw = progressJsonb?.pass3_completed_at;
+    return typeof raw === 'string' && raw.length > 0 ? raw : null;
+  })();
+
   const initialPollerJob = {
     id: job.id,
     status: job.status,
@@ -499,6 +506,8 @@ export default async function EvaluationReportPage({
     // Seed review-gate quality signal and word count for immediate correct display.
     ...(progressHardFail !== null ? { hard_fail_present: progressHardFail } : {}),
     ...(pollerWordCount !== null ? { manuscript_word_count: pollerWordCount } : {}),
+    // Seed synthesis completion so progress bar shows 92% (not 100%) during interim.
+    ...(progressPass3CompletedAt !== null ? { pass3_completed_at: progressPass3CompletedAt } : {}),
   };
   const artifactCriteria = artifact?.criteria ?? [];
   const criteriaByKey = new Map<CriterionKey, NonNullable<ArtifactContentV1["criteria"]>[number]>();
