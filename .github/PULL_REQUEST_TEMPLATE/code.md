@@ -1,61 +1,90 @@
+<!-- PR Template: Code Change -->
+<!-- Trust-proof validator: node scripts/validate-pr-trust-proof.mjs -->
+
 ## Summary
 
-> Validation rule: blank sections, placeholder-only answers (for example, `TBD`, `TODO`, bare `N/A`) fail. Use `N/A — <reason>` when a section truly does not apply.
-
-<!-- 1–3 sentences describing the code change. -->
+<!-- What modules, services, or logic paths are changing? -->
 
 ## Scope
 
-<!-- Which modules / packages / endpoints are affected. What is explicitly NOT touched. -->
+**In scope:**
 
-## Tests Updated
+- 
 
-<!-- Yes/No. If Yes: list the test files added or modified. If No: explain why no tests are needed (e.g. trivial typo fix, refactor with existing coverage). -->
+**Out of scope:**
 
-- Tests added/modified: <!-- list or "N/A — see explanation" -->
-
-## Unauthorized Input Sources
-
-<!-- Explicitly state all input sources used by this code path (request body/query/headers/cookies, storage, env, files, queue messages, etc.).
-For each, describe authorization boundary and validation/sanitization path. If none: state "None". -->
-
-## Internal Process Leakage
-
-<!-- Confirm no internal process details are exposed (internal IDs, stack traces, worker internals, control-flow internals).
-List any sensitive fields reviewed and redacted/omitted. -->
+- 
 
 ## Input → Action → Output
 
-<!-- Provide a concise flow map of input, action taken, and output returned/rendered.
-Include failure-path behavior and user-facing safe error contract. -->
+**Input:** <!-- What triggers or feeds this change? -->
+
+**Action:** <!-- What does this PR actually do? -->
+
+**Output:** <!-- What is the observable result? -->
+
+## Process Change
+
+<!-- Does this change modify evaluation pipeline logic, scoring, or worker behavior? -->
+<!-- State: "Process Change: yes" or "Process Change: no — reason: ..." -->
+
+Process Change: 
+
+## Test Coverage
+
+<!-- Describe new or updated tests. State what invariants are now enforced. -->
+
+## Rollback Plan
+
+<!-- How is this change reverted if it causes a production issue? -->
+
+## Unauthorized Input Sources
+
+<!-- Does this PR introduce new input sources? (provider calls, external APIs, user input paths, env vars read at runtime)
+     If no: state "No unauthorized input sources are introduced." -->
+
+## Internal Process Leakage
+
+<!-- Does this PR expose internal phase names, artifact types, model names, prompt versions, or governance
+     traces to public-facing surfaces (UI, API responses, error messages)?
+     If no: state "No internal process leakage is introduced." -->
 
 ## Public-Safe Quality/Status Metrics
 
-<!-- List user/public-visible quality/status metrics and confirm they are safe (no internal-only telemetry leakage).
-If not applicable: state "N/A" with reason. -->
+<!-- What quality or status signals does this PR expose publicly?
+     Confirm they are safe for authors/users to see without revealing internal pipeline details. -->
 
 ## Runtime/Pipeline Expansion
 
-<!-- Declare whether this PR adds any new runtime calls, workers, API routes, jobs, or pipeline paths.
-If none: state "None" and explain why execution surface is unchanged. -->
+<!-- Does this PR add evaluation phases, model calls, DB writes, artifact types, or new worker paths?
+     If no: state "No hidden runtime or pipeline expansion." -->
 
 ## Latency Impact
 
-<!-- Provide before/after latency evidence where measurable, or explain why no unnecessary latency increase is expected.
-If impact exists, include mitigation and acceptance rationale. -->
+<!-- What is the expected latency impact of this change?
+     If no increase: state "No unnecessary latency increase." -->
 
-## Branch Freshness (Never Behind)
+## Post-Merge Sanity Sweep
 
-<!-- Required merge gate: PR head must include current base HEAD. -->
+<!-- Include the exact commands to verify correctness after merge. Example:
+```bash
+git checkout main && git pull --ff-only
+npm test -- __tests__/relevant-test.test.ts --runInBand
+node scripts/validate-pr-trust-proof.mjs
+``` -->
 
-Branch-Behind-Base: 0
+## Actionlint Status
 
-## Risks & Anomalies
+<!-- State whether GitHub Actions workflow YAML has been validated with actionlint.
+     If not run locally: "Full actionlint validation remains unproven in this environment until CI proves it." -->
 
-<!-- What could go wrong; how it's mitigated. -->
+## Trust-Proof Checklist
 
----
-
-No-Pipeline-Impact: Confirmed — this PR does not modify lib/evaluation/**, app/api/workers/**, prompts, or any pipeline contract.
-
-<!-- pr-type: code -->
+- [ ] No unauthorized input sources introduced.
+- [ ] No internal process leakage introduced.
+- [ ] Input → Action → Output is explicit.
+- [ ] Public-safe quality/status metrics are identified.
+- [ ] No hidden runtime/pipeline expansion.
+- [ ] No unnecessary latency increase.
+- [ ] Post-merge sanity sweep instructions included.
+- [ ] Actionlint status stated.
