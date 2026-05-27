@@ -15,10 +15,12 @@ import {
 const COMPLETE_ANIMATION_TICK_MS = 200;
 const LONGFORM_WORD_COUNT_THRESHOLD = 25000;
 
-function getInitialDisplayProgress(job: JobState | null): number {
+function getInitialDisplayProgress(job: Parameters<typeof getProgressDisplay>[0]): number {
   if (!job) return 0;
   if (job.status === 'complete') return 100;
-  return 0;
+  if (job.status === 'failed') return 0;
+  // Seed from backend phase anchor on reload — bar never resets to 0 mid-run.
+  return getProgressDisplay(job).percentage ?? 0;
 }
 
 /**
@@ -598,9 +600,14 @@ export function EvaluationPoller({
             green: 'text-green-700',
           }[effectivePd.color];
 
-          // Completion animation uses displayProgress; interim holds at 80%; otherwise pd.percentage.
-          const barWidth = isCompletingAnimation ? displayProgress : effectivePd.percentage;
-
+          // Bar fill: use displayProgress (animated, seeded from backend) for all non-terminal states.
+          // effectivePd.percentage acts as the floor — bar never goes backward below the phase anchor.
+          const safeAnimated = Math.max(0, Math.min(100, displayProgress));
+          const barWidth = effectivePd.indeterminate
+            ? 100
+            : isCompletingAnimation
+            ? safeAnimated
+            : Math.max(safeAnimated, effectivePd.percentage ?? 0);
           return (
             <div className="space-y-2">
               <div className="flex items-start justify-between gap-4">
