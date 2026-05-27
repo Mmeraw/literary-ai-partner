@@ -27,7 +27,7 @@ const practiceRules = [
   },
   {
     title: "Diagnosis before polish",
-    copy: "Sentence polish can make a structurally weak manuscript look cleaner without making it stronger. RevisionGrade should identify whether the problem is architectural, scene-level, voice-level, market-positioning, or local prose control before proposing repair.",
+    copy: "Sentence polish can make a structurally weak manuscript look cleaner without making it stronger. RevisionGrade identifies whether the problem is architectural, scene-level, voice-level, market-positioning, or local prose control before proposing repair.",
   },
   {
     title: "Structure before sentence repair",
