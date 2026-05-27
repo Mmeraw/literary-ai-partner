@@ -1,69 +1,90 @@
+<!-- PR Template: Infrastructure / DevOps Change -->
+<!-- Trust-proof validator: node scripts/validate-pr-trust-proof.mjs -->
+
 ## Summary
 
-> Validation rule: blank sections, placeholder-only answers (for example, `TBD`, `TODO`, bare `N/A`) fail. Use `N/A — <reason>` when a section truly does not apply.
-
-<!-- 1–3 sentences describing the CI / infra / config change. -->
+<!-- What infrastructure, CI, deployment, or configuration is changing? -->
 
 ## Scope
 
-<!-- Which workflows / config files / dependencies are affected. What is explicitly NOT touched. -->
+**In scope:**
 
-## CI/Infra Scope
+- 
 
-<!-- Concretely: which workflows run differently after this PR? Which environments? Which actions/runners/permissions changed? -->
+**Out of scope:**
 
-## Rollback Plan
-
-<!-- How to revert if this causes problems in production CI. -->
-
-## Affected Workflows
-
-<!-- Name each workflow file modified, added, or whose behavior is changed by this PR. -->
-
-- `.github/workflows/<filename>.yml` — what changes
-
-## Unauthorized Input Sources
-
-<!-- Explicitly state all input sources this infra/repo change can influence (workflow_dispatch inputs, env vars, secrets, labels, branch names, file globs, etc.).
-For each, describe authorization boundary and validation/sanitization path. If none: state "None". -->
-
-## Internal Process Leakage
-
-<!-- Confirm no internal process details are newly exposed in public-facing outputs (logs, artifacts, PR comments, annotations, status text).
-List any sensitive fields reviewed and redacted/omitted. -->
+- 
 
 ## Input → Action → Output
 
-<!-- Provide a concise flow map of input, action taken, and output produced.
-Include failure-path behavior and safe user/operator-visible messaging. -->
+**Input:** <!-- What triggers or feeds this change? -->
+
+**Action:** <!-- What does this PR actually do? -->
+
+**Output:** <!-- What is the observable result? -->
+
+## Process Change
+
+<!-- Does this change affect runtime environments, worker concurrency, timeouts, or Vercel/Supabase configuration? -->
+<!-- State: "Process Change: yes" or "Process Change: no — reason: ..." -->
+
+Process Change: 
+
+## Blast Radius
+
+<!-- What breaks if this infra change is rolled back or fails mid-deploy? -->
+
+## Rollback Plan
+
+<!-- How is this change reverted? Is it reversible without a migration? -->
+
+## Unauthorized Input Sources
+
+<!-- Does this PR introduce new input sources? (provider calls, external APIs, user input paths, env vars read at runtime)
+     If no: state "No unauthorized input sources are introduced." -->
+
+## Internal Process Leakage
+
+<!-- Does this PR expose internal phase names, artifact types, model names, prompt versions, or governance
+     traces to public-facing surfaces (UI, API responses, error messages)?
+     If no: state "No internal process leakage is introduced." -->
 
 ## Public-Safe Quality/Status Metrics
 
-<!-- List public-visible metrics/status signals and confirm they are safe (no secrets, no internal-only telemetry leakage).
-If not applicable: state "N/A" with reason. -->
+<!-- What quality or status signals does this PR expose publicly?
+     Confirm they are safe for authors/users to see without revealing internal pipeline details. -->
 
 ## Runtime/Pipeline Expansion
 
-<!-- Declare whether this PR adds any new runtime calls, workers, jobs, routes, or pipeline paths.
-If none: state "None" and explain why execution surface is unchanged. -->
+<!-- Does this PR add evaluation phases, model calls, DB writes, artifact types, or new worker paths?
+     If no: state "No hidden runtime or pipeline expansion." -->
 
 ## Latency Impact
 
-<!-- Provide before/after latency impact evidence for CI/runtime path where relevant, or explain why no measurable increase is expected.
-If impact exists, include mitigation and acceptance rationale. -->
+<!-- What is the expected latency impact of this change?
+     If no increase: state "No unnecessary latency increase." -->
 
-## Branch Freshness (Never Behind)
+## Post-Merge Sanity Sweep
 
-<!-- Required merge gate: PR head must include current base HEAD. -->
+<!-- Include the exact commands to verify correctness after merge. Example:
+```bash
+git checkout main && git pull --ff-only
+npm test -- __tests__/relevant-test.test.ts --runInBand
+node scripts/validate-pr-trust-proof.mjs
+``` -->
 
-Branch-Behind-Base: 0
+## Actionlint Status
 
-## Risks & Anomalies
+<!-- State whether GitHub Actions workflow YAML has been validated with actionlint.
+     If not run locally: "Full actionlint validation remains unproven in this environment until CI proves it." -->
 
-<!-- What could go wrong; how it's mitigated. -->
+## Trust-Proof Checklist
 
----
-
-No-Pipeline-Impact: Confirmed — this PR does not modify lib/evaluation/**, app/api/workers/**, prompts, or any pipeline contract.
-
-<!-- pr-type: infra -->
+- [ ] No unauthorized input sources introduced.
+- [ ] No internal process leakage introduced.
+- [ ] Input → Action → Output is explicit.
+- [ ] Public-safe quality/status metrics are identified.
+- [ ] No hidden runtime/pipeline expansion.
+- [ ] No unnecessary latency increase.
+- [ ] Post-merge sanity sweep instructions included.
+- [ ] Actionlint status stated.
