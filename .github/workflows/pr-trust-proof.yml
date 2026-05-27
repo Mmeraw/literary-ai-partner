@@ -1,0 +1,55 @@
+name: PR Trust-Proof Validator
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened, ready_for_review]
+
+jobs:
+  trust-proof:
+    name: Trust-Proof Validation
+    runs-on: ubuntu-latest
+    # Skip draft PRs unless explicitly marked ready_for_review
+    if: github.event.pull_request.draft == false
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Write PR body to temp file
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          echo "$PR_BODY" > /tmp/pr_body.txt
+          echo "PR body written to /tmp/pr_body.txt ($(wc -c < /tmp/pr_body.txt) bytes)"
+
+      - name: Run trust-proof validator
+        run: node scripts/validate-pr-trust-proof.mjs --pr-body-file /tmp/pr_body.txt
+
+  wave-naming-contract:
+    name: WAVE Readiness Naming Contract
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run WAVE readiness naming contract test
+        run: |
+          npx jest __tests__/governance/waveReadinessNamingContract.test.ts \
+            --runInBand \
+            --forceExit \
+            --no-coverage \
+            --passWithNoTests=false
