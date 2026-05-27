@@ -2366,9 +2366,11 @@ export async function failStaleRunningJobs(): Promise<{
     updated_at: now,
   };
 
+  // Production (lease_until exists): clear lease_until.
+  // Legacy (lease_until missing, fell back to lease_expires_at): clear lease_expires_at.
   const failureResetPayload = leaseScanUsedLegacyColumn
-    ? { ...failureResetPayloadBase, lease_until: null }
-    : failureResetPayloadBase;
+    ? { ...failureResetPayloadBase, lease_expires_at: null }
+    : { ...failureResetPayloadBase, lease_until: null };
 
   let { data: failedRows, error: failError } = await supabase
     .from('evaluation_jobs')
@@ -2378,8 +2380,19 @@ export async function failStaleRunningJobs(): Promise<{
     .neq('phase_status', 'complete')   // ← final guard on the UPDATE itself
     .select('id');
 
-  if (failError && leaseScanUsedLegacyColumn && isMissingColumnError(failError, 'lease_until')) {
-    console.warn('[Processor] lease_until missing; retrying without it');
+  if (failError && !leaseScanUsedLegacyColumn && isMissingColumnError(failError, 'lease_until')) {
+    // lease_until scan succeeded but update failed — retry without lease_until
+    console.warn('[Processor] lease_until update failed unexpectedly; retrying without it');
+    ({ data: failedRows, error: failError } = await supabase
+      .from('evaluation_jobs')
+      .update(failureResetPayloadBase)
+      .in('id', staleIds_final)
+      .eq('status', runningStatus)
+      .neq('phase_status', 'complete') // ← guard
+      .select('id'));
+  } else if (failError && leaseScanUsedLegacyColumn && isMissingColumnError(failError, 'lease_expires_at')) {
+    // Legacy fallback: lease_expires_at column disappeared between scan and update
+    console.warn('[Processor] lease_expires_at update failed unexpectedly; retrying without it');
     ({ data: failedRows, error: failError } = await supabase
       .from('evaluation_jobs')
       .update(failureResetPayloadBase)
