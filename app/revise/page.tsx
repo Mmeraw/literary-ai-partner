@@ -53,7 +53,7 @@ const publicRepairPrinciples = [
 
 const doctrine = [
   "Evaluation findings do not automatically become edits.",
-  "WAVE is the proprietary repair layer after evaluation, not a single rewrite command.",
+  "WAVE is the proprietary readiness layer inside evaluation, not a single rewrite command.",
   "Revision activity is not measured improvement until a later evaluation confirms movement.",
   "The author may control every opportunity manually or authorize governed automation.",
   "TrustedPath™ is convenience with safeguards, not blind rewriting.",
@@ -68,12 +68,12 @@ export default function RevisePage() {
     <div className="bg-rg-ink text-rg-cream">
       <section className="mx-auto grid min-h-[calc(100vh-3.5rem)] max-w-7xl items-center gap-12 px-6 py-20 lg:grid-cols-[1fr_1fr]">
         <div>
-          <Eyebrow>RevisionGrade™ Revise · WAVE Revision System™</Eyebrow>
+          <Eyebrow>RevisionGrade™ Revise · Author-Controlled Repair</Eyebrow>
           <h1 className="mt-6 font-rg-serif text-5xl leading-[0.95] tracking-tight md:text-7xl">
             Choose your governed revision path.
           </h1>
           <p className="mt-8 max-w-2xl text-lg leading-8 text-rg-cream2/85">
-            Revise is WAVE in action: evaluation findings become evidence-backed repair decisions. Work through the queue one opportunity at a time, or use TrustedPath™ to apply eligible recommended repairs to a protected manuscript copy.
+            Revise is the author-controlled repair workflow after evaluation: findings become evidence-backed repair decisions. Work through the queue one opportunity at a time, or use TrustedPath™ to apply eligible recommended repairs to a protected manuscript copy.
           </p>
           <div className="mt-10 flex flex-wrap gap-4">
             <Link href="/workbench" className="border border-rg-gold bg-rg-gold px-5 py-3 font-rg-mono text-xs uppercase tracking-[0.18em] text-rg-ink transition hover:bg-transparent hover:text-rg-gold">
@@ -172,7 +172,7 @@ export default function RevisePage() {
           <div>
             <Eyebrow>Repair discipline</Eyebrow>
             <h2 className="mt-4 font-rg-serif text-4xl leading-tight md:text-5xl">
-              WAVE keeps repair governed instead of scattered.
+              Revise keeps repair governed instead of scattered.
             </h2>
             <p className="mt-6 leading-8 text-rg-cream2/75">
               The public principle is simple: the system should not polish a sentence before it understands the evidence, risk, voice, and author decision attached to the change.

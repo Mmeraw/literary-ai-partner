@@ -177,6 +177,27 @@ function makeSupabaseStub() {
     partial_capture: false,
   };
 
+  const acceptedStoryLedgerContent = {
+    schema_version: "accepted_story_ledger_v1",
+    governance_rail: {
+      mode: "accepted",
+      accepted_at: new Date().toISOString(),
+      source: "real-gate-test",
+      layer_decisions: {
+        identity: { decision: "accept" },
+        structure: { decision: "accept" },
+        character: { decision: "accept" },
+        pressure: { decision: "accept" },
+        scene: { decision: "accept" },
+        voice: { decision: "accept" },
+        theme: { decision: "accept" },
+        continuity: { decision: "accept" },
+      },
+    },
+    corrections: [],
+    story_layer: {},
+  };
+
   const manuscript = {
     id: 789,
     title: "Real Gate Test Manuscript",
@@ -256,6 +277,9 @@ function makeSupabaseStub() {
               maybeSingle: async () => {
                 if (artifactType === "pass12_handoff_v1") {
                   return { data: { content: pass12HandoffContent }, error: null };
+                }
+                if (artifactType === "accepted_story_ledger_v1") {
+                  return { data: { content: acceptedStoryLedgerContent }, error: null };
                 }
                 if (artifactType === "evaluation_result_v2") {
                   return { data: null, error: null };

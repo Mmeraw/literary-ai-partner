@@ -79,7 +79,7 @@ describe("evaluation architecture invariants", () => {
     const storePath = path.join(repoRoot, "lib/jobs/jobStore.supabase.ts");
     const code = fs.readFileSync(storePath, "utf8");
 
-    expect(code).toContain("phase: PHASES.PHASE_1A");
+    expect(code).toContain("phase: PHASES.PHASE_0");
     expect(code).toContain("phase_status: JOB_STATUS.QUEUED");
   });
 
@@ -138,7 +138,6 @@ describe("evaluation architecture invariants", () => {
     expect(middlewareCode).toContain("/dashboard");
     expect(middlewareCode).toContain("/evaluate");
     expect(middlewareCode).toContain("/workbench");
-    expect(middlewareCode).toContain("/private-beta");
     expect(middlewareCode).toContain("/reliability");
     expect(middlewareCode).toContain("/methodology");
     expect(middlewareCode).toContain("/privacy");
@@ -148,7 +147,8 @@ describe("evaluation architecture invariants", () => {
     expect(middlewareCode).toContain("/revise");
     expect(middlewareCode).toContain("/login");
     expect(middlewareCode).toContain("/api/auth/callback");
-    expect(middlewareCode).toContain("redirectUrl.pathname = '/private-beta'");
+    expect(middlewareCode).toContain("redirectUrl.pathname = '/login'");
+    expect(middlewareCode).toContain("redirectUrl.pathname = '/dashboard'");
     expect(middlewareCode).toContain("if (basePath === '/') return pathname === '/'");
   });
 
@@ -247,5 +247,20 @@ describe("evaluation architecture invariants", () => {
 
     expect(processorCode).toContain("pipelineResult.ok === false");
     expect(processorCode).not.toContain("if (!pipelineResult.ok)");
+  });
+
+  test("processor does not persist non-canonical progress phase_status='blocked'", () => {
+    const processorPath = path.join(repoRoot, "lib/evaluation/processor.ts");
+    const processorCode = fs.readFileSync(processorPath, "utf8");
+
+    expect(processorCode).not.toContain("phase_status: 'blocked'");
+  });
+
+  test("phase_1a review gate handoff is wired through phase-architecture-v2 helper", () => {
+    const processorPath = path.join(repoRoot, "lib/evaluation/processor.ts");
+    const processorCode = fs.readFileSync(processorPath, "utf8");
+
+    expect(processorCode).toContain("@/lib/evaluation/phase-architecture-v2/reviewGateHandoff");
+    expect(processorCode).toContain("buildReviewGateHandoff(");
   });
 });

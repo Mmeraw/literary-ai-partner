@@ -171,3 +171,7 @@ CI parses this file as the source of truth. Any high/critical advisory not liste
 ### undici
 - **Status**: KNOWN — transitive dependency
 - Accepted: transitive HTTP client package in dependency graph; no direct user-controlled request path exposure in this change
+
+### tmp
+- **Status**: KNOWN — transitive dependency / audit key
+- Accepted: legacy transitive package in tooling chain; not exposed in production request paths and tracked via CI allowlist until upstream dependency updates

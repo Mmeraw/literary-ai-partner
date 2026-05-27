@@ -129,6 +129,12 @@ import { reduceCharacterEvidence, buildCharacterLedgerV2 } from '@/lib/evaluatio
 import { buildStoryLayerFromLedger } from '@/lib/evaluation/phase1a/buildStoryLayerFromLedger';
 import { buildLedgerQualityReport } from '@/lib/evaluation/phase1a/buildLedgerQualityReport';
 import { writePhase1aReviewGateArtifacts } from '@/lib/evaluation/phase1a/storyLayerArtifactWriters';
+import { buildReviewGateHandoff } from '@/lib/evaluation/phase-architecture-v2/reviewGateHandoff';
+import type {
+  Pass3AStatus,
+  PhaseV2ArtifactSet,
+  PhaseV2Progress,
+} from '@/lib/evaluation/phase-architecture-v2/gateValidity';
 import {
   shouldFlagStoryLedgerLaneMapWarning,
   type StoryLedgerExtensions,
@@ -258,6 +264,134 @@ function isMissingColumnError(error: unknown, columnName: string): boolean {
   const postgresMissing = code === '42703' && combined.includes(columnName);
 
   return schemaCacheMissing || postgresMissing;
+}
+
+const PASS3A_STATUS_VALUES: Pass3AStatus[] = [
+  'not_started',
+  'running',
+  'map_done',
+  'reduce_running',
+  'done',
+  'degraded',
+  'failed',
+];
+
+function isNonEmptyTrimmedString(value: unknown): value is string {
+  return typeof value === 'string' && value.trim().length > 0;
+}
+
+function coercePass3aStatus(value: unknown): Pass3AStatus | undefined {
+  return isNonEmptyTrimmedString(value) && PASS3A_STATUS_VALUES.includes(value as Pass3AStatus)
+    ? (value as Pass3AStatus)
+    : undefined;
+}
+
+export function toPhaseV2ArtifactSet(
+  rows: Array<{
+    artifact_type?: unknown;
+    id?: unknown;
+    content?: unknown;
+    source_hash?: unknown;
+  }> | null | undefined,
+): PhaseV2ArtifactSet {
+  const artifactRefsByType = new Map<string, { artifact_id?: string | null; source_hash?: string | null }>();
+
+  for (const row of rows ?? []) {
+    if (!row || typeof row !== 'object' || typeof row.artifact_type !== 'string') {
+      continue;
+    }
+
+    const contentRecord =
+      row.content && typeof row.content === 'object' ? (row.content as Record<string, unknown>) : null;
+    const envelopeArtifactId =
+      contentRecord && typeof contentRecord.artifact_id === 'string' ? contentRecord.artifact_id : null;
+    const rowId = typeof row.id === 'string' ? row.id : null;
+    const sourceHash = typeof row.source_hash === 'string' ? row.source_hash : null;
+
+    artifactRefsByType.set(row.artifact_type, {
+      artifact_id: envelopeArtifactId ?? rowId,
+      source_hash: sourceHash,
+    });
+  }
+
+  return {
+    pass1a_story_layer_v1: artifactRefsByType.get('pass1a_story_layer_v1') ?? null,
+    ledger_quality_report_v1: artifactRefsByType.get('ledger_quality_report_v1') ?? null,
+    pass3_preflight_draft_v1: artifactRefsByType.get('pass3_preflight_draft_v1') ?? null,
+  };
+}
+
+export function derivePhaseV2ReviewGateProgress(
+  progressState: Record<string, unknown>,
+  hasPass3PreflightArtifact: boolean,
+  nowIso: string,
+): PhaseV2Progress {
+  const batchState =
+    progressState.phase1a_batch_state && typeof progressState.phase1a_batch_state === 'object'
+      ? (progressState.phase1a_batch_state as Record<string, unknown>)
+      : {};
+
+  const preflightStatusRaw = batchState.preflight_status;
+  const preflightStatus =
+    typeof preflightStatusRaw === 'string' ? preflightStatusRaw.toUpperCase().trim() : 'NOT_STARTED';
+  const preflightDegraded = batchState.preflight_degraded === true;
+
+  const explicitStatus = coercePass3aStatus(progressState.pass3a_status);
+  const derivedStatusFromLegacyState: Pass3AStatus = (() => {
+    if (preflightStatus === 'DONE' || preflightStatus === 'COMPLETE') {
+      return preflightDegraded ? 'degraded' : 'done';
+    }
+    if (
+      preflightStatus === 'IN_PROGRESS' ||
+      preflightStatus === 'RUNNING' ||
+      preflightStatus === 'SELF_CHAINED'
+    ) {
+      return 'running';
+    }
+    return 'not_started';
+  })();
+
+  const pass3aStatus = explicitStatus ?? derivedStatusFromLegacyState;
+
+  const completedAt =
+    isNonEmptyTrimmedString(progressState.pass3a_completed_at)
+      ? progressState.pass3a_completed_at
+      : (pass3aStatus === 'done' && hasPass3PreflightArtifact
+          ? nowIso
+          : undefined);
+
+  const existingDegradedReason =
+    isNonEmptyTrimmedString(progressState.degraded_reason)
+      ? progressState.degraded_reason
+      : undefined;
+  const existingDegradedReasonCodes = Array.isArray(progressState.degraded_reason_codes)
+    ? progressState.degraded_reason_codes
+        .filter((code): code is string => isNonEmptyTrimmedString(code))
+    : [];
+  const existingDegradedAt =
+    isNonEmptyTrimmedString(progressState.degraded_at)
+      ? progressState.degraded_at
+      : undefined;
+
+  const degradedReason =
+    pass3aStatus === 'degraded'
+      ? existingDegradedReason ?? 'PASS3A_PREFLIGHT_DEGRADED'
+      : undefined;
+  const degradedReasonCodes =
+    pass3aStatus === 'degraded'
+      ? (existingDegradedReasonCodes.length > 0
+          ? existingDegradedReasonCodes
+          : ['PASS3A_PREFLIGHT_DEGRADED'])
+      : undefined;
+  const degradedAt = pass3aStatus === 'degraded' ? existingDegradedAt ?? nowIso : undefined;
+
+  return {
+    pass3a_status: pass3aStatus,
+    pass3a_completed_at: completedAt,
+    degraded_reason: degradedReason,
+    degraded_reason_codes: degradedReasonCodes,
+    degraded_at: degradedAt,
+  };
 }
 
 interface EvaluationJob {
@@ -5065,20 +5199,123 @@ export async function processEvaluationJob(
           );
         }
 
-        // ── 7. Open Review Gate ───────────────────────────────────────────
+        // ── 7. Review Gate handoff (Phase Architecture v2 helper) ─────────
         const phase1aNow = new Date().toISOString();
+        const reviewGateArtifactTypes = [
+          'pass1a_story_layer_v1',
+          'ledger_quality_report_v1',
+          'pass3_preflight_draft_v1',
+        ];
+
+        const { data: reviewGateArtifacts, error: reviewGateArtifactsErr } = await supabase
+          .from('evaluation_artifacts')
+          .select('artifact_type, id, content, source_hash')
+          .eq('job_id', job.id)
+          .in('artifact_type', reviewGateArtifactTypes);
+
+        if (reviewGateArtifactsErr) {
+          throw new Error(
+            `Failed to read Review Gate handoff artifacts: ${reviewGateArtifactsErr.message}`,
+          );
+        }
+
+        const phaseV2Artifacts = toPhaseV2ArtifactSet(reviewGateArtifacts);
+        const phaseV2Progress = derivePhaseV2ReviewGateProgress(
+          progressState,
+          Boolean(phaseV2Artifacts.pass3_preflight_draft_v1?.artifact_id),
+          phase1aNow,
+        );
+
+        const reviewGateHandoffResult = buildReviewGateHandoff(
+          phaseV2Progress,
+          phaseV2Artifacts,
+        );
+
+        if ('blocked' in reviewGateHandoffResult) {
+          const blocked = reviewGateHandoffResult.blocked;
+          const blockedNow = new Date().toISOString();
+          const blockedProgress = {
+            ...progressState,
+            phase: 'phase_1a',
+            phase_status: JOB_STATUS.QUEUED,
+            message: blocked.progress.message,
+            phase1a_completed_at: blockedNow,
+            ledger_entries: characterLedger.entries.length,
+            story_layer_artifact_id: storyLayerRefs.pass1a_story_layer_v1.artifact_id,
+            quality_report_artifact_id: storyLayerRefs.ledger_quality_report_v1.artifact_id,
+            gate_ready_status: 'blocked',
+            review_gate_ready: false,
+            block_code: blocked.progress.block_code,
+            block_reason: blocked.progress.block_reason,
+            pass3a_status: blocked.progress.pass3a_status,
+            pass3a_gate_validity: blocked.progress.pass3a_gate_validity,
+            phase1a_batch_state: {
+              ...((progressState.phase1a_batch_state as Record<string, unknown>) ?? {}),
+              ledger_assembly_status: 'COMPLETE',
+              preflight_status: 'DONE',
+            },
+            phase_log: [
+              ...((progressState.phase_log as unknown[]) ?? []),
+              { at: storyLayerPersistedAt, event: 'phase1a_story_layer_persisted', stage: 'phase_1a' },
+              {
+                at: blockedNow,
+                event: 'review_gate_blocked',
+                stage: 'phase_1a',
+                block_code: blocked.progress.block_code,
+                block_reason: blocked.progress.block_reason,
+              },
+            ],
+          };
+
+          const { error: blockedPatchErr } = await supabase
+            .from('evaluation_jobs')
+            .update({
+              status: JOB_STATUS.QUEUED,
+              phase: PHASES.PHASE_1A,
+              phase_status: JOB_STATUS.QUEUED,
+              claimed_by: null,
+              claimed_at: null,
+              lease_token: null,
+              lease_until: null,
+              updated_at: blockedNow,
+              progress: blockedProgress,
+            })
+            .eq('id', job.id)
+            .eq('status', JOB_STATUS.RUNNING);
+
+          if (blockedPatchErr) {
+            throw new Error(`Review Gate block progress patch failed: ${blockedPatchErr.message}`);
+          }
+
+          console.warn(
+            `[Processor] ${jobId}: review_gate handoff blocked`,
+            {
+              block_code: blocked.progress.block_code,
+              block_reason: blocked.progress.block_reason,
+              pass3a_status: blocked.progress.pass3a_status ?? null,
+              pass3a_gate_validity: blocked.progress.pass3a_gate_validity,
+            },
+          );
+          return { success: true };
+        }
+
         const phase1aHandoffProgress = {
           ...progressState,
           ...buildPhaseLogPatch(progressState, 'phase_1a', 'passed', phase1aNow),
-          phase: 'phase_1a',
-          phase_status: 'awaiting_approval',
-          message: 'Phase 1A complete — Story Ledger ready for author review',
+          phase: reviewGateHandoffResult.handoff.progress.phase,
+          phase_status: reviewGateHandoffResult.handoff.progress.phase_status,
+          message: reviewGateHandoffResult.handoff.progress.message,
           phase1a_completed_at: phase1aNow,
           ledger_entries: characterLedger.entries.length,
           story_layer_artifact_id: storyLayerRefs.pass1a_story_layer_v1.artifact_id,
           quality_report_artifact_id: storyLayerRefs.ledger_quality_report_v1.artifact_id,
-          gate_ready_status: qualityReport.gate_ready_status,
+          gate_ready_status: reviewGateHandoffResult.handoff.progress.gate_ready_status,
+          review_gate_ready: reviewGateHandoffResult.handoff.progress.review_gate_ready,
           hard_fail_present: qualityReport.hard_fail_present,
+          pass3a_status: reviewGateHandoffResult.handoff.progress.pass3a_status,
+          pass3a_gate_validity: reviewGateHandoffResult.handoff.progress.pass3a_gate_validity,
+          pass3a_artifact_id: reviewGateHandoffResult.handoff.progress.pass3a_artifact_id,
+          pass3a_degraded_reason: reviewGateHandoffResult.handoff.progress.pass3a_degraded_reason,
           phase1a_batch_state: {
             ...((progressState.phase1a_batch_state as Record<string, unknown>) ?? {}),
             ledger_assembly_status: 'COMPLETE',
@@ -5094,9 +5331,9 @@ export async function processEvaluationJob(
         const { data: phase1aHandoffRow, error: phase1aHandoffErr } = await supabase
           .from('evaluation_jobs')
           .update({
-            status: JOB_STATUS.QUEUED,
-            phase: 'review_gate',
-            phase_status: 'awaiting_approval',
+            status: reviewGateHandoffResult.handoff.status,
+            phase: reviewGateHandoffResult.handoff.phase,
+            phase_status: reviewGateHandoffResult.handoff.phase_status,
             claimed_by: null,
             claimed_at: null,
             lease_token: null,
@@ -5134,8 +5371,10 @@ export async function processEvaluationJob(
         console.log(
           `[Processor] ${jobId}: phase_1a handoff confirmed — status=queued phase=review_gate phase_status=awaiting_approval`,
           {
-            gate_ready_status: qualityReport.gate_ready_status,
-            hard_fail_present: qualityReport.hard_fail_present,
+            gate_ready_status: reviewGateHandoffResult.handoff.progress.gate_ready_status,
+            review_gate_ready: reviewGateHandoffResult.handoff.progress.review_gate_ready,
+            pass3a_status: reviewGateHandoffResult.handoff.progress.pass3a_status,
+            pass3a_gate_validity: reviewGateHandoffResult.handoff.progress.pass3a_gate_validity,
           },
         );
         return { success: true };
