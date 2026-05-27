@@ -134,4 +134,16 @@ describe('Phase 1A Story Layer artifact writers', () => {
     expect(artifactTypesWritten).not.toContain('story_shape_signal_map_v1');
     expect(artifactTypesWritten).not.toContain('manuscript_signal_appendix_v1');
   });
+
+  it('supports null evaluation_project_id in Phase 1A artifact envelopes', () => {
+    const artifact = buildPass1aStoryLayerArtifact({
+      metadata: {
+        ...metadata,
+        evaluation_project_id: null,
+      },
+      storyLayer: validStoryLayer(),
+    });
+
+    expect(artifact.content.evaluation_project_id).toBeNull();
+  });
 });

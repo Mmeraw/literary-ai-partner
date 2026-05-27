@@ -152,6 +152,7 @@ export async function upsertEvaluationArtifact(params: {
   supabase: SupabaseClient;
   jobId: string;
   manuscriptId: number;
+  evaluationProjectId?: string | null;
   artifactType: ArtifactType;
   content: unknown; // jsonb
   sourceHash: string;
@@ -169,6 +170,9 @@ export async function upsertEvaluationArtifact(params: {
       {
         job_id: params.jobId,
         manuscript_id: params.manuscriptId,
+        ...(params.evaluationProjectId !== undefined
+          ? { evaluation_project_id: params.evaluationProjectId }
+          : {}),
         artifact_type: params.artifactType,
         content: params.content,
         source_hash: params.sourceHash,

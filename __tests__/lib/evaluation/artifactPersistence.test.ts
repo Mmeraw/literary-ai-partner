@@ -76,4 +76,59 @@ describe("upsertEvaluationArtifact", () => {
       })
     ).rejects.toThrow(/Upsert failed.*db failed/i);
   });
+
+  test("writes evaluation_project_id when provided", async () => {
+    const singleMock = jest.fn().mockResolvedValue({ data: { id: "artifact-epid" }, error: null });
+    const selectMock = jest.fn(() => ({ single: singleMock }));
+    const upsertMock = jest.fn(() => ({ select: selectMock }));
+    const fromMock = jest.fn(() => ({ upsert: upsertMock }));
+
+    const supabase = { from: fromMock };
+
+    await upsertEvaluationArtifact({
+      supabase,
+      jobId: "job-4",
+      manuscriptId: 4001,
+      evaluationProjectId: "4de1f580-b8e0-43fb-b201-0f62f6eb69fd",
+      artifactType: "evaluation_result_v1",
+      content: { ok: true },
+      sourceHash: "hash-epid",
+      artifactVersion: "evaluation_result_v1",
+    });
+
+    expect(upsertMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        evaluation_project_id: "4de1f580-b8e0-43fb-b201-0f62f6eb69fd",
+      }),
+      expect.any(Object),
+    );
+  });
+
+  test("persists explicit null evaluation_project_id without failing", async () => {
+    const singleMock = jest.fn().mockResolvedValue({ data: { id: "artifact-null-epid" }, error: null });
+    const selectMock = jest.fn(() => ({ single: singleMock }));
+    const upsertMock = jest.fn(() => ({ select: selectMock }));
+    const fromMock = jest.fn(() => ({ upsert: upsertMock }));
+
+    const supabase = { from: fromMock };
+
+    const artifactId = await upsertEvaluationArtifact({
+      supabase,
+      jobId: "job-5",
+      manuscriptId: 4002,
+      evaluationProjectId: null,
+      artifactType: "evaluation_result_v1",
+      content: { ok: true },
+      sourceHash: "hash-null-epid",
+      artifactVersion: "evaluation_result_v1",
+    });
+
+    expect(artifactId).toBe("artifact-null-epid");
+    expect(upsertMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        evaluation_project_id: null,
+      }),
+      expect.any(Object),
+    );
+  });
 });

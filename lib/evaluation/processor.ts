@@ -5256,6 +5256,7 @@ export async function processEvaluationJob(
                 {
                   job_id: String(job.id),
                   manuscript_id: Number(job.manuscript_id),
+                  evaluation_project_id: phase1aMeta.evaluation_project_id ?? null,
                   artifact_type: artifact.artifact_type,
                   artifact_version: artifact.artifact_version,
                   source_hash: artifact.source_hash,
