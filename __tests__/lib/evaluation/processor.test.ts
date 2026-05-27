@@ -1,6 +1,9 @@
 process.env.EVAL_PASS_TIMEOUT_MS = "180000";
 process.env.EVAL_OPENAI_TIMEOUT_MS = "180000";
 
+const fs = require("fs");
+const path = require("path");
+
 const {
   normalizeCriteria,
   normalizeOverviewFromAIResult,
@@ -13,6 +16,7 @@ const {
   renewEvaluationJobLease,
   toPhaseV2ArtifactSet,
   derivePhaseV2ReviewGateProgress,
+  shouldRequeueReviewGateBlock,
 } = require("../../../lib/evaluation/processor");
 const { CRITERIA_KEYS } = require("../../../schemas/criteria-keys");
 
@@ -439,34 +443,86 @@ describe("Review Gate wiring helpers", () => {
     });
   });
 
-  test("derives Pass 3A done/degraded from legacy phase1a_batch_state preflight status", () => {
+  test("does not synthesize pass3a_completed_at when status is done and preflight artifact exists", () => {
     const doneDerived = derivePhaseV2ReviewGateProgress(
       {
+        pass3a_status: "done",
         phase1a_batch_state: {
           preflight_status: "DONE",
         },
       },
       true,
-      "2026-05-26T00:00:00.000Z",
     );
 
     expect(doneDerived.pass3a_status).toBe("done");
-    expect(doneDerived.pass3a_completed_at).toBe("2026-05-26T00:00:00.000Z");
+    expect(doneDerived.pass3a_completed_at).toBeUndefined();
+  });
 
+  test("does not synthesize degraded proof fields when degraded metadata is missing", () => {
     const degradedDerived = derivePhaseV2ReviewGateProgress(
       {
-        phase1a_batch_state: {
-          preflight_status: "DONE",
-          preflight_degraded: true,
-        },
+        pass3a_status: "degraded",
       },
-      true,
-      "2026-05-26T00:00:00.000Z",
+      false,
     );
 
     expect(degradedDerived.pass3a_status).toBe("degraded");
-    expect(degradedDerived.degraded_reason).toBe("PASS3A_PREFLIGHT_DEGRADED");
-    expect(degradedDerived.degraded_reason_codes).toEqual(["PASS3A_PREFLIGHT_DEGRADED"]);
-    expect(degradedDerived.degraded_at).toBe("2026-05-26T00:00:00.000Z");
+    expect(degradedDerived.degraded_reason).toBeUndefined();
+    expect(degradedDerived.degraded_reason_codes).toBeUndefined();
+    expect(degradedDerived.degraded_at).toBeUndefined();
+  });
+
+  test("derives Pass 3A status from legacy preflight and artifact fallback only", () => {
+    const doneFromLegacy = derivePhaseV2ReviewGateProgress(
+      {
+        phase1a_batch_state: {
+          preflight_status: "DONE",
+        },
+      },
+      false,
+    );
+
+    expect(doneFromLegacy.pass3a_status).toBe("done");
+
+    const doneFromArtifactFallback = derivePhaseV2ReviewGateProgress(
+      {
+        phase1a_batch_state: {
+          preflight_status: "NOT_STARTED",
+        },
+      },
+      true,
+    );
+
+    expect(doneFromArtifactFallback.pass3a_status).toBe("done");
+  });
+
+  test("requeue policy only allows PASS3A_NOT_READY and PASS3A_HALF_WRITTEN in not_ready validity", () => {
+    expect(shouldRequeueReviewGateBlock("PASS3A_NOT_READY", "not_ready")).toBe(true);
+    expect(shouldRequeueReviewGateBlock("PASS3A_HALF_WRITTEN", "not_ready")).toBe(true);
+
+    expect(shouldRequeueReviewGateBlock("PASS3A_FAILED_BLOCKING", "gate_blocking")).toBe(false);
+    expect(shouldRequeueReviewGateBlock("PASS3A_ARTIFACT_MISSING", "gate_blocking")).toBe(false);
+    expect(shouldRequeueReviewGateBlock("PASS3A_COMPLETION_METADATA_MISSING", "gate_blocking")).toBe(false);
+    expect(shouldRequeueReviewGateBlock("PASS3A_DEGRADED_PROOF_MISSING", "gate_blocking")).toBe(false);
+
+    expect(shouldRequeueReviewGateBlock("PASS3A_NOT_READY", "gate_blocking")).toBe(false);
+  });
+
+  test("blocked review gate path preserves incoming preflight truth and supports fail-closed terminal blocks", () => {
+    const processorPath = path.join(__dirname, "../../../lib/evaluation/processor.ts");
+    const processorCode = fs.readFileSync(processorPath, "utf8");
+
+    const blockedStart = processorCode.indexOf("if (reviewGateHandoffResult.ok === false)");
+    const blockedEnd = processorCode.indexOf("const phase1aHandoffProgress =", blockedStart);
+
+    expect(blockedStart).toBeGreaterThan(-1);
+    expect(blockedEnd).toBeGreaterThan(blockedStart);
+
+    const blockedSection = processorCode.slice(blockedStart, blockedEnd);
+
+    expect(blockedSection).not.toContain("preflight_status: 'DONE'");
+    expect(blockedSection).toContain("shouldRequeueReviewGateBlock(");
+    expect(blockedSection).toContain("status: JOB_STATUS.FAILED");
+    expect(blockedSection).toContain("status: JOB_STATUS.QUEUED");
   });
 });

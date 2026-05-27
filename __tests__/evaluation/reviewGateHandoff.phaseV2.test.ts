@@ -114,6 +114,23 @@ describe('Phase Architecture v2 — Review Gate handoff helper', () => {
     expect(result.blocked.progress.pass3a_gate_validity).toBe('gate_blocking');
   });
 
+  it('blocks Review Gate when Pass 3A is done without completion metadata', () => {
+    const result = buildReviewGateHandoff(
+      {
+        pass3a_status: 'done',
+      },
+      doneArtifacts,
+    );
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+
+    expect(result.blocked.review_gate_ready).toBe(false);
+    expect(result.blocked.decision.code).toBe('PASS3A_COMPLETION_METADATA_MISSING');
+    expect(result.blocked.progress.block_code).toBe('PASS3A_COMPLETION_METADATA_MISSING');
+    expect(result.blocked.progress.pass3a_gate_validity).toBe('gate_blocking');
+  });
+
   it('blocks Review Gate when Pass 3A is degraded without structured proof', () => {
     const result = buildReviewGateHandoff({ pass3a_status: 'degraded' }, storyArtifacts);
 

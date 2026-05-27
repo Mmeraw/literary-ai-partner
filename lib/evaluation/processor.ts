@@ -290,6 +290,7 @@ export function toPhaseV2ArtifactSet(
   rows: Array<{
     artifact_type?: unknown;
     id?: unknown;
+    artifact_id?: unknown;
     content?: unknown;
     source_hash?: unknown;
   }> | null | undefined,
@@ -305,11 +306,12 @@ export function toPhaseV2ArtifactSet(
       row.content && typeof row.content === 'object' ? (row.content as Record<string, unknown>) : null;
     const envelopeArtifactId =
       contentRecord && typeof contentRecord.artifact_id === 'string' ? contentRecord.artifact_id : null;
+    const rowArtifactId = typeof row.artifact_id === 'string' ? row.artifact_id : null;
     const rowId = typeof row.id === 'string' ? row.id : null;
     const sourceHash = typeof row.source_hash === 'string' ? row.source_hash : null;
 
     artifactRefsByType.set(row.artifact_type, {
-      artifact_id: envelopeArtifactId ?? rowId,
+      artifact_id: envelopeArtifactId ?? rowArtifactId ?? rowId,
       source_hash: sourceHash,
     });
   }
@@ -324,7 +326,6 @@ export function toPhaseV2ArtifactSet(
 export function derivePhaseV2ReviewGateProgress(
   progressState: Record<string, unknown>,
   hasPass3PreflightArtifact: boolean,
-  nowIso: string,
 ): PhaseV2Progress {
   const batchState =
     progressState.phase1a_batch_state && typeof progressState.phase1a_batch_state === 'object'
@@ -337,7 +338,7 @@ export function derivePhaseV2ReviewGateProgress(
   const preflightDegraded = batchState.preflight_degraded === true;
 
   const explicitStatus = coercePass3aStatus(progressState.pass3a_status);
-  const derivedStatusFromLegacyState: Pass3AStatus = (() => {
+  const legacyStatus: Pass3AStatus | undefined = (() => {
     if (preflightStatus === 'DONE' || preflightStatus === 'COMPLETE') {
       return preflightDegraded ? 'degraded' : 'done';
     }
@@ -348,50 +349,64 @@ export function derivePhaseV2ReviewGateProgress(
     ) {
       return 'running';
     }
-    return 'not_started';
+    return undefined;
   })();
 
-  const pass3aStatus = explicitStatus ?? derivedStatusFromLegacyState;
+  const pass3aStatus =
+    explicitStatus ??
+    legacyStatus ??
+    (hasPass3PreflightArtifact ? 'done' : 'not_started');
 
-  const completedAt =
+  const pass3aCompletedAt =
     isNonEmptyTrimmedString(progressState.pass3a_completed_at)
       ? progressState.pass3a_completed_at
-      : (pass3aStatus === 'done' && hasPass3PreflightArtifact
-          ? nowIso
-          : undefined);
+      : undefined;
 
-  const existingDegradedReason =
+  const pass3aArtifactId =
+    isNonEmptyTrimmedString(progressState.pass3a_artifact_id)
+      ? progressState.pass3a_artifact_id
+      : undefined;
+
+  const degradedReason =
     isNonEmptyTrimmedString(progressState.degraded_reason)
       ? progressState.degraded_reason
       : undefined;
-  const existingDegradedReasonCodes = Array.isArray(progressState.degraded_reason_codes)
+  const degradedReasonCodes = Array.isArray(progressState.degraded_reason_codes)
     ? progressState.degraded_reason_codes
         .filter((code): code is string => isNonEmptyTrimmedString(code))
-    : [];
-  const existingDegradedAt =
+    : undefined;
+  const degradedAt =
     isNonEmptyTrimmedString(progressState.degraded_at)
       ? progressState.degraded_at
       : undefined;
 
-  const degradedReason =
-    pass3aStatus === 'degraded'
-      ? existingDegradedReason ?? 'PASS3A_PREFLIGHT_DEGRADED'
+  const failedReason =
+    isNonEmptyTrimmedString(progressState.failed_reason)
+      ? progressState.failed_reason
       : undefined;
-  const degradedReasonCodes =
-    pass3aStatus === 'degraded'
-      ? (existingDegradedReasonCodes.length > 0
-          ? existingDegradedReasonCodes
-          : ['PASS3A_PREFLIGHT_DEGRADED'])
+  const failedAt =
+    isNonEmptyTrimmedString(progressState.failed_at)
+      ? progressState.failed_at
       : undefined;
-  const degradedAt = pass3aStatus === 'degraded' ? existingDegradedAt ?? nowIso : undefined;
 
   return {
     pass3a_status: pass3aStatus,
-    pass3a_completed_at: completedAt,
+    pass3a_completed_at: pass3aCompletedAt,
+    pass3a_artifact_id: pass3aArtifactId,
     degraded_reason: degradedReason,
-    degraded_reason_codes: degradedReasonCodes,
+    degraded_reason_codes:
+      degradedReasonCodes && degradedReasonCodes.length > 0 ? degradedReasonCodes : undefined,
     degraded_at: degradedAt,
+    failed_reason: failedReason,
+    failed_at: failedAt,
   };
+}
+
+export function shouldRequeueReviewGateBlock(blockCode: string, gateValidity: unknown): boolean {
+  return (
+    gateValidity === 'not_ready' &&
+    (blockCode === 'PASS3A_NOT_READY' || blockCode === 'PASS3A_HALF_WRITTEN')
+  );
 }
 
 interface EvaluationJob {
@@ -5329,7 +5344,6 @@ export async function processEvaluationJob(
         const phaseV2Progress = derivePhaseV2ReviewGateProgress(
           progressState,
           Boolean(phaseV2Artifacts.pass3_preflight_draft_v1?.artifact_id),
-          phase1aNow,
         );
 
         const reviewGateHandoffResult = buildReviewGateHandoff(
@@ -5337,13 +5351,21 @@ export async function processEvaluationJob(
           phaseV2Artifacts,
         );
 
-        if ('blocked' in reviewGateHandoffResult) {
+        if (reviewGateHandoffResult.ok === false) {
           const blocked = reviewGateHandoffResult.blocked;
           const blockedNow = new Date().toISOString();
+          const existingBatchState =
+            progressState.phase1a_batch_state && typeof progressState.phase1a_batch_state === 'object'
+              ? (progressState.phase1a_batch_state as Record<string, unknown>)
+              : {};
+          const requeueBlockedJob = shouldRequeueReviewGateBlock(
+            blocked.progress.block_code,
+            blocked.progress.pass3a_gate_validity,
+          );
           const blockedProgress = {
             ...progressState,
             phase: 'phase_1a',
-            phase_status: JOB_STATUS.QUEUED,
+            phase_status: requeueBlockedJob ? JOB_STATUS.QUEUED : JOB_STATUS.FAILED,
             message: blocked.progress.message,
             phase1a_completed_at: blockedNow,
             ledger_entries: characterLedger.entries.length,
@@ -5356,9 +5378,8 @@ export async function processEvaluationJob(
             pass3a_status: blocked.progress.pass3a_status,
             pass3a_gate_validity: blocked.progress.pass3a_gate_validity,
             phase1a_batch_state: {
-              ...((progressState.phase1a_batch_state as Record<string, unknown>) ?? {}),
+              ...existingBatchState,
               ledger_assembly_status: 'COMPLETE',
-              preflight_status: 'DONE',
             },
             phase_log: [
               ...((progressState.phase_log as unknown[]) ?? []),
@@ -5369,23 +5390,43 @@ export async function processEvaluationJob(
                 stage: 'phase_1a',
                 block_code: blocked.progress.block_code,
                 block_reason: blocked.progress.block_reason,
+                requeue: requeueBlockedJob,
               },
             ],
           };
 
+          const blockedJobPatch = requeueBlockedJob
+            ? {
+                status: JOB_STATUS.QUEUED,
+                phase: PHASES.PHASE_1A,
+                phase_status: JOB_STATUS.QUEUED,
+                claimed_by: null,
+                claimed_at: null,
+                lease_token: null,
+                lease_until: null,
+                updated_at: blockedNow,
+                progress: blockedProgress,
+              }
+            : {
+                status: JOB_STATUS.FAILED,
+                phase: PHASES.PHASE_1A,
+                phase_status: JOB_STATUS.FAILED,
+                claimed_by: null,
+                claimed_at: null,
+                lease_token: null,
+                lease_until: null,
+                updated_at: blockedNow,
+                last_error: `Review Gate blocked: ${blocked.progress.block_reason}`,
+                failure_code: blocked.progress.block_code,
+                progress: {
+                  ...blockedProgress,
+                  review_gate_block_terminal: true,
+                },
+              };
+
           const { error: blockedPatchErr } = await supabase
             .from('evaluation_jobs')
-            .update({
-              status: JOB_STATUS.QUEUED,
-              phase: PHASES.PHASE_1A,
-              phase_status: JOB_STATUS.QUEUED,
-              claimed_by: null,
-              claimed_at: null,
-              lease_token: null,
-              lease_until: null,
-              updated_at: blockedNow,
-              progress: blockedProgress,
-            })
+            .update(blockedJobPatch)
             .eq('id', job.id)
             .eq('status', JOB_STATUS.RUNNING);
 
@@ -5400,6 +5441,7 @@ export async function processEvaluationJob(
               block_reason: blocked.progress.block_reason,
               pass3a_status: blocked.progress.pass3a_status ?? null,
               pass3a_gate_validity: blocked.progress.pass3a_gate_validity,
+              requeue: requeueBlockedJob,
             },
           );
           return { success: true };
