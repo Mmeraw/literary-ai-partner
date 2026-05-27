@@ -5232,22 +5232,23 @@ export async function processEvaluationJob(
         );
 
         if (!reviewGateHandoffResult.ok) {
+          const blocked = reviewGateHandoffResult.blocked;
           const blockedNow = new Date().toISOString();
           const blockedProgress = {
             ...progressState,
             phase: 'phase_1a',
             phase_status: JOB_STATUS.QUEUED,
-            message: reviewGateHandoffResult.blocked.progress.message,
+            message: blocked.progress.message,
             phase1a_completed_at: blockedNow,
             ledger_entries: characterLedger.entries.length,
             story_layer_artifact_id: storyLayerRefs.pass1a_story_layer_v1.artifact_id,
             quality_report_artifact_id: storyLayerRefs.ledger_quality_report_v1.artifact_id,
             gate_ready_status: 'blocked',
             review_gate_ready: false,
-            block_code: reviewGateHandoffResult.blocked.progress.block_code,
-            block_reason: reviewGateHandoffResult.blocked.progress.block_reason,
-            pass3a_status: reviewGateHandoffResult.blocked.progress.pass3a_status,
-            pass3a_gate_validity: reviewGateHandoffResult.blocked.progress.pass3a_gate_validity,
+            block_code: blocked.progress.block_code,
+            block_reason: blocked.progress.block_reason,
+            pass3a_status: blocked.progress.pass3a_status,
+            pass3a_gate_validity: blocked.progress.pass3a_gate_validity,
             phase1a_batch_state: {
               ...((progressState.phase1a_batch_state as Record<string, unknown>) ?? {}),
               ledger_assembly_status: 'COMPLETE',
@@ -5260,8 +5261,8 @@ export async function processEvaluationJob(
                 at: blockedNow,
                 event: 'review_gate_blocked',
                 stage: 'phase_1a',
-                block_code: reviewGateHandoffResult.blocked.progress.block_code,
-                block_reason: reviewGateHandoffResult.blocked.progress.block_reason,
+                block_code: blocked.progress.block_code,
+                block_reason: blocked.progress.block_reason,
               },
             ],
           };
@@ -5289,10 +5290,10 @@ export async function processEvaluationJob(
           console.warn(
             `[Processor] ${jobId}: review_gate handoff blocked`,
             {
-              block_code: reviewGateHandoffResult.blocked.progress.block_code,
-              block_reason: reviewGateHandoffResult.blocked.progress.block_reason,
-              pass3a_status: reviewGateHandoffResult.blocked.progress.pass3a_status ?? null,
-              pass3a_gate_validity: reviewGateHandoffResult.blocked.progress.pass3a_gate_validity,
+              block_code: blocked.progress.block_code,
+              block_reason: blocked.progress.block_reason,
+              pass3a_status: blocked.progress.pass3a_status ?? null,
+              pass3a_gate_validity: blocked.progress.pass3a_gate_validity,
             },
           );
           return { success: true };
