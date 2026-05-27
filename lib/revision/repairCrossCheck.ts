@@ -419,7 +419,7 @@ export async function crossCheckRepair(
 
   const result = await callPerplexityVerifier(input, apiKey, opts);
 
-  if (sb) {
+  if (sb && result.verdict !== "unavailable") {
     await persistCrossCheck(input, result, hashes, sb).catch((err) => {
       console.warn(
         "[RepairCrossCheck] Failed to persist cross-check result (non-fatal):",
