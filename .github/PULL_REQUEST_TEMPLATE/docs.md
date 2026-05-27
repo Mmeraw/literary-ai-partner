@@ -1,53 +1,86 @@
+<!-- PR Template: Documentation Change -->
+<!-- Trust-proof validator: node scripts/validate-pr-trust-proof.mjs -->
+
 ## Summary
 
-> Validation rule: blank sections, placeholder-only answers (for example, `TBD`, `TODO`, bare `N/A`) fail. Use `N/A — <reason>` when a section truly does not apply.
-
-<!-- 1–3 sentences describing what doc changes and why. -->
+<!-- What docs, specs, or canon files are changing? -->
 
 ## Scope
 
-<!-- Which docs / governance briefs / READMEs are affected. -->
+**In scope:**
 
-## Unauthorized Input Sources
+- 
 
-<!-- Document any input source described/introduced by this docs change and confirm authorized boundaries + validation handling remain accurate.
-If none: state "None". -->
+**Out of scope:**
 
-## Internal Process Leakage
-
-<!-- Confirm docs do not disclose internal-only process details, secret handling paths, or sensitive internals not intended for public consumption. -->
+- 
 
 ## Input → Action → Output
 
-<!-- Document the intended user-facing Input → Action → Output contract clarified by this docs change.
-If no behavioral contract is described, state "N/A" and why. -->
+**Input:** <!-- What triggers or feeds this change? -->
+
+**Action:** <!-- What does this PR actually do? -->
+
+**Output:** <!-- What is the observable result? -->
+
+## Process Change
+
+<!-- Does this documentation change affect public-facing product claims, API contracts, or architectural decisions? -->
+<!-- State: "Process Change: yes" or "Process Change: no — reason: ..." -->
+
+Process Change: 
+
+## Authority Source
+
+<!-- Which canonical document or decision does this doc change derive from? -->
+
+## Unauthorized Input Sources
+
+<!-- Does this PR introduce new input sources? (provider calls, external APIs, user input paths, env vars read at runtime)
+     If no: state "No unauthorized input sources are introduced." -->
+
+## Internal Process Leakage
+
+<!-- Does this PR expose internal phase names, artifact types, model names, prompt versions, or governance
+     traces to public-facing surfaces (UI, API responses, error messages)?
+     If no: state "No internal process leakage is introduced." -->
 
 ## Public-Safe Quality/Status Metrics
 
-<!-- Confirm any metrics/status language is public-safe and does not expose internal-only telemetry semantics. -->
+<!-- What quality or status signals does this PR expose publicly?
+     Confirm they are safe for authors/users to see without revealing internal pipeline details. -->
 
 ## Runtime/Pipeline Expansion
 
-<!-- Confirm this docs PR does not introduce hidden runtime/pipeline expansion claims.
-If none: state "None". -->
+<!-- Does this PR add evaluation phases, model calls, DB writes, artifact types, or new worker paths?
+     If no: state "No hidden runtime or pipeline expansion." -->
 
 ## Latency Impact
 
-<!-- Confirm no unnecessary latency increase is introduced by the described behavior.
-For docs-only edits, state "None — documentation only". -->
+<!-- What is the expected latency impact of this change?
+     If no increase: state "No unnecessary latency increase." -->
 
-## Branch Freshness (Never Behind)
+## Post-Merge Sanity Sweep
 
-<!-- Required merge gate: PR head must include current base HEAD. -->
+<!-- Include the exact commands to verify correctness after merge. Example:
+```bash
+git checkout main && git pull --ff-only
+npm test -- __tests__/relevant-test.test.ts --runInBand
+node scripts/validate-pr-trust-proof.mjs
+``` -->
 
-Branch-Behind-Base: 0
+## Actionlint Status
 
-## Risks & Anomalies
+<!-- State whether GitHub Actions workflow YAML has been validated with actionlint.
+     If not run locally: "Full actionlint validation remains unproven in this environment until CI proves it." -->
 
-<!-- What could go wrong (e.g. doc contradicts code; outdated link; misleading example); how it's mitigated. -->
+## Trust-Proof Checklist
 
----
-
-No-Pipeline-Impact: Confirmed — this PR does not modify lib/evaluation/**, app/api/workers/**, prompts, or any pipeline contract.
-
-<!-- pr-type: docs -->
+- [ ] No unauthorized input sources introduced.
+- [ ] No internal process leakage introduced.
+- [ ] Input → Action → Output is explicit.
+- [ ] Public-safe quality/status metrics are identified.
+- [ ] No hidden runtime/pipeline expansion.
+- [ ] No unnecessary latency increase.
+- [ ] Post-merge sanity sweep instructions included.
+- [ ] Actionlint status stated.
