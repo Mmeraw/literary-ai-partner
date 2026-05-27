@@ -7,7 +7,7 @@ export type WaveProofProgressPatch = {
   wave_revision_proof_code: string;
   wave_revision_proof_reason: string;
   quality_gate_label: 'Quality Gate';
-  wave_label: 'WAVE Revision';
+  wave_label: 'WAVE Readiness Layer';
 };
 
 /**
