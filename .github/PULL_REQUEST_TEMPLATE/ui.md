@@ -1,75 +1,90 @@
+<!-- PR Template: UI/UX Change -->
+<!-- Trust-proof validator: node scripts/validate-pr-trust-proof.mjs -->
+
 ## Summary
 
-> Validation rule: blank sections, placeholder-only answers (for example, `TBD`, `TODO`, bare `N/A`) fail. Use `N/A — <reason>` when a section truly does not apply.
-
-<!-- 1–3 sentences describing what changed visually or interactively. -->
+<!-- What components, pages, or design elements are changing? -->
 
 ## Scope
 
-<!-- Which screens / components / routes are affected. What is explicitly NOT touched (e.g. evaluation pipeline, API workers). -->
+**In scope:**
 
-## Visual Evidence
+- 
 
-<!-- Before/after screenshots or short clips. For first-render surfaces: state "N/A — first render of <surface>" and include a screenshot of the new state. -->
+**Out of scope:**
 
-| State | Before | After |
-| --- | --- | --- |
-|       |        |       |
-
-## Accessibility
-
-<!-- Color contrast notes, keyboard nav, ARIA labels, focus order. If no interactive surface added, state "N/A — no interactive surface added". -->
-
-## Browser Targets
-
-<!-- Default: Chrome, Safari, Firefox latest. Note any browser-specific concerns. -->
-
-- Chrome latest: ✅
-- Safari latest: ✅
-- Firefox latest: ✅
-
-## Unauthorized Input Sources
-
-<!-- Explicitly state all input sources used by this UI path (user form, query params, headers, local storage, etc.).
-For each, describe authorization boundary and validation/sanitization path. If none: state "None". -->
-
-## Internal Process Leakage
-
-<!-- Confirm no internal process details are exposed (internal IDs, worker state internals, stack traces, hidden control-flow signals).
-List any sensitive fields reviewed and redacted/omitted. -->
+- 
 
 ## Input → Action → Output
 
-<!-- Provide a concise flow map of UI input, action taken, and output rendered.
-Include failure path behavior and user-facing error contract (safe + non-sensitive). -->
+**Input:** <!-- What triggers or feeds this change? -->
+
+**Action:** <!-- What does this PR actually do? -->
+
+**Output:** <!-- What is the observable result? -->
+
+## Process Change
+
+<!-- Does this change modify how data flows to the user or what information is shown? -->
+<!-- State: "Process Change: yes" or "Process Change: no — reason: ..." -->
+
+Process Change: 
+
+## Visual Regression
+
+<!-- Describe any visual regression testing done. Screenshot comparisons, Storybook, or manual review. -->
+
+## Accessibility
+
+<!-- State any accessibility (a11y) impact. Does this change affect screen readers, keyboard nav, or ARIA roles? -->
+
+## Unauthorized Input Sources
+
+<!-- Does this PR introduce new input sources? (provider calls, external APIs, user input paths, env vars read at runtime)
+     If no: state "No unauthorized input sources are introduced." -->
+
+## Internal Process Leakage
+
+<!-- Does this PR expose internal phase names, artifact types, model names, prompt versions, or governance
+     traces to public-facing surfaces (UI, API responses, error messages)?
+     If no: state "No internal process leakage is introduced." -->
 
 ## Public-Safe Quality/Status Metrics
 
-<!-- List user-visible metrics/status indicators and confirm they are public-safe (no internal-only telemetry leakage).
-If not applicable: state "N/A" with reason. -->
+<!-- What quality or status signals does this PR expose publicly?
+     Confirm they are safe for authors/users to see without revealing internal pipeline details. -->
 
 ## Runtime/Pipeline Expansion
 
-<!-- Declare whether this PR adds any new runtime calls, workers, API routes, or pipeline paths.
-If none: state "None" and explain why execution surface is unchanged. -->
+<!-- Does this PR add evaluation phases, model calls, DB writes, artifact types, or new worker paths?
+     If no: state "No hidden runtime or pipeline expansion." -->
 
 ## Latency Impact
 
-<!-- Provide before/after interaction latency evidence (or state why there is no measurable impact).
-If impact exists, include mitigation and acceptance rationale. -->
+<!-- What is the expected latency impact of this change?
+     If no increase: state "No unnecessary latency increase." -->
 
-## Branch Freshness (Never Behind)
+## Post-Merge Sanity Sweep
 
-<!-- Required merge gate: PR head must include current base HEAD. -->
+<!-- Include the exact commands to verify correctness after merge. Example:
+```bash
+git checkout main && git pull --ff-only
+npm test -- __tests__/relevant-test.test.ts --runInBand
+node scripts/validate-pr-trust-proof.mjs
+``` -->
 
-Branch-Behind-Base: 0
+## Actionlint Status
 
-## Risks & Anomalies
+<!-- State whether GitHub Actions workflow YAML has been validated with actionlint.
+     If not run locally: "Full actionlint validation remains unproven in this environment until CI proves it." -->
 
-<!-- What could go wrong; how it's mitigated. -->
+## Trust-Proof Checklist
 
----
-
-No-Pipeline-Impact: Confirmed — this PR does not modify lib/evaluation/**, app/api/workers/**, prompts, or any pipeline contract.
-
-<!-- pr-type: ui -->
+- [ ] No unauthorized input sources introduced.
+- [ ] No internal process leakage introduced.
+- [ ] Input → Action → Output is explicit.
+- [ ] Public-safe quality/status metrics are identified.
+- [ ] No hidden runtime/pipeline expansion.
+- [ ] No unnecessary latency increase.
+- [ ] Post-merge sanity sweep instructions included.
+- [ ] Actionlint status stated.
