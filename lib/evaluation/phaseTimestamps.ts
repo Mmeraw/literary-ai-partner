@@ -10,8 +10,10 @@
  *   - review_gate_passed_at   (written when author approves / gate passes)
  *   - phase2_started_at       (written when phase_2 begins running)
  *   - phase2_completed_at     (written when phase_2 finishes)
- *   - phase3_started_at       (written when phase_3 begins running)
- *   - phase3_completed_at     (written when phase_3 finishes / job complete)
+ *
+ * Phase 3 is a valid lifecycle phase, but phase3_started_at / phase3_completed_at
+ * are NOT physical top-level evaluation_jobs columns. Any phase_3 timing details
+ * are tracked in progress JSONB and must never be written as top-level columns.
  *
  * Generated / computed columns that must NEVER be written directly:
  *   - lease_expires_at  (GENERATED ALWAYS AS (lease_until) — write lease_until instead)
@@ -36,8 +38,6 @@ export const PHASE_TIMESTAMP_COLUMNS = [
   'review_gate_passed_at',
   'phase2_started_at',
   'phase2_completed_at',
-  'phase3_started_at',
-  'phase3_completed_at',
 ] as const;
 
 export type PhaseTimestampColumn = (typeof PHASE_TIMESTAMP_COLUMNS)[number];
@@ -67,7 +67,7 @@ export function getPhaseStartTimestamps(
         phase2_started_at: nowIso,
       };
     case 'phase_3':
-      return { phase3_started_at: nowIso };
+      return {};
     default: {
       const _exhaustive: never = phase;
       void _exhaustive;
@@ -94,7 +94,7 @@ export function getPhaseCompleteTimestamps(
     case 'phase_2':
       return { phase2_completed_at: nowIso };
     case 'phase_3':
-      return { phase3_completed_at: nowIso };
+      return {};
     default: {
       const _exhaustive: never = phase;
       void _exhaustive;
@@ -113,6 +113,8 @@ export function getPhaseCompleteTimestamps(
  * - lease_expires_at : GENERATED ALWAYS AS (lease_until) — Postgres rejects any attempt
  *   to write it directly with error 42601.
  * - phase1a_started_at / phase1a_completed_at : do not exist as DB columns.
+ * - phase3_started_at / phase3_completed_at : phase_3 lifecycle is valid, but these
+ *   top-level columns do not exist on evaluation_jobs.
  *
  * These are tracked in progress JSONB only if needed.
  */
@@ -120,6 +122,8 @@ export const FORBIDDEN_PATCH_COLUMNS = [
   'lease_expires_at',
   'phase1a_started_at',
   'phase1a_completed_at',
+  'phase3_started_at',
+  'phase3_completed_at',
 ] as const;
 
 export type ForbiddenPatchColumn = (typeof FORBIDDEN_PATCH_COLUMNS)[number];
