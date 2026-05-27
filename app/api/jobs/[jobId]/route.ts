@@ -49,9 +49,10 @@ type CanonicalJobResponse = {
   phase?: CanonicalPhase | null;
   phase_status?: CanonicalPhaseStatus | null;
   /**
-   * Additive: cross-check / Pass 4 status surfaced from progress so the
+   * Additive: cross-check / Quality Gate status surfaced from progress so the
    * truthful progress bar can advance into "Final QA checks" and
    * "Preparing report" stages without relying on inference.
+   * Note: Quality Gate ≠ WAVE. WAVE is the long-form readiness layer after Quality Gate.
    */
   cross_check_status?: CrossCheckStatus | null;
   /**
