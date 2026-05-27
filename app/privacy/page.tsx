@@ -76,7 +76,7 @@ export default function PrivacyPage() {
             This Privacy Policy explains how RevisionGrade collects, uses, stores, shares, and protects information when you use our website, manuscript evaluation tools, revision workflows, dashboards, reports, exports, and related services.
           </p>
           <p>
-            This policy is written for transparency and product trust. It should be reviewed by legal counsel before public launch, enterprise use, or expansion into new jurisdictions.
+            We treat manuscripts and author materials as confidential creative work. This policy explains what information we collect, why we use it, how long we keep it, and the choices available to you.
           </p>
         </div>
 
