@@ -13,10 +13,10 @@ import {
 describe("getProgressDisplay: canonical state mapping", () => {
   // ── Queued ───────────────────────────────────────────────────────────────
 
-  test("status=queued -> Calibrating evaluation standards, 2%, blue", () => {
+  test("status=queued -> Waiting in queue, 2%, blue", () => {
     const pd = getProgressDisplay({ status: "queued" });
     expect(pd).not.toBeNull();
-    expect(pd!.label).toBe("Calibrating evaluation standards...");
+    expect(pd!.label).toBe("Waiting in queue");
     expect(pd!.percentage).toBe(2);
     expect(pd!.color).toBe("blue");
     expect(pd!.hardStop).toBe(false);
@@ -187,10 +187,10 @@ describe("getProgressDisplay: canonical state mapping", () => {
 
   // ── Unknown running state ─────────────────────────────────────────────────
 
-  test("running with no phase -> calibrating label, 5%", () => {
+  test("running with no phase -> preparing environment label, 5%", () => {
     const pd = getProgressDisplay({ status: "running" });
     expect(pd).not.toBeNull();
-    expect(pd!.label).toBe("Calibrating evaluation standards...");
+    expect(pd!.label).toBe("Preparing evaluation environment");
     expect(pd!.percentage).toBe(5);
   });
 });

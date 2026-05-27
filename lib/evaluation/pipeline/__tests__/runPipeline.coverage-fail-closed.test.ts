@@ -1,6 +1,6 @@
 // @ts-nocheck
 
-import { describe, expect, test } from "@jest/globals";
+import { afterAll, beforeAll, describe, expect, test } from "@jest/globals";
 import { runPipeline } from "../runPipeline";
 import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
 
@@ -48,6 +48,20 @@ const NEVER_RUN = async () => {
 };
 
 describe("runPipeline coverage fail-closed", () => {
+  const originalPerplexityApiKey = process.env.PERPLEXITY_API_KEY;
+
+  beforeAll(() => {
+    delete process.env.PERPLEXITY_API_KEY;
+  });
+
+  afterAll(() => {
+    if (originalPerplexityApiKey === undefined) {
+      delete process.env.PERPLEXITY_API_KEY;
+    } else {
+      process.env.PERPLEXITY_API_KEY = originalPerplexityApiKey;
+    }
+  });
+
   test("fails with MANUSCRIPT_CHUNK_COVERAGE_INCOMPLETE when chunk coverage is partial", async () => {
     const result = await runPipeline({
       manuscriptText: "word ".repeat(6000),

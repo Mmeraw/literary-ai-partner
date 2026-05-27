@@ -16,7 +16,7 @@
  * runners that throw if invoked, so a passing test proves no pass ran.
  */
 
-import { describe, expect, test } from "@jest/globals";
+import { beforeAll, afterAll, describe, expect, test } from "@jest/globals";
 import { runPipeline } from "../runPipeline";
 import { getDefaultPassInputCharBudget } from "../promptInput";
 import type { ManuscriptChunkEvidence } from "../types";
@@ -60,6 +60,20 @@ function expectFailure(result: Awaited<ReturnType<typeof runPipeline>>): Pipelin
 }
 
 describe("runPipeline chunk-shape guards", () => {
+  const originalPerplexityApiKey = process.env.PERPLEXITY_API_KEY;
+
+  beforeAll(() => {
+    delete process.env.PERPLEXITY_API_KEY;
+  });
+
+  afterAll(() => {
+    if (originalPerplexityApiKey === undefined) {
+      delete process.env.PERPLEXITY_API_KEY;
+    } else {
+      process.env.PERPLEXITY_API_KEY = originalPerplexityApiKey;
+    }
+  });
+
   describe("CHUNK_BUDGET_OVERFLOW (upper bound)", () => {
     test("100k-char single chunk fails closed", async () => {
       const result = await runPipeline({

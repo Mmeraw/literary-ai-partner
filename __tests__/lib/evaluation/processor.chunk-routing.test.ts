@@ -236,6 +236,27 @@ function makeSupabaseStub(
                 if (artifactType === "pass12_handoff_v1") {
                   return { data: { content: pass12HandoffContent }, error: null };
                 }
+                if (artifactType === "accepted_story_ledger_v1") {
+                  return {
+                    data: {
+                      content: {
+                        governance_rail: {
+                          layer_decisions: {
+                            identity_layer: { decision: "accept" },
+                            cast_layer: { decision: "accept" },
+                            pov_layer: { decision: "accept" },
+                            relationship_layer: { decision: "accept" },
+                            object_symbol_layer: { decision: "accept" },
+                            location_timeline_layer: { decision: "accept" },
+                            threat_ending_layer: { decision: "accept" },
+                            source_integrity_layer: { decision: "accept" },
+                          },
+                        },
+                      },
+                    },
+                    error: null,
+                  };
+                }
                 if (artifactType === "evaluation_result_v2") {
                   return { data: null, error: null };
                 }

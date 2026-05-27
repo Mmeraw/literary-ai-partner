@@ -22,7 +22,7 @@ describe('Evaluate submission form mode-control removal guard', () => {
       expect(source).not.toContain(label);
     }
 
-    expect(source).toContain('Mode confirmation happens after analysis');
-    expect(source).toContain('Mode will be detected after analysis and confirmed with you before Revise.');
+    expect(source).toContain('RevisionGrade confirms the final mode during analysis.');
+    expect(source).toContain('Estimated Mode');
   });
 });

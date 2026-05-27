@@ -16,11 +16,22 @@ export type ProgressValidationError =
 export function validateProgressForPhase(
   job: Job,
 ): ProgressValidationError | null {
-  const { phase, phase_status } = job.progress || {};
+  const { phase } = job.progress || {};
 
   // Unknown or missing phase
-  if (!phase || (phase !== PHASES.PHASE_1A && phase !== PHASES.PHASE_2)) {
+  if (!phase || !Object.values(PHASES).includes(phase as (typeof PHASES)[keyof typeof PHASES])) {
     return "phase_unknown";
+  }
+
+  // Phase-v2 states that are externally visible but do not use
+  // phase1/phase2 counter contracts. Treat as valid/no-op here.
+  if (
+    phase === PHASES.PHASE_0 ||
+    phase === PHASES.REVIEW_GATE ||
+    phase === PHASES.PHASE_3 ||
+    phase === PHASES.WAVE_REVISION
+  ) {
+    return null;
   }
 
   if (phase === PHASES.PHASE_1A) {
@@ -31,7 +42,7 @@ export function validateProgressForPhase(
     return validatePhase2Progress(job);
   }
 
-  return null;
+  return "phase_unknown";
 }
 
 function validatePhase1Progress(job: Job): ProgressValidationError | null {

@@ -9,7 +9,7 @@
  * 5. Guard does not modify Pass 1 output.
  */
 
-import { describe, it, expect } from "@jest/globals";
+import { beforeAll, afterAll, describe, it, expect } from "@jest/globals";
 import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
 import {
   enforcePass2LexicalIndependence,
@@ -21,6 +21,20 @@ import {
   QG_INDEPENDENCE_NGRAM_SIZE,
 } from "@/lib/evaluation/pipeline/qualityGate";
 import type { SinglePassOutput, PipelineResult } from "@/lib/evaluation/pipeline/types";
+
+const originalPerplexityApiKey = process.env.PERPLEXITY_API_KEY;
+
+beforeAll(() => {
+  delete process.env.PERPLEXITY_API_KEY;
+});
+
+afterAll(() => {
+  if (originalPerplexityApiKey === undefined) {
+    delete process.env.PERPLEXITY_API_KEY;
+  } else {
+    process.env.PERPLEXITY_API_KEY = originalPerplexityApiKey;
+  }
+});
 
 /** Assertion helper: narrows PipelineResult to the ok: false branch. */
 function assertPipelineFailed(

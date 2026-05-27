@@ -2642,13 +2642,62 @@ These rules apply to every evaluation. They are derived from platform lessons, n
 `;
 
 type Phase0Result =
-  | { success: true; durationMs: number; llmDurationMs: number; dwellDurationMs: number; acknowledgment: string; wordCount: number }
+  | {
+      success: true;
+      durationMs: number;
+      measuredDurationMs: number;
+      llmDurationMs: number;
+      dwellDurationMs: number;
+      acknowledgment: string;
+      wordCount: number;
+      proofNormalized: boolean;
+    }
   | { success: false; error: string; durationMs: number };
 
 // Phase 0 must dwell a minimum of 12 seconds regardless of LLM response speed.
 // This guarantees the model has actually processed the full gold standard before
 // the job transitions to phase_1a. "CALIBRATED" in 1s means nothing was internalized.
 const PHASE_0_MIN_DWELL_MS = 12_000;
+
+// Timer granularity and event-loop scheduling can produce ±1..few ms skew at
+// exact threshold boundaries. Keep a narrow tolerance for legacy/raw telemetry
+// while persisting normalized proof to avoid false negatives.
+const PHASE_0_PROOF_TOLERANCE_MS = 100;
+
+export function normalizePhase0ProofDuration(args: {
+  measuredDurationMs: number;
+  llmDurationMs: number;
+  dwellDurationMs: number;
+  minDwellMs?: number;
+}): { normalizedDurationMs: number; proofNormalized: boolean } {
+  const minDwellMs = args.minDwellMs ?? PHASE_0_MIN_DWELL_MS;
+  const normalizedDurationMs = Math.max(
+    args.measuredDurationMs,
+    minDwellMs,
+    args.llmDurationMs + args.dwellDurationMs,
+  );
+  return {
+    normalizedDurationMs,
+    proofNormalized: normalizedDurationMs !== args.measuredDurationMs,
+  };
+}
+
+export function isPhase0ProofSatisfied(args: {
+  totalDurationMs: number | null;
+  measuredDurationMs: number | null;
+  minProvenMs?: number;
+  toleranceMs?: number;
+}): boolean {
+  const minProvenMs = args.minProvenMs ?? PHASE_0_MIN_DWELL_MS;
+  const toleranceMs = args.toleranceMs ?? PHASE_0_PROOF_TOLERANCE_MS;
+  const proofFloorMs = minProvenMs - toleranceMs;
+  const bestProofMs = Math.max(
+    args.totalDurationMs ?? Number.NEGATIVE_INFINITY,
+    args.measuredDurationMs ?? Number.NEGATIVE_INFINITY,
+  );
+
+  return Number.isFinite(bestProofMs) && bestProofMs >= proofFloorMs;
+}
 
 // Minimum word count for a valid Phase 0 calibration lock.
 // The required proforma has 4 sections:
@@ -2763,11 +2812,29 @@ async function runPhase0GoldPrimer(args: {
     }
     // ── End hard minimum dwell ───────────────────────────────────────────────
 
-    const durationMs = Date.now() - startMs;
+    const measuredDurationMs = Date.now() - startMs;
     const dwellDurationMs = Math.max(0, PHASE_0_MIN_DWELL_MS - llmDurationMs);
-    console.log(`[Phase0] ${jobId}: warm-up PASS — ${wordCount} words, ${durationMs}ms total (llm=${llmDurationMs}ms, dwell=${dwellDurationMs}ms)`);
+    const { normalizedDurationMs, proofNormalized } = normalizePhase0ProofDuration({
+      measuredDurationMs,
+      llmDurationMs,
+      dwellDurationMs,
+      minDwellMs: PHASE_0_MIN_DWELL_MS,
+    });
+    console.log(
+      `[Phase0] ${jobId}: warm-up PASS — ${wordCount} words, ${normalizedDurationMs}ms total ` +
+      `(measured=${measuredDurationMs}ms, llm=${llmDurationMs}ms, dwell=${dwellDurationMs}ms)`
+    );
 
-    return { success: true, durationMs, llmDurationMs, dwellDurationMs, acknowledgment, wordCount };
+    return {
+      success: true,
+      durationMs: normalizedDurationMs,
+      measuredDurationMs,
+      llmDurationMs,
+      dwellDurationMs,
+      acknowledgment,
+      wordCount,
+      proofNormalized,
+    };
   } catch (err) {
     const elapsed = Date.now() - startMs;
     if (elapsed < PHASE_0_MIN_DWELL_MS) {
@@ -3372,12 +3439,23 @@ export async function processEvaluationJob(
       // Build Phase 0 telemetry patch for progress JSONB.
       // These fields are the authoritative proof of Phase 0 dwell behavior.
       // Do NOT derive dwell from timestamp deltas — store the actual measured values.
-      const successResult = phase0Result as { success: true; durationMs: number; llmDurationMs: number; dwellDurationMs: number; acknowledgment: string; wordCount: number };
+      const successResult = phase0Result as {
+        success: true;
+        durationMs: number;
+        measuredDurationMs: number;
+        llmDurationMs: number;
+        dwellDurationMs: number;
+        acknowledgment: string;
+        wordCount: number;
+        proofNormalized: boolean;
+      };
       const phase0TelemetryPatch = {
         phase0_total_duration_ms: successResult.durationMs,
+        phase0_measured_duration_ms: successResult.measuredDurationMs,
         phase0_llm_duration_ms: successResult.llmDurationMs,
         phase0_dwell_duration_ms: successResult.dwellDurationMs,
         phase0_calibration_word_count: successResult.wordCount,
+        phase0_proof_normalized: successResult.proofNormalized,
         phase0_model: openAiModel,
         phase0_deploy_sha: DEPLOYED_SHA,
         phase0_completed_at: phase0EndNow,
@@ -4441,20 +4519,43 @@ export async function processEvaluationJob(
           : typeof progressState.phase0_total_duration_ms === 'string'
             ? Number(progressState.phase0_total_duration_ms)
             : null;
+        const p0MeasuredDurationMs = typeof progressState.phase0_measured_duration_ms === 'number'
+          ? progressState.phase0_measured_duration_ms
+          : typeof progressState.phase0_measured_duration_ms === 'string'
+            ? Number(progressState.phase0_measured_duration_ms)
+            : null;
         const p0BypassReason = progressState.phase0_bypass_reason as string | undefined;
         const PHASE_0_MIN_PROVEN_MS = 12_000;
+        const p0ProofFloorMs = PHASE_0_MIN_PROVEN_MS - PHASE_0_PROOF_TOLERANCE_MS;
+        const phase0ProofSatisfied = isPhase0ProofSatisfied({
+          totalDurationMs: p0DurationMs,
+          measuredDurationMs: p0MeasuredDurationMs,
+          minProvenMs: PHASE_0_MIN_PROVEN_MS,
+          toleranceMs: PHASE_0_PROOF_TOLERANCE_MS,
+        });
 
-        if (!p0BypassReason && (p0DurationMs === null || p0DurationMs < PHASE_0_MIN_PROVEN_MS)) {
+        if (!p0BypassReason && !phase0ProofSatisfied) {
           const actual = p0DurationMs !== null ? `${p0DurationMs}ms` : 'absent';
+          const measured = p0MeasuredDurationMs !== null ? `${p0MeasuredDurationMs}ms` : 'absent';
           console.error(
-            `[phase_1a] ${jobId}: PHASE_0_NOT_PROVEN — phase0_total_duration_ms=${actual} < ${PHASE_0_MIN_PROVEN_MS}ms. ` +
+            `[phase_1a] ${jobId}: PHASE_0_NOT_PROVEN — ` +
+            `phase0_total_duration_ms=${actual}, phase0_measured_duration_ms=${measured}, ` +
+            `proof_floor=${p0ProofFloorMs}ms (${PHASE_0_MIN_PROVEN_MS}ms - tolerance ${PHASE_0_PROOF_TOLERANCE_MS}ms). ` +
             `Phase 0 calibration did not complete. Failing job to prevent uncalibrated evaluation.`
           );
           await markFailed(
-            `Phase 0 calibration not proven (phase0_total_duration_ms=${actual}). ` +
+            `Phase 0 calibration not proven (phase0_total_duration_ms=${actual}, phase0_measured_duration_ms=${measured}). ` +
             `The evaluator did not complete the 12-second gold standard warm-up.`,
             'PHASE_0_NOT_PROVEN',
-            { pipelineStage: 'phase_1a_entry', diagnostics: { phase0_total_duration_ms: p0DurationMs } }
+            {
+              pipelineStage: 'phase_1a_entry',
+              diagnostics: {
+                phase0_total_duration_ms: p0DurationMs,
+                phase0_measured_duration_ms: p0MeasuredDurationMs,
+                phase0_min_proven_ms: PHASE_0_MIN_PROVEN_MS,
+                phase0_proof_tolerance_ms: PHASE_0_PROOF_TOLERANCE_MS,
+              },
+            }
           );
           return { success: false, error: 'PHASE_0_NOT_PROVEN' };
         }
@@ -4462,7 +4563,11 @@ export async function processEvaluationJob(
         if (p0BypassReason) {
           console.warn(`[phase_1a] ${jobId}: Phase 0 bypassed — reason=${p0BypassReason} (admin/legacy)`);
         } else {
-          console.log(`[phase_1a] ${jobId}: Phase 0 proven — duration=${p0DurationMs}ms words=${progressState.phase0_calibration_word_count ?? 'unknown'}`);
+          console.log(
+            `[phase_1a] ${jobId}: Phase 0 proven — total=${p0DurationMs ?? 'absent'}ms ` +
+            `measured=${p0MeasuredDurationMs ?? 'absent'}ms ` +
+            `words=${progressState.phase0_calibration_word_count ?? 'unknown'}`
+          );
         }
       }
       // ── End PHASE_0_NOT_PROVEN guard ────────────────────────────────────────

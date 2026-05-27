@@ -10,7 +10,7 @@ describe("resolveReportTitle", () => {
 
     expect(result).toEqual({
       displayTitle: "Chapter 7: Quiet Breakage",
-      pageTitle: "Chapter 7: Quiet Breakage — Evaluation Report",
+      pageTitle: "Evaluation Report",
       chapterTitle: "Chapter 7: Quiet Breakage",
       manuscriptTitle: "The Long Manuscript",
     });
@@ -24,7 +24,7 @@ describe("resolveReportTitle", () => {
     });
 
     expect(result.displayTitle).toBe("Manuscript Title");
-    expect(result.pageTitle).toBe("Manuscript Title — Evaluation Report");
+    expect(result.pageTitle).toBe("Evaluation Report");
   });
 
   it("falls back to source title and then Untitled", () => {

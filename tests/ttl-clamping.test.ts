@@ -74,10 +74,10 @@ async function insertTestManuscript(): Promise<number> {
 async function insertTestJob(manuscriptId: number): Promise<string> {
   const result = runSql(`
     INSERT INTO public.evaluation_jobs (
-      manuscript_id, job_type, status, phase, policy_family,
+      manuscript_id, job_type, status, phase, phase_status, policy_family,
       voice_preservation_level, english_variant, work_type
     ) VALUES (
-      ${manuscriptId}, 'full_evaluation', 'queued', 'phase_1a', 'standard',
+      ${manuscriptId}, 'full_evaluation', 'queued', 'phase_1a', 'queued', 'standard',
       'balanced', 'us', 'full_evaluation'
     ) RETURNING id;
   `);
@@ -106,6 +106,7 @@ describe('TTL Clamping Tests', () => {
   const testIt = skipIfNoDeps() ? it.skip : it;
 
   beforeEach(async () => {
+    runSql("DELETE FROM public.evaluation_jobs WHERE status = 'queued';");
     manuscriptId = await insertTestManuscript();
     jobId = await insertTestJob(manuscriptId);
   });
@@ -120,7 +121,7 @@ describe('TTL Clamping Tests', () => {
   testIt('clamps negative TTL to minimum 30 seconds', async () => {
     const result = runSql(`
       SELECT EXTRACT(EPOCH FROM (lease_until - '${testNow}'::timestamptz)) as actual_seconds
-      FROM claim_job_atomic('worker-neg', '${testNow}'::timestamptz, -100);
+      FROM claim_job_atomic('production:127.0.0.1:worker-neg', '${testNow}'::timestamptz, -100);
     `);
     const actualSeconds = Number.parseFloat(result);
     expect(actualSeconds).toBeGreaterThanOrEqual(30);
@@ -130,7 +131,7 @@ describe('TTL Clamping Tests', () => {
   testIt('clamps zero TTL to minimum 30 seconds', async () => {
     const result = runSql(`
       SELECT EXTRACT(EPOCH FROM (lease_until - '${testNow}'::timestamptz)) as actual_seconds
-      FROM claim_job_atomic('worker-zero', '${testNow}'::timestamptz, 0);
+      FROM claim_job_atomic('production:127.0.0.1:worker-zero', '${testNow}'::timestamptz, 0);
     `);
     const actualSeconds = Number.parseFloat(result);
     expect(actualSeconds).toBeGreaterThanOrEqual(30);
@@ -140,7 +141,7 @@ describe('TTL Clamping Tests', () => {
   testIt('clamps huge TTL to maximum 900 seconds', async () => {
     const result = runSql(`
       SELECT EXTRACT(EPOCH FROM (lease_until - '${testNow}'::timestamptz)) as actual_seconds
-      FROM claim_job_atomic('worker-huge', '${testNow}'::timestamptz, 10000);
+      FROM claim_job_atomic('production:127.0.0.1:worker-huge', '${testNow}'::timestamptz, 10000);
     `);
     const actualSeconds = Number.parseFloat(result);
     expect(actualSeconds).toBeLessThanOrEqual(900);
@@ -150,7 +151,7 @@ describe('TTL Clamping Tests', () => {
   testIt('accepts valid TTL within bounds (300 seconds)', async () => {
     const result = runSql(`
       SELECT EXTRACT(EPOCH FROM (lease_until - '${testNow}'::timestamptz)) as actual_seconds
-      FROM claim_job_atomic('worker-valid', '${testNow}'::timestamptz, 300);
+      FROM claim_job_atomic('production:127.0.0.1:worker-valid', '${testNow}'::timestamptz, 300);
     `);
     const actualSeconds = Number.parseFloat(result);
     expect(actualSeconds).toBeGreaterThanOrEqual(299);
@@ -166,7 +167,7 @@ describe('TTL Clamping Tests', () => {
     // First claim
     const result1 = runSql(`
       SELECT lease_until
-      FROM claim_job_atomic('worker-mono-1', '${testNow1}'::timestamptz, 30);
+      FROM claim_job_atomic('production:127.0.0.1:worker-mono-1', '${testNow1}'::timestamptz, 30);
     `);
     const oldLeaseUntil = new Date(result1).getTime();
     
@@ -180,7 +181,7 @@ describe('TTL Clamping Tests', () => {
     // Second claim at later time
     const result2 = runSql(`
       SELECT lease_until
-      FROM claim_job_atomic('worker-mono-2', '${testNow2}'::timestamptz, 30);
+      FROM claim_job_atomic('production:127.0.0.1:worker-mono-2', '${testNow2}'::timestamptz, 30);
     `);
     const newLeaseUntil = new Date(result2).getTime();
 

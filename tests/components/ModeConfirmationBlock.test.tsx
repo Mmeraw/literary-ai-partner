@@ -44,7 +44,7 @@ describe('ModeConfirmationBlock', () => {
     expect(screen.queryByRole('button', { name: 'Keep' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Replace' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Refine' })).toBeNull();
-    expect(screen.getByRole('button', { name: 'Confirm Mode' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Confirm Access' })).toBeTruthy();
   });
 
   it('submits keep when the confirmed selection matches the detected proposal', async () => {
@@ -62,7 +62,7 @@ describe('ModeConfirmationBlock', () => {
     fireEvent.change(screen.getByLabelText('Voice Preservation'), {
       target: { value: 'MAXIMUM' },
     });
-    fireEvent.click(screen.getByRole('button', { name: 'Confirm Mode' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm Access' }));
 
     await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(1));
     expect(global.fetch).toHaveBeenCalledWith(
@@ -84,7 +84,7 @@ describe('ModeConfirmationBlock', () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Confirm Mode' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Confirm Access' }));
 
     await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(1));
     expect(global.fetch).toHaveBeenCalledWith(
