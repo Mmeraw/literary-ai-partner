@@ -117,7 +117,8 @@ export async function POST(req: Request) {
         storygate_linked: false,
         allow_industry_discovery: false,
         is_final: false,
-        source: "proof_admin",
+        // Must satisfy manuscripts_source_check in production.
+        source: "uploaded",
         english_variant: "us",
         word_count: wordCount,
       })
