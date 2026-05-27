@@ -42,48 +42,61 @@ function toProposalInputs(
   findings: any[],
   sourceText: string,
 ): ProposalInputWithAnchorStatus[] {
-  return findings
-    .filter((f) => f.action_hint !== "preserve")
-    .map((f, idx) => {
-      const originalText = f.original_text ?? f.evidence_excerpt ?? "";
-      const anchor = buildAnchorForSnippet(sourceText, originalText);
+  const results: ProposalInputWithAnchorStatus[] = [];
 
-      if (anchor.anchor_status !== "created") {
-        throw new Error(
-          `Anchor generation failed for finding ${idx + 1} (${f.location_ref ?? "unknown"}): ${anchor.reason}`,
-        );
-      }
+  for (const [idx, f] of findings.entries()) {
+    if (f.action_hint === "preserve") continue;
 
+    const originalText = f.original_text ?? f.evidence_excerpt ?? "";
+    const anchor = buildAnchorForSnippet(sourceText, originalText);
+
+    if (anchor.anchor_status !== "created") {
+      console.warn(
+        `[revision-synthesis] Anchor failed for finding ${idx + 1} (${f.location_ref ?? "unknown"}): ${anchor.reason} — skipping (manual-only repair)`,
+      );
+      continue;
+    }
+
+    try {
       validateAnchorAgainstSource(anchor, sourceText, originalText);
-
       validateExtractionContract(
         { start_offset: anchor.start_offset, end_offset: anchor.end_offset, original_text: originalText },
         sourceText,
       );
+    } catch (err) {
+      console.warn(
+        `[revision-synthesis] Anchor validation failed for finding ${idx + 1} (${f.location_ref ?? "unknown"}): ${err instanceof Error ? err.message : String(err)} — skipping`,
+      );
+      continue;
+    }
 
-      return {
-        revision_session_id: revisionSessionId,
-        location_ref: f.location_ref ?? `finding:${idx + 1}`,
-        rule: f.criterion_key ?? f.finding_type ?? "diagnostic_finding",
-        action: (f.action_hint === "replace" ? "replace" : "refine") as ProposalAction,
-        original_text: originalText,
-        proposed_text: f.recommendation ?? f.diagnosis ?? "",
-        justification: f.diagnosis,
-        severity: (f.severity ?? "medium") as ProposalSeverity,
-        start_offset: anchor.start_offset,
-        end_offset: anchor.end_offset,
-        before_context: anchor.before_context,
-        after_context: anchor.after_context,
-        anchor_text_normalized: anchor.anchor_text_normalized ?? null,
-        _anchor_status: anchor.anchor_status,
-      };
-    })
-    .filter(
-      (input) =>
-        input.original_text.trim().length > 0 &&
-        input.proposed_text.trim().length > 0 &&
-        input.justification.trim().length > 0,
-    );
+    const input: ProposalInputWithAnchorStatus = {
+      revision_session_id: revisionSessionId,
+      location_ref: f.location_ref ?? `finding:${idx + 1}`,
+      rule: f.criterion_key ?? f.finding_type ?? "diagnostic_finding",
+      action: (f.action_hint === "replace" ? "replace" : "refine") as ProposalAction,
+      original_text: originalText,
+      proposed_text: f.recommendation ?? f.diagnosis ?? "",
+      justification: f.diagnosis,
+      severity: (f.severity ?? "medium") as ProposalSeverity,
+      start_offset: anchor.start_offset,
+      end_offset: anchor.end_offset,
+      before_context: anchor.before_context,
+      after_context: anchor.after_context,
+      anchor_text_normalized: anchor.anchor_text_normalized ?? null,
+      _anchor_status: anchor.anchor_status,
+    };
+
+    if (
+      input.original_text.trim().length > 0 &&
+      input.proposed_text.trim().length > 0 &&
+      input.justification.trim().length > 0
+    ) {
+      results.push(input);
+    }
+  }
+
+  return results;
 }
 
 export async function getFindingsSynthesisSummary(evaluationRunId: string): Promise<{

@@ -14,11 +14,14 @@ export type WorkbenchOption = {
   rationale: string
 }
 
+export type WorkbenchSource = 'evaluation' | 'deep_revision' | 'baseline_discovery'
+
 export type WorkbenchOpportunity = {
   id: string
   severity: WorkbenchSeverity
   scope: WorkbenchScope
   mode: WorkbenchMode
+  source: WorkbenchSource
   leverage: string
   crumb: string
   title: string
@@ -120,10 +123,18 @@ function optionsFor(finding: DiagnosticFinding, scope: WorkbenchScope): Workbenc
   ]
 }
 
+function inferSource(finding: DiagnosticFinding): WorkbenchSource {
+  const ft = finding.finding_type ?? ''
+  if (ft.startsWith('baseline_manuscript_discovery')) return 'baseline_discovery'
+  if (ft.startsWith('revision_') || ft.startsWith('repair_')) return 'deep_revision'
+  return 'evaluation'
+}
+
 function findingToOpportunity(finding: DiagnosticFinding, index: number): WorkbenchOpportunity {
   const severity = toSeverity(finding.severity)
   const scope = inferScope(finding)
   const mode = modeForScope(scope)
+  const source = inferSource(finding)
   const criterion = cleanLabel(finding.criterion_key || 'General')
   const evidence = splitEvidence(finding.evidence_excerpt ?? finding.original_text)
   const title = firstSentence(finding.diagnosis, `${criterion} revision opportunity`)
@@ -133,6 +144,7 @@ function findingToOpportunity(finding: DiagnosticFinding, index: number): Workbe
     severity,
     scope,
     mode,
+    source,
     leverage: scope === 'Structural' || scope === 'Manuscript' ? 'Structural' : cleanLabel(finding.finding_type || criterion),
     crumb: `${criterion} · ${finding.location_ref ?? `finding ${index + 1}`}`,
     title,
@@ -152,8 +164,14 @@ function findingToOpportunity(finding: DiagnosticFinding, index: number): Workbe
   }
 }
 
+const sourceOrder: Record<WorkbenchSource, number> = { evaluation: 0, deep_revision: 1, baseline_discovery: 2 }
+
 function sortOpportunities(items: WorkbenchOpportunity[]): WorkbenchOpportunity[] {
-  return [...items].sort((a, b) => severityOrder[a.severity] - severityOrder[b.severity] || a.title.localeCompare(b.title))
+  return [...items].sort((a, b) =>
+    severityOrder[a.severity] - severityOrder[b.severity]
+    || sourceOrder[a.source] - sourceOrder[b.source]
+    || a.title.localeCompare(b.title),
+  )
 }
 
 function emptyPayload(error: string | null): WorkbenchQueuePayload {
