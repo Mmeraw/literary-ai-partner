@@ -46,6 +46,20 @@ function generateText(targetWords: number): string {
 }
 
 describe("silent direct_window fallback is killed", () => {
+  const originalPerplexityApiKey = process.env.PERPLEXITY_API_KEY;
+
+  beforeAll(() => {
+    delete process.env.PERPLEXITY_API_KEY;
+  });
+
+  afterAll(() => {
+    if (originalPerplexityApiKey === undefined) {
+      delete process.env.PERPLEXITY_API_KEY;
+    } else {
+      process.env.PERPLEXITY_API_KEY = originalPerplexityApiKey;
+    }
+  });
+
   test("10k-word text with no chunks → CHUNK_ROUTING_NOT_ENGAGED before any pass", async () => {
     const manuscriptText = generateText(10_000);
     const result = await runPipeline({
@@ -82,7 +96,7 @@ describe("silent direct_window fallback is killed", () => {
     });
     const failure = expectFailure(result);
     expect(failure.error_code).not.toBe("CHUNK_ROUTING_NOT_ENGAGED");
-  });
+  }, 10_000);
 
   test("sub-threshold text (2,500 words) with no chunks is OK at the pipeline guard", async () => {
     // Below the structural chunking threshold (3k), direct evaluation is the
