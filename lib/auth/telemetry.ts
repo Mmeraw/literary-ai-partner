@@ -27,7 +27,7 @@ export function trackAuthRedirect(reason: 'login_required' | 'already_authentica
   safeMetricEmit('auth.middleware.redirect', { reason })
 }
 
-export function trackAuthBypass(reason: 'ci_test_missing_env'): void {
+export function trackAuthBypass(reason: 'ci_test_missing_env' | 'header_actor_test_mode'): void {
   safeMetricEmit('auth.middleware.bypass', { reason })
 }
 
