@@ -1,7 +1,8 @@
 /**
- * WAVE Revision Phase
+ * WAVE Readiness Layer
  *
- * Runs the WAVE revision engine as an inline post-evaluation phase.
+ * Runs the WAVE readiness / revision-planning analysis as an inline post-evaluation phase.
+ * WAVE diagnoses and plans — it does NOT perform revision. Revise Queue / TrustedPath repair.
  * Called by processor.ts after persistEvaluationResultV2 succeeds,
  * wrapped in a 60-second hard timeout.
  *
@@ -16,7 +17,7 @@
  *           ↓
  *   WAVE gate check (25k words + all criteria ≥ 6.0)
  *           ↓ eligible
- *   executeWaveRevision() ← this module
+ *   executeWaveRevision() ← WAVE Readiness Layer (diagnoses + plans; does NOT repair)
  *           ↓
  *   wave_revision_plan_v1 + wave_runs persisted
  *           ↓
@@ -25,7 +26,8 @@
  * WAVE modules are fully deterministic — zero LLM calls.
  * No timeout risk from individual modules; the 60s cap is a safety net only.
  *
- * Naming: "wave_revision" — NOT "pass4" (pass4 = QualityGate in this codebase).
+ * Naming: "wave_revision" internal key → public label: "WAVE Readiness Layer"
+ * NOT "Pass 4" (pass4 = QualityGate). NOT the Revise workflow (that is Revise Queue / TrustedPath).
  *
  * Artifact semantics:
  *   status="complete"  — WAVE ran, plan persisted
