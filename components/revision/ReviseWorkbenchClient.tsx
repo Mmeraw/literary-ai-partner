@@ -122,11 +122,21 @@ function decisionLabel(entry: LedgerEntry) {
 }
 
 function rebuildDecisionMap(entries: LedgerEntry[]): Record<string, DecisionState> {
+  // Collect localIds that have been undone so we can skip them.
+  const undoneIds = new Set<string>();
+  for (const entry of entries) {
+    if (entry.isUndo && entry.undoneLocalId) {
+      undoneIds.add(entry.undoneLocalId);
+    }
+  }
+
   const next: Record<string, DecisionState> = {};
   // Ledger is sorted newest-first. Iterate in order so the latest
   // decision per opportunity wins (first write to the key sticks).
   for (const entry of entries) {
     if (entry.decision === 'pending') continue;
+    if (entry.isUndo) continue;
+    if (undoneIds.has(entry.localId)) continue;
     if (!(entry.itemId in next)) {
       next[entry.itemId] = entry.decision;
     }

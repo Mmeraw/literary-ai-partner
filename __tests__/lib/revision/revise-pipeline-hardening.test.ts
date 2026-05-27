@@ -37,11 +37,20 @@ type LedgerEntry = {
   syncStatus: 'pending' | 'synced' | 'failed';
 };
 
-// Replicate the fixed rebuildDecisionMap logic.
+// Replicate the fixed rebuildDecisionMap logic (undo-aware).
 function rebuildDecisionMap(entries: LedgerEntry[]): Record<string, DecisionState> {
+  const undoneIds = new Set<string>();
+  for (const entry of entries) {
+    if (entry.isUndo && entry.undoneLocalId) {
+      undoneIds.add(entry.undoneLocalId);
+    }
+  }
+
   const next: Record<string, DecisionState> = {};
   for (const entry of entries) {
     if (entry.decision === 'pending') continue;
+    if (entry.isUndo) continue;
+    if (undoneIds.has(entry.localId)) continue;
     if (!(entry.itemId in next)) {
       next[entry.itemId] = entry.decision;
     }
@@ -88,12 +97,24 @@ describe('rebuildDecisionMap — latest decision wins', () => {
     expect(map['opp-2']).toBe('deferred');
   });
 
-  it('undo entry (keep_original with isUndo) correctly overrides prior decision', () => {
+  it('undo removes the target entry from the decision map', () => {
     const entries: LedgerEntry[] = [
       { ...base, localId: '2', createdAtIso: '2026-01-01T00:02:00Z', itemId: 'opp-1', decision: 'keep_original', isUndo: true, undoneLocalId: '1' },
       { ...base, localId: '1', createdAtIso: '2026-01-01T00:01:00Z', itemId: 'opp-1', decision: 'accepted_a' },
     ];
-    expect(rebuildDecisionMap(entries)).toEqual({ 'opp-1': 'keep_original' });
+    // Both entries are filtered: undo entry skipped, undone entry skipped → no decision
+    expect(rebuildDecisionMap(entries)).toEqual({});
+  });
+
+  it('undoing an older entry does NOT override a newer decision for the same opportunity', () => {
+    // Scenario: accept A → reject → undo the old accept_a
+    // The reject (newest real decision) must survive.
+    const entries: LedgerEntry[] = [
+      { ...base, localId: '3', createdAtIso: '2026-01-01T00:03:00Z', itemId: 'opp-1', decision: 'keep_original', isUndo: true, undoneLocalId: '1' },
+      { ...base, localId: '2', createdAtIso: '2026-01-01T00:02:00Z', itemId: 'opp-1', decision: 'reject' },
+      { ...base, localId: '1', createdAtIso: '2026-01-01T00:01:00Z', itemId: 'opp-1', decision: 'accepted_a' },
+    ];
+    expect(rebuildDecisionMap(entries)).toEqual({ 'opp-1': 'reject' });
   });
 });
 
@@ -293,7 +314,7 @@ describe('undo entry — server-persisted undo', () => {
     expect(undoEntry.decision).toBe('keep_original');
   });
 
-  it('undo replaces the prior decision in decisionMap', () => {
+  it('undo removes the target decision from decisionMap', () => {
     const entries: LedgerEntry[] = [
       {
         localId: 'undo-1',
@@ -318,6 +339,45 @@ describe('undo entry — server-persisted undo', () => {
       },
     ];
     const map = rebuildDecisionMap(entries);
-    expect(map['opp-1']).toBe('keep_original');
+    // Undo entry is a marker (skipped), undone entry is filtered → no decision remains
+    expect(map['opp-1']).toBeUndefined();
+  });
+
+  it('undoing older entry preserves newer decision for same opportunity', () => {
+    const entries: LedgerEntry[] = [
+      {
+        localId: 'undo-2',
+        at: '10:05:00',
+        createdAtIso: '2026-01-01T10:05:00Z',
+        itemId: 'opp-1',
+        itemTitle: 'Pacing fix',
+        decision: 'keep_original',
+        isUndo: true,
+        undoneLocalId: 'original-1',
+        syncStatus: 'pending',
+      },
+      {
+        localId: 'reject-1',
+        at: '10:03:00',
+        createdAtIso: '2026-01-01T10:03:00Z',
+        itemId: 'opp-1',
+        itemTitle: 'Pacing fix',
+        decision: 'reject',
+        syncStatus: 'synced',
+      },
+      {
+        localId: 'original-1',
+        at: '10:01:00',
+        createdAtIso: '2026-01-01T10:01:00Z',
+        itemId: 'opp-1',
+        itemTitle: 'Pacing fix',
+        decision: 'accepted_a',
+        selectedOption: 'A',
+        syncStatus: 'synced',
+      },
+    ];
+    const map = rebuildDecisionMap(entries);
+    // Undo removes original-1, undo entry itself is skipped → reject-1 is the surviving decision
+    expect(map['opp-1']).toBe('reject');
   });
 });
