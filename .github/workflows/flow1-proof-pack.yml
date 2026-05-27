@@ -53,55 +53,47 @@ jobs:
 
       - name: Start Supabase (local)
         shell: bash
-        timeout-minutes: 15
+        timeout-minutes: 25
         run: |
           set -euo pipefail
-          for attempt in 1 2 3; do
+          for attempt in 1 2 3 4 5; do
             if supabase start; then
               exit 0
             fi
 
-            if [ "$attempt" -lt 3 ]; then
-              WAIT=$(( attempt * 15 ))
-              echo "::warning::supabase start failed (attempt ${attempt}/3); waiting ${WAIT}s then retrying."
+            if [ "$attempt" -lt 5 ]; then
+              WAIT=$(( attempt * 30 ))
+              echo "::warning::supabase start failed (attempt ${attempt}/5); waiting ${WAIT}s then retrying."
               supabase stop || true
               docker system prune -f || true
               sleep $WAIT
             fi
           done
-
-          echo "::error::supabase start failed after 3 attempts."
+          echo "::error::supabase start failed after 5 attempts."
           exit 1
 
       - name: Export LOCAL Supabase env for CI
         shell: bash
         run: |
           set -euo pipefail
-
           echo "== supabase status =="
           supabase status
-
           echo "== supabase status -o env =="
           ENV_OUT="$(supabase status -o env)"
           echo "$ENV_OUT"
-
           if [ -z "${ENV_OUT}" ]; then
             echo "::error::supabase status -o env returned empty output."
             exit 1
           fi
-
           # Persist local env for subsequent steps
           echo "${ENV_OUT}" >> "$GITHUB_ENV"
-
           # Load into this shell so we can map variables
           set -a
           source <(echo "${ENV_OUT}")
           set +a
-
           # Map Supabase CLI names → Next.js expected names
           echo "NEXT_PUBLIC_SUPABASE_URL=${API_URL}" >> "$GITHUB_ENV"
           echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=${ANON_KEY}" >> "$GITHUB_ENV"
-
           # Optional: add CRON_SECRET for proof endpoint auth
           echo "CRON_SECRET=test-cron-secret-for-flow1-proof" >> "$GITHUB_ENV"
 
