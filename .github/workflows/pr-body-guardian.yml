@@ -69,6 +69,7 @@ jobs:
         env:
           BODY_FILE: ${{ steps.paths.outputs.body_file }}
           PR_NUMBER: ${{ steps.paths.outputs.pr_number }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -83,7 +84,7 @@ jobs:
             exit 0
           fi
           git commit -m "chore(pr-body): capture canonical body for PR #${PR_NUMBER} [skip ci]"
-          git push origin HEAD:"${{ github.event.pull_request.head.ref }}"
+          git push origin HEAD:"$HEAD_REF"
           echo "Committed and pushed canonical body file."
 
       # ── SYNC / REOPEN: restore body from committed file ──────────────────

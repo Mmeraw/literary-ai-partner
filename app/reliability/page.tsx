@@ -91,7 +91,7 @@ const workflow = [
   },
   {
     step: "Diagnose",
-    copy: "Name the failure level: structure, continuity, pressure, scene construction, voice, prose control, market fit, or readiness risk.",
+    copy: "Name the failure level: structure, continuity, pressure, scene integrity, voice, prose control, market fit, or readiness risk.",
   },
   {
     step: "Constrain",
