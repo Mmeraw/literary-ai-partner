@@ -19,16 +19,16 @@ const criteria = [
 
 const publicWaveSignals = [
   {
-    title: "Evidence before repair",
+    title: "Evidence before readiness",
     copy: "The system does not revise from a vague prompt. It begins with specific manuscript evidence and a diagnosed editorial reason.",
   },
   {
-    title: "Sequenced intervention",
-    copy: "Repairs are ordered by dependency and risk so surface polish does not mask deeper manuscript problems.",
+    title: "Sequenced readiness analysis",
+    copy: "Readiness findings are ordered by dependency and risk so downstream repair does not mask deeper manuscript problems.",
   },
   {
     title: "Voice protection",
-    copy: "A repair can be blocked, softened, or skipped when changing the sentence would damage the authorial signal.",
+    copy: "A downstream repair recommendation can be blocked, softened, or skipped when changing the sentence would damage the authorial signal.",
   },
   {
     title: "Author authority",
@@ -54,8 +54,8 @@ const workflow = [
   },
   {
     step: "04",
-    title: "Route into WAVE",
-    copy: "Eligible long-form manuscripts move from diagnosis into a proprietary WAVE repair sequence with governance and voice protection.",
+    title: "Apply WAVE readiness layer",
+    copy: "Eligible long-form manuscripts move through WAVE as a governed readiness analysis layer before revision opportunities enter Revise.",
   },
   {
     step: "05",
@@ -67,7 +67,7 @@ const workflow = [
 const proofPoints = [
   "13 story criteria before WAVE",
   "Short-form / long-form / multi-layer modes",
-  "Evidence-backed repair decisions",
+  "Evidence-backed readiness decisions",
   "Overcorrection protection",
   "Author-controlled repair queue",
   "TrustedPath™ governed automation",
@@ -84,7 +84,7 @@ const revisionContrasts = [
   },
   {
     title: "Not blind rewriting",
-    copy: "WAVE repair is bounded by evidence, ordered execution, and voice-protection rules. The author remains the final authority.",
+    copy: "WAVE readiness is bounded by evidence, ordered evaluation, and voice-protection rules. The author remains the final authority.",
   },
 ];
 
@@ -101,16 +101,16 @@ export default function Home() {
     <div className="bg-rg-ink text-rg-cream">
       <section className="mx-auto grid min-h-[calc(100vh-3.5rem)] max-w-7xl items-center gap-12 px-6 py-20 lg:grid-cols-[1.04fr_0.96fr] lg:py-28">
         <div>
-          <SectionLabel>RevisionGrade™ · WAVE Revision System™</SectionLabel>
+          <SectionLabel>RevisionGrade™ · WAVE Readiness System™</SectionLabel>
           <h1 className="mt-6 max-w-5xl font-rg-serif text-5xl leading-[0.95] tracking-tight text-rg-cream md:text-7xl">
-            Diagnose the manuscript. Then repair it through WAVE.
+            Diagnose the manuscript. Then repair it through Revise.
           </h1>
           <p className="mt-8 max-w-2xl text-lg leading-8 text-rg-cream2/85">
-            RevisionGrade is a manuscript-readiness and revision system. It evaluates the story across 13 criteria, builds evidence-backed diagnosis, and routes eligible long-form work into the WAVE Revision System™ so repair happens in the right order without erasing the writer&apos;s voice.
+            RevisionGrade is a manuscript-readiness and revision system. It evaluates the story across 13 criteria, builds evidence-backed diagnosis, and uses WAVE as a governed readiness layer before repair opportunities enter Revise without erasing the writer&apos;s voice.
           </p>
           <div className="mt-10 flex flex-wrap gap-4">
             <Link href="/evaluate" className="border border-rg-gold bg-rg-gold px-5 py-3 font-rg-mono text-xs uppercase tracking-[0.18em] text-rg-ink transition hover:bg-transparent hover:text-rg-gold">Begin Evaluation</Link>
-            <Link href="/revise" className="border border-rg-cream2/30 px-5 py-3 font-rg-mono text-xs uppercase tracking-[0.18em] text-rg-cream transition hover:border-rg-gold hover:text-rg-gold">See WAVE Revise</Link>
+            <Link href="/revise" className="border border-rg-cream2/30 px-5 py-3 font-rg-mono text-xs uppercase tracking-[0.18em] text-rg-cream transition hover:border-rg-gold hover:text-rg-gold">See Revise</Link>
           </div>
         </div>
         <div className="border border-rg-cream2/15 bg-rg-ink2/70 p-6 shadow-2xl shadow-black/30">
@@ -118,10 +118,10 @@ export default function Home() {
             <SectionLabel>The public promise</SectionLabel>
             <h2 className="mt-4 font-rg-serif text-3xl text-rg-cream">Diagnosis first. Governed repair second.</h2>
             <p className="mt-4 text-sm leading-7 text-rg-cream2/75">
-              Story architecture is assessed before refinement. The 13 criteria establish narrative viability. WAVE is the protected repair layer that follows when a manuscript is ready for deeper intervention.
+              Story architecture is assessed before refinement. The 13 criteria establish narrative viability. WAVE is the protected readiness layer used before eligible repair opportunities enter Revise.
             </p>
             <div className="mt-6 grid gap-2">
-              {["Story diagnosis", "13 criteria", "Evidence layer", "WAVE repair", "Author approval"].map((item, index) => (
+              {["Story diagnosis", "13 criteria", "Evidence layer", "WAVE readiness", "Author approval"].map((item, index) => (
                 <div key={item} className="flex items-center gap-4 border border-rg-cream2/10 px-3 py-3">
                   <span className="font-rg-mono text-xs text-rg-gold">0{index + 1}</span>
                   <span className="font-rg-mono text-[0.68rem] uppercase tracking-[0.12em] text-rg-cream2/80">{item}</span>
@@ -146,12 +146,12 @@ export default function Home() {
 
       <section className="mx-auto max-w-7xl px-6 py-20">
         <div className="max-w-4xl">
-          <SectionLabel>WAVE Revision System™</SectionLabel>
+          <SectionLabel>WAVE Readiness System™</SectionLabel>
           <h2 className="mt-4 font-rg-serif text-4xl leading-tight text-rg-cream md:text-5xl">
-            WAVE is the protected repair layer after evaluation.
+            WAVE is the protected readiness layer inside evaluation.
           </h2>
           <p className="mt-6 max-w-3xl text-lg leading-8 text-rg-cream2/80">
-            The WAVE Revision System™ is not a single rewrite command. It is a proprietary, sequenced repair methodology that turns evidence-backed findings into governed manuscript interventions while protecting the author&apos;s voice.
+            The WAVE Readiness System™ is not a single rewrite command. It is a proprietary, sequenced readiness methodology that turns evidence-backed findings into governed manuscript interventions while protecting the author&apos;s voice.
           </p>
         </div>
         <div className="mt-12 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -170,10 +170,10 @@ export default function Home() {
           <div>
             <p className="font-rg-mono text-xs uppercase tracking-[0.24em] text-rg-gold">Thirteen story criteria</p>
             <h2 className="mt-4 font-rg-serif text-4xl leading-tight md:text-5xl">
-              The criteria decide whether a manuscript is ready for WAVE-level repair.
+              The criteria decide whether a manuscript is ready for WAVE-level readiness analysis.
             </h2>
             <p className="mt-6 leading-8 text-rg-ink/70">
-              Short-form work is evaluated against the 13 criteria only. Long-form work can activate deeper manuscript-scale diagnosis and WAVE repair when appropriate.
+              Short-form work is evaluated against the 13 criteria only. Long-form work can activate deeper manuscript-scale diagnosis and WAVE readiness when appropriate.
             </p>
           </div>
           <div className="grid gap-2 sm:grid-cols-2">
@@ -190,7 +190,7 @@ export default function Home() {
         <div className="max-w-3xl">
           <SectionLabel>How it works</SectionLabel>
           <h2 className="mt-4 font-rg-serif text-4xl text-rg-cream md:text-5xl">
-            Evaluation first. WAVE second. Author control throughout.
+            Evaluation first. WAVE readiness second. Revise with author control.
           </h2>
         </div>
         <div className="mt-12 grid gap-4 lg:grid-cols-5">
@@ -209,7 +209,7 @@ export default function Home() {
           <div>
             <p className="font-rg-mono text-xs uppercase tracking-[0.24em] text-rg-gold">Why this is different</p>
             <h2 className="mt-4 font-rg-serif text-4xl leading-tight md:text-5xl">
-              The author does not need another opinion. The author needs a governed repair path.
+              The author does not need another opinion. The author needs a governed readiness path and repair workflow.
             </h2>
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
@@ -228,7 +228,7 @@ export default function Home() {
             <SectionLabel>Revise Queue</SectionLabel>
             <h2 className="mt-4 font-rg-serif text-4xl text-rg-cream">Manual repair, one opportunity at a time.</h2>
             <p className="mt-5 leading-7 text-rg-cream2/75">
-              WAVE findings become RevisionOpportunity cards with evidence, severity, repair options, rationale, and explicit author decisions.
+              WAVE readiness findings can become RevisionOpportunity cards with evidence, severity, repair options, rationale, and explicit author decisions.
             </p>
             <Link href="/workbench" className="mt-7 inline-block font-rg-mono text-xs uppercase tracking-[0.18em] text-rg-gold hover:text-rg-cream">Open Revise Queue →</Link>
           </div>
@@ -238,7 +238,7 @@ export default function Home() {
             <p className="mt-5 leading-7 text-rg-cream2/75">
               TrustedPath™ applies eligible recommended repairs to a duplicate manuscript draft, preserves the original, and generates a change log so convenience does not become blind rewriting.
             </p>
-            <Link href="/revise" className="mt-7 inline-block font-rg-mono text-xs uppercase tracking-[0.18em] text-rg-gold hover:text-rg-cream">See WAVE Revise →</Link>
+            <Link href="/revise" className="mt-7 inline-block font-rg-mono text-xs uppercase tracking-[0.18em] text-rg-gold hover:text-rg-cream">See Revise →</Link>
           </div>
         </div>
       </section>
