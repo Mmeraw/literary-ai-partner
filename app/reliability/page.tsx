@@ -91,7 +91,7 @@ const workflow = [
   },
   {
     step: "Diagnose",
-    copy: "Name the failure level using evidence, then route it through the governed readiness standard.",
+    copy: "Trace the issue to evidence, then route the finding through the governed readiness standard.",
   },
   {
     step: "Constrain",
