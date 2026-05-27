@@ -300,34 +300,9 @@ export async function getJob(id: string): Promise<Job | null> {
       job.progress,
     );
 
-    const failedStatus = assertAndNormalizeLifecycleTransition(
-      job.status,
-      JOB_STATUS.FAILED,
-    );
-
-    // Mark job as failed and clear lease (best-effort)
-    const { error: updateError } = await supabase
-      .from("evaluation_jobs")
-      .update({
-        status: failedStatus,
-        progress: {
-          ...job.progress,
-          error_code: validationErr,
-          lease_id: null,
-          lease_expires_at: null,
-        },
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", id);
-
-    if (updateError) {
-      console.error(
-        `[ProgressValidation] Failed to mark job failed: ${updateError.message}`,
-      );
-    }
-
-    // Do not let callers operate on a corrupted job
-    return null;
+    // Read path must remain read-only. Never mutate terminal state from polling.
+    // Processor/watchdog/admin retry paths own failure transitions.
+    return job;
   }
 
   return job;
