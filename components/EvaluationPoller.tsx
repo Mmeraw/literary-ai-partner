@@ -620,17 +620,19 @@ export function EvaluationPoller({
                   The final report will be available once Narrative Synthesis is complete.
                 </p>
               )}
-              {job.status === 'running' && pollCount > 10 && !effectivePd.hardStop && (
-                <p className="text-xs text-gray-500">
-                  Experiencing delays?{' '}
+              {job.status === 'running' && !effectivePd.hardStop && (
+                <div className="flex items-center gap-2 mt-1">
                   <button
                     type="button"
                     onClick={() => window.location.reload()}
-                    className="underline text-gray-600 cursor-pointer"
+                    className="inline-flex items-center gap-1 rounded border border-gray-300 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors"
                   >
-                    Refresh
+                    ↻ Refresh
                   </button>
-                </p>
+                  {pollCount > 10 && (
+                    <span className="text-xs text-gray-400">Taking longer than expected?</span>
+                  )}
+                </div>
               )}
             </div>
           );
