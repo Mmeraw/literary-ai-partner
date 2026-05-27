@@ -13,7 +13,7 @@ export type WaveRevisionProofDecision = {
   code: string;
   reason: string;
   quality_gate_label: 'Quality Gate';
-  wave_label: 'WAVE Revision';
+  wave_label: 'WAVE Readiness Layer';
 };
 
 function isNonEmptyString(value: unknown): value is string {
@@ -27,9 +27,12 @@ function hasReasonCodes(plan: WaveRevisionPlanArtifact): boolean {
 /**
  * Phase Architecture v2 WAVE proof validator.
  *
- * This helper does not run WAVE. It validates whether the post-evaluation WAVE
+ * This helper does not run WAVE. It validates whether the post-evaluation WAVE Readiness Layer
  * handoff produced an explicit proof state and keeps WAVE naming separate from
  * deterministic Quality Gate naming.
+ *
+ * Doctrine: WAVE is the long-form readiness / revision-planning analysis layer.
+ * It is not Pass 4. It is not the Revise workflow (Revise Queue / TrustedPath).
  */
 export function deriveWaveRevisionProof(
   plan?: WaveRevisionPlanArtifact | null,
@@ -40,9 +43,9 @@ export function deriveWaveRevisionProof(
       ok: false,
       status: 'missing',
       code: 'WAVE_PROOF_MISSING',
-      reason: 'WAVE Revision proof requires both wave_revision_plan_v1 and wave run metadata.',
+      reason: 'WAVE Readiness Layer proof requires both wave_revision_plan_v1 and wave run metadata.',
       quality_gate_label: 'Quality Gate',
-      wave_label: 'WAVE Revision',
+      wave_label: 'WAVE Readiness Layer',
     };
   }
 
@@ -53,7 +56,7 @@ export function deriveWaveRevisionProof(
       code: 'WAVE_PROOF_STATUS_MISMATCH',
       reason: `WAVE plan status ${plan.status} does not match run status ${runRecord.status}.`,
       quality_gate_label: 'Quality Gate',
-      wave_label: 'WAVE Revision',
+      wave_label: 'WAVE Readiness Layer',
     };
   }
 
@@ -70,7 +73,7 @@ export function deriveWaveRevisionProof(
           code: 'WAVE_COMPLETE_PROOF_INCOMPLETE',
           reason: 'WAVE complete proof requires modules_run, revision_session_id, and passed WAVE gate metadata.',
           quality_gate_label: 'Quality Gate',
-          wave_label: 'WAVE Revision',
+          wave_label: 'WAVE Readiness Layer',
         };
       }
 
@@ -78,9 +81,9 @@ export function deriveWaveRevisionProof(
         ok: true,
         status: 'complete',
         code: 'WAVE_REVISION_COMPLETE_PROOF_VALID',
-        reason: 'WAVE Revision completed with persisted plan and run metadata.',
+        reason: 'WAVE Readiness Layer completed with persisted plan and run metadata.',
         quality_gate_label: 'Quality Gate',
-        wave_label: 'WAVE Revision',
+        wave_label: 'WAVE Readiness Layer',
       };
     }
 
@@ -92,7 +95,7 @@ export function deriveWaveRevisionProof(
           code: 'WAVE_SKIPPED_PROOF_INCOMPLETE',
           reason: 'WAVE skipped proof requires reason_codes and a failed WAVE gate result.',
           quality_gate_label: 'Quality Gate',
-          wave_label: 'WAVE Revision',
+          wave_label: 'WAVE Readiness Layer',
         };
       }
 
@@ -100,9 +103,9 @@ export function deriveWaveRevisionProof(
         ok: true,
         status: 'skipped',
         code: 'WAVE_REVISION_SKIPPED_PROOF_VALID',
-        reason: 'WAVE Revision was explicitly skipped with reason codes.',
+        reason: 'WAVE Readiness Layer was explicitly skipped with reason codes.',
         quality_gate_label: 'Quality Gate',
-        wave_label: 'WAVE Revision',
+        wave_label: 'WAVE Readiness Layer',
       };
     }
 
@@ -114,7 +117,7 @@ export function deriveWaveRevisionProof(
           code: 'WAVE_TIMEOUT_PROOF_INCOMPLETE',
           reason: 'WAVE timeout proof requires retryable=true.',
           quality_gate_label: 'Quality Gate',
-          wave_label: 'WAVE Revision',
+          wave_label: 'WAVE Readiness Layer',
         };
       }
 
@@ -122,9 +125,9 @@ export function deriveWaveRevisionProof(
         ok: false,
         status: 'timeout',
         code: 'WAVE_REVISION_TIMEOUT_RETRYABLE',
-        reason: 'WAVE Revision timed out and is retryable; this is explicit but not a successful proof.',
+        reason: 'WAVE Readiness Layer timed out and is retryable; this is explicit but not a successful proof.',
         quality_gate_label: 'Quality Gate',
-        wave_label: 'WAVE Revision',
+        wave_label: 'WAVE Readiness Layer',
       };
     }
 
@@ -134,9 +137,9 @@ export function deriveWaveRevisionProof(
         ok: false,
         status: 'failed',
         code: 'WAVE_REVISION_FAILED_BLOCKING',
-        reason: plan.reason ?? runRecord.error ?? 'WAVE Revision failed.',
+        reason: plan.reason ?? runRecord.error ?? 'WAVE Readiness Layer failed.',
         quality_gate_label: 'Quality Gate',
-        wave_label: 'WAVE Revision',
+        wave_label: 'WAVE Readiness Layer',
       };
   }
 }
