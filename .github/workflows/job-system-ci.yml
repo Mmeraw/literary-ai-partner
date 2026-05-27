@@ -22,6 +22,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       secrets_ok: ${{ steps.check.outputs.secrets_ok }}
+      safe_target_ok: ${{ steps.check.outputs.safe_target_ok }}
     steps:
       - name: Check Supabase CI secrets present
         id: check
@@ -48,9 +49,16 @@ jobs:
           fi
           if [ "$missing" -eq 1 ]; then
             echo "secrets_ok=false" >> "$GITHUB_OUTPUT"
+            echo "safe_target_ok=false" >> "$GITHUB_OUTPUT"
             echo "⚠️ Supabase proof gates cannot run (secrets missing)"
           else
             echo "secrets_ok=true" >> "$GITHUB_OUTPUT"
+            if [[ "$SUPABASE_URL_VAL" == *"xtumxjnzdswuumndcbwc"* ]]; then
+              echo "safe_target_ok=false" >> "$GITHUB_OUTPUT"
+              echo "⚠️ Supabase proof gates target production URL; supabase-backed job will be skipped"
+            else
+              echo "safe_target_ok=true" >> "$GITHUB_OUTPUT"
+            fi
             echo "✅ Supabase proof gates can run (secrets present)"
           fi
 
@@ -236,7 +244,7 @@ jobs:
     #   2. The push instance already validates the same code moments later —
     #      the PR instance is pure redundancy that hits production infrastructure.
     # The push instance (which has full secret access) is the authoritative gate.
-    if: ${{ github.event_name != 'pull_request' && needs.proof-availability.outputs.secrets_ok == 'true' && !contains(secrets.SUPABASE_CI_URL || secrets.SUPABASE_URL || secrets.NEXT_PUBLIC_SUPABASE_URL, 'xtumxjnzdswuumndcbwc') }}
+    if: ${{ github.event_name != 'pull_request' && needs.proof-availability.outputs.secrets_ok == 'true' && needs.proof-availability.outputs.safe_target_ok == 'true' }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
