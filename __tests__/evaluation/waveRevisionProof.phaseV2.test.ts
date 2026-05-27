@@ -30,7 +30,7 @@ describe('Phase Architecture v2 — WAVE Revision proof', () => {
     expect(result.status).toBe('missing');
     expect(result.code).toBe('WAVE_PROOF_MISSING');
     expect(result.quality_gate_label).toBe('Quality Gate');
-    expect(result.wave_label).toBe('WAVE Revision');
+    expect(result.wave_label).toBe('WAVE Readiness Layer');
   });
 
   it('fails when plan and run statuses disagree', () => {
@@ -123,7 +123,7 @@ describe('Phase Architecture v2 — WAVE Revision proof', () => {
     expect(result.status).toBe('failed');
     expect(result.code).toBe('WAVE_REVISION_FAILED_BLOCKING');
     expect(result.quality_gate_label).toBe('Quality Gate');
-    expect(result.wave_label).toBe('WAVE Revision');
+    expect(result.wave_label).toBe('WAVE Readiness Layer');
     expect(result.quality_gate_label).not.toBe(result.wave_label);
   });
 });
