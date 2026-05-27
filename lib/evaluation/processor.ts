@@ -2192,6 +2192,8 @@ export async function failStaleRunningJobs(): Promise<{
   }
 
   // Also collect jobs with expired claim leases (skip phase_status='complete').
+  // Primary scan uses lease_until (the column claim RPCs write to).
+  // Fallback to lease_expires_at if lease_until is missing (legacy schema).
   let staleByLease: Array<{ id: string }> | null = null;
   let leaseScanUsedLegacyColumn = false;
   let { data: leaseData, error: leaseError } = await supabase
@@ -2199,22 +2201,22 @@ export async function failStaleRunningJobs(): Promise<{
     .select('id')
     .eq('status', runningStatus)
     .neq('phase_status', 'complete')   // ← guard
-    .not('lease_expires_at', 'is', null)
-    .lt('lease_expires_at', now)
-    .order('lease_expires_at', { ascending: true })
+    .not('lease_until', 'is', null)
+    .lt('lease_until', now)
+    .order('lease_until', { ascending: true })
     .limit(25);
 
-  if (leaseError && isMissingColumnError(leaseError, 'lease_expires_at')) {
-    console.warn('[Processor] lease_expires_at unavailable; retrying with lease_until');
+  if (leaseError && isMissingColumnError(leaseError, 'lease_until')) {
+    console.warn('[Processor] lease_until unavailable; retrying with lease_expires_at');
     leaseScanUsedLegacyColumn = true;
     ({ data: leaseData, error: leaseError } = await supabase
       .from('evaluation_jobs')
       .select('id')
       .eq('status', runningStatus)
       .neq('phase_status', 'complete') // ← guard
-      .not('lease_until', 'is', null)
-      .lt('lease_until', now)
-      .order('lease_until', { ascending: true })
+      .not('lease_expires_at', 'is', null)
+      .lt('lease_expires_at', now)
+      .order('lease_expires_at', { ascending: true })
       .limit(25));
   }
 
@@ -3030,7 +3032,12 @@ export async function processEvaluationJob(
       job.claimed_by.trim().length > 0 &&
       typeof job.lease_token === 'string' &&
       job.lease_token.trim().length > 0;
-    const hasLivePreClaimLease = hasLiveLeaseExpiration(job.lease_expires_at);
+    // Defensive: check both lease_expires_at (generated column in production)
+    // and lease_until (the column claim RPCs actually write to). If
+    // lease_expires_at is not generated, only lease_until will be populated.
+    const hasLivePreClaimLease =
+      hasLiveLeaseExpiration(job.lease_expires_at) ||
+      hasLiveLeaseExpiration((job as Record<string, unknown>).lease_until);
 
     // NOTE: isPhase1CompleteHandoff and isPhase1PreClaimed removed — phase_1 is dead.
     // All new jobs start at phase_1a. No job will arrive here with phase='phase_1'.
@@ -3105,6 +3112,7 @@ export async function processEvaluationJob(
         claimed_by_present: Boolean(job.claimed_by),
         lease_token_present: Boolean(job.lease_token),
         lease_expires_at: job.lease_expires_at ?? null,
+        lease_until: (job as Record<string, unknown>).lease_until ?? null,
         lease_is_live: hasLivePreClaimLease,
       });
 
@@ -3113,7 +3121,7 @@ export async function processEvaluationJob(
         error:
           `Job not eligible for processing. status=${job.status}, phase=${job.phase}, phase_status=${job.phase_status}, ` +
           `claimed_by=${Boolean(job.claimed_by)}, lease_token=${Boolean(job.lease_token)}, ` +
-          `lease_expires_at=${job.lease_expires_at ?? 'null'}`,
+          `lease_expires_at=${job.lease_expires_at ?? 'null'}, lease_until=${(job as Record<string, unknown>).lease_until ?? 'null'}`,
       };
     }
 
@@ -7312,7 +7320,7 @@ export async function processQueuedJobs(options?: {
   console.log('[Processor] Claim assumptions', {
     expected_status: JOB_STATUS.QUEUED,
     expected_phase_status: JOB_STATUS.QUEUED,
-    expected_phases: ['phase_1a', 'phase_2', 'phase_3'],
+    expected_phases: ['phase_0', 'phase_1', 'phase_1a', 'phase_2', 'phase_3'],
     canonical_ownership_fields: ['claimed_by', 'lease_token', 'lease_until'],
     worker_id: effectiveWorkerId,
     requested_batch_size: requestedBatchSize,
