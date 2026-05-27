@@ -27,8 +27,8 @@ jobs:
         id: check
         shell: bash
         env:
-          SUPABASE_URL_VAL: ${{ secrets.SUPABASE_URL || secrets.NEXT_PUBLIC_SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY_VAL: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_URL_VAL: ${{ secrets.SUPABASE_CI_URL || secrets.SUPABASE_URL || secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY_VAL: ${{ secrets.SUPABASE_CI_SERVICE_ROLE_KEY || secrets.SUPABASE_SERVICE_ROLE_KEY }}
           SUPABASE_PROJECT_REF_VAL: ${{ secrets.SUPABASE_PROJECT_REF }}
           SUPABASE_ACCESS_TOKEN_VAL: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_DB_URL_VAL: ${{ secrets.SUPABASE_DB_URL }}
@@ -236,7 +236,7 @@ jobs:
     #   2. The push instance already validates the same code moments later —
     #      the PR instance is pure redundancy that hits production infrastructure.
     # The push instance (which has full secret access) is the authoritative gate.
-    if: ${{ github.event_name != 'pull_request' && needs.proof-availability.outputs.secrets_ok == 'true' }}
+    if: ${{ github.event_name != 'pull_request' && needs.proof-availability.outputs.secrets_ok == 'true' && !contains(secrets.SUPABASE_CI_URL || secrets.SUPABASE_URL || secrets.NEXT_PUBLIC_SUPABASE_URL, 'xtumxjnzdswuumndcbwc') }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
@@ -317,22 +317,22 @@ jobs:
           set -o pipefail
           npm run jobs:check-migrations 2>&1 | tee scripts-artifacts/db-migration-check.log
         env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_CI_URL || secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_CI_SERVICE_ROLE_KEY || secrets.SUPABASE_SERVICE_ROLE_KEY }}
       - name: Run Supabase DB contract tests
         run: |
           set -o pipefail
           npm run jobs:smoke:supabase 2>&1 | tee scripts-artifacts/supabase-contract-smoke.log
         env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_CI_URL || secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_CI_SERVICE_ROLE_KEY || secrets.SUPABASE_SERVICE_ROLE_KEY }}
       - name: Run admin retry concurrency test
         run: |
           set -o pipefail
           npm run jobs:admin-retry:concurrency 2>&1 | tee scripts-artifacts/admin-retry-concurrency.log
         env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_CI_URL || secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_CI_SERVICE_ROLE_KEY || secrets.SUPABASE_SERVICE_ROLE_KEY }}
       - name: Upload Supabase contract test logs
         if: always()
         uses: actions/upload-artifact@v6

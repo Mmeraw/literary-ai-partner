@@ -8,6 +8,17 @@ export async function middleware(request: NextRequest) {
       return pathname === basePath || pathname.startsWith(`${basePath}/`)
     }
 
+  const allowHeaderActorInTestMode =
+    process.env.TEST_MODE === 'true' &&
+    process.env.ALLOW_HEADER_USER_ID === 'true'
+
+  const hasHeaderActor = Boolean(request.headers.get('x-user-id')?.trim())
+
+  const shouldBypassProtectedApiAuthGate =
+    allowHeaderActorInTestMode &&
+    hasHeaderActor &&
+    matchesPath(request.nextUrl.pathname, '/api')
+
   let supabaseResponse = NextResponse.next({
     request,
   })
@@ -122,6 +133,11 @@ export async function middleware(request: NextRequest) {
 
   // Gate only protected paths for unauthenticated users.
   if (!user && isProtectedPath && !isPublicPath) {
+    if (shouldBypassProtectedApiAuthGate) {
+      trackAuthBypass('header_actor_test_mode')
+      return supabaseResponse
+    }
+
     const redirectUrl = request.nextUrl.clone()
     redirectUrl.pathname = '/login'
     trackAuthRedirect('login_required')
