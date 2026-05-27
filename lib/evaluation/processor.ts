@@ -4732,122 +4732,32 @@ export async function processEvaluationJob(
         const preflightStatus = (existingBatchState?.preflight_status as string | undefined) ?? 'NOT_STARTED';
         const ledgerAssemblyStatus = (existingBatchState?.ledger_assembly_status as string | undefined) ?? 'NOT_STARTED';
 
-        // ── Track C: Start Pass 3A concurrently with Track B chunk batching ─
-        // Pass 3A reads the manuscript independently — it does NOT need Phase 1A
-        // chunk outputs. Starting it here (before chunk batch execution) means
-        // both tracks run in parallel on every invocation.
-        //
+        // ── Durable Track B + Track C lanes ─────────────────────────────
         // Track B (Phase 1A): chunk batching → ledger → Story Layer
         // Track C (Pass 3A):  MAP chunks → REDUCE → pass3_preflight_draft_v1
         //
-        // On self-chain: Track C status is captured and persisted. If Pass 3A
-        // completes before budget expires, preflight_status=DONE is persisted and
-        // future invocations skip it. If not, the next invocation restarts Pass 3A
-        // (inputs are durable — manuscript chunks + Phase 0 calibration).
-        const normalizedPreflightStatusForTrackC =
+        // Both lanes advance independently within each Phase 1A invocation.
+        // All progress is persisted through JSONB state and artifacts before
+        // any self-chain or return. No correctness depends on an unawaited
+        // background promise surviving a self-chain boundary.
+        //
+        // Invocation flow:
+        //   1. Load Track B + Track C state from progress
+        //   2. Do bounded Track B work if Track B is not done
+        //   3. Do bounded Track C work if Track C is not terminal AND budget remains
+        //   4. If either lane still has work → self-chain with both states persisted
+        //   5. If both lanes are terminal → assemble Story Layer / Review Gate handoff
+
+        // Normalize Track C (preflight) status for durable lane logic.
+        const normalizedPreflightStatus =
           preflightStatus === 'RUNNING' ? 'IN_PROGRESS'
           : preflightStatus === 'COMPLETE' ? 'DONE'
           : preflightStatus;
 
-        type TrackCResult = {
-          pass3aResult: Awaited<ReturnType<typeof runPass3Preflight>> | null;
-          status: 'DONE' | 'IN_PROGRESS' | 'FAILED' | 'SKIPPED';
-          error?: unknown;
-        };
+        const trackBDone = allChunksDone;
+        const trackCTerminal = normalizedPreflightStatus === 'DONE';
 
-        let trackCPromise: Promise<TrackCResult> | null = null;
-
-        if (normalizedPreflightStatusForTrackC !== 'DONE') {
-          const trackCStartAt = new Date().toISOString();
-          const isCrashRecovery = normalizedPreflightStatusForTrackC === 'IN_PROGRESS';
-          const isSelfChainResume = normalizedPreflightStatusForTrackC === 'SELF_CHAINED';
-          console.log(
-            `[track_c] ${jobId}: starting Pass 3A concurrently with Track B` +
-            (isCrashRecovery ? ' (crash recovery)' : isSelfChainResume ? ' (self-chain resume)' : ' (first attempt)'),
-          );
-
-          // Mark Track C started in DB (non-blocking).
-          void supabase
-            .from('evaluation_jobs')
-            .update({
-              worker_pulse_at: trackCStartAt,
-              progress: {
-                ...progressState,
-                track_c_status: 'running',
-                phase1a_batch_state: {
-                  ...((progressState.phase1a_batch_state as Record<string, unknown>) ?? {}),
-                  preflight_status: 'IN_PROGRESS',
-                },
-                phase_log: [
-                  ...((progressState.phase_log as unknown[]) ?? []),
-                  {
-                    at: trackCStartAt,
-                    event: 'track_c_started',
-                    stage: 'pass_3a',
-                    crash_recovery: isCrashRecovery,
-                    self_chain_resume: isSelfChainResume,
-                    concurrent_with_track_b: true,
-                  },
-                ],
-              },
-            })
-            .eq('id', jobId)
-            .eq('status', JOB_STATUS.RUNNING);
-
-          // Fire Pass 3A as a background promise — runs alongside chunk batching.
-          trackCPromise = (async (): Promise<TrackCResult> => {
-            try {
-              const result = await runPass3Preflight({
-                manuscriptChunks: Array.isArray(allChunks) ? allChunks : [],
-                title: manuscriptWithContent.title,
-                workType: manuscriptWithContent.work_type || 'novel',
-                jobId: String(job.id),
-                manuscriptId: Number(job.manuscript_id),
-                openaiApiKey,
-                supabase,
-                _chunkConcurrency: phase1aConfig.preflightConcurrency,
-                _onChunkHeartbeat: () => {
-                  // Non-blocking pulse for watchdog during preflight.
-                },
-              });
-              const completedAt = new Date().toISOString();
-              console.log(`[track_c] ${jobId}: Pass 3A completed`, {
-                authority: result.preflight.preflight_authority,
-                coverage: `${result.preflight.manuscript_read_status.chunks_received}/${result.preflight.manuscript_read_status.chunks_expected}`,
-                duration_ms: result.durationMs,
-              });
-              // Persist completion status (non-blocking — may race with self-chain).
-              void supabase
-                .from('evaluation_jobs')
-                .update({
-                  worker_pulse_at: completedAt,
-                  progress: {
-                    ...progressState,
-                    track_c_status: 'done',
-                    phase1a_batch_state: {
-                      ...((progressState.phase1a_batch_state as Record<string, unknown>) ?? {}),
-                      preflight_status: 'DONE',
-                    },
-                    phase_log: [
-                      ...((progressState.phase_log as unknown[]) ?? []),
-                      { at: completedAt, event: 'track_c_completed', stage: 'pass_3a', duration_ms: result.durationMs },
-                    ],
-                  },
-                })
-                .eq('id', jobId)
-                .eq('status', JOB_STATUS.RUNNING);
-              return { pass3aResult: result, status: 'DONE' };
-            } catch (err) {
-              console.warn(`[track_c] ${jobId}: Pass 3A failed (non-fatal):`,
-                err instanceof Error ? err.message : String(err));
-              return { pass3aResult: null, status: 'FAILED', error: err };
-            }
-          })();
-        } else {
-          console.log(`[track_c] ${jobId}: Pass 3A already DONE — skipping`);
-        }
-
-        if (!allChunksDone) {
+        if (!trackBDone) {
           // ── CHUNK BATCH EXECUTION PATH ──────────────────────────────────
           // Select next safe chunk slice — respect invocation budget.
           const budgetMs = phase1aConfig.invocationBudgetMs;
@@ -4986,34 +4896,122 @@ export async function processEvaluationJob(
           };
 
           if (pendingAfterBatch.length > 0) {
+            // ── Track B has remaining chunks. ────────────────────────────
+            // Before self-chaining, attempt bounded Track C work if budget
+            // allows and Track C is not already terminal. This way both
+            // lanes advance within a single invocation without requiring
+            // background promises.
+            let trackCStatusAfterBatch = normalizedPreflightStatus;
+
+            const elapsedAfterBatchMs = Date.now() - phase1aInvocationStartMs;
+            const remainingAfterBatchMs = phase1aConfig.invocationBudgetMs - phase1aConfig.safetyMarginMs - elapsedAfterBatchMs;
+
+            if (trackCStatusAfterBatch !== 'DONE' && remainingAfterBatchMs > 30_000) {
+              // Enough budget remains — run Track C (Pass 3A) as awaited call.
+              console.log(`[track_c] ${jobId}: running bounded Track C within chunk-batch invocation (budget=${remainingAfterBatchMs}ms)`);
+              const trackCStartAt = new Date().toISOString();
+              await supabase
+                .from('evaluation_jobs')
+                .update({
+                  worker_pulse_at: trackCStartAt,
+                  progress: {
+                    ...progressState,
+                    track_c_status: 'running',
+                    phase1a_batch_state: {
+                      ...((progressState.phase1a_batch_state as Record<string, unknown>) ?? {}),
+                      preflight_status: 'IN_PROGRESS',
+                    },
+                    phase_log: [
+                      ...((progressState.phase_log as unknown[]) ?? []),
+                      batchStartedLogEntry,
+                      batchCompletedLogEntry,
+                      { at: trackCStartAt, event: 'track_c_started', stage: 'pass_3a', budget_remaining_ms: remainingAfterBatchMs },
+                    ],
+                  },
+                })
+                .eq('id', jobId)
+                .eq('status', JOB_STATUS.RUNNING);
+
+              // Race Pass 3A against remaining budget.
+              type TrackCTimeoutSentinel = { __trackCTimedOut: true };
+              const trackCTimeout = new Promise<TrackCTimeoutSentinel>(r =>
+                setTimeout(() => r({ __trackCTimedOut: true }), Math.max(1_000, remainingAfterBatchMs)),
+              );
+              try {
+                const raceResult = await Promise.race([
+                  runPass3Preflight({
+                    manuscriptChunks: Array.isArray(allChunks) ? allChunks : [],
+                    title: manuscriptWithContent.title,
+                    workType: manuscriptWithContent.work_type || 'novel',
+                    jobId: String(job.id),
+                    manuscriptId: Number(job.manuscript_id),
+                    openaiApiKey,
+                    supabase,
+                    _chunkConcurrency: phase1aConfig.preflightConcurrency,
+                    _onChunkHeartbeat: () => { /* watchdog pulse */ },
+                  }),
+                  trackCTimeout,
+                ]);
+
+                const isTimeout = raceResult && typeof raceResult === 'object' && '__trackCTimedOut' in raceResult;
+                if (isTimeout) {
+                  trackCStatusAfterBatch = 'SELF_CHAINED';
+                  console.log(`[track_c] ${jobId}: Pass 3A budget expired during chunk-batch invocation — will resume on next invocation`);
+                } else {
+                  trackCStatusAfterBatch = 'DONE';
+                  const trackCResult = raceResult as Awaited<ReturnType<typeof runPass3Preflight>>;
+                  const completedAt = new Date().toISOString();
+                  console.log(`[track_c] ${jobId}: Pass 3A completed during chunk-batch invocation`, {
+                    authority: trackCResult.preflight.preflight_authority,
+                    duration_ms: trackCResult.durationMs,
+                  });
+                  await supabase
+                    .from('evaluation_jobs')
+                    .update({
+                      worker_pulse_at: completedAt,
+                      progress: {
+                        ...progressState,
+                        track_c_status: 'done',
+                        phase1a_batch_state: {
+                          ...((progressState.phase1a_batch_state as Record<string, unknown>) ?? {}),
+                          preflight_status: 'DONE',
+                        },
+                        phase_log: [
+                          ...((progressState.phase_log as unknown[]) ?? []),
+                          { at: completedAt, event: 'track_c_completed', stage: 'pass_3a', duration_ms: trackCResult.durationMs },
+                        ],
+                      },
+                    })
+                    .eq('id', jobId)
+                    .eq('status', JOB_STATUS.RUNNING);
+                }
+              } catch (err) {
+                // Pass 3A error (non-fatal) — mark degraded so we don't retry forever.
+                trackCStatusAfterBatch = 'DONE';
+                console.warn(`[track_c] ${jobId}: Pass 3A failed (non-fatal) — marking degraded:`,
+                  err instanceof Error ? err.message : String(err));
+                await supabase
+                  .from('evaluation_jobs')
+                  .update({
+                    progress: {
+                      ...progressState,
+                      track_c_status: 'degraded',
+                      phase1a_batch_state: {
+                        ...((progressState.phase1a_batch_state as Record<string, unknown>) ?? {}),
+                        preflight_status: 'DONE',
+                        preflight_degraded: true,
+                      },
+                    },
+                  })
+                  .eq('id', jobId)
+                  .eq('status', JOB_STATUS.RUNNING);
+              }
+            }
+
             // ── SELF-CHAIN: more chunks remain ──────────────────────────
             // Intentional continuation — NOT a failure.
             // Re-queue phase_1a, release lease, kick next worker.
             // DO NOT increment attempt_count.
-
-            // Check if Track C (Pass 3A) completed during this batch.
-            // Use a short race (100ms) to capture the result without blocking.
-            let trackCStatusForChain = preflightStatus;
-            if (trackCPromise) {
-              const shortRace = await Promise.race([
-                trackCPromise,
-                new Promise<null>(r => setTimeout(r, 100)),
-              ]);
-              if (shortRace && typeof shortRace === 'object' && 'status' in shortRace) {
-                const trackCResult = shortRace as TrackCResult;
-                if (trackCResult.status === 'DONE') {
-                  trackCStatusForChain = 'DONE';
-                  console.log(`[track_c] ${jobId}: Pass 3A completed before self-chain — persisting DONE`);
-                } else if (trackCResult.status === 'FAILED') {
-                  trackCStatusForChain = 'DONE'; // Degraded — mark done to avoid retries
-                  console.log(`[track_c] ${jobId}: Pass 3A failed before self-chain — marking degraded`);
-                }
-              } else {
-                trackCStatusForChain = 'IN_PROGRESS';
-                console.log(`[track_c] ${jobId}: Pass 3A still running at self-chain — next invocation will check`);
-              }
-            }
-
             const selfChainAt = new Date().toISOString();
             const selfChainLogEntry = {
               at: selfChainAt,
@@ -5023,7 +5021,7 @@ export async function processEvaluationJob(
               chunks_remaining: pendingAfterBatch.length,
               chunks_completed: completedAfterBatch.size,
               total_chunks: totalChunks,
-              track_c_status: trackCStatusForChain,
+              track_c_status: trackCStatusAfterBatch,
             };
 
             const updatedProgress = {
@@ -5031,8 +5029,8 @@ export async function processEvaluationJob(
               phase: 'phase_1a',
               phase_status: 'queued',
               message: `Analyzing manuscript (${completedAfterBatch.size}/${totalChunks} sections)`,
-              track_c_status: trackCStatusForChain === 'DONE' ? 'done' : 'running',
-              phase1a_batch_state: { ...updatedBatchState, preflight_status: trackCStatusForChain },
+              track_c_status: trackCStatusAfterBatch === 'DONE' ? 'done' : 'running',
+              phase1a_batch_state: { ...updatedBatchState, preflight_status: trackCStatusAfterBatch },
               phase_log: [
                 ...((progressState.phase_log as unknown[]) ?? []),
                 batchStartedLogEntry,
@@ -5058,11 +5056,10 @@ export async function processEvaluationJob(
               .eq('status', JOB_STATUS.RUNNING);
 
             if (selfChainErr) {
-              // Self-chain write failed — do not swallow this, it will cause orphan.
               throw new Error(`Phase 1A self-chain re-queue failed: ${selfChainErr.message}`);
             }
 
-            console.log(`[phase_1a] ${jobId}: self-chained — batch ${batchIndex + 1}/${batchesTotal} done, ${pendingAfterBatch.length} chunks remain`);
+            console.log(`[phase_1a] ${jobId}: self-chained — batch ${batchIndex + 1}/${batchesTotal} done, ${pendingAfterBatch.length} chunks remain, track_c=${trackCStatusAfterBatch}`);
 
             // Kick the next worker immediately — 150ms delay for DB commit visibility.
             await new Promise(r => setTimeout(r, 150));
@@ -5072,11 +5069,10 @@ export async function processEvaluationJob(
             return { success: true };
           }
 
-          // All chunks are done after this batch — fall through to collect Track C + ledger.
-          console.log(`[phase_1a] ${jobId}: all ${totalChunks} chunks cached (Track B complete) — collecting Track C result`);
+          // All chunks are done after this batch — Track B complete.
+          console.log(`[phase_1a] ${jobId}: all ${totalChunks} chunks cached (Track B complete)`);
 
-          // Persist final batch state. Track C may already be done (preflight_status
-          // captured from background promise) or still running.
+          // Persist final Track B batch state.
           const trackBCompletedAt = new Date().toISOString();
           await supabase
             .from('evaluation_jobs')
@@ -5098,36 +5094,107 @@ export async function processEvaluationJob(
             .eq('status', JOB_STATUS.RUNNING);
         }
 
-        // ── 5. Collect Track C (Pass 3A) result ─────────────────────────
-        // Track C was started concurrently with Track B chunk batching above.
-        // Now that all chunks are done, await the Track C result.
-        // If Track C already completed (during an earlier invocation or during
-        // chunk batching), this is a no-op. If it's still running, race against
-        // the remaining invocation budget.
+        // ── 5. Track C (Pass 3A) — durable lane ─────────────────────────
+        // Track C state is derived from persisted progress.phase1a_batch_state.
+        // Both inputs to runPass3Preflight are durable committed artifacts
+        // (manuscript chunks + Phase 0 calibration), so re-running from
+        // scratch is always safe.
+        //
+        // States: NOT_STARTED → IN_PROGRESS → DONE (happy path)
+        //         IN_PROGRESS (stale/crashed) → re-run
+        //         SELF_CHAINED (budget expired prior invocation) → re-run
+        //         DONE → skip
         let pass3aResult: Awaited<ReturnType<typeof runPass3Preflight>> | null = null;
 
-        if (normalizedPreflightStatusForTrackC === 'DONE') {
+        if (normalizedPreflightStatus === 'DONE') {
           console.log(`[track_c] ${jobId}: Pass 3A already DONE — loading from artifact`);
-        } else if (trackCPromise) {
-          // Track C is running — race against remaining budget.
-          const trackCBudgetMs = Math.max(
+        } else {
+          // IN_PROGRESS (crashed) / SELF_CHAINED / NOT_STARTED → run preflight.
+          const isCrashRecovery = normalizedPreflightStatus === 'IN_PROGRESS';
+          const isSelfChainResume = normalizedPreflightStatus === 'SELF_CHAINED';
+          console.log(
+            `[track_c] ${jobId}: running Pass 3A` +
+            (isCrashRecovery ? ' (crash recovery)' : isSelfChainResume ? ' (self-chain resume)' : ' (first attempt)'),
+          );
+
+          const preflightStartAt = new Date().toISOString();
+
+          // Persist IN_PROGRESS before starting work.
+          await supabase
+            .from('evaluation_jobs')
+            .update({
+              worker_pulse_at: preflightStartAt,
+              progress: {
+                ...progressState,
+                track_c_status: 'running',
+                phase1a_batch_state: {
+                  ...((progressState.phase1a_batch_state as Record<string, unknown>) ?? {}),
+                  preflight_status: 'IN_PROGRESS',
+                },
+                phase_log: [
+                  ...((progressState.phase_log as unknown[]) ?? []),
+                  {
+                    at: preflightStartAt,
+                    event: 'track_c_started',
+                    stage: 'pass_3a',
+                    crash_recovery: isCrashRecovery,
+                    self_chain_resume: isSelfChainResume,
+                  },
+                ],
+              },
+            })
+            .eq('id', jobId)
+            .eq('status', JOB_STATUS.RUNNING);
+
+          // Invocation budget guard — race preflight against remaining budget.
+          const preflightBudgetMs = Math.max(
             1_000,
             phase1aConfig.invocationBudgetMs - phase1aConfig.safetyMarginMs - (Date.now() - phase1aInvocationStartMs),
           );
-          console.log(`[track_c] ${jobId}: awaiting Pass 3A (budget=${trackCBudgetMs}ms)`);
 
-          type TrackCTimeoutSentinel = { __trackCTimedOut: true };
-          const trackCTimeout = new Promise<TrackCTimeoutSentinel>(r =>
-            setTimeout(() => r({ __trackCTimedOut: true }), trackCBudgetMs),
+          type PreflightTimeoutSentinel = { __preflightTimedOut: true };
+          const timeoutPromise = new Promise<PreflightTimeoutSentinel>(r =>
+            setTimeout(() => r({ __preflightTimedOut: true }), preflightBudgetMs),
           );
 
-          const raceResult = await Promise.race([trackCPromise, trackCTimeout]);
-          const isTimeout = raceResult && typeof raceResult === 'object' && '__trackCTimedOut' in raceResult;
+          let raceResult:
+            | Awaited<ReturnType<typeof runPass3Preflight>>
+            | PreflightTimeoutSentinel
+            | null = null;
+          let preflightThrew: unknown = null;
+          try {
+            raceResult = await Promise.race([
+              runPass3Preflight({
+                manuscriptChunks: Array.isArray(allChunks) ? allChunks : [],
+                title: manuscriptWithContent.title,
+                workType: manuscriptWithContent.work_type || 'novel',
+                jobId: String(job.id),
+                manuscriptId: Number(job.manuscript_id),
+                openaiApiKey,
+                supabase,
+                _chunkConcurrency: phase1aConfig.preflightConcurrency,
+                _onChunkHeartbeat: () => { /* watchdog pulse */ },
+              }),
+              timeoutPromise,
+            ]);
+          } catch (err) {
+            preflightThrew = err;
+          }
+
+          const isTimeout =
+            raceResult !== null &&
+            typeof raceResult === 'object' &&
+            (raceResult as PreflightTimeoutSentinel).__preflightTimedOut === true;
 
           if (isTimeout) {
-            // Budget expired waiting for Track C — self-chain.
+            // Budget expired — self-chain (NOT a failure). Persist state
+            // before returning so next invocation can resume.
             const selfChainAt = new Date().toISOString();
-            console.warn(`[track_c] ${jobId}: Pass 3A budget expired — self-chaining`);
+            const elapsedMs = Date.now() - phase1aInvocationStartMs;
+            console.warn(
+              `[track_c] ${jobId}: Pass 3A budget expired after ${elapsedMs}ms — self-chaining`,
+            );
+
             const selfChainProgress = {
               ...progressState,
               phase: 'phase_1a',
@@ -5140,9 +5207,16 @@ export async function processEvaluationJob(
               },
               phase_log: [
                 ...((progressState.phase_log as unknown[]) ?? []),
-                { at: selfChainAt, event: 'track_c_budget_expired_self_chain', stage: 'pass_3a', budget_ms: trackCBudgetMs },
+                {
+                  at: selfChainAt,
+                  event: 'track_c_self_chain_queued',
+                  stage: 'pass_3a',
+                  elapsed_ms: elapsedMs,
+                  budget_ms: preflightBudgetMs,
+                },
               ],
             };
+
             const { error: chainErr } = await supabase
               .from('evaluation_jobs')
               .update({
@@ -5161,17 +5235,17 @@ export async function processEvaluationJob(
             if (chainErr) {
               throw new Error(`Track C self-chain re-queue failed: ${chainErr.message}`);
             }
+
+            console.log(`[track_c] ${jobId}: self-chained — lease released, kicking next worker`);
             await kickPhase1aWorker();
             clearInterval(leaseRenewalLoopP1a);
             return { success: true };
           }
 
-          const trackCResult = raceResult as TrackCResult;
-          if (trackCResult.status === 'DONE' && trackCResult.pass3aResult) {
-            pass3aResult = trackCResult.pass3aResult;
-            console.log(`[track_c] ${jobId}: Pass 3A completed — proceeding to ledger`);
-          } else if (trackCResult.status === 'FAILED') {
-            console.warn(`[track_c] ${jobId}: Pass 3A failed (non-fatal) — proceeding degraded`);
+          if (preflightThrew) {
+            // Preflight error (non-fatal) — mark degraded so we don't retry forever.
+            console.warn(`[track_c] ${jobId}: Pass 3A failed (non-fatal):`,
+              preflightThrew instanceof Error ? preflightThrew.message : String(preflightThrew));
             pass3aResult = null;
             await supabase
               .from('evaluation_jobs')
@@ -5184,6 +5258,36 @@ export async function processEvaluationJob(
                     preflight_status: 'DONE',
                     preflight_degraded: true,
                   },
+                },
+              })
+              .eq('id', jobId)
+              .eq('status', JOB_STATUS.RUNNING);
+          } else {
+            // Happy path — preflight completed within budget.
+            pass3aResult = raceResult as Awaited<ReturnType<typeof runPass3Preflight>>;
+            const completedAt = new Date().toISOString();
+            console.log(`[track_c] ${jobId}: Pass 3A completed`, {
+              authority: pass3aResult.preflight.preflight_authority,
+              coverage: `${pass3aResult.preflight.manuscript_read_status.chunks_received}/${pass3aResult.preflight.manuscript_read_status.chunks_expected}`,
+              duration_ms: pass3aResult.durationMs,
+            });
+
+            // Persist DONE state before proceeding.
+            await supabase
+              .from('evaluation_jobs')
+              .update({
+                worker_pulse_at: completedAt,
+                progress: {
+                  ...progressState,
+                  track_c_status: 'done',
+                  phase1a_batch_state: {
+                    ...((progressState.phase1a_batch_state as Record<string, unknown>) ?? {}),
+                    preflight_status: 'DONE',
+                  },
+                  phase_log: [
+                    ...((progressState.phase_log as unknown[]) ?? []),
+                    { at: completedAt, event: 'track_c_completed', stage: 'pass_3a', duration_ms: pass3aResult.durationMs },
+                  ],
                 },
               })
               .eq('id', jobId)
