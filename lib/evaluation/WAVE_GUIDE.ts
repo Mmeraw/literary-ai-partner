@@ -1,23 +1,27 @@
 /**
- * WAVE Revision Guide — Canonical Reference
- * 
- * This is the binding authority for all manuscript evaluations.
- * 
+ * WAVE Readiness Layer — Canonical Reference
+ *
+ * WAVE is the long-form readiness / revision-planning analysis layer inside evaluation.
+ * WAVE diagnoses and plans. It is NOT the revision workflow.
+ * The actual repair workflow is Revise Queue and TrustedPath, which begin after the
+ * completed evaluation/report artifacts exist.
+ *
+ * This is the binding authority for WAVE evaluation criteria and tier structure.
  * Source: docs/WAVE_REVISION_GUIDE_CANON.md (v1.0.0)
- * 
+ *
  * CRITICAL: Platforms implement WAVE; they do not define it.
  * If platform output conflicts with this guide, the platform is wrong.
  */
 
 export const WAVE_GUIDE_SUMMARY = `
-# WAVE REVISION SYSTEM — CANONICAL AUTHORITY
+# WAVE READINESS LAYER — CANONICAL AUTHORITY
 
 Version: 1.0.0 (Binding)
 
 ## CORE PRINCIPLES
 
 1. **WAVE Canon Supremacy**
-   - The WAVE Revision Guide is the sole canonical authority for narrative interpretation
+   - The WAVE Readiness Layer Guide is the sole canonical authority for narrative interpretation
    - Platforms implement WAVE; they do not define it
    - If a rule is not written in the WAVE Revision Guide, it is not canon
 
