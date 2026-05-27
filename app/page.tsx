@@ -1,20 +1,20 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
-const criteria = [
-  "Concept",
-  "Narrative Drive",
-  "Character",
-  "Voice",
-  "Scene Construction",
-  "Dialogue",
-  "Theme",
-  "Worldbuilding",
-  "Pacing",
-  "Prose Control",
-  "Tone",
-  "Narrative Closure",
-  "Marketability",
+const criteria: { name: string; description: string }[] = [
+  { name: "Concept", description: "Is the premise compelling enough to sustain the full narrative?" },
+  { name: "Narrative Drive", description: "Does the story create forward momentum that compels the reader to continue?" },
+  { name: "Character", description: "Are characters distinct, motivated, and changed by the events of the story?" },
+  { name: "Voice", description: "Does the prose carry a recognizable authorial identity?" },
+  { name: "Scene Construction", description: "Does each scene earn its place through conflict, change, or revelation?" },
+  { name: "Dialogue", description: "Does conversation reveal character, advance story, or build tension?" },
+  { name: "Theme", description: "Is there a coherent thematic layer beneath the surface narrative?" },
+  { name: "Worldbuilding", description: "Is the setting specific, consistent, and integral to the story?" },
+  { name: "Pacing", description: "Does the story control speed, tension, and rest across its full length?" },
+  { name: "Prose Control", description: "Is the sentence-level writing precise, varied, and purposeful?" },
+  { name: "Tone", description: "Does the emotional register remain consistent and intentional throughout?" },
+  { name: "Narrative Closure", description: "Does the ending resolve or deliberately leave open the story's central questions?" },
+  { name: "Marketability", description: "Does the work position itself clearly within a recognizable market category?" },
 ];
 
 const publicWaveSignals = [
@@ -64,13 +64,23 @@ const workflow = [
   },
 ];
 
-const proofPoints = [
-  "13 story criteria before WAVE",
-  "Short-form / long-form / multi-layer modes",
-  "Evidence-backed readiness decisions",
-  "Overcorrection protection",
-  "Author-controlled repair queue",
-  "TrustedPath™ governed automation",
+const alternativeContrasts = [
+  {
+    title: "Unlike Grammarly-style polish",
+    copy: "RevisionGrade diagnoses structural and narrative problems before touching prose. Line-level polish on a broken structure wastes time and money.",
+  },
+  {
+    title: "Unlike generic AI chat",
+    copy: "The system does not accept a vague prompt and generate generic encouragement. It reads against 13 governed criteria with manuscript evidence.",
+  },
+  {
+    title: "Unlike a beta reader",
+    copy: "Beta readers offer subjective impressions. RevisionGrade produces a repeatable, evidence-backed readiness diagnosis with specific repair opportunities.",
+  },
+  {
+    title: "Unlike jumping to a developmental editor",
+    copy: "A developmental edit on a manuscript with undiagnosed structural issues can cost thousands and still miss the root problem. Diagnose first.",
+  },
 ];
 
 const revisionContrasts = [
@@ -108,9 +118,12 @@ export default function Home() {
           <p className="mt-8 max-w-2xl text-lg leading-8 text-rg-cream2/85">
             RevisionGrade is a manuscript-readiness and revision system. It evaluates the story across 13 criteria, builds evidence-backed diagnosis, and uses WAVE as a governed readiness layer before repair opportunities enter Revise without erasing the writer&apos;s voice.
           </p>
+          <p className="mt-4 max-w-2xl text-sm leading-7 text-rg-cream2/60">
+            For completed openings, chapters, short stories, and full manuscripts ready for honest structural diagnosis.
+          </p>
           <div className="mt-10 flex flex-wrap gap-4">
-            <Link href="/evaluate" className="border border-rg-gold bg-rg-gold px-5 py-3 font-rg-mono text-xs uppercase tracking-[0.18em] text-rg-ink transition hover:bg-transparent hover:text-rg-gold">Begin Evaluation</Link>
-            <Link href="/revise" className="border border-rg-cream2/30 px-5 py-3 font-rg-mono text-xs uppercase tracking-[0.18em] text-rg-cream transition hover:border-rg-gold hover:text-rg-gold">See Revise</Link>
+            <Link href="/evaluate" className="border border-rg-gold bg-rg-gold px-5 py-3 font-rg-mono text-xs uppercase tracking-[0.18em] text-rg-ink transition hover:bg-transparent hover:text-rg-gold">Diagnose My Manuscript</Link>
+            <Link href="/evaluate" className="border border-rg-cream2/30 px-5 py-3 font-rg-mono text-xs uppercase tracking-[0.18em] text-rg-cream transition hover:border-rg-gold hover:text-rg-gold">Try Free — Up to 3,000 Words</Link>
           </div>
         </div>
         <div className="border border-rg-cream2/15 bg-rg-ink2/70 p-6 shadow-2xl shadow-black/30">
@@ -178,8 +191,9 @@ export default function Home() {
           </div>
           <div className="grid gap-2 sm:grid-cols-2">
             {criteria.map((criterion) => (
-              <div key={criterion} className="border border-rg-ink/15 bg-white/40 px-4 py-3 font-rg-mono text-[0.68rem] uppercase tracking-[0.12em] text-rg-ink/80">
-                {criterion}
+              <div key={criterion.name} className="border border-rg-ink/15 bg-white/40 px-4 py-3">
+                <p className="font-rg-mono text-[0.68rem] uppercase tracking-[0.12em] text-rg-ink/80">{criterion.name}</p>
+                <p className="mt-1 text-xs leading-5 text-rg-ink/55">{criterion.description}</p>
               </div>
             ))}
           </div>
@@ -205,18 +219,19 @@ export default function Home() {
       </section>
 
       <section className="bg-rg-cream text-rg-ink">
-        <div className="mx-auto grid max-w-7xl gap-10 px-6 py-20 lg:grid-cols-[0.9fr_1.1fr]">
-          <div>
+        <div className="mx-auto max-w-7xl px-6 py-20">
+          <div className="max-w-3xl">
             <p className="font-rg-mono text-xs uppercase tracking-[0.24em] text-rg-gold">Why this is different</p>
             <h2 className="mt-4 font-rg-serif text-4xl leading-tight md:text-5xl">
               The author does not need another opinion. The author needs a governed readiness path and repair workflow.
             </h2>
           </div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            {proofPoints.map((point) => (
-              <div key={point} className="border border-rg-ink/15 bg-white/40 p-4 font-rg-mono text-xs uppercase tracking-[0.12em] text-rg-ink/80">
-                {point}
-              </div>
+          <div className="mt-12 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            {alternativeContrasts.map((item) => (
+              <article key={item.title} className="border border-rg-ink/12 bg-white/50 p-5">
+                <p className="font-rg-mono text-xs uppercase tracking-[0.12em] text-rg-gold">{item.title}</p>
+                <p className="mt-3 text-sm leading-6 text-rg-ink/75">{item.copy}</p>
+              </article>
             ))}
           </div>
         </div>
@@ -245,89 +260,32 @@ export default function Home() {
 
       <section className="border-t border-rg-cream2/10 bg-rg-ink2/50">
         <div className="mx-auto max-w-7xl px-6 py-20">
-          <div className="grid gap-12 lg:grid-cols-[1fr_1fr] items-start">
-            <div>
-              <SectionLabel>Agent Readiness Package™</SectionLabel>
-              <h2 className="mt-4 font-rg-serif text-4xl text-rg-cream md:text-5xl leading-tight">
-                After readiness, build the submission package.
-              </h2>
-              <p className="mt-6 text-base leading-7 text-rg-cream2/75">
-                Generate your query letter, synopsis, query pitch, comparables, manuscript positioning, and author bio — then approve each section before export. Built for authors who have moved from diagnosis toward submission readiness.
-              </p>
-              <div className="mt-8 flex flex-wrap gap-4">
-                <Link href="/agent-readiness" className="border border-rg-gold bg-rg-gold px-5 py-3 font-rg-mono text-xs uppercase tracking-[0.18em] text-rg-ink transition hover:bg-transparent hover:text-rg-gold">
-                  Build My Package
-                </Link>
-                <Link href="/agent-readiness" className="border border-rg-cream2/30 px-5 py-3 font-rg-mono text-xs uppercase tracking-[0.18em] text-rg-cream transition hover:border-rg-gold hover:text-rg-gold">
-                  See What&apos;s Included
-                </Link>
-              </div>
-            </div>
-            <div className="grid gap-3">
-              {[
-                ["01", "Query Letter", "Hook, metadata, comparables, differentiator, and bio. 450-word hard cap."],
-                ["02", "Synopsis", "Query (100–150 words), standard (250–500), or extended (700–1,000)."],
-                ["03", "Query Pitch", "One sentence and paragraph versions for manuscript submission materials."],
-                ["04", "Comparables & Positioning", "2–4 comps with rationale and Agent Appeal Brief."],
-                ["05", "Author Bio", "Third-person, professional. Author-supplied credentials only."],
-                ["06", "Package History / Export", "Approve all sections, then export as DOCX or copy."],
-              ].map(([num, title, desc]) => (
-                <div key={num} className="flex items-start gap-4 border border-rg-cream2/10 bg-rg-ink px-4 py-3">
-                  <span className="font-rg-mono text-xs text-rg-gold shrink-0 mt-0.5">{num}</span>
-                  <div>
-                    <p className="font-rg-mono text-xs uppercase tracking-[0.1em] text-rg-cream">{title}</p>
-                    <p className="mt-1 font-rg-mono text-[0.6875rem] text-rg-cream2/60 leading-5">{desc}</p>
-                  </div>
-                </div>
-              ))}
-              <div className="flex items-start gap-4 border border-rg-cream2/10 bg-rg-ink px-4 py-3 opacity-50">
-                <span className="font-rg-mono text-xs text-rg-gold shrink-0 mt-0.5">07</span>
-                <div>
-                  <p className="font-rg-mono text-xs uppercase tracking-[0.1em] text-rg-cream2/60">Agent Targeting™ — Coming Next</p>
-                  <p className="mt-1 font-rg-mono text-[0.6875rem] text-rg-cream2/40 leading-5">Find target agents. Generate agent-specific query variants.</p>
-                </div>
-              </div>
-            </div>
+          <div className="max-w-3xl mb-12">
+            <SectionLabel>After diagnosis and repair</SectionLabel>
+            <h2 className="mt-4 font-rg-serif text-4xl text-rg-cream leading-tight">
+              Downstream tools for authors who are ready.
+            </h2>
           </div>
-        </div>
-      </section>
-
-      <section className="border-t border-rg-cream2/10">
-        <div className="mx-auto max-w-7xl px-6 py-20">
-          <div className="grid gap-12 lg:grid-cols-[1fr_1fr] items-start">
-            <div>
-              <SectionLabel>Storygate Studio™</SectionLabel>
-              <h2 className="mt-4 font-rg-serif text-4xl text-rg-cream md:text-5xl leading-tight">
-                A curated access layer for readiness-vetted manuscript projects.
-              </h2>
-              <p className="mt-6 text-base leading-7 text-rg-cream2/75">
-                Manuscript projects that clear the readiness threshold can enter Storygate Studio — a controlled environment where verified publishing professionals request access to creator-approved materials.
+          <div className="grid gap-8 lg:grid-cols-2">
+            <div className="border border-rg-cream2/12 bg-rg-ink2/60 p-8">
+              <SectionLabel>Agent Readiness Package™</SectionLabel>
+              <h3 className="mt-4 font-rg-serif text-2xl text-rg-cream">
+                Build your submission package after diagnosis.
+              </h3>
+              <p className="mt-4 text-sm leading-7 text-rg-cream2/75">
+                Query letter, synopsis, comparables, author bio, and more — generated from your manuscript, approved section by section before export.
               </p>
-              <p className="mt-3 text-sm leading-7 text-rg-cream2/60">
-                No public marketplace. No cold outreach. Access is requested, approved by the creator, and logged.
-              </p>
-              <div className="mt-8 flex flex-wrap gap-4">
-                <Link href="/storygate-studio" className="border border-rg-gold bg-rg-gold px-5 py-3 font-rg-mono text-xs uppercase tracking-[0.18em] text-rg-ink transition hover:bg-transparent hover:text-rg-gold">
-                  Learn About Storygate
-                </Link>
-                <Link href="/storygate-studio/industry" className="border border-rg-cream2/30 px-5 py-3 font-rg-mono text-xs uppercase tracking-[0.18em] text-rg-cream transition hover:border-rg-gold hover:text-rg-gold">
-                  Publishing Access
-                </Link>
-              </div>
+              <Link href="/agent-readiness" className="mt-6 inline-block font-rg-mono text-xs uppercase tracking-[0.18em] text-rg-gold hover:text-rg-cream">Learn more →</Link>
             </div>
-            <div className="grid gap-3">
-              {[
-                ["Verified Access Only", "Publishing users are approved before viewing any project materials."],
-                ["Creator-Controlled Visibility", "Creators decide what is visible and to whom. Access requires their approval."],
-                ["8.0+ Readiness Gate", "Projects must clear a minimum readiness threshold before eligibility."],
-                ["Logged Activity", "All access events are recorded and append-only. No anonymous actions."],
-                ["Not a Marketplace", "No public search. No cold contact. No fee to submit your project."],
-              ].map(([title, desc]) => (
-                <div key={title} className="border border-rg-cream2/10 bg-rg-ink2/60 px-5 py-4">
-                  <p className="font-rg-mono text-xs uppercase tracking-[0.1em] text-rg-gold">{title}</p>
-                  <p className="mt-1 text-sm text-rg-cream2/65 leading-6">{desc}</p>
-                </div>
-              ))}
+            <div className="border border-rg-cream2/12 bg-rg-ink2/60 p-8">
+              <SectionLabel>Storygate Studio™</SectionLabel>
+              <h3 className="mt-4 font-rg-serif text-2xl text-rg-cream">
+                A curated access layer for readiness-vetted projects.
+              </h3>
+              <p className="mt-4 text-sm leading-7 text-rg-cream2/75">
+                Manuscripts that clear the readiness threshold can enter a controlled environment where verified publishing professionals request access to creator-approved materials.
+              </p>
+              <Link href="/storygate-studio" className="mt-6 inline-block font-rg-mono text-xs uppercase tracking-[0.18em] text-rg-gold hover:text-rg-cream">Learn more →</Link>
             </div>
           </div>
         </div>
