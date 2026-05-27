@@ -5231,7 +5231,7 @@ export async function processEvaluationJob(
           phaseV2Artifacts,
         );
 
-        if (!reviewGateHandoffResult.ok) {
+        if ('blocked' in reviewGateHandoffResult) {
           const blocked = reviewGateHandoffResult.blocked;
           const blockedNow = new Date().toISOString();
           const blockedProgress = {
