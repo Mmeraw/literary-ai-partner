@@ -4755,7 +4755,10 @@ export async function processEvaluationJob(
           : preflightStatus;
 
         const trackBDone = allChunksDone;
-        const trackCTerminal = normalizedPreflightStatus === 'DONE';
+        // DONE and DEGRADED are both terminal — degraded = gate-valid.
+        const trackCTerminal =
+          normalizedPreflightStatus === 'DONE' ||
+          normalizedPreflightStatus === 'DEGRADED';
 
         if (!trackBDone) {
           // ── CHUNK BATCH EXECUTION PATH ──────────────────────────────────
@@ -4906,7 +4909,7 @@ export async function processEvaluationJob(
             const elapsedAfterBatchMs = Date.now() - phase1aInvocationStartMs;
             const remainingAfterBatchMs = phase1aConfig.invocationBudgetMs - phase1aConfig.safetyMarginMs - elapsedAfterBatchMs;
 
-            if (trackCStatusAfterBatch !== 'DONE' && remainingAfterBatchMs > 30_000) {
+            if (trackCStatusAfterBatch !== 'DONE' && trackCStatusAfterBatch !== 'DEGRADED' && remainingAfterBatchMs > 30_000) {
               // Enough budget remains — run Track C (Pass 3A) as awaited call.
               console.log(`[track_c] ${jobId}: running bounded Track C within chunk-batch invocation (budget=${remainingAfterBatchMs}ms)`);
               const trackCStartAt = new Date().toISOString();
@@ -4933,6 +4936,18 @@ export async function processEvaluationJob(
                 .eq('status', JOB_STATUS.RUNNING);
 
               // Race Pass 3A against remaining budget.
+              //
+              // Promise.race note: if the timeout wins, the underlying
+              // runPass3Preflight promise is NOT cancelled (JS has no native
+              // cancellation). However this is safe because:
+              //   1. runPass3Preflight writes to artifacts (pass3_preflight_draft_v1)
+              //      which are keyed by jobId — idempotent overwrites.
+              //   2. The next invocation re-runs preflight from scratch (inputs
+              //      are durable manuscripts chunks), so a late write from the
+              //      timed-out promise is harmlessly overwritten.
+              //   3. The self-chain write below releases the lease and persists
+              //      track_c_status='running', so the next invocation won't
+              //      treat the job as Track C terminal.
               type TrackCTimeoutSentinel = { __trackCTimedOut: true };
               const trackCTimeout = new Promise<TrackCTimeoutSentinel>(r =>
                 setTimeout(() => r({ __trackCTimedOut: true }), Math.max(1_000, remainingAfterBatchMs)),
@@ -4987,9 +5002,10 @@ export async function processEvaluationJob(
                 }
               } catch (err) {
                 // Pass 3A error (non-fatal) — mark degraded so we don't retry forever.
-                trackCStatusAfterBatch = 'DONE';
-                console.warn(`[track_c] ${jobId}: Pass 3A failed (non-fatal) — marking degraded:`,
-                  err instanceof Error ? err.message : String(err));
+                trackCStatusAfterBatch = 'DEGRADED';
+                const degradedAt = new Date().toISOString();
+                const degradedReason = err instanceof Error ? err.message : String(err);
+                console.warn(`[track_c] ${jobId}: Pass 3A failed (non-fatal) — marking degraded:`, degradedReason);
                 await supabase
                   .from('evaluation_jobs')
                   .update({
@@ -4998,8 +5014,11 @@ export async function processEvaluationJob(
                       track_c_status: 'degraded',
                       phase1a_batch_state: {
                         ...((progressState.phase1a_batch_state as Record<string, unknown>) ?? {}),
-                        preflight_status: 'DONE',
+                        preflight_status: 'DEGRADED',
                         preflight_degraded: true,
+                        degraded_reason: degradedReason,
+                        degraded_reason_codes: ['TRACK_C_ERROR_DURING_BATCH'],
+                        degraded_at: degradedAt,
                       },
                     },
                   })
@@ -5024,13 +5043,37 @@ export async function processEvaluationJob(
               track_c_status: trackCStatusAfterBatch,
             };
 
+            // Build self-chain progress from the LATEST Track C state.
+            // If Track C degraded or completed during this invocation, the
+            // self-chain write must preserve that state — not rebuild from
+            // stale progressState.
+            const trackCStatusForSelfChain =
+              trackCStatusAfterBatch === 'DONE' ? 'done'
+              : trackCStatusAfterBatch === 'DEGRADED' ? 'degraded'
+              : trackCStatusAfterBatch === 'SELF_CHAINED' ? 'running'
+              : 'running';
+
+            // Merge latest Track C batch state fields (degraded proof, etc.)
+            // on top of updatedBatchState so self-chain doesn't lose them.
+            const latestTrackCBatchFields: Record<string, unknown> = {
+              preflight_status: trackCStatusAfterBatch,
+            };
+            if (trackCStatusAfterBatch === 'DEGRADED') {
+              // Preserve structured degraded proof through self-chain.
+              const batchState = (progressState.phase1a_batch_state as Record<string, unknown>) ?? {};
+              latestTrackCBatchFields.preflight_degraded = true;
+              latestTrackCBatchFields.degraded_reason = batchState.degraded_reason ?? 'Track C failed during chunk-batch invocation';
+              latestTrackCBatchFields.degraded_reason_codes = batchState.degraded_reason_codes ?? ['TRACK_C_ERROR_DURING_BATCH'];
+              latestTrackCBatchFields.degraded_at = batchState.degraded_at ?? new Date().toISOString();
+            }
+
             const updatedProgress = {
               ...progressState,
               phase: 'phase_1a',
               phase_status: 'queued',
               message: `Analyzing manuscript (${completedAfterBatch.size}/${totalChunks} sections)`,
-              track_c_status: trackCStatusAfterBatch === 'DONE' ? 'done' : 'running',
-              phase1a_batch_state: { ...updatedBatchState, preflight_status: trackCStatusAfterBatch },
+              track_c_status: trackCStatusForSelfChain,
+              phase1a_batch_state: { ...updatedBatchState, ...latestTrackCBatchFields },
               phase_log: [
                 ...((progressState.phase_log as unknown[]) ?? []),
                 batchStartedLogEntry,
@@ -5104,10 +5147,11 @@ export async function processEvaluationJob(
         //         IN_PROGRESS (stale/crashed) → re-run
         //         SELF_CHAINED (budget expired prior invocation) → re-run
         //         DONE → skip
+        //         DEGRADED → skip (gate-valid, partial coverage)
         let pass3aResult: Awaited<ReturnType<typeof runPass3Preflight>> | null = null;
 
-        if (normalizedPreflightStatus === 'DONE') {
-          console.log(`[track_c] ${jobId}: Pass 3A already DONE — loading from artifact`);
+        if (trackCTerminal) {
+          console.log(`[track_c] ${jobId}: Pass 3A already terminal (${normalizedPreflightStatus}) — skipping`);
         } else {
           // IN_PROGRESS (crashed) / SELF_CHAINED / NOT_STARTED → run preflight.
           const isCrashRecovery = normalizedPreflightStatus === 'IN_PROGRESS';
@@ -5147,6 +5191,13 @@ export async function processEvaluationJob(
             .eq('status', JOB_STATUS.RUNNING);
 
           // Invocation budget guard — race preflight against remaining budget.
+          //
+          // Promise.race note: if the timeout wins, runPass3Preflight is NOT
+          // cancelled (JS has no native cancellation). This is safe because
+          // runPass3Preflight writes are keyed by jobId (idempotent), the next
+          // invocation re-runs from scratch overwriting any late writes, and
+          // the self-chain write persists track_c_status='running' so the next
+          // invocation won't treat the job as Track C terminal.
           const preflightBudgetMs = Math.max(
             1_000,
             phase1aConfig.invocationBudgetMs - phase1aConfig.safetyMarginMs - (Date.now() - phase1aInvocationStartMs),
@@ -5244,8 +5295,9 @@ export async function processEvaluationJob(
 
           if (preflightThrew) {
             // Preflight error (non-fatal) — mark degraded so we don't retry forever.
-            console.warn(`[track_c] ${jobId}: Pass 3A failed (non-fatal):`,
-              preflightThrew instanceof Error ? preflightThrew.message : String(preflightThrew));
+            const degradedAt = new Date().toISOString();
+            const degradedReason = preflightThrew instanceof Error ? preflightThrew.message : String(preflightThrew);
+            console.warn(`[track_c] ${jobId}: Pass 3A failed (non-fatal):`, degradedReason);
             pass3aResult = null;
             await supabase
               .from('evaluation_jobs')
@@ -5255,8 +5307,11 @@ export async function processEvaluationJob(
                   track_c_status: 'degraded',
                   phase1a_batch_state: {
                     ...((progressState.phase1a_batch_state as Record<string, unknown>) ?? {}),
-                    preflight_status: 'DONE',
+                    preflight_status: 'DEGRADED',
                     preflight_degraded: true,
+                    degraded_reason: degradedReason,
+                    degraded_reason_codes: ['TRACK_C_PREFLIGHT_ERROR'],
+                    degraded_at: degradedAt,
                   },
                 },
               })

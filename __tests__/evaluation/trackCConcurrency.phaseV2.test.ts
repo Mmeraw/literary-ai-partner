@@ -279,3 +279,90 @@ describe('Track C concurrency: Phase 2 refuses without completed Track C', () =>
     expect(guard.can_start_phase2).toBe(true);
   });
 });
+
+// ─── Track C: Degraded state preservation through self-chain ────────────────
+// Regression tests for: Track C failure must NOT be silently collapsed to DONE.
+// The self-chain write must preserve degraded proof (degraded_reason,
+// degraded_reason_codes, degraded_at) through the final progress merge.
+
+describe('Track C durable lane: degraded state preservation', () => {
+  it('degraded Track C with structured proof must derive as gate_valid, not gate_blocking', () => {
+    // Simulates: Track C throws during chunk-batch invocation, self-chain
+    // writes progress with degraded proof. Gate derivation must read it as
+    // gate_valid, NOT as clean DONE.
+    const progress: PhaseV2Progress = {
+      pass3a_status: 'degraded',
+      degraded_reason: 'OpenAI rate limit during chunk MAP',
+      degraded_reason_codes: ['TRACK_C_ERROR_DURING_BATCH'],
+      degraded_at: new Date().toISOString(),
+    };
+    const decision = derivePass3aGateValidity(progress, fullArtifacts);
+    expect(decision.ok).toBe(true);
+    expect(decision.gate_validity).toBe('gate_valid');
+    expect(decision.code).toBe('PASS3A_DEGRADED_GATE_VALID');
+  });
+
+  it('failed Track C without degraded proof must NOT be interpreted as clean DONE', () => {
+    // Simulates: if Track C failure were silently mapped to DONE without
+    // setting preflight_degraded=true, the gate derivation would incorrectly
+    // pass. This test proves it would correctly fail (gate_blocking) because
+    // pass3a_status remains "failed", not "done".
+    const progress: PhaseV2Progress = { pass3a_status: 'failed' };
+    const decision = derivePass3aGateValidity(progress, fullArtifacts);
+    expect(decision.ok).toBe(false);
+    expect(decision.gate_validity).toBe('gate_blocking');
+    expect(decision.code).toBe('PASS3A_FAILED_BLOCKING');
+  });
+
+  it('degraded Track C without structured proof must be gate_blocking', () => {
+    // Edge case: if self-chain writes pass3a_status='degraded' but loses the
+    // proof fields (degraded_reason, degraded_reason_codes, degraded_at),
+    // the gate must block — not silently pass.
+    const progress: PhaseV2Progress = { pass3a_status: 'degraded' };
+    const decision = derivePass3aGateValidity(progress, fullArtifacts);
+    expect(decision.ok).toBe(false);
+    expect(decision.gate_validity).toBe('gate_blocking');
+    expect(decision.code).toBe('PASS3A_DEGRADED_PROOF_MISSING');
+  });
+
+  it('Review Gate must block when pass3a_status=done but artifact is missing', () => {
+    // Simulates: Track C claims DONE but pass3_preflight_draft_v1 artifact
+    // was never written (timeout race or crash). Gate must NOT open.
+    const progress: PhaseV2Progress = {
+      pass3a_status: 'done',
+      pass3a_completed_at: new Date().toISOString(),
+    };
+    const decision = deriveReviewGateReadiness(progress, artifactsWithoutPreflight);
+    expect(decision.ok).toBe(false);
+    expect(decision.review_gate_ready).toBe(false);
+  });
+});
+
+// ─── Track C: Timeout must NOT create false terminal state ──────────────────
+// When Track C times out during Promise.race, the persisted state must remain
+// non-terminal (running/SELF_CHAINED), NOT become DONE or terminal success.
+
+describe('Track C durable lane: timeout produces non-terminal state', () => {
+  it('Track C timeout (self-chained) must derive as not_ready, not gate_valid', () => {
+    // Simulates: Promise.race timeout → persisted track_c_status='running',
+    // preflight_status='SELF_CHAINED'. Gate must see this as non-terminal.
+    const progress: PhaseV2Progress = { pass3a_status: 'running' };
+    const decision = derivePass3aGateValidity(progress, fullArtifacts);
+    expect(decision.ok).toBe(false);
+    expect(decision.gate_validity).toBe('not_ready');
+  });
+
+  it('Review Gate must not open while Track C is self-chained/running', () => {
+    const progress: PhaseV2Progress = { pass3a_status: 'running' };
+    const decision = deriveReviewGateReadiness(progress, artifactsWithoutAccepted);
+    expect(decision.ok).toBe(false);
+    expect(decision.review_gate_ready).toBe(false);
+  });
+
+  it('Phase 2 must not start while Track C is self-chained/running', () => {
+    const progress: PhaseV2Progress = { pass3a_status: 'running' };
+    const guard = guardPhase2Start(progress, fullArtifacts);
+    expect(guard.ok).toBe(false);
+    expect(guard.can_start_phase2).toBe(false);
+  });
+});
