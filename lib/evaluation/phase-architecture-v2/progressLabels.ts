@@ -24,7 +24,7 @@ export const PHASE_V2_RUNTIME_LABELS = {
   phase2CriteriaAnalysis: 'Phase 2 Criteria Analysis',
   phase3bSynthesis: 'Phase 3B Synthesis',
   qualityGate: 'Quality Gate',
-  waveRevision: 'WAVE Revision',
+  waveRevision: 'WAVE Readiness Layer',
   dreamLongform: 'DREAM longform',
   complete: 'Complete',
 } as const;
@@ -58,7 +58,8 @@ export const PHASE_V2_NAMING_RULES = [
   'Pass 3A is never Phase 0.',
   'Pass 3A is never hidden inside generic Phase 1A labels once Track C is split.',
   'Quality Gate is never WAVE.',
-  'WAVE is never Pass 4 unless a full repo-wide rename retires old Pass 4 Quality Gate usage.',
+  'WAVE is the long-form readiness / revision-planning analysis layer — not Pass 4 and not the Revise workflow.',
+  'WAVE can diagnose and plan. Revise (Queue / TrustedPath) repairs.',
   'Failed Pass 3A must be visibly blocking.',
   'Degraded Pass 3A must be visibly degraded, not complete.',
 ] as const;
