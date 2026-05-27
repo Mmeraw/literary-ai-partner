@@ -118,7 +118,7 @@ export async function POST(req: Request) {
         allow_industry_discovery: false,
         is_final: false,
         // Must satisfy manuscripts_source_check in production.
-        source: "uploaded",
+        source: "upload",
         english_variant: "us",
         word_count: wordCount,
       })
