@@ -1,92 +1,94 @@
+<!-- PR Template: Database Migration -->
+<!-- Trust-proof validator: node scripts/validate-pr-trust-proof.mjs -->
+
 ## Summary
 
-> Validation rule: blank sections, placeholder-only answers (for example, `TBD`, `TODO`, bare `N/A`) fail. Use `N/A — <reason>` when a section truly does not apply.
-
-<!-- 1–3 sentences describing what schema changes and why. -->
+<!-- What tables, columns, types, or RPCs are changing? -->
 
 ## Scope
 
-<!-- Tables, columns, indexes, RLS policies, functions affected. What is NOT touched. -->
+**In scope:**
 
-## Schema Diff
+- 
 
-<!-- Summary of tables/columns added, modified, dropped. Index changes. RLS policy changes. -->
+**Out of scope:**
 
-| Object | Change | Notes |
-| --- | --- | --- |
-|        |        |       |
-
-## Rollback Plan
-
-<!-- Down-migration SQL or operator steps. If irreversible, say so explicitly and explain the safety net. -->
-
-## Data Backfill
-
-<!-- Yes/No. If yes: estimated row count, runtime, lock impact, and whether it runs inside or outside the migration transaction. -->
-
-## Rollback Posture
-
-<!-- State whether rollback is reversible, irreversible, or operator-gated.
-Describe the trigger to roll back, the blast-radius containment plan, and what evidence would tell operators to stop. -->
-
-## Lock / Table-Scan Risk
-
-<!-- Describe expected lock scope, table-scan risk, index creation mode, and any production concurrency impact.
-If none: use "None — <reason>". -->
-
-## Data Backfill Risk
-
-<!-- Describe batching, resumability, idempotency, failure handling, and recovery posture for any backfill.
-If no backfill is required: use "None — no backfill required because ...". -->
-
-## RLS / Access Impact
-
-<!-- Describe any row-level security, grants, role, or access-path impact.
-If none: use "None — no access-control change." -->
-
-## Production Verification Query
-
-<!-- Provide the exact safe read-only SQL query or verification steps operators should run after deploy to prove the migration succeeded. -->
-
-## Unauthorized Input Sources
-
-<!-- Explicitly state all input sources this migration consumes (existing table data, migration params, env-driven behavior, operator inputs).
-For each, describe authorization boundary and validation/safety handling. If none: state "None". -->
-
-## Internal Process Leakage
-
-<!-- Confirm migration/runtime responses and docs do not leak internal process details (raw errors, internals, sensitive IDs) to public surfaces. -->
+- 
 
 ## Input → Action → Output
 
-<!-- Provide a concise flow map: input state/data, migration action, output state/schema contract.
-Include failure-path behavior and rollback posture. -->
+**Input:** <!-- What triggers or feeds this change? -->
+
+**Action:** <!-- What does this PR actually do? -->
+
+**Output:** <!-- What is the observable result? -->
+
+## Process Change
+
+<!-- Does this migration change job lifecycle fields, phase state, artifact storage, or RLS policies? -->
+<!-- State: "Process Change: yes" or "Process Change: no — reason: ..." -->
+
+Process Change: 
+
+## Rollback / Reversal
+
+<!-- Is this migration reversible? If not, state why and what the recovery path is. -->
+
+## Data Safety
+
+<!-- Are existing rows affected? How are NULL/default values handled for existing data? -->
+
+## RLS / Permissions
+
+<!-- Does this migration add or change row-level security policies or grants? -->
+
+## Unauthorized Input Sources
+
+<!-- Does this PR introduce new input sources? (provider calls, external APIs, user input paths, env vars read at runtime)
+     If no: state "No unauthorized input sources are introduced." -->
+
+## Internal Process Leakage
+
+<!-- Does this PR expose internal phase names, artifact types, model names, prompt versions, or governance
+     traces to public-facing surfaces (UI, API responses, error messages)?
+     If no: state "No internal process leakage is introduced." -->
 
 ## Public-Safe Quality/Status Metrics
 
-<!-- List visible migration status/quality indicators and confirm they are public-safe (no secret/internal telemetry leakage). -->
+<!-- What quality or status signals does this PR expose publicly?
+     Confirm they are safe for authors/users to see without revealing internal pipeline details. -->
 
 ## Runtime/Pipeline Expansion
 
-<!-- Declare whether this migration adds hidden runtime/pipeline expansion (new workers/routes/paths).
-If none: state "None" and explain. -->
+<!-- Does this PR add evaluation phases, model calls, DB writes, artifact types, or new worker paths?
+     If no: state "No hidden runtime or pipeline expansion." -->
 
 ## Latency Impact
 
-<!-- Provide migration/runtime latency impact evidence (query/runtime/lock duration) or explain why no unnecessary latency increase is expected. -->
+<!-- What is the expected latency impact of this change?
+     If no increase: state "No unnecessary latency increase." -->
 
-## Branch Freshness (Never Behind)
+## Post-Merge Sanity Sweep
 
-<!-- Required merge gate: PR head must include current base HEAD. -->
+<!-- Include the exact commands to verify correctness after merge. Example:
+```bash
+git checkout main && git pull --ff-only
+npm test -- __tests__/relevant-test.test.ts --runInBand
+node scripts/validate-pr-trust-proof.mjs
+``` -->
 
-Branch-Behind-Base: 0
+## Actionlint Status
 
-## Risks & Anomalies
+<!-- State whether GitHub Actions workflow YAML has been validated with actionlint.
+     If not run locally: "Full actionlint validation remains unproven in this environment until CI proves it." -->
 
-<!-- Lock contention, downtime, replica lag, application compatibility, etc. -->
+## Trust-Proof Checklist
 
----
-
-No-Pipeline-Impact: Confirmed — this PR does not modify lib/evaluation/**, app/api/workers/**, prompts, or any pipeline contract.
-
-<!-- pr-type: migration -->
+- [ ] No unauthorized input sources introduced.
+- [ ] No internal process leakage introduced.
+- [ ] Input → Action → Output is explicit.
+- [ ] Public-safe quality/status metrics are identified.
+- [ ] No hidden runtime/pipeline expansion.
+- [ ] No unnecessary latency increase.
+- [ ] Post-merge sanity sweep instructions included.
+- [ ] Actionlint status stated.
