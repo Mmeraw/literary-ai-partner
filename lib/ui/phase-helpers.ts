@@ -54,8 +54,8 @@ export function getPhaseSpecificCopy(
   if (phase === PHASES.WAVE_REVISION) {
     return {
       phase: PHASES.WAVE_REVISION,
-      displayCopy: "Preparing WAVE revision plan…",
-      description: "Building the post-report revision plan when the manuscript meets the structural gate",
+      displayCopy: "Preparing WAVE readiness plan…",
+      description: "Building the post-evaluation readiness and revision-planning analysis when the manuscript meets the long-form gate",
     };
   }
 
