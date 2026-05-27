@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import type { WorkbenchOpportunity, WorkbenchQueuePayload } from "@/lib/revision/workbenchQueue";
+import type { WorkbenchOpportunity, WorkbenchQueuePayload, WorkbenchSource } from "@/lib/revision/workbenchQueue";
 
 type DecisionState = "pending" | "accepted_a" | "accepted_b" | "accepted_c" | "custom" | "keep_original" | "reject" | "deferred";
 type SyncStatus = "pending" | "synced" | "failed";
@@ -17,6 +17,9 @@ type LedgerEntry = {
   decision: DecisionState;
   selectedOption?: "A" | "B" | "C";
   customText?: string;
+  selectedText?: string;
+  isUndo?: boolean;
+  undoneLocalId?: string;
   syncStatus: SyncStatus;
 };
 
@@ -82,6 +85,12 @@ function saveLocalCache(key: string, payload: WorkbenchQueuePayload, ledger: Led
   }
 }
 
+function sourceLabel(source: WorkbenchSource): string {
+  if (source === 'baseline_discovery') return 'Discovery';
+  if (source === 'deep_revision') return 'Deep';
+  return 'Evaluation';
+}
+
 function severityClasses(severity: WorkbenchOpportunity["severity"]) {
   switch (severity) {
     case "must":
@@ -114,9 +123,14 @@ function decisionLabel(entry: LedgerEntry) {
 
 function rebuildDecisionMap(entries: LedgerEntry[]): Record<string, DecisionState> {
   const next: Record<string, DecisionState> = {};
-  [...entries].reverse().forEach((entry) => {
-    next[entry.itemId] = entry.decision;
-  });
+  // Ledger is sorted newest-first. Iterate in order so the latest
+  // decision per opportunity wins (first write to the key sticks).
+  for (const entry of entries) {
+    if (entry.decision === 'pending') continue;
+    if (!(entry.itemId in next)) {
+      next[entry.itemId] = entry.decision;
+    }
+  }
   return next;
 }
 
@@ -271,7 +285,10 @@ export default function ReviseWorkbenchClient({ payload }: { payload: WorkbenchQ
               decision: entry.decision,
               selectedOption: entry.selectedOption ?? null,
               customText: entry.customText ?? null,
+              selectedText: entry.selectedText ?? entry.customText ?? null,
               clientCreatedAt: entry.createdAtIso,
+              isUndo: entry.isUndo ?? false,
+              undoneLocalId: entry.undoneLocalId ?? null,
               metadata: { source: "workbench-local-first" },
             })),
           }),
@@ -333,6 +350,9 @@ export default function ReviseWorkbenchClient({ payload }: { payload: WorkbenchQ
   function stampDecision(decision: DecisionState, customText?: string) {
     const normalized = decision === "accepted_a" || decision === "accepted_b" || decision === "accepted_c" ? (`accepted_${selectedOption.toLowerCase()}` as DecisionState) : decision;
     const createdAtIso = new Date().toISOString();
+    const resolvedSelectedText = normalized.startsWith("accepted")
+      ? selectedProposal?.text ?? undefined
+      : customText?.trim() || undefined;
     const entry: LedgerEntry = {
       localId: localId(),
       at: new Date(createdAtIso).toLocaleTimeString(),
@@ -342,6 +362,7 @@ export default function ReviseWorkbenchClient({ payload }: { payload: WorkbenchQ
       decision: normalized,
       selectedOption: normalized.startsWith("accepted") ? selectedOption : undefined,
       customText: customText?.trim() || undefined,
+      selectedText: resolvedSelectedText,
       syncStatus: "pending",
     };
     const nextLedger = [entry, ...ledger];
@@ -353,11 +374,25 @@ export default function ReviseWorkbenchClient({ payload }: { payload: WorkbenchQ
 
   function undoLedgerEntry(index: number) {
     const removed = ledger[index];
-    const nextLedger = ledger.filter((_, i) => i !== index);
-    setLedger(nextLedger);
-    setDecisionById(rebuildDecisionMap(nextLedger));
-    saveLocalCache(key, effectivePayload, nextLedger);
-    if (removed) moveToOpportunity(removed.itemId);
+    if (removed) {
+      const createdAtIso = new Date().toISOString();
+      const undoEntry: LedgerEntry = {
+        localId: localId(),
+        at: new Date(createdAtIso).toLocaleTimeString(),
+        createdAtIso,
+        itemId: removed.itemId,
+        itemTitle: removed.itemTitle,
+        decision: 'keep_original',
+        isUndo: true,
+        undoneLocalId: removed.localId,
+        syncStatus: 'pending',
+      };
+      const nextLedger = [undoEntry, ...ledger];
+      setLedger(nextLedger);
+      setDecisionById(rebuildDecisionMap(nextLedger));
+      saveLocalCache(key, effectivePayload, nextLedger);
+      moveToOpportunity(removed.itemId);
+    }
   }
 
   return (
@@ -402,7 +437,7 @@ export default function ReviseWorkbenchClient({ payload }: { payload: WorkbenchQ
           <article className="rounded-xl border border-[#3A3022] bg-[#1C160E] p-5">
             <p className="text-xs text-[#A89574]">{active.crumb}</p>
             <h2 className="mt-2 text-3xl text-[#F7EFDF]" style={{ fontFamily: "Instrument Serif, Georgia, serif" }}>{active.title}</h2>
-            <div className="mt-3 flex flex-wrap gap-2"><span className={`rounded px-2 py-1 text-[11px] uppercase tracking-wider ${severityClasses(active.severity)}`}>{active.severity}</span><span className="rounded border border-[#5A4B33] bg-[#231C12] px-2 py-1 text-[11px] uppercase tracking-wider text-[#D7C6A8]">{active.scope}</span><span className="rounded border border-[#5A4B33] bg-[#231C12] px-2 py-1 text-[11px] uppercase tracking-wider text-[#D7C6A8]">{active.mode === "repair-brief" ? "Repair Brief" : "Direct Rewrite"}</span><span className="rounded border border-[#5A4B33] bg-[#231C12] px-2 py-1 text-[11px] uppercase tracking-wider text-[#D7C6A8]">{active.confidence}</span></div>
+            <div className="mt-3 flex flex-wrap gap-2"><span className={`rounded px-2 py-1 text-[11px] uppercase tracking-wider ${severityClasses(active.severity)}`}>{active.severity}</span><span className="rounded border border-[#5A4B33] bg-[#231C12] px-2 py-1 text-[11px] uppercase tracking-wider text-[#D7C6A8]">{active.scope}</span><span className="rounded border border-[#5A4B33] bg-[#231C12] px-2 py-1 text-[11px] uppercase tracking-wider text-[#D7C6A8]">{active.mode === "repair-brief" ? "Repair Brief" : "Direct Rewrite"}</span><span className="rounded border border-[#5A4B33] bg-[#231C12] px-2 py-1 text-[11px] uppercase tracking-wider text-[#D7C6A8]">{active.confidence}</span><span className="rounded border border-[#5A4B33] bg-[#231C12] px-2 py-1 text-[11px] uppercase tracking-wider text-[#D7C6A8]">{sourceLabel(active.source)}</span></div>
             {active.mode === "repair-brief" && <div className="mt-4 rounded-lg border border-[#C8A96E]/45 bg-[#120E08] p-3 text-sm text-[#E8DCC4]"><strong className="text-[#C8A96E]">Repair Brief:</strong> this is larger-scope work. A/B/C are repair plans, not sentence swaps.</div>}
             <section className="mt-5 rounded-lg border border-[#2E261A] bg-[#12100B] p-4"><h3 className="text-xs uppercase tracking-[0.16em] text-[#C8A96E]">Evidence</h3><blockquote className="mt-2 border-l border-[#C8A96E]/60 pl-3 text-sm leading-relaxed text-[#E9DCC4]"><span className="text-[#F8F1E2]">“{active.quoteHighlight}”</span>{active.quoteRest}</blockquote><p className="mt-2 text-xs text-[#9D8D72]">{active.anchor}</p></section>
             <section className="mt-4 grid gap-3 md:grid-cols-2">{[["Symptom", active.symptom], ["Cause", active.cause], ["Fix direction", active.fixDirection], ["Reader effect", active.readerEffect]].map(([label, text]) => <div key={label} className="rounded-lg border border-[#2E261A] bg-[#12100B] p-3"><p className="text-xs uppercase tracking-[0.14em] text-[#C8A96E]">{label}</p><p className="mt-1 text-sm leading-6 text-[#E8DCC4]">{text}</p></div>)}</section>

@@ -80,8 +80,8 @@ function toSeverity(raw: unknown, scoreOverride?: unknown): ProposalSeverity {
     return "low";
   }
   const v = typeof raw === "string" ? raw.trim().toLowerCase() : "";
-  if (v === "high" || v === "critical" || v === "major") return "high";
-  if (v === "low" || v === "minor") return "low";
+  if (["must", "high", "critical", "major", "blocker"].includes(v)) return "high";
+  if (["could", "low", "minor", "optional"].includes(v)) return "low";
   return "medium";
 }
 
