@@ -1,4 +1,4 @@
-import { triggerEvaluationWorker } from '@/lib/jobs/triggerWorker';
+import { triggerEvaluationWorkflow } from '@/lib/jobs/triggerWorkflow';
 
 jest.mock('@/lib/observability/logger', () => ({
   logger: {
@@ -12,7 +12,7 @@ const { logger } = jest.requireMock('@/lib/observability/logger') as {
   logger: { info: jest.Mock; warn: jest.Mock; error: jest.Mock };
 };
 
-describe('triggerEvaluationWorker trusted origin behavior', () => {
+describe('triggerEvaluationWorkflow trusted origin behavior', () => {
   const originalFetch = global.fetch;
   const originalNodeEnv = process.env.NODE_ENV;
   const originalCronSecret = process.env.CRON_SECRET;
@@ -41,7 +41,7 @@ describe('triggerEvaluationWorker trusted origin behavior', () => {
   test('uses canonical production base URL when trusted configured base URL is missing', async () => {
     Object.assign(process.env, { NODE_ENV: 'production' });
 
-    await triggerEvaluationWorker({
+    await triggerEvaluationWorkflow({
       req: new Request('https://untrusted.example/api/jobs'),
       jobId: 'job-1',
       trace_id: 'trace-1',
@@ -50,9 +50,9 @@ describe('triggerEvaluationWorker trusted origin behavior', () => {
     });
 
     expect(global.fetch).toHaveBeenCalledWith(
-      'https://www.revisiongrade.com/api/workers/process-evaluations',
+      'https://www.revisiongrade.com/api/workflows/evaluate',
       expect.objectContaining({
-        method: 'GET',
+        method: 'POST',
         headers: expect.objectContaining({
           Authorization: 'Bearer cron-secret',
           'x-trigger-source': 'api.jobs.create',
@@ -61,13 +61,17 @@ describe('triggerEvaluationWorker trusted origin behavior', () => {
         }),
       }),
     );
+    expect(logger.warn).not.toHaveBeenCalledWith(
+      'Workflow kickoff skipped: no trusted app base URL in production',
+      expect.anything(),
+    );
   });
 
   test('uses VERCEL_URL as trusted base URL in production', async () => {
     Object.assign(process.env, { NODE_ENV: 'production' });
     process.env.VERCEL_URL = 'literary-ai-partner.vercel.app';
 
-    await triggerEvaluationWorker({
+    await triggerEvaluationWorkflow({
       req: new Request('https://ignored.example/api/jobs'),
       jobId: 'job-2',
       trace_id: 'trace-2',
@@ -76,9 +80,9 @@ describe('triggerEvaluationWorker trusted origin behavior', () => {
     });
 
     expect(global.fetch).toHaveBeenCalledWith(
-      'https://literary-ai-partner.vercel.app/api/workers/process-evaluations',
+      'https://literary-ai-partner.vercel.app/api/workflows/evaluate',
       expect.objectContaining({
-        method: 'GET',
+        method: 'POST',
         headers: expect.objectContaining({
           Authorization: 'Bearer cron-secret',
           'x-trigger-source': 'api.jobs.create',

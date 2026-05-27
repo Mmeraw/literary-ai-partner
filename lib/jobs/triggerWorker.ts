@@ -47,6 +47,13 @@ export function getConfiguredAppBaseUrl(): string | null {
     return vercelUrl.startsWith('http') ? vercelUrl : `https://${vercelUrl}`;
   }
 
+  if (process.env.NODE_ENV === 'production') {
+    // Mistake-proof production fallback: if deployment envs are missing,
+    // still dispatch to the canonical public hostname instead of silently
+    // stranding newly created jobs in queued state.
+    return 'https://www.revisiongrade.com';
+  }
+
   return null;
 }
 
