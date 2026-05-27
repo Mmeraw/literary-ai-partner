@@ -12,7 +12,7 @@
 --
 -- Already applied to production (xtumxjnzdswuumndcbwc).
 
-ALTER TABLE evaluation_jobs DROP CONSTRAINT evaluation_jobs_status_phase_consistent;
+ALTER TABLE evaluation_jobs DROP CONSTRAINT IF EXISTS evaluation_jobs_status_phase_consistent;
 ALTER TABLE evaluation_jobs ADD CONSTRAINT evaluation_jobs_status_phase_consistent CHECK (
   -- Normal pipeline states
   (status = 'queued'   AND (phase_status IS NULL OR phase_status = ANY (ARRAY['queued', 'triggered', 'awaiting_approval'])))

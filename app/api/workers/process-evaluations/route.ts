@@ -25,6 +25,7 @@ import crypto from 'crypto';
 import os from 'os';
 import { getEvaluationRuntimeConfig } from '@/lib/config/evaluationRuntimeConfig';
 import { isPipelineEnabled, pipelineDisabledResponse } from '@/lib/config/pipelineGuard';
+import { getConfiguredAppBaseUrl } from '@/lib/jobs/triggerWorker';
 
 // Force Node.js runtime (required for crypto module)
 export const runtime = 'nodejs';
@@ -572,8 +573,9 @@ export async function GET(request: NextRequest) {
     // immediately (fire-and-forget) so phase transitions don't wait up to 60s
     // for the next cron tick. The cron remains the rescue fallback.
     // Only self-chain when running on Vercel (not in local dev) to avoid loops.
-    if (results.processed > 0 && process.env.VERCEL_URL) {
-      const selfUrl = `https://${process.env.VERCEL_URL}/api/workers/process-evaluations`;
+    const selfChainBase = getConfiguredAppBaseUrl();
+    if (results.processed > 0 && selfChainBase) {
+      const selfUrl = new URL('/api/workers/process-evaluations', selfChainBase).toString();
       const cronSecret = process.env.CRON_SECRET;
       if (cronSecret) {
         // Fire-and-forget — don't await, don't block the response

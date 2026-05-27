@@ -29,7 +29,7 @@ describe('Phase Architecture v2 — progress labels and naming rules', () => {
 
   it('keeps Quality Gate and WAVE Revision separate', () => {
     expect(PHASE_V2_RUNTIME_LABELS.qualityGate).toBe('Quality Gate');
-    expect(PHASE_V2_RUNTIME_LABELS.waveRevision).toBe('WAVE Revision');
+    expect(PHASE_V2_RUNTIME_LABELS.waveRevision).toBe('WAVE Readiness Layer');
     expect(PHASE_V2_RUNTIME_LABELS.qualityGate).not.toBe(PHASE_V2_RUNTIME_LABELS.waveRevision);
   });
 

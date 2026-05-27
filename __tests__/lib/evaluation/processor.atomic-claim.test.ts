@@ -636,8 +636,125 @@ describe('failStaleRunningJobs — expired lease recovery', () => {
       claimed_by: null,
       claimed_at: null,
       lease_token: null,
-      // lease_expires_at is GENERATED ALWAYS AS (lease_until) — never written directly
     });
+    // Production path (lease_until exists): payload must clear lease_until
+    expect(updatePayload).toHaveProperty('lease_until', null);
+  });
+
+  test('clears lease_until (not lease_expires_at) when lease_until column exists (production path)', async () => {
+    const staleJob = { id: 'stale-lease-job' };
+
+    const updateChain: Record<string, jest.Mock> = {};
+    Object.assign(updateChain, {
+      in: jest.fn(() => updateChain),
+      eq: jest.fn(() => updateChain),
+      neq: jest.fn(() => updateChain),
+      select: jest.fn().mockResolvedValue({ data: [staleJob], error: null }),
+    });
+    const updateMock = jest.fn().mockReturnValue(updateChain);
+
+    // Both selects succeed (age returns empty, lease_until returns expired job)
+    // — this means lease_until column exists (leaseScanUsedLegacyColumn = false)
+    let limitCallCount = 0;
+    const queryChain: Record<string, jest.Mock> = {};
+    Object.assign(queryChain, {
+      eq: jest.fn(() => queryChain),
+      neq: jest.fn(() => queryChain),
+      not: jest.fn(() => queryChain),
+      in: jest.fn(() => queryChain),
+      lt: jest.fn(() => queryChain),
+      order: jest.fn(() => queryChain),
+      limit: jest.fn(() => {
+        limitCallCount++;
+        // 1: frozen watchdog (empty), 2: age-based (empty), 3: lease_until scan (found stale)
+        return Promise.resolve({
+          data: limitCallCount <= 2 ? [] : [staleJob],
+          error: null,
+        });
+      }),
+    });
+
+    const stub = {
+      rpc: jest.fn(),
+      from: jest.fn().mockReturnValue({
+        select: jest.fn().mockReturnValue(queryChain),
+        update: updateMock,
+      }),
+    };
+
+    createClientMock.mockReturnValue(stub);
+
+    const { failStaleRunningJobs } = await import('../../../lib/evaluation/processor');
+    await failStaleRunningJobs();
+
+    const updatePayload = updateMock.mock.calls[0]?.[0];
+    // Production path: lease_until exists and must be cleared
+    expect(updatePayload).toHaveProperty('lease_until', null);
+    expect(updatePayload).toHaveProperty('lease_token', null);
+    // lease_expires_at should NOT be in the payload (it's either generated or handled separately)
+    expect(updatePayload).not.toHaveProperty('lease_expires_at');
+  });
+
+  test('clears lease_expires_at (not lease_until) when falling back to legacy schema', async () => {
+    const staleJob = { id: 'legacy-stale-job' };
+
+    const updateChain: Record<string, jest.Mock> = {};
+    Object.assign(updateChain, {
+      in: jest.fn(() => updateChain),
+      eq: jest.fn(() => updateChain),
+      neq: jest.fn(() => updateChain),
+      select: jest.fn().mockResolvedValue({ data: [staleJob], error: null }),
+    });
+    const updateMock = jest.fn().mockReturnValue(updateChain);
+
+    // Frozen watchdog → empty, age-based → empty, lease_until scan → missing column,
+    // lease_expires_at fallback → found stale job
+    let limitCallCount = 0;
+    const queryChain: Record<string, jest.Mock> = {};
+    Object.assign(queryChain, {
+      eq: jest.fn(() => queryChain),
+      neq: jest.fn(() => queryChain),
+      not: jest.fn(() => queryChain),
+      in: jest.fn(() => queryChain),
+      lt: jest.fn(() => queryChain),
+      order: jest.fn(() => queryChain),
+      limit: jest.fn(() => {
+        limitCallCount++;
+        if (limitCallCount <= 2) {
+          // 1: frozen watchdog (empty), 2: age-based (empty)
+          return Promise.resolve({ data: [], error: null });
+        }
+        if (limitCallCount === 3) {
+          // 3: lease_until scan → column missing
+          return Promise.resolve({
+            data: null,
+            error: { message: 'column evaluation_jobs.lease_until does not exist', code: '42703' },
+          });
+        }
+        // 4: lease_expires_at fallback → found stale job
+        return Promise.resolve({ data: [staleJob], error: null });
+      }),
+    });
+
+    const stub = {
+      rpc: jest.fn(),
+      from: jest.fn().mockReturnValue({
+        select: jest.fn().mockReturnValue(queryChain),
+        update: updateMock,
+      }),
+    };
+
+    createClientMock.mockReturnValue(stub);
+
+    const { failStaleRunningJobs } = await import('../../../lib/evaluation/processor');
+    await failStaleRunningJobs();
+
+    const updatePayload = updateMock.mock.calls[0]?.[0];
+    // Legacy path: lease_expires_at must be cleared
+    expect(updatePayload).toHaveProperty('lease_expires_at', null);
+    expect(updatePayload).toHaveProperty('lease_token', null);
+    // lease_until should NOT be in the payload (column doesn't exist)
+    expect(updatePayload).not.toHaveProperty('lease_until');
   });
 });
 

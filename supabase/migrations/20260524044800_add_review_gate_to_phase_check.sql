@@ -10,7 +10,7 @@
 -- Also adds 'wave_revision' which is already in the canonical phase enum
 -- but was missing from the DB constraint.
 
-ALTER TABLE evaluation_jobs DROP CONSTRAINT evaluation_jobs_phase_check;
+ALTER TABLE evaluation_jobs DROP CONSTRAINT IF EXISTS evaluation_jobs_phase_check;
 ALTER TABLE evaluation_jobs ADD CONSTRAINT evaluation_jobs_phase_check
   CHECK (phase = ANY (ARRAY[
     'phase_0'::text,
