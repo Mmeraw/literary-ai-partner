@@ -112,7 +112,7 @@ function isUuid(value: string | null | undefined): value is string {
 }
 
 /**
- * Resolve a valid manuscript_versions.id for WAVE revision session creation.
+ * Resolve a valid manuscript_versions.id for WAVE Readiness Layer session creation.
  *
  * Root-cause fix:
  * - Older jobs may have null/invalid evaluation_jobs.manuscript_version_id.
@@ -292,7 +292,7 @@ export async function executeWaveRevision(
   // ── Gate failed: return skipped artifact ──────────────────────────────────
   if (!gate.passed) {
     const durationMs = Date.now() - startMs;
-    console.log(`[WAVE] Gate failed for job ${handoff.jobId} — skipping revision phase`, {
+    console.log(`[WAVE] Gate failed for job ${handoff.jobId} — skipping WAVE readiness layer`, {
       reasons: gate.reasons,
     });
 
@@ -315,7 +315,7 @@ export async function executeWaveRevision(
   }
 
   // ── Gate passed: run WAVE ─────────────────────────────────────────────────
-  console.log(`[WAVE] Gate passed for job ${handoff.jobId} — starting revision phase`, {
+  console.log(`[WAVE] Gate passed for job ${handoff.jobId} — starting WAVE readiness layer`, {
     word_count: handoff.wordCount,
     criteria_count: handoff.synthesis.criteria.length,
   });
@@ -409,7 +409,7 @@ export async function executeWaveRevision(
 
   const durationMs = Date.now() - startMs;
 
-  console.log(`[WAVE] Revision phase complete for job ${handoff.jobId}`, {
+  console.log(`[WAVE] WAVE readiness layer complete for job ${handoff.jobId}`, {
     modules_run: moduleResult.results.length,
     modules_with_findings: modulesWithFindings,
     duration_ms: durationMs,
