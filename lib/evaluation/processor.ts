@@ -8,11 +8,11 @@
  * GOVERNANCE AUTHORITY CHAIN
  * ─────────────────────────────────────────────────────────────────────
  * 
- * This processor enforces the WAVE Revision Guide canonical authority
+ * This processor enforces the WAVE Readiness Layer canonical authority
  * as defined in docs/WAVE_REVISION_GUIDE_CANON.md.
  * 
  * Authority Chain:
- * 1. WAVE Revision Guide (docs/WAVE_REVISION_GUIDE_CANON.md) — canonical
+ * 1. WAVE Readiness Layer Guide (docs/WAVE_REVISION_GUIDE_CANON.md) — canonical
  * 2. 13 Criteria Registry (schemas/criteria-keys.ts) — WAVE tiers
  * 3. Evaluation Processor (this file) — enforcement logic
  * 4. Phase 2 (lib/evaluation/phase2.ts) — artifact persistence
@@ -3950,8 +3950,8 @@ export async function processEvaluationJob(
 
     const externalMode = getExternalAdjudicationMode();
 
-    // ── PHASE 3 EXECUTION PATH (Pass 3B Synthesis + WAVE Revision) ─────────────
-    // Own 720s Vercel invocation. Owns Pass 3B synthesis AND WAVE revision.
+    // ── PHASE 3 EXECUTION PATH (Pass 3B Synthesis + WAVE Readiness Layer) ───────
+    // Own 720s Vercel invocation. Owns Pass 3B synthesis AND WAVE Readiness Layer (diagnoses/plans; not repair).
     //   - If pass12_handoff_v1 missing → terminal failure (PHASE3_MISSING_HANDOFF)
     //   - If evaluation_result_v2 already exists → skip synthesis, run WAVE inline
     //   - If evaluation_result_v2 missing + handoff present → run Pass 3B synthesis
@@ -4232,7 +4232,7 @@ export async function processEvaluationJob(
       } else {
         // ── WAVE-only path: eval_result already exists, skip synthesis ─────────
         // This is the rerun/retry case. Run WAVE inline + complete.
-        await markRunning('Running WAVE revision engine', 2, 'phase_3');
+        await markRunning('Running WAVE readiness analysis', 2, 'phase_3');
       refreshPhaseDeadline(progressState.phase3_started_at as string | undefined);
 
       // Heartbeat renewal loop — WAVE can run for several minutes on large manuscripts.
@@ -4453,7 +4453,7 @@ export async function processEvaluationJob(
               ...buildPhaseLogPatch(progressState, 'phase_3', 'passed', phase3Now),
               phase: 'phase_3',
               phase_status: 'complete',
-              message: 'WAVE revision complete',
+              message: 'WAVE readiness layer complete',
               phase3_completed_at: phase3Now,
             },
           })
@@ -6814,7 +6814,7 @@ export async function processEvaluationJob(
         at: persistenceResult.completedAt,
       });
 
-      // ── Phase 2 → Phase 3 handoff (WAVE revision owns its own 720s invocation) ──
+      // ── Phase 2 → Phase 3 handoff (WAVE Readiness Layer owns its own 720s invocation) ──
       // Evaluation is fully complete. If WAVE eligible, queue phase_3 for the next
       // cron tick. If not eligible, mark job complete now.
       // WAVE gate: wordCount >= 25,000 AND all 13 criteria final_score_0_10 >= 6.0
@@ -6983,7 +6983,7 @@ export async function processEvaluationJob(
               ...progressState,
               phase: 'phase_2',
               phase_status: 'complete',
-              message: 'Evaluation complete — queued for WAVE revision',
+              message: 'Evaluation complete — queued for WAVE readiness layer',
               phase2_completed_at: phase2Now,
             },
           })
