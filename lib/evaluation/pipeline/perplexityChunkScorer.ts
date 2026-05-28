@@ -35,7 +35,7 @@ const PERPLEXITY_TEMPERATURE = 0.1;
 const PERPLEXITY_MAX_TOKENS = 8000;
 const PERPLEXITY_LENGTH_RETRY_MAX_TOKENS = 12000;
 
-const DEFAULT_PPLX_CHUNK_CONCURRENCY = 8;
+const DEFAULT_PPLX_CHUNK_CONCURRENCY = 12;
 const DEFAULT_PPLX_CHUNK_TIMEOUT_MS = 180_000;
 
 const PROMPT_VERSION = "pplx-chunk-scorer-v1";
@@ -58,6 +58,26 @@ export class PerplexityApiError extends Error {
   }
 }
 
+/**
+ * Shape of a single entry in the pplx_chunk_cache_v1 artifact.
+ */
+export interface PplxChunkCacheEntry {
+  chunk_index: number;
+  result: AxisCriterionResult[];
+  completed_at: string;
+}
+
+/**
+ * Top-level shape of the pplx_chunk_cache_v1 evaluation_artifact content.
+ */
+export interface PplxChunkCacheArtifact {
+  job_id: string;
+  source_hash: string;
+  chunks: Record<number, PplxChunkCacheEntry>;
+  total_expected: number;
+  cached_at: string;
+}
+
 export interface PerplexityChunkScorerOptions {
   manuscriptText: string;
   manuscriptChunks?: ManuscriptChunkEvidence[];
@@ -77,6 +97,18 @@ export interface PerplexityChunkScorerOptions {
     message: string;
     metadata?: Record<string, unknown>;
   }) => void;
+  /**
+   * Pre-loaded cache from a pplx_chunk_cache_v1 artifact.
+   * When provided, any chunk_index present in this map is returned immediately
+   * without calling Perplexity, allowing the sweep to resume after a timeout.
+   */
+  _chunkCache?: Map<number, AxisCriterionResult[]>;
+  /**
+   * Callback fired after each chunk completes. Allows the processor to
+   * write rolling checkpoint upserts to the pplx_chunk_cache_v1 artifact.
+   * Fail-soft: errors are logged but do NOT fail the chunk.
+   */
+  _onChunkComplete?: (chunk_index: number, result: AxisCriterionResult[]) => Promise<void>;
 }
 
 export function getPplxChunkConcurrency(): number {
@@ -581,9 +613,39 @@ export async function runPerplexityChunkScorer(
     });
   }
 
+  // ── Pre-warm: fire a lightweight probe to warm the connection pool ──────
+  // sonar-reasoning-pro has cold-start latency. A small probe before the
+  // real sweep warms the connection and model, reducing latency on chunk[0].
+  try {
+    const warmStartMs = Date.now();
+    await fetchFn("https://api.perplexity.ai/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: PERPLEXITY_MODEL,
+        messages: [{ role: "user", content: "ping" }],
+        max_tokens: 1,
+        temperature: 0,
+      }),
+      signal: AbortSignal.timeout(10_000),
+    });
+    console.log(`[PplxChunk] Pre-warm probe completed in ${Date.now() - warmStartMs}ms`);
+  } catch {
+    console.warn("[PplxChunk] Pre-warm probe failed (non-fatal)");
+  }
+
+  const chunkCache = opts._chunkCache;
+  const onChunkComplete = opts._onChunkComplete;
+
+  const cachedChunkCount = chunkCache ? chunks.filter((c) => chunkCache.has(c.chunk_index)).length : 0;
+
   const startMs = Date.now();
   console.log(
-    `[PplxChunk] Starting Perplexity chunk sweep: job_id=${jobLabel} chunks=${chunks.length} concurrency=${concurrency} timeout_ms=${timeoutMs}`,
+    `[PplxChunk] Starting Perplexity chunk sweep: job_id=${jobLabel} chunks=${chunks.length} concurrency=${concurrency} timeout_ms=${timeoutMs}` +
+    (cachedChunkCount > 0 ? ` cached=${cachedChunkCount} fresh=${chunks.length - cachedChunkCount} (checkpoint resume)` : ''),
   );
 
   const runOne = (chunk: ManuscriptChunkEvidence) =>
@@ -597,11 +659,39 @@ export async function runPerplexityChunkScorer(
       fetchFn,
     });
 
+  const runOneWithCache = async (chunk: ManuscriptChunkEvidence): Promise<AxisCriterionResult[]> => {
+    if (chunkCache && chunkCache.has(chunk.chunk_index)) {
+      console.log(`[PplxChunk] Chunk ${chunk.chunk_index} served from checkpoint cache`);
+      const cached = chunkCache.get(chunk.chunk_index)!;
+      if (onChunkComplete) {
+        try { await onChunkComplete(chunk.chunk_index, cached); } catch { /* fail-soft */ }
+      }
+      return cached;
+    }
+    const result = await runOne(chunk);
+    if (onChunkComplete) {
+      try { await onChunkComplete(chunk.chunk_index, result); } catch { /* fail-soft */ }
+    }
+    return result;
+  };
+
   // ── Gate 1: First-chunk probe ─────────────────────────────────────────
   const probeChunk = chunks[0];
   let probeResult: AxisCriterionResult[];
+
+  // If probe chunk is cached, use it and skip the probe gate entirely.
+  if (chunkCache && chunkCache.has(probeChunk.chunk_index)) {
+    probeResult = chunkCache.get(probeChunk.chunk_index)!;
+    console.log(`[PplxChunk] Probe chunk ${probeChunk.chunk_index} served from cache — skipping probe gate`);
+    if (onChunkComplete) {
+      try { await onChunkComplete(probeChunk.chunk_index, probeResult); } catch { /* fail-soft */ }
+    }
+  } else {
   try {
     probeResult = await runOne(probeChunk);
+    if (onChunkComplete) {
+      try { await onChunkComplete(probeChunk.chunk_index, probeResult); } catch { /* fail-soft */ }
+    }
   } catch (firstErr) {
     const kind = classifyProbeError(firstErr);
     const { statusCode, errorBody } = probeErrorSummary(firstErr);
@@ -646,6 +736,7 @@ export async function runPerplexityChunkScorer(
       );
     }
   }
+  } // end else (probe not cached)
 
   // Probe succeeded. Remaining chunks split into sample (next 4) + main batch.
   const remaining = chunks.slice(1);
@@ -688,7 +779,7 @@ export async function runPerplexityChunkScorer(
   const sampleSettled = await runChunksWithConcurrency(
     sampleChunks,
     concurrency,
-    runOne,
+    runOneWithCache,
   );
 
   const sampleSuccesses: AxisCriterionResult[][] = [];
@@ -734,7 +825,7 @@ export async function runPerplexityChunkScorer(
   const mainSettled = await runChunksWithConcurrency(
     mainChunks,
     concurrency,
-    runOne,
+    runOneWithCache,
   );
 
   const mainSuccesses: AxisCriterionResult[][] = [];

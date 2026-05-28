@@ -201,6 +201,16 @@ const STRUCTURAL_CHUNKING_THRESHOLD_WORDS = 3_000;
 // The website upload page displays this as the supported max.
 const HARD_MANUSCRIPT_CEILING_WORDS = 300_000;
 
+// Vercel hard-kill wall-clock limit. Vercel terminates the process at 800s
+// regardless of what the function is doing. We must self-chain before this.
+const VERCEL_HARD_LIMIT_MS = 800_000;
+
+// Minimum budget required before starting an expensive operation (e.g.,
+// Pass 1+2 chunk sweep, Perplexity sweep, Pass 3 synthesis). If the remaining
+// budget is below this threshold, the processor self-chains to a fresh
+// invocation instead of starting work that will be killed mid-flight.
+const BUDGET_SAFETY_MARGIN_MS = 120_000;
+
 type ChunkRoutingTelemetry = {
   enabled: boolean;
   route: 'long_form' | 'short_form';
@@ -2974,6 +2984,8 @@ export async function processEvaluationJob(
 
   const processorStartMs = Date.now();
 
+  const getVercelBudgetRemainingMs = () => VERCEL_HARD_LIMIT_MS - (Date.now() - processorStartMs);
+
   void pipelineLog({
     jobId,
     level: 'info',
@@ -4204,6 +4216,42 @@ export async function processEvaluationJob(
               err instanceof Error ? err.message : String(err));
           });
         }, leaseRenewalIntervalMsP3synth);
+
+        // ── Vercel budget gate: self-chain if insufficient time for Pass 3 synthesis ──
+        const budgetBeforeP3Ms = getVercelBudgetRemainingMs();
+        if (budgetBeforeP3Ms < BUDGET_SAFETY_MARGIN_MS) {
+          console.warn(`[phase_3] ${jobId}: budget exhausted before synthesis (remaining=${budgetBeforeP3Ms}ms < margin=${BUDGET_SAFETY_MARGIN_MS}ms) — self-chaining`);
+          clearInterval(leaseRenewalLoopP3synth);
+          const selfChainNow = new Date().toISOString();
+          const { error: budgetChainErr } = await supabase
+            .from('evaluation_jobs')
+            .update({
+              status: JOB_STATUS.QUEUED,
+              phase: PHASES.PHASE_3,
+              phase_status: JOB_STATUS.QUEUED,
+              claimed_by: null,
+              lease_token: null,
+              lease_until: null,
+              worker_pulse_at: null,
+              updated_at: selfChainNow,
+              progress: {
+                ...progressState,
+                phase: 'phase_3',
+                phase_status: 'queued',
+                message: 'Re-queued: insufficient Vercel budget for Pass 3 synthesis',
+                phase_log: [
+                  ...((progressState.phase_log as unknown[]) ?? []),
+                  { at: selfChainNow, event: 'phase3_budget_self_chain', budget_remaining_ms: budgetBeforeP3Ms },
+                ],
+              },
+            })
+            .eq('id', jobId)
+            .eq('status', JOB_STATUS.RUNNING);
+          if (budgetChainErr) {
+            throw new Error(`Phase 3 budget self-chain failed: ${budgetChainErr.message}`);
+          }
+          return { success: true };
+        }
 
         const runPipelineStartedAtP3 = startLatencyStage({
           jobId,
@@ -5857,6 +5905,111 @@ export async function processEvaluationJob(
               });
           };
 
+          // ── Load Pass 1 + Pass 2 chunk caches for checkpoint resume ──
+          const pass12SourceHash = createHash('sha256')
+            .update(`${String(job.id)}:${String(job.manuscript_id)}:${manuscriptChunksForPipeline?.length ?? 0}`)
+            .digest('hex');
+
+          let pass1CacheMap: Map<number, SinglePassOutput> | undefined;
+          let pass2CacheMap: Map<number, SinglePassOutput> | undefined;
+
+          // Seed rolling checkpoint payloads from existing cache so upserts
+          // never shrink the artifact. Every upsert writes the full merged set.
+          const pass1ChunkResults: Record<number, { result: SinglePassOutput; completed_at: string }> = {};
+          const pass2ChunkResults: Record<number, { result: SinglePassOutput; completed_at: string }> = {};
+
+          try {
+            const [pass1CacheRow, pass2CacheRow] = await Promise.all([
+              supabase
+                .from('evaluation_artifacts')
+                .select('content')
+                .eq('job_id', job.id)
+                .eq('artifact_type', 'pass1_chunk_cache_v1')
+                .maybeSingle(),
+              supabase
+                .from('evaluation_artifacts')
+                .select('content')
+                .eq('job_id', job.id)
+                .eq('artifact_type', 'pass2_chunk_cache_v1')
+                .maybeSingle(),
+            ]);
+
+            const pass1Content = pass1CacheRow.data?.content as { source_hash?: string; chunks?: Record<string, { result: SinglePassOutput; completed_at?: string }> } | null;
+            if (pass1Content?.chunks && pass1Content.source_hash === pass12SourceHash) {
+              pass1CacheMap = new Map<number, SinglePassOutput>();
+              for (const [idx, entry] of Object.entries(pass1Content.chunks)) {
+                pass1CacheMap.set(Number(idx), entry.result);
+                pass1ChunkResults[Number(idx)] = { result: entry.result, completed_at: entry.completed_at ?? new Date().toISOString() };
+              }
+              console.log(`[phase_2] ${jobId}: loaded pass1_chunk_cache_v1 with ${pass1CacheMap.size} cached chunks (hash match)`);
+            } else if (pass1Content?.chunks) {
+              console.warn(`[phase_2] ${jobId}: pass1_chunk_cache_v1 source_hash mismatch — ignoring stale cache`);
+            }
+
+            const pass2Content = pass2CacheRow.data?.content as { source_hash?: string; chunks?: Record<string, { result: SinglePassOutput; completed_at?: string }> } | null;
+            if (pass2Content?.chunks && pass2Content.source_hash === pass12SourceHash) {
+              pass2CacheMap = new Map<number, SinglePassOutput>();
+              for (const [idx, entry] of Object.entries(pass2Content.chunks)) {
+                pass2CacheMap.set(Number(idx), entry.result);
+                pass2ChunkResults[Number(idx)] = { result: entry.result, completed_at: entry.completed_at ?? new Date().toISOString() };
+              }
+              console.log(`[phase_2] ${jobId}: loaded pass2_chunk_cache_v1 with ${pass2CacheMap.size} cached chunks (hash match)`);
+            } else if (pass2Content?.chunks) {
+              console.warn(`[phase_2] ${jobId}: pass2_chunk_cache_v1 source_hash mismatch — ignoring stale cache`);
+            }
+          } catch (cacheLoadErr) {
+            console.warn(`[phase_2] ${jobId}: chunk cache load failed (non-fatal)`,
+              cacheLoadErr instanceof Error ? cacheLoadErr.message : String(cacheLoadErr));
+          }
+
+          // ── Rolling checkpoint upsert helpers ──
+          let pass1UpsertPending = 0;
+          let pass2UpsertPending = 0;
+          const CHECKPOINT_INTERVAL = 5;
+
+          const upsertChunkCache = async (
+            artifactType: string,
+            chunkResults: Record<number, { result: SinglePassOutput; completed_at: string }>,
+          ) => {
+            try {
+              await supabase
+                .from('evaluation_artifacts')
+                .upsert({
+                  job_id: job.id,
+                  artifact_type: artifactType,
+                  content: {
+                    job_id: job.id,
+                    source_hash: pass12SourceHash,
+                    chunks: chunkResults,
+                    total_expected: manuscriptChunksForPipeline?.length ?? 0,
+                    cached_at: new Date().toISOString(),
+                  },
+                  created_at: new Date().toISOString(),
+                }, { onConflict: 'job_id,artifact_type' });
+            } catch (upsertErr) {
+              console.warn(`[phase_2] ${jobId}: ${artifactType} upsert failed (non-fatal)`,
+                upsertErr instanceof Error ? upsertErr.message : String(upsertErr));
+            }
+          };
+
+          const onPass1ChunkComplete = async (chunkIndex: number, result: SinglePassOutput) => {
+            pass1ChunkResults[chunkIndex] = { result, completed_at: new Date().toISOString() };
+            pass1UpsertPending++;
+            if (pass1UpsertPending >= CHECKPOINT_INTERVAL) {
+              pass1UpsertPending = 0;
+              await upsertChunkCache('pass1_chunk_cache_v1', pass1ChunkResults);
+            }
+          };
+
+          const onPass2ChunkComplete = async (chunkIndex: number, result: SinglePassOutput) => {
+            pass2ChunkResults[chunkIndex] = { result, completed_at: new Date().toISOString() };
+            pass2UpsertPending++;
+            if (pass2UpsertPending >= CHECKPOINT_INTERVAL) {
+              pass2UpsertPending = 0;
+              await upsertChunkCache('pass2_chunk_cache_v1', pass2ChunkResults);
+            }
+          };
+
           const [pass1Settled, pass2Settled] = await Promise.allSettled([
             runPass1({
               manuscriptText: manuscriptWithContent.content || '',
@@ -5871,6 +6024,8 @@ export async function processEvaluationJob(
               _chunkConcurrency: prebuiltLedger ? 3 : undefined,
               characterLedgerBlock: ledgerBlock || undefined,
               _onChunkHeartbeat: chunkHeartbeat,
+              _chunkCache: pass1CacheMap,
+              _onChunkComplete: onPass1ChunkComplete,
             }),
             runPass2({
               manuscriptText: manuscriptWithContent.content || '',
@@ -5888,7 +6043,19 @@ export async function processEvaluationJob(
               characterLedgerBlock: ledgerBlock || undefined,
               authorCorrectionsBlock,
               _onChunkHeartbeat: chunkHeartbeat,
+              _chunkCache: pass2CacheMap,
+              _onChunkComplete: onPass2ChunkComplete,
             }),
+          ]);
+
+          // Final checkpoint: flush any remaining un-upserted chunk results.
+          await Promise.allSettled([
+            Object.keys(pass1ChunkResults).length > 0
+              ? upsertChunkCache('pass1_chunk_cache_v1', pass1ChunkResults)
+              : Promise.resolve(),
+            Object.keys(pass2ChunkResults).length > 0
+              ? upsertChunkCache('pass2_chunk_cache_v1', pass2ChunkResults)
+              : Promise.resolve(),
           ]);
 
           if (pass1Settled.status === 'rejected') {
@@ -5994,6 +6161,42 @@ export async function processEvaluationJob(
                 err instanceof Error ? err.message : String(err));
             });
           }, leaseRenewalIntervalMsP2);
+
+          // ── Vercel budget gate: self-chain if insufficient time for Pass 1+2 ──
+          const budgetBeforeP2Ms = getVercelBudgetRemainingMs();
+          if (budgetBeforeP2Ms < BUDGET_SAFETY_MARGIN_MS) {
+            console.warn(`[phase_2] ${jobId}: budget exhausted before Pass 1+2 (remaining=${budgetBeforeP2Ms}ms < margin=${BUDGET_SAFETY_MARGIN_MS}ms) — self-chaining`);
+            clearInterval(leaseRenewalLoopP2);
+            const selfChainNow = new Date().toISOString();
+            const { error: budgetChainErr } = await supabase
+              .from('evaluation_jobs')
+              .update({
+                status: JOB_STATUS.QUEUED,
+                phase: PHASES.PHASE_2,
+                phase_status: JOB_STATUS.QUEUED,
+                claimed_by: null,
+                lease_token: null,
+                lease_until: null,
+                worker_pulse_at: null,
+                updated_at: selfChainNow,
+                progress: {
+                  ...progressState,
+                  phase: 'phase_2',
+                  phase_status: 'queued',
+                  message: 'Re-queued: insufficient Vercel budget for Pass 1+2',
+                  phase_log: [
+                    ...((progressState.phase_log as unknown[]) ?? []),
+                    { at: selfChainNow, event: 'phase2_budget_self_chain', budget_remaining_ms: budgetBeforeP2Ms },
+                  ],
+                },
+              })
+              .eq('id', jobId)
+              .eq('status', JOB_STATUS.RUNNING);
+            if (budgetChainErr) {
+              throw new Error(`Phase 2 budget self-chain failed: ${budgetChainErr.message}`);
+            }
+            return { success: true };
+          }
 
           let capturedPass1: SinglePassOutput | undefined;
           let capturedPass2: SinglePassOutput | undefined;
