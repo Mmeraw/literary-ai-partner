@@ -85,8 +85,16 @@ function normalizeCanonicalIdentityLayer(
 
   const canonicalIdentityGroup = rawGroups.filter(isRecord).map((group) => {
     const existingAnchors = Array.isArray(group.evidence_anchors) ? group.evidence_anchors : [];
-    const firstAppearance = group.first_appearance ? String(group.first_appearance) : null;
-    const lastAppearance = group.last_appearance ? String(group.last_appearance) : null;
+    const firstAppearance = group.first_appearance
+      ? (typeof group.first_appearance === 'object' && (group.first_appearance as Record<string, unknown>).label
+        ? String((group.first_appearance as Record<string, unknown>).label)
+        : String(group.first_appearance))
+      : null;
+    const lastAppearance = group.last_appearance
+      ? (typeof group.last_appearance === 'object' && (group.last_appearance as Record<string, unknown>).label
+        ? String((group.last_appearance as Record<string, unknown>).label)
+        : String(group.last_appearance))
+      : null;
     const evidenceAnchors = existingAnchors.length > 0
       ? existingAnchors
       : [firstAppearance, lastAppearance].filter(Boolean);
