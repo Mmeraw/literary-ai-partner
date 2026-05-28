@@ -186,6 +186,7 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           # CI smoke tests: allow x-user-id auth bypass
           ALLOW_HEADER_USER_ID: true
+          CRON_SECRET: ci-test-cron-secret
       - name: Run Phase 1 smoke test
         run: npm run jobs:smoke
         env:
@@ -215,6 +216,8 @@ jobs:
         run: npm run jobs:test:retry
       - name: Run metrics safety test
         run: npm run jobs:test:metrics
+        env:
+          CRON_SECRET: ci-test-cron-secret
       - name: Upload server logs on failure
         if: failure()
         uses: actions/upload-artifact@v6
