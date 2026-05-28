@@ -20,6 +20,7 @@ import type {
   Pass1aGenderIdentity,
   Pass1aRoleSignal,
   Pass1aNarrativeWeightSignal,
+  Pass1aPresenceType,
   Pass1aEvidenceType,
   EvidenceConfidence,
 } from "./types";
@@ -90,6 +91,10 @@ const VALID_ROLE_SIGNALS = new Set<string>([
 
 const VALID_NARRATIVE_WEIGHTS = new Set<string>([
   "primary", "major", "supporting", "recurring", "minor", "unknown",
+]);
+
+const VALID_PRESENCE_TYPES = new Set<string>([
+  "present", "memory", "environmental_text",
 ]);
 
 const VALID_EVIDENCE_TYPES = new Set<string>([
@@ -574,6 +579,7 @@ function normalizeCharacterEntry(
     role_signal: normEnum<Pass1aRoleSignal>(r.role_signal, VALID_ROLE_SIGNALS, "unknown", "role_signal", chunkIndex, diagnostics, name),
     narrative_weight_signal: normEnum<Pass1aNarrativeWeightSignal>(r.narrative_weight_signal, VALID_NARRATIVE_WEIGHTS, "unknown", "narrative_weight_signal", chunkIndex, diagnostics, name),
     is_named: normBool(r.is_named, "is_named", chunkIndex, diagnostics, ctx),
+    presence_type: normEnum<Pass1aPresenceType>(r.presence_type, VALID_PRESENCE_TYPES, "present", "presence_type", chunkIndex, diagnostics, name),
     who_is_this: normStr(r.who_is_this, "who_is_this", chunkIndex, diagnostics, { ...ctx, required: true, fallback: "" })!,
     what_do_they_want: normStr(r.what_do_they_want, "what_do_they_want", chunkIndex, diagnostics, ctx),
     where_are_they: normStr(r.where_are_they, "where_are_they", chunkIndex, diagnostics, ctx),

@@ -618,6 +618,11 @@ export function reduceCharacterEvidence(params: {
       role,
       narrative_weight_band: narrativeWeightBand,
       is_named: entries.some((e) => e.is_named),
+      presence_type: entries.some((e) => e.presence_type === "present")
+        ? "present"
+        : entries.some((e) => e.presence_type === "memory")
+          ? "memory"
+          : "environmental_text",
       who_is_this: whoIsThis,
       what_do_they_want: whatDoTheyWant,
       primary_locations: primaryLocations,
