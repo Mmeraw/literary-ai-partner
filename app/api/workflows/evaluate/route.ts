@@ -36,6 +36,7 @@
  */
 
 import { start } from 'workflow/api';
+import crypto from 'crypto';
 import { generateTraceId } from '@/lib/observability/logger';
 import { runEvaluationWorkflow } from '@/workflows/evaluate';
 
@@ -69,7 +70,13 @@ export async function POST(req: Request): Promise<Response> {
   // Auth: only internal callers (CRON_SECRET) can trigger workflows
   const authHeader = req.headers.get('Authorization');
   const cronSecret = process.env.CRON_SECRET?.trim();
-  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
+  const bearer = authHeader?.match(/^Bearer\s+(.+)$/i)?.[1]?.trim();
+  if (!cronSecret || !bearer) {
+    return Response.json({ ok: false, error: 'Unauthorized' }, { status: 401 });
+  }
+  const aHash = crypto.createHash('sha256').update(bearer, 'utf8').digest();
+  const bHash = crypto.createHash('sha256').update(cronSecret, 'utf8').digest();
+  if (!crypto.timingSafeEqual(aHash, bHash)) {
     return Response.json({ ok: false, error: 'Unauthorized' }, { status: 401 });
   }
 

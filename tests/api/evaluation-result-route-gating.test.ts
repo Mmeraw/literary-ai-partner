@@ -1,15 +1,24 @@
 import { NextRequest } from "next/server";
 import { GET } from "@/app/api/jobs/[jobId]/evaluation-result/route";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getAuthenticatedUser } from "@/lib/supabase/server";
+
+const TEST_USER_ID = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
 
 jest.mock("@/lib/supabase/admin", () => ({
   createAdminClient: jest.fn(),
+}));
+
+jest.mock("@/lib/supabase/server", () => ({
+  getAuthenticatedUser: jest.fn(),
 }));
 
 jest.mock("@/schemas/evaluation-result-v1", () => ({
   isEvaluationResultV1: jest.fn(() => true),
   validateEvaluationResult: jest.fn(() => ({ valid: true, errors: [] })),
 }));
+
+const mockGetAuthenticatedUser = getAuthenticatedUser as jest.MockedFunction<typeof getAuthenticatedUser>;
 
 const mockCreateAdminClient = createAdminClient as jest.MockedFunction<typeof createAdminClient>;
 
@@ -22,6 +31,7 @@ function makeRequest(): NextRequest {
 describe("GET /api/jobs/[jobId]/evaluation-result release gate", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockGetAuthenticatedUser.mockResolvedValue({ id: TEST_USER_ID } as never);
   });
 
   test("returns 404 when job is complete but validity_status is invalid", async () => {
@@ -33,6 +43,7 @@ describe("GET /api/jobs/[jobId]/evaluation-result release gate", () => {
               data: {
                 id: "11111111-1111-1111-1111-111111111111",
                 manuscript_id: 42,
+                user_id: TEST_USER_ID,
                 status: "complete",
                 validity_status: "invalid",
                 evaluation_result: { arbitrary: true },
@@ -67,6 +78,7 @@ describe("GET /api/jobs/[jobId]/evaluation-result release gate", () => {
               data: {
                 id: "11111111-1111-1111-1111-111111111111",
                 manuscript_id: 42,
+                user_id: TEST_USER_ID,
                 status: "complete",
                 validity_status: "valid",
                 evaluation_result: {
@@ -103,6 +115,7 @@ describe("GET /api/jobs/[jobId]/evaluation-result release gate", () => {
               data: {
                 id: "11111111-1111-1111-1111-111111111111",
                 manuscript_id: 42,
+                user_id: TEST_USER_ID,
                 status: "complete",
                 validity_status: "valid",
                 evaluation_result: {
