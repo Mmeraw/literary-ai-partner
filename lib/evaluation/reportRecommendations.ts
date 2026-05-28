@@ -222,6 +222,7 @@ export function buildTopRecommendations(artifact: ArtifactLike | null | undefine
     return selectDiverseByOpening(criteriaDerived, maxItems);
   }
 
-  const summary = artifact.summary || artifact.overview?.one_paragraph_summary || "";
-  return extractSummaryFallback(summary, maxItems);
+  // No recommendations exist (e.g., near-flawless writing like Dracula).
+  // Return empty — do not fabricate recommendations from the summary text.
+  return [];
 }

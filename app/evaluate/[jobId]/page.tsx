@@ -781,17 +781,23 @@ export default async function EvaluationReportPage({
             </p>
           </section>
 
-          <section className="rounded-lg border bg-white p-6 mb-4">
-            <h2 className="text-xl font-semibold text-gray-900">Top Recommendations</h2>
-            <ul className="mt-3 space-y-2 text-sm text-gray-700">
-              {buildTopRecommendations(artifact).map((r, i) => (
-                <li key={i} className="flex gap-2">
-                  <span className="mt-0.5 shrink-0 text-gray-600">•</span>
-                  <span>{r}</span>
-                </li>
-              ))}
-            </ul>
-          </section>
+          {(() => {
+            const topRecs = buildTopRecommendations(artifact);
+            if (topRecs.length === 0) return null;
+            return (
+              <section className="rounded-lg border bg-white p-6 mb-4">
+                <h2 className="text-xl font-semibold text-gray-900">Top Recommendations</h2>
+                <ul className="mt-3 space-y-2 text-sm text-gray-700">
+                  {topRecs.map((r, i) => (
+                    <li key={i} className="flex gap-2">
+                      <span className="mt-0.5 shrink-0 text-gray-600">•</span>
+                      <span>{r}</span>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            );
+          })()}
 
               {/* ── 13 Story Criteria Scores ── */}
               {orderedCriteria.length > 0 && (
