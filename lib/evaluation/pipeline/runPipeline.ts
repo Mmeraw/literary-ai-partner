@@ -2093,6 +2093,10 @@ export function synthesisToEvaluationResult(
         priority: r.priority,
         action: r.action,
         expected_impact: r.expected_impact,
+        anchor_snippet: r.anchor_snippet || undefined,
+        mechanism: r.mechanism || undefined,
+        specific_fix: r.specific_fix || undefined,
+        reader_effect: r.reader_effect || undefined,
       })),
     };
   });
@@ -2232,6 +2236,12 @@ export function synthesisToEvaluationResultV2(
             action: r.action,
             expected_impact: r.expected_impact,
             anchor_snippet: r.anchor_snippet,
+            mechanism: r.mechanism || undefined,
+            specific_fix: r.specific_fix || undefined,
+            reader_effect: r.reader_effect || undefined,
+            issue_family: r.issue_family || undefined,
+            strategic_lever: r.strategic_lever || undefined,
+            revision_granularity: r.revision_granularity || undefined,
           })),
           technical_defects: c.technical_defects,
         },
