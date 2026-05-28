@@ -55,25 +55,9 @@
       "templatePath": "docs/templates/evaluation/long-form-evaluation-template.md",
       "runtimeAuthority": false,
       "benchmarkRole": "dialogue_voice_pov_social_tension_scene_economy",
-      "craftAnchors": [
-        "dialogue subtext",
-        "free indirect discourse",
-        "social tension",
-        "POV and voice control",
-        "character interaction",
-        "scene economy"
-      ],
-      "doNotUseFor": [
-        "modern commercial pacing baseline",
-        "genre action benchmark"
-      ],
-      "integrity": {
-        "chapterHeadingPattern": "^(?:CHAPTER|Chapter)\\s+([IVXLCDM]+)\\.?$",
-        "expectedChapterCount": 61,
-        "strictRomanChapterSequence": true,
-        "wordCount": { "min": 115000, "max": 130000 },
-        "minApostrophes": 1000
-      }
+      "craftAnchors": ["dialogue subtext", "free indirect discourse", "social tension", "POV and voice control", "character interaction", "scene economy"],
+      "doNotUseFor": ["modern commercial pacing baseline", "genre action benchmark"],
+      "integrity": { "chapterHeadingPattern": "^(?:CHAPTER|Chapter)\\s+([IVXLCDM]+)\\.?$", "expectedChapterCount": 61, "strictRomanChapterSequence": true, "wordCount": { "min": 115000, "max": 130000 }, "minApostrophes": 1000 }
     },
     {
       "id": "great-expectations",
@@ -92,25 +76,9 @@
       "templatePath": "docs/templates/evaluation/long-form-multi-layer-evaluation-template.md",
       "runtimeAuthority": false,
       "benchmarkRole": "retrospective_voice_character_arc_motif_recurrence_closure",
-      "craftAnchors": [
-        "retrospective first-person voice",
-        "moral-psychological arc",
-        "serial revelation structure",
-        "class pressure",
-        "motif recurrence",
-        "earned closure"
-      ],
-      "doNotUseFor": [
-        "pacing template for modern thrillers",
-        "required Dickensian social breadth baseline"
-      ],
-      "integrity": {
-        "chapterHeadingPattern": "^(?:CHAPTER|Chapter)\\s+([IVXLCDM]+)\\.?$",
-        "expectedChapterCount": 59,
-        "strictRomanChapterSequence": true,
-        "wordCount": { "min": 175000, "max": 210000 },
-        "minApostrophes": 1000
-      }
+      "craftAnchors": ["retrospective first-person voice", "moral-psychological arc", "serial revelation structure", "class pressure", "motif recurrence", "earned closure"],
+      "doNotUseFor": ["pacing template for modern thrillers", "required Dickensian social breadth baseline"],
+      "integrity": { "chapterHeadingPattern": "^(?:CHAPTER|Chapter)\\s+([IVXLCDM]+)\\.?$", "expectedChapterCount": 59, "strictRomanChapterSequence": true, "wordCount": { "min": 175000, "max": 210000 }, "minApostrophes": 1000 }
     },
     {
       "id": "dracula",
@@ -128,25 +96,9 @@
       "templatePath": "docs/templates/evaluation/long-form-multi-layer-evaluation-template.md",
       "runtimeAuthority": false,
       "benchmarkRole": "epistolary_structure_suspense_atmosphere_revelation_pacing",
-      "craftAnchors": [
-        "epistolary architecture",
-        "multi-document narration",
-        "suspense escalation",
-        "Gothic atmosphere",
-        "revelation pacing",
-        "procedural drag detection"
-      ],
-      "doNotUseFor": [
-        "template for conventional third-person narration scoring",
-        "pacing standard for non-epistolary novels"
-      ],
-      "integrity": {
-        "chapterHeadingPattern": "^(?:CHAPTER|Chapter)\\s+([IVXLCDM]+)\\.?$",
-        "expectedChapterCount": 27,
-        "strictRomanChapterSequence": true,
-        "wordCount": { "min": 150000, "max": 175000 },
-        "minApostrophes": 500
-      }
+      "craftAnchors": ["epistolary architecture", "multi-document narration", "suspense escalation", "Gothic atmosphere", "revelation pacing", "procedural drag detection"],
+      "doNotUseFor": ["template for conventional third-person narration scoring", "pacing standard for non-epistolary novels"],
+      "integrity": { "chapterHeadingPattern": "^(?:CHAPTER|Chapter)\\s+([IVXLCDM]+)\\.?$", "expectedChapterCount": 27, "strictRomanChapterSequence": true, "wordCount": { "min": 150000, "max": 175000 }, "minApostrophes": 500 }
     },
     {
       "id": "strange-case-of-dr-jekyll-and-mr-hyde",
@@ -164,21 +116,9 @@
       "templatePath": "docs/templates/evaluation/long-form-multi-layer-evaluation-template.md",
       "runtimeAuthority": false,
       "benchmarkRole": "dual_narrative_moral_duality_mystery_reveal_novella_compression",
-      "craftAnchors": [
-        "Gothic mystery reveal",
-        "moral duality as structure",
-        "third-person frame with embedded confession",
-        "suspense through withheld explanation",
-        "novella compression"
-      ],
-      "doNotUseFor": [
-        "character interiority baseline (protagonist is structurally concealed)",
-        "dialogue richness benchmark"
-      ],
-      "integrity": {
-        "wordCount": { "min": 25000, "max": 45000 },
-        "minApostrophes": 100
-      }
+      "craftAnchors": ["Gothic mystery reveal", "moral duality as structure", "third-person frame with embedded confession", "suspense through withheld explanation", "novella compression"],
+      "doNotUseFor": ["character interiority baseline (protagonist is structurally concealed)", "dialogue richness benchmark"],
+      "integrity": { "wordCount": { "min": 25000, "max": 45000 }, "minApostrophes": 100 }
     },
     {
       "id": "the-yellow-wallpaper",
@@ -196,21 +136,9 @@
       "templatePath": "docs/templates/evaluation/short-form-evaluation-template.md",
       "runtimeAuthority": false,
       "benchmarkRole": "confinement_pov_voice_destabilization_theme_interiority",
-      "craftAnchors": [
-        "first-person psychological unreliability",
-        "confined POV as structural constraint",
-        "symbol as psychological deterioration marker",
-        "feminist theme through interiority",
-        "short-form arc compression"
-      ],
-      "doNotUseFor": [
-        "dialogue richness benchmark",
-        "multi-character relationship spine baseline"
-      ],
-      "integrity": {
-        "wordCount": { "min": 5000, "max": 8000 },
-        "minApostrophes": 50
-      }
+      "craftAnchors": ["first-person psychological unreliability", "confined POV as structural constraint", "symbol as psychological deterioration marker", "feminist theme through interiority", "short-form arc compression"],
+      "doNotUseFor": ["dialogue richness benchmark", "multi-character relationship spine baseline"],
+      "integrity": { "wordCount": { "min": 5000, "max": 8000 }, "minApostrophes": 50 }
     },
     {
       "id": "the-awakening",
@@ -219,8 +147,7 @@
       "publicationYear": 1899,
       "publicDomainBasis": "pre-1928-us-copyright-expiration",
       "form": "novel",
-      "sourceTextPath": "corpus/public-domain/clean/story-of-an-hour.txt",
-      "sourceTextNote": "Current repo text file is a Kate Chopin collection beginning with The Awakening. Create corpus/public-domain/clean/the-awakening.txt before freezing a golden eval artifact.",
+      "sourceTextPath": "corpus/public-domain/clean/the-awakening.txt",
       "calibrationDocPath": "docs/benchmarks/public-domain/the-awakening-dream-calibration.md",
       "goldenEvalPath": "corpus/public-domain/golden-evals/the-awakening.dream-longform.json",
       "route": "LONG_FORM",
@@ -229,24 +156,9 @@
       "templatePath": "docs/templates/evaluation/long-form-evaluation-template.md",
       "runtimeAuthority": false,
       "benchmarkRole": "interiority_social_constraint_symbolic_environment_gendered_pressure_closure_ambiguity",
-      "craftAnchors": [
-        "interiority as plot pressure",
-        "social constraint",
-        "gendered expectation",
-        "symbolic environment",
-        "ambiguous closure",
-        "literary pacing"
-      ],
-      "doNotUseFor": [
-        "modern commercial pacing baseline",
-        "external antagonist requirement",
-        "style imitation target"
-      ],
-      "integrity": {
-        "wordCount": { "min": 45000, "max": 75000 },
-        "minApostrophes": 200,
-        "requiresStandaloneExtractionBeforeGoldenFreeze": true
-      }
+      "craftAnchors": ["interiority as plot pressure", "social constraint", "gendered expectation", "symbolic environment", "ambiguous closure", "literary pacing"],
+      "doNotUseFor": ["modern commercial pacing baseline", "external antagonist requirement", "style imitation target"],
+      "integrity": { "wordCount": { "min": 45000, "max": 75000 }, "minApostrophes": 200 }
     },
     {
       "id": "the-time-machine",
@@ -264,21 +176,9 @@
       "templatePath": "docs/templates/evaluation/long-form-evaluation-template.md",
       "runtimeAuthority": false,
       "benchmarkRole": "speculative_concept_worldbuilding_framing_device_theme",
-      "craftAnchors": [
-        "speculative concept as primary engine",
-        "embedded framing device (narrator-within-narrator)",
-        "worldbuilding through observation not exposition",
-        "theme via extrapolation",
-        "science fiction novella compression"
-      ],
-      "doNotUseFor": [
-        "romantic subplot baseline",
-        "character arc benchmark (protagonist unchanged by journey)"
-      ],
-      "integrity": {
-        "wordCount": { "min": 30000, "max": 50000 },
-        "minApostrophes": 100
-      }
+      "craftAnchors": ["speculative concept as primary engine", "embedded framing device (narrator-within-narrator)", "worldbuilding through observation not exposition", "theme via extrapolation", "science fiction novella compression"],
+      "doNotUseFor": ["romantic subplot baseline", "character arc benchmark (protagonist unchanged by journey)"],
+      "integrity": { "wordCount": { "min": 30000, "max": 50000 }, "minApostrophes": 100 }
     },
     {
       "id": "the-wonderful-wizard-of-oz",
@@ -296,21 +196,9 @@
       "templatePath": "docs/templates/evaluation/long-form-evaluation-template.md",
       "runtimeAuthority": false,
       "benchmarkRole": "quest_structure_tonal_control_episodic_worldbuilding_childrens_register",
-      "craftAnchors": [
-        "episodic quest architecture",
-        "tonal consistency across register shifts",
-        "ensemble companion characterization",
-        "worldbuilding through encountered obstacles",
-        "children's literature emotional clarity"
-      ],
-      "doNotUseFor": [
-        "psychological complexity baseline",
-        "romantic or adult-register scoring standard"
-      ],
-      "integrity": {
-        "wordCount": { "min": 38000, "max": 55000 },
-        "minApostrophes": 200
-      }
+      "craftAnchors": ["episodic quest architecture", "tonal consistency across register shifts", "ensemble companion characterization", "worldbuilding through encountered obstacles", "children's literature emotional clarity"],
+      "doNotUseFor": ["psychological complexity baseline", "romantic or adult-register scoring standard"],
+      "integrity": { "wordCount": { "min": 38000, "max": 55000 }, "minApostrophes": 200 }
     },
     {
       "id": "the-murder-on-the-links",
@@ -328,26 +216,13 @@
       "templatePath": "docs/templates/evaluation/long-form-evaluation-template.md",
       "runtimeAuthority": false,
       "benchmarkRole": "clue_logic_plot_mechanics_reveal_sequence_commercial_pacing",
-      "craftAnchors": [
-        "clue-planting and fair-play mystery architecture",
-        "plot mechanics as primary structural engine",
-        "reveal sequence timing",
-        "commercial genre pacing",
-        "first-person narrator reliability calibration"
-      ],
-      "doNotUseFor": [
-        "literary interiority benchmark",
-        "lyrical prose baseline"
-      ],
-      "integrity": {
-        "wordCount": { "min": 55000, "max": 80000 },
-        "minApostrophes": 300
-      }
+      "craftAnchors": ["clue-planting and fair-play mystery architecture", "plot mechanics as primary structural engine", "reveal sequence timing", "commercial genre pacing", "first-person narrator reliability calibration"],
+      "doNotUseFor": ["literary interiority benchmark", "lyrical prose baseline"],
+      "integrity": { "wordCount": { "min": 55000, "max": 80000 }, "minApostrophes": 300 }
     }
   ],
   "notes": [
     "Public-domain corpus entries are calibration/regression assets only and remain runtime-authority false.",
-    "Legacy goldenEvalPath filenames may still contain dream-longform until artifacts are deliberately regenerated; do not rename frozen artifacts without a regression-comparison step.",
-    "The Awakening is active as a standard long-form calibration candidate, but a standalone clean text extraction should be created before freezing a golden eval artifact."
+    "Legacy goldenEvalPath filenames may still contain dream-longform until artifacts are deliberately regenerated; do not rename frozen artifacts without a regression-comparison step."
   ]
 }
