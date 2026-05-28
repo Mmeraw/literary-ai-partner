@@ -94,6 +94,59 @@ const SOURCE_INTERNAL_FIELDS = new Set([
   "state_conflict_count",
 ]);
 
+// ─── Subtle label definitions (hover tooltips for non-obvious terms) ────────
+// Only labels that aren't self-explanatory get a hint. Not a Christmas tree.
+const LABEL_HINTS: Record<string, string> = {
+  // Canonical Identity layer
+  "Legal name states": "Every formal version of this character's name found in the manuscript — full name, married name, title + surname, etc.",
+  "Captivity name states": "Names used for a character while held captive, imprisoned, or under an assumed identity.",
+  "Resolution status": "Whether the system detected a name change (marriage, alias reveal, etc.) and how it was resolved.",
+  "Aliases & Name States": "All the different names, nicknames, and forms of address used for this character across the manuscript.",
+  // Cast / Role Tier layer
+  "Foil": "A character who contrasts with the protagonist to highlight particular qualities or themes.",
+  "Relational Engines": "The character pairings that drive the story forward — where conflict, growth, or transformation happens between two people.",
+  "Collective Force": "A group acting as a single narrative force — a mob, a family, an institution — rather than individual characters.",
+  "Symbolic Force": "An abstract or non-human force that functions as a character — fate, the sea, an institution, a disease.",
+  // Relationship Network layer
+  "Initial dynamic": "How the relationship started — the power balance, emotional tone, or circumstances of first contact.",
+  "Rupture / separation": "The breaking point — what event or revelation fractured the relationship.",
+  "Current / final state": "Where the relationship stands at the end of the manuscript or the most recent scene.",
+  // Object / Symbol layer
+  "Story-critical": "This object carries significant narrative weight — it drives plot, reveals character, or resolves a theme.",
+  // Timeline / Location layer
+  "Movement path": "The physical route a character or object takes through the story's geography.",
+  "World state rules": "The governing logic of the story's world at a given point — laws, customs, environmental conditions, or supernatural rules in effect.",
+  // Threat / Pressure / Ending layer
+  "Pressure": "The specific force this threat applies to the protagonist — emotional, physical, social, institutional, or internal.",
+  // Source Integrity layer
+  "Hard failure": "A critical extraction error — the system could not reliably identify this element and needs author guidance.",
+  // Identity & Pronouns layer
+  "Pronoun variation detected": "The system found different pronouns used for this character in different parts of the manuscript. This may be intentional (character development) or a continuity error.",
+};
+
+function labelHint(label: string): string | undefined {
+  return LABEL_HINTS[label];
+}
+
+/** Shared style + title for uppercase section headers that may have a hint. */
+function sectionHeaderProps(label: string): { style: React.CSSProperties; title?: string } {
+  const hint = labelHint(label);
+  return {
+    style: {
+      margin: "0 0 8px",
+      fontSize: 11,
+      fontWeight: 700,
+      letterSpacing: "0.08em",
+      textTransform: "uppercase" as const,
+      color: C.textMuted,
+      cursor: hint ? "help" : undefined,
+      borderBottom: hint ? `1px dotted ${C.textFaint}` : undefined,
+      display: hint ? "inline-block" : undefined,
+    },
+    title: hint,
+  };
+}
+
 // ─── Author-facing layer descriptions (permanent, locked) ───────────────────
 const LAYER_DESCRIPTIONS: Record<string, string> = {
   source_integrity_layer:
@@ -290,11 +343,14 @@ function FieldRow({
   label,
   value,
   mono = false,
+  hint,
 }: {
   label: string;
   value?: unknown;
   mono?: boolean;
+  hint?: string;
 }) {
+  const resolvedHint = hint ?? labelHint(label);
   if (value === null || value === undefined || value === "") return null;
 
   // Arrays — render as pill-style tags when items are objects with names
@@ -330,7 +386,10 @@ function FieldRow({
             textTransform: "uppercase" as const,
             color: C.textMuted,
             paddingTop: 2,
+            cursor: resolvedHint ? "help" : undefined,
+            borderBottom: resolvedHint ? `1px dotted ${C.textFaint}` : undefined,
           }}
+          title={resolvedHint}
         >
           {label}
         </span>
@@ -380,7 +439,10 @@ function FieldRow({
           textTransform: "uppercase" as const,
           color: C.textMuted,
           paddingTop: 2,
+          cursor: resolvedHint ? "help" : undefined,
+          borderBottom: resolvedHint ? `1px dotted ${C.textFaint}` : undefined,
         }}
+        title={resolvedHint}
       >
         {label}
       </span>
@@ -896,16 +958,7 @@ function IdentityCard({ id, index }: { id: Record<string, unknown>; index: numbe
 
       {aliases && aliases.length > 0 && (
         <div style={{ marginBottom: 12 }}>
-          <p
-            style={{
-              margin: "0 0 8px",
-              fontSize: 11,
-              fontWeight: 700,
-              letterSpacing: "0.07em",
-              textTransform: "uppercase" as const,
-              color: C.textMuted,
-            }}
-          >
+          <p {...sectionHeaderProps("Aliases & Name States")}>
             Aliases &amp; Name States
           </p>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
@@ -1304,19 +1357,11 @@ export function CastRoleTierLayer({
 
           if (entries.length === 0) return null;
 
+          const displayLabel = TIER_DISPLAY[tier] ?? tier;
           return (
             <div key={tier}>
-              <p
-                style={{
-                  margin: "0 0 8px",
-                  fontSize: 11,
-                  fontWeight: 700,
-                  letterSpacing: "0.08em",
-                  textTransform: "uppercase" as const,
-                  color: C.textMuted,
-                }}
-              >
-                {TIER_DISPLAY[tier] ?? tier}
+              <p {...sectionHeaderProps(displayLabel)}>
+                {displayLabel}
               </p>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                 {entries.map((name, i) => (
@@ -1330,16 +1375,7 @@ export function CastRoleTierLayer({
 
       {relationalEngines.length > 0 && (
         <div style={{ marginTop: 16 }}>
-          <p
-            style={{
-              margin: "0 0 8px",
-              fontSize: 11,
-              fontWeight: 700,
-              letterSpacing: "0.08em",
-              textTransform: "uppercase" as const,
-              color: C.textMuted,
-            }}
-          >
+          <p {...sectionHeaderProps("Relational Engines")}>
             Relational Engines
           </p>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
@@ -1352,16 +1388,7 @@ export function CastRoleTierLayer({
 
       {!hasNewSchema && majorSecondary.length > 0 && (
         <div style={{ marginTop: 16 }}>
-          <p
-            style={{
-              margin: "0 0 8px",
-              fontSize: 11,
-              fontWeight: 700,
-              letterSpacing: "0.08em",
-              textTransform: "uppercase" as const,
-              color: C.textMuted,
-            }}
-          >
+          <p {...sectionHeaderProps("Major Secondary")}>
             Major Secondary
           </p>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>

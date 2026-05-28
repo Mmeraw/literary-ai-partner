@@ -490,23 +490,23 @@ export default function ReviseQueueDemo() {
             {/* 6-Part Diagnosis */}
             <dl className="mt-5 space-y-3">
               <div>
-                <dt className="font-rg-mono text-[10px] uppercase tracking-wider text-[#C8A96E]">Symptom</dt>
+                <dt className="font-rg-mono text-[10px] uppercase tracking-wider text-[#C8A96E] cursor-help" style={{ borderBottom: '1px dotted rgba(200,169,110,0.3)', display: 'inline-block' }} title="What the reader experiences — the visible effect of the underlying craft issue.">Symptom</dt>
                 <dd className="mt-1 text-sm text-[#F5EFE0]/75">{active.symptom}</dd>
               </div>
               <div>
-                <dt className="font-rg-mono text-[10px] uppercase tracking-wider text-[#C8A96E]">Cause</dt>
+                <dt className="font-rg-mono text-[10px] uppercase tracking-wider text-[#C8A96E] cursor-help" style={{ borderBottom: '1px dotted rgba(200,169,110,0.3)', display: 'inline-block' }} title="The underlying craft mechanism producing the symptom — why it happens.">Cause</dt>
                 <dd className="mt-1 text-sm text-[#F5EFE0]/75">{active.cause}</dd>
               </div>
               <div>
-                <dt className="font-rg-mono text-[10px] uppercase tracking-wider text-[#C8A96E]">Fix direction</dt>
+                <dt className="font-rg-mono text-[10px] uppercase tracking-wider text-[#C8A96E] cursor-help" style={{ borderBottom: '1px dotted rgba(200,169,110,0.3)', display: 'inline-block' }} title="A concrete editorial action the author can take — not a rewrite, but a direction.">Fix direction</dt>
                 <dd className="mt-1 text-sm text-[#F5EFE0]/75">{active.fix_direction}</dd>
               </div>
               <div>
-                <dt className="font-rg-mono text-[10px] uppercase tracking-wider text-[#C8A96E]">Reader effect</dt>
+                <dt className="font-rg-mono text-[10px] uppercase tracking-wider text-[#C8A96E] cursor-help" style={{ borderBottom: '1px dotted rgba(200,169,110,0.3)', display: 'inline-block' }} title="How a reader is likely to experience this issue — emotional, cognitive, or trust impact.">Reader effect</dt>
                 <dd className="mt-1 text-sm text-[#F5EFE0]/75">{active.reader_effect}</dd>
               </div>
               <div>
-                <dt className="font-rg-mono text-[10px] uppercase tracking-wider text-[#C8A96E]">Mistake-proofing</dt>
+                <dt className="font-rg-mono text-[10px] uppercase tracking-wider text-[#C8A96E] cursor-help" style={{ borderBottom: '1px dotted rgba(200,169,110,0.3)', display: 'inline-block' }} title="A guardrail or check the author can use during revision to prevent reintroducing this issue.">Mistake-proofing</dt>
                 <dd className="mt-1 text-sm text-[#F5EFE0]/75">{active.mistake_proofing}</dd>
               </div>
             </dl>
