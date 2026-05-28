@@ -9,6 +9,7 @@ export type DashboardEvaluationStatus =
   | 'running'
   | 'queued'
   | 'stale'
+  | 'cancelled'
   | 'failed'
 
 /**
@@ -157,7 +158,7 @@ export async function getDashboardEvaluations(
 
     const { data: jobs, error: jobsError } = await supabase
       .from('evaluation_jobs')
-      .select('id, status, phase, phase_status, created_at, updated_at, last_heartbeat, manuscript_id')
+      .select('id, status, phase, phase_status, progress, created_at, updated_at, last_heartbeat, manuscript_id')
       .in('manuscript_id', manuscriptIds)
       .order('created_at', { ascending: false })
       .limit(limit)
@@ -199,6 +200,7 @@ export async function getDashboardEvaluations(
       status: string
       phase: string | null
       phase_status: string | null
+      progress: Record<string, unknown> | null
       created_at: string
       updated_at: string | null
       last_heartbeat: string | null
@@ -402,6 +404,7 @@ function deriveDashboardStatus(
   job: {
     status: string
     phase_status: string | null
+    progress: Record<string, unknown> | null
     created_at: string
     updated_at: string | null
     last_heartbeat: string | null
@@ -411,6 +414,10 @@ function deriveDashboardStatus(
 ): DashboardEvaluationStatus {
   if (job.status === 'complete') {
     return statusFromScores(scores.overall, scores.readiness)
+  }
+
+  if (job.status === 'failed' && job.progress?.canceled_at) {
+    return 'cancelled'
   }
 
   if (job.status === 'failed' || job.phase_status === 'failed') {

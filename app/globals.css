@@ -413,6 +413,11 @@
   color: #991b1b;
 }
 
+.rg-status--cancelled {
+  background: #f3f4f6;
+  color: #6b7280;
+}
+
 .rg-status--failed {
   background: #f3d6d3;
   color: #8f241b;

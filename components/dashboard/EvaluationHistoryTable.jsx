@@ -12,6 +12,8 @@ function statusLabel(status) {
       return 'Queued'
     case 'stale':
       return 'Stalled'
+    case 'cancelled':
+      return 'Cancelled'
     case 'failed':
       return 'Failed'
     default:
@@ -26,6 +28,7 @@ function StatusBadge({ status }) {
     running: 'rg-status rg-status--running',
     queued: 'rg-status rg-status--queued',
     stale: 'rg-status rg-status--stale',
+    cancelled: 'rg-status rg-status--cancelled',
     failed: 'rg-status rg-status--failed',
   }
   const cls = classMap[status] || 'rg-status rg-status--improving'
@@ -56,7 +59,7 @@ function agentReadinessHref(row) {
 }
 
 function isAgentReadinessEligible(row) {
-  return row.status !== 'running' && row.status !== 'queued' && row.status !== 'stale' && row.status !== 'failed'
+  return row.status !== 'running' && row.status !== 'queued' && row.status !== 'stale' && row.status !== 'cancelled' && row.status !== 'failed'
 }
 
 export default function EvaluationHistoryTable({ rows }) {
@@ -100,7 +103,7 @@ export default function EvaluationHistoryTable({ rows }) {
                   <a className="rg-history-open" href={row.reportHref}>
                     {row.status === 'running' || row.status === 'queued'
                       ? 'View progress'
-                      : row.status === 'failed' || row.status === 'stale'
+                      : row.status === 'failed' || row.status === 'stale' || row.status === 'cancelled'
                       ? 'View details'
                       : 'Open report'}
                   </a>
