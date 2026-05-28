@@ -14,8 +14,15 @@ async function main() {
 
   console.log("=== Executing Metrics Hooks ===");
   
+  const headers = {};
+  const cronSecret = process.env.CRON_SECRET;
+  if (cronSecret) {
+    headers["Authorization"] = `Bearer ${cronSecret}`;
+  }
+
   const res = await fetch(`${BASE_URL}/api/dev/metrics-smoke`, { 
-    method: "POST" 
+    method: "POST",
+    headers,
   });
   
   const json = await res.json();
@@ -23,9 +30,6 @@ async function main() {
   if (!res.ok || !json.ok) {
     console.error("❌ FAIL: Metrics threw an error");
     console.error("Error:", json.error);
-    if (json.stack) {
-      console.error("Stack:", json.stack);
-    }
     process.exit(1);
   }
 

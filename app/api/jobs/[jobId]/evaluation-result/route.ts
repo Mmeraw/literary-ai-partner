@@ -33,7 +33,19 @@ export async function GET(
       return NextResponse.json({ error: 'Job not found' }, { status: 404 });
     }
 
-    if (job.user_id !== user.id) {
+    const ownerViaJob = job.user_id === user.id;
+
+    let ownerViaManuscript = false;
+    if (!ownerViaJob && job.manuscript_id) {
+      const { data: manuscript } = await supabase
+        .from('manuscripts')
+        .select('user_id')
+        .eq('id', job.manuscript_id)
+        .single();
+      ownerViaManuscript = manuscript?.user_id === user.id;
+    }
+
+    if (!ownerViaJob && !ownerViaManuscript) {
       return NextResponse.json({ error: 'Job not found' }, { status: 404 });
     }
 
