@@ -419,7 +419,42 @@ export default async function EvaluationReportPage({
 
   const job = await getJob(jobId);
 
-  if (!job || job.user_id !== ownerId) {
+  if (!job) {
+    return (
+      <main className="mx-auto max-w-3xl p-6">
+        <h1 className="text-2xl font-semibold text-gray-900">Evaluation Report</h1>
+        <div className="mt-4 rounded-md border border-gray-200 bg-gray-50 p-4">
+          <p className="text-sm font-medium text-gray-900">Job not available yet</p>
+          <p className="mt-2 text-sm text-gray-600">
+            This evaluation is not accessible right now. If you just submitted or resumed a job,
+            it may still be initialising — wait a moment and reload.
+          </p>
+          <div className="mt-4 flex gap-4">
+            <Link
+              href={`/evaluate/${jobId}`}
+              className="inline-block rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-800 hover:bg-gray-100"
+            >
+              Reload
+            </Link>
+            <Link
+              href="/evaluate"
+              className="inline-block text-sm text-gray-500 underline hover:text-gray-700 py-1.5"
+            >
+              Back to Evaluate
+            </Link>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
+  const userRole = (sessionUser?.app_metadata as Record<string, unknown> | undefined)?.role;
+  const isAdminRole = userRole === 'admin' || userRole === 'superadmin';
+  const isOwner = job.user_id === ownerId;
+  const activeGrant = isAdminRole ? await hasActiveSupportGrant(jobId) : null;
+  const hasSupportAccess = isAdminRole && !!activeGrant;
+
+  if (!isOwner && !hasSupportAccess) {
     // Job may be mid-transition (queued after a reset) — do not say "expired".
     // Offer a reload and a return link. The poller will pick it up once it's live.
     return (
@@ -452,14 +487,11 @@ export default async function EvaluationReportPage({
 
   // Support access: admin/support viewers can see technical sections only
   // when the author has granted temporary access.
-  const userRole = (sessionUser?.app_metadata as Record<string, unknown> | undefined)?.role;
-  const isAdminRole = userRole === 'admin' || userRole === 'superadmin';
-  const activeGrant = isAdminRole ? await hasActiveSupportGrant(jobId) : null;
-  const showTechnicalSections = isAdminRole && !!activeGrant;
+  const showTechnicalSections = hasSupportAccess;
 
   // Log the support view if admin is viewing with an active grant
   if (showTechnicalSections && activeGrant && sessionUser) {
-    void logSupportView(jobId, sessionUser.id, activeGrant.grantId);
+    await logSupportView(jobId, sessionUser.id, activeGrant.grantId);
   }
 
   const isComplete = job.status === "complete";
@@ -966,7 +998,7 @@ export default async function EvaluationReportPage({
       )}
       {isComplete && (
         <div className="mt-8 space-y-4">
-          <SupportAccessToggle jobId={jobId} />
+          {isOwner && <SupportAccessToggle jobId={jobId} />}
           <div className="flex justify-end">
             <DownloadReportButton jobId={jobId} />
           </div>

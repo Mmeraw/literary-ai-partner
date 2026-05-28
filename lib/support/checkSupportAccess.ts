@@ -1,4 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import { createHash } from "node:crypto";
 
 /**
  * Check whether an active, non-expired support access grant exists
@@ -40,12 +41,17 @@ export async function logSupportView(
   const admin = createAdminClient({ nullable: true });
   if (!admin) return;
 
+  const rawForwardedIp = request?.headers?.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
+  const ipHash = rawForwardedIp
+    ? createHash("sha256").update(rawForwardedIp, "utf8").digest("hex")
+    : null;
+
   await admin.from("evaluation_support_access_log").insert({
     evaluation_job_id: evaluationJobId,
     viewer_user_id: viewerUserId,
     grant_id: grantId,
     action: "view",
-    ip_hash: request?.headers?.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null,
+    ip_hash: ipHash,
     user_agent: request?.headers?.get("user-agent")?.slice(0, 256) ?? null,
   });
 }

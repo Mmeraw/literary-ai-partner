@@ -31,8 +31,8 @@ CREATE INDEX IF NOT EXISTS idx_support_access_grants_owner
   ON public.evaluation_support_access_grants(owner_user_id);
 
 CREATE INDEX IF NOT EXISTS idx_support_access_grants_active
-  ON public.evaluation_support_access_grants(evaluation_job_id)
-  WHERE revoked_at IS NULL AND expires_at > now();
+  ON public.evaluation_support_access_grants(evaluation_job_id, expires_at DESC)
+  WHERE revoked_at IS NULL;
 
 ALTER TABLE public.evaluation_support_access_grants ENABLE ROW LEVEL SECURITY;
 

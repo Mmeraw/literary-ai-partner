@@ -116,6 +116,39 @@ async function getEvaluationResult(jobId: string, userId: string): Promise<Evalu
   };
 }
 
+async function getEvaluationResultForSupport(jobId: string): Promise<EvaluationReportContext | null> {
+  noStore();
+
+  const admin = createAdminClient();
+
+  const { data: job, error } = await admin
+    .from('evaluation_jobs')
+    .select(`
+      evaluation_result,
+      status,
+      validity_status,
+      manuscripts(title)
+    `)
+    .eq('id', jobId)
+    .single();
+
+  if (error || !job || !canReleaseEvaluationRead(job) || !job.evaluation_result) {
+    return null;
+  }
+
+  const result = job.evaluation_result as unknown;
+
+  if (!isEvaluationResultV1(result) && !isEvaluationResultV2(result)) {
+    console.error('Invalid evaluation result format for support path job:', jobId);
+    return null;
+  }
+
+  return {
+    result,
+    manuscriptTitle: extractManuscriptTitle((job as { manuscripts?: unknown }).manuscripts),
+  };
+}
+
 /**
  * Fetch the DREAM long-form artifact for a job.
  * Returns null for:
@@ -182,8 +215,17 @@ export default async function ReportPage({ params }: { params: { jobId: string }
     notFound(); // Unauthenticated users see 404, not a login redirect
   }
 
-  // Step 2: Owner-gated privileged read
-  const report = await getEvaluationResult(params.jobId, user.id);
+  const reportUserRole = (user.app_metadata as Record<string, unknown> | undefined)?.role;
+  const isAdminRole = reportUserRole === 'admin' || reportUserRole === 'superadmin';
+  const activeGrant = isAdminRole ? await hasActiveSupportGrant(params.jobId) : null;
+  const hasSupportAccess = isAdminRole && !!activeGrant;
+
+  // Step 2: Owner-gated privileged read, with separate support/admin path
+  // enabled only when an active author grant exists.
+  let report = await getEvaluationResult(params.jobId, user.id);
+  if (!report && hasSupportAccess) {
+    report = await getEvaluationResultForSupport(params.jobId);
+  }
 
   if (!report) {
     notFound();
@@ -230,13 +272,10 @@ export default async function ReportPage({ params }: { params: { jobId: string }
 
   // Support access: admin/support viewers can see technical sections only
   // when the author has granted temporary access.
-  const reportUserRole = (user.app_metadata as Record<string, unknown> | undefined)?.role;
-  const isAdminRole = reportUserRole === 'admin' || reportUserRole === 'superadmin';
-  const activeGrant = isAdminRole ? await hasActiveSupportGrant(params.jobId) : null;
-  const showTechnicalSections = isAdminRole && !!activeGrant;
+  const showTechnicalSections = hasSupportAccess;
 
   if (showTechnicalSections && activeGrant) {
-    void logSupportView(params.jobId, user.id, activeGrant.grantId);
+    await logSupportView(params.jobId, user.id, activeGrant.grantId);
   }
 
   // D2 fail-closed: block forbidden market guarantee language from rendering in agent-facing output.
