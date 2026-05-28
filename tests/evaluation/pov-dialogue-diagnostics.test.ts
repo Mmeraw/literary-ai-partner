@@ -114,7 +114,7 @@ describe("POV + dialogue diagnostics", () => {
     expect(dialogue.findings.some((f) => f.code === "REDUNDANT_ATTRIBUTION")).toBe(true);
   });
 
-  test("quality gate fails manuscript-aware POV checks for generic voice/dialogue rationale", () => {
+  test("quality gate fails manuscript-aware POV checks for generic voice rationale", () => {
     const synthesis = makeSynthesis(
       CRITERIA_KEYS.map((key) =>
         key === "voice"
@@ -125,14 +125,50 @@ describe("POV + dialogue diagnostics", () => {
       ),
     );
 
-    // Deliberately under-audited dialogue context: no attribution mechanisms,
-    // plus POV rendering friction to ensure manuscript-aware checks execute.
-    const manuscript = `Why am I still trusting him?\n\n*He is lying.*\n\nThe room was very quiet.`;
+    // Manuscript with POV rendering friction but enough dialogue structure
+    // for diagnostic grounding to pass. The dialogue gate correctly passes
+    // because the diagnostics show clear turn-taking and attribution, even
+    // though the rationale is generic. Only QG_POV_GENERIC_REASONING fires.
+    const manuscript = [
+      `Why am I still trusting him?`,
+      `*He is lying.*`,
+      `The room was very quiet.`,
+      `"I don't believe you," she said.`,
+      `"You never did," he replied.`,
+      `"That's not fair," she whispered.`,
+      `"What would be fair?" he asked.`,
+      `"Something other than this," she said.`,
+      `"Then leave," he told her.`,
+    ].join("\n\n");
     const result = runQualityGate(synthesis, undefined, undefined, manuscript);
 
     expect(result.pass).toBe(false);
     expect(result.checks.some((c) => c.error_code === "QG_POV_GENERIC_REASONING")).toBe(true);
-    expect(result.checks.some((c) => c.error_code === "QG_DIALOGUE_ATTRIBUTION_UNDERAUDITED")).toBe(true);
+    // Dialogue gate passes: diagnostics show grounded attribution structure
+    const dialogueCheck = result.checks.find((c) => c.check_id === "dialogue_attribution_specificity");
+    if (dialogueCheck) {
+      expect(dialogueCheck.passed).toBe(true);
+    }
+  });
+
+  test("dialogue gate auto-passes for low-dialogue manuscript (#278)", () => {
+    const synthesis = makeSynthesis(
+      CRITERIA_KEYS.map((key) =>
+        key === "dialogue"
+          ? { final_rationale: "Conversations work and generally read fine." }
+          : {},
+      ),
+    );
+
+    // Manuscript with no quoted dialogue — epistolary/introspective style.
+    // Previously this would hard-fail with QG_DIALOGUE_ATTRIBUTION_UNDERAUDITED;
+    // now it auto-passes because there's no dialogue to audit (#278).
+    const manuscript = `Why am I still trusting him?\n\n*He is lying.*\n\nThe room was very quiet.`;
+    const result = runQualityGate(synthesis, undefined, undefined, manuscript);
+    const dialogueCheck = result.checks.find((c) => c.check_id === "dialogue_attribution_specificity");
+    if (dialogueCheck) {
+      expect(dialogueCheck.passed).toBe(true);
+    }
   });
 
   test("evidence pack validator reports missing anchors deterministically", () => {
