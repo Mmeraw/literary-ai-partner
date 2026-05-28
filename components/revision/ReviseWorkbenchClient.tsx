@@ -204,6 +204,12 @@ export default function ReviseWorkbenchClient({ payload }: { payload: WorkbenchQ
   const [isDraftOpen, setIsDraftOpen] = useState(false);
   const [draftText, setDraftText] = useState("");
 
+  // TrustedPath state
+  const [trustedPathEligible, setTrustedPathEligible] = useState<number | null>(null);
+  const [trustedPathLoading, setTrustedPathLoading] = useState(false);
+  const [trustedPathResult, setTrustedPathResult] = useState<{ appliedCount: number; skippedCount: number; alreadyDecidedCount: number } | null>(null);
+  const [trustedPathConfirm, setTrustedPathConfirm] = useState(false);
+
   useEffect(() => {
     if (typeof window === "undefined") return;
     setIsOnline(window.navigator.onLine);
@@ -273,6 +279,32 @@ export default function ReviseWorkbenchClient({ payload }: { payload: WorkbenchQ
       cancelled = true;
     };
   }, [effectivePayload, isOnline, key]);
+
+  // TrustedPath preview: fetch eligible count
+  useEffect(() => {
+    if (!isOnline || !effectivePayload.manuscriptId || !effectivePayload.evaluationJobId) return;
+    let cancelled = false;
+
+    async function loadTrustedPathPreview() {
+      try {
+        const params = new URLSearchParams({
+          manuscriptId: effectivePayload.manuscriptId ?? "",
+          evaluationJobId: effectivePayload.evaluationJobId ?? "",
+        });
+        const response = await fetch(`/api/revise/trusted-path?${params.toString()}`);
+        if (!response.ok || cancelled) return;
+        const json = await response.json();
+        if (!cancelled && json?.ok) {
+          setTrustedPathEligible(json.eligible ?? 0);
+        }
+      } catch {
+        // Non-critical: preview count is informational only
+      }
+    }
+
+    void loadTrustedPathPreview();
+    return () => { cancelled = true; };
+  }, [effectivePayload, isOnline]);
 
   useEffect(() => {
     if (!isOnline || !effectivePayload.manuscriptId || !effectivePayload.evaluationJobId) return;
@@ -382,6 +414,62 @@ export default function ReviseWorkbenchClient({ payload }: { payload: WorkbenchQ
     if (nextId) moveToOpportunity(nextId);
   }
 
+  async function applyTrustedPath() {
+    if (!effectivePayload.manuscriptId || !effectivePayload.evaluationJobId) return;
+    setTrustedPathLoading(true);
+    setTrustedPathConfirm(false);
+    setTrustedPathResult(null);
+
+    try {
+      const response = await fetch("/api/revise/trusted-path", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          manuscriptId: effectivePayload.manuscriptId,
+          evaluationJobId: effectivePayload.evaluationJobId,
+        }),
+      });
+
+      const json = await response.json().catch(() => null);
+      if (!response.ok || !json?.ok) {
+        setSyncMessage(json?.error ?? "TrustedPath apply failed");
+        return;
+      }
+
+      setTrustedPathResult({
+        appliedCount: json.appliedCount ?? 0,
+        skippedCount: json.skippedCount ?? 0,
+        alreadyDecidedCount: json.alreadyDecidedCount ?? 0,
+      });
+      setTrustedPathEligible(0);
+
+      // Reload server ledger to reflect the auto-accepted decisions
+      const params = new URLSearchParams({
+        manuscriptId: effectivePayload.manuscriptId ?? "",
+        evaluationJobId: effectivePayload.evaluationJobId ?? "",
+      });
+      const ledgerResponse = await fetch(`/api/revision-ledger?${params.toString()}`);
+      if (ledgerResponse.ok) {
+        const ledgerJson = await ledgerResponse.json();
+        if (ledgerJson?.ok && Array.isArray(ledgerJson.entries)) {
+          const remote = (ledgerJson.entries as ServerLedgerEntry[]).map(rowToLedgerEntry);
+          setLedger((current) => {
+            const merged = mergeLedger(current, remote);
+            setDecisionById(rebuildDecisionMap(merged));
+            saveLocalCache(key, effectivePayload, merged);
+            return merged;
+          });
+        }
+      }
+
+      setSyncMessage(`TrustedPath™ applied ${json.appliedCount} repair${json.appliedCount === 1 ? "" : "s"}`);
+    } catch (error) {
+      setSyncMessage(error instanceof Error ? error.message : "TrustedPath apply failed");
+    } finally {
+      setTrustedPathLoading(false);
+    }
+  }
+
   function undoLedgerEntry(index: number) {
     const removed = ledger[index];
     if (removed) {
@@ -431,6 +519,61 @@ export default function ReviseWorkbenchClient({ payload }: { payload: WorkbenchQ
               <div>{SCOPES.map((scope) => `${effectivePayload.scopes[scope]} ${scope}`).join(" · ")}</div>
             </div>
           </div>
+
+          {/* TrustedPath™ */}
+          {trustedPathEligible !== null && trustedPathEligible > 0 && !trustedPathResult && (
+            <div className="mt-4 rounded-lg border border-[#C8A96E]/50 bg-[#C8A96E]/10 p-4">
+              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-[#F2E8D6]">TrustedPath™ · Apply All Approved</p>
+                  <p className="mt-1 text-xs leading-5 text-[#D8C6A4]">
+                    {trustedPathEligible} repair{trustedPathEligible === 1 ? " has" : "s have"} been independently verified by the cross-check verifier.
+                    Apply {trustedPathEligible === 1 ? "it" : "them all"} as accepted Option A decisions in one pass.
+                    Flagged, rejected, and pending items remain for manual review.
+                  </p>
+                </div>
+                {!trustedPathConfirm ? (
+                  <button
+                    type="button"
+                    disabled={trustedPathLoading}
+                    onClick={() => setTrustedPathConfirm(true)}
+                    className="shrink-0 rounded border border-[#C8A96E] bg-[#C8A96E] px-5 py-2.5 text-sm font-semibold text-[#1A140C] transition hover:bg-[#D5B67E] disabled:opacity-50"
+                  >
+                    {trustedPathLoading ? "Applying…" : `Apply ${trustedPathEligible} verified repair${trustedPathEligible === 1 ? "" : "s"}`}
+                  </button>
+                ) : (
+                  <div className="flex shrink-0 gap-2">
+                    <button
+                      type="button"
+                      onClick={applyTrustedPath}
+                      className="rounded border border-[#C8A96E] bg-[#C8A96E] px-4 py-2 text-sm font-semibold text-[#1A140C] transition hover:bg-[#D5B67E]"
+                    >
+                      Confirm
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setTrustedPathConfirm(false)}
+                      className="rounded border border-[#5D4C31] px-4 py-2 text-sm text-[#E8DABF] hover:border-[#C8A96E]"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {trustedPathResult && trustedPathResult.appliedCount > 0 && (
+            <div className="mt-4 rounded-lg border border-[#48603F]/60 bg-[#2D3B2A]/30 p-4">
+              <p className="text-sm font-semibold text-[#B8D6AD]">TrustedPath™ complete</p>
+              <p className="mt-1 text-xs leading-5 text-[#A9C89E]">
+                {trustedPathResult.appliedCount} verified repair{trustedPathResult.appliedCount === 1 ? " was" : "s were"} auto-accepted as Option A.
+                {trustedPathResult.alreadyDecidedCount > 0 && ` ${trustedPathResult.alreadyDecidedCount} already had a manual decision.`}
+                {" "}Remaining items are in the queue for manual review.
+                Proceed to Final Review to see the marked manuscript with all changes.
+              </p>
+            </div>
+          )}
         </header>
 
         <section className="grid gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
