@@ -18,16 +18,25 @@ const AUTH_UNAVAILABLE_MESSAGE =
   'Authentication is unavailable in this environment. Use production deployment for password reset.'
 
 const PRODUCTION_URL = 'https://www.revisiongrade.com'
+const RESET_SITE_URL = normalizeSiteUrl(process.env.NEXT_PUBLIC_SITE_URL) ?? PRODUCTION_URL
 
 function isValidEmail(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
 }
 
-function getResetRedirectUrl(): string {
-  if (typeof window !== 'undefined' && window.location?.origin) {
-    return `${window.location.origin}/reset-password`
+function normalizeSiteUrl(value: string | undefined): string | null {
+  if (!value) return null
+
+  try {
+    const url = new URL(value)
+    return url.origin
+  } catch {
+    return null
   }
-  return `${PRODUCTION_URL}/reset-password`
+}
+
+function getResetRedirectUrl(): string {
+  return `${RESET_SITE_URL}/reset-password`
 }
 
 const inputCls =
@@ -91,7 +100,7 @@ export default function ForgotPasswordPage() {
       }
       clearAuthFailures('reset')
       trackClientAuthEvent('reset', 'succeeded', { provider: 'password' })
-      setSuccess('Check your email for a reset link. The link will expire shortly for security.')
+      setSuccess('Check your email for a reset link. If you do not see it, check your junk or spam folder. The link will expire shortly for security.')
     } catch {
       recordAuthFailure('reset')
       trackClientAuthEvent('reset', 'unexpected_error', { provider: 'password' })
