@@ -123,10 +123,10 @@ function buildSummaryFallback(result: ExportableResult): string {
   const strengths = result.overview.top_3_strengths.map(stripMachineResidue).filter(Boolean);
   const risks = result.overview.top_3_risks.map(stripMachineResidue).filter(Boolean);
   const strengthSentence = strengths.length
-    ? `The strongest areas are ${strengths.slice(0, 2).join(' ')}`
+    ? `The strongest areas are: ${strengths.slice(0, 2).join('; ')}.`
     : 'The strongest areas are detailed in the criteria analysis.';
   const riskSentence = risks.length
-    ? `The primary risks are ${risks.slice(0, 2).join(' ')}`
+    ? `The primary risks are: ${risks.slice(0, 2).join('; ')}.`
     : 'The primary risks are detailed in the criteria analysis.';
   return `${strengthSentence} ${riskSentence}`;
 }
