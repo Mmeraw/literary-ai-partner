@@ -570,7 +570,15 @@ export default async function EvaluationReportPage({
             ✓ Story Ledger approved — craft diagnosis is now running.
           </p>
           <p className="mt-1 text-sm" style={{ color: '#7B7B7B' }}>
-            The system is diagnosing your manuscript across 13 craft criteria. This typically takes 3–8 minutes.
+            The system is diagnosing your manuscript across 13 craft criteria.{' '}
+            {(() => {
+              const wc = pollerWordCount ?? wordCount;
+              if (typeof wc === 'number' && wc >= 30000)
+                return 'For novels and novellas, this can take up to 1 hour.';
+              if (typeof wc === 'number' && wc >= 10000)
+                return 'For novelettes, this typically takes 15–20 minutes.';
+              return 'For chapters, this typically takes 3–8 minutes.';
+            })()}{' '}
             Watch the progress bar below — your Diagnostic Report will appear here when complete.
           </p>
         </div>
