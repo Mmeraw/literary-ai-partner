@@ -1,57 +1,118 @@
 # Benchmarks — Gold-Standard Reference Evaluations
 
-This directory holds manual gold-standard reference evaluations that define the **target quality bar** for RevisionGrade long-form output.
+This directory holds manual gold-standard reference evaluations that define the **target quality bar** for RevisionGrade evaluation output.
 
-## DREAM long-form gold standards
+RevisionGrade now distinguishes three product-facing evaluation modes:
+
+| Mode | Route / output mode | Template |
+|---|---|---|
+| `short_form_evaluation` | `SHORT_FORM` | [`short-form-evaluation-template.md`](../templates/evaluation/short-form-evaluation-template.md) |
+| `long_form_evaluation` | `LONG_FORM` / `standard_long_form` | [`long-form-evaluation-template.md`](../templates/evaluation/long-form-evaluation-template.md) |
+| `long_form_multi_layer_evaluation` | `LONG_FORM` / `multi_layer_long_form` | [`long-form-multi-layer-evaluation-template.md`](../templates/evaluation/long-form-multi-layer-evaluation-template.md) |
+
+The controlling mode contract is:
+
+**[`docs/governance/evaluation-output-mode-contract.md`](../governance/evaluation-output-mode-contract.md)**
+
+Existing DREAM long-form specifications and governed-ledger templates remain authoritative for detailed DREAM / Story Ledger / governed-ledger completeness rules. The new mode templates clarify product-facing report shape and scope; they do not replace DREAM canon.
+
+---
+
+## Native long-form multi-layer gold standards
 
 The canonical DREAM long-form benchmark index is:
 
 **[`DREAM_LONGFORM_BENCHMARK_INDEX.md`](./DREAM_LONGFORM_BENCHMARK_INDEX.md)**
 
-That index declares the three current long-form prose gold standards as one DREAM long-form benchmark family:
+That index declares the three current RevisionGrade-native prose gold standards as **long-form multi-layer evaluation** benchmarks:
 
-| Work | File | Output mode | Role |
-|---|---|---|---|
-| *Froggin Noggin* | [`froggin-noggin-dream.md`](./froggin-noggin-dream.md) | `multi_layer_long_form` | Manual DREAM long-form gold standard |
-| *Let the River Decide* | [`let-the-river-decide-dream.md`](./let-the-river-decide-dream.md) | `multi_layer_long_form` | Manual DREAM long-form gold standard |
-| *Cartel Babies* | [`cartel-babies-dream.md`](./cartel-babies-dream.md) | `multi_layer_long_form` | Manual DREAM long-form gold standard |
+| Work | File | Evaluation mode | Output mode | Role |
+|---|---|---|---|---|
+| *Froggin Noggin* | [`froggin-noggin-dream.md`](./froggin-noggin-dream.md) | `long_form_multi_layer_evaluation` | `multi_layer_long_form` | Manual DREAM long-form multi-layer gold standard |
+| *Let the River Decide* | [`let-the-river-decide-dream.md`](./let-the-river-decide-dream.md) | `long_form_multi_layer_evaluation` | `multi_layer_long_form` | Manual DREAM long-form multi-layer calibration standard |
+| *Cartel Babies* | [`cartel-babies-dream.md`](./cartel-babies-dream.md) | `long_form_multi_layer_evaluation` | `multi_layer_long_form` | Manual DREAM long-form multi-layer gold standard |
 
-These files belong to the `dream-longform-v1` family in substance even where older markdown headers differ. Future edits should normalize headers without weakening the underlying evaluation body.
+These files belong to the DREAM governed-ledger benchmark family in substance even where older markdown headers differ. Future edits should normalize headers or addenda without weakening the underlying evaluation body.
+
+---
 
 ## The Gold Standard
 
-**[`froggin-noggin-dream.md`](./froggin-noggin-dream.md)** — *Froggin Noggin* (Michael J. Me Raw). Full long-form gold-standard evaluation: 13-criteria score grid, layered architecture analysis, canon/doctrine audit, revision plan, releasability assessment. This is THE calibration target — when a production evaluation disputes a criterion against the Pass 4 cross-checker, this file is the reference for which side is closer to ground truth.
+**[`froggin-noggin-dream.md`](./froggin-noggin-dream.md)** — *Froggin Noggin* (Michael J. Me Raw). Full long-form multi-layer gold-standard evaluation: 13-criteria score grid, layered architecture analysis, canon/doctrine audit, revision plan, releasability assessment, and DREAM governed-ledger expectations where applicable. This is a calibration target — when production output disputes a criterion or long-form diagnosis, this file helps determine which side is closer to ground truth.
 
-Schema: `canonical-13-v1` / `dream-longform-v1` (front-matter and index opt-in; validated by `tests/evaluation/benchmarks/gold-standard-shape.test.ts` where applicable).
+Schema family: `canonical-13` / `dream-longform-v2-governed-ledgers` / `long_form_multi_layer_evaluation` where front matter and index opt in. Shape validation is handled by `tests/evaluation/benchmarks/gold-standard-shape.test.ts` where applicable.
+
+---
 
 ## What gold-standard files are for
 
-- **Calibration target.** Pass 4 disputes resolve against the gold standard — this is the ground truth we tune toward.
-- **Quality bar.** Pass 1 / Pass 2 / Pass 3 prompt and schema work should converge primary-evaluator output toward this depth, format, and rigor.
-- **Documentation.** Captures the kind of structural, thematic, and architectural analysis the platform aspires to produce, in a form that survives prompt churn.
+- **Calibration target.** They define the target editorial depth for each mode.
+- **Quality bar.** Pass 1 / Pass 2 / Pass 3 prompt and schema work should converge primary-evaluator output toward this depth, format, and rigor where the selected mode requires it.
+- **Documentation.** They capture structural, thematic, architectural, and readiness analysis in a form that survives prompt churn.
+- **Mode clarity.** They prevent short-form, standard long-form, and long-form multi-layer outputs from being treated as interchangeable.
+
+---
 
 ## What gold-standard files are NOT
 
-- **Not test fixtures.** No production assertion compares live output to these scores or text. The shape smoke test only validates structural conformance, not scoring outcomes.
-- **Not a claim of current capability.** The repo note in each file states this explicitly.
-- **Not versioned with the schema.** They are human-authored reference documents that anchor calibration over time.
+- **Not test fixtures.** No production assertion compares live output to these scores or text. Shape smoke tests validate structural conformance, not scoring outcomes.
+- **Not a claim of current capability.** The repo note in each file states this explicitly where needed.
+- **Not versioned generated output.** They are human-authored reference documents that anchor calibration over time.
+- **Not a reason to overpromise.** A short-form report must not imply the depth of a long-form multi-layer benchmark.
+
+---
 
 ## Adding a new gold-standard benchmark
 
-New gold-standard files MUST opt in to the **canonical-13-v1** schema or be listed in the DREAM long-form benchmark index. This binds the file to the same 13 criterion names the production pipeline emits, so the benchmark stays comparable to live output across prompt changes.
+New gold-standard files MUST identify the evaluation mode they represent and must use the canonical 13 criterion names the production pipeline emits, so the benchmark stays comparable to live output across prompt changes.
 
 1. Place the file at `docs/benchmarks/<work-slug>.md`.
-2. Add YAML front-matter at the very top:
-   ```yaml
-   ---
-   benchmark-schema: dream-longform-v1
-   benchmark-role: gold-standard-long-form
-   criteria-spine: canonical-13
-   route: LONG_FORM
-   output-mode: multi_layer_long_form
-   wave-applied: true
-   ---
-   ```
+2. Add YAML front matter at the very top.
+
+For short-form benchmarks:
+
+```yaml
+---
+benchmark-schema: short-form-evaluation-v1
+evaluation-mode: short_form_evaluation
+benchmark-role: gold-standard-short-form
+criteria-spine: canonical-13
+route: SHORT_FORM
+output-mode: short_form_evaluation
+wave-applied: false
+---
+```
+
+For standard long-form benchmarks:
+
+```yaml
+---
+benchmark-schema: long-form-evaluation-v1
+evaluation-mode: long_form_evaluation
+benchmark-role: gold-standard-long-form
+criteria-spine: canonical-13
+route: LONG_FORM
+output-mode: standard_long_form
+wave-applied: true
+---
+```
+
+For long-form multi-layer / DREAM governed-ledger benchmarks:
+
+```yaml
+---
+benchmark-schema: dream-longform-v2-governed-ledgers
+evaluation-mode: long_form_multi_layer_evaluation
+benchmark-role: gold-standard-long-form-multi-layer
+criteria-spine: canonical-13
+route: LONG_FORM
+output-mode: multi_layer_long_form
+dream-template-version: pass3b-longform-v2-governed-ledgers
+governed-ledgers: true
+wave-applied: true
+---
+```
+
 3. Include a score-grid table with rows for all 13 canonical criteria using the production names exactly as defined in `schemas/criteria-keys.ts` (`CRITERIA_METADATA`):
    - Concept & Core Premise
    - Narrative Drive & Momentum
@@ -67,8 +128,21 @@ New gold-standard files MUST opt in to the **canonical-13-v1** schema or be list
    - Narrative Closure & Promises Kept
    - Professional Readiness & Market Positioning
 
-   Layered architecture rows beyond the 13 are allowed.
-4. Score column uses the format `N.N / 10` or `N / 10` (bold optional).
-5. Confidence column uses one of: High, Moderate-High, Moderate, Moderate-Low, Low.
-6. Include a disclaimer (Repo note or equivalent) stating this is a manual reference, not a production assertion.
-7. The smoke test at [`tests/evaluation/benchmarks/gold-standard-shape.test.ts`](../../tests/evaluation/benchmarks/gold-standard-shape.test.ts) automatically validates files with recognized benchmark front matter and ignores everything else.
+4. Criterion opportunities should follow the six-part diagnostic contract when present:
+   - Evidence
+   - Symptom
+   - Cause
+   - Fix direction
+   - Reader effect
+   - Mistake-proofing
+
+5. Score column uses the format `N.N / 10` or `N / 10` (bold optional).
+6. Confidence column uses one of: High, Moderate-High, Moderate, Moderate-Low, Low.
+7. Include a disclaimer (Repo note or equivalent) stating this is a manual reference, not a production assertion.
+8. The smoke test at [`tests/evaluation/benchmarks/gold-standard-shape.test.ts`](../../tests/evaluation/benchmarks/gold-standard-shape.test.ts) automatically validates files with recognized benchmark front matter and ignores everything else.
+
+---
+
+## Normalization rule
+
+Do not rewrite preserved manual benchmark bodies merely to conform to the new mode labels. Use front matter, addenda, template notes, and benchmark index metadata unless the benchmark itself is intentionally being regenerated.
