@@ -56,8 +56,8 @@ export default function ResetPasswordPage() {
     if (error) setError(null)
   }
 
-  // Detect Supabase recovery session from URL hash. The browser client auto-parses
-  // the hash on init (detectSessionInUrl: true); we observe the resulting state.
+  // Detect Supabase recovery session. Supports both implicit flow (hash fragments)
+  // and PKCE flow (?code= parameter exchanged via /api/auth/callback or client-side).
   useEffect(() => {
     if (!hasSupabaseAuthConfig) {
       setSessionStatus('invalid')
@@ -92,6 +92,16 @@ export default function ResetPasswordPage() {
       }
     })
 
+    // PKCE fallback: if the page received a ?code= param directly (not via callback),
+    // exchange it client-side.
+    const params = new URLSearchParams(window.location.search)
+    const code = params.get('code')
+    if (code) {
+      supabase.auth.exchangeCodeForSession(code).then(({ error }) => {
+        if (error) markInvalid()
+      })
+    }
+
     // Fallback: if the hash has already been consumed before the listener attached,
     // check for an existing session.
     supabase.auth.getSession().then(({ data }) => {
@@ -101,7 +111,7 @@ export default function ResetPasswordPage() {
     // If no recovery event arrives within a short window, treat the link as invalid.
     const timeout = window.setTimeout(() => {
       markInvalid()
-    }, 4000)
+    }, 6000)
 
     return () => {
       isMounted = false
