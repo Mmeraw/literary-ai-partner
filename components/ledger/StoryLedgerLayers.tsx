@@ -2350,7 +2350,7 @@ export function IdentityPronounLayer({
         badge={
           shiftCount > 0
             ? `${shiftCount} pronoun ${shiftCount === 1 ? "shift" : "shifts"} detected`
-            : `${entries.length} ${entries.length === 1 ? "character" : "characters"} verified`
+            : `${entries.length} ${entries.length === 1 ? "identity" : "identities"} verified`
         }
         badgeTone={shiftCount > 0 ? "oxblood" : "gold"}
       />
