@@ -558,7 +558,8 @@ export function SourceIntegrityLayer({
     typeof data?.integrity_status === "string" ? data.integrity_status : "";
   const statusUpper = integrityStatus.toUpperCase();
   const isClean = statusUpper === "CLEAN";
-  const isFailed = statusUpper === "FAILED" || statusUpper === "DEGRADED";
+  const isDegraded = statusUpper === "DEGRADED";
+  const isHardFail = statusUpper === "HARD_FAIL" || statusUpper === "FAILED";
 
   const hardFailPresent = data?.hard_fail_present === true;
   const totalChunks =
@@ -566,7 +567,11 @@ export function SourceIntegrityLayer({
       ? data.total_chunks_processed
       : null;
 
-  const tone = isFailed || hardFailPresent ? "block" : "neutral";
+  const emptyLayerWarnings = Array.isArray(data?.empty_layer_warnings)
+    ? (data.empty_layer_warnings as Array<{ layer: string; code: string; message: string }>)
+    : [];
+
+  const tone = isHardFail || hardFailPresent ? "block" : isDegraded ? "warn" : "neutral";
 
   return (
     <LayerShell tone={tone}>
@@ -611,14 +616,27 @@ export function SourceIntegrityLayer({
         {integrityStatus && (
           <Pill
             label={`Source: ${integrityStatus}`}
-            tone={isClean ? "green" : isFailed ? "oxblood" : "neutral"}
+            tone={isClean ? "green" : isHardFail ? "oxblood" : isDegraded ? "gold" : "neutral"}
           />
         )}
         {hardFailPresent && <Pill label="Hard failure" tone="oxblood" />}
+        {emptyLayerWarnings.length > 0 && (
+          <Pill label={`${emptyLayerWarnings.length} empty layer warning${emptyLayerWarnings.length === 1 ? "" : "s"}`} tone="gold" />
+        )}
         {totalChunks !== null && (
           <Pill label={`${totalChunks} section${totalChunks === 1 ? "" : "s"} processed`} tone="neutral" />
         )}
       </div>
+
+      {/* Empty layer warnings */}
+      {emptyLayerWarnings.length > 0 && (
+        <div style={{ marginTop: 12 }}>
+          <SubHeading>Layer Completeness Warnings</SubHeading>
+          {emptyLayerWarnings.map((w) => (
+            <WarnBanner key={w.code} reason={w.message} />
+          ))}
+        </div>
+      )}
     </LayerShell>
   );
 }
