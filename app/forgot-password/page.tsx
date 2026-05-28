@@ -100,7 +100,7 @@ export default function ForgotPasswordPage() {
       }
       clearAuthFailures('reset')
       trackClientAuthEvent('reset', 'succeeded', { provider: 'password' })
-      setSuccess('Check your email for a reset link. The link will expire shortly for security.')
+      setSuccess('Check your email for a reset link. If you do not see it, check your junk or spam folder. The link will expire shortly for security.')
     } catch {
       recordAuthFailure('reset')
       trackClientAuthEvent('reset', 'unexpected_error', { provider: 'password' })
