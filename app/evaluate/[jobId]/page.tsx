@@ -108,6 +108,13 @@ type ArtifactContentV1 = {
       action: string;
       priority?: "high" | "medium" | "low";
       expected_impact?: string;
+      anchor_snippet?: string;
+      mechanism?: string;
+      specific_fix?: string;
+      reader_effect?: string;
+      issue_family?: string;
+      strategic_lever?: string;
+      revision_granularity?: string;
     }>;
   }>;
   recommendations?: {
@@ -869,13 +876,43 @@ export default async function EvaluationReportPage({
                         )}
                         {c.recommendations && c.recommendations.length > 0 && (
                           <div className="mt-3">
-                            <p className="text-xs font-semibold uppercase tracking-wide text-gray-600">Recommendations:</p>
-                            <ul className="mt-2 space-y-3">
-                              {c.recommendations.map((r, ri) => (
-                                <li key={ri} className="text-sm text-gray-700">
-                                  <p>{normalizeRecommendationActionForDisplay(r.action)}</p>
-                                  {r.expected_impact && (
+                            <p className="text-xs font-semibold uppercase tracking-wide text-gray-600">
+                              Top Opportunities{c.recommendations.length > 3 ? ` (${Math.min(c.recommendations.length, 3)} of ${c.recommendations.length})` : ""}:
+                            </p>
+                            <ul className="mt-2 space-y-4">
+                              {c.recommendations.slice(0, 3).map((r, ri) => (
+                                <li key={ri} className="rounded-md border border-gray-200 bg-gray-50/50 p-3 text-sm text-gray-700">
+                                  {r.anchor_snippet && (
+                                    <p className="mb-2 text-xs text-gray-500 italic border-l-2 border-gray-300 pl-2">
+                                      {"\u201c"}{r.anchor_snippet}{"\u201d"}
+                                    </p>
+                                  )}
+                                  <p className="font-medium">{normalizeRecommendationActionForDisplay(r.action)}</p>
+                                  {r.mechanism && (
+                                    <p className="mt-1.5 text-xs text-gray-600">
+                                      <span className="font-semibold text-gray-500">Why:</span> {r.mechanism}
+                                    </p>
+                                  )}
+                                  {r.specific_fix && (
+                                    <p className="mt-1 text-xs text-gray-600">
+                                      <span className="font-semibold text-gray-500">Fix direction:</span> {r.specific_fix}
+                                    </p>
+                                  )}
+                                  {r.reader_effect && (
+                                    <p className="mt-1 text-xs text-gray-600">
+                                      <span className="font-semibold text-gray-500">Reader effect:</span> {r.reader_effect}
+                                    </p>
+                                  )}
+                                  {r.expected_impact && !r.reader_effect && (
                                     <p className="mt-1 text-xs text-gray-500 italic">{r.expected_impact}</p>
+                                  )}
+                                  {r.priority && (
+                                    <span className={`mt-2 inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+                                      r.priority === "high" ? "bg-red-100 text-red-700" :
+                                      r.priority === "medium" ? "bg-amber-100 text-amber-700" : "bg-gray-100 text-gray-600"
+                                    }`}>
+                                      {r.priority === "high" ? "Must" : r.priority === "medium" ? "Should" : "Could"}
+                                    </span>
                                   )}
                                 </li>
                               ))}

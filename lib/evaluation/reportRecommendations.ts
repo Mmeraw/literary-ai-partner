@@ -9,6 +9,8 @@ type CriterionRecommendation = {
   action?: string;
   priority?: "high" | "medium" | "low";
   expected_impact?: string;
+  reader_effect?: string;
+  mechanism?: string;
 };
 
 type ArtifactLike = {
@@ -204,11 +206,15 @@ export function buildTopRecommendations(artifact: ArtifactLike | null | undefine
             ? normalizeRecommendationActionForDisplay(recommendation.action)
             : "";
         if (!action) return "";
-        const impact =
-          typeof recommendation.expected_impact === "string"
-            ? recommendation.expected_impact.trim()
-            : "";
-        return `${action}${impact ? ` — ${impact}` : ""}`;
+        // Use reader_effect or expected_impact as summary text instead of
+        // repeating the criterion action verbatim in Top Recommendations.
+        const readerSummary =
+          typeof recommendation.reader_effect === "string" && recommendation.reader_effect.trim()
+            ? recommendation.reader_effect.trim()
+            : typeof recommendation.expected_impact === "string" && recommendation.expected_impact.trim()
+              ? recommendation.expected_impact.trim()
+              : "";
+        return readerSummary || action;
       }),
     ),
   );
