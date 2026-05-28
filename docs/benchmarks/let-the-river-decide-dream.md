@@ -1,3 +1,18 @@
+---
+benchmark-schema: dream-longform-v2-governed-ledgers
+evaluation-mode: long_form_multi_layer_evaluation
+title: Let the River Decide DREAM Long-Form Multi-Layer Calibration Evaluation
+manuscript: Let the River Decide
+author: Michael J. Meraw
+scope: full-manuscript
+route: LONG_FORM
+output-mode: multi_layer_long_form
+benchmark-role: gold-standard-long-form-multi-layer
+criteria-spine: canonical-13
+dream-template-version: pass3b-longform-v2-governed-ledgers
+governed-ledgers: true
+wave-applied: true
+---
 # Let the River Decide — DREAM Long-Form Gold Standard Evaluation
 
 **Repository target:** `docs/benchmarks/let-the-river-decide-dream.md`  

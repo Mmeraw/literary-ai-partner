@@ -53,7 +53,10 @@ const ALLOWED_CONFIDENCE = new Set([
   "Low",
 ]);
 
-const SCHEMA_TAG = "canonical-13-v1";
+const RECOGNIZED_SCHEMAS = [
+  "canonical-13-v1",
+  "dream-longform-v2-governed-ledgers",
+];
 
 interface ParsedRow {
   criterion: string;
@@ -64,7 +67,16 @@ interface ParsedRow {
 function hasCanonical13FrontMatter(markdown: string): boolean {
   const fm = markdown.match(/^---\n([\s\S]*?)\n---/);
   if (!fm) return false;
-  return new RegExp(`benchmark-schema:\\s*${SCHEMA_TAG}\\b`).test(fm[1]);
+  const body = fm[1];
+  const hasSchema = RECOGNIZED_SCHEMAS.some((tag) =>
+    new RegExp(`benchmark-schema:\\s*${tag}\\b`).test(body),
+  );
+  if (!hasSchema) return false;
+  // V2 addenda and non-gold-standard files don't contain a full 13-criteria
+  // score grid — skip them. Only validate primary benchmark bodies that are
+  // expected to have the full score grid.
+  if (/source-benchmark:/.test(body)) return false;
+  return true;
 }
 
 function parseScoreGrid(markdown: string): ParsedRow[] {
@@ -75,17 +87,30 @@ function parseScoreGrid(markdown: string): ParsedRow[] {
       .split("|")
       .map((c) => c.trim())
       .filter((c, i, arr) => !(i === 0 || i === arr.length - 1));
-    if (cells.length < 4) continue;
-    if (/^-+:?$/.test(cells[1]) || cells[1].toLowerCase() === "score") continue;
+    if (cells.length < 3) continue;
 
-    const scoreCell = cells[1].replace(/\*\*/g, "").trim();
+    // Find the score cell dynamically — it contains N / 10
+    let scoreIdx = -1;
+    for (let i = 0; i < cells.length; i++) {
+      const clean = cells[i].replace(/\*\*/g, "").trim();
+      if (/^\d+\.?\d*\s*\/\s*10$/.test(clean)) { scoreIdx = i; break; }
+    }
+    if (scoreIdx < 0) continue;
+
+    // Criterion is the cell immediately before the score
+    const criterionIdx = scoreIdx - 1;
+    // Confidence is the cell immediately after the score
+    const confidenceIdx = scoreIdx + 1;
+    if (criterionIdx < 0 || confidenceIdx >= cells.length) continue;
+
+    const scoreCell = cells[scoreIdx].replace(/\*\*/g, "").trim();
     const scoreMatch = scoreCell.match(/^([\d.]+)\s*\/\s*10$/);
     if (!scoreMatch) continue;
 
     rows.push({
-      criterion: cells[0],
+      criterion: cells[criterionIdx],
       score: parseFloat(scoreMatch[1]),
-      confidence: cells[2],
+      confidence: cells[confidenceIdx],
     });
   }
   return rows;

@@ -1,3 +1,18 @@
+---
+benchmark-schema: dream-longform-v2-governed-ledgers
+evaluation-mode: long_form_multi_layer_evaluation
+title: Cartel Babies DREAM Long-Form Multi-Layer Gold Standard Evaluation
+manuscript: Cartel_Babies_Italics removed_(31_Mar_2026).docx
+author: Michael J. Meraw
+scope: full-manuscript
+route: LONG_FORM
+output-mode: multi_layer_long_form
+benchmark-role: gold-standard-long-form-multi-layer
+criteria-spine: canonical-13
+dream-template-version: pass3b-longform-v2-governed-ledgers
+governed-ledgers: true
+wave-applied: true
+---
 # DREAM Long-Form Evaluation: *Cartel Babies*
 
 **Recommended repo path:** `docs/benchmarks/cartel-babies-dream.md`  
@@ -9,7 +24,8 @@
 **Voice preservation setting:** Maximum  
 **Manuscript length observed:** ~112,000 words, excluding some front-matter variance  
 **Structure observed:** 85 numbered chapters + epilogue + companion framing note + research note  
-**Critical extraction finding:** Chapter 4 – *Canvas Morning* and Chapter 16 – *Canvas Morning* appear to be exact duplicate chapter bodies. This should be treated as a manuscript-integrity issue before any publication-readiness claim.
+**Critical extraction finding:** Chapter 4 – *Canvas Morning* and Chapter 16 – *Canvas Morning* appear to be exact duplicate chapter bodies. This should be treated as a manuscript-integrity issue before any publication-readiness claim.  
+**Repo note:** This is a manual gold-standard benchmark — not a production output claim. It defines the target quality bar for RevisionGrade DREAM long-form multi-layer report quality.
 
 ---
 

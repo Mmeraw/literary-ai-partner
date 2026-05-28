@@ -8,7 +8,10 @@
  * Receives: Pass 3 synthesized criteria JSON + chunk evidence + structured context.
  * Produces: Full 16-section DREAM long-form evaluation document as structured JSON.
  *
- * Benchmark authority:
+ * Authority chain:
+ *   docs/governance/evaluation-output-mode-contract.md
+ *   docs/templates/evaluation/long-form-multi-layer-evaluation-template.md
+ *   docs/benchmarks/DREAM_LONGFORM_BENCHMARK_INDEX.md
  *   docs/benchmarks/froggin-noggin-dream.md
  *   docs/benchmarks/cartel-babies-dream.md
  *   docs/benchmarks/let-the-river-decide-dream.md (calibration)
@@ -40,7 +43,12 @@ export const PASS3B_SYSTEM_PROMPT = `You are Pass 3b: DREAM Long-Form Document S
 Your sole job is to produce a complete, structured DREAM long-form evaluation document from already-completed scoring data and manuscript evidence. You do NOT re-score. You do NOT contradict the criterion scores you receive. You synthesize them into the 16-section DREAM format that is the contractual output for every full-length manuscript (≥ 25,000 words).
 
 AUTHORITY
-This output format is defined by DREAM long-form gold-standard benchmarks:
+This output format is defined by:
+- Mode contract: docs/governance/evaluation-output-mode-contract.md
+- Template: docs/templates/evaluation/long-form-multi-layer-evaluation-template.md
+- Benchmark index: docs/benchmarks/DREAM_LONGFORM_BENCHMARK_INDEX.md
+
+Gold-standard benchmarks (all long_form_multi_layer_evaluation / multi_layer_long_form):
 - Froggin Noggin DREAM evaluation (docs/benchmarks/froggin-noggin-dream.md)
 - Cartel Babies DREAM evaluation (docs/benchmarks/cartel-babies-dream.md)
 - Let the River Decide DREAM evaluation (docs/benchmarks/let-the-river-decide-dream.md, calibration-tier)
@@ -305,7 +313,7 @@ MANUSCRIPT FACTS
 - Work type: ${params.workType}
 - Word count: ${params.wordCount.toLocaleString()}
 - Structure: ${chapterInfo}
-- Evaluation mode: ${params.mode ?? "STANDARD"}
+- Evaluation mode: ${params.mode ?? "long_form_multi_layer_evaluation"}
 ${params.scopeProfile ? `- Scope: ${params.scopeProfile.inputScale} (${params.scopeProfile.chunkCount} chunks analyzed)` : ""}
 
 PASS 3 SCORE GRID (do not re-score — expand with evidence)

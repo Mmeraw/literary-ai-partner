@@ -50,7 +50,7 @@ function parseFrontMatter(doc: string): Record<string, string> {
 describe("Froggin Noggin DREAM Benchmark", () => {
   it("has canonical front matter", () => {
     const frontmatter = parseFrontMatter(readBenchmark());
-    expect(frontmatter["benchmark-schema"]).toBe("canonical-13-v1");
+    expect(frontmatter["benchmark-schema"]).toBe("dream-longform-v2-governed-ledgers");
   });
 
   it("contains canonical 13-criteria score grid coverage", () => {
