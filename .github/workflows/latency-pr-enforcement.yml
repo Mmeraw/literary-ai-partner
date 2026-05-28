@@ -32,10 +32,55 @@ jobs:
             const labelOverride = (prData.labels || [])
               .map((l) => l.name)
               .find((name) => name.startsWith("pr-type:"));
+
+            // ── minor allowlist (fail-closed) ──────────────────────────────
+            // pr-type:minor is only permitted when ALL changed files fall
+            // within this strict allowlist. Any file outside it forces the
+            // contributor to use the diff-classified PR type instead.
+            const MINOR_ALLOWED_PREFIXES = [
+              ".github/PULL_REQUEST_TEMPLATE/",
+              ".github/pr-bodies/",
+              "docs/",
+              "archive/",
+            ];
+            const MINOR_ALLOWED_EXACT = new Set([
+              "README.md",
+              "CONTRIBUTING.md",
+              "LICENSE",
+              ".gitignore",
+              ".gitattributes",
+            ]);
+            const MINOR_ALLOWED_EXTENSIONS = [".md", ".txt", ".csv"];
+            const isMinorAllowed = (filename) => {
+              if (MINOR_ALLOWED_PREFIXES.some((p) => filename.startsWith(p))) return true;
+              if (MINOR_ALLOWED_EXACT.has(filename)) return true;
+              if (MINOR_ALLOWED_EXTENSIONS.some((ext) => filename.endsWith(ext)) && !filename.includes("/")) return true;
+              return false;
+            };
+
             if (labelOverride) {
               const overrideType = labelOverride.replace("pr-type:", "").trim();
               if (VALID_TYPES.includes(overrideType)) {
-                core.info(`Label override active: ${labelOverride} — skipping diff classification`);
+                // ── minor requires allowlist validation ─────────────────
+                if (overrideType === "minor") {
+                  const prFiles = await github.paginate(
+                    github.rest.pulls.listFiles,
+                    { owner, repo, pull_number, per_page: 100 }
+                  );
+                  const prChanged = prFiles.map((f) => f.filename);
+                  const disallowed = prChanged.filter((f) => !isMinorAllowed(f));
+                  if (disallowed.length > 0) {
+                    core.setFailed(
+                      `pr-type:minor invalid for changed paths; use the classified PR type.\n` +
+                      `Disallowed files:\n${disallowed.map((f) => "  - " + f).join("\n")}\n\n` +
+                      `minor is only permitted for: docs, PR templates, PR bodies, markdown, and trivial root files.`
+                    );
+                    return;
+                  }
+                  core.info(`Label override active: ${labelOverride} — all ${prChanged.length} file(s) pass minor allowlist`);
+                } else {
+                  core.info(`Label override active: ${labelOverride} — skipping diff classification`);
+                }
                 core.setOutput("type", overrideType);
                 core.setOutput("buckets", overrideType);
                 return;
@@ -615,10 +660,11 @@ jobs:
             };
 
             const validateMinor = () => {
-              assert(hasSection("## Summary"), "Missing: Summary section");
+              commonFloor();
               assertMeaningfulSection("## Summary");
-              assert(hasSection("## Scope"), "Missing: Scope section");
+              assertMeaningfulSection("## Scope");
               assert(hasSection("## Risk"), "Missing: Risk section");
+              assert(hasNoPipelineImpact(), "Missing: No-Pipeline-Impact: <value> line");
             };
 
             const VALIDATORS = {
