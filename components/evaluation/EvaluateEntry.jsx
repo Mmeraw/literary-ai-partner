@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 import { appendUserActivity } from "@/lib/activity/userActivity";
 import { useJobs } from "../../lib/jobs/useJobs";
 import { getJobDisplayInfo, getJobStatusBadge, sortJobsByCreatedAtDesc } from "../../lib/jobs/ui-helpers";
-import { formatRelativeTime, formatDuration } from "../../lib/ui/time-helpers";
 import ManuscriptSubmissionForm from "./ManuscriptSubmissionForm";
 import CompletionBanner from "./CompletionBanner";
 import { CancelEvaluationButton } from "./CancelEvaluationButton";
@@ -29,17 +28,6 @@ const evaluationModes = [
   },
 ];
 
-function getJobTitle(job) {
-  return (
-    job.manuscript_title ||
-    job.manuscriptTitle ||
-    job.title ||
-    job.chapter_title ||
-    job.chapterTitle ||
-    `Evaluation ${job.id.slice(0, 8)}…`
-  );
-}
-
 function getStatusTone(status) {
   if (status === "complete") return "border-green-200 bg-green-50 text-green-900";
   if (status === "failed") return "border-red-200 bg-red-50 text-red-900";
@@ -48,186 +36,172 @@ function getStatusTone(status) {
   return "border-stone-200 bg-stone-50 text-stone-700";
 }
 
-function getPublicCheckpoint(job, displayInfo) {
-  if (job.status === "complete") {
-    return {
-      action: "Completed",
-      output: "Report ready",
-      quality: "Ready for author review",
-    };
-  }
+function formatSubmittedAt(value) {
+  if (!value) return "—";
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+
+  return date.toLocaleString(undefined, {
+    month: "numeric",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+function getPhaseLabel(job, displayInfo) {
+  const phaseDetail = displayInfo?.phaseDetail || {};
+  const rawPhase = phaseDetail.phase || job.progress?.phase || job.phase || "";
+  const rawPhaseStatus = phaseDetail.phase_status || job.progress?.phase_status || job.phase_status || "";
+  const message = displayInfo?.message || displayInfo?.progress?.display || "";
+
+  if (job.status === "complete") return "Complete";
+  if (job.status === "queued") return rawPhase ? `${formatPhaseName(rawPhase)} queued` : "Queued";
 
   if (job.status === "failed") {
-    return {
-      action: "Needs attention",
-      output: "No report released",
-      quality: "Open details for next step",
-    };
+    if (message) return compactFailureMessage(message);
+    if (rawPhase) return `${formatPhaseName(rawPhase)} failed`;
+    return "Failed";
   }
 
   if (job.status === "running") {
-    return {
-      action: "Analyzing manuscript",
-      output: "Report pending",
-      quality: `${displayInfo.progress.percentage || 0}% complete`,
-    };
+    if (message) return message;
+    if (rawPhase) return rawPhaseStatus ? `${formatPhaseName(rawPhase)} ${rawPhaseStatus}` : formatPhaseName(rawPhase);
+    return "Running";
   }
 
-  if (job.status === "queued") {
-    return {
-      action: "Waiting to begin",
-      output: "Report pending",
-      quality: "Queued for evaluation",
-    };
-  }
-
-  return {
-    action: "Status available",
-    output: "Open details",
-    quality: "Review available status",
-  };
+  return rawPhase ? formatPhaseName(rawPhase) : "—";
 }
 
-function EvaluationHistoryCard({ job }) {
+function formatPhaseName(value) {
+  const normalized = String(value).replace(/^phase_/i, "").replace(/_/g, " ").trim();
+  if (!normalized) return "—";
+
+  if (/^0$/.test(normalized)) return "Phase 0";
+  if (/^1a$/i.test(normalized)) return "Phase 1A";
+  if (/^2$/.test(normalized)) return "Phase 2";
+  if (/^3a$/i.test(normalized)) return "Phase 3A";
+  if (/^3b$/i.test(normalized)) return "Phase 3B";
+
+  return normalized.replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function compactFailureMessage(message) {
+  const normalized = String(message).replace(/[_-]/g, " ").replace(/\s+/g, " ").trim();
+  if (!normalized) return "Failed";
+
+  if (/pass\s*3a|phase\s*3a/i.test(normalized)) return "3A failed";
+  if (/gold|calibration|phase\s*0/i.test(normalized)) return "Gold-standard";
+  if (/quality gate/i.test(normalized)) return "Quality gate";
+  if (/timeout/i.test(normalized)) return "Timed out";
+
+  return normalized.length > 44 ? `${normalized.slice(0, 41)}…` : normalized;
+}
+
+function getNextAction(job) {
+  if (job.status === "complete") return "Review report";
+  if (job.status === "failed") return "Needs attention";
+  if (job.status === "running") return "In progress";
+  if (job.status === "queued") return "Waiting";
+  return "View details";
+}
+
+function EvaluationHistoryTable({ jobs }) {
+  return (
+    <div className="overflow-hidden rounded-2xl border border-stone-200 bg-white">
+      <div className="overflow-x-auto">
+        <table className="min-w-full divide-y divide-stone-200 text-left">
+          <thead className="bg-[#FBFAF7]">
+            <tr>
+              <th className="px-4 py-3 font-rg-mono text-[0.66rem] uppercase tracking-[0.16em] text-stone-500">Status</th>
+              <th className="px-4 py-3 font-rg-mono text-[0.66rem] uppercase tracking-[0.16em] text-stone-500">Evaluation ID</th>
+              <th className="px-4 py-3 font-rg-mono text-[0.66rem] uppercase tracking-[0.16em] text-stone-500">Submitted</th>
+              <th className="px-4 py-3 font-rg-mono text-[0.66rem] uppercase tracking-[0.16em] text-stone-500">Phase</th>
+              <th className="px-4 py-3 font-rg-mono text-[0.66rem] uppercase tracking-[0.16em] text-stone-500">Next Action</th>
+              <th className="px-4 py-3 font-rg-mono text-[0.66rem] uppercase tracking-[0.16em] text-stone-500">Report</th>
+              <th className="px-4 py-3 text-right font-rg-mono text-[0.66rem] uppercase tracking-[0.16em] text-stone-500">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-stone-100 bg-white">
+            {jobs.map((job) => (
+              <EvaluationHistoryRow key={job.id} job={job} />
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function EvaluationHistoryRow({ job }) {
   const displayInfo = getJobDisplayInfo(job);
   const statusBadge = getJobStatusBadge(displayInfo.badge);
   const isComplete = job.status === "complete";
   const isQueued = job.status === "queued";
   const isRunning = job.status === "running";
-  const isFailed = job.status === "failed";
-  const relativeTime = formatRelativeTime(job.created_at);
   const statusTone = getStatusTone(job.status);
-  const publicCheckpoint = getPublicCheckpoint(job, displayInfo);
-
-  let progressMessage = displayInfo.message || displayInfo.progress.display;
-  let subMessage = null;
-
-  if (isQueued) {
-    progressMessage = "Preparing evaluation…";
-    subMessage = "This usually takes about 2–3 minutes.";
-  } else if (isRunning) {
-    const duration = formatDuration(job.created_at);
-    progressMessage = "Evaluation in progress";
-    subMessage = `Running for ${duration}. Your manuscript is being analyzed and checked before the report is released.`;
-  } else if (isComplete) {
-    progressMessage = "Evaluation complete";
-    subMessage = "Your report is ready to review.";
-  } else if (isFailed) {
-    progressMessage = "Evaluation failed";
-    subMessage = displayInfo.message || "An error occurred during processing.";
-  }
+  const href = `/evaluate/${job.id}`;
+  const shortId = `${job.id.slice(0, 8)}…`;
 
   return (
-    <article className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm transition hover:border-rg-gold/60 hover:shadow-md">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${statusTone}`}>
-              {statusBadge.label}
-            </span>
-            <span className="font-rg-mono text-[0.68rem] uppercase tracking-[0.16em] text-stone-400">
-              Submitted {relativeTime}
-            </span>
-          </div>
-
-          <h3 className="mt-3 font-rg-serif text-2xl leading-tight text-stone-950">
-            {getJobTitle(job)}
-          </h3>
-
-          <p className="mt-2 text-sm leading-6 text-stone-600">
-            {progressMessage}
-          </p>
-          {subMessage && <p className="mt-1 text-xs leading-5 text-stone-500">{subMessage}</p>}
-        </div>
-
-        <div className="flex flex-wrap gap-2 lg:justify-end">
-          {isComplete ? (
-            <Link
-              href={`/evaluate/${job.id}`}
-              onClick={() => {
-                appendUserActivity({
-                  event: "evaluate.report.opened",
-                  route: "/evaluate",
-                  href: `/evaluate/${job.id}`,
-                  linkLabel: "Open evaluation report",
-                  detail: `job_id=${job.id}`,
-                });
-              }}
-              className="inline-flex items-center rounded-xl bg-green-700 px-4 py-2 font-rg-mono text-xs font-semibold uppercase tracking-[0.12em] text-white shadow-sm transition hover:bg-green-800"
-            >
-              Open Report
-            </Link>
-          ) : isRunning || isQueued ? (
-            <>
-              <Link
-                href={`/evaluate/${job.id}`}
-                className={`inline-flex items-center rounded-xl border px-4 py-2 font-rg-mono text-xs font-semibold uppercase tracking-[0.12em] transition ${isRunning ? "border-blue-200 bg-blue-50 text-blue-800 hover:bg-blue-100" : "border-stone-200 bg-stone-50 text-stone-600 hover:bg-stone-100"}`}
-              >
-                {isRunning && (
-                  <svg className="mr-2 h-4 w-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                )}
-                {isRunning ? "Live Progress" : "Queued"}
-              </Link>
-              <CancelEvaluationButton jobId={job.id} label="STOP" buttonClassName="inline-flex items-center rounded-xl bg-red-700 px-4 py-2 font-rg-mono text-xs font-bold uppercase tracking-[0.12em] text-white shadow-sm transition-colors hover:bg-red-800" />
-            </>
-          ) : (
-            <Link
-              href={`/evaluate/${job.id}`}
-              className="inline-flex items-center rounded-xl border border-stone-200 bg-stone-50 px-4 py-2 font-rg-mono text-xs font-semibold uppercase tracking-[0.12em] text-stone-600 transition hover:bg-stone-100"
-            >
-              View Details
-            </Link>
+    <tr className="align-middle transition hover:bg-stone-50/80">
+      <td className="whitespace-nowrap px-4 py-3">
+        <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${statusTone}`}>
+          {statusBadge.label}
+        </span>
+      </td>
+      <td className="whitespace-nowrap px-4 py-3">
+        <Link href={href} className="font-mono text-sm text-stone-800 underline-offset-4 hover:text-stone-950 hover:underline" title={job.id}>
+          {shortId}
+        </Link>
+      </td>
+      <td className="whitespace-nowrap px-4 py-3 text-sm text-stone-600" title={job.created_at ? new Date(job.created_at).toLocaleString() : undefined}>
+        {formatSubmittedAt(job.created_at)}
+      </td>
+      <td className="max-w-[18rem] px-4 py-3 text-sm text-stone-700">
+        <Link href={href} className="line-clamp-1 underline-offset-4 hover:text-stone-950 hover:underline" title={displayInfo.message || displayInfo.progress?.display || undefined}>
+          {getPhaseLabel(job, displayInfo)}
+        </Link>
+      </td>
+      <td className="whitespace-nowrap px-4 py-3 text-sm text-stone-700">
+        {getNextAction(job)}
+      </td>
+      <td className="whitespace-nowrap px-4 py-3 text-sm">
+        {isComplete ? (
+          <Link
+            href={href}
+            onClick={() => {
+              appendUserActivity({
+                event: "evaluate.report.opened",
+                route: "/evaluate",
+                href,
+                linkLabel: "View report from evaluation history",
+                detail: `job_id=${job.id}`,
+              });
+            }}
+            className="font-semibold text-green-800 underline-offset-4 hover:text-green-900 hover:underline"
+          >
+            View
+          </Link>
+        ) : (
+          <span className="text-stone-400">—</span>
+        )}
+      </td>
+      <td className="whitespace-nowrap px-4 py-3 text-right">
+        <div className="flex items-center justify-end gap-2">
+          <Link
+            href={href}
+            className="inline-flex items-center rounded-lg border border-stone-200 bg-stone-50 px-3 py-1.5 font-rg-mono text-[0.68rem] font-semibold uppercase tracking-[0.12em] text-stone-700 transition hover:bg-stone-100 hover:text-stone-950"
+          >
+            {isRunning ? "Live" : isQueued ? "Queued" : "Details"}
+          </Link>
+          {(isRunning || isQueued) && (
+            <CancelEvaluationButton jobId={job.id} label="STOP" buttonClassName="inline-flex items-center rounded-lg bg-red-700 px-3 py-1.5 font-rg-mono text-[0.68rem] font-bold uppercase tracking-[0.12em] text-white shadow-sm transition-colors hover:bg-red-800" />
           )}
         </div>
-      </div>
-
-      {isRunning && displayInfo.progress.total > 0 && (
-        <div className="mt-5 rounded-2xl border border-blue-100 bg-blue-50/60 p-4">
-          <div className="mb-2 flex items-center justify-between font-rg-mono text-[0.68rem] uppercase tracking-[0.14em] text-blue-900/70">
-            <span>Progress</span>
-            <span>{displayInfo.progress.percentage}%</span>
-          </div>
-          <div className="h-2 w-full rounded-full bg-blue-100">
-            <div className="h-2 rounded-full bg-blue-700 transition-all duration-500" style={{ width: `${displayInfo.progress.percentage}%` }} />
-          </div>
-        </div>
-      )}
-
-      <div className="mt-5 grid gap-4 border-t border-stone-100 pt-5 lg:grid-cols-[1fr_1.35fr]">
-        <div>
-          <p className="font-rg-mono text-[0.68rem] uppercase tracking-[0.16em] text-stone-400">Evaluation ID</p>
-          <Link href={`/evaluate/${job.id}`} className="mt-1 block truncate font-mono text-sm text-stone-600 hover:text-stone-950 hover:underline" title={job.id}>
-            {job.id}
-          </Link>
-          <p className="mt-3 font-rg-mono text-[0.68rem] uppercase tracking-[0.16em] text-stone-400">Submitted</p>
-          <p className="mt-1 text-sm text-stone-600">{new Date(job.created_at).toLocaleString()}</p>
-        </div>
-
-        <div>
-          <p className="font-rg-mono text-[0.68rem] uppercase tracking-[0.16em] text-stone-400">Input → Action → Output</p>
-          <div className="mt-2 grid gap-2 rounded-2xl border border-stone-200 bg-[#FBFAF7] p-3 sm:grid-cols-3">
-            <div>
-              <p className="font-rg-mono text-[0.62rem] uppercase tracking-[0.14em] text-stone-400">Input</p>
-              <p className="mt-1 text-sm text-stone-700">Submitted manuscript</p>
-            </div>
-            <div>
-              <p className="font-rg-mono text-[0.62rem] uppercase tracking-[0.14em] text-stone-400">Action</p>
-              <p className="mt-1 text-sm text-stone-700">{publicCheckpoint.action}</p>
-            </div>
-            <div>
-              <p className="font-rg-mono text-[0.62rem] uppercase tracking-[0.14em] text-stone-400">Output</p>
-              <p className="mt-1 text-sm text-stone-700">{publicCheckpoint.output}</p>
-            </div>
-          </div>
-          <p className="mt-2 text-xs leading-5 text-stone-500">
-            Quality status: {publicCheckpoint.quality}.
-          </p>
-        </div>
-      </div>
-    </article>
+      </td>
+    </tr>
   );
 }
 
@@ -320,7 +294,7 @@ export default function EvaluateEntry() {
               <p className="font-rg-mono text-xs uppercase tracking-[0.18em] text-rg-gold">History</p>
               <h2 className="mt-1 font-rg-serif text-3xl text-stone-950">Recent evaluations</h2>
               <p className="mt-1 max-w-2xl text-sm leading-6 text-stone-600">
-                Your evaluations are shown as readable manuscript cards with status, progress, report access, and submission timing.
+                Each evaluation is shown as one compact job row with its status, ID, phase, next action, and report link.
               </p>
             </div>
           </div>
@@ -347,11 +321,7 @@ export default function EvaluateEntry() {
               </div>
             </div>
           ) : (
-            <div className="space-y-4">
-              {sortedJobs.map((job) => (
-                <EvaluationHistoryCard key={job.id} job={job} />
-              ))}
-            </div>
+            <EvaluationHistoryTable jobs={sortedJobs} />
           )}
         </section>
       </div>
