@@ -26,9 +26,11 @@ import {
   getDisplayText,
 } from '@/lib/evaluation/reportRenderSafety';
 import { resolveReportTitle } from '@/lib/evaluation/reportTitle';
+import { hasActiveSupportGrant, logSupportView } from '@/lib/support/checkSupportAccess';
 import type { LongformDreamDocument } from '@/lib/evaluation/pipeline/runPass3bLongform';
 import { SynthesisPoller } from '@/components/evaluation/SynthesisPoller';
 import DownloadReportButton from '@/components/reports/DownloadReportButton';
+import SupportAccessToggle from '@/components/reports/SupportAccessToggle';
 import LongformCharacterCoverageArcLedger from '@/components/reports/longform/LongformCharacterCoverageArcLedger';
 import LongformRelationshipSpineLedger from '@/components/reports/longform/LongformRelationshipSpineLedger';
 import LongformSymbolPayoffLedger from '@/components/reports/longform/LongformSymbolPayoffLedger';
@@ -114,6 +116,39 @@ async function getEvaluationResult(jobId: string, userId: string): Promise<Evalu
   };
 }
 
+async function getEvaluationResultForSupport(jobId: string): Promise<EvaluationReportContext | null> {
+  noStore();
+
+  const admin = createAdminClient();
+
+  const { data: job, error } = await admin
+    .from('evaluation_jobs')
+    .select(`
+      evaluation_result,
+      status,
+      validity_status,
+      manuscripts(title)
+    `)
+    .eq('id', jobId)
+    .single();
+
+  if (error || !job || !canReleaseEvaluationRead(job) || !job.evaluation_result) {
+    return null;
+  }
+
+  const result = job.evaluation_result as unknown;
+
+  if (!isEvaluationResultV1(result) && !isEvaluationResultV2(result)) {
+    console.error('Invalid evaluation result format for support path job:', jobId);
+    return null;
+  }
+
+  return {
+    result,
+    manuscriptTitle: extractManuscriptTitle((job as { manuscripts?: unknown }).manuscripts),
+  };
+}
+
 /**
  * Fetch the DREAM long-form artifact for a job.
  * Returns null for:
@@ -180,8 +215,17 @@ export default async function ReportPage({ params }: { params: { jobId: string }
     notFound(); // Unauthenticated users see 404, not a login redirect
   }
 
-  // Step 2: Owner-gated privileged read
-  const report = await getEvaluationResult(params.jobId, user.id);
+  const reportUserRole = (user.app_metadata as Record<string, unknown> | undefined)?.role;
+  const isAdminRole = reportUserRole === 'admin' || reportUserRole === 'superadmin';
+  const activeGrant = isAdminRole ? await hasActiveSupportGrant(params.jobId) : null;
+  const hasSupportAccess = isAdminRole && !!activeGrant;
+
+  // Step 2: Owner-gated privileged read, with separate support/admin path
+  // enabled only when an active author grant exists.
+  let report = await getEvaluationResult(params.jobId, user.id);
+  if (!report && hasSupportAccess) {
+    report = await getEvaluationResultForSupport(params.jobId);
+  }
 
   if (!report) {
     notFound();
@@ -225,6 +269,14 @@ export default async function ReportPage({ params }: { params: { jobId: string }
   const dreamCalibrationNotes = getDisplayDreamList(dreamDoc?.calibration_notes);
   const dreamRepoSummary = getDisplayRecord(dreamDoc?.repo_summary);
   const dreamIntegrityIssues = getDisplayObjectArray(dreamDoc?.manuscript_integrity_issues);
+
+  // Support access: admin/support viewers can see technical sections only
+  // when the author has granted temporary access.
+  const showTechnicalSections = hasSupportAccess;
+
+  if (showTechnicalSections && activeGrant) {
+    await logSupportView(params.jobId, user.id, activeGrant.grantId);
+  }
 
   // D2 fail-closed: block forbidden market guarantee language from rendering in agent-facing output.
   if (scanObjectForForbiddenMarketClaims(result)) {
@@ -910,14 +962,45 @@ export default async function ReportPage({ params }: { params: { jobId: string }
           </section>
         )}
 
-        {/* Evaluation Metadata section removed from author-facing view.
-           Internal telemetry (Model, Confidence %, Processing Time, Job ID)
-           is not author-relevant. Author-facing info (title, word count, date)
-           is already shown in the header above. Support access with audit log
-           will be added in a separate PR. */}
+        {/* Technical sections — only visible to admin/support with active author grant */}
+        {showTechnicalSections && (
+          <section className="bg-white rounded-lg shadow-sm p-6 mb-6 border border-amber-200 bg-amber-50/30">
+            <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2 mb-4">
+              Evaluation Metadata
+              <span className="text-xs font-normal text-amber-700 bg-amber-100 px-2 py-0.5 rounded">Support view</span>
+            </h2>
+            <div className="grid md:grid-cols-2 gap-4 text-sm">
+              <div>
+                <p className="text-gray-600">Model</p>
+                <p className="font-mono text-gray-900">{result.engine.model}</p>
+              </div>
+              <div>
+                <p className="text-gray-600">Confidence</p>
+                <p className="font-mono text-gray-900">{(governance.confidence * 100).toFixed(0)}%</p>
+              </div>
+              <div>
+                <p className="text-gray-600">Job ID</p>
+                <p className="font-mono text-gray-900">{params.jobId}</p>
+              </div>
+              <div>
+                <p className="text-gray-600">Word Count</p>
+                <p className="font-mono text-gray-900">{metrics.manuscript.word_count ? metrics.manuscript.word_count.toLocaleString() : 'N/A'}</p>
+              </div>
+              {metrics.processing.runtime_ms && (
+                <div>
+                  <p className="text-gray-600">Processing Time</p>
+                  <p className="font-mono text-gray-900">{(metrics.processing.runtime_ms / 1000).toFixed(1)}s</p>
+                </div>
+              )}
+            </div>
+          </section>
+        )}
 
-        <div className="mt-6 flex justify-end">
-          <DownloadReportButton jobId={params.jobId} />
+        <div className="mt-6 space-y-4">
+          <SupportAccessToggle jobId={params.jobId} />
+          <div className="flex justify-end">
+            <DownloadReportButton jobId={params.jobId} />
+          </div>
         </div>
       </div>
     </div>

@@ -13,6 +13,7 @@ import {
 } from "@/schemas/criteria-keys";
 import { EvaluationPoller, type JobState } from "@/components/EvaluationPoller";
 import DownloadReportButton from "@/components/reports/DownloadReportButton";
+import SupportAccessToggle from "@/components/reports/SupportAccessToggle";
 import {
   buildTopRecommendations,
   normalizeRecommendationActionForDisplay,
@@ -28,6 +29,7 @@ import {
   isCertifiedCriterion,
 } from "@/lib/evaluation/reportCriterionDisplay";
 import { resolveReportTitle } from "@/lib/evaluation/reportTitle";
+import { hasActiveSupportGrant, logSupportView } from "@/lib/support/checkSupportAccess";
 import type { LongformDreamDocument } from "@/lib/evaluation/pipeline/runPass3bLongform";
 
 type Job = {
@@ -417,7 +419,42 @@ export default async function EvaluationReportPage({
 
   const job = await getJob(jobId);
 
-  if (!job || job.user_id !== ownerId) {
+  if (!job) {
+    return (
+      <main className="mx-auto max-w-3xl p-6">
+        <h1 className="text-2xl font-semibold text-gray-900">Evaluation Report</h1>
+        <div className="mt-4 rounded-md border border-gray-200 bg-gray-50 p-4">
+          <p className="text-sm font-medium text-gray-900">Job not available yet</p>
+          <p className="mt-2 text-sm text-gray-600">
+            This evaluation is not accessible right now. If you just submitted or resumed a job,
+            it may still be initialising — wait a moment and reload.
+          </p>
+          <div className="mt-4 flex gap-4">
+            <Link
+              href={`/evaluate/${jobId}`}
+              className="inline-block rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-800 hover:bg-gray-100"
+            >
+              Reload
+            </Link>
+            <Link
+              href="/evaluate"
+              className="inline-block text-sm text-gray-500 underline hover:text-gray-700 py-1.5"
+            >
+              Back to Evaluate
+            </Link>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
+  const userRole = (sessionUser?.app_metadata as Record<string, unknown> | undefined)?.role;
+  const isAdminRole = userRole === 'admin' || userRole === 'superadmin';
+  const isOwner = job.user_id === ownerId;
+  const activeGrant = isAdminRole ? await hasActiveSupportGrant(jobId) : null;
+  const hasSupportAccess = isAdminRole && !!activeGrant;
+
+  if (!isOwner && !hasSupportAccess) {
     // Job may be mid-transition (queued after a reset) — do not say "expired".
     // Offer a reload and a return link. The poller will pick it up once it's live.
     return (
@@ -446,6 +483,15 @@ export default async function EvaluationReportPage({
         </div>
       </main>
     );
+  }
+
+  // Support access: admin/support viewers can see technical sections only
+  // when the author has granted temporary access.
+  const showTechnicalSections = hasSupportAccess;
+
+  // Log the support view if admin is viewing with an active grant
+  if (showTechnicalSections && activeGrant && sessionUser) {
+    await logSupportView(jobId, sessionUser.id, activeGrant.grantId);
   }
 
   const isComplete = job.status === "complete";
@@ -847,10 +893,79 @@ export default async function EvaluationReportPage({
                 </section>
               )}
 
-          {/* Key Metrics / Evaluation Provenance removed from author-facing view.
-             Internal telemetry (Engine, Provider, Chunks, Prompt Version) is not
-             author-relevant. Support access with audit log will be added in a
-             separate PR to allow author-controlled admin visibility. */}
+          {/* Technical sections — only visible to admin/support with active author grant */}
+          {showTechnicalSections && artifact && (
+            <>
+              <section className="rounded-lg border border-amber-200 bg-amber-50/30 p-6 mb-4">
+                <h2 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
+                  Key Metrics
+                  <span className="text-xs font-normal text-amber-700 bg-amber-100 px-2 py-0.5 rounded">Support view</span>
+                </h2>
+                <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                  <div className="rounded-md border p-3">
+                    <div className="text-xs text-gray-600">Overall Score</div>
+                    <div className="mt-1 text-sm font-semibold text-gray-900">
+                      {Number.isFinite(artifact.overall_score ?? artifact.overview?.overall_score_0_100 ?? 0)
+                        ? String(Math.round(artifact.overall_score ?? artifact.overview?.overall_score_0_100 ?? 0))
+                        : "N/A"}
+                    </div>
+                  </div>
+                  <div className="rounded-md border p-3">
+                    <div className="text-xs text-gray-600">Chunks Analyzed</div>
+                    <div className="mt-1 text-sm font-semibold text-gray-900">
+                      {artifact.chunk_count ?? artifact.metrics?.processing?.segment_count ?? "N/A"}
+                    </div>
+                  </div>
+                  <div className="rounded-md border p-3">
+                    <div className="text-xs text-gray-600">Successfully Processed</div>
+                    <div className="mt-1 text-sm font-semibold text-gray-900">
+                      {artifact.processed_count ?? artifact.metrics?.processing?.segment_count ?? "N/A"}
+                    </div>
+                  </div>
+                </div>
+                <p className="mt-3 text-xs text-gray-700">
+                  Generated: {artifact.generated_at ? new Date(artifact.generated_at).toLocaleString() : "N/A"}
+                </p>
+              </section>
+
+              <section className="rounded-lg border border-amber-200 bg-amber-50/30 p-6 mb-4">
+                <h2 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
+                  Evaluation Provenance
+                  <span className="text-xs font-normal text-amber-700 bg-amber-100 px-2 py-0.5 rounded">Support view</span>
+                </h2>
+                <div className="mt-3 space-y-2 text-sm">
+                  <div>
+                    <span className="text-gray-700 font-medium">Engine:</span>{" "}
+                    <span className="font-mono text-gray-900">{(artifact as Record<string, unknown> & { engine?: { model?: string } }).engine?.model || "unknown"}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-700 font-medium">Provider:</span>{" "}
+                    <span className="font-mono text-gray-900">{(artifact as Record<string, unknown> & { engine?: { provider?: string } }).engine?.provider || "unknown"}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-700 font-medium">Prompt Version:</span>{" "}
+                    <span className="font-mono text-gray-900">{(artifact as Record<string, unknown> & { engine?: { prompt_version?: string } }).engine?.prompt_version || "unknown"}</span>
+                  </div>
+                  {artifact.governance?.confidence != null && (
+                    <div>
+                      <span className="text-gray-700 font-medium">Confidence:</span>{" "}
+                      <span className="font-medium">{Math.round(artifact.governance.confidence * 100)}%</span>
+                    </div>
+                  )}
+                  {artifact.governance?.limitations && artifact.governance.limitations.length > 0 && (
+                    <div className="mt-3 pt-3 border-t">
+                      <p className="text-xs font-medium text-gray-700 mb-1">Limitations:</p>
+                      <ul className="list-disc pl-5 text-xs text-gray-800 space-y-1">
+                        {artifact.governance.limitations.map((limitation: string, i: number) => (
+                          <li key={i}>{limitation}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              </section>
+            </>
+          )}
 
           {/* ── Narrative Synthesis (long-form) ── */}
           {isLongForm && isComplete && (
@@ -882,8 +997,11 @@ export default async function EvaluationReportPage({
         </>
       )}
       {isComplete && (
-        <div className="mt-8 flex justify-end">
-          <DownloadReportButton jobId={jobId} />
+        <div className="mt-8 space-y-4">
+          {isOwner && <SupportAccessToggle jobId={jobId} />}
+          <div className="flex justify-end">
+            <DownloadReportButton jobId={jobId} />
+          </div>
         </div>
       )}
       </main>
