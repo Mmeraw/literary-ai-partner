@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
+import ReviseQueueDemo from "@/components/revise/ReviseQueueDemo";
 
 const queueItems = [
   "Evidence-backed problem statement",
@@ -53,7 +54,7 @@ const publicRepairPrinciples = [
 
 const doctrine = [
   "Evaluation findings do not automatically become edits.",
-  "WAVE is the proprietary readiness layer inside evaluation, not a single rewrite command.",
+  "Long-form readiness intelligence is the proprietary evaluation layer, not a single rewrite command.",
   "Revision activity is not measured improvement until a later evaluation confirms movement.",
   "The author may control every opportunity manually or authorize governed automation.",
   "TrustedPath™ is convenience with safeguards, not blind rewriting.",
@@ -100,6 +101,8 @@ export default function RevisePage() {
           </div>
         </div>
       </section>
+
+      <ReviseQueueDemo />
 
       <section className="border-y border-rg-cream2/10 bg-rg-ink2/50">
         <div className="mx-auto max-w-7xl px-6 py-20">
