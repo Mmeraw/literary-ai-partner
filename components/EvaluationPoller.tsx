@@ -726,7 +726,7 @@ export function EvaluationPoller({
         })()}
 
         {/* Timestamps — show relative/elapsed time, not raw timestamps */}
-        <div className="grid grid-cols-1 gap-4 text-sm sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
           <div>
             <p className="text-gray-600">Started</p>
             <p className="text-gray-900">
@@ -748,6 +748,14 @@ export function EvaluationPoller({
                 : formatRelativeTime(job.updated_at)}
             </p>
           </div>
+          {(job.status === 'running' || job.status === 'queued') && (
+            <div>
+              <p className="text-gray-600">Total Elapsed</p>
+              <p className="text-gray-900 font-semibold">
+                {formatDuration(job.created_at)}
+              </p>
+            </div>
+          )}
           {(job.status === 'queued' || job.status === 'running') && (
             <div className="flex items-end justify-start sm:justify-end lg:justify-start">
               <CancelEvaluationButton
