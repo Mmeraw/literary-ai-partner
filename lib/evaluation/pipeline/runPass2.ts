@@ -355,6 +355,27 @@ function aggregateChunkResults(results: SinglePassOutput[]): SinglePassOutput {
 
 import type { SubmissionScopeProfile } from "./submissionScope";
 
+/**
+ * Shape of a single entry in the pass2_chunk_cache_v1 artifact.
+ * Stored keyed by chunk_index so resume reads can skip already-completed chunks.
+ */
+export interface Pass2ChunkCacheEntry {
+  chunk_index: number;
+  result: SinglePassOutput;
+  completed_at: string;
+}
+
+/**
+ * Top-level shape of the pass2_chunk_cache_v1 evaluation_artifact content.
+ */
+export interface Pass2ChunkCacheArtifact {
+  job_id: string;
+  source_hash: string;
+  chunks: Record<number, Pass2ChunkCacheEntry>;
+  total_expected: number;
+  cached_at: string;
+}
+
 export interface RunPass2Options {
   scopeProfile?: SubmissionScopeProfile;
   /**
@@ -403,6 +424,23 @@ export interface RunPass2Options {
    * MANDATORY if present — takes precedence over AI extraction.
    */
   authorCorrectionsBlock?: string | null;
+  /**
+   * Pre-loaded cache from a pass2_chunk_cache_v1 artifact.
+   * When provided, any chunk_index present in this map is returned immediately without
+   * calling OpenAI, allowing Pass 2 to resume from the last checkpoint after a job
+   * is retried following a wall-clock kill.
+   *
+   * Key = chunk_index (number). Value = previously-computed SinglePassOutput.
+   */
+  _chunkCache?: Map<number, SinglePassOutput>;
+  /**
+   * Callback fired after each chunk successfully completes (either from cache or
+   * from a fresh OpenAI call). Allows the processor to write rolling checkpoint
+   * upserts to the pass2_chunk_cache_v1 artifact.
+   *
+   * Fail-soft: errors thrown by this callback are logged but do NOT fail the chunk.
+   */
+  _onChunkComplete?: (chunk_index: number, result: SinglePassOutput) => Promise<void>;
 }
 
 /**
@@ -466,20 +504,47 @@ export async function runPass2(opts: RunPass2Options): Promise<SinglePassOutput>
     let usageTotalTokensTotal = 0;
 
     const forwardCompletion = opts._onCompletion;
+    const chunkCache = opts._chunkCache;
+    const onChunkComplete = opts._onChunkComplete;
     // Forced heartbeat: fires from inside the chunk worker after every chunk
     // settles (success or failure). This is the only reliable way to update
     // last_heartbeat_at during a long chunk sweep — setInterval stops firing
     // when Vercel fluid-compute freezes the event loop between awaits.
     const onChunkHeartbeat = opts._onChunkHeartbeat;
 
+    const cachedChunkCount = chunkCache
+      ? selectedChunks.filter((c) => chunkCache.has(c.chunk_index)).length
+      : 0;
+    const freshChunkCount = selectedChunks.length - cachedChunkCount;
+
     console.log(
-      `[Pass2] Chunk-native path: total=${chunksTotal} attempted=${selectedChunks.length} concurrency=${chunkConcurrency}`,
+      `[Pass2] Chunk-native path: total=${chunksTotal} attempted=${selectedChunks.length} concurrency=${chunkConcurrency}` +
+      (cachedChunkCount > 0
+        ? ` cached=${cachedChunkCount} fresh=${freshChunkCount} (checkpoint resume)`
+        : ''),
     );
 
     const settled = await runChunksWithConcurrency(
       selectedChunks,
       chunkConcurrency,
       async (chunk) => {
+        // Checkpoint resume: return cached result immediately if available.
+        if (chunkCache && chunkCache.has(chunk.chunk_index)) {
+          const cached = chunkCache.get(chunk.chunk_index)!;
+          console.log(`[Pass2] Chunk ${chunk.chunk_index} served from checkpoint cache`);
+          if (onChunkComplete) {
+            try {
+              await onChunkComplete(chunk.chunk_index, cached);
+            } catch (cbErr) {
+              console.warn(
+                `[Pass2] _onChunkComplete (cache hit) threw for chunk ${chunk.chunk_index} (non-fatal)`,
+                cbErr instanceof Error ? cbErr.message : String(cbErr),
+              );
+            }
+          }
+          return cached;
+        }
+
         let attempt = 0;
         try {
           while (true) {
@@ -505,7 +570,22 @@ export async function runPass2(opts: RunPass2Options): Promise<SinglePassOutput>
                 // Do not forward _onChunkHeartbeat into chunk-unit calls —
                 // it belongs to the outer sweep loop only.
                 _onChunkHeartbeat: undefined,
+                _chunkCache: undefined,
+                _onChunkComplete: undefined,
               });
+
+              // Fire rolling checkpoint callback.
+              if (onChunkComplete) {
+                try {
+                  await onChunkComplete(chunk.chunk_index, result);
+                } catch (cbErr) {
+                  console.warn(
+                    `[Pass2] _onChunkComplete threw for chunk ${chunk.chunk_index} (non-fatal)`,
+                    cbErr instanceof Error ? cbErr.message : String(cbErr),
+                  );
+                }
+              }
+
               return result;
             } catch (error) {
               const isRateLimit = isRateLimitError(error);

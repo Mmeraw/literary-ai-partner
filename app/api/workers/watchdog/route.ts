@@ -21,6 +21,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { failStaleRunningJobs } from '@/lib/evaluation/processor';
 import { rescueOrphanedJob } from '@/lib/jobs/rescueOrphanedJob';
+import { calculateNextAttemptAt } from '@/lib/jobs/retryBackoff';
 import { createClient } from '@supabase/supabase-js';
 
 export const dynamic = 'force-dynamic';
@@ -131,6 +132,11 @@ async function rescueIdleJobs(): Promise<{ idleFound: number; idleRescued: numbe
     if (typeof job.attempt_count === 'number' && typeof job.max_attempts === 'number'
         && job.attempt_count >= job.max_attempts) continue;
 
+    // Exponential backoff: increment attempt_count and set next_attempt_at so
+    // the claim RPC won't re-pick this job until the backoff window expires.
+    const nextAttempt = (typeof job.attempt_count === 'number' ? job.attempt_count : 0) + 1;
+    const nextAttemptAt = calculateNextAttemptAt(nextAttempt);
+
     // Re-queue: release lease so next process-evaluations pick-up resumes.
     const { error: rescueErr } = await supabase
       .from('evaluation_jobs')
@@ -141,6 +147,8 @@ async function rescueIdleJobs(): Promise<{ idleFound: number; idleRescued: numbe
         last_heartbeat_at: null,
         last_heartbeat: null,
         worker_pulse_at: null,
+        attempt_count: nextAttempt,
+        next_attempt_at: nextAttemptAt,
         updated_at: now,
       })
       .eq('id', job.id)
@@ -148,7 +156,7 @@ async function rescueIdleJobs(): Promise<{ idleFound: number; idleRescued: numbe
 
     if (!rescueErr) {
       idleRescued++;
-      console.log(`[Watchdog/idle] Rescued idle job ${job.id} (pulse stale >${IDLE_PULSE_THRESHOLD_SECS}s)`);
+      console.log(`[Watchdog/idle] Rescued idle job ${job.id} (pulse stale >${IDLE_PULSE_THRESHOLD_SECS}s) attempt=${nextAttempt} next_attempt_at=${nextAttemptAt}`);
     } else {
       console.warn(`[Watchdog/idle] Failed to rescue ${job.id}:`, rescueErr.message);
     }
