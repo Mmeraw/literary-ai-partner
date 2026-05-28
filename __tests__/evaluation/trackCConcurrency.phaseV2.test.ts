@@ -366,3 +366,431 @@ describe('Track C durable lane: timeout produces non-terminal state', () => {
     expect(guard.can_start_phase2).toBe(false);
   });
 });
+
+// ─── Edge case: Network errors during Pass 3A ───────────────────────────────
+// When Pass 3A encounters network failures (e.g., OpenAI timeouts, DNS errors,
+// connection resets), the system records these as degraded or failed statuses.
+// These tests prove that gate derivation handles network-error scenarios
+// correctly and does NOT silently promote them to success.
+
+describe('Track C edge case: network errors during Pass 3A', () => {
+  it('network timeout during MAP phase → degraded with proof = gate_valid', () => {
+    const progress: PhaseV2Progress = {
+      pass3a_status: 'degraded',
+      degraded_reason: 'Network timeout: ETIMEDOUT during OpenAI batch request',
+      degraded_reason_codes: ['NETWORK_TIMEOUT', 'TRACK_C_ERROR_DURING_BATCH'],
+      degraded_at: new Date().toISOString(),
+    };
+    const decision = derivePass3aGateValidity(progress, fullArtifacts);
+    expect(decision.ok).toBe(true);
+    expect(decision.gate_validity).toBe('gate_valid');
+    expect(decision.code).toBe('PASS3A_DEGRADED_GATE_VALID');
+  });
+
+  it('network timeout during MAP phase → Review Gate opens', () => {
+    const progress: PhaseV2Progress = {
+      pass3a_status: 'degraded',
+      degraded_reason: 'Network timeout: ETIMEDOUT during OpenAI batch request',
+      degraded_reason_codes: ['NETWORK_TIMEOUT'],
+      degraded_at: new Date().toISOString(),
+    };
+    const decision = deriveReviewGateReadiness(progress, artifactsWithoutAccepted);
+    expect(decision.ok).toBe(true);
+    expect(decision.review_gate_ready).toBe(true);
+  });
+
+  it('network timeout during MAP phase → Phase 2 allowed with accepted ledger', () => {
+    const progress: PhaseV2Progress = {
+      pass3a_status: 'degraded',
+      degraded_reason: 'Network timeout: ETIMEDOUT during OpenAI batch request',
+      degraded_reason_codes: ['NETWORK_TIMEOUT'],
+      degraded_at: new Date().toISOString(),
+    };
+    const guard = guardPhase2Start(progress, fullArtifacts);
+    expect(guard.ok).toBe(true);
+    expect(guard.can_start_phase2).toBe(true);
+  });
+
+  it('DNS resolution failure → failed status = gate_blocking', () => {
+    const progress: PhaseV2Progress = { pass3a_status: 'failed' };
+    const decision = derivePass3aGateValidity(progress, fullArtifacts);
+    expect(decision.ok).toBe(false);
+    expect(decision.gate_validity).toBe('gate_blocking');
+    expect(decision.code).toBe('PASS3A_FAILED_BLOCKING');
+  });
+
+  it('connection reset during REDUCE → degraded without proof = gate_blocking', () => {
+    // Simulates: network error during REDUCE but self-chain loses the proof
+    // fields due to the crash timing.
+    const progress: PhaseV2Progress = {
+      pass3a_status: 'degraded',
+      degraded_reason: 'Connection reset: ECONNRESET during reduce aggregation',
+      // Missing degraded_reason_codes and degraded_at → proof incomplete
+    };
+    const decision = derivePass3aGateValidity(progress, fullArtifacts);
+    expect(decision.ok).toBe(false);
+    expect(decision.gate_validity).toBe('gate_blocking');
+    expect(decision.code).toBe('PASS3A_DEGRADED_PROOF_MISSING');
+  });
+
+  it('connection reset during REDUCE without proof → Review Gate blocked', () => {
+    const progress: PhaseV2Progress = {
+      pass3a_status: 'degraded',
+      degraded_reason: 'Connection reset: ECONNRESET during reduce aggregation',
+    };
+    const decision = deriveReviewGateReadiness(progress, artifactsWithoutAccepted);
+    expect(decision.ok).toBe(false);
+    expect(decision.review_gate_ready).toBe(false);
+  });
+
+  it('connection reset during REDUCE without proof → Phase 2 blocked', () => {
+    const progress: PhaseV2Progress = {
+      pass3a_status: 'degraded',
+      degraded_reason: 'Connection reset: ECONNRESET during reduce aggregation',
+    };
+    const guard = guardPhase2Start(progress, fullArtifacts);
+    expect(guard.ok).toBe(false);
+    expect(guard.can_start_phase2).toBe(false);
+  });
+
+  it('multiple network errors with full degradation proof = gate_valid', () => {
+    const progress: PhaseV2Progress = {
+      pass3a_status: 'degraded',
+      degraded_reason: 'Multiple failures: 3 of 5 chunk batches failed with ECONNREFUSED',
+      degraded_reason_codes: ['NETWORK_ECONNREFUSED', 'PARTIAL_COVERAGE', 'TRACK_C_ERROR_DURING_BATCH'],
+      degraded_at: new Date().toISOString(),
+    };
+    const decision = derivePass3aGateValidity(progress, fullArtifacts);
+    expect(decision.ok).toBe(true);
+    expect(decision.gate_validity).toBe('gate_valid');
+    expect(decision.code).toBe('PASS3A_DEGRADED_GATE_VALID');
+  });
+
+  it('network error leaves pass3a_status=running (crash before status update) → not_ready', () => {
+    // Simulates: network error crashes the worker BEFORE it can write a terminal
+    // status. The persisted state is still 'running'.
+    const progress: PhaseV2Progress = { pass3a_status: 'running' };
+    const decision = derivePass3aGateValidity(progress, fullArtifacts);
+    expect(decision.ok).toBe(false);
+    expect(decision.gate_validity).toBe('not_ready');
+    expect(decision.code).toBe('PASS3A_HALF_WRITTEN');
+  });
+
+  it('Review Gate handoff blocked when network error leaves Track C running', () => {
+    const progress: PhaseV2Progress = { pass3a_status: 'running' };
+    const result = buildReviewGateHandoff(progress, artifactsWithoutAccepted);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.blocked.review_gate_ready).toBe(false);
+      expect(result.blocked.progress.pass3a_status).toBe('running');
+    }
+  });
+});
+
+// ─── Edge case: Pass 3A completes very quickly (near-instant) ───────────────
+// When Pass 3A finishes extremely fast (e.g., small manuscript, cached results,
+// or trivial evaluation), the timestamps may be very close together or the same.
+// These tests prove that gate validity is unaffected by completion speed.
+
+describe('Track C edge case: Pass 3A completes very quickly', () => {
+  it('instant completion (same-millisecond timestamp) = gate_valid', () => {
+    const now = new Date().toISOString();
+    const progress: PhaseV2Progress = {
+      pass3a_status: 'done',
+      pass3a_completed_at: now,
+    };
+    const decision = derivePass3aGateValidity(progress, fullArtifacts);
+    expect(decision.ok).toBe(true);
+    expect(decision.gate_validity).toBe('gate_valid');
+    expect(decision.code).toBe('PASS3A_DONE_GATE_VALID');
+  });
+
+  it('instant completion → Review Gate opens immediately', () => {
+    const now = new Date().toISOString();
+    const progress: PhaseV2Progress = {
+      pass3a_status: 'done',
+      pass3a_completed_at: now,
+    };
+    const decision = deriveReviewGateReadiness(progress, artifactsWithoutAccepted);
+    expect(decision.ok).toBe(true);
+    expect(decision.review_gate_ready).toBe(true);
+  });
+
+  it('instant completion → Phase 2 allowed immediately', () => {
+    const now = new Date().toISOString();
+    const progress: PhaseV2Progress = {
+      pass3a_status: 'done',
+      pass3a_completed_at: now,
+    };
+    const guard = guardPhase2Start(progress, fullArtifacts);
+    expect(guard.ok).toBe(true);
+    expect(guard.can_start_phase2).toBe(true);
+  });
+
+  it('instant completion → Review Gate handoff succeeds', () => {
+    const now = new Date().toISOString();
+    const progress: PhaseV2Progress = {
+      pass3a_status: 'done',
+      pass3a_completed_at: now,
+    };
+    const result = buildReviewGateHandoff(progress, artifactsWithoutAccepted);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.handoff.progress.pass3a_status).toBe('done');
+      expect(result.handoff.progress.pass3a_gate_validity).toBe('gate_valid');
+    }
+  });
+
+  it('instant degradation with full proof = gate_valid', () => {
+    const now = new Date().toISOString();
+    const progress: PhaseV2Progress = {
+      pass3a_status: 'degraded',
+      degraded_reason: 'Instant degradation: manuscript too short for full analysis',
+      degraded_reason_codes: ['MANUSCRIPT_TOO_SHORT'],
+      degraded_at: now,
+    };
+    const decision = derivePass3aGateValidity(progress, fullArtifacts);
+    expect(decision.ok).toBe(true);
+    expect(decision.gate_validity).toBe('gate_valid');
+    expect(decision.code).toBe('PASS3A_DEGRADED_GATE_VALID');
+  });
+
+  it('instant degradation with proof → Phase 2 allowed', () => {
+    const now = new Date().toISOString();
+    const progress: PhaseV2Progress = {
+      pass3a_status: 'degraded',
+      degraded_reason: 'Instant degradation: cached result only covers prologue',
+      degraded_reason_codes: ['CACHED_PARTIAL'],
+      degraded_at: now,
+    };
+    const guard = guardPhase2Start(progress, fullArtifacts);
+    expect(guard.ok).toBe(true);
+    expect(guard.can_start_phase2).toBe(true);
+  });
+
+  it('epoch-zero timestamp is still a valid completion time', () => {
+    const progress: PhaseV2Progress = {
+      pass3a_status: 'done',
+      pass3a_completed_at: '1970-01-01T00:00:00.000Z',
+    };
+    const decision = derivePass3aGateValidity(progress, fullArtifacts);
+    expect(decision.ok).toBe(true);
+    expect(decision.gate_validity).toBe('gate_valid');
+  });
+});
+
+// ─── Edge case: Malformed or boundary proof fields ──────────────────────────
+// These tests prove that gate validity handles degenerate inputs robustly:
+// empty strings, whitespace-only values, empty arrays, and partial proof fields.
+
+describe('Track C edge case: malformed or boundary proof fields', () => {
+  it('degraded with empty degraded_reason_codes array = gate_blocking', () => {
+    const progress: PhaseV2Progress = {
+      pass3a_status: 'degraded',
+      degraded_reason: 'Some reason',
+      degraded_reason_codes: [],
+      degraded_at: new Date().toISOString(),
+    };
+    const decision = derivePass3aGateValidity(progress, fullArtifacts);
+    expect(decision.ok).toBe(false);
+    expect(decision.gate_validity).toBe('gate_blocking');
+    expect(decision.code).toBe('PASS3A_DEGRADED_PROOF_MISSING');
+  });
+
+  it('degraded with whitespace-only degraded_reason = gate_blocking', () => {
+    const progress: PhaseV2Progress = {
+      pass3a_status: 'degraded',
+      degraded_reason: '   ',
+      degraded_reason_codes: ['SOME_CODE'],
+      degraded_at: new Date().toISOString(),
+    };
+    const decision = derivePass3aGateValidity(progress, fullArtifacts);
+    expect(decision.ok).toBe(false);
+    expect(decision.gate_validity).toBe('gate_blocking');
+    expect(decision.code).toBe('PASS3A_DEGRADED_PROOF_MISSING');
+  });
+
+  it('degraded with whitespace-only degraded_at = gate_blocking', () => {
+    const progress: PhaseV2Progress = {
+      pass3a_status: 'degraded',
+      degraded_reason: 'Real reason',
+      degraded_reason_codes: ['SOME_CODE'],
+      degraded_at: '   ',
+    };
+    const decision = derivePass3aGateValidity(progress, fullArtifacts);
+    expect(decision.ok).toBe(false);
+    expect(decision.gate_validity).toBe('gate_blocking');
+    expect(decision.code).toBe('PASS3A_DEGRADED_PROOF_MISSING');
+  });
+
+  it('degraded with whitespace-only reason codes = gate_blocking', () => {
+    const progress: PhaseV2Progress = {
+      pass3a_status: 'degraded',
+      degraded_reason: 'Real reason',
+      degraded_reason_codes: ['', '  '],
+      degraded_at: new Date().toISOString(),
+    };
+    const decision = derivePass3aGateValidity(progress, fullArtifacts);
+    expect(decision.ok).toBe(false);
+    expect(decision.gate_validity).toBe('gate_blocking');
+    expect(decision.code).toBe('PASS3A_DEGRADED_PROOF_MISSING');
+  });
+
+  it('done status with whitespace-only pass3a_completed_at = gate_blocking', () => {
+    const progress: PhaseV2Progress = {
+      pass3a_status: 'done',
+      pass3a_completed_at: '  ',
+    };
+    const decision = derivePass3aGateValidity(progress, fullArtifacts);
+    expect(decision.ok).toBe(false);
+    expect(decision.gate_validity).toBe('gate_blocking');
+    expect(decision.code).toBe('PASS3A_COMPLETION_METADATA_MISSING');
+  });
+
+  it('done status with empty string pass3a_completed_at = gate_blocking', () => {
+    const progress: PhaseV2Progress = {
+      pass3a_status: 'done',
+      pass3a_completed_at: '',
+    };
+    const decision = derivePass3aGateValidity(progress, fullArtifacts);
+    expect(decision.ok).toBe(false);
+    expect(decision.gate_validity).toBe('gate_blocking');
+    expect(decision.code).toBe('PASS3A_COMPLETION_METADATA_MISSING');
+  });
+
+  it('done status without pass3a_completed_at = gate_blocking', () => {
+    const progress: PhaseV2Progress = {
+      pass3a_status: 'done',
+    };
+    const decision = derivePass3aGateValidity(progress, fullArtifacts);
+    expect(decision.ok).toBe(false);
+    expect(decision.gate_validity).toBe('gate_blocking');
+    expect(decision.code).toBe('PASS3A_COMPLETION_METADATA_MISSING');
+  });
+
+  it('artifact with empty artifact_id = gate_blocking even if status=done', () => {
+    const progress: PhaseV2Progress = {
+      pass3a_status: 'done',
+      pass3a_completed_at: new Date().toISOString(),
+    };
+    const brokenArtifacts: PhaseV2ArtifactSet = {
+      ...fullArtifacts,
+      pass3_preflight_draft_v1: { artifact_id: '', source_hash: 'sha256:valid' },
+    };
+    const decision = derivePass3aGateValidity(progress, brokenArtifacts);
+    expect(decision.ok).toBe(false);
+    expect(decision.gate_validity).toBe('gate_blocking');
+    expect(decision.code).toBe('PASS3A_ARTIFACT_MISSING');
+  });
+
+  it('artifact with null source_hash = gate_blocking even if status=done', () => {
+    const progress: PhaseV2Progress = {
+      pass3a_status: 'done',
+      pass3a_completed_at: new Date().toISOString(),
+    };
+    const brokenArtifacts: PhaseV2ArtifactSet = {
+      ...fullArtifacts,
+      pass3_preflight_draft_v1: { artifact_id: 'preflight-1', source_hash: null },
+    };
+    const decision = derivePass3aGateValidity(progress, brokenArtifacts);
+    expect(decision.ok).toBe(false);
+    expect(decision.gate_validity).toBe('gate_blocking');
+    expect(decision.code).toBe('PASS3A_ARTIFACT_MISSING');
+  });
+
+  it('undefined progress = not_ready (defensive default)', () => {
+    const decision = derivePass3aGateValidity(undefined, fullArtifacts);
+    expect(decision.ok).toBe(false);
+    expect(decision.gate_validity).toBe('not_ready');
+  });
+
+  it('empty object progress = not_ready (status defaults to not_started)', () => {
+    const decision = derivePass3aGateValidity({}, fullArtifacts);
+    expect(decision.ok).toBe(false);
+    expect(decision.gate_validity).toBe('not_ready');
+    expect(decision.code).toBe('PASS3A_NOT_READY');
+  });
+
+  it('undefined artifacts = gate_blocking when status=done', () => {
+    const progress: PhaseV2Progress = {
+      pass3a_status: 'done',
+      pass3a_completed_at: new Date().toISOString(),
+    };
+    const decision = derivePass3aGateValidity(progress, undefined);
+    expect(decision.ok).toBe(false);
+    expect(decision.gate_validity).toBe('gate_blocking');
+    expect(decision.code).toBe('PASS3A_ARTIFACT_MISSING');
+  });
+});
+
+// ─── Edge case: Phase 2 guard with network-error scenarios ──────────────────
+// Verifying Phase 2 guard correctly blocks or allows based on network-error
+// derived states.
+
+describe('Track C edge case: Phase 2 guard with network-error derived states', () => {
+  it('Phase 2 blocked when network error leaves status=failed', () => {
+    const progress: PhaseV2Progress = { pass3a_status: 'failed' };
+    const guard = guardPhase2Start(progress, fullArtifacts);
+    expect(guard.ok).toBe(false);
+    expect(guard.can_start_phase2).toBe(false);
+    expect(guard.progress_patch.phase2_preflight_gate).toBe('blocked');
+    expect(guard.progress_patch.pass3a_gate_validity).toBe('gate_blocking');
+  });
+
+  it('Phase 2 blocked when network error leaves degraded without proof', () => {
+    const progress: PhaseV2Progress = {
+      pass3a_status: 'degraded',
+      degraded_reason: 'Socket hang up: ECONNRESET',
+      // Missing degraded_reason_codes and degraded_at
+    };
+    const guard = guardPhase2Start(progress, fullArtifacts);
+    expect(guard.ok).toBe(false);
+    expect(guard.can_start_phase2).toBe(false);
+    expect(guard.progress_patch.phase2_preflight_gate).toBe('blocked');
+  });
+
+  it('Phase 2 allowed when network error produces degraded with complete proof', () => {
+    const progress: PhaseV2Progress = {
+      pass3a_status: 'degraded',
+      degraded_reason: 'Socket hang up: ECONNRESET on 2 of 8 chunks',
+      degraded_reason_codes: ['NETWORK_ECONNRESET', 'PARTIAL_COVERAGE'],
+      degraded_at: new Date().toISOString(),
+    };
+    const guard = guardPhase2Start(progress, fullArtifacts);
+    expect(guard.ok).toBe(true);
+    expect(guard.can_start_phase2).toBe(true);
+    expect(guard.progress_patch.phase2_preflight_gate).toBe('passed');
+    expect(guard.progress_patch.pass3a_gate_validity).toBe('gate_valid');
+  });
+
+  it('Phase 2 guard progress_patch includes correct code on network failure', () => {
+    const progress: PhaseV2Progress = { pass3a_status: 'failed' };
+    const guard = guardPhase2Start(progress, fullArtifacts);
+    expect(guard.ok).toBe(false);
+    expect(guard.progress_patch.phase2_preflight_gate_code).toBe('PASS3A_FAILED_BLOCKING');
+  });
+
+  it('Phase 2 guard progress_patch includes correct code when degraded proof missing', () => {
+    const progress: PhaseV2Progress = { pass3a_status: 'degraded' };
+    const guard = guardPhase2Start(progress, fullArtifacts);
+    expect(guard.ok).toBe(false);
+    expect(guard.progress_patch.phase2_preflight_gate_code).toBe('PASS3A_DEGRADED_PROOF_MISSING');
+  });
+
+  it('Review Gate handoff carries degraded_reason through on network-error degradation', () => {
+    const progress: PhaseV2Progress = {
+      pass3a_status: 'degraded',
+      degraded_reason: 'ETIMEDOUT: 3 chunks unreachable',
+      degraded_reason_codes: ['NETWORK_TIMEOUT'],
+      degraded_at: new Date().toISOString(),
+    };
+    const result = buildReviewGateHandoff(progress, artifactsWithoutAccepted);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.handoff.progress.pass3a_status).toBe('degraded');
+      expect(result.handoff.progress.pass3a_degraded_reason).toBe(
+        'ETIMEDOUT: 3 chunks unreachable',
+      );
+    }
+  });
+});
