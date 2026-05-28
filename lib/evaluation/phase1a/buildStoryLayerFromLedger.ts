@@ -45,6 +45,49 @@ function buildSourceIntegrityLayer(
   // Stale chunk ratio: if identityLedger is populated, compute
   const totalChunks = ledgerV2.total_chunks_processed;
 
+  // Cross-layer emptiness diagnostics
+  const characterCount = ledgerV2.identityLedger.length;
+  const relationshipCount = ledgerV2.relationshipLedger.length;
+  const objectCount = ledgerV2.objectLedger.length;
+  const symbolPayoffItems = ledger.coverage_summary.symbol_payoff_items ?? [];
+
+  const emptyLayerWarnings: Array<{
+    layer: string;
+    code: string;
+    message: string;
+  }> = [];
+
+  if (characterCount >= 2 && relationshipCount === 0) {
+    emptyLayerWarnings.push({
+      layer: 'relationship_network_layer',
+      code: 'EMPTY_RELATIONSHIP_LAYER',
+      message: `${characterCount} characters detected but no relationship arcs mapped. The relationship sweep may have been incomplete or the manuscript may lack inter-character dynamics.`,
+    });
+  }
+
+  if (characterCount >= 1 && objectCount === 0) {
+    emptyLayerWarnings.push({
+      layer: 'object_symbol_layer',
+      code: 'EMPTY_OBJECT_LAYER',
+      message: `${characterCount} character(s) detected but no objects or symbols tracked. The object sweep may have been incomplete.`,
+    });
+  }
+
+  if (symbolPayoffItems.length > 0 && objectCount === 0) {
+    emptyLayerWarnings.push({
+      layer: 'object_symbol_layer',
+      code: 'SYMBOL_ITEMS_WITHOUT_OBJECTS',
+      message: `${symbolPayoffItems.length} symbol/payoff item(s) flagged but object ledger is empty. Object tracking may need repair.`,
+    });
+  }
+
+  const hasEmptyLayerWarnings = emptyLayerWarnings.length > 0;
+  const integrityStatus = hasHardFails
+    ? 'HARD_FAIL'
+    : hasEmptyLayerWarnings
+      ? 'DEGRADED'
+      : 'CLEAN';
+
   return {
     schema_version: 'source_integrity_layer_v1',
     total_chunks_processed: totalChunks,
@@ -56,7 +99,9 @@ function buildSourceIntegrityLayer(
     unresolved_conflicts: (ledgerV2.stateConflicts ?? []).filter(
       (c) => c.resolution === 'unresolved',
     ).length,
-    integrity_status: hasHardFails ? 'HARD_FAIL' : 'CLEAN',
+    empty_layer_warnings: emptyLayerWarnings,
+    empty_layer_warning_count: emptyLayerWarnings.length,
+    integrity_status: integrityStatus,
     generated_at: ledger.generated_at,
     prompt_version: ledger.prompt_version,
     schema_ledger_version: ledger.schema_version,
