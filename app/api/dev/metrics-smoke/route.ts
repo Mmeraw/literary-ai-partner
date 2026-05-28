@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import * as metrics from "@/lib/jobs/metrics";
 import { PHASES } from "@/lib/jobs/types";
 
@@ -7,8 +7,20 @@ import { PHASES } from "@/lib/jobs/types";
  * 
  * Executes metrics hooks with edge cases to prove they never throw.
  * Used by scripts/jobs-test-metrics.mjs for audit-grade verification.
+ * 
+ * **Auth:** Requires CRON_SECRET Bearer token. Blocked in production.
  */
-export async function POST() {
+export async function POST(request: NextRequest) {
+  if (process.env.NODE_ENV === "production") {
+    return NextResponse.json({ ok: false, error: "Not available in production" }, { status: 404 });
+  }
+
+  const authHeader = request.headers.get("authorization");
+  const cronSecret = process.env.CRON_SECRET;
+  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
+    return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+  }
+
   try {
     // Normal cases
     metrics.onJobCreated("test-job-1", "evaluate_full");
@@ -54,12 +66,11 @@ export async function POST() {
         "nested JSON objects",
       ]
     });
-  } catch (e: any) {
+  } catch (e: unknown) {
     return NextResponse.json(
       { 
         ok: false, 
-        error: e?.message || String(e),
-        stack: e?.stack 
+        error: e instanceof Error ? e.message : String(e),
       },
       { status: 500 }
     );

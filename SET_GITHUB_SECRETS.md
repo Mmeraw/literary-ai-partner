@@ -7,43 +7,39 @@ Click "Update" (or "New repository secret") for each:
 ---
 
 ## 1. SUPABASE_URL
-```
-https://xtumxjnzdswuumndcbwc.supabase.co
-```
+Copy the Supabase project URL from your Supabase dashboard (Settings → API).
 
 ---
 
 ## 2. NEXT_PUBLIC_SUPABASE_URL
-```
-https://xtumxjnzdswuumndcbwc.supabase.co
-```
+Same value as SUPABASE_URL above.
 
 ---
 
 ## 3. SUPABASE_SERVICE_ROLE_KEY
-```
-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh0dW14am56ZHN3dXVtbmRjYndjIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2ODA3OTIzMiwiZXhwIjoyMDgzNjU1MjMyfQ.um7tTqt2L5QfaCYnW_xyZ8X8M8OqWLa6IECmEh2cnUE
-```
+Copy the **service_role** key from your Supabase dashboard (Settings → API → Project API keys).
+
+⚠️ **NEVER commit this key to the repository.** It bypasses Row Level Security.
 
 ---
 
 ## 4. SUPABASE_ANON_KEY
-```
-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh0dW14am56ZHN3dXVtbmRjYndjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjgwNzkyMzIsImV4cCI6MjA4MzY1NTIzMn0.m0QtTpo3_9jNHCd4t3XCFwMk33DYATzE8cs6QvVYVyU
-```
+Copy the **anon/public** key from your Supabase dashboard (Settings → API → Project API keys).
 
 ---
 
 ## 5. NEXT_PUBLIC_SUPABASE_ANON_KEY
-```
-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh0dW14am56ZHN3dXVtbmRjYndjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjgwNzkyMzIsImV4cCI6MjA4MzY1NTIzMn0.m0QtTpo3_9jNHCd4t3XCFwMk33DYATzE8cs6QvVYVyU
-```
+Same value as SUPABASE_ANON_KEY above.
 
 ---
 
-**All values sourced from `.env.local` (PRODUCTION project xtumxjnzdswuumndcbwc)**
+**All values are sourced from the Supabase dashboard for the PRODUCTION project.**
 
 After updating all 5, trigger CI:
 ```bash
 git commit --allow-empty -m "test: verify secrets" && git push
 ```
+
+> **Security note:** The keys that were previously hardcoded in this file have been
+> rotated. If you have not yet rotated them, do so immediately via the Supabase
+> dashboard (Settings → API → Regenerate keys).

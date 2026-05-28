@@ -24,12 +24,14 @@ type RGResponse = {
   };
 };
 
+const ALLOWED_ORIGIN = Deno.env.get("ALLOWED_ORIGIN") || "https://www.revisiongrade.com";
+
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
     headers: {
       "Content-Type": "application/json",
-      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Origin": ALLOWED_ORIGIN,
       "Access-Control-Allow-Headers":
         "authorization, x-client-info, apikey, content-type, x-eval-token",
       "Access-Control-Allow-Methods": "POST, OPTIONS",

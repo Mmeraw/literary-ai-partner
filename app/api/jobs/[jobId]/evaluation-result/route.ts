@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { getAuthenticatedUser } from '@/lib/supabase/server';
 import { canReleaseEvaluationRead } from '@/lib/jobs/readReleaseGate';
 import { EvaluationResultV1, isEvaluationResultV1, validateEvaluationResult } from '@/schemas/evaluation-result-v1';
 import { EvaluationResultV2, isEvaluationResultV2, validateEvaluationResultV2 } from '@/schemas/evaluation-result-v2';
@@ -9,6 +10,11 @@ export async function GET(
   { params }: { params: Promise<{ jobId: string }> }
 ) {
   try {
+    const user = await getAuthenticatedUser();
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const { jobId } = await params;
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -19,11 +25,15 @@ export async function GET(
     const supabase = createAdminClient();
     const { data: job, error } = await supabase
       .from('evaluation_jobs')
-      .select('id, manuscript_id, status, validity_status, evaluation_result, evaluation_result_version, created_at, updated_at')
+      .select('id, manuscript_id, user_id, status, validity_status, evaluation_result, evaluation_result_version, created_at, updated_at')
       .eq('id', jobId)
       .single();
 
     if (error || !job) {
+      return NextResponse.json({ error: 'Job not found' }, { status: 404 });
+    }
+
+    if (job.user_id !== user.id) {
       return NextResponse.json({ error: 'Job not found' }, { status: 404 });
     }
 
