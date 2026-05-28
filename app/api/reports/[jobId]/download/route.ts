@@ -82,6 +82,47 @@ type ReportMetadata = {
   genre: string | null;
 };
 
+type ExportRecommendation = {
+  priority?: 'high' | 'medium' | 'low';
+  action?: string;
+  expected_impact?: string;
+  anchor_snippet?: string;
+  symptom?: string;
+  mechanism?: string;
+  specific_fix?: string;
+  reader_effect?: string;
+  mistake_proofing?: string;
+};
+
+function exportSeverity(priority?: string): string {
+  if (priority === 'high') return 'MUST';
+  if (priority === 'medium') return 'SHOULD';
+  return 'COULD';
+}
+
+function getCriterionOpportunities(c: { recommendations?: unknown }): ExportRecommendation[] {
+  if (!Array.isArray(c.recommendations)) return [];
+  return c.recommendations
+    .filter((r): r is ExportRecommendation => typeof r === 'object' && r !== null)
+    .slice(0, 3);
+}
+
+function opportunityRows(r: ExportRecommendation): Array<[string, string]> {
+  const candidates: Array<[string, string | undefined]> = [
+    ['Evidence', r.anchor_snippet],
+    ['Symptom', r.symptom],
+    ['Cause', r.mechanism],
+    ['Fix direction', r.specific_fix || r.action],
+    ['Reader effect', r.reader_effect || r.expected_impact],
+    ['Mistake-proofing', r.mistake_proofing],
+  ];
+
+  return candidates.flatMap(([label, value]) => {
+    if (typeof value !== 'string' || value.trim().length === 0) return [];
+    return [[label, cleanReportText(value)] as [string, string]];
+  });
+}
+
 function isExportableResultCandidate(value: unknown): value is ExportableResult {
   if (isEvaluationResultV1(value) || isEvaluationResultV2(value)) return true;
 
@@ -358,6 +399,18 @@ function buildTxtReport(result: ExportableResult, title: string | null, jobId: s
   result.criteria.forEach((c) => {
     lines.push(`• ${c.key} — ${scoreLabel(c.score_0_10, 10)}${c.confidence_level ? ` (${c.confidence_level} confidence)` : ''}`);
     if (c.rationale) lines.push(`  Rationale: ${cleanReportText(c.rationale)}`);
+
+    const opportunities = getCriterionOpportunities(c as { recommendations?: unknown });
+    if (opportunities.length > 0) {
+      lines.push('  Opportunities:');
+      opportunities.forEach((opportunity, idx) => {
+        lines.push(`    ${idx + 1}. ${exportSeverity(opportunity.priority)}`);
+        opportunityRows(opportunity).forEach(([label, value]) => {
+          lines.push(`       ${label}: ${value}`);
+        });
+      });
+    }
+
     lines.push('');
   });
 
@@ -622,6 +675,54 @@ async function buildPdfReport(result: ExportableResult, title: string | null, jo
           { width: contentWidth - 8, lineGap: 2 },
         );
       }
+
+      const opportunities = getCriterionOpportunities(c as { recommendations?: unknown });
+      if (opportunities.length > 0) {
+        doc.moveDown(0.3);
+        doc.font('Helvetica-Bold').fontSize(9.5).fillColor(RG.oxblood).text('Opportunities', ml + 4, doc.y, {
+          width: contentWidth - 8,
+        });
+        doc.moveDown(0.15);
+
+        opportunities.forEach((opportunity, idx) => {
+          ensureSpace(90);
+          doc.font('Helvetica-Bold').fontSize(9).fillColor(RG.textPrimary).text(
+            `${idx + 1}. ${exportSeverity(opportunity.priority)}`,
+            ml + 10,
+            doc.y,
+            { width: contentWidth - 20 },
+          );
+
+          const rows = opportunityRows(opportunity);
+          const evidence = rows.find(([label]) => label === 'Evidence');
+          const detailRows = rows.filter(([label]) => label !== 'Evidence');
+
+          if (evidence) {
+            doc.font('Helvetica-Oblique').fontSize(8.5).fillColor(RG.textMuted).text(
+              `Evidence: "${toPdfSafeText(evidence[1])}"`,
+              ml + 14,
+              doc.y + 1,
+              { width: contentWidth - 24, lineGap: 2 },
+            );
+          }
+
+          detailRows.forEach(([label, value]) => {
+            doc.font('Helvetica-Bold').fontSize(8.5).fillColor(RG.textMuted).text(
+              `${label}: `,
+              ml + 14,
+              doc.y + 1,
+              { continued: true },
+            );
+            doc.font('Helvetica').fontSize(8.5).fillColor(RG.textPrimary).text(toPdfSafeText(value), {
+              width: contentWidth - 24,
+              lineGap: 2,
+            });
+          });
+
+          doc.moveDown(0.2);
+        });
+      }
+
       doc.moveDown(0.6);
       thinRule();
     });
@@ -1016,6 +1117,51 @@ async function buildDocx(result: ExportableResult, title: string | null, jobId: 
   result.criteria.forEach((c) => {
     if (!c.rationale) return;
     children.push(bodyPara(`${c.key}: ${c.rationale}`, { size: 19, color: RG.textMuted }));
+
+    const opportunities = getCriterionOpportunities(c as { recommendations?: unknown });
+    opportunities.forEach((opportunity, idx) => {
+      children.push(bodyPara(`Opportunity ${idx + 1} — ${exportSeverity(opportunity.priority)}`, {
+        bold: true,
+        size: 18,
+        color: RG.oxblood,
+        spacing: 40,
+      }));
+
+      opportunityRows(opportunity).forEach(([label, value]) => {
+        if (label === 'Evidence') {
+          children.push(new Paragraph({
+            spacing: { after: 60 },
+            children: [new TextRun({
+              text: `Evidence: "${cleanReportText(value)}"`,
+              italics: true,
+              size: 18,
+              color: RG.textMuted.replace('#', ''),
+              font: 'Calibri',
+            })],
+          }));
+          return;
+        }
+
+        children.push(new Paragraph({
+          spacing: { after: 40 },
+          children: [
+            new TextRun({
+              text: `${label}: `,
+              bold: true,
+              size: 18,
+              color: RG.textMuted.replace('#', ''),
+              font: 'Calibri',
+            }),
+            new TextRun({
+              text: cleanReportText(value),
+              size: 18,
+              color: RG.textPrimary.replace('#', ''),
+              font: 'Calibri',
+            }),
+          ],
+        }));
+      });
+    });
   });
 
   // ── Quick Wins ──────────────────────────────────────────────────
