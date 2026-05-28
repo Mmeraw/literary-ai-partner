@@ -603,7 +603,7 @@ export function EvaluationPoller({
                   The final report will be available once Narrative Synthesis is complete.
                 </p>
               )}
-              {job.status === 'running' && !effectivePd.hardStop && (
+              {(job.status === 'queued' || job.status === 'running') && !effectivePd.hardStop && (
                 <div className="flex items-center gap-2 mt-1">
                   <button
                     type="button"
@@ -612,7 +612,10 @@ export function EvaluationPoller({
                   >
                     ↻ Refresh
                   </button>
-                  {pollCount > 10 && (
+                  {job.status === 'queued' && pollCount > 5 && (
+                    <span className="text-xs text-gray-400">Still waiting to start?</span>
+                  )}
+                  {job.status === 'running' && pollCount > 10 && (
                     <span className="text-xs text-gray-400">Taking longer than expected?</span>
                   )}
                 </div>
