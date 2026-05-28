@@ -403,6 +403,16 @@
   color: var(--rg-warning);
 }
 
+.rg-status--queued {
+  background: #e5e7eb;
+  color: #4b5563;
+}
+
+.rg-status--stale {
+  background: #fde8e8;
+  color: #991b1b;
+}
+
 .rg-status--failed {
   background: #f3d6d3;
   color: #8f241b;

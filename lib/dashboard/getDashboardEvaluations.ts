@@ -7,7 +7,15 @@ export type DashboardEvaluationStatus =
   | 'improving'
   | 'below_standard'
   | 'running'
+  | 'queued'
+  | 'stale'
   | 'failed'
+
+/**
+ * Jobs stuck longer than this (in ms) are flagged as stale.
+ * Applies to jobs whose DB status is still queued or running.
+ */
+const STALE_THRESHOLD_MS = 30 * 60 * 1000
 
 export type DashboardEvaluationRow = {
   id: string
@@ -149,7 +157,7 @@ export async function getDashboardEvaluations(
 
     const { data: jobs, error: jobsError } = await supabase
       .from('evaluation_jobs')
-      .select('id, status, phase, phase_status, created_at, manuscript_id')
+      .select('id, status, phase, phase_status, created_at, updated_at, last_heartbeat, manuscript_id')
       .in('manuscript_id', manuscriptIds)
       .order('created_at', { ascending: false })
       .limit(limit)
@@ -184,6 +192,7 @@ export async function getDashboardEvaluations(
       }
     }
 
+    const now = Date.now()
     const rows: DashboardEvaluationRow[] = []
     for (const job of jobs as Array<{
       id: string
@@ -191,19 +200,14 @@ export async function getDashboardEvaluations(
       phase: string | null
       phase_status: string | null
       created_at: string
+      updated_at: string | null
+      last_heartbeat: string | null
       manuscript_id: number
     }>) {
       const title = titleById.get(job.manuscript_id) ?? 'Untitled'
       const scores = scoresByJobId[job.id] ?? { overall: null, readiness: null }
 
-      let dashStatus: DashboardEvaluationStatus
-      if (job.status === 'complete') {
-        dashStatus = statusFromScores(scores.overall, scores.readiness)
-      } else if (job.status === 'failed') {
-        dashStatus = 'failed'
-      } else {
-        dashStatus = 'running'
-      }
+      const dashStatus = deriveDashboardStatus(job, scores, now)
 
       rows.push({
         id: job.id,
@@ -381,6 +385,59 @@ function formatDateKey(value: string): string {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return 'Unknown'
   return date.toISOString().slice(0, 10)
+}
+
+/**
+ * Derive the user-facing dashboard status for a single evaluation job.
+ *
+ * Priority order:
+ *   1. DB status === 'complete' → score-based bucket
+ *   2. DB status === 'failed' OR phase_status === 'failed' → 'failed'
+ *   3. Stale detection (no heartbeat / update for > STALE_THRESHOLD_MS) → 'stale'
+ *   4. DB status === 'queued' → 'queued'
+ *   5. DB status === 'running' → 'running'
+ *   6. Anything else → 'stale' (defensive fallback)
+ */
+function deriveDashboardStatus(
+  job: {
+    status: string
+    phase_status: string | null
+    created_at: string
+    updated_at: string | null
+    last_heartbeat: string | null
+  },
+  scores: { overall: number | null; readiness: number | null },
+  nowMs: number,
+): DashboardEvaluationStatus {
+  if (job.status === 'complete') {
+    return statusFromScores(scores.overall, scores.readiness)
+  }
+
+  if (job.status === 'failed' || job.phase_status === 'failed') {
+    return 'failed'
+  }
+
+  const freshestSignal = mostRecent(job.last_heartbeat, job.updated_at, job.created_at)
+  const ageMs = nowMs - freshestSignal
+
+  if (ageMs > STALE_THRESHOLD_MS) {
+    return 'stale'
+  }
+
+  if (job.status === 'queued') return 'queued'
+  if (job.status === 'running') return 'running'
+
+  return 'stale'
+}
+
+function mostRecent(...timestamps: (string | null | undefined)[]): number {
+  let best = 0
+  for (const ts of timestamps) {
+    if (!ts) continue
+    const t = new Date(ts).getTime()
+    if (!Number.isNaN(t) && t > best) best = t
+  }
+  return best || 0
 }
 
 export function statusFromScores(
