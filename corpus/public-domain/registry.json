@@ -1,12 +1,20 @@
 {
-  "schemaVersion": "public-domain-calibration-registry.v1",
+  "schemaVersion": "public-domain-calibration-registry.v2",
   "corpusSize": 8,
+  "modeContractPath": "docs/governance/evaluation-output-mode-contract.md",
+  "templates": {
+    "short_form_evaluation": "docs/templates/evaluation/short-form-evaluation-template.md",
+    "long_form_evaluation": "docs/templates/evaluation/long-form-evaluation-template.md",
+    "long_form_multi_layer_evaluation": "docs/templates/evaluation/long-form-multi-layer-evaluation-template.md"
+  },
   "policy": {
     "runtimeAuthority": false,
     "ordinaryEvaluationPromptInjection": false,
     "allowedUses": [
       "text-integrity validation",
+      "short-form evaluation regression",
       "long-form evaluation regression",
+      "long-form multi-layer evaluation regression",
       "score sanity calibration",
       "genre-aware diagnostic QA",
       "optional benchmark comparison mode"
@@ -42,6 +50,10 @@
       "calibrationDocPath": "docs/benchmarks/public-domain/pride-and-prejudice-dream-calibration.md",
       "goldenEvalPath": "corpus/public-domain/golden-evals/pride-and-prejudice.dream-longform.json",
       "route": "LONG_FORM",
+      "evaluationMode": "long_form_evaluation",
+      "outputMode": "standard_long_form",
+      "templatePath": "docs/templates/evaluation/long-form-evaluation-template.md",
+      "runtimeAuthority": false,
       "benchmarkRole": "dialogue_voice_pov_social_tension_scene_economy",
       "craftAnchors": [
         "dialogue subtext",
@@ -75,6 +87,10 @@
       "calibrationDocPath": "docs/benchmarks/public-domain/great-expectations-dream-calibration.md",
       "goldenEvalPath": "corpus/public-domain/golden-evals/great-expectations.dream-longform.json",
       "route": "LONG_FORM",
+      "evaluationMode": "long_form_multi_layer_evaluation",
+      "outputMode": "multi_layer_long_form",
+      "templatePath": "docs/templates/evaluation/long-form-multi-layer-evaluation-template.md",
+      "runtimeAuthority": false,
       "benchmarkRole": "retrospective_voice_character_arc_motif_recurrence_closure",
       "craftAnchors": [
         "retrospective first-person voice",
@@ -107,6 +123,10 @@
       "calibrationDocPath": "docs/benchmarks/public-domain/dracula-dream-calibration.md",
       "goldenEvalPath": "corpus/public-domain/golden-evals/dracula.dream-longform.json",
       "route": "LONG_FORM",
+      "evaluationMode": "long_form_multi_layer_evaluation",
+      "outputMode": "multi_layer_long_form",
+      "templatePath": "docs/templates/evaluation/long-form-multi-layer-evaluation-template.md",
+      "runtimeAuthority": false,
       "benchmarkRole": "epistolary_structure_suspense_atmosphere_revelation_pacing",
       "craftAnchors": [
         "epistolary architecture",
@@ -139,6 +159,10 @@
       "calibrationDocPath": null,
       "goldenEvalPath": "corpus/public-domain/golden-evals/strange-case-of-dr-jekyll-and-mr-hyde.dream-longform.json",
       "route": "LONG_FORM",
+      "evaluationMode": "long_form_multi_layer_evaluation",
+      "outputMode": "multi_layer_long_form",
+      "templatePath": "docs/templates/evaluation/long-form-multi-layer-evaluation-template.md",
+      "runtimeAuthority": false,
       "benchmarkRole": "dual_narrative_moral_duality_mystery_reveal_novella_compression",
       "craftAnchors": [
         "Gothic mystery reveal",
@@ -167,6 +191,10 @@
       "calibrationDocPath": null,
       "goldenEvalPath": "corpus/public-domain/golden-evals/the-yellow-wallpaper.dream-longform.json",
       "route": "SHORT_FORM",
+      "evaluationMode": "short_form_evaluation",
+      "outputMode": "short_form_evaluation",
+      "templatePath": "docs/templates/evaluation/short-form-evaluation-template.md",
+      "runtimeAuthority": false,
       "benchmarkRole": "confinement_pov_voice_destabilization_theme_interiority",
       "craftAnchors": [
         "first-person psychological unreliability",
@@ -195,6 +223,10 @@
       "calibrationDocPath": null,
       "goldenEvalPath": "corpus/public-domain/golden-evals/the-time-machine.dream-longform.json",
       "route": "LONG_FORM",
+      "evaluationMode": "long_form_evaluation",
+      "outputMode": "standard_long_form",
+      "templatePath": "docs/templates/evaluation/long-form-evaluation-template.md",
+      "runtimeAuthority": false,
       "benchmarkRole": "speculative_concept_worldbuilding_framing_device_theme",
       "craftAnchors": [
         "speculative concept as primary engine",
@@ -223,6 +255,10 @@
       "calibrationDocPath": null,
       "goldenEvalPath": "corpus/public-domain/golden-evals/the-wonderful-wizard-of-oz.dream-longform.json",
       "route": "LONG_FORM",
+      "evaluationMode": "long_form_evaluation",
+      "outputMode": "standard_long_form",
+      "templatePath": "docs/templates/evaluation/long-form-evaluation-template.md",
+      "runtimeAuthority": false,
       "benchmarkRole": "quest_structure_tonal_control_episodic_worldbuilding_childrens_register",
       "craftAnchors": [
         "episodic quest architecture",
@@ -251,6 +287,10 @@
       "calibrationDocPath": null,
       "goldenEvalPath": "corpus/public-domain/golden-evals/the-murder-on-the-links.dream-longform.json",
       "route": "LONG_FORM",
+      "evaluationMode": "long_form_evaluation",
+      "outputMode": "standard_long_form",
+      "templatePath": "docs/templates/evaluation/long-form-evaluation-template.md",
+      "runtimeAuthority": false,
       "benchmarkRole": "clue_logic_plot_mechanics_reveal_sequence_commercial_pacing",
       "craftAnchors": [
         "clue-planting and fair-play mystery architecture",
@@ -268,5 +308,10 @@
         "minApostrophes": 300
       }
     }
+  ],
+  "notes": [
+    "Public-domain corpus entries are calibration/regression assets only and remain runtime-authority false.",
+    "Legacy goldenEvalPath filenames may still contain dream-longform until artifacts are deliberately regenerated; do not rename frozen artifacts without a regression-comparison step.",
+    "The Awakening is recognized as a desired public-domain calibration candidate, but it is not active in this registry until the clean text and calibration artifact are added deliberately."
   ]
 }
