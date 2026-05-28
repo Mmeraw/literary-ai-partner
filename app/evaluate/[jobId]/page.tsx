@@ -742,7 +742,7 @@ export default async function EvaluationReportPage({
             </p>
             <div className="mt-4">
               <Link
-                href={hasConfirmedMode ? "/workbench" : "#"}
+                href={hasConfirmedMode ? `/workbench?manuscriptId=${job.manuscript_id}&evaluationJobId=${jobId}` : "#"}
                 aria-disabled={!hasConfirmedMode}
                 className={`inline-flex rounded-md px-4 py-2 text-sm font-medium ${
                   hasConfirmedMode
@@ -750,7 +750,7 @@ export default async function EvaluationReportPage({
                     : "bg-gray-200 text-gray-500 cursor-not-allowed pointer-events-none"
                 }`}
               >
-                Start Revising
+                Open Interactive Revise Queue
               </Link>
             </div>
           </section>

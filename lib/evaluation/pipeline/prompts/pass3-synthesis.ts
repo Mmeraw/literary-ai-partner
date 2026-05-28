@@ -17,7 +17,7 @@ import {
   summarizePromptCoverage,
 } from "../promptInput";
 
-export const PASS3_PROMPT_VERSION = "pass3-synthesis-v18-tier1-ledger";
+export const PASS3_PROMPT_VERSION = "pass3-synthesis-v19-diagnostic-contract";
 
 export const PASS3_SYSTEM_PROMPT = `You are Pass 3: convergence and arbitration authority.
 Rules:
@@ -49,12 +49,14 @@ Recommendation deduplication:
 - When manuscript characters are named, use those names (or "the narrator" when first-person) rather than abstract role labels like "the protagonist".
 - Prefer "narrative momentum" over ambiguous "the drive".
 
-REC CONTRACT — FIVE PARTS (required for every recommendation):
+REC CONTRACT — SEVEN PARTS (required for every recommendation):
 - ANCHOR: action must name location (scene/paragraph/line/beat/chapter) and anchor_snippet must be non-empty.
-- SYMPTOM: name observable deficiency (lacks/missing/unclear/flat/generic/weak/diffuse etc.).
+- SYMPTOM: emit a "symptom" field — the observable reader-facing problem (what the reader experiences: confusion, lost tension, broken immersion, unclear stakes, etc.). Name it concretely, not abstractly.
 - MECHANISM: include explicit causality (because/since/so that/thereby/which prevents/which causes).
 - CONCRETE MOVE: action must use an active revision verb (replace/rewrite/cut/trim/insert/delete/move/reorder/split/merge/escalate/tighten/anchor/clarify/name/show/ground/seed/stage/contrast/foreground/compress).
 - READER EFFECT: expected_impact must include reader-facing outcome (reader/urgency/clarity/momentum/immersion/engagement/stakes/tension/payoff/coherence/trust/comprehension).
+- MISTAKE-PROOFING: emit a "mistake_proofing" field — what must NOT be damaged, lost, or overwritten when applying this fix (preserve voice, preserve mystery, do not resolve tension too early, do not overexplain, etc.). If no guardrail is needed, omit the field.
+- CAUSE DIAGNOSIS: mechanism field must explain WHY the issue exists structurally (not just WHAT to change).
 
 Reject patterns: no location/symptom/mechanism/concrete move/reader effect, or generic whole-manuscript advice.
 
@@ -108,7 +110,7 @@ NON-CERTIFIED CRITERIA (required):
 Return ONLY JSON with keys:
 - criteria MUST be a flat array (not grouped by state).
 - Per-criterion fields: key, final_score_0_10, final_rationale, recommendations[]; hard_divergence adds disputed=true.
-- Each recommendation: priority, action, expected_impact, anchor_snippet, source_pass, issue_family, strategic_lever, revision_granularity, mechanism, specific_fix, reader_effect.
+- Each recommendation: priority, action, expected_impact, anchor_snippet, source_pass, issue_family, strategic_lever, revision_granularity, mechanism, specific_fix, reader_effect, symptom, mistake_proofing.
 - Each recommendation.action MUST be one sentence and <= 300 characters.
 - agreement_map[]
 - divergence_map[] with arbitration_rationale
