@@ -2097,6 +2097,8 @@ export function synthesisToEvaluationResult(
         mechanism: r.mechanism || undefined,
         specific_fix: r.specific_fix || undefined,
         reader_effect: r.reader_effect || undefined,
+        symptom: r.symptom || undefined,
+        mistake_proofing: r.mistake_proofing || undefined,
       })),
     };
   });
@@ -2239,6 +2241,8 @@ export function synthesisToEvaluationResultV2(
             mechanism: r.mechanism || undefined,
             specific_fix: r.specific_fix || undefined,
             reader_effect: r.reader_effect || undefined,
+            symptom: r.symptom || undefined,
+            mistake_proofing: r.mistake_proofing || undefined,
             issue_family: r.issue_family || undefined,
             strategic_lever: r.strategic_lever || undefined,
             revision_granularity: r.revision_granularity || undefined,

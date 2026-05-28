@@ -10,6 +10,8 @@ type Recommendation = {
   mechanism?: string;
   specific_fix?: string;
   reader_effect?: string;
+  symptom?: string;
+  mistake_proofing?: string;
   issue_family?: string;
   strategic_lever?: string;
   revision_granularity?: string;
@@ -45,7 +47,7 @@ function normalizeAction(action: string): string {
 }
 
 function hasExpandableDetails(r: Recommendation): boolean {
-  return Boolean(r.mechanism || r.reader_effect || r.expected_impact);
+  return Boolean(r.mechanism || r.reader_effect || r.mistake_proofing || r.expected_impact);
 }
 
 function OpportunityCard({ r, defaultExpanded }: { r: Recommendation; defaultExpanded: boolean }) {
@@ -54,26 +56,35 @@ function OpportunityCard({ r, defaultExpanded }: { r: Recommendation; defaultExp
 
   return (
     <li className="rounded-md border border-gray-200 bg-gray-50/50 p-3 text-sm text-gray-700">
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0 flex-1">
-          {r.priority && (
-            <span className={`mb-1.5 inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${severityClasses(r.priority)}`}>
-              {severityLabel(r.priority)}
-            </span>
-          )}
-          {r.anchor_snippet && (
-            <p className="mb-2 text-xs text-gray-500 italic border-l-2 border-gray-300 pl-2">
-              {"\u201c"}{r.anchor_snippet}{"\u201d"}
-            </p>
-          )}
-          <p className="font-medium">{normalizeAction(r.action)}</p>
-          {r.specific_fix && (
-            <p className="mt-1.5 text-xs text-gray-600">
-              <span className="font-semibold text-gray-500">Fix direction:</span> {r.specific_fix}
-            </p>
-          )}
-        </div>
+      <div className="min-w-0">
+        {/* Always visible: Severity */}
+        {r.priority && (
+          <span className={`mb-1.5 inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${severityClasses(r.priority)}`}>
+            {severityLabel(r.priority)}
+          </span>
+        )}
+        {/* Always visible: Evidence */}
+        {r.anchor_snippet && (
+          <p className="mb-2 text-xs text-gray-500 italic border-l-2 border-gray-300 pl-2">
+            {"\u201c"}{r.anchor_snippet}{"\u201d"}
+          </p>
+        )}
+        {/* Always visible: Symptom */}
+        {r.symptom && (
+          <p className="mt-1 text-xs text-gray-600">
+            <span className="font-semibold text-gray-500">Symptom:</span> {r.symptom}
+          </p>
+        )}
+        {/* Always visible: Fix direction */}
+        {r.specific_fix ? (
+          <p className="mt-1.5 text-xs text-gray-600">
+            <span className="font-semibold text-gray-500">Fix direction:</span> {r.specific_fix}
+          </p>
+        ) : (
+          <p className="mt-1.5 font-medium">{normalizeAction(r.action)}</p>
+        )}
       </div>
+      {/* Expandable: Cause, Reader effect, Mistake-proofing */}
       {showExpander && expanded && (
         <div className="mt-2 space-y-1 border-t border-gray-100 pt-2">
           {r.mechanism && (
@@ -89,6 +100,11 @@ function OpportunityCard({ r, defaultExpanded }: { r: Recommendation; defaultExp
           {r.expected_impact && !r.reader_effect && (
             <p className="text-xs text-gray-500 italic">{r.expected_impact}</p>
           )}
+          {r.mistake_proofing && (
+            <p className="text-xs text-gray-600">
+              <span className="font-semibold text-gray-500">Mistake-proofing:</span> {r.mistake_proofing}
+            </p>
+          )}
         </div>
       )}
       {showExpander && (
@@ -97,7 +113,7 @@ function OpportunityCard({ r, defaultExpanded }: { r: Recommendation; defaultExp
           onClick={() => setExpanded(!expanded)}
           className="mt-1.5 text-[11px] text-gray-400 hover:text-gray-600 transition-colors"
         >
-          {expanded ? "Hide details" : "Show cause, reader effect"}
+          {expanded ? "Hide details" : "Show cause, reader effect, mistake-proofing"}
         </button>
       )}
     </li>
@@ -109,14 +125,15 @@ export default function CriterionOpportunities({ recommendations }: { recommenda
 
   if (!recommendations || recommendations.length === 0) return null;
 
-  const primary = recommendations[0];
-  const additional = recommendations.slice(1, 3);
+  const visible = recommendations.slice(0, 3);
+  const primary = visible[0];
+  const additional = visible.slice(1);
   const hasMore = additional.length > 0;
 
   return (
     <div className="mt-3">
       <p className="text-xs font-semibold uppercase tracking-wide text-gray-600">
-        {recommendations.length === 1 ? "Primary Opportunity:" : `Primary Opportunity (${recommendations.length} total):`}
+        {visible.length === 1 ? "Primary Opportunity:" : `Primary Opportunity (${visible.length} total):`}
       </p>
       <ul className="mt-2 space-y-3">
         <OpportunityCard r={primary} defaultExpanded={false} />

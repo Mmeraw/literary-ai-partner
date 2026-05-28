@@ -95,6 +95,8 @@ type CriterionBase = {
     mechanism?: string;
     specific_fix?: string;
     reader_effect?: string;
+    symptom?: string;
+    mistake_proofing?: string;
     issue_family?: string;
     strategic_lever?: string;
     revision_granularity?: string;
