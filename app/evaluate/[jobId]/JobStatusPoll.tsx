@@ -286,7 +286,7 @@ export function JobStatusPoll({ jobId, initialJob }: JobStatusPollProps) {
               </h3>
               <p className="mt-1 text-sm text-amber-800 leading-relaxed">
                 Phase 1A is complete. RevisionGrade has built your Story Ledger
-                — an 8-layer story map of your manuscript. Review it, then
+                — a 9-layer story map of your manuscript. Review it, then
                 approve or reject to control whether Phase 2 (craft diagnostic)
                 runs.
               </p>
