@@ -67,9 +67,10 @@ const LABEL_ONLY_TERMS = new Set([
 function isLabelOnly(name: string): boolean {
   const n = name.trim().toLowerCase();
   if (LABEL_ONLY_TERMS.has(n)) return true;
-  // Descriptive phrases: "younger recruit with bandage wrist", "kid in yankees cap", etc.
-  // Heuristic: no capital letter suggests it was never treated as a proper name
-  if (n.length > 0 && n === n.toLowerCase() && n.split(" ").length > 1) return true;
+  // Only reject purely generic descriptors ("a soldier", "the child", etc.).
+  // The old lowercase-multi-word heuristic was broken: it lowercased first,
+  // then checked isLowerCase — which is *always* true. Removed.
+  // Keep the explicit LABEL_ONLY_TERMS set as the only filter.
   return false;
 }
 
@@ -103,7 +104,12 @@ const LABEL_HINTS: Record<string, string> = {
   "Resolution status": "Whether the system detected a name change (marriage, alias reveal, etc.) and how it was resolved.",
   "Aliases & Name States": "All the different names, nicknames, and forms of address used for this character across the manuscript.",
   // Cast / Role Tier layer
+  "Protagonist": "The central consciousness the narrative orbits. In literary fiction, this may mean the character under the most structural pressure — not necessarily the hero.",
+  "Co-protagonist": "A second character who shares roughly equal narrative weight, perspective time, or structural importance.",
+  "Antagonist": "The primary opposing force. In literary fiction, this may be a person, institution, social norm, or internal conflict — not necessarily a villain.",
+  "Mentor": "A character who offers the protagonist guidance, counter-models, or hard truths — whether kindly or harshly.",
   "Foil": "A character who contrasts with the protagonist to highlight particular qualities or themes.",
+  "Major Secondary": "Characters with sustained presence who shape the protagonist's arc but don't carry their own major plotline.",
   "Relational Engines": "The character pairings that drive the story forward — where conflict, growth, or transformation happens between two people.",
   "Collective Force": "A group acting as a single narrative force — a mob, a family, an institution — rather than individual characters.",
   "Symbolic Force": "An abstract or non-human force that functions as a character — fate, the sea, an institution, a disease.",
@@ -1406,8 +1412,10 @@ export function CastRoleTierLayer({
 
 export function RelationshipNetworkLayer({
   data,
+  castData,
 }: {
   data?: Record<string, unknown> | null;
+  castData?: Record<string, unknown> | null;
 }) {
   if (!data || Object.keys(data).length === 0)
     return (
@@ -1431,7 +1439,30 @@ export function RelationshipNetworkLayer({
   });
 
   const filtered = rawPairs.length - pairArray.length;
-  const count = pairArray.length;
+
+  // ── Relational-engine fallback ──────────────────────────────────────────────
+  // If the relationship layer has no qualifying pairs but Cast/Role Tier found
+  // relational engines, promote those engines as inferred relationship pairs so
+  // the author still sees the story's relationship architecture.
+  let inferredFromEngines: { a: string; b: string }[] = [];
+  if (pairArray.length === 0 && castData) {
+    const engines = castData.relational_engines;
+    if (Array.isArray(engines)) {
+      inferredFromEngines = (engines as (string | Record<string, unknown>)[])
+        .map((e) => {
+          if (typeof e === "string") {
+            // "Name A–Name B" or "Name A — Name B"
+            const sep = e.includes("–") ? "–" : e.includes("—") ? "—" : "↔";
+            const parts = e.split(sep).map((s) => s.trim());
+            if (parts.length === 2 && parts[0] && parts[1]) return { a: parts[0], b: parts[1] };
+          }
+          return null;
+        })
+        .filter((x): x is { a: string; b: string } => x !== null);
+    }
+  }
+
+  const count = pairArray.length + inferredFromEngines.length;
 
   return (
     <LayerShell>
@@ -1458,6 +1489,24 @@ export function RelationshipNetworkLayer({
         >
           {filtered} label-only {filtered === 1 ? "entry" : "entries"} removed
           (unnamed or descriptor-only parties are not tracked as relationships).
+        </div>
+      )}
+
+      {inferredFromEngines.length > 0 && pairArray.length === 0 && (
+        <div
+          style={{
+            background: "rgba(200,169,110,0.06)",
+            border: `1px solid ${C.gold}33`,
+            borderRadius: 8,
+            padding: "10px 14px",
+            marginBottom: 16,
+            fontSize: 13,
+            color: C.textMuted,
+            lineHeight: 1.6,
+          }}
+        >
+          These pairs were inferred from the Cast / Role Tier relational engines.
+          Relationship details (type, arc, pivot moments) may be incomplete.
         </div>
       )}
 
@@ -1580,6 +1629,30 @@ export function RelationshipNetworkLayer({
               </CharacterCard>
             );
           })}
+
+          {/* Inferred pairs from relational engines (fallback) */}
+          {inferredFromEngines.map((eng, i) => (
+            <CharacterCard key={`inferred-${i}`}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 12,
+                  flexWrap: "wrap",
+                  marginBottom: 8,
+                }}
+              >
+                <span style={{ fontWeight: 700, color: C.textPrimary, fontSize: 16 }}>
+                  {eng.a}
+                </span>
+                <span style={{ color: C.gold, fontSize: 16 }}>↔</span>
+                <span style={{ fontWeight: 700, color: C.textPrimary, fontSize: 16 }}>
+                  {eng.b}
+                </span>
+                <Pill label="inferred from Cast/Role Tier" tone="gold" />
+              </div>
+            </CharacterCard>
+          ))}
         </div>
       )}
     </LayerShell>
@@ -3013,6 +3086,7 @@ export function IdentityPronounLayer({
 export function StoryLayerRenderer({
   layerKey,
   data,
+  castData,
   sourceIntegrityEnrichmentNote,
   onSourceIntegrityEnrichmentNoteChange,
   pronounDecisions,
@@ -3020,6 +3094,7 @@ export function StoryLayerRenderer({
 }: {
   layerKey: string;
   data: Record<string, unknown> | undefined | null;
+  castData?: Record<string, unknown> | null;
   sourceIntegrityEnrichmentNote?: string;
   onSourceIntegrityEnrichmentNoteChange?: (next: string) => void;
   pronounDecisions?: PronounShiftDecision[];
@@ -3049,7 +3124,7 @@ export function StoryLayerRenderer({
         />
       );
     case "relationship_network_layer":
-      return <RelationshipNetworkLayer data={data} />;
+      return <RelationshipNetworkLayer data={data} castData={castData} />;
     case "object_symbol_layer":
       return <ObjectSymbolLayer data={data} />;
     case "location_timeline_worldstate_layer":

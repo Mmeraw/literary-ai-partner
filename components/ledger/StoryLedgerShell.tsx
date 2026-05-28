@@ -861,6 +861,7 @@ function Module1StoryLayer({
           <StoryLayerRenderer
             layerKey={activeLayer}
             data={currentData}
+            castData={storyLayers?.cast_role_tier_layer ?? null}
             sourceIntegrityEnrichmentNote={decisions.source_integrity_layer?.comment ?? ""}
             onSourceIntegrityEnrichmentNoteChange={(next) => {
               setDecisions((prev) => {
