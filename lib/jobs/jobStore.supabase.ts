@@ -347,6 +347,11 @@ export async function updateJob(
 
   if (nextStatus) {
     payload.status = nextStatus;
+    // DB trigger enforce_evaluation_jobs_status_phase_consistent requires
+    // the phase_status column to match terminal statuses (failed, complete).
+    if (nextStatus === JOB_STATUS.FAILED || nextStatus === JOB_STATUS.COMPLETE) {
+      payload.phase_status = nextStatus;
+    }
   }
 
   // Always merge progress to preserve existing fields
