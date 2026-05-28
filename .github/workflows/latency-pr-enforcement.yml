@@ -25,7 +25,7 @@ jobs:
             const pull_number = context.payload.pull_request.number;
 
             // Label-override: pr-type:<type> label wins over diff-based classification.
-            const VALID_TYPES = ["evaluation", "ui", "infra", "docs", "migration", "code"];
+            const VALID_TYPES = ["evaluation", "ui", "infra", "docs", "migration", "code", "minor"];
             const { data: prData } = await github.rest.pulls.get({
               owner, repo, pull_number,
             });
@@ -614,6 +614,13 @@ jobs:
               assert(hasNoPipelineImpact(), "Missing: No-Pipeline-Impact: <value> line");
             };
 
+            const validateMinor = () => {
+              assert(hasSection("## Summary"), "Missing: Summary section");
+              assertMeaningfulSection("## Summary");
+              assert(hasSection("## Scope"), "Missing: Scope section");
+              assert(hasSection("## Risk"), "Missing: Risk section");
+            };
+
             const VALIDATORS = {
               evaluation: validateEvaluation,
               ui: validateUi,
@@ -621,6 +628,7 @@ jobs:
               docs: validateDocs,
               migration: validateMigration,
               code: validateCode,
+              minor: validateMinor,
             };
 
             core.info(`Running ${type} validator`);
