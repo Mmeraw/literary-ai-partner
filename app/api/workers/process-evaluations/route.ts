@@ -560,7 +560,7 @@ export async function GET(request: NextRequest) {
       }, { status: 200 });
     }
     
-    // Process queued jobs
+    // Process queued jobs (kill switch runs inside processQueuedJobs)
     const workerId = buildWorkerId(traceId);
     const results = await processQueuedJobs({
       workerId,
