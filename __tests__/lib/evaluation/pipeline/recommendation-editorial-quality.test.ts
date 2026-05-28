@@ -266,7 +266,17 @@ describe("qualityGate recommendation_editorial_quality", () => {
       theme: { recommendations: [{ ...makeRecommendation("theme"), action: "Develop themes more.", expected_impact: "Stronger themes.", mechanism: "", specific_fix: "", reader_effect: "" }] },
     });
 
-    const result = runQualityGate(systemic);
+    // Pass full_manuscript scope so the editorial quality gate fires as a
+    // hard block. The scope-aware gate only blocks for multi_chapter /
+    // full_manuscript; shorter scales downgrade to warn.
+    const result = runQualityGate(systemic, undefined, undefined, undefined, {
+      inputScale: "full_manuscript",
+      wordCount: 60000,
+      chunkCount: 20,
+      scorableCount: 13,
+      confidenceCapSummary: "HIGH",
+      scopePolicyVersion: "test",
+    });
     const check = result.checks.find((c) => c.check_id === "recommendation_editorial_quality");
 
     expect(check?.passed).toBe(false);
