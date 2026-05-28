@@ -5906,8 +5906,17 @@ export async function processEvaluationJob(
           };
 
           // ── Load Pass 1 + Pass 2 chunk caches for checkpoint resume ──
+          const pass12SourceHash = createHash('sha256')
+            .update(`${String(job.id)}:${String(job.manuscript_id)}:${manuscriptChunksForPipeline?.length ?? 0}`)
+            .digest('hex');
+
           let pass1CacheMap: Map<number, SinglePassOutput> | undefined;
           let pass2CacheMap: Map<number, SinglePassOutput> | undefined;
+
+          // Seed rolling checkpoint payloads from existing cache so upserts
+          // never shrink the artifact. Every upsert writes the full merged set.
+          const pass1ChunkResults: Record<number, { result: SinglePassOutput; completed_at: string }> = {};
+          const pass2ChunkResults: Record<number, { result: SinglePassOutput; completed_at: string }> = {};
 
           try {
             const [pass1CacheRow, pass2CacheRow] = await Promise.all([
@@ -5924,21 +5933,29 @@ export async function processEvaluationJob(
                 .eq('artifact_type', 'pass2_chunk_cache_v1')
                 .maybeSingle(),
             ]);
-            if (pass1CacheRow.data?.content?.chunks) {
+
+            const pass1Content = pass1CacheRow.data?.content as { source_hash?: string; chunks?: Record<string, { result: SinglePassOutput; completed_at?: string }> } | null;
+            if (pass1Content?.chunks && pass1Content.source_hash === pass12SourceHash) {
               pass1CacheMap = new Map<number, SinglePassOutput>();
-              const chunks = pass1CacheRow.data.content.chunks as Record<string, { result: SinglePassOutput }>;
-              for (const [idx, entry] of Object.entries(chunks)) {
+              for (const [idx, entry] of Object.entries(pass1Content.chunks)) {
                 pass1CacheMap.set(Number(idx), entry.result);
+                pass1ChunkResults[Number(idx)] = { result: entry.result, completed_at: entry.completed_at ?? new Date().toISOString() };
               }
-              console.log(`[phase_2] ${jobId}: loaded pass1_chunk_cache_v1 with ${pass1CacheMap.size} cached chunks`);
+              console.log(`[phase_2] ${jobId}: loaded pass1_chunk_cache_v1 with ${pass1CacheMap.size} cached chunks (hash match)`);
+            } else if (pass1Content?.chunks) {
+              console.warn(`[phase_2] ${jobId}: pass1_chunk_cache_v1 source_hash mismatch — ignoring stale cache`);
             }
-            if (pass2CacheRow.data?.content?.chunks) {
+
+            const pass2Content = pass2CacheRow.data?.content as { source_hash?: string; chunks?: Record<string, { result: SinglePassOutput; completed_at?: string }> } | null;
+            if (pass2Content?.chunks && pass2Content.source_hash === pass12SourceHash) {
               pass2CacheMap = new Map<number, SinglePassOutput>();
-              const chunks = pass2CacheRow.data.content.chunks as Record<string, { result: SinglePassOutput }>;
-              for (const [idx, entry] of Object.entries(chunks)) {
+              for (const [idx, entry] of Object.entries(pass2Content.chunks)) {
                 pass2CacheMap.set(Number(idx), entry.result);
+                pass2ChunkResults[Number(idx)] = { result: entry.result, completed_at: entry.completed_at ?? new Date().toISOString() };
               }
-              console.log(`[phase_2] ${jobId}: loaded pass2_chunk_cache_v1 with ${pass2CacheMap.size} cached chunks`);
+              console.log(`[phase_2] ${jobId}: loaded pass2_chunk_cache_v1 with ${pass2CacheMap.size} cached chunks (hash match)`);
+            } else if (pass2Content?.chunks) {
+              console.warn(`[phase_2] ${jobId}: pass2_chunk_cache_v1 source_hash mismatch — ignoring stale cache`);
             }
           } catch (cacheLoadErr) {
             console.warn(`[phase_2] ${jobId}: chunk cache load failed (non-fatal)`,
@@ -5946,8 +5963,6 @@ export async function processEvaluationJob(
           }
 
           // ── Rolling checkpoint upsert helpers ──
-          const pass1ChunkResults: Record<number, { result: SinglePassOutput; completed_at: string }> = {};
-          const pass2ChunkResults: Record<number, { result: SinglePassOutput; completed_at: string }> = {};
           let pass1UpsertPending = 0;
           let pass2UpsertPending = 0;
           const CHECKPOINT_INTERVAL = 5;
@@ -5964,6 +5979,7 @@ export async function processEvaluationJob(
                   artifact_type: artifactType,
                   content: {
                     job_id: job.id,
+                    source_hash: pass12SourceHash,
                     chunks: chunkResults,
                     total_expected: manuscriptChunksForPipeline?.length ?? 0,
                     cached_at: new Date().toISOString(),

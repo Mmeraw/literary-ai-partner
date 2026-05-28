@@ -683,6 +683,9 @@ export async function runPerplexityChunkScorer(
   if (chunkCache && chunkCache.has(probeChunk.chunk_index)) {
     probeResult = chunkCache.get(probeChunk.chunk_index)!;
     console.log(`[PplxChunk] Probe chunk ${probeChunk.chunk_index} served from cache — skipping probe gate`);
+    if (onChunkComplete) {
+      try { await onChunkComplete(probeChunk.chunk_index, probeResult); } catch { /* fail-soft */ }
+    }
   } else {
   try {
     probeResult = await runOne(probeChunk);
