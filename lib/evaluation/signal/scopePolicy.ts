@@ -6,6 +6,8 @@ export type InputScale =
   | "light_chapter"
   | "standard_chapter"
   | "multi_chapter"
+  | "novelette"
+  | "novella"
   | "full_manuscript";
 
 export type ConfidenceCap = "LOW" | "MODERATE" | "HIGH";
@@ -15,7 +17,7 @@ export interface ScopePolicyResult {
   confidenceCap: ConfidenceCap;
 }
 
-export const SCOPE_POLICY_VERSION = "v1";
+export const SCOPE_POLICY_VERSION = "v2";
 
 const SCOPE_POLICY: Record<InputScale, Record<CriterionKey, ScopePolicyResult>> = {
   micro_excerpt: {
@@ -77,6 +79,36 @@ const SCOPE_POLICY: Record<InputScale, Record<CriterionKey, ScopePolicyResult>> 
     tone: { plan: "R", confidenceCap: "HIGH" },
     narrativeClosure: { plan: "R", confidenceCap: "MODERATE" },
     marketability: { plan: "R", confidenceCap: "MODERATE" },
+  },
+  novelette: {
+    concept: { plan: "R", confidenceCap: "HIGH" },
+    narrativeDrive: { plan: "R", confidenceCap: "HIGH" },
+    character: { plan: "R", confidenceCap: "HIGH" },
+    voice: { plan: "R", confidenceCap: "HIGH" },
+    sceneConstruction: { plan: "R", confidenceCap: "HIGH" },
+    dialogue: { plan: "R", confidenceCap: "HIGH" },
+    theme: { plan: "R", confidenceCap: "HIGH" },
+    worldbuilding: { plan: "R", confidenceCap: "HIGH" },
+    pacing: { plan: "R", confidenceCap: "HIGH" },
+    proseControl: { plan: "R", confidenceCap: "HIGH" },
+    tone: { plan: "R", confidenceCap: "HIGH" },
+    narrativeClosure: { plan: "R", confidenceCap: "HIGH" },
+    marketability: { plan: "R", confidenceCap: "MODERATE" },
+  },
+  novella: {
+    concept: { plan: "R", confidenceCap: "HIGH" },
+    narrativeDrive: { plan: "R", confidenceCap: "HIGH" },
+    character: { plan: "R", confidenceCap: "HIGH" },
+    voice: { plan: "R", confidenceCap: "HIGH" },
+    sceneConstruction: { plan: "R", confidenceCap: "HIGH" },
+    dialogue: { plan: "R", confidenceCap: "HIGH" },
+    theme: { plan: "R", confidenceCap: "HIGH" },
+    worldbuilding: { plan: "R", confidenceCap: "HIGH" },
+    pacing: { plan: "R", confidenceCap: "HIGH" },
+    proseControl: { plan: "R", confidenceCap: "HIGH" },
+    tone: { plan: "R", confidenceCap: "HIGH" },
+    narrativeClosure: { plan: "R", confidenceCap: "HIGH" },
+    marketability: { plan: "R", confidenceCap: "HIGH" },
   },
   full_manuscript: {
     concept: { plan: "R", confidenceCap: "HIGH" },

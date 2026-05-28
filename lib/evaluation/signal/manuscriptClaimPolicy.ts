@@ -29,15 +29,19 @@ const FULL_MANUSCRIPT_SCOPE_POLICY = Object.freeze(
   ) as Record<CriterionKey, CriterionClaimScope>,
 );
 
+const LONG_FORM_SCALES: ReadonlySet<InputScale> = new Set([
+  "novella", "full_manuscript",
+]);
+
 export function resolveEvaluationRoute(inputScale?: InputScale): EvaluationRoute {
-  return inputScale === "full_manuscript" ? "LONG_FORM" : "SHORT_FORM";
+  return inputScale && LONG_FORM_SCALES.has(inputScale) ? "LONG_FORM" : "SHORT_FORM";
 }
 
 export function criterionClaimScope(
   inputScale: InputScale | undefined,
   criterionKey: CriterionKey,
 ): CriterionClaimScope {
-  if (inputScale === "full_manuscript") {
+  if (inputScale && LONG_FORM_SCALES.has(inputScale)) {
     return FULL_MANUSCRIPT_SCOPE_POLICY[criterionKey];
   }
 
