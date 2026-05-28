@@ -414,25 +414,6 @@ function buildTxtReport(result: ExportableResult, title: string | null, jobId: s
     lines.push('');
   });
 
-  lines.push(sub);
-  lines.push('QUICK WINS');
-  lines.push(sub);
-  if (result.recommendations.quick_wins.length === 0) lines.push('(none)');
-  result.recommendations.quick_wins.forEach((qw, i) => {
-    lines.push(`${i + 1}. ${cleanReportText(qw.action)} [effort: ${qw.effort}, impact: ${qw.impact}]`);
-    if (qw.why) lines.push(`   Why: ${cleanReportText(qw.why)}`);
-  });
-  lines.push('');
-
-  lines.push(sub);
-  lines.push('STRATEGIC REVISIONS');
-  lines.push(sub);
-  if (result.recommendations.strategic_revisions.length === 0) lines.push('(none)');
-  result.recommendations.strategic_revisions.forEach((sr, i) => {
-    lines.push(`${i + 1}. ${cleanReportText(sr.action)} [effort: ${sr.effort}, impact: ${sr.impact}]`);
-    if (sr.why) lines.push(`   Why: ${cleanReportText(sr.why)}`);
-  });
-
   if (dream) appendDreamTxtSections(lines, dream);
 
   lines.push('');
@@ -726,61 +707,6 @@ async function buildPdfReport(result: ExportableResult, title: string | null, jo
       doc.moveDown(0.6);
       thinRule();
     });
-
-    // ── Quick Wins ────────────────────────────────────────────────────
-    section('Quick Wins');
-    if (result.recommendations.quick_wins.length === 0) {
-      paragraph('(none identified)');
-    } else {
-      result.recommendations.quick_wins.forEach((qw, idx) => {
-        ensureSpace(85);
-        doc.font('Helvetica-Bold').fontSize(10.5).fillColor(RG.textPrimary).text(
-          toPdfSafeText(`${idx + 1}. ${cleanReportText(qw.action)}`),
-          { width: contentWidth },
-        );
-        // Effort/impact pills
-        doc.font('Helvetica').fontSize(8.5).fillColor(RG.textMuted).text(
-          `Effort: ${qw.effort}  |  Impact: ${qw.impact}`,
-          { width: contentWidth },
-        );
-        if (qw.why) {
-          doc.moveDown(0.15);
-          doc.font('Helvetica').fontSize(9.5).fillColor(RG.textMuted).text(
-            toPdfSafeText(qw.why),
-            ml + 12, doc.y,
-            { width: contentWidth - 16, lineGap: 2 },
-          );
-        }
-        doc.moveDown(0.5);
-      });
-    }
-
-    // ── Strategic Revisions ───────────────────────────────────────────
-    section('Strategic Revisions');
-    if (result.recommendations.strategic_revisions.length === 0) {
-      paragraph('(none identified)');
-    } else {
-      result.recommendations.strategic_revisions.forEach((sr, idx) => {
-        ensureSpace(85);
-        doc.font('Helvetica-Bold').fontSize(10.5).fillColor(RG.textPrimary).text(
-          toPdfSafeText(`${idx + 1}. ${cleanReportText(sr.action)}`),
-          { width: contentWidth },
-        );
-        doc.font('Helvetica').fontSize(8.5).fillColor(RG.textMuted).text(
-          `Effort: ${sr.effort}  |  Impact: ${sr.impact}`,
-          { width: contentWidth },
-        );
-        if (sr.why) {
-          doc.moveDown(0.15);
-          doc.font('Helvetica').fontSize(9.5).fillColor(RG.textMuted).text(
-            toPdfSafeText(sr.why),
-            ml + 12, doc.y,
-            { width: contentWidth - 16, lineGap: 2 },
-          );
-        }
-        doc.moveDown(0.5);
-      });
-    }
 
     // ── Dream / Narrative Synthesis (longform) ────────────────────────
     if (dream) {
@@ -1163,30 +1089,6 @@ async function buildDocx(result: ExportableResult, title: string | null, jobId: 
       });
     });
   });
-
-  // ── Quick Wins ──────────────────────────────────────────────────
-  children.push(brandHeading('Quick Wins', HeadingLevel.HEADING_2));
-  if (result.recommendations.quick_wins.length === 0) {
-    children.push(bodyPara('(none identified)'));
-  } else {
-    result.recommendations.quick_wins.forEach((qw, idx) => {
-      children.push(bodyPara(`${idx + 1}. ${cleanReportText(qw.action)}`, { bold: true }));
-      children.push(bodyPara(`Effort: ${qw.effort}  |  Impact: ${qw.impact}`, { size: 18, color: RG.textMuted, spacing: 40 }));
-      if (qw.why) children.push(bodyPara(`${cleanReportText(qw.why)}`, { size: 19, color: RG.textMuted }));
-    });
-  }
-
-  // ── Strategic Revisions ─────────────────────────────────────────
-  children.push(brandHeading('Strategic Revisions', HeadingLevel.HEADING_2));
-  if (result.recommendations.strategic_revisions.length === 0) {
-    children.push(bodyPara('(none identified)'));
-  } else {
-    result.recommendations.strategic_revisions.forEach((sr, idx) => {
-      children.push(bodyPara(`${idx + 1}. ${cleanReportText(sr.action)}`, { bold: true }));
-      children.push(bodyPara(`Effort: ${sr.effort}  |  Impact: ${sr.impact}`, { size: 18, color: RG.textMuted, spacing: 40 }));
-      if (sr.why) children.push(bodyPara(`${cleanReportText(sr.why)}`, { size: 19, color: RG.textMuted }));
-    });
-  }
 
   // ── Dream / Narrative Synthesis ─────────────────────────────────
   if (dream) {
