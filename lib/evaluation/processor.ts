@@ -5128,6 +5128,7 @@ export async function processEvaluationJob(
             if (trackCStatusAfterBatch === 'DONE') {
               pass3aSelfChainFields.pass3a_status = 'done';
               pass3aSelfChainFields.pass3a_completed_at = new Date().toISOString();
+              pass3aSelfChainFields.pass3a_artifact_id = (progressState as Record<string, unknown>).pass3a_artifact_id ?? undefined;
             } else if (trackCStatusAfterBatch === 'DEGRADED') {
               pass3aSelfChainFields.pass3a_status = 'degraded';
               const batchStateForDegraded = (progressState.phase1a_batch_state as Record<string, unknown>) ?? {};
@@ -5376,24 +5377,30 @@ export async function processEvaluationJob(
             const degradedReason = preflightThrew instanceof Error ? preflightThrew.message : String(preflightThrew);
             console.warn(`[track_c] ${jobId}: Pass 3A failed (non-fatal):`, degradedReason);
             pass3aResult = null;
+            const pass3aDegradedProgress = {
+              ...progressState,
+              track_c_status: 'degraded',
+              pass3a_status: 'degraded',
+              degraded_reason: degradedReason,
+              degraded_reason_codes: ['TRACK_C_PREFLIGHT_ERROR'],
+              degraded_at: degradedAt,
+              phase1a_batch_state: {
+                ...((progressState.phase1a_batch_state as Record<string, unknown>) ?? {}),
+                preflight_status: 'DEGRADED',
+                preflight_degraded: true,
+                degraded_reason: degradedReason,
+                degraded_reason_codes: ['TRACK_C_PREFLIGHT_ERROR'],
+                degraded_at: degradedAt,
+              },
+            };
             await supabase
               .from('evaluation_jobs')
               .update({
-                progress: {
-                  ...progressState,
-                  track_c_status: 'degraded',
-                  phase1a_batch_state: {
-                    ...((progressState.phase1a_batch_state as Record<string, unknown>) ?? {}),
-                    preflight_status: 'DEGRADED',
-                    preflight_degraded: true,
-                    degraded_reason: degradedReason,
-                    degraded_reason_codes: ['TRACK_C_PREFLIGHT_ERROR'],
-                    degraded_at: degradedAt,
-                  },
-                },
+                progress: pass3aDegradedProgress,
               })
               .eq('id', jobId)
               .eq('status', JOB_STATUS.RUNNING);
+            Object.assign(progressState, pass3aDegradedProgress);
           } else {
             // Happy path — preflight completed within budget.
             pass3aResult = raceResult as Awaited<ReturnType<typeof runPass3Preflight>>;
@@ -5405,25 +5412,30 @@ export async function processEvaluationJob(
             });
 
             // Persist DONE state before proceeding.
+            const pass3aDoneProgress = {
+              ...progressState,
+              track_c_status: 'done',
+              pass3a_status: 'done',
+              pass3a_completed_at: completedAt,
+              pass3a_artifact_id: pass3aResult.artifactId,
+              phase1a_batch_state: {
+                ...((progressState.phase1a_batch_state as Record<string, unknown>) ?? {}),
+                preflight_status: 'DONE',
+              },
+              phase_log: [
+                ...((progressState.phase_log as unknown[]) ?? []),
+                { at: completedAt, event: 'track_c_completed', stage: 'pass_3a', duration_ms: pass3aResult.durationMs },
+              ],
+            };
             await supabase
               .from('evaluation_jobs')
               .update({
                 worker_pulse_at: completedAt,
-                progress: {
-                  ...progressState,
-                  track_c_status: 'done',
-                  phase1a_batch_state: {
-                    ...((progressState.phase1a_batch_state as Record<string, unknown>) ?? {}),
-                    preflight_status: 'DONE',
-                  },
-                  phase_log: [
-                    ...((progressState.phase_log as unknown[]) ?? []),
-                    { at: completedAt, event: 'track_c_completed', stage: 'pass_3a', duration_ms: pass3aResult.durationMs },
-                  ],
-                },
+                progress: pass3aDoneProgress,
               })
               .eq('id', jobId)
               .eq('status', JOB_STATUS.RUNNING);
+            Object.assign(progressState, pass3aDoneProgress);
           }
         }
 
