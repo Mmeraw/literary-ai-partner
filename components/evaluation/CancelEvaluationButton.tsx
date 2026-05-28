@@ -63,11 +63,27 @@ export function CancelEvaluationButton({
 
       {/* Modal Backdrop */}
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-          <div className="bg-white rounded-lg shadow-lg max-w-md w-full mx-4">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"
+          onClick={() => { if (!isLoading) setIsOpen(false); }}
+        >
+          <div
+            className="bg-white rounded-lg shadow-lg max-w-md w-full mx-4"
+            onClick={(e) => e.stopPropagation()}
+          >
             {/* Modal Header */}
-            <div className="px-6 py-4 border-b border-gray-200">
+            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
               <h2 className="text-lg font-semibold text-gray-900">Cancel this evaluation?</h2>
+              <button
+                onClick={() => setIsOpen(false)}
+                disabled={isLoading}
+                className="text-gray-400 hover:text-gray-600 disabled:opacity-50"
+                aria-label="Close"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                </svg>
+              </button>
             </div>
 
             {/* Modal Body */}
@@ -85,11 +101,11 @@ export function CancelEvaluationButton({
             {/* Modal Footer */}
             <div className="px-6 py-4 border-t border-gray-200 flex gap-3 justify-end">
               <button
-                onClick={() => setIsOpen(false)}
+                onClick={() => { setIsOpen(false); setError(null); }}
                 disabled={isLoading}
                 className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors disabled:opacity-50"
               >
-                Keep Running
+                {error ? 'Close' : 'Keep Running'}
               </button>
               <button
                 onClick={handleCancel}

@@ -8,6 +8,12 @@ function statusLabel(status) {
       return 'Improving'
     case 'running':
       return 'Running'
+    case 'queued':
+      return 'Queued'
+    case 'stale':
+      return 'Stalled'
+    case 'cancelled':
+      return 'Cancelled'
     case 'failed':
       return 'Failed'
     default:
@@ -16,16 +22,16 @@ function statusLabel(status) {
 }
 
 function StatusBadge({ status }) {
-  const cls =
-    status === 'market_ready'
-      ? 'rg-status rg-status--ready'
-      : status === 'near_ready'
-      ? 'rg-status rg-status--near'
-      : status === 'running'
-      ? 'rg-status rg-status--running'
-      : status === 'failed'
-      ? 'rg-status rg-status--failed'
-      : 'rg-status rg-status--improving'
+  const classMap = {
+    market_ready: 'rg-status rg-status--ready',
+    near_ready: 'rg-status rg-status--near',
+    running: 'rg-status rg-status--running',
+    queued: 'rg-status rg-status--queued',
+    stale: 'rg-status rg-status--stale',
+    cancelled: 'rg-status rg-status--cancelled',
+    failed: 'rg-status rg-status--failed',
+  }
+  const cls = classMap[status] || 'rg-status rg-status--improving'
 
   return <span className={cls}>{statusLabel(status)}</span>
 }
@@ -53,7 +59,7 @@ function agentReadinessHref(row) {
 }
 
 function isAgentReadinessEligible(row) {
-  return row.status !== 'running' && row.status !== 'failed'
+  return row.status !== 'running' && row.status !== 'queued' && row.status !== 'stale' && row.status !== 'cancelled' && row.status !== 'failed'
 }
 
 export default function EvaluationHistoryTable({ rows }) {
@@ -95,9 +101,9 @@ export default function EvaluationHistoryTable({ rows }) {
                 </td>
                 <td data-label="Open">
                   <a className="rg-history-open" href={row.reportHref}>
-                    {row.status === 'running'
+                    {row.status === 'running' || row.status === 'queued'
                       ? 'View progress'
-                      : row.status === 'failed'
+                      : row.status === 'failed' || row.status === 'stale' || row.status === 'cancelled'
                       ? 'View details'
                       : 'Open report'}
                   </a>
