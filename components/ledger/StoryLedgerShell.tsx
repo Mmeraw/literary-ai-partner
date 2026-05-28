@@ -995,90 +995,165 @@ function Module1StoryLayer({
                 </div>
               ) : (
                 <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                  {/* Looks right */}
-                  <button
-                    onClick={() => handleDecisionButton(activeLayer, "approved")}
-                    style={{
-                      padding: "10px 18px",
-                      borderRadius: 9,
-                      border:
-                        currentDecision.status === "approved" ||
-                        currentDecision.status === "approved_with_comment"
-                          ? `2px solid ${P.green}`
-                          : `1px solid ${P.border}`,
-                      background:
-                        currentDecision.status === "approved" ||
-                        currentDecision.status === "approved_with_comment"
-                          ? "rgba(52,168,83,0.14)"
-                          : "transparent",
-                      color: P.green,
-                      fontSize: 13,
-                      fontWeight: 600,
-                      cursor: "pointer",
-                    }}
-                  >
-                    ✓ Looks right
-                  </button>
-                  {/* Looks right — with note */}
-                  <button
-                    onClick={() =>
-                      handleDecisionButton(activeLayer, "approved_with_comment")
-                    }
-                    style={{
-                      padding: "10px 18px",
-                      borderRadius: 9,
-                      border: `1px solid ${P.border}`,
-                      background: "transparent",
-                      color: P.green,
-                      fontSize: 13,
-                      fontWeight: 600,
-                      cursor: "pointer",
-                    }}
-                  >
-                    ✓ Looks right — with note
-                  </button>
-                  {/* This is wrong */}
-                  <button
-                    onClick={() => handleDecisionButton(activeLayer, "rejected")}
-                    style={{
-                      padding: "10px 18px",
-                      borderRadius: 9,
-                      border:
-                        currentDecision.status === "rejected" ||
-                        currentDecision.status === "rejected_with_comment"
-                          ? "2px solid #D07070"
-                          : `1px solid ${P.border}`,
-                      background:
-                        currentDecision.status === "rejected" ||
-                        currentDecision.status === "rejected_with_comment"
-                          ? "rgba(208,112,112,0.14)"
-                          : "transparent",
-                      color: "#D07070",
-                      fontSize: 13,
-                      fontWeight: 600,
-                      cursor: "pointer",
-                    }}
-                  >
-                    ✗ This is wrong
-                  </button>
-                  {/* This is wrong — explain */}
-                  <button
-                    onClick={() =>
-                      handleDecisionButton(activeLayer, "rejected_with_comment")
-                    }
-                    style={{
-                      padding: "10px 18px",
-                      borderRadius: 9,
-                      border: `1px solid ${P.border}`,
-                      background: "transparent",
-                      color: "#D07070",
-                      fontSize: 13,
-                      fontWeight: 600,
-                      cursor: "pointer",
-                    }}
-                  >
-                    ✗ This is wrong — explain
-                  </button>
+                  {activeLayer === "source_integrity_layer" ? (
+                    <>
+                      {/* No additional context */}
+                      <button
+                        onClick={() => handleDecisionButton(activeLayer, "approved")}
+                        style={{
+                          padding: "10px 18px",
+                          borderRadius: 9,
+                          border:
+                            currentDecision.status === "approved" ||
+                            currentDecision.status === "approved_with_comment"
+                              ? `2px solid ${P.green}`
+                              : `1px solid ${P.border}`,
+                          background:
+                            currentDecision.status === "approved" ||
+                            currentDecision.status === "approved_with_comment"
+                              ? "rgba(52,168,83,0.14)"
+                              : "transparent",
+                          color: P.green,
+                          fontSize: 13,
+                          fontWeight: 600,
+                          cursor: "pointer",
+                        }}
+                      >
+                        ✓ No additional context
+                      </button>
+                      {/* Save author context */}
+                      <button
+                        onClick={() =>
+                          handleDecisionButton(activeLayer, "approved_with_comment")
+                        }
+                        style={{
+                          padding: "10px 18px",
+                          borderRadius: 9,
+                          border: `1px solid ${P.border}`,
+                          background: "transparent",
+                          color: P.green,
+                          fontSize: 13,
+                          fontWeight: 600,
+                          cursor: "pointer",
+                        }}
+                      >
+                        ✓ Save author context
+                      </button>
+                      {/* Flag source problem */}
+                      <button
+                        onClick={() =>
+                          handleDecisionButton(activeLayer, "rejected_with_comment")
+                        }
+                        style={{
+                          padding: "10px 18px",
+                          borderRadius: 9,
+                          border:
+                            currentDecision.status === "rejected" ||
+                            currentDecision.status === "rejected_with_comment"
+                              ? "2px solid #D07070"
+                              : `1px solid ${P.border}`,
+                          background:
+                            currentDecision.status === "rejected" ||
+                            currentDecision.status === "rejected_with_comment"
+                              ? "rgba(208,112,112,0.14)"
+                              : "transparent",
+                          color: "#D07070",
+                          fontSize: 13,
+                          fontWeight: 600,
+                          cursor: "pointer",
+                        }}
+                      >
+                        ✗ Flag source problem
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      {/* Looks right */}
+                      <button
+                        onClick={() => handleDecisionButton(activeLayer, "approved")}
+                        style={{
+                          padding: "10px 18px",
+                          borderRadius: 9,
+                          border:
+                            currentDecision.status === "approved" ||
+                            currentDecision.status === "approved_with_comment"
+                              ? `2px solid ${P.green}`
+                              : `1px solid ${P.border}`,
+                          background:
+                            currentDecision.status === "approved" ||
+                            currentDecision.status === "approved_with_comment"
+                              ? "rgba(52,168,83,0.14)"
+                              : "transparent",
+                          color: P.green,
+                          fontSize: 13,
+                          fontWeight: 600,
+                          cursor: "pointer",
+                        }}
+                      >
+                        ✓ Looks right
+                      </button>
+                      {/* Looks right — with note */}
+                      <button
+                        onClick={() =>
+                          handleDecisionButton(activeLayer, "approved_with_comment")
+                        }
+                        style={{
+                          padding: "10px 18px",
+                          borderRadius: 9,
+                          border: `1px solid ${P.border}`,
+                          background: "transparent",
+                          color: P.green,
+                          fontSize: 13,
+                          fontWeight: 600,
+                          cursor: "pointer",
+                        }}
+                      >
+                        ✓ Looks right — with note
+                      </button>
+                      {/* This is wrong */}
+                      <button
+                        onClick={() => handleDecisionButton(activeLayer, "rejected")}
+                        style={{
+                          padding: "10px 18px",
+                          borderRadius: 9,
+                          border:
+                            currentDecision.status === "rejected" ||
+                            currentDecision.status === "rejected_with_comment"
+                              ? "2px solid #D07070"
+                              : `1px solid ${P.border}`,
+                          background:
+                            currentDecision.status === "rejected" ||
+                            currentDecision.status === "rejected_with_comment"
+                              ? "rgba(208,112,112,0.14)"
+                              : "transparent",
+                          color: "#D07070",
+                          fontSize: 13,
+                          fontWeight: 600,
+                          cursor: "pointer",
+                        }}
+                      >
+                        ✗ This is wrong
+                      </button>
+                      {/* This is wrong — explain */}
+                      <button
+                        onClick={() =>
+                          handleDecisionButton(activeLayer, "rejected_with_comment")
+                        }
+                        style={{
+                          padding: "10px 18px",
+                          borderRadius: 9,
+                          border: `1px solid ${P.border}`,
+                          background: "transparent",
+                          color: "#D07070",
+                          fontSize: 13,
+                          fontWeight: 600,
+                          cursor: "pointer",
+                        }}
+                      >
+                        ✗ This is wrong — explain
+                      </button>
+                    </>
+                  )}
                 </div>
               )}
             </Card>

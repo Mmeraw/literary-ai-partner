@@ -97,7 +97,7 @@ const SOURCE_INTERNAL_FIELDS = new Set([
 // ─── Author-facing layer descriptions (permanent, locked) ───────────────────
 const LAYER_DESCRIPTIONS: Record<string, string> = {
   source_integrity_layer:
-    "What peculiarities does your novel have that the RevisionGrade Governance System and Literary-AI Partners might not pick up, but are highly relevant to the story. Sharing this will allow for greater fidelity in the evaluation and revision processes.",
+    "System extraction health and author guidance. Review the extraction status below, then tell RevisionGrade anything intentional that should not be treated as an error.",
   pov_structure_layer:
     "Whose eyes does the reader see through, and when? Maps the narrative cameras, voice ownership, and any perspective shifts across your story.",
   canonical_identity_layer:
@@ -581,62 +581,76 @@ export function SourceIntegrityLayer({
         description={LAYER_DESCRIPTIONS.source_integrity_layer}
       />
 
-      {/* Author enrichment note — primary interaction */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 18 }}>
-        <SubHeading>Author Enrichment Context</SubHeading>
-        <textarea
-          value={enrichmentNote ?? ""}
-          onChange={(e) => onEnrichmentNoteChange?.(e.target.value)}
-          placeholder="e.g. The protagonist is gender-ambiguous intentionally. The timeline is non-linear by design. Dialect is authentic and should not be 'corrected'..."
-          rows={5}
-          style={{
-            width: "100%",
-            background: C.surfaceAlt,
-            border: `1px solid ${C.border}`,
-            borderRadius: 10,
-            padding: "12px 14px",
-            fontSize: 15,
-            color: C.textPrimary,
-            resize: "vertical" as const,
-            fontFamily: "inherit",
-            lineHeight: 1.7,
-            outline: "none",
-            boxSizing: "border-box" as const,
-            minHeight: 120,
-          }}
-        />
-        <p style={{ margin: 0, fontSize: 12, color: C.textMuted, lineHeight: 1.6 }}>
-          What you write here is injected into Phase 2 as <strong>Author Enrichment Context</strong>.
-          The four decision buttons below confirm this enrichment note — they are not auditing machine output.
-        </p>
-      </div>
-
-      {/* Secondary metadata — status badge + hard-fail + chunk count */}
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center", marginBottom: 10 }}>
-        {integrityStatus && (
-          <Pill
-            label={`Source: ${integrityStatus}`}
-            tone={isClean ? "green" : isHardFail ? "oxblood" : isDegraded ? "gold" : "neutral"}
-          />
-        )}
-        {hardFailPresent && <Pill label="Hard failure" tone="oxblood" />}
-        {emptyLayerWarnings.length > 0 && (
-          <Pill label={`${emptyLayerWarnings.length} empty layer warning${emptyLayerWarnings.length === 1 ? "" : "s"}`} tone="gold" />
-        )}
-        {totalChunks !== null && (
-          <Pill label={`${totalChunks} section${totalChunks === 1 ? "" : "s"} processed`} tone="neutral" />
-        )}
-      </div>
-
-      {/* Empty layer warnings */}
-      {emptyLayerWarnings.length > 0 && (
-        <div style={{ marginTop: 12 }}>
-          <SubHeading>Layer Completeness Warnings</SubHeading>
-          {emptyLayerWarnings.map((w) => (
-            <WarnBanner key={w.code} reason={w.message} />
-          ))}
+      {/* ── Section 1: System Source Check (read-only) ── */}
+      <SubHeading>System Source Check</SubHeading>
+      <div
+        style={{
+          background: C.surfaceAlt,
+          border: `1px solid ${C.border}`,
+          borderRadius: 10,
+          padding: "14px 18px",
+          marginBottom: 20,
+        }}
+      >
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center", marginBottom: emptyLayerWarnings.length > 0 ? 14 : 0 }}>
+          {integrityStatus && (
+            <Pill
+              label={`Manuscript ingestion: ${integrityStatus}`}
+              tone={isClean ? "green" : isHardFail ? "oxblood" : isDegraded ? "gold" : "neutral"}
+            />
+          )}
+          {hardFailPresent && <Pill label="Hard failure" tone="oxblood" />}
+          {totalChunks !== null && (
+            <Pill label={`${totalChunks} section${totalChunks === 1 ? "" : "s"} processed`} tone="neutral" />
+          )}
+          {emptyLayerWarnings.length > 0 ? (
+            <Pill label={`${emptyLayerWarnings.length} empty layer warning${emptyLayerWarnings.length === 1 ? "" : "s"}`} tone="gold" />
+          ) : (
+            <Pill label="0 warnings" tone="green" />
+          )}
         </div>
-      )}
+
+        {emptyLayerWarnings.length > 0 && (
+          <div style={{ marginTop: 8 }}>
+            {emptyLayerWarnings.map((w) => (
+              <WarnBanner key={w.code} reason={w.message} />
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* ── Section 2: Author Context ── */}
+      <SubHeading>Author Context</SubHeading>
+      <p style={{ margin: "0 0 10px", fontSize: 14, color: C.textMuted, lineHeight: 1.65 }}>
+        Tell RevisionGrade anything intentional that should not be treated as an error:
+        non-linear timeline, dialect, ambiguous identity, withheld names, symbolic pronouns,
+        dream logic, fragmented structure, invented language, or culturally specific references.
+      </p>
+      <textarea
+        value={enrichmentNote ?? ""}
+        onChange={(e) => onEnrichmentNoteChange?.(e.target.value)}
+        placeholder="e.g. The protagonist's gender ambiguity is intentional. The timeline is non-linear by design. Dialect is authentic and should not be 'corrected'. The river is personified as 'she' but is not a human character."
+        rows={5}
+        style={{
+          width: "100%",
+          background: C.surfaceAlt,
+          border: `1px solid ${C.border}`,
+          borderRadius: 10,
+          padding: "12px 14px",
+          fontSize: 15,
+          color: C.textPrimary,
+          resize: "vertical" as const,
+          fontFamily: "inherit",
+          lineHeight: 1.7,
+          outline: "none",
+          boxSizing: "border-box" as const,
+          minHeight: 120,
+        }}
+      />
+      <p style={{ margin: "8px 0 0", fontSize: 12, color: C.textMuted, lineHeight: 1.6 }}>
+        What you write here is injected into Phase 2 as <strong>Author Enrichment Context</strong>.
+        Use the buttons below to save your context or skip if none is needed.
+      </p>
     </LayerShell>
   );
 }
@@ -751,6 +765,287 @@ export function PovStructureLayer({
 
 // ─── Layer 3 — Canonical Identity ────────────────────────────────────────────
 
+// Tier classification for identity cards
+type IdentityTier =
+  | "core_cast"
+  | "named_secondary"
+  | "symbolic_collective"
+  | "background"
+  | "needs_confirmation";
+
+const TIER_LABELS: Record<IdentityTier, string> = {
+  core_cast: "Core Cast",
+  named_secondary: "Named Secondary",
+  symbolic_collective: "Symbolic / Collective Forces",
+  background: "Background / One-off",
+  needs_confirmation: "Needs Confirmation",
+};
+
+const TIER_ORDER: IdentityTier[] = [
+  "needs_confirmation",
+  "core_cast",
+  "named_secondary",
+  "symbolic_collective",
+  "background",
+];
+
+function classifyIdentityTier(id: Record<string, unknown>): IdentityTier {
+  const role = String(id.role ?? id.narrative_role ?? "").toLowerCase();
+  const importance = String(id.importance_level ?? "").toLowerCase();
+  const contradictions = id.contradictions as unknown[] | null;
+  const hasContradictions = Array.isArray(contradictions) && contradictions.length > 0;
+  const finalStatus = String(id.final_status ?? id.post_resolution_name_states ?? "");
+  const isUnresolved = finalStatus.toLowerCase() === "unresolved" && hasContradictions;
+
+  if (isUnresolved || hasContradictions) return "needs_confirmation";
+
+  if (
+    role === "protagonist" || role === "co_protagonist" || role === "antagonist" ||
+    importance === "primary"
+  ) return "core_cast";
+
+  if (
+    role === "symbolic_force" || role === "collective_force" || role === "animal_companion"
+  ) return "symbolic_collective";
+
+  if (
+    role === "mentor" || role === "foil" || role === "secondary" ||
+    importance === "major" || importance === "supporting"
+  ) return "named_secondary";
+
+  if (importance === "minor" || importance === "background") return "background";
+
+  // Default: if the role looks like a named character, secondary; otherwise background
+  if (role === "unknown" || !role) return "background";
+  return "named_secondary";
+}
+
+function formatResolutionStatus(id: Record<string, unknown>): {
+  label: string;
+  value: string;
+  tone: "neutral" | "gold" | "warn";
+} {
+  const postRes = id.post_resolution_name_states;
+  const finalStatus = String(id.final_status ?? "");
+  const canonicalName = String(id.canonical_name ?? id.name ?? "");
+
+  if (typeof postRes === "string" && postRes.toLowerCase() !== "unresolved" && postRes) {
+    return { label: "Resolved as", value: postRes, tone: "gold" };
+  }
+
+  if (finalStatus && finalStatus.toLowerCase() !== "unresolved") {
+    return { label: "Resolved as", value: canonicalName || finalStatus, tone: "gold" };
+  }
+
+  const contradictions = id.contradictions as unknown[] | null;
+  if (Array.isArray(contradictions) && contradictions.length > 0) {
+    return { label: "Resolution status", value: "Needs author confirmation", tone: "warn" };
+  }
+
+  return { label: "Resolution status", value: "No rename detected", tone: "neutral" };
+}
+
+function IdentityCard({ id, index }: { id: Record<string, unknown>; index: number }) {
+  const name = String(id.canonical_name ?? id.name ?? `Character ${index + 1}`);
+  const aliases = id.aliases as string[] | null;
+  const pronouns = id.pronouns;
+  const role = id.role;
+  const legalNames = id.legal_name_states;
+  const captivityNames = id.captivity_name_states;
+  const anchors = id.evidence_anchors as string[] | null;
+  const resolution = formatResolutionStatus(id);
+
+  return (
+    <CharacterCard>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          flexWrap: "wrap",
+          gap: 10,
+          marginBottom: 12,
+        }}
+      >
+        <h4
+          style={{
+            margin: 0,
+            fontSize: 18,
+            fontWeight: 700,
+            color: C.textPrimary,
+            letterSpacing: "-0.01em",
+          }}
+        >
+          {name}
+        </h4>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {role && (
+            <Pill
+              label={String(role)}
+              tone={
+                String(role).includes("protagonist")
+                  ? "gold"
+                  : String(role).includes("antagonist")
+                    ? "oxblood"
+                    : "neutral"
+              }
+            />
+          )}
+          {pronouns && <Pill label={String(pronouns)} tone="blue" />}
+        </div>
+      </div>
+
+      {aliases && aliases.length > 0 && (
+        <div style={{ marginBottom: 12 }}>
+          <p
+            style={{
+              margin: "0 0 8px",
+              fontSize: 11,
+              fontWeight: 700,
+              letterSpacing: "0.07em",
+              textTransform: "uppercase" as const,
+              color: C.textMuted,
+            }}
+          >
+            Aliases &amp; Name States
+          </p>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {aliases.map((a, j) => (
+              <Pill key={j} label={a} tone="neutral" />
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div>
+        {legalNames && (
+          <FieldRow label="Legal name states" value={legalNames} />
+        )}
+        {captivityNames && (
+          <FieldRow label="Captivity name states" value={captivityNames} />
+        )}
+        <FieldRow
+          label={resolution.label}
+          value={resolution.value}
+        />
+      </div>
+
+      {anchors && anchors.length > 0 && (
+        <div style={{ marginTop: 12, display: "flex", gap: 6, flexWrap: "wrap" }}>
+          {anchors.map((a, j) => (
+            <EvidenceTag key={j} id={a} />
+          ))}
+        </div>
+      )}
+    </CharacterCard>
+  );
+}
+
+function CompactIdentityRow({ id, index }: { id: Record<string, unknown>; index: number }) {
+  const name = String(id.canonical_name ?? id.name ?? `Entity ${index + 1}`);
+  const role = id.role;
+  const aliases = id.aliases as string[] | null;
+  const aliasCount = aliases?.length ?? 0;
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 10,
+        padding: "8px 14px",
+        background: C.surfaceAlt,
+        border: `1px solid ${C.border}`,
+        borderRadius: 8,
+      }}
+    >
+      <span style={{ fontSize: 14, fontWeight: 600, color: C.textPrimary, flex: 1, minWidth: 0 }}>
+        {name}
+      </span>
+      {role && <Pill label={String(role)} tone="neutral" />}
+      {aliasCount > 0 && (
+        <span style={{ fontSize: 11, color: C.textMuted }}>
+          {aliasCount} alias{aliasCount !== 1 ? "es" : ""}
+        </span>
+      )}
+    </div>
+  );
+}
+
+function TierSection({
+  tier,
+  identities,
+  defaultExpanded,
+  compact,
+}: {
+  tier: IdentityTier;
+  identities: Record<string, unknown>[];
+  defaultExpanded: boolean;
+  compact?: boolean;
+}) {
+  const [expanded, setExpanded] = React.useState(defaultExpanded);
+  const count = identities.length;
+  if (count === 0) return null;
+
+  const tierColor = tier === "needs_confirmation" ? "#E6A23C"
+    : tier === "core_cast" ? C.gold
+    : C.textMuted;
+
+  return (
+    <div style={{ marginBottom: 8 }}>
+      <button
+        type="button"
+        onClick={() => setExpanded((v) => !v)}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+          width: "100%",
+          padding: "10px 14px",
+          background: expanded ? C.surfaceAlt : "transparent",
+          border: `1px solid ${expanded ? C.borderStrong : C.border}`,
+          borderRadius: 10,
+          cursor: "pointer",
+          textAlign: "left" as const,
+        }}
+      >
+        <span style={{ fontSize: 14, color: tierColor, transform: expanded ? "rotate(90deg)" : "rotate(0deg)", transition: "transform 0.15s" }}>
+          ▸
+        </span>
+        <span style={{ fontSize: 13, fontWeight: 700, color: tierColor, letterSpacing: "0.04em", textTransform: "uppercase" as const }}>
+          {TIER_LABELS[tier]}
+        </span>
+        <span style={{
+          fontSize: 11,
+          fontWeight: 700,
+          color: tierColor,
+          background: tier === "needs_confirmation" ? C.warnLight
+            : tier === "core_cast" ? C.goldLight
+            : "rgba(255,255,255,0.06)",
+          padding: "2px 8px",
+          borderRadius: 6,
+        }}>
+          {count}
+        </span>
+        {!expanded && (
+          <span style={{ fontSize: 12, color: C.textFaint, marginLeft: "auto" }}>
+            {identities.slice(0, 4).map((id) => String(id.canonical_name ?? id.name ?? "")).filter(Boolean).join(", ")}
+            {count > 4 ? `, +${count - 4} more` : ""}
+          </span>
+        )}
+      </button>
+      {expanded && (
+        <div style={{ display: "flex", flexDirection: "column", gap: compact ? 6 : 14, marginTop: 10, paddingLeft: 12 }}>
+          {identities.map((id, i) =>
+            compact
+              ? <CompactIdentityRow key={i} id={id} index={i} />
+              : <IdentityCard key={i} id={id} index={i} />
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function CanonicalIdentityLayer({
   data,
 }: {
@@ -822,6 +1117,23 @@ export function CanonicalIdentityLayer({
     );
   }
 
+  // Group identities by tier
+  const tierGroups: Record<IdentityTier, Record<string, unknown>[]> = {
+    core_cast: [],
+    named_secondary: [],
+    symbolic_collective: [],
+    background: [],
+    needs_confirmation: [],
+  };
+  for (const id of identities) {
+    tierGroups[classifyIdentityTier(id)].push(id);
+  }
+
+  // Count non-empty tiers for the summary
+  const tierCounts = TIER_ORDER
+    .map((t) => ({ tier: t, count: tierGroups[t].length }))
+    .filter((t) => t.count > 0);
+
   return (
     <LayerShell>
       <LayerTitle
@@ -832,100 +1144,43 @@ export function CanonicalIdentityLayer({
         badgeTone="gold"
       />
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-        {identities.map((id, i) => {
-          const name = String(id.canonical_name ?? id.name ?? `Character ${i + 1}`);
-          const aliases = id.aliases as string[] | null;
-          const pronouns = id.pronouns;
-          const role = id.role;
-          const legalNames = id.legal_name_states;
-          const captivityNames = id.captivity_name_states;
-          const postResolutionNames = id.post_resolution_name_states;
-          const anchors = id.evidence_anchors as string[] | null;
+      {/* Summary bar */}
+      <div style={{
+        display: "flex",
+        flexWrap: "wrap",
+        gap: 12,
+        marginBottom: 16,
+        padding: "10px 14px",
+        background: C.surfaceAlt,
+        border: `1px solid ${C.border}`,
+        borderRadius: 8,
+      }}>
+        {tierCounts.map(({ tier, count }) => (
+          <span key={tier} style={{ fontSize: 12, color: C.textMuted }}>
+            <span style={{
+              fontWeight: 700,
+              color: tier === "needs_confirmation" ? "#E6A23C"
+                : tier === "core_cast" ? C.gold
+                : C.textPrimary,
+            }}>
+              {count}
+            </span>
+            {" "}{TIER_LABELS[tier].toLowerCase()}
+          </span>
+        ))}
+      </div>
 
-          return (
-            <CharacterCard key={i}>
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  flexWrap: "wrap",
-                  gap: 10,
-                  marginBottom: 12,
-                }}
-              >
-                <h4
-                  style={{
-                    margin: 0,
-                    fontSize: 18,
-                    fontWeight: 700,
-                    color: C.textPrimary,
-                    letterSpacing: "-0.01em",
-                  }}
-                >
-                  {name}
-                </h4>
-                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                  {role && (
-                    <Pill
-                      label={String(role)}
-                      tone={
-                        String(role).includes("protagonist")
-                          ? "gold"
-                          : String(role).includes("antagonist")
-                            ? "oxblood"
-                            : "neutral"
-                      }
-                    />
-                  )}
-                  {pronouns && <Pill label={String(pronouns)} tone="blue" />}
-                </div>
-              </div>
-
-              {aliases && aliases.length > 0 && (
-                <div style={{ marginBottom: 12 }}>
-                  <p
-                    style={{
-                      margin: "0 0 8px",
-                      fontSize: 11,
-                      fontWeight: 700,
-                      letterSpacing: "0.07em",
-                      textTransform: "uppercase" as const,
-                      color: C.textMuted,
-                    }}
-                  >
-                    Aliases &amp; Name States
-                  </p>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                    {aliases.map((a, j) => (
-                      <Pill key={j} label={a} tone="neutral" />
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              <div>
-                {legalNames && (
-                  <FieldRow label="Legal name states" value={legalNames} />
-                )}
-                {captivityNames && (
-                  <FieldRow label="Captivity name states" value={captivityNames} />
-                )}
-                {postResolutionNames && (
-                  <FieldRow label="Post-resolution names" value={postResolutionNames} />
-                )}
-              </div>
-
-              {anchors && anchors.length > 0 && (
-                <div style={{ marginTop: 12, display: "flex", gap: 6, flexWrap: "wrap" }}>
-                  {anchors.map((a, j) => (
-                    <EvidenceTag key={j} id={a} />
-                  ))}
-                </div>
-              )}
-            </CharacterCard>
-          );
-        })}
+      {/* Tier sections */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        {TIER_ORDER.map((tier) => (
+          <TierSection
+            key={tier}
+            tier={tier}
+            identities={tierGroups[tier]}
+            defaultExpanded={tier === "core_cast" || tier === "needs_confirmation"}
+            compact={tier === "background" || tier === "symbolic_collective"}
+          />
+        ))}
       </div>
     </LayerShell>
   );
@@ -1217,11 +1472,23 @@ export function RelationshipNetworkLayer({
             const a = String(pair.character_a ?? pair.from ?? pair.a ?? "—");
             const b = String(pair.character_b ?? pair.to ?? pair.b ?? "—");
             const types = pair.relationship_type ?? pair.type;
+            const typeStart = pair.relationship_type_start;
+            const typeEnd = pair.relationship_type_end;
             const typeArr: string[] = Array.isArray(types)
               ? (types as string[])
               : types
                 ? [String(types)]
                 : [];
+            // Fall back to start/end fields from pipeline when relationship_type is absent
+            if (typeArr.length === 0 && (typeStart || typeEnd)) {
+              const startStr = typeStart ? String(typeStart) : "";
+              const endStr = typeEnd ? String(typeEnd) : "";
+              if (startStr && endStr && startStr !== endStr) {
+                typeArr.push(`${startStr} → ${endStr}`);
+              } else {
+                typeArr.push(startStr || endStr);
+              }
+            }
             const evidenceAnchors = pair.evidence_anchors as string[] | null;
 
             return (
@@ -1294,6 +1561,287 @@ export function RelationshipNetworkLayer({
 
 // ─── Layer 6 — Object / Symbol ────────────────────────────────────────────────
 
+type ObjectTier = "key_evidence" | "symbolic_motif" | "scene_prop" | "background";
+
+const OBJ_TIER_LABELS: Record<ObjectTier, string> = {
+  key_evidence: "Key Evidence",
+  symbolic_motif: "Symbolic / Motif",
+  scene_prop: "Scene Props",
+  background: "Background",
+};
+
+const OBJ_TIER_ORDER: ObjectTier[] = [
+  "key_evidence",
+  "symbolic_motif",
+  "scene_prop",
+  "background",
+];
+
+function classifyObjectTier(
+  item: Record<string, unknown>,
+  narrativeFunction: string | null,
+): ObjectTier {
+  const critical = item.missed_if_absent_from_report === true;
+  const transfers = Array.isArray(item.transfer_events) ? item.transfer_events : [];
+  const payoff = item.payoff_description ? String(item.payoff_description) : null;
+  const fn = (narrativeFunction ?? "").toLowerCase();
+
+  if (critical || transfers.length > 0 || payoff) return "key_evidence";
+
+  const evidenceKeywords = [
+    "evidence", "investigation", "document", "letter", "shareholder",
+    "corporate", "institutional", "conflict", "mystery", "contrast",
+    "official", "fleet", "numbering",
+  ];
+  const symbolicKeywords = [
+    "symbol", "metaphor", "motif", "teaching", "authority", "rootedness",
+    "marker", "cultural", "tradition", "ritual", "memory", "listening",
+    "respecting", "power",
+  ];
+
+  if (evidenceKeywords.some((kw) => fn.includes(kw))) return "key_evidence";
+  if (symbolicKeywords.some((kw) => fn.includes(kw))) return "symbolic_motif";
+
+  const name = String(item.object_name ?? item.name ?? "").toLowerCase();
+  const propKeywords = ["tool", "wrench", "truck", "roll", "tube", "strap"];
+  if (propKeywords.some((kw) => name.includes(kw))) return "scene_prop";
+
+  if (!fn) return "background";
+  return "scene_prop";
+}
+
+function ObjectCard({
+  item,
+  index,
+  narrativeFunction,
+}: {
+  item: Record<string, unknown>;
+  index: number;
+  narrativeFunction: string | null;
+}) {
+  const name = String(item.object_name ?? item.name ?? `Object ${index + 1}`);
+  const holder = item.current_holder ? String(item.current_holder) : null;
+  const attachedChars = Array.isArray(item.attached_characters)
+    ? (item.attached_characters as unknown[]).map((c) => String(c)).filter((c) => c !== holder)
+    : [];
+  const transfers = Array.isArray(item.transfer_events) ? (item.transfer_events as unknown[]) : [];
+  const payoff = item.payoff_description ? String(item.payoff_description) : null;
+  const critical = item.missed_if_absent_from_report === true;
+
+  return (
+    <CharacterCard>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "flex-start",
+          flexWrap: "wrap",
+          gap: 8,
+          marginBottom: narrativeFunction ? 8 : 12,
+        }}
+      >
+        <span
+          style={{
+            fontWeight: 700,
+            color: C.textPrimary,
+            fontSize: 16,
+            letterSpacing: "-0.01em",
+          }}
+        >
+          {name}
+        </span>
+        {critical && <Pill label="Story-critical" tone="warn" />}
+      </div>
+
+      {narrativeFunction && (
+        <p
+          style={{
+            margin: "0 0 12px",
+            fontSize: 14,
+            color: C.textMuted,
+            fontStyle: "italic",
+            lineHeight: 1.65,
+          }}
+        >
+          {narrativeFunction}
+        </p>
+      )}
+
+      {(holder || attachedChars.length > 0) && (
+        <div
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            gap: 8,
+            alignItems: "center",
+            marginBottom: 8,
+          }}
+        >
+          <span
+            style={{
+              fontSize: 12,
+              color: C.textMuted,
+              fontWeight: 600,
+              letterSpacing: "0.04em",
+            }}
+          >
+            Held by
+          </span>
+          {holder && <Pill label={holder} tone="neutral" />}
+          {attachedChars.map((c, j) => (
+            <Pill key={j} label={c} tone="neutral" />
+          ))}
+        </div>
+      )}
+
+      {payoff && (
+        <p style={{ margin: "8px 0 0", fontSize: 14, color: C.textMuted, lineHeight: 1.65 }}>
+          <span style={{ fontWeight: 600, color: C.textPrimary }}>Payoff: </span>
+          {payoff}
+        </p>
+      )}
+
+      {transfers.length > 0 && (
+        <div style={{ marginTop: 8 }}>
+          <span
+            style={{
+              fontSize: 12,
+              color: C.textMuted,
+              fontWeight: 600,
+              letterSpacing: "0.04em",
+            }}
+          >
+            Changed hands
+          </span>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 4 }}>
+            {transfers.map((t, j) => (
+              <Pill
+                key={j}
+                label={typeof t === "object" ? JSON.stringify(t) : String(t)}
+                tone="neutral"
+              />
+            ))}
+          </div>
+        </div>
+      )}
+    </CharacterCard>
+  );
+}
+
+function CompactObjectRow({
+  item,
+  index,
+}: {
+  item: Record<string, unknown>;
+  index: number;
+}) {
+  const name = String(item.object_name ?? item.name ?? `Object ${index + 1}`);
+  const holder = item.current_holder ? String(item.current_holder) : null;
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 10,
+        padding: "8px 14px",
+        background: C.surfaceAlt,
+        border: `1px solid ${C.border}`,
+        borderRadius: 8,
+        fontSize: 14,
+      }}
+    >
+      <span style={{ fontWeight: 600, color: C.textPrimary, flex: 1 }}>{name}</span>
+      {holder && <Pill label={holder} tone="neutral" />}
+    </div>
+  );
+}
+
+function ObjectTierSection({
+  tier,
+  objects,
+  functionByName,
+  defaultExpanded,
+  compact,
+}: {
+  tier: ObjectTier;
+  objects: Record<string, unknown>[];
+  functionByName: Record<string, string>;
+  defaultExpanded: boolean;
+  compact?: boolean;
+}) {
+  const [expanded, setExpanded] = React.useState(defaultExpanded);
+  const label = OBJ_TIER_LABELS[tier];
+  const names = objects
+    .slice(0, 4)
+    .map((o) => String(o.object_name ?? o.name ?? ""))
+    .filter(Boolean);
+  const preview = names.join(", ") + (objects.length > 4 ? ` +${objects.length - 4} more` : "");
+
+  return (
+    <div style={{ marginBottom: 16 }}>
+      <button
+        onClick={() => setExpanded((p) => !p)}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+          width: "100%",
+          background: "none",
+          border: "none",
+          cursor: "pointer",
+          padding: "8px 0",
+          textAlign: "left",
+        }}
+      >
+        <span style={{ color: C.gold, fontSize: 13, width: 18, textAlign: "center" }}>
+          {expanded ? "▾" : "▸"}
+        </span>
+        <span style={{ fontWeight: 700, color: C.textPrimary, fontSize: 15 }}>{label}</span>
+        <span
+          style={{
+            fontSize: 12,
+            fontWeight: 600,
+            color: C.gold,
+            background: "rgba(169,142,74,0.12)",
+            padding: "2px 8px",
+            borderRadius: 10,
+          }}
+        >
+          {objects.length}
+        </span>
+        {!expanded && (
+          <span
+            style={{
+              fontSize: 13,
+              color: C.textFaint,
+              flex: 1,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {preview}
+          </span>
+        )}
+      </button>
+
+      {expanded && (
+        <div style={{ display: "flex", flexDirection: "column", gap: compact ? 6 : 14, marginTop: 8, marginLeft: 28 }}>
+          {objects.map((obj, i) => {
+            const name = String(obj.object_name ?? obj.name ?? "");
+            const fn = functionByName[name] ?? null;
+            return compact ? (
+              <CompactObjectRow key={i} item={obj} index={i} />
+            ) : (
+              <ObjectCard key={i} item={obj} index={i} narrativeFunction={fn} />
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function ObjectSymbolLayer({
   data,
 }: {
@@ -1323,6 +1871,22 @@ export function ObjectSymbolLayer({
     if (key && fn) functionByName[key] = fn;
   }
 
+  // Group objects by tier
+  const tierGroups: Record<ObjectTier, Record<string, unknown>[]> = {
+    key_evidence: [],
+    symbolic_motif: [],
+    scene_prop: [],
+    background: [],
+  };
+  for (const item of itemArray) {
+    const name = String(item.object_name ?? item.name ?? "");
+    const fn = functionByName[name] ?? null;
+    const tier = classifyObjectTier(item, fn);
+    tierGroups[tier].push(item);
+  }
+
+  const nonEmptyTiers = OBJ_TIER_ORDER.filter((t) => tierGroups[t].length > 0);
+
   return (
     <LayerShell>
       <LayerTitle
@@ -1338,135 +1902,119 @@ export function ObjectSymbolLayer({
           No objects or symbols extracted yet.
         </p>
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          {itemArray.map((item, i) => {
-            const name = String(item.object_name ?? item.name ?? `Object ${i + 1}`);
-            const holder = item.current_holder ? String(item.current_holder) : null;
-            const attachedChars = Array.isArray(item.attached_characters)
-              ? (item.attached_characters as unknown[])
-                  .map((c) => String(c))
-                  .filter((c) => c !== holder)
-              : [];
-            const transfers = Array.isArray(item.transfer_events)
-              ? (item.transfer_events as unknown[])
-              : [];
-            const payoff = item.payoff_description ? String(item.payoff_description) : null;
-            const critical = item.missed_if_absent_from_report === true;
-            const narrativeFunction = functionByName[name] ?? null;
+        <>
+          {/* Summary bar */}
+          <div
+            style={{
+              display: "flex",
+              flexWrap: "wrap",
+              gap: 16,
+              marginBottom: 20,
+              fontSize: 13,
+              color: C.textMuted,
+            }}
+          >
+            {nonEmptyTiers.map((t) => (
+              <span key={t}>
+                <span style={{ fontWeight: 600, color: C.textPrimary }}>
+                  {OBJ_TIER_LABELS[t]}:
+                </span>{" "}
+                {tierGroups[t].length}
+              </span>
+            ))}
+          </div>
 
-            return (
-              <CharacterCard key={i}>
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "flex-start",
-                    flexWrap: "wrap",
-                    gap: 8,
-                    marginBottom: narrativeFunction ? 8 : 12,
-                  }}
-                >
-                  <span
-                    style={{
-                      fontWeight: 700,
-                      color: C.textPrimary,
-                      fontSize: 16,
-                      letterSpacing: "-0.01em",
-                    }}
-                  >
-                    {name}
-                  </span>
-                  {critical && <Pill label="Story-critical" tone="warn" />}
-                </div>
-
-                {narrativeFunction && (
-                  <p
-                    style={{
-                      margin: "0 0 12px",
-                      fontSize: 14,
-                      color: C.textMuted,
-                      fontStyle: "italic",
-                      lineHeight: 1.65,
-                    }}
-                  >
-                    {narrativeFunction}
-                  </p>
-                )}
-
-                {(holder || attachedChars.length > 0) && (
-                  <div
-                    style={{
-                      display: "flex",
-                      flexWrap: "wrap",
-                      gap: 8,
-                      alignItems: "center",
-                      marginBottom: 8,
-                    }}
-                  >
-                    <span
-                      style={{
-                        fontSize: 12,
-                        color: C.textMuted,
-                        fontWeight: 600,
-                        letterSpacing: "0.04em",
-                      }}
-                    >
-                      Held by
-                    </span>
-                    {holder && <Pill label={holder} tone="neutral" />}
-                    {attachedChars.map((c, j) => (
-                      <Pill key={j} label={c} tone="neutral" />
-                    ))}
-                  </div>
-                )}
-
-                {payoff && (
-                  <p
-                    style={{
-                      margin: "8px 0 0",
-                      fontSize: 14,
-                      color: C.textMuted,
-                      lineHeight: 1.65,
-                    }}
-                  >
-                    <span style={{ fontWeight: 600, color: C.textPrimary }}>Payoff: </span>
-                    {payoff}
-                  </p>
-                )}
-
-                {transfers.length > 0 && (
-                  <div style={{ marginTop: 8 }}>
-                    <span
-                      style={{
-                        fontSize: 12,
-                        color: C.textMuted,
-                        fontWeight: 600,
-                        letterSpacing: "0.04em",
-                      }}
-                    >
-                      Changed hands
-                    </span>
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 4 }}>
-                      {transfers.map((t, j) => (
-                        <Pill
-                          key={j}
-                          label={typeof t === "object" ? JSON.stringify(t) : String(t)}
-                          tone="neutral"
-                        />
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </CharacterCard>
-            );
-          })}
-        </div>
+          {nonEmptyTiers.map((tier) => (
+            <ObjectTierSection
+              key={tier}
+              tier={tier}
+              objects={tierGroups[tier]}
+              functionByName={functionByName}
+              defaultExpanded={tier === "key_evidence" || tier === "symbolic_motif"}
+              compact={tier === "scene_prop" || tier === "background"}
+            />
+          ))}
+        </>
       )}
     </LayerShell>
   );
 }
 
 // ─── Layer 7 — Location · Timeline · World State ──────────────────────────────
+
+function TimelineCard({
+  snapshot,
+  timeline,
+}: {
+  snapshot: Record<string, unknown>;
+  timeline: Record<string, unknown> | null;
+}) {
+  const name = String(snapshot.nameUsed ?? snapshot.characterId ?? "Unknown");
+  const location = snapshot.location ? String(snapshot.location) : null;
+  const role = snapshot.jobOrRole ? String(snapshot.jobOrRole) : null;
+  const psych = snapshot.psychologicalState ? String(snapshot.psychologicalState) : null;
+  const confidence = snapshot.confidence ? String(snapshot.confidence).replace(/_/g, " ") : null;
+  const health = snapshot.healthState ? String(snapshot.healthState) : null;
+  const mobility = snapshot.mobilityStatus ? String(snapshot.mobilityStatus) : null;
+  const legal = snapshot.legalStatus ? String(snapshot.legalStatus) : null;
+  const age = snapshot.ageOrLifeStage ? String(snapshot.ageOrLifeStage) : null;
+
+  const locSeq = timeline
+    ? (Array.isArray((timeline as Record<string, unknown>).locationSequence)
+        ? ((timeline as Record<string, unknown>).locationSequence as string[])
+        : [])
+    : [];
+
+  return (
+    <CharacterCard>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+          flexWrap: "wrap",
+          marginBottom: 10,
+        }}
+      >
+        <span style={{ fontWeight: 700, color: C.textPrimary, fontSize: 16 }}>
+          {name}
+        </span>
+        {confidence && <Pill label={confidence} tone="neutral" />}
+      </div>
+
+      {location && <FieldRow label="Location" value={location} />}
+      {role && <FieldRow label="Role" value={role} />}
+      {psych && <FieldRow label="Psychological state" value={psych} />}
+      {health && <FieldRow label="Health" value={health} />}
+      {mobility && <FieldRow label="Mobility" value={mobility} />}
+      {legal && <FieldRow label="Legal status" value={legal} />}
+      {age && <FieldRow label="Age / life stage" value={age} />}
+
+      {locSeq.length > 1 && (
+        <div style={{ marginTop: 8 }}>
+          <span
+            style={{
+              fontSize: 12,
+              color: C.textMuted,
+              fontWeight: 600,
+              letterSpacing: "0.04em",
+            }}
+          >
+            Movement path
+          </span>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 4 }}>
+            {locSeq.map((loc, j) => (
+              <React.Fragment key={j}>
+                {j > 0 && <span style={{ color: C.gold, fontSize: 13 }}>→</span>}
+                <Pill label={loc.length > 50 ? loc.slice(0, 47) + "…" : loc} tone="neutral" />
+              </React.Fragment>
+            ))}
+          </div>
+        </div>
+      )}
+    </CharacterCard>
+  );
+}
 
 export function LocationTimelineWorldstateLayer({
   data,
@@ -1482,14 +2030,46 @@ export function LocationTimelineWorldstateLayer({
       />
     );
 
-  const locations =
-    data.locations ?? data.location_list ?? data.location_entries;
-  const locationArray: Record<string, unknown>[] = Array.isArray(locations)
-    ? (locations as Record<string, unknown>[])
+  // Pipeline v1 schema: unique_locations, all_state_snapshots, character_timelines
+  const uniqueLocations = Array.isArray(data.unique_locations)
+    ? (data.unique_locations as string[])
+    : [];
+  const stateSnapshots = Array.isArray(data.all_state_snapshots)
+    ? (data.all_state_snapshots as Record<string, unknown>[])
+    : [];
+  const charTimelines = Array.isArray(data.character_timelines)
+    ? (data.character_timelines as Record<string, unknown>[])
+    : [];
+  const stateConflicts = Array.isArray(data.state_conflicts)
+    ? (data.state_conflicts as Record<string, unknown>[])
+    : [];
+
+  // Legacy schema fallback
+  const legacyLocations = data.locations ?? data.location_list ?? data.location_entries;
+  const legacyLocationArray: Record<string, unknown>[] = Array.isArray(legacyLocations)
+    ? (legacyLocations as Record<string, unknown>[])
     : [];
 
   const continuityRisks = data.continuity_risks as string[] | null;
   const worldStateRules = data.world_state_rules;
+
+  // Build timeline lookup by characterId
+  const timelineByCharId: Record<string, Record<string, unknown>> = {};
+  for (const ct of charTimelines) {
+    const cid = String(ct.characterId ?? "");
+    if (cid) timelineByCharId[cid] = ct;
+  }
+
+  const hasV1Data = uniqueLocations.length > 0 || stateSnapshots.length > 0;
+
+  const totalLocCount =
+    hasV1Data
+      ? uniqueLocations.length
+      : legacyLocationArray.length;
+
+  // Collapsible sections for state snapshots
+  const [showAllSnapshots, setShowAllSnapshots] = React.useState(false);
+  const visibleSnapshots = showAllSnapshots ? stateSnapshots : stateSnapshots.slice(0, 5);
 
   return (
     <LayerShell>
@@ -1497,11 +2077,7 @@ export function LocationTimelineWorldstateLayer({
         icon="🗺"
         title="Location · Timeline · World State"
         description={LAYER_DESCRIPTIONS.location_timeline_worldstate_layer}
-        badge={
-          locationArray.length > 0
-            ? `${locationArray.length} locations`
-            : undefined
-        }
+        badge={totalLocCount > 0 ? `${totalLocCount} locations` : undefined}
         badgeTone="neutral"
       />
 
@@ -1524,31 +2100,105 @@ export function LocationTimelineWorldstateLayer({
               ? worldStateRules
               : Array.isArray(worldStateRules)
                 ? (worldStateRules as string[]).map((r, i) => (
-                    <p key={i} style={{ margin: i > 0 ? "8px 0 0" : 0 }}>
-                      {r}
-                    </p>
+                    <p key={i} style={{ margin: i > 0 ? "8px 0 0" : 0 }}>{r}</p>
                   ))
                 : JSON.stringify(worldStateRules, null, 2)}
           </div>
         </>
       )}
 
-      {locationArray.length > 0 && (
+      {/* ── V1 schema: unique locations ── */}
+      {uniqueLocations.length > 0 && (
+        <>
+          <SubHeading>Unique Locations</SubHeading>
+          <div
+            style={{
+              display: "flex",
+              flexWrap: "wrap",
+              gap: 8,
+              marginBottom: 20,
+            }}
+          >
+            {uniqueLocations.map((loc, i) => (
+              <div
+                key={i}
+                style={{
+                  background: C.surfaceAlt,
+                  border: `1px solid ${C.border}`,
+                  borderRadius: 8,
+                  padding: "8px 14px",
+                  fontSize: 14,
+                  color: C.textPrimary,
+                  lineHeight: 1.6,
+                  maxWidth: "100%",
+                }}
+              >
+                {loc}
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      {/* ── V1 schema: character state snapshots ── */}
+      {stateSnapshots.length > 0 && (
+        <>
+          <SubHeading>Character State Snapshots</SubHeading>
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            {visibleSnapshots.map((ss, i) => {
+              const cid = String(ss.characterId ?? "");
+              const tl = timelineByCharId[cid] ?? null;
+              return <TimelineCard key={i} snapshot={ss} timeline={tl} />;
+            })}
+          </div>
+          {stateSnapshots.length > 5 && (
+            <button
+              onClick={() => setShowAllSnapshots((p) => !p)}
+              style={{
+                display: "block",
+                margin: "12px auto 0",
+                background: "none",
+                border: `1px solid ${C.border}`,
+                borderRadius: 8,
+                padding: "8px 20px",
+                color: C.gold,
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >
+              {showAllSnapshots
+                ? "Show fewer"
+                : `Show all ${stateSnapshots.length} snapshots`}
+            </button>
+          )}
+        </>
+      )}
+
+      {/* ── V1 schema: state conflicts ── */}
+      {stateConflicts.length > 0 && (
+        <>
+          <SubHeading>State Conflicts</SubHeading>
+          {stateConflicts.map((c, i) => (
+            <WarnBanner
+              key={i}
+              reason={typeof c === "string" ? c : JSON.stringify(c)}
+            />
+          ))}
+        </>
+      )}
+
+      {/* ── Legacy schema: location objects ── */}
+      {!hasV1Data && legacyLocationArray.length > 0 && (
         <>
           <SubHeading>Locations</SubHeading>
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            {locationArray.map((loc, i) => {
-              const name = String(
-                loc.location_name ?? loc.name ?? `Location ${i + 1}`
-              );
+            {legacyLocationArray.map((loc, i) => {
+              const name = String(loc.location_name ?? loc.name ?? `Location ${i + 1}`);
               const anchors = loc.evidence_anchors as string[] | null;
               const chars = loc.characters_present as string[] | null;
-
               return (
-                <CharacterCard
-                  key={i}
-                  style={{ borderRadius: 10, padding: "14px 18px" }}
-                >
+                <CharacterCard key={i} style={{ borderRadius: 10, padding: "14px 18px" }}>
                   <div
                     style={{
                       display: "flex",
@@ -1558,13 +2208,7 @@ export function LocationTimelineWorldstateLayer({
                       marginBottom: 10,
                     }}
                   >
-                    <span
-                      style={{
-                        fontWeight: 700,
-                        color: C.textPrimary,
-                        fontSize: 15,
-                      }}
-                    >
+                    <span style={{ fontWeight: 700, color: C.textPrimary, fontSize: 15 }}>
                       {name}
                     </span>
                     {chars && chars.length > 0 && (
@@ -1576,35 +2220,15 @@ export function LocationTimelineWorldstateLayer({
                     )}
                   </div>
                   <div>
-                    {loc.first_appearance && (
-                      <FieldRow
-                        label="First appearance"
-                        value={loc.first_appearance}
-                      />
-                    )}
-                    {loc.movement_path && (
-                      <FieldRow label="Movement path" value={loc.movement_path} />
-                    )}
-                    {loc.time_sequence && (
-                      <FieldRow label="Time sequence" value={loc.time_sequence} />
-                    )}
-                    {loc.world_state_rules && (
-                      <FieldRow
-                        label="World state rules"
-                        value={loc.world_state_rules}
-                      />
-                    )}
+                    {loc.first_appearance && <FieldRow label="First appearance" value={loc.first_appearance} />}
+                    {loc.movement_path && <FieldRow label="Movement path" value={loc.movement_path} />}
+                    {loc.time_sequence && <FieldRow label="Time sequence" value={loc.time_sequence} />}
+                    {loc.world_state_rules && <FieldRow label="World state rules" value={loc.world_state_rules} />}
                   </div>
-                  {loc.continuity_risks && (
-                    <WarnBanner reason={String(loc.continuity_risks)} />
-                  )}
+                  {loc.continuity_risks && <WarnBanner reason={String(loc.continuity_risks)} />}
                   {anchors && anchors.length > 0 && (
-                    <div
-                      style={{ marginTop: 10, display: "flex", gap: 6, flexWrap: "wrap" }}
-                    >
-                      {anchors.map((a, j) => (
-                        <EvidenceTag key={j} id={a} />
-                      ))}
+                    <div style={{ marginTop: 10, display: "flex", gap: 6, flexWrap: "wrap" }}>
+                      {anchors.map((a, j) => <EvidenceTag key={j} id={a} />)}
                     </div>
                   )}
                 </CharacterCard>
@@ -1622,19 +2246,6 @@ export function LocationTimelineWorldstateLayer({
           ))}
         </>
       )}
-
-      {Object.entries(data)
-        .filter(
-          ([k]) =>
-            !["locations", "location_list", "location_entries", "world_state_rules", "continuity_risks"].includes(k)
-        )
-        .filter(
-          ([, v]) =>
-            v !== null && v !== undefined && !Array.isArray(v) && typeof v !== "object"
-        )
-        .map(([k, v]) => (
-          <FieldRow key={k} label={k.replace(/_/g, " ")} value={v} />
-        ))}
     </LayerShell>
   );
 }
@@ -1685,6 +2296,26 @@ type PsychologyEntry = {
   copingMechanisms?: unknown;
 };
 
+// Classify psychology entries as human characters vs pressure/collective forces
+const PRESSURE_FORCE_IDS = new Set([
+  "the_river", "river", "pv115_mystery", "pv115", "ravens_group", "ravens",
+  "disappeared-near-water_group", "disappeared_near_water_group",
+  "fish_camp_dogs_group", "fish_camp_community", "fish_camp_children_group",
+  "fish_table_women_group",
+]);
+
+function isPressureForce(characterId: string): boolean {
+  const id = characterId.toLowerCase().replace(/\s+/g, "_");
+  if (PRESSURE_FORCE_IDS.has(id)) return true;
+  if (id.includes("_group") || id.includes("_community")) return true;
+  if (id.includes("mystery") || id.includes("force")) return true;
+  return false;
+}
+
+type PsychologyEntryFull = PsychologyEntry & {
+  psychologicalArc?: unknown;
+};
+
 export function ThreatAntagonistEndingLayer({
   data,
 }: {
@@ -1708,12 +2339,20 @@ export function ThreatAntagonistEndingLayer({
       : antagonists.length;
 
   const psychologyLedger = Array.isArray(data.psychology_ledger)
-    ? (data.psychology_ledger as PsychologyEntry[])
+    ? (data.psychology_ledger as PsychologyEntryFull[])
     : [];
-  const psychologyEntries = psychologyLedger.filter((entry) => {
-    const mechs = entry.copingMechanisms;
-    return Array.isArray(mechs) && mechs.length > 0;
-  });
+
+  // Separate human characters from pressure forces
+  const characterProfiles: PsychologyEntryFull[] = [];
+  const pressureForces: PsychologyEntryFull[] = [];
+  for (const entry of psychologyLedger) {
+    const cid = typeof entry.characterId === "string" ? entry.characterId : "";
+    if (isPressureForce(cid)) {
+      pressureForces.push(entry);
+    } else {
+      characterProfiles.push(entry);
+    }
+  }
 
   const accountabilityWarnings = Array.isArray(
     data.ending_accountability_warnings
@@ -1728,22 +2367,61 @@ export function ThreatAntagonistEndingLayer({
     : [];
 
   const hasAntagonists = antagonists.length > 0;
-  const badgeLabel = `${antagonistCount} antagonist${antagonistCount === 1 ? "" : "s"}`;
+  const totalPressure = pressureForces.length;
+
+  // Collapsible state for pressure forces
+  const [pressureExpanded, setPressureExpanded] = React.useState(true);
+  const [charProfilesExpanded, setCharProfilesExpanded] = React.useState(true);
 
   return (
-    <LayerShell tone={hasAntagonists ? "neutral" : "block"}>
+    <LayerShell>
       <LayerTitle
         icon="⚔️"
         title="Threat · Antagonist · Ending"
         description={LAYER_DESCRIPTIONS.threat_antagonist_ending_layer}
-        badge={badgeLabel}
-        badgeTone={hasAntagonists ? "oxblood" : "neutral"}
+        badge={
+          hasAntagonists
+            ? `${antagonistCount} antagonist${antagonistCount === 1 ? "" : "s"}`
+            : totalPressure > 0
+              ? `${totalPressure} pressure force${totalPressure === 1 ? "" : "s"}`
+              : undefined
+        }
+        badgeTone={hasAntagonists ? "oxblood" : totalPressure > 0 ? "warn" : "neutral"}
       />
 
-      <SubHeading>Antagonists</SubHeading>
+      {/* Summary bar */}
+      <div
+        style={{
+          display: "flex",
+          flexWrap: "wrap",
+          gap: 16,
+          marginBottom: 20,
+          fontSize: 13,
+          color: C.textMuted,
+        }}
+      >
+        <span>
+          <span style={{ fontWeight: 600, color: C.textPrimary }}>Named antagonists:</span>{" "}
+          {antagonistCount}
+        </span>
+        {totalPressure > 0 && (
+          <span>
+            <span style={{ fontWeight: 600, color: C.textPrimary }}>Pressure forces:</span>{" "}
+            {totalPressure}
+          </span>
+        )}
+        {characterProfiles.length > 0 && (
+          <span>
+            <span style={{ fontWeight: 600, color: C.textPrimary }}>Character responses:</span>{" "}
+            {characterProfiles.length}
+          </span>
+        )}
+      </div>
 
+      {/* Antagonists */}
+      <SubHeading>Named Antagonists</SubHeading>
       {hasAntagonists ? (
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 16 }}>
           {antagonists.map((a, i) => {
             const name =
               typeof a.canonical_name === "string" && a.canonical_name
@@ -1755,7 +2433,6 @@ export function ThreatAntagonistEndingLayer({
               typeof a.final_status === "string" ? a.final_status : "";
             const tone =
               ANTAGONIST_STATUS_TONE[status.toLowerCase()] ?? "neutral";
-
             return (
               <CharacterCard key={i}>
                 <div
@@ -1767,59 +2444,150 @@ export function ThreatAntagonistEndingLayer({
                     gap: 10,
                   }}
                 >
-                  <span
-                    style={{
-                      fontWeight: 700,
-                      color: C.textPrimary,
-                      fontSize: 16,
-                    }}
-                  >
+                  <span style={{ fontWeight: 700, color: C.textPrimary, fontSize: 16 }}>
                     {name}
                   </span>
-                  {status && (
-                    <Pill label={status.replace(/_/g, " ")} tone={tone} />
-                  )}
+                  {status && <Pill label={status.replace(/_/g, " ")} tone={tone} />}
                 </div>
               </CharacterCard>
             );
           })}
         </div>
       ) : (
-        <p style={{ color: C.textFaint, fontSize: 15, lineHeight: 1.75 }}>
-          No antagonists identified in this chapter.
+        <p style={{ color: C.textFaint, fontSize: 15, lineHeight: 1.75, marginBottom: 16 }}>
+          No named human antagonists identified in this chapter.
         </p>
       )}
 
-      {psychologyEntries.length > 0 && (
+      {/* Pressure Forces */}
+      {pressureForces.length > 0 && (
         <>
           <Divider />
-          <SubHeading>Character Pressure Profiles</SubHeading>
-          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            {psychologyEntries.map((entry, i) => {
-              const rawId =
-                typeof entry.characterId === "string" ? entry.characterId : "";
-              const name = rawId ? sentenceCaseId(rawId) : `Character ${i + 1}`;
-              const mechanisms = (entry.copingMechanisms as CopingMechanism[]) ?? [];
+          <button
+            onClick={() => setPressureExpanded((p) => !p)}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+              width: "100%",
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              padding: "8px 0",
+              textAlign: "left",
+              marginBottom: 8,
+            }}
+          >
+            <span style={{ color: "#E6A23C", fontSize: 13, width: 18, textAlign: "center" }}>
+              {pressureExpanded ? "▾" : "▸"}
+            </span>
+            <span style={{ fontWeight: 700, color: C.textPrimary, fontSize: 15 }}>
+              Pressure Forces
+            </span>
+            <span
+              style={{
+                fontSize: 12,
+                fontWeight: 600,
+                color: "#E6A23C",
+                background: "rgba(200,150,50,0.12)",
+                padding: "2px 8px",
+                borderRadius: 10,
+              }}
+            >
+              {pressureForces.length}
+            </span>
+          </button>
+          {pressureExpanded && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 12, marginLeft: 28 }}>
+              {pressureForces.map((entry, i) => {
+                const rawId = typeof entry.characterId === "string" ? entry.characterId : "";
+                const name = rawId ? sentenceCaseId(rawId) : `Force ${i + 1}`;
+                const arc = typeof entry.psychologicalArc === "string" ? entry.psychologicalArc : "";
+                const mechanisms = Array.isArray(entry.copingMechanisms)
+                  ? (entry.copingMechanisms as CopingMechanism[])
+                  : [];
+                const prose = mechanisms.length > 0
+                  ? (typeof mechanisms[0].description === "string" && mechanisms[0].description
+                      ? mechanisms[0].description
+                      : typeof mechanisms[0].manifestsAs === "string"
+                        ? mechanisms[0].manifestsAs
+                        : "")
+                  : "";
+                return (
+                  <CharacterCard key={i}>
+                    <div style={{ fontWeight: 700, color: C.textPrimary, fontSize: 16, marginBottom: 8 }}>
+                      {name}
+                    </div>
+                    {prose && (
+                      <p style={{ margin: "0 0 8px", fontSize: 14, color: C.textMuted, lineHeight: 1.75 }}>
+                        {prose}
+                      </p>
+                    )}
+                    {arc && (
+                      <p style={{ margin: 0, fontSize: 13, color: C.textFaint, lineHeight: 1.65, fontStyle: "italic" }}>
+                        {arc}
+                      </p>
+                    )}
+                  </CharacterCard>
+                );
+              })}
+            </div>
+          )}
+        </>
+      )}
 
-              return (
-                <CharacterCard key={i}>
-                  <div
-                    style={{
-                      fontWeight: 700,
-                      color: C.textPrimary,
-                      fontSize: 16,
-                      marginBottom: 10,
-                    }}
-                  >
-                    {name}
-                  </div>
-                  <div
-                    style={{
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: 10,
-                    }}
-                  >
+      {/* Character Response Profiles */}
+      {characterProfiles.length > 0 && (
+        <>
+          <Divider />
+          <button
+            onClick={() => setCharProfilesExpanded((p) => !p)}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+              width: "100%",
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              padding: "8px 0",
+              textAlign: "left",
+              marginBottom: 8,
+            }}
+          >
+            <span style={{ color: C.gold, fontSize: 13, width: 18, textAlign: "center" }}>
+              {charProfilesExpanded ? "▾" : "▸"}
+            </span>
+            <span style={{ fontWeight: 700, color: C.textPrimary, fontSize: 15 }}>
+              Character Response Profiles
+            </span>
+            <span
+              style={{
+                fontSize: 12,
+                fontWeight: 600,
+                color: C.gold,
+                background: "rgba(169,142,74,0.12)",
+                padding: "2px 8px",
+                borderRadius: 10,
+              }}
+            >
+              {characterProfiles.length}
+            </span>
+          </button>
+          {charProfilesExpanded && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 12, marginLeft: 28 }}>
+              {characterProfiles.map((entry, i) => {
+                const rawId = typeof entry.characterId === "string" ? entry.characterId : "";
+                const name = rawId ? sentenceCaseId(rawId) : `Character ${i + 1}`;
+                const arc = typeof entry.psychologicalArc === "string" ? entry.psychologicalArc : "";
+                const mechanisms = Array.isArray(entry.copingMechanisms)
+                  ? (entry.copingMechanisms as CopingMechanism[])
+                  : [];
+                return (
+                  <CharacterCard key={i}>
+                    <div style={{ fontWeight: 700, color: C.textPrimary, fontSize: 16, marginBottom: 8 }}>
+                      {name}
+                    </div>
                     {mechanisms.map((mech, j) => {
                       const prose =
                         typeof mech.description === "string" && mech.description
@@ -1827,48 +2595,22 @@ export function ThreatAntagonistEndingLayer({
                           : typeof mech.manifestsAs === "string"
                             ? mech.manifestsAs
                             : "";
-                      const fn =
-                        typeof mech.psychologicalFunction === "string"
-                          ? mech.psychologicalFunction
-                          : "";
-
-                      return (
-                        <div
-                          key={j}
-                          style={{
-                            display: "flex",
-                            flexDirection: "column",
-                            gap: 6,
-                          }}
-                        >
-                          {prose && (
-                            <p
-                              style={{
-                                margin: 0,
-                                fontSize: 14,
-                                color: C.textMuted,
-                                lineHeight: 1.75,
-                              }}
-                            >
-                              {prose}
-                            </p>
-                          )}
-                          {fn && (
-                            <div>
-                              <Pill
-                                label={fn.replace(/_/g, " ")}
-                                tone="neutral"
-                              />
-                            </div>
-                          )}
-                        </div>
-                      );
+                      return prose ? (
+                        <p key={j} style={{ margin: "0 0 6px", fontSize: 14, color: C.textMuted, lineHeight: 1.75 }}>
+                          {prose}
+                        </p>
+                      ) : null;
                     })}
-                  </div>
-                </CharacterCard>
-              );
-            })}
-          </div>
+                    {arc && (
+                      <p style={{ margin: "4px 0 0", fontSize: 13, color: C.textFaint, lineHeight: 1.65, fontStyle: "italic" }}>
+                        {arc}
+                      </p>
+                    )}
+                  </CharacterCard>
+                );
+              })}
+            </div>
+          )}
         </>
       )}
 
@@ -2109,7 +2851,7 @@ export function IdentityPronounLayer({
         badge={
           shiftCount > 0
             ? `${shiftCount} pronoun ${shiftCount === 1 ? "shift" : "shifts"} detected`
-            : `${entries.length} ${entries.length === 1 ? "character" : "characters"} verified`
+            : `${entries.length} ${entries.length === 1 ? "identity" : "identities"} verified`
         }
         badgeTone={shiftCount > 0 ? "oxblood" : "gold"}
       />
