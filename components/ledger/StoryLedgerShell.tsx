@@ -185,6 +185,7 @@ const T = {
 const LAYER_ORDER = [
   "canonical_identity_layer",
   "cast_role_tier_layer",
+  "identity_pronoun_layer",
   "pov_structure_layer",
   "relationship_network_layer",
   "object_symbol_layer",
@@ -196,6 +197,7 @@ const LAYER_ORDER = [
 const LAYER_LABELS: Record<string, string> = {
   canonical_identity_layer: "Canonical Identity",
   cast_role_tier_layer: "Cast / Role Tier",
+  identity_pronoun_layer: "Identity & Pronouns",
   pov_structure_layer: "POV Structure",
   relationship_network_layer: "Relationship Network",
   object_symbol_layer: "Object / Symbol",
@@ -208,6 +210,7 @@ const LAYER_LABELS: Record<string, string> = {
 const LAYER_NAV_DESC: Record<string, string> = {
   canonical_identity_layer: "Names & aliases",
   cast_role_tier_layer: "Character roles",
+  identity_pronoun_layer: "Pronouns & gender signals",
   pov_structure_layer: "Narrative perspective",
   relationship_network_layer: "Named bonds",
   object_symbol_layer: "Significant objects",
@@ -225,6 +228,7 @@ const LAYER_ICONS: Record<string, string> = {
   location_timeline_worldstate_layer: "🗺",
   threat_antagonist_ending_layer: "⚔️",
   source_integrity_layer: "🔒",
+  identity_pronoun_layer: "🏷️",
 };
 
 const LAYER_DEFINITIONS = [
@@ -259,6 +263,10 @@ const LAYER_DEFINITIONS = [
   {
     key: "source_integrity_layer",
     definition: "The audit trail: what the system actually knows from the manuscript, what is inferred, what is uncertain, what needs author confirmation, and what must not be hallucinated.",
+  },
+  {
+    key: "identity_pronoun_layer",
+    definition: "How each character is identified across the manuscript: pronouns in use, detected gender signals, and any pronoun shifts between sections. Authors confirm intentional transitions or flag continuity errors before scoring.",
   },
 ] as const;
 
@@ -507,6 +515,9 @@ function Module1StoryLayer({
   const [pendingComment, setPendingComment] = useState("");
   const [allDecidedTriggered, setAllDecidedTriggered] = useState(false);
   const [layerRefOpen, setLayerRefOpen] = useState(true);
+  const [pronounDecisions, setPronounDecisions] = useState<
+    Array<{ character: string; decision: "intentional" | "continuity_error" | null }>
+  >([]);
 
   const decidedCount = LAYER_ORDER.filter(
     (k) => decisions[k].status !== "undecided"
@@ -858,6 +869,18 @@ function Module1StoryLayer({
                   ...prev,
                   source_integrity_layer: { ...existing, comment: next },
                 };
+              });
+            }}
+            pronounDecisions={pronounDecisions}
+            onPronounDecision={(character, decision) => {
+              setPronounDecisions((prev) => {
+                const existing = prev.find((d) => d.character === character);
+                if (existing) {
+                  return prev.map((d) =>
+                    d.character === character ? { ...d, decision } : d
+                  );
+                }
+                return [...prev, { character, decision }];
               });
             }}
           />

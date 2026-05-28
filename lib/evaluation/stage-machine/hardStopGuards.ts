@@ -253,7 +253,7 @@ export function forbidLayer9(layerKeys: readonly string[]): GuardResult {
 
   const uniqueLayerCount = new Set(layerKeys).size;
   if (uniqueLayerCount !== STORY_LAYER_CORE_LAYER_KEYS.length || layerKeys.length !== STORY_LAYER_CORE_LAYER_KEYS.length) {
-    return fail('Story Layer must contain exactly eight canonical layers');
+    return fail(`Story Layer must contain exactly ${STORY_LAYER_CORE_LAYER_KEYS.length} canonical layers`);
   }
 
   return ok();

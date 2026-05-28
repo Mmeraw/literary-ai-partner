@@ -137,7 +137,7 @@ export function validateStoryLayerPayload(payload: Record<string, unknown>): Sto
   }
 
   if (payloadKeys.length !== STORY_LAYER_CORE_LAYER_KEYS.length) {
-    throw new Error('pass1a_story_layer_v1 must contain exactly eight canonical layers');
+    throw new Error(`pass1a_story_layer_v1 must contain exactly ${STORY_LAYER_CORE_LAYER_KEYS.length} canonical layers`);
   }
 
   for (const key of STORY_LAYER_CORE_LAYER_KEYS) {

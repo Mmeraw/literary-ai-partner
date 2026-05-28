@@ -307,7 +307,7 @@ function computeHardFailTriggers(entries: CharacterArcLedgerEntry[]): string[] {
       triggers.push(`HARD_FAIL: Major character "${entry.canonical_name}" has no ending accountability`);
     }
     if (entry.warnings.some((w) => w.type === "pronoun_inconsistency")) {
-      triggers.push(`HARD_FAIL: Pronoun inconsistency for "${entry.canonical_name}"`);
+      triggers.push(`WARN: Pronoun shift detected for "${entry.canonical_name}" — pending author confirmation in Identity & Pronoun layer`);
     }
   }
 

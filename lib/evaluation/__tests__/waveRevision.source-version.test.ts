@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, jest } from "@jest/globals";
+import type { WaveHandoff } from "@/lib/evaluation/waveRevision";
 
-const BASE_HANDOFF = {
+const BASE_HANDOFF: WaveHandoff = {
   manuscriptText: "Chapter one text for WAVE.",
   synthesis: {
     overall: {
@@ -14,12 +15,14 @@ const BASE_HANDOFF = {
       verdict: "pass",
     },
     criteria: [],
-  },
+  } as unknown as WaveHandoff["synthesis"],
   characterLedgerV2: undefined,
   wordCount: 30000,
   jobId: "c67f69c5-7f08-4ece-b4e3-066f786ee591",
   manuscriptVersionId: null,
 };
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 describe("resolveWaveSourceVersionId", () => {
   beforeEach(() => {
@@ -30,7 +33,7 @@ describe("resolveWaveSourceVersionId", () => {
   it("uses handoff manuscriptVersionId when it already exists", async () => {
     const existingVersionId = "11111111-1111-4111-8111-111111111111";
 
-    const getVersionById = jest.fn().mockResolvedValue({
+    const getVersionById = jest.fn<any>().mockResolvedValue({
       id: existingVersionId,
       manuscript_id: 42,
       version_number: 1,
@@ -41,9 +44,9 @@ describe("resolveWaveSourceVersionId", () => {
       created_at: new Date().toISOString(),
     });
 
-    const createAdminClient = jest.fn();
-    const createInitialVersion = jest.fn();
-    const createDerivedVersion = jest.fn();
+    const createAdminClient = jest.fn<any>();
+    const createInitialVersion = jest.fn<any>();
+    const createDerivedVersion = jest.fn<any>();
 
     jest.doMock("@/lib/manuscripts/versions", () => ({
       getVersionById,
@@ -52,7 +55,7 @@ describe("resolveWaveSourceVersionId", () => {
     }));
     jest.doMock("@/lib/supabase/admin", () => ({ createAdminClient }));
     jest.doMock("@/lib/db/manuscriptVersions", () => ({
-      getLatestVersionForManuscript: jest.fn(),
+      getLatestVersionForManuscript: jest.fn<any>(),
     }));
 
     const { resolveWaveSourceVersionId } = await import("@/lib/evaluation/waveRevision");
@@ -73,7 +76,7 @@ describe("resolveWaveSourceVersionId", () => {
     const sourceVersionId = "22222222-2222-4222-8222-222222222222";
     const derivedVersionId = "33333333-3333-4333-8333-333333333333";
 
-    const getVersionById = jest.fn().mockResolvedValue({
+    const getVersionById = jest.fn<any>().mockResolvedValue({
       id: derivedVersionId,
       manuscript_id: 7,
       version_number: 2,
@@ -83,8 +86,8 @@ describe("resolveWaveSourceVersionId", () => {
       created_by: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
       created_at: new Date().toISOString(),
     });
-    const createInitialVersion = jest.fn();
-    const createDerivedVersion = jest.fn().mockResolvedValue({
+    const createInitialVersion = jest.fn<any>();
+    const createDerivedVersion = jest.fn<any>().mockResolvedValue({
       id: derivedVersionId,
       manuscript_id: 7,
       version_number: 2,
@@ -95,7 +98,7 @@ describe("resolveWaveSourceVersionId", () => {
       created_at: new Date().toISOString(),
     });
 
-    const getLatestVersionForManuscript = jest.fn().mockResolvedValue({
+    const getLatestVersionForManuscript = jest.fn<any>().mockResolvedValue({
       id: sourceVersionId,
       manuscript_id: 7,
       version_number: 1,
@@ -106,9 +109,9 @@ describe("resolveWaveSourceVersionId", () => {
       created_at: new Date().toISOString(),
     });
 
-    const updateEq = jest.fn().mockResolvedValue({ error: null });
-    const update = jest.fn(() => ({ eq: updateEq }));
-    const single = jest.fn().mockResolvedValue({
+    const updateEq = jest.fn<any>().mockResolvedValue({ error: null });
+    const update = jest.fn<any>(() => ({ eq: updateEq }));
+    const single = jest.fn<any>().mockResolvedValue({
       data: {
         id: BASE_HANDOFF.jobId,
         manuscript_id: 7,
@@ -117,16 +120,16 @@ describe("resolveWaveSourceVersionId", () => {
       },
       error: null,
     });
-    const eq = jest.fn(() => ({ single }));
-    const select = jest.fn(() => ({ eq }));
+    const eq = jest.fn<any>(() => ({ single }));
+    const select = jest.fn<any>(() => ({ eq }));
 
-    const from = jest.fn((table: string) => {
+    const from = jest.fn<any>((table: string) => {
       if (table !== "evaluation_jobs") {
         throw new Error(`Unexpected table ${table}`);
       }
       return { select, update };
     });
-    const createAdminClient = jest.fn(() => ({ from }));
+    const createAdminClient = jest.fn<any>(() => ({ from }));
 
     jest.doMock("@/lib/manuscripts/versions", () => ({
       getVersionById,
@@ -164,14 +167,14 @@ describe("resolveWaveSourceVersionId", () => {
     const ghostVersionId = "44444444-4444-4444-8444-444444444444";
 
     const getVersionById = jest
-      .fn()
+      .fn<any>()
       .mockResolvedValueOnce(null)
       .mockResolvedValueOnce(null);
 
-    const createInitialVersion = jest.fn();
-    const createDerivedVersion = jest.fn();
+    const createInitialVersion = jest.fn<any>();
+    const createDerivedVersion = jest.fn<any>();
 
-    const getLatestVersionForManuscript = jest.fn().mockResolvedValue({
+    const getLatestVersionForManuscript = jest.fn<any>().mockResolvedValue({
       id: ghostVersionId,
       manuscript_id: 7,
       version_number: 1,
@@ -182,9 +185,9 @@ describe("resolveWaveSourceVersionId", () => {
       created_at: new Date().toISOString(),
     });
 
-    const updateEq = jest.fn().mockResolvedValue({ error: null });
-    const update = jest.fn(() => ({ eq: updateEq }));
-    const single = jest.fn().mockResolvedValue({
+    const updateEq = jest.fn<any>().mockResolvedValue({ error: null });
+    const update = jest.fn<any>(() => ({ eq: updateEq }));
+    const single = jest.fn<any>().mockResolvedValue({
       data: {
         id: BASE_HANDOFF.jobId,
         manuscript_id: 7,
@@ -193,10 +196,10 @@ describe("resolveWaveSourceVersionId", () => {
       },
       error: null,
     });
-    const eq = jest.fn(() => ({ single }));
-    const select = jest.fn(() => ({ eq }));
-    const from = jest.fn(() => ({ select, update }));
-    const createAdminClient = jest.fn(() => ({ from }));
+    const eq = jest.fn<any>(() => ({ single }));
+    const select = jest.fn<any>(() => ({ eq }));
+    const from = jest.fn<any>(() => ({ select, update }));
+    const createAdminClient = jest.fn<any>(() => ({ from }));
 
     jest.doMock("@/lib/manuscripts/versions", () => ({
       getVersionById,

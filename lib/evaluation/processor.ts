@@ -2626,7 +2626,7 @@ READY TO EVALUATE.
 ## EVALUATION GOVERNANCE RULES (canon_correction_playbook_v1 v1.3.1)
 
 Phase 0: load rules only. Do not read the manuscript.
-Phase 1A: read the manuscript and build pass1a_story_layer_v1 — the Story Layer / Story Ledger artifact with 8 required layers.
+Phase 1A: read the manuscript and build pass1a_story_layer_v1 — the Story Layer / Story Ledger artifact with 9 required layers.
 Phase 2: score only after pass1a_story_layer_v1 is complete.
 
 Failure modes Phase 1A must avoid:
@@ -2639,7 +2639,7 @@ Failure modes Phase 1A must avoid:
 
 Phase 2 scoring prohibitions:
 - Narrative Closure MUST NOT be scored if Relationship Spine Layer is empty.
-- Criterion scores MUST NOT finalize before pass1a_story_layer_v1 exists and all 8 required layers pass completeness checks.
+- Criterion scores MUST NOT finalize before pass1a_story_layer_v1 exists and all 9 required layers pass completeness checks.
 - Recommendations MUST carry validity: VALID / PARTIALLY_VALID / ALREADY_PRESENT / CANON_FALSE / SOURCE_UNSUPPORTED / VOICE_RISK.
 
 ## REVISIONGRADE PLATFORM FIT — WHAT THIS PLATFORM OPTIMIZES FOR
@@ -2650,7 +2650,7 @@ This platform is NOT a general writing assistant. It is a governed revision oper
 Key platform calibration points:
 - The evaluation must serve the author's revision journey — not a publisher's acquisition filter
 - Scores reflect craft quality against professional standards, not marketability alone
-- The 8 canonical story layers (identity, cast, POV, relationships, objects/symbols, location/timeline, threat/ending, source integrity) are the structural backbone — they must inform scoring on all 13 criteria
+- The 9 canonical story layers (identity, cast, identity/pronouns, POV, relationships, objects/symbols, location/timeline, threat/ending, source integrity) are the structural backbone — they must inform scoring on all 13 criteria
 - WAVE tier tagging (Early / Mid / Late) is mandatory on all recommendations — it tells the author WHEN to fix something
 - Loudest-lane bias is a calibration failure: all lane types must be mapped (plot / emotional / doctrinal / medicine-object / relationship / environmental)
 - The author is the ultimate authority on their manuscript — conflicting AI extractions must be flagged, not silently resolved
@@ -4040,12 +4040,12 @@ export async function processEvaluationJob(
       }
 
       const p3LayerDecisions = p3GovRail.layer_decisions as Record<string, unknown> | undefined;
-      if (!p3LayerDecisions || Object.keys(p3LayerDecisions).length < 8) {
-        console.error(`[phase_3] ${jobId}: incomplete layer_decisions — found ${Object.keys(p3LayerDecisions ?? {}).length}/8`);
+      if (!p3LayerDecisions || Object.keys(p3LayerDecisions).length < 9) {
+        console.error(`[phase_3] ${jobId}: incomplete layer_decisions — found ${Object.keys(p3LayerDecisions ?? {}).length}/9`);
         await markFailed(
           'Phase 3 cannot synthesize until all Story Layer layers have author decisions.',
           'INCOMPLETE_AUTHOR_LAYER_DECISIONS',
-          { pipelineStage: 'phase_3', diagnostics: { found: Object.keys(p3LayerDecisions ?? {}).length, required: 8 } }
+          { pipelineStage: 'phase_3', diagnostics: { found: Object.keys(p3LayerDecisions ?? {}).length, required: 9 } }
         );
         return { success: false, error: 'INCOMPLETE_AUTHOR_LAYER_DECISIONS' };
       }
@@ -5520,7 +5520,7 @@ export async function processEvaluationJob(
 
         console.log(`[Processor] ${jobId}: phase_1a — ledger artifact persisted, building story layer`);
 
-        // ── PR12: Build 8-layer Story Layer payload from completed ledger ──
+        // ── PR12: Build 9-layer Story Layer payload from completed ledger ──
         const storyLayerPayload = buildStoryLayerFromLedger(
           characterLedger,
           characterLedgerV2Phase1a,
@@ -5894,12 +5894,12 @@ export async function processEvaluationJob(
       }
 
       const layerDecisions = govRail.layer_decisions as Record<string, unknown> | undefined;
-      if (!layerDecisions || Object.keys(layerDecisions).length < 8) {
-        console.error(`[phase_2] ${jobId}: incomplete layer_decisions — found ${Object.keys(layerDecisions ?? {}).length}/8`);
+      if (!layerDecisions || Object.keys(layerDecisions).length < 9) {
+        console.error(`[phase_2] ${jobId}: incomplete layer_decisions — found ${Object.keys(layerDecisions ?? {}).length}/9`);
         await markFailed(
           'Phase 2 cannot start until all Story Layer layers have author decisions.',
           'INCOMPLETE_AUTHOR_LAYER_DECISIONS',
-          { pipelineStage: 'phase_2', diagnostics: { found: Object.keys(layerDecisions ?? {}).length, required: 8 } }
+          { pipelineStage: 'phase_2', diagnostics: { found: Object.keys(layerDecisions ?? {}).length, required: 9 } }
         );
         return { success: false, error: 'INCOMPLETE_AUTHOR_LAYER_DECISIONS' };
       }
