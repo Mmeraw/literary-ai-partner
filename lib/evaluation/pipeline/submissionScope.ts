@@ -34,7 +34,7 @@ export function classifySubmissionScope(
     throw new Error("SUBMISSION_TOO_SHORT_FOR_EVALUATION");
   }
 
-  const structure = manuscriptStructure ?? "chapters";
+  const msForm = manuscriptStructure ?? "chapters";
 
   let inputScale: InputScale;
   if (wordCount <= 749) {
@@ -46,9 +46,9 @@ export function classifySubmissionScope(
   } else if (wordCount <= 7499) {
     inputScale = "multi_chapter";
   } else if (wordCount <= 19999) {
-    inputScale = structure === "standalone" ? "novelette" : "multi_chapter";
+    inputScale = msForm === "standalone" ? "novelette" : "multi_chapter";
   } else if (wordCount <= 49999) {
-    inputScale = structure === "standalone" ? "novella" : "multi_chapter";
+    inputScale = msForm === "standalone" ? "novella" : "multi_chapter";
   } else {
     inputScale = "full_manuscript";
   }
@@ -73,6 +73,6 @@ export function classifySubmissionScope(
     scorableCount,
     confidenceCapSummary,
     scopePolicyVersion: "v2",
-    manuscriptStructure: structure,
+    manuscriptStructure: msForm,
   };
 }

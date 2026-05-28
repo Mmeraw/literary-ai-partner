@@ -570,7 +570,15 @@ export default async function EvaluationReportPage({
             ✓ Story Ledger approved — craft diagnosis is now running.
           </p>
           <p className="mt-1 text-sm" style={{ color: '#7B7B7B' }}>
-            The system is diagnosing your manuscript across 13 craft criteria. This typically takes 3–8 minutes.
+            The system is diagnosing your manuscript across 13 craft criteria.{' '}
+            {(() => {
+              const wc = pollerWordCount ?? wordCount;
+              if (typeof wc === 'number' && wc >= 30000)
+                return 'For novels and novellas, this can take up to 1 hour.';
+              if (typeof wc === 'number' && wc >= 10000)
+                return 'For novelettes, this typically takes 15–20 minutes.';
+              return 'For chapters, this typically takes 3–8 minutes.';
+            })()}{' '}
             Watch the progress bar below — your Diagnostic Report will appear here when complete.
           </p>
         </div>
@@ -629,6 +637,7 @@ export default async function EvaluationReportPage({
           initialJob={initialPollerJob}
           redirectOnComplete={false}
           refreshOnComplete={true}
+          redirectOnReviewGate={true}
         />
       </section>
 
@@ -660,7 +669,7 @@ export default async function EvaluationReportPage({
             <p className="mt-2 text-sm" style={{ color: '#7B7B7B' }}>
               {progressHardFail
                 ? 'The system detected narrative conflicts in the Story Layer that require your input before scoring can proceed. Review each layer, confirm or correct the findings, and submit your decisions.'
-                : 'The Story Layer has been built from your manuscript. Review each of the 8 layers, confirm the findings, and approve to begin the scoring phase.'}
+                : 'The Story Layer has been built from your manuscript. Review each of the 9 layers, confirm the findings, and approve to begin the scoring phase.'}
             </p>
             <div className="mt-4">
               <Link
@@ -762,7 +771,7 @@ export default async function EvaluationReportPage({
           <section className="rounded-lg border bg-white p-6 mb-4">
             <h2 className="text-xl font-semibold text-gray-900">Overall Summary</h2>
             <p className="mt-3 text-sm leading-relaxed text-gray-700">
-              {artifact.summary || artifact.overview?.one_paragraph_summary || "No summary available"}
+              {artifact.overview?.one_paragraph_summary || artifact.summary || "No summary available"}
             </p>
           </section>
 

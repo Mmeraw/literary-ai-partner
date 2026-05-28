@@ -95,6 +95,8 @@ interface PollerProps {
   redirectOnComplete?: boolean;
   redirectDelayMs?: number;
   refreshOnComplete?: boolean;
+  /** Auto-redirect to Story Ledger when the pipeline reaches review_gate. */
+  redirectOnReviewGate?: boolean;
 }
 
 export function EvaluationPoller({
@@ -106,6 +108,7 @@ export function EvaluationPoller({
   redirectOnComplete = false,
   redirectDelayMs,
   refreshOnComplete = false,
+  redirectOnReviewGate = false,
 }: PollerProps) {
   const router = useRouter();
   const [job, setJob] = useState<JobState | null>(initialJob);
@@ -152,6 +155,11 @@ export function EvaluationPoller({
   const unchangedCountRef = useRef(0);
   const networkErrorCountRef = useRef(0);
   const redirectedRef = useRef(false);
+  const reviewGateRedirectedRef = useRef(
+    // If the initial job is already at review_gate, don't redirect — the SSR
+    // page already renders the review section with a direct link.
+    initialJob?.phase === 'review_gate',
+  );
 
   // Completion sweep: animate displayProgress to 100 when the customer-facing
   // report is complete. Long-form waits for Narrative Synthesis; short-form
@@ -319,6 +327,18 @@ export function EvaluationPoller({
 
         setError(null);
 
+        // Auto-redirect to Story Ledger when pipeline reaches review_gate
+        if (
+          redirectOnReviewGate &&
+          nextJob.phase === 'review_gate' &&
+          !reviewGateRedirectedRef.current
+        ) {
+          reviewGateRedirectedRef.current = true;
+          setIsPolling(false);
+          router.push(`/evaluate/${jobId}/ledger`);
+          return;
+        }
+
         // Stop polling on terminal state. Long-form complete can be interim until
         // Narrative Synthesis lands; short-form complete is already final.
         const nextIsLongForm = isLongFormJob(nextJob);
@@ -371,10 +391,13 @@ export function EvaluationPoller({
     }
   }, [
     getAdaptiveDelay,
+    jobId,
     navigateToReport,
     onComplete,
     redirectOnComplete,
+    redirectOnReviewGate,
     resolvedRedirectDelayMs,
+    router,
     scheduleNextPoll,
     userId,
   ]);
@@ -603,7 +626,7 @@ export function EvaluationPoller({
                   The final report will be available once Narrative Synthesis is complete.
                 </p>
               )}
-              {(job.status === 'queued' || job.status === 'running') && !effectivePd.hardStop && (
+              {(job.status === 'queued' || job.status === 'running') && (
                 <div className="flex items-center gap-2 mt-1">
                   <button
                     type="button"
@@ -703,7 +726,7 @@ export function EvaluationPoller({
         })()}
 
         {/* Timestamps — show relative/elapsed time, not raw timestamps */}
-        <div className="grid grid-cols-1 gap-4 text-sm sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
           <div>
             <p className="text-gray-600">Started</p>
             <p className="text-gray-900">
@@ -725,6 +748,14 @@ export function EvaluationPoller({
                 : formatRelativeTime(job.updated_at)}
             </p>
           </div>
+          {(job.status === 'running' || job.status === 'queued') && (
+            <div>
+              <p className="text-gray-600">Total Elapsed</p>
+              <p className="text-gray-900 font-semibold">
+                {formatDuration(job.created_at)}
+              </p>
+            </div>
+          )}
           {(job.status === 'queued' || job.status === 'running') && (
             <div className="flex items-end justify-start sm:justify-end lg:justify-start">
               <CancelEvaluationButton
