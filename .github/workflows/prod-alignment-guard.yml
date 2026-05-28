@@ -146,6 +146,15 @@ jobs:
       - name: Setup Supabase CLI
         uses: ./.github/actions/setup-supabase-cli
 
+      - name: Ensure psql is available
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! command -v psql >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y postgresql-client
+          fi
+
       - name: Verify required Supabase production secrets
         shell: bash
         run: |
@@ -177,7 +186,19 @@ jobs:
           set -euo pipefail
 
           LOCAL_IDS="$(ls supabase/migrations/*.sql | xargs -n1 basename | cut -d'_' -f1 | sort -u)"
-          REMOTE_IDS="$(supabase migration list --linked | grep -oE '20[0-9]{12}' | sort -u || true)"
+          REMOTE_ROWS="$(psql "$SUPABASE_DB_URL" -Atqc "SELECT version::text FROM supabase_migrations.schema_migrations ORDER BY version")"
+
+          echo "Remote schema_migrations rows:"
+          printf '%s\n' "$REMOTE_ROWS"
+
+          MALFORMED_REMOTE="$(printf '%s\n' "$REMOTE_ROWS" | grep -Ev '^$|^[0-9]{14}$' || true)"
+          if [[ -n "$MALFORMED_REMOTE" ]]; then
+            echo "❌ Production has malformed schema_migrations.version values (expected exactly 14 digits):"
+            printf '%s\n' "$MALFORMED_REMOTE"
+            exit 1
+          fi
+
+          REMOTE_IDS="$(printf '%s\n' "$REMOTE_ROWS" | grep -E '^[0-9]{14}$' | sort -u || true)"
 
           echo "Local migration IDs:"
           printf '%s\n' "$LOCAL_IDS"
@@ -221,6 +242,15 @@ jobs:
       - name: Setup Supabase CLI
         uses: ./.github/actions/setup-supabase-cli
 
+      - name: Ensure psql is available
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! command -v psql >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y postgresql-client
+          fi
+
       - name: Verify required Supabase production secrets
         shell: bash
         run: |
@@ -259,7 +289,19 @@ jobs:
           set -euo pipefail
 
           LOCAL_IDS="$(ls supabase/migrations/*.sql | xargs -n1 basename | cut -d'_' -f1 | sort -u)"
-          REMOTE_IDS="$(supabase migration list --linked | grep -oE '20[0-9]{12}' | sort -u || true)"
+          REMOTE_ROWS="$(psql "$SUPABASE_DB_URL" -Atqc "SELECT version::text FROM supabase_migrations.schema_migrations ORDER BY version")"
+
+          echo "Remote schema_migrations rows:"
+          printf '%s\n' "$REMOTE_ROWS"
+
+          MALFORMED_REMOTE="$(printf '%s\n' "$REMOTE_ROWS" | grep -Ev '^$|^[0-9]{14}$' || true)"
+          if [[ -n "$MALFORMED_REMOTE" ]]; then
+            echo "❌ Production has malformed schema_migrations.version values (expected exactly 14 digits):"
+            printf '%s\n' "$MALFORMED_REMOTE"
+            exit 1
+          fi
+
+          REMOTE_IDS="$(printf '%s\n' "$REMOTE_ROWS" | grep -E '^[0-9]{14}$' | sort -u || true)"
 
           echo "Local migration IDs:"
           printf '%s\n' "$LOCAL_IDS"

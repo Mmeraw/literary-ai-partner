@@ -11,8 +11,8 @@
  * Track B: "Trust Screens" - Users never see blank/confusing pages
  */
 
-import { createJob, getAllJobs } from "@/lib/jobs/store";
-import { getJobDisplayInfo } from "@/lib/jobs/ui-helpers";
+import { createJob, getAllJobs, updateJob } from "@/lib/jobs/store";
+import { getJobDisplayInfo, sortJobsByCreatedAtDesc } from "@/lib/jobs/ui-helpers";
 import { formatRelativeTime, formatDuration } from "@/lib/ui/time-helpers";
 import { getPhaseSpecificCopy, isTerminalStatus } from "@/lib/ui/phase-helpers";
 
@@ -40,14 +40,11 @@ describeOrSkip("Day-1 Evaluation UI Flow", () => {
     });
 
     it("should list jobs sorted by created_at DESC via GET /api/jobs", async () => {
-      // Create multiple jobs with delays to ensure ordering
       const job1 = await createJob({
         manuscript_id: "ms_1",
         job_type: "evaluate_full",
         user_id: TEST_USER_ID,
       });
-
-      await new Promise((resolve) => setTimeout(resolve, 10));
 
       const job2 = await createJob({
         manuscript_id: "ms_2",
@@ -55,15 +52,19 @@ describeOrSkip("Day-1 Evaluation UI Flow", () => {
         user_id: TEST_USER_ID,
       });
 
+      const earlier = "2026-05-08T04:11:34.000Z";
+      const later = "2026-05-08T04:11:35.000Z";
+
+      updateJob(job1.id, { created_at: earlier, updated_at: earlier });
+      updateJob(job2.id, { created_at: later, updated_at: later });
+
       const jobs = await getAllJobs();
 
       // Filter to only the two jobs created in this test, then sort newest first
       const testJobIds = new Set([job1.id, job2.id]);
       const sortedJobs = [...jobs]
         .filter((j) => testJobIds.has(j.id))
-        .sort((a, b) => {
-          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-        });
+        .sort(sortJobsByCreatedAtDesc);
 
       expect(sortedJobs.length).toBe(2);
       expect(sortedJobs[0].id).toBe(job2.id);

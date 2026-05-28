@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { appendUserActivity } from "@/lib/activity/userActivity";
 import { useJobs } from "../../lib/jobs/useJobs";
-import { getJobDisplayInfo, getJobStatusBadge } from "../../lib/jobs/ui-helpers";
+import { getJobDisplayInfo, getJobStatusBadge, sortJobsByCreatedAtDesc } from "../../lib/jobs/ui-helpers";
 import { formatRelativeTime, formatDuration } from "../../lib/ui/time-helpers";
 import ManuscriptSubmissionForm from "./ManuscriptSubmissionForm";
 import CompletionBanner from "./CompletionBanner";
@@ -260,7 +260,7 @@ export default function EvaluateEntry() {
     );
   }
 
-  const sortedJobs = [...jobs].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  const sortedJobs = [...jobs].sort(sortJobsByCreatedAtDesc);
   const hasNoJobs = sortedJobs.length === 0;
   const mostRecentJob = sortedJobs[0];
   const showCompletionBanner = mostRecentJob && mostRecentJob.status === "complete";

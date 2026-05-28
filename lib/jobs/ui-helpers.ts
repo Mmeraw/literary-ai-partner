@@ -57,6 +57,39 @@ export type JobDisplayInfo = {
   canCancel: boolean;
 };
 
+function toSortableEpoch(value: unknown): number {
+  if (typeof value !== "string" || value.trim().length === 0) {
+    return 0;
+  }
+
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+/**
+ * Deterministic newest-first ordering for evaluation jobs.
+ *
+ * Primary key: `created_at` DESC
+ * Secondary key: `updated_at` DESC
+ * Final tie-break: `id` DESC
+ *
+ * The final tie-breaker prevents unstable ordering when CI or fixtures create
+ * jobs with equal timestamps to the millisecond.
+ */
+export function sortJobsByCreatedAtDesc(a: Job, b: Job): number {
+  const createdDelta = toSortableEpoch(b.created_at) - toSortableEpoch(a.created_at);
+  if (createdDelta !== 0) {
+    return createdDelta;
+  }
+
+  const updatedDelta = toSortableEpoch(b.updated_at) - toSortableEpoch(a.updated_at);
+  if (updatedDelta !== 0) {
+    return updatedDelta;
+  }
+
+  return b.id.localeCompare(a.id);
+}
+
 /**
  * Get comprehensive display info for a job.
  * This is the single source of truth for UI presentation.
