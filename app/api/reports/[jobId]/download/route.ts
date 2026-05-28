@@ -162,11 +162,28 @@ function buildSummaryFallback(result: ExportableResult): string {
   return `${strengthSentence} ${riskSentence}`;
 }
 
+function safeTruncateText(text: string): string {
+  const trimmed = text.trim();
+  if (!trimmed) return trimmed;
+  if (/[.!?;:—"')\]]\s*$/.test(trimmed)) return trimmed;
+  const lastSpace = trimmed.lastIndexOf(' ');
+  if (lastSpace === -1) return trimmed;
+  const lastSegment = trimmed.slice(lastSpace + 1);
+  if (lastSegment.length <= 3 && !/[aeiou]/i.test(lastSegment)) {
+    const upToLastSpace = trimmed.slice(0, lastSpace).trimEnd();
+    const cleaned = upToLastSpace.replace(/\s+(and|or|but|the|a|an|in|on|at|to|of|for|with|by)\s*$/i, '');
+    return cleaned.replace(/[,;:\s]+$/, '') + '...';
+  }
+  return trimmed;
+}
+
 function cleanReportText(text: unknown, fallback = '—', options: { blockTruncation?: boolean } = {}): string {
   const raw = asText(text);
   if (!raw) return fallback;
   const cleaned = stripMachineResidue(raw);
-  if (options.blockTruncation && looksTruncated(cleaned)) return fallback;
+  if (options.blockTruncation && looksTruncated(cleaned)) {
+    return safeTruncateText(cleaned) || fallback;
+  }
   return cleaned;
 }
 

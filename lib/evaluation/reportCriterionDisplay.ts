@@ -103,12 +103,31 @@ export function getCriterionSupportLabel(criterion: RenderableCriterion): string
   return "Score not certified — technical evidence certification shortfall";
 }
 
+function repairTruncatedQuotes(text: string): string {
+  return text.replace(
+    /[""\u201c]([^""\u201d]+)[""\u201d]/g,
+    (match, inner: string) => {
+      const content = inner.trimEnd();
+      if (/[.!?]$/.test(content)) return match;
+      // Dangling apostrophe from a cut contraction (e.g. "wasn'" from "wasn't")
+      if (/\w'\s*$/.test(content)) {
+        const lastSpace = content.lastIndexOf(" ");
+        if (lastSpace === -1) return match;
+        const trimmed = content.slice(0, lastSpace).replace(/[,;:\s]+$/, "");
+        return `\u201c${trimmed}\u2026\u201d`;
+      }
+      return match;
+    },
+  );
+}
+
 export function getCriterionRationalePresentation(
   criterion: RenderableCriterion,
   rationale: string | null | undefined,
 ): CriterionRationalePresentation | null {
-  const text = (rationale ?? "").trim();
-  if (!text) return null;
+  const raw = (rationale ?? "").trim();
+  if (!raw) return null;
+  const text = repairTruncatedQuotes(raw);
 
   if (isCertifiedCriterion(criterion)) {
     return {

@@ -24,6 +24,7 @@ import {
   getDisplayRecord,
   getDisplayDreamScore,
   getDisplayText,
+  safeTruncateToWordBoundary,
 } from '@/lib/evaluation/reportRenderSafety';
 import { resolveReportTitle } from '@/lib/evaluation/reportTitle';
 import { hasActiveSupportGrant, logSupportView } from '@/lib/support/checkSupportAccess';
@@ -399,7 +400,7 @@ export default async function ReportPage({ params }: { params: { jobId: string }
               </div>
             </div>
             <p className="text-gray-700 mb-6 leading-relaxed">
-              {chapterTitle ? `In ${displayTitle}, ${overview.one_paragraph_summary}` : overview.one_paragraph_summary}
+              {safeTruncateToWordBoundary(chapterTitle ? `In ${displayTitle}, ${overview.one_paragraph_summary}` : overview.one_paragraph_summary)}
             </p>
             <div className="grid md:grid-cols-2 gap-6">
               <div>

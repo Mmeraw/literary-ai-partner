@@ -29,6 +29,7 @@ import {
   isCertifiedCriterion,
 } from "@/lib/evaluation/reportCriterionDisplay";
 import { resolveReportTitle } from "@/lib/evaluation/reportTitle";
+import { safeTruncateToWordBoundary } from "@/lib/evaluation/reportRenderSafety";
 import { hasActiveSupportGrant, logSupportView } from "@/lib/support/checkSupportAccess";
 import type { LongformDreamDocument } from "@/lib/evaluation/pipeline/runPass3bLongform";
 
@@ -769,7 +770,7 @@ export default async function EvaluationReportPage({
           <section className="rounded-lg border bg-white p-6 mb-4">
             <h2 className="text-xl font-semibold text-gray-900">Overall Summary</h2>
             <p className="mt-3 text-sm leading-relaxed text-gray-700">
-              {artifact.overview?.one_paragraph_summary || artifact.summary || "No summary available"}
+              {safeTruncateToWordBoundary(artifact.overview?.one_paragraph_summary || artifact.summary || "No summary available")}
             </p>
           </section>
 
@@ -869,18 +870,12 @@ export default async function EvaluationReportPage({
                         {c.recommendations && c.recommendations.length > 0 && (
                           <div className="mt-3">
                             <p className="text-xs font-semibold uppercase tracking-wide text-gray-600">Recommendations:</p>
-                            <ul className="mt-2 space-y-2">
+                            <ul className="mt-2 space-y-3">
                               {c.recommendations.map((r, ri) => (
                                 <li key={ri} className="text-sm text-gray-700">
-                                  {normalizeRecommendationActionForDisplay(r.action)}
-                                  {r.priority && (
-                                    <span className={`ml-1 font-medium ${
-                                      r.priority === "high" ? "text-red-600" :
-                                      r.priority === "medium" ? "text-amber-600" : "text-gray-500"
-                                    }`}>({r.priority})</span>
-                                  )}
+                                  <p>{normalizeRecommendationActionForDisplay(r.action)}</p>
                                   {r.expected_impact && (
-                                    <span className="ml-1 text-xs text-gray-600">— {r.expected_impact}</span>
+                                    <p className="mt-1 text-xs text-gray-500 italic">{r.expected_impact}</p>
                                   )}
                                 </li>
                               ))}

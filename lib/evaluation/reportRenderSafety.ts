@@ -68,6 +68,63 @@ export function getDisplayObjectArray(value: unknown): Array<Record<string, unkn
     .filter((entry): entry is Record<string, unknown> => entry !== null);
 }
 
+/**
+ * Ensure text does not end mid-word or mid-punctuation.
+ * If the text appears truncated (ends without sentence-terminal punctuation),
+ * trim back to the last complete word boundary and append an ellipsis.
+ */
+export function safeTruncateToWordBoundary(text: string): string {
+  const trimmed = text.trim();
+  if (!trimmed) return trimmed;
+
+  // Already ends with sentence-terminal punctuation — no truncation needed.
+  if (/[.!?;:—"')\]]\s*$/.test(trimmed)) return trimmed;
+
+  // Ends cleanly on a complete word (letter/digit followed by whitespace boundary) — likely fine.
+  // But if it ends mid-word (no space before the final char cluster), trim to last word boundary.
+  const lastSpace = trimmed.lastIndexOf(" ");
+  if (lastSpace === -1) return trimmed;
+
+  // Check if the very end looks like a partial word (no terminal punctuation).
+  const lastSegment = trimmed.slice(lastSpace + 1);
+  // If last segment is a complete word ending in a letter/digit, the text is merely
+  // missing a period — that is acceptable, just append one.
+  // If last segment looks partial (short, no vowel, or clearly mid-word), trim it.
+  if (lastSegment.length <= 3 && !/[aeiou]/i.test(lastSegment)) {
+    // Likely mid-word truncation — trim to previous word boundary.
+    const upToLastSpace = trimmed.slice(0, lastSpace).trimEnd();
+    // Remove trailing conjunctions/prepositions that dangle after trimming.
+    const cleaned = upToLastSpace.replace(/\s+(and|or|but|the|a|an|in|on|at|to|of|for|with|by)\s*$/i, "");
+    return cleaned.replace(/[,;:\s]+$/, "") + "…";
+  }
+
+  return trimmed;
+}
+
+/**
+ * Ensure evidence quote text does not cut off mid-word or mid-punctuation.
+ * Trims to the last complete word and adds ellipsis if truncated.
+ */
+export function safeEvidenceQuote(snippet: string): string {
+  const trimmed = snippet.trim();
+  if (!trimmed) return trimmed;
+
+  // Already ends with closing punctuation — no fix needed.
+  if (/[.!?;:—"')\]]\s*$/.test(trimmed)) return trimmed;
+
+  // Ends with a complete word — append ellipsis to signal continuation.
+  const lastSpace = trimmed.lastIndexOf(" ");
+  if (lastSpace === -1) return trimmed + "…";
+
+  const lastWord = trimmed.slice(lastSpace + 1);
+  // Partial word: trim back.
+  if (lastWord.length <= 2 && !/[aeiou]/i.test(lastWord)) {
+    return trimmed.slice(0, lastSpace).replace(/[,;:\s]+$/, "") + "…";
+  }
+
+  return trimmed + "…";
+}
+
 export function getDisplayDreamMarketField(
   dreamDoc: LongformDreamDocument | null | undefined,
   field: "best_shelf" | "marketable_hook" | "market_danger",
