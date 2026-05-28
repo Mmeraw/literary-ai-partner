@@ -1024,16 +1024,26 @@ export function runQualityGate(
       );
     }
 
+    // Scope-aware editorial quality gate: manuscripts below full_manuscript scale
+    // naturally produce thinner recommendations that may lack mechanism/cause or
+    // specific_fix fields. Hard-blocking the entire report for editorial specificity
+    // defects at these scales harms author experience. Instead, diagnostics are
+    // preserved and surfaced as per-criterion confidence warnings in the report.
+    const editorialBlockEligible =
+      scopeProfile?.inputScale === "full_manuscript" ||
+      scopeProfile?.inputScale === "multi_chapter";
+    const effectiveBlock = blockEditorialQuality && editorialBlockEligible;
+
     checks.push({
       check_id: "recommendation_editorial_quality",
-      passed: !blockEditorialQuality,
+      passed: !effectiveBlock,
       error_code:
-        blockEditorialQuality
+        effectiveBlock
           ? "QG_EDITORIAL_GENERIC_FEEDBACK"
           : undefined,
       details:
         genericFeedbackFindings.length > 0
-          ? `${blockEditorialQuality ? "BLOCK" : "WARN"}: ${genericFeedbackFindings.length} editorial recommendation quality issue(s): ${genericFeedbackFindings.slice(0, 4).join("; ")}`
+          ? `${effectiveBlock ? "BLOCK" : "WARN"}: ${genericFeedbackFindings.length} editorial recommendation quality issue(s): ${genericFeedbackFindings.slice(0, 4).join("; ")}${!editorialBlockEligible && blockEditorialQuality ? ` (downgraded from BLOCK — inputScale=${scopeProfile?.inputScale ?? "unknown"})` : ""}`
           : "All recommendations meet editorial quality contract",
     });
   }

@@ -130,8 +130,8 @@ OUTPUT FORMAT: Valid JSON only. No markdown. No prose.
       "arc_pressure": null,
       "arc_shift": null,
       "is_ending_chunk": false,
-      "symbolic_objects": [],
-      "relationship_signals": [],
+      "symbolic_objects": [{"object": "", "function": ""}],
+      "relationship_signals": [{"other_character": "", "relationship_type": "", "dynamic": ""}],
       "evidence_anchors": [],
       "co_presence_confirmed": [],
       "negative_knowledge": []

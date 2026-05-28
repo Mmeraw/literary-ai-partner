@@ -254,6 +254,36 @@ function LayerShell({
   );
 }
 
+/**
+ * Attempt to produce a human-readable string from an object.
+ * Recognises name-state objects ({name, confidence?, validFromChunk?})
+ * and falls back to extracting common label-like keys before resorting
+ * to JSON.stringify.
+ */
+function humanizeObject(v: unknown): string {
+  if (v === null || v === undefined) return "";
+  if (typeof v !== "object" || Array.isArray(v)) return String(v);
+
+  const obj = v as Record<string, unknown>;
+
+  // Name-state objects: {name, confidence?, validFromChunk?, validUntilChunk?}
+  if (typeof obj.name === "string") {
+    const parts: string[] = [obj.name];
+    if (typeof obj.confidence === "string" && obj.confidence !== "explicit") {
+      parts.push(`(${obj.confidence})`);
+    }
+    return parts.join(" ");
+  }
+
+  // Objects with a label or description field
+  for (const key of ["label", "description", "title", "value", "display"]) {
+    if (typeof obj[key] === "string" && obj[key]) return obj[key] as string;
+  }
+
+  // Last resort: compact JSON
+  return JSON.stringify(v);
+}
+
 function FieldRow({
   label,
   value,
@@ -263,19 +293,71 @@ function FieldRow({
   value?: unknown;
   mono?: boolean;
 }) {
-  const display = (() => {
-    if (value === null || value === undefined || value === "") return null;
-    if (Array.isArray(value)) {
-      if (value.length === 0) return null;
-      return (value as unknown[])
-        .map((v) => (typeof v === "string" ? v : JSON.stringify(v)))
-        .join(", ");
-    }
-    if (typeof value === "object") return JSON.stringify(value, null, 2);
-    return String(value);
-  })();
+  if (value === null || value === undefined || value === "") return null;
+
+  // Arrays — render as pill-style tags when items are objects with names
+  if (Array.isArray(value)) {
+    if (value.length === 0) return null;
+
+    const hasStructuredItems = value.some(
+      (v) => typeof v === "object" && v !== null && !Array.isArray(v),
+    );
+
+    const items: string[] = value.map((v) =>
+      typeof v === "string" ? v : humanizeObject(v),
+    );
+
+    if (items.length === 0) return null;
+
+    return (
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "180px 1fr",
+          gap: "4px 20px",
+          padding: "10px 0",
+          borderBottom: `1px solid ${C.border}`,
+          alignItems: "start",
+        }}
+      >
+        <span
+          style={{
+            fontSize: 11,
+            fontWeight: 700,
+            letterSpacing: "0.07em",
+            textTransform: "uppercase" as const,
+            color: C.textMuted,
+            paddingTop: 2,
+          }}
+        >
+          {label}
+        </span>
+        {hasStructuredItems ? (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, paddingTop: 2 }}>
+            {items.map((item, idx) => (
+              <Pill key={idx} label={item} tone="neutral" />
+            ))}
+          </div>
+        ) : (
+          <span style={{ fontSize: 15, color: C.textPrimary, lineHeight: 1.75 }}>
+            {items.join(", ")}
+          </span>
+        )}
+      </div>
+    );
+  }
+
+  // Single objects — humanize
+  const display =
+    typeof value === "object"
+      ? humanizeObject(value)
+      : String(value);
 
   if (!display) return null;
+
+  // "unresolved" gets a muted style
+  const isUnresolved =
+    typeof display === "string" && display.toLowerCase() === "unresolved";
 
   return (
     <div
@@ -314,8 +396,15 @@ function FieldRow({
           {display}
         </pre>
       ) : (
-        <span style={{ fontSize: 15, color: C.textPrimary, lineHeight: 1.75 }}>
-          {display}
+        <span
+          style={{
+            fontSize: 15,
+            color: isUnresolved ? C.textFaint : C.textPrimary,
+            lineHeight: 1.75,
+            fontStyle: isUnresolved ? "italic" : "normal",
+          }}
+        >
+          {isUnresolved ? "Unresolved" : display}
         </span>
       )}
     </div>

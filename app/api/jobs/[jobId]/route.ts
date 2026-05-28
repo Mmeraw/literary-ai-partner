@@ -324,10 +324,11 @@ function extractCanonicalPhase(job: Job): {
 } {
   if (!job.progress) return {};
 
-  const rawPhase = (job.progress as { phase?: unknown }).phase;
-  const rawPhaseStatus = (job.progress as { phase_status?: unknown }).phase_status;
+  const p = job.progress as Record<string, unknown>;
+  const rawPhase = p.phase;
+  const rawPhaseStatus = p.phase_status;
 
-  const phase = normalizePhaseForResponse(rawPhase);
+  let phase = normalizePhaseForResponse(rawPhase);
 
   let phase_status: CanonicalPhaseStatus | null | undefined;
   if (
@@ -339,6 +340,16 @@ function extractCanonicalPhase(job: Job): {
     phase_status = null;
   } else {
     phase_status = undefined;
+  }
+
+  // Detect review gate: the processor writes phase='review_gate' to the
+  // top-level DB column but progress JSONB retains phase='phase_1a'.
+  // Promote to review_gate when the JSONB signals indicate it.
+  if (
+    phase_status === "awaiting_approval" &&
+    p.review_gate_ready === true
+  ) {
+    phase = "review_gate";
   }
 
   return { phase, phase_status };

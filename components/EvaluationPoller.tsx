@@ -716,7 +716,12 @@ export function EvaluationPoller({
             </p>
             <p className="text-gray-900">
               {job.status === 'running' || job.status === 'queued'
-                ? `Running for ${formatDuration(job.created_at)}`
+                ? `Running for ${formatDuration(
+                    job.pass3_started_at
+                    ?? job.phase2_started_at
+                    ?? job.phase1_started_at
+                    ?? job.created_at
+                  )}`
                 : formatRelativeTime(job.updated_at)}
             </p>
           </div>

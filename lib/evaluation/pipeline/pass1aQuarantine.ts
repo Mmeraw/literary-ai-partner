@@ -486,6 +486,22 @@ function normalizeCharacterEntry(
 
   const symbolic_objects = (Array.isArray(r.symbolic_objects) ? r.symbolic_objects : [])
     .map((sym, index) => {
+      // Handle string-format items: LLM sometimes returns ["Jeep", "trailer"]
+      // instead of [{object: "Jeep", function: "..."}]
+      if (typeof sym === "string") {
+        const trimmed = sym.trim();
+        if (!trimmed) return null;
+        recordDiagnostic(diagnostics, {
+          code: "PASS1A_MALFORMED_STRING_COERCED",
+          action: "coerced",
+          chunk_index: chunkIndex,
+          character_name: name,
+          field_path: `symbolic_objects[${index}]`,
+          observed_type: "string",
+        });
+        return { object: trimmed, function: "" };
+      }
+
       if (!isRecord(sym)) {
         recordDiagnostic(diagnostics, {
           code: "PASS1A_MALFORMED_NESTED_ITEM_DROPPED",

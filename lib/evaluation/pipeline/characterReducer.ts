@@ -582,6 +582,23 @@ export function reduceCharacterEvidence(params: {
       };
     }
 
+    // Fallback: populate coPresenceMap from co_presence_confirmed when
+    // relationalEngines is empty (e.g. LLM returned relationship_signals
+    // as plain strings instead of structured objects).
+    if (Object.keys(coPresenceMap).length === 0) {
+      for (let ei = 0; ei < entries.length; ei++) {
+        for (const other of entries[ei].co_presence_confirmed ?? []) {
+          const resolvedOther = resolveCanonical(other, aliasMap, identityGroupMap);
+          if (normalize(resolvedOther) === normalize(canonical)) continue;
+          if (coPresenceMap[resolvedOther]) continue;
+          coPresenceMap[resolvedOther] = {
+            firstSharedChunk: chunkIndices[ei],
+            firstSharedChapterEstimate: `chunk ${chunkIndices[ei]}`,
+          };
+        }
+      }
+    }
+
     ledgerEntries.push({
       canonical_name: canonical,
       aliases: allAliases,
