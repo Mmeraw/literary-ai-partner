@@ -36,7 +36,7 @@ function normalizeSiteUrl(value: string | undefined): string | null {
 }
 
 function getResetRedirectUrl(): string {
-  return `${RESET_SITE_URL}/reset-password`
+  return `${RESET_SITE_URL}/api/auth/callback?next=/reset-password`
 }
 
 const inputCls =
