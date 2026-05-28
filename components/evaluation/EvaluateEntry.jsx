@@ -244,7 +244,7 @@ export default function EvaluateEntry() {
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <section className="mb-8 rounded-3xl border border-stone-200 bg-white/80 p-6 shadow-sm md:p-8">
           <p className="font-rg-mono text-xs uppercase tracking-[0.24em] text-rg-gold">Evaluate</p>
-          <div className="mt-4 grid gap-8 lg:grid-cols-[1.05fr_0.95fr] lg:items-end">
+          <div className="mt-4 grid gap-8 lg:grid-cols-[1.05fr_0.95fr] lg:items-start">
             <div>
               <h1 className="font-rg-serif text-4xl leading-tight text-stone-950 md:text-5xl">
                 Begin manuscript evaluation.
@@ -252,6 +252,21 @@ export default function EvaluateEntry() {
               <p className="mt-4 max-w-3xl text-base leading-7 text-stone-600">
                 Submit existing writing into the correct diagnostic path. Short-form work is evaluated against the 13 story criteria; long-form manuscripts qualify for manuscript-scale readiness analysis.
               </p>
+
+              <div className="mt-6 rounded-2xl border border-stone-200 bg-[#FBFAF7] p-5">
+                <p className="font-rg-mono text-[0.65rem] uppercase tracking-[0.16em] text-rg-gold">Word Count Guide</p>
+                <ul className="mt-3 space-y-1.5 text-sm leading-6 text-stone-600">
+                  <li><span className="font-medium text-stone-800">Flash / Excerpt</span> — 200–749 words</li>
+                  <li><span className="font-medium text-stone-800">Scene / Chapter</span> — 750–5,999 words</li>
+                  <li><span className="font-medium text-stone-800">Multi-chapter</span> — 6,000–7,499 words</li>
+                  <li><span className="font-medium text-stone-800">Novelette</span> — 7,500–19,999 words</li>
+                  <li><span className="font-medium text-stone-800">Novella</span> — 20,000–49,999 words</li>
+                  <li><span className="font-medium text-stone-800">Novel</span> — 50,000+ words</li>
+                </ul>
+                <p className="mt-3 text-xs leading-5 text-stone-500">
+                  RevisionGrade automatically classifies your submission and adjusts confidence thresholds based on manuscript length.
+                </p>
+              </div>
             </div>
             <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
               {evaluationModes.map((mode) => (
