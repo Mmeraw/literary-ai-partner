@@ -629,6 +629,7 @@ export default async function EvaluationReportPage({
           initialJob={initialPollerJob}
           redirectOnComplete={false}
           refreshOnComplete={true}
+          redirectOnReviewGate={true}
         />
       </section>
 
