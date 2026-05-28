@@ -771,7 +771,7 @@ export default async function EvaluationReportPage({
           <section className="rounded-lg border bg-white p-6 mb-4">
             <h2 className="text-xl font-semibold text-gray-900">Overall Summary</h2>
             <p className="mt-3 text-sm leading-relaxed text-gray-700">
-              {artifact.summary || artifact.overview?.one_paragraph_summary || "No summary available"}
+              {artifact.overview?.one_paragraph_summary || artifact.summary || "No summary available"}
             </p>
           </section>
 
