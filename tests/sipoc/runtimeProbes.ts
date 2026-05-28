@@ -316,7 +316,18 @@ export async function probeS09(): Promise<ProbeOutcome> {
   const synthesis = mockPass3GenericSynthesis();
   const pass1 = mockHealthyPass(1);
   const pass2 = mockHealthyPass(2);
-  const gateResult = runQualityGate(synthesis, pass1, pass2, "manuscript text");
+  // Pass full_manuscript scope so the editorial quality gate fires as a hard
+  // block. The scope-aware gate only blocks for multi_chapter / full_manuscript;
+  // shorter scales downgrade to warn.
+  const fullManuscriptScope: import("@/lib/evaluation/pipeline/submissionScope").SubmissionScopeProfile = {
+    inputScale: "full_manuscript",
+    wordCount: 60000,
+    chunkCount: 20,
+    scorableCount: 13,
+    confidenceCapSummary: "HIGH",
+    scopePolicyVersion: "sipoc-probe",
+  };
+  const gateResult = runQualityGate(synthesis, pass1, pass2, "manuscript text", fullManuscriptScope);
   const errorCodes = gateResult.checks
     .filter((c) => !c.passed && c.error_code)
     .map((c) => c.error_code as string);
