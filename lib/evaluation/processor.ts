@@ -191,7 +191,7 @@ function getProcessorRuntimeDeps() {
   };
 }
 
-const EVALUATION_PROGRESS_TOTAL_UNITS = 3;
+const EVALUATION_PROGRESS_TOTAL_UNITS = 100;
 
 // Below this word count we evaluate as a single structural unit (one chunk).
 // Above this, the adaptive chunker engages and emits chapter-aligned chunks.
@@ -3525,7 +3525,7 @@ export async function processEvaluationJob(
           worker_pulse_at: null,
           phase0_completed_at: phase0EndNow,
           updated_at: phase0EndNow,
-          progress: { ...progressState, ...phase0TelemetryPatch },
+          progress: { ...progressState, ...phase0TelemetryPatch, total_units: 100, completed_units: 8 },
         })
         .eq('id', jobId)
         .eq('status', JOB_STATUS.RUNNING);
@@ -3549,7 +3549,7 @@ export async function processEvaluationJob(
     }
 
     // 2. Update status to running
-    await markRunning('Fetching manuscript', 0, executionPhase);
+    await markRunning('Fetching manuscript', 2, executionPhase);
 
     // NOTE: phase0_started_at / phase0_completed_at are written ONLY by runPhase0GoldPrimer().
     // Do NOT stamp them here for direct phase_1a entries — that produces false Phase 0 timings.
@@ -4089,7 +4089,7 @@ export async function processEvaluationJob(
       // Read handoff + ledger + preflight, build runners, run runPipeline,
       // assign outer pipelineResult, fall through to persistence path.
       if (!hasEvalResult) {
-        await markRunning('Running Pass 3B synthesis', 1, 'phase_3');
+        await markRunning('Running Pass 3B synthesis', 80, 'phase_3');
         refreshPhaseDeadline(progressState.phase3_started_at as string | undefined);
 
         const { data: handoffRow, error: handoffReadError } = await supabase
@@ -4316,7 +4316,7 @@ export async function processEvaluationJob(
       } else {
         // ── WAVE-only path: eval_result already exists, skip synthesis ─────────
         // This is the rerun/retry case. Run WAVE inline + complete.
-        await markRunning('Running WAVE readiness analysis', 2, 'phase_3');
+        await markRunning('Running WAVE readiness analysis', 95, 'phase_3');
       refreshPhaseDeadline(progressState.phase3_started_at as string | undefined);
 
       // Heartbeat renewal loop — WAVE can run for several minutes on large manuscripts.
@@ -4588,7 +4588,7 @@ export async function processEvaluationJob(
     if (executionPhase === 'phase_1a') {
       // phase0_completed_at is written only by runPhase0GoldPrimer() when real Phase 0 runs.
       // Do NOT stamp it here — this is the phase_1a execution path, not Phase 0 completion.
-      await markRunning('Running Pass 1A character sweep', 1, 'phase_1a');
+      await markRunning('Running Pass 1A character sweep', 10, 'phase_1a');
       refreshPhaseDeadline(progressState.phase1a_started_at as string | undefined);
 
       // ── PHASE_0_NOT_PROVEN guard ────────────────────────────────────────────
@@ -4836,7 +4836,7 @@ export async function processEvaluationJob(
             worker_id: job.claimed_by ?? 'unknown',
             deploy_sha: DEPLOYED_SHA,
           };
-          await markRunning('Analyzing manuscript', 1, 'phase_1a');
+          await markRunning('Analyzing manuscript', 10, 'phase_1a');
 
           console.log(`[phase_1a] ${jobId}: batch ${batchIndex + 1}/${batchesTotal} — processing chunks [${batchSliceIndexes.join(',')}] budget=${budgetMs}ms`);
 
@@ -5035,6 +5035,9 @@ export async function processEvaluationJob(
                       progress: {
                         ...progressState,
                         track_c_status: 'done',
+                        pass3a_status: 'done',
+                        pass3a_completed_at: completedAt,
+                        pass3a_artifact_id: trackCResult.artifactId,
                         phase1a_batch_state: {
                           ...((progressState.phase1a_batch_state as Record<string, unknown>) ?? {}),
                           preflight_status: 'DONE',
@@ -5060,6 +5063,10 @@ export async function processEvaluationJob(
                     progress: {
                       ...progressState,
                       track_c_status: 'degraded',
+                      pass3a_status: 'degraded',
+                      degraded_reason: degradedReason,
+                      degraded_reason_codes: ['TRACK_C_ERROR_DURING_BATCH'],
+                      degraded_at: degradedAt,
                       phase1a_batch_state: {
                         ...((progressState.phase1a_batch_state as Record<string, unknown>) ?? {}),
                         preflight_status: 'DEGRADED',
@@ -5115,12 +5122,34 @@ export async function processEvaluationJob(
               latestTrackCBatchFields.degraded_at = batchState.degraded_at ?? new Date().toISOString();
             }
 
+            // Preserve pass3a gate fields through self-chain when Track C
+            // completed or degraded during this invocation.
+            const pass3aSelfChainFields: Record<string, unknown> = {};
+            if (trackCStatusAfterBatch === 'DONE') {
+              pass3aSelfChainFields.pass3a_status = 'done';
+              pass3aSelfChainFields.pass3a_completed_at = new Date().toISOString();
+            } else if (trackCStatusAfterBatch === 'DEGRADED') {
+              pass3aSelfChainFields.pass3a_status = 'degraded';
+              const batchStateForDegraded = (progressState.phase1a_batch_state as Record<string, unknown>) ?? {};
+              pass3aSelfChainFields.degraded_reason = batchStateForDegraded.degraded_reason ?? 'Track C failed during chunk-batch invocation';
+              pass3aSelfChainFields.degraded_reason_codes = batchStateForDegraded.degraded_reason_codes ?? ['TRACK_C_ERROR_DURING_BATCH'];
+              pass3aSelfChainFields.degraded_at = batchStateForDegraded.degraded_at ?? new Date().toISOString();
+            }
+
+            // Progress bar: scale Phase 1A chunk progress to 10–40% band.
+            // totalChunks adapts to manuscript length automatically.
+            const chunkFraction = totalChunks > 0 ? completedAfterBatch.size / totalChunks : 0;
+            const selfChainProgressPercent = Math.round(10 + chunkFraction * 30);
+
             const updatedProgress = {
               ...progressState,
               phase: 'phase_1a',
               phase_status: 'queued',
               message: `Analyzing manuscript (${completedAfterBatch.size}/${totalChunks} sections)`,
+              total_units: 100,
+              completed_units: selfChainProgressPercent,
               track_c_status: trackCStatusForSelfChain,
+              ...pass3aSelfChainFields,
               phase1a_batch_state: { ...updatedBatchState, ...latestTrackCBatchFields },
               phase_log: [
                 ...((progressState.phase_log as unknown[]) ?? []),
@@ -5695,6 +5724,8 @@ export async function processEvaluationJob(
         const phase1aHandoffProgress = {
           ...progressState,
           ...buildPhaseLogPatch(progressState, 'phase_1a', 'passed', phase1aNow),
+          total_units: 100,
+          completed_units: 50,
           phase: reviewGateHandoffResult.handoff.progress.phase,
           phase_status: reviewGateHandoffResult.handoff.progress.phase_status,
           message: reviewGateHandoffResult.handoff.progress.message,
@@ -5803,7 +5834,7 @@ export async function processEvaluationJob(
         }
       }
 
-      await markRunning('Resuming from phase 1 handoff', 1, 'phase_2');
+      await markRunning('Resuming from phase 1 handoff', 55, 'phase_2');
       refreshPhaseDeadline(progressState.phase2_started_at as string | undefined);
 
       // ── GOVERNANCE GATE: accepted_story_ledger_v1 is required before Phase 2 ──
@@ -7141,7 +7172,7 @@ export async function processEvaluationJob(
 
     await markRunning(
       'Persisting evaluation artifacts',
-      2,
+      98,
       executionPhase === 'phase_3' ? 'phase_3' : 'phase_2',
     );
 
