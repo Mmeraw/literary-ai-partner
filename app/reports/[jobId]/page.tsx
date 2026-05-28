@@ -8,7 +8,6 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { canReleaseEvaluationRead } from '@/lib/jobs/readReleaseGate';
 import { EvaluationResultV1, isEvaluationResultV1, hasD2TransparencyFields } from '@/schemas/evaluation-result-v1';
 import { isEvaluationResultV2, EvaluationResultV2 } from '@/schemas/evaluation-result-v2';
-import AgentTrustHeader from '@/components/reports/AgentTrustHeader';
 import { scanObjectForForbiddenMarketClaims } from '@/lib/release/forbiddenMarketClaims';
 import { classifyEvaluationIntegrityBanner } from '@/lib/evaluation/warningClassification';
 import {
@@ -294,44 +293,32 @@ export default async function ReportPage({ params }: { params: { jobId: string }
     );
   }
 
-  // D2 required fields (all validated above; safe to access now).
-  const transparency = result.governance.transparency!;
-  const finalWorkTypeUsed = transparency.final_work_type_used;
-  const matrixVersion = transparency.matrix_version;
-  const criteriaPlan = transparency.criteria_plan;
-
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="max-w-5xl mx-auto p-8">
+      <div className="max-w-5xl mx-auto px-4 py-6 sm:px-8">
         {/* Header */}
-        <header className="mb-8">
-          <h1 className="text-4xl font-bold text-gray-900 mb-2">
-            Evaluation Report
-          </h1>
-          <p className="text-xl font-semibold text-gray-900 mb-1">
-            {displayTitle}
-          </p>
-          {chapterTitle && manuscriptTitle && chapterTitle !== manuscriptTitle && (
-            <p className="text-sm text-gray-700 mb-1">
-              Manuscript Title: <span className="font-medium text-gray-700">{manuscriptTitle}</span>
-            </p>
-          )}
-          <p className="text-gray-600">
-            Generated {getDisplayDateTime(result.generated_at, "Unknown")}
-          </p>
-          <div className="mt-4">
-            <DownloadReportButton jobId={params.jobId} />
+        <header className="mb-6">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <h1 className="text-2xl font-bold text-gray-900">Evaluation Report</h1>
+              <p className="mt-1 text-lg font-semibold text-gray-900">{displayTitle}</p>
+              {chapterTitle && manuscriptTitle && chapterTitle !== manuscriptTitle && (
+                <p className="text-sm text-gray-600">{manuscriptTitle}</p>
+              )}
+              <p className="mt-1 text-sm text-gray-500">
+                Generated {getDisplayDateTime(result.generated_at, "Unknown")}
+              </p>
+            </div>
+            <div className="shrink-0">
+              <DownloadReportButton jobId={params.jobId} />
+            </div>
           </div>
         </header>
 
-        {/* D2 Agent Trust Header (Required) */}
-        <AgentTrustHeader
-          jobId={params.jobId}
-          generatedAt={result.generated_at}
-          finalWorkTypeUsed={finalWorkTypeUsed}
-          matrixVersion={matrixVersion}
-          criteriaPlan={criteriaPlan}
-        />
+        <div className="mb-4 rounded-md border border-gray-200 bg-gray-50 px-4 py-3 text-xs text-gray-600 leading-relaxed">
+          <span className="font-medium text-gray-700">Your manuscript is private.</span>{' '}
+          RevisionGrade support and admin staff will never access your novel or evaluation data unless you explicitly grant temporary permission for troubleshooting.
+        </div>
 
         {/* Evaluation integrity status (single source of truth) */}
         {integrityBanner && (
@@ -400,14 +387,23 @@ export default async function ReportPage({ params }: { params: { jobId: string }
             §6 — Detailed Scores / Score Grid
           </h2>
           <div className="mb-4 rounded-md border bg-gray-50 p-3 text-sm text-gray-700 leading-relaxed">
-            <p className="font-medium">Confidence Guide</p>
+            <p className="font-medium">What does Confidence mean?</p>
             <p className="mt-1">
-              Confidence shows how strongly each score and summary is supported by clear examples from your submitted text.
+              Confidence reflects how strongly each diagnosis is supported by direct evidence in your manuscript.
             </p>
-            <ul className="mt-2 list-disc pl-5 space-y-1 text-sm">
-              <li>High (≥80): strong support from the text</li>
-              <li>Moderate (60–79): partial or uneven support from the text</li>
-              <li>Low (&lt;60): limited support from the text</li>
+            <ul className="mt-2 space-y-1.5">
+              <li className="flex items-start gap-2">
+                <span className="inline-flex items-center rounded-full bg-emerald-100 text-emerald-800 px-2 py-0.5 text-xs font-medium shrink-0">High</span>
+                <span>Strong textual evidence supports this diagnosis.</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="inline-flex items-center rounded-full bg-amber-100 text-amber-800 px-2 py-0.5 text-xs font-medium shrink-0">Moderate</span>
+                <span>Enough evidence to identify the issue, but some ambiguity remains.</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="inline-flex items-center rounded-full bg-rose-100 text-rose-800 px-2 py-0.5 text-xs font-medium shrink-0">Low</span>
+                <span>Limited or conflicting evidence — treat as a prompt for review, not a final judgment.</span>
+              </li>
             </ul>
           </div>
           <p className="mb-4 text-sm font-medium text-gray-700">
@@ -914,54 +910,11 @@ export default async function ReportPage({ params }: { params: { jobId: string }
           </section>
         )}
 
-        {/* Metadata */}
-        <section className="bg-gray-100 rounded-lg p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Evaluation Metadata</h2>
-          <div className="grid md:grid-cols-2 gap-4 text-sm">
-            <div>
-              <p className="text-gray-600">Chapter Title</p>
-              <p className="font-mono text-gray-900">{chapterTitle || manuscriptTitle || 'Untitled'}</p>
-            </div>
-            <div>
-              <p className="text-gray-600">Manuscript Title</p>
-              <p className="font-mono text-gray-900">{manuscriptTitle || chapterTitle || 'Untitled'}</p>
-            </div>
-            <div>
-              <p className="text-gray-600">Job ID</p>
-              <p className="font-mono text-gray-900">{params.jobId}</p>
-            </div>
-            <div>
-              <p className="text-gray-600">Word Count</p>
-              <p className="font-mono text-gray-900">{metrics.manuscript.word_count ? metrics.manuscript.word_count.toLocaleString() : 'N/A'}</p>
-            </div>
-            <div>
-              <p className="text-gray-600">Model</p>
-              <p className="font-mono text-gray-900">{result.engine.model}</p>
-            </div>
-            <div>
-              <p className="text-gray-600">Confidence</p>
-              <p className="font-mono text-gray-900">{(governance.confidence * 100).toFixed(0)}%</p>
-            </div>
-            {metrics.manuscript.word_count && (
-              <div>
-                <p className="text-gray-600">Word Count</p>
-                <p className="font-mono text-gray-900">{metrics.manuscript.word_count.toLocaleString()}</p>
-              </div>
-            )}
-            {metrics.processing.runtime_ms && (
-              <div>
-                <p className="text-gray-600">Processing Time</p>
-                <p className="font-mono text-gray-900">{(metrics.processing.runtime_ms / 1000).toFixed(1)}s</p>
-              </div>
-            )}
-          </div>
-          {integrityBanner?.label && (
-            <div className="mt-4">
-              <p className="text-gray-600 mb-2">Evaluation Status</p>
-              <p className="text-sm text-gray-800">{integrityBanner.label}</p>
-            </div>
-          )}
-        </section>
+        {/* Evaluation Metadata section removed from author-facing view.
+           Internal telemetry (Model, Confidence %, Processing Time, Job ID)
+           is not author-relevant. Author-facing info (title, word count, date)
+           is already shown in the header above. Support access with audit log
+           will be added in a separate PR. */}
 
         <div className="mt-6 flex justify-end">
           <DownloadReportButton jobId={params.jobId} />

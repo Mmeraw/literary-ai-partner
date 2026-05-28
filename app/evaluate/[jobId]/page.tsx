@@ -314,10 +314,6 @@ async function getArtifact(jobId: string): Promise<ArtifactResult> {
   }
 }
 
-function formatScore(n: number): string {
-  return Number.isFinite(n) ? String(Math.round(n)) : "N/A";
-}
-
 function calculateProgressPercentage(job: Pick<Job, "completed_units" | "total_units">): number {
   const completed = job.completed_units ?? 0;
   const total = job.total_units ?? 0;
@@ -384,15 +380,6 @@ function inferEvaluationScope(jobType?: string, genre?: string): EvaluationScope
   if (raw.includes("excerpt")) return "excerpt";
   if (raw.includes("chapter")) return "chapter";
   return "full_manuscript";
-}
-
-function Metric({ label, value }: { label: string; value: React.ReactNode }) {
-  return (
-    <div className="rounded-md border p-3">
-      <div className="text-xs text-gray-600">{label}</div>
-      <div className="mt-1 text-sm font-semibold text-gray-900">{value}</div>
-    </div>
-  );
 }
 
 export default async function EvaluationReportPage({
@@ -534,20 +521,33 @@ export default async function EvaluationReportPage({
   return (
     <div className="min-h-screen bg-gray-50">
       <main className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
-      <div className="mb-6 flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Evaluation Report</h1>
+      <div className="mb-4 flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <div className="flex items-center gap-3 flex-wrap">
+            <h1 className="text-2xl font-bold text-gray-900">Evaluation Report</h1>
+            <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
+              job.status === "complete" ? "bg-green-100 text-green-800" :
+              job.status === "failed" ? "bg-red-100 text-red-800" :
+              job.status === "running" ? "bg-blue-100 text-blue-800" :
+              "bg-gray-100 text-gray-700"
+            }`}>
+              {job.status === "complete" ? "✓ Report ready" : job.status === "failed" ? "⚠ Needs attention" : job.status === "running" ? "⟳ In progress" : "Waiting in queue"}
+            </span>
+          </div>
           <p className="mt-1 text-lg font-semibold text-gray-900">{displayTitle}</p>
-          <p className="mt-1 text-sm text-gray-700">
-            Job ID: <span className="font-mono text-gray-900">{job.id}</span>
-          </p>
           {manuscriptTitle && chapterTitle && manuscriptTitle !== chapterTitle && (
-            <p className="mt-1 text-sm text-gray-700">
-              Manuscript Title: <span className="font-medium text-gray-700">{manuscriptTitle}</span>
-            </p>
+            <p className="text-sm text-gray-600">{manuscriptTitle}</p>
           )}
+          <p className="mt-1 text-sm text-gray-500">
+            {(() => {
+              const displayCount = wordCount ?? progressWordCount;
+              if (typeof displayCount === 'number') return `${displayCount.toLocaleString()} words`;
+              if (isComplete) return '';
+              return 'Word count: calculating…';
+            })()}
+          </p>
         </div>
-        <div className="flex items-center gap-4 shrink-0">
+        <div className="flex items-center gap-3 shrink-0">
           {isComplete && <DownloadReportButton jobId={jobId} />}
           <Link href="/evaluate" className="text-sm text-blue-600 hover:text-blue-700 underline">
             Back to Evaluate
@@ -557,7 +557,7 @@ export default async function EvaluationReportPage({
 
       {showApprovalBanner && !isComplete && (
         <div
-          className="mb-6 rounded-md border-l-4 p-4"
+          className="mb-4 rounded-md border-l-4 p-3"
           style={{
             borderLeftColor: '#A98E4A',
             backgroundColor: '#F2EFEA',
@@ -570,7 +570,6 @@ export default async function EvaluationReportPage({
             ✓ Story Ledger approved — craft diagnosis is now running.
           </p>
           <p className="mt-1 text-sm" style={{ color: '#7B7B7B' }}>
-            The system is diagnosing your manuscript across 13 craft criteria.{' '}
             {(() => {
               const wc = pollerWordCount ?? wordCount;
               if (typeof wc === 'number' && wc >= 30000)
@@ -579,59 +578,12 @@ export default async function EvaluationReportPage({
                 return 'For novelettes, this typically takes 15–20 minutes.';
               return 'For chapters, this typically takes 3–8 minutes.';
             })()}{' '}
-            Watch the progress bar below — your Diagnostic Report will appear here when complete.
+            Your Diagnostic Report will appear here when complete.
           </p>
         </div>
       )}
 
-      {/* Job status header card */}
-      <div className="rounded-lg border bg-white p-4 mb-6">
-        <div className="flex flex-wrap items-center gap-4">
-          <span className={`inline-flex items-center rounded-full px-3 py-1 text-sm font-medium ${
-            job.status === "complete" ? "bg-green-100 text-green-800" :
-            job.status === "failed" ? "bg-red-100 text-red-800" :
-            job.status === "running" ? "bg-blue-100 text-blue-800" :
-            "bg-gray-100 text-gray-700"
-          }`}>
-            {job.status === "complete" ? "✓ Report ready" : job.status === "failed" ? "⚠ Needs attention" : job.status === "running" ? "⟳ In progress" : "Waiting in queue"}
-          </span>
-        </div>
-      </div>
-
-      <section className="mb-6 rounded-lg border bg-white p-4">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-700">Evaluation Metadata</h2>
-        <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4 text-sm">
-          {chapterTitle && chapterTitle !== manuscriptTitle && (
-            <div>
-              <p className="text-gray-700 font-medium">Chapter Title</p>
-              <p className="font-medium text-gray-900">{chapterTitle}</p>
-            </div>
-          )}
-          {(manuscriptTitle || chapterTitle) && displayTitle !== (manuscriptTitle || chapterTitle) && (
-            <div>
-              <p className="text-gray-700 font-medium">Manuscript Title</p>
-              <p className="font-medium text-gray-900">{manuscriptTitle || chapterTitle || "Untitled"}</p>
-            </div>
-          )}
-          <div>
-            <p className="text-gray-700 font-medium">Job ID</p>
-            <p className="font-mono text-xs text-gray-900 break-all">{job.id}</p>
-          </div>
-          <div>
-            <p className="text-gray-700 font-medium">Word Count</p>
-            <p className="font-medium text-gray-900">
-              {(() => {
-                const displayCount = wordCount ?? progressWordCount;
-                if (typeof displayCount === 'number') return displayCount.toLocaleString();
-                if (isComplete) return 'N/A';
-                return 'Calculating…';
-              })()}
-            </p>
-          </div>
-        </div>
-      </section>
-
-      <section className="mt-6">
+      <section className="mt-4">
         <EvaluationPoller
           jobId={jobId}
           initialJob={initialPollerJob}
@@ -792,14 +744,23 @@ export default async function EvaluationReportPage({
                 <section className="rounded-lg border bg-white p-6 mb-4">
                   <h2 className="text-xl font-semibold text-gray-900">Story Criteria Scores</h2>
                   <div className="mt-4 rounded-md border bg-gray-50 p-3 text-xs text-gray-700">
-                    <p className="font-medium">Confidence Guide</p>
+                    <p className="font-medium">What does Confidence mean?</p>
                     <p className="mt-1">
-                      Confidence shows how strongly each score and summary is supported by clear examples from your submitted text.
+                      Confidence reflects how strongly each diagnosis is supported by direct evidence in your manuscript.
                     </p>
-                    <ul className="mt-2 list-disc pl-5 space-y-1">
-                      <li>High (≥80): strong support from the text</li>
-                      <li>Moderate (60–79): partial or uneven support from the text</li>
-                      <li>Low (&lt;60): limited support from the text</li>
+                    <ul className="mt-2 space-y-1.5">
+                      <li className="flex items-start gap-2">
+                        <span className="inline-flex items-center rounded-full bg-emerald-100 text-emerald-800 px-2 py-0.5 text-xs font-medium shrink-0">High</span>
+                        <span>Strong textual evidence supports this diagnosis.</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className="inline-flex items-center rounded-full bg-amber-100 text-amber-800 px-2 py-0.5 text-xs font-medium shrink-0">Moderate</span>
+                        <span>Enough evidence to identify the issue, but some ambiguity remains.</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className="inline-flex items-center rounded-full bg-rose-100 text-rose-800 px-2 py-0.5 text-xs font-medium shrink-0">Low</span>
+                        <span>Limited or conflicting evidence — treat as a prompt for review, not a final judgment.</span>
+                      </li>
                     </ul>
                   </div>
                   <p className="mt-3 text-sm font-medium text-gray-700">
@@ -886,39 +847,10 @@ export default async function EvaluationReportPage({
                 </section>
               )}
 
-          <section className="rounded-lg border bg-white p-6 mb-4">
-            <h2 className="text-xl font-semibold text-gray-900">Key Metrics</h2>
-            <div className="mt-4 grid gap-3 sm:grid-cols-3">
-              <Metric label="Overall Score" value={formatScore(artifact.overall_score ?? artifact.overview?.overall_score_0_100 ?? 0)} />
-              <Metric label="Chunks Analyzed" value={artifact.chunk_count ?? artifact.metrics?.processing?.segment_count ?? "N/A"} />
-              <Metric label="Successfully Processed" value={artifact.processed_count ?? artifact.metrics?.processing?.segment_count ?? "N/A"} />
-            </div>
-
-            {artifact.governance?.transparency?.score_ledger && (
-              <div className="mt-3 rounded-md border bg-gray-50 p-3 text-xs text-gray-700">
-                <p>
-                  <span className="font-medium">Score Ledger:</span>{" "}
-                  Score: {Math.round(artifact.governance.transparency.score_ledger.normalized_total)} / 10 | Weighting: {artifact.governance.transparency.score_ledger.weighting}
-                </p>
-                <p className="mt-1 text-[11px] text-gray-700">
-                  Score (0–10) is the canonical weighted score. Overall Score (0–100) is the same value rescaled.
-                </p>
-              </div>
-            )}
-
-            {integrityBanner?.label && (
-              <div className="mt-3 rounded-md border bg-gray-50 p-3 text-xs text-gray-700 space-y-1">
-                <p>
-                  <span className="font-medium">Evaluation Status:</span>{" "}
-                  {integrityBanner.label}
-                </p>
-              </div>
-            )}
-
-            <p className="mt-3 text-xs text-gray-700">
-              Generated: {artifact.generated_at ? new Date(artifact.generated_at).toLocaleString() : "N/A"}
-            </p>
-          </section>
+          {/* Key Metrics / Evaluation Provenance removed from author-facing view.
+             Internal telemetry (Engine, Provider, Chunks, Prompt Version) is not
+             author-relevant. Support access with audit log will be added in a
+             separate PR to allow author-controlled admin visibility. */}
 
           {/* ── Narrative Synthesis (long-form) ── */}
           {isLongForm && isComplete && (
@@ -946,40 +878,7 @@ export default async function EvaluationReportPage({
             </section>
           )}
 
-          {/* ── Evaluation Provenance ── */}
-          <section className="rounded-lg border bg-white p-6 mb-4">
-            <h2 className="text-xl font-semibold text-gray-900">Evaluation Provenance</h2>
-            <div className="mt-3 space-y-2 text-sm">
-              <div>
-                <span className="text-gray-700 font-medium">Engine:</span>{" "}
-                <span className="font-mono text-gray-900">{(artifact as any).engine?.model || "unknown"}</span>
-              </div>
-              <div>
-                <span className="text-gray-700 font-medium">Provider:</span>{" "}
-                <span className="font-mono text-gray-900">{(artifact as any).engine?.provider || "unknown"}</span>
-              </div>
-              <div>
-                <span className="text-gray-700 font-medium">Prompt Version:</span>{" "}
-                <span className="font-mono text-gray-900">{(artifact as any).engine?.prompt_version || "unknown"}</span>
-              </div>
-              {artifact.governance?.confidence && (
-                <div>
-                  <span className="text-gray-700 font-medium">Confidence:</span>{" "}
-                  <span className="font-medium">{Math.round(artifact.governance.confidence * 100)}%</span>
-                </div>
-              )}
-              {artifact.governance?.limitations && artifact.governance.limitations.length > 0 && (
-                <div className="mt-3 pt-3 border-t">
-                  <p className="text-xs font-medium text-gray-700 mb-1">Limitations:</p>
-                  <ul className="list-disc pl-5 text-xs text-gray-800 space-y-1">
-                    {artifact.governance.limitations.map((limitation, i) => (
-                      <li key={i}>{limitation}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-            </div>
-          </section>
+
         </>
       )}
       {isComplete && (
