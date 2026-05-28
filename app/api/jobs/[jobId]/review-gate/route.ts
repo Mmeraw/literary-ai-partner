@@ -105,15 +105,15 @@ export async function POST(request: NextRequest, { params }: RouteParams): Promi
     );
   }
 
-  // Phase 2 cannot start unless all 8 layer decisions are present.
+  // Phase 2 cannot start unless all 9 layer decisions are present.
   // On rejected disposition we allow missing decisions (author may bail early).
   if (disposition !== 'rejected') {
     const decisionCount = layer_decisions ? Object.keys(layer_decisions).length : 0;
-    if (decisionCount < 8) {
+    if (decisionCount < 9) {
       return NextResponse.json(
         {
           ok: false,
-          error: `All 8 layer decisions are required to approve the Story Ledger. Received ${decisionCount}.`,
+          error: `All 9 layer decisions are required to approve the Story Ledger. Received ${decisionCount}.`,
         },
         { status: 400 },
       );

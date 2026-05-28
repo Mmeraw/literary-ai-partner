@@ -5,7 +5,7 @@
  *
  * 4-module Story Ledger UI — client shell + all four module views.
  *
- * Module 1 — Story Layer Map:     Generated 8-layer story facts (pass1a_story_layer_v1)
+ * Module 1 — Story Layer Map:     Generated 9-layer story facts (pass1a_story_layer_v1)
  * Module 2 — Review Gate:         Author approval / rejection / edit requests
  * Module 3 — Accepted Ledger:     Frozen canon view (accepted_story_ledger_v1)
  * Module 4 — WAVE Handoff:        13-criteria diagnosis + WAVE Revision System™ bridge
@@ -721,7 +721,7 @@ function Module1StoryLayer({
             </p>
             <p style={{ margin: 0, ...T.body }}>
               RevisionGrade extracted these story facts from your manuscript. Work
-              through each of the 8 layers and mark it as correct, correct with a
+              through each of the 9 layers and mark it as correct, correct with a
               note, wrong, or wrong with an explanation. When all layers are
               reviewed, you will be taken to the approval step automatically.
             </p>
@@ -1111,7 +1111,7 @@ function Module1StoryLayer({
                 lineHeight: 1.3,
               }}
             >
-              All 8 layers reviewed
+              All 9 layers reviewed
             </p>
             <p style={{ margin: 0, ...T.body }}>
               Your decisions have been recorded. Proceed to the approval step.

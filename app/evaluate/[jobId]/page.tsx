@@ -661,7 +661,7 @@ export default async function EvaluationReportPage({
             <p className="mt-2 text-sm" style={{ color: '#7B7B7B' }}>
               {progressHardFail
                 ? 'The system detected narrative conflicts in the Story Layer that require your input before scoring can proceed. Review each layer, confirm or correct the findings, and submit your decisions.'
-                : 'The Story Layer has been built from your manuscript. Review each of the 8 layers, confirm the findings, and approve to begin the scoring phase.'}
+                : 'The Story Layer has been built from your manuscript. Review each of the 9 layers, confirm the findings, and approve to begin the scoring phase.'}
             </p>
             <div className="mt-4">
               <Link
