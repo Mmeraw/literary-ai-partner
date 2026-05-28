@@ -568,4 +568,82 @@ describe("runQualityGate", () => {
     expect(failedCodes).toContain("QG_CRITERIA_MISSING");
     expect(failedCodes).toContain("QG_LONG_OVERVIEW");
   });
+
+  // ── Word-count-aware independence threshold (#309) ─────────────────────
+
+  it("passes independence for short manuscript even with 6+ overlap (word-count-aware threshold)", () => {
+    const synthesis = makeValidSynthesis();
+
+    // Short manuscript: ~3,200 words → threshold = 12
+    const shortManuscript = Array.from({ length: 200 }, (_, i) =>
+      `Sentence ${i + 1} brings the narrative forward through the landscape of memory.`
+    ).join(" ");
+
+    const pass1: SinglePassOutput = {
+      pass: 1,
+      axis: "craft_execution",
+      criteria: [
+        {
+          key: "voice",
+          score_0_10: 7,
+          rationale:
+            "The narrative voice demonstrates consistent structural clarity and precise word choice throughout the opening passage while maintaining cadence.",
+          evidence: [{ snippet: "The river moved slowly through the valley." }],
+          recommendations: [],
+        },
+      ],
+      model: "gpt-4o-mini",
+      prompt_version: "pass1-v1",
+      temperature: 0.3,
+      generated_at: new Date().toISOString(),
+    };
+
+    // Pass 2 shares phrasing — would fail at threshold 6 but passes at 12
+    const pass2: SinglePassOutput = {
+      pass: 2,
+      axis: "editorial_literary",
+      criteria: [
+        {
+          key: "voice",
+          score_0_10: 6,
+          rationale:
+            "The narrative voice demonstrates consistent structural clarity and precise word choice throughout the opening passage with an elegant cadence and register.",
+          evidence: [{ snippet: "The river moved slowly through the valley." }],
+          recommendations: [],
+        },
+      ],
+      model: "gpt-4o-mini",
+      prompt_version: "pass2-v1",
+      temperature: 0.3,
+      generated_at: new Date().toISOString(),
+    };
+
+    // Without manuscriptText → threshold 6 → would fail
+    const resultWithoutMs = runQualityGate(synthesis, pass1, pass2);
+    const failCheck = resultWithoutMs.checks.find((c) => c.check_id === "pass_independence");
+    expect(failCheck?.passed).toBe(false);
+
+    // With short manuscriptText → threshold 12 → passes
+    const resultWithMs = runQualityGate(synthesis, pass1, pass2, shortManuscript);
+    const passCheck = resultWithMs.checks.find((c) => c.check_id === "pass_independence");
+    expect(passCheck?.passed).toBe(true);
+  });
+
+  // ── Low-dialogue gate auto-pass (#278) ─────────────────────────────────
+
+  it("auto-passes dialogue gate for low-dialogue manuscript", () => {
+    const synthesis = makeValidSynthesis();
+
+    // Manuscript with no quoted dialogue — epistolary/introspective style
+    const lowDialogueText = Array.from({ length: 300 }, (_, i) =>
+      `The evening light fell across the room in long amber stripes. She thought about the letter again, turning its phrases over in her mind like smooth stones. Paragraph ${i + 1} continued the internal monologue.`
+    ).join("\n\n");
+
+    const result = runQualityGate(synthesis, undefined, undefined, lowDialogueText);
+    const dialogueCheck = result.checks.find((c) => c.check_id === "dialogue_attribution_specificity");
+    // Should either not exist (no actionable signals) or be passed (auto-pass for low dialogue)
+    if (dialogueCheck) {
+      expect(dialogueCheck.passed).toBe(true);
+    }
+  });
 });

@@ -76,6 +76,28 @@ export const QG_MAX_OVERVIEW_LENGTH = 500;
 export const QG_INDEPENDENCE_NGRAM_SIZE = 8;
 export const QG_INDEPENDENCE_MIN_OVERLAPS_PER_CRITERION = 6;
 export const QG_INDEPENDENCE_RATIONALE_PREVIEW_CHARS = 320;
+
+/**
+ * Word-count-aware independence overlap threshold.
+ *
+ * Short manuscripts produce shorter, more constrained rationale that
+ * naturally shares more phrasing across passes. Using the flat threshold
+ * of 6 causes false-positive QG_INDEPENDENCE_VIOLATION on short-form
+ * submissions (see #309, #278).
+ *
+ * Tiers (word count → min overlaps):
+ *   < 5,000 words  → 12  (very short — high natural overlap)
+ *   < 15,000 words → 10  (short story / novelette)
+ *   < 25,000 words →  8  (novella boundary)
+ *   ≥ 25,000 words →  6  (novel-length — original threshold)
+ */
+export function independenceOverlapThreshold(wordCount: number | undefined): number {
+  if (wordCount === undefined) return QG_INDEPENDENCE_MIN_OVERLAPS_PER_CRITERION;
+  if (wordCount < 5_000) return 12;
+  if (wordCount < 15_000) return 10;
+  if (wordCount < 25_000) return 8;
+  return QG_INDEPENDENCE_MIN_OVERLAPS_PER_CRITERION;
+}
 export const QG_MIN_RATIONALE_LENGTH = 40;
 export const QG_MIN_EVIDENCE_COVERED_CRITERIA = 10;
 export const QG_MIN_EVIDENCE_SNIPPET_LENGTH = 20;
@@ -668,12 +690,21 @@ export function runQualityGate(
         return hasRenderingModes || (hasAttributionStrategy && dialogueAttributionDiagnostics.quotedSpeechCount > 0) || hasCleanTurns || hasExplicitMechanisms;
       })();
       
-      // Pass dialogue gate if: mechanism language present OR diagnostic grounding (no false positives)
-      const dialogueGatePassed = hasDialogueMechanismMarker || dialogueHasDiagnosticGrounding;
+      // Low-dialogue manuscripts: if the manuscript has very few quoted speech
+      // instances, the dialogue gate should not hard-block. The LLM cannot
+      // produce grounded dialogue analysis when there is minimal dialogue to
+      // analyze. Downgrade to warning instead of hard-fail. (#278)
+      const isLowDialogueManuscript = dialogueAttributionDiagnostics
+        ? dialogueAttributionDiagnostics.quotedSpeechCount < 5
+        : false;
+
+      // Pass dialogue gate if: mechanism language present OR diagnostic grounding OR low-dialogue manuscript
+      const dialogueGatePassed = hasDialogueMechanismMarker || dialogueHasDiagnosticGrounding || isLowDialogueManuscript;
 
       console.log("[DIALOGUE_GATE_V2_ACTIVE]", {
         hasDialogueMechanismMarker,
         dialogueHasDiagnosticGrounding,
+        isLowDialogueManuscript,
         dialogueGatePassed,
         hasDiagnostics: !!dialogueAttributionDiagnostics,
         renderingModes: dialogueAttributionDiagnostics?.renderingModesDetected,
@@ -699,7 +730,9 @@ export function runQualityGate(
         passed: dialogueGatePassed,
         error_code: dialogueGatePassed ? undefined : "QG_DIALOGUE_ATTRIBUTION_UNDERAUDITED",
         details: dialogueGatePassed
-          ? "Dialogue rationale includes mechanism language or diagnostics show grounded attribution analysis"
+          ? isLowDialogueManuscript
+            ? `Dialogue gate auto-passed: low-dialogue manuscript (${dialogueAttributionDiagnostics?.quotedSpeechCount ?? 0} quoted speech instances)`
+            : "Dialogue rationale includes mechanism language or diagnostics show grounded attribution analysis"
           : "Dialogue rationale lacks attribution/rendering mechanism language and diagnostics show minimal attribution structure",
         diagnostics: dialogueAttributionDiagnostics,
       });
@@ -709,6 +742,8 @@ export function runQualityGate(
   // ── Check 10: Pass independence (rationale phrasing only; calibrated) ────
   if (pass1 && pass2) {
     const ngramSize = QG_INDEPENDENCE_NGRAM_SIZE;
+    const wordCount = manuscriptText ? manuscriptText.split(/\s+/).filter(Boolean).length : undefined;
+    const effectiveMinOverlaps = independenceOverlapThreshold(wordCount);
     const pass1ByKey = new Map(pass1.criteria.map((c) => [c.key, c]));
 
     // Exclude manuscript-sourced phrase overlap by filtering any n-gram
@@ -765,11 +800,11 @@ export function runQualityGate(
         overlap_4grams: Array.from(overlapNgramsSet),
         observed_overlap_count: overlapCount,
         threshold_n: ngramSize,
-        threshold_min: QG_INDEPENDENCE_MIN_OVERLAPS_PER_CRITERION,
+        threshold_min: effectiveMinOverlaps,
         classification: null,
       });
 
-      if (overlapCount >= QG_INDEPENDENCE_MIN_OVERLAPS_PER_CRITERION) {
+      if (overlapCount >= effectiveMinOverlaps) {
         const sampleText = overlapSamples.length > 0
           ? ` [samples: ${overlapSamples.map((s) => `"${s}"`).join(" | ")}]`
           : "";
@@ -788,8 +823,9 @@ export function runQualityGate(
       error_code: violations.length > 0 ? "QG_INDEPENDENCE_VIOLATION" : undefined,
       details:
         violations.length > 0
-          ? `${violations.length} Pass 2 criterion/criteria exceed calibrated rationale-overlap threshold (n=${ngramSize}, min=${QG_INDEPENDENCE_MIN_OVERLAPS_PER_CRITERION})`
-          : `Pass 1 / Pass 2 independence confirmed (n=${ngramSize})`,
+          ? `${violations.length} Pass 2 criterion/criteria exceed calibrated rationale-overlap threshold (n=${ngramSize}, min=${effectiveMinOverlaps}${wordCount !== undefined ? `, wordCount=${wordCount}` : ""})`
+          : `Pass 1 / Pass 2 independence confirmed (n=${ngramSize}${wordCount !== undefined ? `, wordCount=${wordCount}, effectiveMin=${effectiveMinOverlaps}` : ""})`,
+
       // Structured diagnostics for artifact persistence — enables offline reconstruction
       diagnostics: { per_criterion_diagnostic: perCriterionDiagnostics },
     });

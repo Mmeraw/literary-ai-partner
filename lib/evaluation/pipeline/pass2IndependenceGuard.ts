@@ -22,6 +22,7 @@ import {
   collectNgrams,
   QG_INDEPENDENCE_NGRAM_SIZE,
   QG_INDEPENDENCE_MIN_OVERLAPS_PER_CRITERION,
+  independenceOverlapThreshold,
 } from "./qualityGate";
 
 /** Trigger rewrite one step below the gate's fail threshold. */
@@ -135,8 +136,11 @@ export type Pass2IndependenceGuardResult = {
 export function enforcePass2LexicalIndependence(
   pass1: SinglePassOutput,
   pass2: SinglePassOutput,
+  wordCount?: number,
 ): Pass2IndependenceGuardResult {
   const ngramSize = QG_INDEPENDENCE_NGRAM_SIZE;
+  const effectiveFailThreshold = independenceOverlapThreshold(wordCount);
+  const effectiveRewriteTrigger = effectiveFailThreshold - 1;
 
   // Build evidence n-gram exclusion set from both passes
   const evidenceNgrams = new Set<string>();
@@ -174,7 +178,7 @@ export function enforcePass2LexicalIndependence(
       ngramSize,
     );
 
-    if (initialOverlap < REWRITE_TRIGGER) {
+    if (initialOverlap < effectiveRewriteTrigger) {
       // No action needed — independence maintained
       return criterion;
     }
@@ -185,8 +189,9 @@ export function enforcePass2LexicalIndependence(
     console.warn("[Pipeline][Pass2IndependenceGuard] Rationale rewritten for independence", {
       criterion_key: criterion.key,
       initial_overlap_count: initialOverlap,
-      rewrite_trigger: REWRITE_TRIGGER,
-      fail_threshold: FAIL_THRESHOLD,
+      rewrite_trigger: effectiveRewriteTrigger,
+      fail_threshold: effectiveFailThreshold,
+      word_count: wordCount,
       original_rationale_preview: criterion.rationale.slice(0, 160),
     });
 
@@ -198,14 +203,15 @@ export function enforcePass2LexicalIndependence(
       ngramSize,
     );
 
-    if (postRewriteOverlap >= FAIL_THRESHOLD) {
+    if (postRewriteOverlap >= effectiveFailThreshold) {
       // Rewrite did not achieve independence — fail closed
       console.error(
         "[Pipeline][Pass2IndependenceGuard] Rewrite failed to achieve independence — failing closed",
         {
           criterion_key: criterion.key,
           post_rewrite_overlap_count: postRewriteOverlap,
-          fail_threshold: FAIL_THRESHOLD,
+          fail_threshold: effectiveFailThreshold,
+          word_count: wordCount,
         },
       );
       failedKeys.push(criterion.key);
@@ -237,7 +243,7 @@ export function enforcePass2LexicalIndependence(
     failedKeys,
     perFailedCriterion,
     threshold_n: ngramSize,
-    threshold_min: FAIL_THRESHOLD,
+    threshold_min: effectiveFailThreshold,
   };
 }
 

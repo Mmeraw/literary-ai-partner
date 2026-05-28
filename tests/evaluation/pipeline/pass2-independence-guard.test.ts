@@ -278,7 +278,57 @@ describe("Pass 2 independence guard — fail-closed when rewrite still exceeds t
   });
 });
 
+// ── Word-count-aware threshold (#309) ─────────────────────────────────────────
+
+describe("Pass 2 independence guard — word-count-aware threshold", () => {
+  it("short manuscript (< 5k words) uses relaxed threshold of 12", () => {
+    const pass1WorldbuildingRationale =
+      "The world is richly detailed, with a strong sense of place and cultural context.";
+    const pass2WorldbuildingRationale =
+      "The world is richly detailed, with a strong sense of place and cultural history that enhances the narrative.";
+
+    const pass1 = makePass(1, pass1WorldbuildingRationale);
+    const pass2 = makePass(2, pass2WorldbuildingRationale);
+
+    // Without wordCount → base threshold 6 → overlap ≥ 6 → triggers rewrite
+    const resultNoWc = enforcePass2LexicalIndependence(pass1, pass2);
+    expect(resultNoWc.rewriteApplied).toBe(true);
+
+    // With short wordCount → threshold 12 → overlap 6 is below trigger (11) → no rewrite
+    const resultShort = enforcePass2LexicalIndependence(pass1, pass2, 3290);
+    expect(resultShort.rewriteApplied).toBe(false);
+    expect(resultShort.ok).toBe(true);
+  });
+
+  it("novel-length manuscript (≥ 25k words) still uses strict threshold of 6", () => {
+    const pass1WorldbuildingRationale =
+      "The world is richly detailed, with a strong sense of place and cultural context.";
+    const pass2WorldbuildingRationale =
+      "The world is richly detailed, with a strong sense of place and cultural history that enhances the narrative.";
+
+    const pass1 = makePass(1, pass1WorldbuildingRationale);
+    const pass2 = makePass(2, pass2WorldbuildingRationale);
+
+    // With novel-length wordCount → threshold 6 → overlap ≥ 6 → triggers rewrite
+    const result = enforcePass2LexicalIndependence(pass1, pass2, 50000);
+    expect(result.rewriteApplied).toBe(true);
+  });
+});
+
 // ── Pipeline integration: guard blocks job with correct error_code ─────────────
+
+// Generate a long manuscript text (>25k words) so the independence threshold
+// stays at the strict level of 6 (word-count-aware threshold).
+// Split into chunks that satisfy the pipeline's chunk budget constraints.
+const LONG_MANUSCRIPT_CHUNK_COUNT = 10;
+const LONG_MANUSCRIPT_LINES_PER_CHUNK = 500;
+const LONG_MANUSCRIPT_CHUNKS = Array.from({ length: LONG_MANUSCRIPT_CHUNK_COUNT }, (_, chunkIdx) => ({
+  chunk_index: chunkIdx,
+  content: Array.from({ length: LONG_MANUSCRIPT_LINES_PER_CHUNK }, (_, lineIdx) =>
+    `Chapter ${chunkIdx * LONG_MANUSCRIPT_LINES_PER_CHUNK + lineIdx + 1} brings a new scene with characters moving through the landscape.`
+  ).join(" "),
+}));
+const LONG_MANUSCRIPT_TEXT = LONG_MANUSCRIPT_CHUNKS.map((c) => c.content).join("\n\n");
 
 describe("Pass 2 independence guard — pipeline integration", () => {
   // These tests use runPipeline with dependency-injected runners to verify
@@ -332,7 +382,8 @@ describe("Pass 2 independence guard — pipeline integration", () => {
     });
 
     const result = await runPipeline({
-      manuscriptText: "The river moved through the valley.",
+      manuscriptText: LONG_MANUSCRIPT_TEXT,
+      manuscriptChunks: LONG_MANUSCRIPT_CHUNKS,
       workType: "literary_fiction",
       title: "Independence Guard Test",
       openaiApiKey: "sk-test",
@@ -351,8 +402,8 @@ describe("Pass 2 independence guard — pipeline integration", () => {
           failedChunkErrors: [],
           model: "gpt-4o",
           prompt_version: "test-v1",
-          total_chunks: 0,
-          successful_chunks: 0,
+          total_chunks: LONG_MANUSCRIPT_CHUNK_COUNT,
+          successful_chunks: LONG_MANUSCRIPT_CHUNK_COUNT,
         }),
       },
     });
@@ -409,7 +460,8 @@ describe("Pass 2 independence guard — pipeline integration", () => {
     });
 
     const result = await runPipeline({
-      manuscriptText: "The river moved through the valley.",
+      manuscriptText: LONG_MANUSCRIPT_TEXT,
+      manuscriptChunks: LONG_MANUSCRIPT_CHUNKS,
       workType: "literary_fiction",
       title: "Independence Guard Audit Test",
       openaiApiKey: "sk-test",
@@ -428,8 +480,8 @@ describe("Pass 2 independence guard — pipeline integration", () => {
           failedChunkErrors: [],
           model: "gpt-4o",
           prompt_version: "test-v1",
-          total_chunks: 0,
-          successful_chunks: 0,
+          total_chunks: LONG_MANUSCRIPT_CHUNK_COUNT,
+          successful_chunks: LONG_MANUSCRIPT_CHUNK_COUNT,
         }),
       },
     });

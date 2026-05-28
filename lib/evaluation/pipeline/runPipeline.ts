@@ -1327,7 +1327,8 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
   // Fail-closed threshold: observed_overlap_count >= 6 after one rewrite.
   // This guard fires AFTER both passes complete (no LLM call; deterministic).
   {
-    const independenceResult = enforcePass2LexicalIndependence(pass1Output, pass2Output);
+    const guardWordCount = opts.manuscriptText ? opts.manuscriptText.split(/\s+/).filter(Boolean).length : undefined;
+    const independenceResult = enforcePass2LexicalIndependence(pass1Output, pass2Output, guardWordCount);
     if (independenceResult.rewriteApplied) {
       console.log("[Pipeline][Pass2IndependenceGuard] Independence rewrite applied", {
         manuscript_id: opts.manuscriptId ?? null,
@@ -1347,7 +1348,7 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
       });
       return {
         ok: false,
-        error: `Pass 2 lexical independence guard failed after rewrite: criteria still have overlap counts >= ${PASS2_INDEPENDENCE_FAIL_THRESHOLD} after one rewrite attempt (keys: ${independenceResult.failedKeys.join(", ")})`,
+        error: `Pass 2 lexical independence guard failed after rewrite: criteria still have overlap counts >= ${independenceResult.threshold_min} after one rewrite attempt (keys: ${independenceResult.failedKeys.join(", ")})`,
         error_code: "PASS2_INDEPENDENCE_REWRITE_FAILED",
         failed_at: "pass2",
         failure_details: {
