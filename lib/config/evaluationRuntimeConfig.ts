@@ -96,6 +96,8 @@ export type TimeoutScopeInputScale =
   | "light_chapter"
   | "standard_chapter"
   | "multi_chapter"
+  | "novelette"
+  | "novella"
   | "full_manuscript";
 
 export const LONG_FORM_TIMEOUT_FLOOR_MS = 720_000;
@@ -113,7 +115,7 @@ export interface ScopedTimeoutResolution {
 }
 
 function isLongFormTimeoutScale(inputScale: TimeoutScopeInputScale): boolean {
-  return inputScale === "multi_chapter" || inputScale === "full_manuscript";
+  return inputScale === "multi_chapter" || inputScale === "novelette" || inputScale === "novella" || inputScale === "full_manuscript";
 }
 
 export function resolveScopedEvaluationTimeouts(args: {

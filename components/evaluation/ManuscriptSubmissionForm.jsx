@@ -20,7 +20,7 @@ const INPUT_METHODS = [
   },
 ];
 
-function getEvaluationMode(wordCount) {
+function getEvaluationMode(wordCount, manuscriptStructure) {
   if (!wordCount) {
     return {
       label: "Awaiting text",
@@ -29,18 +29,42 @@ function getEvaluationMode(wordCount) {
     };
   }
 
-  if (wordCount < 25000) {
+  if (wordCount >= 50000) {
     return {
-      label: "Short-form evaluation",
-      summary: "13 story criteria only.",
-      detail: "Golden Spine/WAVE long-form analysis is reserved for manuscripts of 25,000 words or more.",
+      label: "Novel evaluation",
+      summary: "Full manuscript-scale readiness analysis.",
+      detail: "Long-form continuity, recurrence, payoff, pacing over distance, and structural readiness will be assessed.",
+    };
+  }
+
+  if (wordCount >= 20000 && manuscriptStructure === "standalone") {
+    return {
+      label: "Novella evaluation",
+      summary: "Standalone narrative — manuscript-scale analysis eligible.",
+      detail: "Continuity, pacing, narrative closure, and structural readiness can be assessed for this complete work.",
+    };
+  }
+
+  if (wordCount >= 7500 && manuscriptStructure === "standalone") {
+    return {
+      label: "Novelette evaluation",
+      summary: "Standalone short work — full criteria with narrative closure.",
+      detail: "All 13 story criteria scored. Narrative closure and arc resolution are assessed since this is a complete work.",
+    };
+  }
+
+  if (wordCount >= 6000) {
+    return {
+      label: "Multi-chapter evaluation",
+      summary: "13 story criteria with high confidence.",
+      detail: "Sufficient material for high-confidence craft diagnosis across all criteria.",
     };
   }
 
   return {
-    label: "Long-form evaluation",
-    summary: "Manuscript-scale readiness analysis eligible.",
-    detail: "Long-form continuity, recurrence, payoff, pacing over distance, and structural readiness can be assessed.",
+    label: "Short-form evaluation",
+    summary: "13 story criteria only.",
+    detail: "Golden Spine/WAVE long-form analysis is reserved for manuscripts of 20,000 words or more.",
   };
 }
 
@@ -96,6 +120,7 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess }) {
   const [processingTermsAccepted, setProcessingTermsAccepted] = useState(false);
 
   const [englishVariant, setEnglishVariant] = useState("us");
+  const [manuscriptStructure, setManuscriptStructure] = useState("chapters");
 
   const wordCount = useMemo(() => {
     return manuscriptText.trim().split(/\s+/).filter(Boolean).length;
@@ -107,7 +132,7 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess }) {
   );
 
   const activeWordCount = selectedDashboardManuscript?.word_count ?? wordCount;
-  const evaluationMode = getEvaluationMode(activeWordCount);
+  const evaluationMode = getEvaluationMode(activeWordCount, manuscriptStructure);
   const submissionSourceSummary = getSubmissionSourceSummary({
     activeInputMethod,
     selectedDashboardManuscript,
@@ -285,6 +310,7 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess }) {
         job_type: "evaluate_full",
         manuscript_title: projectTitle,
         english_variant: englishVariant,
+        manuscript_structure: manuscriptStructure,
         processing_terms_accepted: true,
         ...(hasSelectedManuscript
           ? { manuscript_id: selectedManuscriptId }
@@ -569,6 +595,45 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess }) {
                   <option value="us">US English</option>
                   <option value="uk">UK English</option>
                 </select>
+              </div>
+
+              <div className="rounded-xl border border-stone-200 p-4">
+                <div className="mb-2 flex items-center gap-1.5">
+                  <label className="block text-sm font-medium text-stone-700">Manuscript Structure</label>
+                  <span className="group relative cursor-help">
+                    <span className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-stone-300 text-[10px] font-semibold text-stone-400">i</span>
+                    <span className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-2 w-72 -translate-x-1/2 rounded-lg border border-stone-200 bg-white p-3 text-xs leading-relaxed text-stone-600 opacity-0 shadow-lg transition-opacity group-hover:opacity-100">
+                      <strong className="block text-stone-800">Standalone story</strong>
+                      A self-contained narrative with its own beginning, middle, and ending — such as a short story, novelette, novella, or complete novel.
+                      <strong className="mt-2 block text-stone-800">Chapter(s) from a larger work</strong>
+                      An excerpt or section from a longer manuscript. The system won&apos;t penalize unresolved plot threads or open endings.
+                    </span>
+                  </span>
+                </div>
+                <div className="space-y-2">
+                  <label className="flex items-start gap-2 rounded-md px-2 py-1.5 text-sm text-stone-700 hover:bg-stone-50">
+                    <input
+                      type="radio"
+                      name="manuscriptStructure"
+                      value="chapters"
+                      checked={manuscriptStructure === "chapters"}
+                      onChange={() => setManuscriptStructure("chapters")}
+                      className="mt-0.5"
+                    />
+                    <span>Chapter(s) from a larger work</span>
+                  </label>
+                  <label className="flex items-start gap-2 rounded-md px-2 py-1.5 text-sm text-stone-700 hover:bg-stone-50">
+                    <input
+                      type="radio"
+                      name="manuscriptStructure"
+                      value="standalone"
+                      checked={manuscriptStructure === "standalone"}
+                      onChange={() => setManuscriptStructure("standalone")}
+                      className="mt-0.5"
+                    />
+                    <span>Standalone story</span>
+                  </label>
+                </div>
               </div>
             </section>
 

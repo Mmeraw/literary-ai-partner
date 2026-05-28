@@ -252,6 +252,8 @@ export type EvaluationResultV2 = {
           | "light_chapter"
           | "standard_chapter"
           | "multi_chapter"
+          | "novelette"
+          | "novella"
           | "full_manuscript";
         manuscript_wide_certifiable?: boolean;
         reason_codes?: string[];
