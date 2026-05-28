@@ -1458,11 +1458,23 @@ export function RelationshipNetworkLayer({
             const a = String(pair.character_a ?? pair.from ?? pair.a ?? "—");
             const b = String(pair.character_b ?? pair.to ?? pair.b ?? "—");
             const types = pair.relationship_type ?? pair.type;
+            const typeStart = pair.relationship_type_start;
+            const typeEnd = pair.relationship_type_end;
             const typeArr: string[] = Array.isArray(types)
               ? (types as string[])
               : types
                 ? [String(types)]
                 : [];
+            // Fall back to start/end fields from pipeline when relationship_type is absent
+            if (typeArr.length === 0 && (typeStart || typeEnd)) {
+              const startStr = typeStart ? String(typeStart) : "";
+              const endStr = typeEnd ? String(typeEnd) : "";
+              if (startStr && endStr && startStr !== endStr) {
+                typeArr.push(`${startStr} → ${endStr}`);
+              } else {
+                typeArr.push(startStr || endStr);
+              }
+            }
             const evidenceAnchors = pair.evidence_anchors as string[] | null;
 
             return (
