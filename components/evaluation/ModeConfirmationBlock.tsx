@@ -67,7 +67,7 @@ export default function ModeConfirmationBlock({ jobId, detectedMode, confirmedMo
   return (
     <section className="rounded-lg border bg-white p-6 mb-4">
       <div className="flex items-center justify-between gap-3">
-        <h2 className="text-xl font-semibold text-gray-900">Access Confirmation</h2>
+        <h2 className="text-xl font-semibold text-gray-900">Sensitive Content Confirmation</h2>
         <span
           className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${
             detectedMode.confidence === "HIGH"
@@ -77,7 +77,7 @@ export default function ModeConfirmationBlock({ jobId, detectedMode, confirmedMo
               : "bg-rose-100 text-rose-800"
           }`}
         >
-          {detectedMode.confidence} Safety Confidence
+          {detectedMode.confidence} Detection Confidence
         </span>
       </div>
 
@@ -93,7 +93,7 @@ export default function ModeConfirmationBlock({ jobId, detectedMode, confirmedMo
         */}
         {detectedMode.proposedEvaluationMode === "TESTIMONY" ? (
           <>
-            Possible testimony / sensitive-material content — confirmation required.{" "}
+            This chapter may include testimony-like or sensitive material. Please confirm how carefully RevisionGrade should preserve voice and context before Revise is unlocked.{" "}
             <span className="text-gray-700">
               Suggested voice preservation:{" "}
               <span className="font-semibold">{detectedMode.proposedVoicePreservationMode}</span>.

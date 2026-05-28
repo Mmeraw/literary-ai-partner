@@ -16,7 +16,6 @@ import DownloadReportButton from "@/components/reports/DownloadReportButton";
 import SupportAccessToggle from "@/components/reports/SupportAccessToggle";
 import {
   buildTopRecommendations,
-  normalizeRecommendationActionForDisplay,
 } from "@/lib/evaluation/reportRecommendations";
 import ModeConfirmationBlock from "@/components/evaluation/ModeConfirmationBlock";
 import { SynthesisPoller } from "@/components/evaluation/SynthesisPoller";
@@ -29,6 +28,8 @@ import {
   isCertifiedCriterion,
 } from "@/lib/evaluation/reportCriterionDisplay";
 import { resolveReportTitle } from "@/lib/evaluation/reportTitle";
+import { safeTruncateToWordBoundary } from "@/lib/evaluation/reportRenderSafety";
+import CriterionOpportunities from "@/components/evaluation/CriterionOpportunities";
 import { hasActiveSupportGrant, logSupportView } from "@/lib/support/checkSupportAccess";
 import type { LongformDreamDocument } from "@/lib/evaluation/pipeline/runPass3bLongform";
 
@@ -107,6 +108,13 @@ type ArtifactContentV1 = {
       action: string;
       priority?: "high" | "medium" | "low";
       expected_impact?: string;
+      anchor_snippet?: string;
+      mechanism?: string;
+      specific_fix?: string;
+      reader_effect?: string;
+      issue_family?: string;
+      strategic_lever?: string;
+      revision_granularity?: string;
     }>;
   }>;
   recommendations?: {
@@ -769,21 +777,27 @@ export default async function EvaluationReportPage({
           <section className="rounded-lg border bg-white p-6 mb-4">
             <h2 className="text-xl font-semibold text-gray-900">Overall Summary</h2>
             <p className="mt-3 text-sm leading-relaxed text-gray-700">
-              {artifact.overview?.one_paragraph_summary || artifact.summary || "No summary available"}
+              {safeTruncateToWordBoundary(artifact.overview?.one_paragraph_summary || artifact.summary || "No summary available")}
             </p>
           </section>
 
-          <section className="rounded-lg border bg-white p-6 mb-4">
-            <h2 className="text-xl font-semibold text-gray-900">Top Recommendations</h2>
-            <ul className="mt-3 space-y-2 text-sm text-gray-700">
-              {buildTopRecommendations(artifact).map((r, i) => (
-                <li key={i} className="flex gap-2">
-                  <span className="mt-0.5 shrink-0 text-gray-600">•</span>
-                  <span>{r}</span>
-                </li>
-              ))}
-            </ul>
-          </section>
+          {(() => {
+            const topRecs = buildTopRecommendations(artifact);
+            if (topRecs.length === 0) return null;
+            return (
+              <section className="rounded-lg border bg-white p-6 mb-4">
+                <h2 className="text-xl font-semibold text-gray-900">Top Recommendations</h2>
+                <ul className="mt-3 space-y-2 text-sm text-gray-700">
+                  {topRecs.map((r, i) => (
+                    <li key={i} className="flex gap-2">
+                      <span className="mt-0.5 shrink-0 text-gray-600">•</span>
+                      <span>{r}</span>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            );
+          })()}
 
               {/* ── 13 Story Criteria Scores ── */}
               {orderedCriteria.length > 0 && (
@@ -867,25 +881,7 @@ export default async function EvaluationReportPage({
                           </div>
                         )}
                         {c.recommendations && c.recommendations.length > 0 && (
-                          <div className="mt-3">
-                            <p className="text-xs font-semibold uppercase tracking-wide text-gray-600">Recommendations:</p>
-                            <ul className="mt-2 space-y-2">
-                              {c.recommendations.map((r, ri) => (
-                                <li key={ri} className="text-sm text-gray-700">
-                                  {normalizeRecommendationActionForDisplay(r.action)}
-                                  {r.priority && (
-                                    <span className={`ml-1 font-medium ${
-                                      r.priority === "high" ? "text-red-600" :
-                                      r.priority === "medium" ? "text-amber-600" : "text-gray-500"
-                                    }`}>({r.priority})</span>
-                                  )}
-                                  {r.expected_impact && (
-                                    <span className="ml-1 text-xs text-gray-600">— {r.expected_impact}</span>
-                                  )}
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
+                          <CriterionOpportunities recommendations={c.recommendations} />
                         )}
                       </div>
                     ))}

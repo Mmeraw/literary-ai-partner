@@ -137,9 +137,9 @@ export function classifyEvaluationIntegrityBanner(
     return {
       kind: "HOLD",
       label: "Confidence Varies",
-      title: "⚠️ CONFIDENCE VARIES ACROSS THIS REPORT",
+      title: "Confidence varies by criterion",
       message:
-        "Evaluation completed successfully using LiteraryAI-Partner. Some scores and summaries carry lower confidence depending on how much clear text support was available for each story area. Review the confidence indicators beside each score for details.",
+        "Most findings are strongly supported by the submitted text. Some areas are marked Moderate where the chapter intentionally leaves questions unresolved or where textual evidence was limited. Review the confidence badges beside each score for details.",
       containerClassName: "mt-4 rounded-md border-2 border-amber-400 bg-amber-50 p-4",
       titleClassName: "text-sm font-bold text-amber-900",
       warningClassName: "text-sm font-medium text-amber-800",
@@ -159,10 +159,10 @@ export function classifyEvaluationIntegrityBanner(
       label: isBlocked ? "Confidence Constrained" : "Confidence Varies",
       title: isBlocked
         ? "⚠️ CONFIDENCE IS CONSTRAINED"
-        : "⚠️ CONFIDENCE VARIES ACROSS THIS REPORT",
+        : "Confidence varies by criterion",
       message: isBlocked
         ? "Evaluation completed, but confidence is constrained by weak upstream evidence. Prioritize evidence-backed revisions before acting on high-impact recommendations."
-        : "Evaluation completed successfully using LiteraryAI-Partner. Some scores and summaries carry lower confidence depending on how much clear text support was available for each story area. Review the confidence indicators beside each score for details.",
+        : "Most findings are strongly supported by the submitted text. Some areas are marked Moderate where the chapter intentionally leaves questions unresolved or where textual evidence was limited. Review the confidence badges beside each score for details.",
       containerClassName: "mt-4 rounded-md border-2 border-amber-400 bg-amber-50 p-4",
       titleClassName: "text-sm font-bold text-amber-900",
       warningClassName: "text-sm font-medium text-amber-800",

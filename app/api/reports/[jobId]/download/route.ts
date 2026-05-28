@@ -82,6 +82,47 @@ type ReportMetadata = {
   genre: string | null;
 };
 
+type ExportRecommendation = {
+  priority?: 'high' | 'medium' | 'low';
+  action?: string;
+  expected_impact?: string;
+  anchor_snippet?: string;
+  symptom?: string;
+  mechanism?: string;
+  specific_fix?: string;
+  reader_effect?: string;
+  mistake_proofing?: string;
+};
+
+function exportSeverity(priority?: string): string {
+  if (priority === 'high') return 'MUST';
+  if (priority === 'medium') return 'SHOULD';
+  return 'COULD';
+}
+
+function getCriterionOpportunities(c: { recommendations?: unknown }): ExportRecommendation[] {
+  if (!Array.isArray(c.recommendations)) return [];
+  return c.recommendations
+    .filter((r): r is ExportRecommendation => typeof r === 'object' && r !== null)
+    .slice(0, 3);
+}
+
+function opportunityRows(r: ExportRecommendation): Array<[string, string]> {
+  const candidates: Array<[string, string | undefined]> = [
+    ['Evidence', r.anchor_snippet],
+    ['Symptom', r.symptom],
+    ['Cause', r.mechanism],
+    ['Fix direction', r.specific_fix || r.action],
+    ['Reader effect', r.reader_effect || r.expected_impact],
+    ['Mistake-proofing', r.mistake_proofing],
+  ];
+
+  return candidates.flatMap(([label, value]) => {
+    if (typeof value !== 'string' || value.trim().length === 0) return [];
+    return [[label, cleanReportText(value)] as [string, string]];
+  });
+}
+
 function isExportableResultCandidate(value: unknown): value is ExportableResult {
   if (isEvaluationResultV1(value) || isEvaluationResultV2(value)) return true;
 
@@ -162,11 +203,28 @@ function buildSummaryFallback(result: ExportableResult): string {
   return `${strengthSentence} ${riskSentence}`;
 }
 
+function safeTruncateText(text: string): string {
+  const trimmed = text.trim();
+  if (!trimmed) return trimmed;
+  if (/[.!?;:—"')\]]\s*$/.test(trimmed)) return trimmed;
+  const lastSpace = trimmed.lastIndexOf(' ');
+  if (lastSpace === -1) return trimmed;
+  const lastSegment = trimmed.slice(lastSpace + 1);
+  if (lastSegment.length <= 3 && !/[aeiou]/i.test(lastSegment)) {
+    const upToLastSpace = trimmed.slice(0, lastSpace).trimEnd();
+    const cleaned = upToLastSpace.replace(/\s+(and|or|but|the|a|an|in|on|at|to|of|for|with|by)\s*$/i, '');
+    return cleaned.replace(/[,;:\s]+$/, '') + '...';
+  }
+  return trimmed;
+}
+
 function cleanReportText(text: unknown, fallback = '—', options: { blockTruncation?: boolean } = {}): string {
   const raw = asText(text);
   if (!raw) return fallback;
   const cleaned = stripMachineResidue(raw);
-  if (options.blockTruncation && looksTruncated(cleaned)) return fallback;
+  if (options.blockTruncation && looksTruncated(cleaned)) {
+    return safeTruncateText(cleaned) || fallback;
+  }
   return cleaned;
 }
 
@@ -341,26 +399,19 @@ function buildTxtReport(result: ExportableResult, title: string | null, jobId: s
   result.criteria.forEach((c) => {
     lines.push(`• ${c.key} — ${scoreLabel(c.score_0_10, 10)}${c.confidence_level ? ` (${c.confidence_level} confidence)` : ''}`);
     if (c.rationale) lines.push(`  Rationale: ${cleanReportText(c.rationale)}`);
+
+    const opportunities = getCriterionOpportunities(c as { recommendations?: unknown });
+    if (opportunities.length > 0) {
+      lines.push('  Opportunities:');
+      opportunities.forEach((opportunity, idx) => {
+        lines.push(`    ${idx + 1}. ${exportSeverity(opportunity.priority)}`);
+        opportunityRows(opportunity).forEach(([label, value]) => {
+          lines.push(`       ${label}: ${value}`);
+        });
+      });
+    }
+
     lines.push('');
-  });
-
-  lines.push(sub);
-  lines.push('QUICK WINS');
-  lines.push(sub);
-  if (result.recommendations.quick_wins.length === 0) lines.push('(none)');
-  result.recommendations.quick_wins.forEach((qw, i) => {
-    lines.push(`${i + 1}. ${cleanReportText(qw.action)} [effort: ${qw.effort}, impact: ${qw.impact}]`);
-    if (qw.why) lines.push(`   Why: ${cleanReportText(qw.why)}`);
-  });
-  lines.push('');
-
-  lines.push(sub);
-  lines.push('STRATEGIC REVISIONS');
-  lines.push(sub);
-  if (result.recommendations.strategic_revisions.length === 0) lines.push('(none)');
-  result.recommendations.strategic_revisions.forEach((sr, i) => {
-    lines.push(`${i + 1}. ${cleanReportText(sr.action)} [effort: ${sr.effort}, impact: ${sr.impact}]`);
-    if (sr.why) lines.push(`   Why: ${cleanReportText(sr.why)}`);
   });
 
   if (dream) appendDreamTxtSections(lines, dream);
@@ -605,64 +656,57 @@ async function buildPdfReport(result: ExportableResult, title: string | null, jo
           { width: contentWidth - 8, lineGap: 2 },
         );
       }
+
+      const opportunities = getCriterionOpportunities(c as { recommendations?: unknown });
+      if (opportunities.length > 0) {
+        doc.moveDown(0.3);
+        doc.font('Helvetica-Bold').fontSize(9.5).fillColor(RG.oxblood).text('Opportunities', ml + 4, doc.y, {
+          width: contentWidth - 8,
+        });
+        doc.moveDown(0.15);
+
+        opportunities.forEach((opportunity, idx) => {
+          ensureSpace(90);
+          doc.font('Helvetica-Bold').fontSize(9).fillColor(RG.textPrimary).text(
+            `${idx + 1}. ${exportSeverity(opportunity.priority)}`,
+            ml + 10,
+            doc.y,
+            { width: contentWidth - 20 },
+          );
+
+          const rows = opportunityRows(opportunity);
+          const evidence = rows.find(([label]) => label === 'Evidence');
+          const detailRows = rows.filter(([label]) => label !== 'Evidence');
+
+          if (evidence) {
+            doc.font('Helvetica-Oblique').fontSize(8.5).fillColor(RG.textMuted).text(
+              `Evidence: "${toPdfSafeText(evidence[1])}"`,
+              ml + 14,
+              doc.y + 1,
+              { width: contentWidth - 24, lineGap: 2 },
+            );
+          }
+
+          detailRows.forEach(([label, value]) => {
+            doc.font('Helvetica-Bold').fontSize(8.5).fillColor(RG.textMuted).text(
+              `${label}: `,
+              ml + 14,
+              doc.y + 1,
+              { continued: true },
+            );
+            doc.font('Helvetica').fontSize(8.5).fillColor(RG.textPrimary).text(toPdfSafeText(value), {
+              width: contentWidth - 24,
+              lineGap: 2,
+            });
+          });
+
+          doc.moveDown(0.2);
+        });
+      }
+
       doc.moveDown(0.6);
       thinRule();
     });
-
-    // ── Quick Wins ────────────────────────────────────────────────────
-    section('Quick Wins');
-    if (result.recommendations.quick_wins.length === 0) {
-      paragraph('(none identified)');
-    } else {
-      result.recommendations.quick_wins.forEach((qw, idx) => {
-        ensureSpace(85);
-        doc.font('Helvetica-Bold').fontSize(10.5).fillColor(RG.textPrimary).text(
-          toPdfSafeText(`${idx + 1}. ${cleanReportText(qw.action)}`),
-          { width: contentWidth },
-        );
-        // Effort/impact pills
-        doc.font('Helvetica').fontSize(8.5).fillColor(RG.textMuted).text(
-          `Effort: ${qw.effort}  |  Impact: ${qw.impact}`,
-          { width: contentWidth },
-        );
-        if (qw.why) {
-          doc.moveDown(0.15);
-          doc.font('Helvetica').fontSize(9.5).fillColor(RG.textMuted).text(
-            toPdfSafeText(qw.why),
-            ml + 12, doc.y,
-            { width: contentWidth - 16, lineGap: 2 },
-          );
-        }
-        doc.moveDown(0.5);
-      });
-    }
-
-    // ── Strategic Revisions ───────────────────────────────────────────
-    section('Strategic Revisions');
-    if (result.recommendations.strategic_revisions.length === 0) {
-      paragraph('(none identified)');
-    } else {
-      result.recommendations.strategic_revisions.forEach((sr, idx) => {
-        ensureSpace(85);
-        doc.font('Helvetica-Bold').fontSize(10.5).fillColor(RG.textPrimary).text(
-          toPdfSafeText(`${idx + 1}. ${cleanReportText(sr.action)}`),
-          { width: contentWidth },
-        );
-        doc.font('Helvetica').fontSize(8.5).fillColor(RG.textMuted).text(
-          `Effort: ${sr.effort}  |  Impact: ${sr.impact}`,
-          { width: contentWidth },
-        );
-        if (sr.why) {
-          doc.moveDown(0.15);
-          doc.font('Helvetica').fontSize(9.5).fillColor(RG.textMuted).text(
-            toPdfSafeText(sr.why),
-            ml + 12, doc.y,
-            { width: contentWidth - 16, lineGap: 2 },
-          );
-        }
-        doc.moveDown(0.5);
-      });
-    }
 
     // ── Dream / Narrative Synthesis (longform) ────────────────────────
     if (dream) {
@@ -999,31 +1043,52 @@ async function buildDocx(result: ExportableResult, title: string | null, jobId: 
   result.criteria.forEach((c) => {
     if (!c.rationale) return;
     children.push(bodyPara(`${c.key}: ${c.rationale}`, { size: 19, color: RG.textMuted }));
+
+    const opportunities = getCriterionOpportunities(c as { recommendations?: unknown });
+    opportunities.forEach((opportunity, idx) => {
+      children.push(bodyPara(`Opportunity ${idx + 1} — ${exportSeverity(opportunity.priority)}`, {
+        bold: true,
+        size: 18,
+        color: RG.oxblood,
+        spacing: 40,
+      }));
+
+      opportunityRows(opportunity).forEach(([label, value]) => {
+        if (label === 'Evidence') {
+          children.push(new Paragraph({
+            spacing: { after: 60 },
+            children: [new TextRun({
+              text: `Evidence: "${cleanReportText(value)}"`,
+              italics: true,
+              size: 18,
+              color: RG.textMuted.replace('#', ''),
+              font: 'Calibri',
+            })],
+          }));
+          return;
+        }
+
+        children.push(new Paragraph({
+          spacing: { after: 40 },
+          children: [
+            new TextRun({
+              text: `${label}: `,
+              bold: true,
+              size: 18,
+              color: RG.textMuted.replace('#', ''),
+              font: 'Calibri',
+            }),
+            new TextRun({
+              text: cleanReportText(value),
+              size: 18,
+              color: RG.textPrimary.replace('#', ''),
+              font: 'Calibri',
+            }),
+          ],
+        }));
+      });
+    });
   });
-
-  // ── Quick Wins ──────────────────────────────────────────────────
-  children.push(brandHeading('Quick Wins', HeadingLevel.HEADING_2));
-  if (result.recommendations.quick_wins.length === 0) {
-    children.push(bodyPara('(none identified)'));
-  } else {
-    result.recommendations.quick_wins.forEach((qw, idx) => {
-      children.push(bodyPara(`${idx + 1}. ${cleanReportText(qw.action)}`, { bold: true }));
-      children.push(bodyPara(`Effort: ${qw.effort}  |  Impact: ${qw.impact}`, { size: 18, color: RG.textMuted, spacing: 40 }));
-      if (qw.why) children.push(bodyPara(`${cleanReportText(qw.why)}`, { size: 19, color: RG.textMuted }));
-    });
-  }
-
-  // ── Strategic Revisions ─────────────────────────────────────────
-  children.push(brandHeading('Strategic Revisions', HeadingLevel.HEADING_2));
-  if (result.recommendations.strategic_revisions.length === 0) {
-    children.push(bodyPara('(none identified)'));
-  } else {
-    result.recommendations.strategic_revisions.forEach((sr, idx) => {
-      children.push(bodyPara(`${idx + 1}. ${cleanReportText(sr.action)}`, { bold: true }));
-      children.push(bodyPara(`Effort: ${sr.effort}  |  Impact: ${sr.impact}`, { size: 18, color: RG.textMuted, spacing: 40 }));
-      if (sr.why) children.push(bodyPara(`${cleanReportText(sr.why)}`, { size: 19, color: RG.textMuted }));
-    });
-  }
 
   // ── Dream / Narrative Synthesis ─────────────────────────────────
   if (dream) {

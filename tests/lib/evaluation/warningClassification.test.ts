@@ -27,10 +27,10 @@ describe("classifyEvaluationIntegrityBanner", () => {
 
     expect(banner?.kind).toBe("HOLD");
     expect(banner?.label).toBe("Confidence Varies");
-    expect(banner?.title).toBe("⚠️ CONFIDENCE VARIES ACROSS THIS REPORT");
-    expect(banner?.message).toMatch(/completed successfully using LiteraryAI-Partner/i);
-    expect(banner?.message).toMatch(/lower confidence/i);
-    expect(banner?.message).toMatch(/confidence indicators beside each score/i);
+    expect(banner?.title).toBe("Confidence varies by criterion");
+    expect(banner?.message).toMatch(/strongly supported by the submitted text/i);
+    expect(banner?.message).toMatch(/Moderate/i);
+    expect(banner?.message).toMatch(/confidence badges beside each score/i);
   });
 
   it("returns FAIL for artifact validation fail", () => {
@@ -82,7 +82,7 @@ describe("classifyEvaluationIntegrityBanner", () => {
 
     expect(banner?.kind).toBe("HOLD");
     expect(banner?.label).toBe("Confidence Varies");
-    expect(banner?.title).toBe("⚠️ CONFIDENCE VARIES ACROSS THIS REPORT");
+    expect(banner?.title).toBe("Confidence varies by criterion");
   });
 
   it("returns constrained banner when propagation integrity is weak", () => {

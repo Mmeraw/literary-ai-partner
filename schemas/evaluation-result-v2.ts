@@ -91,6 +91,15 @@ type CriterionBase = {
     priority: "high" | "medium" | "low";
     action: string;
     expected_impact: string;
+    anchor_snippet?: string;
+    mechanism?: string;
+    specific_fix?: string;
+    reader_effect?: string;
+    symptom?: string;
+    mistake_proofing?: string;
+    issue_family?: string;
+    strategic_lever?: string;
+    revision_granularity?: string;
   }>;
   technical_defects?: CriterionTechnicalDefect[];
 };
