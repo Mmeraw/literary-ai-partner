@@ -1,6 +1,7 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "purpose": "RevisionGrade public-domain calibration corpus manifest. Substrate only; not a runtime prompt source.",
+  "mode_contract_path": "docs/governance/evaluation-output-mode-contract.md",
   "works": [
     {
       "id": "pride-and-prejudice",
@@ -12,6 +13,8 @@
       "source_download_url": "https://www.gutenberg.org/ebooks/1342.txt.utf-8",
       "jurisdiction_basis": "U.S. public domain source; verify local jurisdiction before redistribution outside the U.S.",
       "form": "long_novel",
+      "evaluation_mode": "long_form_evaluation",
+      "output_mode": "standard_long_form",
       "calibration_axes": [
         "social_realism",
         "dialogue",
@@ -44,6 +47,8 @@
       "source_download_url": "https://www.gutenberg.org/files/2148/2148-0.txt",
       "jurisdiction_basis": "U.S. public domain source; verify local jurisdiction before redistribution outside the U.S.",
       "form": "short_fiction",
+      "evaluation_mode": "short_form_evaluation",
+      "output_mode": "short_form_evaluation",
       "calibration_axes": [
         "psychological_horror",
         "unreliable_voice",
@@ -77,6 +82,8 @@
       "source_download_url": "https://www.gutenberg.org/ebooks/1400.txt.utf-8",
       "jurisdiction_basis": "U.S. public domain source; verify local jurisdiction before redistribution outside the U.S.",
       "form": "long_novel",
+      "evaluation_mode": "long_form_multi_layer_evaluation",
+      "output_mode": "multi_layer_long_form",
       "calibration_axes": [
         "bildungsroman",
         "serial_structure",
@@ -109,6 +116,8 @@
       "source_download_url": "https://www.gutenberg.org/ebooks/43.txt.utf-8",
       "jurisdiction_basis": "U.S. public domain source; verify local jurisdiction before redistribution outside the U.S.",
       "form": "novella",
+      "evaluation_mode": "long_form_multi_layer_evaluation",
+      "output_mode": "multi_layer_long_form",
       "calibration_axes": [
         "gothic",
         "mystery_reveal",
@@ -141,6 +150,8 @@
       "source_download_url": "https://www.gutenberg.org/ebooks/1952.txt.utf-8",
       "jurisdiction_basis": "U.S. public domain source; verify local jurisdiction before redistribution outside the U.S.",
       "form": "short_fiction",
+      "evaluation_mode": "short_form_evaluation",
+      "output_mode": "short_form_evaluation",
       "calibration_axes": [
         "psychological_interior",
         "feminist_literature",
@@ -173,6 +184,8 @@
       "source_download_url": "https://www.gutenberg.org/ebooks/160.txt.utf-8",
       "jurisdiction_basis": "U.S. public domain source; verify local jurisdiction before redistribution outside the U.S.",
       "form": "short_fiction",
+      "evaluation_mode": "short_form_evaluation",
+      "output_mode": "short_form_evaluation",
       "calibration_axes": [
         "micro_arc",
         "reversal",
@@ -192,10 +205,47 @@
         "headers_removed": true,
         "footers_removed": true,
         "modern_editorial_material_removed": false,
-        "notes": "File contains Kate Chopin Awakening + Selected Short Stories collection. The Story of an Hour is NOT present in this collection. Needs a correct standalone source (search Gutenberg for Bayou Folk or a dedicated Chopin short fiction ebook)."
+        "notes": "File contains Kate Chopin Awakening + Selected Short Stories collection. The Story of an Hour is NOT present in this collection. The collection is now also tracked as The Awakening; keep this short-story entry excluded until a correct standalone source is added."
       },
       "requires_extraction": false,
       "registry_status": "excluded-story-absent"
+    },
+    {
+      "id": "the-awakening",
+      "title": "The Awakening",
+      "author": "Kate Chopin",
+      "first_publication_year": 1899,
+      "source_name": "Project Gutenberg",
+      "source_url": "https://www.gutenberg.org/ebooks/160",
+      "source_download_url": "https://www.gutenberg.org/ebooks/160.txt.utf-8",
+      "jurisdiction_basis": "U.S. public domain source; verify local jurisdiction before redistribution outside the U.S.",
+      "form": "novel",
+      "evaluation_mode": "long_form_evaluation",
+      "output_mode": "standard_long_form",
+      "calibration_axes": [
+        "interiority",
+        "social_constraint",
+        "gendered_pressure",
+        "symbolic_environment",
+        "ambiguous_closure"
+      ],
+      "raw_text_path": "corpus/public-domain/raw/story-of-an-hour.txt",
+      "clean_text_path": "corpus/public-domain/clean/story-of-an-hour.txt",
+      "standalone_clean_text_path": "corpus/public-domain/clean/the-awakening.txt",
+      "calibration_doc_path": "docs/benchmarks/public-domain/the-awakening-dream-calibration.md",
+      "allowed_uses": [
+        "manifest_seed",
+        "future_longform_fixture",
+        "future_calibration_fixture"
+      ],
+      "cleaning": {
+        "status": "collection-cleaned-extraction-needed",
+        "headers_removed": true,
+        "footers_removed": true,
+        "modern_editorial_material_removed": false,
+        "notes": "The existing cleaned file begins with The Awakening but also contains selected short stories. Create a standalone The Awakening clean text before freezing a golden eval artifact."
+      },
+      "requires_extraction": true
     },
     {
       "id": "the-time-machine",
@@ -207,6 +257,8 @@
       "source_download_url": "https://www.gutenberg.org/ebooks/35.txt.utf-8",
       "jurisdiction_basis": "U.S. public domain source; verify local jurisdiction before redistribution outside the U.S.",
       "form": "novella",
+      "evaluation_mode": "long_form_evaluation",
+      "output_mode": "standard_long_form",
       "calibration_axes": [
         "science_fiction",
         "speculative_concept",
@@ -239,6 +291,8 @@
       "source_download_url": "https://www.gutenberg.org/ebooks/345.txt.utf-8",
       "jurisdiction_basis": "U.S. public domain source; verify local jurisdiction before redistribution outside the U.S.",
       "form": "long_novel",
+      "evaluation_mode": "long_form_multi_layer_evaluation",
+      "output_mode": "multi_layer_long_form",
       "calibration_axes": [
         "gothic_horror",
         "epistolary_structure",
@@ -271,6 +325,8 @@
       "source_download_url": "https://www.gutenberg.org/ebooks/55.txt.utf-8",
       "jurisdiction_basis": "U.S. public domain source; verify local jurisdiction before redistribution outside the U.S.",
       "form": "novel",
+      "evaluation_mode": "long_form_evaluation",
+      "output_mode": "standard_long_form",
       "calibration_axes": [
         "childrens_fantasy",
         "quest_structure",
@@ -303,6 +359,8 @@
       "source_download_url": "https://www.gutenberg.org/ebooks/58866.txt.utf-8",
       "jurisdiction_basis": "U.S. public domain source; verify local jurisdiction before redistribution outside the U.S.",
       "form": "novel",
+      "evaluation_mode": "long_form_evaluation",
+      "output_mode": "standard_long_form",
       "calibration_axes": [
         "detective_fiction",
         "clue_logic",
@@ -326,5 +384,5 @@
       "requires_extraction": false
     }
   ],
-  "_note": "Active corpus: 8 works. tell-tale-heart and story-of-an-hour are excluded (broken collection files) — see registry_status on each. Replace with correct standalone sources to restore to 10."
+  "_note": "Active corpus: 9 works. tell-tale-heart and story-of-an-hour remain excluded as standalone story entries. The Awakening is active as a long-form calibration candidate but requires standalone extraction before golden eval freeze."
 }
