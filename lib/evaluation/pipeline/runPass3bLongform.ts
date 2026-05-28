@@ -9,9 +9,12 @@
  * Fires ONLY when route === "LONG_FORM" (≥ 25,000 words / inputScale === "full_manuscript").
  * Reads Pass 3 synthesized criteria and produces the full 16-section DREAM document.
  *
- * Benchmark authority:
+ * Authority chain:
+ *   docs/governance/evaluation-output-mode-contract.md
+ *   docs/templates/evaluation/long-form-multi-layer-evaluation-template.md
+ *   docs/benchmarks/DREAM_LONGFORM_BENCHMARK_INDEX.md
  *   docs/benchmarks/froggin-noggin-dream.md
- *   docs/benchmarks/cartel-babies-dream-longform-evaluation.md
+ *   docs/benchmarks/cartel-babies-dream.md
  *
  * Temperature: 0.3   Default max tokens: 12000 (override via EVAL_PASS3B_MAX_TOKENS)
  *
