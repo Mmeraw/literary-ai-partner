@@ -1,6 +1,6 @@
 {
   "schemaVersion": "public-domain-calibration-registry.v2",
-  "corpusSize": 8,
+  "corpusSize": 9,
   "modeContractPath": "docs/governance/evaluation-output-mode-contract.md",
   "templates": {
     "short_form_evaluation": "docs/templates/evaluation/short-form-evaluation-template.md",
@@ -213,6 +213,42 @@
       }
     },
     {
+      "id": "the-awakening",
+      "title": "The Awakening",
+      "author": "Kate Chopin",
+      "publicationYear": 1899,
+      "publicDomainBasis": "pre-1928-us-copyright-expiration",
+      "form": "novel",
+      "sourceTextPath": "corpus/public-domain/clean/story-of-an-hour.txt",
+      "sourceTextNote": "Current repo text file is a Kate Chopin collection beginning with The Awakening. Create corpus/public-domain/clean/the-awakening.txt before freezing a golden eval artifact.",
+      "calibrationDocPath": "docs/benchmarks/public-domain/the-awakening-dream-calibration.md",
+      "goldenEvalPath": "corpus/public-domain/golden-evals/the-awakening.dream-longform.json",
+      "route": "LONG_FORM",
+      "evaluationMode": "long_form_evaluation",
+      "outputMode": "standard_long_form",
+      "templatePath": "docs/templates/evaluation/long-form-evaluation-template.md",
+      "runtimeAuthority": false,
+      "benchmarkRole": "interiority_social_constraint_symbolic_environment_gendered_pressure_closure_ambiguity",
+      "craftAnchors": [
+        "interiority as plot pressure",
+        "social constraint",
+        "gendered expectation",
+        "symbolic environment",
+        "ambiguous closure",
+        "literary pacing"
+      ],
+      "doNotUseFor": [
+        "modern commercial pacing baseline",
+        "external antagonist requirement",
+        "style imitation target"
+      ],
+      "integrity": {
+        "wordCount": { "min": 45000, "max": 75000 },
+        "minApostrophes": 200,
+        "requiresStandaloneExtractionBeforeGoldenFreeze": true
+      }
+    },
+    {
       "id": "the-time-machine",
       "title": "The Time Machine",
       "author": "H. G. Wells",
@@ -312,6 +348,6 @@
   "notes": [
     "Public-domain corpus entries are calibration/regression assets only and remain runtime-authority false.",
     "Legacy goldenEvalPath filenames may still contain dream-longform until artifacts are deliberately regenerated; do not rename frozen artifacts without a regression-comparison step.",
-    "The Awakening is recognized as a desired public-domain calibration candidate, but it is not active in this registry until the clean text and calibration artifact are added deliberately."
+    "The Awakening is active as a standard long-form calibration candidate, but a standalone clean text extraction should be created before freezing a golden eval artifact."
   ]
 }
