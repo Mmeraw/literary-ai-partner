@@ -155,7 +155,6 @@ export async function POST(req: Request) {
       .from("manuscripts")
       .insert({
         title: titleFromUpload,
-        content: extractedText,
         user_id: user.id,
         created_by: user.id,
         file_url: fileUrl,

@@ -82,7 +82,7 @@ export default function ReviseQueueDemo() {
   const [activeFilter, setActiveFilter] = useState("All");
 
   return (
-    <section className="border-y border-[#C8BEA8]/10 bg-[#1A1208]/50">
+    <section id="revise-demo" className="border-y border-[#C8BEA8]/10 bg-[#1A1208]/50">
       <div className="mx-auto max-w-7xl px-6 py-20">
         <p className="font-rg-mono text-xs uppercase tracking-[0.24em] text-[#C8A96E]">
           See the Revise Queue in action
@@ -94,7 +94,7 @@ export default function ReviseQueueDemo() {
 
         <div className="mt-4 inline-flex items-center gap-2 rounded border border-[#C8A96E]/25 bg-[#C8A96E]/10 px-3 py-1.5">
           <span className="font-rg-mono text-[10px] uppercase tracking-wider text-[#C8A96E]">Example preview</span>
-          <span className="text-xs text-[#C8BEA8]/60">\u2014 this is sample data, not your manuscript</span>
+          <span className="text-xs text-[#C8BEA8]/60">{"\u2014"} this is sample data, not your manuscript</span>
         </div>
 
         <div className="mt-10 grid gap-0 overflow-hidden rounded-lg border border-[#C8BEA8]/12 lg:grid-cols-[340px_1fr]">
@@ -163,7 +163,7 @@ export default function ReviseQueueDemo() {
           {/* RIGHT: Detail Panel */}
           <article className="bg-[#0D0A05]/60 p-6">
             <header>
-              <p className="text-xs text-[#C8BEA8]/40">Dialogue \u00b7 Chapter 11 \u00b7 river scene</p>
+              <p className="text-xs text-[#C8BEA8]/40">Dialogue {"\u00b7"} Chapter 11 {"\u00b7"} river scene</p>
               <h3 className="mt-1 font-rg-serif text-2xl text-[#F5EFE0]">
                 Abstract phrasing weakens river-scene tension
               </h3>
@@ -181,7 +181,7 @@ export default function ReviseQueueDemo() {
                 <span className="text-[#C8A96E]">&ldquo;</span>It&rsquo;s okay,<span className="text-[#C8A96E]">&rdquo;</span>{" "}
                 I whispered. But even as I said it, I knew it wasn&rsquo;t okay.
               </blockquote>
-              <p className="mt-1 font-rg-mono text-[10px] text-[#C8BEA8]/30">char 1247\u20131330 \u00b7 Chapter 11 \u00b7 river scene</p>
+              <p className="mt-1 font-rg-mono text-[10px] text-[#C8BEA8]/30">char 1247{"\u2013"}1330 {"\u00b7"} Chapter 11 {"\u00b7"} river scene</p>
             </section>
 
             {/* 6-Part Diagnosis */}
@@ -225,7 +225,7 @@ export default function ReviseQueueDemo() {
                     <span className="font-rg-mono text-sm font-bold text-[#C8BEA8]/70">B</span>
                     <span className="text-xs text-[#C8BEA8]/50">Interruption beat</span>
                   </header>
-                  <pre className="mt-2 whitespace-pre-wrap font-rg-mono text-sm text-[#F5EFE0]/85">&ldquo;It&rsquo;s okay\u2014&rdquo;{"\n"}My voice cracked before I could finish.</pre>
+                  <pre className="mt-2 whitespace-pre-wrap font-rg-mono text-sm text-[#F5EFE0]/85">&ldquo;It&rsquo;s okay{"\u2014"}&rdquo;{"\n"}My voice cracked before I could finish.</pre>
                   <p className="mt-2 text-xs text-[#C8BEA8]/50">Cuts the reassurance mid-line so the failure is heard, not narrated.</p>
                 </article>
                 <article className="rounded border border-[#C8BEA8]/12 bg-[#1A1208]/60 p-4">

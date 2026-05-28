@@ -1292,6 +1292,9 @@ function parseRecommendations(
         mechanism: String(r["mechanism"] ?? "").trim(),
         specific_fix: String(r["specific_fix"] ?? "").trim(),
         reader_effect: String(r["reader_effect"] ?? "").trim(),
+        // 6-part diagnostic contract fields (v19+)
+        symptom: typeof r["symptom"] === "string" ? r["symptom"].trim() : undefined,
+        mistake_proofing: typeof r["mistake_proofing"] === "string" ? r["mistake_proofing"].trim() : undefined,
       };
 
       // Surface-integrity check on ORIGINAL action (before normalization/backfill).

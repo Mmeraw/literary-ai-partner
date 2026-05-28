@@ -61,8 +61,8 @@ function makeSynthesis(overrides: Partial<Record<CriterionKey, Partial<Synthesiz
 
 // ── Prompt version ────────────────────────────────────────────────────────────
 
-it("PASS3_PROMPT_VERSION reflects the canonical tier1-ledger synthesis prompt", () => {
-  expect(PASS3_PROMPT_VERSION).toBe("pass3-synthesis-v18-tier1-ledger");
+it("PASS3_PROMPT_VERSION reflects the canonical diagnostic-contract synthesis prompt", () => {
+  expect(PASS3_PROMPT_VERSION).toBe("pass3-synthesis-v19-diagnostic-contract");
 });
 
 // ── Five-part contract: passing fixtures ─────────────────────────────────────

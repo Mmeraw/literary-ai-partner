@@ -77,9 +77,9 @@ export default function RevisePage() {
             Revise is the author-controlled repair workflow after evaluation: findings become evidence-backed repair decisions. Work through the queue one opportunity at a time, or use TrustedPath™ to apply eligible recommended repairs to a protected manuscript copy.
           </p>
           <div className="mt-10 flex flex-wrap gap-4">
-            <Link href="/workbench" className="border border-rg-gold bg-rg-gold px-5 py-3 font-rg-mono text-xs uppercase tracking-[0.18em] text-rg-ink transition hover:bg-transparent hover:text-rg-gold">
-              Open Revise Queue
-            </Link>
+            <a href="#revise-demo" className="border border-rg-gold bg-rg-gold px-5 py-3 font-rg-mono text-xs uppercase tracking-[0.18em] text-rg-ink transition hover:bg-transparent hover:text-rg-gold">
+              View Revise Demo
+            </a>
             <Link href="/evaluate" className="border border-rg-cream2/30 px-5 py-3 font-rg-mono text-xs uppercase tracking-[0.18em] text-rg-cream transition hover:border-rg-gold hover:text-rg-gold">
               Start Evaluation
             </Link>
