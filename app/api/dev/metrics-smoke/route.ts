@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import crypto from "crypto";
 import * as metrics from "@/lib/jobs/metrics";
 import { PHASES } from "@/lib/jobs/types";
 
@@ -15,9 +16,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: false, error: "Not available in production" }, { status: 404 });
   }
 
-  const authHeader = request.headers.get("authorization");
   const cronSecret = process.env.CRON_SECRET;
-  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
+  const bearer = request.headers.get("authorization")?.match(/^Bearer\s+(.+)$/i)?.[1]?.trim();
+  if (!cronSecret || !bearer) {
+    return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+  }
+  const aHash = crypto.createHash("sha256").update(bearer, "utf8").digest();
+  const bHash = crypto.createHash("sha256").update(cronSecret, "utf8").digest();
+  if (!crypto.timingSafeEqual(aHash, bHash)) {
     return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
   }
 
