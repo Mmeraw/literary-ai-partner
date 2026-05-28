@@ -751,6 +751,287 @@ export function PovStructureLayer({
 
 // ─── Layer 3 — Canonical Identity ────────────────────────────────────────────
 
+// Tier classification for identity cards
+type IdentityTier =
+  | "core_cast"
+  | "named_secondary"
+  | "symbolic_collective"
+  | "background"
+  | "needs_confirmation";
+
+const TIER_LABELS: Record<IdentityTier, string> = {
+  core_cast: "Core Cast",
+  named_secondary: "Named Secondary",
+  symbolic_collective: "Symbolic / Collective Forces",
+  background: "Background / One-off",
+  needs_confirmation: "Needs Confirmation",
+};
+
+const TIER_ORDER: IdentityTier[] = [
+  "needs_confirmation",
+  "core_cast",
+  "named_secondary",
+  "symbolic_collective",
+  "background",
+];
+
+function classifyIdentityTier(id: Record<string, unknown>): IdentityTier {
+  const role = String(id.role ?? id.narrative_role ?? "").toLowerCase();
+  const importance = String(id.importance_level ?? "").toLowerCase();
+  const contradictions = id.contradictions as unknown[] | null;
+  const hasContradictions = Array.isArray(contradictions) && contradictions.length > 0;
+  const finalStatus = String(id.final_status ?? id.post_resolution_name_states ?? "");
+  const isUnresolved = finalStatus.toLowerCase() === "unresolved" && hasContradictions;
+
+  if (isUnresolved || hasContradictions) return "needs_confirmation";
+
+  if (
+    role === "protagonist" || role === "co_protagonist" || role === "antagonist" ||
+    importance === "primary"
+  ) return "core_cast";
+
+  if (
+    role === "symbolic_force" || role === "collective_force" || role === "animal_companion"
+  ) return "symbolic_collective";
+
+  if (
+    role === "mentor" || role === "foil" || role === "secondary" ||
+    importance === "major" || importance === "supporting"
+  ) return "named_secondary";
+
+  if (importance === "minor" || importance === "background") return "background";
+
+  // Default: if the role looks like a named character, secondary; otherwise background
+  if (role === "unknown" || !role) return "background";
+  return "named_secondary";
+}
+
+function formatResolutionStatus(id: Record<string, unknown>): {
+  label: string;
+  value: string;
+  tone: "neutral" | "gold" | "warn";
+} {
+  const postRes = id.post_resolution_name_states;
+  const finalStatus = String(id.final_status ?? "");
+  const canonicalName = String(id.canonical_name ?? id.name ?? "");
+
+  if (typeof postRes === "string" && postRes.toLowerCase() !== "unresolved" && postRes) {
+    return { label: "Resolved as", value: postRes, tone: "gold" };
+  }
+
+  if (finalStatus && finalStatus.toLowerCase() !== "unresolved") {
+    return { label: "Resolved as", value: canonicalName || finalStatus, tone: "gold" };
+  }
+
+  const contradictions = id.contradictions as unknown[] | null;
+  if (Array.isArray(contradictions) && contradictions.length > 0) {
+    return { label: "Resolution status", value: "Needs author confirmation", tone: "warn" };
+  }
+
+  return { label: "Resolution status", value: "No rename detected", tone: "neutral" };
+}
+
+function IdentityCard({ id, index }: { id: Record<string, unknown>; index: number }) {
+  const name = String(id.canonical_name ?? id.name ?? `Character ${index + 1}`);
+  const aliases = id.aliases as string[] | null;
+  const pronouns = id.pronouns;
+  const role = id.role;
+  const legalNames = id.legal_name_states;
+  const captivityNames = id.captivity_name_states;
+  const anchors = id.evidence_anchors as string[] | null;
+  const resolution = formatResolutionStatus(id);
+
+  return (
+    <CharacterCard>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          flexWrap: "wrap",
+          gap: 10,
+          marginBottom: 12,
+        }}
+      >
+        <h4
+          style={{
+            margin: 0,
+            fontSize: 18,
+            fontWeight: 700,
+            color: C.textPrimary,
+            letterSpacing: "-0.01em",
+          }}
+        >
+          {name}
+        </h4>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {role && (
+            <Pill
+              label={String(role)}
+              tone={
+                String(role).includes("protagonist")
+                  ? "gold"
+                  : String(role).includes("antagonist")
+                    ? "oxblood"
+                    : "neutral"
+              }
+            />
+          )}
+          {pronouns && <Pill label={String(pronouns)} tone="blue" />}
+        </div>
+      </div>
+
+      {aliases && aliases.length > 0 && (
+        <div style={{ marginBottom: 12 }}>
+          <p
+            style={{
+              margin: "0 0 8px",
+              fontSize: 11,
+              fontWeight: 700,
+              letterSpacing: "0.07em",
+              textTransform: "uppercase" as const,
+              color: C.textMuted,
+            }}
+          >
+            Aliases &amp; Name States
+          </p>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {aliases.map((a, j) => (
+              <Pill key={j} label={a} tone="neutral" />
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div>
+        {legalNames && (
+          <FieldRow label="Legal name states" value={legalNames} />
+        )}
+        {captivityNames && (
+          <FieldRow label="Captivity name states" value={captivityNames} />
+        )}
+        <FieldRow
+          label={resolution.label}
+          value={resolution.value}
+        />
+      </div>
+
+      {anchors && anchors.length > 0 && (
+        <div style={{ marginTop: 12, display: "flex", gap: 6, flexWrap: "wrap" }}>
+          {anchors.map((a, j) => (
+            <EvidenceTag key={j} id={a} />
+          ))}
+        </div>
+      )}
+    </CharacterCard>
+  );
+}
+
+function CompactIdentityRow({ id, index }: { id: Record<string, unknown>; index: number }) {
+  const name = String(id.canonical_name ?? id.name ?? `Entity ${index + 1}`);
+  const role = id.role;
+  const aliases = id.aliases as string[] | null;
+  const aliasCount = aliases?.length ?? 0;
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 10,
+        padding: "8px 14px",
+        background: C.surfaceAlt,
+        border: `1px solid ${C.border}`,
+        borderRadius: 8,
+      }}
+    >
+      <span style={{ fontSize: 14, fontWeight: 600, color: C.textPrimary, flex: 1, minWidth: 0 }}>
+        {name}
+      </span>
+      {role && <Pill label={String(role)} tone="neutral" />}
+      {aliasCount > 0 && (
+        <span style={{ fontSize: 11, color: C.textMuted }}>
+          {aliasCount} alias{aliasCount !== 1 ? "es" : ""}
+        </span>
+      )}
+    </div>
+  );
+}
+
+function TierSection({
+  tier,
+  identities,
+  defaultExpanded,
+  compact,
+}: {
+  tier: IdentityTier;
+  identities: Record<string, unknown>[];
+  defaultExpanded: boolean;
+  compact?: boolean;
+}) {
+  const [expanded, setExpanded] = React.useState(defaultExpanded);
+  const count = identities.length;
+  if (count === 0) return null;
+
+  const tierColor = tier === "needs_confirmation" ? "#E6A23C"
+    : tier === "core_cast" ? C.gold
+    : C.textMuted;
+
+  return (
+    <div style={{ marginBottom: 8 }}>
+      <button
+        type="button"
+        onClick={() => setExpanded((v) => !v)}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+          width: "100%",
+          padding: "10px 14px",
+          background: expanded ? C.surfaceAlt : "transparent",
+          border: `1px solid ${expanded ? C.borderStrong : C.border}`,
+          borderRadius: 10,
+          cursor: "pointer",
+          textAlign: "left" as const,
+        }}
+      >
+        <span style={{ fontSize: 14, color: tierColor, transform: expanded ? "rotate(90deg)" : "rotate(0deg)", transition: "transform 0.15s" }}>
+          ▸
+        </span>
+        <span style={{ fontSize: 13, fontWeight: 700, color: tierColor, letterSpacing: "0.04em", textTransform: "uppercase" as const }}>
+          {TIER_LABELS[tier]}
+        </span>
+        <span style={{
+          fontSize: 11,
+          fontWeight: 700,
+          color: tierColor,
+          background: tier === "needs_confirmation" ? C.warnLight
+            : tier === "core_cast" ? C.goldLight
+            : "rgba(255,255,255,0.06)",
+          padding: "2px 8px",
+          borderRadius: 6,
+        }}>
+          {count}
+        </span>
+        {!expanded && (
+          <span style={{ fontSize: 12, color: C.textFaint, marginLeft: "auto" }}>
+            {identities.slice(0, 4).map((id) => String(id.canonical_name ?? id.name ?? "")).filter(Boolean).join(", ")}
+            {count > 4 ? `, +${count - 4} more` : ""}
+          </span>
+        )}
+      </button>
+      {expanded && (
+        <div style={{ display: "flex", flexDirection: "column", gap: compact ? 6 : 14, marginTop: 10, paddingLeft: 12 }}>
+          {identities.map((id, i) =>
+            compact
+              ? <CompactIdentityRow key={i} id={id} index={i} />
+              : <IdentityCard key={i} id={id} index={i} />
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function CanonicalIdentityLayer({
   data,
 }: {
@@ -822,6 +1103,23 @@ export function CanonicalIdentityLayer({
     );
   }
 
+  // Group identities by tier
+  const tierGroups: Record<IdentityTier, Record<string, unknown>[]> = {
+    core_cast: [],
+    named_secondary: [],
+    symbolic_collective: [],
+    background: [],
+    needs_confirmation: [],
+  };
+  for (const id of identities) {
+    tierGroups[classifyIdentityTier(id)].push(id);
+  }
+
+  // Count non-empty tiers for the summary
+  const tierCounts = TIER_ORDER
+    .map((t) => ({ tier: t, count: tierGroups[t].length }))
+    .filter((t) => t.count > 0);
+
   return (
     <LayerShell>
       <LayerTitle
@@ -832,100 +1130,43 @@ export function CanonicalIdentityLayer({
         badgeTone="gold"
       />
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-        {identities.map((id, i) => {
-          const name = String(id.canonical_name ?? id.name ?? `Character ${i + 1}`);
-          const aliases = id.aliases as string[] | null;
-          const pronouns = id.pronouns;
-          const role = id.role;
-          const legalNames = id.legal_name_states;
-          const captivityNames = id.captivity_name_states;
-          const postResolutionNames = id.post_resolution_name_states;
-          const anchors = id.evidence_anchors as string[] | null;
+      {/* Summary bar */}
+      <div style={{
+        display: "flex",
+        flexWrap: "wrap",
+        gap: 12,
+        marginBottom: 16,
+        padding: "10px 14px",
+        background: C.surfaceAlt,
+        border: `1px solid ${C.border}`,
+        borderRadius: 8,
+      }}>
+        {tierCounts.map(({ tier, count }) => (
+          <span key={tier} style={{ fontSize: 12, color: C.textMuted }}>
+            <span style={{
+              fontWeight: 700,
+              color: tier === "needs_confirmation" ? "#E6A23C"
+                : tier === "core_cast" ? C.gold
+                : C.textPrimary,
+            }}>
+              {count}
+            </span>
+            {" "}{TIER_LABELS[tier].toLowerCase()}
+          </span>
+        ))}
+      </div>
 
-          return (
-            <CharacterCard key={i}>
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  flexWrap: "wrap",
-                  gap: 10,
-                  marginBottom: 12,
-                }}
-              >
-                <h4
-                  style={{
-                    margin: 0,
-                    fontSize: 18,
-                    fontWeight: 700,
-                    color: C.textPrimary,
-                    letterSpacing: "-0.01em",
-                  }}
-                >
-                  {name}
-                </h4>
-                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                  {role && (
-                    <Pill
-                      label={String(role)}
-                      tone={
-                        String(role).includes("protagonist")
-                          ? "gold"
-                          : String(role).includes("antagonist")
-                            ? "oxblood"
-                            : "neutral"
-                      }
-                    />
-                  )}
-                  {pronouns && <Pill label={String(pronouns)} tone="blue" />}
-                </div>
-              </div>
-
-              {aliases && aliases.length > 0 && (
-                <div style={{ marginBottom: 12 }}>
-                  <p
-                    style={{
-                      margin: "0 0 8px",
-                      fontSize: 11,
-                      fontWeight: 700,
-                      letterSpacing: "0.07em",
-                      textTransform: "uppercase" as const,
-                      color: C.textMuted,
-                    }}
-                  >
-                    Aliases &amp; Name States
-                  </p>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                    {aliases.map((a, j) => (
-                      <Pill key={j} label={a} tone="neutral" />
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              <div>
-                {legalNames && (
-                  <FieldRow label="Legal name states" value={legalNames} />
-                )}
-                {captivityNames && (
-                  <FieldRow label="Captivity name states" value={captivityNames} />
-                )}
-                {postResolutionNames && (
-                  <FieldRow label="Post-resolution names" value={postResolutionNames} />
-                )}
-              </div>
-
-              {anchors && anchors.length > 0 && (
-                <div style={{ marginTop: 12, display: "flex", gap: 6, flexWrap: "wrap" }}>
-                  {anchors.map((a, j) => (
-                    <EvidenceTag key={j} id={a} />
-                  ))}
-                </div>
-              )}
-            </CharacterCard>
-          );
-        })}
+      {/* Tier sections */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        {TIER_ORDER.map((tier) => (
+          <TierSection
+            key={tier}
+            tier={tier}
+            identities={tierGroups[tier]}
+            defaultExpanded={tier === "core_cast" || tier === "needs_confirmation"}
+            compact={tier === "background" || tier === "symbolic_collective"}
+          />
+        ))}
       </div>
     </LayerShell>
   );
