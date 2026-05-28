@@ -560,43 +560,7 @@ export async function GET(request: NextRequest) {
       }, { status: 200 });
     }
     
-    // ── HARD KILL SWITCH: auto-fail jobs older than 2 hours ──────────────
-    // Prevents runaway cost from stuck jobs cycling indefinitely.
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    if (supabaseUrl && serviceRoleKey) {
-      try {
-        const MAX_JOB_AGE_MS = 2 * 60 * 60 * 1000; // 2 hours
-        const killCutoff = new Date(Date.now() - MAX_JOB_AGE_MS).toISOString();
-        const supabaseForKill = createClient(supabaseUrl, serviceRoleKey);
-        const { data: staleJobs } = await supabaseForKill
-          .from('evaluation_jobs')
-          .select('id')
-          .in('status', ['queued', 'running'])
-          .lt('created_at', killCutoff)
-          .limit(20);
-
-        if (staleJobs && staleJobs.length > 0) {
-          const staleIds = staleJobs.map((j) => j.id);
-          await supabaseForKill
-            .from('evaluation_jobs')
-            .update({
-              status: 'failed',
-              phase_status: 'failed',
-              last_error: `KILL_SWITCH: Job exceeded maximum age of 2 hours (created before ${killCutoff})`,
-              failure_code: 'MAX_AGE_KILL_SWITCH',
-              updated_at: new Date().toISOString(),
-            })
-            .in('id', staleIds);
-
-          console.warn(`[Worker] KILL_SWITCH: force-failed ${staleIds.length} stale jobs older than 2h`, { staleIds });
-        }
-      } catch (killErr) {
-        console.error('[Worker] KILL_SWITCH error (non-fatal):', killErr);
-      }
-    }
-
-    // Process queued jobs
+    // Process queued jobs (kill switch runs inside processQueuedJobs)
     const workerId = buildWorkerId(traceId);
     const results = await processQueuedJobs({
       workerId,
