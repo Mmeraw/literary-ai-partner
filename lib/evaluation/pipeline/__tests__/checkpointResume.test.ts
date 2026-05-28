@@ -4,8 +4,7 @@
  */
 import { describe, expect, jest, test } from "@jest/globals";
 import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
-import type { SinglePassOutput } from "@/lib/evaluation/pipeline/types";
-import type { AxisCriterionResult } from "@/lib/evaluation/pipeline/perplexityChunkScorer";
+import type { SinglePassOutput, AxisCriterionResult } from "@/lib/evaluation/pipeline/types";
 
 // ────────────────────────────────────────────────────────────────────────────
 // Helpers
@@ -30,10 +29,11 @@ function makeSinglePassOutput(chunkIndex: number): SinglePassOutput {
 function makePplxResults(chunkIndex: number): AxisCriterionResult[] {
   return CRITERIA_KEYS.map((key) => ({
     key,
-    score: 7,
+    score_0_10: 7,
     rationale: `pplx rationale ${key} chunk ${chunkIndex}`,
-    evidence: `"pplx evidence chunk ${chunkIndex}"`,
-  }));
+    evidence: [{ snippet: `"pplx evidence chunk ${chunkIndex}"` }],
+    recommendations: [],
+  })) as AxisCriterionResult[];
 }
 
 // ────────────────────────────────────────────────────────────────────────────

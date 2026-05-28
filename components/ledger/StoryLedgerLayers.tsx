@@ -1,7 +1,7 @@
 /**
  * StoryLedgerLayers.tsx
  *
- * Purpose-built UI maps for all 8 canonical Story Ledger layers.
+ * Purpose-built UI maps for all 9 canonical Story Ledger layers.
  * Each renderer is spec'd against STORY_LAYER_PROFORMA_V1 and the
  * dream-state gold samples from the Story-Ledger-Phase documentation pack.
  *
@@ -112,6 +112,8 @@ const LAYER_DESCRIPTIONS: Record<string, string> = {
     "Where the story takes place, in what order, and what rules govern the world at each point. Movement paths, time sequences, and environmental logic.",
   threat_antagonist_ending_layer:
     "The forces working against your protagonist — named people, institutions, environments, and internal pressures — mapped to their final state at story's end.",
+  identity_pronoun_layer:
+    "How each character is identified: pronouns detected across the manuscript, gender signals, and any pronoun shifts between sections. Confirm intentional transitions or flag continuity errors.",
 };
 
 // ─── Shared primitives ───────────────────────────────────────────────────────
@@ -1912,6 +1914,220 @@ export function LayerCompletionBar({
   );
 }
 
+// ─── Layer 9 — Identity & Pronoun Verification ──────────────────────────────
+
+interface PronounShiftDecision {
+  character: string;
+  decision: "intentional" | "continuity_error" | null;
+}
+
+export function IdentityPronounLayer({
+  data,
+  pronounDecisions,
+  onPronounDecision,
+}: {
+  data?: Record<string, unknown> | null;
+  pronounDecisions?: PronounShiftDecision[];
+  onPronounDecision?: (character: string, decision: "intentional" | "continuity_error") => void;
+}) {
+  if (!data || Object.keys(data).length === 0)
+    return (
+      <LayerShell
+        empty
+        emptyLabel="Identity & pronoun data not yet available."
+        emptyDetail="Character pronoun usage, gender signals, and identity verification will appear here once the manuscript has been analysed."
+      />
+    );
+
+  const entries: Record<string, unknown>[] = Array.isArray(data.entries)
+    ? (data.entries as Record<string, unknown>[])
+    : [];
+
+  if (entries.length === 0)
+    return (
+      <LayerShell
+        empty
+        emptyLabel="No characters detected for pronoun verification."
+        emptyDetail="This layer requires at least one named character from the character evidence sweep."
+      />
+    );
+
+  const charactersWithShifts: Array<{
+    name: string;
+    pronouns: string[];
+    genderIdentity: string;
+    warning: string | null;
+    chunkFirst: number;
+    chunkLast: number;
+  }> = [];
+
+  const charactersNormal: Array<{
+    name: string;
+    pronouns: string[];
+    genderIdentity: string;
+  }> = [];
+
+  for (const entry of entries) {
+    const name = String(entry.canonical_name ?? "Unknown");
+    const pronouns: string[] = Array.isArray(entry.pronouns) ? (entry.pronouns as string[]) : [];
+    const genderIdentity = String(entry.gender_identity ?? "unknown");
+    const warnings: Array<{ type: string; message: string }> = Array.isArray(entry.warnings)
+      ? (entry.warnings as Array<{ type: string; message: string }>)
+      : [];
+    const pronounWarning = warnings.find((w) => w.type === "pronoun_inconsistency");
+
+    if (pronounWarning) {
+      charactersWithShifts.push({
+        name,
+        pronouns,
+        genderIdentity,
+        warning: pronounWarning.message,
+        chunkFirst: typeof entry.first_chunk_index === "number" ? (entry.first_chunk_index as number) : 0,
+        chunkLast: typeof entry.last_chunk_index === "number" ? (entry.last_chunk_index as number) : 0,
+      });
+    } else {
+      charactersNormal.push({ name, pronouns, genderIdentity });
+    }
+  }
+
+  const shiftCount = charactersWithShifts.length;
+  const tone = shiftCount > 0 ? "warn" as const : "neutral" as const;
+
+  return (
+    <LayerShell tone={tone}>
+      <LayerTitle
+        icon="🏷️"
+        title="Identity & Pronoun Verification"
+        description={LAYER_DESCRIPTIONS.identity_pronoun_layer}
+        badge={
+          shiftCount > 0
+            ? `${shiftCount} pronoun ${shiftCount === 1 ? "shift" : "shifts"} detected`
+            : `${entries.length} ${entries.length === 1 ? "character" : "characters"} verified`
+        }
+        badgeTone={shiftCount > 0 ? "oxblood" : "gold"}
+      />
+
+      {shiftCount > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 14, marginBottom: 20 }}>
+          <SubHeading>Pronoun Shifts Requiring Confirmation</SubHeading>
+          {charactersWithShifts.map((char) => {
+            const existing = pronounDecisions?.find((d) => d.character === char.name);
+            const decided = existing?.decision ?? null;
+
+            return (
+              <div
+                key={char.name}
+                style={{
+                  border: `1px solid ${decided ? C.border : C.gold}`,
+                  borderRadius: 12,
+                  padding: "14px 16px",
+                  background: decided ? C.surface : C.goldLight,
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+                  <span style={{ fontSize: 17, fontWeight: 600, color: C.textPrimary }}>{char.name}</span>
+                  <div style={{ display: "flex", gap: 6 }}>
+                    {char.pronouns.map((p, i) => (
+                      <Pill key={i} label={p} tone="gold" />
+                    ))}
+                  </div>
+                </div>
+                <p style={{ fontSize: 14, color: C.textMuted, margin: "0 0 10px", lineHeight: 1.6 }}>
+                  Pronoun variation detected across evidence spans{" "}
+                  {char.chunkFirst}–{char.chunkLast}.{" "}
+                  {char.genderIdentity !== "unknown" && (
+                    <span>Gender signal: <em>{char.genderIdentity}</em>.</span>
+                  )}
+                </p>
+                <p style={{ fontSize: 13, color: C.ash, margin: "0 0 12px", fontStyle: "italic" }}>
+                  Is this an intentional character transition or a continuity error?
+                </p>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button
+                    type="button"
+                    onClick={() => onPronounDecision?.(char.name, "intentional")}
+                    style={{
+                      padding: "6px 14px",
+                      borderRadius: 8,
+                      border: `1px solid ${decided === "intentional" ? C.gold : C.borderStrong}`,
+                      background: decided === "intentional" ? C.goldLight : "transparent",
+                      color: decided === "intentional" ? C.gold : C.textMuted,
+                      fontSize: 13,
+                      fontWeight: 600,
+                      cursor: "pointer",
+                    }}
+                  >
+                    Intentional transition
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onPronounDecision?.(char.name, "continuity_error")}
+                    style={{
+                      padding: "6px 14px",
+                      borderRadius: 8,
+                      border: `1px solid ${decided === "continuity_error" ? C.oxblood : C.borderStrong}`,
+                      background: decided === "continuity_error" ? C.oxbloodLight : "transparent",
+                      color: decided === "continuity_error" ? C.oxblood : C.textMuted,
+                      fontSize: 13,
+                      fontWeight: 600,
+                      cursor: "pointer",
+                    }}
+                  >
+                    Continuity error
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        <SubHeading>Character Pronoun Registry</SubHeading>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1fr auto auto",
+            gap: "8px 16px",
+            alignItems: "center",
+          }}
+        >
+          <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" as const, color: C.textMuted }}>
+            Character
+          </span>
+          <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" as const, color: C.textMuted }}>
+            Pronouns
+          </span>
+          <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" as const, color: C.textMuted }}>
+            Gender Signal
+          </span>
+
+          {[...charactersWithShifts.map((c) => ({ ...c, hasShift: true })), ...charactersNormal.map((c) => ({ ...c, hasShift: false }))].map(
+            (char) => (
+              <React.Fragment key={char.name}>
+                <span style={{ fontSize: 15, fontWeight: 500, color: C.textPrimary }}>
+                  {char.name}
+                  {char.hasShift && (
+                    <span style={{ marginLeft: 6, fontSize: 11, color: C.gold, fontWeight: 600 }}>SHIFT</span>
+                  )}
+                </span>
+                <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+                  {char.pronouns.length > 0
+                    ? char.pronouns.map((p, i) => <Pill key={i} label={p} tone={char.hasShift ? "gold" : "neutral"} />)
+                    : <span style={{ fontSize: 13, color: C.textFaint }}>—</span>}
+                </div>
+                <span style={{ fontSize: 14, color: C.textMuted }}>
+                  {char.genderIdentity !== "unknown" ? char.genderIdentity : "—"}
+                </span>
+              </React.Fragment>
+            ),
+          )}
+        </div>
+      </div>
+    </LayerShell>
+  );
+}
+
 // ─── Master dispatcher ────────────────────────────────────────────────────────
 
 /**
@@ -1923,11 +2139,15 @@ export function StoryLayerRenderer({
   data,
   sourceIntegrityEnrichmentNote,
   onSourceIntegrityEnrichmentNoteChange,
+  pronounDecisions,
+  onPronounDecision,
 }: {
   layerKey: string;
   data: Record<string, unknown> | undefined | null;
   sourceIntegrityEnrichmentNote?: string;
   onSourceIntegrityEnrichmentNoteChange?: (next: string) => void;
+  pronounDecisions?: PronounShiftDecision[];
+  onPronounDecision?: (character: string, decision: "intentional" | "continuity_error") => void;
 }) {
   switch (layerKey) {
     case "source_integrity_layer":
@@ -1944,6 +2164,14 @@ export function StoryLayerRenderer({
       return <CanonicalIdentityLayer data={data} />;
     case "cast_role_tier_layer":
       return <CastRoleTierLayer data={data} />;
+    case "identity_pronoun_layer":
+      return (
+        <IdentityPronounLayer
+          data={data}
+          pronounDecisions={pronounDecisions}
+          onPronounDecision={onPronounDecision}
+        />
+      );
     case "relationship_network_layer":
       return <RelationshipNetworkLayer data={data} />;
     case "object_symbol_layer":

@@ -4,7 +4,7 @@
  * Human-facing product language may call this the Story Ledger, but the
  * canonical code artifact is pass1a_story_layer_v1.
  *
- * pass1a_story_layer_v1 is ONE artifact with eight required layers. The
+ * pass1a_story_layer_v1 is ONE artifact with nine required layers. The
  * existing canonical layers in storyLayerArtifactWriters.ts are validated by
  * validateStoryLayerPayload().
  *

@@ -28,6 +28,7 @@ export const STORY_LAYER_CORE_LAYER_KEYS = [
   'pov_structure_layer',
   'canonical_identity_layer',
   'cast_role_tier_layer',
+  'identity_pronoun_layer',
   'relationship_network_layer',
   'object_symbol_layer',
   'location_timeline_worldstate_layer',

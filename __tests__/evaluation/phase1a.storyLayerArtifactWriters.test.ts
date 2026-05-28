@@ -47,7 +47,7 @@ const qualityReport: LedgerQualityReportPayload = {
 };
 
 describe('Phase 1A Story Layer artifact writers', () => {
-  it('builds pass1a_story_layer_v1 with exactly eight canonical layer payloads', () => {
+  it('builds pass1a_story_layer_v1 with exactly nine canonical layer payloads', () => {
     const artifact = buildPass1aStoryLayerArtifact({
       metadata,
       storyLayer: validStoryLayer(),

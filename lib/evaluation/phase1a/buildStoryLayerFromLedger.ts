@@ -1,7 +1,7 @@
 /**
  * buildStoryLayerFromLedger.ts
  *
- * Maps a completed Pass1aCharacterLedger + CharacterLedgerV2 into the eight
+ * Maps a completed Pass1aCharacterLedger + CharacterLedgerV2 into the nine
  * canonical Story Layer payloads required by pass1a_story_layer_v1.
  *
  * Layer contract (from STORY_LAYER_CONTRACT_V1_FINAL, canonical authority):
@@ -9,10 +9,11 @@
  *   2. pov_structure_layer
  *   3. canonical_identity_layer
  *   4. cast_role_tier_layer
- *   5. relationship_network_layer
- *   6. object_symbol_layer
- *   7. location_timeline_worldstate_layer
- *   8. threat_antagonist_ending_layer
+ *   5. identity_pronoun_layer
+ *   6. relationship_network_layer
+ *   7. object_symbol_layer
+ *   8. location_timeline_worldstate_layer
+ *   9. threat_antagonist_ending_layer
  *
  * This module ONLY does extraction — no scoring, no governance, no support
  * artifacts. The output is a raw story-understanding map. Governance (warnings,
@@ -199,6 +200,38 @@ function buildCastRoleTierLayer(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Layer 9 — Identity & Pronoun Verification
+// ─────────────────────────────────────────────────────────────────────────────
+
+function buildIdentityPronounLayer(
+  ledger: Pass1aCharacterLedger,
+  _ledgerV2: CharacterLedgerV2,
+): Record<string, unknown> {
+  const entries = ledger.entries.map((entry) => ({
+    canonical_name: entry.canonical_name,
+    pronouns: entry.pronouns ?? [],
+    gender_identity: entry.gender_identity ?? 'unknown',
+    first_chunk_index: entry.first_chunk_index,
+    last_chunk_index: entry.last_chunk_index,
+    warnings: (entry.warnings ?? []).filter(
+      (w) => w.type === 'pronoun_inconsistency' || w.type === 'gender_conflict',
+    ),
+  }));
+
+  const shiftsDetected = entries.filter(
+    (e) => e.warnings.some((w) => w.type === 'pronoun_inconsistency'),
+  ).length;
+
+  return {
+    schema_version: 'identity_pronoun_layer_v1',
+    entries,
+    total_characters: entries.length,
+    pronoun_shifts_detected: shiftsDetected,
+    generated_at: new Date().toISOString(),
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Layer 5 — Relationship Arc Network
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -374,7 +407,7 @@ function buildThreatAntagonistEndingLayer(
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Build the full 8-layer StoryLayerPayload from a completed Pass1aCharacterLedger
+ * Build the full 9-layer StoryLayerPayload from a completed Pass1aCharacterLedger
  * and CharacterLedgerV2.
  *
  * Called once at the end of phase_1a, just before writePhase1aReviewGateArtifacts.
@@ -388,6 +421,7 @@ export function buildStoryLayerFromLedger(
     pov_structure_layer: buildPovStructureLayer(ledger, ledgerV2),
     canonical_identity_layer: buildCanonicalIdentityLayer(ledger, ledgerV2),
     cast_role_tier_layer: buildCastRoleTierLayer(ledger, ledgerV2),
+    identity_pronoun_layer: buildIdentityPronounLayer(ledger, ledgerV2),
     relationship_network_layer: buildRelationshipNetworkLayer(ledger, ledgerV2),
     object_symbol_layer: buildObjectSymbolLayer(ledger, ledgerV2),
     location_timeline_worldstate_layer: buildLocationTimelineWorldstateLayer(ledger, ledgerV2),
