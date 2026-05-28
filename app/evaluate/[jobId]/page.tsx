@@ -13,6 +13,7 @@ import {
 } from "@/schemas/criteria-keys";
 import { EvaluationPoller, type JobState } from "@/components/EvaluationPoller";
 import DownloadReportButton from "@/components/reports/DownloadReportButton";
+import SupportAccessToggle from "@/components/reports/SupportAccessToggle";
 import {
   buildTopRecommendations,
   normalizeRecommendationActionForDisplay,
@@ -28,6 +29,7 @@ import {
   isCertifiedCriterion,
 } from "@/lib/evaluation/reportCriterionDisplay";
 import { resolveReportTitle } from "@/lib/evaluation/reportTitle";
+import { hasActiveSupportGrant, logSupportView } from "@/lib/support/checkSupportAccess";
 import type { LongformDreamDocument } from "@/lib/evaluation/pipeline/runPass3bLongform";
 
 type Job = {
@@ -448,6 +450,18 @@ export default async function EvaluationReportPage({
     );
   }
 
+  // Support access: admin/support viewers can see technical sections only
+  // when the author has granted temporary access.
+  const userRole = (sessionUser?.app_metadata as Record<string, unknown> | undefined)?.role;
+  const isAdminRole = userRole === 'admin' || userRole === 'superadmin';
+  const activeGrant = isAdminRole ? await hasActiveSupportGrant(jobId) : null;
+  const showTechnicalSections = isAdminRole && !!activeGrant;
+
+  // Log the support view if admin is viewing with an active grant
+  if (showTechnicalSections && activeGrant && sessionUser) {
+    void logSupportView(jobId, sessionUser.id, activeGrant.grantId);
+  }
+
   const isComplete = job.status === "complete";
   const artifactResult = isComplete ? await getArtifact(jobId) : null;
   const artifact = artifactResult?.data ?? null;
@@ -847,10 +861,79 @@ export default async function EvaluationReportPage({
                 </section>
               )}
 
-          {/* Key Metrics / Evaluation Provenance removed from author-facing view.
-             Internal telemetry (Engine, Provider, Chunks, Prompt Version) is not
-             author-relevant. Support access with audit log will be added in a
-             separate PR to allow author-controlled admin visibility. */}
+          {/* Technical sections — only visible to admin/support with active author grant */}
+          {showTechnicalSections && artifact && (
+            <>
+              <section className="rounded-lg border border-amber-200 bg-amber-50/30 p-6 mb-4">
+                <h2 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
+                  Key Metrics
+                  <span className="text-xs font-normal text-amber-700 bg-amber-100 px-2 py-0.5 rounded">Support view</span>
+                </h2>
+                <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                  <div className="rounded-md border p-3">
+                    <div className="text-xs text-gray-600">Overall Score</div>
+                    <div className="mt-1 text-sm font-semibold text-gray-900">
+                      {Number.isFinite(artifact.overall_score ?? artifact.overview?.overall_score_0_100 ?? 0)
+                        ? String(Math.round(artifact.overall_score ?? artifact.overview?.overall_score_0_100 ?? 0))
+                        : "N/A"}
+                    </div>
+                  </div>
+                  <div className="rounded-md border p-3">
+                    <div className="text-xs text-gray-600">Chunks Analyzed</div>
+                    <div className="mt-1 text-sm font-semibold text-gray-900">
+                      {artifact.chunk_count ?? artifact.metrics?.processing?.segment_count ?? "N/A"}
+                    </div>
+                  </div>
+                  <div className="rounded-md border p-3">
+                    <div className="text-xs text-gray-600">Successfully Processed</div>
+                    <div className="mt-1 text-sm font-semibold text-gray-900">
+                      {artifact.processed_count ?? artifact.metrics?.processing?.segment_count ?? "N/A"}
+                    </div>
+                  </div>
+                </div>
+                <p className="mt-3 text-xs text-gray-700">
+                  Generated: {artifact.generated_at ? new Date(artifact.generated_at).toLocaleString() : "N/A"}
+                </p>
+              </section>
+
+              <section className="rounded-lg border border-amber-200 bg-amber-50/30 p-6 mb-4">
+                <h2 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
+                  Evaluation Provenance
+                  <span className="text-xs font-normal text-amber-700 bg-amber-100 px-2 py-0.5 rounded">Support view</span>
+                </h2>
+                <div className="mt-3 space-y-2 text-sm">
+                  <div>
+                    <span className="text-gray-700 font-medium">Engine:</span>{" "}
+                    <span className="font-mono text-gray-900">{(artifact as Record<string, unknown> & { engine?: { model?: string } }).engine?.model || "unknown"}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-700 font-medium">Provider:</span>{" "}
+                    <span className="font-mono text-gray-900">{(artifact as Record<string, unknown> & { engine?: { provider?: string } }).engine?.provider || "unknown"}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-700 font-medium">Prompt Version:</span>{" "}
+                    <span className="font-mono text-gray-900">{(artifact as Record<string, unknown> & { engine?: { prompt_version?: string } }).engine?.prompt_version || "unknown"}</span>
+                  </div>
+                  {artifact.governance?.confidence != null && (
+                    <div>
+                      <span className="text-gray-700 font-medium">Confidence:</span>{" "}
+                      <span className="font-medium">{Math.round(artifact.governance.confidence * 100)}%</span>
+                    </div>
+                  )}
+                  {artifact.governance?.limitations && artifact.governance.limitations.length > 0 && (
+                    <div className="mt-3 pt-3 border-t">
+                      <p className="text-xs font-medium text-gray-700 mb-1">Limitations:</p>
+                      <ul className="list-disc pl-5 text-xs text-gray-800 space-y-1">
+                        {artifact.governance.limitations.map((limitation: string, i: number) => (
+                          <li key={i}>{limitation}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              </section>
+            </>
+          )}
 
           {/* ── Narrative Synthesis (long-form) ── */}
           {isLongForm && isComplete && (
@@ -882,8 +965,11 @@ export default async function EvaluationReportPage({
         </>
       )}
       {isComplete && (
-        <div className="mt-8 flex justify-end">
-          <DownloadReportButton jobId={jobId} />
+        <div className="mt-8 space-y-4">
+          <SupportAccessToggle jobId={jobId} />
+          <div className="flex justify-end">
+            <DownloadReportButton jobId={jobId} />
+          </div>
         </div>
       )}
       </main>
