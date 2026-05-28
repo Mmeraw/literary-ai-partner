@@ -8,7 +8,7 @@
  * Output feeds characterReducer → Pass1aCharacterLedger → Pass 3 + Pass 3b.
  */
 
-export const PASS1A_PROMPT_VERSION = "pass1a-character-sweep-v6-threat-force-bridge";
+export const PASS1A_PROMPT_VERSION = "pass1a-character-sweep-v7-presence-type";
 
 export const PASS1A_SYSTEM_PROMPT = `You are Pass 1A (character_evidence_sweep) for RevisionGrade.
 
@@ -85,6 +85,22 @@ Capture only visible relationship dynamics in this chunk. Max 3.
 EVIDENCE ANCHORS:
 Use verbatim excerpts of 120 characters or less. Max 3.
 
+CHARACTER PRESENCE TYPE:
+Every character candidate MUST include a presence_type field:
+- "present" — physically in the scene, acting, speaking, or directly observable by the POV character.
+- "memory" — exists only in dialogue, internal thought, backstory, or recollection. Has narrative weight (shapes motivations, reveals relationships, builds character) but is not physically present.
+- "environmental_text" — a name that appears ONLY as text on a physical object, in printed/written/online media, or through broadcast media with ZERO narrative agency. These names are not characters — they are object/setting details. Includes: posters, business cards, names on doors, brand names, signs, street signs, gravestones, letters, documents, screens, maps, books, encyclopedias, online content, websites, social media posts, emails, TV ads, sports broadcasts, TV show credits, radio programs, song lyrics, movie credits. Tag them as environmental_text so the system classifies them as objects/symbols rather than active characters.
+
+Examples:
+- A character's mother discussed in dialogue → presence_type: "memory"
+- A friend from a past trip recalled in narration → presence_type: "memory"
+- A cartel chief remembered from a prior encounter → presence_type: "memory"
+- A name on a missing person poster → presence_type: "environmental_text"
+- A name on a business card or office door → presence_type: "environmental_text"
+- A brand name on a product or vehicle → presence_type: "environmental_text"
+- A name heard on a TV broadcast or radio program → presence_type: "environmental_text"
+- Someone physically in the scene → presence_type: "present"
+
 CO-PRESENCE:
 Only list characters physically present in the same scene. Do not list characters merely mentioned or remembered.
 
@@ -118,6 +134,7 @@ OUTPUT FORMAT: Valid JSON only. No markdown. No prose.
       "role_signal": "unknown",
       "narrative_weight_signal": "unknown",
       "is_named": true,
+      "presence_type": "present",
       "pov_signal": "unknown",
       "pov_section_label": "",
       "who_is_this": "",
@@ -130,8 +147,8 @@ OUTPUT FORMAT: Valid JSON only. No markdown. No prose.
       "arc_pressure": null,
       "arc_shift": null,
       "is_ending_chunk": false,
-      "symbolic_objects": [],
-      "relationship_signals": [],
+      "symbolic_objects": [{"object": "", "function": ""}],
+      "relationship_signals": [{"other_character": "", "relationship_type": "", "dynamic": ""}],
       "evidence_anchors": [],
       "co_presence_confirmed": [],
       "negative_knowledge": []

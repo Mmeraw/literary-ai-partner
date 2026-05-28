@@ -99,6 +99,7 @@ const MINIMAL_CHARACTER_LEDGER: Pass1aCharacterLedger = {
     role: "protagonist",
     narrative_weight_band: "major",
     is_named: true,
+    presence_type: "present",
     who_is_this: "Test character for unit testing",
     what_do_they_want: null,
     primary_locations: [],

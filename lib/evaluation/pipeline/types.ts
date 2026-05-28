@@ -827,6 +827,8 @@ export type Pass1aRoleSignal =
 export type Pass1aNarrativeWeightSignal =
   | "primary" | "major" | "supporting" | "recurring" | "minor" | "unknown";
 
+export type Pass1aPresenceType = "present" | "memory" | "environmental_text";
+
 export type Pass1aEvidenceType =
   | "appearance" | "choice" | "relationship" | "symbol"
   | "arc_shift" | "identity" | "ending_payoff";
@@ -850,6 +852,7 @@ export interface Pass1aCharacterChunkEntry {
   role_signal: Pass1aRoleSignal;
   narrative_weight_signal: Pass1aNarrativeWeightSignal;
   is_named: boolean;
+  presence_type: Pass1aPresenceType;
   who_is_this: string;
   what_do_they_want: string | null;
   where_are_they: string | null;
@@ -918,6 +921,7 @@ export interface CharacterArcLedgerEntry {
   role: Pass1aRoleSignal;
   narrative_weight_band: Pass1aNarrativeWeightSignal;
   is_named: boolean;
+  presence_type: Pass1aPresenceType;
   who_is_this: string;
   what_do_they_want: string | null;
   primary_locations: string[];

@@ -285,7 +285,7 @@ async function main(): Promise<void> {
       gender_identity: "unknown", lgbtq_signals: [], racial_ethnic_signals: [],
       skin_tone_signals: [], language_signals: [], religion_signals: [],
       socioeconomic_signals: [], nationality_signals: [], disability_neuro_signals: [],
-      role: "protagonist", narrative_weight_band: "major", is_named: true,
+      role: "protagonist", narrative_weight_band: "major", is_named: true, presence_type: "present",
       who_is_this: "Diagnostic stub", what_do_they_want: null, primary_locations: [],
       why_signal: null, how_signal: null, arc_start: "start", arc_pressure: "pressure",
       arc_turning_points: [], arc_end_state: "end", ending_status: "resolved",

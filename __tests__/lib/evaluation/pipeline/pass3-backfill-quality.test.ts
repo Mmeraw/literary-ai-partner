@@ -902,12 +902,22 @@ describe("Pass 3 backfill quality", () => {
       expect(action).not.toMatch(EDITORIAL_MECHANISM_MARKERS);
     }
 
+    // Pass full_manuscript scope so the editorial quality gate fires as a
+    // hard block. The scope-aware gate only blocks for multi_chapter /
+    // full_manuscript; shorter scales downgrade to warn.
     const gate = runQualityGate({
       criteria: parsed.criteria,
       overall: parsed.overall,
       metadata: parsed.metadata,
       partial_evaluation: false,
-    } as any);
+    } as any, undefined, undefined, undefined, {
+      inputScale: "full_manuscript",
+      wordCount: 60000,
+      chunkCount: 20,
+      scorableCount: 13,
+      confidenceCapSummary: "HIGH",
+      scopePolicyVersion: "test",
+    });
     const editorialCheck = gate.checks.find((c) => c.check_id === "recommendation_editorial_quality");
 
     expect(editorialCheck?.passed).toBe(false);
