@@ -42,7 +42,7 @@ docs/templates/evaluation/long-form-evaluation-template.md
 
 ## Calibration posture
 
-*The Awakening* is a standard long-form calibration text, not a default long-form multi-layer benchmark. It should teach the evaluator to recognize that quiet external plotting can still carry strong narrative pressure through interior change, social enclosure, symbolic recurrence, and escalating conflict between selfhood and imposed role.
+*The Awakening* is now upgraded by a governed-ledger addendum that preserves this original calibration body while making its benchmark contract more explicit for DREAM v2 interpretation. It should teach the evaluator to recognize that quiet external plotting can still carry strong narrative pressure through interior change, social enclosure, symbolic recurrence, and escalating conflict between selfhood and imposed role.
 
 Required detection:
 
@@ -66,7 +66,7 @@ output-mode: standard_long_form
 runtime-authority: false
 ```
 
-A later governance decision may add a governed-ledger addendum if the team wants *The Awakening* to become a multi-layer calibration standard. Until then, its default role is standard long-form calibration for interiority, symbolic pressure, social constraint, and closure ambiguity.
+The governed-ledger addendum is now the current benchmark companion for *The Awakening*; the original body remains the manual calibration reference, and the addendum normalizes it for DREAM v2 multi-layer interpretation without changing the underlying literary judgment.
 
 ---
 

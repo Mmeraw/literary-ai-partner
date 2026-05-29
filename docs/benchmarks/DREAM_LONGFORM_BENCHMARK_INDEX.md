@@ -49,7 +49,7 @@ Public-domain calibration files are teaching benchmarks only. They are useful fo
 | *Dracula* | Bram Stoker | [`public-domain/dracula-dream-calibration.md`](./public-domain/dracula-dream-calibration.md) | `LONG_FORM` | `long_form_multi_layer_evaluation` | public-domain-calibration | `false` | Yes |
 | *Great Expectations* | Charles Dickens | [`public-domain/great-expectations-dream-calibration.md`](./public-domain/great-expectations-dream-calibration.md) | `LONG_FORM` | `long_form_multi_layer_evaluation` | public-domain-calibration | `false` | Yes |
 | *Pride and Prejudice* | Jane Austen | [`public-domain/pride-and-prejudice-dream-calibration.md`](./public-domain/pride-and-prejudice-dream-calibration.md) | `LONG_FORM` | `long_form_evaluation` or `long_form_multi_layer_evaluation` depending calibration depth | public-domain-calibration | `false` | Yes |
-| *The Awakening* | Kate Chopin | [`public-domain/the-awakening-dream-calibration.md`](./public-domain/the-awakening-dream-calibration.md) | `LONG_FORM` | `long_form_evaluation` | public-domain-calibration | `false` | No by default |
+| *The Awakening* | Kate Chopin | [`public-domain/the-awakening-dream-calibration.md`](./public-domain/the-awakening-dream-calibration.md) | `LONG_FORM` | `long_form_multi_layer_evaluation` | public-domain-calibration | `false` | Yes (via [`public-domain/the-awakening-dream-calibration-v2-governed-ledger-addendum.md`](./public-domain/the-awakening-dream-calibration-v2-governed-ledger-addendum.md)) |
 
 *Dracula* teaches form-as-plot detection, multi-voice evidence assembly, Mina as structural organizer, Gothic sensory governance, symbolic contagion systems, and the distinction between productive procedural realism and momentum drag. Required detection: epistolary architecture, evidence distribution across acts, character structural weight versus action weight, symbolic lifecycle tracing, and middle pacing drag as a named weakness.
 
@@ -57,7 +57,7 @@ Public-domain calibration files are teaching benchmarks only. They are useful fo
 
 *Pride and Prejudice* teaches social-pressure plotting as a structural engine, irony as simultaneous prose texture and plot mechanism, dialogue that advances plot / reveals character / signals class position in a single exchange, romantic comedy pacing as governed delay (earned withholding versus stall), the distinction between wit and sentimentality as register choices, and how a manuscript can be emotionally high-stakes while tonally light. Required detection: delayed-revelation romance architecture, comedy-of-manners as moral diagnostic, economic precarity as permanent background pressure, and the difference between Darcy's arc (social humiliation → genuine revision) and Wickham's arc (charm as weaponized surface with no interiority).
 
-*The Awakening* teaches interiority as plot pressure, social constraint as antagonistic force, gendered expectation, symbolic environment, sensual register, and ambiguous closure. Required detection: quiet external action can still carry strong narrative drive when interior change, social role pressure, and symbolic recurrence escalate. It must not be used as a modern commercial pacing baseline or as a demand that literary interiority become external incident.
+*The Awakening* teaches interiority as plot pressure, social constraint as antagonistic force, gendered expectation, symbolic environment, sensual register, and ambiguous closure. Required detection: quiet external action can still carry strong narrative drive when interior change, social role pressure, and symbolic recurrence escalate. It must not be used as a modern commercial pacing baseline or as a demand that literary interiority become external incident. Its DREAM v2 governed-ledger addendum preserves the original body while normalizing it for multi-layer calibration.
 
 ## V2 governance rule
 
@@ -69,7 +69,7 @@ preserved manual benchmark body + V2 governed-ledger addendum = current DREAM be
 
 Do not rewrite the original benchmark bodies merely to conform to V2 or to the new product-facing mode labels. The addenda are the normalization layer. They preserve historical/manual editorial judgment while making the benchmark comply with the current DREAM governed-ledger template.
 
-Public-domain calibration follows the same governed-ledger shape where applicable but must remain `runtime-authority: false` unless explicitly promoted through a later governance decision. *The Awakening* is currently standard long-form calibration, not governed-ledger authority.
+Public-domain calibration follows the same governed-ledger shape where applicable but must remain `runtime-authority: false` unless explicitly promoted through a later governance decision. *The Awakening* now has a governed-ledger addendum for calibration interpretation, but remains `runtime-authority: false`.
 
 ## Required DREAM governed ledgers
 
