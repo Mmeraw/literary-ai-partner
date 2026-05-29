@@ -392,17 +392,101 @@ function buildObjectSymbolLayer(
 // Layer 7 — Location / Timeline / World State
 // ─────────────────────────────────────────────────────────────────────────────
 
+/**
+ * Normalize a raw location string from LLM output into clean place names.
+ * Splits compound location descriptions into individual canonical places.
+ */
+function normalizeLocationString(raw: string): string[] {
+  // Split on semicolons, "and then", "then", or comma-delimited lists
+  const fragments = raw
+    .split(/[;]|,\s*(?:then|later|and then)\b|(?:^|\s)then\s|(?:^|\s)later\s/i)
+    .map((f) => f.trim())
+    .filter(Boolean);
+
+  const results: string[] = [];
+  for (const frag of fragments) {
+    let cleaned = frag
+      // Strip leading temporal/connective phrases
+      .replace(/^(?:then|later|and|back|also|still|now)\s+(?:at|in|on|to|the)?\s*/i, "")
+      // Strip trailing character references
+      .replace(/\s+with\s+.*$/i, "")
+      .replace(/\s+by\s+(?:afternoon|morning|evening|night|day)\b.*$/i, "")
+      .replace(/\s+in\s+(?:company|speculation|conversation)\b.*$/i, "")
+      // Strip trailing prepositional clauses that describe what happens there
+      .replace(/\s+where\s+.*$/i, "")
+      .replace(/\s+(?:during|after|before)\s+(?:the\s+)?(?:dinner|party|meal|gathering|service)\b.*$/i, "")
+      .trim();
+
+    if (!cleaned || cleaned.length < 2) continue;
+    // Filter out sentence fragments — real location names are typically under 60 chars
+    if (cleaned.length > 60) continue;
+    // Filter out fragments that look like full sentences (contain verbs)
+    if (/\b(?:was|were|had|has|is|are|went|came|sat|stood|walked|looked|felt)\b/i.test(cleaned)) continue;
+
+    // Capitalize first letter
+    cleaned = cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+    results.push(cleaned);
+  }
+  return results;
+}
+
 function buildLocationTimelineWorldstateLayer(
   _ledger: Pass1aCharacterLedger,
   ledgerV2: CharacterLedgerV2,
 ): Record<string, unknown> {
-  // Extract unique locations from state timelines
-  const locationSet = new Set<string>();
+  // Extract locations from state timelines, normalizing and counting frequency
+  const locationFreq = new Map<string, number>();
   const stateTimelines = ledgerV2.stateTimelines ?? [];
 
   for (const snapshot of stateTimelines) {
-    if (snapshot.location) locationSet.add(snapshot.location);
-    if (snapshot.country) locationSet.add(snapshot.country);
+    if (snapshot.location) {
+      const normalized = normalizeLocationString(snapshot.location);
+      for (const loc of normalized) {
+        locationFreq.set(loc, (locationFreq.get(loc) ?? 0) + 1);
+      }
+    }
+    if (snapshot.country) {
+      locationFreq.set(snapshot.country, (locationFreq.get(snapshot.country) ?? 0) + 1);
+    }
+  }
+
+  // Identify arc-critical locations: first chunk, last chunk, and terminal events
+  const arcCriticalLocations = new Set<string>();
+  const totalChunks = ledgerV2.total_chunks_processed ?? 0;
+  for (const snapshot of stateTimelines) {
+    if (!snapshot.location) continue;
+    const normalized = normalizeLocationString(snapshot.location);
+    const isFirstChunk = snapshot.chunkRange[0] === 0;
+    const isLastChunk = totalChunks > 0 && snapshot.chunkRange[1] >= totalChunks - 1;
+    if (isFirstChunk || isLastChunk) {
+      for (const loc of normalized) arcCriticalLocations.add(loc);
+    }
+  }
+  // Terminal ledger locations (death, departure, major endings)
+  // Find locations from state snapshots at terminal chunks
+  for (const terminal of (ledgerV2.terminalLedger ?? [])) {
+    if (terminal.terminalChunk == null) continue;
+    const termChunk = terminal.terminalChunk;
+    for (const snapshot of stateTimelines) {
+      if (snapshot.characterId !== terminal.characterId) continue;
+      if (snapshot.location && snapshot.chunkRange[0] <= termChunk && snapshot.chunkRange[1] >= termChunk) {
+        for (const loc of normalizeLocationString(snapshot.location)) {
+          arcCriticalLocations.add(loc);
+        }
+      }
+    }
+  }
+
+  // Only keep locations that appear in 2+ snapshots (recurring/significant)
+  // OR are arc-critical (opening, closing, death locations)
+  // OR if there are very few total locations (short manuscripts), keep all
+  const totalUniqueLocations = locationFreq.size;
+  const significanceThreshold = totalUniqueLocations <= 5 ? 1 : 2;
+  const locationSet = new Set<string>();
+  for (const [loc, count] of locationFreq) {
+    if (count >= significanceThreshold || arcCriticalLocations.has(loc)) {
+      locationSet.add(loc);
+    }
   }
 
   // Build per-character timeline summary
@@ -422,8 +506,13 @@ function buildLocationTimelineWorldstateLayer(
       });
     }
     const entry = characterTimelines.get(charId)!;
-    if (snapshot.location && !entry.locationSequence.includes(snapshot.location)) {
-      entry.locationSequence.push(snapshot.location);
+    if (snapshot.location) {
+      const normalized = normalizeLocationString(snapshot.location);
+      for (const loc of normalized) {
+        if (!entry.locationSequence.includes(loc)) {
+          entry.locationSequence.push(loc);
+        }
+      }
     }
     entry.timeRange.lastChunk = Math.max(entry.timeRange.lastChunk, snapshot.chunkRange[1]);
   }
