@@ -175,42 +175,6 @@
       "requires_extraction": false
     },
     {
-      "id": "story-of-an-hour",
-      "title": "The Story of an Hour",
-      "author": "Kate Chopin",
-      "first_publication_year": 1894,
-      "source_name": "Project Gutenberg",
-      "source_url": "https://www.gutenberg.org/ebooks/160",
-      "source_download_url": "https://www.gutenberg.org/ebooks/160.txt.utf-8",
-      "jurisdiction_basis": "U.S. public domain source; verify local jurisdiction before redistribution outside the U.S.",
-      "form": "short_fiction",
-      "evaluation_mode": "short_form_evaluation",
-      "output_mode": "short_form_evaluation",
-      "calibration_axes": [
-        "micro_arc",
-        "reversal",
-        "interiority",
-        "narrative_closure",
-        "compressed_theme"
-      ],
-      "raw_text_path": "corpus/public-domain/raw/story-of-an-hour.txt",
-      "clean_text_path": "corpus/public-domain/clean/story-of-an-hour.txt",
-      "allowed_uses": [
-        "manifest_seed",
-        "future_smoke_fixture",
-        "future_calibration_fixture"
-      ],
-      "cleaning": {
-        "status": "broken-collection",
-        "headers_removed": true,
-        "footers_removed": true,
-        "modern_editorial_material_removed": false,
-        "notes": "File contains Kate Chopin Awakening + Selected Short Stories collection. The Story of an Hour is NOT present in this collection. The collection is now also tracked as The Awakening; keep this short-story entry excluded until a correct standalone source is added."
-      },
-      "requires_extraction": false,
-      "registry_status": "excluded-story-absent"
-    },
-    {
       "id": "the-awakening",
       "title": "The Awakening",
       "author": "Kate Chopin",
@@ -229,9 +193,8 @@
         "symbolic_environment",
         "ambiguous_closure"
       ],
-      "raw_text_path": "corpus/public-domain/raw/story-of-an-hour.txt",
-      "clean_text_path": "corpus/public-domain/clean/story-of-an-hour.txt",
-      "standalone_clean_text_path": "corpus/public-domain/clean/the-awakening.txt",
+      "raw_text_path": "corpus/public-domain/raw/the-awakening.txt",
+      "clean_text_path": "corpus/public-domain/clean/the-awakening.txt",
       "calibration_doc_path": "docs/benchmarks/public-domain/the-awakening-dream-calibration.md",
       "allowed_uses": [
         "manifest_seed",
@@ -239,13 +202,13 @@
         "future_calibration_fixture"
       ],
       "cleaning": {
-        "status": "collection-cleaned-extraction-needed",
+        "status": "cleaned",
         "headers_removed": true,
         "footers_removed": true,
         "modern_editorial_material_removed": false,
-        "notes": "The existing cleaned file begins with The Awakening but also contains selected short stories. Create a standalone The Awakening clean text before freezing a golden eval artifact."
+        "notes": "Standalone The Awakening clean text is canonical. The Story of an Hour fixture was removed because Gutenberg #160 is The Awakening and Selected Short Stories, not a standalone Story of an Hour source."
       },
-      "requires_extraction": true
+      "requires_extraction": false
     },
     {
       "id": "the-time-machine",
@@ -384,5 +347,5 @@
       "requires_extraction": false
     }
   ],
-  "_note": "Active corpus: 9 works. tell-tale-heart and story-of-an-hour remain excluded as standalone story entries. The Awakening is active as a long-form calibration candidate but requires standalone extraction before golden eval freeze."
+  "_note": "Active corpus: The Awakening is the active Kate Chopin long-form calibration fixture. The Story of an Hour fixture was removed because the existing Gutenberg #160 corpus is not a standalone Story of an Hour source. tell-tale-heart remains excluded pending replacement."
 }
