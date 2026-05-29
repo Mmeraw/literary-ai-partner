@@ -2,8 +2,36 @@
 // Reason: 'commercial' below is a DREAM subscore dimension (publishing shelf axis),
 // not a canonical evaluation criterion key alias.
 import type { LongformDreamDocument } from "@/lib/evaluation/pipeline/runPass3bLongform";
+import {
+  CRITERIA_KEYS,
+  type CriterionKey,
+  getCriterionDisplayLabel as getCanonicalCriterionLabel,
+} from "@/schemas/criteria-keys";
 
 export type DreamScoreDimension = "quality" | "readiness" | "commercial" | "literary";
+
+/** Case-insensitive lookup: "NARRATIVECLOSURE" → "narrativeClosure" */
+function resolveCanonicalKey(key: string): CriterionKey | null {
+  if ((CRITERIA_KEYS as readonly string[]).includes(key)) return key as CriterionKey;
+  const lower = key.toLowerCase();
+  const found = (CRITERIA_KEYS as readonly string[]).find(
+    (k) => k.toLowerCase() === lower,
+  );
+  return found ? (found as CriterionKey) : null;
+}
+
+/**
+ * Maps any criterion key string to its author-facing display label.
+ * Uses the canonical 13-criteria schema when available (case-insensitive);
+ * falls back to camelCase → Title Case conversion for unknown keys.
+ */
+export function getCriterionDisplayLabel(key: string): string {
+  const canonical = resolveCanonicalKey(key);
+  if (canonical) {
+    return getCanonicalCriterionLabel(canonical);
+  }
+  return key.replace(/([A-Z])/g, " $1").replace(/^./, (c) => c.toUpperCase()).trim();
+}
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) {

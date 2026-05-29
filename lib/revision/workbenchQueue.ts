@@ -1,6 +1,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getAuthenticatedUser } from '@/lib/supabase/server'
 import { ensureOperationalRevisionFindings } from './operationalQueueBuilder'
+import { getCriterionDisplayLabel } from '@/lib/evaluation/reportRenderSafety'
 import type { DiagnosticFinding, ProposalSeverity } from './types'
 
 export type WorkbenchSeverity = 'must' | 'should' | 'could'
@@ -61,6 +62,22 @@ function cleanLabel(value: string): string {
   return value.replace(/[_:]/g, ' ').replace(/\s+/g, ' ').trim().replace(/\b\w/g, (m) => m.toUpperCase())
 }
 
+/** Convert internal criterion_key to author-facing label, e.g. "narrativeClosure" → "Narrative Closure & Promises Kept" */
+function criterionLabel(criterionKey: string | null | undefined): string {
+  if (!criterionKey) return 'General'
+  const label = getCriterionDisplayLabel(criterionKey)
+  return label || cleanLabel(criterionKey)
+}
+
+/** Clean location_ref: strip machine-internal patterns like "recommendation:4" */
+function cleanLocationRef(ref: string | null | undefined): string | null {
+  if (!ref) return null
+  // Strip patterns like "recommendation:N", "CRITERIONKEY:HASH"
+  if (/^recommendation:\d+$/i.test(ref)) return null
+  if (/^[A-Z_]+:[a-z0-9]+$/i.test(ref) && ref.length < 30) return null
+  return ref
+}
+
 function firstSentence(value: string, fallback: string): string {
   const clean = value.replace(/\s+/g, ' ').trim()
   if (!clean) return fallback
@@ -71,7 +88,7 @@ function firstSentence(value: string, fallback: string): string {
 
 function splitEvidence(value: string | null): { quoteHighlight: string; quoteRest: string } {
   const clean = (value ?? '').replace(/\s+/g, ' ').trim()
-  if (!clean) return { quoteHighlight: 'Evidence pending', quoteRest: ' — no anchored excerpt was stored with this finding.' }
+  if (!clean) return { quoteHighlight: 'No excerpt available', quoteRest: ' — this recommendation is based on patterns found across the manuscript rather than a single passage.' }
   const words = clean.split(' ')
   return {
     quoteHighlight: words.slice(0, Math.min(words.length, 8)).join(' '),
@@ -135,9 +152,11 @@ function findingToOpportunity(finding: DiagnosticFinding, index: number): Workbe
   const scope = inferScope(finding)
   const mode = modeForScope(scope)
   const source = inferSource(finding)
-  const criterion = cleanLabel(finding.criterion_key || 'General')
+  const criterion = criterionLabel(finding.criterion_key)
+  const cleanedLocationRef = cleanLocationRef(finding.location_ref)
   const evidence = splitEvidence(finding.evidence_excerpt ?? finding.original_text)
   const title = firstSentence(finding.diagnosis, `${criterion} revision opportunity`)
+  const locationDisplay = cleanedLocationRef ?? `Item ${index + 1}`
 
   return {
     id: finding.id || `finding-${index + 1}`,
@@ -146,11 +165,11 @@ function findingToOpportunity(finding: DiagnosticFinding, index: number): Workbe
     mode,
     source,
     leverage: scope === 'Structural' || scope === 'Manuscript' ? 'Structural' : cleanLabel(finding.finding_type || criterion),
-    crumb: `${criterion} · ${finding.location_ref ?? `finding ${index + 1}`}`,
+    crumb: `${criterion} · ${locationDisplay}`,
     title,
-    meta: `${criterion} · ${finding.location_ref ?? 'location pending'}`,
+    meta: `${criterion} · ${locationDisplay}`,
     confidence: finding.confidence == null ? `${finding.severity} severity` : `${Math.round(finding.confidence * 100)}% confidence`,
-    anchor: finding.location_ref ?? 'Location pending',
+    anchor: cleanedLocationRef ?? 'Location pending',
     quoteHighlight: evidence.quoteHighlight,
     quoteRest: evidence.quoteRest,
     symptom: finding.diagnosis,
