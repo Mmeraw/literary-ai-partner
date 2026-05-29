@@ -45,6 +45,10 @@ import type {
 } from "./types";
 import { PASS1A_PROMPT_VERSION } from "./prompts/pass1a-character-sweep";
 import { quarantinePass1aChunkOutputs } from "./pass1aQuarantine";
+import {
+  sanitizeIdentityNameList,
+  sanitizeIdentityNameToken,
+} from "./identityNameHygiene";
 
 // Hard caps
 const MAX_LEDGER_ENTRIES = 15;
@@ -133,27 +137,27 @@ function resolveCanonical(
  * primary merge key, while still letting quarantine sanitize the rest of the
  * chunk output.
  */
-function buildRawIdentityGroupMap(rawChunkOutputs: Pass1aChunkOutput[]): Map<string, string> {
-  const map = new Map<string, string>();
+function buildRawIdentityGroupMap(rawChunkOutputs: Pass1aChunkOutput[]): Map<string, Set<string>> {
+  const map = new Map<string, Set<string>>();
   const chunks = Array.isArray(rawChunkOutputs) ? rawChunkOutputs : [];
 
   for (const chunk of chunks) {
     const characters = Array.isArray(chunk.characters) ? chunk.characters : [];
     for (const character of characters) {
       const record = character as Pass1aCharacterChunkEntry & { canonical_identity_group?: unknown };
-      const group = normalizeSignalText(record.canonical_identity_group);
+      const group = sanitizeIdentityNameToken(normalizeSignalText(record.canonical_identity_group));
       if (!group) continue;
 
-      const visibleNames = [
+      const visibleNames = sanitizeIdentityNameList([
         group,
         record.canonical_name,
         ...(Array.isArray(record.aliases) ? record.aliases : []),
-      ]
-        .map((value) => normalizeSignalText(value))
-        .filter((value): value is string => Boolean(value));
+      ]);
 
       for (const visibleName of visibleNames) {
-        map.set(normalize(visibleName), group.trim());
+        const key = normalize(visibleName);
+        if (!map.has(key)) map.set(key, new Set<string>());
+        map.get(key)!.add(group.trim());
       }
     }
   }
@@ -162,11 +166,13 @@ function buildRawIdentityGroupMap(rawChunkOutputs: Pass1aChunkOutput[]): Map<str
 }
 
 function normalizeIdentityGroupMap(
-  rawIdentityGroupMap: Map<string, string>,
+  rawIdentityGroupMap: Map<string, Set<string>>,
   aliasMap: Map<string, string>,
 ): Map<string, string> {
   const normalized = new Map<string, string>();
-  for (const [visibleName, group] of rawIdentityGroupMap.entries()) {
+  for (const [visibleName, groups] of rawIdentityGroupMap.entries()) {
+    if (groups.size !== 1) continue;
+    const [group] = Array.from(groups);
     normalized.set(visibleName, resolveCanonical(group, aliasMap));
   }
   return normalized;
@@ -372,7 +378,7 @@ export function reduceCharacterEvidence(params: {
     ...chunkOutputs.flatMap((co) =>
       co.characters.flatMap((c) => [c.canonical_name, ...(c.aliases ?? [])]),
     ),
-    ...Array.from(rawIdentityGroupMap.values()),
+    ...Array.from(rawIdentityGroupMap.values()).flatMap((groups) => Array.from(groups)),
   ];
   const aliasMap = buildAliasMap(allNames);
   const identityGroupMap = normalizeIdentityGroupMap(rawIdentityGroupMap, aliasMap);
@@ -431,9 +437,22 @@ export function reduceCharacterEvidence(params: {
     const lastEntry = entries[entries.length - 1];
 
     // Collect all aliases
-    const allAliases = [...new Set(
-      entries.flatMap((e) => [e.canonical_name, ...e.aliases]).filter((a) => normalize(a) !== normalize(canonical)),
-    )];
+    const allAliases = sanitizeIdentityNameList(
+      entries.flatMap((e) => [e.canonical_name, ...e.aliases]),
+    ).filter((a) => normalize(a) !== normalize(canonical));
+
+    const legalName = entries
+      .map((e) => sanitizeIdentityNameToken(e.legal_name))
+      .find((name): name is string => !!name) ?? null;
+    const assumedNames = sanitizeIdentityNameList(entries.flatMap((e) => e.assumed_names ?? []));
+    const descriptors = unionArrays(entries.flatMap((e) => e.descriptors ?? []));
+    const formsOfAddress = unionArrays(entries.flatMap((e) => e.forms_of_address ?? []));
+    const sameNameDisambiguationGroup = entries
+      .map((e) => normalizeSignalText(e.same_name_disambiguation))
+      .find((text): text is string => !!text) ?? null;
+    const identityNotes = entries
+      .map((e) => normalizeSignalText(e.identity_notes))
+      .find((text): text is string => !!text) ?? null;
 
     // Age tracking — first vs last
     const ageExacts = entries.map((e) => e.age_exact).filter((a): a is number => a !== null);
@@ -538,9 +557,10 @@ export function reduceCharacterEvidence(params: {
     const nameStates: CharacterArcLedgerEntry["nameStates"] = [];
     const allNamesInOrder: Array<{ name: string; chunk_index: number }> = entries
       .flatMap((e, i) => [
-        { name: e.canonical_name, chunk_index: chunkIndices[i] },
-        ...(e.aliases ?? []).map((a) => ({ name: a, chunk_index: chunkIndices[i] })),
+        { name: sanitizeIdentityNameToken(e.canonical_name), chunk_index: chunkIndices[i] },
+        ...sanitizeIdentityNameList(e.aliases ?? []).map((a) => ({ name: a, chunk_index: chunkIndices[i] })),
       ])
+      .filter((n): n is { name: string; chunk_index: number } => !!n.name)
       .sort((a, b) => a.chunk_index - b.chunk_index);
     const distinctNamesInOrder = [...new Set(allNamesInOrder.map((n) => n.name))];
     for (let ni = 0; ni < distinctNamesInOrder.length; ni++) {
@@ -559,6 +579,28 @@ export function reduceCharacterEvidence(params: {
     // Fallback: always include the canonical name as valid from first chunk
     if (nameStates.length === 0) {
       nameStates.push({ name: canonical, validFromChunk: chunkIndices[0], validUntilChunk: null });
+    }
+
+    const legalNameStates: NonNullable<CharacterArcLedgerEntry["legal_name_states"]> = [];
+    const legalNamesInOrder: Array<{ name: string; chunk_index: number }> = entries
+      .flatMap((e, i) => [
+        { name: sanitizeIdentityNameToken(e.legal_name), chunk_index: chunkIndices[i] },
+        ...sanitizeIdentityNameList(e.assumed_names ?? []).map((a) => ({ name: a, chunk_index: chunkIndices[i] })),
+      ])
+      .filter((n): n is { name: string; chunk_index: number } => !!n.name)
+      .sort((a, b) => a.chunk_index - b.chunk_index);
+    const distinctLegalNames = [...new Set(legalNamesInOrder.map((n) => n.name))];
+    for (let li = 0; li < distinctLegalNames.length; li++) {
+      const nameStr = distinctLegalNames[li];
+      const firstSeen = legalNamesInOrder.find((n) => n.name === nameStr)?.chunk_index ?? chunkIndices[0];
+      const nextNameFirstSeen = li < distinctLegalNames.length - 1
+        ? legalNamesInOrder.find((n) => n.name === distinctLegalNames[li + 1])?.chunk_index ?? null
+        : null;
+      legalNameStates.push({
+        name: nameStr,
+        validFromChunk: firstSeen,
+        validUntilChunk: nextNameFirstSeen !== null ? nextNameFirstSeen - 1 : null,
+      });
     }
 
     // copingMechanisms: extracted from how_signal across chunks
@@ -622,8 +664,14 @@ export function reduceCharacterEvidence(params: {
 
     ledgerEntries.push({
       canonical_name: canonical,
+      legal_name: legalName,
       aliases: allAliases,
+      assumed_names: assumedNames,
+      descriptors,
+      forms_of_address: formsOfAddress,
       pronouns: [...new Set(entries.flatMap((e) => e.pronouns ?? []))],
+      same_name_disambiguation_group: sameNameDisambiguationGroup,
+      identity_notes: identityNotes,
       age_exact_first: ageExactFirst,
       age_exact_last: ageExactLast !== ageExactFirst ? ageExactLast : null,
       age_signal: pickAgeSignal(entries.map((e) => e.age_signal)),
@@ -671,6 +719,7 @@ export function reduceCharacterEvidence(params: {
       last_chunk_index: chunkIndices[chunkIndices.length - 1],
       mention_count: entries.length,
       nameStates,
+      legal_name_states: legalNameStates,
       copingMechanisms,
       coPresenceMap,
     });
@@ -813,6 +862,7 @@ export function buildCharacterLedgerV2(params: {
     return {
       characterId: e.canonical_name.toLowerCase().replace(/\s+/g, "_"),
       canonicalName: e.canonical_name,
+      legalName: e.legal_name ?? null,
       nameHistory: (e.nameStates ?? []).map((ns) => ({
         name: ns.name,
         validFromChunk: ns.validFromChunk,
@@ -820,6 +870,11 @@ export function buildCharacterLedgerV2(params: {
         confidence: "explicit" as EvidenceConfidence,
       })),
       aliases: e.aliases,
+      assumedNames: e.assumed_names ?? [],
+      descriptors: e.descriptors ?? [],
+      formsOfAddress: e.forms_of_address ?? [],
+      sameNameDisambiguationGroup: e.same_name_disambiguation_group ?? null,
+      identityNotes: e.identity_notes ?? null,
       narrativeRole: e.role as CharacterIdentityLedgerEntry["narrativeRole"],
       importanceLevel: e.narrative_weight_band as CharacterIdentityLedgerEntry["importanceLevel"],
       firstAppearance: { label: `chunk ${e.first_chunk_index}`, chunkIndex: e.first_chunk_index },

@@ -8,6 +8,7 @@ import type { Pass1aChunkOutput, Pass1aCharacterChunkEntry, ManuscriptChunkEvide
 import { getCanonicalPass1Model, isReasoningStyleModel } from "@/lib/evaluation/policy";
 import { getEvalOpenAiTimeoutMs } from "@/lib/evaluation/config";
 import { parseJsonObjectBoundary } from "@/lib/llm/jsonParseBoundary";
+import { sanitizeIdentityNameList, sanitizeIdentityNameToken } from "./identityNameHygiene";
 
 const PASS1A_TEMPERATURE = 0.2;
 const PASS1A_MAX_OUTPUT_TOKENS = 16_000;
@@ -121,17 +122,23 @@ function getIdentityGroup(entry: Pass1aCharacterChunkEntry): string | null {
 }
 
 function enforceCaps(entry: Pass1aCharacterChunkEntry): Pass1aCharacterChunkEntry {
-  const localName = normalizeField(entry.canonical_name) ?? "Unknown Character";
+  const localName = sanitizeIdentityNameToken(normalizeField(entry.canonical_name)) ?? "Unknown Character";
   const identityGroup = getIdentityGroup(entry);
-  const canonicalName = identityGroup ?? localName;
-  const aliases = uniqueStringArray(entry.aliases);
+  const canonicalName = sanitizeIdentityNameToken(identityGroup) ?? localName;
+  const aliases = sanitizeIdentityNameList(entry.aliases);
   if (identityGroup && !sameText(identityGroup, localName)) aliases.push(localName);
-  const dedupedAliases = uniqueStringArray(aliases).filter((alias) => !sameText(alias, canonicalName));
+  const dedupedAliases = sanitizeIdentityNameList(aliases).filter((alias) => !sameText(alias, canonicalName));
 
   return {
     ...entry,
     canonical_name: canonicalName,
+    legal_name: sanitizeIdentityNameToken(normalizeField(entry.legal_name)) ?? null,
     aliases: dedupedAliases,
+    assumed_names: sanitizeIdentityNameList(entry.assumed_names),
+    descriptors: uniqueStringArray(entry.descriptors),
+    forms_of_address: uniqueStringArray(entry.forms_of_address),
+    same_name_disambiguation: normalizeField(entry.same_name_disambiguation),
+    identity_notes: normalizeField(entry.identity_notes),
     who_is_this: normalizeField(entry.who_is_this) ?? "",
     what_do_they_want: normalizeField(entry.what_do_they_want),
     where_are_they: normalizeField(entry.where_are_they),
