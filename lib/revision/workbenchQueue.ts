@@ -23,6 +23,7 @@ export type WorkbenchOpportunity = {
   scope: WorkbenchScope
   mode: WorkbenchMode
   source: WorkbenchSource
+  criterion: string
   leverage: string
   crumb: string
   title: string
@@ -48,6 +49,7 @@ export type WorkbenchQueuePayload = {
   opportunities: WorkbenchOpportunity[]
   totals: Record<WorkbenchSeverity, number>
   scopes: Record<WorkbenchScope, number>
+  criteria: Record<string, number>
 }
 
 // ---------------------------------------------------------------------------
@@ -329,6 +331,7 @@ function findingToOpportunity(
     scope,
     mode,
     source,
+    criterion,
     leverage: scope === 'Structural' || scope === 'Manuscript' ? 'Structural' : cleanLabel(finding.finding_type || criterion),
     crumb: `${criterion} · ${locationDisplay}`,
     title,
@@ -366,6 +369,7 @@ function emptyPayload(error: string | null): WorkbenchQueuePayload {
     opportunities: [],
     totals: { must: 0, should: 0, could: 0 },
     scopes: { Line: 0, Passage: 0, Scene: 0, Chapter: 0, Structural: 0, Manuscript: 0 },
+    criteria: {},
   }
 }
 
@@ -435,10 +439,12 @@ export async function getWorkbenchQueue(input: { manuscriptId?: string; evaluati
   )
   const totals: WorkbenchQueuePayload['totals'] = { must: 0, should: 0, could: 0 }
   const scopes: WorkbenchQueuePayload['scopes'] = { Line: 0, Passage: 0, Scene: 0, Chapter: 0, Structural: 0, Manuscript: 0 }
+  const criteria: Record<string, number> = {}
 
   for (const opportunity of opportunities) {
     totals[opportunity.severity] += 1
     scopes[opportunity.scope] += 1
+    criteria[opportunity.criterion] = (criteria[opportunity.criterion] ?? 0) + 1
   }
 
   return {
@@ -450,5 +456,6 @@ export async function getWorkbenchQueue(input: { manuscriptId?: string; evaluati
     opportunities,
     totals,
     scopes,
+    criteria,
   }
 }

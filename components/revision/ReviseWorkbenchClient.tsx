@@ -222,6 +222,7 @@ export default function ReviseWorkbenchClient({ payload }: { payload: WorkbenchQ
   type ScopeFilter = "all" | typeof SCOPES[number];
   const [severityFilter, setSeverityFilter] = useState<SeverityFilter>("all");
   const [scopeFilter, setScopeFilter] = useState<ScopeFilter>("all");
+  const [criterionFilter, setCriterionFilter] = useState<string>("all");
 
   // TrustedPath state
   const [trustedPathEligible, setTrustedPathEligible] = useState<number | null>(null);
@@ -403,9 +404,10 @@ export default function ReviseWorkbenchClient({ payload }: { payload: WorkbenchQ
     return opportunities.filter((item) => {
       if (severityFilter !== "all" && item.severity !== severityFilter) return false;
       if (scopeFilter !== "all" && item.scope !== scopeFilter) return false;
+      if (criterionFilter !== "all" && item.criterion !== criterionFilter) return false;
       return true;
     });
-  }, [opportunities, severityFilter, scopeFilter]);
+  }, [opportunities, severityFilter, scopeFilter, criterionFilter]);
 
   const active = useMemo(() => filteredOpportunities.find((item) => item.id === activeId) ?? filteredOpportunities[0], [activeId, filteredOpportunities]);
   const selectedProposal = useMemo(() => active?.options.find((option) => option.key === selectedOption) ?? active?.options[0], [active, selectedOption]);
@@ -636,11 +638,21 @@ export default function ReviseWorkbenchClient({ payload }: { payload: WorkbenchQ
                 return <button key={scope} type="button" onClick={() => setScopeFilter(scope)} className={`rounded px-2 py-1 text-[10px] uppercase tracking-wider transition ${isActive ? "bg-[#C8A96E]/30 text-[#F2E8D6] border border-[#C8A96E]" : "bg-[#1B150E] text-[#A9987D] border border-[#3A3022] hover:border-[#5D4C31]"}`}>{scope} ({effectivePayload.scopes[scope]})</button>;
               })}
             </div>
+            {/* Criterion filter */}
+            {effectivePayload.criteria && Object.keys(effectivePayload.criteria).length > 1 && (
+              <div className="mb-4 flex flex-wrap gap-1.5">
+                <button type="button" onClick={() => setCriterionFilter("all")} className={`rounded px-2 py-1 text-[10px] tracking-wider transition ${criterionFilter === "all" ? "bg-[#C8A96E]/30 text-[#F2E8D6] border border-[#C8A96E]" : "bg-[#1B150E] text-[#A9987D] border border-[#3A3022] hover:border-[#5D4C31]"}`}>All criteria</button>
+                {Object.entries(effectivePayload.criteria).sort(([, a], [, b]) => b - a).map(([crit, count]) => {
+                  const isActive = criterionFilter === crit;
+                  return <button key={crit} type="button" onClick={() => setCriterionFilter(crit)} className={`rounded px-2 py-1 text-[10px] tracking-wider transition ${isActive ? "bg-[#C8A96E]/30 text-[#F2E8D6] border border-[#C8A96E]" : "bg-[#1B150E] text-[#A9987D] border border-[#3A3022] hover:border-[#5D4C31]"}`}>{crit} ({count})</button>;
+                })}
+              </div>
+            )}
             {filteredOpportunities.length === 0 && <p className="text-sm text-[#A9987D] italic">No items match the current filters.</p>}
             <ol className="space-y-3">
               {filteredOpportunities.map((item) => {
                 const decision = decisionById[item.id];
-                return <li key={item.id}><button type="button" onClick={() => moveToOpportunity(item.id)} className={`w-full rounded-lg border p-3 text-left transition ${active.id === item.id ? "border-[#C8A96E] bg-[#221B11]" : "border-[#2B241A] bg-[#110D07] hover:border-[#5D4C31]"}`}><div className="mb-2 flex flex-wrap gap-1.5"><span className={`rounded px-1.5 py-0.5 text-[10px] uppercase tracking-wider ${severityClasses(item.severity)}`}>{item.severity}</span><span className="rounded border border-[#4E4333] bg-[#1B150E] px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-[#D6C3A2]">{item.scope}</span><span className="rounded border border-[#4E4333] bg-[#1B150E] px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-[#D6C3A2]">{item.mode === "repair-brief" ? "Brief" : "Rewrite"}</span>{decision === "deferred" && <span className="rounded border border-[#5C5140] bg-[#2E2A22] px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-[#B7A98D]">Deferred by author</span>}</div><p className="text-sm text-[#F2E7D4]">{item.title}</p><p className="mt-1 text-xs text-[#AA9A7F]">{item.meta}</p></button></li>;
+                return <li key={item.id}><button type="button" onClick={() => moveToOpportunity(item.id)} className={`w-full rounded-lg border p-3 text-left transition ${active?.id === item.id ? "border-[#C8A96E] bg-[#221B11]" : "border-[#2B241A] bg-[#110D07] hover:border-[#5D4C31]"}`}><div className="mb-2 flex flex-wrap gap-1.5"><span className={`rounded px-1.5 py-0.5 text-[10px] uppercase tracking-wider ${severityClasses(item.severity)}`}>{item.severity}</span><span className="rounded border border-[#4E4333] bg-[#1B150E] px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-[#D6C3A2]">{item.scope}</span><span className="rounded border border-[#4E4333] bg-[#1B150E] px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-[#D6C3A2]">{item.mode === "repair-brief" ? "Brief" : "Rewrite"}</span>{decision === "deferred" && <span className="rounded border border-[#5C5140] bg-[#2E2A22] px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-[#B7A98D]">Deferred by author</span>}</div><p className="text-sm text-[#F2E7D4]">{item.title}</p><p className="mt-1 text-xs text-[#AA9A7F]">{item.meta}</p></button></li>;
               })}
             </ol>
           </aside>

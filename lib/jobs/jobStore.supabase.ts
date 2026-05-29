@@ -12,6 +12,7 @@ import {
 } from "./canon";
 import { Job, JobStatus, JobType, PHASES, Phase, JOB_STATUS, JobProgress } from "./types";
 import { getLeaseTimeoutSeconds } from "./config";
+import { getLatestVersionForManuscript } from "@/lib/db/manuscriptVersions";
 
 const JOB_SELECT_FIELDS =
   "id, manuscript_id, user_id, job_type, status, validity_status, progress, created_at, updated_at, last_heartbeat, last_error, failure_envelope, manuscripts(user_id, title)";
@@ -205,11 +206,24 @@ export async function createJob(input: {
   // TODO(U1.1-shim-retirement): Remove this conditional legacy create path once validity_status exists in every environment.
   const includeValidityStatus = jobSelectFields === JOB_SELECT_FIELDS;
 
+  // Early-bind manuscript_version_id so the Revise workbench can load
+  // findings even if WAVE revision is skipped or fails later.
+  let manuscriptVersionId: string | null = null;
+  try {
+    const latestVersion = await getLatestVersionForManuscript(manuscriptId);
+    if (latestVersion) {
+      manuscriptVersionId = latestVersion.id;
+    }
+  } catch {
+    // Non-fatal: WAVE will retry version binding later if needed.
+  }
+
   const payload = {
     manuscript_id: manuscriptId,
     user_id: input.user_id,
     job_type: JOB_TYPE_TO_DB[input.job_type] ?? input.job_type,
     status: normalizeLifecycleStatus(JOB_STATUS.QUEUED),
+    ...(manuscriptVersionId ? { manuscript_version_id: manuscriptVersionId } : {}),
     // Incident hardening: claim_evaluation_jobs eligibility is evaluated against
     // top-level columns (status/phase/phase_status), not progress JSON only.
     // Keep row-level phase fields in sync with progress at creation time.
