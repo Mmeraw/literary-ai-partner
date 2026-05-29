@@ -582,10 +582,10 @@ export default async function EvaluationReportPage({
             <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
               job.status === "complete" ? "bg-green-100 text-green-800" :
               job.status === "failed" ? "bg-red-100 text-red-800" :
-              job.status === "running" ? "bg-blue-100 text-blue-800" :
+              (job.status === "running" || (job.status === "queued" && job.phase && !['phase_0', 'phase_1a'].includes(job.phase))) ? "bg-blue-100 text-blue-800" :
               "bg-gray-100 text-gray-700"
             }`}>
-              {job.status === "complete" ? "✓ Report ready" : job.status === "failed" ? "⚠ Needs attention" : job.status === "running" ? "⟳ In progress" : "Waiting in queue"}
+              {job.status === "complete" ? "✓ Report ready" : job.status === "failed" ? "⚠ Needs attention" : (job.status === "running" || (job.status === "queued" && job.phase && !['phase_0', 'phase_1a'].includes(job.phase))) ? "⟳ In progress" : "Waiting in queue"}
             </span>
           </div>
           <p className="mt-1 text-lg font-semibold text-gray-900">{displayTitle}</p>
