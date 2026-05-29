@@ -9,6 +9,29 @@
 
 Adds deterministic identity-name hygiene so pronouns, generic descriptors, forms of address, and relationship descriptors cannot become canonical/legal name-state fields, while preserving same-name disambiguation evidence for cases like Pip / Philip Pirrip versus Young Pip, Joe and Biddy’s son.
 
+## Scope
+
+In scope:
+- Canonical identity token hygiene filtering
+- Same-name non-conflation hardening
+- Fallback reducer parity for identity hygiene filtering
+- Focused proof tests for invalid-token blocking and disambiguation
+
+Out of scope:
+- Magwitch alias/revelation merge
+- Relationship canonical-ID keying
+- Dependency blocking (PR4)
+- Source Integrity aggregation/dashboard expansion
+- Review Gate provenance
+- Timeline/threat architecture repair
+- PR #805 pronoun collective-reference behavior
+
+No-Pipeline-Impact: N/A — deterministic Pass1A identity hygiene and status-proof updates within existing evaluation flow.
+
+## Branch Freshness (Never Behind)
+
+Branch-Behind-Base: 0
+
 ## Failure Classes
 
 - `IDENTITY_NAMESTATE_INVALID_TOKEN`
@@ -45,6 +68,52 @@ This PR does **not** implement:
 - timeline/threat repair
 - PR #805 pronoun collective-reference behavior
 
+## Evaluation Process Change Declaration
+
+Process Change: no
+
+Pass Selection:
+- [x] Pass 1
+- [ ] Pass 2
+- [ ] Pass 3
+
+## Contract Integrity
+
+- Canonical identity hygiene is enforced deterministically in reducer/fallback code paths, not prompt-only.
+- Failure-class scope is limited to:
+   - `IDENTITY_NAMESTATE_INVALID_TOKEN`
+   - `IDENTITY_SAME_NAME_CONFLATION`
+- Dependent-layer blocking semantics are intentionally deferred to PR4.
+
+## Behavioral Quality
+
+- Invalid tokens are blocked from canonical/legal/name-state fields.
+- Descriptor/disambiguation evidence remains usable when explicitly provided.
+- Same-name visible-token ambiguity no longer forces canonical merge.
+- Fallback reducer now applies the same hygiene rules as primary reducer path.
+
+## Latency Evidence
+
+Baseline (Pre-change)
+
+| Run | pass1_ms | total_ms | Notes |
+|---|---:|---:|---|
+| Run 1 | 2215 | 18352 | Focused PR3 suite (`4/4` suites, `9/9` tests) |
+
+Post-change Runs
+
+| Run | pass1_ms | total_ms | Notes |
+|---|---:|---:|---|
+| Run 1 | 2215 | 18352 | Focused PR3 suite (`4/4` suites, `9/9` tests) |
+| Run 2 | 9063 | 33326 | Focused PR3 suite (`4/4` suites, `9/9` tests) |
+
+Quality gate / anomaly disclosure:
+- No new functional regressions observed in focused PR3 suites after the coverage-map type fix.
+- Local environment lacks `tsx` binary, so full `npm run build` exited at `config:validate`; this is environment/tooling, not a new code-level regression in PR3 scope.
+
+Final principle:
+- This PR is not reducing intelligence; it enforces correctness and trust boundaries while preserving downstream semantic repair work for later scoped PRs.
+
 ## Merge Bar
 
 > **PR3 must prove identity pollution cannot enter name/legal-state fields, not claim it solved the whole Story Ledger.**
@@ -61,6 +130,12 @@ This PR does **not** implement:
 - `identityNameHygiene.test.ts` ✅
 - `identityReducerFallback.test.ts` ✅
 - `characterReducer.awakening-taxonomy.test.ts` ✅
+
+## Risks & Anomalies
+
+- CI template gate requires strict PR-body sections; this body now includes all required evaluation-template headings/fields.
+- #817 currently reports independent CI failures; merge order discipline should still land prerequisite PRs before #820.
+- #820 CI re-runs are in progress after the type-mismatch fix (`resolveCanonical` map type alignment in coverage logic).
 
 ## Next Stack Item
 
