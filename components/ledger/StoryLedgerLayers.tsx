@@ -630,6 +630,63 @@ function CharacterCard({
 
 // ─── Layer 1 — Source Integrity ──────────────────────────────────────────────
 
+// Map raw pipeline status to author-friendly labels
+const STATUS_AUTHOR_LABELS: Record<string, { label: string; description: string; tone: "green" | "oxblood" | "warn" | "neutral" | "gold" }> = {
+  CLEAN: {
+    label: "No source issues detected",
+    description: "Manuscript ingestion completed successfully. All extraction layers returned data.",
+    tone: "green",
+  },
+  DEGRADED: {
+    label: "Extraction needs review",
+    description: "Manuscript ingestion completed, but one or more extraction layers produced incomplete or conflicting results.",
+    tone: "gold",
+  },
+  HARD_FAIL: {
+    label: "Extraction needs review",
+    description: "Manuscript was processed, but the system flagged issues that may affect evaluation quality. Review the detected issues below.",
+    tone: "warn",
+  },
+  FAILED: {
+    label: "Evaluation cannot continue",
+    description: "A critical error prevented the system from processing the manuscript. Contact support if this persists.",
+    tone: "oxblood",
+  },
+};
+
+// True blockers that should actually show as "Evaluation cannot continue"
+const TRUE_BLOCKER_PATTERNS = [
+  "no chunk outputs",
+  "character ledger empty",
+  "file unreadable",
+  "chunking failed",
+  "manuscript text missing",
+  "schema invalid",
+];
+
+function isTrueBlocker(trigger: string): boolean {
+  const t = trigger.toLowerCase();
+  return TRUE_BLOCKER_PATTERNS.some((p) => t.includes(p));
+}
+
+// Classify hard_fail_triggers into blockers vs review items
+function classifyTriggers(triggers: string[]): { blockers: string[]; reviewItems: string[] } {
+  const blockers: string[] = [];
+  const reviewItems: string[] = [];
+  for (const trigger of triggers) {
+    if (isTrueBlocker(trigger)) {
+      blockers.push(trigger);
+    } else {
+      // Strip internal prefixes like "HARD_FAIL:" or "WARN:" for author-facing display
+      const cleaned = trigger
+        .replace(/^HARD_FAIL:\s*/i, "")
+        .replace(/^WARN:\s*/i, "");
+      reviewItems.push(cleaned);
+    }
+  }
+  return { blockers, reviewItems };
+}
+
 export function SourceIntegrityLayer({
   data,
   enrichmentNote,
@@ -642,11 +699,6 @@ export function SourceIntegrityLayer({
   const integrityStatus =
     typeof data?.integrity_status === "string" ? data.integrity_status : "";
   const statusUpper = integrityStatus.toUpperCase();
-  const isClean = statusUpper === "CLEAN";
-  const isDegraded = statusUpper === "DEGRADED";
-  const isHardFail = statusUpper === "HARD_FAIL" || statusUpper === "FAILED";
-
-  const hardFailPresent = data?.hard_fail_present === true;
   const totalChunks =
     typeof data?.total_chunks_processed === "number"
       ? data.total_chunks_processed
@@ -656,55 +708,139 @@ export function SourceIntegrityLayer({
     ? (data.empty_layer_warnings as Array<{ layer: string; code: string; message: string }>)
     : [];
 
-  const tone = isHardFail || hardFailPresent ? "block" : isDegraded ? "warn" : "neutral";
+  const hardFailTriggers = Array.isArray(data?.hard_fail_triggers)
+    ? (data.hard_fail_triggers as string[])
+    : [];
+  const { blockers, reviewItems } = classifyTriggers(hardFailTriggers);
+
+  // Determine effective status: if we have true blockers and zero chunks, it's
+  // genuinely FAILED. Otherwise, if manuscript was processed, downgrade to
+  // review-required.
+  const hasTrueBlockers = blockers.length > 0 && (totalChunks === null || totalChunks === 0);
+  const effectiveStatus = hasTrueBlockers
+    ? "FAILED"
+    : (reviewItems.length > 0 || emptyLayerWarnings.length > 0)
+      ? "DEGRADED"
+      : statusUpper === "CLEAN"
+        ? "CLEAN"
+        : "DEGRADED";
+
+  const statusInfo = STATUS_AUTHOR_LABELS[effectiveStatus] ?? STATUS_AUTHOR_LABELS.DEGRADED;
+  const hasIssues = reviewItems.length > 0 || emptyLayerWarnings.length > 0 || blockers.length > 0;
+  const tone = effectiveStatus === "FAILED" ? "block" : effectiveStatus === "DEGRADED" ? "warn" : "neutral";
 
   return (
     <LayerShell tone={tone}>
       <LayerTitle
         icon="🔒"
         title="Source Integrity"
-        description={LAYER_DESCRIPTIONS.source_integrity_layer}
+        description="System extraction health and author guidance. Review the extraction status below, then tell RevisionGrade anything intentional that should not be treated as an error."
       />
 
-      {/* ── Section 1: System Source Check (read-only) ── */}
-      <SubHeading>System Source Check</SubHeading>
+      {/* ── Section A: System Extraction Health (read-only) ── */}
+      <SubHeading>System Extraction Health</SubHeading>
       <div
         style={{
           background: C.surfaceAlt,
           border: `1px solid ${C.border}`,
           borderRadius: 10,
-          padding: "14px 18px",
+          padding: "16px 20px",
           marginBottom: 20,
         }}
       >
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center", marginBottom: emptyLayerWarnings.length > 0 ? 14 : 0 }}>
-          {integrityStatus && (
-            <Pill
-              label={`Manuscript ingestion: ${integrityStatus}`}
-              tone={isClean ? "green" : isHardFail ? "oxblood" : isDegraded ? "gold" : "neutral"}
-            />
-          )}
-          {hardFailPresent && <Pill label="Hard failure" tone="oxblood" />}
-          {totalChunks !== null && (
+        {/* Status headline */}
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center", marginBottom: 10 }}>
+          <Pill
+            label={statusInfo.label}
+            tone={statusInfo.tone}
+          />
+          {totalChunks !== null && totalChunks > 0 && (
             <Pill label={`${totalChunks} section${totalChunks === 1 ? "" : "s"} processed`} tone="neutral" />
-          )}
-          {emptyLayerWarnings.length > 0 ? (
-            <Pill label={`${emptyLayerWarnings.length} empty layer warning${emptyLayerWarnings.length === 1 ? "" : "s"}`} tone="gold" />
-          ) : (
-            <Pill label="0 warnings" tone="green" />
           )}
         </div>
 
-        {emptyLayerWarnings.length > 0 && (
-          <div style={{ marginTop: 8 }}>
-            {emptyLayerWarnings.map((w) => (
-              <WarnBanner key={w.code} reason={w.message} />
-            ))}
+        {/* Status description */}
+        <p style={{ margin: "0 0 12px", fontSize: 14, color: C.textMuted, lineHeight: 1.65 }}>
+          {statusInfo.description}
+        </p>
+
+        {/* Detected issues */}
+        {hasIssues && (
+          <div style={{ marginTop: 4 }}>
+            <p style={{
+              margin: "0 0 10px",
+              fontSize: 13,
+              fontWeight: 700,
+              color: C.textPrimary,
+              letterSpacing: "0.03em",
+            }}>
+              Detected issues:
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {blockers.map((b, i) => (
+                <div
+                  key={`blocker-${i}`}
+                  style={{
+                    background: "rgba(176,64,64,0.08)",
+                    border: "1px solid rgba(176,64,64,0.25)",
+                    borderLeft: `3px solid ${C.oxblood}`,
+                    borderRadius: "0 8px 8px 0",
+                    padding: "10px 14px",
+                    fontSize: 14,
+                    color: C.textMuted,
+                    lineHeight: 1.65,
+                  }}
+                >
+                  {b}
+                </div>
+              ))}
+              {reviewItems.map((item, i) => (
+                <div
+                  key={`review-${i}`}
+                  style={{
+                    background: "rgba(200,150,50,0.06)",
+                    border: "1px solid rgba(200,150,50,0.2)",
+                    borderLeft: "3px solid #E6A23C",
+                    borderRadius: "0 8px 8px 0",
+                    padding: "10px 14px",
+                    fontSize: 14,
+                    color: C.textMuted,
+                    lineHeight: 1.65,
+                  }}
+                >
+                  {item}
+                </div>
+              ))}
+              {emptyLayerWarnings.map((w) => (
+                <div
+                  key={w.code}
+                  style={{
+                    background: "rgba(200,150,50,0.06)",
+                    border: "1px solid rgba(200,150,50,0.2)",
+                    borderLeft: "3px solid #E6A23C",
+                    borderRadius: "0 8px 8px 0",
+                    padding: "10px 14px",
+                    fontSize: 14,
+                    color: C.textMuted,
+                    lineHeight: 1.65,
+                  }}
+                >
+                  {w.message}
+                </div>
+              ))}
+            </div>
+
+            {/* Author action guidance */}
+            <p style={{ margin: "14px 0 0", fontSize: 13, color: C.textFaint, fontStyle: "italic", lineHeight: 1.6 }}>
+              {effectiveStatus === "FAILED"
+                ? "This evaluation cannot proceed until the blocking issue is resolved. Please re-upload your manuscript or contact support."
+                : "You may add context below if something is intentional. Otherwise, RevisionGrade will not treat missing extraction data as an author problem."}
+            </p>
           </div>
         )}
       </div>
 
-      {/* ── Section 2: Author Context ── */}
+      {/* ── Section B: Author Context (optional note) ── */}
       <SubHeading>Author Context</SubHeading>
       <p style={{ margin: "0 0 10px", fontSize: 14, color: C.textMuted, lineHeight: 1.65 }}>
         Tell RevisionGrade anything intentional that should not be treated as an error:
@@ -733,8 +869,8 @@ export function SourceIntegrityLayer({
         }}
       />
       <p style={{ margin: "8px 0 0", fontSize: 12, color: C.textMuted, lineHeight: 1.6 }}>
-        What you write here is injected into Phase 2 as <strong>Author Enrichment Context</strong>.
-        Use the buttons below to save your context or skip if none is needed.
+        Your note will be saved as <strong>Author Context</strong> and used in the next analysis step
+        or re-evaluation. It will not rewrite your manuscript.
       </p>
     </LayerShell>
   );
