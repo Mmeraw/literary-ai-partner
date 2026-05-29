@@ -377,6 +377,17 @@
   color: var(--rg-ink);
 }
 
+a.rg-history-title-link {
+  text-decoration: none;
+  color: var(--rg-ink);
+  display: block;
+}
+
+a.rg-history-title-link:hover {
+  text-decoration: underline;
+  color: var(--rg-primary);
+}
+
 .rg-history-subtitle-cell {
   margin-top: 3px;
   color: var(--rg-ink-muted);
@@ -421,6 +432,11 @@
 .rg-status--failed {
   background: #f3d6d3;
   color: #8f241b;
+}
+
+.rg-status--completed {
+  background: #e8e5e0;
+  color: #5c5647;
 }
 
 .rg-status--improving {

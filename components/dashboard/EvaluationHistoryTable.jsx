@@ -16,8 +16,12 @@ function statusLabel(status) {
       return 'Cancelled'
     case 'failed':
       return 'Failed'
+    case 'below_standard':
+      return 'Completed'
+    case 'complete':
+      return 'Completed'
     default:
-      return 'Below standard'
+      return 'Completed'
   }
 }
 
@@ -25,13 +29,14 @@ function StatusBadge({ status }) {
   const classMap = {
     market_ready: 'rg-status rg-status--ready',
     near_ready: 'rg-status rg-status--near',
+    improving: 'rg-status rg-status--improving',
     running: 'rg-status rg-status--running',
     queued: 'rg-status rg-status--queued',
     stale: 'rg-status rg-status--stale',
     cancelled: 'rg-status rg-status--cancelled',
     failed: 'rg-status rg-status--failed',
   }
-  const cls = classMap[status] || 'rg-status rg-status--improving'
+  const cls = classMap[status] || 'rg-status rg-status--completed'
 
   return <span className={cls}>{statusLabel(status)}</span>
 }
@@ -90,8 +95,8 @@ export default function EvaluationHistoryTable({ rows }) {
               <tr key={row.id}>
                 <td data-label="Date">{formatDate(row.createdAt)}</td>
                 <td data-label="Manuscript">
-                  <div className="rg-history-title-cell">{row.manuscriptTitle}</div>
-                  <div className="rg-history-subtitle-cell">{row.manuscriptSubtitle}</div>
+                  <a href={row.reportHref} className="rg-history-title-cell rg-history-title-link">{row.manuscriptTitle}</a>
+                  {row.manuscriptSubtitle && <div className="rg-history-subtitle-cell">{row.manuscriptSubtitle}</div>}
                 </td>
                 <td data-label="Type">{row.evaluationType}</td>
                 <td data-label="Overall">{formatScore(row.overallScore)}</td>

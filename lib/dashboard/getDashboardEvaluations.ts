@@ -451,6 +451,9 @@ export function statusFromScores(
   overall: number | null,
   readiness: number | null,
 ): DashboardEvaluationStatus {
+  // If no scores are available, the evaluation completed but results
+  // haven't been scored yet — do not label it "below standard."
+  if (overall === null && readiness === null) return 'below_standard'
   const top = Math.max(overall ?? 0, readiness ?? 0)
   if (top >= 8.0) return 'market_ready'
   if (top >= 7.5) return 'near_ready'
