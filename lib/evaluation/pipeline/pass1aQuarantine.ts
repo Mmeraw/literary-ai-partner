@@ -87,6 +87,10 @@ const VALID_ROLE_SIGNALS = new Set<string>([
   "protagonist", "co_protagonist", "antagonist", "secondary",
   "mentor", "foil", "animal_companion", "symbolic_force",
   "collective_force", "unknown",
+  // Extended pressure-agent taxonomy (v9+):
+  "pressure_agent", "romantic_catalyst", "sexual_destabilizer",
+  "domestic_foil", "artistic_countermodel", "social_observer",
+  "background_mention", "social_catalyst", "patriarchal_pressure",
 ]);
 
 const VALID_NARRATIVE_WEIGHTS = new Set<string>([
