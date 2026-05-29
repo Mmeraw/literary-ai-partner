@@ -2116,6 +2116,63 @@ function TimelineCard({
   );
 }
 
+// ── Location normalizer ──────────────────────────────────────────────────────
+// Itinerary strings like "Beach and cottage porch at Grand Isle; bedroom..."
+// are split on common delimiters and deduped into canonical place tokens.
+function normalizeLocations(rawLocations: string[]): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const raw of rawLocations) {
+    // Split on semicolons, commas followed by "then"/"later"/"and", or standalone delimiters
+    const fragments = raw
+      .split(/[;]|,\s*(?:then|later|and then)\b|(?:^|\s)then\s|(?:^|\s)later\s/i)
+      .map((f) => f.trim())
+      .filter(Boolean);
+    for (const frag of fragments) {
+      // Strip leading temporal/connective phrases
+      const cleaned = frag
+        .replace(/^(?:then|later|and|back)\s+(?:at|in|on|to)?\s*/i, "")
+        .replace(/\s+at\s+(?:the\s+)?(?:far\s+)?end\b.*$/i, "")
+        .trim();
+      if (!cleaned || cleaned.length < 2) continue;
+      // Extract the core place name — drop trailing character references
+      const place = cleaned
+        .replace(/\s+with\s+.*$/i, "")
+        .replace(/\s+by\s+(?:afternoon|morning|evening|night|day)\b.*$/i, "")
+        .replace(/\s+in\s+(?:company|speculation)\b.*$/i, "")
+        .trim();
+      if (!place || place.length < 2) continue;
+      // Capitalize first letter for display
+      const display = place.charAt(0).toUpperCase() + place.slice(1);
+      const key = display.toLowerCase().replace(/[^a-z0-9\s]/g, "");
+      if (!seen.has(key)) {
+        seen.add(key);
+        result.push(display);
+      }
+    }
+  }
+  return result;
+}
+
+// ── State conflict formatter ─────────────────────────────────────────────────
+// Converts raw JSON conflict objects to plain-English warnings.
+function formatConflict(c: Record<string, unknown>): string {
+  const charId = String(c.characterId ?? "");
+  const field = String(c.field ?? "");
+  const claimA = String(c.claimA ?? "");
+  const claimB = String(c.claimB ?? "");
+  if (field === "co_presence" && charId) {
+    const names = charId.split("+").map((n) => n.trim()).filter(Boolean);
+    if (names.length === 2) {
+      return `${names[0]} and ${names[1]} have inconsistent first co-presence markers across extraction passes (${claimA} vs. ${claimB}). This may reflect extraction-pass disagreement, not a manuscript error.`;
+    }
+  }
+  if (charId && claimA && claimB) {
+    return `${charId}: ${field} conflict — ${claimA} vs. ${claimB}.`;
+  }
+  return `Timeline consistency check: ${claimA || claimB || String(c.conflictId ?? "unknown")}`;
+}
+
 export function LocationTimelineWorldstateLayer({
   data,
 }: {
@@ -2162,13 +2219,13 @@ export function LocationTimelineWorldstateLayer({
 
   const hasV1Data = uniqueLocations.length > 0 || stateSnapshots.length > 0;
 
-  const totalLocCount =
-    hasV1Data
-      ? uniqueLocations.length
-      : legacyLocationArray.length;
+  // Normalize itinerary strings into canonical location names
+  const canonicalLocations = normalizeLocations(uniqueLocations);
+  const totalLocCount = hasV1Data ? canonicalLocations.length : legacyLocationArray.length;
 
-  // Collapsible sections for state snapshots
+  // Collapsible sections
   const [showAllSnapshots, setShowAllSnapshots] = React.useState(false);
+  const [showConflicts, setShowConflicts] = React.useState(false);
   const visibleSnapshots = showAllSnapshots ? stateSnapshots : stateSnapshots.slice(0, 5);
 
   return (
@@ -2207,10 +2264,10 @@ export function LocationTimelineWorldstateLayer({
         </>
       )}
 
-      {/* ── V1 schema: unique locations ── */}
-      {uniqueLocations.length > 0 && (
+      {/* ── Canonical locations (normalized from itinerary strings) ── */}
+      {canonicalLocations.length > 0 && (
         <>
-          <SubHeading>Unique Locations</SubHeading>
+          <SubHeading>Canonical Locations</SubHeading>
           <div
             style={{
               display: "flex",
@@ -2219,7 +2276,7 @@ export function LocationTimelineWorldstateLayer({
               marginBottom: 20,
             }}
           >
-            {uniqueLocations.map((loc, i) => (
+            {canonicalLocations.map((loc, i) => (
               <div
                 key={i}
                 style={{
@@ -2230,7 +2287,6 @@ export function LocationTimelineWorldstateLayer({
                   fontSize: 14,
                   color: C.textPrimary,
                   lineHeight: 1.6,
-                  maxWidth: "100%",
                 }}
               >
                 {loc}
@@ -2240,7 +2296,7 @@ export function LocationTimelineWorldstateLayer({
         </>
       )}
 
-      {/* ── V1 schema: character state snapshots ── */}
+      {/* ── Character state snapshots ── */}
       {stateSnapshots.length > 0 && (
         <>
           <SubHeading>Character State Snapshots</SubHeading>
@@ -2275,16 +2331,52 @@ export function LocationTimelineWorldstateLayer({
         </>
       )}
 
-      {/* ── V1 schema: state conflicts ── */}
+      {/* ── State conflicts — plain-English, collapsible ── */}
       {stateConflicts.length > 0 && (
         <>
-          <SubHeading>State Conflicts</SubHeading>
-          {stateConflicts.map((c, i) => (
-            <WarnBanner
-              key={i}
-              reason={typeof c === "string" ? c : JSON.stringify(c)}
-            />
-          ))}
+          <button
+            onClick={() => setShowConflicts((p) => !p)}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              marginTop: 18,
+              marginBottom: showConflicts ? 10 : 0,
+              background: "none",
+              border: "none",
+              padding: 0,
+              color: C.textMuted,
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: "pointer",
+              letterSpacing: "0.04em",
+            }}
+          >
+            <span style={{ fontSize: 11 }}>{showConflicts ? "▾" : "▸"}</span>
+            Timeline Consistency Warnings ({stateConflicts.length})
+          </button>
+          {showConflicts && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {stateConflicts.map((c, i) => (
+                <WarnBanner
+                  key={i}
+                  reason={typeof c === "string" ? c : formatConflict(c)}
+                />
+              ))}
+              <div
+                style={{
+                  fontSize: 12,
+                  color: C.textFaint,
+                  marginTop: 4,
+                  lineHeight: 1.6,
+                  fontStyle: "italic",
+                }}
+              >
+                These warnings reflect extraction-pass disagreements, not necessarily
+                manuscript errors. They are internal diagnostics.
+              </div>
+            </div>
+          )}
         </>
       )}
 
