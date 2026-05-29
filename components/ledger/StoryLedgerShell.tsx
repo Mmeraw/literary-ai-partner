@@ -7,8 +7,8 @@
  *
  * Module 1 — Story Layer Map:     Generated 9-layer story facts (pass1a_story_layer_v1)
  * Module 2 — Review Gate:         Author approval / rejection / edit requests
- * Module 3 — Accepted Ledger:     Frozen canon view (accepted_story_ledger_v1)
- * Module 4 — WAVE Handoff:        13-criteria diagnosis + WAVE Revision System™ bridge
+ * Module 3 — Accepted Ledger:     Locked for evaluation (accepted_story_ledger_v1)
+ * Module 4 — Craft Diagnosis Handoff: 13-criteria diagnosis + revision bridge
  *
  * Palette (locked):
  *   Obsidian   #0E0E0E
@@ -410,8 +410,8 @@ type ModuleId = "story_layer" | "review_gate" | "accepted_ledger" | "wave_handof
 const MODULES: { id: ModuleId; label: string; number: number; sublabel: string; icon: string }[] = [
   { id: "story_layer", number: 1, label: "Story Layer Map", sublabel: "Generated story facts", icon: "◈" },
   { id: "review_gate", number: 2, label: "Review Gate", sublabel: "Author approval", icon: "◎" },
-  { id: "accepted_ledger", number: 3, label: "Accepted Ledger", sublabel: "Frozen canon", icon: "◆" },
-  { id: "wave_handoff", number: 4, label: "WAVE Handoff", sublabel: "13 criteria + repair", icon: "◇" },
+  { id: "accepted_ledger", number: 3, label: "Accepted Ledger", sublabel: "Locked for evaluation", icon: "◆" },
+  { id: "wave_handoff", number: 4, label: "Craft Diagnosis Handoff", sublabel: "13 criteria + repair", icon: "◇" },
 ];
 
 // ─── Props ───────────────────────────────────────────────────────────────────
@@ -488,8 +488,8 @@ const DECISION_LABELS: Record<LayerDecisionStatus, string> = {
   undecided: "—",
   approved: "✓ Looks right",
   approved_with_comment: "✓ Looks right — with note",
-  rejected: "✗ This is wrong",
-  rejected_with_comment: "✗ This is wrong — explain",
+  rejected: "✗ Needs correction",
+  rejected_with_comment: "✗ Needs correction — explain",
 };
 
 // ─── Module 1 — Story Layer Map ──────────────────────────────────────────────
@@ -1134,9 +1134,9 @@ function Module1StoryLayer({
                           cursor: "pointer",
                         }}
                       >
-                        ✗ This is wrong
+                        ✗ Needs correction
                       </button>
-                      {/* This is wrong — explain */}
+                      {/* Needs correction — explain */}
                       <button
                         onClick={() =>
                           handleDecisionButton(activeLayer, "rejected_with_comment")
@@ -1152,7 +1152,7 @@ function Module1StoryLayer({
                           cursor: "pointer",
                         }}
                       >
-                        ✗ This is wrong — explain
+                        ✗ Needs correction — explain
                       </button>
                     </>
                   )}
@@ -1725,7 +1725,7 @@ function Module3AcceptedLedger({
             <Pill tone="green">Module 3 · Accepted</Pill>
             <h2 style={{ margin: "14px 0 10px", ...T.h2 }}>Accepted Story Ledger</h2>
             <p style={{ margin: 0, maxWidth: "58ch", ...T.bodyLg }}>
-              This is the frozen canonical narrative matrix the craft evaluation is
+              This is the locked narrative matrix the craft evaluation is
               authorized to use. It cannot be modified after acceptance. Any changes
               require a new evaluation.
             </p>
@@ -1950,17 +1950,17 @@ function Module3AcceptedLedger({
   );
 }
 
-// ─── Module 4 — WAVE Handoff ──────────────────────────────────────────────────
+// ─── Module 4 — Craft Diagnosis Handoff ──────────────────────────────────────────────
 
 function Module4WaveHandoff({ approved }: { approved: boolean }) {
   if (!approved) {
     return (
       <Card>
         <Pill tone="neutral">Module 4 · Locked</Pill>
-        <h2 style={{ margin: "14px 0 10px", ...T.h2 }}>WAVE Handoff</h2>
+        <h2 style={{ margin: "14px 0 10px", ...T.h2 }}>Craft Diagnosis Handoff</h2>
         <p style={{ margin: 0, ...T.body }}>
-          The WAVE Revision System™ bridge unlocks only after the Story Ledger is
-          accepted. The craft evaluation uses the accepted ledger as its sole
+          The craft diagnosis unlocks only after the Story Ledger is
+          accepted. The evaluation uses the accepted ledger as its sole
           narrative authority to diagnose craft across 13 criteria.
         </p>
       </Card>
@@ -1982,7 +1982,7 @@ function Module4WaveHandoff({ approved }: { approved: boolean }) {
         >
           <div style={{ flex: 1 }}>
             <Pill tone="gold">Module 4 · Active</Pill>
-            <h2 style={{ margin: "14px 0 10px", ...T.h2 }}>WAVE Handoff</h2>
+            <h2 style={{ margin: "14px 0 10px", ...T.h2 }}>Craft Diagnosis Handoff</h2>
             <p style={{ margin: 0, maxWidth: "58ch", ...T.bodyLg }}>
               The accepted story ledger is now the authorized narrative matrix. The
               craft evaluation will diagnose your manuscript across 13 criteria using
