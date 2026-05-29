@@ -514,14 +514,17 @@ function Module1StoryLayer({
   withheldLayerKeys: string[];
   onAllLayersDecided: (decisions: Record<string, LayerDecision>) => void;
 }) {
-  const displayLayerOrder =
+  const displayLayerOrder = (
     visibleLayerKeys.length > 0
       ? LAYER_ORDER.filter((k) => visibleLayerKeys.includes(k))
       : storyLayers
       ? LAYER_ORDER.filter((k) => Object.prototype.hasOwnProperty.call(storyLayers, k))
-      : [];
+      : []
+  ) as (typeof LAYER_ORDER)[number][];
 
-  const [activeLayer, setActiveLayer] = useState<string>(displayLayerOrder[0] ?? LAYER_ORDER[0]);
+  const [activeLayer, setActiveLayer] = useState<(typeof LAYER_ORDER)[number]>(
+    displayLayerOrder[0] ?? LAYER_ORDER[0],
+  );
   const [decisions, setDecisions] = useState<Record<string, LayerDecision>>(
     () =>
       Object.fromEntries(
@@ -563,11 +566,11 @@ function Module1StoryLayer({
     }
   }, [allDecided, allDecidedTriggered, atReviewGate, onAllLayersDecided, visibleDecisions]);
 
-  function setDecision(layerKey: string, status: LayerDecisionStatus, comment = "") {
+  function setDecision(layerKey: (typeof LAYER_ORDER)[number], status: LayerDecisionStatus, comment = "") {
     setDecisions((prev) => ({ ...prev, [layerKey]: { status, comment } }));
   }
 
-  function handleDecisionButton(layerKey: string, status: LayerDecisionStatus) {
+  function handleDecisionButton(layerKey: (typeof LAYER_ORDER)[number], status: LayerDecisionStatus) {
     const needsComment =
       status === "approved_with_comment" || status === "rejected_with_comment";
     if (needsComment) {
@@ -586,7 +589,7 @@ function Module1StoryLayer({
     }
   }
 
-  function confirmComment(layerKey: string, status: LayerDecisionStatus) {
+  function confirmComment(layerKey: (typeof LAYER_ORDER)[number], status: LayerDecisionStatus) {
     setDecision(layerKey, status, pendingComment);
     setShowCommentFor(null);
     setPendingComment("");
@@ -831,9 +834,8 @@ function Module1StoryLayer({
           alignItems: "start",
         }}
       >
-              {decidedCount} / {displayLayerOrder.length} reviewed
         <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-          {LAYER_ORDER.map((key) => {
+          {displayLayerOrder.map((key) => {
             const isActive = activeLayer === key;
             const isPopulated = populated.includes(key);
             const dec = decisions[key];
@@ -863,14 +865,13 @@ function Module1StoryLayer({
                   background: isActive ? P.goldLight : "transparent",
                   color: isActive ? P.gold : isPopulated ? P.boneAlt : P.ash,
                   cursor: "pointer",
-                    All {displayLayerOrder.length} visible layers reviewed
                   width: "100%",
                 }}
               >
                 <span style={{ fontSize: 16, flexShrink: 0, marginTop: 1 }}>
                   {LAYER_ICONS[key]}
                 </span>
-                  onClick={() => onAllLayersDecided(visibleDecisions)}
+                <div>
                   <div
                     style={{
                       fontSize: 13,
@@ -1240,14 +1241,14 @@ function Module1StoryLayer({
                 lineHeight: 1.3,
               }}
             >
-              All {requiredLayerCount} visible layers reviewed
+              All {displayLayerOrder.length} visible layers reviewed
             </p>
             <p style={{ margin: 0, ...T.body }}>
               Your decisions have been recorded. Proceed to the approval step.
             </p>
           </div>
           <button
-            onClick={() => onAllLayersDecided(layerDecisions)}
+            onClick={() => onAllLayersDecided(visibleDecisions)}
             style={{
               padding: "13px 28px",
               borderRadius: 12,
