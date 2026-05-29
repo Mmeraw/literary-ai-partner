@@ -22,6 +22,7 @@
  */
 
 import React, { useState, useRef, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { StoryLayerRenderer, LayerCompletionBar } from "@/components/ledger/StoryLedgerLayers";
 
 // ─── Web Speech API mic input ───────────────────────────────────────────────
@@ -1237,6 +1238,7 @@ function Module2ReviewGate({
   approveLedgerAction: (formData: FormData) => Promise<void>;
   rejectLedgerAction: (formData: FormData) => Promise<void>;
 }) {
+  const router = useRouter();
   const [showNotes, setShowNotes] = useState(false);
   const [notes, setNotes] = useState("");
   const [isPending, startTransition] = useTransition();
@@ -1569,7 +1571,15 @@ function Module2ReviewGate({
               if (Object.keys(layerDecisions).length > 0) {
                 fd.set("layer_decisions", JSON.stringify(layerDecisions));
               }
-              await approveLedgerAction(fd);
+              try {
+                await approveLedgerAction(fd);
+              } catch {
+                // redirect() throws NEXT_REDIRECT — if it propagates here
+                // the framework handles it. If not, fall through to client push.
+              }
+              // Client-side fallback: if the server-side redirect() didn't
+              // navigate us away, push to the progress-bar page explicitly.
+              router.push(`/evaluate/${jobId}?approved=1`);
             }}
           >
             <input type="hidden" name="jobId" value={jobId} />
@@ -1616,7 +1626,12 @@ function Module2ReviewGate({
           <form
             action={async (fd: FormData) => {
               fd.set("author_notes", notes);
-              await rejectLedgerAction(fd);
+              try {
+                await rejectLedgerAction(fd);
+              } catch {
+                // redirect() throws NEXT_REDIRECT
+              }
+              router.push(`/evaluate/${jobId}/ledger?rejected=1`);
             }}
           >
             <input type="hidden" name="jobId" value={jobId} />
@@ -1653,9 +1668,11 @@ function Module2ReviewGate({
 // ─── Module 3 — Accepted Ledger ───────────────────────────────────────────────
 
 function Module3AcceptedLedger({
+  jobId,
   approved,
   acceptedLedger,
 }: {
+  jobId: string;
   approved: boolean;
   acceptedLedger: LedgerShellProps["acceptedLedger"];
 }) {
@@ -1890,6 +1907,45 @@ function Module3AcceptedLedger({
           </AlertBanner>
         </Card>
       )}
+
+      {/* Progress link — always visible after acceptance */}
+      <Card>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            flexWrap: "wrap",
+            gap: 12,
+          }}
+        >
+          <div>
+            <p style={{ margin: 0, ...T.bodyLg, fontWeight: 600 }}>
+              Craft evaluation is running
+            </p>
+            <p style={{ margin: "6px 0 0", ...T.caption }}>
+              The pipeline is using this accepted ledger to run the 13-criteria craft diagnosis.
+            </p>
+          </div>
+          <a
+            href={`/evaluate/${jobId}`}
+            style={{
+              display: "inline-block",
+              padding: "12px 24px",
+              borderRadius: 10,
+              background: P.gold,
+              color: P.bg,
+              fontSize: 14,
+              fontWeight: 700,
+              textDecoration: "none",
+              letterSpacing: "0.02em",
+              flexShrink: 0,
+            }}
+          >
+            View Evaluation Progress →
+          </a>
+        </div>
+      </Card>
     </div>
   );
 }
@@ -2380,6 +2436,7 @@ export function StoryLedgerShell(props: LedgerShellProps) {
           )}
           {active === "accepted_ledger" && (
             <Module3AcceptedLedger
+              jobId={jobId}
               approved={approved}
               acceptedLedger={acceptedLedger}
             />
