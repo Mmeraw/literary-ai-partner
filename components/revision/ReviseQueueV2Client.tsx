@@ -38,6 +38,8 @@ type ServerLedgerEntry = {
   custom_text: string | null;
   client_created_at: string | null;
   client_synced_at: string;
+  is_undo: boolean;
+  undone_local_id: string | null;
 };
 
 type LocalWorkbenchCache = {
@@ -188,6 +190,8 @@ function rowToLedgerEntry(row: ServerLedgerEntry): LedgerEntry {
     decision: row.decision,
     selectedOption: row.selected_option ?? undefined,
     customText: row.custom_text ?? undefined,
+    isUndo: row.is_undo,
+    undoneLocalId: row.undone_local_id ?? undefined,
     syncStatus: "synced",
   };
 }
@@ -382,6 +386,7 @@ export default function ReviseQueueV2Client({ payload }: { payload: WorkbenchQue
   const [draftText, setDraftText] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [expandedClusters, setExpandedClusters] = useState<Record<string, boolean>>({});
+  const [isRetryingFailedSync, setIsRetryingFailedSync] = useState(false);
 
   const [filters, setFilters] = useState<Filters>({
     searchText: "",
@@ -479,7 +484,7 @@ export default function ReviseQueueV2Client({ payload }: { payload: WorkbenchQue
 
   useEffect(() => {
     if (!isOnline || !effectivePayload.manuscriptId || !effectivePayload.evaluationJobId) return;
-    const pendingEntries = ledger.filter((entry) => entry.syncStatus !== "synced" && entry.decision !== "pending");
+    const pendingEntries = ledger.filter((entry) => entry.syncStatus === "pending" && entry.decision !== "pending");
     if (pendingEntries.length === 0) return;
     let cancelled = false;
 
@@ -760,7 +765,8 @@ export default function ReviseQueueV2Client({ payload }: { payload: WorkbenchQue
   }, [pageNodes, activeId]);
 
   const active = useMemo(() => {
-    return enriched.find((item) => item.id === activeId) ?? enriched[0];
+    if (!activeId) return null;
+    return enriched.find((item) => item.id === activeId) ?? null;
   }, [enriched, activeId]);
 
   const selectedProposal = useMemo(() => {
@@ -817,9 +823,10 @@ export default function ReviseQueueV2Client({ payload }: { payload: WorkbenchQue
   }, [enriched, queueNodes, sorted.length]);
 
   const pendingSync = ledger.filter((entry) => entry.syncStatus !== "synced").length;
+  const failedSyncCount = ledger.filter((entry) => entry.syncStatus === "failed").length;
 
   const activeEvidence = active ? active.evidenceStatus : "missing_evidence";
-  const canAccept = activeEvidence !== "missing_evidence";
+  const canAccept = !!active && activeEvidence !== "missing_evidence";
 
   const referenceHref = useMemo(() => {
     const params = new URLSearchParams();
@@ -829,7 +836,7 @@ export default function ReviseQueueV2Client({ payload }: { payload: WorkbenchQue
     return query ? `/workbench?${query}` : "/workbench";
   }, [effectivePayload.evaluationJobId, effectivePayload.manuscriptId]);
 
-  if (!effectivePayload.ok || opportunities.length === 0 || !active) {
+  if (!effectivePayload.ok || opportunities.length === 0) {
     return <EmptyWorkbench payload={effectivePayload} cachedAt={cachedAt} />;
   }
 
@@ -841,6 +848,8 @@ export default function ReviseQueueV2Client({ payload }: { payload: WorkbenchQue
   }
 
   function stampDecision(decision: DecisionState, customText?: string) {
+    if (!active) return;
+
     const normalized = decision === "accepted_a" || decision === "accepted_b" || decision === "accepted_c"
       ? (`accepted_${selectedOption.toLowerCase()}` as DecisionState)
       : decision;
@@ -867,6 +876,18 @@ export default function ReviseQueueV2Client({ payload }: { payload: WorkbenchQue
     setLedger(nextLedger);
     setDecisionById(rebuildDecisionMap(nextLedger));
     saveLocalCache(key, effectivePayload, nextLedger);
+  }
+
+  function retryFailedSyncEntries() {
+    if (failedSyncCount === 0) return;
+    setIsRetryingFailedSync(true);
+    setLedger((current) => {
+      const next = current.map((entry) => entry.syncStatus === "failed" ? { ...entry, syncStatus: "pending" as const } : entry);
+      saveLocalCache(key, effectivePayload, next);
+      return next;
+    });
+    setSyncMessage("Retrying failed sync entries…");
+    setTimeout(() => setIsRetryingFailedSync(false), 250);
   }
 
   function undoLedgerEntry(index: number) {
@@ -924,6 +945,16 @@ export default function ReviseQueueV2Client({ payload }: { payload: WorkbenchQue
             <span className="rounded border border-[#5D4C31] px-2 py-1 text-[#D8C6A4]">Local cache active</span>
             <span className="rounded border border-[#5D4C31] px-2 py-1 text-[#D8C6A4]">Server ledger enabled</span>
             {pendingSync > 0 && <span className="rounded border border-[#C8A96E]/45 px-2 py-1 text-[#E9D9B7]">{pendingSync} pending sync</span>}
+            {failedSyncCount > 0 && (
+              <button
+                type="button"
+                disabled={isRetryingFailedSync}
+                onClick={retryFailedSyncEntries}
+                className="rounded border border-[#7A2B1A]/70 px-2 py-1 text-[#E9B19F] hover:bg-[#7A2B1A]/20 disabled:opacity-50"
+              >
+                Retry failed sync ({failedSyncCount})
+              </button>
+            )}
             {syncMessage && <span className="rounded border border-[#5D4C31] px-2 py-1 text-[#A9987D]">{syncMessage}</span>}
             {cachedAt && <span className="rounded border border-[#5D4C31] px-2 py-1 text-[#A9987D]">Cached {new Date(cachedAt).toLocaleString()}</span>}
           </div>
@@ -1035,7 +1066,7 @@ export default function ReviseQueueV2Client({ payload }: { payload: WorkbenchQue
               {pageNodes.map((node) => {
                 if (node.kind === "item") {
                   const item = node.item;
-                  const activeCard = active.id === item.id;
+                  const activeCard = active?.id === item.id;
                   return (
                     <li key={item.id}>
                       <button
@@ -1057,7 +1088,7 @@ export default function ReviseQueueV2Client({ payload }: { payload: WorkbenchQue
 
                 const cluster = node.cluster;
                 const isExpanded = !!expandedClusters[cluster.id];
-                const isActiveCluster = !!cluster.instances.find((instance) => instance.id === active.id);
+                const isActiveCluster = !!cluster.instances.find((instance) => instance.id === active?.id);
                 const shown = isExpanded ? cluster.instances : cluster.instances.slice(0, cluster.shownInstances);
 
                 return (
@@ -1080,7 +1111,7 @@ export default function ReviseQueueV2Client({ payload }: { payload: WorkbenchQue
                           <button
                             type="button"
                             onClick={() => moveToOpportunity(instance.id)}
-                            className={`w-full rounded border px-2 py-1 text-left text-xs ${active.id === instance.id ? "border-[#C8A96E] bg-[#2B2114] text-[#F3E8D3]" : "border-[#2D2519] bg-[#161109] text-[#D6C3A2] hover:border-[#5D4C31]"}`}
+                            className={`w-full rounded border px-2 py-1 text-left text-xs ${active?.id === instance.id ? "border-[#C8A96E] bg-[#2B2114] text-[#F3E8D3]" : "border-[#2D2519] bg-[#161109] text-[#D6C3A2] hover:border-[#5D4C31]"}`}
                           >
                             {instance.base.meta}
                           </button>
@@ -1124,140 +1155,149 @@ export default function ReviseQueueV2Client({ payload }: { payload: WorkbenchQue
           </aside>
 
           <article className="rounded-xl border border-[#3A3022] bg-[#1C160E] p-5">
-            <p className="text-xs text-[#A89574]">{active.base.crumb}</p>
-            <h2 className="mt-2 text-3xl text-[#F7EFDF]" style={{ fontFamily: "Instrument Serif, Georgia, serif" }}>{active.base.title}</h2>
-            <p className="mt-2 text-sm text-[#CBBDA4]">{active.base.symptom}</p>
-
-            <div className="mt-3 flex flex-wrap gap-2">
-              <span className={`rounded px-2 py-1 text-[11px] uppercase tracking-wider ${severityClasses(active.priority)}`}>{active.priority}</span>
-              <span className="rounded border border-[#5A4B33] bg-[#231C12] px-2 py-1 text-[11px] uppercase tracking-wider text-[#D7C6A8]">{active.criterion}</span>
-              <span className="rounded border border-[#5A4B33] bg-[#231C12] px-2 py-1 text-[11px] uppercase tracking-wider text-[#D7C6A8]">{active.scope}</span>
-              <span className="rounded border border-[#5A4B33] bg-[#231C12] px-2 py-1 text-[11px] uppercase tracking-wider text-[#D7C6A8]">{active.queueType === "repair_plan" ? "Repair plan" : "Direct rewrite"}</span>
-              <span className={`rounded border px-2 py-1 text-[11px] uppercase tracking-wider ${evidenceBadgeClasses(active.evidenceStatus)}`}>{evidenceLabel(active.evidenceStatus)}</span>
-              <span className="rounded border border-[#5A4B33] bg-[#231C12] px-2 py-1 text-[11px] uppercase tracking-wider text-[#D7C6A8]">{sourceLabel(active.source)}</span>
-            </div>
-
-            {active.evidenceStatus === "missing_evidence" && (
-              <section className="mt-4 rounded-lg border border-[#7A2B1A]/60 bg-[#7A2B1A]/15 p-3 text-sm text-[#E9B19F]">
-                This recommendation needs an excerpt or usable manuscript anchor before it should be accepted as an individual repair.
+            {!active ? (
+              <section className="rounded-lg border border-[#2E261A] bg-[#12100B] p-6">
+                <h3 className="text-lg text-[#F2E7D4]" style={{ fontFamily: "Instrument Serif, Georgia, serif" }}>No matching opportunities</h3>
+                <p className="mt-2 text-sm text-[#CBBDA4]">Adjust filters to restore queue results. No off-filter recommendation is selectable while this view is empty.</p>
               </section>
-            )}
+            ) : (
+              <>
+                <p className="text-xs text-[#A89574]">{active.base.crumb}</p>
+                <h2 className="mt-2 text-3xl text-[#F7EFDF]" style={{ fontFamily: "Instrument Serif, Georgia, serif" }}>{active.base.title}</h2>
+                <p className="mt-2 text-sm text-[#CBBDA4]">{active.base.symptom}</p>
 
-            <section className="mt-4 rounded-lg border border-[#2E261A] bg-[#12100B] p-4">
-              <h3 className="text-xs uppercase tracking-[0.16em] text-[#C8A96E]">Evidence</h3>
-              <blockquote className="mt-2 border-l border-[#C8A96E]/60 pl-3 text-sm leading-relaxed text-[#E9DCC4]">
-                <span className="text-[#F8F1E2]">“{active.base.quoteHighlight}”</span>{active.base.quoteRest}
-              </blockquote>
-              <p className="mt-2 text-xs text-[#9D8D72]">{active.base.anchor}</p>
-            </section>
-
-            <section className="mt-4 grid gap-3 md:grid-cols-2">
-              {[
-                ["Diagnosis", active.base.symptom],
-                ["Cause", active.base.cause],
-                ["Fix direction", active.base.fixDirection],
-                ["Reader effect", active.base.readerEffect],
-              ].map(([label, text]) => (
-                <div key={label} className="rounded-lg border border-[#2E261A] bg-[#12100B] p-3">
-                  <p className="text-xs uppercase tracking-[0.14em] text-[#C8A96E]">{label}</p>
-                  <p className="mt-1 text-sm leading-6 text-[#E8DCC4]">{text}</p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <span className={`rounded px-2 py-1 text-[11px] uppercase tracking-wider ${severityClasses(active.priority)}`}>{active.priority}</span>
+                  <span className="rounded border border-[#5A4B33] bg-[#231C12] px-2 py-1 text-[11px] uppercase tracking-wider text-[#D7C6A8]">{active.criterion}</span>
+                  <span className="rounded border border-[#5A4B33] bg-[#231C12] px-2 py-1 text-[11px] uppercase tracking-wider text-[#D7C6A8]">{active.scope}</span>
+                  <span className="rounded border border-[#5A4B33] bg-[#231C12] px-2 py-1 text-[11px] uppercase tracking-wider text-[#D7C6A8]">{active.queueType === "repair_plan" ? "Repair plan" : "Direct rewrite"}</span>
+                  <span className={`rounded border px-2 py-1 text-[11px] uppercase tracking-wider ${evidenceBadgeClasses(active.evidenceStatus)}`}>{evidenceLabel(active.evidenceStatus)}</span>
+                  <span className="rounded border border-[#5A4B33] bg-[#231C12] px-2 py-1 text-[11px] uppercase tracking-wider text-[#D7C6A8]">{sourceLabel(active.source)}</span>
                 </div>
-              ))}
-            </section>
 
-            <section className="mt-4 rounded-lg border border-[#2E261A] bg-[#12100B] p-3">
-              <p className="text-xs uppercase tracking-[0.14em] text-[#C8A96E]">Mistake-proofing</p>
-              <p className="mt-1 text-sm text-[#E8DCC4]">{active.base.mistakeProofing}</p>
-            </section>
+                {active.evidenceStatus === "missing_evidence" && (
+                  <section className="mt-4 rounded-lg border border-[#7A2B1A]/60 bg-[#7A2B1A]/15 p-3 text-sm text-[#E9B19F]">
+                    This recommendation needs an excerpt or usable manuscript anchor before it should be accepted as an individual repair.
+                  </section>
+                )}
 
-            <section className="mt-5 space-y-3">
-              {active.base.options.map((option) => {
-                const isSelected = selectedOption === option.key;
-                return (
+                <section className="mt-4 rounded-lg border border-[#2E261A] bg-[#12100B] p-4">
+                  <h3 className="text-xs uppercase tracking-[0.16em] text-[#C8A96E]">Evidence</h3>
+                  <blockquote className="mt-2 border-l border-[#C8A96E]/60 pl-3 text-sm leading-relaxed text-[#E9DCC4]">
+                    <span className="text-[#F8F1E2]">“{active.base.quoteHighlight}”</span>{active.base.quoteRest}
+                  </blockquote>
+                  <p className="mt-2 text-xs text-[#9D8D72]">{active.base.anchor}</p>
+                </section>
+
+                <section className="mt-4 grid gap-3 md:grid-cols-2">
+                  {[
+                    ["Diagnosis", active.base.symptom],
+                    ["Cause", active.base.cause],
+                    ["Fix direction", active.base.fixDirection],
+                    ["Reader effect", active.base.readerEffect],
+                  ].map(([label, text]) => (
+                    <div key={label} className="rounded-lg border border-[#2E261A] bg-[#12100B] p-3">
+                      <p className="text-xs uppercase tracking-[0.14em] text-[#C8A96E]">{label}</p>
+                      <p className="mt-1 text-sm leading-6 text-[#E8DCC4]">{text}</p>
+                    </div>
+                  ))}
+                </section>
+
+                <section className="mt-4 rounded-lg border border-[#2E261A] bg-[#12100B] p-3">
+                  <p className="text-xs uppercase tracking-[0.14em] text-[#C8A96E]">Mistake-proofing</p>
+                  <p className="mt-1 text-sm text-[#E8DCC4]">{active.base.mistakeProofing}</p>
+                </section>
+
+                <section className="mt-5 space-y-3">
+                  {active.base.options.map((option) => {
+                    const isSelected = selectedOption === option.key;
+                    return (
+                      <button
+                        key={option.key}
+                        type="button"
+                        onClick={() => {
+                          setSelectedOption(option.key);
+                          if (isDraftOpen) setDraftText(option.text);
+                        }}
+                        className={`w-full rounded-lg border p-4 text-left transition ${isSelected ? "border-[#C8A96E] bg-[#221B11]" : "border-[#2E261A] bg-[#12100B] hover:border-[#5D4C31]"}`}
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <p className="text-sm font-semibold text-[#F2E8D6]">{optionRoleLabel(option.key)}</p>
+                          <span className="text-xs text-[#B29F7D]">{active.queueType === "repair_plan" ? "Plan" : "Proposal"}</span>
+                        </div>
+                        <pre className="mt-2 whitespace-pre-wrap text-sm leading-6 text-[#E5D8BE]">{option.text}</pre>
+                        <p className="mt-2 text-xs text-[#BDAE91]">{option.rationale}</p>
+                      </button>
+                    );
+                  })}
+                </section>
+
+                <section className="mt-5 flex flex-wrap gap-2">
                   <button
-                    key={option.key}
+                    type="button"
+                    disabled={!canAccept}
+                    onClick={() => stampDecision(`accepted_${selectedOption.toLowerCase()}` as DecisionState)}
+                    className="rounded border border-[#C8A96E] bg-[#C8A96E] px-4 py-2 text-sm font-medium text-[#1A140C] disabled:opacity-50"
+                  >
+                    Accept {selectedOption}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!canAccept}
+                    onClick={() => stampDecision("keep_original")}
+                    className="rounded border border-[#5D4C31] px-4 py-2 text-sm text-[#E8DABF] disabled:opacity-50"
+                  >
+                    Keep My Original
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!canAccept}
+                    onClick={() => stampDecision("reject")}
+                    className="rounded border border-[#7A2B1A]/70 px-4 py-2 text-sm text-[#E2B2A6] disabled:opacity-50"
+                  >
+                    Reject These Suggestions
+                  </button>
+                  <button type="button" onClick={() => stampDecision("deferred")} className="rounded border border-[#5C5140] px-4 py-2 text-sm text-[#B7A98D]">
+                    Decide Later
+                  </button>
+                  <button
                     type="button"
                     onClick={() => {
-                      setSelectedOption(option.key);
-                      if (isDraftOpen) setDraftText(option.text);
+                      setDraftText((current) => current || selectedProposal?.text || "");
+                      setIsDraftOpen(true);
                     }}
-                    className={`w-full rounded-lg border p-4 text-left transition ${isSelected ? "border-[#C8A96E] bg-[#221B11]" : "border-[#2E261A] bg-[#12100B] hover:border-[#5D4C31]"}`}
+                    className="rounded border border-[#C8A96E] bg-[#C8A96E]/10 px-4 py-2 text-sm text-[#F3E3C3]"
                   >
-                    <div className="flex items-center justify-between gap-3">
-                      <p className="text-sm font-semibold text-[#F2E8D6]">{optionRoleLabel(option.key)}</p>
-                      <span className="text-xs text-[#B29F7D]">{active.queueType === "repair_plan" ? "Plan" : "Proposal"}</span>
+                    Write My Own Revision
+                  </button>
+                </section>
+
+                {isDraftOpen && (
+                  <section className="mt-4 rounded-lg border border-[#C8A96E]/60 bg-[#120E08] p-4">
+                    <p className="text-xs uppercase tracking-[0.16em] text-[#C8A96E]">Author custom revision</p>
+                    <textarea
+                      value={draftText}
+                      onChange={(event) => setDraftText(event.target.value)}
+                      rows={6}
+                      className="mt-3 w-full rounded border border-[#3A3022] bg-[#0D0A05] p-3 font-mono text-sm leading-6 text-[#F7EFDF] outline-none focus:border-[#C8A96E]"
+                      placeholder="Write your custom repair here..."
+                    />
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        disabled={!draftText.trim()}
+                        onClick={() => stampDecision("custom", draftText)}
+                        className="rounded border border-[#C8A96E] bg-[#C8A96E] px-3 py-2 text-sm font-medium text-[#1A140C] disabled:opacity-50"
+                      >
+                        Save custom revision
+                      </button>
+                      <button type="button" onClick={() => setIsDraftOpen(false)} className="rounded border border-[#5D4C31] px-3 py-2 text-sm text-[#E8DABF]">
+                        Close
+                      </button>
                     </div>
-                    <pre className="mt-2 whitespace-pre-wrap text-sm leading-6 text-[#E5D8BE]">{option.text}</pre>
-                    <p className="mt-2 text-xs text-[#BDAE91]">{option.rationale}</p>
-                  </button>
-                );
-              })}
-            </section>
-
-            <section className="mt-5 flex flex-wrap gap-2">
-              <button
-                type="button"
-                disabled={!canAccept}
-                onClick={() => stampDecision(`accepted_${selectedOption.toLowerCase()}` as DecisionState)}
-                className="rounded border border-[#C8A96E] bg-[#C8A96E] px-4 py-2 text-sm font-medium text-[#1A140C] disabled:opacity-50"
-              >
-                Accept {selectedOption}
-              </button>
-              <button
-                type="button"
-                disabled={!canAccept}
-                onClick={() => stampDecision("keep_original")}
-                className="rounded border border-[#5D4C31] px-4 py-2 text-sm text-[#E8DABF] disabled:opacity-50"
-              >
-                Keep My Original
-              </button>
-              <button
-                type="button"
-                disabled={!canAccept}
-                onClick={() => stampDecision("reject")}
-                className="rounded border border-[#7A2B1A]/70 px-4 py-2 text-sm text-[#E2B2A6] disabled:opacity-50"
-              >
-                Reject These Suggestions
-              </button>
-              <button type="button" onClick={() => stampDecision("deferred")} className="rounded border border-[#5C5140] px-4 py-2 text-sm text-[#B7A98D]">
-                Decide Later
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setDraftText((current) => current || selectedProposal?.text || "");
-                  setIsDraftOpen(true);
-                }}
-                className="rounded border border-[#C8A96E] bg-[#C8A96E]/10 px-4 py-2 text-sm text-[#F3E3C3]"
-              >
-                Write My Own Revision
-              </button>
-            </section>
-
-            {isDraftOpen && (
-              <section className="mt-4 rounded-lg border border-[#C8A96E]/60 bg-[#120E08] p-4">
-                <p className="text-xs uppercase tracking-[0.16em] text-[#C8A96E]">Author custom revision</p>
-                <textarea
-                  value={draftText}
-                  onChange={(event) => setDraftText(event.target.value)}
-                  rows={6}
-                  className="mt-3 w-full rounded border border-[#3A3022] bg-[#0D0A05] p-3 font-mono text-sm leading-6 text-[#F7EFDF] outline-none focus:border-[#C8A96E]"
-                  placeholder="Write your custom repair here..."
-                />
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    disabled={!draftText.trim()}
-                    onClick={() => stampDecision("custom", draftText)}
-                    className="rounded border border-[#C8A96E] bg-[#C8A96E] px-3 py-2 text-sm font-medium text-[#1A140C] disabled:opacity-50"
-                  >
-                    Save custom revision
-                  </button>
-                  <button type="button" onClick={() => setIsDraftOpen(false)} className="rounded border border-[#5D4C31] px-3 py-2 text-sm text-[#E8DABF]">
-                    Close
-                  </button>
-                </div>
-              </section>
+                  </section>
+                )}
+              </>
             )}
           </article>
 
