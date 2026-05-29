@@ -59,10 +59,21 @@ Do not use this benchmark to force modern commercial pacing, external antagonist
 
 ## Expected evaluation mode
 
+Manual reference evaluation mode:
+
 ```yaml
 evaluation-mode: long_form_evaluation
 route: LONG_FORM
 output-mode: standard_long_form
+runtime-authority: false
+```
+
+Governed-ledger companion evaluation mode:
+
+```yaml
+evaluation-mode: long_form_multi_layer_evaluation
+route: LONG_FORM
+output-mode: multi_layer_long_form
 runtime-authority: false
 ```
 
