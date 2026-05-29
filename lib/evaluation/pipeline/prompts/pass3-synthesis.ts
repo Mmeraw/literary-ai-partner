@@ -95,11 +95,12 @@ If a recommendation has priority = "low" AND the criterion confidence_band = "HI
 → This blocks: "Name a highway marker or ejido" on a worldbuilding criterion already rated High Confidence and 8/10.
 
 MINIMUM-1-PER-CRITERION FLOOR (overrides GATE 6 when needed):
-Every criterion scoring 0–9 MUST have at least 1 recommendation in its recommendations array UNLESS the criterion is structurally inapplicable to the manuscript's form (e.g. dialogue in a zero-dialogue prose-poem, worldbuilding in a single-room memoir). In either exemption case, emit an empty array and add "floor_exemption": "<reason>" to the criterion object.
-Exempt from the floor:
+Every criterion scoring 0–9 SHOULD have at least 1 recommendation in its recommendations array. If a criterion has 0 recommendations after gate processing, check these exemptions before generating one:
+Exempt from the floor (emit empty array + "floor_exemption": "<reason>"):
 - Criteria scoring a perfect 10/10 — no recommendation needed; the craft dimension is at ceiling.
-- Criteria structurally inapplicable to the manuscript's form.
-For all other criteria (scores 0–9, applicable to the manuscript) — if all candidate recommendations were suppressed by the gates above, generate one "refinement" recommendation: a targeted, evidence-grounded suggestion for how to elevate an already-strong craft dimension. Use priority = "low" and frame it as polish/deepening rather than repair. This ensures the Revise workbench always has actionable content for every improvable criterion.
+- Criteria structurally inapplicable to the manuscript's form (e.g. dialogue in a zero-dialogue prose-poem).
+- Criteria where no evidence-grounded, manuscript-specific recommendation can be produced — do NOT fabricate a recommendation to satisfy the floor. If you cannot anchor the rec to a real passage with a real craft mechanism, use the floor_exemption escape.
+For criteria scoring 0–9 where a genuine, evidence-grounded recommendation EXISTS but was suppressed by the gates above: generate one "refinement" recommendation using priority = "low", framed as polish/deepening rather than repair. The recommendation MUST still pass all 7 REC CONTRACT parts — anchor, symptom, mechanism, concrete move, reader effect, mistake-proofing, cause diagnosis. Never hallucinate evidence to fill this slot.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Confidence/evidence: do not convert scorable criteria to N/A due to thin evidence; lower confidence instead; do not invent evidence.
