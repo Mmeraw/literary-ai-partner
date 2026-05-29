@@ -250,6 +250,7 @@ function makeSupabaseStub(
                             location_timeline_layer: { decision: "accept" },
                             threat_ending_layer: { decision: "accept" },
                             source_integrity_layer: { decision: "accept" },
+                            continuity_layer: { decision: "accept" },
                           },
                         },
                       },
@@ -406,7 +407,7 @@ describe("processEvaluationJob long-form chunk routing", () => {
         post_chunk_reresolved: true,
         canonical_path_used: "resolveManuscriptText.post_chunk_reconstruct",
         timeout_resolution: expect.objectContaining({
-          input_scale: "full_manuscript",
+          input_scale: "multi_chapter",
           floor_applied: expect.any(Boolean),
           floor_ms: 720000,
           resolved_pass_timeout_ms: 720000,
