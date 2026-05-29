@@ -8,7 +8,7 @@
  * Output feeds characterReducer → Pass1aCharacterLedger → Pass 3 + Pass 3b.
  */
 
-export const PASS1A_PROMPT_VERSION = "pass1a-character-sweep-v7-presence-type";
+export const PASS1A_PROMPT_VERSION = "pass1a-character-sweep-v8-expanded-symbols";
 
 export const PASS1A_SYSTEM_PROMPT = `You are Pass 1A (character_evidence_sweep) for RevisionGrade.
 
@@ -78,6 +78,13 @@ For how_signal, include rituals, habits, repeated self-regulation behaviors, or 
 
 OBJECTS / SYMBOLS:
 Capture objects tied to identity, control, protection, trauma, communication, escape, payoff, or symbolic meaning.
+ALSO capture:
+- Environmental / elemental symbols (the sea, a river, weather, landscape, fire, darkness)
+- Location-objects that carry symbolic weight (a house, a room, a garden, a pigeon house, an island)
+- Artistic practices or creative instruments used as identity symbols (painting, sketching materials, a piano, music, writing)
+- Recurring motifs across scenes (birds, flight imagery, mirrors, keys, letters)
+- Abstract forces when they function as object-symbols (confinement, social performance, reputation)
+Do NOT limit "objects" to hand-held physical items. Anything the story puts sustained weight on counts.
 
 RELATIONSHIP SIGNALS:
 Capture only visible relationship dynamics in this chunk. Max 3.
@@ -176,7 +183,7 @@ Capture every named character, every unnamed-but-load-bearing figure present, an
 Preserve identity continuity with canonical_identity_group.
 Capture POV ownership with pov_signal and pov_section_label.
 Prioritize POV characters, antagonists/enforcers/threat-bearing figures, non-character symbolic/collective threat forces, named recurring characters, and load-bearing unnamed figures.
-Capture plot-critical objects.
+Capture plot-critical objects AND recurring symbols (environmental forces, location-objects, artistic practices, motifs).
 Apply all HARD CAPS.
 Fill identity fields ONLY from explicit text signals — never infer or assume.`;
 }
