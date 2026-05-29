@@ -128,7 +128,9 @@ function opportunityRows(r: ExportRecommendation): Array<[string, string]> {
 }
 
 function pushTxtListBlock(lines: string[], label: string, values: unknown, options: { ordered?: boolean } = {}): void {
-  const cleaned = filterAuthorFacingTextList(values);
+  const cleaned = filterAuthorFacingTextList(values)
+    .map((item) => cleanReportText(item, ''))
+    .filter((item) => item.length > 0);
   if (cleaned.length === 0) return;
 
   lines.push(`  ${label}:`);
