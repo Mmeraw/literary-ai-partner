@@ -8,7 +8,7 @@
  * Output feeds characterReducer → Pass1aCharacterLedger → Pass 3 + Pass 3b.
  */
 
-export const PASS1A_PROMPT_VERSION = "pass1a-character-sweep-v10-pov-focalization";
+export const PASS1A_PROMPT_VERSION = "pass1a-character-sweep-v11-identity-hygiene";
 
 export const PASS1A_SYSTEM_PROMPT = `You are Pass 1A (character_evidence_sweep) for RevisionGrade.
 
@@ -74,6 +74,16 @@ Never create separate identity groups for variants that the text clearly implies
 
 IDENTITY FIELDS:
 Capture only signals present in the text. Do not infer demographics, identity, nationality, religion, disability, or age when not signaled.
+
+CANONICAL IDENTITY HYGIENE:
+- legal_name must only contain an actual legal/official name when text-supported.
+- assumed_names must contain aliases/assumed identities only (no pronouns, no descriptors, no forms of address).
+- descriptors is for labels like occupational/social descriptors.
+- forms_of_address is for direct address terms (e.g., honorifics/titles used in dialogue).
+- pronouns must stay in pronouns only.
+- same_name_disambiguation should clarify collisions when two distinct entities share a visible name token.
+- identity_notes may include concise grounding notes that prevent conflation.
+- Never place pronouns, generic descriptors, or relationship descriptors into legal_name / assumed_names.
 
 NARRATIVE ROLE:
 role_signal must be one of:
@@ -196,8 +206,14 @@ OUTPUT FORMAT: Valid JSON only. No markdown. No prose.
     {
       "canonical_name": "",
       "canonical_identity_group": null,
+      "legal_name": null,
       "aliases": [],
+      "assumed_names": [],
+      "descriptors": [],
+      "forms_of_address": [],
       "pronouns": [],
+      "same_name_disambiguation": null,
+      "identity_notes": null,
       "age_signal": null,
       "age_exact": null,
       "life_stage_evidence": null,

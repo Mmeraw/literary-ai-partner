@@ -5,8 +5,14 @@ function character(overrides: Partial<Pass1aCharacterChunkEntry> & { canonical_n
   return {
     canonical_name: overrides.canonical_name,
     canonical_identity_group: overrides.canonical_identity_group,
+    legal_name: overrides.legal_name ?? null,
     aliases: overrides.aliases ?? [],
+    assumed_names: overrides.assumed_names ?? [],
+    descriptors: overrides.descriptors ?? [],
+    forms_of_address: overrides.forms_of_address ?? [],
     pronouns: overrides.pronouns ?? ['he/him'],
+    same_name_disambiguation: overrides.same_name_disambiguation ?? null,
+    identity_notes: overrides.identity_notes ?? null,
     age_signal: overrides.age_signal ?? 'adult',
     age_exact: overrides.age_exact ?? null,
     life_stage_evidence: overrides.life_stage_evidence ?? null,
@@ -88,5 +94,65 @@ describe('reduceCharacterEvidence canonical identity groups', () => {
     );
 
     expect(ledger.coverage_summary.protagonists.sort()).toEqual(['Benjamin', 'Michael']);
+  });
+
+  it('does not conflate same visible name token when canonical identity groups are distinct', () => {
+    const ledger = reduceCharacterEvidence({
+      jobId: 'same-name-disambiguation-test',
+      totalChunksInManuscript: 6,
+      chunkOutputs: [
+        chunk(0, [
+          character({
+            canonical_name: 'Pip',
+            canonical_identity_group: 'Philip Pirrip',
+            aliases: ['Philip Pirrip'],
+            same_name_disambiguation: 'adult narrator Pip',
+          }),
+        ]),
+        chunk(1, [
+          character({
+            canonical_name: 'Young Pip',
+            canonical_identity_group: 'Young Pip, Joe and Biddy\'s son',
+            aliases: ['Pip'],
+            same_name_disambiguation: 'child named Pip who is Joe and Biddy\'s son',
+          }),
+        ]),
+      ],
+    });
+
+    const names = ledger.entries.map((entry) => entry.canonical_name).sort();
+    expect(names).toEqual(['Philip Pirrip', 'Young Pip']);
+
+    expect(ledger.entries.find((entry) => entry.canonical_name === 'Philip Pirrip')).toBeDefined();
+    const youngPip = ledger.entries.find((entry) => entry.canonical_name === 'Young Pip');
+    expect(youngPip).toBeDefined();
+    expect(youngPip?.same_name_disambiguation_group).toBe('child named Pip who is Joe and Biddy\'s son');
+  });
+
+  it('filters pronouns/descriptors/forms-of-address from legal and assumed name states', () => {
+    const ledger = reduceCharacterEvidence({
+      jobId: 'identity-namestate-invalid-token-test',
+      totalChunksInManuscript: 4,
+      chunkOutputs: [
+        chunk(0, [
+          character({
+            canonical_name: 'Philip Pirrip',
+            canonical_identity_group: 'Philip Pirrip',
+            legal_name: 'Philip Pirrip',
+            aliases: ['he', 'the boy', 'sir', 'Pip'],
+            assumed_names: ['dear boy', 'Pip'],
+            forms_of_address: ['sir'],
+            descriptors: ['the boy'],
+          }),
+        ]),
+      ],
+    });
+
+    const pip = ledger.entries.find((entry) => entry.canonical_name === 'Philip Pirrip');
+    expect(pip).toBeDefined();
+    expect(pip?.nameStates.map((s) => s.name)).toEqual(expect.arrayContaining(['Philip Pirrip', 'Pip']));
+    expect(pip?.nameStates.map((s) => s.name)).not.toEqual(expect.arrayContaining(['he', 'the boy', 'sir', 'dear boy']));
+    expect((pip?.legal_name_states ?? []).map((s) => s.name)).toEqual(expect.arrayContaining(['Philip Pirrip', 'Pip']));
+    expect((pip?.legal_name_states ?? []).map((s) => s.name)).not.toEqual(expect.arrayContaining(['he', 'the boy', 'sir', 'dear boy']));
   });
 });
