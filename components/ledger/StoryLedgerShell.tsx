@@ -39,15 +39,93 @@ function useSpeechInput(onTranscript: (text: string) => void) {
     typeof window !== "undefined" &&
     ("SpeechRecognition" in window || "webkitSpeechRecognition" in window);
 
-  const LAYER_ORDER = STORY_LAYER_KEYS;
+  const start = React.useCallback(() => {
+    if (!supported) return;
+    const SR =
+      (window as any).SpeechRecognition ?? (window as any).webkitSpeechRecognition;
+    const rec = new SR();
+    rec.continuous = true;
+    rec.interimResults = false;
+    rec.lang = "en-US";
+    rec.onresult = (e: any) => {
+      const transcript = Array.from(e.results as ArrayLike<any>)
+        .map((r: any) => r[0].transcript)
+        .join(" ")
+        .trim();
+      if (transcript) onTranscript(transcript);
+    };
+    rec.onerror = () => setState("error");
+    rec.onend = () => setState("idle");
+    recognitionRef.current = rec;
+    rec.start();
+    setState("listening");
+  }, [supported, onTranscript]);
 
-  const LAYER_DEFINITIONS = STORY_LAYER_KEYS.map((key) => ({
-    key,
-    ...STORY_LAYER_METADATA[key],
-  }));
+  const stop = React.useCallback(() => {
+    recognitionRef.current?.stop();
+    setState("idle");
+  }, []);
 
-  const getLayerMetadata = (key: string) =>
-    STORY_LAYER_METADATA[key as keyof typeof STORY_LAYER_METADATA];
+  const toggle = React.useCallback(() => {
+    if (state === "listening") stop();
+    else start();
+  }, [state, start, stop]);
+
+  return { state, toggle, supported };
+}
+
+function MicButton({
+  setValue,
+}: {
+  setValue: React.Dispatch<React.SetStateAction<string>>;
+}) {
+  const { state, toggle, supported } = useSpeechInput((transcript) => {
+    setValue((prev) => (prev ? prev + " " + transcript : transcript));
+  });
+
+  if (!supported) return null;
+
+  const isListening = state === "listening";
+  const isError = state === "error";
+
+  return (
+    <button
+      type="button"
+      onClick={toggle}
+      title={isListening ? "Stop recording" : "Speak to fill this field"}
+      style={{
+        padding: "6px 12px",
+        borderRadius: 8,
+        border: `1px solid ${
+          isListening
+            ? "rgba(122,30,30,0.6)"
+            : isError
+            ? "rgba(230,162,60,0.4)"
+            : "rgba(242,239,234,0.15)"
+        }`,
+        background: isListening ? "rgba(122,30,30,0.22)" : "transparent",
+        color: isListening ? "#D07070" : isError ? "#E6A23C" : "rgba(242,239,234,0.5)",
+        fontSize: 13,
+        cursor: "pointer",
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 6,
+        flexShrink: 0,
+      }}
+    >
+      {isListening ? "⏹ Stop" : isError ? "⚠ Retry" : "🎙 Speak"}
+    </button>
+  );
+}
+
+// ─── Palette ────────────────────────────────────────────────────────────────
+
+const P = {
+  bg: "#0E0E0E",
+  surface: "#111110",
+  surfaceAlt: "#181714",
+  surfaceHover: "#1E1D1A",
+  border: "#272523",
   borderStrong: "#393734",
   bone: "#F2EFEA",
   boneAlt: "rgba(242,239,234,0.72)",
@@ -257,7 +335,7 @@ const MODULES: { id: ModuleId; label: string; number: number; sublabel: string; 
   { id: "story_layer", number: 1, label: "Story Layer Map", sublabel: "Generated story facts", icon: "◈" },
   { id: "review_gate", number: 2, label: "Review Gate", sublabel: "Author approval", icon: "◎" },
   { id: "accepted_ledger", number: 3, label: "Accepted Ledger", sublabel: "Frozen canon", icon: "◆" },
-  { id: "wave_handoff", number: 4, label: "WAVE Handoff", sublabel: "13 criteria + repair", icon: "◇" },
+  { id: "wave_handoff", number: 4, label: "Preparing next-step guidance", sublabel: "13 criteria + repair", icon: "◇" },
 ];
 
 // ─── Props ───────────────────────────────────────────────────────────────────
@@ -269,6 +347,7 @@ export type LedgerShellProps = {
   approved: boolean;
   justApproved: boolean;
   justRejected: boolean;
+  isAdminViewer: boolean;
 
   // Module 1 — story layer data
   storyLayers: Record<string, Record<string, unknown>> | null;
@@ -278,6 +357,8 @@ export type LedgerShellProps = {
     empty_layers?: string[];
     degraded_layers?: string[];
   } | null;
+  visibleLayerKeys: string[];
+  withheldLayerKeys: string[];
 
   // Module 2 — gate state
   hardFails: string[];
@@ -344,14 +425,30 @@ function Module1StoryLayer({
   storyLayers,
   layerCompletionSummary,
   atReviewGate,
+  isAdminViewer,
+  visibleLayerKeys,
+  withheldLayerKeys,
   onAllLayersDecided,
 }: {
   storyLayers: Record<string, Record<string, unknown>> | null;
   layerCompletionSummary: LedgerShellProps["layerCompletionSummary"];
   atReviewGate: boolean;
+  isAdminViewer: boolean;
+  visibleLayerKeys: string[];
+  withheldLayerKeys: string[];
   onAllLayersDecided: (decisions: Record<string, LayerDecision>) => void;
 }) {
-  const [activeLayer, setActiveLayer] = useState<string>(LAYER_ORDER[0]);
+  const displayLayerOrder = (
+    visibleLayerKeys.length > 0
+      ? LAYER_ORDER.filter((k) => visibleLayerKeys.includes(k))
+      : storyLayers
+      ? LAYER_ORDER.filter((k) => Object.prototype.hasOwnProperty.call(storyLayers, k))
+      : []
+  ) as (typeof LAYER_ORDER)[number][];
+
+  const [activeLayer, setActiveLayer] = useState<(typeof LAYER_ORDER)[number]>(
+    displayLayerOrder[0] ?? LAYER_ORDER[0],
+  );
   const [decisions, setDecisions] = useState<Record<string, LayerDecision>>(
     () =>
       Object.fromEntries(
@@ -366,23 +463,38 @@ function Module1StoryLayer({
     Array<{ character: string; decision: "intentional" | "continuity_error" | null }>
   >([]);
 
-  const decidedCount = LAYER_ORDER.filter(
+  React.useEffect(() => {
+    if (displayLayerOrder.length > 0 && !displayLayerOrder.includes(activeLayer)) {
+      setActiveLayer(displayLayerOrder[0]);
+    }
+  }, [activeLayer, displayLayerOrder]);
+
+  const decidedCount = displayLayerOrder.filter(
     (k) => decisions[k].status !== "undecided"
   ).length;
-  const allDecided = decidedCount === LAYER_ORDER.length;
+  const allDecided = displayLayerOrder.length > 0 && decidedCount === displayLayerOrder.length;
+
+  const visibleDecisions = React.useMemo(
+    () =>
+      Object.fromEntries(displayLayerOrder.map((k) => [k, decisions[k]])) as Record<
+        string,
+        LayerDecision
+      >,
+    [decisions, displayLayerOrder],
+  );
 
   React.useEffect(() => {
     if (allDecided && !allDecidedTriggered && atReviewGate) {
       setAllDecidedTriggered(true);
-      onAllLayersDecided(decisions);
+      onAllLayersDecided(visibleDecisions);
     }
-  }, [allDecided, allDecidedTriggered, atReviewGate, decisions, onAllLayersDecided]);
+  }, [allDecided, allDecidedTriggered, atReviewGate, onAllLayersDecided, visibleDecisions]);
 
-  function setDecision(layerKey: string, status: LayerDecisionStatus, comment = "") {
+  function setDecision(layerKey: (typeof LAYER_ORDER)[number], status: LayerDecisionStatus, comment = "") {
     setDecisions((prev) => ({ ...prev, [layerKey]: { status, comment } }));
   }
 
-  function handleDecisionButton(layerKey: string, status: LayerDecisionStatus) {
+  function handleDecisionButton(layerKey: (typeof LAYER_ORDER)[number], status: LayerDecisionStatus) {
     const needsComment =
       status === "approved_with_comment" || status === "rejected_with_comment";
     if (needsComment) {
@@ -391,38 +503,47 @@ function Module1StoryLayer({
     } else {
       setShowCommentFor(null);
       setDecision(layerKey, status);
-      const currentIdx = LAYER_ORDER.indexOf(
-        layerKey as typeof LAYER_ORDER[number]
-      );
+      const currentIdx = displayLayerOrder.indexOf(layerKey);
       const nextUndecided =
-        LAYER_ORDER.find(
+        displayLayerOrder.find(
           (k, i) => i > currentIdx && decisions[k].status === "undecided"
         ) ??
-        LAYER_ORDER.find(
-          (k) => decisions[k].status === "undecided" && k !== layerKey
-        );
+        displayLayerOrder.find((k) => decisions[k].status === "undecided" && k !== layerKey);
       if (nextUndecided) setActiveLayer(nextUndecided);
     }
   }
 
-  function confirmComment(layerKey: string, status: LayerDecisionStatus) {
+  function confirmComment(layerKey: (typeof LAYER_ORDER)[number], status: LayerDecisionStatus) {
     setDecision(layerKey, status, pendingComment);
     setShowCommentFor(null);
     setPendingComment("");
-    const currentIdx = LAYER_ORDER.indexOf(
-      layerKey as typeof LAYER_ORDER[number]
-    );
+    const currentIdx = displayLayerOrder.indexOf(layerKey);
     const nextUndecided =
-      LAYER_ORDER.find(
-        (k, i) => i > currentIdx && decisions[k].status === "undecided"
-      ) ??
-      LAYER_ORDER.find(
-        (k) => decisions[k].status === "undecided" && k !== layerKey
-      );
+      displayLayerOrder.find((k, i) => i > currentIdx && decisions[k].status === "undecided") ??
+      displayLayerOrder.find((k) => decisions[k].status === "undecided" && k !== layerKey);
     if (nextUndecided) setActiveLayer(nextUndecided);
   }
 
   if (!storyLayers) {
+    if (withheldLayerKeys.length > 0) {
+      return (
+        <Card accent="gold">
+          <Pill tone="gold">Module 1 · Withheld</Pill>
+          <h2 style={{ margin: "14px 0 10px", ...T.h2 }}>Story Layer Map</h2>
+          <AlertBanner tone="gold">
+            {isAdminViewer
+              ? "Admin view is enabled, but no visible story layers were returned by the server."
+              : `Server-side quality gating withheld ${withheldLayerKeys.length} story layer${withheldLayerKeys.length !== 1 ? "s" : ""} from this account.`}
+          </AlertBanner>
+          <p style={{ margin: 0, ...T.body }}>
+            Hidden layers are not shown to this viewer. Review the layers that passed
+            quality gating, or continue to the Review Gate once the visible set is
+            complete.
+          </p>
+        </Card>
+      );
+    }
+
     return (
       <Card>
         <SectionLabel>Module 1 · Generated</SectionLabel>
@@ -437,7 +558,7 @@ function Module1StoryLayer({
 
   const currentData = storyLayers[activeLayer] ?? null;
   const currentDecision = decisions[activeLayer];
-  const populated = LAYER_ORDER.filter((k) => {
+  const populated = displayLayerOrder.filter((k) => {
     const d = storyLayers[k];
     return d && Object.keys(d).length > 0;
   });
@@ -488,6 +609,18 @@ function Module1StoryLayer({
           </div>
         </div>
       </Card>
+
+      {isAdminViewer ? (
+        <AlertBanner tone="green">
+          Admin view: all server-approved story layers are visible in this ledger.
+        </AlertBanner>
+      ) : withheldLayerKeys.length > 0 ? (
+        <AlertBanner tone="gold">
+          Server-side quality gating withheld {withheldLayerKeys.length} layer
+          {withheldLayerKeys.length !== 1 ? "s" : ""} from this view. Only layers
+          that passed the gate are shown here.
+        </AlertBanner>
+      ) : null}
 
       {/* Layer Reference — always shown, collapsible */}
       <div style={{ border: `1px solid ${P.border}`, borderRadius: 14, overflow: "hidden" }}>
@@ -568,9 +701,9 @@ function Module1StoryLayer({
             </p>
             <p style={{ margin: 0, ...T.body }}>
               RevisionGrade extracted these story facts from your manuscript. Work
-              through each of the {LAYER_ORDER.length} layers and mark it as correct, correct with a
-              note, wrong, or wrong with an explanation. When all layers are
-              reviewed, you will be taken to the approval step automatically.
+              through each visible layer and mark it as correct, correct with a
+              note, wrong, or wrong with an explanation. When all visible layers
+              are reviewed, you will be taken to the approval step automatically.
             </p>
             <div
               style={{
@@ -590,7 +723,7 @@ function Module1StoryLayer({
               >
                 <div
                   style={{
-                    width: `${(decidedCount / LAYER_ORDER.length) * 100}%`,
+                    width: `${(decidedCount / Math.max(displayLayerOrder.length, 1)) * 100}%`,
                     height: "100%",
                     background: P.gold,
                     borderRadius: 99,
@@ -606,7 +739,7 @@ function Module1StoryLayer({
                   flexShrink: 0,
                 }}
               >
-                {decidedCount} / {LAYER_ORDER.length} reviewed
+                {decidedCount} / {displayLayerOrder.length} reviewed
               </span>
             </div>
           </div>
@@ -625,9 +758,8 @@ function Module1StoryLayer({
           alignItems: "start",
         }}
       >
-        {/* Sidebar nav */}
         <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-          {LAYER_ORDER.map((key) => {
+          {displayLayerOrder.map((key) => {
             const isActive = activeLayer === key;
             const isPopulated = populated.includes(key);
             const dec = decisions[key];
@@ -657,14 +789,13 @@ function Module1StoryLayer({
                   background: isActive ? P.goldLight : "transparent",
                   color: isActive ? P.gold : isPopulated ? P.boneAlt : P.ash,
                   cursor: "pointer",
-                  textAlign: "left" as const,
                   width: "100%",
                 }}
               >
                 <span style={{ fontSize: 16, flexShrink: 0, marginTop: 1 }}>
                   {getLayerMetadata(key).iconToken}
                 </span>
-                <div style={{ flex: 1, minWidth: 0 }}>
+                <div>
                   <div
                     style={{
                       fontSize: 13,
@@ -1034,14 +1165,14 @@ function Module1StoryLayer({
                 lineHeight: 1.3,
               }}
             >
-              All layers reviewed
+              All {displayLayerOrder.length} visible layers reviewed
             </p>
             <p style={{ margin: 0, ...T.body }}>
               Your decisions have been recorded. Proceed to the approval step.
             </p>
           </div>
           <button
-            onClick={() => onAllLayersDecided(decisions)}
+            onClick={() => onAllLayersDecided(visibleDecisions)}
             style={{
               padding: "13px 28px",
               borderRadius: 12,
@@ -1072,6 +1203,7 @@ function Module2ReviewGate({
   hasHardFails,
   hardFails,
   layerDecisions,
+  requiredLayerCount,
   approveLedgerAction,
   rejectLedgerAction,
 }: {
@@ -1081,6 +1213,7 @@ function Module2ReviewGate({
   hasHardFails: boolean;
   hardFails: string[];
   layerDecisions: Record<string, { status: string; comment: string }>;
+  requiredLayerCount: number;
   approveLedgerAction: (formData: FormData) => Promise<void>;
   rejectLedgerAction: (formData: FormData) => Promise<void>;
 }) {
@@ -1097,7 +1230,8 @@ function Module2ReviewGate({
     (d) =>
       d.status === "accepted_with_comment" || d.status === "approved_with_comment"
   ).length;
-  const allDecided = Object.keys(layerDecisions).length === 8;
+  const allDecided =
+    requiredLayerCount === 0 || Object.keys(layerDecisions).length === requiredLayerCount;
 
   const gateState: "A" | "B" | "C" | "incomplete" = !allDecided
     ? "incomplete"
@@ -1803,7 +1937,7 @@ function Module4WaveHandoff({ approved }: { approved: boolean }) {
     return (
       <Card>
         <Pill tone="neutral">Module 4 · Locked</Pill>
-        <h2 style={{ margin: "14px 0 10px", ...T.h2 }}>WAVE Handoff</h2>
+        <h2 style={{ margin: "14px 0 10px", ...T.h2 }}>Preparing next-step guidance</h2>
         <p style={{ margin: 0, ...T.body }}>
           The WAVE Revision System™ bridge unlocks only after the Story Ledger is
           accepted. The craft evaluation uses the accepted ledger as its sole
@@ -1828,7 +1962,7 @@ function Module4WaveHandoff({ approved }: { approved: boolean }) {
         >
           <div style={{ flex: 1 }}>
             <Pill tone="gold">Module 4 · Active</Pill>
-            <h2 style={{ margin: "14px 0 10px", ...T.h2 }}>WAVE Handoff</h2>
+            <h2 style={{ margin: "14px 0 10px", ...T.h2 }}>Preparing next-step guidance</h2>
             <p style={{ margin: 0, maxWidth: "58ch", ...T.bodyLg }}>
               The accepted story ledger is now the authorized narrative matrix. The
               craft evaluation will diagnose your manuscript across 13 criteria using
@@ -2030,8 +2164,11 @@ export function StoryLedgerShell(props: LedgerShellProps) {
     approved,
     justApproved,
     justRejected,
+    isAdminViewer,
     storyLayers,
     layerCompletionSummary,
+    visibleLayerKeys,
+    withheldLayerKeys,
     hardFails,
     hasHardFails,
     acceptedLedger,
@@ -2042,10 +2179,11 @@ export function StoryLedgerShell(props: LedgerShellProps) {
   const defaultModule: ModuleId = approved ? "accepted_ledger" : "story_layer";
   const [active, setActive] = useState<ModuleId>(defaultModule);
   const layerDecisionsRef = useRef<Record<string, { status: string; comment: string }>>({});
+  const requiredLayerCount = visibleLayerKeys.length;
 
   const moduleAvailable: Record<ModuleId, boolean> = {
-    story_layer: Boolean(storyLayers),
-    review_gate: atReviewGate || approved,
+    story_layer: isAdminViewer || Boolean(storyLayers) || withheldLayerKeys.length > 0,
+    review_gate: atReviewGate || approved || requiredLayerCount > 0,
     accepted_ledger: approved,
     wave_handoff: approved,
   };
@@ -2262,6 +2400,9 @@ export function StoryLedgerShell(props: LedgerShellProps) {
               storyLayers={storyLayers}
               layerCompletionSummary={layerCompletionSummary}
               atReviewGate={atReviewGate}
+              isAdminViewer={isAdminViewer}
+              visibleLayerKeys={visibleLayerKeys}
+              withheldLayerKeys={withheldLayerKeys}
               onAllLayersDecided={(decisions) => {
                 layerDecisionsRef.current = decisions;
                 setActive("review_gate");
@@ -2276,6 +2417,7 @@ export function StoryLedgerShell(props: LedgerShellProps) {
               hasHardFails={hasHardFails}
               hardFails={hardFails}
               layerDecisions={layerDecisionsRef.current}
+              requiredLayerCount={requiredLayerCount}
               approveLedgerAction={approveLedgerAction}
               rejectLedgerAction={rejectLedgerAction}
             />

@@ -42,10 +42,10 @@ export const STORY_LAYER_METADATA = {
     reviewCategory: "cast",
   },
   identity_pronoun_layer: {
-    title: "Identity & Pronouns",
-    shortLabel: "Pronouns & gender signals",
+    title: "Pronoun Transitions",
+    shortLabel: "Transitions & ambiguity",
     description:
-      "How each character is identified: pronouns detected across the manuscript, gender signals, and any pronoun shifts between sections. Confirm intentional transitions or flag continuity errors.",
+      "Pronoun transitions and identity signals that may need confirmation. Stable pronoun-family usage (including case forms like he/him, she/her, they/them) is normalized and hidden from review.",
     iconToken: "🏷️",
     reviewCategory: "identity",
   },

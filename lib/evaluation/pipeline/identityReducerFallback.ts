@@ -1,3 +1,5 @@
+import { sanitizeIdentityNameList, sanitizeIdentityNameToken } from './identityNameHygiene';
+
 export type IdentityMergeStatus = 'OK' | 'DEGRADED_FALLBACK_TO_RAW' | 'FAILED_CRITICAL';
 
 export type CanonicalIdentityRoleTier =
@@ -60,14 +62,14 @@ function isCanonicalRoleTier(value: unknown): value is CanonicalIdentityRoleTier
 }
 
 function toIdentityGroup(candidate: IdentityGroupCandidate): CanonicalIdentityGroup | null {
-  const canonical = asString(candidate.canonical_identity_group);
+  const canonical = sanitizeIdentityNameToken(asString(candidate.canonical_identity_group));
   if (!canonical || !Array.isArray(candidate.aliases) || !isCanonicalRoleTier(candidate.role_tier)) {
     return null;
   }
 
   return {
     canonical_identity_group: canonical,
-    aliases: asStringArray(candidate.aliases),
+    aliases: sanitizeIdentityNameList(asStringArray(candidate.aliases)),
     role_tier: candidate.role_tier,
     primary_pov_anchor: candidate.primary_pov_anchor === true,
   };
@@ -95,16 +97,19 @@ function parseStrictIdentityGroups(rawModelOutput: string): CanonicalIdentityGro
 }
 
 function resolveFallbackName(card: RawIdentityFallbackCard): string {
-  return asString(card.character_name) ?? asString(card.name) ?? 'Unidentified Figure';
+  return (
+    sanitizeIdentityNameToken(asString(card.character_name)) ??
+    sanitizeIdentityNameToken(asString(card.name)) ??
+    'Unidentified Figure'
+  );
 }
 
 function resolveFallbackAliases(card: RawIdentityFallbackCard, detectedName: string): string[] {
-  const aliases = [
+  return sanitizeIdentityNameList([
     detectedName,
     ...asStringArray(card.aliases),
     ...asStringArray(card.alternate_names),
-  ];
-  return [...new Set(aliases)];
+  ]);
 }
 
 function resolveFallbackRoleTier(card: RawIdentityFallbackCard): CanonicalIdentityRoleTier {
