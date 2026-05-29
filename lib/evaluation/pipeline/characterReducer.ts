@@ -513,9 +513,33 @@ export function reduceCharacterEvidence(params: {
 
     // Warnings
     const warnings: CharacterArcLedgerEntry["warnings"] = [];
-    const pronounSets = entries.map((e) => JSON.stringify([...(e.pronouns ?? [])].sort()));
-    if (new Set(pronounSets).size > 1 && pronounSets.some((p) => p !== "[]")) {
-      warnings.push({ type: "pronoun_inconsistency", message: `Pronoun variation detected across chunks for "${canonical}"` });
+
+    // Pronoun inconsistency detection — filter out empty sets and
+    // collective "they/them" that appears alongside a consistent gendered pronoun.
+    const nonEmptyPronounSets = entries
+      .map((e) => [...(e.pronouns ?? [])].sort())
+      .filter((ps) => ps.length > 0);
+
+    if (nonEmptyPronounSets.length > 0) {
+      // Find the most common individual pronoun set (ignoring "they/them" when mixed)
+      const pronounFreq = new Map<string, number>();
+      for (const ps of nonEmptyPronounSets) {
+        const key = JSON.stringify(ps);
+        pronounFreq.set(key, (pronounFreq.get(key) ?? 0) + 1);
+      }
+      const uniqueKeys = [...pronounFreq.keys()];
+      // Filter: if "they/them" coexists with a gendered pronoun, don't flag it —
+      // it's likely collective/group reference that the LLM incorrectly recorded.
+      const theyKey = JSON.stringify(["they/them"]);
+      const nonTheyKeys = uniqueKeys.filter((k) => k !== theyKey);
+      const hasGenderedConsensus = nonTheyKeys.length === 1;
+      const effectiveUnique = hasGenderedConsensus
+        ? nonTheyKeys  // ignore the "they/them" entries as collective reference noise
+        : uniqueKeys;
+
+      if (effectiveUnique.length > 1) {
+        warnings.push({ type: "pronoun_inconsistency", message: `Pronoun variation detected across chunks for "${canonical}"` });
+      }
     }
     if (endingStatus === "accidentally_abandoned") {
       warnings.push({ type: "ending_underpaid", message: `"${canonical}" last appears in chunk ${chunkIndices[chunkIndices.length - 1]} of ${totalChunksInManuscript} — possible abandoned arc` });

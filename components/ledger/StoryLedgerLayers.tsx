@@ -3452,6 +3452,12 @@ export function IdentityPronounLayer({
         badgeTone={shiftCount > 0 ? "oxblood" : "gold"}
       />
 
+      {shiftCount === 0 && entries.length > 0 && (
+        <p style={{ fontSize: 13, color: C.textMuted, margin: "0 0 16px", fontStyle: "italic" }}>
+          No pronoun inconsistencies detected. Group/collective pronoun references (e.g. &ldquo;they&rdquo; meaning a party of characters) have been filtered out automatically.
+        </p>
+      )}
+
       {shiftCount > 0 && (
         <div style={{ display: "flex", flexDirection: "column", gap: 14, marginBottom: 20 }}>
           <SubHeading>Pronoun Shifts Requiring Confirmation</SubHeading>
