@@ -135,3 +135,75 @@ export function getDisplayDreamMarketField(
   const value = getDisplayText(marketShelf[field], "").trim();
   return value.length > 0 ? value : null;
 }
+
+const INTERNAL_DIAGNOSTIC_PATTERNS: RegExp[] = [
+  /source[-\s]?integrity/i,
+  /relationship\s+network\s+representation/i,
+  /threat\s*\/?\s*pressure/i,
+  /location\s*\/?\s*timeline/i,
+  /object\s*\/?\s*symbol/i,
+  /extraction\s+diagnostic/i,
+  /repair\s+relationship\s+network/i,
+  /layer\s+contamination/i,
+  /taxonomy\s+repair/i,
+  /no\s+qualifying\s+relationship\s+pairs/i,
+  /renderer\s+defect|schema\s+defect|ontology\s+repair/i,
+];
+
+export type AuthorFacingRevisionPlanItem = {
+  priority: number;
+  title: string;
+  goal: string;
+  actions: string[];
+  acceptance_check: string;
+};
+
+export function isInternalDiagnosticText(value: string): boolean {
+  const text = value.trim();
+  if (!text) return false;
+  return INTERNAL_DIAGNOSTIC_PATTERNS.some((pattern) => pattern.test(text));
+}
+
+export function filterAuthorFacingTextList(value: unknown): string[] {
+  return getDisplayDreamList(value).filter((entry) => !isInternalDiagnosticText(entry));
+}
+
+export function getAuthorFacingRevisionPlan(value: unknown): AuthorFacingRevisionPlanItem[] {
+  if (!Array.isArray(value)) return [];
+
+  return value
+    .map((entry) => asRecord(entry))
+    .filter((entry): entry is Record<string, unknown> => entry !== null)
+    .map((entry) => {
+      const rawPriority = entry.priority;
+      const priority = typeof rawPriority === "number" && Number.isFinite(rawPriority)
+        ? rawPriority
+        : Number.parseInt(getDisplayText(rawPriority, "0"), 10) || 0;
+
+      const title = getDisplayText(entry.title, "");
+      const goal = getDisplayText(entry.goal, "");
+      const actions = filterAuthorFacingTextList(entry.actions);
+      const acceptance_check = getDisplayText(entry.acceptance_check, "");
+
+      return {
+        priority,
+        title,
+        goal,
+        actions,
+        acceptance_check,
+      };
+    })
+    .filter((item) => {
+      const combined = [item.title, item.goal, item.acceptance_check, ...item.actions].join(" ");
+      return combined.trim().length > 0 && !isInternalDiagnosticText(combined);
+    });
+}
+
+export function getRenumberedAuthorFacingRevisionPlan(
+  value: unknown,
+): Array<AuthorFacingRevisionPlanItem & { displayPriority: number }> {
+  return getAuthorFacingRevisionPlan(value).map((item, idx) => ({
+    ...item,
+    displayPriority: idx + 1,
+  }));
+}

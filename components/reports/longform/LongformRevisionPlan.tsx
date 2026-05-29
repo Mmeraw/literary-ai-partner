@@ -1,4 +1,5 @@
 import type { LongformDreamDocument } from "@/lib/evaluation/pipeline/runPass3bLongform";
+import { getRenumberedAuthorFacingRevisionPlan } from "@/lib/evaluation/reportRenderSafety";
 
 type Props = { doc: LongformDreamDocument };
 
@@ -11,7 +12,7 @@ const PRIORITY_COLORS = [
 ];
 
 export default function LongformRevisionPlan({ doc }: Props) {
-  const plan = doc.revision_plan ?? [];
+  const plan = getRenumberedAuthorFacingRevisionPlan(doc.revision_plan);
   if (plan.length === 0) return null;
 
   return (
@@ -22,7 +23,7 @@ export default function LongformRevisionPlan({ doc }: Props) {
           <div key={i} className={`rounded-lg border-l-4 p-4 ${colorClass}`}>
             <div className="flex items-start gap-3">
               <span className="shrink-0 w-6 h-6 rounded-full bg-white border border-gray-300 flex items-center justify-center text-xs font-bold text-gray-700">
-                {item.priority}
+                {item.displayPriority}
               </span>
               <div className="flex-1 space-y-2">
                 <p className="font-semibold text-gray-800 text-sm">{item.title}</p>
