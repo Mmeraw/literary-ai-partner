@@ -8,7 +8,7 @@
  * Output feeds characterReducer → Pass1aCharacterLedger → Pass 3 + Pass 3b.
  */
 
-export const PASS1A_PROMPT_VERSION = "pass1a-character-sweep-v9-pressure-taxonomy";
+export const PASS1A_PROMPT_VERSION = "pass1a-character-sweep-v10-pov-focalization";
 
 export const PASS1A_SYSTEM_PROMPT = `You are Pass 1A (character_evidence_sweep) for RevisionGrade.
 
@@ -86,7 +86,16 @@ primary | major | supporting | recurring | minor | unknown
 
 POV / CAMERA OWNERSHIP:
 Mark the character whose consciousness or camera owns this chunk as the POV owner.
-If a character appears but does not own the narrative lens, set pov_signal to not_pov and pov_section_label to "".
+POV means FOCALIZATION — whose internal thoughts, perceptions, and sensory experience the reader has access to. It is NOT the same as narrative importance or screen time.
+A character can be structurally major (present in many scenes, central to the plot) without being a POV character. Only mark a character as POV owner if the prose grants access to their interior consciousness in this chunk.
+
+Rules:
+- A character who appears in many scenes but is always observed from outside (through another character's eyes) is NOT a POV character. Set pov_signal to "not_pov".
+- In close-third-limited narration, only ONE character per chunk can own the camera. Other characters — even romantic interests, antagonists, or co-protagonists — are NOT POV unless the prose shifts into their consciousness.
+- In omniscient narration, multiple characters may have brief interior access, but identify the PRIMARY camera owner for the chunk.
+- Do NOT confuse "important to the plot" with "POV owner". Robert Lebrun in The Awakening is central to the story but never owns the narrative camera — Edna does.
+
+If a character appears but does not own the narrative lens, set pov_signal to "not_pov" and pov_section_label to "".
 Do not create separate narrator identities when the text indicates the narrator is a named character.
 
 FIVE Ws + HOW:
@@ -101,7 +110,22 @@ ALSO capture:
 - Artistic practices or creative instruments used as identity symbols (painting, sketching materials, a piano, music, writing)
 - Recurring motifs across scenes (birds, flight imagery, mirrors, keys, letters)
 - Abstract forces when they function as object-symbols (confinement, social performance, reputation)
+- Clothing, costumes, or garments that signal identity, class, or transformation
+- Food, drink, or meals that serve as social/relational markers
+- Documents, letters, or written communications that drive plot
 Do NOT limit "objects" to hand-held physical items. Anything the story puts sustained weight on counts.
+
+For the "function" field on each symbolic_objects entry, describe the narrative function concisely:
+- "identity marker" — object defines who the character is or wants to be
+- "control instrument" — object used to exert power over others
+- "freedom symbol" — object represents autonomy or escape
+- "confinement symbol" — object represents entrapment or restriction
+- "desire marker" — object channels or represents desire
+- "transformation signal" — object marks a character's change
+- "death/dissolution marker" — object foreshadows or enacts an ending
+- "connection object" — object links two characters
+- "recurring motif" — object reappears across scenes with accumulating meaning
+- Or use your own concise description if none of these fit.
 
 PRONOUNS:
 Record the pronouns used for this character IN THIS CHUNK. Common values: ["she/her"], ["he/him"], ["they/them"], ["he/they"], ["she/they"].
@@ -109,9 +133,39 @@ Important distinctions:
 - If "they" is used as a COLLECTIVE/GROUP reference (e.g. "they all went to the beach" where "they" means a group including this character), record the character's individual pronouns, NOT "they/them". Group-referent "they" is not a pronoun signal for the individual.
 - If "they" is used as the character's INDIVIDUAL pronoun (the narrator refers to this one character as "they"), then record "they/them".
 - If the character has a genuine pronoun transition in the story (e.g. comes out as trans, adopts new pronouns), record the pronouns used in THIS chunk only. The system will detect the shift across chunks.
-
 RELATIONSHIP SIGNALS:
 Capture only visible relationship dynamics in this chunk. Max 3.
+For each signal, provide:
+- other_character: the canonical name of the other party
+- relationship_type: classify using one of these categories:
+  "spouse" — legal/formal marriage or equivalent committed partnership
+  "romantic_partners" — romantic relationship without formal marriage
+  "forbidden_desire" — desire that cannot be openly acted on (social taboo, infidelity, power imbalance)
+  "parent_child" — parent-child (any gender combination)
+  "siblings" — brothers/sisters
+  "extended_family" — aunts, uncles, cousins, grandparents
+  "found_family" — chosen family bond without blood relation
+  "friendship" — sustained platonic bond
+  "mentor_student" — teaching/guidance relationship
+  "artistic_alliance" — bond through shared creative/intellectual pursuit
+  "employer_employee" — work authority relationship
+  "colleagues" — professional peers
+  "captor_captive" — confinement/control
+  "protector_protected" — guardian/dependent
+  "adversaries" — active opposition or enmity
+  "uneasy_alliance" — cooperation despite mistrust
+  "social_acquaintance" — surface-level social connection
+  "strangers" — no prior relationship
+  "unknown" — cannot classify from this chunk
+- dynamic: the power/emotional dynamic visible in THIS chunk. Use one of:
+  "dominant" — one party controls the interaction
+  "subordinate" — one party defers or is constrained
+  "equal" — balanced exchange
+  "shifting" — power changes hands during the chunk
+  "tense" — surface civility hiding conflict
+  "intimate" — emotional closeness or vulnerability
+  "distant" — emotional withdrawal or avoidance
+  "unknown" — not enough signal
 
 EVIDENCE ANCHORS:
 Use verbatim excerpts of 120 characters or less. Max 3.

@@ -913,6 +913,15 @@ export function PovStructureLayer({
     antagonist: "Antagonist",
     narrator: "Narrator",
     secondary_pov: "Secondary POV",
+    pressure_agent: "Pressure Agent",
+    romantic_catalyst: "Romantic Catalyst",
+    sexual_destabilizer: "Sexual Destabilizer",
+    domestic_foil: "Domestic Foil",
+    artistic_countermodel: "Artistic Counter-Model",
+    social_observer: "Social Observer",
+    mentor: "Mentor",
+    foil: "Foil",
+    secondary: "Secondary Cast",
   };
 
   const POV_ROLE_TONE: Record<string, "gold" | "oxblood" | "blue" | "neutral"> = {
@@ -921,6 +930,13 @@ export function PovStructureLayer({
     antagonist: "oxblood",
     narrator: "gold",
     secondary_pov: "blue",
+  };
+
+  const POV_TYPE_LABEL: Record<string, string> = {
+    first_person_narrator: "First Person",
+    close_third_limited: "Close Third (Limited)",
+    close_third_omniscient: "Close Third (Omniscient)",
+    distant_third: "Distant Third",
   };
 
   const charCount = povChars.length;
@@ -942,6 +958,10 @@ export function PovStructureLayer({
           const importance = char.importance_level ? String(char.importance_level) : null;
           const roleLabel = POV_ROLE_LABEL[role] ?? role;
           const roleTone = POV_ROLE_TONE[role] ?? "neutral";
+          const povType = char.pov_type ? String(char.pov_type) : null;
+          const povTypeLabel = povType ? (POV_TYPE_LABEL[povType] ?? povType) : null;
+          const sharePct = typeof char.narrative_share_pct === "number" ? char.narrative_share_pct : null;
+          const isPrimary = char.is_primary === true;
 
           return (
             <CharacterCard key={i}>
@@ -958,6 +978,8 @@ export function PovStructureLayer({
                   {name}
                 </span>
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  {isPrimary && <Pill label="Primary POV" tone="gold" />}
+                  {povTypeLabel && <Pill label={povTypeLabel} tone="neutral" />}
                   {role && <Pill label={roleLabel} tone={roleTone} />}
                   {importance && (
                     <Pill
@@ -967,6 +989,11 @@ export function PovStructureLayer({
                   )}
                 </div>
               </div>
+              {sharePct !== null && (
+                <p style={{ margin: "6px 0 0", fontSize: 13, color: C.textMuted }}>
+                  Narrative share: {sharePct}% of manuscript chunks
+                </p>
+              )}
             </CharacterCard>
           );
         })}
@@ -1766,18 +1793,64 @@ export function RelationshipNetworkLayer({
                     {b}
                   </span>
                   <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                    {typeArr.map((t, j) => (
-                      <Pill key={j} label={t.replace(/_/g, " ")} tone="blue" />
-                    ))}
+                    {typeArr.filter((t) => t !== "unknown").map((t, j) => {
+                      const REL_TYPE_LABELS: Record<string, string> = {
+                        spouse: "Spouse / Marriage",
+                        romantic_partners: "Romantic Partners",
+                        forbidden_desire: "Forbidden Desire",
+                        parent_child: "Parent–Child",
+                        father_son: "Father–Son",
+                        father_daughter: "Father–Daughter",
+                        siblings: "Siblings",
+                        extended_family: "Extended Family",
+                        found_family: "Found Family",
+                        friendship: "Friendship",
+                        mentor_student: "Mentor–Student",
+                        artistic_alliance: "Artistic Alliance",
+                        employer_employee: "Employer–Employee",
+                        colleagues: "Colleagues",
+                        social_acquaintance: "Social Acquaintance",
+                        captor_captive: "Captor–Captive",
+                        protector_protected: "Protector–Protected",
+                        adversaries: "Adversaries",
+                        uneasy_alliance: "Uneasy Alliance",
+                        strangers: "Strangers",
+                      };
+                      const label = REL_TYPE_LABELS[t] ?? t.replace(/_/g, " ");
+                      return <Pill key={j} label={label} tone="blue" />;
+                    })}
                   </div>
                 </div>
 
                 <div>
+                  {pair.first_co_presence_chapter && (
+                    <FieldRow label="First shared scene" value={String(pair.first_co_presence_chapter)} />
+                  )}
+                  {pair.first_shared_location && (
+                    <FieldRow label="First shared location" value={String(pair.first_shared_location)} />
+                  )}
                   {pair.relationship_origin && (
                     <FieldRow label="Origin" value={pair.relationship_origin} />
                   )}
                   {pair.initial_dynamic && (
                     <FieldRow label="Initial dynamic" value={pair.initial_dynamic} />
+                  )}
+                  {/* Power dynamic timeline from pipeline */}
+                  {Array.isArray(pair.power_dynamic_timeline) && (pair.power_dynamic_timeline as Array<Record<string, unknown>>).length > 0 && (
+                    <FieldRow
+                      label="Power dynamics"
+                      value={(pair.power_dynamic_timeline as Array<Record<string, unknown>>)
+                        .map((pd) => {
+                          const dynamic = String(pd.dynamic ?? "").replace(/_/g, " ");
+                          const range = Array.isArray(pd.chunkRange) ? pd.chunkRange as number[] : [];
+                          const rangeStr = range.length === 2 && range[0] !== range[1]
+                            ? ` (chunks ${range[0]}–${range[1]})`
+                            : range.length === 2 ? ` (chunk ${range[0]})` : "";
+                          const note = pd.note ? ` — ${pd.note}` : "";
+                          return `${dynamic}${rangeStr}${note}`;
+                        })
+                        .join(" → ")}
+                    />
                   )}
                   {pair.pressure_points && (
                     <FieldRow label="Pressure" value={pair.pressure_points} />
@@ -1796,6 +1869,23 @@ export function RelationshipNetworkLayer({
                       label="Current / final state"
                       value={pair.current_or_final_state}
                     />
+                  )}
+                  {/* Pivot moments from pipeline */}
+                  {Array.isArray(pair.pivot_moments) && (pair.pivot_moments as Array<Record<string, unknown>>).length > 0 && (
+                    <div style={{ marginTop: 8 }}>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: C.textMuted }}>
+                        Pivot moments:
+                      </span>
+                      {(pair.pivot_moments as Array<Record<string, unknown>>).map((pm, j) => (
+                        <div key={j} style={{ marginTop: 4, fontSize: 13, color: C.textMuted, paddingLeft: 12 }}>
+                          {pm.chapterRef && <span style={{ fontWeight: 600 }}>{String(pm.chapterRef)}: </span>}
+                          {String(pm.description ?? "")}
+                          {pm.evidenceQuote && (
+                            <span style={{ fontStyle: "italic", color: C.textMuted }}>{` — "${String(pm.evidenceQuote)}"`}</span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
                   )}
                 </div>
 
@@ -1984,6 +2074,31 @@ function ObjectCard({
             <Pill key={j} label={c} tone="neutral" />
           ))}
         </div>
+      )}
+
+      {/* Symbolic function lifecycle stages */}
+      {Array.isArray(item.symbolic_function_stages) && (item.symbolic_function_stages as Array<Record<string, unknown>>).length > 0 && (
+        <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 4 }}>
+          <span style={{ fontSize: 12, color: C.textMuted, fontWeight: 600, letterSpacing: "0.04em" }}>
+            Symbolic lifecycle
+          </span>
+          {(item.symbolic_function_stages as Array<Record<string, unknown>>).map((stage, j) => (
+            <div key={j} style={{ fontSize: 13, color: C.textMuted, paddingLeft: 12 }}>
+              <span style={{ fontWeight: 600, color: C.textPrimary }}>
+                {String(stage.stage ?? "").replace(/_/g, " ")}
+              </span>
+              {stage.chapterRange && <span> ({String(stage.chapterRange)})</span>}
+              {stage.function && <span>: {String(stage.function)}</span>}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Narrative span indicator */}
+      {typeof item.narrative_span === "number" && (item.narrative_span as number) > 0 && (
+        <p style={{ margin: "6px 0 0", fontSize: 13, color: C.textFaint }}>
+          Spans {item.narrative_span as number} chunk{(item.narrative_span as number) === 1 ? "" : "s"} of manuscript
+        </p>
       )}
 
       {payoff && (
