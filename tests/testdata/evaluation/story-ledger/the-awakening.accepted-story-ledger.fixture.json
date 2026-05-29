@@ -58,6 +58,16 @@
           "character_id": "aw:etienne",
           "canonical_name": "Étienne Pontellier",
           "aliases": ["Etienne"]
+        },
+        {
+          "character_id": "aw:children",
+          "canonical_name": "Edna's children",
+          "aliases": ["Raoul and Étienne", "children"]
+        },
+        {
+          "character_id": "aw:sea_symbolic_pressure",
+          "canonical_name": "Sea / symbolic pressure",
+          "aliases": ["the sea", "the gulf", "water"]
         }
       ]
     },
@@ -114,34 +124,74 @@
     "relationship_network_layer": {
       "relationship_pairs": [
         {
+          "pair_key": "aw:edna↔aw:leonce",
           "character_a": "aw:edna",
           "character_b": "aw:leonce",
+          "character_a_label": "Edna Pontellier",
+          "character_b_label": "Léonce Pontellier",
           "relationship_type_start": "marriage",
           "relationship_type_end": "estrangement"
         },
         {
+          "pair_key": "aw:edna↔aw:robert",
           "character_a": "aw:edna",
           "character_b": "aw:robert",
+          "character_a_label": "Edna Pontellier",
+          "character_b_label": "Robert Lebrun",
           "relationship_type_start": "attraction",
           "relationship_type_end": "fatal_unresolved_desire"
         },
         {
+          "pair_key": "aw:adele↔aw:edna",
           "character_a": "aw:edna",
           "character_b": "aw:adele",
+          "character_a_label": "Edna Pontellier",
+          "character_b_label": "Adèle Ratignolle",
           "relationship_type_start": "friendship",
           "relationship_type_end": "maternal_domestic_counterpoint"
         },
         {
+          "pair_key": "aw:edna↔aw:reisz",
           "character_a": "aw:edna",
           "character_b": "aw:reisz",
+          "character_a_label": "Edna Pontellier",
+          "character_b_label": "Mademoiselle Reisz",
           "relationship_type_start": "mentorship_resistance",
           "relationship_type_end": "artistic_countermodel"
+        },
+        {
+          "pair_key": "aw:arobin↔aw:edna",
+          "character_a": "aw:edna",
+          "character_b": "aw:arobin",
+          "character_a_label": "Edna Pontellier",
+          "character_b_label": "Alcée Arobin",
+          "relationship_type_start": "sexual_destabilization",
+          "relationship_type_end": "dissipated_intimacy"
+        },
+        {
+          "pair_key": "aw:children↔aw:edna",
+          "character_a": "aw:edna",
+          "character_b": "aw:children",
+          "character_a_label": "Edna Pontellier",
+          "character_b_label": "Edna's children",
+          "relationship_type_start": "maternal_obligation",
+          "relationship_type_end": "contested_attachment"
+        },
+        {
+          "pair_key": "aw:edna↔aw:sea_symbolic_pressure",
+          "character_a": "aw:edna",
+          "character_b": "aw:sea_symbolic_pressure",
+          "character_a_label": "Edna Pontellier",
+          "character_b_label": "Sea / symbolic pressure",
+          "relationship_type_start": "symbolic_call",
+          "relationship_type_end": "terminal_absorption"
         }
       ],
-      "pair_count": 4,
+      "pair_count": 7,
       "relationship_tiers": {
-        "primary_spine": ["aw:edna|aw:leonce", "aw:edna|aw:robert"],
-        "secondary_structural": ["aw:edna|aw:adele", "aw:edna|aw:reisz"],
+        "primary_spine": ["aw:edna|aw:leonce", "aw:edna|aw:robert", "aw:edna|aw:children"],
+        "secondary_structural": ["aw:edna|aw:adele", "aw:edna|aw:reisz", "aw:edna|aw:arobin"],
+        "symbolic_pressure": ["aw:edna|aw:sea_symbolic_pressure"],
         "background": ["aw:celina_husband"]
       }
     },

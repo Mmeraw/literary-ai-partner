@@ -1275,8 +1275,13 @@ export interface CharacterStateSnapshot {
 // ══════════════════════════════════════════════════════════════════════════════
 
 export interface RelationshipLedgerEntry {
-  characterA: string;
-  characterB: string;
+  characterA: string;                            // canonical stable ID
+  characterB: string;                            // canonical stable ID
+  pairKey: string;                               // deterministic sorted key: `${minId}↔${maxId}`
+  characterADisplayName?: string;                // optional UI label; not identity
+  characterBDisplayName?: string;                // optional UI label; not identity
+  characterASameNameDisambiguationGroup?: string | null;
+  characterBSameNameDisambiguationGroup?: string | null;
   firstCoPresenceChunk: number;
   firstCoPresenceChapter: string;              // "Chapter 72" — the gate value
   invalidBeforeChapter: string;               // canonical blocker label
