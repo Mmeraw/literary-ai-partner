@@ -73,6 +73,11 @@
           "character_id": "ge:drummle",
           "canonical_name": "Bentley Drummle",
           "aliases": ["Drummle"]
+        },
+        {
+          "character_id": "ge:compeyson",
+          "canonical_name": "Compeyson",
+          "aliases": ["Compeyson"]
         }
       ]
     },
@@ -94,25 +99,88 @@
     "relationship_network_layer": {
       "relationship_pairs": [
         {
+          "pair_key": "ge:joe↔ge:pip",
           "character_a": "ge:pip",
           "character_b": "ge:joe",
+          "character_a_label": "Pip / Philip Pirrip",
+          "character_b_label": "Joe Gargery",
           "relationship_type_start": "protege",
           "relationship_type_end": "reconciled_family"
         },
         {
+          "pair_key": "ge:magwitch↔ge:pip",
           "character_a": "ge:pip",
           "character_b": "ge:magwitch",
+          "character_a_label": "Pip / Philip Pirrip",
+          "character_b_label": "Abel Magwitch",
           "relationship_type_start": "fear",
           "relationship_type_end": "obligation_and_compassion"
         },
         {
+          "pair_key": "ge:estella↔ge:pip",
           "character_a": "ge:pip",
           "character_b": "ge:estella",
+          "character_a_label": "Pip / Philip Pirrip",
+          "character_b_label": "Estella",
           "relationship_type_start": "desire",
           "relationship_type_end": "scarred_recognition"
+        },
+        {
+          "pair_key": "ge:miss_havisham↔ge:pip",
+          "character_a": "ge:pip",
+          "character_b": "ge:miss_havisham",
+          "character_a_label": "Pip / Philip Pirrip",
+          "character_b_label": "Miss Havisham",
+          "relationship_type_start": "humiliation",
+          "relationship_type_end": "reckoning"
+        },
+        {
+          "pair_key": "ge:estella↔ge:miss_havisham",
+          "character_a": "ge:estella",
+          "character_b": "ge:miss_havisham",
+          "character_a_label": "Estella",
+          "character_b_label": "Miss Havisham",
+          "relationship_type_start": "manufactured_coldness",
+          "relationship_type_end": "damage_and_separation"
+        },
+        {
+          "pair_key": "ge:compeyson↔ge:magwitch",
+          "character_a": "ge:magwitch",
+          "character_b": "ge:compeyson",
+          "character_a_label": "Abel Magwitch",
+          "character_b_label": "Compeyson",
+          "relationship_type_start": "adversarial_history",
+          "relationship_type_end": "fatal_pursuit"
+        },
+        {
+          "pair_key": "ge:jaggers↔ge:pip",
+          "character_a": "ge:pip",
+          "character_b": "ge:jaggers",
+          "character_a_label": "Pip / Philip Pirrip",
+          "character_b_label": "Mr. Jaggers",
+          "relationship_type_start": "professional_dependency",
+          "relationship_type_end": "moral_disillusionment"
+        },
+        {
+          "pair_key": "ge:biddy↔ge:pip",
+          "character_a": "ge:pip",
+          "character_b": "ge:biddy",
+          "character_a_label": "Pip / Philip Pirrip",
+          "character_b_label": "Biddy",
+          "relationship_type_start": "companionship",
+          "relationship_type_end": "truth_and_distance"
+        },
+        {
+          "pair_key": "ge:orlick↔ge:pip",
+          "character_a": "ge:pip",
+          "character_b": "ge:orlick",
+          "character_a_label": "Pip / Philip Pirrip",
+          "character_b_label": "Orlick",
+          "relationship_type_start": "hostility",
+          "relationship_type_end": "attempted_violence"
         }
       ],
-      "pair_count": 3
+      "pair_count": 9
     },
     "threat_antagonist_ending_layer": {
       "antagonists": [

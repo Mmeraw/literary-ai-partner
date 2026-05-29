@@ -322,8 +322,13 @@ function buildRelationshipNetworkLayer(
   ledgerV2: CharacterLedgerV2,
 ): Record<string, unknown> {
   const pairs = ledgerV2.relationshipLedger.map((entry: RelationshipLedgerEntry) => ({
+    pair_key: entry.pairKey,
     character_a: entry.characterA,
     character_b: entry.characterB,
+    character_a_label: entry.characterADisplayName ?? entry.characterA,
+    character_b_label: entry.characterBDisplayName ?? entry.characterB,
+    character_a_disambiguation_group: entry.characterASameNameDisambiguationGroup ?? null,
+    character_b_disambiguation_group: entry.characterBSameNameDisambiguationGroup ?? null,
     relationship_type_start: entry.relationshipTypeStart,
     relationship_type_end: entry.relationshipTypeEnd,
     first_co_presence_chunk: entry.firstCoPresenceChunk,

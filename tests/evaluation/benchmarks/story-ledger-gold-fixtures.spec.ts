@@ -22,6 +22,16 @@ function getTierEntries(ledger: any, tier: string): any[] {
   return ledger.layers?.cast_role_tier_layer?.tier_map?.[tier] ?? [];
 }
 
+function canonicalPairKey(a: string, b: string): string {
+  return [a, b].sort().join('↔');
+}
+
+function collectCanonicalPairKeys(relationshipPairs: any[]): string[] {
+  return relationshipPairs.map((pair) =>
+    canonicalPairKey(String(pair?.character_a ?? ''), String(pair?.character_b ?? '')),
+  );
+}
+
 function validateGreatExpectations(ledger: any): string[] {
   const errors: string[] = [];
 
@@ -56,6 +66,8 @@ function validateGreatExpectations(ledger: any): string[] {
   }
 
   const relationshipPairs = ledger.layers?.relationship_network_layer?.relationship_pairs ?? [];
+  const canonicalPairKeys = collectCanonicalPairKeys(relationshipPairs);
+
   for (const pair of relationshipPairs) {
     for (const side of ['character_a', 'character_b'] as const) {
       const value = pair?.[side];
@@ -64,6 +76,36 @@ function validateGreatExpectations(ledger: any): string[] {
           `FORBIDDEN_FAILURE: Relationship pair ${pair?.character_a ?? '?'} -> ${pair?.character_b ?? '?'} must use canonical ID references, not display names.`,
         );
       }
+    }
+  }
+
+  const expectedPairs = [
+    canonicalPairKey('ge:pip', 'ge:magwitch'),
+    canonicalPairKey('ge:pip', 'ge:joe'),
+    canonicalPairKey('ge:pip', 'ge:estella'),
+    canonicalPairKey('ge:pip', 'ge:miss_havisham'),
+    canonicalPairKey('ge:estella', 'ge:miss_havisham'),
+    canonicalPairKey('ge:magwitch', 'ge:compeyson'),
+    canonicalPairKey('ge:pip', 'ge:jaggers'),
+    canonicalPairKey('ge:pip', 'ge:biddy'),
+    canonicalPairKey('ge:pip', 'ge:orlick'),
+  ];
+
+  for (const pair of expectedPairs) {
+    if (!canonicalPairKeys.includes(pair)) {
+      errors.push(`MISSING_REQUIRED_TRUTH: Missing stable canonical relationship pair '${pair}'.`);
+    }
+  }
+
+  const byPair = new Map<string, number>();
+  for (const key of canonicalPairKeys) {
+    byPair.set(key, (byPair.get(key) ?? 0) + 1);
+  }
+  for (const [pairKey, count] of byPair.entries()) {
+    if (count > 1) {
+      errors.push(
+        `FORBIDDEN_FAILURE: RELATIONSHIP_DISPLAY_NAME_KEYING duplicate display-name edges found for canonical pair '${pairKey}'.`,
+      );
     }
   }
 
@@ -133,11 +175,40 @@ function validateAwakening(ledger: any): string[] {
 
   const relationshipLayer = ledger.layers?.relationship_network_layer ?? {};
   const relationshipPairs = relationshipLayer.relationship_pairs ?? [];
+  const canonicalPairKeys = collectCanonicalPairKeys(relationshipPairs);
   if (!relationshipLayer.relationship_tiers || Object.keys(relationshipLayer.relationship_tiers).length === 0) {
     errors.push('MISSING_REQUIRED_TRUTH: Relationship network must be tiered/classified.');
   }
   if (relationshipPairs.some((pair: any) => hasText(pair.relationship_type_start, 'unknown') || hasText(pair.relationship_type_end, 'unknown'))) {
     errors.push('FORBIDDEN_FAILURE: Relationship pairs must not collapse into unknown co-occurrence dumping.');
+  }
+
+  const expectedPairs = [
+    canonicalPairKey('aw:edna', 'aw:robert'),
+    canonicalPairKey('aw:edna', 'aw:leonce'),
+    canonicalPairKey('aw:edna', 'aw:arobin'),
+    canonicalPairKey('aw:edna', 'aw:adele'),
+    canonicalPairKey('aw:edna', 'aw:reisz'),
+    canonicalPairKey('aw:edna', 'aw:children'),
+    canonicalPairKey('aw:edna', 'aw:sea_symbolic_pressure'),
+  ];
+
+  for (const pair of expectedPairs) {
+    if (!canonicalPairKeys.includes(pair)) {
+      errors.push(`MISSING_REQUIRED_TRUTH: Missing stable canonical relationship pair '${pair}'.`);
+    }
+  }
+
+  const byPair = new Map<string, number>();
+  for (const key of canonicalPairKeys) {
+    byPair.set(key, (byPair.get(key) ?? 0) + 1);
+  }
+  for (const [pairKey, count] of byPair.entries()) {
+    if (count > 1) {
+      errors.push(
+        `FORBIDDEN_FAILURE: RELATIONSHIP_DISPLAY_NAME_KEYING duplicate display-name edges found for canonical pair '${pairKey}'.`,
+      );
+    }
   }
 
   const symbolText = JSON.stringify(ledger.layers?.object_symbol_layer?.objects ?? []).toLowerCase();
@@ -218,6 +289,41 @@ describe('Story Ledger gold fixture harness (deterministic, no live LLM calls)',
         'FORBIDDEN_FAILURE: Herbert Pocket must not be a POV owner.',
       ]),
     );
+  });
+
+  it('fails loudly on duplicate display-name relationship edges (RELATIONSHIP_DISPLAY_NAME_KEYING)', () => {
+    const mutated = JSON.parse(JSON.stringify(greatExpectations));
+    mutated.layers.relationship_network_layer.relationship_pairs.push({
+      pair_key: 'ge:magwitch↔ge:pip',
+      character_a: 'ge:pip',
+      character_b: 'ge:magwitch',
+      character_a_label: 'Pip',
+      character_b_label: 'Provis',
+      relationship_type_start: 'fear',
+      relationship_type_end: 'obligation_and_compassion',
+    });
+
+    const errors = validateGreatExpectations(mutated);
+    expect(errors).toEqual(
+      expect.arrayContaining([
+        "FORBIDDEN_FAILURE: RELATIONSHIP_DISPLAY_NAME_KEYING duplicate display-name edges found for canonical pair 'ge:magwitch↔ge:pip'.",
+      ]),
+    );
+  });
+
+  it('proves relationship identity is stable even when display labels change', () => {
+    const mutated = JSON.parse(JSON.stringify(greatExpectations));
+    for (const pair of mutated.layers.relationship_network_layer.relationship_pairs) {
+      if (pair.character_a === 'ge:pip') {
+        pair.character_a_label = 'Philip Pirrip';
+      }
+      if (pair.character_b === 'ge:magwitch') {
+        pair.character_b_label = 'the convict';
+      }
+    }
+
+    const errors = validateGreatExpectations(mutated);
+    expect(errors).toEqual([]);
   });
 
   it('passes required-truth + forbidden-failure checks for The Awakening fixture', () => {
