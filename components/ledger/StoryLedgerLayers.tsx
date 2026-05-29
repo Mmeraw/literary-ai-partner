@@ -1959,6 +1959,31 @@ function ObjectCard({
         </div>
       )}
 
+      {/* Symbolic function lifecycle stages */}
+      {Array.isArray(item.symbolic_function_stages) && (item.symbolic_function_stages as Array<Record<string, unknown>>).length > 0 && (
+        <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 4 }}>
+          <span style={{ fontSize: 12, color: C.textMuted, fontWeight: 600, letterSpacing: "0.04em" }}>
+            Symbolic lifecycle
+          </span>
+          {(item.symbolic_function_stages as Array<Record<string, unknown>>).map((stage, j) => (
+            <div key={j} style={{ fontSize: 13, color: C.textMuted, paddingLeft: 12 }}>
+              <span style={{ fontWeight: 600, color: C.textPrimary }}>
+                {String(stage.stage ?? "").replace(/_/g, " ")}
+              </span>
+              {stage.chapterRange && <span> ({String(stage.chapterRange)})</span>}
+              {stage.function && <span>: {String(stage.function)}</span>}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Narrative span indicator */}
+      {typeof item.narrative_span === "number" && (item.narrative_span as number) > 0 && (
+        <p style={{ margin: "6px 0 0", fontSize: 13, color: C.textFaint }}>
+          Spans {item.narrative_span as number} chunk{(item.narrative_span as number) === 1 ? "" : "s"} of manuscript
+        </p>
+      )}
+
       {payoff && (
         <p style={{ margin: "8px 0 0", fontSize: 14, color: C.textMuted, lineHeight: 1.65 }}>
           <span style={{ fontWeight: 600, color: C.textPrimary }}>Payoff: </span>
