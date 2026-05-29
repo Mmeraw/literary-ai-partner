@@ -178,7 +178,7 @@ describe('The Awakening — expanded role taxonomy regression', () => {
             role_signal: 'symbolic_force',
             narrative_weight_signal: 'major',
             is_named: false,
-            gender_identity: 'unknown' as 'woman',
+            gender_identity: 'unknown',
             pronouns: [],
             who_is_this: 'The Gulf as symbolic force: freedom, dissolution, death',
             arc_pressure: 'Calls Edna toward freedom and self-destruction',
@@ -188,7 +188,7 @@ describe('The Awakening — expanded role taxonomy regression', () => {
             role_signal: 'collective_force',
             narrative_weight_signal: 'major',
             is_named: false,
-            gender_identity: 'unknown' as 'woman',
+            gender_identity: 'unknown',
             pronouns: [],
             who_is_this: 'Social expectations around motherhood, marriage, and propriety',
             arc_pressure: 'Constrains Edna\'s autonomy through convention',
@@ -252,7 +252,9 @@ describe('The Awakening — expanded role taxonomy regression', () => {
     expect(socialCode).toBeDefined();
     expect(socialCode?.role).toBe('collective_force');
 
-    // Coverage summary: ONLY Edna should be in protagonists, NO antagonists
+    // Coverage summary: ONLY Edna should be in protagonists.
+    // 0 antagonists for The Awakening; pressure comes from social role, marriage,
+    // motherhood, desire, convention, and symbolic environment rather than a true villain.
     expect(ledger.coverage_summary.protagonists).toEqual(['Edna Pontellier']);
     expect(ledger.coverage_summary.antagonists).toEqual([]);
   });

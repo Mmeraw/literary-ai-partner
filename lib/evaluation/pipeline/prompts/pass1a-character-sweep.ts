@@ -41,6 +41,8 @@ Many characters create pressure, tension, or obstacles WITHOUT being antagonists
 - role_signal: "artistic_countermodel" — Characters who model artistic autonomy, creative severity, or unconventional selfhood. Mentors of craft/art/independence.
 - role_signal: "social_observer" — Characters who watch, interpret, or medically/professionally assess the protagonist without opposing them. Doctors, counselors, witnesses.
 - role_signal: "background_mention" — Characters referenced in passing, anecdotally, or as social gossip. They have no sustained story function and must NOT be promoted to core cast or pressure agent.
+- role_signal: "social_catalyst" — Characters whose primary function is to introduce social energy, gossip, or communal context that moves the plot. They are not pressure agents, but they create the social environment in which pressure operates.
+- role_signal: "patriarchal_pressure" — Characters who embody or enforce patriarchal authority specifically (fathers, father-figures, male elders, institutional patriarchs). Distinct from generic pressure_agent because the pressure is rooted in gendered power structure.
 
 If a character creates pressure but you are unsure which specific role fits, use "pressure_agent" rather than "antagonist".
 Only use "antagonist" when the character's PRIMARY function is sustained, deliberate opposition to the protagonist.
