@@ -8,7 +8,7 @@
  * Output feeds characterReducer → Pass1aCharacterLedger → Pass 3 + Pass 3b.
  */
 
-export const PASS1A_PROMPT_VERSION = "pass1a-character-sweep-v9-pressure-taxonomy";
+export const PASS1A_PROMPT_VERSION = "pass1a-character-sweep-v10-pov-focalization";
 
 export const PASS1A_SYSTEM_PROMPT = `You are Pass 1A (character_evidence_sweep) for RevisionGrade.
 
@@ -86,7 +86,16 @@ primary | major | supporting | recurring | minor | unknown
 
 POV / CAMERA OWNERSHIP:
 Mark the character whose consciousness or camera owns this chunk as the POV owner.
-If a character appears but does not own the narrative lens, set pov_signal to not_pov and pov_section_label to "".
+POV means FOCALIZATION — whose internal thoughts, perceptions, and sensory experience the reader has access to. It is NOT the same as narrative importance or screen time.
+A character can be structurally major (present in many scenes, central to the plot) without being a POV character. Only mark a character as POV owner if the prose grants access to their interior consciousness in this chunk.
+
+Rules:
+- A character who appears in many scenes but is always observed from outside (through another character's eyes) is NOT a POV character. Set pov_signal to "not_pov".
+- In close-third-limited narration, only ONE character per chunk can own the camera. Other characters — even romantic interests, antagonists, or co-protagonists — are NOT POV unless the prose shifts into their consciousness.
+- In omniscient narration, multiple characters may have brief interior access, but identify the PRIMARY camera owner for the chunk.
+- Do NOT confuse "important to the plot" with "POV owner". Robert Lebrun in The Awakening is central to the story but never owns the narrative camera — Edna does.
+
+If a character appears but does not own the narrative lens, set pov_signal to "not_pov" and pov_section_label to "".
 Do not create separate narrator identities when the text indicates the narrator is a named character.
 
 FIVE Ws + HOW:

@@ -23,6 +23,7 @@
 
 import type {
   Pass1aCharacterLedger,
+  Pass1aChunkOutput,
   CharacterLedgerV2,
   CharacterIdentityLedgerEntry,
   RelationshipLedgerEntry,
@@ -30,6 +31,7 @@ import type {
   TerminalLedgerEntry,
 } from '@/lib/evaluation/pipeline/types';
 import type { StoryLayerPayload } from './storyLayerArtifactWriters';
+import { buildPovStructureFromChunkOutputs } from '@/lib/evaluation/pipeline/povStructure';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Layer 1 — Source Integrity
@@ -115,28 +117,57 @@ function buildSourceIntegrityLayer(
 function buildPovStructureLayer(
   ledger: Pass1aCharacterLedger,
   ledgerV2: CharacterLedgerV2,
+  chunkOutputs?: Pass1aChunkOutput[],
 ): Record<string, unknown> {
-  // Derive POV structure from identity ledger — characters with protagonist/co_protagonist role
-  const povCharacters = ledgerV2.identityLedger
-    .filter(
-      (entry) =>
-        entry.narrativeRole === 'protagonist' || entry.narrativeRole === 'co_protagonist',
-    )
-    .map((entry) => ({
-      character_id: entry.characterId,
-      canonical_name: entry.canonicalName,
-      narrative_role: entry.narrativeRole,
-      importance_level: entry.importanceLevel,
-      first_appearance: entry.firstAppearance,
-      last_appearance: entry.lastAppearance,
-      coverage: ledgerV2.characterCoverage?.[entry.characterId] ?? null,
-    }));
+  // Use actual pov_signal data from chunks when available (accurate camera ownership).
+  // Fall back to role-based derivation only for legacy data without pov_signal.
+  const chunks = Array.isArray(chunkOutputs) ? chunkOutputs : [];
+  const povFromChunks = chunks.length > 0
+    ? buildPovStructureFromChunkOutputs({
+        chunkOutputs: chunks,
+        ledgerEntries: ledger.entries,
+        totalChunks: ledgerV2.total_chunks_processed,
+      })
+    : [];
 
-  // Build from ledger v1 coverage summary as authoritative list
+  const hasPovSignalData = povFromChunks.length > 0;
+
+  const povCharacters = hasPovSignalData
+    ? povFromChunks.map((pov) => {
+        const identity = ledgerV2.identityLedger.find(
+          (e) => e.canonicalName === pov.canonical_name,
+        );
+        return {
+          character_id: identity?.characterId ?? pov.canonical_name,
+          canonical_name: pov.canonical_name,
+          narrative_role: identity?.narrativeRole ?? 'unknown',
+          importance_level: identity?.importanceLevel ?? 'unknown',
+          pov_type: pov.pov_type,
+          narrative_share_pct: pov.narrative_share_pct,
+          section_labels: pov.section_labels,
+          is_primary: pov.is_primary,
+          first_appearance: identity?.firstAppearance ?? null,
+          last_appearance: identity?.lastAppearance ?? null,
+          coverage: identity ? (ledgerV2.characterCoverage?.[identity.characterId] ?? null) : null,
+        };
+      })
+    : ledgerV2.identityLedger
+        .filter(
+          (entry) =>
+            entry.narrativeRole === 'protagonist' || entry.narrativeRole === 'co_protagonist',
+        )
+        .map((entry) => ({
+          character_id: entry.characterId,
+          canonical_name: entry.canonicalName,
+          narrative_role: entry.narrativeRole,
+          importance_level: entry.importanceLevel,
+          first_appearance: entry.firstAppearance,
+          last_appearance: entry.lastAppearance,
+          coverage: ledgerV2.characterCoverage?.[entry.characterId] ?? null,
+        }));
+
   const protagonists = ledger.coverage_summary.protagonists ?? [];
   const co_protagonists = ledger.coverage_summary.co_protagonists ?? [];
-
-  // Narrative share estimate: protagonists + co_protagonists / total characters
   const totalIdentified = ledgerV2.identityLedger.length;
   const povCount = povCharacters.length;
 
@@ -151,7 +182,9 @@ function buildPovStructureLayer(
     pov_detection_note:
       povCount === 0
         ? 'No POV characters detected — character sweep may have low coverage'
-        : null,
+        : hasPovSignalData
+          ? null
+          : 'POV derived from role (no pov_signal data); may overcount if co_protagonists are not true POV owners',
   };
 }
 
@@ -460,10 +493,11 @@ function buildThreatAntagonistEndingLayer(
 export function buildStoryLayerFromLedger(
   ledger: Pass1aCharacterLedger,
   ledgerV2: CharacterLedgerV2,
+  chunkOutputs?: Pass1aChunkOutput[],
 ): StoryLayerPayload {
   return {
     source_integrity_layer: buildSourceIntegrityLayer(ledger, ledgerV2),
-    pov_structure_layer: buildPovStructureLayer(ledger, ledgerV2),
+    pov_structure_layer: buildPovStructureLayer(ledger, ledgerV2, chunkOutputs),
     canonical_identity_layer: buildCanonicalIdentityLayer(ledger, ledgerV2),
     cast_role_tier_layer: buildCastRoleTierLayer(ledger, ledgerV2),
     identity_pronoun_layer: buildIdentityPronounLayer(ledger, ledgerV2),
