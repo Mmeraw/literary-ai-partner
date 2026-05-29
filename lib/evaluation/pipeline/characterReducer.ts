@@ -49,7 +49,7 @@ import { quarantinePass1aChunkOutputs } from "./pass1aQuarantine";
 // Hard caps
 const MAX_LEDGER_ENTRIES = 15;
 const MAX_RELATIONAL_ENGINES = 10;
-const MAX_SYMBOL_ROWS = 12;
+const MAX_SYMBOL_ROWS = 30;
 const MAX_EVIDENCE_ANCHORS = 3;
 
 // Role priority — higher index = more important for promotion
@@ -293,7 +293,17 @@ function buildSymbolPayoffEntries(rawSymbols: RawSymbol[], totalChunks: number):
   }
 
   return results
-    .sort((a, b) => (b.traced ? 1 : 0) - (a.traced ? 1 : 0))
+    .sort((a, b) => {
+      // 1. Traced symbols first (appear in both halves of manuscript)
+      const traceDiff = (b.traced ? 1 : 0) - (a.traced ? 1 : 0);
+      if (traceDiff !== 0) return traceDiff;
+      // 2. Wider chunk span = more narratively significant
+      const spanA = a.last_chunk - a.first_chunk;
+      const spanB = b.last_chunk - b.first_chunk;
+      if (spanB !== spanA) return spanB - spanA;
+      // 3. More attached characters = more connected
+      return b.attached_characters.length - a.attached_characters.length;
+    })
     .slice(0, MAX_SYMBOL_ROWS);
 }
 

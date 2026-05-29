@@ -364,10 +364,12 @@ function buildObjectSymbolLayer(
     last_appearance_chunk: entry.lastAppearanceChunk,
     ownership_path: entry.ownershipPath,
     transfer_events: entry.transferEvents,
+    symbolic_function_stages: entry.symbolicFunctionByStage ?? [],
     payoff_chunk: entry.payoffChunk,
     payoff_description: entry.payoffDescription,
     missed_if_absent_from_report: entry.missedIfAbsentFromReport,
     status: entry.status,
+    narrative_span: entry.lastAppearanceChunk - entry.firstAppearanceChunk,
   }));
 
   const symbolPayoffItems = ledger.coverage_summary.symbol_payoff_items ?? [];

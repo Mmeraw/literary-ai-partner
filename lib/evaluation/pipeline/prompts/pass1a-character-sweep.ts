@@ -110,7 +110,22 @@ ALSO capture:
 - Artistic practices or creative instruments used as identity symbols (painting, sketching materials, a piano, music, writing)
 - Recurring motifs across scenes (birds, flight imagery, mirrors, keys, letters)
 - Abstract forces when they function as object-symbols (confinement, social performance, reputation)
+- Clothing, costumes, or garments that signal identity, class, or transformation
+- Food, drink, or meals that serve as social/relational markers
+- Documents, letters, or written communications that drive plot
 Do NOT limit "objects" to hand-held physical items. Anything the story puts sustained weight on counts.
+
+For the "function" field on each symbolic_objects entry, describe the narrative function concisely:
+- "identity marker" — object defines who the character is or wants to be
+- "control instrument" — object used to exert power over others
+- "freedom symbol" — object represents autonomy or escape
+- "confinement symbol" — object represents entrapment or restriction
+- "desire marker" — object channels or represents desire
+- "transformation signal" — object marks a character's change
+- "death/dissolution marker" — object foreshadows or enacts an ending
+- "connection object" — object links two characters
+- "recurring motif" — object reappears across scenes with accumulating meaning
+- Or use your own concise description if none of these fit.
 
 RELATIONSHIP SIGNALS:
 Capture only visible relationship dynamics in this chunk. Max 3.
