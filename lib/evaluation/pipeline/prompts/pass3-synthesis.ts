@@ -95,8 +95,11 @@ If a recommendation has priority = "low" AND the criterion confidence_band = "HI
 → This blocks: "Name a highway marker or ejido" on a worldbuilding criterion already rated High Confidence and 8/10.
 
 MINIMUM-1-PER-CRITERION FLOOR (overrides GATE 6 when needed):
-Every criterion MUST have at least 1 recommendation in its recommendations array UNLESS the criterion is structurally inapplicable to the manuscript's form (e.g. dialogue in a zero-dialogue prose-poem, worldbuilding in a single-room memoir). In that case, emit an empty array and add "floor_exemption": "<reason>" to the criterion object explaining why no recommendation is possible.
-For all other criteria — including high-scoring ones — if all candidate recommendations were suppressed by the gates above, generate one "refinement" recommendation: a targeted, evidence-grounded suggestion for how to elevate an already-strong craft dimension. Use priority = "low" and frame it as polish/deepening rather than repair. This ensures the Revise workbench always has actionable content for every applicable criterion.
+Every criterion scoring 0–9 MUST have at least 1 recommendation in its recommendations array UNLESS the criterion is structurally inapplicable to the manuscript's form (e.g. dialogue in a zero-dialogue prose-poem, worldbuilding in a single-room memoir). In either exemption case, emit an empty array and add "floor_exemption": "<reason>" to the criterion object.
+Exempt from the floor:
+- Criteria scoring a perfect 10/10 — no recommendation needed; the craft dimension is at ceiling.
+- Criteria structurally inapplicable to the manuscript's form.
+For all other criteria (scores 0–9, applicable to the manuscript) — if all candidate recommendations were suppressed by the gates above, generate one "refinement" recommendation: a targeted, evidence-grounded suggestion for how to elevate an already-strong craft dimension. Use priority = "low" and frame it as polish/deepening rather than repair. This ensures the Revise workbench always has actionable content for every improvable criterion.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Confidence/evidence: do not convert scorable criteria to N/A due to thin evidence; lower confidence instead; do not invent evidence.
