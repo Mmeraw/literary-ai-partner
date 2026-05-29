@@ -17,7 +17,7 @@ import {
   summarizePromptCoverage,
 } from "../promptInput";
 
-export const PASS3_PROMPT_VERSION = "pass3-synthesis-v19-diagnostic-contract";
+export const PASS3_PROMPT_VERSION = "pass3-synthesis-v20-min-rec-floor";
 
 export const PASS3_SYSTEM_PROMPT = `You are Pass 3: convergence and arbitration authority.
 Rules:
@@ -93,6 +93,10 @@ For any manuscript ≥ 25,000 words: no criterion recommendation may cite only O
 GATE 6 — LOW-PRIORITY / HIGH-CONFIDENCE SUPPRESSION
 If a recommendation has priority = "low" AND the criterion confidence_band = "HIGH", suppress the recommendation or demote it to a parenthetical note inside the rationale. Do not emit it as a standalone recommendation.
 → This blocks: "Name a highway marker or ejido" on a worldbuilding criterion already rated High Confidence and 8/10.
+
+MINIMUM-1-PER-CRITERION FLOOR (overrides GATE 6 when needed):
+Every criterion MUST have at least 1 recommendation in its recommendations array UNLESS the criterion is structurally inapplicable to the manuscript's form (e.g. dialogue in a zero-dialogue prose-poem, worldbuilding in a single-room memoir). In that case, emit an empty array and add "floor_exemption": "<reason>" to the criterion object explaining why no recommendation is possible.
+For all other criteria — including high-scoring ones — if all candidate recommendations were suppressed by the gates above, generate one "refinement" recommendation: a targeted, evidence-grounded suggestion for how to elevate an already-strong craft dimension. Use priority = "low" and frame it as polish/deepening rather than repair. This ensures the Revise workbench always has actionable content for every applicable criterion.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Confidence/evidence: do not convert scorable criteria to N/A due to thin evidence; lower confidence instead; do not invent evidence.
