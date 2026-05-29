@@ -76,9 +76,9 @@ export default function AuthorProgressLedger({ rows, kpis, reviseAnalytics }) {
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {[
           ['Latest overall', kpis.latestOverall.value, overallDelta == null ? 'Awaiting comparison' : `${overallDelta >= 0 ? '+' : ''}${overallDelta.toFixed(1)} vs prior`],
-          ['Market readiness', kpis.latestReadiness.value, readinessDelta == null ? 'Threshold is 8.0' : `${readinessDelta >= 0 ? '+' : ''}${readinessDelta.toFixed(1)} readiness delta`],
+          ['Agent readiness', kpis.latestReadiness.value, readinessDelta == null ? 'Threshold is 8.0' : `${readinessDelta >= 0 ? '+' : ''}${readinessDelta.toFixed(1)} readiness delta`],
           ['Revise decisions', String(revise.uniqueDecidedOpportunities), `${revise.priorities.pending} opportunities pending`],
-          ['Ready for review', kpis.curationReady.value, 'Latest works at or above 8.0'],
+          ['Agent ready', kpis.curationReady.value, 'Latest works at or above 8.0'],
         ].map(([label, value, note]) => (
           <article key={label} className="rounded-2xl border border-neutral-300 bg-white p-5 text-neutral-950">
             <p className="text-xs font-bold uppercase tracking-[0.18em] text-neutral-500">{label}</p>

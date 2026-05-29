@@ -1,13 +1,52 @@
-function statusLabel(status) {
+// ── Calibration / benchmark detection ────────────────────────────────────────
+// Public-domain calibration runs should not show agent-readiness labels.
+const CALIBRATION_PATTERNS = [
+  /\(TEST FILE\)/i,
+  /\bCALIBRATION\b/i,
+  /\bBENCHMARK\b/i,
+  /\bREFERENCE\s+EVAL/i,
+  /\bPUBLIC[- ]DOMAIN\b/i,
+]
+
+function isCalibrationRun(title) {
+  return CALIBRATION_PATTERNS.some((re) => re.test(title))
+}
+
+// ── Status labels ────────────────────────────────────────────────────────────
+
+function statusLabel(status, isCalibration) {
+  if (isCalibration) {
+    switch (status) {
+      case 'market_ready':
+      case 'near_ready':
+      case 'improving':
+      case 'below_standard':
+      case 'complete':
+        return 'Calibration complete'
+      case 'running':
+        return 'Calibration in progress'
+      case 'queued':
+        return 'Calibration queued'
+      case 'failed':
+        return 'Calibration failed'
+      case 'stale':
+        return 'Calibration stalled'
+      case 'cancelled':
+        return 'Cancelled'
+      default:
+        return 'Calibration complete'
+    }
+  }
+
   switch (status) {
     case 'market_ready':
-      return 'Curation-ready'
+      return 'Agent ready'
     case 'near_ready':
       return 'Near ready'
     case 'improving':
       return 'Improving'
     case 'running':
-      return 'Running'
+      return 'In progress'
     case 'queued':
       return 'Queued'
     case 'stale':
@@ -15,17 +54,63 @@ function statusLabel(status) {
     case 'cancelled':
       return 'Cancelled'
     case 'failed':
-      return 'Failed'
+      return 'Evaluation failed'
     case 'below_standard':
-      return 'Completed'
     case 'complete':
-      return 'Completed'
+      return 'Not agent ready'
     default:
-      return 'Completed'
+      return 'Not agent ready'
   }
 }
 
-function StatusBadge({ status }) {
+// ── Status tooltip text ──────────────────────────────────────────────────────
+
+function statusTooltip(status, isCalibration) {
+  if (isCalibration) {
+    switch (status) {
+      case 'market_ready':
+      case 'near_ready':
+      case 'improving':
+      case 'below_standard':
+      case 'complete':
+        return 'This is a public-domain calibration run. Agent-readiness labels are not applied to published benchmark works.'
+      case 'running':
+      case 'queued':
+        return 'Calibration evaluation is still in progress.'
+      case 'failed':
+        return 'This calibration run encountered an error.'
+      default:
+        return 'Calibration run.'
+    }
+  }
+
+  switch (status) {
+    case 'market_ready':
+      return 'This manuscript has reached the 8.0 agent-readiness threshold.'
+    case 'near_ready':
+      return 'Score is approaching the 8.0 agent-readiness threshold.'
+    case 'improving':
+      return 'This evaluation completed. The manuscript is making progress but has not yet reached the readiness threshold.'
+    case 'below_standard':
+    case 'complete':
+      return 'This evaluation completed, but the manuscript has not reached the 8.0 agent-readiness threshold.'
+    case 'running':
+    case 'queued':
+      return 'Evaluation is still in progress.'
+    case 'stale':
+      return 'This evaluation appears to have stalled. Try re-running.'
+    case 'failed':
+      return 'This evaluation encountered an error and could not complete.'
+    case 'cancelled':
+      return 'This evaluation was cancelled.'
+    default:
+      return ''
+  }
+}
+
+// ── Badge component ──────────────────────────────────────────────────────────
+
+function StatusBadge({ status, isCalibration }) {
   const classMap = {
     market_ready: 'rg-status rg-status--ready',
     near_ready: 'rg-status rg-status--near',
@@ -36,10 +121,27 @@ function StatusBadge({ status }) {
     cancelled: 'rg-status rg-status--cancelled',
     failed: 'rg-status rg-status--failed',
   }
-  const cls = classMap[status] || 'rg-status rg-status--completed'
 
-  return <span className={cls}>{statusLabel(status)}</span>
+  const calibrationCls = 'rg-status rg-status--calibration'
+  const completedCls = 'rg-status rg-status--not-ready'
+
+  let cls
+  if (isCalibration && !['running', 'queued', 'failed', 'stale', 'cancelled'].includes(status)) {
+    cls = calibrationCls
+  } else if (status === 'below_standard' || status === 'complete') {
+    cls = completedCls
+  } else {
+    cls = classMap[status] || completedCls
+  }
+
+  return (
+    <span className={cls} title={statusTooltip(status, isCalibration)}>
+      {statusLabel(status, isCalibration)}
+    </span>
+  )
 }
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function formatDate(value) {
   const date = new Date(value)
@@ -67,6 +169,8 @@ function isAgentReadinessEligible(row) {
   return row.status !== 'running' && row.status !== 'queued' && row.status !== 'stale' && row.status !== 'cancelled' && row.status !== 'failed'
 }
 
+// ── Table ─────────────────────────────────────────────────────────────────────
+
 export default function EvaluationHistoryTable({ rows }) {
   return (
     <section className="rg-history-card" aria-label="Recent evaluations">
@@ -91,35 +195,38 @@ export default function EvaluationHistoryTable({ rows }) {
             </tr>
           </thead>
           <tbody>
-            {rows.map((row) => (
-              <tr key={row.id}>
-                <td data-label="Date">{formatDate(row.createdAt)}</td>
-                <td data-label="Manuscript">
-                  <a href={row.reportHref} className="rg-history-title-cell rg-history-title-link">{row.manuscriptTitle}</a>
-                  {row.manuscriptSubtitle && <div className="rg-history-subtitle-cell">{row.manuscriptSubtitle}</div>}
-                </td>
-                <td data-label="Type">{row.evaluationType}</td>
-                <td data-label="Overall">{formatScore(row.overallScore)}</td>
-                <td data-label="Ready">{formatScore(row.readinessScore)}</td>
-                <td data-label="Status">
-                  <StatusBadge status={row.status} />
-                </td>
-                <td data-label="Open">
-                  <a className="rg-history-open" href={row.reportHref}>
-                    {row.status === 'running' || row.status === 'queued'
-                      ? 'View progress'
-                      : row.status === 'failed' || row.status === 'stale' || row.status === 'cancelled'
-                      ? 'View details'
-                      : 'Open report'}
-                  </a>
-                  {isAgentReadinessEligible(row) && (
-                    <a className="rg-history-open" href={agentReadinessHref(row)} style={{ display: 'block', marginTop: '0.5rem' }}>
-                      Build Agent Readiness Package
+            {rows.map((row) => {
+              const calibration = isCalibrationRun(row.manuscriptTitle)
+              return (
+                <tr key={row.id}>
+                  <td data-label="Date">{formatDate(row.createdAt)}</td>
+                  <td data-label="Manuscript">
+                    <a href={row.reportHref} className="rg-history-title-cell rg-history-title-link">{row.manuscriptTitle}</a>
+                    {row.manuscriptSubtitle && <div className="rg-history-subtitle-cell">{row.manuscriptSubtitle}</div>}
+                  </td>
+                  <td data-label="Type">{row.evaluationType}</td>
+                  <td data-label="Overall">{formatScore(row.overallScore)}</td>
+                  <td data-label="Ready">{formatScore(row.readinessScore)}</td>
+                  <td data-label="Status">
+                    <StatusBadge status={row.status} isCalibration={calibration} />
+                  </td>
+                  <td data-label="Open">
+                    <a className="rg-history-open" href={row.reportHref}>
+                      {row.status === 'running' || row.status === 'queued'
+                        ? 'View progress'
+                        : row.status === 'failed' || row.status === 'stale' || row.status === 'cancelled'
+                        ? 'View details'
+                        : 'Open report'}
                     </a>
-                  )}
-                </td>
-              </tr>
-            ))}
+                    {!calibration && isAgentReadinessEligible(row) && (
+                      <a className="rg-history-open" href={agentReadinessHref(row)} style={{ display: 'block', marginTop: '0.5rem' }}>
+                        Build Agent Readiness Package
+                      </a>
+                    )}
+                  </td>
+                </tr>
+              )
+            })}
           </tbody>
         </table>
       </div>
