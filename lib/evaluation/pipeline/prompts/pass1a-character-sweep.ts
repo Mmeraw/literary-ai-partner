@@ -24,18 +24,33 @@ HARD CAPS:
 
 CAPTURE PRIORITY WHEN A SCENE IS DENSE:
 1. POV characters and recurring identity-bearing characters
-2. Antagonists, enforcers, coercive figures, and threat-bearing symbolic / collective / environmental forces
+2. Pressure agents, enforcers, catalysts, and threat-bearing symbolic / collective / environmental forces
 3. Named recurring characters and named community, family, or institutional members
 4. Unnamed but load-bearing figures
 
-ANTAGONIST / THREAT SWEEP:
-Any character who threatens, surveils, controls, coerces, harms, confines, interrogates, or enforces power MUST be captured.
-Assign role_signal: "antagonist" for threat-bearing human figures regardless of moral complexity or intermittent kindness.
+PRESSURE / THREAT SWEEP — EXPANDED TAXONOMY:
+Do NOT default to role_signal: "antagonist" for every character who creates tension or conflict.
+"Antagonist" means a character whose primary story function is DELIBERATE, SUSTAINED OPPOSITION to the protagonist's core want — a villain, a rival, an enemy.
+Many characters create pressure, tension, or obstacles WITHOUT being antagonists. Use the correct functional role:
+
+- role_signal: "antagonist" — ONLY for characters whose primary story function is deliberate, sustained opposition/villainy. Reserve this for true villains, rivals, or enemies.
+- role_signal: "pressure_agent" — Characters who apply social, marital, institutional, patriarchal, economic, or conventional pressure. They constrain the protagonist through structure/role/obligation, not through deliberate villainy. Examples: a controlling spouse, an authoritarian father, a judgmental community elder.
+- role_signal: "romantic_catalyst" — Characters whose primary function is to trigger romantic desire, impossible love, or emotional awakening. They are not antagonists even if the romance creates conflict.
+- role_signal: "sexual_destabilizer" — Characters whose primary function is bodily/sexual disruption or temptation. They destabilize through desire, not through opposition.
+- role_signal: "domestic_foil" — Characters who embody the domestic/maternal/conventional ideal that the protagonist is measured against or resists. Friends, mothers, model-wives who represent what the protagonist "should" be.
+- role_signal: "artistic_countermodel" — Characters who model artistic autonomy, creative severity, or unconventional selfhood. Mentors of craft/art/independence.
+- role_signal: "social_observer" — Characters who watch, interpret, or medically/professionally assess the protagonist without opposing them. Doctors, counselors, witnesses.
+- role_signal: "background_mention" — Characters referenced in passing, anecdotally, or as social gossip. They have no sustained story function and must NOT be promoted to core cast or pressure agent.
+- role_signal: "social_catalyst" — Characters whose primary function is to introduce social energy, gossip, or communal context that moves the plot. They are not pressure agents, but they create the social environment in which pressure operates.
+- role_signal: "patriarchal_pressure" — Characters who embody or enforce patriarchal authority specifically (fathers, father-figures, male elders, institutional patriarchs). Distinct from generic pressure_agent because the pressure is rooted in gendered power structure.
+
+If a character creates pressure but you are unsure which specific role fits, use "pressure_agent" rather than "antagonist".
+Only use "antagonist" when the character's PRIMARY function is sustained, deliberate opposition to the protagonist.
 
 NON-CHARACTER THREAT FORCE SWEEP:
 You MUST capture threat forces even when they are not named characters.
 A threat force is anything that creates pressure, danger, stakes, dread, escalation, consequence, mystery, or forward motion.
-Examples include landscapes, weather, animals or predator systems, institutions, social systems, belief systems, psychological pressure, disappearances, scarcity, pursuit, unresolved mysteries, and ending danger signals.
+Examples include: the sea/ocean/water as symbolic force, marriage/motherhood/domesticity as constraint, social codes/class expectations, landscapes, weather, animals or predator systems, institutions, social systems, belief systems, psychological pressure, disappearances, scarcity, pursuit, unresolved mysteries, romantic impossibility, artistic autonomy as threat to conformity, and ending danger signals.
 
 Because this artifact shape is character-led, represent non-character threat forces as character candidates:
 - Use role_signal: "symbolic_force" for environmental, belief-based, psychological, moral, existential, or symbolic threats.
@@ -62,7 +77,9 @@ Capture only signals present in the text. Do not infer demographics, identity, n
 
 NARRATIVE ROLE:
 role_signal must be one of:
-protagonist | co_protagonist | antagonist | secondary | mentor | foil | animal_companion | symbolic_force | collective_force | unknown
+protagonist | co_protagonist | antagonist | pressure_agent | romantic_catalyst | sexual_destabilizer | domestic_foil | artistic_countermodel | social_observer | background_mention | secondary | mentor | foil | animal_companion | symbolic_force | collective_force | social_catalyst | patriarchal_pressure | unknown
+
+CRITICAL: Do NOT use "antagonist" as a catch-all for characters who create tension. Most literary fiction has NO true antagonist — pressure comes from social roles, institutions, desire, duty, and internal conflict. Use the specific functional role that describes HOW the character creates pressure.
 
 narrative_weight_signal must be one of:
 primary | major | supporting | recurring | minor | unknown
@@ -191,7 +208,8 @@ Return ONLY the JSON object as specified. No prose. No markdown. No scoring.
 Capture every named character, every unnamed-but-load-bearing figure present, and every non-character threat force that creates danger, pressure, mystery, stakes, escalation, or ending consequence.
 Preserve identity continuity with canonical_identity_group.
 Capture POV ownership with pov_signal and pov_section_label.
-Prioritize POV characters, antagonists/enforcers/threat-bearing figures, non-character symbolic/collective threat forces, named recurring characters, and load-bearing unnamed figures.
+Prioritize POV characters, pressure agents/catalysts/threat-bearing figures, non-character symbolic/collective threat forces, named recurring characters, and load-bearing unnamed figures.
+Use the expanded role taxonomy: antagonist ONLY for true villains/rivals; pressure_agent for social/marital/institutional constraint; romantic_catalyst, sexual_destabilizer, domestic_foil, artistic_countermodel, social_observer, background_mention for specific functional roles.
 Capture plot-critical objects AND recurring symbols (environmental forces, location-objects, artistic practices, motifs).
 Apply all HARD CAPS.
 Fill identity fields ONLY from explicit text signals — never infer or assume.`;

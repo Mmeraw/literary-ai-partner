@@ -826,7 +826,11 @@ export type Pass1aGenderIdentity =
 export type Pass1aRoleSignal =
   | "protagonist" | "co_protagonist" | "antagonist" | "secondary"
   | "mentor" | "foil" | "animal_companion" | "symbolic_force"
-  | "collective_force" | "unknown";
+  | "collective_force" | "unknown"
+  // Extended pressure-agent taxonomy (v9+):
+  | "pressure_agent" | "romantic_catalyst" | "sexual_destabilizer"
+  | "domestic_foil" | "artistic_countermodel" | "social_observer"
+  | "background_mention" | "social_catalyst" | "patriarchal_pressure";
 
 export type Pass1aNarrativeWeightSignal =
   | "primary" | "major" | "supporting" | "recurring" | "minor" | "unknown";
