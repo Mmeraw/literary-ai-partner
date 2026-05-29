@@ -843,8 +843,14 @@ export type Pass1aEvidenceType =
 
 export interface Pass1aCharacterChunkEntry {
   canonical_name: string;
+  legal_name?: string | null;
   aliases: string[];
+  assumed_names?: string[];
+  descriptors?: string[];
+  forms_of_address?: string[];
   pronouns: string[];
+  same_name_disambiguation?: string | null;
+  identity_notes?: string | null;
   age_signal: Pass1aAgeSignal;
   age_exact: number | null;
   life_stage_evidence: string | null;
@@ -912,8 +918,14 @@ export type CharacterReportAcknowledgementStatus =
 
 export interface CharacterArcLedgerEntry {
   canonical_name: string;
+  legal_name?: string | null;
   aliases: string[];
+  assumed_names?: string[];
+  descriptors?: string[];
+  forms_of_address?: string[];
   pronouns: string[];
+  same_name_disambiguation_group?: string | null;
+  identity_notes?: string | null;
   age_exact_first: number | null;
   age_exact_last: number | null;
   age_signal: Pass1aAgeSignal;
@@ -977,6 +989,11 @@ export interface CharacterArcLedgerEntry {
     name: string;
     validFromChunk: number;
     validUntilChunk: number | null; // null = valid through end
+  }>;
+  legal_name_states?: Array<{
+    name: string;
+    validFromChunk: number;
+    validUntilChunk: number | null;
   }>;
 
   // Coping mechanisms: prevents Pass 3 from recommending "seed a ritual"
@@ -1187,6 +1204,7 @@ export interface Contradiction {
 export interface CharacterIdentityLedgerEntry {
   characterId: string;                          // canonical stable ID
   canonicalName: string;                        // primary name used in report
+  legalName?: string | null;
   nameHistory: Array<{
     name: string;
     validFromChunk: number;
@@ -1196,6 +1214,11 @@ export interface CharacterIdentityLedgerEntry {
     evidenceQuote?: string;
   }>;
   aliases: string[];                            // all names/nicknames observed
+  assumedNames?: string[];
+  descriptors?: string[];
+  formsOfAddress?: string[];
+  sameNameDisambiguationGroup?: string | null;
+  identityNotes?: string | null;
   narrativeRole: NarrativeRole;
   importanceLevel: ImportanceLevel;
   firstAppearance: ChapterRef;

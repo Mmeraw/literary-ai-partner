@@ -566,8 +566,14 @@ function normalizeCharacterEntry(
 
   return {
     canonical_name: name,
+    legal_name: normStr(r.legal_name, "legal_name", chunkIndex, diagnostics, ctx),
     aliases: normStrArray(r.aliases, "aliases", chunkIndex, diagnostics, name),
+    assumed_names: normStrArray(r.assumed_names, "assumed_names", chunkIndex, diagnostics, name),
+    descriptors: normStrArray(r.descriptors, "descriptors", chunkIndex, diagnostics, name),
+    forms_of_address: normStrArray(r.forms_of_address, "forms_of_address", chunkIndex, diagnostics, name),
     pronouns: normStrArray(r.pronouns, "pronouns", chunkIndex, diagnostics, name),
+    same_name_disambiguation: normStr(r.same_name_disambiguation, "same_name_disambiguation", chunkIndex, diagnostics, ctx),
+    identity_notes: normStr(r.identity_notes, "identity_notes", chunkIndex, diagnostics, ctx),
     age_signal: normEnum<Pass1aAgeSignal>(r.age_signal, VALID_AGE_SIGNALS, null, "age_signal", chunkIndex, diagnostics, name),
     age_exact: normNumber(r.age_exact, "age_exact", chunkIndex, diagnostics, name),
     life_stage_evidence: normStr(r.life_stage_evidence, "life_stage_evidence", chunkIndex, diagnostics, ctx),
