@@ -109,9 +109,9 @@ export function getProgressDisplay(
 
   if (job.phase === 'phase_3' && job.status === 'queued') {
     return {
-      label: "Assembling evaluation matrix...",
+      label: "Finalizing your evaluation...",
       valueLabel: "86%",
-      helperText: "Building the final evaluation matrix and diagnosis.",
+      helperText: "Almost done — preparing your detailed report.",
       indeterminate: false,
       percentage: 86,
       color: "blue",
@@ -121,9 +121,9 @@ export function getProgressDisplay(
 
   if (job.phase === 'phase_2' && job.status === 'queued') {
     return {
-      label: "Running deep structural craft diagnostics...",
+      label: "Analyzing your manuscript in depth...",
       valueLabel: "67%",
-      helperText: "Performing deep craft analysis across all evaluation criteria.",
+      helperText: "Reading closely across all thirteen evaluation criteria.",
       indeterminate: false,
       percentage: 67,
       color: "blue",
@@ -135,33 +135,33 @@ export function getProgressDisplay(
     const fraction = job.phase_unit_fraction ?? 1;
     const isEarly = fraction < 0.5;
     return {
-      label: isEarly ? "Ingesting manuscript..." : "Extracting core narrative...",
+      label: isEarly ? "Reading your manuscript..." : "Understanding your story...",
       valueLabel: isEarly ? "15%" : "35%",
       percentage: isEarly ? 15 : 35,
       color: "blue",
       hardStop: false,
       indeterminate: false,
-      helperText: "Analyzing manuscript structure..."
+      helperText: "Getting to know your characters, setting, and narrative arc."
     };
   }
 
   if (job.phase === 'phase_0' && job.status === 'queued') {
     return {
-      label: "Preparing evaluation environment",
+      label: "Getting ready...",
       valueLabel: "5%",
       percentage: 5,
       color: "blue",
       hardStop: false,
       indeterminate: false,
-      helperText: "Your manuscript has been received. RevisionGrade is loading scoring rules, benchmark standards, and routing information before the manuscript is analyzed.",
+      helperText: "Your manuscript has been received and your evaluation is starting.",
     };
   }
 
   if (job.status === "queued") {
     return {
-      label: "Waiting in queue",
+      label: "Starting your evaluation...",
       valueLabel: "2%",
-      helperText: "Your manuscript has been received and is waiting for an evaluator worker.",
+      helperText: "Your manuscript has been received. Your evaluation will begin shortly.",
       indeterminate: false,
       percentage: 2,
       color: "blue",
@@ -173,9 +173,9 @@ export function getProgressDisplay(
 
   if (job.cross_check_status === "running" || job.cross_check_status === "queued") {
     return {
-      label: "Running final structural cross-checks...",
+      label: "Putting the finishing touches on your report...",
       valueLabel: "97%",
-      helperText: "Verifying evaluation integrity before report assembly.",
+      helperText: "Your evaluation is nearly complete.",
       indeterminate: false,
       percentage: 97,
       color: "blue",
@@ -186,9 +186,9 @@ export function getProgressDisplay(
   if (job.phase === "phase_3") {
     const pct = elapsedDrift(job.phase3_started_at, 86, 96, _now);
     return {
-      label: "Assembling evaluation matrix...",
+      label: "Finalizing your evaluation...",
       valueLabel: `${pct}%`,
-      helperText: "Building the final evaluation matrix and diagnosis.",
+      helperText: "Almost done — preparing your detailed report.",
       indeterminate: false,
       percentage: pct,
       color: "blue",
@@ -199,9 +199,9 @@ export function getProgressDisplay(
   if (job.phase === "phase_2") {
     const pct = elapsedDrift(job.phase2_started_at, 67, 82, _now);
     return {
-      label: "Running deep structural craft diagnostics...",
+      label: "Analyzing your manuscript in depth...",
       valueLabel: `${pct}%`,
-      helperText: "Performing deep craft analysis across all evaluation criteria.",
+      helperText: "Reading closely across all thirteen evaluation criteria.",
       indeterminate: false,
       percentage: pct,
       color: "blue",
@@ -217,12 +217,12 @@ export function getProgressDisplay(
     const pct = elapsedDrift(job.phase1_started_at, rangeMin, rangeMax, _now);
     return {
       label: isEarly
-        ? "Ingesting manuscript & mapping chapters..."
-        : "Extracting core narrative footprint...",
+        ? "Reading your manuscript..."
+        : "Understanding your story...",
       valueLabel: `${pct}%`,
       helperText: isEarly
-        ? "Loading manuscript and identifying chapter structure."
-        : "Mapping characters, relationships, and narrative structure.",
+        ? "Getting to know your manuscript."
+        : "Exploring your characters, relationships, and narrative arc.",
       indeterminate: false,
       percentage: pct,
       color: "blue",
@@ -233,9 +233,9 @@ export function getProgressDisplay(
   if (job.phase === "phase_1a") {
     const pct = elapsedDrift(job.phase1_started_at, 15, 34, _now);
     return {
-      label: "Ingesting manuscript & mapping chapters...",
+      label: "Reading your manuscript...",
       valueLabel: `${pct}%`,
-      helperText: "Loading manuscript for analysis.",
+      helperText: "Getting to know your manuscript.",
       indeterminate: false,
       percentage: pct,
       color: "blue",
@@ -246,9 +246,9 @@ export function getProgressDisplay(
   if (job.phase === 'phase_0') {
     const pct = elapsedDrift(job.phase0_started_at, 5, 12, _now);
     return {
-      label: "Preparing evaluation environment",
+      label: "Getting ready...",
       valueLabel: `${pct}%`,
-      helperText: "RevisionGrade is loading scoring rules, benchmark standards, and routing information before the manuscript is analyzed.",
+      helperText: "Your manuscript has been received and your evaluation is starting.",
       indeterminate: false,
       percentage: pct,
       color: "blue",
@@ -257,9 +257,9 @@ export function getProgressDisplay(
   }
 
   return {
-    label: "Preparing evaluation environment",
+    label: "Getting ready...",
     valueLabel: "5%",
-    helperText: "Initializing evaluation pipeline.",
+    helperText: "Your evaluation will begin shortly.",
     indeterminate: false,
     percentage: 5,
     color: "blue",
