@@ -143,15 +143,16 @@ function validateGreatExpectations(ledger: any): string[] {
     }
   }
 
+  const threatLayer = ledger.layers?.threat_antagonist_ending_layer ?? {};
   const threatText = JSON.stringify(
-    ledger.layers?.threat_antagonist_ending_layer?.threat_systems ??
-      ledger.layers?.threat_antagonist_ending_layer?.antagonists ?? [],
+    threatLayer?.threat_systems ?? threatLayer?.antagonists ?? [],
   ).toLowerCase();
   for (const requiredThreat of [
     'magwitch',
     'miss havisham',
     'estella',
     'jaggers/legal machinery',
+    'compeyson',
     'orlick',
     'drummle',
     'class shame',
@@ -161,6 +162,41 @@ function validateGreatExpectations(ledger: any): string[] {
     if (!threatText.includes(requiredThreat)) {
       errors.push(`MISSING_REQUIRED_TRUTH: Threat system missing '${requiredThreat}'.`);
     }
+  }
+
+  const pressureSystems = Array.isArray(threatLayer?.pressure_systems)
+    ? threatLayer.pressure_systems
+    : [];
+
+  if (pressureSystems.length === 0) {
+    errors.push('FORBIDDEN_FAILURE: THREAT_PRESSURE_UNDER_EXTRACTION — pressure_systems must be populated, not antagonist-only.');
+  }
+
+  const nonCharacterPressureCount = pressureSystems.filter((system: any) => hasText(system?.source_kind, 'non_character')).length;
+  if (nonCharacterPressureCount === 0) {
+    errors.push('FORBIDDEN_FAILURE: Non-character pressure systems must not be discarded.');
+  }
+
+  const pressureByNeedle = (needle: string) =>
+    pressureSystems.find((system: any) => hasText(system?.source_label, needle) || hasText(system?.source_aliases, needle));
+
+  const compeysonPressure = pressureByNeedle('compeyson');
+  if (!compeysonPressure) {
+    errors.push("MISSING_REQUIRED_TRUTH: Compeyson pressure system must be present.");
+  } else {
+    if (hasText(compeysonPressure?.pressure_type, 'maternal')) {
+      errors.push("FORBIDDEN_FAILURE: Compeyson must not be mislabeled as maternal obligation.");
+    }
+    if (hasText(compeysonPressure?.ending_state, 'unresolved')) {
+      errors.push("FORBIDDEN_FAILURE: Compeyson must not be marked unresolved when terminal state is known.");
+    }
+  }
+
+  const missHavishamPressure = pressureByNeedle('miss havisham');
+  if (!missHavishamPressure) {
+    errors.push("MISSING_REQUIRED_TRUTH: Miss Havisham pressure system must be present.");
+  } else if (hasText(missHavishamPressure?.ending_state, 'unresolved')) {
+    errors.push("FORBIDDEN_FAILURE: Miss Havisham must not be marked unresolved when terminal state is known.");
   }
 
   return errors;
@@ -319,6 +355,66 @@ function validateAwakening(ledger: any): string[] {
 
   if ((ledger.layers?.identity_pronoun_layer?.pronoun_shifts_detected ?? 0) !== 0) {
     errors.push('FORBIDDEN_FAILURE: The Awakening fixture must report zero pronoun shifts for stable pronoun-family usage.');
+  }
+
+  const threatLayer = ledger.layers?.threat_antagonist_ending_layer ?? {};
+  const pressureSystems = Array.isArray(threatLayer?.pressure_systems)
+    ? threatLayer.pressure_systems
+    : [];
+
+  if (pressureSystems.length === 0) {
+    errors.push('FORBIDDEN_FAILURE: THREAT_PRESSURE_UNDER_EXTRACTION — pressure systems must be present for The Awakening.');
+  }
+
+  const uniquePressureTypes = new Set(pressureSystems.map((system: any) => String(system?.pressure_type ?? '')));
+  if (uniquePressureTypes.size <= 2) {
+    errors.push('FORBIDDEN_FAILURE: THREAT_ROLE_MISLABEL — pressure systems must not collapse into a generic single-role bucket.');
+  }
+
+  const pressureText = JSON.stringify(threatLayer?.threat_systems ?? pressureSystems).toLowerCase();
+  for (const requiredPressure of [
+    'léonce',
+    'robert',
+    'arobin',
+    'adèle',
+    'reisz',
+    'children',
+    'sea',
+    'creole social expectations',
+    'internal autonomy',
+  ]) {
+    if (!pressureText.includes(requiredPressure)) {
+      errors.push(`MISSING_REQUIRED_TRUTH: Awakening pressure system missing '${requiredPressure}'.`);
+    }
+  }
+
+  const pressureByNeedle = (needle: string) =>
+    pressureSystems.find((system: any) => hasText(system?.source_label, needle) || hasText(system?.source_aliases, needle));
+
+  const leoncePressure = pressureByNeedle('léonce');
+  if (!leoncePressure) {
+    errors.push('MISSING_REQUIRED_TRUTH: Léonce pressure system is required.');
+  } else if (hasText(leoncePressure?.pressure_type, 'interpersonal_pressure') || hasText(leoncePressure?.pressure_type, 'antagonist')) {
+    errors.push('FORBIDDEN_FAILURE: Léonce must not be flattened into a generic antagonist pressure type.');
+  }
+
+  const arobinPressure = pressureByNeedle('arobin');
+  if (!arobinPressure) {
+    errors.push('MISSING_REQUIRED_TRUTH: Arobin pressure system is required.');
+  } else if (hasText(arobinPressure?.pressure_type, 'interpersonal_pressure') || hasText(arobinPressure?.pressure_type, 'antagonist')) {
+    errors.push('FORBIDDEN_FAILURE: Arobin must not be flattened into a generic antagonist pressure type.');
+  }
+
+  const seaPressure = pressureByNeedle('sea');
+  if (!seaPressure) {
+    errors.push('MISSING_REQUIRED_TRUTH: Sea/Gulf symbolic pressure must be represented.');
+  } else if (!hasText(seaPressure?.source_kind, 'non_character')) {
+    errors.push('FORBIDDEN_FAILURE: Sea/Gulf pressure must be represented as non-character pressure.');
+  }
+
+  const nonCharacterPressureCount = pressureSystems.filter((system: any) => hasText(system?.source_kind, 'non_character')).length;
+  if (nonCharacterPressureCount === 0) {
+    errors.push('FORBIDDEN_FAILURE: Non-character pressure systems must not be discarded in Awakening fixture.');
   }
 
   const locations: string[] = ledger.layers?.location_timeline_worldstate_layer?.unique_locations ?? [];

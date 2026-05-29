@@ -194,20 +194,119 @@
         { "character_id": "ge:magwitch", "canonical_name": "Abel Magwitch" },
         { "character_id": "ge:miss_havisham", "canonical_name": "Miss Havisham" },
         { "character_id": "ge:estella", "canonical_name": "Estella" },
+        { "character_id": "ge:compeyson", "canonical_name": "Compeyson" },
         { "character_id": "ge:jaggers", "canonical_name": "Mr. Jaggers" },
         { "character_id": "ge:orlick", "canonical_name": "Orlick" },
         { "character_id": "ge:drummle", "canonical_name": "Bentley Drummle" }
+      ],
+      "pressure_systems": [
+        {
+          "pressure_id": "ge_magwitch_benefactor_revelation",
+          "pressure_type": "interpersonal_pressure",
+          "source_kind": "character",
+          "source_character_id": "ge:magwitch",
+          "source_label": "Abel Magwitch",
+          "source_aliases": ["Magwitch", "Provis", "benefactor revelation"],
+          "ending_state": "terminal"
+        },
+        {
+          "pressure_id": "ge_miss_havisham_manipulation",
+          "pressure_type": "interpersonal_pressure",
+          "source_kind": "character",
+          "source_character_id": "ge:miss_havisham",
+          "source_label": "Miss Havisham",
+          "source_aliases": ["manipulation"],
+          "ending_state": "terminal"
+        },
+        {
+          "pressure_id": "ge_estella_emotional_class",
+          "pressure_type": "social_class_pressure",
+          "source_kind": "character",
+          "source_character_id": "ge:estella",
+          "source_label": "Estella",
+          "source_aliases": ["emotional class pressure"],
+          "ending_state": "transformed"
+        },
+        {
+          "pressure_id": "ge_jaggers_legal_machinery",
+          "pressure_type": "legal_institutional_pressure",
+          "source_kind": "character",
+          "source_character_id": "ge:jaggers",
+          "source_label": "Mr. Jaggers",
+          "source_aliases": ["legal machinery"],
+          "ending_state": "resolved"
+        },
+        {
+          "pressure_id": "ge_compeyson_violence",
+          "pressure_type": "physical_danger_violence_pressure",
+          "source_kind": "character",
+          "source_character_id": "ge:compeyson",
+          "source_label": "Compeyson",
+          "source_aliases": ["pursuit"],
+          "ending_state": "terminal"
+        },
+        {
+          "pressure_id": "ge_orlick_violence",
+          "pressure_type": "physical_danger_violence_pressure",
+          "source_kind": "character",
+          "source_character_id": "ge:orlick",
+          "source_label": "Orlick",
+          "source_aliases": ["attempted violence"],
+          "ending_state": "resolved"
+        },
+        {
+          "pressure_id": "ge_drummle_brutality",
+          "pressure_type": "physical_danger_violence_pressure",
+          "source_kind": "character",
+          "source_character_id": "ge:drummle",
+          "source_label": "Drummle",
+          "source_aliases": ["brutality"],
+          "ending_state": "terminal"
+        },
+        {
+          "pressure_id": "ge_class_shame",
+          "pressure_type": "social_class_pressure",
+          "source_kind": "non_character",
+          "source_label": "class shame",
+          "source_aliases": ["status anxiety"],
+          "ending_state": "ongoing_systemic_pressure"
+        },
+        {
+          "pressure_id": "ge_debt_economic",
+          "pressure_type": "economic_debt_pressure",
+          "source_kind": "non_character",
+          "source_label": "debt/economic pressure",
+          "source_aliases": ["debt", "economic pressure"],
+          "ending_state": "ongoing_systemic_pressure"
+        },
+        {
+          "pressure_id": "ge_pip_internal_guilt",
+          "pressure_type": "internal_moral_pressure",
+          "source_kind": "internal",
+          "source_character_id": "ge:pip",
+          "source_label": "Pip's guilt/internal moral pressure",
+          "source_aliases": ["guilt", "moral pressure"],
+          "ending_state": "transformed"
+        }
       ],
       "threat_systems": [
         "Magwitch",
         "Miss Havisham",
         "Estella",
         "Jaggers/legal machinery",
+        "Compeyson",
         "Orlick",
         "Drummle",
         "class shame",
-        "debt",
+        "debt/economic pressure",
         "Pip's guilt"
+      ],
+      "narrative_pressure_vectors": [
+        { "vector_source": "person", "evidence_summary": "Magwitch's return and benefactor revelation destabilize Pip's social trajectory and safety.", "structural_impact_score": 5 },
+        { "vector_source": "institution", "evidence_summary": "Jaggers and legal machinery impose procedural and class-mediated pressure on key character decisions.", "structural_impact_score": 4 },
+        { "vector_source": "social_pressure", "evidence_summary": "Class shame and reputation hierarchy repeatedly constrain aspiration and attachment choices.", "structural_impact_score": 4 },
+        { "vector_source": "poverty", "evidence_summary": "Debt and economic pressure drive obligation, vulnerability, and risk exposure across arcs.", "structural_impact_score": 4 },
+        { "vector_source": "internal_contradiction", "evidence_summary": "Pip's guilt and moral conflict persist as internal pressure shaping consequence and repair.", "structural_impact_score": 4 }
       ]
     }
   }
