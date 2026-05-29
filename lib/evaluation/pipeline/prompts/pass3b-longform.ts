@@ -190,6 +190,19 @@ Priorities must be ordered: manuscript integrity first, then compression, then p
 Every acceptance_check must be a verifiable condition, not a wish.
 Use this as the canonical recommendation ledger: dedupe repeated advice. Each priority must include location, action, mechanism rationale, risk if ignored, and asset to preserve, either in goal/actions/acceptance_check.
 
+CRITICAL AUTHOR-FACING BOUNDARY FOR §12
+revision_plan is author-facing only. It may contain only manuscript-editing advice an author can apply to manuscript text, query/package, or positioning.
+Do NOT place evaluator/system/tooling remediation in revision_plan.
+Specifically forbidden in revision_plan:
+- Source-Integrity repair/status semantics (including HARD_FAIL, DEGRADED_EXTRACTION)
+- Relationship Network representation repair
+- Threat/Pressure/Ending taxonomy repair
+- Location/Timeline normalization repair
+- Object/Symbol extraction weighting or extraction tuning
+- extraction diagnostics, renderer/export defects, ontology/schema/pipeline fixes
+- internal failure strings such as "No qualifying relationship pairs found"
+If these are detected, route them to calibration_notes, manuscript_integrity_issues, repo_summary.primary_blockers, or internal diagnostics language — never revision_plan.
+
 §13 releasability (object[])
 Each dimension:
 { "dimension": string, "current_status": string, "verdict": "Ready"|"Near-ready"|"Revise"|"Must fix" }
