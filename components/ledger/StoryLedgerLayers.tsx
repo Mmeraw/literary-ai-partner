@@ -129,6 +129,18 @@ const LABEL_HINTS: Record<string, string> = {
   "World state rules": "The governing logic of the story's world at a given point — laws, customs, environmental conditions, or supernatural rules in effect.",
   // Threat / Pressure / Ending layer
   "Pressure": "The specific force this threat applies to the protagonist — emotional, physical, social, institutional, or internal.",
+  "Pressure Agents": "Named characters or forces that exert opposing pressure on the protagonist — not necessarily villains. Includes marital constraint, maternal obligation, social convention, and other literary pressure types.",
+  "Pressure agents": "Named characters or forces that exert opposing pressure on the protagonist — not necessarily villains.",
+  "maternal obligation": "Pressure from children, parenthood expectations, or the cultural role of mother — not villainous, but structurally constraining.",
+  "marital constraint": "Pressure from a marriage, spouse, or domestic expectation system — ownership, respectability, property, household control.",
+  "social convention": "Pressure from the community's rules, reputation systems, or collective judgment about acceptable behavior.",
+  "sexual destabilizer": "A character who activates physical/sexual autonomy without offering true liberation — temptation without resolution.",
+  "symbolic terminal force": "An environmental or abstract force (the sea, weather, landscape) that functions as the story's terminal pressure or final reckoning.",
+  "medical-social surveillance": "A character who observes the protagonist through a diagnostic or institutional lens — doctor, counselor, authority figure interpreting behavior.",
+  "narrative pressure": "A general opposing force that constrains the protagonist's freedom, choices, or self-determination.",
+  "Ending Accountability": "Tracks whether characters who carried open narrative threads received adequate closure by the story's end.",
+  "Terminal States": "Where each character was last seen and whether their narrative thread resolved, remained open, or was abandoned.",
+  "accidentally abandoned": "The character disappeared from the narrative without their thread being resolved — may be intentional for background figures, but significant for named characters.",
   // Source Integrity layer
   "Hard failure": "A critical extraction error — the system could not reliably identify this element and needs author guidance.",
   // Identity & Pronouns layer
@@ -175,7 +187,7 @@ const LAYER_DESCRIPTIONS: Record<string, string> = {
   location_timeline_worldstate_layer:
     "Where the story takes place, in what order, and what rules govern the world at each point. Movement paths, time sequences, and environmental logic.",
   threat_antagonist_ending_layer:
-    "The forces working against your protagonist — named people, institutions, environments, and internal pressures — mapped to their final state at story's end.",
+    "The forces working against your protagonist — people, institutions, environments, internal conflicts, and social pressures — mapped to their final state at story's end.",
   identity_pronoun_layer:
     "How each character is identified: pronouns detected across the manuscript, gender signals, and any pronoun shifts between sections. Confirm intentional transitions or flag continuity errors.",
 };
@@ -2459,16 +2471,88 @@ export function LocationTimelineWorldstateLayer({
   );
 }
 
-// ─── Layer 8 — Threat · Antagonist · Ending ───────────────────────────────────
+// ─── Layer 8 — Threat · Pressure · Ending ─────────────────────────────────────
 
-const ANTAGONIST_STATUS_TONE: Record<
+const PRESSURE_STATUS_TONE: Record<
   string,
   "green" | "oxblood" | "warn" | "neutral"
 > = {
   resolved: "green",
   defeated: "green",
   unresolved: "warn",
+  active: "oxblood",
+  escalating: "oxblood",
+  open: "warn",
 };
+
+// Infer a literary pressure type from the character/force name and context.
+// Falls back to "narrative pressure" if no pattern matches.
+function inferPressureType(name: string, _status: string): string {
+  const n = name.toLowerCase();
+  if (n.includes("child") || n.includes("son") || n.includes("daughter") || n.includes("motherhood"))
+    return "maternal obligation";
+  if (n.includes("husband") || n.includes("wife") || n.includes("marriage") || n.includes("marital"))
+    return "marital constraint";
+  if (n.includes("society") || n.includes("convention") || n.includes("social") || n.includes("convenances"))
+    return "social convention";
+  if (n.includes("sea") || n.includes("water") || n.includes("river") || n.includes("ocean"))
+    return "symbolic terminal force";
+  if (n.includes("doctor") || n.includes("medical") || n.includes("mandelet"))
+    return "medical-social surveillance";
+  if (n.includes("arobin") || n.includes("lover") || n.includes("tempt"))
+    return "sexual destabilizer";
+  if (n.includes("church") || n.includes("relig") || n.includes("god"))
+    return "institutional pressure";
+  return "narrative pressure";
+}
+
+// Classify ending-accountability warnings: filter out background/foil figures
+// that don't carry open narrative promises.
+const BACKGROUND_FIGURE_PATTERNS = [
+  "lady in black", "lady_in_black",
+  "unnamed", "two young lovers", "two_young_lovers",
+  "background", "collective", "_group",
+  "mocking", "parrot",
+];
+
+function isBackgroundFigure(charId: string): boolean {
+  const id = charId.toLowerCase();
+  return BACKGROUND_FIGURE_PATTERNS.some((p) => id.includes(p));
+}
+
+// Format a terminal ledger entry to plain English instead of raw JSON
+function formatTerminalEntry(entry: Record<string, unknown>): {
+  name: string;
+  terminal: string;
+  belief: string;
+  condition: string;
+  closure: string;
+} {
+  const charId = String(entry.characterId ?? "");
+  const name = charId ? sentenceCaseId(charId) : "Unknown";
+  const belief = String(entry.finalBeliefState ?? "");
+  const condition = String(entry.terminalCondition ?? "open");
+  const closure = String(entry.narrativeClosureStatus ?? "unknown");
+  const chunk = entry.terminalChunk ?? entry.terminalChapter ?? "";
+  const terminal = chunk ? `Last seen: ${typeof chunk === "number" ? `chunk ${chunk}` : chunk}` : "";
+  return { name, terminal, belief, condition, closure };
+}
+
+// Format ending-accountability warning to plain English
+function formatAccountabilityWarning(warning: unknown): { charName: string; reason: string } | null {
+  if (typeof warning === "string") {
+    const match = warning.match(/^(.+?):\s*(.+)$/);
+    if (match) return { charName: match[1].trim(), reason: match[2].trim() };
+    return { charName: "", reason: warning };
+  }
+  if (typeof warning === "object" && warning !== null) {
+    const w = warning as Record<string, unknown>;
+    const charName = String(w.characterId ?? w.character_id ?? w.name ?? "");
+    const reason = String(w.status ?? w.reason ?? w.type ?? "unresolved");
+    return { charName: sentenceCaseId(charName), reason: reason.replace(/_/g, " ") };
+  }
+  return null;
+}
 
 const THREAT_INTERNAL_FIELDS = new Set([
   "schema_version",
@@ -2534,18 +2618,14 @@ export function ThreatAntagonistEndingLayer({
     return (
       <LayerShell
         empty
-        emptyLabel="Threat, antagonist, and ending data not yet populated."
-        emptyDetail="Antagonists and character pressure profiles will appear here once the manuscript has been analysed."
+        emptyLabel="Threat, pressure, and ending data not yet populated."
+        emptyDetail="Pressure agents, character response profiles, and terminal states will appear here once the manuscript has been analysed."
       />
     );
 
   const antagonists = Array.isArray(data.antagonists)
     ? (data.antagonists as Antagonist[])
     : [];
-  const antagonistCount =
-    typeof data.antagonist_count === "number"
-      ? data.antagonist_count
-      : antagonists.length;
 
   const psychologyLedger = Array.isArray(data.psychology_ledger)
     ? (data.psychology_ledger as PsychologyEntryFull[])
@@ -2575,27 +2655,35 @@ export function ThreatAntagonistEndingLayer({
     ? (data.open_terminal_ledgers as Record<string, unknown>[])
     : [];
 
-  const hasAntagonists = antagonists.length > 0;
+  const totalPressureAgents = antagonists.length;
   const totalPressure = pressureForces.length;
 
-  // Collapsible state for pressure forces
+  // Filter accountability warnings: drop background/foil figures
+  const significantWarnings = accountabilityWarnings
+    .map(formatAccountabilityWarning)
+    .filter((w): w is NonNullable<typeof w> => w !== null && !isBackgroundFigure(w.charName));
+  const backgroundWarningCount = accountabilityWarnings.length - significantWarnings.length;
+
+  // Collapsible states
   const [pressureExpanded, setPressureExpanded] = React.useState(true);
   const [charProfilesExpanded, setCharProfilesExpanded] = React.useState(true);
+  const [showTerminal, setShowTerminal] = React.useState(false);
+  const [showAccountability, setShowAccountability] = React.useState(false);
 
   return (
     <LayerShell>
       <LayerTitle
         icon="⚔️"
-        title="Threat · Antagonist · Ending"
-        description={LAYER_DESCRIPTIONS.threat_antagonist_ending_layer}
+        title="Threat · Pressure · Ending"
+        description="The forces working against your protagonist — people, institutions, environments, internal conflicts, and social pressures — mapped to their final state at story's end."
         badge={
-          hasAntagonists
-            ? `${antagonistCount} antagonist${antagonistCount === 1 ? "" : "s"}`
+          totalPressureAgents > 0
+            ? `${totalPressureAgents} pressure agent${totalPressureAgents === 1 ? "" : "s"}`
             : totalPressure > 0
               ? `${totalPressure} pressure force${totalPressure === 1 ? "" : "s"}`
               : undefined
         }
-        badgeTone={hasAntagonists ? "oxblood" : totalPressure > 0 ? "warn" : "neutral"}
+        badgeTone={totalPressureAgents > 0 ? "warn" : totalPressure > 0 ? "warn" : "neutral"}
       />
 
       {/* Summary bar */}
@@ -2610,12 +2698,12 @@ export function ThreatAntagonistEndingLayer({
         }}
       >
         <span>
-          <span style={{ fontWeight: 600, color: C.textPrimary }}>Named antagonists:</span>{" "}
-          {antagonistCount}
+          <span style={{ fontWeight: 600, color: C.textPrimary }}>Pressure agents:</span>{" "}
+          {totalPressureAgents}
         </span>
         {totalPressure > 0 && (
           <span>
-            <span style={{ fontWeight: 600, color: C.textPrimary }}>Pressure forces:</span>{" "}
+            <span style={{ fontWeight: 600, color: C.textPrimary }}>Structural forces:</span>{" "}
             {totalPressure}
           </span>
         )}
@@ -2627,9 +2715,9 @@ export function ThreatAntagonistEndingLayer({
         )}
       </div>
 
-      {/* Antagonists */}
-      <SubHeading>Named Antagonists</SubHeading>
-      {hasAntagonists ? (
+      {/* Pressure Agents (formerly "Named Antagonists") */}
+      <SubHeading>Pressure Agents</SubHeading>
+      {antagonists.length > 0 ? (
         <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 16 }}>
           {antagonists.map((a, i) => {
             const name =
@@ -2637,11 +2725,12 @@ export function ThreatAntagonistEndingLayer({
                 ? a.canonical_name
                 : typeof a.character_id === "string"
                   ? sentenceCaseId(a.character_id)
-                  : `Antagonist ${i + 1}`;
+                  : `Agent ${i + 1}`;
             const status =
               typeof a.final_status === "string" ? a.final_status : "";
             const tone =
-              ANTAGONIST_STATUS_TONE[status.toLowerCase()] ?? "neutral";
+              PRESSURE_STATUS_TONE[status.toLowerCase()] ?? "neutral";
+            const pressureType = inferPressureType(name, status);
             return (
               <CharacterCard key={i}>
                 <div
@@ -2653,9 +2742,19 @@ export function ThreatAntagonistEndingLayer({
                     gap: 10,
                   }}
                 >
-                  <span style={{ fontWeight: 700, color: C.textPrimary, fontSize: 16 }}>
-                    {name}
-                  </span>
+                  <div>
+                    <span style={{ fontWeight: 700, color: C.textPrimary, fontSize: 16 }}>
+                      {name}
+                    </span>
+                    <span style={{
+                      marginLeft: 10,
+                      fontSize: 12,
+                      color: C.textFaint,
+                      fontStyle: "italic",
+                    }}>
+                      {pressureType}
+                    </span>
+                  </div>
                   {status && <Pill label={status.replace(/_/g, " ")} tone={tone} />}
                 </div>
               </CharacterCard>
@@ -2664,7 +2763,7 @@ export function ThreatAntagonistEndingLayer({
         </div>
       ) : (
         <p style={{ color: C.textFaint, fontSize: 15, lineHeight: 1.75, marginBottom: 16 }}>
-          No named human antagonists identified in this chapter.
+          No named pressure agents identified.
         </p>
       )}
 
@@ -2691,7 +2790,7 @@ export function ThreatAntagonistEndingLayer({
               {pressureExpanded ? "▾" : "▸"}
             </span>
             <span style={{ fontWeight: 700, color: C.textPrimary, fontSize: 15 }}>
-              Pressure Forces
+              Structural Pressure Forces
             </span>
             <span
               style={{
@@ -2823,43 +2922,168 @@ export function ThreatAntagonistEndingLayer({
         </>
       )}
 
-      {accountabilityWarnings.length > 0 && (
+      {/* Ending Accountability — plain English, filtered, collapsible */}
+      {(significantWarnings.length > 0 || backgroundWarningCount > 0) && (
         <>
           <Divider />
-          <SubHeading>Ending Accountability Warnings</SubHeading>
-          {accountabilityWarnings.map((warning, i) => (
-            <WarnBanner
-              key={i}
-              reason={
-                typeof warning === "string" ? warning : JSON.stringify(warning)
-              }
-            />
-          ))}
+          <button
+            onClick={() => setShowAccountability((p) => !p)}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+              width: "100%",
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              padding: "8px 0",
+              textAlign: "left",
+              marginBottom: 8,
+            }}
+          >
+            <span style={{ color: "#E6A23C", fontSize: 13, width: 18, textAlign: "center" }}>
+              {showAccountability ? "▾" : "▸"}
+            </span>
+            <span style={{ fontWeight: 700, color: C.textPrimary, fontSize: 15 }}>
+              Ending Accountability
+            </span>
+            {significantWarnings.length > 0 && (
+              <span
+                style={{
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: "#E6A23C",
+                  background: "rgba(200,150,50,0.12)",
+                  padding: "2px 8px",
+                  borderRadius: 10,
+                }}
+              >
+                {significantWarnings.length}
+              </span>
+            )}
+          </button>
+          {showAccountability && (
+            <div style={{ marginLeft: 28 }}>
+              {significantWarnings.length > 0 ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 12 }}>
+                  {significantWarnings.map((w, i) => (
+                    <div
+                      key={i}
+                      style={{
+                        background: "rgba(200,150,50,0.06)",
+                        border: "1px solid rgba(200,150,50,0.2)",
+                        borderRadius: 10,
+                        padding: "10px 14px",
+                        fontSize: 14,
+                        color: C.textMuted,
+                        lineHeight: 1.7,
+                      }}
+                    >
+                      {w.charName && (
+                        <span style={{ fontWeight: 600, color: C.textPrimary }}>{w.charName}: </span>
+                      )}
+                      {w.reason}
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+              {backgroundWarningCount > 0 && (
+                <p style={{ margin: 0, fontSize: 13, color: C.textFaint, fontStyle: "italic", lineHeight: 1.65 }}>
+                  {backgroundWarningCount} background/foil figure{backgroundWarningCount !== 1 ? "s" : ""} omitted
+                  — these characters serve symbolic or atmospheric functions and do not carry open narrative promises
+                  requiring ending accountability.
+                </p>
+              )}
+            </div>
+          )}
         </>
       )}
 
+      {/* Terminal Ledger — plain English, collapsible (no raw JSON) */}
       {(terminalLedger.length > 0 || openTerminalLedgers.length > 0) && (
         <>
           <Divider />
-          <SubHeading>Terminal Ledger</SubHeading>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {[...terminalLedger, ...openTerminalLedgers].map((entry, i) => (
-              <div
-                key={i}
-                style={{
-                  background: C.surfaceAlt,
-                  border: `1px solid ${C.border}`,
-                  borderRadius: 10,
-                  padding: "12px 16px",
-                  fontSize: 14,
-                  color: C.textMuted,
-                  lineHeight: 1.7,
-                }}
-              >
-                {typeof entry === "string" ? entry : JSON.stringify(entry)}
-              </div>
-            ))}
-          </div>
+          <button
+            onClick={() => setShowTerminal((p) => !p)}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+              width: "100%",
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              padding: "8px 0",
+              textAlign: "left",
+              marginBottom: 8,
+            }}
+          >
+            <span style={{ color: C.textFaint, fontSize: 13, width: 18, textAlign: "center" }}>
+              {showTerminal ? "▾" : "▸"}
+            </span>
+            <span style={{ fontWeight: 700, color: C.textPrimary, fontSize: 15 }}>
+              Terminal States
+            </span>
+            <span
+              style={{
+                fontSize: 12,
+                fontWeight: 600,
+                color: C.textFaint,
+                background: C.surfaceAlt,
+                padding: "2px 8px",
+                borderRadius: 10,
+              }}
+            >
+              {terminalLedger.length + openTerminalLedgers.length}
+            </span>
+          </button>
+          {showTerminal && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 10, marginLeft: 28 }}>
+              {[...terminalLedger, ...openTerminalLedgers].map((entry, i) => {
+                const fmt = formatTerminalEntry(entry);
+                const closureTone =
+                  fmt.closure === "complete" || fmt.closure === "resolved" ? "green"
+                    : fmt.closure === "underpaid" || fmt.closure === "abandoned" ? "warn"
+                    : "neutral";
+                return (
+                  <CharacterCard key={i}>
+                    <div style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      flexWrap: "wrap",
+                      gap: 8,
+                      marginBottom: 6,
+                    }}>
+                      <span style={{ fontWeight: 700, color: C.textPrimary, fontSize: 15 }}>
+                        {fmt.name}
+                      </span>
+                      <div style={{ display: "flex", gap: 6 }}>
+                        {fmt.condition && (
+                          <Pill label={fmt.condition.replace(/_/g, " ")} tone={closureTone} />
+                        )}
+                      </div>
+                    </div>
+                    {fmt.belief && (
+                      <p style={{ margin: "0 0 4px", fontSize: 14, color: C.textMuted, lineHeight: 1.7 }}>
+                        {fmt.belief}
+                      </p>
+                    )}
+                    {fmt.terminal && (
+                      <p style={{ margin: 0, fontSize: 12, color: C.textFaint }}>
+                        {fmt.terminal}
+                        {fmt.closure && fmt.closure !== "unknown" && ` · Closure: ${fmt.closure.replace(/_/g, " ")}`}
+                      </p>
+                    )}
+                  </CharacterCard>
+                );
+              })}
+              <p style={{ margin: "8px 0 0", fontSize: 12, color: C.textFaint, fontStyle: "italic", lineHeight: 1.6 }}>
+                Terminal states show where each character was last seen and their narrative closure status.
+                &ldquo;Underpaid&rdquo; means the character exited without resolving their narrative thread.
+              </p>
+            </div>
+          )}
         </>
       )}
     </LayerShell>
