@@ -216,6 +216,132 @@ export type TruthfulFallbackReport = {
   repaired_keys: string[];
 };
 
+export type RevisionPlanGuardrailReport = {
+  removed_entries: string[];
+  removed_actions_count: number;
+};
+
+const PASS3B_INTERNAL_DIAGNOSTIC_PATTERNS: RegExp[] = [
+  /source[-\s]?integrity/i,
+  /source[-\s]?integrity\s+semantics?/i,
+  /relationship\s+network\s+representation/i,
+  /repair\s+relationship\s+network/i,
+  /threat\s*\/?\s*pressure/i,
+  /threat\s*\/?\s*pressure\s*\/?\s*ending\s+taxonomy/i,
+  /ending\s+taxonomy/i,
+  /location\s*\/?\s*timeline/i,
+  /normalize\s+location\s*\/?\s*timeline/i,
+  /location\s+normalization|timeline\s+normalization/i,
+  /object\s*\/?\s*symbol/i,
+  /symbol\s*\/?\s*object\s+layer\s+weighting/i,
+  /extraction\s+diagnostic/i,
+  /degraded_extraction|hard_fail/i,
+  /layer\s+contamination/i,
+  /taxonomy\s+repair/i,
+  /renderer\s+defect|export\s+defect/i,
+  /schema\s+defect|ontology\s+repair|pipeline\s+fix/i,
+  /no\s+qualifying\s+relationship\s+pairs/i,
+];
+
+function asObject(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+  return value as Record<string, unknown>;
+}
+
+function asText(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function isInternalDiagnosticTextForPass3b(value: string): boolean {
+  const text = value.trim();
+  if (!text) return false;
+  return PASS3B_INTERNAL_DIAGNOSTIC_PATTERNS.some((pattern) => pattern.test(text));
+}
+
+function filterAuthorFacingTextListForPass3b(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((entry) => (typeof entry === "string" ? entry.trim() : ""))
+    .filter((entry) => entry.length > 0)
+    .filter((entry) => !isInternalDiagnosticTextForPass3b(entry));
+}
+
+/**
+ * Deterministic post-generation guardrail:
+ * - remove internal/system remediation entries from author-facing revision_plan
+ * - filter internal diagnostic actions from surviving entries
+ * - renumber priorities to contiguous 1..N
+ * - append a calibration note when sanitization occurs
+ */
+export function sanitizeAuthorFacingRevisionPlanInPass3b(
+  raw: Record<string, unknown>
+): { patched: Record<string, unknown>; report: RevisionPlanGuardrailReport } {
+  const report: RevisionPlanGuardrailReport = {
+    removed_entries: [],
+    removed_actions_count: 0,
+  };
+
+  const plan = Array.isArray(raw.revision_plan) ? raw.revision_plan : [];
+  const kept: Array<Record<string, unknown>> = [];
+
+  for (const entry of plan) {
+    const obj = asObject(entry);
+    if (!obj) continue;
+
+    const title = asText(obj.title);
+    const goal = asText(obj.goal);
+    const acceptance = asText(obj.acceptance_check);
+    const originalActions = Array.isArray(obj.actions) ? obj.actions : [];
+    const filteredActions = filterAuthorFacingTextListForPass3b(originalActions);
+    const originalActionCount = originalActions.filter((a) => typeof a === "string" && a.trim().length > 0).length;
+    report.removed_actions_count += Math.max(0, originalActionCount - filteredActions.length);
+
+    const combinedText = [title, goal, acceptance, ...filteredActions].join(" ").trim();
+    if (!combinedText) {
+      continue;
+    }
+
+    if (isInternalDiagnosticTextForPass3b(combinedText)) {
+      report.removed_entries.push(title || goal || acceptance || "(untitled internal diagnostic item)");
+      continue;
+    }
+
+    kept.push({
+      ...obj,
+      actions: filteredActions,
+    });
+  }
+
+  const renumbered = kept.map((entry, idx) => ({
+    ...entry,
+    priority: idx + 1,
+  }));
+
+  let calibrationNotes = Array.isArray(raw.calibration_notes)
+    ? raw.calibration_notes.filter((note): note is string => typeof note === "string" && note.trim().length > 0)
+    : [];
+
+  if (report.removed_entries.length > 0 || report.removed_actions_count > 0) {
+    const movedEntries = report.removed_entries.length;
+    const strippedActions = report.removed_actions_count;
+    calibrationNotes = [
+      ...calibrationNotes,
+      `[Pass3b guardrail] Removed ${movedEntries} internal diagnostic revision_plan item(s) and stripped ${strippedActions} internal diagnostic action(s) from author-facing revision guidance.`,
+    ];
+  }
+
+  return {
+    patched: {
+      ...raw,
+      revision_plan: renumbered,
+      calibration_notes: calibrationNotes,
+    },
+    report,
+  };
+}
+
 function toDreamConfidence(value?: SynthesizedCriterion["confidence_level"]): DreamConfidence {
   if (value === "high") return "High";
   if (value === "low") return "Low";
@@ -504,12 +630,31 @@ export async function runPass3bLongform(
   }
 
   const { patched, report } = applyTruthfulLongformCriteriaFallback(parsed, opts.criteria);
-  const document = validateDreamDocument(patched);
+  const {
+    patched: guarded,
+    report: revisionPlanGuardrailReport,
+  } = sanitizeAuthorFacingRevisionPlanInPass3b(patched);
+
+  const guardedPlanLength = Array.isArray(guarded.revision_plan) ? guarded.revision_plan.length : 0;
+  if (guardedPlanLength < 3) {
+    throw new Error(
+      `[Pass3b] revision_plan failed author-facing guardrail after sanitization: requires at least 3 actionable manuscript priorities, got ${guardedPlanLength}`
+    );
+  }
+
+  const document = validateDreamDocument(guarded);
 
   if (report.autofilled_keys.length > 0 || report.repaired_keys.length > 0) {
     console.warn("[Pass3b] truthful_fallback_applied", {
       autofilled_keys: report.autofilled_keys,
       repaired_keys: report.repaired_keys,
+    });
+  }
+
+  if (revisionPlanGuardrailReport.removed_entries.length > 0 || revisionPlanGuardrailReport.removed_actions_count > 0) {
+    console.warn("[Pass3b] revision_plan_guardrail_applied", {
+      removed_entries: revisionPlanGuardrailReport.removed_entries,
+      removed_actions_count: revisionPlanGuardrailReport.removed_actions_count,
     });
   }
 
