@@ -234,6 +234,7 @@ function buildFindingFromDeepRevisionItem(
   const evidence = cleanSnippet(
     firstNonEmptyString(
       rawObject?.evidence_excerpt,
+      rawObject?.anchor_snippet,
       rawObject?.evidence_snippet,
       rawObject?.evidence,
       rawObject?.quote,

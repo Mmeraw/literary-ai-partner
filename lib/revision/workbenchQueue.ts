@@ -50,6 +50,21 @@ export type WorkbenchQueuePayload = {
   scopes: Record<WorkbenchScope, number>
 }
 
+// ---------------------------------------------------------------------------
+// Rich recommendation from evaluation artifact (6-part diagnostic + proposals)
+// ---------------------------------------------------------------------------
+type RichRecommendation = {
+  anchor_snippet: string
+  symptom: string
+  mechanism: string
+  specific_fix: string
+  reader_effect: string
+  mistake_proofing: string
+  action: string
+  expected_impact: string
+  priority: string
+}
+
 const severityOrder: Record<WorkbenchSeverity, number> = { must: 0, should: 1, could: 2 }
 
 function toSeverity(value: ProposalSeverity): WorkbenchSeverity {
@@ -62,7 +77,7 @@ function cleanLabel(value: string): string {
   return value.replace(/[_:]/g, ' ').replace(/\s+/g, ' ').trim().replace(/\b\w/g, (m) => m.toUpperCase())
 }
 
-/** Convert internal criterion_key to author-facing label, e.g. "narrativeClosure" → "Narrative Closure & Promises Kept" */
+/** Convert internal criterion_key to author-facing label */
 function criterionLabel(criterionKey: string | null | undefined): string {
   if (!criterionKey) return 'General'
   const label = getCriterionDisplayLabel(criterionKey)
@@ -72,9 +87,11 @@ function criterionLabel(criterionKey: string | null | undefined): string {
 /** Clean location_ref: strip machine-internal patterns like "recommendation:4" */
 function cleanLocationRef(ref: string | null | undefined): string | null {
   if (!ref) return null
-  // Strip patterns like "recommendation:N", "CRITERIONKEY:HASH"
   if (/^recommendation:\d+$/i.test(ref)) return null
+  if (/^suggestion:\d+$/i.test(ref)) return null
+  if (/^[A-Z_]+:\d+:rec:\d+$/i.test(ref)) return null
   if (/^[A-Z_]+:[a-z0-9]+$/i.test(ref) && ref.length < 30) return null
+  if (/^revision_guidance:\d+$/i.test(ref)) return null
   return ref
 }
 
@@ -114,7 +131,7 @@ function modeForScope(scope: WorkbenchScope): WorkbenchMode {
   return scope === 'Chapter' || scope === 'Structural' || scope === 'Manuscript' ? 'repair-brief' : 'direct-rewrite'
 }
 
-function readerEffect(criterion: string, scope: WorkbenchScope): string {
+function fallbackReaderEffect(criterion: string, scope: WorkbenchScope): string {
   const key = criterion.toLowerCase()
   if (scope === 'Structural' || scope === 'Manuscript') return 'Repairing this can restore cause-and-effect continuity across the manuscript.'
   if (key.includes('pacing')) return 'Repairing this can reduce drag and restore forward pressure.'
@@ -124,22 +141,152 @@ function readerEffect(criterion: string, scope: WorkbenchScope): string {
   return 'Repairing this can improve reader trust, clarity, and manuscript readiness.'
 }
 
-function optionsFor(finding: DiagnosticFinding, scope: WorkbenchScope): WorkbenchOption[] {
-  const recommendation = finding.recommendation?.trim() || 'Review this opportunity and choose the least disruptive repair that preserves author voice.'
-  if (modeForScope(scope) === 'repair-brief') {
+function fallbackMistakeProofing(mode: WorkbenchMode): string {
+  return mode === 'repair-brief'
+    ? 'Preserve author intent, setup/payoff logic, voice, and downstream continuity. Do not solve structural issues with surface polish.'
+    : 'Preserve author voice and meaning. Do not introduce new information unless the repair path explicitly calls for it.'
+}
+
+// ---------------------------------------------------------------------------
+// Build options from rich recommendation data (manuscript-specific proposals)
+// ---------------------------------------------------------------------------
+function optionsFromRich(rich: RichRecommendation, mode: WorkbenchMode): WorkbenchOption[] {
+  const mainAction = rich.action?.trim() || rich.specific_fix?.trim() || ''
+  if (!mainAction) return optionsFallback(mode)
+  if (mode === 'repair-brief') {
     return [
-      { key: 'A', mechanism: 'Recommended repair plan', text: recommendation, rationale: 'Default plan drawn from the evaluation and queue builder.' },
+      { key: 'A', mechanism: 'Recommended repair plan', text: mainAction, rationale: rich.expected_impact?.trim() || 'Primary repair path from the evaluation.' },
       { key: 'B', mechanism: 'Conservative bridge plan', text: 'Preserve the existing order and add the smallest connective beat that restores clarity.', rationale: 'Lowest-disruption approach for larger-scope repair.' },
       { key: 'C', mechanism: 'Bolder restructuring plan', text: 'Re-sequence or deepen the affected beat so setup, pressure, and payoff carry through the relevant span.', rationale: 'Higher-leverage option when local polish is not enough.' },
     ]
   }
   return [
-    { key: 'A', mechanism: 'Recommended repair', text: recommendation, rationale: 'Default repair path from the evaluation-derived finding.' },
+    { key: 'A', mechanism: 'Recommended repair', text: mainAction, rationale: rich.expected_impact?.trim() || 'Primary repair path from the evaluation.' },
     { key: 'B', mechanism: 'Rhythm variant', text: 'Apply the same repair goal with a lighter touch, preserving more of the original cadence.', rationale: 'For authors who want minimal intervention.' },
     { key: 'C', mechanism: 'Bolder rendering shift', text: 'Apply the same repair goal with stronger emphasis, image, or beat structure.', rationale: 'For local moments that need more visible movement.' },
   ]
 }
 
+function optionsFallback(mode: WorkbenchMode): WorkbenchOption[] {
+  if (mode === 'repair-brief') {
+    return [
+      { key: 'A', mechanism: 'Recommended repair plan', text: 'Review this opportunity and choose the least disruptive repair that preserves author voice.', rationale: 'Default plan drawn from the evaluation.' },
+      { key: 'B', mechanism: 'Conservative bridge plan', text: 'Preserve the existing order and add the smallest connective beat that restores clarity.', rationale: 'Lowest-disruption approach for larger-scope repair.' },
+      { key: 'C', mechanism: 'Bolder restructuring plan', text: 'Re-sequence or deepen the affected beat so setup, pressure, and payoff carry through the relevant span.', rationale: 'Higher-leverage option when local polish is not enough.' },
+    ]
+  }
+  return [
+    { key: 'A', mechanism: 'Recommended repair', text: 'Review this opportunity and choose the least disruptive repair that preserves author voice.', rationale: 'Default repair path.' },
+    { key: 'B', mechanism: 'Rhythm variant', text: 'Apply the same repair goal with a lighter touch, preserving more of the original cadence.', rationale: 'For authors who want minimal intervention.' },
+    { key: 'C', mechanism: 'Bolder rendering shift', text: 'Apply the same repair goal with stronger emphasis, image, or beat structure.', rationale: 'For local moments that need more visible movement.' },
+  ]
+}
+
+// ---------------------------------------------------------------------------
+// Evaluation artifact → rich recommendation lookup
+// ---------------------------------------------------------------------------
+type RichLookup = Map<string, RichRecommendation[]>
+
+function buildLookupKey(criterionKey: string): string {
+  return criterionKey.replace(/\s+/g, '_').toUpperCase()
+}
+
+function extractRichRecommendations(payload: any): RichLookup {
+  const lookup: RichLookup = new Map()
+
+  const criteria = Array.isArray(payload?.criteria) ? payload.criteria : []
+  for (const criterion of criteria) {
+    const key = buildLookupKey(
+      String(criterion?.key ?? criterion?.criterion_key ?? 'GENERAL'),
+    )
+    const recs = Array.isArray(criterion?.recommendations) ? criterion.recommendations : []
+    const rich: RichRecommendation[] = recs.map((rec: any) => ({
+      anchor_snippet: String(rec?.anchor_snippet ?? '').trim(),
+      symptom: String(rec?.symptom ?? '').trim(),
+      mechanism: String(rec?.mechanism ?? '').trim(),
+      specific_fix: String(rec?.specific_fix ?? '').trim(),
+      reader_effect: String(rec?.reader_effect ?? '').trim(),
+      mistake_proofing: String(rec?.mistake_proofing ?? '').trim(),
+      action: String(rec?.action ?? '').trim(),
+      expected_impact: String(rec?.expected_impact ?? '').trim(),
+      priority: String(rec?.priority ?? 'medium').trim(),
+    }))
+    const existing = lookup.get(key) ?? []
+    existing.push(...rich)
+    lookup.set(key, existing)
+  }
+
+  // Also extract from top-level recommendations array
+  const topRecs = Array.isArray(payload?.recommendations) ? payload.recommendations : []
+  for (const rec of topRecs) {
+    const key = buildLookupKey(String(rec?.criterion ?? rec?.rule ?? 'GENERAL'))
+    const rich: RichRecommendation = {
+      anchor_snippet: String(rec?.anchor_snippet ?? rec?.evidence_snippet ?? rec?.quote ?? '').trim(),
+      symptom: String(rec?.symptom ?? '').trim(),
+      mechanism: String(rec?.mechanism ?? '').trim(),
+      specific_fix: String(rec?.specific_fix ?? '').trim(),
+      reader_effect: String(rec?.reader_effect ?? '').trim(),
+      mistake_proofing: String(rec?.mistake_proofing ?? '').trim(),
+      action: String(rec?.action ?? '').trim(),
+      expected_impact: String(rec?.expected_impact ?? '').trim(),
+      priority: String(rec?.priority ?? 'medium').trim(),
+    }
+    const existing = lookup.get(key) ?? []
+    existing.push(rich)
+    lookup.set(key, existing)
+  }
+
+  return lookup
+}
+
+function matchRichRecommendation(
+  finding: DiagnosticFinding,
+  lookup: RichLookup,
+): RichRecommendation | null {
+  const key = buildLookupKey(finding.criterion_key)
+  const candidates = lookup.get(key)
+  if (!candidates || candidates.length === 0) return null
+
+  // Try to match by evidence overlap
+  const findingEvidence = (finding.evidence_excerpt ?? finding.original_text ?? '').toLowerCase().trim()
+  const findingRec = (finding.recommendation ?? '').toLowerCase().trim()
+
+  if (findingEvidence.length > 10) {
+    for (const rich of candidates) {
+      const anchor = rich.anchor_snippet.toLowerCase()
+      if (anchor.length > 10 && (
+        findingEvidence.includes(anchor.slice(0, 40)) ||
+        anchor.includes(findingEvidence.slice(0, 40))
+      )) {
+        return rich
+      }
+    }
+  }
+
+  // Try to match by action text overlap with recommendation
+  if (findingRec.length > 10) {
+    for (const rich of candidates) {
+      const action = rich.action.toLowerCase()
+      if (action.length > 10 && (
+        findingRec.includes(action.slice(0, 50)) ||
+        action.includes(findingRec.slice(0, 50))
+      )) {
+        return rich
+      }
+    }
+  }
+
+  // Fall back to consuming by index (shift off the first unconsumed one)
+  if (candidates.length > 0) {
+    return candidates.shift()!
+  }
+
+  return null
+}
+
+// ---------------------------------------------------------------------------
+// Finding → WorkbenchOpportunity (enriched with 6-part diagnostic)
+// ---------------------------------------------------------------------------
 function inferSource(finding: DiagnosticFinding): WorkbenchSource {
   const ft = finding.finding_type ?? ''
   if (ft.startsWith('baseline_manuscript_discovery')) return 'baseline_discovery'
@@ -147,16 +294,34 @@ function inferSource(finding: DiagnosticFinding): WorkbenchSource {
   return 'evaluation'
 }
 
-function findingToOpportunity(finding: DiagnosticFinding, index: number): WorkbenchOpportunity {
+function findingToOpportunity(
+  finding: DiagnosticFinding,
+  index: number,
+  richLookup: RichLookup,
+): WorkbenchOpportunity {
   const severity = toSeverity(finding.severity)
   const scope = inferScope(finding)
   const mode = modeForScope(scope)
   const source = inferSource(finding)
   const criterion = criterionLabel(finding.criterion_key)
   const cleanedLocationRef = cleanLocationRef(finding.location_ref)
-  const evidence = splitEvidence(finding.evidence_excerpt ?? finding.original_text)
-  const title = firstSentence(finding.diagnosis, `${criterion} revision opportunity`)
   const locationDisplay = cleanedLocationRef ?? `Item ${index + 1}`
+
+  // Try to enrich from the raw evaluation artifact
+  const rich = matchRichRecommendation(finding, richLookup)
+
+  // Evidence: prefer rich anchor_snippet > finding.evidence_excerpt > finding.original_text
+  const evidenceText = rich?.anchor_snippet || finding.evidence_excerpt || finding.original_text || null
+  const evidence = splitEvidence(evidenceText)
+
+  // Title: use symptom if available (it's the observable reader problem)
+  const title = firstSentence(
+    rich?.symptom || finding.diagnosis,
+    `${criterion} revision opportunity`,
+  )
+
+  // Anchor: if rich recommendation has a snippet, show a location hint
+  const anchor = cleanedLocationRef ?? (rich?.anchor_snippet ? 'evidence anchored' : 'Location pending')
 
   return {
     id: finding.id || `finding-${index + 1}`,
@@ -169,17 +334,15 @@ function findingToOpportunity(finding: DiagnosticFinding, index: number): Workbe
     title,
     meta: `${criterion} · ${locationDisplay}`,
     confidence: finding.confidence == null ? `${finding.severity} severity` : `${Math.round(finding.confidence * 100)}% confidence`,
-    anchor: cleanedLocationRef ?? 'Location pending',
+    anchor,
     quoteHighlight: evidence.quoteHighlight,
     quoteRest: evidence.quoteRest,
-    symptom: finding.diagnosis,
-    cause: finding.recommendation || 'The evaluation and queue builder identified this as a manuscript readiness risk.',
-    fixDirection: finding.recommendation || 'Review the evidence and choose a repair path before revising.',
-    readerEffect: readerEffect(finding.criterion_key, scope),
-    mistakeProofing: mode === 'repair-brief'
-      ? 'Preserve author intent, setup/payoff logic, voice, and downstream continuity. Do not solve structural issues with surface polish.'
-      : 'Preserve author voice and meaning. Do not introduce new information unless the repair path explicitly calls for it.',
-    options: optionsFor(finding, scope),
+    symptom: rich?.symptom || finding.diagnosis,
+    cause: rich?.mechanism || finding.recommendation || 'The evaluation identified this as a manuscript readiness concern.',
+    fixDirection: rich?.specific_fix || rich?.action || finding.recommendation || 'Review the evidence and choose a repair path before revising.',
+    readerEffect: rich?.reader_effect || fallbackReaderEffect(finding.criterion_key, scope),
+    mistakeProofing: rich?.mistake_proofing || fallbackMistakeProofing(mode),
+    options: rich ? optionsFromRich(rich, mode) : optionsFallback(mode),
   }
 }
 
@@ -204,6 +367,26 @@ function emptyPayload(error: string | null): WorkbenchQueuePayload {
     totals: { must: 0, should: 0, could: 0 },
     scopes: { Line: 0, Passage: 0, Scene: 0, Chapter: 0, Structural: 0, Manuscript: 0 },
   }
+}
+
+// ---------------------------------------------------------------------------
+// Load raw evaluation artifact to extract rich recommendation fields
+// ---------------------------------------------------------------------------
+async function loadEvaluationArtifactPayload(
+  supabase: ReturnType<typeof createAdminClient>,
+  evaluationJobId: string,
+): Promise<RichLookup> {
+  const { data, error } = await supabase
+    .from('evaluation_artifacts')
+    .select('content')
+    .eq('job_id', evaluationJobId)
+    .in('artifact_type', ['evaluation_result_v2', 'evaluation_result_v1'])
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (error || !data?.content) return new Map()
+  return extractRichRecommendations(data.content)
 }
 
 export async function getWorkbenchQueue(input: { manuscriptId?: string; evaluationJobId?: string }): Promise<WorkbenchQueuePayload> {
@@ -238,8 +421,15 @@ export async function getWorkbenchQueue(input: { manuscriptId?: string; evaluati
   if (job.status !== 'complete') return emptyPayload('This evaluation is not complete yet. Revise can load after the report is finished.')
   if (!job.manuscript_version_id) return emptyPayload('This evaluation is missing its manuscript version link.')
 
-  const findings = await ensureOperationalRevisionFindings(input.evaluationJobId, job.manuscript_version_id as string)
-  const opportunities = sortOpportunities(findings.map(findingToOpportunity))
+  // Load findings + raw evaluation artifact in parallel
+  const [findings, richLookup] = await Promise.all([
+    ensureOperationalRevisionFindings(input.evaluationJobId, job.manuscript_version_id as string),
+    loadEvaluationArtifactPayload(supabase, input.evaluationJobId),
+  ])
+
+  const opportunities = sortOpportunities(
+    findings.map((f, i) => findingToOpportunity(f, i, richLookup)),
+  )
   const totals: WorkbenchQueuePayload['totals'] = { must: 0, should: 0, could: 0 }
   const scopes: WorkbenchQueuePayload['scopes'] = { Line: 0, Passage: 0, Scene: 0, Chapter: 0, Structural: 0, Manuscript: 0 }
 

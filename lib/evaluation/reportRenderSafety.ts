@@ -108,25 +108,34 @@ export function safeTruncateToWordBoundary(text: string): string {
   // Already ends with sentence-terminal punctuation — no truncation needed.
   if (/[.!?;:—"')\]]\s*$/.test(trimmed)) return trimmed;
 
-  // Ends cleanly on a complete word (letter/digit followed by whitespace boundary) — likely fine.
-  // But if it ends mid-word (no space before the final char cluster), trim to last word boundary.
-  const lastSpace = trimmed.lastIndexOf(" ");
-  if (lastSpace === -1) return trimmed;
+  // Dangling connectors: if text ends with a conjunction, preposition, comparative,
+  // or other connector word, trim back to the last complete thought.
+  const DANGLING_TAIL = /\s+(and|or|but|the|a|an|in|on|at|to|of|for|with|by|than|from|into|as|that|which|who|whose|where|when|while|although|because|before|after|during|between|among|through|about|like|more|less|over|under|also|yet|so|if|whether|not|nor|both|either|neither|each|every|some|any|most|such)\s*$/i;
 
-  // Check if the very end looks like a partial word (no terminal punctuation).
-  const lastSegment = trimmed.slice(lastSpace + 1);
-  // If last segment is a complete word ending in a letter/digit, the text is merely
-  // missing a period — that is acceptable, just append one.
-  // If last segment looks partial (short, no vowel, or clearly mid-word), trim it.
-  if (lastSegment.length <= 3 && !/[aeiou]/i.test(lastSegment)) {
-    // Likely mid-word truncation — trim to previous word boundary.
-    const upToLastSpace = trimmed.slice(0, lastSpace).trimEnd();
-    // Remove trailing conjunctions/prepositions that dangle after trimming.
-    const cleaned = upToLastSpace.replace(/\s+(and|or|but|the|a|an|in|on|at|to|of|for|with|by)\s*$/i, "");
-    return cleaned.replace(/[,;:\s]+$/, "") + "…";
+  let result = trimmed;
+  // Iteratively strip dangling connectors.
+  while (DANGLING_TAIL.test(result)) {
+    result = result.replace(DANGLING_TAIL, "");
+  }
+  result = result.replace(/[,;:\s]+$/, "");
+
+  // If we stripped something, add ellipsis.
+  if (result.length < trimmed.length) {
+    return result + "…";
   }
 
-  return trimmed;
+  // Ends cleanly on a complete word — likely fine, but check for partial words.
+  const lastSpace = result.lastIndexOf(" ");
+  if (lastSpace === -1) return result;
+
+  const lastSegment = result.slice(lastSpace + 1);
+  if (lastSegment.length <= 3 && !/[aeiou]/i.test(lastSegment)) {
+    const upToLastSpace = result.slice(0, lastSpace).trimEnd();
+    const cleaned = upToLastSpace.replace(DANGLING_TAIL, "").replace(/[,;:\s]+$/, "");
+    return cleaned + "…";
+  }
+
+  return result;
 }
 
 /**
@@ -164,6 +173,56 @@ export function getDisplayDreamMarketField(
   return value.length > 0 ? value : null;
 }
 
+export function getDisplayDreamMarketList(
+  dreamDoc: LongformDreamDocument | null | undefined,
+  field: "shelf_neighbors" | "comparison_space",
+): string[] {
+  const marketShelf = asRecord((dreamDoc as unknown as Record<string, unknown> | null)?.market_shelf);
+  if (!marketShelf) return [];
+  return getDisplayDreamList(marketShelf[field]);
+}
+
+/**
+ * Split a long prose block into paragraphs for structured rendering.
+ * Uses double-newlines if present; otherwise splits at ~150-word boundaries
+ * on sentence endings.
+ */
+export function splitIntoParagraphs(text: string): string[] {
+  const trimmed = text.trim();
+  if (!trimmed) return [];
+
+  // If the text already has double-newlines, respect those.
+  if (/\n\s*\n/.test(trimmed)) {
+    return trimmed.split(/\n\s*\n/).map((p) => p.trim()).filter((p) => p.length > 0);
+  }
+
+  // If the text has single newlines, use those as paragraph breaks.
+  if (/\n/.test(trimmed)) {
+    return trimmed.split(/\n/).map((p) => p.trim()).filter((p) => p.length > 0);
+  }
+
+  // Single block of text: split at sentence boundaries around 150 words.
+  const sentences = trimmed.match(/[^.!?]+[.!?]+[\s]*/g) || [trimmed];
+  const paragraphs: string[] = [];
+  let current = "";
+  let wordCount = 0;
+
+  for (const sentence of sentences) {
+    const sentenceWords = sentence.trim().split(/\s+/).length;
+    if (wordCount > 0 && wordCount + sentenceWords > 150) {
+      paragraphs.push(current.trim());
+      current = sentence;
+      wordCount = sentenceWords;
+    } else {
+      current += sentence;
+      wordCount += sentenceWords;
+    }
+  }
+  if (current.trim()) paragraphs.push(current.trim());
+
+  return paragraphs.length > 0 ? paragraphs : [trimmed];
+}
+
 const INTERNAL_DIAGNOSTIC_PATTERNS: RegExp[] = [
   /source[-\s]?integrity/i,
   /relationship\s+network\s+representation/i,
@@ -176,6 +235,19 @@ const INTERNAL_DIAGNOSTIC_PATTERNS: RegExp[] = [
   /taxonomy\s+repair/i,
   /no\s+qualifying\s+relationship\s+pairs/i,
   /renderer\s+defect|schema\s+defect|ontology\s+repair/i,
+  /\bHARD_FAIL\b/,
+  /\bDEGRADED_EXTRACTION\b/,
+  /\bSOURCE_INTEGRITY_REVIEW_REQUIRED\b/,
+  /\bpipeline\s+(failure|error|status|diagnostic)/i,
+  /\bextraction\s+semantics?\b/i,
+  /\bschema\s+validation\b/i,
+  /\bWAVE\s*(I{1,4}|[1-4])\b/,
+  /\bPass\s*[0-9][A-Za-z]?\b/,
+  /\bgate[-_]?identifier\b/i,
+  /\bdoctrine[-_]?id\b/i,
+  /\bvalidator[-_]?name\b/i,
+  /\bprompt[-_]?mechanic/i,
+  /\bgovernance[-_]?machinery\b/i,
 ];
 
 export type AuthorFacingRevisionPlanItem = {

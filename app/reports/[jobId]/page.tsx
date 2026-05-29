@@ -21,6 +21,7 @@ import {
   getDisplayDateTime,
   getDisplayDreamList,
   getDisplayDreamMarketField,
+  getDisplayDreamMarketList,
   getDisplayObjectArray,
   getDisplayRecord,
   getDisplayDreamScore,
@@ -28,6 +29,8 @@ import {
   filterAuthorFacingTextList,
   getRenumberedAuthorFacingRevisionPlan,
   safeTruncateToWordBoundary,
+  getCriterionDisplayLabel,
+  splitIntoParagraphs,
 } from '@/lib/evaluation/reportRenderSafety';
 import { resolveReportTitle } from '@/lib/evaluation/reportTitle';
 import { hasActiveSupportGrant, logSupportView } from '@/lib/support/checkSupportAccess';
@@ -258,6 +261,8 @@ export default async function ReportPage({ params }: { params: { jobId: string }
   const dreamBestShelf = getDisplayDreamMarketField(dreamDoc, "best_shelf");
   const dreamMarketableHook = getDisplayDreamMarketField(dreamDoc, "marketable_hook");
   const dreamMarketDanger = getDisplayDreamMarketField(dreamDoc, "market_danger");
+  const dreamShelfNeighbors = getDisplayDreamMarketList(dreamDoc, "shelf_neighbors");
+  const dreamComparisonSpace = getDisplayDreamMarketList(dreamDoc, "comparison_space");
   const dreamAntiPatterns = getDisplayDreamList(dreamDoc?.what_not_to_become);
   const dreamStructuralStack = getDisplayObjectArray(dreamDoc?.structural_stack);
   const dreamArcMap = getDisplayObjectArray(dreamDoc?.arc_map);
@@ -467,7 +472,7 @@ export default async function ReportPage({ params }: { params: { jobId: string }
         {(!isLongForm || !dreamDoc) && (
         <section className="bg-white rounded-lg shadow-sm p-6 mb-6">
           <h2 className="text-2xl font-semibold text-gray-900 mb-6">
-            §6 — Detailed Scores / Score Grid
+            Detailed Scores
           </h2>
           <div className="mb-4 rounded-md border bg-gray-50 p-3 text-sm text-gray-700 leading-relaxed">
             <p className="font-medium">What does Confidence mean?</p>
@@ -496,8 +501,8 @@ export default async function ReportPage({ params }: { params: { jobId: string }
             {criteria.map((criterion) => (
               <div key={criterion.key} className="border border-gray-200 rounded-lg p-4">
                 <div className="flex items-center justify-between mb-2">
-                  <h3 className="font-semibold text-gray-900 capitalize">
-                    {criterion.key}
+                  <h3 className="font-semibold text-gray-900">
+                    {getCriterionDisplayLabel(criterion.key)}
                   </h3>
                   <div className="flex items-center gap-2">
                     {(() => {
@@ -635,7 +640,11 @@ export default async function ReportPage({ params }: { params: { jobId: string }
                 {/* Executive Verdict */}
                 <div>
                   <h3 className="text-lg font-semibold text-gray-900 mb-2">Executive Verdict</h3>
-                  <p className="text-gray-700 leading-relaxed whitespace-pre-line">{dreamExecutiveVerdict}</p>
+                  <div className="space-y-3">
+                    {splitIntoParagraphs(dreamExecutiveVerdict).map((para, idx) => (
+                      <p key={idx} className="text-gray-700 leading-relaxed">{para}</p>
+                    ))}
+                  </div>
                 </div>
 
                 {/* §2 — Market shelf */}
@@ -650,6 +659,26 @@ export default async function ReportPage({ params }: { params: { jobId: string }
                   <p className="text-sm text-rose-700">
                     <span className="font-medium">Market danger:</span> {dreamMarketDanger ?? "—"}
                   </p>
+                  {dreamShelfNeighbors.length > 0 && (
+                    <div className="mt-3">
+                      <h4 className="text-sm font-semibold text-gray-900 mb-1">Comparable Titles &amp; Shelf Neighbors</h4>
+                      <ul className="list-disc list-inside space-y-0.5 text-sm text-gray-600">
+                        {dreamShelfNeighbors.map((title, idx) => (
+                          <li key={idx}>{title}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {dreamComparisonSpace.length > 0 && (
+                    <div className="mt-3">
+                      <h4 className="text-sm font-semibold text-gray-900 mb-1">Comparison Space</h4>
+                      <ul className="list-disc list-inside space-y-0.5 text-sm text-gray-600">
+                        {dreamComparisonSpace.map((comp, idx) => (
+                          <li key={idx}>{comp}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                 </div>
 
                 {/* §3 — What not to become */}
@@ -695,7 +724,13 @@ export default async function ReportPage({ params }: { params: { jobId: string }
                           <p><span className="font-medium">Act:</span> {getDisplayText(arc.act_name)}</p>
                           <p><span className="font-medium">Chapter range:</span> {getDisplayText(arc.chapter_range)}</p>
                           <p><span className="font-medium">Primary function:</span> {getDisplayText(arc.primary_function)}</p>
-                          <p><span className="font-medium">Revision priority:</span> {getDisplayText(arc.revision_priority)}</p>
+                          <p>
+                            <span className="font-medium">Revision priority:</span>{' '}
+                            {getDisplayText(arc.revision_priority)}
+                            {typeof arc.revision_rationale === 'string' && arc.revision_rationale.trim() && (
+                              <span className="text-gray-600"> — {arc.revision_rationale.trim()}</span>
+                            )}
+                          </p>
                         </div>
                       ))}
                     </div>
@@ -711,7 +746,7 @@ export default async function ReportPage({ params }: { params: { jobId: string }
                     <div className="space-y-2">
                       {dreamCriterionAnalyses.map((analysis, idx) => (
                         <div key={idx} className="rounded border border-gray-200 p-3 text-sm">
-                          <p><span className="font-medium">Criterion:</span> {getDisplayText(analysis.key)}</p>
+                          <p><span className="font-medium">Criterion:</span> {getCriterionDisplayLabel(getDisplayText(analysis.key))}</p>
                           <p><span className="font-medium">Score:</span> {getDisplayText(analysis.score)}</p>
                           <p><span className="font-medium">Confidence:</span> {getDisplayText(analysis.confidence)}</p>
 

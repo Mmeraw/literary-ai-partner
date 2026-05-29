@@ -115,11 +115,22 @@ function OpportunityCard({ r, defaultExpanded }: { r: Recommendation; defaultExp
   );
 }
 
+const SEVERITY_ORDER: Record<string, number> = { high: 0, medium: 1, low: 2 };
+
+function sortBySeverity(recs: Recommendation[]): Recommendation[] {
+  return [...recs].sort((a, b) => {
+    const aOrder = SEVERITY_ORDER[a.priority ?? 'low'] ?? 2;
+    const bOrder = SEVERITY_ORDER[b.priority ?? 'low'] ?? 2;
+    return aOrder - bOrder;
+  });
+}
+
 export default function CriterionOpportunities({ recommendations }: { recommendations: Recommendation[] }) {
   const [showMore, setShowMore] = useState(false);
   if (!recommendations || recommendations.length === 0) return null;
 
-  const visible = recommendations.slice(0, 3);
+  const sorted = sortBySeverity(recommendations);
+  const visible = sorted.slice(0, 3);
   const primary = visible[0];
   const additional = visible.slice(1);
   const hasMore = additional.length > 0;
@@ -127,7 +138,7 @@ export default function CriterionOpportunities({ recommendations }: { recommenda
   return (
     <div className="mt-3">
       <p className="text-xs font-semibold uppercase tracking-wide text-gray-600">
-        {visible.length === 1 ? "Primary Opportunity:" : `Primary Opportunity (${visible.length} surfaced):`}
+        {visible.length === 1 ? "Highest-Priority Opportunity:" : `Top Opportunities (${visible.length} surfaced, severity-ordered):`}
       </p>
       <ul className="mt-2 space-y-3">
         <OpportunityCard r={primary} defaultExpanded />

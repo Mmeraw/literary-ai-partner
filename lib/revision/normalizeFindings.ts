@@ -172,6 +172,7 @@ function buildFindingsFromPayload(
               firstNonEmptyString(
                 rec?.original_text,
                 rec?.originalText,
+                rec?.anchor_snippet,
                 rec?.evidence_snippet,
                 rec?.evidenceSnippet,
                 rec?.snippet,
@@ -179,7 +180,7 @@ function buildFindingsFromPayload(
               ),
             ),
             evidence_excerpt: cleanSnippet(
-              firstNonEmptyString(rec?.evidence_excerpt, rec?.evidence_snippet, criterionEvidence),
+              firstNonEmptyString(rec?.evidence_excerpt, rec?.anchor_snippet, rec?.evidence_snippet, criterionEvidence),
             ),
             diagnosis,
             recommendation: firstNonEmptyString(
@@ -225,6 +226,7 @@ function buildFindingsFromPayload(
           firstNonEmptyString(
             item?.original_text,
             item?.originalText,
+            item?.anchor_snippet,
             item?.evidence_snippet,
             item?.evidenceSnippet,
             item?.snippet,
@@ -232,7 +234,7 @@ function buildFindingsFromPayload(
           ),
         ),
         evidence_excerpt: cleanSnippet(
-          firstNonEmptyString(item?.evidence_excerpt, item?.evidence_snippet, item?.snippet),
+          firstNonEmptyString(item?.evidence_excerpt, item?.anchor_snippet, item?.evidence_snippet, item?.snippet),
         ),
         diagnosis: firstNonEmptyString(
           item?.diagnosis,
