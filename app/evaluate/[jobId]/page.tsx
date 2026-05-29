@@ -620,7 +620,7 @@ export default async function EvaluationReportPage({
           aria-live="polite"
         >
           <p className="text-sm font-semibold" style={{ color: '#0E0E0E' }}>
-            ✓ Story Ledger approved — craft diagnosis is now running.
+            ✓ Story Ledger approved — building your report is now running.
           </p>
           <p className="mt-1 text-sm" style={{ color: '#7B7B7B' }}>
             {(() => {
@@ -962,15 +962,15 @@ export default async function EvaluationReportPage({
             </>
           )}
 
-          {/* ── Narrative Synthesis (long-form) ── */}
+          {/* ── Finalizing your report (long-form) ── */}
           {isLongForm && isComplete && (
             <section className="rounded-lg border border-indigo-100 bg-white p-6 mb-4">
               <div className="mb-5">
                 <h2 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
-                  <span aria-hidden>📖</span> Narrative Synthesis
+                  <span aria-hidden>📖</span> Finalizing your report
                 </h2>
                 <p className="text-sm text-gray-700 mt-0.5">
-                  Holistic Craft Assessment — long-form synthesis report
+                  Holistic craft assessment — long-form report finalization
                 </p>
               </div>
 

@@ -411,7 +411,7 @@ const MODULES: { id: ModuleId; label: string; number: number; sublabel: string; 
   { id: "story_layer", number: 1, label: "Story Layer Map", sublabel: "Generated story facts", icon: "◈" },
   { id: "review_gate", number: 2, label: "Review Gate", sublabel: "Author approval", icon: "◎" },
   { id: "accepted_ledger", number: 3, label: "Accepted Ledger", sublabel: "Frozen canon", icon: "◆" },
-  { id: "wave_handoff", number: 4, label: "WAVE Handoff", sublabel: "13 criteria + repair", icon: "◇" },
+  { id: "wave_handoff", number: 4, label: "Preparing next-step guidance", sublabel: "13 criteria + repair", icon: "◇" },
 ];
 
 // ─── Props ───────────────────────────────────────────────────────────────────
@@ -1957,7 +1957,7 @@ function Module4WaveHandoff({ approved }: { approved: boolean }) {
     return (
       <Card>
         <Pill tone="neutral">Module 4 · Locked</Pill>
-        <h2 style={{ margin: "14px 0 10px", ...T.h2 }}>WAVE Handoff</h2>
+        <h2 style={{ margin: "14px 0 10px", ...T.h2 }}>Preparing next-step guidance</h2>
         <p style={{ margin: 0, ...T.body }}>
           The WAVE Revision System™ bridge unlocks only after the Story Ledger is
           accepted. The craft evaluation uses the accepted ledger as its sole
@@ -1982,7 +1982,7 @@ function Module4WaveHandoff({ approved }: { approved: boolean }) {
         >
           <div style={{ flex: 1 }}>
             <Pill tone="gold">Module 4 · Active</Pill>
-            <h2 style={{ margin: "14px 0 10px", ...T.h2 }}>WAVE Handoff</h2>
+            <h2 style={{ margin: "14px 0 10px", ...T.h2 }}>Preparing next-step guidance</h2>
             <p style={{ margin: 0, maxWidth: "58ch", ...T.bodyLg }}>
               The accepted story ledger is now the authorized narrative matrix. The
               craft evaluation will diagnose your manuscript across 13 criteria using
