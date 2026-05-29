@@ -1,0 +1,180 @@
+{
+  "artifact_type": "accepted_story_ledger_v1",
+  "artifact_version": "v1",
+  "manuscript_id": "the-awakening",
+  "layers": {
+    "pov_structure_layer": {
+      "pov_characters": [
+        {
+          "character_id": "aw:edna",
+          "canonical_name": "Edna Pontellier",
+          "is_primary": true
+        }
+      ]
+    },
+    "canonical_identity_layer": {
+      "identity_groups": [
+        {
+          "character_id": "aw:edna",
+          "canonical_name": "Edna Pontellier",
+          "aliases": ["Edna"]
+        },
+        {
+          "character_id": "aw:robert",
+          "canonical_name": "Robert Lebrun",
+          "aliases": ["Robert"]
+        },
+        {
+          "character_id": "aw:leonce",
+          "canonical_name": "Léonce Pontellier",
+          "aliases": ["Leonce"]
+        },
+        {
+          "character_id": "aw:arobin",
+          "canonical_name": "Alcée Arobin",
+          "aliases": ["Arobin"]
+        },
+        {
+          "character_id": "aw:adele",
+          "canonical_name": "Adèle Ratignolle",
+          "aliases": ["Adele"]
+        },
+        {
+          "character_id": "aw:reisz",
+          "canonical_name": "Mademoiselle Reisz",
+          "aliases": ["Reisz"]
+        },
+        {
+          "character_id": "aw:celina_husband",
+          "canonical_name": "Célina's husband",
+          "aliases": ["Celina husband"]
+        },
+        {
+          "character_id": "aw:raoul",
+          "canonical_name": "Raoul Pontellier",
+          "aliases": ["Raoul"]
+        },
+        {
+          "character_id": "aw:etienne",
+          "canonical_name": "Étienne Pontellier",
+          "aliases": ["Etienne"]
+        }
+      ]
+    },
+    "cast_role_tier_layer": {
+      "tier_map": {
+        "protagonist": [
+          { "character_id": "aw:edna", "canonical_name": "Edna Pontellier", "importance_level": "primary" }
+        ],
+        "romantic_catalyst": [
+          { "character_id": "aw:robert", "canonical_name": "Robert Lebrun", "importance_level": "major" }
+        ],
+        "patriarchal_pressure": [
+          { "character_id": "aw:leonce", "canonical_name": "Léonce Pontellier", "importance_level": "major" }
+        ],
+        "sexual_destabilizer": [
+          { "character_id": "aw:arobin", "canonical_name": "Alcée Arobin", "importance_level": "supporting" }
+        ],
+        "domestic_foil": [
+          { "character_id": "aw:adele", "canonical_name": "Adèle Ratignolle", "importance_level": "supporting" }
+        ],
+        "artistic_countermodel": [
+          { "character_id": "aw:reisz", "canonical_name": "Mademoiselle Reisz", "importance_level": "supporting" }
+        ],
+        "background_mention": [
+          { "character_id": "aw:celina_husband", "canonical_name": "Célina's husband", "importance_level": "minor" }
+        ]
+      }
+    },
+    "identity_pronoun_layer": {
+      "pronoun_shifts_detected": 0,
+      "entries": [
+        {
+          "canonical_name": "Edna Pontellier",
+          "pronouns": ["she/her"],
+          "warnings": []
+        },
+        {
+          "canonical_name": "Raoul Pontellier",
+          "pronouns": ["he/him"],
+          "warnings": []
+        },
+        {
+          "canonical_name": "Étienne Pontellier",
+          "pronouns": ["he/him"],
+          "warnings": []
+        },
+        {
+          "canonical_name": "Robert Lebrun",
+          "pronouns": ["he/him"],
+          "warnings": []
+        }
+      ]
+    },
+    "relationship_network_layer": {
+      "relationship_pairs": [
+        {
+          "character_a": "aw:edna",
+          "character_b": "aw:leonce",
+          "relationship_type_start": "marriage",
+          "relationship_type_end": "estrangement"
+        },
+        {
+          "character_a": "aw:edna",
+          "character_b": "aw:robert",
+          "relationship_type_start": "attraction",
+          "relationship_type_end": "fatal_unresolved_desire"
+        },
+        {
+          "character_a": "aw:edna",
+          "character_b": "aw:adele",
+          "relationship_type_start": "friendship",
+          "relationship_type_end": "maternal_domestic_counterpoint"
+        },
+        {
+          "character_a": "aw:edna",
+          "character_b": "aw:reisz",
+          "relationship_type_start": "mentorship_resistance",
+          "relationship_type_end": "artistic_countermodel"
+        }
+      ],
+      "pair_count": 4,
+      "relationship_tiers": {
+        "primary_spine": ["aw:edna|aw:leonce", "aw:edna|aw:robert"],
+        "secondary_structural": ["aw:edna|aw:adele", "aw:edna|aw:reisz"],
+        "background": ["aw:celina_husband"]
+      }
+    },
+    "object_symbol_layer": {
+      "objects": [
+        { "object_id": "aw:symbol:sea", "name": "sea / gulf / water" },
+        { "object_id": "aw:symbol:birds", "name": "birds / flight" },
+        { "object_id": "aw:symbol:pigeon_house", "name": "pigeon house" },
+        { "object_id": "aw:symbol:ring", "name": "wedding ring" },
+        { "object_id": "aw:symbol:music", "name": "music / piano" },
+        { "object_id": "aw:symbol:letters", "name": "letters" },
+        { "object_id": "aw:symbol:art", "name": "Edna's art / sketching" }
+      ]
+    },
+    "location_timeline_worldstate_layer": {
+      "unique_locations": [
+        "Grand Isle",
+        "New Orleans",
+        "Chênière Caminada",
+        "Pigeon House",
+        "Pontellier residence"
+      ],
+      "location_count": 5
+    },
+    "threat_antagonist_ending_layer": {
+      "threat_systems": [
+        "marital pressure",
+        "social propriety",
+        "property constraints",
+        "sexual destabilization",
+        "maternal domestic norm pressure",
+        "artistic vocation pressure"
+      ]
+    }
+  }
+}
