@@ -991,7 +991,7 @@ export function PovStructureLayer({
               </div>
               {sharePct !== null && (
                 <p style={{ margin: "6px 0 0", fontSize: 13, color: C.textMuted }}>
-                  Narrative share: {sharePct}% of manuscript chunks
+                  Narrative share: {sharePct}%
                 </p>
               )}
             </CharacterCard>
@@ -1168,13 +1168,6 @@ function IdentityCard({ id, index }: { id: Record<string, unknown>; index: numbe
         />
       </div>
 
-      {anchors && anchors.length > 0 && (
-        <div style={{ marginTop: 12, display: "flex", gap: 6, flexWrap: "wrap" }}>
-          {anchors.map((a, j) => (
-            <EvidenceTag key={j} id={a} />
-          ))}
-        </div>
-      )}
     </CharacterCard>
   );
 }
@@ -1844,8 +1837,8 @@ export function RelationshipNetworkLayer({
                           const dynamic = String(pd.dynamic ?? "").replace(/_/g, " ");
                           const range = Array.isArray(pd.chunkRange) ? pd.chunkRange as number[] : [];
                           const rangeStr = range.length === 2 && range[0] !== range[1]
-                            ? ` (chunks ${range[0]}–${range[1]})`
-                            : range.length === 2 ? ` (chunk ${range[0]})` : "";
+                            ? ""
+                            : "";
                           const note = pd.note ? ` — ${pd.note}` : "";
                           return `${dynamic}${rangeStr}${note}`;
                         })
@@ -1889,13 +1882,7 @@ export function RelationshipNetworkLayer({
                   )}
                 </div>
 
-                {evidenceAnchors && evidenceAnchors.length > 0 && (
-                  <div style={{ marginTop: 12, display: "flex", gap: 6, flexWrap: "wrap" }}>
-                    {evidenceAnchors.map((a, j) => (
-                      <EvidenceTag key={j} id={a} />
-                    ))}
-                  </div>
-                )}
+
               </CharacterCard>
             );
           })}
@@ -2097,7 +2084,7 @@ function ObjectCard({
       {/* Narrative span indicator */}
       {typeof item.narrative_span === "number" && (item.narrative_span as number) > 0 && (
         <p style={{ margin: "6px 0 0", fontSize: 13, color: C.textFaint }}>
-          Spans {item.narrative_span as number} chunk{(item.narrative_span as number) === 1 ? "" : "s"} of manuscript
+          Spans {item.narrative_span as number} section{(item.narrative_span as number) === 1 ? "" : "s"} of the manuscript
         </p>
       )}
 
@@ -2725,11 +2712,7 @@ export function LocationTimelineWorldstateLayer({
                     {loc.world_state_rules && <FieldRow label="World state rules" value={loc.world_state_rules} />}
                   </div>
                   {loc.continuity_risks && <WarnBanner reason={String(loc.continuity_risks)} />}
-                  {anchors && anchors.length > 0 && (
-                    <div style={{ marginTop: 10, display: "flex", gap: 6, flexWrap: "wrap" }}>
-                      {anchors.map((a, j) => <EvidenceTag key={j} id={a} />)}
-                    </div>
-                  )}
+
                 </CharacterCard>
               );
             })}
@@ -2812,7 +2795,7 @@ function formatTerminalEntry(entry: Record<string, unknown>): {
   const condition = String(entry.terminalCondition ?? "open");
   const closure = String(entry.narrativeClosureStatus ?? "unknown");
   const chunk = entry.terminalChunk ?? entry.terminalChapter ?? "";
-  const terminal = chunk ? `Last seen: ${typeof chunk === "number" ? `chunk ${chunk}` : chunk}` : "";
+  const terminal = chunk ? `Last seen: ${typeof chunk === "number" ? `section ${chunk}` : chunk}` : "";
   return { name, terminal, belief, condition, closure };
 }
 
@@ -3593,8 +3576,7 @@ export function IdentityPronounLayer({
                   </div>
                 </div>
                 <p style={{ fontSize: 14, color: C.textMuted, margin: "0 0 10px", lineHeight: 1.6 }}>
-                  Pronoun variation detected across evidence spans{" "}
-                  {char.chunkFirst}–{char.chunkLast}.{" "}
+                  Pronoun variation detected across the manuscript.{" "}
                   {char.genderIdentity !== "unknown" && (
                     <span>Gender signal: <em>{char.genderIdentity}</em>.</span>
                   )}
