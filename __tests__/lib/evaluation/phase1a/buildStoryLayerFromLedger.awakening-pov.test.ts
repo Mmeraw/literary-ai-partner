@@ -279,19 +279,17 @@ describe('buildStoryLayerFromLedger — POV focalization truth', () => {
     expect(robertPov).toBeUndefined();
   });
 
-  it('falls back to role-based POV when no chunk outputs provided (backward compat)', () => {
+  it('does not fall back to role-derived POV when chunk evidence is absent', () => {
     const payload = buildStoryLayerFromLedger(minimalLedger, minimalLedgerV2);
     const povLayer = payload.pov_structure_layer as Record<string, unknown>;
     const povChars = povLayer.pov_characters as Array<Record<string, unknown>>;
 
-    // Without chunk data, falls back to protagonist + co_protagonist filter
-    // Robert is co_protagonist in ledgerV2, so he appears in fallback mode
-    expect(povChars.length).toBeGreaterThanOrEqual(1);
-    const ednaEntry = povChars.find((c) => c.canonical_name === 'Edna Pontellier');
-    expect(ednaEntry).toBeDefined();
-
-    // Detection note should warn about role-based derivation
-    expect(povLayer.pov_detection_note).toContain('role');
+    expect(povChars).toHaveLength(0);
+    expect(povLayer.pov_identified).toBe(false);
+    expect(povLayer.pov_evidence_status).toBe('insufficient_evidence');
+    expect(povLayer.pov_role_fallback_derived).toBe(false);
+    expect(povLayer.pov_truth_status).toBe('degraded');
+    expect(String(povLayer.pov_detection_note)).toContain('could not be confirmed');
   });
 
   it('pov_identified is true and pov_character_count is accurate', () => {

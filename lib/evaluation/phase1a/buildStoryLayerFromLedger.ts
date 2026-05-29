@@ -123,8 +123,8 @@ function buildPovStructureLayer(
   ledgerV2: CharacterLedgerV2,
   chunkOutputs?: Pass1aChunkOutput[],
 ): Record<string, unknown> {
-  // Use actual pov_signal data from chunks when available (accurate camera ownership).
-  // Fall back to role-based derivation only for legacy data without pov_signal.
+  // POV ownership must be evidence-based from chunk-level pov_signal/focalization.
+  // Narrative role tiers never confer POV ownership.
   const chunks = Array.isArray(chunkOutputs) ? chunkOutputs : [];
   const povFromChunks = chunks.length > 0
     ? buildPovStructureFromChunkOutputs({
@@ -155,25 +155,14 @@ function buildPovStructureLayer(
           coverage: identity ? (ledgerV2.characterCoverage?.[identity.characterId] ?? null) : null,
         };
       })
-    : ledgerV2.identityLedger
-        .filter(
-          (entry) =>
-            entry.narrativeRole === 'protagonist' || entry.narrativeRole === 'co_protagonist',
-        )
-        .map((entry) => ({
-          character_id: entry.characterId,
-          canonical_name: entry.canonicalName,
-          narrative_role: entry.narrativeRole,
-          importance_level: entry.importanceLevel,
-          first_appearance: entry.firstAppearance,
-          last_appearance: entry.lastAppearance,
-          coverage: ledgerV2.characterCoverage?.[entry.characterId] ?? null,
-        }));
+    : [];
 
   const protagonists = ledger.coverage_summary.protagonists ?? [];
   const co_protagonists = ledger.coverage_summary.co_protagonists ?? [];
   const totalIdentified = ledgerV2.identityLedger.length;
   const povCount = povCharacters.length;
+  const derivedFromRoleFallback = false;
+  const povEvidenceStatus = povCount > 0 ? 'evidence_confirmed' : 'insufficient_evidence';
 
   return {
     schema_version: 'pov_structure_layer_v1',
@@ -183,12 +172,15 @@ function buildPovStructureLayer(
     pov_character_count: povCount,
     total_characters_identified: totalIdentified,
     pov_identified: povCount > 0,
+    pov_evidence_status: povEvidenceStatus,
+    pov_role_fallback_derived: derivedFromRoleFallback,
+    pov_truth_status: povCount > 0 ? 'clean' : 'degraded',
     pov_detection_note:
       povCount === 0
-        ? 'No POV characters detected — character sweep may have low coverage'
+        ? 'POV could not be confirmed from evidence; role-tier fallback is blocked to prevent invented POV ownership.'
         : hasPovSignalData
           ? null
-          : 'POV derived from role (no pov_signal data); may overcount if co_protagonists are not true POV owners',
+          : null,
   };
 }
 

@@ -52,6 +52,25 @@ function validateGreatExpectations(ledger: any): string[] {
   }
 
   const povIds = new Set((ledger.layers?.pov_structure_layer?.pov_characters ?? []).map((entry: any) => entry.character_id));
+  if (povIds.size !== 1 || !povIds.has('ge:pip')) {
+    errors.push('MISSING_REQUIRED_TRUTH: Great Expectations must have Pip / Philip Pirrip as sole POV owner.');
+  }
+
+  for (const forbiddenPovOwner of ['ge:herbert', 'ge:jaggers', 'ge:magwitch', 'ge:estella', 'ge:joe', 'ge:biddy']) {
+    if (povIds.has(forbiddenPovOwner)) {
+      errors.push(`FORBIDDEN_FAILURE: ${forbiddenPovOwner} must not be a POV owner in Great Expectations.`);
+    }
+  }
+
+  const povMode = String(ledger.layers?.pov_structure_layer?.pov_mode ?? '').toLowerCase();
+  const povNote = String(ledger.layers?.pov_structure_layer?.pov_perspective_note ?? '').toLowerCase();
+  if (!povMode.includes('first-person retrospective')) {
+    errors.push('MISSING_REQUIRED_TRUTH: Great Expectations POV mode must be first-person retrospective.');
+  }
+  if (!povNote.includes('adult narrator looking back')) {
+    errors.push('MISSING_REQUIRED_TRUTH: Great Expectations POV note must state adult narrator looking back.');
+  }
+
   if (povIds.has('ge:herbert')) {
     errors.push('FORBIDDEN_FAILURE: Herbert Pocket must not be a POV owner.');
   }
@@ -141,6 +160,29 @@ function validateAwakening(ledger: any): string[] {
   }
 
   const povIds = new Set((ledger.layers?.pov_structure_layer?.pov_characters ?? []).map((entry: any) => entry.character_id));
+  if (povIds.size !== 1 || !povIds.has('aw:edna')) {
+    errors.push('MISSING_REQUIRED_TRUTH: The Awakening must keep Edna Pontellier as primary focal center and sole POV owner.');
+  }
+
+  for (const forbiddenPovOwner of ['aw:robert', 'aw:leonce', 'aw:arobin', 'aw:adele', 'aw:reisz']) {
+    if (povIds.has(forbiddenPovOwner)) {
+      errors.push(`FORBIDDEN_FAILURE: ${forbiddenPovOwner} must not be a POV owner in The Awakening.`);
+    }
+  }
+
+  const awakeningPovMode = String(ledger.layers?.pov_structure_layer?.pov_mode ?? '').toLowerCase();
+  const awakeningPovNote = String(ledger.layers?.pov_structure_layer?.pov_perspective_note ?? '').toLowerCase();
+  if (!awakeningPovMode.includes('close third limited')) {
+    errors.push('MISSING_REQUIRED_TRUTH: The Awakening POV mode must remain close third limited focalization.');
+  }
+  if (
+    awakeningPovNote.includes('romantic catalyst')
+    || awakeningPovNote.includes('co-protagonist')
+    || awakeningPovNote.includes('major secondary')
+  ) {
+    errors.push('FORBIDDEN_FAILURE: Awakening POV note must not promote romantic or secondary roles into camera ownership.');
+  }
+
   if (!povIds.has('aw:edna')) {
     errors.push('MISSING_REQUIRED_TRUTH: Edna Pontellier must own POV.');
   }

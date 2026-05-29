@@ -10,7 +10,9 @@
           "canonical_name": "Edna Pontellier",
           "is_primary": true
         }
-      ]
+      ],
+      "pov_mode": "close third limited",
+      "pov_perspective_note": "primary focalization remains with Edna; role tier does not confer camera ownership"
     },
     "canonical_identity_layer": {
       "identity_groups": [

@@ -9,13 +9,10 @@
           "character_id": "ge:pip",
           "canonical_name": "Pip / Philip Pirrip",
           "is_primary": true
-        },
-        {
-          "character_id": "ge:estella",
-          "canonical_name": "Estella",
-          "is_primary": false
         }
-      ]
+      ],
+      "pov_mode": "first-person retrospective",
+      "pov_perspective_note": "adult narrator looking back"
     },
     "canonical_identity_layer": {
       "identity_groups": [
