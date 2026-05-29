@@ -14,11 +14,11 @@ import { Job, JobStatus, JobType, PHASES, Phase, JOB_STATUS, JobProgress } from 
 import { getLeaseTimeoutSeconds } from "./config";
 
 const JOB_SELECT_FIELDS =
-  "id, manuscript_id, user_id, job_type, status, validity_status, progress, created_at, updated_at, last_heartbeat, last_error, failure_envelope, manuscripts(user_id)";
+  "id, manuscript_id, user_id, job_type, status, validity_status, progress, created_at, updated_at, last_heartbeat, last_error, failure_envelope, manuscripts(user_id, title)";
 // TODO(U1.1-shim-retirement): Remove legacy select fallback after all Supabase/CI environments have the
 // evaluation_jobs.validity_status column. See docs/governance/U1_1_CONFIDENCE_WIRING_PLAN.md.
 const JOB_SELECT_FIELDS_LEGACY =
-  "id, manuscript_id, user_id, job_type, status, progress, created_at, updated_at, last_heartbeat, last_error, failure_envelope, manuscripts(user_id)";
+  "id, manuscript_id, user_id, job_type, status, progress, created_at, updated_at, last_heartbeat, last_error, failure_envelope, manuscripts(user_id, title)";
 
 // Lazy-initialized Supabase client - null-safe for CI/build environments
 let _supabase: ReturnType<typeof createAdminClient> | undefined;
@@ -765,6 +765,11 @@ function mapDbRowToJob(row: any): Job {
     parsedLastErrorCode ||
     null;
 
+  const manuscriptTitle =
+    row?.manuscripts?.title ??
+    (Array.isArray(row?.manuscripts) ? row.manuscripts[0]?.title : null) ??
+    null;
+
   return {
     id: row.id,
     user_id: ownerUserId,
@@ -779,6 +784,7 @@ function mapDbRowToJob(row: any): Job {
     last_heartbeat: row.last_heartbeat || null,
     last_error: row.last_error ?? null,
     failure_code: failureCode,
+    manuscript_title: manuscriptTitle,
   };
 }
 

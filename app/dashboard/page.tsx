@@ -42,10 +42,12 @@ export default async function DashboardPage() {
     <div className="rg-dash-page">
       <AuthorProgressLedger rows={rows} kpis={kpis} reviseAnalytics={reviseAnalytics} />
       <p className="rg-dash-footnote">
-        Submission readiness indicates a manuscript has reached a RevisionGrade quality
+        Agent readiness indicates a manuscript has reached a RevisionGrade quality
         threshold associated with stronger submission potential. It is a curation
-        threshold, not a promise of industry response. Progress claims require a later
-        evaluation to confirm measured movement.
+        threshold, not a promise of industry response. Scores reflect alignment with
+        contemporary agent-submission standards, not literary merit. Published classics
+        may score differently than unpublished manuscripts optimized for today&#39;s market.
+        Progress claims require a later evaluation to confirm measured movement.
       </p>
     </div>
   )

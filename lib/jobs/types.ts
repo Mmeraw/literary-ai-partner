@@ -111,6 +111,9 @@ export type JobRecord = {
   last_error?: string | null;
   failure_code?: string | null;
   retry_count?: number;
+
+  // Denormalized from manuscripts table for UI display
+  manuscript_title?: string | null;
 };
 
 export type GetJobApiResponse =

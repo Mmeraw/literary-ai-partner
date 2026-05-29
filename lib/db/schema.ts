@@ -46,6 +46,7 @@ export type EvaluationJobRow = {
   phase_1_completed_at: string | null;
   phase_1_attempt_count: number | null;
   phase_1_error: string | null;
+  manuscript_title?: string | null;
 };
 
 export type EvaluationRow = {

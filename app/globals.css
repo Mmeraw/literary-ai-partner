@@ -439,6 +439,21 @@ a.rg-history-title-link:hover {
   color: #5c5647;
 }
 
+.rg-status--not-ready {
+  background: #f0ece6;
+  color: #6b5e4a;
+}
+
+.rg-status--calibration {
+  background: #e3e8f0;
+  color: #4a5568;
+}
+
+.rg-status--reference {
+  background: #e8eae3;
+  color: #4a5647;
+}
+
 .rg-status--improving {
   background: var(--rg-primary-soft);
   color: var(--rg-primary);

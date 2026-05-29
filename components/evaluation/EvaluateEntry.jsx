@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { appendUserActivity } from "@/lib/activity/userActivity";
 import { useJobs } from "../../lib/jobs/useJobs";
-import { getJobDisplayInfo, getJobStatusBadge, sortJobsByCreatedAtDesc } from "../../lib/jobs/ui-helpers";
+import { getJobDisplayInfo, sortJobsByCreatedAtDesc } from "../../lib/jobs/ui-helpers";
 import ManuscriptSubmissionForm from "./ManuscriptSubmissionForm";
 import CompletionBanner from "./CompletionBanner";
 import { CancelEvaluationButton } from "./CancelEvaluationButton";
@@ -28,13 +28,7 @@ const evaluationModes = [
   },
 ];
 
-function getStatusTone(status) {
-  if (status === "complete") return "border-green-200 bg-green-50 text-green-900";
-  if (status === "failed") return "border-red-200 bg-red-50 text-red-900";
-  if (status === "running") return "border-blue-200 bg-blue-50 text-blue-900";
-  if (status === "queued") return "border-amber-200 bg-amber-50 text-amber-900";
-  return "border-stone-200 bg-stone-50 text-stone-700";
-}
+// getStatusTone removed — replaced by evalStatusTone below
 
 function formatSubmittedAt(value) {
   if (!value) return "—";
@@ -99,12 +93,45 @@ function compactFailureMessage(message) {
   return normalized.length > 44 ? `${normalized.slice(0, 41)}…` : normalized;
 }
 
-function getNextAction(job) {
-  if (job.status === "complete") return "Review report";
-  if (job.status === "failed") return "Needs attention";
-  if (job.status === "running") return "In progress";
-  if (job.status === "queued") return "Waiting";
-  return "View details";
+// getNextAction removed — action column now integrated into table row
+
+// ── Evaluation purpose detection (shared with dashboard) ─────────────────────
+const CALIBRATION_PATTERNS = [
+  /\(TEST FILE\)/i,
+  /\bCALIBRATION\b/i,
+  /\bBENCHMARK\b/i,
+  /\bREFERENCE\s+EVAL/i,
+  /\bPUBLIC[- ]DOMAIN\b/i,
+  /\bTEST\s+RUN\b/i,
+];
+
+function detectPurpose(title) {
+  if (CALIBRATION_PATTERNS.some((re) => re.test(title || ""))) return "calibration";
+  return "author_manuscript";
+}
+
+function evalStatusLabel(job, purpose) {
+  if (job.status === "running") return purpose === "calibration" ? "Calibration in progress" : "In progress";
+  if (job.status === "queued") return purpose === "calibration" ? "Calibration queued" : "Queued";
+  if (job.status === "failed") return purpose === "calibration" ? "Calibration failed" : "Evaluation failed";
+  if (job.status === "complete") {
+    if (purpose === "calibration") return "Calibration complete";
+    return "Complete";
+  }
+  return "—";
+}
+
+function evalStatusTone(job, purpose) {
+  if (job.status === "complete" && purpose === "calibration") return "border-blue-200 bg-blue-50 text-blue-800";
+  if (job.status === "complete") return "border-green-200 bg-green-50 text-green-900";
+  if (job.status === "failed") return "border-red-200 bg-red-50 text-red-900";
+  if (job.status === "running") return "border-blue-200 bg-blue-50 text-blue-900";
+  if (job.status === "queued") return "border-amber-200 bg-amber-50 text-amber-900";
+  return "border-stone-200 bg-stone-50 text-stone-700";
+}
+
+function getReportHref(job) {
+  return job.status === "complete" ? `/reports/${job.id}` : `/evaluate/${job.id}`;
 }
 
 function EvaluationHistoryTable({ jobs }) {
@@ -115,10 +142,9 @@ function EvaluationHistoryTable({ jobs }) {
           <thead className="bg-[#FBFAF7]">
             <tr>
               <th className="px-4 py-3 font-rg-mono text-[0.66rem] uppercase tracking-[0.16em] text-stone-500">Status</th>
-              <th className="px-4 py-3 font-rg-mono text-[0.66rem] uppercase tracking-[0.16em] text-stone-500">Evaluation ID</th>
+              <th className="px-4 py-3 font-rg-mono text-[0.66rem] uppercase tracking-[0.16em] text-stone-500">Manuscript</th>
               <th className="px-4 py-3 font-rg-mono text-[0.66rem] uppercase tracking-[0.16em] text-stone-500">Submitted</th>
               <th className="px-4 py-3 font-rg-mono text-[0.66rem] uppercase tracking-[0.16em] text-stone-500">Phase</th>
-              <th className="px-4 py-3 font-rg-mono text-[0.66rem] uppercase tracking-[0.16em] text-stone-500">Next Action</th>
               <th className="px-4 py-3 font-rg-mono text-[0.66rem] uppercase tracking-[0.16em] text-stone-500">Report</th>
               <th className="px-4 py-3 text-right font-rg-mono text-[0.66rem] uppercase tracking-[0.16em] text-stone-500">Actions</th>
             </tr>
@@ -136,53 +162,51 @@ function EvaluationHistoryTable({ jobs }) {
 
 function EvaluationHistoryRow({ job }) {
   const displayInfo = getJobDisplayInfo(job);
-  const statusBadge = getJobStatusBadge(displayInfo.badge);
+  const title = job.manuscript_title || "Untitled Manuscript";
+  const purpose = detectPurpose(title);
   const isComplete = job.status === "complete";
   const isQueued = job.status === "queued";
   const isRunning = job.status === "running";
-  const statusTone = getStatusTone(job.status);
-  const href = `/evaluate/${job.id}`;
-  const shortId = `${job.id.slice(0, 8)}…`;
+  const reportHref = getReportHref(job);
+  const detailHref = `/evaluate/${job.id}`;
 
   return (
     <tr className="align-middle transition hover:bg-stone-50/80">
       <td className="whitespace-nowrap px-4 py-3">
-        <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${statusTone}`}>
-          {statusBadge.label}
+        <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${evalStatusTone(job, purpose)}`}>
+          {evalStatusLabel(job, purpose)}
         </span>
       </td>
-      <td className="whitespace-nowrap px-4 py-3">
-        <Link href={href} className="font-mono text-sm text-stone-800 underline-offset-4 hover:text-stone-950 hover:underline" title={job.id}>
-          {shortId}
+      <td className="px-4 py-3">
+        <Link href={reportHref} className="block font-semibold text-sm text-stone-900 underline-offset-4 hover:text-stone-950 hover:underline">
+          {title}
         </Link>
+        <span className="text-xs text-stone-400 font-mono" title={job.id}>{job.id.slice(0, 8)}…</span>
       </td>
       <td className="whitespace-nowrap px-4 py-3 text-sm text-stone-600" title={job.created_at ? new Date(job.created_at).toLocaleString() : undefined}>
         {formatSubmittedAt(job.created_at)}
       </td>
       <td className="max-w-[18rem] px-4 py-3 text-sm text-stone-700">
-        <Link href={href} className="line-clamp-1 underline-offset-4 hover:text-stone-950 hover:underline" title={displayInfo.message || displayInfo.progress?.display || undefined}>
+        <Link href={detailHref} className="line-clamp-1 underline-offset-4 hover:text-stone-950 hover:underline" title={displayInfo.message || displayInfo.progress?.display || undefined}>
           {getPhaseLabel(job, displayInfo)}
         </Link>
-      </td>
-      <td className="whitespace-nowrap px-4 py-3 text-sm text-stone-700">
-        {getNextAction(job)}
       </td>
       <td className="whitespace-nowrap px-4 py-3 text-sm">
         {isComplete ? (
           <Link
-            href={href}
+            href={reportHref}
             onClick={() => {
               appendUserActivity({
                 event: "evaluate.report.opened",
                 route: "/evaluate",
-                href,
+                href: reportHref,
                 linkLabel: "View report from evaluation history",
                 detail: `job_id=${job.id}`,
               });
             }}
             className="font-semibold text-green-800 underline-offset-4 hover:text-green-900 hover:underline"
           >
-            View
+            Open report
           </Link>
         ) : (
           <span className="text-stone-400">—</span>
@@ -191,7 +215,7 @@ function EvaluationHistoryRow({ job }) {
       <td className="whitespace-nowrap px-4 py-3 text-right">
         <div className="flex items-center justify-end gap-2">
           <Link
-            href={href}
+            href={detailHref}
             className="inline-flex items-center rounded-lg border border-stone-200 bg-stone-50 px-3 py-1.5 font-rg-mono text-[0.68rem] font-semibold uppercase tracking-[0.12em] text-stone-700 transition hover:bg-stone-100 hover:text-stone-950"
           >
             {isRunning ? "Live" : isQueued ? "Queued" : "Details"}
