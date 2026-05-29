@@ -274,13 +274,14 @@ export default async function StoryLedgerPage({
   const justApproved = searchParams?.approved === '1';
   const justRejected = searchParams?.rejected === '1';
 
-  // Auto-redirect: if the job is actively running past the review gate and the
-  // user landed here without the ?approved=1 flash param, send them to the
-  // progress-bar page so they don't get stuck on the ledger view.
+  // Allow the ledger page to remain viewable after approval so the user can
+  // review the accepted Story Layer while later phases run. Only redirect if
+  // the job moved past the review gate WITHOUT an accepted ledger artifact
+  // (edge case: admin phase skip) and the user didn't just perform an action.
   const activelyRunning =
     (job.phase === 'phase_2' || job.phase === 'phase_3') &&
     job.status === 'running';
-  if (activelyRunning && !justApproved && !justRejected) {
+  if (activelyRunning && !justApproved && !justRejected && !approved && !acceptedLedgerContent) {
     redirect(`/evaluate/${params.jobId}?approved=1`);
   }
 
