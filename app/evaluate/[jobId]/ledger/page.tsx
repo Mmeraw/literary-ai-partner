@@ -2,6 +2,12 @@ import 'server-only';
 import { notFound, redirect } from 'next/navigation';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { getAuthenticatedUser } from '@/lib/supabase/server';
+import {
+  filterStoryLayersForViewer,
+  isStoryLedgerAdmin,
+  type StoryLayerContent,
+  type LedgerQualityReportContent,
+} from '@/lib/ledger/storyLedgerVisibility';
 import { approveLedgerAction, rejectLedgerAction } from './actions';
 import { StoryLedgerShell } from '@/components/ledger/StoryLedgerShell';
 import LedgerDownloadButton from '@/components/ledger/LedgerDownloadButton';
@@ -19,16 +25,6 @@ type LedgerJob = {
     | { user_id?: string | null; title?: string | null }
     | Array<{ user_id?: string | null; title?: string | null }>
     | null;
-};
-
-type StoryLayerContent = {
-  layers?: Record<string, Record<string, unknown>>;
-  layer_completion_summary?: {
-    total_layers: number;
-    populated_layers: number;
-    empty_layers?: string[];
-    degraded_layers?: string[];
-  };
 };
 
 type AcceptedLedgerContent = {
@@ -54,6 +50,14 @@ type AcceptedLedgerContent = {
     }>;
   };
   story_layer?: Record<string, Record<string, unknown>>;
+};
+
+type LedgerQualityReportArtifactContent = {
+  quality_report?: {
+    gate_ready_status?: 'reviewable' | 'blocked' | 'repair_required';
+    grouped_warning_summary?: Record<string, string[]>;
+    blocking_reasons?: string[];
+  };
 };
 
 function relationTitle(job: LedgerJob): string {
@@ -211,7 +215,7 @@ function normalizeStoryLayersForUi(
   };
 }
 
-async function getLedgerContext(jobId: string, userId: string) {
+async function getLedgerContext(jobId: string, userId: string, isAdminViewer: boolean) {
   const supabase = createAdminClient();
 
   const { data: job, error: jobError } = await supabase
@@ -223,7 +227,7 @@ async function getLedgerContext(jobId: string, userId: string) {
   if (jobError || !job) return null;
 
   const typedJob = job as LedgerJob;
-  if (relationOwner(typedJob) !== userId) return null;
+  if (!isAdminViewer && relationOwner(typedJob) !== userId) return null;
 
   const { data: storyLayerArtifact } = await supabase
     .from('evaluation_artifacts')
@@ -246,11 +250,19 @@ async function getLedgerContext(jobId: string, userId: string) {
     .eq('artifact_type', 'accepted_story_ledger_v1')
     .maybeSingle();
 
+  const { data: qualityReportArtifact } = await supabase
+    .from('evaluation_artifacts')
+    .select('id, content, created_at')
+    .eq('job_id', jobId)
+    .eq('artifact_type', 'ledger_quality_report_v1')
+    .maybeSingle();
+
   return {
     job: typedJob,
     storyLayerContent: (storyLayerArtifact?.content ?? null) as StoryLayerContent | null,
     characterContent: characterArtifact?.content ?? null,
     acceptedLedgerContent: (acceptedLedgerArtifact?.content ?? null) as AcceptedLedgerContent | null,
+    qualityReportContent: (qualityReportArtifact?.content ?? null) as LedgerQualityReportArtifactContent | null,
   };
 }
 
@@ -263,31 +275,41 @@ export default async function StoryLedgerPage({
 }) {
   const user = await getAuthenticatedUser();
   if (!user) notFound();
+  const isAdminViewer = isStoryLedgerAdmin(user);
 
-  const context = await getLedgerContext(params.jobId, user.id);
+  const context = await getLedgerContext(params.jobId, user.id, isAdminViewer);
   if (!context) notFound();
 
-  const { job, storyLayerContent, characterContent, acceptedLedgerContent } = context;
+  const { job, storyLayerContent, characterContent, acceptedLedgerContent, qualityReportContent } = context;
 
   const atReviewGate = job.phase === 'review_gate' && job.phase_status === 'awaiting_approval';
   const approved = Boolean(job.ledger_approved_at) || job.phase === 'phase_2';
   const justApproved = searchParams?.approved === '1';
   const justRejected = searchParams?.rejected === '1';
 
-  // Allow the ledger page to remain viewable after approval so the user can
-  // review the accepted Story Layer while later phases run. Only redirect if
-  // the job moved past the review gate WITHOUT an accepted ledger artifact
-  // (edge case: admin phase skip) and the user didn't just perform an action.
+  // Auto-redirect: if the job is actively running past the review gate and the
+  // user landed here without the ?approved=1 flash param, send them to the
+  // progress-bar page so they don't get stuck on the ledger view.
   const activelyRunning =
     (job.phase === 'phase_2' || job.phase === 'phase_3') &&
     job.status === 'running';
-  if (activelyRunning && !justApproved && !justRejected && !approved && !acceptedLedgerContent) {
+  if (activelyRunning && !justApproved && !justRejected) {
     redirect(`/evaluate/${params.jobId}?approved=1`);
   }
 
   const rawStoryLayers = storyLayerContent?.layers ?? null;
-  const storyLayers = normalizeStoryLayersForUi(rawStoryLayers);
-  const layerCompletionSummary = storyLayerContent?.layer_completion_summary ?? null;
+  const normalizedStoryLayers = normalizeStoryLayersForUi(rawStoryLayers);
+  const {
+    storyLayers,
+    visibleLayerKeys,
+    withheldLayerKeys,
+    layerCompletionSummary,
+  } = filterStoryLayersForViewer(
+    normalizedStoryLayers,
+    storyLayerContent,
+    qualityReportContent as LedgerQualityReportContent,
+    isAdminViewer,
+  );
 
   type CharContent = { ledger_v1?: { coverage_summary?: { hard_fail_triggers?: string[] } } };
   const charContent = characterContent as CharContent | null;
@@ -320,8 +342,11 @@ export default async function StoryLedgerPage({
         approved={approved}
         justApproved={justApproved}
         justRejected={justRejected}
+        isAdminViewer={isAdminViewer}
         storyLayers={storyLayers}
         layerCompletionSummary={layerCompletionSummary}
+        visibleLayerKeys={visibleLayerKeys}
+        withheldLayerKeys={withheldLayerKeys}
         hardFails={hardFails}
         hasHardFails={hasHardFails}
         acceptedLedger={acceptedLedger}
