@@ -5566,6 +5566,7 @@ export async function processEvaluationJob(
         const qualityReport = buildLedgerQualityReport(
           characterLedger,
           characterLedgerV2Phase1a,
+          storyLayerPayload,
         );
 
         console.log(`[Processor] ${jobId}: phase_1a — quality report built`, {

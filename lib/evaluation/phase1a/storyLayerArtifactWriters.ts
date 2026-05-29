@@ -5,6 +5,10 @@ import {
   type RuntimeArtifactEnvelope,
   type StoryLayerCoreLayerKey,
 } from '../artifacts/artifactTypes';
+import type {
+  LayerHealthTruthStatus,
+  StoryLayerDependencyWarning,
+} from './storyLayerDependencyHealth';
 
 export type Phase1aWriterMetadata = {
   job_id: string;
@@ -21,6 +25,8 @@ export type LedgerQualityReportPayload = {
   gate_ready_status: 'reviewable' | 'blocked' | 'repair_required';
   hard_fail_present: boolean;
   grouped_warning_summary: Record<string, string[]>;
+  layer_truth_status: Partial<Record<StoryLayerCoreLayerKey, LayerHealthTruthStatus>>;
+  layer_dependency_warnings: StoryLayerDependencyWarning[];
   evidence_location_references: Array<{
     layer: StoryLayerCoreLayerKey | 'general';
     reference: string;

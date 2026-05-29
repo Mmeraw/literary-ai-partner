@@ -32,6 +32,10 @@ import type {
 } from '@/lib/evaluation/pipeline/types';
 import type { StoryLayerPayload } from './storyLayerArtifactWriters';
 import { buildPovStructureFromChunkOutputs } from '@/lib/evaluation/pipeline/povStructure';
+import {
+  applyIdentityDependencyMetadata,
+  assessStoryLayerIdentityDependencies,
+} from './storyLayerDependencyHealth';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Layer 1 — Source Integrity
@@ -497,7 +501,7 @@ export function buildStoryLayerFromLedger(
   ledgerV2: CharacterLedgerV2,
   chunkOutputs?: Pass1aChunkOutput[],
 ): StoryLayerPayload {
-  return {
+  const rawLayers: StoryLayerPayload = {
     source_integrity_layer: buildSourceIntegrityLayer(ledger, ledgerV2),
     pov_structure_layer: buildPovStructureLayer(ledger, ledgerV2, chunkOutputs),
     canonical_identity_layer: buildCanonicalIdentityLayer(ledger, ledgerV2),
@@ -508,4 +512,12 @@ export function buildStoryLayerFromLedger(
     location_timeline_worldstate_layer: buildLocationTimelineWorldstateLayer(ledger, ledgerV2),
     threat_antagonist_ending_layer: buildThreatAntagonistEndingLayer(ledger, ledgerV2),
   };
+
+  const dependencyAssessment = assessStoryLayerIdentityDependencies({
+    ledger,
+    ledgerV2,
+    layers: rawLayers,
+  });
+
+  return applyIdentityDependencyMetadata(rawLayers, dependencyAssessment) as StoryLayerPayload;
 }

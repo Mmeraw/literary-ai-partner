@@ -35,6 +35,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { getAuthenticatedUser } from '@/lib/supabase/server';
 import { createHash, randomUUID } from 'crypto';
 import { buildPhaseLogPatch } from '@/lib/evaluation/phaseLog';
+import { collectDependencyWarningsFromStoryLayers } from '@/lib/evaluation/phase1a/storyLayerDependencyHealth';
 
 type Disposition = 'accepted_without_changes' | 'accepted_with_edits' | 'rejected';
 
@@ -187,6 +188,13 @@ export async function POST(request: NextRequest, { params }: RouteParams): Promi
     );
   }
 
+  const { data: qualityReportArtifactRow } = await supabase
+    .from('evaluation_artifacts')
+    .select('content')
+    .eq('job_id', jobId)
+    .eq('artifact_type', 'ledger_quality_report_v1')
+    .maybeSingle();
+
   const now = new Date().toISOString();
 
   // 4. Write ledger_user_feedback_v1 — MANDATORY even for accepted_without_changes
@@ -290,6 +298,16 @@ export async function POST(request: NextRequest, { params }: RouteParams): Promi
   const storyLayerContent = storyLayerArtifactRow.content as Record<string, unknown>;
   const storyLayerSourceHash =
     (storyLayerArtifactRow as { source_hash?: string }).source_hash ?? '';
+  const acceptedStoryLayers =
+    (storyLayerContent.layers ?? {}) as Record<string, Record<string, unknown>>;
+  const qualityReportContent = (qualityReportArtifactRow?.content ?? null) as {
+    quality_report?: {
+      layer_dependency_warnings?: ReturnType<typeof collectDependencyWarningsFromStoryLayers>;
+    };
+  } | null;
+  const dependencyWarnings =
+    qualityReportContent?.quality_report?.layer_dependency_warnings ??
+    collectDependencyWarningsFromStoryLayers(acceptedStoryLayers);
 
   const decisionValues = Object.values(layer_decisions ?? {});
   const rejectedCount = decisionValues.filter(
@@ -320,7 +338,7 @@ export async function POST(request: NextRequest, { params }: RouteParams): Promi
     }),
     generated_at: now,
     // Story layer layers (carried forward from pass1a_story_layer_v1)
-    layers: storyLayerContent.layers ?? {},
+    layers: acceptedStoryLayers,
     // Governance rail — approval disposition + unresolved warnings preserved
     governance_rail: {
       approval_state: computedApprovalState,
@@ -332,6 +350,7 @@ export async function POST(request: NextRequest, { params }: RouteParams): Promi
       pass1a_story_layer_source_hash: storyLayerSourceHash,
       // unresolved warnings from quality report are preserved for Phase 2 context
       unresolved_warnings_preserved: true,
+      dependency_warnings: dependencyWarnings,
       contested_layer_count: rejectedCount,
       layer_decisions: layer_decisions ?? {},
     },
