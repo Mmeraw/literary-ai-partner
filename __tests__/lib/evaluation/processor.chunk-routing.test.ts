@@ -672,7 +672,7 @@ describe("processEvaluationJob long-form chunk routing", () => {
     expect(runPipelineMock).not.toHaveBeenCalled();
   });
 
-  test("long_form fails closed with CHUNK_BUDGET_OVERFLOW in <100ms when any chunk exceeds inputCharBudget * 0.95 (Cartel Babies regression)", async () => {
+  test("long_form fails closed with CHUNK_BUDGET_OVERFLOW in <1000ms when any chunk exceeds inputCharBudget * 0.95 (Cartel Babies regression)", async () => {
     // 137,758-word manuscript shape — chunker emits a 50,000-char chunk that exceeds
     // the 40,000-char prompt window. Without this gate, Pass 1 would be dispatched
     // and absorb the full 720s LONG_FORM_TIMEOUT_FLOOR_MS before failing with PASS1_TIMEOUT.
@@ -701,7 +701,8 @@ describe("processEvaluationJob long-form chunk routing", () => {
     expect(ensureChunksFromTextMock).toHaveBeenCalledTimes(1);
     expect(runPipelineMock).not.toHaveBeenCalled();
     // Must fail closed in well under the 720s LONG_FORM_TIMEOUT_FLOOR_MS.
-    expect(elapsedMs).toBeLessThan(100);
+    // Use a sub-second upper bound to avoid host-load flake while preserving intent.
+    expect(elapsedMs).toBeLessThan(1000);
 
     const failureUpdate = supabaseStub.evaluationJobUpdates.find((payload) => {
       const progress = payload.progress as
