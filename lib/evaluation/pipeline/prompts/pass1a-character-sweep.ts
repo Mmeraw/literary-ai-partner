@@ -93,6 +93,20 @@ FIVE Ws + HOW:
 Capture who, want, where, when, why, how, arc_state_in_chunk, arc_pressure, and arc_shift when visible.
 For how_signal, include rituals, habits, repeated self-regulation behaviors, or coping behaviors when present.
 
+WHERE (location):
+For where_are_they, provide a CLEAN PLACE NAME — not a sentence or description.
+Only record SIGNIFICANT locations — places that are:
+- Recurring settings (appear in multiple scenes)
+- Symbolically charged (the sea, a prison, a garden that represents freedom)
+- Scene-defining (where key confrontations, revelations, or turning points happen)
+- Arc-critical (where someone is born, dies, is murdered, makes a life-changing decision, confesses, is betrayed, escapes, or has a major emotional turning point)
+Do NOT record every room, hallway, or transient spot a character passes through.
+Good: "Grand Isle", "Pontellier house", "Mademoiselle Reisz's apartment", "The sea"
+Bad: "Beach and cottage porch at Grand Isle where Edna sat looking at the sea"
+Bad: "Walking along the street after leaving the party"
+Bad: "dining room", "hallway", "front porch" (unless symbolically significant)
+If a character moves through multiple locations in one chunk, pick the primary significant location.
+
 OBJECTS / SYMBOLS:
 Capture objects tied to identity, control, protection, trauma, communication, escape, payoff, or symbolic meaning.
 ALSO capture:
