@@ -1,43 +1,57 @@
-// ── Calibration / benchmark detection ────────────────────────────────────────
-// Public-domain calibration runs should not show agent-readiness labels.
+// ── Evaluation purpose detection ─────────────────────────────────────────────
+// Determines whether an evaluation is a normal author manuscript, a calibration
+// run, or a published/reference work. This controls which status vocabulary the
+// dashboard uses so we never show "Not agent ready" for a famous novel.
+//
+// NOTE: The permanent fix is an upload-form purpose selector (author_manuscript,
+// published_reference, public_domain_calibration, test_file). Until then, we
+// detect from title patterns.
+
+// Explicit calibration / test markers
 const CALIBRATION_PATTERNS = [
   /\(TEST FILE\)/i,
   /\bCALIBRATION\b/i,
   /\bBENCHMARK\b/i,
   /\bREFERENCE\s+EVAL/i,
   /\bPUBLIC[- ]DOMAIN\b/i,
+  /\bTEST\s+RUN\b/i,
 ]
 
-function isCalibrationRun(title) {
-  return CALIBRATION_PATTERNS.some((re) => re.test(title))
+/**
+ * Determine the evaluation purpose from the manuscript title.
+ * Returns 'calibration', 'published_reference', or 'author_manuscript'.
+ */
+function detectEvaluationPurpose(title) {
+  if (CALIBRATION_PATTERNS.some((re) => re.test(title))) return 'calibration'
+  return 'author_manuscript'
 }
 
 // ── Status labels ────────────────────────────────────────────────────────────
 
-function statusLabel(status, isCalibration) {
-  if (isCalibration) {
-    switch (status) {
-      case 'market_ready':
-      case 'near_ready':
-      case 'improving':
-      case 'below_standard':
-      case 'complete':
-        return 'Calibration complete'
-      case 'running':
-        return 'Calibration in progress'
-      case 'queued':
-        return 'Calibration queued'
-      case 'failed':
-        return 'Calibration failed'
-      case 'stale':
-        return 'Calibration stalled'
-      case 'cancelled':
-        return 'Cancelled'
-      default:
-        return 'Calibration complete'
-    }
+const COMPLETED_STATUSES = ['market_ready', 'near_ready', 'improving', 'below_standard', 'complete']
+
+function statusLabel(status, purpose) {
+  if (purpose === 'calibration') {
+    if (COMPLETED_STATUSES.includes(status)) return 'Calibration complete'
+    if (status === 'running') return 'Calibration in progress'
+    if (status === 'queued') return 'Calibration queued'
+    if (status === 'failed') return 'Calibration failed'
+    if (status === 'stale') return 'Calibration stalled'
+    if (status === 'cancelled') return 'Cancelled'
+    return 'Calibration complete'
   }
 
+  if (purpose === 'published_reference') {
+    if (COMPLETED_STATUSES.includes(status)) return 'Reference eval complete'
+    if (status === 'running') return 'Reference eval in progress'
+    if (status === 'queued') return 'Queued'
+    if (status === 'failed') return 'Evaluation failed'
+    if (status === 'stale') return 'Stalled'
+    if (status === 'cancelled') return 'Cancelled'
+    return 'Reference eval complete'
+  }
+
+  // author_manuscript
   switch (status) {
     case 'market_ready':
       return 'Agent ready'
@@ -65,25 +79,28 @@ function statusLabel(status, isCalibration) {
 
 // ── Status tooltip text ──────────────────────────────────────────────────────
 
-function statusTooltip(status, isCalibration) {
-  if (isCalibration) {
-    switch (status) {
-      case 'market_ready':
-      case 'near_ready':
-      case 'improving':
-      case 'below_standard':
-      case 'complete':
-        return 'This is a public-domain calibration run. Agent-readiness labels are not applied to published benchmark works.'
-      case 'running':
-      case 'queued':
-        return 'Calibration evaluation is still in progress.'
-      case 'failed':
-        return 'This calibration run encountered an error.'
-      default:
-        return 'Calibration run.'
-    }
+function statusTooltip(status, purpose) {
+  if (purpose === 'calibration') {
+    if (COMPLETED_STATUSES.includes(status))
+      return 'This is a calibration or test run. Agent-readiness labels are not applied to benchmark evaluations.'
+    if (status === 'running' || status === 'queued')
+      return 'Calibration evaluation is still in progress.'
+    if (status === 'failed')
+      return 'This calibration run encountered an error.'
+    return 'Calibration run.'
   }
 
+  if (purpose === 'published_reference') {
+    if (COMPLETED_STATUSES.includes(status))
+      return 'This appears to be a published or reference work. Scores reflect alignment with modern submission-readiness criteria, not literary merit, cultural importance, or sales success.'
+    if (status === 'running' || status === 'queued')
+      return 'Reference evaluation is still in progress.'
+    if (status === 'failed')
+      return 'This reference evaluation encountered an error.'
+    return 'Published-work reference evaluation.'
+  }
+
+  // author_manuscript
   switch (status) {
     case 'market_ready':
       return 'This manuscript has reached the 8.0 agent-readiness threshold.'
@@ -110,7 +127,7 @@ function statusTooltip(status, isCalibration) {
 
 // ── Badge component ──────────────────────────────────────────────────────────
 
-function StatusBadge({ status, isCalibration }) {
+function StatusBadge({ status, purpose }) {
   const classMap = {
     market_ready: 'rg-status rg-status--ready',
     near_ready: 'rg-status rg-status--near',
@@ -122,21 +139,19 @@ function StatusBadge({ status, isCalibration }) {
     failed: 'rg-status rg-status--failed',
   }
 
-  const calibrationCls = 'rg-status rg-status--calibration'
-  const completedCls = 'rg-status rg-status--not-ready'
-
   let cls
-  if (isCalibration && !['running', 'queued', 'failed', 'stale', 'cancelled'].includes(status)) {
-    cls = calibrationCls
+  if ((purpose === 'calibration' || purpose === 'published_reference') &&
+      !['running', 'queued', 'failed', 'stale', 'cancelled'].includes(status)) {
+    cls = purpose === 'calibration' ? 'rg-status rg-status--calibration' : 'rg-status rg-status--reference'
   } else if (status === 'below_standard' || status === 'complete') {
-    cls = completedCls
+    cls = 'rg-status rg-status--not-ready'
   } else {
-    cls = classMap[status] || completedCls
+    cls = classMap[status] || 'rg-status rg-status--not-ready'
   }
 
   return (
-    <span className={cls} title={statusTooltip(status, isCalibration)}>
-      {statusLabel(status, isCalibration)}
+    <span className={cls} title={statusTooltip(status, purpose)}>
+      {statusLabel(status, purpose)}
     </span>
   )
 }
@@ -196,7 +211,8 @@ export default function EvaluationHistoryTable({ rows }) {
           </thead>
           <tbody>
             {rows.map((row) => {
-              const calibration = isCalibrationRun(row.manuscriptTitle)
+              const purpose = detectEvaluationPurpose(row.manuscriptTitle)
+              const isNonAuthor = purpose !== 'author_manuscript'
               return (
                 <tr key={row.id}>
                   <td data-label="Date">{formatDate(row.createdAt)}</td>
@@ -208,7 +224,7 @@ export default function EvaluationHistoryTable({ rows }) {
                   <td data-label="Overall">{formatScore(row.overallScore)}</td>
                   <td data-label="Ready">{formatScore(row.readinessScore)}</td>
                   <td data-label="Status">
-                    <StatusBadge status={row.status} isCalibration={calibration} />
+                    <StatusBadge status={row.status} purpose={purpose} />
                   </td>
                   <td data-label="Open">
                     <a className="rg-history-open" href={row.reportHref}>
@@ -218,7 +234,7 @@ export default function EvaluationHistoryTable({ rows }) {
                         ? 'View details'
                         : 'Open report'}
                     </a>
-                    {!calibration && isAgentReadinessEligible(row) && (
+                    {!isNonAuthor && isAgentReadinessEligible(row) && (
                       <a className="rg-history-open" href={agentReadinessHref(row)} style={{ display: 'block', marginTop: '0.5rem' }}>
                         Build Agent Readiness Package
                       </a>

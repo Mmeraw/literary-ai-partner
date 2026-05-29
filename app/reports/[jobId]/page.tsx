@@ -373,6 +373,18 @@ export default async function ReportPage({ params }: { params: { jobId: string }
           RevisionGrade support and admin staff will never access your novel or evaluation data unless you explicitly grant temporary permission for troubleshooting.
         </div>
 
+        {/* Published / calibration work context disclaimer */}
+        {/\(TEST FILE\)|CALIBRATION|BENCHMARK|REFERENCE\s+EVAL|PUBLIC[- ]DOMAIN|TEST\s+RUN/i.test(displayTitle ?? '') && (
+          <div className="mb-4 rounded-md border border-blue-200 bg-blue-50 px-4 py-3 text-xs text-gray-700 leading-relaxed">
+            <span className="font-semibold text-blue-800">Published Work Context</span>{' '}
+            This appears to be a published, classic, or reference work. RevisionGrade is evaluating the submitted text
+            against its manuscript-readiness criteria, not against the work&apos;s historical importance, sales record,
+            cultural influence, or existing reputation. A score below the current agent-readiness threshold does not
+            mean the work &ldquo;failed.&rdquo; It means the text may not align with RevisionGrade&apos;s modern
+            submission-readiness rubric without historical, market, or audience context.
+          </div>
+        )}
+
         {/* Evaluation integrity status (single source of truth) */}
         {integrityBanner && (
           <section className={integrityBanner.containerClassName}>

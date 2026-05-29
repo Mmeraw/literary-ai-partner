@@ -449,6 +449,11 @@ a.rg-history-title-link:hover {
   color: #4a5568;
 }
 
+.rg-status--reference {
+  background: #e8eae3;
+  color: #4a5647;
+}
+
 .rg-status--improving {
   background: var(--rg-primary-soft);
   color: var(--rg-primary);
