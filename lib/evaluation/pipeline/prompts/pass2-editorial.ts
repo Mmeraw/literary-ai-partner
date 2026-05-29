@@ -11,6 +11,7 @@
  */
 
 import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
+import { STORY_LAYER_METADATA } from "@/components/ledger/storyLayerMetadata";
 import type { SubmissionScopeProfile } from "../submissionScope";
 import {
   buildCoverageDisclosure,
@@ -119,17 +120,6 @@ export function buildAuthorCorrectionsBlock(
   const layerDecisions = governanceRail.layer_decisions as
     Record<string, { status: string; comment: string }> | undefined;
 
-  const LAYER_LABELS: Record<string, string> = {
-    canonical_identity_layer: "Canonical Identity",
-    cast_role_tier_layer: "Cast / Role Tier",
-    pov_structure_layer: "POV Structure",
-    relationship_network_layer: "Relationship Network",
-    object_symbol_layer: "Object / Symbol",
-    location_timeline_worldstate_layer: "Timeline / Location / World-State",
-    threat_antagonist_ending_layer: "Threat / Pressure / Ending",
-    source_integrity_layer: "Source Integrity",
-  };
-
   const corrections: string[] = [];
   const notes: string[] = [];
   // Source Integrity is the author-enrichment surface: its comment is the
@@ -141,7 +131,7 @@ export function buildAuthorCorrectionsBlock(
 
   if (layerDecisions && Object.keys(layerDecisions).length > 0) {
     for (const [layerKey, decision] of Object.entries(layerDecisions)) {
-      const label = LAYER_LABELS[layerKey] ?? layerKey;
+      const label = STORY_LAYER_METADATA[layerKey as keyof typeof STORY_LAYER_METADATA]?.title ?? layerKey;
       const isRejected =
         decision?.status === 'rejected' || decision?.status === 'rejected_with_comment';
       const hasComment =

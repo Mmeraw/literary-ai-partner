@@ -151,7 +151,7 @@ Phase 0 produces governance artifacts only — no manuscript-specific content. A
 
 1. **Warmup calibration summary** — confirmation that known failure modes have been loaded and are active for this session
 2. **Active governance rules** — the five scoring rules installed and enforced for this session
-3. **`pass1a_story_layer_v1` contract** — the required 8-layer Story Layer / Story Ledger spec that Phase 1A must satisfy before Phase 2 may score
+3. **`pass1a_story_layer_v1` contract** — the required Story Layer / Story Ledger spec that Phase 1A must satisfy before Phase 2 may score
 4. **Known failure modes register** — the documented failure classes (loudest-lane bias, relationship spine omission, object blindness, unsupported vocabulary, closure deflation, already-present error) active as guards for this session
 5. **Scoring prohibitions** — the explicit list of what Phase 2 may not do until `pass1a_story_layer_v1` is complete
 6. **Recommendation validity rules** — the six-class validity gate (VALID / PARTIALLY_VALID / ALREADY_PRESENT / CANON_FALSE / SOURCE_UNSUPPORTED / VOICE_RISK) installed and active

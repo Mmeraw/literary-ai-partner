@@ -5,7 +5,7 @@
  *
  * 4-module Story Ledger UI — client shell + all four module views.
  *
- * Module 1 — Story Layer Map:     Generated 9-layer story facts (pass1a_story_layer_v1)
+ * Module 1 — Story Layer Map:     Generated canonical story facts (pass1a_story_layer_v1)
  * Module 2 — Review Gate:         Author approval / rejection / edit requests
  * Module 3 — Accepted Ledger:     Frozen canon view (accepted_story_ledger_v1)
  * Module 4 — WAVE Handoff:        13-criteria diagnosis + WAVE Revision System™ bridge
@@ -23,6 +23,8 @@
 
 import React, { useState, useRef, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { STORY_LAYER_KEYS } from "@/lib/evaluation/artifacts/artifactTypes";
+import { STORY_LAYER_METADATA } from "@/components/ledger/storyLayerMetadata";
 import { StoryLayerRenderer, LayerCompletionBar } from "@/components/ledger/StoryLedgerLayers";
 
 // ─── Web Speech API mic input ───────────────────────────────────────────────
@@ -37,93 +39,15 @@ function useSpeechInput(onTranscript: (text: string) => void) {
     typeof window !== "undefined" &&
     ("SpeechRecognition" in window || "webkitSpeechRecognition" in window);
 
-  const start = React.useCallback(() => {
-    if (!supported) return;
-    const SR =
-      (window as any).SpeechRecognition ?? (window as any).webkitSpeechRecognition;
-    const rec = new SR();
-    rec.continuous = true;
-    rec.interimResults = false;
-    rec.lang = "en-US";
-    rec.onresult = (e: any) => {
-      const transcript = Array.from(e.results as ArrayLike<any>)
-        .map((r: any) => r[0].transcript)
-        .join(" ")
-        .trim();
-      if (transcript) onTranscript(transcript);
-    };
-    rec.onerror = () => setState("error");
-    rec.onend = () => setState("idle");
-    recognitionRef.current = rec;
-    rec.start();
-    setState("listening");
-  }, [supported, onTranscript]);
+  const LAYER_ORDER = STORY_LAYER_KEYS;
 
-  const stop = React.useCallback(() => {
-    recognitionRef.current?.stop();
-    setState("idle");
-  }, []);
+  const LAYER_DEFINITIONS = STORY_LAYER_KEYS.map((key) => ({
+    key,
+    ...STORY_LAYER_METADATA[key],
+  }));
 
-  const toggle = React.useCallback(() => {
-    if (state === "listening") stop();
-    else start();
-  }, [state, start, stop]);
-
-  return { state, toggle, supported };
-}
-
-function MicButton({
-  setValue,
-}: {
-  setValue: React.Dispatch<React.SetStateAction<string>>;
-}) {
-  const { state, toggle, supported } = useSpeechInput((transcript) => {
-    setValue((prev) => (prev ? prev + " " + transcript : transcript));
-  });
-
-  if (!supported) return null;
-
-  const isListening = state === "listening";
-  const isError = state === "error";
-
-  return (
-    <button
-      type="button"
-      onClick={toggle}
-      title={isListening ? "Stop recording" : "Speak to fill this field"}
-      style={{
-        padding: "6px 12px",
-        borderRadius: 8,
-        border: `1px solid ${
-          isListening
-            ? "rgba(122,30,30,0.6)"
-            : isError
-            ? "rgba(230,162,60,0.4)"
-            : "rgba(242,239,234,0.15)"
-        }`,
-        background: isListening ? "rgba(122,30,30,0.22)" : "transparent",
-        color: isListening ? "#D07070" : isError ? "#E6A23C" : "rgba(242,239,234,0.5)",
-        fontSize: 13,
-        cursor: "pointer",
-        display: "inline-flex",
-        alignItems: "center",
-        gap: 6,
-        flexShrink: 0,
-      }}
-    >
-      {isListening ? "⏹ Stop" : isError ? "⚠ Retry" : "🎙 Speak"}
-    </button>
-  );
-}
-
-// ─── Palette ────────────────────────────────────────────────────────────────
-
-const P = {
-  bg: "#0E0E0E",
-  surface: "#111110",
-  surfaceAlt: "#181714",
-  surfaceHover: "#1E1D1A",
-  border: "#272523",
+  const getLayerMetadata = (key: string) =>
+    STORY_LAYER_METADATA[key as keyof typeof STORY_LAYER_METADATA];
   borderStrong: "#393734",
   bone: "#F2EFEA",
   boneAlt: "rgba(242,239,234,0.72)",
@@ -183,93 +107,15 @@ const T = {
 
 // ─── Layer ordering (canonical) ──────────────────────────────────────────────
 
-const LAYER_ORDER = [
-  "canonical_identity_layer",
-  "cast_role_tier_layer",
-  "identity_pronoun_layer",
-  "pov_structure_layer",
-  "relationship_network_layer",
-  "object_symbol_layer",
-  "location_timeline_worldstate_layer",
-  "threat_antagonist_ending_layer",
-  "source_integrity_layer",
-] as const;
+const LAYER_ORDER = STORY_LAYER_KEYS;
 
-const LAYER_LABELS: Record<string, string> = {
-  canonical_identity_layer: "Canonical Identity",
-  cast_role_tier_layer: "Cast / Role Tier",
-  identity_pronoun_layer: "Identity & Pronouns",
-  pov_structure_layer: "POV Structure",
-  relationship_network_layer: "Relationship Network",
-  object_symbol_layer: "Object / Symbol",
-  location_timeline_worldstate_layer: "Timeline / Location",
-  threat_antagonist_ending_layer: "Threat / Pressure / Ending",
-  source_integrity_layer: "Source Integrity",
-};
+const LAYER_DEFINITIONS = STORY_LAYER_KEYS.map((key) => ({
+  key,
+  ...STORY_LAYER_METADATA[key],
+}));
 
-// Short nav descriptions shown under the layer name in the sidebar
-const LAYER_NAV_DESC: Record<string, string> = {
-  canonical_identity_layer: "Names & aliases",
-  cast_role_tier_layer: "Character roles",
-  identity_pronoun_layer: "Pronouns & gender signals",
-  pov_structure_layer: "Narrative perspective",
-  relationship_network_layer: "Named bonds",
-  object_symbol_layer: "Significant objects",
-  location_timeline_worldstate_layer: "Places & timeline",
-  threat_antagonist_ending_layer: "Pressure & endings",
-  source_integrity_layer: "Manuscript health",
-};
-
-const LAYER_ICONS: Record<string, string> = {
-  canonical_identity_layer: "🪪",
-  cast_role_tier_layer: "🎭",
-  pov_structure_layer: "👁",
-  relationship_network_layer: "🔗",
-  object_symbol_layer: "🗡",
-  location_timeline_worldstate_layer: "🗺",
-  threat_antagonist_ending_layer: "⚔️",
-  source_integrity_layer: "🔒",
-  identity_pronoun_layer: "🏷️",
-};
-
-const LAYER_DEFINITIONS = [
-  {
-    key: "canonical_identity_layer",
-    definition: "Who each major story element is in canon: names, aliases, species, age, defining traits, identity facts, and non-negotiable truths.",
-  },
-  {
-    key: "cast_role_tier_layer",
-    definition: "Who matters structurally: protagonist, antagonist, major secondary cast, minor but recurring figures, functional roles, and story importance.",
-  },
-  {
-    key: "pov_structure_layer",
-    definition: "Who sees what, when, and from what narrative distance: POV ownership, narrator logic, perspective shifts, voice boundaries, and access to knowledge.",
-  },
-  {
-    key: "relationship_network_layer",
-    definition: "How characters connect and change: family, friendship, rivalry, romance, betrayal, obligation, dependency, healing, mentorship, power imbalance.",
-  },
-  {
-    key: "object_symbol_layer",
-    definition: "Important recurring objects, symbols, motifs, tools, medicines, artifacts, weapons, documents, animals, and places-as-symbols.",
-  },
-  {
-    key: "location_timeline_worldstate_layer",
-    definition: "When and where things happen: chronology, age progression, city/country movement, chapter sequence, travel logic, seasonal jumps, location continuity.",
-  },
-  {
-    key: "threat_antagonist_ending_layer",
-    definition: "What forces the story forward: antagonistic pressure, danger, stakes, deadlines, escalation, reversals, climax logic, ending state, unresolved consequences.",
-  },
-  {
-    key: "source_integrity_layer",
-    definition: "The audit trail: what the system actually knows from the manuscript, what is inferred, what is uncertain, what needs author confirmation, and what must not be hallucinated.",
-  },
-  {
-    key: "identity_pronoun_layer",
-    definition: "How each character is identified across the manuscript: pronouns in use, detected gender signals, and any pronoun shifts between sections. Authors confirm intentional transitions or flag continuity errors before scoring.",
-  },
-] as const;
+const getLayerMetadata = (key: string) =>
+  STORY_LAYER_METADATA[key as keyof typeof STORY_LAYER_METADATA];
 
 // ─── 13 Criteria ─────────────────────────────────────────────────────────────
 
@@ -680,13 +526,13 @@ function Module1StoryLayer({
                 padding: "16px 20px",
               }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-                  <span style={{ fontSize: 16 }}>{LAYER_ICONS[def.key]}</span>
+                  <span style={{ fontSize: 16 }}>{def.iconToken}</span>
                   <span style={{ fontSize: 13, fontWeight: 700, color: P.bone }}>
-                    {LAYER_LABELS[def.key]}
+                    {def.title}
                   </span>
                 </div>
                 <p style={{ margin: 0, fontSize: 13, color: P.ash, lineHeight: 1.65 }}>
-                  {def.definition}
+                  {def.description}
                 </p>
               </div>
             ))}
@@ -722,7 +568,7 @@ function Module1StoryLayer({
             </p>
             <p style={{ margin: 0, ...T.body }}>
               RevisionGrade extracted these story facts from your manuscript. Work
-              through each of the 9 layers and mark it as correct, correct with a
+              through each of the {LAYER_ORDER.length} layers and mark it as correct, correct with a
               note, wrong, or wrong with an explanation. When all layers are
               reviewed, you will be taken to the approval step automatically.
             </p>
@@ -816,7 +662,7 @@ function Module1StoryLayer({
                 }}
               >
                 <span style={{ fontSize: 16, flexShrink: 0, marginTop: 1 }}>
-                  {LAYER_ICONS[key]}
+                  {getLayerMetadata(key).iconToken}
                 </span>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div
@@ -827,7 +673,7 @@ function Module1StoryLayer({
                       color: isActive ? P.gold : isPopulated ? P.boneAlt : P.ash,
                     }}
                   >
-                    {LAYER_LABELS[key]}
+                    {getLayerMetadata(key).title}
                   </div>
                   <div
                     style={{
@@ -837,7 +683,7 @@ function Module1StoryLayer({
                       lineHeight: 1.3,
                     }}
                   >
-                    {LAYER_NAV_DESC[key]}
+                    {getLayerMetadata(key).shortLabel}
                   </div>
                 </div>
                 {/* Decision indicator */}
@@ -902,7 +748,7 @@ function Module1StoryLayer({
               >
                 <div>
                   <SectionLabel>
-                    Your decision — {LAYER_LABELS[activeLayer]}
+                    Your decision — {getLayerMetadata(activeLayer).title}
                   </SectionLabel>
                   {currentDecision.status !== "undecided" && (
                     <p
@@ -926,7 +772,7 @@ function Module1StoryLayer({
 
               {showCommentFor === activeLayer ? (
                 <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                  <SectionLabel>Note for {LAYER_LABELS[activeLayer]}</SectionLabel>
+                  <SectionLabel>Note for {getLayerMetadata(activeLayer).title}</SectionLabel>
                   <textarea
                     value={pendingComment}
                     onChange={(e) => setPendingComment(e.target.value)}
@@ -1188,7 +1034,7 @@ function Module1StoryLayer({
                 lineHeight: 1.3,
               }}
             >
-              All 9 layers reviewed
+              All layers reviewed
             </p>
             <p style={{ margin: 0, ...T.body }}>
               Your decisions have been recorded. Proceed to the approval step.

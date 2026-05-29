@@ -5556,7 +5556,7 @@ export async function processEvaluationJob(
 
         console.log(`[Processor] ${jobId}: phase_1a — ledger artifact persisted, building story layer`);
 
-        // ── PR12: Build 9-layer Story Layer payload from completed ledger ──
+        // ── PR12: Build canonical Story Layer payload from completed ledger ──
         const storyLayerPayload = buildStoryLayerFromLedger(
           characterLedger,
           characterLedgerV2Phase1a,
