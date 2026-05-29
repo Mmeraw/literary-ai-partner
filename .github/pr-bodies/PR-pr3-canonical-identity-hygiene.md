@@ -72,6 +72,8 @@ This PR does **not** implement:
 
 Process Change: no
 
+Process Change rationale: no phase ordering, routing, provider selection, timeout, or pipeline lifecycle behavior changed. This PR only adds deterministic Pass 1A identity hygiene inside the existing Pass 1A flow.
+
 Pass Selection:
 - [x] Pass 1
 - [ ] Pass 2
@@ -107,7 +109,7 @@ Post-change Runs
 | Run 1 | 2215 | 18352 | Focused PR3 suite (`4/4` suites, `9/9` tests) |
 | Run 2 | 9063 | 33326 | Focused PR3 suite (`4/4` suites, `9/9` tests) |
 
-Quality gate / anomaly disclosure:
+quality gate / anomaly disclosure:
 - No new functional regressions observed in focused PR3 suites after the coverage-map type fix.
 - Local environment lacks `tsx` binary, so full `npm run build` exited at `config:validate`; this is environment/tooling, not a new code-level regression in PR3 scope.
 
