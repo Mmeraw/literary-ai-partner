@@ -28,6 +28,7 @@ type LedgerJob = {
 };
 
 type AcceptedLedgerContent = {
+  layers?: Record<string, Record<string, unknown>>;
   approval?: {
     status?: string;
     approved_by_user_id?: string;
@@ -48,6 +49,9 @@ type AcceptedLedgerContent = {
       suggested_resolution?: string;
       blocking_status?: boolean;
     }>;
+  };
+  governance_rail?: {
+    dependency_warnings?: Array<{ layer?: string; message?: string }>;
   };
   story_layer?: Record<string, Record<string, unknown>>;
 };
@@ -322,7 +326,9 @@ export default async function StoryLedgerPage({
         approved_by_role: acceptedLedgerContent.approval?.approved_by_role ?? null,
         approval_status: acceptedLedgerContent.approval?.status ?? null,
         governance_warnings: acceptedLedgerContent.governance?.warnings ?? [],
-        layer_count: acceptedLedgerContent.story_layer
+        layer_count: acceptedLedgerContent.layers
+          ? Object.keys(acceptedLedgerContent.layers).length
+          : acceptedLedgerContent.story_layer
           ? Object.keys(acceptedLedgerContent.story_layer).length
           : 8,
       }

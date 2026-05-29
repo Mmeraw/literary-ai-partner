@@ -564,6 +564,57 @@ function WarnBanner({ reason }: { reason: string }) {
   );
 }
 
+function LayerTruthBanner({
+  data,
+}: {
+  data?: Record<string, unknown> | null;
+}) {
+  if (!data || typeof data !== "object") return null;
+
+  const dependencyWarning =
+    data.dependency_warning && typeof data.dependency_warning === "object"
+      ? (data.dependency_warning as Record<string, unknown>)
+      : null;
+  const health =
+    data.health && typeof data.health === "object"
+      ? (data.health as Record<string, unknown>)
+      : null;
+  const identityRisk =
+    data.identity_risk_metadata && typeof data.identity_risk_metadata === "object"
+      ? (data.identity_risk_metadata as Record<string, unknown>)
+      : null;
+
+  if (dependencyWarning) {
+    const inheritedStatus = String(dependencyWarning.inherited_status ?? "degraded").toLowerCase();
+    const message = String(
+      dependencyWarning.message ??
+      health?.reason ??
+      "This layer inherits unresolved Canonical Identity risk and must not be treated as clean.",
+    );
+
+    return inheritedStatus === "blocked"
+      ? <BlockerBanner reason={`Blocked by Canonical Identity — ${message}`} />
+      : <WarnBanner reason={`Degraded by Canonical Identity — ${message}`} />;
+  }
+
+  if (identityRisk) {
+    const truthStatus = String(identityRisk.truth_status ?? health?.truth_status ?? "clean").toLowerCase();
+    if (truthStatus === "clean") return null;
+
+    const reason = String(
+      identityRisk.reason ??
+      health?.reason ??
+      "Canonical Identity has unresolved risk and must not be treated as clean canon.",
+    );
+
+    return truthStatus === "blocked"
+      ? <BlockerBanner reason={`Canonical Identity is blocked — ${reason}`} />
+      : <WarnBanner reason={`Canonical Identity is degraded — ${reason}`} />;
+  }
+
+  return null;
+}
+
 function Divider() {
   return <div style={{ borderBottom: `1px solid ${C.border}`, margin: "18px 0" }} />;
 }
@@ -3672,40 +3723,51 @@ export function StoryLayerRenderer({
   pronounDecisions?: PronounShiftDecision[];
   onPronounDecision?: (character: string, decision: "intentional" | "continuity_error") => void;
 }) {
+  let renderedLayer: React.ReactNode;
+
   switch (layerKey) {
     case "source_integrity_layer":
-      return (
+      renderedLayer = (
         <SourceIntegrityLayer
           data={data}
           enrichmentNote={sourceIntegrityEnrichmentNote}
           onEnrichmentNoteChange={onSourceIntegrityEnrichmentNoteChange}
         />
       );
+      break;
     case "pov_structure_layer":
-      return <PovStructureLayer data={data} />;
+      renderedLayer = <PovStructureLayer data={data} />;
+      break;
     case "canonical_identity_layer":
-      return <CanonicalIdentityLayer data={data} />;
+      renderedLayer = <CanonicalIdentityLayer data={data} />;
+      break;
     case "cast_role_tier_layer":
-      return <CastRoleTierLayer data={data} />;
+      renderedLayer = <CastRoleTierLayer data={data} />;
+      break;
     case "identity_pronoun_layer":
-      return (
+      renderedLayer = (
         <IdentityPronounLayer
           data={data}
           pronounDecisions={pronounDecisions}
           onPronounDecision={onPronounDecision}
         />
       );
+      break;
     case "relationship_network_layer":
-      return <RelationshipNetworkLayer data={data} castData={castData} />;
+      renderedLayer = <RelationshipNetworkLayer data={data} castData={castData} />;
+      break;
     case "object_symbol_layer":
-      return <ObjectSymbolLayer data={data} />;
+      renderedLayer = <ObjectSymbolLayer data={data} />;
+      break;
     case "location_timeline_worldstate_layer":
-      return <LocationTimelineWorldstateLayer data={data} />;
+      renderedLayer = <LocationTimelineWorldstateLayer data={data} />;
+      break;
     case "threat_antagonist_ending_layer":
-      return <ThreatAntagonistEndingLayer data={data} />;
+      renderedLayer = <ThreatAntagonistEndingLayer data={data} />;
+      break;
     default:
       if (!data || Object.keys(data).length === 0) {
-        return (
+        renderedLayer = (
           <div
             style={{
               border: `1px dashed ${C.border}`,
@@ -3719,8 +3781,9 @@ export function StoryLayerRenderer({
             No data for layer: {layerKey}
           </div>
         );
+        break;
       }
-      return (
+      renderedLayer = (
         <div
           style={{
             border: `1px solid ${C.border}`,
@@ -3750,5 +3813,13 @@ export function StoryLayerRenderer({
           </dl>
         </div>
       );
+      break;
   }
+
+  return (
+    <>
+      <LayerTruthBanner data={data} />
+      {renderedLayer}
+    </>
+  );
 }

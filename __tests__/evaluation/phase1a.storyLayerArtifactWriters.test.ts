@@ -36,6 +36,10 @@ const qualityReport: LedgerQualityReportPayload = {
   grouped_warning_summary: {
     identity: ['Verify alias merge confidence before approval.'],
   },
+  layer_truth_status: {
+    canonical_identity_layer: 'clean',
+  },
+  layer_dependency_warnings: [],
   evidence_location_references: [
     {
       layer: 'canonical_identity_layer',

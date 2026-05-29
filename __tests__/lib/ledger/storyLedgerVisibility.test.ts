@@ -118,4 +118,57 @@ describe('storyLedgerVisibility', () => {
       degraded_layers: [],
     });
   });
+
+  it('lets the admin account view degraded dependent layers without converting them to clean', () => {
+    const layers: Record<string, Record<string, unknown>> = {
+      canonical_identity_layer: {
+        health: { truth_status: 'degraded', status: 'degraded_but_usable' },
+      },
+      relationship_network_layer: {
+        health: {
+          truth_status: 'degraded',
+          status: 'degraded_but_usable',
+          visible_to_user: false,
+          visible_to_admin: true,
+        },
+        dependency_warning: {
+          layer: 'relationship_network_layer',
+          inherited_status: 'degraded',
+          failure_class: 'DEPENDENT_LAYER_FAILED_IDENTITY_INHERITANCE',
+        },
+        relationship_pairs: [{ character_a: 'A', character_b: 'B' }],
+      },
+    };
+
+    const qualityReport: LedgerQualityReportContent = {
+      quality_report: {
+        gate_ready_status: 'repair_required',
+        grouped_warning_summary: {
+          canonical_identity_layer: ['Canonical Identity is degraded'],
+          relationship_network_layer: ['Inherited Canonical Identity risk'],
+        },
+      },
+    };
+
+    const authorResult = filterStoryLayersForViewer(layers, null, qualityReport, false);
+    expect(authorResult.storyLayers).toBeNull();
+    expect(authorResult.withheldLayerKeys).toEqual([
+      'canonical_identity_layer',
+      'relationship_network_layer',
+    ]);
+
+    const adminResult = filterStoryLayersForViewer(layers, null, qualityReport, true);
+    expect(adminResult.visibleLayerKeys).toEqual([
+      'canonical_identity_layer',
+      'relationship_network_layer',
+    ]);
+    expect(adminResult.storyLayers?.relationship_network_layer.health).toMatchObject({
+      truth_status: 'degraded',
+      status: 'degraded_but_usable',
+    });
+    expect(layers.relationship_network_layer.health).toMatchObject({
+      truth_status: 'degraded',
+      status: 'degraded_but_usable',
+    });
+  });
 });
