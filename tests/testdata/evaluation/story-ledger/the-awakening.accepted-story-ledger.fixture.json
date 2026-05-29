@@ -103,22 +103,27 @@
       "entries": [
         {
           "canonical_name": "Edna Pontellier",
-          "pronouns": ["she/her"],
+          "pronouns": ["she/her/hers"],
           "warnings": []
         },
         {
           "canonical_name": "Raoul Pontellier",
-          "pronouns": ["he/him"],
+          "pronouns": ["he/him/his"],
           "warnings": []
         },
         {
           "canonical_name": "Étienne Pontellier",
-          "pronouns": ["he/him"],
+          "pronouns": ["he/him/his"],
           "warnings": []
         },
         {
           "canonical_name": "Robert Lebrun",
-          "pronouns": ["he/him"],
+          "pronouns": ["he/him/his"],
+          "warnings": []
+        },
+        {
+          "canonical_name": "Léonce Pontellier",
+          "pronouns": ["he/him/his"],
           "warnings": []
         }
       ]

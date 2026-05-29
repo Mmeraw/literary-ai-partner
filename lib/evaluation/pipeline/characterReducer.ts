@@ -260,6 +260,74 @@ function pickAgeSignal(signals: (Pass1aAgeSignal)[]): Pass1aAgeSignal {
   return signals.find((s) => s !== null) ?? null;
 }
 
+type PronounFamily =
+  | "masculine"
+  | "feminine"
+  | "neutral_plural"
+  | "neopronoun"
+  | "it_thing"
+  | "honorific"
+  | "unknown_or_custom";
+
+const PRONOUN_FAMILY_REGISTRY: Array<{ family: PronounFamily; forms: string[] }> = [
+  { family: "masculine", forms: ["he", "him", "his", "himself"] },
+  { family: "feminine", forms: ["she", "her", "hers", "herself"] },
+  { family: "neutral_plural", forms: ["they", "them", "their", "theirs", "themself", "themselves"] },
+  {
+    family: "neopronoun",
+    forms: [
+      "xe", "xem", "xyr", "xyrs", "xemself",
+      "ze", "zir", "zirs", "hir", "hirs", "hirself",
+      "ey", "em", "eir", "eirs", "eirself",
+      "fae", "faer", "faers", "faerself",
+      "per", "pers", "perself",
+      "ve", "ver", "vis", "verself",
+      "ae", "aer", "aers", "aerself",
+      "zie", "zirself",
+    ],
+  },
+  { family: "it_thing", forms: ["it", "its", "itself"] },
+  {
+    family: "honorific",
+    forms: [
+      "mr", "mrs", "ms", "mx", "sir", "madam", "lady", "lord", "dame", "miss", "madame",
+    ],
+  },
+];
+
+function tokenizePronounSignal(raw: string): string[] {
+  return raw
+    .toLowerCase()
+    .replace(/[()\[\]{}.,;:!?"']/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .split(/[\s/|]+/)
+    .filter(Boolean);
+}
+
+function extractPronounFamilies(pronouns: string[]): Set<PronounFamily> {
+  const families = new Set<PronounFamily>();
+
+  for (const raw of pronouns) {
+    if (typeof raw !== "string") continue;
+    for (const token of tokenizePronounSignal(raw)) {
+      let matched = false;
+      for (const registryEntry of PRONOUN_FAMILY_REGISTRY) {
+        if (registryEntry.forms.includes(token)) {
+          families.add(registryEntry.family);
+          matched = true;
+          break;
+        }
+      }
+      if (!matched) {
+        families.add("unknown_or_custom");
+      }
+    }
+  }
+
+  return families;
+}
+
 // ── Symbol deduplication ──────────────────────────────────────────────────
 
 interface RawSymbol {
@@ -555,9 +623,24 @@ export function reduceCharacterEvidence(params: {
 
     // Warnings
     const warnings: CharacterArcLedgerEntry["warnings"] = [];
-    const pronounSets = entries.map((e) => JSON.stringify([...(e.pronouns ?? [])].sort()));
-    if (new Set(pronounSets).size > 1 && pronounSets.some((p) => p !== "[]")) {
-      warnings.push({ type: "pronoun_inconsistency", message: `Pronoun variation detected across chunks for "${canonical}"` });
+    const pronounFamilySets = entries
+      .map((e) => extractPronounFamilies((e.pronouns ?? []).filter((p): p is string => typeof p === "string")))
+      .filter((familySet) => familySet.size > 0);
+
+    if (pronounFamilySets.length > 0) {
+      const familySignatures = pronounFamilySets.map((set) => JSON.stringify([...set].sort()));
+      const distinctSignatures = new Set(familySignatures);
+      const hasMixedKnownFamilies = pronounFamilySets.some(
+        (set) => [...set].filter((family) => family !== "unknown_or_custom" && family !== "honorific").length > 1,
+      );
+      const hasUnknownSignals = pronounFamilySets.some((set) => set.has("unknown_or_custom"));
+
+      if (hasMixedKnownFamilies || distinctSignatures.size > 1 || (hasUnknownSignals && pronounFamilySets.length > 1)) {
+        warnings.push({
+          type: "pronoun_inconsistency",
+          message: `Pronoun-family transition or unresolved pronoun ownership detected for "${canonical}"`,
+        });
+      }
     }
     if (endingStatus === "accidentally_abandoned") {
       warnings.push({ type: "ending_underpaid", message: `"${canonical}" last appears in chunk ${chunkIndices[chunkIndices.length - 1]} of ${totalChunksInManuscript} — possible abandoned arc` });

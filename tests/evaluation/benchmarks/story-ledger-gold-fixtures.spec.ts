@@ -76,12 +76,27 @@ function validateGreatExpectations(ledger: any): string[] {
   }
 
   const pronounEntries = ledger.layers?.identity_pronoun_layer?.entries ?? [];
-  const pipPronounEntry = pronounEntries.find((entry: any) => hasText(entry.canonical_name, 'pip'));
-  if (!((pipPronounEntry?.pronouns ?? []).some((p: string) => p.toLowerCase().includes('he/him/his')))) {
-    errors.push('MISSING_REQUIRED_TRUTH: Pip pronoun record must include he/him/his.');
+  const stableMasculineExpectations = ['pip', 'herbert', 'jaggers', 'orlick'];
+  for (const name of stableMasculineExpectations) {
+    const entry = pronounEntries.find((candidate: any) => hasText(candidate.canonical_name, name));
+    if (!entry) {
+      errors.push(`MISSING_REQUIRED_TRUTH: Pronoun identity entry missing for '${name}'.`);
+      continue;
+    }
+
+    const normalizedPronouns = (entry.pronouns ?? []).map((p: string) => p.toLowerCase());
+    const hasMasculineFamily = normalizedPronouns.some((p: string) => p.includes('he/him'));
+    if (!hasMasculineFamily) {
+      errors.push(`MISSING_REQUIRED_TRUTH: '${name}' pronoun record must include masculine family usage (he/him/his).`);
+    }
+
+    if ((entry.warnings ?? []).some((warning: any) => hasText(warning?.type ?? warning, 'pronoun_inconsistency'))) {
+      errors.push(`FORBIDDEN_FAILURE: Stable masculine pronoun usage for '${name}' must not be flagged as a pronoun shift.`);
+    }
   }
-  if ((pipPronounEntry?.warnings ?? []).some((warning: any) => hasText(warning?.type ?? warning, 'pronoun_inconsistency'))) {
-    errors.push('FORBIDDEN_FAILURE: he/him/his must not be flagged as a pronoun shift.');
+
+  if ((ledger.layers?.identity_pronoun_layer?.pronoun_shifts_detected ?? 0) !== 0) {
+    errors.push('FORBIDDEN_FAILURE: Great Expectations fixture must report zero pronoun shifts for stable pronoun-family usage.');
   }
 
   const relationshipPairs = ledger.layers?.relationship_network_layer?.relationship_pairs ?? [];
@@ -269,16 +284,41 @@ function validateAwakening(ledger: any): string[] {
   }
 
   const pronounEntries = ledger.layers?.identity_pronoun_layer?.entries ?? [];
-  const targetNames = ['raoul pontellier', 'étienne pontellier', 'robert lebrun'];
-  for (const name of targetNames) {
+  const stablePronounFamilies: Array<{ name: string; familyNeedle: string }> = [
+    { name: 'edna pontellier', familyNeedle: 'she/her' },
+    { name: 'raoul pontellier', familyNeedle: 'he/him' },
+    { name: 'étienne pontellier', familyNeedle: 'he/him' },
+    { name: 'robert lebrun', familyNeedle: 'he/him' },
+    { name: 'léonce pontellier', familyNeedle: 'he/him' },
+  ];
+
+  for (const { name, familyNeedle } of stablePronounFamilies) {
     const entry = pronounEntries.find((candidate: any) => hasText(candidate.canonical_name, name));
     if (!entry) {
       errors.push(`MISSING_REQUIRED_TRUTH: Pronoun identity entry missing for '${name}'.`);
       continue;
     }
+
+    if (!(entry.pronouns ?? []).some((p: string) => p.toLowerCase().includes(familyNeedle))) {
+      errors.push(`MISSING_REQUIRED_TRUTH: Pronoun identity entry for '${name}' must include '${familyNeedle}'.`);
+    }
+
     if ((entry.warnings ?? []).some((warning: any) => hasText(warning?.type ?? warning, 'pronoun_inconsistency'))) {
       errors.push(`FORBIDDEN_FAILURE: '${name}' must not be flagged as pronoun-transition problem.`);
     }
+  }
+
+  for (const entry of pronounEntries) {
+    if (
+      (hasText(entry.canonical_name, 'children') || hasText(entry.canonical_name, 'lovers'))
+      && (entry.warnings ?? []).some((warning: any) => hasText(warning?.type ?? warning, 'pronoun_inconsistency'))
+    ) {
+      errors.push("FORBIDDEN_FAILURE: 'children/lovers' labels must not appear as pronoun-transition review items without cross-family evidence.");
+    }
+  }
+
+  if ((ledger.layers?.identity_pronoun_layer?.pronoun_shifts_detected ?? 0) !== 0) {
+    errors.push('FORBIDDEN_FAILURE: The Awakening fixture must report zero pronoun shifts for stable pronoun-family usage.');
   }
 
   const locations: string[] = ledger.layers?.location_timeline_worldstate_layer?.unique_locations ?? [];
