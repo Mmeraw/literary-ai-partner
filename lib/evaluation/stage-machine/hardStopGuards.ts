@@ -1,4 +1,4 @@
-import { STORY_LAYER_CORE_LAYER_KEYS, type StoryLayerCoreLayerKey } from '../artifacts/artifactTypes';
+import { STORY_LAYER_KEYS, type StoryLayerCoreLayerKey } from '../artifacts/artifactTypes';
 
 export type GuardResult = { ok: true } | { ok: false; reason: string };
 
@@ -239,26 +239,26 @@ export function checkSupportArtifactFreshness(set: ArtifactSet): GuardResult {
 }
 
 export function forbidLayer9(layerKeys: readonly string[]): GuardResult {
-  const allowed = new Set<string>(STORY_LAYER_CORE_LAYER_KEYS);
+  const allowed = new Set<string>(STORY_LAYER_KEYS);
   const unexpected = layerKeys.filter((key) => !allowed.has(key));
 
   if (unexpected.length > 0) {
     return fail(`Story Layer contains non-canonical layer key(s): ${unexpected.join(', ')}`);
   }
 
-  const missing = STORY_LAYER_CORE_LAYER_KEYS.filter((key) => !layerKeys.includes(key));
+  const missing = STORY_LAYER_KEYS.filter((key) => !layerKeys.includes(key));
   if (missing.length > 0) {
     return fail(`Story Layer is missing canonical layer key(s): ${missing.join(', ')}`);
   }
 
   const uniqueLayerCount = new Set(layerKeys).size;
-  if (uniqueLayerCount !== STORY_LAYER_CORE_LAYER_KEYS.length || layerKeys.length !== STORY_LAYER_CORE_LAYER_KEYS.length) {
-    return fail(`Story Layer must contain exactly ${STORY_LAYER_CORE_LAYER_KEYS.length} canonical layers`);
+  if (uniqueLayerCount !== STORY_LAYER_KEYS.length || layerKeys.length !== STORY_LAYER_KEYS.length) {
+    return fail(`Story Layer must contain exactly ${STORY_LAYER_KEYS.length} canonical layers`);
   }
 
   return ok();
 }
 
 export function canonicalLayerKeys(): readonly StoryLayerCoreLayerKey[] {
-  return STORY_LAYER_CORE_LAYER_KEYS;
+  return STORY_LAYER_KEYS;
 }
