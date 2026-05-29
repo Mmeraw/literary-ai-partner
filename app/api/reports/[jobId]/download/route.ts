@@ -10,6 +10,7 @@ import type { LongformDreamDocument } from '@/lib/evaluation/pipeline/runPass3bL
 import {
   filterAuthorFacingTextList,
   getRenumberedAuthorFacingRevisionPlan,
+  getCriterionDisplayLabel,
 } from '@/lib/evaluation/reportRenderSafety';
 import {
   Document, Packer, Paragraph, TextRun, HeadingLevel,
@@ -104,10 +105,13 @@ function exportSeverity(priority?: string): string {
   return 'COULD';
 }
 
+const SEVERITY_SORT_ORDER: Record<string, number> = { high: 0, medium: 1, low: 2 };
+
 function getCriterionOpportunities(c: { recommendations?: unknown }): ExportRecommendation[] {
   if (!Array.isArray(c.recommendations)) return [];
   return c.recommendations
     .filter((r): r is ExportRecommendation => typeof r === 'object' && r !== null)
+    .sort((a, b) => (SEVERITY_SORT_ORDER[a.priority ?? 'low'] ?? 2) - (SEVERITY_SORT_ORDER[b.priority ?? 'low'] ?? 2))
     .slice(0, 3);
 }
 
@@ -199,6 +203,19 @@ function stripMachineResidue(text: string): string {
     .replace(/\breported_speech\b/g, 'reported speech')
     .replace(/\btagged_speech\b/g, 'tagged speech')
     .replace(/\baction_beat_attribution\b/g, 'action-beat attribution')
+    .replace(/\bHARD_FAIL\b/g, '')
+    .replace(/\bDEGRADED_EXTRACTION\b/g, '')
+    .replace(/\bSOURCE_INTEGRITY_REVIEW_REQUIRED\b/g, '')
+    .replace(/\bPass\s*[0-9][A-Za-z]?\b/g, '')
+    .replace(/\bWAVE\s*(I{1,4}|[1-4])\b/g, '')
+    .replace(/\bpipeline\s+(failure|error|status|diagnostic)\b/gi, '')
+    .replace(/\bextraction\s+semantics?\b/gi, '')
+    .replace(/\bschema\s+validation\b/gi, '')
+    .replace(/\bgate[-_]?identifier\b/gi, '')
+    .replace(/\bdoctrine[-_]?id\b/gi, '')
+    .replace(/\bvalidator[-_]?name\b/gi, '')
+    .replace(/\bprompt[-_]?mechanic\w*/gi, '')
+    .replace(/\bgovernance[-_]?machinery\b/gi, '')
     .replace(/\s+/g, ' ')
     .trim();
 }
@@ -227,15 +244,22 @@ function safeTruncateText(text: string): string {
   const trimmed = text.trim();
   if (!trimmed) return trimmed;
   if (/[.!?;:—"')\]]\s*$/.test(trimmed)) return trimmed;
-  const lastSpace = trimmed.lastIndexOf(' ');
-  if (lastSpace === -1) return trimmed;
-  const lastSegment = trimmed.slice(lastSpace + 1);
-  if (lastSegment.length <= 3 && !/[aeiou]/i.test(lastSegment)) {
-    const upToLastSpace = trimmed.slice(0, lastSpace).trimEnd();
-    const cleaned = upToLastSpace.replace(/\s+(and|or|but|the|a|an|in|on|at|to|of|for|with|by)\s*$/i, '');
-    return cleaned.replace(/[,;:\s]+$/, '') + '...';
+  const DANGLING = /\s+(and|or|but|the|a|an|in|on|at|to|of|for|with|by|than|from|into|as|that|which|who|whose|where|when|while|although|because|before|after|during|between|among|through|about|like|more|less|over|under|also|yet|so|if|whether|not|nor)\s*$/i;
+  let result = trimmed;
+  while (DANGLING.test(result)) {
+    result = result.replace(DANGLING, '');
   }
-  return trimmed;
+  result = result.replace(/[,;:\s]+$/, '');
+  if (result.length < trimmed.length) return result + '...';
+  const lastSpace = result.lastIndexOf(' ');
+  if (lastSpace === -1) return result;
+  const lastSegment = result.slice(lastSpace + 1);
+  if (lastSegment.length <= 3 && !/[aeiou]/i.test(lastSegment)) {
+    const upToLastSpace = result.slice(0, lastSpace).trimEnd();
+    const cleaned = upToLastSpace.replace(DANGLING, '').replace(/[,;:\s]+$/, '');
+    return cleaned + '...';
+  }
+  return result;
 }
 
 function cleanReportText(text: unknown, fallback = '—', options: { blockTruncation?: boolean } = {}): string {
@@ -418,14 +442,14 @@ function buildTxtReport(result: ExportableResult, title: string | null, jobId: s
   lines.push('CRITERIA SCORES');
   lines.push(sub);
   result.criteria.forEach((c) => {
-    lines.push(`• ${c.key} — ${scoreLabel(c.score_0_10, 10)}${c.confidence_level ? ` (${c.confidence_level} confidence)` : ''}`);
+    lines.push(`• ${getCriterionDisplayLabel(c.key)} — ${scoreLabel(c.score_0_10, 10)}${c.confidence_level ? ` (${c.confidence_level} confidence)` : ''}`);
     if (c.rationale) lines.push(`  Rationale: ${cleanReportText(c.rationale)}`);
 
     const opportunities = getCriterionOpportunities(c as { recommendations?: unknown });
     if (opportunities.length > 0) {
       lines.push('  Opportunities:');
       opportunities.forEach((opportunity, idx) => {
-        lines.push(`    ${idx + 1}. ${exportSeverity(opportunity.priority)}`);
+        lines.push(`    ${idx + 1}. [${exportSeverity(opportunity.priority)}]`);
         opportunityRows(opportunity).forEach(([label, value]) => {
           lines.push(`       ${label}: ${value}`);
         });
@@ -635,7 +659,7 @@ async function buildPdfReport(result: ExportableResult, title: string | null, jo
 
       // Criterion name + score
       doc.font('Helvetica-Bold').fontSize(11).fillColor(RG.textPrimary).text(
-        toPdfSafeText(c.key),
+        toPdfSafeText(getCriterionDisplayLabel(c.key)),
         ml, doc.y,
         { width: contentWidth - 80, continued: false },
       );
@@ -686,10 +710,10 @@ async function buildPdfReport(result: ExportableResult, title: string | null, jo
         });
         doc.moveDown(0.15);
 
-        opportunities.forEach((opportunity, idx) => {
+        opportunities.forEach((opportunity) => {
           ensureSpace(90);
           doc.font('Helvetica-Bold').fontSize(9).fillColor(RG.textPrimary).text(
-            `${idx + 1}. ${exportSeverity(opportunity.priority)}`,
+            `[${exportSeverity(opportunity.priority)}]`,
             ml + 10,
             doc.y,
             { width: contentWidth - 20 },
@@ -1039,7 +1063,7 @@ async function buildDocx(result: ExportableResult, title: string | null, jobId: 
         new TableCell({
           shading: { type: ShadingType.SOLID, color: rowShading },
           borders: DOCX_NO_BORDERS,
-          children: [new Paragraph({ children: [new TextRun({ text: c.key, size: 20, color: RG.textPrimary.replace('#', ''), font: 'Calibri' })] })],
+          children: [new Paragraph({ children: [new TextRun({ text: getCriterionDisplayLabel(c.key), size: 20, color: RG.textPrimary.replace('#', ''), font: 'Calibri' })] })],
         }),
         new TableCell({
           shading: { type: ShadingType.SOLID, color: rowShading },
@@ -1062,13 +1086,15 @@ async function buildDocx(result: ExportableResult, title: string | null, jobId: 
   children.push(spacer());
 
   // Rationales
+  let globalOpportunityIdx = 0;
   result.criteria.forEach((c) => {
     if (!c.rationale) return;
-    children.push(bodyPara(`${c.key}: ${c.rationale}`, { size: 19, color: RG.textMuted }));
+    children.push(bodyPara(`${getCriterionDisplayLabel(c.key)}: ${c.rationale}`, { size: 19, color: RG.textMuted }));
 
     const opportunities = getCriterionOpportunities(c as { recommendations?: unknown });
-    opportunities.forEach((opportunity, idx) => {
-      children.push(bodyPara(`Opportunity ${idx + 1} — ${exportSeverity(opportunity.priority)}`, {
+    opportunities.forEach((opportunity) => {
+      globalOpportunityIdx++;
+      children.push(bodyPara(`${exportSeverity(opportunity.priority)} #${globalOpportunityIdx}`, {
         bold: true,
         size: 18,
         color: RG.oxblood,
