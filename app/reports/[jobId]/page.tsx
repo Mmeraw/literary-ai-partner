@@ -1,6 +1,7 @@
 import 'server-only';
 import { unstable_noStore as noStore } from 'next/cache';
 import { notFound } from 'next/navigation';
+import Link from 'next/link';
 import type { Metadata } from 'next';
 import { headers } from 'next/headers';
 import { createClient as createSSRClient } from '@/lib/supabase/server';
@@ -50,6 +51,7 @@ export const revalidate = 0;
 type EvaluationReportContext = {
   result: EvaluationResultV1 | EvaluationResultV2;
   manuscriptTitle: string | null;
+  manuscriptId: number | null;
 };
 
 function getConfidenceBadge(criterion: EvaluationResultV1["criteria"][number]): {
@@ -94,6 +96,7 @@ async function getEvaluationResult(jobId: string, userId: string): Promise<Evalu
       evaluation_result,
       status,
       validity_status,
+      manuscript_id,
       manuscripts!inner(user_id,title)
     `)
     .eq('id', jobId)
@@ -111,9 +114,11 @@ async function getEvaluationResult(jobId: string, userId: string): Promise<Evalu
     return null;
   }
 
+  const rawManuscriptId = (job as Record<string, unknown>).manuscript_id;
   return {
     result,
     manuscriptTitle: extractManuscriptTitle((job as { manuscripts?: unknown }).manuscripts),
+    manuscriptId: typeof rawManuscriptId === 'number' ? rawManuscriptId : null,
   };
 }
 
@@ -128,6 +133,7 @@ async function getEvaluationResultForSupport(jobId: string): Promise<EvaluationR
       evaluation_result,
       status,
       validity_status,
+      manuscript_id,
       manuscripts(title)
     `)
     .eq('id', jobId)
@@ -144,9 +150,11 @@ async function getEvaluationResultForSupport(jobId: string): Promise<EvaluationR
     return null;
   }
 
+  const rawManuscriptId = (job as Record<string, unknown>).manuscript_id;
   return {
     result,
     manuscriptTitle: extractManuscriptTitle((job as { manuscripts?: unknown }).manuscripts),
+    manuscriptId: typeof rawManuscriptId === 'number' ? rawManuscriptId : null,
   };
 }
 
@@ -232,7 +240,7 @@ export default async function ReportPage({ params }: { params: { jobId: string }
     notFound();
   }
 
-  const { result: resultRaw, manuscriptTitle } = report;
+  const { result: resultRaw, manuscriptTitle, manuscriptId } = report;
   // Cast to V1 for rendering — V2 is a structural superset; both share
   // governance / engine / metrics / criteria / generated_at top-level shape.
   // The report renderer was written against V1 field names which are present in V2.
@@ -362,7 +370,15 @@ export default async function ReportPage({ params }: { params: { jobId: string }
                 Generated {getDisplayDateTime(result.generated_at, "Unknown")}
               </p>
             </div>
-            <div className="shrink-0">
+            <div className="shrink-0 flex items-center gap-3">
+              {manuscriptId && (
+                <Link
+                  href={`/workbench?manuscriptId=${manuscriptId}&evaluationJobId=${params.jobId}`}
+                  className="inline-flex items-center gap-1.5 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-indigo-700"
+                >
+                  Revise now
+                </Link>
+              )}
               <DownloadReportButton jobId={params.jobId} />
             </div>
           </div>

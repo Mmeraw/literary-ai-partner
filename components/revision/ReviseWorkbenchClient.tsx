@@ -172,14 +172,27 @@ function mergeLedger(local: LedgerEntry[], remote: LedgerEntry[]) {
 }
 
 function EmptyWorkbench({ payload, cachedAt }: { payload: WorkbenchQueuePayload; cachedAt?: string | null }) {
+  const isFirstLoad = !cachedAt && payload.error && !payload.error.includes('not found') && !payload.error.includes('sign in');
   return (
     <main className="min-h-screen bg-[#0D0A05] px-4 py-6 text-[#F5EFE4] md:px-6 md:py-8">
       <div className="mx-auto max-w-4xl rounded-xl border border-[#3A3022] bg-[#1C160E]/80 p-8">
         <p className="text-[11px] uppercase tracking-[0.22em] text-[#C8A96E]">Revise Workspace</p>
-        <h1 className="mt-3 text-4xl text-[#F8F1E6]" style={{ fontFamily: "Instrument Serif, Georgia, serif" }}>No live revision queue available yet.</h1>
-        <p className="mt-4 leading-7 text-[#CBBDA4]">{payload.error ?? "This evaluation did not persist revision opportunities. Re-run evaluation or generate a Revise queue."}</p>
+        <h1 className="mt-3 text-4xl text-[#F8F1E6]" style={{ fontFamily: "Instrument Serif, Georgia, serif" }}>
+          {isFirstLoad ? "Building your revision queue…" : "No live revision queue available yet."}
+        </h1>
+        <p className="mt-4 leading-7 text-[#CBBDA4]">
+          {isFirstLoad
+            ? "RevisionGrade is generating revision opportunities from your evaluation. This usually takes a moment — try refreshing the page."
+            : (payload.error ?? "This evaluation did not persist revision opportunities. Re-run evaluation or generate a Revise queue.")}
+        </p>
         {cachedAt && <p className="mt-3 text-sm text-[#A9987D]">Last local cache: {cachedAt}</p>}
         <div className="mt-6 flex flex-wrap gap-3 text-xs">
+          <button
+            onClick={() => window.location.reload()}
+            className="rounded border border-[#C8A96E] bg-[#C8A96E]/10 px-4 py-1.5 font-semibold text-[#C8A96E] hover:bg-[#C8A96E]/20 transition"
+          >
+            Refresh
+          </button>
           <Link href="/dashboard" className="rounded border border-[#6D5A3B] px-3 py-1.5 text-[#E8D8BA] hover:border-[#C8A96E]">Dashboard</Link>
           <Link href="/evaluate" className="rounded border border-[#6D5A3B] px-3 py-1.5 text-[#E8D8BA] hover:border-[#C8A96E]">Evaluate</Link>
         </div>
@@ -222,6 +235,20 @@ export default function ReviseWorkbenchClient({ payload }: { payload: WorkbenchQ
       window.removeEventListener("offline", onOffline);
     };
   }, []);
+
+  // Auto-retry: if the queue comes back empty on first load, the revision
+  // findings may still be generating. Reload once after a short delay so the
+  // user doesn't have to click "Refresh" manually.
+  useEffect(() => {
+    if (payload.ok && payload.opportunities.length === 0) {
+      const retryKey = `revisiongrade:workbench-autoretry:${payload.manuscriptId}:${payload.evaluationJobId}`;
+      if (typeof window !== "undefined" && !sessionStorage.getItem(retryKey)) {
+        sessionStorage.setItem(retryKey, "1");
+        const timer = setTimeout(() => window.location.reload(), 3000);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [payload]);
 
   useEffect(() => {
     const liveKey = cacheKey(payload);
