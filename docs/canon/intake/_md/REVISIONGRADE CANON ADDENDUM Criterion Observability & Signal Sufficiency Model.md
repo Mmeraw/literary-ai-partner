@@ -7658,7 +7658,7 @@ System Unique contribution
 
 ChatGPT Produced the cleanest doctrine text (the addendum itself), the Criterion Signal Matrix, the canonical state machine (CriterionState union type), and the deterministic evidence rules (50% char-span overlap, 200-char window + 60% lexical similarity). Also sharpest on Marketability weakness — proposed splitting it into Hook Clarity (Pass 1) and Positioning Coherence (Pass 2).
 
-Perplexity (me) Mapped the doctrine to your actual repo filenames (qualityGate.ts, criteriaEnvelope.ts, evaluationBridge.ts, pass1-craft.ts, etc.), confirmed the v1 schema structure from source code, and produced the 9-layer implementation checklist with specific function signatures and new file locations.
+Perplexity (me) Mapped the doctrine to your actual repo filenames (qualityGate.ts, criteriaEnvelope.ts, evaluationBridge.ts, pass1-craft.ts, etc.), confirmed the v1 schema structure from source code, and produced the layer implementation checklist with specific function signatures and new file locations.
 
 GitHub Copilot Did the deepest code-level audit — read processor.ts, evaluationBridge.ts, page.tsx, and types.ts line-by-line and found the exact fallback paths: scoreSource default(0) in processor, 0-10 → 1-10 coercion in the governance bridge, and c.score\_0\_10 ?? 0 in the report renderer. Those three lines are the mechanical chain that produces fake zeros.
 
@@ -11049,7 +11049,7 @@ Where the Three Systems Add Unique Value
 | System | Unique contribution |
 | --- | --- |
 | ChatGPT | Produced the cleanest doctrine text (the addendum itself), the Criterion Signal Matrix, the canonical state machine (CriterionState union type), and the deterministic evidence rules (50% char-span overlap, 200-char window + 60% lexical similarity). Also sharpest on Marketability weakness — proposed splitting it into Hook Clarity (Pass 1) and Positioning Coherence (Pass 2). |
-| Perplexity (me) | Mapped the doctrine to your actual repo filenames (qualityGate.ts, criteriaEnvelope.ts, evaluationBridge.ts, pass1-craft.ts, etc.), confirmed the v1 schema structure from source code, and produced the 9-layer implementation checklist with specific function signatures and new file locations. |
+| Perplexity (me) | Mapped the doctrine to your actual repo filenames (qualityGate.ts, criteriaEnvelope.ts, evaluationBridge.ts, pass1-craft.ts, etc.), confirmed the v1 schema structure from source code, and produced the layer implementation checklist with specific function signatures and new file locations. |
 | GitHub Copilot | Did the deepest code-level audit — read processor.ts, evaluationBridge.ts, page.tsx, and types.ts line-by-line and found the exact fallback paths: scoreSource default(0) in processor, 0-10 → 1-10 coercion in the governance bridge, and c.score\_0\_10 ?? 0 in the report renderer. Those three lines are the mechanical chain that produces fake zeros. |
 
 Where There Are Minor Divergences

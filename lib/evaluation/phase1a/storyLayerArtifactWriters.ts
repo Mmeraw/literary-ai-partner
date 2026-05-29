@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 import {
-  STORY_LAYER_CORE_LAYER_KEYS,
+  STORY_LAYER_KEYS,
   type CanonicalEvaluationArtifactType,
   type RuntimeArtifactEnvelope,
   type StoryLayerCoreLayerKey,
@@ -119,7 +119,7 @@ function buildEnvelope(params: {
 
 export function validateStoryLayerPayload(payload: Record<string, unknown>): StoryLayerPayload {
   const payloadKeys = Object.keys(payload);
-  const allowedLayerKeys = new Set<string>(STORY_LAYER_CORE_LAYER_KEYS);
+  const allowedLayerKeys = new Set<string>(STORY_LAYER_KEYS);
 
   const forbiddenKeys = payloadKeys.filter((key) => FORBIDDEN_STORY_LAYER_KEYS.has(key));
   if (forbiddenKeys.length > 0) {
@@ -131,16 +131,16 @@ export function validateStoryLayerPayload(payload: Record<string, unknown>): Sto
     throw new Error(`pass1a_story_layer_v1 contains non-canonical layer key(s): ${unexpectedKeys.join(', ')}`);
   }
 
-  const missingKeys = STORY_LAYER_CORE_LAYER_KEYS.filter((key) => !(key in payload));
+  const missingKeys = STORY_LAYER_KEYS.filter((key) => !(key in payload));
   if (missingKeys.length > 0) {
     throw new Error(`pass1a_story_layer_v1 is missing canonical layer key(s): ${missingKeys.join(', ')}`);
   }
 
-  if (payloadKeys.length !== STORY_LAYER_CORE_LAYER_KEYS.length) {
-    throw new Error(`pass1a_story_layer_v1 must contain exactly ${STORY_LAYER_CORE_LAYER_KEYS.length} canonical layers`);
+  if (payloadKeys.length !== STORY_LAYER_KEYS.length) {
+    throw new Error(`pass1a_story_layer_v1 must contain exactly ${STORY_LAYER_KEYS.length} canonical layers`);
   }
 
-  for (const key of STORY_LAYER_CORE_LAYER_KEYS) {
+  for (const key of STORY_LAYER_KEYS) {
     const layer = payload[key];
     if (!layer || typeof layer !== 'object' || Array.isArray(layer)) {
       throw new Error(`pass1a_story_layer_v1 layer ${key} must be an object payload`);

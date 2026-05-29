@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { ARTIFACT_REGISTRY } from '../../lib/evaluation/artifacts/artifactRegistry';
+import { STORY_LAYER_COUNT, STORY_LAYER_KEYS } from '../../lib/evaluation/artifacts/artifactTypes';
 
 const RUNTIME_ENVELOPE_REQUIRED_FIELDS = [
   'job_id',
@@ -48,20 +49,14 @@ describe('evaluation artifact JSON schemas', () => {
     }
   });
 
-  it('keeps story layer schema shallow but requires exactly the eight core layers', () => {
+  it('keeps story layer schema shallow but requires exactly the nine core layers', () => {
     const schema = readJson(path.join(repoRoot, 'schemas/evaluation/pass1a_story_layer_v1.schema.json'));
     const required = schema.required as string[];
 
     expect(required).toEqual(expect.arrayContaining([
-      'source_integrity_layer',
-      'pov_structure_layer',
-      'canonical_identity_layer',
-      'cast_role_tier_layer',
-      'relationship_network_layer',
-      'object_symbol_layer',
-      'location_timeline_worldstate_layer',
-      'threat_antagonist_ending_layer',
+      ...STORY_LAYER_KEYS,
     ]));
+    expect(required).toHaveLength(RUNTIME_ENVELOPE_REQUIRED_FIELDS.length + STORY_LAYER_COUNT);
   });
 
   it('requires accepted ledger dependencies and support artifact staleness fields', () => {

@@ -278,7 +278,7 @@ function buildCastRoleTierLayer(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Layer 9 — Identity & Pronoun Verification
+// Layer 5 — Identity & Pronoun Verification
 // ─────────────────────────────────────────────────────────────────────────────
 
 function buildIdentityPronounLayer(
@@ -487,7 +487,7 @@ function buildThreatAntagonistEndingLayer(
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Build the full 9-layer StoryLayerPayload from a completed Pass1aCharacterLedger
+ * Build the canonical StoryLayerPayload from a completed Pass1aCharacterLedger
  * and CharacterLedgerV2.
  *
  * Called once at the end of phase_1a, just before writePhase1aReviewGateArtifacts.

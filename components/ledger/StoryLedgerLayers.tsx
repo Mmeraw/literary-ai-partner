@@ -19,6 +19,7 @@
 "use client";
 
 import React from "react";
+import { STORY_LAYER_METADATA } from "@/components/ledger/storyLayerMetadata";
 
 // ─── Palette ────────────────────────────────────────────────────────────────
 
@@ -169,28 +170,6 @@ function sectionHeaderProps(label: string): { style: React.CSSProperties; title?
     title: hint,
   };
 }
-
-// ─── Author-facing layer descriptions (permanent, locked) ───────────────────
-const LAYER_DESCRIPTIONS: Record<string, string> = {
-  source_integrity_layer:
-    "System extraction health and author guidance. Review the extraction status below, then tell RevisionGrade anything intentional that should not be treated as an error.",
-  pov_structure_layer:
-    "Whose eyes does the reader see through, and when? Maps the narrative cameras, voice ownership, and any perspective shifts across your story.",
-  canonical_identity_layer:
-    "How the system tracks a character across every name, alias, nickname, and role they carry. Especially important when a character is known by several names or hides their identity.",
-  cast_role_tier_layer:
-    "Every character ranked by the structural job they do — from protagonist through antagonist to walk-on. Reveals who the story centers on and who applies pressure.",
-  relationship_network_layer:
-    "The named bonds between characters: how they began, what stressed them, how they changed. Only sustained relationships between named characters appear here.",
-  object_symbol_layer:
-    "Tracks significant objects from their first appearance through ownership changes to their final meaning. Weapons, documents, tokens — anything the story puts weight on.",
-  location_timeline_worldstate_layer:
-    "Where the story takes place, in what order, and what rules govern the world at each point. Movement paths, time sequences, and environmental logic.",
-  threat_antagonist_ending_layer:
-    "The forces working against your protagonist — people, institutions, environments, internal conflicts, and social pressures — mapped to their final state at story's end.",
-  identity_pronoun_layer:
-    "How each character is identified: pronouns detected across the manuscript, gender signals, and any pronoun shifts between sections. Confirm intentional transitions or flag continuity errors.",
-};
 
 // ─── Shared primitives ───────────────────────────────────────────────────────
 
@@ -946,7 +925,7 @@ export function PovStructureLayer({
       <LayerTitle
         icon="👁"
         title="POV Structure"
-        description={LAYER_DESCRIPTIONS.pov_structure_layer}
+        description={STORY_LAYER_METADATA.pov_structure_layer.description}
         badge={charCount > 0 ? `${charCount} POV ${charCount === 1 ? "character" : "characters"}` : undefined}
         badgeTone="gold"
       />
@@ -1307,7 +1286,7 @@ export function CanonicalIdentityLayer({
         <LayerTitle
           icon="🪪"
           title="Canonical Identity"
-          description={LAYER_DESCRIPTIONS.canonical_identity_layer}
+          description={STORY_LAYER_METADATA.canonical_identity_layer.description}
         />
         <div
           style={{
@@ -1371,7 +1350,7 @@ export function CanonicalIdentityLayer({
       <LayerTitle
         icon="🪪"
         title="Canonical Identity"
-        description={LAYER_DESCRIPTIONS.canonical_identity_layer}
+        description={STORY_LAYER_METADATA.canonical_identity_layer.description}
         badge={`${identities.length} ${identities.length === 1 ? "identity" : "identities"}`}
         badgeTone="gold"
       />
@@ -1538,7 +1517,7 @@ export function CastRoleTierLayer({
       <LayerTitle
         icon="🎭"
         title="Cast & Role Tier"
-        description={LAYER_DESCRIPTIONS.cast_role_tier_layer}
+        description={STORY_LAYER_METADATA.cast_role_tier_layer.description}
         badge={`${totalCast} characters`}
         badgeTone="gold"
       />
@@ -1669,7 +1648,7 @@ export function RelationshipNetworkLayer({
       <LayerTitle
         icon="🔗"
         title="Relationship Network"
-        description={LAYER_DESCRIPTIONS.relationship_network_layer}
+        description={STORY_LAYER_METADATA.relationship_network_layer.description}
         badge={count > 0 ? `${count} pairs` : undefined}
         badgeTone="neutral"
       />
@@ -2286,7 +2265,7 @@ export function ObjectSymbolLayer({
       <LayerTitle
         icon="🗡"
         title="Objects & Symbols"
-        description={LAYER_DESCRIPTIONS.object_symbol_layer}
+        description={STORY_LAYER_METADATA.object_symbol_layer.description}
         badge={itemArray.length > 0 ? `${itemArray.length} objects` : undefined}
         badgeTone="gold"
       />
@@ -2527,7 +2506,7 @@ export function LocationTimelineWorldstateLayer({
       <LayerTitle
         icon="🗺"
         title="Location · Timeline · World State"
-        description={LAYER_DESCRIPTIONS.location_timeline_worldstate_layer}
+        description={STORY_LAYER_METADATA.location_timeline_worldstate_layer.description}
         badge={totalLocCount > 0 ? `${totalLocCount} locations` : undefined}
         badgeTone="neutral"
       />
@@ -3457,7 +3436,7 @@ export function LayerCompletionBar({
   );
 }
 
-// ─── Layer 9 — Identity & Pronoun Verification ──────────────────────────────
+// ─── Layer 5 — Identity & Pronoun Verification ──────────────────────────────
 
 interface PronounShiftDecision {
   character: string;
@@ -3541,7 +3520,7 @@ export function IdentityPronounLayer({
       <LayerTitle
         icon="🏷️"
         title="Identity & Pronoun Verification"
-        description={LAYER_DESCRIPTIONS.identity_pronoun_layer}
+        description={STORY_LAYER_METADATA.identity_pronoun_layer.description}
         badge={
           shiftCount > 0
             ? `${shiftCount} pronoun ${shiftCount === 1 ? "shift" : "shifts"} detected`
