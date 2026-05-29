@@ -88,6 +88,37 @@ Do NOT limit "objects" to hand-held physical items. Anything the story puts sust
 
 RELATIONSHIP SIGNALS:
 Capture only visible relationship dynamics in this chunk. Max 3.
+For each signal, provide:
+- other_character: the canonical name of the other party
+- relationship_type: classify using one of these categories:
+  "spouse" — legal/formal marriage or equivalent committed partnership
+  "romantic_partners" — romantic relationship without formal marriage
+  "forbidden_desire" — desire that cannot be openly acted on (social taboo, infidelity, power imbalance)
+  "parent_child" — parent-child (any gender combination)
+  "siblings" — brothers/sisters
+  "extended_family" — aunts, uncles, cousins, grandparents
+  "found_family" — chosen family bond without blood relation
+  "friendship" — sustained platonic bond
+  "mentor_student" — teaching/guidance relationship
+  "artistic_alliance" — bond through shared creative/intellectual pursuit
+  "employer_employee" — work authority relationship
+  "colleagues" — professional peers
+  "captor_captive" — confinement/control
+  "protector_protected" — guardian/dependent
+  "adversaries" — active opposition or enmity
+  "uneasy_alliance" — cooperation despite mistrust
+  "social_acquaintance" — surface-level social connection
+  "strangers" — no prior relationship
+  "unknown" — cannot classify from this chunk
+- dynamic: the power/emotional dynamic visible in THIS chunk. Use one of:
+  "dominant" — one party controls the interaction
+  "subordinate" — one party defers or is constrained
+  "equal" — balanced exchange
+  "shifting" — power changes hands during the chunk
+  "tense" — surface civility hiding conflict
+  "intimate" — emotional closeness or vulnerability
+  "distant" — emotional withdrawal or avoidance
+  "unknown" — not enough signal
 
 EVIDENCE ANCHORS:
 Use verbatim excerpts of 120 characters or less. Max 3.

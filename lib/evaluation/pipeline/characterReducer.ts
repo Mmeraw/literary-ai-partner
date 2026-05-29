@@ -40,6 +40,8 @@ import type {
   EvidenceCoverage,
   StateConflict,
   EvidenceConfidence,
+  RelationshipType,
+  PowerDynamic,
 } from "./types";
 import { PASS1A_PROMPT_VERSION } from "./prompts/pass1a-character-sweep";
 import { quarantinePass1aChunkOutputs } from "./pass1aQuarantine";
@@ -832,14 +834,109 @@ export function buildCharacterLedgerV2(params: {
   }));
 
   // ── 3. Relationship Ledger ────────────────────────────────────────────────
+
+  // Valid relationship types and power dynamics for normalization
+  const VALID_REL_TYPES = new Set<RelationshipType>([
+    "spouse", "romantic_partners", "forbidden_desire",
+    "parent_child", "father_son", "father_daughter", "siblings", "extended_family",
+    "found_family", "friendship", "mentor_student", "artistic_alliance",
+    "employer_employee", "colleagues", "social_acquaintance",
+    "captor_captive", "protector_protected", "adversaries", "uneasy_alliance",
+    "strangers", "unknown",
+  ]);
+  const VALID_DYNAMICS = new Set<PowerDynamic>([
+    "dominant", "subordinate", "equal", "shifting",
+    "tense", "intimate", "distant", "unknown",
+  ]);
+
+  function normalizeRelType(raw: string): RelationshipType {
+    const snake = raw.trim().toLowerCase().replace(/[\s-]+/g, "_");
+    if (VALID_REL_TYPES.has(snake as RelationshipType)) return snake as RelationshipType;
+    if (snake.includes("spouse") || snake.includes("married") || snake.includes("marriage")) return "spouse";
+    if (snake.includes("romantic") || snake.includes("lovers")) return "romantic_partners";
+    if (snake.includes("forbidden") || snake.includes("illicit") || snake.includes("affair")) return "forbidden_desire";
+    if (snake.includes("parent") || snake.includes("mother") || snake.includes("father")) return "parent_child";
+    if (snake.includes("sibling") || snake.includes("brother") || snake.includes("sister")) return "siblings";
+    if (snake.includes("friend")) return "friendship";
+    if (snake.includes("mentor") || snake.includes("teacher")) return "mentor_student";
+    if (snake.includes("artistic") || snake.includes("creative")) return "artistic_alliance";
+    if (snake.includes("employer") || snake.includes("employee") || snake.includes("servant")) return "employer_employee";
+    if (snake.includes("colleague") || snake.includes("coworker")) return "colleagues";
+    if (snake.includes("acquaintance") || snake.includes("social")) return "social_acquaintance";
+    if (snake.includes("adversar") || snake.includes("enemy") || snake.includes("rival")) return "adversaries";
+    return "unknown";
+  }
+
+  function normalizeDynamic(raw: string): PowerDynamic {
+    const snake = raw.trim().toLowerCase().replace(/[\s-]+/g, "_");
+    if (VALID_DYNAMICS.has(snake as PowerDynamic)) return snake as PowerDynamic;
+    if (snake.includes("dominant") || snake.includes("controlling")) return "dominant";
+    if (snake.includes("subordinate") || snake.includes("submissive") || snake.includes("defer")) return "subordinate";
+    if (snake.includes("equal") || snake.includes("balanced")) return "equal";
+    if (snake.includes("shift") || snake.includes("changing")) return "shifting";
+    if (snake.includes("tense") || snake.includes("strained")) return "tense";
+    if (snake.includes("intimate") || snake.includes("close") || snake.includes("tender")) return "intimate";
+    if (snake.includes("distant") || snake.includes("cold") || snake.includes("withdrawn")) return "distant";
+    return "unknown";
+  }
+
+  // Build a map from (charA, charB) → all relationship signals across chunks
+  const relSignalMap = new Map<string, Array<{
+    relationship_type: string;
+    dynamic: string;
+    chunk_index: number;
+  }>>();
+
+  for (const entry of entries) {
+    for (const rel of entry.relational_engines) {
+      const pairKey = [entry.canonical_name, rel.other_character].sort().join("↔");
+      const existing = relSignalMap.get(pairKey) ?? [];
+      existing.push({
+        relationship_type: rel.relationship_type,
+        dynamic: rel.dynamic,
+        chunk_index: rel.chunk_span[0],
+      });
+      relSignalMap.set(pairKey, existing);
+    }
+  }
+
   const relationshipLedger: RelationshipLedgerEntry[] = [];
   const seenRelPairs = new Set<string>();
 
   for (const entry of entries) {
-    for (const [otherName, coPresence] of Object.entries(entry.coPresenceMap ?? {})) {
+    const cpMap = entry.coPresenceMap ?? {};
+    for (const [otherName, coPresence] of Object.entries(cpMap)) {
       const pairKey = [entry.canonical_name, otherName].sort().join("↔");
       if (seenRelPairs.has(pairKey)) continue;
       seenRelPairs.add(pairKey);
+
+      // Look up relationship signals for this pair
+      const signals = relSignalMap.get(pairKey) ?? [];
+      const sortedSignals = [...signals].sort((a, b) => a.chunk_index - b.chunk_index);
+
+      // Derive relationship type from earliest and latest signals
+      const earliestType = sortedSignals.length > 0
+        ? normalizeRelType(sortedSignals[0].relationship_type)
+        : "unknown" as RelationshipType;
+      const latestType = sortedSignals.length > 0
+        ? normalizeRelType(sortedSignals[sortedSignals.length - 1].relationship_type)
+        : "unknown" as RelationshipType;
+
+      // Build power dynamic timeline from signals
+      const powerDynamicTimeline: RelationshipLedgerEntry["powerDynamicTimeline"] = [];
+      for (const sig of sortedSignals) {
+        const dynamic = normalizeDynamic(sig.dynamic);
+        if (dynamic === "unknown") continue;
+        const lastEntry = powerDynamicTimeline[powerDynamicTimeline.length - 1];
+        if (lastEntry && lastEntry.dynamic === dynamic) {
+          lastEntry.chunkRange[1] = sig.chunk_index;
+        } else {
+          powerDynamicTimeline.push({
+            chunkRange: [sig.chunk_index, sig.chunk_index],
+            dynamic,
+          });
+        }
+      }
 
       relationshipLedger.push({
         characterA: entry.canonical_name,
@@ -848,9 +945,9 @@ export function buildCharacterLedgerV2(params: {
         firstCoPresenceChapter: coPresence.firstSharedChapterEstimate,
         invalidBeforeChapter: coPresence.firstSharedChapterEstimate,
         firstSharedLocation: null,
-        relationshipTypeStart: "unknown",
-        relationshipTypeEnd: "unknown",
-        powerDynamicTimeline: [],
+        relationshipTypeStart: earliestType,
+        relationshipTypeEnd: latestType,
+        powerDynamicTimeline,
         pivotMoments: [],
         sharedObjects: [],
         sharedActivities: [],

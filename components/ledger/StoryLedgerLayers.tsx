@@ -1739,18 +1739,64 @@ export function RelationshipNetworkLayer({
                     {b}
                   </span>
                   <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                    {typeArr.map((t, j) => (
-                      <Pill key={j} label={t.replace(/_/g, " ")} tone="blue" />
-                    ))}
+                    {typeArr.filter((t) => t !== "unknown").map((t, j) => {
+                      const REL_TYPE_LABELS: Record<string, string> = {
+                        spouse: "Spouse / Marriage",
+                        romantic_partners: "Romantic Partners",
+                        forbidden_desire: "Forbidden Desire",
+                        parent_child: "Parent–Child",
+                        father_son: "Father–Son",
+                        father_daughter: "Father–Daughter",
+                        siblings: "Siblings",
+                        extended_family: "Extended Family",
+                        found_family: "Found Family",
+                        friendship: "Friendship",
+                        mentor_student: "Mentor–Student",
+                        artistic_alliance: "Artistic Alliance",
+                        employer_employee: "Employer–Employee",
+                        colleagues: "Colleagues",
+                        social_acquaintance: "Social Acquaintance",
+                        captor_captive: "Captor–Captive",
+                        protector_protected: "Protector–Protected",
+                        adversaries: "Adversaries",
+                        uneasy_alliance: "Uneasy Alliance",
+                        strangers: "Strangers",
+                      };
+                      const label = REL_TYPE_LABELS[t] ?? t.replace(/_/g, " ");
+                      return <Pill key={j} label={label} tone="blue" />;
+                    })}
                   </div>
                 </div>
 
                 <div>
+                  {pair.first_co_presence_chapter && (
+                    <FieldRow label="First shared scene" value={String(pair.first_co_presence_chapter)} />
+                  )}
+                  {pair.first_shared_location && (
+                    <FieldRow label="First shared location" value={String(pair.first_shared_location)} />
+                  )}
                   {pair.relationship_origin && (
                     <FieldRow label="Origin" value={pair.relationship_origin} />
                   )}
                   {pair.initial_dynamic && (
                     <FieldRow label="Initial dynamic" value={pair.initial_dynamic} />
+                  )}
+                  {/* Power dynamic timeline from pipeline */}
+                  {Array.isArray(pair.power_dynamic_timeline) && (pair.power_dynamic_timeline as Array<Record<string, unknown>>).length > 0 && (
+                    <FieldRow
+                      label="Power dynamics"
+                      value={(pair.power_dynamic_timeline as Array<Record<string, unknown>>)
+                        .map((pd) => {
+                          const dynamic = String(pd.dynamic ?? "").replace(/_/g, " ");
+                          const range = Array.isArray(pd.chunkRange) ? pd.chunkRange as number[] : [];
+                          const rangeStr = range.length === 2 && range[0] !== range[1]
+                            ? ` (chunks ${range[0]}–${range[1]})`
+                            : range.length === 2 ? ` (chunk ${range[0]})` : "";
+                          const note = pd.note ? ` — ${pd.note}` : "";
+                          return `${dynamic}${rangeStr}${note}`;
+                        })
+                        .join(" → ")}
+                    />
                   )}
                   {pair.pressure_points && (
                     <FieldRow label="Pressure" value={pair.pressure_points} />
@@ -1769,6 +1815,23 @@ export function RelationshipNetworkLayer({
                       label="Current / final state"
                       value={pair.current_or_final_state}
                     />
+                  )}
+                  {/* Pivot moments from pipeline */}
+                  {Array.isArray(pair.pivot_moments) && (pair.pivot_moments as Array<Record<string, unknown>>).length > 0 && (
+                    <div style={{ marginTop: 8 }}>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: C.textMuted }}>
+                        Pivot moments:
+                      </span>
+                      {(pair.pivot_moments as Array<Record<string, unknown>>).map((pm, j) => (
+                        <div key={j} style={{ marginTop: 4, fontSize: 13, color: C.textMuted, paddingLeft: 12 }}>
+                          {pm.chapterRef && <span style={{ fontWeight: 600 }}>{String(pm.chapterRef)}: </span>}
+                          {String(pm.description ?? "")}
+                          {pm.evidenceQuote && (
+                            <span style={{ fontStyle: "italic", color: C.textMuted }}>{` — "${String(pm.evidenceQuote)}"`}</span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
                   )}
                 </div>
 
