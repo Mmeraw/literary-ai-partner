@@ -1,4 +1,5 @@
 import type { LongformDreamDocument } from "@/lib/evaluation/pipeline/runPass3bLongform";
+import { getRenumberedAuthorFacingRevisionPlan } from "@/lib/evaluation/reportRenderSafety";
 
 type Props = { doc: LongformDreamDocument };
 
@@ -29,7 +30,7 @@ export default function LongformRelationshipSpineLedger({ doc }: Props) {
   );
 
   // Also pull from revision_plan items that target relationships
-  const relationshipRevisions = (doc.revision_plan ?? []).filter((p) =>
+  const relationshipRevisions = getRenumberedAuthorFacingRevisionPlan(doc.revision_plan).filter((p) =>
     /relation|spine|bond|companion|bridge|dyad|family|unit/i.test(p.title + " " + p.goal)
   );
 
@@ -108,7 +109,7 @@ export default function LongformRelationshipSpineLedger({ doc }: Props) {
             {relationshipRevisions.map((p, i) => (
               <div key={i} className="rounded-lg border border-indigo-100 bg-indigo-50 p-3 text-sm">
                 <p className="font-medium text-indigo-800 mb-0.5">
-                  #{p.priority} — {p.title}
+                  #{p.displayPriority} — {p.title}
                 </p>
                 <p className="text-xs text-indigo-700 mb-1">{p.goal}</p>
                 {p.actions?.length > 0 && (

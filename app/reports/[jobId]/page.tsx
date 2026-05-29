@@ -25,6 +25,8 @@ import {
   getDisplayRecord,
   getDisplayDreamScore,
   getDisplayText,
+  filterAuthorFacingTextList,
+  getRenumberedAuthorFacingRevisionPlan,
   safeTruncateToWordBoundary,
 } from '@/lib/evaluation/reportRenderSafety';
 import { resolveReportTitle } from '@/lib/evaluation/reportTitle';
@@ -270,7 +272,7 @@ export default async function ReportPage({ params }: { params: { jobId: string }
   const dreamReaderFirstAct = getDisplayRecord(dreamReaderExperience?.first_act);
   const dreamReaderMiddle = getDisplayRecord(dreamReaderExperience?.middle);
   const dreamReaderFinalAct = getDisplayRecord(dreamReaderExperience?.final_act);
-  const dreamRevisionPlan = getDisplayObjectArray(dreamDoc?.revision_plan);
+  const dreamRevisionPlan = getRenumberedAuthorFacingRevisionPlan(dreamDoc?.revision_plan);
   const dreamReleasability = getDisplayObjectArray(dreamDoc?.releasability);
   const dreamAcceptanceChecks = getDisplayRecord(dreamDoc?.acceptance_checks);
   const dreamRequiredDetections = getDisplayDreamList(dreamAcceptanceChecks?.required_detection);
@@ -712,9 +714,50 @@ export default async function ReportPage({ params }: { params: { jobId: string }
                           <p><span className="font-medium">Criterion:</span> {getDisplayText(analysis.key)}</p>
                           <p><span className="font-medium">Score:</span> {getDisplayText(analysis.score)}</p>
                           <p><span className="font-medium">Confidence:</span> {getDisplayText(analysis.confidence)}</p>
-                          <p><span className="font-medium">Fit evidence:</span> {getDisplayDreamList(analysis.fit_evidence).join("; ") || "—"}</p>
-                          <p><span className="font-medium">Gap evidence:</span> {getDisplayDreamList(analysis.gap_evidence).join("; ") || "—"}</p>
-                          <p><span className="font-medium">Revision queue:</span> {getDisplayDreamList(analysis.revision_queue).join("; ") || "—"}</p>
+
+                          {(() => {
+                            const fitEvidence = filterAuthorFacingTextList(analysis.fit_evidence);
+                            const gapEvidence = filterAuthorFacingTextList(analysis.gap_evidence);
+                            const revisionQueue = filterAuthorFacingTextList(analysis.revision_queue);
+
+                            return (
+                              <div className="mt-2 space-y-2">
+                                {fitEvidence.length > 0 && (
+                                  <div>
+                                    <p className="font-medium">Fit evidence:</p>
+                                    <ul className="list-disc list-inside space-y-0.5 text-gray-700">
+                                      {fitEvidence.map((entry, i) => (
+                                        <li key={i}>{entry}</li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                )}
+                                {gapEvidence.length > 0 && (
+                                  <div>
+                                    <p className="font-medium">Gap evidence:</p>
+                                    <ul className="list-disc list-inside space-y-0.5 text-gray-700">
+                                      {gapEvidence.map((entry, i) => (
+                                        <li key={i}>{entry}</li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                )}
+                                {revisionQueue.length > 0 && (
+                                  <div>
+                                    <p className="font-medium">Revision queue:</p>
+                                    <ol className="list-decimal list-inside space-y-0.5 text-gray-700">
+                                      {revisionQueue.map((entry, i) => (
+                                        <li key={i}>{entry}</li>
+                                      ))}
+                                    </ol>
+                                  </div>
+                                )}
+                                {fitEvidence.length === 0 && gapEvidence.length === 0 && revisionQueue.length === 0 && (
+                                  <p className="text-gray-700">—</p>
+                                )}
+                              </div>
+                            );
+                          })()}
                         </div>
                       ))}
                     </div>
@@ -818,10 +861,21 @@ export default async function ReportPage({ params }: { params: { jobId: string }
                     <div className="space-y-2">
                       {dreamRevisionPlan.map((planItem, idx) => (
                         <div key={idx} className="rounded border border-gray-200 p-3 text-sm">
-                          <p><span className="font-medium">Priority:</span> {getDisplayText(planItem.priority)}</p>
+                          <p><span className="font-medium">Priority:</span> {planItem.displayPriority}</p>
                           <p><span className="font-medium">Title:</span> {getDisplayText(planItem.title)}</p>
                           <p><span className="font-medium">Goal:</span> {getDisplayText(planItem.goal)}</p>
-                          <p><span className="font-medium">Actions:</span> {getDisplayDreamList(planItem.actions).join("; ") || "—"}</p>
+                          {planItem.actions.length > 0 ? (
+                            <div>
+                              <p><span className="font-medium">Actions:</span></p>
+                              <ol className="list-decimal list-inside space-y-0.5 text-gray-700 mt-1">
+                                {planItem.actions.map((action, actionIdx) => (
+                                  <li key={actionIdx}>{action}</li>
+                                ))}
+                              </ol>
+                            </div>
+                          ) : (
+                            <p><span className="font-medium">Actions:</span> —</p>
+                          )}
                           <p><span className="font-medium">Acceptance check:</span> {getDisplayText(planItem.acceptance_check)}</p>
                         </div>
                       ))}

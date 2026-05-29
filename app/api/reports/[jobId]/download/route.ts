@@ -8,6 +8,10 @@ import { isEvaluationResultV1, type EvaluationResultV1 } from '@/schemas/evaluat
 import { isEvaluationResultV2, type EvaluationResultV2 } from '@/schemas/evaluation-result-v2';
 import type { LongformDreamDocument } from '@/lib/evaluation/pipeline/runPass3bLongform';
 import {
+  filterAuthorFacingTextList,
+  getRenumberedAuthorFacingRevisionPlan,
+} from '@/lib/evaluation/reportRenderSafety';
+import {
   Document, Packer, Paragraph, TextRun, HeadingLevel,
   Table, TableRow, TableCell, WidthType, BorderStyle,
   AlignmentType, ShadingType, Header, Footer,
@@ -120,6 +124,20 @@ function opportunityRows(r: ExportRecommendation): Array<[string, string]> {
   return candidates.flatMap(([label, value]) => {
     if (typeof value !== 'string' || value.trim().length === 0) return [];
     return [[label, cleanReportText(value)] as [string, string]];
+  });
+}
+
+function pushTxtListBlock(lines: string[], label: string, values: unknown, options: { ordered?: boolean } = {}): void {
+  const cleaned = filterAuthorFacingTextList(values);
+  if (cleaned.length === 0) return;
+
+  lines.push(`  ${label}:`);
+  cleaned.forEach((item, idx) => {
+    if (options.ordered) {
+      lines.push(`    ${idx + 1}. ${item}`);
+      return;
+    }
+    lines.push(`    • ${item}`);
   });
 }
 
@@ -332,22 +350,23 @@ function appendDreamTxtSections(lines: string[], dream: LongformDreamDocument): 
     dream.criterion_analyses.forEach((a) => {
       push('');
       push(`${a.key} — ${a.score}/10 (${a.confidence} confidence)`);
-      if (Array.isArray(a.fit_evidence) && a.fit_evidence.length > 0) push(`  What is working: ${a.fit_evidence.map((item) => cleanReportText(item)).join('; ')}`);
-      if (Array.isArray(a.gap_evidence) && a.gap_evidence.length > 0) push(`  What weakens impact: ${a.gap_evidence.map((item) => cleanReportText(item)).join('; ')}`);
-      if (Array.isArray(a.revision_queue) && a.revision_queue.length > 0) push(`  Revision queue: ${a.revision_queue.map((item) => cleanReportText(item)).join('; ')}`);
+      pushTxtListBlock(lines, 'What is working', a.fit_evidence);
+      pushTxtListBlock(lines, 'What weakens impact', a.gap_evidence);
+      pushTxtListBlock(lines, 'Revision queue', a.revision_queue, { ordered: true });
     });
   }
 
-  if (Array.isArray(dream.revision_plan) && dream.revision_plan.length > 0) {
+  const revisionPlan = getRenumberedAuthorFacingRevisionPlan(dream.revision_plan);
+  if (revisionPlan.length > 0) {
     push('');
     push(sub);
     push('REVISION PLAN');
     push(sub);
-    dream.revision_plan.forEach((item) => {
+    revisionPlan.forEach((item) => {
       push('');
-      push(`Priority ${item.priority}: ${cleanReportText(item.title)}`);
+      push(`Priority ${item.displayPriority}: ${cleanReportText(item.title)}`);
       push(`  Goal: ${cleanReportText(item.goal)}`);
-      if (Array.isArray(item.actions) && item.actions.length > 0) push(`  Actions: ${item.actions.map((action) => cleanReportText(action)).join('; ')}`);
+      pushTxtListBlock(lines, 'Actions', item.actions, { ordered: true });
       if (item.acceptance_check) push(`  Acceptance check: ${cleanReportText(item.acceptance_check)}`);
     });
   }
@@ -774,12 +793,13 @@ async function buildPdfReport(result: ExportableResult, title: string | null, jo
         });
       }
 
-      if (Array.isArray(dream.revision_plan) && dream.revision_plan.length > 0) {
+      const revisionPlan = getRenumberedAuthorFacingRevisionPlan(dream.revision_plan);
+      if (revisionPlan.length > 0) {
         section('Revision Plan');
-        dream.revision_plan.forEach((item) => {
+        revisionPlan.forEach((item) => {
           ensureSpace(90);
           doc.font('Helvetica-Bold').fontSize(10.5).fillColor(RG.textPrimary).text(
-            toPdfSafeText(`Priority ${item.priority}: ${cleanReportText(item.title)}`),
+            toPdfSafeText(`Priority ${item.displayPriority}: ${cleanReportText(item.title)}`),
             { width: contentWidth },
           );
           paragraph(`Goal: ${cleanReportText(item.goal)}`);
@@ -1145,10 +1165,11 @@ async function buildDocx(result: ExportableResult, title: string | null, jobId: 
       });
     }
 
-    if (Array.isArray(dream.revision_plan) && dream.revision_plan.length > 0) {
+    const revisionPlan = getRenumberedAuthorFacingRevisionPlan(dream.revision_plan);
+    if (revisionPlan.length > 0) {
       children.push(brandHeading('Revision Plan', HeadingLevel.HEADING_3));
-      dream.revision_plan.forEach((item) => {
-        children.push(bodyPara(`Priority ${item.priority}: ${item.title}`, { bold: true }));
+      revisionPlan.forEach((item) => {
+        children.push(bodyPara(`Priority ${item.displayPriority}: ${item.title}`, { bold: true }));
         children.push(bodyPara(`Goal: ${item.goal}`, { size: 19, color: RG.textMuted }));
         if (Array.isArray(item.actions)) item.actions.forEach((action) => children.push(bulletPara(action)));
         if (item.acceptance_check) children.push(bodyPara(`Acceptance check: ${item.acceptance_check}`, { size: 19, color: RG.textMuted }));
@@ -1296,6 +1317,10 @@ export async function GET(
   if (format === 'pdf') {
     try {
       const buffer = await buildPdfReport(result, title, jobId, dream);
+      if (buffer.subarray(0, 4).toString('ascii') !== '%PDF') {
+        throw new Error('Generated artifact does not contain valid PDF header bytes');
+      }
+
       return new Response(new Uint8Array(buffer), {
         headers: {
           'Content-Type': 'application/pdf',
@@ -1310,16 +1335,13 @@ export async function GET(
         stack: err instanceof Error ? err.stack : undefined,
       });
 
-      const body = buildTxtReport(result, title, jobId, dream);
-      return new Response(body, {
-        status: 200,
-        headers: {
-          'Content-Type': 'text/plain; charset=utf-8',
-          'Content-Disposition': `attachment; filename="${safeFilename(title, jobId, 'txt')}"`,
-          'Cache-Control': 'no-store',
-          'X-RevisionGrade-Export-Fallback': 'pdf-to-txt',
+      return NextResponse.json(
+        {
+          error: 'PDF export failed. Please retry or choose TXT/DOCX.',
+          code: 'PDF_EXPORT_FAILED',
         },
-      });
+        { status: 500 },
+      );
     }
   }
 
