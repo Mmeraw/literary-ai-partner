@@ -5,7 +5,6 @@ export type StoryLayerDisplayMetadata = {
   shortLabel: string;
   description: string;
   iconToken: string;
-  reviewCategory?: string;
 };
 
 export const STORY_LAYER_METADATA = {
@@ -15,7 +14,6 @@ export const STORY_LAYER_METADATA = {
     description:
       "System extraction health and author guidance. Review the extraction status below, then tell RevisionGrade anything intentional that should not be treated as an error.",
     iconToken: "🔒",
-    reviewCategory: "audit",
   },
   pov_structure_layer: {
     title: "POV Structure",
@@ -23,7 +21,6 @@ export const STORY_LAYER_METADATA = {
     description:
       "Whose eyes does the reader see through, and when? Maps the narrative cameras, voice ownership, and any perspective shifts across your story.",
     iconToken: "👁",
-    reviewCategory: "narrative",
   },
   canonical_identity_layer: {
     title: "Canonical Identity",
@@ -31,7 +28,6 @@ export const STORY_LAYER_METADATA = {
     description:
       "How the system tracks a character across every name, alias, nickname, and role they carry. Especially important when a character is known by several names or hides their identity.",
     iconToken: "🪪",
-    reviewCategory: "identity",
   },
   cast_role_tier_layer: {
     title: "Cast / Role Tier",
@@ -39,7 +35,6 @@ export const STORY_LAYER_METADATA = {
     description:
       "Every character ranked by the structural job they do — from protagonist through antagonist to walk-on. Reveals who the story centers on and who applies pressure.",
     iconToken: "🎭",
-    reviewCategory: "cast",
   },
   identity_pronoun_layer: {
     title: "Pronoun Transitions",
@@ -47,7 +42,6 @@ export const STORY_LAYER_METADATA = {
     description:
       "Pronoun transitions and identity signals that may need confirmation. Stable pronoun-family usage (including case forms like he/him, she/her, they/them) is normalized and hidden from review.",
     iconToken: "🏷️",
-    reviewCategory: "identity",
   },
   relationship_network_layer: {
     title: "Relationship Network",
@@ -55,7 +49,6 @@ export const STORY_LAYER_METADATA = {
     description:
       "The named bonds between characters: how they began, what stressed them, how they changed. Only sustained relationships between named characters appear here.",
     iconToken: "🔗",
-    reviewCategory: "relationships",
   },
   object_symbol_layer: {
     title: "Object / Symbol",
@@ -63,7 +56,6 @@ export const STORY_LAYER_METADATA = {
     description:
       "Tracks significant objects from their first appearance through ownership changes to their final meaning. Weapons, documents, tokens — anything the story puts weight on.",
     iconToken: "🗡",
-    reviewCategory: "motif",
   },
   location_timeline_worldstate_layer: {
     title: "Timeline / Location",
@@ -71,7 +63,6 @@ export const STORY_LAYER_METADATA = {
     description:
       "Where the story takes place, in what order, and what rules govern the world at each point. Movement paths, time sequences, and environmental logic.",
     iconToken: "🗺",
-    reviewCategory: "worldstate",
   },
   threat_antagonist_ending_layer: {
     title: "Threat / Pressure / Ending",
@@ -79,6 +70,5 @@ export const STORY_LAYER_METADATA = {
     description:
       "The forces working against your protagonist — people, institutions, environments, internal conflicts, and social pressures — mapped to their final state at story's end.",
     iconToken: "⚔️",
-    reviewCategory: "stakes",
   },
 } satisfies Record<StoryLayerCoreLayerKey, StoryLayerDisplayMetadata>;
