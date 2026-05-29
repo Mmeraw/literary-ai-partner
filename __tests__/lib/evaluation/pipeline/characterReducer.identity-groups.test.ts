@@ -139,10 +139,10 @@ describe('reduceCharacterEvidence canonical identity groups', () => {
             canonical_name: 'Philip Pirrip',
             canonical_identity_group: 'Philip Pirrip',
             legal_name: 'Philip Pirrip',
-            aliases: ['he', 'the boy', 'sir', 'Pip'],
-            assumed_names: ['dear boy', 'Pip'],
-            forms_of_address: ['sir'],
-            descriptors: ['the boy'],
+            aliases: ['he', 'the boy', 'the stranger', 'sir', 'madam', 'Pip'],
+            assumed_names: ['dear boy', 'Pip', 'madam', 'the stranger'],
+            forms_of_address: ['sir', 'madam'],
+            descriptors: ['the boy', 'the stranger'],
           }),
         ]),
       ],
@@ -151,8 +151,8 @@ describe('reduceCharacterEvidence canonical identity groups', () => {
     const pip = ledger.entries.find((entry) => entry.canonical_name === 'Philip Pirrip');
     expect(pip).toBeDefined();
     expect(pip?.nameStates.map((s) => s.name)).toEqual(expect.arrayContaining(['Philip Pirrip', 'Pip']));
-    expect(pip?.nameStates.map((s) => s.name)).not.toEqual(expect.arrayContaining(['he', 'the boy', 'sir', 'dear boy']));
+    expect(pip?.nameStates.map((s) => s.name)).not.toEqual(expect.arrayContaining(['he', 'the boy', 'the stranger', 'sir', 'madam', 'dear boy']));
     expect((pip?.legal_name_states ?? []).map((s) => s.name)).toEqual(expect.arrayContaining(['Philip Pirrip', 'Pip']));
-    expect((pip?.legal_name_states ?? []).map((s) => s.name)).not.toEqual(expect.arrayContaining(['he', 'the boy', 'sir', 'dear boy']));
+    expect((pip?.legal_name_states ?? []).map((s) => s.name)).not.toEqual(expect.arrayContaining(['he', 'the boy', 'the stranger', 'sir', 'madam', 'dear boy']));
   });
 });

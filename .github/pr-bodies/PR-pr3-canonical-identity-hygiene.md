@@ -52,12 +52,14 @@ This PR does **not** implement:
 ## Targeted Test Commands
 
 - `NODE_PATH=/workspaces/literary-ai-partner/node_modules /workspaces/literary-ai-partner/node_modules/.bin/jest __tests__/lib/evaluation/pipeline/characterReducer.identity-groups.test.ts __tests__/lib/evaluation/pipeline/identityNameHygiene.test.ts --runInBand`
+- `NODE_PATH=/workspaces/literary-ai-partner/node_modules /workspaces/literary-ai-partner/node_modules/.bin/jest __tests__/lib/evaluation/pipeline/identityReducerFallback.test.ts --runInBand`
 - `NODE_PATH=/workspaces/literary-ai-partner/node_modules /workspaces/literary-ai-partner/node_modules/.bin/jest __tests__/lib/evaluation/pipeline/characterReducer*.test.ts --runInBand`
 
 ## Focused Passing Result
 
 - `characterReducer.identity-groups.test.ts` ✅
 - `identityNameHygiene.test.ts` ✅
+- `identityReducerFallback.test.ts` ✅
 - `characterReducer.awakening-taxonomy.test.ts` ✅
 
 ## Next Stack Item

@@ -9,6 +9,8 @@ describe('identityNameHygiene', () => {
     expect(isInvalidIdentityNameToken('he')).toBe(true);
     expect(isInvalidIdentityNameToken('the boy')).toBe(true);
     expect(isInvalidIdentityNameToken('sir')).toBe(true);
+    expect(isInvalidIdentityNameToken('madam')).toBe(true);
+    expect(isInvalidIdentityNameToken('the stranger')).toBe(true);
     expect(isInvalidIdentityNameToken("Joe and Biddy's son")).toBe(true);
   });
 

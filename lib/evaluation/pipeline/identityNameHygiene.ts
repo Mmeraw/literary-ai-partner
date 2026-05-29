@@ -8,11 +8,13 @@ const INVALID_EXACT_TOKENS = new Set([
   'i',
   'me',
   'sir',
+  'madam',
   'old chap',
   'dear boy',
   'the boy',
   'the man',
   'the convict',
+  'the stranger',
 ]);
 
 const RELATIONSHIP_DESCRIPTOR_PATTERNS: RegExp[] = [
