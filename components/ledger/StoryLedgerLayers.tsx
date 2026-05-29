@@ -118,7 +118,12 @@ const LABEL_HINTS: Record<string, string> = {
   "Rupture / separation": "The breaking point — what event or revelation fractured the relationship.",
   "Current / final state": "Where the relationship stands at the end of the manuscript or the most recent scene.",
   // Object / Symbol layer
+  "Key Evidence": "Objects that directly drive plot resolution, reveal hidden information, or serve as turning-point evidence — not social props.",
+  "Symbolic / Motif": "Recurring objects or images that carry thematic weight across the manuscript — they mean more than their literal function.",
+  "Scene Props": "Objects that appear in specific scenes and contribute to atmosphere, social context, or character detail without carrying broader symbolic weight.",
   "Story-critical": "This object carries significant narrative weight — it drives plot, reveals character, or resolves a theme.",
+  "Held by": "The character(s) who possess, use, or are most associated with this object at different points in the story.",
+  "Payoff": "How the object resolves or pays off narratively — its final meaning, use, or transformation.",
   // Timeline / Location layer
   "Movement path": "The physical route a character or object takes through the story's geography.",
   "World state rules": "The governing logic of the story's world at a given point — laws, customs, environmental conditions, or supernatural rules in effect.",
@@ -1683,27 +1688,39 @@ function classifyObjectTier(
 ): ObjectTier {
   const critical = item.missed_if_absent_from_report === true;
   const transfers = Array.isArray(item.transfer_events) ? item.transfer_events : [];
-  const payoff = item.payoff_description ? String(item.payoff_description) : null;
   const fn = (narrativeFunction ?? "").toLowerCase();
+  const name = String(item.object_name ?? item.name ?? "").toLowerCase();
 
-  if (critical || transfers.length > 0 || payoff) return "key_evidence";
-
-  const evidenceKeywords = [
-    "evidence", "investigation", "document", "letter", "shareholder",
-    "corporate", "institutional", "conflict", "mystery", "contrast",
-    "official", "fleet", "numbering",
-  ];
+  // ── Symbolic / Motif — recurring thematic weight ──────────────────────
   const symbolicKeywords = [
     "symbol", "metaphor", "motif", "teaching", "authority", "rootedness",
     "marker", "cultural", "tradition", "ritual", "memory", "listening",
-    "respecting", "power",
+    "respecting", "power", "freedom", "awakening", "confinement", "flight",
+    "death", "nature", "identity", "rebellion", "independence", "personif",
+    "recur", "thematic", "represents", "embodies", "signif",
   ];
-
-  if (evidenceKeywords.some((kw) => fn.includes(kw))) return "key_evidence";
   if (symbolicKeywords.some((kw) => fn.includes(kw))) return "symbolic_motif";
 
-  const name = String(item.object_name ?? item.name ?? "").toLowerCase();
-  const propKeywords = ["tool", "wrench", "truck", "roll", "tube", "strap"];
+  // ── Key Evidence — objects that drive plot resolution or reveal info ───
+  // Only promote to Key Evidence when the object actually drives plot
+  // (transfers hands, is flagged critical, or has hard evidence keywords).
+  // Having a payoff description alone is not enough — scene props can
+  // have payoff text too (e.g. "used as conversational prop").
+  const evidenceKeywords = [
+    "evidence", "investigation", "document", "shareholder",
+    "corporate", "institutional", "mystery",
+    "official", "clue", "proof", "reveal", "confession", "testament",
+  ];
+  if (critical || transfers.length > 0) return "key_evidence";
+  if (evidenceKeywords.some((kw) => fn.includes(kw))) return "key_evidence";
+
+  // ── Scene Props — atmosphere, social context, character detail ─────────
+  const propKeywords = [
+    "tool", "wrench", "truck", "roll", "tube", "strap",
+    "prop", "habit", "leisure", "conversational", "nervous", "composure",
+    "social", "camaraderie", "gift", "provider",
+  ];
+  if (propKeywords.some((kw) => fn.includes(kw))) return "scene_prop";
   if (propKeywords.some((kw) => name.includes(kw))) return "scene_prop";
 
   if (!fn) return "background";
