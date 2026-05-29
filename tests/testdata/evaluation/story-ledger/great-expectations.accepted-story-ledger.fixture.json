@@ -90,6 +90,16 @@
           "canonical_name": "Herbert Pocket",
           "pronouns": ["he/him/his"],
           "warnings": []
+        },
+        {
+          "canonical_name": "Mr. Jaggers",
+          "pronouns": ["he/him/his"],
+          "warnings": []
+        },
+        {
+          "canonical_name": "Dolge Orlick",
+          "pronouns": ["he/him/his"],
+          "warnings": []
         }
       ]
     },
