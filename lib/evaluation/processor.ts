@@ -5560,6 +5560,7 @@ export async function processEvaluationJob(
         const storyLayerPayload = buildStoryLayerFromLedger(
           characterLedger,
           characterLedgerV2Phase1a,
+          sortedChunkOutputs,
         );
 
         const qualityReport = buildLedgerQualityReport(

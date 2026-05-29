@@ -913,6 +913,15 @@ export function PovStructureLayer({
     antagonist: "Antagonist",
     narrator: "Narrator",
     secondary_pov: "Secondary POV",
+    pressure_agent: "Pressure Agent",
+    romantic_catalyst: "Romantic Catalyst",
+    sexual_destabilizer: "Sexual Destabilizer",
+    domestic_foil: "Domestic Foil",
+    artistic_countermodel: "Artistic Counter-Model",
+    social_observer: "Social Observer",
+    mentor: "Mentor",
+    foil: "Foil",
+    secondary: "Secondary Cast",
   };
 
   const POV_ROLE_TONE: Record<string, "gold" | "oxblood" | "blue" | "neutral"> = {
@@ -921,6 +930,13 @@ export function PovStructureLayer({
     antagonist: "oxblood",
     narrator: "gold",
     secondary_pov: "blue",
+  };
+
+  const POV_TYPE_LABEL: Record<string, string> = {
+    first_person_narrator: "First Person",
+    close_third_limited: "Close Third (Limited)",
+    close_third_omniscient: "Close Third (Omniscient)",
+    distant_third: "Distant Third",
   };
 
   const charCount = povChars.length;
@@ -942,6 +958,10 @@ export function PovStructureLayer({
           const importance = char.importance_level ? String(char.importance_level) : null;
           const roleLabel = POV_ROLE_LABEL[role] ?? role;
           const roleTone = POV_ROLE_TONE[role] ?? "neutral";
+          const povType = char.pov_type ? String(char.pov_type) : null;
+          const povTypeLabel = povType ? (POV_TYPE_LABEL[povType] ?? povType) : null;
+          const sharePct = typeof char.narrative_share_pct === "number" ? char.narrative_share_pct : null;
+          const isPrimary = char.is_primary === true;
 
           return (
             <CharacterCard key={i}>
@@ -958,6 +978,8 @@ export function PovStructureLayer({
                   {name}
                 </span>
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  {isPrimary && <Pill label="Primary POV" tone="gold" />}
+                  {povTypeLabel && <Pill label={povTypeLabel} tone="neutral" />}
                   {role && <Pill label={roleLabel} tone={roleTone} />}
                   {importance && (
                     <Pill
@@ -967,6 +989,11 @@ export function PovStructureLayer({
                   )}
                 </div>
               </div>
+              {sharePct !== null && (
+                <p style={{ margin: "6px 0 0", fontSize: 13, color: C.textMuted }}>
+                  Narrative share: {sharePct}% of manuscript chunks
+                </p>
+              )}
             </CharacterCard>
           );
         })}
