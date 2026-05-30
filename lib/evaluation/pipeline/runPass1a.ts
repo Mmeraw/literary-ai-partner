@@ -221,15 +221,22 @@ async function runSingleChunk(params: {
   chunk: ManuscriptChunkEvidence;
   title: string;
   workType: string;
+  seedContextBlock?: string;
   openai: OpenAI;
   model: string;
   chunkCache?: Map<number, Pass1aChunkOutput>;
 }): Promise<Pass1aChunkOutput> {
-  const { chunk, title, workType, openai, model, chunkCache } = params;
+  const { chunk, title, workType, seedContextBlock, openai, model, chunkCache } = params;
   const cached = chunkCache?.get(chunk.chunk_index);
   if (cached) return normalizeChunkOutput(cached);
 
-  const userPrompt = buildPass1aUserPrompt({ manuscriptText: chunk.content, chunkIndex: chunk.chunk_index, title, workType });
+  const userPrompt = buildPass1aUserPrompt({
+    manuscriptText: chunk.content,
+    chunkIndex: chunk.chunk_index,
+    title,
+    workType,
+    seedContextBlock,
+  });
   let lastError: unknown;
   let activeMaxTokens = PASS1A_MAX_OUTPUT_TOKENS;
 
@@ -332,6 +339,7 @@ export interface RunPass1aOptions {
   manuscriptChunks?: ManuscriptChunkEvidence[];
   title: string;
   workType: string;
+  seedContextBlock?: string;
   openaiApiKey?: string;
   jobId?: string;
   _chunkCache?: Map<number, Pass1aChunkOutput>;
@@ -374,6 +382,7 @@ export async function runPass1a(opts: RunPass1aOptions): Promise<RunPass1aResult
       chunk,
       title: opts.title,
       workType: opts.workType,
+      seedContextBlock: opts.seedContextBlock,
       openai,
       model,
       chunkCache: opts._chunkCache,
