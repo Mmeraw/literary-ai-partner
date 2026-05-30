@@ -224,13 +224,103 @@
       "location_count": 5
     },
     "threat_antagonist_ending_layer": {
+      "pressure_systems": [
+        {
+          "pressure_id": "aw_leonce_marital_property",
+          "pressure_type": "marital_family_domestic_pressure",
+          "source_kind": "character",
+          "source_character_id": "aw:leonce",
+          "source_label": "Léonce / marital-property pressure",
+          "source_aliases": ["marital constraint", "property pressure"],
+          "ending_state": "ongoing_systemic_pressure"
+        },
+        {
+          "pressure_id": "aw_robert_romantic_longing",
+          "pressure_type": "romantic_desire_pressure",
+          "source_kind": "character",
+          "source_character_id": "aw:robert",
+          "source_label": "Robert / romantic longing-absence",
+          "source_aliases": ["romantic longing", "absence"],
+          "ending_state": "terminal"
+        },
+        {
+          "pressure_id": "aw_arobin_sexual_destabilization",
+          "pressure_type": "physical_danger_violence_pressure",
+          "source_kind": "character",
+          "source_character_id": "aw:arobin",
+          "source_label": "Arobin / sexual destabilization",
+          "source_aliases": ["sexual destabilization"],
+          "ending_state": "resolved"
+        },
+        {
+          "pressure_id": "aw_adele_maternal_domestic",
+          "pressure_type": "marital_family_domestic_pressure",
+          "source_kind": "character",
+          "source_character_id": "aw:adele",
+          "source_label": "Adèle / maternal-domestic pressure",
+          "source_aliases": ["mother-woman countermodel"],
+          "ending_state": "ongoing_systemic_pressure"
+        },
+        {
+          "pressure_id": "aw_reisz_artistic_severity",
+          "pressure_type": "interpersonal_pressure",
+          "source_kind": "character",
+          "source_character_id": "aw:reisz",
+          "source_label": "Reisz / artistic severity-counter-model",
+          "source_aliases": ["artistic countermodel"],
+          "ending_state": "transformed"
+        },
+        {
+          "pressure_id": "aw_children_maternal_obligation",
+          "pressure_type": "marital_family_domestic_pressure",
+          "source_kind": "character",
+          "source_character_id": "aw:children",
+          "source_label": "children / maternal obligation",
+          "source_aliases": ["maternal obligation"],
+          "ending_state": "ongoing_systemic_pressure"
+        },
+        {
+          "pressure_id": "aw_sea_symbolic_terminal",
+          "pressure_type": "symbolic_environmental_pressure",
+          "source_kind": "non_character",
+          "source_label": "sea/Gulf/water / symbolic-terminal pressure",
+          "source_aliases": ["sea", "gulf", "water"],
+          "ending_state": "terminal"
+        },
+        {
+          "pressure_id": "aw_creole_social_expectations",
+          "pressure_type": "social_class_pressure",
+          "source_kind": "non_character",
+          "source_label": "Creole social expectations",
+          "source_aliases": ["social convention", "community surveillance"],
+          "ending_state": "ongoing_systemic_pressure"
+        },
+        {
+          "pressure_id": "aw_edna_internal_autonomy",
+          "pressure_type": "internal_moral_pressure",
+          "source_kind": "internal",
+          "source_character_id": "aw:edna",
+          "source_label": "Edna's internal autonomy pressure",
+          "source_aliases": ["autonomy pressure", "internal contradiction"],
+          "ending_state": "terminal"
+        }
+      ],
       "threat_systems": [
-        "marital pressure",
-        "social propriety",
-        "property constraints",
-        "sexual destabilization",
-        "maternal domestic norm pressure",
-        "artistic vocation pressure"
+        "Léonce / marital-property pressure",
+        "Robert / romantic longing/absence",
+        "Arobin / sexual destabilization",
+        "Adèle / maternal-domestic pressure",
+        "Reisz / artistic severity/counter-model",
+        "children / maternal obligation",
+        "sea/Gulf/water / symbolic-terminal pressure",
+        "Creole social expectations",
+        "Edna's internal autonomy pressure"
+      ],
+      "narrative_pressure_vectors": [
+        { "vector_source": "family_obligation", "evidence_summary": "Marital-property expectations and children-related obligations constrain Edna's agency.", "structural_impact_score": 4 },
+        { "vector_source": "social_pressure", "evidence_summary": "Creole social expectations and reputation surveillance enforce norm compliance across scenes.", "structural_impact_score": 4 },
+        { "vector_source": "environment", "evidence_summary": "Sea/Gulf/water functions as symbolic-terminal pressure that shapes the ending consequence.", "structural_impact_score": 5 },
+        { "vector_source": "internal_contradiction", "evidence_summary": "Edna's internal autonomy pressure and longing create escalating, unresolved moral contradiction.", "structural_impact_score": 5 }
       ]
     }
   }

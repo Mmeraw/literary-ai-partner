@@ -534,15 +534,323 @@ function buildLocationTimelineWorldstateLayer(
 // Layer 8 — Threat / Antagonist / Ending Accountability
 // ─────────────────────────────────────────────────────────────────────────────
 
+type PressureSourceKind = 'character' | 'non_character' | 'internal';
+
+type PressureEndingState =
+  | 'resolved'
+  | 'transformed'
+  | 'terminal'
+  | 'unresolved'
+  | 'intentionally_ambiguous'
+  | 'ongoing_systemic_pressure';
+
+type PressureEscalationState = 'latent' | 'active' | 'escalating' | 'terminal';
+
+type PressureTaxonomy =
+  | 'interpersonal_pressure'
+  | 'romantic_desire_pressure'
+  | 'marital_family_domestic_pressure'
+  | 'social_class_pressure'
+  | 'legal_institutional_pressure'
+  | 'economic_debt_pressure'
+  | 'internal_moral_pressure'
+  | 'symbolic_environmental_pressure'
+  | 'physical_danger_violence_pressure'
+  | 'time_deadline_pressure';
+
+interface PressureSystemEntry {
+  pressure_id: string;
+  pressure_type: PressureTaxonomy;
+  source_kind: PressureSourceKind;
+  source_character_id?: string;
+  source_label: string;
+  source_aliases: string[];
+  target_character_ids: string[];
+  target_character_names: string[];
+  evidence_summary: string[];
+  escalation_state: PressureEscalationState;
+  ending_state: PressureEndingState;
+}
+
+function slugifyPressureId(value: string): string {
+  return value
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+}
+
+function inferPressureTaxonomyFromIdentity(
+  role: string,
+  canonicalName: string,
+  aliases: string[],
+): PressureTaxonomy {
+  const roleNorm = String(role ?? '').toLowerCase();
+  const text = `${canonicalName} ${(aliases ?? []).join(' ')}`.toLowerCase();
+
+  if (roleNorm === 'romantic_catalyst') return 'romantic_desire_pressure';
+  if (roleNorm === 'sexual_destabilizer') return 'physical_danger_violence_pressure';
+  if (roleNorm === 'domestic_foil' || roleNorm === 'patriarchal_pressure' || roleNorm === 'pressure_agent') {
+    if (/(legal|court|judge|law|prison|machinery|institution|police|state)/.test(text)) {
+      return 'legal_institutional_pressure';
+    }
+    if (/(debt|money|class|poverty|shame|wealth|economic)/.test(text)) {
+      return 'economic_debt_pressure';
+    }
+    return 'marital_family_domestic_pressure';
+  }
+  if (roleNorm === 'social_observer' || roleNorm === 'social_catalyst') return 'social_class_pressure';
+  if (roleNorm === 'symbolic_force') return 'symbolic_environmental_pressure';
+  if (roleNorm === 'collective_force') {
+    if (/(court|law|legal|institution|state|police|prison)/.test(text)) return 'legal_institutional_pressure';
+    if (/(class|society|social|reputation|expectation|convention)/.test(text)) return 'social_class_pressure';
+    return 'symbolic_environmental_pressure';
+  }
+  if (roleNorm === 'antagonist') return 'interpersonal_pressure';
+
+  if (/(debt|economic|money|class shame|class)/.test(text)) return 'economic_debt_pressure';
+  if (/(legal|court|law|prison|institution)/.test(text)) return 'legal_institutional_pressure';
+  if (/(sea|gulf|water|river|weather|storm|environment)/.test(text)) return 'symbolic_environmental_pressure';
+  if (/(guilt|shame|longing|autonomy|moral|conscience)/.test(text)) return 'internal_moral_pressure';
+
+  return 'interpersonal_pressure';
+}
+
+function pressureSourceKindFromRole(role: string): PressureSourceKind {
+  const roleNorm = String(role ?? '').toLowerCase();
+  if (roleNorm === 'symbolic_force' || roleNorm === 'collective_force') return 'non_character';
+  return 'character';
+}
+
+function classifyPressureEndingState(params: {
+  sourceKind: PressureSourceKind;
+  finalStatus: string;
+  terminal: TerminalLedgerEntry | undefined;
+}): PressureEndingState {
+  const finalStatus = params.finalStatus.toLowerCase();
+  const terminal = params.terminal;
+
+  if (terminal) {
+    if (terminal.terminalCondition === 'death' || terminal.terminalCondition === 'departure' || terminal.terminalCondition === 'disappearance' || terminal.terminalCondition === 'transformation') {
+      return 'terminal';
+    }
+    if (terminal.narrativeClosureStatus === 'fully_resolved') return 'resolved';
+    if (terminal.narrativeClosureStatus === 'partially_resolved') return 'transformed';
+    if (terminal.narrativeClosureStatus === 'intentionally_open') return 'intentionally_ambiguous';
+    if (terminal.narrativeClosureStatus === 'underpaid') return 'unresolved';
+  }
+
+  if (finalStatus === 'dead' || finalStatus === 'missing') return 'terminal';
+  if (finalStatus === 'transformed') return 'transformed';
+
+  if (params.sourceKind === 'non_character') return 'ongoing_systemic_pressure';
+  return finalStatus === 'unresolved' ? 'unresolved' : 'resolved';
+}
+
+function escalationForEnding(ending: PressureEndingState, pressureType: PressureTaxonomy): PressureEscalationState {
+  if (ending === 'terminal') return 'terminal';
+  if (ending === 'ongoing_systemic_pressure') return 'escalating';
+  if (
+    pressureType === 'legal_institutional_pressure'
+    || pressureType === 'economic_debt_pressure'
+    || pressureType === 'physical_danger_violence_pressure'
+    || pressureType === 'internal_moral_pressure'
+  ) {
+    return 'escalating';
+  }
+  if (ending === 'resolved' || ending === 'transformed') return 'active';
+  return 'latent';
+}
+
+function inferInternalPressureTaxonomy(text: string): PressureTaxonomy {
+  const t = text.toLowerCase();
+  if (/(debt|money|economic|class shame|poverty)/.test(t)) return 'economic_debt_pressure';
+  if (/(guilt|shame|moral|conscience|autonomy|longing)/.test(t)) return 'internal_moral_pressure';
+  if (/(deadline|time|late|clock|running out)/.test(t)) return 'time_deadline_pressure';
+  return 'internal_moral_pressure';
+}
+
+function narrativePressureVectorSourceForSystem(system: PressureSystemEntry):
+  | 'person'
+  | 'institution'
+  | 'environment'
+  | 'internal_contradiction'
+  | 'social_pressure'
+  | 'poverty'
+  | 'systemic_constraint'
+  | 'family_obligation' {
+  if (system.source_kind === 'internal') return 'internal_contradiction';
+
+  switch (system.pressure_type) {
+    case 'legal_institutional_pressure':
+      return 'institution';
+    case 'economic_debt_pressure':
+      return 'poverty';
+    case 'symbolic_environmental_pressure':
+      return 'environment';
+    case 'social_class_pressure':
+      return 'social_pressure';
+    case 'marital_family_domestic_pressure':
+      return 'family_obligation';
+    case 'time_deadline_pressure':
+      return 'systemic_constraint';
+    default:
+      return system.source_kind === 'character' ? 'person' : 'systemic_constraint';
+  }
+}
+
 function buildThreatAntagonistEndingLayer(
   ledger: Pass1aCharacterLedger,
   ledgerV2: CharacterLedgerV2,
 ): Record<string, unknown> {
+  const pressureBearingRoles = new Set([
+    'antagonist',
+    'pressure_agent',
+    'romantic_catalyst',
+    'sexual_destabilizer',
+    'domestic_foil',
+    'artistic_countermodel',
+    'social_observer',
+    'social_catalyst',
+    'patriarchal_pressure',
+    'symbolic_force',
+    'collective_force',
+  ]);
+
   const antagonists = ledgerV2.identityLedger.filter(
     (e) => e.narrativeRole === 'antagonist',
   );
 
   const terminalLedger: TerminalLedgerEntry[] = ledgerV2.terminalLedger ?? [];
+
+  const terminalByCharacterId = new Map(terminalLedger.map((entry) => [entry.characterId, entry]));
+
+  const protagonistIdentityIds = ledgerV2.identityLedger
+    .filter((entry) => entry.narrativeRole === 'protagonist' || entry.narrativeRole === 'co_protagonist')
+    .map((entry) => entry.characterId);
+
+  const protagonistsFromCoverage = (ledger.coverage_summary.protagonists ?? [])
+    .map((name) => ledgerV2.identityLedger.find((entry) => entry.canonicalName === name)?.characterId)
+    .filter((id): id is string => typeof id === 'string' && id.length > 0);
+
+  const targetCharacterIds = protagonistIdentityIds.length > 0
+    ? protagonistIdentityIds
+    : protagonistsFromCoverage;
+
+  const targetCharacterNames = targetCharacterIds
+    .map((id) => ledgerV2.identityLedger.find((entry) => entry.characterId === id)?.canonicalName ?? id);
+
+  const pressureSystemsById = new Map<string, PressureSystemEntry>();
+
+  for (const entry of ledgerV2.identityLedger) {
+    const role = String(entry.narrativeRole ?? 'unknown').toLowerCase();
+    if (!pressureBearingRoles.has(role)) continue;
+
+    const aliases = Array.isArray(entry.aliases) ? entry.aliases : [];
+    const pressureType = inferPressureTaxonomyFromIdentity(role, entry.canonicalName, aliases);
+    const sourceKind = pressureSourceKindFromRole(role);
+    const endingState = classifyPressureEndingState({
+      sourceKind,
+      finalStatus: String(entry.finalStatus ?? 'unresolved'),
+      terminal: terminalByCharacterId.get(entry.characterId),
+    });
+
+    const evidenceSummary = [
+      `${entry.canonicalName} classified as ${role.replace(/_/g, ' ')} in cast-role identity ledger.`,
+      ...(entry.recommendationBlockers ?? []).slice(0, 2).map((blocker) => blocker.rule),
+    ].filter((line) => line && line.trim().length > 0);
+
+    const baseId = `${entry.characterId}:${pressureType}`;
+    const pressureId = slugifyPressureId(baseId);
+
+    const existing = pressureSystemsById.get(pressureId);
+    if (existing) {
+      existing.source_aliases = Array.from(new Set([...existing.source_aliases, ...aliases]));
+      existing.evidence_summary = Array.from(new Set([...existing.evidence_summary, ...evidenceSummary]));
+      if (existing.ending_state === 'resolved' && endingState !== 'resolved') {
+        existing.ending_state = endingState;
+      }
+      if (existing.escalation_state !== 'terminal' && escalationForEnding(endingState, pressureType) === 'terminal') {
+        existing.escalation_state = 'terminal';
+      }
+      continue;
+    }
+
+    pressureSystemsById.set(pressureId, {
+      pressure_id: pressureId,
+      pressure_type: pressureType,
+      source_kind: sourceKind,
+      source_character_id: sourceKind === 'character' ? entry.characterId : undefined,
+      source_label: entry.canonicalName,
+      source_aliases: aliases,
+      target_character_ids: targetCharacterIds,
+      target_character_names: targetCharacterNames,
+      evidence_summary: evidenceSummary,
+      escalation_state: escalationForEnding(endingState, pressureType),
+      ending_state: endingState,
+    });
+  }
+
+  for (const psych of ledgerV2.psychologyLedger ?? []) {
+    const identity = ledgerV2.identityLedger.find((entry) => entry.characterId === psych.characterId);
+    const sourceLabel = identity?.canonicalName ?? psych.characterId;
+    const psychologicalEvidence = [
+      psych.psychologicalArc,
+      ...(psych.copingMechanisms ?? []).map((mechanism) => mechanism.description),
+    ]
+      .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+      .join(' ')
+      .trim();
+
+    if (!psychologicalEvidence) continue;
+
+    if (!/(guilt|shame|longing|autonomy|moral|conscience|debt|class|money|economic|deadline|time)/i.test(psychologicalEvidence)) {
+      continue;
+    }
+
+    const pressureType = inferInternalPressureTaxonomy(psychologicalEvidence);
+    const terminal = terminalByCharacterId.get(psych.characterId);
+    const endingState = classifyPressureEndingState({
+      sourceKind: 'internal',
+      finalStatus: String(identity?.finalStatus ?? 'unresolved'),
+      terminal,
+    });
+
+    const pressureId = slugifyPressureId(`${psych.characterId}:${pressureType}:internal`);
+    if (pressureSystemsById.has(pressureId)) continue;
+
+    pressureSystemsById.set(pressureId, {
+      pressure_id: pressureId,
+      pressure_type: pressureType,
+      source_kind: 'internal',
+      source_character_id: psych.characterId,
+      source_label: `${sourceLabel} internal pressure`,
+      source_aliases: [],
+      target_character_ids: [psych.characterId],
+      target_character_names: [sourceLabel],
+      evidence_summary: [
+        `${sourceLabel} carries internal pressure trajectory in psychology ledger.`,
+        psychologicalEvidence,
+      ],
+      escalation_state: escalationForEnding(endingState, pressureType),
+      ending_state: endingState,
+    });
+  }
+
+  const pressureSystems = Array.from(pressureSystemsById.values())
+    .sort((a, b) => a.source_label.localeCompare(b.source_label));
+
+  const threatSystems = Array.from(
+    new Set(
+      pressureSystems.flatMap((system) => {
+        const labels: string[] = [system.source_label];
+        if (system.source_aliases.some((alias) => /legal machinery/i.test(alias))) {
+          labels.push(`${system.source_label}/legal machinery`);
+        }
+        return labels;
+      }),
+    ),
+  );
 
   const endingAccountabilityWarnings =
     ledger.coverage_summary.ending_accountability_warnings ?? [];
@@ -560,6 +868,22 @@ function buildThreatAntagonistEndingLayer(
       recommendation_blockers: a.recommendationBlockers,
     })),
     antagonist_count: antagonists.length,
+    pressure_systems: pressureSystems,
+    pressure_system_count: pressureSystems.length,
+    non_character_pressure_count: pressureSystems.filter((system) => system.source_kind === 'non_character').length,
+    pressure_types_present: Array.from(new Set(pressureSystems.map((system) => system.pressure_type))).sort(),
+    threat_systems: threatSystems,
+    narrative_pressure_vectors: pressureSystems.map((system) => ({
+      vector_source: narrativePressureVectorSourceForSystem(system),
+      evidence_summary: system.evidence_summary.join(' ').slice(0, 400),
+      structural_impact_score: system.escalation_state === 'terminal'
+        ? 5
+        : system.escalation_state === 'escalating'
+          ? 4
+          : system.escalation_state === 'active'
+            ? 3
+            : 2,
+    })),
     terminal_ledger: terminalLedger,
     terminal_entry_count: terminalLedger.length,
     ending_accountability_warnings: endingAccountabilityWarnings,
