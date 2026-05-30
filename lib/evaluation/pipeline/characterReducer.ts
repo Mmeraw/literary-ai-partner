@@ -634,8 +634,23 @@ export function reduceCharacterEvidence(params: {
         (set) => [...set].filter((family) => family !== "unknown_or_custom" && family !== "honorific").length > 1,
       );
       const hasUnknownSignals = pronounFamilySets.some((set) => set.has("unknown_or_custom"));
+      const knownFamilies = new Set<PronounFamily>();
+      for (const set of pronounFamilySets) {
+        for (const family of set) {
+          if (family === "unknown_or_custom" || family === "honorific") continue;
+          knownFamilies.add(family);
+        }
+      }
+      const onlyCollectivePlusOneKnown =
+        knownFamilies.has("neutral_plural")
+        && knownFamilies.size === 2;
 
-      if (hasMixedKnownFamilies || distinctSignatures.size > 1 || (hasUnknownSignals && pronounFamilySets.length > 1)) {
+      const shouldWarn =
+        hasMixedKnownFamilies
+        || distinctSignatures.size > 1
+        || (hasUnknownSignals && pronounFamilySets.length > 1);
+
+      if (shouldWarn && !onlyCollectivePlusOneKnown) {
         warnings.push({
           type: "pronoun_inconsistency",
           message: `Pronoun-family transition or unresolved pronoun ownership detected for "${canonical}"`,

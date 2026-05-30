@@ -151,6 +151,12 @@ For the "function" field on each symbolic_objects entry, describe the narrative 
 - "recurring motif" — object reappears across scenes with accumulating meaning
 - Or use your own concise description if none of these fit.
 
+PRONOUNS:
+Record the pronouns used for this character IN THIS CHUNK. Common values: ["she/her"], ["he/him"], ["they/them"], ["he/they"], ["she/they"].
+Important distinctions:
+- If "they" is used as a COLLECTIVE/GROUP reference (e.g. "they all went to the beach" where "they" means a group including this character), record the character's individual pronouns, NOT "they/them". Group-referent "they" is not a pronoun signal for the individual.
+- If "they" is used as the character's INDIVIDUAL pronoun (the narrator refers to this one character as "they"), then record "they/them".
+- If the character has a genuine pronoun transition in the story (e.g. comes out as trans, adopts new pronouns), record the pronouns used in THIS chunk only. The system will detect the shift across chunks.
 RELATIONSHIP SIGNALS:
 Capture only visible relationship dynamics in this chunk. Max 3.
 For each signal, provide:
