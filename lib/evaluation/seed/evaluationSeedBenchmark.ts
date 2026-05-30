@@ -140,13 +140,14 @@ function normalizeText(value: unknown): string {
   return String(value ?? '').trim().toLowerCase();
 }
 
-function textIncludes(value: unknown, needle: string): boolean {
-  return normalizeText(value).includes(normalizeText(needle));
+function round(value: number): number {
+  if (!Number.isFinite(value)) return 0;
+  return Math.round(value * 100) / 100;
 }
 
 function clampScore(value: number): number {
   if (!Number.isFinite(value)) return 0;
-  return Math.max(0, Math.min(100, Math.round(value * 100) / 100));
+  return Math.max(0, Math.min(100, round(value)));
 }
 
 function percent(matched: number, total: number): number {
@@ -173,8 +174,9 @@ function collectPovCharacters(ledger: unknown): UnknownRecord[] {
 
 function collectPressureSystems(ledger: unknown): UnknownRecord[] {
   const pressureSystems = arrayFromPath(ledger, ['layers', 'threat_antagonist_ending_layer', 'pressure_systems']).filter(isRecord);
-  if (pressureSystems.length > 0) return pressureSystems;
-  return arrayFromPath(ledger, ['layers', 'threat_antagonist_ending_layer', 'threat_systems']).filter(isRecord);
+  return pressureSystems.length > 0
+    ? pressureSystems
+    : arrayFromPath(ledger, ['layers', 'threat_antagonist_ending_layer', 'threat_systems']).filter(isRecord);
 }
 
 function collectRelationshipPairs(ledger: unknown): UnknownRecord[] {
@@ -194,7 +196,7 @@ function canonicalPairKey(a: unknown, b: unknown): string {
 }
 
 function objectHasEvidence(value: UnknownRecord): boolean {
-  const directEvidence = [
+  const candidates = [
     value.evidence,
     value.evidence_anchor,
     value.evidence_anchors,
@@ -204,7 +206,7 @@ function objectHasEvidence(value: UnknownRecord): boolean {
     value.location_ref,
   ];
 
-  return directEvidence.some((candidate) => {
+  return candidates.some((candidate) => {
     if (typeof candidate === 'string') return candidate.trim().length > 0;
     if (Array.isArray(candidate)) return candidate.length > 0;
     return false;
@@ -239,9 +241,9 @@ function duplicateCount(values: string[]): number {
     if (!value) continue;
     if (seen.has(value)) {
       duplicates += 1;
-      continue;
+    } else {
+      seen.add(value);
     }
-    seen.add(value);
   }
   return duplicates;
 }
@@ -251,8 +253,7 @@ function getCharacterId(entry: UnknownRecord): string {
 }
 
 function scoreRequiredCharacters(ledger: unknown, gold: StoryLedgerGoldExpectation, missing: string[]): number {
-  const groups = collectIdentityGroups(ledger);
-  const ids = new Set(groups.map(getCharacterId));
+  const ids = new Set(collectIdentityGroups(ledger).map(getCharacterId));
   const required = gold.required_character_ids ?? [];
   let matched = 0;
   for (const id of required) {
@@ -267,12 +268,9 @@ function scoreRequiredCharacters(ledger: unknown, gold: StoryLedgerGoldExpectati
 
 function scoreAliases(ledger: unknown, gold: StoryLedgerGoldExpectation, missing: string[]): number {
   const groups = collectIdentityGroups(ledger);
-  const aliasExpectations = gold.required_aliases_by_character_id ?? {};
-  const entries = Object.entries(aliasExpectations);
   let total = 0;
   let matched = 0;
-
-  for (const [characterId, aliases] of entries) {
+  for (const [characterId, aliases] of Object.entries(gold.required_aliases_by_character_id ?? {})) {
     const group = groups.find((entry) => getCharacterId(entry) === characterId);
     const haystack = JSON.stringify(group ?? {}).toLowerCase();
     for (const alias of aliases) {
@@ -284,7 +282,6 @@ function scoreAliases(ledger: unknown, gold: StoryLedgerGoldExpectation, missing
       }
     }
   }
-
   return percent(matched, total);
 }
 
@@ -302,15 +299,16 @@ function scorePov(ledger: unknown, gold: StoryLedgerGoldExpectation, missing: st
     }
   }
 
+  let forbiddenMatches = 0;
   for (const id of forbiddenIds) {
     if (povIds.has(id)) {
+      forbiddenMatches += 1;
       forbidden.push(`FORBIDDEN_FAILURE: '${id}' must not be a POV owner.`);
     }
   }
 
-  const requiredScore = percent(matched, required.length);
-  const penalty = forbiddenIds.length > 0 ? (forbidden.filter((item) => item.includes('POV owner')).length / forbiddenIds.length) * 50 : 0;
-  return clampScore(requiredScore - penalty);
+  const penalty = forbiddenIds.length > 0 ? (forbiddenMatches / forbiddenIds.length) * 50 : 0;
+  return clampScore(percent(matched, required.length) - penalty);
 }
 
 function scorePressure(ledger: unknown, gold: StoryLedgerGoldExpectation, missing: string[]): number {
@@ -328,8 +326,7 @@ function scorePressure(ledger: unknown, gold: StoryLedgerGoldExpectation, missin
 }
 
 function scoreRelationships(ledger: unknown, gold: StoryLedgerGoldExpectation, missing: string[], forbidden: string[]): number {
-  const pairs = collectRelationshipPairs(ledger);
-  const pairKeys = pairs.map((pair) => canonicalPairKey(pair.character_a, pair.character_b));
+  const pairKeys = collectRelationshipPairs(ledger).map((pair) => canonicalPairKey(pair.character_a, pair.character_b));
   const required = gold.required_relationship_pair_keys ?? [];
   let matched = 0;
 
@@ -341,12 +338,9 @@ function scoreRelationships(ledger: unknown, gold: StoryLedgerGoldExpectation, m
     }
   }
 
-  const duplicatePairs = duplicateCount(pairKeys);
-  if (duplicatePairs > 0) {
-    forbidden.push(`FORBIDDEN_FAILURE: ${duplicatePairs} duplicate relationship canonical pair(s) detected.`);
-  }
-
-  return clampScore(percent(matched, required.length) - duplicatePairs * 10);
+  const duplicates = duplicateCount(pairKeys);
+  if (duplicates > 0) forbidden.push(`FORBIDDEN_FAILURE: ${duplicates} duplicate relationship canonical pair(s) detected.`);
+  return clampScore(percent(matched, required.length) - duplicates * 10);
 }
 
 function scoreLocations(ledger: unknown, gold: StoryLedgerGoldExpectation, missing: string[]): number {
@@ -370,17 +364,15 @@ function scoreEvidenceCoverage(ledger: unknown): number {
 }
 
 function countSeedClaims(run: EvaluationSeedBenchmarkRun, statuses: SeedClaimVerificationStatus[]): number {
-  const claims = [
+  return [
     ...(run.artifacts.story_seed_v1?.claims ?? []),
     ...(run.artifacts.evaluation_seed_v1?.claims ?? []),
-  ];
-  return claims.filter((claim) => statuses.includes(claim.claim_status)).length;
+  ].filter((claim) => statuses.includes(claim.claim_status)).length;
 }
 
 function collectDegradedLayers(ledger: unknown): string[] {
   if (!isRecord(ledger)) return ['accepted_story_ledger_v1_missing'];
-  const explicit = ledger.degraded_layers;
-  if (Array.isArray(explicit)) return explicit.map(String).filter(Boolean);
+  if (Array.isArray(ledger.degraded_layers)) return ledger.degraded_layers.map(String).filter(Boolean);
 
   const layers = isRecord(ledger.layers) ? ledger.layers : {};
   return Object.entries(layers)
@@ -399,12 +391,8 @@ export function scoreStoryLedgerQuality(ledger: unknown, gold: StoryLedgerGoldEx
     relationshipPairs.map((pair) => canonicalPairKey(pair.character_a, pair.character_b)),
   );
 
-  if (duplicateCanonicalIdCount > 0) {
-    forbiddenFailures.push(`FORBIDDEN_FAILURE: ${duplicateCanonicalIdCount} duplicate canonical character id(s) detected.`);
-  }
-  if (seedOnlyCanonPromotions > 0) {
-    forbiddenFailures.push(`FORBIDDEN_FAILURE: ${seedOnlyCanonPromotions} seed-only canon promotion(s) detected.`);
-  }
+  if (duplicateCanonicalIdCount > 0) forbiddenFailures.push(`FORBIDDEN_FAILURE: ${duplicateCanonicalIdCount} duplicate canonical character id(s) detected.`);
+  if (seedOnlyCanonPromotions > 0) forbiddenFailures.push(`FORBIDDEN_FAILURE: ${seedOnlyCanonPromotions} seed-only canon promotion(s) detected.`);
 
   const canonicalIdentityScore = scoreRequiredCharacters(ledger, gold, missingRequiredTruths);
   const aliasAccuracyScore = scoreAliases(ledger, gold, missingRequiredTruths);
@@ -413,10 +401,8 @@ export function scoreStoryLedgerQuality(ledger: unknown, gold: StoryLedgerGoldEx
   const relationshipAccuracyScore = scoreRelationships(ledger, gold, missingRequiredTruths, forbiddenFailures);
   const locationAccuracyScore = scoreLocations(ledger, gold, missingRequiredTruths);
   const evidenceCoverageScore = scoreEvidenceCoverage(ledger);
-  const hallucinationPenalty = (forbiddenFailures.length * 8) + seedOnlyCanonPromotions * 15;
-  const hallucinationRiskScore = clampScore(100 - hallucinationPenalty);
-
-  const weightedScore =
+  const hallucinationRiskScore = clampScore(100 - forbiddenFailures.length * 8 - seedOnlyCanonPromotions * 15);
+  const totalScore =
     canonicalIdentityScore * 0.2
     + aliasAccuracyScore * 0.12
     + povAccuracyScore * 0.15
@@ -427,7 +413,7 @@ export function scoreStoryLedgerQuality(ledger: unknown, gold: StoryLedgerGoldEx
     + hallucinationRiskScore * 0.05;
 
   return {
-    total_score: clampScore(weightedScore),
+    total_score: clampScore(totalScore),
     canonical_identity_score: canonicalIdentityScore,
     alias_accuracy_score: aliasAccuracyScore,
     pov_accuracy_score: povAccuracyScore,
@@ -458,8 +444,7 @@ export function validateEvaluationSeedRun(run: EvaluationSeedBenchmarkRun, seedE
   if (!artifacts.pass12_handoff_v1) issues.push('MISSING_ARTIFACT: pass12_handoff_v1 is required before Phase 3.');
   if (!artifacts.evaluation_result_v2) issues.push('MISSING_ARTIFACT: evaluation_result_v2 is required for completed evaluation.');
 
-  const ledger = artifacts.accepted_story_ledger_v1;
-  if (ledger && collectSeedOnlyCanonPromotions(ledger).length > 0) {
+  if (artifacts.accepted_story_ledger_v1 && collectSeedOnlyCanonPromotions(artifacts.accepted_story_ledger_v1).length > 0) {
     issues.push('AUTHORITY_VIOLATION: seed-only claim was promoted into accepted_story_ledger_v1 without evidence.');
   }
 
@@ -473,22 +458,10 @@ function chooseRecommendation(params: {
   hallucinationDelta: number;
   seedOnlyCanonPromotions: number;
 }): EvaluationSeedBenchmarkRecommendation {
-  if (params.seedOnlyCanonPromotions > 0 || params.hallucinationDelta < -5 || params.qualityDelta < -2) {
-    return 'seed_harmful_disable';
-  }
-
-  if (params.qualityDelta >= 2 && params.latencyDeltaMs <= 0) {
-    return 'seed_improves_quality_and_latency';
-  }
-
-  if (params.qualityDelta >= 2 && params.latencyDeltaPercent <= 25) {
-    return 'seed_improves_quality_but_costs_latency';
-  }
-
-  if (params.latencyDeltaMs < 0 && params.qualityDelta < 0) {
-    return 'seed_improves_latency_but_hurts_quality';
-  }
-
+  if (params.seedOnlyCanonPromotions > 0 || params.hallucinationDelta < -5 || params.qualityDelta < -2) return 'seed_harmful_disable';
+  if (params.qualityDelta >= 2 && params.latencyDeltaMs <= 0) return 'seed_improves_quality_and_latency';
+  if (params.qualityDelta >= 2 && params.latencyDeltaPercent <= 25) return 'seed_improves_quality_but_costs_latency';
+  if (params.latencyDeltaMs < 0 && params.qualityDelta < 0) return 'seed_improves_latency_but_hurts_quality';
   return 'seed_no_material_benefit';
 }
 
@@ -496,15 +469,9 @@ export function buildEvaluationSeedBenchmark(input: EvaluationSeedBenchmarkInput
   const baselineQuality = scoreStoryLedgerQuality(input.baseline.artifacts.accepted_story_ledger_v1, input.gold);
   const seedQuality = scoreStoryLedgerQuality(input.seed.artifacts.accepted_story_ledger_v1, input.gold);
   const latencyDeltaMs = input.seed.total_ms - input.baseline.total_ms;
-  const latencyDeltaPercent = input.baseline.total_ms > 0
-    ? clampScore((latencyDeltaMs / input.baseline.total_ms) * 100)
-    : 0;
-  const ledgerQualityDelta = clampScore(seedQuality.total_score - baselineQuality.total_score);
-  const hallucinationDelta = clampScore(seedQuality.hallucination_risk_score - baselineQuality.hallucination_risk_score);
-  const pathIssues = [
-    ...validateEvaluationSeedRun(input.baseline, false),
-    ...validateEvaluationSeedRun(input.seed, true),
-  ];
+  const latencyDeltaPercent = input.baseline.total_ms > 0 ? round((latencyDeltaMs / input.baseline.total_ms) * 100) : 0;
+  const ledgerQualityDelta = round(seedQuality.total_score - baselineQuality.total_score);
+  const hallucinationDelta = round(seedQuality.hallucination_risk_score - baselineQuality.hallucination_risk_score);
   const seedOnlyCanonPromotions = seedQuality.seed_only_canon_promotions;
 
   return {
@@ -523,11 +490,11 @@ export function buildEvaluationSeedBenchmark(input: EvaluationSeedBenchmarkInput
     baseline_story_ledger_score: baselineQuality.total_score,
     seed_story_ledger_score: seedQuality.total_score,
     ledger_quality_delta: ledgerQualityDelta,
-    canonical_identity_delta: clampScore(seedQuality.canonical_identity_score - baselineQuality.canonical_identity_score),
-    alias_accuracy_delta: clampScore(seedQuality.alias_accuracy_score - baselineQuality.alias_accuracy_score),
-    pov_accuracy_delta: clampScore(seedQuality.pov_accuracy_score - baselineQuality.pov_accuracy_score),
-    pressure_detection_delta: clampScore(seedQuality.pressure_detection_score - baselineQuality.pressure_detection_score),
-    evidence_coverage_delta: clampScore(seedQuality.evidence_coverage_score - baselineQuality.evidence_coverage_score),
+    canonical_identity_delta: round(seedQuality.canonical_identity_score - baselineQuality.canonical_identity_score),
+    alias_accuracy_delta: round(seedQuality.alias_accuracy_score - baselineQuality.alias_accuracy_score),
+    pov_accuracy_delta: round(seedQuality.pov_accuracy_score - baselineQuality.pov_accuracy_score),
+    pressure_detection_delta: round(seedQuality.pressure_detection_score - baselineQuality.pressure_detection_score),
+    evidence_coverage_delta: round(seedQuality.evidence_coverage_score - baselineQuality.evidence_coverage_score),
     hallucination_delta: hallucinationDelta,
     degraded_layers_baseline: collectDegradedLayers(input.baseline.artifacts.accepted_story_ledger_v1),
     degraded_layers_seed: collectDegradedLayers(input.seed.artifacts.accepted_story_ledger_v1),
@@ -537,7 +504,7 @@ export function buildEvaluationSeedBenchmark(input: EvaluationSeedBenchmarkInput
     seed_only_canon_promotions: seedOnlyCanonPromotions,
     baseline_quality: baselineQuality,
     seed_quality: seedQuality,
-    path_issues: pathIssues,
+    path_issues: [...validateEvaluationSeedRun(input.baseline, false), ...validateEvaluationSeedRun(input.seed, true)],
     recommendation: chooseRecommendation({
       qualityDelta: ledgerQualityDelta,
       latencyDeltaMs,
