@@ -652,7 +652,6 @@ export async function getWorkbenchQueue(input: { manuscriptId?: string; evaluati
   if (jobError) return emptyPayload(jobError.message)
   if (!job) return emptyPayload('Evaluation job not found for this manuscript.')
   if (job.status !== 'complete') return emptyPayload('This evaluation is not complete yet. Revise can load after the report is finished.')
-  if (job.manuscript_version_id == null) return emptyPayload('This evaluation is not eligible for Revise yet because no manuscript version is attached.')
 
   const { opportunities: revisionLedgerOpportunities } = await ensureRevisionOpportunityLedgerArtifact(
     supabase,
