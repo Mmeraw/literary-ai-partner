@@ -1,5 +1,5 @@
 import { getWorkbenchQueue } from "@/lib/revision/workbenchQueue";
-import ReviseQueueV2Client from "@/components/revision/ReviseQueueV2Client";
+import ReviseCockpitClient from "@/components/revision/ReviseCockpitClient";
 import { buildRevisionOpportunityLedger, persistRevisionOpportunityLedger } from "@/lib/revision/revisionOpportunityLedgerArtifact";
 
 export default async function WorkbenchV2Page({ searchParams }: { searchParams?: Promise<Record<string, string | string[] | undefined>> }) {
@@ -11,11 +11,15 @@ export default async function WorkbenchV2Page({ searchParams }: { searchParams?:
   const payload = await getWorkbenchQueue({ manuscriptId, evaluationJobId });
   const manuscriptNumericId = Number(manuscriptId);
   if (payload.ok && manuscriptId && evaluationJobId && Number.isInteger(manuscriptNumericId)) {
-    await persistRevisionOpportunityLedger({
-      jobId: evaluationJobId,
-      manuscriptId: manuscriptNumericId,
-      ledger: buildRevisionOpportunityLedger({ jobId: evaluationJobId, manuscriptId, payload }),
-    });
+    try {
+      await persistRevisionOpportunityLedger({
+        jobId: evaluationJobId,
+        manuscriptId: manuscriptNumericId,
+        ledger: buildRevisionOpportunityLedger({ jobId: evaluationJobId, manuscriptId, payload }),
+      });
+    } catch (error) {
+      console.error("Failed to persist revision_opportunity_ledger_v1", error);
+    }
   }
-  return <ReviseQueueV2Client payload={payload} />;
+  return <ReviseCockpitClient payload={payload} />;
 }
