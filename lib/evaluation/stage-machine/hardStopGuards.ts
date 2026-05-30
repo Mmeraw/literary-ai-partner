@@ -12,6 +12,8 @@ export type SupportArtifactRef = {
 };
 
 export type ArtifactSet = {
+  story_seed_v1?: ArtifactRef;
+  evaluation_seed_v1?: ArtifactRef;
   pass1a_story_layer_v1?: ArtifactRef;
   ledger_quality_report_v1?: ArtifactRef;
   pass3_preflight_draft_v1?: ArtifactRef;
@@ -202,6 +204,12 @@ export function requireAcceptedLedger(set: ArtifactSet): GuardResult {
 export function forbidPhase2WithoutAcceptedLedger(set: ArtifactSet): GuardResult {
   if (hasArtifactRef(set.accepted_story_ledger_v1)) {
     return ok();
+  }
+
+  if (hasArtifactRef(set.story_seed_v1) || hasArtifactRef(set.evaluation_seed_v1)) {
+    return fail(
+      'Phase 2 cannot consume seed artifacts (story_seed_v1/evaluation_seed_v1); accepted_story_ledger_v1 is required',
+    );
   }
 
   if (hasArtifactRef(set.pass1a_story_layer_v1)) {

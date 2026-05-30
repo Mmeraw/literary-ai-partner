@@ -61,6 +61,11 @@ const withAcceptedLedger: ArtifactSet = {
   accepted_story_ledger_v1: artifact('accepted-ledger-123'),
 };
 
+const withSeedOnly: ArtifactSet = {
+  story_seed_v1: artifact('story-seed-only'),
+  evaluation_seed_v1: artifact('evaluation-seed-only'),
+};
+
 // ─── 1. forbidPhase2WithoutAcceptedLedger guard ───────────────────────────────
 
 describe('forbidPhase2WithoutAcceptedLedger', () => {
@@ -96,6 +101,16 @@ describe('forbidPhase2WithoutAcceptedLedger', () => {
     const result = forbidPhase2WithoutAcceptedLedger(withUserFeedback);
 
     expect(result.ok).toBe(false);
+  });
+
+  it('fails explicitly when only seed artifacts are present', () => {
+    const result = forbidPhase2WithoutAcceptedLedger(withSeedOnly);
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.reason).toMatch(/seed artifacts/);
+      expect(result.reason).toMatch(/accepted_story_ledger_v1/);
+    }
   });
 });
 
