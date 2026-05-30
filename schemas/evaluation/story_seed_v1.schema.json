@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://revisiongrade.com/schema/story_seed_v1.json",
+  "title": "story_seed_v1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "job_id",
+    "evaluation_project_id",
+    "manuscript_id",
+    "manuscript_version_hash",
+    "artifact_id",
+    "artifact_type",
+    "artifact_version",
+    "source_hash",
+    "generated_at",
+    "authority",
+    "artifact_status",
+    "claims"
+  ],
+  "properties": {
+    "job_id": { "type": "string", "minLength": 1 },
+    "evaluation_project_id": { "type": ["string", "null"] },
+    "stage_run_id": { "type": ["string", "null"] },
+    "manuscript_id": { "type": "number" },
+    "manuscript_version_hash": { "type": "string", "minLength": 1 },
+    "artifact_id": { "type": "string", "minLength": 1 },
+    "artifact_type": { "const": "story_seed_v1" },
+    "artifact_version": { "type": "string", "minLength": 1 },
+    "source_hash": { "type": "string", "minLength": 1 },
+    "generated_at": { "type": "string", "minLength": 1 },
+    "authority": { "const": "seed_only" },
+    "artifact_status": {
+      "enum": ["created", "superseded", "archived", "failed"]
+    },
+    "claims": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["claim_id", "claim_status", "hypothesis"],
+        "properties": {
+          "claim_id": { "type": "string", "minLength": 1 },
+          "temp_seed_entity_id": { "type": ["string", "null"] },
+          "claim_status": {
+            "enum": [
+              "proposed_unverified",
+              "partially_confirmed",
+              "confirmed_by_evidence",
+              "drift_detected",
+              "superseded_by_evidence",
+              "invalidated"
+            ]
+          },
+          "hypothesis": { "type": "string", "minLength": 1 },
+          "notes": { "type": ["string", "null"] }
+        }
+      }
+    }
+  }
+}
