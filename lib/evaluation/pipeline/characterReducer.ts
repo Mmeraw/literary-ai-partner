@@ -650,7 +650,7 @@ export function reduceCharacterEvidence(params: {
         || distinctSignatures.size > 1
         || (hasUnknownSignals && pronounFamilySets.length > 1);
 
-      if (shouldWarn && !onlyCollectivePlusOneKnown) {
+      if (shouldWarn) {
         warnings.push({
           type: "pronoun_inconsistency",
           message: `Pronoun-family transition or unresolved pronoun ownership detected for "${canonical}"`,

@@ -12,7 +12,9 @@ describe("public-domain corpus substrate", () => {
     expect(fs.existsSync(manifestPath)).toBe(true);
 
     const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
-    expect(manifest.schema_version).toBe(1);
+    expect(manifest.schema_version).toBe(2);
+    expect(manifest.purpose).toContain("public-domain calibration corpus manifest");
+    expect(manifest.mode_contract_path).toBe("docs/governance/evaluation-output-mode-contract.md");
     expect(Array.isArray(manifest.works)).toBe(true);
     expect(manifest.works).toHaveLength(10);
   });

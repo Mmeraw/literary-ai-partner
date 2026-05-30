@@ -187,10 +187,10 @@ describe("getProgressDisplay: canonical state mapping", () => {
 
   // ── Unknown running state ─────────────────────────────────────────────────
 
-  test("running with no phase -> preparing your evaluation label, 5%", () => {
+  test("running with no phase -> getting ready label, 5%", () => {
     const pd = getProgressDisplay({ status: "running" });
     expect(pd).not.toBeNull();
-    expect(pd!.label).toBe("Preparing your evaluation");
+    expect(pd!.label).toBe("Getting ready...");
     expect(pd!.percentage).toBe(5);
   });
 });

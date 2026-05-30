@@ -3,17 +3,21 @@ import React from "react";
 import WorkbenchV2Page from "@/app/workbench-v2/page";
 import { getWorkbenchQueue } from "@/lib/revision/workbenchQueue";
 
+function MockReviseCockpitClient({ payload }: { payload: unknown }) {
+  return <div data-testid="workbench-v2-cockpit">{JSON.stringify(payload)}</div>;
+}
+
 jest.mock("@/lib/revision/workbenchQueue", () => ({
   getWorkbenchQueue: jest.fn(),
 }));
 
-jest.mock("@/components/revision/ReviseQueueV2Client", () => ({
+jest.mock("@/components/revision/ReviseCockpitClient", () => ({
   __esModule: true,
-  default: ({ payload }: { payload: unknown }) => <div data-testid="workbench-v2-client">{JSON.stringify(payload)}</div>,
+  default: MockReviseCockpitClient,
 }));
 
 describe("/workbench-v2 page", () => {
-  it("loads queue payload and renders ReviseQueueV2Client", async () => {
+  it("loads queue payload and renders ReviseCockpitClient", async () => {
     const mockedPayload = {
       ok: true,
       error: null,
@@ -40,5 +44,7 @@ describe("/workbench-v2 page", () => {
     });
 
     expect(React.isValidElement(element)).toBe(true);
+    expect((element as React.ReactElement).type).toBe(MockReviseCockpitClient);
+    expect((element as React.ReactElement<{ payload: unknown }>).props.payload).toEqual(mockedPayload);
   });
 });

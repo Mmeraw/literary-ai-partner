@@ -13,6 +13,9 @@
  * - Original manuscript is never mutated — ledger entries are created.
  * - Flagged, rejected, unavailable, and pending findings remain in the
  *   workbench for manual review.
+ * - TrustedPath does not re-diagnose the manuscript. It consumes
+ *   `diagnostic_findings` that are materialized from the canonical
+ *   `revision_opportunity_ledger_v1` artifact.
  * - Returns a summary of what was applied vs what remains.
  */
 
@@ -22,6 +25,8 @@ import { isTrustedPathEligible, type CrossCheckVerdict } from "./repairCrossChec
 import type { SyncRevisionLedgerEntryInput } from "./ledger";
 import { syncRevisionLedgerDecisions } from "./ledger";
 import { ensureOperationalRevisionFindings } from './operationalQueueBuilder';
+
+export const TRUSTED_PATH_DATA_CONTRACT = "diagnostic_findings_derived_from_revision_opportunity_ledger_v1" as const;
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -95,6 +100,9 @@ export async function applyTrustedPath(input: {
   if (!job) return emptyResult("Evaluation job not found for this manuscript");
   if (job.status !== "complete") return emptyResult("Evaluation is not complete yet");
 
+  // Ensure the author-facing findings layer exists, but derive it from the
+  // canonical revision opportunity ledger rather than re-diagnosing the
+  // manuscript during Revise / TrustedPath flows.
   await ensureOperationalRevisionFindings(
     input.evaluationJobId,
     (job.manuscript_version_id as string | null) ?? '',
