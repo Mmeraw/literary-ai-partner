@@ -39,6 +39,9 @@ export const STORY_LAYER_KEYS = [
 
 export const STORY_LAYER_COUNT = STORY_LAYER_KEYS.length;
 
+// Backward-compatible alias for legacy imports.
+export const STORY_LAYER_CORE_LAYER_KEYS = STORY_LAYER_KEYS;
+
 export type StoryLayerCoreLayerKey = typeof STORY_LAYER_KEYS[number];
 
 export type RuntimeArtifactEnvelope = {
