@@ -1,6 +1,8 @@
 import { getWorkbenchQueue } from "@/lib/revision/workbenchQueue";
 import ReviseCockpitClient from "@/components/revision/ReviseCockpitClient";
 import { buildRevisionOpportunityLedger, persistRevisionOpportunityLedger } from "@/lib/revision/revisionOpportunityLedgerArtifact";
+import { redirect } from "next/navigation";
+import { resolveWorkbenchRouteTargetForUser } from "@/lib/revision/workbenchQueue";
 
 export default async function WorkbenchV2Page({ searchParams }: { searchParams?: Promise<Record<string, string | string[] | undefined>> }) {
   const params = (await searchParams) ?? {};
@@ -8,6 +10,14 @@ export default async function WorkbenchV2Page({ searchParams }: { searchParams?:
   const evaluationJobIdRaw = params.evaluationJobId;
   const manuscriptId = Array.isArray(manuscriptIdRaw) ? manuscriptIdRaw[0] : manuscriptIdRaw;
   const evaluationJobId = Array.isArray(evaluationJobIdRaw) ? evaluationJobIdRaw[0] : evaluationJobIdRaw;
+
+  if (!manuscriptId || !evaluationJobId) {
+    const resolved = await resolveWorkbenchRouteTargetForUser();
+    if (resolved) {
+      redirect(`/workbench-v2?${new URLSearchParams(resolved).toString()}`);
+    }
+  }
+
   const payload = await getWorkbenchQueue({ manuscriptId, evaluationJobId });
   const manuscriptNumericId = Number(manuscriptId);
   if (payload.ok && manuscriptId && evaluationJobId && Number.isInteger(manuscriptNumericId)) {

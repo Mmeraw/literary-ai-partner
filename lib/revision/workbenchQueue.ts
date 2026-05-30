@@ -58,6 +58,11 @@ export type WorkbenchQueuePayload = {
   }
 }
 
+type ResolvedWorkbenchTarget = {
+  manuscriptId: string
+  evaluationJobId: string
+}
+
 // ---------------------------------------------------------------------------
 // Rich recommendation from evaluation artifact (6-part diagnostic + proposals)
 // ---------------------------------------------------------------------------
@@ -516,6 +521,40 @@ function emptyPayload(error: string | null): WorkbenchQueuePayload {
   }
 }
 
+async function resolveLatestEligibleEvaluationForUser(
+  supabase: ReturnType<typeof createAdminClient>,
+  userId: string,
+): Promise<ResolvedWorkbenchTarget | null> {
+  const { data, error } = await supabase
+    .from('evaluation_jobs')
+    .select('id, manuscript_id, status, manuscript_version_id, created_at, manuscripts!inner(user_id)')
+    .eq('manuscripts.user_id', userId)
+    .eq('status', 'complete')
+    .not('manuscript_version_id', 'is', null)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (error || !data) return null
+
+  const manuscriptId = Number(data.manuscript_id)
+  const evaluationJobId = String(data.id ?? '').trim()
+  if (!Number.isInteger(manuscriptId) || !evaluationJobId) return null
+
+  return {
+    manuscriptId: String(manuscriptId),
+    evaluationJobId,
+  }
+}
+
+export async function resolveWorkbenchRouteTargetForUser(): Promise<ResolvedWorkbenchTarget | null> {
+  const user = await getAuthenticatedUser()
+  if (!user) return null
+
+  const supabase = createAdminClient()
+  return resolveLatestEligibleEvaluationForUser(supabase, user.id)
+}
+
 // ---------------------------------------------------------------------------
 // Load raw evaluation artifact to extract rich recommendation fields
 // ---------------------------------------------------------------------------
@@ -537,15 +576,23 @@ async function loadEvaluationArtifactPayload(
 }
 
 export async function getWorkbenchQueue(input: { manuscriptId?: string; evaluationJobId?: string }): Promise<WorkbenchQueuePayload> {
-  if (!input.manuscriptId || !input.evaluationJobId) return emptyPayload('Open the workbench from a completed manuscript evaluation so RevisionGrade knows which queue to load.')
-
   const user = await getAuthenticatedUser()
   if (!user) return emptyPayload('Please sign in to open your Revise Workbench.')
 
-  const manuscriptNumericId = Number(input.manuscriptId)
+  const supabase = createAdminClient()
+  let manuscriptId = input.manuscriptId
+  let evaluationJobId = input.evaluationJobId
+
+  if (!manuscriptId || !evaluationJobId) {
+    const resolved = await resolveLatestEligibleEvaluationForUser(supabase, user.id)
+    if (!resolved) return emptyPayload('Open the workbench from a completed manuscript evaluation so RevisionGrade knows which queue to load.')
+    manuscriptId = resolved.manuscriptId
+    evaluationJobId = resolved.evaluationJobId
+  }
+
+  const manuscriptNumericId = Number(manuscriptId)
   if (!Number.isInteger(manuscriptNumericId)) return emptyPayload('Invalid manuscript id.')
 
-  const supabase = createAdminClient()
   const { data: manuscript, error: manuscriptError } = await supabase
     .from('manuscripts')
     .select('id, title, user_id')
@@ -559,17 +606,18 @@ export async function getWorkbenchQueue(input: { manuscriptId?: string; evaluati
   const { data: job, error: jobError } = await supabase
     .from('evaluation_jobs')
     .select('id, status, manuscript_id, manuscript_version_id')
-    .eq('id', input.evaluationJobId)
+    .eq('id', evaluationJobId)
     .eq('manuscript_id', manuscriptNumericId)
     .maybeSingle()
 
   if (jobError) return emptyPayload(jobError.message)
   if (!job) return emptyPayload('Evaluation job not found for this manuscript.')
   if (job.status !== 'complete') return emptyPayload('This evaluation is not complete yet. Revise can load after the report is finished.')
+  if (job.manuscript_version_id == null) return emptyPayload('This evaluation is not eligible for Revise yet because no manuscript version is attached.')
 
   const { opportunities: revisionLedgerOpportunities } = await ensureRevisionOpportunityLedgerArtifact(
     supabase,
-    input.evaluationJobId,
+    evaluationJobId,
   )
 
   const opportunities = revisionLedgerOpportunities.map((opportunity) => {
@@ -628,8 +676,8 @@ export async function getWorkbenchQueue(input: { manuscriptId?: string; evaluati
   return {
     ok: true,
     error: null,
-    manuscriptId: input.manuscriptId,
-    evaluationJobId: input.evaluationJobId,
+    manuscriptId,
+    evaluationJobId,
     manuscriptTitle: manuscript.title ?? 'Untitled Manuscript',
     opportunities,
     totals,
