@@ -11,6 +11,8 @@
  */
 
 import { isTrustedPathEligible, type CrossCheckVerdict } from "@/lib/revision/repairCrossCheck";
+import { OPERATIONAL_FINDING_TYPE, OPERATIONAL_FINDINGS_SOURCE_CONTRACT } from "@/lib/revision/operationalQueueBuilder";
+import { TRUSTED_PATH_DATA_CONTRACT } from "@/lib/revision/trustedPath";
 
 // ─── Test 1: TrustedPath gate only allows approve ──────────────────────────
 
@@ -66,6 +68,17 @@ describe("TrustedPathSummary contract", () => {
     expect(summary.ok).toBe(false);
     expect(summary.error).toBe("Not authenticated");
     expect(summary.appliedCount).toBe(0);
+  });
+});
+
+describe("TrustedPath source-of-truth contract", () => {
+  it("documents that TrustedPath consumes a derived findings layer from the canonical opportunity ledger", () => {
+    expect(TRUSTED_PATH_DATA_CONTRACT).toBe("diagnostic_findings_derived_from_revision_opportunity_ledger_v1");
+    expect(OPERATIONAL_FINDINGS_SOURCE_CONTRACT).toBe("derived_from_revision_opportunity_ledger_v1");
+  });
+
+  it("uses revision_opportunity_ledger findings rather than manuscript re-diagnosis", () => {
+    expect(OPERATIONAL_FINDING_TYPE).toBe("revision_opportunity_ledger");
   });
 });
 

@@ -6,6 +6,9 @@ import {
 } from "./normalizeFindings";
 import type { CreateDiagnosticFindingInput, DiagnosticFinding } from "./types";
 
+export const OPERATIONAL_FINDINGS_SOURCE_CONTRACT = "derived_from_revision_opportunity_ledger_v1" as const;
+export const OPERATIONAL_FINDING_TYPE = "revision_opportunity_ledger" as const;
+
 let _supabase: ReturnType<typeof getSupabaseAdminClient> | undefined;
 
 function getSupabase() {
@@ -77,7 +80,7 @@ export async function ensureOperationalRevisionFindings(
       artifact_id: artifactId,
       criterion_key: opportunity.criterion,
       wave_id: null,
-      finding_type: 'revision_opportunity_ledger',
+      finding_type: OPERATIONAL_FINDING_TYPE,
       severity: mapSeverityFromLedger(opportunity.severity),
       confidence:
         opportunity.confidence === 'high'
