@@ -62,7 +62,7 @@ function makeSynthesis(overrides: Partial<Record<CriterionKey, Partial<Synthesiz
 // ── Prompt version ────────────────────────────────────────────────────────────
 
 it("PASS3_PROMPT_VERSION reflects the canonical diagnostic-contract synthesis prompt", () => {
-  expect(PASS3_PROMPT_VERSION).toBe("pass3-synthesis-v19-diagnostic-contract");
+  expect(PASS3_PROMPT_VERSION).toBe("pass3-synthesis-v20-min-rec-floor");
 });
 
 // ── Five-part contract: passing fixtures ─────────────────────────────────────
