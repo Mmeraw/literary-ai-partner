@@ -1,0 +1,327 @@
+{
+  "artifact_type": "accepted_story_ledger_v1",
+  "artifact_version": "v1",
+  "manuscript_id": "the-awakening",
+  "layers": {
+    "pov_structure_layer": {
+      "pov_characters": [
+        {
+          "character_id": "aw:edna",
+          "canonical_name": "Edna Pontellier",
+          "is_primary": true
+        }
+      ],
+      "pov_mode": "close third limited",
+      "pov_perspective_note": "primary focalization remains with Edna; role tier does not confer camera ownership"
+    },
+    "canonical_identity_layer": {
+      "identity_groups": [
+        {
+          "character_id": "aw:edna",
+          "canonical_name": "Edna Pontellier",
+          "aliases": ["Edna"]
+        },
+        {
+          "character_id": "aw:robert",
+          "canonical_name": "Robert Lebrun",
+          "aliases": ["Robert"]
+        },
+        {
+          "character_id": "aw:leonce",
+          "canonical_name": "Léonce Pontellier",
+          "aliases": ["Leonce"]
+        },
+        {
+          "character_id": "aw:arobin",
+          "canonical_name": "Alcée Arobin",
+          "aliases": ["Arobin"]
+        },
+        {
+          "character_id": "aw:adele",
+          "canonical_name": "Adèle Ratignolle",
+          "aliases": ["Adele"]
+        },
+        {
+          "character_id": "aw:reisz",
+          "canonical_name": "Mademoiselle Reisz",
+          "aliases": ["Reisz"]
+        },
+        {
+          "character_id": "aw:celina_husband",
+          "canonical_name": "Célina's husband",
+          "aliases": ["Celina husband"]
+        },
+        {
+          "character_id": "aw:raoul",
+          "canonical_name": "Raoul Pontellier",
+          "aliases": ["Raoul"]
+        },
+        {
+          "character_id": "aw:etienne",
+          "canonical_name": "Étienne Pontellier",
+          "aliases": ["Etienne"]
+        },
+        {
+          "character_id": "aw:children",
+          "canonical_name": "Edna's children",
+          "aliases": ["Raoul and Étienne", "children"]
+        },
+        {
+          "character_id": "aw:sea_symbolic_pressure",
+          "canonical_name": "Sea / symbolic pressure",
+          "aliases": ["the sea", "the gulf", "water"]
+        }
+      ]
+    },
+    "cast_role_tier_layer": {
+      "tier_map": {
+        "protagonist": [
+          { "character_id": "aw:edna", "canonical_name": "Edna Pontellier", "importance_level": "primary" }
+        ],
+        "romantic_catalyst": [
+          { "character_id": "aw:robert", "canonical_name": "Robert Lebrun", "importance_level": "major" }
+        ],
+        "patriarchal_pressure": [
+          { "character_id": "aw:leonce", "canonical_name": "Léonce Pontellier", "importance_level": "major" }
+        ],
+        "sexual_destabilizer": [
+          { "character_id": "aw:arobin", "canonical_name": "Alcée Arobin", "importance_level": "supporting" }
+        ],
+        "domestic_foil": [
+          { "character_id": "aw:adele", "canonical_name": "Adèle Ratignolle", "importance_level": "supporting" }
+        ],
+        "artistic_countermodel": [
+          { "character_id": "aw:reisz", "canonical_name": "Mademoiselle Reisz", "importance_level": "supporting" }
+        ],
+        "background_mention": [
+          { "character_id": "aw:celina_husband", "canonical_name": "Célina's husband", "importance_level": "minor" }
+        ]
+      }
+    },
+    "identity_pronoun_layer": {
+      "pronoun_shifts_detected": 0,
+      "entries": [
+        {
+          "canonical_name": "Edna Pontellier",
+          "pronouns": ["she/her/hers"],
+          "warnings": []
+        },
+        {
+          "canonical_name": "Raoul Pontellier",
+          "pronouns": ["he/him/his"],
+          "warnings": []
+        },
+        {
+          "canonical_name": "Étienne Pontellier",
+          "pronouns": ["he/him/his"],
+          "warnings": []
+        },
+        {
+          "canonical_name": "Robert Lebrun",
+          "pronouns": ["he/him/his"],
+          "warnings": []
+        },
+        {
+          "canonical_name": "Léonce Pontellier",
+          "pronouns": ["he/him/his"],
+          "warnings": []
+        }
+      ]
+    },
+    "relationship_network_layer": {
+      "relationship_pairs": [
+        {
+          "pair_key": "aw:edna↔aw:leonce",
+          "character_a": "aw:edna",
+          "character_b": "aw:leonce",
+          "character_a_label": "Edna Pontellier",
+          "character_b_label": "Léonce Pontellier",
+          "relationship_type_start": "marriage",
+          "relationship_type_end": "estrangement"
+        },
+        {
+          "pair_key": "aw:edna↔aw:robert",
+          "character_a": "aw:edna",
+          "character_b": "aw:robert",
+          "character_a_label": "Edna Pontellier",
+          "character_b_label": "Robert Lebrun",
+          "relationship_type_start": "attraction",
+          "relationship_type_end": "fatal_unresolved_desire"
+        },
+        {
+          "pair_key": "aw:adele↔aw:edna",
+          "character_a": "aw:edna",
+          "character_b": "aw:adele",
+          "character_a_label": "Edna Pontellier",
+          "character_b_label": "Adèle Ratignolle",
+          "relationship_type_start": "friendship",
+          "relationship_type_end": "maternal_domestic_counterpoint"
+        },
+        {
+          "pair_key": "aw:edna↔aw:reisz",
+          "character_a": "aw:edna",
+          "character_b": "aw:reisz",
+          "character_a_label": "Edna Pontellier",
+          "character_b_label": "Mademoiselle Reisz",
+          "relationship_type_start": "mentorship_resistance",
+          "relationship_type_end": "artistic_countermodel"
+        },
+        {
+          "pair_key": "aw:arobin↔aw:edna",
+          "character_a": "aw:edna",
+          "character_b": "aw:arobin",
+          "character_a_label": "Edna Pontellier",
+          "character_b_label": "Alcée Arobin",
+          "relationship_type_start": "sexual_destabilization",
+          "relationship_type_end": "dissipated_intimacy"
+        },
+        {
+          "pair_key": "aw:children↔aw:edna",
+          "character_a": "aw:edna",
+          "character_b": "aw:children",
+          "character_a_label": "Edna Pontellier",
+          "character_b_label": "Edna's children",
+          "relationship_type_start": "maternal_obligation",
+          "relationship_type_end": "contested_attachment"
+        },
+        {
+          "pair_key": "aw:edna↔aw:sea_symbolic_pressure",
+          "character_a": "aw:edna",
+          "character_b": "aw:sea_symbolic_pressure",
+          "character_a_label": "Edna Pontellier",
+          "character_b_label": "Sea / symbolic pressure",
+          "relationship_type_start": "symbolic_call",
+          "relationship_type_end": "terminal_absorption"
+        }
+      ],
+      "pair_count": 7,
+      "relationship_tiers": {
+        "primary_spine": ["aw:edna|aw:leonce", "aw:edna|aw:robert", "aw:edna|aw:children"],
+        "secondary_structural": ["aw:edna|aw:adele", "aw:edna|aw:reisz", "aw:edna|aw:arobin"],
+        "symbolic_pressure": ["aw:edna|aw:sea_symbolic_pressure"],
+        "background": ["aw:celina_husband"]
+      }
+    },
+    "object_symbol_layer": {
+      "objects": [
+        { "object_id": "aw:symbol:sea", "name": "sea / gulf / water" },
+        { "object_id": "aw:symbol:birds", "name": "birds / flight" },
+        { "object_id": "aw:symbol:pigeon_house", "name": "pigeon house" },
+        { "object_id": "aw:symbol:ring", "name": "wedding ring" },
+        { "object_id": "aw:symbol:music", "name": "music / piano" },
+        { "object_id": "aw:symbol:letters", "name": "letters" },
+        { "object_id": "aw:symbol:art", "name": "Edna's art / sketching" }
+      ]
+    },
+    "location_timeline_worldstate_layer": {
+      "unique_locations": [
+        "Grand Isle",
+        "New Orleans",
+        "Chênière Caminada",
+        "Pigeon House",
+        "Pontellier residence"
+      ],
+      "location_count": 5
+    },
+    "threat_antagonist_ending_layer": {
+      "pressure_systems": [
+        {
+          "pressure_id": "aw_leonce_marital_property",
+          "pressure_type": "marital_family_domestic_pressure",
+          "source_kind": "character",
+          "source_character_id": "aw:leonce",
+          "source_label": "Léonce / marital-property pressure",
+          "source_aliases": ["marital constraint", "property pressure"],
+          "ending_state": "ongoing_systemic_pressure"
+        },
+        {
+          "pressure_id": "aw_robert_romantic_longing",
+          "pressure_type": "romantic_desire_pressure",
+          "source_kind": "character",
+          "source_character_id": "aw:robert",
+          "source_label": "Robert / romantic longing-absence",
+          "source_aliases": ["romantic longing", "absence"],
+          "ending_state": "terminal"
+        },
+        {
+          "pressure_id": "aw_arobin_sexual_destabilization",
+          "pressure_type": "physical_danger_violence_pressure",
+          "source_kind": "character",
+          "source_character_id": "aw:arobin",
+          "source_label": "Arobin / sexual destabilization",
+          "source_aliases": ["sexual destabilization"],
+          "ending_state": "resolved"
+        },
+        {
+          "pressure_id": "aw_adele_maternal_domestic",
+          "pressure_type": "marital_family_domestic_pressure",
+          "source_kind": "character",
+          "source_character_id": "aw:adele",
+          "source_label": "Adèle / maternal-domestic pressure",
+          "source_aliases": ["mother-woman countermodel"],
+          "ending_state": "ongoing_systemic_pressure"
+        },
+        {
+          "pressure_id": "aw_reisz_artistic_severity",
+          "pressure_type": "interpersonal_pressure",
+          "source_kind": "character",
+          "source_character_id": "aw:reisz",
+          "source_label": "Reisz / artistic severity-counter-model",
+          "source_aliases": ["artistic countermodel"],
+          "ending_state": "transformed"
+        },
+        {
+          "pressure_id": "aw_children_maternal_obligation",
+          "pressure_type": "marital_family_domestic_pressure",
+          "source_kind": "character",
+          "source_character_id": "aw:children",
+          "source_label": "children / maternal obligation",
+          "source_aliases": ["maternal obligation"],
+          "ending_state": "ongoing_systemic_pressure"
+        },
+        {
+          "pressure_id": "aw_sea_symbolic_terminal",
+          "pressure_type": "symbolic_environmental_pressure",
+          "source_kind": "non_character",
+          "source_label": "sea/Gulf/water / symbolic-terminal pressure",
+          "source_aliases": ["sea", "gulf", "water"],
+          "ending_state": "terminal"
+        },
+        {
+          "pressure_id": "aw_creole_social_expectations",
+          "pressure_type": "social_class_pressure",
+          "source_kind": "non_character",
+          "source_label": "Creole social expectations",
+          "source_aliases": ["social convention", "community surveillance"],
+          "ending_state": "ongoing_systemic_pressure"
+        },
+        {
+          "pressure_id": "aw_edna_internal_autonomy",
+          "pressure_type": "internal_moral_pressure",
+          "source_kind": "internal",
+          "source_character_id": "aw:edna",
+          "source_label": "Edna's internal autonomy pressure",
+          "source_aliases": ["autonomy pressure", "internal contradiction"],
+          "ending_state": "terminal"
+        }
+      ],
+      "threat_systems": [
+        "Léonce / marital-property pressure",
+        "Robert / romantic longing/absence",
+        "Arobin / sexual destabilization",
+        "Adèle / maternal-domestic pressure",
+        "Reisz / artistic severity/counter-model",
+        "children / maternal obligation",
+        "sea/Gulf/water / symbolic-terminal pressure",
+        "Creole social expectations",
+        "Edna's internal autonomy pressure"
+      ],
+      "narrative_pressure_vectors": [
+        { "vector_source": "family_obligation", "evidence_summary": "Marital-property expectations and children-related obligations constrain Edna's agency.", "structural_impact_score": 4 },
+        { "vector_source": "social_pressure", "evidence_summary": "Creole social expectations and reputation surveillance enforce norm compliance across scenes.", "structural_impact_score": 4 },
+        { "vector_source": "environment", "evidence_summary": "Sea/Gulf/water functions as symbolic-terminal pressure that shapes the ending consequence.", "structural_impact_score": 5 },
+        { "vector_source": "internal_contradiction", "evidence_summary": "Edna's internal autonomy pressure and longing create escalating, unresolved moral contradiction.", "structural_impact_score": 5 }
+      ]
+    }
+  }
+}

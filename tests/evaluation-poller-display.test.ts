@@ -140,13 +140,13 @@ describe("getProgressDisplay: canonical state mapping", () => {
 
   // ── Phase 2 ───────────────────────────────────────────────────────────────
 
-  test("phase_2 -> analyzing manuscript in depth, 67%", () => {
+  test("phase_2 -> building your report, 67%", () => {
     const pd = getProgressDisplay({
       status: "running",
       phase: "phase_2",
       phase_status: "running",
     });
-    expect(pd!.label).toBe("Analyzing your manuscript in depth...");
+    expect(pd!.label).toBe("Building your report...");
     expect(pd!.percentage).toBe(67);
     expect(pd!.color).toBe("blue");
     expect(pd!.hardStop).toBe(false);
@@ -154,43 +154,43 @@ describe("getProgressDisplay: canonical state mapping", () => {
 
   // ── Phase 3 / synthesis ───────────────────────────────────────────────────
 
-  test("phase_3 -> Finalizing your evaluation, 86%", () => {
+  test("phase_3 -> finalizing your report, 86%", () => {
     const pd = getProgressDisplay({
       status: "running",
       phase: "phase_3",
     });
-    expect(pd!.label).toBe("Finalizing your evaluation...");
+    expect(pd!.label).toBe("Finalizing your report...");
     expect(pd!.percentage).toBe(86);
   });
 
   // ── Cross-check / Final QA ────────────────────────────────────────────────
 
-  test("cross_check_status=running -> finishing touches, 97%", () => {
+  test("cross_check_status=running -> finalizing report, 97%", () => {
     const pd = getProgressDisplay({
       status: "running",
       phase: "phase_2",
       phase_status: "complete",
       cross_check_status: "running",
     });
-    expect(pd!.label).toBe("Putting the finishing touches on your report...");
+    expect(pd!.label).toBe("Finalizing your report...");
     expect(pd!.percentage).toBe(97);
   });
 
-  test("cross_check_status=queued -> finishing touches, 97%", () => {
+  test("cross_check_status=queued -> finalizing report, 97%", () => {
     const pd = getProgressDisplay({
       status: "running",
       cross_check_status: "queued",
     });
-    expect(pd!.label).toBe("Putting the finishing touches on your report...");
+    expect(pd!.label).toBe("Finalizing your report...");
     expect(pd!.percentage).toBe(97);
   });
 
   // ── Unknown running state ─────────────────────────────────────────────────
 
-  test("running with no phase -> getting ready label, 5%", () => {
+  test("running with no phase -> preparing your evaluation label, 5%", () => {
     const pd = getProgressDisplay({ status: "running" });
     expect(pd).not.toBeNull();
-    expect(pd!.label).toBe("Getting ready...");
+    expect(pd!.label).toBe("Preparing your evaluation");
     expect(pd!.percentage).toBe(5);
   });
 });
@@ -293,7 +293,7 @@ describe("getStageLabelFromPhase: convenience wrapper", () => {
 
   test("phase_3 returns the finalizing label", () => {
     const label = getStageLabelFromPhase("phase_3", "running", null);
-    expect(label).toBe("Finalizing your evaluation...");
+    expect(label).toBe("Finalizing your report...");
   });
 
   test("null phase returns null (no jargon fallback)", () => {

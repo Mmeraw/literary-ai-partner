@@ -145,7 +145,7 @@ const LABEL_HINTS: Record<string, string> = {
   // Source Integrity layer
   "Hard failure": "A critical extraction error — the system could not reliably identify this element and needs author guidance.",
   // Identity & Pronouns layer
-  "Pronoun variation detected": "The system found different pronouns used for this character in different parts of the manuscript. This may be intentional (character development) or a continuity error.",
+  "Pronoun variation detected": "The system found pronoun-family transitions, cross-family shifts, or unresolved identity signals that may need confirmation.",
 };
 
 function labelHint(label: string): string | undefined {
@@ -3579,6 +3579,26 @@ export function IdentityPronounLayer({
         }
         badgeTone={shiftCount > 0 ? "oxblood" : "gold"}
       />
+
+      <p style={{ fontSize: 13, color: C.textMuted, margin: "-4px 0 12px", lineHeight: 1.65 }}>
+        This layer only shows pronoun-family transitions, cross-family shifts, or identity signals that may need author confirmation. Subject/object forms such as he/him, she/her, and they/them are normalized and hidden.
+      </p>
+
+      {shiftCount === 0 && (
+        <div
+          style={{
+            border: `1px solid ${C.border}`,
+            borderRadius: 12,
+            padding: "12px 14px",
+            background: C.surface,
+            color: C.textMuted,
+            fontSize: 13,
+            marginBottom: 16,
+          }}
+        >
+          No pronoun transitions detected. Stable subject/object pronoun usage was normalized in the background and does not require review.
+        </div>
+      )}
 
       {shiftCount > 0 && (
         <div style={{ display: "flex", flexDirection: "column", gap: 14, marginBottom: 20 }}>

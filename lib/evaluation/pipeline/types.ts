@@ -1078,7 +1078,10 @@ export interface ChapterRef {
 export type NarrativeRole =
   | "protagonist" | "co_protagonist" | "antagonist"
   | "mentor" | "foil" | "secondary" | "symbolic_force" | "collective_force"
-  | "animal_companion" | "unknown";
+  | "animal_companion" | "unknown"
+  | "pressure_agent" | "romantic_catalyst" | "sexual_destabilizer"
+  | "domestic_foil" | "artistic_countermodel" | "social_observer"
+  | "background_mention" | "social_catalyst" | "patriarchal_pressure";
 
 export type ImportanceLevel = "primary" | "major" | "supporting" | "minor" | "background";
 
@@ -1275,8 +1278,13 @@ export interface CharacterStateSnapshot {
 // ══════════════════════════════════════════════════════════════════════════════
 
 export interface RelationshipLedgerEntry {
-  characterA: string;
-  characterB: string;
+  characterA: string;                            // canonical stable ID
+  characterB: string;                            // canonical stable ID
+  pairKey: string;                               // deterministic sorted key: `${minId}↔${maxId}`
+  characterADisplayName?: string;                // optional UI label; not identity
+  characterBDisplayName?: string;                // optional UI label; not identity
+  characterASameNameDisambiguationGroup?: string | null;
+  characterBSameNameDisambiguationGroup?: string | null;
   firstCoPresenceChunk: number;
   firstCoPresenceChapter: string;              // "Chapter 72" — the gate value
   invalidBeforeChapter: string;               // canonical blocker label

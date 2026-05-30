@@ -4872,7 +4872,12 @@ export async function processEvaluationJob(
             worker_id: job.claimed_by ?? 'unknown',
             deploy_sha: DEPLOYED_SHA,
           };
-          await markRunning('Analyzing manuscript', 10, 'phase_1a');
+          // Derive progress from persisted chunk count (the "piggy bank") so
+          // watchdog-reclaimed workers resume where the last worker left off
+          // instead of resetting the progress bar backward.
+          const resumeChunkFraction = totalChunks > 0 ? completedIndexes.size / totalChunks : 0;
+          const resumeProgressUnits = Math.max(10, Math.round(10 + resumeChunkFraction * 30));
+          await markRunning('Analyzing manuscript', resumeProgressUnits, 'phase_1a');
 
           console.log(`[phase_1a] ${jobId}: batch ${batchIndex + 1}/${batchesTotal} — processing chunks [${batchSliceIndexes.join(',')}] budget=${budgetMs}ms`);
 
