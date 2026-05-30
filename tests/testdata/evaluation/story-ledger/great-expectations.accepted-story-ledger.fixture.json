@@ -1,0 +1,313 @@
+{
+  "artifact_type": "accepted_story_ledger_v1",
+  "artifact_version": "v1",
+  "manuscript_id": "great-expectations",
+  "layers": {
+    "pov_structure_layer": {
+      "pov_characters": [
+        {
+          "character_id": "ge:pip",
+          "canonical_name": "Pip / Philip Pirrip",
+          "is_primary": true
+        }
+      ],
+      "pov_mode": "first-person retrospective",
+      "pov_perspective_note": "adult narrator looking back"
+    },
+    "canonical_identity_layer": {
+      "identity_groups": [
+        {
+          "character_id": "ge:pip",
+          "canonical_name": "Pip / Philip Pirrip",
+          "aliases": ["Pip", "Philip Pirrip"]
+        },
+        {
+          "character_id": "ge:joe",
+          "canonical_name": "Joe Gargery",
+          "aliases": ["Joe"]
+        },
+        {
+          "character_id": "ge:biddy",
+          "canonical_name": "Biddy",
+          "aliases": ["Biddy"]
+        },
+        {
+          "character_id": "ge:joe_biddy_son",
+          "canonical_name": "Joe and Biddy's son",
+          "aliases": ["little Pip", "Joe and Biddy's child"]
+        },
+        {
+          "character_id": "ge:magwitch",
+          "canonical_name": "Abel Magwitch",
+          "aliases": ["Magwitch", "Provis", "convict", "unknown benefactor"]
+        },
+        {
+          "character_id": "ge:herbert",
+          "canonical_name": "Herbert Pocket",
+          "aliases": ["Herbert"]
+        },
+        {
+          "character_id": "ge:miss_havisham",
+          "canonical_name": "Miss Havisham",
+          "aliases": ["Miss Havisham"]
+        },
+        {
+          "character_id": "ge:estella",
+          "canonical_name": "Estella",
+          "aliases": ["Estella"]
+        },
+        {
+          "character_id": "ge:jaggers",
+          "canonical_name": "Mr. Jaggers",
+          "aliases": ["Jaggers", "legal machinery"]
+        },
+        {
+          "character_id": "ge:orlick",
+          "canonical_name": "Orlick",
+          "aliases": ["Orlick"]
+        },
+        {
+          "character_id": "ge:drummle",
+          "canonical_name": "Bentley Drummle",
+          "aliases": ["Drummle"]
+        },
+        {
+          "character_id": "ge:compeyson",
+          "canonical_name": "Compeyson",
+          "aliases": ["Compeyson"]
+        }
+      ]
+    },
+    "identity_pronoun_layer": {
+      "pronoun_shifts_detected": 0,
+      "entries": [
+        {
+          "canonical_name": "Pip / Philip Pirrip",
+          "pronouns": ["he/him/his"],
+          "warnings": []
+        },
+        {
+          "canonical_name": "Herbert Pocket",
+          "pronouns": ["he/him/his"],
+          "warnings": []
+        },
+        {
+          "canonical_name": "Mr. Jaggers",
+          "pronouns": ["he/him/his"],
+          "warnings": []
+        },
+        {
+          "canonical_name": "Dolge Orlick",
+          "pronouns": ["he/him/his"],
+          "warnings": []
+        }
+      ]
+    },
+    "relationship_network_layer": {
+      "relationship_pairs": [
+        {
+          "pair_key": "ge:joe↔ge:pip",
+          "character_a": "ge:pip",
+          "character_b": "ge:joe",
+          "character_a_label": "Pip / Philip Pirrip",
+          "character_b_label": "Joe Gargery",
+          "relationship_type_start": "protege",
+          "relationship_type_end": "reconciled_family"
+        },
+        {
+          "pair_key": "ge:magwitch↔ge:pip",
+          "character_a": "ge:pip",
+          "character_b": "ge:magwitch",
+          "character_a_label": "Pip / Philip Pirrip",
+          "character_b_label": "Abel Magwitch",
+          "relationship_type_start": "fear",
+          "relationship_type_end": "obligation_and_compassion"
+        },
+        {
+          "pair_key": "ge:estella↔ge:pip",
+          "character_a": "ge:pip",
+          "character_b": "ge:estella",
+          "character_a_label": "Pip / Philip Pirrip",
+          "character_b_label": "Estella",
+          "relationship_type_start": "desire",
+          "relationship_type_end": "scarred_recognition"
+        },
+        {
+          "pair_key": "ge:miss_havisham↔ge:pip",
+          "character_a": "ge:pip",
+          "character_b": "ge:miss_havisham",
+          "character_a_label": "Pip / Philip Pirrip",
+          "character_b_label": "Miss Havisham",
+          "relationship_type_start": "humiliation",
+          "relationship_type_end": "reckoning"
+        },
+        {
+          "pair_key": "ge:estella↔ge:miss_havisham",
+          "character_a": "ge:estella",
+          "character_b": "ge:miss_havisham",
+          "character_a_label": "Estella",
+          "character_b_label": "Miss Havisham",
+          "relationship_type_start": "manufactured_coldness",
+          "relationship_type_end": "damage_and_separation"
+        },
+        {
+          "pair_key": "ge:compeyson↔ge:magwitch",
+          "character_a": "ge:magwitch",
+          "character_b": "ge:compeyson",
+          "character_a_label": "Abel Magwitch",
+          "character_b_label": "Compeyson",
+          "relationship_type_start": "adversarial_history",
+          "relationship_type_end": "fatal_pursuit"
+        },
+        {
+          "pair_key": "ge:jaggers↔ge:pip",
+          "character_a": "ge:pip",
+          "character_b": "ge:jaggers",
+          "character_a_label": "Pip / Philip Pirrip",
+          "character_b_label": "Mr. Jaggers",
+          "relationship_type_start": "professional_dependency",
+          "relationship_type_end": "moral_disillusionment"
+        },
+        {
+          "pair_key": "ge:biddy↔ge:pip",
+          "character_a": "ge:pip",
+          "character_b": "ge:biddy",
+          "character_a_label": "Pip / Philip Pirrip",
+          "character_b_label": "Biddy",
+          "relationship_type_start": "companionship",
+          "relationship_type_end": "truth_and_distance"
+        },
+        {
+          "pair_key": "ge:orlick↔ge:pip",
+          "character_a": "ge:pip",
+          "character_b": "ge:orlick",
+          "character_a_label": "Pip / Philip Pirrip",
+          "character_b_label": "Orlick",
+          "relationship_type_start": "hostility",
+          "relationship_type_end": "attempted_violence"
+        }
+      ],
+      "pair_count": 9
+    },
+    "threat_antagonist_ending_layer": {
+      "antagonists": [
+        { "character_id": "ge:magwitch", "canonical_name": "Abel Magwitch" },
+        { "character_id": "ge:miss_havisham", "canonical_name": "Miss Havisham" },
+        { "character_id": "ge:estella", "canonical_name": "Estella" },
+        { "character_id": "ge:compeyson", "canonical_name": "Compeyson" },
+        { "character_id": "ge:jaggers", "canonical_name": "Mr. Jaggers" },
+        { "character_id": "ge:orlick", "canonical_name": "Orlick" },
+        { "character_id": "ge:drummle", "canonical_name": "Bentley Drummle" }
+      ],
+      "pressure_systems": [
+        {
+          "pressure_id": "ge_magwitch_benefactor_revelation",
+          "pressure_type": "interpersonal_pressure",
+          "source_kind": "character",
+          "source_character_id": "ge:magwitch",
+          "source_label": "Abel Magwitch",
+          "source_aliases": ["Magwitch", "Provis", "benefactor revelation"],
+          "ending_state": "terminal"
+        },
+        {
+          "pressure_id": "ge_miss_havisham_manipulation",
+          "pressure_type": "interpersonal_pressure",
+          "source_kind": "character",
+          "source_character_id": "ge:miss_havisham",
+          "source_label": "Miss Havisham",
+          "source_aliases": ["manipulation"],
+          "ending_state": "terminal"
+        },
+        {
+          "pressure_id": "ge_estella_emotional_class",
+          "pressure_type": "social_class_pressure",
+          "source_kind": "character",
+          "source_character_id": "ge:estella",
+          "source_label": "Estella",
+          "source_aliases": ["emotional class pressure"],
+          "ending_state": "transformed"
+        },
+        {
+          "pressure_id": "ge_jaggers_legal_machinery",
+          "pressure_type": "legal_institutional_pressure",
+          "source_kind": "character",
+          "source_character_id": "ge:jaggers",
+          "source_label": "Mr. Jaggers",
+          "source_aliases": ["legal machinery"],
+          "ending_state": "resolved"
+        },
+        {
+          "pressure_id": "ge_compeyson_violence",
+          "pressure_type": "physical_danger_violence_pressure",
+          "source_kind": "character",
+          "source_character_id": "ge:compeyson",
+          "source_label": "Compeyson",
+          "source_aliases": ["pursuit"],
+          "ending_state": "terminal"
+        },
+        {
+          "pressure_id": "ge_orlick_violence",
+          "pressure_type": "physical_danger_violence_pressure",
+          "source_kind": "character",
+          "source_character_id": "ge:orlick",
+          "source_label": "Orlick",
+          "source_aliases": ["attempted violence"],
+          "ending_state": "resolved"
+        },
+        {
+          "pressure_id": "ge_drummle_brutality",
+          "pressure_type": "physical_danger_violence_pressure",
+          "source_kind": "character",
+          "source_character_id": "ge:drummle",
+          "source_label": "Drummle",
+          "source_aliases": ["brutality"],
+          "ending_state": "terminal"
+        },
+        {
+          "pressure_id": "ge_class_shame",
+          "pressure_type": "social_class_pressure",
+          "source_kind": "non_character",
+          "source_label": "class shame",
+          "source_aliases": ["status anxiety"],
+          "ending_state": "ongoing_systemic_pressure"
+        },
+        {
+          "pressure_id": "ge_debt_economic",
+          "pressure_type": "economic_debt_pressure",
+          "source_kind": "non_character",
+          "source_label": "debt/economic pressure",
+          "source_aliases": ["debt", "economic pressure"],
+          "ending_state": "ongoing_systemic_pressure"
+        },
+        {
+          "pressure_id": "ge_pip_internal_guilt",
+          "pressure_type": "internal_moral_pressure",
+          "source_kind": "internal",
+          "source_character_id": "ge:pip",
+          "source_label": "Pip's guilt/internal moral pressure",
+          "source_aliases": ["guilt", "moral pressure"],
+          "ending_state": "transformed"
+        }
+      ],
+      "threat_systems": [
+        "Magwitch",
+        "Miss Havisham",
+        "Estella",
+        "Jaggers/legal machinery",
+        "Compeyson",
+        "Orlick",
+        "Drummle",
+        "class shame",
+        "debt/economic pressure",
+        "Pip's guilt"
+      ],
+      "narrative_pressure_vectors": [
+        { "vector_source": "person", "evidence_summary": "Magwitch's return and benefactor revelation destabilize Pip's social trajectory and safety.", "structural_impact_score": 5 },
+        { "vector_source": "institution", "evidence_summary": "Jaggers and legal machinery impose procedural and class-mediated pressure on key character decisions.", "structural_impact_score": 4 },
+        { "vector_source": "social_pressure", "evidence_summary": "Class shame and reputation hierarchy repeatedly constrain aspiration and attachment choices.", "structural_impact_score": 4 },
+        { "vector_source": "poverty", "evidence_summary": "Debt and economic pressure drive obligation, vulnerability, and risk exposure across arcs.", "structural_impact_score": 4 },
+        { "vector_source": "internal_contradiction", "evidence_summary": "Pip's guilt and moral conflict persist as internal pressure shaping consequence and repair.", "structural_impact_score": 4 }
+      ]
+    }
+  }
+}

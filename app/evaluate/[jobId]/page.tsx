@@ -582,10 +582,9 @@ export default async function EvaluationReportPage({
             <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
               job.status === "complete" ? "bg-green-100 text-green-800" :
               job.status === "failed" ? "bg-red-100 text-red-800" :
-              (job.status === "running" || (job.status === "queued" && job.phase && !['phase_0', 'phase_1a'].includes(job.phase))) ? "bg-blue-100 text-blue-800" :
-              "bg-gray-100 text-gray-700"
+              "bg-blue-100 text-blue-800"
             }`}>
-              {job.status === "complete" ? "✓ Report ready" : job.status === "failed" ? "⚠ Needs attention" : (job.status === "running" || (job.status === "queued" && job.phase && !['phase_0', 'phase_1a'].includes(job.phase))) ? "⟳ In progress" : "Waiting in queue"}
+              {job.status === "complete" ? "✓ Report ready" : job.status === "failed" ? "⚠ Needs attention" : "⟳ In progress"}
             </span>
           </div>
           <p className="mt-1 text-lg font-semibold text-gray-900">{displayTitle}</p>
@@ -621,7 +620,7 @@ export default async function EvaluationReportPage({
           aria-live="polite"
         >
           <p className="text-sm font-semibold" style={{ color: '#0E0E0E' }}>
-            ✓ Story Ledger approved — craft diagnosis is now running.
+            ✓ Story Ledger approved — building your report is now running.
           </p>
           <p className="mt-1 text-sm" style={{ color: '#7B7B7B' }}>
             {(() => {
@@ -963,15 +962,15 @@ export default async function EvaluationReportPage({
             </>
           )}
 
-          {/* ── Narrative Synthesis (long-form) ── */}
+          {/* ── Finalizing your report (long-form) ── */}
           {isLongForm && isComplete && (
             <section className="rounded-lg border border-indigo-100 bg-white p-6 mb-4">
               <div className="mb-5">
                 <h2 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
-                  <span aria-hidden>📖</span> Narrative Synthesis
+                  <span aria-hidden>📖</span> Finalizing your report
                 </h2>
                 <p className="text-sm text-gray-700 mt-0.5">
-                  Holistic Craft Assessment — long-form synthesis report
+                  Holistic craft assessment — long-form report finalization
                 </p>
               </div>
 

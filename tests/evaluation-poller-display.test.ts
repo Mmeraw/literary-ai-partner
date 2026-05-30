@@ -13,10 +13,10 @@ import {
 describe("getProgressDisplay: canonical state mapping", () => {
   // ── Queued ───────────────────────────────────────────────────────────────
 
-  test("status=queued -> Waiting in queue, 2%, blue", () => {
+  test("status=queued -> Starting your evaluation, 2%, blue", () => {
     const pd = getProgressDisplay({ status: "queued" });
     expect(pd).not.toBeNull();
-    expect(pd!.label).toBe("Waiting in queue");
+    expect(pd!.label).toBe("Starting your evaluation...");
     expect(pd!.percentage).toBe(2);
     expect(pd!.color).toBe("blue");
     expect(pd!.hardStop).toBe(false);
@@ -50,7 +50,7 @@ describe("getProgressDisplay: canonical state mapping", () => {
       phase: "phase_1a",
       phase_status: "running",
     });
-    expect(pd!.label).toBe("Extracting core narrative footprint...");
+    expect(pd!.label).toBe("Understanding your story...");
     expect(pd!.percentage).toBe(35);
     expect(pd!.color).toBe("blue");
     expect(pd!.hardStop).toBe(false);
@@ -64,7 +64,7 @@ describe("getProgressDisplay: canonical state mapping", () => {
       phase_status: "running",
       phase_unit_fraction: 0.1,
     });
-    expect(pd!.label).toBe("Ingesting manuscript & mapping chapters...");
+    expect(pd!.label).toBe("Reading your manuscript...");
     expect(pd!.percentage).toBe(15);
   });
 
@@ -75,17 +75,17 @@ describe("getProgressDisplay: canonical state mapping", () => {
       phase_status: "running",
       phase_unit_fraction: 0.6,
     });
-    expect(pd!.label).toBe("Extracting core narrative footprint...");
+    expect(pd!.label).toBe("Understanding your story...");
     expect(pd!.percentage).toBe(35);
   });
 
-  test("phase_1a/queued -> ingesting label, 15%", () => {
+  test("phase_1a/queued -> reading label, 15%", () => {
     const pd = getProgressDisplay({
       status: "running",
       phase: "phase_1a",
       phase_status: "queued",
     });
-    expect(pd!.label).toBe("Ingesting manuscript & mapping chapters...");
+    expect(pd!.label).toBe("Reading your manuscript...");
     expect(pd!.percentage).toBe(15);
   });
 
@@ -140,13 +140,13 @@ describe("getProgressDisplay: canonical state mapping", () => {
 
   // ── Phase 2 ───────────────────────────────────────────────────────────────
 
-  test("phase_2 -> deep structural craft diagnostics, 67%", () => {
+  test("phase_2 -> building your report, 67%", () => {
     const pd = getProgressDisplay({
       status: "running",
       phase: "phase_2",
       phase_status: "running",
     });
-    expect(pd!.label).toBe("Running deep structural craft diagnostics...");
+    expect(pd!.label).toBe("Building your report...");
     expect(pd!.percentage).toBe(67);
     expect(pd!.color).toBe("blue");
     expect(pd!.hardStop).toBe(false);
@@ -154,43 +154,43 @@ describe("getProgressDisplay: canonical state mapping", () => {
 
   // ── Phase 3 / synthesis ───────────────────────────────────────────────────
 
-  test("phase_3 -> Assembling evaluation matrix, 86%", () => {
+  test("phase_3 -> finalizing your report, 86%", () => {
     const pd = getProgressDisplay({
       status: "running",
       phase: "phase_3",
     });
-    expect(pd!.label).toBe("Assembling evaluation matrix...");
+    expect(pd!.label).toBe("Finalizing your report...");
     expect(pd!.percentage).toBe(86);
   });
 
   // ── Cross-check / Final QA ────────────────────────────────────────────────
 
-  test("cross_check_status=running -> final structural cross-checks, 97%", () => {
+  test("cross_check_status=running -> finalizing report, 97%", () => {
     const pd = getProgressDisplay({
       status: "running",
       phase: "phase_2",
       phase_status: "complete",
       cross_check_status: "running",
     });
-    expect(pd!.label).toBe("Running final structural cross-checks...");
+    expect(pd!.label).toBe("Finalizing your report...");
     expect(pd!.percentage).toBe(97);
   });
 
-  test("cross_check_status=queued -> final structural cross-checks, 97%", () => {
+  test("cross_check_status=queued -> finalizing report, 97%", () => {
     const pd = getProgressDisplay({
       status: "running",
       cross_check_status: "queued",
     });
-    expect(pd!.label).toBe("Running final structural cross-checks...");
+    expect(pd!.label).toBe("Finalizing your report...");
     expect(pd!.percentage).toBe(97);
   });
 
   // ── Unknown running state ─────────────────────────────────────────────────
 
-  test("running with no phase -> preparing environment label, 5%", () => {
+  test("running with no phase -> preparing your evaluation label, 5%", () => {
     const pd = getProgressDisplay({ status: "running" });
     expect(pd).not.toBeNull();
-    expect(pd!.label).toBe("Preparing evaluation environment");
+    expect(pd!.label).toBe("Preparing your evaluation");
     expect(pd!.percentage).toBe(5);
   });
 });
@@ -247,6 +247,15 @@ describe("getProgressDisplay: no backend jargon in labels", () => {
     /pass1a/i,
     /review_gate/i,
     /awaiting_approval/i,
+    /calibrat/i,
+    /preflight/i,
+    /pipeline/i,
+    /cross.?check/i,
+    /ingesting/i,
+    /evaluation matrix/i,
+    /structural/i,
+    /benchmark/i,
+    /routing/i,
   ];
 
   const allStates: Array<Parameters<typeof getProgressDisplay>[0]> = [
@@ -260,11 +269,12 @@ describe("getProgressDisplay: no backend jargon in labels", () => {
     { status: "complete" },
   ];
 
-  test.each(allStates)("no jargon in label for %o", (args) => {
+  test.each(allStates)("no jargon in label or helperText for %o", (args) => {
     const pd = getProgressDisplay(args);
     if (!pd) return; // failed state returns null — OK
     for (const pattern of jargonPatterns) {
       expect(pd.label).not.toMatch(pattern);
+      expect(pd.helperText).not.toMatch(pattern);
     }
   });
 });
@@ -281,9 +291,9 @@ describe("getStageLabelFromPhase: convenience wrapper", () => {
     expect(label).toBe("Awaiting Story Layer Approval");
   });
 
-  test("phase_3 returns the synthesis label", () => {
+  test("phase_3 returns the finalizing label", () => {
     const label = getStageLabelFromPhase("phase_3", "running", null);
-    expect(label).toBe("Assembling evaluation matrix...");
+    expect(label).toBe("Finalizing your report...");
   });
 
   test("null phase returns null (no jargon fallback)", () => {

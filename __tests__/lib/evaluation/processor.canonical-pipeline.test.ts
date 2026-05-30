@@ -95,6 +95,7 @@ function makeSupabaseStub() {
         voice: { decision: "accept" },
         theme: { decision: "accept" },
         continuity: { decision: "accept" },
+        source_integrity: { decision: "accept" },
       },
     },
     corrections: [],
