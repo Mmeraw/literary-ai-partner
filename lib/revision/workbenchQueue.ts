@@ -23,6 +23,7 @@ export type WorkbenchOpportunity = {
   scope: WorkbenchScope
   mode: WorkbenchMode
   source: WorkbenchSource
+  criterion: string
   leverage: string
   crumb: string
   title: string
@@ -48,6 +49,7 @@ export type WorkbenchQueuePayload = {
   opportunities: WorkbenchOpportunity[]
   totals: Record<WorkbenchSeverity, number>
   scopes: Record<WorkbenchScope, number>
+  criteria: Record<string, number>
   synthesis?: {
     admitted: number
     clustered: number
@@ -447,6 +449,7 @@ function findingToOpportunity(
     scope,
     mode,
     source,
+    criterion,
     leverage: scope === 'Structural' || scope === 'Manuscript' ? 'Structural' : cleanLabel(finding.finding_type || criterion),
     crumb: `${criterion} · ${locationDisplay}`,
     title,
@@ -484,6 +487,7 @@ function emptyPayload(error: string | null): WorkbenchQueuePayload {
     opportunities: [],
     totals: { must: 0, should: 0, could: 0 },
     scopes: { Line: 0, Passage: 0, Scene: 0, Chapter: 0, Structural: 0, Manuscript: 0 },
+    criteria: {},
     synthesis: { admitted: 0, clustered: 0, held: 0, suppressed: 0 },
   }
 }
@@ -538,11 +542,14 @@ export async function getWorkbenchQueue(input: { manuscriptId?: string; evaluati
   if (jobError) return emptyPayload(jobError.message)
   if (!job) return emptyPayload('Evaluation job not found for this manuscript.')
   if (job.status !== 'complete') return emptyPayload('This evaluation is not complete yet. Revise can load after the report is finished.')
-  if (!job.manuscript_version_id) return emptyPayload('This evaluation is missing its manuscript version link.')
+
+  // manuscript_version_id may be null for older jobs — pass it through as empty string
+  // so the queue builder can still extract findings from the evaluation artifact.
+  const versionId = (job.manuscript_version_id as string | null) ?? ''
 
   // Load findings + raw evaluation artifact in parallel
   const [findings, richLookup] = await Promise.all([
-    ensureOperationalRevisionFindings(input.evaluationJobId, job.manuscript_version_id as string),
+    ensureOperationalRevisionFindings(input.evaluationJobId, versionId),
     loadEvaluationArtifactPayload(supabase, input.evaluationJobId),
   ])
 
@@ -550,10 +557,12 @@ export async function getWorkbenchQueue(input: { manuscriptId?: string; evaluati
   const opportunities = synthesisResult.opportunities
   const totals: WorkbenchQueuePayload['totals'] = { must: 0, should: 0, could: 0 }
   const scopes: WorkbenchQueuePayload['scopes'] = { Line: 0, Passage: 0, Scene: 0, Chapter: 0, Structural: 0, Manuscript: 0 }
+  const criteria: Record<string, number> = {}
 
   for (const opportunity of opportunities) {
     totals[opportunity.severity] += 1
     scopes[opportunity.scope] += 1
+    criteria[opportunity.criterion] = (criteria[opportunity.criterion] ?? 0) + 1
   }
 
   return {
@@ -565,6 +574,7 @@ export async function getWorkbenchQueue(input: { manuscriptId?: string; evaluati
     opportunities,
     totals,
     scopes,
+    criteria,
     synthesis: synthesisResult.synthesis,
   }
 }
