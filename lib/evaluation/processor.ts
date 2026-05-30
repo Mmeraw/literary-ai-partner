@@ -2998,6 +2998,208 @@ async function kickPhase1aWorker(): Promise<void> {
   }
 }
 
+type SeedClaimStatus =
+  | 'proposed_unverified'
+  | 'partially_confirmed'
+  | 'confirmed_by_evidence'
+  | 'drift_detected'
+  | 'superseded_by_evidence'
+  | 'invalidated';
+
+type SeedClaim = {
+  claim_id: string;
+  claim_status: SeedClaimStatus;
+  hypothesis: string;
+  temp_seed_entity_id?: string;
+  criterion_key?: string;
+  evidence_coordinates?: string[];
+};
+
+type SeedArtifact = {
+  artifact_type: 'story_seed_v1' | 'evaluation_seed_v1';
+  authority: 'seed_only';
+  artifact_status: 'created' | 'superseded' | 'archived' | 'failed';
+  generated_at: string;
+  claims: SeedClaim[];
+};
+
+function tokenizeSeedCandidates(manuscriptText: string): string[] {
+  const matches = manuscriptText.match(/\b[A-Z][a-z]{2,}\b/g) ?? [];
+  const stopWords = new Set([
+    'The', 'And', 'But', 'For', 'With', 'That', 'This', 'Then', 'When', 'Where', 'From', 'Into',
+    'Chapter', 'Part', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday',
+  ]);
+  const seen = new Set<string>();
+  const candidates: string[] = [];
+
+  for (const token of matches) {
+    if (stopWords.has(token)) continue;
+    const key = token.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    candidates.push(token);
+    if (candidates.length >= 8) break;
+  }
+
+  return candidates;
+}
+
+function buildStorySeedArtifact(args: { manuscriptText: string; generatedAt: string }): SeedArtifact {
+  const entitySeeds = tokenizeSeedCandidates(args.manuscriptText).slice(0, 4);
+  const claims: SeedClaim[] = entitySeeds.map((entity, idx) => ({
+    claim_id: `story_seed:${idx + 1}`,
+    claim_status: 'proposed_unverified',
+    hypothesis: `${entity} may carry recurring narrative pressure or relationship weight.`,
+    temp_seed_entity_id: `temp_seed_entity_${entity.toLowerCase()}`,
+    evidence_coordinates: [`seed:hypothesis:${idx + 1}`],
+  }));
+
+  if (claims.length === 0) {
+    claims.push({
+      claim_id: 'story_seed:0',
+      claim_status: 'proposed_unverified',
+      hypothesis: 'No stable proper-name candidates were detected; derive structural entities from manuscript evidence during Pass 1A.',
+      evidence_coordinates: ['seed:hypothesis:fallback'],
+    });
+  }
+
+  return {
+    artifact_type: 'story_seed_v1',
+    authority: 'seed_only',
+    artifact_status: 'created',
+    generated_at: args.generatedAt,
+    claims,
+  };
+}
+
+function buildEvaluationSeedArtifact(args: { generatedAt: string }): SeedArtifact {
+  const criterionSeeds = CRITERIA_KEYS.slice(0, 6);
+  const claims: SeedClaim[] = criterionSeeds.map((criterionKey, idx) => ({
+    claim_id: `evaluation_seed:${idx + 1}`,
+    claim_status: 'proposed_unverified',
+    criterion_key: criterionKey,
+    hypothesis: `Prioritize evidence extraction for ${criterionKey} and validate only with chunk-grounded anchors.`,
+    evidence_coordinates: [`seed:criterion:${criterionKey}`],
+  }));
+
+  return {
+    artifact_type: 'evaluation_seed_v1',
+    authority: 'seed_only',
+    artifact_status: 'created',
+    generated_at: args.generatedAt,
+    claims,
+  };
+}
+
+function buildPass1aSeedContextBlock(seeds: {
+  storySeed: SeedArtifact;
+  evaluationSeed: SeedArtifact;
+}): string {
+  const lines: string[] = [];
+  const storyClaims = seeds.storySeed.claims.slice(0, 4);
+  const evalClaims = seeds.evaluationSeed.claims.slice(0, 4);
+
+  for (const claim of storyClaims) {
+    lines.push(`- [story] ${claim.claim_id}: ${claim.hypothesis}`);
+  }
+
+  for (const claim of evalClaims) {
+    lines.push(`- [evaluation] ${claim.claim_id}: ${claim.hypothesis}`);
+  }
+
+  lines.push('- Treat all SEED claims as hypotheses only; do not promote without direct chunk evidence.');
+
+  return lines.join('\n');
+}
+
+async function ensureSeedArtifactsForPhase1a(args: {
+  supabase: SupabaseClient<any, any, any>;
+  jobId: string;
+  manuscriptId: number;
+  manuscriptText: string;
+  userId: string;
+}): Promise<{ storySeed: SeedArtifact; evaluationSeed: SeedArtifact; createdTypes: string[] }> {
+  const seedTypes = ['story_seed_v1', 'evaluation_seed_v1'];
+  const { data: existingRows, error: existingErr } = await args.supabase
+    .from('evaluation_artifacts')
+    .select('artifact_type, content')
+    .eq('job_id', args.jobId)
+    .in('artifact_type', seedTypes);
+
+  if (existingErr) {
+    throw new Error(`Failed to read seed artifacts: ${existingErr.message}`);
+  }
+
+  const existingByType = new Map<string, SeedArtifact>();
+  for (const row of existingRows ?? []) {
+    if (
+      row &&
+      typeof row === 'object' &&
+      typeof (row as { artifact_type?: unknown }).artifact_type === 'string' &&
+      (row as { content?: unknown }).content &&
+      typeof (row as { content?: unknown }).content === 'object'
+    ) {
+      existingByType.set(
+        (row as { artifact_type: string }).artifact_type,
+        (row as { content: SeedArtifact }).content,
+      );
+    }
+  }
+
+  const createdTypes: string[] = [];
+  const generatedAt = new Date().toISOString();
+
+  let storySeed = existingByType.get('story_seed_v1');
+  if (!storySeed) {
+    storySeed = buildStorySeedArtifact({ manuscriptText: args.manuscriptText, generatedAt });
+    await upsertEvaluationArtifact({
+      supabase: args.supabase,
+      jobId: args.jobId,
+      manuscriptId: args.manuscriptId,
+      artifactType: 'story_seed_v1',
+      artifactVersion: 'story_seed_v1',
+      sourceHash: stableSourceHash({
+        manuscriptId: args.manuscriptId,
+        jobId: args.jobId,
+        userId: args.userId,
+        manuscriptText: args.manuscriptText,
+        promptVersion: 'story_seed_v1:deterministic',
+        model: 'seed_deterministic',
+      }),
+      content: storySeed,
+    });
+    createdTypes.push('story_seed_v1');
+  }
+
+  let evaluationSeed = existingByType.get('evaluation_seed_v1');
+  if (!evaluationSeed) {
+    evaluationSeed = buildEvaluationSeedArtifact({ generatedAt });
+    await upsertEvaluationArtifact({
+      supabase: args.supabase,
+      jobId: args.jobId,
+      manuscriptId: args.manuscriptId,
+      artifactType: 'evaluation_seed_v1',
+      artifactVersion: 'evaluation_seed_v1',
+      sourceHash: stableSourceHash({
+        manuscriptId: args.manuscriptId,
+        jobId: args.jobId,
+        userId: args.userId,
+        manuscriptText: args.manuscriptText,
+        promptVersion: 'evaluation_seed_v1:deterministic',
+        model: 'seed_deterministic',
+      }),
+      content: evaluationSeed,
+    });
+    createdTypes.push('evaluation_seed_v1');
+  }
+
+  if (!storySeed || !evaluationSeed) {
+    throw new Error('SEED_ARTIFACTS_MISSING_AFTER_ENSURE');
+  }
+
+  return { storySeed, evaluationSeed, createdTypes };
+}
+
 /**
  * Process a single evaluation job
  */
@@ -4717,6 +4919,47 @@ export async function processEvaluationJob(
       }
       // ── End PHASE_0_NOT_PROVEN guard ────────────────────────────────────────
 
+      // ── SEED guard + generation before any Phase 1A chunk work ─────────────
+      // Contract: Phase 1A must run with story_seed_v1 + evaluation_seed_v1
+      // present. If missing, generate deterministically and persist before
+      // dispatching Pass 1A. Any seed persistence failure is fail-closed.
+      let phase1aSeedContextBlock = '';
+      try {
+        const ensuredSeeds = await ensureSeedArtifactsForPhase1a({
+          supabase,
+          jobId: String(job.id),
+          manuscriptId: Number(job.manuscript_id),
+          manuscriptText: manuscriptWithContent.content || '',
+          userId: manuscriptWithContent.user_id,
+        });
+
+        phase1aSeedContextBlock = buildPass1aSeedContextBlock({
+          storySeed: ensuredSeeds.storySeed,
+          evaluationSeed: ensuredSeeds.evaluationSeed,
+        });
+
+        if (ensuredSeeds.createdTypes.length > 0) {
+          console.log(`[phase_1a] ${jobId}: generated missing seed artifacts`, {
+            created: ensuredSeeds.createdTypes,
+          });
+        } else {
+          console.log(`[phase_1a] ${jobId}: seed artifacts already present`);
+        }
+      } catch (seedErr) {
+        const seedErrMsg = seedErr instanceof Error ? seedErr.message : String(seedErr);
+        await markFailed(
+          `Phase 1A requires story_seed_v1 + evaluation_seed_v1 before chunk processing: ${seedErrMsg}`,
+          'SEED_ARTIFACTS_MISSING',
+          {
+            pipelineStage: 'phase_1a_seed_guard',
+            reasonCodes: ['SEED_ARTIFACTS_MISSING'],
+            diagnostics: { error: seedErrMsg },
+            bucket: 'supabase_contract',
+          },
+        );
+        return { success: false, error: 'SEED_ARTIFACTS_MISSING' };
+      }
+
 
       // ── Phase 1A: Self-Chaining Batch Mode ─────────────────────────────────
       //
@@ -4959,6 +5202,7 @@ export async function processEvaluationJob(
               manuscriptChunks: batchChunks,
               workType: manuscriptWithContent.work_type || 'novel',
               title: manuscriptWithContent.title,
+              seedContextBlock: phase1aSeedContextBlock,
               openaiApiKey,
               jobId: String(job.id),
               _chunkCache: pass1aCacheMap,

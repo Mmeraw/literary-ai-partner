@@ -280,7 +280,13 @@ export function buildPass1aUserPrompt(params: {
   chunkIndex: number;
   title: string;
   workType: string;
+  seedContextBlock?: string;
 }): string {
+  const seedBlock =
+    typeof params.seedContextBlock === 'string' && params.seedContextBlock.trim().length > 0
+      ? `\n\nSEED CONTEXT (NON-AUTHORITATIVE HYPOTHESES — VERIFY AGAINST CHUNK EVIDENCE):\n${params.seedContextBlock}`
+      : '';
+
   return `Sweep this chunk (index ${params.chunkIndex}) of "${params.title}" (${params.workType}) for ALL character evidence and threat-bearing story forces.
 
 CHUNK TEXT:
@@ -294,5 +300,5 @@ Prioritize POV characters, pressure agents/catalysts/threat-bearing figures, non
 Use the expanded role taxonomy: antagonist ONLY for true villains/rivals; pressure_agent for social/marital/institutional constraint; romantic_catalyst, sexual_destabilizer, domestic_foil, artistic_countermodel, social_observer, background_mention for specific functional roles.
 Capture plot-critical objects AND recurring symbols (environmental forces, location-objects, artistic practices, motifs).
 Apply all HARD CAPS.
-Fill identity fields ONLY from explicit text signals — never infer or assume.`;
+Fill identity fields ONLY from explicit text signals — never infer or assume.${seedBlock}`;
 }
