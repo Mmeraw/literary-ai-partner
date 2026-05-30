@@ -58,10 +58,11 @@ function evidenceStatusOf(item: WorkbenchOpportunity): EvidenceStatus {
 
 function decisionGroup(decision?: DecisionState): Exclude<DecisionFilter, "all"> {
   if (!decision) return "pending";
-  if (decision.startsWith("accepted")) return "accepted";
+  if (decision === "accepted_a" || decision === "accepted_b" || decision === "accepted_c") return "accepted";
   if (decision === "keep_original") return "kept_original";
   if (decision === "reject") return "rejected";
-  return decision;
+  if (decision === "custom") return "custom";
+  return "deferred";
 }
 
 function decisionLabel(entry: LedgerEntry) {
