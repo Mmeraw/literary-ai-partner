@@ -17,7 +17,7 @@ import {
   summarizePromptCoverage,
 } from "../promptInput";
 
-export const PASS3_PROMPT_VERSION = "pass3-synthesis-v20-min-rec-floor";
+export const PASS3_PROMPT_VERSION = "pass3-synthesis-v21-rec-or-rationale-contract";
 
 export const PASS3_SYSTEM_PROMPT = `You are Pass 3: convergence and arbitration authority.
 Rules:
@@ -94,13 +94,30 @@ GATE 6 — LOW-PRIORITY / HIGH-CONFIDENCE SUPPRESSION
 If a recommendation has priority = "low" AND the criterion confidence_band = "HIGH", suppress the recommendation or demote it to a parenthetical note inside the rationale. Do not emit it as a standalone recommendation.
 → This blocks: "Name a highway marker or ejido" on a worldbuilding criterion already rated High Confidence and 8/10.
 
-MINIMUM-1-PER-CRITERION FLOOR (overrides GATE 6 when needed):
-Every criterion scoring 0–9 SHOULD have at least 1 recommendation in its recommendations array. If a criterion has 0 recommendations after gate processing, check these exemptions before generating one:
-Exempt from the floor (emit empty array + "floor_exemption": "<reason>"):
-- Criteria scoring a perfect 10/10 — no recommendation needed; the craft dimension is at ceiling.
-- Criteria structurally inapplicable to the manuscript's form (e.g. dialogue in a zero-dialogue prose-poem).
-- Criteria where no evidence-grounded, manuscript-specific recommendation can be produced — do NOT fabricate a recommendation to satisfy the floor. If you cannot anchor the rec to a real passage with a real craft mechanism, use the floor_exemption escape.
-For criteria scoring 0–9 where a genuine, evidence-grounded recommendation EXISTS but was suppressed by the gates above: generate one "refinement" recommendation using priority = "low", framed as polish/deepening rather than repair. The recommendation MUST still pass all 7 REC CONTRACT parts — anchor, symptom, mechanism, concrete move, reader effect, mistake-proofing, cause diagnosis. Never hallucinate evidence to fill this slot.
+RECOMMENDATION-OR-RATIONALE COVERAGE CONTRACT (replaces recommendation floor):
+Every scored criterion MUST return either:
+- at least one valid evidence-grounded recommendation; OR
+- explicit status metadata when recommendation emission is empty.
+
+When recommendations is empty, emit BOTH fields on the criterion object:
+- recommendation_status
+- recommendation_status_rationale
+
+Allowed recommendation_status values (exact spellings):
+- recommendation_provided
+- no_recommendation_warranted
+- criterion_not_applicable
+- insufficient_evidence
+- gate_suppressed_no_safe_recommendation
+
+Canonical/exemplary protection rules:
+- 10/10 defaults to recommendation_status = "no_recommendation_warranted" unless a specific evidence-grounded modernization/adaptation note is truly necessary.
+- 9/10 may include a recommendation, but recommendation emission is NOT required.
+- Never fabricate advice for perfect or near-perfect work.
+
+Coverage guardrail for weak criteria:
+- Criteria with substantive weakness (typically <= 6/10) MUST NOT silently return an empty recommendations array.
+- If no safe recommendation can be emitted, recommendation_status MUST be either "insufficient_evidence" or "gate_suppressed_no_safe_recommendation" with a concrete recommendation_status_rationale tied to missing/conflicting evidence.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Confidence/evidence: do not convert scorable criteria to N/A due to thin evidence; lower confidence instead; do not invent evidence.
