@@ -2822,8 +2822,24 @@ function formatTerminalEntry(entry: Record<string, unknown>): {
   const charId = String(entry.characterId ?? "");
   const name = charId ? sentenceCaseId(charId) : "Unknown";
   const belief = String(entry.finalBeliefState ?? "");
-  const condition = String(entry.terminalCondition ?? "open");
-  const closure = String(entry.narrativeClosureStatus ?? "unknown");
+  const rawCondition = String(entry.terminalCondition ?? "open");
+  const TERMINAL_LABELS: Record<string, string> = {
+    death: "Dies",
+    departure: "Departs",
+    disappearance: "Disappears",
+    transformation: "Transformed",
+    open: "Arc open",
+    unresolved: "Arc unresolved",
+  };
+  const condition = TERMINAL_LABELS[rawCondition] ?? rawCondition.replace(/_/g, " ");
+  const rawClosure = String(entry.narrativeClosureStatus ?? "unknown");
+  const CLOSURE_LABELS: Record<string, string> = {
+    closed: "Closed",
+    open: "Open",
+    ambiguous: "Ambiguous",
+    unknown: "Not yet determined",
+  };
+  const closure = CLOSURE_LABELS[rawClosure] ?? rawClosure.replace(/_/g, " ");
   const chunk = entry.terminalChunk ?? entry.terminalChapter ?? "";
   const terminal = chunk ? `Last seen: ${typeof chunk === "number" ? `section ${chunk}` : chunk}` : "";
   return { name, terminal, belief, condition, closure };
