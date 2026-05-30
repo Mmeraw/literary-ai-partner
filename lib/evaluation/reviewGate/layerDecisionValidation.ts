@@ -5,6 +5,15 @@ type LayerDecision = {
   comment?: unknown;
 };
 
+const STATUS_NORMALIZATION_MAP: Record<string, string> = {
+  approved: 'accepted',
+  approved_with_comment: 'accepted_with_comment',
+  accepted: 'accepted',
+  accepted_with_comment: 'accepted_with_comment',
+  rejected: 'rejected',
+  rejected_with_comment: 'rejected_with_comment',
+};
+
 const ALLOWED_STATUSES = new Set([
   'accepted',
   'accepted_with_comment',
@@ -22,15 +31,39 @@ function hasNonEmptyComment(value: unknown): boolean {
   return typeof value === 'string' && value.trim().length > 0;
 }
 
-export function validateLayerDecisionsForApproval(layerDecisions: unknown): { ok: true } | { ok: false; error: string } {
+export function normalizeLayerDecisionsForPersistence(layerDecisions: unknown): Record<string, LayerDecision> | null {
   if (!isRecord(layerDecisions)) {
+    return null;
+  }
+
+  const normalized: Record<string, LayerDecision> = {};
+  for (const [key, rawDecision] of Object.entries(layerDecisions)) {
+    if (!isRecord(rawDecision)) {
+      normalized[key] = { ...rawDecision } as LayerDecision;
+      continue;
+    }
+
+    const rawStatus = typeof rawDecision.status === 'string' ? rawDecision.status.trim().toLowerCase() : '';
+    normalized[key] = {
+      ...rawDecision,
+      status: STATUS_NORMALIZATION_MAP[rawStatus] ?? rawDecision.status,
+    };
+  }
+
+  return normalized;
+}
+
+export function validateLayerDecisionsForApproval(layerDecisions: unknown): { ok: true } | { ok: false; error: string } {
+  const normalizedLayerDecisions = normalizeLayerDecisionsForPersistence(layerDecisions);
+
+  if (!normalizedLayerDecisions) {
     return {
       ok: false,
       error: 'All 9 layer decisions are required to approve the Story Ledger.',
     };
   }
 
-  const keys = Object.keys(layerDecisions);
+  const keys = Object.keys(normalizedLayerDecisions);
   if (keys.length !== STORY_LAYER_KEYS.length) {
     return {
       ok: false,
@@ -48,7 +81,7 @@ export function validateLayerDecisionsForApproval(layerDecisions: unknown): { ok
   }
 
   for (const key of STORY_LAYER_KEYS) {
-    const rawDecision = layerDecisions[key] as LayerDecision | undefined;
+    const rawDecision = normalizedLayerDecisions[key] as LayerDecision | undefined;
     if (!rawDecision || !isRecord(rawDecision)) {
       return {
         ok: false,

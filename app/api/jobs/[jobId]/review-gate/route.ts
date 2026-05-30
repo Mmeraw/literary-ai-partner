@@ -36,7 +36,10 @@ import { getAuthenticatedUser } from '@/lib/supabase/server';
 import { createHash, randomUUID } from 'crypto';
 import { buildPhaseLogPatch } from '@/lib/evaluation/phaseLog';
 import { collectDependencyWarningsFromStoryLayers } from '@/lib/evaluation/phase1a/storyLayerDependencyHealth';
-import { validateLayerDecisionsForApproval } from '@/lib/evaluation/reviewGate/layerDecisionValidation';
+import {
+  normalizeLayerDecisionsForPersistence,
+  validateLayerDecisionsForApproval,
+} from '@/lib/evaluation/reviewGate/layerDecisionValidation';
 
 type Disposition = 'accepted_without_changes' | 'accepted_with_edits' | 'rejected';
 
@@ -122,6 +125,8 @@ export async function POST(request: NextRequest, { params }: RouteParams): Promi
       );
     }
   }
+
+  const normalizedLayerDecisions = normalizeLayerDecisionsForPersistence(layer_decisions) ?? {};
 
   const supabase = createAdminClient();
 
@@ -216,7 +221,7 @@ export async function POST(request: NextRequest, { params }: RouteParams): Promi
     submitted_at: now,
     author_notes: author_notes ?? null,
     edit_requests: edit_requests ?? [],
-    layer_decisions: layer_decisions ?? {},
+    layer_decisions: normalizedLayerDecisions,
     pass1a_story_layer_source_hash:
       (storyLayerArtifactRow as { source_hash?: string }).source_hash ?? null,
   };
@@ -311,7 +316,7 @@ export async function POST(request: NextRequest, { params }: RouteParams): Promi
     qualityReportContent?.quality_report?.layer_dependency_warnings ??
     collectDependencyWarningsFromStoryLayers(acceptedStoryLayers);
 
-  const decisionValues = Object.values(layer_decisions ?? {});
+  const decisionValues = Object.values(normalizedLayerDecisions);
   const rejectedCount = decisionValues.filter(
     (d) => d.status === 'rejected' || d.status === 'rejected_with_comment',
   ).length;
@@ -336,7 +341,7 @@ export async function POST(request: NextRequest, { params }: RouteParams): Promi
       disposition,
       approved_by: user.id,
       approved_at: now,
-      layer_decisions: layer_decisions ?? {},
+      layer_decisions: normalizedLayerDecisions,
     }),
     generated_at: now,
     // Story layer layers (carried forward from pass1a_story_layer_v1)
@@ -354,7 +359,7 @@ export async function POST(request: NextRequest, { params }: RouteParams): Promi
       unresolved_warnings_preserved: true,
       dependency_warnings: dependencyWarnings,
       contested_layer_count: rejectedCount,
-      layer_decisions: layer_decisions ?? {},
+      layer_decisions: normalizedLayerDecisions,
     },
   };
 

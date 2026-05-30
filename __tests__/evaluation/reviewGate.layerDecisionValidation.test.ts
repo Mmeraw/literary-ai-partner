@@ -1,5 +1,8 @@
 import { STORY_LAYER_KEYS } from '@/lib/evaluation/artifacts/artifactTypes';
-import { validateLayerDecisionsForApproval } from '@/lib/evaluation/reviewGate/layerDecisionValidation';
+import {
+  normalizeLayerDecisionsForPersistence,
+  validateLayerDecisionsForApproval,
+} from '@/lib/evaluation/reviewGate/layerDecisionValidation';
 
 function buildDecision(status: string, comment = 'ok') {
   return { status, comment };
@@ -44,10 +47,25 @@ describe('validateLayerDecisionsForApproval', () => {
     }
   });
 
+  it('accepts approved UI statuses after normalization', () => {
+    const uiPayload = {
+      ...buildValidLayerDecisionSet(),
+      [STORY_LAYER_KEYS[0]]: { status: 'approved', comment: 'ok' },
+      [STORY_LAYER_KEYS[1]]: { status: 'approved_with_comment', comment: 'needs care' },
+    };
+
+    const validation = validateLayerDecisionsForApproval(uiPayload);
+    expect(validation).toEqual({ ok: true });
+
+    const normalized = normalizeLayerDecisionsForPersistence(uiPayload);
+    expect(normalized?.[STORY_LAYER_KEYS[0]]?.status).toBe('accepted');
+    expect(normalized?.[STORY_LAYER_KEYS[1]]?.status).toBe('accepted_with_comment');
+  });
+
   it('fails when status is not part of canonical contract', () => {
     const invalid = {
       ...buildValidLayerDecisionSet(),
-      [STORY_LAYER_KEYS[0]]: { status: 'approved', comment: 'x' },
+      [STORY_LAYER_KEYS[0]]: { status: 'accepted_plus', comment: 'x' },
     };
 
     const result = validateLayerDecisionsForApproval(invalid);

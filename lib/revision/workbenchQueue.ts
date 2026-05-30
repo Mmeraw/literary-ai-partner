@@ -252,13 +252,27 @@ function modeForScope(scope: WorkbenchScope): WorkbenchMode {
 }
 
 function scopeFromCoordinates(coordinates: string): WorkbenchScope {
-  const normalized = coordinates.toLowerCase()
-  if (normalized.includes('manuscript')) return 'Manuscript'
-  if (normalized.includes('structural')) return 'Structural'
-  if (normalized.includes('chapter')) return 'Chapter'
-  if (normalized.includes('scene')) return 'Scene'
-  if (normalized.includes('passage') || normalized.includes('paragraph')) return 'Passage'
-  return 'Line'
+  const normalized = coordinates.trim().toLowerCase()
+  const prefixMatch = normalized.match(/^([a-z_]+):/)
+  const prefix = prefixMatch?.[1] ?? ''
+
+  switch (prefix) {
+    case 'line':
+      return 'Line'
+    case 'passage':
+      return 'Passage'
+    case 'scene':
+      return 'Scene'
+    case 'chapter':
+      return 'Chapter'
+    case 'structural':
+      return 'Structural'
+    case 'manuscript':
+      return 'Manuscript'
+    default:
+      // Safe fallback for unknown or malformed coordinates.
+      return 'Passage'
+  }
 }
 
 function fallbackReaderEffect(criterion: string, scope: WorkbenchScope): string {
@@ -628,4 +642,5 @@ export async function getWorkbenchQueue(input: { manuscriptId?: string; evaluati
 export const __testing = {
   hasActionableEvidence,
   synthesizeFindingsForWorkbench,
+  scopeFromCoordinates,
 }
