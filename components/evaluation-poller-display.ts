@@ -257,7 +257,7 @@ export function getProgressDisplay(
   }
 
   return {
-    label: "Getting ready...",
+    label: "Preparing your evaluation",
     valueLabel: "5%",
     helperText: "Your evaluation will begin shortly.",
     indeterminate: false,
