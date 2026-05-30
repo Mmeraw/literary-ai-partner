@@ -16,6 +16,10 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 export type ArtifactType =
   | "evaluation_result_v1"
   | "evaluation_result_v2"
+  /** Runtime SEED hypothesis artifact generated before Phase 1A. */
+  | "story_seed_v1"
+  /** Runtime evaluation-priority SEED hypothesis artifact generated before Phase 1A. */
+  | "evaluation_seed_v1"
   | "diagnostic_pass3_snapshot_v1"
   /** Audit-grade: raw Pass 1 / Pass 2 / Pass 3 outputs as emitted on gate failure. Not user-visible. */
   | "pass_outputs_diagnostic_v1"
