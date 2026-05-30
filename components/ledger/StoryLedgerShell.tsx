@@ -27,6 +27,12 @@ import { STORY_LAYER_KEYS } from "@/lib/evaluation/artifacts/artifactTypes";
 import { STORY_LAYER_METADATA } from "@/components/ledger/storyLayerMetadata";
 import { StoryLayerRenderer, LayerCompletionBar } from "@/components/ledger/StoryLedgerLayers";
 
+function isNextRedirectError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const digest = (error as { digest?: unknown }).digest;
+  return typeof digest === "string" && digest.startsWith("NEXT_REDIRECT");
+}
+
 // ─── Web Speech API mic input ───────────────────────────────────────────────
 
 type SpeechState = "idle" | "listening" | "error";
@@ -1553,7 +1559,10 @@ function Module2ReviewGate({
               }
               try {
                 await approveLedgerAction(fd);
-              } catch {
+              } catch (error) {
+                if (!isNextRedirectError(error)) {
+                  throw error;
+                }
                 // redirect() throws NEXT_REDIRECT — if it propagates here
                 // the framework handles it. If not, fall through to client push.
               }
@@ -1608,7 +1617,10 @@ function Module2ReviewGate({
               fd.set("author_notes", notes);
               try {
                 await rejectLedgerAction(fd);
-              } catch {
+              } catch (error) {
+                if (!isNextRedirectError(error)) {
+                  throw error;
+                }
                 // redirect() throws NEXT_REDIRECT
               }
               router.push(`/evaluate/${jobId}/ledger?rejected=1`);
