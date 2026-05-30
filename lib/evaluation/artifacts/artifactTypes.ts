@@ -8,6 +8,8 @@
 export const CANONICAL_EVALUATION_ARTIFACT_TYPES = [
   'dream_calibration_packet_v1',
   'factual_anomalies_detected_v1',
+  'story_seed_v1',
+  'evaluation_seed_v1',
   'pass1a_story_layer_v1',
   'ledger_quality_report_v1',
   'ledger_user_feedback_v1',
@@ -56,6 +58,7 @@ export type ArtifactAuthority =
   | 'governing_story_understanding'
   | 'gate_verdict'
   | 'review_trace'
+  | 'seed_scaffold'
   | 'phase2_enrichment'
   | 'calibration'
   | 'external_verification'
@@ -65,6 +68,7 @@ export type ArtifactAuthority =
 
 export type ArtifactPhase =
   | 'phase_0_calibration'
+  | 'phase_0_seed'
   | 'phase_1a_story_layer'
   | 'review_gate'
   | 'approval_normalizer'
