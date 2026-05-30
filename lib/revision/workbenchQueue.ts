@@ -3,6 +3,12 @@ import { getAuthenticatedUser } from '@/lib/supabase/server'
 import { ensureRevisionOpportunityLedgerArtifact } from './opportunityLedger'
 import { getCriterionDisplayLabel } from '@/lib/evaluation/reportRenderSafety'
 import type { DiagnosticFinding, ProposalSeverity } from './types'
+import {
+  inferRevisionOperation,
+  type RevisionOperation,
+  type RevisionReadiness,
+  validateReviseCardContract,
+} from './reviseCardContract'
 
 export type WorkbenchSeverity = 'must' | 'should' | 'could'
 export type WorkbenchScope = 'Line' | 'Passage' | 'Scene' | 'Chapter' | 'Structural' | 'Manuscript'
@@ -37,6 +43,9 @@ export type WorkbenchOpportunity = {
   fixDirection: string
   readerEffect: string
   mistakeProofing: string
+  revisionOperation: RevisionOperation
+  readiness: RevisionReadiness
+  readinessReason: string | null
   options: WorkbenchOption[]
 }
 
@@ -47,6 +56,11 @@ export type WorkbenchQueuePayload = {
   evaluationJobId: string | null
   manuscriptTitle: string
   opportunities: WorkbenchOpportunity[]
+  needsTargeting: WorkbenchOpportunity[]
+  readinessTotals: {
+    ready_for_revise: number
+    needs_targeting: number
+  }
   totals: Record<WorkbenchSeverity, number>
   scopes: Record<WorkbenchScope, number>
   criteria: Record<string, number>
@@ -467,7 +481,7 @@ function findingToOpportunity(
   // Anchor: if rich recommendation has a snippet, show a location hint
   const anchor = cleanedLocationRef ?? (rich?.anchor_snippet ? 'evidence anchored' : 'Location pending')
 
-  return {
+  return applyReviseCardContract({
     id: finding.id || `finding-${index + 1}`,
     severity,
     scope,
@@ -488,7 +502,7 @@ function findingToOpportunity(
     readerEffect: rich?.reader_effect || fallbackReaderEffect(finding.criterion_key, scope),
     mistakeProofing: rich?.mistake_proofing || fallbackMistakeProofing(mode),
     options: rich ? optionsFromRich(rich, mode) : optionsFallback(mode),
-  }
+  })
 }
 
 const sourceOrder: Record<WorkbenchSource, number> = { evaluation: 0, deep_revision: 1, baseline_discovery: 2 }
@@ -509,10 +523,36 @@ function emptyPayload(error: string | null): WorkbenchQueuePayload {
     evaluationJobId: null,
     manuscriptTitle: 'Revise Workbench',
     opportunities: [],
+    needsTargeting: [],
+    readinessTotals: { ready_for_revise: 0, needs_targeting: 0 },
     totals: { must: 0, should: 0, could: 0 },
     scopes: { Line: 0, Passage: 0, Scene: 0, Chapter: 0, Structural: 0, Manuscript: 0 },
     criteria: {},
     synthesis: { admitted: 0, clustered: 0, held: 0, suppressed: 0 },
+  }
+}
+
+function applyReviseCardContract(opportunity: Omit<WorkbenchOpportunity, 'revisionOperation' | 'readiness' | 'readinessReason'>): WorkbenchOpportunity {
+  const revisionOperation = inferRevisionOperation({
+    scope: opportunity.scope,
+    mode: opportunity.mode,
+    fixDirection: opportunity.fixDirection,
+    recommendation: opportunity.symptom,
+  })
+
+  const sourceText = `${opportunity.quoteHighlight ?? ''}${opportunity.quoteRest ?? ''}`.trim()
+  const contract = validateReviseCardContract({
+    sourceText,
+    sourceLocationLabel: opportunity.anchor,
+    revisionOperation,
+    candidateTexts: opportunity.options.map((option) => option.text),
+  })
+
+  return {
+    ...opportunity,
+    revisionOperation,
+    readiness: contract.readiness,
+    readinessReason: contract.reason,
   }
 }
 
@@ -584,7 +624,7 @@ export async function getWorkbenchQueue(input: { manuscriptId?: string; evaluati
           : 'could'
     const evidence = splitEvidence(opportunity.evidence_anchor)
 
-    return {
+    return applyReviseCardContract({
       id: opportunity.opportunity_id,
       severity,
       scope,
@@ -604,14 +644,36 @@ export async function getWorkbenchQueue(input: { manuscriptId?: string; evaluati
       fixDirection: opportunity.rationale,
       readerEffect: fallbackReaderEffect(opportunity.criterion, scope),
       mistakeProofing: fallbackMistakeProofing(mode),
-      options: optionsFallback(mode),
-    }
+      options: [
+        {
+          key: 'A',
+          mechanism: 'Recommended repair',
+          text: opportunity.rationale,
+          rationale: 'Primary repair path from the evaluation.',
+        },
+        {
+          key: 'B',
+          mechanism: 'Rhythm variant',
+          text: opportunity.rationale,
+          rationale: 'Secondary variant for author-controlled cadence.',
+        },
+        {
+          key: 'C',
+          mechanism: 'Bolder rendering shift',
+          text: opportunity.rationale,
+          rationale: 'Alternative variant for stronger emphasis.',
+        },
+      ],
+    })
   })
 
+  const readyForRevise = opportunities.filter((opportunity) => opportunity.readiness === 'ready_for_revise')
+  const needsTargeting = opportunities.filter((opportunity) => opportunity.readiness === 'needs_targeting')
+
   const synthesisResult = {
-    admitted: opportunities.length,
+    admitted: readyForRevise.length,
     clustered: 0,
-    held: 0,
+    held: needsTargeting.length,
     suppressed: 0,
   }
 
@@ -619,7 +681,7 @@ export async function getWorkbenchQueue(input: { manuscriptId?: string; evaluati
   const scopes: WorkbenchQueuePayload['scopes'] = { Line: 0, Passage: 0, Scene: 0, Chapter: 0, Structural: 0, Manuscript: 0 }
   const criteria: Record<string, number> = {}
 
-  for (const opportunity of opportunities) {
+  for (const opportunity of readyForRevise) {
     totals[opportunity.severity] += 1
     scopes[opportunity.scope] += 1
     criteria[opportunity.criterion] = (criteria[opportunity.criterion] ?? 0) + 1
@@ -631,7 +693,12 @@ export async function getWorkbenchQueue(input: { manuscriptId?: string; evaluati
     manuscriptId: input.manuscriptId,
     evaluationJobId: input.evaluationJobId,
     manuscriptTitle: manuscript.title ?? 'Untitled Manuscript',
-    opportunities,
+    opportunities: readyForRevise,
+    needsTargeting,
+    readinessTotals: {
+      ready_for_revise: readyForRevise.length,
+      needs_targeting: needsTargeting.length,
+    },
     totals,
     scopes,
     criteria,
