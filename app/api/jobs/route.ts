@@ -76,7 +76,7 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json();
-  const processing_terms_accepted = body?.processing_terms_accepted;
+    const processing_terms_accepted = body?.processing_terms_accepted;
 
     let manuscript_id = body?.manuscript_id;
     const job_type = body?.job_type;
@@ -84,6 +84,7 @@ export async function POST(req: Request) {
     const manuscript_title = body?.manuscript_title;
     const manuscript_size = body?.manuscript_size; // Size in bytes
     const user_tier = body?.user_tier as "free" | "premium" | "agent" | undefined;
+    let immediateManuscriptWordCount: number | null = null;
 
     if (!manuscript_id && !manuscript_text) {
       logger.warn("Job creation validation failed", {
@@ -232,6 +233,7 @@ export async function POST(req: Request) {
       const encodedText = encodeURIComponent(trimmedText);
       const fileUrl = `data:text/plain;charset=utf-8,${encodedText}`;
       const wordCount = trimmedText.split(/\s+/).filter(Boolean).length;
+      immediateManuscriptWordCount = wordCount;
       const fileSize = new TextEncoder().encode(trimmedText).length;
 
       const supabaseAdmin = createAdminClient();
@@ -286,6 +288,31 @@ export async function POST(req: Request) {
           { status: 400 }
         );
       }
+      manuscript_id = parsedId;
+    }
+
+    if (immediateManuscriptWordCount === null && Number.isInteger(manuscript_id) && manuscript_id > 0) {
+      const supabaseAdmin = createAdminClient();
+      const { data: manuscriptWordCountRow, error: wordCountError } = await supabaseAdmin
+        .from("manuscripts")
+        .select("word_count")
+        .eq("id", manuscript_id)
+        .maybeSingle();
+
+      if (wordCountError) {
+        logger.warn("Failed to load manuscript word count for job progress seed", {
+          trace_id,
+          request_id,
+          event: "api.jobs.create.word_count_seed_failed",
+          manuscript_id,
+          error: wordCountError.message,
+        });
+      } else if (
+        typeof manuscriptWordCountRow?.word_count === "number" &&
+        manuscriptWordCountRow.word_count > 0
+      ) {
+        immediateManuscriptWordCount = manuscriptWordCountRow.word_count;
+      }
     }
 
     const featureAccess = await checkFeatureAccess(userId, validatedJobType, user_tier);
@@ -332,6 +359,38 @@ export async function POST(req: Request) {
       user_id: userId,
       job_type: validatedJobType,
     });
+
+    if (immediateManuscriptWordCount !== null) {
+      const supabaseAdmin = createAdminClient();
+      const seededProgress = {
+        ...(job.progress ?? {}),
+        manuscript_word_count: immediateManuscriptWordCount,
+        chunk_routing: {
+          ...(((job.progress ?? {}).chunk_routing as Record<string, unknown> | undefined) ?? {}),
+          manuscript_words: immediateManuscriptWordCount,
+          source_manuscript_words: immediateManuscriptWordCount,
+        },
+      };
+
+      const { error: wordCountSeedError } = await supabaseAdmin
+        .from("evaluation_jobs")
+        .update({
+          progress: seededProgress,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", job.id);
+
+      if (wordCountSeedError) {
+        logger.warn("Failed to seed evaluation job word count", {
+          trace_id,
+          request_id,
+          event: "api.jobs.create.word_count_progress_seed_failed",
+          job_id: job.id,
+          manuscript_id,
+          error: wordCountSeedError.message,
+        });
+      }
+    }
 
     const jobAcceptedAt = new Date().toISOString();
     emitLatencyTrace({
