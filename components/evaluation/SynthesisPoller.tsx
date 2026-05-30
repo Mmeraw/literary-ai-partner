@@ -201,10 +201,10 @@ export function SynthesisPoller({ jobId, wordCount, initialDreamDoc = null, onRe
         />
         <div>
           <p className="text-sm text-gray-700 font-medium">
-            Narrative Synthesis (Part 2 of 2) is generating automatically.
+            Finalizing your report (Part 2 of 2) is generating automatically.
           </p>
           <p className="text-sm text-gray-500 mt-0.5">
-            Your scores, criteria analyses, and revision plan are ready above. Narrative Synthesis will appear here in approximately {rangeLabel} minutes
+            Your scores, criteria analyses, and revision plan are ready above. Finalizing your report will appear here in approximately {rangeLabel} minutes
             {elapsedMin > 0 ? ` — ${elapsedMin} min elapsed` : ""}.
             This page will update automatically — no refresh needed.
           </p>

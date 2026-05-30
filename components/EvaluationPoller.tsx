@@ -746,7 +746,7 @@ export function EvaluationPoller({
         {isInterimComplete && redirectOnComplete && !redirectedRef.current && (
           <div className="p-3 bg-blue-50 border border-blue-200 rounded">
             <p className="text-sm text-blue-800">
-              Diagnostic report ready. Narrative Synthesis is still generating — the full report will appear automatically when complete.
+              Diagnostic report ready. Finalizing your report is still generating — the full report will appear automatically when complete.
             </p>
             <button
               type="button"
