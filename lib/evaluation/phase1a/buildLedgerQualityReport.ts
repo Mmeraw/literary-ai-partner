@@ -17,6 +17,7 @@
 import type { Pass1aCharacterLedger, CharacterLedgerV2 } from '@/lib/evaluation/pipeline/types';
 import type { LedgerQualityReportPayload } from './storyLayerArtifactWriters';
 import type { StoryLayerCoreLayerKey } from '@/lib/evaluation/artifacts/artifactTypes';
+import { assessStoryLayerIdentityDependencies } from './storyLayerDependencyHealth';
 
 type GateReadyStatus = LedgerQualityReportPayload['gate_ready_status'];
 type RecommendedReviewAction = LedgerQualityReportPayload['recommended_review_action'];
@@ -77,15 +78,30 @@ function runQualityChecks(
     });
   }
 
-  // No antagonists detected in V2
-  const antagonistCount = (ledgerV2.identityLedger ?? []).filter(
-    (e) => e.narrativeRole === 'antagonist',
+  // No pressure-bearing systems detected in V2
+  const pressureBearingRoles = new Set([
+    'antagonist',
+    'pressure_agent',
+    'romantic_catalyst',
+    'sexual_destabilizer',
+    'domestic_foil',
+    'artistic_countermodel',
+    'social_observer',
+    'social_catalyst',
+    'patriarchal_pressure',
+    'symbolic_force',
+    'collective_force',
+  ]);
+
+  const pressureSystemCount = (ledgerV2.identityLedger ?? []).filter(
+    (e) => pressureBearingRoles.has(String(e.narrativeRole ?? 'unknown')),
   ).length;
-  if (antagonistCount === 0) {
+
+  if (pressureSystemCount === 0) {
     results.push({
-      key: 'no_antagonist_detected',
+      key: 'no_pressure_system_detected',
       severity: 'warning',
-      message: 'No antagonists detected. Threat layer may be incomplete. Review cast role assignment.',
+      message: 'No narrative pressure systems detected. Pressure / stakes / consequence mapping may be incomplete.',
       layer: 'threat_antagonist_ending_layer',
     });
   }
@@ -158,8 +174,14 @@ function runQualityChecks(
 export function buildLedgerQualityReport(
   ledger: Pass1aCharacterLedger,
   ledgerV2: CharacterLedgerV2,
+  layers?: Partial<Record<StoryLayerCoreLayerKey, Record<string, unknown>>> | null,
 ): LedgerQualityReportPayload {
-  const checks = runQualityChecks(ledger, ledgerV2);
+  const dependencyAssessment = assessStoryLayerIdentityDependencies({
+    ledger,
+    ledgerV2,
+    layers,
+  });
+  const checks = [...runQualityChecks(ledger, ledgerV2), ...dependencyAssessment.qualityChecks];
 
   const hardFails = checks.filter((c) => c.severity === 'hard_fail');
   const warnings = checks.filter((c) => c.severity === 'warning');
@@ -186,9 +208,10 @@ export function buildLedgerQualityReport(
     recommended_review_action = 'send_to_review_gate';
   }
 
-  // Group warnings by layer
+  // Group non-clean conditions by layer so the server-side visibility gate can
+  // block author payloads without guessing.
   const grouped_warning_summary: Record<string, string[]> = {};
-  for (const check of warnings) {
+  for (const check of [...warnings, ...hardFails]) {
     const layerKey = check.layer;
     if (!grouped_warning_summary[layerKey]) {
       grouped_warning_summary[layerKey] = [];
@@ -217,6 +240,13 @@ export function buildLedgerQualityReport(
     gate_ready_status,
     hard_fail_present: hardFailPresent,
     grouped_warning_summary,
+    layer_truth_status: {
+      canonical_identity_layer: dependencyAssessment.canonicalIdentityHealth.truth_status,
+      ...Object.fromEntries(
+        dependencyAssessment.dependencyWarnings.map((warning) => [warning.layer, warning.inherited_status]),
+      ),
+    },
+    layer_dependency_warnings: dependencyAssessment.dependencyWarnings,
     evidence_location_references,
     blocking_reasons,
     recommended_review_action,

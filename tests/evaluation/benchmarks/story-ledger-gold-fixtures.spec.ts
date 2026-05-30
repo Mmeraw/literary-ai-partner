@@ -1,0 +1,541 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
+const REPO_ROOT = process.cwd();
+const FIXTURE_DIR = join(REPO_ROOT, 'tests/testdata/evaluation/story-ledger');
+
+function readJson(fileName: string): any {
+  return JSON.parse(readFileSync(join(FIXTURE_DIR, fileName), 'utf8'));
+}
+
+function hasText(value: unknown, needle: string): boolean {
+  return String(value ?? '').toLowerCase().includes(needle.toLowerCase());
+}
+
+function getIdentity(ledger: any, characterId: string): any | undefined {
+  return (ledger.layers?.canonical_identity_layer?.identity_groups ?? []).find(
+    (entry: any) => entry.character_id === characterId,
+  );
+}
+
+function getTierEntries(ledger: any, tier: string): any[] {
+  return ledger.layers?.cast_role_tier_layer?.tier_map?.[tier] ?? [];
+}
+
+function canonicalPairKey(a: string, b: string): string {
+  return [a, b].sort().join('↔');
+}
+
+function collectCanonicalPairKeys(relationshipPairs: any[]): string[] {
+  return relationshipPairs.map((pair) =>
+    canonicalPairKey(String(pair?.character_a ?? ''), String(pair?.character_b ?? '')),
+  );
+}
+
+function validateGreatExpectations(ledger: any): string[] {
+  const errors: string[] = [];
+
+  const pip = getIdentity(ledger, 'ge:pip');
+  const joeChild = getIdentity(ledger, 'ge:joe_biddy_son');
+  if (!pip || !joeChild || pip.character_id === joeChild.character_id) {
+    errors.push('MISSING_REQUIRED_TRUTH: Pip / Philip Pirrip must be distinct from Joe and Biddy\'s son.');
+  }
+
+  const magwitch = getIdentity(ledger, 'ge:magwitch');
+  const magwitchAliases = new Set((magwitch?.aliases ?? []).map((a: string) => a.toLowerCase()));
+  for (const alias of ['magwitch', 'abel magwitch', 'provis', 'convict', 'unknown benefactor']) {
+    const inCanonical = hasText(magwitch?.canonical_name, alias);
+    const inAliases = Array.from(magwitchAliases).some((a) => a.includes(alias));
+    if (!inCanonical && !inAliases) {
+      errors.push(`MISSING_REQUIRED_TRUTH: Magwitch identity linkage missing alias '${alias}'.`);
+    }
+  }
+
+  const povIds = new Set((ledger.layers?.pov_structure_layer?.pov_characters ?? []).map((entry: any) => entry.character_id));
+  if (povIds.size !== 1 || !povIds.has('ge:pip')) {
+    errors.push('MISSING_REQUIRED_TRUTH: Great Expectations must have Pip / Philip Pirrip as sole POV owner.');
+  }
+
+  for (const forbiddenPovOwner of ['ge:herbert', 'ge:jaggers', 'ge:magwitch', 'ge:estella', 'ge:joe', 'ge:biddy']) {
+    if (povIds.has(forbiddenPovOwner)) {
+      errors.push(`FORBIDDEN_FAILURE: ${forbiddenPovOwner} must not be a POV owner in Great Expectations.`);
+    }
+  }
+
+  const povMode = String(ledger.layers?.pov_structure_layer?.pov_mode ?? '').toLowerCase();
+  const povNote = String(ledger.layers?.pov_structure_layer?.pov_perspective_note ?? '').toLowerCase();
+  if (!povMode.includes('first-person retrospective')) {
+    errors.push('MISSING_REQUIRED_TRUTH: Great Expectations POV mode must be first-person retrospective.');
+  }
+  if (!povNote.includes('adult narrator looking back')) {
+    errors.push('MISSING_REQUIRED_TRUTH: Great Expectations POV note must state adult narrator looking back.');
+  }
+
+  if (povIds.has('ge:herbert')) {
+    errors.push('FORBIDDEN_FAILURE: Herbert Pocket must not be a POV owner.');
+  }
+
+  const pronounEntries = ledger.layers?.identity_pronoun_layer?.entries ?? [];
+  const stableMasculineExpectations = ['pip', 'herbert', 'jaggers', 'orlick'];
+  for (const name of stableMasculineExpectations) {
+    const entry = pronounEntries.find((candidate: any) => hasText(candidate.canonical_name, name));
+    if (!entry) {
+      errors.push(`MISSING_REQUIRED_TRUTH: Pronoun identity entry missing for '${name}'.`);
+      continue;
+    }
+
+    const normalizedPronouns = (entry.pronouns ?? []).map((p: string) => p.toLowerCase());
+    const hasMasculineFamily = normalizedPronouns.some((p: string) => p.includes('he/him'));
+    if (!hasMasculineFamily) {
+      errors.push(`MISSING_REQUIRED_TRUTH: '${name}' pronoun record must include masculine family usage (he/him/his).`);
+    }
+
+    if ((entry.warnings ?? []).some((warning: any) => hasText(warning?.type ?? warning, 'pronoun_inconsistency'))) {
+      errors.push(`FORBIDDEN_FAILURE: Stable masculine pronoun usage for '${name}' must not be flagged as a pronoun shift.`);
+    }
+  }
+
+  if ((ledger.layers?.identity_pronoun_layer?.pronoun_shifts_detected ?? 0) !== 0) {
+    errors.push('FORBIDDEN_FAILURE: Great Expectations fixture must report zero pronoun shifts for stable pronoun-family usage.');
+  }
+
+  const relationshipPairs = ledger.layers?.relationship_network_layer?.relationship_pairs ?? [];
+  const canonicalPairKeys = collectCanonicalPairKeys(relationshipPairs);
+
+  for (const pair of relationshipPairs) {
+    for (const side of ['character_a', 'character_b'] as const) {
+      const value = pair?.[side];
+      if (typeof value !== 'string' || !value.includes(':')) {
+        errors.push(
+          `FORBIDDEN_FAILURE: Relationship pair ${pair?.character_a ?? '?'} -> ${pair?.character_b ?? '?'} must use canonical ID references, not display names.`,
+        );
+      }
+    }
+  }
+
+  const expectedPairs = [
+    canonicalPairKey('ge:pip', 'ge:magwitch'),
+    canonicalPairKey('ge:pip', 'ge:joe'),
+    canonicalPairKey('ge:pip', 'ge:estella'),
+    canonicalPairKey('ge:pip', 'ge:miss_havisham'),
+    canonicalPairKey('ge:estella', 'ge:miss_havisham'),
+    canonicalPairKey('ge:magwitch', 'ge:compeyson'),
+    canonicalPairKey('ge:pip', 'ge:jaggers'),
+    canonicalPairKey('ge:pip', 'ge:biddy'),
+    canonicalPairKey('ge:pip', 'ge:orlick'),
+  ];
+
+  for (const pair of expectedPairs) {
+    if (!canonicalPairKeys.includes(pair)) {
+      errors.push(`MISSING_REQUIRED_TRUTH: Missing stable canonical relationship pair '${pair}'.`);
+    }
+  }
+
+  const byPair = new Map<string, number>();
+  for (const key of canonicalPairKeys) {
+    byPair.set(key, (byPair.get(key) ?? 0) + 1);
+  }
+  for (const [pairKey, count] of byPair.entries()) {
+    if (count > 1) {
+      errors.push(
+        `FORBIDDEN_FAILURE: RELATIONSHIP_DISPLAY_NAME_KEYING duplicate display-name edges found for canonical pair '${pairKey}'.`,
+      );
+    }
+  }
+
+  const threatLayer = ledger.layers?.threat_antagonist_ending_layer ?? {};
+  const threatText = JSON.stringify(
+    threatLayer?.threat_systems ?? threatLayer?.antagonists ?? [],
+  ).toLowerCase();
+  for (const requiredThreat of [
+    'magwitch',
+    'miss havisham',
+    'estella',
+    'jaggers/legal machinery',
+    'compeyson',
+    'orlick',
+    'drummle',
+    'class shame',
+    'debt',
+    "pip's guilt",
+  ]) {
+    if (!threatText.includes(requiredThreat)) {
+      errors.push(`MISSING_REQUIRED_TRUTH: Threat system missing '${requiredThreat}'.`);
+    }
+  }
+
+  const pressureSystems = Array.isArray(threatLayer?.pressure_systems)
+    ? threatLayer.pressure_systems
+    : [];
+
+  if (pressureSystems.length === 0) {
+    errors.push('FORBIDDEN_FAILURE: THREAT_PRESSURE_UNDER_EXTRACTION — pressure_systems must be populated, not antagonist-only.');
+  }
+
+  const nonCharacterPressureCount = pressureSystems.filter((system: any) => hasText(system?.source_kind, 'non_character')).length;
+  if (nonCharacterPressureCount === 0) {
+    errors.push('FORBIDDEN_FAILURE: Non-character pressure systems must not be discarded.');
+  }
+
+  const pressureByNeedle = (needle: string) =>
+    pressureSystems.find((system: any) => hasText(system?.source_label, needle) || hasText(system?.source_aliases, needle));
+
+  const compeysonPressure = pressureByNeedle('compeyson');
+  if (!compeysonPressure) {
+    errors.push("MISSING_REQUIRED_TRUTH: Compeyson pressure system must be present.");
+  } else {
+    if (hasText(compeysonPressure?.pressure_type, 'maternal')) {
+      errors.push("FORBIDDEN_FAILURE: Compeyson must not be mislabeled as maternal obligation.");
+    }
+    if (hasText(compeysonPressure?.ending_state, 'unresolved')) {
+      errors.push("FORBIDDEN_FAILURE: Compeyson must not be marked unresolved when terminal state is known.");
+    }
+  }
+
+  const missHavishamPressure = pressureByNeedle('miss havisham');
+  if (!missHavishamPressure) {
+    errors.push("MISSING_REQUIRED_TRUTH: Miss Havisham pressure system must be present.");
+  } else if (hasText(missHavishamPressure?.ending_state, 'unresolved')) {
+    errors.push("FORBIDDEN_FAILURE: Miss Havisham must not be marked unresolved when terminal state is known.");
+  }
+
+  return errors;
+}
+
+function validateAwakening(ledger: any): string[] {
+  const errors: string[] = [];
+
+  const protagonists = getTierEntries(ledger, 'protagonist');
+  if (!protagonists.some((entry: any) => entry.character_id === 'aw:edna')) {
+    errors.push('MISSING_REQUIRED_TRUTH: Edna Pontellier must be protagonist / primary focal center.');
+  }
+
+  const povIds = new Set((ledger.layers?.pov_structure_layer?.pov_characters ?? []).map((entry: any) => entry.character_id));
+  if (povIds.size !== 1 || !povIds.has('aw:edna')) {
+    errors.push('MISSING_REQUIRED_TRUTH: The Awakening must keep Edna Pontellier as primary focal center and sole POV owner.');
+  }
+
+  for (const forbiddenPovOwner of ['aw:robert', 'aw:leonce', 'aw:arobin', 'aw:adele', 'aw:reisz']) {
+    if (povIds.has(forbiddenPovOwner)) {
+      errors.push(`FORBIDDEN_FAILURE: ${forbiddenPovOwner} must not be a POV owner in The Awakening.`);
+    }
+  }
+
+  const awakeningPovMode = String(ledger.layers?.pov_structure_layer?.pov_mode ?? '').toLowerCase();
+  const awakeningPovNote = String(ledger.layers?.pov_structure_layer?.pov_perspective_note ?? '').toLowerCase();
+  if (!awakeningPovMode.includes('close third limited')) {
+    errors.push('MISSING_REQUIRED_TRUTH: The Awakening POV mode must remain close third limited focalization.');
+  }
+  if (
+    awakeningPovNote.includes('romantic catalyst')
+    || awakeningPovNote.includes('co-protagonist')
+    || awakeningPovNote.includes('major secondary')
+  ) {
+    errors.push('FORBIDDEN_FAILURE: Awakening POV note must not promote romantic or secondary roles into camera ownership.');
+  }
+
+  if (!povIds.has('aw:edna')) {
+    errors.push('MISSING_REQUIRED_TRUTH: Edna Pontellier must own POV.');
+  }
+  if (povIds.has('aw:robert')) {
+    errors.push('FORBIDDEN_FAILURE: Robert Lebrun must not be POV owner.');
+  }
+
+  const coProtagonists = getTierEntries(ledger, 'co_protagonist');
+  if (coProtagonists.some((entry: any) => entry.character_id === 'aw:robert')) {
+    errors.push('FORBIDDEN_FAILURE: Robert Lebrun must not be default co-protagonist.');
+  }
+
+  if (!getTierEntries(ledger, 'patriarchal_pressure').some((entry: any) => entry.character_id === 'aw:leonce')) {
+    errors.push('MISSING_REQUIRED_TRUTH: Léonce must be classified as marital/social/property pressure.');
+  }
+
+  if (!getTierEntries(ledger, 'sexual_destabilizer').some((entry: any) => entry.character_id === 'aw:arobin')) {
+    errors.push('MISSING_REQUIRED_TRUTH: Alcée Arobin must be classified as sexual destabilizer.');
+  }
+
+  if (!getTierEntries(ledger, 'domestic_foil').some((entry: any) => entry.character_id === 'aw:adele')) {
+    errors.push('MISSING_REQUIRED_TRUTH: Adèle Ratignolle must be classified as maternal/domestic foil.');
+  }
+
+  if (!getTierEntries(ledger, 'artistic_countermodel').some((entry: any) => entry.character_id === 'aw:reisz')) {
+    errors.push('MISSING_REQUIRED_TRUTH: Mademoiselle Reisz must be classified as artistic counter-model / severe mentor.');
+  }
+
+  if (!getTierEntries(ledger, 'background_mention').some((entry: any) => entry.character_id === 'aw:celina_husband')) {
+    errors.push('MISSING_REQUIRED_TRUTH: Célina\'s husband must remain background mention, not core cast.');
+  }
+
+  const relationshipLayer = ledger.layers?.relationship_network_layer ?? {};
+  const relationshipPairs = relationshipLayer.relationship_pairs ?? [];
+  const canonicalPairKeys = collectCanonicalPairKeys(relationshipPairs);
+  if (!relationshipLayer.relationship_tiers || Object.keys(relationshipLayer.relationship_tiers).length === 0) {
+    errors.push('MISSING_REQUIRED_TRUTH: Relationship network must be tiered/classified.');
+  }
+  if (relationshipPairs.some((pair: any) => hasText(pair.relationship_type_start, 'unknown') || hasText(pair.relationship_type_end, 'unknown'))) {
+    errors.push('FORBIDDEN_FAILURE: Relationship pairs must not collapse into unknown co-occurrence dumping.');
+  }
+
+  const expectedPairs = [
+    canonicalPairKey('aw:edna', 'aw:robert'),
+    canonicalPairKey('aw:edna', 'aw:leonce'),
+    canonicalPairKey('aw:edna', 'aw:arobin'),
+    canonicalPairKey('aw:edna', 'aw:adele'),
+    canonicalPairKey('aw:edna', 'aw:reisz'),
+    canonicalPairKey('aw:edna', 'aw:children'),
+    canonicalPairKey('aw:edna', 'aw:sea_symbolic_pressure'),
+  ];
+
+  for (const pair of expectedPairs) {
+    if (!canonicalPairKeys.includes(pair)) {
+      errors.push(`MISSING_REQUIRED_TRUTH: Missing stable canonical relationship pair '${pair}'.`);
+    }
+  }
+
+  const byPair = new Map<string, number>();
+  for (const key of canonicalPairKeys) {
+    byPair.set(key, (byPair.get(key) ?? 0) + 1);
+  }
+  for (const [pairKey, count] of byPair.entries()) {
+    if (count > 1) {
+      errors.push(
+        `FORBIDDEN_FAILURE: RELATIONSHIP_DISPLAY_NAME_KEYING duplicate display-name edges found for canonical pair '${pairKey}'.`,
+      );
+    }
+  }
+
+  const symbolText = JSON.stringify(ledger.layers?.object_symbol_layer?.objects ?? []).toLowerCase();
+  for (const symbolNeedle of [
+    'sea / gulf / water',
+    'birds / flight',
+    'pigeon house',
+    'wedding ring',
+    'music / piano',
+    'letters',
+    "edna's art / sketching",
+  ]) {
+    if (!symbolText.includes(symbolNeedle)) {
+      errors.push(`MISSING_REQUIRED_TRUTH: Core symbol missing '${symbolNeedle}'.`);
+    }
+  }
+
+  const pronounEntries = ledger.layers?.identity_pronoun_layer?.entries ?? [];
+  const stablePronounFamilies: Array<{ name: string; familyNeedle: string }> = [
+    { name: 'edna pontellier', familyNeedle: 'she/her' },
+    { name: 'raoul pontellier', familyNeedle: 'he/him' },
+    { name: 'étienne pontellier', familyNeedle: 'he/him' },
+    { name: 'robert lebrun', familyNeedle: 'he/him' },
+    { name: 'léonce pontellier', familyNeedle: 'he/him' },
+  ];
+
+  for (const { name, familyNeedle } of stablePronounFamilies) {
+    const entry = pronounEntries.find((candidate: any) => hasText(candidate.canonical_name, name));
+    if (!entry) {
+      errors.push(`MISSING_REQUIRED_TRUTH: Pronoun identity entry missing for '${name}'.`);
+      continue;
+    }
+
+    if (!(entry.pronouns ?? []).some((p: string) => p.toLowerCase().includes(familyNeedle))) {
+      errors.push(`MISSING_REQUIRED_TRUTH: Pronoun identity entry for '${name}' must include '${familyNeedle}'.`);
+    }
+
+    if ((entry.warnings ?? []).some((warning: any) => hasText(warning?.type ?? warning, 'pronoun_inconsistency'))) {
+      errors.push(`FORBIDDEN_FAILURE: '${name}' must not be flagged as pronoun-transition problem.`);
+    }
+  }
+
+  for (const entry of pronounEntries) {
+    if (
+      (hasText(entry.canonical_name, 'children') || hasText(entry.canonical_name, 'lovers'))
+      && (entry.warnings ?? []).some((warning: any) => hasText(warning?.type ?? warning, 'pronoun_inconsistency'))
+    ) {
+      errors.push("FORBIDDEN_FAILURE: 'children/lovers' labels must not appear as pronoun-transition review items without cross-family evidence.");
+    }
+  }
+
+  if ((ledger.layers?.identity_pronoun_layer?.pronoun_shifts_detected ?? 0) !== 0) {
+    errors.push('FORBIDDEN_FAILURE: The Awakening fixture must report zero pronoun shifts for stable pronoun-family usage.');
+  }
+
+  const threatLayer = ledger.layers?.threat_antagonist_ending_layer ?? {};
+  const pressureSystems = Array.isArray(threatLayer?.pressure_systems)
+    ? threatLayer.pressure_systems
+    : [];
+
+  if (pressureSystems.length === 0) {
+    errors.push('FORBIDDEN_FAILURE: THREAT_PRESSURE_UNDER_EXTRACTION — pressure systems must be present for The Awakening.');
+  }
+
+  const uniquePressureTypes = new Set(pressureSystems.map((system: any) => String(system?.pressure_type ?? '')));
+  if (uniquePressureTypes.size <= 2) {
+    errors.push('FORBIDDEN_FAILURE: THREAT_ROLE_MISLABEL — pressure systems must not collapse into a generic single-role bucket.');
+  }
+
+  const pressureText = JSON.stringify(threatLayer?.threat_systems ?? pressureSystems).toLowerCase();
+  for (const requiredPressure of [
+    'léonce',
+    'robert',
+    'arobin',
+    'adèle',
+    'reisz',
+    'children',
+    'sea',
+    'creole social expectations',
+    'internal autonomy',
+  ]) {
+    if (!pressureText.includes(requiredPressure)) {
+      errors.push(`MISSING_REQUIRED_TRUTH: Awakening pressure system missing '${requiredPressure}'.`);
+    }
+  }
+
+  const pressureByNeedle = (needle: string) =>
+    pressureSystems.find((system: any) => hasText(system?.source_label, needle) || hasText(system?.source_aliases, needle));
+
+  const leoncePressure = pressureByNeedle('léonce');
+  if (!leoncePressure) {
+    errors.push('MISSING_REQUIRED_TRUTH: Léonce pressure system is required.');
+  } else if (hasText(leoncePressure?.pressure_type, 'interpersonal_pressure') || hasText(leoncePressure?.pressure_type, 'antagonist')) {
+    errors.push('FORBIDDEN_FAILURE: Léonce must not be flattened into a generic antagonist pressure type.');
+  }
+
+  const arobinPressure = pressureByNeedle('arobin');
+  if (!arobinPressure) {
+    errors.push('MISSING_REQUIRED_TRUTH: Arobin pressure system is required.');
+  } else if (hasText(arobinPressure?.pressure_type, 'interpersonal_pressure') || hasText(arobinPressure?.pressure_type, 'antagonist')) {
+    errors.push('FORBIDDEN_FAILURE: Arobin must not be flattened into a generic antagonist pressure type.');
+  }
+
+  const seaPressure = pressureByNeedle('sea');
+  if (!seaPressure) {
+    errors.push('MISSING_REQUIRED_TRUTH: Sea/Gulf symbolic pressure must be represented.');
+  } else if (!hasText(seaPressure?.source_kind, 'non_character')) {
+    errors.push('FORBIDDEN_FAILURE: Sea/Gulf pressure must be represented as non-character pressure.');
+  }
+
+  const nonCharacterPressureCount = pressureSystems.filter((system: any) => hasText(system?.source_kind, 'non_character')).length;
+  if (nonCharacterPressureCount === 0) {
+    errors.push('FORBIDDEN_FAILURE: Non-character pressure systems must not be discarded in Awakening fixture.');
+  }
+
+  const locations: string[] = ledger.layers?.location_timeline_worldstate_layer?.unique_locations ?? [];
+  for (const requiredLocation of ['grand isle', 'new orleans', 'chênière caminada', 'pigeon house']) {
+    if (!locations.some((loc) => loc.toLowerCase() === requiredLocation)) {
+      errors.push(`MISSING_REQUIRED_TRUTH: Location anchor missing '${requiredLocation}'.`);
+    }
+  }
+  if (locations.some((loc) => loc.trim().length < 4 || /[.!?]$/.test(loc.trim()))) {
+    errors.push('FORBIDDEN_FAILURE: Locations must be normalized anchors, not sentence fragments.');
+  }
+
+  return errors;
+}
+
+describe('Story Ledger gold fixture harness (deterministic, no live LLM calls)', () => {
+  const greatExpectations = readJson('great-expectations.accepted-story-ledger.fixture.json');
+  const awakening = readJson('the-awakening.accepted-story-ledger.fixture.json');
+
+  it('passes required-truth + forbidden-failure checks for Great Expectations fixture', () => {
+    const errors = validateGreatExpectations(greatExpectations);
+    expect(errors).toEqual([]);
+  });
+
+  it('fails loudly when Great Expectations required truth is missing', () => {
+    const mutated = JSON.parse(JSON.stringify(greatExpectations));
+    mutated.layers.canonical_identity_layer.identity_groups = mutated.layers.canonical_identity_layer.identity_groups.filter(
+      (entry: any) => entry.character_id !== 'ge:magwitch',
+    );
+
+    const errors = validateGreatExpectations(mutated);
+    expect(errors).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('MISSING_REQUIRED_TRUTH: Magwitch identity linkage missing alias'),
+      ]),
+    );
+  });
+
+  it('fails loudly when Great Expectations forbidden failure recurs', () => {
+    const mutated = JSON.parse(JSON.stringify(greatExpectations));
+    mutated.layers.pov_structure_layer.pov_characters.push({
+      character_id: 'ge:herbert',
+      canonical_name: 'Herbert Pocket',
+      is_primary: false,
+    });
+
+    const errors = validateGreatExpectations(mutated);
+    expect(errors).toEqual(
+      expect.arrayContaining([
+        'FORBIDDEN_FAILURE: Herbert Pocket must not be a POV owner.',
+      ]),
+    );
+  });
+
+  it('fails loudly on duplicate display-name relationship edges (RELATIONSHIP_DISPLAY_NAME_KEYING)', () => {
+    const mutated = JSON.parse(JSON.stringify(greatExpectations));
+    mutated.layers.relationship_network_layer.relationship_pairs.push({
+      pair_key: 'ge:magwitch↔ge:pip',
+      character_a: 'ge:pip',
+      character_b: 'ge:magwitch',
+      character_a_label: 'Pip',
+      character_b_label: 'Provis',
+      relationship_type_start: 'fear',
+      relationship_type_end: 'obligation_and_compassion',
+    });
+
+    const errors = validateGreatExpectations(mutated);
+    expect(errors).toEqual(
+      expect.arrayContaining([
+        "FORBIDDEN_FAILURE: RELATIONSHIP_DISPLAY_NAME_KEYING duplicate display-name edges found for canonical pair 'ge:magwitch↔ge:pip'.",
+      ]),
+    );
+  });
+
+  it('proves relationship identity is stable even when display labels change', () => {
+    const mutated = JSON.parse(JSON.stringify(greatExpectations));
+    for (const pair of mutated.layers.relationship_network_layer.relationship_pairs) {
+      if (pair.character_a === 'ge:pip') {
+        pair.character_a_label = 'Philip Pirrip';
+      }
+      if (pair.character_b === 'ge:magwitch') {
+        pair.character_b_label = 'the convict';
+      }
+    }
+
+    const errors = validateGreatExpectations(mutated);
+    expect(errors).toEqual([]);
+  });
+
+  it('passes required-truth + forbidden-failure checks for The Awakening fixture', () => {
+    const errors = validateAwakening(awakening);
+    expect(errors).toEqual([]);
+  });
+
+  it('fails loudly when Awakening required truth is missing', () => {
+    const mutated = JSON.parse(JSON.stringify(awakening));
+    mutated.layers.object_symbol_layer.objects = mutated.layers.object_symbol_layer.objects.filter(
+      (entry: any) => !hasText(entry.name, 'pigeon house'),
+    );
+
+    const errors = validateAwakening(mutated);
+    expect(errors).toEqual(
+      expect.arrayContaining([
+        "MISSING_REQUIRED_TRUTH: Core symbol missing 'pigeon house'.",
+      ]),
+    );
+  });
+
+  it('fails loudly when Awakening forbidden failure recurs', () => {
+    const mutated = JSON.parse(JSON.stringify(awakening));
+    mutated.layers.pov_structure_layer.pov_characters.push({
+      character_id: 'aw:robert',
+      canonical_name: 'Robert Lebrun',
+      is_primary: false,
+    });
+
+    const errors = validateAwakening(mutated);
+    expect(errors).toEqual(
+      expect.arrayContaining([
+        'FORBIDDEN_FAILURE: Robert Lebrun must not be POV owner.',
+      ]),
+    );
+  });
+});

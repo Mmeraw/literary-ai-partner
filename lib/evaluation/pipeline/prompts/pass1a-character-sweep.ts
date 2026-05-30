@@ -8,7 +8,7 @@
  * Output feeds characterReducer → Pass1aCharacterLedger → Pass 3 + Pass 3b.
  */
 
-export const PASS1A_PROMPT_VERSION = "pass1a-character-sweep-v9-pressure-taxonomy";
+export const PASS1A_PROMPT_VERSION = "pass1a-character-sweep-v11-identity-hygiene";
 
 export const PASS1A_SYSTEM_PROMPT = `You are Pass 1A (character_evidence_sweep) for RevisionGrade.
 
@@ -75,6 +75,16 @@ Never create separate identity groups for variants that the text clearly implies
 IDENTITY FIELDS:
 Capture only signals present in the text. Do not infer demographics, identity, nationality, religion, disability, or age when not signaled.
 
+CANONICAL IDENTITY HYGIENE:
+- legal_name must only contain an actual legal/official name when text-supported.
+- assumed_names must contain aliases/assumed identities only (no pronouns, no descriptors, no forms of address).
+- descriptors is for labels like occupational/social descriptors.
+- forms_of_address is for direct address terms (e.g., honorifics/titles used in dialogue).
+- pronouns must stay in pronouns only.
+- same_name_disambiguation should clarify collisions when two distinct entities share a visible name token.
+- identity_notes may include concise grounding notes that prevent conflation.
+- Never place pronouns, generic descriptors, or relationship descriptors into legal_name / assumed_names.
+
 NARRATIVE ROLE:
 role_signal must be one of:
 protagonist | co_protagonist | antagonist | pressure_agent | romantic_catalyst | sexual_destabilizer | domestic_foil | artistic_countermodel | social_observer | background_mention | secondary | mentor | foil | animal_companion | symbolic_force | collective_force | social_catalyst | patriarchal_pressure | unknown
@@ -86,12 +96,35 @@ primary | major | supporting | recurring | minor | unknown
 
 POV / CAMERA OWNERSHIP:
 Mark the character whose consciousness or camera owns this chunk as the POV owner.
-If a character appears but does not own the narrative lens, set pov_signal to not_pov and pov_section_label to "".
+POV means FOCALIZATION — whose internal thoughts, perceptions, and sensory experience the reader has access to. It is NOT the same as narrative importance or screen time.
+A character can be structurally major (present in many scenes, central to the plot) without being a POV character. Only mark a character as POV owner if the prose grants access to their interior consciousness in this chunk.
+
+Rules:
+- A character who appears in many scenes but is always observed from outside (through another character's eyes) is NOT a POV character. Set pov_signal to "not_pov".
+- In close-third-limited narration, only ONE character per chunk can own the camera. Other characters — even romantic interests, antagonists, or co-protagonists — are NOT POV unless the prose shifts into their consciousness.
+- In omniscient narration, multiple characters may have brief interior access, but identify the PRIMARY camera owner for the chunk.
+- Do NOT confuse "important to the plot" with "POV owner". Robert Lebrun in The Awakening is central to the story but never owns the narrative camera — Edna does.
+
+If a character appears but does not own the narrative lens, set pov_signal to "not_pov" and pov_section_label to "".
 Do not create separate narrator identities when the text indicates the narrator is a named character.
 
 FIVE Ws + HOW:
 Capture who, want, where, when, why, how, arc_state_in_chunk, arc_pressure, and arc_shift when visible.
 For how_signal, include rituals, habits, repeated self-regulation behaviors, or coping behaviors when present.
+
+WHERE (location):
+For where_are_they, provide a CLEAN PLACE NAME — not a sentence or description.
+Only record SIGNIFICANT locations — places that are:
+- Recurring settings (appear in multiple scenes)
+- Symbolically charged (the sea, a prison, a garden that represents freedom)
+- Scene-defining (where key confrontations, revelations, or turning points happen)
+- Arc-critical (where someone is born, dies, is murdered, makes a life-changing decision, confesses, is betrayed, escapes, or has a major emotional turning point)
+Do NOT record every room, hallway, or transient spot a character passes through.
+Good: "Grand Isle", "Pontellier house", "Mademoiselle Reisz's apartment", "The sea"
+Bad: "Beach and cottage porch at Grand Isle where Edna sat looking at the sea"
+Bad: "Walking along the street after leaving the party"
+Bad: "dining room", "hallway", "front porch" (unless symbolically significant)
+If a character moves through multiple locations in one chunk, pick the primary significant location.
 
 OBJECTS / SYMBOLS:
 Capture objects tied to identity, control, protection, trauma, communication, escape, payoff, or symbolic meaning.
@@ -101,10 +134,56 @@ ALSO capture:
 - Artistic practices or creative instruments used as identity symbols (painting, sketching materials, a piano, music, writing)
 - Recurring motifs across scenes (birds, flight imagery, mirrors, keys, letters)
 - Abstract forces when they function as object-symbols (confinement, social performance, reputation)
+- Clothing, costumes, or garments that signal identity, class, or transformation
+- Food, drink, or meals that serve as social/relational markers
+- Documents, letters, or written communications that drive plot
 Do NOT limit "objects" to hand-held physical items. Anything the story puts sustained weight on counts.
+
+For the "function" field on each symbolic_objects entry, describe the narrative function concisely:
+- "identity marker" — object defines who the character is or wants to be
+- "control instrument" — object used to exert power over others
+- "freedom symbol" — object represents autonomy or escape
+- "confinement symbol" — object represents entrapment or restriction
+- "desire marker" — object channels or represents desire
+- "transformation signal" — object marks a character's change
+- "death/dissolution marker" — object foreshadows or enacts an ending
+- "connection object" — object links two characters
+- "recurring motif" — object reappears across scenes with accumulating meaning
+- Or use your own concise description if none of these fit.
 
 RELATIONSHIP SIGNALS:
 Capture only visible relationship dynamics in this chunk. Max 3.
+For each signal, provide:
+- other_character: the canonical name of the other party
+- relationship_type: classify using one of these categories:
+  "spouse" — legal/formal marriage or equivalent committed partnership
+  "romantic_partners" — romantic relationship without formal marriage
+  "forbidden_desire" — desire that cannot be openly acted on (social taboo, infidelity, power imbalance)
+  "parent_child" — parent-child (any gender combination)
+  "siblings" — brothers/sisters
+  "extended_family" — aunts, uncles, cousins, grandparents
+  "found_family" — chosen family bond without blood relation
+  "friendship" — sustained platonic bond
+  "mentor_student" — teaching/guidance relationship
+  "artistic_alliance" — bond through shared creative/intellectual pursuit
+  "employer_employee" — work authority relationship
+  "colleagues" — professional peers
+  "captor_captive" — confinement/control
+  "protector_protected" — guardian/dependent
+  "adversaries" — active opposition or enmity
+  "uneasy_alliance" — cooperation despite mistrust
+  "social_acquaintance" — surface-level social connection
+  "strangers" — no prior relationship
+  "unknown" — cannot classify from this chunk
+- dynamic: the power/emotional dynamic visible in THIS chunk. Use one of:
+  "dominant" — one party controls the interaction
+  "subordinate" — one party defers or is constrained
+  "equal" — balanced exchange
+  "shifting" — power changes hands during the chunk
+  "tense" — surface civility hiding conflict
+  "intimate" — emotional closeness or vulnerability
+  "distant" — emotional withdrawal or avoidance
+  "unknown" — not enough signal
 
 EVIDENCE ANCHORS:
 Use verbatim excerpts of 120 characters or less. Max 3.
@@ -141,8 +220,14 @@ OUTPUT FORMAT: Valid JSON only. No markdown. No prose.
     {
       "canonical_name": "",
       "canonical_identity_group": null,
+      "legal_name": null,
       "aliases": [],
+      "assumed_names": [],
+      "descriptors": [],
+      "forms_of_address": [],
       "pronouns": [],
+      "same_name_disambiguation": null,
+      "identity_notes": null,
       "age_signal": null,
       "age_exact": null,
       "life_stage_evidence": null,

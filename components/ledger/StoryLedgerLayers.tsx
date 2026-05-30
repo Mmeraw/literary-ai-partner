@@ -19,6 +19,7 @@
 "use client";
 
 import React from "react";
+import { STORY_LAYER_METADATA } from "@/components/ledger/storyLayerMetadata";
 
 // ─── Palette ────────────────────────────────────────────────────────────────
 
@@ -144,7 +145,7 @@ const LABEL_HINTS: Record<string, string> = {
   // Source Integrity layer
   "Hard failure": "A critical extraction error — the system could not reliably identify this element and needs author guidance.",
   // Identity & Pronouns layer
-  "Pronoun variation detected": "The system found different pronouns used for this character in different parts of the manuscript. This may be intentional (character development) or a continuity error.",
+  "Pronoun variation detected": "The system found pronoun-family transitions, cross-family shifts, or unresolved identity signals that may need confirmation.",
 };
 
 function labelHint(label: string): string | undefined {
@@ -169,28 +170,6 @@ function sectionHeaderProps(label: string): { style: React.CSSProperties; title?
     title: hint,
   };
 }
-
-// ─── Author-facing layer descriptions (permanent, locked) ───────────────────
-const LAYER_DESCRIPTIONS: Record<string, string> = {
-  source_integrity_layer:
-    "System extraction health and author guidance. Review the extraction status below, then tell RevisionGrade anything intentional that should not be treated as an error.",
-  pov_structure_layer:
-    "Whose eyes does the reader see through, and when? Maps the narrative cameras, voice ownership, and any perspective shifts across your story.",
-  canonical_identity_layer:
-    "How the system tracks a character across every name, alias, nickname, and role they carry. Especially important when a character is known by several names or hides their identity.",
-  cast_role_tier_layer:
-    "Every character ranked by the structural job they do — from protagonist through antagonist to walk-on. Reveals who the story centers on and who applies pressure.",
-  relationship_network_layer:
-    "The named bonds between characters: how they began, what stressed them, how they changed. Only sustained relationships between named characters appear here.",
-  object_symbol_layer:
-    "Tracks significant objects from their first appearance through ownership changes to their final meaning. Weapons, documents, tokens — anything the story puts weight on.",
-  location_timeline_worldstate_layer:
-    "Where the story takes place, in what order, and what rules govern the world at each point. Movement paths, time sequences, and environmental logic.",
-  threat_antagonist_ending_layer:
-    "The forces working against your protagonist — people, institutions, environments, internal conflicts, and social pressures — mapped to their final state at story's end.",
-  identity_pronoun_layer:
-    "How each character is identified: pronouns detected across the manuscript, gender signals, and any pronoun shifts between sections. Confirm intentional transitions or flag continuity errors.",
-};
 
 // ─── Shared primitives ───────────────────────────────────────────────────────
 
@@ -585,6 +564,57 @@ function WarnBanner({ reason }: { reason: string }) {
   );
 }
 
+function LayerTruthBanner({
+  data,
+}: {
+  data?: Record<string, unknown> | null;
+}) {
+  if (!data || typeof data !== "object") return null;
+
+  const dependencyWarning =
+    data.dependency_warning && typeof data.dependency_warning === "object"
+      ? (data.dependency_warning as Record<string, unknown>)
+      : null;
+  const health =
+    data.health && typeof data.health === "object"
+      ? (data.health as Record<string, unknown>)
+      : null;
+  const identityRisk =
+    data.identity_risk_metadata && typeof data.identity_risk_metadata === "object"
+      ? (data.identity_risk_metadata as Record<string, unknown>)
+      : null;
+
+  if (dependencyWarning) {
+    const inheritedStatus = String(dependencyWarning.inherited_status ?? "degraded").toLowerCase();
+    const message = String(
+      dependencyWarning.message ??
+      health?.reason ??
+      "This layer inherits unresolved Canonical Identity risk and must not be treated as clean.",
+    );
+
+    return inheritedStatus === "blocked"
+      ? <BlockerBanner reason={`Blocked by Canonical Identity — ${message}`} />
+      : <WarnBanner reason={`Degraded by Canonical Identity — ${message}`} />;
+  }
+
+  if (identityRisk) {
+    const truthStatus = String(identityRisk.truth_status ?? health?.truth_status ?? "clean").toLowerCase();
+    if (truthStatus === "clean") return null;
+
+    const reason = String(
+      identityRisk.reason ??
+      health?.reason ??
+      "Canonical Identity has unresolved risk and must not be treated as clean canon.",
+    );
+
+    return truthStatus === "blocked"
+      ? <BlockerBanner reason={`Canonical Identity is blocked — ${reason}`} />
+      : <WarnBanner reason={`Canonical Identity is degraded — ${reason}`} />;
+  }
+
+  return null;
+}
+
 function Divider() {
   return <div style={{ borderBottom: `1px solid ${C.border}`, margin: "18px 0" }} />;
 }
@@ -913,6 +943,15 @@ export function PovStructureLayer({
     antagonist: "Antagonist",
     narrator: "Narrator",
     secondary_pov: "Secondary POV",
+    pressure_agent: "Pressure Agent",
+    romantic_catalyst: "Romantic Catalyst",
+    sexual_destabilizer: "Sexual Destabilizer",
+    domestic_foil: "Domestic Foil",
+    artistic_countermodel: "Artistic Counter-Model",
+    social_observer: "Social Observer",
+    mentor: "Mentor",
+    foil: "Foil",
+    secondary: "Secondary Cast",
   };
 
   const POV_ROLE_TONE: Record<string, "gold" | "oxblood" | "blue" | "neutral"> = {
@@ -923,6 +962,13 @@ export function PovStructureLayer({
     secondary_pov: "blue",
   };
 
+  const POV_TYPE_LABEL: Record<string, string> = {
+    first_person_narrator: "First Person",
+    close_third_limited: "Close Third (Limited)",
+    close_third_omniscient: "Close Third (Omniscient)",
+    distant_third: "Distant Third",
+  };
+
   const charCount = povChars.length;
 
   return (
@@ -930,7 +976,7 @@ export function PovStructureLayer({
       <LayerTitle
         icon="👁"
         title="POV Structure"
-        description={LAYER_DESCRIPTIONS.pov_structure_layer}
+        description={STORY_LAYER_METADATA.pov_structure_layer.description}
         badge={charCount > 0 ? `${charCount} POV ${charCount === 1 ? "character" : "characters"}` : undefined}
         badgeTone="gold"
       />
@@ -942,6 +988,10 @@ export function PovStructureLayer({
           const importance = char.importance_level ? String(char.importance_level) : null;
           const roleLabel = POV_ROLE_LABEL[role] ?? role;
           const roleTone = POV_ROLE_TONE[role] ?? "neutral";
+          const povType = char.pov_type ? String(char.pov_type) : null;
+          const povTypeLabel = povType ? (POV_TYPE_LABEL[povType] ?? povType) : null;
+          const sharePct = typeof char.narrative_share_pct === "number" ? char.narrative_share_pct : null;
+          const isPrimary = char.is_primary === true;
 
           return (
             <CharacterCard key={i}>
@@ -958,6 +1008,8 @@ export function PovStructureLayer({
                   {name}
                 </span>
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  {isPrimary && <Pill label="Primary POV" tone="gold" />}
+                  {povTypeLabel && <Pill label={povTypeLabel} tone="neutral" />}
                   {role && <Pill label={roleLabel} tone={roleTone} />}
                   {importance && (
                     <Pill
@@ -967,6 +1019,11 @@ export function PovStructureLayer({
                   )}
                 </div>
               </div>
+              {sharePct !== null && (
+                <p style={{ margin: "6px 0 0", fontSize: 13, color: C.textMuted }}>
+                  Narrative share: {sharePct}%
+                </p>
+              )}
             </CharacterCard>
           );
         })}
@@ -1141,13 +1198,6 @@ function IdentityCard({ id, index }: { id: Record<string, unknown>; index: numbe
         />
       </div>
 
-      {anchors && anchors.length > 0 && (
-        <div style={{ marginTop: 12, display: "flex", gap: 6, flexWrap: "wrap" }}>
-          {anchors.map((a, j) => (
-            <EvidenceTag key={j} id={a} />
-          ))}
-        </div>
-      )}
     </CharacterCard>
   );
 }
@@ -1287,7 +1337,7 @@ export function CanonicalIdentityLayer({
         <LayerTitle
           icon="🪪"
           title="Canonical Identity"
-          description={LAYER_DESCRIPTIONS.canonical_identity_layer}
+          description={STORY_LAYER_METADATA.canonical_identity_layer.description}
         />
         <div
           style={{
@@ -1351,7 +1401,7 @@ export function CanonicalIdentityLayer({
       <LayerTitle
         icon="🪪"
         title="Canonical Identity"
-        description={LAYER_DESCRIPTIONS.canonical_identity_layer}
+        description={STORY_LAYER_METADATA.canonical_identity_layer.description}
         badge={`${identities.length} ${identities.length === 1 ? "identity" : "identities"}`}
         badgeTone="gold"
       />
@@ -1518,7 +1568,7 @@ export function CastRoleTierLayer({
       <LayerTitle
         icon="🎭"
         title="Cast & Role Tier"
-        description={LAYER_DESCRIPTIONS.cast_role_tier_layer}
+        description={STORY_LAYER_METADATA.cast_role_tier_layer.description}
         badge={`${totalCast} characters`}
         badgeTone="gold"
       />
@@ -1649,7 +1699,7 @@ export function RelationshipNetworkLayer({
       <LayerTitle
         icon="🔗"
         title="Relationship Network"
-        description={LAYER_DESCRIPTIONS.relationship_network_layer}
+        description={STORY_LAYER_METADATA.relationship_network_layer.description}
         badge={count > 0 ? `${count} pairs` : undefined}
         badgeTone="neutral"
       />
@@ -1766,18 +1816,64 @@ export function RelationshipNetworkLayer({
                     {b}
                   </span>
                   <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                    {typeArr.map((t, j) => (
-                      <Pill key={j} label={t.replace(/_/g, " ")} tone="blue" />
-                    ))}
+                    {typeArr.filter((t) => t !== "unknown").map((t, j) => {
+                      const REL_TYPE_LABELS: Record<string, string> = {
+                        spouse: "Spouse / Marriage",
+                        romantic_partners: "Romantic Partners",
+                        forbidden_desire: "Forbidden Desire",
+                        parent_child: "Parent–Child",
+                        father_son: "Father–Son",
+                        father_daughter: "Father–Daughter",
+                        siblings: "Siblings",
+                        extended_family: "Extended Family",
+                        found_family: "Found Family",
+                        friendship: "Friendship",
+                        mentor_student: "Mentor–Student",
+                        artistic_alliance: "Artistic Alliance",
+                        employer_employee: "Employer–Employee",
+                        colleagues: "Colleagues",
+                        social_acquaintance: "Social Acquaintance",
+                        captor_captive: "Captor–Captive",
+                        protector_protected: "Protector–Protected",
+                        adversaries: "Adversaries",
+                        uneasy_alliance: "Uneasy Alliance",
+                        strangers: "Strangers",
+                      };
+                      const label = REL_TYPE_LABELS[t] ?? t.replace(/_/g, " ");
+                      return <Pill key={j} label={label} tone="blue" />;
+                    })}
                   </div>
                 </div>
 
                 <div>
+                  {pair.first_co_presence_chapter && (
+                    <FieldRow label="First shared scene" value={String(pair.first_co_presence_chapter)} />
+                  )}
+                  {pair.first_shared_location && (
+                    <FieldRow label="First shared location" value={String(pair.first_shared_location)} />
+                  )}
                   {pair.relationship_origin && (
                     <FieldRow label="Origin" value={pair.relationship_origin} />
                   )}
                   {pair.initial_dynamic && (
                     <FieldRow label="Initial dynamic" value={pair.initial_dynamic} />
+                  )}
+                  {/* Power dynamic timeline from pipeline */}
+                  {Array.isArray(pair.power_dynamic_timeline) && (pair.power_dynamic_timeline as Array<Record<string, unknown>>).length > 0 && (
+                    <FieldRow
+                      label="Power dynamics"
+                      value={(pair.power_dynamic_timeline as Array<Record<string, unknown>>)
+                        .map((pd) => {
+                          const dynamic = String(pd.dynamic ?? "").replace(/_/g, " ");
+                          const range = Array.isArray(pd.chunkRange) ? pd.chunkRange as number[] : [];
+                          const rangeStr = range.length === 2 && range[0] !== range[1]
+                            ? ""
+                            : "";
+                          const note = pd.note ? ` — ${pd.note}` : "";
+                          return `${dynamic}${rangeStr}${note}`;
+                        })
+                        .join(" → ")}
+                    />
                   )}
                   {pair.pressure_points && (
                     <FieldRow label="Pressure" value={pair.pressure_points} />
@@ -1797,15 +1893,26 @@ export function RelationshipNetworkLayer({
                       value={pair.current_or_final_state}
                     />
                   )}
+                  {/* Pivot moments from pipeline */}
+                  {Array.isArray(pair.pivot_moments) && (pair.pivot_moments as Array<Record<string, unknown>>).length > 0 && (
+                    <div style={{ marginTop: 8 }}>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: C.textMuted }}>
+                        Pivot moments:
+                      </span>
+                      {(pair.pivot_moments as Array<Record<string, unknown>>).map((pm, j) => (
+                        <div key={j} style={{ marginTop: 4, fontSize: 13, color: C.textMuted, paddingLeft: 12 }}>
+                          {pm.chapterRef && <span style={{ fontWeight: 600 }}>{String(pm.chapterRef)}: </span>}
+                          {String(pm.description ?? "")}
+                          {pm.evidenceQuote && (
+                            <span style={{ fontStyle: "italic", color: C.textMuted }}>{` — "${String(pm.evidenceQuote)}"`}</span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
-                {evidenceAnchors && evidenceAnchors.length > 0 && (
-                  <div style={{ marginTop: 12, display: "flex", gap: 6, flexWrap: "wrap" }}>
-                    {evidenceAnchors.map((a, j) => (
-                      <EvidenceTag key={j} id={a} />
-                    ))}
-                  </div>
-                )}
+
               </CharacterCard>
             );
           })}
@@ -1984,6 +2091,31 @@ function ObjectCard({
             <Pill key={j} label={c} tone="neutral" />
           ))}
         </div>
+      )}
+
+      {/* Symbolic function lifecycle stages */}
+      {Array.isArray(item.symbolic_function_stages) && (item.symbolic_function_stages as Array<Record<string, unknown>>).length > 0 && (
+        <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 4 }}>
+          <span style={{ fontSize: 12, color: C.textMuted, fontWeight: 600, letterSpacing: "0.04em" }}>
+            Symbolic lifecycle
+          </span>
+          {(item.symbolic_function_stages as Array<Record<string, unknown>>).map((stage, j) => (
+            <div key={j} style={{ fontSize: 13, color: C.textMuted, paddingLeft: 12 }}>
+              <span style={{ fontWeight: 600, color: C.textPrimary }}>
+                {String(stage.stage ?? "").replace(/_/g, " ")}
+              </span>
+              {stage.chapterRange && <span> ({String(stage.chapterRange)})</span>}
+              {stage.function && <span>: {String(stage.function)}</span>}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Narrative span indicator */}
+      {typeof item.narrative_span === "number" && (item.narrative_span as number) > 0 && (
+        <p style={{ margin: "6px 0 0", fontSize: 13, color: C.textFaint }}>
+          Spans {item.narrative_span as number} section{(item.narrative_span as number) === 1 ? "" : "s"} of the manuscript
+        </p>
       )}
 
       {payoff && (
@@ -2184,7 +2316,7 @@ export function ObjectSymbolLayer({
       <LayerTitle
         icon="🗡"
         title="Objects & Symbols"
-        description={LAYER_DESCRIPTIONS.object_symbol_layer}
+        description={STORY_LAYER_METADATA.object_symbol_layer.description}
         badge={itemArray.length > 0 ? `${itemArray.length} objects` : undefined}
         badgeTone="gold"
       />
@@ -2425,7 +2557,7 @@ export function LocationTimelineWorldstateLayer({
       <LayerTitle
         icon="🗺"
         title="Location · Timeline · World State"
-        description={LAYER_DESCRIPTIONS.location_timeline_worldstate_layer}
+        description={STORY_LAYER_METADATA.location_timeline_worldstate_layer.description}
         badge={totalLocCount > 0 ? `${totalLocCount} locations` : undefined}
         badgeTone="neutral"
       />
@@ -2610,11 +2742,7 @@ export function LocationTimelineWorldstateLayer({
                     {loc.world_state_rules && <FieldRow label="World state rules" value={loc.world_state_rules} />}
                   </div>
                   {loc.continuity_risks && <WarnBanner reason={String(loc.continuity_risks)} />}
-                  {anchors && anchors.length > 0 && (
-                    <div style={{ marginTop: 10, display: "flex", gap: 6, flexWrap: "wrap" }}>
-                      {anchors.map((a, j) => <EvidenceTag key={j} id={a} />)}
-                    </div>
-                  )}
+
                 </CharacterCard>
               );
             })}
@@ -2694,10 +2822,26 @@ function formatTerminalEntry(entry: Record<string, unknown>): {
   const charId = String(entry.characterId ?? "");
   const name = charId ? sentenceCaseId(charId) : "Unknown";
   const belief = String(entry.finalBeliefState ?? "");
-  const condition = String(entry.terminalCondition ?? "open");
-  const closure = String(entry.narrativeClosureStatus ?? "unknown");
+  const rawCondition = String(entry.terminalCondition ?? "open");
+  const TERMINAL_LABELS: Record<string, string> = {
+    death: "Dies",
+    departure: "Departs",
+    disappearance: "Disappears",
+    transformation: "Transformed",
+    open: "Arc open",
+    unresolved: "Arc unresolved",
+  };
+  const condition = TERMINAL_LABELS[rawCondition] ?? rawCondition.replace(/_/g, " ");
+  const rawClosure = String(entry.narrativeClosureStatus ?? "unknown");
+  const CLOSURE_LABELS: Record<string, string> = {
+    closed: "Closed",
+    open: "Open",
+    ambiguous: "Ambiguous",
+    unknown: "Not yet determined",
+  };
+  const closure = CLOSURE_LABELS[rawClosure] ?? rawClosure.replace(/_/g, " ");
   const chunk = entry.terminalChunk ?? entry.terminalChapter ?? "";
-  const terminal = chunk ? `Last seen: ${typeof chunk === "number" ? `chunk ${chunk}` : chunk}` : "";
+  const terminal = chunk ? `Last seen: ${typeof chunk === "number" ? `section ${chunk}` : chunk}` : "";
   return { name, terminal, belief, condition, closure };
 }
 
@@ -3359,7 +3503,7 @@ export function LayerCompletionBar({
   );
 }
 
-// ─── Layer 9 — Identity & Pronoun Verification ──────────────────────────────
+// ─── Layer 5 — Identity & Pronoun Verification ──────────────────────────────
 
 interface PronounShiftDecision {
   character: string;
@@ -3443,7 +3587,7 @@ export function IdentityPronounLayer({
       <LayerTitle
         icon="🏷️"
         title="Identity & Pronoun Verification"
-        description={LAYER_DESCRIPTIONS.identity_pronoun_layer}
+        description={STORY_LAYER_METADATA.identity_pronoun_layer.description}
         badge={
           shiftCount > 0
             ? `${shiftCount} pronoun ${shiftCount === 1 ? "shift" : "shifts"} detected`
@@ -3451,6 +3595,26 @@ export function IdentityPronounLayer({
         }
         badgeTone={shiftCount > 0 ? "oxblood" : "gold"}
       />
+
+      <p style={{ fontSize: 13, color: C.textMuted, margin: "-4px 0 12px", lineHeight: 1.65 }}>
+        This layer only shows pronoun-family transitions, cross-family shifts, or identity signals that may need author confirmation. Subject/object forms such as he/him, she/her, and they/them are normalized and hidden.
+      </p>
+
+      {shiftCount === 0 && (
+        <div
+          style={{
+            border: `1px solid ${C.border}`,
+            borderRadius: 12,
+            padding: "12px 14px",
+            background: C.surface,
+            color: C.textMuted,
+            fontSize: 13,
+            marginBottom: 16,
+          }}
+        >
+          No pronoun transitions detected. Stable subject/object pronoun usage was normalized in the background and does not require review.
+        </div>
+      )}
 
       {shiftCount > 0 && (
         <div style={{ display: "flex", flexDirection: "column", gap: 14, marginBottom: 20 }}>
@@ -3478,8 +3642,7 @@ export function IdentityPronounLayer({
                   </div>
                 </div>
                 <p style={{ fontSize: 14, color: C.textMuted, margin: "0 0 10px", lineHeight: 1.6 }}>
-                  Pronoun variation detected across evidence spans{" "}
-                  {char.chunkFirst}–{char.chunkLast}.{" "}
+                  Pronoun variation detected across the manuscript.{" "}
                   {char.genderIdentity !== "unknown" && (
                     <span>Gender signal: <em>{char.genderIdentity}</em>.</span>
                   )}
@@ -3596,40 +3759,51 @@ export function StoryLayerRenderer({
   pronounDecisions?: PronounShiftDecision[];
   onPronounDecision?: (character: string, decision: "intentional" | "continuity_error") => void;
 }) {
+  let renderedLayer: React.ReactNode;
+
   switch (layerKey) {
     case "source_integrity_layer":
-      return (
+      renderedLayer = (
         <SourceIntegrityLayer
           data={data}
           enrichmentNote={sourceIntegrityEnrichmentNote}
           onEnrichmentNoteChange={onSourceIntegrityEnrichmentNoteChange}
         />
       );
+      break;
     case "pov_structure_layer":
-      return <PovStructureLayer data={data} />;
+      renderedLayer = <PovStructureLayer data={data} />;
+      break;
     case "canonical_identity_layer":
-      return <CanonicalIdentityLayer data={data} />;
+      renderedLayer = <CanonicalIdentityLayer data={data} />;
+      break;
     case "cast_role_tier_layer":
-      return <CastRoleTierLayer data={data} />;
+      renderedLayer = <CastRoleTierLayer data={data} />;
+      break;
     case "identity_pronoun_layer":
-      return (
+      renderedLayer = (
         <IdentityPronounLayer
           data={data}
           pronounDecisions={pronounDecisions}
           onPronounDecision={onPronounDecision}
         />
       );
+      break;
     case "relationship_network_layer":
-      return <RelationshipNetworkLayer data={data} castData={castData} />;
+      renderedLayer = <RelationshipNetworkLayer data={data} castData={castData} />;
+      break;
     case "object_symbol_layer":
-      return <ObjectSymbolLayer data={data} />;
+      renderedLayer = <ObjectSymbolLayer data={data} />;
+      break;
     case "location_timeline_worldstate_layer":
-      return <LocationTimelineWorldstateLayer data={data} />;
+      renderedLayer = <LocationTimelineWorldstateLayer data={data} />;
+      break;
     case "threat_antagonist_ending_layer":
-      return <ThreatAntagonistEndingLayer data={data} />;
+      renderedLayer = <ThreatAntagonistEndingLayer data={data} />;
+      break;
     default:
       if (!data || Object.keys(data).length === 0) {
-        return (
+        renderedLayer = (
           <div
             style={{
               border: `1px dashed ${C.border}`,
@@ -3643,8 +3817,9 @@ export function StoryLayerRenderer({
             No data for layer: {layerKey}
           </div>
         );
+        break;
       }
-      return (
+      renderedLayer = (
         <div
           style={{
             border: `1px solid ${C.border}`,
@@ -3674,5 +3849,13 @@ export function StoryLayerRenderer({
           </dl>
         </div>
       );
+      break;
   }
+
+  return (
+    <>
+      <LayerTruthBanner data={data} />
+      {renderedLayer}
+    </>
+  );
 }
