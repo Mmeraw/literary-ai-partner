@@ -84,10 +84,10 @@ describe("ReviseQueueV2Client smoke", () => {
 
     expect(screen.getByText(/needs an excerpt or usable manuscript anchor/i)).toBeTruthy();
 
-    const accept = screen.getByRole("button", { name: "Accept A" }) as HTMLButtonElement;
-    const keep = screen.getByRole("button", { name: "Keep My Original" }) as HTMLButtonElement;
-    const reject = screen.getByRole("button", { name: "Reject These Suggestions" }) as HTMLButtonElement;
-    const decideLater = screen.getByRole("button", { name: "Decide Later" }) as HTMLButtonElement;
+    const accept = screen.getAllByRole("button", { name: "Accept A" })[0] as HTMLButtonElement;
+    const keep = screen.getAllByRole("button", { name: "Keep My Original" })[0] as HTMLButtonElement;
+    const reject = screen.getAllByRole("button", { name: "Reject These Suggestions" })[0] as HTMLButtonElement;
+    const decideLater = screen.getAllByRole("button", { name: "Decide Later" })[0] as HTMLButtonElement;
 
     expect(accept.disabled).toBe(true);
     expect(keep.disabled).toBe(true);
