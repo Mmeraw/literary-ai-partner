@@ -17,9 +17,9 @@ const { upsertEvaluationArtifact } = jest.requireMock('../../../../lib/evaluatio
 type QueryStep = {
   table: string;
   select?: string;
-  eq?: Array<[string, unknown]>;
-  in?: Array<[string, unknown[]]>;
-  order?: Array<[string, unknown]>;
+  eqCalls?: Array<[string, unknown]>;
+  inCalls?: Array<[string, unknown[]]>;
+  orderCalls?: Array<[string, unknown]>;
   maybeSingle?: boolean;
 };
 
@@ -40,24 +40,24 @@ function makeSupabase(fixtures: {
           return builder;
         },
         eq(column: string, value: unknown) {
-          step.eq = [...(step.eq ?? []), [column, value]];
+          step.eqCalls = [...(step.eqCalls ?? []), [column, value]];
           return builder;
         },
         in(column: string, value: unknown[]) {
-          step.in = [...(step.in ?? []), [column, value]];
+          step.inCalls = [...(step.inCalls ?? []), [column, value]];
           return builder;
         },
         order(column: string, options: unknown) {
-          step.order = [...(step.order ?? []), [column, options]];
+          step.orderCalls = [...(step.orderCalls ?? []), [column, options]];
           return builder;
         },
         async maybeSingle() {
           step.maybeSingle = true;
-          const jobId = step.eq?.find(([column]) => column === 'id')?.[1] as string;
+          const jobId = step.eqCalls?.find(([column]) => column === 'id')?.[1] as string;
           return { data: fixtures.jobs[jobId] ?? null, error: null };
         },
         then(resolve: (value: unknown) => unknown) {
-          const jobId = step.eq?.find(([column]) => column === 'job_id')?.[1] as string;
+          const jobId = step.eqCalls?.find(([column]) => column === 'job_id')?.[1] as string;
           return Promise.resolve({ data: fixtures.artifacts[jobId] ?? [], error: null }).then(resolve);
         },
       };
