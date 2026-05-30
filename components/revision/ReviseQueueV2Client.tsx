@@ -23,6 +23,14 @@ type LedgerEntry = {
   selectedOption?: "A" | "B" | "C";
   customText?: string;
   selectedText?: string;
+  sourceExcerpt?: string;
+  sourceLocation?: string;
+  criterion?: string;
+  severity?: WorkbenchOpportunity["severity"];
+  scope?: WorkbenchScope;
+  queueType?: QueueType;
+  source?: WorkbenchSource;
+  evidenceStatus?: EvidenceStatus;
   isUndo?: boolean;
   undoneLocalId?: string;
   syncStatus: SyncStatus;
@@ -36,6 +44,8 @@ type ServerLedgerEntry = {
   decision: Exclude<DecisionState, "pending">;
   selected_option: "A" | "B" | "C" | null;
   custom_text: string | null;
+  source_excerpt?: string | null;
+  source_location?: string | null;
   client_created_at: string | null;
   client_synced_at: string;
   is_undo: boolean;
@@ -190,6 +200,8 @@ function rowToLedgerEntry(row: ServerLedgerEntry): LedgerEntry {
     decision: row.decision,
     selectedOption: row.selected_option ?? undefined,
     customText: row.custom_text ?? undefined,
+    sourceExcerpt: row.source_excerpt ?? undefined,
+    sourceLocation: row.source_location ?? undefined,
     isUndo: row.is_undo,
     undoneLocalId: row.undone_local_id ?? undefined,
     syncStatus: "synced",
@@ -484,7 +496,7 @@ export default function ReviseQueueV2Client({ payload }: { payload: WorkbenchQue
 
   useEffect(() => {
     if (!isOnline || !effectivePayload.manuscriptId || !effectivePayload.evaluationJobId) return;
-    const pendingEntries = ledger.filter((entry) => entry.syncStatus === "pending" && entry.decision !== "pending");
+    const pendingEntries = ledger.filter((entry) => entry.syncStatus !== "synced" && entry.decision !== "pending");
     if (pendingEntries.length === 0) return;
     let cancelled = false;
 
@@ -504,10 +516,20 @@ export default function ReviseQueueV2Client({ payload }: { payload: WorkbenchQue
               selectedOption: entry.selectedOption ?? null,
               customText: entry.customText ?? null,
               selectedText: entry.selectedText ?? entry.customText ?? null,
+              sourceExcerpt: entry.sourceExcerpt ?? null,
+              sourceLocation: entry.sourceLocation ?? null,
               clientCreatedAt: entry.createdAtIso,
               isUndo: entry.isUndo ?? false,
               undoneLocalId: entry.undoneLocalId ?? null,
-              metadata: { source: "workbench-v2-local-first" },
+              metadata: {
+                source: "workbench-v2-local-first",
+                criterion: entry.criterion ?? null,
+                severity: entry.severity ?? null,
+                scope: entry.scope ?? null,
+                queueType: entry.queueType ?? null,
+                opportunitySource: entry.source ?? null,
+                evidenceStatus: entry.evidenceStatus ?? null,
+              },
             })),
           }),
         });
@@ -765,8 +787,7 @@ export default function ReviseQueueV2Client({ payload }: { payload: WorkbenchQue
   }, [pageNodes, activeId]);
 
   const active = useMemo(() => {
-    if (!activeId) return null;
-    return enriched.find((item) => item.id === activeId) ?? null;
+    return enriched.find((item) => item.id === activeId) ?? enriched[0];
   }, [enriched, activeId]);
 
   const selectedProposal = useMemo(() => {
@@ -826,7 +847,7 @@ export default function ReviseQueueV2Client({ payload }: { payload: WorkbenchQue
   const failedSyncCount = ledger.filter((entry) => entry.syncStatus === "failed").length;
 
   const activeEvidence = active ? active.evidenceStatus : "missing_evidence";
-  const canAccept = !!active && activeEvidence !== "missing_evidence";
+  const canAccept = activeEvidence !== "missing_evidence";
 
   const referenceHref = useMemo(() => {
     const params = new URLSearchParams();
@@ -836,7 +857,7 @@ export default function ReviseQueueV2Client({ payload }: { payload: WorkbenchQue
     return query ? `/workbench?${query}` : "/workbench";
   }, [effectivePayload.evaluationJobId, effectivePayload.manuscriptId]);
 
-  if (!effectivePayload.ok || opportunities.length === 0) {
+  if (!effectivePayload.ok || opportunities.length === 0 || !active) {
     return <EmptyWorkbench payload={effectivePayload} cachedAt={cachedAt} />;
   }
 
@@ -847,9 +868,17 @@ export default function ReviseQueueV2Client({ payload }: { payload: WorkbenchQue
     setDraftText("");
   }
 
-  function stampDecision(decision: DecisionState, customText?: string) {
-    if (!active) return;
+  function moveToNextOpportunity(fromId: string) {
+    const orderedIds = sorted.map((item) => item.id);
+    const currentIndex = orderedIds.indexOf(fromId);
+    if (currentIndex === -1) return;
+    const nextId = orderedIds[currentIndex + 1];
+    if (nextId) {
+      moveToOpportunity(nextId);
+    }
+  }
 
+  function stampDecision(decision: DecisionState, customText?: string) {
     const normalized = decision === "accepted_a" || decision === "accepted_b" || decision === "accepted_c"
       ? (`accepted_${selectedOption.toLowerCase()}` as DecisionState)
       : decision;
@@ -869,6 +898,16 @@ export default function ReviseQueueV2Client({ payload }: { payload: WorkbenchQue
       selectedOption: normalized.startsWith("accepted") ? selectedOption : undefined,
       customText: customText?.trim() || undefined,
       selectedText: resolvedSelectedText,
+      sourceExcerpt: active.base.quoteHighlight && active.base.quoteHighlight !== "No excerpt available"
+        ? `${active.base.quoteHighlight}${active.base.quoteRest ?? ""}`.trim()
+        : undefined,
+      sourceLocation: active.base.anchor,
+      criterion: active.criterion,
+      severity: active.priority,
+      scope: active.scope,
+      queueType: active.queueType,
+      source: active.source,
+      evidenceStatus: active.evidenceStatus,
       syncStatus: "pending",
     };
 
@@ -876,6 +915,7 @@ export default function ReviseQueueV2Client({ payload }: { payload: WorkbenchQue
     setLedger(nextLedger);
     setDecisionById(rebuildDecisionMap(nextLedger));
     saveLocalCache(key, effectivePayload, nextLedger);
+    moveToNextOpportunity(active.id);
   }
 
   function retryFailedSyncEntries() {
@@ -920,9 +960,9 @@ export default function ReviseQueueV2Client({ payload }: { payload: WorkbenchQue
   }
 
   return (
-    <main className="min-h-screen bg-[#0D0A05] px-4 py-6 text-[#F5EFE4] md:px-6 md:py-8">
-      <div className="mx-auto max-w-[1700px]">
-        <header className="mb-4 rounded-xl border border-[#3A3022] bg-[#1C160E]/80 p-6">
+    <main className="h-screen overflow-hidden bg-[#0D0A05] px-4 py-4 text-[#F5EFE4] md:px-6 md:py-5">
+      <div className="mx-auto flex h-full max-w-[1700px] min-h-0 flex-col">
+        <header className="mb-3 shrink-0 rounded-xl border border-[#3A3022] bg-[#1C160E]/80 p-4">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div>
               <p className="text-[11px] uppercase tracking-[0.22em] text-[#C8A96E]">Revise Workspace · live queue</p>
@@ -967,7 +1007,7 @@ export default function ReviseQueueV2Client({ payload }: { payload: WorkbenchQue
           </div>
         </header>
 
-        <section className="sticky top-2 z-20 mb-4 rounded-xl border border-[#3A3022] bg-[#161109]/95 p-4 backdrop-blur">
+        <section className="z-20 mb-3 shrink-0 rounded-xl border border-[#3A3022] bg-[#161109]/95 p-3 backdrop-blur">
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
             <input
               value={filters.searchText}
@@ -1048,8 +1088,8 @@ export default function ReviseQueueV2Client({ payload }: { payload: WorkbenchQue
           </div>
         </section>
 
-        <section className="grid gap-4 xl:grid-cols-[360px_minmax(0,1fr)_320px]">
-          <aside className="rounded-xl border border-[#3A3022] bg-[#161109] p-4">
+        <section className="grid min-h-0 flex-1 gap-4 xl:grid-cols-[340px_minmax(0,1fr)_300px]">
+          <aside className="min-h-0 overflow-y-auto rounded-xl border border-[#3A3022] bg-[#161109] p-4">
             <div className="mb-3 flex items-center justify-between gap-3">
               <h2 className="text-sm uppercase tracking-[0.18em] text-[#D7C4A1]">First Revision Set</h2>
               <button
@@ -1066,7 +1106,7 @@ export default function ReviseQueueV2Client({ payload }: { payload: WorkbenchQue
               {pageNodes.map((node) => {
                 if (node.kind === "item") {
                   const item = node.item;
-                  const activeCard = active?.id === item.id;
+                  const activeCard = active.id === item.id;
                   return (
                     <li key={item.id}>
                       <button
@@ -1088,7 +1128,7 @@ export default function ReviseQueueV2Client({ payload }: { payload: WorkbenchQue
 
                 const cluster = node.cluster;
                 const isExpanded = !!expandedClusters[cluster.id];
-                const isActiveCluster = !!cluster.instances.find((instance) => instance.id === active?.id);
+                const isActiveCluster = !!cluster.instances.find((instance) => instance.id === active.id);
                 const shown = isExpanded ? cluster.instances : cluster.instances.slice(0, cluster.shownInstances);
 
                 return (
@@ -1111,7 +1151,7 @@ export default function ReviseQueueV2Client({ payload }: { payload: WorkbenchQue
                           <button
                             type="button"
                             onClick={() => moveToOpportunity(instance.id)}
-                            className={`w-full rounded border px-2 py-1 text-left text-xs ${active?.id === instance.id ? "border-[#C8A96E] bg-[#2B2114] text-[#F3E8D3]" : "border-[#2D2519] bg-[#161109] text-[#D6C3A2] hover:border-[#5D4C31]"}`}
+                            className={`w-full rounded border px-2 py-1 text-left text-xs ${active.id === instance.id ? "border-[#C8A96E] bg-[#2B2114] text-[#F3E8D3]" : "border-[#2D2519] bg-[#161109] text-[#D6C3A2] hover:border-[#5D4C31]"}`}
                           >
                             {instance.base.meta}
                           </button>
@@ -1154,16 +1194,10 @@ export default function ReviseQueueV2Client({ payload }: { payload: WorkbenchQue
             </div>
           </aside>
 
-          <article className="rounded-xl border border-[#3A3022] bg-[#1C160E] p-5">
-            {!active ? (
-              <section className="rounded-lg border border-[#2E261A] bg-[#12100B] p-6">
-                <h3 className="text-lg text-[#F2E7D4]" style={{ fontFamily: "Instrument Serif, Georgia, serif" }}>No matching opportunities</h3>
-                <p className="mt-2 text-sm text-[#CBBDA4]">Adjust filters to restore queue results. No off-filter recommendation is selectable while this view is empty.</p>
-              </section>
-            ) : (
-              <>
+          <article className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-[#3A3022] bg-[#1C160E]">
+            <div className="flex-1 overflow-y-auto p-4">
                 <p className="text-xs text-[#A89574]">{active.base.crumb}</p>
-                <h2 className="mt-2 text-3xl text-[#F7EFDF]" style={{ fontFamily: "Instrument Serif, Georgia, serif" }}>{active.base.title}</h2>
+                <h2 className="mt-2 text-2xl text-[#F7EFDF] xl:text-3xl" style={{ fontFamily: "Instrument Serif, Georgia, serif" }}>{active.base.title}</h2>
                 <p className="mt-2 text-sm text-[#CBBDA4]">{active.base.symptom}</p>
 
                 <div className="mt-3 flex flex-wrap gap-2">
@@ -1297,11 +1331,52 @@ export default function ReviseQueueV2Client({ payload }: { payload: WorkbenchQue
                     </div>
                   </section>
                 )}
-              </>
-            )}
+            </div>
+
+            <div className="shrink-0 border-t border-[#2E261A] bg-[#161109] px-4 py-3">
+              <section className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  disabled={!canAccept}
+                  onClick={() => stampDecision(`accepted_${selectedOption.toLowerCase()}` as DecisionState)}
+                  className="rounded border border-[#C8A96E] bg-[#C8A96E] px-4 py-2 text-sm font-medium text-[#1A140C] disabled:opacity-50"
+                >
+                  Accept {selectedOption}
+                </button>
+                <button
+                  type="button"
+                  disabled={!canAccept}
+                  onClick={() => stampDecision("keep_original")}
+                  className="rounded border border-[#5D4C31] px-4 py-2 text-sm text-[#E8DABF] disabled:opacity-50"
+                >
+                  Keep My Original
+                </button>
+                <button
+                  type="button"
+                  disabled={!canAccept}
+                  onClick={() => stampDecision("reject")}
+                  className="rounded border border-[#7A2B1A]/70 px-4 py-2 text-sm text-[#E2B2A6] disabled:opacity-50"
+                >
+                  Reject These Suggestions
+                </button>
+                <button type="button" onClick={() => stampDecision("deferred")} className="rounded border border-[#5C5140] px-4 py-2 text-sm text-[#B7A98D]">
+                  Decide Later
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDraftText((current) => current || selectedProposal?.text || "");
+                    setIsDraftOpen(true);
+                  }}
+                  className="rounded border border-[#C8A96E] bg-[#C8A96E]/10 px-4 py-2 text-sm text-[#F3E3C3]"
+                >
+                  Write My Own Revision
+                </button>
+              </section>
+            </div>
           </article>
 
-          <aside className="rounded-xl border border-[#3A3022] bg-[#161109] p-4 xl:sticky xl:top-4 xl:h-fit">
+          <aside className="min-h-0 overflow-y-auto rounded-xl border border-[#3A3022] bg-[#161109] p-4">
             <div className="flex items-center justify-between">
               <h2 className="text-sm uppercase tracking-[0.18em] text-[#D7C4A1]">Revision Ledger</h2>
               {ledger.length > 0 && (
