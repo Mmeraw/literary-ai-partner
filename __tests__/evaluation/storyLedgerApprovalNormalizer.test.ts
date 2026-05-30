@@ -1,4 +1,4 @@
-import { STORY_LAYER_CORE_LAYER_KEYS } from '../../lib/evaluation/artifacts/artifactTypes';
+import { STORY_LAYER_KEYS } from '../../lib/evaluation/artifacts/artifactTypes';
 import type { LedgerQualityReportPayload, Phase1aWriterMetadata } from '../../lib/evaluation/phase1a/storyLayerArtifactWriters';
 import {
   assertPhase2StoryAuthority,
@@ -21,7 +21,7 @@ const metadata: Phase1aWriterMetadata = {
 
 function storyLayer() {
   return Object.fromEntries(
-    STORY_LAYER_CORE_LAYER_KEYS.map((key) => [
+    STORY_LAYER_KEYS.map((key) => [
       key,
       {
         evidence_anchors: [`anchor:${key}`],
@@ -73,7 +73,7 @@ function feedback(overrides: Partial<LedgerUserFeedbackPayload> = {}): LedgerUse
     reviewer_user_id: 'reviewer-1',
     reviewer_role: 'author',
     review_status: 'accepted_without_changes',
-    layer_dispositions: STORY_LAYER_CORE_LAYER_KEYS.map((layer) => ({ layer, status: 'accepted' })),
+    layer_dispositions: STORY_LAYER_KEYS.map((layer) => ({ layer, status: 'accepted' })),
     user_corrections: {},
     unresolved_warnings: [],
     ...overrides,
@@ -163,7 +163,7 @@ describe('Story Ledger approval normalizer', () => {
     expect(() => buildLedgerUserFeedbackArtifact({
       metadata,
       feedback: feedback({
-        layer_dispositions: STORY_LAYER_CORE_LAYER_KEYS.slice(0, 7).map((layer) => ({ layer, status: 'accepted' })),
+        layer_dispositions: STORY_LAYER_KEYS.slice(0, 7).map((layer) => ({ layer, status: 'accepted' })),
       }),
     })).toThrow(/missing layer disposition/);
   });
@@ -176,7 +176,7 @@ describe('Story Ledger approval normalizer', () => {
       feedbackSourceHash: 'feedback-source-hash',
       feedback: feedback({
         review_status: 'accepted_with_corrections',
-        layer_dispositions: STORY_LAYER_CORE_LAYER_KEYS.map((layer) => ({
+        layer_dispositions: STORY_LAYER_KEYS.map((layer) => ({
           layer,
           status: layer === 'canonical_identity_layer' ? 'modified' : 'accepted',
         })),

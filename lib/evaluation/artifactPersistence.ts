@@ -103,7 +103,18 @@ export type ArtifactType =
    * evaluation diagnosis to Revise queue/workbench. Not itself governing story
    * authority; consumed by revision orchestration.
    */
-  | "revision_opportunity_ledger_v1";
+  | "revision_opportunity_ledger_v1"
+  /**
+   * Evaluation-only SEED benchmark artifact — compares paired baseline vs SEED
+   * evaluation runs for Story Ledger quality, evidence coverage, hallucination risk,
+   * and latency. Non-governing; used to decide whether SEED should remain enabled.
+   */
+  | "evaluation_seed_benchmark_v1"
+  /**
+   * Evaluation-only SEED E2E proof artifact — validates a single SEED-enabled run
+   * for required artifacts, Story Ledger quality, evidence coverage, and authority.
+   */
+  | "evaluation_seed_e2e_proof_v1";
 
 /**
  * Compute SHA256 hex digest of input string
