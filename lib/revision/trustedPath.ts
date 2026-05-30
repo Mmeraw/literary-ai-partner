@@ -21,6 +21,7 @@ import { getAuthenticatedUser } from "@/lib/supabase/server";
 import { isTrustedPathEligible, type CrossCheckVerdict } from "./repairCrossCheck";
 import type { SyncRevisionLedgerEntryInput } from "./ledger";
 import { syncRevisionLedgerDecisions } from "./ledger";
+import { ensureOperationalRevisionFindings } from './operationalQueueBuilder';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -85,7 +86,7 @@ export async function applyTrustedPath(input: {
   // Verify evaluation job
   const { data: job, error: jobError } = await supabase
     .from("evaluation_jobs")
-    .select("id, status, manuscript_id")
+    .select("id, status, manuscript_id, manuscript_version_id")
     .eq("id", input.evaluationJobId)
     .eq("manuscript_id", manuscriptId)
     .maybeSingle();
@@ -93,6 +94,11 @@ export async function applyTrustedPath(input: {
   if (jobError) return emptyResult(jobError.message);
   if (!job) return emptyResult("Evaluation job not found for this manuscript");
   if (job.status !== "complete") return emptyResult("Evaluation is not complete yet");
+
+  await ensureOperationalRevisionFindings(
+    input.evaluationJobId,
+    (job.manuscript_version_id as string | null) ?? '',
+  );
 
   // Fetch all cross-check results with approve verdict for this evaluation
   const { data: approvedChecks, error: checksError } = await supabase

@@ -36,6 +36,7 @@ import { getAuthenticatedUser } from '@/lib/supabase/server';
 import { createHash, randomUUID } from 'crypto';
 import { buildPhaseLogPatch } from '@/lib/evaluation/phaseLog';
 import { collectDependencyWarningsFromStoryLayers } from '@/lib/evaluation/phase1a/storyLayerDependencyHealth';
+import { validateLayerDecisionsForApproval } from '@/lib/evaluation/reviewGate/layerDecisionValidation';
 
 type Disposition = 'accepted_without_changes' | 'accepted_with_edits' | 'rejected';
 
@@ -106,15 +107,16 @@ export async function POST(request: NextRequest, { params }: RouteParams): Promi
     );
   }
 
-  // Phase 2 cannot start unless all 9 layer decisions are present.
-  // On rejected disposition we allow missing decisions (author may bail early).
+  // Phase 2 cannot start unless all 9 canonical layer decisions are present,
+  // complete, and structurally valid. On rejected disposition we allow
+  // missing decisions (author may bail early).
   if (disposition !== 'rejected') {
-    const decisionCount = layer_decisions ? Object.keys(layer_decisions).length : 0;
-    if (decisionCount < 9) {
+    const validation = validateLayerDecisionsForApproval(layer_decisions);
+    if (!validation.ok) {
       return NextResponse.json(
         {
           ok: false,
-          error: `All 9 layer decisions are required to approve the Story Ledger. Received ${decisionCount}.`,
+          error: validation.error,
         },
         { status: 400 },
       );
