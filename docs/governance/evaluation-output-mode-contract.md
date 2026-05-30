@@ -166,3 +166,11 @@ docs/templates/evaluation/long-form-multi-layer-evaluation-template.md
 ```
 
 These templates define the expected public/report shape for each mode. Runtime code may render the same information differently, but the information hierarchy and boundaries must not contradict this contract.
+
+Seed-phase alignment must follow:
+
+```text
+docs/governance/seed-phase-template-alignment-contract.md
+```
+
+Seed scaffolds may align to these modes/templates but may not claim governing authority.
