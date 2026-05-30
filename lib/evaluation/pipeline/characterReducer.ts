@@ -45,6 +45,10 @@ import type {
 } from "./types";
 import { PASS1A_PROMPT_VERSION } from "./prompts/pass1a-character-sweep";
 import { quarantinePass1aChunkOutputs } from "./pass1aQuarantine";
+import {
+  sanitizeIdentityNameList,
+  sanitizeIdentityNameToken,
+} from "./identityNameHygiene";
 
 // Hard caps
 const MAX_LEDGER_ENTRIES = 15;
@@ -133,27 +137,27 @@ function resolveCanonical(
  * primary merge key, while still letting quarantine sanitize the rest of the
  * chunk output.
  */
-function buildRawIdentityGroupMap(rawChunkOutputs: Pass1aChunkOutput[]): Map<string, string> {
-  const map = new Map<string, string>();
+function buildRawIdentityGroupMap(rawChunkOutputs: Pass1aChunkOutput[]): Map<string, Set<string>> {
+  const map = new Map<string, Set<string>>();
   const chunks = Array.isArray(rawChunkOutputs) ? rawChunkOutputs : [];
 
   for (const chunk of chunks) {
     const characters = Array.isArray(chunk.characters) ? chunk.characters : [];
     for (const character of characters) {
       const record = character as Pass1aCharacterChunkEntry & { canonical_identity_group?: unknown };
-      const group = normalizeSignalText(record.canonical_identity_group);
+      const group = sanitizeIdentityNameToken(normalizeSignalText(record.canonical_identity_group));
       if (!group) continue;
 
-      const visibleNames = [
+      const visibleNames = sanitizeIdentityNameList([
         group,
         record.canonical_name,
         ...(Array.isArray(record.aliases) ? record.aliases : []),
-      ]
-        .map((value) => normalizeSignalText(value))
-        .filter((value): value is string => Boolean(value));
+      ]);
 
       for (const visibleName of visibleNames) {
-        map.set(normalize(visibleName), group.trim());
+        const key = normalize(visibleName);
+        if (!map.has(key)) map.set(key, new Set<string>());
+        map.get(key)!.add(group.trim());
       }
     }
   }
@@ -162,11 +166,13 @@ function buildRawIdentityGroupMap(rawChunkOutputs: Pass1aChunkOutput[]): Map<str
 }
 
 function normalizeIdentityGroupMap(
-  rawIdentityGroupMap: Map<string, string>,
+  rawIdentityGroupMap: Map<string, Set<string>>,
   aliasMap: Map<string, string>,
 ): Map<string, string> {
   const normalized = new Map<string, string>();
-  for (const [visibleName, group] of rawIdentityGroupMap.entries()) {
+  for (const [visibleName, groups] of rawIdentityGroupMap.entries()) {
+    if (groups.size !== 1) continue;
+    const [group] = Array.from(groups);
     normalized.set(visibleName, resolveCanonical(group, aliasMap));
   }
   return normalized;
@@ -252,6 +258,74 @@ function pickHighestWeight(weights: Pass1aNarrativeWeightSignal[]): Pass1aNarrat
 function pickAgeSignal(signals: (Pass1aAgeSignal)[]): Pass1aAgeSignal {
   // Return the first non-null signal
   return signals.find((s) => s !== null) ?? null;
+}
+
+type PronounFamily =
+  | "masculine"
+  | "feminine"
+  | "neutral_plural"
+  | "neopronoun"
+  | "it_thing"
+  | "honorific"
+  | "unknown_or_custom";
+
+const PRONOUN_FAMILY_REGISTRY: Array<{ family: PronounFamily; forms: string[] }> = [
+  { family: "masculine", forms: ["he", "him", "his", "himself"] },
+  { family: "feminine", forms: ["she", "her", "hers", "herself"] },
+  { family: "neutral_plural", forms: ["they", "them", "their", "theirs", "themself", "themselves"] },
+  {
+    family: "neopronoun",
+    forms: [
+      "xe", "xem", "xyr", "xyrs", "xemself",
+      "ze", "zir", "zirs", "hir", "hirs", "hirself",
+      "ey", "em", "eir", "eirs", "eirself",
+      "fae", "faer", "faers", "faerself",
+      "per", "pers", "perself",
+      "ve", "ver", "vis", "verself",
+      "ae", "aer", "aers", "aerself",
+      "zie", "zirself",
+    ],
+  },
+  { family: "it_thing", forms: ["it", "its", "itself"] },
+  {
+    family: "honorific",
+    forms: [
+      "mr", "mrs", "ms", "mx", "sir", "madam", "lady", "lord", "dame", "miss", "madame",
+    ],
+  },
+];
+
+function tokenizePronounSignal(raw: string): string[] {
+  return raw
+    .toLowerCase()
+    .replace(/[()\[\]{}.,;:!?"']/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .split(/[\s/|]+/)
+    .filter(Boolean);
+}
+
+function extractPronounFamilies(pronouns: string[]): Set<PronounFamily> {
+  const families = new Set<PronounFamily>();
+
+  for (const raw of pronouns) {
+    if (typeof raw !== "string") continue;
+    for (const token of tokenizePronounSignal(raw)) {
+      let matched = false;
+      for (const registryEntry of PRONOUN_FAMILY_REGISTRY) {
+        if (registryEntry.forms.includes(token)) {
+          families.add(registryEntry.family);
+          matched = true;
+          break;
+        }
+      }
+      if (!matched) {
+        families.add("unknown_or_custom");
+      }
+    }
+  }
+
+  return families;
 }
 
 // ── Symbol deduplication ──────────────────────────────────────────────────
@@ -372,17 +446,28 @@ export function reduceCharacterEvidence(params: {
     ...chunkOutputs.flatMap((co) =>
       co.characters.flatMap((c) => [c.canonical_name, ...(c.aliases ?? [])]),
     ),
-    ...Array.from(rawIdentityGroupMap.values()),
+    ...Array.from(rawIdentityGroupMap.values()).flatMap((groups) => Array.from(groups)),
   ];
   const aliasMap = buildAliasMap(allNames);
   const identityGroupMap = normalizeIdentityGroupMap(rawIdentityGroupMap, aliasMap);
+
+  function resolveCanonicalForEntry(entry: Pass1aCharacterChunkEntry): string {
+    const identityHint = normalizeSignalText(
+      (entry as Pass1aCharacterChunkEntry & { canonical_identity_group?: unknown })
+        .canonical_identity_group,
+    );
+    if (identityHint) {
+      return identityHint.trim();
+    }
+    return resolveCanonical(entry.canonical_name, aliasMap, identityGroupMap);
+  }
 
   // Group all chunk entries by resolved canonical name
   const grouped = new Map<string, Array<{ entry: Pass1aCharacterChunkEntry; chunk_index: number }>>();
 
   for (const chunkOutput of chunkOutputs) {
     for (const char of chunkOutput.characters) {
-      const canonical = resolveCanonical(char.canonical_name, aliasMap, identityGroupMap);
+      const canonical = resolveCanonicalForEntry(char);
       if (!grouped.has(canonical)) grouped.set(canonical, []);
       grouped.get(canonical)!.push({ entry: char, chunk_index: chunkOutput.chunk_index });
     }
@@ -390,7 +475,7 @@ export function reduceCharacterEvidence(params: {
     for (const char of chunkOutput.characters) {
       for (const alias of char.aliases ?? []) {
         const resolved = resolveCanonical(alias, aliasMap, identityGroupMap);
-        if (resolved !== resolveCanonical(char.canonical_name, aliasMap, identityGroupMap)) {
+        if (resolved !== resolveCanonicalForEntry(char)) {
           // This alias resolves to a different canonical — add cross-reference
           if (!grouped.has(resolved)) grouped.set(resolved, []);
           // Don't double-add the same entry
@@ -403,7 +488,7 @@ export function reduceCharacterEvidence(params: {
   const rawSymbols: RawSymbol[] = [];
   for (const chunkOutput of chunkOutputs) {
     for (const char of chunkOutput.characters) {
-      const canonical = resolveCanonical(char.canonical_name, aliasMap, identityGroupMap);
+      const canonical = resolveCanonicalForEntry(char);
       for (const sym of char.symbolic_objects ?? []) {
         rawSymbols.push({
           object: sym.object,
@@ -431,9 +516,22 @@ export function reduceCharacterEvidence(params: {
     const lastEntry = entries[entries.length - 1];
 
     // Collect all aliases
-    const allAliases = [...new Set(
-      entries.flatMap((e) => [e.canonical_name, ...e.aliases]).filter((a) => normalize(a) !== normalize(canonical)),
-    )];
+    const allAliases = sanitizeIdentityNameList(
+      entries.flatMap((e) => [e.canonical_name, ...e.aliases]),
+    ).filter((a) => normalize(a) !== normalize(canonical));
+
+    const legalName = entries
+      .map((e) => sanitizeIdentityNameToken(e.legal_name))
+      .find((name): name is string => !!name) ?? null;
+    const assumedNames = sanitizeIdentityNameList(entries.flatMap((e) => e.assumed_names ?? []));
+    const descriptors = unionArrays(entries.flatMap((e) => e.descriptors ?? []));
+    const formsOfAddress = unionArrays(entries.flatMap((e) => e.forms_of_address ?? []));
+    const sameNameDisambiguationGroup = entries
+      .map((e) => normalizeSignalText(e.same_name_disambiguation))
+      .find((text): text is string => !!text) ?? null;
+    const identityNotes = entries
+      .map((e) => normalizeSignalText(e.identity_notes))
+      .find((text): text is string => !!text) ?? null;
 
     // Age tracking — first vs last
     const ageExacts = entries.map((e) => e.age_exact).filter((a): a is number => a !== null);
@@ -525,32 +623,38 @@ export function reduceCharacterEvidence(params: {
 
     // Warnings
     const warnings: CharacterArcLedgerEntry["warnings"] = [];
+    const pronounFamilySets = entries
+      .map((e) => extractPronounFamilies((e.pronouns ?? []).filter((p): p is string => typeof p === "string")))
+      .filter((familySet) => familySet.size > 0);
 
-    // Pronoun inconsistency detection — filter out empty sets and
-    // collective "they/them" that appears alongside a consistent gendered pronoun.
-    const nonEmptyPronounSets = entries
-      .map((e) => [...(e.pronouns ?? [])].sort())
-      .filter((ps) => ps.length > 0);
-
-    if (nonEmptyPronounSets.length > 0) {
-      // Find the most common individual pronoun set (ignoring "they/them" when mixed)
-      const pronounFreq = new Map<string, number>();
-      for (const ps of nonEmptyPronounSets) {
-        const key = JSON.stringify(ps);
-        pronounFreq.set(key, (pronounFreq.get(key) ?? 0) + 1);
+    if (pronounFamilySets.length > 0) {
+      const familySignatures = pronounFamilySets.map((set) => JSON.stringify([...set].sort()));
+      const distinctSignatures = new Set(familySignatures);
+      const hasMixedKnownFamilies = pronounFamilySets.some(
+        (set) => [...set].filter((family) => family !== "unknown_or_custom" && family !== "honorific").length > 1,
+      );
+      const hasUnknownSignals = pronounFamilySets.some((set) => set.has("unknown_or_custom"));
+      const knownFamilies = new Set<PronounFamily>();
+      for (const set of pronounFamilySets) {
+        for (const family of set) {
+          if (family === "unknown_or_custom" || family === "honorific") continue;
+          knownFamilies.add(family);
+        }
       }
-      const uniqueKeys = [...pronounFreq.keys()];
-      // Filter: if "they/them" coexists with a gendered pronoun, don't flag it —
-      // it's likely collective/group reference that the LLM incorrectly recorded.
-      const theyKey = JSON.stringify(["they/them"]);
-      const nonTheyKeys = uniqueKeys.filter((k) => k !== theyKey);
-      const hasGenderedConsensus = nonTheyKeys.length === 1;
-      const effectiveUnique = hasGenderedConsensus
-        ? nonTheyKeys  // ignore the "they/them" entries as collective reference noise
-        : uniqueKeys;
+      const onlyCollectivePlusOneKnown =
+        knownFamilies.has("neutral_plural")
+        && knownFamilies.size === 2;
 
-      if (effectiveUnique.length > 1) {
-        warnings.push({ type: "pronoun_inconsistency", message: `Pronoun variation detected across chunks for "${canonical}"` });
+      const shouldWarn =
+        hasMixedKnownFamilies
+        || distinctSignatures.size > 1
+        || (hasUnknownSignals && pronounFamilySets.length > 1);
+
+      if (shouldWarn && !onlyCollectivePlusOneKnown) {
+        warnings.push({
+          type: "pronoun_inconsistency",
+          message: `Pronoun-family transition or unresolved pronoun ownership detected for "${canonical}"`,
+        });
       }
     }
     if (endingStatus === "accidentally_abandoned") {
@@ -562,9 +666,10 @@ export function reduceCharacterEvidence(params: {
     const nameStates: CharacterArcLedgerEntry["nameStates"] = [];
     const allNamesInOrder: Array<{ name: string; chunk_index: number }> = entries
       .flatMap((e, i) => [
-        { name: e.canonical_name, chunk_index: chunkIndices[i] },
-        ...(e.aliases ?? []).map((a) => ({ name: a, chunk_index: chunkIndices[i] })),
+        { name: sanitizeIdentityNameToken(e.canonical_name), chunk_index: chunkIndices[i] },
+        ...sanitizeIdentityNameList(e.aliases ?? []).map((a) => ({ name: a, chunk_index: chunkIndices[i] })),
       ])
+      .filter((n): n is { name: string; chunk_index: number } => !!n.name)
       .sort((a, b) => a.chunk_index - b.chunk_index);
     const distinctNamesInOrder = [...new Set(allNamesInOrder.map((n) => n.name))];
     for (let ni = 0; ni < distinctNamesInOrder.length; ni++) {
@@ -583,6 +688,28 @@ export function reduceCharacterEvidence(params: {
     // Fallback: always include the canonical name as valid from first chunk
     if (nameStates.length === 0) {
       nameStates.push({ name: canonical, validFromChunk: chunkIndices[0], validUntilChunk: null });
+    }
+
+    const legalNameStates: NonNullable<CharacterArcLedgerEntry["legal_name_states"]> = [];
+    const legalNamesInOrder: Array<{ name: string; chunk_index: number }> = entries
+      .flatMap((e, i) => [
+        { name: sanitizeIdentityNameToken(e.legal_name), chunk_index: chunkIndices[i] },
+        ...sanitizeIdentityNameList(e.assumed_names ?? []).map((a) => ({ name: a, chunk_index: chunkIndices[i] })),
+      ])
+      .filter((n): n is { name: string; chunk_index: number } => !!n.name)
+      .sort((a, b) => a.chunk_index - b.chunk_index);
+    const distinctLegalNames = [...new Set(legalNamesInOrder.map((n) => n.name))];
+    for (let li = 0; li < distinctLegalNames.length; li++) {
+      const nameStr = distinctLegalNames[li];
+      const firstSeen = legalNamesInOrder.find((n) => n.name === nameStr)?.chunk_index ?? chunkIndices[0];
+      const nextNameFirstSeen = li < distinctLegalNames.length - 1
+        ? legalNamesInOrder.find((n) => n.name === distinctLegalNames[li + 1])?.chunk_index ?? null
+        : null;
+      legalNameStates.push({
+        name: nameStr,
+        validFromChunk: firstSeen,
+        validUntilChunk: nextNameFirstSeen !== null ? nextNameFirstSeen - 1 : null,
+      });
     }
 
     // copingMechanisms: extracted from how_signal across chunks
@@ -646,8 +773,14 @@ export function reduceCharacterEvidence(params: {
 
     ledgerEntries.push({
       canonical_name: canonical,
+      legal_name: legalName,
       aliases: allAliases,
+      assumed_names: assumedNames,
+      descriptors,
+      forms_of_address: formsOfAddress,
       pronouns: [...new Set(entries.flatMap((e) => e.pronouns ?? []))],
+      same_name_disambiguation_group: sameNameDisambiguationGroup,
+      identity_notes: identityNotes,
       age_exact_first: ageExactFirst,
       age_exact_last: ageExactLast !== ageExactFirst ? ageExactLast : null,
       age_signal: pickAgeSignal(entries.map((e) => e.age_signal)),
@@ -695,6 +828,7 @@ export function reduceCharacterEvidence(params: {
       last_chunk_index: chunkIndices[chunkIndices.length - 1],
       mention_count: entries.length,
       nameStates,
+      legal_name_states: legalNameStates,
       copingMechanisms,
       coPresenceMap,
     });
@@ -837,6 +971,7 @@ export function buildCharacterLedgerV2(params: {
     return {
       characterId: e.canonical_name.toLowerCase().replace(/\s+/g, "_"),
       canonicalName: e.canonical_name,
+      legalName: e.legal_name ?? null,
       nameHistory: (e.nameStates ?? []).map((ns) => ({
         name: ns.name,
         validFromChunk: ns.validFromChunk,
@@ -844,6 +979,11 @@ export function buildCharacterLedgerV2(params: {
         confidence: "explicit" as EvidenceConfidence,
       })),
       aliases: e.aliases,
+      assumedNames: e.assumed_names ?? [],
+      descriptors: e.descriptors ?? [],
+      formsOfAddress: e.forms_of_address ?? [],
+      sameNameDisambiguationGroup: e.same_name_disambiguation_group ?? null,
+      identityNotes: e.identity_notes ?? null,
       narrativeRole: e.role as CharacterIdentityLedgerEntry["narrativeRole"],
       importanceLevel: e.narrative_weight_band as CharacterIdentityLedgerEntry["importanceLevel"],
       firstAppearance: { label: `chunk ${e.first_chunk_index}`, chunkIndex: e.first_chunk_index },
@@ -855,6 +995,52 @@ export function buildCharacterLedgerV2(params: {
       recommendationBlockers: blockers,
     };
   });
+
+  const canonicalNameToId = new Map<string, string>();
+  const characterIdToCanonicalName = new Map<string, string>();
+  const characterIdToDisambiguationGroup = new Map<string, string | null>();
+
+  for (const identity of identityLedger) {
+    canonicalNameToId.set(identity.canonicalName, identity.characterId);
+    characterIdToCanonicalName.set(identity.characterId, identity.canonicalName);
+    characterIdToDisambiguationGroup.set(
+      identity.characterId,
+      identity.sameNameDisambiguationGroup ?? null,
+    );
+  }
+
+  function stableCharacterId(name: string): string {
+    return canonicalNameToId.get(name) ?? name.toLowerCase().replace(/\s+/g, '_');
+  }
+
+  function stablePairIdentity(charNameA: string, charNameB: string): {
+    characterAId: string;
+    characterBId: string;
+    characterADisplayName: string;
+    characterBDisplayName: string;
+    pairKey: string;
+  } {
+    const idA = stableCharacterId(charNameA);
+    const idB = stableCharacterId(charNameB);
+
+    if (idA <= idB) {
+      return {
+        characterAId: idA,
+        characterBId: idB,
+        characterADisplayName: charNameA,
+        characterBDisplayName: charNameB,
+        pairKey: `${idA}↔${idB}`,
+      };
+    }
+
+    return {
+      characterAId: idB,
+      characterBId: idA,
+      characterADisplayName: charNameB,
+      characterBDisplayName: charNameA,
+      pairKey: `${idB}↔${idA}`,
+    };
+  }
 
   // ── 2. State Timelines ────────────────────────────────────────────────────
   // One snapshot per character per act zone (coarse — reducer has no location data per chunk)
@@ -923,7 +1109,7 @@ export function buildCharacterLedgerV2(params: {
     return "unknown";
   }
 
-  // Build a map from (charA, charB) → all relationship signals across chunks
+  // Build a map from canonical ID pair → all relationship signals across chunks
   const relSignalMap = new Map<string, Array<{
     relationship_type: string;
     dynamic: string;
@@ -932,14 +1118,14 @@ export function buildCharacterLedgerV2(params: {
 
   for (const entry of entries) {
     for (const rel of entry.relational_engines) {
-      const pairKey = [entry.canonical_name, rel.other_character].sort().join("↔");
-      const existing = relSignalMap.get(pairKey) ?? [];
+      const pair = stablePairIdentity(entry.canonical_name, rel.other_character);
+      const existing = relSignalMap.get(pair.pairKey) ?? [];
       existing.push({
         relationship_type: rel.relationship_type,
         dynamic: rel.dynamic,
         chunk_index: rel.chunk_span[0],
       });
-      relSignalMap.set(pairKey, existing);
+      relSignalMap.set(pair.pairKey, existing);
     }
   }
 
@@ -949,12 +1135,12 @@ export function buildCharacterLedgerV2(params: {
   for (const entry of entries) {
     const cpMap = entry.coPresenceMap ?? {};
     for (const [otherName, coPresence] of Object.entries(cpMap)) {
-      const pairKey = [entry.canonical_name, otherName].sort().join("↔");
-      if (seenRelPairs.has(pairKey)) continue;
-      seenRelPairs.add(pairKey);
+      const pair = stablePairIdentity(entry.canonical_name, otherName);
+      if (seenRelPairs.has(pair.pairKey)) continue;
+      seenRelPairs.add(pair.pairKey);
 
       // Look up relationship signals for this pair
-      const signals = relSignalMap.get(pairKey) ?? [];
+      const signals = relSignalMap.get(pair.pairKey) ?? [];
       const sortedSignals = [...signals].sort((a, b) => a.chunk_index - b.chunk_index);
 
       // Derive relationship type from earliest and latest signals
@@ -982,8 +1168,15 @@ export function buildCharacterLedgerV2(params: {
       }
 
       relationshipLedger.push({
-        characterA: entry.canonical_name,
-        characterB: otherName,
+        characterA: pair.characterAId,
+        characterB: pair.characterBId,
+        pairKey: pair.pairKey,
+        characterADisplayName: pair.characterADisplayName,
+        characterBDisplayName: pair.characterBDisplayName,
+        characterASameNameDisambiguationGroup:
+          characterIdToDisambiguationGroup.get(pair.characterAId) ?? null,
+        characterBSameNameDisambiguationGroup:
+          characterIdToDisambiguationGroup.get(pair.characterBId) ?? null,
         firstCoPresenceChunk: coPresence.firstSharedChunk,
         firstCoPresenceChapter: coPresence.firstSharedChapterEstimate,
         invalidBeforeChapter: coPresence.firstSharedChapterEstimate,
@@ -996,12 +1189,16 @@ export function buildCharacterLedgerV2(params: {
         sharedActivities: [],
         unresolvedLedger: [],
         recommendationBlocker: {
-          blockerId: makeBlockerId("co_presence_violation", entry.canonical_name, otherName),
+          blockerId: makeBlockerId(
+            'co_presence_violation',
+            pair.characterADisplayName,
+            pair.characterBDisplayName,
+          ),
           type: "co_presence_violation",
           severity: "suppress",
-          rule: `${entry.canonical_name} and ${otherName} do not share a scene until chunk ${coPresence.firstSharedChunk} (${coPresence.firstSharedChapterEstimate}). Recommendations must not place them together before this point.`,
+          rule: `${pair.characterADisplayName} and ${pair.characterBDisplayName} do not share a scene until chunk ${coPresence.firstSharedChunk} (${coPresence.firstSharedChapterEstimate}). Recommendations must not place them together before this point.`,
           validAfterChapter: coPresence.firstSharedChapterEstimate,
-          involvedCharacters: [entry.canonical_name, otherName],
+          involvedCharacters: [pair.characterADisplayName, pair.characterBDisplayName],
           affectedRecommendationTypes: ["characterization", "scene_structure"],
         },
       });
@@ -1118,10 +1315,29 @@ export function buildCharacterLedgerV2(params: {
 
   const coPresenceIndex: Record<string, Record<string, number>> = {};
   for (const rel of relationshipLedger) {
-    if (!coPresenceIndex[rel.characterA]) coPresenceIndex[rel.characterA] = {};
-    coPresenceIndex[rel.characterA][rel.characterB] = rel.firstCoPresenceChunk;
-    if (!coPresenceIndex[rel.characterB]) coPresenceIndex[rel.characterB] = {};
-    coPresenceIndex[rel.characterB][rel.characterA] = rel.firstCoPresenceChunk;
+    const idA = rel.characterA;
+    const idB = rel.characterB;
+    const nameA = rel.characterADisplayName ?? characterIdToCanonicalName.get(idA) ?? idA;
+    const nameB = rel.characterBDisplayName ?? characterIdToCanonicalName.get(idB) ?? idB;
+
+    const indexPair = (left: string, right: string, value: number): void => {
+      if (!coPresenceIndex[left]) coPresenceIndex[left] = {};
+      coPresenceIndex[left][right] = value;
+    };
+
+    // Canonical ID path (authoritative)
+    indexPair(idA, idB, rel.firstCoPresenceChunk);
+    indexPair(idB, idA, rel.firstCoPresenceChunk);
+
+    // Backward-compatible display-name lookups for existing call-sites/tests
+    indexPair(nameA, nameB, rel.firstCoPresenceChunk);
+    indexPair(nameB, nameA, rel.firstCoPresenceChunk);
+
+    // Mixed lookups so either ID or display name can be queried safely
+    indexPair(idA, nameB, rel.firstCoPresenceChunk);
+    indexPair(nameB, idA, rel.firstCoPresenceChunk);
+    indexPair(idB, nameA, rel.firstCoPresenceChunk);
+    indexPair(nameA, idB, rel.firstCoPresenceChunk);
   }
 
   const nameStateIndex: Record<string, Array<{ name: string; validFromChunk: number; validUntilChunk: number | null }>> = {};
@@ -1254,14 +1470,16 @@ export function buildCharacterLedgerV2(params: {
   // Hoisting to O(1) pre-build eliminates the regression surfaced by the
   // stress harness on 40-chunk inputs.
   const coverageIdentityGroupMap = buildRawIdentityGroupMap(chunkOutputs);
+  const coverageAliasMap = buildAliasMap(entries.flatMap((e) => [e.canonical_name, ...(e.aliases ?? [])]));
+  const coverageNormalizedIdentityGroupMap = normalizeIdentityGroupMap(coverageIdentityGroupMap, coverageAliasMap);
   const characterCoverage: Record<string, EvidenceCoverage> = {};
   for (const entry of entries) {
     const id = entry.canonical_name;
     const confirmedChunks = new Set<number>();
     for (const co of chunkOutputs) {
       if (co.characters.some((c) =>
-        resolveCanonical(c.canonical_name, new Map(), coverageIdentityGroupMap) === entry.canonical_name ||
-        (c.aliases ?? []).some((alias) => resolveCanonical(alias, new Map(), coverageIdentityGroupMap) === entry.canonical_name) ||
+        resolveCanonical(c.canonical_name, coverageAliasMap, coverageNormalizedIdentityGroupMap) === entry.canonical_name ||
+        (c.aliases ?? []).some((alias) => resolveCanonical(alias, coverageAliasMap, coverageNormalizedIdentityGroupMap) === entry.canonical_name) ||
         c.canonical_name === entry.canonical_name ||
         (c.aliases ?? []).includes(entry.canonical_name)
       )) {

@@ -647,83 +647,7 @@ export function EvaluationPoller({
           );
         })()}
 
-        {/* Pipeline stage mini-timeline — sequential, backend-driven only.
-             Phase 0 ✓ is proven by phase0_total_duration_ms ≥ 12000 from JSONB telemetry.
-             NOT from phase0_completed_at column (that has legacy cosmetic stamp paths).
-             Pass 3A preflight is NOT concurrent — it runs after all Phase 1A chunks are cached. */}
-        {(job.phase === 'phase_0' || job.phase === 'phase_1a' || job.phase === 'phase_2' || job.phase === 'phase_3' || job.status === 'complete') && job.status !== 'failed' && (() => {
-          const phase0Proven = typeof job.phase0_total_duration_ms === 'number' && job.phase0_total_duration_ms >= 12000;
-          const phase0Running = job.phase === 'phase_0' && job.status === 'running';
-          const phase1aActive = job.phase === 'phase_1a';
-          const phase2Active = job.phase === 'phase_2';
-          const phase3Active = job.phase === 'phase_3';
-          const isAnyComplete = job.status === 'complete';
-          const phase1aComplete = phase2Active || phase3Active || isAnyComplete;
-          const phase2Complete = phase3Active || isAnyComplete;
-          const phase3Complete = isAnyComplete; // craft diagnostics done when status=complete
-          const finalStageComplete = isFinalComplete;
-          const finalStageLabel = isLongForm ? 'Narrative Synthesis' : 'Report finalization';
-          return (
-            <div className="text-xs text-gray-500 space-y-1.5 border-t pt-3">
-              {/* Stage 1: Calibration */}
-              <div className="flex items-center gap-2">
-                {phase0Proven || isAnyComplete
-                  ? <span className="text-green-700 font-medium">✓</span>
-                  : phase0Running
-                    ? <span className="h-2 w-2 rounded-full bg-blue-400 animate-pulse inline-block" />
-                    : <span className="h-2 w-2 rounded-full bg-gray-300 inline-block" />}
-                <span className={(phase0Proven || isAnyComplete) ? 'text-green-800' : phase0Running ? 'text-gray-700' : 'text-gray-400'}>
-                  {phase0Proven
-                    ? `Calibrating evaluation standards — complete (${Math.round((job.phase0_total_duration_ms ?? 0) / 1000)}s · ${job.phase0_calibration_word_count ?? '?'} words)`
-                    : isAnyComplete
-                      ? 'Calibrating evaluation standards — complete'
-                      : phase0Running
-                        ? 'Calibrating evaluation standards…'
-                        : 'Calibration — pending'}
-                </span>
-              </div>
-              {/* Stage 2: Manuscript read + preflight (sequential, after Phase 0) */}
-              {(phase1aActive || phase2Active || phase3Active || isAnyComplete) && (
-                <div className="flex items-center gap-2">
-                  {phase1aComplete
-                    ? <span className="text-green-700 font-medium">✓</span>
-                    : <span className="h-2 w-2 rounded-full bg-blue-400 animate-pulse inline-block" />}
-                  <span className={phase1aComplete ? 'text-green-800' : 'text-gray-700'}>
-                    {phase1aComplete
-                      ? 'Manuscript analysis + structural preflight — complete'
-                      : 'Manuscript analysis + structural preflight — in progress…'}
-                  </span>
-                </div>
-              )}
-              {/* Stage 3: Craft diagnostics */}
-              {phase2Complete && (
-                <div className="flex items-center gap-2">
-                  {phase3Complete
-                    ? <span className="text-green-700 font-medium">✓</span>
-                    : <span className="h-2 w-2 rounded-full bg-blue-400 animate-pulse inline-block" />}
-                  <span className={phase3Complete ? 'text-green-800' : 'text-gray-700'}>
-                    {phase3Complete
-                      ? 'Craft diagnostics — complete'
-                      : 'Craft diagnostics — in progress…'}
-                  </span>
-                </div>
-              )}
-              {/* Stage 4: long-form Narrative Synthesis; short-form Report finalization */}
-              {(phase3Active || isAnyComplete) && (
-                <div className="flex items-center gap-2">
-                  {finalStageComplete
-                    ? <span className="text-green-700 font-medium">✓</span>
-                    : <span className="h-2 w-2 rounded-full bg-blue-400 animate-pulse inline-block" />}
-                  <span className={finalStageComplete ? 'text-green-800' : 'text-gray-700'}>
-                    {finalStageComplete
-                      ? `${finalStageLabel} — complete`
-                      : `${finalStageLabel} — in progress…`}
-                  </span>
-                </div>
-              )}
-            </div>
-          );
-        })()}
+        {/* Progress bar label + helper text is sufficient — no internal pipeline stages exposed */}
 
         {/* Timestamps — show relative/elapsed time, not raw timestamps */}
         <div className="grid grid-cols-1 gap-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
@@ -822,7 +746,7 @@ export function EvaluationPoller({
         {isInterimComplete && redirectOnComplete && !redirectedRef.current && (
           <div className="p-3 bg-blue-50 border border-blue-200 rounded">
             <p className="text-sm text-blue-800">
-              Diagnostic report ready. Narrative Synthesis is still generating — the full report will appear automatically when complete.
+              Diagnostic report ready. Finalizing your report is still generating — the full report will appear automatically when complete.
             </p>
             <button
               type="button"

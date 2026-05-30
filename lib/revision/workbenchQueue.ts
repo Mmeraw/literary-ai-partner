@@ -23,6 +23,7 @@ export type WorkbenchOpportunity = {
   scope: WorkbenchScope
   mode: WorkbenchMode
   source: WorkbenchSource
+  criterion: string
   leverage: string
   crumb: string
   title: string
@@ -48,6 +49,13 @@ export type WorkbenchQueuePayload = {
   opportunities: WorkbenchOpportunity[]
   totals: Record<WorkbenchSeverity, number>
   scopes: Record<WorkbenchScope, number>
+  criteria: Record<string, number>
+  synthesis?: {
+    admitted: number
+    clustered: number
+    held: number
+    suppressed: number
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -63,6 +71,16 @@ type RichRecommendation = {
   action: string
   expected_impact: string
   priority: string
+}
+
+type QueueSynthesisResult = {
+  opportunities: WorkbenchOpportunity[]
+  synthesis: {
+    admitted: number
+    clustered: number
+    held: number
+    suppressed: number
+  }
 }
 
 const severityOrder: Record<WorkbenchSeverity, number> = { must: 0, should: 1, could: 2 }
@@ -110,6 +128,108 @@ function splitEvidence(value: string | null): { quoteHighlight: string; quoteRes
   return {
     quoteHighlight: words.slice(0, Math.min(words.length, 8)).join(' '),
     quoteRest: words.length > 8 ? ` ${words.slice(8).join(' ')}` : '',
+  }
+}
+
+function hasManuscriptWideSupport(finding: DiagnosticFinding): boolean {
+  const haystack = [finding.diagnosis, finding.recommendation, finding.evidence_excerpt, finding.location_ref]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase()
+  return haystack.includes('across the manuscript') || haystack.includes('manuscript-wide') || haystack.includes('whole manuscript')
+}
+
+function hasActionableEvidence(finding: DiagnosticFinding): boolean {
+  const excerpt = (finding.evidence_excerpt ?? finding.original_text ?? '').trim()
+  const location = cleanLocationRef(finding.location_ref)
+  return Boolean(excerpt) || Boolean(location) || hasManuscriptWideSupport(finding)
+}
+
+function normalizeClusterKey(finding: DiagnosticFinding): string {
+  const source = firstSentence(finding.diagnosis || finding.recommendation || 'revision opportunity', 'revision opportunity')
+  return source.toLowerCase().replace(/[^a-z0-9\s]/g, '').replace(/\s+/g, ' ').trim()
+}
+
+function clusterTitleForFinding(finding: DiagnosticFinding): string {
+  const title = (finding.diagnosis || finding.recommendation || '').toLowerCase()
+  if (title.includes('long paragraph')) return 'Long paragraph pacing pattern'
+  if (title.includes('long sentence')) return 'Long sentence density pattern'
+  return `${firstSentence(finding.diagnosis || finding.recommendation || 'Revision pattern', 'Revision pattern')} pattern`
+}
+
+function synthesizeFindingsForWorkbench(
+  findings: DiagnosticFinding[],
+  richLookup: RichLookup,
+): QueueSynthesisResult {
+  const held: DiagnosticFinding[] = []
+  const actionable: DiagnosticFinding[] = []
+
+  for (const finding of findings) {
+    if (hasActionableEvidence(finding)) {
+      actionable.push(finding)
+    } else {
+      held.push(finding)
+    }
+  }
+
+  const byKey = new Map<string, DiagnosticFinding[]>()
+  for (const finding of actionable) {
+    const key = normalizeClusterKey(finding)
+    const bucket = byKey.get(key) ?? []
+    bucket.push(finding)
+    byKey.set(key, bucket)
+  }
+
+  const CLUSTER_THRESHOLD = 3
+  const individual: DiagnosticFinding[] = []
+  const clusters: WorkbenchOpportunity[] = []
+  let suppressed = 0
+
+  for (const group of byKey.values()) {
+    if (group.length < CLUSTER_THRESHOLD) {
+      individual.push(...group)
+      continue
+    }
+
+    const representative = group[0]
+    const base = findingToOpportunity(representative, 0, richLookup)
+    const severity = group
+      .map((item) => toSeverity(item.severity))
+      .sort((a, b) => severityOrder[a] - severityOrder[b])[0] ?? base.severity
+
+    clusters.push({
+      ...base,
+      id: `cluster:${normalizeClusterKey(representative)}`,
+      severity,
+      scope: 'Manuscript',
+      mode: 'repair-brief',
+      title: clusterTitleForFinding(representative),
+      crumb: `${criterionLabel(representative.criterion_key)} · Pattern cluster (${group.length} instances)`,
+      meta: `${criterionLabel(representative.criterion_key)} · Pattern cluster`,
+      anchor: 'manuscript-wide pattern',
+      quoteHighlight: `Pattern detected across ${group.length} findings`,
+      quoteRest: ' Review top instances in Workbench V2 cluster expansion before applying broad edits.',
+      symptom: firstSentence(representative.diagnosis, 'Repeated finding pattern detected.'),
+      cause: 'Repeated similar findings were synthesized to prevent one-to-one raw diagnostic flooding.',
+      fixDirection: 'Review this pattern as a grouped issue and prioritize outliers with strongest evidence first.',
+      readerEffect: 'Grouping repeated low-granularity findings preserves author focus and revision trust.',
+      mistakeProofing: 'Do not mass-apply edits from pattern cards without validating local context and voice continuity.',
+    })
+
+    suppressed += group.length - 1
+  }
+
+  const individualOpportunities = individual.map((finding, index) => findingToOpportunity(finding, index, richLookup))
+  const opportunities = sortOpportunities([...individualOpportunities, ...clusters])
+
+  return {
+    opportunities,
+    synthesis: {
+      admitted: individualOpportunities.length,
+      clustered: clusters.length,
+      held: held.length,
+      suppressed,
+    },
   }
 }
 
@@ -329,6 +449,7 @@ function findingToOpportunity(
     scope,
     mode,
     source,
+    criterion,
     leverage: scope === 'Structural' || scope === 'Manuscript' ? 'Structural' : cleanLabel(finding.finding_type || criterion),
     crumb: `${criterion} · ${locationDisplay}`,
     title,
@@ -366,6 +487,8 @@ function emptyPayload(error: string | null): WorkbenchQueuePayload {
     opportunities: [],
     totals: { must: 0, should: 0, could: 0 },
     scopes: { Line: 0, Passage: 0, Scene: 0, Chapter: 0, Structural: 0, Manuscript: 0 },
+    criteria: {},
+    synthesis: { admitted: 0, clustered: 0, held: 0, suppressed: 0 },
   }
 }
 
@@ -419,23 +542,27 @@ export async function getWorkbenchQueue(input: { manuscriptId?: string; evaluati
   if (jobError) return emptyPayload(jobError.message)
   if (!job) return emptyPayload('Evaluation job not found for this manuscript.')
   if (job.status !== 'complete') return emptyPayload('This evaluation is not complete yet. Revise can load after the report is finished.')
-  if (!job.manuscript_version_id) return emptyPayload('This evaluation is missing its manuscript version link.')
+
+  // manuscript_version_id may be null for older jobs — pass it through as empty string
+  // so the queue builder can still extract findings from the evaluation artifact.
+  const versionId = (job.manuscript_version_id as string | null) ?? ''
 
   // Load findings + raw evaluation artifact in parallel
   const [findings, richLookup] = await Promise.all([
-    ensureOperationalRevisionFindings(input.evaluationJobId, job.manuscript_version_id as string),
+    ensureOperationalRevisionFindings(input.evaluationJobId, versionId),
     loadEvaluationArtifactPayload(supabase, input.evaluationJobId),
   ])
 
-  const opportunities = sortOpportunities(
-    findings.map((f, i) => findingToOpportunity(f, i, richLookup)),
-  )
+  const synthesisResult = synthesizeFindingsForWorkbench(findings, richLookup)
+  const opportunities = synthesisResult.opportunities
   const totals: WorkbenchQueuePayload['totals'] = { must: 0, should: 0, could: 0 }
   const scopes: WorkbenchQueuePayload['scopes'] = { Line: 0, Passage: 0, Scene: 0, Chapter: 0, Structural: 0, Manuscript: 0 }
+  const criteria: Record<string, number> = {}
 
   for (const opportunity of opportunities) {
     totals[opportunity.severity] += 1
     scopes[opportunity.scope] += 1
+    criteria[opportunity.criterion] = (criteria[opportunity.criterion] ?? 0) + 1
   }
 
   return {
@@ -447,5 +574,12 @@ export async function getWorkbenchQueue(input: { manuscriptId?: string; evaluati
     opportunities,
     totals,
     scopes,
+    criteria,
+    synthesis: synthesisResult.synthesis,
   }
+}
+
+export const __testing = {
+  hasActionableEvidence,
+  synthesizeFindingsForWorkbench,
 }
