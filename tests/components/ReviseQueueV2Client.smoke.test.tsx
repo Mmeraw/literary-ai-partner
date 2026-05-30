@@ -51,7 +51,7 @@ describe("ReviseQueueV2Client smoke", () => {
         { key: "C", mechanism: "Bolder rendering shift", text: "Repair C", rationale: "Bolder move." },
       ],
       ...overrides,
-    };
+    } as WorkbenchOpportunity;
   }
 
   it("renders guided V2 shell, clusters repeated long-sentence findings, and enforces missing-evidence gate", async () => {
@@ -70,6 +70,7 @@ describe("ReviseQueueV2Client smoke", () => {
       opportunities,
       totals: { must: 0, should: 3, could: 0 },
       scopes: { Line: 3, Passage: 0, Scene: 0, Chapter: 0, Structural: 0, Manuscript: 0 },
+      criteria: {},
     };
 
     render(<ReviseQueueV2Client payload={payload} />);

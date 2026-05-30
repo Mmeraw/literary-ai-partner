@@ -39,7 +39,7 @@ export function normalizeLayerDecisionsForPersistence(layerDecisions: unknown): 
   const normalized: Record<string, LayerDecision> = {};
   for (const [key, rawDecision] of Object.entries(layerDecisions)) {
     if (!isRecord(rawDecision)) {
-      normalized[key] = { ...rawDecision } as LayerDecision;
+      normalized[key] = { status: rawDecision };
       continue;
     }
 
@@ -81,8 +81,8 @@ export function validateLayerDecisionsForApproval(layerDecisions: unknown): { ok
   }
 
   for (const key of STORY_LAYER_KEYS) {
-    const rawDecision = normalizedLayerDecisions[key] as LayerDecision | undefined;
-    if (!rawDecision || !isRecord(rawDecision)) {
+    const rawDecision = normalizedLayerDecisions[key];
+    if (!rawDecision) {
       return {
         ok: false,
         error: `Layer decision "${key}" is missing or malformed.`,

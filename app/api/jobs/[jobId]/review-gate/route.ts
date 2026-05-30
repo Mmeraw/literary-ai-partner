@@ -116,10 +116,11 @@ export async function POST(request: NextRequest, { params }: RouteParams): Promi
   if (disposition !== 'rejected') {
     const validation = validateLayerDecisionsForApproval(layer_decisions);
     if (!validation.ok) {
+      const validationError = 'error' in validation ? validation.error : 'All 9 layer decisions are required to approve the Story Ledger.';
       return NextResponse.json(
         {
           ok: false,
-          error: validation.error,
+          error: validationError,
         },
         { status: 400 },
       );
