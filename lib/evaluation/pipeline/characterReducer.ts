@@ -40,6 +40,8 @@ import type {
   EvidenceCoverage,
   StateConflict,
   EvidenceConfidence,
+  RelationshipType,
+  PowerDynamic,
 } from "./types";
 import { PASS1A_PROMPT_VERSION } from "./prompts/pass1a-character-sweep";
 import { quarantinePass1aChunkOutputs } from "./pass1aQuarantine";
@@ -47,7 +49,7 @@ import { quarantinePass1aChunkOutputs } from "./pass1aQuarantine";
 // Hard caps
 const MAX_LEDGER_ENTRIES = 15;
 const MAX_RELATIONAL_ENGINES = 10;
-const MAX_SYMBOL_ROWS = 12;
+const MAX_SYMBOL_ROWS = 30;
 const MAX_EVIDENCE_ANCHORS = 3;
 
 // Role priority — higher index = more important for promotion
@@ -252,6 +254,71 @@ function pickAgeSignal(signals: (Pass1aAgeSignal)[]): Pass1aAgeSignal {
   return signals.find((s) => s !== null) ?? null;
 }
 
+type PronounFamily =
+  | "masculine_singular"
+  | "feminine_singular"
+  | "neutral_singular"
+  | "object_or_nonhuman"
+  | "first_person"
+  | "second_person"
+  | "neopronoun_xe"
+  | "neopronoun_ze"
+  | "neopronoun_ey"
+  | "neopronoun_fae"
+  | "unknown_or_custom";
+
+const PRONOUN_FAMILY_REGISTRY: Record<Exclude<PronounFamily, "unknown_or_custom">, readonly string[]> = {
+  masculine_singular: ["he", "him", "his", "himself"],
+  feminine_singular: ["she", "her", "hers", "herself"],
+  neutral_singular: ["they", "them", "their", "theirs", "themself", "themselves"],
+  object_or_nonhuman: ["it", "its", "itself"],
+  first_person: ["i", "me", "my", "mine", "myself"],
+  second_person: ["you", "your", "yours", "yourself", "yourselves"],
+  neopronoun_xe: ["xe", "xem", "xyr", "xyrs", "xemself"],
+  neopronoun_ze: ["ze", "zir", "zirs", "zirself"],
+  neopronoun_ey: ["ey", "em", "eir", "eirs", "emself"],
+  neopronoun_fae: ["fae", "faer", "faers", "faerself"],
+};
+
+const PRONOUN_TOKEN_TO_FAMILY = (() => {
+  const map = new Map<string, PronounFamily>();
+  for (const [family, tokens] of Object.entries(PRONOUN_FAMILY_REGISTRY) as Array<
+    [Exclude<PronounFamily, "unknown_or_custom">, readonly string[]]
+  >) {
+    for (const token of tokens) {
+      map.set(token, family);
+    }
+  }
+  return map;
+})();
+
+function tokenizePronounSignal(rawPronoun: string): string[] {
+  const tokens = rawPronoun.toLowerCase().match(/[a-z']+/g) ?? ([] as string[]);
+  return tokens.filter((token) => token.length > 0);
+}
+
+function extractPronounFamilies(rawPronoun: string): Set<PronounFamily> {
+  const tokens = tokenizePronounSignal(rawPronoun);
+  const families = new Set<PronounFamily>();
+
+  for (const token of tokens) {
+    const family = PRONOUN_TOKEN_TO_FAMILY.get(token);
+    if (family) {
+      families.add(family);
+    }
+  }
+
+  if (tokens.length > 0 && families.size === 0) {
+    families.add("unknown_or_custom");
+  }
+
+  return families;
+}
+
+function pronounFamilySetKey(families: Set<PronounFamily>): string {
+  return [...families].sort().join("|");
+}
+
 // ── Symbol deduplication ──────────────────────────────────────────────────
 
 interface RawSymbol {
@@ -291,7 +358,17 @@ function buildSymbolPayoffEntries(rawSymbols: RawSymbol[], totalChunks: number):
   }
 
   return results
-    .sort((a, b) => (b.traced ? 1 : 0) - (a.traced ? 1 : 0))
+    .sort((a, b) => {
+      // 1. Traced symbols first (appear in both halves of manuscript)
+      const traceDiff = (b.traced ? 1 : 0) - (a.traced ? 1 : 0);
+      if (traceDiff !== 0) return traceDiff;
+      // 2. Wider chunk span = more narratively significant
+      const spanA = a.last_chunk - a.first_chunk;
+      const spanB = b.last_chunk - b.first_chunk;
+      if (spanB !== spanA) return spanB - spanA;
+      // 3. More attached characters = more connected
+      return b.attached_characters.length - a.attached_characters.length;
+    })
     .slice(0, MAX_SYMBOL_ROWS);
 }
 
@@ -514,31 +591,71 @@ export function reduceCharacterEvidence(params: {
     // Warnings
     const warnings: CharacterArcLedgerEntry["warnings"] = [];
 
-    // Pronoun inconsistency detection — filter out empty sets and
-    // collective "they/them" that appears alongside a consistent gendered pronoun.
-    const nonEmptyPronounSets = entries
-      .map((e) => [...(e.pronouns ?? [])].sort())
-      .filter((ps) => ps.length > 0);
+    // Pronoun inconsistency detection — only flag transitions/ambiguity that
+    // require author confirmation. Stable family usage is normalized and hidden.
+    const pronounFamilySets = entries
+      .map((e) => {
+        const families = new Set<PronounFamily>();
+        for (const pronoun of e.pronouns ?? []) {
+          for (const family of extractPronounFamilies(pronoun)) {
+            families.add(family);
+          }
+        }
+        return families;
+      })
+      .filter((families) => families.size > 0);
 
-    if (nonEmptyPronounSets.length > 0) {
-      // Find the most common individual pronoun set (ignoring "they/them" when mixed)
-      const pronounFreq = new Map<string, number>();
-      for (const ps of nonEmptyPronounSets) {
-        const key = JSON.stringify(ps);
-        pronounFreq.set(key, (pronounFreq.get(key) ?? 0) + 1);
+    if (pronounFamilySets.length > 0) {
+      // If neutral singular appears as a standalone set alongside a single stable non-neutral
+      // family, treat standalone "they" as likely collective/group reference noise.
+      const nonTheyOnlySets = pronounFamilySets.filter(
+        (families) => !(families.size === 1 && families.has("neutral_singular")),
+      );
+
+      let effectiveFamilySets = pronounFamilySets;
+      if (nonTheyOnlySets.length > 0) {
+        const nonTheyUnique = new Set(nonTheyOnlySets.map(pronounFamilySetKey));
+        const singleFamilyConsensus =
+          nonTheyOnlySets.every((families) => families.size === 1) &&
+          nonTheyUnique.size === 1;
+        if (singleFamilyConsensus) {
+          effectiveFamilySets = nonTheyOnlySets;
+        }
       }
-      const uniqueKeys = [...pronounFreq.keys()];
-      // Filter: if "they/them" coexists with a gendered pronoun, don't flag it —
-      // it's likely collective/group reference that the LLM incorrectly recorded.
-      const theyKey = JSON.stringify(["they/them"]);
-      const nonTheyKeys = uniqueKeys.filter((k) => k !== theyKey);
-      const hasGenderedConsensus = nonTheyKeys.length === 1;
-      const effectiveUnique = hasGenderedConsensus
-        ? nonTheyKeys  // ignore the "they/them" entries as collective reference noise
-        : uniqueKeys;
 
-      if (effectiveUnique.length > 1) {
-        warnings.push({ type: "pronoun_inconsistency", message: `Pronoun variation detected across chunks for "${canonical}"` });
+      const effectiveUnique = new Set(effectiveFamilySets.map(pronounFamilySetKey));
+      if (effectiveUnique.size > 1) {
+        const familiesSeen = new Set<PronounFamily>();
+        for (const families of effectiveFamilySets) {
+          for (const family of families) {
+            familiesSeen.add(family);
+          }
+        }
+
+        const humanIdentityFamilies: PronounFamily[] = [
+          "masculine_singular",
+          "feminine_singular",
+          "neutral_singular",
+          "neopronoun_xe",
+          "neopronoun_ze",
+          "neopronoun_ey",
+          "neopronoun_fae",
+          "unknown_or_custom",
+        ];
+        const humanFamilyCount = humanIdentityFamilies.filter((family) => familiesSeen.has(family)).length;
+        const hasCrossFamilyHumanShift = humanFamilyCount >= 2;
+        const hasHumanToItShift = familiesSeen.has("object_or_nonhuman") && humanFamilyCount >= 1;
+        const hasAmbiguousOwnership = effectiveFamilySets.some((families) => families.size > 1);
+
+        if (hasCrossFamilyHumanShift || hasHumanToItShift || hasAmbiguousOwnership) {
+          const message = hasHumanToItShift
+            ? `Pronoun transition detected (human → it) across chunks for "${canonical}"`
+            : hasCrossFamilyHumanShift
+              ? `Cross-family pronoun transition detected across chunks for "${canonical}"`
+              : `Ambiguous pronoun ownership detected across chunks for "${canonical}"`;
+
+          warnings.push({ type: "pronoun_inconsistency", message });
+        }
       }
     }
     if (endingStatus === "accidentally_abandoned") {
@@ -865,14 +982,109 @@ export function buildCharacterLedgerV2(params: {
   }));
 
   // ── 3. Relationship Ledger ────────────────────────────────────────────────
+
+  // Valid relationship types and power dynamics for normalization
+  const VALID_REL_TYPES = new Set<RelationshipType>([
+    "spouse", "romantic_partners", "forbidden_desire",
+    "parent_child", "father_son", "father_daughter", "siblings", "extended_family",
+    "found_family", "friendship", "mentor_student", "artistic_alliance",
+    "employer_employee", "colleagues", "social_acquaintance",
+    "captor_captive", "protector_protected", "adversaries", "uneasy_alliance",
+    "strangers", "unknown",
+  ]);
+  const VALID_DYNAMICS = new Set<PowerDynamic>([
+    "dominant", "subordinate", "equal", "shifting",
+    "tense", "intimate", "distant", "unknown",
+  ]);
+
+  function normalizeRelType(raw: string): RelationshipType {
+    const snake = raw.trim().toLowerCase().replace(/[\s-]+/g, "_");
+    if (VALID_REL_TYPES.has(snake as RelationshipType)) return snake as RelationshipType;
+    if (snake.includes("spouse") || snake.includes("married") || snake.includes("marriage")) return "spouse";
+    if (snake.includes("romantic") || snake.includes("lovers")) return "romantic_partners";
+    if (snake.includes("forbidden") || snake.includes("illicit") || snake.includes("affair")) return "forbidden_desire";
+    if (snake.includes("parent") || snake.includes("mother") || snake.includes("father")) return "parent_child";
+    if (snake.includes("sibling") || snake.includes("brother") || snake.includes("sister")) return "siblings";
+    if (snake.includes("friend")) return "friendship";
+    if (snake.includes("mentor") || snake.includes("teacher")) return "mentor_student";
+    if (snake.includes("artistic") || snake.includes("creative")) return "artistic_alliance";
+    if (snake.includes("employer") || snake.includes("employee") || snake.includes("servant")) return "employer_employee";
+    if (snake.includes("colleague") || snake.includes("coworker")) return "colleagues";
+    if (snake.includes("acquaintance") || snake.includes("social")) return "social_acquaintance";
+    if (snake.includes("adversar") || snake.includes("enemy") || snake.includes("rival")) return "adversaries";
+    return "unknown";
+  }
+
+  function normalizeDynamic(raw: string): PowerDynamic {
+    const snake = raw.trim().toLowerCase().replace(/[\s-]+/g, "_");
+    if (VALID_DYNAMICS.has(snake as PowerDynamic)) return snake as PowerDynamic;
+    if (snake.includes("dominant") || snake.includes("controlling")) return "dominant";
+    if (snake.includes("subordinate") || snake.includes("submissive") || snake.includes("defer")) return "subordinate";
+    if (snake.includes("equal") || snake.includes("balanced")) return "equal";
+    if (snake.includes("shift") || snake.includes("changing")) return "shifting";
+    if (snake.includes("tense") || snake.includes("strained")) return "tense";
+    if (snake.includes("intimate") || snake.includes("close") || snake.includes("tender")) return "intimate";
+    if (snake.includes("distant") || snake.includes("cold") || snake.includes("withdrawn")) return "distant";
+    return "unknown";
+  }
+
+  // Build a map from (charA, charB) → all relationship signals across chunks
+  const relSignalMap = new Map<string, Array<{
+    relationship_type: string;
+    dynamic: string;
+    chunk_index: number;
+  }>>();
+
+  for (const entry of entries) {
+    for (const rel of entry.relational_engines) {
+      const pairKey = [entry.canonical_name, rel.other_character].sort().join("↔");
+      const existing = relSignalMap.get(pairKey) ?? [];
+      existing.push({
+        relationship_type: rel.relationship_type,
+        dynamic: rel.dynamic,
+        chunk_index: rel.chunk_span[0],
+      });
+      relSignalMap.set(pairKey, existing);
+    }
+  }
+
   const relationshipLedger: RelationshipLedgerEntry[] = [];
   const seenRelPairs = new Set<string>();
 
   for (const entry of entries) {
-    for (const [otherName, coPresence] of Object.entries(entry.coPresenceMap ?? {})) {
+    const cpMap = entry.coPresenceMap ?? {};
+    for (const [otherName, coPresence] of Object.entries(cpMap)) {
       const pairKey = [entry.canonical_name, otherName].sort().join("↔");
       if (seenRelPairs.has(pairKey)) continue;
       seenRelPairs.add(pairKey);
+
+      // Look up relationship signals for this pair
+      const signals = relSignalMap.get(pairKey) ?? [];
+      const sortedSignals = [...signals].sort((a, b) => a.chunk_index - b.chunk_index);
+
+      // Derive relationship type from earliest and latest signals
+      const earliestType = sortedSignals.length > 0
+        ? normalizeRelType(sortedSignals[0].relationship_type)
+        : "unknown" as RelationshipType;
+      const latestType = sortedSignals.length > 0
+        ? normalizeRelType(sortedSignals[sortedSignals.length - 1].relationship_type)
+        : "unknown" as RelationshipType;
+
+      // Build power dynamic timeline from signals
+      const powerDynamicTimeline: RelationshipLedgerEntry["powerDynamicTimeline"] = [];
+      for (const sig of sortedSignals) {
+        const dynamic = normalizeDynamic(sig.dynamic);
+        if (dynamic === "unknown") continue;
+        const lastEntry = powerDynamicTimeline[powerDynamicTimeline.length - 1];
+        if (lastEntry && lastEntry.dynamic === dynamic) {
+          lastEntry.chunkRange[1] = sig.chunk_index;
+        } else {
+          powerDynamicTimeline.push({
+            chunkRange: [sig.chunk_index, sig.chunk_index],
+            dynamic,
+          });
+        }
+      }
 
       relationshipLedger.push({
         characterA: entry.canonical_name,
@@ -881,9 +1093,9 @@ export function buildCharacterLedgerV2(params: {
         firstCoPresenceChapter: coPresence.firstSharedChapterEstimate,
         invalidBeforeChapter: coPresence.firstSharedChapterEstimate,
         firstSharedLocation: null,
-        relationshipTypeStart: "unknown",
-        relationshipTypeEnd: "unknown",
-        powerDynamicTimeline: [],
+        relationshipTypeStart: earliestType,
+        relationshipTypeEnd: latestType,
+        powerDynamicTimeline,
         pivotMoments: [],
         sharedObjects: [],
         sharedActivities: [],

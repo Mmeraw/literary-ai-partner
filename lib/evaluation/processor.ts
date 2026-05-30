@@ -3641,16 +3641,44 @@ export async function processEvaluationJob(
     const stripResult = stripNonEvaluativeSections(resolvedManuscriptText || '');
     const nonEvaluativeWarning = buildNonEvaluativeWarning(stripResult.excludedSections);
 
-    if (!stripResult.sanitizedText || stripResult.sanitizedText.trim().length === 0) {
+    const resolvedWordCount = countWords(resolvedManuscriptText || '');
+    const sanitizedWordCount = countWords(stripResult.sanitizedText || '');
+    const sanitizerLikelyOverStripped =
+      resolvedWordCount >= evalMinManuscriptWords &&
+      sanitizedWordCount < evalMinManuscriptWords &&
+      sanitizedWordCount <= Math.max(25, Math.floor(resolvedWordCount * 0.1));
+
+    const manuscriptTextForIntake = sanitizerLikelyOverStripped
+      ? resolvedManuscriptText
+      : stripResult.sanitizedText;
+
+    if (sanitizerLikelyOverStripped) {
+      console.warn('[Processor] Non-evaluative stripping collapsed manuscript unexpectedly; falling back to resolved text for intake/evaluation', {
+        job_id: jobId,
+        manuscript_id: manuscript.id,
+        resolved_word_count: resolvedWordCount,
+        sanitized_word_count: sanitizedWordCount,
+        min_required_words: evalMinManuscriptWords,
+      });
+
+      progressState.non_evaluative_strip_degraded = {
+        fallback_to_resolved_text: true,
+        resolved_word_count: resolvedWordCount,
+        sanitized_word_count: sanitizedWordCount,
+        min_required_words: evalMinManuscriptWords,
+      };
+    }
+
+    if (!manuscriptTextForIntake || manuscriptTextForIntake.trim().length === 0) {
       const contentError = 'Manuscript text unavailable: neither manuscripts.content nor manuscript_chunks.content found';
       await markFailed(contentError);
 
       return { success: false, error: contentError };
     }
 
-    if (!isManuscriptTextLongEnough(stripResult.sanitizedText, evalMinManuscriptWords)) {
+    if (!isManuscriptTextLongEnough(manuscriptTextForIntake, evalMinManuscriptWords)) {
       const shortContentError =
-        `Manuscript text too short for reliable evaluation: ${stripResult.sanitizedText.trim().split(/\s+/).length} words ` +
+        `Manuscript text too short for reliable evaluation: ${countWords(manuscriptTextForIntake)} words ` +
         `(minimum ${evalMinManuscriptWords} words)`;
       await markFailed(shortContentError);
 
@@ -3660,7 +3688,7 @@ export async function processEvaluationJob(
     // Hard manuscript ceiling — fail-closed at intake, before any AI call.
     // Above this, no amount of chunk-routing can keep the evaluation honest at
     // our 12-min wall budget. Surface a clear "split into volumes" message.
-    const intakeWordCount = countWords(stripResult.sanitizedText);
+    const intakeWordCount = countWords(manuscriptTextForIntake);
     if (intakeWordCount > HARD_MANUSCRIPT_CEILING_WORDS) {
       const ceilingError =
         `Manuscript exceeds evaluation capacity (${intakeWordCount} words > ${HARD_MANUSCRIPT_CEILING_WORDS}). ` +
@@ -3696,7 +3724,7 @@ export async function processEvaluationJob(
 
     const manuscriptWithContent: Manuscript = {
       ...(manuscript as Manuscript),
-      content: stripResult.sanitizedText,
+      content: manuscriptTextForIntake,
     };
 
     if (stripResult.excludedSections.length > 0) {
@@ -5560,6 +5588,7 @@ export async function processEvaluationJob(
         const storyLayerPayload = buildStoryLayerFromLedger(
           characterLedger,
           characterLedgerV2Phase1a,
+          sortedChunkOutputs,
         );
 
         const qualityReport = buildLedgerQualityReport(

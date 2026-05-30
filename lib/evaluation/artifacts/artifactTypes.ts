@@ -23,7 +23,7 @@ export const CANONICAL_EVALUATION_ARTIFACT_TYPES = [
 
 export type CanonicalEvaluationArtifactType = typeof CANONICAL_EVALUATION_ARTIFACT_TYPES[number];
 
-export const STORY_LAYER_CORE_LAYER_KEYS = [
+export const STORY_LAYER_KEYS = [
   'source_integrity_layer',
   'pov_structure_layer',
   'canonical_identity_layer',
@@ -35,7 +35,9 @@ export const STORY_LAYER_CORE_LAYER_KEYS = [
   'threat_antagonist_ending_layer',
 ] as const;
 
-export type StoryLayerCoreLayerKey = typeof STORY_LAYER_CORE_LAYER_KEYS[number];
+export const STORY_LAYER_COUNT = STORY_LAYER_KEYS.length;
+
+export type StoryLayerCoreLayerKey = typeof STORY_LAYER_KEYS[number];
 
 export type RuntimeArtifactEnvelope = {
   job_id: string;

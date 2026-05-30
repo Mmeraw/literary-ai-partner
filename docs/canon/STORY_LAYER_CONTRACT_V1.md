@@ -10,7 +10,7 @@ Phase 0 → Phase 1A → Review Gate → Approval Normalizer → Phase 2
 
 Phase 2 may consume `accepted_story_ledger_v1` as its only story-understanding authority. It may also consume `dream_calibration_packet_v1`, `manuscript_evidence_map`, and non-governing support artifacts.
 
-`pass1a_story_layer_v1` contains exactly eight story layers and nothing else. Governance remains separate. Support artifacts remain separate. There is no Layer 9.
+`pass1a_story_layer_v1` contains exactly nine story layers and nothing else. Governance remains separate. Support artifacts remain separate.
 
 ## Artifact flow
 
@@ -43,7 +43,7 @@ The Approval Normalizer must never create `accepted_story_ledger_v1` from `pass1
 
 `accepted_with_override` may only be written by `admin` or `operator` roles and must preserve unresolved warnings in governance.
 
-## No Layer 9 model
+## Nine-layer model
 
 ```mermaid
 flowchart TD
@@ -51,10 +51,11 @@ flowchart TD
     A --> A2[pov_structure_layer]
     A --> A3[canonical_identity_layer]
     A --> A4[cast_role_tier_layer]
-    A --> A5[relationship_network_layer]
-    A --> A6[object_symbol_layer]
-    A --> A7[location_timeline_worldstate_layer]
-    A --> A8[threat_antagonist_ending_layer]
+    A --> A5[identity_pronoun_layer]
+    A --> A6[relationship_network_layer]
+    A --> A7[object_symbol_layer]
+    A --> A8[location_timeline_worldstate_layer]
+    A --> A9[threat_antagonist_ending_layer]
 
     B[governance_rail_v1] --> B1[warnings]
     B --> B2[evidence_locations]

@@ -88,4 +88,37 @@ describe("stripNonEvaluativeSections", () => {
     expect(warning).toContain("Non-evaluative sections were excluded");
     expect(warning).toContain("Disclaimer");
   });
+
+  it("does not over-strip full manuscripts when TOC is followed by non-chapter headings", () => {
+    const input = [
+      "Contents",
+      "STORY OF THE DOOR.............1",
+      "SEARCH OF MY PEOPLE...........8",
+      "THE CAREW MURDER CASE.........15",
+      "INCIDENT OF THE LETTER........24",
+      "REMARKABLE INCIDENT............31",
+      "LAST NIGHT.....................38",
+      "LANYON'S NARRATIVE.............46",
+      "HENRY JEKYLL'S FULL STATEMENT..59",
+      "",
+      "STORY OF THE DOOR",
+      "Mr. Utterson the lawyer was a man of a rugged countenance.",
+      "He was austere with himself and tasted gin when he was alone.",
+      "",
+      "SEARCH OF MY PEOPLE",
+      "That evening Mr. Utterson came home to his bachelor house in sombre spirits.",
+      "He sat down to dinner without relish and read a volume of dry divinity.",
+    ].join("\n");
+
+    const result = stripNonEvaluativeSections(input);
+
+    expect(result.sanitizedText).toContain("STORY OF THE DOOR");
+    expect(result.sanitizedText).toContain("Mr. Utterson the lawyer was a man of a rugged countenance.");
+    expect(result.sanitizedText).toContain("SEARCH OF MY PEOPLE");
+    expect(result.sanitizedText).not.toContain("Contents");
+    expect(result.sanitizedText.split(/\s+/).filter(Boolean).length).toBeGreaterThan(40);
+
+    const labels = result.excludedSections.map((s) => s.label);
+    expect(labels).toContain("Table of contents");
+  });
 });

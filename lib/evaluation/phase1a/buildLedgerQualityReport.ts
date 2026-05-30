@@ -7,7 +7,7 @@
  * Gate verdicts:
  *   reviewable     — no hard fails; send to Review Gate immediately
  *   blocked        — hard fails present; operator must review before forwarding
- *   repair_required — fragmented identity or zero antagonist coverage; ledger
+ *   repair_required — fragmented identity or zero pressure-system coverage; ledger
  *                     may be incomplete but not critically broken
  *
  * This function is deterministic — same inputs always produce same verdict.
@@ -77,15 +77,30 @@ function runQualityChecks(
     });
   }
 
-  // No antagonists detected in V2
-  const antagonistCount = (ledgerV2.identityLedger ?? []).filter(
-    (e) => e.narrativeRole === 'antagonist',
+  // No pressure-bearing systems detected in V2
+  const pressureBearingRoles = new Set([
+    'antagonist',
+    'pressure_agent',
+    'romantic_catalyst',
+    'sexual_destabilizer',
+    'domestic_foil',
+    'artistic_countermodel',
+    'social_observer',
+    'social_catalyst',
+    'patriarchal_pressure',
+    'symbolic_force',
+    'collective_force',
+  ]);
+
+  const pressureSystemCount = (ledgerV2.identityLedger ?? []).filter(
+    (e) => pressureBearingRoles.has(String(e.narrativeRole ?? 'unknown')),
   ).length;
-  if (antagonistCount === 0) {
+
+  if (pressureSystemCount === 0) {
     results.push({
-      key: 'no_antagonist_detected',
+      key: 'no_pressure_system_detected',
       severity: 'warning',
-      message: 'No antagonists detected. Threat layer may be incomplete. Review cast role assignment.',
+      message: 'No narrative pressure systems detected. Pressure / stakes / consequence mapping may be incomplete.',
       layer: 'threat_antagonist_ending_layer',
     });
   }

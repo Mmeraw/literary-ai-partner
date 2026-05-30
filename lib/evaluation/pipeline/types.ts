@@ -1061,16 +1061,23 @@ export interface ChapterRef {
 export type NarrativeRole =
   | "protagonist" | "co_protagonist" | "antagonist"
   | "mentor" | "foil" | "secondary" | "symbolic_force" | "collective_force"
-  | "animal_companion" | "unknown";
+  | "animal_companion" | "unknown"
+  | "pressure_agent" | "romantic_catalyst" | "sexual_destabilizer"
+  | "domestic_foil" | "artistic_countermodel" | "social_observer"
+  | "background_mention" | "social_catalyst" | "patriarchal_pressure";
 
 export type ImportanceLevel = "primary" | "major" | "supporting" | "minor" | "background";
 
 export type RelationshipType =
-  | "captor_captive" | "protector_protected" | "father_son" | "father_daughter"
-  | "romantic_partners" | "found_family" | "adversaries" | "uneasy_alliance"
-  | "mentor_student" | "strangers" | "siblings" | "colleagues" | "unknown";
+  | "spouse" | "romantic_partners" | "forbidden_desire"
+  | "parent_child" | "father_son" | "father_daughter" | "siblings" | "extended_family"
+  | "found_family" | "friendship" | "mentor_student" | "artistic_alliance"
+  | "employer_employee" | "colleagues" | "social_acquaintance"
+  | "captor_captive" | "protector_protected" | "adversaries" | "uneasy_alliance"
+  | "strangers" | "unknown";
 
-export type PowerDynamic = "dominant" | "subordinate" | "equal" | "shifting" | "unknown";
+export type PowerDynamic = "dominant" | "subordinate" | "equal" | "shifting"
+  | "tense" | "intimate" | "distant" | "unknown";
 
 export type ObjectSymbolicStage =
   | "introduced" | "transferred" | "transformed" | "weaponized"

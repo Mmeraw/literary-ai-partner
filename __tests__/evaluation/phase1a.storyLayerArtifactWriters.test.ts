@@ -7,7 +7,7 @@ import {
   type Phase1aWriterArtifact,
   type Phase1aWriterMetadata,
 } from '../../lib/evaluation/phase1a/storyLayerArtifactWriters';
-import { STORY_LAYER_CORE_LAYER_KEYS } from '../../lib/evaluation/artifacts/artifactTypes';
+import { STORY_LAYER_COUNT, STORY_LAYER_KEYS } from '../../lib/evaluation/artifacts/artifactTypes';
 
 const metadata: Phase1aWriterMetadata = {
   job_id: 'job-123',
@@ -20,7 +20,7 @@ const metadata: Phase1aWriterMetadata = {
 
 function validStoryLayer() {
   return Object.fromEntries(
-    STORY_LAYER_CORE_LAYER_KEYS.map((key) => [
+    STORY_LAYER_KEYS.map((key) => [
       key,
       {
         extracted_claims: [`claim for ${key}`],
@@ -60,7 +60,8 @@ describe('Phase 1A Story Layer artifact writers', () => {
     expect(artifact.content.job_id).toBe(metadata.job_id);
     expect(artifact.content.evaluation_project_id).toBe(metadata.evaluation_project_id);
     expect(artifact.content.stage_run_id).toBe(metadata.stage_run_id);
-    expect(Object.keys(artifact.content.layers)).toEqual([...STORY_LAYER_CORE_LAYER_KEYS]);
+    expect(Object.keys(artifact.content.layers)).toEqual([...STORY_LAYER_KEYS]);
+    expect(STORY_LAYER_COUNT).toBe(9);
     expect(artifact.source_hash).toMatch(/^[a-f0-9]{64}$/);
   });
 

@@ -2,31 +2,6 @@ The Strange Case Of Dr. Jekyll And Mr. Hyde
 
 by Robert Louis Stevenson
 
-
-Contents
-
-
- STORY OF THE DOOR
-
- SEARCH FOR MR. HYDE
-
- DR. JEKYLL WAS QUITE AT EASE
-
- THE CAREW MURDER CASE
-
- INCIDENT OF THE LETTER
-
- INCIDENT OF DR. LANYON
-
- INCIDENT AT THE WINDOW
-
- THE LAST NIGHT
-
- DR. LANYON’S NARRATIVE
-
- HENRY JEKYLL’S FULL STATEMENT OF THE CASE
-
-
 STORY OF THE DOOR
 
 Mr. Utterson the lawyer was a man of a rugged countenance that was
@@ -2539,3 +2514,30 @@ release himself at the last moment? God knows; I am careless; this is
 my true hour of death, and what is to follow concerns another than
 myself. Here then, as I lay down the pen and proceed to seal up my
 confession, I bring the life of that unhappy Henry Jekyll to an end.
+ 
+EOF
+
+ Table of Contents: 
+ 
+
+ STORY OF THE DOOR
+
+ SEARCH FOR MR. HYDE
+
+ DR. JEKYLL WAS QUITE AT EASE
+
+ THE CAREW MURDER CASE
+
+ INCIDENT OF THE LETTER
+
+ INCIDENT OF DR. LANYON
+
+ INCIDENT AT THE WINDOW
+
+ THE LAST NIGHT
+
+ DR. LANYON’S NARRATIVE
+
+ HENRY JEKYLL’S FULL STATEMENT OF THE CASE
+
+

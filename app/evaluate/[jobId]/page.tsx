@@ -38,8 +38,8 @@ type Job = {
   user_id: string;
   manuscript_id?: number;
   manuscripts?:
-    | { user_id: string | null; title?: string | null }
-    | Array<{ user_id: string | null; title?: string | null }>
+    | { user_id: string | null; title?: string | null; word_count?: number | null }
+    | Array<{ user_id: string | null; title?: string | null; word_count?: number | null }>
     | null;
   job_type?: string;
   status: "queued" | "running" | "failed" | "complete";
@@ -154,7 +154,7 @@ async function getJob(jobId: string): Promise<Job | null> {
 
     const { data: job, error } = await supabase
       .from("evaluation_jobs")
-      .select("id, user_id, manuscript_id, job_type, status, phase, phase_status, total_units, completed_units, failed_units, created_at, updated_at, last_error, progress, manuscripts(user_id,title)")
+      .select("id, user_id, manuscript_id, job_type, status, phase, phase_status, total_units, completed_units, failed_units, created_at, updated_at, last_error, progress, manuscripts(user_id,title,word_count)")
       .eq("id", jobId)
       .maybeSingle();
 
@@ -196,6 +196,15 @@ function getRelatedManuscriptTitle(job: Job | null): string | null {
   const title = relation?.title?.trim();
 
   return title && title.length > 0 ? title : null;
+}
+
+function getRelatedManuscriptWordCount(job: Job | null): number | null {
+  if (!job?.manuscripts) return null;
+
+  const relation = Array.isArray(job.manuscripts) ? job.manuscripts[0] : job.manuscripts;
+  const wordCount = relation?.word_count;
+
+  return typeof wordCount === "number" && wordCount > 0 ? wordCount : null;
 }
 
 async function getManuscriptTitleById(manuscriptId?: number): Promise<string | null> {
@@ -521,7 +530,8 @@ export default async function EvaluationReportPage({
       : null;
   const progressHardFail: boolean | null =
     typeof progressJsonb?.hard_fail_present === 'boolean' ? (progressJsonb.hard_fail_present as boolean) : null;
-  const pollerWordCount = progressWordCount ?? artifact?.metrics?.manuscript?.word_count ?? null;
+  const manuscriptWordCount = getRelatedManuscriptWordCount(job);
+  const pollerWordCount = manuscriptWordCount ?? progressWordCount ?? artifact?.metrics?.manuscript?.word_count ?? null;
 
   // Seed pass3_completed_at from progress JSONB so the poller can distinguish
   // interim-complete (synthesis pending) from final-complete on first render.
@@ -566,7 +576,7 @@ export default async function EvaluationReportPage({
   const manuscriptTitle =
     getRelatedManuscriptTitle(job) || (await getManuscriptTitleById(job.manuscript_id));
   const { displayTitle } = resolveReportTitle({ chapterTitle, manuscriptTitle });
-  const wordCount = artifact?.metrics?.manuscript?.word_count ?? null;
+  const wordCount = artifact?.metrics?.manuscript?.word_count ?? manuscriptWordCount ?? null;
   const isLongForm = typeof wordCount === "number" && wordCount >= DREAM_WORD_COUNT_THRESHOLD;
   const dreamDoc = isComplete && isLongForm ? await getDreamArtifact(jobId) : null;
   const hasDetectedMode = Boolean(artifact?.detected_mode);
@@ -579,14 +589,6 @@ export default async function EvaluationReportPage({
         <div className="min-w-0">
           <div className="flex items-center gap-3 flex-wrap">
             <h1 className="text-2xl font-bold text-gray-900">Evaluation Report</h1>
-            <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
-              job.status === "complete" ? "bg-green-100 text-green-800" :
-              job.status === "failed" ? "bg-red-100 text-red-800" :
-              (job.status === "running" || (job.status === "queued" && job.phase && !['phase_0', 'phase_1a'].includes(job.phase))) ? "bg-blue-100 text-blue-800" :
-              "bg-gray-100 text-gray-700"
-            }`}>
-              {job.status === "complete" ? "✓ Report ready" : job.status === "failed" ? "⚠ Needs attention" : (job.status === "running" || (job.status === "queued" && job.phase && !['phase_0', 'phase_1a'].includes(job.phase))) ? "⟳ In progress" : "Waiting in queue"}
-            </span>
           </div>
           <p className="mt-1 text-lg font-semibold text-gray-900">{displayTitle}</p>
           {manuscriptTitle && chapterTitle && manuscriptTitle !== chapterTitle && (
@@ -621,7 +623,7 @@ export default async function EvaluationReportPage({
           aria-live="polite"
         >
           <p className="text-sm font-semibold" style={{ color: '#0E0E0E' }}>
-            ✓ Story Ledger approved — craft diagnosis is now running.
+            ✓ Story Ledger approved — building your report is now running.
           </p>
           <p className="mt-1 text-sm" style={{ color: '#7B7B7B' }}>
             {(() => {
@@ -963,15 +965,15 @@ export default async function EvaluationReportPage({
             </>
           )}
 
-          {/* ── Narrative Synthesis (long-form) ── */}
+          {/* ── Finalizing your report (long-form) ── */}
           {isLongForm && isComplete && (
             <section className="rounded-lg border border-indigo-100 bg-white p-6 mb-4">
               <div className="mb-5">
                 <h2 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
-                  <span aria-hidden>📖</span> Narrative Synthesis
+                  <span aria-hidden>📖</span> Finalizing your report
                 </h2>
                 <p className="text-sm text-gray-700 mt-0.5">
-                  Holistic Craft Assessment — long-form synthesis report
+                  Holistic craft assessment — long-form report finalization
                 </p>
               </div>
 

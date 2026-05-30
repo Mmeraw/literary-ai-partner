@@ -140,13 +140,13 @@ describe("getProgressDisplay: canonical state mapping", () => {
 
   // ── Phase 2 ───────────────────────────────────────────────────────────────
 
-  test("phase_2 -> deep structural craft diagnostics, 67%", () => {
+  test("phase_2 -> building your report, 67%", () => {
     const pd = getProgressDisplay({
       status: "running",
       phase: "phase_2",
       phase_status: "running",
     });
-    expect(pd!.label).toBe("Running deep structural craft diagnostics...");
+    expect(pd!.label).toBe("Building your report...");
     expect(pd!.percentage).toBe(67);
     expect(pd!.color).toBe("blue");
     expect(pd!.hardStop).toBe(false);
@@ -154,12 +154,12 @@ describe("getProgressDisplay: canonical state mapping", () => {
 
   // ── Phase 3 / synthesis ───────────────────────────────────────────────────
 
-  test("phase_3 -> Assembling evaluation matrix, 86%", () => {
+  test("phase_3 -> finalizing your report, 86%", () => {
     const pd = getProgressDisplay({
       status: "running",
       phase: "phase_3",
     });
-    expect(pd!.label).toBe("Assembling evaluation matrix...");
+    expect(pd!.label).toBe("Finalizing your report...");
     expect(pd!.percentage).toBe(86);
   });
 
@@ -283,7 +283,7 @@ describe("getStageLabelFromPhase: convenience wrapper", () => {
 
   test("phase_3 returns the synthesis label", () => {
     const label = getStageLabelFromPhase("phase_3", "running", null);
-    expect(label).toBe("Assembling evaluation matrix...");
+    expect(label).toBe("Finalizing your report...");
   });
 
   test("null phase returns null (no jargon fallback)", () => {

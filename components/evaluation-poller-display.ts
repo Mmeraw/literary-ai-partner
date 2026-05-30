@@ -63,11 +63,11 @@ export function getProgressDisplay(
 
     if (isLongForm && !hasSynthesis) {
       return {
-        label: "Craft diagnostics complete — Narrative Synthesis in progress\u2026",
+        label: "Building your report complete — Finalizing your report in progress\u2026",
         valueLabel: "92%",
         helperText:
           "Your 13-criteria diagnostic report is ready below. " +
-          "Narrative Synthesis is still generating and will appear when complete.",
+          "Finalizing your report is still generating and will appear when complete.",
         indeterminate: false,
         percentage: 92,
         color: "blue",
@@ -81,7 +81,7 @@ export function getProgressDisplay(
         : "Evaluation complete!",
       valueLabel: "100%",
       helperText: isLongForm
-        ? "Your full evaluation report, including Narrative Synthesis, is ready."
+        ? "Your full evaluation report is ready."
         : "Your evaluation report is ready.",
       indeterminate: false,
       percentage: 100,
@@ -109,9 +109,9 @@ export function getProgressDisplay(
 
   if (job.phase === 'phase_3' && job.status === 'queued') {
     return {
-      label: "Assembling evaluation matrix...",
+      label: "Finalizing your report...",
       valueLabel: "86%",
-      helperText: "Building the final evaluation matrix and diagnosis.",
+      helperText: "Finalizing the report and diagnosis.",
       indeterminate: false,
       percentage: 86,
       color: "blue",
@@ -121,9 +121,9 @@ export function getProgressDisplay(
 
   if (job.phase === 'phase_2' && job.status === 'queued') {
     return {
-      label: "Running deep structural craft diagnostics...",
+      label: "Building your report...",
       valueLabel: "67%",
-      helperText: "Performing deep craft analysis across all evaluation criteria.",
+      helperText: "Building the report across all evaluation criteria.",
       indeterminate: false,
       percentage: 67,
       color: "blue",
@@ -147,13 +147,13 @@ export function getProgressDisplay(
 
   if (job.phase === 'phase_0' && job.status === 'queued') {
     return {
-      label: "Preparing evaluation environment",
+      label: "Preparing your evaluation",
       valueLabel: "5%",
       percentage: 5,
       color: "blue",
       hardStop: false,
       indeterminate: false,
-      helperText: "Your manuscript has been received. RevisionGrade is loading scoring rules, benchmark standards, and routing information before the manuscript is analyzed.",
+      helperText: "Your manuscript has been received. RevisionGrade is preparing your evaluation before the manuscript is analyzed.",
     };
   }
 
@@ -186,9 +186,9 @@ export function getProgressDisplay(
   if (job.phase === "phase_3") {
     const pct = elapsedDrift(job.phase3_started_at, 86, 96, _now);
     return {
-      label: "Assembling evaluation matrix...",
+      label: "Finalizing your report...",
       valueLabel: `${pct}%`,
-      helperText: "Building the final evaluation matrix and diagnosis.",
+      helperText: "Finalizing the report and diagnosis.",
       indeterminate: false,
       percentage: pct,
       color: "blue",
@@ -199,9 +199,9 @@ export function getProgressDisplay(
   if (job.phase === "phase_2") {
     const pct = elapsedDrift(job.phase2_started_at, 67, 82, _now);
     return {
-      label: "Running deep structural craft diagnostics...",
+      label: "Building your report...",
       valueLabel: `${pct}%`,
-      helperText: "Performing deep craft analysis across all evaluation criteria.",
+      helperText: "Building the report across all evaluation criteria.",
       indeterminate: false,
       percentage: pct,
       color: "blue",

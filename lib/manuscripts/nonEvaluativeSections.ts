@@ -23,6 +23,7 @@ const CHAPTER_HEADING_RE =
   /^\s*#*\s*(chapter|ch\.?)\s+(\d+|[ivxlcdm]+|one|two|three|four|five|six|seven|eight|nine|ten)\b/i;
 
 const TOC_HEADING_RE = /^\s*(table\s+of\s+contents|contents)\s*$/i;
+const TOC_PAGE_NUMBER_TAIL_RE = /(?:\.{2,}|\t|\s{2,})\d{1,4}\s*$/;
 const DISCLAIMER_HEADING_RE = /^\s*disclaimer\s*$/i;
 const DEDICATION_HEADING_RE = /^\s*dedication\s*$/i;
 const RESEARCH_NOTE_HEADING_RE = /^\s*research\s+note\s*$/i;
@@ -49,6 +50,68 @@ function nextHeadingLine(lines: string[], fromIdxExclusive: number): number {
     if (isAnyStructuralHeading(lines[i])) return i;
   }
   return lines.length - 1;
+}
+
+function isLikelyTocEntryLine(line: string): boolean {
+  const trimmed = line.trim();
+  if (!trimmed) return false;
+
+  if (CHAPTER_HEADING_RE.test(trimmed)) return true;
+  if (TOC_PAGE_NUMBER_TAIL_RE.test(trimmed)) return true;
+  if (/^(prologue|epilogue|part\s+\w+|book\s+\w+)/i.test(trimmed)) return true;
+
+  return false;
+}
+
+function hasImmediateNarrativeAfterHeading(lines: string[], headingIdx: number): boolean {
+  for (let i = headingIdx + 1; i < Math.min(lines.length, headingIdx + 4); i++) {
+    const candidate = lines[i].trim();
+    if (!candidate) continue;
+
+    if (isAnyStructuralHeading(candidate) || isLikelyTocEntryLine(candidate)) {
+      return false;
+    }
+
+    return candidate.length >= 20;
+  }
+
+  return false;
+}
+
+function findTocSectionEnd(lines: string[], tocHeadingIdx: number): number {
+  let end = tocHeadingIdx;
+  let sawTocEntries = false;
+  const maxScanLines = Math.min(lines.length - 1, tocHeadingIdx + 300);
+
+  for (let i = tocHeadingIdx + 1; i <= maxScanLines; i++) {
+    const line = lines[i];
+    const trimmed = line.trim();
+
+    if (!trimmed) {
+      end = i;
+      continue;
+    }
+
+    if (
+      CHAPTER_HEADING_RE.test(line) &&
+      !TOC_PAGE_NUMBER_TAIL_RE.test(line) &&
+      hasImmediateNarrativeAfterHeading(lines, i)
+    ) {
+      break;
+    }
+
+    if (isLikelyTocEntryLine(line)) {
+      sawTocEntries = true;
+      end = i;
+      continue;
+    }
+
+    // Stop at the first non-TOC prose line. If we never saw concrete TOC
+    // entries, only remove the heading line itself.
+    break;
+  }
+
+  return sawTocEntries ? end : tocHeadingIdx;
 }
 
 function markRange(markers: boolean[], start: number, endInclusive: number) {
@@ -106,8 +169,8 @@ export function stripNonEvaluativeSections(rawText: string): NonEvaluativeStripR
     };
 
     if (TOC_HEADING_RE.test(line)) {
-      const next = nextHeadingLine(lines, i);
-      addSection("table_of_contents", "Table of contents", next === i ? i : next - 1);
+      const tocEnd = findTocSectionEnd(lines, i);
+      addSection("table_of_contents", "Table of contents", tocEnd);
       continue;
     }
 

@@ -623,7 +623,7 @@ export function EvaluationPoller({
               {isInterimComplete && (
                 <p className="text-xs text-gray-400 mt-1">
                   This report includes criterion scores, evidence, confidence levels, and revision recommendations.
-                  The final report will be available once Narrative Synthesis is complete.
+                  The final report will be available once your report is finalized.
                 </p>
               )}
               {(job.status === 'queued' || job.status === 'running') && (
@@ -662,7 +662,7 @@ export function EvaluationPoller({
           const phase2Complete = phase3Active || isAnyComplete;
           const phase3Complete = isAnyComplete; // craft diagnostics done when status=complete
           const finalStageComplete = isFinalComplete;
-          const finalStageLabel = isLongForm ? 'Narrative Synthesis' : 'Report finalization';
+          const finalStageLabel = 'Finalizing your report';
           return (
             <div className="text-xs text-gray-500 space-y-1.5 border-t pt-3">
               {/* Stage 1: Calibration */}
@@ -674,12 +674,12 @@ export function EvaluationPoller({
                     : <span className="h-2 w-2 rounded-full bg-gray-300 inline-block" />}
                 <span className={(phase0Proven || isAnyComplete) ? 'text-green-800' : phase0Running ? 'text-gray-700' : 'text-gray-400'}>
                   {phase0Proven
-                    ? `Calibrating evaluation standards — complete (${Math.round((job.phase0_total_duration_ms ?? 0) / 1000)}s · ${job.phase0_calibration_word_count ?? '?'} words)`
+                    ? `Preparing your evaluation — complete (${Math.round((job.phase0_total_duration_ms ?? 0) / 1000)}s · ${job.phase0_calibration_word_count ?? '?'} words)`
                     : isAnyComplete
-                      ? 'Calibrating evaluation standards — complete'
+                      ? 'Preparing your evaluation — complete'
                       : phase0Running
-                        ? 'Calibrating evaluation standards…'
-                        : 'Calibration — pending'}
+                        ? 'Preparing your evaluation…'
+                        : 'Preparing your evaluation — pending'}
                 </span>
               </div>
               {/* Stage 2: Manuscript read + preflight (sequential, after Phase 0) */}
@@ -690,12 +690,12 @@ export function EvaluationPoller({
                     : <span className="h-2 w-2 rounded-full bg-blue-400 animate-pulse inline-block" />}
                   <span className={phase1aComplete ? 'text-green-800' : 'text-gray-700'}>
                     {phase1aComplete
-                      ? 'Manuscript analysis + structural preflight — complete'
-                      : 'Manuscript analysis + structural preflight — in progress…'}
+                      ? 'Reading your manuscript — complete'
+                      : 'Reading your manuscript — in progress…'}
                   </span>
                 </div>
               )}
-              {/* Stage 3: Craft diagnostics */}
+              {/* Stage 3: Building your report */}
               {phase2Complete && (
                 <div className="flex items-center gap-2">
                   {phase3Complete
@@ -703,12 +703,12 @@ export function EvaluationPoller({
                     : <span className="h-2 w-2 rounded-full bg-blue-400 animate-pulse inline-block" />}
                   <span className={phase3Complete ? 'text-green-800' : 'text-gray-700'}>
                     {phase3Complete
-                      ? 'Craft diagnostics — complete'
-                      : 'Craft diagnostics — in progress…'}
+                      ? 'Building your report — complete'
+                      : 'Building your report — in progress…'}
                   </span>
                 </div>
               )}
-              {/* Stage 4: long-form Narrative Synthesis; short-form Report finalization */}
+              {/* Stage 4: Finalizing your report */}
               {(phase3Active || isAnyComplete) && (
                 <div className="flex items-center gap-2">
                   {finalStageComplete
@@ -821,8 +821,8 @@ export function EvaluationPoller({
         )}
         {isInterimComplete && redirectOnComplete && !redirectedRef.current && (
           <div className="p-3 bg-blue-50 border border-blue-200 rounded">
-            <p className="text-sm text-blue-800">
-              Diagnostic report ready. Narrative Synthesis is still generating — the full report will appear automatically when complete.
+              <p className="text-sm text-blue-800">
+              Diagnostic report ready. Finalizing your report is still generating — the full report will appear automatically when complete.
             </p>
             <button
               type="button"
