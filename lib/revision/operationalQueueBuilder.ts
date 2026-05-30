@@ -1,9 +1,7 @@
 import { getSupabaseAdminClient } from "@/lib/supabase";
-import { buildBaselineManuscriptDiscoveryFindings, isBaselineDiscoveryFindingType } from "./baselineManuscriptDiscovery";
-import { buildDeepRevisionFindings } from "./deepRevisionExtraction";
+import { ensureRevisionOpportunityLedgerArtifact } from './opportunityLedger';
 import {
   bulkCreateDiagnosticFindings,
-  createDiagnosticFindingsForEvaluationRun,
   listFindingsForEvaluationRun,
 } from "./normalizeFindings";
 import type { CreateDiagnosticFindingInput, DiagnosticFinding } from "./types";
@@ -49,77 +47,65 @@ function existingSignature(finding: DiagnosticFinding): string {
     .toLowerCase();
 }
 
-function hasDeepRevisionFinding(findings: DiagnosticFinding[]): boolean {
-  return findings.some((finding) =>
-    ["revision_queue", "revision_plan", "revision_priority", "revision_note", "repair_guidance"]
-      .some((prefix) => finding.finding_type?.startsWith(prefix)),
-  );
-}
-
-async function createDeepRevisionFindings(
-  evaluationRunId: string,
-  manuscriptVersionId: string,
-  existing: DiagnosticFinding[],
-): Promise<DiagnosticFinding[]> {
-  if (hasDeepRevisionFinding(existing)) return existing;
-
-  const { data, error } = await supabase
-    .from("evaluation_artifacts")
-    .select("id, artifact_type, content, created_at")
-    .eq("job_id", evaluationRunId)
-    .in("artifact_type", ["evaluation_result_v2", "evaluation_result_v1"])
-    .order("created_at", { ascending: false });
-
-  if (error) throw new Error(`createDeepRevisionFindings failed: ${error.message}`);
-
-  const seen = new Set(existing.map(existingSignature));
-  const inputs: CreateDiagnosticFindingInput[] = [];
-
-  for (const row of data ?? []) {
-    const artifactId = typeof row.id === "string" ? row.id : null;
-    if (!artifactId) continue;
-
-    for (const input of buildDeepRevisionFindings(evaluationRunId, manuscriptVersionId, artifactId, row.content ?? {})) {
-      const key = signature(input);
-      if (seen.has(key)) continue;
-      seen.add(key);
-      inputs.push(input);
-    }
-  }
-
-  if (inputs.length > 0) await bulkCreateDiagnosticFindings(inputs);
-  return listFindingsForEvaluationRun(evaluationRunId);
-}
-
-async function createBaselineDiscoveryFindings(
-  evaluationRunId: string,
-  manuscriptVersionId: string,
-  existing: DiagnosticFinding[],
-): Promise<DiagnosticFinding[]> {
-  if (existing.some((finding) => isBaselineDiscoveryFindingType(finding.finding_type))) return existing;
-
-  const discovered = await buildBaselineManuscriptDiscoveryFindings(evaluationRunId, manuscriptVersionId);
-  if (discovered.length === 0) return existing;
-
-  const seen = new Set(existing.map(existingSignature));
-  const deduped = discovered.filter((input) => {
-    const key = signature(input);
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
-
-  if (deduped.length > 0) await bulkCreateDiagnosticFindings(deduped);
-  return listFindingsForEvaluationRun(evaluationRunId);
+function mapSeverityFromLedger(value: 'must' | 'should' | 'could'): 'high' | 'medium' | 'low' {
+  if (value === 'must') return 'high';
+  if (value === 'should') return 'medium';
+  return 'low';
 }
 
 export async function ensureOperationalRevisionFindings(
   evaluationRunId: string,
   manuscriptVersionId: string,
 ): Promise<DiagnosticFinding[]> {
-  await createDiagnosticFindingsForEvaluationRun(evaluationRunId, manuscriptVersionId);
-  let findings = await listFindingsForEvaluationRun(evaluationRunId);
-  findings = await createDeepRevisionFindings(evaluationRunId, manuscriptVersionId, findings);
-  findings = await createBaselineDiscoveryFindings(evaluationRunId, manuscriptVersionId, findings);
-  return findings;
+  const existingFindings = await listFindingsForEvaluationRun(evaluationRunId);
+  if (existingFindings.length > 0) {
+    return existingFindings;
+  }
+
+  const { artifactId, opportunities } = await ensureRevisionOpportunityLedgerArtifact(supabase, evaluationRunId);
+  if (opportunities.length === 0) {
+    return [];
+  }
+
+  const seen = new Set<string>();
+  const inputs: CreateDiagnosticFindingInput[] = [];
+
+  for (const opportunity of opportunities) {
+    const input: CreateDiagnosticFindingInput = {
+      evaluation_job_id: evaluationRunId,
+      manuscript_version_id: manuscriptVersionId,
+      artifact_id: artifactId,
+      criterion_key: opportunity.criterion,
+      wave_id: null,
+      finding_type: 'revision_opportunity_ledger',
+      severity: mapSeverityFromLedger(opportunity.severity),
+      confidence:
+        opportunity.confidence === 'high'
+          ? 0.9
+          : opportunity.confidence === 'medium'
+            ? 0.6
+            : 0.35,
+      location_ref: opportunity.manuscript_coordinates,
+      original_text: opportunity.evidence_anchor,
+      evidence_excerpt: opportunity.evidence_anchor,
+      diagnosis: opportunity.rationale,
+      recommendation: opportunity.rationale,
+      action_hint: 'refine',
+      status: 'open',
+    };
+
+    const key = signature(input);
+    if (seen.has(key)) {
+      continue;
+    }
+
+    seen.add(key);
+    inputs.push(input);
+  }
+
+  if (inputs.length > 0) {
+    await bulkCreateDiagnosticFindings(inputs);
+  }
+
+  return listFindingsForEvaluationRun(evaluationRunId);
 }

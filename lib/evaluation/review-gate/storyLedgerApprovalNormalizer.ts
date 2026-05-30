@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 import {
-  STORY_LAYER_CORE_LAYER_KEYS,
+  STORY_LAYER_KEYS,
   type RuntimeArtifactEnvelope,
   type StoryLayerCoreLayerKey,
 } from '../artifacts/artifactTypes';
@@ -156,7 +156,7 @@ function isAdminOrOperator(feedback: LedgerUserFeedbackPayload): boolean {
 
 function assertCompleteLayerDispositions(feedback: LedgerUserFeedbackPayload): void {
   const dispositionLayers = new Set(feedback.layer_dispositions.map((disposition) => disposition.layer));
-  const missing = STORY_LAYER_CORE_LAYER_KEYS.filter((layer) => !dispositionLayers.has(layer));
+  const missing = STORY_LAYER_KEYS.filter((layer) => !dispositionLayers.has(layer));
   if (missing.length > 0) {
     throw new Error(`ledger_user_feedback_v1 is missing layer disposition(s): ${missing.join(', ')}`);
   }
@@ -169,7 +169,7 @@ function applyUserCorrections(
   const normalized: Record<string, unknown> = { ...rawLayer };
 
   for (const [layer, correction] of Object.entries(corrections)) {
-    if (!STORY_LAYER_CORE_LAYER_KEYS.includes(layer as StoryLayerCoreLayerKey)) {
+    if (!STORY_LAYER_KEYS.includes(layer as StoryLayerCoreLayerKey)) {
       throw new Error(`Correction references non-canonical Story Layer key: ${layer}`);
     }
 

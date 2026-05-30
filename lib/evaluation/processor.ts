@@ -1730,6 +1730,31 @@ export async function assertReviewGatePassedBeforeHandoff(
 }
 
 /**
+ * Policy gate: phase_2 may queue phase_3 only if pass12_handoff_v1 exists.
+ * This prevents phase_3 from starting in a split state and hard-fails earlier
+ * with an explicit policy violation.
+ */
+export async function assertPass12HandoffExistsBeforePhase3Queue(
+  supabase: SupabaseClient<any, any, any>,
+  jobId: string,
+): Promise<void> {
+  const { data: handoffCheck, error: handoffErr } = await supabase
+    .from('evaluation_artifacts')
+    .select('id')
+    .eq('job_id', jobId)
+    .eq('artifact_type', 'pass12_handoff_v1')
+    .maybeSingle();
+
+  if (handoffErr) {
+    throw new Error(`POLICY_VIOLATION: phase_3 queue handoff check failed (${handoffErr.message})`);
+  }
+
+  if (!handoffCheck?.id) {
+    throw new Error('POLICY_VIOLATION: phase_3 queue requires pass12_handoff_v1');
+  }
+}
+
+/**
  * Watchdog triage for stale running jobs.  Replaces the old flat "kill everything"
  * sweeper with a state-aware corrective-action loop.
  *
@@ -6341,6 +6366,7 @@ export async function processEvaluationJob(
 
           // Queue phase_3 — same pattern as the handoff-present branch
           const p2HandoffNow = new Date().toISOString();
+          await assertPass12HandoffExistsBeforePhase3Queue(supabase, String(job.id));
           const { data: p2Phase3Row, error: p2Phase3Err } = await supabase
             .from('evaluation_jobs')
             .update({
@@ -6361,6 +6387,7 @@ export async function processEvaluationJob(
               },
             })
             .eq('id', job.id)
+            .eq('status', JOB_STATUS.RUNNING)
             .select('id, status, phase, phase_status')
             .single();
 
@@ -6448,6 +6475,7 @@ export async function processEvaluationJob(
         });
 
         const p2ShortNow = new Date().toISOString();
+        await assertPass12HandoffExistsBeforePhase3Queue(supabase, String(job.id));
         const { error: p2ShortPhase3Err } = await supabase
           .from('evaluation_jobs')
           .update({
@@ -6458,7 +6486,8 @@ export async function processEvaluationJob(
               message: 'Pass 1+2 complete (short-form) — handoff written, queued for Pass 3B',
               phase2_completed_at: p2ShortNow },
           })
-          .eq('id', job.id);
+          .eq('id', job.id)
+          .eq('status', JOB_STATUS.RUNNING);
         if (p2ShortPhase3Err) {
           return { success: false, error: p2ShortPhase3Err.message };
         }
@@ -6473,6 +6502,7 @@ export async function processEvaluationJob(
         );
 
         const phase3QueueNow = new Date().toISOString();
+        await assertPass12HandoffExistsBeforePhase3Queue(supabase, String(job.id));
         const { data: phase3QueueRow, error: phase3QueueErr } = await supabase
           .from('evaluation_jobs')
           .update({
@@ -6493,6 +6523,7 @@ export async function processEvaluationJob(
             },
           })
           .eq('id', job.id)
+          .eq('status', JOB_STATUS.RUNNING)
           .select('id, status, phase, phase_status')
           .single();
 

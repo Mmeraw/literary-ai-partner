@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://revisiongrade.com/schema/revision_opportunity_ledger_v1.json",
+  "title": "revision_opportunity_ledger_v1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "job_id",
+    "evaluation_project_id",
+    "manuscript_id",
+    "manuscript_version_hash",
+    "artifact_id",
+    "artifact_type",
+    "artifact_version",
+    "source_hash",
+    "generated_at",
+    "opportunities"
+  ],
+  "properties": {
+    "job_id": { "type": "string", "minLength": 1 },
+    "evaluation_project_id": { "type": ["string", "null"] },
+    "stage_run_id": { "type": ["string", "null"] },
+    "manuscript_id": { "type": "number" },
+    "manuscript_version_hash": { "type": "string", "minLength": 1 },
+    "artifact_id": { "type": "string", "minLength": 1 },
+    "artifact_type": { "const": "revision_opportunity_ledger_v1" },
+    "artifact_version": { "type": "string", "minLength": 1 },
+    "source_hash": { "type": "string", "minLength": 1 },
+    "generated_at": { "type": "string", "minLength": 1 },
+    "opportunities": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": [
+          "opportunity_id",
+          "criterion",
+          "severity",
+          "rationale",
+          "evidence_anchor",
+          "manuscript_coordinates",
+          "provenance",
+          "confidence",
+          "decision_state"
+        ],
+        "properties": {
+          "opportunity_id": { "type": "string", "minLength": 1 },
+          "criterion": { "type": "string", "minLength": 1 },
+          "severity": { "enum": ["must", "should", "could"] },
+          "rationale": { "type": "string", "minLength": 1 },
+          "evidence_anchor": { "type": "string", "minLength": 1 },
+          "manuscript_coordinates": { "type": "string", "minLength": 1 },
+          "provenance": { "type": "string", "minLength": 1 },
+          "confidence": { "enum": ["low", "medium", "high"] },
+          "decision_state": {
+            "enum": ["open", "queued", "accepted", "rejected", "completed"]
+          }
+        }
+      }
+    }
+  }
+}

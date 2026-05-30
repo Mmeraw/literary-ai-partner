@@ -36,6 +36,10 @@ import { getAuthenticatedUser } from '@/lib/supabase/server';
 import { createHash, randomUUID } from 'crypto';
 import { buildPhaseLogPatch } from '@/lib/evaluation/phaseLog';
 import { collectDependencyWarningsFromStoryLayers } from '@/lib/evaluation/phase1a/storyLayerDependencyHealth';
+import {
+  normalizeLayerDecisionsForPersistence,
+  validateLayerDecisionsForApproval,
+} from '@/lib/evaluation/reviewGate/layerDecisionValidation';
 
 type Disposition = 'accepted_without_changes' | 'accepted_with_edits' | 'rejected';
 
@@ -106,20 +110,24 @@ export async function POST(request: NextRequest, { params }: RouteParams): Promi
     );
   }
 
-  // Phase 2 cannot start unless all 9 layer decisions are present.
-  // On rejected disposition we allow missing decisions (author may bail early).
+  // Phase 2 cannot start unless all 9 canonical layer decisions are present,
+  // complete, and structurally valid. On rejected disposition we allow
+  // missing decisions (author may bail early).
   if (disposition !== 'rejected') {
-    const decisionCount = layer_decisions ? Object.keys(layer_decisions).length : 0;
-    if (decisionCount < 9) {
+    const validation = validateLayerDecisionsForApproval(layer_decisions);
+    if (!validation.ok) {
+      const validationError = 'error' in validation ? validation.error : 'All 9 layer decisions are required to approve the Story Ledger.';
       return NextResponse.json(
         {
           ok: false,
-          error: `All 9 layer decisions are required to approve the Story Ledger. Received ${decisionCount}.`,
+          error: validationError,
         },
         { status: 400 },
       );
     }
   }
+
+  const normalizedLayerDecisions = normalizeLayerDecisionsForPersistence(layer_decisions) ?? {};
 
   const supabase = createAdminClient();
 
@@ -214,7 +222,7 @@ export async function POST(request: NextRequest, { params }: RouteParams): Promi
     submitted_at: now,
     author_notes: author_notes ?? null,
     edit_requests: edit_requests ?? [],
-    layer_decisions: layer_decisions ?? {},
+    layer_decisions: normalizedLayerDecisions,
     pass1a_story_layer_source_hash:
       (storyLayerArtifactRow as { source_hash?: string }).source_hash ?? null,
   };
@@ -309,7 +317,7 @@ export async function POST(request: NextRequest, { params }: RouteParams): Promi
     qualityReportContent?.quality_report?.layer_dependency_warnings ??
     collectDependencyWarningsFromStoryLayers(acceptedStoryLayers);
 
-  const decisionValues = Object.values(layer_decisions ?? {});
+  const decisionValues = Object.values(normalizedLayerDecisions);
   const rejectedCount = decisionValues.filter(
     (d) => d.status === 'rejected' || d.status === 'rejected_with_comment',
   ).length;
@@ -334,7 +342,7 @@ export async function POST(request: NextRequest, { params }: RouteParams): Promi
       disposition,
       approved_by: user.id,
       approved_at: now,
-      layer_decisions: layer_decisions ?? {},
+      layer_decisions: normalizedLayerDecisions,
     }),
     generated_at: now,
     // Story layer layers (carried forward from pass1a_story_layer_v1)
@@ -352,7 +360,7 @@ export async function POST(request: NextRequest, { params }: RouteParams): Promi
       unresolved_warnings_preserved: true,
       dependency_warnings: dependencyWarnings,
       contested_layer_count: rejectedCount,
-      layer_decisions: layer_decisions ?? {},
+      layer_decisions: normalizedLayerDecisions,
     },
   };
 

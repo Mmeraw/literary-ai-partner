@@ -14,6 +14,8 @@ export const CANONICAL_EVALUATION_ARTIFACT_TYPES = [
   'accepted_story_ledger_v1',
   'story_shape_signal_map_v1',
   'manuscript_signal_appendix_v1',
+  'pass12_handoff_v1',
+  'revision_opportunity_ledger_v1',
   'phase2_evaluation_packet_v1',
   'phase2_author_response_v1',
   'evaluation_result_v2',
@@ -56,6 +58,8 @@ export type ArtifactAuthority =
   | 'governing_story_understanding'
   | 'gate_verdict'
   | 'review_trace'
+  | 'handoff'
+  | 'revision_queue_handoff'
   | 'phase2_enrichment'
   | 'calibration'
   | 'external_verification'
@@ -69,6 +73,7 @@ export type ArtifactPhase =
   | 'review_gate'
   | 'approval_normalizer'
   | 'phase_2_story_evaluation'
+  | 'phase_2_to_revise_handoff'
   | 'phase_3_final_report'
   | 'phase_4_cross_check'
   | 'phase_4_wave_revision';

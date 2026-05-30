@@ -1,6 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getAuthenticatedUser } from '@/lib/supabase/server'
-import { ensureOperationalRevisionFindings } from './operationalQueueBuilder'
+import { ensureRevisionOpportunityLedgerArtifact } from './opportunityLedger'
 import { getCriterionDisplayLabel } from '@/lib/evaluation/reportRenderSafety'
 import type { DiagnosticFinding, ProposalSeverity } from './types'
 
@@ -249,6 +249,30 @@ function inferScope(finding: DiagnosticFinding): WorkbenchScope {
 
 function modeForScope(scope: WorkbenchScope): WorkbenchMode {
   return scope === 'Chapter' || scope === 'Structural' || scope === 'Manuscript' ? 'repair-brief' : 'direct-rewrite'
+}
+
+function scopeFromCoordinates(coordinates: string): WorkbenchScope {
+  const normalized = coordinates.trim().toLowerCase()
+  const prefixMatch = normalized.match(/^([a-z_]+):/)
+  const prefix = prefixMatch?.[1] ?? ''
+
+  switch (prefix) {
+    case 'line':
+      return 'Line'
+    case 'passage':
+      return 'Passage'
+    case 'scene':
+      return 'Scene'
+    case 'chapter':
+      return 'Chapter'
+    case 'structural':
+      return 'Structural'
+    case 'manuscript':
+      return 'Manuscript'
+    default:
+      // Safe fallback for unknown or malformed coordinates.
+      return 'Passage'
+  }
 }
 
 function fallbackReaderEffect(criterion: string, scope: WorkbenchScope): string {
@@ -543,18 +567,54 @@ export async function getWorkbenchQueue(input: { manuscriptId?: string; evaluati
   if (!job) return emptyPayload('Evaluation job not found for this manuscript.')
   if (job.status !== 'complete') return emptyPayload('This evaluation is not complete yet. Revise can load after the report is finished.')
 
-  // manuscript_version_id may be null for older jobs — pass it through as empty string
-  // so the queue builder can still extract findings from the evaluation artifact.
-  const versionId = (job.manuscript_version_id as string | null) ?? ''
+  const { opportunities: revisionLedgerOpportunities } = await ensureRevisionOpportunityLedgerArtifact(
+    supabase,
+    input.evaluationJobId,
+  )
 
-  // Load findings + raw evaluation artifact in parallel
-  const [findings, richLookup] = await Promise.all([
-    ensureOperationalRevisionFindings(input.evaluationJobId, versionId),
-    loadEvaluationArtifactPayload(supabase, input.evaluationJobId),
-  ])
+  const opportunities = revisionLedgerOpportunities.map((opportunity) => {
+    const criterion = criterionLabel(opportunity.criterion)
+    const scope = scopeFromCoordinates(opportunity.manuscript_coordinates)
+    const mode = modeForScope(scope)
+    const severity: WorkbenchSeverity =
+      opportunity.severity === 'must'
+        ? 'must'
+        : opportunity.severity === 'should'
+          ? 'should'
+          : 'could'
+    const evidence = splitEvidence(opportunity.evidence_anchor)
 
-  const synthesisResult = synthesizeFindingsForWorkbench(findings, richLookup)
-  const opportunities = synthesisResult.opportunities
+    return {
+      id: opportunity.opportunity_id,
+      severity,
+      scope,
+      mode,
+      source: 'evaluation' as const,
+      criterion,
+      leverage: cleanLabel(opportunity.provenance),
+      crumb: `${criterion} · ${opportunity.manuscript_coordinates}`,
+      title: firstSentence(opportunity.rationale, `${criterion} revision opportunity`),
+      meta: `${criterion} · ${opportunity.manuscript_coordinates}`,
+      confidence: `${opportunity.confidence} confidence`,
+      anchor: opportunity.manuscript_coordinates,
+      quoteHighlight: evidence.quoteHighlight,
+      quoteRest: evidence.quoteRest,
+      symptom: opportunity.rationale,
+      cause: `Provenance: ${opportunity.provenance}`,
+      fixDirection: opportunity.rationale,
+      readerEffect: fallbackReaderEffect(opportunity.criterion, scope),
+      mistakeProofing: fallbackMistakeProofing(mode),
+      options: optionsFallback(mode),
+    }
+  })
+
+  const synthesisResult = {
+    admitted: opportunities.length,
+    clustered: 0,
+    held: 0,
+    suppressed: 0,
+  }
+
   const totals: WorkbenchQueuePayload['totals'] = { must: 0, should: 0, could: 0 }
   const scopes: WorkbenchQueuePayload['scopes'] = { Line: 0, Passage: 0, Scene: 0, Chapter: 0, Structural: 0, Manuscript: 0 }
   const criteria: Record<string, number> = {}
@@ -575,11 +635,12 @@ export async function getWorkbenchQueue(input: { manuscriptId?: string; evaluati
     totals,
     scopes,
     criteria,
-    synthesis: synthesisResult.synthesis,
+    synthesis: synthesisResult,
   }
 }
 
 export const __testing = {
   hasActionableEvidence,
   synthesizeFindingsForWorkbench,
+  scopeFromCoordinates,
 }
