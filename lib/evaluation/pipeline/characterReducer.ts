@@ -302,7 +302,7 @@ function tokenizePronounSignal(raw: string): string[] {
     .replace(/\s+/g, " ")
     .trim()
     .split(/[\s/|]+/)
-    .filter(Boolean);
+    .filter((token): token is string => Boolean(token));
 }
 
 function extractPronounFamilies(pronouns: string[]): Set<PronounFamily> {
