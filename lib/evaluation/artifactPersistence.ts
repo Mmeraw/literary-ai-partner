@@ -97,7 +97,13 @@ export type ArtifactType =
    * setup-tax on resumed batch invocations. Contains total_chunks, source_hash, and
    * deploy metadata. Not user-visible.
    */
-  | "phase1a_chunk_routing_manifest_v1";
+  | "phase1a_chunk_routing_manifest_v1"
+  /**
+   * Revision opportunity ledger — normalized, evidence-anchored handoff from
+   * evaluation diagnosis to Revise queue/workbench. Not itself governing story
+   * authority; consumed by revision orchestration.
+   */
+  | "revision_opportunity_ledger_v1";
 
 /**
  * Compute SHA256 hex digest of input string
