@@ -100,13 +100,14 @@ describe("ReviseQueueV2Client smoke", () => {
     expect(decideLater.disabled).toBe(false);
   });
 
-  it("keeps /workbench reference page wiring unchanged", () => {
+  it("wires /workbench to redirect into /workbench-v2 route target resolution", () => {
     const repoRoot = process.cwd();
     const workbenchPage = fs.readFileSync(path.join(repoRoot, "app/workbench/page.tsx"), "utf8");
 
-    expect(workbenchPage).toContain('import { getWorkbenchQueue } from "@/lib/revision/workbenchQueue";');
-    expect(workbenchPage).toContain('import ReviseWorkbenchClient from "@/components/revision/ReviseWorkbenchClient";');
-    expect(workbenchPage).toContain("return <ReviseWorkbenchClient payload={payload} />;");
+    expect(workbenchPage).toContain('import { redirect } from "next/navigation";');
+    expect(workbenchPage).toContain('import { resolveWorkbenchRouteTargetForUser } from "@/lib/revision/workbenchQueue";');
+    expect(workbenchPage).toContain('redirect(`/workbench-v2?${new URLSearchParams({ manuscriptId, evaluationJobId }).toString()}`);');
+    expect(workbenchPage).toContain('redirect("/workbench-v2");');
     expect(workbenchPage).not.toContain("ReviseQueueV2Client");
   });
 });
