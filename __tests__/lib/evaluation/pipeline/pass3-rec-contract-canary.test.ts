@@ -15,7 +15,7 @@
 
 import { describe, expect, it } from "@jest/globals";
 import { runQualityGate } from "@/lib/evaluation/pipeline/qualityGate";
-import { PASS3_PROMPT_VERSION } from "@/lib/evaluation/pipeline/prompts/pass3-synthesis";
+import { PASS3_PROMPT_VERSION, PASS3_SYSTEM_PROMPT } from "@/lib/evaluation/pipeline/prompts/pass3-synthesis";
 import { CRITERIA_KEYS, type CriterionKey } from "@/schemas/criteria-keys";
 import type { SynthesisOutput, SynthesizedCriterion } from "@/lib/evaluation/pipeline/types";
 
@@ -61,8 +61,28 @@ function makeSynthesis(overrides: Partial<Record<CriterionKey, Partial<Synthesiz
 
 // ── Prompt version ────────────────────────────────────────────────────────────
 
-it("PASS3_PROMPT_VERSION reflects the canonical diagnostic-contract synthesis prompt", () => {
-  expect(PASS3_PROMPT_VERSION).toBe("pass3-synthesis-v20-min-rec-floor");
+it("PASS3_PROMPT_VERSION reflects the recommendation-or-rationale contract prompt", () => {
+  expect(PASS3_PROMPT_VERSION).toBe("pass3-synthesis-v21-rec-or-rationale-contract");
+  expect(PASS3_PROMPT_VERSION).not.toContain("min-rec-floor");
+});
+
+it("prompt removes minimum-floor language and enforces recommendation-or-rationale contract", () => {
+  expect(PASS3_SYSTEM_PROMPT).toContain("RECOMMENDATION-OR-RATIONALE COVERAGE CONTRACT");
+  expect(PASS3_SYSTEM_PROMPT).not.toContain("MINIMUM-1-PER-CRITERION FLOOR");
+  expect(PASS3_SYSTEM_PROMPT).not.toContain("Every criterion scoring 0–9 SHOULD have at least 1 recommendation");
+});
+
+it("prompt includes canonical recommendation_status taxonomy and canonical-score protections", () => {
+  expect(PASS3_SYSTEM_PROMPT).toContain("recommendation_provided");
+  expect(PASS3_SYSTEM_PROMPT).toContain("no_recommendation_warranted");
+  expect(PASS3_SYSTEM_PROMPT).toContain("criterion_not_applicable");
+  expect(PASS3_SYSTEM_PROMPT).toContain("insufficient_evidence");
+  expect(PASS3_SYSTEM_PROMPT).toContain("gate_suppressed_no_safe_recommendation");
+
+  expect(PASS3_SYSTEM_PROMPT).toContain("10/10 defaults to recommendation_status = \"no_recommendation_warranted\"");
+  expect(PASS3_SYSTEM_PROMPT).toContain("9/10 may include a recommendation, but recommendation emission is NOT required");
+  expect(PASS3_SYSTEM_PROMPT).toContain("Never fabricate advice for perfect or near-perfect work");
+  expect(PASS3_SYSTEM_PROMPT).toContain("MUST NOT silently return an empty recommendations array");
 });
 
 // ── Five-part contract: passing fixtures ─────────────────────────────────────
