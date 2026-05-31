@@ -677,7 +677,7 @@ export async function getWorkbenchQueue(input: { manuscriptId?: string; evaluati
       mode,
       source: 'evaluation' as const,
       criterion,
-      leverage: cleanLabel(opportunity.provenance),
+      leverage: cleanLabel(opportunity.provenance ?? 'evaluation_result'),
       crumb: `${criterion} · ${opportunity.manuscript_coordinates}`,
       title: firstSentence(opportunity.rationale, `${criterion} revision opportunity`),
       meta: `${criterion} · ${opportunity.manuscript_coordinates}`,

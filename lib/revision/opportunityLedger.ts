@@ -15,6 +15,21 @@ type RevisionOpportunity = {
   decision_state: 'open';
 };
 
+type WorkbenchLikeOpportunity = {
+  id?: unknown;
+  criterion?: unknown;
+  severity?: unknown;
+  fixDirection?: unknown;
+  symptom?: unknown;
+  title?: unknown;
+  quoteHighlight?: unknown;
+  quoteRest?: unknown;
+  anchor?: unknown;
+  meta?: unknown;
+  source?: unknown;
+  confidence?: unknown;
+};
+
 type EnsureLedgerResult = {
   artifactId: string | null;
   opportunities: RevisionOpportunity[];
@@ -85,6 +100,89 @@ function buildOpportunityId(parts: { criterion: string; rationale: string; ancho
     .digest('hex')
     .slice(0, 18);
   return `rol:${digest}`;
+}
+
+function normalizeConfidenceFromUnknown(raw: unknown): LedgerConfidence {
+  if (typeof raw === 'string') {
+    const normalized = raw.trim().toLowerCase();
+    if (normalized.includes('high')) return 'high';
+    if (normalized.includes('low')) return 'low';
+    if (normalized.includes('medium')) return 'medium';
+  }
+  return normalizeConfidence(raw);
+}
+
+function isCanonicalRevisionOpportunity(value: unknown): value is RevisionOpportunity {
+  if (!isRecord(value)) return false;
+  return (
+    typeof value.opportunity_id === 'string' && value.opportunity_id.trim().length > 0 &&
+    typeof value.criterion === 'string' && value.criterion.trim().length > 0 &&
+    typeof value.severity === 'string' && ['must', 'should', 'could'].includes(value.severity) &&
+    typeof value.rationale === 'string' && value.rationale.trim().length > 0 &&
+    typeof value.evidence_anchor === 'string' && value.evidence_anchor.trim().length > 0 &&
+    typeof value.manuscript_coordinates === 'string' && value.manuscript_coordinates.trim().length > 0 &&
+    typeof value.provenance === 'string' && value.provenance.trim().length > 0 &&
+    typeof value.confidence === 'string' && ['low', 'medium', 'high'].includes(value.confidence) &&
+    value.decision_state === 'open'
+  );
+}
+
+function normalizeLegacyWorkbenchOpportunity(value: unknown): RevisionOpportunity | null {
+  if (!isRecord(value)) return null;
+  const workbench = value as WorkbenchLikeOpportunity;
+
+  const criterion = normalizeCriterion(workbench.criterion);
+  const rationale = firstNonEmptyString(workbench.fixDirection, workbench.symptom, workbench.title);
+  const quoteHighlight = firstNonEmptyString(workbench.quoteHighlight);
+  const quoteRest = firstNonEmptyString(workbench.quoteRest);
+  const evidenceAnchor = firstNonEmptyString(
+    `${quoteHighlight}${quoteRest}`.trim(),
+    quoteHighlight,
+    workbench.symptom,
+    workbench.title,
+  );
+  const manuscriptCoordinates = firstNonEmptyString(workbench.anchor, workbench.meta, `${criterion}:recommendation`);
+  const provenance = firstNonEmptyString(workbench.source, 'workbench_queue_synthesis');
+
+  if (!rationale || !evidenceAnchor || !manuscriptCoordinates) {
+    return null;
+  }
+
+  const opportunityId = firstNonEmptyString(
+    workbench.id,
+    buildOpportunityId({ criterion, rationale, anchor: evidenceAnchor, location: manuscriptCoordinates }),
+  );
+
+  return {
+    opportunity_id: opportunityId,
+    criterion,
+    severity: normalizeSeverity(workbench.severity),
+    rationale,
+    evidence_anchor: evidenceAnchor,
+    manuscript_coordinates: manuscriptCoordinates,
+    provenance,
+    confidence: normalizeConfidenceFromUnknown(workbench.confidence),
+    decision_state: 'open',
+  };
+}
+
+function normalizeExistingLedgerOpportunities(raw: unknown): RevisionOpportunity[] | null {
+  if (!Array.isArray(raw)) return null;
+
+  const canonical: RevisionOpportunity[] = [];
+  for (const row of raw) {
+    if (isCanonicalRevisionOpportunity(row)) {
+      canonical.push(row);
+      continue;
+    }
+    const normalized = normalizeLegacyWorkbenchOpportunity(row);
+    if (!normalized) {
+      return null;
+    }
+    canonical.push(normalized);
+  }
+
+  return canonical;
 }
 
 function extractCriteriaRecommendations(payload: Record<string, unknown>): RevisionOpportunity[] {
@@ -270,9 +368,9 @@ export async function ensureRevisionOpportunityLedgerArtifact(supabase: any, job
     throw new Error(`Failed to read revision_opportunity_ledger_v1: ${existingLedgerError.message}`);
   }
 
-  const existingOpportunities = Array.isArray(existingLedgerRow?.content?.opportunities)
-    ? (existingLedgerRow.content.opportunities as RevisionOpportunity[])
-    : null;
+  const existingOpportunities = normalizeExistingLedgerOpportunities(
+    existingLedgerRow?.content?.opportunities,
+  );
 
   if (existingOpportunities) {
     return {
