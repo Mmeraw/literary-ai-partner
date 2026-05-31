@@ -178,11 +178,14 @@ export function buildPhase05bReviseOpportunitySeed(input: BuildPhase05bReviseSee
     ? 'degraded_with_reasons'
     : 'valid';
 
-  const base = {
+  const base: Omit<
+    ReviseOpportunitySeedArtifact,
+    'artifact_id' | 'artifact_type' | 'schema_version'
+  > = {
     job_id: input.jobId,
     manuscript_id: input.manuscriptId,
     manuscript_version_id: input.manuscriptVersionId ?? null,
-    source: 'phase_0_5b' as const,
+    source: 'phase_0_5b',
     phase0_authority_proof_id: input.authorityProof.artifact_id,
     loaded_authority_paths: input.authorityProof.loaded_authority_paths,
     authority_checksums: input.authorityProof.authority_checksums,
@@ -210,7 +213,8 @@ export async function persistPhase05bReviseOpportunitySeed(input: PersistPhase05
 }> {
   const built = buildPhase05bReviseOpportunitySeed(input);
   if (!built.ok) {
-    throw new Error(`${built.code}: ${built.reason}`);
+    const failure = built as Extract<typeof built, { ok: false }>;
+    throw new Error(`${failure.code}: ${failure.reason}`);
   }
 
   const artifactId = await upsertEvaluationArtifact({

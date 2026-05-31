@@ -48,18 +48,21 @@ function makeNeedsTargetingOpportunity(id: string): WorkbenchOpportunity {
       {
         key: "A",
         mechanism: "Recommended repair",
+        candidateText: "In the paragraph containing the scene, replace one clause.",
         text: "In the paragraph containing the scene, replace one clause.",
         rationale: "Not copy-ready.",
       },
       {
         key: "B",
         mechanism: "Rhythm variant",
+        candidateText: "In the paragraph containing the scene, replace one clause.",
         text: "In the paragraph containing the scene, replace one clause.",
         rationale: "Not copy-ready.",
       },
       {
         key: "C",
         mechanism: "Bolder rendering shift",
+        candidateText: "In the paragraph containing the scene, replace one clause.",
         text: "In the paragraph containing the scene, replace one clause.",
         rationale: "Not copy-ready.",
       },
@@ -102,18 +105,21 @@ describe("ReviseCockpitClient smoke", () => {
       {
         key: "A",
         mechanism: "Recommended repair",
+        candidateText: "She closed the door softly, the latch clicking once as rain traced silver lines down the glass.",
         text: "She closed the door softly, the latch clicking once as rain traced silver lines down the glass.",
         rationale: "Copy-ready prose variant.",
       },
       {
         key: "B",
         mechanism: "Rhythm variant",
+        candidateText: "She closed the door softly, and the latch clicked once while rain drew silver lines on the glass.",
         text: "She closed the door softly, and the latch clicked once while rain drew silver lines on the glass.",
         rationale: "Copy-ready prose variant.",
       },
       {
         key: "C",
         mechanism: "Bolder rendering shift",
+        candidateText: "She eased the door shut; one latch click, then rain threading silver across the pane.",
         text: "She eased the door shut; one latch click, then rain threading silver across the pane.",
         rationale: "Copy-ready prose variant.",
       },
