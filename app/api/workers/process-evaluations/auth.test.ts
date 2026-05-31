@@ -25,6 +25,21 @@ jest.mock('@/lib/evaluation/processor', () => ({
   }),
 }));
 
+// Mock checklist wrapper so auth-only tests do not depend on live Supabase artifact reads.
+jest.mock('@/lib/evaluation/phase-architecture-v2/workerChecklistEntryGate', () => ({
+  processQueuedJobsWithChecklistEntryGate: jest.fn().mockResolvedValue({
+    claimed: 0,
+    processed: 0,
+    succeeded: 0,
+    failed: 0,
+    errors: [],
+    checklistGate: {
+      checked: 0,
+      blocked: [],
+    },
+  }),
+}));
+
 // Jest-safe environment setter (bypasses TypeScript read-only NODE_ENV at compile time)
 const setEnv = (key: string, value: string | undefined) => {
   (process.env as Record<string, string | undefined>)[key] = value;
