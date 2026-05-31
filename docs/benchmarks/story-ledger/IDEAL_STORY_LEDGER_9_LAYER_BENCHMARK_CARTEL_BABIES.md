@@ -10,7 +10,7 @@ benchmark-role: gold-standard-story-ledger
 benchmark-tier: required-gold
 generated-for: seed-phase-and-phase-1a-baseline
 created: 2026-05-31T01:22:25Z
-revised: 2026-05-31T03:48:00Z
+revised: 2026-05-31T03:56:00Z
 source-benchmarks:
   - docs/benchmarks/cartel-babies-dream.md
   - docs/benchmarks/cartel-babies-dream-v2-governed-ledger-addendum.md
@@ -39,7 +39,12 @@ Incomplete if it misses any of the following:
 - Raúl / Navarro governance conflict.
 - Cobra as critical hidden-traitor / internal-coup pressure: he attempts to kill Raúl and steal a drug batch.
 - Diego as loyalty-tax / weak-link pressure: product theft, punishment, mercy, and camp discipline logic.
+- El Tomatero / Raúl / Paolito triad: El Tomatero's red-bat threat against Paolito forces Raúl to assert paternal and command authority.
 - Blue evil-eye charm lifecycle.
+- El Tomatero's red bat as an object-symbol of ritualized cartel violence, tallying, intimidation, and power reversal.
+- The pig pen / pigs as disposal-terror object-system: pigs eat leftovers and, where evidenced, dead people; this must be tracked as a fear/disposal mechanism, not scenery.
+- Crystal meth / fentanyl / cartel-lab product as a chemical-control object-system: product, lab, punishment, forced ingestion, overdose death, and suicide pressure where evidenced.
+- Radio-channel punishment system: eight radio channels escalating from minor punishment to death, with Beethoven's Fifth marking the death channel.
 - Sound/music as coercive or emotional system where supported.
 - Transit geography: mountain camp → Mazatlán/transit point → Mexico City Canadian Embassy → Vancouver/new protected home.
 - El Delgado, El Tomatero and his red bat, El Árbol, Cobra, and Diego as named cartel/camp pressure agents where evidenced.
@@ -58,7 +63,7 @@ Incomplete if it misses any of the following:
 |---|---|
 | Scope | Full manuscript |
 | Route | Long-form / multi-layer |
-| Evidence distribution | Opening abduction; Benjamin's pre-Michael family/church/school pressure; Michael/Benjamin relationship formation; camp hierarchy; El Tomatero/El Delgado/El Árbol/Cobra/Diego/cartel hierarchy; Paolito/table tennis; Raúl authority; Benjamin search lane; Cobra betrayal/drug-batch theft attempt; Raúl/Navarro conflict; extraction/release; Mazatlán/Mexico City Embassy transition; Vancouver protected-address aftercare |
+| Evidence distribution | Opening abduction; Benjamin's pre-Michael family/church/school pressure; Michael/Benjamin relationship formation; camp hierarchy; El Tomatero/El Delgado/El Árbol/Cobra/Diego/cartel hierarchy; pig pen / disposal-terror scenes; lab/product/punishment scenes; radio-channel punishment scenes; Paolito/table tennis; Raúl authority; Benjamin search lane; Cobra betrayal/drug-batch theft attempt; Raúl/Navarro conflict; extraction/release; Mazatlán/Mexico City Embassy transition; Vancouver protected-address aftercare |
 
 | Concern | Correct classification |
 |---|---|
@@ -71,8 +76,11 @@ Incomplete if it misses any of the following:
 | Benjamin's religious/family/social pressure | Formative co-protagonist pressure, not backstory filler |
 | Cobra betrayal | Internal cartel threat/coup pressure, not minor guard noise |
 | Diego product theft / loyalty tax | Camp discipline and mercy-pressure event, not incidental prisoner misconduct |
+| Pig pen / pigs | Disposal-terror and intimidation system, not only setting detail |
+| Crystal meth / fentanyl / lab product | Cartel product, chemical punishment, overdose/suicide pressure, and moral system evidence; not generic drug scenery |
+| Radio channels / Beethoven's Fifth | Punishment-code object system; eight channels from minor punishment to death, with Beethoven's Fifth as death-channel signal |
 
-Mistake-proofing: do not use opening abduction only; do not convert metadata problems into narrative defects; do not show chunk IDs; do not flatten Benjamin's social/family/religious pressure into generic homophobia; do not treat embassy/new-identity material as paperwork only; do not omit Cobra or Diego from the internal camp pressure map.
+Mistake-proofing: do not use opening abduction only; do not convert metadata problems into narrative defects; do not show chunk IDs; do not flatten Benjamin's social/family/religious pressure into generic homophobia; do not treat embassy/new-identity material as paperwork only; do not omit Cobra, Diego, El Tomatero's bat, pigs/pig-pen disposal terror, cartel-lab product, or radio-channel punishment system from the pressure map.
 
 ---
 
@@ -84,18 +92,18 @@ Mistake-proofing: do not use opening abduction only; do not convert metadata pro
 
 | POV / lane | Structural function | Required treatment |
 |---|---|---|
-| Michael | Primary captivity POV / survival intelligence | Captive observer → tactical protector → conditional negotiator → family carrier |
+| Michael | Primary captivity POV / survival intelligence | Captive observer → tactical protector → conditional negotiator → family carrier; must register the camp's disposal, product, punishment, radio-channel, and terror systems |
 | Benjamin | Dual-POV co-protagonist / Culiacán search lane | Parallel engine: family pressure, church condemnation, professor/classmate hostility, OCD/rituals, empty-house behavior, search agency, embassy transition, Canadian aftercare |
-| Paolito / Paul | Emotional hinge / child-collateral identity lane | Track through Raúl, Michael, Benjamin, embassy identity, and Canadian family systems |
-| Raúl | Authority/governance contradiction | Power, paternal transfer, doctrine conflict, gradual trust in Michael around Paolito, attempted betrayal/assassination pressure from Cobra |
+| Paolito / Paul | Emotional hinge / child-collateral identity lane | Track through Raúl, Michael, Benjamin, El Tomatero threat, embassy identity, and Canadian family systems |
+| Raúl | Authority/governance contradiction | Power, paternal transfer, doctrine conflict, gradual trust in Michael around Paolito, attempted betrayal/assassination pressure from Cobra, refusal or assertion when enforcer violence threatens Paolito |
 | Navarro | Antagonistic doctrine pressure | Coercive order and conflict catalyst |
 | Cobra | Hidden traitor / internal coup pressure | Track as apparent camp operative who later attempts to kill Raúl and steal a drug batch; must not be treated as ordinary guard background |
-| Diego | Weak-link / loyalty-tax pressure | Track product theft, punishment, Raúl's mercy, and the way his instability exposes camp discipline rules |
-| El Tomatero | Camp enforcer / ritualized violence / bat-symbol carrier | Track intimidation, child threat, red-bat hierarchy, and confrontation with Raúl |
+| Diego | Weak-link / loyalty-tax pressure | Track product theft, punishment, Raúl's mercy, and how instability exposes camp discipline rules |
+| El Tomatero | Camp enforcer / ritualized violence / bat-symbol carrier | Track intimidation, child threat, red-bat hierarchy, pig-pen terror, radio-channel punishment logic, and confrontation with Raúl |
 | El Delgado | Named cartel/camp pressure agent where evidenced | Must be tracked if present as more than a one-off label |
 | El Árbol | Big-boss / cartel command pressure where evidenced | Must be tracked as hierarchy pressure and assassination/camp destabilization event where evidenced |
 
-Fails if Benjamin is only absent spouse, Michael is only structural camera, Raúl/Navarro conflict appears sudden, Cobra is omitted from betrayal logic, Diego is omitted from loyalty-tax logic, or the Benjamin family/church/school pressure lane is treated as disposable background.
+Fails if Benjamin is only absent spouse, Michael is only structural camera, Raúl/Navarro conflict appears sudden, Cobra is omitted from betrayal logic, Diego is omitted from loyalty-tax logic, El Tomatero's red-bat threat against Paolito is omitted, or the pig/product/radio punishment systems are treated as scenery.
 
 ---
 
@@ -110,7 +118,7 @@ Fails if Benjamin is only absent spouse, Michael is only structural camera, Raú
 | Michael / Michael Wagner | Primary character | Captive, protector, family carrier; original identity and embassy-issued new identity must be connected |
 | Benjamin / Benjamin Wagner | Co-protagonist | Search lane, family/church/school pressure, rituals, empty-house behavior, Mexico City Embassy transition, Vancouver aftercare, protected identity |
 | Paolito / Paul / Paul Raúl Wagner | Identity transformation character | Cartel child/collateral → protected child → Paolito Raúl Wagner / Paul Raúl Wagner family member; do not split as unrelated people |
-| Raúl | Authority/father/governance contradiction | Cartel authority, Paolito's father, paternal transfer, conditional trust in Michael, target of Cobra betrayal |
+| Raúl | Authority/father/governance contradiction | Cartel authority, Paolito's father, paternal transfer, conditional trust in Michael, target of Cobra betrayal, command authority tested by El Tomatero's threat against Paolito |
 | Navarro | Antagonistic doctrine pressure | Must connect to Raúl conflict |
 | Cobra | Hidden traitor / internal cartel threat | Do not treat as generic driver/guard; track betrayal arc, attempted killing of Raúl, and attempted drug-batch theft |
 | Diego | Weak-link / loyalty-tax figure | Track product theft, punishment, mercy, and later instability/pressure function |
@@ -122,10 +130,13 @@ Fails if Benjamin is only absent spouse, Michael is only structural camera, Raú
 | Female classmates | Protective social buffer where evidenced | Do not overstate as romance; functions as shield/social cover |
 | Camp guards | Collective force | Hierarchy/surveillance/social machine |
 | Captives | Collective force | Labor/fear/permission/dignity system |
-| El Tomatero | Named enforcer / symbolic violence carrier | Red bat, notches/marks, intimidation, Paolito threat, Raúl confrontation |
+| El Tomatero | Named enforcer / symbolic violence carrier | Red bat, notches/marks, intimidation, Paolito threat, pig-pen terror, radio-channel punishment logic, Raúl confrontation |
 | El Delgado | Named cartel/camp pressure agent | Include if evidenced as distinct person/role |
 | El Árbol | Big boss / command hierarchy | Include as cartel authority and assassination/camp hierarchy event where evidenced |
 | El Tomatero's bat | Object-symbol, not person | Do not create separate character from object |
+| Pigs / pig pen | Object-location pressure system, not character | Disposal-terror system; do not classify as simple animal character unless a specific named animal exists |
+| Crystal meth / fentanyl / lab product | Object/product/system | Chemical product and punishment vector; do not treat as generic background substance |
+| Radio channels / Beethoven's Fifth | Object-symbol / punishment-code system | Eight radio channels map punishment escalation from minor consequence to death; Beethoven's Fifth marks death-channel signal |
 | Canadian Embassy / CBSA / Public Safety Canada | Institutional rescue/protection systems | Treat as institutional actors, not ordinary characters |
 
 Paolito, Paul, Paolito Raúl Wagner, and Paul Raúl Wagner are identity states under one canonical child. Michael and Benjamin's embassy-issued names must remain linked to prior identities. Cobra must remain separate from other guards because his betrayal changes the internal threat structure.
@@ -142,19 +153,22 @@ Paolito, Paul, Paolito Raúl Wagner, and Paul Raúl Wagner are identity states u
 |---|---|---|
 | Primary protagonist | Michael | Captivity survival intelligence, protection, negotiation, family carrying |
 | Co-protagonist | Benjamin | Family/church/school pressure, relationship origin, search, absence, domestic aftermath, aftercare |
-| Major emotional hinge | Paolito / Paul | Child collateral, trust, identity, family payoff |
-| Major authority | Raúl | Cartel power, paternal contradiction, transfer, trust evolution with Michael |
+| Major emotional hinge | Paolito / Paul | Child collateral, trust, identity, family payoff; threat target in El Tomatero/Raúl conflict |
+| Major authority | Raúl | Cartel power, paternal contradiction, transfer, trust evolution with Michael, command/paternal assertion against El Tomatero |
 | Antagonistic doctrine | Navarro | Coercive order and moral/governance pressure |
 | Internal betrayal / coup pressure | Cobra | Apparent operative/driver/insider who attempts to kill Raúl and steal a drug batch; major internal threat |
 | Weak-link discipline pressure | Diego | Product theft, loyalty tax, punishment/mercy, camp discipline proof |
-| Named enforcer pressure | El Tomatero | Red-bat violence, intimidation, Paolito threat, confrontation with Raúl |
+| Named enforcer pressure | El Tomatero | Red-bat violence, intimidation, Paolito threat, pig-pen terror, radio-channel punishment control, confrontation with Raúl |
 | Named cartel hierarchy pressure | El Delgado, El Árbol | Include as distinct hierarchy/command agents when evidenced |
 | Benjamin origin-pressure system | Father, mother, church/pastor, professors, classmates/students | Machismo, religious condemnation, educational pressure, homophobic social threat |
+| Cartel product/punishment system | Lab, crystal meth/fentanyl/product, forced ingestion, overdose, suicide pressure | Chemical violence and punishment logic, not mere object inventory |
+| Radio-channel punishment system | Eight radio channels, Beethoven's Fifth death channel | Encoded camp control system escalating punishment severity, not background sound |
+| Disposal-terror system | Pig pen / pigs / leftovers / dead bodies | Camp terror and disposal infrastructure, not scenery |
 | Collective social machine | Camp guards/captives | Surveillance, labor, permission, negotiated dignity |
 | Institutional rescue/protection | Canadian Embassy, CBSA, Public Safety Canada | New identities, protected address, relocation, safety architecture |
 | Local/cultural frame | Culiacán, Sinaloa, Mazatlán, El Tomatero/baseball mythology, El Tomatero's bat | Specificity and grounding |
 
-Failure if Benjamin's father/church/professors/students disappear, Michael/Raúl is missing, Cobra is not treated as a major internal betrayal force, Diego is not tracked as loyalty-tax pressure, El Tomatero is only a local anchor instead of enforcer, or the Canada relocation/protection system is omitted.
+Failure if Benjamin's father/church/professors/students disappear, Michael/Raúl is missing, Cobra is not treated as a major internal betrayal force, Diego is not tracked as loyalty-tax pressure, El Tomatero is only a local anchor instead of enforcer, the Raúl/El Tomatero/Paolito triad is missing, or the pigs/lab/product/radio-channel punishment systems are omitted.
 
 ---
 
@@ -198,12 +212,14 @@ Paolito → Paul / Paul Raúl Wagner is naming, guardianship, legal/family ident
 | Michael / Diego | Watchfulness and weak-link management | Michael observes Diego's instability and understands how weakness spreads through the camp system |
 | Raúl / El Tomatero | Authority vs enforcer violence | Red-bat intimidation culminates in Raúl defending Paolito and asserting command |
 | El Tomatero / Paolito | Child-threat pressure | Track bat-marking, pig-pen danger, fear, and why Raúl's response matters |
+| Raúl / El Tomatero / Paolito triad | Authority, enforcer violence, and paternal protection | El Tomatero's red-bat threat against Paolito forces Raúl to choose between tolerating enforcer cruelty and asserting paternal/command authority |
+| Radio channels / camp population | Encoded punishment communication | Eight channels signal escalating punishment levels from minor consequence to death; Beethoven's Fifth marks the death channel and turns music into control infrastructure |
 | Benjamin / Paul | Aftercare, family legitimacy, renaming reception | Paul belongs to family system, not only Michael's rescue story |
 | Table tennis bridge | Rules/play/permission/trust | Plot architecture linking captives, guards, Raúl, Michael, and Paolito |
 | Camp guards / captives | Social system | Hierarchy, surveillance, labor, fear, dignity |
 | Benjamin's family / Canadian relocation | Protective consequence | Benjamin's family relocation to Canada must be tracked as downstream safety consequence where evidenced |
 
-Named sustained relationships here; collectives only as labeled systems. Do not route Cobra's betrayal, Diego's product-theft/mercy sequence, or Benjamin's origin pressure to vague “background pressure” if they materially shape the arc.
+Named sustained relationships here; collectives only as labeled systems. Do not route Cobra's betrayal, Diego's product-theft/mercy sequence, El Tomatero's red-bat threat, the radio-channel punishment system, or Benjamin's origin pressure to vague “background pressure” if they materially shape the arc.
 
 ---
 
@@ -219,17 +235,20 @@ Named sustained relationships here; collectives only as labeled systems. Do not 
 | Key ring / keys | Raúl, Michael, camp authority | Access, control, permission, authority transfer |
 | Emergency passports / travel documents / protected identity papers | Michael, Benjamin, Paolito/Paul, Embassy/CBSA/Public Safety | Michael Wagner, Benjamin Wagner, Paul/Paolito Raúl Wagner identity transition; safety and erased trail |
 | Naming / renaming | Paolito/Paul, Benjamin, Michael, Raúl | Identity instability into family-legitimacy payoff |
+| Radio channels / Beethoven's Fifth | Camp, guards, captives, El Tomatero, punishment system | Eight-channel punishment code: lower channels indicate lesser punishment, escalating to death; Beethoven's Fifth marks or announces the death channel |
 | Cobra's stolen/targeted drug batch | Cobra, Raúl, camp hierarchy | Internal betrayal object: product becomes motive for attempted killing and coup/escape pressure |
 | Product / stolen product | Diego, Raúl, Delegado/camp discipline | Loyalty-tax object: product theft triggers punishment/mercy logic |
+| Crystal meth / fentanyl / lab product | Lab, cartel economy, punishment scenes, captives | Chemical product and punishment vector: forced ingestion, overdose death, suicide pressure, and cartel economy logic |
+| Pig pen / pigs / leftovers / dead bodies | El Tomatero, camp, captives, Paolito, Raúl | Disposal-terror system: pigs eat leftovers and, where evidenced, dead people; converts the pig pen into intimidation and body-disposal infrastructure |
 | Canvas / crates / benches | Michael, captives, camp | Body-as-cargo / confinement / logistics |
 | Table tennis equipment/play-space | Paolito, Michael, guards, Raúl | Mediates trust, authority, permission, social temperature |
 | El Tomatero's red bat | El Tomatero, Paolito, Raúl, camp | Ritualized violence, tally marks, intimidation, child threat, power reversal when Raúl takes it |
-| Music/sound systems | Camp, punishment, trauma | Coercive or emotional system where evidenced |
+| Music/sound systems | Camp, punishment, trauma, radio channels | Coercive or emotional system where evidenced; include Beethoven's Fifth when it functions as death-channel signal |
 | VIBER / Grindr / phone/profile | Benjamin, Michael | Queer self-recognition and relationship origin where evidenced |
 | Church/pulpit language | Benjamin, pastor, family/community pressure | Symbolic/religious condemnation system, not decorative background |
 | Local cultural anchors | El Tomatero/civic markers, Mazatlán/Culiacán/Sinaloa markers | Sinaloa specificity |
 
-Do not treat embassy documents as mere props; they are identity/safety/legal-payoff objects. Do not treat the red bat only as scenery. Do not miss drug/product as a pressure object when it drives Diego's punishment or Cobra's betrayal.
+Do not treat embassy documents as mere props; they are identity/safety/legal-payoff objects. Do not treat the red bat only as scenery. Do not treat pigs as ordinary animals if they function as disposal terror. Do not miss drug/product as a pressure object when it drives Diego's punishment, Cobra's betrayal, forced ingestion, overdose, or suicide pressure. Do not treat Beethoven's Fifth as mere background music if it marks a death channel.
 
 ---
 
@@ -246,9 +265,12 @@ Do not treat embassy documents as mere props; they are identity/safety/legal-pay
 | Mountain camp hierarchy | Guards/captives/permission/fear/labor/social rules, El Tomatero, El Delgado, El Árbol, Cobra, Diego/cartel command hierarchy where evidenced |
 | Michael / Raúl evolution | Captive-captor assessment → conversations/utility → trust around Paolito |
 | Paolito/table tennis | Trust transfer, child protection, play under coercion |
-| El Tomatero / bat escalation | Bat marks, child threat, pig-pen incident, Raúl confrontation |
+| El Tomatero / Raúl / Paolito triad | Bat marks, child threat, pig-pen incident, Raúl confrontation, Raúl's paternal/command assertion |
 | Diego loyalty-tax sequence | Product theft → public discipline → Raúl mercy → changed cost/accountability |
 | Cobra betrayal sequence | Insider watchfulness/suspicion → attempted killing of Raúl → attempted drug-batch theft → internal camp rupture |
+| Radio-channel punishment sequence | Eight channels escalate punishment from minor to death; Beethoven's Fifth signals death-channel terror where evidenced |
+| Pig pen / disposal-terror sequence | Leftovers, dead-body disposal where evidenced, pig-pen threat, and its intimidation effect on Paolito/captives |
+| Lab/product punishment sequence | Crystal meth/fentanyl/product production, forced ingestion, overdose death, and suicide pressure where evidenced |
 | Benjamin search lane | Culiacán search, rituals, empty-house behavior, agency |
 | Raúl/Navarro conflict | Doctrine conflict, governance pressure, confrontation |
 | Extraction/release | Release mechanics and moral transfer |
@@ -257,7 +279,7 @@ Do not treat embassy documents as mere props; they are identity/safety/legal-pay
 | Vancouver protected home | CBSA/Public Safety processing, protected-address arrangement, family aftercare |
 | Benjamin family relocation | Benjamin's family relocation to Canada for safety where evidenced |
 
-Locations/worldstates: Culiacán/Sinaloa, Benjamin's family home, church/community, medical school/university, VIBER/Grindr/social spaces, mountain camp, pig pen, table tennis space, El Tomatero's camp sphere, Cobra/Diego loyalty fracture scenes, Mazatlán transit point, Mexico City Canadian Embassy, aircraft/controlled transit, Vancouver hangar/private processing suite, protected Canadian home/address.
+Locations/worldstates: Culiacán/Sinaloa, Benjamin's family home, church/community, medical school/university, VIBER/Grindr/social spaces, mountain camp, pig pen, lab/product area, radio-channel/audio punishment infrastructure, table tennis space, El Tomatero's camp sphere, Cobra/Diego loyalty fracture scenes, Mazatlán transit point, Mexico City Canadian Embassy, aircraft/controlled transit, Vancouver hangar/private processing suite, protected Canadian home/address.
 
 ---
 
@@ -272,7 +294,10 @@ Locations/worldstates: Culiacán/Sinaloa, Benjamin's family home, church/communi
 | Coercive antagonist | Navarro, violent cartel actors, El Delgado/El Árbol hierarchy where evidenced |
 | Internal betrayal / coup pressure | Cobra attempts to kill Raúl and steal a drug batch; this must be tracked as a major internal cartel rupture |
 | Weak-link / loyalty-tax pressure | Diego steals product, is punished/spared, and exposes the cost of mercy/discipline |
-| Enforcer violence | El Tomatero, red bat, child-threat pressure, pig-pen danger |
+| Enforcer violence | El Tomatero, red bat, child-threat pressure, pig-pen danger, and the Raúl/Paolito command-protection rupture |
+| Radio-channel punishment pressure | Eight radio channels encode escalating punishment from minor consequence to death; Beethoven's Fifth marks death-channel terror |
+| Chemical punishment / product pressure | Crystal meth/fentanyl/product, forced ingestion, overdose death, suicide pressure, lab economy |
+| Disposal-terror pressure | Pig pen, pigs eating leftovers and dead people where evidenced, body-disposal intimidation |
 | Governance contradiction | Raúl's authority, paternal transfer, doctrine conflict, trust in Michael |
 | Social-machine | Camp guards/captives, surveillance, labor, permission |
 | Captivity/body | Crates, canvas, benches, injuries, bodily vulnerability |
@@ -280,7 +305,7 @@ Locations/worldstates: Culiacán/Sinaloa, Benjamin's family home, church/communi
 | Benjamin origin pressure | Father, mother, church/pastor, professors, classmates, homophobic/machismo pressure |
 | Identity/family | Paolito/Paul renaming, Michael/Benjamin new identities, protected-address arrangement, family legitimacy |
 | Transit/safety | Mazatlán, Mexico City Embassy, controlled departure, Vancouver, Benjamin family relocation |
-| Sound/music | Conditioning, punishment, trauma, silence |
+| Sound/music | Conditioning, punishment, trauma, silence, Beethoven's Fifth death-channel signal |
 | Market/ethical | Violence, cartel economy, child collateral, queer family aftercare |
 
-Ending must account for Michael, Benjamin, Paolito/Paul, Raúl, Navarro, Cobra, Diego, El Tomatero, El Delgado/El Árbol if evidenced, blue charm, red bat, table tennis, embassy identity transition, Vancouver aftercare, protected address, and Benjamin-family relocation safety logic. A ledger fails if it treats the ending as only rescue or romance and misses legal identity, relocation, Cobra's betrayal, Diego's loyalty-tax function, and safety architecture.
+Ending must account for Michael, Benjamin, Paolito/Paul, Raúl, Navarro, Cobra, Diego, El Tomatero, El Delgado/El Árbol if evidenced, blue charm, red bat, radio-channel punishment code, Beethoven's Fifth, pig-pen disposal terror, lab/product chemical punishment, table tennis, embassy identity transition, Vancouver aftercare, protected address, and Benjamin-family relocation safety logic. A ledger fails if it treats the ending as only rescue or romance and misses legal identity, relocation, Cobra's betrayal, Diego's loyalty-tax function, El Tomatero/Raúl/Paolito, radio-channel terror, pig disposal, chemical punishment, and safety architecture.
