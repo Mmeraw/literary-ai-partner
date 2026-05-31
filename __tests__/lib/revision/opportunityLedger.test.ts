@@ -2,6 +2,7 @@ import {
   buildRevisionOpportunitiesFromEvaluationPayload,
   ensureRevisionOpportunityLedgerArtifact,
 } from '@/lib/revision/opportunityLedger';
+import { candidateTextIsCopyPasteReady } from '@/lib/revision/reviseCardContract';
 
 describe('buildRevisionOpportunitiesFromEvaluationPayload', () => {
   it('builds opportunities from criteria recommendations with evidence anchors', () => {
@@ -78,6 +79,40 @@ describe('buildRevisionOpportunitiesFromEvaluationPayload', () => {
     expect(opportunities).toHaveLength(1);
     expect(opportunities[0].criterion).toBe('DIALOGUE');
     expect(opportunities[0].severity).toBe('should');
+  });
+
+  it('synthesizes distinct copy-ready fallback candidate texts when A/B/C are missing', () => {
+    const payload = {
+      criteria: [
+        {
+          key: 'proseControl',
+          recommendations: [
+            {
+              diagnosis: 'The beat lands abstractly and diffuses urgency.',
+              recommendation: 'Ground the turn in a concrete immediate consequence.',
+              anchor_snippet: 'Newton held the vial too long before answering.',
+              location_ref: 'chapter:1',
+              confidence: 0.83,
+            },
+          ],
+        },
+      ],
+    };
+
+    const opportunities = buildRevisionOpportunitiesFromEvaluationPayload(payload);
+    expect(opportunities).toHaveLength(1);
+
+    const [row] = opportunities;
+    expect(typeof row.candidate_text_a).toBe('string');
+    expect(typeof row.candidate_text_b).toBe('string');
+    expect(typeof row.candidate_text_c).toBe('string');
+
+    expect(candidateTextIsCopyPasteReady(row.candidate_text_a)).toBe(true);
+    expect(candidateTextIsCopyPasteReady(row.candidate_text_b)).toBe(true);
+    expect(candidateTextIsCopyPasteReady(row.candidate_text_c)).toBe(true);
+
+    const normalized = [row.candidate_text_a, row.candidate_text_b, row.candidate_text_c].map((value) => value?.trim().toLowerCase());
+    expect(new Set(normalized).size).toBe(3);
   });
 });
 
