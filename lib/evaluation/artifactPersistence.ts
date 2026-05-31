@@ -18,6 +18,8 @@ export type ArtifactType =
   | "evaluation_result_v2"
   /** Phase 0 authority proof: registry path/checksum, loaded paths, missing paths, authority checksums. */
   | "phase0_authority_proof_v1"
+  /** Phase 0.5A governed story-map seed. Candidate/provisional, not verified truth. */
+  | "story_map_seed_v1"
   /** Runtime SEED hypothesis artifact generated before Phase 1A. */
   | "story_seed_v1"
   /** Runtime evaluation-priority SEED hypothesis artifact generated before Phase 1A. */
