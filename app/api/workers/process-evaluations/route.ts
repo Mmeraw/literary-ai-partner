@@ -1,18 +1,18 @@
 /**
  * Evaluation Worker API Route
- * 
+ *
  * Endpoint to trigger evaluation job processing.
- * 
+ *
  * Authentication methods (in order of precedence):
  * 1. Vercel Cron: x-vercel-cron=1 + x-vercel-id (platform validation)
  * 2. Manual trigger: Authorization: Bearer <CRON_SECRET>
  * 3. Dev testing: ?secret=<CRON_SECRET> (NODE_ENV=development only)
  * 4. Dev proof mode (opt-in): Authorization: Bearer <SUPABASE_SERVICE_ROLE_KEY>
  *    when NODE_ENV=development and WORKER_ALLOW_SERVICE_ROLE_DEV=1
- * 
+ *
  * GET /api/workers/process-evaluations
  * GET /api/workers/process-evaluations?dry_run=1  (returns counts without processing)
- * 
+ *
  * Security: Multi-layer auth with Vercel platform verification
  * QA/QC: Timing-safe secret comparison, structured logging, trace IDs
  */
@@ -26,6 +26,7 @@ import os from 'os';
 import { getEvaluationRuntimeConfig } from '@/lib/config/evaluationRuntimeConfig';
 import { isPipelineEnabled, pipelineDisabledResponse } from '@/lib/config/pipelineGuard';
 import { getConfiguredAppBaseUrl } from '@/lib/jobs/triggerWorker';
+import { processQueuedJobsWithChecklistEntryGate } from '@/lib/evaluation/phase-architecture-v2/workerChecklistEntryGate';
 
 // Force Node.js runtime (required for crypto module)
 export const runtime = 'nodejs';
@@ -227,12 +228,12 @@ const MAX_SECRET_LENGTH = 512;
  */
 function timingSafeEqual(a?: string | null, b?: string | null): { equal: boolean; secretTooLong: boolean } {
   if (!a || !b) return { equal: false, secretTooLong: false };
-  
+
   // Guard against CPU burn attacks with oversized secrets
   if (a.length > MAX_SECRET_LENGTH || b.length > MAX_SECRET_LENGTH) {
     return { equal: false, secretTooLong: true };
   }
-  
+
   const aHash = crypto.createHash('sha256').update(a, 'utf8').digest();
   const bHash = crypto.createHash('sha256').update(b, 'utf8').digest();
   return { equal: crypto.timingSafeEqual(aHash, bHash), secretTooLong: false };
@@ -279,12 +280,12 @@ function checkAuthorization(req: NextRequest): { authorized: boolean; method: st
   const allowDevServiceRole =
     runtimeConfig.platform.nodeEnv === 'development' &&
     runtimeConfig.worker.allowDevServiceRole;
-  
+
   // Method 1: Vercel Cron invocation (highest trust)
   if (isVercelCronInvocation(req)) {
     return { authorized: true, method: 'vercel_cron', secretTooLong: false };
   }
-  
+
   // Method 2: Bearer token (manual/admin trigger)
   if (expectedSecret && bearer) {
     const result = timingSafeEqual(bearer, expectedSecret);
@@ -295,7 +296,7 @@ function checkAuthorization(req: NextRequest): { authorized: boolean; method: st
       return { authorized: true, method: 'bearer', secretTooLong: false };
     }
   }
-  
+
   // Method 3: Query secret (development only)
   if (runtimeConfig.platform.nodeEnv === 'development') {
     const querySecret = req.nextUrl.searchParams.get('secret');
@@ -314,7 +315,7 @@ function checkAuthorization(req: NextRequest): { authorized: boolean; method: st
   if (allowDevServiceRole && checkServiceRoleAuth(req)) {
     return { authorized: true, method: 'dev_service_role', secretTooLong: false };
   }
-  
+
   return { authorized: false, method: 'none', secretTooLong: false };
 }
 
@@ -357,66 +358,36 @@ function buildWorkerId(traceId: string): string {
   return `${env}:${host}:${tracePart}`;
 }
 
-/**
- * Structured log entry
- */
-interface LogEntry {
-  traceId: string;
-  timestamp: string;
-  level: 'info' | 'warn' | 'error';
-  message: string;
-  data?: Record<string, unknown>;
-}
-
-function structuredLog(entry: LogEntry): void {
-  const logLine = JSON.stringify({
-    ...entry,
-    service: 'process-evaluations-worker',
-  });
-  
-  switch (entry.level) {
-    case 'error':
-      console.error(logLine);
-      break;
-    case 'warn':
-      console.warn(logLine);
-      break;
-    default:
-      console.log(logLine);
-  }
-}
-
 // ============================================================================
-// MAIN HANDLER
+/** MAIN HANDLER */
 // ============================================================================
 
 export async function GET(request: NextRequest) {
   const traceId = generateTraceId();
   const startTime = Date.now();
   const workerConfig = getWorkerConfig();
-  
-  // Auth check
+
   const auth = checkAuthorization(request);
-  
+
   if (!auth.authorized) {
-    structuredLog({
+    console.warn(JSON.stringify({
       traceId,
       timestamp: new Date().toISOString(),
       level: 'warn',
       message: 'Unauthorized access attempt',
       data: getAuthDebugContext(request),
-    });
-    
+      service: 'process-evaluations-worker',
+    }));
+
     return NextResponse.json(
       { success: false, error: 'Unauthorized', traceId },
-      { status: 401 }
+      { status: 401 },
     );
   }
-  
-  // Check for dry-run mode
+
   const isDryRun = request.nextUrl.searchParams.get('dry_run') === '1';
-  
-  structuredLog({
+
+  console.log(JSON.stringify({
     traceId,
     timestamp: new Date().toISOString(),
     level: 'info',
@@ -427,25 +398,16 @@ export async function GET(request: NextRequest) {
       isDryRun,
       nodeEnv: getEvaluationRuntimeConfig().platform.nodeEnv,
       vercelEnv: getEvaluationRuntimeConfig().platform.vercelEnv,
-            // Auth presence flags for audit
       ...getAuthDebugContext(request),
     },
-  });
-  
-  // Kill switch — checked AFTER auth so unauthorized callers still get 401,
-  // but BEFORE any DB or pipeline work. See OPERATIONS.md.
+    service: 'process-evaluations-worker',
+  }));
+
   if (!isPipelineEnabled()) {
     console.warn('[PipelineGuard] EVAL_PIPELINE_ENABLED=false — refusing to process job', {
       job_id: null,
     });
     const durationMs = Date.now() - startTime;
-    structuredLog({
-      traceId,
-      timestamp: new Date().toISOString(),
-      level: 'warn',
-      message: 'Worker invocation skipped: EVAL_PIPELINE_ENABLED=false',
-      data: { authMethod: auth.method, durationMs },
-    });
     return NextResponse.json(
       {
         ...pipelineDisabledResponse(null),
@@ -460,18 +422,8 @@ export async function GET(request: NextRequest) {
 
   try {
     if (isDryRun) {
-      // Dry run: return status without processing
-      // TODO: Implement actual queue count check
       const durationMs = Date.now() - startTime;
-      
-      structuredLog({
-        traceId,
-        timestamp: new Date().toISOString(),
-        level: 'info',
-        message: 'Dry run completed',
-        data: { durationMs },
-      });
-      
+
       return NextResponse.json({
         success: true,
         dryRun: true,
@@ -490,18 +442,6 @@ export async function GET(request: NextRequest) {
 
     if (workerConfig.disabled) {
       const durationMs = Date.now() - startTime;
-
-      structuredLog({
-        traceId,
-        timestamp: new Date().toISOString(),
-        level: 'warn',
-        message: 'Worker invocation skipped: disabled via env guard',
-        data: {
-          authMethod: auth.method,
-          durationMs,
-          disabled: true,
-        },
-      });
 
       return NextResponse.json({
         success: true,
@@ -526,20 +466,6 @@ export async function GET(request: NextRequest) {
     if (circuitBreakerState.tripped) {
       const durationMs = Date.now() - startTime;
 
-      structuredLog({
-        traceId,
-        timestamp: new Date().toISOString(),
-        level: 'warn',
-        message: 'Worker invocation skipped: auto circuit breaker tripped',
-        data: {
-          authMethod: auth.method,
-          durationMs,
-          breakerReasons: circuitBreakerState.reasons,
-          breakerMetrics: circuitBreakerState.metrics,
-          breakerConfig: circuitBreakerConfig,
-        },
-      });
-
       return NextResponse.json({
         success: true,
         traceId,
@@ -559,37 +485,41 @@ export async function GET(request: NextRequest) {
         timestamp: new Date().toISOString(),
       }, { status: 200 });
     }
-    
-    // Process queued jobs (kill switch runs inside processQueuedJobs)
+
     const workerId = buildWorkerId(traceId);
-    const results = await processQueuedJobs({
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+    if (!supabaseUrl || !supabaseServiceRoleKey) {
+      throw new Error('Supabase URL or service role key is missing — worker checklist gate cannot run');
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
+    const results = await processQueuedJobsWithChecklistEntryGate({
+      supabase,
       workerId,
       batchSize: workerConfig.batchSize,
       leaseMs: workerConfig.leaseMs,
+      processQueuedJobs,
     });
     const durationMs = Date.now() - startTime;
 
-    // Self-chain: if we processed at least one job, fire the next invocation
-    // immediately (fire-and-forget) so phase transitions don't wait up to 60s
-    // for the next cron tick. The cron remains the rescue fallback.
-    // Only self-chain when running on Vercel (not in local dev) to avoid loops.
     const selfChainBase = getConfiguredAppBaseUrl();
     if (results.processed > 0 && selfChainBase) {
       const selfUrl = new URL('/api/workers/process-evaluations', selfChainBase).toString();
       const cronSecret = process.env.CRON_SECRET;
       if (cronSecret) {
-        // Fire-and-forget — don't await, don't block the response
         void fetch(selfUrl, {
           method: 'GET',
-          headers: { 'Authorization': `Bearer ${cronSecret}` },
-          signal: AbortSignal.timeout(5_000), // abandon if doesn't connect in 5s
+          headers: { Authorization: `Bearer ${cronSecret}` },
+          signal: AbortSignal.timeout(5_000),
         }).catch(() => {
           // Non-fatal — cron will pick up on next tick
         });
       }
     }
-    
-    structuredLog({
+
+    console.log(JSON.stringify({
       traceId,
       timestamp: new Date().toISOString(),
       level: 'info',
@@ -603,9 +533,11 @@ export async function GET(request: NextRequest) {
         succeeded: results.succeeded,
         failed: results.failed,
         batchSize: workerConfig.batchSize,
+        checklistGate: results.checklistGate,
       },
-    });
-    
+      service: 'process-evaluations-worker',
+    }));
+
     return NextResponse.json({
       success: true,
       traceId,
@@ -617,15 +549,16 @@ export async function GET(request: NextRequest) {
       succeeded: results.succeeded,
       failed: results.failed,
       batchSize: workerConfig.batchSize,
+      checklistGate: results.checklistGate,
       errors: results.errors,
       timestamp: new Date().toISOString(),
     }, { status: 200 });
-    
+
   } catch (error) {
     const durationMs = Date.now() - startTime;
     const errorMessage = error instanceof Error ? error.message : String(error);
-    
-    structuredLog({
+
+    console.error(JSON.stringify({
       traceId,
       timestamp: new Date().toISOString(),
       level: 'error',
@@ -635,8 +568,9 @@ export async function GET(request: NextRequest) {
         durationMs,
         error: errorMessage,
       },
-    });
-    
+      service: 'process-evaluations-worker',
+    }));
+
     return NextResponse.json({
       success: false,
       traceId,
