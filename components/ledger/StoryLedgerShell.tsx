@@ -26,6 +26,7 @@ import { useRouter } from "next/navigation";
 import { STORY_LAYER_KEYS } from "@/lib/evaluation/artifacts/artifactTypes";
 import { STORY_LAYER_METADATA } from "@/components/ledger/storyLayerMetadata";
 import { StoryLayerRenderer, LayerCompletionBar } from "@/components/ledger/StoryLedgerLayers";
+import { STORY_LEDGER_CONTAINMENT_MESSAGE } from "@/lib/evaluation/reviewGate/containmentMode";
 
 function isNextRedirectError(error: unknown): boolean {
   if (!error || typeof error !== "object") return false;
@@ -339,7 +340,7 @@ type ModuleId = "story_layer" | "review_gate" | "accepted_ledger" | "wave_handof
 
 const MODULES: { id: ModuleId; label: string; number: number; sublabel: string; icon: string }[] = [
   { id: "story_layer", number: 1, label: "Story Layer Map", sublabel: "Generated story facts", icon: "◈" },
-  { id: "review_gate", number: 2, label: "Review Gate", sublabel: "Author approval", icon: "◎" },
+  { id: "review_gate", number: 2, label: "Review Gate", sublabel: "Diagnostic triage", icon: "◎" },
   { id: "accepted_ledger", number: 3, label: "Accepted Ledger", sublabel: "Locked for evaluation", icon: "◆" },
   { id: "wave_handoff", number: 4, label: "Preparing next-step guidance", sublabel: "13 criteria + repair", icon: "◇" },
 ];
@@ -378,6 +379,8 @@ export type LedgerShellProps = {
     governance_warnings?: GovernanceWarning[];
     layer_count?: number;
   } | null;
+
+  reviewGateContainmentMode: boolean;
 
   // Server actions (passed from server component)
   approveLedgerAction: (formData: FormData) => Promise<void>;
@@ -618,7 +621,7 @@ function Module1StoryLayer({
 
       {isAdminViewer ? (
         <AlertBanner tone="green">
-          Admin view: all server-approved story layers are visible in this ledger.
+          Admin view: all system-generated story layers are visible in this diagnostic ledger.
         </AlertBanner>
       ) : withheldLayerKeys.length > 0 ? (
         <AlertBanner tone="gold">
@@ -708,8 +711,8 @@ function Module1StoryLayer({
             <p style={{ margin: 0, ...T.body }}>
               RevisionGrade extracted these story facts from your manuscript. Work
               through each visible layer and mark it as correct, correct with a
-              note, wrong, or wrong with an explanation. When all visible layers
-              are reviewed, you will be taken to the approval step automatically.
+              note, wrong, or wrong with an explanation. This records diagnostic
+              decisions only.
             </p>
             <div
               style={{
@@ -1174,7 +1177,7 @@ function Module1StoryLayer({
               All {displayLayerOrder.length} visible layers reviewed
             </p>
             <p style={{ margin: 0, ...T.body }}>
-              Your decisions have been recorded. Proceed to the approval step.
+              Your diagnostic decisions have been recorded.
             </p>
           </div>
           <button
@@ -1192,7 +1195,7 @@ function Module1StoryLayer({
               letterSpacing: "0.02em",
             }}
           >
-            Continue to Review Gate →
+            Continue to Diagnostic Triage →
           </button>
         </div>
       )}
@@ -1210,6 +1213,7 @@ function Module2ReviewGate({
   hardFails,
   layerDecisions,
   requiredLayerCount,
+  containmentMode,
   approveLedgerAction,
   rejectLedgerAction,
 }: {
@@ -1220,6 +1224,7 @@ function Module2ReviewGate({
   hardFails: string[];
   layerDecisions: Record<string, { status: string; comment: string }>;
   requiredLayerCount: number;
+  containmentMode: boolean;
   approveLedgerAction: (formData: FormData) => Promise<void>;
   rejectLedgerAction: (formData: FormData) => Promise<void>;
 }) {
@@ -1292,12 +1297,13 @@ function Module2ReviewGate({
           }}
         >
           <div style={{ flex: 1 }}>
-            <Pill tone="amber">Module 2 · Awaiting Approval</Pill>
+            <Pill tone="amber">Module 2 · Diagnostic Triage</Pill>
             <h2 style={{ margin: "14px 0 10px", ...T.h2 }}>Review Gate</h2>
             <p style={{ margin: 0, maxWidth: "58ch", ...T.bodyLg }}>
               Before RevisionGrade diagnoses craft, confirm the story facts. The Story
-              Layer is what the system believes your manuscript contains. Approve it,
-              add corrections, or reject this evaluation entirely.
+              Layer is what the system believes your manuscript contains. In
+              containment mode, this step is diagnostic-only and cannot approve or
+              unlock accepted ledger state.
             </p>
           </div>
           <div
@@ -1319,6 +1325,12 @@ function Module2ReviewGate({
           </div>
         </div>
       </Card>
+
+      {containmentMode && (
+        <Card>
+          <AlertBanner tone="gold">{STORY_LEDGER_CONTAINMENT_MESSAGE}</AlertBanner>
+        </Card>
+      )}
 
       {/* Hard fail alert */}
       {hasHardFails && (
@@ -1538,9 +1550,9 @@ function Module2ReviewGate({
       <Card>
         <SectionLabel>Decision</SectionLabel>
         <p style={{ margin: "0 0 20px", ...T.body }}>
-          Approval is enforced in the backend. The craft evaluation will not start
-          until this gate is passed. Rejection closes this evaluation — you may revise
-          and resubmit.
+          {containmentMode
+            ? "Containment mode is active. Approval is disabled while semantic safeguards are implemented. You may still reject this evaluation and resubmit later."
+            : "Approval is enforced in the backend. The craft evaluation will not start until this gate is passed. Rejection closes this evaluation — you may revise and resubmit."}
         </p>
         <div
           style={{
@@ -1550,67 +1562,89 @@ function Module2ReviewGate({
             alignItems: "center",
           }}
         >
-          <form
-            action={async (fd: FormData) => {
-              fd.set("author_notes", notes);
-              fd.set("edit_requests", editText);
-              if (Object.keys(layerDecisions).length > 0) {
-                fd.set("layer_decisions", JSON.stringify(layerDecisions));
-              }
-              try {
-                await approveLedgerAction(fd);
-              } catch (error) {
-                if (!isNextRedirectError(error)) {
-                  throw error;
-                }
-                // redirect() throws NEXT_REDIRECT — if it propagates here
-                // the framework handles it. If not, fall through to client push.
-              }
-              // Client-side fallback: if the server-side redirect() didn't
-              // navigate us away, push to the progress-bar page explicitly.
-              router.push(`/evaluate/${jobId}?approved=1`);
-            }}
-          >
-            <input type="hidden" name="jobId" value={jobId} />
-            <input
-              type="hidden"
-              name="disposition"
-              value={
-                gateState === "A"
-                  ? "accepted_without_changes"
-                  : gateState === "B" || gateState === "C"
-                  ? "accepted_with_edits"
-                  : "accepted_without_changes"
-              }
-            />
+          {containmentMode ? (
             <button
-              type="submit"
-              disabled={isPending}
-              data-testid="button-approve-ledger"
+              type="button"
+              disabled
+              data-testid="button-approve-ledger-disabled-containment"
               style={{
                 padding: "13px 28px",
                 borderRadius: 12,
-                border: "none",
-                background: P.gold,
-                color: P.bg,
+                border: `1px solid ${P.border}`,
+                background: P.surfaceAlt,
+                color: P.ash,
                 fontSize: 15,
                 fontWeight: 700,
-                cursor: isPending ? "not-allowed" : "pointer",
-                opacity: isPending ? 0.6 : 1,
+                cursor: "not-allowed",
+                opacity: 0.8,
                 letterSpacing: "0.02em",
               }}
             >
-              {isPending
-                ? "Processing…"
-                : gateState === "A"
-                ? "Run Craft Evaluation →"
-                : gateState === "B"
-                ? "Proceed with notes on record"
-                : gateState === "C"
-                ? "Proceed with contested layers on record"
-                : "Approve — Run Craft Evaluation"}
+              Approval disabled — diagnostic mode
             </button>
-          </form>
+          ) : (
+            <form
+              action={async (fd: FormData) => {
+                fd.set("author_notes", notes);
+                fd.set("edit_requests", editText);
+                if (Object.keys(layerDecisions).length > 0) {
+                  fd.set("layer_decisions", JSON.stringify(layerDecisions));
+                }
+                try {
+                  await approveLedgerAction(fd);
+                } catch (error) {
+                  if (!isNextRedirectError(error)) {
+                    throw error;
+                  }
+                  // redirect() throws NEXT_REDIRECT — if it propagates here
+                  // the framework handles it. If not, fall through to client push.
+                }
+                // Client-side fallback: if the server-side redirect() didn't
+                // navigate us away, push to the progress-bar page explicitly.
+                router.push(`/evaluate/${jobId}?approved=1`);
+              }}
+            >
+              <input type="hidden" name="jobId" value={jobId} />
+              <input
+                type="hidden"
+                name="disposition"
+                value={
+                  gateState === "A"
+                    ? "accepted_without_changes"
+                    : gateState === "B" || gateState === "C"
+                    ? "accepted_with_edits"
+                    : "accepted_without_changes"
+                }
+              />
+              <button
+                type="submit"
+                disabled={isPending}
+                data-testid="button-approve-ledger"
+                style={{
+                  padding: "13px 28px",
+                  borderRadius: 12,
+                  border: "none",
+                  background: P.gold,
+                  color: P.bg,
+                  fontSize: 15,
+                  fontWeight: 700,
+                  cursor: isPending ? "not-allowed" : "pointer",
+                  opacity: isPending ? 0.6 : 1,
+                  letterSpacing: "0.02em",
+                }}
+              >
+                {isPending
+                  ? "Processing…"
+                  : gateState === "A"
+                  ? "Run Craft Evaluation →"
+                  : gateState === "B"
+                  ? "Proceed with notes on record"
+                  : gateState === "C"
+                  ? "Proceed with contested layers on record"
+                  : "Approve — Run Craft Evaluation"}
+              </button>
+            </form>
+          )}
 
           <form
             action={async (fd: FormData) => {
@@ -2184,6 +2218,7 @@ export function StoryLedgerShell(props: LedgerShellProps) {
     hardFails,
     hasHardFails,
     acceptedLedger,
+    reviewGateContainmentMode,
     approveLedgerAction,
     rejectLedgerAction,
   } = props;
@@ -2430,6 +2465,7 @@ export function StoryLedgerShell(props: LedgerShellProps) {
               hardFails={hardFails}
               layerDecisions={layerDecisionsRef.current}
               requiredLayerCount={requiredLayerCount}
+              containmentMode={reviewGateContainmentMode}
               approveLedgerAction={approveLedgerAction}
               rejectLedgerAction={rejectLedgerAction}
             />

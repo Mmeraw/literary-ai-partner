@@ -4,6 +4,10 @@ import { redirect } from 'next/navigation';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { getAuthenticatedUser } from '@/lib/supabase/server';
 import { headers } from 'next/headers';
+import {
+  isReviewGateApprovalAllowed,
+  STORY_LEDGER_CONTAINMENT_MESSAGE,
+} from '@/lib/evaluation/reviewGate/containmentMode';
 
 /**
  * approveLedgerAction
@@ -23,6 +27,11 @@ export async function approveLedgerAction(formData: FormData): Promise<void> {
   if (!jobId) throw new Error('Missing job id.');
 
   const disposition = String(formData.get('disposition') ?? 'accepted_without_changes').trim();
+
+  if (!isReviewGateApprovalAllowed(disposition)) {
+    throw new Error(STORY_LEDGER_CONTAINMENT_MESSAGE);
+  }
+
   const authorNotes = String(formData.get('author_notes') ?? '').trim() || undefined;
   const editRequestsRaw = String(formData.get('edit_requests') ?? '').trim();
   const editRequests = editRequestsRaw
