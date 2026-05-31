@@ -12,6 +12,8 @@ export type SupportArtifactRef = {
 };
 
 export type ArtifactSet = {
+  story_seed_v1?: ArtifactRef;
+  evaluation_seed_v1?: ArtifactRef;
   pass1a_story_layer_v1?: ArtifactRef;
   ledger_quality_report_v1?: ArtifactRef;
   pass3_preflight_draft_v1?: ArtifactRef;
@@ -204,6 +206,12 @@ export function forbidPhase2WithoutAcceptedLedger(set: ArtifactSet): GuardResult
     return ok();
   }
 
+  if (hasArtifactRef(set.story_seed_v1) || hasArtifactRef(set.evaluation_seed_v1)) {
+    return fail(
+      'Phase 2 cannot consume seed artifacts (story_seed_v1/evaluation_seed_v1); accepted_story_ledger_v1 is required',
+    );
+  }
+
   if (hasArtifactRef(set.pass1a_story_layer_v1)) {
     return fail('Phase 2 cannot consume raw pass1a_story_layer_v1; accepted_story_ledger_v1 is required');
   }
@@ -236,29 +244,4 @@ export function checkSupportArtifactFreshness(set: ArtifactSet): GuardResult {
   }
 
   return ok();
-}
-
-export function forbidLayer9(layerKeys: readonly string[]): GuardResult {
-  const allowed = new Set<string>(STORY_LAYER_KEYS);
-  const unexpected = layerKeys.filter((key) => !allowed.has(key));
-
-  if (unexpected.length > 0) {
-    return fail(`Story Layer contains non-canonical layer key(s): ${unexpected.join(', ')}`);
-  }
-
-  const missing = STORY_LAYER_KEYS.filter((key) => !layerKeys.includes(key));
-  if (missing.length > 0) {
-    return fail(`Story Layer is missing canonical layer key(s): ${missing.join(', ')}`);
-  }
-
-  const uniqueLayerCount = new Set(layerKeys).size;
-  if (uniqueLayerCount !== STORY_LAYER_KEYS.length || layerKeys.length !== STORY_LAYER_KEYS.length) {
-    return fail(`Story Layer must contain exactly ${STORY_LAYER_KEYS.length} canonical layers`);
-  }
-
-  return ok();
-}
-
-export function canonicalLayerKeys(): readonly StoryLayerCoreLayerKey[] {
-  return STORY_LAYER_KEYS;
 }
