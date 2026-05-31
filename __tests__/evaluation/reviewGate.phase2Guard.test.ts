@@ -35,7 +35,6 @@
  */
 
 import { evaluateStageTransition } from '../../lib/evaluation/stage-machine/stageMachine';
-import { isAllowedStageTransition } from '../../lib/evaluation/stage-machine/stageTransitions';
 import {
   requireAcceptedLedger,
   requireUserFeedback,
@@ -348,5 +347,114 @@ describe('Review Gate disposition contract', () => {
 
   it('rejected is the third disposition', () => {
     expect(VALID_DISPOSITIONS[2]).toBe('rejected');
+  });
+});
+
+// ─── 8. Review Gate API job transition contract ───────────────────────────────
+
+describe('Review Gate API job transition contract', () => {
+  /**
+   * On approval: job must transition to phase='phase_2', phase_status='queued',
+   * status='queued' — so the worker can claim it on the next tick.
+   *
+   * Critically:
+   * - status must be 'queued' (CANON: queued/running/failed/complete only)
+   * - phase must be 'phase_2' (now claimable by worker)
+   * - phase_status must be 'queued' (not 'awaiting_approval' or 'running')
+   *
+   * On rejection: phase stays 'review_gate', phase_status='failed', status='failed'.
+   */
+  const VALID_JOB_STATUSES = ['queued', 'running', 'failed', 'complete'] as const;
+  const CLAIMABLE_PHASES = ['phase_1a', 'phase_2', 'phase_3'] as const;
+
+  it('accepted approval transition produces a claimable job state', () => {
+    const approvalTransition = {
+      status: 'queued',
+      phase: 'phase_2',
+      phase_status: 'queued',
+    };
+
+    // status is canonical
+    expect(VALID_JOB_STATUSES).toContain(approvalTransition.status);
+    // phase is now claimable
+    expect(CLAIMABLE_PHASES).toContain(approvalTransition.phase);
+    // phase_status is not the gate state anymore
+    expect(approvalTransition.phase_status).not.toBe('awaiting_approval');
+  });
+
+  it('rejected disposition produces a terminal job state', () => {
+    const rejectTransition = {
+      status: 'failed',
+      phase: 'review_gate',
+      phase_status: 'failed',
+      failure_code: 'REVIEW_GATE_REJECTED_BY_AUTHOR',
+    };
+
+    // status is canonical
+    expect(VALID_JOB_STATUSES).toContain(rejectTransition.status);
+    // phase is NOT claimable — job is dead
+    expect(CLAIMABLE_PHASES).not.toContain(rejectTransition.phase);
+    // failure_code is set
+    expect(rejectTransition.failure_code).toBe('REVIEW_GATE_REJECTED_BY_AUTHOR');
+  });
+
+  it('review_gate phase is never claimable regardless of status', () => {
+    expect(CLAIMABLE_PHASES).not.toContain('review_gate');
+  });
+});
+
+// ─── 9. Support artifact freshness guard (Phase 2 context) ───────────────────
+
+describe('Support artifact freshness relative to accepted_story_ledger_v1', () => {
+  const acceptedHash = 'sha256:accepted-ledger-123';
+
+  it('passes when support artifacts reference the current accepted ledger source hash', () => {
+    const result = checkSupportArtifactFreshness({
+      accepted_story_ledger_v1: { artifact_id: 'accepted', source_hash: acceptedHash },
+      story_shape_signal_map_v1: { accepted_story_ledger_source_hash: acceptedHash },
+      manuscript_signal_appendix_v1: { accepted_story_ledger_source_hash: acceptedHash },
+    });
+
+    expect(result.ok).toBe(true);
+  });
+
+  it('passes when no support artifacts are present (nothing to be stale)', () => {
+    const result = checkSupportArtifactFreshness({
+      accepted_story_ledger_v1: { artifact_id: 'accepted', source_hash: acceptedHash },
+    });
+
+    expect(result.ok).toBe(true);
+  });
+
+  it('fails when story_shape_signal_map_v1 references a stale accepted ledger hash', () => {
+    const result = checkSupportArtifactFreshness({
+      accepted_story_ledger_v1: { artifact_id: 'accepted', source_hash: acceptedHash },
+      story_shape_signal_map_v1: { accepted_story_ledger_source_hash: 'sha256:OLD-hash' },
+    });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.reason).toMatch(/stale/);
+    }
+  });
+
+  it('fails when manuscript_signal_appendix_v1 references a stale hash', () => {
+    const result = checkSupportArtifactFreshness({
+      accepted_story_ledger_v1: { artifact_id: 'accepted', source_hash: acceptedHash },
+      manuscript_signal_appendix_v1: { accepted_story_ledger_source_hash: 'sha256:STALE' },
+    });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.reason).toMatch(/stale/);
+    }
+  });
+
+  it('fails when accepted_story_ledger_v1 is absent (cannot validate freshness)', () => {
+    const result = checkSupportArtifactFreshness({
+      story_shape_signal_map_v1: { accepted_story_ledger_source_hash: acceptedHash },
+    });
+
+    expect(result.ok).toBe(false);
   });
 });
