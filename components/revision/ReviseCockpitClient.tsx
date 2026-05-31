@@ -299,9 +299,55 @@ function operationInstruction(item: WorkbenchOpportunity) {
   }
 }
 
+function removeRepeatedTitleText(value: string | null | undefined, item: WorkbenchOpportunity): string {
+  const clean = normalize(value);
+  if (!clean) return "";
+
+  for (const repeatedSource of [item.title, item.issueStatement]) {
+    const repeated = normalize(repeatedSource);
+    if (!repeated) continue;
+    if (compareText(clean) === compareText(repeated)) return "";
+    if (compareText(clean).startsWith(compareText(repeated))) {
+      return clean.slice(repeated.length).replace(/^[\s:;.,—–-]+/, "").trim();
+    }
+  }
+
+  return clean;
+}
+
+function compactGoalFromText(item: WorkbenchOpportunity): string {
+  const source = [item.fixDirection, item.diagnostic?.fixStrategy, item.issueStatement, item.title]
+    .map((value) => removeRepeatedTitleText(value, item) || normalize(value))
+    .find(Boolean) ?? "";
+  const action = source.match(/\b(expand|insert|replace|clarify|strengthen|show|make|compress|delete|split|tighten|restore|add|remove|deepen)\b/i);
+  const goal = action && typeof action.index === "number" ? source.slice(action.index).trim() : source;
+  if (!goal) return operationInstruction(item);
+  return `${goal.charAt(0).toUpperCase()}${goal.slice(1)}`;
+}
+
+function diagnosticText(item: WorkbenchOpportunity, field: "symptom" | "cause" | "fix" | "readerEffect" | "mistakeProofing"): string {
+  const rawByField = {
+    symptom: item.symptom || item.diagnostic?.symptom,
+    cause: item.cause || item.diagnostic?.cause,
+    fix: item.fixDirection || item.diagnostic?.fixStrategy,
+    readerEffect: item.readerEffect || item.diagnostic?.readerImpact,
+    mistakeProofing: item.mistakeProofing || item.diagnostic?.mistakeProofing,
+  } satisfies Record<typeof field, string | undefined>;
+
+  const cleaned = removeRepeatedTitleText(rawByField[field], item);
+  if (cleaned) return cleaned;
+
+  if (field === "symptom") {
+    return "The selected beat is underdeveloped; the choice, consequence, or causal turn needs to land more clearly on the page.";
+  }
+  if (field === "fix") return compactGoalFromText(item);
+  if (field === "cause") return "The draft has not yet converted this moment into a clear, playable manuscript beat.";
+  if (field === "readerEffect") return "The reader should feel the immediate consequence of the moment instead of receiving only a summary of the intended repair.";
+  return "Preserve author voice, continuity, and meaning while limiting the change to the declared revision operation.";
+}
+
 function revisionTaskOf(item: WorkbenchOpportunity) {
-  const goal = item.fixDirection || item.diagnostic?.fixStrategy || item.issueStatement;
-  return `${operationInstruction(item)} ${goal}`.trim();
+  return `${operationInstruction(item)} ${compactGoalFromText(item)}`.trim();
 }
 
 function readinessReason(item: WorkbenchOpportunity) {
@@ -623,11 +669,11 @@ export default function ReviseCockpitClient({ payload }: { payload: WorkbenchQue
                     {!cardIsLiveReady(active) && <span className="rounded border border-[#7A2B1A]/60 bg-[#7A2B1A]/15 px-2 py-1 text-[11px] text-[#E9B19F]">{readinessReason(active)}</span>}
                   </div>
                   <div className="grid gap-x-4 gap-y-1 text-sm leading-5 text-[#E8DCC4] xl:grid-cols-2">
-                    <p><span className="text-[#C8A96E]">Symptom:</span> {active.symptom || active.diagnostic?.symptom}</p>
-                    <p><span className="text-[#C8A96E]">Cause:</span> {active.cause || active.diagnostic?.cause}</p>
-                    <p><span className="text-[#C8A96E]">Fix:</span> {active.fixDirection || active.diagnostic?.fixStrategy}</p>
-                    <p><span className="text-[#C8A96E]">Reader effect:</span> {active.readerEffect || active.diagnostic?.readerImpact}</p>
-                    <p><span className="text-[#C8A96E]">Mistake-proofing:</span> {active.mistakeProofing || active.diagnostic?.mistakeProofing}</p>
+                    <p><span className="text-[#C8A96E]">Symptom:</span> {diagnosticText(active, "symptom")}</p>
+                    <p><span className="text-[#C8A96E]">Cause:</span> {diagnosticText(active, "cause")}</p>
+                    <p><span className="text-[#C8A96E]">Fix:</span> {diagnosticText(active, "fix")}</p>
+                    <p><span className="text-[#C8A96E]">Reader effect:</span> {diagnosticText(active, "readerEffect")}</p>
+                    <p><span className="text-[#C8A96E]">Mistake-proofing:</span> {diagnosticText(active, "mistakeProofing")}</p>
                     <p><span className="text-[#C8A96E]">Operation:</span> {operationLabels[effectiveRevisionOperation(active)] ?? "Needs targeting"}</p>
                   </div>
                 </section>
