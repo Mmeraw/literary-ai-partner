@@ -16,6 +16,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 export type ArtifactType =
   | "evaluation_result_v1"
   | "evaluation_result_v2"
+  /** Phase 0 authority proof: registry path/checksum, loaded paths, missing paths, authority checksums. */
+  | "phase0_authority_proof_v1"
   /** Runtime SEED hypothesis artifact generated before Phase 1A. */
   | "story_seed_v1"
   /** Runtime evaluation-priority SEED hypothesis artifact generated before Phase 1A. */
