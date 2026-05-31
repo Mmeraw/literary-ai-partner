@@ -41,7 +41,25 @@ describe('revise card contract', () => {
 
   test('blocks lazy meta-suggestion text from A/B/C candidates', () => {
     expect(candidateTextIsCopyPasteReady('Apply the same repair goal with a lighter touch, preserving more of the original cadence.')).toBe(false)
+    expect(candidateTextIsCopyPasteReady('In the paragraph containing “hithery-thithery dock,” replace one rhyme-heavy clause.')).toBe(false)
+    expect(candidateTextIsCopyPasteReady('PROSECONTROL:recommendation')).toBe(false)
     expect(candidateTextIsCopyPasteReady('The door stood in the row like a warning no one had chosen to read.')).toBe(true)
+  })
+
+  test('routes cards to needs_targeting when A/B/C are not materially distinct', () => {
+    const result = validateReviseCardContract({
+      sourceText: 'The voices in his head began to knock against one another.',
+      sourceLocationLabel: 'Chapter 2 — Search for Mr. Hyde, paragraph 4',
+      revisionOperation: 'replace_selected_passage',
+      candidateTexts: [
+        'The voices in his head began to knock against one another.',
+        'The voices in his head began to knock against one another.',
+        'The voices in his head began to knock against one another.',
+      ],
+    })
+
+    expect(result.readiness).toBe('needs_targeting')
+    expect(result.reason).toMatch(/materially distinct/i)
   })
 
   test('maps operation labels and custom labels deterministically', () => {

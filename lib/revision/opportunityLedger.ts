@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from 'crypto';
+import { REVISION_OPERATIONS, type RevisionOperation } from './reviseCardContract';
 
 type LedgerSeverity = 'must' | 'should' | 'could';
 type LedgerConfidence = 'low' | 'medium' | 'high';
@@ -13,6 +14,15 @@ type RevisionOpportunity = {
   provenance: string;
   confidence: LedgerConfidence;
   decision_state: 'open';
+  revision_operation?: RevisionOperation;
+  candidate_text_a?: string;
+  candidate_text_b?: string;
+  candidate_text_c?: string;
+  symptom?: string;
+  cause?: string;
+  fix_direction?: string;
+  reader_effect?: string;
+  mistake_proofing?: string;
 };
 
 type WorkbenchLikeOpportunity = {
@@ -94,6 +104,20 @@ function normalizeCriterion(raw: unknown): string {
   return criterion.replace(/\s+/g, '_').toUpperCase();
 }
 
+function normalizeOptionalText(raw: unknown): string | undefined {
+  if (typeof raw !== 'string') return undefined;
+  const clean = raw.trim();
+  return clean.length > 0 ? clean : undefined;
+}
+
+function normalizeRevisionOperation(raw: unknown): RevisionOperation | undefined {
+  if (typeof raw !== 'string') return undefined;
+  const clean = raw.trim();
+  return (REVISION_OPERATIONS as readonly string[]).includes(clean)
+    ? (clean as RevisionOperation)
+    : undefined;
+}
+
 function buildOpportunityId(parts: { criterion: string; rationale: string; anchor: string; location: string }): string {
   const digest = createHash('sha256')
     .update(`${parts.criterion}|${parts.rationale}|${parts.anchor}|${parts.location}`)
@@ -114,6 +138,10 @@ function normalizeConfidenceFromUnknown(raw: unknown): LedgerConfidence {
 
 function isCanonicalRevisionOpportunity(value: unknown): value is RevisionOpportunity {
   if (!isRecord(value)) return false;
+  const revisionOperation = value.revision_operation;
+  const candidateTextA = value.candidate_text_a;
+  const candidateTextB = value.candidate_text_b;
+  const candidateTextC = value.candidate_text_c;
   return (
     typeof value.opportunity_id === 'string' && value.opportunity_id.trim().length > 0 &&
     typeof value.criterion === 'string' && value.criterion.trim().length > 0 &&
@@ -123,7 +151,11 @@ function isCanonicalRevisionOpportunity(value: unknown): value is RevisionOpport
     typeof value.manuscript_coordinates === 'string' && value.manuscript_coordinates.trim().length > 0 &&
     typeof value.provenance === 'string' && value.provenance.trim().length > 0 &&
     typeof value.confidence === 'string' && ['low', 'medium', 'high'].includes(value.confidence) &&
-    value.decision_state === 'open'
+    value.decision_state === 'open' &&
+    (revisionOperation === undefined || normalizeRevisionOperation(revisionOperation) !== undefined) &&
+    (candidateTextA === undefined || typeof candidateTextA === 'string') &&
+    (candidateTextB === undefined || typeof candidateTextB === 'string') &&
+    (candidateTextC === undefined || typeof candidateTextC === 'string')
   );
 }
 
@@ -258,6 +290,15 @@ function extractCriteriaRecommendations(payload: Record<string, unknown>): Revis
         provenance: 'evaluation_result.criteria.recommendations',
         confidence: normalizeConfidence(recommendationRow.confidence),
         decision_state: 'open',
+        revision_operation: normalizeRevisionOperation(recommendationRow.revision_operation),
+        candidate_text_a: normalizeOptionalText(recommendationRow.candidate_text_a),
+        candidate_text_b: normalizeOptionalText(recommendationRow.candidate_text_b),
+        candidate_text_c: normalizeOptionalText(recommendationRow.candidate_text_c),
+        symptom: normalizeOptionalText(recommendationRow.symptom),
+        cause: normalizeOptionalText(recommendationRow.cause),
+        fix_direction: normalizeOptionalText(recommendationRow.fix_direction),
+        reader_effect: normalizeOptionalText(recommendationRow.reader_effect),
+        mistake_proofing: normalizeOptionalText(recommendationRow.mistake_proofing),
       });
     }
   }
@@ -330,6 +371,15 @@ function extractTopLevelRecommendations(payload: Record<string, unknown>): Revis
       provenance: 'evaluation_result.recommendations',
       confidence: normalizeConfidence(recommendationRow.confidence),
       decision_state: 'open',
+      revision_operation: normalizeRevisionOperation(recommendationRow.revision_operation),
+      candidate_text_a: normalizeOptionalText(recommendationRow.candidate_text_a),
+      candidate_text_b: normalizeOptionalText(recommendationRow.candidate_text_b),
+      candidate_text_c: normalizeOptionalText(recommendationRow.candidate_text_c),
+      symptom: normalizeOptionalText(recommendationRow.symptom),
+      cause: normalizeOptionalText(recommendationRow.cause),
+      fix_direction: normalizeOptionalText(recommendationRow.fix_direction),
+      reader_effect: normalizeOptionalText(recommendationRow.reader_effect),
+      mistake_proofing: normalizeOptionalText(recommendationRow.mistake_proofing),
     });
   }
 

@@ -5,6 +5,7 @@ import { getCriterionDisplayLabel } from '@/lib/evaluation/reportRenderSafety'
 import type { DiagnosticFinding, ProposalSeverity } from './types'
 import {
   inferRevisionOperation,
+  REVISION_OPERATIONS,
   type RevisionOperation,
   type RevisionReadiness,
   validateReviseCardContract,
@@ -431,6 +432,25 @@ function fallbackMistakeProofing(mode: WorkbenchMode): string {
     : 'Preserve author voice and meaning. Do not introduce new information unless the repair path explicitly calls for it.'
 }
 
+function cleanAuthorFacingText(value: string | null | undefined, fallback: string): string {
+  const raw = (value ?? '').trim()
+  if (!raw) return fallback
+
+  if (/\b(?:prosecontrol|narrativedrive|evaluation_result|criteria\.recommendations|provenance)\b/i.test(raw)) {
+    return fallback
+  }
+
+  return raw
+}
+
+function normalizeRevisionOperation(raw: unknown): RevisionOperation | null {
+  if (typeof raw !== 'string') return null
+  const clean = raw.trim()
+  return (REVISION_OPERATIONS as readonly string[]).includes(clean)
+    ? (clean as RevisionOperation)
+    : null
+}
+
 // ---------------------------------------------------------------------------
 // Build options from rich recommendation data (manuscript-specific proposals)
 // ---------------------------------------------------------------------------
@@ -691,13 +711,17 @@ export async function resolveWorkbenchRouteTargetForUser(): Promise<ResolvedWork
   return resolveLatestEligibleEvaluationForUser(supabase, user.id)
 }
 
-function applyReviseCardContract(opportunity: Omit<WorkbenchOpportunity, 'revisionOperation' | 'readiness' | 'readinessReason'>): WorkbenchOpportunity {
-  const revisionOperation = inferRevisionOperation({
+function applyReviseCardContract(
+  opportunity: Omit<WorkbenchOpportunity, 'revisionOperation' | 'readiness' | 'readinessReason'>,
+  input?: { revisionOperation?: RevisionOperation | null },
+): WorkbenchOpportunity {
+  const inferredOperation = inferRevisionOperation({
     scope: opportunity.scope,
     mode: opportunity.mode,
     fixDirection: opportunity.fixDirection,
     recommendation: opportunity.symptom,
   })
+  const revisionOperation = input?.revisionOperation ?? inferredOperation
 
   const sourceText = `${opportunity.quoteHighlight ?? ''}${opportunity.quoteRest ?? ''}`.trim()
   const contract = validateReviseCardContract({
@@ -801,6 +825,45 @@ export async function getWorkbenchQueue(input: { manuscriptId?: string; evaluati
           ? 'should'
           : 'could'
     const evidence = splitEvidence(opportunity.evidence_anchor)
+    const candidateA = (opportunity.candidate_text_a ?? '').trim()
+    const candidateB = (opportunity.candidate_text_b ?? '').trim()
+    const candidateC = (opportunity.candidate_text_c ?? '').trim()
+
+    const options: WorkbenchOption[] = [
+      {
+        key: 'A',
+        mechanism: 'Recommended repair',
+        text: candidateA || opportunity.rationale,
+        rationale: 'Primary repair path from the evaluation.',
+      },
+      {
+        key: 'B',
+        mechanism: 'Rhythm variant',
+        text: candidateB || opportunity.rationale,
+        rationale: 'Secondary variant for author-controlled cadence.',
+      },
+      {
+        key: 'C',
+        mechanism: 'Bolder rendering shift',
+        text: candidateC || opportunity.rationale,
+        rationale: 'Alternative variant for stronger emphasis.',
+      },
+    ]
+
+    const inferredCauseFallback =
+      'The evaluation identified a concrete craft issue at this location that may weaken reader clarity or momentum.'
+
+    const symptom = cleanAuthorFacingText(opportunity.symptom ?? opportunity.rationale, opportunity.rationale)
+    const cause = cleanAuthorFacingText(opportunity.cause, inferredCauseFallback)
+    const fixDirection = cleanAuthorFacingText(opportunity.fix_direction ?? opportunity.rationale, opportunity.rationale)
+    const readerEffect = cleanAuthorFacingText(
+      opportunity.reader_effect,
+      fallbackReaderEffect(opportunity.criterion, scope),
+    )
+    const mistakeProofing = cleanAuthorFacingText(
+      opportunity.mistake_proofing,
+      fallbackMistakeProofing(mode),
+    )
 
     return applyReviseCardContract({
       id: opportunity.opportunity_id,
@@ -817,31 +880,14 @@ export async function getWorkbenchQueue(input: { manuscriptId?: string; evaluati
       anchor: opportunity.manuscript_coordinates,
       quoteHighlight: evidence.quoteHighlight,
       quoteRest: evidence.quoteRest,
-      symptom: opportunity.rationale,
-      cause: `Provenance: ${opportunity.provenance}`,
-      fixDirection: opportunity.rationale,
-      readerEffect: fallbackReaderEffect(opportunity.criterion, scope),
-      mistakeProofing: fallbackMistakeProofing(mode),
-      options: [
-        {
-          key: 'A',
-          mechanism: 'Recommended repair',
-          text: opportunity.rationale,
-          rationale: 'Primary repair path from the evaluation.',
-        },
-        {
-          key: 'B',
-          mechanism: 'Rhythm variant',
-          text: opportunity.rationale,
-          rationale: 'Secondary variant for author-controlled cadence.',
-        },
-        {
-          key: 'C',
-          mechanism: 'Bolder rendering shift',
-          text: opportunity.rationale,
-          rationale: 'Alternative variant for stronger emphasis.',
-        },
-      ],
+      symptom,
+      cause,
+      fixDirection,
+      readerEffect,
+      mistakeProofing,
+      options,
+    }, {
+      revisionOperation: normalizeRevisionOperation(opportunity.revision_operation),
     })
   })
 
