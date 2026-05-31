@@ -422,7 +422,7 @@ export async function ensureRevisionOpportunityLedgerArtifact(supabase: any, job
     existingLedgerRow?.content?.opportunities,
   );
 
-  if (existingOpportunities) {
+  if (existingOpportunities && existingOpportunities.length > 0) {
     return {
       artifactId: typeof existingLedgerRow?.id === 'string' ? existingLedgerRow.id : null,
       opportunities: existingOpportunities,
@@ -459,6 +459,17 @@ export async function ensureRevisionOpportunityLedgerArtifact(supabase: any, job
   }
 
   const opportunities = buildRevisionOpportunitiesFromEvaluationPayload(evaluationPayload);
+
+  // Self-heal stale empty ledgers: if an existing canonical ledger exists but
+  // still resolves to zero opportunities after rebuild, avoid a no-op rewrite
+  // and return the current artifact as-is.
+  if (existingOpportunities && existingOpportunities.length === 0 && opportunities.length === 0) {
+    return {
+      artifactId: typeof existingLedgerRow?.id === 'string' ? existingLedgerRow.id : null,
+      opportunities: existingOpportunities,
+    };
+  }
+
   const now = new Date().toISOString();
   const artifactId = `revision_opportunity_ledger_v1:${randomUUID().slice(0, 16)}`;
   const sourceHash = sourceHashFor({
