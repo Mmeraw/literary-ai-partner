@@ -1,6 +1,13 @@
+import {
+  assertChecklistPhaseMayStart,
+  type ChecklistArtifactMap,
+  type ChecklistDecision,
+} from './checklistEnforcer';
+
 export type PhaseV2ReadinessProgress = {
   phase0_status?: string;
   chunk_manifest_status?: string;
+  checklist_artifacts?: ChecklistArtifactMap;
 };
 
 export type PhaseV2ReadinessDecision = {
@@ -11,6 +18,14 @@ export type PhaseV2ReadinessDecision = {
 
 function isDone(value: unknown): boolean {
   return value === 'done' || value === 'complete' || value === 'completed';
+}
+
+function fromChecklistDecision(decision: ChecklistDecision): PhaseV2ReadinessDecision {
+  return {
+    ok: decision.ok,
+    code: decision.code,
+    reason: decision.reason,
+  };
 }
 
 export function assertManuscriptReadingTracksMayStart(
@@ -39,11 +54,49 @@ export function assertManuscriptReadingTracksMayStart(
   };
 }
 
+export function assertPhase05aMayStart(
+  progress: PhaseV2ReadinessProgress = {},
+): PhaseV2ReadinessDecision {
+  const decision = assertManuscriptReadingTracksMayStart(progress);
+  if (!decision.ok) return decision;
+
+  return fromChecklistDecision(
+    assertChecklistPhaseMayStart('phase_0_5a', progress.checklist_artifacts ?? {}),
+  );
+}
+
+export function assertPhase05bMayStart(
+  progress: PhaseV2ReadinessProgress = {},
+): PhaseV2ReadinessDecision {
+  const decision = assertManuscriptReadingTracksMayStart(progress);
+  if (!decision.ok) return decision;
+
+  return fromChecklistDecision(
+    assertChecklistPhaseMayStart('phase_0_5b', progress.checklist_artifacts ?? {}),
+  );
+}
+
+export function assertPhase1aSeedVerificationMayStart(
+  progress: PhaseV2ReadinessProgress = {},
+): PhaseV2ReadinessDecision {
+  const decision = assertManuscriptReadingTracksMayStart(progress);
+  if (!decision.ok) return decision;
+
+  return fromChecklistDecision(
+    assertChecklistPhaseMayStart('phase_1a', progress.checklist_artifacts ?? {}),
+  );
+}
+
 export function assertPhase1aMayStart(
   progress: PhaseV2ReadinessProgress = {},
 ): PhaseV2ReadinessDecision {
   const decision = assertManuscriptReadingTracksMayStart(progress);
   if (!decision.ok) return decision;
+
+  if (progress.checklist_artifacts) {
+    const checklistDecision = assertChecklistPhaseMayStart('phase_1a', progress.checklist_artifacts);
+    if (!checklistDecision.ok) return fromChecklistDecision(checklistDecision);
+  }
 
   return {
     ok: true,
