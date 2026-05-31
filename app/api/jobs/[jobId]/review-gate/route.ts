@@ -44,6 +44,7 @@ import {
   isReviewGateApprovalAllowed,
   STORY_LEDGER_CONTAINMENT_MESSAGE,
 } from '@/lib/evaluation/reviewGate/containmentMode';
+import { evaluateReviewGateSemanticGate } from '@/lib/evaluation/reviewGate/semanticGate';
 
 type Disposition = 'accepted_without_changes' | 'accepted_with_edits' | 'rejected';
 
@@ -217,6 +218,37 @@ export async function POST(request: NextRequest, { params }: RouteParams): Promi
     .eq('job_id', jobId)
     .eq('artifact_type', 'ledger_quality_report_v1')
     .maybeSingle();
+
+  const semanticGateResult = evaluateReviewGateSemanticGate({
+    storyLayerContent: storyLayerArtifactRow.content as {
+      layers?: Record<string, Record<string, unknown>>;
+      layer_completion_summary?: {
+        total_layers: number;
+        populated_layers: number;
+        empty_layers?: string[];
+        degraded_layers?: string[];
+      } | null;
+    },
+    qualityReportContent: (qualityReportArtifactRow?.content ?? null) as {
+      quality_report?: {
+        gate_ready_status?: 'reviewable' | 'blocked' | 'repair_required';
+        grouped_warning_summary?: Record<string, string[]>;
+        blocking_reasons?: string[];
+      } | null;
+    } | null,
+  });
+
+  if (disposition !== 'rejected' && !semanticGateResult.ok) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error: 'Semantic gate blocked accepted ledger creation.',
+        code: semanticGateResult.code,
+        reasons: semanticGateResult.reasons,
+      },
+      { status: 422 },
+    );
+  }
 
   const now = new Date().toISOString();
 
