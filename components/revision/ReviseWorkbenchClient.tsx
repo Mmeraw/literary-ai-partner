@@ -626,6 +626,7 @@ export default function ReviseWorkbenchClient({ payload }: { payload: WorkbenchQ
                   );
                 })}
               </section>
+              {!selectedCandidateText && <p className="mt-2 text-xs text-[#D7B09C]">Needs targeting: selected option is not copy-paste-ready manuscript prose.</p>}
               <section className="mt-5 flex flex-wrap gap-2">
                 <button type="button" onClick={() => stampDecision(`accepted_${selectedOption.toLowerCase()}` as DecisionState)} disabled={!selectedCandidateText} className="rounded border border-[#C8A96E] bg-[#C8A96E] px-4 py-2 text-sm font-medium text-[#1A140C] hover:bg-[#D5B67E] disabled:opacity-50">Accept selected ({selectedOption})</button>
                 <button type="button" onClick={() => stampDecision("keep_original")} className="rounded border border-[#5D4C31] px-4 py-2 text-sm text-[#E8DABF] hover:border-[#C8A96E]">Keep original</button>
