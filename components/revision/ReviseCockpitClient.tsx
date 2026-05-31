@@ -108,6 +108,7 @@ export default function ReviseCockpitClient({ payload }: { payload: WorkbenchQue
   const [copyMessage, setCopyMessage] = useState<string | null>(null);
 
   const needsTargeting = payload.needsTargeting ?? [];
+  const hasAnyQueueItems = payload.opportunities.length > 0 || needsTargeting.length > 0;
   const readyForReviseCount = payload.readinessTotals?.ready_for_revise ?? payload.opportunities.length;
   const needsTargetingCount = payload.readinessTotals?.needs_targeting ?? needsTargeting.length;
 
@@ -247,7 +248,7 @@ export default function ReviseCockpitClient({ payload }: { payload: WorkbenchQue
     }
   }
 
-  if (!payload.ok || payload.opportunities.length === 0) {
+  if (!payload.ok || !hasAnyQueueItems) {
     return (
       <main className="flex h-screen items-center justify-center overflow-hidden bg-[#0D0A05] p-6 text-[#F5EFE4]">
         <section className="max-w-2xl rounded-2xl border border-[#3A3022] bg-[#1C160E] p-8">
@@ -313,6 +314,11 @@ export default function ReviseCockpitClient({ payload }: { payload: WorkbenchQue
                 </li>
               );
             })}
+            {filtered.length === 0 && needsTargeting.length > 0 && (
+              <li className="rounded-lg border border-[#3A3022] bg-[#141008] p-3 text-xs text-[#CBBDA4]">
+                No Ready cards for this evaluation. Review <span className="text-[#F1B6A5]">Needs Targeting</span> below.
+              </li>
+            )}
           </ol>
           {needsTargeting.length > 0 && (
             <section className="border-t border-[#2E261A] p-2">
@@ -393,7 +399,13 @@ export default function ReviseCockpitClient({ payload }: { payload: WorkbenchQue
                 {ledgerOpen && <div className="mt-2 max-h-28 overflow-y-auto rounded border border-[#2E261A] bg-[#0D0A05] p-2 text-xs text-[#CBBDA4]">{ledger.length === 0 ? <p>No decisions yet.</p> : ledger.slice(0, 12).map((entry) => <p key={entry.localId} className="truncate">{decisionLabel(entry)} · {entry.itemTitle} · {entry.syncStatus}</p>)}</div>}
               </footer>
             </>
-          ) : <div className="m-4 rounded-xl border border-[#3A3022] bg-[#12100B] p-6 text-[#CBBDA4]">No matching opportunity. Adjust filters.</div>}
+          ) : (
+            <div className="m-4 rounded-xl border border-[#3A3022] bg-[#12100B] p-6 text-[#CBBDA4]">
+              {needsTargeting.length > 0
+                ? "No Ready cards yet. This evaluation currently has opportunities in Needs Targeting."
+                : "No matching opportunity. Adjust filters."}
+            </div>
+          )}
         </section>
       </section>
     </main>
