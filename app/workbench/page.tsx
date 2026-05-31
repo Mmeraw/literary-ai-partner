@@ -1,5 +1,5 @@
-import { getWorkbenchQueue } from "@/lib/revision/workbenchQueue";
-import ReviseWorkbenchClient from "@/components/revision/ReviseWorkbenchClient";
+import { redirect } from "next/navigation";
+import { resolveWorkbenchRouteTargetForUser } from "@/lib/revision/workbenchQueue";
 
 export default async function WorkbenchPage({
   searchParams,
@@ -12,7 +12,14 @@ export default async function WorkbenchPage({
   const manuscriptId = Array.isArray(manuscriptIdRaw) ? manuscriptIdRaw[0] : manuscriptIdRaw;
   const evaluationJobId = Array.isArray(evaluationJobIdRaw) ? evaluationJobIdRaw[0] : evaluationJobIdRaw;
 
-  const payload = await getWorkbenchQueue({ manuscriptId, evaluationJobId });
+  if (manuscriptId && evaluationJobId) {
+    redirect(`/workbench-v2?${new URLSearchParams({ manuscriptId, evaluationJobId }).toString()}`);
+  }
 
-  return <ReviseWorkbenchClient payload={payload} />;
+  const resolved = await resolveWorkbenchRouteTargetForUser();
+  if (resolved) {
+    redirect(`/workbench-v2?${new URLSearchParams(resolved).toString()}`);
+  }
+
+  redirect("/workbench-v2");
 }

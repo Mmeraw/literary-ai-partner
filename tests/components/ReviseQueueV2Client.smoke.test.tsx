@@ -68,6 +68,11 @@ describe("ReviseQueueV2Client smoke", () => {
       evaluationJobId: null,
       manuscriptTitle: "Untitled Manuscript",
       opportunities,
+      needsTargeting: [],
+      readinessTotals: {
+        ready_for_revise: 0,
+        needs_targeting: 0,
+      },
       totals: { must: 0, should: 3, could: 0 },
       scopes: { Line: 3, Passage: 0, Scene: 0, Chapter: 0, Structural: 0, Manuscript: 0 },
       criteria: {},
@@ -84,10 +89,10 @@ describe("ReviseQueueV2Client smoke", () => {
 
     expect(screen.getByText(/needs an excerpt or usable manuscript anchor/i)).toBeTruthy();
 
-    const accept = screen.getByRole("button", { name: "Accept A" }) as HTMLButtonElement;
-    const keep = screen.getByRole("button", { name: "Keep My Original" }) as HTMLButtonElement;
-    const reject = screen.getByRole("button", { name: "Reject These Suggestions" }) as HTMLButtonElement;
-    const decideLater = screen.getByRole("button", { name: "Decide Later" }) as HTMLButtonElement;
+    const accept = screen.getAllByRole("button", { name: "Accept A" })[0] as HTMLButtonElement;
+    const keep = screen.getAllByRole("button", { name: "Keep My Original" })[0] as HTMLButtonElement;
+    const reject = screen.getAllByRole("button", { name: "Reject These Suggestions" })[0] as HTMLButtonElement;
+    const decideLater = screen.getAllByRole("button", { name: "Decide Later" })[0] as HTMLButtonElement;
 
     expect(accept.disabled).toBe(true);
     expect(keep.disabled).toBe(true);
@@ -95,13 +100,14 @@ describe("ReviseQueueV2Client smoke", () => {
     expect(decideLater.disabled).toBe(false);
   });
 
-  it("keeps /workbench reference page wiring unchanged", () => {
+  it("wires /workbench to redirect into /workbench-v2 route target resolution", () => {
     const repoRoot = process.cwd();
     const workbenchPage = fs.readFileSync(path.join(repoRoot, "app/workbench/page.tsx"), "utf8");
 
-    expect(workbenchPage).toContain('import { getWorkbenchQueue } from "@/lib/revision/workbenchQueue";');
-    expect(workbenchPage).toContain('import ReviseWorkbenchClient from "@/components/revision/ReviseWorkbenchClient";');
-    expect(workbenchPage).toContain("return <ReviseWorkbenchClient payload={payload} />;");
+    expect(workbenchPage).toContain('import { redirect } from "next/navigation";');
+    expect(workbenchPage).toContain('import { resolveWorkbenchRouteTargetForUser } from "@/lib/revision/workbenchQueue";');
+    expect(workbenchPage).toContain('redirect(`/workbench-v2?${new URLSearchParams({ manuscriptId, evaluationJobId }).toString()}`);');
+    expect(workbenchPage).toContain('redirect("/workbench-v2");');
     expect(workbenchPage).not.toContain("ReviseQueueV2Client");
   });
 });
