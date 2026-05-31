@@ -32,7 +32,10 @@ export type ProcessQueuedJobsLike = (options: {
   processed: number;
   succeeded: number;
   failed: number;
-  errors: string[];
+  errors: Array<{
+    jobId: string;
+    error: string;
+  }>;
   [key: string]: unknown;
 }>;
 

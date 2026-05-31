@@ -208,7 +208,8 @@ export async function persistPhase05aSeedArtifacts(input: PersistPhase05aSeedInp
 }> {
   const built = buildPhase05aSeedArtifacts(input);
   if (!built.ok) {
-    throw new Error(`${built.code}: ${built.reason}`);
+    const failure = built as Extract<typeof built, { ok: false }>;
+    throw new Error(`${failure.code}: ${failure.reason}`);
   }
 
   const storyMapArtifactId = await upsertEvaluationArtifact({

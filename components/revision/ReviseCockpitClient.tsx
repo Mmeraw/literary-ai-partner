@@ -11,6 +11,8 @@ type EvidenceStatus = "has_excerpt" | "has_location" | "manuscript_wide" | "miss
 
 type LedgerEntry = {
   localId: string;
+  serverId?: string;
+  at?: string;
   createdAtIso: string;
   itemId: string;
   itemTitle: string;
@@ -26,6 +28,8 @@ type LedgerEntry = {
   queueType?: QueueType;
   source?: WorkbenchSource;
   evidenceStatus?: EvidenceStatus;
+  isUndo?: boolean;
+  undoneLocalId?: string;
   syncStatus: "pending" | "synced" | "failed";
 };
 
