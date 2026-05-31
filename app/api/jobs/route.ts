@@ -354,9 +354,12 @@ export async function POST(req: Request) {
         },
       };
 
-      const evaluationJobsTable = supabaseAdmin.from("evaluation_jobs") as {
+      const evaluationJobsTable = supabaseAdmin.from("evaluation_jobs") as unknown as {
         update?: (payload: { progress: Record<string, unknown>; updated_at: string }) => {
-          eq: (column: string, value: string) => Promise<{ error: { message: string } | null }>;
+          eq: (
+            column: string,
+            value: string
+          ) => PromiseLike<{ error: { message: string } | null }>;
         };
       };
 
