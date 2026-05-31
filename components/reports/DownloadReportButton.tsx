@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 
-type Format = 'pdf' | 'docx' | 'txt';
+type Format = 'pdf' | 'txt';
 type JobStatus = 'queued' | 'running' | 'complete' | 'failed' | 'unknown';
 
 type DownloadReportButtonProps = {
@@ -11,10 +11,17 @@ type DownloadReportButtonProps = {
   unavailableLabel?: string;
 };
 
-const OPTIONS: { label: string; format: Format }[] = [
-  { label: 'PDF', format: 'pdf' },
-  { label: 'Word (.docx)', format: 'docx' },
-  { label: 'Plain Text (.txt)', format: 'txt' },
+const OPTIONS: { label: string; format: Format; description?: string }[] = [
+  {
+    label: 'PDF / Print exact webpage',
+    format: 'pdf',
+    description: 'Uses the same report page you see on screen.',
+  },
+  {
+    label: 'Plain Text (.txt)',
+    format: 'txt',
+    description: 'Simple text export from the canonical result.',
+  },
 ];
 
 export default function DownloadReportButton({
@@ -75,12 +82,13 @@ export default function DownloadReportButton({
   function handleSelect(format: Format) {
     if (resolvedDisabled) return;
     setOpen(false);
-    const url = `/api/reports/${jobId}/download?format=${format}`;
+
     if (format === 'pdf') {
-      window.open(url, '_blank', 'noopener,noreferrer');
-    } else {
-      window.location.href = url;
+      window.open(`/api/reports/${jobId}/print`, '_blank', 'noopener,noreferrer');
+      return;
     }
+
+    window.location.href = `/api/reports/${jobId}/download?format=${format}`;
   }
 
   return (
@@ -110,7 +118,7 @@ export default function DownloadReportButton({
       {!resolvedDisabled && open && (
         <div
           role="menu"
-          className="absolute right-0 mt-1 w-44 bg-white border border-gray-200 rounded-md shadow-lg z-10"
+          className="absolute right-0 mt-1 w-64 bg-white border border-gray-200 rounded-md shadow-lg z-10"
         >
           {OPTIONS.map((opt) => (
             <button
@@ -120,9 +128,15 @@ export default function DownloadReportButton({
               onClick={() => handleSelect(opt.format)}
               className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
             >
-              {opt.label}
+              <span className="block font-medium">{opt.label}</span>
+              {opt.description && (
+                <span className="block text-xs text-gray-500 leading-snug">{opt.description}</span>
+              )}
             </button>
           ))}
+          <div className="border-t border-gray-100 px-4 py-2 text-xs text-gray-500 leading-snug">
+            Word export is temporarily hidden until it uses the same canonical report projection as the webpage.
+          </div>
         </div>
       )}
     </div>
