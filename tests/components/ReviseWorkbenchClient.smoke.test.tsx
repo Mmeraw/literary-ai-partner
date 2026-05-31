@@ -13,6 +13,8 @@ jest.mock("next/link", () => {
 
 describe("ReviseWorkbenchClient smoke", () => {
   beforeEach(() => {
+    window.localStorage.clear();
+    window.sessionStorage.clear();
     global.fetch = jest.fn().mockResolvedValue({
       ok: true,
       json: async () => ({ ok: true, entries: [] }),
@@ -109,7 +111,7 @@ describe("ReviseWorkbenchClient smoke", () => {
 
     render(<ReviseWorkbenchClient payload={payload} />);
 
-    expect(screen.getAllByText("Needs targeting: candidate prose not ready for apply.").length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Candidate text failed the render-safe prose contract/i).length).toBeGreaterThan(0);
     expect(screen.queryByText(invalidInstruction)).toBeNull();
 
     const acceptSelected = (await screen.findByRole("button", { name: "Accept selected (A)" })) as HTMLButtonElement;
