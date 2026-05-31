@@ -362,11 +362,17 @@ export async function POST(req: Request) {
 
     if (immediateManuscriptWordCount !== null) {
       const supabaseAdmin = createAdminClient();
+      const existingProgress = (job.progress ?? {}) as Record<string, unknown>;
+      const existingChunkRoutingRaw = existingProgress["chunk_routing"];
+      const existingChunkRouting =
+        existingChunkRoutingRaw && typeof existingChunkRoutingRaw === "object"
+          ? (existingChunkRoutingRaw as Record<string, unknown>)
+          : {};
       const seededProgress = {
-        ...(job.progress ?? {}),
+        ...existingProgress,
         manuscript_word_count: immediateManuscriptWordCount,
         chunk_routing: {
-          ...(((job.progress ?? {}).chunk_routing as Record<string, unknown> | undefined) ?? {}),
+          ...existingChunkRouting,
           manuscript_words: immediateManuscriptWordCount,
           source_manuscript_words: immediateManuscriptWordCount,
         },
