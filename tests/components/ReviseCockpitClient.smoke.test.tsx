@@ -90,7 +90,57 @@ describe("ReviseCockpitClient smoke", () => {
     render(<ReviseCockpitClient payload={payload} />);
 
     expect(screen.queryByText("No revision queue available.")).toBeNull();
+    expect(screen.getAllByText(/Instruction-style candidate blocked/i).length).toBeGreaterThan(0);
     expect(screen.getAllByText("Needs Targeting").length).toBeGreaterThan(0);
-    expect(screen.getByText(/No Ready cards yet/i)).toBeTruthy();
+    expect(screen.getByText(/Queue\s*1\s*\/\s*1/i)).toBeTruthy();
+    expect(screen.queryByText(/No Ready cards yet/i)).toBeNull();
+  });
+
+  it("disables accept actions for needs-targeting cards even when candidate text looks copy-ready", () => {
+    const item = makeNeedsTargetingOpportunity("nt-copy-ready");
+    item.options = [
+      {
+        key: "A",
+        mechanism: "Recommended repair",
+        text: "She closed the door softly, the latch clicking once as rain traced silver lines down the glass.",
+        rationale: "Copy-ready prose variant.",
+      },
+      {
+        key: "B",
+        mechanism: "Rhythm variant",
+        text: "She closed the door softly, and the latch clicked once while rain drew silver lines on the glass.",
+        rationale: "Copy-ready prose variant.",
+      },
+      {
+        key: "C",
+        mechanism: "Bolder rendering shift",
+        text: "She eased the door shut; one latch click, then rain threading silver across the pane.",
+        rationale: "Copy-ready prose variant.",
+      },
+    ];
+
+    const payload: WorkbenchQueuePayload = {
+      ok: true,
+      error: null,
+      manuscriptId: "6074",
+      evaluationJobId: "e5ced7ac-117f-4d13-8cd0-3957c15dc189",
+      manuscriptTitle: "Ancient Bloodlines—Love Between Species",
+      opportunities: [],
+      needsTargeting: [item],
+      readinessTotals: {
+        ready_for_revise: 0,
+        needs_targeting: 1,
+      },
+      totals: { must: 0, should: 0, could: 0 },
+      scopes: { Line: 0, Passage: 0, Scene: 0, Chapter: 0, Structural: 0, Manuscript: 0 },
+      criteria: {},
+      synthesis: { admitted: 0, clustered: 0, held: 1, suppressed: 0 },
+    };
+
+    render(<ReviseCockpitClient payload={payload} />);
+
+    expect(screen.getAllByRole("button", { name: "Accept A" }).every((button) => button.hasAttribute("disabled"))).toBe(true);
+    expect(screen.getAllByRole("button", { name: "Accept B" }).every((button) => button.hasAttribute("disabled"))).toBe(true);
+    expect(screen.getAllByRole("button", { name: "Accept C" }).every((button) => button.hasAttribute("disabled"))).toBe(true);
   });
 });

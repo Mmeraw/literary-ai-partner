@@ -155,6 +155,22 @@ const META_EDITORIAL_PATTERNS = [
   /\breview this opportunity\b/i,
 ]
 
+const WORD_PROCESSOR_ARTIFACT_PATTERNS = [
+  /(?:^|\s)[vow]:\*\s*\{\s*behavior\s*:\s*url\(#default#vml\)\s*;?\s*\}/i,
+  /(?:^|\s)\.shape\s*\{\s*behavior\s*:\s*url\(#default#vml\)\s*;?\s*\}/i,
+  /\btable\.msonormaltable\b/i,
+  /\bmso-style-name\b/i,
+  /\bmso-tstyle-rowband-size\b/i,
+  /\bmso-tstyle-colband-size\b/i,
+  /\bmso-pagination\b/i,
+  /\/\*\s*style definitions\s*\*\//i,
+  /\bshape\s+\\\*\s+mergeformat\b/i,
+  /\bnormal\s+0\s+false\b/i,
+  /\bx-none\b/i,
+  /\bbehavior\s*:\s*url\(#default#vml\)\b/i,
+  /<\/?(?:html|head|body|style|xml|meta|o:p|v:[^>\s]+|w:[^>\s]+|st1:[^>\s]+)[^>]*>/i,
+]
+
 function normalize(value: string | null | undefined): string {
   return (value ?? '').replace(/\s+/g, ' ').trim()
 }
@@ -219,6 +235,15 @@ export function hasForbiddenMetaSuggestion(value: string | null | undefined): bo
   return FORBIDDEN_META_SUGGESTIONS.some((phrase) => clean.includes(phrase))
 }
 
+export function hasWordProcessorArtifact(value: string | null | undefined): boolean {
+  const clean = normalize(value)
+  if (!clean) return false
+  if (WORD_PROCESSOR_ARTIFACT_PATTERNS.some((pattern) => pattern.test(clean))) return true
+  if (/<\/?[a-z][\w:-]*[^>]*>/i.test(clean)) return true
+  if (/&(?:nbsp|quot|lt|gt|amp);|&#160;/i.test(clean)) return true
+  return false
+}
+
 export function isMissingSourceMarker(value: string | null | undefined): boolean {
   const clean = normalize(value).toLowerCase()
   if (!clean) return true
@@ -228,6 +253,7 @@ export function isMissingSourceMarker(value: string | null | undefined): boolean
 export function candidateTextIsCopyPasteReady(value: string | null | undefined): boolean {
   const clean = normalize(value)
   if (!clean) return false
+  if (hasWordProcessorArtifact(clean)) return false
   if (hasForbiddenMetaSuggestion(clean)) return false
   if (hasMetaEditorialPattern(clean)) return false
   if (hasInternalTokenLeak(clean)) return false

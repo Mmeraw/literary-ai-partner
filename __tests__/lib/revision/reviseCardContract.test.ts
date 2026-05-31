@@ -91,6 +91,12 @@ describe('revise card contract', () => {
     expect(candidateTextIsCopyPasteReady('The door stood in the row like a warning no one had chosen to read.')).toBe(true)
   })
 
+  test('blocks word-processor and HTML artifact blobs from A/B/C candidates', () => {
+    expect(candidateTextIsCopyPasteReady('v:* {behavior:url(#default#VML);} o:* {behavior:url(#default#VML);}')).toBe(false)
+    expect(candidateTextIsCopyPasteReady('table.MsoNormalTable {mso-style-name:"Table Normal"; mso-pagination:widow-orphan;}')).toBe(false)
+    expect(candidateTextIsCopyPasteReady('<style>table.MsoNormalTable{mso-style-name:"Table Normal";}</style>')).toBe(false)
+  })
+
   test('routes cards to needs_targeting when A/B/C are not materially distinct', () => {
     const result = validateReviseCardContract({
       issueStatement: 'Internal conflict is stated but not yet dramatized in the line.',

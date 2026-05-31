@@ -6,6 +6,7 @@ import { loadReviseQueueWarmupCorpus } from './reviseQueueWarmup'
 import { getCriterionDisplayLabel } from '@/lib/evaluation/reportRenderSafety'
 import type { DiagnosticFinding, ProposalSeverity } from './types'
 import {
+  hasWordProcessorArtifact,
   inferRevisionOperation,
   operationLabels,
   REVISION_OPERATIONS,
@@ -472,6 +473,10 @@ function fallbackMistakeProofing(mode: WorkbenchMode): string {
 function cleanAuthorFacingText(value: string | null | undefined, fallback: string): string {
   const raw = (value ?? '').trim()
   if (!raw) return fallback
+
+  if (hasWordProcessorArtifact(raw)) {
+    return fallback
+  }
 
   if (/\b(?:prosecontrol|narrativedrive|evaluation_result|criteria\.recommendations|provenance)\b/i.test(raw)) {
     return fallback
