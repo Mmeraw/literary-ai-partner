@@ -1,0 +1,108 @@
+import {
+  assertChecklistPhaseMayStart,
+  isArtifactResumeSafe,
+  selectLastResumeSafeArtifact,
+  checklistRowsRequiringAuthorityProof,
+  type ChecklistArtifactState,
+} from '../../lib/evaluation/phase-architecture-v2/checklistEnforcer';
+
+const valid = (artifact_type: ChecklistArtifactState['artifact_type']): ChecklistArtifactState => ({
+  artifact_type,
+  artifact_id: `${artifact_type}-id`,
+  schema_valid: true,
+  semantic_status: 'valid',
+  is_resume_safe: true,
+  checksum: `${artifact_type}-checksum`,
+});
+
+describe('Phase Architecture v2 checklist-as-code enforcer', () => {
+  it('blocks Phase 0.5A without phase0_authority_proof_v1', () => {
+    const result = assertChecklistPhaseMayStart('phase_0_5a', {});
+
+    expect(result.ok).toBe(false);
+    expect(result.code).toBe('CHECKLIST_REQUIRED_INPUT_MISSING');
+    expect(result.missing_inputs).toContain('phase0_authority_proof_v1');
+  });
+
+  it('blocks Phase 0.5B without phase0_authority_proof_v1', () => {
+    const result = assertChecklistPhaseMayStart('phase_0_5b', {});
+
+    expect(result.ok).toBe(false);
+    expect(result.code).toBe('CHECKLIST_REQUIRED_INPUT_MISSING');
+    expect(result.missing_inputs).toContain('phase0_authority_proof_v1');
+  });
+
+  it('allows Phase 0.5A when authority proof is valid', () => {
+    const result = assertChecklistPhaseMayStart('phase_0_5a', {
+      phase0_authority_proof_v1: valid('phase0_authority_proof_v1'),
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.code).toBe('CHECKLIST_PHASE_MAY_START');
+  });
+
+  it('blocks Phase 1A without story_map_seed_v1', () => {
+    const result = assertChecklistPhaseMayStart('phase_1a', {
+      phase0_authority_proof_v1: valid('phase0_authority_proof_v1'),
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.missing_inputs).toContain('story_map_seed_v1');
+  });
+
+  it('blocks Phase 2 without accepted_story_context_v1', () => {
+    const result = assertChecklistPhaseMayStart('phase_2', {});
+
+    expect(result.ok).toBe(false);
+    expect(result.missing_inputs).toContain('accepted_story_context_v1');
+  });
+
+  it('requires degraded artifacts to carry reason codes before use', () => {
+    const degradedWithoutProof: ChecklistArtifactState = {
+      artifact_type: 'phase0_authority_proof_v1',
+      artifact_id: 'authority-id',
+      schema_valid: true,
+      semantic_status: 'degraded_with_reasons',
+      is_resume_safe: true,
+      blocking_reason_codes: [],
+    };
+
+    const result = assertChecklistPhaseMayStart('phase_0_5a', {
+      phase0_authority_proof_v1: degradedWithoutProof,
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.code).toBe('CHECKLIST_REQUIRED_INPUT_INVALID');
+  });
+
+  it('selects the last valid resume-safe artifact, not the newest artifact', () => {
+    const older = valid('pass12_handoff_v1');
+    const newestInvalid: ChecklistArtifactState = {
+      artifact_type: 'evaluation_result_v2',
+      artifact_id: 'evaluation-result-id',
+      schema_valid: false,
+      semantic_status: 'valid',
+      is_resume_safe: true,
+    };
+
+    expect(selectLastResumeSafeArtifact([older, newestInvalid])).toBe(older);
+  });
+
+  it('does not treat usable but non-resume-safe artifacts as resume points', () => {
+    const usableButNotResumeSafe: ChecklistArtifactState = {
+      ...valid('evaluation_result_v2'),
+      is_resume_safe: false,
+    };
+
+    expect(isArtifactResumeSafe(usableButNotResumeSafe)).toBe(false);
+    expect(selectLastResumeSafeArtifact([usableButNotResumeSafe])).toBeNull();
+  });
+
+  it('declares only Phase 0.5 seed rows as authority-proof required in the initial slice', () => {
+    expect(checklistRowsRequiringAuthorityProof().map((row) => row.phase_id)).toEqual([
+      'phase_0_5a',
+      'phase_0_5b',
+      'phase_1a',
+    ]);
+  });
+});
