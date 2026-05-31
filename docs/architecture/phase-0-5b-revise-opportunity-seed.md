@@ -15,19 +15,132 @@ Phase 0.5A and Phase 0.5B must run only after Phase 0 governance warmup is loade
 
 The seed artifacts must be created against RevisionGrade canon, governance, and warmup materials first. They are not best-guess editorial passes.
 
-Required upstream authority inputs include, where present in the repository:
+Forbidden outcome:
 
-- 13 Story Criteria canon and scoring doctrine
-- WAVE Revision System / long-form readiness doctrine
-- Gate 15 material and long-form governance rules
-- Dialogue and speech do's and don'ts
-- Phase 0 warmup packet
-- WHAT NOT TO DO packet
-- Story Ledger benchmark and gold-standard docs
-- Revise Queue candidate-prose contract
-- Candidate-only A/B/C rendering rules
-- Fail-closed, semantic gate, and lesson-learned governance docs
-- Any benchmark templates governing output format and quality bar
+- generating story-map or revision-opportunity seeds from manuscript text alone while pretending RevisionGrade canon governed the result.
+
+## Exact Phase 0 authority registry
+
+Phase 0.5A and Phase 0.5B must not rely on a vague phrase like “warmup.” They must load, record, and checksum the exact authority paths below before seed generation.
+
+### A. Required compact Phase 0 warmup packet
+
+These files are the runtime warmup control packet and must be loaded first:
+
+```text
+docs/phase-0-warmup/PHASE_0_WARMUP_BENCHMARK_MANIFEST.md
+docs/phase-0-warmup/WHAT_NOT_TO_DO.md
+docs/phase-0-warmup/STORY_LEDGER_LAYER_FAILURE_MODES.md
+docs/phase-0-warmup/REVISIONGRADE_FAIL_CLOSED_RULES.md
+docs/phase-0-warmup/SIPOC_INPUT_OUTPUT_QUALITY_GATES.md
+docs/phase-0-warmup/SEED_AND_PHASE_1A_GOVERNANCE.md
+```
+
+### B. Core long-form benchmark canon
+
+```text
+docs/benchmarks/DREAM_LONGFORM_BENCHMARK_INDEX.md
+docs/benchmarks/README.md
+docs/benchmarks/templates/dream-longform-layered-template.md
+docs/governance/DREAM_OUTPUT_LONG_FORM_SPEC.md
+```
+
+### C. Native manuscript benchmark sets
+
+```text
+docs/benchmarks/cartel-babies-dream.md
+docs/benchmarks/cartel-babies-dream-v2-governed-ledger-addendum.md
+docs/benchmarks/froggin-noggin-dream.md
+docs/benchmarks/froggin-noggin-dream-v2-governed-ledger-addendum.md
+docs/benchmarks/let-the-river-decide-dream.md
+docs/benchmarks/let-the-river-decide-dream-v2-governed-ledger-addendum.md
+```
+
+### D. Public-domain calibration benchmarks
+
+```text
+docs/benchmarks/public-domain/dracula-dream-calibration.md
+docs/benchmarks/public-domain/great-expectations-dream-calibration.md
+docs/benchmarks/public-domain/pride-and-prejudice-dream-calibration.md
+docs/benchmarks/public-domain/the-awakening-dream-calibration.md
+docs/benchmarks/public-domain/the-awakening-dream-calibration-v2-governed-ledger-addendum.md
+```
+
+### E. Story Ledger benchmark answer keys
+
+```text
+docs/benchmarks/story-ledger/README.md
+docs/benchmarks/story-ledger/IDEAL_STORY_LEDGER_9_LAYER_BENCHMARK_CARTEL_BABIES.md
+docs/benchmarks/story-ledger/IDEAL_STORY_LEDGER_9_LAYER_BENCHMARK_FROGGIN_NOGGIN.md
+docs/benchmarks/story-ledger/IDEAL_STORY_LEDGER_9_LAYER_BENCHMARK_LET_THE_RIVER_DECIDE.md
+docs/benchmarks/story-ledger/FROGGIN_NOGGIN_9_LAYER_OPTIMIZATION_ADDENDUM.md
+docs/benchmarks/story-ledger/LET_THE_RIVER_DECIDE_9_LAYER_OPTIMIZATION_ADDENDUM.md
+```
+
+### F. Additional Ancient Bloodlines benchmark references
+
+```text
+docs/benchmarks/ancient-bloodlines-longform-layered-template.md
+docs/benchmarks/ancient-bloodlines-longform-layered.md
+docs/benchmarks/ancient-bloodlines-shortform-model.md
+docs/benchmarks/github-ancient-bloodlines-gold-standard-brief.md
+docs/benchmarks/BENCHMARK-CHARTER.md
+```
+
+### G. Registered canon and governance files required for 0.5A/0.5B
+
+These paths must be treated as authority inputs when present:
+
+```text
+docs/canon/intake/_md/VOLUME II — STORY EVALUATION CRITERIA & ANALYTICAL FRAMEWORK (V2.0).md
+docs/canon/registered/volumes/VOLUME-I-WAVE-REVISION-GUIDE-CANON.md
+docs/canon/intake/_md/VOLUME I WAVE REVISION GUIDE CANON V22.md
+docs/dialogue-speech-pov-canon-enforcement.md
+docs/canon/intake/_md/GATE_15_2_PR1_CANON_AND_SCHEMA_SPEC.md.md
+docs/canon/intake/_md/docs-canon-GENRE_INTENT_EVALUATION_CANON.md.md
+docs/canon/intake/_md/RevisionGrade System Overview  - The Governed Narrative Evaluation and Revision Platform.md
+```
+
+### H. Runtime scripts/loaders that must be aligned
+
+Implementation PRs after this scaffold must wire Phase 0.5A/0.5B to the same compact manifest logic instead of ad hoc path lists. If a canonical warmup loader already exists, use it; do not create a second divergent loader.
+
+Required implementation behavior:
+
+```text
+1. Load Phase 0 manifest.
+2. Resolve every authority path from the manifest/registry.
+3. Hash/checksum each loaded authority file.
+4. Persist phase0_authority_proof_v1.
+5. Pass phase0_authority_proof_v1 into Phase 0.5A and Phase 0.5B.
+6. Refuse best-guess seed generation if required authority proof is missing.
+```
+
+## Required authority proof artifact
+
+Before `story_map_seed_v1` or `revise_opportunity_seed_v1` is created, the pipeline must persist:
+
+`phase0_authority_proof_v1`
+
+Required fields:
+
+- `artifact_id`
+- `artifact_type = "phase0_authority_proof_v1"`
+- `schema_version`
+- `job_id`
+- `manuscript_id`
+- `manuscript_version_id`
+- `loaded_authority_paths[]`
+- `missing_authority_paths[]`
+- `authority_checksums{}`
+- `warmup_manifest_path`
+- `warmup_manifest_checksum`
+- `loaded_at`
+- `status`: `valid | degraded | blocked`
+- `blocking_reason_codes[]`
+- `is_resume_safe`
+
+## Missing authority behavior
 
 If Phase 0 authority proof is unavailable, incomplete, stale, or contradictory, Phase 0.5A/0.5B must not silently proceed as if canon was loaded.
 
@@ -36,10 +149,6 @@ Allowed outcomes:
 - block with explicit missing-authority reasons;
 - proceed in degraded mode only if the artifact records which canon sources were unavailable and why proceeding is safe;
 - retry warmup/canon loading before seed generation.
-
-Forbidden outcome:
-
-- generating story-map or revision-opportunity seeds from manuscript text alone while pretending RevisionGrade canon governed the result.
 
 ## Doctrine
 
@@ -70,7 +179,10 @@ Required top-level fields:
 - `authority_artifact_ids`
 - `canon_sources_loaded[]`
 - `canon_sources_missing[]`
+- `loaded_authority_paths[]`
+- `authority_checksums{}`
 - `phase0_warmup_proof_id`
+- `phase0_authority_proof_id`
 - `opportunities[]`
 - `status`
 - `is_resume_safe`
@@ -82,6 +194,7 @@ Each opportunity must include:
 - `opportunity_id`
 - `criterion_key`
 - `canon_basis[]`
+- `authority_path_basis[]`
 - `severity`: `MUST | SHOULD | COULD`
 - `scope`: `manuscript | act | chapter | scene | paragraph | sentence | phrase`
 - `location_label`
@@ -181,12 +294,14 @@ This PR must not:
 - make Phase 0.5B opportunities automatically author-facing
 - re-enable the old nine-layer author approval click-through flow
 - allow best-guess seeds without Phase 0 canon/governance proof
+- create a divergent warmup loader or second authority registry
 
 ## Acceptance criteria
 
 - `revise_opportunity_seed_v1` is documented as a durable Phase 0.5B artifact.
 - Phase 0.5A/0.5B are documented as canon-first and warmup-first.
-- Required authority inputs are named.
+- Exact authority paths are named.
+- `phase0_authority_proof_v1` is required before seed generation.
 - Missing authority behavior is explicit.
 - Required opportunity fields are defined.
 - Diagnostic Six are defined.
