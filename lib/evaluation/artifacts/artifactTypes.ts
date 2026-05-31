@@ -4,9 +4,11 @@
  * Scope: shape-only registry support for STORY_LAYER_CONTRACT_V1.
  * Do not import runtime pipeline, worker, route, prompt, OpenAI, or Supabase modules here.
  */
-
 export const CANONICAL_EVALUATION_ARTIFACT_TYPES = [
   'dream_calibration_packet_v1',
+  'story_seed_v1',
+  'evaluation_seed_v1',
+  'seed_fit_gap_report_v1',
   'factual_anomalies_detected_v1',
   'pass1a_story_layer_v1',
   'ledger_quality_report_v1',
@@ -14,6 +16,8 @@ export const CANONICAL_EVALUATION_ARTIFACT_TYPES = [
   'accepted_story_ledger_v1',
   'story_shape_signal_map_v1',
   'manuscript_signal_appendix_v1',
+  'pass12_handoff_v1',
+  'revision_opportunity_ledger_v1',
   'phase2_evaluation_packet_v1',
   'phase2_author_response_v1',
   'evaluation_result_v2',
@@ -37,6 +41,9 @@ export const STORY_LAYER_KEYS = [
 
 export const STORY_LAYER_COUNT = STORY_LAYER_KEYS.length;
 
+// Backward-compatible alias for legacy imports.
+export const STORY_LAYER_CORE_LAYER_KEYS = STORY_LAYER_KEYS;
+
 export type StoryLayerCoreLayerKey = typeof STORY_LAYER_KEYS[number];
 
 export type RuntimeArtifactEnvelope = {
@@ -53,9 +60,13 @@ export type RuntimeArtifactEnvelope = {
 };
 
 export type ArtifactAuthority =
+  | 'seed_baseline'
+  | 'seed_fit_gap'
   | 'governing_story_understanding'
   | 'gate_verdict'
   | 'review_trace'
+  | 'handoff'
+  | 'revision_queue_handoff'
   | 'phase2_enrichment'
   | 'calibration'
   | 'external_verification'
@@ -65,10 +76,12 @@ export type ArtifactAuthority =
 
 export type ArtifactPhase =
   | 'phase_0_calibration'
+  | 'seed_baseline'
   | 'phase_1a_story_layer'
   | 'review_gate'
   | 'approval_normalizer'
   | 'phase_2_story_evaluation'
+  | 'phase_2_to_revise_handoff'
   | 'phase_3_final_report'
   | 'phase_4_cross_check'
   | 'phase_4_wave_revision';

@@ -1,0 +1,140 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://revisiongrade.com/schema/evaluation_seed_benchmark_v1.json",
+  "title": "evaluation_seed_benchmark_v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "artifact_type",
+    "artifact_version",
+    "job_id",
+    "manuscript_id",
+    "word_count",
+    "evaluation_mode",
+    "baseline_run_id",
+    "seed_run_id",
+    "baseline_total_ms",
+    "seed_total_ms",
+    "latency_delta_ms",
+    "latency_delta_percent",
+    "baseline_story_ledger_score",
+    "seed_story_ledger_score",
+    "ledger_quality_delta",
+    "canonical_identity_delta",
+    "alias_accuracy_delta",
+    "pov_accuracy_delta",
+    "pressure_detection_delta",
+    "evidence_coverage_delta",
+    "hallucination_delta",
+    "degraded_layers_baseline",
+    "degraded_layers_seed",
+    "seed_claims_confirmed",
+    "seed_claims_invalidated",
+    "seed_claims_drifted",
+    "seed_only_canon_promotions",
+    "baseline_quality",
+    "seed_quality",
+    "path_issues",
+    "recommendation"
+  ],
+  "properties": {
+    "artifact_type": { "const": "evaluation_seed_benchmark_v1" },
+    "artifact_version": { "const": "v1" },
+    "job_id": { "type": "string", "minLength": 1 },
+    "manuscript_id": { "type": "number" },
+    "word_count": { "type": "number", "minimum": 0 },
+    "evaluation_mode": {
+      "enum": [
+        "short_form_evaluation",
+        "long_form_evaluation",
+        "long_form_multi_layer_evaluation"
+      ]
+    },
+    "baseline_run_id": { "type": "string", "minLength": 1 },
+    "seed_run_id": { "type": "string", "minLength": 1 },
+    "baseline_total_ms": { "type": "number", "minimum": 0 },
+    "seed_total_ms": { "type": "number", "minimum": 0 },
+    "latency_delta_ms": { "type": "number" },
+    "latency_delta_percent": { "type": "number" },
+    "baseline_story_ledger_score": { "type": "number", "minimum": 0, "maximum": 100 },
+    "seed_story_ledger_score": { "type": "number", "minimum": 0, "maximum": 100 },
+    "ledger_quality_delta": { "type": "number" },
+    "canonical_identity_delta": { "type": "number" },
+    "alias_accuracy_delta": { "type": "number" },
+    "pov_accuracy_delta": { "type": "number" },
+    "pressure_detection_delta": { "type": "number" },
+    "evidence_coverage_delta": { "type": "number" },
+    "hallucination_delta": { "type": "number" },
+    "degraded_layers_baseline": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "degraded_layers_seed": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "seed_claims_confirmed": { "type": "number", "minimum": 0 },
+    "seed_claims_invalidated": { "type": "number", "minimum": 0 },
+    "seed_claims_drifted": { "type": "number", "minimum": 0 },
+    "seed_only_canon_promotions": { "type": "number", "minimum": 0 },
+    "baseline_quality": { "$ref": "#/$defs/storyLedgerQualityScore" },
+    "seed_quality": { "$ref": "#/$defs/storyLedgerQualityScore" },
+    "path_issues": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "recommendation": {
+      "enum": [
+        "seed_improves_quality_and_latency",
+        "seed_improves_quality_but_costs_latency",
+        "seed_improves_latency_but_hurts_quality",
+        "seed_no_material_benefit",
+        "seed_harmful_disable"
+      ]
+    }
+  },
+  "$defs": {
+    "storyLedgerQualityScore": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "total_score",
+        "canonical_identity_score",
+        "alias_accuracy_score",
+        "pov_accuracy_score",
+        "pressure_detection_score",
+        "relationship_accuracy_score",
+        "location_accuracy_score",
+        "evidence_coverage_score",
+        "hallucination_risk_score",
+        "seed_only_canon_promotions",
+        "duplicate_canonical_id_count",
+        "duplicate_relationship_pair_count",
+        "missing_required_truths",
+        "forbidden_failures"
+      ],
+      "properties": {
+        "total_score": { "type": "number", "minimum": 0, "maximum": 100 },
+        "canonical_identity_score": { "type": "number", "minimum": 0, "maximum": 100 },
+        "alias_accuracy_score": { "type": "number", "minimum": 0, "maximum": 100 },
+        "pov_accuracy_score": { "type": "number", "minimum": 0, "maximum": 100 },
+        "pressure_detection_score": { "type": "number", "minimum": 0, "maximum": 100 },
+        "relationship_accuracy_score": { "type": "number", "minimum": 0, "maximum": 100 },
+        "location_accuracy_score": { "type": "number", "minimum": 0, "maximum": 100 },
+        "evidence_coverage_score": { "type": "number", "minimum": 0, "maximum": 100 },
+        "hallucination_risk_score": { "type": "number", "minimum": 0, "maximum": 100 },
+        "seed_only_canon_promotions": { "type": "number", "minimum": 0 },
+        "duplicate_canonical_id_count": { "type": "number", "minimum": 0 },
+        "duplicate_relationship_pair_count": { "type": "number", "minimum": 0 },
+        "missing_required_truths": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "forbidden_failures": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    }
+  }
+}

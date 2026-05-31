@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://revisiongrade.com/schema/pass12_handoff_v1.json",
+  "title": "pass12_handoff_v1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "job_id",
+    "evaluation_project_id",
+    "manuscript_id",
+    "manuscript_version_hash",
+    "artifact_id",
+    "artifact_type",
+    "artifact_version",
+    "source_hash",
+    "generated_at"
+  ],
+  "properties": {
+    "job_id": { "type": "string", "minLength": 1 },
+    "evaluation_project_id": { "type": ["string", "null"] },
+    "stage_run_id": { "type": ["string", "null"] },
+    "manuscript_id": { "type": "number" },
+    "manuscript_version_hash": { "type": "string", "minLength": 1 },
+    "artifact_id": { "type": "string", "minLength": 1 },
+    "artifact_type": { "const": "pass12_handoff_v1" },
+    "artifact_version": { "type": "string", "minLength": 1 },
+    "source_hash": { "type": "string", "minLength": 1 },
+    "generated_at": { "type": "string", "minLength": 1 },
+    "handoff_contract": {
+      "type": ["string", "null"],
+      "description": "Optional contract tag for phase handoff interpretation."
+    },
+    "phase1_payload": { "type": ["object", "null"] },
+    "phase2_payload": { "type": ["object", "null"] }
+  }
+}

@@ -37,6 +37,7 @@ import { hasActiveSupportGrant, logSupportView } from '@/lib/support/checkSuppor
 import type { LongformDreamDocument } from '@/lib/evaluation/pipeline/runPass3bLongform';
 import { SynthesisPoller } from '@/components/evaluation/SynthesisPoller';
 import DownloadReportButton from '@/components/reports/DownloadReportButton';
+import AutoPrintOnLoad from '@/components/reports/AutoPrintOnLoad';
 import SupportAccessToggle from '@/components/reports/SupportAccessToggle';
 import LongformCharacterCoverageArcLedger from '@/components/reports/longform/LongformCharacterCoverageArcLedger';
 import LongformRelationshipSpineLedger from '@/components/reports/longform/LongformRelationshipSpineLedger';
@@ -58,6 +59,15 @@ type EvaluationReportContext = {
   manuscriptTitle: string | null;
   manuscriptId: number | null;
 };
+
+type ReportSearchParams = {
+  print?: string | string[];
+};
+
+function firstSearchParam(value: string | string[] | undefined): string | undefined {
+  if (Array.isArray(value)) return value[0];
+  return value;
+}
 
 function getConfidenceBadge(criterion: EvaluationResultV1["criteria"][number]): {
   label: string;
@@ -220,7 +230,16 @@ export async function generateMetadata({ params }: { params: { jobId: string } }
   return { title: pageTitle };
 }
 
-export default async function ReportPage({ params }: { params: { jobId: string } }) {
+export default async function ReportPage({
+  params,
+  searchParams,
+}: {
+  params: { jobId: string };
+  searchParams?: Promise<ReportSearchParams> | ReportSearchParams;
+}) {
+  const resolvedSearchParams = searchParams ? await searchParams : {};
+  const printMode = firstSearchParam(resolvedSearchParams.print) === '1';
+
   // Step 1: Get authenticated user via cookie-scoped SSR client
   const ssrSupabase = await createSSRClient();
   const { data: { user } } = await ssrSupabase.auth.getUser();
@@ -363,6 +382,7 @@ export default async function ReportPage({ params }: { params: { jobId: string }
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {printMode && <AutoPrintOnLoad enabled />}
       <div className="max-w-5xl mx-auto px-4 py-6 sm:px-8">
         {/* Header */}
         <header className="mb-6">

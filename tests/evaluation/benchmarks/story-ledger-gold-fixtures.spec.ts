@@ -42,7 +42,7 @@ function validateGreatExpectations(ledger: any): string[] {
   }
 
   const magwitch = getIdentity(ledger, 'ge:magwitch');
-  const magwitchAliases = new Set((magwitch?.aliases ?? []).map((a: string) => a.toLowerCase()));
+  const magwitchAliases = new Set<string>(((magwitch?.aliases ?? []) as string[]).map((a) => a.toLowerCase()));
   for (const alias of ['magwitch', 'abel magwitch', 'provis', 'convict', 'unknown benefactor']) {
     const inCanonical = hasText(magwitch?.canonical_name, alias);
     const inAliases = Array.from(magwitchAliases).some((a) => a.includes(alias));

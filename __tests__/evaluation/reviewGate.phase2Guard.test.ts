@@ -8,11 +8,13 @@
  *   1. Stage machine transition approval_normalizer → phase_2_evaluation
  *      requires accepted_story_ledger_v1. Missing it hard-stops.
  *
- *   2. forbidPhase2WithoutAcceptedLedger distinguishes three cases:
+ *   2. forbidPhase2WithoutAcceptedLedger distinguishes four cases:
  *      a. accepted_story_ledger_v1 present → ok
- *      b. raw pass1a_story_layer_v1 present, no accepted → specific error naming
+ *      b. seed-only artifacts present, no accepted → specific error naming
+ *         seed artifacts and accepted_story_ledger_v1
+ *      c. raw pass1a_story_layer_v1 present, no accepted → specific error naming
  *         the raw artifact so the operator knows exactly what is missing
- *      c. neither present → generic error
+ *      d. neither present → generic error
  *
  *   3. Review Gate → Approval Normalizer requires ledger_user_feedback_v1
  *      (even for accepted_without_changes — feedback artifact is mandatory).
@@ -33,7 +35,6 @@
  */
 
 import { evaluateStageTransition } from '../../lib/evaluation/stage-machine/stageMachine';
-import { isAllowedStageTransition } from '../../lib/evaluation/stage-machine/stageTransitions';
 import {
   requireAcceptedLedger,
   requireUserFeedback,
@@ -45,6 +46,11 @@ import {
 // ─── Fixtures ────────────────────────────────────────────────────────────────
 
 const artifact = (id: string) => ({ artifact_id: id, source_hash: `sha256:${id}` });
+
+const seedOnly: ArtifactSet = {
+  story_seed_v1: artifact('story-seed-only'),
+  evaluation_seed_v1: artifact('evaluation-seed-only'),
+};
 
 const storyLayerOnly: ArtifactSet = {
   pass1a_story_layer_v1: artifact('story-layer-abc'),
@@ -72,6 +78,16 @@ describe('forbidPhase2WithoutAcceptedLedger', () => {
   it('passes when accepted_story_ledger_v1 is present', () => {
     const result = forbidPhase2WithoutAcceptedLedger(withAcceptedLedger);
     expect(result.ok).toBe(true);
+  });
+
+  it('fails explicitly when only seed artifacts are present', () => {
+    const result = forbidPhase2WithoutAcceptedLedger(seedOnly);
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.reason).toMatch(/seed artifacts/);
+      expect(result.reason).toMatch(/accepted_story_ledger_v1/);
+    }
   });
 
   it('fails with a raw-artifact-specific error when only pass1a_story_layer_v1 is present', () => {
@@ -219,6 +235,19 @@ describe('Stage machine: approval_normalizer → phase_2_evaluation', () => {
     });
 
     expect(result.ok).toBe(true);
+  });
+
+  it('blocks when only seed artifacts are present', () => {
+    const result = evaluateStageTransition({
+      from: 'approval_normalizer',
+      to: 'phase_2_evaluation',
+      artifacts: seedOnly,
+    });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.reason).toMatch(/accepted_story_ledger_v1/);
+    }
   });
 
   it('blocks when only pass1a_story_layer_v1 is present (raw handoff attempt)', () => {

@@ -124,7 +124,7 @@ export default function RevisePage() {
                   </div>
                 ))}
               </div>
-              <Link href="/workbench" className="mt-8 inline-block border border-rg-gold px-5 py-3 font-rg-mono text-xs uppercase tracking-[0.18em] text-rg-gold transition hover:bg-rg-gold hover:text-rg-ink">
+              <Link href="/workbench-v2" className="mt-8 inline-block border border-rg-gold px-5 py-3 font-rg-mono text-xs uppercase tracking-[0.18em] text-rg-gold transition hover:bg-rg-gold hover:text-rg-ink">
                 Open Workbench
               </Link>
             </article>
@@ -218,7 +218,7 @@ export default function RevisePage() {
             Both paths keep the same principle: the manuscript is diagnosed first, repairs are evidence-backed, and the author remains the final authority.
           </p>
           <div className="mt-8 flex flex-wrap gap-4">
-            <Link href="/workbench" className="font-rg-mono text-xs uppercase tracking-[0.18em] text-rg-gold hover:text-rg-cream">Open Revise Queue →</Link>
+            <Link href="/workbench-v2" className="font-rg-mono text-xs uppercase tracking-[0.18em] text-rg-gold hover:text-rg-cream">Open Revise Queue →</Link>
             <Link href="/pricing" className="font-rg-mono text-xs uppercase tracking-[0.18em] text-rg-gold hover:text-rg-cream">See pricing →</Link>
             <Link href="/reliability" className="font-rg-mono text-xs uppercase tracking-[0.18em] text-rg-gold hover:text-rg-cream">Reliability →</Link>
           </div>

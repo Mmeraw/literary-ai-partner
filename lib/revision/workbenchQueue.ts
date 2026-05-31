@@ -1,8 +1,18 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getAuthenticatedUser } from '@/lib/supabase/server'
-import { ensureOperationalRevisionFindings } from './operationalQueueBuilder'
+import { ensureRevisionOpportunityLedgerArtifact } from './opportunityLedger'
+import { buildRevisionPackage, type RevisionPackage } from './revisionPackage'
+import { loadReviseQueueWarmupCorpus } from './reviseQueueWarmup'
 import { getCriterionDisplayLabel } from '@/lib/evaluation/reportRenderSafety'
 import type { DiagnosticFinding, ProposalSeverity } from './types'
+import {
+  inferRevisionOperation,
+  operationLabels,
+  REVISION_OPERATIONS,
+  type RevisionOperation,
+  type RevisionReadiness,
+  validateReviseCardContract,
+} from './reviseCardContract'
 
 export type WorkbenchSeverity = 'must' | 'should' | 'could'
 export type WorkbenchScope = 'Line' | 'Passage' | 'Scene' | 'Chapter' | 'Structural' | 'Manuscript'
@@ -11,6 +21,7 @@ export type WorkbenchMode = 'direct-rewrite' | 'repair-brief'
 export type WorkbenchOption = {
   key: 'A' | 'B' | 'C'
   mechanism: string
+  candidateText: string
   text: string
   rationale: string
 }
@@ -27,6 +38,7 @@ export type WorkbenchOpportunity = {
   leverage: string
   crumb: string
   title: string
+  issueStatement: string
   meta: string
   confidence: string
   anchor: string
@@ -37,6 +49,21 @@ export type WorkbenchOpportunity = {
   fixDirection: string
   readerEffect: string
   mistakeProofing: string
+  diagnostic: {
+    symptom: string
+    cause: string
+    fixStrategy: string
+    readerImpact: string
+    evidence: {
+      quotedExcerpt: string
+      locationLabel: string
+    }
+    operationTargeting: string
+    mistakeProofing: string
+  }
+  revisionOperation: RevisionOperation
+  readiness: RevisionReadiness
+  readinessReason: string | null
   options: WorkbenchOption[]
 }
 
@@ -45,8 +72,14 @@ export type WorkbenchQueuePayload = {
   error: string | null
   manuscriptId: string | null
   evaluationJobId: string | null
+  revisionPackage?: RevisionPackage | null
   manuscriptTitle: string
   opportunities: WorkbenchOpportunity[]
+  needsTargeting: WorkbenchOpportunity[]
+  readinessTotals: {
+    ready_for_revise: number
+    needs_targeting: number
+  }
   totals: Record<WorkbenchSeverity, number>
   scopes: Record<WorkbenchScope, number>
   criteria: Record<string, number>
@@ -56,6 +89,150 @@ export type WorkbenchQueuePayload = {
     held: number
     suppressed: number
   }
+  goLiveProof?: {
+    phase0Warmup: {
+      status: 'loaded' | 'unavailable'
+      warning: string | null
+      loadedAt: string | null
+      corpusSha256: string | null
+      fileCount: number
+      benchmarkCount: number
+      benchmarkFiles: string[]
+    }
+    contractEnforcement: {
+      candidateTextOnly: true
+      sixPartDiagnosticRequired: true
+      readyForRevise: number
+      needsTargeting: number
+      readyRate: number
+    }
+  }
+}
+
+type ResolvedWorkbenchTarget = {
+  manuscriptId: string
+  evaluationJobId: string
+}
+
+function decodeManuscriptTextFromFileUrl(fileUrl: string | null | undefined): string {
+  if (typeof fileUrl !== 'string' || fileUrl.trim().length === 0) return ''
+  const trimmed = fileUrl.trim()
+
+  if (trimmed.startsWith('data:')) {
+    const comma = trimmed.indexOf(',')
+    if (comma === -1) return ''
+    try {
+      return decodeURIComponent(trimmed.slice(comma + 1))
+    } catch {
+      return ''
+    }
+  }
+
+  return ''
+}
+
+async function ensureJobManuscriptVersionBinding(
+  supabase: ReturnType<typeof createAdminClient>,
+  input: {
+    jobId: string
+    manuscriptId: number
+    manuscriptVersionId: string | null
+    userId: string
+  },
+): Promise<string | null> {
+  if (typeof input.manuscriptVersionId === 'string' && input.manuscriptVersionId.trim().length > 0) {
+    return input.manuscriptVersionId
+  }
+
+  const { data: latestVersionRow, error: latestVersionError } = await supabase
+    .from('manuscript_versions')
+    .select('id')
+    .eq('manuscript_id', input.manuscriptId)
+    .order('version_number', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (latestVersionError) {
+    throw new Error(`Failed to resolve manuscript version: ${latestVersionError.message}`)
+  }
+
+  let versionId = typeof latestVersionRow?.id === 'string' ? latestVersionRow.id : null
+
+  if (!versionId) {
+    const { data: manuscriptRow, error: manuscriptError } = await supabase
+      .from('manuscripts')
+      .select('id, user_id, file_url, word_count')
+      .eq('id', input.manuscriptId)
+      .eq('user_id', input.userId)
+      .maybeSingle()
+
+    if (manuscriptError) {
+      throw new Error(`Failed to load manuscript for legacy version binding: ${manuscriptError.message}`)
+    }
+
+    if (!manuscriptRow) {
+      throw new Error('Manuscript not found while binding legacy source version.')
+    }
+
+    const rawText = decodeManuscriptTextFromFileUrl(manuscriptRow.file_url as string | null | undefined)
+    if (!rawText.trim()) {
+      throw new Error('Legacy evaluation cannot be revised yet: manuscript source text is unavailable for version binding.')
+    }
+
+    const wordCount =
+      typeof manuscriptRow.word_count === 'number' && manuscriptRow.word_count >= 0
+        ? manuscriptRow.word_count
+        : rawText.trim().split(/\s+/).filter(Boolean).length
+
+    const { data: insertedVersionRow, error: insertVersionError } = await supabase
+      .from('manuscript_versions')
+      .insert({
+        manuscript_id: input.manuscriptId,
+        version_number: 1,
+        source_version_id: null,
+        raw_text: rawText,
+        word_count: wordCount,
+        created_by: input.userId,
+      })
+      .select('id')
+      .maybeSingle()
+
+    if (insertVersionError) {
+      const { data: retryLatestVersionRow, error: retryLatestVersionError } = await supabase
+        .from('manuscript_versions')
+        .select('id')
+        .eq('manuscript_id', input.manuscriptId)
+        .order('version_number', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      if (retryLatestVersionError) {
+        throw new Error(`Failed to bind legacy manuscript version: ${retryLatestVersionError.message}`)
+      }
+
+      versionId = typeof retryLatestVersionRow?.id === 'string' ? retryLatestVersionRow.id : null
+      if (!versionId) {
+        throw new Error(`Failed to create manuscript version for legacy evaluation: ${insertVersionError.message}`)
+      }
+    } else {
+      versionId = typeof insertedVersionRow?.id === 'string' ? insertedVersionRow.id : null
+    }
+  }
+
+  if (!versionId) {
+    throw new Error('Failed to resolve manuscript version for legacy evaluation.')
+  }
+
+  const { error: bindError } = await supabase
+    .from('evaluation_jobs')
+    .update({ manuscript_version_id: versionId })
+    .eq('id', input.jobId)
+
+  if (bindError) {
+    throw new Error(`Failed to bind legacy manuscript version to evaluation: ${bindError.message}`)
+  }
+
+  return versionId
 }
 
 // ---------------------------------------------------------------------------
@@ -204,6 +381,7 @@ function synthesizeFindingsForWorkbench(
       scope: 'Manuscript',
       mode: 'repair-brief',
       title: clusterTitleForFinding(representative),
+      issueStatement: clusterTitleForFinding(representative),
       crumb: `${criterionLabel(representative.criterion_key)} · Pattern cluster (${group.length} instances)`,
       meta: `${criterionLabel(representative.criterion_key)} · Pattern cluster`,
       anchor: 'manuscript-wide pattern',
@@ -251,6 +429,30 @@ function modeForScope(scope: WorkbenchScope): WorkbenchMode {
   return scope === 'Chapter' || scope === 'Structural' || scope === 'Manuscript' ? 'repair-brief' : 'direct-rewrite'
 }
 
+function scopeFromCoordinates(coordinates: string): WorkbenchScope {
+  const normalized = coordinates.trim().toLowerCase()
+  const prefixMatch = normalized.match(/^([a-z_]+):/)
+  const prefix = prefixMatch?.[1] ?? ''
+
+  switch (prefix) {
+    case 'line':
+      return 'Line'
+    case 'passage':
+      return 'Passage'
+    case 'scene':
+      return 'Scene'
+    case 'chapter':
+      return 'Chapter'
+    case 'structural':
+      return 'Structural'
+    case 'manuscript':
+      return 'Manuscript'
+    default:
+      // Safe fallback for unknown or malformed coordinates.
+      return 'Passage'
+  }
+}
+
 function fallbackReaderEffect(criterion: string, scope: WorkbenchScope): string {
   const key = criterion.toLowerCase()
   if (scope === 'Structural' || scope === 'Manuscript') return 'Repairing this can restore cause-and-effect continuity across the manuscript.'
@@ -267,6 +469,41 @@ function fallbackMistakeProofing(mode: WorkbenchMode): string {
     : 'Preserve author voice and meaning. Do not introduce new information unless the repair path explicitly calls for it.'
 }
 
+function cleanAuthorFacingText(value: string | null | undefined, fallback: string): string {
+  const raw = (value ?? '').trim()
+  if (!raw) return fallback
+
+  if (/\b(?:prosecontrol|narrativedrive|evaluation_result|criteria\.recommendations|provenance)\b/i.test(raw)) {
+    return fallback
+  }
+
+  return raw
+}
+
+function normalizeRevisionOperation(raw: unknown): RevisionOperation | null {
+  if (typeof raw !== 'string') return null
+  const clean = raw.trim()
+  return (REVISION_OPERATIONS as readonly string[]).includes(clean)
+    ? (clean as RevisionOperation)
+    : null
+}
+
+function hasManuscriptWideSignal(opportunity: {
+  anchor?: string | null
+  quoteHighlight?: string | null
+  quoteRest?: string | null
+  scope?: WorkbenchScope | null
+}): boolean {
+  if (opportunity.scope === 'Manuscript') return true
+  const anchor = (opportunity.anchor ?? '').toLowerCase()
+  const quote = `${opportunity.quoteHighlight ?? ''} ${opportunity.quoteRest ?? ''}`.toLowerCase()
+  return anchor.includes('manuscript-wide') || quote.includes('across the manuscript') || quote.includes('manuscript-wide')
+}
+
+function asCandidateText(option: Pick<WorkbenchOption, 'candidateText' | 'text'>): string {
+  return (option.candidateText ?? option.text ?? '').trim()
+}
+
 // ---------------------------------------------------------------------------
 // Build options from rich recommendation data (manuscript-specific proposals)
 // ---------------------------------------------------------------------------
@@ -275,30 +512,30 @@ function optionsFromRich(rich: RichRecommendation, mode: WorkbenchMode): Workben
   if (!mainAction) return optionsFallback(mode)
   if (mode === 'repair-brief') {
     return [
-      { key: 'A', mechanism: 'Recommended repair plan', text: mainAction, rationale: rich.expected_impact?.trim() || 'Primary repair path from the evaluation.' },
-      { key: 'B', mechanism: 'Conservative bridge plan', text: 'Preserve the existing order and add the smallest connective beat that restores clarity.', rationale: 'Lowest-disruption approach for larger-scope repair.' },
-      { key: 'C', mechanism: 'Bolder restructuring plan', text: 'Re-sequence or deepen the affected beat so setup, pressure, and payoff carry through the relevant span.', rationale: 'Higher-leverage option when local polish is not enough.' },
+      { key: 'A', mechanism: 'Recommended repair plan', candidateText: mainAction, text: mainAction, rationale: rich.expected_impact?.trim() || 'Primary repair path from the evaluation.' },
+      { key: 'B', mechanism: 'Conservative bridge plan', candidateText: '', text: '', rationale: 'Needs targeting: add a manuscript-prose rhythm variant.' },
+      { key: 'C', mechanism: 'Bolder restructuring plan', candidateText: '', text: '', rationale: 'Needs targeting: add a manuscript-prose bold variant.' },
     ]
   }
   return [
-    { key: 'A', mechanism: 'Recommended repair', text: mainAction, rationale: rich.expected_impact?.trim() || 'Primary repair path from the evaluation.' },
-    { key: 'B', mechanism: 'Rhythm variant', text: 'Apply the same repair goal with a lighter touch, preserving more of the original cadence.', rationale: 'For authors who want minimal intervention.' },
-    { key: 'C', mechanism: 'Bolder rendering shift', text: 'Apply the same repair goal with stronger emphasis, image, or beat structure.', rationale: 'For local moments that need more visible movement.' },
+    { key: 'A', mechanism: 'Recommended repair', candidateText: mainAction, text: mainAction, rationale: rich.expected_impact?.trim() || 'Primary repair path from the evaluation.' },
+    { key: 'B', mechanism: 'Rhythm variant', candidateText: '', text: '', rationale: 'Needs targeting: add a manuscript-prose rhythm variant.' },
+    { key: 'C', mechanism: 'Bolder rendering shift', candidateText: '', text: '', rationale: 'Needs targeting: add a manuscript-prose bold variant.' },
   ]
 }
 
 function optionsFallback(mode: WorkbenchMode): WorkbenchOption[] {
   if (mode === 'repair-brief') {
     return [
-      { key: 'A', mechanism: 'Recommended repair plan', text: 'Review this opportunity and choose the least disruptive repair that preserves author voice.', rationale: 'Default plan drawn from the evaluation.' },
-      { key: 'B', mechanism: 'Conservative bridge plan', text: 'Preserve the existing order and add the smallest connective beat that restores clarity.', rationale: 'Lowest-disruption approach for larger-scope repair.' },
-      { key: 'C', mechanism: 'Bolder restructuring plan', text: 'Re-sequence or deepen the affected beat so setup, pressure, and payoff carry through the relevant span.', rationale: 'Higher-leverage option when local polish is not enough.' },
+      { key: 'A', mechanism: 'Recommended repair plan', candidateText: '', text: '', rationale: 'Needs targeting: candidate manuscript prose not provided.' },
+      { key: 'B', mechanism: 'Conservative bridge plan', candidateText: '', text: '', rationale: 'Needs targeting: candidate manuscript prose not provided.' },
+      { key: 'C', mechanism: 'Bolder restructuring plan', candidateText: '', text: '', rationale: 'Needs targeting: candidate manuscript prose not provided.' },
     ]
   }
   return [
-    { key: 'A', mechanism: 'Recommended repair', text: 'Review this opportunity and choose the least disruptive repair that preserves author voice.', rationale: 'Default repair path.' },
-    { key: 'B', mechanism: 'Rhythm variant', text: 'Apply the same repair goal with a lighter touch, preserving more of the original cadence.', rationale: 'For authors who want minimal intervention.' },
-    { key: 'C', mechanism: 'Bolder rendering shift', text: 'Apply the same repair goal with stronger emphasis, image, or beat structure.', rationale: 'For local moments that need more visible movement.' },
+    { key: 'A', mechanism: 'Recommended repair', candidateText: '', text: '', rationale: 'Needs targeting: candidate manuscript prose not provided.' },
+    { key: 'B', mechanism: 'Rhythm variant', candidateText: '', text: '', rationale: 'Needs targeting: candidate manuscript prose not provided.' },
+    { key: 'C', mechanism: 'Bolder rendering shift', candidateText: '', text: '', rationale: 'Needs targeting: candidate manuscript prose not provided.' },
   ]
 }
 
@@ -443,7 +680,7 @@ function findingToOpportunity(
   // Anchor: if rich recommendation has a snippet, show a location hint
   const anchor = cleanedLocationRef ?? (rich?.anchor_snippet ? 'evidence anchored' : 'Location pending')
 
-  return {
+  return applyReviseCardContract({
     id: finding.id || `finding-${index + 1}`,
     severity,
     scope,
@@ -453,6 +690,7 @@ function findingToOpportunity(
     leverage: scope === 'Structural' || scope === 'Manuscript' ? 'Structural' : cleanLabel(finding.finding_type || criterion),
     crumb: `${criterion} · ${locationDisplay}`,
     title,
+    issueStatement: title,
     meta: `${criterion} · ${locationDisplay}`,
     confidence: finding.confidence == null ? `${finding.severity} severity` : `${Math.round(finding.confidence * 100)}% confidence`,
     anchor,
@@ -463,8 +701,20 @@ function findingToOpportunity(
     fixDirection: rich?.specific_fix || rich?.action || finding.recommendation || 'Review the evidence and choose a repair path before revising.',
     readerEffect: rich?.reader_effect || fallbackReaderEffect(finding.criterion_key, scope),
     mistakeProofing: rich?.mistake_proofing || fallbackMistakeProofing(mode),
+    diagnostic: {
+      symptom: rich?.symptom || finding.diagnosis,
+      cause: rich?.mechanism || finding.recommendation || 'The evaluation identified this as a manuscript readiness concern.',
+      fixStrategy: rich?.specific_fix || rich?.action || finding.recommendation || 'Review the evidence and choose a repair path before revising.',
+      readerImpact: rich?.reader_effect || fallbackReaderEffect(finding.criterion_key, scope),
+      evidence: {
+        quotedExcerpt: `${evidence.quoteHighlight}${evidence.quoteRest}`.trim(),
+        locationLabel: anchor,
+      },
+      operationTargeting: `${scope} · ${anchor}`,
+      mistakeProofing: rich?.mistake_proofing || fallbackMistakeProofing(mode),
+    },
     options: rich ? optionsFromRich(rich, mode) : optionsFallback(mode),
-  }
+  })
 }
 
 const sourceOrder: Record<WorkbenchSource, number> = { evaluation: 0, deep_revision: 1, baseline_discovery: 2 }
@@ -483,8 +733,11 @@ function emptyPayload(error: string | null): WorkbenchQueuePayload {
     error,
     manuscriptId: null,
     evaluationJobId: null,
+    revisionPackage: null,
     manuscriptTitle: 'Revise Workbench',
     opportunities: [],
+    needsTargeting: [],
+    readinessTotals: { ready_for_revise: 0, needs_targeting: 0 },
     totals: { must: 0, should: 0, could: 0 },
     scopes: { Line: 0, Passage: 0, Scene: 0, Chapter: 0, Structural: 0, Manuscript: 0 },
     criteria: {},
@@ -492,6 +745,90 @@ function emptyPayload(error: string | null): WorkbenchQueuePayload {
   }
 }
 
+async function resolveLatestEligibleEvaluationForUser(
+  supabase: ReturnType<typeof createAdminClient>,
+  userId: string,
+): Promise<ResolvedWorkbenchTarget | null> {
+  const { data, error } = await supabase
+    .from('evaluation_jobs')
+    .select('id, manuscript_id, status, manuscript_version_id, created_at, manuscripts!inner(user_id)')
+    .eq('manuscripts.user_id', userId)
+    .eq('status', 'complete')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (error || !data) return null
+
+  const manuscriptId = Number(data.manuscript_id)
+  const evaluationJobId = String(data.id ?? '').trim()
+  if (!Number.isInteger(manuscriptId) || !evaluationJobId) return null
+
+  return {
+    manuscriptId: String(manuscriptId),
+    evaluationJobId,
+  }
+}
+
+export async function resolveWorkbenchRouteTargetForUser(): Promise<ResolvedWorkbenchTarget | null> {
+  const user = await getAuthenticatedUser()
+  if (!user) return null
+
+  const supabase = createAdminClient()
+  return resolveLatestEligibleEvaluationForUser(supabase, user.id)
+}
+
+function applyReviseCardContract(
+  opportunity: Omit<WorkbenchOpportunity, 'revisionOperation' | 'readiness' | 'readinessReason'>,
+  input?: { revisionOperation?: RevisionOperation | null },
+): WorkbenchOpportunity {
+  const inferredOperation = inferRevisionOperation({
+    scope: opportunity.scope,
+    mode: opportunity.mode,
+    fixDirection: opportunity.fixDirection,
+    recommendation: opportunity.symptom,
+  })
+  const revisionOperation = input?.revisionOperation ?? inferredOperation
+
+  const sourceText = `${opportunity.quoteHighlight ?? ''}${opportunity.quoteRest ?? ''}`.trim()
+  const issueStatement = firstSentence(opportunity.issueStatement || opportunity.title || opportunity.symptom, opportunity.title)
+  const operationTargeting = `${operationLabels[revisionOperation] ?? 'Suggested revision'} · ${opportunity.anchor || 'Location pending'}`
+  const diagnostic = {
+    symptom: cleanAuthorFacingText(opportunity.diagnostic?.symptom ?? opportunity.symptom, opportunity.symptom),
+    cause: cleanAuthorFacingText(opportunity.diagnostic?.cause ?? opportunity.cause, opportunity.cause),
+    fixStrategy: cleanAuthorFacingText(opportunity.diagnostic?.fixStrategy ?? opportunity.fixDirection, opportunity.fixDirection),
+    readerImpact: cleanAuthorFacingText(opportunity.diagnostic?.readerImpact ?? opportunity.readerEffect, opportunity.readerEffect),
+    evidence: {
+      quotedExcerpt: cleanAuthorFacingText(opportunity.diagnostic?.evidence?.quotedExcerpt ?? sourceText, sourceText || 'No excerpt available'),
+      locationLabel: cleanAuthorFacingText(opportunity.diagnostic?.evidence?.locationLabel ?? opportunity.anchor, opportunity.anchor || 'Location pending'),
+    },
+    operationTargeting: cleanAuthorFacingText(opportunity.diagnostic?.operationTargeting ?? operationTargeting, operationTargeting),
+    mistakeProofing: cleanAuthorFacingText(opportunity.diagnostic?.mistakeProofing ?? opportunity.mistakeProofing, opportunity.mistakeProofing),
+  }
+
+  const contract = validateReviseCardContract({
+    issueStatement,
+    symptom: diagnostic.symptom,
+    cause: diagnostic.cause,
+    fixStrategy: diagnostic.fixStrategy,
+    readerImpact: diagnostic.readerImpact,
+    operationNote: diagnostic.operationTargeting,
+    sourceText,
+    sourceLocationLabel: opportunity.anchor,
+    hasManuscriptWideSupport: hasManuscriptWideSignal(opportunity),
+    revisionOperation,
+    candidateTexts: opportunity.options.map((option) => asCandidateText(option)),
+  })
+
+  return {
+    ...opportunity,
+    issueStatement,
+    diagnostic,
+    revisionOperation,
+    readiness: contract.readiness,
+    readinessReason: contract.reason,
+  }
+}
 // ---------------------------------------------------------------------------
 // Load raw evaluation artifact to extract rich recommendation fields
 // ---------------------------------------------------------------------------
@@ -513,15 +850,29 @@ async function loadEvaluationArtifactPayload(
 }
 
 export async function getWorkbenchQueue(input: { manuscriptId?: string; evaluationJobId?: string }): Promise<WorkbenchQueuePayload> {
-  if (!input.manuscriptId || !input.evaluationJobId) return emptyPayload('Open the workbench from a completed manuscript evaluation so RevisionGrade knows which queue to load.')
+  let warmupCorpus: Awaited<ReturnType<typeof loadReviseQueueWarmupCorpus>> | null = null
+  let warmupWarning: string | null = null
+  try {
+    warmupCorpus = await loadReviseQueueWarmupCorpus()
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : 'Failed to load Revise Queue warmup corpus.'
+    warmupWarning = `Benchmark warmup proof is temporarily unavailable (${reason}). Revise Queue is rendered from saved evaluation artifacts with contract guards active.`
+  }
 
   const user = await getAuthenticatedUser()
   if (!user) return emptyPayload('Please sign in to open your Revise Workbench.')
 
-  const manuscriptNumericId = Number(input.manuscriptId)
+  const supabase = createAdminClient()
+  let manuscriptId = input.manuscriptId
+  let evaluationJobId = input.evaluationJobId
+
+  if (!manuscriptId || !evaluationJobId) {
+    return emptyPayload('Open a completed evaluation to load its saved revision package, or use the dashboard shortcut for the latest revision.')
+  }
+
+  const manuscriptNumericId = Number(manuscriptId)
   if (!Number.isInteger(manuscriptNumericId)) return emptyPayload('Invalid manuscript id.')
 
-  const supabase = createAdminClient()
   const { data: manuscript, error: manuscriptError } = await supabase
     .from('manuscripts')
     .select('id, title, user_id')
@@ -535,7 +886,7 @@ export async function getWorkbenchQueue(input: { manuscriptId?: string; evaluati
   const { data: job, error: jobError } = await supabase
     .from('evaluation_jobs')
     .select('id, status, manuscript_id, manuscript_version_id')
-    .eq('id', input.evaluationJobId)
+    .eq('id', evaluationJobId)
     .eq('manuscript_id', manuscriptNumericId)
     .maybeSingle()
 
@@ -543,23 +894,144 @@ export async function getWorkbenchQueue(input: { manuscriptId?: string; evaluati
   if (!job) return emptyPayload('Evaluation job not found for this manuscript.')
   if (job.status !== 'complete') return emptyPayload('This evaluation is not complete yet. Revise can load after the report is finished.')
 
-  // manuscript_version_id may be null for older jobs — pass it through as empty string
-  // so the queue builder can still extract findings from the evaluation artifact.
-  const versionId = (job.manuscript_version_id as string | null) ?? ''
+  let boundManuscriptVersionId: string | null = null
+  try {
+    boundManuscriptVersionId = await ensureJobManuscriptVersionBinding(supabase, {
+      jobId: evaluationJobId,
+      manuscriptId: manuscriptNumericId,
+      manuscriptVersionId:
+        typeof job.manuscript_version_id === 'string' ? job.manuscript_version_id : null,
+      userId: user.id,
+    })
+  } catch (error) {
+    return emptyPayload(error instanceof Error ? error.message : 'Failed to bind manuscript version for legacy evaluation.')
+  }
 
-  // Load findings + raw evaluation artifact in parallel
-  const [findings, richLookup] = await Promise.all([
-    ensureOperationalRevisionFindings(input.evaluationJobId, versionId),
-    loadEvaluationArtifactPayload(supabase, input.evaluationJobId),
-  ])
+  const { artifactId: revisionLedgerArtifactId, opportunities: revisionLedgerOpportunities } = await ensureRevisionOpportunityLedgerArtifact(
+    supabase,
+    evaluationJobId,
+  )
 
-  const synthesisResult = synthesizeFindingsForWorkbench(findings, richLookup)
-  const opportunities = synthesisResult.opportunities
+  const revisionPackage =
+    revisionLedgerArtifactId && typeof (boundManuscriptVersionId ?? job.manuscript_version_id) === 'string' && (boundManuscriptVersionId ?? job.manuscript_version_id).trim().length > 0
+      ? buildRevisionPackage({
+          userId: user.id,
+          manuscriptId: manuscriptNumericId,
+          manuscriptVersionId: boundManuscriptVersionId ?? job.manuscript_version_id,
+          evaluationJobId,
+          revisionOpportunityLedgerArtifactId: revisionLedgerArtifactId,
+          status: 'complete',
+        })
+      : null
+
+  const opportunities = revisionLedgerOpportunities.map((opportunity) => {
+    const criterion = criterionLabel(opportunity.criterion)
+    const scope = scopeFromCoordinates(opportunity.manuscript_coordinates)
+    const mode = modeForScope(scope)
+    const severity: WorkbenchSeverity =
+      opportunity.severity === 'must'
+        ? 'must'
+        : opportunity.severity === 'should'
+          ? 'should'
+          : 'could'
+    const evidence = splitEvidence(opportunity.evidence_anchor)
+    const candidateA = (opportunity.candidate_text_a ?? '').trim()
+    const candidateB = (opportunity.candidate_text_b ?? '').trim()
+    const candidateC = (opportunity.candidate_text_c ?? '').trim()
+
+    const options: WorkbenchOption[] = [
+      {
+        key: 'A',
+        mechanism: 'Recommended repair',
+        candidateText: candidateA,
+        text: candidateA,
+        rationale: 'Primary repair path from the evaluation.',
+      },
+      {
+        key: 'B',
+        mechanism: 'Rhythm variant',
+        candidateText: candidateB,
+        text: candidateB,
+        rationale: 'Secondary variant for author-controlled cadence.',
+      },
+      {
+        key: 'C',
+        mechanism: 'Bolder rendering shift',
+        candidateText: candidateC,
+        text: candidateC,
+        rationale: 'Alternative variant for stronger emphasis.',
+      },
+    ]
+
+    const inferredCauseFallback =
+      'The evaluation identified a concrete craft issue at this location that may weaken reader clarity or momentum.'
+
+    const symptom = cleanAuthorFacingText(opportunity.symptom ?? opportunity.rationale, opportunity.rationale)
+    const cause = cleanAuthorFacingText(opportunity.cause, inferredCauseFallback)
+    const fixDirection = cleanAuthorFacingText(opportunity.fix_direction ?? opportunity.rationale, opportunity.rationale)
+    const readerEffect = cleanAuthorFacingText(
+      opportunity.reader_effect,
+      fallbackReaderEffect(opportunity.criterion, scope),
+    )
+    const mistakeProofing = cleanAuthorFacingText(
+      opportunity.mistake_proofing,
+      fallbackMistakeProofing(mode),
+    )
+
+    return applyReviseCardContract({
+      id: opportunity.opportunity_id,
+      severity,
+      scope,
+      mode,
+      source: 'evaluation' as const,
+      criterion,
+      leverage: cleanLabel(opportunity.provenance ?? 'evaluation_result'),
+      crumb: `${criterion} · ${opportunity.manuscript_coordinates}`,
+      title: firstSentence(opportunity.rationale, `${criterion} revision opportunity`),
+      issueStatement: firstSentence(opportunity.rationale, `${criterion} revision opportunity`),
+      meta: `${criterion} · ${opportunity.manuscript_coordinates}`,
+      confidence: `${opportunity.confidence} confidence`,
+      anchor: opportunity.manuscript_coordinates,
+      quoteHighlight: evidence.quoteHighlight,
+      quoteRest: evidence.quoteRest,
+      symptom,
+      cause,
+      fixDirection,
+      readerEffect,
+      mistakeProofing,
+      diagnostic: {
+        symptom,
+        cause,
+        fixStrategy: fixDirection,
+        readerImpact: readerEffect,
+        evidence: {
+          quotedExcerpt: `${evidence.quoteHighlight}${evidence.quoteRest}`.trim(),
+          locationLabel: opportunity.manuscript_coordinates,
+        },
+        operationTargeting: `${scope} · ${opportunity.manuscript_coordinates}`,
+        mistakeProofing,
+      },
+      options,
+    }, {
+      revisionOperation: normalizeRevisionOperation(opportunity.revision_operation),
+    })
+  })
+
+  const readyForRevise = opportunities.filter((opportunity) => opportunity.readiness === 'ready_for_revise')
+  const needsTargeting = opportunities.filter((opportunity) => opportunity.readiness === 'needs_targeting')
+
+  const synthesisResult = {
+    admitted: readyForRevise.length,
+    clustered: 0,
+    held: needsTargeting.length,
+    suppressed: 0,
+  }
+
   const totals: WorkbenchQueuePayload['totals'] = { must: 0, should: 0, could: 0 }
   const scopes: WorkbenchQueuePayload['scopes'] = { Line: 0, Passage: 0, Scene: 0, Chapter: 0, Structural: 0, Manuscript: 0 }
   const criteria: Record<string, number> = {}
 
-  for (const opportunity of opportunities) {
+  for (const opportunity of readyForRevise) {
     totals[opportunity.severity] += 1
     scopes[opportunity.scope] += 1
     criteria[opportunity.criterion] = (criteria[opportunity.criterion] ?? 0) + 1
@@ -568,18 +1040,43 @@ export async function getWorkbenchQueue(input: { manuscriptId?: string; evaluati
   return {
     ok: true,
     error: null,
-    manuscriptId: input.manuscriptId,
-    evaluationJobId: input.evaluationJobId,
+    manuscriptId,
+    evaluationJobId,
+    revisionPackage,
     manuscriptTitle: manuscript.title ?? 'Untitled Manuscript',
-    opportunities,
+    opportunities: readyForRevise,
+    needsTargeting,
+    readinessTotals: {
+      ready_for_revise: readyForRevise.length,
+      needs_targeting: needsTargeting.length,
+    },
     totals,
     scopes,
     criteria,
-    synthesis: synthesisResult.synthesis,
+    synthesis: synthesisResult,
+    goLiveProof: {
+      phase0Warmup: {
+        status: warmupCorpus ? 'loaded' : 'unavailable',
+        warning: warmupWarning,
+        loadedAt: warmupCorpus?.loadedAt ?? null,
+        corpusSha256: warmupCorpus?.proof.combinedSha256 ?? null,
+        fileCount: warmupCorpus?.proof.fileCount ?? 0,
+        benchmarkCount: warmupCorpus?.proof.benchmarkCount ?? 0,
+        benchmarkFiles: warmupCorpus ? [...warmupCorpus.proof.benchmarkFilesLoaded] : [],
+      },
+      contractEnforcement: {
+        candidateTextOnly: true,
+        sixPartDiagnosticRequired: true,
+        readyForRevise: readyForRevise.length,
+        needsTargeting: needsTargeting.length,
+        readyRate: opportunities.length === 0 ? 0 : Number((readyForRevise.length / opportunities.length).toFixed(4)),
+      },
+    },
   }
 }
 
 export const __testing = {
   hasActionableEvidence,
   synthesizeFindingsForWorkbench,
+  scopeFromCoordinates,
 }

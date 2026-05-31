@@ -228,4 +228,34 @@ describe("Pass 1A chunk cache (PR-E checkpoint)", () => {
       expect(chunkOut.characters[0]?.canonical_name).toMatch(/^FreshChar_/);
     }
   });
+
+  it("injects SEED context block into Pass1A user prompt when provided", async () => {
+    const chunks = makeChunks(1);
+    const seedContextBlock = [
+      "- [story] story_seed:1: Edna may carry recurring narrative pressure.",
+      "- [evaluation] evaluation_seed:1: Prioritize evidence for character.",
+    ].join("\n");
+
+    const result = await runPass1a({
+      manuscriptText: chunks[0].content,
+      manuscriptChunks: chunks,
+      title: "Seed Injection Manuscript",
+      workType: "novel",
+      seedContextBlock,
+      openaiApiKey: "sk-test",
+      jobId: "job-seed-context",
+    });
+
+    expect(result.successful_chunks).toBe(1);
+    expect(getCreateMock()).toHaveBeenCalledTimes(1);
+
+    const createArgs = getCreateMock().mock.calls[0]?.[0] as
+      | { messages?: Array<{ role?: string; content?: string }> }
+      | undefined;
+    const userContent = createArgs?.messages?.find((m) => m.role === 'user')?.content ?? '';
+
+    expect(userContent).toContain('SEED CONTEXT (NON-AUTHORITATIVE HYPOTHESES — VERIFY AGAINST CHUNK EVIDENCE):');
+    expect(userContent).toContain('[story] story_seed:1: Edna may carry recurring narrative pressure.');
+    expect(userContent).toContain('[evaluation] evaluation_seed:1: Prioritize evidence for character.');
+  });
 });
