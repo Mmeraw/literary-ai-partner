@@ -45,6 +45,30 @@ export const CHECKLIST_PHASE_IDS = [
 
 export type ChecklistPhaseId = (typeof CHECKLIST_PHASE_IDS)[number];
 
+export const SIPOC_STAGE_REFS = [
+  'S01_INTAKE',
+  'S02_QUEUE',
+  'S03_CLAIM',
+  'S04_ROUTING_CHUNKING',
+  'S05_PASS1',
+  'S06_PASS2',
+  'S07_PASS3',
+  'S08_ER2_NORMALIZATION',
+  'S09_QUALITYGATEV2',
+  'S10_PERSISTENCE',
+  'S11_RENDERER',
+  'ADJACENT_PHASE_0',
+  'ADJACENT_PHASE_0_5A',
+  'ADJACENT_PHASE_0_5B',
+  'ADJACENT_PASS_3A',
+  'ADJACENT_SEMANTIC_GATE',
+  'ADJACENT_LLR',
+  'ADJACENT_REVISE',
+  'ADJACENT_WAVE',
+] as const;
+
+export type SipocStageRef = (typeof SIPOC_STAGE_REFS)[number];
+
 export type ChecklistRuntimePhase =
   | 'phase_0'
   | 'phase_1a'
@@ -59,6 +83,7 @@ export type ChecklistRuntimePhase =
 export type ChecklistMatrixRow = {
   readonly phase_id: ChecklistPhaseId;
   readonly runtime_phase: ChecklistRuntimePhase;
+  readonly sipoc_stage_ref: SipocStageRef;
   readonly required_inputs: readonly ChecklistArtifactType[];
   readonly required_authority_proof: boolean;
   readonly output_artifacts: readonly ChecklistArtifactType[];
@@ -71,6 +96,7 @@ export const CHECKLIST_MATRIX: readonly ChecklistMatrixRow[] = [
   {
     phase_id: 'phase_0',
     runtime_phase: 'phase_0',
+    sipoc_stage_ref: 'ADJACENT_PHASE_0',
     required_inputs: [],
     required_authority_proof: false,
     output_artifacts: ['phase0_authority_proof_v1'],
@@ -81,6 +107,7 @@ export const CHECKLIST_MATRIX: readonly ChecklistMatrixRow[] = [
   {
     phase_id: 'phase_0_5a',
     runtime_phase: 'phase_1a',
+    sipoc_stage_ref: 'ADJACENT_PHASE_0_5A',
     required_inputs: ['phase0_authority_proof_v1'],
     required_authority_proof: true,
     output_artifacts: ['story_map_seed_v1', 'evaluation_seed_v1'],
@@ -91,6 +118,7 @@ export const CHECKLIST_MATRIX: readonly ChecklistMatrixRow[] = [
   {
     phase_id: 'phase_0_5b',
     runtime_phase: 'revise',
+    sipoc_stage_ref: 'ADJACENT_PHASE_0_5B',
     required_inputs: ['phase0_authority_proof_v1'],
     required_authority_proof: true,
     output_artifacts: ['revise_opportunity_seed_v1'],
@@ -101,6 +129,7 @@ export const CHECKLIST_MATRIX: readonly ChecklistMatrixRow[] = [
   {
     phase_id: 'phase_1a',
     runtime_phase: 'phase_1a',
+    sipoc_stage_ref: 'ADJACENT_PHASE_0_5A',
     required_inputs: ['phase0_authority_proof_v1', 'story_map_seed_v1'],
     required_authority_proof: true,
     output_artifacts: ['story_map_verification_v1', 'seed_contradiction_report_v1', 'evidence_index_v1'],
@@ -111,6 +140,7 @@ export const CHECKLIST_MATRIX: readonly ChecklistMatrixRow[] = [
   {
     phase_id: 'pass_3a',
     runtime_phase: 'pass_3a',
+    sipoc_stage_ref: 'ADJACENT_PASS_3A',
     required_inputs: ['story_map_verification_v1', 'evidence_index_v1'],
     required_authority_proof: false,
     output_artifacts: ['verified_story_layer_handoff_v1'],
@@ -121,6 +151,7 @@ export const CHECKLIST_MATRIX: readonly ChecklistMatrixRow[] = [
   {
     phase_id: 'semantic_gate',
     runtime_phase: 'review_gate',
+    sipoc_stage_ref: 'ADJACENT_SEMANTIC_GATE',
     required_inputs: ['verified_story_layer_handoff_v1'],
     required_authority_proof: false,
     output_artifacts: ['semantic_gate_result_v1', 'accepted_story_context_v1'],
@@ -131,6 +162,7 @@ export const CHECKLIST_MATRIX: readonly ChecklistMatrixRow[] = [
   {
     phase_id: 'phase_2',
     runtime_phase: 'phase_2',
+    sipoc_stage_ref: 'S08_ER2_NORMALIZATION',
     required_inputs: ['accepted_story_context_v1'],
     required_authority_proof: false,
     output_artifacts: ['criteria_evaluation_v1', 'criteria_recommendation_contract_v1', 'pass12_handoff_v1'],
@@ -141,6 +173,7 @@ export const CHECKLIST_MATRIX: readonly ChecklistMatrixRow[] = [
   {
     phase_id: 'phase_3',
     runtime_phase: 'phase_3',
+    sipoc_stage_ref: 'S07_PASS3',
     required_inputs: ['pass12_handoff_v1'],
     required_authority_proof: false,
     output_artifacts: ['evaluation_synthesis_v1', 'evaluation_result_v2'],
@@ -151,6 +184,7 @@ export const CHECKLIST_MATRIX: readonly ChecklistMatrixRow[] = [
   {
     phase_id: 'llr_quality_gate',
     runtime_phase: 'phase_3',
+    sipoc_stage_ref: 'ADJACENT_LLR',
     required_inputs: ['evaluation_result_v2'],
     required_authority_proof: false,
     output_artifacts: ['llr_quality_gate_result_v1', 'llr_recovery_checkpoint_v1'],
@@ -161,6 +195,7 @@ export const CHECKLIST_MATRIX: readonly ChecklistMatrixRow[] = [
   {
     phase_id: 'wave',
     runtime_phase: 'wave',
+    sipoc_stage_ref: 'ADJACENT_WAVE',
     required_inputs: ['evaluation_result_v2', 'accepted_story_context_v1'],
     required_authority_proof: false,
     output_artifacts: ['wave_readiness_analysis_v1', 'wave_revision_guidance_v1'],
@@ -171,6 +206,7 @@ export const CHECKLIST_MATRIX: readonly ChecklistMatrixRow[] = [
   {
     phase_id: 'revise_admission',
     runtime_phase: 'revise',
+    sipoc_stage_ref: 'ADJACENT_REVISE',
     required_inputs: ['revise_opportunity_seed_v1'],
     required_authority_proof: false,
     output_artifacts: ['revise_admission_result_v1', 'revise_candidate_validation_v1'],
@@ -181,6 +217,7 @@ export const CHECKLIST_MATRIX: readonly ChecklistMatrixRow[] = [
   {
     phase_id: 'revise_queue_package',
     runtime_phase: 'revise',
+    sipoc_stage_ref: 'ADJACENT_REVISE',
     required_inputs: ['revise_admission_result_v1', 'revise_candidate_validation_v1'],
     required_authority_proof: false,
     output_artifacts: ['revise_queue_package_v1'],
@@ -191,6 +228,7 @@ export const CHECKLIST_MATRIX: readonly ChecklistMatrixRow[] = [
   {
     phase_id: 'final_render',
     runtime_phase: 'final_render',
+    sipoc_stage_ref: 'S11_RENDERER',
     required_inputs: ['evaluation_result_v2'],
     required_authority_proof: false,
     output_artifacts: ['report_render_manifest_v1', 'job_checkpoint_manifest_v1'],
