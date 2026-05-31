@@ -3,6 +3,7 @@ import { getAuthenticatedUser } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { isTerminalFailureCode, classifyFailureBucket } from '@/lib/evaluation/processor';
 import { upsertEvaluationArtifact } from '@/lib/evaluation/artifactPersistence';
+import { selectResumeCheckpoint } from '@/lib/evaluation/phase-architecture-v2/checklistRuntimeWiring';
 
 /** Short deployed git SHA — same pattern as processor.ts */
 const RESUME_DEPLOYED_SHA: string =
@@ -15,25 +16,10 @@ type Params = Promise<{ jobId: string }>;
  *
  * USER-FACING: Resume a failed evaluation job from its last checkpoint.
  *
- * PR-E (chunk-level checkpointing): When a job fails mid-Pass1, each completed
- * chunk has been written to a pass1_chunk_cache_v1 evaluation_artifact row.
- * This endpoint requeues the job so the next worker invocation will:
- *   1. Load the chunk cache artifact
- *   2. Skip already-completed chunk indices
- *   3. Continue Pass1 from the first incomplete chunk
- *
- * The job is NOT cloned — the same job_id is reused. This preserves all
- * progress metadata, failure history, and checkpoint artifacts.
- *
- * Eligibility rules:
- *   - Job must be owned by the authenticated user
- *   - Job must have status='failed'
- *   - Job must not already be queued or running (idempotency guard)
- *   - attempt_count must be below max_attempts (3) OR operator override
- *
- * Response:
- *   { success: true, job_id, queued_at, has_checkpoint, cached_chunks } (202)
- *   { error: string } with status 400|401|403|404|409
+ * Resume selection is checklist-aware:
+ *   1. Prefer the last schema-valid + semantically usable + resume-safe artifact.
+ *   2. Fall back to legacy phase handoff/chunk checkpoint only when no checklist-safe artifact exists.
+ *   3. Use full restart only when no valid checkpoint exists.
  */
 export async function POST(
   _request: NextRequest,
@@ -53,7 +39,6 @@ export async function POST(
   const admin = createAdminClient();
 
   try {
-    // ── 1. Ownership + status check ──────────────────────────────────────────
     const { data: job, error: jobError } = await admin
       .from('evaluation_jobs')
       .select(
@@ -70,9 +55,6 @@ export async function POST(
       );
     }
 
-    // Only failed jobs can be resumed.
-    // Terminal failure codes (QG_*, governance, schema, auth) are not recoverable
-    // by re-running — resuming would loop forever.  Surface a clear error.
     const jobRow = job as Record<string, unknown>;
     const jobFailureCode = jobRow.failure_code as string | null | undefined;
     const jobManuscriptId = jobRow.manuscript_id as number;
@@ -81,8 +63,6 @@ export async function POST(
       const deniedAt = new Date().toISOString();
       const bucket = classifyFailureBucket(jobFailureCode);
 
-      // Write durable blocked-resume audit artifact — best-effort, non-fatal.
-      // Lets operators trace why a user couldn't resume and what fix is needed.
       try {
         await upsertEvaluationArtifact({
           supabase: admin,
@@ -111,7 +91,6 @@ export async function POST(
           artifactVersion: 'resume_blocked_v1',
         });
       } catch (artifactErr) {
-        // Non-fatal — the 409 response is what matters
         console.warn('[JobResume] resume_blocked_v1 artifact write failed (non-fatal):', jobId,
           artifactErr instanceof Error ? artifactErr.message : String(artifactErr));
       }
@@ -127,7 +106,6 @@ export async function POST(
       );
     }
 
-    // Only failed jobs can be resumed.
     if (job.status !== 'failed') {
       return NextResponse.json(
         {
@@ -138,7 +116,6 @@ export async function POST(
       );
     }
 
-    // Guard: don't re-queue if already queued/running (shouldn't happen, but be safe).
     if (job.status === 'queued' || job.status === 'running') {
       return NextResponse.json(
         { error: 'Job is already active', current_status: job.status },
@@ -146,9 +123,6 @@ export async function POST(
       );
     }
 
-    // ── 2. Check for checkpoint artifact ────────────────────────────────────
-    // Surface checkpoint metadata in the response so the client can display
-    // "Resuming from chunk N of M" vs. "Restarting from scratch".
     let hasCheckpoint = false;
     let cachedChunks = 0;
     let totalExpectedChunks = 0;
@@ -173,25 +147,24 @@ export async function POST(
       }
     }
 
-    // Also check for a phase-split handoff artifact (Pass1+Pass2 complete, Pass3 pending).
-    let hasPhase2Handoff = false;
-    const { data: handoffRow } = await admin
+    const { data: artifactRows } = await admin
       .from('evaluation_artifacts')
-      .select('id')
+      .select('id, artifact_type, content, source_hash, created_at')
       .eq('job_id', jobId)
-      .eq('artifact_type', 'pass12_handoff_v1')
-      .maybeSingle();
+      .order('created_at', { ascending: true });
 
-    if (handoffRow?.id) {
-      hasPhase2Handoff = true;
-    }
+    const hasPhase2Handoff = (artifactRows ?? []).some(
+      (row) => row.artifact_type === 'pass12_handoff_v1',
+    );
 
-    // ── 3. Requeue the job ───────────────────────────────────────────────────
-    // Reset status and phase_status back to 'queued' so the cron worker picks it up.
-    // - If a phase-split handoff exists: route to phase_2 (skip phase_1a re-run)
-    // - Otherwise: route to phase_1a (full re-run from character ledger)
+    const checkpointDecision = selectResumeCheckpoint({
+      rows: artifactRows ?? [],
+      hasLegacyPhase2Handoff: hasPhase2Handoff,
+      hasLegacyChunkCheckpoint: hasCheckpoint,
+    });
+
     const now = new Date().toISOString();
-    const targetPhase = hasPhase2Handoff ? 'phase_2' : 'phase_1a';
+    const targetPhase = checkpointDecision.target_phase;
 
     const existingProgress =
       job.progress && typeof job.progress === 'object'
@@ -202,12 +175,17 @@ export async function POST(
       ...existingProgress,
       phase: targetPhase,
       phase_status: 'queued',
-      // PR-E: surface resume context in progress so operators can trace it
       resume_requested_at: now,
+      resume_mode: checkpointDecision.resume_mode,
+      resume_checkpoint_artifact_type: checkpointDecision.checkpoint_artifact_type ?? null,
+      resume_checkpoint_artifact_id: checkpointDecision.checkpoint_artifact_id ?? null,
       resume_has_checkpoint: hasCheckpoint,
       resume_cached_chunks: cachedChunks,
       resume_total_expected_chunks: totalExpectedChunks,
       resume_has_phase2_handoff: hasPhase2Handoff,
+      resume_selected_by: checkpointDecision.resume_mode === 'checklist_resume_safe'
+        ? 'checklist_enforcer'
+        : 'legacy_checkpoint_fallback',
     };
 
     const { error: requeueError } = await admin
@@ -222,7 +200,7 @@ export async function POST(
         progress: resumeProgress,
       })
       .eq('id', jobId)
-      .eq('status', 'failed'); // Idempotency: only update if still failed
+      .eq('status', 'failed');
 
     if (requeueError) {
       return NextResponse.json(
@@ -231,24 +209,19 @@ export async function POST(
       );
     }
 
-    // ── 4. Respond with resume context ───────────────────────────────────────
-    const resumeMode = hasPhase2Handoff
-      ? 'phase2_handoff' // Fastest — only Pass3 needed
-      : hasCheckpoint
-      ? 'chunk_checkpoint' // Resume Pass1 from chunk N
-      : 'full_restart'; // No checkpoint — honest full re-run
-
     return NextResponse.json(
       {
         success: true,
         job_id: jobId,
         queued_at: now,
-        resume_mode: resumeMode,
+        resume_mode: checkpointDecision.resume_mode,
         has_checkpoint: hasCheckpoint,
         cached_chunks: cachedChunks,
         total_expected_chunks: totalExpectedChunks,
         has_phase2_handoff: hasPhase2Handoff,
         target_phase: targetPhase,
+        checkpoint_artifact_type: checkpointDecision.checkpoint_artifact_type ?? null,
+        checkpoint_artifact_id: checkpointDecision.checkpoint_artifact_id ?? null,
       },
       { status: 202 },
     );
