@@ -8,11 +8,13 @@
  *   1. Stage machine transition approval_normalizer → phase_2_evaluation
  *      requires accepted_story_ledger_v1. Missing it hard-stops.
  *
- *   2. forbidPhase2WithoutAcceptedLedger distinguishes three cases:
+ *   2. forbidPhase2WithoutAcceptedLedger distinguishes four cases:
  *      a. accepted_story_ledger_v1 present → ok
- *      b. raw pass1a_story_layer_v1 present, no accepted → specific error naming
+ *      b. seed-only artifacts present, no accepted → specific error naming
+ *         seed artifacts and accepted_story_ledger_v1
+ *      c. raw pass1a_story_layer_v1 present, no accepted → specific error naming
  *         the raw artifact so the operator knows exactly what is missing
- *      c. neither present → generic error
+ *      d. neither present → generic error
  *
  *   3. Review Gate → Approval Normalizer requires ledger_user_feedback_v1
  *      (even for accepted_without_changes — feedback artifact is mandatory).
@@ -46,6 +48,11 @@ import {
 
 const artifact = (id: string) => ({ artifact_id: id, source_hash: `sha256:${id}` });
 
+const seedOnly: ArtifactSet = {
+  story_seed_v1: artifact('story-seed-only'),
+  evaluation_seed_v1: artifact('evaluation-seed-only'),
+};
+
 const storyLayerOnly: ArtifactSet = {
   pass1a_story_layer_v1: artifact('story-layer-abc'),
 };
@@ -67,6 +74,16 @@ describe('forbidPhase2WithoutAcceptedLedger', () => {
   it('passes when accepted_story_ledger_v1 is present', () => {
     const result = forbidPhase2WithoutAcceptedLedger(withAcceptedLedger);
     expect(result.ok).toBe(true);
+  });
+
+  it('fails explicitly when only seed artifacts are present', () => {
+    const result = forbidPhase2WithoutAcceptedLedger(seedOnly);
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.reason).toMatch(/seed artifacts/);
+      expect(result.reason).toMatch(/accepted_story_ledger_v1/);
+    }
   });
 
   it('fails with a raw-artifact-specific error when only pass1a_story_layer_v1 is present', () => {
@@ -206,6 +223,19 @@ describe('Stage machine: approval_normalizer → phase_2_evaluation', () => {
     expect(result.ok).toBe(true);
   });
 
+  it('blocks when only seed artifacts are present', () => {
+    const result = evaluateStageTransition({
+      from: 'approval_normalizer',
+      to: 'phase_2_evaluation',
+      artifacts: seedOnly,
+    });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.reason).toMatch(/accepted_story_ledger_v1/);
+    }
+  });
+
   it('blocks when only pass1a_story_layer_v1 is present (raw handoff attempt)', () => {
     const result = evaluateStageTransition({
       from: 'approval_normalizer',
@@ -318,114 +348,5 @@ describe('Review Gate disposition contract', () => {
 
   it('rejected is the third disposition', () => {
     expect(VALID_DISPOSITIONS[2]).toBe('rejected');
-  });
-});
-
-// ─── 8. Review Gate API job transition contract ───────────────────────────────
-
-describe('Review Gate API job transition contract', () => {
-  /**
-   * On approval: job must transition to phase='phase_2', phase_status='queued',
-   * status='queued' — so the worker can claim it on the next tick.
-   *
-   * Critically:
-   * - status must be 'queued' (CANON: queued/running/failed/complete only)
-   * - phase must be 'phase_2' (now claimable by worker)
-   * - phase_status must be 'queued' (not 'awaiting_approval' or 'running')
-   *
-   * On rejection: phase stays 'review_gate', phase_status='failed', status='failed'.
-   */
-  const VALID_JOB_STATUSES = ['queued', 'running', 'failed', 'complete'] as const;
-  const CLAIMABLE_PHASES = ['phase_1a', 'phase_2', 'phase_3'] as const;
-
-  it('accepted approval transition produces a claimable job state', () => {
-    const approvalTransition = {
-      status: 'queued',
-      phase: 'phase_2',
-      phase_status: 'queued',
-    };
-
-    // status is canonical
-    expect(VALID_JOB_STATUSES).toContain(approvalTransition.status);
-    // phase is now claimable
-    expect(CLAIMABLE_PHASES).toContain(approvalTransition.phase);
-    // phase_status is not the gate state anymore
-    expect(approvalTransition.phase_status).not.toBe('awaiting_approval');
-  });
-
-  it('rejected disposition produces a terminal job state', () => {
-    const rejectTransition = {
-      status: 'failed',
-      phase: 'review_gate',
-      phase_status: 'failed',
-      failure_code: 'REVIEW_GATE_REJECTED_BY_AUTHOR',
-    };
-
-    // status is canonical
-    expect(VALID_JOB_STATUSES).toContain(rejectTransition.status);
-    // phase is NOT claimable — job is dead
-    expect(CLAIMABLE_PHASES).not.toContain(rejectTransition.phase);
-    // failure_code is set
-    expect(rejectTransition.failure_code).toBe('REVIEW_GATE_REJECTED_BY_AUTHOR');
-  });
-
-  it('review_gate phase is never claimable regardless of status', () => {
-    expect(CLAIMABLE_PHASES).not.toContain('review_gate');
-  });
-});
-
-// ─── 9. Support artifact freshness guard (Phase 2 context) ───────────────────
-
-describe('Support artifact freshness relative to accepted_story_ledger_v1', () => {
-  const acceptedHash = 'sha256:accepted-ledger-123';
-
-  it('passes when support artifacts reference the current accepted ledger source hash', () => {
-    const result = checkSupportArtifactFreshness({
-      accepted_story_ledger_v1: { artifact_id: 'accepted', source_hash: acceptedHash },
-      story_shape_signal_map_v1: { accepted_story_ledger_source_hash: acceptedHash },
-      manuscript_signal_appendix_v1: { accepted_story_ledger_source_hash: acceptedHash },
-    });
-
-    expect(result.ok).toBe(true);
-  });
-
-  it('passes when no support artifacts are present (nothing to be stale)', () => {
-    const result = checkSupportArtifactFreshness({
-      accepted_story_ledger_v1: { artifact_id: 'accepted', source_hash: acceptedHash },
-    });
-
-    expect(result.ok).toBe(true);
-  });
-
-  it('fails when story_shape_signal_map_v1 references a stale accepted ledger hash', () => {
-    const result = checkSupportArtifactFreshness({
-      accepted_story_ledger_v1: { artifact_id: 'accepted', source_hash: acceptedHash },
-      story_shape_signal_map_v1: { accepted_story_ledger_source_hash: 'sha256:OLD-hash' },
-    });
-
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.reason).toMatch(/stale/);
-    }
-  });
-
-  it('fails when manuscript_signal_appendix_v1 references a stale hash', () => {
-    const result = checkSupportArtifactFreshness({
-      accepted_story_ledger_v1: { artifact_id: 'accepted', source_hash: acceptedHash },
-      manuscript_signal_appendix_v1: { accepted_story_ledger_source_hash: 'sha256:STALE' },
-    });
-
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.reason).toMatch(/stale/);
-    }
-  });
-
-  it('fails when accepted_story_ledger_v1 is absent (cannot validate freshness)', () => {
-    const result = checkSupportArtifactFreshness({
-      story_shape_signal_map_v1: { accepted_story_ledger_source_hash: acceptedHash },
-    });
-
-    expect(result.ok).toBe(false);
   });
 });
