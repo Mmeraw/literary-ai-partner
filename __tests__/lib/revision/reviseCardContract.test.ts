@@ -30,6 +30,35 @@ describe('revise card contract', () => {
     expect(result).toEqual({ readiness: 'ready_for_revise', reason: null })
   })
 
+  test('keeps sparse-manuscript opportunities visible as needs targeting instead of failing the queue', () => {
+    const result = validateReviseCardContract({
+      issueStatement: 'The excerpt is too brief to prove whether the image pays off later.',
+      symptom: 'Only one local image is available in the submitted sample.',
+      cause: 'The submission is sparse, so global pattern evidence is unavailable.',
+      fixStrategy: 'Render the item as cautionary targeting instead of suppressing the evaluation.',
+      readerImpact: 'The author sees the limitation without losing the evaluation or Revise path.',
+      operationNote: 'needs_targeting · Sparse 200-word submission',
+      sourceText: 'No excerpt available — sparse submission requires author confirmation before A/B/C prose.',
+      sourceLocationLabel: 'Location pending',
+      revisionOperation: 'replace_selected_passage',
+      candidateTexts: [
+        'A valid replacement could exist here.',
+        'A second valid replacement could exist here.',
+        'A third valid replacement could exist here.',
+      ],
+    })
+
+    expect(result.readiness).toBe('needs_targeting')
+    expect(result.reason).toMatch(/source location/i)
+  })
+
+  test('allows ordinary manuscript prose containing modal verbs and common action verbs', () => {
+    expect(candidateTextIsCopyPasteReady('She would have entered the chapel if the bell had not begun to shake.')).toBe(true)
+    expect(candidateTextIsCopyPasteReady('He could not breathe until the lantern shows the empty room.')).toBe(true)
+    expect(candidateTextIsCopyPasteReady('He moved to repair the latch before the wind reached the cradle.')).toBe(true)
+    expect(candidateTextIsCopyPasteReady('The boy will carry the letter because no one else can lift it.')).toBe(true)
+  })
+
   test('shunts no-excerpt and location-pending cards to needs targeting', () => {
     const result = validateReviseCardContract({
       issueStatement: 'The recommendation is not targetable yet.',
@@ -102,7 +131,7 @@ describe('revise card contract', () => {
     expect(operationRequiresStructuralPreview('replace_selected_passage')).toBe(false)
   })
 
-  test('routes candidate to needs_targeting when it repeats the issue statement', () => {
+  test('routes short issue restatement to needs_targeting', () => {
     const result = validateReviseCardContract({
       issueStatement: 'The paragraph loses cause-and-effect clarity at the pivot.',
       symptom: 'Causal pivot is implied rather than explicit.',
@@ -122,6 +151,15 @@ describe('revise card contract', () => {
 
     expect(result.readiness).toBe('needs_targeting')
     expect(result.reason).toMatch(/copy-paste ready/i)
+  })
+
+  test('allows longer manuscript prose that shares vocabulary with the issue statement', () => {
+    const visible = getRenderableCandidateText({
+      candidateText: 'The paragraph lost its cause-and-effect clarity only when he turned away from the fire, then named the consequence he had caused.',
+      issueStatement: 'The paragraph loses cause-and-effect clarity at the pivot.',
+    })
+
+    expect(visible).toBe('The paragraph lost its cause-and-effect clarity only when he turned away from the fire, then named the consequence he had caused.')
   })
 
   test('hides candidate prose from renderer when candidate duplicates issue statement', () => {
