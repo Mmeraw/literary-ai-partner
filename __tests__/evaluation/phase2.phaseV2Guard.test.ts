@@ -1,7 +1,16 @@
 import { guardPhase2Start } from '../../lib/evaluation/phase-architecture-v2/phase2Guard';
 import type { PhaseV2ArtifactSet, PhaseV2Progress } from '../../lib/evaluation/phase-architecture-v2/gateValidity';
+import type { ChecklistArtifactState } from '../../lib/evaluation/phase-architecture-v2/checklistEnforcer';
 
 const artifact = (id: string) => ({ artifact_id: id, source_hash: `sha256:${id}` });
+const checklistArtifact = (artifact_type: ChecklistArtifactState['artifact_type']): ChecklistArtifactState => ({
+  artifact_type,
+  artifact_id: `${artifact_type}-id`,
+  schema_valid: true,
+  semantic_status: 'valid',
+  is_resume_safe: true,
+  checksum: `${artifact_type}-checksum`,
+});
 
 const acceptedArtifacts: PhaseV2ArtifactSet = {
   accepted_story_ledger_v1: artifact('accepted-ledger'),
@@ -101,5 +110,36 @@ describe('Phase Architecture v2 — Phase 2 guard helper', () => {
     expect(result.can_start_phase2).toBe(true);
     expect(result.progress_patch.phase2_preflight_gate).toBe('passed');
     expect(result.progress_patch.pass3a_gate_validity).toBe('gate_valid');
+  });
+
+  it('blocks Phase 2 when checklist accepted_story_context_v1 is missing', () => {
+    const result = guardPhase2Start(
+      doneProgress,
+      {
+        ...acceptedArtifacts,
+        pass3_preflight_draft_v1: artifact('preflight'),
+      },
+      {},
+    );
+
+    expect(result.ok).toBe(false);
+    expect(result.can_start_phase2).toBe(false);
+    expect(result.progress_patch.phase2_preflight_gate_code).toBe('CHECKLIST_REQUIRED_INPUT_MISSING');
+  });
+
+  it('allows Phase 2 when legacy preconditions and checklist accepted context are valid', () => {
+    const result = guardPhase2Start(
+      doneProgress,
+      {
+        ...acceptedArtifacts,
+        pass3_preflight_draft_v1: artifact('preflight'),
+      },
+      {
+        accepted_story_context_v1: checklistArtifact('accepted_story_context_v1'),
+      },
+    );
+
+    expect(result.ok).toBe(true);
+    expect(result.can_start_phase2).toBe(true);
   });
 });
