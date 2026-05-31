@@ -4,6 +4,18 @@ import { countWords } from '@/lib/evaluation/pipeline/submissionScope';
 import { buildSeedFitGapReport, type SeedFitGapReportV1 } from '@/lib/evaluation/seed/seedCompletenessGuard';
 import { buildCompleteEvaluationSeedV1, buildCompleteStorySeedV1 } from '@/lib/evaluation/seed/seedScaffoldFactory';
 
+type PersistableSeedArtifactType = 'story_seed_v1' | 'evaluation_seed_v1' | 'seed_fit_gap_report_v1';
+
+const persistSeedArtifact = upsertEvaluationArtifact as unknown as (params: {
+  supabase: SupabaseClient<any, any, any>;
+  jobId: string;
+  manuscriptId: number;
+  artifactType: PersistableSeedArtifactType;
+  artifactVersion: string;
+  sourceHash: string;
+  content: unknown;
+}) => Promise<string>;
+
 export type Phase1aSeedGateResult = {
   ok: true;
   storySeed: unknown;
@@ -47,7 +59,7 @@ export async function ensureCompleteSeedsBeforePhase1a(args: {
   let storySeed = existing.get('story_seed_v1');
   if (!storySeed) {
     storySeed = buildCompleteStorySeedV1({ generatedAt: now });
-    await upsertEvaluationArtifact({
+    await persistSeedArtifact({
       supabase: args.supabase,
       jobId: args.jobId,
       manuscriptId: args.manuscriptId,
@@ -72,7 +84,7 @@ export async function ensureCompleteSeedsBeforePhase1a(args: {
       wordCount: countWords(args.manuscriptText),
       workType: args.workType,
     });
-    await upsertEvaluationArtifact({
+    await persistSeedArtifact({
       supabase: args.supabase,
       jobId: args.jobId,
       manuscriptId: args.manuscriptId,
@@ -92,7 +104,7 @@ export async function ensureCompleteSeedsBeforePhase1a(args: {
 
   const fitGapReport = buildSeedFitGapReport({ storySeed, evaluationSeed, generatedAt: now });
 
-  await upsertEvaluationArtifact({
+  await persistSeedArtifact({
     supabase: args.supabase,
     jobId: args.jobId,
     manuscriptId: args.manuscriptId,
