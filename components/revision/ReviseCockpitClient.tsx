@@ -8,6 +8,7 @@ import {
   operationLabels,
   REVISION_OPTION_LABELS,
 } from "@/lib/revision/reviseCardContract";
+import type { RevisionOperation } from "@/lib/revision/reviseCardContract";
 
 type DecisionState = "accepted_a" | "accepted_b" | "accepted_c" | "custom" | "keep_original" | "reject" | "deferred";
 type DecisionFilter = "all" | "pending" | "accepted" | "custom" | "kept_original" | "rejected" | "deferred";
@@ -33,8 +34,6 @@ type LedgerEntry = {
   queueType?: QueueType;
   source?: WorkbenchSource;
   evidenceStatus?: EvidenceStatus;
-  isUndo?: boolean;
-  undoneLocalId?: string;
   syncStatus: "pending" | "synced" | "failed";
 };
 
@@ -62,6 +61,15 @@ type Filters = {
 };
 
 const OPTION_KEYS: OptionKey[] = ["A", "B", "C"];
+const LEDGER_FILTERS: Array<{ value: DecisionFilter; label: string }> = [
+  { value: "all", label: "All" },
+  { value: "accepted", label: "Accepted" },
+  { value: "custom", label: "Custom" },
+  { value: "kept_original", label: "Kept" },
+  { value: "rejected", label: "Rejected" },
+  { value: "deferred", label: "Deferred" },
+  { value: "pending", label: "Pending" },
+];
 
 function localId() {
   return `local-${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -94,8 +102,6 @@ function ledgerEntryFromServerRow(row: ServerLedgerEntry): LedgerEntry {
     customText: row.custom_text ?? undefined,
     sourceExcerpt: row.source_excerpt ?? undefined,
     sourceLocation: row.source_location ?? undefined,
-    isUndo: row.is_undo,
-    undoneLocalId: row.undone_local_id ?? undefined,
     syncStatus: "synced",
   };
 }
@@ -127,6 +133,20 @@ function evidenceStatusOf(item: WorkbenchOpportunity): EvidenceStatus {
   return "missing_evidence";
 }
 
+function effectiveRevisionOperation(item: WorkbenchOpportunity): RevisionOperation {
+  const current = item.revisionOperation;
+  const haystack = [item.title, item.issueStatement, item.fixDirection, item.diagnostic?.operationTargeting, sourceTextOf(item)]
+    .map(normalize)
+    .join(" ")
+    .toLowerCase();
+
+  if (current === "replace_selected_passage" && /\b(insert|add|include|introduce)\b/.test(haystack)) {
+    return /\bbefore\b/.test(haystack) ? "insert_before_selected_passage" : "insert_after_selected_passage";
+  }
+
+  return current;
+}
+
 function decisionGroup(decision?: DecisionState): Exclude<DecisionFilter, "all"> {
   if (!decision) return "pending";
   if (decision === "accepted_a" || decision === "accepted_b" || decision === "accepted_c") return "accepted";
@@ -152,7 +172,7 @@ function severityClass(severity: WorkbenchOpportunity["severity"]) {
   return "border-[#48603F]/70 bg-[#2D3B2A]/35 text-[#BBD8B4]";
 }
 
-function truncate(value: string, max = 320) {
+function truncate(value: string, max = 300) {
   const clean = value.replace(/\s+/g, " ").trim();
   return clean.length > max ? `${clean.slice(0, max).trim()}…` : clean;
 }
@@ -161,15 +181,24 @@ function optionFor(item: WorkbenchOpportunity, key: OptionKey) {
   return item.options.find((option) => option.key === key);
 }
 
-function candidateTextOf(option: { candidateText?: string; text?: string }, issueStatement?: string) {
+function rawCandidateTextOf(option: { candidateText?: string; text?: string }) {
+  return normalize(option.candidateText ?? option.text ?? "");
+}
+
+function renderedCandidateTextOf(option: { candidateText?: string; text?: string }, issueStatement?: string) {
   return getRenderableCandidateText({
     candidateText: option.candidateText ?? option.text ?? "",
     issueStatement,
   });
 }
 
+function displayCandidateTextOf(option: { candidateText?: string; text?: string }, issueStatement?: string) {
+  return renderedCandidateTextOf(option, issueStatement) || rawCandidateTextOf(option);
+}
+
 function candidateRepeatsSourceForInsertion(item: WorkbenchOpportunity, candidateText: string) {
-  if (item.revisionOperation !== "insert_before_selected_passage" && item.revisionOperation !== "insert_after_selected_passage") return false;
+  const operation = effectiveRevisionOperation(item);
+  if (operation !== "insert_before_selected_passage" && operation !== "insert_after_selected_passage") return false;
 
   const source = compareText(sourceTextOf(item));
   const candidate = compareText(candidateText);
@@ -190,18 +219,18 @@ function optionIsOperationSafe(item: WorkbenchOpportunity, candidateText: string
 
 function canAcceptOption(item: WorkbenchOpportunity, key: OptionKey) {
   if (item.readiness !== "ready_for_revise") return false;
-  if (item.revisionOperation === "needs_targeting") return false;
+  if (effectiveRevisionOperation(item) === "needs_targeting") return false;
 
   const option = optionFor(item, key);
   if (!option) return false;
 
-  const candidateText = candidateTextOf(option, item.issueStatement);
+  const candidateText = renderedCandidateTextOf(option, item.issueStatement);
   return optionIsOperationSafe(item, candidateText);
 }
 
 function cardIsLiveReady(item: WorkbenchOpportunity) {
   if (item.readiness !== "ready_for_revise") return false;
-  if (item.revisionOperation === "needs_targeting") return false;
+  if (effectiveRevisionOperation(item) === "needs_targeting") return false;
   if (evidenceStatusOf(item) === "missing_evidence") return false;
   return OPTION_KEYS.every((key) => canAcceptOption(item, key));
 }
@@ -218,7 +247,7 @@ function uniqueById(items: WorkbenchOpportunity[]) {
 }
 
 function optionSectionLabel(item: WorkbenchOpportunity) {
-  switch (item.revisionOperation) {
+  switch (effectiveRevisionOperation(item)) {
     case "insert_before_selected_passage":
     case "insert_after_selected_passage":
       return "Suggested insertions";
@@ -244,7 +273,7 @@ function optionSectionLabel(item: WorkbenchOpportunity) {
 }
 
 function operationInstruction(item: WorkbenchOpportunity) {
-  switch (item.revisionOperation) {
+  switch (effectiveRevisionOperation(item)) {
     case "insert_before_selected_passage":
       return "Insert copy-ready prose before the selected passage.";
     case "insert_after_selected_passage":
@@ -277,7 +306,7 @@ function revisionTaskOf(item: WorkbenchOpportunity) {
 
 function readinessReason(item: WorkbenchOpportunity) {
   if (item.readiness !== "ready_for_revise") return item.readinessReason ?? "This card needs exact source targeting before it can be accepted.";
-  if (item.revisionOperation === "needs_targeting") return "Revision operation is not specific enough for safe apply.";
+  if (effectiveRevisionOperation(item) === "needs_targeting") return "Revision operation is not specific enough for safe apply.";
   if (evidenceStatusOf(item) === "missing_evidence") return "Missing exact source excerpt or usable manuscript anchor.";
   if (!OPTION_KEYS.every((key) => canAcceptOption(item, key))) return "One or more A/B/C options are not copy-ready or do not match the declared revision operation.";
   return null;
@@ -337,8 +366,7 @@ export default function ReviseCockpitClient({ payload }: { payload: WorkbenchQue
   const active = allCards.find((item) => item.id === activeId) ?? filtered[0] ?? allCards[0] ?? null;
   const activeIndex = active ? Math.max(0, filtered.findIndex((item) => item.id === active.id)) : 0;
   const selectedProposal = active ? optionFor(active, selectedOption) ?? active.options[0] ?? null : null;
-  const selectedCandidateText = active && selectedProposal ? candidateTextOf(selectedProposal, active.issueStatement) : "";
-  const canAcceptSelection = active ? canAcceptOption(active, selectedOption) : false;
+  const selectedCandidateText = active && selectedProposal ? displayCandidateTextOf(selectedProposal, active.issueStatement) : "";
 
   const counts = useMemo(() => {
     const result = { pending: 0, accepted: 0, custom: 0, kept: 0, rejected: 0, deferred: 0 };
@@ -353,6 +381,11 @@ export default function ReviseCockpitClient({ payload }: { payload: WorkbenchQue
     }
     return result;
   }, [allCards, decisionById]);
+
+  const visibleLedger = useMemo(() => {
+    if (filters.status === "all") return ledger;
+    return ledger.filter((entry) => decisionGroup(entry.decision) === filters.status);
+  }, [filters.status, ledger]);
 
   useEffect(() => {
     if (!activeId && filtered[0]) setActiveId(filtered[0].id);
@@ -437,7 +470,7 @@ export default function ReviseCockpitClient({ payload }: { payload: WorkbenchQue
               queueType: entry.queueType ?? null,
               opportunitySource: entry.source ?? null,
               evidenceStatus: entry.evidenceStatus ?? null,
-              revisionOperation: item.revisionOperation,
+              revisionOperation: effectiveRevisionOperation(item),
               cardLiveReady: cardIsLiveReady(item),
             },
           }],
@@ -466,7 +499,7 @@ export default function ReviseCockpitClient({ payload }: { payload: WorkbenchQue
       decision,
       selectedOption: option,
       customText: custom?.trim() || undefined,
-      selectedText: proposal ? candidateTextOf(proposal, active.issueStatement) : custom?.trim() ?? undefined,
+      selectedText: proposal ? renderedCandidateTextOf(proposal, active.issueStatement) : custom?.trim() ?? undefined,
       sourceExcerpt: sourceTextOf(active) || undefined,
       sourceLocation: active.anchor || active.meta || undefined,
       criterion: criterionOf(active),
@@ -485,7 +518,7 @@ export default function ReviseCockpitClient({ payload }: { payload: WorkbenchQue
 
   async function copyOptionText(text: string) {
     if (!text.trim()) {
-      setCopyMessage("Candidate withheld");
+      setCopyMessage("Candidate unavailable");
       return;
     }
 
@@ -499,7 +532,7 @@ export default function ReviseCockpitClient({ payload }: { payload: WorkbenchQue
 
   if (!payload.ok || !hasAnyQueueItems) {
     return (
-      <main className="flex h-[calc(100vh-72px)] items-center justify-center overflow-hidden bg-[#0D0A05] p-6 text-[#F5EFE4]">
+      <main className="fixed inset-x-0 bottom-0 top-[72px] z-10 flex items-center justify-center overflow-hidden bg-[#0D0A05] p-6 text-[#F5EFE4]">
         <section className="max-w-2xl rounded-2xl border border-[#3A3022] bg-[#1C160E] p-8">
           <p className="text-xs uppercase tracking-[0.22em] text-[#C8A96E]">Revision Cockpit</p>
           <h1 className="mt-3 text-3xl">No revision queue available.</h1>
@@ -510,8 +543,8 @@ export default function ReviseCockpitClient({ payload }: { payload: WorkbenchQue
   }
 
   return (
-    <main className="h-[calc(100vh-72px)] overflow-hidden bg-[#0D0A05] text-[#F5EFE4]">
-      <header className="flex h-12 items-center justify-between gap-3 border-b border-[#2E261A] bg-[#151008] px-4">
+    <main className="fixed inset-x-0 bottom-0 top-[72px] z-10 overflow-hidden bg-[#0D0A05] text-[#F5EFE4]">
+      <header className="flex h-11 items-center justify-between gap-3 border-b border-[#2E261A] bg-[#151008] px-4">
         <div className="min-w-0">
           <p className="text-[10px] uppercase tracking-[0.2em] text-[#C8A96E]">Revision Cockpit · surgical repair queue</p>
           <h1 className="truncate text-sm font-semibold text-[#F8F1E6]">{payload.manuscriptTitle}</h1>
@@ -527,7 +560,7 @@ export default function ReviseCockpitClient({ payload }: { payload: WorkbenchQue
         </div>
       </header>
 
-      <section className="grid h-[calc(100%-48px)] min-h-0 overflow-hidden xl:grid-cols-[310px_minmax(0,1fr)_280px]">
+      <section className="grid h-[calc(100%-44px)] min-h-0 overflow-hidden xl:grid-cols-[310px_minmax(0,1fr)]">
         <aside className="flex min-h-0 flex-col border-r border-[#2E261A] bg-[#110D07]">
           <div className="space-y-2 border-b border-[#2E261A] p-2">
             <input value={filters.search} onChange={(event) => setFilters((current) => ({ ...current, search: event.target.value }))} placeholder="Search queue" className="h-8 w-full rounded border border-[#3A3022] bg-[#0D0A05] px-2 text-xs outline-none focus:border-[#C8A96E]" />
@@ -567,118 +600,84 @@ export default function ReviseCockpitClient({ payload }: { payload: WorkbenchQue
               );
             })}
           </ol>
-
-          {liveOpportunities.length > 0 && needsTargeting.length > 0 && (
-            <section className="border-t border-[#2E261A] p-2">
-              <p className="mb-2 text-[10px] uppercase tracking-[0.2em] text-[#C8A96E]">Needs Targeting</p>
-              <ol className="max-h-32 space-y-1 overflow-y-auto">
-                {needsTargeting.slice(0, 20).map((item) => (
-                  <li key={item.id}>
-                    <button type="button" onClick={() => selectOpportunity(item.id)} className="w-full rounded border border-[#3A3022] bg-[#141008] p-2 text-left text-[11px] text-[#BDAE91] hover:border-[#5D4C31]">
-                      <p className="line-clamp-2 text-[#E2D4BB]">{item.title}</p>
-                      <p className="mt-1 line-clamp-2 text-[#A9987D]">{readinessReason(item)}</p>
-                    </button>
-                  </li>
-                ))}
-              </ol>
-            </section>
-          )}
         </aside>
 
         <section className="flex min-w-0 flex-col overflow-hidden bg-[#1C160E]">
           {active ? (
             <>
-              <div className="shrink-0 border-b border-[#2E261A] p-3">
+              <div className="shrink-0 border-b border-[#2E261A] p-2">
                 <div className="flex flex-wrap items-center gap-2 text-[11px] uppercase tracking-wider text-[#CDBB9A]">
                   <span className={`rounded px-2 py-1 ${severityClass(active.severity)}`}>{active.severity}</span>
                   <span className="rounded border border-[#5A4B33] px-2 py-1">{criterionOf(active)}</span>
                   <span className="rounded border border-[#5A4B33] px-2 py-1">{active.scope}</span>
-                  <span className="rounded border border-[#5A4B33] px-2 py-1">{operationLabels[active.revisionOperation] ?? "Revision operation missing"}</span>
+                  <span className="rounded border border-[#5A4B33] px-2 py-1">{operationLabels[effectiveRevisionOperation(active)] ?? "Revision operation missing"}</span>
                   <span className={`rounded border px-2 py-1 ${cardIsLiveReady(active) ? "border-[#48603F]/70 text-[#BBD8B4]" : "border-[#7A2B1A]/70 text-[#F1B6A5]"}`}>{cardIsLiveReady(active) ? "Ready" : "Needs Targeting"}</span>
                 </div>
-                <h2 className="mt-2 line-clamp-2 text-xl leading-tight text-[#F7EFDF]">{active.title}</h2>
-                <div className="mt-2 grid gap-1 text-xs text-[#CBBDA4] md:grid-cols-2">
-                  <p>Location: {active.anchor || active.meta || "Location pending"}</p>
-                  <p>Status: {decisionGroup(decisionById[active.id])}</p>
-                </div>
+                <h2 className="mt-1 line-clamp-2 text-lg leading-tight text-[#F7EFDF]">{active.title}</h2>
               </div>
 
-              <div className="min-h-0 flex-1 overflow-y-auto p-3">
-                {!cardIsLiveReady(active) && (
-                  <section className="mb-3 rounded-xl border border-[#7A2B1A]/60 bg-[#7A2B1A]/15 p-3 text-sm text-[#E9B19F]">
-                    <p className="font-semibold">Needs Targeting before live Revise</p>
-                    <p className="mt-1">{readinessReason(active)}</p>
-                  </section>
-                )}
+              <div className="min-h-0 flex-1 overflow-y-auto p-2">
+                <section className="rounded-xl border border-[#2E261A] bg-[#12100B] p-3">
+                  <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-[11px] uppercase tracking-[0.18em] text-[#C8A96E]">Diagnosis & Guardrails</p>
+                    {!cardIsLiveReady(active) && <span className="rounded border border-[#7A2B1A]/60 bg-[#7A2B1A]/15 px-2 py-1 text-[11px] text-[#E9B19F]">{readinessReason(active)}</span>}
+                  </div>
+                  <div className="grid gap-x-4 gap-y-1 text-sm leading-5 text-[#E8DCC4] xl:grid-cols-2">
+                    <p><span className="text-[#C8A96E]">Symptom:</span> {active.symptom || active.diagnostic?.symptom}</p>
+                    <p><span className="text-[#C8A96E]">Cause:</span> {active.cause || active.diagnostic?.cause}</p>
+                    <p><span className="text-[#C8A96E]">Fix:</span> {active.fixDirection || active.diagnostic?.fixStrategy}</p>
+                    <p><span className="text-[#C8A96E]">Reader effect:</span> {active.readerEffect || active.diagnostic?.readerImpact}</p>
+                    <p><span className="text-[#C8A96E]">Mistake-proofing:</span> {active.mistakeProofing || active.diagnostic?.mistakeProofing}</p>
+                    <p><span className="text-[#C8A96E]">Operation:</span> {operationLabels[effectiveRevisionOperation(active)] ?? "Needs targeting"}</p>
+                  </div>
+                </section>
 
-                <section className="grid gap-3 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+                <section className="mt-2 grid gap-2 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
                   <div className="rounded-xl border border-[#2E261A] bg-[#12100B] p-3">
                     <p className="text-[11px] uppercase tracking-[0.18em] text-[#C8A96E]">Original Passage</p>
                     {sourceTextOf(active) ? (
-                      <p className="mt-2 max-h-28 overflow-y-auto whitespace-pre-wrap text-sm leading-6 text-[#E8DCC4]">{sourceTextOf(active)}</p>
+                      <p className="mt-2 max-h-20 overflow-y-auto whitespace-pre-wrap text-sm leading-5 text-[#E8DCC4]">{sourceTextOf(active)}</p>
                     ) : (
-                      <p className="mt-2 text-sm leading-6 text-[#E2B2A6]">No exact passage is available yet. This card cannot enter live Revise until the source passage is targeted.</p>
+                      <p className="mt-2 text-sm leading-5 text-[#E2B2A6]">No exact passage is available yet. This card cannot enter live Revise until the source passage is targeted.</p>
                     )}
                     <p className="mt-1 text-xs text-[#A9987D]">{active.anchor || active.meta || "Location pending"}</p>
                   </div>
 
                   <div className="rounded-xl border border-[#2E261A] bg-[#12100B] p-3">
                     <p className="text-[11px] uppercase tracking-[0.18em] text-[#C8A96E]">Revision Task</p>
-                    <p className="mt-2 text-sm leading-6 text-[#E8DCC4]">{revisionTaskOf(active)}</p>
-                    <p className="mt-2 text-xs text-[#A9987D]">Revision operation: {operationLabels[active.revisionOperation] ?? "Needs targeting"}</p>
+                    <p className="mt-2 text-sm leading-5 text-[#E8DCC4]">{revisionTaskOf(active)}</p>
                   </div>
                 </section>
 
-                <section className="mt-3">
+                <section className="mt-2">
                   <p className="text-[11px] uppercase tracking-[0.18em] text-[#C8A96E]">{optionSectionLabel(active)}</p>
                 </section>
 
                 <div className="mt-2 grid gap-2 xl:grid-cols-3">
                   {active.options.map((option) => {
-                    const candidateText = candidateTextOf(option, active.issueStatement);
+                    const displayText = displayCandidateTextOf(option, active.issueStatement);
                     const copyReady = canAcceptOption(active, option.key);
                     return (
                       <article key={option.key} onClick={() => setSelectedOption(option.key)} className={`cursor-pointer rounded-xl border bg-[#12100B] p-3 transition ${selectedOption === option.key ? "border-[#C8A96E]" : "border-[#2E261A] hover:border-[#5D4C31]"}`}>
                         <div className="flex items-start justify-between gap-2">
                           <div>
                             <p className="text-sm font-semibold text-[#F2E8D6]">{REVISION_OPTION_LABELS[option.key]}</p>
-                            <p className="mt-1 text-[11px] uppercase tracking-wider text-[#A9987D]">{operationLabels[active.revisionOperation] ?? option.mechanism}</p>
+                            <p className="mt-1 text-[11px] uppercase tracking-wider text-[#A9987D]">{operationLabels[effectiveRevisionOperation(active)] ?? option.mechanism}</p>
                           </div>
                           <div className="flex shrink-0 items-center gap-1">
-                            <button type="button" onClick={(event) => { event.stopPropagation(); void copyOptionText(candidateText); }} disabled={!copyReady} className="rounded border border-[#5D4C31] px-2 py-1 text-xs font-semibold text-[#E8DABF] disabled:opacity-40">Copy</button>
+                            <button type="button" onClick={(event) => { event.stopPropagation(); void copyOptionText(displayText); }} disabled={!copyReady} className="rounded border border-[#5D4C31] px-2 py-1 text-xs font-semibold text-[#E8DABF] disabled:opacity-40">Copy</button>
                             <button type="button" onClick={(event) => { event.stopPropagation(); decide(selectedDecisionFor(option.key), option.key); }} disabled={!copyReady} className="rounded bg-[#C8A96E] px-2 py-1 text-xs font-semibold text-[#1A140C] disabled:opacity-40">Accept {option.key}</button>
                           </div>
                         </div>
-                        {copyReady ? (
-                          <>
-                            <p className="mt-2 line-clamp-5 whitespace-pre-wrap text-sm leading-5 text-[#E5D8BE]">{truncate(candidateText)}</p>
-                            <details className="mt-2 text-xs text-[#BDAE91]"><summary className="cursor-pointer text-[#C8A96E]">Show full prose</summary><p className="mt-2 whitespace-pre-wrap leading-5">{candidateText}</p></details>
-                          </>
-                        ) : (
-                          <div className="mt-2 rounded border border-[#7A2B1A]/55 bg-[#7A2B1A]/15 p-2 text-xs leading-5 text-[#E2B2A6]">
-                            Candidate withheld. This option is not copy-ready for the declared operation and must be corrected in Needs Targeting.
-                          </div>
-                        )}
+                        <p className={`mt-2 line-clamp-6 whitespace-pre-wrap text-sm leading-5 ${copyReady ? "text-[#E5D8BE]" : "text-[#E2B2A6]"}`}>{displayText || "No candidate text available."}</p>
+                        {!copyReady && <p className="mt-2 rounded border border-[#7A2B1A]/55 bg-[#7A2B1A]/15 p-2 text-xs leading-5 text-[#E2B2A6]">Draft shown for diagnosis only. Accept/Copy stay disabled until this option is copy-ready for the declared operation.</p>}
                       </article>
                     );
                   })}
                 </div>
 
-                <details className="mt-3 rounded-xl border border-[#2E261A] bg-[#12100B] p-3">
-                  <summary className="cursor-pointer text-[11px] uppercase tracking-[0.18em] text-[#C8A96E]">Diagnosis & Guardrails</summary>
-                  <div className="mt-3 space-y-1 text-sm leading-6 text-[#E8DCC4]">
-                    <p><span className="text-[#C8A96E]">Evidence:</span> {sourceTextOf(active) || "No exact evidence excerpt available."}</p>
-                    <p><span className="text-[#C8A96E]">Symptom:</span> {active.symptom || active.diagnostic?.symptom}</p>
-                    <p><span className="text-[#C8A96E]">Cause:</span> {active.cause || active.diagnostic?.cause}</p>
-                    <p><span className="text-[#C8A96E]">Fix direction:</span> {active.fixDirection || active.diagnostic?.fixStrategy}</p>
-                    <p><span className="text-[#C8A96E]">Reader effect:</span> {active.readerEffect || active.diagnostic?.readerImpact}</p>
-                    <p><span className="text-[#C8A96E]">Mistake-proofing:</span> {active.mistakeProofing || active.diagnostic?.mistakeProofing}</p>
-                    <p><span className="text-[#C8A96E]">Operation:</span> {operationLabels[active.revisionOperation] ?? "Needs targeting"}</p>
-                  </div>
-                </details>
-
                 {customOpen && (
-                  <div className="mt-3 rounded-xl border border-[#C8A96E]/60 bg-[#120E08] p-3">
+                  <div className="mt-2 rounded-xl border border-[#C8A96E]/60 bg-[#120E08] p-3">
                     <p className="text-xs uppercase tracking-[0.16em] text-[#C8A96E]">Author custom revision</p>
                     <textarea value={customText} onChange={(event) => setCustomText(event.target.value)} rows={4} className="mt-2 w-full rounded border border-[#3A3022] bg-[#0D0A05] p-3 font-mono text-sm outline-none focus:border-[#C8A96E]" />
                     <button disabled={!customText.trim()} onClick={() => decide("custom", undefined, customText)} className="mt-2 rounded bg-[#C8A96E] px-3 py-1.5 text-sm font-semibold text-[#1A140C] disabled:opacity-50">Save custom + next</button>
@@ -686,7 +685,7 @@ export default function ReviseCockpitClient({ payload }: { payload: WorkbenchQue
                 )}
               </div>
 
-              <footer className="shrink-0 border-t border-[#2E261A] bg-[#120E08] p-3">
+              <footer className="shrink-0 border-t border-[#2E261A] bg-[#120E08] p-2">
                 <div className="flex flex-wrap items-center gap-2">
                   <button onClick={() => decide("accepted_a", "A")} disabled={!active || !canAcceptOption(active, "A")} className="rounded bg-[#C8A96E] px-4 py-2 text-sm font-semibold text-[#1A140C] disabled:opacity-40">Accept A</button>
                   <button onClick={() => decide("accepted_b", "B")} disabled={!active || !canAcceptOption(active, "B")} className="rounded border border-[#C8A96E] px-4 py-2 text-sm text-[#F3E3C3] disabled:opacity-40">Accept B</button>
@@ -694,44 +693,41 @@ export default function ReviseCockpitClient({ payload }: { payload: WorkbenchQue
                   <button onClick={() => decide("keep_original")} disabled={!active} className="rounded border border-[#5D4C31] px-3 py-2 text-sm text-[#E8DABF] disabled:opacity-40">Keep Original</button>
                   <button onClick={() => decide("reject")} disabled={!active} className="rounded border border-[#7A2B1A]/70 px-3 py-2 text-sm text-[#E2B2A6] disabled:opacity-40">Reject</button>
                   <button onClick={() => decide("deferred")} disabled={!active} className="rounded border border-[#5C5140] px-3 py-2 text-sm text-[#B7A98D] disabled:opacity-40">Defer</button>
-                  <button onClick={() => { setCustomText(selectedCandidateText); setCustomOpen(true); }} disabled={!active || !cardIsLiveReady(active)} className="rounded border border-[#C8A96E] bg-[#C8A96E]/10 px-3 py-2 text-sm text-[#F3E3C3] disabled:opacity-40">{active ? customOperationLabels[active.revisionOperation] ?? "Write Custom" : "Write Custom"}</button>
+                  <button onClick={() => { setCustomText(selectedCandidateText); setCustomOpen(true); }} disabled={!active} className="rounded border border-[#C8A96E] bg-[#C8A96E]/10 px-3 py-2 text-sm text-[#F3E3C3] disabled:opacity-40">{active ? customOperationLabels[effectiveRevisionOperation(active)] ?? "Write Custom" : "Write Custom"}</button>
                 </div>
               </footer>
+
+              <section className="shrink-0 border-t border-[#2E261A] bg-[#0D0A05] p-2">
+                <div className="mb-2 flex flex-wrap items-center gap-2 text-xs">
+                  <span className="mr-2 uppercase tracking-[0.16em] text-[#C8A96E]">Revision Ledger</span>
+                  {LEDGER_FILTERS.map((filter) => (
+                    <button key={filter.value} type="button" onClick={() => setFilters((current) => ({ ...current, status: filter.value }))} className={`rounded border px-2 py-1 ${filters.status === filter.value ? "border-[#C8A96E] text-[#F3E3C3]" : "border-[#3A3022] text-[#A9987D]"}`}>
+                      {filter.label}
+                    </button>
+                  ))}
+                </div>
+                <div className="max-h-24 overflow-y-auto rounded border border-[#2E261A]">
+                  <table className="w-full border-collapse text-left text-xs">
+                    <thead className="sticky top-0 bg-[#161109] text-[#C8A96E]">
+                      <tr><th className="px-2 py-1">Decision</th><th className="px-2 py-1">Option</th><th className="px-2 py-1">Criterion</th><th className="px-2 py-1">Opportunity</th><th className="px-2 py-1">Sync</th></tr>
+                    </thead>
+                    <tbody className="text-[#D8C6A4]">
+                      {visibleLedger.length === 0 ? (
+                        <tr><td colSpan={5} className="px-2 py-2 text-[#A9987D]">No decisions yet.</td></tr>
+                      ) : (
+                        visibleLedger.slice(0, 25).map((entry) => (
+                          <tr key={entry.localId} className="border-t border-[#2E261A]"><td className="px-2 py-1">{decisionLabel(entry)}</td><td className="px-2 py-1">{entry.selectedOption ?? "—"}</td><td className="px-2 py-1">{entry.criterion ?? "—"}</td><td className="max-w-[520px] truncate px-2 py-1">{entry.itemTitle}</td><td className="px-2 py-1">{entry.syncStatus}</td></tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
             </>
           ) : (
             <div className="m-4 rounded-xl border border-[#3A3022] bg-[#12100B] p-6 text-[#CBBDA4]">No matching opportunity. Adjust filters.</div>
           )}
         </section>
-
-        <aside className="hidden min-h-0 overflow-hidden border-l border-[#2E261A] bg-[#110D07] p-3 xl:flex xl:flex-col">
-          <div className="shrink-0">
-            <p className="text-sm uppercase tracking-[0.18em] text-[#D7C4A1]">Revision Ledger</p>
-            <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-              <div className="rounded border border-[#2D2519] bg-[#120E08] p-2">Accepted <span className="text-[#C8A96E]">{counts.accepted}</span></div>
-              <div className="rounded border border-[#2D2519] bg-[#120E08] p-2">Custom <span className="text-[#C8A96E]">{counts.custom}</span></div>
-              <div className="rounded border border-[#2D2519] bg-[#120E08] p-2">Kept <span className="text-[#C8A96E]">{counts.kept}</span></div>
-              <div className="rounded border border-[#2D2519] bg-[#120E08] p-2">Rejected <span className="text-[#C8A96E]">{counts.rejected}</span></div>
-              <div className="rounded border border-[#2D2519] bg-[#120E08] p-2">Deferred <span className="text-[#C8A96E]">{counts.deferred}</span></div>
-              <div className="rounded border border-[#2D2519] bg-[#120E08] p-2">Pending <span className="text-[#C8A96E]">{counts.pending}</span></div>
-            </div>
-          </div>
-
-          <div className="mt-4 min-h-0 flex-1 overflow-y-auto">
-            <p className="text-xs uppercase tracking-[0.14em] text-[#C8A96E]">Recent decisions</p>
-            <ol className="mt-2 space-y-2">
-              {ledger.length === 0 ? (
-                <li className="rounded border border-[#2D2519] bg-[#120E08] p-2 text-xs text-[#A9987D]">No decisions yet.</li>
-              ) : (
-                ledger.slice(0, 14).map((entry) => (
-                  <li key={entry.localId} className="rounded border border-[#2D2519] bg-[#120E08] p-2 text-xs">
-                    <p className="line-clamp-2 text-[#E9DCC4]"><span className="text-[#C8A96E]">{decisionLabel(entry)}</span> — {entry.itemTitle}</p>
-                    <p className="mt-1 text-[#A9987D]">{entry.syncStatus}</p>
-                  </li>
-                ))
-              )}
-            </ol>
-          </div>
-        </aside>
       </section>
     </main>
   );
