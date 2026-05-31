@@ -1,4 +1,8 @@
 import {
+  CHECKLIST_MATRIX,
+  SIPOC_STAGE_REFS,
+} from '../../lib/evaluation/phase-architecture-v2/checklistMatrix';
+import {
   assertChecklistPhaseMayStart,
   isArtifactResumeSafe,
   selectLastResumeSafeArtifact,
@@ -16,6 +20,30 @@ const valid = (artifact_type: ChecklistArtifactState['artifact_type']): Checklis
 });
 
 describe('Phase Architecture v2 checklist-as-code enforcer', () => {
+  it('binds every checklist row to an allowed SIPOC stage reference', () => {
+    const allowed = new Set<string>(SIPOC_STAGE_REFS);
+
+    expect(CHECKLIST_MATRIX.length).toBeGreaterThan(0);
+    for (const row of CHECKLIST_MATRIX) {
+      expect(allowed.has(row.sipoc_stage_ref)).toBe(true);
+    }
+  });
+
+  it('keeps Phase 0.5 and Revise/WAVE rows adjacent rather than pretending they are certified S01-S11 spine stages', () => {
+    expect(CHECKLIST_MATRIX.find((row) => row.phase_id === 'phase_0_5a')?.sipoc_stage_ref).toBe(
+      'ADJACENT_PHASE_0_5A',
+    );
+    expect(CHECKLIST_MATRIX.find((row) => row.phase_id === 'phase_0_5b')?.sipoc_stage_ref).toBe(
+      'ADJACENT_PHASE_0_5B',
+    );
+    expect(CHECKLIST_MATRIX.find((row) => row.phase_id === 'revise_admission')?.sipoc_stage_ref).toBe(
+      'ADJACENT_REVISE',
+    );
+    expect(CHECKLIST_MATRIX.find((row) => row.phase_id === 'wave')?.sipoc_stage_ref).toBe(
+      'ADJACENT_WAVE',
+    );
+  });
+
   it('blocks Phase 0.5A without phase0_authority_proof_v1', () => {
     const result = assertChecklistPhaseMayStart('phase_0_5a', {});
 
