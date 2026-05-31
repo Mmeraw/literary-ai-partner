@@ -13,9 +13,9 @@ type DownloadReportButtonProps = {
 
 const OPTIONS: { label: string; format: Format; description?: string }[] = [
   {
-    label: 'PDF / Print exact webpage',
+    label: 'PDF (.pdf)',
     format: 'pdf',
-    description: 'Uses the same report page you see on screen.',
+    description: 'Downloads a generated PDF report file.',
   },
   {
     label: 'Plain Text (.txt)',
@@ -82,12 +82,6 @@ export default function DownloadReportButton({
   function handleSelect(format: Format) {
     if (resolvedDisabled) return;
     setOpen(false);
-
-    if (format === 'pdf') {
-      window.open(`/api/reports/${jobId}/print`, '_blank', 'noopener,noreferrer');
-      return;
-    }
-
     window.location.href = `/api/reports/${jobId}/download?format=${format}`;
   }
 
