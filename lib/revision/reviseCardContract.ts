@@ -77,6 +77,21 @@ const FORBIDDEN_META_SUGGESTIONS = [
   'default repair path',
   'primary repair path from the evaluation',
   'higher-leverage option when local polish is not enough',
+  'in the paragraph containing',
+  'replace one clause',
+  'replace one rhyme-heavy clause',
+  'replace this',
+  'clarify',
+  'strengthen',
+  'repair this',
+  'fix this',
+  'recommended repair path',
+  'primary repair path',
+  'evaluation_result',
+  'criteria.recommendations',
+  'prosecontrol',
+  'narrativedrive',
+  'recommendation',
 ]
 
 const MISSING_SOURCE_MARKERS = [
@@ -88,6 +103,39 @@ const MISSING_SOURCE_MARKERS = [
 
 function normalize(value: string | null | undefined): string {
   return (value ?? '').replace(/\s+/g, ' ').trim()
+}
+
+function tokenSet(value: string): Set<string> {
+  return new Set(
+    value
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, ' ')
+      .split(/\s+/)
+      .filter(Boolean),
+  )
+}
+
+function overlapRatio(a: string, b: string): number {
+  const left = tokenSet(a)
+  const right = tokenSet(b)
+  if (left.size === 0 || right.size === 0) return 0
+  let overlap = 0
+  for (const token of left) {
+    if (right.has(token)) overlap += 1
+  }
+  return overlap / Math.max(left.size, right.size)
+}
+
+function hasInternalTokenLeak(value: string): boolean {
+  const clean = normalize(value)
+  if (!clean) return false
+
+  if (/\b[A-Z]{3,}:[a-z_]+\b/.test(clean)) return true
+  if (/\b(?:evaluation_result|criteria\.recommendations|prosecontrol|narrativedrive|provenance)\b/i.test(clean)) {
+    return true
+  }
+
+  return false
 }
 
 export function hasForbiddenMetaSuggestion(value: string | null | undefined): boolean {
@@ -106,6 +154,7 @@ export function candidateTextIsCopyPasteReady(value: string | null | undefined):
   const clean = normalize(value)
   if (!clean) return false
   if (hasForbiddenMetaSuggestion(clean)) return false
+  if (hasInternalTokenLeak(clean)) return false
 
   // Copy-paste prose must have at least enough substance to be a manuscript patch.
   // This intentionally allows short insertions, but blocks one-word placeholders.
@@ -132,6 +181,19 @@ export function validateReviseCardContract(input: ReviseCardValidationInput): Re
   const invalidIndex = input.candidateTexts.findIndex((text) => !candidateTextIsCopyPasteReady(text))
   if (invalidIndex !== -1) {
     return { readiness: 'needs_targeting', reason: `Candidate ${String.fromCharCode(65 + invalidIndex)} is not copy-paste ready.` }
+  }
+
+  const normalizedCandidates = input.candidateTexts
+    .slice(0, 3)
+    .map((text) => normalize(text).toLowerCase())
+
+  if (new Set(normalizedCandidates).size < 3) {
+    return { readiness: 'needs_targeting', reason: 'Candidate options are not materially distinct.' }
+  }
+
+  const [a, b, c] = normalizedCandidates
+  if (overlapRatio(a, b) >= 0.9 || overlapRatio(a, c) >= 0.9 || overlapRatio(b, c) >= 0.9) {
+    return { readiness: 'needs_targeting', reason: 'Candidate options are not materially distinct.' }
   }
 
   return { readiness: 'ready_for_revise', reason: null }
