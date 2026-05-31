@@ -155,6 +155,22 @@ const META_EDITORIAL_PATTERNS = [
   /\breview this opportunity\b/i,
 ]
 
+const WORD_PROCESSOR_ARTIFACT_PATTERNS = [
+  /(?:^|\s)[vow]:\*\s*\{\s*behavior\s*:\s*url\(#default#vml\)\s*;?\s*\}/i,
+  /(?:^|\s)\.shape\s*\{\s*behavior\s*:\s*url\(#default#vml\)\s*;?\s*\}/i,
+  /\btable\.msonormaltable\b/i,
+  /\bmso-style-name\b/i,
+  /\bmso-tstyle-rowband-size\b/i,
+  /\bmso-tstyle-colband-size\b/i,
+  /\bmso-pagination\b/i,
+  /\/\*\s*style definitions\s*\*\//i,
+  /\bshape\s+\\\*\s+mergeformat\b/i,
+  /\bnormal\s+0\s+false\b/i,
+  /\bx-none\b/i,
+  /\bbehavior\s*:\s*url\(#default#vml\)\b/i,
+  /<\/?(?:html|head|body|style|xml|meta|o:p|v:[^>\s]+|w:[^>\s]+|st1:[^>\s]+)[^>]*>/i,
+]
+
 function normalize(value: string | null | undefined): string {
   return (value ?? '').replace(/\s+/g, ' ').trim()
 }
@@ -178,6 +194,26 @@ function overlapRatio(a: string, b: string): number {
     if (right.has(token)) overlap += 1
   }
   return overlap / Math.max(left.size, right.size)
+}
+
+function proseTokens(value: string): string[] {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .filter(Boolean)
+}
+
+function sharedLeadingTokenCount(a: string, b: string): number {
+  const left = proseTokens(a)
+  const right = proseTokens(b)
+  const limit = Math.min(left.length, right.length)
+  let count = 0
+  for (let i = 0; i < limit; i += 1) {
+    if (left[i] !== right[i]) break
+    count += 1
+  }
+  return count
 }
 
 function hasInternalTokenLeak(value: string): boolean {
@@ -219,6 +255,15 @@ export function hasForbiddenMetaSuggestion(value: string | null | undefined): bo
   return FORBIDDEN_META_SUGGESTIONS.some((phrase) => clean.includes(phrase))
 }
 
+export function hasWordProcessorArtifact(value: string | null | undefined): boolean {
+  const clean = normalize(value)
+  if (!clean) return false
+  if (WORD_PROCESSOR_ARTIFACT_PATTERNS.some((pattern) => pattern.test(clean))) return true
+  if (/<\/?[a-z][\w:-]*[^>]*>/i.test(clean)) return true
+  if (/&(?:nbsp|quot|lt|gt|amp);|&#160;/i.test(clean)) return true
+  return false
+}
+
 export function isMissingSourceMarker(value: string | null | undefined): boolean {
   const clean = normalize(value).toLowerCase()
   if (!clean) return true
@@ -228,6 +273,7 @@ export function isMissingSourceMarker(value: string | null | undefined): boolean
 export function candidateTextIsCopyPasteReady(value: string | null | undefined): boolean {
   const clean = normalize(value)
   if (!clean) return false
+  if (hasWordProcessorArtifact(clean)) return false
   if (hasForbiddenMetaSuggestion(clean)) return false
   if (hasMetaEditorialPattern(clean)) return false
   if (hasInternalTokenLeak(clean)) return false
@@ -317,6 +363,15 @@ export function validateReviseCardContract(input: ReviseCardValidationInput): Re
 
   const [a, b, c] = normalizedCandidates
   if (overlapRatio(a, b) >= 0.9 || overlapRatio(a, c) >= 0.9 || overlapRatio(b, c) >= 0.9) {
+    return { readiness: 'needs_targeting', reason: 'Candidate options are not materially distinct.' }
+  }
+
+  const sharedLeadInLimit = 4
+  if (
+    sharedLeadingTokenCount(a, b) >= sharedLeadInLimit
+    || sharedLeadingTokenCount(a, c) >= sharedLeadInLimit
+    || sharedLeadingTokenCount(b, c) >= sharedLeadInLimit
+  ) {
     return { readiness: 'needs_targeting', reason: 'Candidate options are not materially distinct.' }
   }
 

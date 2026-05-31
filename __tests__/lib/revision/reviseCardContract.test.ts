@@ -91,6 +91,12 @@ describe('revise card contract', () => {
     expect(candidateTextIsCopyPasteReady('The door stood in the row like a warning no one had chosen to read.')).toBe(true)
   })
 
+  test('blocks word-processor and HTML artifact blobs from A/B/C candidates', () => {
+    expect(candidateTextIsCopyPasteReady('v:* {behavior:url(#default#VML);} o:* {behavior:url(#default#VML);}')).toBe(false)
+    expect(candidateTextIsCopyPasteReady('table.MsoNormalTable {mso-style-name:"Table Normal"; mso-pagination:widow-orphan;}')).toBe(false)
+    expect(candidateTextIsCopyPasteReady('<style>table.MsoNormalTable{mso-style-name:"Table Normal";}</style>')).toBe(false)
+  })
+
   test('routes cards to needs_targeting when A/B/C are not materially distinct', () => {
     const result = validateReviseCardContract({
       issueStatement: 'Internal conflict is stated but not yet dramatized in the line.',
@@ -106,6 +112,28 @@ describe('revise card contract', () => {
         'The voices in his head began to knock against one another.',
         'The voices in his head began to knock against one another.',
         'The voices in his head began to knock against one another.',
+      ],
+    })
+
+    expect(result.readiness).toBe('needs_targeting')
+    expect(result.reason).toMatch(/materially distinct/i)
+  })
+
+  test('routes cards to needs_targeting when A/B/C share repetitive lead-in wording', () => {
+    const result = validateReviseCardContract({
+      issueStatement: 'Newton responds too quickly without a visible decision beat.',
+      symptom: 'The turn happens before readers see him choose.',
+      cause: 'The sentence jumps from prompt to consequence with no bridge.',
+      fixStrategy: 'Add a visible decision beat before consequence.',
+      readerImpact: 'Readers can track intent and consequence in sequence.',
+      operationNote: 'replace_selected_passage · Chapter 1 paragraph 8',
+      sourceText: 'Move aside, Small Fry, and the scene surges onward.',
+      sourceLocationLabel: 'Chapter 1 paragraph 8',
+      revisionOperation: 'replace_selected_passage',
+      candidateTexts: [
+        'Move aside, Small Fry, Twillow answers in motion, and the consequence lands without a pause for explanation.',
+        'Move aside, Small Fry, a physical beat carries the turn so pressure stays visible and momentum holds.',
+        'Move aside, Small Fry, Newton chooses with his body first, then the fallout reaches him before he can explain it away.',
       ],
     })
 

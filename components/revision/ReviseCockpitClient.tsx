@@ -6,7 +6,6 @@ import { candidateTextIsCopyPasteReady, customOperationLabels, getRenderableCand
 
 type DecisionState = "accepted_a" | "accepted_b" | "accepted_c" | "custom" | "keep_original" | "reject" | "deferred";
 type DecisionFilter = "all" | "pending" | "accepted" | "custom" | "kept_original" | "rejected" | "deferred";
-type EvidenceTab = "evidence" | "diagnosis" | "logic";
 type QueueType = "repair_plan" | "direct_rewrite";
 type EvidenceStatus = "has_excerpt" | "has_location" | "manuscript_wide" | "missing_evidence";
 
@@ -149,12 +148,22 @@ function candidateTextOf(option: { candidateText?: string; text: string }, issue
   });
 }
 
+function canAcceptOption(item: WorkbenchOpportunity, option: { candidateText?: string; text: string }) {
+  if (item.readiness !== "ready_for_revise") return false;
+  return candidateTextIsCopyPasteReady(candidateTextOf(option, item.issueStatement));
+}
+
+function shouldRenderRationale(rationale?: string) {
+  const value = (rationale ?? "").trim();
+  if (!value) return false;
+  return !/(primary repair path from the evaluation|secondary variant for author-controlled cadence|alternative variant for stronger emphasis|copy-ready prose variant|not copy-ready)/i.test(value);
+}
+
 export default function ReviseCockpitClient({ payload }: { payload: WorkbenchQueuePayload }) {
   const [activeId, setActiveId] = useState(payload.opportunities[0]?.id ?? "");
   const [selectedOption, setSelectedOption] = useState<"A" | "B" | "C">("A");
   const [filters, setFilters] = useState<Filters>({ search: "", priority: "all", criterion: "all", status: "all" });
   const [ledger, setLedger] = useState<LedgerEntry[]>([]);
-  const [tab, setTab] = useState<EvidenceTab>("evidence");
   const [customOpen, setCustomOpen] = useState(false);
   const [customText, setCustomText] = useState("");
   const [ledgerOpen, setLedgerOpen] = useState(false);
@@ -172,11 +181,16 @@ export default function ReviseCockpitClient({ payload }: { payload: WorkbenchQue
     return map;
   }, [ledger]);
 
-  const criteria = useMemo(() => [...new Set(payload.opportunities.map(criterionOf))].sort(), [payload.opportunities]);
+  const queueItems = useMemo(
+    () => [...payload.opportunities, ...needsTargeting],
+    [payload.opportunities, needsTargeting],
+  );
+
+  const criteria = useMemo(() => [...new Set(queueItems.map(criterionOf))].sort(), [queueItems]);
 
   const filtered = useMemo(() => {
     const search = filters.search.trim().toLowerCase();
-    return payload.opportunities.filter((item) => {
+    return queueItems.filter((item) => {
       if (filters.priority !== "all" && item.severity !== filters.priority) return false;
       if (filters.criterion !== "all" && criterionOf(item) !== filters.criterion) return false;
       if (filters.status !== "all" && decisionGroup(decisionById[item.id]) !== filters.status) return false;
@@ -186,16 +200,18 @@ export default function ReviseCockpitClient({ payload }: { payload: WorkbenchQue
       }
       return true;
     });
-  }, [decisionById, filters, payload.opportunities]);
+  }, [decisionById, filters, queueItems]);
 
   const active = filtered.find((item) => item.id === activeId) ?? filtered[0] ?? null;
   const activeIndex = active ? Math.max(0, filtered.findIndex((item) => item.id === active.id)) : 0;
   const selectedProposal = active?.options.find((option) => option.key === selectedOption) ?? active?.options[0] ?? null;
-  const canAcceptSelection = selectedProposal ? candidateTextIsCopyPasteReady(candidateTextOf(selectedProposal, active?.issueStatement)) : false;
+  const canAcceptSelection =
+    active?.readiness === "ready_for_revise"
+      && (selectedProposal ? candidateTextIsCopyPasteReady(candidateTextOf(selectedProposal, active?.issueStatement)) : false);
 
   const counts = useMemo(() => {
     const result = { pending: 0, accepted: 0, custom: 0, kept: 0, rejected: 0, deferred: 0 };
-    for (const item of payload.opportunities) {
+    for (const item of queueItems) {
       const group = decisionGroup(decisionById[item.id]);
       if (group === "pending") result.pending += 1;
       if (group === "accepted") result.accepted += 1;
@@ -205,7 +221,7 @@ export default function ReviseCockpitClient({ payload }: { payload: WorkbenchQue
       if (group === "deferred") result.deferred += 1;
     }
     return result;
-  }, [decisionById, payload.opportunities]);
+  }, [decisionById, queueItems]);
 
   useEffect(() => {
     let cancelled = false;
@@ -245,7 +261,6 @@ export default function ReviseCockpitClient({ payload }: { payload: WorkbenchQue
       ?? null;
     if (next) setActiveId(next.id);
     setSelectedOption("A");
-    setTab("evidence");
     setCustomOpen(false);
     setCustomText("");
   }
@@ -297,7 +312,7 @@ export default function ReviseCockpitClient({ payload }: { payload: WorkbenchQue
   function decide(decision: DecisionState, option?: "A" | "B" | "C", custom?: string) {
     if (!active) return;
     const proposal = option ? active.options.find((candidate) => candidate.key === option) : undefined;
-    if (option && (!proposal || !candidateTextIsCopyPasteReady(candidateTextOf(proposal, active.issueStatement)))) return;
+    if (option && (!proposal || !canAcceptOption(active, proposal))) return;
     const entry: LedgerEntry = {
       localId: localId(),
       createdAtIso: new Date().toISOString(),
@@ -392,10 +407,16 @@ export default function ReviseCockpitClient({ payload }: { payload: WorkbenchQue
                     <div className="mb-1 flex flex-wrap gap-1">
                       <span className={`rounded px-1.5 py-0.5 text-[10px] uppercase ${severityClass(item.severity)}`}>{item.severity}</span>
                       <span className="rounded border border-[#4E4333] px-1.5 py-0.5 text-[10px] text-[#D6C3A2]">{item.scope}</span>
+                      <span className={`rounded border px-1.5 py-0.5 text-[10px] ${item.readiness === "ready_for_revise" ? "border-[#48603F]/70 text-[#BBD8B4]" : "border-[#7A2B1A]/70 text-[#F1B6A5]"}`}>
+                        {item.readiness === "ready_for_revise" ? "Ready" : "Needs Targeting"}
+                      </span>
                       <span className="rounded border border-[#4E4333] px-1.5 py-0.5 text-[10px] text-[#A9987D]">{decisionGroup(decisionById[item.id])}</span>
                     </div>
                     <p className="line-clamp-2 text-xs leading-4 text-[#F2E7D4]">{index + 1}. {item.title}</p>
                     <p className="mt-1 truncate text-[11px] text-[#A9987D]">{criterionOf(item)} · {item.anchor || item.meta}</p>
+                    {item.readiness !== "ready_for_revise" && (
+                      <p className="mt-1 line-clamp-2 text-[11px] text-[#E2B2A6]">{item.readinessReason ?? "Needs exact source targeting"}</p>
+                    )}
                   </button>
                 </li>
               );
@@ -432,15 +453,29 @@ export default function ReviseCockpitClient({ payload }: { payload: WorkbenchQue
                   <span className="rounded border border-[#5A4B33] px-2 py-1">{evidenceStatusOf(active).replace(/_/g, " ")}</span>
                 </div>
                 <h2 className="mt-2 line-clamp-2 text-xl leading-tight text-[#F7EFDF]">{active.title}</h2>
-                <p className="mt-1 truncate text-xs text-[#A9987D]">Evidence: {active.anchor || active.meta || "available in diagnostic details"}</p>
-                <p className="mt-1 truncate text-xs text-[#A9987D]">Operation: {operationLabels[active.revisionOperation]}</p>
+                <div className="mt-2 grid gap-1 text-xs text-[#CBBDA4] md:grid-cols-2">
+                  <p>Concept / Premise • {active.severity.toUpperCase()}</p>
+                  <p>Scope: {active.scope}</p>
+                  <p>Chapter / Location: {active.anchor || active.meta || "Location pending"}</p>
+                  <p>Status: {decisionGroup(decisionById[active.id])}</p>
+                </div>
               </div>
 
               <div className="min-h-0 flex-1 overflow-y-auto p-3">
-                <div className="grid gap-2 xl:grid-cols-3">
+                <section className="rounded-xl border border-[#2E261A] bg-[#12100B] p-3">
+                  <p className="text-[11px] uppercase tracking-[0.18em] text-[#C8A96E]">Original Passage</p>
+                  <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-[#E8DCC4]">“{active.quoteHighlight}”{active.quoteRest}</p>
+                  <p className="mt-1 text-xs text-[#A9987D]">{active.anchor || active.meta || "Location pending"}</p>
+                </section>
+
+                <section className="mt-3">
+                  <p className="text-[11px] uppercase tracking-[0.18em] text-[#C8A96E]">Replacement Options</p>
+                </section>
+
+                <div className="mt-2 grid gap-2 xl:grid-cols-3">
                   {active.options.map((option) => {
                     const candidateText = candidateTextOf(option, active.issueStatement);
-                    const copyReady = candidateTextIsCopyPasteReady(candidateText);
+                    const copyReady = canAcceptOption(active, option);
                     return (
                     <article key={option.key} onClick={() => setSelectedOption(option.key)} className={`cursor-pointer rounded-xl border bg-[#12100B] p-3 transition ${selectedOption === option.key ? "border-[#C8A96E]" : "border-[#2E261A] hover:border-[#5D4C31]"}`}>
                       <div className="flex items-center justify-between gap-2">
@@ -453,30 +488,32 @@ export default function ReviseCockpitClient({ payload }: { payload: WorkbenchQue
                       <p className="mt-1 text-[11px] uppercase tracking-wider text-[#A9987D]">{option.mechanism}</p>
                       <p className="mt-2 line-clamp-5 whitespace-pre-wrap text-sm leading-5 text-[#E5D8BE]">{truncate(candidateText)}</p>
                       {!copyReady && <p className="mt-2 text-xs text-[#E2B2A6]">Not copy-ready; move card to Needs Targeting.</p>}
-                      <details className="mt-2 text-xs text-[#BDAE91]"><summary className="cursor-pointer text-[#C8A96E]">Show full fix</summary><p className="mt-2 whitespace-pre-wrap leading-5">{candidateText}</p><p className="mt-2 text-[#A9987D]">{option.rationale}</p></details>
+                      <details className="mt-2 text-xs text-[#BDAE91]"><summary className="cursor-pointer text-[#C8A96E]">Show full fix</summary><p className="mt-2 whitespace-pre-wrap leading-5">{candidateText}</p>{shouldRenderRationale(option.rationale) ? <p className="mt-2 text-[#A9987D]">{option.rationale}</p> : null}</details>
                     </article>
                   )})}
                 </div>
 
-                <div className="mt-3 rounded-xl border border-[#2E261A] bg-[#12100B]">
-                  <div className="flex border-b border-[#2E261A] text-xs">
-                    {(["evidence", "diagnosis", "logic"] as const).map((item) => <button key={item} type="button" onClick={() => setTab(item)} className={`px-3 py-2 capitalize ${tab === item ? "bg-[#221B11] text-[#C8A96E]" : "text-[#A9987D] hover:text-[#E8DABF]"}`}>{item}</button>)}
+                <details className="mt-3 rounded-xl border border-[#2E261A] bg-[#12100B] p-3" open>
+                  <summary className="cursor-pointer text-[11px] uppercase tracking-[0.18em] text-[#C8A96E]">Why this was flagged</summary>
+                  <div className="mt-3 space-y-1 text-sm leading-6 text-[#E8DCC4]">
+                    <p><span className="text-[#C8A96E]">Evidence:</span> “{active.quoteHighlight}”{active.quoteRest}</p>
+                    <p><span className="text-[#C8A96E]">Symptom:</span> {active.symptom}</p>
+                    <p><span className="text-[#C8A96E]">Cause:</span> {active.cause}</p>
+                    <p><span className="text-[#C8A96E]">Fix direction:</span> {active.fixDirection}</p>
+                    <p><span className="text-[#C8A96E]">Reader effect:</span> {active.readerEffect}</p>
+                    <p><span className="text-[#C8A96E]">Mistake-proofing:</span> {active.mistakeProofing}</p>
+                    <p><span className="text-[#C8A96E]">Operation:</span> {operationLabels[active.revisionOperation]}</p>
                   </div>
-                  <div className="max-h-28 overflow-y-auto p-3 text-sm leading-6 text-[#E8DCC4]">
-                    {tab === "evidence" && <><p>“{active.quoteHighlight}”{active.quoteRest}</p><p className="mt-1 text-xs text-[#A9987D]">{active.anchor}</p></>}
-                    {tab === "diagnosis" && <><p><span className="text-[#C8A96E]">Symptom:</span> {active.symptom}</p><p><span className="text-[#C8A96E]">Cause:</span> {active.cause}</p></>}
-                    {tab === "logic" && <><p><span className="text-[#C8A96E]">Fix:</span> {active.fixDirection}</p><p><span className="text-[#C8A96E]">Reader effect:</span> {active.readerEffect}</p><p><span className="text-[#C8A96E]">Mistake-proofing:</span> {active.mistakeProofing}</p></>}
-                  </div>
-                </div>
+                </details>
 
                 {customOpen && <div className="mt-3 rounded-xl border border-[#C8A96E]/60 bg-[#120E08] p-3"><textarea value={customText} onChange={(event) => setCustomText(event.target.value)} rows={4} className="w-full rounded border border-[#3A3022] bg-[#0D0A05] p-3 font-mono text-sm outline-none focus:border-[#C8A96E]" /><button disabled={!customText.trim()} onClick={() => decide("custom", undefined, customText)} className="mt-2 rounded bg-[#C8A96E] px-3 py-1.5 text-sm font-semibold text-[#1A140C] disabled:opacity-50">Save custom + next</button></div>}
               </div>
 
               <footer id="revision-ledger" className="shrink-0 border-t border-[#2E261A] bg-[#120E08] p-3">
                 <div className="flex flex-wrap items-center gap-2">
-                  <button onClick={() => decide("accepted_a", "A")} disabled={!candidateTextIsCopyPasteReady(candidateTextOf(active.options.find((option) => option.key === "A") ?? { text: "" }, active.issueStatement))} className="rounded bg-[#C8A96E] px-4 py-2 text-sm font-semibold text-[#1A140C] disabled:opacity-40">Accept A</button>
-                  <button onClick={() => decide("accepted_b", "B")} disabled={!candidateTextIsCopyPasteReady(candidateTextOf(active.options.find((option) => option.key === "B") ?? { text: "" }, active.issueStatement))} className="rounded border border-[#C8A96E] px-4 py-2 text-sm text-[#F3E3C3] disabled:opacity-40">Accept B</button>
-                  <button onClick={() => decide("accepted_c", "C")} disabled={!candidateTextIsCopyPasteReady(candidateTextOf(active.options.find((option) => option.key === "C") ?? { text: "" }, active.issueStatement))} className="rounded border border-[#C8A96E] px-4 py-2 text-sm text-[#F3E3C3] disabled:opacity-40">Accept C</button>
+                  <button onClick={() => decide("accepted_a", "A")} disabled={!canAcceptOption(active, active.options.find((option) => option.key === "A") ?? { text: "" })} className="rounded bg-[#C8A96E] px-4 py-2 text-sm font-semibold text-[#1A140C] disabled:opacity-40">Accept A</button>
+                  <button onClick={() => decide("accepted_b", "B")} disabled={!canAcceptOption(active, active.options.find((option) => option.key === "B") ?? { text: "" })} className="rounded border border-[#C8A96E] px-4 py-2 text-sm text-[#F3E3C3] disabled:opacity-40">Accept B</button>
+                  <button onClick={() => decide("accepted_c", "C")} disabled={!canAcceptOption(active, active.options.find((option) => option.key === "C") ?? { text: "" })} className="rounded border border-[#C8A96E] px-4 py-2 text-sm text-[#F3E3C3] disabled:opacity-40">Accept C</button>
                   <button onClick={() => decide("keep_original")} disabled={!canAcceptSelection} className="rounded border border-[#5D4C31] px-3 py-2 text-sm text-[#E8DABF] disabled:opacity-40">Keep Original</button>
                   <button onClick={() => decide("reject")} disabled={!canAcceptSelection} className="rounded border border-[#7A2B1A]/70 px-3 py-2 text-sm text-[#E2B2A6] disabled:opacity-40">Reject</button>
                   <button onClick={() => decide("deferred")} className="rounded border border-[#5C5140] px-3 py-2 text-sm text-[#B7A98D]">Defer</button>
