@@ -4,9 +4,11 @@
  * Scope: shape-only registry support for STORY_LAYER_CONTRACT_V1.
  * Do not import runtime pipeline, worker, route, prompt, OpenAI, or Supabase modules here.
  */
-
 export const CANONICAL_EVALUATION_ARTIFACT_TYPES = [
   'dream_calibration_packet_v1',
+  'story_seed_v1',
+  'evaluation_seed_v1',
+  'seed_fit_gap_report_v1',
   'factual_anomalies_detected_v1',
   'pass1a_story_layer_v1',
   'ledger_quality_report_v1',
@@ -58,6 +60,8 @@ export type RuntimeArtifactEnvelope = {
 };
 
 export type ArtifactAuthority =
+  | 'seed_baseline'
+  | 'seed_fit_gap'
   | 'governing_story_understanding'
   | 'gate_verdict'
   | 'review_trace'
@@ -72,6 +76,7 @@ export type ArtifactAuthority =
 
 export type ArtifactPhase =
   | 'phase_0_calibration'
+  | 'seed_baseline'
   | 'phase_1a_story_layer'
   | 'review_gate'
   | 'approval_normalizer'
