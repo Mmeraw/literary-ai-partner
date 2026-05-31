@@ -1,5 +1,5 @@
 import { getWorkbenchQueue } from "@/lib/revision/workbenchQueue";
-import ReviseCockpitClientCompact from "@/components/revision/ReviseCockpitClientCompact";
+import ReviseCockpitClientCompactV2 from "@/components/revision/ReviseCockpitClientCompactV2";
 import { buildRevisionOpportunityLedger, persistRevisionOpportunityLedger } from "@/lib/revision/revisionOpportunityLedgerArtifact";
 import { redirect } from "next/navigation";
 import { resolveWorkbenchRouteTargetForUser } from "@/lib/revision/workbenchQueue";
@@ -31,5 +31,5 @@ export default async function WorkbenchV2Page({ searchParams }: { searchParams?:
       console.error("Failed to persist revision_opportunity_ledger_v1", error);
     }
   }
-  return <ReviseCockpitClientCompact payload={payload} />;
+  return <ReviseCockpitClientCompactV2 payload={payload} />;
 }
