@@ -209,7 +209,6 @@ function candidateRepeatsIssueStatement(candidateText: string, issueStatement: s
   // Longer manuscript prose is allowed to share vocabulary with the issue statement.
   const candidateWordCount = candidate.split(/\s+/).filter(Boolean).length
   if (candidateWordCount <= 12 && (candidate.includes(issue) || issue.includes(candidate))) return true
-  if (candidateWordCount <= 12 && overlapRatio(candidate, issue) >= 0.92) return true
 
   return false
 }

@@ -176,4 +176,13 @@ describe('revise card contract', () => {
     expect(hidden).toBe('')
     expect(visible).toBe('He turned away from the fire, then named the consequence he had caused.')
   })
+
+  test('does not hide short prose based on overlap alone when text is not a direct restatement', () => {
+    const visible = getRenderableCandidateText({
+      candidateText: 'At the pivot, the paragraph lost cause-and-effect clarity, then he named it.',
+      issueStatement: 'The paragraph loses cause-and-effect clarity at the pivot.',
+    })
+
+    expect(visible).toBe('At the pivot, the paragraph lost cause-and-effect clarity, then he named it.')
+  })
 })
