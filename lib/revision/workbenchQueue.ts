@@ -91,8 +91,10 @@ export type WorkbenchQueuePayload = {
   }
   goLiveProof?: {
     phase0Warmup: {
-      loadedAt: string
-      corpusSha256: string
+      status: 'loaded' | 'unavailable'
+      warning: string | null
+      loadedAt: string | null
+      corpusSha256: string | null
       fileCount: number
       benchmarkCount: number
       benchmarkFiles: string[]
@@ -848,12 +850,13 @@ async function loadEvaluationArtifactPayload(
 }
 
 export async function getWorkbenchQueue(input: { manuscriptId?: string; evaluationJobId?: string }): Promise<WorkbenchQueuePayload> {
-  let warmupCorpus: Awaited<ReturnType<typeof loadReviseQueueWarmupCorpus>>
+  let warmupCorpus: Awaited<ReturnType<typeof loadReviseQueueWarmupCorpus>> | null = null
+  let warmupWarning: string | null = null
   try {
     warmupCorpus = await loadReviseQueueWarmupCorpus()
   } catch (error) {
     const reason = error instanceof Error ? error.message : 'Failed to load Revise Queue warmup corpus.'
-    return emptyPayload(`Phase 0 warmup corpus unavailable: ${reason}`)
+    warmupWarning = `Benchmark warmup proof is temporarily unavailable (${reason}). Revise Queue is rendered from saved evaluation artifacts with contract guards active.`
   }
 
   const user = await getAuthenticatedUser()
@@ -1053,11 +1056,13 @@ export async function getWorkbenchQueue(input: { manuscriptId?: string; evaluati
     synthesis: synthesisResult,
     goLiveProof: {
       phase0Warmup: {
-        loadedAt: warmupCorpus.loadedAt,
-        corpusSha256: warmupCorpus.proof.combinedSha256,
-        fileCount: warmupCorpus.proof.fileCount,
-        benchmarkCount: warmupCorpus.proof.benchmarkCount,
-        benchmarkFiles: [...warmupCorpus.proof.benchmarkFilesLoaded],
+        status: warmupCorpus ? 'loaded' : 'unavailable',
+        warning: warmupWarning,
+        loadedAt: warmupCorpus?.loadedAt ?? null,
+        corpusSha256: warmupCorpus?.proof.combinedSha256 ?? null,
+        fileCount: warmupCorpus?.proof.fileCount ?? 0,
+        benchmarkCount: warmupCorpus?.proof.benchmarkCount ?? 0,
+        benchmarkFiles: warmupCorpus ? [...warmupCorpus.proof.benchmarkFilesLoaded] : [],
       },
       contractEnforcement: {
         candidateTextOnly: true,

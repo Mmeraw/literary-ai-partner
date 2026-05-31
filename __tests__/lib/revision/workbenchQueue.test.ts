@@ -160,6 +160,8 @@ describe('getWorkbenchQueue', () => {
     expect(second.revisionPackage?.revision_package_id).toBe('revision_package:job-2:version-2');
     expect(first.revisionPackage?.revision_opportunity_ledger_artifact_id).toBe('ledger-1');
     expect(second.revisionPackage?.revision_opportunity_ledger_artifact_id).toBe('ledger-2');
+    expect(first.goLiveProof?.phase0Warmup.status).toBe('loaded');
+    expect(first.goLiveProof?.phase0Warmup.warning).toBeNull();
     expect(first.goLiveProof?.phase0Warmup.fileCount).toBe(10);
     expect(first.goLiveProof?.phase0Warmup.corpusSha256).toBe('abc123');
     expect(first.goLiveProof?.contractEnforcement.candidateTextOnly).toBe(true);
@@ -217,14 +219,22 @@ describe('getWorkbenchQueue', () => {
     expect(result.needsTargeting[0].options[1].text).toBe('');
   });
 
-  it('fails closed when phase 0 warmup corpus cannot be loaded', async () => {
+  it('renders queue with caution when phase 0 warmup corpus cannot be loaded', async () => {
     mockLoadReviseQueueWarmupCorpus.mockRejectedValueOnce(new Error('missing benchmark corpus'));
+    const supabase = buildSupabaseMock('job-1', 'version-1');
+    mockCreateAdminClient.mockReturnValue(supabase as never);
+    mockEnsureLedger.mockResolvedValueOnce({ artifactId: 'ledger-1', opportunities: [] as never });
 
     const result = await getWorkbenchQueue({ manuscriptId: '6074', evaluationJobId: 'job-1' });
 
-    expect(result.ok).toBe(false);
-    expect(result.error).toContain('Phase 0 warmup corpus unavailable');
-    expect(mockEnsureLedger).not.toHaveBeenCalled();
+    expect(result.ok).toBe(true);
+    expect(result.error).toBeNull();
+    expect(result.goLiveProof?.phase0Warmup.status).toBe('unavailable');
+    expect(result.goLiveProof?.phase0Warmup.warning).toContain('temporarily unavailable');
+    expect(result.goLiveProof?.phase0Warmup.fileCount).toBe(0);
+    expect(result.goLiveProof?.phase0Warmup.benchmarkFiles).toEqual([]);
+    expect(result.revisionPackage?.revision_package_id).toBe('revision_package:job-1:version-1');
+    expect(mockEnsureLedger).toHaveBeenCalledTimes(1);
   });
 });
 
