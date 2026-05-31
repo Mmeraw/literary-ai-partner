@@ -7,6 +7,7 @@ import {
 const CONTRACT_DOC = 'docs/canon/STORY_LAYER_CONTRACT_V1.md';
 const SUPPORT_CONTRACT_DOC = 'docs/canon/SUPPORTING_SIGNAL_ARTIFACTS_CONTRACT_V1.md';
 const PROVIDER_VERIFICATION_CONTRACT_DOC = 'docs/canon/EVAL2_PROVIDER_VERIFICATION_CONTRACT_V1.md';
+const SEED_CONTRACT_DOC = 'docs/phase-0-warmup/SEED_AND_PHASE_1A_GOVERNANCE.md';
 
 export const ARTIFACT_REGISTRY: Record<CanonicalEvaluationArtifactType, ArtifactRegistryEntry> = {
   dream_calibration_packet_v1: {
@@ -18,6 +19,39 @@ export const ARTIFACT_REGISTRY: Record<CanonicalEvaluationArtifactType, Artifact
     phase: 'phase_0_calibration',
     phase2StoryAuthority: false,
     supportArtifact: false,
+    createsStoryLayer: false,
+  },
+  story_seed_v1: {
+    artifactType: 'story_seed_v1',
+    artifactVersion: 'v1',
+    schemaPath: null,
+    contractDocPath: SEED_CONTRACT_DOC,
+    authority: 'seed_baseline',
+    phase: 'seed_baseline',
+    phase2StoryAuthority: false,
+    supportArtifact: true,
+    createsStoryLayer: false,
+  },
+  evaluation_seed_v1: {
+    artifactType: 'evaluation_seed_v1',
+    artifactVersion: 'v1',
+    schemaPath: null,
+    contractDocPath: SEED_CONTRACT_DOC,
+    authority: 'seed_baseline',
+    phase: 'seed_baseline',
+    phase2StoryAuthority: false,
+    supportArtifact: true,
+    createsStoryLayer: false,
+  },
+  seed_fit_gap_report_v1: {
+    artifactType: 'seed_fit_gap_report_v1',
+    artifactVersion: 'v1',
+    schemaPath: null,
+    contractDocPath: SEED_CONTRACT_DOC,
+    authority: 'seed_fit_gap',
+    phase: 'seed_baseline',
+    phase2StoryAuthority: false,
+    supportArtifact: true,
     createsStoryLayer: false,
   },
   factual_anomalies_detected_v1: {
