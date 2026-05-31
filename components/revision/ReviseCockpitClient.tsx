@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { WorkbenchOpportunity, WorkbenchQueuePayload, WorkbenchScope, WorkbenchSource } from "@/lib/revision/workbenchQueue";
-import { candidateTextIsCopyPasteReady, customOperationLabels, operationLabels } from "@/lib/revision/reviseCardContract";
+import { candidateTextIsCopyPasteReady, customOperationLabels, getRenderableCandidateText, operationLabels } from "@/lib/revision/reviseCardContract";
 
 type DecisionState = "accepted_a" | "accepted_b" | "accepted_c" | "custom" | "keep_original" | "reject" | "deferred";
 type DecisionFilter = "all" | "pending" | "accepted" | "custom" | "kept_original" | "rejected" | "deferred";
@@ -30,6 +30,22 @@ type LedgerEntry = {
   syncStatus: "pending" | "synced" | "failed";
 };
 
+type ServerLedgerEntry = {
+  id: string;
+  local_id: string;
+  opportunity_id: string;
+  opportunity_title: string;
+  decision: DecisionState;
+  selected_option: "A" | "B" | "C" | null;
+  custom_text: string | null;
+  source_excerpt?: string | null;
+  source_location?: string | null;
+  client_created_at: string | null;
+  client_synced_at: string;
+  is_undo: boolean;
+  undone_local_id: string | null;
+};
+
 type Filters = {
   search: string;
   priority: "all" | WorkbenchOpportunity["severity"];
@@ -39,6 +55,37 @@ type Filters = {
 
 function localId() {
   return `local-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+function ledgerEntryFromServerRow(row: ServerLedgerEntry): LedgerEntry {
+  const createdAtIso = row.client_created_at ?? row.client_synced_at ?? new Date().toISOString();
+  return {
+    localId: row.local_id,
+    serverId: row.id,
+    at: new Date(createdAtIso).toLocaleTimeString(),
+    createdAtIso,
+    itemId: row.opportunity_id,
+    itemTitle: row.opportunity_title,
+    decision: row.decision,
+    selectedOption: row.selected_option ?? undefined,
+    customText: row.custom_text ?? undefined,
+    sourceExcerpt: row.source_excerpt ?? undefined,
+    sourceLocation: row.source_location ?? undefined,
+    isUndo: row.is_undo,
+    undoneLocalId: row.undone_local_id ?? undefined,
+    syncStatus: "synced",
+  };
+}
+
+function mergeLedgers(localEntries: LedgerEntry[], serverEntries: LedgerEntry[]) {
+  const byLocalId = new Map<string, LedgerEntry>();
+  [...serverEntries, ...localEntries].forEach((entry) => {
+    const existing = byLocalId.get(entry.localId);
+    if (!existing || existing.syncStatus !== "pending") {
+      byLocalId.set(entry.localId, entry);
+    }
+  });
+  return [...byLocalId.values()].sort((a, b) => b.createdAtIso.localeCompare(a.createdAtIso));
 }
 
 function criterionOf(item: WorkbenchOpportunity) {
@@ -95,6 +142,13 @@ function truncate(value: string, max = 320) {
   return clean.length > max ? `${clean.slice(0, max).trim()}…` : clean;
 }
 
+function candidateTextOf(option: { candidateText?: string; text: string }, issueStatement?: string) {
+  return getRenderableCandidateText({
+    candidateText: option.candidateText ?? option.text,
+    issueStatement,
+  });
+}
+
 export default function ReviseCockpitClient({ payload }: { payload: WorkbenchQueuePayload }) {
   const [activeId, setActiveId] = useState(payload.opportunities[0]?.id ?? "");
   const [selectedOption, setSelectedOption] = useState<"A" | "B" | "C">("A");
@@ -137,7 +191,7 @@ export default function ReviseCockpitClient({ payload }: { payload: WorkbenchQue
   const active = filtered.find((item) => item.id === activeId) ?? filtered[0] ?? null;
   const activeIndex = active ? Math.max(0, filtered.findIndex((item) => item.id === active.id)) : 0;
   const selectedProposal = active?.options.find((option) => option.key === selectedOption) ?? active?.options[0] ?? null;
-  const canAcceptSelection = selectedProposal ? candidateTextIsCopyPasteReady(selectedProposal.text) : false;
+  const canAcceptSelection = selectedProposal ? candidateTextIsCopyPasteReady(candidateTextOf(selectedProposal, active?.issueStatement)) : false;
 
   const counts = useMemo(() => {
     const result = { pending: 0, accepted: 0, custom: 0, kept: 0, rejected: 0, deferred: 0 };
@@ -152,6 +206,35 @@ export default function ReviseCockpitClient({ payload }: { payload: WorkbenchQue
     }
     return result;
   }, [decisionById, payload.opportunities]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadServerLedger() {
+      if (!payload.manuscriptId || !payload.evaluationJobId) return;
+
+      try {
+        const params = new URLSearchParams({
+          manuscriptId: payload.manuscriptId,
+          evaluationJobId: payload.evaluationJobId,
+        });
+        const response = await fetch(`/api/revision-ledger?${params.toString()}`);
+        if (!response.ok) return;
+        const json = await response.json();
+        if (!json?.ok || !Array.isArray(json.entries) || cancelled) return;
+
+        const serverEntries = (json.entries as ServerLedgerEntry[]).map(ledgerEntryFromServerRow);
+        setLedger((current) => mergeLedgers(current, serverEntries));
+      } catch {
+        // Keep the local ledger empty if hydration fails; current-session edits still work.
+      }
+    }
+
+    void loadServerLedger();
+    return () => {
+      cancelled = true;
+    };
+  }, [payload.evaluationJobId, payload.manuscriptId]);
 
   function moveNext(from: WorkbenchOpportunity) {
     const currentIndex = filtered.findIndex((item) => item.id === from.id);
@@ -214,7 +297,7 @@ export default function ReviseCockpitClient({ payload }: { payload: WorkbenchQue
   function decide(decision: DecisionState, option?: "A" | "B" | "C", custom?: string) {
     if (!active) return;
     const proposal = option ? active.options.find((candidate) => candidate.key === option) : undefined;
-    if (option && (!proposal || !candidateTextIsCopyPasteReady(proposal.text))) return;
+    if (option && (!proposal || !candidateTextIsCopyPasteReady(candidateTextOf(proposal, active.issueStatement)))) return;
     const entry: LedgerEntry = {
       localId: localId(),
       createdAtIso: new Date().toISOString(),
@@ -223,7 +306,7 @@ export default function ReviseCockpitClient({ payload }: { payload: WorkbenchQue
       decision,
       selectedOption: option,
       customText: custom?.trim() || undefined,
-      selectedText: proposal?.text ?? custom?.trim() ?? undefined,
+      selectedText: proposal ? candidateTextOf(proposal, active.issueStatement) : custom?.trim() ?? undefined,
       sourceExcerpt: `${active.quoteHighlight ?? ""}${active.quoteRest ?? ""}`.trim() || undefined,
       sourceLocation: active.anchor || active.meta || undefined,
       criterion: criterionOf(active),
@@ -269,6 +352,9 @@ export default function ReviseCockpitClient({ payload }: { payload: WorkbenchQue
         </div>
         <div className="flex shrink-0 items-center gap-2 text-xs text-[#D8C6A4]">
           <span className="rounded border border-[#5D4C31] px-2 py-1">Queue {filtered.length === 0 ? 0 : activeIndex + 1}/{filtered.length}</span>
+          {payload.goLiveProof?.phase0Warmup && (
+            <span className="rounded border border-[#48603F]/70 px-2 py-1 text-[#BBD8B4]">Warmup proof ✓ {payload.goLiveProof.phase0Warmup.fileCount} files</span>
+          )}
           <span className="rounded border border-[#5D4C31] px-2 py-1">Ready {readyForReviseCount}</span>
           <span className="rounded border border-[#7A2B1A]/60 px-2 py-1 text-[#F1B6A5]">Needs Targeting {needsTargetingCount}</span>
           <span className="rounded border border-[#7A2B1A]/60 px-2 py-1 text-[#F1B6A5]">MUST {payload.totals.must}</span>
@@ -353,20 +439,21 @@ export default function ReviseCockpitClient({ payload }: { payload: WorkbenchQue
               <div className="min-h-0 flex-1 overflow-y-auto p-3">
                 <div className="grid gap-2 xl:grid-cols-3">
                   {active.options.map((option) => {
-                    const copyReady = candidateTextIsCopyPasteReady(option.text);
+                    const candidateText = candidateTextOf(option, active.issueStatement);
+                    const copyReady = candidateTextIsCopyPasteReady(candidateText);
                     return (
                     <article key={option.key} onClick={() => setSelectedOption(option.key)} className={`cursor-pointer rounded-xl border bg-[#12100B] p-3 transition ${selectedOption === option.key ? "border-[#C8A96E]" : "border-[#2E261A] hover:border-[#5D4C31]"}`}>
                       <div className="flex items-center justify-between gap-2">
                         <p className="text-sm font-semibold text-[#F2E8D6]">{operationOptionLabel(active, option.key)}</p>
                         <div className="flex items-center gap-1">
-                          <button type="button" onClick={(event) => { event.stopPropagation(); void copyOptionText(option.text); }} disabled={!copyReady} className="rounded border border-[#5D4C31] px-2 py-1 text-xs font-semibold text-[#E8DABF] disabled:opacity-40">Copy</button>
+                          <button type="button" onClick={(event) => { event.stopPropagation(); void copyOptionText(candidateText); }} disabled={!copyReady} className="rounded border border-[#5D4C31] px-2 py-1 text-xs font-semibold text-[#E8DABF] disabled:opacity-40">Copy</button>
                           <button type="button" onClick={(event) => { event.stopPropagation(); decide(`accepted_${option.key.toLowerCase()}` as DecisionState, option.key); }} disabled={!copyReady} className="rounded bg-[#C8A96E] px-2 py-1 text-xs font-semibold text-[#1A140C] disabled:opacity-40">Accept {option.key}</button>
                         </div>
                       </div>
                       <p className="mt-1 text-[11px] uppercase tracking-wider text-[#A9987D]">{option.mechanism}</p>
-                      <p className="mt-2 line-clamp-5 whitespace-pre-wrap text-sm leading-5 text-[#E5D8BE]">{truncate(option.text)}</p>
+                      <p className="mt-2 line-clamp-5 whitespace-pre-wrap text-sm leading-5 text-[#E5D8BE]">{truncate(candidateText)}</p>
                       {!copyReady && <p className="mt-2 text-xs text-[#E2B2A6]">Not copy-ready; move card to Needs Targeting.</p>}
-                      <details className="mt-2 text-xs text-[#BDAE91]"><summary className="cursor-pointer text-[#C8A96E]">Show full fix</summary><p className="mt-2 whitespace-pre-wrap leading-5">{option.text}</p><p className="mt-2 text-[#A9987D]">{option.rationale}</p></details>
+                      <details className="mt-2 text-xs text-[#BDAE91]"><summary className="cursor-pointer text-[#C8A96E]">Show full fix</summary><p className="mt-2 whitespace-pre-wrap leading-5">{candidateText}</p><p className="mt-2 text-[#A9987D]">{option.rationale}</p></details>
                     </article>
                   )})}
                 </div>
@@ -385,15 +472,15 @@ export default function ReviseCockpitClient({ payload }: { payload: WorkbenchQue
                 {customOpen && <div className="mt-3 rounded-xl border border-[#C8A96E]/60 bg-[#120E08] p-3"><textarea value={customText} onChange={(event) => setCustomText(event.target.value)} rows={4} className="w-full rounded border border-[#3A3022] bg-[#0D0A05] p-3 font-mono text-sm outline-none focus:border-[#C8A96E]" /><button disabled={!customText.trim()} onClick={() => decide("custom", undefined, customText)} className="mt-2 rounded bg-[#C8A96E] px-3 py-1.5 text-sm font-semibold text-[#1A140C] disabled:opacity-50">Save custom + next</button></div>}
               </div>
 
-              <footer className="shrink-0 border-t border-[#2E261A] bg-[#120E08] p-3">
+              <footer id="revision-ledger" className="shrink-0 border-t border-[#2E261A] bg-[#120E08] p-3">
                 <div className="flex flex-wrap items-center gap-2">
-                  <button onClick={() => decide("accepted_a", "A")} disabled={!candidateTextIsCopyPasteReady(active.options.find((option) => option.key === "A")?.text)} className="rounded bg-[#C8A96E] px-4 py-2 text-sm font-semibold text-[#1A140C] disabled:opacity-40">Accept A</button>
-                  <button onClick={() => decide("accepted_b", "B")} disabled={!candidateTextIsCopyPasteReady(active.options.find((option) => option.key === "B")?.text)} className="rounded border border-[#C8A96E] px-4 py-2 text-sm text-[#F3E3C3] disabled:opacity-40">Accept B</button>
-                  <button onClick={() => decide("accepted_c", "C")} disabled={!candidateTextIsCopyPasteReady(active.options.find((option) => option.key === "C")?.text)} className="rounded border border-[#C8A96E] px-4 py-2 text-sm text-[#F3E3C3] disabled:opacity-40">Accept C</button>
+                  <button onClick={() => decide("accepted_a", "A")} disabled={!candidateTextIsCopyPasteReady(candidateTextOf(active.options.find((option) => option.key === "A") ?? { text: "" }, active.issueStatement))} className="rounded bg-[#C8A96E] px-4 py-2 text-sm font-semibold text-[#1A140C] disabled:opacity-40">Accept A</button>
+                  <button onClick={() => decide("accepted_b", "B")} disabled={!candidateTextIsCopyPasteReady(candidateTextOf(active.options.find((option) => option.key === "B") ?? { text: "" }, active.issueStatement))} className="rounded border border-[#C8A96E] px-4 py-2 text-sm text-[#F3E3C3] disabled:opacity-40">Accept B</button>
+                  <button onClick={() => decide("accepted_c", "C")} disabled={!candidateTextIsCopyPasteReady(candidateTextOf(active.options.find((option) => option.key === "C") ?? { text: "" }, active.issueStatement))} className="rounded border border-[#C8A96E] px-4 py-2 text-sm text-[#F3E3C3] disabled:opacity-40">Accept C</button>
                   <button onClick={() => decide("keep_original")} disabled={!canAcceptSelection} className="rounded border border-[#5D4C31] px-3 py-2 text-sm text-[#E8DABF] disabled:opacity-40">Keep Original</button>
                   <button onClick={() => decide("reject")} disabled={!canAcceptSelection} className="rounded border border-[#7A2B1A]/70 px-3 py-2 text-sm text-[#E2B2A6] disabled:opacity-40">Reject</button>
                   <button onClick={() => decide("deferred")} className="rounded border border-[#5C5140] px-3 py-2 text-sm text-[#B7A98D]">Defer</button>
-                  <button onClick={() => { setCustomText(active.options.find((option) => option.key === selectedOption)?.text ?? active.options[0]?.text ?? ""); setCustomOpen(true); }} className="rounded border border-[#C8A96E] bg-[#C8A96E]/10 px-3 py-2 text-sm text-[#F3E3C3]">{customOperationLabels[active.revisionOperation]}</button>
+                  <button onClick={() => { const selected = active.options.find((option) => option.key === selectedOption) ?? active.options[0]; setCustomText(selected ? candidateTextOf(selected, active.issueStatement) : ""); setCustomOpen(true); }} className="rounded border border-[#C8A96E] bg-[#C8A96E]/10 px-3 py-2 text-sm text-[#F3E3C3]">{customOperationLabels[active.revisionOperation]}</button>
                   <button onClick={() => setLedgerOpen((value) => !value)} className="ml-auto rounded border border-[#5D4C31] px-3 py-2 text-sm text-[#A9987D]">Ledger ({ledger.length})</button>
                 </div>
                 {ledgerOpen && <div className="mt-2 max-h-28 overflow-y-auto rounded border border-[#2E261A] bg-[#0D0A05] p-2 text-xs text-[#CBBDA4]">{ledger.length === 0 ? <p>No decisions yet.</p> : ledger.slice(0, 12).map((entry) => <p key={entry.localId} className="truncate">{decisionLabel(entry)} · {entry.itemTitle} · {entry.syncStatus}</p>)}</div>}

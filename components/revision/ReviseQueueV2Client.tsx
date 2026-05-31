@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import type { WorkbenchOpportunity, WorkbenchQueuePayload, WorkbenchScope, WorkbenchSource } from "@/lib/revision/workbenchQueue";
+import { getRenderableCandidateText, REVISION_OPTION_LABELS } from "@/lib/revision/reviseCardContract";
 
 type DecisionState = "pending" | "accepted_a" | "accepted_b" | "accepted_c" | "custom" | "keep_original" | "reject" | "deferred";
 type DecisionFilter = "pending" | "accepted" | "custom" | "kept_original" | "rejected" | "deferred";
@@ -326,9 +327,14 @@ function evidenceLabel(status: EvidenceStatus) {
 }
 
 function optionRoleLabel(key: "A" | "B" | "C") {
-  if (key === "A") return "A — Recommended Repair";
-  if (key === "B") return "B — Rhythm Variant";
-  return "C — Bolder Rendering Shift";
+  return REVISION_OPTION_LABELS[key];
+}
+
+function candidateTextOf(option: { candidateText?: string; text: string }, issueStatement: string) {
+  return getRenderableCandidateText({
+    candidateText: option.candidateText ?? option.text,
+    issueStatement,
+  });
 }
 
 function decisionLabel(entry: LedgerEntry) {
@@ -847,7 +853,9 @@ export default function ReviseQueueV2Client({ payload }: { payload: WorkbenchQue
   const failedSyncCount = ledger.filter((entry) => entry.syncStatus === "failed").length;
 
   const activeEvidence = active ? active.evidenceStatus : "missing_evidence";
-  const canAccept = activeEvidence !== "missing_evidence";
+  const canAccept = activeEvidence !== "missing_evidence"
+    && active.base.readiness === "ready_for_revise"
+    && Boolean(selectedProposal && candidateTextOf(selectedProposal, active.base.issueStatement));
 
   const referenceHref = useMemo(() => {
     const params = new URLSearchParams();
@@ -885,7 +893,7 @@ export default function ReviseQueueV2Client({ payload }: { payload: WorkbenchQue
 
     const createdAtIso = new Date().toISOString();
     const resolvedSelectedText = normalized.startsWith("accepted")
-      ? selectedProposal?.text ?? undefined
+      ? (selectedProposal ? candidateTextOf(selectedProposal, active.base.issueStatement) : undefined)
       : customText?.trim() || undefined;
 
     const entry: LedgerEntry = {
@@ -982,6 +990,11 @@ export default function ReviseQueueV2Client({ payload }: { payload: WorkbenchQue
 
           <div className="mt-4 flex flex-wrap gap-2 text-xs">
             <span className={`rounded border px-2 py-1 ${isOnline ? "border-[#48603F] text-[#B8D6AD]" : "border-[#7A2B1A]/70 text-[#E9B19F]"}`}>{isOnline ? "Online" : "Offline"}</span>
+            {effectivePayload.goLiveProof?.phase0Warmup && (
+              <span className="rounded border border-[#48603F]/70 px-2 py-1 text-[#B8D6AD]">
+                Warmup proof ✓ {effectivePayload.goLiveProof.phase0Warmup.fileCount} files
+              </span>
+            )}
             <span className="rounded border border-[#5D4C31] px-2 py-1 text-[#D8C6A4]">Local cache active</span>
             <span className="rounded border border-[#5D4C31] px-2 py-1 text-[#D8C6A4]">Server ledger enabled</span>
             {pendingSync > 0 && <span className="rounded border border-[#C8A96E]/45 px-2 py-1 text-[#E9D9B7]">{pendingSync} pending sync</span>}
@@ -1216,6 +1229,11 @@ export default function ReviseQueueV2Client({ payload }: { payload: WorkbenchQue
                 )}
 
                 <section className="mt-4 rounded-lg border border-[#2E261A] bg-[#12100B] p-4">
+                  <h3 className="text-xs uppercase tracking-[0.16em] text-[#C8A96E]">Issue</h3>
+                  <p className="mt-2 text-sm leading-relaxed text-[#E9DCC4]">{active.base.issueStatement}</p>
+                </section>
+
+                <section className="mt-4 rounded-lg border border-[#2E261A] bg-[#12100B] p-4">
                   <h3 className="text-xs uppercase tracking-[0.16em] text-[#C8A96E]">Evidence</h3>
                   <blockquote className="mt-2 border-l border-[#C8A96E]/60 pl-3 text-sm leading-relaxed text-[#E9DCC4]">
                     <span className="text-[#F8F1E2]">“{active.base.quoteHighlight}”</span>{active.base.quoteRest}
@@ -1225,10 +1243,10 @@ export default function ReviseQueueV2Client({ payload }: { payload: WorkbenchQue
 
                 <section className="mt-4 grid gap-3 md:grid-cols-2">
                   {[
-                    ["Diagnosis", active.base.symptom],
-                    ["Cause", active.base.cause],
-                    ["Fix direction", active.base.fixDirection],
-                    ["Reader effect", active.base.readerEffect],
+                    ["Symptom", active.base.diagnostic.symptom],
+                    ["Cause", active.base.diagnostic.cause],
+                    ["Fix strategy", active.base.diagnostic.fixStrategy],
+                    ["Reader impact", active.base.diagnostic.readerImpact],
                   ].map(([label, text]) => (
                     <div key={label} className="rounded-lg border border-[#2E261A] bg-[#12100B] p-3">
                       <p className="text-xs uppercase tracking-[0.14em] text-[#C8A96E]">{label}</p>
@@ -1238,8 +1256,13 @@ export default function ReviseQueueV2Client({ payload }: { payload: WorkbenchQue
                 </section>
 
                 <section className="mt-4 rounded-lg border border-[#2E261A] bg-[#12100B] p-3">
+                  <p className="text-xs uppercase tracking-[0.14em] text-[#C8A96E]">Operation / Targeting</p>
+                  <p className="mt-1 text-sm text-[#E8DCC4]">{active.base.diagnostic.operationTargeting}</p>
+                </section>
+
+                <section className="mt-4 rounded-lg border border-[#2E261A] bg-[#12100B] p-3">
                   <p className="text-xs uppercase tracking-[0.14em] text-[#C8A96E]">Mistake-proofing</p>
-                  <p className="mt-1 text-sm text-[#E8DCC4]">{active.base.mistakeProofing}</p>
+                  <p className="mt-1 text-sm text-[#E8DCC4]">{active.base.diagnostic.mistakeProofing}</p>
                 </section>
 
                 <section className="mt-5 space-y-3">
@@ -1251,7 +1274,7 @@ export default function ReviseQueueV2Client({ payload }: { payload: WorkbenchQue
                         type="button"
                         onClick={() => {
                           setSelectedOption(option.key);
-                          if (isDraftOpen) setDraftText(option.text);
+                          if (isDraftOpen) setDraftText(candidateTextOf(option, active.base.issueStatement));
                         }}
                         className={`w-full rounded-lg border p-4 text-left transition ${isSelected ? "border-[#C8A96E] bg-[#221B11]" : "border-[#2E261A] bg-[#12100B] hover:border-[#5D4C31]"}`}
                       >
@@ -1259,7 +1282,7 @@ export default function ReviseQueueV2Client({ payload }: { payload: WorkbenchQue
                           <p className="text-sm font-semibold text-[#F2E8D6]">{optionRoleLabel(option.key)}</p>
                           <span className="text-xs text-[#B29F7D]">{active.queueType === "repair_plan" ? "Plan" : "Proposal"}</span>
                         </div>
-                        <pre className="mt-2 whitespace-pre-wrap text-sm leading-6 text-[#E5D8BE]">{option.text}</pre>
+                        <pre className="mt-2 whitespace-pre-wrap text-sm leading-6 text-[#E5D8BE]">{candidateTextOf(option, active.base.issueStatement) || "Needs targeting: candidate prose not ready for apply."}</pre>
                         <p className="mt-2 text-xs text-[#BDAE91]">{option.rationale}</p>
                       </button>
                     );
@@ -1297,7 +1320,7 @@ export default function ReviseQueueV2Client({ payload }: { payload: WorkbenchQue
                   <button
                     type="button"
                     onClick={() => {
-                      setDraftText((current) => current || selectedProposal?.text || "");
+                      setDraftText((current) => current || (selectedProposal ? candidateTextOf(selectedProposal, active.base.issueStatement) : ""));
                       setIsDraftOpen(true);
                     }}
                     className="rounded border border-[#C8A96E] bg-[#C8A96E]/10 px-4 py-2 text-sm text-[#F3E3C3]"
@@ -1365,7 +1388,7 @@ export default function ReviseQueueV2Client({ payload }: { payload: WorkbenchQue
                 <button
                   type="button"
                   onClick={() => {
-                    setDraftText((current) => current || selectedProposal?.text || "");
+                    setDraftText((current) => current || (selectedProposal ? candidateTextOf(selectedProposal, active.base.issueStatement) : ""));
                     setIsDraftOpen(true);
                   }}
                   className="rounded border border-[#C8A96E] bg-[#C8A96E]/10 px-4 py-2 text-sm text-[#F3E3C3]"

@@ -1,6 +1,7 @@
 import {
   candidateTextIsCopyPasteReady,
   customOperationLabels,
+  getRenderableCandidateText,
   inferRevisionOperation,
   operationLabels,
   operationRequiresStructuralPreview,
@@ -10,6 +11,12 @@ import {
 describe('revise card contract', () => {
   test('accepts a ready card with exact source text, operation, location, and A/B/C candidate prose', () => {
     const result = validateReviseCardContract({
+      issueStatement: 'The will language implies surrender rather than legal caution.',
+      symptom: 'The clause reads as procedural detail instead of emotional consequence.',
+      cause: 'The sentence overweights legal framing and underweights narrative signal.',
+      fixStrategy: 'Insert a brief emotional bridge immediately after the clause.',
+      readerImpact: 'Readers retain legal clarity while feeling the private stakes.',
+      operationNote: 'insert_after_selected_passage · Chapter 2 — Search for Mr. Hyde, paragraph 3',
       sourceText: 'The lawyer read the clause again, and found it no less monstrous at the second reading.',
       sourceLocationLabel: 'Chapter 2 — Search for Mr. Hyde, paragraph 3',
       revisionOperation: 'insert_after_selected_passage',
@@ -25,6 +32,12 @@ describe('revise card contract', () => {
 
   test('shunts no-excerpt and location-pending cards to needs targeting', () => {
     const result = validateReviseCardContract({
+      issueStatement: 'The recommendation is not targetable yet.',
+      symptom: 'No target location is specified.',
+      cause: 'The item is still manuscript-wide and unresolved.',
+      fixStrategy: 'Target a precise location before offering A/B/C.',
+      readerImpact: 'Prevents accepting generic guidance as prose.',
+      operationNote: 'needs_targeting · Location pending',
       sourceText: 'No excerpt available — this recommendation is based on patterns found across the manuscript rather than a single passage.',
       sourceLocationLabel: 'Location pending',
       revisionOperation: 'replace_selected_passage',
@@ -41,6 +54,9 @@ describe('revise card contract', () => {
 
   test('blocks lazy meta-suggestion text from A/B/C candidates', () => {
     expect(candidateTextIsCopyPasteReady('Apply the same repair goal with a lighter touch, preserving more of the original cadence.')).toBe(false)
+    expect(candidateTextIsCopyPasteReady('Preserve the existing order and add the smallest connective beat that restores clarity.')).toBe(false)
+    expect(candidateTextIsCopyPasteReady('Making Newton’s decision and its fallout concrete will sharpen stakes and give readers a clear causal engine.')).toBe(false)
+    expect(candidateTextIsCopyPasteReady('This revision improves Narrative Drive & Momentum by adding a clearer causal engine.')).toBe(false)
     expect(candidateTextIsCopyPasteReady('In the paragraph containing “hithery-thithery dock,” replace one rhyme-heavy clause.')).toBe(false)
     expect(candidateTextIsCopyPasteReady('PROSECONTROL:recommendation')).toBe(false)
     expect(candidateTextIsCopyPasteReady('The door stood in the row like a warning no one had chosen to read.')).toBe(true)
@@ -48,6 +64,12 @@ describe('revise card contract', () => {
 
   test('routes cards to needs_targeting when A/B/C are not materially distinct', () => {
     const result = validateReviseCardContract({
+      issueStatement: 'Internal conflict is stated but not yet dramatized in the line.',
+      symptom: 'The line states conflict without dramatizing it.',
+      cause: 'The sentence reports emotion instead of staging it.',
+      fixStrategy: 'Replace line with dramatized physical beat.',
+      readerImpact: 'Readers infer conflict through action instead of summary.',
+      operationNote: 'replace_selected_passage · Chapter 2 — Search for Mr. Hyde, paragraph 4',
       sourceText: 'The voices in his head began to knock against one another.',
       sourceLocationLabel: 'Chapter 2 — Search for Mr. Hyde, paragraph 4',
       revisionOperation: 'replace_selected_passage',
@@ -78,5 +100,42 @@ describe('revise card contract', () => {
     expect(operationRequiresStructuralPreview('rewrite_multi_paragraph_span')).toBe(true)
     expect(operationRequiresStructuralPreview('delete_selected_passage')).toBe(true)
     expect(operationRequiresStructuralPreview('replace_selected_passage')).toBe(false)
+  })
+
+  test('routes candidate to needs_targeting when it repeats the issue statement', () => {
+    const result = validateReviseCardContract({
+      issueStatement: 'The paragraph loses cause-and-effect clarity at the pivot.',
+      symptom: 'Causal pivot is implied rather than explicit.',
+      cause: 'The transition skips the motivating beat.',
+      fixStrategy: 'Add a direct causal bridge sentence.',
+      readerImpact: 'Restores continuity and reader trust.',
+      operationNote: 'insert_after_selected_passage · Chapter 4 paragraph 2',
+      sourceText: 'He turned away from the fire and said nothing for a long while.',
+      sourceLocationLabel: 'Chapter 4 paragraph 2',
+      revisionOperation: 'insert_after_selected_passage',
+      candidateTexts: [
+        'The paragraph loses cause-and-effect clarity at the pivot.',
+        'He turned away from the fire, then admitted what he feared he had caused.',
+        'He turned from the fire and finally named the consequence he had been avoiding.',
+      ],
+    })
+
+    expect(result.readiness).toBe('needs_targeting')
+    expect(result.reason).toMatch(/copy-paste ready/i)
+  })
+
+  test('hides candidate prose from renderer when candidate duplicates issue statement', () => {
+    const hidden = getRenderableCandidateText({
+      candidateText: 'The paragraph loses cause-and-effect clarity at the pivot.',
+      issueStatement: 'The paragraph loses cause-and-effect clarity at the pivot.',
+    })
+
+    const visible = getRenderableCandidateText({
+      candidateText: 'He turned away from the fire, then named the consequence he had caused.',
+      issueStatement: 'The paragraph loses cause-and-effect clarity at the pivot.',
+    })
+
+    expect(hidden).toBe('')
+    expect(visible).toBe('He turned away from the fire, then named the consequence he had caused.')
   })
 })

@@ -35,6 +35,7 @@ describe("ReviseQueueV2Client smoke", () => {
       leverage: "Pacing",
       crumb: `Pacing · Item ${id}`,
       title,
+      issueStatement: title,
       meta: `Pacing · Item ${id}`,
       confidence: "70% confidence",
       anchor: "Location pending",
@@ -45,6 +46,18 @@ describe("ReviseQueueV2Client smoke", () => {
       fixDirection: "Split into clearer units.",
       readerEffect: "Improves readability and pacing.",
       mistakeProofing: "Preserve author voice.",
+      diagnostic: {
+        symptom: "Sentence density may be high in this area.",
+        cause: "Too many beats in one line.",
+        fixStrategy: "Split into clearer units.",
+        readerImpact: "Improves readability and pacing.",
+        evidence: {
+          quotedExcerpt: "No excerpt available",
+          locationLabel: "Location pending",
+        },
+        operationTargeting: "replace_selected_passage · Location pending",
+        mistakeProofing: "Preserve author voice.",
+      },
       options: [
         { key: "A", mechanism: "Recommended repair", text: "Repair A", rationale: "Best default." },
         { key: "B", mechanism: "Rhythm variant", text: "Repair B", rationale: "Lighter touch." },
