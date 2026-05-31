@@ -40,6 +40,10 @@ import {
   normalizeLayerDecisionsForPersistence,
   validateLayerDecisionsForApproval,
 } from '@/lib/evaluation/reviewGate/layerDecisionValidation';
+import {
+  isReviewGateApprovalAllowed,
+  STORY_LEDGER_CONTAINMENT_MESSAGE,
+} from '@/lib/evaluation/reviewGate/containmentMode';
 
 type Disposition = 'accepted_without_changes' | 'accepted_with_edits' | 'rejected';
 
@@ -107,6 +111,17 @@ export async function POST(request: NextRequest, { params }: RouteParams): Promi
     return NextResponse.json(
       { ok: false, error: `Invalid disposition. Must be one of: ${VALID_DISPOSITIONS.join(', ')}` },
       { status: 400 },
+    );
+  }
+
+  if (!isReviewGateApprovalAllowed(disposition)) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error: STORY_LEDGER_CONTAINMENT_MESSAGE,
+        code: 'REVIEW_GATE_APPROVAL_DISABLED_CONTAINMENT',
+      },
+      { status: 409 },
     );
   }
 

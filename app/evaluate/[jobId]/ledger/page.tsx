@@ -8,6 +8,7 @@ import {
   type StoryLayerContent,
   type LedgerQualityReportContent,
 } from '@/lib/ledger/storyLedgerVisibility';
+import { STORY_LEDGER_APPROVAL_ENABLED } from '@/lib/evaluation/reviewGate/containmentMode';
 import { approveLedgerAction, rejectLedgerAction } from './actions';
 import { StoryLedgerShell } from '@/components/ledger/StoryLedgerShell';
 import LedgerDownloadButton from '@/components/ledger/LedgerDownloadButton';
@@ -356,6 +357,7 @@ export default async function StoryLedgerPage({
         hardFails={hardFails}
         hasHardFails={hasHardFails}
         acceptedLedger={acceptedLedger}
+        reviewGateContainmentMode={!STORY_LEDGER_APPROVAL_ENABLED}
         approveLedgerAction={approveLedgerAction}
         rejectLedgerAction={rejectLedgerAction}
       />

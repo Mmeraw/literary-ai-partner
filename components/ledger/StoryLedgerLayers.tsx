@@ -3448,7 +3448,7 @@ export function LayerCompletionBar({
               color: C.textMuted,
             }}
           >
-            Layer Completion
+            Generation Coverage
           </span>
           <span
             style={{
@@ -3496,7 +3496,7 @@ export function LayerCompletionBar({
           />
         )}
         {!hasEmpty && !hasDegraded && (
-          <Pill label="All layers populated" tone="green" />
+          <Pill label="Generated layers detected" tone="neutral" />
         )}
       </div>
     </div>
