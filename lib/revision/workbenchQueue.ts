@@ -485,6 +485,19 @@ function cleanAuthorFacingText(value: string | null | undefined, fallback: strin
   return raw
 }
 
+function sanitizeEvidenceExcerpt(value: string | null | undefined): string {
+  const raw = (value ?? '').trim()
+  if (!raw) return ''
+
+  if (hasWordProcessorArtifact(raw)) return ''
+  if (/\b(?:prosecontrol|narrativedrive|evaluation_result|criteria\.recommendations|provenance)\b/i.test(raw)) {
+    return ''
+  }
+  if (/\b[A-Z]{3,}:[a-z_]+\b/.test(raw)) return ''
+
+  return raw
+}
+
 function normalizeRevisionOperation(raw: unknown): RevisionOperation | null {
   if (typeof raw !== 'string') return null
   const clean = raw.trim()
@@ -673,7 +686,11 @@ function findingToOpportunity(
   const rich = matchRichRecommendation(finding, richLookup)
 
   // Evidence: prefer rich anchor_snippet > finding.evidence_excerpt > finding.original_text
-  const evidenceText = rich?.anchor_snippet || finding.evidence_excerpt || finding.original_text || null
+  const evidenceText =
+    sanitizeEvidenceExcerpt(rich?.anchor_snippet)
+    || sanitizeEvidenceExcerpt(finding.evidence_excerpt)
+    || sanitizeEvidenceExcerpt(finding.original_text)
+    || null
   const evidence = splitEvidence(evidenceText)
 
   // Title: use symptom if available (it's the observable reader problem)
@@ -939,7 +956,7 @@ export async function getWorkbenchQueue(input: { manuscriptId?: string; evaluati
         : opportunity.severity === 'should'
           ? 'should'
           : 'could'
-    const evidence = splitEvidence(opportunity.evidence_anchor)
+    const evidence = splitEvidence(sanitizeEvidenceExcerpt(opportunity.evidence_anchor) || null)
     const candidateA = (opportunity.candidate_text_a ?? '').trim()
     const candidateB = (opportunity.candidate_text_b ?? '').trim()
     const candidateC = (opportunity.candidate_text_c ?? '').trim()

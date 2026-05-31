@@ -196,6 +196,26 @@ function overlapRatio(a: string, b: string): number {
   return overlap / Math.max(left.size, right.size)
 }
 
+function proseTokens(value: string): string[] {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .filter(Boolean)
+}
+
+function sharedLeadingTokenCount(a: string, b: string): number {
+  const left = proseTokens(a)
+  const right = proseTokens(b)
+  const limit = Math.min(left.length, right.length)
+  let count = 0
+  for (let i = 0; i < limit; i += 1) {
+    if (left[i] !== right[i]) break
+    count += 1
+  }
+  return count
+}
+
 function hasInternalTokenLeak(value: string): boolean {
   const clean = normalize(value)
   if (!clean) return false
@@ -343,6 +363,15 @@ export function validateReviseCardContract(input: ReviseCardValidationInput): Re
 
   const [a, b, c] = normalizedCandidates
   if (overlapRatio(a, b) >= 0.9 || overlapRatio(a, c) >= 0.9 || overlapRatio(b, c) >= 0.9) {
+    return { readiness: 'needs_targeting', reason: 'Candidate options are not materially distinct.' }
+  }
+
+  const sharedLeadInLimit = 4
+  if (
+    sharedLeadingTokenCount(a, b) >= sharedLeadInLimit
+    || sharedLeadingTokenCount(a, c) >= sharedLeadInLimit
+    || sharedLeadingTokenCount(b, c) >= sharedLeadInLimit
+  ) {
     return { readiness: 'needs_targeting', reason: 'Candidate options are not materially distinct.' }
   }
 

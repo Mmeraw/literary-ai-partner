@@ -6,7 +6,6 @@ import { candidateTextIsCopyPasteReady, customOperationLabels, getRenderableCand
 
 type DecisionState = "accepted_a" | "accepted_b" | "accepted_c" | "custom" | "keep_original" | "reject" | "deferred";
 type DecisionFilter = "all" | "pending" | "accepted" | "custom" | "kept_original" | "rejected" | "deferred";
-type EvidenceTab = "evidence" | "diagnosis" | "logic";
 type QueueType = "repair_plan" | "direct_rewrite";
 type EvidenceStatus = "has_excerpt" | "has_location" | "manuscript_wide" | "missing_evidence";
 
@@ -154,12 +153,17 @@ function canAcceptOption(item: WorkbenchOpportunity, option: { candidateText?: s
   return candidateTextIsCopyPasteReady(candidateTextOf(option, item.issueStatement));
 }
 
+function shouldRenderRationale(rationale?: string) {
+  const value = (rationale ?? "").trim();
+  if (!value) return false;
+  return !/(primary repair path from the evaluation|secondary variant for author-controlled cadence|alternative variant for stronger emphasis|copy-ready prose variant|not copy-ready)/i.test(value);
+}
+
 export default function ReviseCockpitClient({ payload }: { payload: WorkbenchQueuePayload }) {
   const [activeId, setActiveId] = useState(payload.opportunities[0]?.id ?? "");
   const [selectedOption, setSelectedOption] = useState<"A" | "B" | "C">("A");
   const [filters, setFilters] = useState<Filters>({ search: "", priority: "all", criterion: "all", status: "all" });
   const [ledger, setLedger] = useState<LedgerEntry[]>([]);
-  const [tab, setTab] = useState<EvidenceTab>("evidence");
   const [customOpen, setCustomOpen] = useState(false);
   const [customText, setCustomText] = useState("");
   const [ledgerOpen, setLedgerOpen] = useState(false);
@@ -257,7 +261,6 @@ export default function ReviseCockpitClient({ payload }: { payload: WorkbenchQue
       ?? null;
     if (next) setActiveId(next.id);
     setSelectedOption("A");
-    setTab("evidence");
     setCustomOpen(false);
     setCustomText("");
   }
@@ -450,12 +453,26 @@ export default function ReviseCockpitClient({ payload }: { payload: WorkbenchQue
                   <span className="rounded border border-[#5A4B33] px-2 py-1">{evidenceStatusOf(active).replace(/_/g, " ")}</span>
                 </div>
                 <h2 className="mt-2 line-clamp-2 text-xl leading-tight text-[#F7EFDF]">{active.title}</h2>
-                <p className="mt-1 truncate text-xs text-[#A9987D]">Evidence: {active.anchor || active.meta || "available in diagnostic details"}</p>
-                <p className="mt-1 truncate text-xs text-[#A9987D]">Operation: {operationLabels[active.revisionOperation]}</p>
+                <div className="mt-2 grid gap-1 text-xs text-[#CBBDA4] md:grid-cols-2">
+                  <p>Concept / Premise • {active.severity.toUpperCase()}</p>
+                  <p>Scope: {active.scope}</p>
+                  <p>Chapter / Location: {active.anchor || active.meta || "Location pending"}</p>
+                  <p>Status: {decisionGroup(decisionById[active.id])}</p>
+                </div>
               </div>
 
               <div className="min-h-0 flex-1 overflow-y-auto p-3">
-                <div className="grid gap-2 xl:grid-cols-3">
+                <section className="rounded-xl border border-[#2E261A] bg-[#12100B] p-3">
+                  <p className="text-[11px] uppercase tracking-[0.18em] text-[#C8A96E]">Original Passage</p>
+                  <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-[#E8DCC4]">“{active.quoteHighlight}”{active.quoteRest}</p>
+                  <p className="mt-1 text-xs text-[#A9987D]">{active.anchor || active.meta || "Location pending"}</p>
+                </section>
+
+                <section className="mt-3">
+                  <p className="text-[11px] uppercase tracking-[0.18em] text-[#C8A96E]">Replacement Options</p>
+                </section>
+
+                <div className="mt-2 grid gap-2 xl:grid-cols-3">
                   {active.options.map((option) => {
                     const candidateText = candidateTextOf(option, active.issueStatement);
                     const copyReady = canAcceptOption(active, option);
@@ -471,21 +488,23 @@ export default function ReviseCockpitClient({ payload }: { payload: WorkbenchQue
                       <p className="mt-1 text-[11px] uppercase tracking-wider text-[#A9987D]">{option.mechanism}</p>
                       <p className="mt-2 line-clamp-5 whitespace-pre-wrap text-sm leading-5 text-[#E5D8BE]">{truncate(candidateText)}</p>
                       {!copyReady && <p className="mt-2 text-xs text-[#E2B2A6]">Not copy-ready; move card to Needs Targeting.</p>}
-                      <details className="mt-2 text-xs text-[#BDAE91]"><summary className="cursor-pointer text-[#C8A96E]">Show full fix</summary><p className="mt-2 whitespace-pre-wrap leading-5">{candidateText}</p><p className="mt-2 text-[#A9987D]">{option.rationale}</p></details>
+                      <details className="mt-2 text-xs text-[#BDAE91]"><summary className="cursor-pointer text-[#C8A96E]">Show full fix</summary><p className="mt-2 whitespace-pre-wrap leading-5">{candidateText}</p>{shouldRenderRationale(option.rationale) ? <p className="mt-2 text-[#A9987D]">{option.rationale}</p> : null}</details>
                     </article>
                   )})}
                 </div>
 
-                <div className="mt-3 rounded-xl border border-[#2E261A] bg-[#12100B]">
-                  <div className="flex border-b border-[#2E261A] text-xs">
-                    {(["evidence", "diagnosis", "logic"] as const).map((item) => <button key={item} type="button" onClick={() => setTab(item)} className={`px-3 py-2 capitalize ${tab === item ? "bg-[#221B11] text-[#C8A96E]" : "text-[#A9987D] hover:text-[#E8DABF]"}`}>{item}</button>)}
+                <details className="mt-3 rounded-xl border border-[#2E261A] bg-[#12100B] p-3" open>
+                  <summary className="cursor-pointer text-[11px] uppercase tracking-[0.18em] text-[#C8A96E]">Why this was flagged</summary>
+                  <div className="mt-3 space-y-1 text-sm leading-6 text-[#E8DCC4]">
+                    <p><span className="text-[#C8A96E]">Evidence:</span> “{active.quoteHighlight}”{active.quoteRest}</p>
+                    <p><span className="text-[#C8A96E]">Symptom:</span> {active.symptom}</p>
+                    <p><span className="text-[#C8A96E]">Cause:</span> {active.cause}</p>
+                    <p><span className="text-[#C8A96E]">Fix direction:</span> {active.fixDirection}</p>
+                    <p><span className="text-[#C8A96E]">Reader effect:</span> {active.readerEffect}</p>
+                    <p><span className="text-[#C8A96E]">Mistake-proofing:</span> {active.mistakeProofing}</p>
+                    <p><span className="text-[#C8A96E]">Operation:</span> {operationLabels[active.revisionOperation]}</p>
                   </div>
-                  <div className="max-h-28 overflow-y-auto p-3 text-sm leading-6 text-[#E8DCC4]">
-                    {tab === "evidence" && <><p>“{active.quoteHighlight}”{active.quoteRest}</p><p className="mt-1 text-xs text-[#A9987D]">{active.anchor}</p></>}
-                    {tab === "diagnosis" && <><p><span className="text-[#C8A96E]">Symptom:</span> {active.symptom}</p><p><span className="text-[#C8A96E]">Cause:</span> {active.cause}</p></>}
-                    {tab === "logic" && <><p><span className="text-[#C8A96E]">Fix:</span> {active.fixDirection}</p><p><span className="text-[#C8A96E]">Reader effect:</span> {active.readerEffect}</p><p><span className="text-[#C8A96E]">Mistake-proofing:</span> {active.mistakeProofing}</p></>}
-                  </div>
-                </div>
+                </details>
 
                 {customOpen && <div className="mt-3 rounded-xl border border-[#C8A96E]/60 bg-[#120E08] p-3"><textarea value={customText} onChange={(event) => setCustomText(event.target.value)} rows={4} className="w-full rounded border border-[#3A3022] bg-[#0D0A05] p-3 font-mono text-sm outline-none focus:border-[#C8A96E]" /><button disabled={!customText.trim()} onClick={() => decide("custom", undefined, customText)} className="mt-2 rounded bg-[#C8A96E] px-3 py-1.5 text-sm font-semibold text-[#1A140C] disabled:opacity-50">Save custom + next</button></div>}
               </div>

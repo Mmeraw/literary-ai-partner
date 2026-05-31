@@ -219,6 +219,44 @@ describe('getWorkbenchQueue', () => {
     expect(result.needsTargeting[0].options[1].text).toBe('');
   });
 
+  it('routes internal-token evidence anchors to needs targeting and strips leaked evidence text', async () => {
+    const supabase = buildSupabaseMock('job-4', 'version-4');
+    mockCreateAdminClient.mockReturnValue(supabase as never);
+
+    mockEnsureLedger.mockResolvedValueOnce({
+      artifactId: 'ledger-4',
+      opportunities: [
+        {
+          opportunity_id: 'opp-token-evidence',
+          criterion: 'NARRATIVE_DRIVE',
+          severity: 'should',
+          confidence: '0.88',
+          manuscript_coordinates: 'passage:9',
+          evidence_anchor: 'NARRATIVEDRIVE:recommendation',
+          rationale: 'Expand Newton’s immediate response into a full beat.',
+          symptom: 'The beat transition is abrupt.',
+          cause: 'The scene skips connective prose.',
+          fix_direction: 'Insert a connective bridge beat.',
+          reader_effect: 'Readers lose continuity.',
+          mistake_proofing: 'Do not introduce new plot facts.',
+          candidate_text_a: 'Move aside, Small Fry, Twillow answers in motion, and the consequence lands without a pause for explanation.',
+          candidate_text_b: 'Move aside, Small Fry, a physical beat carries the turn, so pressure stays visible and the scene keeps forward momentum.',
+          candidate_text_c: 'Move aside, Small Fry, making Newton’s decision and its fallout concrete will sharpen stakes and give readers a clear causal engine.',
+          revision_operation: 'replace_selected_passage',
+          provenance: 'evaluation_result_v2',
+        },
+      ] as never,
+    });
+
+    const result = await getWorkbenchQueue({ manuscriptId: '6074', evaluationJobId: 'job-4' });
+
+    expect(result.ok).toBe(true);
+    expect(result.opportunities).toHaveLength(0);
+    expect(result.needsTargeting).toHaveLength(1);
+    expect(result.needsTargeting[0].quoteHighlight).toBe('No excerpt available');
+    expect(result.needsTargeting[0].readiness).toBe('needs_targeting');
+  });
+
   it('renders queue with caution when phase 0 warmup corpus cannot be loaded', async () => {
     mockLoadReviseQueueWarmupCorpus.mockRejectedValueOnce(new Error('missing benchmark corpus'));
     const supabase = buildSupabaseMock('job-1', 'version-1');
