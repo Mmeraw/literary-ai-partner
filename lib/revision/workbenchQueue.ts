@@ -77,6 +77,127 @@ type ResolvedWorkbenchTarget = {
   evaluationJobId: string
 }
 
+function decodeManuscriptTextFromFileUrl(fileUrl: string | null | undefined): string {
+  if (typeof fileUrl !== 'string' || fileUrl.trim().length === 0) return ''
+  const trimmed = fileUrl.trim()
+
+  if (trimmed.startsWith('data:')) {
+    const comma = trimmed.indexOf(',')
+    if (comma === -1) return ''
+    try {
+      return decodeURIComponent(trimmed.slice(comma + 1))
+    } catch {
+      return ''
+    }
+  }
+
+  return ''
+}
+
+async function ensureJobManuscriptVersionBinding(
+  supabase: ReturnType<typeof createAdminClient>,
+  input: {
+    jobId: string
+    manuscriptId: number
+    manuscriptVersionId: string | null
+    userId: string
+  },
+): Promise<string | null> {
+  if (typeof input.manuscriptVersionId === 'string' && input.manuscriptVersionId.trim().length > 0) {
+    return input.manuscriptVersionId
+  }
+
+  const { data: latestVersionRow, error: latestVersionError } = await supabase
+    .from('manuscript_versions')
+    .select('id')
+    .eq('manuscript_id', input.manuscriptId)
+    .order('version_number', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (latestVersionError) {
+    throw new Error(`Failed to resolve manuscript version: ${latestVersionError.message}`)
+  }
+
+  let versionId = typeof latestVersionRow?.id === 'string' ? latestVersionRow.id : null
+
+  if (!versionId) {
+    const { data: manuscriptRow, error: manuscriptError } = await supabase
+      .from('manuscripts')
+      .select('id, user_id, file_url, word_count')
+      .eq('id', input.manuscriptId)
+      .eq('user_id', input.userId)
+      .maybeSingle()
+
+    if (manuscriptError) {
+      throw new Error(`Failed to load manuscript for legacy version binding: ${manuscriptError.message}`)
+    }
+
+    if (!manuscriptRow) {
+      throw new Error('Manuscript not found while binding legacy source version.')
+    }
+
+    const rawText = decodeManuscriptTextFromFileUrl(manuscriptRow.file_url as string | null | undefined)
+    if (!rawText.trim()) {
+      throw new Error('Legacy evaluation cannot be revised yet: manuscript source text is unavailable for version binding.')
+    }
+
+    const wordCount =
+      typeof manuscriptRow.word_count === 'number' && manuscriptRow.word_count >= 0
+        ? manuscriptRow.word_count
+        : rawText.trim().split(/\s+/).filter(Boolean).length
+
+    const { data: insertedVersionRow, error: insertVersionError } = await supabase
+      .from('manuscript_versions')
+      .insert({
+        manuscript_id: input.manuscriptId,
+        version_number: 1,
+        source_version_id: null,
+        raw_text: rawText,
+        word_count: wordCount,
+        created_by: input.userId,
+      })
+      .select('id')
+      .maybeSingle()
+
+    if (insertVersionError) {
+      const { data: retryLatestVersionRow, error: retryLatestVersionError } = await supabase
+        .from('manuscript_versions')
+        .select('id')
+        .eq('manuscript_id', input.manuscriptId)
+        .order('version_number', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      if (retryLatestVersionError) {
+        throw new Error(`Failed to bind legacy manuscript version: ${retryLatestVersionError.message}`)
+      }
+
+      versionId = typeof retryLatestVersionRow?.id === 'string' ? retryLatestVersionRow.id : null
+      if (!versionId) {
+        throw new Error(`Failed to create manuscript version for legacy evaluation: ${insertVersionError.message}`)
+      }
+    } else {
+      versionId = typeof insertedVersionRow?.id === 'string' ? insertedVersionRow.id : null
+    }
+  }
+
+  if (!versionId) {
+    throw new Error('Failed to resolve manuscript version for legacy evaluation.')
+  }
+
+  const { error: bindError } = await supabase
+    .from('evaluation_jobs')
+    .update({ manuscript_version_id: versionId })
+    .eq('id', input.jobId)
+
+  if (bindError) {
+    throw new Error(`Failed to bind legacy manuscript version to evaluation: ${bindError.message}`)
+  }
+
+  return versionId
+}
+
 // ---------------------------------------------------------------------------
 // Rich recommendation from evaluation artifact (6-part diagnostic + proposals)
 // ---------------------------------------------------------------------------
@@ -546,7 +667,6 @@ async function resolveLatestEligibleEvaluationForUser(
     .select('id, manuscript_id, status, manuscript_version_id, created_at, manuscripts!inner(user_id)')
     .eq('manuscripts.user_id', userId)
     .eq('status', 'complete')
-    .not('manuscript_version_id', 'is', null)
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle()
@@ -652,6 +772,18 @@ export async function getWorkbenchQueue(input: { manuscriptId?: string; evaluati
   if (jobError) return emptyPayload(jobError.message)
   if (!job) return emptyPayload('Evaluation job not found for this manuscript.')
   if (job.status !== 'complete') return emptyPayload('This evaluation is not complete yet. Revise can load after the report is finished.')
+
+  try {
+    await ensureJobManuscriptVersionBinding(supabase, {
+      jobId: evaluationJobId,
+      manuscriptId: manuscriptNumericId,
+      manuscriptVersionId:
+        typeof job.manuscript_version_id === 'string' ? job.manuscript_version_id : null,
+      userId: user.id,
+    })
+  } catch (error) {
+    return emptyPayload(error instanceof Error ? error.message : 'Failed to bind manuscript version for legacy evaluation.')
+  }
 
   const { opportunities: revisionLedgerOpportunities } = await ensureRevisionOpportunityLedgerArtifact(
     supabase,

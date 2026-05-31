@@ -381,7 +381,7 @@ export async function ensureRevisionOpportunityLedgerArtifact(supabase: any, job
 
   const { data: jobRow, error: jobReadError } = await supabase
     .from('evaluation_jobs')
-    .select('id, manuscript_id, evaluation_project_id')
+    .select('id, manuscript_id, evaluation_project_id, evaluation_result')
     .eq('id', jobId)
     .maybeSingle();
 
@@ -398,13 +398,17 @@ export async function ensureRevisionOpportunityLedgerArtifact(supabase: any, job
     .limit(1)
     .maybeSingle();
 
-  if (evaluationResultError || !evaluationResultRow?.content) {
+  const evaluationPayload =
+    evaluationResultRow?.content ??
+    (isRecord(jobRow.evaluation_result) ? jobRow.evaluation_result : null);
+
+  if (evaluationResultError || !evaluationPayload) {
     throw new Error(
       `Failed to build revision opportunity ledger: evaluation result artifact missing (${evaluationResultError?.message ?? 'no evaluation result'})`,
     );
   }
 
-  const opportunities = buildRevisionOpportunitiesFromEvaluationPayload(evaluationResultRow.content);
+  const opportunities = buildRevisionOpportunitiesFromEvaluationPayload(evaluationPayload);
   const now = new Date().toISOString();
   const artifactId = `revision_opportunity_ledger_v1:${randomUUID().slice(0, 16)}`;
   const sourceHash = sourceHashFor({
