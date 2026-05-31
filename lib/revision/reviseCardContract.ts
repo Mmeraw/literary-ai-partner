@@ -104,11 +104,9 @@ const FORBIDDEN_META_SUGGESTIONS = [
   'in the paragraph containing',
   'replace one clause',
   'replace one rhyme-heavy clause',
-  'replace this',
-  'clarify',
-  'strengthen',
-  'repair this',
-  'fix this',
+  'replace this passage',
+  'repair this passage',
+  'fix this passage',
   'recommended repair path',
   'primary repair path',
   'will sharpen stakes',
@@ -131,19 +129,17 @@ const MISSING_SOURCE_MARKERS = [
 ]
 
 const META_EDITORIAL_PATTERNS = [
-  /\bshould\b/i,
-  /\bcould\b/i,
-  /\bwould\b/i,
-  /\bwill\b/i,
-  /\bwill improve\b/i,
-  /\bwill sharpen\b/i,
+  /\bshould\s+(?:be|consider|use|show|clarify|strengthen|expand|repair|fix|add|include|replace|compress|delete|move)\b/i,
+  /\bcould\s+(?:be|use|clarify|strengthen|expand|repair|fix|add|include|replace|compress|delete|move)\b/i,
+  /\bwould\s+(?:improve|clarify|strengthen|sharpen|help|give readers|make the|raise the|lower the)\b/i,
+  /\bwill\s+(?:improve|clarify|strengthen|sharpen|help|give readers|make the|raise the|lower the)\b/i,
   /\bgives readers\b/i,
-  /\bshows\b/i,
-  /\bexpand\b/i,
-  /\bclarify\b/i,
-  /\bstrengthen\b/i,
-  /\bfix(?:es)?\b/i,
-  /\brepair(?:s)?\b/i,
+  /\bshows\s+(?:that|how|why|the reader|readers)\b/i,
+  /\bexpand\s+(?:the|this|that|on|into)\b/i,
+  /\bclarif(?:y|ies)\s+(?:the|this|that|how|why)\b/i,
+  /\bstrengthen\s+(?:the|this|that)\b/i,
+  /\bfix(?:es)?\s+(?:the|this|that)\b/i,
+  /\brepair(?:s)?\s+(?:the|this|that)\b/i,
   /\bkeeps? momentum\b/i,
   /\bcausal engine\b/i,
   /\bprimary repair path\b/i,
@@ -208,9 +204,14 @@ function candidateRepeatsIssueStatement(candidateText: string, issueStatement: s
   if (!candidate || !issue) return false
 
   if (candidate === issue) return true
-  if (candidate.includes(issue) || issue.includes(candidate)) return true
 
-  return overlapRatio(candidate, issue) >= 0.82
+  // A candidate that is only a short diagnostic restatement must be hidden.
+  // Longer manuscript prose is allowed to share vocabulary with the issue statement.
+  const candidateWordCount = candidate.split(/\s+/).filter(Boolean).length
+  if (candidateWordCount <= 12 && (candidate.includes(issue) || issue.includes(candidate))) return true
+  if (candidateWordCount <= 12 && overlapRatio(candidate, issue) >= 0.92) return true
+
+  return false
 }
 
 export function hasForbiddenMetaSuggestion(value: string | null | undefined): boolean {
