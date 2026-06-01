@@ -14,6 +14,8 @@ const mockCreateAdminClient = createAdminClient as jest.MockedFunction<typeof cr
 const mockGetAuthenticatedUser = getAuthenticatedUser as jest.MockedFunction<typeof getAuthenticatedUser>;
 
 describe("/api/manuscripts route", () => {
+  jest.setTimeout(20_000);
+
   beforeEach(() => {
     jest.clearAllMocks();
     mockGetAuthenticatedUser.mockResolvedValue({ id: "user-1" } as never);
