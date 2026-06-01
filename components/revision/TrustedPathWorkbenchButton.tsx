@@ -49,7 +49,7 @@ export default function TrustedPathWorkbenchButton({ manuscriptId, evaluationJob
   const isDisabled = disabled || running || !manuscriptId || !evaluationJobId;
 
   return (
-    <div className="fixed right-[300px] top-[88px] z-50 max-w-[360px] text-right">
+    <div className="fixed right-[620px] top-[88px] z-50 max-w-[360px] text-center">
       <button
         type="button"
         onClick={runTrustedPath}
@@ -63,7 +63,7 @@ export default function TrustedPathWorkbenchButton({ manuscriptId, evaluationJob
       >
         {running ? "Running…" : "TrustedPath"}
       </button>
-      <p className="mt-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#C8A96E]">
+      <p className="mt-1 whitespace-nowrap text-[10px] font-semibold uppercase tracking-[0.14em] text-[#C8A96E]">
         TrustedPath™ one-click repair path
       </p>
       {message && (
