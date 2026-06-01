@@ -29,12 +29,26 @@ type SectionState = {
   wordCount?: number;
 };
 
-const REQUIRED_SECTIONS: { id: SectionId; label: string; href: string; description: string }[] = [
+type RequiredSection = {
+  id: SectionId;
+  label: string;
+  href: string;
+  description: string;
+  autoGenerateLabel?: string;
+};
+
+type AutoGenerateSourceBasis = {
+  sources: string[];
+  note?: string;
+  warning?: string;
+};
+
+const REQUIRED_SECTIONS: RequiredSection[] = [
   {
     id: "query-letter",
     label: "Query Letter",
     href: "/agent-readiness/query-letter",
-    description: "Hook · metadata · comparables sentence · unique differentiator · short bio · closing. 450-word hard cap.",
+    description: "Hook · brief synopsis · metadata · comparables sentence · unique differentiator · short bio · closing. 450-word hard cap.",
   },
   {
     id: "unique",
@@ -59,14 +73,73 @@ const REQUIRED_SECTIONS: { id: SectionId; label: string; href: string; descripti
     label: "Comparables",
     href: "/agent-readiness/comparables",
     description: "2–4 comps with rationale. Also integrated into the query letter where useful.",
+    autoGenerateLabel: "Auto-suggest comps",
   },
   {
     id: "author-bio",
     label: "Author Bio",
     href: "/agent-readiness/bio",
-    description: "Third-person, professional. Requires author-supplied resume or bio text — no invented credentials.",
+    description: "Third-person, professional. Requires author-supplied resume, CV, website bio, or author notes — no invented credentials.",
   },
 ];
+
+const AUTO_GENERATE_SOURCE_BASIS: Record<SectionId, AutoGenerateSourceBasis> = {
+  "query-letter": {
+    sources: [
+      "Manuscript text",
+      "Accepted Story Ledger facts",
+      "Evaluation summary",
+      "Synopsis, comparables, and unique-differentiator sections when available",
+      "Author-supplied bio/resume materials, if uploaded",
+    ],
+    note: "Evidence-visible. Engine-protected. RevisionGrade shows source categories, not proprietary generation logic.",
+  },
+  unique: {
+    sources: [
+      "Manuscript text",
+      "Accepted Story Ledger facts",
+      "Evaluation summary",
+      "Genre/category and market-positioning signals",
+    ],
+    note: "The draft explains the manuscript's visible differentiator without revealing internal ranking or prompt logic.",
+  },
+  synopsis: {
+    sources: [
+      "Manuscript text",
+      "Accepted Story Ledger facts",
+      "Evaluation narrative summary",
+      "Ending and resolution facts where available",
+    ],
+    note: "Synopsis auto-generation must reveal the ending and remain grounded in accepted story facts.",
+  },
+  "query-pitch": {
+    sources: [
+      "Manuscript premise",
+      "Primary conflict",
+      "Protagonist and stakes",
+      "Genre/category",
+      "Unique differentiator",
+    ],
+    note: "The pitch is a positioning draft, not a disclosure of the internal evaluation method.",
+  },
+  comparables: {
+    sources: [
+      "Manuscript genre/category",
+      "Audience and market-positioning signals",
+      "Evaluation summary",
+      "Author-entered comps, if supplied",
+    ],
+    warning: "Comparable titles are provisional and require author review. RevisionGrade may suggest positioning directions, but final comp selection should be verified by the author.",
+  },
+  "author-bio": {
+    sources: [
+      "Author-supplied bio",
+      "Uploaded resume or CV",
+      "Author website bio or professional background notes",
+    ],
+    warning: "Author Bio cannot be fully auto-generated until author-supplied background materials are available. No credentials, awards, education, publishing history, or personal facts are invented.",
+  },
+};
 
 const T = {
   bg:       "#0F0D0A",
@@ -103,10 +176,12 @@ function manuscriptKey(m: AgentReadinessManuscriptOption): string {
 function withSelectedManuscriptParams(
   href: string,
   manuscript: AgentReadinessManuscriptOption,
+  extraParams?: Record<string, string>,
 ): string {
   const params = new URLSearchParams({
     manuscriptId: manuscript.manuscriptId,
     evaluationJobId: manuscript.evaluationJobId,
+    ...(extraParams ?? {}),
   });
   return `${href}?${params.toString()}`;
 }
@@ -126,6 +201,44 @@ function StatusBadge({ status }: { status: SectionState["status"] }) {
     }}>
       {label}
     </span>
+  );
+}
+
+function SourceBasisDisclosure({ sectionId }: { sectionId: SectionId }) {
+  const basis = AUTO_GENERATE_SOURCE_BASIS[sectionId];
+
+  return (
+    <div style={{
+      marginLeft: "2rem",
+      marginTop: "0.25rem",
+      border: `1px solid ${T.border}`,
+      backgroundColor: "rgba(15,13,10,0.45)",
+      padding: "0.75rem 0.875rem",
+    }}>
+      <p style={{ fontSize: "0.5625rem", color: T.gold, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: "0.5rem" }}>
+        Auto-generate Source Basis
+      </p>
+      <p style={{ fontSize: "0.625rem", color: T.cream2, lineHeight: 1.55, marginBottom: "0.5rem" }}>
+        Auto-generated drafts show source categories to the author. The proprietary generation logic, prompts, scoring, ranking, and synthesis recipe remain protected.
+      </p>
+      <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "grid", gap: "0.25rem" }}>
+        {basis.sources.map((source) => (
+          <li key={source} style={{ fontSize: "0.625rem", color: T.dim, lineHeight: 1.45 }}>
+            <span style={{ color: "#5A8A5A", marginRight: "0.375rem" }}>✓</span>{source}
+          </li>
+        ))}
+      </ul>
+      {basis.note && (
+        <p style={{ fontSize: "0.625rem", color: T.dim, lineHeight: 1.45, marginTop: "0.625rem" }}>
+          {basis.note}
+        </p>
+      )}
+      {basis.warning && (
+        <p style={{ fontSize: "0.625rem", color: T.gold, lineHeight: 1.45, marginTop: "0.625rem" }}>
+          {basis.warning}
+        </p>
+      )}
+    </div>
   );
 }
 
@@ -256,13 +369,18 @@ function SectionCard({
   state,
   selectedManuscript,
 }: {
-  section: typeof REQUIRED_SECTIONS[number];
+  section: RequiredSection;
   index: number;
   state: SectionState;
   selectedManuscript: AgentReadinessManuscriptOption | null;
 }) {
   const disabled = !selectedManuscript;
   const label = disabled ? "Choose Manuscript First" : state.status === "empty" ? "Generate" : "Edit";
+  const autoGenerateLabel = section.autoGenerateLabel ?? "Auto-generate";
+  const manualHref = selectedManuscript ? withSelectedManuscriptParams(section.href, selectedManuscript) : "#selected-manuscript";
+  const autoHref = selectedManuscript
+    ? withSelectedManuscriptParams(section.href, selectedManuscript, { mode: "auto-generate" })
+    : "#selected-manuscript";
 
   return (
     <div style={{
@@ -304,7 +422,7 @@ function SectionCard({
           </button>
         ) : (
           <Link
-            href={withSelectedManuscriptParams(section.href, selectedManuscript)}
+            href={manualHref}
             style={{
               fontFamily: T.mono, fontSize: "0.5625rem", fontWeight: 700,
               letterSpacing: "0.1em", textTransform: "uppercase",
@@ -314,6 +432,30 @@ function SectionCard({
             }}
           >
             {label}
+          </Link>
+        )}
+        {disabled ? (
+          <button disabled style={{
+            fontFamily: T.mono, fontSize: "0.5625rem", fontWeight: 700,
+            letterSpacing: "0.1em", textTransform: "uppercase",
+            backgroundColor: "transparent", color: T.dim,
+            border: `1px solid ${T.border}`, padding: "0.375rem 0.75rem",
+            cursor: "not-allowed", opacity: 0.7,
+          }}>
+            Auto-generate
+          </button>
+        ) : (
+          <Link
+            href={autoHref}
+            style={{
+              fontFamily: T.mono, fontSize: "0.5625rem", fontWeight: 700,
+              letterSpacing: "0.1em", textTransform: "uppercase",
+              backgroundColor: "transparent", color: T.gold,
+              border: `1px solid ${T.gold}`, padding: "0.375rem 0.75rem", cursor: "pointer",
+              textDecoration: "none", display: "inline-block",
+            }}
+          >
+            {autoGenerateLabel}
           </Link>
         )}
         {state.status === "draft" && (
@@ -328,6 +470,7 @@ function SectionCard({
           </button>
         )}
       </div>
+      {!disabled && <SourceBasisDisclosure sectionId={section.id} />}
     </div>
   );
 }
@@ -469,6 +612,21 @@ export default function AgentReadinessClient({
                 <strong style={{ color: T.cream }}>Eligibility:</strong> Agent Readiness is for completed manuscript evaluations. Storygate Studio™ submission requires a readiness score of 8.0 or above and an approved manuscript package.
               </p>
             </div>
+          </div>
+
+          <div style={{
+            border: `1px solid ${T.border}`, padding: "0.875rem 1.25rem",
+            marginBottom: "2rem", backgroundColor: "rgba(15,13,10,0.45)",
+          }}>
+            <p style={{ fontSize: "0.5625rem", color: T.gold, letterSpacing: "0.14em", textTransform: "uppercase", marginBottom: "0.5rem" }}>
+              Generate vs. Auto-generate
+            </p>
+            <p style={{ fontSize: "0.75rem", color: T.cream2, lineHeight: 1.6, marginBottom: "0.625rem" }}>
+              <strong style={{ color: T.cream }}>Generate</strong> uses the information the author has already entered in that package section. <strong style={{ color: T.cream }}>Auto-generate</strong> creates a manuscript-aware first draft from the manuscript, accepted evaluation data, Story Ledger facts, and uploaded support materials.
+            </p>
+            <p style={{ fontSize: "0.6875rem", color: T.dim, lineHeight: 1.55 }}>
+              Source categories are visible to the author. RevisionGrade's proprietary generation method remains protected.
+            </p>
           </div>
 
           <SelectedManuscriptPanel
