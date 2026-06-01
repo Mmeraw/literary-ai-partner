@@ -5418,6 +5418,7 @@ export async function processEvaluationJob(
           .digest('hex');
 
         const pass1aCacheMap = new Map<number, Pass1aChunkOutput>();
+        let pass1aCacheHashMismatchDetected = false;
 
         try {
           const { data: pass1aCacheRow } = await supabase
@@ -5434,11 +5435,96 @@ export async function processEvaluationJob(
             }
             console.log(`[phase_1a] ${jobId}: cache loaded — ${pass1aCacheMap.size}/${totalChunks} chunks already done`);
           } else if (existingCache) {
+            pass1aCacheHashMismatchDetected = true;
             console.log(`[phase_1a] ${jobId}: stale cache (hash mismatch) — starting fresh`);
           }
         } catch (cacheReadErr) {
           console.warn(`[phase_1a] ${jobId}: cache read failed (non-fatal, will run fresh)`,
             cacheReadErr instanceof Error ? cacheReadErr.message : String(cacheReadErr));
+        }
+
+        // Guardrail: if cache is empty but progress carries terminal/review fields
+        // (or cache hash mismatched), scrub stale state before continuing so
+        // a fresh evaluation cannot inherit stale diagnostics/blocks.
+        const preSanitizeBatchState =
+          progressState.phase1a_batch_state && typeof progressState.phase1a_batch_state === 'object'
+            ? (progressState.phase1a_batch_state as Record<string, unknown>)
+            : {};
+        const staleProgressCarryoverDetected =
+          pass1aCacheHashMismatchDetected || (
+            pass1aCacheMap.size === 0 && (
+              (typeof preSanitizeBatchState.chunks_completed === 'number' && preSanitizeBatchState.chunks_completed > 0)
+              || (Array.isArray(preSanitizeBatchState.completed_chunk_indexes) && preSanitizeBatchState.completed_chunk_indexes.length > 0)
+              || (typeof preSanitizeBatchState.preflight_status === 'string' && preSanitizeBatchState.preflight_status !== 'NOT_STARTED')
+              || typeof progressState.pass3a_status === 'string'
+              || typeof progressState.block_code === 'string'
+              || typeof progressState.gate_ready_status === 'string'
+              || progressState.review_gate_ready === false
+              || progressState.review_gate_block_terminal === true
+            )
+          );
+
+        if (staleProgressCarryoverDetected) {
+          const {
+            phase1a_batch_state: _dropPhase1aBatchState,
+            track_c_status: _dropTrackCStatus,
+            pass3a_status: _dropPass3aStatus,
+            pass3a_gate_validity: _dropPass3aGateValidity,
+            pass3a_artifact_id: _dropPass3aArtifactId,
+            pass3a_completed_at: _dropPass3aCompletedAt,
+            pass3a_degraded_reason: _dropPass3aDegradedReason,
+            degraded_reason: _dropDegradedReason,
+            degraded_reason_codes: _dropDegradedReasonCodes,
+            degraded_at: _dropDegradedAt,
+            failed_reason: _dropFailedReason,
+            failed_reason_detail: _dropFailedReasonDetail,
+            failed_at: _dropFailedAt,
+            gate_ready_status: _dropGateReadyStatus,
+            review_gate_ready: _dropReviewGateReady,
+            block_code: _dropBlockCode,
+            block_reason: _dropBlockReason,
+            story_layer_artifact_id: _dropStoryLayerArtifactId,
+            quality_report_artifact_id: _dropQualityReportArtifactId,
+            review_gate_block_terminal: _dropReviewGateBlockTerminal,
+            ...progressWithoutStalePhase1aFields
+          } = progressState;
+
+          const staleResetAt = new Date().toISOString();
+          const staleResetProgress = {
+            ...progressWithoutStalePhase1aFields,
+            phase: 'phase_1a',
+            phase_status: 'running',
+            message: 'Analyzing manuscript',
+            phase_log: [
+              ...((Array.isArray(progressWithoutStalePhase1aFields.phase_log)
+                ? progressWithoutStalePhase1aFields.phase_log
+                : []) as unknown[]),
+              {
+                at: staleResetAt,
+                event: 'phase1a_stale_state_reset',
+                stage: 'phase_1a',
+                reason: pass1aCacheHashMismatchDetected
+                  ? 'cache_hash_mismatch'
+                  : 'empty_cache_with_stale_terminal_metadata',
+              },
+            ],
+          };
+
+          progressState = staleResetProgress;
+
+          await supabase
+            .from('evaluation_jobs')
+            .update({
+              worker_pulse_at: staleResetAt,
+              updated_at: staleResetAt,
+              progress: staleResetProgress,
+            })
+            .eq('id', jobId)
+            .eq('status', JOB_STATUS.RUNNING);
+
+          console.warn(
+            `[phase_1a] ${jobId}: stale phase state scrubbed before processing (cache_size=${pass1aCacheMap.size}, hash_mismatch=${pass1aCacheHashMismatchDetected})`,
+          );
         }
 
         // ── 3. Build batch state from progress JSONB ──────────────────────
