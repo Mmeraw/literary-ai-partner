@@ -1,6 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getAuthenticatedUser } from "@/lib/supabase/server";
-import { resolveFinalReviewSourceText, scrubInternalReportLeakage } from "@/lib/revision/finalReviewSourceText";
+import { buildDecisionOnlyPreview, resolveFinalReviewSourceText, scrubInternalReportLeakage } from "@/lib/revision/finalReviewSourceText";
 
 export type FinalReviewDecision = {
   id: string;
@@ -69,7 +69,7 @@ function splitPreviewParagraphs(text: string): string[] {
     .split(/\n{2,}/g)
     .map((p) => p.trim())
     .filter(Boolean)
-    .slice(0, 18);
+    .slice(0, 48);
 }
 
 function metadataValue(metadata: unknown, key: string): string | null {
@@ -98,6 +98,35 @@ function applyDecisionsForPreview(sourceText: string, decisions: FinalReviewDeci
   }
 
   return text;
+}
+
+function rowToDecision(row: any): FinalReviewDecision {
+  const decision = row.decision as FinalReviewDecision["decision"];
+  return {
+    id: row.id,
+    opportunityId: row.opportunity_id,
+    title: row.opportunity_title,
+    decision,
+    selectedOption: row.selected_option,
+    customText: row.custom_text,
+    selectedText: row.selected_text,
+    sourceExcerpt: row.source_excerpt,
+    sourceLocation: row.source_location,
+    criterion: metadataValue(row.metadata, "criterion"),
+    severity: severityValue(row.metadata),
+    createdAt: row.created_at,
+    highlightTone: toneForDecision(decision),
+  };
+}
+
+function toRuntimeDecision(decision: FinalReviewDecision) {
+  return {
+    decision: decision.decision,
+    selected_text: decision.selectedText,
+    custom_text: decision.customText,
+    source_excerpt: decision.sourceExcerpt,
+    opportunity_title: decision.title,
+  };
 }
 
 export async function getFinalReviewPayload(input: {
@@ -160,24 +189,7 @@ export async function getFinalReviewPayload(input: {
     if (!latestByOpportunity.has(row.opportunity_id)) latestByOpportunity.set(row.opportunity_id, row);
   }
 
-  const decisions: FinalReviewDecision[] = [...latestByOpportunity.values()].map((row) => {
-    const decision = row.decision as FinalReviewDecision["decision"];
-    return {
-      id: row.id,
-      opportunityId: row.opportunity_id,
-      title: row.opportunity_title,
-      decision,
-      selectedOption: row.selected_option,
-      customText: row.custom_text,
-      selectedText: row.selected_text,
-      sourceExcerpt: row.source_excerpt,
-      sourceLocation: row.source_location,
-      criterion: metadataValue(row.metadata, "criterion"),
-      severity: severityValue(row.metadata),
-      createdAt: row.created_at,
-      highlightTone: toneForDecision(decision),
-    };
-  });
+  const decisions: FinalReviewDecision[] = [...latestByOpportunity.values()].map(rowToDecision);
 
   const sourceText = await resolveFinalReviewSourceText({
     supabase,
@@ -187,7 +199,10 @@ export async function getFinalReviewPayload(input: {
     fallbackRawText: version?.raw_text ?? "",
   });
 
-  const previewText = applyDecisionsForPreview(sourceText, decisions);
+  const previewText = sourceText
+    ? applyDecisionsForPreview(sourceText, decisions)
+    : buildDecisionOnlyPreview({ manuscriptTitle: manuscript.title ?? "Untitled Manuscript", decisions: decisions.map(toRuntimeDecision) });
+
   const acceptedCount = decisions.filter((d) => d.decision.startsWith("accepted_")).length;
   const customCount = decisions.filter((d) => d.decision === "custom").length;
   const keptCount = decisions.filter((d) => d.decision === "keep_original").length;
@@ -201,7 +216,7 @@ export async function getFinalReviewPayload(input: {
     evaluationJobId: input.evaluationJobId,
     manuscriptTitle: manuscript.title ?? "Untitled Manuscript",
     sourceVersionId: job.manuscript_version_id,
-    sourceText,
+    sourceText: sourceText || previewText,
     previewParagraphs: splitPreviewParagraphs(previewText),
     decisions,
     acceptedCount,
