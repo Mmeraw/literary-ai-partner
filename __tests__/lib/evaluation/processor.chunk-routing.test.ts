@@ -158,6 +158,22 @@ function makeSupabaseStub(
     partial_capture: false,
   };
 
+  const acceptedStoryLedgerContent = {
+    governance_rail: {
+      layer_decisions: {
+        identity_layer: { decision: "accept" },
+        cast_layer: { decision: "accept" },
+        pov_layer: { decision: "accept" },
+        relationship_layer: { decision: "accept" },
+        object_symbol_layer: { decision: "accept" },
+        location_timeline_layer: { decision: "accept" },
+        threat_ending_layer: { decision: "accept" },
+        source_integrity_layer: { decision: "accept" },
+        continuity_layer: { decision: "accept" },
+      },
+    },
+  };
+
   const manuscript = {
     id: 456,
     title: "Long Form Manuscript",
@@ -234,26 +250,27 @@ function makeSupabaseStub(
               },
               maybeSingle: async () => {
                 if (artifactType === "pass12_handoff_v1") {
-                  return { data: { content: pass12HandoffContent }, error: null };
+                  return {
+                    data: {
+                      id: "artifact-pass12-handoff",
+                      job_id: "job-long-form-routing",
+                      manuscript_id: 456,
+                      artifact_type: "pass12_handoff_v1",
+                      source_hash: "sha256:pass12-handoff",
+                      content: pass12HandoffContent,
+                    },
+                    error: null,
+                  };
                 }
                 if (artifactType === "accepted_story_ledger_v1") {
                   return {
                     data: {
-                      content: {
-                        governance_rail: {
-                          layer_decisions: {
-                            identity_layer: { decision: "accept" },
-                            cast_layer: { decision: "accept" },
-                            pov_layer: { decision: "accept" },
-                            relationship_layer: { decision: "accept" },
-                            object_symbol_layer: { decision: "accept" },
-                            location_timeline_layer: { decision: "accept" },
-                            threat_ending_layer: { decision: "accept" },
-                            source_integrity_layer: { decision: "accept" },
-                            continuity_layer: { decision: "accept" },
-                          },
-                        },
-                      },
+                      id: "artifact-accepted-ledger",
+                      job_id: "job-long-form-routing",
+                      manuscript_id: 456,
+                      artifact_type: "accepted_story_ledger_v1",
+                      source_hash: "sha256:accepted-ledger",
+                      content: acceptedStoryLedgerContent,
                     },
                     error: null,
                   };
