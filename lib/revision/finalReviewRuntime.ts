@@ -131,6 +131,13 @@ function decisionLabel(decision: RuntimeDecision): string {
   return decision.decision;
 }
 
+function cleanLocation(value: string | null): string | null {
+  if (!value) return null;
+  if (/^[A-Z_]+:recommendation$/i.test(value)) return null;
+  if (/^[A-Z_]+:[a-z_]+$/i.test(value)) return null;
+  return value;
+}
+
 function buildChangelog(ctx: RuntimeContext): string {
   const lines = ["RevisionGrade Final Review Changelog", `Manuscript: ${ctx.manuscriptTitle}`, ""];
 
@@ -142,7 +149,8 @@ function buildChangelog(ctx: RuntimeContext): string {
   for (const decision of ctx.decisions) {
     lines.push(`${decisionLabel(decision)} — ${decision.opportunity_title}`);
     if (decision.selected_option) lines.push(`Option: ${decision.selected_option}`);
-    if (decision.source_location) lines.push(`Location: ${decision.source_location}`);
+    const location = cleanLocation(decision.source_location);
+    if (location) lines.push(`Location: ${location}`);
     if (decision.source_excerpt) lines.push(`Original: ${scrubInternalReportLeakage(decision.source_excerpt)}`);
     if (decision.selected_text) lines.push(`Selected revision: ${scrubInternalReportLeakage(decision.selected_text)}`);
     if (decision.custom_text) lines.push(`Custom text: ${scrubInternalReportLeakage(decision.custom_text)}`);
@@ -153,6 +161,18 @@ function buildChangelog(ctx: RuntimeContext): string {
 }
 
 function buildMarkedText(ctx: RuntimeContext): string {
+  if (!ctx.sourceText.trim()) {
+    return [
+      "RevisionGrade Marked Review Copy",
+      `Manuscript: ${ctx.manuscriptTitle}`,
+      "",
+      "Full manuscript source text is unavailable for this legacy evaluation. Use the changelog export to review synced decisions.",
+      "",
+      "Revision Changelog",
+      buildChangelog(ctx),
+    ].join("\n");
+  }
+
   return [
     "RevisionGrade Marked Review Copy",
     `Manuscript: ${ctx.manuscriptTitle}`,
@@ -168,6 +188,10 @@ function applyTextSnapshots(ctx: RuntimeContext): { text: string; applied: Runti
   let text = scrubInternalReportLeakage(ctx.sourceText);
   const applied: RuntimeDecision[] = [];
   const blocked: string[] = [];
+
+  if (!text.trim()) {
+    return { text: "", applied, blocked: ["Full manuscript source text is unavailable for this legacy evaluation."] };
+  }
 
   for (const decision of applicableDecisions(ctx.decisions)) {
     const replacement = scrubInternalReportLeakage(decision.decision === "custom" ? decision.custom_text ?? "" : decision.selected_text ?? "");
@@ -268,7 +292,13 @@ export async function buildFinalReviewExport(input: FinalReviewRuntimeInput & { 
     content = buildMarkedText(ctx);
     suffix = "marked-review-copy";
   } else {
-    content = applied.text;
+    if (!ctx.sourceText.trim()) {
+      content = "Clean Draft export is unavailable because the full manuscript source text is not connected for this legacy evaluation. Use the Revision Changelog export to review synced decisions.";
+    } else if (applied.blocked.length > 0) {
+      content = `Clean Draft export is blocked until all accepted/custom decisions can be matched to the source manuscript.\n\n${applied.blocked.join("\n")}`;
+    } else {
+      content = applied.text;
+    }
     suffix = "clean-draft";
   }
 
