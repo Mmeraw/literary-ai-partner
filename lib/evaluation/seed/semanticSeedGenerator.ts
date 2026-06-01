@@ -87,6 +87,8 @@ Rules:
 - No final verdicts, scores, or approvals.
 - Keep claims provisional and seed-only.
 - Prefer concrete manuscript anchors, named entities, chapter references, or short quoted phrases.
+- Keep every hypothesis concise: one sentence, 240 characters or fewer.
+- Do not quote long passages. Use short anchors only.
 - If evidence is sparse, still emit a cautious hypothesis and flag uncertainty.
 - Return JSON only.`;
 
@@ -180,6 +182,48 @@ function normalizeSeedArray(values: unknown, kind: 'story' | 'evaluation'): Seed
   }));
 }
 
+function buildFallbackSeedRecord(params: { title: string; workType: string; parseError?: string }): Record<string, unknown> {
+  const errorSuffix = params.parseError ? ` LLM seed JSON was malformed (${params.parseError});` : '';
+  return {
+    story_claims: [
+      {
+        claim_id: 'story_seed:fallback:1',
+        claim_status: 'proposed_unverified',
+        hypothesis: `${params.title} is a ${params.workType} requiring Phase 1A evidence audit before any Story Ledger authority is granted.${errorSuffix}`,
+        temp_seed_entity_id: 'temp_seed_entity_fallback_primary_work',
+        evidence_coordinates: ['phase0.5:fallback_seed', 'phase0.5:llm_seed_unavailable'],
+      },
+    ],
+    evaluation_claims: CRITERIA_KEYS.slice(0, 4).map((criterion_key, index) => ({
+      claim_id: `evaluation_seed:fallback:${index + 1}`,
+      criterion_key,
+      claim_status: 'proposed_unverified',
+      hypothesis: `The ${criterion_key} criterion requires Phase 1A verification against manuscript evidence before downstream evaluation can rely on it.`,
+      evidence_coordinates: [`phase0.5:fallback:${criterion_key}`],
+    })),
+    uncertainty_flags: ['phase0_5_llm_seed_fallback_used'],
+    semantic_status: 'fallback_valid',
+  };
+}
+
+function parseSeedResponse(raw: string, fallbackContext: { title: string; workType: string }): Record<string, unknown> {
+  if (!hasText(raw)) {
+    return buildFallbackSeedRecord({ ...fallbackContext, parseError: 'empty_response' });
+  }
+
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    return parsed && typeof parsed === 'object'
+      ? (parsed as Record<string, unknown>)
+      : buildFallbackSeedRecord({ ...fallbackContext, parseError: 'non_object_response' });
+  } catch (err) {
+    return buildFallbackSeedRecord({
+      ...fallbackContext,
+      parseError: err instanceof Error ? err.message : String(err),
+    });
+  }
+}
+
 async function createOpenAICompletion(params: {
   apiKey: string;
   model: string;
@@ -198,7 +242,7 @@ async function createOpenAICompletion(params: {
         ...(isReasoningStyleModel(params.model)
           ? {}
           : buildOpenAITemperatureParam(params.model, 0.15)),
-        ...buildOpenAIOutputTokenParam(params.model, 4_000),
+        ...buildOpenAIOutputTokenParam(params.model, 8_000),
         messages: [
           { role: 'system', content: params.systemPrompt },
           { role: 'user', content: params.userPrompt },
@@ -231,7 +275,8 @@ export async function generateSemanticSeedArtifacts(input: GenerateSemanticSeedA
     `Manuscript ID: ${input.manuscriptId}`,
     `Title: ${title}`,
     `Work type: ${workType}`,
-    'Read the whole manuscript below and produce provisional seed claims only.',
+    `Canonical criteria keys: ${CRITERIA_KEYS.join(', ')}`,
+    'Read the whole manuscript below and produce compact provisional seed claims only.',
     'Manuscript text:',
     input.manuscriptText,
   ].join('\n');
@@ -244,18 +289,7 @@ export async function generateSemanticSeedArtifacts(input: GenerateSemanticSeedA
     timeoutMs,
   });
 
-  const parsed: unknown = (() => {
-    if (!hasText(raw)) {
-      throw new Error('PHASE05_SEMANTIC_SEED_EMPTY_RESPONSE');
-    }
-    try {
-      return JSON.parse(raw);
-    } catch (err) {
-      throw new Error(`PHASE05_SEMANTIC_SEED_INVALID_JSON: ${err instanceof Error ? err.message : String(err)}`);
-    }
-  })();
-
-  const record = parsed && typeof parsed === 'object' ? (parsed as Record<string, unknown>) : {};
+  const record = parseSeedResponse(raw, { title, workType });
   const storyClaims = normalizeSeedArray(record.story_claims, 'story');
   const evaluationClaims = normalizeSeedArray(record.evaluation_claims, 'evaluation');
 
