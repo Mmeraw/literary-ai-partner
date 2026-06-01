@@ -42,17 +42,16 @@ export default async function WorkbenchV2Page({ searchParams }: { searchParams?:
     <div className="workbench-v2-route">
       <style>{`
         .workbench-v2-route main { top: 72px !important; padding-top: 0.75rem !important; }
-        .workbench-v2-route main > div > header { min-height: 3.25rem !important; padding-top: 0.55rem !important; padding-bottom: 0.55rem !important; }
-        .workbench-v2-route main > div > header > div:last-child { padding-right: 360px !important; gap: 0.7rem !important; flex-wrap: nowrap !important; align-items: center !important; }
-        .workbench-v2-route .workbench-v2-trusted-path, .workbench-v2-route .workbench-v2-final-review-link { top: 85px !important; }
-        .workbench-v2-route .workbench-v2-trusted-path { right: 420px !important; left: auto !important; transform: none !important; }
-        .workbench-v2-route .workbench-v2-final-review-link { right: 1.5rem !important; min-width: 280px !important; text-align: center !important; }
+        .workbench-v2-route main > div > header { min-height: 4.75rem !important; padding-top: 0.55rem !important; padding-bottom: 0.55rem !important; }
+        .workbench-v2-route main > div > header > div:last-child { padding-right: 320px !important; gap: 0.7rem !important; flex-wrap: nowrap !important; align-items: center !important; }
+        .workbench-v2-route .workbench-v2-final-review-link { top: 82px !important; right: 1.5rem !important; min-width: 300px !important; text-align: center !important; }
+        .workbench-v2-route .workbench-v2-trusted-path { top: 122px !important; right: 1.5rem !important; left: auto !important; width: 300px !important; transform: none !important; }
+        .workbench-v2-route .workbench-v2-trusted-path button { width: 100% !important; }
         @media (max-width: 1500px) {
-          .workbench-v2-route main > div > header > div:last-child { padding-right: 330px !important; gap: 0.55rem !important; }
-          .workbench-v2-route .workbench-v2-trusted-path { right: 382px !important; }
+          .workbench-v2-route main > div > header > div:last-child { padding-right: 315px !important; gap: 0.55rem !important; }
         }
       `}</style>
-      <Link href={finalReviewHref} className="workbench-v2-final-review-link fixed right-6 top-[85px] z-50 rounded border border-[#C8A96E] bg-[#1C160E] px-4 py-2.5 text-xs font-semibold text-[#F3E3C3] shadow-lg hover:bg-[#2A2115]">
+      <Link href={finalReviewHref} className="workbench-v2-final-review-link fixed right-6 top-[82px] z-50 rounded border border-[#C8A96E] bg-[#1C160E] px-4 py-2.5 text-xs font-semibold text-[#F3E3C3] shadow-lg hover:bg-[#2A2115]">
         Final Review / Apply & Export
       </Link>
       <TrustedPathWorkbenchButton manuscriptId={manuscriptId ?? null} evaluationJobId={evaluationJobId ?? null} disabled={!payload.ok} />
