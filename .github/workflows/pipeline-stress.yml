@@ -58,11 +58,13 @@ jobs:
         run: npm run pipeline:stress
 
       - name: Start Next.js dev server
+        if: github.event_name == 'workflow_dispatch'
         run: |
           npm run dev > /tmp/dev-server.log 2>&1 &
           echo $! > /tmp/dev-server.pid
 
       - name: Wait for dev server
+        if: github.event_name == 'workflow_dispatch'
         run: |
           for i in $(seq 1 60); do
             if curl -fsS http://localhost:3002/ > /dev/null 2>&1 || \
@@ -77,10 +79,11 @@ jobs:
           exit 1
 
       - name: Install Playwright Chromium
-        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        if: github.event_name == 'workflow_dispatch' && steps.playwright-cache.outputs.cache-hit != 'true'
         run: npx playwright install chromium
 
       - name: Tier 3a — Playwright UI stress harness
+        if: github.event_name == 'workflow_dispatch'
         run: npm run pipeline:stress:ui
         env:
           STRESS_UI_BASE_URL: http://localhost:3002
