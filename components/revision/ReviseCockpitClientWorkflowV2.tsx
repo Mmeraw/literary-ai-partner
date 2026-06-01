@@ -41,15 +41,19 @@ function widenLedger(root: HTMLElement) {
   const ledger = ledgerLabel?.closest("section") as HTMLElement | null;
   const rightPane = ledger?.parentElement as HTMLElement | null;
   const grid = rightPane?.parentElement as HTMLElement | null;
-  if (!ledger || !rightPane || !grid || ledger.dataset.rgMoved === "true") return;
+  if (!ledger || !rightPane || !grid) return;
 
-  grid.appendChild(ledger);
-  grid.style.display = "grid";
-  grid.style.gridTemplateColumns = "310px minmax(0, 1fr)";
-  grid.style.gridTemplateRows = "minmax(0, 1fr) auto";
-  ledger.dataset.rgMoved = "true";
-  ledger.style.gridColumn = "1 / -1";
-  ledger.style.overflowX = "hidden";
+  rightPane.dataset.rgWorkspacePane = "true";
+
+  if (ledger.dataset.rgMoved !== "true") {
+    grid.appendChild(ledger);
+    grid.style.display = "grid";
+    grid.style.gridTemplateColumns = "310px minmax(0, 1fr)";
+    grid.style.gridTemplateRows = "minmax(0, 1fr) auto";
+    ledger.dataset.rgMoved = "true";
+    ledger.style.gridColumn = "1 / -1";
+    ledger.style.overflowX = "hidden";
+  }
 
   const table = ledger.querySelector("table") as HTMLTableElement | null;
   if (table) {
@@ -63,10 +67,52 @@ function widenLedger(root: HTMLElement) {
   }
 }
 
+function queueIsComplete(root: HTMLElement): boolean {
+  return Array.from(root.querySelectorAll("span")).some((element) => {
+    return (element.textContent ?? "").replace(/\s+/g, " ").trim() === "Queue 0/0";
+  });
+}
+
+function createBlankWorkspace(): HTMLElement {
+  const blank = document.createElement("div");
+  blank.dataset.rgCompleteWorkspace = "true";
+  blank.className = "m-3 rounded-xl border border-[#2E261A] bg-[#12100B] p-6 text-[#CBBDA4]";
+  const title = document.createElement("p");
+  title.className = "text-sm font-semibold text-[#F5EFE4]";
+  title.textContent = "All open revision opportunities have been moved to the ledger.";
+  const note = document.createElement("p");
+  note.className = "mt-2 text-sm";
+  note.textContent = "Use Unselect in the ledger to return an item to the queue.";
+  blank.appendChild(title);
+  blank.appendChild(note);
+  return blank;
+}
+
+function blankCompletedWorkspace(root: HTMLElement) {
+  const workspace = root.querySelector('[data-rg-workspace-pane="true"]') as HTMLElement | null;
+  if (!workspace) return;
+
+  const existing = workspace.querySelector('[data-rg-complete-workspace="true"]') as HTMLElement | null;
+  if (!queueIsComplete(root)) {
+    existing?.remove();
+    for (const child of Array.from(workspace.children) as HTMLElement[]) {
+      child.style.display = "";
+    }
+    return;
+  }
+
+  for (const child of Array.from(workspace.children) as HTMLElement[]) {
+    if (child.dataset.rgCompleteWorkspace !== "true") child.style.display = "none";
+  }
+
+  if (!existing) workspace.appendChild(createBlankWorkspace());
+}
+
 function apply(root: HTMLElement) {
   cleanVisibleText(root);
   hideSuggestedLabels(root);
   widenLedger(root);
+  blankCompletedWorkspace(root);
 }
 
 export default function ReviseCockpitClientWorkflowV2({ payload }: { payload: WorkbenchQueuePayload }) {
