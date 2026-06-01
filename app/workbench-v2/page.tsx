@@ -46,7 +46,7 @@ export default async function WorkbenchV2Page({ searchParams }: { searchParams?:
       >
         Final Review / Apply & Export
       </Link>
-      <TrustedPathWorkbenchButton disabled={!payload.ok} />
+      <TrustedPathWorkbenchButton manuscriptId={manuscriptId ?? null} evaluationJobId={evaluationJobId ?? null} disabled={!payload.ok} />
       <ReviseCockpitClientWorkflowV2 payload={payload} />
     </>
   );
