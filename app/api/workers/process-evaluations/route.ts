@@ -26,7 +26,6 @@ import os from 'os';
 import { getEvaluationRuntimeConfig } from '@/lib/config/evaluationRuntimeConfig';
 import { isPipelineEnabled, pipelineDisabledResponse } from '@/lib/config/pipelineGuard';
 import { getConfiguredAppBaseUrl } from '@/lib/jobs/triggerWorker';
-import { processQueuedJobsWithChecklistEntryGate } from '@/lib/evaluation/phase-architecture-v2/workerChecklistEntryGate';
 
 // Force Node.js runtime (required for crypto module)
 export const runtime = 'nodejs';
@@ -487,20 +486,10 @@ export async function GET(request: NextRequest) {
     }
 
     const workerId = buildWorkerId(traceId);
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-    if (!supabaseUrl || !supabaseServiceRoleKey) {
-      throw new Error('Supabase URL or service role key is missing — worker checklist gate cannot run');
-    }
-
-    const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
-    const results = await processQueuedJobsWithChecklistEntryGate({
-      supabase,
+    const results = await processQueuedJobs({
       workerId,
       batchSize: workerConfig.batchSize,
       leaseMs: workerConfig.leaseMs,
-      processQueuedJobs,
     });
     const durationMs = Date.now() - startTime;
 
@@ -533,7 +522,6 @@ export async function GET(request: NextRequest) {
         succeeded: results.succeeded,
         failed: results.failed,
         batchSize: workerConfig.batchSize,
-        checklistGate: results.checklistGate,
       },
       service: 'process-evaluations-worker',
     }));
@@ -549,7 +537,6 @@ export async function GET(request: NextRequest) {
       succeeded: results.succeeded,
       failed: results.failed,
       batchSize: workerConfig.batchSize,
-      checklistGate: results.checklistGate,
       errors: results.errors,
       timestamp: new Date().toISOString(),
     }, { status: 200 });
