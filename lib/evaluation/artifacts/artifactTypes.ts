@@ -6,6 +6,8 @@
  */
 export const CANONICAL_EVALUATION_ARTIFACT_TYPES = [
   'dream_calibration_packet_v1',
+  'phase0_5a_story_ledger_draft_v1',
+  'phase0_5b_evaluation_blueprint_v1',
   'story_seed_v1',
   'evaluation_seed_v1',
   'seed_fit_gap_report_v1',

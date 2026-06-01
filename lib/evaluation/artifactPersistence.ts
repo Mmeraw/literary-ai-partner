@@ -19,6 +19,9 @@ export type ArtifactType =
   /** Phase 0 authority proof: registry path/checksum, loaded paths, missing paths, authority checksums. */
   | "phase0_authority_proof_v1"
   /** Phase 0.5A governed story-map seed. Candidate/provisional, not verified truth. */
+  | "phase0_5a_story_ledger_draft_v1"
+  /** Phase 0.5B governed evaluation blueprint. Candidate/provisional, not verified truth. */
+  | "phase0_5b_evaluation_blueprint_v1"
   | "story_map_seed_v1"
   /** Phase 0.5B governed revise opportunity seed. Not author-facing until admission/candidate validation. */
   | "revise_opportunity_seed_v1"

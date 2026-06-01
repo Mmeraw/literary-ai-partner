@@ -136,6 +136,10 @@ import { buildStoryLayerFromLedger } from '@/lib/evaluation/phase1a/buildStoryLa
 import { buildLedgerQualityReport } from '@/lib/evaluation/phase1a/buildLedgerQualityReport';
 import { writePhase1aReviewGateArtifacts } from '@/lib/evaluation/phase1a/storyLayerArtifactWriters';
 import { buildReviewGateHandoff } from '@/lib/evaluation/phase-architecture-v2/reviewGateHandoff';
+import {
+  buildSemanticSeedSourceHash,
+  generateSemanticSeedArtifacts,
+} from '@/lib/evaluation/seed/semanticSeedGenerator';
 import type {
   Pass3AStatus,
   PhaseV2ArtifactSet,
@@ -3147,7 +3151,13 @@ async function terminalizeQueuedHardStops(): Promise<{
     .from('evaluation_artifacts')
     .select('job_id, artifact_type')
     .in('job_id', rows.map((row) => row.id))
-    .in('artifact_type', ['story_seed_v1', 'evaluation_seed_v1', 'seed_fit_gap_report_v1']);
+    .in('artifact_type', [
+      'phase0_5a_story_ledger_draft_v1',
+      'phase0_5b_evaluation_blueprint_v1',
+      'story_seed_v1',
+      'evaluation_seed_v1',
+      'seed_fit_gap_report_v1',
+    ]);
 
   const hasSeedArtifacts = new Set((seedArtifacts ?? []).map((row) => row.job_id as string));
 
@@ -3260,7 +3270,7 @@ type SeedClaim = {
 };
 
 type SeedArtifact = {
-  artifact_type: 'story_seed_v1' | 'evaluation_seed_v1';
+  artifact_type: 'phase0_5a_story_ledger_draft_v1' | 'phase0_5b_evaluation_blueprint_v1';
   authority: 'seed_only';
   artifact_status: 'created' | 'superseded' | 'archived' | 'failed';
   generated_at: string;
@@ -3308,7 +3318,7 @@ function buildStorySeedArtifact(args: { manuscriptText: string; generatedAt: str
   }
 
   return {
-    artifact_type: 'story_seed_v1',
+    artifact_type: 'phase0_5a_story_ledger_draft_v1',
     authority: 'seed_only',
     artifact_status: 'created',
     generated_at: args.generatedAt,
@@ -3327,7 +3337,7 @@ function buildEvaluationSeedArtifact(args: { generatedAt: string }): SeedArtifac
   }));
 
   return {
-    artifact_type: 'evaluation_seed_v1',
+    artifact_type: 'phase0_5b_evaluation_blueprint_v1',
     authority: 'seed_only',
     artifact_status: 'created',
     generated_at: args.generatedAt,
@@ -3362,8 +3372,19 @@ async function ensureSeedArtifactsForPhase1a(args: {
   manuscriptId: number;
   manuscriptText: string;
   userId: string;
+  title: string;
+  workType: string;
+  openAiModel: string;
+  openaiApiKey: string | undefined;
+  evalOpenAiTimeoutMs: number;
 }): Promise<{ storySeed: SeedArtifact; evaluationSeed: SeedArtifact; createdTypes: string[] }> {
-  const seedTypes = ['story_seed_v1', 'evaluation_seed_v1'];
+  const seedTypes = [
+    'phase0_5a_story_ledger_draft_v1',
+    'phase0_5b_evaluation_blueprint_v1',
+    // Legacy read-through aliases for in-flight rows created before canonical naming landed.
+    'story_seed_v1',
+    'evaluation_seed_v1',
+  ];
   const { data: existingRows, error: existingErr } = await args.supabase
     .from('evaluation_artifacts')
     .select('artifact_type, content')
@@ -3393,48 +3414,110 @@ async function ensureSeedArtifactsForPhase1a(args: {
   const createdTypes: string[] = [];
   const generatedAt = new Date().toISOString();
 
-  let storySeed = existingByType.get('story_seed_v1');
+  let storySeed = existingByType.get('phase0_5a_story_ledger_draft_v1') ?? existingByType.get('story_seed_v1');
+  let evaluationSeed = existingByType.get('phase0_5b_evaluation_blueprint_v1') ?? existingByType.get('evaluation_seed_v1');
+
+  if (!storySeed || !evaluationSeed) {
+    const generated = await generateSemanticSeedArtifacts({
+      jobId: args.jobId,
+      manuscriptId: args.manuscriptId,
+      manuscriptText: args.manuscriptText,
+      title: args.title,
+      workType: args.workType,
+      generatedAt,
+      model: args.openAiModel,
+      timeoutMs: args.evalOpenAiTimeoutMs,
+      openaiApiKey: args.openaiApiKey,
+    });
+
+    storySeed = storySeed ?? generated.storySeed;
+    evaluationSeed = evaluationSeed ?? generated.evaluationSeed;
+
+    if (!storySeed || !evaluationSeed) {
+      throw new Error('PHASE05_SEMANTIC_SEED_GENERATION_INCOMPLETE');
+    }
+
+    if (!existingByType.has('phase0_5a_story_ledger_draft_v1') && !existingByType.has('story_seed_v1')) {
+      await upsertEvaluationArtifact({
+        supabase: args.supabase,
+        jobId: args.jobId,
+        manuscriptId: args.manuscriptId,
+        artifactType: 'phase0_5a_story_ledger_draft_v1',
+        artifactVersion: 'phase0_5a_story_ledger_draft_v1',
+        sourceHash: buildSemanticSeedSourceHash({
+          jobId: args.jobId,
+          manuscriptId: args.manuscriptId,
+          userId: args.userId,
+          manuscriptText: args.manuscriptText,
+          promptVersion: generated.promptVersion,
+          model: generated.model,
+        }),
+        content: storySeed,
+      });
+      createdTypes.push('phase0_5a_story_ledger_draft_v1');
+    }
+
+    if (!existingByType.has('phase0_5b_evaluation_blueprint_v1') && !existingByType.has('evaluation_seed_v1')) {
+      await upsertEvaluationArtifact({
+        supabase: args.supabase,
+        jobId: args.jobId,
+        manuscriptId: args.manuscriptId,
+        artifactType: 'phase0_5b_evaluation_blueprint_v1',
+        artifactVersion: 'phase0_5b_evaluation_blueprint_v1',
+        sourceHash: buildSemanticSeedSourceHash({
+          jobId: args.jobId,
+          manuscriptId: args.manuscriptId,
+          userId: args.userId,
+          manuscriptText: args.manuscriptText,
+          promptVersion: generated.promptVersion,
+          model: generated.model,
+        }),
+        content: evaluationSeed,
+      });
+      createdTypes.push('phase0_5b_evaluation_blueprint_v1');
+    }
+  }
+
   if (!storySeed) {
     storySeed = buildStorySeedArtifact({ manuscriptText: args.manuscriptText, generatedAt });
     await upsertEvaluationArtifact({
       supabase: args.supabase,
       jobId: args.jobId,
       manuscriptId: args.manuscriptId,
-      artifactType: 'story_seed_v1',
-      artifactVersion: 'story_seed_v1',
+      artifactType: 'phase0_5a_story_ledger_draft_v1',
+      artifactVersion: 'phase0_5a_story_ledger_draft_v1',
       sourceHash: stableSourceHash({
         manuscriptId: args.manuscriptId,
         jobId: args.jobId,
         userId: args.userId,
         manuscriptText: args.manuscriptText,
-        promptVersion: 'story_seed_v1:deterministic',
+        promptVersion: 'phase0_5a_story_ledger_draft_v1:deterministic',
         model: 'seed_deterministic',
       }),
       content: storySeed,
     });
-    createdTypes.push('story_seed_v1');
+    if (!createdTypes.includes('phase0_5a_story_ledger_draft_v1')) createdTypes.push('phase0_5a_story_ledger_draft_v1');
   }
 
-  let evaluationSeed = existingByType.get('evaluation_seed_v1');
   if (!evaluationSeed) {
     evaluationSeed = buildEvaluationSeedArtifact({ generatedAt });
     await upsertEvaluationArtifact({
       supabase: args.supabase,
       jobId: args.jobId,
       manuscriptId: args.manuscriptId,
-      artifactType: 'evaluation_seed_v1',
-      artifactVersion: 'evaluation_seed_v1',
+      artifactType: 'phase0_5b_evaluation_blueprint_v1',
+      artifactVersion: 'phase0_5b_evaluation_blueprint_v1',
       sourceHash: stableSourceHash({
         manuscriptId: args.manuscriptId,
         jobId: args.jobId,
         userId: args.userId,
         manuscriptText: args.manuscriptText,
-        promptVersion: 'evaluation_seed_v1:deterministic',
+        promptVersion: 'phase0_5b_evaluation_blueprint_v1:deterministic',
         model: 'seed_deterministic',
       }),
       content: evaluationSeed,
     });
-    createdTypes.push('evaluation_seed_v1');
+    if (!createdTypes.includes('phase0_5b_evaluation_blueprint_v1')) createdTypes.push('phase0_5b_evaluation_blueprint_v1');
   }
 
   if (!storySeed || !evaluationSeed) {
@@ -5210,6 +5293,11 @@ export async function processEvaluationJob(
           manuscriptId: Number(job.manuscript_id),
           manuscriptText: manuscriptWithContent.content || '',
           userId: manuscriptWithContent.user_id,
+          title: manuscriptWithContent.title,
+          workType: manuscriptWithContent.work_type || 'novel',
+          openAiModel,
+          openaiApiKey,
+          evalOpenAiTimeoutMs,
         });
 
         phase1aSeedContextBlock = buildPass1aSeedContextBlock({
@@ -5227,7 +5315,7 @@ export async function processEvaluationJob(
       } catch (seedErr) {
         const seedErrMsg = seedErr instanceof Error ? seedErr.message : String(seedErr);
         await markFailed(
-          `Phase 1A requires story_seed_v1 + evaluation_seed_v1 before chunk processing: ${seedErrMsg}`,
+          `Phase 1A requires phase0_5a_story_ledger_draft_v1 + phase0_5b_evaluation_blueprint_v1 before chunk processing: ${seedErrMsg}`,
           'SEED_ARTIFACTS_MISSING',
           {
             pipelineStage: 'phase_1a_seed_guard',

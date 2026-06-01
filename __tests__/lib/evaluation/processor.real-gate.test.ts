@@ -265,8 +265,21 @@ function makeSupabaseStub() {
             }),
           }),
         };
-              }
-              if (table === "evaluation_artifacts") {
+      }
+
+      if (table === "evaluation_provider_calls") {
+        const providerCallQuery: any = {
+          eq: () => providerCallQuery,
+          maybeSingle: async () => ({ data: null, error: null }),
+          single: async () => ({ data: null, error: null }),
+        };
+        return {
+          select: () => providerCallQuery,
+          upsert: async () => ({ data: null, error: null }),
+        };
+      }
+
+      if (table === "evaluation_artifacts") {
         return {
           select: () => {
             let artifactType = "";
