@@ -141,6 +141,7 @@ function buildCartelBabiesLedger(): CharacterLedgerV2 {
 
     relationshipLedger: [
       {
+        pairKey: "Benjamin↔Paolito",
         characterA: "Paolito",
         characterB: "Benjamin",
         firstCoPresenceChunk: 72,
@@ -164,6 +165,7 @@ function buildCartelBabiesLedger(): CharacterLedgerV2 {
         },
       },
       {
+        pairKey: "Michael↔Raúl",
         characterA: "Raúl",
         characterB: "Michael",
         firstCoPresenceChunk: 3,

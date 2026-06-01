@@ -192,7 +192,7 @@ export function FailedJobRecovery({
     );
   }
 
-  // full_restart = no checkpoint, SLA clock is already expired on this job ID.
+  // full_restart = no resumable checkpoint, SLA clock is already expired on this job ID.
   // Requeueing the same job will always be killed by the SLA watchdog before a
   // worker picks it up. The only safe path is a fresh submission.
   const isFullRestart = checked && resumeMode === "full_restart";
@@ -211,10 +211,10 @@ export function FailedJobRecovery({
         : "Chunk cache found — Resume will pick up from where processing stopped."}
     </span>
   ) : (
-    // full_restart — be honest: requeue is broken, send them to /evaluate
+    // full_restart — be honest: resumable checkpoint is unavailable, send them to /evaluate
     <span>
-      No checkpoint was saved for this job. The safest path is a new evaluation —
-      submit your manuscript again to start fresh.
+      Artifacts may have been saved, but no resumable checkpoint is available for this job.
+      The safest path is a new evaluation — submit your manuscript again to start fresh.
     </span>
   );
 

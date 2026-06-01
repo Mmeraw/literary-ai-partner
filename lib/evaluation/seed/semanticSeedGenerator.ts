@@ -92,10 +92,6 @@ Rules:
 - If evidence is sparse, still emit a cautious hypothesis and flag uncertainty.
 - Return JSON only.`;
 
-function stableArtifactId(payload: unknown): string {
-  return crypto.createHash('sha256').update(JSON.stringify(payload), 'utf8').digest('hex');
-}
-
 function hasText(value: unknown): value is string {
   return typeof value === 'string' && value.trim().length > 0;
 }
@@ -216,10 +212,10 @@ function parseSeedResponse(raw: string, fallbackContext: { title: string; workTy
     return parsed && typeof parsed === 'object'
       ? (parsed as Record<string, unknown>)
       : buildFallbackSeedRecord({ ...fallbackContext, parseError: 'non_object_response' });
-  } catch (err) {
+  } catch {
     return buildFallbackSeedRecord({
       ...fallbackContext,
-      parseError: err instanceof Error ? err.message : String(err),
+      parseError: 'malformed_json',
     });
   }
 }
@@ -260,9 +256,6 @@ async function createOpenAICompletion(params: {
 
 export async function generateSemanticSeedArtifacts(input: GenerateSemanticSeedArtifactsInput): Promise<GeneratedSemanticSeedArtifacts> {
   const apiKey = typeof input.openaiApiKey === 'string' ? input.openaiApiKey.trim() : '';
-  if (!apiKey) {
-    throw new Error('PHASE05_SEMANTIC_SEED_OPENAI_KEY_MISSING');
-  }
 
   const model = getCanonicalPipelineModel(input.model);
   const timeoutMs = input.timeoutMs ?? getEvalOpenAiTimeoutMs();
@@ -281,15 +274,27 @@ export async function generateSemanticSeedArtifacts(input: GenerateSemanticSeedA
     input.manuscriptText,
   ].join('\n');
 
-  const raw = await createOpenAICompletion({
-    apiKey,
-    model,
-    systemPrompt: STORY_SEED_SYSTEM_PROMPT,
-    userPrompt,
-    timeoutMs,
-  });
+  let record: Record<string, unknown>;
+  if (!apiKey) {
+    record = buildFallbackSeedRecord({ title, workType, parseError: 'missing_openai_key' });
+  } else {
+    try {
+      const raw = await createOpenAICompletion({
+        apiKey,
+        model,
+        systemPrompt: STORY_SEED_SYSTEM_PROMPT,
+        userPrompt,
+        timeoutMs,
+      });
+      record = parseSeedResponse(raw, { title, workType });
+    } catch (error) {
+      const parseError = error instanceof Error && error.name === 'AbortError'
+        ? 'provider_timeout'
+        : 'provider_error';
+      record = buildFallbackSeedRecord({ title, workType, parseError });
+    }
+  }
 
-  const record = parseSeedResponse(raw, { title, workType });
   const storyClaims = normalizeSeedArray(record.story_claims, 'story');
   const evaluationClaims = normalizeSeedArray(record.evaluation_claims, 'evaluation');
 

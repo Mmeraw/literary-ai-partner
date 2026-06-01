@@ -1601,6 +1601,13 @@ export interface Pass3PreflightDraft {
    */
   reducer_status?: "ok" | "failed";
 
+  /**
+   * Optional reducer failure diagnostics when reducer_status="failed".
+   * Captures the best-available cause (exception/parse/empty-output) for
+   * operator and recovery triage.
+   */
+  reducer_failure_reason?: string;
+
   criterionDrafts: Pass3ACriterionDraft[];
 
   whole_novel_read: {

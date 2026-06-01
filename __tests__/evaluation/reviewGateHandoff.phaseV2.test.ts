@@ -11,6 +11,8 @@ const artifact = (id: string) => ({ artifact_id: id, source_hash: `sha256:${id}`
 const storyArtifacts: PhaseV2ArtifactSet = {
   pass1a_story_layer_v1: artifact('story-layer'),
   ledger_quality_report_v1: artifact('quality-report'),
+  ledger_quality_gate_ready_status: 'reviewable',
+  ledger_quality_hard_fail_present: false,
 };
 
 const doneProgress: PhaseV2Progress = {
@@ -141,5 +143,20 @@ describe('Phase Architecture v2 — Review Gate handoff helper', () => {
     expect(result.blocked.decision.code).toBe('PASS3A_DEGRADED_PROOF_MISSING');
     expect(result.blocked.progress.block_code).toBe('PASS3A_DEGRADED_PROOF_MISSING');
     expect(result.blocked.progress.pass3a_gate_validity).toBe('gate_blocking');
+  });
+
+  it('marks blocked progress as retryable technical when quality report is technically blocked', () => {
+    const result = buildReviewGateHandoff(doneProgress, {
+      ...doneArtifacts,
+      ledger_quality_gate_ready_status: 'blocked_retryable_technical',
+      ledger_quality_hard_fail_present: false,
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+
+    expect(result.blocked.decision.code).toBe('REVIEW_GATE_QUALITY_TECHNICAL_BLOCK');
+    expect(result.blocked.progress.gate_ready_status).toBe('blocked_retryable_technical');
+    expect(result.blocked.progress.hard_fail_present).toBe(false);
   });
 });

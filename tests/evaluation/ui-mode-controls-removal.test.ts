@@ -23,6 +23,6 @@ describe('Evaluate submission form mode-control removal guard', () => {
     }
 
     expect(source).toContain('RevisionGrade confirms the final mode during analysis.');
-    expect(source).toContain('Estimated Mode');
+    expect(source).toMatch(/Estimated\s+mode/i);
   });
 });

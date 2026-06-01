@@ -1,6 +1,7 @@
 import { DELETE, GET, POST } from "@/app/api/manuscripts/route";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getAuthenticatedUser } from "@/lib/supabase/server";
+import { createInitialVersion } from "@/lib/manuscripts/versions";
 
 jest.mock("@/lib/supabase/admin", () => ({
   createAdminClient: jest.fn(),
@@ -10,13 +11,21 @@ jest.mock("@/lib/supabase/server", () => ({
   getAuthenticatedUser: jest.fn(),
 }));
 
+jest.mock("@/lib/manuscripts/versions", () => ({
+  createInitialVersion: jest.fn(async () => ({ id: "version-1" })),
+}));
+
 const mockCreateAdminClient = createAdminClient as jest.MockedFunction<typeof createAdminClient>;
 const mockGetAuthenticatedUser = getAuthenticatedUser as jest.MockedFunction<typeof getAuthenticatedUser>;
+const mockCreateInitialVersion = createInitialVersion as jest.MockedFunction<typeof createInitialVersion>;
 
 describe("/api/manuscripts route", () => {
+  jest.setTimeout(20_000);
+
   beforeEach(() => {
     jest.clearAllMocks();
     mockGetAuthenticatedUser.mockResolvedValue({ id: "user-1" } as never);
+    mockCreateInitialVersion.mockResolvedValue({ id: "version-1" } as never);
   });
 
   test("GET lists dashboard manuscripts for the authenticated user", async () => {

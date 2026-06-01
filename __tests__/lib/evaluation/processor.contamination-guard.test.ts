@@ -177,11 +177,25 @@ function makeSupabaseStub() {
               },
               maybeSingle: async () => {
                 if (artifactType === "pass12_handoff_v1") {
-                  return { data: { content: pass12HandoffContent }, error: null };
+                  return {
+                    data: {
+                      id: "artifact-pass12-handoff",
+                      job_id: "job-contamination-test",
+                      manuscript_id: 789,
+                      artifact_type: "pass12_handoff_v1",
+                      content: pass12HandoffContent,
+                      source_hash: "sha256:pass12-handoff",
+                    },
+                    error: null,
+                  };
                 }
                 if (artifactType === "accepted_story_ledger_v1") {
                   return {
                     data: {
+                      id: "artifact-accepted-ledger",
+                      job_id: "job-contamination-test",
+                      manuscript_id: 789,
+                      artifact_type: "accepted_story_ledger_v1",
                       content: {
                         governance_rail: {
                           layer_decisions: {
@@ -197,6 +211,7 @@ function makeSupabaseStub() {
                           },
                         },
                       },
+                      source_hash: "sha256:accepted-ledger",
                     },
                     error: null,
                   };

@@ -290,10 +290,30 @@ function makeSupabaseStub() {
               },
               maybeSingle: async () => {
                 if (artifactType === "pass12_handoff_v1") {
-                  return { data: { content: pass12HandoffContent }, error: null };
+                  return {
+                    data: {
+                      id: "artifact-pass12-handoff",
+                      job_id: "job-real-gate-test",
+                      manuscript_id: 789,
+                      artifact_type: "pass12_handoff_v1",
+                      source_hash: "sha256:pass12-handoff",
+                      content: pass12HandoffContent,
+                    },
+                    error: null,
+                  };
                 }
                 if (artifactType === "accepted_story_ledger_v1") {
-                  return { data: { content: acceptedStoryLedgerContent }, error: null };
+                  return {
+                    data: {
+                      id: "artifact-accepted-ledger",
+                      job_id: "job-real-gate-test",
+                      manuscript_id: 789,
+                      artifact_type: "accepted_story_ledger_v1",
+                      source_hash: "sha256:accepted-ledger",
+                      content: acceptedStoryLedgerContent,
+                    },
+                    error: null,
+                  };
                 }
                 if (artifactType === "evaluation_result_v2") {
                   return { data: null, error: null };

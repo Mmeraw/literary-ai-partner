@@ -22,7 +22,12 @@ export type Phase1aWriterMetadata = {
 export type StoryLayerPayload = Record<StoryLayerCoreLayerKey, Record<string, unknown>>;
 
 export type LedgerQualityReportPayload = {
-  gate_ready_status: 'reviewable' | 'blocked' | 'repair_required';
+  gate_ready_status:
+    | 'reviewable'
+    | 'blocked'
+    | 'blocked_retryable_technical'
+    | 'blocked_content_hard_fail'
+    | 'repair_required';
   hard_fail_present: boolean;
   grouped_warning_summary: Record<string, string[]>;
   layer_truth_status: Partial<Record<StoryLayerCoreLayerKey, LayerHealthTruthStatus>>;
@@ -32,7 +37,11 @@ export type LedgerQualityReportPayload = {
     reference: string;
   }>;
   blocking_reasons: string[];
-  recommended_review_action: 'send_to_review_gate' | 'repair_story_layer' | 'operator_review_required';
+  recommended_review_action:
+    | 'send_to_review_gate'
+    | 'repair_story_layer'
+    | 'operator_review_required'
+    | 'retry_phase1a_technical_recovery';
 };
 
 export type Phase1aArtifactContent<TPayload extends object> = RuntimeArtifactEnvelope & TPayload;

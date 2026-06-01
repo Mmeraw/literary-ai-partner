@@ -319,7 +319,13 @@ describe('Phase 1A review_gate progress payload contract', () => {
   });
 
   it('progress gate_ready_status is one of the valid states', () => {
-    const VALID_GATE_READY_STATUSES = ['reviewable', 'blocked', 'repair_required'] as const;
+    const VALID_GATE_READY_STATUSES = [
+      'reviewable',
+      'blocked',
+      'blocked_retryable_technical',
+      'blocked_content_hard_fail',
+      'repair_required',
+    ] as const;
     expect(VALID_GATE_READY_STATUSES).toContain(canonicalProgressShape.gate_ready_status);
   });
 });

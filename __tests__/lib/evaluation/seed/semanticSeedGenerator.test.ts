@@ -84,16 +84,39 @@ describe('generateSemanticSeedArtifacts', () => {
     expect(result.evaluationSeed.claims[1].claim_status).toBe('proposed_unverified');
   });
 
-  test('fails closed when the OpenAI key is missing', async () => {
+  test('uses deterministic fallback when the OpenAI key is missing', async () => {
     const { generateSemanticSeedArtifacts } = await import('../../../../lib/evaluation/seed/semanticSeedGenerator');
 
-    await expect(
-      generateSemanticSeedArtifacts({
-        jobId: 'job-1',
-        manuscriptId: 42,
-        manuscriptText: 'short text',
-        model: 'gpt-4o-mini',
-      }),
-    ).rejects.toThrow('PHASE05_SEMANTIC_SEED_OPENAI_KEY_MISSING');
+    const result = await generateSemanticSeedArtifacts({
+      jobId: 'job-1',
+      manuscriptId: 42,
+      manuscriptText: 'short text',
+      model: 'gpt-4o-mini',
+      generatedAt: '2026-06-01T00:00:00.000Z',
+    });
+
+    expect(createCompletionMock).not.toHaveBeenCalled();
+    expect(result.storySeed.artifact_type).toBe('phase0_5a_story_ledger_draft_v1');
+    expect(result.storySeed.claims[0]?.claim_id).toBe('story_seed:fallback:1');
+    expect(result.storySeed.claims[0]?.hypothesis).toContain('missing_openai_key');
+    expect(result.evaluationSeed.artifact_type).toBe('phase0_5b_evaluation_blueprint_v1');
+  });
+
+  test('uses deterministic fallback when OpenAI provider call fails', async () => {
+    createCompletionMock.mockRejectedValue(new Error('provider exploded'));
+    const { generateSemanticSeedArtifacts } = await import('../../../../lib/evaluation/seed/semanticSeedGenerator');
+
+    const result = await generateSemanticSeedArtifacts({
+      jobId: 'job-2',
+      manuscriptId: 77,
+      manuscriptText: 'text',
+      openaiApiKey: 'sk-test',
+      model: 'gpt-4o-mini',
+      generatedAt: '2026-06-01T00:00:00.000Z',
+    });
+
+    expect(createCompletionMock).toHaveBeenCalledTimes(1);
+    expect(result.storySeed.claims[0]?.claim_id).toBe('story_seed:fallback:1');
+    expect(result.storySeed.claims[0]?.hypothesis).toContain('provider_error');
   });
 });

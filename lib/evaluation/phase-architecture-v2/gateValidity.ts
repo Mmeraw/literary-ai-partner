@@ -51,7 +51,13 @@ export type PhaseV2ArtifactSet = {
   ledger_quality_report_v1?: ArtifactRef | null;
   pass3_preflight_draft_v1?: ArtifactRef | null;
   accepted_story_ledger_v1?: ArtifactRef | null;
-  ledger_quality_gate_ready_status?: 'reviewable' | 'blocked' | 'repair_required' | null;
+  ledger_quality_gate_ready_status?:
+    | 'reviewable'
+    | 'blocked'
+    | 'blocked_retryable_technical'
+    | 'blocked_content_hard_fail'
+    | 'repair_required'
+    | null;
   ledger_quality_hard_fail_present?: boolean | null;
   pass3_preflight_reducer_status?: 'ok' | 'failed' | 'legacy' | null;
   pass3_preflight_authority?: string | null;
@@ -208,6 +214,8 @@ export function deriveReviewGateReadiness(
   const hasKnownQualityGateReadyStatus =
     qualityGateReadyStatus === 'reviewable'
     || qualityGateReadyStatus === 'blocked'
+    || qualityGateReadyStatus === 'blocked_retryable_technical'
+    || qualityGateReadyStatus === 'blocked_content_hard_fail'
     || qualityGateReadyStatus === 'repair_required';
 
   if (!hasKnownQualityGateReadyStatus || typeof qualityHardFailPresent !== 'boolean') {
@@ -220,8 +228,19 @@ export function deriveReviewGateReadiness(
     };
   }
 
+  if (qualityGateReadyStatus === 'blocked_retryable_technical') {
+    return {
+      ok: false,
+      review_gate_ready: false,
+      gate_validity: 'gate_blocking',
+      reason: 'ledger_quality_report_v1 indicates technical incompleteness/degradation; retry Phase 1A recovery before content-quality judgment.',
+      code: 'REVIEW_GATE_QUALITY_TECHNICAL_BLOCK',
+    };
+  }
+
   if (
     qualityGateReadyStatus === 'blocked' ||
+    qualityGateReadyStatus === 'blocked_content_hard_fail' ||
     qualityHardFailPresent === true
   ) {
     return {

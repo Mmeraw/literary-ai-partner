@@ -165,4 +165,30 @@ describe('fail-closed Story Ledger consistency guards', () => {
     expect(report.blocking_reasons.join(' ')).toContain('HARD_FAIL');
     expect(report.blocking_reasons.join(' ')).toContain('zero verified characters');
   });
+
+  it('classifies reducer failure as retryable technical block before content blockers', () => {
+    const ledger = makeLedgerWithNoCharacters();
+    const ledgerV2 = makePollutedV2();
+    const layers = buildStoryLayerFromLedger(ledger, ledgerV2);
+    const report = buildLedgerQualityReport(
+      ledger,
+      ledgerV2,
+      layers,
+      {
+        chunkCoverage: {
+          chunks_expected: 13,
+          chunks_completed: 10,
+        },
+        preflightReducer: {
+          reducer_status: 'failed',
+          preflight_authority: 'unavailable',
+        },
+      },
+    );
+
+    expect(report.gate_ready_status).toBe('blocked_retryable_technical');
+    expect(report.recommended_review_action).toBe('retry_phase1a_technical_recovery');
+    expect(report.blocking_reasons.join(' ')).toContain('TECHNICAL_BLOCK');
+    expect(report.blocking_reasons.join(' ')).toContain('chunk coverage incomplete');
+  });
 });

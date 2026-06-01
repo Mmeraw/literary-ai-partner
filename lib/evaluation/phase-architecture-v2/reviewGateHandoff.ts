@@ -33,7 +33,7 @@ export type ReviewGateBlocked = {
     phase: 'phase_1a';
     phase_status: 'blocked';
     message: string;
-    gate_ready_status: 'blocked';
+    gate_ready_status: 'blocked' | 'blocked_retryable_technical' | 'blocked_content_hard_fail';
     review_gate_ready: false;
     hard_fail_present: boolean;
     block_code: string;
@@ -58,6 +58,13 @@ export function buildReviewGateHandoff(
   const decision = deriveReviewGateReadiness(progress, artifacts);
 
   if (!decision.ok) {
+    const blockedGateStatus =
+      decision.code === 'REVIEW_GATE_QUALITY_TECHNICAL_BLOCK'
+        ? 'blocked_retryable_technical'
+        : decision.code === 'REVIEW_GATE_QUALITY_BLOCKED'
+          ? 'blocked_content_hard_fail'
+          : 'blocked';
+
     return {
       ok: false,
       blocked: {
@@ -68,9 +75,9 @@ export function buildReviewGateHandoff(
           phase: 'phase_1a',
           phase_status: 'blocked',
           message: `Review Gate blocked: ${decision.reason}`,
-          gate_ready_status: 'blocked',
+          gate_ready_status: blockedGateStatus,
           review_gate_ready: false,
-          hard_fail_present: decision.gate_validity === 'gate_blocking',
+          hard_fail_present: blockedGateStatus === 'blocked_content_hard_fail',
           block_code: decision.code,
           block_reason: decision.reason,
           pass3a_gate_validity: decision.gate_validity,

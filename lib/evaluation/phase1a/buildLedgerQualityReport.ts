@@ -30,6 +30,17 @@ interface QualityCheckResult {
   evidenceReference?: string;
 }
 
+type LedgerQualityTechnicalSignals = {
+  chunkCoverage?: {
+    chunks_expected: number;
+    chunks_completed: number;
+  };
+  preflightReducer?: {
+    reducer_status: 'ok' | 'failed' | 'unknown';
+    preflight_authority?: 'full' | 'reduced' | 'advisory' | 'unavailable' | null;
+  };
+};
+
 function runQualityChecks(
   ledger: Pass1aCharacterLedger,
   ledgerV2: CharacterLedgerV2,
@@ -198,6 +209,7 @@ export function buildLedgerQualityReport(
   ledger: Pass1aCharacterLedger,
   ledgerV2: CharacterLedgerV2,
   layers?: Partial<Record<StoryLayerCoreLayerKey, Record<string, unknown>>> | null,
+  technicalSignals?: LedgerQualityTechnicalSignals,
 ): LedgerQualityReportPayload {
   const dependencyAssessment = assessStoryLayerIdentityDependencies({
     ledger,
@@ -208,6 +220,51 @@ export function buildLedgerQualityReport(
 
   const hardFails = checks.filter((c) => c.severity === 'hard_fail');
   const warnings = checks.filter((c) => c.severity === 'warning');
+  const technicalBlockingReasons: string[] = [];
+
+  const chunkCoverage = technicalSignals?.chunkCoverage;
+  if (
+    chunkCoverage &&
+    Number.isFinite(chunkCoverage.chunks_expected) &&
+    Number.isFinite(chunkCoverage.chunks_completed) &&
+    chunkCoverage.chunks_completed < chunkCoverage.chunks_expected
+  ) {
+    technicalBlockingReasons.push(
+      `TECHNICAL_BLOCK: Phase 1A chunk coverage incomplete (${chunkCoverage.chunks_completed}/${chunkCoverage.chunks_expected}). Retry chunk extraction before content-quality judgment.`,
+    );
+  }
+
+  const preflightReducer = technicalSignals?.preflightReducer;
+  if (preflightReducer?.reducer_status === 'failed') {
+    technicalBlockingReasons.push(
+      'TECHNICAL_BLOCK: Pass 3A reducer failed. Retry technical recovery before content-quality judgment.',
+    );
+  }
+  if (preflightReducer?.preflight_authority === 'unavailable') {
+    technicalBlockingReasons.push(
+      'TECHNICAL_BLOCK: Pass 3A authority is unavailable. Retry technical recovery before content-quality judgment.',
+    );
+  }
+
+  if (technicalBlockingReasons.length > 0) {
+    return {
+      gate_ready_status: 'blocked_retryable_technical',
+      hard_fail_present: false,
+      grouped_warning_summary: {
+        general: technicalBlockingReasons,
+      },
+      layer_truth_status: {
+        canonical_identity_layer: dependencyAssessment.canonicalIdentityHealth.truth_status,
+        ...Object.fromEntries(
+          dependencyAssessment.dependencyWarnings.map((warning) => [warning.layer, warning.inherited_status]),
+        ),
+      },
+      layer_dependency_warnings: dependencyAssessment.dependencyWarnings,
+      evidence_location_references: [],
+      blocking_reasons: technicalBlockingReasons,
+      recommended_review_action: 'retry_phase1a_technical_recovery',
+    };
+  }
 
   const hardFailPresent = hardFails.length > 0;
 
