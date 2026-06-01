@@ -95,6 +95,12 @@ import {
   type TimeoutScopeInputScale,
 } from '@/lib/config/evaluationRuntimeConfig';
 import {
+  classifyQueuedHardStop,
+  partitionMaxAgeKillSwitchCandidates,
+  resolveProviderBudget,
+  type QueueHardStopCandidate,
+} from '@/lib/evaluation/hardStopGovernance';
+import {
   emitLatencyTrace,
   finishLatencyStage,
   startLatencyStage,
@@ -1695,6 +1701,9 @@ const TERMINAL_FAILURE_PREFIXES = [
  */
 export function isTerminalFailureCode(code: string | null | undefined): boolean {
   if (!code) return false; // Unknown code: assume rescuable (conservative)
+  if (code === 'LLR_PRE_ARTIFACT_GENERATION_BLOCK') {
+    return false;
+  }
   return TERMINAL_FAILURE_PREFIXES.some((prefix) => code.startsWith(prefix));
 }
 
@@ -2998,6 +3007,181 @@ async function kickPhase1aWorker(): Promise<void> {
   }
 }
 
+type Phase0RequeueProgressPatch = {
+  phase: 'phase_1a';
+  phase_status: 'queued';
+  total_units: number;
+  completed_units: number;
+  phase0_total_duration_ms: number;
+  phase0_measured_duration_ms: number;
+  phase0_llm_duration_ms: number;
+  phase0_dwell_duration_ms: number;
+  phase0_calibration_word_count: number;
+  phase0_proof_normalized: boolean;
+  phase0_model: string;
+  phase0_deploy_sha: string;
+  phase0_completed_at: string;
+};
+
+export function buildPhase0RequeueProgressPatch(args: {
+  successResult: {
+    durationMs: number;
+    measuredDurationMs: number;
+    llmDurationMs: number;
+    dwellDurationMs: number;
+    wordCount: number;
+    proofNormalized: boolean;
+  };
+  openAiModel: string;
+  deployedSha: string;
+  phase0CompletedAt: string;
+}): Phase0RequeueProgressPatch {
+  return {
+    phase: 'phase_1a',
+    phase_status: 'queued',
+    total_units: 100,
+    completed_units: 8,
+    phase0_total_duration_ms: args.successResult.durationMs,
+    phase0_measured_duration_ms: args.successResult.measuredDurationMs,
+    phase0_llm_duration_ms: args.successResult.llmDurationMs,
+    phase0_dwell_duration_ms: args.successResult.dwellDurationMs,
+    phase0_calibration_word_count: args.successResult.wordCount,
+    phase0_proof_normalized: args.successResult.proofNormalized,
+    phase0_model: args.openAiModel,
+    phase0_deploy_sha: args.deployedSha,
+    phase0_completed_at: args.phase0CompletedAt,
+  };
+}
+
+const POST_PHASE0_HANDOFF_GRACE_MS = 90_000;
+const SHORT_FORM_GLOBAL_SLA_MS = 15 * 60_000;
+const LONG_FORM_GLOBAL_SLA_MS = 60 * 60_000;
+const QUEUED_HARD_STOP_HALT_THRESHOLD = 3;
+
+async function terminalizeQueuedHardStops(): Promise<{
+  hardStopped: number;
+  ids: string[];
+  shouldHaltProcessing: boolean;
+}> {
+  const supabase = createClient(supabaseUrl, supabaseServiceKey);
+  const nowMs = Date.now();
+  const nowIso = new Date(nowMs).toISOString();
+
+  const { data: queuedRows, error } = await supabase
+    .from('evaluation_jobs')
+    .select('id, status, phase, phase_status, created_at, updated_at, phase0_completed_at, manuscript_word_count, progress')
+    .eq('status', JOB_STATUS.QUEUED)
+    .limit(50);
+
+  if (error) {
+    console.warn('[Watchdog] queued-hard-stop scan failed:', error.message);
+    return { hardStopped: 0, ids: [], shouldHaltProcessing: false };
+  }
+
+  const rows = (queuedRows ?? []) as QueueHardStopCandidate[];
+  if (rows.length === 0) {
+    return { hardStopped: 0, ids: [], shouldHaltProcessing: false };
+  }
+
+  const { data: seedArtifacts } = await supabase
+    .from('evaluation_artifacts')
+    .select('job_id, artifact_type')
+    .in('job_id', rows.map((row) => row.id))
+    .in('artifact_type', ['story_seed_v1', 'evaluation_seed_v1', 'seed_fit_gap_report_v1']);
+
+  const hasSeedArtifacts = new Set((seedArtifacts ?? []).map((row) => row.job_id as string));
+
+  let hardStopped = 0;
+  const hardStoppedIds: string[] = [];
+
+  for (const row of rows) {
+    const decision = classifyQueuedHardStop(row, {
+      nowMs,
+      graceMs: POST_PHASE0_HANDOFF_GRACE_MS,
+      shortFormSlaMs: SHORT_FORM_GLOBAL_SLA_MS,
+      longFormSlaMs: LONG_FORM_GLOBAL_SLA_MS,
+      hasSeedArtifacts: hasSeedArtifacts.has(row.id),
+    });
+
+    if (!decision) {
+      continue;
+    }
+
+    const hardStopProgress = {
+      ...(row.progress && typeof row.progress === 'object' ? row.progress : {}),
+      hard_stop_code: decision.code,
+      hard_stop_reason: decision.reason,
+      hard_stop_at: nowIso,
+      hard_stop_halted: true,
+    };
+
+    const claimedBy = 'watchdog:hard-stop';
+    const leaseToken = randomUUID();
+    const leaseUntil = new Date(nowMs + 30_000).toISOString();
+    const staleHeartbeatAt = new Date(nowMs - 120_000).toISOString();
+
+    const { error: promoteErr } = await supabase
+      .from('evaluation_jobs')
+      .update({
+        status: JOB_STATUS.RUNNING,
+        phase_status: JOB_STATUS.RUNNING,
+        claimed_by: claimedBy,
+        claimed_at: nowIso,
+        lease_token: leaseToken,
+        lease_until: leaseUntil,
+        last_heartbeat_at: staleHeartbeatAt,
+        updated_at: nowIso,
+        progress: hardStopProgress,
+      })
+      .eq('id', row.id)
+      .eq('status', JOB_STATUS.QUEUED);
+
+    if (promoteErr) {
+      console.warn('[Watchdog] queued-hard-stop promote failed:', row.id, promoteErr.message);
+      continue;
+    }
+
+    const { error: failErr } = await supabase
+      .from('evaluation_jobs')
+      .update({
+        status: JOB_STATUS.FAILED,
+        phase_status: JOB_STATUS.FAILED,
+        claimed_by: null,
+        claimed_at: null,
+        lease_token: null,
+        lease_until: null,
+        last_heartbeat_at: null,
+        last_heartbeat: null,
+        worker_pulse_at: null,
+        last_error: decision.reason,
+        failure_code: decision.code,
+        updated_at: nowIso,
+        progress: hardStopProgress,
+      })
+      .eq('id', row.id)
+      .eq('status', JOB_STATUS.RUNNING);
+
+    if (failErr) {
+      console.warn('[Watchdog] queued-hard-stop fail failed:', row.id, failErr.message);
+      continue;
+    }
+
+    hardStopped += 1;
+    hardStoppedIds.push(row.id);
+    console.warn('[Watchdog] hard-stopped queued limbo job', {
+      job_id: row.id,
+      failure_code: decision.code,
+      reason: decision.reason,
+    });
+  }
+
+  return {
+    hardStopped,
+    ids: hardStoppedIds,
+    shouldHaltProcessing: hardStopped >= QUEUED_HARD_STOP_HALT_THRESHOLD,
+  };
+}
+
 type SeedClaimStatus =
   | 'proposed_unverified'
   | 'partially_confirmed'
@@ -3760,17 +3944,12 @@ export async function processEvaluationJob(
         wordCount: number;
         proofNormalized: boolean;
       };
-      const phase0TelemetryPatch = {
-        phase0_total_duration_ms: successResult.durationMs,
-        phase0_measured_duration_ms: successResult.measuredDurationMs,
-        phase0_llm_duration_ms: successResult.llmDurationMs,
-        phase0_dwell_duration_ms: successResult.dwellDurationMs,
-        phase0_calibration_word_count: successResult.wordCount,
-        phase0_proof_normalized: successResult.proofNormalized,
-        phase0_model: openAiModel,
-        phase0_deploy_sha: DEPLOYED_SHA,
-        phase0_completed_at: phase0EndNow,
-      };
+      const phase0TelemetryPatch = buildPhase0RequeueProgressPatch({
+        successResult,
+        openAiModel,
+        deployedSha: DEPLOYED_SHA,
+        phase0CompletedAt: phase0EndNow,
+      });
 
       // Re-queue at phase_1a: release lease, transition phase.
       // A fresh worker will claim and begin manuscript processing.
@@ -3788,7 +3967,7 @@ export async function processEvaluationJob(
           worker_pulse_at: null,
           phase0_completed_at: phase0EndNow,
           updated_at: phase0EndNow,
-          progress: { ...progressState, ...phase0TelemetryPatch, total_units: 100, completed_units: 8 },
+          progress: { ...progressState, ...phase0TelemetryPatch },
         })
         .eq('id', jobId)
         .eq('status', JOB_STATUS.RUNNING);
@@ -4522,6 +4701,45 @@ export async function processEvaluationJob(
           metadata: { model: getCanonicalPipelineModel(openAiModel), phase: 'phase_3_synthesis' },
         });
 
+        const providerBudget = resolveProviderBudget({
+          chunkCount: manuscriptChunksForPipeline?.length ?? 1,
+          manuscriptWordCount: countWords(manuscriptWithContent.content || ''),
+        });
+
+        const { data: providerCallRows, error: providerCallErr } = await supabase
+          .from('evaluation_provider_calls')
+          .select('response_meta')
+          .eq('job_id', String(job.id))
+          .eq('provider', 'openai');
+
+        if (providerCallErr) {
+          const providerBudgetReadError = `Provider budget preflight failed: ${providerCallErr.message}`;
+          await markFailed(providerBudgetReadError, 'PROVIDER_BUDGET_EXCEEDED', { pipelineStage: 'phase_3' });
+          return { success: false, error: providerBudgetReadError };
+        }
+
+        const providerCallCount = Array.isArray(providerCallRows) ? providerCallRows.length : 0;
+        const providerEstimatedTokens = Array.isArray(providerCallRows)
+          ? providerCallRows.reduce((sum, row) => {
+              const tokens = (row as { response_meta?: { tokens_total?: unknown } | null })?.response_meta?.tokens_total;
+              return sum + (Number.isFinite(Number(tokens)) ? Number(tokens) : 0);
+            }, 0)
+          : 0;
+
+        if (
+          providerCallCount >= providerBudget.maxCalls ||
+          providerEstimatedTokens >= providerBudget.maxEstimatedTokens
+        ) {
+          const providerBudgetExceeded =
+            `Provider budget exceeded before phase_3 pipeline run: calls=${providerCallCount}/${providerBudget.maxCalls}, ` +
+            `estimated_tokens=${providerEstimatedTokens}/${providerBudget.maxEstimatedTokens}`;
+          await markFailed(providerBudgetExceeded, 'PROVIDER_BUDGET_EXCEEDED', { pipelineStage: 'phase_3' });
+          return { success: false, error: providerBudgetExceeded };
+        }
+
+        const llrRecoveryMode =
+          progressState.llr_retry_mode === 'safe_rewrite' ? 'safe_rewrite' : 'none';
+
         let pipelineResultP3;
         try {
           pipelineResultP3 = await runPipeline({
@@ -4541,6 +4759,7 @@ export async function processEvaluationJob(
             ...(prebuiltCharacterLedgerP3 ? { _prebuiltCharacterLedger: prebuiltCharacterLedgerP3 } : {}),
             ...(prebuiltPreflightDraftP3 ? { _prebuiltPreflightDraft: prebuiltPreflightDraftP3 } : {}),
             ...(authorCorrectionsBlockP3 ? { _authorCorrectionsBlock: authorCorrectionsBlockP3 } : {}),
+            _llrRecoveryMode: llrRecoveryMode,
             onHeartbeat: async (stage) => {
               await assertJobWithinSla({
                 supabase,
@@ -6847,6 +7066,11 @@ export async function processEvaluationJob(
               error_code: pipelineResult.error_code,
               stage: llrDiagnosticSnapshot.stage,
               blocked_rule_ids: llrDiagnosticSnapshot.blocked_rule_ids,
+              checkpoint_id: llrDiagnosticSnapshot.checkpoint_id,
+              recovery_options: llrDiagnosticSnapshot.recovery_options,
+              diagnostics: llrDiagnosticSnapshot.diagnostics,
+              safe_rewrite_applied: llrDiagnosticSnapshot.safe_rewrite_applied,
+              safe_rewrite_attempted: llrDiagnosticSnapshot.safe_rewrite_attempted,
               convergence_result: llrDiagnosticSnapshot.convergence_result,
             },
           });
@@ -8070,31 +8294,110 @@ export async function processQueuedJobs(options?: {
   try {
     const MAX_JOB_AGE_MS = 2 * 60 * 60 * 1000; // 2 hours
     const killCutoff = new Date(Date.now() - MAX_JOB_AGE_MS).toISOString();
+    const killNow = new Date().toISOString();
     const supabaseForKill = createClient(supabaseUrl, supabaseServiceKey);
     const { data: staleJobs } = await supabaseForKill
       .from('evaluation_jobs')
-      .select('id')
+      .select('id,status,phase_status')
       .in('status', ['queued', 'running'])
       .lt('created_at', killCutoff)
       .limit(20);
 
     if (staleJobs && staleJobs.length > 0) {
-      const staleIds = staleJobs.map((j) => j.id);
-      await supabaseForKill
-        .from('evaluation_jobs')
-        .update({
-          status: 'failed',
-          phase_status: 'failed',
-          last_error: `KILL_SWITCH: Job exceeded maximum age of 2 hours (created before ${killCutoff})`,
-          failure_code: 'MAX_AGE_KILL_SWITCH',
-          updated_at: new Date().toISOString(),
-        })
-        .in('id', staleIds);
+      const {
+        runningIds,
+        queuedEligibleIds,
+        queuedSkippedIds,
+      } = partitionMaxAgeKillSwitchCandidates(staleJobs as Array<{ id: string; status: string; phase_status: string | null }>);
 
-      console.warn(`[Worker] KILL_SWITCH: force-failed ${staleIds.length} stale jobs older than 2h`, { staleIds });
+      if (queuedSkippedIds.length > 0) {
+        console.warn('[Worker] KILL_SWITCH: skipped queued rows with non-queued phase_status', {
+          queuedSkippedIds,
+        });
+      }
+
+      // Legal transition sequence for queued rows:
+      // queued/queued -> running/running (promote), then running -> failed.
+      let promotedQueuedIds: string[] = [];
+      if (queuedEligibleIds.length > 0) {
+        const { data: promotedRows, error: promoteErr } = await supabaseForKill
+          .from('evaluation_jobs')
+          .update({
+            status: JOB_STATUS.RUNNING,
+            phase_status: JOB_STATUS.RUNNING,
+            claimed_by: 'watchdog:max-age-kill-switch',
+            claimed_at: killNow,
+            lease_token: randomUUID(),
+            lease_until: new Date(Date.now() + 30_000).toISOString(),
+            last_heartbeat_at: new Date(Date.now() - 120_000).toISOString(),
+            updated_at: killNow,
+          })
+          .in('id', queuedEligibleIds)
+          .eq('status', JOB_STATUS.QUEUED)
+          .eq('phase_status', JOB_STATUS.QUEUED)
+          .select('id');
+
+        if (promoteErr) {
+          console.warn('[Worker] KILL_SWITCH: queued->running promotion failed', {
+            error: promoteErr.message,
+            queuedEligibleIds,
+          });
+        } else {
+          promotedQueuedIds = (promotedRows ?? []).map((row) => row.id as string);
+        }
+      }
+
+      const failableIds = [...new Set([...runningIds, ...promotedQueuedIds])];
+      if (failableIds.length > 0) {
+        const { error: failErr } = await supabaseForKill
+          .from('evaluation_jobs')
+          .update({
+            status: JOB_STATUS.FAILED,
+            phase_status: JOB_STATUS.FAILED,
+            claimed_by: null,
+            claimed_at: null,
+            lease_token: null,
+            lease_until: null,
+            last_heartbeat_at: null,
+            last_heartbeat: null,
+            worker_pulse_at: null,
+            last_error: `KILL_SWITCH: Job exceeded maximum age of 2 hours (created before ${killCutoff})`,
+            failure_code: 'MAX_AGE_KILL_SWITCH',
+            updated_at: killNow,
+          })
+          .in('id', failableIds)
+          .eq('status', JOB_STATUS.RUNNING);
+
+        if (failErr) {
+          console.warn('[Worker] KILL_SWITCH: running->failed transition failed', {
+            error: failErr.message,
+            failableIds,
+          });
+        }
+      }
+
+      const hardStoppedCount = runningIds.length + promotedQueuedIds.length;
+      if (hardStoppedCount > 0) {
+        console.warn(`[Worker] KILL_SWITCH: force-failed ${hardStoppedCount} stale jobs older than 2h`, {
+          runningIds,
+          promotedQueuedIds,
+          queuedSkippedIds,
+        });
+      }
+
+      // Legacy fallback removed: direct queued->failed writes violate DB transition guard.
     }
   } catch (killErr) {
     console.error('[Worker] KILL_SWITCH error (non-fatal):', killErr);
+  }
+
+  const queuedHardStops = await terminalizeQueuedHardStops();
+  if (queuedHardStops.shouldHaltProcessing) {
+    console.warn('[Worker] queued hard-stop circuit breaker engaged', {
+      hard_stopped: queuedHardStops.hardStopped,
+      job_ids: queuedHardStops.ids,
+    });
+    return { processed: 0, succeeded: 0, failed: queuedHardStops.hardStopped, claimed: 0, errors: [] };
   }
 
   const { evalWorkerBatchSize } = getProcessorRuntimeDeps();

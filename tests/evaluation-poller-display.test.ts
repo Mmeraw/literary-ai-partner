@@ -193,6 +193,32 @@ describe("getProgressDisplay: canonical state mapping", () => {
     expect(pd!.label).toBe("Preparing your evaluation");
     expect(pd!.percentage).toBe(5);
   });
+
+  test("queued stalled state -> explicit stalled label with red hard stop", () => {
+    const pd = getProgressDisplay({
+      status: "queued",
+      phase: "phase_0",
+      is_stalled: true,
+      heartbeat_age_seconds: 540,
+    });
+    expect(pd).not.toBeNull();
+    expect(pd!.label).toBe("Evaluation stalled — worker not advancing");
+    expect(pd!.valueLabel).toBe("Stalled");
+    expect(pd!.percentage).toBe(5);
+    expect(pd!.color).toBe("red");
+    expect(pd!.hardStop).toBe(true);
+    expect(pd!.helperText).toContain("540s");
+  });
+
+  test("phase_0 queued shows backend phase message when provided", () => {
+    const pd = getProgressDisplay({
+      status: "queued",
+      phase: "phase_0",
+      phase_message: "Worker waiting for lease renewal",
+    });
+    expect(pd).not.toBeNull();
+    expect(pd!.helperText).toBe("Worker waiting for lease renewal");
+  });
 });
 
 describe("getProgressDisplay: hardStop invariants", () => {
