@@ -29,7 +29,7 @@ const mockGetJob = jobStore.getJob as unknown as {
 };
 const mockGetAuthenticatedUser =
   supabaseServer.getAuthenticatedUser as unknown as {
-    mockResolvedValue: (value: { id: string } | null) => void;
+    mockResolvedValue: (value: { id: string; email?: string; app_metadata?: Record<string, unknown> } | null) => void;
   };
 
 // Helper: build a mock Job object
@@ -87,6 +87,7 @@ describe("GET /api/jobs/[jobId]", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    process.env.EVALUATION_OPERATOR_EMAILS = "";
     mockGetAuthenticatedUser.mockResolvedValue(null);
   });
 
@@ -252,10 +253,121 @@ describe("GET /api/jobs/[jobId]", () => {
       job: { status: string; last_error?: string; failure_code?: string };
     };
     expect(json.job.status).toBe("failed");
-    expect(json.job.last_error).toBe(
-      "Anchor offsets missing for accepted proposal"
-    );
-    expect(json.job.failure_code).toBe("ANCHOR_MISS");
+    // Non-operator callers must not receive operational diagnostics.
+    expect(json.job.last_error).toBeUndefined();
+    expect(json.job.failure_code).toBeUndefined();
+  });
+
+  test("redacts operational fields for non-operator caller", async () => {
+    const req = buildRequest({ jobId: "job-1", userId: "user-123" });
+    const job = buildJob({
+      status: "failed" as JobStatus,
+      failure_code: "PHASE_0_NOT_PROVEN",
+      last_error:
+        "Phase 0 calibration not proven (phase0_total_duration_ms=0ms, phase0_measured_duration_ms=0ms).",
+      progress: {
+        phase: "phase_1a",
+        phase_status: "failed",
+        total_units: 10,
+        completed_units: 1,
+        phase0_total_duration_ms: 0,
+        phase0_calibration_word_count: 4412,
+        message: "Phase 1A blocked by proof guard",
+        attempt_count: 3,
+      },
+    });
+    mockGetJob.mockResolvedValue(job);
+
+    const response = await GET(req, {
+      params: Promise.resolve({ jobId: "job-1" }),
+    });
+
+    expect(response.status).toBe(200);
+    const json = (await response.json()) as {
+      ok: boolean;
+      job: {
+        can_view_operational_details?: boolean;
+        public_status_message?: string | null;
+        last_error?: string;
+        failure_code?: string;
+        phase0_total_duration_ms?: number | null;
+        phase0_calibration_word_count?: number | null;
+        phase_message?: string | null;
+        heartbeat_age_seconds?: number | null;
+        retry_count?: number | null;
+        stalled_reason?: string | null;
+      };
+    };
+
+    expect(json.ok).toBe(true);
+    expect(json.job.can_view_operational_details).toBe(false);
+    expect(json.job.public_status_message).toContain("could not be completed");
+    expect(json.job.last_error).toBeUndefined();
+    expect(json.job.failure_code).toBeUndefined();
+    expect(json.job.phase0_total_duration_ms).toBeUndefined();
+    expect(json.job.phase0_calibration_word_count).toBeUndefined();
+    expect(json.job.phase_message).toBeUndefined();
+    expect(json.job.heartbeat_age_seconds).toBeUndefined();
+    expect(json.job.retry_count).toBeUndefined();
+    expect(json.job.stalled_reason).toBeUndefined();
+  });
+
+  test("includes operational fields for operator caller", async () => {
+    process.env.EVALUATION_OPERATOR_EMAILS = "operator@revisiongrade.com";
+
+    const req = buildRequest({ jobId: "job-1", userId: null });
+    mockGetAuthenticatedUser.mockResolvedValue({
+      id: "user-123",
+      email: "operator@revisiongrade.com",
+      app_metadata: {},
+    });
+
+    const job = buildJob({
+      status: "failed" as JobStatus,
+      failure_code: "PHASE_0_NOT_PROVEN",
+      last_error:
+        "Phase 0 calibration not proven (phase0_total_duration_ms=0ms, phase0_measured_duration_ms=0ms).",
+      progress: {
+        phase: "phase_1a",
+        phase_status: "failed",
+        total_units: 10,
+        completed_units: 1,
+        phase0_total_duration_ms: 0,
+        phase0_calibration_word_count: 4412,
+        message: "Phase 1A blocked by proof guard",
+        attempt_count: 3,
+      },
+    });
+    mockGetJob.mockResolvedValue(job);
+
+    const response = await GET(req, {
+      params: Promise.resolve({ jobId: "job-1" }),
+    });
+
+    expect(response.status).toBe(200);
+    const json = (await response.json()) as {
+      ok: boolean;
+      job: {
+        can_view_operational_details?: boolean;
+        public_status_message?: string | null;
+        last_error?: string;
+        failure_code?: string;
+        phase0_total_duration_ms?: number | null;
+        phase0_calibration_word_count?: number | null;
+        phase_message?: string | null;
+        retry_count?: number | null;
+      };
+    };
+
+    expect(json.ok).toBe(true);
+    expect(json.job.can_view_operational_details).toBe(true);
+    expect(json.job.public_status_message).toBeUndefined();
+    expect(json.job.last_error).toContain("Phase 0 calibration not proven");
+    expect(json.job.failure_code).toBe("PHASE_0_NOT_PROVEN");
+    expect(json.job.phase0_total_duration_ms).toBe(0);
+    expect(json.job.phase0_calibration_word_count).toBe(4412);
+    expect(json.job.phase_message).toBe("Phase 1A blocked by proof guard");
+    expect(json.job.retry_count).toBe(3);
   });
 
   test("does not include last_error when status === failed but last_error is null", async () => {

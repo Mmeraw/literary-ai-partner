@@ -113,6 +113,10 @@ async function seedJobIntakeProgress(params: {
       message: "Short-form evaluation queued — using short-form criteria policy fast path",
       phase0_fast_track: true,
       phase0_fast_track_reason: "short_form_under_25000_words",
+      // Phase 1A proof guard requires either real Phase 0 proof durations
+      // or an explicit bypass reason. Short-form policy intentionally bypasses
+      // Phase 0 warm-up, so this marker is mandatory for legal entry.
+      phase0_bypass_reason: "short_form_policy_fast_track",
       phase0_started_at: now,
       phase0_completed_at: now,
       phase0_total_duration_ms: 0,

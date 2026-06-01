@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getJob } from "@/lib/jobs/store";
 import type { Job } from "@/lib/jobs/types";
 import { getAuthenticatedUser } from "@/lib/supabase/server";
+import { canViewEvaluationOperationalDetails } from "@/lib/auth/evaluationOperationalAccess";
 
 type Params = Promise<{ jobId: string }>;
 
@@ -93,6 +94,10 @@ type CanonicalJobResponse = {
   stalled_reason?: string | null;
   last_error?: string;
   failure_code?: string;
+  /** True when the caller is an operator/admin and operational details are included */
+  can_view_operational_details?: boolean;
+  /** Public-safe failure message for non-operator callers */
+  public_status_message?: string | null;
 };
 
 const NO_STORE_HEADERS = {
@@ -125,6 +130,7 @@ export async function GET(req: NextRequest, ctx: { params: Params }) {
 
     const sessionUser = await getAuthenticatedUser();
     const ownerId = sessionUser?.id ?? headerOwnerId;
+    const canSeeOperationalDetails = canViewEvaluationOperationalDetails(sessionUser);
 
     if (!ownerId) {
       return jsonNoStore(
@@ -223,10 +229,10 @@ export async function GET(req: NextRequest, ctx: { params: Params }) {
     if (stageTiming.pass3_completed_at !== undefined) {
       response.job.pass3_completed_at = stageTiming.pass3_completed_at;
     }
-    if (stageTiming.phase0_total_duration_ms !== undefined) {
+    if (canSeeOperationalDetails && stageTiming.phase0_total_duration_ms !== undefined) {
       response.job.phase0_total_duration_ms = stageTiming.phase0_total_duration_ms;
     }
-    if (stageTiming.phase0_calibration_word_count !== undefined) {
+    if (canSeeOperationalDetails && stageTiming.phase0_calibration_word_count !== undefined) {
       response.job.phase0_calibration_word_count = stageTiming.phase0_calibration_word_count;
     }
 
@@ -247,31 +253,43 @@ export async function GET(req: NextRequest, ctx: { params: Params }) {
     }
 
     // 6f) Surface operational visibility fields for explicit stuck-state UX.
-    const operationalSignal = extractOperationalSignal(job, canonicalPhase.phase);
-    if (operationalSignal.phase_message !== undefined) {
-      response.job.phase_message = operationalSignal.phase_message;
-    }
-    if (operationalSignal.heartbeat_age_seconds !== undefined) {
-      response.job.heartbeat_age_seconds = operationalSignal.heartbeat_age_seconds;
-    }
-    if (operationalSignal.retry_count !== undefined) {
-      response.job.retry_count = operationalSignal.retry_count;
-    }
-    if (operationalSignal.is_stalled !== undefined) {
-      response.job.is_stalled = operationalSignal.is_stalled;
-    }
-    if (operationalSignal.stalled_reason !== undefined) {
-      response.job.stalled_reason = operationalSignal.stalled_reason;
+    //     Only emitted to operators/admins — these fields contain pipeline internals.
+    if (canSeeOperationalDetails) {
+      const operationalSignal = extractOperationalSignal(job, canonicalPhase.phase);
+      if (operationalSignal.phase_message !== undefined) {
+        response.job.phase_message = operationalSignal.phase_message;
+      }
+      if (operationalSignal.heartbeat_age_seconds !== undefined) {
+        response.job.heartbeat_age_seconds = operationalSignal.heartbeat_age_seconds;
+      }
+      if (operationalSignal.retry_count !== undefined) {
+        response.job.retry_count = operationalSignal.retry_count;
+      }
+      if (operationalSignal.is_stalled !== undefined) {
+        response.job.is_stalled = operationalSignal.is_stalled;
+      }
+      if (operationalSignal.stalled_reason !== undefined) {
+        response.job.stalled_reason = operationalSignal.stalled_reason;
+      }
     }
 
-    // 7) Include last_error only on failure
-    if (job.status === "failed" && job.last_error) {
+    // 7) Include last_error only on failure, and only for operators/admins.
+    if (job.status === "failed" && job.last_error && canSeeOperationalDetails) {
       response.job.last_error = job.last_error;
     }
 
-    // 8) Include failure_code whenever available (including non-terminal degradation signals)
-    if (job.failure_code) {
+    // 8) Include failure_code for operators/admins only.
+    if (job.failure_code && canSeeOperationalDetails) {
       response.job.failure_code = job.failure_code;
+    }
+
+    // 9) Always emit the visibility flag so the client can branch its UI.
+    response.job.can_view_operational_details = canSeeOperationalDetails;
+
+    // 10) For failed jobs viewed by non-operators, emit a safe public message.
+    if (job.status === "failed" && !canSeeOperationalDetails) {
+      response.job.public_status_message =
+        "This evaluation could not be completed. Please start a new evaluation or contact support if the problem continues.";
     }
 
     return jsonNoStore(response);
