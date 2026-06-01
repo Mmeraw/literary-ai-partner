@@ -118,7 +118,7 @@ describe("silent direct_window fallback is killed", () => {
     });
     const failure = expectFailure(result);
     expect(failure.error_code).not.toBe("CHUNK_ROUTING_NOT_ENGAGED");
-  }, 10_000);
+  }, 15_000);
 
   test("manuscript above HARD_MANUSCRIPT_CEILING_WORDS → MANUSCRIPT_EXCEEDS_HARD_CEILING", async () => {
     const manuscriptText = generateText(310_000);

@@ -26,6 +26,16 @@ function runSql(query: string): string {
   }).trim();
 }
 
+function parseNumericSqlResult(result: string, context: string): number {
+  const matches = result.match(/-?\d+(?:\.\d+)?/g);
+  const token = matches?.at(-1);
+  const value = token ? Number.parseFloat(token) : Number.NaN;
+  if (!Number.isFinite(value)) {
+    throw new Error(`Failed to parse numeric SQL result for ${context}: '${result}'`);
+  }
+  return value;
+}
+
 // Helper to insert a test manuscript and return its ID
 async function insertTestManuscript(): Promise<number> {
   const title = `TTL Test ${randomUUID()}`;
@@ -123,7 +133,7 @@ describe('TTL Clamping Tests', () => {
       SELECT EXTRACT(EPOCH FROM (lease_until - '${testNow}'::timestamptz)) as actual_seconds
       FROM claim_job_atomic('production:127.0.0.1:worker-neg', '${testNow}'::timestamptz, -100);
     `);
-    const actualSeconds = Number.parseFloat(result);
+    const actualSeconds = parseNumericSqlResult(result, 'negative TTL clamp');
     expect(actualSeconds).toBeGreaterThanOrEqual(30);
     expect(actualSeconds).toBeLessThanOrEqual(35);
   });
@@ -133,7 +143,7 @@ describe('TTL Clamping Tests', () => {
       SELECT EXTRACT(EPOCH FROM (lease_until - '${testNow}'::timestamptz)) as actual_seconds
       FROM claim_job_atomic('production:127.0.0.1:worker-zero', '${testNow}'::timestamptz, 0);
     `);
-    const actualSeconds = Number.parseFloat(result);
+    const actualSeconds = parseNumericSqlResult(result, 'zero TTL clamp');
     expect(actualSeconds).toBeGreaterThanOrEqual(30);
     expect(actualSeconds).toBeLessThanOrEqual(35);
   });
@@ -143,7 +153,7 @@ describe('TTL Clamping Tests', () => {
       SELECT EXTRACT(EPOCH FROM (lease_until - '${testNow}'::timestamptz)) as actual_seconds
       FROM claim_job_atomic('production:127.0.0.1:worker-huge', '${testNow}'::timestamptz, 10000);
     `);
-    const actualSeconds = Number.parseFloat(result);
+    const actualSeconds = parseNumericSqlResult(result, 'huge TTL clamp');
     expect(actualSeconds).toBeLessThanOrEqual(900);
     expect(actualSeconds).toBeGreaterThanOrEqual(895);
   });
@@ -153,7 +163,7 @@ describe('TTL Clamping Tests', () => {
       SELECT EXTRACT(EPOCH FROM (lease_until - '${testNow}'::timestamptz)) as actual_seconds
       FROM claim_job_atomic('production:127.0.0.1:worker-valid', '${testNow}'::timestamptz, 300);
     `);
-    const actualSeconds = Number.parseFloat(result);
+    const actualSeconds = parseNumericSqlResult(result, 'valid TTL');
     expect(actualSeconds).toBeGreaterThanOrEqual(299);
     expect(actualSeconds).toBeLessThanOrEqual(301);
   });

@@ -245,3 +245,38 @@ export function checkSupportArtifactFreshness(set: ArtifactSet): GuardResult {
 
   return ok();
 }
+
+export function canonicalLayerKeys(): StoryLayerCoreLayerKey[] {
+  return [...STORY_LAYER_KEYS];
+}
+
+export function forbidLayer9(layerKeys: readonly string[]): GuardResult {
+  const allowedKeys = new Set<string>(STORY_LAYER_KEYS);
+  const seenKeys = new Set<string>();
+
+  for (const key of layerKeys) {
+    if (!allowedKeys.has(key)) {
+      return fail(`Story Layer key "${key}" is non-canonical`);
+    }
+
+    if (seenKeys.has(key)) {
+      return fail(`Story Layer key "${key}" is duplicated`);
+    }
+
+    seenKeys.add(key);
+  }
+
+  if (layerKeys.length !== STORY_LAYER_KEYS.length) {
+    return fail(
+      `Story Layer contract requires exactly ${STORY_LAYER_KEYS.length} canonical layers; received ${layerKeys.length}`,
+    );
+  }
+
+  for (const key of STORY_LAYER_KEYS) {
+    if (!seenKeys.has(key)) {
+      return fail(`Story Layer key "${key}" is missing from the canonical layer set`);
+    }
+  }
+
+  return ok();
+}

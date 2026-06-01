@@ -118,4 +118,12 @@ describe('characterReducer pronoun-family warning guardrails', () => {
 
     expect(warnings).toContain('pronoun_inconsistency');
   });
+
+  it('does not flag collective-plus-one-known family pronoun signals', () => {
+    const warnings = getWarningsFor('Ambiguous Figure', [
+      makeChunk(0, makeCharacter({ canonical_name: 'Ambiguous Figure', pronouns: ['he/they'] })),
+    ]);
+
+    expect(warnings).not.toContain('pronoun_inconsistency');
+  });
 });

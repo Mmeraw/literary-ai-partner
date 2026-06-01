@@ -5,49 +5,49 @@ describe("PR-1: Submission scope governance", () => {
   describe("classifySubmissionScope", () => {
     it("throws for <200 words", () => {
       const shortText = Array(150).fill("word").join(" ");
-      expect(() => classifySubmissionScope(shortText, 1, computeScorableCount)).toThrow(
+      expect(() => classifySubmissionScope(shortText, 1)).toThrow(
         "SUBMISSION_TOO_SHORT_FOR_EVALUATION"
       );
     });
 
     it("classifies 200-749 as micro_excerpt", () => {
       const text = Array(500).fill("word").join(" ");
-      const profile = classifySubmissionScope(text, 1, computeScorableCount);
+      const profile = classifySubmissionScope(text, 1);
       expect(profile.inputScale).toBe("micro_excerpt");
       expect(profile.confidenceCapSummary).toBe("LOW");
     });
 
     it("classifies 750-1999 as light_chapter (Chapter 11e at 1238 words)", () => {
       const text = Array(1238).fill("word").join(" ");
-      const profile = classifySubmissionScope(text, 1, computeScorableCount);
+      const profile = classifySubmissionScope(text, 1);
       expect(profile.inputScale).toBe("light_chapter");
       expect(profile.confidenceCapSummary).toBe("MODERATE");
     });
 
     it("classifies 2000-5999 as standard_chapter", () => {
       const text = Array(3500).fill("word").join(" ");
-      const profile = classifySubmissionScope(text, 1, computeScorableCount);
+      const profile = classifySubmissionScope(text, 1);
       expect(profile.inputScale).toBe("standard_chapter");
     });
 
     it("classifies 6000-24999 as multi_chapter", () => {
       const text = Array(10000).fill("word").join(" ");
-      const profile = classifySubmissionScope(text, 1, computeScorableCount);
+      const profile = classifySubmissionScope(text, 1);
       expect(profile.inputScale).toBe("multi_chapter");
       expect(profile.confidenceCapSummary).toBe("HIGH");
     });
 
-    it("classifies 25000+ as full_manuscript", () => {
+    it("classifies 25000-49999 chapter-based input as multi_chapter", () => {
       const text = Array(30000).fill("word").join(" ");
-      const profile = classifySubmissionScope(text, 1, computeScorableCount);
-      expect(profile.inputScale).toBe("full_manuscript");
+      const profile = classifySubmissionScope(text, 1);
+      expect(profile.inputScale).toBe("multi_chapter");
       expect(profile.confidenceCapSummary).toBe("HIGH");
     });
 
     it("reports correct scopePolicyVersion", () => {
       const text = Array(500).fill("word").join(" ");
-      const profile = classifySubmissionScope(text, 1, computeScorableCount);
-      expect(profile.scopePolicyVersion).toBe("v1");
+      const profile = classifySubmissionScope(text, 1);
+      expect(profile.scopePolicyVersion).toBe("v2");
     });
   });
 

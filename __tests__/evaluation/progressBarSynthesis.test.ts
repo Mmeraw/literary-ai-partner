@@ -33,9 +33,9 @@ describe('Progress bar — synthesis-aware display', () => {
       expect(pd).not.toBeNull();
       expect(pd!.percentage).toBe(92);
       expect(pd!.color).toBe('blue');
-      expect(pd!.label).toContain('Narrative Synthesis in progress');
+      expect(pd!.label).toContain('Finalizing your report in progress');
       expect(pd!.helperText).toContain('diagnostic report is ready');
-      expect(pd!.helperText).toContain('Narrative Synthesis');
+      expect(pd!.helperText).toContain('Finalizing your report');
     });
 
     it('returns 92% blue when complete and pass3_completed_at is absent', () => {
@@ -90,7 +90,7 @@ describe('Progress bar — synthesis-aware display', () => {
     it('returns queued state for queued', () => {
       const pd = getProgressDisplay({ status: 'queued' });
       expect(pd).not.toBeNull();
-      expect(pd!.label).toContain('queue');
+      expect(pd!.label).toBe('Starting your evaluation...');
       expect(pd!.percentage).toBe(2);
     });
 
