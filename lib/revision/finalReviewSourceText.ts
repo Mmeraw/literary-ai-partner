@@ -1,15 +1,37 @@
+import mammoth from "mammoth";
+
 type SupabaseLike = {
   from: (table: string) => any;
 };
 
-function decodeDataUrl(fileUrl: string): string | null {
-  const base64Match = fileUrl.match(/^data:[^,]*;base64,(.*)$/);
-  if (base64Match) return Buffer.from(base64Match[1], "base64").toString("utf8");
+function isDocxMime(mime: string | null | undefined): boolean {
+  return (mime ?? "").toLowerCase().includes("application/vnd.openxmlformats-officedocument.wordprocessingml.document");
+}
 
-  const encodedMatch = fileUrl.match(/^data:[^,]*,(.*)$/);
-  if (encodedMatch) return decodeURIComponent(encodedMatch[1]);
+function looksLikeDocxUrl(fileUrl: string): boolean {
+  return /\.docx(?:[?#].*)?$/i.test(fileUrl) || isDocxMime(fileUrl.match(/^data:([^;,]+)/)?.[1]);
+}
 
-  return null;
+async function extractDocxText(buffer: Buffer): Promise<string | null> {
+  try {
+    const result = await mammoth.extractRawText({ buffer });
+    return result.value || null;
+  } catch {
+    return null;
+  }
+}
+
+async function decodeDataUrl(fileUrl: string): Promise<string | null> {
+  const match = fileUrl.match(/^data:([^;,]*)(;base64)?,(.*)$/);
+  if (!match) return null;
+
+  const mime = match[1] ?? "";
+  const isBase64 = Boolean(match[2]);
+  const body = match[3] ?? "";
+  const buffer = isBase64 ? Buffer.from(body, "base64") : Buffer.from(decodeURIComponent(body), "utf8");
+
+  if (isDocxMime(mime)) return extractDocxText(buffer);
+  return buffer.toString("utf8");
 }
 
 async function resolveTextFromFileUrl(fileUrl: string | null | undefined): Promise<string | null> {
@@ -19,6 +41,12 @@ async function resolveTextFromFileUrl(fileUrl: string | null | undefined): Promi
   try {
     const response = await fetch(fileUrl);
     if (!response.ok) return null;
+
+    const contentType = response.headers.get("content-type") ?? "";
+    if (isDocxMime(contentType) || looksLikeDocxUrl(fileUrl)) {
+      return extractDocxText(Buffer.from(await response.arrayBuffer()));
+    }
+
     return await response.text();
   } catch {
     return null;
@@ -100,6 +128,40 @@ async function sourceFromManuscriptFile(supabase: SupabaseLike, manuscriptId: nu
   const resolved = normalizeFinalReviewText(await resolveTextFromFileUrl((data as { file_url?: string | null }).file_url));
   if (resolved && !isLikelyInternalReport(resolved)) return resolved;
   return null;
+}
+
+export function buildDecisionOnlyPreview(input: {
+  manuscriptTitle: string;
+  decisions: Array<{
+    decision: string;
+    selected_text: string | null;
+    custom_text: string | null;
+    source_excerpt: string | null;
+    opportunity_title: string;
+  }>;
+}): string {
+  const lines = [
+    `${input.manuscriptTitle}`,
+    "",
+    "Revision preview reconstructed from accepted ledger decisions because the original manuscript file could not be read.",
+    "",
+  ];
+
+  for (const decision of input.decisions) {
+    if (!["accepted_a", "accepted_b", "accepted_c", "custom", "keep_original"].includes(decision.decision)) continue;
+    const selected = scrubInternalReportLeakage(decision.decision === "custom" ? decision.custom_text : decision.selected_text);
+    const source = scrubInternalReportLeakage(decision.source_excerpt);
+
+    lines.push(decision.opportunity_title);
+    if (decision.decision === "keep_original") {
+      lines.push(source || "Kept original.");
+    } else {
+      lines.push(selected || source || "No replacement text was available.");
+    }
+    lines.push("");
+  }
+
+  return lines.join("\n").trim();
 }
 
 export async function resolveFinalReviewSourceText(input: {
