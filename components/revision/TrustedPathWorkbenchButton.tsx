@@ -46,21 +46,26 @@ export default function TrustedPathWorkbenchButton({ manuscriptId, evaluationJob
     }
   }
 
+  const isDisabled = disabled || running || !manuscriptId || !evaluationJobId;
+
   return (
-    <div className="fixed right-6 top-[132px] z-50 max-w-[340px] text-right">
+    <div className="fixed right-[300px] top-[88px] z-50 max-w-[360px] text-right">
       <button
         type="button"
         onClick={runTrustedPath}
-        disabled={disabled || running || !manuscriptId || !evaluationJobId}
-        className={`rounded border px-3 py-2 text-xs font-semibold shadow-lg ${
-          disabled || running || !manuscriptId || !evaluationJobId
-            ? "cursor-not-allowed border-[#3A3022] bg-[#120E08] text-[#7F735F]"
-            : "border-[#C8A96E] bg-[#C8A96E] text-[#1A140C] hover:bg-[#D8BB7B]"
+        disabled={isDisabled}
+        className={`rounded-md border px-5 py-2.5 text-sm font-bold uppercase tracking-[0.08em] shadow-xl ring-1 ring-[#F0D28A]/25 transition ${
+          isDisabled
+            ? "cursor-not-allowed border-[#3A3022] bg-[#120E08] text-[#7F735F] ring-0"
+            : "border-[#E0BF78] bg-[#D5B36C] text-[#171006] hover:bg-[#E4C982] hover:shadow-2xl"
         }`}
         title="Accept Recommended Repair A for every copy-ready item and open Final Review."
       >
-        {running ? "TrustedPath™ running…" : "TrustedPath™"}
+        {running ? "Running…" : "TrustedPath"}
       </button>
+      <p className="mt-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#C8A96E]">
+        TrustedPath™ one-click repair path
+      </p>
       {message && (
         <p className="mt-2 rounded border border-[#3A3022] bg-[#120E08] px-3 py-2 text-[11px] leading-4 text-[#CBBDA4] shadow-lg">
           {message}
