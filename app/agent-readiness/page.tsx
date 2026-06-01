@@ -47,11 +47,13 @@ export default async function AgentReadinessPage({
     }));
 
   return (
-    <AgentReadinessClient
-      manuscripts={manuscripts}
-      requestedManuscriptId={requestedManuscriptId}
-      requestedEvaluationJobId={requestedEvaluationJobId}
-      loadError={error ? error.message : null}
-    />
+    <div className="agent-readiness-route">
+      <AgentReadinessClient
+        manuscripts={manuscripts}
+        requestedManuscriptId={requestedManuscriptId}
+        requestedEvaluationJobId={requestedEvaluationJobId}
+        loadError={error ? error.message : null}
+      />
+    </div>
   );
 }
