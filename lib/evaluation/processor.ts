@@ -6523,13 +6523,14 @@ export async function processEvaluationJob(
             preflightReducer: {
               reducer_status: reducerFailedFromProgress ? 'failed' : 'ok',
               preflight_authority:
-                authorityFromPass3aResult === 'unavailable' || authorityUnavailableFromBatchState
+                authorityUnavailableFromBatchState
                   ? 'unavailable'
-                  : authorityFromPass3aResult === 'degraded'
-                    ? 'degraded'
-                    : authorityFromPass3aResult === 'available'
-                      ? 'available'
-                      : null,
+                  : (authorityFromPass3aResult === 'unavailable' ||
+                     authorityFromPass3aResult === 'full' ||
+                     authorityFromPass3aResult === 'reduced' ||
+                     authorityFromPass3aResult === 'advisory')
+                    ? authorityFromPass3aResult
+                    : null,
             },
           },
         );
