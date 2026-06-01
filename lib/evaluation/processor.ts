@@ -1745,6 +1745,7 @@ function extractCriteriaFromAIResult(aiResult: Record<string, unknown>): unknown
  *    Retryable at the infra level — Perplexity was unreachable, not refusing.
  */
 const TERMINAL_FAILURE_PREFIXES = [
+  'POLICY_VIOLATION',      // Contract/provenance/governance policy violations (deterministic)
   'QG_',                    // All quality gate failures (content-driven)
   'PASS4_CANON_INVALID',    // Governance: cross-check structural failure
   'PASS4_WEAK_AGREEMENT',   // Governance: overall agreement too low
@@ -1835,6 +1836,111 @@ export async function assertPass12HandoffExistsBeforePhase3Queue(
 
   if (!handoffCheck?.id) {
     throw new Error('POLICY_VIOLATION: phase_3 queue requires pass12_handoff_v1');
+  }
+}
+
+type UpstreamArtifactRow = {
+  id?: string | null;
+  job_id?: string | null;
+  manuscript_id?: number | null;
+  artifact_type?: string | null;
+  content?: unknown;
+  source_hash?: string | null;
+};
+
+function assertArtifactOwnedByCurrentJobAndManuscript(
+  row: UpstreamArtifactRow,
+  artifactType: string,
+  jobId: string,
+  manuscriptId: number,
+): void {
+  if (row.job_id !== jobId) {
+    throw new Error(`POLICY_VIOLATION: ${artifactType} job_id mismatch (expected=${jobId}, actual=${row.job_id ?? 'null'})`);
+  }
+  if (typeof row.manuscript_id === 'number' && row.manuscript_id !== manuscriptId) {
+    throw new Error(`POLICY_VIOLATION: ${artifactType} manuscript_id mismatch (expected=${manuscriptId}, actual=${row.manuscript_id})`);
+  }
+
+  const contentRecord = isRecord(row.content) ? row.content : null;
+  if (contentRecord && typeof contentRecord.job_id === 'string' && contentRecord.job_id !== jobId) {
+    throw new Error(`POLICY_VIOLATION: ${artifactType}.content.job_id mismatch (expected=${jobId}, actual=${contentRecord.job_id})`);
+  }
+  if (
+    contentRecord &&
+    typeof contentRecord.manuscript_id === 'number' &&
+    contentRecord.manuscript_id !== manuscriptId
+  ) {
+    throw new Error(
+      `POLICY_VIOLATION: ${artifactType}.content.manuscript_id mismatch (expected=${manuscriptId}, actual=${contentRecord.manuscript_id})`,
+    );
+  }
+}
+
+export async function assertPhase2UpstreamInputsCanonical(
+  supabase: SupabaseClient<any, any, any>,
+  jobId: string,
+  manuscriptId: number,
+): Promise<void> {
+  const { data: acceptedLedgerRow, error: acceptedLedgerErr } = await supabase
+    .from('evaluation_artifacts')
+    .select('id, job_id, manuscript_id, artifact_type, content, source_hash')
+    .eq('job_id', jobId)
+    .eq('artifact_type', 'accepted_story_ledger_v1')
+    .maybeSingle();
+
+  if (acceptedLedgerErr) {
+    throw new Error(`POLICY_VIOLATION: phase_2 accepted ledger check failed (${acceptedLedgerErr.message})`);
+  }
+  if (!acceptedLedgerRow?.id) {
+    throw new Error('POLICY_VIOLATION: phase_2 requires accepted_story_ledger_v1');
+  }
+
+  const row = acceptedLedgerRow as UpstreamArtifactRow;
+  assertArtifactOwnedByCurrentJobAndManuscript(row, 'accepted_story_ledger_v1', jobId, manuscriptId);
+
+  const contentRecord = isRecord(row.content) ? row.content : null;
+  const governanceRail = contentRecord && isRecord(contentRecord.governance_rail)
+    ? (contentRecord.governance_rail as Record<string, unknown>)
+    : null;
+  const layerDecisions = governanceRail && isRecord(governanceRail.layer_decisions)
+    ? (governanceRail.layer_decisions as Record<string, unknown>)
+    : null;
+
+  if (!governanceRail || !layerDecisions || Object.keys(layerDecisions).length < 9) {
+    throw new Error('POLICY_VIOLATION: accepted_story_ledger_v1 must include canonical governance_rail.layer_decisions before phase_2');
+  }
+}
+
+export async function assertPhase3UpstreamInputsCanonical(
+  supabase: SupabaseClient<any, any, any>,
+  jobId: string,
+  manuscriptId: number,
+): Promise<void> {
+  await assertPhase2UpstreamInputsCanonical(supabase, jobId, manuscriptId);
+
+  const { data: pass12Row, error: pass12Err } = await supabase
+    .from('evaluation_artifacts')
+    .select('id, job_id, manuscript_id, artifact_type, content, source_hash')
+    .eq('job_id', jobId)
+    .eq('artifact_type', 'pass12_handoff_v1')
+    .maybeSingle();
+
+  if (pass12Err) {
+    throw new Error(`POLICY_VIOLATION: phase_3 pass12 handoff check failed (${pass12Err.message})`);
+  }
+  if (!pass12Row?.id) {
+    throw new Error('POLICY_VIOLATION: phase_3 requires pass12_handoff_v1');
+  }
+
+  const row = pass12Row as UpstreamArtifactRow;
+  assertArtifactOwnedByCurrentJobAndManuscript(row, 'pass12_handoff_v1', jobId, manuscriptId);
+
+  const contentRecord = isRecord(row.content) ? row.content : null;
+  const schemaVersion = typeof contentRecord?.schema_version === 'string' ? contentRecord.schema_version : null;
+  const hasPass1Output = Boolean(contentRecord && isRecord(contentRecord.pass1Output));
+
+  if (schemaVersion !== 'pass12_handoff_v1' || !hasPass1Output) {
+    throw new Error('POLICY_VIOLATION: pass12_handoff_v1 must be canonical and complete before phase_3');
   }
 }
 
@@ -4604,6 +4710,19 @@ export async function processEvaluationJob(
     //     bottom of the persistence path detects executionPhase==='phase_3' and
     //     runs WAVE inline instead of re-queueing phase_3.
     if (executionPhase === 'phase_3') {
+      try {
+        await assertPhase3UpstreamInputsCanonical(supabase, String(job.id), Number(job.manuscript_id));
+      } catch (phase3InputErr) {
+        const message = phase3InputErr instanceof Error ? phase3InputErr.message : String(phase3InputErr);
+        console.error(`[phase_3] ${jobId}: canonical upstream input guard failed`, message);
+        await markFailed(
+          `Phase 3 upstream input policy violation: ${message}`,
+          'POLICY_VIOLATION_PHASE3_UPSTREAM_INPUT',
+          { pipelineStage: 'phase_3' },
+        );
+        return { success: false, error: 'POLICY_VIOLATION_PHASE3_UPSTREAM_INPUT' };
+      }
+
       // ── GOVERNANCE GATE: Phase 3 also requires accepted_story_ledger_v1 ──
       const { buildAuthorCorrectionsBlock: buildCorrectionsBlockP3 } = await import('@/lib/evaluation/pipeline/prompts/pass2-editorial');
 
@@ -6895,6 +7014,19 @@ export async function processEvaluationJob(
 
       await markRunning('Resuming from phase 1 handoff', 55, 'phase_2');
       refreshPhaseDeadline(progressState.phase2_started_at as string | undefined);
+
+      try {
+        await assertPhase2UpstreamInputsCanonical(supabase, String(job.id), Number(job.manuscript_id));
+      } catch (phase2InputErr) {
+        const message = phase2InputErr instanceof Error ? phase2InputErr.message : String(phase2InputErr);
+        console.error(`[phase_2] ${jobId}: canonical upstream input guard failed`, message);
+        await markFailed(
+          `Phase 2 upstream input policy violation: ${message}`,
+          'POLICY_VIOLATION_PHASE2_UPSTREAM_INPUT',
+          { pipelineStage: 'phase_2' },
+        );
+        return { success: false, error: 'POLICY_VIOLATION_PHASE2_UPSTREAM_INPUT' };
+      }
 
       // ── GOVERNANCE GATE: accepted_story_ledger_v1 is required before Phase 2 ──
       // This is the author-approved contract. Phase 2 must not score from unverified extraction.
