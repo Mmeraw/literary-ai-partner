@@ -66,6 +66,8 @@ export default function AuthorProgressLedger({ rows, kpis, reviseAnalytics }) {
           </div>
           <div className="grid gap-2 min-w-56">
             <Link href={latest.reportHref} className="rounded-full bg-neutral-950 px-5 py-3 text-center text-sm font-bold text-white">Open latest report</Link>
+            <Link href="/manuscripts" className="rounded-full border border-neutral-300 px-5 py-3 text-center text-sm font-bold text-neutral-900">Open Manuscript Library</Link>
+            <Link href={`/manuscripts/${latest.manuscriptId}`} className="rounded-full border border-neutral-300 px-5 py-3 text-center text-sm font-bold text-neutral-900">Open current manuscript</Link>
             <Link href={workbenchHref(latest)} className="rounded-full border border-neutral-300 px-5 py-3 text-center text-sm font-bold text-neutral-900">Open Revise Workbench</Link>
             {canPackage && <Link href={packageHref(latest)} className="rounded-full border border-neutral-300 px-5 py-3 text-center text-sm font-bold text-neutral-900">Build Agent Readiness</Link>}
             <Link href="/evaluate" className="rounded-full border border-neutral-300 px-5 py-3 text-center text-sm font-bold text-neutral-900">Run re-evaluation</Link>
@@ -92,7 +94,7 @@ export default function AuthorProgressLedger({ rows, kpis, reviseAnalytics }) {
         <div className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.2em] text-amber-700">Current manuscript</p>
-            <h2 className="mt-3 text-3xl font-bold">{latest.manuscriptTitle}</h2>
+            <Link href={`/manuscripts/${latest.manuscriptId}`} className="mt-3 block text-3xl font-bold hover:text-amber-700">{latest.manuscriptTitle}</Link>
             <p className="mt-3 text-neutral-600">Latest evaluation: {d(latest.createdAt)}. Progress claims require a later evaluation to confirm movement.</p>
           </div>
           <div className="space-y-4">
