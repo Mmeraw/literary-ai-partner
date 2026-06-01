@@ -1,5 +1,3 @@
-import type { JobState } from "@/components/EvaluationPoller";
-
 export type ProgressDisplay = {
   label: string;
   valueLabel: string;
@@ -22,6 +20,12 @@ type PhaseInputs = {
   phase?: string | null;
   phase_status?: string | null;
   cross_check_status?: string | null;
+  phase_message?: string | null;
+  heartbeat_age_seconds?: number | null;
+  retry_count?: number | null;
+  is_stalled?: boolean;
+  stalled_reason?: string | null;
+  failure_code?: string | null;
   phase_unit_fraction?: number | null;
   /** Surfaced from jobs API via progress JSONB — true when ledger hard-fails block Phase 2 */
   hard_fail_present?: boolean | null;
@@ -55,6 +59,42 @@ export function getProgressDisplay(
   _now: Date = new Date(),
 ): ProgressDisplay {
   if (job.status === "failed") return null;
+
+  if ((job.status === 'queued' || job.status === 'running') && job.is_stalled) {
+    const stalledAtPct =
+      job.phase === 'phase_3'
+        ? 86
+        : job.phase === 'phase_2'
+          ? 67
+          : job.phase === 'review_gate'
+            ? 50
+            : job.phase === 'phase_1a'
+              ? 35
+              : 5;
+
+    const heartbeatAgeText =
+      typeof job.heartbeat_age_seconds === 'number'
+        ? `Last heartbeat ${job.heartbeat_age_seconds}s ago.`
+        : 'No recent worker heartbeat.';
+    const retryText =
+      typeof job.retry_count === 'number' ? ` Retry attempts: ${job.retry_count}.` : '';
+    const failureText =
+      typeof job.failure_code === 'string' && job.failure_code.length > 0
+        ? ` Code: ${job.failure_code}.`
+        : '';
+
+    return {
+      label: 'Evaluation stalled — worker not advancing',
+      valueLabel: 'Stalled',
+      helperText: job.stalled_reason
+        ?? (`${heartbeatAgeText}${retryText}${failureText}`.trim()
+          || 'The worker has stopped advancing this evaluation. Please retry or contact support.'),
+      indeterminate: false,
+      percentage: stalledAtPct,
+      color: 'red',
+      hardStop: true,
+    };
+  }
 
   if (job.status === "complete") {
     const isLongForm = typeof job.manuscript_word_count === 'number'
@@ -153,7 +193,7 @@ export function getProgressDisplay(
       color: "blue",
       hardStop: false,
       indeterminate: false,
-      helperText: "Your manuscript has been received. Preparing your evaluation.",
+      helperText: job.phase_message ?? "Your manuscript has been received. Preparing your evaluation.",
     };
   }
 
@@ -161,7 +201,7 @@ export function getProgressDisplay(
     return {
       label: "Starting your evaluation...",
       valueLabel: "2%",
-      helperText: "Your manuscript has been received. Your evaluation will begin shortly.",
+      helperText: job.phase_message ?? "Your manuscript has been received. Your evaluation will begin shortly.",
       indeterminate: false,
       percentage: 2,
       color: "blue",

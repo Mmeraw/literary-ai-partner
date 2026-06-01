@@ -678,6 +678,11 @@ export type PipelineResult =
         llr_diagnostic_snapshot?: {
           stage: "post_convergence" | "pre_artifact_generation";
           blocked_rule_ids: string[];
+          checkpoint_id?: string | null;
+          recovery_options?: unknown;
+          diagnostics?: unknown;
+          safe_rewrite_applied?: boolean;
+          safe_rewrite_attempted?: boolean;
           convergence_result: SynthesisOutput;
         };
         pass2_independence?: {
