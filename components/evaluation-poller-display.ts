@@ -175,13 +175,13 @@ export function getProgressDisplay(
     const fraction = job.phase_unit_fraction ?? 1;
     const isEarly = fraction < 0.5;
     return {
-      label: isEarly ? "Reading your manuscript..." : "Understanding your story...",
+      label: isEarly ? "Diagnosing your manuscript..." : "Understanding your story...",
       valueLabel: isEarly ? "15%" : "35%",
       percentage: isEarly ? 15 : 35,
       color: "blue",
       hardStop: false,
       indeterminate: false,
-      helperText: "Getting to know your characters, setting, and narrative arc."
+      helperText: "Analyzing your manuscript's story, structure, and craft signals."
     };
   }
 
@@ -257,11 +257,11 @@ export function getProgressDisplay(
     const pct = elapsedDrift(job.phase1_started_at, rangeMin, rangeMax, _now);
     return {
       label: isEarly
-        ? "Reading your manuscript..."
+        ? "Diagnosing your manuscript..."
         : "Understanding your story...",
       valueLabel: `${pct}%`,
       helperText: isEarly
-        ? "Getting to know your manuscript."
+        ? "Analyzing your manuscript's story, structure, and craft signals."
         : "Exploring your characters, relationships, and narrative arc.",
       indeterminate: false,
       percentage: pct,
@@ -273,9 +273,9 @@ export function getProgressDisplay(
   if (job.phase === "phase_1a") {
     const pct = elapsedDrift(job.phase1_started_at, 15, 34, _now);
     return {
-      label: "Reading your manuscript...",
+      label: "Diagnosing your manuscript...",
       valueLabel: `${pct}%`,
-      helperText: "Getting to know your manuscript.",
+      helperText: "Analyzing your manuscript's story, structure, and craft signals.",
       indeterminate: false,
       percentage: pct,
       color: "blue",

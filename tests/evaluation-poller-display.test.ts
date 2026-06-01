@@ -64,7 +64,7 @@ describe("getProgressDisplay: canonical state mapping", () => {
       phase_status: "running",
       phase_unit_fraction: 0.1,
     });
-    expect(pd!.label).toBe("Reading your manuscript...");
+    expect(pd!.label).toBe("Diagnosing your manuscript...");
     expect(pd!.percentage).toBe(15);
   });
 
@@ -85,7 +85,7 @@ describe("getProgressDisplay: canonical state mapping", () => {
       phase: "phase_1a",
       phase_status: "queued",
     });
-    expect(pd!.label).toBe("Reading your manuscript...");
+    expect(pd!.label).toBe("Diagnosing your manuscript...");
     expect(pd!.percentage).toBe(15);
   });
 
