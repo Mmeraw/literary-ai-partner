@@ -911,23 +911,63 @@ export function buildStoryLayerFromLedger(
   ledgerV2: CharacterLedgerV2,
   chunkOutputs?: Pass1aChunkOutput[],
 ): StoryLayerPayload {
+  const hasZeroVerifiedCharacters = ledger.entries.length === 0;
+  const hasIdentityProjectionWithoutVerifiedCharacters =
+    hasZeroVerifiedCharacters && ledgerV2.identityLedger.length > 0;
+
+  const ledgerV2ForLayers: CharacterLedgerV2 = hasZeroVerifiedCharacters
+    ? {
+        ...ledgerV2,
+        identityLedger: [],
+        relationshipLedger: [],
+        objectLedger: [],
+        stateTimelines: [],
+        psychologyLedger: [],
+        terminalLedger: [],
+        characterCoverage: {},
+      }
+    : ledgerV2;
+
   const rawLayers: StoryLayerPayload = {
-    source_integrity_layer: buildSourceIntegrityLayer(ledger, ledgerV2),
-    pov_structure_layer: buildPovStructureLayer(ledger, ledgerV2, chunkOutputs),
-    canonical_identity_layer: buildCanonicalIdentityLayer(ledger, ledgerV2),
-    cast_role_tier_layer: buildCastRoleTierLayer(ledger, ledgerV2),
-    identity_pronoun_layer: buildIdentityPronounLayer(ledger, ledgerV2),
-    relationship_network_layer: buildRelationshipNetworkLayer(ledger, ledgerV2),
-    object_symbol_layer: buildObjectSymbolLayer(ledger, ledgerV2),
-    location_timeline_worldstate_layer: buildLocationTimelineWorldstateLayer(ledger, ledgerV2),
-    threat_antagonist_ending_layer: buildThreatAntagonistEndingLayer(ledger, ledgerV2),
+    source_integrity_layer: buildSourceIntegrityLayer(ledger, ledgerV2ForLayers),
+    pov_structure_layer: buildPovStructureLayer(ledger, ledgerV2ForLayers, chunkOutputs),
+    canonical_identity_layer: buildCanonicalIdentityLayer(ledger, ledgerV2ForLayers),
+    cast_role_tier_layer: buildCastRoleTierLayer(ledger, ledgerV2ForLayers),
+    identity_pronoun_layer: buildIdentityPronounLayer(ledger, ledgerV2ForLayers),
+    relationship_network_layer: buildRelationshipNetworkLayer(ledger, ledgerV2ForLayers),
+    object_symbol_layer: buildObjectSymbolLayer(ledger, ledgerV2ForLayers),
+    location_timeline_worldstate_layer: buildLocationTimelineWorldstateLayer(ledger, ledgerV2ForLayers),
+    threat_antagonist_ending_layer: buildThreatAntagonistEndingLayer(ledger, ledgerV2ForLayers),
   };
 
   const dependencyAssessment = assessStoryLayerIdentityDependencies({
     ledger,
-    ledgerV2,
+    ledgerV2: ledgerV2ForLayers,
     layers: rawLayers,
   });
 
-  return applyIdentityDependencyMetadata(rawLayers, dependencyAssessment) as StoryLayerPayload;
+  const payload = applyIdentityDependencyMetadata(rawLayers, dependencyAssessment) as StoryLayerPayload;
+
+  if (hasZeroVerifiedCharacters) {
+    const sourceIntegrityLayer = payload.source_integrity_layer as Record<string, unknown>;
+    sourceIntegrityLayer.integrity_status = 'HARD_FAIL';
+    sourceIntegrityLayer.story_layer_status = 'failed_internal_consistency';
+    sourceIntegrityLayer.internal_consistency_failure = {
+      code: hasIdentityProjectionWithoutVerifiedCharacters
+        ? 'CHARACTER_LEDGER_EMPTY_V2_IDENTITY_POLLUTION'
+        : 'CHARACTER_LEDGER_EMPTY',
+      reason: hasIdentityProjectionWithoutVerifiedCharacters
+        ? 'pass1a_character_ledger_v1 has zero verified characters while CharacterLedgerV2 contains identities. Story Layer projection is blocked fail-closed.'
+        : 'pass1a_character_ledger_v1 has zero verified characters. Story Layer projection is blocked fail-closed.',
+      v1_entries_count: ledger.entries.length,
+      v2_identity_count: ledgerV2.identityLedger.length,
+    };
+
+    const canonicalIdentityLayer = payload.canonical_identity_layer as Record<string, unknown>;
+    canonicalIdentityLayer.identity_groups = [];
+    canonicalIdentityLayer.identity_group_count = 0;
+    canonicalIdentityLayer.identity_merge_status = 'FAILED_INTERNAL_CONSISTENCY';
+  }
+
+  return payload;
 }

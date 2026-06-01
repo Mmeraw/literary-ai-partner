@@ -129,6 +129,23 @@ describe('Story Ledger approval normalizer', () => {
     })).toThrow(/hard fails remain unresolved/);
   });
 
+  it('blocks non-admin accepted feedback when quality is repair_required', () => {
+    const repairRequiredReport: LedgerQualityReportPayload = {
+      ...cleanQualityReport,
+      gate_ready_status: 'repair_required',
+      recommended_review_action: 'repair_story_layer',
+      blocking_reasons: ['Layer completion mismatch.'],
+    };
+
+    expect(() => buildAcceptedStoryLedgerArtifact({
+      metadata,
+      sourceArtifacts: sourceArtifacts(repairRequiredReport),
+      feedbackArtifactId: 'feedback-artifact-id',
+      feedbackSourceHash: 'feedback-source-hash',
+      feedback: feedback({ review_status: 'accepted_with_corrections' }),
+    })).toThrow(/quality gate is not reviewable/);
+  });
+
   it('allows explicit admin or operator override for hard-fail approval path', () => {
     const adminAccepted = buildAcceptedStoryLedgerArtifact({
       metadata,

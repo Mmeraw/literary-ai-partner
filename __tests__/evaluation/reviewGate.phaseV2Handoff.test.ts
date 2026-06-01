@@ -125,4 +125,50 @@ describe('Phase Architecture v2 — Review Gate handoff helper', () => {
     expect(result.blocked.progress.block_code).toBe('PASS3A_DEGRADED_PROOF_MISSING');
     expect(result.blocked.progress.hard_fail_present).toBe(true);
   });
+
+  it('blocks handoff when quality report is blocked/hard-fail', () => {
+    const result = buildReviewGateHandoff(doneProgress, {
+      ...doneArtifacts,
+      ledger_quality_gate_ready_status: 'blocked',
+      ledger_quality_hard_fail_present: true,
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error('Expected blocked quality report to block review gate handoff');
+
+    expect(result.blocked.progress.review_gate_ready).toBe(false);
+    expect(result.blocked.progress.block_code).toBe('REVIEW_GATE_QUALITY_BLOCKED');
+  });
+
+  it('blocks handoff when quality report is repair_required', () => {
+    const result = buildReviewGateHandoff(doneProgress, {
+      ...doneArtifacts,
+      ledger_quality_gate_ready_status: 'repair_required',
+      ledger_quality_hard_fail_present: false,
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error('Expected repair_required quality report to block review gate handoff');
+
+    expect(result.blocked.progress.review_gate_ready).toBe(false);
+    expect(result.blocked.progress.block_code).toBe('REVIEW_GATE_QUALITY_NOT_REVIEWABLE');
+  });
+
+  it('blocks handoff when Pass 3A is degraded but reducer failed', () => {
+    const result = buildReviewGateHandoff(
+      { ...degradedProgress, pass3a_status: 'degraded' },
+      {
+        ...storyArtifacts,
+        pass3_preflight_draft_v1: artifact('preflight'),
+        pass3_preflight_reducer_status: 'failed',
+        pass3_preflight_authority: 'unavailable',
+      },
+    );
+
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error('Expected reducer-failed Pass 3A to block review gate handoff');
+
+    expect(result.blocked.progress.block_code).toBe('PASS3A_REDUCER_FAILED');
+    expect(result.blocked.progress.pass3a_gate_validity).toBe('gate_blocking');
+  });
 });

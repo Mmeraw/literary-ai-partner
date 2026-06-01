@@ -51,6 +51,10 @@ export type PhaseV2ArtifactSet = {
   ledger_quality_report_v1?: ArtifactRef | null;
   pass3_preflight_draft_v1?: ArtifactRef | null;
   accepted_story_ledger_v1?: ArtifactRef | null;
+  ledger_quality_gate_ready_status?: 'reviewable' | 'blocked' | 'repair_required' | null;
+  ledger_quality_hard_fail_present?: boolean | null;
+  pass3_preflight_reducer_status?: 'ok' | 'failed' | 'legacy' | null;
+  pass3_preflight_authority?: string | null;
 };
 
 export type GateDecision = {
@@ -86,6 +90,18 @@ export function derivePass3aGateValidity(
   artifacts: PhaseV2ArtifactSet = {},
 ): GateDecision {
   const status = progress.pass3a_status ?? 'not_started';
+  const reducerFailed =
+    artifacts.pass3_preflight_reducer_status === 'failed' ||
+    artifacts.pass3_preflight_authority === 'unavailable';
+
+  if (reducerFailed) {
+    return {
+      ok: false,
+      gate_validity: 'gate_blocking',
+      reason: 'Pass 3A preflight artifact indicates reducer failure/unavailable authority.',
+      code: 'PASS3A_REDUCER_FAILED',
+    };
+  }
 
   switch (status) {
     case 'done': {
@@ -183,6 +199,29 @@ export function deriveReviewGateReadiness(
       gate_validity: 'gate_blocking',
       reason: 'ledger_quality_report_v1 is required before Review Gate.',
       code: 'REVIEW_GATE_QUALITY_REPORT_MISSING',
+    };
+  }
+
+  if (
+    artifacts.ledger_quality_gate_ready_status === 'blocked' ||
+    artifacts.ledger_quality_hard_fail_present === true
+  ) {
+    return {
+      ok: false,
+      review_gate_ready: false,
+      gate_validity: 'gate_blocking',
+      reason: 'ledger_quality_report_v1 is blocked/hard-fail and requires operator intervention.',
+      code: 'REVIEW_GATE_QUALITY_BLOCKED',
+    };
+  }
+
+  if (artifacts.ledger_quality_gate_ready_status === 'repair_required') {
+    return {
+      ok: false,
+      review_gate_ready: false,
+      gate_validity: 'gate_blocking',
+      reason: 'ledger_quality_report_v1 is repair_required and not reviewable yet.',
+      code: 'REVIEW_GATE_QUALITY_NOT_REVIEWABLE',
     };
   }
 

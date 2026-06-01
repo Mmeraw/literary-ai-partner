@@ -221,6 +221,13 @@ export function buildAcceptedStoryLedgerArtifact(params: {
     throw new Error('Cannot write accepted_story_ledger_v1 while hard fails remain unresolved without admin/operator override');
   }
 
+  if (
+    params.sourceArtifacts.ledger_quality_report_v1.quality_report.gate_ready_status !== 'reviewable' &&
+    !isAdminOrOperator(params.feedback)
+  ) {
+    throw new Error('Cannot write accepted_story_ledger_v1 while quality gate is not reviewable without admin/operator override');
+  }
+
   if (params.feedback.review_status === 'accepted_with_override' && !isAdminOrOperator(params.feedback)) {
     throw new Error('accepted_with_override may only be written by admin or operator roles');
   }
