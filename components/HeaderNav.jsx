@@ -4,7 +4,7 @@
  * HeaderNav — RevisionGrade canonical navigation shell
  *
  * Signed-in nav order (per product doctrine):
- *   Dashboard · Evaluate · Revise · Agent Readiness Package™ · Storygate Studio™ · Resources · Pricing
+ *   Dashboard · Manuscripts · Evaluate · Revise · Agent Readiness Package™ · Storygate Studio™ · Resources · Pricing
  *   Admin-only: Pipeline
  *
  * Auth states:
@@ -162,8 +162,9 @@ export default function HeaderNav() {
           <span className="hidden text-rg-cream font-rg-serif text-sm tracking-wide sm:block">RevisionGrade&#8482;</span>
         </Link>
 
-        <nav className="hidden items-center justify-center gap-6 lg:flex lg:flex-1">
+        <nav className="hidden items-center justify-center gap-5 lg:flex lg:flex-1">
           {isAuthed && <NavLink href="/dashboard">Dashboard</NavLink>}
+          {isAuthed && <NavLink href="/manuscripts">Manuscripts</NavLink>}
 
           <NavLink href="/evaluate">Evaluate</NavLink>
           <NavLink href="/revise">Revise</NavLink>
@@ -258,28 +259,25 @@ export default function HeaderNav() {
               {signingOut ? "Signing out…" : "Sign out"}
             </button>
           )}
-          {authState === "anon" && (
-            <Link href="/login" data-testid="nav-signin" className="text-xs tracking-widest uppercase font-rg-mono border border-rg-gold text-rg-gold px-3 py-1.5 hover:bg-rg-gold hover:text-rg-ink transition-colors duration-150">
-              Sign in
-            </Link>
-          )}
         </div>
 
         <button
           type="button"
-          className="inline-flex shrink-0 items-center justify-center border border-rg-gold/60 px-3 py-2 font-rg-mono text-[0.68rem] uppercase tracking-[0.16em] text-rg-gold transition hover:border-rg-gold hover:text-rg-cream lg:hidden"
+          onClick={() => setMobileOpen((v) => !v)}
           aria-expanded={mobileOpen}
           aria-controls="mobile-nav"
-          onClick={() => setMobileOpen((v) => !v)}
+          className="inline-flex h-10 w-10 items-center justify-center border border-rg-cream2/15 text-rg-cream2 lg:hidden"
         >
-          {mobileOpen ? "Close" : "Menu"}
+          <span className="sr-only">Menu</span>
+          ☰
         </button>
       </div>
 
       {mobileOpen && (
-        <div id="mobile-nav" className="border-t border-rg-cream2/10 bg-rg-ink lg:hidden">
-          <nav className="mx-auto grid max-w-7xl gap-2 px-4 py-4 sm:px-6" aria-label="Mobile navigation">
+        <div id="mobile-nav" className="border-t border-rg-cream2/10 bg-rg-ink2 px-4 py-4 lg:hidden">
+          <div className="space-y-2">
             {isAuthed && <MobileLink href="/dashboard">Dashboard</MobileLink>}
+            {isAuthed && <MobileLink href="/manuscripts">Manuscripts</MobileLink>}
             <MobileLink href="/evaluate">Evaluate</MobileLink>
             <MobileLink href="/revise">Revise</MobileLink>
             <MobileLink href="/agent-readiness">Agent Readiness&#8482;</MobileLink>
@@ -287,29 +285,12 @@ export default function HeaderNav() {
             <MobileLink href="/resources">Resources</MobileLink>
             <MobileLink href="/pricing">Pricing</MobileLink>
             {isAuthed && isAdmin && <MobileLink href="/admin/pipeline-health">Pipeline</MobileLink>}
-
-            <div className="mt-2 border-t border-rg-cream2/10 pt-4">
-              {authState === "loading" && (
-                <span className="inline-block h-5 w-20 rounded bg-rg-cream2/10 animate-pulse" />
-              )}
-              {authState === "authed" && (
-                <button
-                  type="button"
-                  onClick={handleSignOut}
-                  disabled={signingOut}
-                  data-testid="mobile-nav-signout"
-                  className="w-full border border-rg-cream2/20 px-3 py-3 text-left font-rg-mono text-xs uppercase tracking-[0.16em] text-rg-cream2 transition hover:border-rg-gold/50 hover:text-rg-cream disabled:opacity-40"
-                >
-                  {signingOut ? "Signing out…" : "Sign out"}
-                </button>
-              )}
-              {authState === "anon" && (
-                <Link href="/login" data-testid="mobile-nav-signin" className="block border border-rg-gold px-3 py-3 font-rg-mono text-xs uppercase tracking-[0.16em] text-rg-gold transition hover:bg-rg-gold hover:text-rg-ink">
-                  Sign in
-                </Link>
-              )}
-            </div>
-          </nav>
+            {isAuthed && (
+              <button type="button" onClick={handleSignOut} disabled={signingOut} className={mobileLinkCls}>
+                {signingOut ? "Signing out…" : "Sign out"}
+              </button>
+            )}
+          </div>
         </div>
       )}
     </header>
