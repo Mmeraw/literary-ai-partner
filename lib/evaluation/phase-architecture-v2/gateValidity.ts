@@ -202,9 +202,27 @@ export function deriveReviewGateReadiness(
     };
   }
 
+  const qualityGateReadyStatus = artifacts.ledger_quality_gate_ready_status;
+  const qualityHardFailPresent = artifacts.ledger_quality_hard_fail_present;
+
+  const hasKnownQualityGateReadyStatus =
+    qualityGateReadyStatus === 'reviewable'
+    || qualityGateReadyStatus === 'blocked'
+    || qualityGateReadyStatus === 'repair_required';
+
+  if (!hasKnownQualityGateReadyStatus || typeof qualityHardFailPresent !== 'boolean') {
+    return {
+      ok: false,
+      review_gate_ready: false,
+      gate_validity: 'gate_blocking',
+      reason: 'ledger_quality_report_v1 verdict metadata is missing or malformed; fail closed for Review Gate readiness.',
+      code: 'REVIEW_GATE_QUALITY_VERDICT_UNKNOWN',
+    };
+  }
+
   if (
-    artifacts.ledger_quality_gate_ready_status === 'blocked' ||
-    artifacts.ledger_quality_hard_fail_present === true
+    qualityGateReadyStatus === 'blocked' ||
+    qualityHardFailPresent === true
   ) {
     return {
       ok: false,
@@ -215,7 +233,7 @@ export function deriveReviewGateReadiness(
     };
   }
 
-  if (artifacts.ledger_quality_gate_ready_status === 'repair_required') {
+  if (qualityGateReadyStatus === 'repair_required') {
     return {
       ok: false,
       review_gate_ready: false,

@@ -11,6 +11,8 @@ const artifact = (id: string) => ({ artifact_id: id, source_hash: `sha256:${id}`
 const storyArtifacts: PhaseV2ArtifactSet = {
   pass1a_story_layer_v1: artifact('story-layer'),
   ledger_quality_report_v1: artifact('quality-report'),
+  ledger_quality_gate_ready_status: 'reviewable',
+  ledger_quality_hard_fail_present: false,
 };
 
 const doneProgress: PhaseV2Progress = {
@@ -126,6 +128,20 @@ describe('Phase Architecture v2 — derived Review Gate readiness', () => {
     expect(result.ok).toBe(false);
     expect(result.review_gate_ready).toBe(false);
     expect(result.code).toBe('REVIEW_GATE_QUALITY_REPORT_MISSING');
+  });
+
+  it('blocks Review Gate when quality verdict metadata is unknown/malformed', () => {
+    const result = deriveReviewGateReadiness(doneProgress, {
+      pass1a_story_layer_v1: artifact('story-layer'),
+      ledger_quality_report_v1: artifact('quality-report'),
+      pass3_preflight_draft_v1: artifact('preflight'),
+      ledger_quality_gate_ready_status: null,
+      ledger_quality_hard_fail_present: null,
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.review_gate_ready).toBe(false);
+    expect(result.code).toBe('REVIEW_GATE_QUALITY_VERDICT_UNKNOWN');
   });
 
   it('blocks Review Gate when Pass 3A is missing/running/half-written/failed', () => {

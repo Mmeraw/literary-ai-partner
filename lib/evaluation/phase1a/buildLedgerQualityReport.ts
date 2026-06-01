@@ -68,7 +68,7 @@ function runQualityChecks(
       severity: 'hard_fail',
       message: `HARD_FAIL: internal consistency violation — v1 character ledger is empty while CharacterLedgerV2 has ${v2IdentityCount} identity candidate(s).`,
       layer: 'canonical_identity_layer',
-      evidenceReference: 'pass1a_character_ledger_v1.entries + pass1a_character_ledger_v1.ledger_v2.identityLedger',
+      evidenceReference: 'pass1a_character_ledger_v1.entries + character_ledger_v2.identityLedger',
     });
   }
 
