@@ -36,6 +36,24 @@ These files belong to the DREAM governed-ledger benchmark family in substance ev
 
 ---
 
+## Legacy / historical reference files
+
+Some benchmark-adjacent files are preserved because they teach a regression lesson, but they are **not current production-output authority**.
+
+Legacy reference files may be used to preserve lessons such as canon continuity, missing-evidence handling, or craft-vs-intelligence separation. They must not override the canonical 13-criterion registry, the current scope policy, or the product-facing templates.
+
+Current examples:
+
+| File | Legacy status | Allowed use | Not allowed to do |
+|---|---|---|---|
+| [`ancient-bloodlines-shortform-model.md`](./ancient-bloodlines-shortform-model.md) | Preserved `EvaluationReportV1` / 12-criterion historical short-form model | Teach canon continuity, missing-evidence handling, and craft-vs-intelligence separation | Claim current 13-criterion production shape |
+| [`../testdata/evaluation/ancient-bloodlines.shortform.model.json`](../testdata/evaluation/ancient-bloodlines.shortform.model.json) | Preserved fixture backing legacy tests | Drive explicit legacy-reference guards | Serve as a current scoring fixture |
+| [`ancient-bloodlines-longform-layered-template.md`](./ancient-bloodlines-longform-layered-template.md) | Historical path for a blank multi-layer format template | Backward-compatible reference only | Replace `docs/templates/evaluation/long-form-multi-layer-evaluation-template.md` as product template authority |
+
+Legacy tests must say so in their header. They should verify that preserved files remain useful **and** that they do not masquerade as current mode/template authority.
+
+---
+
 ## The Gold Standard
 
 **[`froggin-noggin-dream.md`](./froggin-noggin-dream.md)** — *Froggin Noggin* (Michael J. Me Raw). Full long-form multi-layer gold-standard evaluation: 13-criteria score grid, layered architecture analysis, canon/doctrine audit, revision plan, releasability assessment, and DREAM governed-ledger expectations where applicable. This is a calibration target — when production output disputes a criterion or long-form diagnosis, this file helps determine which side is closer to ground truth.
@@ -59,6 +77,7 @@ Schema family: `canonical-13` / `dream-longform-v2-governed-ledgers` / `long_for
 - **Not a claim of current capability.** The repo note in each file states this explicitly where needed.
 - **Not versioned generated output.** They are human-authored reference documents that anchor calibration over time.
 - **Not a reason to overpromise.** A short-form report must not imply the depth of a long-form multi-layer benchmark.
+- **Not legacy override authority.** Historical reference files must never silently replace the current canonical mode, scope, template, or 13-criterion contracts.
 
 ---
 
@@ -146,3 +165,5 @@ wave-applied: true
 ## Normalization rule
 
 Do not rewrite preserved manual benchmark bodies merely to conform to the new mode labels. Use front matter, addenda, template notes, and benchmark index metadata unless the benchmark itself is intentionally being regenerated.
+
+Historical fixtures may remain in the repo only when they are clearly labeled as legacy references and covered by tests that prevent them from being mistaken for current production-output authority.
