@@ -126,6 +126,70 @@ function normalizeChunkObservation(raw: unknown): Pass3AChunkObservation {
   } as Pass3AChunkObservation;
 }
 
+function isObjectRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/**
+ * Reducer output in production occasionally drifts between equivalent key shapes
+ * (`criterionDrafts`, `criterion_drafts`, nested under `preflight`, etc.).
+ *
+ * Accept known variants and normalize to a canonical Pass3ACriterionDraft[] so
+ * transient schema-shape drift does not trigger technical requeue loops.
+ */
+export function extractReducerCriterionDrafts(
+  rawOutput: unknown,
+): Pass3ACriterionDraft[] | null {
+  if (!isObjectRecord(rawOutput)) {
+    return null;
+  }
+
+  const nestedPreflight = isObjectRecord(rawOutput.preflight)
+    ? rawOutput.preflight
+    : isObjectRecord(rawOutput.preflightDraft)
+      ? rawOutput.preflightDraft
+      : null;
+
+  const candidates: unknown[] = [
+    rawOutput.criterionDrafts,
+    rawOutput.criterion_drafts,
+    rawOutput.criteriaDrafts,
+    rawOutput.criteria_drafts,
+    nestedPreflight?.criterionDrafts,
+    nestedPreflight?.criterion_drafts,
+    nestedPreflight?.criteriaDrafts,
+    nestedPreflight?.criteria_drafts,
+  ];
+
+  for (const candidate of candidates) {
+    if (Array.isArray(candidate) && candidate.length > 0) {
+      return candidate as Pass3ACriterionDraft[];
+    }
+
+    if (isObjectRecord(candidate)) {
+      const mapped = Object.entries(candidate)
+        .map(([criterionKey, value]) => {
+          if (!isObjectRecord(value)) return null;
+          const withCriterion = {
+            ...value,
+            criterion:
+              typeof value.criterion === "string" && value.criterion.trim().length > 0
+                ? value.criterion
+                : criterionKey,
+          };
+          return withCriterion as Pass3ACriterionDraft;
+        })
+        .filter((entry): entry is Pass3ACriterionDraft => entry !== null);
+
+      if (mapped.length > 0) {
+        return mapped;
+      }
+    }
+  }
+
+  return null;
+}
+
 // ─── Zone aggregation (TypeScript, no LLM) ──────────────────────────────────
 
 function aggregateChunksToZoneSummaries(
@@ -534,11 +598,12 @@ export async function runPass3Preflight(
 
   // ── STEP 4: ENFORCE EVIDENCE RULES ───────────────────────────────────────
   let criterionDrafts: Pass3ACriterionDraft[] = [];
+  const reducerCriterionDrafts = extractReducerCriterionDrafts(reducerOutput);
 
-  if (reducerOutput?.criterionDrafts && Array.isArray(reducerOutput.criterionDrafts)) {
+  if (reducerCriterionDrafts && reducerCriterionDrafts.length > 0) {
     // Ensure all 13 criteria are present
     const draftsMap = new Map<string, Pass3ACriterionDraft>();
-    for (const dRaw of reducerOutput.criterionDrafts as Pass3ACriterionDraft[]) {
+    for (const dRaw of reducerCriterionDrafts) {
       // Normalize actZonesSupporting casing (e.g. "late" → "Late")
       const d: Pass3ACriterionDraft = {
         ...dRaw,
@@ -588,8 +653,8 @@ export async function runPass3Preflight(
   // the reducer synthesized anything actionable from it.
   const reducerSucceeded =
     reducerOutput !== null &&
-    Array.isArray(reducerOutput.criterionDrafts) &&
-    reducerOutput.criterionDrafts.length > 0;
+    Array.isArray(reducerCriterionDrafts) &&
+    reducerCriterionDrafts.length > 0;
 
   if (!reducerSucceeded && !reducerFailureReason) {
     reducerFailureReason = "Reducer returned empty or invalid criterionDrafts payload.";
