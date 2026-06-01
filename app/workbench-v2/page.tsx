@@ -40,9 +40,39 @@ export default async function WorkbenchV2Page({ searchParams }: { searchParams?:
 
   return (
     <div className="workbench-v2-route">
+      <style>{`
+        .workbench-v2-route main {
+          top: 72px !important;
+          padding-top: 0.75rem !important;
+        }
+
+        .workbench-v2-route main > div > header {
+          min-height: 3.25rem !important;
+          padding-top: 0.55rem !important;
+          padding-bottom: 0.55rem !important;
+        }
+
+        .workbench-v2-route .workbench-v2-trusted-path {
+          top: 84px !important;
+          right: 590px !important;
+          left: auto !important;
+          transform: none !important;
+        }
+
+        .workbench-v2-route .workbench-v2-final-review-link {
+          top: 84px !important;
+          right: 1.5rem !important;
+        }
+
+        @media (max-width: 1280px) {
+          .workbench-v2-route .workbench-v2-trusted-path {
+            right: 520px !important;
+          }
+        }
+      `}</style>
       <Link
         href={finalReviewHref}
-        className="workbench-v2-final-review-link fixed right-6 top-[78px] z-50 rounded border border-[#C8A96E] bg-[#1C160E] px-4 py-2.5 text-xs font-semibold text-[#F3E3C3] shadow-lg hover:bg-[#2A2115]"
+        className="workbench-v2-final-review-link fixed right-6 top-[84px] z-50 rounded border border-[#C8A96E] bg-[#1C160E] px-4 py-2.5 text-xs font-semibold text-[#F3E3C3] shadow-lg hover:bg-[#2A2115]"
       >
         Final Review / Apply & Export
       </Link>
