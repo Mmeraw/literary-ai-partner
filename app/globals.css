@@ -312,3 +312,69 @@
     white-space: normal !important;
   }
 }
+
+/* === Revise Workbench v2 top action spacing ===
+ *
+ * Keeps TrustedPath and Final Review in their own calm action row above the
+ * cockpit. The cockpit itself starts lower so the queue badges, top controls,
+ * and first active passage no longer collide or feel jammed.
+ */
+.workbench-v2-route main {
+  top: 132px !important;
+  padding-top: 1rem !important;
+}
+
+.workbench-v2-route .workbench-v2-final-review-link,
+.workbench-v2-route .workbench-v2-trusted-path {
+  top: 76px !important;
+}
+
+.workbench-v2-route .workbench-v2-final-review-link {
+  right: 1.5rem !important;
+  min-width: 264px;
+  text-align: center;
+}
+
+.workbench-v2-route .workbench-v2-trusted-path {
+  left: 50% !important;
+  transform: translateX(-50%);
+}
+
+.workbench-v2-route main > div > header {
+  min-height: 3.75rem;
+  height: auto !important;
+  padding-top: 0.75rem !important;
+  padding-bottom: 0.75rem !important;
+  gap: 1rem;
+}
+
+.workbench-v2-route main > div > header > div:last-child {
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  row-gap: 0.5rem;
+}
+
+.workbench-v2-route main > div > section section > div:first-child {
+  padding-top: 0.9rem !important;
+  padding-bottom: 0.9rem !important;
+}
+
+.workbench-v2-route main > div > section section > div:nth-child(2) {
+  padding-top: 1rem !important;
+}
+
+@media (max-width: 1100px) {
+  .workbench-v2-route main {
+    top: 150px !important;
+  }
+
+  .workbench-v2-route .workbench-v2-trusted-path {
+    left: 1rem !important;
+    transform: none;
+  }
+
+  .workbench-v2-route .workbench-v2-final-review-link {
+    right: 1rem !important;
+  }
+}
