@@ -206,15 +206,13 @@ export function buildTopRecommendations(artifact: ArtifactLike | null | undefine
             ? normalizeRecommendationActionForDisplay(recommendation.action)
             : "";
         if (!action) return "";
-        // Use reader_effect or expected_impact as summary text instead of
-        // repeating the criterion action verbatim in Top Recommendations.
         const readerSummary =
           typeof recommendation.reader_effect === "string" && recommendation.reader_effect.trim()
             ? recommendation.reader_effect.trim()
             : typeof recommendation.expected_impact === "string" && recommendation.expected_impact.trim()
               ? recommendation.expected_impact.trim()
               : "";
-        return readerSummary || action;
+        return readerSummary ? `${action} — ${readerSummary}` : action;
       }),
     ),
   );
