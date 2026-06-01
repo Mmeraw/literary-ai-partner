@@ -4,6 +4,20 @@ import { useEffect, useRef } from "react";
 import type { WorkbenchQueuePayload } from "@/lib/revision/workbenchQueue";
 import ReviseCockpitClientWorkflowV1 from "./ReviseCockpitClientWorkflowV1";
 
+function cleanCopy(value: string): string {
+  let next = value
+    .replace(/^\s*[?¿]+\s*/g, "")
+    .replace(/Symptom:\s*[?¿]+\s*/g, "Symptom: ")
+    .replace(/Fix:\s*[?¿]+\s*/g, "Fix: ")
+    .replace(/\bthe room heard the hurt underneath\b/gi, "the others caught the hurt underneath")
+    .replace(/\bthe room\b/gi, "the clearing")
+    .replace(/\broom\b/gi, "clearing")
+    .replace(/\beveryone\b/gi, "the others");
+
+  next = next.replace(/(:\s+)([a-z])/g, (_match, prefix: string, letter: string) => `${prefix}${letter.toUpperCase()}`);
+  return next;
+}
+
 function cleanVisibleText(root: HTMLElement) {
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
   const nodes: Text[] = [];
@@ -14,13 +28,7 @@ function cleanVisibleText(root: HTMLElement) {
   }
   for (const textNode of nodes) {
     const before = textNode.nodeValue ?? "";
-    const after = before
-      .replace(/Symptom:\s*[?¿]+\s*/g, "Symptom: ")
-      .replace(/Fix:\s*[?¿]+\s*/g, "Fix: ")
-      .replace(/\bthe room heard the hurt underneath\b/gi, "the others caught the hurt underneath")
-      .replace(/\bthe room\b/gi, "the clearing")
-      .replace(/\broom\b/gi, "clearing")
-      .replace(/\beveryone\b/gi, "the others");
+    const after = cleanCopy(before);
     if (after !== before) textNode.nodeValue = after;
   }
 }
