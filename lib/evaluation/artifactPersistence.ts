@@ -86,6 +86,11 @@ export type ArtifactType =
    */
   | "pass1a_character_ledger_v1"
   /**
+   * Accepted Story Ledger — normalized, governance-validated story authority
+   * artifact required by downstream Phase 2/3 consumers.
+   */
+  | "accepted_story_ledger_v1"
+  /**
    * WAVE revision plan — written inline after evaluation persists (same execution
    * window). status field: complete | skipped | failed | timeout.
    * skipped = gate did not pass (manuscript too short or criteria below floor).
