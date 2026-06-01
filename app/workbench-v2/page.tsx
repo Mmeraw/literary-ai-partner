@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getWorkbenchQueue } from "@/lib/revision/workbenchQueue";
 import ReviseCockpitClientWorkflowV2 from "@/components/revision/ReviseCockpitClientWorkflowV2";
+import TrustedPathWorkbenchButton from "@/components/revision/TrustedPathWorkbenchButton";
 import { buildRevisionOpportunityLedger, persistRevisionOpportunityLedger } from "@/lib/revision/revisionOpportunityLedgerArtifact";
 import { redirect } from "next/navigation";
 import { resolveWorkbenchRouteTargetForUser } from "@/lib/revision/workbenchQueue";
@@ -45,6 +46,7 @@ export default async function WorkbenchV2Page({ searchParams }: { searchParams?:
       >
         Final Review / Apply & Export
       </Link>
+      <TrustedPathWorkbenchButton disabled={!payload.ok} />
       <ReviseCockpitClientWorkflowV2 payload={payload} />
     </>
   );
