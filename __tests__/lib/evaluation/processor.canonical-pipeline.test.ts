@@ -137,10 +137,14 @@ function makeSupabaseStub() {
       if (table === "evaluation_jobs") {
         return {
           select: () => ({
-            eq: () => ({
-              single: async () => ({ data: queuedJob, error: null }),
-              maybeSingle: async () => ({ data: { status: queuedJob.status }, error: null }),
-            }),
+            eq: () => {
+              const query: any = {
+                eq: () => query,
+                single: async () => ({ data: queuedJob, error: null }),
+                maybeSingle: async () => ({ data: { status: queuedJob.status }, error: null }),
+              };
+              return query;
+            },
           }),
           update: (payload: Record<string, unknown>) => {
             evaluationJobUpdates.push(payload);
@@ -169,7 +173,13 @@ function makeSupabaseStub() {
         };
       }
       if (table === "evaluation_provider_calls") {
+        const providerCallQuery: any = {
+          eq: () => providerCallQuery,
+          maybeSingle: async () => ({ data: null, error: null }),
+          single: async () => ({ data: null, error: null }),
+        };
         return {
+          select: () => providerCallQuery,
           upsert: async (
             payload: Record<string, unknown> | Array<Record<string, unknown>>,
           ) => {
@@ -941,6 +951,33 @@ describe("processEvaluationJob canonical pipeline integration", () => {
           };
         }
 
+        if (table === "evaluation_artifacts") {
+          return {
+            select: () => {
+              let artifactType = "";
+              const query: any = {
+                eq: (col?: string, val?: any) => {
+                  if (col === "artifact_type" && typeof val === "string") artifactType = val;
+                  return query;
+                },
+                maybeSingle: async () => {
+                  if (artifactType === "pass12_handoff_v1") {
+                    return { data: { content: pass12HandoffContent }, error: null };
+                  }
+                  if (artifactType === "accepted_story_ledger_v1") {
+                    return { data: { content: acceptedStoryLedgerContent }, error: null };
+                  }
+                  if (artifactType === "evaluation_result_v2") {
+                    return { data: null, error: null };
+                  }
+                  return { data: { id: "artifact-canonical-pass" }, error: null };
+                },
+              };
+              return query;
+            },
+          };
+        }
+
         throw new Error(`Unexpected table in SLA exceeded test stub: ${table}`);
       },
     });
@@ -965,26 +1002,30 @@ describe("processEvaluationJob canonical pipeline integration", () => {
         if (table === "evaluation_jobs") {
           return {
             select: () => ({
-              eq: () => ({
-                single: async () => ({
-                  data: {
-                    id: "job-canonical-pipeline",
-                    manuscript_id: 456,
-                    job_type: "evaluate_full",
-                    status: "failed",
-                    phase: "phase_3",
-                    phase_status: "failed",
-                    claimed_by: "test-worker",
-                    lease_token: "test-lease-token",
-                    lease_expires_at: new Date(Date.now() + 5 * 60_000).toISOString(),
-                    created_at: expiredStartedAt,
-                    started_at: expiredStartedAt,
-                    progress: { phase: "phase_3", phase_status: "failed" },
-                  },
-                  error: null,
-                }),
-                maybeSingle: async () => ({ data: { status: "failed" }, error: null }),
-              }),
+              eq: () => {
+                const query: any = {
+                  eq: () => query,
+                  single: async () => ({
+                    data: {
+                      id: "job-canonical-pipeline",
+                      manuscript_id: 456,
+                      job_type: "evaluate_full",
+                      status: "failed",
+                      phase: "phase_3",
+                      phase_status: "failed",
+                      claimed_by: "test-worker",
+                      lease_token: "test-lease-token",
+                      lease_expires_at: new Date(Date.now() + 5 * 60_000).toISOString(),
+                      created_at: expiredStartedAt,
+                      started_at: expiredStartedAt,
+                      progress: { phase: "phase_3", phase_status: "failed" },
+                    },
+                    error: null,
+                  }),
+                  maybeSingle: async () => ({ data: { status: "failed" }, error: null }),
+                };
+                return query;
+              },
             }),
             update: (payload: Record<string, unknown>) => {
               supabaseStub.evaluationJobUpdates.push(payload);
