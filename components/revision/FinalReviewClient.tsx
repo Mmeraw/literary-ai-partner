@@ -95,10 +95,19 @@ function ChangelogList({ decisions, printMode = false }: { decisions: FinalRevie
   );
 }
 
+function SourceUnavailableNotice({ printMode = false }: { printMode?: boolean }) {
+  return (
+    <div className={printMode ? "mt-6 rounded border border-[#B8922A] bg-[#FBF1DC] p-4 text-sm leading-6 text-[#7A5B12]" : "mt-4 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm leading-6 text-amber-100"}>
+      Full manuscript source text is unavailable for this legacy evaluation. Clean Draft, Marked Copy, and Apply are locked until the source text is connected. The Revision Changelog remains available.
+    </div>
+  );
+}
+
 function PrintFinalReview({ payload, view }: { payload: FinalReviewPayload; view: Exclude<FinalReviewView, "full"> }) {
-  const title = view === "clean" ? "Clean Draft" : view === "marked" ? "Marked Review Copy" : "Revision Changelog";
-  const showManuscript = view === "clean" || view === "marked";
-  const showChangelog = view === "marked" || view === "changelog";
+  const cleanOrMarkedUnavailable = !payload.sourceAvailable && (view === "clean" || view === "marked");
+  const title = view === "clean" ? (cleanOrMarkedUnavailable ? "Clean Draft Unavailable" : "Clean Draft") : view === "marked" ? (cleanOrMarkedUnavailable ? "Marked Copy Unavailable" : "Marked Review Copy") : "Revision Changelog";
+  const showManuscript = payload.sourceAvailable && (view === "clean" || view === "marked");
+  const showChangelog = view === "marked" || view === "changelog" || cleanOrMarkedUnavailable;
 
   return (
     <main className="min-h-screen bg-white px-10 py-8 text-[#1C1814] print:px-0 print:py-0">
@@ -112,6 +121,7 @@ function PrintFinalReview({ payload, view }: { payload: FinalReviewPayload; view
           <h1 className="mt-2 text-4xl leading-tight text-[#1C1814]" style={{ fontFamily: "Georgia, serif" }}>{title}</h1>
           <p className="mt-2 text-sm text-[#5C5549]">{payload.manuscriptTitle}</p>
         </header>
+        {cleanOrMarkedUnavailable && <SourceUnavailableNotice printMode />}
         {showManuscript && (
           <section className="mt-6 space-y-4 leading-7">
             {payload.previewParagraphs.length === 0 ? <p>No manuscript preview text was available.</p> : payload.previewParagraphs.map((paragraph, index) => {
@@ -123,7 +133,7 @@ function PrintFinalReview({ payload, view }: { payload: FinalReviewPayload; view
           </section>
         )}
         {showChangelog && (
-          <section className={showManuscript ? "mt-10 break-before-page" : "mt-6"}>
+          <section className={showManuscript ? "mt-10 break-before-page" : "mt-8"}>
             <h2 className="text-2xl text-[#1C1814]" style={{ fontFamily: "Georgia, serif" }}>Revision Changelog</h2>
             <ChangelogList decisions={payload.decisions} printMode />
           </section>
@@ -142,7 +152,7 @@ export default function FinalReviewClient({ payload, printMode = false, view = "
     : "";
 
   const workbenchHref = query ? `/workbench-v2?${query}` : "/workbench-v2";
-  const canApplyOrExportClean = payload.acceptedCount + payload.customCount > 0;
+  const canApplyOrExportClean = payload.sourceAvailable && payload.acceptedCount + payload.customCount > 0;
 
   return (
     <main className="min-h-screen bg-[#0D0A05] px-4 py-6 text-[#F5EFE4] md:px-6 md:py-8">
@@ -165,7 +175,7 @@ export default function FinalReviewClient({ payload, printMode = false, view = "
                 <input type="hidden" name="evaluationJobId" value={payload.evaluationJobId ?? ""} />
                 <button disabled={!canApplyOrExportClean} className="rounded border border-[#C8A96E] bg-[#C8A96E] px-3 py-2 font-semibold text-[#1A140C] disabled:cursor-not-allowed disabled:opacity-40">Apply to new version</button>
               </form>
-              <DownloadFinalReviewButton manuscriptId={payload.manuscriptId} evaluationJobId={payload.evaluationJobId} disabled={payload.decisions.length === 0} />
+              <DownloadFinalReviewButton manuscriptId={payload.manuscriptId} evaluationJobId={payload.evaluationJobId} sourceAvailable={payload.sourceAvailable} disabled={payload.decisions.length === 0} />
             </div>
           </div>
 
@@ -176,6 +186,8 @@ export default function FinalReviewClient({ payload, printMode = false, view = "
             <div className="rounded-lg border border-[#2D2519] bg-[#110D07] p-3"><span className="text-[#C8A96E]">Rejected</span><br /><strong className="text-2xl text-[#F6E8CE]">{payload.rejectedCount}</strong></div>
             <div className="rounded-lg border border-[#2D2519] bg-[#110D07] p-3"><span className="text-[#C8A96E]">Deferred</span><br /><strong className="text-2xl text-[#F6E8CE]">{payload.deferredCount}</strong></div>
           </div>
+
+          {!payload.sourceAvailable && <SourceUnavailableNotice />}
 
           {payload.unresolvedMustCount > 0 && (
             <div className="mt-4 rounded-lg border border-red-400/40 bg-red-500/10 p-3 text-sm text-red-100">
@@ -188,8 +200,8 @@ export default function FinalReviewClient({ payload, printMode = false, view = "
           <article className="rounded-2xl border border-[#3A3022] bg-[#1C160E] p-5">
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
               <div>
-                <h2 className="text-2xl text-[#F7EFDF]" style={{ fontFamily: "Instrument Serif, Georgia, serif" }}>Marked manuscript preview</h2>
-                <p className="mt-1 text-sm text-[#A9987D]">Color highlights show staged revisions; the clean export removes this markup.</p>
+                <h2 className="text-2xl text-[#F7EFDF]" style={{ fontFamily: "Instrument Serif, Georgia, serif" }}>{payload.sourceAvailable ? "Marked manuscript preview" : "Staged decisions preview"}</h2>
+                <p className="mt-1 text-sm text-[#A9987D]">{payload.sourceAvailable ? "Color highlights show staged revisions; the clean export removes this markup." : "Full manuscript text is unavailable, so this panel shows synced decisions only."}</p>
               </div>
               <div className="flex flex-wrap gap-2 text-[11px]">
                 <span className="rounded border border-[#C8A96E]/55 bg-[#C8A96E]/15 px-2 py-1 text-[#F2DFC0]">System A/B/C</span>
@@ -199,9 +211,10 @@ export default function FinalReviewClient({ payload, printMode = false, view = "
             </div>
             <div className="space-y-4 rounded-xl border border-[#2E261A] bg-[#120E08] p-5 leading-8 text-[#E9DCC4]">
               {payload.previewParagraphs.length === 0 ? (
-                <p>No manuscript preview text was available for this evaluation version.</p>
+                <p>No revision decisions were available for preview.</p>
               ) : (
                 payload.previewParagraphs.map((paragraph, index) => {
+                  if (!payload.sourceAvailable) return <p key={`${index}-${paragraph.slice(0, 10)}`}>{paragraph}</p>;
                   const decision = payload.decisions[index % Math.max(1, payload.decisions.length)];
                   if (!decision || index % 4 !== 1) return <p key={`${index}-${paragraph.slice(0, 10)}`}>{paragraph}</p>;
                   return (
