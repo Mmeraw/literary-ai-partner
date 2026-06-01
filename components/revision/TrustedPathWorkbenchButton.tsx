@@ -49,12 +49,12 @@ export default function TrustedPathWorkbenchButton({ manuscriptId, evaluationJob
   const isDisabled = disabled || running || !manuscriptId || !evaluationJobId;
 
   return (
-    <div className="fixed right-[620px] top-[88px] z-50 max-w-[360px] text-center">
+    <div className="workbench-v2-trusted-path fixed left-1/2 top-[82px] z-50 w-[216px] -translate-x-1/2 text-center">
       <button
         type="button"
         onClick={runTrustedPath}
         disabled={isDisabled}
-        className={`rounded-md border px-5 py-2.5 text-sm font-bold uppercase tracking-[0.08em] shadow-xl ring-1 ring-[#F0D28A]/25 transition ${
+        className={`w-full rounded-sm border px-5 py-2.5 text-sm font-bold uppercase tracking-[0.08em] shadow-xl ring-1 ring-[#F0D28A]/25 transition ${
           isDisabled
             ? "cursor-not-allowed border-[#3A3022] bg-[#120E08] text-[#7F735F] ring-0"
             : "border-[#E0BF78] bg-[#D5B36C] text-[#171006] hover:bg-[#E4C982] hover:shadow-2xl"
@@ -63,7 +63,7 @@ export default function TrustedPathWorkbenchButton({ manuscriptId, evaluationJob
       >
         {running ? "Running…" : "TrustedPath"}
       </button>
-      <p className="mt-1 whitespace-nowrap text-[10px] font-semibold uppercase tracking-[0.14em] text-[#C8A96E]">
+      <p className="mt-3 whitespace-nowrap text-[10px] font-semibold uppercase tracking-[0.14em] text-[#C8A96E]">
         TrustedPath™ one-click repair path
       </p>
       {message && (
