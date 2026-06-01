@@ -6,6 +6,7 @@
  * Rules:
  * - 450-word hard cap on the query letter body
  * - Warning at 425 words
+ * - Hook and brief synopsis/story summary must appear inside the letter
  * - Comparables sentence and "What Makes This Novel Unique" must appear inside the letter
  * - Author Bio paragraph drawn only from author-supplied inputs
  */
@@ -159,7 +160,7 @@ export default function QueryLetterPage() {
           Query / Cover Letter
         </h1>
         <p style={{ fontSize: "0.8125rem", color: T.cream2, lineHeight: 1.65, marginBottom: "2rem", maxWidth: "560px" }}>
-          The agent-facing submission letter. Must include: hook, manuscript metadata (title · genre · word count), comparables sentence, what makes it unique, short bio, and professional closing. Hard cap: 450 words.
+          The agent-facing submission letter. Must include: hook, brief synopsis / story summary, manuscript metadata (title · genre · word count), audience or category, comparables sentence, what makes it unique, short bio, and professional closing. Hard cap: 450 words.
         </p>
 
         {/* What Makes This Novel Unique — standalone field */}
@@ -203,7 +204,7 @@ export default function QueryLetterPage() {
             value={body}
             onChange={handleBodyChange}
             rows={20}
-            placeholder={`Dear [Agent Name],\n\n[Hook paragraph — the story pitch.]\n\n[Title], [Genre], [Word Count], [Audience]. [TITLE] will appeal to readers of [Comp 1] and [Comp 2], combining [shared appeal] with [unique differentiator].\n\n[What makes it unique — one or two compact sentences.]\n\n[Author bio paragraph — pulled only from author-supplied resume/bio facts.]\n\nThank you for your time and consideration.\n\n[Your Name]`}
+            placeholder={`Dear [Agent Name],\n\n[Hook paragraph — the story pitch.]\n\n[Brief synopsis — introduce the protagonist, central conflict, stakes, major turn, and the choice or consequence that drives the manuscript. This should summarize the story without becoming a chapter-by-chapter plot summary.]\n\n[Title], [Genre], [Word Count], [Audience]. [TITLE] will appeal to readers of [Comp 1] and [Comp 2], combining [shared appeal] with [unique differentiator].\n\n[What makes this novel unique — voice, premise, structure, setting, emotional engine, or market angle.]\n\n[Author bio paragraph — pulled only from author-supplied resume/bio facts.]\n\nThank you for your time and consideration.\n\nSincerely,\n[Author Name]`}
             style={{
               width: "100%", fontFamily: T.mono, fontSize: "0.8125rem", color: T.cream,
               backgroundColor: T.panel,
