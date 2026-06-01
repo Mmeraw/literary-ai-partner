@@ -1,5 +1,7 @@
+import Link from "next/link";
 import { getWorkbenchQueue } from "@/lib/revision/workbenchQueue";
 import ReviseCockpitClientWorkflowV2 from "@/components/revision/ReviseCockpitClientWorkflowV2";
+import TrustedPathWorkbenchButton from "@/components/revision/TrustedPathWorkbenchButton";
 import { buildRevisionOpportunityLedger, persistRevisionOpportunityLedger } from "@/lib/revision/revisionOpportunityLedgerArtifact";
 import { redirect } from "next/navigation";
 import { resolveWorkbenchRouteTargetForUser } from "@/lib/revision/workbenchQueue";
@@ -31,5 +33,21 @@ export default async function WorkbenchV2Page({ searchParams }: { searchParams?:
       console.error("Failed to persist revision_opportunity_ledger_v1", error);
     }
   }
-  return <ReviseCockpitClientWorkflowV2 payload={payload} />;
+
+  const finalReviewHref = manuscriptId && evaluationJobId
+    ? `/workbench/final-review?${new URLSearchParams({ manuscriptId, evaluationJobId }).toString()}`
+    : "/workbench/final-review";
+
+  return (
+    <>
+      <Link
+        href={finalReviewHref}
+        className="fixed right-6 top-[88px] z-50 rounded border border-[#C8A96E] bg-[#1C160E] px-3 py-2 text-xs font-semibold text-[#F3E3C3] shadow-lg hover:bg-[#2A2115]"
+      >
+        Final Review / Apply & Export
+      </Link>
+      <TrustedPathWorkbenchButton disabled={!payload.ok} />
+      <ReviseCockpitClientWorkflowV2 payload={payload} />
+    </>
+  );
 }

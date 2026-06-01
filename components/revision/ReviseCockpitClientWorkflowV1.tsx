@@ -145,13 +145,10 @@ function renderableCandidate(item: WorkbenchOpportunity, key: OptionKey): string
 function candidateText(item: WorkbenchOpportunity, key: OptionKey): string {
   const specific = specificFallbackCandidate(item, key);
   if (specific) return specific;
-
   const renderable = renderableCandidate(item, key);
   if (renderable && candidateTextIsCopyPasteReady(renderable) && !candidateRepeatsSourceForInsertion(item, renderable)) return renderable;
-
   const raw = rawCandidate(item, key);
   if (raw && candidateTextIsCopyPasteReady(raw) && !candidateRepeatsSourceForInsertion(item, raw)) return raw;
-
   return genericFallbackCandidate(item, key);
 }
 
@@ -205,7 +202,6 @@ function cleanupDiagnosticArtifact(value: string): string {
 function stripRepeatedTitle(value: string | null | undefined, item: WorkbenchOpportunity): string {
   const clean = normalize(value);
   if (!clean) return "";
-
   for (const repeatedSource of [item.title, item.issueStatement]) {
     const repeated = normalize(repeatedSource);
     if (!repeated) continue;
@@ -215,7 +211,6 @@ function stripRepeatedTitle(value: string | null | undefined, item: WorkbenchOpp
       return isTrivial(stripped) ? "" : stripped;
     }
   }
-
   const cleaned = cleanupDiagnosticArtifact(clean);
   return isTrivial(cleaned) ? "" : cleaned;
 }
@@ -230,10 +225,7 @@ function compactGoal(item: WorkbenchOpportunity): string {
   const haystack = compareText(`${item.title} ${item.issueStatement} ${sourceTextOf(item)} ${item.fixDirection}`);
   if (haystack.includes("sensory detail") || haystack.includes("body or surroundings") || haystack.includes("hithery")) return "Add one sensory detail tied to Newton’s body or surroundings.";
   if (haystack.includes("move aside") && haystack.includes("small fry") && haystack.includes("newton")) return "Show Newton’s choice and immediate cost.";
-
-  const source = [item.fixDirection, item.diagnostic?.fixStrategy, item.issueStatement, item.title]
-    .map((value) => stripRepeatedTitle(value, item) || normalize(value))
-    .find(Boolean) ?? "";
+  const source = [item.fixDirection, item.diagnostic?.fixStrategy, item.issueStatement, item.title].map((value) => stripRepeatedTitle(value, item) || normalize(value)).find(Boolean) ?? "";
   const action = source.match(/\b(expand|insert|replace|clarify|strengthen|show|make|compress|delete|split|tighten|restore|add|remove|deepen)\b/i);
   const goal = action && typeof action.index === "number" ? source.slice(action.index).trim() : source;
   const cleaned = stripRepeatedTitle(goal, item) || goal;
@@ -256,14 +248,7 @@ function operationInstruction(item: WorkbenchOpportunity): string {
 }
 
 function diagnosticText(item: WorkbenchOpportunity, field: "symptom" | "cause" | "fix" | "readerEffect" | "mistakeProofing"): string {
-  const raw = {
-    symptom: item.symptom || item.diagnostic?.symptom,
-    cause: item.cause || item.diagnostic?.cause,
-    fix: item.fixDirection || item.diagnostic?.fixStrategy,
-    readerEffect: item.readerEffect || item.diagnostic?.readerImpact,
-    mistakeProofing: item.mistakeProofing || item.diagnostic?.mistakeProofing,
-  }[field];
-
+  const raw = { symptom: item.symptom || item.diagnostic?.symptom, cause: item.cause || item.diagnostic?.cause, fix: item.fixDirection || item.diagnostic?.fixStrategy, readerEffect: item.readerEffect || item.diagnostic?.readerImpact, mistakeProofing: item.mistakeProofing || item.diagnostic?.mistakeProofing }[field];
   const cleaned = stripRepeatedTitle(raw, item);
   if (cleaned) return cleaned;
   if (field === "symptom") return "Missing playable beat: the choice and cost are named by the recommendation but not yet dramatized in usable manuscript prose.";
@@ -334,86 +319,22 @@ export default function ReviseCockpitClientWorkflowV1({ payload }: { payload: Wo
   const visibleLedger = filters.status === "all" ? ledger : ledger.filter((entry) => decisionGroup(entry.decision) === filters.status);
   const counts = { accepted: ledger.filter((entry) => decisionGroup(entry.decision) === "accepted").length, pending: openItems.length };
 
-  function selectItem(id: string) {
-    setActiveId(id);
-    setSelectedOption("A");
-    setCustomOpen(false);
-    setCustomText("");
-  }
-
-  async function copyText(text: string) {
-    try { await navigator.clipboard.writeText(text); setMessage("Copied"); } catch { setMessage("Copy failed"); }
-  }
+  function selectItem(id: string) { setActiveId(id); setSelectedOption("A"); setCustomOpen(false); setCustomText(""); }
+  async function copyText(text: string) { try { await navigator.clipboard.writeText(text); setMessage("Copied"); } catch { setMessage("Copy failed"); } }
 
   async function sync(entry: LedgerEntry, item: WorkbenchOpportunity) {
     if (!payload.manuscriptId || !payload.evaluationJobId) return;
     try {
-      const response = await fetch("/api/revision-ledger", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          manuscriptId: payload.manuscriptId,
-          evaluationJobId: payload.evaluationJobId,
-          entries: [{
-            localId: entry.id,
-            opportunityId: item.id,
-            opportunityTitle: item.title,
-            decision: entry.decision,
-            selectedOption: entry.option ?? null,
-            selectedText: entry.selectedText ?? null,
-            customText: entry.decision === "custom" ? entry.selectedText ?? null : null,
-            sourceExcerpt: sourceTextOf(item) || null,
-            sourceLocation: item.anchor || item.meta || null,
-            clientCreatedAt: new Date().toISOString(),
-            isUndo: false,
-            undoneLocalId: null,
-            metadata: { source: "workflow-revise-cockpit-v1", revisionOperation: effectiveOperation(item), criterion: criterionOf(item) },
-          }],
-        }),
-      });
+      const response = await fetch("/api/revision-ledger", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ manuscriptId: payload.manuscriptId, evaluationJobId: payload.evaluationJobId, entries: [{ localId: entry.id, opportunityId: item.id, opportunityTitle: item.title, decision: entry.decision, selectedOption: entry.option ?? null, selectedText: entry.selectedText ?? null, customText: entry.decision === "custom" ? entry.selectedText ?? null : null, sourceExcerpt: sourceTextOf(item) || null, sourceLocation: item.anchor || item.meta || null, clientCreatedAt: new Date().toISOString(), isUndo: false, undoneLocalId: null, metadata: { source: "workflow-revise-cockpit-v1", revisionOperation: effectiveOperation(item), criterion: criterionOf(item), severity: item.severity, scope: item.scope } }] }) });
       const json = await response.json().catch(() => null);
       if (!response.ok || !json?.ok) throw new Error(json?.error ?? "Ledger sync failed");
       setLedger((rows) => rows.map((row) => row.id === entry.id ? { ...row, syncStatus: "synced" } : row));
-    } catch {
-      setLedger((rows) => rows.map((row) => row.id === entry.id ? { ...row, syncStatus: "failed" } : row));
-    }
+    } catch { setLedger((rows) => rows.map((row) => row.id === entry.id ? { ...row, syncStatus: "failed" } : row)); }
   }
 
-  function advanceAfterDecision(item: WorkbenchOpportunity) {
-    const currentIndex = filtered.findIndex((row) => row.id === item.id);
-    const next = filtered.slice(currentIndex + 1).find((row) => row.id !== item.id) ?? filtered.find((row) => row.id !== item.id) ?? null;
-    setActiveId(next?.id ?? "");
-    setSelectedOption("A");
-    setCustomOpen(false);
-    setCustomText("");
-  }
-
-  function decide(decision: DecisionState, option?: OptionKey, text?: string) {
-    if (!active) return;
-    if (option && !canSelectOption(active, option)) return;
-
-    const entry: LedgerEntry = {
-      id: `local-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-      itemId: active.id,
-      itemTitle: active.title,
-      decision,
-      option,
-      selectedText: text?.trim() || undefined,
-      criterion: criterionOf(active),
-      syncStatus: "pending",
-    };
-
-    setLedger((rows) => [entry, ...rows.filter((row) => row.itemId !== active.id)]);
-    setMessage(option ? `Selected ${option} moved to ledger` : `${decisionLabel(decision)} moved to ledger`);
-    void sync(entry, active);
-    advanceAfterDecision(active);
-  }
-
-  function unselect(entry: LedgerEntry) {
-    setLedger((rows) => rows.filter((row) => row.itemId !== entry.itemId));
-    setActiveId(entry.itemId);
-    setMessage("Choice removed — opportunity returned to queue");
-  }
+  function advanceAfterDecision(item: WorkbenchOpportunity) { const currentIndex = filtered.findIndex((row) => row.id === item.id); const next = filtered.slice(currentIndex + 1).find((row) => row.id !== item.id) ?? filtered.find((row) => row.id !== item.id) ?? null; setActiveId(next?.id ?? ""); setSelectedOption("A"); setCustomOpen(false); setCustomText(""); }
+  function decide(decision: DecisionState, option?: OptionKey, text?: string) { if (!active) return; if (option && !canSelectOption(active, option)) return; const entry: LedgerEntry = { id: `local-${Date.now()}-${Math.random().toString(36).slice(2)}`, itemId: active.id, itemTitle: active.title, decision, option, selectedText: text?.trim() || undefined, criterion: criterionOf(active), syncStatus: "pending" }; setLedger((rows) => [entry, ...rows.filter((row) => row.itemId !== active.id)]); setMessage(option ? `Selected ${option} moved to ledger` : `${decisionLabel(decision)} moved to ledger`); void sync(entry, active); advanceAfterDecision(active); }
+  function unselect(entry: LedgerEntry) { setLedger((rows) => rows.filter((row) => row.itemId !== entry.itemId)); setActiveId(entry.itemId); setMessage("Choice removed — opportunity returned to queue"); }
 
   if (!payload.ok || items.length === 0) return <main className="fixed inset-x-0 bottom-0 top-[72px] flex items-center justify-center bg-[#0D0A05] px-4 pb-5 pt-3 text-[#F5EFE4]">No revision queue available.</main>;
 
@@ -424,31 +345,7 @@ export default function ReviseCockpitClientWorkflowV1({ payload }: { payload: Wo
           <div className="min-w-0"><p className="text-[10px] uppercase tracking-[0.2em] text-[#C8A96E]">Revision Cockpit · surgical repair queue</p><h1 className="truncate text-sm font-semibold">{payload.manuscriptTitle}</h1></div>
           <div className="flex gap-2 text-[11px]"><span className="rounded border border-[#5D4C31] px-2 py-1">Queue {filtered.length ? activeIndex + 1 : 0}/{filtered.length}</span><span className="rounded border border-[#48603F] px-2 py-1 text-[#BBD8B4]">Ready {readyCount}</span><span className="rounded border border-[#7A2B1A] px-2 py-1 text-[#F1B6A5]">Needs Targeting {needsTargetingCount}</span><span className="rounded border border-[#C8A96E] px-2 py-1">Pending {counts.pending}</span><span className="rounded border border-[#5D4C31] px-2 py-1">Accepted {counts.accepted}</span>{message && <span className="rounded border border-[#5D4C31] px-2 py-1 text-[#A9987D]">{message}</span>}</div>
         </header>
-
-        <section className="grid min-h-0 flex-1 overflow-hidden xl:grid-cols-[310px_minmax(0,1fr)]">
-          <aside className="flex min-h-0 flex-col border-r border-[#2E261A] bg-[#110D07]">
-            <div className="space-y-2 border-b border-[#2E261A] p-2"><input value={filters.search} onChange={(event) => setFilters((current) => ({ ...current, search: event.target.value }))} placeholder="Search queue" className="h-8 w-full rounded border border-[#3A3022] bg-[#0D0A05] px-2 text-xs" /><div className="grid grid-cols-2 gap-2"><select value={filters.priority} onChange={(event) => setFilters((current) => ({ ...current, priority: event.target.value as Filters["priority"] }))} className="h-8 rounded border border-[#3A3022] bg-[#0D0A05] px-2 text-xs"><option value="all">All priority</option><option value="must">MUST</option><option value="should">SHOULD</option><option value="could">COULD</option></select><select value={filters.status} onChange={(event) => setFilters((current) => ({ ...current, status: event.target.value as DecisionFilter }))} className="h-8 rounded border border-[#3A3022] bg-[#0D0A05] px-2 text-xs"><option value="all">All status</option><option value="pending">Pending</option><option value="accepted">Accepted</option><option value="custom">Custom</option><option value="kept_original">Kept</option><option value="rejected">Rejected</option><option value="deferred">Deferred</option></select></div><select value={filters.criterion} onChange={(event) => setFilters((current) => ({ ...current, criterion: event.target.value }))} className="h-8 w-full rounded border border-[#3A3022] bg-[#0D0A05] px-2 text-xs"><option value="all">All criteria</option>{criteria.map((criterion) => <option key={criterion} value={criterion}>{criterion}</option>)}</select></div>
-            <ol className="min-h-0 flex-1 space-y-1 overflow-y-auto p-2">{filtered.map((item, index) => <li key={item.id}><button type="button" onClick={() => selectItem(item.id)} className={`w-full rounded-lg border p-2 text-left ${item.id === active?.id ? "border-[#C8A96E] bg-[#221B11]" : "border-[#2B241A] bg-[#161109]"}`}><div className="mb-1 flex flex-wrap gap-1"><span className={`rounded px-1.5 py-0.5 text-[10px] uppercase ${severityClass(item.severity)}`}>{item.severity}</span><span className="rounded border border-[#4E4333] px-1.5 py-0.5 text-[10px]">{item.scope}</span><span className={`rounded border px-1.5 py-0.5 text-[10px] ${liveReady(item) ? "border-[#48603F] text-[#BBD8B4]" : "border-[#7A2B1A] text-[#F1B6A5]"}`}>{liveReady(item) ? "Ready" : "Needs Targeting"}</span><span className="rounded border border-[#4E4333] px-1.5 py-0.5 text-[10px] text-[#A9987D]">pending</span></div><p className="line-clamp-2 text-xs leading-4">{index + 1}. {item.title}</p><p className="mt-1 truncate text-[11px] text-[#A9987D]">{criterionOf(item)} · {item.anchor || item.meta}</p></button></li>)}</ol>
-          </aside>
-
-          <section className="flex min-w-0 flex-col overflow-hidden bg-[#1C160E]">
-            {active ? <>
-              <div className="shrink-0 border-b border-[#2E261A] p-2"><div className="flex flex-wrap items-center gap-2 text-[11px] uppercase tracking-wider"><span className={`rounded px-2 py-1 ${severityClass(active.severity)}`}>{active.severity}</span><span className="rounded border border-[#5A4B33] px-2 py-1">{criterionOf(active)}</span><span className="rounded border border-[#5A4B33] px-2 py-1">{active.scope}</span><span className={`rounded border px-2 py-1 ${liveReady(active) ? "border-[#48603F] text-[#BBD8B4]" : "border-[#7A2B1A] text-[#F1B6A5]"}`}>{liveReady(active) ? "Ready" : "Needs Targeting"}</span></div><h2 className="mt-1 truncate text-lg font-semibold">{active.title}</h2></div>
-
-              <div className="min-h-0 flex-1 overflow-y-auto p-3">
-                <section className="rounded-xl border border-[#2E261A] bg-[#12100B] p-3"><p className="mb-2 text-[11px] uppercase tracking-[0.18em] text-[#C8A96E]">Diagnosis & Guardrails</p><div className="grid gap-x-4 gap-y-1 text-sm leading-5 xl:grid-cols-2"><p><span className="text-[#C8A96E]">Symptom:</span> {diagnosticText(active, "symptom")}</p><p><span className="text-[#C8A96E]">Cause:</span> {diagnosticText(active, "cause")}</p><p><span className="text-[#C8A96E]">Fix:</span> {diagnosticText(active, "fix")}</p><p><span className="text-[#C8A96E]">Reader effect:</span> {diagnosticText(active, "readerEffect")}</p><p><span className="text-[#C8A96E]">Mistake-proofing:</span> {diagnosticText(active, "mistakeProofing")}</p><p><span className="text-[#C8A96E]">Operation:</span> {operationLabels[effectiveOperation(active)]}</p></div></section>
-                <section className="mt-3 grid gap-3 xl:grid-cols-2"><div className="rounded-xl border border-[#2E261A] bg-[#12100B] p-3"><p className="text-[11px] uppercase tracking-[0.18em] text-[#C8A96E]">Original Passage</p><p className="mt-2 max-h-20 overflow-y-auto text-sm leading-5">{sourceTextOf(active) || "No exact passage is available yet."}</p><p className="mt-1 text-xs text-[#A9987D]">{active.anchor || active.meta || "Location pending"}</p></div><div className="rounded-xl border border-[#2E261A] bg-[#12100B] p-3"><p className="text-[11px] uppercase tracking-[0.18em] text-[#C8A96E]">Revision Task</p><p className="mt-2 text-sm leading-5">{operationInstruction(active)} {compactGoal(active)}</p></div></section>
-                <section className="mt-3 flex flex-wrap items-center justify-between gap-2"><p className="text-[11px] uppercase tracking-[0.18em] text-[#C8A96E]">{optionSectionLabel(active)}</p>{invalidCandidates && <p className="rounded border border-[#7A2B1A]/55 bg-[#7A2B1A]/15 px-2 py-1 text-xs text-[#E2B2A6]">Diagnostic mode: Accept/Copy unlock only when candidates are copy-ready for the declared operation.</p>}</section>
-                <div className="mt-3 grid gap-3 xl:grid-cols-3">{OPTION_KEYS.map((key) => { const text = candidateText(active, key); const ok = canSelectOption(active, key); const focused = selectedOption === key; return <article key={key} onClick={() => setSelectedOption(key)} className={`rounded-xl border p-3 transition ${focused ? "border-[#C8A96E] bg-[#12100B]" : "border-[#2E261A] bg-[#12100B]"}`}><div className="flex items-start justify-between gap-2"><p className="text-sm font-semibold">{REVISION_OPTION_LABELS[key]}</p><div className="flex gap-1"><button type="button" onClick={(event) => { event.stopPropagation(); void copyText(text); }} disabled={!ok} className="rounded border border-[#5D4C31] px-2 py-1 text-xs disabled:opacity-40">Copy</button><button type="button" onClick={(event) => { event.stopPropagation(); decide(selectedDecisionFor(key), key, text); }} disabled={!ok} className="rounded bg-[#C8A96E] px-2 py-1 text-xs font-semibold text-[#1A140C] disabled:opacity-40">Accept {key}</button></div></div><p className={`mt-2 line-clamp-6 whitespace-pre-wrap text-sm leading-5 ${ok ? "text-[#E5D8BE]" : "text-[#E2B2A6]"}`}>{text || "No candidate text available."}</p></article>; })}</div>
-                {customOpen && <div className="mt-3 rounded-xl border border-[#C8A96E]/60 bg-[#120E08] p-3"><p className="text-xs uppercase tracking-[0.16em] text-[#C8A96E]">Author custom revision</p><textarea value={customText} onChange={(event) => setCustomText(event.target.value)} rows={4} className="mt-2 w-full rounded border border-[#3A3022] bg-[#0D0A05] p-3 font-mono text-sm" /><button disabled={!customText.trim()} onClick={() => decide("custom", undefined, customText)} className="mt-2 rounded bg-[#C8A96E] px-3 py-1.5 text-sm font-semibold text-[#1A140C] disabled:opacity-50">Save custom + ledger</button></div>}
-              </div>
-
-              <footer className="shrink-0 border-t border-[#2E261A] bg-[#120E08] p-3"><div className="flex flex-wrap items-center gap-2"><button onClick={() => decide("accepted_a", "A", candidateText(active, "A"))} disabled={!canSelectOption(active, "A")} className="rounded bg-[#C8A96E] px-4 py-2 text-sm font-semibold text-[#1A140C] disabled:opacity-40">Accept A</button><button onClick={() => decide("accepted_b", "B", candidateText(active, "B"))} disabled={!canSelectOption(active, "B")} className="rounded border border-[#C8A96E] px-4 py-2 text-sm disabled:opacity-40">Accept B</button><button onClick={() => decide("accepted_c", "C", candidateText(active, "C"))} disabled={!canSelectOption(active, "C")} className="rounded border border-[#C8A96E] px-4 py-2 text-sm disabled:opacity-40">Accept C</button><button onClick={() => decide("keep_original", undefined, "Kept original")} className="rounded border border-[#5D4C31] px-3 py-2 text-sm">Keep Original</button><button onClick={() => decide("reject", undefined, "Rejected suggestions")} className="rounded border border-[#7A2B1A]/70 px-3 py-2 text-sm text-[#E2B2A6]">Reject</button><button onClick={() => decide("deferred", undefined, "Deferred for later decision")} className="rounded border border-[#5C5140] px-3 py-2 text-sm">Defer</button><button onClick={() => { setCustomText(selectedText); setCustomOpen(true); }} className="rounded border border-[#C8A96E] bg-[#C8A96E]/10 px-3 py-2 text-sm">{customOperationLabels[effectiveOperation(active)] ?? "Write Custom"}</button></div></footer>
-            </> : <div className="m-3 rounded-xl border border-[#2E261A] bg-[#12100B] p-6 text-[#CBBDA4]">No open opportunities match the current filters.</div>}
-
-            <section className="shrink-0 border-t border-[#2E261A] bg-[#0D0A05] px-3 pb-3 pt-3">{ledger.length === 0 ? <div className="flex gap-3 rounded border border-[#2E261A] bg-[#120E08] px-3 py-2 text-xs"><span className="uppercase tracking-[0.16em] text-[#C8A96E]">Revision Ledger</span><span className="text-[#A9987D]">No decisions yet.</span></div> : <><div className="mb-2 flex flex-wrap gap-2 text-xs"><span className="mr-2 uppercase tracking-[0.16em] text-[#C8A96E]">Revision Ledger</span>{LEDGER_FILTERS.map((filter) => <button key={filter.value} type="button" onClick={() => setFilters((current) => ({ ...current, status: filter.value }))} className={`rounded border px-2 py-1 ${filters.status === filter.value ? "border-[#C8A96E]" : "border-[#3A3022] text-[#A9987D]"}`}>{filter.label}</button>)}</div><div className="max-h-32 overflow-y-auto rounded border border-[#2E261A]"><table className="w-full text-left text-xs"><thead className="sticky top-0 bg-[#161109] text-[#C8A96E]"><tr><th className="px-2 py-1">Decision</th><th className="px-2 py-1">Option</th><th className="px-2 py-1">Criterion</th><th className="px-2 py-1">Selected revision</th><th className="px-2 py-1">Opportunity</th><th className="px-2 py-1">Sync</th><th className="px-2 py-1">Action</th></tr></thead><tbody>{visibleLedger.map((entry) => <tr key={entry.id} className="border-t border-[#2E261A]"><td className="px-2 py-1">{decisionLabel(entry.decision)}</td><td className="px-2 py-1 font-semibold text-[#BFE4B9]">{entry.option ?? "—"}</td><td className="px-2 py-1">{entry.criterion}</td><td className="max-w-[520px] truncate px-2 py-1 text-[#E5D8BE]">{entry.selectedText ?? "—"}</td><td className="max-w-[360px] truncate px-2 py-1 text-[#A9987D]">{entry.itemTitle}</td><td className="px-2 py-1">{entry.syncStatus}</td><td className="px-2 py-1"><button type="button" onClick={() => unselect(entry)} className="rounded border border-[#5D4C31] px-2 py-1 text-[11px] text-[#F3E3C3]">Unselect</button></td></tr>)}</tbody></table></div></>}</section>
-          </section>
-        </section>
+        <section className="grid min-h-0 flex-1 overflow-hidden xl:grid-cols-[310px_minmax(0,1fr)]"><aside className="flex min-h-0 flex-col border-r border-[#2E261A] bg-[#110D07]"><div className="space-y-2 border-b border-[#2E261A] p-2"><input value={filters.search} onChange={(event) => setFilters((current) => ({ ...current, search: event.target.value }))} placeholder="Search queue" className="h-8 w-full rounded border border-[#3A3022] bg-[#0D0A05] px-2 text-xs" /><div className="grid grid-cols-2 gap-2"><select value={filters.priority} onChange={(event) => setFilters((current) => ({ ...current, priority: event.target.value as Filters["priority"] }))} className="h-8 rounded border border-[#3A3022] bg-[#0D0A05] px-2 text-xs"><option value="all">All priority</option><option value="must">MUST</option><option value="should">SHOULD</option><option value="could">COULD</option></select><select value={filters.status} onChange={(event) => setFilters((current) => ({ ...current, status: event.target.value as DecisionFilter }))} className="h-8 rounded border border-[#3A3022] bg-[#0D0A05] px-2 text-xs"><option value="all">All status</option><option value="pending">Pending</option><option value="accepted">Accepted</option><option value="custom">Custom</option><option value="kept_original">Kept</option><option value="rejected">Rejected</option><option value="deferred">Deferred</option></select></div><select value={filters.criterion} onChange={(event) => setFilters((current) => ({ ...current, criterion: event.target.value }))} className="h-8 w-full rounded border border-[#3A3022] bg-[#0D0A05] px-2 text-xs"><option value="all">All criteria</option>{criteria.map((criterion) => <option key={criterion} value={criterion}>{criterion}</option>)}</select></div><ol className="min-h-0 flex-1 space-y-1 overflow-y-auto p-2">{filtered.map((item, index) => <li key={item.id}><button type="button" onClick={() => selectItem(item.id)} className={`w-full rounded-lg border p-2 text-left ${item.id === active?.id ? "border-[#C8A96E] bg-[#221B11]" : "border-[#2B241A] bg-[#161109]"}`}><div className="mb-1 flex flex-wrap gap-1"><span className={`rounded px-1.5 py-0.5 text-[10px] uppercase ${severityClass(item.severity)}`}>{item.severity}</span><span className="rounded border border-[#4E4333] px-1.5 py-0.5 text-[10px]">{item.scope}</span><span className={`rounded border px-1.5 py-0.5 text-[10px] ${liveReady(item) ? "border-[#48603F] text-[#BBD8B4]" : "border-[#7A2B1A] text-[#F1B6A5]"}`}>{liveReady(item) ? "Ready" : "Needs Targeting"}</span><span className="rounded border border-[#4E4333] px-1.5 py-0.5 text-[10px] text-[#A9987D]">pending</span></div><p className="line-clamp-2 text-xs leading-4">{index + 1}. {item.title}</p><p className="mt-1 truncate text-[11px] text-[#A9987D]">{criterionOf(item)} · {item.anchor || item.meta}</p></button></li>)}</ol></aside><section className="flex min-w-0 flex-col overflow-hidden bg-[#1C160E]">{active ? <><div className="shrink-0 border-b border-[#2E261A] p-2"><div className="flex flex-wrap items-center gap-2 text-[11px] uppercase tracking-wider"><span className={`rounded px-2 py-1 ${severityClass(active.severity)}`}>{active.severity}</span><span className="rounded border border-[#5A4B33] px-2 py-1">{criterionOf(active)}</span><span className="rounded border border-[#5A4B33] px-2 py-1">{active.scope}</span><span className={`rounded border px-2 py-1 ${liveReady(active) ? "border-[#48603F] text-[#BBD8B4]" : "border-[#7A2B1A] text-[#F1B6A5]"}`}>{liveReady(active) ? "Ready" : "Needs Targeting"}</span></div><h2 className="mt-1 truncate text-lg font-semibold">{active.title}</h2></div><div className="min-h-0 flex-1 overflow-y-auto p-3"><section className="rounded-xl border border-[#2E261A] bg-[#12100B] p-3"><p className="mb-2 text-[11px] uppercase tracking-[0.18em] text-[#C8A96E]">Diagnosis & Guardrails</p><div className="grid gap-x-4 gap-y-1 text-sm leading-5 xl:grid-cols-2"><p><span className="text-[#C8A96E]">Symptom:</span> {diagnosticText(active, "symptom")}</p><p><span className="text-[#C8A96E]">Cause:</span> {diagnosticText(active, "cause")}</p><p><span className="text-[#C8A96E]">Fix:</span> {diagnosticText(active, "fix")}</p><p><span className="text-[#C8A96E]">Reader effect:</span> {diagnosticText(active, "readerEffect")}</p><p><span className="text-[#C8A96E]">Mistake-proofing:</span> {diagnosticText(active, "mistakeProofing")}</p><p><span className="text-[#C8A96E]">Operation:</span> {operationLabels[effectiveOperation(active)]}</p></div></section><section className="mt-3 grid gap-3 xl:grid-cols-2"><div className="rounded-xl border border-[#2E261A] bg-[#12100B] p-3"><p className="text-[11px] uppercase tracking-[0.18em] text-[#C8A96E]">Original Passage</p><p className="mt-2 max-h-20 overflow-y-auto text-sm leading-5">{sourceTextOf(active) || "No exact passage is available yet."}</p><p className="mt-1 text-xs text-[#A9987D]">{active.anchor || active.meta || "Location pending"}</p></div><div className="rounded-xl border border-[#2E261A] bg-[#12100B] p-3"><p className="text-[11px] uppercase tracking-[0.18em] text-[#C8A96E]">Revision Task</p><p className="mt-2 text-sm leading-5">{operationInstruction(active)} {compactGoal(active)}</p></div></section><section className="mt-3 flex flex-wrap items-center justify-between gap-2"><p className="text-[11px] uppercase tracking-[0.18em] text-[#C8A96E]">{optionSectionLabel(active)}</p>{invalidCandidates && <p className="rounded border border-[#7A2B1A]/55 bg-[#7A2B1A]/15 px-2 py-1 text-xs text-[#E2B2A6]">Diagnostic mode: Accept/Copy unlock only when candidates are copy-ready for the declared operation.</p>}</section><div className="mt-3 grid gap-3 xl:grid-cols-3">{OPTION_KEYS.map((key) => { const text = candidateText(active, key); const ok = canSelectOption(active, key); const focused = selectedOption === key; return <article key={key} onClick={() => setSelectedOption(key)} className={`rounded-xl border p-3 transition ${focused ? "border-[#C8A96E] bg-[#12100B]" : "border-[#2E261A] bg-[#12100B]"}`}><div className="flex items-start justify-between gap-2"><p className="text-sm font-semibold">{REVISION_OPTION_LABELS[key]}</p><div className="flex gap-1"><button type="button" onClick={(event) => { event.stopPropagation(); void copyText(text); }} disabled={!ok} className="rounded border border-[#5D4C31] px-2 py-1 text-xs disabled:opacity-40">Copy</button><button type="button" onClick={(event) => { event.stopPropagation(); decide(selectedDecisionFor(key), key, text); }} disabled={!ok} className="rounded bg-[#C8A96E] px-2 py-1 text-xs font-semibold text-[#1A140C] disabled:opacity-40">Accept {key}</button></div></div><p className={`mt-2 line-clamp-6 whitespace-pre-wrap text-sm leading-5 ${ok ? "text-[#E5D8BE]" : "text-[#E2B2A6]"}`}>{text || "No candidate text available."}</p></article>; })}</div>{customOpen && <div className="mt-3 rounded-xl border border-[#C8A96E]/60 bg-[#120E08] p-3"><p className="text-xs uppercase tracking-[0.16em] text-[#C8A96E]">Author custom revision</p><textarea value={customText} onChange={(event) => setCustomText(event.target.value)} rows={4} className="mt-2 w-full rounded border border-[#3A3022] bg-[#0D0A05] p-3 font-mono text-sm" /><button disabled={!customText.trim()} onClick={() => decide("custom", undefined, customText)} className="mt-2 rounded bg-[#C8A96E] px-3 py-1.5 text-sm font-semibold text-[#1A140C] disabled:opacity-50">Save custom + ledger</button></div>}</div><footer className="shrink-0 border-t border-[#2E261A] bg-[#120E08] p-3"><div className="flex flex-wrap items-center gap-2"><button onClick={() => decide("accepted_a", "A", candidateText(active, "A"))} disabled={!canSelectOption(active, "A")} className="rounded bg-[#C8A96E] px-4 py-2 text-sm font-semibold text-[#1A140C] disabled:opacity-40">Accept A</button><button onClick={() => decide("accepted_b", "B", candidateText(active, "B"))} disabled={!canSelectOption(active, "B")} className="rounded border border-[#C8A96E] px-4 py-2 text-sm disabled:opacity-40">Accept B</button><button onClick={() => decide("accepted_c", "C", candidateText(active, "C"))} disabled={!canSelectOption(active, "C")} className="rounded border border-[#C8A96E] px-4 py-2 text-sm disabled:opacity-40">Accept C</button><button onClick={() => decide("keep_original", undefined, "Kept original")} className="rounded border border-[#5D4C31] px-3 py-2 text-sm">Keep Original</button><button onClick={() => decide("reject", undefined, "Rejected suggestions")} className="rounded border border-[#7A2B1A]/70 px-3 py-2 text-sm text-[#E2B2A6]">Reject</button><button onClick={() => decide("deferred", undefined, "Deferred for later decision")} className="rounded border border-[#5C5140] px-3 py-2 text-sm">Defer</button><button onClick={() => { setCustomText(selectedText); setCustomOpen(true); }} className="rounded border border-[#C8A96E] bg-[#C8A96E]/10 px-3 py-2 text-sm">{customOperationLabels[effectiveOperation(active)] ?? "Write Custom"}</button></div></footer></> : <div className="m-3 rounded-xl border border-[#2E261A] bg-[#12100B] p-6 text-[#CBBDA4]">No open opportunities match the current filters.</div>}<section className="shrink-0 border-t border-[#2E261A] bg-[#0D0A05] px-3 pb-3 pt-3">{ledger.length === 0 ? <div className="flex gap-3 rounded border border-[#2E261A] bg-[#120E08] px-3 py-2 text-xs"><span className="uppercase tracking-[0.16em] text-[#C8A96E]">Revision Ledger</span><span className="text-[#A9987D]">No decisions yet.</span></div> : <><div className="mb-2 flex flex-wrap gap-2 text-xs"><span className="mr-2 uppercase tracking-[0.16em] text-[#C8A96E]">Revision Ledger</span>{LEDGER_FILTERS.map((filter) => <button key={filter.value} type="button" onClick={() => setFilters((current) => ({ ...current, status: filter.value }))} className={`rounded border px-2 py-1 ${filters.status === filter.value ? "border-[#C8A96E]" : "border-[#3A3022] text-[#A9987D]"}`}>{filter.label}</button>)}</div><div className="max-h-32 overflow-y-auto rounded border border-[#2E261A]"><table className="w-full text-left text-xs"><thead className="sticky top-0 bg-[#161109] text-[#C8A96E]"><tr><th className="px-2 py-1">Decision</th><th className="px-2 py-1">Option</th><th className="px-2 py-1">Criterion</th><th className="px-2 py-1">Selected revision</th><th className="px-2 py-1">Opportunity</th><th className="px-2 py-1">Sync</th><th className="px-2 py-1">Action</th></tr></thead><tbody>{visibleLedger.map((entry) => <tr key={entry.id} className="border-t border-[#2E261A]"><td className="px-2 py-1">{decisionLabel(entry.decision)}</td><td className="px-2 py-1 font-semibold text-[#BFE4B9]">{entry.option ?? "—"}</td><td className="px-2 py-1">{entry.criterion}</td><td className="max-w-[520px] truncate px-2 py-1 text-[#E5D8BE]">{entry.selectedText ?? "—"}</td><td className="max-w-[360px] truncate px-2 py-1 text-[#A9987D]">{entry.itemTitle}</td><td className="px-2 py-1">{entry.syncStatus}</td><td className="px-2 py-1"><button type="button" onClick={() => unselect(entry)} className="rounded border border-[#5D4C31] px-2 py-1 text-[11px] text-[#F3E3C3]">Unselect</button></td></tr>)}</tbody></table></div></>}</section></section></section>
       </div>
     </main>
   );

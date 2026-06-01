@@ -3,6 +3,7 @@ import { getAuthenticatedUser } from "@/lib/supabase/server";
 import { createDerivedVersion } from "@/lib/manuscripts/versions";
 
 export type FinalReviewExportFormat = "clean" | "marked" | "changelog";
+export type FinalReviewExportFile = "txt" | "pdf" | "docx";
 
 export type FinalReviewRuntimeInput = {
   manuscriptId: string | number;
@@ -38,6 +39,15 @@ const APPLICABLE = new Set(["accepted_a", "accepted_b", "accepted_c", "custom"])
 function safeFilename(title: string, suffix: string, ext: string): string {
   const base = title.replace(/[^a-z0-9]+/gi, "-").toLowerCase().replace(/^-|-$/g, "").slice(0, 50) || "manuscript";
   return `revisiongrade-${base}-${suffix}.${ext}`;
+}
+
+function scrubInternalMetadata(text: string): string {
+  return text
+    .split(/\r?\n/)
+    .filter((line) => !/\b(gpt-|openai|provider|prompt version|chunks? analyzed|successfully processed|evaluation provenance|score ledger|job id|schema version|confidence varies|sampled prompt window|compressed manuscript reference window)\b/i.test(line))
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }
 
 async function loadRuntimeContext(input: FinalReviewRuntimeInput): Promise<RuntimeContext> {
@@ -103,7 +113,7 @@ async function loadRuntimeContext(input: FinalReviewRuntimeInput): Promise<Runti
     manuscriptTitle: manuscript.title ?? "Untitled Manuscript",
     evaluationJobId: String(input.evaluationJobId),
     sourceVersionId: job.manuscript_version_id,
-    sourceText: version.raw_text ?? "",
+    sourceText: scrubInternalMetadata(version.raw_text ?? ""),
     decisions: [...latestByOpportunity.values()],
   };
 }
@@ -112,14 +122,17 @@ function applicableDecisions(decisions: RuntimeDecision[]): RuntimeDecision[] {
   return decisions.filter((d) => APPLICABLE.has(d.decision));
 }
 
+function decisionLabel(decision: RuntimeDecision): string {
+  if (decision.decision === "accepted_a" || decision.decision === "accepted_b" || decision.decision === "accepted_c") return `Accepted ${decision.selected_option ?? ""}`.trim();
+  if (decision.decision === "custom") return "Custom rewrite";
+  if (decision.decision === "keep_original") return "Kept original";
+  if (decision.decision === "reject") return "Rejected";
+  if (decision.decision === "deferred") return "Deferred";
+  return decision.decision;
+}
+
 function buildChangelog(ctx: RuntimeContext): string {
-  const lines = [
-    `RevisionGrade Final Review Changelog`,
-    `Manuscript: ${ctx.manuscriptTitle}`,
-    `Evaluation Job: ${ctx.evaluationJobId}`,
-    `Generated: ${new Date().toISOString()}`,
-    "",
-  ];
+  const lines = ["RevisionGrade Final Review Changelog", `Manuscript: ${ctx.manuscriptTitle}`, ""];
 
   if (ctx.decisions.length === 0) {
     lines.push("No synced revision decisions were found.");
@@ -127,13 +140,12 @@ function buildChangelog(ctx: RuntimeContext): string {
   }
 
   for (const decision of ctx.decisions) {
-    lines.push(`- ${decision.decision.toUpperCase()} — ${decision.opportunity_title}`);
-    if (decision.selected_option) lines.push(`  Option: ${decision.selected_option}`);
-    if (decision.source_location) lines.push(`  Location: ${decision.source_location}`);
-    if (decision.source_excerpt) lines.push(`  Source: ${decision.source_excerpt}`);
-    if (decision.selected_text) lines.push(`  Selected text: ${decision.selected_text}`);
-    if (decision.custom_text) lines.push(`  Custom text: ${decision.custom_text}`);
-    lines.push(`  Created: ${decision.created_at}`);
+    lines.push(`${decisionLabel(decision)} — ${decision.opportunity_title}`);
+    if (decision.selected_option) lines.push(`Option: ${decision.selected_option}`);
+    if (decision.source_location) lines.push(`Location: ${decision.source_location}`);
+    if (decision.source_excerpt) lines.push(`Original: ${scrubInternalMetadata(decision.source_excerpt)}`);
+    if (decision.selected_text) lines.push(`Selected revision: ${scrubInternalMetadata(decision.selected_text)}`);
+    if (decision.custom_text) lines.push(`Custom text: ${scrubInternalMetadata(decision.custom_text)}`);
     lines.push("");
   }
 
@@ -141,17 +153,15 @@ function buildChangelog(ctx: RuntimeContext): string {
 }
 
 function buildMarkedText(ctx: RuntimeContext): string {
-  const lines = [
-    `RevisionGrade Marked Review Copy`,
+  return [
+    "RevisionGrade Marked Review Copy",
     `Manuscript: ${ctx.manuscriptTitle}`,
-    `Generated: ${new Date().toISOString()}`,
     "",
     ctx.sourceText,
     "",
-    "--- Revision Changelog ---",
+    "Revision Changelog",
     buildChangelog(ctx),
-  ];
-  return lines.join("\n");
+  ].join("\n");
 }
 
 function applyTextSnapshots(ctx: RuntimeContext): { text: string; applied: RuntimeDecision[]; blocked: string[] } {
@@ -160,8 +170,8 @@ function applyTextSnapshots(ctx: RuntimeContext): { text: string; applied: Runti
   const blocked: string[] = [];
 
   for (const decision of applicableDecisions(ctx.decisions)) {
-    const replacement = decision.decision === "custom" ? decision.custom_text : decision.selected_text;
-    const source = decision.source_excerpt;
+    const replacement = scrubInternalMetadata(decision.decision === "custom" ? decision.custom_text ?? "" : decision.selected_text ?? "");
+    const source = scrubInternalMetadata(decision.source_excerpt ?? "");
 
     if (!replacement || !source) {
       blocked.push(`${decision.opportunity_title}: missing source excerpt or selected replacement text.`);
@@ -243,10 +253,11 @@ export async function applyFinalReviewDecisions(input: FinalReviewRuntimeInput) 
   return { ok: true, revisedVersionId: version.id, appliedCount: result.applied.length };
 }
 
-export async function buildFinalReviewExport(input: FinalReviewRuntimeInput & { format: FinalReviewExportFormat }) {
+export async function buildFinalReviewExport(input: FinalReviewRuntimeInput & { format: FinalReviewExportFormat; file?: FinalReviewExportFile }) {
   const ctx = await loadRuntimeContext(input);
   const applied = applyTextSnapshots(ctx);
   const format = input.format;
+  const file = input.file ?? "txt";
   let content = "";
   let suffix = "";
 
@@ -257,11 +268,9 @@ export async function buildFinalReviewExport(input: FinalReviewRuntimeInput & { 
     content = buildMarkedText(ctx);
     suffix = "marked-review-copy";
   } else {
-    if (applied.blocked.length > 0) {
-      content = `${ctx.sourceText}\n\n--- RevisionGrade Clean Draft Notice ---\nClean export could not apply all decisions because some accepted/custom decisions are missing source/replacement snapshots. Exported source text unchanged.\n\n${applied.blocked.join("\n")}`;
-    } else {
-      content = applied.text;
-    }
+    content = applied.blocked.length > 0
+      ? `${ctx.sourceText}\n\nRevisionGrade Clean Draft Notice\nClean export could not apply all decisions because some accepted/custom decisions are missing source/replacement snapshots. Exported source text unchanged.\n\n${applied.blocked.join("\n")}`
+      : applied.text;
     suffix = "clean-draft";
   }
 
@@ -270,8 +279,8 @@ export async function buildFinalReviewExport(input: FinalReviewRuntimeInput & { 
     mode: format === "clean" ? "export_clean" : format === "marked" ? "export_marked" : "export_changelog",
     appliedDecisionIds: applied.applied.map((d) => d.id),
     skippedDecisionIds: ctx.decisions.filter((d) => !APPLICABLE.has(d.decision)).map((d) => d.id),
-    exportFormat: "txt",
-    metadata: { export_kind: format, blocked: applied.blocked },
+    exportFormat: file,
+    metadata: { export_kind: format, requested_file: file, blocked: applied.blocked },
   });
 
   return {
