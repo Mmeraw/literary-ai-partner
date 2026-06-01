@@ -8,7 +8,9 @@ function makeLedger(overrides?: Partial<Pass1aCharacterLedger>): Pass1aCharacter
     job_id: 'test-threat-pressure-architecture',
     generated_at: '2026-05-29T00:00:00.000Z',
     total_chunks_processed: 12,
-    entries: [],
+    // Keep at least one verified v1 entry so story-layer projection is allowed.
+    // buildStoryLayerFromLedger intentionally fail-closes when entries.length === 0.
+    entries: [{ canonical_name: 'fixture-verified-entry' } as any],
     coverage_summary: {
       protagonists: ['Pip'],
       co_protagonists: [],
