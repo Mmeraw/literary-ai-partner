@@ -47,6 +47,8 @@ describe('canonical artifact registry', () => {
     expect(supportArtifacts.map((entry) => entry.artifactType).sort()).toEqual([
       'evaluation_seed_v1',
       'manuscript_signal_appendix_v1',
+      'phase0_5a_story_ledger_draft_v1',
+      'phase0_5b_evaluation_blueprint_v1',
       'seed_fit_gap_report_v1',
       'story_seed_v1',
       'story_shape_signal_map_v1',
