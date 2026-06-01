@@ -32,6 +32,9 @@ export type StoryLayerDependencySecondaryFailureClass = 'DEPENDENT_LAYER_CLEAN_S
 export const INHERITED_IDENTITY_RISK_WARNING =
   'This layer depends on Canonical Identity, which has unresolved identity risk. Review with caution: character names, relationships, objects, locations, or threats may inherit identity errors.';
 
+export const SPARSE_SHORT_FORM_IDENTITY_WARNING =
+  'Canonical Identity is missing or empty because the submitted short-form text does not provide enough character evidence. Treat dependent layers as degraded/caution, not as an operator-blocking failure.';
+
 export type LayerHealthMetadata = {
   truth_status: LayerHealthTruthStatus;
   status: LayerVisibilityHealthStatus;
@@ -103,8 +106,9 @@ export function assessStoryLayerIdentityDependencies(params: {
   ledger: Pass1aCharacterLedger;
   ledgerV2: CharacterLedgerV2;
   layers?: Partial<Record<StoryLayerCoreLayerKey, Record<string, unknown>>> | null;
+  allowSparseMissingIdentity?: boolean;
 }): StoryLayerDependencyAssessment {
-  const { ledger, ledgerV2, layers } = params;
+  const { ledger, ledgerV2, layers, allowSparseMissingIdentity = false } = params;
 
   const riskCodes: IdentityRiskCode[] = [];
   const qualityChecks: IdentityQualityCheck[] = [];
@@ -174,7 +178,8 @@ export function assessStoryLayerIdentityDependencies(params: {
   }
 
   const dedupedRiskCodes = Array.from(new Set(riskCodes));
-  const canonicalTruthStatus: LayerHealthTruthStatus = missingCanonicalIdentity
+  const sparseMissingIdentity = missingCanonicalIdentity && allowSparseMissingIdentity;
+  const canonicalTruthStatus: LayerHealthTruthStatus = missingCanonicalIdentity && !sparseMissingIdentity
     ? 'blocked'
     : dedupedRiskCodes.length > 0
       ? 'degraded'
@@ -189,9 +194,11 @@ export function assessStoryLayerIdentityDependencies(params: {
   const riskSummary = describeIdentityRiskCodes(dedupedRiskCodes);
   const canonicalReason = canonicalTruthStatus === 'clean'
     ? 'Canonical Identity is clean.'
-    : canonicalTruthStatus === 'blocked'
-      ? 'Canonical Identity is missing or empty. Dependent layers cannot present as clean until identity is restored.'
-      : `Canonical Identity is degraded: ${riskSummary}.`;
+    : sparseMissingIdentity
+      ? SPARSE_SHORT_FORM_IDENTITY_WARNING
+      : canonicalTruthStatus === 'blocked'
+        ? 'Canonical Identity is missing or empty. Dependent layers cannot present as clean until identity is restored.'
+        : `Canonical Identity is degraded: ${riskSummary}.`;
 
   if (canonicalTruthStatus === 'blocked') {
     qualityChecks.push({
@@ -203,7 +210,7 @@ export function assessStoryLayerIdentityDependencies(params: {
     });
   } else if (canonicalTruthStatus === 'degraded') {
     qualityChecks.push({
-      key: 'canonical_identity_degraded',
+      key: sparseMissingIdentity ? 'canonical_identity_sparse_short_form_insufficient_evidence' : 'canonical_identity_degraded',
       severity: 'warning',
       message: canonicalReason,
       layer: 'canonical_identity_layer',
@@ -245,7 +252,7 @@ export function assessStoryLayerIdentityDependencies(params: {
       status: canonicalVisibilityStatus,
       reason: canonicalReason,
       warning_codes: dedupedRiskCodes,
-      visible_to_user: canonicalTruthStatus === 'clean',
+      visible_to_user: canonicalTruthStatus !== 'blocked',
       visible_to_admin: true,
       warning_copy: canonicalTruthStatus === 'clean' ? undefined : INHERITED_IDENTITY_RISK_WARNING,
     },
@@ -284,7 +291,7 @@ export function applyIdentityDependencyMetadata(
         status: visibilityStatus,
         reason: warning.message,
         warning_codes: warning.risk_codes,
-        visible_to_user: false,
+        visible_to_user: warning.inherited_status !== 'blocked',
         visible_to_admin: true,
         inherited_from: ['canonical_identity_layer'],
         warning_copy: INHERITED_IDENTITY_RISK_WARNING,
