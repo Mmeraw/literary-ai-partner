@@ -6650,14 +6650,32 @@ export async function processEvaluationJob(
           phaseV2Artifacts,
         );
 
+        const shortFormTechnicalBlockBypass =
+          !requireUserFacingReviewGate
+          && reviewGateHandoffResult.ok === false
+          && reviewGateHandoffResult.blocked.progress.block_code === 'REVIEW_GATE_QUALITY_TECHNICAL_BLOCK';
+
         // Short-form policy: internal Story Layer artifacts are still generated,
         // but user-facing Review Gate approval is long-form only.
-        if (!requireUserFacingReviewGate && reviewGateHandoffResult.ok) {
+        //
+        // If the only blocker is a retryable technical gate, short-form flow
+        // may proceed to phase_2 to avoid infinite phase_1a requeue loops.
+        if (!requireUserFacingReviewGate && (reviewGateHandoffResult.ok || shortFormTechnicalBlockBypass)) {
           const autoApprovalAt = new Date().toISOString();
           const sourceLayers =
             storyLayerPayload && typeof storyLayerPayload === 'object' && 'layers' in storyLayerPayload
               ? ((storyLayerPayload as { layers?: Record<string, Record<string, unknown>> }).layers ?? {})
               : {};
+
+          const pass3aStatusForShortFormBypass = reviewGateHandoffResult.ok
+            ? reviewGateHandoffResult.handoff.progress.pass3a_status
+            : (reviewGateHandoffResult.blocked.progress.pass3a_status ?? phaseV2Progress.pass3a_status ?? 'failed');
+          const pass3aGateValidityForShortFormBypass = reviewGateHandoffResult.ok
+            ? reviewGateHandoffResult.handoff.progress.pass3a_gate_validity
+            : reviewGateHandoffResult.blocked.progress.pass3a_gate_validity;
+          const technicalBypassReason = shortFormTechnicalBlockBypass
+            ? reviewGateHandoffResult.blocked.progress.block_reason
+            : undefined;
 
           const preferredLayerKeys = Object.keys(sourceLayers).filter((k) => k.trim().length > 0);
           const canonicalFallbackLayerKeys = [
@@ -6735,36 +6753,49 @@ export async function processEvaluationJob(
             completed_units: 55,
             phase: 'phase_2',
             phase_status: 'queued',
-            message: 'Phase 1A complete — short-form policy skipped Story Ledger approval and queued diagnosis',
+            message: shortFormTechnicalBlockBypass
+              ? 'Phase 1A complete — short-form policy bypassed retryable technical Review Gate block and queued diagnosis'
+              : 'Phase 1A complete — short-form policy skipped Story Ledger approval and queued diagnosis',
             phase1a_completed_at: phase2QueueAt,
             gate_ready_status: 'auto_approved_short_form',
             review_gate_ready: false,
             hard_fail_present: qualityReport.hard_fail_present,
             story_layer_artifact_id: storyLayerRefs.pass1a_story_layer_v1.artifact_id,
             quality_report_artifact_id: storyLayerRefs.ledger_quality_report_v1.artifact_id,
-            pass3a_status: phaseV2Progress.pass3a_status,
-            pass3a_gate_validity: 'gate_valid',
+            pass3a_status: pass3aStatusForShortFormBypass,
+            pass3a_gate_validity: pass3aGateValidityForShortFormBypass,
             pass3a_artifact_id: phaseV2Progress.pass3a_artifact_id,
             pass3a_degraded_reason: phaseV2Progress.degraded_reason,
             short_form_review_gate_bypassed: true,
-            short_form_review_gate_bypass_reason: 'manuscript_under_25000_words',
+            short_form_review_gate_bypass_reason: shortFormTechnicalBlockBypass
+              ? 'manuscript_under_25000_words_retryable_technical_block'
+              : 'manuscript_under_25000_words',
+            short_form_technical_block_bypassed: shortFormTechnicalBlockBypass,
+            short_form_technical_block_reason: technicalBypassReason,
             story_ledger_user_gate_required: false,
             story_ledger_user_gate_min_words: STORY_LEDGER_USER_GATE_MIN_WORDS,
             manuscript_word_count: manuscriptWordCountForGate,
             phase1a_batch_state: {
               ...((progressState.phase1a_batch_state as Record<string, unknown>) ?? {}),
               ledger_assembly_status: 'COMPLETE',
-              preflight_status: 'DONE',
+              preflight_status: shortFormTechnicalBlockBypass
+                ? (((progressState.phase1a_batch_state as Record<string, unknown> | undefined)?.preflight_status as string | undefined) ?? 'FAILED')
+                : 'DONE',
             },
             phase_log: [
               ...((progressState.phase_log as unknown[]) ?? []),
               { at: storyLayerPersistedAt, event: 'phase1a_story_layer_persisted', stage: 'phase_1a' },
               {
                 at: phase2QueueAt,
-                event: 'review_gate_skipped_short_form',
+                event: shortFormTechnicalBlockBypass
+                  ? 'review_gate_skipped_short_form_technical_block'
+                  : 'review_gate_skipped_short_form',
                 stage: 'phase_1a',
                 manuscript_word_count: manuscriptWordCountForGate,
                 threshold_words: STORY_LEDGER_USER_GATE_MIN_WORDS,
+                technical_block_code: shortFormTechnicalBlockBypass
+                  ? reviewGateHandoffResult.blocked.progress.block_code
+                  : undefined,
               },
             ],
           };

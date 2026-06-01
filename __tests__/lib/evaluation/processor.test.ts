@@ -573,4 +573,14 @@ describe("Review Gate wiring helpers", () => {
     expect(blockedSection).toContain("status: JOB_STATUS.FAILED");
     expect(blockedSection).toContain("status: JOB_STATUS.QUEUED");
   });
+
+  test("short-form bypass path explicitly handles retryable technical gate blocks", () => {
+    const processorPath = path.join(__dirname, "../../../lib/evaluation/processor.ts");
+    const processorCode = fs.readFileSync(processorPath, "utf8");
+
+    expect(processorCode).toContain("shortFormTechnicalBlockBypass");
+    expect(processorCode).toContain("REVIEW_GATE_QUALITY_TECHNICAL_BLOCK");
+    expect(processorCode).toContain("review_gate_skipped_short_form_technical_block");
+    expect(processorCode).toContain("manuscript_under_25000_words_retryable_technical_block");
+  });
 });
