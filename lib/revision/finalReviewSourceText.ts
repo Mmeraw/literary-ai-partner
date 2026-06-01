@@ -4,6 +4,10 @@ type SupabaseLike = {
   from: (table: string) => any;
 };
 
+function countWords(text: string): number {
+  return text.trim().split(/\s+/).filter(Boolean).length;
+}
+
 function isDocxMime(mime: string | null | undefined): boolean {
   return (mime ?? "").toLowerCase().includes("application/vnd.openxmlformats-officedocument.wordprocessingml.document");
 }
@@ -110,7 +114,7 @@ export function scrubInternalReportLeakage(value: string | null | undefined): st
 async function sourceFromVersionRelation(supabase: SupabaseLike, sourceVersionId: string): Promise<string | null> {
   const { data, error } = await supabase
     .from("manuscript_versions")
-    .select("id, raw_text, manuscripts(file_url)")
+    .select("id, raw_text")
     .eq("id", sourceVersionId)
     .maybeSingle();
 
@@ -118,12 +122,6 @@ async function sourceFromVersionRelation(supabase: SupabaseLike, sourceVersionId
 
   const rawText = usableSourceText((data as { raw_text?: string | null }).raw_text);
   if (rawText) return rawText;
-
-  const manuscripts = (data as { manuscripts?: unknown }).manuscripts;
-  const manuscript = Array.isArray(manuscripts) ? manuscripts[0] : manuscripts as { file_url?: string | null } | null | undefined;
-  const resolved = usableSourceText(await resolveTextFromFileUrl(manuscript?.file_url));
-
-  if (resolved) return resolved;
   return null;
 }
 
@@ -139,7 +137,7 @@ async function sourceFromAnyManuscriptVersion(supabase: SupabaseLike, manuscript
   const candidates = data
     .map((row: { raw_text?: string | null; word_count?: number | null; version_number?: number | null }) => {
       const text = usableSourceText(row.raw_text);
-      return text ? { text, words: row.word_count ?? text.trim().split(/\s+/).filter(Boolean).length, version: row.version_number ?? 0 } : null;
+      return text ? { text, words: row.word_count ?? countWords(text), version: row.version_number ?? 0 } : null;
     })
     .filter((row): row is { text: string; words: number; version: number } => Boolean(row))
     .sort((a, b) => b.words - a.words || a.version - b.version);
@@ -161,6 +159,33 @@ async function sourceFromManuscriptFile(supabase: SupabaseLike, manuscriptId: nu
   return null;
 }
 
+async function hydrateVersionFromSource(input: {
+  supabase: SupabaseLike;
+  manuscriptId: number;
+  sourceVersionId: string;
+  userId: string;
+  text: string;
+}): Promise<void> {
+  const text = usableSourceText(input.text);
+  if (!text) return;
+
+  const { data } = await input.supabase
+    .from("manuscript_versions")
+    .select("id, raw_text")
+    .eq("id", input.sourceVersionId)
+    .eq("manuscript_id", input.manuscriptId)
+    .maybeSingle();
+
+  if (!data) return;
+  if (usableSourceText((data as { raw_text?: string | null }).raw_text)) return;
+
+  await input.supabase
+    .from("manuscript_versions")
+    .update({ raw_text: text, word_count: countWords(text), created_by: input.userId })
+    .eq("id", input.sourceVersionId)
+    .eq("manuscript_id", input.manuscriptId);
+}
+
 export function buildDecisionOnlyPreview(input: {
   manuscriptTitle: string;
   decisions: Array<{
@@ -174,7 +199,7 @@ export function buildDecisionOnlyPreview(input: {
   const lines = [
     `${input.manuscriptTitle}`,
     "",
-    "Final Review could not read the full manuscript source for this legacy evaluation. The accepted decisions below are shown for review, but Clean Draft export should be retried after the source text is available.",
+    "Full manuscript source text is unavailable. The accepted decisions below are shown for review only.",
     "",
   ];
 
@@ -208,11 +233,20 @@ export async function resolveFinalReviewSourceText(input: {
   const fromVersion = await sourceFromVersionRelation(input.supabase, input.sourceVersionId);
   if (fromVersion) return fromVersion;
 
+  const fromManuscript = await sourceFromManuscriptFile(input.supabase, input.manuscriptId, input.userId);
+  if (fromManuscript) {
+    await hydrateVersionFromSource({
+      supabase: input.supabase,
+      manuscriptId: input.manuscriptId,
+      sourceVersionId: input.sourceVersionId,
+      userId: input.userId,
+      text: fromManuscript,
+    });
+    return fromManuscript;
+  }
+
   const fromAnyVersion = await sourceFromAnyManuscriptVersion(input.supabase, input.manuscriptId);
   if (fromAnyVersion) return fromAnyVersion;
-
-  const fromManuscript = await sourceFromManuscriptFile(input.supabase, input.manuscriptId, input.userId);
-  if (fromManuscript) return fromManuscript;
 
   return "";
 }
