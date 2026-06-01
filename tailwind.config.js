@@ -94,7 +94,7 @@ module.exports = {
                 'rg-ink3':  '#261A0A',
                 'rg-cream': '#F5EFE0',
                 'rg-cream2':'#C8BEA8',
-                'rg-gold':  '#C8A96E',
+                'rg-gold':  '#A07A36',
                 'rg-red':   '#7A2B1A',
                 'rg-dim':   '#6B6560',
             },
