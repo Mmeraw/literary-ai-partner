@@ -401,6 +401,8 @@ export function toPhaseV2ArtifactSet(
     pass1a_story_layer_v1: artifactRefsByType.get('pass1a_story_layer_v1') ?? null,
     ledger_quality_report_v1: artifactRefsByType.get('ledger_quality_report_v1') ?? null,
     pass3_preflight_draft_v1: artifactRefsByType.get('pass3_preflight_draft_v1') ?? null,
+    accepted_story_ledger_v1: artifactRefsByType.get('accepted_story_ledger_v1') ?? null,
+    pass12_handoff_v1: artifactRefsByType.get('pass12_handoff_v1') ?? null,
     ledger_quality_gate_ready_status: ledgerQualityGateReadyStatus,
     ledger_quality_hard_fail_present: ledgerQualityHardFailPresent,
     pass3_preflight_reducer_status: pass3PreflightReducerStatus,
