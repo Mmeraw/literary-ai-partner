@@ -329,7 +329,13 @@ export function toPhaseV2ArtifactSet(
   }> | null | undefined,
 ): PhaseV2ArtifactSet {
   const artifactRefsByType = new Map<string, { artifact_id?: string | null; source_hash?: string | null }>();
-  let ledgerQualityGateReadyStatus: 'reviewable' | 'blocked' | 'repair_required' | null = null;
+  let ledgerQualityGateReadyStatus:
+      | 'reviewable'
+      | 'blocked'
+      | 'blocked_retryable_technical'
+      | 'blocked_content_hard_fail'
+      | 'repair_required'
+      | null = null;
   let ledgerQualityHardFailPresent: boolean | null = null;
   let pass3PreflightReducerStatus: 'ok' | 'failed' | 'legacy' | null = null;
   let pass3PreflightAuthority: string | null = null;
@@ -361,7 +367,11 @@ export function toPhaseV2ArtifactSet(
       const hardFailPresent = qualityReportRecord.hard_fail_present;
 
       ledgerQualityGateReadyStatus =
-        gateReadyStatus === 'reviewable' || gateReadyStatus === 'blocked' || gateReadyStatus === 'repair_required'
+        gateReadyStatus === 'reviewable'
+        || gateReadyStatus === 'blocked'
+        || gateReadyStatus === 'blocked_retryable_technical'
+        || gateReadyStatus === 'blocked_content_hard_fail'
+        || gateReadyStatus === 'repair_required'
           ? gateReadyStatus
           : null;
       ledgerQualityHardFailPresent = typeof hardFailPresent === 'boolean' ? hardFailPresent : null;
@@ -484,8 +494,9 @@ export function derivePhaseV2ReviewGateProgress(
 
 export function shouldRequeueReviewGateBlock(blockCode: string, gateValidity: unknown): boolean {
   return (
-    gateValidity === 'not_ready' &&
-    (blockCode === 'PASS3A_NOT_READY' || blockCode === 'PASS3A_HALF_WRITTEN')
+    (gateValidity === 'not_ready' &&
+      (blockCode === 'PASS3A_NOT_READY' || blockCode === 'PASS3A_HALF_WRITTEN'))
+    || blockCode === 'REVIEW_GATE_QUALITY_TECHNICAL_BLOCK'
   );
 }
 
@@ -5698,11 +5709,15 @@ export async function processEvaluationJob(
                   trackCStatusAfterBatch = 'SELF_CHAINED';
                   console.log(`[track_c] ${jobId}: Pass 3A budget expired during chunk-batch invocation — will resume on next invocation`);
                 } else {
-                  trackCStatusAfterBatch = 'DONE';
                   const trackCResult = raceResult as Awaited<ReturnType<typeof runPass3Preflight>>;
+                  const trackCReducerFailed =
+                    trackCResult.preflight.reducer_status === 'failed' ||
+                    trackCResult.preflight.preflight_authority === 'unavailable';
+                  trackCStatusAfterBatch = trackCReducerFailed ? 'DEGRADED' : 'DONE';
                   const completedAt = new Date().toISOString();
                   console.log(`[track_c] ${jobId}: Pass 3A completed during chunk-batch invocation`, {
                     authority: trackCResult.preflight.preflight_authority,
+                    reducer_status: trackCResult.preflight.reducer_status ?? 'legacy',
                     duration_ms: trackCResult.durationMs,
                   });
                   await supabase
@@ -5711,17 +5726,30 @@ export async function processEvaluationJob(
                       worker_pulse_at: completedAt,
                       progress: {
                         ...progressState,
-                        track_c_status: 'done',
-                        pass3a_status: 'done',
+                        track_c_status: trackCReducerFailed ? 'degraded' : 'done',
+                        pass3a_status: trackCReducerFailed ? 'failed' : 'done',
                         pass3a_completed_at: completedAt,
                         pass3a_artifact_id: trackCResult.artifactId,
+                        failed_reason: trackCReducerFailed ? 'PASS3A_REDUCER_FAILED' : undefined,
+                        failed_reason_detail: trackCReducerFailed
+                          ? (trackCResult.preflight.reducer_failure_reason ?? 'Reducer produced unavailable authority.')
+                          : undefined,
+                        failed_at: trackCReducerFailed ? completedAt : undefined,
                         phase1a_batch_state: {
                           ...((progressState.phase1a_batch_state as Record<string, unknown>) ?? {}),
-                          preflight_status: 'DONE',
+                          preflight_status: trackCReducerFailed ? 'FAILED' : 'DONE',
                         },
                         phase_log: [
                           ...((progressState.phase_log as unknown[]) ?? []),
-                          { at: completedAt, event: 'track_c_completed', stage: 'pass_3a', duration_ms: trackCResult.durationMs },
+                          {
+                            at: completedAt,
+                            event: trackCReducerFailed ? 'track_c_reducer_failed' : 'track_c_completed',
+                            stage: 'pass_3a',
+                            duration_ms: trackCResult.durationMs,
+                            reducer_failure_reason: trackCReducerFailed
+                              ? (trackCResult.preflight.reducer_failure_reason ?? 'unknown')
+                              : undefined,
+                          },
                         ],
                       },
                     })
@@ -6101,6 +6129,9 @@ export async function processEvaluationJob(
               pass3a_completed_at: completedAt,
               pass3a_artifact_id: pass3aResult.artifactId,
               failed_reason: pass3aReducerFailed ? 'PASS3A_REDUCER_FAILED' : undefined,
+              failed_reason_detail: pass3aReducerFailed
+                ? (pass3aResult.preflight.reducer_failure_reason ?? 'Reducer produced unavailable authority.')
+                : undefined,
               failed_at: pass3aReducerFailed ? completedAt : undefined,
               phase1a_batch_state: {
                 ...((progressState.phase1a_batch_state as Record<string, unknown>) ?? {}),
@@ -6113,6 +6144,9 @@ export async function processEvaluationJob(
                   event: pass3aReducerFailed ? 'track_c_reducer_failed' : 'track_c_completed',
                   stage: 'pass_3a',
                   duration_ms: pass3aResult.durationMs,
+                  reducer_failure_reason: pass3aReducerFailed
+                    ? (pass3aResult.preflight.reducer_failure_reason ?? 'unknown')
+                    : undefined,
                 },
               ],
             };
@@ -6135,6 +6169,42 @@ export async function processEvaluationJob(
           throw new Error(`Phase 1A ledger: cache has ${pass1aCacheMap.size}/${totalChunks} chunks — cannot assemble ledger`);
         }
 
+        const expectedChunkIndexes = (Array.isArray(allChunks) ? allChunks : [])
+          .map((chunk) => Number((chunk as { chunk_index?: unknown }).chunk_index))
+          .filter((index) => Number.isInteger(index));
+        const missingChunkIndexes = expectedChunkIndexes.filter((index) => !pass1aCacheMap.has(index));
+        if (missingChunkIndexes.length > 0) {
+          throw new Error(
+            `Phase 1A ledger: missing ${missingChunkIndexes.length} expected chunk(s) in cache (${missingChunkIndexes.slice(0, 10).join(', ')}) — cannot assemble ledger`,
+          );
+        }
+
+        // Reconcile persisted batch-state with cache truth before continuing.
+        // This prevents stale progress snapshots (e.g. 10/13) from surviving
+        // into failed terminal states when cache is already complete.
+        const canonicalCompletedChunkIndexes = [...pass1aCacheMap.keys()].sort((a, b) => a - b);
+        const canonicalPendingChunkIndexes = expectedChunkIndexes.filter((index) => !pass1aCacheMap.has(index));
+        const priorBatchState =
+          progressState.phase1a_batch_state && typeof progressState.phase1a_batch_state === 'object'
+            ? (progressState.phase1a_batch_state as Record<string, unknown>)
+            : {};
+        const priorCompletedCount = Number(priorBatchState.chunks_completed ?? 0);
+        const priorRemainingCount = Number(priorBatchState.chunks_remaining ?? 0);
+        const batchStateWasStale =
+          priorCompletedCount !== canonicalCompletedChunkIndexes.length ||
+          priorRemainingCount !== canonicalPendingChunkIndexes.length;
+
+        const reconciledBatchState: Record<string, unknown> = {
+          ...priorBatchState,
+          total_chunks: totalChunks,
+          chunks_completed: canonicalCompletedChunkIndexes.length,
+          chunks_remaining: canonicalPendingChunkIndexes.length,
+          completed_chunk_indexes: canonicalCompletedChunkIndexes,
+          pending_chunk_indexes: canonicalPendingChunkIndexes,
+          batch_index: Math.ceil(canonicalCompletedChunkIndexes.length / Math.max(1, phase1aConfig.batchSize)),
+          batches_total: Math.ceil(totalChunks / Math.max(1, phase1aConfig.batchSize)),
+        };
+
         // Sort chunks by index to ensure consistent ledger ordering.
         const sortedChunkOutputs: Pass1aChunkOutput[] = [...pass1aCacheMap.entries()]
           .sort(([a], [b]) => a - b)
@@ -6148,11 +6218,21 @@ export async function processEvaluationJob(
             progress: {
               ...progressState,
               phase1a_batch_state: {
-                ...((progressState.phase1a_batch_state as Record<string, unknown>) ?? {}),
+                ...reconciledBatchState,
                 ledger_assembly_status: 'RUNNING',
               },
               phase_log: [
                 ...((progressState.phase_log as unknown[]) ?? []),
+                ...(batchStateWasStale
+                  ? [{
+                      at: ledgerAssemblyStartedAt,
+                      event: 'phase1a_batch_state_reconciled',
+                      stage: 'phase_1a',
+                      chunks_completed: canonicalCompletedChunkIndexes.length,
+                      chunks_remaining: canonicalPendingChunkIndexes.length,
+                      total_chunks: totalChunks,
+                    }]
+                  : []),
                 { at: ledgerAssemblyStartedAt, event: 'phase1a_ledger_assembly_started', stage: 'phase_1a' },
               ],
             },
@@ -6216,10 +6296,37 @@ export async function processEvaluationJob(
           sortedChunkOutputs,
         );
 
+        const currentBatchStateForQuality =
+          progressState.phase1a_batch_state && typeof progressState.phase1a_batch_state === 'object'
+            ? (progressState.phase1a_batch_state as Record<string, unknown>)
+            : {};
+        const reducerFailedFromProgress = progressState.pass3a_status === 'failed';
+        const authorityFromPass3aResult = pass3aResult?.preflight?.preflight_authority;
+        const authorityUnavailableFromBatchState =
+          typeof currentBatchStateForQuality.preflight_status === 'string'
+          && currentBatchStateForQuality.preflight_status.toUpperCase().trim() === 'FAILED';
+
         const qualityReport = buildLedgerQualityReport(
           characterLedger,
           characterLedgerV2Phase1a,
           storyLayerPayload,
+          {
+            chunkCoverage: {
+              chunks_expected: totalChunks,
+              chunks_completed: sortedChunkOutputs.length,
+            },
+            preflightReducer: {
+              reducer_status: reducerFailedFromProgress ? 'failed' : 'ok',
+              preflight_authority:
+                authorityFromPass3aResult === 'unavailable' || authorityUnavailableFromBatchState
+                  ? 'unavailable'
+                  : authorityFromPass3aResult === 'degraded'
+                    ? 'degraded'
+                    : authorityFromPass3aResult === 'available'
+                      ? 'available'
+                      : null,
+            },
+          },
         );
 
         console.log(`[Processor] ${jobId}: phase_1a — quality report built`, {
@@ -6511,7 +6618,7 @@ export async function processEvaluationJob(
             ledger_entries: characterLedger.entries.length,
             story_layer_artifact_id: storyLayerRefs.pass1a_story_layer_v1.artifact_id,
             quality_report_artifact_id: storyLayerRefs.ledger_quality_report_v1.artifact_id,
-            gate_ready_status: 'blocked',
+            gate_ready_status: blocked.progress.gate_ready_status,
             review_gate_ready: false,
             block_code: blocked.progress.block_code,
             block_reason: blocked.progress.block_reason,

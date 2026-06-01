@@ -231,7 +231,12 @@ export async function POST(request: NextRequest, { params }: RouteParams): Promi
     },
     qualityReportContent: (qualityReportArtifactRow?.content ?? null) as {
       quality_report?: {
-        gate_ready_status?: 'reviewable' | 'blocked' | 'repair_required';
+        gate_ready_status?:
+          | 'reviewable'
+          | 'blocked'
+          | 'blocked_retryable_technical'
+          | 'blocked_content_hard_fail'
+          | 'repair_required';
         grouped_warning_summary?: Record<string, string[]>;
         blocking_reasons?: string[];
       } | null;

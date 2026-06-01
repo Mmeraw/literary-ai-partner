@@ -115,7 +115,7 @@ describe('Phase Architecture v2 — Review Gate handoff helper', () => {
     if (result.ok) throw new Error('Expected missing preflight artifact to block');
 
     expect(result.blocked.progress.block_code).toBe('PASS3A_ARTIFACT_MISSING');
-    expect(result.blocked.progress.hard_fail_present).toBe(true);
+    expect(result.blocked.progress.hard_fail_present).toBe(false);
   });
 
   it('blocks handoff when degraded Pass 3A lacks structured proof', () => {
@@ -125,7 +125,7 @@ describe('Phase Architecture v2 — Review Gate handoff helper', () => {
     if (result.ok) throw new Error('Expected degraded without proof to block');
 
     expect(result.blocked.progress.block_code).toBe('PASS3A_DEGRADED_PROOF_MISSING');
-    expect(result.blocked.progress.hard_fail_present).toBe(true);
+    expect(result.blocked.progress.hard_fail_present).toBe(false);
   });
 
   it('blocks handoff when quality report is blocked/hard-fail', () => {
@@ -140,6 +140,7 @@ describe('Phase Architecture v2 — Review Gate handoff helper', () => {
 
     expect(result.blocked.progress.review_gate_ready).toBe(false);
     expect(result.blocked.progress.block_code).toBe('REVIEW_GATE_QUALITY_BLOCKED');
+    expect(result.blocked.progress.hard_fail_present).toBe(true);
   });
 
   it('blocks handoff when quality verdict metadata is unknown/malformed', () => {

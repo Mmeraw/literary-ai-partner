@@ -186,6 +186,18 @@ describe('Phase Architecture v2 — derived Review Gate readiness', () => {
     expect(result.review_gate_ready).toBe(false);
     expect(result.code).toBe('REVIEW_GATE_QUALITY_BLOCKED');
   });
+
+  it('blocks Review Gate as retryable technical block when quality status is technical', () => {
+    const result = deriveReviewGateReadiness(doneProgress, {
+      ...doneArtifacts,
+      ledger_quality_gate_ready_status: 'blocked_retryable_technical',
+      ledger_quality_hard_fail_present: false,
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.review_gate_ready).toBe(false);
+    expect(result.code).toBe('REVIEW_GATE_QUALITY_TECHNICAL_BLOCK');
+  });
 });
 
 describe('Phase Architecture v2 — Phase 2 preconditions', () => {

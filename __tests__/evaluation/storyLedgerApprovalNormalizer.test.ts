@@ -146,6 +146,40 @@ describe('Story Ledger approval normalizer', () => {
     })).toThrow(/quality gate is not reviewable/);
   });
 
+  it('blocks non-admin accepted feedback when quality is blocked_retryable_technical', () => {
+    const technicalBlockedReport: LedgerQualityReportPayload = {
+      ...cleanQualityReport,
+      gate_ready_status: 'blocked_retryable_technical',
+      recommended_review_action: 'retry_phase1a_technical_recovery',
+      blocking_reasons: ['TECHNICAL_BLOCK: Phase 1A chunk coverage incomplete (10/13).'],
+    };
+
+    expect(() => buildAcceptedStoryLedgerArtifact({
+      metadata,
+      sourceArtifacts: sourceArtifacts(technicalBlockedReport),
+      feedbackArtifactId: 'feedback-artifact-id',
+      feedbackSourceHash: 'feedback-source-hash',
+      feedback: feedback({ review_status: 'accepted_with_corrections' }),
+    })).toThrow(/quality gate is not reviewable/);
+  });
+
+  it('blocks non-admin accepted feedback when quality is blocked_content_hard_fail', () => {
+    const contentBlockedReport: LedgerQualityReportPayload = {
+      ...cleanQualityReport,
+      gate_ready_status: 'blocked_content_hard_fail',
+      recommended_review_action: 'operator_review_required',
+      blocking_reasons: ['HARD_FAIL: pass1a_character_ledger_v1 has zero verified characters.'],
+    };
+
+    expect(() => buildAcceptedStoryLedgerArtifact({
+      metadata,
+      sourceArtifacts: sourceArtifacts(contentBlockedReport),
+      feedbackArtifactId: 'feedback-artifact-id',
+      feedbackSourceHash: 'feedback-source-hash',
+      feedback: feedback({ review_status: 'accepted_with_corrections' }),
+    })).toThrow(/quality gate is not reviewable/);
+  });
+
   it('allows explicit admin or operator override for hard-fail approval path', () => {
     const adminAccepted = buildAcceptedStoryLedgerArtifact({
       metadata,

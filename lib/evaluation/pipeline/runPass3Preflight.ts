@@ -497,6 +497,7 @@ export async function runPass3Preflight(
   console.log("[Pass3A] Starting reduce phase (single LLM call)...");
 
   let reducerOutput: Partial<Pass3PreflightDraft> | null = null;
+  let reducerFailureReason: string | null = null;
 
   try {
     const reducerUserPrompt = buildPass3AReducerUserPrompt({
@@ -527,6 +528,7 @@ export async function runPass3Preflight(
     console.log("[Pass3A] Reduce phase complete");
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
+    reducerFailureReason = msg;
     console.warn(`[Pass3A] Reduce phase failed: ${msg} — building degraded preflight`);
   }
 
@@ -589,6 +591,10 @@ export async function runPass3Preflight(
     Array.isArray(reducerOutput.criterionDrafts) &&
     reducerOutput.criterionDrafts.length > 0;
 
+  if (!reducerSucceeded && !reducerFailureReason) {
+    reducerFailureReason = "Reducer returned empty or invalid criterionDrafts payload.";
+  }
+
   // ── STEP 5: ASSEMBLE FULL PREFLIGHT DRAFT ────────────────────────────────
   const sourceWordCount = opts.manuscriptChunks.reduce(
     (sum, c) => sum + (c.content ?? "").trim().split(/\s+/).length,
@@ -623,6 +629,7 @@ export async function runPass3Preflight(
     // rather than silently injecting null-score criterion drafts as real evidence.
     preflight_authority: reducerSucceeded ? preflightAuthority : "unavailable",
     reducer_status: reducerSucceeded ? "ok" : "failed",
+    reducer_failure_reason: reducerSucceeded ? undefined : reducerFailureReason ?? undefined,
     criterionDrafts,
     whole_novel_read: reducerOutput?.whole_novel_read ?? {
       premise_read: "Reducer did not produce output.",
@@ -635,7 +642,15 @@ export async function runPass3Preflight(
     character_observations: reducerOutput?.character_observations ?? [],
     object_symbol_observations: reducerOutput?.object_symbol_observations ?? [],
     arbitrationQuestionsForPass3B: reducerOutput?.arbitrationQuestionsForPass3B ?? [],
-    coverageLimitations: reducerOutput?.coverageLimitations ?? [],
+    coverageLimitations: reducerOutput?.coverageLimitations ?? (
+      reducerSucceeded
+        ? []
+        : [{
+            zone: "Opening",
+            limitation: "not_sampled",
+            consequence: `Reducer unavailable: ${reducerFailureReason ?? "unknown_reason"}`,
+          }]
+    ),
     independentPressurePoints: reducerOutput?.independentPressurePoints ?? [],
   };
 
