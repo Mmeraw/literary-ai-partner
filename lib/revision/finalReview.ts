@@ -8,6 +8,11 @@ export type FinalReviewDecision = {
   decision: "accepted_a" | "accepted_b" | "accepted_c" | "custom" | "keep_original" | "reject" | "deferred";
   selectedOption: "A" | "B" | "C" | null;
   customText: string | null;
+  selectedText: string | null;
+  sourceExcerpt: string | null;
+  sourceLocation: string | null;
+  criterion: string | null;
+  severity: "must" | "should" | "could" | null;
   createdAt: string;
   highlightTone: "system" | "custom" | "kept" | "rejected" | "deferred";
 };
@@ -66,6 +71,17 @@ function splitPreviewParagraphs(text: string): string[] {
     .slice(0, 18);
 }
 
+function metadataValue(metadata: unknown, key: string): string | null {
+  if (!metadata || typeof metadata !== "object") return null;
+  const value = (metadata as Record<string, unknown>)[key];
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
+}
+
+function severityValue(metadata: unknown): FinalReviewDecision["severity"] {
+  const value = metadataValue(metadata, "severity")?.toLowerCase();
+  return value === "must" || value === "should" || value === "could" ? value : null;
+}
+
 export async function getFinalReviewPayload(input: {
   manuscriptId?: string;
   evaluationJobId?: string;
@@ -112,7 +128,7 @@ export async function getFinalReviewPayload(input: {
 
   const { data: ledgerRows, error: ledgerError } = await supabase
     .from("revision_ledger_decisions")
-    .select("id, opportunity_id, opportunity_title, decision, selected_option, custom_text, created_at, is_undo")
+    .select("id, opportunity_id, opportunity_title, decision, selected_option, custom_text, selected_text, source_excerpt, source_location, metadata, created_at, is_undo")
     .eq("user_id", user.id)
     .eq("manuscript_id", manuscriptId)
     .eq("evaluation_job_id", input.evaluationJobId)
@@ -135,6 +151,11 @@ export async function getFinalReviewPayload(input: {
       decision,
       selectedOption: row.selected_option,
       customText: row.custom_text,
+      selectedText: row.selected_text,
+      sourceExcerpt: row.source_excerpt,
+      sourceLocation: row.source_location,
+      criterion: metadataValue(row.metadata, "criterion"),
+      severity: severityValue(row.metadata),
       createdAt: row.created_at,
       highlightTone: toneForDecision(decision),
     };
