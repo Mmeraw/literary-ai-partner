@@ -28,6 +28,13 @@ function markerClass(tone: FinalReviewDecision["highlightTone"]) {
   return "border-[#C8A96E]/55 bg-[#C8A96E]/15 text-[#F2DFC0]";
 }
 
+function severityClass(severity: FinalReviewDecision["severity"]) {
+  if (severity === "must") return "border-red-400/50 bg-red-500/15 text-red-100";
+  if (severity === "should") return "border-amber-500/50 bg-amber-600/15 text-amber-100";
+  if (severity === "could") return "border-yellow-300/45 bg-yellow-300/10 text-yellow-100";
+  return "border-[#5D4C31] bg-[#120E08] text-[#CBBDA4]";
+}
+
 function EmptyFinalReview({ payload }: { payload: FinalReviewPayload }) {
   return (
     <main className="min-h-screen bg-[#0D0A05] px-4 py-6 text-[#F5EFE4] md:px-6 md:py-8">
@@ -51,11 +58,15 @@ function EmptyFinalReview({ payload }: { payload: FinalReviewPayload }) {
 export default function FinalReviewClient({ payload }: { payload: FinalReviewPayload }) {
   if (!payload.ok) return <EmptyFinalReview payload={payload} />;
 
-  const workbenchHref = payload.manuscriptId && payload.evaluationJobId
-    ? `/workbench?${new URLSearchParams({ manuscriptId: payload.manuscriptId, evaluationJobId: payload.evaluationJobId }).toString()}`
-    : "/workbench";
+  const query = payload.manuscriptId && payload.evaluationJobId
+    ? new URLSearchParams({ manuscriptId: payload.manuscriptId, evaluationJobId: payload.evaluationJobId }).toString()
+    : "";
 
-  const exportDisabled = payload.acceptedCount + payload.customCount === 0;
+  const workbenchHref = query ? `/workbench-v2?${query}` : "/workbench-v2";
+  const canApplyOrExportClean = payload.acceptedCount + payload.customCount > 0;
+  const cleanExportHref = `/api/final-review/export?${query}&format=clean`;
+  const markedExportHref = `/api/final-review/export?${query}&format=marked`;
+  const changelogExportHref = `/api/final-review/export?${query}&format=changelog`;
 
   return (
     <main className="min-h-screen bg-[#0D0A05] px-4 py-6 text-[#F5EFE4] md:px-6 md:py-8">
@@ -72,10 +83,15 @@ export default function FinalReviewClient({ payload }: { payload: FinalReviewPay
               </p>
             </div>
             <div className="flex flex-wrap gap-2 text-xs">
-              <Link href={workbenchHref} className="rounded border border-[#5D4C31] px-3 py-2 text-[#E8D8BA] hover:border-[#C8A96E]">Back to Workbench</Link>
-              <button disabled={exportDisabled} className="rounded border border-[#C8A96E] bg-[#C8A96E] px-3 py-2 font-semibold text-[#1A140C] disabled:cursor-not-allowed disabled:opacity-40">Apply to new version</button>
-              <button disabled={exportDisabled} className="rounded border border-[#5D4C31] px-3 py-2 text-[#E8D8BA] disabled:cursor-not-allowed disabled:opacity-40">Export clean draft</button>
-              <button className="rounded border border-[#5D4C31] px-3 py-2 text-[#E8D8BA] hover:border-[#C8A96E]">Export marked copy</button>
+              <Link href={workbenchHref} className="rounded border border-[#5D4C31] px-3 py-2 text-[#E8D8BA] hover:border-[#C8A96E]">Back to Revise Queue</Link>
+              <form method="POST" action="/api/final-review/apply" className="inline">
+                <input type="hidden" name="manuscriptId" value={payload.manuscriptId ?? ""} />
+                <input type="hidden" name="evaluationJobId" value={payload.evaluationJobId ?? ""} />
+                <button disabled={!canApplyOrExportClean} className="rounded border border-[#C8A96E] bg-[#C8A96E] px-3 py-2 font-semibold text-[#1A140C] disabled:cursor-not-allowed disabled:opacity-40">Apply to new version</button>
+              </form>
+              <a aria-disabled={!canApplyOrExportClean} href={canApplyOrExportClean ? cleanExportHref : undefined} className={`rounded border border-[#5D4C31] px-3 py-2 ${canApplyOrExportClean ? "text-[#E8D8BA] hover:border-[#C8A96E]" : "cursor-not-allowed opacity-40"}`}>Export clean draft</a>
+              <a href={markedExportHref} className="rounded border border-[#5D4C31] px-3 py-2 text-[#E8D8BA] hover:border-[#C8A96E]">Export marked copy</a>
+              <a href={changelogExportHref} className="rounded border border-[#5D4C31] px-3 py-2 text-[#E8D8BA] hover:border-[#C8A96E]">Export changelog</a>
             </div>
           </div>
 
@@ -89,7 +105,7 @@ export default function FinalReviewClient({ payload }: { payload: FinalReviewPay
 
           {payload.unresolvedMustCount > 0 && (
             <div className="mt-4 rounded-lg border border-red-400/40 bg-red-500/10 p-3 text-sm text-red-100">
-              Warning: deferred items remain unresolved. Final Review will not downgrade their severity; it only records the author choice not to apply them now.
+              Warning: deferred items remain unresolved. Final Review records the author choice not to apply them now.
             </div>
           )}
         </header>
@@ -136,11 +152,16 @@ export default function FinalReviewClient({ payload }: { payload: FinalReviewPay
               ) : payload.decisions.map((decision, index) => (
                 <li key={decision.id} className="rounded-lg border border-[#2B241A] bg-[#120E08] p-3">
                   <div className="flex items-start justify-between gap-3">
-                    <span className={`rounded px-2 py-1 text-[10px] uppercase tracking-wider ${markerClass(decision.highlightTone)}`}>{decisionLabel(decision)}</span>
+                    <div className="flex flex-wrap gap-2">
+                      <span className={`rounded px-2 py-1 text-[10px] uppercase tracking-wider ${markerClass(decision.highlightTone)}`}>{decisionLabel(decision)}</span>
+                      <span className={`rounded border px-2 py-1 text-[10px] uppercase tracking-wider ${severityClass(decision.severity)}`}>{decision.severity ?? "severity n/a"}</span>
+                    </div>
                     <span className="text-xs text-[#8F8068]">#{index + 1}</span>
                   </div>
                   <p className="mt-2 text-sm leading-5 text-[#F2E7D4]">{decision.title}</p>
-                  {decision.customText && <pre className="mt-2 whitespace-pre-wrap rounded border border-[#2D2519] bg-[#0D0A05] p-2 text-xs leading-5 text-[#E8DCC4]">{decision.customText}</pre>}
+                  {decision.criterion && <p className="mt-1 text-xs text-[#C8A96E]">{decision.criterion}</p>}
+                  {decision.selectedText && <pre className="mt-2 whitespace-pre-wrap rounded border border-[#2D2519] bg-[#0D0A05] p-2 text-xs leading-5 text-[#E8DCC4]">{decision.selectedText}</pre>}
+                  {decision.customText && !decision.selectedText && <pre className="mt-2 whitespace-pre-wrap rounded border border-[#2D2519] bg-[#0D0A05] p-2 text-xs leading-5 text-[#E8DCC4]">{decision.customText}</pre>}
                 </li>
               ))}
             </ol>
