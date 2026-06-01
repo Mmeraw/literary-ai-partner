@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { FinalReviewPayload, FinalReviewDecision } from "@/lib/revision/finalReview";
 import DownloadFinalReviewButton from "@/components/revision/DownloadFinalReviewButton";
+import PrintSavePdfButton from "@/components/revision/PrintSavePdfButton";
 
 export type FinalReviewView = "full" | "clean" | "marked" | "changelog";
 
@@ -104,7 +105,7 @@ function PrintFinalReview({ payload, view }: { payload: FinalReviewPayload; view
       <style>{`@media print { .no-print { display: none !important; } body { background: white; } }`}</style>
       <div className="mx-auto max-w-[900px]">
         <div className="no-print mb-4 flex justify-end">
-          <button onClick={() => window.print()} className="rounded border border-[#8B5E1A] bg-[#FBF1DC] px-4 py-2 text-sm font-semibold text-[#7A5B12]">Print / Save as PDF</button>
+          <PrintSavePdfButton />
         </div>
         <header className="border-b border-[#D9D0C3] pb-4">
           <p className="text-[11px] uppercase tracking-[0.22em] text-[#8B5E1A]">RevisionGrade Final Review</p>
