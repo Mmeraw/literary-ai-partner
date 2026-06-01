@@ -26,6 +26,8 @@ export type FinalReviewPayload = {
   manuscriptTitle: string;
   sourceVersionId: string | null;
   sourceText: string;
+  sourceAvailable: boolean;
+  sourceUnavailableReason: string | null;
   previewParagraphs: string[];
   decisions: FinalReviewDecision[];
   acceptedCount: number;
@@ -45,6 +47,8 @@ function emptyPayload(error: string | null): FinalReviewPayload {
     manuscriptTitle: "Final Review",
     sourceVersionId: null,
     sourceText: "",
+    sourceAvailable: false,
+    sourceUnavailableReason: null,
     previewParagraphs: [],
     decisions: [],
     acceptedCount: 0,
@@ -199,7 +203,8 @@ export async function getFinalReviewPayload(input: {
     fallbackRawText: version?.raw_text ?? "",
   });
 
-  const previewText = sourceText
+  const sourceAvailable = sourceText.trim().length > 0;
+  const previewText = sourceAvailable
     ? applyDecisionsForPreview(sourceText, decisions)
     : buildDecisionOnlyPreview({ manuscriptTitle: manuscript.title ?? "Untitled Manuscript", decisions: decisions.map(toRuntimeDecision) });
 
@@ -216,7 +221,9 @@ export async function getFinalReviewPayload(input: {
     evaluationJobId: input.evaluationJobId,
     manuscriptTitle: manuscript.title ?? "Untitled Manuscript",
     sourceVersionId: job.manuscript_version_id,
-    sourceText: sourceText || previewText,
+    sourceText: sourceAvailable ? sourceText : "",
+    sourceAvailable,
+    sourceUnavailableReason: sourceAvailable ? null : "Full manuscript source text is unavailable for this legacy evaluation.",
     previewParagraphs: splitPreviewParagraphs(previewText),
     decisions,
     acceptedCount,
