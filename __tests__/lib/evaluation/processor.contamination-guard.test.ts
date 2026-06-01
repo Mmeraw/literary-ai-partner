@@ -131,11 +131,14 @@ function makeSupabaseStub() {
     from(table: string) {
       if (table === "evaluation_jobs") {
         return {
-          select: () => ({
-            eq: () => ({
+          select: () => {
+            const query: any = {
+              eq: () => query,
               single: async () => ({ data: queuedJob, error: null }),
-            }),
-          }),
+              maybeSingle: async () => ({ data: queuedJob, error: null }),
+            };
+            return query;
+          },
           update: (payload: Record<string, unknown>) => {
             jobUpdates.push(payload);
             const chain: any = {
@@ -207,6 +210,18 @@ function makeSupabaseStub() {
             };
             return query;
           },
+        };
+      }
+
+      if (table === "evaluation_provider_calls") {
+        const providerCallQuery: any = {
+          eq: () => providerCallQuery,
+          maybeSingle: async () => ({ data: null, error: null }),
+          single: async () => ({ data: null, error: null }),
+        };
+        return {
+          select: () => providerCallQuery,
+          upsert: () => ({ error: null }),
         };
       }
 
