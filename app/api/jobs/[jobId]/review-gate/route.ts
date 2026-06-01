@@ -238,16 +238,19 @@ export async function POST(request: NextRequest, { params }: RouteParams): Promi
     } | null,
   });
 
-  if (disposition !== 'rejected' && !semanticGateResult.ok) {
-    return NextResponse.json(
-      {
-        ok: false,
-        error: 'Semantic gate blocked accepted ledger creation.',
-        code: semanticGateResult.code,
-        reasons: semanticGateResult.reasons,
-      },
-      { status: 422 },
-    );
+  if (disposition !== 'rejected') {
+    if (!semanticGateResult.ok) {
+      const blockedSemanticGate = semanticGateResult;
+      return NextResponse.json(
+        {
+          ok: false,
+          error: 'Semantic gate blocked accepted ledger creation.',
+          code: blockedSemanticGate.code,
+          reasons: blockedSemanticGate.reasons,
+        },
+        { status: 422 },
+      );
+    }
   }
 
   const now = new Date().toISOString();
