@@ -59,6 +59,8 @@ const artifactsWithoutAccepted: PhaseV2ArtifactSet = {
   pass1a_story_layer_v1: artifact('story-layer-1'),
   ledger_quality_report_v1: artifact('quality-report-1'),
   pass3_preflight_draft_v1: artifact('preflight-1'),
+  ledger_quality_gate_ready_status: 'reviewable',
+  ledger_quality_hard_fail_present: false,
 };
 
 // ─── Track C: Pass 3A gate validity with concurrent status ──────────────────
