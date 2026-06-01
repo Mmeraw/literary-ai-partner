@@ -22,16 +22,21 @@ async function extractDocxText(buffer: Buffer): Promise<string | null> {
 }
 
 async function decodeDataUrl(fileUrl: string): Promise<string | null> {
-  const match = fileUrl.match(/^data:([^;,]*)(;base64)?,(.*)$/);
-  if (!match) return null;
+  const comma = fileUrl.indexOf(",");
+  if (comma === -1) return null;
 
-  const mime = match[1] ?? "";
-  const isBase64 = Boolean(match[2]);
-  const body = match[3] ?? "";
-  const buffer = isBase64 ? Buffer.from(body, "base64") : Buffer.from(decodeURIComponent(body), "utf8");
+  const metadata = fileUrl.slice(5, comma).toLowerCase();
+  const body = fileUrl.slice(comma + 1);
+  const isBase64 = metadata.split(";").includes("base64");
+  const mime = metadata.split(";")[0] ?? "";
 
-  if (isDocxMime(mime)) return extractDocxText(buffer);
-  return buffer.toString("utf8");
+  try {
+    const buffer = isBase64 ? Buffer.from(body, "base64") : Buffer.from(decodeURIComponent(body), "utf8");
+    if (isDocxMime(mime)) return extractDocxText(buffer);
+    return buffer.toString("utf8");
+  } catch {
+    return null;
+  }
 }
 
 async function resolveTextFromFileUrl(fileUrl: string | null | undefined): Promise<string | null> {
@@ -83,6 +88,12 @@ export function isLikelyInternalReport(value: string | null | undefined): boolea
   return hits >= 2;
 }
 
+function usableSourceText(value: string | null | undefined): string | null {
+  const text = normalizeFinalReviewText(value);
+  if (!text || isLikelyInternalReport(text)) return null;
+  return text;
+}
+
 export function scrubInternalReportLeakage(value: string | null | undefined): string {
   const text = normalizeFinalReviewText(value);
   if (!text) return "";
@@ -105,15 +116,35 @@ async function sourceFromVersionRelation(supabase: SupabaseLike, sourceVersionId
 
   if (error || !data) return null;
 
-  const rawText = normalizeFinalReviewText((data as { raw_text?: string | null }).raw_text);
-  if (rawText && !isLikelyInternalReport(rawText)) return rawText;
+  const rawText = usableSourceText((data as { raw_text?: string | null }).raw_text);
+  if (rawText) return rawText;
 
   const manuscripts = (data as { manuscripts?: unknown }).manuscripts;
   const manuscript = Array.isArray(manuscripts) ? manuscripts[0] : manuscripts as { file_url?: string | null } | null | undefined;
-  const resolved = normalizeFinalReviewText(await resolveTextFromFileUrl(manuscript?.file_url));
+  const resolved = usableSourceText(await resolveTextFromFileUrl(manuscript?.file_url));
 
-  if (resolved && !isLikelyInternalReport(resolved)) return resolved;
+  if (resolved) return resolved;
   return null;
+}
+
+async function sourceFromAnyManuscriptVersion(supabase: SupabaseLike, manuscriptId: number): Promise<string | null> {
+  const { data, error } = await supabase
+    .from("manuscript_versions")
+    .select("id, raw_text, word_count, version_number")
+    .eq("manuscript_id", manuscriptId)
+    .order("version_number", { ascending: true });
+
+  if (error || !Array.isArray(data)) return null;
+
+  const candidates = data
+    .map((row: { raw_text?: string | null; word_count?: number | null; version_number?: number | null }) => {
+      const text = usableSourceText(row.raw_text);
+      return text ? { text, words: row.word_count ?? text.trim().split(/\s+/).filter(Boolean).length, version: row.version_number ?? 0 } : null;
+    })
+    .filter((row): row is { text: string; words: number; version: number } => Boolean(row))
+    .sort((a, b) => b.words - a.words || a.version - b.version);
+
+  return candidates[0]?.text ?? null;
 }
 
 async function sourceFromManuscriptFile(supabase: SupabaseLike, manuscriptId: number, userId: string): Promise<string | null> {
@@ -125,8 +156,8 @@ async function sourceFromManuscriptFile(supabase: SupabaseLike, manuscriptId: nu
     .maybeSingle();
 
   if (error || !data) return null;
-  const resolved = normalizeFinalReviewText(await resolveTextFromFileUrl((data as { file_url?: string | null }).file_url));
-  if (resolved && !isLikelyInternalReport(resolved)) return resolved;
+  const resolved = usableSourceText(await resolveTextFromFileUrl((data as { file_url?: string | null }).file_url));
+  if (resolved) return resolved;
   return null;
 }
 
@@ -143,7 +174,7 @@ export function buildDecisionOnlyPreview(input: {
   const lines = [
     `${input.manuscriptTitle}`,
     "",
-    "Revision preview reconstructed from accepted ledger decisions because the original manuscript file could not be read.",
+    "Final Review could not read the full manuscript source for this legacy evaluation. The accepted decisions below are shown for review, but Clean Draft export should be retried after the source text is available.",
     "",
   ];
 
@@ -171,11 +202,14 @@ export async function resolveFinalReviewSourceText(input: {
   sourceVersionId: string;
   fallbackRawText?: string | null;
 }): Promise<string> {
-  const fallback = normalizeFinalReviewText(input.fallbackRawText);
-  if (fallback && !isLikelyInternalReport(fallback)) return fallback;
+  const fallback = usableSourceText(input.fallbackRawText);
+  if (fallback) return fallback;
 
   const fromVersion = await sourceFromVersionRelation(input.supabase, input.sourceVersionId);
   if (fromVersion) return fromVersion;
+
+  const fromAnyVersion = await sourceFromAnyManuscriptVersion(input.supabase, input.manuscriptId);
+  if (fromAnyVersion) return fromAnyVersion;
 
   const fromManuscript = await sourceFromManuscriptFile(input.supabase, input.manuscriptId, input.userId);
   if (fromManuscript) return fromManuscript;
