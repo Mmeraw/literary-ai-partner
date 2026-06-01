@@ -525,7 +525,7 @@ export function EvaluationPoller({
   const isFinalComplete = job.status === 'complete' && (!isLongForm || hasNarrativeSynthesis) && !isCompletingAnimation;
 
   const statusLabel = {
-    queued: 'Waiting in queue',
+    queued: 'Preparing your evaluation',
     running: 'In progress',
     complete: isCompletingAnimation
       ? 'In progress'
@@ -636,7 +636,7 @@ export function EvaluationPoller({
                     ↻ Refresh
                   </button>
                   {job.status === 'queued' && pollCount > 5 && (
-                    <span className="text-xs text-gray-400">Still waiting to start?</span>
+                    <span className="text-xs text-gray-400">Still preparing?</span>
                   )}
                   {job.status === 'running' && pollCount > 10 && (
                     <span className="text-xs text-gray-400">Taking longer than expected?</span>
