@@ -1,5 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getAuthenticatedUser } from "@/lib/supabase/server";
+import { resolveFinalReviewSourceText, scrubInternalReportLeakage } from "@/lib/revision/finalReviewSourceText";
 
 export type FinalReviewDecision = {
   id: string;
@@ -64,7 +65,7 @@ function toneForDecision(decision: FinalReviewDecision["decision"]): FinalReview
 }
 
 function splitPreviewParagraphs(text: string): string[] {
-  return text
+  return scrubInternalReportLeakage(text)
     .split(/\n{2,}/g)
     .map((p) => p.trim())
     .filter(Boolean)
@@ -80,6 +81,23 @@ function metadataValue(metadata: unknown, key: string): string | null {
 function severityValue(metadata: unknown): FinalReviewDecision["severity"] {
   const value = metadataValue(metadata, "severity")?.toLowerCase();
   return value === "must" || value === "should" || value === "could" ? value : null;
+}
+
+function applyDecisionsForPreview(sourceText: string, decisions: FinalReviewDecision[]): string {
+  let text = scrubInternalReportLeakage(sourceText);
+  if (!text) return "";
+
+  for (const decision of decisions) {
+    if (!["accepted_a", "accepted_b", "accepted_c", "custom"].includes(decision.decision)) continue;
+
+    const source = scrubInternalReportLeakage(decision.sourceExcerpt);
+    const replacement = scrubInternalReportLeakage(decision.decision === "custom" ? decision.customText : decision.selectedText);
+    if (!source || !replacement) continue;
+
+    if (text.includes(source)) text = text.replace(source, replacement);
+  }
+
+  return text;
 }
 
 export async function getFinalReviewPayload(input: {
@@ -161,6 +179,15 @@ export async function getFinalReviewPayload(input: {
     };
   });
 
+  const sourceText = await resolveFinalReviewSourceText({
+    supabase,
+    manuscriptId,
+    userId: user.id,
+    sourceVersionId: job.manuscript_version_id,
+    fallbackRawText: version?.raw_text ?? "",
+  });
+
+  const previewText = applyDecisionsForPreview(sourceText, decisions);
   const acceptedCount = decisions.filter((d) => d.decision.startsWith("accepted_")).length;
   const customCount = decisions.filter((d) => d.decision === "custom").length;
   const keptCount = decisions.filter((d) => d.decision === "keep_original").length;
@@ -174,8 +201,8 @@ export async function getFinalReviewPayload(input: {
     evaluationJobId: input.evaluationJobId,
     manuscriptTitle: manuscript.title ?? "Untitled Manuscript",
     sourceVersionId: job.manuscript_version_id,
-    sourceText: version?.raw_text ?? "",
-    previewParagraphs: splitPreviewParagraphs(version?.raw_text ?? ""),
+    sourceText,
+    previewParagraphs: splitPreviewParagraphs(previewText),
     decisions,
     acceptedCount,
     customCount,
