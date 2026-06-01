@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getAuthenticatedUser } from "@/lib/supabase/server";
 import { resolveManuscriptTitle } from "@/lib/manuscripts/title";
+import { createInitialVersion } from "@/lib/manuscripts/versions";
 import { selectChunkerConfig } from "@/lib/manuscripts/chunking";
 import { getConfiguredChunkCap } from "@/lib/evaluation/pipeline/chunkCap";
 
@@ -176,6 +177,24 @@ export async function POST(req: Request) {
     if (error || !data) {
       return NextResponse.json(
         { ok: false, error: "Failed to create manuscript", details: error?.message },
+        { status: 500 },
+      );
+    }
+
+    try {
+      await createInitialVersion({
+        manuscript_id: Number(data.id),
+        raw_text: extractedText,
+        word_count: wordCount,
+        created_by: user.id,
+      });
+    } catch (versionError) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "Failed to create manuscript source snapshot",
+          details: versionError instanceof Error ? versionError.message : String(versionError),
+        },
         { status: 500 },
       );
     }
