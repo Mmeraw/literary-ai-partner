@@ -87,6 +87,10 @@ export interface JobState {
   hard_fail_present?: boolean | null;
   /** Manuscript word count from chunk_routing — available before completion */
   manuscript_word_count?: number | null;
+  /** True when the caller is an operator/admin and operational details are included in this response */
+  can_view_operational_details?: boolean;
+  /** Public-safe failure message shown to non-operator users when the job has failed */
+  public_status_message?: string | null;
 }
 
 function isLongFormJob(job: Pick<JobState, 'manuscript_word_count'> | null): boolean {
@@ -713,13 +717,20 @@ export function EvaluationPoller({
         {/* Failed-job recovery: checkpoint-aware resume button */}
         {job.status === 'failed' && (
           <div className="space-y-3">
-            {/* Surface the raw error detail above the recovery panel for transparency */}
-            {job.last_error && (
+            {/* Operational error detail — operators only */}
+            {job.can_view_operational_details && job.last_error ? (
               <div className="p-3 bg-red-50 border border-red-200 rounded">
                 <p className="text-xs font-semibold text-red-800 uppercase">Error</p>
                 <p className="text-sm text-red-700 mt-2">{formatUserSafeError(job.last_error)}</p>
               </div>
-            )}
+            ) : !job.can_view_operational_details ? (
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded">
+                <p className="text-sm text-amber-800">
+                  {job.public_status_message ??
+                    'This evaluation could not be completed. Please start a new evaluation or contact support if the problem continues.'}
+                </p>
+              </div>
+            ) : null}
             <FailedJobRecovery
               jobId={jobId}
               checkpoint={checkpoint}
@@ -727,6 +738,7 @@ export function EvaluationPoller({
               resumeError={resumeError}
               resumed={resumed}
               onResume={handleResume}
+              showOperationalDetails={job.can_view_operational_details ?? false}
             />
           </div>
         )}
