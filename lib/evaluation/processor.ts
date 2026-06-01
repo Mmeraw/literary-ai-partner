@@ -325,6 +325,10 @@ export function toPhaseV2ArtifactSet(
   }> | null | undefined,
 ): PhaseV2ArtifactSet {
   const artifactRefsByType = new Map<string, { artifact_id?: string | null; source_hash?: string | null }>();
+  let ledgerQualityGateReadyStatus: 'reviewable' | 'blocked' | 'repair_required' | null = null;
+  let ledgerQualityHardFailPresent: boolean | null = null;
+  let pass3PreflightReducerStatus: 'ok' | 'failed' | 'legacy' | null = null;
+  let pass3PreflightAuthority: string | null = null;
 
   for (const row of rows ?? []) {
     if (!row || typeof row !== 'object' || typeof row.artifact_type !== 'string') {
@@ -343,18 +347,52 @@ export function toPhaseV2ArtifactSet(
       artifact_id: envelopeArtifactId ?? rowArtifactId ?? rowId,
       source_hash: sourceHash,
     });
+
+    if (row.artifact_type === 'ledger_quality_report_v1' && contentRecord) {
+      const qualityReportRecord =
+        contentRecord.quality_report && typeof contentRecord.quality_report === 'object'
+          ? (contentRecord.quality_report as Record<string, unknown>)
+          : contentRecord;
+      const gateReadyStatus = qualityReportRecord.gate_ready_status;
+      const hardFailPresent = qualityReportRecord.hard_fail_present;
+
+      ledgerQualityGateReadyStatus =
+        gateReadyStatus === 'reviewable' || gateReadyStatus === 'blocked' || gateReadyStatus === 'repair_required'
+          ? gateReadyStatus
+          : null;
+      ledgerQualityHardFailPresent = typeof hardFailPresent === 'boolean' ? hardFailPresent : null;
+    }
+
+    if (row.artifact_type === 'pass3_preflight_draft_v1' && contentRecord) {
+      const reducerStatus = contentRecord.reducer_status;
+      const preflightAuthority = contentRecord.preflight_authority;
+
+      pass3PreflightReducerStatus =
+        reducerStatus === 'ok' || reducerStatus === 'failed'
+          ? reducerStatus
+          : 'legacy';
+      pass3PreflightAuthority = typeof preflightAuthority === 'string' ? preflightAuthority : null;
+    }
   }
 
   return {
     pass1a_story_layer_v1: artifactRefsByType.get('pass1a_story_layer_v1') ?? null,
     ledger_quality_report_v1: artifactRefsByType.get('ledger_quality_report_v1') ?? null,
     pass3_preflight_draft_v1: artifactRefsByType.get('pass3_preflight_draft_v1') ?? null,
+    ledger_quality_gate_ready_status: ledgerQualityGateReadyStatus,
+    ledger_quality_hard_fail_present: ledgerQualityHardFailPresent,
+    pass3_preflight_reducer_status: pass3PreflightReducerStatus,
+    pass3_preflight_authority: pass3PreflightAuthority,
   };
 }
 
 export function derivePhaseV2ReviewGateProgress(
   progressState: Record<string, unknown>,
-  hasPass3PreflightArtifact: boolean,
+  pass3PreflightSignal: {
+    hasPass3PreflightArtifact: boolean;
+    reducerStatus?: 'ok' | 'failed' | 'legacy' | null;
+    preflightAuthority?: string | null;
+  },
 ): PhaseV2Progress {
   const batchState =
     progressState.phase1a_batch_state && typeof progressState.phase1a_batch_state === 'object'
@@ -381,10 +419,17 @@ export function derivePhaseV2ReviewGateProgress(
     return undefined;
   })();
 
-  const pass3aStatus =
-    explicitStatus ??
-    legacyStatus ??
-    (hasPass3PreflightArtifact ? 'done' : 'not_started');
+  const pass3ReducerFailed =
+    pass3PreflightSignal.reducerStatus === 'failed' ||
+    pass3PreflightSignal.preflightAuthority === 'unavailable';
+
+  const pass3aStatus = pass3ReducerFailed
+    ? 'failed'
+    : (
+      explicitStatus ??
+      legacyStatus ??
+      (pass3PreflightSignal.hasPass3PreflightArtifact ? 'done' : 'not_started')
+    );
 
   const pass3aCompletedAt =
     isNonEmptyTrimmedString(progressState.pass3a_completed_at)
@@ -412,7 +457,9 @@ export function derivePhaseV2ReviewGateProgress(
   const failedReason =
     isNonEmptyTrimmedString(progressState.failed_reason)
       ? progressState.failed_reason
-      : undefined;
+      : pass3ReducerFailed
+        ? 'PASS3A_REDUCER_FAILED'
+        : undefined;
   const failedAt =
     isNonEmptyTrimmedString(progressState.failed_at)
       ? progressState.failed_at
@@ -5947,8 +5994,13 @@ export async function processEvaluationJob(
             // Happy path — preflight completed within budget.
             pass3aResult = raceResult as Awaited<ReturnType<typeof runPass3Preflight>>;
             const completedAt = new Date().toISOString();
+            const pass3aReducerFailed =
+              pass3aResult.preflight.reducer_status === 'failed' ||
+              pass3aResult.preflight.preflight_authority === 'unavailable';
+            const pass3aStatus = pass3aReducerFailed ? 'failed' : 'done';
             console.log(`[track_c] ${jobId}: Pass 3A completed`, {
               authority: pass3aResult.preflight.preflight_authority,
+              reducer_status: pass3aResult.preflight.reducer_status ?? 'legacy',
               coverage: `${pass3aResult.preflight.manuscript_read_status.chunks_received}/${pass3aResult.preflight.manuscript_read_status.chunks_expected}`,
               duration_ms: pass3aResult.durationMs,
             });
@@ -5956,17 +6008,24 @@ export async function processEvaluationJob(
             // Persist DONE state before proceeding.
             const pass3aDoneProgress = {
               ...progressState,
-              track_c_status: 'done',
-              pass3a_status: 'done',
+              track_c_status: pass3aReducerFailed ? 'degraded' : 'done',
+              pass3a_status: pass3aStatus,
               pass3a_completed_at: completedAt,
               pass3a_artifact_id: pass3aResult.artifactId,
+              failed_reason: pass3aReducerFailed ? 'PASS3A_REDUCER_FAILED' : undefined,
+              failed_at: pass3aReducerFailed ? completedAt : undefined,
               phase1a_batch_state: {
                 ...((progressState.phase1a_batch_state as Record<string, unknown>) ?? {}),
-                preflight_status: 'DONE',
+                preflight_status: pass3aReducerFailed ? 'FAILED' : 'DONE',
               },
               phase_log: [
                 ...((progressState.phase_log as unknown[]) ?? []),
-                { at: completedAt, event: 'track_c_completed', stage: 'pass_3a', duration_ms: pass3aResult.durationMs },
+                {
+                  at: completedAt,
+                  event: pass3aReducerFailed ? 'track_c_reducer_failed' : 'track_c_completed',
+                  stage: 'pass_3a',
+                  duration_ms: pass3aResult.durationMs,
+                },
               ],
             };
             await supabase
@@ -6178,7 +6237,11 @@ export async function processEvaluationJob(
         const phaseV2Artifacts = toPhaseV2ArtifactSet(reviewGateArtifacts);
         const phaseV2Progress = derivePhaseV2ReviewGateProgress(
           progressState,
-          Boolean(phaseV2Artifacts.pass3_preflight_draft_v1?.artifact_id),
+          {
+            hasPass3PreflightArtifact: Boolean(phaseV2Artifacts.pass3_preflight_draft_v1?.artifact_id),
+            reducerStatus: phaseV2Artifacts.pass3_preflight_reducer_status,
+            preflightAuthority: phaseV2Artifacts.pass3_preflight_authority,
+          },
         );
 
         const reviewGateHandoffResult = buildReviewGateHandoff(
