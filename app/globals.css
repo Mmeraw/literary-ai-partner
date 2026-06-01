@@ -207,3 +207,100 @@
 .rg-kpi-value {
   margin-top: 8px;
 }
+
+/* === Agent Readiness mobile viewport guard ===
+ *
+ * The Agent Readiness client currently uses inline desktop flex styles. This
+ * route-scoped guard makes the page fit a phone viewport without changing the
+ * package workflow or copy. Desktop keeps the existing two-column composition;
+ * mobile stacks the sidebar above the package content and prevents hidden
+ * horizontal overflow.
+ */
+.agent-readiness-route,
+.agent-readiness-route * {
+  box-sizing: border-box;
+}
+
+.agent-readiness-route {
+  width: 100%;
+  max-width: 100vw;
+  overflow-x: hidden;
+}
+
+@media (max-width: 767px) {
+  .agent-readiness-route > div {
+    width: 100% !important;
+    max-width: 100vw !important;
+    overflow-x: hidden !important;
+  }
+
+  .agent-readiness-route > div > div {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 1.5rem 1rem 4rem !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 1.5rem !important;
+  }
+
+  .agent-readiness-route aside,
+  .agent-readiness-route aside + div {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    flex: 0 1 auto !important;
+    flex-shrink: 1 !important;
+  }
+
+  .agent-readiness-route aside {
+    order: 1;
+  }
+
+  .agent-readiness-route aside + div {
+    order: 2;
+  }
+
+  .agent-readiness-route h1 {
+    max-width: 100% !important;
+    overflow-wrap: anywhere !important;
+    word-break: normal !important;
+    font-size: clamp(2rem, 12vw, 3.25rem) !important;
+    line-height: 1.05 !important;
+  }
+
+  .agent-readiness-route h2,
+  .agent-readiness-route h3,
+  .agent-readiness-route p,
+  .agent-readiness-route a,
+  .agent-readiness-route span,
+  .agent-readiness-route button,
+  .agent-readiness-route select {
+    max-width: 100% !important;
+    overflow-wrap: anywhere !important;
+  }
+
+  .agent-readiness-route select {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  .agent-readiness-route nav a,
+  .agent-readiness-route nav div {
+    width: 100% !important;
+    white-space: normal !important;
+  }
+
+  .agent-readiness-route [style*="display: grid"] {
+    grid-template-columns: 1fr !important;
+  }
+
+  .agent-readiness-route [style*="display: flex"] {
+    max-width: 100% !important;
+  }
+
+  .agent-readiness-route button,
+  .agent-readiness-route a {
+    white-space: normal !important;
+  }
+}
