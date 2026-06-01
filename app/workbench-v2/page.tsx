@@ -39,15 +39,15 @@ export default async function WorkbenchV2Page({ searchParams }: { searchParams?:
     : "/workbench/final-review";
 
   return (
-    <>
+    <div className="workbench-v2-route">
       <Link
         href={finalReviewHref}
-        className="fixed right-6 top-[88px] z-50 rounded border border-[#C8A96E] bg-[#1C160E] px-3 py-2 text-xs font-semibold text-[#F3E3C3] shadow-lg hover:bg-[#2A2115]"
+        className="workbench-v2-final-review-link fixed right-6 top-[78px] z-50 rounded border border-[#C8A96E] bg-[#1C160E] px-4 py-2.5 text-xs font-semibold text-[#F3E3C3] shadow-lg hover:bg-[#2A2115]"
       >
         Final Review / Apply & Export
       </Link>
       <TrustedPathWorkbenchButton manuscriptId={manuscriptId ?? null} evaluationJobId={evaluationJobId ?? null} disabled={!payload.ok} />
       <ReviseCockpitClientWorkflowV2 payload={payload} />
-    </>
+    </div>
   );
 }
