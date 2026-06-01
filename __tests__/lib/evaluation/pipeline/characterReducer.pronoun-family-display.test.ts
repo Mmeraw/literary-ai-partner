@@ -101,13 +101,13 @@ describe('characterReducer pronoun-family warning guardrails', () => {
     expect(warnings).not.toContain('pronoun_inconsistency');
   });
 
-  it('does not flag custom or uncommon pronouns by default when stable', () => {
+  it('flags custom or uncommon pronouns for explicit review', () => {
     const warnings = getWarningsFor('Ari', [
       makeChunk(0, makeCharacter({ canonical_name: 'Ari', pronouns: ['thon/thons'] })),
       makeChunk(1, makeCharacter({ canonical_name: 'Ari', pronouns: ['thon/thons'] })),
     ]);
 
-    expect(warnings).not.toContain('pronoun_inconsistency');
+    expect(warnings).toContain('pronoun_inconsistency');
   });
 
   it('flags cross-family shifts that require review', () => {
