@@ -78,7 +78,7 @@ function getSubmissionSourceSummary({ activeInputMethod, selectedDashboardManusc
       label: activeInputMethod === "upload" ? "Uploaded file selected" : "Saved document selected",
       title: selectedDashboardManuscript.title || "Untitled Manuscript",
       meta: `${formatWordCount(selectedDashboardManuscript.word_count)} words · ${selectedDashboardManuscript.source ?? "saved manuscript"}`,
-      body: "This saved manuscript will be evaluated. Pasted text is ignored while a saved/uploaded manuscript is selected.",
+      body: "This manuscript will be evaluated. Pasted text is ignored while a saved or uploaded manuscript is selected.",
     };
   }
 
@@ -346,18 +346,18 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess }) {
   };
 
   return (
-    <div className="mx-auto max-w-7xl">
-      <div className="rounded-3xl border border-stone-200 bg-white p-4 shadow-sm lg:p-8">
-        <div className="mb-8 text-center">
-          <p className="font-rg-mono text-xs uppercase tracking-[0.22em] text-rg-gold">Submission workbench</p>
-          <h2 className="mt-3 font-rg-serif text-4xl font-semibold tracking-tight text-stone-950 md:text-5xl">Choose your writing</h2>
-          <p className="mx-auto mt-3 max-w-3xl text-stone-600">
+    <div className="mx-auto max-w-7xl text-[17px] text-stone-950">
+      <div className="rounded-3xl border border-stone-300 bg-white p-5 shadow-sm md:p-6 lg:p-7">
+        <div className="mb-6 text-center">
+          <p className="font-rg-mono text-[0.78rem] font-semibold uppercase tracking-[0.18em] text-[#8A5A00]">Submission workbench</p>
+          <h2 className="mt-2 font-rg-serif text-4xl font-semibold tracking-tight text-stone-950 md:text-5xl">Choose your writing</h2>
+          <p className="mx-auto mt-2 max-w-3xl text-base leading-7 text-stone-800">
             Select one clear source: use a saved manuscript, upload a new file, or paste text. RevisionGrade will estimate the evaluation depth before submission.
           </p>
         </div>
 
         <form onSubmit={handleSubmit}>
-          <div className="mb-6 grid gap-3 md:grid-cols-3">
+          <div className="mb-5 grid gap-3 md:grid-cols-3">
             {INPUT_METHODS.map((method) => {
               const isActive = activeInputMethod === method.id;
               return (
@@ -365,24 +365,31 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess }) {
                   key={method.id}
                   type="button"
                   onClick={() => handleInputMethodChange(method.id)}
-                  className={`rounded-2xl border p-4 text-left transition ${
-                    isActive ? "border-rg-gold bg-[#FBFAF7] shadow-sm" : "border-stone-200 bg-white hover:bg-stone-50"
+                  className={`relative min-h-[7.25rem] rounded-2xl border p-5 text-left transition focus:outline-none focus:ring-2 focus:ring-[#A36A00]/40 ${
+                    isActive
+                      ? "border-[#A36A00] bg-[#FFF8E8] shadow-sm ring-1 ring-[#A36A00]/25"
+                      : "border-stone-300 bg-white hover:border-stone-400 hover:bg-stone-50"
                   }`}
                   aria-pressed={isActive}
                 >
-                  <span className="font-rg-mono text-[0.65rem] uppercase tracking-[0.16em] text-rg-gold">Step 1</span>
-                  <span className="mt-2 block font-rg-serif text-xl text-stone-950">{method.label}</span>
-                  <span className="mt-1 block text-xs leading-5 text-stone-600">{method.description}</span>
+                  {isActive && (
+                    <span className="absolute right-4 top-4 rounded-full bg-[#A36A00] px-2.5 py-1 font-rg-mono text-[0.72rem] font-bold uppercase tracking-[0.08em] text-white">
+                      Selected
+                    </span>
+                  )}
+                  <span className="font-rg-mono text-[0.75rem] font-bold uppercase tracking-[0.14em] text-[#8A5A00]">Step 1</span>
+                  <span className="mt-2 block font-rg-serif text-2xl leading-tight text-stone-950">{method.label}</span>
+                  <span className="mt-1.5 block text-base leading-6 text-stone-800">{method.description}</span>
                 </button>
               );
             })}
           </div>
 
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-            <section className="space-y-5 lg:col-span-2">
+          <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_21rem]">
+            <section className="space-y-4">
               <div>
-                <label htmlFor="project-title" className="mb-2 block text-sm font-medium text-stone-700">
-                  Project Title (optional)
+                <label htmlFor="project-title" className="mb-2 block text-[0.95rem] font-semibold text-stone-900">
+                  Project Title <span className="font-normal text-stone-700">(optional)</span>
                 </label>
                 <input
                   id="project-title"
@@ -390,24 +397,24 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess }) {
                   value={projectTitle}
                   onChange={(e) => setProjectTitle(e.target.value)}
                   placeholder="Helps organize submissions and reports"
-                  className="w-full rounded-md border border-stone-300 bg-white px-3 py-2 text-sm text-stone-950"
+                  className="min-h-[48px] w-full rounded-lg border border-stone-400 bg-white px-4 py-3 text-base text-stone-950 placeholder:text-stone-500 focus:border-[#A36A00] focus:outline-none focus:ring-2 focus:ring-[#A36A00]/20"
                   disabled={isSubmitting}
                 />
               </div>
 
               {activeInputMethod === "saved" && (
-                <div className="rounded-2xl border border-stone-200 bg-[#FBFAF7] p-4">
+                <div className="rounded-2xl border border-stone-300 bg-[#FBFAF7] p-4 md:p-5">
                   <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                     <div>
-                      <h3 className="font-rg-serif text-2xl text-stone-950">Saved documents</h3>
-                      <p className="mt-1 text-sm text-stone-600">Choose one manuscript from your workspace.</p>
+                      <h3 className="font-rg-serif text-3xl leading-tight text-stone-950">Saved documents</h3>
+                      <p className="mt-1 text-base leading-6 text-stone-800">Choose one manuscript from your workspace.</p>
                     </div>
                     <div className="flex flex-wrap gap-2">
                       <button
                         type="button"
                         onClick={() => handleInputMethodChange("upload")}
                         disabled={isUploading || isSubmitting}
-                        className="rounded-md border border-stone-300 bg-white px-3 py-2 text-xs font-medium text-stone-700 hover:bg-stone-50 disabled:opacity-60"
+                        className="min-h-[42px] rounded-lg border border-stone-400 bg-white px-4 py-2 text-sm font-semibold text-stone-900 hover:bg-stone-50 disabled:opacity-60"
                       >
                         Upload instead
                       </button>
@@ -416,7 +423,7 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess }) {
                           type="button"
                           onClick={restoreAllInThisWindow}
                           disabled={isUploading || isSubmitting}
-                          className="rounded-md border border-stone-300 bg-white px-3 py-2 text-xs font-medium text-stone-700 hover:bg-stone-50 disabled:opacity-60"
+                          className="min-h-[42px] rounded-lg border border-stone-400 bg-white px-4 py-2 text-sm font-semibold text-stone-900 hover:bg-stone-50 disabled:opacity-60"
                         >
                           Restore hidden
                         </button>
@@ -424,68 +431,72 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess }) {
                     </div>
                   </div>
 
-                  <div className="mb-3 max-h-[26rem] min-h-[12rem] space-y-2 overflow-y-auto pr-1">
+                  <div className="mb-3 max-h-[24rem] min-h-[12rem] space-y-2 overflow-y-auto pr-1">
                     {isLoadingDashboard ? (
-                      <div className="text-sm text-stone-500">Loading saved manuscripts...</div>
+                      <div className="text-base text-stone-700">Loading saved manuscripts...</div>
                     ) : visibleDashboardManuscripts.length === 0 ? (
-                      <div className="rounded-xl border border-stone-200 bg-white p-5 text-sm text-stone-500">
+                      <div className="rounded-xl border border-stone-300 bg-white p-5 text-base text-stone-700">
                         No saved manuscripts found yet. Use the Upload File tab to add one, or paste text directly.
                       </div>
                     ) : (
-                      visibleDashboardManuscripts.map((doc) => (
-                        <div
-                          key={doc.id}
-                          role="button"
-                          tabIndex={0}
-                          onClick={(event) => {
-                            if (event.target.closest("button") || event.target.closest("input")) return;
-                            toggleManuscriptSelection(doc.id);
-                          }}
-                          onKeyDown={(event) => {
-                            if (event.key === "Enter" || event.key === " ") {
-                              event.preventDefault();
+                      visibleDashboardManuscripts.map((doc) => {
+                        const isSelected = selectedManuscriptId === doc.id;
+                        return (
+                          <div
+                            key={doc.id}
+                            role="button"
+                            tabIndex={0}
+                            onClick={(event) => {
+                              if (event.target.closest("button") || event.target.closest("input")) return;
                               toggleManuscriptSelection(doc.id);
-                            }
-                          }}
-                          className={`cursor-pointer rounded-xl border p-3 ${
-                            selectedManuscriptId === doc.id ? "border-rg-gold bg-white shadow-sm" : "border-stone-200 bg-white/80"
-                          }`}
-                        >
-                          <div className="flex items-start gap-3">
-                            <input
-                              type="radio"
-                              name="dashboard-manuscript"
-                              checked={selectedManuscriptId === doc.id}
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                if (selectedManuscriptId === doc.id) {
-                                  event.preventDefault();
-                                  toggleManuscriptSelection(doc.id);
-                                }
-                              }}
-                              onChange={() => {
-                                if (selectedManuscriptId !== doc.id) toggleManuscriptSelection(doc.id);
-                              }}
-                              className="mt-1"
-                            />
-                            <div className="min-w-0 flex-1">
-                              <div className="font-medium text-sm text-stone-950">{doc.title || "Untitled Manuscript"}</div>
-                              <div className="text-xs text-stone-500">{formatWordCount(doc.word_count)} words · {doc.source ?? "saved manuscript"}</div>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={(event) => {
+                            }}
+                            onKeyDown={(event) => {
+                              if (event.key === "Enter" || event.key === " ") {
                                 event.preventDefault();
-                                event.stopPropagation();
-                                hideManuscriptHere(doc.id);
-                              }}
-                              className="rounded-md border border-stone-200 bg-stone-50 px-3 py-1.5 text-xs font-medium text-stone-600 hover:bg-stone-100"
-                            >
-                              Hide
-                            </button>
+                                toggleManuscriptSelection(doc.id);
+                              }
+                            }}
+                            className={`cursor-pointer rounded-xl border p-3.5 transition focus:outline-none focus:ring-2 focus:ring-[#A36A00]/25 ${
+                              isSelected ? "border-[#A36A00] bg-[#FFFDF8] shadow-sm" : "border-stone-300 bg-white hover:border-stone-400"
+                            }`}
+                          >
+                            <div className="flex min-h-[3.65rem] items-center gap-3">
+                              <input
+                                type="radio"
+                                name="dashboard-manuscript"
+                                checked={isSelected}
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  if (selectedManuscriptId === doc.id) {
+                                    event.preventDefault();
+                                    toggleManuscriptSelection(doc.id);
+                                  }
+                                }}
+                                onChange={() => {
+                                  if (selectedManuscriptId !== doc.id) toggleManuscriptSelection(doc.id);
+                                }}
+                                className="h-5 w-5 shrink-0 accent-[#A36A00]"
+                                aria-label={`Select ${doc.title || "Untitled Manuscript"}`}
+                              />
+                              <div className="min-w-0 flex-1">
+                                <div className="truncate text-base font-bold leading-6 text-stone-950">{doc.title || "Untitled Manuscript"}</div>
+                                <div className="text-[0.95rem] leading-5 text-stone-700">{formatWordCount(doc.word_count)} words · {doc.source ?? "saved manuscript"}</div>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={(event) => {
+                                  event.preventDefault();
+                                  event.stopPropagation();
+                                  hideManuscriptHere(doc.id);
+                                }}
+                                className="min-h-[38px] rounded-lg border border-stone-300 bg-stone-50 px-3 py-2 text-sm font-semibold text-stone-800 hover:bg-stone-100"
+                              >
+                                Hide
+                              </button>
+                            </div>
                           </div>
-                        </div>
-                      ))
+                        );
+                      })
                     )}
                   </div>
 
@@ -494,7 +505,7 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess }) {
                       type="button"
                       onClick={clearThisWindow}
                       disabled={isUploading || isSubmitting}
-                      className="rounded-md border border-stone-200 bg-white px-3 py-2 text-xs font-medium text-stone-600 hover:bg-stone-50 disabled:opacity-60"
+                      className="min-h-[40px] rounded-lg border border-stone-300 bg-white px-4 py-2 text-sm font-semibold text-stone-800 hover:bg-stone-50 disabled:opacity-60"
                     >
                       Hide all from this window
                     </button>
@@ -503,28 +514,28 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess }) {
               )}
 
               {activeInputMethod === "upload" && (
-                <div className="rounded-2xl border border-stone-200 bg-[#FBFAF7] p-6">
-                  <p className="font-rg-mono text-xs uppercase tracking-[0.18em] text-rg-gold">Upload file</p>
+                <div className="rounded-2xl border border-stone-300 bg-[#FBFAF7] p-5 md:p-6">
+                  <p className="font-rg-mono text-[0.78rem] font-bold uppercase tracking-[0.16em] text-[#8A5A00]">Upload file</p>
                   <h3 className="mt-2 font-rg-serif text-3xl text-stone-950">Upload a manuscript file</h3>
-                  <p className="mt-2 max-w-2xl text-sm leading-6 text-stone-600">
+                  <p className="mt-2 max-w-2xl text-base leading-7 text-stone-800">
                     Upload a DOCX or TXT file. RevisionGrade saves it to your workspace, selects it for this evaluation, and preserves the original file text as the evaluation source.
                   </p>
-                  <div className="mt-5 rounded-2xl border border-dashed border-stone-300 bg-white p-8 text-center">
+                  <div className="mt-5 rounded-2xl border border-dashed border-stone-400 bg-white p-8 text-center">
                     <button
                       type="button"
                       onClick={triggerDashboardUpload}
                       disabled={isUploading || isSubmitting}
-                      className="rounded-xl bg-rg-gold px-5 py-3 font-rg-mono text-xs font-semibold uppercase tracking-[0.16em] text-stone-950 shadow-sm hover:opacity-90 disabled:opacity-60"
+                      className="min-h-[50px] rounded-xl bg-[#A36A00] px-6 py-3 font-rg-mono text-sm font-bold uppercase tracking-[0.14em] text-white shadow-sm hover:bg-[#835400] disabled:opacity-60"
                     >
                       {isUploading ? "Uploading..." : "Choose File"}
                     </button>
-                    <p className="mt-3 text-xs text-stone-500">Supported uploads: DOCX and TXT. Files may be up to 250k words.</p>
+                    <p className="mt-3 text-base text-stone-700">Supported uploads: DOCX and TXT. Files may be up to 250k words.</p>
                   </div>
                   {selectedDashboardManuscript && (
                     <button
                       type="button"
                       onClick={() => handleInputMethodChange("saved")}
-                      className="mt-4 rounded-md border border-stone-300 bg-white px-3 py-2 text-xs font-medium text-stone-700 hover:bg-stone-50"
+                      className="mt-4 min-h-[42px] rounded-lg border border-stone-400 bg-white px-4 py-2 text-sm font-semibold text-stone-900 hover:bg-stone-50"
                     >
                       View in saved documents
                     </button>
@@ -533,13 +544,11 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess }) {
               )}
 
               {activeInputMethod === "paste" && (
-                <div className="rounded-2xl border border-stone-200 bg-[#FBFAF7] p-4">
-                  <div className="mb-2 flex items-center justify-between">
-                    <label htmlFor="manuscript-text" className="font-rg-serif text-2xl text-stone-950">
-                      Paste text
-                    </label>
-                  </div>
-                  <p className="mb-3 text-sm leading-6 text-stone-600">
+                <div className="rounded-2xl border border-stone-300 bg-[#FBFAF7] p-5">
+                  <label htmlFor="manuscript-text" className="font-rg-serif text-3xl text-stone-950">
+                    Paste text
+                  </label>
+                  <p className="mb-3 mt-2 text-base leading-7 text-stone-800">
                     Paste a paragraph, scene, chapter, excerpt, or full manuscript. This path creates an evaluation from pasted text without changing saved dashboard manuscripts.
                   </p>
                   <textarea
@@ -553,12 +562,12 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess }) {
                       }
                     }}
                     placeholder="Formatting is preserved where supported..."
-                    rows={14}
-                    className="w-full rounded-md border border-stone-300 bg-white px-3 py-2 text-sm text-stone-950"
+                    rows={12}
+                    className="w-full rounded-lg border border-stone-400 bg-white px-4 py-3 text-base leading-7 text-stone-950 placeholder:text-stone-500 focus:border-[#A36A00] focus:outline-none focus:ring-2 focus:ring-[#A36A00]/20"
                     disabled={isSubmitting}
                   />
-                  <p className="mt-2 text-xs text-stone-500">Current pasted word count: {formatWordCount(wordCount)}</p>
-                  <p className="text-xs text-stone-500">Paste up to 150k words.</p>
+                  <p className="mt-2 text-base text-stone-700">Current pasted word count: {formatWordCount(wordCount)}</p>
+                  <p className="text-base text-stone-700">Paste up to 150k words.</p>
                 </div>
               )}
 
@@ -585,81 +594,83 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess }) {
                 }}
               />
 
-              <div className="rounded-xl border border-stone-200 p-4">
-                <label className="mb-2 block text-sm font-medium text-stone-700">English Variant</label>
-                <select
-                  value={englishVariant}
-                  onChange={(e) => setEnglishVariant(e.target.value)}
-                  className="w-full rounded-md border border-stone-300 bg-white px-3 py-2 text-sm text-stone-950"
-                >
-                  <option value="us">US English</option>
-                  <option value="uk">UK English</option>
-                </select>
-              </div>
-
-              <div className="rounded-xl border border-stone-200 p-4">
-                <div className="mb-2 flex items-center gap-1.5">
-                  <label className="block text-sm font-medium text-stone-700">Manuscript Structure</label>
-                  <span className="group relative cursor-help">
-                    <span className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-stone-300 text-[10px] font-semibold text-stone-400">i</span>
-                    <span className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-2 w-72 -translate-x-1/2 rounded-lg border border-stone-200 bg-white p-3 text-xs leading-relaxed text-stone-600 opacity-0 shadow-lg transition-opacity group-hover:opacity-100">
-                      <strong className="block text-stone-800">Standalone story</strong>
-                      A self-contained narrative with its own beginning, middle, and ending — such as a short story, novelette, novella, or complete novel.
-                      <strong className="mt-2 block text-stone-800">Chapter(s) from a larger work</strong>
-                      An excerpt or section from a longer manuscript. The system won&apos;t penalize unresolved plot threads or open endings.
-                    </span>
-                  </span>
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="rounded-xl border border-stone-300 p-4">
+                  <label className="mb-2 block text-[0.95rem] font-semibold text-stone-900">English Variant</label>
+                  <select
+                    value={englishVariant}
+                    onChange={(e) => setEnglishVariant(e.target.value)}
+                    className="min-h-[48px] w-full rounded-lg border border-stone-400 bg-white px-4 py-2 text-base text-stone-950 focus:border-[#A36A00] focus:outline-none focus:ring-2 focus:ring-[#A36A00]/20"
+                  >
+                    <option value="us">US English</option>
+                    <option value="uk">UK English</option>
+                  </select>
                 </div>
-                <div className="space-y-2">
-                  <label className="flex items-start gap-2 rounded-md px-2 py-1.5 text-sm text-stone-700 hover:bg-stone-50">
-                    <input
-                      type="radio"
-                      name="manuscriptStructure"
-                      value="chapters"
-                      checked={manuscriptStructure === "chapters"}
-                      onChange={() => setManuscriptStructure("chapters")}
-                      className="mt-0.5"
-                    />
-                    <span>Chapter(s) from a larger work</span>
-                  </label>
-                  <label className="flex items-start gap-2 rounded-md px-2 py-1.5 text-sm text-stone-700 hover:bg-stone-50">
-                    <input
-                      type="radio"
-                      name="manuscriptStructure"
-                      value="standalone"
-                      checked={manuscriptStructure === "standalone"}
-                      onChange={() => setManuscriptStructure("standalone")}
-                      className="mt-0.5"
-                    />
-                    <span>Standalone story</span>
-                  </label>
+
+                <div className="rounded-xl border border-stone-300 p-4">
+                  <div className="mb-2 flex items-center gap-2">
+                    <label className="block text-[0.95rem] font-semibold text-stone-900">Manuscript Structure</label>
+                    <span className="group relative cursor-help">
+                      <span className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-stone-400 text-xs font-bold text-stone-700">i</span>
+                      <span className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-2 w-80 -translate-x-1/2 rounded-lg border border-stone-300 bg-white p-3 text-sm leading-relaxed text-stone-800 opacity-0 shadow-lg transition-opacity group-hover:opacity-100">
+                        <strong className="block text-stone-950">Standalone story</strong>
+                        A self-contained narrative with its own beginning, middle, and ending — such as a short story, novelette, novella, or complete novel.
+                        <strong className="mt-2 block text-stone-950">Chapter(s) from a larger work</strong>
+                        An excerpt or section from a longer manuscript. The system won&apos;t penalize unresolved plot threads or open endings.
+                      </span>
+                    </span>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="flex min-h-[38px] items-center gap-3 rounded-md px-2 py-1.5 text-base text-stone-900 hover:bg-stone-50">
+                      <input
+                        type="radio"
+                        name="manuscriptStructure"
+                        value="chapters"
+                        checked={manuscriptStructure === "chapters"}
+                        onChange={() => setManuscriptStructure("chapters")}
+                        className="h-5 w-5 accent-[#A36A00]"
+                      />
+                      <span>Chapter(s) from a larger work</span>
+                    </label>
+                    <label className="flex min-h-[38px] items-center gap-3 rounded-md px-2 py-1.5 text-base text-stone-900 hover:bg-stone-50">
+                      <input
+                        type="radio"
+                        name="manuscriptStructure"
+                        value="standalone"
+                        checked={manuscriptStructure === "standalone"}
+                        onChange={() => setManuscriptStructure("standalone")}
+                        className="h-5 w-5 accent-[#A36A00]"
+                      />
+                      <span>Standalone story</span>
+                    </label>
+                  </div>
                 </div>
               </div>
             </section>
 
             <aside className="space-y-4">
-              <div className="rounded-2xl border border-rg-gold/30 bg-[#FBFAF7] p-5">
-                <p className="font-rg-mono text-[0.65rem] uppercase tracking-[0.16em] text-rg-gold">Selected writing</p>
-                <h4 className="mt-2 font-rg-serif text-2xl text-stone-950">{submissionSourceSummary.title}</h4>
-                <p className="mt-2 text-xs font-semibold uppercase tracking-[0.12em] text-stone-500">{submissionSourceSummary.label}</p>
-                <p className="mt-2 text-sm font-medium text-stone-700">{submissionSourceSummary.meta}</p>
-                <p className="mt-2 text-xs leading-5 text-stone-600">{submissionSourceSummary.body}</p>
+              <div className="rounded-2xl border border-[#A36A00]/45 bg-[#FFF8E8] p-5">
+                <p className="font-rg-mono text-[0.78rem] font-bold uppercase tracking-[0.14em] text-[#8A5A00]">Selected writing</p>
+                <h4 className="mt-2 font-rg-serif text-2xl leading-tight text-stone-950">{submissionSourceSummary.title}</h4>
+                <p className="mt-2 text-sm font-bold uppercase tracking-[0.08em] text-stone-800">{submissionSourceSummary.label}</p>
+                <p className="mt-2 text-base font-bold text-stone-950">{submissionSourceSummary.meta}</p>
+                <p className="mt-2 text-base leading-6 text-stone-800">{submissionSourceSummary.body}</p>
               </div>
 
-              <div className="rounded-2xl border border-rg-gold/30 bg-[#FBFAF7] p-5">
-                <p className="font-rg-mono text-[0.65rem] uppercase tracking-[0.16em] text-rg-gold">Estimated Mode</p>
-                <h4 className="mt-2 font-rg-serif text-2xl text-stone-950">{evaluationMode.label}</h4>
-                <p className="mt-2 text-sm font-medium text-stone-700">{evaluationMode.summary}</p>
-                <p className="mt-2 text-xs leading-5 text-stone-600">{evaluationMode.detail}</p>
-                <p className="mt-4 text-xs text-stone-500">Detected/selected words: {formatWordCount(activeWordCount)}</p>
+              <div className="rounded-2xl border border-[#A36A00]/45 bg-[#FFF8E8] p-5">
+                <p className="font-rg-mono text-[0.78rem] font-bold uppercase tracking-[0.14em] text-[#8A5A00]">Estimated mode</p>
+                <h4 className="mt-2 font-rg-serif text-2xl leading-tight text-stone-950">{evaluationMode.label}</h4>
+                <p className="mt-2 text-base font-bold text-stone-950">{evaluationMode.summary}</p>
+                <p className="mt-2 text-base leading-6 text-stone-800">{evaluationMode.detail}</p>
+                <p className="mt-4 text-base font-bold text-stone-950">Detected/selected words: {formatWordCount(activeWordCount)}</p>
               </div>
-              <div className="rounded-2xl border border-stone-200 bg-white p-5">
-                <h4 className="font-rg-serif text-2xl text-stone-950">How evaluation works</h4>
-                <p className="mt-2 text-sm leading-6 text-stone-600">RevisionGrade diagnoses readiness before revision. It does not assume every submission needs the same depth of analysis.</p>
-              </div>
-              <div className="rounded-2xl border border-stone-200 bg-white p-5">
-                <h4 className="font-rg-serif text-2xl text-stone-950">Best results</h4>
-                <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-stone-600">
+
+              <div className="rounded-2xl border border-stone-300 bg-white p-5">
+                <h4 className="font-rg-serif text-2xl text-stone-950">Guidance</h4>
+                <p className="mt-2 text-base leading-7 text-stone-800">
+                  RevisionGrade diagnoses readiness before revision. It does not assume every submission needs the same depth of analysis.
+                </p>
+                <ul className="mt-3 list-disc space-y-2 pl-5 text-base leading-6 text-stone-800">
                   <li>Use complete scenes or chapters when possible.</li>
                   <li>Full manuscripts enable long-form continuity analysis.</li>
                   <li>Short excerpts receive criteria-based story diagnosis only.</li>
@@ -668,7 +679,7 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess }) {
             </aside>
           </div>
 
-          <label className="mt-6 flex gap-3 rounded-2xl border border-rg-gold/30 bg-[#FBFAF7] p-4 text-left">
+          <label className="mt-5 flex gap-3 rounded-2xl border border-[#A36A00]/40 bg-[#FFF8E8] p-4 text-left">
             <input
               type="checkbox"
               checked={processingTermsAccepted}
@@ -677,26 +688,26 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess }) {
                 if (event.target.checked) setError(null);
               }}
               disabled={isSubmitting || isUploading}
-              className="mt-1"
+              className="mt-1 h-5 w-5 shrink-0 accent-[#A36A00]"
             />
-            <span className="text-sm leading-6 text-stone-700">
+            <span className="text-base leading-7 text-stone-900">
               I understand that RevisionGrade evaluations are custom digital services, that processing starts after submission, and that I agree to the processing and refund terms.
-              <a href="/terms" className="ml-1 font-semibold text-rg-gold hover:text-stone-950" target="_blank" rel="noreferrer">
+              <a href="/terms" className="ml-1 font-bold text-[#7A4F00] underline underline-offset-2 hover:text-stone-950" target="_blank" rel="noreferrer">
                 Read terms.
               </a>
             </span>
           </label>
 
           {error && (
-            <div className="mt-4 rounded-md border border-red-200 bg-red-50 p-3">
-              <p className="text-sm text-red-800">{error}</p>
+            <div className="mt-4 rounded-lg border border-red-300 bg-red-50 p-4">
+              <p className="text-base font-semibold text-red-900">{error}</p>
             </div>
           )}
 
           <button
             type="submit"
             disabled={isSubmitting || isUploading || !processingTermsAccepted}
-            className="mt-6 w-full rounded-xl bg-rg-gold px-6 py-4 font-rg-mono text-xs font-semibold uppercase tracking-[0.18em] text-stone-950 shadow-sm hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+            className="mt-5 min-h-[56px] w-full rounded-xl bg-[#A36A00] px-6 py-4 font-rg-mono text-base font-bold uppercase tracking-[0.16em] text-white shadow-sm transition hover:bg-[#835400] disabled:cursor-not-allowed disabled:bg-stone-300 disabled:text-stone-700 disabled:opacity-100"
           >
             {isSubmitting ? "Starting Evaluation..." : "Begin Editorial Evaluation"}
           </button>

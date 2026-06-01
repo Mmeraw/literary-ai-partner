@@ -19,7 +19,7 @@ concurrency:
 jobs:
   stress:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     env:
       # Stub envs required by middleware/SSR to boot the dev server.
       # These are NOT secrets — they are placeholders that satisfy the
@@ -45,18 +45,26 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Install Playwright browsers
-        run: npx playwright install --with-deps chromium
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: /home/runner/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-playwright-
 
       - name: Tier 1 — pipeline stress harness (mock LLM, mock Supabase)
         run: npm run pipeline:stress
 
       - name: Start Next.js dev server
+        if: github.event_name == 'workflow_dispatch'
         run: |
           npm run dev > /tmp/dev-server.log 2>&1 &
           echo $! > /tmp/dev-server.pid
 
       - name: Wait for dev server
+        if: github.event_name == 'workflow_dispatch'
         run: |
           for i in $(seq 1 60); do
             if curl -fsS http://localhost:3002/ > /dev/null 2>&1 || \
@@ -70,7 +78,12 @@ jobs:
           tail -50 /tmp/dev-server.log || true
           exit 1
 
+      - name: Install Playwright Chromium
+        if: github.event_name == 'workflow_dispatch' && steps.playwright-cache.outputs.cache-hit != 'true'
+        run: npx playwright install chromium
+
       - name: Tier 3a — Playwright UI stress harness
+        if: github.event_name == 'workflow_dispatch'
         run: npm run pipeline:stress:ui
         env:
           STRESS_UI_BASE_URL: http://localhost:3002

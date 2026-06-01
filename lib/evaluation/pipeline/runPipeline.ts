@@ -225,6 +225,12 @@ export interface RunPipelineOptions {
    * author input that takes precedence over AI extraction.
    */
   _authorCorrectionsBlock?: string | null;
+  /**
+   * Optional LLR recovery mode hint propagated by processor retries.
+   * Currently observational in runPipeline (no control-flow branch), but
+   * kept in the contract so processor callsites remain type-safe.
+   */
+  _llrRecoveryMode?: 'none' | 'safe_rewrite';
 }
 
 const DEFAULT_MAX_MANUSCRIPT_CHARS = 3_000_000;

@@ -1,8 +1,10 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getAuthenticatedUser } from "@/lib/supabase/server";
 import { createDerivedVersion } from "@/lib/manuscripts/versions";
+import { resolveFinalReviewSourceText, scrubInternalReportLeakage } from "@/lib/revision/finalReviewSourceText";
 
 export type FinalReviewExportFormat = "clean" | "marked" | "changelog";
+export type FinalReviewExportFile = "txt" | "pdf" | "docx";
 
 export type FinalReviewRuntimeInput = {
   manuscriptId: string | number;
@@ -96,6 +98,14 @@ async function loadRuntimeContext(input: FinalReviewRuntimeInput): Promise<Runti
     if (!latestByOpportunity.has(row.opportunity_id)) latestByOpportunity.set(row.opportunity_id, row);
   }
 
+  const sourceText = await resolveFinalReviewSourceText({
+    supabase,
+    manuscriptId,
+    userId: user.id,
+    sourceVersionId: job.manuscript_version_id,
+    fallbackRawText: version.raw_text ?? "",
+  });
+
   return {
     supabase,
     userId: user.id,
@@ -103,7 +113,7 @@ async function loadRuntimeContext(input: FinalReviewRuntimeInput): Promise<Runti
     manuscriptTitle: manuscript.title ?? "Untitled Manuscript",
     evaluationJobId: String(input.evaluationJobId),
     sourceVersionId: job.manuscript_version_id,
-    sourceText: version.raw_text ?? "",
+    sourceText,
     decisions: [...latestByOpportunity.values()],
   };
 }
@@ -112,14 +122,24 @@ function applicableDecisions(decisions: RuntimeDecision[]): RuntimeDecision[] {
   return decisions.filter((d) => APPLICABLE.has(d.decision));
 }
 
+function decisionLabel(decision: RuntimeDecision): string {
+  if (decision.decision === "accepted_a" || decision.decision === "accepted_b" || decision.decision === "accepted_c") return `Accepted ${decision.selected_option ?? ""}`.trim();
+  if (decision.decision === "custom") return "Custom rewrite";
+  if (decision.decision === "keep_original") return "Kept original";
+  if (decision.decision === "reject") return "Rejected";
+  if (decision.decision === "deferred") return "Deferred";
+  return decision.decision;
+}
+
+function cleanLocation(value: string | null): string | null {
+  if (!value) return null;
+  if (/^[A-Z_]+:recommendation$/i.test(value)) return null;
+  if (/^[A-Z_]+:[a-z_]+$/i.test(value)) return null;
+  return value;
+}
+
 function buildChangelog(ctx: RuntimeContext): string {
-  const lines = [
-    `RevisionGrade Final Review Changelog`,
-    `Manuscript: ${ctx.manuscriptTitle}`,
-    `Evaluation Job: ${ctx.evaluationJobId}`,
-    `Generated: ${new Date().toISOString()}`,
-    "",
-  ];
+  const lines = ["RevisionGrade Final Review Changelog", `Manuscript: ${ctx.manuscriptTitle}`, ""];
 
   if (ctx.decisions.length === 0) {
     lines.push("No synced revision decisions were found.");
@@ -127,13 +147,13 @@ function buildChangelog(ctx: RuntimeContext): string {
   }
 
   for (const decision of ctx.decisions) {
-    lines.push(`- ${decision.decision.toUpperCase()} — ${decision.opportunity_title}`);
-    if (decision.selected_option) lines.push(`  Option: ${decision.selected_option}`);
-    if (decision.source_location) lines.push(`  Location: ${decision.source_location}`);
-    if (decision.source_excerpt) lines.push(`  Source: ${decision.source_excerpt}`);
-    if (decision.selected_text) lines.push(`  Selected text: ${decision.selected_text}`);
-    if (decision.custom_text) lines.push(`  Custom text: ${decision.custom_text}`);
-    lines.push(`  Created: ${decision.created_at}`);
+    lines.push(`${decisionLabel(decision)} — ${decision.opportunity_title}`);
+    if (decision.selected_option) lines.push(`Option: ${decision.selected_option}`);
+    const location = cleanLocation(decision.source_location);
+    if (location) lines.push(`Location: ${location}`);
+    if (decision.source_excerpt) lines.push(`Original: ${scrubInternalReportLeakage(decision.source_excerpt)}`);
+    if (decision.selected_text) lines.push(`Selected revision: ${scrubInternalReportLeakage(decision.selected_text)}`);
+    if (decision.custom_text) lines.push(`Custom text: ${scrubInternalReportLeakage(decision.custom_text)}`);
     lines.push("");
   }
 
@@ -141,27 +161,41 @@ function buildChangelog(ctx: RuntimeContext): string {
 }
 
 function buildMarkedText(ctx: RuntimeContext): string {
-  const lines = [
-    `RevisionGrade Marked Review Copy`,
+  if (!ctx.sourceText.trim()) {
+    return [
+      "RevisionGrade Marked Review Copy",
+      `Manuscript: ${ctx.manuscriptTitle}`,
+      "",
+      "Full manuscript source text is unavailable for this legacy evaluation. Use the changelog export to review synced decisions.",
+      "",
+      "Revision Changelog",
+      buildChangelog(ctx),
+    ].join("\n");
+  }
+
+  return [
+    "RevisionGrade Marked Review Copy",
     `Manuscript: ${ctx.manuscriptTitle}`,
-    `Generated: ${new Date().toISOString()}`,
     "",
     ctx.sourceText,
     "",
-    "--- Revision Changelog ---",
+    "Revision Changelog",
     buildChangelog(ctx),
-  ];
-  return lines.join("\n");
+  ].join("\n");
 }
 
 function applyTextSnapshots(ctx: RuntimeContext): { text: string; applied: RuntimeDecision[]; blocked: string[] } {
-  let text = ctx.sourceText;
+  let text = scrubInternalReportLeakage(ctx.sourceText);
   const applied: RuntimeDecision[] = [];
   const blocked: string[] = [];
 
+  if (!text.trim()) {
+    return { text: "", applied, blocked: ["Full manuscript source text is unavailable for this legacy evaluation."] };
+  }
+
   for (const decision of applicableDecisions(ctx.decisions)) {
-    const replacement = decision.decision === "custom" ? decision.custom_text : decision.selected_text;
-    const source = decision.source_excerpt;
+    const replacement = scrubInternalReportLeakage(decision.decision === "custom" ? decision.custom_text ?? "" : decision.selected_text ?? "");
+    const source = scrubInternalReportLeakage(decision.source_excerpt ?? "");
 
     if (!replacement || !source) {
       blocked.push(`${decision.opportunity_title}: missing source excerpt or selected replacement text.`);
@@ -243,10 +277,11 @@ export async function applyFinalReviewDecisions(input: FinalReviewRuntimeInput) 
   return { ok: true, revisedVersionId: version.id, appliedCount: result.applied.length };
 }
 
-export async function buildFinalReviewExport(input: FinalReviewRuntimeInput & { format: FinalReviewExportFormat }) {
+export async function buildFinalReviewExport(input: FinalReviewRuntimeInput & { format: FinalReviewExportFormat; file?: FinalReviewExportFile }) {
   const ctx = await loadRuntimeContext(input);
   const applied = applyTextSnapshots(ctx);
   const format = input.format;
+  const file = input.file ?? "txt";
   let content = "";
   let suffix = "";
 
@@ -257,8 +292,10 @@ export async function buildFinalReviewExport(input: FinalReviewRuntimeInput & { 
     content = buildMarkedText(ctx);
     suffix = "marked-review-copy";
   } else {
-    if (applied.blocked.length > 0) {
-      content = `${ctx.sourceText}\n\n--- RevisionGrade Clean Draft Notice ---\nClean export could not apply all decisions because some accepted/custom decisions are missing source/replacement snapshots. Exported source text unchanged.\n\n${applied.blocked.join("\n")}`;
+    if (!ctx.sourceText.trim()) {
+      content = "Clean Draft export is unavailable because the full manuscript source text is not connected for this legacy evaluation. Use the Revision Changelog export to review synced decisions.";
+    } else if (applied.blocked.length > 0) {
+      content = `Clean Draft export is blocked until all accepted/custom decisions can be matched to the source manuscript.\n\n${applied.blocked.join("\n")}`;
     } else {
       content = applied.text;
     }
@@ -270,8 +307,8 @@ export async function buildFinalReviewExport(input: FinalReviewRuntimeInput & { 
     mode: format === "clean" ? "export_clean" : format === "marked" ? "export_marked" : "export_changelog",
     appliedDecisionIds: applied.applied.map((d) => d.id),
     skippedDecisionIds: ctx.decisions.filter((d) => !APPLICABLE.has(d.decision)).map((d) => d.id),
-    exportFormat: "txt",
-    metadata: { export_kind: format, blocked: applied.blocked },
+    exportFormat: file,
+    metadata: { export_kind: format, requested_file: file, blocked: applied.blocked },
   });
 
   return {

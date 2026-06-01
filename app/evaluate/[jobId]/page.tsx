@@ -31,6 +31,7 @@ import { resolveReportTitle } from "@/lib/evaluation/reportTitle";
 import { safeTruncateToWordBoundary } from "@/lib/evaluation/reportRenderSafety";
 import CriterionOpportunities from "@/components/evaluation/CriterionOpportunities";
 import { hasActiveSupportGrant, logSupportView } from "@/lib/support/checkSupportAccess";
+import { canViewEvaluationOperationalDetails } from "@/lib/auth/evaluationOperationalAccess";
 import type { LongformDreamDocument } from "@/lib/evaluation/pipeline/runPass3bLongform";
 
 type Job = {
@@ -220,6 +221,32 @@ async function getManuscriptTitleById(manuscriptId?: number): Promise<string | n
     return title && title.length > 0 ? title : null;
   } catch (err) {
     console.warn(`[getManuscriptTitleById] Unexpected error for manuscript ${manuscriptId}:`, err);
+    return null;
+  }
+}
+
+async function getManuscriptWordCountById(manuscriptId?: number): Promise<number | null> {
+  if (!Number.isFinite(manuscriptId) || (manuscriptId as number) <= 0) {
+    return null;
+  }
+
+  try {
+    const supabase = createAdminClient();
+    const { data, error } = await supabase
+      .from("manuscripts")
+      .select("word_count")
+      .eq("id", manuscriptId)
+      .maybeSingle();
+
+    if (error) {
+      console.warn(`[getManuscriptWordCountById] Failed to load manuscript ${manuscriptId}:`, error.message);
+      return null;
+    }
+
+    const wordCount = data?.word_count;
+    return typeof wordCount === "number" && wordCount > 0 ? wordCount : null;
+  } catch (err) {
+    console.warn(`[getManuscriptWordCountById] Unexpected error for manuscript ${manuscriptId}:`, err);
     return null;
   }
 }
@@ -458,6 +485,7 @@ export default async function EvaluationReportPage({
 
   const userRole = (sessionUser?.app_metadata as Record<string, unknown> | undefined)?.role;
   const isAdminRole = userRole === 'admin' || userRole === 'superadmin';
+    const canSeeOperationalDetails = canViewEvaluationOperationalDetails(sessionUser);
   const isOwner = job.user_id === ownerId;
   const activeGrant = isAdminRole ? await hasActiveSupportGrant(jobId) : null;
   const hasSupportAccess = isAdminRole && !!activeGrant;
@@ -543,7 +571,8 @@ export default async function EvaluationReportPage({
     // Seed unit counters for accurate early/late phase_1a label selection.
     ...(typeof job.total_units === 'number' ? { total_units: job.total_units } : {}),
     ...(typeof job.completed_units === 'number' ? { completed_units: job.completed_units } : {}),
-    ...(job.last_error ? { last_error: job.last_error } : {}),
+    ...(job.last_error && canSeeOperationalDetails ? { last_error: job.last_error } : {}),
+    can_view_operational_details: canSeeOperationalDetails,
     // Seed review-gate quality signal and word count for immediate correct display.
     ...(progressHardFail !== null ? { hard_fail_present: progressHardFail } : {}),
     ...(pollerWordCount !== null ? { manuscript_word_count: pollerWordCount } : {}),
@@ -566,7 +595,8 @@ export default async function EvaluationReportPage({
   const manuscriptTitle =
     getRelatedManuscriptTitle(job) || (await getManuscriptTitleById(job.manuscript_id));
   const { displayTitle } = resolveReportTitle({ chapterTitle, manuscriptTitle });
-  const wordCount = artifact?.metrics?.manuscript?.word_count ?? null;
+  const manuscriptWordCount = await getManuscriptWordCountById(job.manuscript_id);
+  const wordCount = artifact?.metrics?.manuscript?.word_count ?? manuscriptWordCount ?? null;
   const isLongForm = typeof wordCount === "number" && wordCount >= DREAM_WORD_COUNT_THRESHOLD;
   const dreamDoc = isComplete && isLongForm ? await getDreamArtifact(jobId) : null;
   const hasDetectedMode = Boolean(artifact?.detected_mode);
@@ -646,19 +676,37 @@ export default async function EvaluationReportPage({
         />
       </section>
 
-      {job.status === "failed" && job.last_error ? (
-        <section className="rounded-lg border border-red-200 bg-red-50 p-5">
-          <h2 className="text-lg font-semibold text-red-900">Evaluation failed</h2>
-          <p className="mt-2 text-sm text-red-800">{job.last_error}</p>
-          <div className="mt-4">
-            <Link
-              href="/evaluate"
-              className="inline-flex rounded-md border border-red-300 px-3 py-2 text-sm font-medium text-red-900"
-            >
-              Return to job list
-            </Link>
-          </div>
-        </section>
+      {job.status === "failed" ? (
+        canSeeOperationalDetails && job.last_error ? (
+          <section className="rounded-lg border border-red-200 bg-red-50 p-5">
+            <h2 className="text-lg font-semibold text-red-900">Evaluation failed</h2>
+            <p className="mt-2 text-sm text-red-800">{job.last_error}</p>
+            <div className="mt-4">
+              <Link
+                href="/evaluate"
+                className="inline-flex rounded-md border border-red-300 px-3 py-2 text-sm font-medium text-red-900"
+              >
+                Return to job list
+              </Link>
+            </div>
+          </section>
+        ) : (
+          <section className="rounded-lg border border-amber-200 bg-amber-50 p-5">
+            <h2 className="text-lg font-semibold text-amber-900">Evaluation needs attention</h2>
+            <p className="mt-2 text-sm text-amber-800">
+              This evaluation could not be completed. Please start a new evaluation or contact
+              support if the problem continues.
+            </p>
+            <div className="mt-4">
+              <Link
+                href="/evaluate"
+                className="inline-flex rounded-md border border-amber-300 px-3 py-2 text-sm font-medium text-amber-900"
+              >
+                Start New Evaluation
+              </Link>
+            </div>
+          </section>
+        )
       ) : !isComplete ? (
         job.phase === 'review_gate' ? (
           <section

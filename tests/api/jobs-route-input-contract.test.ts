@@ -105,14 +105,30 @@ describe("POST /api/jobs input contract", () => {
   });
 
   test("accepts text-only input and creates fresh manuscript-backed job", async () => {
+    const updateMock = jest.fn(() => ({
+      eq: jest.fn(async () => ({ error: null })),
+    }));
+
     const supabase = {
-      from: jest.fn(() => ({
-        insert: jest.fn(() => ({
-          select: () => ({
-            single: async () => ({ data: { id: 321 }, error: null }),
-          }),
-        })),
-      })),
+      from: jest.fn((table: string) => {
+        if (table === "manuscripts") {
+          return {
+            insert: jest.fn(() => ({
+              select: () => ({
+                single: async () => ({ data: { id: 321 }, error: null }),
+              }),
+            })),
+          };
+        }
+
+        if (table === "evaluation_jobs") {
+          return {
+            update: updateMock,
+          };
+        }
+
+        throw new Error(`Unexpected table in test mock: ${table}`);
+      }),
     };
 
     mockCreateAdminClient.mockReturnValue(supabase as never);
@@ -186,6 +202,40 @@ describe("POST /api/jobs input contract", () => {
   });
 
   test("accepts manuscript_id-only payload and does not create a new manuscript row", async () => {
+    const updateMock = jest.fn(() => ({
+      eq: jest.fn(async () => ({ error: null })),
+    }));
+
+    const insertMock = jest.fn(() => {
+      throw new Error("Unexpected manuscripts.insert in manuscript_id-only path");
+    });
+
+    const supabase = {
+      from: jest.fn((table: string) => {
+        if (table === "manuscripts") {
+          return {
+            insert: insertMock,
+            select: jest.fn(() => ({
+              eq: jest.fn(() => ({
+                eq: jest.fn(() => ({
+                  maybeSingle: async () => ({ data: { word_count: 4412 }, error: null }),
+                })),
+              })),
+            })),
+          };
+        }
+
+        if (table === "evaluation_jobs") {
+          return {
+            update: updateMock,
+          };
+        }
+
+        throw new Error(`Unexpected table in test mock: ${table}`);
+      }),
+    };
+
+    mockCreateAdminClient.mockReturnValue(supabase as never);
     mockCreateJob.mockResolvedValue({
       id: "job-1002",
       manuscript_id: 1002,
@@ -217,7 +267,70 @@ describe("POST /api/jobs input contract", () => {
         job_type: "evaluate_full",
       }),
     );
-    expect(mockCreateAdminClient).not.toHaveBeenCalled();
+    expect(insertMock).not.toHaveBeenCalled();
+  });
+
+  test("seeds explicit phase0 bypass marker for short-form fast-track jobs", async () => {
+    const updateMock = jest.fn(() => ({
+      eq: jest.fn(async () => ({ error: null })),
+    }));
+
+    const supabase = {
+      from: jest.fn((table: string) => {
+        if (table === "manuscripts") {
+          return {
+            select: jest.fn(() => ({
+              eq: jest.fn(() => ({
+                eq: jest.fn(() => ({
+                  maybeSingle: async () => ({ data: { word_count: 4412 }, error: null }),
+                })),
+              })),
+            })),
+          };
+        }
+
+        if (table === "evaluation_jobs") {
+          return {
+            update: updateMock,
+          };
+        }
+
+        throw new Error(`Unexpected table in test mock: ${table}`);
+      }),
+    };
+
+    mockCreateAdminClient.mockReturnValue(supabase as never);
+    mockCreateJob.mockResolvedValue({
+      id: "job-fast-track",
+      manuscript_id: 1234,
+      job_type: "evaluate_full",
+      status: "queued",
+      progress: {},
+    } as never);
+    mockFetch.mockResolvedValue({ ok: true } as Response);
+
+    const req = new Request("https://example.test/api/jobs", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        manuscript_id: 1234,
+        job_type: "evaluate_full",
+        processing_terms_accepted: true,
+      }),
+    });
+
+    const response = await POST(req);
+    expect(response.status).toBe(201);
+
+    expect(updateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        progress: expect.objectContaining({
+          phase0_fast_track: true,
+          phase0_fast_track_reason: "short_form_under_25000_words",
+          phase0_bypass_reason: "short_form_policy_fast_track",
+        }),
+      }),
+    );
   });
 
   test("returns 201 and logs a warning when worker kickoff fetch rejects", async () => {

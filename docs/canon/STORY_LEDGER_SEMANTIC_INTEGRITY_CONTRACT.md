@@ -184,29 +184,44 @@ Hard rule:
 
 ## Pronoun rules
 
-Pronoun shift detection must normalize pronoun families before comparison.
+Pronoun handling must be family-based, extensible, and evidence-driven. RevisionGrade must not pretend to enumerate the entire gamut of possible pronouns.
 
-Families:
+Core principles:
 
-- `he/him/his/himself` = `masculine_singular`
-- `she/her/hers/herself` = `feminine_singular`
-- `they/them/their/theirs/themselves` = `neutral_or_plural`
-- `I/me/my/mine` = `first_person`
-- `it/its/itself` = `nonhuman_or_object`
+- Pronouns are identity metadata, not legal names, aliases, assumed names, descriptors, or forms of address.
+- Known pronoun families may be normalized for comparison, but original pronoun strings must be preserved for display and traceability.
+- Custom, neopronoun, uncommon, or unrecognized pronoun strings must not be treated as errors by default.
+- Unknown pronoun does not equal wrong pronoun. It means preserve the signal and warn only if manuscript evidence creates identity, continuity, or referent ambiguity.
+- Pronoun warnings must depend on manuscript evidence, not dictionary completeness.
 
-Allowed non-shifts:
+Recognized common families include, but are not limited to:
 
-- `he/him`
-- `she/her`
-- `they/them`
-- `I/me`
+- `he/him/his/himself` = masculine family
+- `she/her/hers/herself` = feminine family
+- `they/them/their/theirs/themself/themselves` = neutral or plural family
+- `I/me/my/mine` = first-person family
+- `it/its/itself` = nonhuman, object, creature, or dehumanizing-use family depending on manuscript evidence
+- neopronoun or custom sets = preserved as supplied and normalized only when a family mapping is known
 
-Review-required shifts:
+Allowed non-shifts / non-errors by default:
 
-- `he/she`
-- `he/they`
-- `she/they`
-- human `he/she/they` → `it`
+- stable family variants such as `he/him`, `she/her`, `they/them`, and `I/me`
+- mixed pronoun sets such as `he/they` or `she/they` when the manuscript presents them as one character’s stable pronoun set
+- custom or uncommon pronouns when they are used consistently or do not create referent ambiguity
+
+Review-required cases:
+
+- cross-family contradiction across chunks, such as one character moving from `he/him` to `she/her` without supporting identity or transition evidence
+- unclear referent ownership where the system cannot determine which character a pronoun belongs to
+- conflicting character identity caused by pronoun evidence
+- human pronoun shifting to `it` when the manuscript does not support nonhuman, object, creature, or intentional dehumanizing usage
+- unresolved custom or unknown pronoun signals that affect identity tracking, continuity, or reader comprehension
+
+Author-facing rule:
+
+- Stable pronoun usage belongs in hidden normalization, not author burden.
+- The Story Ledger should surface only reviewable pronoun-family transitions, unresolved referent ownership, or identity conflicts.
+- Final evaluation reports should mention pronouns only when they affect clarity, continuity, referent ownership, identity tracking, or reader comprehension.
 
 ## Relationship rules
 

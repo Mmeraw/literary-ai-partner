@@ -1,8 +1,11 @@
+import Link from "next/link";
 import { getWorkbenchQueue } from "@/lib/revision/workbenchQueue";
-import ReviseCockpitClient from "@/components/revision/ReviseCockpitClient";
+import ReviseCockpitClientWorkflowV2 from "@/components/revision/ReviseCockpitClientWorkflowV2";
+import TrustedPathWorkbenchButton from "@/components/revision/TrustedPathWorkbenchButton";
 import { buildRevisionOpportunityLedger, persistRevisionOpportunityLedger } from "@/lib/revision/revisionOpportunityLedgerArtifact";
 import { redirect } from "next/navigation";
 import { resolveWorkbenchRouteTargetForUser } from "@/lib/revision/workbenchQueue";
+import styles from "./workbench-v2.module.css";
 
 export default async function WorkbenchV2Page({ searchParams }: { searchParams?: Promise<Record<string, string | string[] | undefined>> }) {
   const params = (await searchParams) ?? {};
@@ -31,5 +34,18 @@ export default async function WorkbenchV2Page({ searchParams }: { searchParams?:
       console.error("Failed to persist revision_opportunity_ledger_v1", error);
     }
   }
-  return <ReviseCockpitClient payload={payload} />;
+
+  const finalReviewHref = manuscriptId && evaluationJobId
+    ? `/workbench/final-review?${new URLSearchParams({ manuscriptId, evaluationJobId }).toString()}`
+    : "/workbench/final-review";
+
+  return (
+    <div className={`workbench-v2-route ${styles.route}`}>
+      <Link href={finalReviewHref} className="workbench-v2-final-review-link fixed right-6 top-[82px] z-50 rounded border border-[#C8A96E] bg-[#1C160E] px-4 py-2.5 text-xs font-semibold text-[#F3E3C3] shadow-lg hover:bg-[#2A2115]">
+        Final Review / Apply & Export
+      </Link>
+      <TrustedPathWorkbenchButton manuscriptId={manuscriptId ?? null} evaluationJobId={evaluationJobId ?? null} disabled={!payload.ok} />
+      <ReviseCockpitClientWorkflowV2 payload={payload} />
+    </div>
+  );
 }

@@ -17,6 +17,7 @@ const {
   toPhaseV2ArtifactSet,
   derivePhaseV2ReviewGateProgress,
   shouldRequeueReviewGateBlock,
+  shouldRequireStoryLedgerReviewGate,
 } = require("../../../lib/evaluation/processor");
 const { CRITERIA_KEYS } = require("../../../schemas/criteria-keys");
 
@@ -407,6 +408,15 @@ describe("SLA helpers", () => {
 });
 
 describe("Review Gate wiring helpers", () => {
+  test("Story Ledger user-facing gate requires >= 25,000 words", () => {
+    expect(shouldRequireStoryLedgerReviewGate(4412)).toBe(false);
+    expect(shouldRequireStoryLedgerReviewGate(24999)).toBe(false);
+    expect(shouldRequireStoryLedgerReviewGate(25000)).toBe(true);
+    expect(shouldRequireStoryLedgerReviewGate(80000)).toBe(true);
+    expect(shouldRequireStoryLedgerReviewGate(null)).toBe(false);
+    expect(shouldRequireStoryLedgerReviewGate(undefined)).toBe(false);
+  });
+
   test("maps phase v2 artifact refs from evaluation_artifacts rows using content.artifact_id fallback to row id", () => {
     const refs = toPhaseV2ArtifactSet([
       {
@@ -419,13 +429,22 @@ describe("Review Gate wiring helpers", () => {
         artifact_type: "ledger_quality_report_v1",
         id: "row-quality",
         source_hash: "sha256:quality",
-        content: {},
+        content: {
+          quality_report: {
+            gate_ready_status: 'blocked',
+            hard_fail_present: true,
+          },
+        },
       },
       {
         artifact_type: "pass3_preflight_draft_v1",
         id: "row-preflight",
         source_hash: "sha256:preflight",
-        content: { artifact_id: "envelope-preflight" },
+        content: {
+          artifact_id: "envelope-preflight",
+          reducer_status: 'failed',
+          preflight_authority: 'unavailable',
+        },
       },
     ]);
 
@@ -441,6 +460,10 @@ describe("Review Gate wiring helpers", () => {
       artifact_id: "envelope-preflight",
       source_hash: "sha256:preflight",
     });
+    expect(refs.ledger_quality_gate_ready_status).toBe('blocked');
+    expect(refs.ledger_quality_hard_fail_present).toBe(true);
+    expect(refs.pass3_preflight_reducer_status).toBe('failed');
+    expect(refs.pass3_preflight_authority).toBe('unavailable');
   });
 
   test("does not synthesize pass3a_completed_at when status is done and preflight artifact exists", () => {
@@ -451,7 +474,9 @@ describe("Review Gate wiring helpers", () => {
           preflight_status: "DONE",
         },
       },
-      true,
+      {
+        hasPass3PreflightArtifact: true,
+      },
     );
 
     expect(doneDerived.pass3a_status).toBe("done");
@@ -463,7 +488,9 @@ describe("Review Gate wiring helpers", () => {
       {
         pass3a_status: "degraded",
       },
-      false,
+      {
+        hasPass3PreflightArtifact: false,
+      },
     );
 
     expect(degradedDerived.pass3a_status).toBe("degraded");
@@ -479,7 +506,9 @@ describe("Review Gate wiring helpers", () => {
           preflight_status: "DONE",
         },
       },
-      false,
+      {
+        hasPass3PreflightArtifact: false,
+      },
     );
 
     expect(doneFromLegacy.pass3a_status).toBe("done");
@@ -490,10 +519,28 @@ describe("Review Gate wiring helpers", () => {
           preflight_status: "NOT_STARTED",
         },
       },
-      true,
+      {
+        hasPass3PreflightArtifact: true,
+      },
     );
 
     expect(doneFromArtifactFallback.pass3a_status).toBe("done");
+  });
+
+  test("forces pass3a failed when preflight reducer failed even if artifact exists", () => {
+    const failedFromReducer = derivePhaseV2ReviewGateProgress(
+      {
+        pass3a_status: 'done',
+      },
+      {
+        hasPass3PreflightArtifact: true,
+        reducerStatus: 'failed',
+        preflightAuthority: 'unavailable',
+      },
+    );
+
+    expect(failedFromReducer.pass3a_status).toBe('failed');
+    expect(failedFromReducer.failed_reason).toBe('PASS3A_REDUCER_FAILED');
   });
 
   test("requeue policy only allows PASS3A_NOT_READY and PASS3A_HALF_WRITTEN in not_ready validity", () => {

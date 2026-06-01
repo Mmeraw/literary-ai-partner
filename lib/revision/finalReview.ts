@@ -1,5 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getAuthenticatedUser } from "@/lib/supabase/server";
+import { buildDecisionOnlyPreview, resolveFinalReviewSourceText, scrubInternalReportLeakage } from "@/lib/revision/finalReviewSourceText";
 
 export type FinalReviewDecision = {
   id: string;
@@ -8,6 +9,11 @@ export type FinalReviewDecision = {
   decision: "accepted_a" | "accepted_b" | "accepted_c" | "custom" | "keep_original" | "reject" | "deferred";
   selectedOption: "A" | "B" | "C" | null;
   customText: string | null;
+  selectedText: string | null;
+  sourceExcerpt: string | null;
+  sourceLocation: string | null;
+  criterion: string | null;
+  severity: "must" | "should" | "could" | null;
   createdAt: string;
   highlightTone: "system" | "custom" | "kept" | "rejected" | "deferred";
 };
@@ -20,6 +26,8 @@ export type FinalReviewPayload = {
   manuscriptTitle: string;
   sourceVersionId: string | null;
   sourceText: string;
+  sourceAvailable: boolean;
+  sourceUnavailableReason: string | null;
   previewParagraphs: string[];
   decisions: FinalReviewDecision[];
   acceptedCount: number;
@@ -39,6 +47,8 @@ function emptyPayload(error: string | null): FinalReviewPayload {
     manuscriptTitle: "Final Review",
     sourceVersionId: null,
     sourceText: "",
+    sourceAvailable: false,
+    sourceUnavailableReason: null,
     previewParagraphs: [],
     decisions: [],
     acceptedCount: 0,
@@ -59,11 +69,68 @@ function toneForDecision(decision: FinalReviewDecision["decision"]): FinalReview
 }
 
 function splitPreviewParagraphs(text: string): string[] {
-  return text
+  return scrubInternalReportLeakage(text)
     .split(/\n{2,}/g)
     .map((p) => p.trim())
     .filter(Boolean)
-    .slice(0, 18);
+    .slice(0, 48);
+}
+
+function metadataValue(metadata: unknown, key: string): string | null {
+  if (!metadata || typeof metadata !== "object") return null;
+  const value = (metadata as Record<string, unknown>)[key];
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
+}
+
+function severityValue(metadata: unknown): FinalReviewDecision["severity"] {
+  const value = metadataValue(metadata, "severity")?.toLowerCase();
+  return value === "must" || value === "should" || value === "could" ? value : null;
+}
+
+function applyDecisionsForPreview(sourceText: string, decisions: FinalReviewDecision[]): string {
+  let text = scrubInternalReportLeakage(sourceText);
+  if (!text) return "";
+
+  for (const decision of decisions) {
+    if (!["accepted_a", "accepted_b", "accepted_c", "custom"].includes(decision.decision)) continue;
+
+    const source = scrubInternalReportLeakage(decision.sourceExcerpt);
+    const replacement = scrubInternalReportLeakage(decision.decision === "custom" ? decision.customText : decision.selectedText);
+    if (!source || !replacement) continue;
+
+    if (text.includes(source)) text = text.replace(source, replacement);
+  }
+
+  return text;
+}
+
+function rowToDecision(row: any): FinalReviewDecision {
+  const decision = row.decision as FinalReviewDecision["decision"];
+  return {
+    id: row.id,
+    opportunityId: row.opportunity_id,
+    title: row.opportunity_title,
+    decision,
+    selectedOption: row.selected_option,
+    customText: row.custom_text,
+    selectedText: row.selected_text,
+    sourceExcerpt: row.source_excerpt,
+    sourceLocation: row.source_location,
+    criterion: metadataValue(row.metadata, "criterion"),
+    severity: severityValue(row.metadata),
+    createdAt: row.created_at,
+    highlightTone: toneForDecision(decision),
+  };
+}
+
+function toRuntimeDecision(decision: FinalReviewDecision) {
+  return {
+    decision: decision.decision,
+    selected_text: decision.selectedText,
+    custom_text: decision.customText,
+    source_excerpt: decision.sourceExcerpt,
+    opportunity_title: decision.title,
+  };
 }
 
 export async function getFinalReviewPayload(input: {
@@ -112,7 +179,7 @@ export async function getFinalReviewPayload(input: {
 
   const { data: ledgerRows, error: ledgerError } = await supabase
     .from("revision_ledger_decisions")
-    .select("id, opportunity_id, opportunity_title, decision, selected_option, custom_text, created_at, is_undo")
+    .select("id, opportunity_id, opportunity_title, decision, selected_option, custom_text, selected_text, source_excerpt, source_location, metadata, created_at, is_undo")
     .eq("user_id", user.id)
     .eq("manuscript_id", manuscriptId)
     .eq("evaluation_job_id", input.evaluationJobId)
@@ -126,19 +193,20 @@ export async function getFinalReviewPayload(input: {
     if (!latestByOpportunity.has(row.opportunity_id)) latestByOpportunity.set(row.opportunity_id, row);
   }
 
-  const decisions: FinalReviewDecision[] = [...latestByOpportunity.values()].map((row) => {
-    const decision = row.decision as FinalReviewDecision["decision"];
-    return {
-      id: row.id,
-      opportunityId: row.opportunity_id,
-      title: row.opportunity_title,
-      decision,
-      selectedOption: row.selected_option,
-      customText: row.custom_text,
-      createdAt: row.created_at,
-      highlightTone: toneForDecision(decision),
-    };
+  const decisions: FinalReviewDecision[] = [...latestByOpportunity.values()].map(rowToDecision);
+
+  const sourceText = await resolveFinalReviewSourceText({
+    supabase,
+    manuscriptId,
+    userId: user.id,
+    sourceVersionId: job.manuscript_version_id,
+    fallbackRawText: version?.raw_text ?? "",
   });
+
+  const sourceAvailable = sourceText.trim().length > 0;
+  const previewText = sourceAvailable
+    ? applyDecisionsForPreview(sourceText, decisions)
+    : buildDecisionOnlyPreview({ manuscriptTitle: manuscript.title ?? "Untitled Manuscript", decisions: decisions.map(toRuntimeDecision) });
 
   const acceptedCount = decisions.filter((d) => d.decision.startsWith("accepted_")).length;
   const customCount = decisions.filter((d) => d.decision === "custom").length;
@@ -153,8 +221,10 @@ export async function getFinalReviewPayload(input: {
     evaluationJobId: input.evaluationJobId,
     manuscriptTitle: manuscript.title ?? "Untitled Manuscript",
     sourceVersionId: job.manuscript_version_id,
-    sourceText: version?.raw_text ?? "",
-    previewParagraphs: splitPreviewParagraphs(version?.raw_text ?? ""),
+    sourceText: sourceAvailable ? sourceText : "",
+    sourceAvailable,
+    sourceUnavailableReason: sourceAvailable ? null : "Full manuscript source text is unavailable for this legacy evaluation.",
+    previewParagraphs: splitPreviewParagraphs(previewText),
     decisions,
     acceptedCount,
     customCount,

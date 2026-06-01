@@ -92,6 +92,24 @@ describe('characterReducer pronoun-family warning guardrails', () => {
     expect(warnings).not.toContain('pronoun_inconsistency');
   });
 
+  it('does not flag stable mixed neutral-plus-known pronouns by default', () => {
+    const warnings = getWarningsFor('Jordan', [
+      makeChunk(0, makeCharacter({ canonical_name: 'Jordan', pronouns: ['he/they'] })),
+      makeChunk(1, makeCharacter({ canonical_name: 'Jordan', pronouns: ['he/they'] })),
+    ]);
+
+    expect(warnings).not.toContain('pronoun_inconsistency');
+  });
+
+  it('flags custom or uncommon pronouns for explicit review', () => {
+    const warnings = getWarningsFor('Ari', [
+      makeChunk(0, makeCharacter({ canonical_name: 'Ari', pronouns: ['thon/thons'] })),
+      makeChunk(1, makeCharacter({ canonical_name: 'Ari', pronouns: ['thon/thons'] })),
+    ]);
+
+    expect(warnings).toContain('pronoun_inconsistency');
+  });
+
   it('flags cross-family shifts that require review', () => {
     const warnings = getWarningsFor('Robin', [
       makeChunk(0, makeCharacter({ canonical_name: 'Robin', pronouns: ['he/him'] })),
@@ -101,11 +119,11 @@ describe('characterReducer pronoun-family warning guardrails', () => {
     expect(warnings).toContain('pronoun_inconsistency');
   });
 
-  it('flags unresolved mixed-family ownership in the same pronoun signal', () => {
+  it('does not flag collective-plus-one-known family pronoun signals', () => {
     const warnings = getWarningsFor('Ambiguous Figure', [
       makeChunk(0, makeCharacter({ canonical_name: 'Ambiguous Figure', pronouns: ['he/they'] })),
     ]);
 
-    expect(warnings).toContain('pronoun_inconsistency');
+    expect(warnings).not.toContain('pronoun_inconsistency');
   });
 });

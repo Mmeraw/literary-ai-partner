@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { useRouter } from 'next/navigation';
 
 interface CancelEvaluationModalProps {
   jobId: string;
@@ -10,6 +11,8 @@ interface CancelEvaluationModalProps {
   onError?: (message: string) => void;
 }
 
+type CancelState = 'idle' | 'cancelling' | 'cancelled' | 'error';
+
 export function CancelEvaluationButton({
   jobId,
   label = 'Cancel Evaluation',
@@ -17,13 +20,28 @@ export function CancelEvaluationButton({
   onSuccess,
   onError,
 }: CancelEvaluationModalProps) {
+  const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
+  const [state, setState] = useState<CancelState>('idle');
   const [error, setError] = useState<string | null>(null);
   const displayLabel = label === 'STOP' ? 'Cancel Evaluation' : label;
+  const isLoading = state === 'cancelling';
+  const isCancelled = state === 'cancelled';
+
+  const closeAndRefresh = () => {
+    setIsOpen(false);
+    setError(null);
+    router.refresh();
+  };
+
+  const goToDashboard = () => {
+    setIsOpen(false);
+    router.push('/dashboard');
+    router.refresh();
+  };
 
   const handleCancel = async () => {
-    setIsLoading(true);
+    setState('cancelling');
     setError(null);
 
     try {
@@ -33,49 +51,62 @@ export function CancelEvaluationButton({
         body: JSON.stringify({ reason: 'user_cancelled' }),
       });
 
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || `Failed to cancel evaluation (${response.status})`);
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok || data?.success !== true) {
+        throw new Error(data?.error || `Failed to cancel evaluation (${response.status})`);
       }
 
-      setIsOpen(false);
+      setState('cancelled');
+      setError(null);
       onSuccess?.();
-      // Optionally reload page to reflect cancellation
-      setTimeout(() => window.location.reload(), 500);
+      router.refresh();
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'An error occurred';
+      const message = err instanceof Error ? err.message : 'Cancellation could not be saved. Please refresh and try again.';
+      setState('error');
       setError(message);
       onError?.(message);
-    } finally {
-      setIsLoading(false);
     }
   };
 
   return (
     <>
       <button
-        onClick={() => setIsOpen(true)}
+        type="button"
+        onClick={() => {
+          setIsOpen(true);
+          if (state !== 'cancelled') {
+            setState('idle');
+            setError(null);
+          }
+        }}
         className={buttonClassName}
-        disabled={isLoading}
+        disabled={isLoading || isCancelled}
       >
-        {isLoading ? 'Cancelling...' : displayLabel}
+        {isCancelled ? 'Cancelled' : isLoading ? 'Cancelling…' : displayLabel}
       </button>
 
-      {/* Modal Backdrop */}
       {isOpen && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"
-          onClick={() => { if (!isLoading) setIsOpen(false); }}
+          onClick={() => {
+            if (!isLoading) closeAndRefresh();
+          }}
         >
           <div
             className="bg-white rounded-lg shadow-lg max-w-md w-full mx-4"
             onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="cancel-evaluation-title"
           >
-            {/* Modal Header */}
             <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-gray-900">Cancel this evaluation?</h2>
+              <h2 id="cancel-evaluation-title" className="text-lg font-semibold text-gray-900">
+                {isCancelled ? 'Evaluation cancelled' : 'Cancel this evaluation?'}
+              </h2>
               <button
-                onClick={() => setIsOpen(false)}
+                type="button"
+                onClick={closeAndRefresh}
                 disabled={isLoading}
                 className="text-gray-400 hover:text-gray-600 disabled:opacity-50"
                 aria-label="Close"
@@ -86,34 +117,73 @@ export function CancelEvaluationButton({
               </button>
             </div>
 
-            {/* Modal Body */}
-            <div className="px-6 py-4">
-              <p className="text-sm text-gray-700">
-                This will stop the job and no final report will be generated unless the core evaluation has already completed. You will not be charged if analysis has not begun.
-              </p>
+            <div className="px-6 py-4 space-y-4">
+              {isCancelled ? (
+                <div className="rounded-md bg-green-50 border border-green-200 p-4">
+                  <p className="text-sm font-semibold text-green-900">Cancellation confirmed.</p>
+                  <p className="text-sm text-green-800 mt-2">
+                    This evaluation has been stopped and will appear as Cancelled on the dashboard. No report will be generated for this job.
+                  </p>
+                </div>
+              ) : (
+                <p className="text-sm text-gray-700">
+                  This will stop the job and no final report will be generated unless the core evaluation has already completed. You will not be charged if analysis has not begun.
+                </p>
+              )}
+
               {error && (
-                <div className="mt-4 rounded-md bg-red-50 border border-red-200 p-3">
-                  <p className="text-sm text-red-800">{error}</p>
+                <div className="rounded-md bg-red-50 border border-red-200 p-3">
+                  <p className="text-sm font-semibold text-red-900">Cancellation not confirmed.</p>
+                  <p className="text-sm text-red-800 mt-1">{error}</p>
+                  <p className="text-xs text-red-700 mt-2">
+                    The job may still be active. Refresh the page before trying again.
+                  </p>
                 </div>
               )}
             </div>
 
-            {/* Modal Footer */}
             <div className="px-6 py-4 border-t border-gray-200 flex gap-3 justify-end">
-              <button
-                onClick={() => { setIsOpen(false); setError(null); }}
-                disabled={isLoading}
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors disabled:opacity-50"
-              >
-                {error ? 'Close' : 'Keep Running'}
-              </button>
-              <button
-                onClick={handleCancel}
-                disabled={isLoading}
-                className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-md transition-colors disabled:opacity-50"
-              >
-                {isLoading ? 'Cancelling...' : 'Cancel Evaluation'}
-              </button>
+              {isCancelled ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={closeAndRefresh}
+                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+                  >
+                    Stay here
+                  </button>
+                  <button
+                    type="button"
+                    onClick={goToDashboard}
+                    className="px-4 py-2 text-sm font-medium text-white bg-green-700 hover:bg-green-800 rounded-md transition-colors"
+                  >
+                    Back to Dashboard
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsOpen(false);
+                      setError(null);
+                      setState('idle');
+                    }}
+                    disabled={isLoading}
+                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors disabled:opacity-50"
+                  >
+                    {error ? 'Close' : 'Keep Running'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleCancel}
+                    disabled={isLoading}
+                    className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-md transition-colors disabled:opacity-50"
+                  >
+                    {isLoading ? 'Cancelling…' : 'Cancel Evaluation'}
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </div>

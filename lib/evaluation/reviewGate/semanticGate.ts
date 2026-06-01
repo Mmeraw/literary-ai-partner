@@ -16,13 +16,11 @@ type LedgerQualityReportContent = {
   } | null;
 } | null;
 
-export type ReviewGateSemanticResult =
-  | { ok: true }
-  | {
-      ok: false;
-      code: 'REVIEW_GATE_SEMANTIC_BLOCKED';
-      reasons: string[];
-    };
+export type ReviewGateSemanticResult = {
+  ok: boolean;
+  code: 'REVIEW_GATE_SEMANTIC_BLOCKED' | null;
+  reasons: string[];
+};
 
 function includesChunkLabel(value: unknown): boolean {
   if (typeof value === 'string') {
@@ -106,5 +104,5 @@ export function evaluateReviewGateSemanticGate(input: {
     };
   }
 
-  return { ok: true };
+  return { ok: true, code: null, reasons: [] };
 }

@@ -36,6 +36,9 @@ function runQualityChecks(
 ): QualityCheckResult[] {
   const results: QualityCheckResult[] = [];
 
+  const v1CharacterCount = ledger.entries.length;
+  const v2IdentityCount = ledgerV2.identityLedger.length;
+
   // ── Hard Fail Checks ──────────────────────────────────────────────────────
 
   // Hard fail triggers from Pass 1A sweep
@@ -46,6 +49,26 @@ function runQualityChecks(
       message: trigger,
       layer: 'source_integrity_layer',
       evidenceReference: 'pass1a_character_ledger_v1.coverage_summary.hard_fail_triggers',
+    });
+  }
+
+  if (v1CharacterCount === 0) {
+    results.push({
+      key: 'character_ledger_empty',
+      severity: 'hard_fail',
+      message: 'HARD_FAIL: pass1a_character_ledger_v1 has zero verified characters; Story Layer must be blocked fail-closed.',
+      layer: 'source_integrity_layer',
+      evidenceReference: 'pass1a_character_ledger_v1.entries',
+    });
+  }
+
+  if (v1CharacterCount === 0 && v2IdentityCount > 0) {
+    results.push({
+      key: 'character_ledger_internal_inconsistency',
+      severity: 'hard_fail',
+      message: `HARD_FAIL: internal consistency violation — v1 character ledger is empty while CharacterLedgerV2 has ${v2IdentityCount} identity candidate(s).`,
+      layer: 'canonical_identity_layer',
+      evidenceReference: 'pass1a_character_ledger_v1.entries + character_ledger_v2.identityLedger',
     });
   }
 

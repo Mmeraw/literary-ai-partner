@@ -22,6 +22,149 @@ function isRateLimited(
 }
 
 const ALLOWED_JOB_TYPES = new Set<string>(Object.values(JOB_TYPES));
+const SHORT_FORM_PHASE0_FAST_TRACK_WORDS = 25_000;
+
+function normalizeWordCountCandidate(value: unknown): number | null {
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) return null;
+  return Math.trunc(value);
+}
+
+async function readOwnedManuscriptWordCount(params: {
+  manuscriptId: number;
+  userId: string;
+  trace_id: string;
+  request_id: string;
+}): Promise<number | null> {
+  try {
+    const supabaseAdmin = createAdminClient();
+    const { data, error } = await supabaseAdmin
+      .from("manuscripts")
+      .select("word_count")
+      .eq("id", params.manuscriptId)
+      .eq("user_id", params.userId)
+      .maybeSingle();
+
+    if (error) {
+      logger.warn("Failed to read manuscript word count for evaluation intake", {
+        trace_id: params.trace_id,
+        request_id: params.request_id,
+        event: "api.jobs.create.manuscript_word_count_lookup_failed",
+        manuscript_id: params.manuscriptId,
+        error: error.message,
+      });
+      return null;
+    }
+
+    return normalizeWordCountCandidate(data?.word_count);
+  } catch (error) {
+    logger.warn("Failed to read manuscript word count for evaluation intake", {
+      trace_id: params.trace_id,
+      request_id: params.request_id,
+      event: "api.jobs.create.manuscript_word_count_lookup_exception",
+      manuscript_id: params.manuscriptId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return null;
+  }
+}
+
+async function seedJobIntakeProgress(params: {
+  job: { id: string; progress?: Record<string, unknown> | null };
+  manuscriptWordCount: number | null;
+  fastTrackPhase0: boolean;
+  trace_id: string;
+  request_id: string;
+  manuscript_id: number | string;
+}): Promise<void> {
+  if (params.manuscriptWordCount === null && !params.fastTrackPhase0) return;
+
+  const supabaseAdmin = createAdminClient();
+  const now = new Date().toISOString();
+  const existingProgress = (params.job.progress ?? {}) as Record<string, unknown>;
+  const existingChunkRoutingRaw = existingProgress["chunk_routing"];
+  const existingChunkRouting =
+    existingChunkRoutingRaw && typeof existingChunkRoutingRaw === "object"
+      ? (existingChunkRoutingRaw as Record<string, unknown>)
+      : {};
+
+  const nextProgress: Record<string, unknown> = {
+    ...existingProgress,
+    ...(params.manuscriptWordCount !== null
+      ? {
+          manuscript_word_count: params.manuscriptWordCount,
+          chunk_routing: {
+            ...existingChunkRouting,
+            manuscript_words: params.manuscriptWordCount,
+            source_manuscript_words: params.manuscriptWordCount,
+          },
+        }
+      : {}),
+  };
+
+  const updatePayload: Record<string, unknown> = {
+    progress: nextProgress,
+    updated_at: now,
+  };
+
+  if (params.fastTrackPhase0) {
+    Object.assign(nextProgress, {
+      phase: "phase_1a",
+      phase_status: "queued",
+      message: "Short-form evaluation queued — using short-form criteria policy fast path",
+      phase0_fast_track: true,
+      phase0_fast_track_reason: "short_form_under_25000_words",
+      // Phase 1A proof guard requires either real Phase 0 proof durations
+      // or an explicit bypass reason. Short-form policy intentionally bypasses
+      // Phase 0 warm-up, so this marker is mandatory for legal entry.
+      phase0_bypass_reason: "short_form_policy_fast_track",
+      phase0_started_at: now,
+      phase0_completed_at: now,
+      phase0_total_duration_ms: 0,
+      phase0_measured_duration_ms: 0,
+      phase0_llm_duration_ms: 0,
+      phase0_dwell_duration_ms: 0,
+      phase0_calibration_word_count: params.manuscriptWordCount ?? null,
+      phase0_proof_normalized: true,
+      total_units: 100,
+      completed_units: 8,
+    });
+
+    Object.assign(updatePayload, {
+      phase: "phase_1a",
+      phase_status: "queued",
+    });
+  }
+
+  const { error } = await supabaseAdmin
+    .from("evaluation_jobs")
+    .update(updatePayload)
+    .eq("id", params.job.id);
+
+  if (error) {
+    logger.warn("Failed to seed evaluation job intake progress", {
+      trace_id: params.trace_id,
+      request_id: params.request_id,
+      event: "api.jobs.create.intake_progress_seed_failed",
+      job_id: params.job.id,
+      manuscript_id: params.manuscript_id,
+      manuscript_word_count: params.manuscriptWordCount,
+      fast_track_phase0: params.fastTrackPhase0,
+      error: error.message,
+    });
+    return;
+  }
+
+  if (params.fastTrackPhase0) {
+    logger.info("Short-form evaluation fast-tracked past Phase 0", {
+      trace_id: params.trace_id,
+      request_id: params.request_id,
+      event: "api.jobs.create.phase0_fast_track",
+      job_id: params.job.id,
+      manuscript_id: params.manuscript_id,
+      manuscript_word_count: params.manuscriptWordCount,
+    });
+  }
+}
 
 export async function POST(req: Request) {
   const trace_id = generateTraceId();
@@ -85,6 +228,7 @@ export async function POST(req: Request) {
     const manuscript_size = body?.manuscript_size; // Size in bytes
     const user_tier = body?.user_tier as "free" | "premium" | "agent" | undefined;
     let immediateManuscriptWordCount: number | null = null;
+    let resolvedManuscriptWordCount: number | null = null;
 
     if (!manuscript_id && !manuscript_text) {
       logger.warn("Job creation validation failed", {
@@ -234,6 +378,7 @@ export async function POST(req: Request) {
       const fileUrl = `data:text/plain;charset=utf-8,${encodedText}`;
       const wordCount = trimmedText.split(/\s+/).filter(Boolean).length;
       immediateManuscriptWordCount = wordCount;
+      resolvedManuscriptWordCount = wordCount;
       const fileSize = new TextEncoder().encode(trimmedText).length;
 
       const supabaseAdmin = createAdminClient();
@@ -291,6 +436,15 @@ export async function POST(req: Request) {
       manuscript_id = parsedId;
     }
 
+    if (resolvedManuscriptWordCount === null && typeof manuscript_id === "number") {
+      resolvedManuscriptWordCount = await readOwnedManuscriptWordCount({
+        manuscriptId: manuscript_id,
+        userId,
+        trace_id,
+        request_id,
+      });
+    }
+
     const featureAccess = await checkFeatureAccess(userId, validatedJobType, user_tier);
 
     if (featureAccess.allowed === false) {
@@ -336,53 +490,19 @@ export async function POST(req: Request) {
       job_type: validatedJobType,
     });
 
-    if (immediateManuscriptWordCount !== null) {
-      const supabaseAdmin = createAdminClient();
-      const existingProgress = (job.progress ?? {}) as Record<string, unknown>;
-      const existingChunkRoutingRaw = existingProgress["chunk_routing"];
-      const existingChunkRouting =
-        existingChunkRoutingRaw && typeof existingChunkRoutingRaw === "object"
-          ? (existingChunkRoutingRaw as Record<string, unknown>)
-          : {};
-      const seededProgress = {
-        ...existingProgress,
-        manuscript_word_count: immediateManuscriptWordCount,
-        chunk_routing: {
-          ...existingChunkRouting,
-          manuscript_words: immediateManuscriptWordCount,
-          source_manuscript_words: immediateManuscriptWordCount,
-        },
-      };
+    const shouldFastTrackPhase0 =
+      isEvaluationJobType(validatedJobType) &&
+      resolvedManuscriptWordCount !== null &&
+      resolvedManuscriptWordCount < SHORT_FORM_PHASE0_FAST_TRACK_WORDS;
 
-      const evaluationJobsTable = supabaseAdmin.from("evaluation_jobs") as unknown as {
-        update?: (payload: { progress: Record<string, unknown>; updated_at: string }) => {
-          eq: (
-            column: string,
-            value: string
-          ) => PromiseLike<{ error: { message: string } | null }>;
-        };
-      };
-
-      if (typeof evaluationJobsTable.update === "function") {
-        const { error: wordCountSeedError } = await evaluationJobsTable
-          .update({
-            progress: seededProgress,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", job.id);
-
-        if (wordCountSeedError) {
-          logger.warn("Failed to seed evaluation job word count", {
-            trace_id,
-            request_id,
-            event: "api.jobs.create.word_count_progress_seed_failed",
-            job_id: job.id,
-            manuscript_id,
-            error: wordCountSeedError.message,
-          });
-        }
-      }
-    }
+    await seedJobIntakeProgress({
+      job,
+      manuscriptWordCount: resolvedManuscriptWordCount ?? immediateManuscriptWordCount,
+      fastTrackPhase0: shouldFastTrackPhase0,
+      trace_id,
+      request_id,
+      manuscript_id,
+    });
 
     const jobAcceptedAt = new Date().toISOString();
     emitLatencyTrace({
@@ -393,6 +513,8 @@ export async function POST(req: Request) {
       metadata: {
         source: "api.jobs.create",
         job_type: validatedJobType,
+        manuscript_word_count: resolvedManuscriptWordCount,
+        phase0_fast_track: shouldFastTrackPhase0,
       },
     });
 
@@ -417,6 +539,7 @@ export async function POST(req: Request) {
       started_at: kickoffDispatchStartedAt,
       metadata: {
         source: "api.jobs.create",
+        phase0_fast_track: shouldFastTrackPhase0,
       },
     });
     void triggerEvaluationWorker({
@@ -434,10 +557,19 @@ export async function POST(req: Request) {
       event: "api.jobs.create.success",
       job_id: job.id,
       job_type: validatedJobType,
+      manuscript_word_count: resolvedManuscriptWordCount,
+      phase0_fast_track: shouldFastTrackPhase0,
     });
 
     return NextResponse.json(
-      { ok: true, job_id: job.id, status: job.status, trace_id },
+      {
+        ok: true,
+        job_id: job.id,
+        status: job.status,
+        manuscript_word_count: resolvedManuscriptWordCount,
+        phase0_fast_track: shouldFastTrackPhase0,
+        trace_id,
+      },
       { status: 201 }
     );
   } catch (err) {

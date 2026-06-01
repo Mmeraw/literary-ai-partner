@@ -16,6 +16,12 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 export type ArtifactType =
   | "evaluation_result_v1"
   | "evaluation_result_v2"
+  /** Phase 0 authority proof: registry path/checksum, loaded paths, missing paths, authority checksums. */
+  | "phase0_authority_proof_v1"
+  /** Phase 0.5A governed story-map seed. Candidate/provisional, not verified truth. */
+  | "story_map_seed_v1"
+  /** Phase 0.5B governed revise opportunity seed. Not author-facing until admission/candidate validation. */
+  | "revise_opportunity_seed_v1"
   /** Runtime SEED hypothesis artifact generated before Phase 1A. */
   | "story_seed_v1"
   /** Runtime evaluation-priority SEED hypothesis artifact generated before Phase 1A. */
@@ -79,6 +85,11 @@ export type ArtifactType =
    * objects, blockers). User-visible in the report Ledger tab.
    */
   | "pass1a_character_ledger_v1"
+  /**
+   * Accepted Story Ledger — normalized, governance-validated story authority
+   * artifact required by downstream Phase 2/3 consumers.
+   */
+  | "accepted_story_ledger_v1"
   /**
    * WAVE revision plan — written inline after evaluation persists (same execution
    * window). status field: complete | skipped | failed | timeout.

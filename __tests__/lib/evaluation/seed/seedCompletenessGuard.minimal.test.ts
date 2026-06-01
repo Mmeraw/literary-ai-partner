@@ -6,11 +6,16 @@ import {
   validateStorySeedCompleteness,
 } from '@/lib/evaluation/seed/seedCompletenessGuard';
 
+const filledLayerScaffold = (layer: string) => ({
+  baseline_expectation: `${layer} must be verified against manuscript evidence`,
+  required_verification_targets: [`${layer}:target`],
+});
+
 const storySeed = () => ({
   artifact_type: 'story_seed_v1',
   authority: 'seed_only',
   artifact_status: 'created',
-  layer_scaffolds: Object.fromEntries(STORY_LAYER_KEYS.map((layer) => [layer, {}])),
+  layer_scaffolds: Object.fromEntries(STORY_LAYER_KEYS.map((layer) => [layer, filledLayerScaffold(layer)])),
   global_candidate_inputs: {
     candidate_entity_registry: [],
     candidate_alias_map: {},

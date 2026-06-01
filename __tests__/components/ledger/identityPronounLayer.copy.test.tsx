@@ -30,7 +30,7 @@ describe('IdentityPronounLayer display copy', () => {
 
     expect(
       screen.getByText(
-        'No pronoun transitions detected. Stable subject/object pronoun usage was normalized in the background and does not require review.',
+        /No pronoun transitions detected\. Stable subject\/object pronoun usage was normalized in the background and does not require review\./,
       ),
     ).toBeTruthy();
   });

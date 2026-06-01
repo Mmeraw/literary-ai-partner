@@ -171,6 +171,13 @@ import { getConfiguredAppBaseUrl } from '@/lib/jobs/triggerWorker';
 /** Minimum manuscript word count for WAVE eligibility */
 const WAVE_MIN_WORDS = 25_000;
 
+/**
+ * User-facing Story Ledger Review Gate is long-form only.
+ * Short-form/chapter evaluations may still build internal Story Layer artifacts,
+ * but must not block on author approval UI.
+ */
+const STORY_LEDGER_USER_GATE_MIN_WORDS = 25_000;
+
 /** Minimum per-criterion score (0-10) for WAVE eligibility — no red criteria */
 const WAVE_MIN_CRITERION_SCORE = 6.0;
 
@@ -264,6 +271,12 @@ export function getValidatedWorkerBatchSize(raw: unknown, fallback = 5): number 
   return normalized >= 1 && normalized <= 5 ? normalized : fallback;
 }
 
+export function shouldRequireStoryLedgerReviewGate(manuscriptWords: number | null | undefined): boolean {
+  return typeof manuscriptWords === 'number'
+    && Number.isFinite(manuscriptWords)
+    && manuscriptWords >= STORY_LEDGER_USER_GATE_MIN_WORDS;
+}
+
 function isMissingColumnError(error: unknown, columnName: string): boolean {
   if (!error || typeof error !== 'object') {
     return false;
@@ -312,6 +325,10 @@ export function toPhaseV2ArtifactSet(
   }> | null | undefined,
 ): PhaseV2ArtifactSet {
   const artifactRefsByType = new Map<string, { artifact_id?: string | null; source_hash?: string | null }>();
+  let ledgerQualityGateReadyStatus: 'reviewable' | 'blocked' | 'repair_required' | null = null;
+  let ledgerQualityHardFailPresent: boolean | null = null;
+  let pass3PreflightReducerStatus: 'ok' | 'failed' | 'legacy' | null = null;
+  let pass3PreflightAuthority: string | null = null;
 
   for (const row of rows ?? []) {
     if (!row || typeof row !== 'object' || typeof row.artifact_type !== 'string') {
@@ -330,18 +347,52 @@ export function toPhaseV2ArtifactSet(
       artifact_id: envelopeArtifactId ?? rowArtifactId ?? rowId,
       source_hash: sourceHash,
     });
+
+    if (row.artifact_type === 'ledger_quality_report_v1' && contentRecord) {
+      const qualityReportRecord =
+        contentRecord.quality_report && typeof contentRecord.quality_report === 'object'
+          ? (contentRecord.quality_report as Record<string, unknown>)
+          : contentRecord;
+      const gateReadyStatus = qualityReportRecord.gate_ready_status;
+      const hardFailPresent = qualityReportRecord.hard_fail_present;
+
+      ledgerQualityGateReadyStatus =
+        gateReadyStatus === 'reviewable' || gateReadyStatus === 'blocked' || gateReadyStatus === 'repair_required'
+          ? gateReadyStatus
+          : null;
+      ledgerQualityHardFailPresent = typeof hardFailPresent === 'boolean' ? hardFailPresent : null;
+    }
+
+    if (row.artifact_type === 'pass3_preflight_draft_v1' && contentRecord) {
+      const reducerStatus = contentRecord.reducer_status;
+      const preflightAuthority = contentRecord.preflight_authority;
+
+      pass3PreflightReducerStatus =
+        reducerStatus === 'ok' || reducerStatus === 'failed'
+          ? reducerStatus
+          : 'legacy';
+      pass3PreflightAuthority = typeof preflightAuthority === 'string' ? preflightAuthority : null;
+    }
   }
 
   return {
     pass1a_story_layer_v1: artifactRefsByType.get('pass1a_story_layer_v1') ?? null,
     ledger_quality_report_v1: artifactRefsByType.get('ledger_quality_report_v1') ?? null,
     pass3_preflight_draft_v1: artifactRefsByType.get('pass3_preflight_draft_v1') ?? null,
+    ledger_quality_gate_ready_status: ledgerQualityGateReadyStatus,
+    ledger_quality_hard_fail_present: ledgerQualityHardFailPresent,
+    pass3_preflight_reducer_status: pass3PreflightReducerStatus,
+    pass3_preflight_authority: pass3PreflightAuthority,
   };
 }
 
 export function derivePhaseV2ReviewGateProgress(
   progressState: Record<string, unknown>,
-  hasPass3PreflightArtifact: boolean,
+  pass3PreflightSignal: {
+    hasPass3PreflightArtifact: boolean;
+    reducerStatus?: 'ok' | 'failed' | 'legacy' | null;
+    preflightAuthority?: string | null;
+  },
 ): PhaseV2Progress {
   const batchState =
     progressState.phase1a_batch_state && typeof progressState.phase1a_batch_state === 'object'
@@ -368,10 +419,17 @@ export function derivePhaseV2ReviewGateProgress(
     return undefined;
   })();
 
-  const pass3aStatus =
-    explicitStatus ??
-    legacyStatus ??
-    (hasPass3PreflightArtifact ? 'done' : 'not_started');
+  const pass3ReducerFailed =
+    pass3PreflightSignal.reducerStatus === 'failed' ||
+    pass3PreflightSignal.preflightAuthority === 'unavailable';
+
+  const pass3aStatus = pass3ReducerFailed
+    ? 'failed'
+    : (
+      explicitStatus ??
+      legacyStatus ??
+      (pass3PreflightSignal.hasPass3PreflightArtifact ? 'done' : 'not_started')
+    );
 
   const pass3aCompletedAt =
     isNonEmptyTrimmedString(progressState.pass3a_completed_at)
@@ -399,7 +457,9 @@ export function derivePhaseV2ReviewGateProgress(
   const failedReason =
     isNonEmptyTrimmedString(progressState.failed_reason)
       ? progressState.failed_reason
-      : undefined;
+      : pass3ReducerFailed
+        ? 'PASS3A_REDUCER_FAILED'
+        : undefined;
   const failedAt =
     isNonEmptyTrimmedString(progressState.failed_at)
       ? progressState.failed_at
@@ -5934,8 +5994,13 @@ export async function processEvaluationJob(
             // Happy path — preflight completed within budget.
             pass3aResult = raceResult as Awaited<ReturnType<typeof runPass3Preflight>>;
             const completedAt = new Date().toISOString();
+            const pass3aReducerFailed =
+              pass3aResult.preflight.reducer_status === 'failed' ||
+              pass3aResult.preflight.preflight_authority === 'unavailable';
+            const pass3aStatus = pass3aReducerFailed ? 'failed' : 'done';
             console.log(`[track_c] ${jobId}: Pass 3A completed`, {
               authority: pass3aResult.preflight.preflight_authority,
+              reducer_status: pass3aResult.preflight.reducer_status ?? 'legacy',
               coverage: `${pass3aResult.preflight.manuscript_read_status.chunks_received}/${pass3aResult.preflight.manuscript_read_status.chunks_expected}`,
               duration_ms: pass3aResult.durationMs,
             });
@@ -5943,17 +6008,24 @@ export async function processEvaluationJob(
             // Persist DONE state before proceeding.
             const pass3aDoneProgress = {
               ...progressState,
-              track_c_status: 'done',
-              pass3a_status: 'done',
+              track_c_status: pass3aReducerFailed ? 'degraded' : 'done',
+              pass3a_status: pass3aStatus,
               pass3a_completed_at: completedAt,
               pass3a_artifact_id: pass3aResult.artifactId,
+              failed_reason: pass3aReducerFailed ? 'PASS3A_REDUCER_FAILED' : undefined,
+              failed_at: pass3aReducerFailed ? completedAt : undefined,
               phase1a_batch_state: {
                 ...((progressState.phase1a_batch_state as Record<string, unknown>) ?? {}),
-                preflight_status: 'DONE',
+                preflight_status: pass3aReducerFailed ? 'FAILED' : 'DONE',
               },
               phase_log: [
                 ...((progressState.phase_log as unknown[]) ?? []),
-                { at: completedAt, event: 'track_c_completed', stage: 'pass_3a', duration_ms: pass3aResult.durationMs },
+                {
+                  at: completedAt,
+                  event: pass3aReducerFailed ? 'track_c_reducer_failed' : 'track_c_completed',
+                  stage: 'pass_3a',
+                  duration_ms: pass3aResult.durationMs,
+                },
               ],
             };
             await supabase
@@ -6139,6 +6211,11 @@ export async function processEvaluationJob(
 
         // ── 7. Review Gate handoff (Phase Architecture v2 helper) ─────────
         const phase1aNow = new Date().toISOString();
+        const manuscriptWordCountForGate =
+          typeof chunkRouting.manuscript_words === 'number' && Number.isFinite(chunkRouting.manuscript_words)
+            ? chunkRouting.manuscript_words
+            : countWords(manuscriptWithContent.content || '');
+        const requireUserFacingReviewGate = shouldRequireStoryLedgerReviewGate(manuscriptWordCountForGate);
         const reviewGateArtifactTypes = [
           'pass1a_story_layer_v1',
           'ledger_quality_report_v1',
@@ -6160,13 +6237,171 @@ export async function processEvaluationJob(
         const phaseV2Artifacts = toPhaseV2ArtifactSet(reviewGateArtifacts);
         const phaseV2Progress = derivePhaseV2ReviewGateProgress(
           progressState,
-          Boolean(phaseV2Artifacts.pass3_preflight_draft_v1?.artifact_id),
+          {
+            hasPass3PreflightArtifact: Boolean(phaseV2Artifacts.pass3_preflight_draft_v1?.artifact_id),
+            reducerStatus: phaseV2Artifacts.pass3_preflight_reducer_status,
+            preflightAuthority: phaseV2Artifacts.pass3_preflight_authority,
+          },
         );
 
         const reviewGateHandoffResult = buildReviewGateHandoff(
           phaseV2Progress,
           phaseV2Artifacts,
         );
+
+        // Short-form policy: internal Story Layer artifacts are still generated,
+        // but user-facing Review Gate approval is long-form only.
+        if (!requireUserFacingReviewGate && reviewGateHandoffResult.ok) {
+          const autoApprovalAt = new Date().toISOString();
+          const sourceLayers =
+            storyLayerPayload && typeof storyLayerPayload === 'object' && 'layers' in storyLayerPayload
+              ? ((storyLayerPayload as { layers?: Record<string, Record<string, unknown>> }).layers ?? {})
+              : {};
+
+          const preferredLayerKeys = Object.keys(sourceLayers).filter((k) => k.trim().length > 0);
+          const canonicalFallbackLayerKeys = [
+            'canon_identity_core',
+            'relationship_network',
+            'timeline_and_causality',
+            'motivation_and_goal_pressure',
+            'stakes_and_threat_model',
+            'symbolic_systems',
+            'theme_and_argument',
+            'voice_register_and_pov',
+            'ending_and_accountability',
+          ];
+          const layerKeys = (preferredLayerKeys.length > 0 ? preferredLayerKeys : canonicalFallbackLayerKeys).slice(0, 9);
+
+          while (layerKeys.length < 9) {
+            layerKeys.push(`layer_${layerKeys.length + 1}`);
+          }
+
+          const autoLayerDecisions = Object.fromEntries(
+            layerKeys.map((key) => [
+              key,
+              {
+                status: 'accepted_without_changes',
+                comment: `Auto-approved by short-form policy (< ${STORY_LEDGER_USER_GATE_MIN_WORDS} words).`,
+              },
+            ]),
+          );
+
+          const acceptedLedgerPayload = {
+            job_id: String(job.id),
+            manuscript_id: Number(job.manuscript_id),
+            artifact_id: `accepted_story_ledger_v1:${randomUUID().slice(0, 16)}`,
+            artifact_type: 'accepted_story_ledger_v1',
+            artifact_version: 'v1',
+            source_hash: createHash('sha256')
+              .update(`${String(job.id)}:short_form_auto_accept:${manuscriptWordCountForGate}:${autoApprovalAt}`)
+              .digest('hex'),
+            generated_at: autoApprovalAt,
+            layers: sourceLayers,
+            governance_rail: {
+              approval_state: 'accepted',
+              approved_by: 'system:auto_short_form_policy',
+              approved_at: autoApprovalAt,
+              disposition: 'accepted_without_changes',
+              author_notes: null,
+              edit_requests: [],
+              unresolved_warnings_preserved: true,
+              dependency_warnings:
+                (qualityReport as { quality_report?: { layer_dependency_warnings?: unknown } })
+                  ?.quality_report?.layer_dependency_warnings ?? [],
+              contested_layer_count: 0,
+              layer_decisions: autoLayerDecisions,
+              auto_approved_short_form: true,
+              auto_approval_reason: 'short_form_under_25000_words',
+              manuscript_word_count: manuscriptWordCountForGate,
+            },
+          };
+
+          await upsertEvaluationArtifact({
+            supabase,
+            jobId: String(job.id),
+            manuscriptId: Number(job.manuscript_id),
+            artifactType: 'accepted_story_ledger_v1',
+            content: acceptedLedgerPayload,
+            sourceHash: acceptedLedgerPayload.source_hash,
+            artifactVersion: 'v1',
+          });
+
+          const phase2QueueAt = new Date().toISOString();
+          const phase2BypassProgress = {
+            ...progressState,
+            ...buildPhaseLogPatch(progressState, 'phase_1a', 'passed', phase2QueueAt),
+            total_units: 100,
+            completed_units: 55,
+            phase: 'phase_2',
+            phase_status: 'queued',
+            message: 'Phase 1A complete — short-form policy skipped Story Ledger approval and queued diagnosis',
+            phase1a_completed_at: phase2QueueAt,
+            gate_ready_status: 'auto_approved_short_form',
+            review_gate_ready: false,
+            hard_fail_present: qualityReport.hard_fail_present,
+            story_layer_artifact_id: storyLayerRefs.pass1a_story_layer_v1.artifact_id,
+            quality_report_artifact_id: storyLayerRefs.ledger_quality_report_v1.artifact_id,
+            pass3a_status: phaseV2Progress.pass3a_status,
+            pass3a_gate_validity: 'gate_valid',
+            pass3a_artifact_id: phaseV2Progress.pass3a_artifact_id,
+            pass3a_degraded_reason: phaseV2Progress.degraded_reason,
+            short_form_review_gate_bypassed: true,
+            short_form_review_gate_bypass_reason: 'manuscript_under_25000_words',
+            story_ledger_user_gate_required: false,
+            story_ledger_user_gate_min_words: STORY_LEDGER_USER_GATE_MIN_WORDS,
+            manuscript_word_count: manuscriptWordCountForGate,
+            phase1a_batch_state: {
+              ...((progressState.phase1a_batch_state as Record<string, unknown>) ?? {}),
+              ledger_assembly_status: 'COMPLETE',
+              preflight_status: 'DONE',
+            },
+            phase_log: [
+              ...((progressState.phase_log as unknown[]) ?? []),
+              { at: storyLayerPersistedAt, event: 'phase1a_story_layer_persisted', stage: 'phase_1a' },
+              {
+                at: phase2QueueAt,
+                event: 'review_gate_skipped_short_form',
+                stage: 'phase_1a',
+                manuscript_word_count: manuscriptWordCountForGate,
+                threshold_words: STORY_LEDGER_USER_GATE_MIN_WORDS,
+              },
+            ],
+          };
+
+          const { data: shortFormQueueRow, error: shortFormQueueErr } = await supabase
+            .from('evaluation_jobs')
+            .update({
+              status: JOB_STATUS.QUEUED,
+              phase: PHASES.PHASE_2,
+              phase_status: JOB_STATUS.QUEUED,
+              claimed_by: null,
+              claimed_at: null,
+              lease_token: null,
+              lease_until: null,
+              review_gate_passed_at: phase2QueueAt,
+              updated_at: phase2QueueAt,
+              progress: phase2BypassProgress,
+            })
+            .eq('id', job.id)
+            .eq('status', JOB_STATUS.RUNNING)
+            .select('id, status, phase, phase_status')
+            .single();
+
+          if (shortFormQueueErr) {
+            throw new Error(`Phase 1A short-form bypass transition failed: ${shortFormQueueErr.message}`);
+          }
+
+          console.log(
+            `[Processor] ${jobId}: short-form review gate skipped — queued phase_2 directly`,
+            {
+              manuscript_word_count: manuscriptWordCountForGate,
+              threshold_words: STORY_LEDGER_USER_GATE_MIN_WORDS,
+              status: shortFormQueueRow?.status,
+              phase: shortFormQueueRow?.phase,
+            },
+          );
+          return { success: true };
+        }
 
         if (reviewGateHandoffResult.ok === false) {
           const blocked = reviewGateHandoffResult.blocked;
