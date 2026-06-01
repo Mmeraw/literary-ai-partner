@@ -7,9 +7,39 @@ import {
   criterionClaimScope,
   downgradeCriterionForUncertifiedLongForm,
 } from '@/lib/evaluation/signal/manuscriptClaimPolicy';
+import { SCOPE_POLICY_VERSION } from '@/lib/evaluation/signal/scopePolicy';
 import { validateEvaluationArtifact } from '@/lib/evaluation/validateEvaluationArtifact';
 import { runQualityGateV2 } from '@/lib/evaluation/pipeline/qualityGate';
-import type { SubmissionScopeProfile } from '@/lib/evaluation/pipeline/submissionScope';
+import {
+  classifySubmissionScope,
+  type SubmissionScopeProfile,
+} from '@/lib/evaluation/pipeline/submissionScope';
+
+/**
+ * Ancient Bloodlines governance regression guard.
+ *
+ * This file is NOT the Ancient Bloodlines gold-standard evaluation, not the
+ * long-form layered template authority, and not a benchmark answer key.
+ * It exists to keep historical governance failures from returning:
+ *
+ * - sampled / partial long-form coverage must not claim manuscript-wide scoring;
+ * - stale artifacts that label incomplete coverage as SCORABLE must fail closed;
+ * - deterministic downgrade must convert unsupported manuscript-wide claims to
+ *   INSUFFICIENT_SIGNAL before persistence.
+ *
+ * Template and gold-standard shape checks live in:
+ * - tests/evaluation/benchmarks/ancient-bloodlines.longform.layered.spec.ts
+ * - docs/governance/evaluation-output-mode-contract.md
+ */
+
+const ANCIENT_BLOODLINES_WORD_COUNT = 18268;
+const ANCIENT_BLOODLINES_CHAR_COUNT = 105000;
+const SAMPLED_WORD_COUNT = 6263;
+const SAMPLED_CHAR_COUNT = 42000;
+
+function makeWordText(wordCount: number): string {
+  return Array.from({ length: wordCount }, (_, index) => `word${index}`).join(' ');
+}
 
 function makeValidArtifactV2(): EvaluationResultV2 {
   return {
@@ -24,7 +54,7 @@ function makeValidArtifactV2(): EvaluationResultV2 {
     engine: {
       model: 'gpt-5.3-codex',
       provider: 'openai',
-      prompt_version: 'ancient-bloodlines-benchmark-governance',
+      prompt_version: 'ancient-bloodlines-benchmark-governance-regression',
     },
     overview: {
       verdict: 'revise',
@@ -74,7 +104,7 @@ function makeValidArtifactV2(): EvaluationResultV2 {
     metrics: {
       manuscript: {
         title: 'Ancient Bloodlines—Love Between Species',
-        word_count: 18268,
+        word_count: ANCIENT_BLOODLINES_WORD_COUNT,
       },
       processing: {
         segment_count: 13,
@@ -92,42 +122,50 @@ function makeValidArtifactV2(): EvaluationResultV2 {
           input_scale: 'full_manuscript',
           manuscript_wide_certifiable: true,
           reason_codes: [],
-          criterion_scope_policy_version: 'v0.2',
+          criterion_scope_policy_version: SCOPE_POLICY_VERSION,
         },
         coverage_summary: {
           partial_evaluation: false,
           sampling_strategy: 'full_chunk_map_reduce',
-          source_word_count: 18268,
-          analyzed_word_count: 18268,
-          source_char_count: 105000,
-          analyzed_char_count: 105000,
+          source_word_count: ANCIENT_BLOODLINES_WORD_COUNT,
+          analyzed_word_count: ANCIENT_BLOODLINES_WORD_COUNT,
+          source_char_count: ANCIENT_BLOODLINES_CHAR_COUNT,
+          analyzed_char_count: ANCIENT_BLOODLINES_CHAR_COUNT,
         },
       },
     },
   };
 }
 
-function makeFullManuscriptScopeProfile(): SubmissionScopeProfile {
+function makeArtificialFullManuscriptScopeProfile(): SubmissionScopeProfile {
   return {
     inputScale: 'full_manuscript',
-    wordCount: 18268,
+    wordCount: ANCIENT_BLOODLINES_WORD_COUNT,
     chunkCount: 13,
-    scorableCount: 13,
+    scorableCount: CRITERIA_KEYS.length,
     confidenceCapSummary: 'HIGH',
-    scopePolicyVersion: 'v1',
+    scopePolicyVersion: SCOPE_POLICY_VERSION,
   };
 }
 
 describe('Ancient Bloodlines — Governance behavior benchmark', () => {
+  it('documents the current natural scope for the historical 18k-word fixture', () => {
+    const scope = classifySubmissionScope(makeWordText(ANCIENT_BLOODLINES_WORD_COUNT), 13, 'standalone');
+
+    expect(scope.inputScale).toBe('novelette');
+    expect(scope.scopePolicyVersion).toBe(SCOPE_POLICY_VERSION);
+    expect(scope.wordCount).toBe(ANCIENT_BLOODLINES_WORD_COUNT);
+  });
+
   it('computes certification from coverage inputs (not manual flags)', () => {
     const decision = computeManuscriptCertification({
       inputScale: 'full_manuscript',
       partialEvaluation: true,
       coverageScope: {
-        sourceChars: 105000,
-        sourceWords: 18268,
-        analyzedChars: 42000,
-        analyzedWords: 6263,
+        sourceChars: ANCIENT_BLOODLINES_CHAR_COUNT,
+        sourceWords: ANCIENT_BLOODLINES_WORD_COUNT,
+        analyzedChars: SAMPLED_CHAR_COUNT,
+        analyzedWords: SAMPLED_WORD_COUNT,
         strategy: 'sampled_beginning_middle_end',
       },
       hasSynthesisCriteria: true,
@@ -145,7 +183,7 @@ describe('Ancient Bloodlines — Governance behavior benchmark', () => {
     );
   });
 
-  it('locks criterion scope policy to MANUSCRIPT_WIDE for full_manuscript input', () => {
+  it('locks criterion scope policy to MANUSCRIPT_WIDE for artificial full_manuscript regression fixtures', () => {
     for (const key of CRITERIA_KEYS) {
       expect(criterionClaimScope('full_manuscript', key)).toBe('MANUSCRIPT_WIDE');
     }
@@ -178,15 +216,15 @@ describe('Ancient Bloodlines — Governance behavior benchmark', () => {
         input_scale: 'full_manuscript',
         manuscript_wide_certifiable: false,
         reason_codes: ['LONG_FORM_PARTIAL_EVALUATION', 'LONG_FORM_SAMPLED_COVERAGE'],
-        criterion_scope_policy_version: 'v0.2',
+        criterion_scope_policy_version: SCOPE_POLICY_VERSION,
       },
       coverage_summary: {
         partial_evaluation: true,
         sampling_strategy: 'sampled_beginning_middle_end',
-        source_word_count: 18268,
-        analyzed_word_count: 6263,
-        source_char_count: 105000,
-        analyzed_char_count: 42000,
+        source_word_count: ANCIENT_BLOODLINES_WORD_COUNT,
+        analyzed_word_count: SAMPLED_WORD_COUNT,
+        source_char_count: ANCIENT_BLOODLINES_CHAR_COUNT,
+        analyzed_char_count: SAMPLED_CHAR_COUNT,
       },
     };
 
@@ -213,15 +251,15 @@ describe('Ancient Bloodlines — Governance behavior benchmark', () => {
         input_scale: 'full_manuscript',
         manuscript_wide_certifiable: false,
         reason_codes: reasonCodes,
-        criterion_scope_policy_version: 'v0.2',
+        criterion_scope_policy_version: SCOPE_POLICY_VERSION,
       },
       coverage_summary: {
         partial_evaluation: true,
         sampling_strategy: 'sampled_beginning_middle_end',
-        source_word_count: 18268,
-        analyzed_word_count: 6263,
-        source_char_count: 105000,
-        analyzed_char_count: 42000,
+        source_word_count: ANCIENT_BLOODLINES_WORD_COUNT,
+        analyzed_word_count: SAMPLED_WORD_COUNT,
+        source_char_count: ANCIENT_BLOODLINES_CHAR_COUNT,
+        analyzed_char_count: SAMPLED_CHAR_COUNT,
       },
     };
 
@@ -229,7 +267,7 @@ describe('Ancient Bloodlines — Governance behavior benchmark', () => {
     expect(validation.ok).toBe(true);
   });
 
-  it('fails quality gate before persistence when uncertified long-form criteria remain SCORABLE', () => {
+  it('fails quality gate before persistence when stale full_manuscript artifact leaves uncertified criteria SCORABLE', () => {
     const prev = process.env.EVAL_SCOPE_PROFILE_ENABLED;
     process.env.EVAL_SCOPE_PROFILE_ENABLED = 'true';
 
@@ -240,14 +278,14 @@ describe('Ancient Bloodlines — Governance behavior benchmark', () => {
         coverage_summary: {
           partial_evaluation: true,
           sampling_strategy: 'sampled_beginning_middle_end',
-          source_word_count: 18268,
-          analyzed_word_count: 6263,
-          source_char_count: 105000,
-          analyzed_char_count: 42000,
+          source_word_count: ANCIENT_BLOODLINES_WORD_COUNT,
+          analyzed_word_count: SAMPLED_WORD_COUNT,
+          source_char_count: ANCIENT_BLOODLINES_CHAR_COUNT,
+          analyzed_char_count: SAMPLED_CHAR_COUNT,
         },
       };
 
-      const gate = runQualityGateV2(artifact, undefined, makeFullManuscriptScopeProfile());
+      const gate = runQualityGateV2(artifact, undefined, makeArtificialFullManuscriptScopeProfile());
       const longFormCheck = gate.checks.find((c) => c.check_id === 'long_form_certification');
 
       expect(longFormCheck).toBeDefined();
@@ -264,10 +302,10 @@ describe('Ancient Bloodlines — Governance behavior benchmark', () => {
 
   it('coverage-limited summary explicitly downgrades emotional posture language', () => {
     const summary = buildCoverageLimitedSummary({
-      sourceChars: 105000,
-      sourceWords: 18268,
-      analyzedChars: 42000,
-      analyzedWords: 6263,
+      sourceChars: ANCIENT_BLOODLINES_CHAR_COUNT,
+      sourceWords: ANCIENT_BLOODLINES_WORD_COUNT,
+      analyzedChars: SAMPLED_CHAR_COUNT,
+      analyzedWords: SAMPLED_WORD_COUNT,
       strategy: 'sampled_beginning_middle_end',
     });
 
