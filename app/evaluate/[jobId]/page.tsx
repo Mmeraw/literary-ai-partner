@@ -224,6 +224,32 @@ async function getManuscriptTitleById(manuscriptId?: number): Promise<string | n
   }
 }
 
+async function getManuscriptWordCountById(manuscriptId?: number): Promise<number | null> {
+  if (!Number.isFinite(manuscriptId) || (manuscriptId as number) <= 0) {
+    return null;
+  }
+
+  try {
+    const supabase = createAdminClient();
+    const { data, error } = await supabase
+      .from("manuscripts")
+      .select("word_count")
+      .eq("id", manuscriptId)
+      .maybeSingle();
+
+    if (error) {
+      console.warn(`[getManuscriptWordCountById] Failed to load manuscript ${manuscriptId}:`, error.message);
+      return null;
+    }
+
+    const wordCount = data?.word_count;
+    return typeof wordCount === "number" && wordCount > 0 ? wordCount : null;
+  } catch (err) {
+    console.warn(`[getManuscriptWordCountById] Unexpected error for manuscript ${manuscriptId}:`, err);
+    return null;
+  }
+}
+
 
 async function getCurrentOwnerId(): Promise<string | null> {
   const sessionUser = await getAuthenticatedUser();
@@ -566,7 +592,8 @@ export default async function EvaluationReportPage({
   const manuscriptTitle =
     getRelatedManuscriptTitle(job) || (await getManuscriptTitleById(job.manuscript_id));
   const { displayTitle } = resolveReportTitle({ chapterTitle, manuscriptTitle });
-  const wordCount = artifact?.metrics?.manuscript?.word_count ?? null;
+  const manuscriptWordCount = await getManuscriptWordCountById(job.manuscript_id);
+  const wordCount = artifact?.metrics?.manuscript?.word_count ?? manuscriptWordCount ?? null;
   const isLongForm = typeof wordCount === "number" && wordCount >= DREAM_WORD_COUNT_THRESHOLD;
   const dreamDoc = isComplete && isLongForm ? await getDreamArtifact(jobId) : null;
   const hasDetectedMode = Boolean(artifact?.detected_mode);
