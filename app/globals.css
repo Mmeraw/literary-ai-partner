@@ -208,11 +208,11 @@
   margin-top: 8px;
 }
 
-/* === Agent Readiness mobile containment ===
+/* === Agent Readiness readability + workspace width ===
  *
- * The Agent Readiness client is largely inline-styled. This route-level guard
- * prevents the desktop two-column shell from forcing horizontal overflow on
- * phones while preserving the desktop layout at tablet/desktop widths.
+ * Agent Readiness is an author workbench, not a narrow marketing page.
+ * Preserve the existing RevisionGrade fonts and dark premium styling, but make
+ * desktop use the screen and make mobile readable without zooming.
  */
 .agent-readiness-route,
 .agent-readiness-route * {
@@ -225,26 +225,90 @@
   overflow-x: clip;
 }
 
-.agent-readiness-route h1,
-.agent-readiness-route h2,
-.agent-readiness-route h3,
-.agent-readiness-route p,
-.agent-readiness-route a,
-.agent-readiness-route button,
-.agent-readiness-route span,
-.agent-readiness-route select,
-.agent-readiness-route div {
-  max-width: 100%;
-  overflow-wrap: anywhere;
+/* The inline-styled pages use nested wrappers. This expands the actual desktop
+   workbench shell while preserving the left navigation column. */
+.agent-readiness-route > div > div {
+  width: min(1560px, calc(100vw - 72px)) !important;
+  max-width: none !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+  gap: 2.25rem !important;
 }
 
+/* Sidebar: keep useful, but do not let it starve the editor. */
+.agent-readiness-route > div > div > aside {
+  width: 280px !important;
+  flex: 0 0 280px !important;
+}
+
+/* Main content column: remove the narrow 860px cap. */
+.agent-readiness-route > div > div > div {
+  flex: 1 1 auto !important;
+  width: 100% !important;
+  max-width: none !important;
+  min-width: 0 !important;
+}
+
+/* Query-letter page has an inner inline maxWidth: 860px. Override it. */
+.agent-readiness-route > div > div > div[style*="max-width"] {
+  max-width: none !important;
+}
+
+/* Desktop readability. Preserve existing fonts; just scale them up. */
+.agent-readiness-route p,
+.agent-readiness-route label,
+.agent-readiness-route textarea,
 .agent-readiness-route select,
+.agent-readiness-route button,
+.agent-readiness-route a,
+.agent-readiness-route span {
+  font-size: max(0.95rem, 15px) !important;
+}
+
+.agent-readiness-route textarea {
+  font-size: 1rem !important;
+  line-height: 1.75 !important;
+  min-height: 190px;
+}
+
+.agent-readiness-route h1 {
+  font-size: clamp(2.35rem, 3vw, 3.25rem) !important;
+  line-height: 1.08 !important;
+}
+
+.agent-readiness-route h2 {
+  font-size: clamp(1.5rem, 2vw, 2.1rem) !important;
+  line-height: 1.18 !important;
+}
+
+.agent-readiness-route h3 {
+  font-size: clamp(1.25rem, 1.5vw, 1.65rem) !important;
+  line-height: 1.2 !important;
+}
+
+/* Reduce excessive letter spacing slightly for readability without losing brand. */
+.agent-readiness-route [style*="letter-spacing"] {
+  letter-spacing: 0.08em !important;
+}
+
+/* Bigger tap/click targets. */
 .agent-readiness-route button,
 .agent-readiness-route a {
-  min-width: 0;
+  min-height: 44px;
 }
 
+/* Textareas should use available editor width. */
+.agent-readiness-route textarea {
+  width: 100% !important;
+  max-width: 100% !important;
+}
+
+/* Mobile: true single column, larger text, no horizontal overflow. */
 @media (max-width: 767px) {
+  .agent-readiness-route {
+    overflow-x: hidden;
+  }
+
   .agent-readiness-route > div > div {
     width: 100% !important;
     max-width: 100% !important;
@@ -256,40 +320,61 @@
 
   .agent-readiness-route > div > div > aside {
     width: 100% !important;
-    flex-shrink: 1 !important;
-  }
-
-  .agent-readiness-route > div > div > aside nav {
-    display: grid !important;
-    grid-template-columns: 1fr !important;
-    gap: 0.25rem !important;
+    flex: 1 1 auto !important;
+    position: static !important;
   }
 
   .agent-readiness-route > div > div > div {
     width: 100% !important;
+    max-width: 100% !important;
     min-width: 0 !important;
   }
 
   .agent-readiness-route h1 {
-    font-size: clamp(1.75rem, 10vw, 2.25rem) !important;
-    line-height: 1.08 !important;
+    font-size: clamp(2.7rem, 12vw, 3.6rem) !important;
+    line-height: 1.04 !important;
   }
 
   .agent-readiness-route h2 {
+    font-size: clamp(1.75rem, 8vw, 2.4rem) !important;
+  }
+
+  .agent-readiness-route h3 {
+    font-size: 1.55rem !important;
+  }
+
+  .agent-readiness-route p,
+  .agent-readiness-route label,
+  .agent-readiness-route textarea,
+  .agent-readiness-route select,
+  .agent-readiness-route button,
+  .agent-readiness-route a,
+  .agent-readiness-route span {
     font-size: 1.125rem !important;
+    line-height: 1.65 !important;
+  }
+
+  .agent-readiness-route textarea {
+    font-size: 1.125rem !important;
+    line-height: 1.7 !important;
+    min-height: 220px;
+    padding: 1rem !important;
+  }
+
+  .agent-readiness-route [style*="letter-spacing"] {
+    letter-spacing: 0.06em !important;
   }
 
   .agent-readiness-route #selected-manuscript,
   .agent-readiness-route #sections > div,
   .agent-readiness-route #sections + div,
   .agent-readiness-route #sections + div + div {
-    padding: 1rem !important;
+    padding: 1.15rem !important;
   }
 
   .agent-readiness-route #selected-manuscript select {
     width: 100% !important;
     max-width: 100% !important;
-    font-size: 1rem !important;
   }
 
   .agent-readiness-route #selected-manuscript [style*="grid-template-columns"] {
@@ -309,6 +394,7 @@
 
   .agent-readiness-route button,
   .agent-readiness-route a {
+    min-height: 48px;
     white-space: normal !important;
   }
 }
