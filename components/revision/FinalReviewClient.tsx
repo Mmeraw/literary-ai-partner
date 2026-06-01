@@ -133,7 +133,6 @@ export default function FinalReviewClient({ payload }: { payload: FinalReviewPay
                   return (
                     <p key={`${index}-${decision.id}`}>
                       <span className={`rounded border px-1.5 py-0.5 ${markerClass(decision.highlightTone)}`}>{paragraph}</span>
-                      <sup className="ml-1 text-[#C8A96E]">{index + 1}</sup>
                     </p>
                   );
                 })
@@ -149,14 +148,11 @@ export default function FinalReviewClient({ payload }: { payload: FinalReviewPay
                 <li className="rounded-lg border border-dashed border-[#3A3022] bg-[#120E08] p-3 text-sm text-[#B3A185]">
                   No synced decisions yet. Return to the Revise Workbench and accept, customize, keep, reject, or defer at least one item.
                 </li>
-              ) : payload.decisions.map((decision, index) => (
+              ) : payload.decisions.map((decision) => (
                 <li key={decision.id} className="rounded-lg border border-[#2B241A] bg-[#120E08] p-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex flex-wrap gap-2">
-                      <span className={`rounded px-2 py-1 text-[10px] uppercase tracking-wider ${markerClass(decision.highlightTone)}`}>{decisionLabel(decision)}</span>
-                      <span className={`rounded border px-2 py-1 text-[10px] uppercase tracking-wider ${severityClass(decision.severity)}`}>{decision.severity ?? "severity n/a"}</span>
-                    </div>
-                    <span className="text-xs text-[#8F8068]">#{index + 1}</span>
+                  <div className="flex flex-wrap gap-2">
+                    <span className={`rounded px-2 py-1 text-[10px] uppercase tracking-wider ${markerClass(decision.highlightTone)}`}>{decisionLabel(decision)}</span>
+                    <span className={`rounded border px-2 py-1 text-[10px] uppercase tracking-wider ${severityClass(decision.severity)}`}>{decision.severity ?? "severity n/a"}</span>
                   </div>
                   <p className="mt-2 text-sm leading-5 text-[#F2E7D4]">{decision.title}</p>
                   {decision.criterion && <p className="mt-1 text-xs text-[#C8A96E]">{decision.criterion}</p>}
