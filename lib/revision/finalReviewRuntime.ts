@@ -1,6 +1,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getAuthenticatedUser } from "@/lib/supabase/server";
 import { createDerivedVersion } from "@/lib/manuscripts/versions";
+import { resolveFinalReviewSourceText, scrubInternalReportLeakage } from "@/lib/revision/finalReviewSourceText";
 
 export type FinalReviewExportFormat = "clean" | "marked" | "changelog";
 export type FinalReviewExportFile = "txt" | "pdf" | "docx";
@@ -39,15 +40,6 @@ const APPLICABLE = new Set(["accepted_a", "accepted_b", "accepted_c", "custom"])
 function safeFilename(title: string, suffix: string, ext: string): string {
   const base = title.replace(/[^a-z0-9]+/gi, "-").toLowerCase().replace(/^-|-$/g, "").slice(0, 50) || "manuscript";
   return `revisiongrade-${base}-${suffix}.${ext}`;
-}
-
-function scrubInternalMetadata(text: string): string {
-  return text
-    .split(/\r?\n/)
-    .filter((line) => !/\b(gpt-|openai|provider|prompt version|chunks? analyzed|successfully processed|evaluation provenance|score ledger|job id|schema version|confidence varies|sampled prompt window|compressed manuscript reference window)\b/i.test(line))
-    .join("\n")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
 }
 
 async function loadRuntimeContext(input: FinalReviewRuntimeInput): Promise<RuntimeContext> {
@@ -106,6 +98,14 @@ async function loadRuntimeContext(input: FinalReviewRuntimeInput): Promise<Runti
     if (!latestByOpportunity.has(row.opportunity_id)) latestByOpportunity.set(row.opportunity_id, row);
   }
 
+  const sourceText = await resolveFinalReviewSourceText({
+    supabase,
+    manuscriptId,
+    userId: user.id,
+    sourceVersionId: job.manuscript_version_id,
+    fallbackRawText: version.raw_text ?? "",
+  });
+
   return {
     supabase,
     userId: user.id,
@@ -113,7 +113,7 @@ async function loadRuntimeContext(input: FinalReviewRuntimeInput): Promise<Runti
     manuscriptTitle: manuscript.title ?? "Untitled Manuscript",
     evaluationJobId: String(input.evaluationJobId),
     sourceVersionId: job.manuscript_version_id,
-    sourceText: scrubInternalMetadata(version.raw_text ?? ""),
+    sourceText,
     decisions: [...latestByOpportunity.values()],
   };
 }
@@ -143,9 +143,9 @@ function buildChangelog(ctx: RuntimeContext): string {
     lines.push(`${decisionLabel(decision)} — ${decision.opportunity_title}`);
     if (decision.selected_option) lines.push(`Option: ${decision.selected_option}`);
     if (decision.source_location) lines.push(`Location: ${decision.source_location}`);
-    if (decision.source_excerpt) lines.push(`Original: ${scrubInternalMetadata(decision.source_excerpt)}`);
-    if (decision.selected_text) lines.push(`Selected revision: ${scrubInternalMetadata(decision.selected_text)}`);
-    if (decision.custom_text) lines.push(`Custom text: ${scrubInternalMetadata(decision.custom_text)}`);
+    if (decision.source_excerpt) lines.push(`Original: ${scrubInternalReportLeakage(decision.source_excerpt)}`);
+    if (decision.selected_text) lines.push(`Selected revision: ${scrubInternalReportLeakage(decision.selected_text)}`);
+    if (decision.custom_text) lines.push(`Custom text: ${scrubInternalReportLeakage(decision.custom_text)}`);
     lines.push("");
   }
 
@@ -165,13 +165,13 @@ function buildMarkedText(ctx: RuntimeContext): string {
 }
 
 function applyTextSnapshots(ctx: RuntimeContext): { text: string; applied: RuntimeDecision[]; blocked: string[] } {
-  let text = ctx.sourceText;
+  let text = scrubInternalReportLeakage(ctx.sourceText);
   const applied: RuntimeDecision[] = [];
   const blocked: string[] = [];
 
   for (const decision of applicableDecisions(ctx.decisions)) {
-    const replacement = scrubInternalMetadata(decision.decision === "custom" ? decision.custom_text ?? "" : decision.selected_text ?? "");
-    const source = scrubInternalMetadata(decision.source_excerpt ?? "");
+    const replacement = scrubInternalReportLeakage(decision.decision === "custom" ? decision.custom_text ?? "" : decision.selected_text ?? "");
+    const source = scrubInternalReportLeakage(decision.source_excerpt ?? "");
 
     if (!replacement || !source) {
       blocked.push(`${decision.opportunity_title}: missing source excerpt or selected replacement text.`);
@@ -268,9 +268,7 @@ export async function buildFinalReviewExport(input: FinalReviewRuntimeInput & { 
     content = buildMarkedText(ctx);
     suffix = "marked-review-copy";
   } else {
-    content = applied.blocked.length > 0
-      ? `${ctx.sourceText}\n\nRevisionGrade Clean Draft Notice\nClean export could not apply all decisions because some accepted/custom decisions are missing source/replacement snapshots. Exported source text unchanged.\n\n${applied.blocked.join("\n")}`
-      : applied.text;
+    content = applied.text;
     suffix = "clean-draft";
   }
 
