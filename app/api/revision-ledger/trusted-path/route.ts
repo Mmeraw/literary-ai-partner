@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getWorkbenchQueue, type WorkbenchOpportunity } from "@/lib/revision/workbenchQueue";
-import { candidateTextIsCopyPasteReady, getRenderableCandidateText } from "@/lib/revision/reviseCardContract";
+import { getRenderableCandidateText } from "@/lib/revision/reviseCardContract";
 import { syncRevisionLedgerDecisions, type SyncRevisionLedgerEntryInput } from "@/lib/revision/ledger";
 
 export const dynamic = "force-dynamic";
@@ -36,6 +36,7 @@ function candidateRepeatsSourceForInsertion(item: WorkbenchOpportunity, text: st
 }
 
 function optionA(item: WorkbenchOpportunity): string {
+  if (item.readiness !== "ready_for_revise") return "";
   const option = item.options.find((entry) => entry.key === "A");
   if (!option) return "";
   const candidate = getRenderableCandidateText({
@@ -44,34 +45,6 @@ function optionA(item: WorkbenchOpportunity): string {
   });
   if (!candidate || candidateRepeatsSourceForInsertion(item, candidate)) return "";
   return candidate;
-}
-
-function specificFallbackCandidate(item: WorkbenchOpportunity): string {
-  const haystack = compareText(`${item.title} ${item.issueStatement} ${sourceTextOf(item)} ${item.fixDirection}`);
-
-  if (haystack.includes("move aside") && haystack.includes("small fry") && haystack.includes("newton")) {
-    return "Newton’s hand tightened around the slug before he let it go. The loss was small, but in front of the others, the choice had cost him.";
-  }
-
-  if (haystack.includes("why") && haystack.includes("picking on me") && haystack.includes("newton")) {
-    return "Newton’s voice caught before he could harden it. The question came out smaller than he meant, and that made the silence around him worse.";
-  }
-
-  if (haystack.includes("hithery") || haystack.includes("sensory detail") || haystack.includes("body or surroundings")) {
-    return "The hithery-thithery dock clattered under Newton’s feet as two worried voices knocked inside his skull.";
-  }
-
-  return "";
-}
-
-function trustedPathCandidate(item: WorkbenchOpportunity): string {
-  const option = optionA(item);
-  if (option) return option;
-
-  const fallback = specificFallbackCandidate(item);
-  if (fallback && candidateTextIsCopyPasteReady(fallback) && !candidateRepeatsSourceForInsertion(item, fallback)) return fallback;
-
-  return "";
 }
 
 function buildEntry(item: WorkbenchOpportunity, selectedText: string): SyncRevisionLedgerEntryInput {
@@ -119,9 +92,9 @@ export async function POST(req: Request) {
     for (const item of allItems) {
       if (seen.has(item.id)) continue;
       seen.add(item.id);
-      const selectedText = trustedPathCandidate(item);
+      const selectedText = optionA(item);
       if (!selectedText) {
-        skipped.push({ id: item.id, title: item.title, reason: "Recommended Repair A is not copy-ready." });
+        skipped.push({ id: item.id, title: item.title, reason: item.readiness === "ready_for_revise" ? "Recommended Repair A is not copy-ready." : "Needs Targeting requires manual review." });
         continue;
       }
       entries.push(buildEntry(item, selectedText));
