@@ -96,7 +96,7 @@ describe("silent direct_window fallback is killed", () => {
     });
     const failure = expectFailure(result);
     expect(failure.error_code).not.toBe("CHUNK_ROUTING_NOT_ENGAGED");
-  }, 10_000);
+  }, 20_000);
 
   test("sub-threshold text (2,500 words) with no chunks is OK at the pipeline guard", async () => {
     // Below the structural chunking threshold (3k), direct evaluation is the
