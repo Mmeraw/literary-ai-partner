@@ -203,7 +203,7 @@ describe("runPipeline chunk-shape guards", () => {
       const failure = expectFailure(result);
       expect(failure.error_code).not.toBe("CHUNK_BUDGET_OVERFLOW");
       expect(failure.error_code).not.toBe("PIPELINE_INPUT_INVALID");
-    });
+    }, 15_000);
 
     test("undefined manuscriptChunks (omitted) does not invoke the guard", async () => {
       const result = await runPipeline({

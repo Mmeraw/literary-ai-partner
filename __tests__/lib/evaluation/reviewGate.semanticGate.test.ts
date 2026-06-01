@@ -28,7 +28,7 @@ function baseInput() {
 describe('evaluateReviewGateSemanticGate', () => {
   it('passes when quality + completion + payload checks are clean', () => {
     const result = evaluateReviewGateSemanticGate(baseInput());
-    expect(result).toEqual({ ok: true });
+    expect(result).toEqual({ ok: true, code: null, reasons: [] });
   });
 
   it('fails when gate_ready_status is blocked', () => {
