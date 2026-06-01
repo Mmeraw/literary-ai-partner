@@ -42,7 +42,14 @@ export interface JobState {
   progress: number; // 0-100
   created_at: string;
   updated_at: string;
+  last_heartbeat?: string | null;
   last_error?: string;
+  failure_code?: string;
+  phase_message?: string | null;
+  heartbeat_age_seconds?: number | null;
+  retry_count?: number | null;
+  is_stalled?: boolean;
+  stalled_reason?: string | null;
   // Canonical pipeline-stage fields (additive; may be absent on older API responses).
   // When present these are authoritative for stage label resolution and are decoupled
   // from the smoothly-animated visual progress bar.
@@ -319,7 +326,13 @@ export function EvaluationPoller({
             prev.pass3_started_at === nextJob.pass3_started_at &&
             prev.pass3_completed_at === nextJob.pass3_completed_at &&
             prev.manuscript_word_count === nextJob.manuscript_word_count &&
-            prev.phase0_total_duration_ms === nextJob.phase0_total_duration_ms;
+            prev.phase0_total_duration_ms === nextJob.phase0_total_duration_ms &&
+            prev.phase_message === nextJob.phase_message &&
+            prev.heartbeat_age_seconds === nextJob.heartbeat_age_seconds &&
+            prev.retry_count === nextJob.retry_count &&
+            prev.is_stalled === nextJob.is_stalled &&
+            prev.stalled_reason === nextJob.stalled_reason &&
+            prev.failure_code === nextJob.failure_code;
 
           unchangedCountRef.current = unchanged ? unchangedCountRef.current + 1 : 0;
           return nextJob;
@@ -577,6 +590,12 @@ export function EvaluationPoller({
             phase3_started_at: job.pass3_started_at ?? null,
             pass3_completed_at: job.pass3_completed_at ?? null,
             manuscript_word_count: job.manuscript_word_count ?? null,
+            phase_message: job.phase_message ?? null,
+            heartbeat_age_seconds: job.heartbeat_age_seconds ?? null,
+            retry_count: job.retry_count ?? null,
+            is_stalled: job.is_stalled ?? false,
+            stalled_reason: job.stalled_reason ?? null,
+            failure_code: job.failure_code ?? null,
           });
           if (!pd) return null;
 
@@ -722,6 +741,23 @@ export function EvaluationPoller({
             <p className="text-xs text-amber-700 mt-2">
               Retrying automatically in {Math.ceil(nextPollDelay / 1000)}s.
             </p>
+          </div>
+        )}
+
+        {(job.status === 'queued' || job.status === 'running') && job.is_stalled && (
+          <div className="p-3 bg-red-50 border border-red-200 rounded">
+            <p className="text-xs font-semibold text-red-800 uppercase">Evaluation stalled</p>
+            <p className="text-sm text-red-700 mt-2">
+              {formatUserSafeError(
+                job.stalled_reason ||
+                (typeof job.heartbeat_age_seconds === 'number'
+                  ? `No progress update for ${job.heartbeat_age_seconds}s. The worker may be stuck.`
+                  : 'No progress updates detected. The worker may be stuck.'),
+              )}
+            </p>
+            {typeof job.retry_count === 'number' && (
+              <p className="text-xs text-red-700 mt-1">Retry attempts observed: {job.retry_count}</p>
+            )}
           </div>
         )}
 

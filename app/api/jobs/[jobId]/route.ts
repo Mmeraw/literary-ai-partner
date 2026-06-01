@@ -81,6 +81,16 @@ type CanonicalJobResponse = {
   hard_fail_present?: boolean | null;
   /** Manuscript word count from chunk_routing JSONB — available before completion */
   manuscript_word_count?: number | null;
+  /** Human-safe backend phase message, surfaced from progress.message when present */
+  phase_message?: string | null;
+  /** Age (seconds) of last heartbeat/update used for stalled-state detection */
+  heartbeat_age_seconds?: number | null;
+  /** Retry attempt count surfaced from progress.attempt_count when available */
+  retry_count?: number | null;
+  /** True when queued/running job has stopped advancing beyond phase threshold */
+  is_stalled?: boolean;
+  /** User-safe stalled explanation for UI */
+  stalled_reason?: string | null;
   last_error?: string;
   failure_code?: string;
 };
@@ -236,13 +246,31 @@ export async function GET(req: NextRequest, ctx: { params: Params }) {
       response.job.manuscript_word_count = rawMsWords;
     }
 
+    // 6f) Surface operational visibility fields for explicit stuck-state UX.
+    const operationalSignal = extractOperationalSignal(job, canonicalPhase.phase);
+    if (operationalSignal.phase_message !== undefined) {
+      response.job.phase_message = operationalSignal.phase_message;
+    }
+    if (operationalSignal.heartbeat_age_seconds !== undefined) {
+      response.job.heartbeat_age_seconds = operationalSignal.heartbeat_age_seconds;
+    }
+    if (operationalSignal.retry_count !== undefined) {
+      response.job.retry_count = operationalSignal.retry_count;
+    }
+    if (operationalSignal.is_stalled !== undefined) {
+      response.job.is_stalled = operationalSignal.is_stalled;
+    }
+    if (operationalSignal.stalled_reason !== undefined) {
+      response.job.stalled_reason = operationalSignal.stalled_reason;
+    }
+
     // 7) Include last_error only on failure
     if (job.status === "failed" && job.last_error) {
       response.job.last_error = job.last_error;
     }
 
-    // 8) Include failure_code only on failure when available
-    if (job.status === "failed" && job.failure_code) {
+    // 8) Include failure_code whenever available (including non-terminal degradation signals)
+    if (job.failure_code) {
       response.job.failure_code = job.failure_code;
     }
 
@@ -425,5 +453,77 @@ function extractStageTiming(job: Job): {
     phase0_calibration_word_count: typeof p.phase0_calibration_word_count === 'number' ? p.phase0_calibration_word_count
       : typeof p.phase0_calibration_word_count === 'string' ? Number(p.phase0_calibration_word_count) || null
       : null,
+  };
+}
+
+function extractOperationalSignal(
+  job: Job,
+  canonicalPhase: CanonicalPhase | null | undefined,
+): {
+  phase_message?: string | null;
+  heartbeat_age_seconds?: number | null;
+  retry_count?: number | null;
+  is_stalled?: boolean;
+  stalled_reason?: string | null;
+} {
+  const progress = (job.progress as Record<string, unknown> | null) ?? null;
+
+  const phaseMessageRaw = progress?.message;
+  const phase_message =
+    typeof phaseMessageRaw === "string" && phaseMessageRaw.trim().length > 0
+      ? phaseMessageRaw.trim()
+      : null;
+
+  const retryRaw = progress?.attempt_count;
+  const retry_count =
+    typeof retryRaw === "number"
+      ? retryRaw
+      : typeof retryRaw === "string" && retryRaw.trim().length > 0
+        ? Number(retryRaw)
+        : null;
+
+  const nowMs = Date.now();
+  const heartbeatAt = typeof job.last_heartbeat === "string" ? Date.parse(job.last_heartbeat) : NaN;
+  const updatedAt = typeof job.updated_at === "string" ? Date.parse(job.updated_at) : NaN;
+  const freshestMs = Number.isFinite(heartbeatAt)
+    ? heartbeatAt
+    : Number.isFinite(updatedAt)
+      ? updatedAt
+      : NaN;
+  const heartbeat_age_seconds = Number.isFinite(freshestMs)
+    ? Math.max(0, Math.floor((nowMs - freshestMs) / 1000))
+    : null;
+
+  const stalledThresholdSeconds =
+    canonicalPhase === "phase_0"
+      ? 120
+      : canonicalPhase === "phase_1a"
+        ? 180
+        : canonicalPhase === "phase_2" || canonicalPhase === "phase_3"
+          ? 240
+          : 180;
+
+  const isCandidateState = job.status === "queued" || job.status === "running";
+  const isGateAwaitingApproval =
+    canonicalPhase === "review_gate" &&
+    ((progress?.phase_status as string | undefined) === "awaiting_approval");
+
+  const is_stalled = Boolean(
+    isCandidateState &&
+    !isGateAwaitingApproval &&
+    heartbeat_age_seconds !== null &&
+    heartbeat_age_seconds >= stalledThresholdSeconds,
+  );
+
+  const stalled_reason = is_stalled
+    ? `No worker heartbeat/progress update for ${heartbeat_age_seconds}s while ${job.status}.`
+    : null;
+
+  return {
+    phase_message,
+    heartbeat_age_seconds,
+    retry_count,
+    is_stalled,
+    stalled_reason,
   };
 }
