@@ -37,7 +37,7 @@ type LedgerQualityTechnicalSignals = {
   };
   preflightReducer?: {
     reducer_status: 'ok' | 'failed' | 'unknown';
-    preflight_authority?: 'available' | 'degraded' | 'unavailable' | null;
+    preflight_authority?: 'full' | 'reduced' | 'advisory' | 'unavailable' | null;
   };
 };
 
