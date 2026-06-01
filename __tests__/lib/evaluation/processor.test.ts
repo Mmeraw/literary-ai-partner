@@ -17,6 +17,7 @@ const {
   toPhaseV2ArtifactSet,
   derivePhaseV2ReviewGateProgress,
   shouldRequeueReviewGateBlock,
+  shouldRequireStoryLedgerReviewGate,
 } = require("../../../lib/evaluation/processor");
 const { CRITERIA_KEYS } = require("../../../schemas/criteria-keys");
 
@@ -407,6 +408,15 @@ describe("SLA helpers", () => {
 });
 
 describe("Review Gate wiring helpers", () => {
+  test("Story Ledger user-facing gate requires >= 25,000 words", () => {
+    expect(shouldRequireStoryLedgerReviewGate(4412)).toBe(false);
+    expect(shouldRequireStoryLedgerReviewGate(24999)).toBe(false);
+    expect(shouldRequireStoryLedgerReviewGate(25000)).toBe(true);
+    expect(shouldRequireStoryLedgerReviewGate(80000)).toBe(true);
+    expect(shouldRequireStoryLedgerReviewGate(null)).toBe(false);
+    expect(shouldRequireStoryLedgerReviewGate(undefined)).toBe(false);
+  });
+
   test("maps phase v2 artifact refs from evaluation_artifacts rows using content.artifact_id fallback to row id", () => {
     const refs = toPhaseV2ArtifactSet([
       {
