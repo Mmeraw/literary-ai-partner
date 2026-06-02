@@ -44,8 +44,18 @@ export type ReviewGateBlocked = {
 };
 
 export type ReviewGateHandoffResult =
-  | { ok: true; handoff: ReviewGateHandoff; decision: ReviewGateDecision }
-  | { ok: false; blocked: ReviewGateBlocked };
+  | {
+      ok: true;
+      handoff: ReviewGateHandoff;
+      decision: ReviewGateDecision;
+      blocked?: never;
+    }
+  | {
+      ok: false;
+      blocked: ReviewGateBlocked;
+      handoff?: never;
+      decision?: never;
+    };
 
 function artifactId(ref: { artifact_id?: string | null } | null | undefined): string {
   return ref?.artifact_id ?? '';
