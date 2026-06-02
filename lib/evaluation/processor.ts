@@ -8171,7 +8171,7 @@ export async function processEvaluationJob(
       // Only re-queue if the failure actually occurred in Pass 3 (not an earlier pass).
       const PHASE_3_MAX_RETRIES = 2;
       const phase3RetryCount = (progressState as Record<string, unknown>).phase_3_retry_count as number ?? 0;
-      const failedInPhase3 = pipelineResult.failed_at === 'pass3' || pipelineResult.failed_at === 'pass3b';
+      const failedInPhase3 = pipelineResult.failed_at === 'pass3';
       if (executionPhase === 'phase_3' && failedInPhase3 && phase3RetryCount < PHASE_3_MAX_RETRIES) {
         const nextRetry = phase3RetryCount + 1;
         console.warn(`[Processor] ${jobId}: Phase 3 failed (attempt ${nextRetry}/${PHASE_3_MAX_RETRIES}), re-queuing for retry`, {
