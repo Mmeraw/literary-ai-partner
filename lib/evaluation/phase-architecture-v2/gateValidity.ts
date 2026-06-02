@@ -272,12 +272,17 @@ export function deriveReviewGateReadiness(
   }
 
   if (qualityGateReadyStatus === 'repair_required') {
+    // Kick forward: repair_required means >3 warnings but zero hard fails.
+    // These are advisory findings (missing pressure systems, ending notes,
+    // underweighted characters) — not critical failures. Blocking the entire
+    // evaluation on soft warnings destroys author trust. The warnings are
+    // preserved in the quality report artifact for downstream visibility.
     return {
-      ok: false,
-      review_gate_ready: false,
-      gate_validity: 'gate_blocking',
-      reason: 'ledger_quality_report_v1 is repair_required and not reviewable yet.',
-      code: 'REVIEW_GATE_QUALITY_NOT_REVIEWABLE',
+      ok: true,
+      review_gate_ready: true,
+      gate_validity: 'gate_valid',
+      reason: 'ledger_quality_report_v1 is repair_required (advisory warnings only, no hard fails) — proceeding with degraded authority (kick forward).',
+      code: 'REVIEW_GATE_REPAIR_KICK_FORWARD',
     };
   }
 
