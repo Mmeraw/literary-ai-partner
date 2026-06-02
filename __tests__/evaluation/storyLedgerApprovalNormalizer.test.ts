@@ -129,7 +129,7 @@ describe('Story Ledger approval normalizer', () => {
     })).toThrow(/hard fails remain unresolved/);
   });
 
-  it('blocks non-admin accepted feedback when quality is repair_required', () => {
+  it('allows non-admin accepted feedback when quality is repair_required (advisory warnings only)', () => {
     const repairRequiredReport: LedgerQualityReportPayload = {
       ...cleanQualityReport,
       gate_ready_status: 'repair_required',
@@ -137,13 +137,14 @@ describe('Story Ledger approval normalizer', () => {
       blocking_reasons: ['Layer completion mismatch.'],
     };
 
+    // repair_required = >3 warnings, zero hard fails. Should kick forward.
     expect(() => buildAcceptedStoryLedgerArtifact({
       metadata,
       sourceArtifacts: sourceArtifacts(repairRequiredReport),
       feedbackArtifactId: 'feedback-artifact-id',
       feedbackSourceHash: 'feedback-source-hash',
       feedback: feedback({ review_status: 'accepted_with_corrections' }),
-    })).toThrow(/quality gate is not reviewable/);
+    })).not.toThrow();
   });
 
   it('blocks non-admin accepted feedback when quality is blocked_retryable_technical', () => {

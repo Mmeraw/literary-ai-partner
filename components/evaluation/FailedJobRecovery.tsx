@@ -5,14 +5,14 @@
  *
  * Recovery UI shown when a job enters status='failed'.
  * Replaces the dead-end error state with a checkpoint-aware panel that offers:
- *   - phase2_handoff: "Restart" — Pass1+Pass2 complete, just re-run Pass3
- *   - chunk_checkpoint: "Resume" — resume Pass1 from cached chunk N of M
- *   - full_restart: "Start New Evaluation" link — SLA is expired, requeue is
- *       a trap. Always redirect to /evaluate for a fresh submission instead.
+ *   - phase2_handoff: continue from the saved Pass 1+2 handoff
+ *   - chunk_checkpoint: continue from cached chunk progress
+ *   - full_restart: operator-only attempt to continue from the safest available
+ *       saved state; non-operators are directed to a new evaluation.
  *
  * Used by both EvaluationPoller (inline on the report page) and JobStatusPoll.
- * All checkpoint detection happens client-side by reading job.progress fields,
- * with a fallback API call to /api/jobs/[jobId]/resume for the actual requeue.
+ * Checkpoint detection happens client-side by reading job progress fields when
+ * available, with a fallback API call to /api/jobs/[jobId]/resume for requeue.
  */
 
 import Link from "next/link";
@@ -39,13 +39,15 @@ export const CHECKPOINT_UNCHECKED: CheckpointInfo = {
 };
 
 /**
- * Derive checkpoint info from a job's progress JSONB without an extra API call.
- * The resume API is only called when the user actually clicks Resume.
+ * Derive checkpoint info from a job's progress JSONB when raw progress is
+ * available. Some status API responses expose only percentage progress; in that
+ * case this safely falls back to "no checkpoint" and lets the resume endpoint
+ * make the authoritative server-side decision.
  */
 export function deriveCheckpointFromProgress(
   progress: Record<string, unknown> | null | undefined,
 ): CheckpointInfo {
-  if (!progress) {
+  if (!progress || typeof progress !== "object") {
     return { ...CHECKPOINT_UNCHECKED, checked: true };
   }
 
@@ -58,19 +60,11 @@ export function deriveCheckpointFromProgress(
   const cachedChunks = chkResume?.cached_chunks ?? 0;
   const totalExpectedChunks = chkResume?.expected_chunks ?? 0;
 
-  // Phase-2 handoff: Pass1+Pass2 wrote the handoff artifact. The resume API
-  // queries evaluation_artifacts directly so we rely on that — here we detect
-  // from progress keys. The progress field from job 56d499c7 showed:
-  //   phase: "phase_2", pass3_completed_at set, phase1_completed_at set
-  // Also check resume_has_phase2_handoff written by a previous resume call.
   const hasPhase2Handoff =
     progress.resume_has_phase2_handoff === true ||
     (progress.phase === "phase_1a" && progress.phase_status === "complete") ||
     typeof progress.pass12_handoff_written_at === "string" ||
-    // pass3_completed_at present = Pass3 ran (handoff existed), job failed in validation
     typeof progress.pass3_completed_at === "string" ||
-    // Killed while running: phase_1a/running with completed_units >= 1
-    // means Pass1+Pass2 finished and handoff was written before the kill
     (progress.phase === "phase_1a" &&
       progress.phase_status === "running" &&
       typeof progress.completed_units === "number" &&
@@ -113,7 +107,6 @@ export function useFailedJobRecovery(
   const [resumeError, setResumeError] = useState<string | null>(null);
   const [resumed, setResumed] = useState(false);
 
-  // Derive checkpoint info as soon as the job enters failed state.
   useEffect(() => {
     if (jobStatus !== "failed" || checkpoint.checked) return;
     setCheckpoint(deriveCheckpointFromProgress(jobProgress));
@@ -135,15 +128,19 @@ export function useFailedJobRecovery(
         total_expected_chunks?: number;
       };
       if (!res.ok || !data.success) {
-        setResumeError(data.error ?? "Failed to resume evaluation. Please try again.");
+        setResumeError(data.error ?? "Unable to continue this evaluation. Please try again or start a new evaluation.");
       } else {
         setResumed(true);
         setCheckpoint(CHECKPOINT_UNCHECKED);
         onResumed?.();
+        // The failed job card stops polling at terminal failure. After the
+        // server accepts the continue request, reload once so the poller starts
+        // from the fresh queued/running state without showing a manual Refresh CTA.
+        window.setTimeout(() => window.location.reload(), 350);
       }
     } catch (err) {
-      console.error("[FailedJobRecovery] Resume failed:", err);
-      setResumeError("An unexpected error occurred. Please try again.");
+      console.error("[FailedJobRecovery] Continue failed:", err);
+      setResumeError("An unexpected error occurred. Please try again or start a new evaluation.");
     } finally {
       setResumeLoading(false);
     }
@@ -169,22 +166,22 @@ export function FailedJobRecovery({
   checkpoint,
   resumeLoading,
   resumeError,
+  resumed,
   onResume,
   showOperationalDetails = false,
 }: FailedJobRecoveryProps) {
   const { hasPhase2Handoff, resumeMode, checked, cachedChunks, totalExpectedChunks } = checkpoint;
 
-  // Non-operators see only a public-safe message and a single CTA.
   if (!showOperationalDetails) {
     return (
-      <div className="rounded-lg border border-amber-200 bg-amber-50 p-5 space-y-4">
+      <div className="space-y-4 rounded-lg border border-amber-200 bg-amber-50 p-5">
         <p className="text-sm text-amber-800">
           This evaluation could not be completed from the current saved state. Please start a new
           evaluation.
         </p>
         <Link
           href="/evaluate"
-          className="inline-flex items-center gap-2 rounded-md bg-amber-700 px-4 py-2 text-sm font-medium text-white hover:bg-amber-800 transition-colors"
+          className="inline-flex items-center gap-2 rounded-md bg-blue-700 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-800"
         >
           Start New Evaluation
         </Link>
@@ -192,56 +189,50 @@ export function FailedJobRecovery({
     );
   }
 
-  // full_restart = no resumable checkpoint, SLA clock is already expired on this job ID.
-  // Requeueing the same job will always be killed by the SLA watchdog before a
-  // worker picks it up. The only safe path is a fresh submission.
-  const isFullRestart = checked && resumeMode === "full_restart";
-
   const bodyText: React.ReactNode = !checked ? (
     <span className="text-amber-700">Checking for saved progress…</span>
   ) : hasPhase2Handoff ? (
     <span>
-      Pass 1 &amp; 2 completed successfully — only the final synthesis step is needed.
-      Restart will skip all chunk processing and complete from the saved handoff.
+      RevisionGrade found saved progress after the main analysis passes. Continue will use the
+      safest saved point; you do not need to upload your manuscript again.
     </span>
   ) : resumeMode === "chunk_checkpoint" ? (
     <span>
       {cachedChunks > 0
-        ? `${cachedChunks}${totalExpectedChunks > 0 ? ` of ${totalExpectedChunks}` : ""} chunks cached — Resume will pick up from where processing stopped.`
-        : "Chunk cache found — Resume will pick up from where processing stopped."}
+        ? `${cachedChunks}${totalExpectedChunks > 0 ? ` of ${totalExpectedChunks}` : ""} chunks were saved. Continue will pick up from the safest saved point.`
+        : "Saved chunk progress was found. Continue will pick up from the safest saved point."}
     </span>
   ) : (
-    // full_restart — be honest: resumable checkpoint is unavailable, send them to /evaluate
     <span>
-      Artifacts may have been saved, but no resumable checkpoint is available for this job.
-      The safest path is a new evaluation — submit your manuscript again to start fresh.
+      This issue may be recoverable. Continue will ask RevisionGrade to proceed from the safest
+      available saved point; you do not need to upload your manuscript again unless the problem
+      continues.
     </span>
   );
 
   return (
-    <div className="rounded-lg border border-amber-200 bg-amber-50 p-5 space-y-4">
+    <div className="space-y-4 rounded-lg border border-amber-200 bg-amber-50 p-5">
       <div>
         <p className="text-sm text-amber-800">{bodyText}</p>
       </div>
 
-      {/* Recovery mode pill — operator transparency only */}
       {checked && resumeMode && showOperationalDetails && (
         <div className="flex items-center gap-2">
-          <span className="text-xs text-amber-600 font-medium">Recovery mode:</span>
+          <span className="text-xs font-medium text-amber-600">Saved-state mode:</span>
           <span
-            className={`inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-mono font-medium ${
+            className={`inline-flex items-center rounded-md border px-2 py-0.5 font-mono text-xs font-medium ${
               resumeMode === "phase2_handoff"
-                ? "bg-green-100 text-green-800 border-green-300"
+                ? "border-green-300 bg-green-100 text-green-800"
                 : resumeMode === "chunk_checkpoint"
-                ? "bg-blue-100 text-blue-800 border-blue-300"
-                : "bg-gray-100 text-gray-700 border-gray-300"
+                ? "border-blue-300 bg-blue-100 text-blue-800"
+                : "border-gray-300 bg-gray-100 text-gray-700"
             }`}
           >
             {resumeMode === "phase2_handoff"
-              ? "phase 2 handoff"
+              ? "saved handoff"
               : resumeMode === "chunk_checkpoint"
-              ? "chunk checkpoint"
-              : "no checkpoint"}
+              ? "saved chunks"
+              : "safest available point"}
           </span>
         </div>
       )}
@@ -252,32 +243,30 @@ export function FailedJobRecovery({
         </div>
       )}
 
-      {/* Action: full_restart → link to /evaluate; otherwise → Resume/Restart button */}
-      {isFullRestart ? (
-        <Link
-          href="/evaluate"
-          className="inline-flex items-center gap-2 rounded-md bg-amber-700 px-4 py-2 text-sm font-medium text-white hover:bg-amber-800 transition-colors"
-        >
-          Start New Evaluation
-        </Link>
-      ) : (
-        <button
-          onClick={onResume}
-          disabled={resumeLoading || !checked}
-          className="inline-flex items-center gap-2 rounded-md bg-amber-700 px-4 py-2 text-sm font-medium text-white hover:bg-amber-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-        >
-          {resumeLoading ? (
-            <>
-              <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/40 border-t-white" />
-              {hasPhase2Handoff ? "Restarting…" : "Resuming…"}
-            </>
-          ) : hasPhase2Handoff ? (
-            "Restart"
-          ) : (
-            "Resume"
-          )}
-        </button>
+      {resumed && !resumeError && (
+        <div className="rounded-md border border-green-200 bg-green-50 px-3 py-2">
+          <p className="text-xs font-medium text-green-800">
+            Evaluation continuing from saved progress.
+          </p>
+        </div>
       )}
+
+      <button
+        onClick={onResume}
+        disabled={resumeLoading || !checked || resumed}
+        className="inline-flex items-center gap-2 rounded-md bg-blue-700 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        {resumeLoading ? (
+          <>
+            <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+            Continuing evaluation…
+          </>
+        ) : resumed ? (
+          "Evaluation Continuing"
+        ) : (
+          "Continue Evaluation"
+        )}
+      </button>
     </div>
   );
 }

@@ -14,6 +14,7 @@ import { getAuthenticatedUser } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { backpressureGuard } from "@/lib/jobs/backpressure";
 import { triggerEvaluationWorker } from "@/lib/jobs/triggerWorker";
+import { resolveManuscriptTitle } from "@/lib/manuscripts/title";
 
 function isRateLimited(
   result: RateLimitResult
@@ -22,7 +23,6 @@ function isRateLimited(
 }
 
 const ALLOWED_JOB_TYPES = new Set<string>(Object.values(JOB_TYPES));
-const SHORT_FORM_PHASE0_FAST_TRACK_WORDS = 25_000;
 
 function normalizeWordCountCandidate(value: unknown): number | null {
   if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) return null;
@@ -113,9 +113,6 @@ async function seedJobIntakeProgress(params: {
       message: "Short-form evaluation queued—using short-form criteria policy fast path",
       phase0_fast_track: true,
       phase0_fast_track_reason: "short_form_under_25000_words",
-      // Phase 1A proof guard requires either real Phase 0 proof durations
-      // or an explicit bypass reason. Short-form policy intentionally bypasses
-      // Phase 0 warm-up, so this marker is mandatory for legal entry.
       phase0_bypass_reason: "short_form_policy_fast_track",
       phase0_started_at: now,
       phase0_completed_at: now,
@@ -195,7 +192,6 @@ export async function POST(req: Request) {
   });
 
   try {
-    // Layer 1: Rate limit check (IP + user-based)
     const rateLimitResult = await checkJobCreationRateLimit(req);
     if (isRateLimited(rateLimitResult)) {
       const { reason, retryAfter } = rateLimitResult;
@@ -214,7 +210,7 @@ export async function POST(req: Request) {
           retry_after: retryAfter ?? null,
           trace_id,
         },
-        { status: 429 } // Too Many Requests
+        { status: 429 }
       );
     }
 
@@ -225,7 +221,8 @@ export async function POST(req: Request) {
     const job_type = body?.job_type;
     const manuscript_text = body?.manuscript_text;
     const manuscript_title = body?.manuscript_title;
-    const manuscript_size = body?.manuscript_size; // Size in bytes
+    const manuscript_size = body?.manuscript_size;
+    const english_variant = typeof body?.english_variant === "string" && body.english_variant.trim() ? body.english_variant.trim().toLowerCase() : "us";
     const user_tier = body?.user_tier as "free" | "premium" | "agent" | undefined;
     let immediateManuscriptWordCount: number | null = null;
     let resolvedManuscriptWordCount: number | null = null;
@@ -247,9 +244,6 @@ export async function POST(req: Request) {
       );
     }
 
-    // Reject ambiguous input: both manuscript_id and manuscript_text together creates
-    // a silent staleness hazard — the existing row would be used and the submitted text
-    // ignored without any error, causing the wrong manuscript to be evaluated.
     if (
       manuscript_id !== undefined &&
       manuscript_id !== null &&
@@ -286,7 +280,6 @@ export async function POST(req: Request) {
       );
     }
 
-    // GOVERNANCE: job_type must be canonical (no phantom/unknown job types)
     if (typeof job_type !== "string" || !ALLOWED_JOB_TYPES.has(job_type)) {
       logger.warn("Invalid job_type", {
         trace_id,
@@ -328,7 +321,6 @@ export async function POST(req: Request) {
         ? new TextEncoder().encode(manuscript_text).length
         : undefined;
 
-    // Layer 2: Manuscript size validation
     if (resolvedManuscriptSize && typeof resolvedManuscriptSize === "number") {
       const sizeCheck = validateManuscriptSize(resolvedManuscriptSize);
       if (sizeCheck.allowed === false) {
@@ -340,11 +332,10 @@ export async function POST(req: Request) {
           manuscript_size: resolvedManuscriptSize,
           reason,
         });
-        return NextResponse.json({ ok: false, error: reason, trace_id }, { status: 413 }); // Payload Too Large
+        return NextResponse.json({ ok: false, error: reason, trace_id }, { status: 413 });
       }
     }
 
-    // Layer 3: Feature access control (auth + subscription tier)
     const authenticatedUser = await getAuthenticatedUser();
     const userId =
       authenticatedUser?.id ??
@@ -380,15 +371,17 @@ export async function POST(req: Request) {
       immediateManuscriptWordCount = wordCount;
       resolvedManuscriptWordCount = wordCount;
       const fileSize = new TextEncoder().encode(trimmedText).length;
+      const resolvedTitle = resolveManuscriptTitle({
+        explicitTitle: manuscript_title,
+        text: trimmedText,
+        fallback: "Imported Manuscript",
+      });
 
       const supabaseAdmin = createAdminClient();
       const { data: manuscript, error: manuscriptError } = await supabaseAdmin
         .from("manuscripts")
         .insert({
-          title:
-            typeof manuscript_title === "string" && manuscript_title.trim()
-              ? manuscript_title.trim()
-              : "Untitled Manuscript",
+          title: resolvedTitle,
           user_id: userId,
           created_by: userId,
           file_url: fileUrl,
@@ -401,7 +394,7 @@ export async function POST(req: Request) {
           allow_industry_discovery: false,
           is_final: false,
           source: "paste",
-          english_variant: "us",
+          english_variant,
           word_count: wordCount,
         })
         .select("id")
@@ -457,10 +450,9 @@ export async function POST(req: Request) {
         job_type: validatedJobType,
         reason,
       });
-      return NextResponse.json({ ok: false, error: reason, trace_id }, { status: 403 }); // Forbidden
+      return NextResponse.json({ ok: false, error: reason, trace_id }, { status: 403 });
     }
 
-    // Layer 4: Backpressure check (Day 2 A5)
     const backpressureBlock = await backpressureGuard();
     if (backpressureBlock) {
       logger.warn("Job creation blocked by backpressure", {
@@ -478,7 +470,7 @@ export async function POST(req: Request) {
           trace_id,
         },
         {
-          status: 503, // Service Unavailable
+          status: 503,
           headers: { "retry-after": String(backpressureBlock.retryAfter) },
         }
       );
@@ -490,9 +482,6 @@ export async function POST(req: Request) {
       job_type: validatedJobType,
     });
 
-    // Phase 0 is mandatory for ALL submissions — no fast-track bypass.
-    // Every manuscript must complete the full Phase 0 dwell (≥12s) regardless
-    // of word count or evaluation mode.
     const shouldFastTrackPhase0 = false;
 
     await seedJobIntakeProgress({
@@ -518,7 +507,6 @@ export async function POST(req: Request) {
       },
     });
 
-    // Emit observability events
     jobLogger.created(job.id, validatedJobType, {
       trace_id,
       request_id,
@@ -526,11 +514,8 @@ export async function POST(req: Request) {
       user_id: userId,
     });
 
-    // Emit metrics
     metrics.onJobCreated(job.id, validatedJobType);
 
-    // Belt-and-suspenders dispatch: cron remains the recovery path, while this
-    // immediate kickoff prevents preview/local orphaned queued jobs.
     const kickoffDispatchStartedAt = new Date().toISOString();
     emitLatencyTrace({
       job_id: job.id,
@@ -637,7 +622,6 @@ export async function GET() {
     );
   }
 
-  // Auth gate — only return jobs belonging to the authenticated user
   const user = await getAuthenticatedUser();
   if (!user) {
     return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
