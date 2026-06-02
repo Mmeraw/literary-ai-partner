@@ -222,3 +222,98 @@ export async function guardPhase3Inputs(
     code: 'PHASE3_INPUTS_PRESENT',
   };
 }
+
+// ── TIME-GATED AUTO-UNBLOCK ──────────────────────────────────────────────────
+
+/** Retryable block codes that are eligible for time-gated auto-clear */
+const RETRYABLE_BLOCK_CODES = new Set([
+  'REVIEW_GATE_QUALITY_TECHNICAL_BLOCK',
+  'PASS3A_NOT_READY',
+  'PASS3A_HALF_WRITTEN',
+  'PASS3A_REDUCER_FAILED',
+  'REVIEW_GATE_TECHNICAL_KICK_FORWARD',
+]);
+
+/** Default auto-unblock threshold: 10 minutes */
+const AUTO_UNBLOCK_THRESHOLD_MS = 10 * 60 * 1000;
+
+export interface TimeGatedUnblockResult {
+  should_unblock: boolean;
+  block_code: string | null;
+  block_age_ms: number;
+  reason: string;
+}
+
+/**
+ * Check whether a retryable block has persisted beyond the time threshold.
+ * If so, the caller should auto-clear the block and kick forward.
+ *
+ * @param progress - The job's progress JSONB
+ * @param thresholdMs - Override threshold (default 10 minutes)
+ */
+export function shouldTimeGatedUnblock(
+  progress: Record<string, unknown>,
+  thresholdMs: number = AUTO_UNBLOCK_THRESHOLD_MS,
+): TimeGatedUnblockResult {
+  const blockCode = typeof progress.block_code === 'string' ? progress.block_code : null;
+
+  if (!blockCode) {
+    return { should_unblock: false, block_code: null, block_age_ms: 0, reason: 'No block_code set.' };
+  }
+
+  if (!RETRYABLE_BLOCK_CODES.has(blockCode)) {
+    return {
+      should_unblock: false,
+      block_code: blockCode,
+      block_age_ms: 0,
+      reason: `Block code "${blockCode}" is not retryable — requires manual resolution.`,
+    };
+  }
+
+  // Determine when the block was set (from phase_log or phase1a_completed_at)
+  let blockSetAt: number | null = null;
+
+  // Check phase_log for the review_gate_blocked event
+  if (Array.isArray(progress.phase_log)) {
+    const blockEvents = (progress.phase_log as Array<{ at?: string; event?: string }>)
+      .filter(e => e.event === 'review_gate_blocked' || e.event === 'track_c_reducer_failed')
+      .sort((a, b) => (b.at ?? '').localeCompare(a.at ?? ''));
+
+    if (blockEvents.length > 0 && blockEvents[0].at) {
+      blockSetAt = new Date(blockEvents[0].at).getTime();
+    }
+  }
+
+  // Fallback: use phase1a_completed_at (block is set right after Phase 1A completes)
+  if (!blockSetAt && typeof progress.phase1a_completed_at === 'string') {
+    blockSetAt = new Date(progress.phase1a_completed_at).getTime();
+  }
+
+  // Final fallback: can't determine age — don't unblock
+  if (!blockSetAt || isNaN(blockSetAt)) {
+    return {
+      should_unblock: false,
+      block_code: blockCode,
+      block_age_ms: 0,
+      reason: 'Cannot determine block age — no timestamp found.',
+    };
+  }
+
+  const blockAgeMs = Date.now() - blockSetAt;
+
+  if (blockAgeMs >= thresholdMs) {
+    return {
+      should_unblock: true,
+      block_code: blockCode,
+      block_age_ms: blockAgeMs,
+      reason: `Retryable block "${blockCode}" has persisted for ${Math.round(blockAgeMs / 60000)} minutes (threshold: ${Math.round(thresholdMs / 60000)} min). Auto-clearing.`,
+    };
+  }
+
+  return {
+    should_unblock: false,
+    block_code: blockCode,
+    block_age_ms: blockAgeMs,
+    reason: `Block age ${Math.round(blockAgeMs / 1000)}s is under threshold ${Math.round(thresholdMs / 1000)}s.`,
+  };
+}
