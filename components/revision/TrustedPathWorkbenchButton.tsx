@@ -11,15 +11,12 @@ type TrustedPathWorkbenchButtonProps = {
 export default function TrustedPathWorkbenchButton({ manuscriptId, evaluationJobId, disabled }: TrustedPathWorkbenchButtonProps) {
   const [running, setRunning] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [confirming, setConfirming] = useState(false);
 
   async function runTrustedPath() {
     if (disabled || running || !manuscriptId || !evaluationJobId) return;
 
-    const confirmed = window.confirm(
-      "TrustedPath™ will accept Recommended Repair A for every copy-ready item in the current Revise Queue. Needs Targeting items remain untouched. You can still use Final Review before applying/exporting. Continue?",
-    );
-    if (!confirmed) return;
-
+    setConfirming(false);
     setRunning(true);
     setMessage("TrustedPath™ is moving Recommended Repair A decisions to the ledger…");
 
@@ -52,7 +49,11 @@ export default function TrustedPathWorkbenchButton({ manuscriptId, evaluationJob
     <div className="workbench-v2-trusted-path fixed right-[462px] top-[78px] z-50 text-center">
       <button
         type="button"
-        onClick={runTrustedPath}
+        onClick={() => {
+          if (isDisabled) return;
+          setMessage(null);
+          setConfirming(true);
+        }}
         disabled={isDisabled}
         className={`rounded border px-4 py-2 text-[12px] font-bold uppercase tracking-[0.08em] shadow-lg transition ${
           isDisabled
@@ -63,6 +64,30 @@ export default function TrustedPathWorkbenchButton({ manuscriptId, evaluationJob
       >
         {running ? "Running…" : "TrustedPath"}
       </button>
+      {confirming && !running && (
+        <div className="absolute right-0 mt-2 w-[390px] rounded border border-[#E0BF78] bg-[#120E08] px-3 py-3 text-left text-[11px] leading-4 text-[#CBBDA4] shadow-lg">
+          <p className="font-bold text-[#F4E3B0]">Confirm TrustedPath™</p>
+          <p className="mt-1">
+            TrustedPath™ will accept Recommended Repair A for every copy-ready item in the current Revise Queue. Needs Targeting items remain untouched. You can still use Final Review before applying/exporting.
+          </p>
+          <div className="mt-3 flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setConfirming(false)}
+              className="rounded border border-[#3A3022] bg-[#171006] px-3 py-1.5 text-[11px] font-bold text-[#CBBDA4] hover:bg-[#21180E]"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={runTrustedPath}
+              className="rounded border border-[#E0BF78] bg-[#D5B36C] px-3 py-1.5 text-[11px] font-bold text-[#171006] hover:bg-[#E4C982]"
+            >
+              Continue
+            </button>
+          </div>
+        </div>
+      )}
       {message && (
         <p className="absolute right-0 mt-2 w-[360px] rounded border border-[#3A3022] bg-[#120E08] px-3 py-2 text-[11px] leading-4 text-[#CBBDA4] shadow-lg">
           {message}
