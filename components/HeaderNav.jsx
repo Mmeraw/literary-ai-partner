@@ -259,6 +259,14 @@ export default function HeaderNav() {
               {signingOut ? "Signing out…" : "Sign out"}
             </button>
           )}
+          {authState === "anon" && (
+            <Link
+              href="/login"
+              className="text-xs tracking-widest uppercase font-rg-mono text-rg-cream2 hover:text-rg-gold transition-colors duration-150"
+            >
+              Sign in
+            </Link>
+          )}
         </div>
 
         <button
@@ -289,6 +297,9 @@ export default function HeaderNav() {
               <button type="button" onClick={handleSignOut} disabled={signingOut} className={mobileLinkCls}>
                 {signingOut ? "Signing out…" : "Sign out"}
               </button>
+            )}
+            {authState === "anon" && (
+              <Link href="/login" className={mobileLinkCls}>Sign in</Link>
             )}
           </div>
         </div>

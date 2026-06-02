@@ -223,6 +223,8 @@ export async function POST(req: Request) {
     const manuscript_title = body?.manuscript_title;
     const manuscript_size = body?.manuscript_size;
     const english_variant = typeof body?.english_variant === "string" && body.english_variant.trim() ? body.english_variant.trim().toLowerCase() : "us";
+    const sensitivity_mode = typeof body?.sensitivity_mode === "string" && ["STANDARD", "TRANSGRESSIVE", "TESTIMONY"].includes(body.sensitivity_mode) ? body.sensitivity_mode : "STANDARD";
+    const voice_preservation_level = typeof body?.voice_preservation_level === "string" && ["maximum", "balanced", "polished"].includes(body.voice_preservation_level) ? body.voice_preservation_level : "balanced";
     const user_tier = body?.user_tier as "free" | "premium" | "agent" | undefined;
     let immediateManuscriptWordCount: number | null = null;
     let resolvedManuscriptWordCount: number | null = null;
@@ -480,6 +482,8 @@ export async function POST(req: Request) {
       manuscript_id,
       user_id: userId,
       job_type: validatedJobType,
+      sensitivity_mode,
+      voice_preservation_level,
     });
 
     const shouldFastTrackPhase0 = false;

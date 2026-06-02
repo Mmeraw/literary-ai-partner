@@ -561,7 +561,7 @@ export function EvaluationPoller({
     complete: isCompletingAnimation
       ? 'In progress'
       : isInterimComplete
-        ? 'Diagnostic Report Ready — Synthesis in progress'
+        ? 'Report Ready — Narrative Synthesis loading'
         : isLongForm
           ? 'Full Report Ready'
           : 'Evaluation Report Ready',
@@ -670,8 +670,8 @@ export function EvaluationPoller({
               <p className="text-xs text-gray-500">{effectivePd.helperText}</p>
               {isInterimComplete && (
                 <p className="text-xs text-gray-400 mt-1">
-                  This report includes criterion scores, evidence, confidence levels, and revision recommendations.
-                  The final report will be available once Narrative Synthesis is complete.
+                  Your full diagnostic report is ready below — scores, evidence, confidence, and revision recommendations are all final.
+                  The Narrative Synthesis section will appear automatically once it finishes generating.
                 </p>
               )}
               {(job.status === 'queued' || job.status === 'running') && (

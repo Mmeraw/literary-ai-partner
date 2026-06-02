@@ -93,7 +93,7 @@ export default function ModeConfirmationBlock({ jobId, detectedMode, confirmedMo
         */}
         {detectedMode.proposedEvaluationMode === "TESTIMONY" ? (
           <>
-            This chapter may include testimony-like or sensitive material. Please confirm how carefully RevisionGrade should preserve voice and context before Revise is unlocked.{" "}
+            This manuscript may include testimony-like or sensitive material. Please confirm how carefully RevisionGrade should preserve voice and context before Revise is unlocked.{" "}
             <span className="text-gray-700">
               Suggested voice preservation:{" "}
               <span className="font-semibold">{detectedMode.proposedVoicePreservationMode}</span>.

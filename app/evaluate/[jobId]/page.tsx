@@ -17,7 +17,7 @@ import SupportAccessToggle from "@/components/reports/SupportAccessToggle";
 import {
   buildTopRecommendations,
 } from "@/lib/evaluation/reportRecommendations";
-import ModeConfirmationBlock from "@/components/evaluation/ModeConfirmationBlock";
+
 import { SynthesisPoller } from "@/components/evaluation/SynthesisPoller";
 import { classifyEvaluationIntegrityBanner } from "@/lib/evaluation/warningClassification";
 import {
@@ -56,6 +56,8 @@ type Job = {
   updated_at?: string;
   last_error?: string | null;
   progress?: Record<string, unknown> | null;
+  policy_family?: string | null;
+  voice_preservation_level?: string | null;
 };
 
 type ArtifactContentV1 = {
@@ -158,7 +160,7 @@ async function getJob(jobId: string): Promise<Job | null> {
 
     const { data: job, error } = await supabase
       .from("evaluation_jobs")
-      .select("id, user_id, manuscript_id, job_type, status, phase, phase_status, total_units, completed_units, failed_units, created_at, updated_at, last_error, progress, manuscripts(user_id,title)")
+      .select("id, user_id, manuscript_id, job_type, status, phase, phase_status, total_units, completed_units, failed_units, created_at, updated_at, last_error, progress, policy_family, voice_preservation_level, manuscripts(user_id,title)")
       .eq("id", jobId)
       .maybeSingle();
 
@@ -785,12 +787,20 @@ export default async function EvaluationReportPage({
         </section>
       ) : (
         <>
-          {hasDetectedMode && artifact?.detected_mode && (
-            <ModeConfirmationBlock
-              jobId={jobId}
-              detectedMode={artifact.detected_mode}
-              confirmedMode={artifact.confirmed_mode ?? null}
-            />
+          {/* Mode settings are now chosen at submission time — display read-only summary */}
+          {job.policy_family && (
+            <section className="rounded-lg border bg-white p-4 mb-4">
+              <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm text-gray-700">
+                <span>
+                  <span className="font-semibold text-gray-900">Evaluation Mode:</span>{" "}
+                  {job.policy_family === "transgressive" ? "Transgressive" : job.policy_family === "testimony" ? "Testimony" : "Standard"}
+                </span>
+                <span>
+                  <span className="font-semibold text-gray-900">Voice Preservation:</span>{" "}
+                  {(job.voice_preservation_level ?? "balanced").charAt(0).toUpperCase() + (job.voice_preservation_level ?? "balanced").slice(1)}
+                </span>
+              </div>
+            </section>
           )}
 
           <section className="rounded-lg border bg-white p-6 mb-4">

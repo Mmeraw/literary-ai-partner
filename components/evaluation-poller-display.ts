@@ -170,10 +170,10 @@ function getProgressDisplayRaw(
 
     if (isLongForm && !hasSynthesis) {
       return {
-        label: "Core evaluation complete — narrative synthesis running",
+        label: "Report ready — narrative synthesis loading",
         valueLabel: "92%",
         helperText:
-          "Your 13-criteria evaluation is complete. RevisionGrade is now preparing the long-form narrative synthesis and final report package.",
+          "Your full diagnostic report is ready below. The Narrative Synthesis section will appear automatically once it finishes generating.",
         indeterminate: false,
         percentage: 92,
         color: "blue",
