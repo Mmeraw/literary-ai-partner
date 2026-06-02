@@ -514,6 +514,10 @@ function extractTopLevelRecommendations(payload: Record<string, unknown>): Revis
   return opportunities;
 }
 
+const MAX_OPPORTUNITIES_PER_PASS = 100;
+
+const SEVERITY_RANK: Record<string, number> = { must: 0, should: 1, could: 2 };
+
 export function buildRevisionOpportunitiesFromEvaluationPayload(payload: unknown): RevisionOpportunity[] {
   if (!isRecord(payload)) {
     return [];
@@ -531,7 +535,12 @@ export function buildRevisionOpportunitiesFromEvaluationPayload(payload: unknown
     }
   }
 
-  return [...deduped.values()];
+  const all = [...deduped.values()];
+
+  if (all.length <= MAX_OPPORTUNITIES_PER_PASS) return all;
+
+  all.sort((a, b) => (SEVERITY_RANK[a.severity] ?? 3) - (SEVERITY_RANK[b.severity] ?? 3));
+  return all.slice(0, MAX_OPPORTUNITIES_PER_PASS);
 }
 
 export async function ensureRevisionOpportunityLedgerArtifact(supabase: any, jobId: string): Promise<EnsureLedgerResult> {
