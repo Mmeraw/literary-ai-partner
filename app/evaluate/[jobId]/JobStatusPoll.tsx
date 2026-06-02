@@ -22,6 +22,7 @@ const REVIEW_GATE_POLL_INTERVAL_MS = 5000;
 type JobStatusPollProps = {
   jobId: string;
   initialJob?: JobRecord | null;
+  isLedgerAdmin?: boolean;
 };
 
 // CANON: phase='review_gate' + phase_status='awaiting_approval'
@@ -31,7 +32,7 @@ function isAtReviewGate(job: JobRecord): boolean {
   return j.phase === "review_gate" && j.phase_status === "awaiting_approval";
 }
 
-export function JobStatusPoll({ jobId, initialJob }: JobStatusPollProps) {
+export function JobStatusPoll({ jobId, initialJob, isLedgerAdmin = false }: JobStatusPollProps) {
   const [job, setJob] = useState<JobRecord | null>(initialJob ?? null);
   const [notFound, setNotFound] = useState(false);
 
@@ -259,9 +260,9 @@ export function JobStatusPoll({ jobId, initialJob }: JobStatusPollProps) {
       </div>
 
       {/* ── REVIEW GATE CTA ─────────────────────────────────────────────── */}
-      {/* Phase 1A complete. Author must review the Story Ledger before      */}
-      {/* Phase 2 can be queued. This is a hard gate — backend enforced.     */}
-      {atReviewGate && (
+      {/* Only shown to ledger admins. Normal users' jobs skip the review    */}
+      {/* gate entirely via containment bypass in the processor.             */}
+      {atReviewGate && isLedgerAdmin && (
         <div className="rounded-lg border border-amber-300 bg-amber-50 p-5">
           <div className="flex items-start gap-4">
             {/* Gate icon */}

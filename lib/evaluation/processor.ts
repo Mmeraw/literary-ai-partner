@@ -144,6 +144,7 @@ import {
 } from '@/lib/evaluation/seed/twoPassSeedValidation';
 import { writePhase1aReviewGateArtifacts } from '@/lib/evaluation/phase1a/storyLayerArtifactWriters';
 import { buildReviewGateHandoff } from '@/lib/evaluation/phase-architecture-v2/reviewGateHandoff';
+import { STORY_LEDGER_APPROVAL_ENABLED } from '@/lib/evaluation/reviewGate/containmentMode';
 import {
   buildSemanticSeedSourceHash,
   generateSemanticSeedArtifacts,
@@ -7584,21 +7585,31 @@ export async function processEvaluationJob(
           ],
         };
 
+        // Containment mode: skip review_gate and go straight to phase_2.
+        // Phase 2 has autoAcceptStoryLedgerKickForward that creates the
+        // accepted_story_ledger_v1 artifact from pass1a_story_layer_v1.
+        const containmentBypass = !STORY_LEDGER_APPROVAL_ENABLED;
+        const targetPhase = containmentBypass ? 'phase_2' : reviewGateHandoffResult.handoff.phase;
+        const targetPhaseStatus = containmentBypass ? JOB_STATUS.QUEUED : reviewGateHandoffResult.handoff.phase_status;
+        const targetStatus = containmentBypass ? JOB_STATUS.QUEUED : reviewGateHandoffResult.handoff.status;
+
         const { data: phase1aHandoffRow, error: phase1aHandoffErr } = await supabase
           .from('evaluation_jobs')
           .update({
-            status: reviewGateHandoffResult.handoff.status,
-            phase: reviewGateHandoffResult.handoff.phase,
-            phase_status: reviewGateHandoffResult.handoff.phase_status,
+            status: targetStatus,
+            phase: targetPhase,
+            phase_status: targetPhaseStatus,
             claimed_by: null,
             claimed_at: null,
             lease_token: null,
             lease_until: null,
             review_gate_entered_at: phase1aNow,
+            ...(containmentBypass ? { review_gate_passed_at: phase1aNow } : {}),
             updated_at: phase1aNow,
             progress: {
               ...phase1aHandoffProgress,
-              ...buildPhaseLogPatch(phase1aHandoffProgress, 'review_gate', 'entered', phase1aNow),
+              ...buildPhaseLogPatch(phase1aHandoffProgress, 'review_gate', containmentBypass ? 'containment_bypass' : 'entered', phase1aNow),
+              ...(containmentBypass ? { phase: 'phase_2', phase_status: JOB_STATUS.QUEUED } : {}),
             },
           })
           .eq('id', job.id)
@@ -7608,31 +7619,42 @@ export async function processEvaluationJob(
 
         if (phase1aHandoffErr) {
           console.error(
-            `[Processor] ${jobId}: phase_1a → review_gate transition FAILED`,
+            `[Processor] ${jobId}: phase_1a → ${targetPhase} transition FAILED`,
             phase1aHandoffErr.message,
           );
           throw new Error(
-            `Phase 1A → review_gate transition failed: ${phase1aHandoffErr.message}`,
+            `Phase 1A → ${targetPhase} transition failed: ${phase1aHandoffErr.message}`,
           );
         }
 
         if (!phase1aHandoffRow) {
           console.warn(
-            `[Processor] ${jobId}: phase_1a → review_gate 0 rows — job already transitioned`,
+            `[Processor] ${jobId}: phase_1a → ${targetPhase} 0 rows — job already transitioned`,
             { returned: phase1aHandoffRow ?? null },
           );
           return { success: true };
         }
 
-        console.log(
-          `[Processor] ${jobId}: phase_1a handoff confirmed — status=queued phase=review_gate phase_status=awaiting_approval`,
-          {
-            gate_ready_status: reviewGateHandoffResult.handoff.progress.gate_ready_status,
-            review_gate_ready: reviewGateHandoffResult.handoff.progress.review_gate_ready,
-            pass3a_status: reviewGateHandoffResult.handoff.progress.pass3a_status,
-            pass3a_gate_validity: reviewGateHandoffResult.handoff.progress.pass3a_gate_validity,
-          },
-        );
+        if (containmentBypass) {
+          console.log(
+            `[Processor] ${jobId}: containment mode active — review_gate bypassed, transitioning directly to phase_2`,
+            {
+              gate_ready_status: reviewGateHandoffResult.handoff.progress.gate_ready_status,
+              review_gate_ready: reviewGateHandoffResult.handoff.progress.review_gate_ready,
+              pass3a_status: reviewGateHandoffResult.handoff.progress.pass3a_status,
+            },
+          );
+        } else {
+          console.log(
+            `[Processor] ${jobId}: phase_1a handoff confirmed — status=queued phase=review_gate phase_status=awaiting_approval`,
+            {
+              gate_ready_status: reviewGateHandoffResult.handoff.progress.gate_ready_status,
+              review_gate_ready: reviewGateHandoffResult.handoff.progress.review_gate_ready,
+              pass3a_status: reviewGateHandoffResult.handoff.progress.pass3a_status,
+              pass3a_gate_validity: reviewGateHandoffResult.handoff.progress.pass3a_gate_validity,
+            },
+          );
+        }
         return { success: true };
       } catch (phase1aErr) {
         const errMsg = phase1aErr instanceof Error ? phase1aErr.message : String(phase1aErr);

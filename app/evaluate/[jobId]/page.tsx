@@ -33,6 +33,7 @@ import CriterionOpportunities from "@/components/evaluation/CriterionOpportuniti
 import PolishPassButton from "@/components/evaluation/PolishPassButton";
 import { hasActiveSupportGrant, logSupportView } from "@/lib/support/checkSupportAccess";
 import { canViewEvaluationOperationalDetails } from "@/lib/auth/evaluationOperationalAccess";
+import { isStoryLedgerAdmin } from "@/lib/ledger/storyLedgerVisibility";
 import type { LongformDreamDocument } from "@/lib/evaluation/pipeline/runPass3bLongform";
 
 type Job = {
@@ -486,6 +487,7 @@ export default async function EvaluationReportPage({
 
   const userRole = (sessionUser?.app_metadata as Record<string, unknown> | undefined)?.role;
   const isAdminRole = userRole === 'admin' || userRole === 'superadmin';
+  const isLedgerAdmin = isStoryLedgerAdmin(sessionUser);
     const canSeeOperationalDetails = canViewEvaluationOperationalDetails(sessionUser);
   const isOwner = job.user_id === ownerId;
   const activeGrant = isAdminRole ? await hasActiveSupportGrant(jobId) : null;
@@ -651,7 +653,9 @@ export default async function EvaluationReportPage({
           aria-live="polite"
         >
           <p className="text-sm font-semibold" style={{ color: '#0E0E0E' }}>
-            ✓ Story Ledger approved—building your report is now running.
+            {isLedgerAdmin
+              ? '✓ Story Ledger approved—building your report is now running.'
+              : '✓ Analysis in progress—building your report now.'}
           </p>
           <p className="mt-1 text-sm" style={{ color: '#7B7B7B' }}>
             {(() => {
@@ -673,7 +677,7 @@ export default async function EvaluationReportPage({
           initialJob={initialPollerJob}
           redirectOnComplete={false}
           refreshOnComplete={true}
-          redirectOnReviewGate={true}
+          redirectOnReviewGate={isLedgerAdmin}
         />
       </section>
 
@@ -709,7 +713,7 @@ export default async function EvaluationReportPage({
           </section>
         )
       ) : !isComplete ? (
-        job.phase === 'review_gate' ? (
+        job.phase === 'review_gate' && isLedgerAdmin ? (
           <section
             className="rounded-lg border p-5"
             style={{
