@@ -253,8 +253,11 @@ const CONTAMINATION_PATTERNS = [
   /^(primary|secondary|tertiary|central|main)\s+(he|she|they|it|one|figure|person|character|woman|man|narrator)/i,
   /^(he|she|they|it)[\s_]+(main|primary|narrator|central|unnamed)/i,
   /^unknown\s+(character|person|figure|entity|narrator)/i,
-  /^(character|person|figure|entity|narrator)\s*[_\s]?\d*$/i,
-  /^(the|a|an)\s+(woman|man|girl|boy|child|figure|narrator|speaker)/i,
+  // Match pseudo-entity labels like "character_1", "entity 3", "person_2" but NOT bare
+  // "narrator" — first-person narrator is a legitimate canonical name.
+  /^(character|person|figure|entity)\s*[_\s]?\d*$/i,
+  /^narrator\s*[_\s]+\d+$/i,
+  /^(the|a|an)\s+(woman|man|girl|boy|child|figure|speaker)/i,
   /^[A-Z][a-z]*_main_unnamed/,
 ];
 
@@ -272,6 +275,10 @@ export function isEntityContaminated(name: string): boolean {
 /**
  * Filters contaminated entities from a character array.
  * Returns the clean array plus a list of rejected names for audit trail.
+ *
+ * Entries with role_signal protagonist/co_protagonist or pov_signal pov_owner
+ * are exempt from contamination filtering — the LLM explicitly identified
+ * them as narratively significant (e.g., unnamed first-person narrators).
  */
 export function filterContaminatedEntities<T extends { canonical_name: string }>(
   characters: T[],
@@ -280,7 +287,15 @@ export function filterContaminatedEntities<T extends { canonical_name: string }>
   const rejected: Array<{ name: string; reason: string }> = [];
 
   for (const char of characters) {
-    if (isEntityContaminated(char.canonical_name)) {
+    const rec = char as Record<string, unknown>;
+    const roleSignal = typeof rec.role_signal === 'string' ? rec.role_signal : '';
+    const povSignal = typeof rec.pov_signal === 'string' ? rec.pov_signal : '';
+    const isProtagonistOrPov =
+      roleSignal === 'protagonist' ||
+      roleSignal === 'co_protagonist' ||
+      povSignal === 'pov_owner';
+
+    if (!isProtagonistOrPov && isEntityContaminated(char.canonical_name)) {
       rejected.push({
         name: char.canonical_name,
         reason: 'entity_typing_contamination',
