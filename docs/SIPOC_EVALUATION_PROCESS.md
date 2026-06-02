@@ -655,6 +655,14 @@ Governance requirements for identifier changes:
 | Persist fail-closed | no artifact write after gate or validation fail | S10 |
 | Releasable read path | only releasable outputs are rendered | S11 |
 | Gate-failure telemetry coverage | all gate failures emit required diagnostics | S09–S10 |
+| Seed-as-baseline-authority | Phase 1A must treat seed entities as 95%+ quality baseline; deviations require manuscript evidence | ADJACENT_PHASE_0_5A, S05_PASS1 |
+| Seed format conformance | Seeds must match canonical templates (layer scaffold + criterion scaffold fields) | ADJACENT_SEED_COMPLETENESS_GATE |
+| Entity contamination rejection | Pseudo-entities (pronouns, descriptors, fragments) rejected before ledger assembly | S05_PASS1 |
+| Revision ledger evidence coverage | Every revision opportunity must have an evidence anchor traceable to evaluation | ADJACENT_REVISION_LEDGER |
+| Revise-is-not-evaluator | Revise Queue must consume `revision_opportunity_ledger_v1` — must NOT rerun evaluation | ADJACENT_REVISE |
+| Ready vs Needs Targeting separation | Ready items must have surgical A/B/C prose; non-surgical items classified as Needs Targeting | ADJACENT_REVISE |
+| Author decision persistence | Every author decision on a revision opportunity must be persisted to `revision_ledger_decisions` | ADJACENT_REVISE |
+| TrustedPath eligibility | Only `approve`-verdict repairs (from Perplexity cross-check where enabled) are TrustedPath eligible | ADJACENT_REVISE |
 
 ## Failure Code Registry
 
@@ -665,8 +673,13 @@ This registry indexes active runtime families used along the evaluation certific
 - Independence and editorial quality: `QG_INDEPENDENCE_VIOLATION`, `QG_EDITORIAL_GENERIC_FEEDBACK`
 - Quality gate families: `QG_*` (as enumerated in `S09_QUALITYGATEV2`)
 - Persistence boundary failures: `EVALUATION_ARTIFACT_VALIDATION_FAILED`, `EVALUATION_GATE_REJECTED`
+- Seed enforcement failures: `SEED_GENERATION_FAILED`, `SEED_AUTHORITY_PROOF_MISSING`, `SEED_FIT_GAP_BLOCKED`, `SEED_DRIFT_REQUEUE_RECOMMENDED`
+- Phase 0 failures: `PHASE0_AUTHORITY_MISSING`, `PHASE0_MANIFEST_UNRESOLVED`
+- Revise seed failures: `REVISE_SEED_GENERATION_FAILED`, `REVISE_SEED_AUTHORITY_PROOF_MISSING`
+- Revision ledger failures: `REVISION_LEDGER_ASSEMBLY_FAILED`, `REVISION_LEDGER_EVIDENCE_MISSING`, `REVISION_LEDGER_EMPTY`
+- Revise admission failures: `REVISE_ADMISSION_FAILED`, `REVISE_QUEUE_EMPTY`, `REVISE_EVIDENCE_MISSING`, `REVISE_ABC_NOT_PROSE`, `REVISE_AUTHOR_DECISION_NOT_PERSISTED`
 
-Reference implementation list: `lib/evaluation/pipeline/qualityGate.ts`, `lib/evaluation/persistEvaluationResultV2.ts`, runtime route handlers.
+Reference implementation list: `lib/evaluation/pipeline/qualityGate.ts`, `lib/evaluation/persistEvaluationResultV2.ts`, `lib/evaluation/seed/seedCompletenessGuard.ts`, `lib/evaluation/seed/twoPassSeedValidation.ts`, runtime route handlers.
 
 ## Evidence Artifact Requirements
 
@@ -679,7 +692,33 @@ Minimum evidence artifacts required for certification claims:
 5. **Persistence decision evidence** — gate enforcement trace persisted with terminal job state.
 6. **Render-source evidence** — artifact vs inline source marker on retrieval paths.
 
+7. **Seed enforcement evidence** — `seed_fit_gap_report_v1` on completeness gate, `seed_contradiction_report_v1` on drift detection, per-chunk `seed_validation` arrays from two-pass extraction.
+8. **Revision opportunity ledger evidence** — `revision_opportunity_ledger_v1` with per-opportunity evidence anchors, finding IDs, and source artifact references.
+9. **Revise Queue decision evidence** — `revision_ledger_decisions` with per-opportunity author decisions and timestamps.
+
 No stage is certifiable without reproducible evidence artifacts for pass and fail outcomes.
+
+## Evaluation Mode Doctrine
+
+RevisionGrade has three evaluation depths, and the pipeline must respect mode boundaries:
+
+### Short-form evaluation (under 25k words)
+- **Scope:** Excerpts, chapters, openings, shorter submissions
+- **Uses:** 13 story criteria ONLY (Concept, Narrative Drive & Momentum, Character, Voice, Scene Construction, Dialogue, Theme, Worldbuilding, Pacing, Prose Control, Tone, Narrative Closure, Marketability)
+- **Does NOT use:** Story Ledger authority, WAVE, Golden Spine, manuscript-scale continuity
+- **Missing long-form evidence renders as:** N/A, advisory, warning, or insufficient evidence — NOT fake certainty
+- **Seed depth:** Lightweight seeds (entities + basic criteria scaffolds)
+
+### Long-form evaluation (25k+ words)
+- **Scope:** Manuscript-scale submissions
+- **Uses:** Full Story Ledger, governing canon, accepted story authority, manuscript-scale continuity, broader structural diagnosis
+- **Seed depth:** Full scaffold (all 9 Story Ledger layers + all 13 criteria)
+
+### Long-form multi-layer evaluation (75k+ words, high complexity)
+- **Scope:** Multi-world, multi-POV, high-complexity novels
+- **Uses:** Golden Spine, WAVE-informed readiness governance, canon/gate checks, continuity ledgers, manuscript-scale protection rules
+- **Important:** WAVE is part of evaluation/readiness governance — it is NOT the Revise engine
+- **Seed depth:** Full scaffold + Golden Spine + WAVE readiness sections
 
 ## Certification Status Matrix
 
@@ -696,6 +735,126 @@ No stage is certifiable without reproducible evidence artifacts for pass and fai
 | `S09_QUALITYGATEV2` | Partial | Deterministic gate active; statistical certification pending |
 | `S10_PERSISTENCE` | Partial | Atomic enforcement present; seam risk remains |
 | `S11_RENDERER` | Emerging | Releasability/read-path contract active, calibration pending |
+| `ADJACENT_PHASE_0` | Emerging | Authority proof generation active; fixture coverage pending |
+| `ADJACENT_PHASE_0_5A` | Emerging | Seed generation active; two-pass validation implemented; format conformance guard active |
+| `ADJACENT_PHASE_0_5B` | Emerging | Revise opportunity seed generation active; candidate-prose contract defined |
+| `ADJACENT_SEED_COMPLETENESS_GATE` | Emerging | Completeness + format conformance checks active; blocking on incomplete seeds |
+| `ADJACENT_SEMANTIC_GATE` | Emerging | Quality checks + hard-fail triage + entity contamination filter active |
+| `ADJACENT_REVIEW_GATE` | Emerging | Author review surface active; short-form bypass implemented |
+| `ADJACENT_REVISION_LEDGER` | Emerging | Ledger assembly defined; evidence anchor requirement specified |
+| `ADJACENT_REVISE` | Emerging | Queue admission contract defined; Ready vs Needs Targeting specified |
+
+### Evaluation → Revise Handoff Stage Contracts
+
+### `ADJACENT_REVISION_LEDGER` — Revision Opportunity Ledger
+
+- **Supplier:** Phase 2 craft diagnosis + Phase 3 synthesis + evaluation artifacts
+- **Input:** `evaluation_result_v2` + `criterion_scores_v1` + `diagnostic_findings_v1` + `accepted_story_ledger_v1` (long-form) + evaluation evidence chain
+- **Input acceptance metrics:**
+  - `evaluation_result_v2` present and gate-passed
+  - All 13 criteria scored (or explicitly marked non-scorable with reason)
+  - Diagnostic findings have evidence anchors
+  - Source artifact references resolvable
+- **Process / runtime code surface:**
+  - `lib/evaluation/processor.ts` (revision opportunity ledger assembly)
+  - `lib/evaluation/phase-architecture-v2/checklistMatrix.ts` (revision_ledger row)
+- **Output:** `revision_opportunity_ledger_v1`
+- **Output acceptance metrics:**
+  - Every opportunity includes: `manuscript_id`, `evaluation_job_id`, `finding_id`, `criterion`, `severity` (Must / Should / Could), `source_text` or affected passage, `source_location`, `affected_manuscript_span`, `evidence_anchor`, `diagnosis` (symptom + likely cause + reader effect), `fix_direction`, `mistake_proofing_guidance`, `revision_operation`, `confidence`, `source_artifact_reference`, `status`
+  - No opportunity without an evidence anchor
+  - No opportunity without a specific source target and operation
+  - Severity must be Must / Should / Could — not arbitrary free text
+  - Every opportunity traceable to a `finding_id` from `diagnostic_findings_v1`
+  - Ready vs Needs Targeting classification for each opportunity
+- **Customer / downstream stage:** `ADJACENT_REVISE` (Revise Queue)
+- **Gates / invariants:**
+  - **Governing doctrine:** "No evaluation evidence = no Revise Queue item."
+  - Revise Queue items are populated FROM evaluation evidence — never invented after the fact
+  - Vague paragraph advice without evidence is rejected
+  - "Expand this" or "improve that" without specific source target and operation is rejected
+  - `revision_opportunity_ledger_v1` is the single bridge artifact between Evaluation and Revise
+- **Failure codes:** `REVISION_LEDGER_ASSEMBLY_FAILED`, `REVISION_LEDGER_EVIDENCE_MISSING`, `REVISION_LEDGER_EMPTY`
+- **Required telemetry:** opportunity count, severity distribution (Must/Should/Could), Ready vs Needs Targeting ratio, evidence coverage percentage
+- **Required evidence artifact:** `revision_opportunity_ledger_v1` with per-opportunity evidence anchors and source artifact references
+- **Canon refs:** Volume II criteria canon, RevisionGrade Evaluation → Revise Queue Operating Doctrine
+- **Spec refs:** `docs/architecture/phase-0-5b-revise-opportunity-seed.md` (seed contract), `docs/prs/p17-phase-0-5b-revise-opportunity-seed-producer.md`
+- **Runtime refs:** `lib/evaluation/processor.ts`
+- **Authority priority:** Canon > Spec > Runtime > Telemetry
+- **Certification status:** Emerging
+
+### `ADJACENT_REVISE` — Revise Queue Admission
+
+- **Supplier:** `revision_opportunity_ledger_v1` + `revise_opportunity_seed_v1` (where available)
+- **Input:** Revision opportunity ledger from completed evaluation + optional Phase 0.5B revise opportunity seeds
+- **Input acceptance metrics:**
+  - `revision_opportunity_ledger_v1` present and non-empty
+  - Each queue item has required fields (criterion, severity, source_location, evidence_anchor, diagnosis, revision_operation, confidence)
+  - A/B/C repair options (where Ready) are actual manuscript-ready prose — not meta-instructions or problem restatements
+  - `revise_opportunity_seed_v1` merged if present (seeds enrich, evaluation evidence governs)
+- **Process / runtime code surface:**
+  - Revise Queue admission handler (consumes `revision_opportunity_ledger_v1`)
+  - `lib/evaluation/phase-architecture-v2/checklistMatrix.ts` (revise_admission row)
+- **Output:** Populated Revise Queue with classified opportunities
+- **Output acceptance metrics:**
+  - **Ready items** have: specific source location, specific source text or manuscript span, clear revision operation, evidence anchor, A/B/C options as actual manuscript-ready candidate revisions, author controls
+  - **Needs Targeting items** are real but not yet surgical: good diagnosis without exact passage, pattern-level issues without chosen target, broad structural issues requiring author review, instructions instead of copy-ready prose
+  - Ready and Needs Targeting items are NOT mixed
+  - Author decision fields initialized: Accept A / Accept B / Accept C / Keep Original / Reject Opportunity / Defer / Write Custom
+  - Every queue item linked to `evaluation_job_id` and `finding_id`
+- **A/B/C repair option requirements:**
+  - **A — Recommended Repair:** Most direct, safest, best-aligned repair
+  - **B — Balanced Variant:** Different rhythm, structure, or emphasis but same repair intent
+  - **C — Bolder Rendering Shift:** More assertive or stylistically distinct version
+  - A/B/C must NOT repeat the problem statement
+  - A/B/C must NOT be meta-instructions
+  - A/B/C must be text the author can accept, reject, or customize
+- **Author sovereignty controls:**
+  - Accept A / Accept B / Accept C / Keep Original / Reject Opportunity / Defer / Write Custom
+  - No system-generated rewrite silently overwrites manuscript without recorded author decision or TrustedPath authorization
+- **Customer / downstream stage:** Author decision surface, TrustedPath, Perplexity repair cross-check (where enabled)
+- **Gates / invariants:**
+  - **Governing doctrine:** "Revise is a consume-and-repair surface, not a second diagnosis engine."
+  - Revise must NOT rerun evaluation to find opportunities
+  - Revise must NOT create opportunities without evidence anchors
+  - Supporting diagnostics must NOT be shown as copy-ready repairs
+  - Short-form evaluations must NOT pretend to have WAVE/Golden Spine certainty
+  - Author decisions must be persisted to `revision_ledger_decisions`
+  - Revise Queue must NOT be empty simply because the summary report had few top recommendations
+  - UI must NOT send users to public Revise marketing page instead of authenticated workbench
+- **TrustedPath requirements:**
+  - Apply all eligible Recommended Repair A options across a protected manuscript copy after preview/confirmation
+  - Preserve: original manuscript, revised manuscript version, changelog, decision ledger, rollback ability, final review before/after visibility
+  - Only items passing eligibility rules are auto-eligible
+  - If Perplexity repair cross-check is active, only independently approved (`approve` verdict) repairs are TrustedPath eligible
+  - Flagged, rejected, unavailable, pending, or uncertain repairs stay in manual review
+- **Perplexity / repair cross-check role (where enabled):**
+  - Verifier, not primary writer
+  - Checks: addresses diagnosis, preserves author voice, avoids over-editing, no new problems introduced, grounded in original evidence
+  - Verdicts: `approve` / `flag` / `reject` / `unavailable` / `pending`
+  - Only `approve` is TrustedPath eligible; all others require manual author review
+- **Failure codes:** `REVISE_ADMISSION_FAILED`, `REVISE_QUEUE_EMPTY`, `REVISE_EVIDENCE_MISSING`, `REVISE_ABC_NOT_PROSE`, `REVISE_AUTHOR_DECISION_NOT_PERSISTED`
+- **Required telemetry:** queue item count, Ready vs Needs Targeting ratio, severity distribution, author decision rates, TrustedPath eligibility rate
+- **Required evidence artifact:** Populated Revise Queue with per-item evidence anchors, source artifact references, and author decision state
+- **Canon refs:** RevisionGrade Evaluation → Revise Queue Operating Doctrine, Volume II criteria canon
+- **Runtime refs:** Revise Queue admission handler
+- **Authority priority:** Canon > Spec > Runtime > Telemetry
+- **Certification status:** Emerging
+
+### Anti-Patterns (Evaluation → Revise Boundary)
+
+The following patterns violate the Evaluation → Revise Operating Doctrine and must be rejected by any implementation:
+
+1. Revise calls the evaluator again to find opportunities
+2. Revise creates opportunities without evidence anchors
+3. A/B/C options are generic advice instead of manuscript-ready text
+4. Supporting diagnostics are shown as copy-ready repairs
+5. Short-form evaluations pretend to have WAVE/Golden Spine certainty
+6. Author decisions are not persisted
+7. TrustedPath applies unverified or unavailable repairs
+8. A generated revised manuscript overwrites the original
+9. Revise Queue is empty simply because the summary report had few top recommendations
+10. The UI sends users to the public Revise marketing page instead of the authenticated workbench
+11. Re-evaluation runs on the original manuscript version instead of the revised manuscript version
 
 ## Deferred / Adjacent Runtime Paths
 
