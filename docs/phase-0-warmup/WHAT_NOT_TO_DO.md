@@ -65,6 +65,15 @@ If an artifact, layer, handoff, or revision operation does not meet its required
 - Enforced by: pronoun layer validator.
 - Runtime consequence: render valid empty state: “No reviewable pronoun-family transitions detected.”
 
+## Do not extract dialogue fragments or common words as character names
+
+- Rule: a canonical_name must be a proper name, title, nickname, or stable identity label. Single-word dialogue fragments ("No", "Yes", "Oh", "Hey"), pronouns, articles, conjunctions, and generic descriptors ("man", "woman", "child") are NEVER valid character names — even when they appear at the start of a dialogue line followed by a comma.
+- Enforced by: Pass 1A prompt (identity hygiene instruction), pass1aQuarantine blocklist + structural dialogue-fragment heuristic, character reducer.
+- Runtime consequence: quarantine drops the entry and logs a diagnostic (`blocked_word` or `dialogue_fragment_heuristic`). If a single word of ≤4 characters is not a recognized proper name, the heuristic drops it automatically.
+- Never do: accept "No" as a character name when the text reads `"No, I won't do that."` The word "No" is a dialogue fragment, not an identity.
+- Pre-gate: Phase 0 warmup packet and Pass 1A system prompt explicitly forbid dialogue-fragment extraction.
+- Post-gate: quarantine runs deterministic validation on every character candidate after LLM output, before the character reducer merges identities.
+
 ## Do not collapse named relationships into generic pressure
 
 - Rule: sustained named relationships must remain visible in Relationship Network.

@@ -118,6 +118,7 @@ SEED must not:
 - authorize Phase 2
 - replace manuscript evidence
 - bypass Review Gate
+- extract dialogue fragments, interjections, or common English words as entity names (e.g. "No", "Yes", "Oh", "Hey" followed by a comma are dialogue — not character names)
 
 ## Artifact state vs claim state
 

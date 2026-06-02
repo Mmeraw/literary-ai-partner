@@ -103,6 +103,7 @@ Rules:
 - Keep every hypothesis concise: one sentence, 240 characters or fewer.
 - Do not quote long passages. Use short anchors only.
 - If evidence is sparse, still emit a cautious hypothesis and flag uncertainty.
+- NEVER use dialogue fragments, interjections, or common English words as entity names in temp_seed_entity_id or hypothesis text. Words like "No", "Yes", "Oh", "Hey" followed by commas are dialogue — not character names. Use only proper names, titles, nicknames, or stable identity labels from the manuscript.
 - Return JSON only.`;
 }
 
