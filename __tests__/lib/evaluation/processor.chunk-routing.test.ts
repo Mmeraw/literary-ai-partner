@@ -532,7 +532,7 @@ describe("processEvaluationJob long-form chunk routing", () => {
       post_chunk_reresolved: false,
       canonical_path_used: "resolveManuscriptText.initial",
       timeout_resolution: {
-        input_scale: "standard_chapter",
+        input_scale: "light_chapter",
         floor_applied: false,
       },
       chunk_routing: expect.objectContaining({
