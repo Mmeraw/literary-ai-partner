@@ -62,6 +62,12 @@ Primary required telemetry surfaces:
 
 ## Evaluation Critical Path
 
+### Full Evaluation Pipeline (including seeding)
+
+`Phase 0 Warmup -> Phase 0.5A Story Map Seed -> Phase 0.5B Revise Opportunity Seed -> Seed Completeness Gate -> Intake -> Queue -> Claim -> Routing/Chunking -> Phase 1A (Pass 1 extraction) -> Story Layer Quality Gate -> Review Gate -> Phase 2 (Pass 2 craft diagnosis) -> Phase 3 (Pass 3 synthesis) -> EvaluationResultV2 normalization -> QualityGateV2 -> Persistence -> Renderer -> Revision Opportunity Ledger -> Revise Queue`
+
+### Runtime Spine (S01–S11)
+
 `Intake -> Queue -> Claim -> Routing/Chunking -> Pass 1 -> Pass 2 -> Pass 3 -> EvaluationResultV2 normalization -> QualityGateV2 -> Persistence -> Renderer`
 
 **Highest-risk seam (explicit):**
@@ -70,7 +76,26 @@ Primary required telemetry surfaces:
 
 Reason: this seam carries synthesis correctness, normalization semantics, deterministic gate enforcement, and fail-closed persistence guarantees in one boundary chain.
 
+**Seeding seam (explicit):**
+
+`Phase 0 -> Phase 0.5A -> Phase 0.5B -> Seed Completeness Gate -> Phase 1A`
+
+Reason: the entire downstream pipeline quality depends on seed completeness and authority proof. Degraded or missing seeds propagate error through every subsequent phase.
+
 ## SIPOC Stage Table
+
+### Adjacent / Seeding Stages
+
+| Stage | Stage ID | Supplier | Customer / Downstream | Certification Status |
+|---|---|---|---|---|
+| Phase 0 Warmup | `ADJACENT_PHASE_0` | Canon docs + benchmarks + manifest | `ADJACENT_PHASE_0_5A`, `ADJACENT_PHASE_0_5B` | Emerging |
+| Phase 0.5A Story Map Seed | `ADJACENT_PHASE_0_5A` | Phase 0 authority proof + manuscript | `ADJACENT_SEED_COMPLETENESS_GATE`, `S05_PASS1` (Phase 1A) | Emerging |
+| Phase 0.5B Revise Opportunity Seed | `ADJACENT_PHASE_0_5B` | Phase 0 authority proof + manuscript + 13 criteria canon | `ADJACENT_REVISE` (Revise admission) | Emerging |
+| Seed Completeness Gate | `ADJACENT_SEED_COMPLETENESS_GATE` | Phase 0.5A seed artifacts | `S05_PASS1` (Phase 1A) or seed regeneration | Emerging |
+| Story Layer Quality Gate | `ADJACENT_SEMANTIC_GATE` | Phase 1A story layer output + benchmarks | Review Gate | Emerging |
+| Review Gate | `ADJACENT_REVIEW_GATE` | Author + quality report + story layers | `S06_PASS2` (Phase 2) | Emerging |
+
+### Runtime Spine Stages (S01–S11)
 
 | Stage | Stage ID | Supplier | Customer / Downstream | Certification Status |
 |---|---|---|---|---|
@@ -84,11 +109,20 @@ Reason: this seam carries synthesis correctness, normalization semantics, determ
 | EvaluationResultV2 normalization | `S08_ER2_NORMALIZATION` | Pipeline adapter / observability normalization | `S09_QUALITYGATEV2` | High-risk |
 | QualityGateV2 | `S09_QUALITYGATEV2` | Deterministic gate engine | `S10_PERSISTENCE` | Partial |
 | Persistence | `S10_PERSISTENCE` | Atomic persistence layer | `S11_RENDERER` | Partial |
-| Renderer | `S11_RENDERER` | API read path + UI | End user / admin | Emerging |
+| Renderer | `S11_RENDERER` | API read path + UI | End user / admin, `ADJACENT_REVISE` | Emerging |
+
+### Evaluation → Revise Handoff Stages
+
+| Stage | Stage ID | Supplier | Customer / Downstream | Certification Status |
+|---|---|---|---|---|
+| Revision Opportunity Ledger | `ADJACENT_REVISION_LEDGER` | Phase 2 + Phase 3 evaluation artifacts | `ADJACENT_REVISE` (Revise Queue) | Emerging |
+| Revise Admission | `ADJACENT_REVISE` | revision_opportunity_ledger_v1 + revise_opportunity_seed_v1 | Revise Queue / TrustedPath / Author | Emerging |
 
 ## Canonical Stage Identifier Register (Immutable)
 
 The following stage IDs are canonical runtime certification identifiers and are **immutable** unless superseded by explicit canon-governed revision:
+
+### Runtime Spine (S01–S11)
 
 - `S01_INTAKE`
 - `S02_QUEUE`
@@ -102,14 +136,224 @@ The following stage IDs are canonical runtime certification identifiers and are 
 - `S10_PERSISTENCE`
 - `S11_RENDERER`
 
+### Adjacent / Seeding / Handoff Stages
+
+- `ADJACENT_PHASE_0`
+- `ADJACENT_PHASE_0_5A`
+- `ADJACENT_PHASE_0_5B`
+- `ADJACENT_SEED_COMPLETENESS_GATE`
+- `ADJACENT_PASS_3A`
+- `ADJACENT_SEMANTIC_GATE`
+- `ADJACENT_REVIEW_GATE`
+- `ADJACENT_REVISION_LEDGER`
+- `ADJACENT_REVISE`
+- `ADJACENT_LLR`
+- `ADJACENT_WAVE`
+
 Governance requirements for identifier changes:
 
 1. No silent rename, aliasing, or inferred mapping.
 2. Any stage-ID change requires explicit governance review and versioned contract update.
 3. Downstream assets (fixtures, harness, CI, telemetry, dashboards) must treat these IDs as stable keys.
 4. If evolution is required, introduce a versioned migration plan before runtime adoption.
+5. Adjacent stage identifiers carry the same immutability rules as runtime spine identifiers.
 
 ### Stage Contract Details
+
+### `ADJACENT_PHASE_0` — Phase 0 Warmup
+
+- **Supplier:** Canon docs, benchmark manifests, governance docs
+- **Input:** Warmup manifest + what-not-to-do + benchmark references + fail-closed rules + SIPOC quality gates + seed governance
+- **Input acceptance metrics:**
+  - `PHASE_0_WARMUP_BENCHMARK_MANIFEST.md` resolved
+  - `WHAT_NOT_TO_DO.md` loaded
+  - `STORY_LEDGER_LAYER_FAILURE_MODES.md` loaded
+  - `REVISIONGRADE_FAIL_CLOSED_RULES.md` loaded
+  - `SIPOC_INPUT_OUTPUT_QUALITY_GATES.md` loaded
+  - `SEED_AND_PHASE_1A_GOVERNANCE.md` loaded
+  - All required benchmark docs available
+  - No live PR mining at runtime
+- **Process / runtime code surface:**
+  - `lib/evaluation/phase-architecture-v2/phase0AuthorityProof.ts`
+  - `lib/evaluation/phase-architecture-v2/checklistMatrix.ts` (phase_0 row)
+- **Output:** `phase0_authority_proof_v1` — compact warmup context with loaded authority paths, checksums, selected route, and benchmark references
+- **Output acceptance metrics:**
+  - Authority paths loaded and checksummed
+  - Benchmark path list present
+  - Fail-closed doctrine loaded
+  - Route selected: short-form / long-form / long-form multi-layer
+  - `schema_valid = true`
+  - `is_resume_safe` determined
+- **Customer / downstream stage:** `ADJACENT_PHASE_0_5A`, `ADJACENT_PHASE_0_5B`
+- **Gates / invariants:** Phase 0.5A and 0.5B must not start without proven Phase 0 authority. Canon sources missing must be explicitly recorded.
+- **Failure codes:** `PHASE0_AUTHORITY_MISSING`, `PHASE0_MANIFEST_UNRESOLVED`
+- **Required telemetry:** authority proof generation timing, loaded path count, missing path count
+- **Required evidence artifact:** `phase0_authority_proof_v1` with full authority path checksums
+- **Canon refs:** Phase 0.1–0.3 governance enforcement, warmup benchmark manifest
+- **Spec refs:** `docs/phase-0-warmup/PHASE_0_AUTHORITY_REGISTRY.md`, `docs/phase-0-warmup/PHASE_0_WARMUP_BENCHMARK_MANIFEST.md`
+- **Runtime refs:** `lib/evaluation/phase-architecture-v2/phase0AuthorityProof.ts`
+- **Authority priority:** Canon > Spec > Runtime > Telemetry
+- **Certification status:** Emerging
+
+### `ADJACENT_PHASE_0_5A` — Phase 0.5A Story Map Seed
+
+- **Supplier:** Phase 0 authority proof + manuscript text + benchmarks
+- **Input:** `phase0_authority_proof_v1` + manuscript ingestion/source text + chunk/routing manifest + manuscript version ID
+- **Input acceptance metrics:**
+  - `phase0_authority_proof_v1` present and valid
+  - Authority paths loaded and checksummed against Phase 0 proof
+  - Manuscript text available
+  - Canon sources missing list explicitly recorded
+- **Process / runtime code surface:**
+  - `lib/evaluation/phase-architecture-v2/phase05aStoryMapSeed.ts`
+  - `lib/evaluation/seed/semanticSeedGenerator.ts`
+  - `lib/evaluation/seed/seedScaffoldFactory.ts`
+  - `lib/evaluation/phase-architecture-v2/checklistMatrix.ts` (phase_0_5a row)
+- **Output:** `story_map_seed_v1` + `evaluation_seed_v1`
+- **Output acceptance metrics:**
+  - `story_map_seed_v1` includes: candidate_entity_registry, candidate_alias_map, candidate_relationship_map, candidate_object_symbol_map, candidate_location_map, candidate_timeline_map, candidate_pov_map, candidate_pressure_map, candidate_open_loop_map, uncertainty_flags
+  - `evaluation_seed_v1` includes: likely_13_criteria_strengths, likely_13_criteria_risks, known_story_risks, known_evidence_targets
+  - `seed_status = candidate_provisional` (not final authority)
+  - All 9 Story Ledger layer scaffolds present
+  - All 13 criteria scaffolded
+  - `schema_valid = true`
+  - `semantic_status` determined (valid / degraded_with_reasons / blocked)
+  - No final scores in seed
+  - No final verdict in seed
+  - `seed_authority = seed_only`
+- **Customer / downstream stage:** `ADJACENT_SEED_COMPLETENESS_GATE`, `S05_PASS1` (Phase 1A)
+- **Gates / invariants:** Seeds must run only after Phase 0 governance warmup is loaded and proven. Seeds are provisional candidate scaffolds — not evaluation authority. Phase 0.5A answers: "what does the manuscript contain?"
+- **Failure codes:** `SEED_GENERATION_FAILED`, `SEED_AUTHORITY_PROOF_MISSING`
+- **Required telemetry:** seed generation timing, scaffold completeness counts, semantic status
+- **Required evidence artifact:** `story_map_seed_v1` + `evaluation_seed_v1` with authority proof linkage
+- **Canon refs:** Volume III pass architecture, Story Ledger layer contract
+- **Spec refs:** `docs/phase-0-warmup/SEED_AND_PHASE_1A_GOVERNANCE.md`, `docs/prs/p16-phase-0-5a-story-map-seed-producer.md`
+- **Runtime refs:** `lib/evaluation/phase-architecture-v2/phase05aStoryMapSeed.ts`
+- **Authority priority:** Canon > Spec > Runtime > Telemetry
+- **Certification status:** Emerging
+
+### `ADJACENT_PHASE_0_5B` — Phase 0.5B Revise Opportunity Seed
+
+- **Supplier:** Phase 0 authority proof + manuscript text + 13 criteria canon + Revise Queue candidate-prose contract
+- **Input:** `phase0_authority_proof_v1` + manuscript ingestion/source text + 13 Story Criteria canon + WAVE/long-form readiness canon (where eligible) + dialogue/speech/POV protection canon + Gate 15/long-form governance (where eligible) + Revise Queue candidate-prose contract
+- **Input acceptance metrics:**
+  - `phase0_authority_proof_v1` present and valid
+  - Authority paths loaded and checksummed against Phase 0 proof
+  - 13 criteria canon loaded
+  - Revise candidate-prose contract loaded
+  - Manuscript text available
+- **Process / runtime code surface:**
+  - `lib/evaluation/phase-architecture-v2/phase05bReviseOpportunitySeed.ts`
+  - `lib/evaluation/phase-architecture-v2/checklistMatrix.ts` (phase_0_5b row)
+- **Output:** `revise_opportunity_seed_v1`
+- **Output acceptance metrics:**
+  - Each opportunity includes: opportunity_id, criterion_key, canon_basis[], authority_path_basis[], severity (MUST/SHOULD/COULD), scope, location_label, location_anchor, original_passage, operation_type, symptom, cause, reader_effect, evidence, fix_direction, mistake_proofing, candidate_a, candidate_b, candidate_c, author_decision_status (= pending), validation_status (= unvalidated)
+  - A/B/C candidates are actual manuscript-ready prose — not meta-instructions
+  - Every opportunity has an evidence anchor
+  - `schema_valid = true`
+  - `semantic_status` determined
+- **Customer / downstream stage:** `ADJACENT_REVISE` (Revise admission)
+- **Gates / invariants:** Phase 0.5B answers: "what targeted revision opportunities appear to exist, where are they, why do they matter, and what candidate repairs can the author choose?" Seeds must not be generated from manuscript text alone without proven canon governance. Forbidden: generating revision-opportunity seeds while pretending RevisionGrade canon governed the result.
+- **Failure codes:** `REVISE_SEED_GENERATION_FAILED`, `REVISE_SEED_AUTHORITY_PROOF_MISSING`
+- **Required telemetry:** seed generation timing, opportunity count, severity distribution, semantic status
+- **Required evidence artifact:** `revise_opportunity_seed_v1` with authority proof linkage and per-opportunity evidence anchors
+- **Canon refs:** Volume II criteria canon, Revise Queue candidate-prose contract
+- **Spec refs:** `docs/architecture/phase-0-5b-revise-opportunity-seed.md`, `docs/prs/p17-phase-0-5b-revise-opportunity-seed-producer.md`
+- **Runtime refs:** `lib/evaluation/phase-architecture-v2/phase05bReviseOpportunitySeed.ts`
+- **Authority priority:** Canon > Spec > Runtime > Telemetry
+- **Certification status:** Emerging
+
+### `ADJACENT_SEED_COMPLETENESS_GATE` — Seed Completeness Gate
+
+- **Supplier:** Phase 0.5A seed artifacts
+- **Input:** `story_map_seed_v1` + `evaluation_seed_v1`
+- **Input acceptance metrics:**
+  - Both seed artifacts present
+  - Schema validation passed on both
+- **Process / runtime code surface:**
+  - `lib/evaluation/seed/seedCompletenessGuard.ts`
+  - `lib/evaluation/seed/phase1aSeedRuntimeGate.ts`
+- **Output:** `seed_fit_gap_report_v1` — status: blocked / passed / passed_with_warnings
+- **Output acceptance metrics:**
+  - Missing required seed sections detected
+  - Fit-gap report persisted
+  - Phase 1A blocked on incomplete seed (`SEED_FIT_GAP_BLOCKED`)
+  - Gap severity classified as blocker or warning
+- **Customer / downstream stage:** `S05_PASS1` (Phase 1A) — if passed; seed regeneration — if blocked
+- **Gates / invariants:** Phase 1A must not start with incomplete seeds. Doctrine: `complete_seed_artifacts_required_before_phase_1a`.
+- **Failure codes:** `SEED_FIT_GAP_BLOCKED`
+- **Required telemetry:** seed completeness check timing, gap count, gap severity distribution
+- **Required evidence artifact:** `seed_fit_gap_report_v1` with gap details
+- **Canon refs:** Seed governance doctrine
+- **Spec refs:** `docs/phase-0-warmup/SEED_AND_PHASE_1A_GOVERNANCE.md`
+- **Runtime refs:** `lib/evaluation/seed/seedCompletenessGuard.ts`
+- **Authority priority:** Canon > Spec > Runtime > Telemetry
+- **Certification status:** Emerging
+
+### `ADJACENT_SEMANTIC_GATE` — Story Layer Quality Gate
+
+- **Supplier:** Phase 1A story layer output + benchmarks + layer validators
+- **Input:** `pass1a_story_layer_v1` + benchmark targets + layer validators
+- **Input acceptance metrics:**
+  - Story layer output present
+  - Benchmark comparison targets loaded
+- **Process / runtime code surface:**
+  - `lib/evaluation/phase1a/buildLedgerQualityReport.ts`
+  - `lib/evaluation/phase-architecture-v2/checklistMatrix.ts` (semantic_gate row)
+- **Output:** `ledger_quality_report_v1` — per-layer classification + `semantic_gate_result_v1` + `accepted_story_context_v1`
+- **Output acceptance metrics:**
+  - Every visible layer classified: valid / degraded_with_caution / suppressed_insufficient_evidence / suppressed_conflicting_signals / failed_benchmark_minimum
+  - Failed benchmark minimum blocks approval
+  - Dirty layers suppressed/degraded (not rendered as clean)
+  - Author-safe reason shown
+  - Valid empty pronoun state allowed
+  - Raw malformed layer NOT rendered
+  - Entity-typing contamination suppressed before accountability checks
+  - WARN-prefixed items never promoted to hard_fail
+  - Ending accountability hard-fail ONLY when: long_form_evaluation mode + verified primary character + clean preflight authority + evidence-backed
+- **Customer / downstream stage:** `ADJACENT_REVIEW_GATE`
+- **Gates / invariants:** If Canonical Identity is degraded, dependent layers (Cast, POV, relationships, objects, timeline, threat, source integrity) must not render as clean. Content certainty requires evidence authority — if Track C / Pass 3A authority is degraded, the system cannot confidently issue content hard-fails.
+- **Failure codes:** `REVIEW_GATE_QUALITY_HARD_FAIL`, `REVIEW_GATE_QUALITY_TECHNICAL_BLOCK`
+- **Required telemetry:** quality check results, hard-fail triage classifications, layer status distribution
+- **Required evidence artifact:** `ledger_quality_report_v1` with per-check severity and triage reasoning
+- **Canon refs:** Volume III pass architecture, Entity-Typing Validator doctrine
+- **Spec refs:** `docs/QUALITY_GATES_v1.md`
+- **Runtime refs:** `lib/evaluation/phase1a/buildLedgerQualityReport.ts`
+- **Authority priority:** Canon > Spec > Runtime > Telemetry
+- **Certification status:** Emerging
+
+### `ADJACENT_REVIEW_GATE` — Review Gate
+
+- **Supplier:** Author + quality report + story layers
+- **Input:** `pass1a_story_layer_v1` + `ledger_quality_report_v1` + author decisions/comments
+- **Input acceptance metrics:**
+  - All visible layers reviewed
+  - Invalid status vocabulary normalized/rejected
+  - Comments required for correction/reject states
+  - Failed layers excluded from approval
+- **Process / runtime code surface:**
+  - `lib/evaluation/processor.ts` (Review Gate handler)
+  - `lib/evaluation/phase-architecture-v2/checklistMatrix.ts` (semantic_gate row output)
+- **Output:** `accepted_story_ledger_v1`
+- **Output acceptance metrics:**
+  - `accepted_story_ledger_v1` persisted
+  - All visible layers have review decision
+  - Short-form jobs (<25k words) bypass Review Gate — Phase 0.5A + Phase 0.5B + manuscript text + deterministic evidence validator is sufficient authority
+  - Long-form jobs (≥25k words) require operator review for genuine hard-fails
+- **Customer / downstream stage:** `S06_PASS2` (Phase 2)
+- **Gates / invariants:** Phase 2 remains blocked on `accepted_story_ledger_v1` (Review Gate authority). Short-form insufficiency renders as N/A / advisory / warning / insufficient_evidence — not terminal failure. No short-form job requires `accepted_story_ledger_v1`.
+- **Failure codes:** `REVIEW_GATE_REJECTED`, `REVIEW_GATE_TIMEOUT`
+- **Required telemetry:** review gate decision, time-to-review, layer acceptance rates
+- **Required evidence artifact:** `accepted_story_ledger_v1` with per-layer review decisions
+- **Canon refs:** RevisionGrade Operating Model, Phase 0.1–0.3 governance
+- **Spec refs:** `docs/QUALITY_GATES_v1.md`
+- **Runtime refs:** `lib/evaluation/processor.ts`
+- **Authority priority:** Canon > Spec > Runtime > Telemetry
+- **Certification status:** Emerging
+
+---
+
+### Runtime Spine Stage Contracts (S01–S11)
 
 ### `S01_INTAKE` — Intake
 

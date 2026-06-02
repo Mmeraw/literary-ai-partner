@@ -56,7 +56,7 @@ Block seed generation or continue only with explicitly degraded warmup status, n
 Both required seeds must be complete:
 
 ```text
-story_seed_v1
+story_map_seed_v1
 evaluation_seed_v1
 ```
 

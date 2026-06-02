@@ -30,14 +30,14 @@ export type SeedClaim = {
 };
 
 export type SeedArtifact = {
-  artifact_type: 'story_seed_v1' | 'evaluation_seed_v1';
+  artifact_type: 'story_map_seed_v1' | 'evaluation_seed_v1';
   authority: 'seed_only';
   artifact_status: 'created' | 'superseded' | 'archived' | 'failed';
   claims: SeedClaim[];
 };
 
 export type EvaluationSeedRunArtifacts = {
-  story_seed_v1?: SeedArtifact;
+  story_map_seed_v1?: SeedArtifact;
   evaluation_seed_v1?: SeedArtifact;
   chunk_evidence_index_v1?: unknown;
   accepted_story_ledger_v1?: UnknownRecord;
@@ -226,7 +226,7 @@ function collectScoredLedgerEntries(ledger: unknown): UnknownRecord[] {
 function hasSeedOnlyProvenance(entry: UnknownRecord): boolean {
   return [entry.source, entry.provenance, entry.source_artifact_type, entry.authority]
     .map(normalizeText)
-    .some((value) => value === 'seed' || value === 'seed_only' || value.includes('story_seed_v1') || value.includes('evaluation_seed_v1'));
+    .some((value) => value === 'seed' || value === 'seed_only' || value.includes('story_map_seed_v1') || value.includes('evaluation_seed_v1'));
 }
 
 function collectSeedOnlyCanonPromotions(ledger: unknown): UnknownRecord[] {
@@ -365,7 +365,7 @@ function scoreEvidenceCoverage(ledger: unknown): number {
 
 function countSeedClaims(run: EvaluationSeedBenchmarkRun, statuses: SeedClaimVerificationStatus[]): number {
   return [
-    ...(run.artifacts.story_seed_v1?.claims ?? []),
+    ...(run.artifacts.story_map_seed_v1?.claims ?? []),
     ...(run.artifacts.evaluation_seed_v1?.claims ?? []),
   ].filter((claim) => statuses.includes(claim.claim_status)).length;
 }
@@ -435,7 +435,7 @@ export function validateEvaluationSeedRun(run: EvaluationSeedBenchmarkRun, seedE
   const artifacts = run.artifacts;
 
   if (seedEnabled) {
-    if (!artifacts.story_seed_v1) issues.push('MISSING_ARTIFACT: story_seed_v1 is required for SEED-enabled run.');
+    if (!artifacts.story_map_seed_v1) issues.push('MISSING_ARTIFACT: story_map_seed_v1 is required for SEED-enabled run.');
     if (!artifacts.evaluation_seed_v1) issues.push('MISSING_ARTIFACT: evaluation_seed_v1 is required for SEED-enabled run.');
   }
 

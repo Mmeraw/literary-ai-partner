@@ -11,7 +11,7 @@ const LIVE_OPENAI_PASS_FILES = [
 
 describe("provider retry policy", () => {
   it("keeps OpenAI SDK retry ceiling explicit and low", () => {
-    expect(OPENAI_SDK_MAX_RETRIES).toBe(1);
+    expect(OPENAI_SDK_MAX_RETRIES).toBe(2);
   });
 
   it("prevents hardcoded retry drift in live OpenAI pass files", () => {

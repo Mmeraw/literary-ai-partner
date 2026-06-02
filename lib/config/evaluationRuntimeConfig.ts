@@ -405,11 +405,13 @@ export function resolveEvaluationRuntimeConfig(
       disabled: env.EVAL_WORKER_DISABLED === "true" || env.EVAL_WORKER_DISABLED === "1",
     },
     phase1a: {
-      batchSize: parseBoundedInteger(env, "EVAL_PHASE1A_BATCH_SIZE", { defaultValue: 2, min: 1, max: 10 }),
-      concurrency: parseBoundedInteger(env, "EVAL_PHASE1A_CONCURRENCY", { defaultValue: 1, min: 1, max: 5 }),
+      // Tier 4 defaults: raised batchSize 2→5, concurrency 1→3, preflight 1→2
+      // to take advantage of 10M TPM / 10K RPM headroom.
+      batchSize: parseBoundedInteger(env, "EVAL_PHASE1A_BATCH_SIZE", { defaultValue: 5, min: 1, max: 10 }),
+      concurrency: parseBoundedInteger(env, "EVAL_PHASE1A_CONCURRENCY", { defaultValue: 3, min: 1, max: 5 }),
       invocationBudgetMs: parseBoundedInteger(env, "EVAL_PHASE1A_INVOCATION_BUDGET_MS", { defaultValue: 45_000, min: 10_000, max: 600_000 }),
       safetyMarginMs: parseBoundedInteger(env, "EVAL_PHASE1A_SAFETY_MARGIN_MS", { defaultValue: 10_000, min: 3_000, max: 30_000 }),
-      preflightConcurrency: parseBoundedInteger(env, "EVAL_PHASE1A_PREFLIGHT_CONCURRENCY", { defaultValue: 1, min: 1, max: 5 }),
+      preflightConcurrency: parseBoundedInteger(env, "EVAL_PHASE1A_PREFLIGHT_CONCURRENCY", { defaultValue: 2, min: 1, max: 5 }),
     },
     auth: {
       cronSecret: env.CRON_SECRET || "",

@@ -9,10 +9,15 @@ import {
 const filledLayerScaffold = (layer: string) => ({
   baseline_expectation: `${layer} must be verified against manuscript evidence`,
   required_verification_targets: [`${layer}:target`],
+  required_sections: [`${layer}:section`],
+  phase1a_must_fill: [`${layer}:fill`],
+  phase1a_must_verify: [`${layer}:verify`],
+  mistake_proofing: [`${layer}:do_not_assume`],
+  baseline_rule: 'phase_1a_must_use_as_story_layer_creation_baseline' as const,
 });
 
 const storySeed = () => ({
-  artifact_type: 'story_seed_v1',
+  artifact_type: 'story_map_seed_v1',
   authority: 'seed_only',
   artifact_status: 'created',
   layer_scaffolds: Object.fromEntries(STORY_LAYER_KEYS.map((layer) => [layer, filledLayerScaffold(layer)])),
@@ -51,7 +56,13 @@ const evaluationSeed = () => ({
     long_form_template: 'templates/evaluation/long-form-v1',
     long_form_multilayer_template: 'templates/evaluation/long-form-multilayer-v1',
   },
-  criterion_scaffolds: CRITERIA_KEYS.map((criterion_key) => ({ criterion_key })),
+  criterion_scaffolds: CRITERIA_KEYS.map((criterion_key) => ({
+    criterion_key,
+    short_form_template_sections: [`${criterion_key}:short`],
+    long_form_template_sections: [`${criterion_key}:long`],
+    phase1a_must_collect: [`${criterion_key}:collect`],
+    mistake_proofing: [`${criterion_key}:mp`],
+  })),
   governance_rail: {
     seed_must_be_used_as_phase1a_evaluation_baseline: true,
     phase1a_must_verify_seed_against_manuscript_evidence: true,
@@ -64,7 +75,7 @@ const evaluationSeed = () => ({
 
 describe('seedCompletenessGuard minimal contract', () => {
   it('blocks generic story seeds that lack layer scaffolds', () => {
-    const gaps = validateStorySeedCompleteness({ artifact_type: 'story_seed_v1', authority: 'seed_only' });
+    const gaps = validateStorySeedCompleteness({ artifact_type: 'story_map_seed_v1', authority: 'seed_only' });
     expect(gaps.some((gap) => gap.section === 'layer_scaffolds')).toBe(true);
   });
 

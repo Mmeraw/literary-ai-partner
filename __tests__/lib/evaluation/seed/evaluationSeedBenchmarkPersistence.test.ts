@@ -94,7 +94,7 @@ const acceptedLedger = {
 };
 
 const storySeed = {
-  artifact_type: 'story_seed_v1',
+  artifact_type: 'story_map_seed_v1',
   authority: 'seed_only',
   artifact_status: 'created',
   claims: [
@@ -116,7 +116,7 @@ function artifactsFor(jobId: string, includeSeeds: boolean) {
   return [
     ...(includeSeeds
       ? [
-          { artifact_type: 'story_seed_v1', content: storySeed, created_at: '2026-05-30T00:00:01Z' },
+          { artifact_type: 'story_map_seed_v1', content: storySeed, created_at: '2026-05-30T00:00:01Z' },
           { artifact_type: 'evaluation_seed_v1', content: evaluationSeed, created_at: '2026-05-30T00:00:02Z' },
         ]
       : []),
@@ -156,7 +156,7 @@ describe('evaluation seed benchmark persistence wiring', () => {
     expect(run.word_count).toBe(30100);
     expect(run.total_ms).toBe(105000);
     expect(run.evaluation_mode).toBe('long_form_multi_layer_evaluation');
-    expect(run.artifacts.story_seed_v1).toEqual(storySeed);
+    expect(run.artifacts.story_map_seed_v1).toEqual(storySeed);
     expect(run.artifacts.evaluation_seed_v1).toEqual(evaluationSeed);
   });
 

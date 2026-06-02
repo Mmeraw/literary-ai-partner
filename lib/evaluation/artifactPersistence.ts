@@ -18,17 +18,12 @@ export type ArtifactType =
   | "evaluation_result_v2"
   /** Phase 0 authority proof: registry path/checksum, loaded paths, missing paths, authority checksums. */
   | "phase0_authority_proof_v1"
-  /** Phase 0.5A governed story-map seed. Candidate/provisional, not verified truth. */
-  | "phase0_5a_story_ledger_draft_v1"
-  /** Phase 0.5B governed evaluation blueprint. Candidate/provisional, not verified truth. */
-  | "phase0_5b_evaluation_blueprint_v1"
+  /** Phase 0.5A governed story-map seed. Candidate/provisional baseline authority, not verified truth. */
   | "story_map_seed_v1"
+  /** Phase 0.5B governed evaluation seed. Candidate/provisional baseline authority, not verified truth. */
+  | "evaluation_seed_v1"
   /** Phase 0.5B governed revise opportunity seed. Not author-facing until admission/candidate validation. */
   | "revise_opportunity_seed_v1"
-  /** Runtime SEED hypothesis artifact generated before Phase 1A. */
-  | "story_seed_v1"
-  /** Runtime evaluation-priority SEED hypothesis artifact generated before Phase 1A. */
-  | "evaluation_seed_v1"
   | "diagnostic_pass3_snapshot_v1"
   /** Audit-grade: raw Pass 1 / Pass 2 / Pass 3 outputs as emitted on gate failure. Not user-visible. */
   | "pass_outputs_diagnostic_v1"

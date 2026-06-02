@@ -62,7 +62,7 @@ interface TriageContext {
  * Per doctrine: "A river cannot become a Character unless personified.
  * If contamination occurs: suppress internally."
  */
-function isEntityTypingContaminated(name: string): boolean {
+export function isEntityTypingContaminated(name: string): boolean {
   const n = name.trim();
   if (/\bUnknown\b/i.test(n)) return true;
   if (/^Primary\s+(He|She|They|It|Him|Her)\b/i.test(n)) return true;

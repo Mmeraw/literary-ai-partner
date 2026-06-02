@@ -134,6 +134,14 @@ import { runPass3Preflight } from '@/lib/evaluation/pipeline/runPass3Preflight';
 import { reduceCharacterEvidence, buildCharacterLedgerV2 } from '@/lib/evaluation/pipeline/characterReducer';
 import { buildStoryLayerFromLedger } from '@/lib/evaluation/phase1a/buildStoryLayerFromLedger';
 import { buildLedgerQualityReport } from '@/lib/evaluation/phase1a/buildLedgerQualityReport';
+import { buildSeedConsistencyReport } from '@/lib/evaluation/seed/seedConsistencyReport';
+import {
+  buildTwoPassSeedBlock,
+  filterContaminatedEntities,
+  parseSeedValidationFromChunkOutput,
+  computeSeedDriftScore,
+  type SeedValidationPassAResult,
+} from '@/lib/evaluation/seed/twoPassSeedValidation';
 import { writePhase1aReviewGateArtifacts } from '@/lib/evaluation/phase1a/storyLayerArtifactWriters';
 import { buildReviewGateHandoff } from '@/lib/evaluation/phase-architecture-v2/reviewGateHandoff';
 import {
@@ -3269,9 +3277,7 @@ async function terminalizeQueuedHardStops(): Promise<{
     .select('job_id, artifact_type')
     .in('job_id', rows.map((row) => row.id))
     .in('artifact_type', [
-      'phase0_5a_story_ledger_draft_v1',
-      'phase0_5b_evaluation_blueprint_v1',
-      'story_seed_v1',
+      'story_map_seed_v1',
       'evaluation_seed_v1',
       'seed_fit_gap_report_v1',
     ]);
@@ -3387,7 +3393,7 @@ type SeedClaim = {
 };
 
 type SeedArtifact = {
-  artifact_type: 'phase0_5a_story_ledger_draft_v1' | 'phase0_5b_evaluation_blueprint_v1';
+  artifact_type: 'story_map_seed_v1' | 'evaluation_seed_v1';
   authority: 'seed_only';
   artifact_status: 'created' | 'superseded' | 'archived' | 'failed';
   generated_at: string;
@@ -3435,7 +3441,7 @@ function buildStorySeedArtifact(args: { manuscriptText: string; generatedAt: str
   }
 
   return {
-    artifact_type: 'phase0_5a_story_ledger_draft_v1',
+    artifact_type: 'story_map_seed_v1',
     authority: 'seed_only',
     artifact_status: 'created',
     generated_at: args.generatedAt,
@@ -3454,7 +3460,7 @@ function buildEvaluationSeedArtifact(args: { generatedAt: string }): SeedArtifac
   }));
 
   return {
-    artifact_type: 'phase0_5b_evaluation_blueprint_v1',
+    artifact_type: 'evaluation_seed_v1',
     authority: 'seed_only',
     artifact_status: 'created',
     generated_at: args.generatedAt,
@@ -3462,25 +3468,58 @@ function buildEvaluationSeedArtifact(args: { generatedAt: string }): SeedArtifac
   };
 }
 
+/**
+ * Extracts seed entity names from story seed claims for use in the two-pass protocol.
+ */
+function extractSeedEntityNames(storySeed: SeedArtifact): string[] {
+  const seedEntityNames: string[] = [];
+  for (const claim of storySeed.claims) {
+    if (claim.temp_seed_entity_id) {
+      const name = claim.temp_seed_entity_id
+        .replace(/^temp_seed_entity_/, '')
+        .replace(/_/g, ' ')
+        .trim();
+      if (name.length > 0 && name !== 'fallback primary work') {
+        seedEntityNames.push(name);
+      }
+    }
+  }
+  return seedEntityNames;
+}
+
+/**
+ * Builds the Phase 1A seed context block using the two-pass seed-anchored extraction protocol.
+ *
+ * Two-pass architecture:
+ *   Pass A (Seed Confirmation): LLM validates each seed entity against the manuscript chunk,
+ *     producing a seed_validation array with confirmed/absent/corrected status per entity.
+ *   Pass B (Novel Extraction): LLM extracts additional entities not in seed, requiring
+ *     explicit manuscript evidence for each addition.
+ *
+ * This replaces the old single-pass approach where seeds were injected as mere context.
+ * Seeds are 95%+ quality from DREAM benchmarks/gold standards and are treated as
+ * baseline authority, not suggestions.
+ */
 function buildPass1aSeedContextBlock(seeds: {
   storySeed: SeedArtifact;
   evaluationSeed: SeedArtifact;
 }): string {
-  const lines: string[] = [];
-  const storyClaims = seeds.storySeed.claims.slice(0, 4);
-  const evalClaims = seeds.evaluationSeed.claims.slice(0, 4);
+  const seedEntityNames = extractSeedEntityNames(seeds.storySeed);
 
-  for (const claim of storyClaims) {
-    lines.push(`- [story] ${claim.claim_id}: ${claim.hypothesis}`);
-  }
+  const storyClaims = seeds.storySeed.claims.slice(0, 6).map(c => ({
+    claim_id: c.claim_id,
+    hypothesis: c.hypothesis,
+  }));
+  const evalClaims = seeds.evaluationSeed.claims.slice(0, 6).map(c => ({
+    claim_id: c.claim_id,
+    hypothesis: c.hypothesis,
+  }));
 
-  for (const claim of evalClaims) {
-    lines.push(`- [evaluation] ${claim.claim_id}: ${claim.hypothesis}`);
-  }
-
-  lines.push('- Treat all SEED claims as hypotheses only; do not promote without direct chunk evidence.');
-
-  return lines.join('\n');
+  return buildTwoPassSeedBlock({
+    seedEntityNames,
+    seedClaims: storyClaims,
+    evalClaims,
+  });
 }
 
 async function ensureSeedArtifactsForPhase1a(args: {
@@ -3496,10 +3535,7 @@ async function ensureSeedArtifactsForPhase1a(args: {
   evalOpenAiTimeoutMs: number;
 }): Promise<{ storySeed: SeedArtifact; evaluationSeed: SeedArtifact; createdTypes: string[] }> {
   const seedTypes = [
-    'phase0_5a_story_ledger_draft_v1',
-    'phase0_5b_evaluation_blueprint_v1',
-    // Legacy read-through aliases for in-flight rows created before canonical naming landed.
-    'story_seed_v1',
+    'story_map_seed_v1',
     'evaluation_seed_v1',
   ];
   const { data: existingRows, error: existingErr } = await args.supabase
@@ -3531,8 +3567,8 @@ async function ensureSeedArtifactsForPhase1a(args: {
   const createdTypes: string[] = [];
   const generatedAt = new Date().toISOString();
 
-  let storySeed = existingByType.get('phase0_5a_story_ledger_draft_v1') ?? existingByType.get('story_seed_v1');
-  let evaluationSeed = existingByType.get('phase0_5b_evaluation_blueprint_v1') ?? existingByType.get('evaluation_seed_v1');
+  let storySeed = existingByType.get('story_map_seed_v1');
+  let evaluationSeed = existingByType.get('evaluation_seed_v1');
 
   if (!storySeed || !evaluationSeed) {
     const generated = await generateSemanticSeedArtifacts({
@@ -3554,13 +3590,13 @@ async function ensureSeedArtifactsForPhase1a(args: {
       throw new Error('PHASE05_SEMANTIC_SEED_GENERATION_INCOMPLETE');
     }
 
-    if (!existingByType.has('phase0_5a_story_ledger_draft_v1') && !existingByType.has('story_seed_v1')) {
+    if (!existingByType.has('story_map_seed_v1')) {
       await upsertEvaluationArtifact({
         supabase: args.supabase,
         jobId: args.jobId,
         manuscriptId: args.manuscriptId,
-        artifactType: 'phase0_5a_story_ledger_draft_v1',
-        artifactVersion: 'phase0_5a_story_ledger_draft_v1',
+        artifactType: 'story_map_seed_v1',
+        artifactVersion: 'story_map_seed_v1',
         sourceHash: buildSemanticSeedSourceHash({
           jobId: args.jobId,
           manuscriptId: args.manuscriptId,
@@ -3571,16 +3607,16 @@ async function ensureSeedArtifactsForPhase1a(args: {
         }),
         content: storySeed,
       });
-      createdTypes.push('phase0_5a_story_ledger_draft_v1');
+      createdTypes.push('story_map_seed_v1');
     }
 
-    if (!existingByType.has('phase0_5b_evaluation_blueprint_v1') && !existingByType.has('evaluation_seed_v1')) {
+    if (!existingByType.has('evaluation_seed_v1')) {
       await upsertEvaluationArtifact({
         supabase: args.supabase,
         jobId: args.jobId,
         manuscriptId: args.manuscriptId,
-        artifactType: 'phase0_5b_evaluation_blueprint_v1',
-        artifactVersion: 'phase0_5b_evaluation_blueprint_v1',
+        artifactType: 'evaluation_seed_v1',
+        artifactVersion: 'evaluation_seed_v1',
         sourceHash: buildSemanticSeedSourceHash({
           jobId: args.jobId,
           manuscriptId: args.manuscriptId,
@@ -3591,7 +3627,7 @@ async function ensureSeedArtifactsForPhase1a(args: {
         }),
         content: evaluationSeed,
       });
-      createdTypes.push('phase0_5b_evaluation_blueprint_v1');
+      createdTypes.push('evaluation_seed_v1');
     }
   }
 
@@ -3601,19 +3637,19 @@ async function ensureSeedArtifactsForPhase1a(args: {
       supabase: args.supabase,
       jobId: args.jobId,
       manuscriptId: args.manuscriptId,
-      artifactType: 'phase0_5a_story_ledger_draft_v1',
-      artifactVersion: 'phase0_5a_story_ledger_draft_v1',
+      artifactType: 'story_map_seed_v1',
+      artifactVersion: 'story_map_seed_v1',
       sourceHash: stableSourceHash({
         manuscriptId: args.manuscriptId,
         jobId: args.jobId,
         userId: args.userId,
         manuscriptText: args.manuscriptText,
-        promptVersion: 'phase0_5a_story_ledger_draft_v1:deterministic',
+        promptVersion: 'story_map_seed_v1:deterministic',
         model: 'seed_deterministic',
       }),
       content: storySeed,
     });
-    if (!createdTypes.includes('phase0_5a_story_ledger_draft_v1')) createdTypes.push('phase0_5a_story_ledger_draft_v1');
+    if (!createdTypes.includes('story_map_seed_v1')) createdTypes.push('story_map_seed_v1');
   }
 
   if (!evaluationSeed) {
@@ -3622,19 +3658,19 @@ async function ensureSeedArtifactsForPhase1a(args: {
       supabase: args.supabase,
       jobId: args.jobId,
       manuscriptId: args.manuscriptId,
-      artifactType: 'phase0_5b_evaluation_blueprint_v1',
-      artifactVersion: 'phase0_5b_evaluation_blueprint_v1',
+      artifactType: 'evaluation_seed_v1',
+      artifactVersion: 'evaluation_seed_v1',
       sourceHash: stableSourceHash({
         manuscriptId: args.manuscriptId,
         jobId: args.jobId,
         userId: args.userId,
         manuscriptText: args.manuscriptText,
-        promptVersion: 'phase0_5b_evaluation_blueprint_v1:deterministic',
+        promptVersion: 'evaluation_seed_v1:deterministic',
         model: 'seed_deterministic',
       }),
       content: evaluationSeed,
     });
-    if (!createdTypes.includes('phase0_5b_evaluation_blueprint_v1')) createdTypes.push('phase0_5b_evaluation_blueprint_v1');
+    if (!createdTypes.includes('evaluation_seed_v1')) createdTypes.push('evaluation_seed_v1');
   }
 
   if (!storySeed || !evaluationSeed) {
@@ -5412,10 +5448,11 @@ export async function processEvaluationJob(
       // ── End PHASE_0_NOT_PROVEN guard ────────────────────────────────────────
 
       // ── SEED guard + generation before any Phase 1A chunk work ─────────────
-      // Contract: Phase 1A must run with story_seed_v1 + evaluation_seed_v1
+      // Contract: Phase 1A must run with story_map_seed_v1 + evaluation_seed_v1
       // present. If missing, generate deterministically and persist before
       // dispatching Pass 1A. Any seed persistence failure is fail-closed.
       let phase1aSeedContextBlock = '';
+      let seedEntityNamesForConsistency: string[] = [];
       try {
         const ensuredSeeds = await ensureSeedArtifactsForPhase1a({
           supabase,
@@ -5435,6 +5472,19 @@ export async function processEvaluationJob(
           evaluationSeed: ensuredSeeds.evaluationSeed,
         });
 
+        // Extract seed entity names for post-extraction consistency check.
+        for (const claim of ensuredSeeds.storySeed.claims) {
+          if (claim.temp_seed_entity_id) {
+            const name = claim.temp_seed_entity_id
+              .replace(/^temp_seed_entity_/, '')
+              .replace(/_/g, ' ')
+              .trim();
+            if (name.length > 0 && name !== 'fallback primary work') {
+              seedEntityNamesForConsistency.push(name);
+            }
+          }
+        }
+
         if (ensuredSeeds.createdTypes.length > 0) {
           console.log(`[phase_1a] ${jobId}: generated missing seed artifacts`, {
             created: ensuredSeeds.createdTypes,
@@ -5445,7 +5495,7 @@ export async function processEvaluationJob(
       } catch (seedErr) {
         const seedErrMsg = seedErr instanceof Error ? seedErr.message : String(seedErr);
         await markFailed(
-          `Phase 1A requires phase0_5a_story_ledger_draft_v1 + phase0_5b_evaluation_blueprint_v1 before chunk processing: ${seedErrMsg}`,
+          `Phase 1A requires story_map_seed_v1 + evaluation_seed_v1 before chunk processing: ${seedErrMsg}`,
           'SEED_ARTIFACTS_MISSING',
           {
             pipelineStage: 'phase_1a_seed_guard',
@@ -6415,6 +6465,54 @@ export async function processEvaluationJob(
           .sort(([a], [b]) => a - b)
           .map(([, output]) => output);
 
+        // ── Two-pass seed validation: parse per-chunk seed_validation arrays ──
+        const allChunkSeedValidations: SeedValidationPassAResult[] = [];
+        if (seedEntityNamesForConsistency.length > 0) {
+          for (const chunkOutput of sortedChunkOutputs) {
+            const validation = parseSeedValidationFromChunkOutput(
+              chunkOutput as unknown as Record<string, unknown>,
+              seedEntityNamesForConsistency,
+            );
+            allChunkSeedValidations.push(validation);
+          }
+        }
+
+        // ── Entity contamination filter: remove pseudo-entities BEFORE ledger assembly ──
+        let totalContaminatedEntities = 0;
+        const cleanedChunkOutputs: Pass1aChunkOutput[] = sortedChunkOutputs.map(chunkOutput => {
+          if (!Array.isArray(chunkOutput.characters) || chunkOutput.characters.length === 0) {
+            return chunkOutput;
+          }
+          const { clean, rejected } = filterContaminatedEntities(chunkOutput.characters);
+          if (rejected.length > 0) {
+            totalContaminatedEntities += rejected.length;
+            console.warn(`[Processor] ${jobId}: chunk ${chunkOutput.chunk_index} — filtered ${rejected.length} contaminated entities: ${rejected.map(r => r.name).join(', ')}`);
+          }
+          return { ...chunkOutput, characters: clean };
+        });
+
+        // ── Seed drift detection: aggregate validation results across chunks ──
+        if (allChunkSeedValidations.length > 0) {
+          const driftResult = computeSeedDriftScore({
+            seedEntityNames: seedEntityNamesForConsistency,
+            allChunkValidations: allChunkSeedValidations,
+            contaminatedCount: totalContaminatedEntities,
+          });
+          console.log(`[Processor] ${jobId}: seed drift analysis`, {
+            drift_score: driftResult.drift_score,
+            never_confirmed: driftResult.never_confirmed,
+            should_requeue: driftResult.should_requeue,
+          });
+
+          if (driftResult.should_requeue) {
+            console.warn(`[Processor] ${jobId}: SEED DRIFT DETECTED — ${driftResult.summary}`);
+          }
+        }
+
+        if (totalContaminatedEntities > 0) {
+          console.log(`[Processor] ${jobId}: entity contamination filter removed ${totalContaminatedEntities} pseudo-entities across all chunks`);
+        }
+
         const ledgerAssemblyStartedAt = new Date().toISOString();
         await supabase
           .from('evaluation_jobs')
@@ -6445,15 +6543,16 @@ export async function processEvaluationJob(
           .eq('id', jobId)
           .eq('status', JOB_STATUS.RUNNING);
 
+        // Use cleaned (contamination-filtered) chunk outputs for ledger assembly
         const characterLedger: Pass1aCharacterLedger = reduceCharacterEvidence({
-          chunkOutputs: sortedChunkOutputs,
+          chunkOutputs: cleanedChunkOutputs,
           jobId: String(job.id),
           totalChunksInManuscript: totalChunks,
         });
 
         const characterLedgerV2Phase1a: CharacterLedgerV2 = buildCharacterLedgerV2({
           ledger: characterLedger,
-          chunkOutputs: sortedChunkOutputs,
+          chunkOutputs: cleanedChunkOutputs,
           jobId: String(job.id),
           totalChunksInManuscript: totalChunks,
         });
@@ -6462,6 +6561,41 @@ export async function processEvaluationJob(
           entries: characterLedger.entries.length,
           v2_active_blockers: characterLedgerV2Phase1a.activeBlockers.length,
         });
+
+        // ── Seed consistency check: compare extraction against seed baseline ──
+        if (seedEntityNamesForConsistency.length > 0) {
+          const extractedEntityNames = characterLedger.entries.map((e) => e.canonical_name);
+          const seedConsistencyReport = buildSeedConsistencyReport({
+            seedEntityNames: seedEntityNamesForConsistency,
+            extractedEntityNames,
+          });
+
+          console.log(`[Processor] ${jobId}: seed consistency check`, {
+            verdict: seedConsistencyReport.verdict,
+            confirmed: seedConsistencyReport.confirmed_count,
+            missed: seedConsistencyReport.missed_count,
+            contaminated: seedConsistencyReport.contaminated_count,
+            drift_ratio: seedConsistencyReport.drift_ratio,
+          });
+
+          // Persist seed consistency report for audit trail.
+          await upsertEvaluationArtifact({
+            supabase,
+            jobId: String(job.id),
+            manuscriptId: Number(job.manuscript_id),
+            artifactType: 'seed_contradiction_report_v1' as any,
+            content: seedConsistencyReport,
+            sourceHash: `seed_consistency_${String(job.id)}`,
+            artifactVersion: 'seed_contradiction_report_v1',
+          });
+
+          if (seedConsistencyReport.contaminated_count > 0) {
+            console.warn(
+              `[Processor] ${jobId}: CONTAMINATION DETECTED — ${seedConsistencyReport.contaminated_count} pseudo-entities in extraction. ` +
+              `Recommendations: ${seedConsistencyReport.recommendations.join('; ')}`,
+            );
+          }
+        }
 
         // Persist character ledger artifact.
         await upsertEvaluationArtifact({

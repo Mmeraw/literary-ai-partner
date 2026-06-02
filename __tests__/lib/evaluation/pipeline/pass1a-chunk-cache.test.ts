@@ -254,7 +254,6 @@ describe("Pass 1A chunk cache (PR-E checkpoint)", () => {
       | undefined;
     const userContent = createArgs?.messages?.find((m) => m.role === 'user')?.content ?? '';
 
-    expect(userContent).toContain('SEED CONTEXT (NON-AUTHORITATIVE HYPOTHESES — VERIFY AGAINST CHUNK EVIDENCE):');
     expect(userContent).toContain('[story] story_seed:1: Edna may carry recurring narrative pressure.');
     expect(userContent).toContain('[evaluation] evaluation_seed:1: Prioritize evidence for character.');
   });

@@ -24,7 +24,7 @@ If an artifact, layer, handoff, or revision operation does not meet its required
 
 ## Do not start Phase 1A with incomplete seed artifacts
 
-- Rule: both story_seed_v1 and evaluation_seed_v1 must be complete.
+- Rule: both story_map_seed_v1 and evaluation_seed_v1 must be complete.
 - Enforced by: seedCompletenessGuard / phase1aSeedRuntimeGate.
 - Runtime consequence: create seed_fit_gap_report_v1 and block with SEED_FIT_GAP_BLOCKED.
 - Never do: run chunk extraction from generic seed claims or partial template routing.

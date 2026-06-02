@@ -13,7 +13,7 @@ import { sha256Hex, upsertEvaluationArtifact } from '@/lib/evaluation/artifactPe
 const BENCHMARK_ARTIFACT_TYPE = 'evaluation_seed_benchmark_v1' as const;
 
 const RUN_ARTIFACT_TYPES = [
-  'story_seed_v1',
+  'story_map_seed_v1',
   'evaluation_seed_v1',
   'chunk_evidence_index_v1',
   'accepted_story_ledger_v1',
@@ -149,7 +149,7 @@ function deriveEvaluationMode(job: JobRow, rows: ArtifactRow[], wordCount: numbe
 
 function mapRunArtifacts(rows: ArtifactRow[]): EvaluationSeedRunArtifacts {
   return {
-    story_seed_v1: contentFor(rows, 'story_seed_v1') as SeedArtifact | undefined,
+    story_map_seed_v1: contentFor(rows, 'story_map_seed_v1') as SeedArtifact | undefined,
     evaluation_seed_v1: contentFor(rows, 'evaluation_seed_v1') as SeedArtifact | undefined,
     chunk_evidence_index_v1: contentFor(rows, 'chunk_evidence_index_v1'),
     accepted_story_ledger_v1: contentFor(rows, 'accepted_story_ledger_v1') as Record<string, unknown> | undefined,

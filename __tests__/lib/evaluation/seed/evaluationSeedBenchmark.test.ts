@@ -21,7 +21,7 @@ const gold: StoryLedgerGoldExpectation = {
   required_location_needles: ['grand isle', 'new orleans'],
 };
 
-function seedArtifact(type: 'story_seed_v1' | 'evaluation_seed_v1'): SeedArtifact {
+function seedArtifact(type: 'story_map_seed_v1' | 'evaluation_seed_v1'): SeedArtifact {
   return {
     artifact_type: type,
     authority: 'seed_only',
@@ -156,7 +156,7 @@ const harmfulSeedLedger = {
           character_id: 'aw:seed_ghost',
           canonical_name: 'Seed Ghost',
           authority: 'seed_only',
-          source_artifact_type: 'story_seed_v1',
+          source_artifact_type: 'story_map_seed_v1',
         },
       ],
     },
@@ -199,7 +199,7 @@ describe('evaluation_seed_benchmark_v1 harness', () => {
       total_ms: 112_000,
       artifacts: {
         ...completeArtifacts,
-        story_seed_v1: seedArtifact('story_seed_v1'),
+        story_map_seed_v1: seedArtifact('story_map_seed_v1'),
         evaluation_seed_v1: seedArtifact('evaluation_seed_v1'),
         accepted_story_ledger_v1: improvedSeedLedger,
       },
@@ -230,7 +230,7 @@ describe('evaluation_seed_benchmark_v1 harness', () => {
       total_ms: 90_000,
       artifacts: {
         ...completeArtifacts,
-        story_seed_v1: seedArtifact('story_seed_v1'),
+        story_map_seed_v1: seedArtifact('story_map_seed_v1'),
         evaluation_seed_v1: seedArtifact('evaluation_seed_v1'),
         accepted_story_ledger_v1: harmfulSeedLedger,
       },
@@ -262,7 +262,7 @@ describe('evaluation_seed_benchmark_v1 harness', () => {
 
     expect(issues).toEqual(
       expect.arrayContaining([
-        'MISSING_ARTIFACT: story_seed_v1 is required for SEED-enabled run.',
+        'MISSING_ARTIFACT: story_map_seed_v1 is required for SEED-enabled run.',
         'MISSING_ARTIFACT: evaluation_seed_v1 is required for SEED-enabled run.',
         'MISSING_ARTIFACT: chunk_evidence_index_v1 is required for E2E comparison.',
         'MISSING_ARTIFACT: pass12_handoff_v1 is required before Phase 3.',

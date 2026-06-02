@@ -87,7 +87,7 @@ docs/benchmarks/BENCHMARK-CHARTER.md
 ```text
 Phase 0 warmup packet
   ↓
-story_seed_v1 + evaluation_seed_v1
+story_map_seed_v1 + evaluation_seed_v1
   ↓
 Seed Completeness Gate
   ↓

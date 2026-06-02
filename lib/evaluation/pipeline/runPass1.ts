@@ -43,15 +43,13 @@ const PASS1_LIMITS = {
   maxEvidencePerCriterion: 1,
   maxEvidenceSnippetChars: 180,
 } as const;
-// Raised from 3 → 7 to keep 52-chunk long-form jobs within budget while
-// staying within OpenAI Tier 1 TPM limits.
-//
-// Tier 1 budget math (Pass1 + Pass2 run in parallel):
+// Tier 4 budget math (Pass1 + Pass2 run in parallel):
 //   tokens/chunk ≈ 13,250 (5,250 input + 8,000 output)
-//   simultaneous calls at c=7: 7 (P1) + 7 (P2) = 14 calls
-//   burst TPM = 14 × 13,250 = 185,500 < 200,000 Tier 1 limit ✅
+//   simultaneous calls at c=12: 12 (P1) + 12 (P2) = 24 calls
+//   burst TPM = 24 × 13,250 = 318,000 — well within Tier 4 10M TPM
+//   burst RPM = 24 calls/min — well within Tier 4 10K RPM
 // Override with EVAL_CHUNK_PASS_CONCURRENCY env var.
-const DEFAULT_CHUNK_PASS_CONCURRENCY = 7;
+const DEFAULT_CHUNK_PASS_CONCURRENCY = 12;
 const DEFAULT_CHUNK_RETRY_MAX = 3;
 const DEFAULT_CHUNK_RETRY_BASE_MS = 10000;
 // Per-chunk provider timeout (mirrors runPass2.ts).

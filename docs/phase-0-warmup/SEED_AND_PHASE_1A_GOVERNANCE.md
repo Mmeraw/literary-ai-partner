@@ -24,11 +24,11 @@ SEED is not truth.
 ## Required SEED artifacts
 
 ```text
-story_seed_v1
+story_map_seed_v1
 evaluation_seed_v1
 ```
 
-## story_seed_v1 purpose
+## story_map_seed_v1 purpose
 
 The story seed is the complete provisional Story Ledger scaffold.
 
