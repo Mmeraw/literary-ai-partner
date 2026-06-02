@@ -20,10 +20,16 @@ export interface SubmissionScopeProfile {
   confidenceCapSummary: ConfidenceCap;
   scopePolicyVersion: string;
   manuscriptStructure?: ManuscriptStructure;
-  evaluationMode: EvaluationMode;
-  requiresUserFacingReviewGate: boolean;
-  requiresAcceptedStoryLedger: boolean;
-  storyLedgerAuthority: ReturnType<typeof resolveModeRouting>["storyLedgerAuthority"];
+  /**
+   * Mode-aware routing fields are always emitted by classifySubmissionScope.
+   * They remain optional on the structural type so older hand-built governance
+   * fixtures can compile during the V3 routing migration without weakening the
+   * runtime classifier contract.
+   */
+  evaluationMode?: EvaluationMode;
+  requiresUserFacingReviewGate?: boolean;
+  requiresAcceptedStoryLedger?: boolean;
+  storyLedgerAuthority?: ReturnType<typeof resolveModeRouting>["storyLedgerAuthority"];
 }
 
 export function countWords(text: string): number {
