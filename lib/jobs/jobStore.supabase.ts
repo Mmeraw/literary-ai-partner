@@ -166,6 +166,8 @@ export async function createJob(input: {
   manuscript_id: string;
   user_id: string;
   job_type: JobType;
+  sensitivity_mode?: string;
+  voice_preservation_level?: string;
 }): Promise<Job> {
   const now = new Date().toISOString();
   
@@ -239,8 +241,8 @@ export async function createJob(input: {
       phase_status: JOB_STATUS.QUEUED, // CANON: aligned with JobStatus
       message: "Job created — awaiting gold-standard calibration",
     },
-    policy_family: "standard",
-    voice_preservation_level: "balanced",
+    policy_family: input.sensitivity_mode === "TRANSGRESSIVE" ? "transgressive" : input.sensitivity_mode === "TESTIMONY" ? "testimony" : "standard",
+    voice_preservation_level: input.voice_preservation_level ?? "balanced",
     english_variant: "us",
   };
 

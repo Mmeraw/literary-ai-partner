@@ -54,7 +54,7 @@ function getStore(): Map<string, Job> {
   return _store;
 }
 
-export function createJob(input: { manuscript_id: string; job_type: JobType; user_id: string }): Job {
+export function createJob(input: { manuscript_id: string; job_type: JobType; user_id: string; sensitivity_mode?: string; voice_preservation_level?: string }): Job {
   const store = getStore();
   const now = new Date().toISOString();
   const id = crypto.randomUUID();
