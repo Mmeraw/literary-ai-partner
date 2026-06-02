@@ -46,6 +46,19 @@ type PhaseInputs = {
 
 const LONGFORM_WORD_COUNT_THRESHOLD = 25000;
 
+function isLongFormJob(job: Pick<PhaseInputs, "manuscript_word_count">): boolean {
+  return typeof job.manuscript_word_count === "number"
+    && job.manuscript_word_count >= LONGFORM_WORD_COUNT_THRESHOLD;
+}
+
+function hasLongFormNarrativeSynthesis(job: Pick<PhaseInputs, "pass3_completed_at">): boolean {
+  return typeof job.pass3_completed_at === "string" && job.pass3_completed_at.trim().length > 0;
+}
+
+function isLongFormInterimComplete(job: PhaseInputs): boolean {
+  return job.status === "complete" && isLongFormJob(job) && !hasLongFormNarrativeSynthesis(job);
+}
+
 function elapsedDrift(
   startedAt: string | null | undefined,
   rangeMin: number,
@@ -65,9 +78,15 @@ export function getProgressDisplay(
   const result = getProgressDisplayRaw(job, _now);
   if (!result) return null;
 
+  // Long-form interim-complete is not complete. It must remain below 100% even
+  // when a stale backend/client high-water mark says 100 from the core eval.
+  if (isLongFormInterimComplete(job)) {
+    return result;
+  }
+
   // Monotonic ratchet: if a high-water mark is stored, the displayed percentage
   // never drops below it. Kicks and retries are invisible to the user.
-  const highWater = typeof job.progress_high_water === 'number' ? job.progress_high_water : 0;
+  const highWater = typeof job.progress_high_water === "number" ? job.progress_high_water : 0;
   if (highWater > 0 && result.percentage < highWater) {
     return {
       ...result,
@@ -86,77 +105,75 @@ function getProgressDisplayRaw(
 
   // Honest blocked state: when block_code is set, the eval is gate-blocked.
   // Show truthful UI instead of a fake drifting percentage.
-  if ((job.status === 'queued' || job.status === 'running') && job.block_code) {
+  if ((job.status === "queued" || job.status === "running") && job.block_code) {
     const phasePct =
-      job.phase === 'phase_3' ? 86
-        : job.phase === 'phase_2' ? 67
-          : job.phase === 'review_gate' ? 50
-            : job.phase === 'phase_1a' ? 40
+      job.phase === "phase_3" ? 86
+        : job.phase === "phase_2" ? 67
+          : job.phase === "review_gate" ? 50
+            : job.phase === "phase_1a" ? 40
               : 10;
     const isRetryable = /TECHNICAL_BLOCK|REDUCER_FAILED|PASS3A/.test(job.block_code);
     return {
       label: isRetryable
-        ? 'Evaluation paused — retrying automatically'
-        : 'Evaluation paused — awaiting resolution',
+        ? "Evaluation paused — retrying automatically"
+        : "Evaluation paused — awaiting resolution",
       valueLabel: `${phasePct}%`,
       helperText: isRetryable
-        ? 'A background process encountered an issue and is being retried. Your progress is safe.'
-        : 'The evaluation pipeline has paused. This will resolve automatically or contact support.',
+        ? "A background process encountered an issue and is being retried. Your progress is safe."
+        : "The evaluation pipeline has paused. This will resolve automatically or contact support.",
       indeterminate: false,
       percentage: phasePct,
-      color: isRetryable ? 'amber' : 'red',
+      color: isRetryable ? "amber" : "red",
       hardStop: true,
     };
   }
 
-  if ((job.status === 'queued' || job.status === 'running') && job.is_stalled) {
+  if ((job.status === "queued" || job.status === "running") && job.is_stalled) {
     const stalledAtPct =
-      job.phase === 'phase_3'
+      job.phase === "phase_3"
         ? 86
-        : job.phase === 'phase_2'
+        : job.phase === "phase_2"
           ? 67
-          : job.phase === 'review_gate'
+          : job.phase === "review_gate"
             ? 50
-            : job.phase === 'phase_1a'
+            : job.phase === "phase_1a"
               ? 35
               : 5;
 
     const heartbeatAgeText =
-      typeof job.heartbeat_age_seconds === 'number'
+      typeof job.heartbeat_age_seconds === "number"
         ? `Last heartbeat ${job.heartbeat_age_seconds}s ago.`
-        : 'No recent worker heartbeat.';
+        : "No recent worker heartbeat.";
     const retryText =
-      typeof job.retry_count === 'number' ? ` Retry attempts: ${job.retry_count}.` : '';
+      typeof job.retry_count === "number" ? ` Retry attempts: ${job.retry_count}.` : "";
     const failureText =
-      typeof job.failure_code === 'string' && job.failure_code.length > 0
+      typeof job.failure_code === "string" && job.failure_code.length > 0
         ? ` Code: ${job.failure_code}.`
-        : '';
+        : "";
 
     return {
-      label: 'Evaluation stalled — worker not advancing',
-      valueLabel: 'Stalled',
+      label: "Evaluation stalled — worker not advancing",
+      valueLabel: "Stalled",
       helperText: job.stalled_reason
         ?? (`${heartbeatAgeText}${retryText}${failureText}`.trim()
-          || 'The worker has stopped advancing this evaluation. Please retry or contact support.'),
+          || "The worker has stopped advancing this evaluation. Please retry or contact support."),
       indeterminate: false,
       percentage: stalledAtPct,
-      color: 'red',
+      color: "red",
       hardStop: true,
     };
   }
 
   if (job.status === "complete") {
-    const isLongForm = typeof job.manuscript_word_count === 'number'
-      && job.manuscript_word_count >= LONGFORM_WORD_COUNT_THRESHOLD;
-    const hasSynthesis = !!job.pass3_completed_at;
+    const isLongForm = isLongFormJob(job);
+    const hasSynthesis = hasLongFormNarrativeSynthesis(job);
 
     if (isLongForm && !hasSynthesis) {
       return {
-        label: "Building your report complete — Finalizing your report in progress\u2026",
+        label: "Core evaluation complete — narrative synthesis running",
         valueLabel: "92%",
         helperText:
-          "Your 13-criteria diagnostic report is ready below. " +
-          "Finalizing your report is still generating and will appear when complete.",
+          "Your 13-criteria evaluation is complete. RevisionGrade is now preparing the long-form narrative synthesis and final report package.",
         indeterminate: false,
         percentage: 92,
         color: "blue",
@@ -196,7 +213,7 @@ function getProgressDisplayRaw(
     };
   }
 
-  if (job.phase === 'phase_3' && job.status === 'queued') {
+  if (job.phase === "phase_3" && job.status === "queued") {
     return {
       label: "Finalizing your report...",
       valueLabel: "86%",
@@ -208,7 +225,7 @@ function getProgressDisplayRaw(
     };
   }
 
-  if (job.phase === 'phase_2' && job.status === 'queued') {
+  if (job.phase === "phase_2" && job.status === "queued") {
     return {
       label: "Building your report...",
       valueLabel: "67%",
@@ -220,7 +237,7 @@ function getProgressDisplayRaw(
     };
   }
 
-  if (job.phase === 'phase_1a' && job.status === 'queued') {
+  if (job.phase === "phase_1a" && job.status === "queued") {
     const fraction = job.phase_unit_fraction ?? 1;
     const isEarly = fraction < 0.5;
     return {
@@ -234,7 +251,7 @@ function getProgressDisplayRaw(
     };
   }
 
-  if (job.phase === 'phase_0' && job.status === 'queued') {
+  if (job.phase === "phase_0" && job.status === "queued") {
     return {
       label: "Preparing your evaluation",
       valueLabel: "5%",
@@ -332,7 +349,7 @@ function getProgressDisplayRaw(
     };
   }
 
-  if (job.phase === 'phase_0') {
+  if (job.phase === "phase_0") {
     const pct = elapsedDrift(job.phase0_started_at, 5, 12, _now);
     return {
       label: "Preparing your evaluation",
