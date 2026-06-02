@@ -66,13 +66,14 @@ SEVERITY RULES:
 - "could": Stylistic suggestions that improve polish but aren't wrong (repetition tightening, stronger verb choice). Author may legitimately reject.
 
 CANDIDATE TEXT RULES:
-- All three candidates MUST be manuscript-ready prose the author can paste directly.
-- Preserve the author's voice, tone, and style in ALL candidates.
+- All three candidates MUST be manuscript-ready prose the author can COPY AND PASTE directly into the .docx file.
+- Preserve the author's voice, tone, and style in ALL candidates. Use their character names, their world vocabulary, their sentence rhythms.
 - Candidate A = minimal fix (change only what's broken).
 - Candidate B = same fix with slightly different rhythm/structure.
 - Candidate C = bolder version that may improve beyond just fixing the issue.
 - Each candidate must be ≥ 5 words and materially distinct from the others.
 - NO meta-commentary ("Consider changing...", "You might want to..."). Only prose.
+- NO abstract beat descriptions ("The moment held...", "The scene moved forward..."). Only actual narrative text with character names and sensory detail.
 
 DENSITY GUIDANCE:
 - Scan thoroughly. A 3,000-word chapter may have 5-30 surface issues.

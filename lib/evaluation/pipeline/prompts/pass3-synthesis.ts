@@ -167,10 +167,13 @@ Return ONLY JSON with keys:
 - Per-criterion fields: key, final_score_0_10, fit_summary, gap_summary, final_rationale, recommendations[]; hard_divergence adds disputed=true.
 - Each recommendation: priority, action, expected_impact, anchor_snippet, source_pass, issue_family, strategic_lever, revision_granularity, mechanism, specific_fix, reader_effect, symptom, mistake_proofing, candidate_text_a, candidate_text_b, candidate_text_c, revision_operation, manuscript_coordinates.
 - Each recommendation.action MUST be one sentence and <= 300 characters.
-- candidate_text_a: The primary recommended prose repair. This MUST be verbatim manuscript-ready text that can replace the anchor_snippet. Write it in the author's voice, preserving tone and style.
-- candidate_text_b: A rhythm variant. Same fix direction, different cadence or sentence structure. Must be materially distinct from A.
-- candidate_text_c: A bolder rendering shift. Same fix intent, more assertive prose move. Must be materially distinct from A and B.
-- All three candidates must be ≥ 5 words, manuscript-ready prose (no meta-commentary, no "Consider doing X", no editorial instructions — only prose the author could paste directly into the manuscript).
+- candidate_text_a: The primary recommended prose repair. This MUST be verbatim manuscript-ready text the author can COPY AND PASTE directly into their manuscript file. Write it in the author's voice using their characters' names, their world's vocabulary, and their prose rhythm. It must read as a seamless continuation or replacement of the anchor_snippet.
+- candidate_text_b: A rhythm variant. Same fix direction, different cadence or sentence structure. Must be materially distinct from A. Still must be copy-paste-ready narrative prose with character names and scene-specific detail.
+- candidate_text_c: A bolder rendering shift. Same fix intent, more assertive prose move. Must be materially distinct from A and B. Still must be copy-paste-ready narrative prose.
+- All three candidates must be ≥ 5 words, manuscript-ready prose that the author can literally copy-paste into their .docx file at the target location.
+- CRITICAL: Candidates must contain CHARACTER NAMES, SCENE DETAILS, and VOICE-MATCHED PROSE from the manuscript. They are NOT editorial summaries, thematic descriptions, or abstract beats. They are actual narrative text.
+- WRONG example: "The moment held for one clear beat, forcing the choice onto the page before the scene moved forward." (This is abstract — no characters, no setting, no voice match.)
+- RIGHT example: "Billy's hand trembled against the tent flap. He could still hear Brutus breathing on the other side, that wet rasp like something drowning in its own throat." (This is manuscript prose — names, sensory detail, voice.)
 - revision_operation: one of "replace_selected_passage" | "insert_before_selected_passage" | "insert_after_selected_passage" | "delete_selected_passage" | "rewrite_surrounding_context". Default to "replace_selected_passage" when the anchor_snippet is being rewritten.
 - manuscript_coordinates: a location string like "chapter:3:paragraph:7" or "scene:2:beat:opening" identifying where in the text this revision targets.
 - agreement_map[]

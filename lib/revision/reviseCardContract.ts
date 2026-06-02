@@ -119,6 +119,16 @@ const FORBIDDEN_META_SUGGESTIONS = [
   'prosecontrol',
   'narrativedrive',
   'recommendation',
+  'onto the page',
+  'the scene moved forward',
+  'the reader could feel',
+  'the pressure visible',
+  'the next action carried',
+  'forcing the choice',
+  'a cost the reader',
+  'visible point of no return',
+  'the consequence landed',
+  'turning the exchange into',
 ]
 
 const MISSING_SOURCE_MARKERS = [
@@ -153,6 +163,19 @@ const META_EDITORIAL_PATTERNS = [
   /\bpreserve author voice\b/i,
   /\bapply the same repair goal\b/i,
   /\breview this opportunity\b/i,
+  // Abstract beat-sheet patterns — prose that describes narrative beats without character names
+  /\bthe (?:moment|beat|scene|choice|action|exchange|consequence) (?:held|forced|carried|landed|turned|made|moved)\b/i,
+  /\bforcing the (?:choice|decision|moment|action)\b/i,
+  /\bonto the page\b/i,
+  /\bthe scene moved forward\b/i,
+  /\bthe reader could feel\b/i,
+  /\bthe pressure visible\b/i,
+  /\bthe next action carried\b/i,
+  /\brefusal remained possible\b/i,
+  /\bpoint of no return\b/i,
+  /\bvisible point of\b/i,
+  /\bthe consequence.* landed\b/i,
+  /\bturning the exchange\b/i,
 ]
 
 const WORD_PROCESSOR_ARTIFACT_PATTERNS = [
