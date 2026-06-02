@@ -169,8 +169,8 @@ async function rescueIdleJobs(): Promise<{ idleFound: number; idleRescued: numbe
 // Detects jobs that were claimed (status=running, claimed_by set) but never
 // wrote worker_pulse_at. These are processor-crashed-before-first-pulse orphans.
 // They are invisible to rescueIdleJobs() which only looks at stale pulses.
-// Threshold: updated_at older than 60 seconds with worker_pulse_at IS NULL.
-const NULL_PULSE_ORPHAN_THRESHOLD_SECS = 60;
+// Threshold: updated_at older than 30 seconds with worker_pulse_at IS NULL.
+const NULL_PULSE_ORPHAN_THRESHOLD_SECS = 30;
 
 async function rescueNullPulseOrphans(): Promise<{ found: number; rescued: number }> {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.SUPABASE_URL ?? '';
@@ -180,8 +180,8 @@ async function rescueNullPulseOrphans(): Promise<{ found: number; rescued: numbe
   const supabase = createClient(supabaseUrl, supabaseKey);
   const cutoff = new Date(Date.now() - NULL_PULSE_ORPHAN_THRESHOLD_SECS * 1_000).toISOString();
 
-  // Find running jobs with no pulse that haven't moved in >60s.
-  // Exclude phase_0 from the 60s window — it can legitimately run 20-30s
+  // Find running jobs with no pulse that haven't moved in >30s.
+  // Exclude phase_0 from the 30s window — it can legitimately run 20-30s
   // before stamping phase0_started_at. Give it a full 90s grace period.
   const phase0Cutoff = new Date(Date.now() - 90_000).toISOString();
 
@@ -228,7 +228,7 @@ export async function GET(req: NextRequest) {
     // Run all three sweeps in parallel:
     //   1. frozen-heartbeat (60s stale last_heartbeat_at) → fail
     //   2. idle-pulse (20s stale worker_pulse_at, non-null) → requeue
-    //   3. null-pulse orphan (60s, worker_pulse_at IS NULL) → rescue via canonical RPC
+    //   3. null-pulse orphan (30s, worker_pulse_at IS NULL) → rescue via canonical RPC
     const [result, idleResult, nullPulseResult] = await Promise.all([
       failStaleRunningJobs(),
       rescueIdleJobs(),

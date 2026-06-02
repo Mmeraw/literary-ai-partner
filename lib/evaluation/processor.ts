@@ -2269,7 +2269,7 @@ export async function failStaleRunningJobs(): Promise<{
                                      ?? (progress.error_code as string | undefined)
                                      ?? null;
       const attemptCount  = (row.attempt_count  as number | null) ?? 0;
-      const maxAttempts   = (row.max_attempts   as number | null) ?? 3;
+      const maxAttempts   = (row.max_attempts   as number | null) ?? 11;
 
       // ─ GUARD E (phase-conservative): never advance a job sitting at the
       //   review_gate / awaiting_approval hard stop. The gate is waiting on an
