@@ -373,10 +373,12 @@ describe('hard-fail triage gate — pipeline unblock regression tests', () => {
     expect(allMessages.some((m) => /ENDING_NOTE.*father/i.test(m))).toBe(true);
   });
 
-  // ── Test 6: Verified primary character in long-form CAN hard-fail ───────
-  // Positive control: a protagonist in long-form with clean authority
-  // and ending accountability failure must remain a genuine hard-fail.
-  it('verified primary character with clean authority triggers genuine hard-fail', () => {
+  // ── Test 6: Ending accountability is NEVER a pipeline block ─────────────
+  // Even verified primary characters with clean authority should not
+  // hard-fail on ending accountability — unresolved endings may be
+  // intentional craft choices (ambiguity, sequel setup, open ending).
+  // The eval flags it for author confirmation instead.
+  it('primary character ending accountability is a warning (author query), not a hard-fail', () => {
     const ledger = makeLedger({
       hardFailTriggers: [
         'HARD_FAIL: Major character "Edna Pontellier" has no ending accountability',
@@ -388,9 +390,11 @@ describe('hard-fail triage gate — pipeline unblock regression tests', () => {
     // Clean authority (full or not specified = assumed full).
     const report = buildLedgerQualityReport(ledger, v2, makeCleanLayers(['Edna Pontellier']));
 
-    expect(report.hard_fail_present).toBe(true);
-    expect(report.gate_ready_status).toBe('blocked_content_hard_fail');
-    expect(report.recommended_review_action).toBe('operator_review_required');
-    expect(report.blocking_reasons.some((r) => /Edna Pontellier/i.test(r))).toBe(true);
+    // Must NOT be a hard-fail — ending accountability is a craft choice.
+    expect(report.hard_fail_present).toBe(false);
+    expect(report.gate_ready_status).not.toBe('blocked_content_hard_fail');
+    // Should surface as an author query warning.
+    const allMessages = Object.values(report.grouped_warning_summary).flat();
+    expect(allMessages.some((m) => /AUTHOR_QUERY.*Edna Pontellier/i.test(m))).toBe(true);
   });
 });

@@ -364,7 +364,7 @@ export async function runPass1a(opts: RunPass1aOptions): Promise<RunPass1aResult
   const openai = new OpenAI({
     apiKey: opts.openaiApiKey ?? process.env.OPENAI_API_KEY,
     timeout: getEvalOpenAiTimeoutMs(),
-    maxRetries: 0,
+    maxRetries: 3, // Tier 4: retry transient 429s/500s with SDK exponential backoff
   });
 
   const chunks: ManuscriptChunkEvidence[] =

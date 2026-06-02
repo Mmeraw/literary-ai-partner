@@ -114,22 +114,28 @@ function triageHardFailTrigger(
     };
   }
 
-  // ── Rule 3: Ending accountability — nuanced per role tier ─────────────
+  // ── Rule 3: Ending accountability — NEVER a pipeline block ─────────────
+  // Characters with unresolved endings may be intentional craft choices
+  // (ambiguity, sequel setup, literary open-endedness). Flag for author
+  // confirmation rather than blocking the entire evaluation.
   if (/ending accountability/i.test(trimmed)) {
-    // Look up character role from ledger entries.
     const characterName = nameMatch?.[1];
     const role = characterName ? ctx.roleLookup.get(characterName) : undefined;
     const isPrimary = role != null && PRIMARY_ROLE_TIERS.has(role);
 
     if (!isPrimary) {
-      // Supporting/minor/unknown role → craft finding, not pipeline block.
       return {
         severity: 'warning',
         message: trimmed.replace(/^HARD_FAIL:\s*/i, 'ENDING_NOTE: '),
       };
     }
-    // Primary character with clean authority → genuine hard-fail.
-    return { severity: 'hard_fail', message: trimmed };
+    // Primary character — flag for author confirmation, but NEVER block.
+    // The eval report will surface this as "Is this intentional?" in the
+    // character criterion. Downstream scoring adjusts confidence, not gates.
+    return {
+      severity: 'warning',
+      message: trimmed.replace(/^HARD_FAIL:\s*/i, 'AUTHOR_QUERY: ') + ' — is this intentional (ambiguity, sequel, open ending)?',
+    };
   }
 
   // ── Default: preserve as hard-fail ────────────────────────────────────

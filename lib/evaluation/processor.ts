@@ -8164,6 +8164,36 @@ export async function processEvaluationJob(
         },
       });
 
+      // ── Phase 3 Crash Recovery ──────────────────────────────────────────
+      // If Phase 3 synthesis fails and we haven't exhausted retries, re-queue
+      // at phase_3 instead of marking the job as permanently failed. The next
+      // worker pickup will retry the synthesis with a fresh 800s budget.
+      // Only re-queue if the failure actually occurred in Pass 3 (not an earlier pass).
+      const PHASE_3_MAX_RETRIES = 2;
+      const phase3RetryCount = (progressState as Record<string, unknown>).phase_3_retry_count as number ?? 0;
+      const failedInPhase3 = pipelineResult.failed_at === 'pass3' || pipelineResult.failed_at === 'pass3b';
+      if (executionPhase === 'phase_3' && failedInPhase3 && phase3RetryCount < PHASE_3_MAX_RETRIES) {
+        const nextRetry = phase3RetryCount + 1;
+        console.warn(`[Processor] ${jobId}: Phase 3 failed (attempt ${nextRetry}/${PHASE_3_MAX_RETRIES}), re-queuing for retry`, {
+          error_code: pipelineResult.error_code,
+          failed_at: pipelineResult.failed_at,
+        });
+        (progressState as Record<string, unknown>).phase_3_retry_count = nextRetry;
+        (progressState as Record<string, unknown>).phase_3_last_retry_at = pass3CompletedAt;
+        (progressState as Record<string, unknown>).phase_3_last_error = pipelineResult.error_code;
+        await supabase
+          .from('evaluation_jobs')
+          .update({
+            status: 'queued',
+            phase: 'phase_3',
+            phase_status: 'queued',
+            last_error: `Phase 3 retry ${nextRetry}/${PHASE_3_MAX_RETRIES}: ${pipelineResult.error_code}`,
+            progress: progressState,
+          })
+          .eq('id', jobId);
+        return { success: false, error: `Phase 3 re-queued for retry (${nextRetry}/${PHASE_3_MAX_RETRIES})` };
+      }
+
       const serializedFailureDetails = pipelineResult.failure_details
         ? JSON.stringify(pipelineResult.failure_details).slice(0, 1500)
         : null;

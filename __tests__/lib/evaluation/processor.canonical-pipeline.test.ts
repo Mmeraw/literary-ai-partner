@@ -1233,7 +1233,7 @@ describe("processEvaluationJob canonical pipeline integration", () => {
     );
   });
 
-  test("stamps pass3_completed_at when persisting failure envelope progress", async () => {
+  test("Phase 3 failure re-queues for retry instead of immediately failing", async () => {
     const supabaseStub = makeSupabaseStub();
     createClientMock.mockReturnValue(supabaseStub);
 
@@ -1254,20 +1254,16 @@ describe("processEvaluationJob canonical pipeline integration", () => {
 
     expect(result.success).toBe(false);
 
-    const envelopePatch = supabaseStub.evaluationJobUpdates.find(
+    // Phase 3 crash recovery: first failure re-queues instead of marking failed.
+    const requeuePatch = supabaseStub.evaluationJobUpdates.find(
       (payload: Record<string, any>) =>
-        payload?.progress?.pipeline_failure_envelope?.error_code === "PASS3_FAILED",
+        payload?.status === "queued" && payload?.phase === "phase_3",
     ) as Record<string, any> | undefined;
 
-    expect(envelopePatch).toBeDefined();
-    expect(envelopePatch?.progress).toEqual(
-      expect.objectContaining({
-        pass3_started_at: expect.any(String),
-        pass3_completed_at: expect.any(String),
-        phase_status: "failed",
-        error_code: "PASS3_FAILED",
-      }),
-    );
+    expect(requeuePatch).toBeDefined();
+    expect(requeuePatch?.phase_status).toBe("queued");
+    expect(requeuePatch?.progress?.phase_3_retry_count).toBe(1);
+    expect(requeuePatch?.last_error).toMatch(/Phase 3 retry 1\/2/);
   });
 
   test("logs artifact validation result in governance transparency (logging mode only)", async () => {
