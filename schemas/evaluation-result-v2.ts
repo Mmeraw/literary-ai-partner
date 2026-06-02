@@ -46,7 +46,8 @@ export type InsufficientSignalReason = {
 
 export type TechnicalDefectCode =
   | "PROSE_CONTROL_ANCHOR_EXTRACTION_FAILED"
-  | "RECOMMENDATION_TRUNCATED";
+  | "RECOMMENDATION_TRUNCATED"
+  | "SCORE_LE8_EMPTY_RECOMMENDATIONS";
 
 export type CriterionTechnicalDefect = {
   code: TechnicalDefectCode;

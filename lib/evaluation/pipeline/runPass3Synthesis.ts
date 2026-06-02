@@ -947,6 +947,36 @@ export function parsePass3Response(
     });
   }
 
+  // ── Post-synthesis validation gate: enforce recommendation density for score ≤8 ──
+  const DENSITY_FLOOR: Record<string, number> = { "<=5": 5, "6-7": 4, "8": 2 };
+  for (const c of criteria) {
+    if (c.final_score_0_10 >= 9) continue;
+    const bucket = c.final_score_0_10 <= 5 ? "<=5" : c.final_score_0_10 <= 7 ? "6-7" : "8";
+    const minRecs = DENSITY_FLOOR[bucket] ?? 2;
+    if (c.recommendations.length < minRecs) {
+      const defect = {
+        code: "SCORE_LE8_EMPTY_RECOMMENDATIONS" as const,
+        author_facing_reason:
+          `Criterion "${c.key}" scored ${c.final_score_0_10}/10 but returned ${c.recommendations.length} recommendation(s) (minimum ${minRecs} required). This is a pipeline defect — the evaluation engine will attempt to backfill.`,
+        retryable: true,
+      };
+      c.technical_defects = [...(c.technical_defects ?? []), defect];
+      console.warn(
+        `[Pass3-Gate] SCORE_LE8_EMPTY_RECOMMENDATIONS: ${c.key} score=${c.final_score_0_10} recs=${c.recommendations.length} min=${minRecs}`,
+      );
+      // Backfill fit_summary and gap_summary from rationale if missing
+      if (!c.fit_summary && c.final_rationale) {
+        c.fit_summary = c.final_rationale.split(".").slice(0, 2).join(".").trim() + ".";
+      }
+      if (!c.gap_summary && c.final_rationale) {
+        const sentences = c.final_rationale.split(".");
+        c.gap_summary = sentences.length > 2
+          ? sentences.slice(-3, -1).join(".").trim() + "."
+          : `Score ${c.final_score_0_10}/10 indicates room for improvement on ${c.key}.`;
+      }
+    }
+  }
+
   // Build overall
   const rawOverall = typeof obj["overall"] === "object" && obj["overall"] !== null
     ? (obj["overall"] as Record<string, unknown>)

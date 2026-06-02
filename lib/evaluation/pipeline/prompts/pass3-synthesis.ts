@@ -163,6 +163,15 @@ Recommendation density floor (for criteria scoring ≤8):
 - Spread recommendations across different sections/zones of the text — do not cluster all recommendations in the opening paragraphs.
 - TOTAL CAP: The evaluation may surface up to 100 revision opportunities across all criteria combined. Prioritize MUST severity first, then SHOULD, then COULD. If the evidence supports more than 100, emit the 100 most impactful opportunities and stop.
 
+HARD ENFORCEMENT — SCORE ≤8 RECOMMENDATION CONTRACT:
+Any criterion with final_score_0_10 ≤ 8 MUST include ALL of the following. Omission is a contract violation:
+1. fit_summary — 2–3 sentences (REQUIRED, non-empty)
+2. gap_summary — 2–3 sentences (REQUIRED, non-empty)
+3. recommendations[] — NON-EMPTY array with at least 2 entries for score 8, at least 4 for score 6–7, at least 5 for score ≤5
+4. Each recommendation must include the full seven-part contract (priority, action, expected_impact, anchor_snippet, issue_family, strategic_lever, revision_granularity) PLUS candidate_text_a/b/c
+5. recommendation_status = "recommendations_provided"
+DO NOT return an empty recommendations array for any criterion scoring ≤8. If you scored a criterion 8 or below, you MUST have evidence-backed recommendations to justify that score. A score ≤8 with zero recommendations is self-contradictory and will be flagged as a pipeline defect.
+
 Return ONLY JSON with keys:
 - criteria MUST be a flat array (not grouped by state).
 - Per-criterion fields: key, final_score_0_10, fit_summary, gap_summary, final_rationale, recommendations[]; hard_divergence adds disputed=true.
