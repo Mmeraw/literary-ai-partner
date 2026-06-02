@@ -287,6 +287,13 @@ export default async function StoryLedgerPage({
   if (!user) notFound();
   const isAdminViewer = isStoryLedgerAdmin(user);
 
+  // Non-admin users never see the Story Ledger — redirect to evaluation page.
+  // The ledger runs underneath as a provisional story map; only admins can
+  // inspect the raw 9-layer diagnostic view.
+  if (!isAdminViewer) {
+    redirect(`/evaluate/${params.jobId}`);
+  }
+
   const context = await getLedgerContext(params.jobId, user.id, isAdminViewer);
   if (!context) notFound();
 

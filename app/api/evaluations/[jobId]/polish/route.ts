@@ -21,6 +21,7 @@ import {
   polishFindingsToOpportunities,
 } from "@/lib/evaluation/polishPass";
 import { upsertEvaluationArtifact } from "@/lib/evaluation/artifactPersistence";
+import { getManuscriptText } from "@/lib/manuscripts/chunks";
 
 export const maxDuration = 300; // 5 minutes — Polish Pass may need time for long manuscripts
 
@@ -67,14 +68,33 @@ export async function POST(
       );
     }
 
-    // Fetch manuscript text
+    // Fetch manuscript metadata
     const { data: manuscript, error: msErr } = await supabase
       .from("manuscripts")
-      .select("id, title, content, work_type, word_count, user_id")
+      .select("id, title, work_type, word_count, user_id")
       .eq("id", job.manuscript_id)
       .single();
 
-    if (msErr || !manuscript || !manuscript.content) {
+    if (msErr || !manuscript) {
+      return NextResponse.json(
+        { ok: false, error: "Manuscript not found" },
+        { status: 404 },
+      );
+    }
+
+    // Resolve manuscript text from file_url / storage / chunks
+    let manuscriptText: string;
+    try {
+      manuscriptText = await getManuscriptText(Number(manuscript.id));
+    } catch (textErr) {
+      console.error("[polish-pass-api] Failed to resolve manuscript text:", textErr);
+      return NextResponse.json(
+        { ok: false, error: "Manuscript text not available" },
+        { status: 404 },
+      );
+    }
+
+    if (!manuscriptText || manuscriptText.trim().length === 0) {
       return NextResponse.json(
         { ok: false, error: "Manuscript text not available" },
         { status: 404 },
@@ -91,10 +111,10 @@ export async function POST(
     }
 
     const result = await runPolishPass({
-      manuscriptText: manuscript.content,
+      manuscriptText,
       title: manuscript.title || "Untitled",
       genre: manuscript.work_type || "fiction",
-      wordCount: manuscript.word_count || manuscript.content.split(/\s+/).length,
+      wordCount: manuscript.word_count || manuscriptText.split(/\s+/).length,
       openaiApiKey,
     });
 
@@ -106,7 +126,7 @@ export async function POST(
       await upsertEvaluationArtifact({
         supabase,
         jobId,
-        manuscriptId: Number(manuscript.id),
+        manuscriptId: Number(manuscript.id!),
         artifactType: "polish_pass_v1",
         artifactVersion: "polish_pass_v1",
         sourceHash: `polish:${jobId}:${result.prompt_version}`,

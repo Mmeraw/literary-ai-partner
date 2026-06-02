@@ -144,6 +144,7 @@ import {
 } from '@/lib/evaluation/seed/twoPassSeedValidation';
 import { writePhase1aReviewGateArtifacts } from '@/lib/evaluation/phase1a/storyLayerArtifactWriters';
 import { buildReviewGateHandoff } from '@/lib/evaluation/phase-architecture-v2/reviewGateHandoff';
+import { STORY_LEDGER_APPROVAL_ENABLED } from '@/lib/evaluation/reviewGate/containmentMode';
 import {
   buildSemanticSeedSourceHash,
   generateSemanticSeedArtifacts,
@@ -151,6 +152,7 @@ import {
 import {
   generateFullContextStoryLedger,
   buildLedgerSeedContextBlock,
+  assessLedgerQuality,
   type FullContextStoryLedger,
 } from '@/lib/evaluation/seed/fullContextStoryLedger';
 import {
@@ -2060,6 +2062,37 @@ async function autoAcceptStoryLedgerKickForward(
     .from('evaluation_jobs')
     .update({ review_gate_passed_at: now })
     .eq('id', jobId);
+
+  // ── Gate B: Surface corruption score in phase log for admin diagnostics ──
+  const { data: jobForLog } = await supabase
+    .from('evaluation_jobs')
+    .select('progress')
+    .eq('id', jobId)
+    .maybeSingle();
+
+  if (jobForLog) {
+    const currentProgress = (jobForLog as { progress?: Record<string, unknown> }).progress ?? {};
+    const existingPhaseLog = Array.isArray(currentProgress.phase_log) ? currentProgress.phase_log : [];
+    const corruptionLogEntry = {
+      at: now,
+      event: 'kick_forward_auto_accepted',
+      stage: 'phase_2',
+      corruption_score: corruptionAssessment.corruption_score,
+      layers_healthy: corruptionAssessment.layers_healthy,
+      degraded_layers: corruptionAssessment.degraded_layers,
+      missing_layers: corruptionAssessment.missing_layers,
+    };
+    await supabase
+      .from('evaluation_jobs')
+      .update({
+        progress: {
+          ...currentProgress,
+          phase_log: [...existingPhaseLog, corruptionLogEntry],
+          corruption_score: corruptionAssessment.corruption_score,
+        },
+      })
+      .eq('id', jobId);
+  }
 
   console.log(`[phase_2] ${jobId}: Kick-forward auto-acceptance complete. Corruption score: ${corruptionAssessment.corruption_score}`);
 }
@@ -5754,12 +5787,52 @@ export async function processEvaluationJob(
               phase1aLedgerContextBlock = buildLedgerSeedContextBlock(ledgerResult.ledger);
 
               const ledgerDurationMs = Date.now() - ledgerStartMs;
-              console.log(`[phase_0.5a_enhanced] ${jobId}: full-context ledger generated (${ledgerDurationMs}ms, ${ledgerResult.ledger.canonical_hard_facts.length} hard facts, ${ledgerResult.ledger.failure_conditions.length} failure conditions)`);
 
-              // Log to phase timeline
-              const ledgerLogEntries = [
+              // ── Gate A: Ledger Quality Minimum ──
+              const ledgerQuality = assessLedgerQuality(ledgerResult.ledger);
+              const qualitySummary = ledgerQuality.dimensions
+                .map(d => `${d.name}=${d.actual}/${d.minimum}${d.passed ? '' : ' ⚠'}`)
+                .join(', ');
+
+              console.log(
+                `[phase_0.5a_enhanced] ${jobId}: full-context ledger generated ` +
+                `(${ledgerDurationMs}ms, quality=${ledgerQuality.status}, completeness=${(ledgerQuality.overall_completeness * 100).toFixed(0)}%, ` +
+                `${ledgerResult.ledger.canonical_hard_facts.length} hard facts, ${ledgerResult.ledger.failure_conditions.length} failure conditions)`
+              );
+              if (ledgerQuality.status === 'degraded') {
+                console.warn(
+                  `[phase_0.5a_enhanced] ${jobId}: degraded ledger quality — below minimum on: ` +
+                  `${ledgerQuality.degraded_dimensions.join(', ')}. Details: ${qualitySummary}`
+                );
+              }
+
+              // Structural validation against benchmark template
+              const structValidation = ledgerResult.structuralValidation;
+              if (structValidation && structValidation.status !== 'passed') {
+                console.warn(
+                  `[phase_0.5a_enhanced] ${jobId}: structural validation ${structValidation.status} — ` +
+                  `missing: [${structValidation.missing_layers.join(', ')}], ` +
+                  `empty: [${structValidation.empty_layers.join(', ')}], ` +
+                  `warnings: ${structValidation.warnings.length}`
+                );
+              }
+
+              // Log to phase timeline with quality assessment + structural validation
+              const ledgerLogEntries: Record<string, unknown>[] = [
                 { at: new Date(ledgerStartMs).toISOString(), event: 'phase_0_5a_enhanced_started', stage: 'phase_0_5a_enhanced', label: 'Generating full-context story ledger' },
-                { at: new Date().toISOString(), event: 'phase_0_5a_enhanced_completed', stage: 'phase_0_5a_enhanced', duration_ms: ledgerDurationMs, artifact: 'full_context_story_ledger_v1' },
+                {
+                  at: new Date().toISOString(),
+                  event: 'phase_0_5a_enhanced_completed',
+                  stage: 'phase_0_5a_enhanced',
+                  duration_ms: ledgerDurationMs,
+                  artifact: 'full_context_story_ledger_v1',
+                  ledger_quality: ledgerQuality.status,
+                  ledger_completeness: ledgerQuality.overall_completeness,
+                  degraded_dimensions: ledgerQuality.degraded_dimensions,
+                  structural_validation: structValidation?.status ?? 'unknown',
+                  structural_missing_layers: structValidation?.missing_layers ?? [],
+                  structural_warnings: structValidation?.warnings?.slice(0, 10) ?? [],
+                },
               ];
               const existingLogForLedger = (progressState.phase_log as unknown[]) ?? [];
               progressState = {
@@ -5772,10 +5845,35 @@ export async function processEvaluationJob(
                 .eq('id', jobId)
                 .eq('status', JOB_STATUS.RUNNING);
             } catch (ledgerErr) {
-              // Non-fatal: if full-context ledger fails, continue with existing seeds
+              // ── Gate C: Log failure event in phase timeline ──
+              const ledgerFailedMs = Date.now() - ledgerStartMs;
+              const errorMsg = ledgerErr instanceof Error ? ledgerErr.message : String(ledgerErr);
               console.warn(`[phase_0.5a_enhanced] ${jobId}: full-context ledger generation failed (non-fatal, continuing with claim-based seeds)`, {
-                error: ledgerErr instanceof Error ? ledgerErr.message : String(ledgerErr),
+                error: errorMsg,
+                duration_ms: ledgerFailedMs,
               });
+
+              const failLogEntries: Record<string, unknown>[] = [
+                { at: new Date(ledgerStartMs).toISOString(), event: 'phase_0_5a_enhanced_started', stage: 'phase_0_5a_enhanced', label: 'Generating full-context story ledger' },
+                {
+                  at: new Date().toISOString(),
+                  event: 'phase_0_5a_enhanced_failed',
+                  stage: 'phase_0_5a_enhanced',
+                  duration_ms: ledgerFailedMs,
+                  error: errorMsg.slice(0, 500),
+                  fallback: 'claim_based_seeds_only',
+                },
+              ];
+              const existingLogForFail = (progressState.phase_log as unknown[]) ?? [];
+              progressState = {
+                ...progressState,
+                phase_log: [...existingLogForFail, ...failLogEntries],
+              };
+              await supabase
+                .from('evaluation_jobs')
+                .update({ progress: progressState, worker_pulse_at: new Date().toISOString() })
+                .eq('id', jobId)
+                .eq('status', JOB_STATUS.RUNNING);
             }
           } else {
             // Ledger already exists — load it and build the context block
@@ -7584,21 +7682,31 @@ export async function processEvaluationJob(
           ],
         };
 
+        // Containment mode: skip review_gate and go straight to phase_2.
+        // Phase 2 has autoAcceptStoryLedgerKickForward that creates the
+        // accepted_story_ledger_v1 artifact from pass1a_story_layer_v1.
+        const containmentBypass = !STORY_LEDGER_APPROVAL_ENABLED;
+        const targetPhase = containmentBypass ? 'phase_2' : reviewGateHandoffResult.handoff.phase;
+        const targetPhaseStatus = containmentBypass ? JOB_STATUS.QUEUED : reviewGateHandoffResult.handoff.phase_status;
+        const targetStatus = containmentBypass ? JOB_STATUS.QUEUED : reviewGateHandoffResult.handoff.status;
+
         const { data: phase1aHandoffRow, error: phase1aHandoffErr } = await supabase
           .from('evaluation_jobs')
           .update({
-            status: reviewGateHandoffResult.handoff.status,
-            phase: reviewGateHandoffResult.handoff.phase,
-            phase_status: reviewGateHandoffResult.handoff.phase_status,
+            status: targetStatus,
+            phase: targetPhase,
+            phase_status: targetPhaseStatus,
             claimed_by: null,
             claimed_at: null,
             lease_token: null,
             lease_until: null,
             review_gate_entered_at: phase1aNow,
+            ...(containmentBypass ? { review_gate_passed_at: phase1aNow } : {}),
             updated_at: phase1aNow,
             progress: {
               ...phase1aHandoffProgress,
-              ...buildPhaseLogPatch(phase1aHandoffProgress, 'review_gate', 'entered', phase1aNow),
+              ...buildPhaseLogPatch(phase1aHandoffProgress, 'review_gate', containmentBypass ? 'containment_bypass' : 'entered', phase1aNow),
+              ...(containmentBypass ? { phase: 'phase_2', phase_status: JOB_STATUS.QUEUED } : {}),
             },
           })
           .eq('id', job.id)
@@ -7608,31 +7716,42 @@ export async function processEvaluationJob(
 
         if (phase1aHandoffErr) {
           console.error(
-            `[Processor] ${jobId}: phase_1a → review_gate transition FAILED`,
+            `[Processor] ${jobId}: phase_1a → ${targetPhase} transition FAILED`,
             phase1aHandoffErr.message,
           );
           throw new Error(
-            `Phase 1A → review_gate transition failed: ${phase1aHandoffErr.message}`,
+            `Phase 1A → ${targetPhase} transition failed: ${phase1aHandoffErr.message}`,
           );
         }
 
         if (!phase1aHandoffRow) {
           console.warn(
-            `[Processor] ${jobId}: phase_1a → review_gate 0 rows — job already transitioned`,
+            `[Processor] ${jobId}: phase_1a → ${targetPhase} 0 rows — job already transitioned`,
             { returned: phase1aHandoffRow ?? null },
           );
           return { success: true };
         }
 
-        console.log(
-          `[Processor] ${jobId}: phase_1a handoff confirmed — status=queued phase=review_gate phase_status=awaiting_approval`,
-          {
-            gate_ready_status: reviewGateHandoffResult.handoff.progress.gate_ready_status,
-            review_gate_ready: reviewGateHandoffResult.handoff.progress.review_gate_ready,
-            pass3a_status: reviewGateHandoffResult.handoff.progress.pass3a_status,
-            pass3a_gate_validity: reviewGateHandoffResult.handoff.progress.pass3a_gate_validity,
-          },
-        );
+        if (containmentBypass) {
+          console.log(
+            `[Processor] ${jobId}: containment mode active — review_gate bypassed, transitioning directly to phase_2`,
+            {
+              gate_ready_status: reviewGateHandoffResult.handoff.progress.gate_ready_status,
+              review_gate_ready: reviewGateHandoffResult.handoff.progress.review_gate_ready,
+              pass3a_status: reviewGateHandoffResult.handoff.progress.pass3a_status,
+            },
+          );
+        } else {
+          console.log(
+            `[Processor] ${jobId}: phase_1a handoff confirmed — status=queued phase=review_gate phase_status=awaiting_approval`,
+            {
+              gate_ready_status: reviewGateHandoffResult.handoff.progress.gate_ready_status,
+              review_gate_ready: reviewGateHandoffResult.handoff.progress.review_gate_ready,
+              pass3a_status: reviewGateHandoffResult.handoff.progress.pass3a_status,
+              pass3a_gate_validity: reviewGateHandoffResult.handoff.progress.pass3a_gate_validity,
+            },
+          );
+        }
         return { success: true };
       } catch (phase1aErr) {
         const errMsg = phase1aErr instanceof Error ? phase1aErr.message : String(phase1aErr);
