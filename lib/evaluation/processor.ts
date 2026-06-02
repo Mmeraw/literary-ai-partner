@@ -2045,6 +2045,14 @@ async function autoAcceptStoryLedgerKickForward(
     throw new Error(`KICK_FORWARD_FAILED: Could not write accepted_story_ledger_v1: ${writeErr.message}`);
   }
 
+  // Also set review_gate_passed_at on the job row — downstream policy gates
+  // (pass12_handoff_v1) require this timestamp to prove the gate was passed.
+  // For kick-forward, we set it to now (auto-approved, no author interaction).
+  await supabase
+    .from('evaluation_jobs')
+    .update({ review_gate_passed_at: now })
+    .eq('id', jobId);
+
   console.log(`[phase_2] ${jobId}: Kick-forward auto-acceptance complete. Corruption score: ${corruptionAssessment.corruption_score}`);
 }
 
