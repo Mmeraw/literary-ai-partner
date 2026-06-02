@@ -21,9 +21,10 @@ const PASS1A_TEMPERATURE = 0.2;
 const PASS1A_MAX_OUTPUT_TOKENS = 16_000;
 const PASS1A_LENGTH_RETRY_MAX_OUTPUT_TOKENS = 16_000;
 const PASS1A_DEFAULT_MODEL = "gpt-5.1";
-// Tier 4: raised from 5 → 10 — Tier 4 10K RPM / 10M TPM gives ample headroom.
-// Pass 1A runs independently from Pass 1/2, so no shared budget contention.
-const PASS1A_CHUNK_CONCURRENCY = 10;
+// Tier 4: raised from 10 → 20 — Tier 4 10K RPM / 10M TPM gives ample headroom.
+// 20 concurrent calls × ~5K tokens = 100K burst TPM (1% of 10M limit).
+// For 40 chunks: ceil(40/20) = 2 rounds × ~15s = 30s (vs 60s at c=10).
+const PASS1A_CHUNK_CONCURRENCY = 20;
 const PASS1A_CHUNK_RETRY_MAX = 3;
 // Tier 4: reduced from 8000 → 4000. Higher rate limits mean 429s resolve faster.
 const PASS1A_CHUNK_RETRY_BASE_MS = 4000;
