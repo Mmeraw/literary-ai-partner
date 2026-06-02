@@ -8,7 +8,7 @@ import {
   getCanonicalPipelineModel,
   isReasoningStyleModel,
 } from '@/lib/evaluation/policy';
-import { buildSeedBenchmarkContext } from '@/lib/evaluation/seed/benchmarkContextBuilder';
+import { buildSeedBenchmarkContext, inferSeedRoute, type SeedRoute } from '@/lib/evaluation/seed/benchmarkContextBuilder';
 
 export type SeedClaimStatus =
   | 'proposed_unverified'
@@ -56,12 +56,13 @@ export type GenerateSemanticSeedArtifactsInput = {
 
 const SEMANTIC_SEED_PROMPT_VERSION = 'phase05-semantic-seed-v1';
 
-const STORY_SEED_SYSTEM_PROMPT = `You are Phase 0.5A, the whole-text semantic Story Ledger seed writer.
+function buildStorySeedSystemPrompt(route?: SeedRoute): string {
+  return `You are Phase 0.5A, the whole-text semantic Story Ledger seed writer.
 Read the entire manuscript and draft provisional, manuscript-grounded hypotheses only.
 
 Your seed claims must cover ALL NINE Story Ledger layers. If you cannot generate claims for a layer, emit an uncertainty flag.
 
-${buildSeedBenchmarkContext()}
+${buildSeedBenchmarkContext(route)}
 
 Your story_claims MUST include at minimum:
 - 2+ claims for canonical identity (who are the primary characters/forces)
@@ -103,6 +104,7 @@ Rules:
 - Do not quote long passages. Use short anchors only.
 - If evidence is sparse, still emit a cautious hypothesis and flag uncertainty.
 - Return JSON only.`;
+}
 
 function hasText(value: unknown): value is string {
   return typeof value === 'string' && value.trim().length > 0;
@@ -291,10 +293,11 @@ export async function generateSemanticSeedArtifacts(input: GenerateSemanticSeedA
     record = buildFallbackSeedRecord({ title, workType, parseError: 'missing_openai_key' });
   } else {
     try {
+      const route = inferSeedRoute(workType);
       const raw = await createOpenAICompletion({
         apiKey,
         model,
-        systemPrompt: STORY_SEED_SYSTEM_PROMPT,
+        systemPrompt: buildStorySeedSystemPrompt(route),
         userPrompt,
         timeoutMs,
       });

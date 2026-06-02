@@ -8,10 +8,25 @@
  *   2. Per-layer failure conditions (what NOT to do)
  *   3. Gold-standard example shapes (what good output looks like)
  *   4. Structural validation criteria
+ *   5. The DREAM evaluation template for the manuscript's route (long-form or short-form)
+ *   6. A completed benchmark exemplar showing what gold-standard output looks like
  *
- * The context is kept compact (< 4000 tokens) to fit within model budgets
+ * The context is kept compact to fit within model budgets
  * while providing enough grounding to prevent common extraction failures.
  */
+
+export type SeedRoute = 'LONG_FORM' | 'SHORT_FORM';
+
+/**
+ * Infers the evaluation route from a work type string.
+ * Short stories and excerpts use SHORT_FORM; everything else uses LONG_FORM.
+ */
+export function inferSeedRoute(workType?: string | null): SeedRoute {
+  if (!workType) return 'LONG_FORM';
+  const normalized = workType.toLowerCase().trim();
+  const shortFormTypes = ['short_story', 'short story', 'excerpt', 'flash', 'flash_fiction', 'sample', 'chapter'];
+  return shortFormTypes.some((t) => normalized.includes(t)) ? 'SHORT_FORM' : 'LONG_FORM';
+}
 
 // ── 9-Layer Template Structure ──────────────────────────────────────────────
 
@@ -106,25 +121,142 @@ FAILURE CONDITIONS: Include 5-15 specific, falsifiable claims that would indicat
 ACCEPTANCE CHECKS: Include 8-12 Q&A pairs that verify the ledger is correct.
 `.trim();
 
+// ── DREAM Evaluation Templates (route-specific) ─────────────────────────────
+
+const DREAM_LONGFORM_TEMPLATE = `
+DREAM LONG-FORM EVALUATION TEMPLATE:
+This is the template your seed must prepare the manuscript to be evaluated against.
+A successful long-form evaluation produces ALL of the following:
+
+1. MANUSCRIPT METADATA: title, word count, route=LONG_FORM, output mode (standard_long_form or multi_layer_long_form), chunk count, coverage statement, confidence level
+2. EXECUTIVE VERDICT: 1 paragraph naming governing ambition, primary emotional anchor, most significant architectural strength, most consequential drag, current readiness
+3. OVERALL QUALITY SCORE + READINESS SCORE (out of 100)
+4. FULL 13-CRITERIA SCORE GRID (each scored x/10 with confidence level):
+   - Concept & Core Premise
+   - Narrative Drive & Momentum
+   - Character Depth & Psychological Coherence
+   - Point of View & Voice Control
+   - Scene Construction & Function
+   - Dialogue Authenticity & Subtext
+   - Thematic Integration
+   - World-Building & Environmental Logic
+   - Pacing & Structural Balance
+   - Prose Control & Line-Level Craft
+   - Tonal Authority & Consistency
+   - Narrative Closure & Promises Kept
+   - Professional Readiness & Market Positioning
+5. PER-CRITERION BLOCKS: fit statement (what IS working) + gap statement (what FALLS SHORT) + anchored evidence excerpts + why-it-matters + how-to-revise
+6. STRUCTURAL STACK (for multi-layer): Layer & Voice Map, stack diagnosis, which layer is emotional anchor / interpretive frame / most fragile
+7. DREAM COMPLETENESS LEDGERS proving evaluation accounted for:
+   - Character coverage & arc accountability
+   - Relationship spine completeness
+   - Symbol-to-character payoff tracking
+   - Sensory/emotional register distribution
+   - Evidence distribution confidence gate
+   - Manuscript integrity classification
+8. WAVE-INFORMED REVISION PRIORITIES: ordered revision targets with recommended wave domains
+9. PRIORITIZED REVISION QUEUE (top 5): rank, criterion, gap, reasoning, estimated effort, estimated reader impact
+10. SIPOC DIAGNOSTIC APPENDIX: chunk coverage %, compression ratio, dark criteria, evidence density
+
+Your seed must extract enough ground truth that downstream phases can populate ALL of these sections with evidence-backed content.
+`.trim();
+
+const DREAM_SHORTFORM_TEMPLATE = `
+DREAM SHORT-FORM EVALUATION TEMPLATE:
+This is the template your seed must prepare the manuscript to be evaluated against.
+A successful short-form evaluation produces ALL of the following:
+
+1. REPORT METADATA: title, word count, route=SHORT_FORM, evaluation date, confidence level
+2. EXECUTIVE SUMMARY: concise verdict on strengths, weaknesses, and readiness
+3. OVERALL SCORE AND VERDICT
+4. TOP STRENGTHS / TOP RISKS
+5. TOP RECOMMENDATIONS: 3-5 paraphrased highest-impact author actions (not verbatim criterion repetitions)
+6. 13 STORY CRITERIA SCORE GRID (each scored x/10 with confidence level):
+   - Concept & Core Premise
+   - Narrative Drive & Momentum
+   - Character Depth & Psychological Coherence
+   - Point of View & Voice Control
+   - Scene Construction & Function
+   - Dialogue Authenticity & Subtext
+   - Thematic Integration
+   - World-Building & Environmental Logic
+   - Pacing & Structural Balance
+   - Prose Control & Line-Level Craft
+   - Tonal Authority & Consistency
+   - Narrative Closure & Promises Kept
+   - Professional Readiness & Market Positioning
+7. CRITERION RATIONALES: per-criterion strengths, drags, and typical recommendations
+8. SURFACED CRITERION OPPORTUNITIES (0-3 per criterion) with 6-part diagnostic:
+   - Evidence (where in the text)
+   - Symptom (the observable problem)
+   - Cause (the mechanism)
+   - Fix direction (bounded repair)
+   - Reader effect (what changes if repaired)
+   - Mistake-proofing (what must not be damaged)
+9. CONFIDENCE EXPLANATION
+
+Short-form does NOT promise: full Story Ledger, DREAM governed ledgers, WAVE continuity, A/B/C rewrite proposals.
+Your seed must extract enough ground truth from the submitted text to populate all scorable criteria with evidence.
+`.trim();
+
+// ── Completed Benchmark Exemplar (compact) ──────────────────────────────────
+
+const BENCHMARK_EXEMPLAR_LONGFORM = `
+COMPLETED BENCHMARK EXEMPLAR — LONG-FORM (Froggin Noggin, 127K words, novel):
+This is what a gold-standard evaluation looks like when completed. Use this as your target shape.
+
+- Executive verdict: Named governing ambition (eco-satirical myth), primary emotional anchor (amphibian world), greatest asset (originality/world-system), principal drag (overabundance without hierarchy), readiness (not yet submission-ready, one major pass away)
+- Overall quality: 66/100, Readiness: 58/100
+- Structural stack: 4 layers identified (Human damage, Amphibian polity, Mythic/doctrinal, Environmental/ecological) with dependencies mapped
+- 13 criteria scored: Concept 7, Drive 6, Character 6, POV/Voice 6, Scene 6, Dialogue 5, Theme 7, World 7, Prose 5, Pacing 5, Closure NE, Market 4
+- Per-criterion: fit/gap with anchored evidence, why-it-matters, how-to-revise
+- DREAM ledgers: character arcs for 8+ entities, relationship spine for 6+ pairs, symbol payoff for shard/toadstone/Gorf, sensory register across layers
+- Revision priorities: architecture before stylistic, preserve weirdness, reorganize collision spine, tighten transitions
+- Key learning: The seed MUST identify ALL major characters, their end states, ALL story-bearing objects, and the contamination model — because downstream phases CANNOT invent these
+`.trim();
+
+const BENCHMARK_EXEMPLAR_SHORTFORM = `
+COMPLETED BENCHMARK EXEMPLAR — SHORT-FORM (Ancient Bloodlines, 18K words, novella):
+This is what a gold-standard short-form evaluation looks like. Use this as your target shape.
+
+- Verdict: Ambitious eco-fable with distinctive cross-species love story and moral battleground; pacing uneven where lore outruns conflict; character interiority lags behind world-building
+- 13 criteria scored: Concept 7, Drive 6, Character 6, POV 6, Scene 6, Dialogue 5, Theme 7, World 7, Prose 5, Pacing 5, Closure NE, Market 4
+- Top 3 actions: (1) Tighten central conflict in opening, (2) Fold world-building into live conflict, (3) Deepen interiority at choice-points
+- Per-criterion: strengths, drags, and specific recommendations with evidence
+- Confidence: Mixed — full text evaluated but some areas limited by scope
+- Key learning: The seed MUST identify the central conflict, major characters with their roles, and the core thematic architecture — because short-form downstream cannot fill gaps from surrounding chapters
+`.trim();
+
 // ── Public API ───────────────────────────────────────────────────────────────
 
 /**
  * Builds the complete benchmark context block for injection into seed
- * generation prompts. This provides the LLM with template structure,
- * failure modes, and gold-standard shape expectations.
+ * generation prompts. Accepts an optional route to include the correct
+ * DREAM evaluation template (long-form or short-form) and matching
+ * benchmark exemplar.
  */
-export function buildSeedBenchmarkContext(): string {
+export function buildSeedBenchmarkContext(route?: SeedRoute): string {
+  const dreamTemplate = route === 'SHORT_FORM' ? DREAM_SHORTFORM_TEMPLATE : DREAM_LONGFORM_TEMPLATE;
+  const exemplar = route === 'SHORT_FORM' ? BENCHMARK_EXEMPLAR_SHORTFORM : BENCHMARK_EXEMPLAR_LONGFORM;
+
   return [
     '═══ BENCHMARK GROUNDING CONTEXT (Phase 0 Warmup) ═══',
     '',
     'You MUST use this benchmark context to structure your output.',
     'Your output will be validated against these standards.',
+    'The DREAM evaluation template below is what your seed prepares the manuscript to be evaluated against.',
+    'The completed benchmark exemplar shows what gold-standard output looks like.',
+    'Your seed output becomes GOLDEN GROUND TRUTH — downstream phases need hard evidence to override anything you establish here.',
     '',
     NINE_LAYER_TEMPLATE,
     '',
     FAILURE_MODES_COMPACT,
     '',
     GOLD_STANDARD_EXAMPLE,
+    '',
+    dreamTemplate,
+    '',
+    exemplar,
   ].join('\n');
 }
 
