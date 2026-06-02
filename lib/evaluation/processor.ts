@@ -6680,17 +6680,24 @@ export async function processEvaluationJob(
               ? ((storyLayerPayload as { layers?: Record<string, Record<string, unknown>> }).layers ?? {})
               : {};
 
+          // Extract blocked progress safely — inside this branch the result may
+          // be ok=true (gate passed) OR ok=false (bypass path).  Use a local
+          // narrowing variable so TypeScript can discriminate.
+          const blockedProgress = reviewGateHandoffResult.ok === false
+            ? reviewGateHandoffResult.blocked.progress
+            : undefined;
+
           const pass3aStatusForShortFormBypass = reviewGateHandoffResult.ok
             ? reviewGateHandoffResult.handoff.progress.pass3a_status
-            : (reviewGateHandoffResult.blocked.progress.pass3a_status ?? phaseV2Progress.pass3a_status ?? 'failed');
+            : (blockedProgress?.pass3a_status ?? phaseV2Progress.pass3a_status ?? 'failed');
           const pass3aGateValidityForShortFormBypass = reviewGateHandoffResult.ok
             ? reviewGateHandoffResult.handoff.progress.pass3a_gate_validity
-            : reviewGateHandoffResult.blocked.progress.pass3a_gate_validity;
+            : blockedProgress?.pass3a_gate_validity;
           const technicalBypassReason = shortFormTechnicalBlockBypass
-            ? reviewGateHandoffResult.blocked.progress.block_reason
+            ? blockedProgress?.block_reason
             : undefined;
           const contentBlockBypassReason = shortFormContentBlockBypass
-            ? (reviewGateHandoffResult.blocked.progress.block_reason ?? 'short_form_content_hard_fail_bypassed')
+            ? (blockedProgress?.block_reason ?? 'short_form_content_hard_fail_bypassed')
             : undefined;
 
           const preferredLayerKeys = Object.keys(sourceLayers).filter((k) => k.trim().length > 0);
