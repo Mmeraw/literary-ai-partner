@@ -153,7 +153,7 @@ describe('Ancient Bloodlines — Governance behavior benchmark', () => {
     const scope = classifySubmissionScope(makeWordText(ANCIENT_BLOODLINES_WORD_COUNT), 13, 'standalone');
 
     expect(scope.inputScale).toBe('novelette');
-    expect(scope.scopePolicyVersion).toBe(SCOPE_POLICY_VERSION);
+    expect(scope.scopePolicyVersion).toBe('v3-mode-aware');
     expect(scope.wordCount).toBe(ANCIENT_BLOODLINES_WORD_COUNT);
   });
 
