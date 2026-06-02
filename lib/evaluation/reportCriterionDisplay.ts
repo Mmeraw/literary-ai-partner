@@ -39,6 +39,14 @@ export function isCertifiedCriterion(criterion: RenderableCriterion): boolean {
   return typeof criterion.score_0_10 === "number";
 }
 
+function formatScoreOutOfTen(score: number | null | undefined): string {
+  if (typeof score !== "number" || !Number.isFinite(score)) {
+    return "Score: —/10";
+  }
+
+  return `Score: ${Math.round(score)}/10`;
+}
+
 export function getCriterionPrimaryBadge(criterion: RenderableCriterion): {
   label: string;
   classes: string;
@@ -63,7 +71,7 @@ export function getCriterionPrimaryBadge(criterion: RenderableCriterion): {
   const scoreValue = criterion.score_0_10;
   if (typeof scoreValue === "number" && scoreValue >= 8) {
     return {
-      label: `${Math.round(scoreValue)} / 10`,
+      label: formatScoreOutOfTen(scoreValue),
       classes: "bg-green-100 text-green-800",
       numeric: true,
     };
@@ -71,14 +79,14 @@ export function getCriterionPrimaryBadge(criterion: RenderableCriterion): {
 
   if (typeof scoreValue === "number" && scoreValue >= 6) {
     return {
-      label: `${Math.round(scoreValue)} / 10`,
+      label: formatScoreOutOfTen(scoreValue),
       classes: "bg-yellow-100 text-yellow-800",
       numeric: true,
     };
   }
 
   return {
-    label: `${typeof scoreValue === "number" ? Math.round(scoreValue) : "—"} / 10`,
+    label: formatScoreOutOfTen(scoreValue),
     classes: "bg-red-100 text-red-800",
     numeric: true,
   };
@@ -105,7 +113,7 @@ export function getCriterionSupportLabel(criterion: RenderableCriterion): string
 
 function repairTruncatedQuotes(text: string): string {
   return text.replace(
-    /[""\u201c]([^""\u201d]+)[""\u201d]/g,
+    /[""“]([^""”]+)[""”]/g,
     (match, inner: string) => {
       const content = inner.trimEnd();
       if (/[.!?]$/.test(content)) return match;
@@ -114,7 +122,7 @@ function repairTruncatedQuotes(text: string): string {
         const lastSpace = content.lastIndexOf(" ");
         if (lastSpace === -1) return match;
         const trimmed = content.slice(0, lastSpace).replace(/[,;:\s]+$/, "");
-        return `\u201c${trimmed}\u2026\u201d`;
+        return `“${trimmed}…”`;
       }
       return match;
     },
