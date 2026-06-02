@@ -103,12 +103,14 @@ Do not expose machine chunk IDs.
 | Distinct characters merged incorrectly | failed_benchmark_minimum | Suppress layer |
 | Collectives treated as individuals without evidence | degraded_with_caution | Review before approval |
 | Name-state transformation omitted | failed_benchmark_minimum when structural | Fit-gap/regenerate |
+| Dialogue fragment or common word extracted as character name (e.g. "No", "Yes", "Oh") | entry_dropped | Quarantine drops entry via blocklist or structural heuristic; diagnostic logged |
 
 ## Never do
 
 - Do not collapse aliases and identity transformations into generic names.
 - Do not invent final canon IDs from seed alone.
 - Do not merge collectives, institutions, objects, and people into one entity type.
+- Do not extract dialogue fragments, interjections, or common English words as character names. If a single word prefacing a sentence is followed by a comma (e.g. `"No, I won't"`), it is dialogue — not a character.
 
 ---
 

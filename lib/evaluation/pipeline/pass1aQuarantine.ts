@@ -101,16 +101,69 @@ const VALID_NARRATIVE_WEIGHTS = new Set<string>([
  * Single-word tokens that are common English words, not plausible character
  * names. The LLM sometimes extracts dialogue fragments (e.g. "No", "Yes",
  * "Oh") or generic labels as canonical_name. Drop them early.
+ *
+ * Defence-in-depth layers:
+ * 1. BLOCKED_CANONICAL_NAMES — exact-match blocklist of known bad tokens
+ * 2. isDialogueFragmentName() — structural heuristic for single-word
+ *    interjections / discourse markers the blocklist may have missed
  */
 const BLOCKED_CANONICAL_NAMES = new Set(
   [
+    // Interjections & dialogue fragments
     "no", "yes", "oh", "hey", "ok", "okay", "ah", "huh", "um", "uh",
+    "nah", "nope", "yep", "yeah", "yea", "hmm", "whoa", "wow", "ooh",
+    "shh", "psst", "tsk", "ugh", "ew", "meh", "pfft", "bah", "gah",
+    "sure", "right", "fine", "good", "bad", "please", "thanks", "sorry",
+    "stop", "wait", "look", "listen", "come", "go", "run", "help",
+    // Conjunctions, articles, pronouns, prepositions
     "well", "so", "but", "and", "the", "a", "an", "it", "me", "my",
     "i", "he", "she", "they", "we", "you", "him", "her", "them", "us",
     "this", "that", "here", "there", "what", "who", "why", "how",
-    "narrator", "unknown", "none", "n/a", "na", "null",
+    "if", "or", "nor", "yet", "for", "not", "now", "then",
+    // Generic non-name labels
+    "narrator", "unknown", "none", "n/a", "na", "null", "character",
+    "person", "man", "woman", "boy", "girl", "child", "baby",
+    "sir", "ma'am", "madam", "mister", "miss",
   ],
 );
+
+/**
+ * Structural heuristic: catches single-word "names" that look like dialogue
+ * fragments even if they aren't in the explicit blocklist.
+ *
+ * Pattern: a single token of 1–4 lowercase letters (after lowercasing) that
+ * contains no digits, hyphens, or apostrophes. Real short character names
+ * (Al, Jo, Ed, Max, Mia) are protected by SHORT_PROPER_NAMES allowlist.
+ */
+const SHORT_PROPER_NAMES = new Set([
+  "al", "ed", "jo", "bo", "cy", "ty", "vi", "lu", "mo", "bj",
+  "ida", "ada", "ava", "eva", "ian", "max", "mia", "leo", "kai",
+  "eli", "sam", "ben", "dan", "don", "eve", "fay", "gus", "hal",
+  "ira", "jan", "jay", "jon", "joy", "kim", "kit", "lea", "lee",
+  "les", "liz", "lou", "luz", "mae", "may", "meg", "mel", "nan",
+  "ned", "pat", "pam", "ray", "rex", "rob", "rod", "ron", "roy",
+  "sal", "sue", "ted", "tom", "val", "van", "wes", "zoe",
+  "anya", "aria", "carl", "cole", "cora", "dale", "dave", "dean",
+  "drew", "earl", "emma", "eric", "fern", "fred", "gary", "gail",
+  "glen", "gwen", "hans", "hope", "iris", "ivan", "jack", "jade",
+  "jake", "jane", "jean", "jess", "jill", "joel", "john", "jose",
+  "juan", "june", "kate", "kent", "kirk", "kyle", "lara", "lena",
+  "lily", "lisa", "lola", "lori", "luke", "lynn", "marc", "mark",
+  "mary", "mike", "milo", "neil", "nick", "nina", "noah", "noel",
+  "nora", "olga", "otto", "owen", "page", "paul", "pete", "phil",
+  "reed", "rick", "rita", "rosa", "ross", "ruby", "ruth", "ryan",
+  "sara", "saul", "sean", "seth", "stan", "tara", "tess", "todd",
+  "tony", "troy", "vera", "wade", "walt", "ward", "will", "yuri",
+  "zach", "zara",
+]);
+
+function isDialogueFragmentName(name: string): boolean {
+  const lower = name.toLowerCase().trim();
+  if (/\s/.test(lower)) return false;
+  if (/[\d\-']/.test(lower)) return false;
+  if (lower.length <= 4 && !SHORT_PROPER_NAMES.has(lower)) return true;
+  return false;
+}
 
 const VALID_PRESENCE_TYPES = new Set<string>([
   "present", "memory", "environmental_text",
@@ -446,14 +499,17 @@ function normalizeCharacterEntry(
     fallback: "Unknown Character",
   })!;
 
-  if (BLOCKED_CANONICAL_NAMES.has(name.toLowerCase().trim())) {
+  const nameLower = name.toLowerCase().trim();
+  if (BLOCKED_CANONICAL_NAMES.has(nameLower) || isDialogueFragmentName(nameLower)) {
     recordDiagnostic(diagnostics, {
       code: "PASS1A_MALFORMED_CHARACTER_DROPPED",
       action: "entry_dropped",
       chunk_index: chunkIndex,
       character_name: name,
       field_path: "characters[].canonical_name",
-      observed_type: `blocked_word:${name}`,
+      observed_type: BLOCKED_CANONICAL_NAMES.has(nameLower)
+        ? `blocked_word:${name}`
+        : `dialogue_fragment_heuristic:${name}`,
     });
     return null;
   }

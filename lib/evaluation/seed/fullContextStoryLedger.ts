@@ -224,7 +224,8 @@ CRITICAL RULES:
 7. acceptance_checks should include 8-12 questions that verify the ledger is correct.
 8. Include ALL major characters in character_end_states, especially those who DIE.
 9. Do not confuse cosmology/religion with physical geography (e.g., a deity is not a "lake owner").
-10. Do not confuse mutation/transformation with death (e.g., mutated fish are alive, not dead fish).`;
+10. Do not confuse mutation/transformation with death (e.g., mutated fish are alive, not dead fish).
+11. NEVER list dialogue fragments, interjections, or common English words as character entities. Words like "No", "Yes", "Oh", "Hey" that appear at the start of dialogue lines followed by a comma are NOT character names. Only list proper names, titles, nicknames, or stable identity labels from the manuscript.`;
 }
 
 function buildUserPrompt(params: {
