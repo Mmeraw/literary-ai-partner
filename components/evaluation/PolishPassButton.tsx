@@ -8,6 +8,9 @@ interface PolishPassButtonProps {
 
 type PolishState = 'idle' | 'running' | 'done' | 'error';
 
+const productiveActionButtonClassName =
+  'inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-blue-700 hover:bg-blue-800 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed';
+
 export function PolishPassButton({ jobId }: PolishPassButtonProps) {
   const [state, setState] = useState<PolishState>('idle');
   const [count, setCount] = useState<number | null>(null);
@@ -53,7 +56,7 @@ export function PolishPassButton({ jobId }: PolishPassButtonProps) {
       <div className="flex items-center gap-2">
         <button
           onClick={handleRun}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-amber-600 hover:bg-amber-700 rounded-md transition-colors"
+          className={productiveActionButtonClassName}
         >
           Retry Polish Pass
         </button>
@@ -66,7 +69,7 @@ export function PolishPassButton({ jobId }: PolishPassButtonProps) {
     <button
       onClick={handleRun}
       disabled={state === 'running'}
-      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-[#8B2E2E] hover:bg-[#6d2424] rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+      className={productiveActionButtonClassName}
     >
       {state === 'running' ? (
         <>
