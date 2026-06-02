@@ -30,6 +30,7 @@ import {
 import { resolveReportTitle } from "@/lib/evaluation/reportTitle";
 import { safeTruncateToWordBoundary } from "@/lib/evaluation/reportRenderSafety";
 import CriterionOpportunities from "@/components/evaluation/CriterionOpportunities";
+import PolishPassButton from "@/components/evaluation/PolishPassButton";
 import { hasActiveSupportGrant, logSupportView } from "@/lib/support/checkSupportAccess";
 import { canViewEvaluationOperationalDetails } from "@/lib/auth/evaluationOperationalAccess";
 import type { LongformDreamDocument } from "@/lib/evaluation/pipeline/runPass3bLongform";
@@ -1041,6 +1042,19 @@ export default async function EvaluationReportPage({
       )}
       {isComplete && (
         <div className="mt-8 space-y-4">
+          {isOwner && (
+            <section className="rounded-lg border border-[#B8922A]/30 bg-[#B8922A]/5 p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-900">Surface Polish</h3>
+                  <p className="text-xs text-gray-600 mt-0.5">
+                    Scan for grammar, passive voice, adverb density, punctuation, and repetition — free, voice-preserving.
+                  </p>
+                </div>
+                <PolishPassButton jobId={jobId} />
+              </div>
+            </section>
+          )}
           {isOwner && <SupportAccessToggle jobId={jobId} />}
           <div className="flex justify-end">
             <DownloadReportButton jobId={jobId} />
