@@ -116,6 +116,7 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess }) {
   const [isLoadingDashboard, setIsLoadingDashboard] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [pendingDeleteManuscriptId, setPendingDeleteManuscriptId] = useState(null);
   const [error, setError] = useState(null);
   const [processingTermsAccepted, setProcessingTermsAccepted] = useState(false);
 
@@ -149,22 +150,16 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess }) {
     setDashboardManuscripts((prev) => prev.filter((doc) => doc.id !== manuscriptId));
     setHiddenManuscriptIds((prev) => prev.filter((id) => id !== manuscriptId));
     setSelectedManuscriptId((current) => (current === manuscriptId ? null : current));
+    setPendingDeleteManuscriptId((current) => (current === manuscriptId ? null : current));
   };
 
   const hideManuscriptHere = (manuscriptId) => {
     setHiddenManuscriptIds((prev) => (prev.includes(manuscriptId) ? prev : [...prev, manuscriptId]));
     setSelectedManuscriptId((current) => (current === manuscriptId ? null : current));
+    setPendingDeleteManuscriptId((current) => (current === manuscriptId ? null : current));
   };
 
-  const deleteManuscriptById = async (manuscriptId, confirmationLabel) => {
-    const target = dashboardManuscripts.find((doc) => doc.id === manuscriptId);
-    const label = target?.title || "this manuscript";
-    const confirmed = window.confirm(
-      confirmationLabel || `Delete ${label}? This permanently removes it from your dashboard and this window.`,
-    );
-
-    if (!confirmed) return;
-
+  const deleteManuscriptById = async (manuscriptId) => {
     setError(null);
 
     try {
@@ -186,6 +181,7 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess }) {
   const clearThisWindow = () => {
     setHiddenManuscriptIds(dashboardManuscripts.map((doc) => doc.id));
     setSelectedManuscriptId(null);
+    setPendingDeleteManuscriptId(null);
   };
 
   const restoreAllInThisWindow = () => {
@@ -221,6 +217,7 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess }) {
   const handleInputMethodChange = (methodId) => {
     setActiveInputMethod(methodId);
     setError(null);
+    setPendingDeleteManuscriptId(null);
 
     if (methodId === "paste") {
       setSelectedManuscriptId(null);
@@ -236,6 +233,7 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess }) {
     if (!file) return;
     setIsUploading(true);
     setError(null);
+    setPendingDeleteManuscriptId(null);
 
     try {
       const form = new FormData();
@@ -270,6 +268,7 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess }) {
     setSelectedManuscriptId((current) => (current === manuscriptId ? null : manuscriptId));
     setManuscriptText("");
     setActiveInputMethod("saved");
+    setPendingDeleteManuscriptId(null);
   };
 
   const triggerDashboardUpload = () => uploadInputRef.current?.click();
@@ -297,6 +296,7 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess }) {
 
     setIsSubmitting(true);
     setError(null);
+    setPendingDeleteManuscriptId(null);
 
     try {
       const manuscriptSize = hasPastedText ? new Blob([manuscriptText]).size : undefined;
@@ -436,6 +436,7 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess }) {
                     ) : (
                       visibleDashboardManuscripts.map((doc) => {
                         const isSelected = selectedManuscriptId === doc.id;
+                        const isConfirmingDelete = pendingDeleteManuscriptId === doc.id;
                         return (
                           <div
                             key={doc.id}
@@ -494,7 +495,8 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess }) {
                                   onClick={(event) => {
                                     event.preventDefault();
                                     event.stopPropagation();
-                                    deleteManuscriptById(doc.id);
+                                    setError(null);
+                                    setPendingDeleteManuscriptId(doc.id);
                                   }}
                                   className="min-h-[38px] rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-100"
                                 >
@@ -502,6 +504,43 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess }) {
                                 </button>
                               </div>
                             </div>
+                            {isConfirmingDelete && (
+                              <div
+                                className="mt-3 rounded-lg border border-red-200 bg-red-50 p-3"
+                                onClick={(event) => event.stopPropagation()}
+                              >
+                                <p className="text-sm font-semibold text-red-900">
+                                  Delete {doc.title || "this manuscript"} from your dashboard?
+                                </p>
+                                <p className="mt-1 text-sm text-red-800">
+                                  This permanently removes it from your dashboard and this window.
+                                </p>
+                                <div className="mt-3 flex flex-wrap justify-end gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={(event) => {
+                                      event.preventDefault();
+                                      event.stopPropagation();
+                                      setPendingDeleteManuscriptId(null);
+                                    }}
+                                    className="min-h-[34px] rounded-md border border-stone-300 bg-white px-3 py-1.5 text-sm font-semibold text-stone-800 hover:bg-stone-50"
+                                  >
+                                    Cancel
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={(event) => {
+                                      event.preventDefault();
+                                      event.stopPropagation();
+                                      void deleteManuscriptById(doc.id);
+                                    }}
+                                    className="min-h-[34px] rounded-md border border-red-700 bg-red-700 px-3 py-1.5 text-sm font-bold text-white hover:bg-red-800"
+                                  >
+                                    Confirm Delete
+                                  </button>
+                                </div>
+                              </div>
+                            )}
                           </div>
                         );
                       })
