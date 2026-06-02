@@ -75,15 +75,15 @@ function getConfidenceBadge(criterion: EvaluationResultV1["criteria"][number]): 
   classes: string;
 } | null {
   if (criterion.confidence_level === "high" || (typeof criterion.confidence_score_0_100 === "number" && criterion.confidence_score_0_100 >= 80)) {
-    return { label: "High Confidence", classes: "bg-emerald-100 text-emerald-800" };
+    return { label: "High Confidence", classes: "bg-emerald-200 text-emerald-900 ring-1 ring-emerald-400" };
   }
 
   if (criterion.confidence_level === "moderate" || (typeof criterion.confidence_score_0_100 === "number" && criterion.confidence_score_0_100 >= 60)) {
-    return { label: "Moderate Confidence", classes: "bg-amber-100 text-amber-800" };
+    return { label: "Moderate Confidence", classes: "bg-yellow-200 text-yellow-900 ring-1 ring-yellow-400" };
   }
 
   if (criterion.confidence_level === "low" || (typeof criterion.confidence_score_0_100 === "number" && criterion.confidence_score_0_100 >= 0)) {
-    return { label: "Low Confidence", classes: "bg-rose-100 text-rose-800" };
+    return { label: "Low Confidence", classes: "bg-rose-200 text-rose-900 ring-1 ring-rose-400" };
   }
 
   return null;
