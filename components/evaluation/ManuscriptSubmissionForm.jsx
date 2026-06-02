@@ -117,6 +117,9 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess }) {
   const [isUploading, setIsUploading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [pendingDeleteManuscriptId, setPendingDeleteManuscriptId] = useState(null);
+  const [pendingDeleteAll, setPendingDeleteAll] = useState(false);
+  const [isDeletingAll, setIsDeletingAll] = useState(false);
+  const [selectedDocIds, setSelectedDocIds] = useState(new Set());
   const [error, setError] = useState(null);
   const [processingTermsAccepted, setProcessingTermsAccepted] = useState(false);
 
@@ -186,6 +189,48 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess }) {
 
   const restoreAllInThisWindow = () => {
     setHiddenManuscriptIds([]);
+  };
+
+  const allVisibleSelected = visibleDashboardManuscripts.length > 0 &&
+    visibleDashboardManuscripts.every((doc) => selectedDocIds.has(doc.id));
+
+  const toggleSelectAll = () => {
+    if (allVisibleSelected) {
+      setSelectedDocIds(new Set());
+    } else {
+      setSelectedDocIds(new Set(visibleDashboardManuscripts.map((doc) => doc.id)));
+    }
+  };
+
+  const toggleDocSelection = (docId) => {
+    setSelectedDocIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(docId)) { next.delete(docId); } else { next.add(docId); }
+      return next;
+    });
+  };
+
+  const deleteSelectedManuscripts = async () => {
+    const idsToDelete = [...selectedDocIds];
+    if (idsToDelete.length === 0) return;
+    setError(null);
+    setIsDeletingAll(true);
+    try {
+      for (const id of idsToDelete) {
+        const response = await fetch(`/api/manuscripts?id=${encodeURIComponent(String(id))}`, { method: "DELETE" });
+        if (!response.ok) {
+          const data = await response.json().catch(() => ({}));
+          throw new Error(data.error || `Delete failed for manuscript ${id}`);
+        }
+        removeManuscriptLocally(id);
+      }
+      setSelectedDocIds(new Set());
+      setPendingDeleteAll(false);
+    } catch (err) {
+      setError(err.message || "Batch delete failed");
+    } finally {
+      setIsDeletingAll(false);
+    }
   };
 
   useEffect(() => {
@@ -405,14 +450,27 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess }) {
                       <p className="mt-1 text-base leading-6 text-stone-800">Choose one manuscript from your workspace.</p>
                     </div>
                     <div className="flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={() => handleInputMethodChange("upload")}
-                        disabled={isUploading || isSubmitting}
-                        className="min-h-[42px] rounded-lg border border-blue-300 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-900 hover:bg-blue-100 disabled:opacity-60"
-                      >
-                        Upload instead
-                      </button>
+                      {visibleDashboardManuscripts.length > 0 && (
+                        <label className="flex min-h-[42px] cursor-pointer items-center gap-2 rounded-lg border border-stone-300 bg-white px-4 py-2 text-sm font-semibold text-stone-800 hover:bg-stone-50">
+                          <input
+                            type="checkbox"
+                            checked={allVisibleSelected}
+                            onChange={toggleSelectAll}
+                            className="h-4 w-4 accent-blue-700"
+                          />
+                          Select all
+                        </label>
+                      )}
+                      {selectedDocIds.size > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setPendingDeleteAll(true)}
+                          disabled={isDeletingAll || isSubmitting}
+                          className="min-h-[42px] rounded-lg border border-red-300 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-100 disabled:opacity-60"
+                        >
+                          Delete selected ({selectedDocIds.size})
+                        </button>
+                      )}
                       {hiddenManuscriptIds.length > 0 && (
                         <button
                           type="button"
@@ -425,6 +483,35 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess }) {
                       )}
                     </div>
                   </div>
+
+                  {pendingDeleteAll && (
+                    <div className="mb-3 rounded-lg border border-red-200 bg-red-50 p-3">
+                      <p className="text-sm font-semibold text-red-900">
+                        Delete {selectedDocIds.size} selected manuscript{selectedDocIds.size !== 1 ? "s" : ""} permanently?
+                      </p>
+                      <p className="mt-1 text-sm text-red-800">
+                        This removes them from your dashboard and cannot be undone.
+                      </p>
+                      <div className="mt-3 flex flex-wrap justify-end gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setPendingDeleteAll(false)}
+                          disabled={isDeletingAll}
+                          className="min-h-[34px] rounded-md border border-stone-300 bg-white px-3 py-1.5 text-sm font-semibold text-stone-800 hover:bg-stone-50"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          onClick={deleteSelectedManuscripts}
+                          disabled={isDeletingAll}
+                          className="min-h-[34px] rounded-md border border-red-700 bg-red-700 px-3 py-1.5 text-sm font-bold text-white hover:bg-red-800 disabled:opacity-60"
+                        >
+                          {isDeletingAll ? "Deleting…" : "Confirm Delete All"}
+                        </button>
+                      </div>
+                    </div>
+                  )}
 
                   <div className="mb-3 max-h-[24rem] min-h-[12rem] space-y-2 overflow-y-auto pr-1">
                     {isLoadingDashboard ? (
@@ -458,6 +545,14 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess }) {
                           >
                             <div className="flex min-h-[3.65rem] items-center gap-3">
                               <input
+                                type="checkbox"
+                                checked={selectedDocIds.has(doc.id)}
+                                onClick={(event) => event.stopPropagation()}
+                                onChange={() => toggleDocSelection(doc.id)}
+                                className="h-4 w-4 shrink-0 accent-blue-700"
+                                aria-label={`Select ${doc.title || "Untitled Manuscript"} for batch action`}
+                              />
+                              <input
                                 type="radio"
                                 name="dashboard-manuscript"
                                 checked={isSelected}
@@ -472,7 +567,7 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess }) {
                                   if (selectedManuscriptId !== doc.id) toggleManuscriptSelection(doc.id);
                                 }}
                                 className="h-5 w-5 shrink-0 accent-blue-700"
-                                aria-label={`Select ${doc.title || "Untitled Manuscript"}`}
+                                aria-label={`Use ${doc.title || "Untitled Manuscript"} for evaluation`}
                               />
                               <div className="min-w-0 flex-1">
                                 <div className="truncate text-base font-bold leading-6 text-stone-950">{doc.title || "Untitled Manuscript"}</div>
