@@ -63,7 +63,13 @@ const ACT_ZONES: Pass3AActZone[] = [
 ];
 
 function classifyChunkToZone(chunkIndex: number, totalChunks: number): Pass3AActZone {
-  if (totalChunks <= 1) return "Opening";
+  if (totalChunks <= 1) {
+    // Short-form: single chunk covers the entire chapter. Classify as
+    // "Opening" so the zone aggregation places it there. The reducer
+    // prompt is adjusted for short-form to evaluate all criteria from
+    // the single zone rather than requiring multi-zone evidence.
+    return "Opening";
+  }
   const progress = chunkIndex / (totalChunks - 1); // 0.0 → 1.0
   if (progress < 0.10) return "Opening";
   if (progress < 0.30) return "Early-Middle";

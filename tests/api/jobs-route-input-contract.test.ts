@@ -270,7 +270,7 @@ describe("POST /api/jobs input contract", () => {
     expect(insertMock).not.toHaveBeenCalled();
   });
 
-  test("seeds explicit phase0 bypass marker for short-form fast-track jobs", async () => {
+  test("never fast-tracks Phase 0 — all submissions require full Phase 0 dwell", async () => {
     const updateMock = jest.fn(() => ({
       eq: jest.fn(async () => ({ error: null })),
     }));
@@ -301,7 +301,7 @@ describe("POST /api/jobs input contract", () => {
 
     mockCreateAdminClient.mockReturnValue(supabase as never);
     mockCreateJob.mockResolvedValue({
-      id: "job-fast-track",
+      id: "job-no-fast-track",
       manuscript_id: 1234,
       job_type: "evaluate_full",
       status: "queued",
@@ -322,15 +322,12 @@ describe("POST /api/jobs input contract", () => {
     const response = await POST(req);
     expect(response.status).toBe(201);
 
-    expect(updateMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        progress: expect.objectContaining({
-          phase0_fast_track: true,
-          phase0_fast_track_reason: "short_form_under_25000_words",
-          phase0_bypass_reason: "short_form_policy_fast_track",
-        }),
-      }),
-    );
+    // Phase 0 fast-track is never applied — all submissions run full Phase 0
+    if (updateMock.mock.calls.length > 0) {
+      const progressArg = updateMock.mock.calls[0]?.[0]?.progress;
+      expect(progressArg?.phase0_fast_track).toBeFalsy();
+      expect(progressArg?.phase0_bypass_reason).toBeFalsy();
+    }
   });
 
   test("returns 201 and logs a warning when worker kickoff fetch rejects", async () => {

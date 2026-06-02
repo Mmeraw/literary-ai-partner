@@ -490,10 +490,10 @@ export async function POST(req: Request) {
       job_type: validatedJobType,
     });
 
-    const shouldFastTrackPhase0 =
-      isEvaluationJobType(validatedJobType) &&
-      resolvedManuscriptWordCount !== null &&
-      resolvedManuscriptWordCount < SHORT_FORM_PHASE0_FAST_TRACK_WORDS;
+    // Phase 0 is mandatory for ALL submissions — no fast-track bypass.
+    // Every manuscript must complete the full Phase 0 dwell (≥12s) regardless
+    // of word count or evaluation mode.
+    const shouldFastTrackPhase0 = false;
 
     await seedJobIntakeProgress({
       job,

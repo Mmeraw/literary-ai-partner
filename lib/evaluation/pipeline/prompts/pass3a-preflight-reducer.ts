@@ -21,15 +21,18 @@ export const PASS3A_REDUCER_TEMPERATURE = 0.4;
 
 export const PASS3A_REDUCER_SYSTEM_PROMPT = `You are Pass 3A: the independent manuscript reader completing your holistic assessment.
 
-You have finished reading the entire novel in chunks. You now have 6 act-zone summaries of your observations. 
+You have finished reading the manuscript. You now have act-zone summaries of your observations.
 Synthesize these into a holistic evaluation of all 13 criteria.
 
 AUTHORITY RULES:
 - You score PROVISIONALLY. These are your independent reads before seeing Pass 1 and Pass 2.
 - Score 0-10 integer. Null is allowed ONLY if you have zero evidence for that criterion.
-- Confidence: "high" (≥3 zones with evidence), "moderate" (1-2 zones), "low" (<1 zone or thin evidence).
-- narrativeClosure (criterion 13): REQUIRES evidence from late/close act zones. If you only have opening/early evidence, score null.
-- Novel-wide structural claims: REQUIRE evidence from at least 2 distinct zones.
+- Confidence rules for multi-chunk (novel-length): "high" (≥3 zones with evidence), "moderate" (1-2 zones), "low" (<1 zone or thin evidence).
+- Confidence rules for short-form (chapter/excerpt, ≤2 chunks): A single zone with genuine evidence warrants "moderate" or "high" confidence. Do NOT penalize short-form manuscripts for having only one zone.
+- narrativeClosure: For novels, REQUIRES evidence from late/close act zones. For short-form chapters, evaluate the chapter's internal closure — does it land its local arc and promise?
+- Novel-wide structural claims: REQUIRE evidence from at least 2 distinct zones. Short-form chapters evaluated on internal structural integrity.
+
+CRITICAL: For short-form manuscripts, you MUST score all 13 criteria with findingStatus "scored" when evidence exists in the text. Do NOT default to "insufficient_preflight_evidence" — a chapter excerpt has the same evidence density per word as a novel.
 
 ARBITRATION QUESTIONS:
 - Flag anything you detected that contradicts stable narrative logic.
@@ -56,7 +59,15 @@ export function buildPass3AReducerUserPrompt(params: {
 }): string {
   const criteriaList = CRITERIA_KEYS.map((k, i) => `${i + 1}. ${k}`).join("\n");
 
-  const zoneSummaryBlock = params.zoneSummaries
+  const isShortForm = params.totalChunksExpected <= 2;
+
+  // For short-form, only include zones that have data — don't send 5 empty zones
+  // that confuse the reducer into thinking coverage is incomplete.
+  const activeZones = isShortForm
+    ? params.zoneSummaries.filter(z => z.chunkCount > 0)
+    : params.zoneSummaries;
+
+  const zoneSummaryBlock = activeZones
     .map(z => `=== Zone: ${z.zone.toUpperCase()} (${z.chunkCount} chunk(s), ~${z.wordCount} words) ===\n${z.summary}`)
     .join("\n\n");
 
@@ -64,11 +75,17 @@ export function buildPass3AReducerUserPrompt(params: {
     ? `WARNING: ${params.missingChunks.length} chunk(s) missing from read: [${params.missingChunks.join(", ")}]. Adjust confidence accordingly.`
     : `Full manuscript coverage: ${params.totalChunksReceived}/${params.totalChunksExpected} chunks received.`;
 
-  return `Novel: "${params.title}" (${params.workType})
-Coverage: ${params.totalChunksReceived} of ${params.totalChunksExpected} chunks read.
-${coverageNote}
+  const shortFormPreamble = isShortForm
+    ? `\n\nSHORT-FORM MODE: This is a chapter excerpt (~${activeZones.reduce((s, z) => s + z.wordCount, 0)} words), not a full novel. All content is in a single zone. Score all 13 criteria from the available evidence — do NOT mark criteria as "insufficient_preflight_evidence" just because there is only one zone. For narrativeClosure, evaluate the chapter's internal closure (does it land its local arc?) rather than requiring novel-wide resolution. Confidence should be "moderate" or "high" when there is genuine evidence, even from a single zone.`
+    : '';
 
-You have read the entire novel in act-zone chunks. Below are your aggregated observations by zone.
+  const scopeLabel = isShortForm ? 'Chapter' : 'Novel';
+
+  return `${scopeLabel}: "${params.title}" (${params.workType})
+Coverage: ${params.totalChunksReceived} of ${params.totalChunksExpected} chunks read.
+${coverageNote}${shortFormPreamble}
+
+You have read the ${isShortForm ? 'chapter' : 'entire novel'} in act-zone chunks. Below are your aggregated observations by zone.
 
 ${zoneSummaryBlock}
 

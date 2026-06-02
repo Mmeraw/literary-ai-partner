@@ -102,6 +102,40 @@ const ALIAS_GROUPS: string[][] = [
   ["Benjamin", "Ben"],
 ];
 
+// Narrator variants that should always merge into one canonical identity.
+// LLMs produce many forms for unnamed first-person narrators.
+const NARRATOR_VARIANTS = new Set([
+  "narrator",
+  "the narrator",
+  "i_narrator",
+  "i narrator",
+  "first-person narrator",
+  "first person narrator",
+  "unnamed narrator",
+  "the unnamed narrator",
+  "adult narrator",
+  "the adult narrator",
+]);
+
+// Non-character patterns: names that indicate craft concepts, abstract themes,
+// inanimate objects, or metadata that LLMs sometimes emit as character entries.
+const NON_CHARACTER_PATTERNS = [
+  /\bticking\s*clock\b/i,
+  /\btime\s*pressure\b/i,
+  /\breciprocity\b/i,
+  /\bancestral\s*memory\b/i,
+  /\bmissing[_ ]camper[_ ]truck\b/i,
+  /\bpredator[_ ]system\b/i,
+  /\benvironmental\b.*\b(reciprocity|force|system|pressure)\b/i,
+  /^(the\s+)?(concept|theme|motif|symbol|metaphor|idea|tension|conflict)\b/i,
+  /\black\s+of\b/i,
+  /\/(lack|absence)\b/i,  // "X / lack of Y" patterns
+];
+
+function isNonCharacterName(name: string): boolean {
+  return NON_CHARACTER_PATTERNS.some(p => p.test(name));
+}
+
 function buildAliasMap(allNames: string[]): Map<string, string> {
   const map = new Map<string, string>();
   for (const group of ALIAS_GROUPS) {
@@ -116,7 +150,7 @@ function buildAliasMap(allNames: string[]): Map<string, string> {
 }
 
 function normalize(name: string): string {
-  return name.trim().toLowerCase();
+  return name.trim().toLowerCase().replace(/_/g, ' ');
 }
 
 function resolveCanonical(
@@ -125,6 +159,8 @@ function resolveCanonical(
   identityGroupMap?: Map<string, string>,
 ): string {
   const normalized = normalize(name);
+  // Merge all narrator variants into one canonical identity
+  if (NARRATOR_VARIANTS.has(normalized)) return "narrator";
   const grouped = identityGroupMap?.get(normalized);
   const resolved = grouped ?? aliasMap.get(normalized) ?? name.trim();
   return aliasMap.get(normalize(resolved)) ?? resolved.trim();
@@ -383,22 +419,28 @@ function buildSymbolPayoffEntries(rawSymbols: RawSymbol[], totalChunks: number):
 
 // ── Hard-fail gate ────────────────────────────────────────────────────────
 
-function computeHardFailTriggers(entries: CharacterArcLedgerEntry[]): string[] {
+function computeHardFailTriggers(
+  entries: CharacterArcLedgerEntry[],
+  totalChunksInManuscript: number,
+): string[] {
   const triggers: string[] = [];
   const protagonists = entries.filter((e) => e.role === "protagonist");
   const coProtagonists = entries.filter((e) => e.role === "co_protagonist");
+  const isShortForm = totalChunksInManuscript <= 2;
 
   if (protagonists.length === 0) {
     triggers.push("HARD_FAIL: No protagonist detected in character ledger");
   }
-  if (coProtagonists.length === 0 && entries.length >= 3) {
-    // Only flag if the novel has enough characters to warrant one
+  if (!isShortForm && coProtagonists.length === 0 && entries.length >= 3) {
+    // Only flag for multi-chunk (novel-length) manuscripts
     triggers.push("WARN: No co-protagonist detected — verify if novel has one");
   }
   for (const entry of entries.filter(
     (e) => e.narrative_weight_band === "primary" || e.narrative_weight_band === "major",
   )) {
-    if (entry.ending_status === "accidentally_abandoned" || entry.ending_status === "missing_from_ending") {
+    // Short-form chapters intentionally leave arcs open — don't HARD_FAIL for
+    // ending accountability when evaluating an excerpt rather than a full novel.
+    if (!isShortForm && (entry.ending_status === "accidentally_abandoned" || entry.ending_status === "missing_from_ending")) {
       triggers.push(`HARD_FAIL: Major character "${entry.canonical_name}" has no ending accountability`);
     }
     if (entry.warnings.some((w) => w.type === "pronoun_inconsistency")) {
@@ -508,6 +550,7 @@ export function reduceCharacterEvidence(params: {
   for (const [canonical, appearances] of grouped) {
     if (!canonical || canonical.length < 2) continue;
     if (appearances.length === 0) continue; // skip alias stubs with no actual chunk entries
+    if (isNonCharacterName(canonical)) continue; // reject craft concepts, objects, themes
 
     const sorted = [...appearances].sort((a, b) => a.chunk_index - b.chunk_index);
     const entries = sorted.map((s) => s.entry);
@@ -858,7 +901,7 @@ export function reduceCharacterEvidence(params: {
     }
   }
 
-  const hardFailTriggers = computeHardFailTriggers(sorted);
+  const hardFailTriggers = computeHardFailTriggers(sorted, totalChunksInManuscript);
 
   return {
     schema_version: "pass1a_character_ledger_v1",
