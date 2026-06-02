@@ -127,7 +127,14 @@ export type ArtifactType =
    * Evaluation-only SEED E2E proof artifact — validates a single SEED-enabled run
    * for required artifacts, Story Ledger quality, evidence coverage, and authority.
    */
-  | "evaluation_seed_e2e_proof_v1";
+  | "evaluation_seed_e2e_proof_v1"
+  /**
+   * Polish Pass — post-eval surface integrity scan. Genre-aware, voice-preserving
+   * surface edits (grammar, passive voice, adverbs, punctuation, repetition, spelling).
+   * Produces RevisionOpportunity[] tagged provenance='polish_pass'.
+   * User-visible: drives the Surface Polish section of the Revise workbench.
+   */
+  | "polish_pass_v1";
 
 /**
  * Compute SHA256 hex digest of input string
