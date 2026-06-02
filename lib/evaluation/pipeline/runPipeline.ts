@@ -231,6 +231,12 @@ export interface RunPipelineOptions {
    * kept in the contract so processor callsites remain type-safe.
    */
   _llrRecoveryMode?: 'none' | 'safe_rewrite';
+  /**
+   * Full-context story ledger context block (Phase 0.5a ground truth).
+   * When provided, injected into Pass 2 and Pass 3 system prompts as
+   * MANDATORY hard fact constraints that downstream recommendations must respect.
+   */
+  _storyLedgerContextBlock?: string;
 }
 
 const DEFAULT_MAX_MANUSCRIPT_CHARS = 3_000_000;
@@ -1111,7 +1117,8 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
       // phase_2: 3 concurrent chunks (P1+P2 parallel, peak=6 total)
       _chunkConcurrency: opts._prebuiltCharacterLedger ? 3 : undefined,
       // Inject ledger grounding block from phase_1a when available
-      characterLedgerBlock: ledgerBlockForP1P2 || undefined,
+      // If full-context story ledger is present, append it for comprehensive grounding
+      characterLedgerBlock: [ledgerBlockForP1P2, opts._storyLedgerContextBlock].filter(Boolean).join('\n\n') || undefined,
       // Inject author corrections block from accepted_story_ledger_v1.governance_rail
       authorCorrectionsBlock: opts._authorCorrectionsBlock ?? undefined,
       _onCompletion: (capture) => {
@@ -1598,6 +1605,8 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
         characterLedgerV2: characterLedgerV2,
         // Pass 3A preflight draft compact summary — undefined = PREFLIGHT UNAVAILABLE fallback
         compactPreflightSummary,
+        // Full-context story ledger ground truth (Phase 0.5a)
+        storyLedgerContextBlock: opts._storyLedgerContextBlock,
         manuscriptText: opts.manuscriptText,
         manuscriptChunks: opts.manuscriptChunks,
         title: opts.title,

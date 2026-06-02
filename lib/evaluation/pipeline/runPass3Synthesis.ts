@@ -399,6 +399,13 @@ export interface RunPass3Options {
    * When absent, Pass 3B receives a PREFLIGHT UNAVAILABLE notice.
    */
   compactPreflightSummary?: string;
+  /**
+   * Full-context story ledger ground truth block (Phase 0.5a).
+   * When provided, injected into the Pass 3 system prompt as MANDATORY
+   * hard fact constraints. Any synthesis recommendation that contradicts
+   * these facts is INVALID and must be suppressed.
+   */
+  storyLedgerContextBlock?: string;
 }
 
 const LEDGER_UNAVAILABLE_WARNING =
@@ -542,11 +549,16 @@ export async function runPass3Synthesis(opts: RunPass3Options): Promise<Synthesi
   // on detected truncation, retry ONCE with +4000 tokens.
   const retryMaxTokens = originalMaxTokens + 4000;
 
+  // Inject full-context story ledger ground truth into system prompt when available
+  const effectiveSystemPrompt = opts.storyLedgerContextBlock
+    ? `${PASS3_SYSTEM_PROMPT}\n\n${opts.storyLedgerContextBlock}\n\nAny synthesis recommendation that contradicts the STORY LEDGER GROUND TRUTH above is INVALID. Do not recommend scenes for dead characters, do not claim stationary objects move, do not misattribute cosmology as geography.`
+    : PASS3_SYSTEM_PROMPT;
+
   const invokePass3Completion = (maxTokensForCall: number) =>
     createCompletion({
       model: selectedModel,
       messages: [
-        { role: "system", content: PASS3_SYSTEM_PROMPT },
+        { role: "system", content: effectiveSystemPrompt },
         { role: "user", content: userPrompt },
       ],
       ...buildOpenAITemperatureParam(selectedModel, PASS3_TEMPERATURE),

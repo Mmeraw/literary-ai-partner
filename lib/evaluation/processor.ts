@@ -148,6 +148,14 @@ import {
   buildSemanticSeedSourceHash,
   generateSemanticSeedArtifacts,
 } from '@/lib/evaluation/seed/semanticSeedGenerator';
+import {
+  generateFullContextStoryLedger,
+  buildLedgerSeedContextBlock,
+  type FullContextStoryLedger,
+} from '@/lib/evaluation/seed/fullContextStoryLedger';
+import {
+  generateEditorialDreamSeed,
+} from '@/lib/evaluation/seed/editorialDreamSeedGenerator';
 import type {
   Pass3AStatus,
   PhaseV2ArtifactSet,
@@ -5192,6 +5200,27 @@ export async function processEvaluationJob(
         const llrRecoveryMode =
           progressState.llr_retry_mode === 'safe_rewrite' ? 'safe_rewrite' : 'none';
 
+        // Load full-context story ledger for Phase 2/3 grounding (if generated in Phase 0.5a)
+        let phase23LedgerContextBlock: string | undefined;
+        if (process.env.EVAL_FULL_CONTEXT_LEDGER === 'true') {
+          try {
+            const { data: ledgerRows } = await supabase
+              .from('evaluation_artifacts')
+              .select('content')
+              .eq('job_id', String(job.id))
+              .eq('artifact_type', 'full_context_story_ledger_v1')
+              .limit(1);
+            if (ledgerRows && ledgerRows.length > 0) {
+              const ledger = (ledgerRows[0] as { content: FullContextStoryLedger }).content;
+              phase23LedgerContextBlock = buildLedgerSeedContextBlock(ledger);
+            }
+          } catch (ledgerLoadErr) {
+            console.warn(`[phase_2/3] ${jobId}: failed to load full-context ledger (non-fatal)`, {
+              error: ledgerLoadErr instanceof Error ? ledgerLoadErr.message : String(ledgerLoadErr),
+            });
+          }
+        }
+
         let pipelineResultP3;
         try {
           pipelineResultP3 = await runPipeline({
@@ -5212,6 +5241,7 @@ export async function processEvaluationJob(
             ...(prebuiltPreflightDraftP3 ? { _prebuiltPreflightDraft: prebuiltPreflightDraftP3 } : {}),
             ...(authorCorrectionsBlockP3 ? { _authorCorrectionsBlock: authorCorrectionsBlockP3 } : {}),
             _llrRecoveryMode: llrRecoveryMode,
+            _storyLedgerContextBlock: phase23LedgerContextBlock,
             onHeartbeat: async (stage) => {
               await assertJobWithinSla({
                 supabase,
@@ -5595,6 +5625,7 @@ export async function processEvaluationJob(
       // present. If missing, generate deterministically and persist before
       // dispatching Pass 1A. Any seed persistence failure is fail-closed.
       let phase1aSeedContextBlock = '';
+      let phase1aLedgerContextBlock = '';
       let seedEntityNamesForConsistency: string[] = [];
       try {
         const seedStartedAt = new Date().toISOString();
@@ -5673,6 +5704,137 @@ export async function processEvaluationJob(
           });
         } else {
           console.log(`[phase_0.5] ${jobId}: seed artifacts already present (skip)`);
+        }
+
+        // ── Phase 0.5A Enhanced: Full-Context Story Ledger (behind feature flag) ──
+        // When EVAL_FULL_CONTEXT_LEDGER=true, generate a comprehensive 9-layer
+        // story ledger from the full manuscript text in a single LLM call.
+        // This provides hard fact constraints that prevent downstream comprehension errors.
+        if (process.env.EVAL_FULL_CONTEXT_LEDGER === 'true') {
+          const manuscriptText = manuscriptWithContent.content || '';
+          const wordCount = manuscriptText.split(/\s+/).length;
+
+          // Check if we already have a full_context_story_ledger_v1 artifact
+          const { data: existingLedgerRows } = await supabase
+            .from('evaluation_artifacts')
+            .select('content')
+            .eq('job_id', String(job.id))
+            .eq('artifact_type', 'full_context_story_ledger_v1')
+            .limit(1);
+
+          if (!existingLedgerRows || existingLedgerRows.length === 0) {
+            console.log(`[phase_0.5a_enhanced] ${jobId}: generating full-context story ledger (${wordCount} words)`);
+            const ledgerStartMs = Date.now();
+
+            try {
+              const ledgerResult = await generateFullContextStoryLedger({
+                jobId: String(job.id),
+                manuscriptId: Number(job.manuscript_id),
+                manuscriptText,
+                title: manuscriptWithContent.title,
+                workType: manuscriptWithContent.work_type || 'novel',
+                wordCount,
+                openaiApiKey,
+                model: openAiModel,
+                timeoutMs: Math.max(evalOpenAiTimeoutMs, 180_000), // 3 min for full-context
+              });
+
+              // Persist the ledger artifact
+              await supabase
+                .from('evaluation_artifacts')
+                .insert({
+                  job_id: String(job.id),
+                  manuscript_id: Number(job.manuscript_id),
+                  artifact_type: 'full_context_story_ledger_v1',
+                  content: ledgerResult.ledger,
+                  created_at: new Date().toISOString(),
+                });
+
+              // Build the ledger context block for Phase 1A
+              phase1aLedgerContextBlock = buildLedgerSeedContextBlock(ledgerResult.ledger);
+
+              const ledgerDurationMs = Date.now() - ledgerStartMs;
+              console.log(`[phase_0.5a_enhanced] ${jobId}: full-context ledger generated (${ledgerDurationMs}ms, ${ledgerResult.ledger.canonical_hard_facts.length} hard facts, ${ledgerResult.ledger.failure_conditions.length} failure conditions)`);
+
+              // Log to phase timeline
+              const ledgerLogEntries = [
+                { at: new Date(ledgerStartMs).toISOString(), event: 'phase_0_5a_enhanced_started', stage: 'phase_0_5a_enhanced', label: 'Generating full-context story ledger' },
+                { at: new Date().toISOString(), event: 'phase_0_5a_enhanced_completed', stage: 'phase_0_5a_enhanced', duration_ms: ledgerDurationMs, artifact: 'full_context_story_ledger_v1' },
+              ];
+              const existingLogForLedger = (progressState.phase_log as unknown[]) ?? [];
+              progressState = {
+                ...progressState,
+                phase_log: [...existingLogForLedger, ...ledgerLogEntries],
+              };
+              await supabase
+                .from('evaluation_jobs')
+                .update({ progress: progressState, worker_pulse_at: new Date().toISOString() })
+                .eq('id', jobId)
+                .eq('status', JOB_STATUS.RUNNING);
+            } catch (ledgerErr) {
+              // Non-fatal: if full-context ledger fails, continue with existing seeds
+              console.warn(`[phase_0.5a_enhanced] ${jobId}: full-context ledger generation failed (non-fatal, continuing with claim-based seeds)`, {
+                error: ledgerErr instanceof Error ? ledgerErr.message : String(ledgerErr),
+              });
+            }
+          } else {
+            // Ledger already exists — load it and build the context block
+            const existingLedger = (existingLedgerRows[0] as { content: FullContextStoryLedger }).content;
+            phase1aLedgerContextBlock = buildLedgerSeedContextBlock(existingLedger);
+            console.log(`[phase_0.5a_enhanced] ${jobId}: loaded existing full-context ledger`);
+          }
+
+          // ── Phase 0.5B: Full-Context DREAM Seed (editorial calibration) ──
+          // Generates an editorial diagnostic that serves as scoring calibration
+          // reference for Phase 3B longform output.
+          const manuscriptTextForDream = manuscriptWithContent.content || '';
+          const wordCountForDream = manuscriptTextForDream.split(/\s+/).length;
+
+          const { data: existingDreamRows } = await supabase
+            .from('evaluation_artifacts')
+            .select('id')
+            .eq('job_id', String(job.id))
+            .eq('artifact_type', 'editorial_dream_seed_v1')
+            .limit(1);
+
+          if (!existingDreamRows || existingDreamRows.length === 0) {
+            console.log(`[phase_0.5b] ${jobId}: generating editorial DREAM seed (${wordCountForDream} words)`);
+            const dreamStartMs = Date.now();
+
+            try {
+              const dreamResult = await generateEditorialDreamSeed({
+                jobId: String(job.id),
+                manuscriptId: Number(job.manuscript_id),
+                manuscriptText: manuscriptTextForDream,
+                title: manuscriptWithContent.title,
+                workType: manuscriptWithContent.work_type || 'novel',
+                wordCount: wordCountForDream,
+                openaiApiKey,
+                model: openAiModel,
+                timeoutMs: Math.max(evalOpenAiTimeoutMs, 180_000),
+              });
+
+              await supabase
+                .from('evaluation_artifacts')
+                .insert({
+                  job_id: String(job.id),
+                  manuscript_id: Number(job.manuscript_id),
+                  artifact_type: 'editorial_dream_seed_v1',
+                  content: dreamResult.dreamSeed,
+                  created_at: new Date().toISOString(),
+                });
+
+              const dreamDurationMs = Date.now() - dreamStartMs;
+              console.log(`[phase_0.5b] ${jobId}: editorial DREAM seed generated (${dreamDurationMs}ms, score=${dreamResult.dreamSeed.overall_score}, grade=${dreamResult.dreamSeed.overall_grade})`);
+            } catch (dreamErr) {
+              // Non-fatal: DREAM seed is calibration only, pipeline continues without it
+              console.warn(`[phase_0.5b] ${jobId}: editorial DREAM seed generation failed (non-fatal)`, {
+                error: dreamErr instanceof Error ? dreamErr.message : String(dreamErr),
+              });
+            }
+          } else {
+            console.log(`[phase_0.5b] ${jobId}: editorial DREAM seed already present (skip)`);
+          }
         }
       } catch (seedErr) {
         const seedErrMsg = seedErr instanceof Error ? seedErr.message : String(seedErr);
@@ -6062,6 +6224,7 @@ export async function processEvaluationJob(
               workType: manuscriptWithContent.work_type || 'novel',
               title: manuscriptWithContent.title,
               seedContextBlock: phase1aSeedContextBlock,
+              ledgerContextBlock: phase1aLedgerContextBlock || undefined,
               openaiApiKey,
               jobId: String(job.id),
               _chunkCache: pass1aCacheMap,
