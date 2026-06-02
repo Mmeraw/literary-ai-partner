@@ -37,7 +37,7 @@ describe('Phase Architecture v2 — Phase 2 guard helper', () => {
     expect(result.ok).toBe(false);
     expect(result.can_start_phase2).toBe(false);
     expect(result.progress_patch.phase2_preflight_gate).toBe('blocked');
-    expect(result.progress_patch.phase2_preflight_gate_code).toBe('PHASE2_ACCEPTED_STORY_LEDGER_MISSING');
+    expect(result.progress_patch.phase2_preflight_gate_code).toBe('PHASE2_STORY_AUTHORITY_MISSING');
   });
 
   it('blocks Phase 2 for missing/running/half-written/failed Pass 3A', () => {

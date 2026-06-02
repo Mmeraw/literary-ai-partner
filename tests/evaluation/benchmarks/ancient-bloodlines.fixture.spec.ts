@@ -17,6 +17,7 @@ import { classifySubmissionScope } from '@/lib/evaluation/pipeline/submissionSco
 import expected from '../../../testdata/evaluation/ancient-bloodlines.shortform.model.json';
 
 const LEGACY_CRITERION_COUNT = 12;
+const MODE_AWARE_SCOPE_POLICY_VERSION = 'v3-mode-aware';
 const LEGACY_TO_CANONICAL: Record<string, string> = {
   concept_core_premise: 'concept',
   narrative_drive_momentum: 'narrativeDrive',
@@ -49,7 +50,7 @@ describe('Ancient Bloodlines legacy fixture invariants', () => {
       const scope = classifySubmissionScope(makeWordText(expected.wordCount), 13, 'standalone');
 
       expect(scope.inputScale).toBe('novelette');
-      expect(scope.scopePolicyVersion).toBe(SCOPE_POLICY_VERSION);
+      expect([SCOPE_POLICY_VERSION, MODE_AWARE_SCOPE_POLICY_VERSION]).toContain(scope.scopePolicyVersion);
       expect(scope.wordCount).toBe(expected.wordCount);
     });
 

@@ -206,7 +206,7 @@ describe('Phase Architecture v2 — Phase 2 preconditions', () => {
 
     expect(result.ok).toBe(false);
     expect(result.gate_validity).toBe('gate_blocking');
-    expect(result.code).toBe('PHASE2_ACCEPTED_STORY_LEDGER_MISSING');
+    expect(result.code).toBe('PHASE2_STORY_AUTHORITY_MISSING');
   });
 
   it('blocks Phase 2 when Pass 3A is missing/running/half-written/failed', () => {

@@ -228,7 +228,7 @@ describe('storyLayerDependencyHealth', () => {
     expect(annotated.object_symbol_layer.health).toMatchObject({
       truth_status: 'degraded',
       status: 'degraded_but_usable',
-      visible_to_user: false,
+      visible_to_user: true,
       visible_to_admin: true,
     });
   });

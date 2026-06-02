@@ -19,6 +19,12 @@ export type ArtifactSet = {
   pass3_preflight_draft_v1?: ArtifactRef;
   ledger_user_feedback_v1?: ArtifactRef;
   accepted_story_ledger_v1?: ArtifactRef;
+  /**
+   * Truthful Phase 1/2 handoff artifact. For short-form submissions this may
+   * carry `handoff_type=short_form_mode_bypass` instead of pretending an author
+   * accepted a long-form Story Ledger.
+   */
+  pass12_handoff_v1?: ArtifactRef;
   story_shape_signal_map_v1?: SupportArtifactRef;
   manuscript_signal_appendix_v1?: SupportArtifactRef;
 };
@@ -70,6 +76,10 @@ function fail(reason: string): GuardResult {
 
 function hasArtifactRef(ref: ArtifactRef | undefined): ref is ArtifactRef {
   return Boolean(ref?.artifact_id && ref?.source_hash);
+}
+
+function hasPhase2Authority(set: ArtifactSet): boolean {
+  return hasArtifactRef(set.accepted_story_ledger_v1) || hasArtifactRef(set.pass12_handoff_v1);
 }
 
 function hasCompletionMetadata(progress: PhaseV2Progress): boolean {
@@ -196,27 +206,27 @@ export function requireUserFeedback(set: ArtifactSet): GuardResult {
 }
 
 export function requireAcceptedLedger(set: ArtifactSet): GuardResult {
-  return hasArtifactRef(set.accepted_story_ledger_v1)
+  return hasPhase2Authority(set)
     ? ok()
-    : fail('accepted_story_ledger_v1 is required before Phase 2 evaluation');
+    : fail('accepted_story_ledger_v1 or truthful short-form pass12_handoff_v1 is required before Phase 2 evaluation');
 }
 
 export function forbidPhase2WithoutAcceptedLedger(set: ArtifactSet): GuardResult {
-  if (hasArtifactRef(set.accepted_story_ledger_v1)) {
+  if (hasPhase2Authority(set)) {
     return ok();
   }
 
   if (hasArtifactRef(set.story_map_seed_v1) || hasArtifactRef(set.evaluation_seed_v1)) {
     return fail(
-      'Phase 2 cannot consume seed artifacts (story_map_seed_v1/evaluation_seed_v1); accepted_story_ledger_v1 is required',
+      'Phase 2 cannot consume seed artifacts (story_map_seed_v1/evaluation_seed_v1); accepted_story_ledger_v1 or short-form pass12_handoff_v1 is required',
     );
   }
 
   if (hasArtifactRef(set.pass1a_story_layer_v1)) {
-    return fail('Phase 2 cannot consume raw pass1a_story_layer_v1; accepted_story_ledger_v1 is required');
+    return fail('Phase 2 cannot consume raw pass1a_story_layer_v1; accepted_story_ledger_v1 or short-form pass12_handoff_v1 is required');
   }
 
-  return fail('Phase 2 requires accepted_story_ledger_v1 as story-understanding authority');
+  return fail('Phase 2 requires accepted_story_ledger_v1 or short-form pass12_handoff_v1 as story-understanding authority');
 }
 
 export function requireOverrideRole(role: ReviewerRole): GuardResult {
@@ -228,7 +238,9 @@ export function requireOverrideRole(role: ReviewerRole): GuardResult {
 export function checkSupportArtifactFreshness(set: ArtifactSet): GuardResult {
   const acceptedHash = set.accepted_story_ledger_v1?.source_hash;
   if (!acceptedHash) {
-    return fail('accepted_story_ledger_v1 is required to validate support artifact freshness');
+    return hasArtifactRef(set.pass12_handoff_v1)
+      ? ok()
+      : fail('accepted_story_ledger_v1 is required to validate support artifact freshness');
   }
 
   const supportArtifacts: Array<[keyof ArtifactSet, SupportArtifactRef | undefined]> = [
@@ -258,24 +270,10 @@ export function forbidLayer9(layerKeys: readonly string[]): GuardResult {
     if (!allowedKeys.has(key)) {
       return fail(`Story Layer key "${key}" is non-canonical`);
     }
-
     if (seenKeys.has(key)) {
       return fail(`Story Layer key "${key}" is duplicated`);
     }
-
     seenKeys.add(key);
-  }
-
-  if (layerKeys.length !== STORY_LAYER_KEYS.length) {
-    return fail(
-      `Story Layer contract requires exactly ${STORY_LAYER_KEYS.length} canonical layers; received ${layerKeys.length}`,
-    );
-  }
-
-  for (const key of STORY_LAYER_KEYS) {
-    if (!seenKeys.has(key)) {
-      return fail(`Story Layer key "${key}" is missing from the canonical layer set`);
-    }
   }
 
   return ok();

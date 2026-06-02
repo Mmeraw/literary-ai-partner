@@ -389,7 +389,7 @@ describe('hard-fail triage gate — pipeline unblock regression tests', () => {
     const report = buildLedgerQualityReport(ledger, v2, makeCleanLayers(['Edna Pontellier']));
 
     expect(report.hard_fail_present).toBe(true);
-    expect(report.gate_ready_status).toBe('blocked');
+    expect(report.gate_ready_status).toBe('blocked_content_hard_fail');
     expect(report.recommended_review_action).toBe('operator_review_required');
     expect(report.blocking_reasons.some((r) => /Edna Pontellier/i.test(r))).toBe(true);
   });

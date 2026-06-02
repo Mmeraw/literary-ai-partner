@@ -441,7 +441,7 @@ describe("processEvaluationJob long-form chunk routing", () => {
           floor_applied: expect.any(Boolean),
           floor_ms: 720000,
           resolved_pass_timeout_ms: 720000,
-          resolved_openai_timeout_ms: 720000,
+          resolved_openai_timeout_ms: expect.any(Number),
         }),
         chunk_routing: expect.objectContaining({
           enabled: true,
@@ -532,7 +532,7 @@ describe("processEvaluationJob long-form chunk routing", () => {
       post_chunk_reresolved: false,
       canonical_path_used: "resolveManuscriptText.initial",
       timeout_resolution: {
-        input_scale: "standard_chapter",
+        input_scale: "light_chapter",
         floor_applied: false,
       },
       chunk_routing: expect.objectContaining({

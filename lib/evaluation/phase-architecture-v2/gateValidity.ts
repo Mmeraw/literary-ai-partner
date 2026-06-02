@@ -51,6 +51,12 @@ export type PhaseV2ArtifactSet = {
   ledger_quality_report_v1?: ArtifactRef | null;
   pass3_preflight_draft_v1?: ArtifactRef | null;
   accepted_story_ledger_v1?: ArtifactRef | null;
+  /**
+   * Truthful short-form Phase 1/2 handoff. This is valid Phase 2 authority for
+   * short-form jobs (<25k) and must not be confused with author acceptance of a
+   * long-form Story Ledger.
+   */
+  pass12_handoff_v1?: ArtifactRef | null;
   ledger_quality_gate_ready_status?:
     | 'reviewable'
     | 'blocked'
@@ -80,6 +86,10 @@ function isNonEmptyString(value: unknown): value is string {
 
 function hasArtifactRef(ref: ArtifactRef | null | undefined): ref is Required<ArtifactRef> {
   return isNonEmptyString(ref?.artifact_id) && isNonEmptyString(ref?.source_hash);
+}
+
+function hasPhase2Authority(artifacts: PhaseV2ArtifactSet): boolean {
+  return hasArtifactRef(artifacts.accepted_story_ledger_v1) || hasArtifactRef(artifacts.pass12_handoff_v1);
 }
 
 function hasStructuredDegradationProof(progress: PhaseV2Progress): boolean {
@@ -283,12 +293,12 @@ export function assertPhase2Preconditions(
   progress: PhaseV2Progress = {},
   artifacts: PhaseV2ArtifactSet = {},
 ): GateDecision {
-  if (!hasArtifactRef(artifacts.accepted_story_ledger_v1)) {
+  if (!hasPhase2Authority(artifacts)) {
     return {
       ok: false,
       gate_validity: 'gate_blocking',
-      reason: 'accepted_story_ledger_v1 is required before Phase 2.',
-      code: 'PHASE2_ACCEPTED_STORY_LEDGER_MISSING',
+      reason: 'accepted_story_ledger_v1 or truthful short-form pass12_handoff_v1 is required before Phase 2.',
+      code: 'PHASE2_STORY_AUTHORITY_MISSING',
     };
   }
 

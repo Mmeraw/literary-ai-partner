@@ -55,6 +55,16 @@ interface TriageContext {
   preflightAuthority?: 'full' | 'reduced' | 'advisory' | 'unavailable' | null;
 }
 
+export type LedgerQualityModeContext = {
+  allowSparseShortForm?: boolean;
+  wordCount?: number;
+  evaluationMode?: string;
+};
+
+const SHORT_FORM_SPARSE_HARD_FAIL_KEYS = new Set([
+  'character_ledger_empty',
+]);
+
 /**
  * Detect entity-typing contamination: pronoun/descriptor fragments that the
  * LLM mistakenly treated as character identities.
@@ -125,13 +135,14 @@ function triageHardFailTrigger(
   // ── Default: preserve as hard-fail ────────────────────────────────────
   return { severity: 'hard_fail', message: trimmed };
 }
-
 function runQualityChecks(
   ledger: Pass1aCharacterLedger,
   ledgerV2: CharacterLedgerV2,
   technicalSignals?: LedgerQualityTechnicalSignals,
+  modeContext?: LedgerQualityModeContext,
 ): QualityCheckResult[] {
   const results: QualityCheckResult[] = [];
+  const allowSparseShortForm = modeContext?.allowSparseShortForm === true;
 
   const v1CharacterCount = ledger.entries.length;
   const v2IdentityCount = ledgerV2.identityLedger.length;
@@ -171,8 +182,10 @@ function runQualityChecks(
   if (v1CharacterCount === 0) {
     results.push({
       key: 'character_ledger_empty',
-      severity: 'hard_fail',
-      message: 'HARD_FAIL: pass1a_character_ledger_v1 has zero verified characters; Story Layer must be blocked fail-closed.',
+      severity: allowSparseShortForm ? 'warning' : 'hard_fail',
+      message: allowSparseShortForm
+        ? 'SPARSE_SHORT_FORM: pass1a_character_ledger_v1 has zero verified characters because the submitted text does not provide enough character evidence. Treat as insufficient evidence, not pipeline failure.'
+        : 'HARD_FAIL: pass1a_character_ledger_v1 has zero verified characters; Story Layer must be blocked fail-closed.',
       layer: 'source_integrity_layer',
       evidenceReference: 'pass1a_character_ledger_v1.entries',
     });
@@ -211,7 +224,9 @@ function runQualityChecks(
     results.push({
       key: 'no_pov_detected',
       severity: 'warning',
-      message: 'No POV characters detected. Manuscript may require a second sweep or the narrator is unnamed.',
+      message: allowSparseShortForm
+        ? 'No POV characters detected. For sparse short-form submissions, this is an insufficient-evidence condition rather than a ledger failure.'
+        : 'No POV characters detected. Manuscript may require a second sweep or the narrator is unnamed.',
       layer: 'pov_structure_layer',
       evidenceReference: 'pass1a_character_ledger_v1.coverage_summary.protagonists',
     });
@@ -240,7 +255,9 @@ function runQualityChecks(
     results.push({
       key: 'no_pressure_system_detected',
       severity: 'warning',
-      message: 'No narrative pressure systems detected. Pressure / stakes / consequence mapping may be incomplete.',
+      message: allowSparseShortForm
+        ? 'No narrative pressure systems detected. For sparse short-form submissions, mark pressure/antagonist evidence as insufficient or N/A.'
+        : 'No narrative pressure systems detected. Pressure / stakes / consequence mapping may be incomplete.',
       layer: 'threat_antagonist_ending_layer',
     });
   }
@@ -250,7 +267,9 @@ function runQualityChecks(
     results.push({
       key: 'ending_accountability',
       severity: 'warning',
-      message: warn,
+      message: allowSparseShortForm
+        ? `Sparse short-form ending evidence unavailable: ${warn}`
+        : warn,
       layer: 'threat_antagonist_ending_layer',
       evidenceReference: 'pass1a_character_ledger_v1.coverage_summary.ending_accountability_warnings',
     });
@@ -315,13 +334,16 @@ export function buildLedgerQualityReport(
   ledgerV2: CharacterLedgerV2,
   layers?: Partial<Record<StoryLayerCoreLayerKey, Record<string, unknown>>> | null,
   technicalSignals?: LedgerQualityTechnicalSignals,
+  modeContext?: LedgerQualityModeContext,
 ): LedgerQualityReportPayload {
+  const allowSparseShortForm = modeContext?.allowSparseShortForm === true;
   const dependencyAssessment = assessStoryLayerIdentityDependencies({
     ledger,
     ledgerV2,
     layers,
+    allowSparseMissingIdentity: allowSparseShortForm,
   });
-  const checks = [...runQualityChecks(ledger, ledgerV2, technicalSignals), ...dependencyAssessment.qualityChecks];
+  const checks = [...runQualityChecks(ledger, ledgerV2, technicalSignals, modeContext), ...dependencyAssessment.qualityChecks];
 
   const hardFails = checks.filter((c) => c.severity === 'hard_fail');
   const warnings = checks.filter((c) => c.severity === 'warning');
@@ -376,7 +398,7 @@ export function buildLedgerQualityReport(
   // Gate-ready status
   let gate_ready_status: GateReadyStatus;
   if (hardFailPresent) {
-    gate_ready_status = 'blocked';
+    gate_ready_status = 'blocked_content_hard_fail';
   } else if (warnings.length > 3) {
     gate_ready_status = 'repair_required';
   } else {
@@ -387,6 +409,8 @@ export function buildLedgerQualityReport(
   let recommended_review_action: RecommendedReviewAction;
   if (hardFailPresent) {
     recommended_review_action = 'operator_review_required';
+  } else if (allowSparseShortForm) {
+    recommended_review_action = 'repair_story_layer';
   } else if (gate_ready_status === 'repair_required') {
     recommended_review_action = 'repair_story_layer';
   } else {
@@ -404,6 +428,13 @@ export function buildLedgerQualityReport(
     grouped_warning_summary[layerKey].push(check.message);
   }
 
+  if (allowSparseShortForm) {
+    grouped_warning_summary.general = [
+      ...(grouped_warning_summary.general ?? []),
+      'Sparse short-form ledger diagnostics are advisory only. Missing long-form structures should render as insufficient evidence / N/A, not as Review Gate failure.',
+    ];
+  }
+
   // Evidence location references for all checks with references
   const evidence_location_references: LedgerQualityReportPayload['evidence_location_references'] =
     checks
@@ -413,12 +444,14 @@ export function buildLedgerQualityReport(
         reference: c.evidenceReference!,
       }));
 
-  // Blocking reasons (hard fails + critical warnings)
+  // Blocking reasons (hard fails only; short-form warnings must not become trap-door blockers)
   const blocking_reasons: string[] = [
     ...hardFails.map((c) => c.message),
-    ...warnings
-      .filter((c) => c.key === 'no_pov_detected')
-      .map((c) => c.message),
+    ...(!allowSparseShortForm
+      ? warnings
+        .filter((c) => c.key === 'no_pov_detected')
+        .map((c) => c.message)
+      : []),
   ];
 
   return {

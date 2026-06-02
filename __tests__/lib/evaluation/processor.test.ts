@@ -446,6 +446,23 @@ describe("Review Gate wiring helpers", () => {
           preflight_authority: 'unavailable',
         },
       },
+      {
+        artifact_type: "pass12_handoff_v1",
+        id: "handoff-artifact-id",
+        source_hash: "handoff-source-hash",
+        content: {
+          artifact_type: "pass12_handoff_v1",
+          handoff_type: "short_form_mode_bypass",
+        },
+      },
+      {
+        artifact_type: "accepted_story_ledger_v1",
+        id: "accepted-ledger-artifact-id",
+        source_hash: "accepted-ledger-source-hash",
+        content: {
+          artifact_type: "accepted_story_ledger_v1",
+        },
+      },
     ]);
 
     expect(refs.pass1a_story_layer_v1).toEqual({
@@ -459,6 +476,14 @@ describe("Review Gate wiring helpers", () => {
     expect(refs.pass3_preflight_draft_v1).toEqual({
       artifact_id: "envelope-preflight",
       source_hash: "sha256:preflight",
+    });
+    expect(refs.pass12_handoff_v1).toEqual({
+      artifact_id: "handoff-artifact-id",
+      source_hash: "handoff-source-hash",
+    });
+    expect(refs.accepted_story_ledger_v1).toEqual({
+      artifact_id: "accepted-ledger-artifact-id",
+      source_hash: "accepted-ledger-source-hash",
     });
     expect(refs.ledger_quality_gate_ready_status).toBe('blocked');
     expect(refs.ledger_quality_hard_fail_present).toBe(true);

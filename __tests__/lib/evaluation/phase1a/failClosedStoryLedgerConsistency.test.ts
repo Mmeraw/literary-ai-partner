@@ -159,7 +159,7 @@ describe('fail-closed Story Ledger consistency guards', () => {
     const layers = buildStoryLayerFromLedger(ledger, ledgerV2);
     const report = buildLedgerQualityReport(ledger, ledgerV2, layers);
 
-    expect(report.gate_ready_status).toBe('blocked');
+    expect(report.gate_ready_status).toBe('blocked_content_hard_fail');
     expect(report.hard_fail_present).toBe(true);
     expect(report.recommended_review_action).toBe('operator_review_required');
     expect(report.blocking_reasons.join(' ')).toContain('HARD_FAIL');
