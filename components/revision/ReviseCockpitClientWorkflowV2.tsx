@@ -61,6 +61,76 @@ function styleLedgerTable(ledger: HTMLElement) {
   }
 }
 
+function collapseLedger(ledger: HTMLElement) {
+  if (ledger.dataset.rgCollapsed === "true") return;
+
+  // Find the scrollable table container (the div with max-h-32)
+  const tableContainer = ledger.querySelector("div.max-h-32, div[class*='overflow-y-auto']") as HTMLElement | null;
+  const scrollDiv = tableContainer ?? (ledger.querySelector("table")?.parentElement as HTMLElement | null);
+  if (scrollDiv) {
+    scrollDiv.style.maxHeight = "2.2rem";
+    scrollDiv.style.overflow = "hidden";
+    scrollDiv.dataset.rgLedgerScroll = "true";
+  }
+
+  // Hide filter buttons row (keep only the "Revision Ledger" label)
+  const filterButtons = ledger.querySelectorAll("button") as NodeListOf<HTMLElement>;
+  for (const btn of Array.from(filterButtons)) {
+    const text = (btn.textContent ?? "").trim();
+    if (text !== "Expand" && text !== "Collapse" && !btn.dataset.rgToggle) {
+      btn.style.display = "none";
+      btn.dataset.rgLedgerFilter = "true";
+    }
+  }
+
+  // Add expand toggle if not already present
+  if (!ledger.querySelector("[data-rg-toggle]")) {
+    const toggle = document.createElement("button");
+    toggle.type = "button";
+    toggle.dataset.rgToggle = "true";
+    toggle.textContent = "Expand";
+    toggle.className = "ml-auto rounded border border-[#5D4C31] px-2 py-0.5 text-[10px] text-[#C8A96E] hover:bg-[#2A2115]";
+    toggle.addEventListener("click", () => {
+      const isCollapsed = ledger.dataset.rgCollapsed === "true";
+      if (isCollapsed) {
+        expandLedger(ledger);
+      } else {
+        collapseLedger(ledger);
+      }
+    });
+    // Insert toggle into the header area
+    const headerRow = ledger.querySelector("div.mb-2, div:first-child") as HTMLElement | null;
+    if (headerRow) {
+      headerRow.style.display = "flex";
+      headerRow.style.alignItems = "center";
+      headerRow.style.flexWrap = "wrap";
+      headerRow.appendChild(toggle);
+    }
+  }
+
+  ledger.dataset.rgCollapsed = "true";
+}
+
+function expandLedger(ledger: HTMLElement) {
+  const scrollDiv = ledger.querySelector("[data-rg-ledger-scroll]") as HTMLElement | null;
+  if (scrollDiv) {
+    scrollDiv.style.maxHeight = "8rem";
+    scrollDiv.style.overflow = "auto";
+  }
+
+  // Show filter buttons again
+  const filterButtons = ledger.querySelectorAll("[data-rg-ledger-filter]") as NodeListOf<HTMLElement>;
+  for (const btn of Array.from(filterButtons)) {
+    btn.style.display = "";
+  }
+
+  // Update toggle text
+  const toggle = ledger.querySelector("[data-rg-toggle]") as HTMLElement | null;
+  if (toggle) toggle.textContent = "Collapse";
+
+  ledger.dataset.rgCollapsed = "false";
+}
+
 function widenLedger(root: HTMLElement) {
   const ledgerLabel = Array.from(root.querySelectorAll("span,p,div")).find((element) => {
     return (element.textContent ?? "").replace(/\s+/g, " ").trim().toUpperCase() === "REVISION LEDGER";
@@ -70,6 +140,7 @@ function widenLedger(root: HTMLElement) {
 
   if (ledger.dataset.rgMoved === "true") {
     styleLedgerTable(ledger);
+    if (!ledger.dataset.rgCollapsed) collapseLedger(ledger);
     return;
   }
 
@@ -85,6 +156,7 @@ function widenLedger(root: HTMLElement) {
   workbenchGrid.style.overflow = "hidden";
   ledger.dataset.rgMoved = "true";
   styleLedgerTable(ledger);
+  collapseLedger(ledger);
 }
 
 function queueIsComplete(root: HTMLElement): boolean {
