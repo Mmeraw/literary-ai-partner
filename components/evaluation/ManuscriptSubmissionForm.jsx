@@ -477,17 +477,30 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess }) {
                                 <div className="truncate text-base font-bold leading-6 text-stone-950">{doc.title || "Untitled Manuscript"}</div>
                                 <div className="text-[0.95rem] leading-5 text-stone-700">{formatWordCount(doc.word_count)} words · {doc.source ?? "saved manuscript"}</div>
                               </div>
-                              <button
-                                type="button"
-                                onClick={(event) => {
-                                  event.preventDefault();
-                                  event.stopPropagation();
-                                  hideManuscriptHere(doc.id);
-                                }}
-                                className="min-h-[38px] rounded-lg border border-stone-300 bg-stone-50 px-3 py-2 text-sm font-semibold text-stone-800 hover:bg-stone-100"
-                              >
-                                Hide
-                              </button>
+                              <div className="flex shrink-0 gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={(event) => {
+                                    event.preventDefault();
+                                    event.stopPropagation();
+                                    hideManuscriptHere(doc.id);
+                                  }}
+                                  className="min-h-[38px] rounded-lg border border-stone-300 bg-stone-50 px-3 py-2 text-sm font-semibold text-stone-800 hover:bg-stone-100"
+                                >
+                                  Hide
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={(event) => {
+                                    event.preventDefault();
+                                    event.stopPropagation();
+                                    deleteManuscriptById(doc.id);
+                                  }}
+                                  className="min-h-[38px] rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-100"
+                                >
+                                  Delete
+                                </button>
+                              </div>
                             </div>
                           </div>
                         );
