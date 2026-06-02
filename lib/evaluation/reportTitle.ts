@@ -11,9 +11,17 @@ export type ReportTitleResolution = {
   manuscriptTitle: string | null;
 };
 
+/**
+ * Internal/test suffixes that should never appear in a customer-facing report.
+ * These are stripped from the display title automatically.
+ */
+const INTERNAL_TITLE_SUFFIXES = /\s*(?:NO\s+TOC\s+TEST\s+FILE|TEST\s*FILE|CALIBRATION\s*FILE|BENCHMARK\s*RUN|\(TEST\)|\[TEST\]|\[INTERNAL\])\s*$/i;
+
 function normalizeTitle(value?: string | null): string | null {
   const trimmed = value?.trim();
-  return trimmed && trimmed.length > 0 ? trimmed : null;
+  if (!trimmed || trimmed.length === 0) return null;
+  // Strip internal test suffixes that should never appear in author-facing reports
+  return trimmed.replace(INTERNAL_TITLE_SUFFIXES, '').trim() || null;
 }
 
 export function resolveReportTitle(input: ReportTitleInput): ReportTitleResolution {

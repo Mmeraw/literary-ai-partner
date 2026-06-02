@@ -1,4 +1,5 @@
 import type { LongformDreamDocument } from "@/lib/evaluation/pipeline/runPass3bLongform";
+import { getCriterionDisplayLabel } from "@/lib/evaluation/reportRenderSafety";
 
 type Props = { doc: LongformDreamDocument };
 
@@ -91,14 +92,13 @@ export default function LongformSensoryEmotionalRegister({ doc }: Props) {
               <p className="text-xs font-semibold uppercase tracking-wide text-emerald-600 mb-2">
                 Sensory governance strengths
               </p>
-              <ul className="space-y-1">
+              <ol className="space-y-1 list-decimal list-inside">
                 {doctrineSensory.map((s, i) => (
-                  <li key={i} className="text-xs text-gray-600 flex gap-2">
-                    <span className="text-emerald-400 shrink-0">✓</span>
+                  <li key={i} className="text-xs text-gray-600">
                     {s}
                   </li>
                 ))}
-              </ul>
+              </ol>
             </div>
           )}
           {doctureRiskSensory.length > 0 && (
@@ -106,14 +106,13 @@ export default function LongformSensoryEmotionalRegister({ doc }: Props) {
               <p className="text-xs font-semibold uppercase tracking-wide text-rose-600 mb-2">
                 Sensory governance risks
               </p>
-              <ul className="space-y-1">
+              <ol className="space-y-1 list-decimal list-inside">
                 {doctureRiskSensory.map((r, i) => (
-                  <li key={i} className="text-xs text-gray-600 flex gap-2">
-                    <span className="text-rose-400 shrink-0">⚠</span>
+                  <li key={i} className="text-xs text-gray-600">
                     {r}
                   </li>
                 ))}
-              </ul>
+              </ol>
             </div>
           )}
         </div>
@@ -170,7 +169,7 @@ export default function LongformSensoryEmotionalRegister({ doc }: Props) {
               return (
                 <div key={i} className="rounded-lg border border-gray-200 p-3 text-sm">
                   <div className="flex items-center gap-3 mb-2">
-                    <span className="font-semibold text-gray-800 capitalize">{c.key}</span>
+                    <span className="font-semibold text-gray-800">{getCriterionDisplayLabel(c.key)}</span>
                     <span className="text-lg font-bold text-indigo-700">{c.score}/10</span>
                     <span className={`text-xs font-semibold ${confidenceColor}`}>
                       {c.confidence}
@@ -178,13 +177,13 @@ export default function LongformSensoryEmotionalRegister({ doc }: Props) {
                   </div>
                   {c.fit_evidence?.length > 0 && (
                     <p className="text-xs text-gray-600">
-                      <span className="font-medium text-emerald-600">✓ </span>
+                      <span className="font-medium text-emerald-600">Fit: </span>
                       {c.fit_evidence[0]}
                     </p>
                   )}
                   {c.gap_evidence?.length > 0 && (
                     <p className="text-xs text-gray-600 mt-0.5">
-                      <span className="font-medium text-rose-600">⚠ </span>
+                      <span className="font-medium text-rose-600">Gap: </span>
                       {c.gap_evidence[0]}
                     </p>
                   )}

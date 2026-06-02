@@ -1,7 +1,7 @@
 import type { LongformDreamDocument } from "@/lib/evaluation/pipeline/runPass3bLongform";
 import { getDisplayText } from "@/lib/evaluation/reportRenderSafety";
 
-type Props = { doc: LongformDreamDocument };
+type Props = { doc: LongformDreamDocument; showInternalSections?: boolean };
 
 const STATUS_COLORS: Record<string, string> = {
   strong: "bg-emerald-100 text-emerald-800 border-emerald-200",
@@ -10,7 +10,7 @@ const STATUS_COLORS: Record<string, string> = {
   fragile: "bg-red-100 text-red-800 border-red-200",
 };
 
-export default function LongformCharacterCoverageArcLedger({ doc }: Props) {
+export default function LongformCharacterCoverageArcLedger({ doc, showInternalSections = false }: Props) {
   // Character coverage is distributed across structural_stack (character layers),
   // layer_analyses (character status), and criterion_analyses (character criterion).
   const characterLayers = (doc.structural_stack ?? []).filter((l) =>
@@ -140,13 +140,13 @@ export default function LongformCharacterCoverageArcLedger({ doc }: Props) {
         </div>
       )}
 
-      {/* Required detections */}
-      {(characterDetections.length > 0 || characterFailures.length > 0) && (
+      {/* Required detections — INTERNAL ONLY (never shown to authors) */}
+      {showInternalSections && (characterDetections.length > 0 || characterFailures.length > 0) && (
         <div className="grid sm:grid-cols-2 gap-4">
           {characterDetections.length > 0 && (
             <div>
               <p className="text-xs font-semibold uppercase tracking-wide text-emerald-600 mb-2">
-                Required detections
+                Required detections <span className="text-amber-700">(internal)</span>
               </p>
               <ul className="space-y-1">
                 {characterDetections.map((d, i) => (
@@ -161,7 +161,7 @@ export default function LongformCharacterCoverageArcLedger({ doc }: Props) {
           {characterFailures.length > 0 && (
             <div>
               <p className="text-xs font-semibold uppercase tracking-wide text-rose-600 mb-2">
-                Failure conditions
+                Failure conditions <span className="text-amber-700">(internal)</span>
               </p>
               <ul className="space-y-1">
                 {characterFailures.map((f, i) => (
@@ -209,27 +209,25 @@ function CriterionMiniBlock({ criterion }: { criterion: CriterionEntry }) {
       {criterion.fit_evidence?.length > 0 && (
         <div>
           <p className="text-xs font-medium text-emerald-600 mb-1">Fit evidence</p>
-          <ul className="space-y-0.5">
+          <ol className="space-y-0.5 list-decimal list-inside">
             {criterion.fit_evidence.map((e, i) => (
-              <li key={i} className="text-xs text-gray-600 flex gap-2">
-                <span className="text-emerald-400 shrink-0">✓</span>
+              <li key={i} className="text-xs text-gray-600">
                 {e}
               </li>
             ))}
-          </ul>
+          </ol>
         </div>
       )}
       {criterion.gap_evidence?.length > 0 && (
         <div>
           <p className="text-xs font-medium text-rose-600 mb-1">Gap evidence</p>
-          <ul className="space-y-0.5">
+          <ol className="space-y-0.5 list-decimal list-inside">
             {criterion.gap_evidence.map((e, i) => (
-              <li key={i} className="text-xs text-gray-600 flex gap-2">
-                <span className="text-rose-400 shrink-0">⚠</span>
+              <li key={i} className="text-xs text-gray-600">
                 {e}
               </li>
             ))}
-          </ul>
+          </ol>
         </div>
       )}
       {criterion.revision_queue?.length > 0 && (
