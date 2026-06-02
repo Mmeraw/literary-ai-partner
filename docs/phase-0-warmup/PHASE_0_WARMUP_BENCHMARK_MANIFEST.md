@@ -63,6 +63,7 @@ These files define benchmark-quality nine-layer Story Ledger targets and should 
 
 ```text
 docs/benchmarks/story-ledger/README.md
+docs/benchmarks/story-ledger/STORY_LEDGER_9_LAYER_TEMPLATE.md
 
 docs/benchmarks/story-ledger/IDEAL_STORY_LEDGER_9_LAYER_BENCHMARK_CARTEL_BABIES.md
 docs/benchmarks/story-ledger/IDEAL_STORY_LEDGER_9_LAYER_BENCHMARK_FROGGIN_NOGGIN.md
@@ -71,6 +72,8 @@ docs/benchmarks/story-ledger/IDEAL_STORY_LEDGER_9_LAYER_BENCHMARK_LET_THE_RIVER_
 docs/benchmarks/story-ledger/FROGGIN_NOGGIN_9_LAYER_OPTIMIZATION_ADDENDUM.md
 docs/benchmarks/story-ledger/LET_THE_RIVER_DECIDE_9_LAYER_OPTIMIZATION_ADDENDUM.md
 ```
+
+Note: The template (`STORY_LEDGER_9_LAYER_TEMPLATE.md`) defines the blank structure that seeds MUST populate. The benchmark files are filled gold-standard examples showing what good output looks like. The template structure is compiled into the seed generator prompts at runtime via `lib/evaluation/seed/benchmarkContextBuilder.ts`.
 
 ## Additional benchmark-related references
 

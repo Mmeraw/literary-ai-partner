@@ -1,0 +1,248 @@
+/**
+ * Benchmark Context Builder for Seed Generation
+ *
+ * Builds a compact context block from the dream/gold-standard benchmarks
+ * and failure modes docs. This context is injected into seed generation
+ * prompts so the LLM has:
+ *   1. The exact 9-layer structure it must populate
+ *   2. Per-layer failure conditions (what NOT to do)
+ *   3. Gold-standard example shapes (what good output looks like)
+ *   4. Structural validation criteria
+ *
+ * The context is kept compact (< 4000 tokens) to fit within model budgets
+ * while providing enough grounding to prevent common extraction failures.
+ */
+
+// ── 9-Layer Template Structure ──────────────────────────────────────────────
+
+const NINE_LAYER_TEMPLATE = `
+REQUIRED 9-LAYER STORY LEDGER STRUCTURE:
+Each layer MUST be populated. An empty layer is a failure unless the manuscript genuinely lacks that dimension.
+
+Layer 1 — Source Integrity
+  Required: scope, route (LONG_FORM/SHORT_FORM), work_type, evidence_distribution_required (list manuscript regions that MUST be cited downstream)
+  Failure: claiming full-manuscript confidence from partial evidence
+
+Layer 2 — POV Structure
+  Required: pov_characters (who holds narrative POV), camera_owners (whose perspective controls scenes), note (POV strategy)
+  Failure: saying "no POV characters identified" for a novel with obvious focal centers; confusing omniscient narration with absence of POV
+
+Layer 3 — Canonical Identity
+  Required: primary_entities (ALL plot-critical named characters/forces), must_not_omit (entities downstream MUST track)
+  Failure: missing major characters; splitting titles into fake characters; merging distinct characters incorrectly
+
+Layer 4 — Cast / Role Tier
+  Required: tiers (structural hierarchy of entities with obligations)
+  Failure: flattening all characters to equal importance; treating structural animals as objects; basing tier on mention count not plot function
+
+Layer 5 — Pronoun Transitions
+  Required: reviewable_transitions (genuine pronoun/identity shifts), do_not_flag (things that look like transitions but aren't)
+  Valid empty: "No reviewable pronoun-family transitions detected" when no real transitions exist
+  Failure: showing stable pronoun usage as review burden; treating species labels/titles/royal terms as pronoun transitions
+
+Layer 6 — Relationship Network
+  Required: relationships (pair, function, arc_summary with beginning→middle→ending)
+  Failure: missing benchmark-required relationships; reducing named relational arcs to generic "pressure"
+
+Layer 7 — Object / Symbol
+  Required: objects (name, attached_characters, mobility, lifecycle_note), contamination_model
+  Failure: classifying dialogue as object; treating doctrine as physical object; missing story-bearing objects; treating animals as objects
+
+Layer 8 — Timeline / Location / Worldstate
+  Required: timeline_sequence (phase, location, function), world_rules (rule, treatment)
+  Failure: collapsing full novel to opening/middle/end only; using machine chunk labels; ignoring transit chains
+
+Layer 9 — Threat / Pressure / Ending
+  Required: pressures (type, content), character_end_states (entity, end_state, is_terminal)
+  Failure: reducing all pressure to one villain; treating ending as mood only; misreporting unresolved ending as clean closure; omitting consequences for terminal states
+`.trim();
+
+// ── Per-Layer Failure Modes (compact) ────────────────────────────────────────
+
+const FAILURE_MODES_COMPACT = `
+LAYER FAILURE MODES — WHAT THE SEED MUST NOT DO:
+
+Layer health statuses (in order of quality):
+  valid → degraded_with_caution → suppressed_insufficient_evidence → suppressed_conflicting_signals → failed_benchmark_minimum
+
+Per-layer critical failures that will cause downstream rejection:
+1. Source: claiming complete coverage from partial read
+2. POV: "no POV characters identified" when focal centers exist; confusing role importance with focalization
+3. Identity: missing required entities; splitting titles into fake characters; merging distinct characters
+4. Cast: flattening primary forces to generic roles; treating animals/symbols as ordinary cast
+5. Pronoun: showing stable pronoun use as review task; treating titles/species/personification as transitions
+6. Relationships: collapsing named relational arcs to generic pressure; missing sustained relationships
+7. Objects: classifying dialogue/doctrine as physical objects; missing story-bearing objects
+8. Timeline: collapsing to three-act only; using machine chunk labels as locations
+9. Threat/Ending: single-villain reduction; reporting unresolved ending as closure; omitting terminal consequences
+
+GOLDEN RULE: If a layer cannot meet benchmark minimums, mark it degraded — do not fabricate content.
+`.trim();
+
+// ── Gold-Standard Example Shape ──────────────────────────────────────────────
+
+const GOLD_STANDARD_EXAMPLE = `
+GOLD-STANDARD BENCHMARK EXAMPLE (shape reference — adapt content to actual manuscript):
+
+A complete 9-layer Story Ledger for a benchmark novel includes:
+- Source Integrity: scope=full-manuscript, route=LONG_FORM, 5+ evidence distribution regions
+- POV Structure: 3-6 named POV/camera owners with structural function descriptions
+- Canonical Identity: 8-15 primary entities, each with identity obligations and merge/split risks
+- Cast Tier: 4-6 tiers (primary forces, authority, vulnerability, human pressure, symbolic, collective)
+- Pronoun: transitions only when genuinely ambiguous; "no reviewable transitions" is valid
+- Relationships: 5-10 named sustained relationships with beginning→middle→ending arcs
+- Objects: 4-8 story-bearing objects with lifecycle and contamination model
+- Timeline: 5-8 narrative phases with locations and functions; world rules documented
+- Threat/Ending: 3-6 pressure types; character end states for ALL major characters; terminal states marked
+
+COMPLETION STANDARD: A ledger is incomplete if it misses:
+- Any primary structural character
+- Any story-bearing object that drives plot/identity/closure
+- Any sustained named relationship
+- The ending accountability chain (who is alive, dead, transformed, unresolved)
+
+CANONICAL HARD FACTS: Include 10-20 declarative facts the manuscript proves. These travel downstream as MANDATORY CONSTRAINTS.
+FAILURE CONDITIONS: Include 5-15 specific, falsifiable claims that would indicate comprehension failure.
+ACCEPTANCE CHECKS: Include 8-12 Q&A pairs that verify the ledger is correct.
+`.trim();
+
+// ── Public API ───────────────────────────────────────────────────────────────
+
+/**
+ * Builds the complete benchmark context block for injection into seed
+ * generation prompts. This provides the LLM with template structure,
+ * failure modes, and gold-standard shape expectations.
+ */
+export function buildSeedBenchmarkContext(): string {
+  return [
+    '═══ BENCHMARK GROUNDING CONTEXT (Phase 0 Warmup) ═══',
+    '',
+    'You MUST use this benchmark context to structure your output.',
+    'Your output will be validated against these standards.',
+    '',
+    NINE_LAYER_TEMPLATE,
+    '',
+    FAILURE_MODES_COMPACT,
+    '',
+    GOLD_STANDARD_EXAMPLE,
+  ].join('\n');
+}
+
+/**
+ * Returns the 9-layer names in canonical order for structural validation.
+ */
+export const CANONICAL_LAYER_NAMES = [
+  'source_integrity',
+  'pov_structure',
+  'canonical_identity',
+  'cast_role_tier',
+  'pronoun_transitions',
+  'relationship_network',
+  'object_symbol',
+  'timeline_location_worldstate',
+  'threat_pressure_ending',
+] as const;
+
+export type CanonicalLayerName = (typeof CANONICAL_LAYER_NAMES)[number];
+
+/**
+ * Structural validation result for a generated story ledger seed.
+ */
+export type SeedStructuralValidation = {
+  status: 'passed' | 'degraded' | 'failed';
+  present_layers: string[];
+  missing_layers: string[];
+  empty_layers: string[];
+  warnings: string[];
+};
+
+/**
+ * Validates that a generated ledger has the required 9-layer structure populated.
+ * Does NOT validate content quality (that's assessLedgerQuality's job) — this
+ * validates structural completeness against the template.
+ */
+export function validateLedgerStructure(
+  layers: Record<string, unknown>,
+): SeedStructuralValidation {
+  const present_layers: string[] = [];
+  const missing_layers: string[] = [];
+  const empty_layers: string[] = [];
+  const warnings: string[] = [];
+
+  for (const layerName of CANONICAL_LAYER_NAMES) {
+    const layer = layers[layerName];
+    if (!layer || typeof layer !== 'object') {
+      missing_layers.push(layerName);
+      continue;
+    }
+
+    present_layers.push(layerName);
+
+    // Check for effectively empty layers
+    const layerObj = layer as Record<string, unknown>;
+    const hasContent = Object.values(layerObj).some((v) => {
+      if (Array.isArray(v)) return v.length > 0;
+      if (typeof v === 'string') return v.trim().length > 0;
+      if (typeof v === 'object' && v !== null) return Object.keys(v).length > 0;
+      return v !== null && v !== undefined;
+    });
+
+    if (!hasContent) {
+      empty_layers.push(layerName);
+      warnings.push(`Layer '${layerName}' is present but empty — no usable content`);
+    }
+  }
+
+  // Specific structural checks
+  const threatLayer = layers.threat_pressure_ending as Record<string, unknown> | undefined;
+  if (threatLayer) {
+    const endStates = threatLayer.character_end_states;
+    if (!Array.isArray(endStates) || endStates.length === 0) {
+      warnings.push('threat_pressure_ending: no character_end_states — downstream cannot track who lives/dies');
+    }
+  }
+
+  const identityLayer = layers.canonical_identity as Record<string, unknown> | undefined;
+  if (identityLayer) {
+    const entities = identityLayer.primary_entities;
+    if (!Array.isArray(entities) || entities.length < 2) {
+      warnings.push('canonical_identity: fewer than 2 primary entities — likely incomplete');
+    }
+    const mustNotOmit = identityLayer.must_not_omit;
+    if (!Array.isArray(mustNotOmit) || mustNotOmit.length === 0) {
+      warnings.push('canonical_identity: no must_not_omit list — downstream cannot enforce entity coverage');
+    }
+  }
+
+  const relationshipLayer = layers.relationship_network as Record<string, unknown> | undefined;
+  if (relationshipLayer) {
+    const rels = relationshipLayer.relationships;
+    if (!Array.isArray(rels) || rels.length < 2) {
+      warnings.push('relationship_network: fewer than 2 relationships — likely incomplete');
+    }
+  }
+
+  const objectLayer = layers.object_symbol as Record<string, unknown> | undefined;
+  if (objectLayer) {
+    const objects = objectLayer.objects;
+    if (!Array.isArray(objects) || objects.length === 0) {
+      warnings.push('object_symbol: no objects tracked — likely incomplete');
+    }
+    const contam = objectLayer.contamination_model;
+    if (typeof contam !== 'string' || contam.trim().length === 0) {
+      warnings.push('object_symbol: no contamination_model — downstream cannot assess influence mechanics');
+    }
+  }
+
+  // Determine overall status
+  let status: 'passed' | 'degraded' | 'failed';
+  if (missing_layers.length >= 3) {
+    status = 'failed';
+  } else if (missing_layers.length > 0 || empty_layers.length > 0 || warnings.length > 2) {
+    status = 'degraded';
+  } else {
+    status = 'passed';
+  }
+
+  return { status, present_layers, missing_layers, empty_layers, warnings };
+}

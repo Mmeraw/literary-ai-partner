@@ -5806,7 +5806,18 @@ export async function processEvaluationJob(
                 );
               }
 
-              // Log to phase timeline with quality assessment
+              // Structural validation against benchmark template
+              const structValidation = ledgerResult.structuralValidation;
+              if (structValidation && structValidation.status !== 'passed') {
+                console.warn(
+                  `[phase_0.5a_enhanced] ${jobId}: structural validation ${structValidation.status} — ` +
+                  `missing: [${structValidation.missing_layers.join(', ')}], ` +
+                  `empty: [${structValidation.empty_layers.join(', ')}], ` +
+                  `warnings: ${structValidation.warnings.length}`
+                );
+              }
+
+              // Log to phase timeline with quality assessment + structural validation
               const ledgerLogEntries: Record<string, unknown>[] = [
                 { at: new Date(ledgerStartMs).toISOString(), event: 'phase_0_5a_enhanced_started', stage: 'phase_0_5a_enhanced', label: 'Generating full-context story ledger' },
                 {
@@ -5818,6 +5829,9 @@ export async function processEvaluationJob(
                   ledger_quality: ledgerQuality.status,
                   ledger_completeness: ledgerQuality.overall_completeness,
                   degraded_dimensions: ledgerQuality.degraded_dimensions,
+                  structural_validation: structValidation?.status ?? 'unknown',
+                  structural_missing_layers: structValidation?.missing_layers ?? [],
+                  structural_warnings: structValidation?.warnings?.slice(0, 10) ?? [],
                 },
               ];
               const existingLogForLedger = (progressState.phase_log as unknown[]) ?? [];

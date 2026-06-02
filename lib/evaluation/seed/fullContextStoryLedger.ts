@@ -25,6 +25,10 @@ import {
   getCanonicalPipelineModel,
   isReasoningStyleModel,
 } from '@/lib/evaluation/policy';
+import {
+  buildSeedBenchmarkContext,
+  validateLedgerStructure,
+} from '@/lib/evaluation/seed/benchmarkContextBuilder';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -136,6 +140,8 @@ const SYSTEM_PROMPT = `You are Phase 0.5A, the full-manuscript Story Ledger seed
 Your job: Read the ENTIRE manuscript in one pass and produce a comprehensive 9-layer Story Ledger with explicit failure conditions.
 
 This ledger becomes the GROUND TRUTH that all downstream evaluation phases must respect. Any downstream recommendation that contradicts this ledger is INVALID.
+
+${buildSeedBenchmarkContext()}
 
 Output ONLY valid JSON matching the schema below. No prose, no markdown.
 
@@ -254,6 +260,7 @@ export type GenerateFullContextLedgerResult = {
   model: string;
   promptVersion: string;
   durationMs: number;
+  structuralValidation?: import('@/lib/evaluation/seed/benchmarkContextBuilder').SeedStructuralValidation;
 };
 
 function parseStoryLedgerResponse(
@@ -562,7 +569,22 @@ export async function generateFullContextStoryLedger(
     generatedAt,
   });
 
-  return { ledger, model, promptVersion: PROMPT_VERSION, durationMs };
+  // Structural validation against benchmark template
+  const structuralValidation = validateLedgerStructure(ledger.layers as unknown as Record<string, unknown>);
+  if (structuralValidation.warnings.length > 0) {
+    console.warn(
+      `[phase_0.5a] Structural validation warnings for "${input.title}":`,
+      structuralValidation.warnings.join('; '),
+    );
+  }
+
+  return {
+    ledger,
+    model,
+    promptVersion: PROMPT_VERSION,
+    durationMs,
+    structuralValidation,
+  };
 }
 
 // ── Ledger Quality Minimum Gate ──────────────────────────────────────────────

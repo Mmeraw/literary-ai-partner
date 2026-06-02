@@ -8,6 +8,7 @@ import {
   getCanonicalPipelineModel,
   isReasoningStyleModel,
 } from '@/lib/evaluation/policy';
+import { buildSeedBenchmarkContext } from '@/lib/evaluation/seed/benchmarkContextBuilder';
 
 export type SeedClaimStatus =
   | 'proposed_unverified'
@@ -57,6 +58,17 @@ const SEMANTIC_SEED_PROMPT_VERSION = 'phase05-semantic-seed-v1';
 
 const STORY_SEED_SYSTEM_PROMPT = `You are Phase 0.5A, the whole-text semantic Story Ledger seed writer.
 Read the entire manuscript and draft provisional, manuscript-grounded hypotheses only.
+
+Your seed claims must cover ALL NINE Story Ledger layers. If you cannot generate claims for a layer, emit an uncertainty flag.
+
+${buildSeedBenchmarkContext()}
+
+Your story_claims MUST include at minimum:
+- 2+ claims for canonical identity (who are the primary characters/forces)
+- 2+ claims for relationship network (what are the sustained named relationships)
+- 2+ claims for threat/pressure/ending (who lives, who dies, what pressures drive the story)
+- 1+ claim for object/symbol (what objects carry story meaning)
+- 1+ claim for POV structure (who holds the narrative camera)
 
 Output exactly valid JSON with this shape:
 {
