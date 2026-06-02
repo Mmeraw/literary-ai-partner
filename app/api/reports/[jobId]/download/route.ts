@@ -471,12 +471,6 @@ function buildTxtReport(result: ExportableResult, title: string | null, jobId: s
   if (dream) appendDreamTxtSections(lines, dream);
 
   lines.push('');
-  lines.push(sub);
-  lines.push('TECHNICAL METADATA');
-  lines.push(sub);
-  lines.push(`Job ID: ${jobId}`);
-  lines.push(`Schema: ${result.schema_version}`);
-  lines.push('');
   lines.push(sep);
   lines.push(EXPORT_DISCLAIMER);
   return lines.join('\n');
@@ -843,11 +837,6 @@ async function buildPdfReport(result: ExportableResult, title: string | null, jo
         });
       }
     }
-
-    // ── Technical Metadata ────────────────────────────────────────────
-    section('Technical Metadata');
-    labelValue('Job ID', jobId);
-    labelValue('Schema', result.schema_version);
 
     // ── Branded footers on every page ─────────────────────────────────
     const range = doc.bufferedPageRange();
@@ -1309,12 +1298,6 @@ async function buildDocx(result: ExportableResult, title: string | null, jobId: 
       });
     }
   }
-
-  // ── Technical Metadata ──────────────────────────────────────────
-  children.push(brandHeading('Technical Metadata', HeadingLevel.HEADING_2));
-  const techMeta = [metaRow('Job ID', jobId), metaRow('Schema', result.schema_version)].filter((p): p is Paragraph => p !== null);
-  techMeta.forEach((p) => children.push(p));
-  children.push(spacer());
 
   // Gold divider
   children.push(new Table({
