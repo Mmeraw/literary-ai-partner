@@ -288,7 +288,7 @@ CREATE_HTTP=$(curl -s -o /tmp/flow1-create.json -w "%{http_code}" \
   -H "content-type: application/json" \
   -H "x-user-id: $OWNER_ID" \
   -X POST "$BASE_URL/api/jobs" \
-  -d "{\"manuscript_id\":$MID,\"job_type\":\"evaluate_quick\"}" || true)
+  -d "{\"manuscript_id\":$MID,\"job_type\":\"evaluate_quick\",\"processing_terms_accepted\":true}" || true)
 
 echo "CREATE_HTTP=$CREATE_HTTP"
 cat /tmp/flow1-create.json
