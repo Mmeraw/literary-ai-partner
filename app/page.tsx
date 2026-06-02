@@ -99,7 +99,7 @@ function SectionLabel({ children }: { children: ReactNode }) {
 export default function Home() {
   return (
     <div className="bg-rg-ink text-rg-cream">
-      <section className="mx-auto grid min-h-[calc(100vh-3.5rem)] max-w-7xl items-center gap-12 px-6 py-20 lg:grid-cols-[1.04fr_0.96fr] lg:py-28">
+      <section className="mx-auto grid max-w-7xl items-center gap-8 px-6 py-12 lg:grid-cols-[1.04fr_0.96fr] lg:gap-12 lg:py-16">
         <div>
           <SectionLabel>RevisionGrade™ · WAVE Readiness System™</SectionLabel>
           <h1 className="mt-6 max-w-5xl font-rg-serif text-5xl leading-[0.95] tracking-tight text-rg-cream md:text-7xl">
@@ -133,7 +133,7 @@ export default function Home() {
       </section>
 
       <section className="border-y border-rg-cream2/10 bg-rg-ink2/50">
-        <div className="mx-auto grid max-w-7xl gap-8 px-6 py-16 md:grid-cols-3">
+        <div className="mx-auto grid max-w-7xl gap-8 px-6 py-10 md:grid-cols-3 lg:py-12">
           {revisionContrasts.map((item) => (
             <article key={item.title}>
               <SectionLabel>{item.title}</SectionLabel>
@@ -144,7 +144,7 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="mx-auto max-w-7xl px-6 py-20">
+      <section className="mx-auto max-w-7xl px-6 py-12 lg:py-16">
         <div className="max-w-4xl">
           <SectionLabel>WAVE Readiness System™</SectionLabel>
           <h2 className="mt-4 font-rg-serif text-4xl leading-tight text-rg-cream md:text-5xl">
@@ -154,7 +154,7 @@ export default function Home() {
             The WAVE Readiness System™ is not a single rewrite command. It is a proprietary, sequenced readiness methodology that turns evidence-backed findings into governed manuscript interventions while protecting the author&apos;s voice.
           </p>
         </div>
-        <div className="mt-12 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <div className="mt-8 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           {publicWaveSignals.map((signal) => (
             <article key={signal.title} className="border border-rg-cream2/15 bg-rg-ink2/70 p-5">
               <p className="font-rg-mono text-sm uppercase tracking-[0.16em] text-rg-gold md:text-xs">WAVE principle</p>
@@ -166,7 +166,7 @@ export default function Home() {
       </section>
 
       <section className="bg-rg-cream text-rg-ink">
-        <div className="mx-auto grid max-w-7xl gap-10 px-6 py-20 lg:grid-cols-[0.9fr_1.1fr]">
+        <div className="mx-auto grid max-w-7xl gap-8 px-6 py-12 lg:grid-cols-[0.9fr_1.1fr] lg:py-16">
           <div>
             <p className="font-rg-mono text-sm uppercase tracking-[0.2em] text-rg-gold md:text-xs md:tracking-[0.24em]">Thirteen story criteria</p>
             <h2 className="mt-4 font-rg-serif text-4xl leading-tight md:text-5xl">
@@ -186,14 +186,14 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="mx-auto max-w-7xl px-6 py-20">
+      <section className="mx-auto max-w-7xl px-6 py-12 lg:py-16">
         <div className="max-w-3xl">
           <SectionLabel>How it works</SectionLabel>
           <h2 className="mt-4 font-rg-serif text-4xl text-rg-cream md:text-5xl">
             Evaluation first. WAVE readiness second. Revise with author control.
           </h2>
         </div>
-        <div className="mt-12 grid gap-4 lg:grid-cols-5">
+        <div className="mt-8 grid gap-4 lg:grid-cols-5">
           {workflow.map((item) => (
             <article key={item.step} className="border border-rg-cream2/15 bg-rg-ink2/70 p-5">
               <p className="font-rg-mono text-sm text-rg-gold md:text-xs">{item.step}</p>
@@ -205,7 +205,7 @@ export default function Home() {
       </section>
 
       <section className="bg-rg-cream text-rg-ink">
-        <div className="mx-auto grid max-w-7xl gap-10 px-6 py-20 lg:grid-cols-[0.9fr_1.1fr]">
+        <div className="mx-auto grid max-w-7xl gap-8 px-6 py-12 lg:grid-cols-[0.9fr_1.1fr] lg:py-16">
           <div>
             <p className="font-rg-mono text-sm uppercase tracking-[0.2em] text-rg-gold md:text-xs md:tracking-[0.24em]">Why this is different</p>
             <h2 className="mt-4 font-rg-serif text-4xl leading-tight md:text-5xl">
@@ -222,7 +222,7 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="mx-auto max-w-7xl px-6 py-20">
+      <section className="mx-auto max-w-7xl px-6 py-12 lg:py-16">
         <div className="grid gap-8 lg:grid-cols-[1fr_1fr]">
           <div className="border border-rg-cream2/15 bg-rg-ink2/70 p-8">
             <SectionLabel>Revise Queue</SectionLabel>
@@ -244,8 +244,8 @@ export default function Home() {
       </section>
 
       <section className="border-t border-rg-cream2/10 bg-rg-ink2/50">
-        <div className="mx-auto max-w-7xl px-6 py-20">
-          <div className="grid gap-12 lg:grid-cols-[1fr_1fr] items-start">
+        <div className="mx-auto max-w-7xl px-6 py-12 lg:py-16">
+          <div className="grid gap-8 lg:grid-cols-[1fr_1fr] lg:gap-10 items-start">
             <div>
               <SectionLabel>Agent Readiness Package™</SectionLabel>
               <h2 className="mt-4 font-rg-serif text-4xl text-rg-cream md:text-5xl leading-tight">
@@ -293,8 +293,8 @@ export default function Home() {
       </section>
 
       <section className="border-t border-rg-cream2/10">
-        <div className="mx-auto max-w-7xl px-6 py-20">
-          <div className="grid gap-12 lg:grid-cols-[1fr_1fr] items-start">
+        <div className="mx-auto max-w-7xl px-6 py-12 lg:py-16">
+          <div className="grid gap-8 lg:grid-cols-[1fr_1fr] lg:gap-10 items-start">
             <div>
               <SectionLabel>Storygate Studio™</SectionLabel>
               <h2 className="mt-4 font-rg-serif text-4xl text-rg-cream md:text-5xl leading-tight">
