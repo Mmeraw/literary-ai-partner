@@ -166,18 +166,18 @@ describe('Phase Architecture v2 — Review Gate handoff helper', () => {
     expect(result.blocked.progress.block_code).toBe('REVIEW_GATE_QUALITY_VERDICT_UNKNOWN');
   });
 
-  it('blocks handoff when quality report is repair_required', () => {
+  it('kicks forward through handoff when quality report is repair_required (advisory warnings only)', () => {
     const result = buildReviewGateHandoff(doneProgress, {
       ...doneArtifacts,
       ledger_quality_gate_ready_status: 'repair_required',
       ledger_quality_hard_fail_present: false,
     });
 
-    expect(result.ok).toBe(false);
-    if (result.ok) throw new Error('Expected repair_required quality report to block review gate handoff');
+    // repair_required = >3 warnings, zero hard fails. Advisory only — kick forward.
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('Expected repair_required to kick forward, not block');
 
-    expect(result.blocked.progress.review_gate_ready).toBe(false);
-    expect(result.blocked.progress.block_code).toBe('REVIEW_GATE_QUALITY_NOT_REVIEWABLE');
+    expect(result.handoff.progress.review_gate_ready).toBe(true);
   });
 
   it('kicks forward through handoff when Pass 3A reducer failed (non-fatal)', () => {
