@@ -657,7 +657,7 @@ export async function setJobFailed(
   }
   
   const attemptCount = jobRow.attempt_count ?? 0;
-  const maxAttempts = jobRow.max_attempts ?? 3;
+  const maxAttempts = jobRow.max_attempts ?? 11;
   const nextAttempt = attemptCount + 1;
 
   const failedStatus = assertAndNormalizeLifecycleTransition(

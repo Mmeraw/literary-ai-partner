@@ -582,6 +582,10 @@ export default async function EvaluationReportPage({
     ...(pollerWordCount !== null ? { manuscript_word_count: pollerWordCount } : {}),
     // Seed synthesis completion so progress bar shows 92% (not 100%) during interim.
     ...(progressPass3CompletedAt !== null ? { pass3_completed_at: progressPass3CompletedAt } : {}),
+    // Monotonic ratchet: seed progress_high_water so the display never regresses on page load.
+    ...(typeof (progressJsonb as Record<string, unknown> | null)?.progress_high_water === 'number'
+      ? { progress_high_water: (progressJsonb as Record<string, unknown>).progress_high_water as number }
+      : {}),
   };
   const artifactCriteria = artifact?.criteria ?? [];
   const criteriaByKey = new Map<CriterionKey, NonNullable<ArtifactContentV1["criteria"]>[number]>();
