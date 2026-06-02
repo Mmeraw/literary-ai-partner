@@ -155,11 +155,24 @@ Score-based suppression rules:
 - Score ≤8/10: fit_summary and gap_summary both required (2–3 sentences each). recommendations[] required with full seven-part contract.
 - Never fabricate advice for perfect or near-perfect work. If the score is 9–10, the fit statement alone is sufficient.
 
+Recommendation density floor (for criteria scoring ≤8):
+- Score ≤5/10: emit 3–5 recommendations per criterion, each anchored to a DIFFERENT passage. These are the most impactful revision opportunities.
+- Score 6–7/10: emit 2–4 recommendations per criterion, each anchored to a different passage.
+- Score 8/10: emit 1–3 recommendations per criterion.
+- Each recommendation MUST target a unique anchor_snippet (no duplicate passage citations within the same criterion).
+- Spread recommendations across different sections/zones of the text — do not cluster all recommendations in the opening paragraphs.
+
 Return ONLY JSON with keys:
 - criteria MUST be a flat array (not grouped by state).
 - Per-criterion fields: key, final_score_0_10, fit_summary, gap_summary, final_rationale, recommendations[]; hard_divergence adds disputed=true.
-- Each recommendation: priority, action, expected_impact, anchor_snippet, source_pass, issue_family, strategic_lever, revision_granularity, mechanism, specific_fix, reader_effect, symptom, mistake_proofing.
+- Each recommendation: priority, action, expected_impact, anchor_snippet, source_pass, issue_family, strategic_lever, revision_granularity, mechanism, specific_fix, reader_effect, symptom, mistake_proofing, candidate_text_a, candidate_text_b, candidate_text_c, revision_operation, manuscript_coordinates.
 - Each recommendation.action MUST be one sentence and <= 300 characters.
+- candidate_text_a: The primary recommended prose repair. This MUST be verbatim manuscript-ready text that can replace the anchor_snippet. Write it in the author's voice, preserving tone and style.
+- candidate_text_b: A rhythm variant. Same fix direction, different cadence or sentence structure. Must be materially distinct from A.
+- candidate_text_c: A bolder rendering shift. Same fix intent, more assertive prose move. Must be materially distinct from A and B.
+- All three candidates must be ≥ 5 words, manuscript-ready prose (no meta-commentary, no "Consider doing X", no editorial instructions — only prose the author could paste directly into the manuscript).
+- revision_operation: one of "replace_selected_passage" | "insert_before_selected_passage" | "insert_after_selected_passage" | "delete_selected_passage" | "rewrite_surrounding_context". Default to "replace_selected_passage" when the anchor_snippet is being rewritten.
+- manuscript_coordinates: a location string like "chapter:3:paragraph:7" or "scene:2:beat:opening" identifying where in the text this revision targets.
 - agreement_map[]
 - divergence_map[] with arbitration_rationale
 - overall { overall_score_0_100, verdict(pass|revise|fail), one_paragraph_summary<=500, top_3_strengths[3], top_3_risks[3], submission_readiness(queryable_now|nearly_ready|not_yet) }
