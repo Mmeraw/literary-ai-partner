@@ -131,9 +131,9 @@ describe('revise card contract', () => {
       sourceLocationLabel: 'Chapter 1 paragraph 8',
       revisionOperation: 'replace_selected_passage',
       candidateTexts: [
-        'Move aside, Small Fry, Twillow answers in motion, and the consequence lands without a pause for explanation.',
-        'Move aside, Small Fry, a physical beat carries the turn so pressure stays visible and momentum holds.',
-        'Move aside, Small Fry, Newton chooses with his body first, then the fallout reaches him before he can explain it away.',
+        'Move aside, Small Fry, Twillow said, stepping over the cracked tile where the kitchen floor met the hallway.',
+        'Move aside, Small Fry, Twillow muttered, already halfway past Newton before the kid could blink twice.',
+        'Move aside, Small Fry, Twillow called from the landing, her boots ringing on every second stair tread.',
       ],
     })
 
