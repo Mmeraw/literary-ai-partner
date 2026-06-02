@@ -786,23 +786,18 @@ export default async function EvaluationReportPage({
           )}
 
           <section className="rounded-lg border bg-white p-6 mb-4">
-            <h2 className="text-xl font-semibold text-gray-900">Revise Access</h2>
-            <p className="mt-2 text-sm text-gray-600">
-              {hasConfirmedMode
-                ? "Mode confirmed. You can proceed to Revise."
-                : "Mode confirmation is required before Revise and Trustpath."}
-            </p>
-            <div className="mt-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-semibold text-gray-900">Revise</h2>
+                <p className="mt-1 text-sm text-gray-600">
+                  Open the revision workbench to review and repair opportunities.
+                </p>
+              </div>
               <Link
-                href={hasConfirmedMode ? `/workbench?manuscriptId=${job.manuscript_id}&evaluationJobId=${jobId}` : "#"}
-                aria-disabled={!hasConfirmedMode}
-                className={`inline-flex rounded-md px-4 py-2 text-sm font-medium ${
-                  hasConfirmedMode
-                    ? "bg-indigo-600 text-white hover:bg-indigo-700"
-                    : "bg-gray-200 text-gray-500 cursor-not-allowed pointer-events-none"
-                }`}
+                href={`/workbench-v2?manuscriptId=${job.manuscript_id}&evaluationJobId=${jobId}`}
+                className="inline-flex rounded-md bg-indigo-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-indigo-700"
               >
-                Open Interactive Revise Queue
+                Revise
               </Link>
             </div>
           </section>
