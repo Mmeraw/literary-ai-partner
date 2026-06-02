@@ -15,7 +15,7 @@ const OPTIONS: { label: string; format: Format; description?: string }[] = [
   {
     label: 'PDF (.pdf)',
     format: 'pdf',
-    description: 'Opens the exact webpage report in print view (Save as PDF).',
+    description: 'Professional branded PDF with cover page, scores, and full analysis.',
   },
   {
     label: 'Word (.docx)',
@@ -87,11 +87,6 @@ export default function DownloadReportButton({
   function handleSelect(format: Format) {
     if (resolvedDisabled) return;
     setOpen(false);
-
-    if (format === 'pdf') {
-      window.open(`/api/reports/${jobId}/print`, '_blank', 'noopener,noreferrer');
-      return;
-    }
 
     window.open(`/api/reports/${jobId}/download?format=${format}`, '_self');
   }

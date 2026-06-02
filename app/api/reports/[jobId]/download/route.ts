@@ -244,22 +244,41 @@ function buildSummaryFallback(result: ExportableResult): string {
 function safeTruncateText(text: string): string {
   const trimmed = text.trim();
   if (!trimmed) return trimmed;
-  if (/[.!?;:—"')\]]\s*$/.test(trimmed)) return trimmed;
+  if (/[.!?"')\]]\s*$/.test(trimmed)) return trimmed;
+
+  // Find the last complete sentence by locating the last sentence-ending punctuation
+  const lastSentenceEnd = Math.max(
+    trimmed.lastIndexOf('. '),
+    trimmed.lastIndexOf('.' + '\n'),
+    trimmed.lastIndexOf('? '),
+    trimmed.lastIndexOf('! '),
+  );
+  // Also check if the text ends with sentence punctuation (possibly followed by close-quote)
+  const endsWithSentence = /[.!?]["')\]]*$/.test(trimmed);
+  if (endsWithSentence) return trimmed;
+
+  if (lastSentenceEnd > trimmed.length * 0.3) {
+    // Cut to the last complete sentence
+    return trimmed.slice(0, lastSentenceEnd + 1).trim();
+  }
+
+  // Fallback: strip dangling conjunctions and incomplete words
   const DANGLING = /\s+(and|or|but|the|a|an|in|on|at|to|of|for|with|by|than|from|into|as|that|which|who|whose|where|when|while|although|because|before|after|during|between|among|through|about|like|more|less|over|under|also|yet|so|if|whether|not|nor)\s*$/i;
   let result = trimmed;
   while (DANGLING.test(result)) {
     result = result.replace(DANGLING, '');
   }
-  result = result.replace(/[,;:\s]+$/, '');
-  if (result.length < trimmed.length) return result + '...';
+  // Strip trailing partial words (anything after last space that doesn't look complete)
   const lastSpace = result.lastIndexOf(' ');
-  if (lastSpace === -1) return result;
-  const lastSegment = result.slice(lastSpace + 1);
-  if (lastSegment.length <= 3 && !/[aeiou]/i.test(lastSegment)) {
-    const upToLastSpace = result.slice(0, lastSpace).trimEnd();
-    const cleaned = upToLastSpace.replace(DANGLING, '').replace(/[,;:\s]+$/, '');
-    return cleaned + '...';
+  if (lastSpace > 0) {
+    const lastWord = result.slice(lastSpace + 1);
+    // If the last word ends with a dash, em-dash, or looks like a fragment, strip it
+    if (/[—\-]$/.test(lastWord) || (lastWord.length <= 2 && !/^[AI]$/.test(lastWord))) {
+      result = result.slice(0, lastSpace).trim();
+    }
   }
+  result = result.replace(/[,;:\s—\-]+$/, '');
+  if (result.length < trimmed.length) return result + '...';
   return result;
 }
 
@@ -376,7 +395,7 @@ function appendDreamTxtSections(lines: string[], dream: LongformDreamDocument): 
     push(sub);
     dream.criterion_analyses.forEach((a) => {
       push('');
-      push(`${a.key}—${a.score}/10 (${a.confidence} confidence)`);
+      push(`${a.key}—${a.score}/10 (${formatConfidenceLabel(a.confidence)})`);
       pushTxtListBlock(lines, 'What is working', a.fit_evidence);
       pushTxtListBlock(lines, 'What weakens impact', a.gap_evidence);
       pushTxtListBlock(lines, 'Revision queue', a.revision_queue, { ordered: true });
@@ -444,7 +463,7 @@ function buildTxtReport(result: ExportableResult, title: string | null, jobId: s
   lines.push(sub);
   result.criteria.forEach((c) => {
     const criterionRecord = c as Record<string, unknown>;
-    lines.push(`• ${getCriterionDisplayLabel(c.key)}—${scoreLabel(c.score_0_10, 10)}${c.confidence_level ? ` (${c.confidence_level} confidence)` : ''}`);
+    lines.push(`• ${getCriterionDisplayLabel(c.key)}—${scoreLabel(c.score_0_10, 10)}${c.confidence_level ? ` (${formatConfidenceLabel(c.confidence_level)})` : ''}`);
     if (c.rationale) lines.push(`  Rationale: ${cleanReportText(c.rationale)}`);
 
     if (typeof criterionRecord.fit_summary === 'string' && criterionRecord.fit_summary.trim()) {
@@ -488,6 +507,15 @@ function confidenceColor(level: string | undefined): string {
   if (level === 'moderate') return RG.warning;
   if (level === 'low') return RG.error;
   return RG.textMuted;
+}
+
+function formatConfidenceLabel(level: string | undefined): string {
+  if (!level) return '—';
+  const normalized = level.trim().toLowerCase();
+  if (normalized === 'high') return 'High Confidence';
+  if (normalized === 'moderate') return 'Moderate Confidence';
+  if (normalized === 'low') return 'Low Confidence';
+  return `${level.charAt(0).toUpperCase()}${level.slice(1)} Confidence`;
 }
 
 function scoreBarColor(score: number | null | undefined): string {
@@ -689,7 +717,7 @@ async function buildPdfReport(result: ExportableResult, title: string | null, jo
       // Confidence label
       if (c.confidence_level) {
         doc.font('Helvetica').fontSize(8).fillColor(confColor).text(
-          `${c.confidence_level} confidence`,
+          formatConfidenceLabel(c.confidence_level),
           ml + barWidth + 8, barY - 1,
           { width: 80 },
         );
@@ -834,6 +862,58 @@ async function buildPdfReport(result: ExportableResult, title: string | null, jo
           paragraph(`Goal: ${cleanReportText(item.goal)}`);
           if (Array.isArray(item.actions) && item.actions.length > 0) item.actions.forEach((a) => bullet(a));
           if (item.acceptance_check) paragraph(`Acceptance check: ${cleanReportText(item.acceptance_check)}`);
+        });
+      }
+
+      // Expanded Criterion Analysis from dream document
+      if (Array.isArray(dream.criterion_analyses) && dream.criterion_analyses.length > 0) {
+        section('Expanded Criterion Analysis');
+        dream.criterion_analyses.forEach((a) => {
+          ensureSpace(120);
+          const confLabel = formatConfidenceLabel(a.confidence);
+          doc.font('Helvetica-Bold').fontSize(11).fillColor(RG.textPrimary).text(
+            toPdfSafeText(a.key),
+            { width: contentWidth, continued: true },
+          );
+          doc.font('Helvetica-Bold').fontSize(11).fillColor(scoreBarColor(a.score)).text(
+            toPdfSafeText(` -- ${a.score}/10`),
+            { continued: true },
+          );
+          doc.font('Helvetica').fontSize(9.5).fillColor(confidenceColor(a.confidence)).text(
+            ` (${toPdfSafeText(confLabel)})`,
+          );
+          doc.moveDown(0.25);
+
+          const fitItems = filterAuthorFacingTextList(a.fit_evidence);
+          if (fitItems.length > 0) {
+            doc.font('Helvetica-Bold').fontSize(9.5).fillColor(RG.success).text('What Is Working:', { width: contentWidth });
+            doc.moveDown(0.1);
+            fitItems.forEach((item) => bullet(item, RG.success));
+          }
+
+          const gapItems = filterAuthorFacingTextList(a.gap_evidence);
+          if (gapItems.length > 0) {
+            doc.font('Helvetica-Bold').fontSize(9.5).fillColor(RG.warning).text('What Weakens Impact:', { width: contentWidth });
+            doc.moveDown(0.1);
+            gapItems.forEach((item) => bullet(item, RG.warning));
+          }
+
+          const revItems = filterAuthorFacingTextList(a.revision_queue);
+          if (revItems.length > 0) {
+            doc.font('Helvetica-Bold').fontSize(9.5).fillColor(RG.oxblood).text('Revision Queue:', { width: contentWidth });
+            doc.moveDown(0.1);
+            revItems.forEach((item, idx) => {
+              ensureSpace(35);
+              doc.font('Helvetica').fontSize(10).fillColor(RG.textPrimary).text(
+                `  ${idx + 1}. ${toPdfSafeText(item)}`,
+                { width: contentWidth, indent: 8, lineGap: 2 },
+              );
+              doc.moveDown(0.15);
+            });
+          }
+
+          doc.moveDown(0.4);
+          thinRule();
         });
       }
     }
@@ -1055,7 +1135,7 @@ async function buildDocx(result: ExportableResult, title: string | null, jobId: 
   const criteriaRows = result.criteria.map((c, idx) => {
     const rowShading = idx % 2 === 0 ? RG.surface.replace('#', '') : RG.surfaceAlt.replace('#', '');
     const sColor = docxScoreColor(c.score_0_10);
-    const confStr = c.confidence_level ? `${c.confidence_level}` : '-';
+    const confStr = c.confidence_level ? formatConfidenceLabel(c.confidence_level) : '-';
     return new TableRow({
       children: [
         new TableCell({
@@ -1295,6 +1375,55 @@ async function buildDocx(result: ExportableResult, title: string | null, jobId: 
         children.push(bodyPara(`Goal: ${item.goal}`, { size: 19, color: RG.textMuted }));
         if (Array.isArray(item.actions)) item.actions.forEach((action) => children.push(bulletPara(action)));
         if (item.acceptance_check) children.push(bodyPara(`Acceptance check: ${item.acceptance_check}`, { size: 19, color: RG.textMuted }));
+      });
+    }
+
+    // Expanded Criterion Analysis from dream document
+    if (Array.isArray(dream.criterion_analyses) && dream.criterion_analyses.length > 0) {
+      children.push(brandHeading('Expanded Criterion Analysis', HeadingLevel.HEADING_2));
+      dream.criterion_analyses.forEach((a) => {
+        children.push(new Paragraph({
+          spacing: { before: 160, after: 60 },
+          children: [
+            new TextRun({ text: `${a.key}`, bold: true, size: 22, color: RG.textPrimary.replace('#', ''), font: 'Georgia' }),
+            new TextRun({ text: ` — ${a.score}/10`, bold: true, size: 20, color: docxScoreColor(a.score).replace('#', ''), font: 'Calibri' }),
+            new TextRun({ text: ` (${formatConfidenceLabel(a.confidence)})`, size: 18, color: confidenceColor(a.confidence).replace('#', ''), font: 'Calibri' }),
+          ],
+        }));
+
+        const fitItems = filterAuthorFacingTextList(a.fit_evidence);
+        if (fitItems.length > 0) {
+          children.push(new Paragraph({
+            spacing: { before: 60, after: 30 },
+            children: [new TextRun({ text: 'What Is Working:', bold: true, size: 18, color: '2E7D32', font: 'Calibri' })],
+          }));
+          fitItems.forEach((item) => children.push(bulletPara(item, RG.success)));
+        }
+
+        const gapItems = filterAuthorFacingTextList(a.gap_evidence);
+        if (gapItems.length > 0) {
+          children.push(new Paragraph({
+            spacing: { before: 60, after: 30 },
+            children: [new TextRun({ text: 'What Weakens Impact:', bold: true, size: 18, color: 'E65100', font: 'Calibri' })],
+          }));
+          gapItems.forEach((item) => children.push(bulletPara(item, RG.warning)));
+        }
+
+        const revItems = filterAuthorFacingTextList(a.revision_queue);
+        if (revItems.length > 0) {
+          children.push(new Paragraph({
+            spacing: { before: 60, after: 30 },
+            children: [new TextRun({ text: 'Revision Queue:', bold: true, size: 18, color: RG.oxblood.replace('#', ''), font: 'Calibri' })],
+          }));
+          revItems.forEach((item, idx) => {
+            children.push(new Paragraph({
+              spacing: { after: 40 },
+              children: [new TextRun({ text: `  ${idx + 1}. ${cleanReportText(item)}`, size: 19, color: RG.textPrimary.replace('#', ''), font: 'Calibri' })],
+            }));
+          });
+        }
+
+        children.push(spacer());
       });
     }
   }
