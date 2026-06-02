@@ -56,6 +56,9 @@ jobs:
       - name: Guard U3 prerequisite remains blocked on U2
         run: bash scripts/guard-u3-prereq.sh
 
+      - name: Guard RLS enforcement on all tables
+        run: bash scripts/guard-rls-enforcement.sh
+
   db-contract:
     runs-on: ubuntu-latest
 
