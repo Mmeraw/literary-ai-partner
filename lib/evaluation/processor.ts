@@ -6655,12 +6655,25 @@ export async function processEvaluationJob(
           && reviewGateHandoffResult.ok === false
           && reviewGateHandoffResult.blocked.progress.block_code === 'REVIEW_GATE_QUALITY_TECHNICAL_BLOCK';
 
+        // Short-form content hard-fail bypass: for manuscripts under the
+        // Review Gate word threshold, content hard-fails (ending accountability,
+        // entity-typing contamination, etc.) are craft findings — not pipeline
+        // blockers.  The Review Gate is a long-form governance mechanism.
+        const shortFormContentBlockBypass =
+          !requireUserFacingReviewGate
+          && reviewGateHandoffResult.ok === false
+          && !shortFormTechnicalBlockBypass;
+
         // Short-form policy: internal Story Layer artifacts are still generated,
         // but user-facing Review Gate approval is long-form only.
         //
-        // If the only blocker is a retryable technical gate, short-form flow
-        // may proceed to phase_2 to avoid infinite phase_1a requeue loops.
-        if (!requireUserFacingReviewGate && (reviewGateHandoffResult.ok || shortFormTechnicalBlockBypass)) {
+        // Per architecture doctrine: "For short-form: Phase 0.5A + Phase 0.5B +
+        // manuscript text + deterministic evidence validator is sufficient
+        // authority to produce a scoped short-form evaluation report."
+        //
+        // Short-form bypasses the Review Gate regardless of block reason
+        // (technical, content hard-fail, or any other).
+        if (!requireUserFacingReviewGate && (reviewGateHandoffResult.ok || shortFormTechnicalBlockBypass || shortFormContentBlockBypass)) {
           const autoApprovalAt = new Date().toISOString();
           const sourceLayers =
             storyLayerPayload && typeof storyLayerPayload === 'object' && 'layers' in storyLayerPayload
@@ -6675,6 +6688,9 @@ export async function processEvaluationJob(
             : reviewGateHandoffResult.blocked.progress.pass3a_gate_validity;
           const technicalBypassReason = shortFormTechnicalBlockBypass
             ? reviewGateHandoffResult.blocked.progress.block_reason
+            : undefined;
+          const contentBlockBypassReason = shortFormContentBlockBypass
+            ? (reviewGateHandoffResult.blocked.progress.block_reason ?? 'short_form_content_hard_fail_bypassed')
             : undefined;
 
           const preferredLayerKeys = Object.keys(sourceLayers).filter((k) => k.trim().length > 0);
@@ -6755,7 +6771,9 @@ export async function processEvaluationJob(
             phase_status: 'queued',
             message: shortFormTechnicalBlockBypass
               ? 'Phase 1A complete — short-form policy bypassed retryable technical Review Gate block and queued diagnosis'
-              : 'Phase 1A complete — short-form policy skipped Story Ledger approval and queued diagnosis',
+              : shortFormContentBlockBypass
+                ? 'Phase 1A complete — short-form policy bypassed content hard-fail Review Gate block and queued diagnosis'
+                : 'Phase 1A complete — short-form policy skipped Story Ledger approval and queued diagnosis',
             phase1a_completed_at: phase2QueueAt,
             gate_ready_status: 'auto_approved_short_form',
             review_gate_ready: false,
@@ -6769,16 +6787,20 @@ export async function processEvaluationJob(
             short_form_review_gate_bypassed: true,
             short_form_review_gate_bypass_reason: shortFormTechnicalBlockBypass
               ? 'manuscript_under_25000_words_retryable_technical_block'
-              : 'manuscript_under_25000_words',
+              : shortFormContentBlockBypass
+                ? 'manuscript_under_25000_words_content_hard_fail_bypassed'
+                : 'manuscript_under_25000_words',
             short_form_technical_block_bypassed: shortFormTechnicalBlockBypass,
             short_form_technical_block_reason: technicalBypassReason,
+            short_form_content_block_bypassed: shortFormContentBlockBypass,
+            short_form_content_block_reason: contentBlockBypassReason,
             story_ledger_user_gate_required: false,
             story_ledger_user_gate_min_words: STORY_LEDGER_USER_GATE_MIN_WORDS,
             manuscript_word_count: manuscriptWordCountForGate,
             phase1a_batch_state: {
               ...((progressState.phase1a_batch_state as Record<string, unknown>) ?? {}),
               ledger_assembly_status: 'COMPLETE',
-              preflight_status: shortFormTechnicalBlockBypass
+              preflight_status: (shortFormTechnicalBlockBypass || shortFormContentBlockBypass)
                 ? (((progressState.phase1a_batch_state as Record<string, unknown> | undefined)?.preflight_status as string | undefined) ?? 'FAILED')
                 : 'DONE',
             },
@@ -6789,11 +6811,16 @@ export async function processEvaluationJob(
                 at: phase2QueueAt,
                 event: shortFormTechnicalBlockBypass
                   ? 'review_gate_skipped_short_form_technical_block'
-                  : 'review_gate_skipped_short_form',
+                  : shortFormContentBlockBypass
+                    ? 'review_gate_skipped_short_form_content_block'
+                    : 'review_gate_skipped_short_form',
                 stage: 'phase_1a',
                 manuscript_word_count: manuscriptWordCountForGate,
                 threshold_words: STORY_LEDGER_USER_GATE_MIN_WORDS,
                 technical_block_code: shortFormTechnicalBlockBypass
+                  ? reviewGateHandoffResult.blocked.progress.block_code
+                  : undefined,
+                content_block_code: shortFormContentBlockBypass
                   ? reviewGateHandoffResult.blocked.progress.block_code
                   : undefined,
               },

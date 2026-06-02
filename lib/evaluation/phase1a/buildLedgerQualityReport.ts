@@ -41,6 +41,55 @@ type LedgerQualityTechnicalSignals = {
   };
 };
 
+/**
+ * Detect entity-typing contamination: pronoun/descriptor fragments that the
+ * LLM mistakenly treated as character identities.
+ *
+ * Per doctrine: "A river cannot become a Character unless personified.
+ * If contamination occurs: suppress internally."
+ */
+function isEntityTypingContaminated(name: string): boolean {
+  const n = name.trim();
+  if (/\bUnknown\b/i.test(n)) return true;
+  if (/^Primary\s+(He|She|They|It|Him|Her)\b/i.test(n)) return true;
+  if (/^(he|she|they|it|him|her|his|hers|their)[_\s]/i.test(n)) return true;
+  if (/^(central|main|primary|secondary|unnamed|minor|background)[_\s]/i.test(n)) return true;
+  if (/\bunnamed\b/i.test(n)) return true;
+  return false;
+}
+
+function triageHardFailTrigger(trigger: string): { severity: QualityCheckResult['severity']; message: string } {
+  const trimmed = trigger.trim();
+
+  if (/^WARN:/i.test(trimmed)) {
+    return { severity: 'warning', message: trimmed };
+  }
+
+  if (/ending accountability/i.test(trimmed)) {
+    const nameMatch = trimmed.match(/"([^"]+)"/);
+    if (nameMatch && isEntityTypingContaminated(nameMatch[1])) {
+      return {
+        severity: 'info',
+        message: `SUPPRESSED (entity-typing contamination): ${trimmed}`,
+      };
+    }
+    return {
+      severity: 'warning',
+      message: trimmed.replace(/^HARD_FAIL:\s*/i, 'ENDING_NOTE: '),
+    };
+  }
+
+  const nameMatch = trimmed.match(/"([^"]+)"/);
+  if (nameMatch && isEntityTypingContaminated(nameMatch[1])) {
+    return {
+      severity: 'info',
+      message: `SUPPRESSED (entity-typing contamination): ${trimmed}`,
+    };
+  }
+
+  return { severity: 'hard_fail', message: trimmed };
+}
+
 function runQualityChecks(
   ledger: Pass1aCharacterLedger,
   ledgerV2: CharacterLedgerV2,
@@ -52,12 +101,19 @@ function runQualityChecks(
 
   // ── Hard Fail Checks ──────────────────────────────────────────────────────
 
-  // Hard fail triggers from Pass 1A sweep
+  // Hard fail triggers from Pass 1A sweep.
+  // The LLM may place warnings and non-blocking findings in this array.
+  // We triage each trigger instead of blindly promoting everything to hard_fail:
+  //  - "WARN:" prefix → warning (LLM labeled it as a warning)
+  //  - "ending accountability" → warning (craft finding, not a pipeline block)
+  //  - entity-typing contamination → suppressed (info)
+  //  - everything else → hard_fail (unchanged)
   for (const trigger of ledger.coverage_summary.hard_fail_triggers ?? []) {
+    const triaged = triageHardFailTrigger(trigger);
     results.push({
       key: 'pass1a_hard_fail_trigger',
-      severity: 'hard_fail',
-      message: trigger,
+      severity: triaged.severity,
+      message: triaged.message,
       layer: 'source_integrity_layer',
       evidenceReference: 'pass1a_character_ledger_v1.coverage_summary.hard_fail_triggers',
     });
