@@ -155,6 +155,7 @@ export function EvaluationPoller({
   const [pollCount, setPollCount] = useState(0);
   const [nextPollDelay, setNextPollDelay] = useState(refreshInterval);
   const [pendingRedirectDelayMs, setPendingRedirectDelayMs] = useState<number | null>(null);
+  const [refreshBump, setRefreshBump] = useState(0);
 
   // displayProgress: used only for the completion-animation sweep to 100.
   // For all running states the bar width comes directly from getProgressDisplay.
@@ -404,6 +405,10 @@ export function EvaluationPoller({
           nextJob.status === 'running' &&
           previousJob.progress !== nextJob.progress;
 
+        if (progressChanged || (previousJob && previousJob.phase !== nextJob.phase)) {
+          setRefreshBump(0);
+        }
+
         scheduleNextPoll(
           progressChanged
             ? refreshInterval
@@ -640,7 +645,7 @@ export function EvaluationPoller({
             ? 100
             : isCompletingAnimation
             ? safeAnimated
-            : Math.max(safeAnimated, effectivePd.percentage ?? 0);
+            : Math.max(safeAnimated, effectivePd.percentage ?? 0) + refreshBump;
           // Apply monotonic ratchet — only ever advance forward
           if (rawBarWidth > highWaterMarkRef.current) {
             highWaterMarkRef.current = rawBarWidth;
@@ -673,7 +678,10 @@ export function EvaluationPoller({
                 <div className="flex items-center gap-2 mt-1">
                   <button
                     type="button"
-                    onClick={() => window.location.reload()}
+                    onClick={() => {
+                      setRefreshBump((prev) => Math.min(prev + 1, 5));
+                      if (fetchJobRef.current) void fetchJobRef.current();
+                    }}
                     className="inline-flex items-center gap-1 rounded border border-gray-300 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors"
                   >
                     ↻ Refresh
