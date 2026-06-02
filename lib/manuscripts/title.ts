@@ -56,7 +56,7 @@ function isChapterHeading(value: string): boolean {
   // Public-domain and manuscript excerpts often begin chapter headings as:
   // "1 A Fellow Traveller" or "I The Shadow on the Door".
   // Only treat this as a chapter heading when there is actual heading text after the marker.
-  return /^(?:\d{1,3}|[ivxlcdm]{1,8})\s+[a-zA-Z"'\u201c\u2018]/i.test(line);
+  return /^(?:\d{1,3}|[ivxlcdm]{1,8})\s+[\p{L}"'“‘]/iu.test(line);
 }
 
 function meaningfulLines(text: string, limit = 16): string[] {
