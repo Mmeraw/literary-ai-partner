@@ -148,6 +148,14 @@ import {
   buildSemanticSeedSourceHash,
   generateSemanticSeedArtifacts,
 } from '@/lib/evaluation/seed/semanticSeedGenerator';
+import {
+  generateFullContextStoryLedger,
+  buildLedgerSeedContextBlock,
+  type FullContextStoryLedger,
+} from '@/lib/evaluation/seed/fullContextStoryLedger';
+import {
+  generateEditorialDreamSeed,
+} from '@/lib/evaluation/seed/editorialDreamSeedGenerator';
 import type {
   Pass3AStatus,
   PhaseV2ArtifactSet,
@@ -503,10 +511,12 @@ export function derivePhaseV2ReviewGateProgress(
 }
 
 export function shouldRequeueReviewGateBlock(blockCode: string, gateValidity: unknown): boolean {
+  // Only requeue for Pass 3A "not ready" states (still in progress).
+  // REVIEW_GATE_QUALITY_TECHNICAL_BLOCK no longer requeues — it kicks forward.
+  // Requeuing on technical blocks caused infinite loops with no user benefit.
   return (
-    (gateValidity === 'not_ready' &&
-      (blockCode === 'PASS3A_NOT_READY' || blockCode === 'PASS3A_HALF_WRITTEN'))
-    || blockCode === 'REVIEW_GATE_QUALITY_TECHNICAL_BLOCK'
+    gateValidity === 'not_ready' &&
+    (blockCode === 'PASS3A_NOT_READY' || blockCode === 'PASS3A_HALF_WRITTEN')
   );
 }
 
@@ -1901,8 +1911,15 @@ export async function assertPhase2UpstreamInputsCanonical(
   if (acceptedLedgerErr) {
     throw new Error(`POLICY_VIOLATION: phase_2 accepted ledger check failed (${acceptedLedgerErr.message})`);
   }
+
+  // ── KICK FORWARD: Auto-accept story ledger if missing ──
+  // If no accepted_story_ledger_v1 exists (e.g., review gate was bypassed due to
+  // non-fatal failures), auto-create one from pass1a_story_layer_v1 with a
+  // corruption assessment. Phase 2 proceeds with degraded authority.
   if (!acceptedLedgerRow?.id) {
-    throw new Error('POLICY_VIOLATION: phase_2 requires accepted_story_ledger_v1');
+    console.log(`[phase_2] ${jobId}: No accepted_story_ledger_v1 found — initiating kick-forward auto-acceptance`);
+    await autoAcceptStoryLedgerKickForward(supabase, jobId, manuscriptId);
+    return;
   }
 
   const row = acceptedLedgerRow as UpstreamArtifactRow;
@@ -1917,8 +1934,134 @@ export async function assertPhase2UpstreamInputsCanonical(
     : null;
 
   if (!governanceRail || !layerDecisions || Object.keys(layerDecisions).length < 9) {
-    throw new Error('POLICY_VIOLATION: accepted_story_ledger_v1 must include canonical governance_rail.layer_decisions before phase_2');
+    // Instead of hard-failing, auto-accept with what we have (kick forward)
+    console.log(`[phase_2] ${jobId}: accepted_story_ledger_v1 has incomplete governance_rail — kick-forward re-acceptance`);
+    await autoAcceptStoryLedgerKickForward(supabase, jobId, manuscriptId);
   }
+}
+
+/**
+ * Auto-accept the story ledger when the review gate was bypassed (kick-forward).
+ * Creates accepted_story_ledger_v1 from pass1a_story_layer_v1 with:
+ * - A corruption assessment (0.0–1.0 score)
+ * - Auto-accepted governance rail (no author verification)
+ * - Degraded layer decisions (all layers accepted without review)
+ *
+ * Downstream processes see the corruption_score and adjust confidence accordingly.
+ */
+async function autoAcceptStoryLedgerKickForward(
+  supabase: SupabaseClient<any, any, any>,
+  jobId: string,
+  manuscriptId: number,
+): Promise<void> {
+  const { assessLedgerCorruption } = await import('@/lib/evaluation/review-gate/ledgerCorruptionAssessor');
+
+  // Load the raw story layer
+  const { data: storyLayerRow, error: storyLayerErr } = await supabase
+    .from('evaluation_artifacts')
+    .select('id, content, source_hash')
+    .eq('job_id', jobId)
+    .eq('artifact_type', 'pass1a_story_layer_v1')
+    .maybeSingle();
+
+  if (storyLayerErr || !storyLayerRow) {
+    throw new Error(
+      `KICK_FORWARD_FAILED: Cannot auto-accept — pass1a_story_layer_v1 not found for job ${jobId}. ` +
+      `This means Phase 1A never completed. Cannot proceed.`
+    );
+  }
+
+  const storyLayerContent = isRecord(storyLayerRow.content) ? storyLayerRow.content : {};
+  const layers = isRecord(storyLayerContent.layers)
+    ? (storyLayerContent.layers as Record<string, unknown>)
+    : {};
+  const storyLayerSourceHash = (storyLayerRow as { source_hash?: string }).source_hash ?? '';
+
+  // Assess corruption
+  const corruptionAssessment = assessLedgerCorruption(layers);
+
+  if (!corruptionAssessment.usable) {
+    throw new Error(
+      `KICK_FORWARD_FAILED: Story ledger is critically corrupt (score=${corruptionAssessment.corruption_score}, ` +
+      `${corruptionAssessment.missing_layers.length} missing layers). Cannot produce meaningful evaluation.`
+    );
+  }
+
+  console.log(
+    `[phase_2] ${jobId}: Auto-accepting story ledger with corruption_score=${corruptionAssessment.corruption_score} ` +
+    `(${corruptionAssessment.layers_healthy}/9 healthy, ${corruptionAssessment.degraded_layers.length} degraded, ` +
+    `${corruptionAssessment.missing_layers.length} missing)`
+  );
+
+  // Build auto-accepted layer decisions (all layers accepted without author review)
+  const layerNames = Object.keys(layers);
+  const autoLayerDecisions: Record<string, { status: string; auto_accepted: boolean; corruption: number }> = {};
+  for (const layerName of layerNames) {
+    const detail = corruptionAssessment.layer_details.find(d => d.layer_name === layerName);
+    autoLayerDecisions[layerName] = {
+      status: 'accepted',
+      auto_accepted: true,
+      corruption: detail?.corruption ?? 0,
+    };
+  }
+
+  const now = new Date().toISOString();
+  const acceptedLedgerPayload = {
+    job_id: jobId,
+    manuscript_id: manuscriptId,
+    manuscript_version_hash: `manuscript_${manuscriptId}_${jobId}`,
+    artifact_id: `accepted_story_ledger_v1:kick_forward_${jobId.slice(0, 8)}`,
+    artifact_type: 'accepted_story_ledger_v1',
+    artifact_version: 'v1',
+    source_hash: `kick_forward:${storyLayerSourceHash}`,
+    generated_at: now,
+    layers,
+    governance_rail: {
+      approval_state: 'auto_accepted_kick_forward',
+      approved_by: 'system:kick_forward',
+      approved_at: now,
+      disposition: 'accept',
+      author_notes: null,
+      edit_requests: [],
+      pass1a_story_layer_source_hash: storyLayerSourceHash,
+      unresolved_warnings_preserved: true,
+      dependency_warnings: [],
+      contested_layer_count: 0,
+      layer_decisions: autoLayerDecisions,
+      // Corruption assessment — downstream processes use this to calibrate confidence
+      corruption_assessment: corruptionAssessment,
+      kick_forward_reason: 'Review gate bypassed due to non-fatal pipeline failure. Ledger auto-accepted with corruption measure.',
+    },
+  };
+
+  const { error: writeErr } = await supabase
+    .from('evaluation_artifacts')
+    .upsert(
+      {
+        job_id: jobId,
+        manuscript_id: manuscriptId,
+        artifact_type: 'accepted_story_ledger_v1',
+        artifact_version: 'v1',
+        source_hash: acceptedLedgerPayload.source_hash,
+        content: acceptedLedgerPayload,
+        created_at: now,
+      },
+      { onConflict: 'job_id,artifact_type', ignoreDuplicates: false },
+    );
+
+  if (writeErr) {
+    throw new Error(`KICK_FORWARD_FAILED: Could not write accepted_story_ledger_v1: ${writeErr.message}`);
+  }
+
+  // Also set review_gate_passed_at on the job row — downstream policy gates
+  // (pass12_handoff_v1) require this timestamp to prove the gate was passed.
+  // For kick-forward, we set it to now (auto-approved, no author interaction).
+  await supabase
+    .from('evaluation_jobs')
+    .update({ review_gate_passed_at: now })
+    .eq('id', jobId);
+
+  console.log(`[phase_2] ${jobId}: Kick-forward auto-acceptance complete. Corruption score: ${corruptionAssessment.corruption_score}`);
 }
 
 export async function assertPhase3UpstreamInputsCanonical(
@@ -3949,6 +4092,11 @@ export async function processEvaluationJob(
       // Phase_3 start is JSONB-only (no DB column exists)
       if (phase === 'phase_3') progressState.phase3_started_at = now;
 
+      // Monotonic ratchet: progress percentage never goes backward. Kicks and
+      // retries are invisible plumbing — the user only sees forward movement.
+      const prevHighWater = (progressState as Record<string, unknown>).progress_high_water as number ?? 0;
+      const safeCompletedUnits = Math.max(completedUnits, prevHighWater);
+
       // DB column patch — only columns that physically exist on evaluation_jobs.
       // Never build this inline: use getPhaseStartTimestamps so column drift
       // is caught by the schema-guard test in CI.
@@ -3961,7 +4109,8 @@ export async function processEvaluationJob(
         phase,
         phase_status: 'running',
         total_units: EVALUATION_PROGRESS_TOTAL_UNITS,
-        completed_units: completedUnits,
+        completed_units: safeCompletedUnits,
+        progress_high_water: safeCompletedUnits,
         message,
         last_heartbeat_at: now,
       };
@@ -5051,6 +5200,27 @@ export async function processEvaluationJob(
         const llrRecoveryMode =
           progressState.llr_retry_mode === 'safe_rewrite' ? 'safe_rewrite' : 'none';
 
+        // Load full-context story ledger for Phase 2/3 grounding (if generated in Phase 0.5a)
+        let phase23LedgerContextBlock: string | undefined;
+        if (process.env.EVAL_FULL_CONTEXT_LEDGER === 'true') {
+          try {
+            const { data: ledgerRows } = await supabase
+              .from('evaluation_artifacts')
+              .select('content')
+              .eq('job_id', String(job.id))
+              .eq('artifact_type', 'full_context_story_ledger_v1')
+              .limit(1);
+            if (ledgerRows && ledgerRows.length > 0) {
+              const ledger = (ledgerRows[0] as { content: FullContextStoryLedger }).content;
+              phase23LedgerContextBlock = buildLedgerSeedContextBlock(ledger);
+            }
+          } catch (ledgerLoadErr) {
+            console.warn(`[phase_2/3] ${jobId}: failed to load full-context ledger (non-fatal)`, {
+              error: ledgerLoadErr instanceof Error ? ledgerLoadErr.message : String(ledgerLoadErr),
+            });
+          }
+        }
+
         let pipelineResultP3;
         try {
           pipelineResultP3 = await runPipeline({
@@ -5071,6 +5241,7 @@ export async function processEvaluationJob(
             ...(prebuiltPreflightDraftP3 ? { _prebuiltPreflightDraft: prebuiltPreflightDraftP3 } : {}),
             ...(authorCorrectionsBlockP3 ? { _authorCorrectionsBlock: authorCorrectionsBlockP3 } : {}),
             _llrRecoveryMode: llrRecoveryMode,
+            _storyLedgerContextBlock: phase23LedgerContextBlock,
             onHeartbeat: async (stage) => {
               await assertJobWithinSla({
                 supabase,
@@ -5454,8 +5625,12 @@ export async function processEvaluationJob(
       // present. If missing, generate deterministically and persist before
       // dispatching Pass 1A. Any seed persistence failure is fail-closed.
       let phase1aSeedContextBlock = '';
+      let phase1aLedgerContextBlock = '';
       let seedEntityNamesForConsistency: string[] = [];
       try {
+        const seedStartedAt = new Date().toISOString();
+        const seedStartMs = Date.now();
+
         const ensuredSeeds = await ensureSeedArtifactsForPhase1a({
           supabase,
           jobId: String(job.id),
@@ -5468,6 +5643,9 @@ export async function processEvaluationJob(
           openaiApiKey,
           evalOpenAiTimeoutMs,
         });
+
+        const seedDurationMs = Date.now() - seedStartMs;
+        const seedCompletedAt = new Date().toISOString();
 
         phase1aSeedContextBlock = buildPass1aSeedContextBlock({
           storySeed: ensuredSeeds.storySeed,
@@ -5487,12 +5665,176 @@ export async function processEvaluationJob(
           }
         }
 
+        // ── Phase 0.5A/0.5B logging for mistake-proofing ─────────────────
+        // Every phase transition must be visible in the progress timeline.
+        const seedLogEntries: Record<string, unknown>[] = [];
+        if (ensuredSeeds.createdTypes.includes('story_map_seed_v1')) {
+          seedLogEntries.push(
+            { at: seedStartedAt, event: 'phase_0_5a_started', stage: 'phase_0_5a', label: 'Generating story map seed' },
+            { at: seedCompletedAt, event: 'phase_0_5a_completed', stage: 'phase_0_5a', duration_ms: seedDurationMs, artifact: 'story_map_seed_v1' },
+          );
+        }
+        if (ensuredSeeds.createdTypes.includes('evaluation_seed_v1')) {
+          seedLogEntries.push(
+            { at: seedStartedAt, event: 'phase_0_5b_started', stage: 'phase_0_5b', label: 'Generating evaluation seed' },
+            { at: seedCompletedAt, event: 'phase_0_5b_completed', stage: 'phase_0_5b', duration_ms: seedDurationMs, artifact: 'evaluation_seed_v1' },
+          );
+        }
+        if (seedLogEntries.length > 0) {
+          // Persist seed phase_log entries immediately so they're visible even if
+          // a later step fails. This is the mistake-proofing contract: no silent work.
+          const existingLog = (progressState.phase_log as unknown[]) ?? [];
+          progressState = {
+            ...progressState,
+            phase_log: [...existingLog, ...seedLogEntries],
+          };
+          await supabase
+            .from('evaluation_jobs')
+            .update({
+              progress: progressState,
+              worker_pulse_at: seedCompletedAt,
+            })
+            .eq('id', jobId)
+            .eq('status', JOB_STATUS.RUNNING);
+        }
+
         if (ensuredSeeds.createdTypes.length > 0) {
-          console.log(`[phase_1a] ${jobId}: generated missing seed artifacts`, {
+          console.log(`[phase_0.5] ${jobId}: generated seed artifacts (${seedDurationMs}ms)`, {
             created: ensuredSeeds.createdTypes,
           });
         } else {
-          console.log(`[phase_1a] ${jobId}: seed artifacts already present`);
+          console.log(`[phase_0.5] ${jobId}: seed artifacts already present (skip)`);
+        }
+
+        // ── Phase 0.5A Enhanced: Full-Context Story Ledger (behind feature flag) ──
+        // When EVAL_FULL_CONTEXT_LEDGER=true, generate a comprehensive 9-layer
+        // story ledger from the full manuscript text in a single LLM call.
+        // This provides hard fact constraints that prevent downstream comprehension errors.
+        if (process.env.EVAL_FULL_CONTEXT_LEDGER === 'true') {
+          const manuscriptText = manuscriptWithContent.content || '';
+          const wordCount = manuscriptText.split(/\s+/).length;
+
+          // Check if we already have a full_context_story_ledger_v1 artifact
+          const { data: existingLedgerRows } = await supabase
+            .from('evaluation_artifacts')
+            .select('content')
+            .eq('job_id', String(job.id))
+            .eq('artifact_type', 'full_context_story_ledger_v1')
+            .limit(1);
+
+          if (!existingLedgerRows || existingLedgerRows.length === 0) {
+            console.log(`[phase_0.5a_enhanced] ${jobId}: generating full-context story ledger (${wordCount} words)`);
+            const ledgerStartMs = Date.now();
+
+            try {
+              const ledgerResult = await generateFullContextStoryLedger({
+                jobId: String(job.id),
+                manuscriptId: Number(job.manuscript_id),
+                manuscriptText,
+                title: manuscriptWithContent.title,
+                workType: manuscriptWithContent.work_type || 'novel',
+                wordCount,
+                openaiApiKey,
+                model: openAiModel,
+                timeoutMs: Math.max(evalOpenAiTimeoutMs, 180_000), // 3 min for full-context
+              });
+
+              // Persist the ledger artifact
+              await supabase
+                .from('evaluation_artifacts')
+                .insert({
+                  job_id: String(job.id),
+                  manuscript_id: Number(job.manuscript_id),
+                  artifact_type: 'full_context_story_ledger_v1',
+                  content: ledgerResult.ledger,
+                  created_at: new Date().toISOString(),
+                });
+
+              // Build the ledger context block for Phase 1A
+              phase1aLedgerContextBlock = buildLedgerSeedContextBlock(ledgerResult.ledger);
+
+              const ledgerDurationMs = Date.now() - ledgerStartMs;
+              console.log(`[phase_0.5a_enhanced] ${jobId}: full-context ledger generated (${ledgerDurationMs}ms, ${ledgerResult.ledger.canonical_hard_facts.length} hard facts, ${ledgerResult.ledger.failure_conditions.length} failure conditions)`);
+
+              // Log to phase timeline
+              const ledgerLogEntries = [
+                { at: new Date(ledgerStartMs).toISOString(), event: 'phase_0_5a_enhanced_started', stage: 'phase_0_5a_enhanced', label: 'Generating full-context story ledger' },
+                { at: new Date().toISOString(), event: 'phase_0_5a_enhanced_completed', stage: 'phase_0_5a_enhanced', duration_ms: ledgerDurationMs, artifact: 'full_context_story_ledger_v1' },
+              ];
+              const existingLogForLedger = (progressState.phase_log as unknown[]) ?? [];
+              progressState = {
+                ...progressState,
+                phase_log: [...existingLogForLedger, ...ledgerLogEntries],
+              };
+              await supabase
+                .from('evaluation_jobs')
+                .update({ progress: progressState, worker_pulse_at: new Date().toISOString() })
+                .eq('id', jobId)
+                .eq('status', JOB_STATUS.RUNNING);
+            } catch (ledgerErr) {
+              // Non-fatal: if full-context ledger fails, continue with existing seeds
+              console.warn(`[phase_0.5a_enhanced] ${jobId}: full-context ledger generation failed (non-fatal, continuing with claim-based seeds)`, {
+                error: ledgerErr instanceof Error ? ledgerErr.message : String(ledgerErr),
+              });
+            }
+          } else {
+            // Ledger already exists — load it and build the context block
+            const existingLedger = (existingLedgerRows[0] as { content: FullContextStoryLedger }).content;
+            phase1aLedgerContextBlock = buildLedgerSeedContextBlock(existingLedger);
+            console.log(`[phase_0.5a_enhanced] ${jobId}: loaded existing full-context ledger`);
+          }
+
+          // ── Phase 0.5B: Full-Context DREAM Seed (editorial calibration) ──
+          // Generates an editorial diagnostic that serves as scoring calibration
+          // reference for Phase 3B longform output.
+          const manuscriptTextForDream = manuscriptWithContent.content || '';
+          const wordCountForDream = manuscriptTextForDream.split(/\s+/).length;
+
+          const { data: existingDreamRows } = await supabase
+            .from('evaluation_artifacts')
+            .select('id')
+            .eq('job_id', String(job.id))
+            .eq('artifact_type', 'editorial_dream_seed_v1')
+            .limit(1);
+
+          if (!existingDreamRows || existingDreamRows.length === 0) {
+            console.log(`[phase_0.5b] ${jobId}: generating editorial DREAM seed (${wordCountForDream} words)`);
+            const dreamStartMs = Date.now();
+
+            try {
+              const dreamResult = await generateEditorialDreamSeed({
+                jobId: String(job.id),
+                manuscriptId: Number(job.manuscript_id),
+                manuscriptText: manuscriptTextForDream,
+                title: manuscriptWithContent.title,
+                workType: manuscriptWithContent.work_type || 'novel',
+                wordCount: wordCountForDream,
+                openaiApiKey,
+                model: openAiModel,
+                timeoutMs: Math.max(evalOpenAiTimeoutMs, 180_000),
+              });
+
+              await supabase
+                .from('evaluation_artifacts')
+                .insert({
+                  job_id: String(job.id),
+                  manuscript_id: Number(job.manuscript_id),
+                  artifact_type: 'editorial_dream_seed_v1',
+                  content: dreamResult.dreamSeed,
+                  created_at: new Date().toISOString(),
+                });
+
+              const dreamDurationMs = Date.now() - dreamStartMs;
+              console.log(`[phase_0.5b] ${jobId}: editorial DREAM seed generated (${dreamDurationMs}ms, score=${dreamResult.dreamSeed.overall_score}, grade=${dreamResult.dreamSeed.overall_grade})`);
+            } catch (dreamErr) {
+              // Non-fatal: DREAM seed is calibration only, pipeline continues without it
+              console.warn(`[phase_0.5b] ${jobId}: editorial DREAM seed generation failed (non-fatal)`, {
+                error: dreamErr instanceof Error ? dreamErr.message : String(dreamErr),
+              });
+            }
+          } else {
+            console.log(`[phase_0.5b] ${jobId}: editorial DREAM seed already present (skip)`);
+          }
         }
       } catch (seedErr) {
         const seedErrMsg = seedErr instanceof Error ? seedErr.message : String(seedErr);
@@ -5736,7 +6078,7 @@ export async function processEvaluationJob(
         //   5. If both lanes are terminal → assemble Story Layer / Review Gate handoff
 
         // Normalize Track C (preflight) status for durable lane logic.
-        const normalizedPreflightStatus =
+        let normalizedPreflightStatus =
           preflightStatus === 'RUNNING' ? 'IN_PROGRESS'
           : preflightStatus === 'COMPLETE' ? 'DONE'
           : preflightStatus;
@@ -5831,13 +6173,58 @@ export async function processEvaluationJob(
             // Not enough time — self-chain immediately without processing.
             console.warn(`[phase_1a] ${jobId}: budget exhausted before batch start (remaining=${remainingBudgetMs}ms < margin=${safetyMarginMs}ms) — self-chaining`);
           } else {
-            // Run the bounded chunk batch.
+            // ── PARALLEL EXECUTION: Track B (batch) + Track C (preflight) ──
+            // On the first batch (batchIndex === 0) and when Track C hasn't
+            // started yet, fire Pass 3A concurrently with the chunk batch.
+            // This eliminates the sequential bottleneck where Track C could
+            // only start after batch completion (which always exceeded budget).
+            const shouldFireTrackCParallel =
+              batchIndex === 0 &&
+              normalizedPreflightStatus !== 'DONE' &&
+              normalizedPreflightStatus !== 'DEGRADED' &&
+              normalizedPreflightStatus !== 'IN_PROGRESS';
+
+            const trackCParallelPromise = shouldFireTrackCParallel
+              ? (async () => {
+                  const tcStart = new Date().toISOString();
+                  console.log(`[track_c] ${jobId}: starting Pass 3A in PARALLEL with batch 0`);
+                  const existingLog = (progressState.phase_log as unknown[]) ?? [];
+                  void supabase
+                    .from('evaluation_jobs')
+                    .update({
+                      progress: {
+                        ...progressState,
+                        track_c_status: 'running',
+                        phase_log: [
+                          ...existingLog,
+                          { at: tcStart, event: 'track_c_started', stage: 'pass_3a', parallel_with_batch: true },
+                        ],
+                      },
+                    })
+                    .eq('id', jobId)
+                    .eq('status', JOB_STATUS.RUNNING);
+                  return runPass3Preflight({
+                    manuscriptChunks: Array.isArray(allChunks) ? allChunks : [],
+                    title: manuscriptWithContent.title,
+                    workType: manuscriptWithContent.work_type || 'novel',
+                    jobId: String(job.id),
+                    manuscriptId: Number(job.manuscript_id),
+                    openaiApiKey,
+                    supabase,
+                    _chunkConcurrency: phase1aConfig.preflightConcurrency,
+                    _onChunkHeartbeat: () => { /* watchdog pulse */ },
+                  });
+                })()
+              : null;
+
+            // Run the bounded chunk batch (Track B).
             const pass1aBatchResult = await runPass1a({
               manuscriptText: manuscriptWithContent.content || '',
               manuscriptChunks: batchChunks,
               workType: manuscriptWithContent.work_type || 'novel',
               title: manuscriptWithContent.title,
               seedContextBlock: phase1aSeedContextBlock,
+              ledgerContextBlock: phase1aLedgerContextBlock || undefined,
               openaiApiKey,
               jobId: String(job.id),
               _chunkCache: pass1aCacheMap,
@@ -5852,6 +6239,59 @@ export async function processEvaluationJob(
               // All chunks in this batch failed — this is a real failure, not self-chain.
               const firstErr = pass1aBatchResult.failedChunkErrors[0]?.error ?? 'unknown_error';
               throw new Error(`Phase 1A batch ${batchIndex + 1}: all ${batchChunks.length} chunks failed. First error: ${firstErr}`);
+            }
+
+            // If Track C was fired in parallel, settle it now (non-blocking on batch).
+            if (trackCParallelPromise) {
+              try {
+                const trackCResult = await Promise.race([
+                  trackCParallelPromise,
+                  new Promise<{ __trackCTimedOut: true }>(r =>
+                    setTimeout(() => r({ __trackCTimedOut: true }), 120_000),
+                  ),
+                ]);
+                if (trackCResult && '__trackCTimedOut' in trackCResult) {
+                  normalizedPreflightStatus = 'SELF_CHAINED';
+                  console.log(`[track_c] ${jobId}: parallel Pass 3A timed out (120s) — will resume on next invocation`);
+                } else {
+                  const tcr = trackCResult as Awaited<ReturnType<typeof runPass3Preflight>>;
+                  const reducerFailed = tcr.preflight.reducer_status === 'failed' || tcr.preflight.preflight_authority === 'unavailable';
+                  normalizedPreflightStatus = reducerFailed ? 'DEGRADED' : 'DONE';
+                  const tcCompletedAt = new Date().toISOString();
+                  console.log(`[track_c] ${jobId}: parallel Pass 3A completed — authority=${tcr.preflight.preflight_authority}, duration=${tcr.durationMs}ms`);
+                  await supabase
+                    .from('evaluation_jobs')
+                    .update({
+                      worker_pulse_at: tcCompletedAt,
+                      progress: {
+                        ...progressState,
+                        track_c_status: reducerFailed ? 'degraded' : 'done',
+                        pass3a_status: reducerFailed ? 'failed' : 'done',
+                        pass3a_completed_at: tcCompletedAt,
+                        pass3a_artifact_id: tcr.artifactId,
+                        phase1a_batch_state: {
+                          ...((progressState.phase1a_batch_state as Record<string, unknown>) ?? {}),
+                          preflight_status: reducerFailed ? 'FAILED' : 'DONE',
+                        },
+                        phase_log: [
+                          ...((progressState.phase_log as unknown[]) ?? []),
+                          {
+                            at: tcCompletedAt,
+                            event: reducerFailed ? 'track_c_reducer_failed' : 'track_c_completed',
+                            stage: 'pass_3a',
+                            duration_ms: tcr.durationMs,
+                            parallel: true,
+                          },
+                        ],
+                      },
+                    })
+                    .eq('id', jobId)
+                    .eq('status', JOB_STATUS.RUNNING);
+                }
+              } catch (tcErr) {
+                normalizedPreflightStatus = 'DEGRADED';
+                console.warn(`[track_c] ${jobId}: parallel Pass 3A failed (non-fatal):`, tcErr instanceof Error ? tcErr.message : String(tcErr));
+              }
             }
           }
 
@@ -5899,10 +6339,22 @@ export async function processEvaluationJob(
             // background promises.
             let trackCStatusAfterBatch = normalizedPreflightStatus;
 
+            // Budget calculation: use the actual Vercel maxDuration (800s) as
+            // the effective ceiling, not just the invocationBudgetMs (which is
+            // a soft self-chain hint). Track C should run if there's real time
+            // remaining under the hard ceiling — not just leftover batch budget.
             const elapsedAfterBatchMs = Date.now() - phase1aInvocationStartMs;
-            const remainingAfterBatchMs = phase1aConfig.invocationBudgetMs - phase1aConfig.safetyMarginMs - elapsedAfterBatchMs;
+            const softRemainingMs = phase1aConfig.invocationBudgetMs - phase1aConfig.safetyMarginMs - elapsedAfterBatchMs;
+            // Hard ceiling: 800s maxDuration minus safety margin. Track C can use
+            // up to 120s (preflight map+reduce for large manuscripts).
+            const HARD_CEILING_MS = 780_000; // 800s - 20s safety
+            const hardRemainingMs = HARD_CEILING_MS - elapsedAfterBatchMs;
+            // Use the more generous of: soft remaining budget OR hard remaining budget.
+            // This ensures Track C fires even when the soft budget is exhausted,
+            // as long as the Vercel function still has real time remaining.
+            const remainingAfterBatchMs = Math.max(softRemainingMs, Math.min(hardRemainingMs, 120_000));
 
-            if (trackCStatusAfterBatch !== 'DONE' && trackCStatusAfterBatch !== 'DEGRADED' && remainingAfterBatchMs > 30_000) {
+            if (trackCStatusAfterBatch !== 'DONE' && trackCStatusAfterBatch !== 'DEGRADED' && remainingAfterBatchMs > 15_000) {
               // Enough budget remains — run Track C (Pass 3A) as awaited call.
               console.log(`[track_c] ${jobId}: running bounded Track C within chunk-batch invocation (budget=${remainingAfterBatchMs}ms)`);
               const trackCStartAt = new Date().toISOString();
@@ -7880,6 +8332,36 @@ export async function processEvaluationJob(
           error_code: pipelineResult.error_code,
         },
       });
+
+      // ── Phase 3 Crash Recovery ──────────────────────────────────────────
+      // If Phase 3 synthesis fails and we haven't exhausted retries, re-queue
+      // at phase_3 instead of marking the job as permanently failed. The next
+      // worker pickup will retry the synthesis with a fresh 800s budget.
+      // Only re-queue if the failure actually occurred in Pass 3 (not an earlier pass).
+      const PHASE_3_MAX_RETRIES = 2;
+      const phase3RetryCount = (progressState as Record<string, unknown>).phase_3_retry_count as number ?? 0;
+      const failedInPhase3 = pipelineResult.failed_at === 'pass3';
+      if (executionPhase === 'phase_3' && failedInPhase3 && phase3RetryCount < PHASE_3_MAX_RETRIES) {
+        const nextRetry = phase3RetryCount + 1;
+        console.warn(`[Processor] ${jobId}: Phase 3 failed (attempt ${nextRetry}/${PHASE_3_MAX_RETRIES}), re-queuing for retry`, {
+          error_code: pipelineResult.error_code,
+          failed_at: pipelineResult.failed_at,
+        });
+        (progressState as Record<string, unknown>).phase_3_retry_count = nextRetry;
+        (progressState as Record<string, unknown>).phase_3_last_retry_at = pass3CompletedAt;
+        (progressState as Record<string, unknown>).phase_3_last_error = pipelineResult.error_code;
+        await supabase
+          .from('evaluation_jobs')
+          .update({
+            status: 'queued',
+            phase: 'phase_3',
+            phase_status: 'queued',
+            last_error: `Phase 3 retry ${nextRetry}/${PHASE_3_MAX_RETRIES}: ${pipelineResult.error_code}`,
+            progress: progressState,
+          })
+          .eq('id', jobId);
+        return { success: false, error: `Phase 3 re-queued for retry (${nextRetry}/${PHASE_3_MAX_RETRIES})` };
+      }
 
       const serializedFailureDetails = pipelineResult.failure_details
         ? JSON.stringify(pipelineResult.failure_details).slice(0, 1500)

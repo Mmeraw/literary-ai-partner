@@ -1,6 +1,7 @@
 import type { LongformDreamDocument } from "@/lib/evaluation/pipeline/runPass3bLongform";
+import { getCriterionDisplayLabel } from "@/lib/evaluation/reportRenderSafety";
 
-type Props = { doc: LongformDreamDocument };
+type Props = { doc: LongformDreamDocument; showInternalSections?: boolean };
 
 const CONFIDENCE_COLORS: Record<string, string> = {
   High: "bg-emerald-100 text-emerald-800 border-emerald-200",
@@ -9,7 +10,7 @@ const CONFIDENCE_COLORS: Record<string, string> = {
   Low: "bg-rose-100 text-rose-800 border-rose-200",
 };
 
-export default function LongformEvidenceDistributionGate({ doc }: Props) {
+export default function LongformEvidenceDistributionGate({ doc, showInternalSections = false }: Props) {
   // Evidence distribution / confidence gate surfaces through:
   // - criterion_analyses (confidence per criterion, fit_evidence, gap_evidence distribution flags)
   // - acceptance_checks (failure conditions around evidence distribution)
@@ -99,7 +100,7 @@ export default function LongformEvidenceDistributionGate({ doc }: Props) {
                   } p-2 text-xs`}
                 >
                   <div className="flex items-center justify-between gap-1 mb-0.5">
-                    <span className="font-medium text-gray-800 capitalize">{c.key}</span>
+                    <span className="font-medium text-gray-800">{getCriterionDisplayLabel(c.key)}</span>
                     <span
                       className={`inline-flex items-center rounded-full border px-1.5 py-0.5 text-xs font-semibold ${colorClass}`}
                     >
@@ -108,7 +109,7 @@ export default function LongformEvidenceDistributionGate({ doc }: Props) {
                   </div>
                   <span className="text-gray-700">{c.score}/10</span>
                   {c.hasDistributionGap && (
-                    <p className="text-amber-700 mt-0.5 font-medium">⚠ evidence gap flagged</p>
+                    <p className="text-amber-700 mt-0.5 font-medium text-xs">Evidence gap flagged</p>
                   )}
                 </div>
               );
@@ -129,8 +130,8 @@ export default function LongformEvidenceDistributionGate({ doc }: Props) {
                 key={i}
                 className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm"
               >
-                <p className="font-medium text-amber-800 mb-1 capitalize">{c.key}</p>
-                <ul className="space-y-0.5">
+                <p className="font-medium text-amber-800 mb-1">{getCriterionDisplayLabel(c.key)}</p>
+                <ol className="space-y-0.5 list-decimal list-inside">
                   {c.gap_evidence
                     .filter((g) =>
                       /distribution|opening.heavy|narrow|insufficient|single|limited|concentrated/i.test(
@@ -138,25 +139,24 @@ export default function LongformEvidenceDistributionGate({ doc }: Props) {
                       )
                     )
                     .map((g, j) => (
-                      <li key={j} className="text-xs text-amber-700 flex gap-2">
-                        <span className="shrink-0">⚠</span>
+                      <li key={j} className="text-xs text-amber-700">
                         {g}
                       </li>
                     ))}
-                </ul>
+                </ol>
               </div>
             ))}
           </div>
         </div>
       )}
 
-      {/* Evidence acceptance checks */}
-      {(evidenceDetections.length > 0 || evidenceFailures.length > 0) && (
+      {/* Evidence acceptance checks — INTERNAL ONLY (never shown to authors) */}
+      {showInternalSections && (evidenceDetections.length > 0 || evidenceFailures.length > 0) && (
         <div className="grid sm:grid-cols-2 gap-4">
           {evidenceDetections.length > 0 && (
             <div>
               <p className="text-xs font-semibold uppercase tracking-wide text-emerald-600 mb-2">
-                Required evidence coverage
+                Required evidence coverage <span className="text-amber-700">(internal)</span>
               </p>
               <ul className="space-y-1">
                 {evidenceDetections.map((d, i) => (
@@ -171,7 +171,7 @@ export default function LongformEvidenceDistributionGate({ doc }: Props) {
           {evidenceFailures.length > 0 && (
             <div>
               <p className="text-xs font-semibold uppercase tracking-wide text-rose-600 mb-2">
-                Failure conditions
+                Failure conditions <span className="text-amber-700">(internal)</span>
               </p>
               <ul className="space-y-1">
                 {evidenceFailures.map((f, i) => (
@@ -186,11 +186,11 @@ export default function LongformEvidenceDistributionGate({ doc }: Props) {
         </div>
       )}
 
-      {/* Calibration notes on evidence */}
-      {distributionNotes.length > 0 && (
+      {/* Calibration notes on evidence — INTERNAL ONLY */}
+      {showInternalSections && distributionNotes.length > 0 && (
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-gray-600 mb-2">
-            Calibration notes — evidence coverage
+            Calibration notes — evidence coverage <span className="text-amber-700">(internal)</span>
           </p>
           <ul className="space-y-1">
             {distributionNotes.map((n, i) => (

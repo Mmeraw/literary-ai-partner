@@ -33,12 +33,12 @@ const degradedProgress: PhaseV2Progress = {
 };
 
 describe('Phase Architecture v2 — Pass 3A gate validity', () => {
-  it('treats failed Pass 3A as gate-blocking, never gate-valid', () => {
+  it('treats failed Pass 3A as gate-valid (kick forward — preflight is non-fatal)', () => {
     const result = derivePass3aGateValidity({ pass3a_status: 'failed' }, doneArtifacts);
 
-    expect(result.ok).toBe(false);
-    expect(result.gate_validity).toBe('gate_blocking');
-    expect(result.code).toBe('PASS3A_FAILED_BLOCKING');
+    expect(result.ok).toBe(true);
+    expect(result.gate_validity).toBe('gate_valid');
+    expect(result.code).toBe('PASS3A_FAILED_KICK_FORWARD');
   });
 
   it('treats running/map_done/reduce_running as not-ready half-written states', () => {
@@ -85,9 +85,9 @@ describe('Phase Architecture v2 — Pass 3A gate validity', () => {
       pass3_preflight_authority: 'unavailable',
     });
 
-    expect(result.ok).toBe(false);
-    expect(result.gate_validity).toBe('gate_blocking');
-    expect(result.code).toBe('PASS3A_REDUCER_FAILED');
+    expect(result.ok).toBe(true);
+    expect(result.gate_validity).toBe('gate_valid');
+    expect(result.code).toBe('PASS3A_REDUCER_FAILED_KICK_FORWARD');
   });
 
   it('treats degraded without structured proof as gate-blocking', () => {
@@ -144,8 +144,8 @@ describe('Phase Architecture v2 — derived Review Gate readiness', () => {
     expect(result.code).toBe('REVIEW_GATE_QUALITY_VERDICT_UNKNOWN');
   });
 
-  it('blocks Review Gate when Pass 3A is missing/running/half-written/failed', () => {
-    for (const status of ['not_started', 'running', 'map_done', 'reduce_running', 'failed'] as const) {
+  it('blocks Review Gate when Pass 3A is missing/running/half-written (but NOT failed — kick forward)', () => {
+    for (const status of ['not_started', 'running', 'map_done', 'reduce_running'] as const) {
       const result = deriveReviewGateReadiness(
         { pass3a_status: status },
         {
@@ -187,16 +187,17 @@ describe('Phase Architecture v2 — derived Review Gate readiness', () => {
     expect(result.code).toBe('REVIEW_GATE_QUALITY_BLOCKED');
   });
 
-  it('blocks Review Gate as retryable technical block when quality status is technical', () => {
+  it('kicks forward Review Gate when quality status is technical degradation (non-fatal)', () => {
     const result = deriveReviewGateReadiness(doneProgress, {
       ...doneArtifacts,
       ledger_quality_gate_ready_status: 'blocked_retryable_technical',
       ledger_quality_hard_fail_present: false,
     });
 
-    expect(result.ok).toBe(false);
-    expect(result.review_gate_ready).toBe(false);
-    expect(result.code).toBe('REVIEW_GATE_QUALITY_TECHNICAL_BLOCK');
+    // Technical degradation kicks forward — not a blocking state
+    expect(result.ok).toBe(true);
+    expect(result.review_gate_ready).toBe(true);
+    expect(result.code).toBe('REVIEW_GATE_TECHNICAL_KICK_FORWARD');
   });
 });
 
@@ -209,8 +210,8 @@ describe('Phase Architecture v2 — Phase 2 preconditions', () => {
     expect(result.code).toBe('PHASE2_STORY_AUTHORITY_MISSING');
   });
 
-  it('blocks Phase 2 when Pass 3A is missing/running/half-written/failed', () => {
-    for (const status of ['not_started', 'running', 'map_done', 'reduce_running', 'failed'] as const) {
+  it('blocks Phase 2 when Pass 3A is missing/running/half-written (but kicks forward on failed)', () => {
+    for (const status of ['not_started', 'running', 'map_done', 'reduce_running'] as const) {
       const result = assertPhase2Preconditions(
         { pass3a_status: status },
         {
@@ -220,8 +221,19 @@ describe('Phase Architecture v2 — Phase 2 preconditions', () => {
       );
 
       expect(result.ok).toBe(false);
-      expect(['PASS3A_NOT_READY', 'PASS3A_HALF_WRITTEN', 'PASS3A_FAILED_BLOCKING']).toContain(result.code);
+      expect(['PASS3A_NOT_READY', 'PASS3A_HALF_WRITTEN']).toContain(result.code);
     }
+
+    // Failed = kick forward (non-fatal preflight failure)
+    const failedResult = assertPhase2Preconditions(
+      { pass3a_status: 'failed' },
+      {
+        accepted_story_ledger_v1: artifact('accepted-ledger'),
+        pass3_preflight_draft_v1: artifact('preflight'),
+      },
+    );
+    expect(failedResult.ok).toBe(true);
+    expect(failedResult.code).toBe('PHASE2_PRECONDITIONS_SATISFIED');
   });
 
   it('blocks Phase 2 when done lacks pass3_preflight_draft_v1', () => {

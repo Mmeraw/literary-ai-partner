@@ -80,6 +80,8 @@ type CanonicalJobResponse = {
   phase0_calibration_word_count?: number | null;
   /** Review-gate quality signal: true when ledger hard-fails block Phase 2 */
   hard_fail_present?: boolean | null;
+  /** Pipeline block code — when set, the eval is gated/blocked and progress should reflect honestly */
+  block_code?: string | null;
   /** Manuscript word count from chunk_routing JSONB — available before completion */
   manuscript_word_count?: number | null;
   /** Human-safe backend phase message, surfaced from progress.message when present */
@@ -98,6 +100,8 @@ type CanonicalJobResponse = {
   can_view_operational_details?: boolean;
   /** Public-safe failure message for non-operator callers */
   public_status_message?: string | null;
+  /** Monotonic ratchet — highest progress percentage ever reported. Bar never renders below this. */
+  progress_high_water?: number | null;
 };
 
 const NO_STORE_HEADERS = {
@@ -236,8 +240,12 @@ export async function GET(req: NextRequest, ctx: { params: Params }) {
       response.job.phase0_calibration_word_count = stageTiming.phase0_calibration_word_count;
     }
 
-    // 6d) Surface hard_fail_present for review_gate blocked state display
+    // 6d) Surface hard_fail_present and block_code for review_gate blocked state display
     const rawProgress = job.progress as Record<string, unknown> | null;
+    const rawBlockCode = rawProgress?.block_code;
+    if (typeof rawBlockCode === 'string' && rawBlockCode.length > 0) {
+      response.job.block_code = rawBlockCode;
+    }
     const rawHardFail = rawProgress?.hard_fail_present;
     if (typeof rawHardFail === 'boolean') {
       response.job.hard_fail_present = rawHardFail;
@@ -250,6 +258,12 @@ export async function GET(req: NextRequest, ctx: { params: Params }) {
     const rawMsWords = chunkRouting?.manuscript_words ?? chunkRouting?.source_manuscript_words;
     if (typeof rawMsWords === 'number' && rawMsWords > 0) {
       response.job.manuscript_word_count = rawMsWords;
+    }
+
+    // 6e2) Monotonic progress ratchet — bar never goes backward from user's perspective
+    const rawHighWater = rawProgress?.progress_high_water;
+    if (typeof rawHighWater === 'number' && rawHighWater > 0) {
+      response.job.progress_high_water = rawHighWater;
     }
 
     // 6f) Surface operational visibility fields for explicit stuck-state UX.

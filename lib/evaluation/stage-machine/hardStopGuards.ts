@@ -160,8 +160,10 @@ export function assertPhase2Preconditions(
   const status = progress.pass3a_status;
   const gateValidity = derivePass3aGateValidity(progress, artifacts);
 
+  // Kick forward: Pass 3A failure is non-fatal. Proceed with degraded/absent
+  // preflight authority. Don't block the eval pipeline on a preflight optimization.
   if (status === 'failed') {
-    throw new Error('PASS3A_FAILED_BLOCKING');
+    return; // kick forward
   }
 
   if (

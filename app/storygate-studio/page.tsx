@@ -263,7 +263,7 @@ export default function StorygateStudioLanding() {
                 "Synopsis or book-project overview",
                 "Author bio",
                 "Sample pages or manuscript materials",
-                "Supporting materials — comparables, audience positioning, or optional readiness assessment",
+                "Supporting materials—comparables, audience positioning, or optional readiness assessment",
               ].map((item) => (
                 <li key={item} className="flex items-start gap-3 text-xs" style={{ color: C.ash }}>
                   <span style={{ color: C.gold, flexShrink: 0, marginTop: 1 }}>—</span>
@@ -299,7 +299,7 @@ export default function StorygateStudioLanding() {
             <ul className="space-y-2 mb-6">
               {[
                 "A RevisionGrade score of 8.0 or higher from a full manuscript evaluation, or",
-                "An equivalent professional manuscript assessment from a qualified third party — such as a literary agent, acquiring editor, professional editor, or recognized publishing evaluator",
+                "An equivalent professional manuscript assessment from a qualified third party—such as a literary agent, acquiring editor, professional editor, or recognized publishing evaluator",
               ].map((item) => (
                 <li key={item} className="flex items-start gap-3 text-xs" style={{ color: C.ash }}>
                   <span style={{ color: C.gold, flexShrink: 0, marginTop: 1 }}>—</span>

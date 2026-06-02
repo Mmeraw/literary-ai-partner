@@ -568,10 +568,12 @@ describe("Review Gate wiring helpers", () => {
     expect(failedFromReducer.failed_reason).toBe('PASS3A_REDUCER_FAILED');
   });
 
-  test("requeue policy allows not-ready Pass3A blocks and technical quality blocks", () => {
+  test("requeue policy only allows not-ready Pass3A blocks (technical blocks kick forward)", () => {
     expect(shouldRequeueReviewGateBlock("PASS3A_NOT_READY", "not_ready")).toBe(true);
     expect(shouldRequeueReviewGateBlock("PASS3A_HALF_WRITTEN", "not_ready")).toBe(true);
-    expect(shouldRequeueReviewGateBlock("REVIEW_GATE_QUALITY_TECHNICAL_BLOCK", "gate_blocking")).toBe(true);
+
+    // REVIEW_GATE_QUALITY_TECHNICAL_BLOCK no longer requeues — kicks forward instead
+    expect(shouldRequeueReviewGateBlock("REVIEW_GATE_QUALITY_TECHNICAL_BLOCK", "gate_blocking")).toBe(false);
 
     expect(shouldRequeueReviewGateBlock("PASS3A_FAILED_BLOCKING", "gate_blocking")).toBe(false);
     expect(shouldRequeueReviewGateBlock("PASS3A_ARTIFACT_MISSING", "gate_blocking")).toBe(false);

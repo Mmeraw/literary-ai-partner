@@ -27,7 +27,7 @@ export type WorkbenchOption = {
   rationale: string
 }
 
-export type WorkbenchSource = 'evaluation' | 'deep_revision' | 'baseline_discovery'
+export type WorkbenchSource = 'evaluation' | 'deep_revision' | 'baseline_discovery' | 'surface_polish'
 
 export type WorkbenchOpportunity = {
   id: string
@@ -739,7 +739,7 @@ function findingToOpportunity(
   })
 }
 
-const sourceOrder: Record<WorkbenchSource, number> = { evaluation: 0, deep_revision: 1, baseline_discovery: 2 }
+const sourceOrder: Record<WorkbenchSource, number> = { evaluation: 0, deep_revision: 1, baseline_discovery: 2, surface_polish: 3 }
 
 function sortOpportunities(items: WorkbenchOpportunity[]): WorkbenchOpportunity[] {
   return [...items].sort((a, b) =>

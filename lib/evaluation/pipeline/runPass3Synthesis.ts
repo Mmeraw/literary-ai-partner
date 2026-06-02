@@ -12,6 +12,7 @@
 import OpenAI from "openai";
 import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
 import { PASS3_SYSTEM_PROMPT, PASS3_PROMPT_VERSION, buildPass3UserPrompt } from "./prompts/pass3-synthesis";
+import { sanitizeCMOSCriterion, sanitizeCMOSOverall } from "../cmosSanitizer";
 import type {
   SinglePassOutput,
   SynthesisOutput,
@@ -398,6 +399,13 @@ export interface RunPass3Options {
    * When absent, Pass 3B receives a PREFLIGHT UNAVAILABLE notice.
    */
   compactPreflightSummary?: string;
+  /**
+   * Full-context story ledger ground truth block (Phase 0.5a).
+   * When provided, injected into the Pass 3 system prompt as MANDATORY
+   * hard fact constraints. Any synthesis recommendation that contradicts
+   * these facts is INVALID and must be suppressed.
+   */
+  storyLedgerContextBlock?: string;
 }
 
 const LEDGER_UNAVAILABLE_WARNING =
@@ -541,11 +549,16 @@ export async function runPass3Synthesis(opts: RunPass3Options): Promise<Synthesi
   // on detected truncation, retry ONCE with +4000 tokens.
   const retryMaxTokens = originalMaxTokens + 4000;
 
+  // Inject full-context story ledger ground truth into system prompt when available
+  const effectiveSystemPrompt = opts.storyLedgerContextBlock
+    ? `${PASS3_SYSTEM_PROMPT}\n\n${opts.storyLedgerContextBlock}\n\nAny synthesis recommendation that contradicts the STORY LEDGER GROUND TRUTH above is INVALID. Do not recommend scenes for dead characters, do not claim stationary objects move, do not misattribute cosmology as geography.`
+    : PASS3_SYSTEM_PROMPT;
+
   const invokePass3Completion = (maxTokensForCall: number) =>
     createCompletion({
       model: selectedModel,
       messages: [
-        { role: "system", content: PASS3_SYSTEM_PROMPT },
+        { role: "system", content: effectiveSystemPrompt },
         { role: "user", content: userPrompt },
       ],
       ...buildOpenAITemperatureParam(selectedModel, PASS3_TEMPERATURE),
@@ -904,6 +917,14 @@ export function parsePass3Response(
       ? buildBackfilledRationale(key, p1c?.rationale, p2c?.rationale, evidence, manuscriptText)
       : baselineRationale;
 
+    // Parse fit/gap summary fields from LLM response
+    const rawFitSummary = typeof rawEntry?.["fit_summary"] === "string" ? rawEntry["fit_summary"].trim() : "";
+    const rawGapSummary = typeof rawEntry?.["gap_summary"] === "string" ? rawEntry["gap_summary"].trim() : "";
+
+    // Deterministic 9-10 recommendation suppression (canon rule):
+    // Scores 9-10 must NOT carry severity-tagged recommendations.
+    const suppressedRecommendations = finalScore >= 9 ? [] : recommendations;
+
     criteria.push({
       key,
       // PR-D: canonical scores are 1..10; never emit 0.
@@ -914,12 +935,14 @@ export function parsePass3Response(
       delta_explanation:
         delta > 2 ? String(rawEntry?.["delta_explanation"] ?? "Axes diverge significantly.") : undefined,
       final_rationale: finalRationale,
+      fit_summary: rawFitSummary || undefined,
+      gap_summary: (finalScore >= 9 ? "" : rawGapSummary) || undefined,
       pressure_points: pressurePoints.length > 0 ? pressurePoints : [fallbackPressurePoint],
       decision_points: decisionPoints.length > 0 ? decisionPoints : [fallbackDecisionPoint],
       consequence_status: consequenceStatus,
       deferred_consequence_risk: deferredRisk,
       evidence,
-      recommendations,
+      recommendations: suppressedRecommendations,
       technical_defects: technicalDefects.length > 0 ? dedupeTechnicalDefects(technicalDefects) : undefined,
     });
   }
@@ -955,16 +978,25 @@ export function parsePass3Response(
     ? (obj["metadata"] as Record<string, unknown>)
     : {};
 
+  // CMOS 17th Ed. — deterministic post-processing of all author-facing text
+  const sanitizedCriteria = criteria.map(
+    (c) => sanitizeCMOSCriterion(c as unknown as Record<string, unknown>) as unknown as typeof c,
+  );
+
+  const rawOverallObj = {
+    overall_score_0_100: overallScore0_100,
+    verdict,
+    one_paragraph_summary: summary,
+    top_3_strengths: strengths,
+    top_3_risks: risks,
+    submission_readiness: parseSubmissionReadiness(rawOverall["submission_readiness"], verdict, criteria),
+  };
+
+  const sanitizedOverall = sanitizeCMOSOverall(rawOverallObj as Record<string, unknown>) as typeof rawOverallObj;
+
   return {
-    criteria,
-    overall: {
-      overall_score_0_100: overallScore0_100,
-      verdict,
-      one_paragraph_summary: summary,
-      top_3_strengths: strengths,
-      top_3_risks: risks,
-      submission_readiness: parseSubmissionReadiness(rawOverall["submission_readiness"], verdict, criteria),
-    },
+    criteria: sanitizedCriteria,
+    overall: sanitizedOverall,
     metadata: {
       // PR-I (2026-05-16): Provenance must reflect the model that actually executed,
       // NOT what the LLM hallucinated in its self-reported metadata block.

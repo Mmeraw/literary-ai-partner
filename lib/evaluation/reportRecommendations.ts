@@ -158,7 +158,7 @@ function formatCrossCuttingRecommendation(
   if (!action) return null;
 
   const why = typeof recommendation.why === "string" ? recommendation.why.trim() : "";
-  return `${label ? `${label}: ` : ""}${action}${why ? ` — ${why}` : ""}`;
+  return `${label ? `${label}: ` : ""}${action}${why ? `—${why}` : ""}`;
 }
 
 function extractSummaryFallback(summary: string, maxItems: number): string[] {
@@ -212,7 +212,7 @@ export function buildTopRecommendations(artifact: ArtifactLike | null | undefine
             : typeof recommendation.expected_impact === "string" && recommendation.expected_impact.trim()
               ? recommendation.expected_impact.trim()
               : "";
-        return readerSummary ? `${action} — ${readerSummary}` : action;
+        return readerSummary ? `${action}—${readerSummary}` : action;
       }),
     ),
   );

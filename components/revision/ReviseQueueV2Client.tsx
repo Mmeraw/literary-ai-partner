@@ -368,7 +368,7 @@ function EmptyWorkbench({ payload, cachedAt }: { payload: WorkbenchQueuePayload;
         </h1>
         <p className="mt-4 leading-7 text-[#CBBDA4]">
           {isFirstLoad
-            ? "RevisionGrade is generating opportunities from your completed evaluation. This usually takes a moment — try refreshing the page."
+            ? "RevisionGrade is generating opportunities from your completed evaluation. This usually takes a moment—try refreshing the page."
             : (payload.error ?? "This evaluation did not persist revision opportunities.")}
         </p>
         {cachedAt && <p className="mt-3 text-sm text-[#A9987D]">Last local cache: {cachedAt}</p>}
@@ -1427,7 +1427,7 @@ export default function ReviseQueueV2Client({ payload }: { payload: WorkbenchQue
                   ledger.slice(0, 8).map((entry, i) => (
                     <li key={entry.localId} className="rounded border border-[#2D2519] bg-[#120E08] p-2 text-xs">
                       <div className="flex items-start justify-between gap-2">
-                        <p className="text-[#E9DCC4]"><span className="text-[#C8A96E]">{decisionLabel(entry)}</span> — {entry.itemTitle}</p>
+                        <p className="text-[#E9DCC4]"><span className="text-[#C8A96E]">{decisionLabel(entry)}</span>—{entry.itemTitle}</p>
                         <button type="button" onClick={() => undoLedgerEntry(i)} className="rounded border border-[#5D4C31] px-1.5 py-0.5 text-[10px] text-[#D8C6A4]">Undo</button>
                       </div>
                     </li>

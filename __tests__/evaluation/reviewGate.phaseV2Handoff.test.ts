@@ -87,8 +87,8 @@ describe('Phase Architecture v2 — Review Gate handoff helper', () => {
     expect(result.blocked.progress.block_code).toBe('REVIEW_GATE_QUALITY_REPORT_MISSING');
   });
 
-  it('blocks handoff when Pass 3A is missing/running/half-written/failed', () => {
-    for (const status of ['not_started', 'running', 'map_done', 'reduce_running', 'failed'] as const) {
+  it('blocks handoff when Pass 3A is missing/running/half-written (kicks forward on failed)', () => {
+    for (const status of ['not_started', 'running', 'map_done', 'reduce_running'] as const) {
       const result = buildReviewGateHandoff(
         { pass3a_status: status },
         {
@@ -102,10 +102,17 @@ describe('Phase Architecture v2 — Review Gate handoff helper', () => {
 
       expect(result.blocked.progress.review_gate_ready).toBe(false);
       expect(result.blocked.progress.pass3a_status).toBe(status);
-      expect(['PASS3A_NOT_READY', 'PASS3A_HALF_WRITTEN', 'PASS3A_FAILED_BLOCKING']).toContain(
+      expect(['PASS3A_NOT_READY', 'PASS3A_HALF_WRITTEN']).toContain(
         result.blocked.progress.block_code,
       );
     }
+
+    // Failed = kick forward (non-fatal)
+    const failedResult = buildReviewGateHandoff(
+      { pass3a_status: 'failed' },
+      { ...storyArtifacts, pass3_preflight_draft_v1: artifact('preflight') },
+    );
+    expect(failedResult.ok).toBe(true);
   });
 
   it('blocks handoff when done Pass 3A lacks pass3_preflight_draft_v1', () => {
@@ -173,7 +180,7 @@ describe('Phase Architecture v2 — Review Gate handoff helper', () => {
     expect(result.blocked.progress.block_code).toBe('REVIEW_GATE_QUALITY_NOT_REVIEWABLE');
   });
 
-  it('blocks handoff when Pass 3A is degraded but reducer failed', () => {
+  it('kicks forward through handoff when Pass 3A reducer failed (non-fatal)', () => {
     const result = buildReviewGateHandoff(
       { ...degradedProgress, pass3a_status: 'degraded' },
       {
@@ -184,10 +191,11 @@ describe('Phase Architecture v2 — Review Gate handoff helper', () => {
       },
     );
 
-    expect(result.ok).toBe(false);
-    if (result.ok) throw new Error('Expected reducer-failed Pass 3A to block review gate handoff');
+    // Reducer failure is non-fatal — kick forward with degraded preflight.
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('Expected reducer-failed Pass 3A to kick forward');
 
-    expect(result.blocked.progress.block_code).toBe('PASS3A_REDUCER_FAILED');
-    expect(result.blocked.progress.pass3a_gate_validity).toBe('gate_blocking');
+    expect(result.handoff.progress.pass3a_status).toBe('degraded');
+    expect(result.handoff.progress.pass3a_gate_validity).toBe('gate_valid');
   });
 });

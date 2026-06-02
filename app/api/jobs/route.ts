@@ -110,7 +110,7 @@ async function seedJobIntakeProgress(params: {
     Object.assign(nextProgress, {
       phase: "phase_1a",
       phase_status: "queued",
-      message: "Short-form evaluation queued — using short-form criteria policy fast path",
+      message: "Short-form evaluation queued—using short-form criteria policy fast path",
       phase0_fast_track: true,
       phase0_fast_track_reason: "short_form_under_25000_words",
       // Phase 1A proof guard requires either real Phase 0 proof durations

@@ -1,6 +1,6 @@
 import type { LongformDreamDocument } from "@/lib/evaluation/pipeline/runPass3bLongform";
 
-type Props = { doc: LongformDreamDocument };
+type Props = { doc: LongformDreamDocument; showInternalSections?: boolean };
 
 const VERDICT_STYLES: Record<string, string> = {
   Ready: "bg-emerald-100 text-emerald-700 border-emerald-200",
@@ -9,7 +9,7 @@ const VERDICT_STYLES: Record<string, string> = {
   "Must fix": "bg-rose-100 text-rose-700 border-rose-200",
 };
 
-export default function LongformReleasability({ doc }: Props) {
+export default function LongformReleasability({ doc, showInternalSections = false }: Props) {
   const rows = doc.releasability ?? [];
   const checks = doc.acceptance_checks;
   const integrity = doc.manuscript_integrity_issues ?? [];
@@ -51,36 +51,35 @@ export default function LongformReleasability({ doc }: Props) {
         </div>
       )}
 
-      {checks && (
+      {/* Acceptance checks — INTERNAL ONLY (never shown to authors) */}
+      {showInternalSections && checks && (
         <div className="grid sm:grid-cols-2 gap-4">
           {(checks.required_detection?.length ?? 0) > 0 && (
             <div>
               <p className="text-xs font-semibold uppercase tracking-wide text-gray-600 mb-2">
-                Required detection
+                Required detection <span className="text-amber-700">(internal)</span>
               </p>
-              <ul className="space-y-1">
+              <ol className="space-y-1 list-decimal list-inside">
                 {checks.required_detection.map((item, i) => (
-                  <li key={i} className="text-xs text-gray-600 flex gap-2">
-                    <span className="text-emerald-400 shrink-0">✓</span>
+                  <li key={i} className="text-xs text-gray-600">
                     {item}
                   </li>
                 ))}
-              </ul>
+              </ol>
             </div>
           )}
           {(checks.failure_conditions?.length ?? 0) > 0 && (
             <div>
               <p className="text-xs font-semibold uppercase tracking-wide text-gray-600 mb-2">
-                Failure conditions
+                Failure conditions <span className="text-amber-700">(internal)</span>
               </p>
-              <ul className="space-y-1">
+              <ol className="space-y-1 list-decimal list-inside">
                 {checks.failure_conditions.map((item, i) => (
-                  <li key={i} className="text-xs text-gray-600 flex gap-2">
-                    <span className="text-rose-400 shrink-0">✗</span>
+                  <li key={i} className="text-xs text-gray-600">
                     {item}
                   </li>
                 ))}
-              </ul>
+              </ol>
             </div>
           )}
         </div>

@@ -92,16 +92,15 @@ describe('Phase Architecture v2 — Review Gate handoff helper', () => {
     }
   });
 
-  it('blocks Review Gate when Pass 3A failed', () => {
+  it('kicks forward through Review Gate when Pass 3A failed (non-fatal)', () => {
     const result = buildReviewGateHandoff({ pass3a_status: 'failed' }, doneArtifacts);
 
-    expect(result.ok).toBe(false);
-    if (result.ok) return;
+    // Pass 3A failure is non-fatal — gate should open with degraded preflight.
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
 
-    expect(result.blocked.review_gate_ready).toBe(false);
-    expect(result.blocked.decision.code).toBe('PASS3A_FAILED_BLOCKING');
-    expect(result.blocked.progress.block_code).toBe('PASS3A_FAILED_BLOCKING');
-    expect(result.blocked.progress.pass3a_gate_validity).toBe('gate_blocking');
+    expect(result.decision.code).toBe('REVIEW_GATE_READY');
+    expect(result.handoff.progress.pass3a_status).toBe('degraded');
   });
 
   it('blocks Review Gate when Pass 3A is done but preflight artifact is missing', () => {
@@ -145,18 +144,18 @@ describe('Phase Architecture v2 — Review Gate handoff helper', () => {
     expect(result.blocked.progress.pass3a_gate_validity).toBe('gate_blocking');
   });
 
-  it('marks blocked progress as retryable technical when quality report is technically blocked', () => {
+  it('kicks forward when quality report is technically blocked (non-fatal degradation)', () => {
     const result = buildReviewGateHandoff(doneProgress, {
       ...doneArtifacts,
       ledger_quality_gate_ready_status: 'blocked_retryable_technical',
       ledger_quality_hard_fail_present: false,
     });
 
-    expect(result.ok).toBe(false);
-    if (result.ok) return;
+    // Technical degradation is non-fatal — gate kicks forward
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
 
-    expect(result.blocked.decision.code).toBe('REVIEW_GATE_QUALITY_TECHNICAL_BLOCK');
-    expect(result.blocked.progress.gate_ready_status).toBe('blocked_retryable_technical');
-    expect(result.blocked.progress.hard_fail_present).toBe(false);
+    expect(result.decision.code).toBe('REVIEW_GATE_TECHNICAL_KICK_FORWARD');
+    expect(result.decision.gate_validity).toBe('gate_valid');
   });
 });

@@ -41,7 +41,7 @@ export default function IndustryDashboardEntry() {
           Industry Dashboard
         </h1>
         <p className="text-sm leading-relaxed mb-10" style={{ color: C.ash }}>
-          You are entering the verified industry access area. This environment is logged. All activity — views, access requests, notes, and packet interactions — is recorded and append-only.
+          You are entering the verified industry access area. This environment is logged. All activity—views, access requests, notes, and packet interactions—is recorded and append-only.
         </p>
 
         <div className="p-8 mb-6 text-left" style={{ backgroundColor: C.panel, border: `1px solid ${C.border}` }}>

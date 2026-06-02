@@ -488,3 +488,67 @@
     right: 1rem !important;
   }
 }
+
+/* === Print / PDF export styles ===
+ *
+ * When a report is printed (Save as PDF), hide chrome that doesn't belong
+ * in the exported document: navigation, footers, download buttons, support
+ * toggles, and other interactive-only elements.
+ */
+@media print {
+  /* Hide global nav/sidebar */
+  nav,
+  [role="navigation"],
+  aside {
+    display: none !important;
+  }
+
+  /* Hide download buttons and interactive-only controls */
+  [aria-haspopup],
+  a[href*="/workbench"],
+  .print-hidden {
+    display: none !important;
+  }
+
+  /* Hide support access toggle */
+  [class*="SupportAccessToggle"],
+  [data-testid="support-access-toggle"] {
+    display: none !important;
+  }
+
+  /* Hide the footer / terms section */
+  footer,
+  [class*="footer"] {
+    display: none !important;
+  }
+
+  /* Remove browser header/footer (URL, page title, date) */
+  @page {
+    margin: 1.5cm 2cm;
+  }
+
+  /* Prevent orphan blank pages */
+  section:last-child {
+    page-break-after: avoid;
+  }
+
+  /* Ensure clean page breaks */
+  section {
+    page-break-inside: avoid;
+  }
+
+  /* Remove background colors for better print */
+  .bg-gray-50 {
+    background-color: white !important;
+  }
+
+  /* Keep shadows off in print */
+  .shadow-sm {
+    box-shadow: none !important;
+  }
+
+  /* Hide "Your manuscript is private" notice in print */
+  .rounded-md.border-gray-200.bg-gray-50.text-xs {
+    display: none !important;
+  }
+}

@@ -12,6 +12,7 @@ import {
   getRenumberedAuthorFacingRevisionPlan,
   getCriterionDisplayLabel,
 } from '@/lib/evaluation/reportRenderSafety';
+import { sanitizeCMOS } from '@/lib/evaluation/cmosSanitizer';
 import {
   Document, Packer, Paragraph, TextRun, HeadingLevel,
   Table, TableRow, TableCell, WidthType, BorderStyle,
@@ -267,9 +268,9 @@ function cleanReportText(text: unknown, fallback = '—', options: { blockTrunca
   if (!raw) return fallback;
   const cleaned = stripMachineResidue(raw);
   if (options.blockTruncation && looksTruncated(cleaned)) {
-    return safeTruncateText(cleaned) || fallback;
+    return sanitizeCMOS(safeTruncateText(cleaned) || fallback);
   }
-  return cleaned;
+  return sanitizeCMOS(cleaned);
 }
 
 function toPdfSafeText(value: unknown, fallback = '-'): string {
@@ -313,7 +314,7 @@ function appendDreamTxtSections(lines: string[], dream: LongformDreamDocument): 
 
   push('');
   push(sep);
-  push('NARRATIVE SYNTHESIS — HOLISTIC CRAFT ASSESSMENT');
+  push('NARRATIVE SYNTHESIS—HOLISTIC CRAFT ASSESSMENT');
   push(sep);
   push('');
   push(`Quality: ${dream.dream_scores?.quality ?? '—'}/100`);
@@ -349,7 +350,7 @@ function appendDreamTxtSections(lines: string[], dream: LongformDreamDocument): 
     push(sub);
     dream.structural_stack.forEach((layer) => {
       push('');
-      push(`${cleanReportText(layer.layer_name)} — ${layer.status}`);
+      push(`${cleanReportText(layer.layer_name)}—${layer.status}`);
       push(`  Function: ${cleanReportText(layer.function)}`);
       push(`  Revision note: ${cleanReportText(layer.revision_note)}`);
     });
@@ -375,7 +376,7 @@ function appendDreamTxtSections(lines: string[], dream: LongformDreamDocument): 
     push(sub);
     dream.criterion_analyses.forEach((a) => {
       push('');
-      push(`${a.key} — ${a.score}/10 (${a.confidence} confidence)`);
+      push(`${a.key}—${a.score}/10 (${a.confidence} confidence)`);
       pushTxtListBlock(lines, 'What is working', a.fit_evidence);
       pushTxtListBlock(lines, 'What weakens impact', a.gap_evidence);
       pushTxtListBlock(lines, 'Revision queue', a.revision_queue, { ordered: true });
@@ -442,8 +443,16 @@ function buildTxtReport(result: ExportableResult, title: string | null, jobId: s
   lines.push('CRITERIA SCORES');
   lines.push(sub);
   result.criteria.forEach((c) => {
-    lines.push(`• ${getCriterionDisplayLabel(c.key)} — ${scoreLabel(c.score_0_10, 10)}${c.confidence_level ? ` (${c.confidence_level} confidence)` : ''}`);
+    const criterionRecord = c as Record<string, unknown>;
+    lines.push(`• ${getCriterionDisplayLabel(c.key)}—${scoreLabel(c.score_0_10, 10)}${c.confidence_level ? ` (${c.confidence_level} confidence)` : ''}`);
     if (c.rationale) lines.push(`  Rationale: ${cleanReportText(c.rationale)}`);
+
+    if (typeof criterionRecord.fit_summary === 'string' && criterionRecord.fit_summary.trim()) {
+      lines.push(`  What's Working: ${cleanReportText(criterionRecord.fit_summary)}`);
+    }
+    if (typeof criterionRecord.gap_summary === 'string' && criterionRecord.gap_summary.trim()) {
+      lines.push(`  Gap to Close: ${cleanReportText(criterionRecord.gap_summary)}`);
+    }
 
     const opportunities = getCriterionOpportunities(c as { recommendations?: unknown });
     if (opportunities.length > 0) {
@@ -461,12 +470,6 @@ function buildTxtReport(result: ExportableResult, title: string | null, jobId: s
 
   if (dream) appendDreamTxtSections(lines, dream);
 
-  lines.push('');
-  lines.push(sub);
-  lines.push('TECHNICAL METADATA');
-  lines.push(sub);
-  lines.push(`Job ID: ${jobId}`);
-  lines.push(`Schema: ${result.schema_version}`);
   lines.push('');
   lines.push(sep);
   lines.push(EXPORT_DISCLAIMER);
@@ -835,11 +838,6 @@ async function buildPdfReport(result: ExportableResult, title: string | null, jo
       }
     }
 
-    // ── Technical Metadata ────────────────────────────────────────────
-    section('Technical Metadata');
-    labelValue('Job ID', jobId);
-    labelValue('Schema', result.schema_version);
-
     // ── Branded footers on every page ─────────────────────────────────
     const range = doc.bufferedPageRange();
     for (let i = range.start; i < range.start + range.count; i += 1) {
@@ -1085,12 +1083,58 @@ async function buildDocx(result: ExportableResult, title: string | null, jobId: 
   }));
   children.push(spacer());
 
-  // Rationales
+  // Per-criterion: Rationale + Fit/Gap + Opportunities
   let globalOpportunityIdx = 0;
   result.criteria.forEach((c) => {
-    if (!c.rationale) return;
-    children.push(bodyPara(`${getCriterionDisplayLabel(c.key)}: ${c.rationale}`, { size: 19, color: RG.textMuted }));
+    const criterionRecord = c as Record<string, unknown>;
+    if (!c.rationale && !criterionRecord.fit_summary) return;
 
+    children.push(brandHeading(getCriterionDisplayLabel(c.key), HeadingLevel.HEADING_3));
+
+    // Rationale
+    if (c.rationale) {
+      children.push(bodyPara(c.rationale, { size: 19, color: RG.textMuted }));
+    }
+
+    // Fit summary (what's working)
+    if (typeof criterionRecord.fit_summary === 'string' && criterionRecord.fit_summary.trim()) {
+      children.push(new Paragraph({
+        spacing: { before: 80, after: 40 },
+        children: [new TextRun({
+          text: 'What\u2019s Working: ',
+          bold: true,
+          size: 18,
+          color: '2E7D32',
+          font: 'Calibri',
+        }), new TextRun({
+          text: cleanReportText(criterionRecord.fit_summary),
+          size: 18,
+          color: RG.textPrimary.replace('#', ''),
+          font: 'Calibri',
+        })],
+      }));
+    }
+
+    // Gap summary (what needs to close — only for scores ≤8)
+    if (typeof criterionRecord.gap_summary === 'string' && criterionRecord.gap_summary.trim()) {
+      children.push(new Paragraph({
+        spacing: { before: 40, after: 40 },
+        children: [new TextRun({
+          text: 'Gap to Close: ',
+          bold: true,
+          size: 18,
+          color: 'E65100',
+          font: 'Calibri',
+        }), new TextRun({
+          text: cleanReportText(criterionRecord.gap_summary),
+          size: 18,
+          color: RG.textPrimary.replace('#', ''),
+          font: 'Calibri',
+        })],
+      }));
+    }
+
+    // Opportunities (only for scores ≤8 — suppressed for 9-10 by pipeline)
     const opportunities = getCriterionOpportunities(c as { recommendations?: unknown });
     opportunities.forEach((opportunity) => {
       globalOpportunityIdx++;
@@ -1106,7 +1150,7 @@ async function buildDocx(result: ExportableResult, title: string | null, jobId: 
           children.push(new Paragraph({
             spacing: { after: 60 },
             children: [new TextRun({
-              text: `Evidence: "${cleanReportText(value)}"`,
+              text: `Evidence: \u201c${cleanReportText(value)}\u201d`,
               italics: true,
               size: 18,
               color: RG.textMuted.replace('#', ''),
@@ -1136,7 +1180,57 @@ async function buildDocx(result: ExportableResult, title: string | null, jobId: 
         }));
       });
     });
+
+    children.push(spacer());
   });
+
+  // ── Action Items (Quick Wins + Strategic Revisions) ─────────────
+  const quickWins = Array.isArray(result.recommendations?.quick_wins) ? result.recommendations.quick_wins : [];
+  const strategicRevisions = Array.isArray(result.recommendations?.strategic_revisions) ? result.recommendations.strategic_revisions : [];
+
+  if (quickWins.length > 0 || strategicRevisions.length > 0) {
+    children.push(brandHeading('Action Items', HeadingLevel.HEADING_2));
+
+    if (quickWins.length > 0) {
+      children.push(bodyPara('Quick Wins', { bold: true, size: 22, color: RG.oxblood }));
+      quickWins.forEach((qw: { action?: string; why?: string; effort?: string; impact?: string }) => {
+        const actionText = cleanReportText(qw.action ?? '');
+        const effortTag = qw.effort ? ` [${qw.effort} effort]` : '';
+        const impactTag = qw.impact ? ` [${qw.impact} impact]` : '';
+        children.push(new Paragraph({
+          spacing: { after: 40 },
+          children: [
+            new TextRun({ text: actionText, bold: true, size: 20, color: RG.textPrimary.replace('#', ''), font: 'Calibri' }),
+            new TextRun({ text: effortTag + impactTag, size: 18, color: RG.textMuted.replace('#', ''), font: 'Calibri' }),
+          ],
+        }));
+        if (qw.why) {
+          children.push(bodyPara(cleanReportText(qw.why), { size: 19, color: RG.textMuted }));
+        }
+      });
+      children.push(spacer());
+    }
+
+    if (strategicRevisions.length > 0) {
+      children.push(bodyPara('Strategic Revisions', { bold: true, size: 22, color: RG.oxblood }));
+      strategicRevisions.forEach((sr: { action?: string; why?: string; effort?: string; impact?: string }) => {
+        const actionText = cleanReportText(sr.action ?? '');
+        const effortTag = sr.effort ? ` [${sr.effort} effort]` : '';
+        const impactTag = sr.impact ? ` [${sr.impact} impact]` : '';
+        children.push(new Paragraph({
+          spacing: { after: 40 },
+          children: [
+            new TextRun({ text: actionText, bold: true, size: 20, color: RG.textPrimary.replace('#', ''), font: 'Calibri' }),
+            new TextRun({ text: effortTag + impactTag, size: 18, color: RG.textMuted.replace('#', ''), font: 'Calibri' }),
+          ],
+        }));
+        if (sr.why) {
+          children.push(bodyPara(cleanReportText(sr.why), { size: 19, color: RG.textMuted }));
+        }
+      });
+      children.push(spacer());
+    }
+  }
 
   // ── Dream / Narrative Synthesis ─────────────────────────────────
   if (dream) {
@@ -1204,12 +1298,6 @@ async function buildDocx(result: ExportableResult, title: string | null, jobId: 
       });
     }
   }
-
-  // ── Technical Metadata ──────────────────────────────────────────
-  children.push(brandHeading('Technical Metadata', HeadingLevel.HEADING_2));
-  const techMeta = [metaRow('Job ID', jobId), metaRow('Schema', result.schema_version)].filter((p): p is Paragraph => p !== null);
-  techMeta.forEach((p) => children.push(p));
-  children.push(spacer());
 
   // Gold divider
   children.push(new Table({

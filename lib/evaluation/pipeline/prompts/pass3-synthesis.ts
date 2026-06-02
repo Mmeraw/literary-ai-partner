@@ -31,6 +31,18 @@ Rules:
 - If |craft_score-editorial_score| > 2, include delta_explanation and arbitration logic.
 - Preserve narrative-mode distinctions.
 
+STYLE AUTHORITY — CHICAGO MANUAL OF STYLE (CMOS), 17th Edition:
+All author-facing text you produce (rationales, recommendations, summaries, action items, expected impacts, one_paragraph_summary, top_3_strengths, top_3_risks) MUST conform to CMOS. Key rules:
+- Em dashes (—) are set closed, with NO spaces on either side: "the river—restless and gray—carved the bank." NEVER use " — " (spaced em dash).
+- En dashes (–) for number ranges and compound modifiers: "pages 12–15", "post–Cold War". Not interchangeable with em dashes.
+- Serial (Oxford) comma before the conjunction in a series: "voice, pacing, and theme" NOT "voice, pacing and theme".
+- Numbers: spell out one through one hundred and round numbers; use numerals for 101+, precise measurements, and scores.
+- Quotation marks: periods and commas inside closing quotation marks. Colons and semicolons outside.
+- Possessives: singular nouns ending in s still take 's: "the witness's testimony", "James's arc".
+- Compounds: Use hyphens for compound adjectives before nouns: "character-driven narrative", "first-person voice".
+- Titles of works: italicize book/novel/film titles. Use quotation marks for chapter/story/poem titles.
+- Abbreviations: spell out on first use; avoid Latin abbreviations (use "for example" not "e.g.", "that is" not "i.e.") in author-facing prose.
+
 Scoring: Integer 0-10. If delta<=2 use rounded average; if delta>2 favor the more diagnostic axis with justification.
 
 Mechanism constraints: voice rationale names POV/voice mechanism; dialogue rationale names attribution/rendering mechanism.
@@ -132,11 +144,35 @@ NON-CERTIFIED CRITERIA (required):
 - For proseControl/dialogue/voice when non-certified: include at least 3 verbatim evidence snippets and at least 3 concrete mechanism-level revision directions.
 - For abstraction critiques: identify the three most problematic lines/snippets and provide three targeted revision directions (rule of three).
 
+FIT-GAP FRAMING (required per criterion):
+Every criterion MUST include:
+- fit_summary: 2–3 sentences describing what the manuscript IS doing well on this criterion, grounded in specific evidence. This is the "fit" — what earns the score.
+- gap_summary: 2–3 sentences describing what prevents a 10 on this criterion, grounded in specific evidence. This is the "gap" — what the author needs to close.
+
+Score-based suppression rules:
+- Score 10/10: fit_summary required. gap_summary = "" (empty string). recommendations = [] (empty array). recommendation_status = "no_recommendation_warranted".
+- Score 9/10: fit_summary required. gap_summary may be 1 sentence noting a minor refinement or "" if truly exemplary. recommendations = [] (empty array). recommendation_status = "no_recommendation_warranted". Do NOT emit MUST/SHOULD/COULD severity-tagged recommendations for 9 or 10.
+- Score ≤8/10: fit_summary and gap_summary both required (2–3 sentences each). recommendations[] required with full seven-part contract.
+- Never fabricate advice for perfect or near-perfect work. If the score is 9–10, the fit statement alone is sufficient.
+
+Recommendation density floor (for criteria scoring ≤8):
+- Score ≤5/10: emit 3–5 recommendations per criterion, each anchored to a DIFFERENT passage. These are the most impactful revision opportunities.
+- Score 6–7/10: emit 2–4 recommendations per criterion, each anchored to a different passage.
+- Score 8/10: emit 1–3 recommendations per criterion.
+- Each recommendation MUST target a unique anchor_snippet (no duplicate passage citations within the same criterion).
+- Spread recommendations across different sections/zones of the text — do not cluster all recommendations in the opening paragraphs.
+
 Return ONLY JSON with keys:
 - criteria MUST be a flat array (not grouped by state).
-- Per-criterion fields: key, final_score_0_10, final_rationale, recommendations[]; hard_divergence adds disputed=true.
-- Each recommendation: priority, action, expected_impact, anchor_snippet, source_pass, issue_family, strategic_lever, revision_granularity, mechanism, specific_fix, reader_effect, symptom, mistake_proofing.
+- Per-criterion fields: key, final_score_0_10, fit_summary, gap_summary, final_rationale, recommendations[]; hard_divergence adds disputed=true.
+- Each recommendation: priority, action, expected_impact, anchor_snippet, source_pass, issue_family, strategic_lever, revision_granularity, mechanism, specific_fix, reader_effect, symptom, mistake_proofing, candidate_text_a, candidate_text_b, candidate_text_c, revision_operation, manuscript_coordinates.
 - Each recommendation.action MUST be one sentence and <= 300 characters.
+- candidate_text_a: The primary recommended prose repair. This MUST be verbatim manuscript-ready text that can replace the anchor_snippet. Write it in the author's voice, preserving tone and style.
+- candidate_text_b: A rhythm variant. Same fix direction, different cadence or sentence structure. Must be materially distinct from A.
+- candidate_text_c: A bolder rendering shift. Same fix intent, more assertive prose move. Must be materially distinct from A and B.
+- All three candidates must be ≥ 5 words, manuscript-ready prose (no meta-commentary, no "Consider doing X", no editorial instructions — only prose the author could paste directly into the manuscript).
+- revision_operation: one of "replace_selected_passage" | "insert_before_selected_passage" | "insert_after_selected_passage" | "delete_selected_passage" | "rewrite_surrounding_context". Default to "replace_selected_passage" when the anchor_snippet is being rewritten.
+- manuscript_coordinates: a location string like "chapter:3:paragraph:7" or "scene:2:beat:opening" identifying where in the text this revision targets.
 - agreement_map[]
 - divergence_map[] with arbitration_rationale
 - overall { overall_score_0_100, verdict(pass|revise|fail), one_paragraph_summary<=500, top_3_strengths[3], top_3_risks[3], submission_readiness(queryable_now|nearly_ready|not_yet) }

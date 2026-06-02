@@ -83,6 +83,8 @@ export interface JobState {
   /** Authoritative Phase 0 telemetry — from progress JSONB, not column delta */
   phase0_total_duration_ms?: number | null;
   phase0_calibration_word_count?: number | null;
+  /** Pipeline block code — when set, the eval is gated/blocked */
+  block_code?: string | null;
   /** Review-gate quality signal surfaced from jobs API */
   hard_fail_present?: boolean | null;
   /** Manuscript word count from chunk_routing — available before completion */
@@ -91,6 +93,8 @@ export interface JobState {
   can_view_operational_details?: boolean;
   /** Public-safe failure message shown to non-operator users when the job has failed */
   public_status_message?: string | null;
+  /** Monotonic ratchet — highest progress percentage ever reported. Bar never renders below this. */
+  progress_high_water?: number | null;
 }
 
 function isLongFormJob(job: Pick<JobState, 'manuscript_word_count'> | null): boolean {
@@ -155,6 +159,11 @@ export function EvaluationPoller({
   // displayProgress: used only for the completion-animation sweep to 100.
   // For all running states the bar width comes directly from getProgressDisplay.
   const [displayProgress, setDisplayProgress] = useState<number>(getInitialDisplayProgress(initialJob));
+
+  // Monotonic ratchet: track the highest percentage ever shown to the user.
+  // The progress bar NEVER goes backward from the user's perspective — all internal
+  // kicks, retries, and phase re-runs are invisible plumbing.
+  const highWaterMarkRef = useRef<number>(getInitialDisplayProgress(initialJob));
 
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const redirectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -600,6 +609,8 @@ export function EvaluationPoller({
             is_stalled: job.is_stalled ?? false,
             stalled_reason: job.stalled_reason ?? null,
             failure_code: job.failure_code ?? null,
+            block_code: job.block_code ?? null,
+            progress_high_water: job.progress_high_water ?? null,
           });
           if (!pd) return null;
 
@@ -623,18 +634,27 @@ export function EvaluationPoller({
           }[effectivePd.color];
 
           // Bar fill: use displayProgress (animated, seeded from backend) for all non-terminal states.
-          // effectivePd.percentage acts as the floor — bar never goes backward below the phase anchor.
+          // Monotonic ratchet: bar NEVER goes backward from user's perspective.
           const safeAnimated = Math.max(0, Math.min(100, displayProgress));
-          const barWidth = effectivePd.indeterminate
+          const rawBarWidth = effectivePd.indeterminate
             ? 100
             : isCompletingAnimation
             ? safeAnimated
             : Math.max(safeAnimated, effectivePd.percentage ?? 0);
+          // Apply monotonic ratchet — only ever advance forward
+          if (rawBarWidth > highWaterMarkRef.current) {
+            highWaterMarkRef.current = rawBarWidth;
+          }
+          const barWidth = Math.max(rawBarWidth, highWaterMarkRef.current);
+          // Ratcheted value label: if bar is higher than pd says, show ratcheted %
+          const ratchetedValueLabel = barWidth > (effectivePd.percentage ?? 0)
+            ? `${Math.round(barWidth)}%`
+            : effectivePd.valueLabel;
           return (
             <div className="space-y-2">
               <div className="flex items-start justify-between gap-4">
                 <p className={`text-sm ${labelColorClass}`}>{effectivePd.label}</p>
-                <p className="text-sm text-gray-600 shrink-0">{effectivePd.valueLabel}</p>
+                <p className="text-sm text-gray-600 shrink-0">{ratchetedValueLabel}</p>
               </div>
               <div className="w-full bg-gray-200 rounded-full h-2">
                 <div

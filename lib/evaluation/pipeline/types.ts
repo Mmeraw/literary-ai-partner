@@ -184,6 +184,10 @@ export type SynthesizedCriterion = {
   /** Required when score_delta > 2 */
   delta_explanation?: string;
   final_rationale: string;
+  /** What the manuscript IS doing well on this criterion (fit statement). */
+  fit_summary?: string;
+  /** What prevents a 10 on this criterion (gap statement). Empty for scores 9-10. */
+  gap_summary?: string;
   /** Where narrative pressure enters or accumulates for this criterion */
   pressure_points: string[];
   /** Where a decision (or non-decision) is reached */

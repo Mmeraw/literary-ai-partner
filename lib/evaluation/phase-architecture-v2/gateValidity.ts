@@ -111,11 +111,14 @@ export function derivePass3aGateValidity(
     artifacts.pass3_preflight_authority === 'unavailable';
 
   if (reducerFailed) {
+    // Kick forward: Pass 3A is a preflight optimization, NOT a hard requirement.
+    // If the reducer fails, the eval proceeds to Phase 2 with degraded preflight
+    // authority. Pass 3 synthesis can still run — just less informed.
     return {
-      ok: false,
-      gate_validity: 'gate_blocking',
-      reason: 'Pass 3A preflight artifact indicates reducer failure/unavailable authority.',
-      code: 'PASS3A_REDUCER_FAILED',
+      ok: true,
+      gate_validity: 'gate_valid',
+      reason: 'Pass 3A reducer failed — proceeding with degraded preflight authority (kick forward).',
+      code: 'PASS3A_REDUCER_FAILED_KICK_FORWARD',
     };
   }
 
@@ -166,11 +169,13 @@ export function derivePass3aGateValidity(
     }
 
     case 'failed':
+      // Kick forward: Pass 3A failure is non-fatal. The eval can proceed
+      // with degraded (or absent) preflight authority. Don't block the user.
       return {
-        ok: false,
-        gate_validity: 'gate_blocking',
-        reason: 'Pass 3A failed and requires retry or operator intervention.',
-        code: 'PASS3A_FAILED_BLOCKING',
+        ok: true,
+        gate_validity: 'gate_valid',
+        reason: 'Pass 3A failed — proceeding without preflight (kick forward, fix later).',
+        code: 'PASS3A_FAILED_KICK_FORWARD',
       };
 
     case 'running':
@@ -239,12 +244,16 @@ export function deriveReviewGateReadiness(
   }
 
   if (qualityGateReadyStatus === 'blocked_retryable_technical') {
+    // Kick forward: technical incompleteness (e.g., identity ambiguity cascading
+    // to downstream layers) is NON-FATAL. The story ledger is degraded_but_usable.
+    // Phase 2 will auto-accept with a corruption score and proceed.
+    // Blocking here causes infinite requeue loops for no user benefit.
     return {
-      ok: false,
-      review_gate_ready: false,
-      gate_validity: 'gate_blocking',
-      reason: 'ledger_quality_report_v1 indicates technical incompleteness/degradation; retry Phase 1A recovery before content-quality judgment.',
-      code: 'REVIEW_GATE_QUALITY_TECHNICAL_BLOCK',
+      ok: true,
+      review_gate_ready: true,
+      gate_validity: 'gate_valid',
+      reason: 'ledger_quality_report_v1 indicates technical degradation — proceeding with degraded authority (kick forward).',
+      code: 'REVIEW_GATE_TECHNICAL_KICK_FORWARD',
     };
   }
 

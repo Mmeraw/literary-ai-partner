@@ -79,7 +79,7 @@ const REQUIRED_SECTIONS: RequiredSection[] = [
     id: "author-bio",
     label: "Author Bio",
     href: "/agent-readiness/bio",
-    description: "Third-person, professional. Requires author-supplied resume, CV, website bio, or author notes — no invented credentials.",
+    description: "Third-person, professional. Requires author-supplied resume, CV, website bio, or author notes—no invented credentials.",
   },
 ];
 
@@ -682,7 +682,7 @@ export default function AgentReadinessClient({
           }}>
             <div>
               <p style={{ fontFamily: T.serif, fontSize: "0.9375rem", color: T.cream2, marginBottom: "0.25rem" }}>
-                Agent Targeting™ — Coming Next
+                Agent Targeting™—Coming Next
               </p>
               <p style={{ fontSize: "0.6875rem", color: T.dim, lineHeight: 1.5 }}>
                 Identify target agents, generate agent-specific query variants, and build your outreach plan after the core package is approved.

@@ -429,7 +429,9 @@ function computeHardFailTriggers(
   const isShortForm = totalChunksInManuscript <= 2;
 
   if (protagonists.length === 0) {
-    triggers.push("HARD_FAIL: No protagonist detected in character ledger");
+    // Ensemble casts, multi-POV novels, and experimental fiction may have
+    // no single protagonist. Flag for author confirmation, never hard-block.
+    triggers.push("WARN: No protagonist detected in character ledger — verify if this is intentional (ensemble cast, multi-POV)");
   }
   if (!isShortForm && coProtagonists.length === 0 && entries.length >= 3) {
     // Only flag for multi-chunk (novel-length) manuscripts

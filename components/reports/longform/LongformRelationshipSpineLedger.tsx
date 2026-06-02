@@ -1,7 +1,7 @@
 import type { LongformDreamDocument } from "@/lib/evaluation/pipeline/runPass3bLongform";
 import { getRenumberedAuthorFacingRevisionPlan } from "@/lib/evaluation/reportRenderSafety";
 
-type Props = { doc: LongformDreamDocument };
+type Props = { doc: LongformDreamDocument; showInternalSections?: boolean };
 
 const QUALITY_COLORS: Record<string, string> = {
   strong: "bg-emerald-100 text-emerald-800 border-emerald-200",
@@ -9,7 +9,7 @@ const QUALITY_COLORS: Record<string, string> = {
   weak: "bg-rose-100 text-rose-800 border-rose-200",
 };
 
-export default function LongformRelationshipSpineLedger({ doc }: Props) {
+export default function LongformRelationshipSpineLedger({ doc, showInternalSections = false }: Props) {
   // Relationship spine data surfaces through cross_layer_integration (relationship motifs),
   // structural_stack (relationship spine layers), and acceptance_checks.
   const relationshipMotifs = (doc.cross_layer_integration ?? []).filter((m) =>
@@ -133,37 +133,35 @@ export default function LongformRelationshipSpineLedger({ doc }: Props) {
         </div>
       )}
 
-      {/* Acceptance checks */}
-      {(requiredDetections.length > 0 || failureConditions.length > 0) && (
+      {/* Acceptance checks — INTERNAL ONLY (never shown to authors) */}
+      {showInternalSections && (requiredDetections.length > 0 || failureConditions.length > 0) && (
         <div className="grid sm:grid-cols-2 gap-4">
           {requiredDetections.length > 0 && (
             <div>
               <p className="text-xs font-semibold uppercase tracking-wide text-emerald-600 mb-2">
-                Required detections
+                Required detections <span className="text-amber-700">(internal)</span>
               </p>
-              <ul className="space-y-1">
+              <ol className="space-y-1 list-decimal list-inside">
                 {requiredDetections.map((d, i) => (
-                  <li key={i} className="text-xs text-gray-600 flex gap-2">
-                    <span className="text-emerald-400 shrink-0">✓</span>
+                  <li key={i} className="text-xs text-gray-600">
                     {d}
                   </li>
                 ))}
-              </ul>
+              </ol>
             </div>
           )}
           {failureConditions.length > 0 && (
             <div>
               <p className="text-xs font-semibold uppercase tracking-wide text-rose-600 mb-2">
-                Failure conditions
+                Failure conditions <span className="text-amber-700">(internal)</span>
               </p>
-              <ul className="space-y-1">
+              <ol className="space-y-1 list-decimal list-inside">
                 {failureConditions.map((f, i) => (
-                  <li key={i} className="text-xs text-gray-600 flex gap-2">
-                    <span className="text-rose-400 shrink-0">⚠</span>
+                  <li key={i} className="text-xs text-gray-600">
                     {f}
                   </li>
                 ))}
-              </ul>
+              </ol>
             </div>
           )}
         </div>

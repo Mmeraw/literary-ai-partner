@@ -27,6 +27,8 @@ type PhaseInputs = {
   stalled_reason?: string | null;
   failure_code?: string | null;
   phase_unit_fraction?: number | null;
+  /** Pipeline block code — when set, the eval is gated/blocked */
+  block_code?: string | null;
   /** Surfaced from jobs API via progress JSONB — true when ledger hard-fails block Phase 2 */
   hard_fail_present?: boolean | null;
   /** Phase start timestamps for elapsed-time drift within a phase range. */
@@ -38,6 +40,8 @@ type PhaseInputs = {
   pass3_completed_at?: string | null;
   /** Manuscript word count — used to determine if this is a long-form job (≥25k words) */
   manuscript_word_count?: number | null;
+  /** Monotonic ratchet — highest percentage ever shown. Bar never renders below this. */
+  progress_high_water?: number | null;
 };
 
 const LONGFORM_WORD_COUNT_THRESHOLD = 25000;
@@ -58,7 +62,52 @@ export function getProgressDisplay(
   job: PhaseInputs,
   _now: Date = new Date(),
 ): ProgressDisplay {
+  const result = getProgressDisplayRaw(job, _now);
+  if (!result) return null;
+
+  // Monotonic ratchet: if a high-water mark is stored, the displayed percentage
+  // never drops below it. Kicks and retries are invisible to the user.
+  const highWater = typeof job.progress_high_water === 'number' ? job.progress_high_water : 0;
+  if (highWater > 0 && result.percentage < highWater) {
+    return {
+      ...result,
+      percentage: highWater,
+      valueLabel: `${highWater}%`,
+    };
+  }
+  return result;
+}
+
+function getProgressDisplayRaw(
+  job: PhaseInputs,
+  _now: Date = new Date(),
+): ProgressDisplay {
   if (job.status === "failed") return null;
+
+  // Honest blocked state: when block_code is set, the eval is gate-blocked.
+  // Show truthful UI instead of a fake drifting percentage.
+  if ((job.status === 'queued' || job.status === 'running') && job.block_code) {
+    const phasePct =
+      job.phase === 'phase_3' ? 86
+        : job.phase === 'phase_2' ? 67
+          : job.phase === 'review_gate' ? 50
+            : job.phase === 'phase_1a' ? 40
+              : 10;
+    const isRetryable = /TECHNICAL_BLOCK|REDUCER_FAILED|PASS3A/.test(job.block_code);
+    return {
+      label: isRetryable
+        ? 'Evaluation paused — retrying automatically'
+        : 'Evaluation paused — awaiting resolution',
+      valueLabel: `${phasePct}%`,
+      helperText: isRetryable
+        ? 'A background process encountered an issue and is being retried. Your progress is safe.'
+        : 'The evaluation pipeline has paused. This will resolve automatically or contact support.',
+      indeterminate: false,
+      percentage: phasePct,
+      color: isRetryable ? 'amber' : 'red',
+      hardStop: true,
+    };
+  }
 
   if ((job.status === 'queued' || job.status === 'running') && job.is_stalled) {
     const stalledAtPct =

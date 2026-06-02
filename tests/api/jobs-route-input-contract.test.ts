@@ -324,7 +324,8 @@ describe("POST /api/jobs input contract", () => {
 
     // Phase 0 fast-track is never applied — all submissions run full Phase 0
     if (updateMock.mock.calls.length > 0) {
-      const progressArg = updateMock.mock.calls[0]?.[0]?.progress;
+      const firstCall = (updateMock.mock.calls as unknown[][])[0]?.[0] as Record<string, unknown> | undefined;
+      const progressArg = firstCall?.progress as Record<string, unknown> | undefined;
       expect(progressArg?.phase0_fast_track).toBeFalsy();
       expect(progressArg?.phase0_bypass_reason).toBeFalsy();
     }

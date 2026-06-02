@@ -5,11 +5,11 @@ export type OpenAIOutputTokenParam = {
 
 /**
  * Centralized OpenAI SDK transport retry ceiling.
- * Tier 4: raised from 1 → 2. Higher rate limits reduce risk of retry storms,
- * and an extra retry recovers transient 429s / 500s that previously caused
- * unnecessary chunk failures.
+ * Tier 4: raised from 2 → 3. Higher rate limits reduce risk of retry storms,
+ * and extra retries recover transient 429s / 500s / 502s that previously
+ * caused unnecessary chunk failures. The SDK uses exponential backoff.
  */
-export const OPENAI_SDK_MAX_RETRIES = 2;
+export const OPENAI_SDK_MAX_RETRIES = 3;
 
 export type OpenAITemperatureParam = {
   temperature?: number;

@@ -31,6 +31,7 @@ import {
   safeTruncateToWordBoundary,
   getCriterionDisplayLabel,
   splitIntoParagraphs,
+  correctScopeLanguage,
 } from '@/lib/evaluation/reportRenderSafety';
 import { resolveReportTitle } from '@/lib/evaluation/reportTitle';
 import { hasActiveSupportGrant, logSupportView } from '@/lib/support/checkSupportAccess';
@@ -397,7 +398,7 @@ export default async function ReportPage({
                 Generated {getDisplayDateTime(result.generated_at, "Unknown")}
               </p>
             </div>
-            <div className="shrink-0 flex items-center gap-3">
+            <div className="shrink-0 flex items-center gap-3 print-hidden">
               {manuscriptId && (
                 <Link
                   href={`/workbench?manuscriptId=${manuscriptId}&evaluationJobId=${params.jobId}`}
@@ -411,14 +412,14 @@ export default async function ReportPage({
           </div>
         </header>
 
-        <div className="mb-4 rounded-md border border-gray-200 bg-gray-50 px-4 py-3 text-xs text-gray-600 leading-relaxed">
+        <div className="mb-4 rounded-md border border-gray-200 bg-gray-50 px-4 py-3 text-xs text-gray-600 leading-relaxed print-hidden">
           <span className="font-medium text-gray-700">Your manuscript is private.</span>{' '}
           RevisionGrade support and admin staff will never access your novel or evaluation data unless you explicitly grant temporary permission for troubleshooting.
         </div>
 
-        {/* Published / calibration work context disclaimer */}
+        {/* Published / calibration work context disclaimer — hidden in print/PDF */}
         {/\(TEST FILE\)|CALIBRATION|BENCHMARK|REFERENCE\s+EVAL|PUBLIC[- ]DOMAIN|TEST\s+RUN/i.test(displayTitle ?? '') && (
-          <div className="mb-4 rounded-md border border-blue-200 bg-blue-50 px-4 py-3 text-xs text-gray-700 leading-relaxed">
+          <div className="mb-4 rounded-md border border-blue-200 bg-blue-50 px-4 py-3 text-xs text-gray-700 leading-relaxed print-hidden">
             <span className="font-semibold text-blue-800">Published Work Context</span>{' '}
             This appears to be a published, classic, or reference work. RevisionGrade is evaluating the submitted text
             against its manuscript-readiness criteria, not against the work&apos;s historical importance, sales record,
@@ -455,7 +456,7 @@ export default async function ReportPage({
               </div>
             </div>
             <p className="text-gray-700 mb-6 leading-relaxed">
-              {safeTruncateToWordBoundary(chapterTitle ? `In ${displayTitle}, ${overview.one_paragraph_summary}` : overview.one_paragraph_summary)}
+              {safeTruncateToWordBoundary(correctScopeLanguage(chapterTitle ? `In ${displayTitle}, ${overview.one_paragraph_summary.replace(/^This\s/, 'this ')}` : overview.one_paragraph_summary, isLongForm))}
             </p>
             <div className="grid md:grid-cols-2 gap-6">
               <div>
@@ -510,7 +511,7 @@ export default async function ReportPage({
               </li>
               <li className="flex items-start gap-2">
                 <span className="inline-flex items-center rounded-full bg-rose-100 text-rose-800 px-2 py-0.5 text-xs font-medium shrink-0">Low</span>
-                <span>Limited or conflicting evidence — treat as a prompt for review, not a final judgment.</span>
+                <span>Limited or conflicting evidence—treat as a prompt for review, not a final judgment.</span>
               </li>
             </ul>
           </div>
@@ -564,6 +565,21 @@ export default async function ReportPage({
                     </div>
                   );
                 })()}
+                {/* Fit/Gap framing */}
+                {(criterion as Record<string, unknown>).fit_summary && (
+                  <div className="mt-3 space-y-2">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-green-700">What&apos;s Working</p>
+                      <p className="text-sm text-gray-700 leading-relaxed mt-0.5">{String((criterion as Record<string, unknown>).fit_summary)}</p>
+                    </div>
+                    {(criterion as Record<string, unknown>).gap_summary && (
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">Gap to Close</p>
+                        <p className="text-sm text-gray-700 leading-relaxed mt-0.5">{String((criterion as Record<string, unknown>).gap_summary)}</p>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -627,22 +643,22 @@ export default async function ReportPage({
         </section>
         )}
 
-        {/* Finalizing your report (Pass 3b — async, long-form manuscripts only) */}
+        {/* Narrative Synthesis (Pass 3b — async, long-form manuscripts only) */}
         {isLongForm && (
           <section className="bg-white rounded-lg shadow-sm p-6 mb-6 border border-indigo-100">
             <h2 className="text-2xl font-semibold text-gray-900 mb-1 flex items-center gap-2">
-              <span aria-hidden>&#x1F4D6;</span> Finalizing your report
+              <span aria-hidden>&#x1F4D6;</span> {dreamDoc ? 'Narrative Synthesis' : 'Finalizing your report'}
               {!dreamDoc && (
                 <span className="ml-2 inline-flex items-center rounded-full bg-amber-100 text-amber-800 border border-amber-200 px-2.5 py-0.5 text-xs font-semibold">
                   Part 2 generating…
                 </span>
               )}
             </h2>
-            <p className="text-sm text-gray-700 mb-4">
-              {dreamDoc
-                ? "Holistic craft assessment — long-form report finalization"
-                : "Part 1 of 2 ready — scroll up to review scores and revision plan while Part 2 generates below"}
-            </p>
+            {!dreamDoc && (
+              <p className="text-sm text-gray-700 mb-4">
+                Part 1 of 2 ready—scroll up to review scores and revision plan while Part 2 generates below
+              </p>
+            )}
 
             {dreamDoc ? (
               <div className="space-y-6">
@@ -661,7 +677,7 @@ export default async function ReportPage({
                 <div>
                   <h3 className="text-lg font-semibold text-gray-900 mb-2">Executive Verdict</h3>
                   <div className="space-y-3">
-                    {splitIntoParagraphs(dreamExecutiveVerdict).map((para, idx) => (
+                    {splitIntoParagraphs(correctScopeLanguage(dreamExecutiveVerdict, isLongForm)).map((para, idx) => (
                       <p key={idx} className="text-gray-700 leading-relaxed">{para}</p>
                     ))}
                   </div>
@@ -748,7 +764,7 @@ export default async function ReportPage({
                             <span className="font-medium">Revision priority:</span>{' '}
                             {getDisplayText(arc.revision_priority)}
                             {typeof arc.revision_rationale === 'string' && arc.revision_rationale.trim() && (
-                              <span className="text-gray-600"> — {arc.revision_rationale.trim()}</span>
+                              <span className="text-gray-600">—{arc.revision_rationale.trim()}</span>
                             )}
                           </p>
                         </div>
@@ -780,21 +796,21 @@ export default async function ReportPage({
                                 {fitEvidence.length > 0 && (
                                   <div>
                                     <p className="font-medium">Fit evidence:</p>
-                                    <ul className="list-disc list-inside space-y-0.5 text-gray-700">
+                                    <ol className="list-decimal list-inside space-y-0.5 text-gray-700">
                                       {fitEvidence.map((entry, i) => (
                                         <li key={i}>{entry}</li>
                                       ))}
-                                    </ul>
+                                    </ol>
                                   </div>
                                 )}
                                 {gapEvidence.length > 0 && (
                                   <div>
                                     <p className="font-medium">Gap evidence:</p>
-                                    <ul className="list-disc list-inside space-y-0.5 text-gray-700">
+                                    <ol className="list-decimal list-inside space-y-0.5 text-gray-700">
                                       {gapEvidence.map((entry, i) => (
                                         <li key={i}>{entry}</li>
                                       ))}
-                                    </ul>
+                                    </ol>
                                   </div>
                                 )}
                                 {revisionQueue.length > 0 && (
@@ -821,10 +837,12 @@ export default async function ReportPage({
                   )}
                 </div>
 
-                {/* §8 — Layer analyses — admin-only (internal pipeline view) */}
-                {process.env.NODE_ENV !== 'production' && (
+                {/* §8–9: Layer analyses + Cross-layer integration — INTERNAL ONLY.
+                    Never rendered in author-facing reports. */}
+                {showTechnicalSections && (
+                <>
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">Layer Analyses</h3>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">Layer Analyses <span className="text-xs text-amber-700">(internal)</span></h3>
                   {dreamLayerAnalyses.length > 0 ? (
                     <div className="space-y-2">
                       {dreamLayerAnalyses.map((layer, idx) => (
@@ -839,12 +857,8 @@ export default async function ReportPage({
                     <p className="text-sm text-gray-700">—</p>
                   )}
                 </div>
-                )}
-
-                {/* §9 — Cross-layer integration — admin-only (internal pipeline view) */}
-                {process.env.NODE_ENV !== 'production' && (
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">Cross-Layer Integration</h3>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">Cross-Layer Integration <span className="text-xs text-amber-700">(internal)</span></h3>
                   {dreamCrossLayerIntegration.length > 0 ? (
                     <div className="space-y-2">
                       {dreamCrossLayerIntegration.map((row, idx) => (
@@ -860,6 +874,7 @@ export default async function ReportPage({
                     <p className="text-sm text-gray-700">—</p>
                   )}
                 </div>
+                </>
                 )}
 
                 {/* §10 — Symbolic audit */}
@@ -958,19 +973,18 @@ export default async function ReportPage({
                   )}
                 </div>
 
-                {/* §14 — Acceptance checks — admin-only */}
-                {process.env.NODE_ENV !== 'production' && (
+                {/* §14–16: Acceptance checks, Calibration notes, Repo summary — INTERNAL ONLY.
+                    Never rendered in author-facing reports. Only visible to support staff
+                    with active author grant (showTechnicalSections). */}
+                {showTechnicalSections && (
+                <>
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">Acceptance Checks</h3>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">Acceptance Checks <span className="text-xs text-amber-700">(internal)</span></h3>
                   <p className="text-sm text-gray-700"><span className="font-medium">Required detection:</span> {dreamRequiredDetections.join("; ") || "—"}</p>
                   <p className="text-sm text-gray-700"><span className="font-medium">Failure conditions:</span> {dreamFailureConditions.join("; ") || "—"}</p>
                 </div>
-                )}
-
-                {/* §15 — Calibration notes — admin-only */}
-                {process.env.NODE_ENV !== 'production' && (
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">Calibration Notes</h3>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">Calibration Notes <span className="text-xs text-amber-700">(internal)</span></h3>
                   {dreamCalibrationNotes.length > 0 ? (
                     <ul className="list-disc list-inside space-y-1">
                       {dreamCalibrationNotes.map((note, idx) => (
@@ -981,12 +995,8 @@ export default async function ReportPage({
                     <p className="text-sm text-gray-700">—</p>
                   )}
                 </div>
-                )}
-
-                {/* §16 — Repo summary — admin-only */}
-                {process.env.NODE_ENV !== 'production' && (
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">Repository Summary</h3>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">Repository Summary <span className="text-xs text-amber-700">(internal)</span></h3>
                   <div className="rounded border border-gray-200 p-3 text-sm space-y-1">
                     <p><span className="font-medium">Benchmark:</span> {getDisplayText(dreamRepoSummary?.benchmark_name)}</p>
                     <p><span className="font-medium">Source:</span> {getDisplayText(dreamRepoSummary?.source)}</p>
@@ -994,10 +1004,11 @@ export default async function ReportPage({
                     <p><span className="font-medium">Overall score:</span> {getDisplayText(dreamRepoSummary?.overall_score)}</p>
                     <p><span className="font-medium">Readiness score:</span> {getDisplayText(dreamRepoSummary?.readiness_score)}</p>
                     <p><span className="font-medium">Primary strengths:</span> {getDisplayDreamList(dreamRepoSummary?.primary_strengths).join("; ") || "—"}</p>
-                    <p><span className="font-medium">Primary blockers:</span> {getDisplayDreamList(dreamRepoSummary?.primary_blockers).join("; ") || "—"}</p>
+                    <p><span className="font-medium">Primary blockers:</span> {getDisplayText(dreamRepoSummary?.primary_blockers)}</p>
                     <p><span className="font-medium">Gold standard requirement:</span> {getDisplayText(dreamRepoSummary?.gold_standard_requirement)}</p>
                   </div>
                 </div>
+                </>
                 )}
 
                 {/* Pre-analysis integrity flags — prose block removed; LongformManuscriptIntegrityTable (Ledger E peer section) is canonical */}
@@ -1026,13 +1037,13 @@ export default async function ReportPage({
               <div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-1">Ledger A — Character Coverage &amp; Arc</h3>
                 <p className="text-xs text-gray-700 mb-3">Character system coverage — roles, arc movement, ending accountability</p>
-                <LongformCharacterCoverageArcLedger doc={dreamDoc} />
+                <LongformCharacterCoverageArcLedger doc={dreamDoc} showInternalSections={showTechnicalSections} />
               </div>
               {/* Ledger B — Relationship Spine */}
               <div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-1">Ledger B — Relationship Spine</h3>
                 <p className="text-xs text-gray-700 mb-3">Load-bearing relationships, bridge mechanisms &amp; trust transfer</p>
-                <LongformRelationshipSpineLedger doc={dreamDoc} />
+                <LongformRelationshipSpineLedger doc={dreamDoc} showInternalSections={showTechnicalSections} />
               </div>
               {/* Ledger C — Symbol-to-Character Payoff */}
               <div>
@@ -1070,7 +1081,7 @@ export default async function ReportPage({
               <div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-1">Ledger F — Evidence Distribution &amp; Confidence Gate</h3>
                 <p className="text-xs text-gray-700 mb-3">Confidence per criterion, distribution gaps, coverage failures</p>
-                <LongformEvidenceDistributionGate doc={dreamDoc} />
+                <LongformEvidenceDistributionGate doc={dreamDoc} showInternalSections={showTechnicalSections} />
               </div>
             </div>
           </section>
@@ -1134,7 +1145,7 @@ export default async function ReportPage({
           </section>
         )}
 
-        <div className="mt-6 space-y-4">
+        <div className="mt-6 space-y-4 print-hidden">
           <SupportAccessToggle jobId={params.jobId} />
           <div className="flex justify-end">
             <DownloadReportButton jobId={params.jobId} />

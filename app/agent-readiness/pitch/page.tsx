@@ -125,7 +125,7 @@ export default function PitchPage() {
         </p>
 
         <p style={{ fontSize: "0.5625rem", color: T.gold, letterSpacing: "0.14em", textTransform: "uppercase", marginBottom: "0.5rem" }}>
-          04 — Elevator Pitch
+          04—Elevator Pitch
         </p>
         <h1 style={{ fontFamily: T.serif, fontSize: "1.75rem", color: T.cream, marginBottom: "2rem" }}>
           Pitch Builder
@@ -135,7 +135,7 @@ export default function PitchPage() {
         <div style={{ marginBottom: "2.5rem" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "0.5rem" }}>
             <label style={{ fontSize: "0.5625rem", color: T.dim, letterSpacing: "0.1em", textTransform: "uppercase" }}>
-              Elevator Pitch — one sentence
+              Elevator Pitch—one sentence
             </label>
             <MicButton setValue={setElevator} />
           </div>
@@ -188,7 +188,7 @@ export default function PitchPage() {
         <div>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "0.5rem" }}>
             <label style={{ fontSize: "0.5625rem", color: T.dim, letterSpacing: "0.1em", textTransform: "uppercase" }}>
-              Paragraph Pitch <span style={{ color: "#7B7060", fontWeight: 400 }}>(optional — for email, networking, query forms)</span>
+              Paragraph Pitch <span style={{ color: "#7B7060", fontWeight: 400 }}>(optional—for email, networking, query forms)</span>
             </label>
             <MicButton setValue={setParagraph} />
           </div>

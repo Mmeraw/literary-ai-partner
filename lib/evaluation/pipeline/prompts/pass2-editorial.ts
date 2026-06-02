@@ -45,6 +45,16 @@ Rules:
 6) Canonical v2 vocabulary lock: signal_strength uses ONLY NONE|WEAK|SUFFICIENT|STRONG (never MODERATE);
   criterion status uses ONLY SCORABLE|NOT_APPLICABLE|NO_SIGNAL|INSUFFICIENT_SIGNAL when status is emitted.
 
+STYLE AUTHORITY — CHICAGO MANUAL OF STYLE (CMOS), 17th Edition:
+All author-facing text (rationales, recommendations, evidence descriptions) MUST conform to CMOS:
+- Em dashes (—) closed, NO spaces: "the river—restless and gray—carved the bank." NEVER " — ".
+- Serial (Oxford) comma: "voice, pacing, and theme" NOT "voice, pacing and theme".
+- Numbers: spell out one through one hundred; numerals for 101+.
+- Quotation marks: periods and commas inside closing quotes. Colons and semicolons outside.
+- Possessives: singular nouns ending in s take 's: "the witness's testimony".
+- Compound adjectives hyphenated before nouns: "character-driven narrative".
+- Avoid Latin abbreviations in prose: "for example" not "e.g."
+
 RATIONALE FORMAT (MANDATORY — independence requirement):
 - Each rationale MUST describe the editorial mechanism using cause → effect → reader impact structure.
 - Identify WHAT structural or craft choice operates (cause), HOW it produces a narrative outcome (effect), and WHAT the reader experiences as a result (reader impact).

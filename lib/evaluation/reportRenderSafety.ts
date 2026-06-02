@@ -57,6 +57,20 @@ export function getDisplayText(value: unknown, fallback = "—"): string {
   return fallback;
 }
 
+/**
+ * For long-form manuscripts (≥25k words), replace misleading "chapter" scope
+ * references with "manuscript" in author-facing text. The LLM sometimes says
+ * "this chapter" when it evaluated a full novel.
+ */
+export function correctScopeLanguage(text: string, isLongForm: boolean): string {
+  if (!isLongForm) return text;
+  return text
+    .replace(/\bthis chapter\b/gi, 'this manuscript')
+    .replace(/\bthe chapter\b/gi, 'the manuscript')
+    .replace(/\bchapter-level\b/gi, 'manuscript-level')
+    .replace(/\bper[- ]chapter\b/gi, 'overall');
+}
+
 export function getDisplayDateTime(isoLike: string | null | undefined, fallback = "Unknown"): string {
   if (typeof isoLike !== "string" || isoLike.trim().length === 0) {
     return fallback;
@@ -264,8 +278,20 @@ export function isInternalDiagnosticText(value: string): boolean {
   return INTERNAL_DIAGNOSTIC_PATTERNS.some((pattern) => pattern.test(text));
 }
 
+/**
+ * Strip leading numeric prefixes ("1. ", "2) ", "3 - ") from list items.
+ * LLM-generated revision queues often include numbering that duplicates
+ * the `<ol>` list-decimal rendering, producing "1. 1." artifacts.
+ */
+function stripLeadingNumberPrefix(text: string): string {
+  return text.replace(/^\d+[\.\)\-:]\s*/, '').trim();
+}
+
 export function filterAuthorFacingTextList(value: unknown): string[] {
-  return getDisplayDreamList(value).filter((entry) => !isInternalDiagnosticText(entry));
+  return getDisplayDreamList(value)
+    .filter((entry) => !isInternalDiagnosticText(entry))
+    .map(stripLeadingNumberPrefix)
+    .filter((entry) => entry.length > 0);
 }
 
 export function getAuthorFacingRevisionPlan(value: unknown): AuthorFacingRevisionPlanItem[] {

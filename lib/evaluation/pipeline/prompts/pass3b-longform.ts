@@ -55,6 +55,17 @@ Gold-standard benchmarks (all long_form_multi_layer_evaluation / multi_layer_lon
 
 Every section below is mandatory. Omitting a section is a benchmark failure.
 
+STYLE AUTHORITY — CHICAGO MANUAL OF STYLE (CMOS), 17th Edition:
+All text in this document is author-facing and MUST conform to CMOS:
+- Em dashes (—) closed, NO spaces: "the river—restless and gray—carved the bank." NEVER " — ".
+- Serial (Oxford) comma: "voice, pacing, and theme" NOT "voice, pacing and theme".
+- Numbers: spell out one through one hundred; numerals for 101+.
+- Quotation marks: periods and commas inside closing quotes. Colons and semicolons outside.
+- Possessives: singular nouns ending in s take 's: "the witness's testimony".
+- Compound adjectives hyphenated before nouns: "character-driven narrative".
+- Avoid Latin abbreviations in prose: "for example" not "e.g."
+- Titles: italicize book/novel/film titles; quotation marks for chapters/stories/poems.
+
 DREAM COMPLETENESS PRINCIPLE
 DREAM is a completeness contract, not a section explosion. The report must prove what it detected, what it protected, what it traced, and what would count as a miss.
 

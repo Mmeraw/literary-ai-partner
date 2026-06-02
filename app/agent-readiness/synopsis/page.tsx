@@ -152,7 +152,7 @@ export default function SynopsisPage() {
         </p>
 
         <p style={{ fontSize: "0.5625rem", color: T.gold, letterSpacing: "0.14em", textTransform: "uppercase", marginBottom: "0.5rem" }}>
-          03 — Synopsis
+          03—Synopsis
         </p>
         <h1 style={{ fontFamily: T.serif, fontSize: "1.75rem", color: T.cream, marginBottom: "0.75rem" }}>
           Synopsis Builder
@@ -201,7 +201,7 @@ export default function SynopsisPage() {
             value={content}
             onChange={(e) => { setContent(e.target.value); setApproved(false); }}
             rows={16}
-            placeholder="Begin with the protagonist and inciting incident. Follow the central conflict through to resolution — include the ending. Do not use teaser language."
+            placeholder="Begin with the protagonist and inciting incident. Follow the central conflict through to resolution—include the ending. Do not use teaser language."
             style={{
               width: "100%", fontFamily: T.mono, fontSize: "0.8125rem", color: T.cream,
               backgroundColor: T.panel,

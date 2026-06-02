@@ -30,6 +30,7 @@ import {
 import { resolveReportTitle } from "@/lib/evaluation/reportTitle";
 import { safeTruncateToWordBoundary } from "@/lib/evaluation/reportRenderSafety";
 import CriterionOpportunities from "@/components/evaluation/CriterionOpportunities";
+import PolishPassButton from "@/components/evaluation/PolishPassButton";
 import { hasActiveSupportGrant, logSupportView } from "@/lib/support/checkSupportAccess";
 import { canViewEvaluationOperationalDetails } from "@/lib/auth/evaluationOperationalAccess";
 import type { LongformDreamDocument } from "@/lib/evaluation/pipeline/runPass3bLongform";
@@ -462,7 +463,7 @@ export default async function EvaluationReportPage({
           <p className="text-sm font-medium text-gray-900">Job not available yet</p>
           <p className="mt-2 text-sm text-gray-600">
             This evaluation is not accessible right now. If you just submitted or resumed a job,
-            it may still be initialising — wait a moment and reload.
+            it may still be initialising—wait a moment and reload.
           </p>
           <div className="mt-4 flex gap-4">
             <Link
@@ -500,7 +501,7 @@ export default async function EvaluationReportPage({
           <p className="text-sm font-medium text-gray-900">Job not available yet</p>
           <p className="mt-2 text-sm text-gray-600">
             This evaluation is not accessible right now. If you just submitted or resumed a job,
-            it may still be initialising — wait a moment and reload.
+            it may still be initialising—wait a moment and reload.
           </p>
           <div className="mt-4 flex gap-4">
             <Link
@@ -650,7 +651,7 @@ export default async function EvaluationReportPage({
           aria-live="polite"
         >
           <p className="text-sm font-semibold" style={{ color: '#0E0E0E' }}>
-            ✓ Story Ledger approved — building your report is now running.
+            ✓ Story Ledger approved—building your report is now running.
           </p>
           <p className="mt-1 text-sm" style={{ color: '#7B7B7B' }}>
             {(() => {
@@ -866,7 +867,7 @@ export default async function EvaluationReportPage({
                       </li>
                       <li className="flex items-start gap-2">
                         <span className="inline-flex items-center rounded-full bg-rose-100 text-rose-800 px-2 py-0.5 text-xs font-medium shrink-0">Low</span>
-                        <span>Limited or conflicting evidence — treat as a prompt for review, not a final judgment.</span>
+                        <span>Limited or conflicting evidence—treat as a prompt for review, not a final judgment.</span>
                       </li>
                     </ul>
                   </div>
@@ -1018,7 +1019,7 @@ export default async function EvaluationReportPage({
                   <span aria-hidden>📖</span> Finalizing your report
                 </h2>
                 <p className="text-sm text-gray-700 mt-0.5">
-                  Holistic craft assessment — long-form report finalization
+                  Holistic craft assessment—long-form report finalization
                 </p>
               </div>
 
@@ -1041,6 +1042,19 @@ export default async function EvaluationReportPage({
       )}
       {isComplete && (
         <div className="mt-8 space-y-4">
+          {isOwner && (
+            <section className="rounded-lg border border-[#B8922A]/30 bg-[#B8922A]/5 p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-900">Surface Polish</h3>
+                  <p className="text-xs text-gray-600 mt-0.5">
+                    Scan for grammar, passive voice, adverb density, punctuation, and repetition — free, voice-preserving.
+                  </p>
+                </div>
+                <PolishPassButton jobId={jobId} />
+              </div>
+            </section>
+          )}
           {isOwner && <SupportAccessToggle jobId={jobId} />}
           <div className="flex justify-end">
             <DownloadReportButton jobId={jobId} />

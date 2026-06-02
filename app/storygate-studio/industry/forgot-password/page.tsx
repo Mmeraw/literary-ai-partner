@@ -23,7 +23,7 @@ export default function IndustryForgotPassword() {
     >
       <section className="pt-24 pb-20 px-6 max-w-md mx-auto">
         <p className="text-xs tracking-[0.22em] uppercase font-mono mb-4" style={{ color: C.gold }}>
-          Storygate Studio™ — Industry
+          Storygate Studio™—Industry
         </p>
         <h1
           className="text-3xl font-bold mb-4"

@@ -279,7 +279,7 @@ export default function AuthorBioPage() {
         </p>
 
         <p style={{ fontSize: "0.5625rem", color: T.gold, letterSpacing: "0.14em", textTransform: "uppercase", marginBottom: "0.5rem" }}>
-          06 — Author Bio
+          06—Author Bio
         </p>
         <h1 style={{ fontFamily: T.serif, fontSize: "1.75rem", color: T.cream, marginBottom: "0.5rem" }}>
           Author Bio
@@ -299,7 +299,7 @@ export default function AuthorBioPage() {
             onChange={(e) => setIsDebut(e.target.checked)}
             style={{ accentColor: T.gold }}
           />
-          <span style={{ fontSize: "0.75rem", color: T.cream2 }}>Debut author — no prior publishing credits</span>
+          <span style={{ fontSize: "0.75rem", color: T.cream2 }}>Debut author—no prior publishing credits</span>
         </label>
 
         {/* Pen name */}
@@ -410,7 +410,7 @@ export default function AuthorBioPage() {
               <strong style={{ color: authorProfileSourceUploadStatus === "success" ? T.gold : "inherit" }}>
                 {authorProfileSourceUploadStatus === "reading" ? "Reading" : authorProfileSourceUploadStatus === "success" ? "Uploaded" : authorProfileSourceUploadStatus === "error" ? "Upload issue" : "Selected"}
               </strong>
-              {authorProfileSourceUploadName ? ` — ${authorProfileSourceUploadName}` : ""}
+              {authorProfileSourceUploadName ? `—${authorProfileSourceUploadName}` : ""}
               {authorProfileSourceUploadMessage ? `: ${authorProfileSourceUploadMessage}` : ""}
             </div>
           )}

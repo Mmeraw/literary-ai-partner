@@ -40,14 +40,13 @@ export default function LongformSymbolicAudit({ doc }: Props) {
             <p className="text-xs font-semibold uppercase tracking-wide text-emerald-600 mb-2">
               Doctrine strengths
             </p>
-            <ul className="space-y-1">
+            <ol className="space-y-1 list-decimal list-inside">
               {strengths.map((s, i) => (
-                <li key={i} className="text-xs text-gray-600 flex gap-2">
-                  <span className="text-emerald-400 shrink-0">✓</span>
+                <li key={i} className="text-xs text-gray-600">
                   {s}
                 </li>
               ))}
-            </ul>
+            </ol>
           </div>
         )}
         {risks.length > 0 && (
@@ -55,14 +54,13 @@ export default function LongformSymbolicAudit({ doc }: Props) {
             <p className="text-xs font-semibold uppercase tracking-wide text-rose-600 mb-2">
               Doctrine risks
             </p>
-            <ul className="space-y-1">
+            <ol className="space-y-1 list-decimal list-inside">
               {risks.map((r, i) => (
-                <li key={i} className="text-xs text-gray-600 flex gap-2">
-                  <span className="text-rose-400 shrink-0">⚠</span>
+                <li key={i} className="text-xs text-gray-600">
                   {r}
                 </li>
               ))}
-            </ul>
+            </ol>
           </div>
         )}
       </div>

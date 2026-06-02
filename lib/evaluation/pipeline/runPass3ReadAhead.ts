@@ -372,7 +372,7 @@ export async function runPass3ReadAhead(
   const openai = new OpenAI({
     apiKey: opts.openaiApiKey ?? process.env.OPENAI_API_KEY,
     timeout: READ_AHEAD_TIMEOUT_MS,
-    maxRetries: 1,
+    maxRetries: 3, // Tier 4: consistent retry across all pipeline OpenAI calls
   });
 
   const userPrompt = `Active pre-analysis for: "${opts.title}" (${opts.workType})

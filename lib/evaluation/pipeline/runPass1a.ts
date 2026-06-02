@@ -9,6 +9,13 @@ import { getCanonicalPass1Model, isReasoningStyleModel } from "@/lib/evaluation/
 import { getEvalOpenAiTimeoutMs } from "@/lib/evaluation/config";
 import { parseJsonObjectBoundary } from "@/lib/llm/jsonParseBoundary";
 import { sanitizeIdentityNameList, sanitizeIdentityNameToken } from "./identityNameHygiene";
+import {
+  type ChunkBridgeState,
+  createChunkBridgeState,
+  extractChunkSummary,
+  addChunkToBridge,
+  buildChunkBridgeContext,
+} from "./chunkBridge";
 
 const PASS1A_TEMPERATURE = 0.2;
 const PASS1A_MAX_OUTPUT_TOKENS = 16_000;
@@ -343,10 +350,14 @@ export interface RunPass1aOptions {
   title: string;
   workType: string;
   seedContextBlock?: string;
+  /** Full-context story ledger context block (Phase 0.5a ground truth) */
+  ledgerContextBlock?: string;
   openaiApiKey?: string;
   jobId?: string;
   _chunkCache?: Map<number, Pass1aChunkOutput>;
   _onChunkComplete?: (chunk_index: number, result: Pass1aChunkOutput) => Promise<void>;
+  /** Enable rolling bridge summaries between chunks (default: true when ledgerContextBlock is provided) */
+  _enableBridge?: boolean;
 }
 
 export interface RunPass1aResult {
@@ -364,7 +375,7 @@ export async function runPass1a(opts: RunPass1aOptions): Promise<RunPass1aResult
   const openai = new OpenAI({
     apiKey: opts.openaiApiKey ?? process.env.OPENAI_API_KEY,
     timeout: getEvalOpenAiTimeoutMs(),
-    maxRetries: 0,
+    maxRetries: 3, // Tier 4: retry transient 429s/500s with SDK exponential backoff
   });
 
   const chunks: ManuscriptChunkEvidence[] =
@@ -380,16 +391,41 @@ export async function runPass1a(opts: RunPass1aOptions): Promise<RunPass1aResult
     concurrency: PASS1A_CHUNK_CONCURRENCY,
   });
 
+  // Build combined seed context: existing seed claims + full-context ledger ground truth
+  const combinedSeedContext = [
+    opts.ledgerContextBlock ?? '',
+    opts.seedContextBlock ?? '',
+  ].filter(Boolean).join('\n\n');
+
+  // Bridge state for rolling summaries between chunks
+  const bridgeEnabled = opts._enableBridge ?? Boolean(opts.ledgerContextBlock);
+  const bridgeState: ChunkBridgeState = createChunkBridgeState();
+
   const settled = await runChunksWithConcurrency(chunks, PASS1A_CHUNK_CONCURRENCY, async (chunk) => {
+    // Build per-chunk context: combined seed + bridge (prior chunk summaries)
+    const bridgeContext = bridgeEnabled
+      ? buildChunkBridgeContext(bridgeState, chunk.chunk_index)
+      : '';
+    const fullSeedBlock = [combinedSeedContext, bridgeContext]
+      .filter(Boolean)
+      .join('\n\n');
+
     const result = await runSingleChunk({
       chunk,
       title: opts.title,
       workType: opts.workType,
-      seedContextBlock: opts.seedContextBlock,
+      seedContextBlock: fullSeedBlock || undefined,
       openai,
       model,
       chunkCache: opts._chunkCache,
     });
+
+    // Add this chunk's summary to the bridge for subsequent chunks
+    if (bridgeEnabled) {
+      const summary = extractChunkSummary(chunk.chunk_index, result);
+      addChunkToBridge(bridgeState, summary);
+    }
+
     if (opts._onChunkComplete) {
       try {
         await opts._onChunkComplete(chunk.chunk_index, result);

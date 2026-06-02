@@ -570,37 +570,52 @@ export async function runPass3Preflight(
   let reducerOutput: Partial<Pass3PreflightDraft> | null = null;
   let reducerFailureReason: string | null = null;
 
-  try {
-    const reducerUserPrompt = buildPass3AReducerUserPrompt({
-      title: opts.title,
-      workType: opts.workType,
-      zoneSummaries: zoneSummaries.map(z => ({
-        zone: z.zone,
-        chunkCount: z.chunkIndices.length,
-        wordCount: z.wordCount,
-        summary: z.summary,
-      })),
-      totalChunksExpected: totalChunks,
-      totalChunksReceived: chunksReceived,
-      missingChunks,
-    });
+  const reducerUserPrompt = buildPass3AReducerUserPrompt({
+    title: opts.title,
+    workType: opts.workType,
+    zoneSummaries: zoneSummaries.map(z => ({
+      zone: z.zone,
+      chunkCount: z.chunkIndices.length,
+      wordCount: z.wordCount,
+      summary: z.summary,
+    })),
+    totalChunksExpected: totalChunks,
+    totalChunksReceived: chunksReceived,
+    missingChunks,
+  });
 
-    const raw = await createOpenAICompletion({
-      openai,
-      model,
-      systemPrompt: PASS3A_REDUCER_SYSTEM_PROMPT,
-      userPrompt: reducerUserPrompt,
-      temperature: PASS3A_REDUCER_TEMPERATURE,
-      maxTokens: PASS3A_MAX_OUTPUT_TOKENS * 2, // reducer output is larger
-      timeoutMs,
-    });
+  // Retry loop: attempt reducer up to 2 times with backoff.
+  // The reducer is a single LLM call that can fail due to transient
+  // OpenAI errors, network hiccups, or JSON parse issues. One retry
+  // with a brief pause resolves most transient failures.
+  const REDUCER_MAX_ATTEMPTS = 2;
+  for (let attempt = 1; attempt <= REDUCER_MAX_ATTEMPTS; attempt++) {
+    try {
+      const raw = await createOpenAICompletion({
+        openai,
+        model,
+        systemPrompt: PASS3A_REDUCER_SYSTEM_PROMPT,
+        userPrompt: reducerUserPrompt,
+        temperature: PASS3A_REDUCER_TEMPERATURE,
+        maxTokens: PASS3A_MAX_OUTPUT_TOKENS * 2, // reducer output is larger
+        timeoutMs,
+      });
 
-    reducerOutput = parseJsonObjectBoundary(raw) as unknown as Partial<Pass3PreflightDraft>;
-    console.log("[Pass3A] Reduce phase complete");
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    reducerFailureReason = msg;
-    console.warn(`[Pass3A] Reduce phase failed: ${msg} — building degraded preflight`);
+      reducerOutput = parseJsonObjectBoundary(raw) as unknown as Partial<Pass3PreflightDraft>;
+      console.log(`[Pass3A] Reduce phase complete (attempt ${attempt}/${REDUCER_MAX_ATTEMPTS})`);
+      reducerFailureReason = null;
+      break;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      reducerFailureReason = msg;
+      if (attempt < REDUCER_MAX_ATTEMPTS) {
+        const backoffMs = 3_000 * attempt;
+        console.warn(`[Pass3A] Reduce attempt ${attempt} failed: ${msg} — retrying in ${backoffMs}ms`);
+        await new Promise(r => setTimeout(r, backoffMs));
+      } else {
+        console.warn(`[Pass3A] Reduce phase failed after ${REDUCER_MAX_ATTEMPTS} attempts: ${msg} — building degraded preflight`);
+      }
+    }
   }
 
   // ── STEP 4: ENFORCE EVIDENCE RULES ───────────────────────────────────────

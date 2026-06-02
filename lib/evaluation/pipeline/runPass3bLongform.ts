@@ -28,6 +28,7 @@ import {
   PASS3B_PROMPT_VERSION,
   buildPass3bUserPrompt,
 } from "./prompts/pass3b-longform";
+import { sanitizeCMOSDeep } from "../cmosSanitizer";
 import {
   buildOpenAIOutputTokenParam,
   buildOpenAITemperatureParam,
@@ -42,6 +43,7 @@ import type {
   Pass2aStructuredContext,
 } from "./types";
 import type { SubmissionScopeProfile } from "./submissionScope";
+import { CRITERIA_METADATA } from "@/schemas/criteria-keys";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -536,6 +538,266 @@ function validateDreamDocument(raw: Record<string, unknown>): LongformDreamDocum
   return raw as unknown as LongformDreamDocument;
 }
 
+// ── Chunked criterion analysis ────────────────────────────────────────────────
+
+/**
+ * When EVAL_PASS3B_CHUNKED=true, generate criterion_analyses in parallel batches
+ * then synthesize remaining sections. Reduces latency from ~60-90s to ~30-40s.
+ */
+const CRITERION_BATCH_SIZE = 5;
+
+function isChunkedEnabled(): boolean {
+  return process.env.EVAL_PASS3B_CHUNKED === 'true';
+}
+
+function buildCriterionBatchPrompt(params: {
+  title: string;
+  wordCount: number;
+  workType: string;
+  criteria: SynthesizedCriterion[];
+  chunkSample: ManuscriptChunkEvidence[];
+}): string {
+  const scoreSummary = params.criteria.map((c) => {
+    const label = CRITERIA_METADATA[c.key as keyof typeof CRITERIA_METADATA]?.label ?? c.key;
+    return `${label} (${c.key}): ${c.final_score_0_10}/10 — ${c.final_rationale?.slice(0, 120) ?? ""}`;
+  }).join("\n");
+
+  const criteriaCompact = JSON.stringify(
+    params.criteria.map((c) => ({
+      key: c.key,
+      score: c.final_score_0_10,
+      confidence_level: c.confidence_level ?? "moderate",
+      rationale: c.final_rationale,
+      evidence: (c.evidence ?? []).slice(0, 4).map((e) => e.snippet),
+      top_recommendations: (c.recommendations ?? []).slice(0, 3).map((r) => ({
+        priority: r.priority,
+        action: r.action,
+      })),
+    }))
+  );
+
+  const sorted = [...params.chunkSample].sort((a, b) => a.chunk_index - b.chunk_index);
+  const total = sorted.length;
+  const pickAt = (fraction: number) =>
+    sorted[Math.min(Math.floor(total * fraction), total - 1)];
+  const fractions = [0, 0.25, 0.5, 0.75, 1.0];
+  const labels = ["OPENING", "EARLY", "MIDDLE", "LATE", "CLOSE"];
+  const chunkWindows = fractions.map((f, i) => ({
+    label: labels[i],
+    content: pickAt(f)?.content?.slice(0, 1500) ?? "",
+  }));
+
+  const criterionKeys = params.criteria.map(c => c.key).join(", ");
+
+  return `Generate criterion_analyses for the following criteria ONLY: ${criterionKeys}
+
+MANUSCRIPT: "${params.title}" (${params.wordCount.toLocaleString()} words, ${params.workType})
+
+PASS 3 SCORES (do not re-score — expand with evidence):
+${scoreSummary}
+
+CRITERIA DATA:
+${criteriaCompact}
+
+MANUSCRIPT SAMPLES:
+${chunkWindows.map(w => `[${w.label}]\n${w.content}`).join("\n\n")}
+
+Return a JSON object: { "criterion_analyses": [...] }
+Each entry: { "key": CriterionKey, "score": number (match Pass 3), "confidence": "High"|"Moderate-High"|"Moderate"|"Low", "fit_evidence": string[] (2-4), "gap_evidence": string[] (2-4), "revision_queue": string[] (2-4) }
+Evidence must be grounded in the manuscript samples. Use character names, not "the protagonist".
+Return ONLY valid JSON.`;
+}
+
+function buildSynthesisPrompt(params: {
+  title: string;
+  wordCount: number;
+  chapterCount?: number;
+  workType: string;
+  mode?: string;
+  criterionAnalyses: unknown[];
+  pass2aStructuredContext: Pass2aStructuredContext;
+  chunkSample: ManuscriptChunkEvidence[];
+  scopeProfile?: SubmissionScopeProfile;
+  authorCorrectionsBlock?: string | null;
+  criteria: SynthesizedCriterion[];
+}): string {
+  const scoreSummary = params.criteria.map((c) => {
+    const label = CRITERIA_METADATA[c.key as keyof typeof CRITERIA_METADATA]?.label ?? c.key;
+    return `${label} (${c.key}): ${c.final_score_0_10}/10`;
+  }).join("\n");
+
+  const sorted = [...params.chunkSample].sort((a, b) => a.chunk_index - b.chunk_index);
+  const total = sorted.length;
+  const pickAt = (fraction: number) =>
+    sorted[Math.min(Math.floor(total * fraction), total - 1)];
+  const SAMPLE_FRACTIONS = [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0];
+  const SAMPLE_LABELS = ["OPENING (0%)", "EARLY-1 (10%)", "EARLY-2 (20%)", "MID-EARLY (30%)", "MID-1 (40%)", "MID-2 (50%)", "MID-LATE (60%)", "LATE-1 (70%)", "LATE-2 (80%)", "LATE-3 (90%)", "CLOSE (100%)"];
+  const chunkWindows = SAMPLE_FRACTIONS.map((f, i) => ({
+    label: SAMPLE_LABELS[i],
+    content: pickAt(f)?.content?.slice(0, 2000) ?? "",
+  }));
+
+  const structuredCtx = JSON.stringify({
+    character_ledger: params.pass2aStructuredContext.character_ledger.slice(0, 30),
+    scene_index: params.pass2aStructuredContext.scene_index.slice(0, 20),
+    timeline_anchors: params.pass2aStructuredContext.timeline_anchors.slice(0, 24),
+  });
+
+  const chapterInfo = params.chapterCount ? `${params.chapterCount} chapters` : "chapter count not provided";
+  const correctionsSection = params.authorCorrectionsBlock
+    ? `\n${params.authorCorrectionsBlock}\n\n`
+    : "";
+
+  return `Produce the DREAM long-form evaluation document (EXCLUDING criterion_analyses — those are pre-computed below).
+${correctionsSection}
+MANUSCRIPT FACTS
+- Title: ${params.title}
+- Word count: ${params.wordCount.toLocaleString()}
+- Structure: ${chapterInfo}
+- Work type: ${params.workType}
+- Evaluation mode: ${params.mode ?? "long_form_multi_layer_evaluation"}
+${params.scopeProfile ? `- Scope: ${params.scopeProfile.inputScale} (${params.scopeProfile.chunkCount} chunks analyzed)` : ""}
+
+SCORE GRID:
+${scoreSummary}
+
+PRE-COMPUTED CRITERION ANALYSES (DO NOT regenerate — use these for synthesis):
+${JSON.stringify(params.criterionAnalyses)}
+
+MANUSCRIPT CONTEXT (Pass 2a):
+${structuredCtx}
+
+MANUSCRIPT CHUNK SAMPLE:
+${chunkWindows.map(w => `[${w.label}]\n${w.content}`).join("\n\n")}
+
+INSTRUCTIONS:
+Produce all DREAM sections EXCEPT criterion_analyses (already provided above).
+Return a JSON object with these keys:
+- executive_verdict (string, 150-300 words)
+- dream_scores ({ quality, readiness, commercial, literary } — each 0-100)
+- market_shelf ({ best_shelf, shelf_neighbors, comparison_space, marketable_hook, market_danger })
+- what_not_to_become (string[])
+- structural_stack (object[])
+- arc_map (object[])
+- layer_analyses (object[])
+- cross_layer_integration (object[])
+- symbolic_audit (object)
+- reader_experience (object)
+- revision_plan (object[] — 5-6 priorities)
+- releasability (object[])
+- acceptance_checks (object)
+- calibration_notes (string[])
+- repo_summary (object)
+- manuscript_integrity_issues (object[])
+
+Ground all findings in manuscript evidence. Use character names. Return ONLY valid JSON.`;
+}
+
+async function runPass3bChunked(
+  opts: RunPass3bOptions,
+  createCompletion: ReturnType<typeof defaultCreateCompletion>,
+  selectedModel: string,
+): Promise<Record<string, unknown>> {
+  // Split criteria into batches
+  const batches: SynthesizedCriterion[][] = [];
+  for (let i = 0; i < opts.criteria.length; i += CRITERION_BATCH_SIZE) {
+    batches.push(opts.criteria.slice(i, i + CRITERION_BATCH_SIZE));
+  }
+
+  console.log(`[Pass3b:chunked] generating criterion_analyses in ${batches.length} parallel batches`);
+
+  // Phase A: Generate criterion_analyses in parallel
+  const batchPromises = batches.map(async (batch, idx) => {
+    const prompt = buildCriterionBatchPrompt({
+      title: opts.title,
+      wordCount: opts.wordCount,
+      workType: opts.workType,
+      criteria: batch,
+      chunkSample: opts.manuscriptChunks,
+    });
+
+    const completion = await createCompletion({
+      model: selectedModel,
+      messages: [
+        { role: "system", content: "You generate criterion_analyses entries for a DREAM evaluation document. Each entry expands a criterion score with manuscript-grounded evidence. Return ONLY valid JSON." },
+        { role: "user", content: prompt },
+      ],
+      ...buildOpenAITemperatureParam(selectedModel, PASS3B_TEMPERATURE),
+      ...buildOpenAIOutputTokenParam(selectedModel, 6000),
+      response_format: { type: "json_object" },
+    });
+
+    const rawContent = completion.choices?.[0]?.message?.content ?? "";
+    if (!rawContent.trim()) {
+      throw new Error(`[Pass3b:chunked] EMPTY_RESPONSE for batch ${idx}`);
+    }
+
+    const parseResult = parseJsonObjectBoundary<Record<string, unknown>>(rawContent, {
+      label: `Pass3b criterion batch ${idx}`,
+    });
+
+    const analyses = parseResult.value.criterion_analyses;
+    if (!Array.isArray(analyses)) {
+      throw new Error(`[Pass3b:chunked] batch ${idx} missing criterion_analyses array`);
+    }
+
+    console.log(`[Pass3b:chunked] batch ${idx} complete — ${analyses.length} criteria`);
+    return analyses;
+  });
+
+  const batchResults = await Promise.all(batchPromises);
+  const allCriterionAnalyses = batchResults.flat();
+
+  if (allCriterionAnalyses.length < 13) {
+    throw new Error(
+      `[Pass3b:chunked] criterion batches produced ${allCriterionAnalyses.length} analyses, expected 13+`
+    );
+  }
+
+  console.log(`[Pass3b:chunked] all ${allCriterionAnalyses.length} criterion_analyses complete, generating synthesis`);
+
+  // Phase B: Generate remaining sections with pre-computed criterion_analyses
+  const synthesisPrompt = buildSynthesisPrompt({
+    title: opts.title,
+    wordCount: opts.wordCount,
+    chapterCount: opts.chapterCount,
+    workType: opts.workType,
+    mode: opts.mode,
+    criterionAnalyses: allCriterionAnalyses,
+    pass2aStructuredContext: opts.pass2aStructuredContext,
+    chunkSample: opts.manuscriptChunks,
+    scopeProfile: opts.scopeProfile,
+    authorCorrectionsBlock: opts.authorCorrectionsBlock,
+    criteria: opts.criteria,
+  });
+
+  const synthesisCompletion = await createCompletion({
+    model: selectedModel,
+    messages: [
+      { role: "system", content: PASS3B_SYSTEM_PROMPT },
+      { role: "user", content: synthesisPrompt },
+    ],
+    ...buildOpenAITemperatureParam(selectedModel, PASS3B_TEMPERATURE),
+    ...buildOpenAIOutputTokenParam(selectedModel, 16000),
+    response_format: { type: "json_object" },
+  });
+
+  const synthesisContent = synthesisCompletion.choices?.[0]?.message?.content ?? "";
+  if (!synthesisContent.trim()) {
+    throw new Error("[Pass3b:chunked] EMPTY_RESPONSE for synthesis call");
+  }
+
+  const synthesisResult = parseJsonObjectBoundary<Record<string, unknown>>(synthesisContent, {
+    label: "Pass3b synthesis",
+  });
+
+  // Merge: pre-computed criterion_analyses + synthesized sections
+  return {
+    ...synthesisResult.value,
+    criterion_analyses: allCriterionAnalyses,
+  };
+}
+
 // ── Main runner ───────────────────────────────────────────────────────────────
 
 /**
@@ -543,6 +805,8 @@ function validateDreamDocument(raw: Record<string, unknown>): LongformDreamDocum
  *
  * Only call this when route === "LONG_FORM" (manuscript ≥ 25,000 words).
  * Throws on OpenAI error, parse failure, or missing required sections.
+ *
+ * When EVAL_PASS3B_CHUNKED=true, uses parallel criterion batching for lower latency.
  */
 export async function runPass3bLongform(
   opts: RunPass3bOptions
@@ -559,7 +823,34 @@ export async function runPass3bLongform(
 
   const selectedModel = getCanonicalPass3Model(opts.model);
   const maxTokens = getPass3bMaxTokens();
+  const createCompletion = defaultCreateCompletion(opts.openaiApiKey, opts.openAiTimeoutMs);
 
+  // ── Chunked path: parallel criterion batching for lower latency ──────────
+  if (isChunkedEnabled()) {
+    console.log(`[Pass3b:chunked] enabled — model=${selectedModel} title="${opts.title}" words=${opts.wordCount}`);
+    const parsed = await runPass3bChunked(opts, createCompletion, selectedModel);
+    const { patched, report } = applyTruthfulLongformCriteriaFallback(parsed, opts.criteria);
+    const { patched: guarded, report: revisionPlanGuardrailReport } = sanitizeAuthorFacingRevisionPlanInPass3b(patched);
+    const guardedPlanLength = Array.isArray(guarded.revision_plan) ? guarded.revision_plan.length : 0;
+    if (guardedPlanLength < 3) {
+      throw new Error(`[Pass3b:chunked] revision_plan requires at least 3 priorities, got ${guardedPlanLength}`);
+    }
+    const document = validateDreamDocument(guarded);
+    if (report.autofilled_keys.length > 0 || report.repaired_keys.length > 0) {
+      console.warn("[Pass3b:chunked] truthful_fallback_applied", report);
+    }
+    if (revisionPlanGuardrailReport.removed_entries.length > 0 || revisionPlanGuardrailReport.removed_actions_count > 0) {
+      console.warn("[Pass3b:chunked] revision_plan_guardrail_applied", revisionPlanGuardrailReport);
+    }
+    const sanitizedDocument = sanitizeCMOSDeep(document);
+    sanitizedDocument.prompt_version = PASS3B_PROMPT_VERSION + ':chunked';
+    sanitizedDocument.generated_at = new Date().toISOString();
+    sanitizedDocument.model = selectedModel;
+    console.log(`[Pass3b:chunked] complete title="${opts.title}" integrity_issues=${sanitizedDocument.manuscript_integrity_issues.length} revision_priorities=${sanitizedDocument.revision_plan.length}`);
+    return sanitizedDocument;
+  }
+
+  // ── Single-call path (default) ──────────────────────────────────────────
   const userPrompt = buildPass3bUserPrompt({
     title: opts.title,
     wordCount: opts.wordCount,
@@ -574,8 +865,6 @@ export async function runPass3bLongform(
   });
 
   console.log(`[Pass3b] request model=${selectedModel} max_tokens=${maxTokens} title="${opts.title}" words=${opts.wordCount} chunks=${opts.manuscriptChunks.length}`);
-
-  const createCompletion = defaultCreateCompletion(opts.openaiApiKey, opts.openAiTimeoutMs);
 
   async function attemptCompletion(tokenBudget: number): Promise<Record<string, unknown>> {
     const completion = await createCompletion({
@@ -658,12 +947,15 @@ export async function runPass3bLongform(
     });
   }
 
-  // Stamp provenance server-side
-  document.prompt_version = PASS3B_PROMPT_VERSION;
-  document.generated_at = new Date().toISOString();
-  document.model = selectedModel;
+  // CMOS 17th Ed. — deterministic post-processing of all author-facing text
+  const sanitizedDocument = sanitizeCMOSDeep(document);
 
-  console.log(`[Pass3b] complete title="${opts.title}" integrity_issues=${document.manuscript_integrity_issues.length} revision_priorities=${document.revision_plan.length}`);
+  // Stamp provenance server-side (after sanitization to avoid mangling metadata)
+  sanitizedDocument.prompt_version = PASS3B_PROMPT_VERSION;
+  sanitizedDocument.generated_at = new Date().toISOString();
+  sanitizedDocument.model = selectedModel;
 
-  return document;
+  console.log(`[Pass3b] complete title="${opts.title}" integrity_issues=${sanitizedDocument.manuscript_integrity_issues.length} revision_priorities=${sanitizedDocument.revision_plan.length}`);
+
+  return sanitizedDocument;
 }

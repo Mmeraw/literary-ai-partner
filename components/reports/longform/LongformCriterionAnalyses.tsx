@@ -16,13 +16,13 @@ function EvidenceList({ items, label, accent }: { items: string[]; label: string
   return (
     <div>
       <p className={`text-xs font-semibold uppercase tracking-wide mb-1 ${accent}`}>{label}</p>
-      <ul className="space-y-1">
+      <ol className="space-y-1 list-decimal list-inside">
         {items.map((item, i) => (
-          <li key={i} className="text-xs text-gray-600 leading-relaxed pl-3 border-l-2 border-gray-200">
+          <li key={i} className="text-xs text-gray-600 leading-relaxed">
             {item}
           </li>
         ))}
-      </ul>
+      </ol>
     </div>
   );
 }
