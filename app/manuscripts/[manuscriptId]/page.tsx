@@ -86,7 +86,7 @@ export default async function ManuscriptSourcePage({ params }: PageProps) {
           <article className="rounded-2xl border border-[#2D2519] bg-[#120E08] p-5">
             <h2 className="font-rg-serif text-2xl text-[#F8F1E6]">Source preview</h2>
             <p className="mt-1 text-sm text-[#A9987D]">Preview only. Evaluation and Final Review use the saved source snapshot.</p>
-            <div className="mt-4 max-h-[520px] overflow-auto rounded-xl border border-[#2E261A] bg-[#0D0A05] p-5 text-sm leading-7 text-[#E9DCC4] whitespace-pre-wrap">
+            <div className="mt-4 max-h-[520px] overflow-auto rounded-xl border border-[#2E261A] bg-[#0D0A05] px-6 py-5 font-rg-serif text-base leading-[2] text-[#E9DCC4] whitespace-pre-wrap">
               {previewText || "No source preview text is available for this manuscript yet."}
             </div>
           </article>
