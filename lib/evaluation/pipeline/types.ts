@@ -250,7 +250,7 @@ export type SynthesizedCriterion = {
   /** Scorability semantics separated from confidence semantics. */
   scorability_status?: "scorable" | "scorable_low_confidence" | "non_scorable";
   technical_defects?: Array<{
-    code: "PROSE_CONTROL_ANCHOR_EXTRACTION_FAILED" | "RECOMMENDATION_TRUNCATED";
+    code: "PROSE_CONTROL_ANCHOR_EXTRACTION_FAILED" | "RECOMMENDATION_TRUNCATED" | "SCORE_LE8_EMPTY_RECOMMENDATIONS";
     author_facing_reason: string;
     retryable: boolean;
   }>;
