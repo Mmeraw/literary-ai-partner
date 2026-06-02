@@ -72,10 +72,11 @@ function formatWordCount(value) {
   return Number(value || 0).toLocaleString();
 }
 
-function getSubmissionSourceSummary({ activeInputMethod, selectedDashboardManuscript, manuscriptText, wordCount }) {
+function getSubmissionSourceSummary({ selectedDashboardManuscript, manuscriptText, wordCount }) {
   if (selectedDashboardManuscript) {
+    const isUploaded = selectedDashboardManuscript.source === "upload";
     return {
-      label: activeInputMethod === "upload" ? "Uploaded file selected" : "Saved document selected",
+      label: isUploaded ? "Uploaded file selected" : "Saved document selected",
       title: selectedDashboardManuscript.title || "Untitled Manuscript",
       meta: `${formatWordCount(selectedDashboardManuscript.word_count)} words · ${selectedDashboardManuscript.source ?? "saved manuscript"}`,
       body: "This manuscript will be evaluated. Pasted text is ignored while a saved or uploaded manuscript is selected.",
@@ -104,7 +105,6 @@ function getSubmissionSourceSummary({ activeInputMethod, selectedDashboardManusc
  * Single UI entry point to create evaluate_full jobs via POST /api/jobs
  */
 export default function ManuscriptSubmissionForm({ onSubmitSuccess }) {
-  const fileInputRef = useRef(null);
   const uploadInputRef = useRef(null);
 
   const [activeInputMethod, setActiveInputMethod] = useState("saved");
@@ -131,10 +131,10 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess }) {
     [dashboardManuscripts, selectedManuscriptId],
   );
 
+  const uploadedManuscriptSelected = activeInputMethod === "upload" && selectedDashboardManuscript?.source === "upload";
   const activeWordCount = selectedDashboardManuscript?.word_count ?? wordCount;
   const evaluationMode = getEvaluationMode(activeWordCount, manuscriptStructure);
   const submissionSourceSummary = getSubmissionSourceSummary({
-    activeInputMethod,
     selectedDashboardManuscript,
     manuscriptText,
     wordCount,
@@ -154,10 +154,6 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess }) {
   const hideManuscriptHere = (manuscriptId) => {
     setHiddenManuscriptIds((prev) => (prev.includes(manuscriptId) ? prev : [...prev, manuscriptId]));
     setSelectedManuscriptId((current) => (current === manuscriptId ? null : current));
-  };
-
-  const deleteManuscriptFromDashboard = async (manuscriptId) => {
-    await deleteManuscriptById(manuscriptId);
   };
 
   const deleteManuscriptById = async (manuscriptId, confirmationLabel) => {
@@ -277,7 +273,6 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess }) {
   };
 
   const triggerDashboardUpload = () => uploadInputRef.current?.click();
-  const triggerInlineUpload = () => fileInputRef.current?.click();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -365,15 +360,15 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess }) {
                   key={method.id}
                   type="button"
                   onClick={() => handleInputMethodChange(method.id)}
-                  className={`relative min-h-[7.25rem] rounded-2xl border p-5 text-left transition focus:outline-none focus:ring-2 focus:ring-[#A36A00]/40 ${
+                  className={`relative min-h-[7.25rem] rounded-2xl border p-5 text-left transition focus:outline-none focus:ring-2 focus:ring-blue-500/30 ${
                     isActive
-                      ? "border-[#A36A00] bg-[#FFF8E8] shadow-sm ring-1 ring-[#A36A00]/25"
+                      ? "border-blue-600 bg-blue-50 shadow-sm ring-1 ring-blue-600/20"
                       : "border-stone-300 bg-white hover:border-stone-400 hover:bg-stone-50"
                   }`}
                   aria-pressed={isActive}
                 >
                   {isActive && (
-                    <span className="absolute right-4 top-4 rounded-full bg-[#A36A00] px-2.5 py-1 font-rg-mono text-[0.72rem] font-bold uppercase tracking-[0.08em] text-white">
+                    <span className="absolute right-4 top-4 rounded-full bg-blue-700 px-2.5 py-1 font-rg-mono text-[0.72rem] font-bold uppercase tracking-[0.08em] text-white">
                       Selected
                     </span>
                   )}
@@ -397,7 +392,7 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess }) {
                   value={projectTitle}
                   onChange={(e) => setProjectTitle(e.target.value)}
                   placeholder="Helps organize submissions and reports"
-                  className="min-h-[48px] w-full rounded-lg border border-stone-400 bg-white px-4 py-3 text-base text-stone-950 placeholder:text-stone-500 focus:border-[#A36A00] focus:outline-none focus:ring-2 focus:ring-[#A36A00]/20"
+                  className="min-h-[48px] w-full rounded-lg border border-stone-400 bg-white px-4 py-3 text-base text-stone-950 placeholder:text-stone-500 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-600/20"
                   disabled={isSubmitting}
                 />
               </div>
@@ -414,7 +409,7 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess }) {
                         type="button"
                         onClick={() => handleInputMethodChange("upload")}
                         disabled={isUploading || isSubmitting}
-                        className="min-h-[42px] rounded-lg border border-stone-400 bg-white px-4 py-2 text-sm font-semibold text-stone-900 hover:bg-stone-50 disabled:opacity-60"
+                        className="min-h-[42px] rounded-lg border border-blue-300 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-900 hover:bg-blue-100 disabled:opacity-60"
                       >
                         Upload instead
                       </button>
@@ -456,8 +451,8 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess }) {
                                 toggleManuscriptSelection(doc.id);
                               }
                             }}
-                            className={`cursor-pointer rounded-xl border p-3.5 transition focus:outline-none focus:ring-2 focus:ring-[#A36A00]/25 ${
-                              isSelected ? "border-[#A36A00] bg-[#FFFDF8] shadow-sm" : "border-stone-300 bg-white hover:border-stone-400"
+                            className={`cursor-pointer rounded-xl border p-3.5 transition focus:outline-none focus:ring-2 focus:ring-blue-600/25 ${
+                              isSelected ? "border-blue-600 bg-blue-50 shadow-sm" : "border-stone-300 bg-white hover:border-stone-400"
                             }`}
                           >
                             <div className="flex min-h-[3.65rem] items-center gap-3">
@@ -475,7 +470,7 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess }) {
                                 onChange={() => {
                                   if (selectedManuscriptId !== doc.id) toggleManuscriptSelection(doc.id);
                                 }}
-                                className="h-5 w-5 shrink-0 accent-[#A36A00]"
+                                className="h-5 w-5 shrink-0 accent-blue-700"
                                 aria-label={`Select ${doc.title || "Untitled Manuscript"}`}
                               />
                               <div className="min-w-0 flex-1">
@@ -520,25 +515,51 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess }) {
                   <p className="mt-2 max-w-2xl text-base leading-7 text-stone-800">
                     Upload a DOCX or TXT file. RevisionGrade saves it to your workspace, selects it for this evaluation, and preserves the original file text as the evaluation source.
                   </p>
-                  <div className="mt-5 rounded-2xl border border-dashed border-stone-400 bg-white p-8 text-center">
-                    <button
-                      type="button"
-                      onClick={triggerDashboardUpload}
-                      disabled={isUploading || isSubmitting}
-                      className="min-h-[50px] rounded-xl bg-[#A36A00] px-6 py-3 font-rg-mono text-sm font-bold uppercase tracking-[0.14em] text-white shadow-sm hover:bg-[#835400] disabled:opacity-60"
-                    >
-                      {isUploading ? "Uploading..." : "Choose File"}
-                    </button>
-                    <p className="mt-3 text-base text-stone-700">Supported uploads: DOCX and TXT. Files may be up to 250k words.</p>
-                  </div>
-                  {selectedDashboardManuscript && (
-                    <button
-                      type="button"
-                      onClick={() => handleInputMethodChange("saved")}
-                      className="mt-4 min-h-[42px] rounded-lg border border-stone-400 bg-white px-4 py-2 text-sm font-semibold text-stone-900 hover:bg-stone-50"
-                    >
-                      View in saved documents
-                    </button>
+
+                  {uploadedManuscriptSelected ? (
+                    <div className="mt-5 rounded-2xl border border-emerald-300 bg-emerald-50 p-5 text-left shadow-sm">
+                      <p className="font-rg-mono text-[0.76rem] font-bold uppercase tracking-[0.14em] text-emerald-800">
+                        File uploaded and selected ✓
+                      </p>
+                      <h4 className="mt-2 font-rg-serif text-2xl leading-tight text-stone-950">
+                        {selectedDashboardManuscript.title || "Untitled Manuscript"}
+                      </h4>
+                      <p className="mt-2 text-base font-bold text-stone-950">
+                        {formatWordCount(selectedDashboardManuscript.word_count)} words · uploaded file
+                      </p>
+                      <p className="mt-2 text-base leading-6 text-stone-800">
+                        This file is loaded, selected, and ready for evaluation. Use Replace File only if you want to evaluate a different upload.
+                      </p>
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={triggerDashboardUpload}
+                          disabled={isUploading || isSubmitting}
+                          className="min-h-[44px] rounded-lg bg-blue-700 px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-blue-800 disabled:opacity-60"
+                        >
+                          {isUploading ? "Uploading..." : "Replace File"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleInputMethodChange("saved")}
+                          className="min-h-[44px] rounded-lg border border-stone-400 bg-white px-4 py-2 text-sm font-semibold text-stone-900 hover:bg-stone-50"
+                        >
+                          View in saved documents
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="mt-5 rounded-2xl border border-dashed border-stone-400 bg-white p-8 text-center">
+                      <button
+                        type="button"
+                        onClick={triggerDashboardUpload}
+                        disabled={isUploading || isSubmitting}
+                        className="min-h-[50px] rounded-xl bg-blue-700 px-6 py-3 font-rg-mono text-sm font-bold uppercase tracking-[0.14em] text-white shadow-sm hover:bg-blue-800 disabled:opacity-60"
+                      >
+                        {isUploading ? "Uploading..." : "Choose File"}
+                      </button>
+                      <p className="mt-3 text-base text-stone-700">Supported uploads: DOCX and TXT. Files may be up to 250k words.</p>
+                    </div>
                   )}
                 </div>
               )}
@@ -563,7 +584,7 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess }) {
                     }}
                     placeholder="Formatting is preserved where supported..."
                     rows={12}
-                    className="w-full rounded-lg border border-stone-400 bg-white px-4 py-3 text-base leading-7 text-stone-950 placeholder:text-stone-500 focus:border-[#A36A00] focus:outline-none focus:ring-2 focus:ring-[#A36A00]/20"
+                    className="w-full rounded-lg border border-stone-400 bg-white px-4 py-3 text-base leading-7 text-stone-950 placeholder:text-stone-500 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-600/20"
                     disabled={isSubmitting}
                   />
                   <p className="mt-2 text-base text-stone-700">Current pasted word count: {formatWordCount(wordCount)}</p>
@@ -582,17 +603,6 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess }) {
                   e.target.value = "";
                 }}
               />
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".txt,.docx,text/plain,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                className="hidden"
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) void handleUploadFile(file);
-                  e.target.value = "";
-                }}
-              />
 
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="rounded-xl border border-stone-300 p-4">
@@ -600,7 +610,7 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess }) {
                   <select
                     value={englishVariant}
                     onChange={(e) => setEnglishVariant(e.target.value)}
-                    className="min-h-[48px] w-full rounded-lg border border-stone-400 bg-white px-4 py-2 text-base text-stone-950 focus:border-[#A36A00] focus:outline-none focus:ring-2 focus:ring-[#A36A00]/20"
+                    className="min-h-[48px] w-full rounded-lg border border-stone-400 bg-white px-4 py-2 text-base text-stone-950 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-600/20"
                   >
                     <option value="us">US English</option>
                     <option value="uk">UK English</option>
@@ -628,7 +638,7 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess }) {
                         value="chapters"
                         checked={manuscriptStructure === "chapters"}
                         onChange={() => setManuscriptStructure("chapters")}
-                        className="h-5 w-5 accent-[#A36A00]"
+                        className="h-5 w-5 accent-blue-700"
                       />
                       <span>Chapter(s) from a larger work</span>
                     </label>
@@ -639,13 +649,46 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess }) {
                         value="standalone"
                         checked={manuscriptStructure === "standalone"}
                         onChange={() => setManuscriptStructure("standalone")}
-                        className="h-5 w-5 accent-[#A36A00]"
+                        className="h-5 w-5 accent-blue-700"
                       />
                       <span>Standalone story</span>
                     </label>
                   </div>
                 </div>
               </div>
+
+              <label className="flex gap-3 rounded-2xl border border-blue-200 bg-blue-50 p-4 text-left">
+                <input
+                  type="checkbox"
+                  checked={processingTermsAccepted}
+                  onChange={(event) => {
+                    setProcessingTermsAccepted(event.target.checked);
+                    if (event.target.checked) setError(null);
+                  }}
+                  disabled={isSubmitting || isUploading}
+                  className="mt-1 h-5 w-5 shrink-0 accent-blue-700"
+                />
+                <span className="text-base leading-7 text-stone-900">
+                  I understand that RevisionGrade evaluations are custom digital services, that processing starts after submission, and that I agree to the processing and refund terms.
+                  <a href="/terms" className="ml-1 font-bold text-blue-800 underline underline-offset-2 hover:text-stone-950" target="_blank" rel="noreferrer">
+                    Read terms.
+                  </a>
+                </span>
+              </label>
+
+              {error && (
+                <div className="rounded-lg border border-red-300 bg-red-50 p-4">
+                  <p className="text-base font-semibold text-red-900">{error}</p>
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={isSubmitting || isUploading || !processingTermsAccepted}
+                className="min-h-[56px] w-full rounded-xl bg-blue-700 px-6 py-4 font-rg-mono text-base font-bold uppercase tracking-[0.16em] text-white shadow-sm transition hover:bg-blue-800 disabled:cursor-not-allowed disabled:bg-stone-300 disabled:text-stone-700 disabled:opacity-100"
+              >
+                {isSubmitting ? "Starting Evaluation..." : "Begin Editorial Evaluation"}
+              </button>
             </section>
 
             <aside className="space-y-4">
@@ -678,39 +721,6 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess }) {
               </div>
             </aside>
           </div>
-
-          <label className="mt-5 flex gap-3 rounded-2xl border border-[#A36A00]/40 bg-[#FFF8E8] p-4 text-left">
-            <input
-              type="checkbox"
-              checked={processingTermsAccepted}
-              onChange={(event) => {
-                setProcessingTermsAccepted(event.target.checked);
-                if (event.target.checked) setError(null);
-              }}
-              disabled={isSubmitting || isUploading}
-              className="mt-1 h-5 w-5 shrink-0 accent-[#A36A00]"
-            />
-            <span className="text-base leading-7 text-stone-900">
-              I understand that RevisionGrade evaluations are custom digital services, that processing starts after submission, and that I agree to the processing and refund terms.
-              <a href="/terms" className="ml-1 font-bold text-[#7A4F00] underline underline-offset-2 hover:text-stone-950" target="_blank" rel="noreferrer">
-                Read terms.
-              </a>
-            </span>
-          </label>
-
-          {error && (
-            <div className="mt-4 rounded-lg border border-red-300 bg-red-50 p-4">
-              <p className="text-base font-semibold text-red-900">{error}</p>
-            </div>
-          )}
-
-          <button
-            type="submit"
-            disabled={isSubmitting || isUploading || !processingTermsAccepted}
-            className="mt-5 min-h-[56px] w-full rounded-xl bg-[#A36A00] px-6 py-4 font-rg-mono text-base font-bold uppercase tracking-[0.16em] text-white shadow-sm transition hover:bg-[#835400] disabled:cursor-not-allowed disabled:bg-stone-300 disabled:text-stone-700 disabled:opacity-100"
-          >
-            {isSubmitting ? "Starting Evaluation..." : "Begin Editorial Evaluation"}
-          </button>
         </form>
       </div>
     </div>
