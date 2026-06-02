@@ -20,6 +20,22 @@ const INPUT_METHODS = [
   },
 ];
 
+const UNTITLED_MANUSCRIPT_PATTERN = /^untitled(?:\s+manuscript)?$/i;
+
+function getDocumentTitle(doc) {
+  return String(doc?.title || "").trim();
+}
+
+function isUnnamedManuscript(doc) {
+  const title = getDocumentTitle(doc);
+  return !title || UNTITLED_MANUSCRIPT_PATTERN.test(title);
+}
+
+function getDisplayTitle(doc) {
+  const title = getDocumentTitle(doc);
+  return title || "Untitled Manuscript";
+}
+
 function getEvaluationMode(wordCount, manuscriptStructure) {
   if (!wordCount) {
     return {
@@ -72,12 +88,16 @@ function formatWordCount(value) {
   return Number(value || 0).toLocaleString();
 }
 
+function pluralizeManuscript(count) {
+  return count === 1 ? "manuscript" : "manuscripts";
+}
+
 function getSubmissionSourceSummary({ selectedDashboardManuscript, manuscriptText, wordCount }) {
   if (selectedDashboardManuscript) {
     const isUploaded = selectedDashboardManuscript.source === "upload";
     return {
       label: isUploaded ? "Uploaded file selected" : "Saved document selected",
-      title: selectedDashboardManuscript.title || "Untitled Manuscript",
+      title: getDisplayTitle(selectedDashboardManuscript),
       meta: `${formatWordCount(selectedDashboardManuscript.word_count)} words · ${selectedDashboardManuscript.source ?? "saved manuscript"}`,
       body: "This manuscript will be evaluated. Pasted text is ignored while a saved or uploaded manuscript is selected.",
     };
@@ -117,6 +137,8 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess }) {
   const [isUploading, setIsUploading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [pendingDeleteManuscriptId, setPendingDeleteManuscriptId] = useState(null);
+  const [pendingBulkDeleteMode, setPendingBulkDeleteMode] = useState(null);
+  const [deleteNotice, setDeleteNotice] = useState(null);
   const [error, setError] = useState(null);
   const [processingTermsAccepted, setProcessingTermsAccepted] = useState(false);
 
@@ -141,51 +163,99 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess }) {
     wordCount,
   });
 
+  const unnamedDashboardManuscripts = useMemo(
+    () => dashboardManuscripts.filter(isUnnamedManuscript),
+    [dashboardManuscripts],
+  );
+
   const visibleDashboardManuscripts = useMemo(
-    () => dashboardManuscripts.filter((doc) => !hiddenManuscriptIds.includes(doc.id)),
+    () => dashboardManuscripts.filter((doc) => !hiddenManuscriptIds.includes(doc.id) && !isUnnamedManuscript(doc)),
     [dashboardManuscripts, hiddenManuscriptIds],
   );
 
+  const bulkDeleteTargets = useMemo(() => {
+    if (pendingBulkDeleteMode === "shown") return visibleDashboardManuscripts;
+    if (pendingBulkDeleteMode === "unnamed") return unnamedDashboardManuscripts;
+    return [];
+  }, [pendingBulkDeleteMode, unnamedDashboardManuscripts, visibleDashboardManuscripts]);
+
+  const removeManuscriptsLocally = (manuscriptIds) => {
+    const ids = new Set(manuscriptIds);
+    setDashboardManuscripts((prev) => prev.filter((doc) => !ids.has(doc.id)));
+    setHiddenManuscriptIds((prev) => prev.filter((id) => !ids.has(id)));
+    setSelectedManuscriptId((current) => (ids.has(current) ? null : current));
+    setPendingDeleteManuscriptId((current) => (ids.has(current) ? null : current));
+  };
+
   const removeManuscriptLocally = (manuscriptId) => {
-    setDashboardManuscripts((prev) => prev.filter((doc) => doc.id !== manuscriptId));
-    setHiddenManuscriptIds((prev) => prev.filter((id) => id !== manuscriptId));
-    setSelectedManuscriptId((current) => (current === manuscriptId ? null : current));
-    setPendingDeleteManuscriptId((current) => (current === manuscriptId ? null : current));
+    removeManuscriptsLocally([manuscriptId]);
   };
 
   const hideManuscriptHere = (manuscriptId) => {
     setHiddenManuscriptIds((prev) => (prev.includes(manuscriptId) ? prev : [...prev, manuscriptId]));
     setSelectedManuscriptId((current) => (current === manuscriptId ? null : current));
     setPendingDeleteManuscriptId((current) => (current === manuscriptId ? null : current));
+    setPendingBulkDeleteMode(null);
+    setDeleteNotice(null);
+  };
+
+  const deleteManuscriptsByIds = async (manuscriptIds) => {
+    const ids = [...new Set(manuscriptIds)].filter((id) => id != null);
+    if (ids.length === 0) return;
+
+    setError(null);
+    setDeleteNotice(null);
+
+    const results = await Promise.allSettled(
+      ids.map(async (manuscriptId) => {
+        const response = await fetch(`/api/manuscripts?id=${encodeURIComponent(String(manuscriptId))}`, {
+          method: "DELETE",
+        });
+        const data = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+          throw new Error(data.error || `Delete failed for manuscript ${manuscriptId}`);
+        }
+
+        return manuscriptId;
+      }),
+    );
+
+    const deletedIds = results
+      .filter((result) => result.status === "fulfilled")
+      .map((result) => result.value);
+    const failedCount = results.length - deletedIds.length;
+
+    if (deletedIds.length > 0) {
+      removeManuscriptsLocally(deletedIds);
+    }
+
+    setPendingBulkDeleteMode(null);
+
+    if (ids.length > 1) {
+      setDeleteNotice(`Deleted ${deletedIds.length} ${pluralizeManuscript(deletedIds.length)}.`);
+    }
+
+    if (failedCount > 0) {
+      setError(`${failedCount} ${pluralizeManuscript(failedCount)} could not be deleted. Please try again.`);
+    }
   };
 
   const deleteManuscriptById = async (manuscriptId) => {
-    setError(null);
-
-    try {
-      const response = await fetch(`/api/manuscripts?id=${encodeURIComponent(String(manuscriptId))}`, {
-        method: "DELETE",
-      });
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || "Delete failed");
-      }
-
-      removeManuscriptLocally(manuscriptId);
-    } catch (err) {
-      setError(err.message || "Delete failed");
-    }
+    await deleteManuscriptsByIds([manuscriptId]);
   };
 
   const clearThisWindow = () => {
     setHiddenManuscriptIds(dashboardManuscripts.map((doc) => doc.id));
     setSelectedManuscriptId(null);
     setPendingDeleteManuscriptId(null);
+    setPendingBulkDeleteMode(null);
+    setDeleteNotice(null);
   };
 
   const restoreAllInThisWindow = () => {
     setHiddenManuscriptIds([]);
+    setDeleteNotice(null);
   };
 
   useEffect(() => {
@@ -218,6 +288,8 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess }) {
     setActiveInputMethod(methodId);
     setError(null);
     setPendingDeleteManuscriptId(null);
+    setPendingBulkDeleteMode(null);
+    setDeleteNotice(null);
 
     if (methodId === "paste") {
       setSelectedManuscriptId(null);
@@ -234,6 +306,8 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess }) {
     setIsUploading(true);
     setError(null);
     setPendingDeleteManuscriptId(null);
+    setPendingBulkDeleteMode(null);
+    setDeleteNotice(null);
 
     try {
       const form = new FormData();
@@ -269,6 +343,8 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess }) {
     setManuscriptText("");
     setActiveInputMethod("saved");
     setPendingDeleteManuscriptId(null);
+    setPendingBulkDeleteMode(null);
+    setDeleteNotice(null);
   };
 
   const triggerDashboardUpload = () => uploadInputRef.current?.click();
@@ -297,6 +373,8 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess }) {
     setIsSubmitting(true);
     setError(null);
     setPendingDeleteManuscriptId(null);
+    setPendingBulkDeleteMode(null);
+    setDeleteNotice(null);
 
     try {
       const manuscriptSize = hasPastedText ? new Blob([manuscriptText]).size : undefined;
@@ -405,14 +483,36 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess }) {
                       <p className="mt-1 text-base leading-6 text-stone-800">Choose one manuscript from your workspace.</p>
                     </div>
                     <div className="flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={() => handleInputMethodChange("upload")}
-                        disabled={isUploading || isSubmitting}
-                        className="min-h-[42px] rounded-lg border border-blue-300 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-900 hover:bg-blue-100 disabled:opacity-60"
-                      >
-                        Upload instead
-                      </button>
+                      {unnamedDashboardManuscripts.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setError(null);
+                            setDeleteNotice(null);
+                            setPendingDeleteManuscriptId(null);
+                            setPendingBulkDeleteMode("unnamed");
+                          }}
+                          disabled={isUploading || isSubmitting}
+                          className="min-h-[42px] rounded-lg border border-red-300 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-100 disabled:opacity-60"
+                        >
+                          Delete unnamed ({unnamedDashboardManuscripts.length})
+                        </button>
+                      )}
+                      {visibleDashboardManuscripts.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setError(null);
+                            setDeleteNotice(null);
+                            setPendingDeleteManuscriptId(null);
+                            setPendingBulkDeleteMode("shown");
+                          }}
+                          disabled={isUploading || isSubmitting}
+                          className="min-h-[42px] rounded-lg border border-red-300 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-100 disabled:opacity-60"
+                        >
+                          Delete all shown
+                        </button>
+                      )}
                       {hiddenManuscriptIds.length > 0 && (
                         <button
                           type="button"
@@ -426,12 +526,51 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess }) {
                     </div>
                   </div>
 
+                  {deleteNotice && (
+                    <div className="mb-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm font-semibold text-emerald-800">
+                      {deleteNotice}
+                    </div>
+                  )}
+
+                  {unnamedDashboardManuscripts.length > 0 && (
+                    <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                      {unnamedDashboardManuscripts.length} unnamed {pluralizeManuscript(unnamedDashboardManuscripts.length)} hidden from this list. Use Delete unnamed to permanently remove {unnamedDashboardManuscripts.length === 1 ? "it" : "them"}.
+                    </div>
+                  )}
+
+                  {pendingBulkDeleteMode && bulkDeleteTargets.length > 0 && (
+                    <div className="mb-3 rounded-lg border border-red-200 bg-red-50 p-3">
+                      <p className="text-sm font-semibold text-red-900">
+                        Delete {bulkDeleteTargets.length} {pluralizeManuscript(bulkDeleteTargets.length)} from your dashboard?
+                      </p>
+                      <p className="mt-1 text-sm text-red-800">
+                        This permanently removes {bulkDeleteTargets.length === 1 ? "this manuscript" : "these manuscripts"} from your dashboard and this window.
+                      </p>
+                      <div className="mt-3 flex flex-wrap justify-end gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setPendingBulkDeleteMode(null)}
+                          className="min-h-[34px] rounded-md border border-stone-300 bg-white px-3 py-1.5 text-sm font-semibold text-stone-800 hover:bg-stone-50"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void deleteManuscriptsByIds(bulkDeleteTargets.map((doc) => doc.id))}
+                          className="min-h-[34px] rounded-md border border-red-700 bg-red-700 px-3 py-1.5 text-sm font-bold text-white hover:bg-red-800"
+                        >
+                          Confirm Delete {bulkDeleteTargets.length}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
                   <div className="mb-3 max-h-[24rem] min-h-[12rem] space-y-2 overflow-y-auto pr-1">
                     {isLoadingDashboard ? (
                       <div className="text-base text-stone-700">Loading saved manuscripts...</div>
                     ) : visibleDashboardManuscripts.length === 0 ? (
                       <div className="rounded-xl border border-stone-300 bg-white p-5 text-base text-stone-700">
-                        No saved manuscripts found yet. Use the Upload File tab to add one, or paste text directly.
+                        No named saved manuscripts found yet. Use the Upload File tab to add one, or paste text directly.
                       </div>
                     ) : (
                       visibleDashboardManuscripts.map((doc) => {
@@ -472,10 +611,10 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess }) {
                                   if (selectedManuscriptId !== doc.id) toggleManuscriptSelection(doc.id);
                                 }}
                                 className="h-5 w-5 shrink-0 accent-blue-700"
-                                aria-label={`Select ${doc.title || "Untitled Manuscript"}`}
+                                aria-label={`Select ${getDisplayTitle(doc)}`}
                               />
                               <div className="min-w-0 flex-1">
-                                <div className="truncate text-base font-bold leading-6 text-stone-950">{doc.title || "Untitled Manuscript"}</div>
+                                <div className="truncate text-base font-bold leading-6 text-stone-950">{getDisplayTitle(doc)}</div>
                                 <div className="text-[0.95rem] leading-5 text-stone-700">{formatWordCount(doc.word_count)} words · {doc.source ?? "saved manuscript"}</div>
                               </div>
                               <div className="flex shrink-0 gap-1.5">
@@ -496,6 +635,8 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess }) {
                                     event.preventDefault();
                                     event.stopPropagation();
                                     setError(null);
+                                    setDeleteNotice(null);
+                                    setPendingBulkDeleteMode(null);
                                     setPendingDeleteManuscriptId(doc.id);
                                   }}
                                   className="min-h-[38px] rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-100"
@@ -510,7 +651,7 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess }) {
                                 onClick={(event) => event.stopPropagation()}
                               >
                                 <p className="text-sm font-semibold text-red-900">
-                                  Delete {doc.title || "this manuscript"} from your dashboard?
+                                  Delete {getDisplayTitle(doc)} from your dashboard?
                                 </p>
                                 <p className="mt-1 text-sm text-red-800">
                                   This permanently removes it from your dashboard and this window.
@@ -547,16 +688,18 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess }) {
                     )}
                   </div>
 
-                  {visibleDashboardManuscripts.length > 0 && (
-                    <button
-                      type="button"
-                      onClick={clearThisWindow}
-                      disabled={isUploading || isSubmitting}
-                      className="min-h-[40px] rounded-lg border border-stone-300 bg-white px-4 py-2 text-sm font-semibold text-stone-800 hover:bg-stone-50 disabled:opacity-60"
-                    >
-                      Hide all from this window
-                    </button>
-                  )}
+                  <div className="flex flex-wrap gap-2">
+                    {visibleDashboardManuscripts.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={clearThisWindow}
+                        disabled={isUploading || isSubmitting}
+                        className="min-h-[40px] rounded-lg border border-stone-300 bg-white px-4 py-2 text-sm font-semibold text-stone-800 hover:bg-stone-50 disabled:opacity-60"
+                      >
+                        Hide all from this window
+                      </button>
+                    )}
+                  </div>
                 </div>
               )}
 
@@ -574,7 +717,7 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess }) {
                         File uploaded and selected ✓
                       </p>
                       <h4 className="mt-2 font-rg-serif text-2xl leading-tight text-stone-950">
-                        {selectedDashboardManuscript.title || "Untitled Manuscript"}
+                        {getDisplayTitle(selectedDashboardManuscript)}
                       </h4>
                       <p className="mt-2 text-base font-bold text-stone-950">
                         {formatWordCount(selectedDashboardManuscript.word_count)} words · uploaded file
