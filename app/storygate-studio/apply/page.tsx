@@ -64,7 +64,7 @@ export default function StorygateApply() {
     >
       <section className="pt-24 pb-16 px-6 max-w-3xl mx-auto">
         <p className="text-xs tracking-[0.22em] uppercase font-mono mb-4" style={{ color: C.gold }}>
-          Storygate Studio™ — Creators
+          Storygate Studio™—Creators
         </p>
         <h1
           className="text-4xl font-bold mb-6 leading-tight"

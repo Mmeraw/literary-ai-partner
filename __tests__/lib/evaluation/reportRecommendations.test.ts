@@ -24,8 +24,8 @@ describe("buildTopRecommendations", () => {
     });
 
     expect(output).toEqual([
-      "Condense the council-profile sequence by combining repeated motive beats. — This preserves the strongest revelations while reducing pattern fatigue.",
-      "Insert one irreversible discovery before the river meditation closes the chapter. — This converts accumulated pressure into immediate narrative consequence.",
+      "Condense the council-profile sequence by combining repeated motive beats.—This preserves the strongest revelations while reducing pattern fatigue.",
+      "Insert one irreversible discovery before the river meditation closes the chapter.—This converts accumulated pressure into immediate narrative consequence.",
     ]);
   });
 
@@ -45,7 +45,7 @@ describe("buildTopRecommendations", () => {
     });
 
     expect(output).toEqual([
-      "Differentiate Malcolm and Frankie through distinct consequence paths. — This reduces repetitive profile rhythm.",
+      "Differentiate Malcolm and Frankie through distinct consequence paths.—This reduces repetitive profile rhythm.",
     ]);
   });
 
@@ -63,7 +63,7 @@ describe("buildTopRecommendations", () => {
     });
 
     expect(output).toEqual([
-      "replace one abstract reaction line with a concrete decision beat because abstract phrasing blunts motivation; clarify internal motivations. — Improves action readability in summary surfaces.",
+      "replace one abstract reaction line with a concrete decision beat because abstract phrasing blunts motivation; clarify internal motivations.—Improves action readability in summary surfaces.",
     ]);
     expect(output[0]).not.toContain("In the anchored moment");
     expect(output[0]).not.toContain("Strategic revision:");
@@ -84,7 +84,7 @@ describe("buildTopRecommendations", () => {
     });
 
     expect(output).toEqual([
-      "cut one reflective sentence and insert one immediate external action trigger because reflection stalls momentum; trim dense informational passages to maintain momentum. — Improved narrative momentum and reader engagement.",
+      "cut one reflective sentence and insert one immediate external action trigger because reflection stalls momentum; trim dense informational passages to maintain momentum.—Improved narrative momentum and reader engagement.",
     ]);
     expect(output[0]).toMatch(/^cut one reflective sentence/i);
     expect(output[0]).not.toContain("Strategic revision:");

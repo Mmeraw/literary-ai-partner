@@ -178,7 +178,7 @@ export default function ComparablesPage() {
         </p>
 
         <p style={{ fontSize: "0.5625rem", color: T.gold, letterSpacing: "0.14em", textTransform: "uppercase", marginBottom: "0.5rem" }}>
-          05 — Comparables
+          05—Comparables
         </p>
         <h1 style={{ fontFamily: T.serif, fontSize: "1.75rem", color: T.cream, marginBottom: "0.75rem" }}>
           Comparables & Positioning

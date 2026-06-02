@@ -154,7 +154,7 @@ export default function QueryLetterPage() {
         </p>
 
         <p style={{ fontSize: "0.5625rem", color: T.gold, letterSpacing: "0.14em", textTransform: "uppercase", marginBottom: "0.5rem" }}>
-          01 — Query / Cover Letter
+          01—Query / Cover Letter
         </p>
         <h1 style={{ fontFamily: T.serif, fontSize: "1.75rem", color: T.cream, marginBottom: "0.75rem" }}>
           Query / Cover Letter
@@ -167,7 +167,7 @@ export default function QueryLetterPage() {
         <div id="what-makes-this-novel-unique" style={{ marginBottom: "1.75rem" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "0.5rem" }}>
             <label style={{ fontSize: "0.5625rem", color: T.dim, letterSpacing: "0.1em", textTransform: "uppercase" }}>
-              What Makes This Novel Unique <span style={{ color: T.cream2 }}>(standalone section — also appears inside the letter)</span>
+              What Makes This Novel Unique <span style={{ color: T.cream2 }}>(standalone section—also appears inside the letter)</span>
             </label>
             <MicButton setValue={setUnique} />
           </div>
@@ -193,8 +193,8 @@ export default function QueryLetterPage() {
             </label>
             <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
               <span style={{ fontFamily: T.mono, fontSize: "0.6875rem", color: wordCountColor, fontWeight: overLimit ? 700 : 400 }}>
-                {overLimit && "OVER LIMIT — "}
-                {nearLimit && "NEAR LIMIT — "}
+                {overLimit && "OVER LIMIT—"}
+                {nearLimit && "NEAR LIMIT—"}
                 Query Letter: {wordCount} / {WORD_LIMIT} words
               </span>
               <MicButton setValue={setBody} />
@@ -220,7 +220,7 @@ export default function QueryLetterPage() {
           )}
           {nearLimit && (
             <p style={{ fontSize: "0.6875rem", color: T.gold, marginTop: "0.375rem" }}>
-              Approaching limit — {WORD_LIMIT - wordCount} words remaining.
+              Approaching limit—{WORD_LIMIT - wordCount} words remaining.
             </p>
           )}
         </div>

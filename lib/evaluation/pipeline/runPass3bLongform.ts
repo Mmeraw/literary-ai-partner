@@ -28,6 +28,7 @@ import {
   PASS3B_PROMPT_VERSION,
   buildPass3bUserPrompt,
 } from "./prompts/pass3b-longform";
+import { sanitizeCMOSDeep } from "../cmosSanitizer";
 import {
   buildOpenAIOutputTokenParam,
   buildOpenAITemperatureParam,
@@ -658,12 +659,15 @@ export async function runPass3bLongform(
     });
   }
 
-  // Stamp provenance server-side
-  document.prompt_version = PASS3B_PROMPT_VERSION;
-  document.generated_at = new Date().toISOString();
-  document.model = selectedModel;
+  // CMOS 17th Ed. — deterministic post-processing of all author-facing text
+  const sanitizedDocument = sanitizeCMOSDeep(document);
 
-  console.log(`[Pass3b] complete title="${opts.title}" integrity_issues=${document.manuscript_integrity_issues.length} revision_priorities=${document.revision_plan.length}`);
+  // Stamp provenance server-side (after sanitization to avoid mangling metadata)
+  sanitizedDocument.prompt_version = PASS3B_PROMPT_VERSION;
+  sanitizedDocument.generated_at = new Date().toISOString();
+  sanitizedDocument.model = selectedModel;
 
-  return document;
+  console.log(`[Pass3b] complete title="${opts.title}" integrity_issues=${sanitizedDocument.manuscript_integrity_issues.length} revision_priorities=${sanitizedDocument.revision_plan.length}`);
+
+  return sanitizedDocument;
 }

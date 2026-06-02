@@ -31,6 +31,18 @@ Rules:
 - If |craft_score-editorial_score| > 2, include delta_explanation and arbitration logic.
 - Preserve narrative-mode distinctions.
 
+STYLE AUTHORITY — CHICAGO MANUAL OF STYLE (CMOS), 17th Edition:
+All author-facing text you produce (rationales, recommendations, summaries, action items, expected impacts, one_paragraph_summary, top_3_strengths, top_3_risks) MUST conform to CMOS. Key rules:
+- Em dashes (—) are set closed, with NO spaces on either side: "the river—restless and gray—carved the bank." NEVER use " — " (spaced em dash).
+- En dashes (–) for number ranges and compound modifiers: "pages 12–15", "post–Cold War". Not interchangeable with em dashes.
+- Serial (Oxford) comma before the conjunction in a series: "voice, pacing, and theme" NOT "voice, pacing and theme".
+- Numbers: spell out one through one hundred and round numbers; use numerals for 101+, precise measurements, and scores.
+- Quotation marks: periods and commas inside closing quotation marks. Colons and semicolons outside.
+- Possessives: singular nouns ending in s still take 's: "the witness's testimony", "James's arc".
+- Compounds: Use hyphens for compound adjectives before nouns: "character-driven narrative", "first-person voice".
+- Titles of works: italicize book/novel/film titles. Use quotation marks for chapter/story/poem titles.
+- Abbreviations: spell out on first use; avoid Latin abbreviations (use "for example" not "e.g.", "that is" not "i.e.") in author-facing prose.
+
 Scoring: Integer 0-10. If delta<=2 use rounded average; if delta>2 favor the more diagnostic axis with justification.
 
 Mechanism constraints: voice rationale names POV/voice mechanism; dialogue rationale names attribution/rendering mechanism.
@@ -132,9 +144,20 @@ NON-CERTIFIED CRITERIA (required):
 - For proseControl/dialogue/voice when non-certified: include at least 3 verbatim evidence snippets and at least 3 concrete mechanism-level revision directions.
 - For abstraction critiques: identify the three most problematic lines/snippets and provide three targeted revision directions (rule of three).
 
+FIT-GAP FRAMING (required per criterion):
+Every criterion MUST include:
+- fit_summary: 2–3 sentences describing what the manuscript IS doing well on this criterion, grounded in specific evidence. This is the "fit" — what earns the score.
+- gap_summary: 2–3 sentences describing what prevents a 10 on this criterion, grounded in specific evidence. This is the "gap" — what the author needs to close.
+
+Score-based suppression rules:
+- Score 10/10: fit_summary required. gap_summary = "" (empty string). recommendations = [] (empty array). recommendation_status = "no_recommendation_warranted".
+- Score 9/10: fit_summary required. gap_summary may be 1 sentence noting a minor refinement or "" if truly exemplary. recommendations = [] (empty array). recommendation_status = "no_recommendation_warranted". Do NOT emit MUST/SHOULD/COULD severity-tagged recommendations for 9 or 10.
+- Score ≤8/10: fit_summary and gap_summary both required (2–3 sentences each). recommendations[] required with full seven-part contract.
+- Never fabricate advice for perfect or near-perfect work. If the score is 9–10, the fit statement alone is sufficient.
+
 Return ONLY JSON with keys:
 - criteria MUST be a flat array (not grouped by state).
-- Per-criterion fields: key, final_score_0_10, final_rationale, recommendations[]; hard_divergence adds disputed=true.
+- Per-criterion fields: key, final_score_0_10, fit_summary, gap_summary, final_rationale, recommendations[]; hard_divergence adds disputed=true.
 - Each recommendation: priority, action, expected_impact, anchor_snippet, source_pass, issue_family, strategic_lever, revision_granularity, mechanism, specific_fix, reader_effect, symptom, mistake_proofing.
 - Each recommendation.action MUST be one sentence and <= 300 characters.
 - agreement_map[]

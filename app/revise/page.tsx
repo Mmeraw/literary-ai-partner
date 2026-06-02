@@ -13,15 +13,15 @@ const queueItems = [
 
 const optionModel = [
   {
-    label: "A — Recommended",
+    label: "A—Recommended",
     copy: "The system's best repair based on evidence, severity, reader effect, and voice-protection rules. TrustedPath™ applies this option when eligible.",
   },
   {
-    label: "B — Conservative",
+    label: "B—Conservative",
     copy: "The smallest viable change. It repairs the issue while preserving as much of the original passage, rhythm, and structure as possible.",
   },
   {
-    label: "C — Bold",
+    label: "C—Bold",
     copy: "A more assertive alternative. It may intensify, compress, restructure, or reframe the moment when a stronger move is warranted.",
   },
 ];

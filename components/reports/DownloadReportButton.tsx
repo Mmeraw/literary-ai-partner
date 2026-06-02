@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 
-type Format = 'pdf' | 'txt';
+type Format = 'pdf' | 'txt' | 'docx';
 type JobStatus = 'queued' | 'running' | 'complete' | 'failed' | 'unknown';
 
 type DownloadReportButtonProps = {
@@ -16,6 +16,11 @@ const OPTIONS: { label: string; format: Format; description?: string }[] = [
     label: 'PDF (.pdf)',
     format: 'pdf',
     description: 'Opens the exact webpage report in print view (Save as PDF).',
+  },
+  {
+    label: 'Word (.docx)',
+    format: 'docx',
+    description: 'Formatted Word document matching the webpage report.',
   },
   {
     label: 'Plain Text (.txt)',
@@ -134,9 +139,7 @@ export default function DownloadReportButton({
               )}
             </button>
           ))}
-          <div className="border-t border-gray-100 px-4 py-2 text-xs text-gray-500 leading-snug">
-            Word export is temporarily hidden until it uses the same canonical report projection as the webpage.
-          </div>
+
         </div>
       )}
     </div>

@@ -510,7 +510,7 @@ export default async function ReportPage({
               </li>
               <li className="flex items-start gap-2">
                 <span className="inline-flex items-center rounded-full bg-rose-100 text-rose-800 px-2 py-0.5 text-xs font-medium shrink-0">Low</span>
-                <span>Limited or conflicting evidence — treat as a prompt for review, not a final judgment.</span>
+                <span>Limited or conflicting evidence—treat as a prompt for review, not a final judgment.</span>
               </li>
             </ul>
           </div>
@@ -564,6 +564,21 @@ export default async function ReportPage({
                     </div>
                   );
                 })()}
+                {/* Fit/Gap framing */}
+                {(criterion as Record<string, unknown>).fit_summary && (
+                  <div className="mt-3 space-y-2">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-green-700">What&apos;s Working</p>
+                      <p className="text-sm text-gray-700 leading-relaxed mt-0.5">{String((criterion as Record<string, unknown>).fit_summary)}</p>
+                    </div>
+                    {(criterion as Record<string, unknown>).gap_summary && (
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">Gap to Close</p>
+                        <p className="text-sm text-gray-700 leading-relaxed mt-0.5">{String((criterion as Record<string, unknown>).gap_summary)}</p>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -640,8 +655,8 @@ export default async function ReportPage({
             </h2>
             <p className="text-sm text-gray-700 mb-4">
               {dreamDoc
-                ? "Holistic craft assessment — long-form report finalization"
-                : "Part 1 of 2 ready — scroll up to review scores and revision plan while Part 2 generates below"}
+                ? "Holistic craft assessment—long-form report finalization"
+                : "Part 1 of 2 ready—scroll up to review scores and revision plan while Part 2 generates below"}
             </p>
 
             {dreamDoc ? (
@@ -748,7 +763,7 @@ export default async function ReportPage({
                             <span className="font-medium">Revision priority:</span>{' '}
                             {getDisplayText(arc.revision_priority)}
                             {typeof arc.revision_rationale === 'string' && arc.revision_rationale.trim() && (
-                              <span className="text-gray-600"> — {arc.revision_rationale.trim()}</span>
+                              <span className="text-gray-600">—{arc.revision_rationale.trim()}</span>
                             )}
                           </p>
                         </div>

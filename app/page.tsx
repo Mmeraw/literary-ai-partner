@@ -252,7 +252,7 @@ export default function Home() {
                 After readiness, build the submission package.
               </h2>
               <p className="mt-6 text-base leading-8 text-rg-cream2/90">
-                Generate your query letter, synopsis, query pitch, comparables, manuscript positioning, and author bio — then approve each section before export. Built for authors who have moved from diagnosis toward submission readiness.
+                Generate your query letter, synopsis, query pitch, comparables, manuscript positioning, and author bio—then approve each section before export. Built for authors who have moved from diagnosis toward submission readiness.
               </p>
               <div className="mt-8 flex flex-wrap gap-4">
                 <Link href="/agent-readiness" className="border border-rg-gold bg-rg-gold px-5 py-3 font-rg-mono text-xs uppercase tracking-[0.18em] text-rg-ink transition hover:bg-transparent hover:text-rg-gold">
@@ -283,7 +283,7 @@ export default function Home() {
               <div className="flex items-start gap-4 border border-rg-cream2/15 bg-rg-ink px-4 py-4 opacity-90">
                 <span className="font-rg-mono text-sm text-rg-gold shrink-0 mt-0.5 md:text-xs">07</span>
                 <div>
-                  <p className="font-rg-mono text-sm uppercase tracking-[0.12em] text-rg-cream2/85">Agent Targeting™ — Coming Next</p>
+                  <p className="font-rg-mono text-sm uppercase tracking-[0.12em] text-rg-cream2/85">Agent Targeting™—Coming Next</p>
                   <p className="mt-2 font-rg-mono text-sm text-rg-cream2/75 leading-6">Find target agents. Generate agent-specific query variants.</p>
                 </div>
               </div>
@@ -301,7 +301,7 @@ export default function Home() {
                 A curated access layer for readiness-vetted manuscript projects.
               </h2>
               <p className="mt-6 text-base leading-8 text-rg-cream2/90">
-                Manuscript projects that clear the readiness threshold can enter Storygate Studio — a controlled environment where verified publishing professionals request access to creator-approved materials.
+                Manuscript projects that clear the readiness threshold can enter Storygate Studio—a controlled environment where verified publishing professionals request access to creator-approved materials.
               </p>
               <p className="mt-3 text-base leading-8 text-rg-cream2/80">
                 No public marketplace. No cold outreach. Access is requested, approved by the creator, and logged.

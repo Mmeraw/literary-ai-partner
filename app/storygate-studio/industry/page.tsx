@@ -23,7 +23,7 @@ export default function IndustryGate() {
     >
       <section className="pt-24 pb-20 px-6 max-w-2xl mx-auto">
         <p className="text-xs tracking-[0.22em] uppercase font-mono mb-4" style={{ color: C.gold }}>
-          Storygate Studio™ — Industry Access
+          Storygate Studio™—Industry Access
         </p>
         <h1
           className="text-4xl font-bold mb-6 leading-tight"
@@ -74,7 +74,7 @@ export default function IndustryGate() {
             className="inline-block w-full text-center px-6 py-4 text-xs tracking-[0.18em] uppercase font-mono opacity-40 cursor-not-allowed"
             style={{ backgroundColor: "transparent", color: C.gold, border: `1px solid ${C.gold}` }}
           >
-            Request Industry Access — Opening Soon
+            Request Industry Access—Opening Soon
           </button>
           <p className="mt-4 text-xs text-center" style={{ color: C.ash }}>
             Industry access applications are currently by invitation only during the initial rollout.

@@ -41,12 +41,15 @@ describe('DownloadReportButton', () => {
     );
   });
 
-  it('does not show Word option in menu', () => {
+  it('routes Word option to canonical download endpoint', () => {
     render(<DownloadReportButton jobId="e5ced7ac-117f-4d13-8cd0-3957c15dc189" disabled={false} />);
 
     fireEvent.click(screen.getByRole('button', { name: /Download Report/i }));
+    fireEvent.click(screen.getByRole('menuitem', { name: /Word \(.docx\)/i }));
 
-    expect(screen.queryByRole('menuitem', { name: /Word/i })).toBeNull();
-    expect(screen.getByText(/Word export is temporarily hidden/i)).toBeTruthy();
+    expect(window.open).toHaveBeenCalledWith(
+      '/api/reports/e5ced7ac-117f-4d13-8cd0-3957c15dc189/download?format=docx',
+      '_self',
+    );
   });
 });
