@@ -19,34 +19,42 @@ const auditTiers = [
     name: "Short-Form Story Evaluation",
     wordCount: "Up to 24,999 words",
     price: "$49",
-    actionAccess: "13 story criteria only",
+    actionAccess: "13 story criteria + Revise Queue",
     bestFor: "Chapters, excerpts, short stories, openings, and partial submissions.",
-    features: ["13 story criteria", "Evidence-backed diagnosis", "Readiness verdict", "Long-form repair layer not included"],
+    features: ["13 story criteria", "Evidence-backed diagnosis", "Prioritized revision opportunities", "Readiness verdict"],
   },
   {
     name: "Full Manuscript Readiness Audit",
     wordCount: "25,000–120,000 words",
     price: "$249",
-    actionAccess: "Long-form evaluation",
-    bestFor: "The Professional Standard for novels and long-form manuscripts.",
-    features: ["13 story criteria", "Manuscript-scale continuity", "Readiness diagnosis", "Setup/payoff and pacing over distance"],
+    actionAccess: "Long-form evaluation + up to 100 revision opportunities",
+    bestFor: "The Professional Standard for novels and long-form manuscripts. Includes diagnostic report and prioritized Revise Queue.",
+    features: ["13 story criteria", "Up to 100 prioritized revision opportunities", "MUST / SHOULD / COULD severity ranking", "A/B/C copy-paste-ready revision variants", "Manuscript-scale continuity", "Setup/payoff and pacing over distance"],
     highlighted: true,
   },
   {
     name: "Long Manuscript Readiness Audit",
     wordCount: "120,001–180,000 words",
     price: "$399",
-    actionAccess: "Expanded long-form evaluation",
+    actionAccess: "Expanded long-form evaluation + up to 100 revision opportunities",
     bestFor: "Epic-scale manuscripts and longer novels.",
-    features: ["13 story criteria", "Advanced continuity diagnostics", "Expanded long-form analysis", "Scale-aware opportunity summary"],
+    features: ["13 story criteria", "Up to 100 prioritized revision opportunities", "Advanced continuity diagnostics", "Expanded long-form analysis", "Scale-aware opportunity summary"],
   },
   {
     name: "Multi-Layer Manuscript Audit",
     wordCount: "Complex long-form projects",
     price: "$499+",
-    actionAccess: "Deep architecture audit",
+    actionAccess: "Deep architecture audit + up to 100 revision opportunities",
     bestFor: "Multi-POV, multi-timeline, genre-hybrid, experimental, memoir-fiction, or unusually structured long-form prose.",
-    features: ["13 story criteria", "Layered evidence analysis", "Proprietary repair governance where appropriate", "Custom complexity handling"],
+    features: ["13 story criteria", "Up to 100 prioritized revision opportunities", "Layered evidence analysis", "Proprietary repair governance where appropriate", "Custom complexity handling"],
+  },
+  {
+    name: "ReGrade Follow-Up Pass",
+    wordCount: "After completing revisions",
+    price: "$149",
+    actionAccess: "Re-evaluation + next severity layer",
+    bestFor: "Authors who completed their first batch of revisions and want the next layer of opportunities surfaced.",
+    features: ["Re-evaluates revised manuscript", "Surfaces next severity layer", "Updated scores and diagnosis", "New revision opportunities ranked by impact"],
   },
 ];
 
@@ -71,6 +79,16 @@ const faqs = [
     question: "When does multi-layer analysis apply?",
     answer:
       "Long-form multi-layer evaluation is the deeper architecture tier for complex manuscripts. It may include layered evidence views, manuscript-scale continuity, proprietary repair governance, dialogue and speech protection, and deeper structural analysis where appropriate.",
+  },
+  {
+    question: "How many revision opportunities does one pass surface?",
+    answer:
+      "Each RevisionGrade pass surfaces up to 100 prioritized revision opportunities, ranked by severity: MUST first, then SHOULD, then COULD. Some manuscripts produce fewer opportunities because the writing is cleaner, the submission is shorter, or the evidence does not justify additional recommendations.",
+  },
+  {
+    question: "What is a ReGrade follow-up pass?",
+    answer:
+      "After completing your first batch of revisions, a ReGrade pass re-evaluates your revised manuscript at a reduced price and surfaces the next layer of opportunities. This teaches the correct editorial workflow: diagnose, repair, re-check, then polish.",
   },
   {
     question: "Why not offer unlimited revisions?",
@@ -107,7 +125,7 @@ export default function PricingPage() {
             Before you pay for polish, diagnose readiness.
           </h1>
           <p className="mt-8 max-w-3xl text-base leading-8 text-rg-cream2/80 sm:text-lg">
-            RevisionGrade™ is priced as an editorial audit system: fixed-price diagnosis first, metered repair only when you unlock and act on specific story opportunities.
+            Each RevisionGrade™ pass surfaces up to 100 prioritized revision opportunities, ranked by severity. Fix the highest-impact issues first, then run a lower-cost ReGrade to surface the next layer.
           </p>
         </div>
       </section>
