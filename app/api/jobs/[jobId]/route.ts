@@ -100,6 +100,8 @@ type CanonicalJobResponse = {
   can_view_operational_details?: boolean;
   /** Public-safe failure message for non-operator callers */
   public_status_message?: string | null;
+  /** Monotonic ratchet — highest progress percentage ever reported. Bar never renders below this. */
+  progress_high_water?: number | null;
 };
 
 const NO_STORE_HEADERS = {
@@ -256,6 +258,12 @@ export async function GET(req: NextRequest, ctx: { params: Params }) {
     const rawMsWords = chunkRouting?.manuscript_words ?? chunkRouting?.source_manuscript_words;
     if (typeof rawMsWords === 'number' && rawMsWords > 0) {
       response.job.manuscript_word_count = rawMsWords;
+    }
+
+    // 6e2) Monotonic progress ratchet — bar never goes backward from user's perspective
+    const rawHighWater = rawProgress?.progress_high_water;
+    if (typeof rawHighWater === 'number' && rawHighWater > 0) {
+      response.job.progress_high_water = rawHighWater;
     }
 
     // 6f) Surface operational visibility fields for explicit stuck-state UX.

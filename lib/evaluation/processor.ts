@@ -4084,6 +4084,11 @@ export async function processEvaluationJob(
       // Phase_3 start is JSONB-only (no DB column exists)
       if (phase === 'phase_3') progressState.phase3_started_at = now;
 
+      // Monotonic ratchet: progress percentage never goes backward. Kicks and
+      // retries are invisible plumbing — the user only sees forward movement.
+      const prevHighWater = (progressState as Record<string, unknown>).progress_high_water as number ?? 0;
+      const safeCompletedUnits = Math.max(completedUnits, prevHighWater);
+
       // DB column patch — only columns that physically exist on evaluation_jobs.
       // Never build this inline: use getPhaseStartTimestamps so column drift
       // is caught by the schema-guard test in CI.
@@ -4096,7 +4101,8 @@ export async function processEvaluationJob(
         phase,
         phase_status: 'running',
         total_units: EVALUATION_PROGRESS_TOTAL_UNITS,
-        completed_units: completedUnits,
+        completed_units: safeCompletedUnits,
+        progress_high_water: safeCompletedUnits,
         message,
         last_heartbeat_at: now,
       };

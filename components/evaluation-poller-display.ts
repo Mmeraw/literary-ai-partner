@@ -40,6 +40,8 @@ type PhaseInputs = {
   pass3_completed_at?: string | null;
   /** Manuscript word count — used to determine if this is a long-form job (≥25k words) */
   manuscript_word_count?: number | null;
+  /** Monotonic ratchet — highest percentage ever shown. Bar never renders below this. */
+  progress_high_water?: number | null;
 };
 
 const LONGFORM_WORD_COUNT_THRESHOLD = 25000;
@@ -57,6 +59,26 @@ function elapsedDrift(
 }
 
 export function getProgressDisplay(
+  job: PhaseInputs,
+  _now: Date = new Date(),
+): ProgressDisplay {
+  const result = getProgressDisplayRaw(job, _now);
+  if (!result) return null;
+
+  // Monotonic ratchet: if a high-water mark is stored, the displayed percentage
+  // never drops below it. Kicks and retries are invisible to the user.
+  const highWater = typeof job.progress_high_water === 'number' ? job.progress_high_water : 0;
+  if (highWater > 0 && result.percentage < highWater) {
+    return {
+      ...result,
+      percentage: highWater,
+      valueLabel: `${highWater}%`,
+    };
+  }
+  return result;
+}
+
+function getProgressDisplayRaw(
   job: PhaseInputs,
   _now: Date = new Date(),
 ): ProgressDisplay {
