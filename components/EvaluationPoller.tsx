@@ -83,6 +83,8 @@ export interface JobState {
   /** Authoritative Phase 0 telemetry — from progress JSONB, not column delta */
   phase0_total_duration_ms?: number | null;
   phase0_calibration_word_count?: number | null;
+  /** Pipeline block code — when set, the eval is gated/blocked */
+  block_code?: string | null;
   /** Review-gate quality signal surfaced from jobs API */
   hard_fail_present?: boolean | null;
   /** Manuscript word count from chunk_routing — available before completion */
@@ -600,6 +602,7 @@ export function EvaluationPoller({
             is_stalled: job.is_stalled ?? false,
             stalled_reason: job.stalled_reason ?? null,
             failure_code: job.failure_code ?? null,
+            block_code: job.block_code ?? null,
           });
           if (!pd) return null;
 

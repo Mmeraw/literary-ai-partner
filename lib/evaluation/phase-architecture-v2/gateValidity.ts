@@ -244,12 +244,16 @@ export function deriveReviewGateReadiness(
   }
 
   if (qualityGateReadyStatus === 'blocked_retryable_technical') {
+    // Kick forward: technical incompleteness (e.g., identity ambiguity cascading
+    // to downstream layers) is NON-FATAL. The story ledger is degraded_but_usable.
+    // Phase 2 will auto-accept with a corruption score and proceed.
+    // Blocking here causes infinite requeue loops for no user benefit.
     return {
-      ok: false,
-      review_gate_ready: false,
-      gate_validity: 'gate_blocking',
-      reason: 'ledger_quality_report_v1 indicates technical incompleteness/degradation; retry Phase 1A recovery before content-quality judgment.',
-      code: 'REVIEW_GATE_QUALITY_TECHNICAL_BLOCK',
+      ok: true,
+      review_gate_ready: true,
+      gate_validity: 'gate_valid',
+      reason: 'ledger_quality_report_v1 indicates technical degradation — proceeding with degraded authority (kick forward).',
+      code: 'REVIEW_GATE_TECHNICAL_KICK_FORWARD',
     };
   }
 

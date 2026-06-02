@@ -503,10 +503,12 @@ export function derivePhaseV2ReviewGateProgress(
 }
 
 export function shouldRequeueReviewGateBlock(blockCode: string, gateValidity: unknown): boolean {
+  // Only requeue for Pass 3A "not ready" states (still in progress).
+  // REVIEW_GATE_QUALITY_TECHNICAL_BLOCK no longer requeues — it kicks forward.
+  // Requeuing on technical blocks caused infinite loops with no user benefit.
   return (
-    (gateValidity === 'not_ready' &&
-      (blockCode === 'PASS3A_NOT_READY' || blockCode === 'PASS3A_HALF_WRITTEN'))
-    || blockCode === 'REVIEW_GATE_QUALITY_TECHNICAL_BLOCK'
+    gateValidity === 'not_ready' &&
+    (blockCode === 'PASS3A_NOT_READY' || blockCode === 'PASS3A_HALF_WRITTEN')
   );
 }
 
@@ -1901,8 +1903,15 @@ export async function assertPhase2UpstreamInputsCanonical(
   if (acceptedLedgerErr) {
     throw new Error(`POLICY_VIOLATION: phase_2 accepted ledger check failed (${acceptedLedgerErr.message})`);
   }
+
+  // ── KICK FORWARD: Auto-accept story ledger if missing ──
+  // If no accepted_story_ledger_v1 exists (e.g., review gate was bypassed due to
+  // non-fatal failures), auto-create one from pass1a_story_layer_v1 with a
+  // corruption assessment. Phase 2 proceeds with degraded authority.
   if (!acceptedLedgerRow?.id) {
-    throw new Error('POLICY_VIOLATION: phase_2 requires accepted_story_ledger_v1');
+    console.log(`[phase_2] ${jobId}: No accepted_story_ledger_v1 found — initiating kick-forward auto-acceptance`);
+    await autoAcceptStoryLedgerKickForward(supabase, jobId, manuscriptId);
+    return;
   }
 
   const row = acceptedLedgerRow as UpstreamArtifactRow;
@@ -1917,8 +1926,126 @@ export async function assertPhase2UpstreamInputsCanonical(
     : null;
 
   if (!governanceRail || !layerDecisions || Object.keys(layerDecisions).length < 9) {
-    throw new Error('POLICY_VIOLATION: accepted_story_ledger_v1 must include canonical governance_rail.layer_decisions before phase_2');
+    // Instead of hard-failing, auto-accept with what we have (kick forward)
+    console.log(`[phase_2] ${jobId}: accepted_story_ledger_v1 has incomplete governance_rail — kick-forward re-acceptance`);
+    await autoAcceptStoryLedgerKickForward(supabase, jobId, manuscriptId);
   }
+}
+
+/**
+ * Auto-accept the story ledger when the review gate was bypassed (kick-forward).
+ * Creates accepted_story_ledger_v1 from pass1a_story_layer_v1 with:
+ * - A corruption assessment (0.0–1.0 score)
+ * - Auto-accepted governance rail (no author verification)
+ * - Degraded layer decisions (all layers accepted without review)
+ *
+ * Downstream processes see the corruption_score and adjust confidence accordingly.
+ */
+async function autoAcceptStoryLedgerKickForward(
+  supabase: SupabaseClient<any, any, any>,
+  jobId: string,
+  manuscriptId: number,
+): Promise<void> {
+  const { assessLedgerCorruption } = await import('@/lib/evaluation/review-gate/ledgerCorruptionAssessor');
+
+  // Load the raw story layer
+  const { data: storyLayerRow, error: storyLayerErr } = await supabase
+    .from('evaluation_artifacts')
+    .select('id, content, source_hash')
+    .eq('job_id', jobId)
+    .eq('artifact_type', 'pass1a_story_layer_v1')
+    .maybeSingle();
+
+  if (storyLayerErr || !storyLayerRow) {
+    throw new Error(
+      `KICK_FORWARD_FAILED: Cannot auto-accept — pass1a_story_layer_v1 not found for job ${jobId}. ` +
+      `This means Phase 1A never completed. Cannot proceed.`
+    );
+  }
+
+  const storyLayerContent = isRecord(storyLayerRow.content) ? storyLayerRow.content : {};
+  const layers = isRecord(storyLayerContent.layers)
+    ? (storyLayerContent.layers as Record<string, unknown>)
+    : {};
+  const storyLayerSourceHash = (storyLayerRow as { source_hash?: string }).source_hash ?? '';
+
+  // Assess corruption
+  const corruptionAssessment = assessLedgerCorruption(layers);
+
+  if (!corruptionAssessment.usable) {
+    throw new Error(
+      `KICK_FORWARD_FAILED: Story ledger is critically corrupt (score=${corruptionAssessment.corruption_score}, ` +
+      `${corruptionAssessment.missing_layers.length} missing layers). Cannot produce meaningful evaluation.`
+    );
+  }
+
+  console.log(
+    `[phase_2] ${jobId}: Auto-accepting story ledger with corruption_score=${corruptionAssessment.corruption_score} ` +
+    `(${corruptionAssessment.layers_healthy}/9 healthy, ${corruptionAssessment.degraded_layers.length} degraded, ` +
+    `${corruptionAssessment.missing_layers.length} missing)`
+  );
+
+  // Build auto-accepted layer decisions (all layers accepted without author review)
+  const layerNames = Object.keys(layers);
+  const autoLayerDecisions: Record<string, { status: string; auto_accepted: boolean; corruption: number }> = {};
+  for (const layerName of layerNames) {
+    const detail = corruptionAssessment.layer_details.find(d => d.layer_name === layerName);
+    autoLayerDecisions[layerName] = {
+      status: 'accepted',
+      auto_accepted: true,
+      corruption: detail?.corruption ?? 0,
+    };
+  }
+
+  const now = new Date().toISOString();
+  const acceptedLedgerPayload = {
+    job_id: jobId,
+    manuscript_id: manuscriptId,
+    manuscript_version_hash: `manuscript_${manuscriptId}_${jobId}`,
+    artifact_id: `accepted_story_ledger_v1:kick_forward_${jobId.slice(0, 8)}`,
+    artifact_type: 'accepted_story_ledger_v1',
+    artifact_version: 'v1',
+    source_hash: `kick_forward:${storyLayerSourceHash}`,
+    generated_at: now,
+    layers,
+    governance_rail: {
+      approval_state: 'auto_accepted_kick_forward',
+      approved_by: 'system:kick_forward',
+      approved_at: now,
+      disposition: 'accept',
+      author_notes: null,
+      edit_requests: [],
+      pass1a_story_layer_source_hash: storyLayerSourceHash,
+      unresolved_warnings_preserved: true,
+      dependency_warnings: [],
+      contested_layer_count: 0,
+      layer_decisions: autoLayerDecisions,
+      // Corruption assessment — downstream processes use this to calibrate confidence
+      corruption_assessment: corruptionAssessment,
+      kick_forward_reason: 'Review gate bypassed due to non-fatal pipeline failure. Ledger auto-accepted with corruption measure.',
+    },
+  };
+
+  const { error: writeErr } = await supabase
+    .from('evaluation_artifacts')
+    .upsert(
+      {
+        job_id: jobId,
+        manuscript_id: manuscriptId,
+        artifact_type: 'accepted_story_ledger_v1',
+        artifact_version: 'v1',
+        source_hash: acceptedLedgerPayload.source_hash,
+        content: acceptedLedgerPayload,
+        created_at: now,
+      },
+      { onConflict: 'job_id,artifact_type', ignoreDuplicates: false },
+    );
+
+  if (writeErr) {
+    throw new Error(`KICK_FORWARD_FAILED: Could not write accepted_story_ledger_v1: ${writeErr.message}`);
+  }
+
+  console.log(`[phase_2] ${jobId}: Kick-forward auto-acceptance complete. Corruption score: ${corruptionAssessment.corruption_score}`);
 }
 
 export async function assertPhase3UpstreamInputsCanonical(

@@ -80,6 +80,8 @@ type CanonicalJobResponse = {
   phase0_calibration_word_count?: number | null;
   /** Review-gate quality signal: true when ledger hard-fails block Phase 2 */
   hard_fail_present?: boolean | null;
+  /** Pipeline block code — when set, the eval is gated/blocked and progress should reflect honestly */
+  block_code?: string | null;
   /** Manuscript word count from chunk_routing JSONB — available before completion */
   manuscript_word_count?: number | null;
   /** Human-safe backend phase message, surfaced from progress.message when present */
@@ -236,8 +238,12 @@ export async function GET(req: NextRequest, ctx: { params: Params }) {
       response.job.phase0_calibration_word_count = stageTiming.phase0_calibration_word_count;
     }
 
-    // 6d) Surface hard_fail_present for review_gate blocked state display
+    // 6d) Surface hard_fail_present and block_code for review_gate blocked state display
     const rawProgress = job.progress as Record<string, unknown> | null;
+    const rawBlockCode = rawProgress?.block_code;
+    if (typeof rawBlockCode === 'string' && rawBlockCode.length > 0) {
+      response.job.block_code = rawBlockCode;
+    }
     const rawHardFail = rawProgress?.hard_fail_present;
     if (typeof rawHardFail === 'boolean') {
       response.job.hard_fail_present = rawHardFail;
