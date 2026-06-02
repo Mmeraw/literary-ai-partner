@@ -152,6 +152,7 @@ import {
 import {
   generateFullContextStoryLedger,
   buildLedgerSeedContextBlock,
+  assessLedgerQuality,
   type FullContextStoryLedger,
 } from '@/lib/evaluation/seed/fullContextStoryLedger';
 import {
@@ -2061,6 +2062,37 @@ async function autoAcceptStoryLedgerKickForward(
     .from('evaluation_jobs')
     .update({ review_gate_passed_at: now })
     .eq('id', jobId);
+
+  // ── Gate B: Surface corruption score in phase log for admin diagnostics ──
+  const { data: jobForLog } = await supabase
+    .from('evaluation_jobs')
+    .select('progress')
+    .eq('id', jobId)
+    .maybeSingle();
+
+  if (jobForLog) {
+    const currentProgress = (jobForLog as { progress?: Record<string, unknown> }).progress ?? {};
+    const existingPhaseLog = Array.isArray(currentProgress.phase_log) ? currentProgress.phase_log : [];
+    const corruptionLogEntry = {
+      at: now,
+      event: 'kick_forward_auto_accepted',
+      stage: 'phase_2',
+      corruption_score: corruptionAssessment.corruption_score,
+      layers_healthy: corruptionAssessment.layers_healthy,
+      degraded_layers: corruptionAssessment.degraded_layers,
+      missing_layers: corruptionAssessment.missing_layers,
+    };
+    await supabase
+      .from('evaluation_jobs')
+      .update({
+        progress: {
+          ...currentProgress,
+          phase_log: [...existingPhaseLog, corruptionLogEntry],
+          corruption_score: corruptionAssessment.corruption_score,
+        },
+      })
+      .eq('id', jobId);
+  }
 
   console.log(`[phase_2] ${jobId}: Kick-forward auto-acceptance complete. Corruption score: ${corruptionAssessment.corruption_score}`);
 }
@@ -5755,12 +5787,38 @@ export async function processEvaluationJob(
               phase1aLedgerContextBlock = buildLedgerSeedContextBlock(ledgerResult.ledger);
 
               const ledgerDurationMs = Date.now() - ledgerStartMs;
-              console.log(`[phase_0.5a_enhanced] ${jobId}: full-context ledger generated (${ledgerDurationMs}ms, ${ledgerResult.ledger.canonical_hard_facts.length} hard facts, ${ledgerResult.ledger.failure_conditions.length} failure conditions)`);
 
-              // Log to phase timeline
-              const ledgerLogEntries = [
+              // ── Gate A: Ledger Quality Minimum ──
+              const ledgerQuality = assessLedgerQuality(ledgerResult.ledger);
+              const qualitySummary = ledgerQuality.dimensions
+                .map(d => `${d.name}=${d.actual}/${d.minimum}${d.passed ? '' : ' ⚠'}`)
+                .join(', ');
+
+              console.log(
+                `[phase_0.5a_enhanced] ${jobId}: full-context ledger generated ` +
+                `(${ledgerDurationMs}ms, quality=${ledgerQuality.status}, completeness=${(ledgerQuality.overall_completeness * 100).toFixed(0)}%, ` +
+                `${ledgerResult.ledger.canonical_hard_facts.length} hard facts, ${ledgerResult.ledger.failure_conditions.length} failure conditions)`
+              );
+              if (ledgerQuality.status === 'degraded') {
+                console.warn(
+                  `[phase_0.5a_enhanced] ${jobId}: degraded ledger quality — below minimum on: ` +
+                  `${ledgerQuality.degraded_dimensions.join(', ')}. Details: ${qualitySummary}`
+                );
+              }
+
+              // Log to phase timeline with quality assessment
+              const ledgerLogEntries: Record<string, unknown>[] = [
                 { at: new Date(ledgerStartMs).toISOString(), event: 'phase_0_5a_enhanced_started', stage: 'phase_0_5a_enhanced', label: 'Generating full-context story ledger' },
-                { at: new Date().toISOString(), event: 'phase_0_5a_enhanced_completed', stage: 'phase_0_5a_enhanced', duration_ms: ledgerDurationMs, artifact: 'full_context_story_ledger_v1' },
+                {
+                  at: new Date().toISOString(),
+                  event: 'phase_0_5a_enhanced_completed',
+                  stage: 'phase_0_5a_enhanced',
+                  duration_ms: ledgerDurationMs,
+                  artifact: 'full_context_story_ledger_v1',
+                  ledger_quality: ledgerQuality.status,
+                  ledger_completeness: ledgerQuality.overall_completeness,
+                  degraded_dimensions: ledgerQuality.degraded_dimensions,
+                },
               ];
               const existingLogForLedger = (progressState.phase_log as unknown[]) ?? [];
               progressState = {
@@ -5773,10 +5831,35 @@ export async function processEvaluationJob(
                 .eq('id', jobId)
                 .eq('status', JOB_STATUS.RUNNING);
             } catch (ledgerErr) {
-              // Non-fatal: if full-context ledger fails, continue with existing seeds
+              // ── Gate C: Log failure event in phase timeline ──
+              const ledgerFailedMs = Date.now() - ledgerStartMs;
+              const errorMsg = ledgerErr instanceof Error ? ledgerErr.message : String(ledgerErr);
               console.warn(`[phase_0.5a_enhanced] ${jobId}: full-context ledger generation failed (non-fatal, continuing with claim-based seeds)`, {
-                error: ledgerErr instanceof Error ? ledgerErr.message : String(ledgerErr),
+                error: errorMsg,
+                duration_ms: ledgerFailedMs,
               });
+
+              const failLogEntries: Record<string, unknown>[] = [
+                { at: new Date(ledgerStartMs).toISOString(), event: 'phase_0_5a_enhanced_started', stage: 'phase_0_5a_enhanced', label: 'Generating full-context story ledger' },
+                {
+                  at: new Date().toISOString(),
+                  event: 'phase_0_5a_enhanced_failed',
+                  stage: 'phase_0_5a_enhanced',
+                  duration_ms: ledgerFailedMs,
+                  error: errorMsg.slice(0, 500),
+                  fallback: 'claim_based_seeds_only',
+                },
+              ];
+              const existingLogForFail = (progressState.phase_log as unknown[]) ?? [];
+              progressState = {
+                ...progressState,
+                phase_log: [...existingLogForFail, ...failLogEntries],
+              };
+              await supabase
+                .from('evaluation_jobs')
+                .update({ progress: progressState, worker_pulse_at: new Date().toISOString() })
+                .eq('id', jobId)
+                .eq('status', JOB_STATUS.RUNNING);
             }
           } else {
             // Ledger already exists — load it and build the context block

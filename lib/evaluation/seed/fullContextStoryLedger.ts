@@ -565,6 +565,83 @@ export async function generateFullContextStoryLedger(
   return { ledger, model, promptVersion: PROMPT_VERSION, durationMs };
 }
 
+// ── Ledger Quality Minimum Gate ──────────────────────────────────────────────
+
+export type LedgerQualityDimension = {
+  name: string;
+  actual: number;
+  minimum: number;
+  passed: boolean;
+};
+
+export type LedgerQualityAssessment = {
+  status: 'passed' | 'degraded';
+  dimensions: LedgerQualityDimension[];
+  degraded_dimensions: string[];
+  overall_completeness: number;
+};
+
+const LEDGER_QUALITY_MINIMUMS = {
+  canonical_hard_facts: 8,
+  character_end_states: 3,
+  failure_conditions: 3,
+  acceptance_checks: 5,
+  primary_entities: 2,
+  relationships: 2,
+} as const;
+
+export function assessLedgerQuality(ledger: FullContextStoryLedger): LedgerQualityAssessment {
+  const dimensions: LedgerQualityDimension[] = [
+    {
+      name: 'canonical_hard_facts',
+      actual: ledger.canonical_hard_facts.length,
+      minimum: LEDGER_QUALITY_MINIMUMS.canonical_hard_facts,
+      passed: ledger.canonical_hard_facts.length >= LEDGER_QUALITY_MINIMUMS.canonical_hard_facts,
+    },
+    {
+      name: 'character_end_states',
+      actual: ledger.layers.threat_pressure_ending.character_end_states.length,
+      minimum: LEDGER_QUALITY_MINIMUMS.character_end_states,
+      passed: ledger.layers.threat_pressure_ending.character_end_states.length >= LEDGER_QUALITY_MINIMUMS.character_end_states,
+    },
+    {
+      name: 'failure_conditions',
+      actual: ledger.failure_conditions.length,
+      minimum: LEDGER_QUALITY_MINIMUMS.failure_conditions,
+      passed: ledger.failure_conditions.length >= LEDGER_QUALITY_MINIMUMS.failure_conditions,
+    },
+    {
+      name: 'acceptance_checks',
+      actual: ledger.acceptance_checks.length,
+      minimum: LEDGER_QUALITY_MINIMUMS.acceptance_checks,
+      passed: ledger.acceptance_checks.length >= LEDGER_QUALITY_MINIMUMS.acceptance_checks,
+    },
+    {
+      name: 'primary_entities',
+      actual: ledger.layers.canonical_identity.primary_entities.length,
+      minimum: LEDGER_QUALITY_MINIMUMS.primary_entities,
+      passed: ledger.layers.canonical_identity.primary_entities.length >= LEDGER_QUALITY_MINIMUMS.primary_entities,
+    },
+    {
+      name: 'relationships',
+      actual: ledger.layers.relationship_network.relationships.length,
+      minimum: LEDGER_QUALITY_MINIMUMS.relationships,
+      passed: ledger.layers.relationship_network.relationships.length >= LEDGER_QUALITY_MINIMUMS.relationships,
+    },
+  ];
+
+  const degraded_dimensions = dimensions.filter(d => !d.passed).map(d => d.name);
+  const passedCount = dimensions.filter(d => d.passed).length;
+  const overall_completeness = dimensions.length > 0 ? passedCount / dimensions.length : 0;
+
+  return {
+    status: degraded_dimensions.length === 0 ? 'passed' : 'degraded',
+    dimensions,
+    degraded_dimensions,
+    overall_completeness,
+  };
+}
+
 /**
  * Builds the seed context block for Phase 1A chunks from a full-context story ledger.
  * This is the "coarse bridge" — hard facts that travel with every chunk.
