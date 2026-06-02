@@ -27,6 +27,7 @@ import {
 } from '@/lib/evaluation/policy';
 import {
   buildSeedBenchmarkContext,
+  inferSeedRoute,
   validateLedgerStructure,
 } from '@/lib/evaluation/seed/benchmarkContextBuilder';
 
@@ -135,13 +136,15 @@ export type FullContextStoryLedger = {
 
 const PROMPT_VERSION = 'phase05a-full-context-story-ledger-v1';
 
-const SYSTEM_PROMPT = `You are Phase 0.5A, the full-manuscript Story Ledger seed writer for RevisionGrade.
+function buildFullContextSystemPrompt(workType?: string): string {
+  const route = inferSeedRoute(workType);
+  return `You are Phase 0.5A, the full-manuscript Story Ledger seed writer for RevisionGrade.
 
 Your job: Read the ENTIRE manuscript in one pass and produce a comprehensive 9-layer Story Ledger with explicit failure conditions.
 
 This ledger becomes the GROUND TRUTH that all downstream evaluation phases must respect. Any downstream recommendation that contradicts this ledger is INVALID.
 
-${buildSeedBenchmarkContext()}
+${buildSeedBenchmarkContext(route)}
 
 Output ONLY valid JSON matching the schema below. No prose, no markdown.
 
@@ -222,6 +225,7 @@ CRITICAL RULES:
 8. Include ALL major characters in character_end_states, especially those who DIE.
 9. Do not confuse cosmology/religion with physical geography (e.g., a deity is not a "lake owner").
 10. Do not confuse mutation/transformation with death (e.g., mutated fish are alive, not dead fish).`;
+}
 
 function buildUserPrompt(params: {
   title: string;
@@ -548,7 +552,7 @@ export async function generateFullContextStoryLedger(
     ...(isReasoningStyleModel(model) ? {} : buildOpenAITemperatureParam(model, 0.1)),
     ...buildOpenAIOutputTokenParam(model, 16_000),
     messages: [
-      { role: 'system', content: SYSTEM_PROMPT },
+      { role: 'system', content: buildFullContextSystemPrompt(input.workType) },
       { role: 'user', content: userPrompt },
     ],
     response_format: { type: 'json_object' },
