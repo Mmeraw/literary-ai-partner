@@ -72,7 +72,7 @@ export function getCriterionPrimaryBadge(criterion: RenderableCriterion): {
   if (typeof scoreValue === "number" && scoreValue >= 8) {
     return {
       label: formatScoreOutOfTen(scoreValue),
-      classes: "bg-green-100 text-green-800",
+      classes: "bg-green-700 text-white",
       numeric: true,
     };
   }
@@ -80,14 +80,14 @@ export function getCriterionPrimaryBadge(criterion: RenderableCriterion): {
   if (typeof scoreValue === "number" && scoreValue >= 6) {
     return {
       label: formatScoreOutOfTen(scoreValue),
-      classes: "bg-yellow-100 text-yellow-800",
+      classes: "bg-amber-600 text-white",
       numeric: true,
     };
   }
 
   return {
     label: formatScoreOutOfTen(scoreValue),
-    classes: "bg-red-100 text-red-800",
+    classes: "bg-red-700 text-white",
     numeric: true,
   };
 }

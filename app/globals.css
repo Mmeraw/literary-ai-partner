@@ -537,9 +537,21 @@
     page-break-inside: avoid;
   }
 
-  /* Remove background colors for better print */
-  .bg-gray-50 {
+  /* Remove background colors for better print (non-badge areas) */
+  .bg-gray-50:not([class*="ring-"]) {
     background-color: white !important;
+  }
+
+  /* Preserve badge colors in print */
+  [class*="bg-green-700"],
+  [class*="bg-amber-600"],
+  [class*="bg-red-700"],
+  [class*="bg-emerald-2"],
+  [class*="bg-yellow-2"],
+  [class*="bg-rose-2"],
+  [class*="bg-teal-2"] {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
 
   /* Keep shadows off in print */

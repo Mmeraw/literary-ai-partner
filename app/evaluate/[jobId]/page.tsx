@@ -387,7 +387,7 @@ function getConfidencePresentation(
   if (confidenceLevel === "high" || (typeof confidenceScore === "number" && confidenceScore >= 80)) {
     return {
       label: "High Confidence",
-      classes: "bg-emerald-100 text-emerald-800",
+      classes: "bg-emerald-200 text-emerald-900 ring-1 ring-emerald-400",
     };
   }
 
@@ -397,7 +397,7 @@ function getConfidencePresentation(
   ) {
     return {
       label: "Moderate Confidence",
-      classes: "bg-amber-100 text-amber-800",
+      classes: "bg-yellow-200 text-yellow-900 ring-1 ring-yellow-400",
     };
   }
 
@@ -407,7 +407,7 @@ function getConfidencePresentation(
   ) {
     return {
       label: "Low Confidence",
-      classes: "bg-rose-100 text-rose-800",
+      classes: "bg-rose-200 text-rose-900 ring-1 ring-rose-400",
     };
   }
 

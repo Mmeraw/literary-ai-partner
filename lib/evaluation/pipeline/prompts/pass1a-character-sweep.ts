@@ -84,6 +84,7 @@ CANONICAL IDENTITY HYGIENE:
 - same_name_disambiguation should clarify collisions when two distinct entities share a visible name token.
 - identity_notes may include concise grounding notes that prevent conflation.
 - Never place pronouns, generic descriptors, or relationship descriptors into legal_name / assumed_names.
+- NEVER extract dialogue fragments, interjections, or common English words as character names. Words like "No", "Yes", "Oh", "Hey", "Well", "So" are NOT character names even if they appear at the start of a dialogue line. Only extract actual proper names, titles, nicknames, or stable identity labels that the text uses to refer to a specific person.
 
 NARRATIVE ROLE:
 role_signal must be one of:

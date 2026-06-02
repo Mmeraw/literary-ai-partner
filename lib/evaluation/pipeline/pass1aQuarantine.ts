@@ -97,6 +97,21 @@ const VALID_NARRATIVE_WEIGHTS = new Set<string>([
   "primary", "major", "supporting", "recurring", "minor", "unknown",
 ]);
 
+/**
+ * Single-word tokens that are common English words, not plausible character
+ * names. The LLM sometimes extracts dialogue fragments (e.g. "No", "Yes",
+ * "Oh") or generic labels as canonical_name. Drop them early.
+ */
+const BLOCKED_CANONICAL_NAMES = new Set(
+  [
+    "no", "yes", "oh", "hey", "ok", "okay", "ah", "huh", "um", "uh",
+    "well", "so", "but", "and", "the", "a", "an", "it", "me", "my",
+    "i", "he", "she", "they", "we", "you", "him", "her", "them", "us",
+    "this", "that", "here", "there", "what", "who", "why", "how",
+    "narrator", "unknown", "none", "n/a", "na", "null",
+  ],
+);
+
 const VALID_PRESENCE_TYPES = new Set<string>([
   "present", "memory", "environmental_text",
 ]);
@@ -430,6 +445,18 @@ function normalizeCharacterEntry(
     required: true,
     fallback: "Unknown Character",
   })!;
+
+  if (BLOCKED_CANONICAL_NAMES.has(name.toLowerCase().trim())) {
+    recordDiagnostic(diagnostics, {
+      code: "PASS1A_MALFORMED_CHARACTER_DROPPED",
+      action: "entry_dropped",
+      chunk_index: chunkIndex,
+      character_name: name,
+      field_path: "characters[].canonical_name",
+      observed_type: `blocked_word:${name}`,
+    });
+    return null;
+  }
 
   const ctx = { characterName: name };
 

@@ -5,10 +5,10 @@ import type { LongformDreamDocument } from "@/lib/evaluation/pipeline/runPass3bL
 type Props = { doc: LongformDreamDocument };
 
 const CONFIDENCE_BADGE: Record<string, string> = {
-  High: "bg-emerald-100 text-emerald-700",
-  "Moderate-High": "bg-teal-100 text-teal-700",
-  Moderate: "bg-amber-100 text-amber-700",
-  Low: "bg-rose-100 text-rose-700",
+  High: "bg-emerald-200 text-emerald-900 ring-1 ring-emerald-400",
+  "Moderate-High": "bg-teal-200 text-teal-900 ring-1 ring-teal-400",
+  Moderate: "bg-yellow-200 text-yellow-900 ring-1 ring-yellow-400",
+  Low: "bg-rose-200 text-rose-900 ring-1 ring-rose-400",
 };
 
 function EvidenceList({ items, label, accent }: { items: string[]; label: string; accent: string }) {
@@ -33,9 +33,9 @@ function CriterionCard({ a }: { a: LongformDreamDocument["criterion_analyses"][n
   // score can be null (e.g. proseControl in insufficient-signal state) — guard
   const safeScore = a.score ?? null;
   const scoreColor =
-    safeScore !== null && safeScore >= 8 ? "text-emerald-800"
-    : safeScore !== null && safeScore >= 6 ? "text-amber-700"
-    : safeScore !== null ? "text-red-700"
+    safeScore !== null && safeScore >= 8 ? "text-green-700 font-black"
+    : safeScore !== null && safeScore >= 6 ? "text-amber-600 font-black"
+    : safeScore !== null ? "text-red-700 font-black"
     : "text-gray-600";
 
   return (
