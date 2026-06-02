@@ -1,5 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getAuthenticatedUser } from '@/lib/supabase/server'
+import { backfillManuscriptTitleIfMissing } from '@/lib/manuscripts/titleBackfill'
 import { ensureRevisionOpportunityLedgerArtifact } from './opportunityLedger'
 import { buildRevisionPackage, type RevisionPackage } from './revisionPackage'
 import { loadReviseQueueWarmupCorpus } from './reviseQueueWarmup'
@@ -1065,7 +1066,7 @@ export async function getWorkbenchQueue(input: { manuscriptId?: string; evaluati
     manuscriptId,
     evaluationJobId,
     revisionPackage,
-    manuscriptTitle: manuscript.title ?? 'Untitled Manuscript',
+    manuscriptTitle: manuscript.title ?? (await backfillManuscriptTitleIfMissing(manuscriptNumericId)) ?? 'Untitled Manuscript',
     opportunities: readyForRevise,
     needsTargeting,
     readinessTotals: {

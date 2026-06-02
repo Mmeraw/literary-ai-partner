@@ -173,7 +173,11 @@ Return ONLY JSON with keys:
 - All three candidates must be ≥ 5 words, manuscript-ready prose that the author can literally copy-paste into their .docx file at the target location.
 - CRITICAL: Candidates must contain CHARACTER NAMES, SCENE DETAILS, and VOICE-MATCHED PROSE from the manuscript. They are NOT editorial summaries, thematic descriptions, or abstract beats. They are actual narrative text.
 - WRONG example: "The moment held for one clear beat, forcing the choice onto the page before the scene moved forward." (This is abstract — no characters, no setting, no voice match.)
+- WRONG example: "on account of a secret I possess, I go in daily fear of my life. Highlight answers in motion, and the consequence lands without a pause for explanation." (This pastes the original text then appends editorial instructions — the author cannot use this.)
+- WRONG example: "A sharper physical image turns the abstract pressure into an immediate, visible consequence on the page." (This describes what good prose would do. It is NOT actual prose.)
 - RIGHT example: "Billy's hand trembled against the tent flap. He could still hear Brutus breathing on the other side, that wet rasp like something drowning in its own throat." (This is manuscript prose — names, sensory detail, voice.)
+- RIGHT example: "'I go in daily fear of my life,' Renauld said, though his hands were steady enough when he folded the letter and slid it beneath his plate. The marmalade jar caught the morning light." (This rewrites the passage with character names, concrete objects, and the author's narrative voice.)
+- DO NOT append editorial commentary after real prose. DO NOT describe what the prose "does" or "achieves." Write the actual prose itself. The author will paste this directly into their manuscript.
 - revision_operation: one of "replace_selected_passage" | "insert_before_selected_passage" | "insert_after_selected_passage" | "delete_selected_passage" | "rewrite_surrounding_context". Default to "replace_selected_passage" when the anchor_snippet is being rewritten.
 - manuscript_coordinates: a location string like "chapter:3:paragraph:7" or "scene:2:beat:opening" identifying where in the text this revision targets.
 - agreement_map[]

@@ -28,6 +28,7 @@ import {
   isCertifiedCriterion,
 } from "@/lib/evaluation/reportCriterionDisplay";
 import { resolveReportTitle } from "@/lib/evaluation/reportTitle";
+import { backfillManuscriptTitleIfMissing } from "@/lib/manuscripts/titleBackfill";
 import { safeTruncateToWordBoundary } from "@/lib/evaluation/reportRenderSafety";
 import CriterionOpportunities from "@/components/evaluation/CriterionOpportunities";
 import PolishPassButton from "@/components/evaluation/PolishPassButton";
@@ -595,8 +596,11 @@ export default async function EvaluationReportPage({
   const evaluationScope = inferEvaluationScope(job.job_type, artifact?.metrics?.manuscript?.genre);
   const integrityBanner = artifact ? classifyEvaluationIntegrityBanner(artifact) : null;
   const chapterTitle = artifact?.metrics?.manuscript?.title?.trim() || null;
-  const manuscriptTitle =
+  let manuscriptTitle =
     getRelatedManuscriptTitle(job) || (await getManuscriptTitleById(job.manuscript_id));
+  if (!manuscriptTitle && job.manuscript_id) {
+    manuscriptTitle = await backfillManuscriptTitleIfMissing(job.manuscript_id);
+  }
   const { displayTitle } = resolveReportTitle({ chapterTitle, manuscriptTitle });
   const manuscriptWordCount = await getManuscriptWordCountById(job.manuscript_id);
   const wordCount = artifact?.metrics?.manuscript?.word_count ?? manuscriptWordCount ?? null;
