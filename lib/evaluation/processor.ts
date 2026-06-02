@@ -5456,6 +5456,9 @@ export async function processEvaluationJob(
       let phase1aSeedContextBlock = '';
       let seedEntityNamesForConsistency: string[] = [];
       try {
+        const seedStartedAt = new Date().toISOString();
+        const seedStartMs = Date.now();
+
         const ensuredSeeds = await ensureSeedArtifactsForPhase1a({
           supabase,
           jobId: String(job.id),
@@ -5468,6 +5471,9 @@ export async function processEvaluationJob(
           openaiApiKey,
           evalOpenAiTimeoutMs,
         });
+
+        const seedDurationMs = Date.now() - seedStartMs;
+        const seedCompletedAt = new Date().toISOString();
 
         phase1aSeedContextBlock = buildPass1aSeedContextBlock({
           storySeed: ensuredSeeds.storySeed,
@@ -5487,12 +5493,45 @@ export async function processEvaluationJob(
           }
         }
 
+        // ── Phase 0.5A/0.5B logging for mistake-proofing ─────────────────
+        // Every phase transition must be visible in the progress timeline.
+        const seedLogEntries: Record<string, unknown>[] = [];
+        if (ensuredSeeds.createdTypes.includes('story_map_seed_v1')) {
+          seedLogEntries.push(
+            { at: seedStartedAt, event: 'phase_0_5a_started', stage: 'phase_0_5a', label: 'Generating story map seed' },
+            { at: seedCompletedAt, event: 'phase_0_5a_completed', stage: 'phase_0_5a', duration_ms: seedDurationMs, artifact: 'story_map_seed_v1' },
+          );
+        }
+        if (ensuredSeeds.createdTypes.includes('evaluation_seed_v1')) {
+          seedLogEntries.push(
+            { at: seedStartedAt, event: 'phase_0_5b_started', stage: 'phase_0_5b', label: 'Generating evaluation seed' },
+            { at: seedCompletedAt, event: 'phase_0_5b_completed', stage: 'phase_0_5b', duration_ms: seedDurationMs, artifact: 'evaluation_seed_v1' },
+          );
+        }
+        if (seedLogEntries.length > 0) {
+          // Persist seed phase_log entries immediately so they're visible even if
+          // a later step fails. This is the mistake-proofing contract: no silent work.
+          const existingLog = (progressState.phase_log as unknown[]) ?? [];
+          progressState = {
+            ...progressState,
+            phase_log: [...existingLog, ...seedLogEntries],
+          };
+          await supabase
+            .from('evaluation_jobs')
+            .update({
+              progress: progressState,
+              worker_pulse_at: seedCompletedAt,
+            })
+            .eq('id', jobId)
+            .eq('status', JOB_STATUS.RUNNING);
+        }
+
         if (ensuredSeeds.createdTypes.length > 0) {
-          console.log(`[phase_1a] ${jobId}: generated missing seed artifacts`, {
+          console.log(`[phase_0.5] ${jobId}: generated seed artifacts (${seedDurationMs}ms)`, {
             created: ensuredSeeds.createdTypes,
           });
         } else {
-          console.log(`[phase_1a] ${jobId}: seed artifacts already present`);
+          console.log(`[phase_0.5] ${jobId}: seed artifacts already present (skip)`);
         }
       } catch (seedErr) {
         const seedErrMsg = seedErr instanceof Error ? seedErr.message : String(seedErr);
@@ -5736,7 +5775,7 @@ export async function processEvaluationJob(
         //   5. If both lanes are terminal → assemble Story Layer / Review Gate handoff
 
         // Normalize Track C (preflight) status for durable lane logic.
-        const normalizedPreflightStatus =
+        let normalizedPreflightStatus =
           preflightStatus === 'RUNNING' ? 'IN_PROGRESS'
           : preflightStatus === 'COMPLETE' ? 'DONE'
           : preflightStatus;
@@ -5831,7 +5870,51 @@ export async function processEvaluationJob(
             // Not enough time — self-chain immediately without processing.
             console.warn(`[phase_1a] ${jobId}: budget exhausted before batch start (remaining=${remainingBudgetMs}ms < margin=${safetyMarginMs}ms) — self-chaining`);
           } else {
-            // Run the bounded chunk batch.
+            // ── PARALLEL EXECUTION: Track B (batch) + Track C (preflight) ──
+            // On the first batch (batchIndex === 0) and when Track C hasn't
+            // started yet, fire Pass 3A concurrently with the chunk batch.
+            // This eliminates the sequential bottleneck where Track C could
+            // only start after batch completion (which always exceeded budget).
+            const shouldFireTrackCParallel =
+              batchIndex === 0 &&
+              normalizedPreflightStatus !== 'DONE' &&
+              normalizedPreflightStatus !== 'DEGRADED' &&
+              normalizedPreflightStatus !== 'IN_PROGRESS';
+
+            const trackCParallelPromise = shouldFireTrackCParallel
+              ? (async () => {
+                  const tcStart = new Date().toISOString();
+                  console.log(`[track_c] ${jobId}: starting Pass 3A in PARALLEL with batch 0`);
+                  const existingLog = (progressState.phase_log as unknown[]) ?? [];
+                  void supabase
+                    .from('evaluation_jobs')
+                    .update({
+                      progress: {
+                        ...progressState,
+                        track_c_status: 'running',
+                        phase_log: [
+                          ...existingLog,
+                          { at: tcStart, event: 'track_c_started', stage: 'pass_3a', parallel_with_batch: true },
+                        ],
+                      },
+                    })
+                    .eq('id', jobId)
+                    .eq('status', JOB_STATUS.RUNNING);
+                  return runPass3Preflight({
+                    manuscriptChunks: Array.isArray(allChunks) ? allChunks : [],
+                    title: manuscriptWithContent.title,
+                    workType: manuscriptWithContent.work_type || 'novel',
+                    jobId: String(job.id),
+                    manuscriptId: Number(job.manuscript_id),
+                    openaiApiKey,
+                    supabase,
+                    _chunkConcurrency: phase1aConfig.preflightConcurrency,
+                    _onChunkHeartbeat: () => { /* watchdog pulse */ },
+                  });
+                })()
+              : null;
+
+            // Run the bounded chunk batch (Track B).
             const pass1aBatchResult = await runPass1a({
               manuscriptText: manuscriptWithContent.content || '',
               manuscriptChunks: batchChunks,
@@ -5852,6 +5935,59 @@ export async function processEvaluationJob(
               // All chunks in this batch failed — this is a real failure, not self-chain.
               const firstErr = pass1aBatchResult.failedChunkErrors[0]?.error ?? 'unknown_error';
               throw new Error(`Phase 1A batch ${batchIndex + 1}: all ${batchChunks.length} chunks failed. First error: ${firstErr}`);
+            }
+
+            // If Track C was fired in parallel, settle it now (non-blocking on batch).
+            if (trackCParallelPromise) {
+              try {
+                const trackCResult = await Promise.race([
+                  trackCParallelPromise,
+                  new Promise<{ __trackCTimedOut: true }>(r =>
+                    setTimeout(() => r({ __trackCTimedOut: true }), 120_000),
+                  ),
+                ]);
+                if (trackCResult && '__trackCTimedOut' in trackCResult) {
+                  normalizedPreflightStatus = 'SELF_CHAINED';
+                  console.log(`[track_c] ${jobId}: parallel Pass 3A timed out (120s) — will resume on next invocation`);
+                } else {
+                  const tcr = trackCResult as Awaited<ReturnType<typeof runPass3Preflight>>;
+                  const reducerFailed = tcr.preflight.reducer_status === 'failed' || tcr.preflight.preflight_authority === 'unavailable';
+                  normalizedPreflightStatus = reducerFailed ? 'DEGRADED' : 'DONE';
+                  const tcCompletedAt = new Date().toISOString();
+                  console.log(`[track_c] ${jobId}: parallel Pass 3A completed — authority=${tcr.preflight.preflight_authority}, duration=${tcr.durationMs}ms`);
+                  await supabase
+                    .from('evaluation_jobs')
+                    .update({
+                      worker_pulse_at: tcCompletedAt,
+                      progress: {
+                        ...progressState,
+                        track_c_status: reducerFailed ? 'degraded' : 'done',
+                        pass3a_status: reducerFailed ? 'failed' : 'done',
+                        pass3a_completed_at: tcCompletedAt,
+                        pass3a_artifact_id: tcr.artifactId,
+                        phase1a_batch_state: {
+                          ...((progressState.phase1a_batch_state as Record<string, unknown>) ?? {}),
+                          preflight_status: reducerFailed ? 'FAILED' : 'DONE',
+                        },
+                        phase_log: [
+                          ...((progressState.phase_log as unknown[]) ?? []),
+                          {
+                            at: tcCompletedAt,
+                            event: reducerFailed ? 'track_c_reducer_failed' : 'track_c_completed',
+                            stage: 'pass_3a',
+                            duration_ms: tcr.durationMs,
+                            parallel: true,
+                          },
+                        ],
+                      },
+                    })
+                    .eq('id', jobId)
+                    .eq('status', JOB_STATUS.RUNNING);
+                }
+              } catch (tcErr) {
+                normalizedPreflightStatus = 'DEGRADED';
+                console.warn(`[track_c] ${jobId}: parallel Pass 3A failed (non-fatal):`, tcErr instanceof Error ? tcErr.message : String(tcErr));
+              }
             }
           }
 
@@ -5899,10 +6035,22 @@ export async function processEvaluationJob(
             // background promises.
             let trackCStatusAfterBatch = normalizedPreflightStatus;
 
+            // Budget calculation: use the actual Vercel maxDuration (800s) as
+            // the effective ceiling, not just the invocationBudgetMs (which is
+            // a soft self-chain hint). Track C should run if there's real time
+            // remaining under the hard ceiling — not just leftover batch budget.
             const elapsedAfterBatchMs = Date.now() - phase1aInvocationStartMs;
-            const remainingAfterBatchMs = phase1aConfig.invocationBudgetMs - phase1aConfig.safetyMarginMs - elapsedAfterBatchMs;
+            const softRemainingMs = phase1aConfig.invocationBudgetMs - phase1aConfig.safetyMarginMs - elapsedAfterBatchMs;
+            // Hard ceiling: 800s maxDuration minus safety margin. Track C can use
+            // up to 120s (preflight map+reduce for large manuscripts).
+            const HARD_CEILING_MS = 780_000; // 800s - 20s safety
+            const hardRemainingMs = HARD_CEILING_MS - elapsedAfterBatchMs;
+            // Use the more generous of: soft remaining budget OR hard remaining budget.
+            // This ensures Track C fires even when the soft budget is exhausted,
+            // as long as the Vercel function still has real time remaining.
+            const remainingAfterBatchMs = Math.max(softRemainingMs, Math.min(hardRemainingMs, 120_000));
 
-            if (trackCStatusAfterBatch !== 'DONE' && trackCStatusAfterBatch !== 'DEGRADED' && remainingAfterBatchMs > 30_000) {
+            if (trackCStatusAfterBatch !== 'DONE' && trackCStatusAfterBatch !== 'DEGRADED' && remainingAfterBatchMs > 15_000) {
               // Enough budget remains — run Track C (Pass 3A) as awaited call.
               console.log(`[track_c] ${jobId}: running bounded Track C within chunk-batch invocation (budget=${remainingAfterBatchMs}ms)`);
               const trackCStartAt = new Date().toISOString();
