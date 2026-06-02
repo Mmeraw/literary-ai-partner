@@ -405,13 +405,18 @@ export function resolveEvaluationRuntimeConfig(
       disabled: env.EVAL_WORKER_DISABLED === "true" || env.EVAL_WORKER_DISABLED === "1",
     },
     phase1a: {
-      // Tier 4 defaults: raised batchSize 2→5, concurrency 1→3, preflight 1→2
-      // to take advantage of 10M TPM / 10K RPM headroom.
-      batchSize: parseBoundedInteger(env, "EVAL_PHASE1A_BATCH_SIZE", { defaultValue: 5, min: 1, max: 10 }),
-      concurrency: parseBoundedInteger(env, "EVAL_PHASE1A_CONCURRENCY", { defaultValue: 3, min: 1, max: 5 }),
-      invocationBudgetMs: parseBoundedInteger(env, "EVAL_PHASE1A_INVOCATION_BUDGET_MS", { defaultValue: 45_000, min: 10_000, max: 600_000 }),
-      safetyMarginMs: parseBoundedInteger(env, "EVAL_PHASE1A_SAFETY_MARGIN_MS", { defaultValue: 10_000, min: 3_000, max: 30_000 }),
-      preflightConcurrency: parseBoundedInteger(env, "EVAL_PHASE1A_PREFLIGHT_CONCURRENCY", { defaultValue: 2, min: 1, max: 5 }),
+      // Speed-optimized defaults: batch ALL chunks in one invocation.
+      // Tier 4 10M TPM / 10K RPM supports full concurrency (10 parallel LLM calls).
+      // Vercel maxDuration=800s allows processing 40+ chunks without self-chaining.
+      //
+      // Wall-clock math for 40 chunks at PASS1A_CHUNK_CONCURRENCY=10:
+      //   ceil(40/10) = 4 rounds × p95 15s/chunk = 60s — comfortably inside 240s budget.
+      //   Eliminates self-chain overhead (~15s/hop × 7 hops = 105s saved for Cartel Babies).
+      batchSize: parseBoundedInteger(env, "EVAL_PHASE1A_BATCH_SIZE", { defaultValue: 40, min: 1, max: 80 }),
+      concurrency: parseBoundedInteger(env, "EVAL_PHASE1A_CONCURRENCY", { defaultValue: 5, min: 1, max: 10 }),
+      invocationBudgetMs: parseBoundedInteger(env, "EVAL_PHASE1A_INVOCATION_BUDGET_MS", { defaultValue: 240_000, min: 10_000, max: 600_000 }),
+      safetyMarginMs: parseBoundedInteger(env, "EVAL_PHASE1A_SAFETY_MARGIN_MS", { defaultValue: 15_000, min: 3_000, max: 60_000 }),
+      preflightConcurrency: parseBoundedInteger(env, "EVAL_PHASE1A_PREFLIGHT_CONCURRENCY", { defaultValue: 3, min: 1, max: 10 }),
     },
     auth: {
       cronSecret: env.CRON_SECRET || "",

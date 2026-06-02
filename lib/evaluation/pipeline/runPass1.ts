@@ -45,11 +45,14 @@ const PASS1_LIMITS = {
 } as const;
 // Tier 4 budget math (Pass1 + Pass2 run in parallel):
 //   tokens/chunk ≈ 13,250 (5,250 input + 8,000 output)
-//   simultaneous calls at c=12: 12 (P1) + 12 (P2) = 24 calls
-//   burst TPM = 24 × 13,250 = 318,000 — well within Tier 4 10M TPM
-//   burst RPM = 24 calls/min — well within Tier 4 10K RPM
+//   simultaneous calls at c=20: 20 (P1) + 20 (P2) = 40 calls
+//   burst TPM = 40 × 13,250 = 530,000 — well within Tier 4 10M TPM
+//   burst RPM = 40 calls/min — well within Tier 4 10K RPM
+//
+// Wall-clock math at c=20 for 40 chunks:
+//   ceil(40/20) = 2 rounds × p95 45s/chunk = 90s — comfortably inside Vercel 800s
 // Override with EVAL_CHUNK_PASS_CONCURRENCY env var.
-const DEFAULT_CHUNK_PASS_CONCURRENCY = 12;
+const DEFAULT_CHUNK_PASS_CONCURRENCY = 20;
 const DEFAULT_CHUNK_RETRY_MAX = 3;
 const DEFAULT_CHUNK_RETRY_BASE_MS = 10000;
 // Per-chunk provider timeout (mirrors runPass2.ts).
