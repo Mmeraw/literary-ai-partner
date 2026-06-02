@@ -75,10 +75,10 @@ describe('generateSemanticSeedArtifacts', () => {
     expect(createCompletionMock).toHaveBeenCalledTimes(1);
     const request = createCompletionMock.mock.calls[0][0];
     expect(String(request.messages[1].content)).toContain('Mara kept moving through the hallway');
-    expect(result.storySeed.artifact_type).toBe('phase0_5a_story_ledger_draft_v1');
+    expect(result.storySeed.artifact_type).toBe('story_map_seed_v1');
     expect(result.storySeed.claims).toHaveLength(1);
     expect(result.storySeed.claims[0].temp_seed_entity_id).toBe('temp_seed_entity_mara');
-    expect(result.evaluationSeed.artifact_type).toBe('phase0_5b_evaluation_blueprint_v1');
+    expect(result.evaluationSeed.artifact_type).toBe('evaluation_seed_v1');
     expect(result.evaluationSeed.claims).toHaveLength(2);
     expect(result.evaluationSeed.claims[1].criterion_key).toBeDefined();
     expect(result.evaluationSeed.claims[1].claim_status).toBe('proposed_unverified');
@@ -96,10 +96,10 @@ describe('generateSemanticSeedArtifacts', () => {
     });
 
     expect(createCompletionMock).not.toHaveBeenCalled();
-    expect(result.storySeed.artifact_type).toBe('phase0_5a_story_ledger_draft_v1');
+    expect(result.storySeed.artifact_type).toBe('story_map_seed_v1');
     expect(result.storySeed.claims[0]?.claim_id).toBe('story_seed:fallback:1');
     expect(result.storySeed.claims[0]?.hypothesis).toContain('missing_openai_key');
-    expect(result.evaluationSeed.artifact_type).toBe('phase0_5b_evaluation_blueprint_v1');
+    expect(result.evaluationSeed.artifact_type).toBe('evaluation_seed_v1');
   });
 
   test('uses deterministic fallback when OpenAI provider call fails', async () => {

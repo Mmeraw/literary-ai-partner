@@ -48,7 +48,7 @@ import {
 const artifact = (id: string) => ({ artifact_id: id, source_hash: `sha256:${id}` });
 
 const seedOnly: ArtifactSet = {
-  story_seed_v1: artifact('story-seed-only'),
+  story_map_seed_v1: artifact('story-seed-only'),
   evaluation_seed_v1: artifact('evaluation-seed-only'),
 };
 

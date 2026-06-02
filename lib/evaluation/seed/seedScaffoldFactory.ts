@@ -17,7 +17,7 @@ export type StorySeedLayerScaffold = {
 };
 
 export type CompleteStorySeedV1 = {
-  artifact_type: 'story_seed_v1';
+  artifact_type: 'story_map_seed_v1';
   artifact_status: 'created';
   authority: SeedAuthority;
   generated_at: string;
@@ -175,7 +175,7 @@ export function buildCompleteStorySeedV1(args: { generatedAt?: string }): Comple
   ])) as Record<StoryLayerCoreLayerKey, StorySeedLayerScaffold>;
 
   return {
-    artifact_type: 'story_seed_v1',
+    artifact_type: 'story_map_seed_v1',
     artifact_status: 'created',
     authority: 'seed_only',
     generated_at: args.generatedAt ?? new Date().toISOString(),

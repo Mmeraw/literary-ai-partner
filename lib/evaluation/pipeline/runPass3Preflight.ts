@@ -44,7 +44,8 @@ import { parseJsonObjectBoundary } from "@/lib/llm/jsonParseBoundary";
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
 
-export const PASS3A_DEFAULT_CHUNK_CONCURRENCY = 2;
+// Tier 4: raised from 2 → 4 — ample RPM/TPM headroom.
+export const PASS3A_DEFAULT_CHUNK_CONCURRENCY = 4;
 /** Max chars per zone summary sent to the reducer */
 const PASS3A_ZONE_SUMMARY_CAP = 3000;
 const PASS3A_DEFAULT_MODEL = "gpt-4o";

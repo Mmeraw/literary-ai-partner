@@ -41,23 +41,128 @@ type LedgerQualityTechnicalSignals = {
   };
 };
 
+/** Primary/major role tiers that can trigger ending-accountability hard-fails. */
+const PRIMARY_ROLE_TIERS = new Set<string>([
+  'protagonist', 'co_protagonist', 'antagonist',
+]);
+
+/** Context passed to the hard-fail triage so it can distinguish actionable
+ *  pipeline blocks from advisory/insufficient-evidence findings. */
+interface TriageContext {
+  /** Role lookup: canonical_name → Pass1aRoleSignal from ledger entries. */
+  roleLookup: Map<string, string>;
+  /** Preflight/reducer authority level (null/undefined = not available). */
+  preflightAuthority?: 'full' | 'reduced' | 'advisory' | 'unavailable' | null;
+}
+
+/**
+ * Detect entity-typing contamination: pronoun/descriptor fragments that the
+ * LLM mistakenly treated as character identities.
+ *
+ * Per doctrine: "A river cannot become a Character unless personified.
+ * If contamination occurs: suppress internally."
+ */
+export function isEntityTypingContaminated(name: string): boolean {
+  const n = name.trim();
+  if (/\bUnknown\b/i.test(n)) return true;
+  if (/^Primary\s+(He|She|They|It|Him|Her)\b/i.test(n)) return true;
+  if (/^(he|she|they|it|him|her|his|hers|their)[_\s]/i.test(n)) return true;
+  if (/^(central|main|primary|secondary|unnamed|minor|background)[_\s]/i.test(n)) return true;
+  if (/\bunnamed\b/i.test(n)) return true;
+  return false;
+}
+
+function triageHardFailTrigger(
+  trigger: string,
+  ctx: TriageContext,
+): { severity: QualityCheckResult['severity']; message: string } {
+  const trimmed = trigger.trim();
+
+  // ── Rule 1: WARN-prefixed items are never hard-fails ──────────────────
+  if (/^WARN:/i.test(trimmed)) {
+    return { severity: 'warning', message: trimmed };
+  }
+
+  // ── Entity-typing contamination check (runs before accountability) ────
+  const nameMatch = trimmed.match(/"([^"]+)"/);
+  if (nameMatch && isEntityTypingContaminated(nameMatch[1])) {
+    return {
+      severity: 'info',
+      message: `SUPPRESSED (entity-typing contamination): ${trimmed}`,
+    };
+  }
+
+  // ── Rule 2: Degraded/unavailable authority blocks content certainty ───
+  // "Content certainty requires evidence authority." If Track C / Pass 3A
+  // authority is degraded, the system cannot confidently issue content
+  // hard-fails — route to insufficient_evidence (warning).
+  const authority = ctx.preflightAuthority;
+  if (authority && authority !== 'full') {
+    return {
+      severity: 'warning',
+      message: `INSUFFICIENT_EVIDENCE (authority=${authority}): ${trimmed}`,
+    };
+  }
+
+  // ── Rule 3: Ending accountability — nuanced per role tier ─────────────
+  if (/ending accountability/i.test(trimmed)) {
+    // Look up character role from ledger entries.
+    const characterName = nameMatch?.[1];
+    const role = characterName ? ctx.roleLookup.get(characterName) : undefined;
+    const isPrimary = role != null && PRIMARY_ROLE_TIERS.has(role);
+
+    if (!isPrimary) {
+      // Supporting/minor/unknown role → craft finding, not pipeline block.
+      return {
+        severity: 'warning',
+        message: trimmed.replace(/^HARD_FAIL:\s*/i, 'ENDING_NOTE: '),
+      };
+    }
+    // Primary character with clean authority → genuine hard-fail.
+    return { severity: 'hard_fail', message: trimmed };
+  }
+
+  // ── Default: preserve as hard-fail ────────────────────────────────────
+  return { severity: 'hard_fail', message: trimmed };
+}
+
 function runQualityChecks(
   ledger: Pass1aCharacterLedger,
   ledgerV2: CharacterLedgerV2,
+  technicalSignals?: LedgerQualityTechnicalSignals,
 ): QualityCheckResult[] {
   const results: QualityCheckResult[] = [];
 
   const v1CharacterCount = ledger.entries.length;
   const v2IdentityCount = ledgerV2.identityLedger.length;
 
+  // Build role lookup from ledger entries for triage context.
+  const roleLookup = new Map<string, string>();
+  for (const entry of ledger.entries) {
+    roleLookup.set(entry.canonical_name, entry.role);
+  }
+  const triageCtx: TriageContext = {
+    roleLookup,
+    preflightAuthority: technicalSignals?.preflightReducer?.preflight_authority ?? undefined,
+  };
+
   // ── Hard Fail Checks ──────────────────────────────────────────────────────
 
-  // Hard fail triggers from Pass 1A sweep
+  // Hard fail triggers from Pass 1A sweep.
+  // The LLM may place warnings and non-blocking findings in this array.
+  // Triage rules (deterministic — LLM text is advisory input only):
+  //  1. "WARN:" prefix → warning (LLM labeled it non-blocking)
+  //  2. entity-typing contamination → suppressed (info)
+  //  3. authority degraded/unavailable → insufficient_evidence (warning)
+  //  4. ending accountability for supporting/minor → warning (craft finding)
+  //  5. ending accountability for verified primary with clean authority → hard_fail
+  //  6. everything else → hard_fail (unchanged)
   for (const trigger of ledger.coverage_summary.hard_fail_triggers ?? []) {
+    const triaged = triageHardFailTrigger(trigger, triageCtx);
     results.push({
       key: 'pass1a_hard_fail_trigger',
-      severity: 'hard_fail',
-      message: trigger,
+      severity: triaged.severity,
+      message: triaged.message,
       layer: 'source_integrity_layer',
       evidenceReference: 'pass1a_character_ledger_v1.coverage_summary.hard_fail_triggers',
     });
@@ -216,7 +321,7 @@ export function buildLedgerQualityReport(
     ledgerV2,
     layers,
   });
-  const checks = [...runQualityChecks(ledger, ledgerV2), ...dependencyAssessment.qualityChecks];
+  const checks = [...runQualityChecks(ledger, ledgerV2, technicalSignals), ...dependencyAssessment.qualityChecks];
 
   const hardFails = checks.filter((c) => c.severity === 'hard_fail');
   const warnings = checks.filter((c) => c.severity === 'warning');

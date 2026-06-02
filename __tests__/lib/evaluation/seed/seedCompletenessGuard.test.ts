@@ -11,11 +11,16 @@ import {
 const filledLayerScaffold = (layer: string) => ({
   baseline_expectation: `${layer} must be verified against manuscript evidence`,
   required_verification_targets: [`${layer}:target`],
+  required_sections: [`${layer}:section`],
+  phase1a_must_fill: [`${layer}:fill`],
+  phase1a_must_verify: [`${layer}:verify`],
+  mistake_proofing: [`${layer}:do_not_assume`],
+  baseline_rule: 'phase_1a_must_use_as_story_layer_creation_baseline' as const,
 });
 
 function completeStorySeed() {
   return {
-    artifact_type: 'story_seed_v1',
+    artifact_type: 'story_map_seed_v1',
     authority: 'seed_only',
     artifact_status: 'created',
     layer_scaffolds: Object.fromEntries(STORY_LAYER_KEYS.map((layer) => [layer, filledLayerScaffold(layer)])),
@@ -59,6 +64,10 @@ function completeEvaluationSeed() {
     criterion_scaffolds: CRITERIA_KEYS.map((criterion_key) => ({
       criterion_key,
       baseline_expectation: `${criterion_key} must be evidence-backed`,
+      short_form_template_sections: [`${criterion_key}:short`],
+      long_form_template_sections: [`${criterion_key}:long`],
+      phase1a_must_collect: [`${criterion_key}:collect`],
+      mistake_proofing: [`${criterion_key}:mp`],
     })),
     governance_rail: {
       seed_must_be_used_as_phase1a_evaluation_baseline: true,
@@ -125,13 +134,13 @@ describe('seedCompletenessGuard', () => {
 
   it('throws a typed block error with the full seed_fit_gap_report_v1 attached', () => {
     expect(() => assertSeedsCompleteForPhase1a({
-      storySeed: { artifact_type: 'story_seed_v1', authority: 'seed_only' },
+      storySeed: { artifact_type: 'story_map_seed_v1', authority: 'seed_only' },
       evaluationSeed: completeEvaluationSeed(),
     })).toThrow(SeedFitGapBlockedError);
 
     try {
       assertSeedsCompleteForPhase1a({
-        storySeed: { artifact_type: 'story_seed_v1', authority: 'seed_only' },
+        storySeed: { artifact_type: 'story_map_seed_v1', authority: 'seed_only' },
         evaluationSeed: completeEvaluationSeed(),
       });
       throw new Error('expected block');

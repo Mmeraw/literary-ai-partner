@@ -73,7 +73,7 @@ function collectDegradedLayers(ledger: unknown): string[] {
 
 function countSeedClaims(run: EvaluationSeedBenchmarkRun, statuses: string[]): number {
   return [
-    ...(run.artifacts.story_seed_v1?.claims ?? []),
+    ...(run.artifacts.story_map_seed_v1?.claims ?? []),
     ...(run.artifacts.evaluation_seed_v1?.claims ?? []),
   ].filter((claim) => statuses.includes(claim.claim_status)).length;
 }

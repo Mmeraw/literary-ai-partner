@@ -27,7 +27,7 @@ export type SeedClaim = {
 };
 
 export type SeedArtifact = {
-  artifact_type: 'phase0_5a_story_ledger_draft_v1' | 'phase0_5b_evaluation_blueprint_v1';
+  artifact_type: 'story_map_seed_v1' | 'evaluation_seed_v1';
   authority: 'seed_only';
   artifact_status: 'created' | 'superseded' | 'archived' | 'failed';
   generated_at: string;
@@ -299,7 +299,7 @@ export async function generateSemanticSeedArtifacts(input: GenerateSemanticSeedA
   const evaluationClaims = normalizeSeedArray(record.evaluation_claims, 'evaluation');
 
   const storySeed: SeedArtifact = {
-    artifact_type: 'phase0_5a_story_ledger_draft_v1',
+    artifact_type: 'story_map_seed_v1',
     authority: 'seed_only',
     artifact_status: 'created',
     generated_at: generatedAt,
@@ -307,7 +307,7 @@ export async function generateSemanticSeedArtifacts(input: GenerateSemanticSeedA
   };
 
   const evaluationSeed: SeedArtifact = {
-    artifact_type: 'phase0_5b_evaluation_blueprint_v1',
+    artifact_type: 'evaluation_seed_v1',
     authority: 'seed_only',
     artifact_status: 'created',
     generated_at: generatedAt,

@@ -4,7 +4,7 @@ import { countWords } from '@/lib/evaluation/pipeline/submissionScope';
 import { buildSeedFitGapReport, type SeedFitGapReportV1 } from '@/lib/evaluation/seed/seedCompletenessGuard';
 import { buildCompleteEvaluationSeedV1, buildCompleteStorySeedV1 } from '@/lib/evaluation/seed/seedScaffoldFactory';
 
-type PersistableSeedArtifactType = 'story_seed_v1' | 'evaluation_seed_v1' | 'seed_fit_gap_report_v1';
+type PersistableSeedArtifactType = 'story_map_seed_v1' | 'evaluation_seed_v1' | 'seed_fit_gap_report_v1';
 
 const persistSeedArtifact = upsertEvaluationArtifact as unknown as (params: {
   supabase: SupabaseClient<any, any, any>;
@@ -37,7 +37,7 @@ export async function ensureCompleteSeedsBeforePhase1a(args: {
   workType?: string | null;
 }): Promise<Phase1aSeedGateResult> {
   const now = new Date().toISOString();
-  const seedTypes = ['story_seed_v1', 'evaluation_seed_v1'] as const;
+  const seedTypes = ['story_map_seed_v1', 'evaluation_seed_v1'] as const;
 
   const { data: existingRows, error: readError } = await args.supabase
     .from('evaluation_artifacts')
@@ -56,21 +56,21 @@ export async function ensureCompleteSeedsBeforePhase1a(args: {
     }
   }
 
-  let storySeed = existing.get('story_seed_v1');
+  let storySeed = existing.get('story_map_seed_v1');
   if (!storySeed) {
     storySeed = buildCompleteStorySeedV1({ generatedAt: now });
     await persistSeedArtifact({
       supabase: args.supabase,
       jobId: args.jobId,
       manuscriptId: args.manuscriptId,
-      artifactType: 'story_seed_v1',
-      artifactVersion: 'story_seed_v1',
+      artifactType: 'story_map_seed_v1',
+      artifactVersion: 'story_map_seed_v1',
       sourceHash: stableSourceHash({
         jobId: args.jobId,
         manuscriptId: args.manuscriptId,
         userId: args.userId,
         manuscriptText: args.manuscriptText,
-        promptVersion: 'story_seed_v1:complete_scaffold',
+        promptVersion: 'story_map_seed_v1:complete_scaffold',
         model: 'seed_scaffold_factory',
       }),
       content: storySeed,

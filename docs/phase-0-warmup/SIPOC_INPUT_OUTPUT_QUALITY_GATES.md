@@ -14,7 +14,7 @@ Every phase must declare its minimum usable input and its minimum acceptable out
 | Phase / Process | Supplier | Input | Process | Output | Customer |
 |---|---|---|---|---|---|
 | Phase 0 Warmup | Canon docs / benchmarks | Manifest + what-not-to-do + benchmark refs | Load compact doctrine | Warmup context | SEED generation |
-| SEED | Warmup + manuscript metadata | Manuscript profile + benchmark targets | Build provisional scaffolds | story_seed_v1 + evaluation_seed_v1 | Phase 1A |
+| SEED | Warmup + manuscript metadata | Manuscript profile + benchmark targets | Build provisional scaffolds | story_map_seed_v1 + evaluation_seed_v1 | Phase 1A |
 | Seed Completeness Gate | SEED | Two seed artifacts | Validate completeness | seed_fit_gap_report_v1 | Phase 1A or regeneration |
 | Phase 1A | Manuscript + seeds | Text + seed baselines | Extract nine Story Ledger layers | pass1a_story_layer_v1 | Story Layer Quality Gate |
 | Story Layer Quality Gate | Phase 1A | Generated layers + benchmarks | Validate per-layer quality | ledger_quality_report_v1 | Review Gate |
@@ -68,7 +68,7 @@ Every phase must declare its minimum usable input and its minimum acceptable out
 ## Required outputs
 
 ```text
-story_seed_v1
+story_map_seed_v1
 evaluation_seed_v1
 ```
 
@@ -76,7 +76,7 @@ evaluation_seed_v1
 
 | Metric | Minimum |
 |---|---|
-| story_seed_v1 exists | yes |
+| story_map_seed_v1 exists | yes |
 | evaluation_seed_v1 exists | yes |
 | all 9 Story Ledger layer scaffolds present | yes |
 | all candidate input collections present | yes |
@@ -92,7 +92,7 @@ evaluation_seed_v1
 
 ## Required inputs
 
-- story_seed_v1
+- story_map_seed_v1
 - evaluation_seed_v1
 
 ## Required output
@@ -117,7 +117,7 @@ seed_fit_gap_report_v1
 ## Required inputs
 
 - Manuscript text.
-- Complete story_seed_v1.
+- Complete story_map_seed_v1.
 - Complete evaluation_seed_v1.
 - Benchmark context.
 

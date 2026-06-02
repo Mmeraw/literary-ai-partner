@@ -269,11 +269,23 @@ OUTPUT FORMAT: Valid JSON only. No markdown. No prose.
       "negative_knowledge": []
     }
   ],
+  "seed_validation": [
+    {
+      "seed_entity_name": "Entity Name From Seed",
+      "status": "confirmed | absent_this_chunk | corrected | merged",
+      "evidence_coordinate": "chapter/section/paragraph reference or null",
+      "corrected_name": "null or corrected name if status=corrected",
+      "correction_evidence": "null or manuscript evidence for correction",
+      "merged_with": "null or name of entity this was merged with"
+    }
+  ],
   "prompt_version": "${PASS1A_PROMPT_VERSION}",
   "generated_at": "<ISO 8601 timestamp>"
 }
 
-Note: do NOT emit a "model" field.`;
+Note: do NOT emit a "model" field.
+If SEED CONTEXT is provided, you MUST include the "seed_validation" array with one entry per seed entity.
+If no seed context is provided, omit the "seed_validation" array.`;
 
 export function buildPass1aUserPrompt(params: {
   manuscriptText: string;
@@ -284,7 +296,7 @@ export function buildPass1aUserPrompt(params: {
 }): string {
   const seedBlock =
     typeof params.seedContextBlock === 'string' && params.seedContextBlock.trim().length > 0
-      ? `\n\nSEED CONTEXT (NON-AUTHORITATIVE HYPOTHESES — VERIFY AGAINST CHUNK EVIDENCE):\n${params.seedContextBlock}`
+      ? `\n\n${params.seedContextBlock}`
       : '';
 
   return `Sweep this chunk (index ${params.chunkIndex}) of "${params.title}" (${params.workType}) for ALL character evidence and threat-bearing story forces.
