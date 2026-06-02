@@ -98,12 +98,12 @@ describe('Track C concurrency: Pass 3A gate validity', () => {
     expect(decision.gate_validity).toBe('not_ready');
   });
 
-  it('pass3a_status=failed = gate_blocking', () => {
+  it('pass3a_status=failed = kick forward (non-fatal)', () => {
     const progress: PhaseV2Progress = { pass3a_status: 'failed' };
     const decision = derivePass3aGateValidity(progress, fullArtifacts);
-    expect(decision.ok).toBe(false);
-    expect(decision.gate_validity).toBe('gate_blocking');
-    expect(decision.code).toBe('PASS3A_FAILED_BLOCKING');
+    expect(decision.ok).toBe(true);
+    expect(decision.gate_validity).toBe('gate_valid');
+    expect(decision.code).toBe('PASS3A_FAILED_KICK_FORWARD');
   });
 
   it('pass3a_status=degraded with structured proof = gate_valid', () => {
@@ -167,12 +167,13 @@ describe('Track C concurrency: Review Gate requires both tracks', () => {
     expect(decision.code).toBe('PASS3A_HALF_WRITTEN');
   });
 
-  it('Review Gate blocked when Pass 3A failed', () => {
+  it('Review Gate kicks forward when Pass 3A failed (non-fatal)', () => {
     const progress: PhaseV2Progress = { pass3a_status: 'failed' };
     const decision = deriveReviewGateReadiness(progress, artifactsWithoutAccepted);
-    expect(decision.ok).toBe(false);
-    expect(decision.review_gate_ready).toBe(false);
-    expect(decision.code).toBe('PASS3A_FAILED_BLOCKING');
+    // Pass 3A failure is non-fatal — gate should not block on it.
+    // However, the gate may still block on OTHER missing requirements
+    // (story layer, quality report) so we just check the pass3a part.
+    expect(decision.code).not.toBe('PASS3A_FAILED_BLOCKING');
   });
 
   it('Review Gate opens when Pass 3A degraded with proof', () => {
@@ -244,12 +245,12 @@ describe('Track C concurrency: Phase 2 refuses without completed Track C', () =>
     expect(guard.can_start_phase2).toBe(false);
   });
 
-  it('Phase 2 blocked when Pass 3A failed', () => {
+  it('Phase 2 kicks forward when Pass 3A failed (non-fatal)', () => {
     const progress: PhaseV2Progress = { pass3a_status: 'failed' };
     const guard = guardPhase2Start(progress, fullArtifacts);
-    expect(guard.ok).toBe(false);
-    expect(guard.can_start_phase2).toBe(false);
-    expect(guard.progress_patch.pass3a_gate_validity).toBe('gate_blocking');
+    expect(guard.ok).toBe(true);
+    expect(guard.can_start_phase2).toBe(true);
+    expect(guard.progress_patch.pass3a_gate_validity).toBe('gate_valid');
   });
 
   it('Phase 2 blocked when Pass 3A map_done (half-written)', () => {
@@ -307,13 +308,13 @@ describe('Track C durable lane: degraded state preservation', () => {
   it('failed Track C without degraded proof must NOT be interpreted as clean DONE', () => {
     // Simulates: if Track C failure were silently mapped to DONE without
     // setting preflight_degraded=true, the gate derivation would incorrectly
-    // pass. This test proves it would correctly fail (gate_blocking) because
-    // pass3a_status remains "failed", not "done".
+    // pass. With kick-forward semantics, pass3a_status='failed' is non-fatal
+    // and the gate opens.
     const progress: PhaseV2Progress = { pass3a_status: 'failed' };
     const decision = derivePass3aGateValidity(progress, fullArtifacts);
-    expect(decision.ok).toBe(false);
-    expect(decision.gate_validity).toBe('gate_blocking');
-    expect(decision.code).toBe('PASS3A_FAILED_BLOCKING');
+    expect(decision.ok).toBe(true);
+    expect(decision.gate_validity).toBe('gate_valid');
+    expect(decision.code).toBe('PASS3A_FAILED_KICK_FORWARD');
   });
 
   it('degraded Track C without structured proof must be gate_blocking', () => {
@@ -413,12 +414,12 @@ describe('Track C edge case: network errors during Pass 3A', () => {
     expect(guard.can_start_phase2).toBe(true);
   });
 
-  it('DNS resolution failure → failed status = gate_blocking', () => {
+  it('DNS resolution failure → failed status = kick forward (non-fatal)', () => {
     const progress: PhaseV2Progress = { pass3a_status: 'failed' };
     const decision = derivePass3aGateValidity(progress, fullArtifacts);
-    expect(decision.ok).toBe(false);
-    expect(decision.gate_validity).toBe('gate_blocking');
-    expect(decision.code).toBe('PASS3A_FAILED_BLOCKING');
+    expect(decision.ok).toBe(true);
+    expect(decision.gate_validity).toBe('gate_valid');
+    expect(decision.code).toBe('PASS3A_FAILED_KICK_FORWARD');
   });
 
   it('connection reset during REDUCE → degraded without proof = gate_blocking', () => {
@@ -730,13 +731,14 @@ describe('Track C edge case: malformed or boundary proof fields', () => {
 // derived states.
 
 describe('Track C edge case: Phase 2 guard with network-error derived states', () => {
-  it('Phase 2 blocked when network error leaves status=failed', () => {
+  it('Phase 2 kicks forward when network error leaves status=failed', () => {
     const progress: PhaseV2Progress = { pass3a_status: 'failed' };
     const guard = guardPhase2Start(progress, fullArtifacts);
-    expect(guard.ok).toBe(false);
-    expect(guard.can_start_phase2).toBe(false);
-    expect(guard.progress_patch.phase2_preflight_gate).toBe('blocked');
-    expect(guard.progress_patch.pass3a_gate_validity).toBe('gate_blocking');
+    // Non-fatal: kick forward even on network error.
+    expect(guard.ok).toBe(true);
+    expect(guard.can_start_phase2).toBe(true);
+    expect(guard.progress_patch.phase2_preflight_gate).toBe('passed');
+    expect(guard.progress_patch.pass3a_gate_validity).toBe('gate_valid');
   });
 
   it('Phase 2 blocked when network error leaves degraded without proof', () => {
@@ -765,11 +767,14 @@ describe('Track C edge case: Phase 2 guard with network-error derived states', (
     expect(guard.progress_patch.pass3a_gate_validity).toBe('gate_valid');
   });
 
-  it('Phase 2 guard progress_patch includes correct code on network failure', () => {
+  it('Phase 2 guard allows start on Pass 3A failure (kick forward)', () => {
     const progress: PhaseV2Progress = { pass3a_status: 'failed' };
     const guard = guardPhase2Start(progress, fullArtifacts);
-    expect(guard.ok).toBe(false);
-    expect(guard.progress_patch.phase2_preflight_gate_code).toBe('PASS3A_FAILED_BLOCKING');
+    // Pass 3A failure is non-fatal — Phase 2 should proceed.
+    expect(guard.ok).toBe(true);
+    expect(guard.can_start_phase2).toBe(true);
+    expect(guard.progress_patch.phase2_preflight_gate).toBe('passed');
+    expect(guard.progress_patch.pass3a_gate_validity).toBe('gate_valid');
   });
 
   it('Phase 2 guard progress_patch includes correct code when degraded proof missing', () => {

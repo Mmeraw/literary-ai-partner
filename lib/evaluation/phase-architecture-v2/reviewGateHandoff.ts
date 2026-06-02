@@ -97,7 +97,10 @@ export function buildReviewGateHandoff(
     };
   }
 
-  const pass3aStatus = progress.pass3a_status === 'degraded' ? 'degraded' : 'done';
+  const pass3aStatus =
+    progress.pass3a_status === 'degraded' || progress.pass3a_status === 'failed'
+      ? 'degraded'
+      : 'done';
 
   return {
     ok: true,

@@ -40,8 +40,8 @@ describe('Phase Architecture v2 — Phase 2 guard helper', () => {
     expect(result.progress_patch.phase2_preflight_gate_code).toBe('PHASE2_STORY_AUTHORITY_MISSING');
   });
 
-  it('blocks Phase 2 for missing/running/half-written/failed Pass 3A', () => {
-    for (const status of ['not_started', 'running', 'map_done', 'reduce_running', 'failed'] as const) {
+  it('blocks Phase 2 for missing/running/half-written Pass 3A (kicks forward on failed)', () => {
+    for (const status of ['not_started', 'running', 'map_done', 'reduce_running'] as const) {
       const result = guardPhase2Start(
         { pass3a_status: status },
         {
@@ -53,10 +53,18 @@ describe('Phase Architecture v2 — Phase 2 guard helper', () => {
       expect(result.ok).toBe(false);
       expect(result.can_start_phase2).toBe(false);
       expect(result.progress_patch.phase2_preflight_gate).toBe('blocked');
-      expect(['PASS3A_NOT_READY', 'PASS3A_HALF_WRITTEN', 'PASS3A_FAILED_BLOCKING']).toContain(
+      expect(['PASS3A_NOT_READY', 'PASS3A_HALF_WRITTEN']).toContain(
         result.progress_patch.phase2_preflight_gate_code,
       );
     }
+
+    // Failed = kick forward (non-fatal)
+    const failedResult = guardPhase2Start(
+      { pass3a_status: 'failed' },
+      { ...acceptedArtifacts, pass3_preflight_draft_v1: artifact('preflight') },
+    );
+    expect(failedResult.ok).toBe(true);
+    expect(failedResult.can_start_phase2).toBe(true);
   });
 
   it('blocks Phase 2 when done lacks pass3_preflight_draft_v1', () => {

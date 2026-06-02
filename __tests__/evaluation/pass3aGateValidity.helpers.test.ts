@@ -100,9 +100,8 @@ describe('Phase v2 Pass 3A helpers', () => {
         );
       }
 
-      expect(() => assertPhase2Preconditions({ pass3a_status: 'failed' }, pass3Artifact)).toThrow(
-        'PASS3A_FAILED_BLOCKING',
-      );
+      // Failed = kick forward (non-fatal), should NOT throw
+      expect(() => assertPhase2Preconditions({ pass3a_status: 'failed' }, pass3Artifact)).not.toThrow();
 
       expect(() =>
         assertPhase2Preconditions(

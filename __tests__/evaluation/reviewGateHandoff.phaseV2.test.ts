@@ -92,16 +92,15 @@ describe('Phase Architecture v2 — Review Gate handoff helper', () => {
     }
   });
 
-  it('blocks Review Gate when Pass 3A failed', () => {
+  it('kicks forward through Review Gate when Pass 3A failed (non-fatal)', () => {
     const result = buildReviewGateHandoff({ pass3a_status: 'failed' }, doneArtifacts);
 
-    expect(result.ok).toBe(false);
-    if (result.ok) return;
+    // Pass 3A failure is non-fatal — gate should open with degraded preflight.
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
 
-    expect(result.blocked.review_gate_ready).toBe(false);
-    expect(result.blocked.decision.code).toBe('PASS3A_FAILED_BLOCKING');
-    expect(result.blocked.progress.block_code).toBe('PASS3A_FAILED_BLOCKING');
-    expect(result.blocked.progress.pass3a_gate_validity).toBe('gate_blocking');
+    expect(result.decision.code).toBe('REVIEW_GATE_READY');
+    expect(result.handoff.progress.pass3a_status).toBe('degraded');
   });
 
   it('blocks Review Gate when Pass 3A is done but preflight artifact is missing', () => {
