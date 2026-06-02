@@ -78,9 +78,11 @@ describe('stage machine hard-stop guards', () => {
     });
   });
 
-  it('rejects missing or duplicate canonical layer keys', () => {
-    expect(forbidLayer9(canonicalLayerKeys().slice(0, 7))).toMatchObject({ ok: false });
+  it('allows subset of canonical layers but rejects duplicates', () => {
+    // Short-form mode relaxed: a subset of canonical keys is valid
+    expect(forbidLayer9(canonicalLayerKeys().slice(0, 7))).toMatchObject({ ok: true });
 
+    // Duplicates are still rejected
     expect(forbidLayer9([
       ...canonicalLayerKeys().slice(0, 7),
       canonicalLayerKeys()[0],

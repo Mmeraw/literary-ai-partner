@@ -24,8 +24,14 @@ describe("PR-1: Submission scope governance", () => {
       expect(profile.confidenceCapSummary).toBe("MODERATE");
     });
 
-    it("classifies 2000-5999 as standard_chapter", () => {
+    it("classifies 1000-3999 as light_chapter", () => {
       const text = Array(3500).fill("word").join(" ");
+      const profile = classifySubmissionScope(text, 1);
+      expect(profile.inputScale).toBe("light_chapter");
+    });
+
+    it("classifies 4000-7000 as standard_chapter", () => {
+      const text = Array(5000).fill("word").join(" ");
       const profile = classifySubmissionScope(text, 1);
       expect(profile.inputScale).toBe("standard_chapter");
     });
@@ -47,7 +53,7 @@ describe("PR-1: Submission scope governance", () => {
     it("reports correct scopePolicyVersion", () => {
       const text = Array(500).fill("word").join(" ");
       const profile = classifySubmissionScope(text, 1);
-      expect(profile.scopePolicyVersion).toBe("v2");
+      expect(profile.scopePolicyVersion).toBe("v3-mode-aware");
     });
   });
 
