@@ -1,15 +1,9 @@
 /**
  * POST /api/evaluations/[jobId]/polish
  *
- * Triggers the Polish Pass for a completed evaluation.
- * No charge — lightweight surface scan for grammar, passive voice, adverbs,
- * punctuation, repetition, spelling.
- *
- * Prerequisites:
- * - Evaluation must be complete (status = 'complete')
- * - User must own the manuscript
- *
- * Returns: { ok: true, findings_count: number, opportunities: [...] }
+ * Compatibility endpoint for legacy report pages. It no longer runs the full
+ * evaluation pipeline. It resolves the completed job's manuscript version and
+ * delegates to the manuscript-version Surface Polish pathway.
  */
 
 import { NextResponse } from "next/server";
@@ -17,13 +11,11 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getAuthenticatedUser } from "@/lib/supabase/server";
 import { getDevHeaderActor } from "@/lib/auth/devHeaderActor";
 import {
-  runPolishPass,
-  polishFindingsToOpportunities,
-} from "@/lib/evaluation/polishPass";
-import { upsertEvaluationArtifact } from "@/lib/evaluation/artifactPersistence";
-import { getManuscriptText } from "@/lib/manuscripts/chunks";
+  SurfacePolishPathwayError,
+  runSurfacePolishForManuscriptVersion,
+} from "@/lib/evaluation/polishPathway";
 
-export const maxDuration = 300; // 5 minutes — Polish Pass may need time for long manuscripts
+export const maxDuration = 300;
 
 export async function POST(
   req: Request,
@@ -33,12 +25,10 @@ export async function POST(
     const { jobId } = ctx.params;
     const supabase = createAdminClient();
 
-    // Auth
     const actor = getDevHeaderActor(req);
-    let userId: string | null = null;
-    if (actor) {
-      userId = actor.userId;
-    } else {
+    let userId: string | null = actor?.userId ?? null;
+
+    if (!userId) {
       const authUser = await getAuthenticatedUser();
       if (!authUser) {
         return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
@@ -46,12 +36,11 @@ export async function POST(
       userId = authUser.id;
     }
 
-    // Fetch job and verify ownership + completion
     const { data: job, error: jobErr } = await supabase
       .from("evaluation_jobs")
-      .select("id, status, manuscript_id, user_id")
+      .select("id, status, manuscript_id, manuscript_version_id, user_id")
       .eq("id", jobId)
-      .single();
+      .maybeSingle();
 
     if (jobErr || !job) {
       return NextResponse.json({ ok: false, error: "Evaluation not found" }, { status: 404 });
@@ -68,89 +57,28 @@ export async function POST(
       );
     }
 
-    // Fetch manuscript metadata
-    const { data: manuscript, error: msErr } = await supabase
-      .from("manuscripts")
-      .select("id, title, work_type, word_count, user_id")
-      .eq("id", job.manuscript_id)
-      .single();
-
-    if (msErr || !manuscript) {
-      return NextResponse.json(
-        { ok: false, error: "Manuscript not found" },
-        { status: 404 },
-      );
-    }
-
-    // Resolve manuscript text from file_url / storage / chunks
-    let manuscriptText: string;
-    try {
-      manuscriptText = await getManuscriptText(Number(manuscript.id));
-    } catch (textErr) {
-      console.error("[polish-pass-api] Failed to resolve manuscript text:", textErr);
-      return NextResponse.json(
-        { ok: false, error: "Manuscript text not available" },
-        { status: 404 },
-      );
-    }
-
-    if (!manuscriptText || manuscriptText.trim().length === 0) {
-      return NextResponse.json(
-        { ok: false, error: "Manuscript text not available" },
-        { status: 404 },
-      );
-    }
-
-    // Run Polish Pass
     const openaiApiKey = process.env.OPENAI_API_KEY;
     if (!openaiApiKey) {
-      return NextResponse.json(
-        { ok: false, error: "OpenAI API key not configured" },
-        { status: 500 },
-      );
+      return NextResponse.json({ ok: false, error: "OpenAI API key not configured" }, { status: 500 });
     }
 
-    const result = await runPolishPass({
-      manuscriptText,
-      title: manuscript.title || "Untitled",
-      genre: manuscript.work_type || "fiction",
-      wordCount: manuscript.word_count || manuscriptText.split(/\s+/).length,
+    const result = await runSurfacePolishForManuscriptVersion({
+      supabase,
+      userId,
+      manuscriptId: Number(job.manuscript_id),
+      versionId: job.manuscript_version_id ?? "latest",
       openaiApiKey,
+      requiredEvaluationJobId: jobId,
     });
 
-    // Convert findings to revision opportunities
-    const opportunities = polishFindingsToOpportunities(result.findings);
-
-    // Persist as artifact (append to existing ledger or create new)
-    if (opportunities.length > 0) {
-      await upsertEvaluationArtifact({
-        supabase,
-        jobId,
-        manuscriptId: Number(manuscript.id!),
-        artifactType: "polish_pass_v1",
-        artifactVersion: "polish_pass_v1",
-        sourceHash: `polish:${jobId}:${result.prompt_version}`,
-        content: {
-          findings: result.findings,
-          opportunities,
-          chunks_processed: result.chunks_processed,
-          duration_ms: result.duration_ms,
-          prompt_version: result.prompt_version,
-          generated_at: new Date().toISOString(),
-        },
-      });
-    }
-
-    return NextResponse.json({
-      ok: true,
-      findings_count: result.findings.length,
-      opportunities_count: opportunities.length,
-      chunks_processed: result.chunks_processed,
-      duration_ms: result.duration_ms,
-      opportunities,
-    });
+    return NextResponse.json(result);
   } catch (err) {
     console.error("[polish-pass-api] Error:", err);
+
+    if (err instanceof SurfacePolishPathwayError) {
+      return NextResponse.json({ ok: false, error: err.message }, { status: err.status });
+    }
+
     return NextResponse.json(
       { ok: false, error: err instanceof Error ? err.message : "Internal error" },
       { status: 500 },
