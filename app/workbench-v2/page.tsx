@@ -44,13 +44,13 @@ export default async function WorkbenchV2Page({ searchParams }: { searchParams?:
 
   return (
     <div className={`workbench-v2-route ${styles.route}`}>
-      <Link href={finalReviewHref} className="workbench-v2-final-review-link fixed right-6 top-[78px] z-50 flex h-10 w-[216px] items-center justify-center rounded border border-[#C8A96E] bg-[#1C160E] px-4 text-center text-[12px] font-bold leading-[13px] text-[#F3E3C3] shadow-lg hover:bg-[#2A2115]">
-        Final Review / Apply & Export
-      </Link>
-      <div className="workbench-v2-reset-queue fixed right-[614px] top-[78px] z-50">
+      <div className="fixed right-6 top-[78px] z-50 flex items-center gap-3">
         <ResetQueueButton evaluationJobId={evaluationJobId ?? null} />
+        <TrustedPathWorkbenchButton manuscriptId={manuscriptId ?? null} evaluationJobId={evaluationJobId ?? null} disabled={!payload.ok} />
+        <Link href={finalReviewHref} className="flex h-10 items-center justify-center rounded border border-[#C8A96E] bg-[#1C160E] px-4 text-center text-[12px] font-bold leading-[13px] text-[#F3E3C3] shadow-lg hover:bg-[#2A2115] whitespace-nowrap">
+          Final Review / Apply & Export
+        </Link>
       </div>
-      <TrustedPathWorkbenchButton manuscriptId={manuscriptId ?? null} evaluationJobId={evaluationJobId ?? null} disabled={!payload.ok} />
       <ReviseCockpitClientWorkflowV2 payload={payload} />
     </div>
   );

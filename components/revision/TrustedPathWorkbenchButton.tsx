@@ -46,7 +46,7 @@ export default function TrustedPathWorkbenchButton({ manuscriptId, evaluationJob
   const isDisabled = disabled || running || !manuscriptId || !evaluationJobId;
 
   return (
-    <div className="workbench-v2-trusted-path fixed right-[462px] top-[78px] z-50 text-center">
+    <div className="workbench-v2-trusted-path relative text-center">
       <button
         type="button"
         onClick={() => {
