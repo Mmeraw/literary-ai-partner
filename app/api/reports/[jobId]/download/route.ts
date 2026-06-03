@@ -137,9 +137,26 @@ function opportunityRows(r: ExportRecommendation): Array<[string, string]> {
   });
 }
 
-function pushTxtListBlock(lines: string[], label: string, values: unknown, options: { ordered?: boolean } = {}): void {
-  const cleaned = filterAuthorFacingTextList(values)
-    .map((item) => cleanReportText(item, ''))
+function formatRevisionQueueItem(raw: string): string {
+  const locationMatch = raw.match(/\[LOCATION:\s*([^\]]*)\]/i);
+  const operationMatch = raw.match(/\[OPERATION:\s*([^\]]*)\]/i);
+  if (!locationMatch && !operationMatch) return cleanReportText(raw, '');
+
+  const location = locationMatch ? locationMatch[1].trim() : null;
+  const operation = operationMatch ? operationMatch[1].trim() : null;
+  const remainder = cleanReportText(raw, '');
+
+  const parts: string[] = [];
+  if (location) parts.push(`Location: ${location}`);
+  if (operation) parts.push(`Operation: ${operation.charAt(0).toUpperCase()}${operation.slice(1)}`);
+  if (remainder) parts.push(`Recommendation: ${remainder}`);
+  return parts.join(' | ');
+}
+
+function pushTxtListBlock(lines: string[], label: string, values: unknown, options: { ordered?: boolean; isRevisionQueue?: boolean } = {}): void {
+  const items = filterAuthorFacingTextList(values);
+  const cleaned = items
+    .map((item) => options.isRevisionQueue ? formatRevisionQueueItem(item) : cleanReportText(item, ''))
     .filter((item) => item.length > 0);
   if (cleaned.length === 0) return;
 
@@ -203,6 +220,29 @@ function inferReportType(wordCount: number | null): string {
   return wordCount >= LONG_FORM_WORD_THRESHOLD ? 'Long-form Evaluation Report' : 'Short-form Evaluation Report';
 }
 
+function formatGeneratedDate(isoDate: string): string {
+  try {
+    const d = new Date(isoDate);
+    if (isNaN(d.getTime())) return isoDate;
+    return d.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    });
+  } catch {
+    return isoDate;
+  }
+}
+
+function readinessLabel(score: unknown): string {
+  if (typeof score !== 'number' || !Number.isFinite(score)) return '';
+  if (score >= 90) return ' — Publication Ready';
+  if (score >= 80) return ' — Market Ready';
+  if (score >= 70) return ' — Revision Recommended';
+  if (score >= 60) return ' — Significant Revision Needed';
+  return ' — Developmental Stage';
+}
+
 function stripMachineResidue(text: string): string {
   return text
     .replace(/\bindirect_speech\b/g, 'indirect speech')
@@ -222,6 +262,11 @@ function stripMachineResidue(text: string): string {
     .replace(/\bvalidator[-_]?name\b/gi, '')
     .replace(/\bprompt[-_]?mechanic\w*/gi, '')
     .replace(/\bgovernance[-_]?machinery\b/gi, '')
+    .replace(/\[LOCATION:\s*[^\]]*\]\s*/gi, '')
+    .replace(/\[OPERATION:\s*[^\]]*\]\s*/gi, '')
+    .replace(/\[PRIORITY:\s*[^\]]*\]\s*/gi, '')
+    .replace(/\[SEVERITY:\s*[^\]]*\]\s*/gi, '')
+    .replace(/\[CONFIDENCE:\s*[^\]]*\]\s*/gi, '')
     .replace(/\s+/g, ' ')
     .trim();
 }
@@ -301,15 +346,14 @@ function toPdfSafeText(value: unknown, fallback = '-'): string {
   return cleanReportText(value, fallback)
     .normalize('NFKC')
     .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '')
-    .replace(/[\u2018\u2019\u201A\u201B]/g, "'")
-    .replace(/[\u201C\u201D\u201E\u201F]/g, '"')
-    .replace(/[\u2013\u2014\u2212]/g, '-')
-    .replace(/\u2022/g, '-')
-    .replace(/\u2122/g, '(TM)')
-    .replace(/\u00AE/g, '(R)')
-    .replace(/\u00A9/g, '(C)')
     .replace(/[\u00A0\xA0]/g, ' ')
-    .replace(/[^\x09\x0A\x0D\x20-\x7E\xA1-\xFF]/g, '?')
+    // Preserve smart typography for WinAnsiEncoding-compatible chars:
+    // \u2018/\u2019 = curly single quotes, \u201C/\u201D = curly double quotes,
+    // \u2013 = en-dash, \u2014 = em-dash, \u2122 = ™, \u00AE = ®, \u00A9 = ©
+    // Only strip truly unsupported chars (above Latin Extended-B / outside WinAnsi)
+    .replace(/[\u201A\u201B]/g, '\u2018')
+    .replace(/[\u201E\u201F]/g, '\u201C')
+    .replace(/\u2212/g, '\u2013')
     .trim();
 }
 
@@ -320,8 +364,8 @@ function buildMetadata(result: ExportableResult, title: string | null, dream: Lo
   const genre = result.metrics?.manuscript?.genre ?? null;
   return {
     displayTitle,
-    generatedAt: result.generated_at,
-    score: scoreLabel(result.overview.overall_score_0_100, 100),
+    generatedAt: formatGeneratedDate(result.generated_at),
+    score: `${scoreLabel(result.overview.overall_score_0_100, 100)}${readinessLabel(result.overview.overall_score_0_100)}`,
     verdict: result.overview.verdict.toUpperCase(),
     wordCount,
     estimatedPages: estimatePages(wordCount),
@@ -400,10 +444,10 @@ function appendDreamTxtSections(lines: string[], dream: LongformDreamDocument): 
     push(sub);
     dream.criterion_analyses.forEach((a) => {
       push('');
-      push(`${a.key}—${a.score}/10 (${formatConfidenceLabel(a.confidence)})`);
+      push(`${getCriterionDisplayLabel(a.key)}—${a.score}/10 (${formatConfidenceLabel(a.confidence)})`);
       pushTxtListBlock(lines, 'What is working', a.fit_evidence);
       pushTxtListBlock(lines, 'What weakens impact', a.gap_evidence);
-      pushTxtListBlock(lines, 'Revision queue', a.revision_queue, { ordered: true });
+      pushTxtListBlock(lines, 'Revision queue', a.revision_queue, { ordered: true, isRevisionQueue: true });
     });
   }
 
@@ -1024,7 +1068,7 @@ async function buildPdfReport(result: ExportableResult, title: string | null, jo
             revItems.forEach((item, idx) => {
               ensureSpace(35);
               doc.font('Helvetica').fontSize(10).fillColor(RG.textPrimary).text(
-                `  ${idx + 1}. ${toPdfSafeText(item)}`,
+                `  ${idx + 1}. ${toPdfSafeText(formatRevisionQueueItem(item))}`,
                 ml, doc.y,
                 { width: contentWidth, indent: 8, lineGap: 2 },
               );
@@ -1505,7 +1549,7 @@ async function buildDocx(result: ExportableResult, title: string | null, jobId: 
         children.push(new Paragraph({
           spacing: { before: 160, after: 60 },
           children: [
-            new TextRun({ text: `${a.key}`, bold: true, size: 22, color: RG.textPrimary.replace('#', ''), font: 'Georgia' }),
+            new TextRun({ text: `${getCriterionDisplayLabel(a.key)}`, bold: true, size: 22, color: RG.textPrimary.replace('#', ''), font: 'Georgia' }),
             new TextRun({ text: ` — ${a.score}/10`, bold: true, size: 20, color: docxScoreColor(a.score).replace('#', ''), font: 'Calibri' }),
             new TextRun({ text: ` (${formatConfidenceLabel(a.confidence)})`, size: 18, color: confidenceColor(a.confidence).replace('#', ''), font: 'Calibri' }),
           ],
@@ -1538,7 +1582,7 @@ async function buildDocx(result: ExportableResult, title: string | null, jobId: 
           revItems.forEach((item, idx) => {
             children.push(new Paragraph({
               spacing: { after: 40 },
-              children: [new TextRun({ text: `  ${idx + 1}. ${cleanReportText(item)}`, size: 19, color: RG.textPrimary.replace('#', ''), font: 'Calibri' })],
+              children: [new TextRun({ text: `  ${idx + 1}. ${formatRevisionQueueItem(item)}`, size: 19, color: RG.textPrimary.replace('#', ''), font: 'Calibri' })],
             }));
           });
         }
