@@ -616,21 +616,23 @@ export default async function EvaluationReportPage({
   const hasConfirmedMode = Boolean(artifact?.confirmed_mode);
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen" style={{ backgroundColor: '#F8F6F1' }}>
       <main className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
       <div className="mb-4 flex items-start justify-between gap-4">
         <div className="min-w-0">
           <div className="flex items-center gap-3 flex-wrap">
-            <h1 className="text-2xl font-bold text-gray-900">Evaluation Report</h1>
-            <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
-              job.status === "complete" ? "bg-green-100 text-green-800" :
-              job.status === "failed" ? "bg-red-100 text-red-800" :
-              "bg-blue-100 text-blue-800"
-            }`}>
+            <h1 className="font-rg-serif text-2xl font-bold text-stone-950 sm:text-3xl">Evaluation Report</h1>
+            <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold tracking-wide ${
+              job.status === "complete" ? "text-stone-800" :
+              job.status === "failed" ? "bg-red-50 text-red-800 border border-red-200" :
+              "text-stone-700"
+            }`}
+            style={job.status === "complete" ? { backgroundColor: '#F2EFEA', border: '1px solid #A98E4A' } : job.status !== "failed" ? { backgroundColor: '#F2EFEA', border: '1px solid #D6D0C4' } : undefined}
+            >
               {job.status === "complete" ? "✓ Report ready" : job.status === "failed" ? "⚠ Needs attention" : "⟳ In progress"}
             </span>
           </div>
-          <p className="mt-1 text-lg font-semibold text-gray-900">{displayTitle}</p>
+          <p className="mt-1 text-lg font-semibold text-stone-900">{displayTitle}</p>
           {manuscriptTitle && chapterTitle && manuscriptTitle !== chapterTitle && (
             <p className="text-sm text-gray-600">{manuscriptTitle}</p>
           )}
@@ -645,7 +647,7 @@ export default async function EvaluationReportPage({
         </div>
         <div className="flex items-center gap-3 shrink-0">
           {isComplete && <DownloadReportButton jobId={jobId} />}
-          <Link href="/evaluate" className="text-sm text-blue-600 hover:text-blue-700 underline">
+          <Link href="/evaluate" className="text-sm font-medium text-stone-600 hover:text-stone-900 underline underline-offset-2">
             Back to Evaluate
           </Link>
         </div>
@@ -750,16 +752,16 @@ export default async function EvaluationReportPage({
             </div>
           </section>
         ) : (
-        <section className="rounded-lg border bg-white p-5">
-          <h2 className="text-lg font-semibold text-gray-900">Report not ready yet</h2>
-          <p className="mt-2 text-sm text-gray-600">
+        <section className="rounded-xl border border-stone-200 bg-white p-5 shadow-sm">
+          <h2 className="font-rg-serif text-lg font-semibold text-stone-900">Report not ready yet</h2>
+          <p className="mt-2 text-sm leading-relaxed text-stone-600">
             This evaluation hasn&apos;t completed. Once the status is &quot;complete,&quot; your
             report will appear here automatically.
           </p>
           <div className="mt-4">
             <Link
               href="/evaluate"
-              className="inline-flex rounded-md border border-gray-400 px-3 py-2 text-sm font-medium text-gray-900"
+              className="inline-flex rounded-md border border-stone-300 bg-white px-4 py-2 text-sm font-semibold text-stone-800 shadow-sm transition-colors hover:bg-stone-50"
             >
               Return to job list
             </Link>
