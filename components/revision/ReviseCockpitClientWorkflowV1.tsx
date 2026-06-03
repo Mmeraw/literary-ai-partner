@@ -469,10 +469,7 @@ export default function ReviseCockpitClientWorkflowV1({ payload }: { payload: Wo
             <p className="text-[10px] uppercase tracking-[0.2em] text-[#C8A96E]">Revision Cockpit · up to 100 prioritized opportunities per pass</p>
             <h1 className="truncate text-sm font-semibold">{payload.manuscriptTitle}</h1>
           </div>
-          <div className="flex flex-wrap justify-end gap-2 text-[11px]">
-            <span className="rounded border border-[#C8A96E] bg-[#C8A96E]/10 px-2 py-1 font-medium">Queue {filtered.length ? activeIndex + 1 : 0}/{filtered.length}</span>
-            {message && <span className="rounded border border-[#5D4C31] px-2 py-1 text-[#A9987D]">{message}</span>}
-          </div>
+          {message && <div className="flex flex-wrap justify-end gap-2 text-[11px]"><span className="rounded border border-[#5D4C31] px-2 py-1 text-[#A9987D]">{message}</span></div>}
         </header>
 
         <nav className="flex shrink-0 items-center gap-1 border-b border-[#2E261A] bg-[#110D07] px-4 py-1.5">
@@ -486,6 +483,10 @@ export default function ReviseCockpitClientWorkflowV1({ payload }: { payload: Wo
         <section className="grid min-h-0 flex-1 overflow-hidden xl:grid-cols-[310px_minmax(0,1fr)]">
           <aside className="flex min-h-0 flex-col border-r border-[#2E261A] bg-[#110D07]">
             <div className="space-y-2 border-b border-[#2E261A] p-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-[11px] uppercase tracking-[0.18em] text-[#C8A96E]">Search Queue</p>
+                <span className="rounded border border-[#C8A96E]/70 bg-[#C8A96E]/10 px-2 py-1 text-[11px] font-semibold text-[#F3E3C3]">Queue {filtered.length ? activeIndex + 1 : 0}/{filtered.length}</span>
+              </div>
               <input value={filters.search} onChange={(event) => setFilters((current) => ({ ...current, search: event.target.value }))} placeholder="Search queue" className="h-8 w-full rounded border border-[#3A3022] bg-[#0D0A05] px-2 text-xs" />
               <div className="grid grid-cols-2 gap-2">
                 <select value={filters.priority} onChange={(event) => setFilters((current) => ({ ...current, priority: event.target.value as Filters["priority"] }))} className="h-8 rounded border border-[#3A3022] bg-[#0D0A05] px-2 text-xs">
