@@ -85,24 +85,71 @@ export default function SeoProofPage({
   pdfStatus = "PDF coming soon. Add the quality-gated report to /public/samples when ready.",
   faqs = [],
 }: SeoProofPageProps) {
-  const jsonLd = {
-    "@context": "https://schema.org",
-    "@type": "WebPage",
-    name: title,
-    description: subtitle,
-    url: `${siteUrl}${urlPath}`,
-    isPartOf: {
+  const pageUrl = `${siteUrl}${urlPath}`;
+  const graph: Array<Record<string, unknown>> = [
+    {
+      "@type": "WebPage",
+      "@id": `${pageUrl}#webpage`,
+      name: title,
+      description: subtitle,
+      url: pageUrl,
+      isPartOf: { "@id": `${siteUrl}#website` },
+      about: { "@id": `${siteUrl}#software` },
+      breadcrumb: { "@id": `${pageUrl}#breadcrumb` },
+    },
+    {
       "@type": "WebSite",
+      "@id": `${siteUrl}#website`,
       name: "RevisionGrade",
       url: siteUrl,
+      publisher: { "@id": `${siteUrl}#organization` },
     },
-    about: {
+    {
+      "@type": "Organization",
+      "@id": `${siteUrl}#organization`,
+      name: "RevisionGrade",
+      url: siteUrl,
+      slogan: "The Literary AI Partner",
+    },
+    {
       "@type": "SoftwareApplication",
+      "@id": `${siteUrl}#software`,
       name: "RevisionGrade",
       applicationCategory: "WritingApplication",
+      operatingSystem: "Web",
       description:
         "RevisionGrade is The Literary AI Partner for manuscript diagnosis, author-controlled revision, and professional submission preparation.",
+      url: siteUrl,
+      publisher: { "@id": `${siteUrl}#organization` },
     },
+    {
+      "@type": "BreadcrumbList",
+      "@id": `${pageUrl}#breadcrumb`,
+      itemListElement: [
+        { "@type": "ListItem", position: 1, name: "RevisionGrade", item: siteUrl },
+        { "@type": "ListItem", position: 2, name: title, item: pageUrl },
+      ],
+    },
+  ];
+
+  if (faqs.length > 0) {
+    graph.push({
+      "@type": "FAQPage",
+      "@id": `${pageUrl}#faq`,
+      mainEntity: faqs.map((item) => ({
+        "@type": "Question",
+        name: item.q,
+        acceptedAnswer: {
+          "@type": "Answer",
+          text: item.a,
+        },
+      })),
+    });
+  }
+
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@graph": graph,
   };
 
   return (
