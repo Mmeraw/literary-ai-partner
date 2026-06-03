@@ -63,6 +63,13 @@ const arpLinks = [
 
 const arpActiveHref = "/agent-readiness";
 
+const reviseLinks = [
+  ["Revise Queue",       "/revise"],
+  ["Revise Workbench",  "/workbench-v2"],
+];
+
+const reviseActiveHrefs = ["/revise", "/workbench-v2", "/workbench"];
+
 export default function HeaderNav() {
   const pathname = usePathname() || "/";
   const router = useRouter();
@@ -70,6 +77,7 @@ export default function HeaderNav() {
   const resourcesMenuRef = useRef(null);
   const arpMenuRef       = useRef(null);
   const sgMenuRef        = useRef(null);
+  const reviseMenuRef    = useRef(null);
 
   const [authState,     setAuthState]    = useState("loading");
   const [email,         setEmail]        = useState(null);
@@ -77,6 +85,7 @@ export default function HeaderNav() {
   const [resourcesOpen, setResourcesOpen] = useState(false);
   const [arpOpen,       setArpOpen]       = useState(false);
   const [sgOpen,        setSgOpen]        = useState(false);
+  const [reviseOpen,    setReviseOpen]    = useState(false);
   const [mobileOpen,    setMobileOpen]    = useState(false);
 
   const isAdmin  = isPipelineHealthAdminEmail(email);
@@ -103,17 +112,19 @@ export default function HeaderNav() {
     setResourcesOpen(false);
     setArpOpen(false);
     setSgOpen(false);
+    setReviseOpen(false);
   }, [pathname]);
 
   useEffect(() => {
-    if (!resourcesOpen && !arpOpen && !sgOpen) return;
+    if (!resourcesOpen && !arpOpen && !sgOpen && !reviseOpen) return;
     function handlePointerDown(e) {
       if (resourcesOpen && resourcesMenuRef.current && !resourcesMenuRef.current.contains(e.target)) setResourcesOpen(false);
       if (arpOpen      && arpMenuRef.current       && !arpMenuRef.current.contains(e.target))       setArpOpen(false);
       if (sgOpen       && sgMenuRef.current        && !sgMenuRef.current.contains(e.target))        setSgOpen(false);
+      if (reviseOpen   && reviseMenuRef.current    && !reviseMenuRef.current.contains(e.target))    setReviseOpen(false);
     }
     function handleKeyDown(e) {
-      if (e.key === "Escape") { setResourcesOpen(false); setArpOpen(false); setSgOpen(false); setMobileOpen(false); }
+      if (e.key === "Escape") { setResourcesOpen(false); setArpOpen(false); setSgOpen(false); setReviseOpen(false); setMobileOpen(false); }
     }
     document.addEventListener("pointerdown", handlePointerDown);
     document.addEventListener("keydown", handleKeyDown);
@@ -121,7 +132,7 @@ export default function HeaderNav() {
       document.removeEventListener("pointerdown", handlePointerDown);
       document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [resourcesOpen, arpOpen, sgOpen]);
+  }, [resourcesOpen, arpOpen, sgOpen, reviseOpen]);
 
   async function handleSignOut() {
     if (signingOut) return;
@@ -167,13 +178,33 @@ export default function HeaderNav() {
           {isAuthed && <NavLink href="/manuscripts">Manuscripts</NavLink>}
 
           <NavLink href="/evaluate">Evaluate</NavLink>
-          <NavLink href="/revise">Revise</NavLink>
+          <div className="relative" ref={reviseMenuRef}>
+            <button
+              type="button"
+              onClick={() => { setReviseOpen((v) => !v); setResourcesOpen(false); setArpOpen(false); setSgOpen(false); }}
+              className={reviseActiveHrefs.some(h => pathname.startsWith(h)) ? activeLinkCls : linkCls}
+              aria-expanded={reviseOpen}
+              aria-haspopup="menu"
+              aria-controls="revise-menu"
+            >
+              Revise
+            </button>
+            {reviseOpen && (
+              <div id="revise-menu" className={`${dropdownCls} w-52`} role="menu">
+                {reviseLinks.map(([label, href]) => (
+                  <Link key={href} href={href} role="menuitem" onClick={() => setReviseOpen(false)} className={dropdownItemCls}>
+                    {label}
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
 
           {isAuthed ? (
             <div className="relative" ref={arpMenuRef}>
               <button
                 type="button"
-                onClick={() => { setArpOpen((v) => !v); setResourcesOpen(false); setSgOpen(false); }}
+                onClick={() => { setArpOpen((v) => !v); setResourcesOpen(false); setSgOpen(false); setReviseOpen(false); }}
                 className={arpActive ? activeLinkCls : linkCls}
                 aria-expanded={arpOpen}
                 aria-haspopup="menu"
@@ -198,7 +229,7 @@ export default function HeaderNav() {
           <div className="relative" ref={sgMenuRef}>
             <button
               type="button"
-              onClick={() => { setSgOpen((v) => !v); setArpOpen(false); setResourcesOpen(false); }}
+              onClick={() => { setSgOpen((v) => !v); setArpOpen(false); setResourcesOpen(false); setReviseOpen(false); }}
               className="text-xs tracking-widest uppercase font-rg-mono transition-colors duration-150 hover:opacity-80"
               style={{ color: "#FF0000" }}
               aria-expanded={sgOpen}
@@ -221,7 +252,7 @@ export default function HeaderNav() {
           <div className="relative" ref={resourcesMenuRef}>
             <button
               type="button"
-              onClick={() => { setResourcesOpen((v) => !v); setArpOpen(false); setSgOpen(false); }}
+              onClick={() => { setResourcesOpen((v) => !v); setArpOpen(false); setSgOpen(false); setReviseOpen(false); }}
               className={resourcesActive ? activeLinkCls : linkCls}
               aria-expanded={resourcesOpen}
               aria-haspopup="menu"
@@ -287,7 +318,8 @@ export default function HeaderNav() {
             {isAuthed && <MobileLink href="/dashboard">Dashboard</MobileLink>}
             {isAuthed && <MobileLink href="/manuscripts">Manuscripts</MobileLink>}
             <MobileLink href="/evaluate">Evaluate</MobileLink>
-            <MobileLink href="/revise">Revise</MobileLink>
+            <MobileLink href="/revise">Revise Queue</MobileLink>
+            <MobileLink href="/workbench-v2">Revise Workbench</MobileLink>
             <MobileLink href="/agent-readiness">Agent Readiness&#8482;</MobileLink>
             <MobileLink href="/storygate-studio">Storygate Studio&#8482;</MobileLink>
             <MobileLink href="/resources">Resources</MobileLink>
