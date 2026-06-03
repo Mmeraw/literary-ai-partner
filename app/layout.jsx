@@ -1,4 +1,5 @@
 // app/layout.jsx
+import { Suspense } from "react";
 import "./globals.css";
 import "./mobile-responsive-guard.css";
 import HeaderNav from "../components/HeaderNav";
@@ -15,18 +16,18 @@ export const metadata = {
 export default function RootLayout({ children }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      {(
-        <body
-          className="overflow-x-hidden antialiased bg-rg-ink text-rg-cream font-rg-serif"
-          suppressHydrationWarning
-        >
-          <ReportColorSystemHydrator />
+      <body
+        className="overflow-x-hidden antialiased bg-rg-ink text-rg-cream font-rg-serif"
+        suppressHydrationWarning
+      >
+        <ReportColorSystemHydrator />
+        <Suspense fallback={null}>
           <SiteAnalyticsTracker />
-          <HeaderNav />
-          <main>{children}</main>
-          <SiteFooter />
-        </body>
-      )}
+        </Suspense>
+        <HeaderNav />
+        <main>{children}</main>
+        <SiteFooter />
+      </body>
     </html>
   );
 }
