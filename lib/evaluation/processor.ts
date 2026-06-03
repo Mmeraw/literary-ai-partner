@@ -5425,6 +5425,7 @@ export async function processEvaluationJob(
               progress: {
                 ...progressState,
                 ...buildPhaseLogPatch(progressState, 'phase_3', 'passed', missingNow),
+                completed_units: 100,
                 phase: 'phase_3',
                 phase_status: 'complete',
                 message: 'WAVE skipped (synthesis artifact missing) — evaluation complete',
@@ -5547,6 +5548,7 @@ export async function processEvaluationJob(
             progress: {
               ...progressState,
               ...buildPhaseLogPatch(progressState, 'phase_3', 'passed', phase3Now),
+              completed_units: 100,
               phase: 'phase_3',
               phase_status: 'complete',
               message: 'WAVE readiness layer complete',
@@ -5580,6 +5582,7 @@ export async function processEvaluationJob(
             progress: {
               ...progressState,
               ...buildPhaseLogPatch(progressState, 'phase_3', 'passed', errNow),
+              completed_units: 100,
               phase: 'phase_3',
               phase_status: 'complete',
               message: 'WAVE phase error (non-fatal) — evaluation complete',
@@ -9488,6 +9491,7 @@ export async function processEvaluationJob(
               updated_at: phase3InlineNow,
               progress: {
                 ...progressState,
+                completed_units: 100,
                 phase: 'phase_3',
                 phase_status: 'complete',
                 message: 'Pass 3B synthesis + WAVE complete',
@@ -9516,6 +9520,7 @@ export async function processEvaluationJob(
             updated_at: phase2Now,
             progress: {
               ...progressState,
+              completed_units: 90,
               phase: 'phase_2',
               phase_status: 'complete',
               message: 'Evaluation complete — queued for WAVE readiness layer',
