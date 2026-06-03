@@ -6816,6 +6816,11 @@ export async function processEvaluationJob(
             .eq('id', jobId)
             .eq('status', JOB_STATUS.RUNNING);
 
+          // Reset budget timer so Track C gets a fresh invocation window.
+          // Without this, chunk processing consumes most of the 240s budget
+          // and Track C repeatedly self-chains with only seconds remaining.
+          phase1aInvocationStartMs = Date.now();
+
           // Invocation budget guard — race preflight against remaining budget.
           //
           // Promise.race note: if the timeout wins, runPass3Preflight is NOT
