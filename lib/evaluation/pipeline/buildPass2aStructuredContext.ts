@@ -192,6 +192,77 @@ function extractTimelineAnchors(chunks: ManuscriptChunkEvidence[]): Pass2aTimeli
   ].slice(0, 24);
 }
 
+// ── Chapter index extraction ─────────────────────────────────────────────────
+
+const CHAPTER_HEADING_PATTERN =
+  /\bChapter\s+(\d+)\b/gi;
+
+export type ChapterIndexEntry = {
+  chapter_number: number;
+  chunk_index: number;
+};
+
+/**
+ * Scan chunk content for chapter headings and build a chapter-to-chunk mapping.
+ * Returns entries sorted by chapter_number ascending.
+ */
+export function buildChapterIndex(
+  chunks: ManuscriptChunkEvidence[],
+): ChapterIndexEntry[] {
+  const entries: ChapterIndexEntry[] = [];
+  const seen = new Set<number>();
+
+  for (const chunk of [...chunks].sort((a, b) => a.chunk_index - b.chunk_index)) {
+    const matches = chunk.content.matchAll(CHAPTER_HEADING_PATTERN);
+    for (const match of matches) {
+      const num = parseInt(match[1], 10);
+      if (!isNaN(num) && !seen.has(num)) {
+        seen.add(num);
+        entries.push({ chapter_number: num, chunk_index: chunk.chunk_index });
+      }
+    }
+  }
+
+  return entries.sort((a, b) => a.chapter_number - b.chapter_number);
+}
+
+/**
+ * Format chapter index as a compact string for LLM prompt injection.
+ * Groups consecutive chapters in the same chunk: "Ch. 3–5 → chunk 2"
+ */
+export function formatChapterIndex(entries: ChapterIndexEntry[]): string {
+  if (entries.length === 0) return "No chapter headings detected.";
+
+  const groups: { start: number; end: number; chunk: number }[] = [];
+  let current: { start: number; end: number; chunk: number } | null = null;
+
+  for (const entry of entries) {
+    if (
+      current &&
+      entry.chunk_index === current.chunk &&
+      entry.chapter_number === current.end + 1
+    ) {
+      current.end = entry.chapter_number;
+    } else {
+      if (current) groups.push(current);
+      current = {
+        start: entry.chapter_number,
+        end: entry.chapter_number,
+        chunk: entry.chunk_index,
+      };
+    }
+  }
+  if (current) groups.push(current);
+
+  return groups
+    .map((g) => {
+      const chLabel =
+        g.start === g.end ? `Ch. ${g.start}` : `Ch. ${g.start}–${g.end}`;
+      return `${chLabel} → chunk ${g.chunk}`;
+    })
+    .join(", ");
+}
+
 export function buildPass2aStructuredContext(args: {
   manuscriptText: string;
   manuscriptChunks?: ManuscriptChunkEvidence[];

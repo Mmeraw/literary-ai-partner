@@ -32,7 +32,11 @@ import crypto from 'crypto';
 import { getEvaluationRuntimeConfig } from '@/lib/config/evaluationRuntimeConfig';
 import { isPipelineEnabled, pipelineDisabledResponse } from '@/lib/config/pipelineGuard';
 import { runPass3bLongform } from '@/lib/evaluation/pipeline/runPass3bLongform';
-import { buildPass2aStructuredContext } from '@/lib/evaluation/pipeline/buildPass2aStructuredContext';
+import {
+  buildPass2aStructuredContext,
+  buildChapterIndex,
+  formatChapterIndex,
+} from '@/lib/evaluation/pipeline/buildPass2aStructuredContext';
 import {
   stableSourceHash,
   upsertEvaluationArtifact,
@@ -624,6 +628,18 @@ async function processDreamJob(
       corrErr instanceof Error ? corrErr.message : String(corrErr));
   }
 
+  // 4c. Build chapter index from chunk content for accurate arc_map chapter ranges.
+  const chapterIndexEntries = buildChapterIndex(manuscriptChunks);
+  const chapterIndex = chapterIndexEntries.length > 0
+    ? formatChapterIndex(chapterIndexEntries)
+    : null;
+  const chapterCount = chapterIndexEntries.length > 0
+    ? chapterIndexEntries[chapterIndexEntries.length - 1].chapter_number
+    : undefined;
+  if (chapterIndex) {
+    console.log(`[DreamWorker] ${jobId}: chapter index built — ${chapterIndexEntries.length} chapters detected, max ch. ${chapterCount}`);
+  }
+
   // 5. Run Pass 3b — DREAM synthesis
   // openaiApiKey already resolved and validated by preflight (Check 4 + Check 5 ping).
   const longformDoc = await runPass3bLongform({
@@ -633,11 +649,13 @@ async function processDreamJob(
     manuscriptChunks,
     title,
     wordCount,
+    chapterCount,
     workType: manuscript?.work_type ?? 'literary_fiction',
     model,
     openaiApiKey,
     openAiTimeoutMs: DREAM_OPENAI_TIMEOUT_MS,
     authorCorrectionsBlock,
+    chapterIndex,
   });
 
   console.log(`[DreamWorker] ${jobId}: DREAM synthesis complete — persisting artifact`);

@@ -810,18 +810,18 @@ export function parsePass3Response(
     }) as Record<string, unknown> | undefined;
 
     const craftScore = rawEntry
-      ? Math.round(Number(rawEntry["craft_score"] ?? p1c?.score_0_10 ?? 5))
+      ? Math.floor(Number(rawEntry["craft_score"] ?? p1c?.score_0_10 ?? 5))
       : (p1c?.score_0_10 ?? 5);
     const editorialScore = rawEntry
-      ? Math.round(Number(rawEntry["editorial_score"] ?? p2c?.score_0_10 ?? 5))
+      ? Math.floor(Number(rawEntry["editorial_score"] ?? p2c?.score_0_10 ?? 5))
       : (p2c?.score_0_10 ?? 5);
 
     const rawFinal = rawEntry ? Number(rawEntry["final_score_0_10"]) : NaN;
     // PR-D: canonical scores are 1..10; Pass 4 rejects anything below 1.
     // Floor is 1, never 0.
     const finalScore = Number.isFinite(rawFinal)
-      ? Math.min(10, Math.max(1, Math.round(rawFinal)))
-      : Math.min(10, Math.max(1, Math.round((craftScore + editorialScore) / 2)));
+      ? Math.min(10, Math.max(1, Math.floor(rawFinal)))
+      : Math.min(10, Math.max(1, Math.floor((craftScore + editorialScore) / 2)));
 
     const delta = Math.abs(craftScore - editorialScore);
 
@@ -986,8 +986,8 @@ export function parsePass3Response(
   const overallScore0_100 = typeof rawOverall["overall_score_0_100"] === "number"
     // PR-D: overall 0-100 derives from criterion averages where each criterion >= 1,
     // so the achievable floor is 10. Floor at 10 to reflect canonical constraint.
-    ? Math.min(100, Math.max(10, Math.round(rawOverall["overall_score_0_100"])))
-    : Math.min(100, Math.max(10, Math.round(avgScore * 10)));
+    ? Math.min(100, Math.max(10, Math.floor(rawOverall["overall_score_0_100"])))
+    : Math.min(100, Math.max(10, Math.floor(avgScore * 10)));
 
   const rawVerdict = String(rawOverall["verdict"] ?? "");
   const verdict: "pass" | "revise" | "fail" =
