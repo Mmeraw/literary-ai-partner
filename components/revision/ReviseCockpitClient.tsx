@@ -596,7 +596,6 @@ export default function ReviseCockpitClient({ payload }: { payload: WorkbenchQue
           <h1 className="truncate text-sm font-semibold text-[#F8F1E6]">{payload.manuscriptTitle}</h1>
         </div>
         <div className="flex shrink-0 items-center gap-2 text-[11px] text-[#D8C6A4]">
-          <span className="rounded border border-[#5D4C31] px-2 py-1">Queue {filtered.length === 0 ? 0 : activeIndex + 1}/{filtered.length}</span>
           <span className="rounded border border-[#48603F]/70 px-2 py-1 text-[#BBD8B4]">Ready {readyForReviseCount}</span>
           <span className="rounded border border-[#7A2B1A]/60 px-2 py-1 text-[#F1B6A5]">Needs Targeting {needsTargetingCount}</span>
           <span className="rounded border border-[#C8A96E]/50 px-2 py-1 text-[#EAD8AE]">Pending {counts.pending}</span>
@@ -609,6 +608,12 @@ export default function ReviseCockpitClient({ payload }: { payload: WorkbenchQue
       <section className="grid h-[calc(100%-44px)] min-h-0 overflow-hidden xl:grid-cols-[310px_minmax(0,1fr)]">
         <aside className="flex min-h-0 flex-col border-r border-[#2E261A] bg-[#110D07]">
           <div className="space-y-2 border-b border-[#2E261A] p-2">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <p className="text-[11px] uppercase tracking-[0.18em] text-[#C8A96E]">Search Queue</p>
+              <span className="shrink-0 rounded border border-[#C8A96E]/70 bg-[#C8A96E]/10 px-2 py-1 text-[11px] font-semibold text-[#F3E3C3]">
+                Queue {filtered.length === 0 ? 0 : activeIndex + 1}/{filtered.length}
+              </span>
+            </div>
             <input value={filters.search} onChange={(event) => setFilters((current) => ({ ...current, search: event.target.value }))} placeholder="Search queue" className="h-8 w-full rounded border border-[#3A3022] bg-[#0D0A05] px-2 text-xs outline-none focus:border-[#C8A96E]" />
             <div className="grid grid-cols-2 gap-2">
               <select value={filters.priority} onChange={(event) => setFilters((current) => ({ ...current, priority: event.target.value as Filters["priority"] }))} className="h-8 rounded border border-[#3A3022] bg-[#0D0A05] px-2 text-xs">
