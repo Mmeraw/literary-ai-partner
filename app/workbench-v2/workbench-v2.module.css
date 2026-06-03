@@ -55,15 +55,20 @@
 }
 
 .route :global(main > div > nav) {
-  min-height: 1.5rem !important;
-  padding-top: 0 !important;
-  padding-bottom: 0 !important;
+  height: 0 !important;
+  min-height: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  overflow: hidden !important;
 }
 
 .route :global(main > div > nav button) {
-  padding: 0.1rem 0.48rem !important;
-  font-size: 0.66rem !important;
-  line-height: 0.76rem !important;
+  display: none !important;
+}
+
+.route :global(main > div > section) {
+  min-height: 0 !important;
+  border-top-width: 1px !important;
 }
 
 .route :global(.workbench-v2-final-review-link) {
@@ -98,10 +103,6 @@
   justify-content: center !important;
   font-size: 0.66rem !important;
   line-height: 0.78rem !important;
-}
-
-.route :global(main > div > section) {
-  min-height: 0 !important;
 }
 
 @media (max-width: 1180px) {
