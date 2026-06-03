@@ -46,14 +46,16 @@ export function deriveLessonsLearnedEnforcementDecision(
 
   if (hasErrorViolation) {
     // G-LLR-003A: Proportionality of Enforcement
-    // Post-convergence errors are downgraded to warnings — artifact-quality
-    // defects must never kill an otherwise valid evaluation.
-    const isRecoverableStage = stage === "post_convergence";
+    // Post-diagnostic and post-convergence errors are downgraded to warnings.
+    // Keyword-based rules (e.g. LLR-001) produce false positives on
+    // legitimate manuscripts; blocking the pipeline over phrasing choices
+    // in LLM output is disproportionate to the risk.
+    const isRecoverableStage = stage === "post_diagnostic" || stage === "post_convergence";
     if (isRecoverableStage) {
       return {
         action: "ALLOW_WITH_WARNINGS",
         reason:
-          "ERROR-severity violations downgraded at post_convergence (G-LLR-003A). " +
+          `ERROR-severity violations downgraded at ${stage ?? "unknown"} (G-LLR-003A). ` +
           report.results.filter((r) => !r.passed && r.severity === "ERROR").map((r) => r.rule_id).join(", "),
       };
     }
