@@ -73,12 +73,12 @@
 }
 
 .route :global(main > div > section > section > div:first-child) {
-  padding-top: 0.22rem !important;
-  padding-bottom: 0.22rem !important;
+  padding-top: 0.45rem !important;
+  padding-bottom: 0.55rem !important;
 }
 
 .route :global(main > div > section > section > div:first-child h2) {
-  margin-top: 0.12rem !important;
+  margin-top: 0.35rem !important;
   font-size: 1.03rem !important;
   line-height: 1.12rem !important;
 }

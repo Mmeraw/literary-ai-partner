@@ -525,14 +525,14 @@ export default function ReviseCockpitClientWorkflowV1({ payload }: { payload: Wo
           <section className="flex min-w-0 flex-col overflow-hidden bg-[#1C160E]">
             {active ? (
               <>
-                <div className="shrink-0 border-b border-[#2E261A] p-2">
+                <div className="shrink-0 border-b border-[#2E261A] px-2 pb-3 pt-2">
                   <div className="flex flex-wrap items-center gap-2 text-[11px] uppercase tracking-wider">
                     <span className={`rounded px-2 py-1 ${severityClass(active.severity)}`}>{active.severity}</span>
                     <span className="rounded border border-[#5A4B33] px-2 py-1">{formatCriterion(criterionOf(active))}</span>
                     <span className="rounded border border-[#5A4B33] px-2 py-1">{active.scope}</span>
                     <span className={`rounded border px-2 py-1 ${liveReady(active) ? "border-[#48603F] text-[#BBD8B4]" : "border-[#7A2B1A] text-[#F1B6A5]"}`}>{liveReady(active) ? "Ready" : "Needs Targeting"}</span>
                   </div>
-                  <h2 className="mt-1 truncate text-lg font-semibold">{active.title}</h2>
+                  <h2 className="mt-2 truncate text-lg font-semibold">{active.title}</h2>
                 </div>
 
                 <div className="min-h-0 flex-1 overflow-y-auto p-3">
