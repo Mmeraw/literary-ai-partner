@@ -182,6 +182,12 @@ function extractLeadName(raw: string): string {
     'Chapter', 'Line', 'Scene', 'Passage', 'Structural', 'Manuscript', 'Move', 'Small',
     'Fry', 'Why', 'There', 'The', 'This', 'That', 'At', 'In', 'Item', 'Concept',
     'Core', 'Premise', 'Needs', 'Targeting',
+    // Editorial instruction verbs that may be capitalized at sentence start
+    'Deepen', 'Expand', 'Clarify', 'Strengthen', 'Tighten', 'Compress', 'Heighten',
+    'Foreground', 'Surface', 'Sharpen', 'Simplify', 'Brighten', 'Replace', 'Repair',
+    'Rewrite', 'Restructure', 'Dramatize', 'Intensify', 'Underscore', 'Anchor',
+    'Ground', 'Dial', 'Trim', 'Cut', 'Develop', 'Revise', 'Remove', 'Break',
+    'Insert', 'Weave', 'Highlight', 'Show', 'Add', 'Fix',
   ]);
   for (const token of tokens) {
     const clean = token.replace(/\u2019s$/, '');
