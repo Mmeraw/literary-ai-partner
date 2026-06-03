@@ -64,11 +64,11 @@ const arpLinks = [
 const arpActiveHref = "/agent-readiness";
 
 const reviseLinks = [
-  ["Revise Queue",       "/revise"],
+  ["Revise Queue",       "/revise-queue"],
   ["Revise Workbench",  "/workbench-v2"],
 ];
 
-const reviseActiveHrefs = ["/revise", "/workbench-v2", "/workbench"];
+const reviseActiveHrefs = ["/revise", "/revise-queue", "/workbench-v2", "/workbench"];
 
 export default function HeaderNav() {
   const pathname = usePathname() || "/";
@@ -318,7 +318,7 @@ export default function HeaderNav() {
             {isAuthed && <MobileLink href="/dashboard">Dashboard</MobileLink>}
             {isAuthed && <MobileLink href="/manuscripts">Manuscripts</MobileLink>}
             <MobileLink href="/evaluate">Evaluate</MobileLink>
-            <MobileLink href="/revise">Revise Queue</MobileLink>
+            <MobileLink href="/revise-queue">Revise Queue</MobileLink>
             <MobileLink href="/workbench-v2">Revise Workbench</MobileLink>
             <MobileLink href="/agent-readiness">Agent Readiness&#8482;</MobileLink>
             <MobileLink href="/storygate-studio">Storygate Studio&#8482;</MobileLink>
