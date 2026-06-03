@@ -7,6 +7,11 @@ import { canReleaseEvaluationRead } from '@/lib/jobs/readReleaseGate';
 import { isEvaluationResultV1, type EvaluationResultV1 } from '@/schemas/evaluation-result-v1';
 import { isEvaluationResultV2, type EvaluationResultV2 } from '@/schemas/evaluation-result-v2';
 import type { LongformDreamDocument } from '@/lib/evaluation/pipeline/runPass3bLongform';
+import { getAllCanonGovernanceData, type WaveGovernanceData } from '@/lib/evaluation/waveGovernanceData';
+import type { Gate15AuditArtifact } from '@/lib/evaluation/gate15/gate15_orchestrator';
+import type { GoldenSpineArtifact } from '@/lib/evaluation/goldenSpine/goldenSpineAudit';
+import type { DialogueCanonAuditArtifact } from '@/lib/evaluation/dialogueCanon/dialogueCanonAudit';
+import type { RevisionCanonMetadata } from '@/lib/evaluation/revisionCanonMetadata';
 import {
   filterAuthorFacingTextList,
   getRenumberedAuthorFacingRevisionPlan,
@@ -418,7 +423,7 @@ function appendDreamTxtSections(lines: string[], dream: LongformDreamDocument): 
   }
 }
 
-function buildTxtReport(result: ExportableResult, title: string | null, jobId: string, dream: LongformDreamDocument | null): string {
+function buildTxtReport(result: ExportableResult, title: string | null, jobId: string, dream: LongformDreamDocument | null, waveGov: WaveGovernanceData | null = null, gate15?: Gate15AuditArtifact | null, goldenSpine?: GoldenSpineArtifact | null, dialogueCanon?: DialogueCanonAuditArtifact | null, revisionCanonMeta?: RevisionCanonMetadata | null): string {
   const lines: string[] = [];
   const sep = '='.repeat(72);
   const sub = '-'.repeat(72);
@@ -488,6 +493,114 @@ function buildTxtReport(result: ExportableResult, title: string | null, jobId: s
   });
 
   if (dream) appendDreamTxtSections(lines, dream);
+
+  if (waveGov) {
+    lines.push('');
+    lines.push(sub);
+    lines.push('WAVE GOVERNANCE & CANON EXECUTION');
+    lines.push(sub);
+    const waveStatusLabel = waveGov.planStatus === 'complete' ? 'EXECUTED'
+      : waveGov.planStatus === 'skipped' ? 'SKIPPED'
+      : waveGov.planStatus === 'failed' ? 'FAILED'
+      : waveGov.planStatus === 'timeout' ? 'TIMEOUT' : 'UNKNOWN';
+    lines.push(`WAVE Engine Status: ${waveStatusLabel}`);
+    lines.push(`Modules Run: ${waveGov.modulesRun}`);
+    lines.push(`Modules With Findings: ${waveGov.modulesWithFindings}`);
+    if (waveGov.planStatus === 'skipped' && waveGov.reasonCodes.length > 0) {
+      lines.push('Gate Failure Reasons:');
+      waveGov.reasonCodes.forEach((code) => lines.push(`  - ${code}`));
+    }
+    if (waveGov.wavePlanSummary) {
+      lines.push(`Derived Waves: ${waveGov.wavePlanSummary.derivedWaveIds.length}`);
+      lines.push(`Plan Valid: ${waveGov.wavePlanSummary.planValid ? 'Yes' : 'No'}`);
+    }
+    if (waveGov.waveRuns.length > 0) {
+      lines.push('');
+      lines.push('Wave Module Execution:');
+      waveGov.waveRuns.forEach((run) => {
+        lines.push(`  W-${String(run.waveNumber).padStart(2, '0')} | ${run.waveName} | ${run.category} | ${run.status} | ${run.changesCount} changes | ${run.durationMs > 0 ? (run.durationMs / 1000).toFixed(1) + 's' : '\u2014'}`);
+      });
+    }
+    if (waveGov.generatedAt) {
+      lines.push(`WAVE report generated: ${new Date(waveGov.generatedAt).toISOString()}`);
+    }
+  }
+
+  // Canon Governance: Gate 15
+  if (gate15) {
+    lines.push('');
+    lines.push(sub);
+    lines.push('GATE 15 — PAIRED GATE AUDIT');
+    lines.push(sub);
+    lines.push(`Overall Status: ${gate15.overallStatus}`);
+    lines.push(`Word Count: ${gate15.wordCount.toLocaleString()}`);
+    if (gate15.activatedBecause) lines.push(`Activated: ${gate15.activatedBecause}`);
+    if (gate15.skippedBecause) lines.push(`Skipped: ${gate15.skippedBecause}`);
+    if (gate15.gate15_1?.layer1) {
+      lines.push('');
+      lines.push('Gate 15.1 — Structural Purity:');
+      const l1 = gate15.gate15_1.layer1;
+      lines.push(`  Q1 Attribution Density: ${l1.attributionDensity.normalized}/1000 (threshold: ≤${l1.attributionDensity.threshold}/1000) → ${l1.attributionDensity.status}`);
+      lines.push(`  Q2 Soft-Tag Cap: ${l1.softTags.normalized}/ch (threshold: ≤${l1.softTags.threshold}/ch) → ${l1.softTags.status}`);
+      lines.push(`  Q3 Thought-Verb: ${l1.thoughtVerbs.normalized}/ch (threshold: ≤${l1.thoughtVerbs.threshold}/ch) → ${l1.thoughtVerbs.status}`);
+      lines.push(`  Q4 Physiological Filler: ${l1.physiologicalFillers.normalized}/ch (threshold: ≤${l1.physiologicalFillers.threshold}/ch) → ${l1.physiologicalFillers.status}`);
+      lines.push(`  Q5 Boundary Test: ${l1.boundaryTest.unmatchedQuotes} unmatched quotes, ${l1.boundaryTest.unmatchedItalics} unmatched italics → ${l1.boundaryTest.status}`);
+    }
+    if (gate15.gate15_2 && !gate15.gate15_2.skippedBecause) {
+      lines.push('');
+      lines.push('Gate 15.2 — Voice & Meaning Protection:');
+      lines.push(`  Protected: ${gate15.gate15_2.protectedSegments}, Trim: ${gate15.gate15_2.trimSegments}, Cut: ${gate15.gate15_2.cutSegments}`);
+      lines.push(`  Overcorrection Risk: ${gate15.gate15_2.overcorrectionRiskLevel}`);
+    }
+    gate15.summaryFindings.forEach(f => lines.push(`  • ${f}`));
+  }
+
+  // Canon Governance: Golden Spine
+  if (goldenSpine && goldenSpine.overallStatus !== 'skipped') {
+    lines.push('');
+    lines.push(sub);
+    lines.push('GOLDEN SPINE — MOTIF LEDGER');
+    lines.push(sub);
+    lines.push(`Continuity Score: ${goldenSpine.continuityScore}`);
+    lines.push(`Motifs Tracked: ${goldenSpine.motifLedger.length}`);
+    if (goldenSpine.spines.length > 0) {
+      lines.push('Narrative Spines:');
+      goldenSpine.spines.forEach(s => lines.push(`  ${s.type}: ${s.label}`));
+    }
+    goldenSpine.motifLedger.slice(0, 15).forEach(m => {
+      lines.push(`  ${m.motif} (${m.category}) | ${m.occurrences}x | ${m.firstAppearance}→${m.lastAppearance} | payoff: ${m.payoffStatus} | revision: ${m.revisionNeed}`);
+    });
+    goldenSpine.summaryFindings.forEach(f => lines.push(`  • ${f}`));
+  }
+
+  // Canon Governance: Dialogue Canon
+  if (dialogueCanon && dialogueCanon.overallStatus !== 'skipped') {
+    lines.push('');
+    lines.push(sub);
+    lines.push('DIALOGUE CANON AUDIT');
+    lines.push(sub);
+    lines.push(`Dialogue Status: ${dialogueCanon.dialogueStatus}`);
+    lines.push(`Lines: ${dialogueCanon.metrics.totalDialogueLines}, Speakers: ${dialogueCanon.metrics.uniqueSpeakers}, Attributed: ${dialogueCanon.metrics.attributedLines}`);
+    lines.push(`Exposition Leakage Rate: ${(dialogueCanon.metrics.expositionLeakageRate * 100).toFixed(1)}%`);
+    dialogueCanon.summaryFindings.forEach(f => lines.push(`  • ${f}`));
+  }
+
+  // Canon Governance: Revision Canon Metadata
+  if (revisionCanonMeta && revisionCanonMeta.overallStatus !== 'skipped') {
+    lines.push('');
+    lines.push(sub);
+    lines.push('REVISION CANON METADATA');
+    lines.push(sub);
+    lines.push(`Criteria Enriched: ${revisionCanonMeta.attributions.length}`);
+    const categories = revisionCanonMeta.attributions.reduce<Record<string, number>>((acc, a) => {
+      acc[a.canonRiskCategory] = (acc[a.canonRiskCategory] || 0) + 1;
+      return acc;
+    }, {});
+    Object.entries(categories).forEach(([cat, count]) => {
+      lines.push(`  ${cat.replace(/_/g, ' ')}: ${count} criteria`);
+    });
+    revisionCanonMeta.summaryFindings.forEach(f => lines.push(`  • ${f}`));
+  }
 
   lines.push('');
   lines.push(sep);
@@ -974,7 +1087,7 @@ function docxScoreColor(score: number | null | undefined): string {
 const DOCX_NONE_BORDER = { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' };
 const DOCX_NO_BORDERS = { top: DOCX_NONE_BORDER, bottom: DOCX_NONE_BORDER, left: DOCX_NONE_BORDER, right: DOCX_NONE_BORDER };
 
-async function buildDocx(result: ExportableResult, title: string | null, jobId: string, dream: LongformDreamDocument | null): Promise<Buffer> {
+async function buildDocx(result: ExportableResult, title: string | null, jobId: string, dream: LongformDreamDocument | null, waveGov: WaveGovernanceData | null = null, gate15?: Gate15AuditArtifact | null, goldenSpine?: GoldenSpineArtifact | null, dialogueCanon?: DialogueCanonAuditArtifact | null, revisionCanonMeta?: RevisionCanonMetadata | null): Promise<Buffer> {
   const metadata = buildMetadata(result, title, dream);
   const summaryFallback = buildSummaryFallback(result);
 
@@ -1435,6 +1548,154 @@ async function buildDocx(result: ExportableResult, title: string | null, jobId: 
     }
   }
 
+  // ── WAVE Governance & Canon Execution ──────────────────────────────
+  if (waveGov) {
+    children.push(spacer());
+    children.push(brandHeading('WAVE Governance & Canon Execution', HeadingLevel.HEADING_2));
+
+    const waveStatusLabel = waveGov.planStatus === 'complete' ? 'EXECUTED'
+      : waveGov.planStatus === 'skipped' ? 'SKIPPED'
+      : waveGov.planStatus === 'failed' ? 'FAILED'
+      : waveGov.planStatus === 'timeout' ? 'TIMEOUT'
+      : 'UNKNOWN';
+    children.push(bodyPara(`WAVE Engine Status: ${waveStatusLabel}`, { bold: true }));
+    children.push(bodyPara(`Modules Run: ${waveGov.modulesRun}  |  Modules With Findings: ${waveGov.modulesWithFindings}`));
+
+    if (waveGov.planStatus === 'skipped' && waveGov.reasonCodes.length > 0) {
+      children.push(bodyPara('Gate Failure Reasons:', { bold: true }));
+      waveGov.reasonCodes.forEach((code) => children.push(bulletPara(code)));
+      if (waveGov.lowestCriteria.length > 0) {
+        children.push(bodyPara('Criteria Below Floor (6.0):', { bold: true }));
+        waveGov.lowestCriteria.forEach((c) =>
+          children.push(bulletPara(`${c.key.replace(/_/g, ' ')}: ${c.score.toFixed(1)}`))
+        );
+      }
+    }
+
+    if (waveGov.planStatus === 'failed' || waveGov.planStatus === 'timeout') {
+      children.push(bodyPara(`Reason: ${waveGov.planReason ?? 'Unknown'}`, { color: RG.error }));
+    }
+
+    if (waveGov.wavePlanSummary) {
+      children.push(bodyPara(
+        `Wave Plan: ${waveGov.wavePlanSummary.derivedWaveIds.length} derived waves | Valid: ${waveGov.wavePlanSummary.planValid ? 'Yes' : 'No'}`
+      ));
+    }
+
+    if (waveGov.waveRuns.length > 0) {
+      children.push(spacer());
+      children.push(bodyPara('Wave Module Execution:', { bold: true }));
+      const waveTableRows = waveGov.waveRuns.map((run) => {
+        const statusText = run.status === 'completed' ? 'Completed'
+          : run.status === 'failed' ? 'Failed'
+          : run.status === 'running' ? 'Running'
+          : 'Pending';
+        return new TableRow({
+          children: [
+            new TableCell({ width: { size: 10, type: WidthType.PERCENTAGE }, borders: DOCX_NO_BORDERS, children: [
+              new Paragraph({ children: [new TextRun({ text: `W-${String(run.waveNumber).padStart(2, '0')}`, size: 18, font: 'Calibri' })] }),
+            ] }),
+            new TableCell({ width: { size: 30, type: WidthType.PERCENTAGE }, borders: DOCX_NO_BORDERS, children: [
+              new Paragraph({ children: [new TextRun({ text: run.waveName, size: 18, font: 'Calibri' })] }),
+            ] }),
+            new TableCell({ width: { size: 20, type: WidthType.PERCENTAGE }, borders: DOCX_NO_BORDERS, children: [
+              new Paragraph({ children: [new TextRun({ text: run.category, size: 18, font: 'Calibri' })] }),
+            ] }),
+            new TableCell({ width: { size: 15, type: WidthType.PERCENTAGE }, borders: DOCX_NO_BORDERS, children: [
+              new Paragraph({ children: [new TextRun({ text: statusText, size: 18, font: 'Calibri' })] }),
+            ] }),
+            new TableCell({ width: { size: 10, type: WidthType.PERCENTAGE }, borders: DOCX_NO_BORDERS, children: [
+              new Paragraph({ alignment: AlignmentType.RIGHT, children: [new TextRun({ text: String(run.changesCount), size: 18, font: 'Calibri' })] }),
+            ] }),
+            new TableCell({ width: { size: 15, type: WidthType.PERCENTAGE }, borders: DOCX_NO_BORDERS, children: [
+              new Paragraph({ alignment: AlignmentType.RIGHT, children: [new TextRun({ text: run.durationMs > 0 ? `${(run.durationMs / 1000).toFixed(1)}s` : '\u2014', size: 18, font: 'Calibri' })] }),
+            ] }),
+          ],
+        });
+      });
+
+      const headerRow = new TableRow({
+        children: ['Wave', 'Name', 'Category', 'Status', 'Changes', 'Duration'].map((h, i) =>
+          new TableCell({
+            width: { size: [10, 30, 20, 15, 10, 15][i], type: WidthType.PERCENTAGE },
+            borders: DOCX_NO_BORDERS,
+            shading: { type: ShadingType.SOLID, color: RG.cream.replace('#', '') },
+            children: [new Paragraph({ children: [new TextRun({ text: h, bold: true, size: 16, font: 'Calibri', color: RG.textMuted.replace('#', '') })] })],
+          })
+        ),
+      });
+
+      children.push(new Table({
+        rows: [headerRow, ...waveTableRows],
+        width: { size: 100, type: WidthType.PERCENTAGE },
+      }));
+    }
+
+    if (waveGov.generatedAt) {
+      children.push(bodyPara(`WAVE report generated: ${new Date(waveGov.generatedAt).toISOString()}`, { size: 16, color: RG.textFaint }));
+    }
+  }
+
+  // ── Canon Governance: Gate 15 ──────────────────────────────────────
+  if (gate15 && gate15.overallStatus !== 'SKIPPED') {
+    children.push(spacer());
+    children.push(brandHeading('Gate 15 — Paired Gate Audit', HeadingLevel.HEADING_2));
+    children.push(bodyPara(`Overall: ${gate15.overallStatus} | Word Count: ${gate15.wordCount.toLocaleString()}`));
+    if (gate15.gate15_1?.layer1) {
+      children.push(bodyPara('Gate 15.1 — Structural Purity:', { bold: true }));
+      const l1 = gate15.gate15_1.layer1;
+      children.push(bodyPara(`  Q1 Attribution Density: ${l1.attributionDensity.normalized}/1000 (≤${l1.attributionDensity.threshold}) → ${l1.attributionDensity.status}`));
+      children.push(bodyPara(`  Q2 Soft-Tag Cap: ${l1.softTags.normalized}/ch (≤${l1.softTags.threshold}) → ${l1.softTags.status}`));
+      children.push(bodyPara(`  Q3 Thought-Verb: ${l1.thoughtVerbs.normalized}/ch (≤${l1.thoughtVerbs.threshold}) → ${l1.thoughtVerbs.status}`));
+      children.push(bodyPara(`  Q4 Physiological Filler: ${l1.physiologicalFillers.normalized}/ch (≤${l1.physiologicalFillers.threshold}) → ${l1.physiologicalFillers.status}`));
+      children.push(bodyPara(`  Q5 Boundary Test: ${l1.boundaryTest.unmatchedQuotes} quotes, ${l1.boundaryTest.unmatchedItalics} italics → ${l1.boundaryTest.status}`));
+    }
+    if (gate15.gate15_2 && !gate15.gate15_2.skippedBecause) {
+      children.push(bodyPara('Gate 15.2 — Voice & Meaning Protection:', { bold: true }));
+      children.push(bodyPara(`  Protected: ${gate15.gate15_2.protectedSegments} | Trim: ${gate15.gate15_2.trimSegments} | Cut: ${gate15.gate15_2.cutSegments} | Risk: ${gate15.gate15_2.overcorrectionRiskLevel}`));
+    }
+    gate15.summaryFindings.forEach(f => children.push(bodyPara(`• ${f}`, { size: 18 })));
+  }
+
+  // ── Canon Governance: Golden Spine ────────────────────────────────
+  if (goldenSpine && goldenSpine.overallStatus !== 'skipped') {
+    children.push(spacer());
+    children.push(brandHeading('Golden Spine — Motif Ledger', HeadingLevel.HEADING_2));
+    children.push(bodyPara(`Continuity: ${goldenSpine.continuityScore} | Motifs: ${goldenSpine.motifLedger.length}`));
+    if (goldenSpine.spines.length > 0) {
+      children.push(bodyPara('Narrative Spines:', { bold: true }));
+      goldenSpine.spines.forEach(s => children.push(bodyPara(`  ${s.type}: ${s.label}`)));
+    }
+    goldenSpine.motifLedger.slice(0, 15).forEach(m => {
+      children.push(bodyPara(`  ${m.motif} (${m.category}) | ${m.occurrences}x | ${m.payoffStatus} | revision: ${m.revisionNeed}`, { size: 18 }));
+    });
+    goldenSpine.summaryFindings.forEach(f => children.push(bodyPara(`• ${f}`, { size: 18 })));
+  }
+
+  // ── Canon Governance: Dialogue Canon ──────────────────────────────
+  if (dialogueCanon && dialogueCanon.overallStatus !== 'skipped') {
+    children.push(spacer());
+    children.push(brandHeading('Dialogue Canon Audit', HeadingLevel.HEADING_2));
+    children.push(bodyPara(`Status: ${dialogueCanon.dialogueStatus} | Lines: ${dialogueCanon.metrics.totalDialogueLines} | Speakers: ${dialogueCanon.metrics.uniqueSpeakers}`));
+    children.push(bodyPara(`Attribution: ${dialogueCanon.metrics.attributedLines} attributed, ${dialogueCanon.metrics.unattributedLines} unattributed | Leakage: ${(dialogueCanon.metrics.expositionLeakageRate * 100).toFixed(1)}%`));
+    dialogueCanon.summaryFindings.forEach(f => children.push(bodyPara(`• ${f}`, { size: 18 })));
+  }
+
+  // ── Canon Governance: Revision Canon Metadata ─────────────────────
+  if (revisionCanonMeta && revisionCanonMeta.overallStatus !== 'skipped') {
+    children.push(spacer());
+    children.push(brandHeading('Revision Canon Metadata', HeadingLevel.HEADING_2));
+    children.push(bodyPara(`Criteria Enriched: ${revisionCanonMeta.attributions.length}`));
+    const categories = revisionCanonMeta.attributions.reduce<Record<string, number>>((acc, a) => {
+      acc[a.canonRiskCategory] = (acc[a.canonRiskCategory] || 0) + 1;
+      return acc;
+    }, {});
+    Object.entries(categories).forEach(([cat, count]) => {
+      children.push(bodyPara(`  ${cat.replace(/_/g, ' ')}: ${count} criteria`, { size: 18 }));
+    });
+    revisionCanonMeta.summaryFindings.forEach(f => children.push(bodyPara(`• ${f}`, { size: 18 })));
+  }
+
   // Gold divider
   children.push(new Table({
     rows: [new TableRow({
@@ -1553,10 +1814,14 @@ export async function GET(
   const result = rawResult as ExportableResult;
   const relationTitle = extractManuscriptTitle((job as { manuscripts?: unknown }).manuscripts);
   const title = relationTitle ?? result.metrics?.manuscript?.title ?? null;
-  const dream = await loadDreamDocument(admin, jobId);
+  const [dream, canonGov] = await Promise.all([
+    loadDreamDocument(admin, jobId),
+    getAllCanonGovernanceData(jobId),
+  ]);
+  const waveGov = canonGov.waveGov;
 
   if (format === 'txt') {
-    const body = buildTxtReport(result, title, jobId, dream);
+    const body = buildTxtReport(result, title, jobId, dream, waveGov, canonGov.gate15, canonGov.goldenSpine, canonGov.dialogueCanon, canonGov.revisionCanonMeta);
     return new Response(body, {
       headers: {
         'Content-Type': 'text/plain; charset=utf-8',
@@ -1597,7 +1862,7 @@ export async function GET(
     }
   }
 
-  const buffer = await buildDocx(result, title, jobId, dream);
+  const buffer = await buildDocx(result, title, jobId, dream, waveGov, canonGov.gate15, canonGov.goldenSpine, canonGov.dialogueCanon, canonGov.revisionCanonMeta);
   return new Response(new Uint8Array(buffer), {
     headers: {
       'Content-Type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',

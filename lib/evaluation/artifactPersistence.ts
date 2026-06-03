@@ -134,7 +134,34 @@ export type ArtifactType =
    * Produces RevisionOpportunity[] tagged provenance='polish_pass'.
    * User-visible: drives the Surface Polish section of the Revise workbench.
    */
-  | "polish_pass_v1";
+  | "polish_pass_v1"
+  /**
+   * Gate 15 audit — paired-gate structural purity (15.1) + voice/meaning protection
+   * (15.2) validators. Runs as non-blocking post-evaluation layer for long-form
+   * manuscripts (≥25,000 words). Does not fail the evaluation job.
+   * User-visible: drives the Gate 15 section of the Canon Governance report.
+   */
+  | "gate_15_audit_v1"
+  /**
+   * Golden Spine / motif ledger — tracks primary/secondary narrative spines,
+   * motif first-appearance, recurrence, and payoff status across manuscript.
+   * Long-form only (≥25,000 words). Non-blocking post-evaluation layer.
+   * User-visible: drives the Golden Spine section of the Canon Governance report.
+   */
+  | "golden_spine_v1"
+  /**
+   * Dialogue canon audit — structured dialogue quality assessment covering
+   * speaker differentiation, attribution purity, exposition leakage, subtext
+   * opportunity, and protected speech segments. Long-form only (≥25,000 words).
+   * Non-blocking post-evaluation layer.
+   */
+  | "dialogue_canon_audit_v1"
+  /**
+   * Revision queue canon metadata: enriches each revision criterion with
+   * source wave/gate attribution, severity justification, and canon risk
+   * classification. Long-form only (≥25,000 words). Non-blocking.
+   */
+  | "revision_canon_metadata_v1";
 
 /**
  * Compute SHA256 hex digest of input string

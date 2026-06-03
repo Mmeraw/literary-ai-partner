@@ -5531,6 +5531,38 @@ export async function processEvaluationJob(
           }
         }
 
+        // ── Canon Governance Runner (non-blocking, fire-and-forget) ──────
+        // Runs Gate 15, Golden Spine, Dialogue Canon audit, and Revision Canon Metadata after WAVE.
+        try {
+          const { runCanonGovernance } = await import('@/lib/evaluation/canonGovernanceRunner');
+          const evalCriteria = Array.isArray(evalArtifactRow?.content?.criteria)
+            ? (evalArtifactRow.content.criteria as Array<{ key?: string }>).map(c => c.key).filter((k): k is string => typeof k === 'string')
+            : [];
+          const canonResult = await Promise.race([
+            runCanonGovernance({
+              manuscriptText: manuscriptWithContent.content || '',
+              jobId,
+              manuscriptId: job.manuscript_id,
+              userId: manuscriptWithContent.user_id,
+              criteriaKeys: evalCriteria,
+              wordCount,
+            }, supabase),
+            new Promise<null>((resolve) => setTimeout(() => resolve(null), 30_000)),
+          ]);
+          if (canonResult) {
+            const layers = [
+              canonResult.gate15 ? `Gate15=${canonResult.gate15.overallStatus}` : null,
+              canonResult.goldenSpine ? `GoldenSpine=${canonResult.goldenSpine.overallStatus}` : null,
+              canonResult.dialogueCanon ? `Dialogue=${canonResult.dialogueCanon.overallStatus}` : null,
+              canonResult.revisionCanonMetadata ? `RevMeta=${canonResult.revisionCanonMetadata.overallStatus}` : null,
+            ].filter(Boolean).join(', ');
+            console.log(`[CanonGovernance/Phase3] ${jobId}: ${layers}`);
+          }
+        } catch (canonErr) {
+          console.error(`[CanonGovernance/Phase3] ${jobId}: non-fatal error`,
+            canonErr instanceof Error ? canonErr.message : String(canonErr));
+        }
+
         // WAVE outcome never blocks job completion — mark complete regardless.
         clearInterval(leaseRenewalLoopP3);
         console.log(`[Processor] ${jobId}: phase_3 WAVE complete — marking job complete`);
@@ -9483,6 +9515,37 @@ export async function processEvaluationJob(
             // WAVE never blocks completion.
             console.error(`[WAVE/Phase3-inline] ${jobId}: outer WAVE error (non-fatal)`,
               waveOuterErr instanceof Error ? waveOuterErr.message : String(waveOuterErr));
+          }
+
+          // ── Canon Governance Runner (non-blocking, fire-and-forget) ──────
+          try {
+            const { runCanonGovernance } = await import('@/lib/evaluation/canonGovernanceRunner');
+            const inlineCriteriaKeys = Array.isArray(finalScores)
+              ? (finalScores as Array<{ key?: string }>).map(c => c.key).filter((k): k is string => typeof k === 'string')
+              : [];
+            const canonResult = await Promise.race([
+              runCanonGovernance({
+                manuscriptText: manuscriptWithContent.content || '',
+                jobId: job.id,
+                manuscriptId: job.manuscript_id,
+                userId: manuscriptWithContent.user_id,
+                criteriaKeys: inlineCriteriaKeys,
+                wordCount: coverageWords,
+              }, supabase),
+              new Promise<null>((resolve) => setTimeout(() => resolve(null), 30_000)),
+            ]);
+            if (canonResult) {
+              const layers = [
+                canonResult.gate15 ? `Gate15=${canonResult.gate15.overallStatus}` : null,
+                canonResult.goldenSpine ? `GoldenSpine=${canonResult.goldenSpine.overallStatus}` : null,
+                canonResult.dialogueCanon ? `Dialogue=${canonResult.dialogueCanon.overallStatus}` : null,
+                canonResult.revisionCanonMetadata ? `RevMeta=${canonResult.revisionCanonMetadata.overallStatus}` : null,
+              ].filter(Boolean).join(', ');
+              console.log(`[CanonGovernance/Phase3-inline] ${job.id}: ${layers}`);
+            }
+          } catch (canonErr) {
+            console.error(`[CanonGovernance/Phase3-inline] ${job.id}: non-fatal error`,
+              canonErr instanceof Error ? canonErr.message : String(canonErr));
           }
 
           // Complete the job — synthesis persisted, WAVE attempted.
