@@ -526,6 +526,7 @@ export default function ReviseCockpitClientWorkflowV1({ payload }: { payload: Wo
             {active ? (
               <>
                 <div className="shrink-0 border-b border-[#2E261A] px-2 pb-3 pt-2">
+                  <p className="mb-1.5 text-[11px] uppercase tracking-[0.18em] text-[#C8A96E]">Diagnosis & Guardrails</p>
                   <div className="flex flex-wrap items-center gap-2 text-[11px] uppercase tracking-wider">
                     <span className={`rounded px-2 py-1 ${severityClass(active.severity)}`}>{active.severity}</span>
                     <span className="rounded border border-[#5A4B33] px-2 py-1">{formatCriterion(criterionOf(active))}</span>
@@ -537,7 +538,6 @@ export default function ReviseCockpitClientWorkflowV1({ payload }: { payload: Wo
 
                 <div className="min-h-0 flex-1 overflow-y-auto p-3">
                   <section className="rounded-xl border border-[#2E261A] bg-[#12100B] p-3">
-                    <p className="mb-2 text-[11px] uppercase tracking-[0.18em] text-[#C8A96E]">Diagnosis & Guardrails</p>
                     <div className="grid gap-x-4 gap-y-1 text-sm leading-5 xl:grid-cols-2">
                       <p><span className="text-[#C8A96E]">Symptom:</span> {diagnosticText(active, "symptom")}</p>
                       <p><span className="text-[#C8A96E]">Cause:</span> {diagnosticText(active, "cause")}</p>
