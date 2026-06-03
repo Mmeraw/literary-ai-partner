@@ -59,6 +59,7 @@ import {
 } from "./surfaceIntegrity";
 import { analyzeDialogueAttributionForGate } from "@/lib/evaluation/pov/analyzeDialogueAttribution";
 import { getEvaluationRuntimeConfig } from "@/lib/config/evaluationRuntimeConfig";
+import { trackCompletionCost } from "@/lib/jobs/cost";
 // PR-K (2026-05-16): Pass 3 and QualityGateV2 must use the SAME helper for
 // summary weakness enforcement. Previously Pass 3 had a local implementation
 // with "ANY mention satisfies" (.some) + slice(0,3) semantics, while the gate
@@ -577,6 +578,7 @@ export async function runPass3Synthesis(opts: RunPass3Options): Promise<Synthesi
   } finally {
     if (heartbeatInterval) clearInterval(heartbeatInterval);
   }
+  trackCompletionCost({ jobId: opts.jobId ?? "unknown", phase: "pass3_synthesis", model: selectedModel, usage: completion.usage });
   let firstChoice = completion.choices?.[0] as CompletionChoice | undefined;
   let rawContent = firstChoice?.message?.content;
   let responseText = extractResponseText(rawContent);
@@ -601,6 +603,7 @@ export async function runPass3Synthesis(opts: RunPass3Options): Promise<Synthesi
     );
     retryFired = true;
     completion = await invokePass3Completion(retryMaxTokens);
+    trackCompletionCost({ jobId: opts.jobId ?? "unknown", phase: "pass3_synthesis_retry", model: selectedModel, usage: completion.usage });
     firstChoice = completion.choices?.[0] as CompletionChoice | undefined;
     rawContent = firstChoice?.message?.content;
     responseText = extractResponseText(rawContent);

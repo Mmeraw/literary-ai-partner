@@ -36,6 +36,7 @@ import {
   OPENAI_SDK_MAX_RETRIES,
 } from "@/lib/evaluation/policy";
 import { getEvalOpenAiTimeoutMs } from "@/lib/evaluation/config";
+import { trackCompletionCost } from "@/lib/jobs/cost";
 import { JsonBoundaryError, parseJsonObjectBoundary } from "@/lib/llm/jsonParseBoundary";
 import type {
   SynthesizedCriterion,
@@ -213,6 +214,8 @@ export interface RunPass3bOptions {
   authorCorrectionsBlock?: string | null;
   /** Formatted chapter-to-chunk index string. Built from buildChapterIndex + formatChapterIndex. */
   chapterIndex?: string | null;
+  /** Job ID for cost tracking */
+  jobId?: string;
 }
 
 export type TruthfulFallbackReport = {
@@ -764,6 +767,7 @@ async function runPass3bChunked(
       ...buildOpenAIOutputTokenParam(selectedModel, 6000),
       response_format: { type: "json_object" },
     });
+    trackCompletionCost({ jobId: opts.jobId ?? "unknown", phase: `pass3b_criterion_batch_${idx}`, model: selectedModel, usage: completion.usage });
 
     const rawContent = completion.choices?.[0]?.message?.content ?? "";
     if (!rawContent.trim()) {
@@ -820,6 +824,7 @@ async function runPass3bChunked(
     ...buildOpenAIOutputTokenParam(selectedModel, 16000),
     response_format: { type: "json_object" },
   });
+  trackCompletionCost({ jobId: opts.jobId ?? "unknown", phase: "pass3b_synthesis", model: selectedModel, usage: synthesisCompletion.usage });
 
   const synthesisContent = synthesisCompletion.choices?.[0]?.message?.content ?? "";
   if (!synthesisContent.trim()) {
@@ -925,6 +930,7 @@ export async function runPass3bLongform(
       ...buildOpenAIOutputTokenParam(selectedModel, tokenBudget),
       response_format: { type: "json_object" },
     });
+    trackCompletionCost({ jobId: opts.jobId ?? "unknown", phase: "pass3b", model: selectedModel, usage: completion.usage });
 
     const rawContent = completion.choices?.[0]?.message?.content ?? "";
 

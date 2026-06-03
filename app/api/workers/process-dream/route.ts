@@ -656,6 +656,7 @@ async function processDreamJob(
     openAiTimeoutMs: DREAM_OPENAI_TIMEOUT_MS,
     authorCorrectionsBlock,
     chapterIndex,
+    jobId,
   });
 
   console.log(`[DreamWorker] ${jobId}: DREAM synthesis complete — persisting artifact`);
