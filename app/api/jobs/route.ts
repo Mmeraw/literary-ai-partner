@@ -478,6 +478,36 @@ export async function POST(req: Request) {
       );
     }
 
+    // Proactive check: block duplicate active jobs for the same manuscript before INSERT
+    // This gives a clean user-facing message instead of relying on the DB constraint error
+    {
+      const adminClient = createAdminClient();
+      const { data: activeJobs } = await adminClient
+        .from("evaluation_jobs")
+        .select("id, status")
+        .eq("manuscript_id", manuscript_id)
+        .in("status", ["queued", "running"])
+        .limit(1);
+      if (activeJobs && activeJobs.length > 0) {
+        logger.warn("Job creation blocked: active job exists for manuscript", {
+          trace_id,
+          request_id,
+          event: "api.jobs.create.active_job_conflict",
+          manuscript_id,
+          existing_job_id: activeJobs[0].id,
+        });
+        return NextResponse.json(
+          {
+            ok: false,
+            error: "An evaluation is already running or queued for this manuscript. Please wait for it to finish, cancel it, or use a different manuscript.",
+            code: "ACTIVE_JOB_CONFLICT",
+            trace_id,
+          },
+          { status: 409 }
+        );
+      }
+    }
+
     const job = await createJob({
       manuscript_id,
       user_id: userId,
@@ -566,8 +596,9 @@ export async function POST(req: Request) {
     const looksLikeJsonParseError =
       err instanceof SyntaxError || /json/i.test(details);
     const looksLikeDuplicateActiveJobConflict =
-      /duplicate key value violates unique constraint/i.test(details) &&
-      /uq_eval_jobs_active_phase1(_worktype)?/i.test(details);
+      /duplicate key value violates unique constraint/i.test(details) ||
+      /uq_eval_jobs_active/i.test(details) ||
+      /ACTIVE_JOB_CONFLICT/i.test(details);
 
     logger.error("Job creation error", {
       trace_id,
