@@ -7,6 +7,7 @@ import TrustedPathWorkbenchButton from "@/components/revision/TrustedPathWorkben
 import { buildRevisionOpportunityLedger, persistRevisionOpportunityLedger } from "@/lib/revision/revisionOpportunityLedgerArtifact";
 import { redirect } from "next/navigation";
 import { resolveWorkbenchRouteTargetForUser } from "@/lib/revision/workbenchQueue";
+import WorkbenchV2SidebarFixes from "@/components/revision/WorkbenchV2SidebarFixes";
 import styles from "./workbench-v2.module.css";
 
 export default async function WorkbenchV2Page({ searchParams }: { searchParams?: Promise<Record<string, string | string[] | undefined>> }) {
@@ -48,6 +49,7 @@ export default async function WorkbenchV2Page({ searchParams }: { searchParams?:
       </Link>
       <TrustedPathWorkbenchButton manuscriptId={manuscriptId ?? null} evaluationJobId={evaluationJobId ?? null} disabled={!payload.ok} />
       <ReviseCockpitClientWorkflowV2 payload={payload} />
+      <WorkbenchV2SidebarFixes />
     </div>
   );
 }
