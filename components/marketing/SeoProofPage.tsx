@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 
 type Cta = {
   label: string;
@@ -41,7 +42,7 @@ type SeoProofPageProps = {
 
 const siteUrl = "https://www.revisiongrade.com";
 
-function Eyebrow({ children }: { children: React.ReactNode }) {
+function Eyebrow({ children }: { children: ReactNode }) {
   return <p className="font-rg-mono text-xs uppercase tracking-[0.24em] text-rg-gold">{children}</p>;
 }
 
