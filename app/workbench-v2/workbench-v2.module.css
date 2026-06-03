@@ -72,6 +72,31 @@
   border-top-width: 1px !important;
 }
 
+.route :global(main > div > section > section > div:first-child) {
+  padding-top: 0.22rem !important;
+  padding-bottom: 0.22rem !important;
+}
+
+.route :global(main > div > section > section > div:first-child h2) {
+  margin-top: 0.12rem !important;
+  font-size: 1.03rem !important;
+  line-height: 1.12rem !important;
+}
+
+.route :global(main > div > section > section > div:nth-child(2)) {
+  padding-top: 0.35rem !important;
+  padding-bottom: 0.35rem !important;
+}
+
+.route :global(main > div > section > section > div:nth-child(2) > section:first-child) {
+  padding-top: 0.55rem !important;
+  padding-bottom: 0.55rem !important;
+}
+
+.route :global(main > div > section > section > div:nth-child(2) > section:first-child p) {
+  line-height: 1.24rem !important;
+}
+
 .route :global(.workbench-v2-final-review-link) {
   top: 57px !important;
   right: 1rem !important;
