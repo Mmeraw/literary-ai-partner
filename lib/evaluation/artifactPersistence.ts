@@ -176,12 +176,37 @@ export function stableSourceHash(params: {
   return sha256Hex(payload);
 }
 
+const TRANSIENT_ERROR_PATTERNS = [
+  "statement timeout",
+  "canceling statement",
+  "connection reset",
+  "connection refused",
+  "connection terminated",
+  "too many connections",
+  "remaining connection slots",
+  "ECONNRESET",
+  "ETIMEDOUT",
+  "ECONNREFUSED",
+  "socket hang up",
+  "network error",
+  "fetch failed",
+  "aborted",
+] as const;
+
+function isTransientError(message: string): boolean {
+  const lower = message.toLowerCase();
+  return TRANSIENT_ERROR_PATTERNS.some((p) => lower.includes(p.toLowerCase()));
+}
+
 /**
  * Upsert evaluation artifact to canonical storage
  * 
  * Uses unique(job_id, artifact_type) for idempotency.
+ * Retries up to 3 times with exponential backoff on transient DB errors
+ * (statement timeout, connection reset, etc.) so a momentary Supabase
+ * hiccup does not kill an entire evaluation.
  * 
- * Fail-closed: throws if write fails (caller must handle).
+ * Fail-closed: throws if all retries are exhausted (caller must handle).
  * 
  * @returns artifact id (uuid)
  */
@@ -201,35 +226,72 @@ export async function upsertEvaluationArtifact(params: {
     );
   }
 
-  const { data, error } = await params.supabase
-    .from("evaluation_artifacts")
-    .upsert(
-      {
-        job_id: params.jobId,
-        manuscript_id: params.manuscriptId,
-        ...(params.evaluationProjectId !== undefined
-          ? { evaluation_project_id: params.evaluationProjectId }
-          : {}),
-        artifact_type: params.artifactType,
-        content: params.content,
-        source_hash: params.sourceHash,
-        artifact_version: params.artifactVersion,
-      },
-      {
-        onConflict: "job_id,artifact_type",
-        ignoreDuplicates: false, // Allow updates (e.g., re-evaluation)
+  const MAX_RETRIES = 3;
+  const BASE_DELAY_MS = 2_000;
+
+  let lastError: Error | null = null;
+
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    if (attempt > 0) {
+      const delayMs = BASE_DELAY_MS * Math.pow(2, attempt - 1);
+      console.warn(
+        `[ArtifactPersistence] ${params.jobId}: retry ${attempt}/${MAX_RETRIES} for ${params.artifactType} after ${delayMs}ms`,
+      );
+      await new Promise((r) => setTimeout(r, delayMs));
+    }
+
+    const { data, error } = await params.supabase
+      .from("evaluation_artifacts")
+      .upsert(
+        {
+          job_id: params.jobId,
+          manuscript_id: params.manuscriptId,
+          ...(params.evaluationProjectId !== undefined
+            ? { evaluation_project_id: params.evaluationProjectId }
+            : {}),
+          artifact_type: params.artifactType,
+          content: params.content,
+          source_hash: params.sourceHash,
+          artifact_version: params.artifactVersion,
+        },
+        {
+          onConflict: "job_id,artifact_type",
+          ignoreDuplicates: false, // Allow updates (e.g., re-evaluation)
+        }
+      )
+      .select("id")
+      .single();
+
+    if (!error && data?.id) {
+      if (attempt > 0) {
+        console.log(
+          `[ArtifactPersistence] ${params.jobId}: ${params.artifactType} succeeded on retry ${attempt}`,
+        );
       }
-    )
-    .select("id")
-    .single();
+      return data.id as string;
+    }
 
-  if (error) {
-    throw new Error(`[ArtifactPersistence] Upsert failed for job_id=${params.jobId}: ${error.message}`);
+    if (error) {
+      lastError = new Error(
+        `[ArtifactPersistence] Upsert failed for job_id=${params.jobId}: ${error.message}`,
+      );
+
+      if (!isTransientError(error.message)) {
+        throw lastError;
+      }
+
+      console.warn(
+        `[ArtifactPersistence] ${params.jobId}: transient error on attempt ${attempt}: ${error.message}`,
+      );
+      continue;
+    }
+
+    lastError = new Error(
+      `[ArtifactPersistence] Upsert returned null for job_id=${params.jobId}`,
+    );
   }
 
-  if (!data?.id) {
-    throw new Error(`[ArtifactPersistence] Upsert returned null for job_id=${params.jobId}`);
-  }
-
-  return data.id as string;
+  throw lastError ?? new Error(
+    `[ArtifactPersistence] Upsert exhausted ${MAX_RETRIES} retries for job_id=${params.jobId}`,
+  );
 }
