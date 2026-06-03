@@ -57,9 +57,15 @@ export const MODEL_COMPLETION_TOKEN_CAPS: Readonly<Record<string, number>> = Obj
   "gpt-4-1106-preview": 4096,
   "gpt-4-0125-preview": 4096,
   "gpt-5": 32768,
+  "gpt-5-nano": 16384,
+  "gpt-5-mini": 16384,
   "gpt-5.1": 128000,
   "gpt-5.1-chat-latest": 128000,
   "gpt-5.1-codex-max": 128000,
+  "gpt-5.4-nano": 16384,
+  "gpt-5.4-mini": 16384,
+  "gpt-5.4": 32768,
+  "gpt-5.5": 32768,
 });
 
 /**
@@ -148,11 +154,12 @@ function resolveEnvBackedModel(envKeys: string[], overrideModel?: string): strin
  * Resolution order:
  *  1) EVAL_PASS1_MODEL
  *  2) EVAL_CHUNK_MODEL
- *  3) optional overrideModel
- *  4) canonical runtime default (EVAL_OPENAI_MODEL)
+ *  3) EVAL_CHEAP_MODEL
+ *  4) optional overrideModel
+ *  5) canonical runtime default (EVAL_OPENAI_MODEL)
  */
 export function getCanonicalPass1Model(overrideModel?: string): string {
-  return resolveEnvBackedModel(["EVAL_PASS1_MODEL", "EVAL_CHUNK_MODEL"], overrideModel);
+  return resolveEnvBackedModel(["EVAL_PASS1_MODEL", "EVAL_CHUNK_MODEL", "EVAL_CHEAP_MODEL"], overrideModel);
 }
 
 /**
@@ -161,11 +168,12 @@ export function getCanonicalPass1Model(overrideModel?: string): string {
  * Resolution order:
  *  1) EVAL_PASS2_MODEL
  *  2) EVAL_CHUNK_MODEL
- *  3) optional overrideModel
- *  4) canonical runtime default (EVAL_OPENAI_MODEL)
+ *  3) EVAL_CHEAP_MODEL
+ *  4) optional overrideModel
+ *  5) canonical runtime default (EVAL_OPENAI_MODEL)
  */
 export function getCanonicalPass2Model(overrideModel?: string): string {
-  return resolveEnvBackedModel(["EVAL_PASS2_MODEL", "EVAL_CHUNK_MODEL"], overrideModel);
+  return resolveEnvBackedModel(["EVAL_PASS2_MODEL", "EVAL_CHUNK_MODEL", "EVAL_CHEAP_MODEL"], overrideModel);
 }
 
 /**
@@ -187,11 +195,12 @@ export function getCanonicalPass3Model(overrideModel?: string): string {
  * Resolution order:
  *  1) EVAL_PASS1_MODEL / EVAL_PASS2_MODEL only when explicitly using pass-specific resolvers
  *  2) EVAL_CHUNK_MODEL (non-empty)
- *  3) optional overrideModel
- *  4) canonical runtime default (EVAL_OPENAI_MODEL)
+ *  3) EVAL_CHEAP_MODEL
+ *  4) optional overrideModel
+ *  5) canonical runtime default (EVAL_OPENAI_MODEL)
  */
 export function getCanonicalChunkModel(overrideModel?: string): string {
-  return resolveEnvBackedModel(["EVAL_CHUNK_MODEL"], overrideModel);
+  return resolveEnvBackedModel(["EVAL_CHUNK_MODEL", "EVAL_CHEAP_MODEL"], overrideModel);
 }
 
 /**
@@ -224,6 +233,45 @@ export function getCanonicalPass3FallbackModel(overrideModel?: string): string {
   }
   // Fall back to primary pass3 model when no explicit fallback is configured.
   return getCanonicalPass3Model(overrideModel);
+}
+
+/**
+ * Seed model resolver.
+ *
+ * Resolution order:
+ *  1) EVAL_SEED_MODEL
+ *  2) EVAL_CHEAP_MODEL
+ *  3) optional overrideModel
+ *  4) canonical runtime default (EVAL_OPENAI_MODEL)
+ */
+export function getCanonicalSeedModel(overrideModel?: string): string {
+  return resolveEnvBackedModel(["EVAL_SEED_MODEL", "EVAL_CHEAP_MODEL"], overrideModel);
+}
+
+/**
+ * Ledger model resolver.
+ *
+ * Resolution order:
+ *  1) EVAL_LEDGER_MODEL
+ *  2) EVAL_CHEAP_MODEL
+ *  3) optional overrideModel
+ *  4) canonical runtime default (EVAL_OPENAI_MODEL)
+ */
+export function getCanonicalLedgerModel(overrideModel?: string): string {
+  return resolveEnvBackedModel(["EVAL_LEDGER_MODEL", "EVAL_CHEAP_MODEL"], overrideModel);
+}
+
+/**
+ * Polish pass model resolver.
+ *
+ * Resolution order:
+ *  1) EVAL_POLISH_MODEL
+ *  2) EVAL_CHEAP_MODEL
+ *  3) optional overrideModel
+ *  4) canonical runtime default (EVAL_OPENAI_MODEL)
+ */
+export function getCanonicalPolishModel(overrideModel?: string): string {
+  return resolveEnvBackedModel(["EVAL_POLISH_MODEL", "EVAL_CHEAP_MODEL"], overrideModel);
 }
 
 export function getExternalAdjudicationMode(): ExternalAdjudicationMode {

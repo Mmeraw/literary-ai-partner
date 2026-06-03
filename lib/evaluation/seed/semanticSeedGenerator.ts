@@ -5,7 +5,7 @@ import { getEvalOpenAiTimeoutMs } from '@/lib/evaluation/config';
 import {
   buildOpenAIOutputTokenParam,
   buildOpenAITemperatureParam,
-  getCanonicalPipelineModel,
+  getCanonicalSeedModel,
   isReasoningStyleModel,
 } from '@/lib/evaluation/policy';
 import { buildSeedBenchmarkContext, inferSeedRoute, type SeedRoute } from '@/lib/evaluation/seed/benchmarkContextBuilder';
@@ -272,7 +272,7 @@ async function createOpenAICompletion(params: {
 export async function generateSemanticSeedArtifacts(input: GenerateSemanticSeedArtifactsInput): Promise<GeneratedSemanticSeedArtifacts> {
   const apiKey = typeof input.openaiApiKey === 'string' ? input.openaiApiKey.trim() : '';
 
-  const model = getCanonicalPipelineModel(input.model);
+  const model = getCanonicalSeedModel(input.model);
   const timeoutMs = input.timeoutMs ?? getEvalOpenAiTimeoutMs();
   const generatedAt = input.generatedAt ?? new Date().toISOString();
   const title = input.title?.trim() || 'Untitled manuscript';
