@@ -43,10 +43,13 @@ export default function SiteFooter() {
             RevisionGrade&#8482;
           </Link>
           <p className="mt-3 max-w-sm text-sm leading-6 text-rg-cream2/70">
-            Manuscript diagnosis, author-controlled revision, and professional submission preparation.
+            The Literary AI Partner&#8482; for serious writers.
           </p>
-          <p className="mt-5 text-xs text-rg-dim">RevisionGrade. All rights reserved.</p>
-          <p className="mt-2 text-xs text-rg-dim">Operated from Canada and Mexico.</p>
+          <p className="mt-2 max-w-sm text-sm leading-6 text-rg-cream2/70">
+            Manuscript diagnosis. Author-controlled revision. Professional submission preparation.
+          </p>
+          <p className="mt-5 text-xs text-rg-dim">© 2026 RevisionGrade&#8482;. All rights reserved.</p>
+          <p className="mt-2 text-xs text-rg-dim">Built and operated from Canada and Mexico.</p>
         </div>
 
         <div className="grid gap-6 sm:grid-cols-3">
