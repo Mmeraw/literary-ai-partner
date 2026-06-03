@@ -303,8 +303,8 @@ function toPdfSafeText(value: unknown, fallback = '-'): string {
     .replace(/\u2122/g, '(TM)')
     .replace(/\u00AE/g, '(R)')
     .replace(/\u00A9/g, '(C)')
-    .replace(/\u00A0/g, ' ')
-    .replace(/[^\x09\x0A\x0D\x20-\x7E]/g, '?')
+    .replace(/[\u00A0\xA0]/g, ' ')
+    .replace(/[^\x09\x0A\x0D\x20-\x7E\xA1-\xFF]/g, '?')
     .trim();
 }
 
@@ -556,25 +556,28 @@ async function buildPdfReport(result: ExportableResult, title: string | null, jo
     const section = (text: unknown) => {
       ensureSpace(72);
       doc.moveDown(0.8);
-      doc.font('Helvetica-Bold').fontSize(14).fillColor(RG.oxblood).text(toPdfSafeText(text), { width: contentWidth });
+      doc.font('Helvetica-Bold').fontSize(14).fillColor(RG.oxblood).text(toPdfSafeText(text), ml, doc.y, { width: contentWidth });
       doc.moveDown(0.25);
       goldRule();
     };
     const paragraph = (text: unknown) => {
       ensureSpace(70);
-      doc.font('Helvetica').fontSize(10.5).fillColor(RG.textPrimary).text(toPdfSafeText(text), { width: contentWidth, lineGap: 3 });
+      doc.font('Helvetica').fontSize(10.5).fillColor(RG.textPrimary).text(toPdfSafeText(text), ml, doc.y, { width: contentWidth, lineGap: 3 });
       doc.moveDown(0.45);
     };
     const bullet = (text: unknown, color: string = RG.textPrimary) => {
       ensureSpace(45);
-      doc.font('Helvetica').fontSize(10.5).fillColor(color).text(`  -  ${toPdfSafeText(text)}`, { width: contentWidth, indent: 8, lineGap: 2 });
+      doc.font('Helvetica').fontSize(10.5).fillColor(color).text(`  -  ${toPdfSafeText(text)}`, ml, doc.y, { width: contentWidth, indent: 8, lineGap: 2 });
       doc.moveDown(0.25);
     };
     const labelValue = (label: string, value: unknown) => {
       const safeValue = toPdfSafeText(value, '');
       if (!safeValue) return;
-      doc.font('Helvetica-Bold').fontSize(10).fillColor(RG.textMuted).text(`${toPdfSafeText(label)}:  `, { continued: true });
-      doc.font('Helvetica').fillColor(RG.textPrimary).text(safeValue, { width: contentWidth });
+      const labelStr = `${toPdfSafeText(label)}:  `;
+      doc.font('Helvetica-Bold').fontSize(10);
+      const labelWidth = doc.widthOfString(labelStr);
+      doc.fillColor(RG.textMuted).text(labelStr, ml, doc.y, { continued: true });
+      doc.font('Helvetica').fillColor(RG.textPrimary).text(safeValue, { width: contentWidth - labelWidth });
       doc.moveDown(0.2);
     };
 
@@ -809,11 +812,12 @@ async function buildPdfReport(result: ExportableResult, title: string | null, jo
         );
         doc.font('Helvetica').fontSize(7).fillColor(RG.textFaint).text('/100', x, rowY + 30, { width: colW, align: 'center' });
       });
+      doc.x = ml;
       doc.y = rowY + 44;
       doc.moveDown(0.5);
       thinRule();
 
-      doc.font('Helvetica-Bold').fontSize(12).fillColor(RG.oxblood).text('Executive Verdict', { width: contentWidth });
+      doc.font('Helvetica-Bold').fontSize(12).fillColor(RG.oxblood).text('Executive Verdict', ml, doc.y, { width: contentWidth });
       doc.moveDown(0.2);
       paragraph(dream.executive_verdict);
 
@@ -830,6 +834,7 @@ async function buildPdfReport(result: ExportableResult, title: string | null, jo
           ensureSpace(90);
           doc.font('Helvetica-Bold').fontSize(10.5).fillColor(RG.textPrimary).text(
             toPdfSafeText(`${cleanReportText(layer.layer_name)} -- ${layer.status}`),
+            ml, doc.y,
             { width: contentWidth },
           );
           paragraph(`Function: ${cleanReportText(layer.function)}`);
@@ -872,8 +877,9 @@ async function buildPdfReport(result: ExportableResult, title: string | null, jo
           ensureSpace(120);
           const confLabel = formatConfidenceLabel(a.confidence);
           doc.font('Helvetica-Bold').fontSize(11).fillColor(RG.textPrimary).text(
-            toPdfSafeText(a.key),
-            { width: contentWidth, continued: true },
+            toPdfSafeText(getCriterionDisplayLabel(a.key)),
+            ml, doc.y,
+            { width: contentWidth - 120, continued: true },
           );
           doc.font('Helvetica-Bold').fontSize(11).fillColor(scoreBarColor(a.score)).text(
             toPdfSafeText(` -- ${a.score}/10`),
@@ -886,26 +892,27 @@ async function buildPdfReport(result: ExportableResult, title: string | null, jo
 
           const fitItems = filterAuthorFacingTextList(a.fit_evidence);
           if (fitItems.length > 0) {
-            doc.font('Helvetica-Bold').fontSize(9.5).fillColor(RG.success).text('What Is Working:', { width: contentWidth });
+            doc.font('Helvetica-Bold').fontSize(9.5).fillColor(RG.success).text('What Is Working:', ml, doc.y, { width: contentWidth });
             doc.moveDown(0.1);
             fitItems.forEach((item) => bullet(item, RG.success));
           }
 
           const gapItems = filterAuthorFacingTextList(a.gap_evidence);
           if (gapItems.length > 0) {
-            doc.font('Helvetica-Bold').fontSize(9.5).fillColor(RG.warning).text('What Weakens Impact:', { width: contentWidth });
+            doc.font('Helvetica-Bold').fontSize(9.5).fillColor(RG.warning).text('What Weakens Impact:', ml, doc.y, { width: contentWidth });
             doc.moveDown(0.1);
             gapItems.forEach((item) => bullet(item, RG.warning));
           }
 
           const revItems = filterAuthorFacingTextList(a.revision_queue);
           if (revItems.length > 0) {
-            doc.font('Helvetica-Bold').fontSize(9.5).fillColor(RG.oxblood).text('Revision Queue:', { width: contentWidth });
+            doc.font('Helvetica-Bold').fontSize(9.5).fillColor(RG.oxblood).text('Revision Queue:', ml, doc.y, { width: contentWidth });
             doc.moveDown(0.1);
             revItems.forEach((item, idx) => {
               ensureSpace(35);
               doc.font('Helvetica').fontSize(10).fillColor(RG.textPrimary).text(
                 `  ${idx + 1}. ${toPdfSafeText(item)}`,
+                ml, doc.y,
                 { width: contentWidth, indent: 8, lineGap: 2 },
               );
               doc.moveDown(0.15);
