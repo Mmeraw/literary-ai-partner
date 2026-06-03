@@ -105,6 +105,7 @@ export default function AdminExperiencePage() {
   }, [range, includeAdmin, router]);
 
   const overview = data?.overview ?? {};
+  const exportFlag = includeAdmin ? "&include_admin=1" : "";
 
   return (
     <main className="min-h-screen bg-rg-ink px-4 py-8 text-rg-cream sm:px-6 lg:px-8">
@@ -121,6 +122,13 @@ export default function AdminExperiencePage() {
             <label className="ml-2 flex items-center gap-2 text-xs text-rg-cream2/55"><input type="checkbox" checked={includeAdmin} onChange={(e) => setIncludeAdmin(e.target.checked)} /> Include admin/test</label>
           </div>
         </header>
+
+        <section className="flex flex-wrap items-center gap-3 rounded-lg border border-rg-cream2/15 bg-rg-ink2/50 p-4">
+          <span className="font-rg-mono text-[10px] uppercase tracking-[0.18em] text-rg-cream2/50">Export</span>
+          <a className="rounded border border-rg-gold/40 px-3 py-2 font-rg-mono text-xs uppercase tracking-[0.14em] text-rg-gold hover:bg-rg-gold/10" href={`/api/admin/analytics/export?kind=events&range=${range}${exportFlag}`}>Download events CSV</a>
+          <a className="rounded border border-rg-gold/40 px-3 py-2 font-rg-mono text-xs uppercase tracking-[0.14em] text-rg-gold hover:bg-rg-gold/10" href={`/api/admin/analytics/export?kind=sessions&range=${range}${exportFlag}`}>Download sessions CSV</a>
+          <span className="text-xs text-rg-cream2/45">Use CSV exports for Excel / Sheets cohort analysis.</span>
+        </section>
 
         {loading && <p className="rounded border border-rg-cream2/15 bg-rg-ink2/60 p-5 text-rg-cream2/65">Loading analytics…</p>}
 
