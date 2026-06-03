@@ -156,6 +156,7 @@ export function EvaluationPoller({
   const [nextPollDelay, setNextPollDelay] = useState(refreshInterval);
   const [pendingRedirectDelayMs, setPendingRedirectDelayMs] = useState<number | null>(null);
   const [refreshBump, setRefreshBump] = useState(0);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // displayProgress: used only for the completion-animation sweep to 100.
   // For all running states the bar width comes directly from getProgressDisplay.
@@ -678,13 +679,20 @@ export function EvaluationPoller({
                 <div className="flex items-center gap-2 mt-1">
                   <button
                     type="button"
-                    onClick={() => {
+                    disabled={isRefreshing}
+                    onClick={async () => {
                       setRefreshBump((prev) => Math.min(prev + 1, 5));
-                      if (fetchJobRef.current) void fetchJobRef.current();
+                      setIsRefreshing(true);
+                      try {
+                        if (fetchJobRef.current) await fetchJobRef.current();
+                      } finally {
+                        setTimeout(() => setIsRefreshing(false), 600);
+                      }
                     }}
-                    className="inline-flex items-center gap-1 rounded-md border border-stone-300 bg-white px-2.5 py-1.5 text-xs font-medium text-stone-700 shadow-sm hover:bg-stone-50 transition-colors"
+                    className={`inline-flex items-center gap-1 rounded-md border border-stone-300 bg-white px-2.5 py-1.5 text-xs font-medium shadow-sm transition-colors ${isRefreshing ? 'text-stone-400 cursor-wait' : 'text-stone-700 hover:bg-stone-50'}`}
                   >
-                    ↻ Refresh
+                    <span className={isRefreshing ? 'animate-spin inline-block' : ''}>↻</span>
+                    {isRefreshing ? 'Checking...' : 'Refresh'}
                   </button>
                   {job.status === 'queued' && pollCount > 10 && (
                     <span className="text-xs text-stone-400">Still preparing?</span>

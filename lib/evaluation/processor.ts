@@ -5425,6 +5425,7 @@ export async function processEvaluationJob(
               progress: {
                 ...progressState,
                 ...buildPhaseLogPatch(progressState, 'phase_3', 'passed', missingNow),
+                completed_units: 100,
                 phase: 'phase_3',
                 phase_status: 'complete',
                 message: 'WAVE skipped (synthesis artifact missing) — evaluation complete',
@@ -5547,6 +5548,7 @@ export async function processEvaluationJob(
             progress: {
               ...progressState,
               ...buildPhaseLogPatch(progressState, 'phase_3', 'passed', phase3Now),
+              completed_units: 100,
               phase: 'phase_3',
               phase_status: 'complete',
               message: 'WAVE readiness layer complete',
@@ -5580,6 +5582,7 @@ export async function processEvaluationJob(
             progress: {
               ...progressState,
               ...buildPhaseLogPatch(progressState, 'phase_3', 'passed', errNow),
+              completed_units: 100,
               phase: 'phase_3',
               phase_status: 'complete',
               message: 'WAVE phase error (non-fatal) — evaluation complete',
@@ -6816,6 +6819,11 @@ export async function processEvaluationJob(
             .eq('id', jobId)
             .eq('status', JOB_STATUS.RUNNING);
 
+          // Reset budget timer so Track C gets a fresh invocation window.
+          // Without this, chunk processing consumes most of the 240s budget
+          // and Track C repeatedly self-chains with only seconds remaining.
+          phase1aInvocationStartMs = Date.now();
+
           // Invocation budget guard — race preflight against remaining budget.
           //
           // Promise.race note: if the timeout wins, runPass3Preflight is NOT
@@ -6928,6 +6936,8 @@ export async function processEvaluationJob(
             pass3aResult = null;
             const pass3aDegradedProgress = {
               ...progressState,
+              completed_units: 43,
+              message: 'Building story analysis',
               track_c_status: 'degraded',
               pass3a_status: 'degraded',
               degraded_reason: degradedReason,
@@ -6968,6 +6978,8 @@ export async function processEvaluationJob(
             // Persist DONE state before proceeding.
             const pass3aDoneProgress = {
               ...progressState,
+              completed_units: 43,
+              message: 'Building story analysis',
               track_c_status: pass3aReducerFailed ? 'degraded' : 'done',
               pass3a_status: pass3aStatus,
               pass3a_completed_at: completedAt,
@@ -7307,6 +7319,18 @@ export async function processEvaluationJob(
           pass1a_story_layer_v1: storyLayerRefs.pass1a_story_layer_v1.artifact_id,
           ledger_quality_report_v1: storyLayerRefs.ledger_quality_report_v1.artifact_id,
         });
+
+        // Progress bump: story layer assembled → move bar past the 40% plateau.
+        progressState.completed_units = 47;
+        progressState.message = 'Assembling story layer';
+        await supabase
+          .from('evaluation_jobs')
+          .update({
+            worker_pulse_at: storyLayerPersistedAt,
+            progress: progressState,
+          })
+          .eq('id', jobId)
+          .eq('status', JOB_STATUS.RUNNING);
 
         // ── Story Ledger lane map coverage warning (canon_correction_playbook_v1) ─
         // Flag only — does NOT hard-block Phase 2 in v1. The lane map (Layer 1) is
@@ -8294,9 +8318,10 @@ export async function processEvaluationJob(
               updated_at: p2HandoffNow,
               progress: {
                 ...progressState,
+                completed_units: 75,
                 phase: 'phase_2',
                 phase_status: 'complete',
-                message: 'Pass 1+2 complete — handoff written, queued for Pass 3B synthesis',
+                message: 'Scoring complete — preparing synthesis',
                 phase2_completed_at: p2HandoffNow,
               },
             })
@@ -8396,8 +8421,8 @@ export async function processEvaluationJob(
             status: JOB_STATUS.QUEUED, phase: 'phase_3', phase_status: JOB_STATUS.QUEUED,
             claimed_by: null, claimed_at: null, lease_token: null, lease_until: null,
             updated_at: p2ShortNow,
-            progress: { ...progressState, phase: 'phase_2', phase_status: 'complete',
-              message: 'Pass 1+2 complete (short-form) — handoff written, queued for Pass 3B',
+            progress: { ...progressState, completed_units: 75, phase: 'phase_2', phase_status: 'complete',
+              message: 'Scoring complete — preparing synthesis',
               phase2_completed_at: p2ShortNow },
           })
           .eq('id', job.id)
@@ -8430,9 +8455,10 @@ export async function processEvaluationJob(
             updated_at: phase3QueueNow,
             progress: {
               ...progressState,
+              completed_units: 75,
               phase: 'phase_2',
               phase_status: 'complete',
-              message: 'Phase 1+2 handoff present — queued for Pass 3B synthesis',
+              message: 'Scoring complete — preparing synthesis',
               phase2_completed_at: phase3QueueNow,
             },
           })
@@ -9465,6 +9491,7 @@ export async function processEvaluationJob(
               updated_at: phase3InlineNow,
               progress: {
                 ...progressState,
+                completed_units: 100,
                 phase: 'phase_3',
                 phase_status: 'complete',
                 message: 'Pass 3B synthesis + WAVE complete',
@@ -9493,6 +9520,7 @@ export async function processEvaluationJob(
             updated_at: phase2Now,
             progress: {
               ...progressState,
+              completed_units: 90,
               phase: 'phase_2',
               phase_status: 'complete',
               message: 'Evaluation complete — queued for WAVE readiness layer',
