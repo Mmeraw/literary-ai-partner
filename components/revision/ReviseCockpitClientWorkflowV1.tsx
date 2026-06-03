@@ -139,7 +139,16 @@ function fallbackCharacters(item: WorkbenchOpportunity): string[] {
   const haystack = `${item.title} ${item.issueStatement} ${sourceTextOf(item)} ${item.fixDirection}`;
   const names = [...haystack.matchAll(/\b[A-Z][a-z]{2,}(?:’s)?\b/g)]
     .map((match) => match[0].replace(/’s$/, ""))
-    .filter((name) => !["The", "This", "That", "At", "Item", "Line", "Passage", "Scene", "Chapter", "Kingdom", "Lake", "Concept", "Core", "Premise", "Needs", "Targeting"].includes(name));
+    .filter((name) => ![
+      "The", "This", "That", "At", "Item", "Line", "Passage", "Scene", "Chapter",
+      "Kingdom", "Lake", "Concept", "Core", "Premise", "Needs", "Targeting",
+      // Editorial instruction verbs that may be capitalized at sentence start
+      "Deepen", "Expand", "Clarify", "Strengthen", "Tighten", "Compress", "Heighten",
+      "Foreground", "Surface", "Sharpen", "Simplify", "Brighten", "Replace", "Repair",
+      "Rewrite", "Restructure", "Dramatize", "Intensify", "Underscore", "Anchor",
+      "Ground", "Dial", "Trim", "Cut", "Develop", "Revise", "Remove", "Break",
+      "Insert", "Weave", "Highlight", "Show", "Add", "Fix",
+    ].includes(name));
   return [...new Set(names)].slice(0, 3);
 }
 
@@ -460,13 +469,7 @@ export default function ReviseCockpitClientWorkflowV1({ payload }: { payload: Wo
             <p className="text-[10px] uppercase tracking-[0.2em] text-[#C8A96E]">Revision Cockpit · up to 100 prioritized opportunities per pass</p>
             <h1 className="truncate text-sm font-semibold">{payload.manuscriptTitle}</h1>
           </div>
-          <div className="flex flex-wrap justify-end gap-2 text-[11px]">
-            <span className="rounded border border-[#48603F] px-2 py-1 text-[#BBD8B4]">Ready {readyCount}</span>
-            <span className="rounded border border-[#7A2B1A] px-2 py-1 text-[#F1B6A5]">Needs Targeting {needsTargetingCount}</span>
-            <span className="rounded border border-[#C8A96E] px-2 py-1">Pending {counts.pending}</span>
-            <span className="rounded border border-[#5D4C31] px-2 py-1">Accepted {counts.accepted}</span>
-            {message && <span className="rounded border border-[#5D4C31] px-2 py-1 text-[#A9987D]">{message}</span>}
-          </div>
+          {message && <div className="flex flex-wrap justify-end gap-2 text-[11px]"><span className="rounded border border-[#5D4C31] px-2 py-1 text-[#A9987D]">{message}</span></div>}
         </header>
 
         <nav className="flex shrink-0 items-center gap-1 border-b border-[#2E261A] bg-[#110D07] px-4 py-1.5">

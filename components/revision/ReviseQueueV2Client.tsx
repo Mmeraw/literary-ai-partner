@@ -1282,7 +1282,7 @@ export default function ReviseQueueV2Client({ payload }: { payload: WorkbenchQue
                           <p className="text-sm font-semibold text-[#F2E8D6]">{optionRoleLabel(option.key)}</p>
                           <span className="text-xs text-[#B29F7D]">{active.queueType === "repair_plan" ? "Plan" : "Proposal"}</span>
                         </div>
-                        <pre className="mt-2 whitespace-pre-wrap text-sm leading-6 text-[#E5D8BE]">{candidateTextOf(option, active.base.issueStatement) || "Needs targeting: candidate prose not ready for apply."}</pre>
+                        <pre className="mt-2 whitespace-pre-wrap text-sm leading-6 text-[#E5D8BE]">{candidateTextOf(option, active.base.issueStatement) || "Candidate revision prose is being prepared."}</pre>
                         <p className="mt-2 text-xs text-[#BDAE91]">{option.rationale}</p>
                       </button>
                     );

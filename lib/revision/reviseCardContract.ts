@@ -199,6 +199,8 @@ const META_EDITORIAL_PATTERNS = [
   /\bturning the exchange\b/i,
   // Imperative editorial verbs at sentence boundaries — "Highlight X", "Sharpen the Y", etc.
   /(?:^|[.!?]\s+)(?:highlight|sharpen|clarify|strengthen|deepen|compress|tighten|expand|foreground|underscore|dramatize|intensify|surface|ground|anchor)\s+(?:the|this|that|how|what|answers|details|moments|images|beats|prose|stakes|tension|pressure|conflict|character)/i,
+  // Instruction-as-prose bleed — editorial verb followed by a proper name (e.g. "Deepen Zimeon's")
+  /(?:^|[.!?]\s+)(?:deepen|expand|clarify|strengthen|tighten|compress|heighten|foreground|surface|sharpen|simplify|brighten|dramatize|intensify|underscore|anchor|ground|dial|trim|develop|revise)\s+[A-Z][a-z]/i,
   // Abstract narrative-mechanics language (no character names, describes what prose "does")
   /\b(?:a|the) (?:physical|narrative|dramatic|emotional|structural|tonal|rhythmic) beat\b/i,
   /\b(?:abstract|concrete|visible|immediate|tangible|physical) (?:pressure|consequence|tension|stakes|momentum)\b/i,

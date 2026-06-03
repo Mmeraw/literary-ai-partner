@@ -7,6 +7,7 @@ import { loadReviseQueueWarmupCorpus } from './reviseQueueWarmup'
 import { getCriterionDisplayLabel } from '@/lib/evaluation/reportRenderSafety'
 import type { DiagnosticFinding, ProposalSeverity } from './types'
 import {
+  candidateTextIsCopyPasteReady,
   hasWordProcessorArtifact,
   inferRevisionOperation,
   operationLabels,
@@ -529,15 +530,19 @@ function asCandidateText(option: Pick<WorkbenchOption, 'candidateText' | 'text'>
 function optionsFromRich(rich: RichRecommendation, mode: WorkbenchMode): WorkbenchOption[] {
   const mainAction = rich.action?.trim() || rich.specific_fix?.trim() || ''
   if (!mainAction) return optionsFallback(mode)
+  // Only use mainAction as candidateText if it is actual copy-paste-ready prose,
+  // not an editorial instruction like "Deepen Zimeon's interior reactions..."
+  const actionIsProse = candidateTextIsCopyPasteReady(mainAction)
+  const candidateA = actionIsProse ? mainAction : ''
   if (mode === 'repair-brief') {
     return [
-      { key: 'A', mechanism: 'Recommended repair plan', candidateText: mainAction, text: mainAction, rationale: rich.expected_impact?.trim() || 'Primary repair path from the evaluation.' },
+      { key: 'A', mechanism: 'Recommended repair plan', candidateText: candidateA, text: candidateA, rationale: rich.expected_impact?.trim() || 'Primary repair path from the evaluation.' },
       { key: 'B', mechanism: 'Conservative bridge plan', candidateText: '', text: '', rationale: 'Needs targeting: add a manuscript-prose rhythm variant.' },
       { key: 'C', mechanism: 'Bolder restructuring plan', candidateText: '', text: '', rationale: 'Needs targeting: add a manuscript-prose bold variant.' },
     ]
   }
   return [
-    { key: 'A', mechanism: 'Recommended repair', candidateText: mainAction, text: mainAction, rationale: rich.expected_impact?.trim() || 'Primary repair path from the evaluation.' },
+    { key: 'A', mechanism: 'Recommended repair', candidateText: candidateA, text: candidateA, rationale: rich.expected_impact?.trim() || 'Primary repair path from the evaluation.' },
     { key: 'B', mechanism: 'Rhythm variant', candidateText: '', text: '', rationale: 'Needs targeting: add a manuscript-prose rhythm variant.' },
     { key: 'C', mechanism: 'Bolder rendering shift', candidateText: '', text: '', rationale: 'Needs targeting: add a manuscript-prose bold variant.' },
   ]
