@@ -8,6 +8,7 @@ import type {
   WorkbenchSeverity,
   WorkbenchScope,
 } from "@/lib/revision/workbenchQueue";
+import ResetQueueButton from "@/components/revision/ResetQueueButton";
 
 type FilterState = {
   severity: WorkbenchSeverity | "all";
@@ -160,12 +161,15 @@ export default function ReviseQueueBrowser({ payload }: { payload: WorkbenchQueu
             {payload.opportunities.length} ready · {payload.needsTargeting.length} needs targeting
           </p>
         </div>
-        <Link
-          href={workbenchHref}
-          className="rounded border border-[#C8A96E] bg-[#C8A96E]/10 px-4 py-2 text-xs font-bold uppercase tracking-widest text-[#C8A96E] transition hover:bg-[#C8A96E]/20"
-        >
-          Open Workbench
-        </Link>
+        <div className="flex items-center gap-3">
+          <ResetQueueButton evaluationJobId={payload.evaluationJobId} />
+          <Link
+            href={workbenchHref}
+            className="rounded border border-[#C8A96E] bg-[#C8A96E]/10 px-4 py-2 text-xs font-bold uppercase tracking-widest text-[#C8A96E] transition hover:bg-[#C8A96E]/20"
+          >
+            Open Workbench
+          </Link>
+        </div>
       </div>
 
       {/* Filters */}

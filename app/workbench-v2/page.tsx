@@ -4,6 +4,7 @@ import Link from "next/link";
 import { getWorkbenchQueue } from "@/lib/revision/workbenchQueue";
 import ReviseCockpitClientWorkflowV2 from "@/components/revision/ReviseCockpitClientWorkflowV2";
 import TrustedPathWorkbenchButton from "@/components/revision/TrustedPathWorkbenchButton";
+import ResetQueueButton from "@/components/revision/ResetQueueButton";
 import { buildRevisionOpportunityLedger, persistRevisionOpportunityLedger } from "@/lib/revision/revisionOpportunityLedgerArtifact";
 import { redirect } from "next/navigation";
 import { resolveWorkbenchRouteTargetForUser } from "@/lib/revision/workbenchQueue";
@@ -46,6 +47,9 @@ export default async function WorkbenchV2Page({ searchParams }: { searchParams?:
       <Link href={finalReviewHref} className="workbench-v2-final-review-link fixed right-6 top-[78px] z-50 flex h-10 w-[216px] items-center justify-center rounded border border-[#C8A96E] bg-[#1C160E] px-4 text-center text-[12px] font-bold leading-[13px] text-[#F3E3C3] shadow-lg hover:bg-[#2A2115]">
         Final Review / Apply & Export
       </Link>
+      <div className="fixed right-6 top-[120px] z-50">
+        <ResetQueueButton evaluationJobId={evaluationJobId ?? null} />
+      </div>
       <TrustedPathWorkbenchButton manuscriptId={manuscriptId ?? null} evaluationJobId={evaluationJobId ?? null} disabled={!payload.ok} />
       <ReviseCockpitClientWorkflowV2 payload={payload} />
     </div>
