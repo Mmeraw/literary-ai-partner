@@ -5,7 +5,7 @@
  *
  * Signed-in nav order (per product doctrine):
  *   Dashboard · Manuscripts · Evaluate · Revise · Agent Readiness Package™ · Storygate Studio™ · Resources · Pricing
- *   Admin-only: Pipeline
+ *   Admin-only: Admin
  *
  * Auth states:
  *   "loading" — session check in-flight; render skeleton (no flash)
@@ -241,7 +241,7 @@ export default function HeaderNav() {
           </div>
 
           <NavLink href="/pricing">Pricing</NavLink>
-          {isAuthed && isAdmin && <NavLink href="/admin/pipeline-health">Pipeline</NavLink>}
+          {isAuthed && isAdmin && <NavLink href="/admin">Admin</NavLink>}
         </nav>
 
         <div className="hidden shrink-0 lg:block">
@@ -292,7 +292,7 @@ export default function HeaderNav() {
             <MobileLink href="/storygate-studio">Storygate Studio&#8482;</MobileLink>
             <MobileLink href="/resources">Resources</MobileLink>
             <MobileLink href="/pricing">Pricing</MobileLink>
-            {isAuthed && isAdmin && <MobileLink href="/admin/pipeline-health">Pipeline</MobileLink>}
+            {isAuthed && isAdmin && <MobileLink href="/admin">Admin</MobileLink>}
             {isAuthed && (
               <button type="button" onClick={handleSignOut} disabled={signingOut} className={mobileLinkCls}>
                 {signingOut ? "Signing out…" : "Sign out"}
