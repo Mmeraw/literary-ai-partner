@@ -1,6 +1,12 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
+export const metadata = {
+  title: "Reliability and Editorial Doctrine | RevisionGrade",
+  description:
+    "RevisionGrade reliability doctrine: The Engine, The Instrument, and The Methodology behind evidence-backed manuscript diagnosis and author-controlled revision.",
+};
+
 const pillars = [
   {
     title: "Manuscript Sovereignty",
@@ -17,6 +23,24 @@ const pillars = [
   {
     title: "Scope Discipline",
     copy: "RevisionGrade distinguishes structural diagnosis, scene repair, line polish, market positioning, and voice protection before recommending an intervention.",
+  },
+];
+
+const doctrineTriad = [
+  {
+    title: "The Engine",
+    eyebrow: "Governed evaluation core",
+    copy: "The engine is the software layer that applies the standard: criteria, evidence rules, confidence boundaries, scope discipline, and report logic. It keeps the reading consistent, bounded, and traceable instead of relying on taste, mood, or prompt improvisation.",
+  },
+  {
+    title: "The Instrument",
+    eyebrow: "AI as tool, not authority",
+    copy: "The instrument is how artificial intelligence is used inside RevisionGrade: to read, compare, organize, diagnose, and surface evidence. It does not seize the pen. It does not become the author. It helps reveal what the manuscript is doing so the writer can decide what happens next.",
+  },
+  {
+    title: "The Methodology",
+    eyebrow: "Public editorial doctrine",
+    copy: "The methodology is the visible promise: diagnosis before polish, evidence before verdict, author control before revision, and manuscript-length claims only where the submitted text supports them. It explains how RevisionGrade turns a reading into a responsible report.",
   },
 ];
 
@@ -161,15 +185,16 @@ export default function ReliabilityPage() {
       <section className="border-y border-rg-cream2/10 bg-rg-ink2/50">
         <div className="mx-auto max-w-7xl px-6 py-20">
           <SectionHeading
-            eyebrow="Trust principles"
-            title="Four principles protect the author and the manuscript."
-            copy="Reliability is not just uptime or report completion. For RevisionGrade, reliability means the product makes bounded, evidence-backed claims and keeps creative authority with the writer."
+            eyebrow="Reliability architecture"
+            title="The Engine. The Instrument. The Methodology."
+            copy="The Reliability page should make the system legible without exposing private mechanics. These three concepts explain how RevisionGrade stays rigorous, useful, and author-safe."
           />
-          <div className="mt-10 grid gap-5 md:grid-cols-2 lg:grid-cols-4">
-            {pillars.map((pillar) => (
-              <article key={pillar.title} className="border border-rg-cream2/12 bg-rg-ink/70 p-6">
-                <h3 className="font-rg-serif text-2xl text-rg-cream">{pillar.title}</h3>
-                <p className="mt-4 leading-7 text-rg-cream2/75">{pillar.copy}</p>
+          <div className="mt-10 grid gap-5 lg:grid-cols-3">
+            {doctrineTriad.map((item) => (
+              <article key={item.title} className="border border-rg-gold/30 bg-rg-ink/75 p-7">
+                <p className="font-rg-mono text-[0.68rem] uppercase tracking-[0.18em] text-rg-gold">{item.eyebrow}</p>
+                <h3 className="mt-4 font-rg-serif text-4xl leading-tight text-rg-cream">{item.title}</h3>
+                <p className="mt-5 leading-8 text-rg-cream2/78">{item.copy}</p>
               </article>
             ))}
           </div>
@@ -178,17 +203,35 @@ export default function ReliabilityPage() {
 
       <section className="mx-auto max-w-7xl px-6 py-20">
         <SectionHeading
-          eyebrow="What reliability means in practice"
-          title="The system must know the level of intervention before asking the writer to change the work."
-          copy="A manuscript that needs structural repair should not receive only surface polish. A scene that needs pressure should not be smoothed until it loses force. A voice that is unusual should not be normalized merely because it is unusual."
+          eyebrow="Trust principles"
+          title="Four principles protect the author and the manuscript."
+          copy="Reliability is not just uptime or report completion. For RevisionGrade, reliability means the product makes bounded, evidence-backed claims and keeps creative authority with the writer."
         />
-        <div className="mt-10 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {practiceRules.map((rule) => (
-            <article key={rule.title} className="border border-rg-cream2/12 bg-rg-ink2/60 p-6">
-              <h3 className="font-rg-serif text-2xl text-rg-cream">{rule.title}</h3>
-              <p className="mt-4 leading-7 text-rg-cream2/75">{rule.copy}</p>
+        <div className="mt-10 grid gap-5 md:grid-cols-2 lg:grid-cols-4">
+          {pillars.map((pillar) => (
+            <article key={pillar.title} className="border border-rg-cream2/12 bg-rg-ink2/60 p-6">
+              <h3 className="font-rg-serif text-2xl text-rg-cream">{pillar.title}</h3>
+              <p className="mt-4 leading-7 text-rg-cream2/75">{pillar.copy}</p>
             </article>
           ))}
+        </div>
+      </section>
+
+      <section className="border-y border-rg-cream2/10 bg-rg-ink2/50">
+        <div className="mx-auto max-w-7xl px-6 py-20">
+          <SectionHeading
+            eyebrow="What reliability means in practice"
+            title="The system must know the level of intervention before asking the writer to change the work."
+            copy="A manuscript that needs structural repair should not receive only surface polish. A scene that needs pressure should not be smoothed until it loses force. A voice that is unusual should not be normalized merely because it is unusual."
+          />
+          <div className="mt-10 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {practiceRules.map((rule) => (
+              <article key={rule.title} className="border border-rg-cream2/12 bg-rg-ink/70 p-6">
+                <h3 className="font-rg-serif text-2xl text-rg-cream">{rule.title}</h3>
+                <p className="mt-4 leading-7 text-rg-cream2/75">{rule.copy}</p>
+              </article>
+            ))}
+          </div>
         </div>
       </section>
 
