@@ -120,19 +120,6 @@ function specificFallbackCandidate(item: WorkbenchOpportunity, key: OptionKey): 
   return "";
 }
 
-function genericFallbackCandidate(item: WorkbenchOpportunity, key: OptionKey): string {
-  const operation = effectiveOperation(item);
-  if (operation === "insert_after_selected_passage" || operation === "insert_before_selected_passage") {
-    if (key === "A") return "The moment held for one clear beat, forcing the choice onto the page before the scene moved forward.";
-    if (key === "B") return "A brief hesitation made the pressure visible, and the next action carried a cost the reader could feel.";
-    return "For a breath, refusal remained possible. Then the consequence landed, turning the exchange into a visible point of no return.";
-  }
-
-  if (key === "A") return "A concrete sensory beat grounds the sentence in the character’s body and makes the moment easier to feel.";
-  if (key === "B") return "The sentence gains a physical anchor, letting the reader experience the pressure instead of being told about it.";
-  return "A sharper physical image turns the abstract pressure into an immediate, visible consequence on the page.";
-}
-
 function rawCandidate(item: WorkbenchOpportunity, key: OptionKey): string {
   const option = optionFor(item, key);
   if (!option) return "";
@@ -152,7 +139,7 @@ function candidateText(item: WorkbenchOpportunity, key: OptionKey): string {
   if (renderable && candidateTextIsCopyPasteReady(renderable) && !candidateRepeatsSourceForInsertion(item, renderable)) return renderable;
   const raw = rawCandidate(item, key);
   if (raw && candidateTextIsCopyPasteReady(raw) && !candidateRepeatsSourceForInsertion(item, raw)) return raw;
-  return genericFallbackCandidate(item, key);
+  return "";
 }
 
 function canSelectOption(item: WorkbenchOpportunity, key: OptionKey): boolean {

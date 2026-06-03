@@ -1,43 +1,73 @@
 .route :global(main) {
-  top: 72px !important;
-  padding-top: 0.75rem !important;
+  top: 52px !important;
+  padding-top: 0.25rem !important;
+  padding-bottom: 0.25rem !important;
 }
 
 .route :global(main > div > header) {
-  min-height: 4.75rem !important;
-  padding-top: 0.55rem !important;
-  padding-bottom: 0.55rem !important;
+  min-height: 2.75rem !important;
+  height: 2.75rem !important;
+  padding-top: 0.25rem !important;
+  padding-bottom: 0.25rem !important;
+}
+
+.route :global(main > div > header > div:first-child p) {
+  display: none !important;
+}
+
+.route :global(main > div > header > div:first-child h1) {
+  font-size: 0.95rem !important;
+  line-height: 1.05rem !important;
 }
 
 .route :global(main > div > header > div:last-child) {
-  padding-right: 320px !important;
-  gap: 0.7rem !important;
+  padding-right: 360px !important;
+  gap: 0.35rem !important;
   flex-wrap: nowrap !important;
   align-items: center !important;
+  overflow: hidden !important;
+}
+
+.route :global(main > div > header > div:last-child span) {
+  padding: 0.15rem 0.45rem !important;
+  font-size: 0.68rem !important;
+  line-height: 0.9rem !important;
+  white-space: nowrap !important;
+}
+
+.route :global(main > div > nav) {
+  padding-top: 0.2rem !important;
+  padding-bottom: 0.2rem !important;
+}
+
+.route :global(main > div > nav button) {
+  padding: 0.2rem 0.55rem !important;
+  font-size: 0.68rem !important;
+  line-height: 0.85rem !important;
 }
 
 .route :global(.workbench-v2-final-review-link) {
-  top: 82px !important;
-  right: 1.5rem !important;
-  min-width: 300px !important;
+  top: 58px !important;
+  right: 1rem !important;
+  min-width: 172px !important;
+  width: 172px !important;
+  padding: 0.45rem 0.65rem !important;
   text-align: center !important;
+  font-size: 0.68rem !important;
+  line-height: 0.85rem !important;
 }
 
 .route :global(.workbench-v2-trusted-path) {
-  top: 122px !important;
-  right: 1.5rem !important;
+  top: 58px !important;
+  right: 188px !important;
   left: auto !important;
-  width: 300px !important;
+  width: 152px !important;
   transform: none !important;
 }
 
 .route :global(.workbench-v2-trusted-path button) {
   width: 100% !important;
-}
-
-@media (max-width: 1500px) {
-  .route :global(main > div > header > div:last-child) {
-    padding-right: 315px !important;
-    gap: 0.55rem !important;
-  }
+  padding: 0.45rem 0.65rem !important;
+  font-size: 0.68rem !important;
+  line-height: 0.85rem !important;
 }
