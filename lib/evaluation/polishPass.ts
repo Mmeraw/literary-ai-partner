@@ -128,7 +128,7 @@ async function callPolishLLM(
 
   const response = await openai.chat.completions.create(
     {
-      model: "gpt-4o",
+      model: "gpt-5.1",
       messages: [
         { role: "system", content: POLISH_PASS_SYSTEM_PROMPT },
         { role: "user", content: userPrompt },

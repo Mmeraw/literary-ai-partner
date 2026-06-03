@@ -45,11 +45,11 @@ import { parseJsonObjectBoundary } from "@/lib/llm/jsonParseBoundary";
 // ─── Constants ─────────────────────────────────────────────────────────────────
 
 // Tier 4: raised from 4 → 10 — ample RPM/TPM headroom.
-// 10 concurrent gpt-4o calls run well within 10K RPM / 10M TPM.
+// 10 concurrent gpt-5.1 calls run well within 10K RPM / 10M TPM.
 export const PASS3A_DEFAULT_CHUNK_CONCURRENCY = 10;
 /** Max chars per zone summary sent to the reducer */
 const PASS3A_ZONE_SUMMARY_CAP = 3000;
-const PASS3A_DEFAULT_MODEL = "gpt-4o";
+const PASS3A_DEFAULT_MODEL = "gpt-5.1";
 const PASS3A_MAX_OUTPUT_TOKENS = 4096;
 
 // ─── Act-zone classification ────────────────────────────────────────────────
