@@ -13,7 +13,11 @@ export async function GET(request: Request) {
     if (!error) {
       return NextResponse.redirect(`${origin}${next}`)
     }
+    // Code exchange failed — redirect to login with error indicator
+    // so the user sees a clear message instead of a silent loop.
+    return NextResponse.redirect(`${origin}/login?error=callback_failed`)
   }
 
-  return NextResponse.redirect(`${origin}${next}`)
+  // No code parameter — redirect to login
+  return NextResponse.redirect(`${origin}/login`)
 }

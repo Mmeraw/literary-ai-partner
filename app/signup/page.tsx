@@ -58,6 +58,22 @@ export default function SignupPage() {
     if (error) setError(null)
   }
 
+  // Poll server-side auth to confirm the session cookie is established
+  // before navigating. Prevents the middleware redirect-back race.
+  const waitForServerSession = async (maxAttempts = 10, intervalMs = 300): Promise<boolean> => {
+    for (let i = 0; i < maxAttempts; i++) {
+      try {
+        const res = await fetch('/api/auth/user', { credentials: 'include', cache: 'no-store' })
+        if (res.ok) {
+          const data = await res.json()
+          if (data?.user?.email) return true
+        }
+      } catch { /* retry */ }
+      await new Promise((r) => setTimeout(r, intervalMs))
+    }
+    return false
+  }
+
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault()
     if (loading) return
@@ -128,6 +144,7 @@ export default function SignupPage() {
 
       if (data.session) {
         trackClientAuthEvent('signup', 'succeeded', { provider: 'password', mode: 'instant_session' })
+        await waitForServerSession()
         router.push('/dashboard')
         router.refresh()
         return
@@ -144,118 +161,128 @@ export default function SignupPage() {
     }
   }
 
+  const inputCls =
+    'block w-full bg-rg-ink border border-rg-cream2/30 text-rg-cream font-rg-serif text-sm px-4 py-3 ' +
+    'placeholder:text-rg-cream2/40 focus:outline-none focus:border-rg-gold transition-colors duration-150'
+
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <Link href="/" className="flex justify-center items-center gap-2">
-          <span className="text-2xl font-bold text-gray-900">RG</span>
-          <span className="text-xl font-semibold text-gray-700">RevisionGrade™</span>
-        </Link>
-        <h2 className="mt-6 text-center text-3xl font-bold tracking-tight text-gray-900">
-          Create your account
-        </h2>
-      </div>
+    <div className="min-h-[calc(100vh-3.5rem)] bg-rg-ink flex flex-col items-center justify-center px-6 py-16">
 
-      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
-          <form className="space-y-6" onSubmit={handleSignup}>
-            {error && (
-              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md text-sm">
-                {error}
-              </div>
-            )}
+      {/* Logo lockup */}
+      <Link href="/" className="flex items-center gap-3 mb-10 group">
+        <span className="inline-flex h-8 w-8 items-center justify-center border border-rg-gold/60 text-rg-gold font-rg-serif text-sm group-hover:border-rg-gold transition-colors">
+          R
+        </span>
+        <span className="font-rg-serif text-rg-cream text-sm tracking-wide">RevisionGrade&#8482;</span>
+      </Link>
 
-            {success && (
-              <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-md text-sm">
-                <p>{success}</p>
-                <div className="mt-3 flex flex-wrap gap-3">
-                  <Link href="/login" className="font-medium text-green-800 underline hover:text-green-900">
-                    Continue to sign in
-                  </Link>
-                </div>
-              </div>
-            )}
+      {/* Section label */}
+      <p className="font-rg-mono text-xs tracking-[0.25em] uppercase text-rg-cream2 mb-8">
+        <span className="text-rg-red mr-2">&bull;</span>
+        Create Account
+      </p>
 
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700">
-                Email address
-              </label>
-              <div className="mt-1">
-                <input
-                  id="email"
-                  name="email"
-                  type="email"
-                  autoComplete="email"
-                  autoCapitalize="none"
-                  spellCheck={false}
-                  required
-                  value={email}
-                  onChange={(e) => setSafeEmail(e.target.value)}
-                  maxLength={254}
-                  className="block w-full appearance-none rounded-md border border-gray-300 px-3 py-2 placeholder-gray-500 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 text-base"
-                />
-              </div>
+      {/* Card */}
+      <div className="border border-rg-cream2/20 bg-rg-ink2 w-full max-w-sm px-8 py-10">
+
+        <h1 className="font-rg-serif text-rg-cream text-2xl mb-6 text-center">
+          Sign up
+        </h1>
+
+        {/* Error message */}
+        {error && (
+          <div className="mb-5 border border-rg-red/60 bg-rg-red/10 px-4 py-3 font-rg-mono text-xs text-rg-cream2 leading-relaxed">
+            {error}
+          </div>
+        )}
+
+        {/* Success message */}
+        {success && (
+          <div className="mb-5 border border-rg-gold/60 bg-rg-gold/10 px-4 py-3 font-rg-mono text-xs text-rg-cream2 leading-relaxed">
+            <p>{success}</p>
+            <div className="mt-3">
+              <Link href="/login" className="font-rg-mono text-xs text-rg-gold hover:text-rg-cream transition-colors underline">
+                Continue to sign in
+              </Link>
             </div>
+          </div>
+        )}
 
-            <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700">
-                Password
-              </label>
-              <div className="mt-1">
-                <input
-                  id="password"
-                  name="password"
-                  type="password"
-                  autoComplete="new-password"
-                  required
-                  minLength={PASSWORD_MIN_LENGTH}
-                  value={password}
-                  onChange={(e) => setSafePassword(e.target.value)}
-                  className="block w-full appearance-none rounded-md border border-gray-300 px-3 py-2 placeholder-gray-500 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 text-base"
-                />
-                <p className="mt-1 text-xs text-gray-700">
-                  Use at least {PASSWORD_MIN_LENGTH} characters with uppercase, lowercase, and a number.
-                </p>
-              </div>
-            </div>
+        <form className="space-y-4" onSubmit={handleSignup}>
+          <div>
+            <label htmlFor="email" className="block font-rg-mono text-xs tracking-widest uppercase text-rg-cream2 mb-2">
+              Email
+            </label>
+            <input
+              id="email"
+              name="email"
+              type="email"
+              autoComplete="email"
+              autoCapitalize="none"
+              spellCheck={false}
+              required
+              value={email}
+              onChange={(e) => setSafeEmail(e.target.value)}
+              maxLength={254}
+              className={inputCls}
+              placeholder="you@example.com"
+            />
+          </div>
 
-            <div>
-              <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700">
-                Confirm password
-              </label>
-              <div className="mt-1">
-                <input
-                  id="confirmPassword"
-                  name="confirmPassword"
-                  type="password"
-                  autoComplete="new-password"
-                  required
-                  minLength={PASSWORD_MIN_LENGTH}
-                  value={confirmPassword}
-                  onChange={(e) => setSafeConfirmPassword(e.target.value)}
-                  className="block w-full appearance-none rounded-md border border-gray-300 px-3 py-2 placeholder-gray-500 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 text-base"
-                />
-              </div>
-            </div>
+          <div>
+            <label htmlFor="password" className="block font-rg-mono text-xs tracking-widest uppercase text-rg-cream2 mb-2">
+              Password
+            </label>
+            <input
+              id="password"
+              name="password"
+              type="password"
+              autoComplete="new-password"
+              required
+              minLength={PASSWORD_MIN_LENGTH}
+              value={password}
+              onChange={(e) => setSafePassword(e.target.value)}
+              className={inputCls}
+              placeholder="••••••••"
+            />
+            <p className="mt-1 font-rg-mono text-xs text-rg-cream2/50">
+              At least {PASSWORD_MIN_LENGTH} characters with uppercase, lowercase, and a number.
+            </p>
+          </div>
 
-            <div>
-              <button
-                type="submit"
-                disabled={loading || !hasSupabaseAuthConfig}
-                className="flex w-full justify-center rounded-md border border-transparent bg-indigo-600 py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {loading ? 'Creating account...' : 'Create account'}
-              </button>
-            </div>
-          </form>
+          <div>
+            <label htmlFor="confirmPassword" className="block font-rg-mono text-xs tracking-widest uppercase text-rg-cream2 mb-2">
+              Confirm Password
+            </label>
+            <input
+              id="confirmPassword"
+              name="confirmPassword"
+              type="password"
+              autoComplete="new-password"
+              required
+              minLength={PASSWORD_MIN_LENGTH}
+              value={confirmPassword}
+              onChange={(e) => setSafeConfirmPassword(e.target.value)}
+              className={inputCls}
+              placeholder="••••••••"
+            />
+          </div>
 
-          <p className="mt-6 text-center text-sm text-gray-700">
-            Already have an account?{' '}
-            <Link href="/login" className="font-medium text-indigo-600 hover:text-indigo-500">
-              Sign in
-            </Link>
-          </p>
-        </div>
+          <button
+            type="submit"
+            disabled={loading || !hasSupabaseAuthConfig}
+            className="mt-2 w-full border border-rg-cream2/50 text-rg-cream font-rg-mono text-xs tracking-widest uppercase px-6 py-3 hover:border-rg-gold hover:text-rg-gold transition-colors duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            {loading ? 'Creating account…' : 'Create account'}
+          </button>
+        </form>
+
+        <p className="mt-6 text-center font-rg-mono text-xs text-rg-cream2">
+          Already have an account?{' '}
+          <Link href="/login" className="text-rg-gold hover:text-rg-cream transition-colors">
+            Sign in
+          </Link>
+        </p>
       </div>
     </div>
   )

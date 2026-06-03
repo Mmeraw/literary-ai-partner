@@ -34,28 +34,49 @@ const inputCls =
   'placeholder:text-rg-cream2/40 focus:outline-none focus:border-rg-gold transition-colors duration-150'
 
 export default function LoginPage() {
-  const router2 = useRouter()
-
-  // If user is already authenticated, redirect to dashboard immediately
-  useEffect(() => {
-    fetch('/api/auth/user', { credentials: 'include', cache: 'no-store' })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        if (data && data.user && data.user.email) {
-          router2.replace('/dashboard')
-        }
-      })
-      .catch(() => {/* stay on login */})
-  }, [])
+  const router = useRouter()
 
   const [email, setEmail]       = useState('')
   const [password, setPassword] = useState('')
   const [error, setError]       = useState<string | null>(null)
   const [loading, setLoading]   = useState(false)
-  const router = useRouter()
+
+  // If user is already authenticated, redirect to dashboard immediately.
+  // Also detect OAuth callback failures via ?error= param.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('error') === 'callback_failed') {
+      setError('Sign-in failed. Please try again.')
+    }
+
+    fetch('/api/auth/user', { credentials: 'include', cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (data && data.user && data.user.email) {
+          router.replace('/dashboard')
+        }
+      })
+      .catch(() => {/* stay on login */})
+  }, [router])
 
   const setSafeEmail    = (v: string) => { setEmail(v);    if (error) setError(null) }
   const setSafePassword = (v: string) => { setPassword(v); if (error) setError(null) }
+
+  // Poll server-side auth to confirm the session cookie is established
+  // before navigating. Prevents the middleware redirect-back race.
+  const waitForServerSession = async (maxAttempts = 10, intervalMs = 300): Promise<boolean> => {
+    for (let i = 0; i < maxAttempts; i++) {
+      try {
+        const res = await fetch('/api/auth/user', { credentials: 'include', cache: 'no-store' })
+        if (res.ok) {
+          const data = await res.json()
+          if (data?.user?.email) return true
+        }
+      } catch { /* retry */ }
+      await new Promise((r) => setTimeout(r, intervalMs))
+    }
+    return false
+  }
 
   // ── Email/password sign-in ──────────────────────────────────────────────
   const handleLogin = async (e: React.FormEvent) => {
@@ -104,6 +125,7 @@ export default function LoginPage() {
       }
       clearAuthFailures('login')
       trackClientAuthEvent('login', 'succeeded', { provider: 'password' })
+      await waitForServerSession()
       router.push('/dashboard')
       router.refresh()
     } catch {
