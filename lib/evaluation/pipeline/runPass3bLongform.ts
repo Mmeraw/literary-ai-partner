@@ -211,6 +211,8 @@ export interface RunPass3bOptions {
   openAiTimeoutMs?: number;
   /** Author corrections from accepted_story_ledger_v1.governance_rail — MANDATORY if present. */
   authorCorrectionsBlock?: string | null;
+  /** Formatted chapter-to-chunk index string. Built from buildChapterIndex + formatChapterIndex. */
+  chapterIndex?: string | null;
 }
 
 export type TruthfulFallbackReport = {
@@ -538,6 +540,24 @@ function validateDreamDocument(raw: Record<string, unknown>): LongformDreamDocum
   return raw as unknown as LongformDreamDocument;
 }
 
+/**
+ * Post-processing: detect 10/10 scores with gap_evidence and inject calibration notes.
+ * This ensures the report's credibility is never undermined by a perfect score
+ * sitting alongside documented weaknesses.
+ */
+function applyScoreCalibrationNotes(doc: LongformDreamDocument): string[] {
+  const notes: string[] = [];
+  for (const ca of doc.criterion_analyses) {
+    if (ca.score === 10 && Array.isArray(ca.gap_evidence) && ca.gap_evidence.length > 0) {
+      const label = CRITERIA_METADATA[ca.key as keyof typeof CRITERIA_METADATA]?.label ?? ca.key;
+      notes.push(
+        `Score calibration tension: ${label} (${ca.key}) scored 10/10 but has ${ca.gap_evidence.length} gap_evidence entries. A 10/10 implies near-perfection; the identified gaps suggest 9 or 9.5 may be more credible.`
+      );
+    }
+  }
+  return notes;
+}
+
 // ── Chunked criterion analysis ────────────────────────────────────────────────
 
 /**
@@ -556,6 +576,7 @@ function buildCriterionBatchPrompt(params: {
   workType: string;
   criteria: SynthesizedCriterion[];
   chunkSample: ManuscriptChunkEvidence[];
+  chapterIndex?: string | null;
 }): string {
   const scoreSummary = params.criteria.map((c) => {
     const label = CRITERIA_METADATA[c.key as keyof typeof CRITERIA_METADATA]?.label ?? c.key;
@@ -589,10 +610,14 @@ function buildCriterionBatchPrompt(params: {
 
   const criterionKeys = params.criteria.map(c => c.key).join(", ");
 
+  const chapterIndexBlock = params.chapterIndex
+    ? `\nCHAPTER INDEX (use these real chapter numbers for location references):\n${params.chapterIndex}\n`
+    : "";
+
   return `Generate criterion_analyses for the following criteria ONLY: ${criterionKeys}
 
 MANUSCRIPT: "${params.title}" (${params.wordCount.toLocaleString()} words, ${params.workType})
-
+${chapterIndexBlock}
 PASS 3 SCORES (do not re-score — expand with evidence):
 ${scoreSummary}
 
@@ -604,6 +629,10 @@ ${chunkWindows.map(w => `[${w.label}]\n${w.content}`).join("\n\n")}
 
 Return a JSON object: { "criterion_analyses": [...] }
 Each entry: { "key": CriterionKey, "score": number (match Pass 3), "confidence": "High"|"Moderate-High"|"Moderate"|"Low", "fit_evidence": string[] (2-4), "gap_evidence": string[] (2-4), "revision_queue": string[] (2-4) }
+
+EVIDENCE RULE: Every fit_evidence and gap_evidence entry MUST open with a verbatim manuscript quote in quotation marks, followed by an em dash and the interpretive observation. No conclusions without quotes.
+REVISION QUEUE RULE: Each revision_queue entry must follow: "[LOCATION: Chapter X] [OPERATION: add|cut|replace|merge|compress] — [instruction]. Acceptance: [condition]."
+SCORE RULE: If you identify gap_evidence for a 10/10 criterion, note the tension but do not change the score.
 Evidence must be grounded in the manuscript samples. Use character names, not "the protagonist".
 Return ONLY valid JSON.`;
 }
@@ -620,6 +649,7 @@ function buildSynthesisPrompt(params: {
   scopeProfile?: SubmissionScopeProfile;
   authorCorrectionsBlock?: string | null;
   criteria: SynthesizedCriterion[];
+  chapterIndex?: string | null;
 }): string {
   const scoreSummary = params.criteria.map((c) => {
     const label = CRITERIA_METADATA[c.key as keyof typeof CRITERIA_METADATA]?.label ?? c.key;
@@ -647,6 +677,9 @@ function buildSynthesisPrompt(params: {
   const correctionsSection = params.authorCorrectionsBlock
     ? `\n${params.authorCorrectionsBlock}\n\n`
     : "";
+  const chapterIndexSection = params.chapterIndex
+    ? `\nCHAPTER INDEX (authoritative — use these real chapter numbers in arc_map and revision_plan)\n${params.chapterIndex}\n`
+    : "";
 
   return `Produce the DREAM long-form evaluation document (EXCLUDING criterion_analyses — those are pre-computed below).
 ${correctionsSection}
@@ -657,6 +690,7 @@ MANUSCRIPT FACTS
 - Work type: ${params.workType}
 - Evaluation mode: ${params.mode ?? "long_form_multi_layer_evaluation"}
 ${params.scopeProfile ? `- Scope: ${params.scopeProfile.inputScale} (${params.scopeProfile.chunkCount} chunks analyzed)` : ""}
+${chapterIndexSection}
 
 SCORE GRID:
 ${scoreSummary}
@@ -678,19 +712,22 @@ Return a JSON object with these keys:
 - market_shelf ({ best_shelf, shelf_neighbors, comparison_space, marketable_hook, market_danger })
 - what_not_to_become (string[])
 - structural_stack (object[])
-- arc_map (object[])
+- arc_map (object[] — chapter_range MUST use real chapter numbers from CHAPTER INDEX)
 - layer_analyses (object[])
 - cross_layer_integration (object[])
 - symbolic_audit (object)
 - reader_experience (object)
-- revision_plan (object[] — 5-6 priorities)
+- revision_plan (object[] — 5-6 priorities, CANONICAL recommendation ledger — do not duplicate advice in other sections)
 - releasability (object[])
 - acceptance_checks (object)
-- calibration_notes (string[])
+- calibration_notes (string[] — include any 10/10 + gap_evidence tensions)
 - repo_summary (object)
 - manuscript_integrity_issues (object[])
 
-Ground all findings in manuscript evidence. Use character names. Return ONLY valid JSON.`;
+Ground all findings in manuscript evidence. Use character names.
+structural_stack revision_notes and cross_layer_integration revision_notes should reference revision_plan priorities by number, not repeat the same advice.
+revision_plan actions must include specific chapter locations from the CHAPTER INDEX.
+Return ONLY valid JSON.`;
 }
 
 async function runPass3bChunked(
@@ -714,6 +751,7 @@ async function runPass3bChunked(
       workType: opts.workType,
       criteria: batch,
       chunkSample: opts.manuscriptChunks,
+      chapterIndex: opts.chapterIndex,
     });
 
     const completion = await createCompletion({
@@ -769,6 +807,7 @@ async function runPass3bChunked(
     scopeProfile: opts.scopeProfile,
     authorCorrectionsBlock: opts.authorCorrectionsBlock,
     criteria: opts.criteria,
+    chapterIndex: opts.chapterIndex,
   });
 
   const synthesisCompletion = await createCompletion({
@@ -843,6 +882,14 @@ export async function runPass3bLongform(
       console.warn("[Pass3b:chunked] revision_plan_guardrail_applied", revisionPlanGuardrailReport);
     }
     const sanitizedDocument = sanitizeCMOSDeep(document);
+    const calibrationNotes = applyScoreCalibrationNotes(sanitizedDocument);
+    if (calibrationNotes.length > 0) {
+      sanitizedDocument.calibration_notes = [
+        ...(sanitizedDocument.calibration_notes ?? []),
+        ...calibrationNotes,
+      ];
+      console.log(`[Pass3b:chunked] score_calibration_notes_injected count=${calibrationNotes.length}`);
+    }
     sanitizedDocument.prompt_version = PASS3B_PROMPT_VERSION + ':chunked';
     sanitizedDocument.generated_at = new Date().toISOString();
     sanitizedDocument.model = selectedModel;
@@ -862,6 +909,7 @@ export async function runPass3bLongform(
     chunkSample: opts.manuscriptChunks,
     scopeProfile: opts.scopeProfile,
     authorCorrectionsBlock: opts.authorCorrectionsBlock,
+    chapterIndex: opts.chapterIndex,
   });
 
   console.log(`[Pass3b] request model=${selectedModel} max_tokens=${maxTokens} title="${opts.title}" words=${opts.wordCount} chunks=${opts.manuscriptChunks.length}`);
@@ -949,6 +997,16 @@ export async function runPass3bLongform(
 
   // CMOS 17th Ed. — deterministic post-processing of all author-facing text
   const sanitizedDocument = sanitizeCMOSDeep(document);
+
+  // Post-processing: inject calibration notes for 10/10 + gap_evidence tensions
+  const calibrationNotes = applyScoreCalibrationNotes(sanitizedDocument);
+  if (calibrationNotes.length > 0) {
+    sanitizedDocument.calibration_notes = [
+      ...(sanitizedDocument.calibration_notes ?? []),
+      ...calibrationNotes,
+    ];
+    console.log(`[Pass3b] score_calibration_notes_injected count=${calibrationNotes.length}`);
+  }
 
   // Stamp provenance server-side (after sanitization to avoid mangling metadata)
   sanitizedDocument.prompt_version = PASS3B_PROMPT_VERSION;

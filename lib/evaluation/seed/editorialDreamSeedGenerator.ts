@@ -261,7 +261,7 @@ function normalizeCriterionDiagnostics(raw: unknown): DreamSeedCriterionDiagnost
           ? item.confidence : 'medium';
       return {
         criterion: typeof item.criterion === 'string' ? item.criterion : '',
-        score: typeof item.score === 'number' ? Math.round(item.score) : 5,
+        score: typeof item.score === 'number' ? Math.floor(item.score) : 5,
         confidence,
         diagnosis: typeof item.diagnosis === 'string' ? item.diagnosis : '',
         key_evidence: Array.isArray(item.key_evidence)

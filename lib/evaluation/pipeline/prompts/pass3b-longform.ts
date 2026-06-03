@@ -28,7 +28,7 @@ import type { SynthesizedCriterion, ManuscriptChunkEvidence, Pass2aStructuredCon
 import { CRITERIA_METADATA } from "@/schemas/criteria-keys";
 import type { CriterionKey } from "@/schemas/criteria-keys";
 
-export const PASS3B_PROMPT_VERSION = "pass3b-longform-v3-full-arc-sampling";
+export const PASS3B_PROMPT_VERSION = "pass3b-longform-v4-quality-calibration";
 
 // ── Criterion display labels for the score grid ───────────────────────────────
 
@@ -137,6 +137,7 @@ If a repeated activity, game, lesson, food practice, music channel, local cultur
 §5 arc_map (object[])
 Each act: { act_name: string, chapter_range: string, primary_function: string, revision_priority: string }
 5–8 acts derived from the actual manuscript structure.
+CHAPTER RANGE RULE: chapter_range MUST use real chapter numbers from the CHAPTER INDEX provided in the user prompt. Do NOT invent chapter numbers. If the CHAPTER INDEX shows the manuscript has 85 chapters, the arc_map must span all 85 chapters — not stop at Ch. 35. Cross-reference chunk positions: if a plot event appears in chunk 32 and the CHAPTER INDEX maps chunk 32 to Ch. 70–72, the chapter_range must say "Ch. 70–72", not a lower number.
 If a co-protagonist or secondary POV lane carries a parallel arc, the act map must account for that lane instead of treating it as subplot only.
 
 §7 criterion_analyses (object[])
@@ -147,9 +148,18 @@ One entry per criterion (all 13). Each:
   "confidence": "High"|"Moderate-High"|"Moderate"|"Low",
   "fit_evidence": string[],     // 2–4 specific examples of what is working
   "gap_evidence": string[],     // 2–4 specific weaknesses with manuscript grounding
-  "revision_queue": string[]    // 2–4 concrete revision actions, numbered
+  "revision_queue": string[]    // 2–4 concrete revision actions with location and operation
 }
 Do NOT contradict the Pass 3 scores. Expand them with manuscript-specific evidence.
+
+EVIDENCE FORMAT RULE: Every fit_evidence and gap_evidence entry MUST open with a verbatim or near-verbatim manuscript quote in quotation marks, followed by an em dash and the interpretive observation. Format: '"exact quote from manuscript"—interpretive statement.' An entry that contains only a conclusion or paraphrase without a grounding quote is not evidence. Do not write "The opening highway ambush executes the premise" — write '"One second the highway ran straight and empty; the next, a produce rig sat crooked across my path"—the opening line drops the reader into immediate jeopardy, executing the abduction premise without exposition.'
+
+SCORE SELF-CONSISTENCY RULE: A score of 10/10 means near-perfection across the ENTIRE manuscript. If any gap_evidence entry identifies a weakness for this criterion, the score CANNOT be 10. If you are given a Pass 3 score of 10 and you find gap_evidence, note the tension in calibration_notes but do not change the score.
+
+REVISION QUEUE FORMAT: Each revision_queue entry must follow this template: "[LOCATION: Chapter X or chunk-zone label] [OPERATION: add|cut|replace|merge|compress|rewrite|seed] — [specific instruction]. Acceptance: [verifiable condition]." Example: "[Ch. 79–80] [add] — Insert a two-sentence beat where Michael recalls Raúl's ridge promise while watching Paul sleep. Acceptance: Paul's sleeping scene contains an explicit Raúl reference."
+
+DEDUPLICATION RULE: Each criterion's revision_queue items must be unique to that criterion. If the same revision action applies to multiple criteria, place it ONLY in the most relevant criterion's revision_queue and reference it by criterion key from other sections. Do NOT repeat "add Raúl reflection in Vancouver" across concept, character, theme, and narrativeClosure.
+
 Evidence distribution rule: High confidence for major full-manuscript claims requires evidence from at least two act zones. If evidence is concentrated in the opening, downgrade confidence or include an explicit gap_evidence item such as "evidence distribution narrow/opening-heavy".
 Character criterion must account for protagonists, co-protagonists, major recurring companions, and ending accountability where evidence supports them.
 Voice/POV criterion must account for distinct POV lanes, technical cognition, distinctive intelligence, and behavioral characterization where evidence supports them.
@@ -199,7 +209,8 @@ Ending aftertaste must distinguish plot resolution from emotional aftercare, tra
 }
 Priorities must be ordered: manuscript integrity first, then compression, then plausibility, then arc/character, then tone/packaging.
 Every acceptance_check must be a verifiable condition, not a wish.
-Use this as the canonical recommendation ledger: dedupe repeated advice. Each priority must include location, action, mechanism rationale, risk if ignored, and asset to preserve, either in goal/actions/acceptance_check.
+CANONICAL RECOMMENDATION LEDGER: This section is the SINGLE SOURCE OF TRUTH for all revision recommendations. Every distinct piece of revision advice must appear here ONCE and only once. The structural_stack revision_notes, criterion_analyses revision_queue, cross_layer_integration revision_notes, and layer_analyses needed_revision fields should reference revision_plan priorities by number ("see revision_plan P2") rather than repeating the same advice in different words. If you find yourself writing the same suggestion in two places, consolidate it into one revision_plan priority and cross-reference.
+Each priority must include location (specific chapters from the CHAPTER INDEX), action verbs, mechanism rationale, risk if ignored, and asset to preserve, either in goal/actions/acceptance_check.
 
 CRITICAL AUTHOR-FACING BOUNDARY FOR §12
 revision_plan is author-facing only. It may contain only manuscript-editing advice an author can apply to manuscript text, query/package, or positioning.
@@ -247,11 +258,15 @@ RULES
 1. Every section must be grounded in the manuscript evidence you receive. No generic literary advice.
 2. Use character names from MANUSCRIPT_CONTEXT.character_ledger — never "the protagonist".
 3. Revision actions must use active verbs: cut, remove, replace, merge, seed, rewrite, add, compress, reorder.
-4. Do not invent scores. dream_scores.quality should equal Math.round(weighted_average_of_criteria * 10).
+4. Do not invent scores. dream_scores.quality should equal Math.floor(weighted_average_of_criteria * 10). Always round DOWN — never inflate.
 5. If a manuscript integrity issue is detectable from chunk evidence, flag it with confidence classification; do not conflate document hygiene with story craft.
 6. Acceptance checks in §14 must be specific enough to write a test against.
 7. Do not add new top-level JSON keys. Fold the governed ledgers into the existing schema.
-8. Return ONLY valid JSON. No markdown fences, no prose outside the JSON object.`;
+8. Return ONLY valid JSON. No markdown fences, no prose outside the JSON object.
+9. CHAPTER INDEX is authoritative. Every chapter_range in arc_map and every location reference in revision_plan must use real chapter numbers from the CHAPTER INDEX. Do not hallucinate chapter numbers.
+10. EVIDENCE vs. CONCLUSIONS: fit_evidence and gap_evidence must contain grounded observations with manuscript quotes. "Cobra alive at end of text" is a conclusion — the evidence is the specific scene/quote where Cobra's status is last established. Label inferred states as inferred.
+11. DEDUPLICATION: Before finalizing output, scan all sections for repeated advice. If the same revision recommendation appears in more than one section (structural_stack, criterion_analyses, revision_plan, cross_layer_integration), keep it in revision_plan only and cross-reference from other sections.
+12. SCORE CALIBRATION: If a criterion has gap_evidence entries identifying real weaknesses, 10/10 is not credible. Note any 10/10 + gap_evidence tension in calibration_notes.`;
 
 // ── User prompt builder ───────────────────────────────────────────────────────
 
@@ -267,6 +282,8 @@ export function buildPass3bUserPrompt(params: {
   scopeProfile?: SubmissionScopeProfile;
   /** Author corrections from accepted_story_ledger_v1.governance_rail — MANDATORY if present. */
   authorCorrectionsBlock?: string | null;
+  /** Formatted chapter-to-chunk index string from buildChapterIndex + formatChapterIndex. */
+  chapterIndex?: string | null;
 }): string {
   // Build the score grid summary so Pass 3b has all 13 scores in compact form
   const scoreSummary = params.criteria.map((c) => {
@@ -330,6 +347,10 @@ export function buildPass3bUserPrompt(params: {
     ? `\n${params.authorCorrectionsBlock}\n\n`
     : "";
 
+  const chapterIndexSection = params.chapterIndex
+    ? `\nCHAPTER INDEX (authoritative — use these real chapter numbers in arc_map and revision_plan)\n${params.chapterIndex}\n`
+    : "";
+
   return `Produce the DREAM long-form evaluation document for the manuscript titled "${params.title}".
 ${correctionsSection}
 MANUSCRIPT FACTS
@@ -339,7 +360,7 @@ MANUSCRIPT FACTS
 - Structure: ${chapterInfo}
 - Evaluation mode: ${params.mode ?? "long_form_multi_layer_evaluation"}
 ${params.scopeProfile ? `- Scope: ${params.scopeProfile.inputScale} (${params.scopeProfile.chunkCount} chunks analyzed)` : ""}
-
+${chapterIndexSection}
 PASS 3 SCORE GRID (do not re-score — expand with evidence)
 ${scoreSummary}
 
@@ -360,5 +381,8 @@ INSTRUCTIONS
 5. Apply the governed DREAM completeness contract: character coverage, relationship spine, symbol payoff, sensory/emotional register, integrity confidence, and evidence distribution must be folded into the existing JSON keys.
 6. If the chunk sample reveals repeated or near-identical content across windows that should be structurally distinct, flag it in manuscript_integrity_issues with confidence classification.
 7. Do not add new top-level JSON keys; preserve the exact required schema.
-8. Return ONLY valid JSON.`;
+8. §5 arc_map chapter_range values MUST match the CHAPTER INDEX. Do not invent chapter numbers.
+9. §7 fit_evidence and gap_evidence entries must open with a verbatim manuscript quote. revision_queue entries must include chapter location and operation verb.
+10. §12 revision_plan is the canonical recommendation ledger. Do not duplicate advice across sections — cross-reference by priority number.
+11. Return ONLY valid JSON.`;
 }

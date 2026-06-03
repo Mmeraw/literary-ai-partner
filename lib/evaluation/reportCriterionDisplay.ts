@@ -44,7 +44,7 @@ function formatScoreOutOfTen(score: number | null | undefined): string {
     return "Score: —/10";
   }
 
-  return `Score: ${Math.round(score)}/10`;
+  return `Score: ${Math.floor(score)}/10`;
 }
 
 export function getCriterionPrimaryBadge(criterion: RenderableCriterion): {
