@@ -1100,13 +1100,13 @@ async function buildPdfReport(result: ExportableResult, title: string | null, jo
         doc.font('Helvetica').fontSize(7).fillColor(RG.textFaint).text(
           toPdfSafeText(FOOTER_LINE),
           ml, footerY,
-          { width: contentWidth, align: 'center' },
+          { width: contentWidth, align: 'center', lineBreak: false },
         );
       } else {
         doc.font('Helvetica').fontSize(7).fillColor(RG.textFaint).text(
           toPdfSafeText(`RevisionGrade(TM) Evaluation Report  --  Confidential  --  Page ${pageNumber}`),
           ml, footerY,
-          { width: contentWidth, align: 'center' },
+          { width: contentWidth, align: 'center', lineBreak: false },
         );
       }
       doc.fillColor('#000000');
