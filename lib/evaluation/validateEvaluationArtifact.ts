@@ -4,6 +4,10 @@ import {
   computeManuscriptCertification,
   criterionClaimScope,
 } from "@/lib/evaluation/signal/manuscriptClaimPolicy";
+import {
+  validateClaimEvidenceEntailment,
+  type ClaimEvidenceInput,
+} from "@/lib/evaluation/claimEvidenceEntailmentGate";
 
 export type ArtifactValidationIssueCode =
   | "ARTIFACT_NOT_OBJECT"
@@ -15,6 +19,7 @@ export type ArtifactValidationIssueCode =
   | "CRITERION_REASONING_MISSING"
   | "CRITERION_RECOMMENDATION_TRUNCATED"
   | "CRITERION_NON_CANONICAL_KEY"
+  | "CLAIM_EVIDENCE_ENTAILMENT_FAILED"
   | "LONG_FORM_UNCERTIFIED_MANUSCRIPT_WIDE_SCORE";
 
 export type ArtifactValidationIssue = {
@@ -48,6 +53,75 @@ function looksTruncatedRecommendation(action: string): boolean {
   return /(?<![-\u2013\u2014\w])(?<!\b(?:it|him|her|them|me|us|you)\s)\b(with|and|or|to|of|in|on|for|the|a|an)\.?$/i.test(
     normalized,
   );
+}
+
+function buildClaimEvidenceInputs(result: EvaluationResultV2): ClaimEvidenceInput[] {
+  const inputs: ClaimEvidenceInput[] = [];
+
+  if (typeof result.overview?.one_paragraph_summary === "string") {
+    inputs.push({
+      path: "$.overview.one_paragraph_summary",
+      claimText: result.overview.one_paragraph_summary,
+      evidenceText: result.criteria.flatMap((criterion) => criterion.evidence.map((item) => item.snippet)).join(" | "),
+    });
+  }
+
+  result.overview?.top_3_strengths?.forEach((claimText, index) => {
+    inputs.push({
+      path: `$.overview.top_3_strengths[${index}]`,
+      claimText,
+      evidenceText: result.criteria.flatMap((criterion) => criterion.evidence.map((item) => item.snippet)).join(" | "),
+    });
+  });
+
+  result.overview?.top_3_risks?.forEach((claimText, index) => {
+    inputs.push({
+      path: `$.overview.top_3_risks[${index}]`,
+      claimText,
+      evidenceText: result.criteria.flatMap((criterion) => criterion.evidence.map((item) => item.snippet)).join(" | "),
+    });
+  });
+
+  result.criteria.forEach((criterion) => {
+    const evidenceText = criterion.evidence.map((item) => item.snippet).join(" | ");
+    inputs.push({
+      path: `$.criteria.${criterion.key}.rationale`,
+      claimText: criterion.rationale,
+      evidenceText,
+    });
+
+    criterion.recommendations.forEach((recommendation, index) => {
+      const recommendationEvidence = recommendation.anchor_snippet ?? evidenceText;
+      inputs.push({
+        path: `$.criteria.${criterion.key}.recommendations[${index}].action`,
+        claimText: recommendation.action,
+        evidenceText: recommendationEvidence,
+      });
+      if (recommendation.specific_fix) {
+        inputs.push({
+          path: `$.criteria.${criterion.key}.recommendations[${index}].specific_fix`,
+          claimText: recommendation.specific_fix,
+          evidenceText: recommendationEvidence,
+        });
+      }
+      if (recommendation.reader_effect) {
+        inputs.push({
+          path: `$.criteria.${criterion.key}.recommendations[${index}].reader_effect`,
+          claimText: recommendation.reader_effect,
+          evidenceText: recommendationEvidence,
+        });
+      }
+      if (recommendation.expected_impact) {
+        inputs.push({
+          path: `$.criteria.${criterion.key}.recommendations[${index}].expected_impact`,
+          claimText: recommendation.expected_impact,
+          evidenceText: recommendationEvidence,
+        });
+      }
+    });
+  });
+
+  return inputs;
 }
 
 export function validateEvaluationArtifact(artifact: unknown): ArtifactValidationResult {
@@ -152,6 +226,17 @@ export function validateEvaluationArtifact(artifact: unknown): ArtifactValidatio
         code: "CRITERION_NON_CANONICAL_KEY",
         path: `$.criteria.${criterion.key}`,
         message: `Non-canonical criterion key found: ${criterion.key}`,
+      });
+    }
+  }
+
+  const claimEvidenceResult = validateClaimEvidenceEntailment(buildClaimEvidenceInputs(result));
+  if (!claimEvidenceResult.ok) {
+    for (const issue of claimEvidenceResult.issues) {
+      issues.push({
+        code: "CLAIM_EVIDENCE_ENTAILMENT_FAILED",
+        path: issue.path,
+        message: `${issue.code}: ${issue.message} Claim=${JSON.stringify(issue.claimText)} Evidence=${JSON.stringify(issue.evidenceText)}`,
       });
     }
   }
