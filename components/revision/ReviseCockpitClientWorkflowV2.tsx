@@ -5,11 +5,12 @@ import type { WorkbenchQueuePayload } from "@/lib/revision/workbenchQueue";
 import ReviseCockpitClientWorkflowV1 from "./ReviseCockpitClientWorkflowV1";
 
 const FETCH_PATCH_FLAG = "__revisionGradeChicagoFetchGuardInstalled";
+const CLIPBOARD_PATCH_FLAG = "__revisionGradeChicagoClipboardGuardInstalled";
 
-declare global {
-  interface Window {
-    [FETCH_PATCH_FLAG]?: boolean;
-  }
+type GuardedWindow = Window & Record<typeof FETCH_PATCH_FLAG | typeof CLIPBOARD_PATCH_FLAG, boolean | undefined>;
+
+function guardedWindow(): GuardedWindow {
+  return window as GuardedWindow;
 }
 
 function normalizeSetupForDialogue(value: string): string {
@@ -318,7 +319,9 @@ function cleanRevisionLedgerRequestBody(body: BodyInit | null | undefined): Body
 }
 
 function installChicagoFetchGuard() {
-  if (typeof window === "undefined" || window[FETCH_PATCH_FLAG]) return;
+  if (typeof window === "undefined") return;
+  const win = guardedWindow();
+  if (win[FETCH_PATCH_FLAG]) return;
 
   const originalFetch = window.fetch.bind(window);
   window.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
@@ -329,7 +332,17 @@ function installChicagoFetchGuard() {
     return originalFetch(input, init);
   }) as typeof window.fetch;
 
-  window[FETCH_PATCH_FLAG] = true;
+  win[FETCH_PATCH_FLAG] = true;
+}
+
+function installChicagoClipboardGuard() {
+  if (typeof window === "undefined" || !navigator.clipboard?.writeText) return;
+  const win = guardedWindow();
+  if (win[CLIPBOARD_PATCH_FLAG]) return;
+
+  const originalWriteText = navigator.clipboard.writeText.bind(navigator.clipboard);
+  navigator.clipboard.writeText = ((text: string) => originalWriteText(cleanCopy(text))) as typeof navigator.clipboard.writeText;
+  win[CLIPBOARD_PATCH_FLAG] = true;
 }
 
 function apply(root: HTMLElement) {
@@ -348,6 +361,7 @@ export default function ReviseCockpitClientWorkflowV2({ payload }: { payload: Wo
     const root = ref.current;
     if (!root) return;
     installChicagoFetchGuard();
+    installChicagoClipboardGuard();
     apply(root);
     const observer = new MutationObserver(() => apply(root));
     observer.observe(root, { childList: true, subtree: true, characterData: true });
