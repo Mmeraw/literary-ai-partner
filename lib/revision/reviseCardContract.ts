@@ -329,6 +329,16 @@ export function isMissingSourceMarker(value: string | null | undefined): boolean
   return MISSING_SOURCE_MARKERS.some((marker) => clean.includes(marker))
 }
 
+function candidateAppearsComplete(value: string): boolean {
+  const trimmed = value.trim()
+  if (!trimmed) return false
+  const lastChar = trimmed.charAt(trimmed.length - 1)
+  if (/[.!?"'\u201D\u2019\u2026]/.test(lastChar)) return true
+  const lastTwoChars = trimmed.slice(-2)
+  if (lastTwoChars === '".' || lastTwoChars === '\'.' || lastTwoChars === '.)') return true
+  return false
+}
+
 export function candidateTextIsCopyPasteReady(value: string | null | undefined): boolean {
   const clean = normalize(value)
   if (!clean) return false
@@ -337,9 +347,12 @@ export function candidateTextIsCopyPasteReady(value: string | null | undefined):
   if (hasMetaEditorialPattern(clean)) return false
   if (hasInternalTokenLeak(clean)) return false
 
-  // Copy-paste prose must have at least enough substance to be a manuscript patch.
-  // This intentionally allows short insertions, but blocks one-word placeholders.
-  return clean.split(/\s+/).length >= 5
+  const words = clean.split(/\s+/)
+  if (words.length < 5) return false
+
+  if (!candidateAppearsComplete(clean)) return false
+
+  return true
 }
 
 export function getRenderableCandidateText(input: {

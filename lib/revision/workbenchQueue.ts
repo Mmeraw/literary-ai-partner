@@ -117,6 +117,76 @@ type ResolvedWorkbenchTarget = {
   evaluationJobId: string
 }
 
+// ---------------------------------------------------------------------------
+// Manuscript fidelity: verify evidence anchors against actual manuscript text
+// ---------------------------------------------------------------------------
+function normalizeForFidelity(value: string): string {
+  return value.replace(/\s+/g, ' ').replace(/[""]/g, '"').replace(/['']/g, "'").trim().toLowerCase()
+}
+
+function evidenceMatchesManuscript(evidence: string, manuscriptText: string): boolean {
+  if (!evidence || !manuscriptText) return false
+  const normEvidence = normalizeForFidelity(evidence)
+  const normManuscript = normalizeForFidelity(manuscriptText)
+  if (normEvidence.length < 10) return false
+  if (normManuscript.includes(normEvidence)) return true
+  // Try matching first 60 chars — anchors may be truncated
+  const prefix = normEvidence.slice(0, Math.min(60, normEvidence.length))
+  if (prefix.length >= 15 && normManuscript.includes(prefix)) return true
+  return false
+}
+
+function findClosestManuscriptPassage(evidence: string, manuscriptText: string): string | null {
+  if (!evidence || !manuscriptText) return null
+  const normEvidence = normalizeForFidelity(evidence)
+  const normManuscript = normalizeForFidelity(manuscriptText)
+  // Extract key content words from the evidence (skip short/common words)
+  const evidenceWords = normEvidence.split(/\s+/).filter(w => w.length > 4)
+  if (evidenceWords.length < 3) return null
+  // Use a sliding window to find the best-matching passage
+  const manuscriptWords = manuscriptText.split(/\s+/)
+  const windowSize = Math.max(10, Math.min(evidenceWords.length * 2, 60))
+  let bestScore = 0
+  let bestStart = -1
+  for (let i = 0; i <= manuscriptWords.length - windowSize; i += 1) {
+    const window = manuscriptWords.slice(i, i + windowSize).join(' ')
+    const normWindow = normalizeForFidelity(window)
+    let score = 0
+    for (const word of evidenceWords) {
+      if (normWindow.includes(word)) score += 1
+    }
+    if (score > bestScore) {
+      bestScore = score
+      bestStart = i
+    }
+  }
+  // Require at least 50% of content words to match
+  if (bestScore < evidenceWords.length * 0.5) return null
+  return manuscriptWords.slice(bestStart, bestStart + windowSize).join(' ').trim()
+}
+
+async function loadManuscriptRawText(
+  supabase: ReturnType<typeof createAdminClient>,
+  manuscriptVersionId: string | null,
+  manuscriptId: number,
+): Promise<string> {
+  if (manuscriptVersionId) {
+    const { data } = await supabase
+      .from('manuscript_versions')
+      .select('raw_text')
+      .eq('id', manuscriptVersionId)
+      .maybeSingle()
+    if (data?.raw_text && typeof data.raw_text === 'string') return data.raw_text
+  }
+  // Fallback: try file_url from manuscripts table
+  const { data: manuscript } = await supabase
+    .from('manuscripts')
+    .select('file_url')
+    .eq('id', manuscriptId)
+    .maybeSingle()
+  return decodeManuscriptTextFromFileUrl(manuscript?.file_url as string | null | undefined)
+}
+
 function decodeManuscriptTextFromFileUrl(fileUrl: string | null | undefined): string {
   if (typeof fileUrl !== 'string' || fileUrl.trim().length === 0) return ''
   const trimmed = fileUrl.trim()
@@ -940,6 +1010,18 @@ export async function getWorkbenchQueue(input: { manuscriptId?: string; evaluati
     evaluationJobId,
   )
 
+  // Load manuscript text for evidence fidelity verification
+  let manuscriptRawText = ''
+  try {
+    manuscriptRawText = await loadManuscriptRawText(
+      supabase,
+      boundManuscriptVersionId ?? (typeof job.manuscript_version_id === 'string' ? job.manuscript_version_id : null),
+      manuscriptNumericId,
+    )
+  } catch {
+    // Non-blocking: fidelity checks degrade gracefully without manuscript text
+  }
+
   const revisionPackage =
     revisionLedgerArtifactId && typeof (boundManuscriptVersionId ?? job.manuscript_version_id) === 'string' && (boundManuscriptVersionId ?? job.manuscript_version_id).trim().length > 0
       ? buildRevisionPackage({
@@ -962,7 +1044,17 @@ export async function getWorkbenchQueue(input: { manuscriptId?: string; evaluati
         : opportunity.severity === 'should'
           ? 'should'
           : 'could'
-    const evidence = splitEvidence(sanitizeEvidenceExcerpt(opportunity.evidence_anchor) || null)
+    // Fidelity check: verify evidence actually appears in manuscript
+    let rawEvidence = sanitizeEvidenceExcerpt(opportunity.evidence_anchor) || null
+    if (rawEvidence && manuscriptRawText && !evidenceMatchesManuscript(rawEvidence, manuscriptRawText)) {
+      const corrected = findClosestManuscriptPassage(rawEvidence, manuscriptRawText)
+      if (corrected) {
+        rawEvidence = corrected
+      } else {
+        rawEvidence = null
+      }
+    }
+    const evidence = splitEvidence(rawEvidence)
     const candidateA = (opportunity.candidate_text_a ?? '').trim()
     const candidateB = (opportunity.candidate_text_b ?? '').trim()
     const candidateC = (opportunity.candidate_text_c ?? '').trim()

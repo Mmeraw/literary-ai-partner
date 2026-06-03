@@ -205,6 +205,19 @@ describe('revise card contract', () => {
     expect(visible).toBe('He turned away from the fire, then named the consequence he had caused.')
   })
 
+  test('rejects truncated candidates that end mid-sentence', () => {
+    expect(candidateTextIsCopyPasteReady('Brutus fired his')).toBe(false)
+    expect(candidateTextIsCopyPasteReady('The morning light fell on the back of the')).toBe(false)
+    expect(candidateTextIsCopyPasteReady('Kingdom held still long enough for the choice to')).toBe(false)
+  })
+
+  test('accepts complete candidates that end with proper punctuation', () => {
+    expect(candidateTextIsCopyPasteReady('Brutus fired his weapon into the darkness.')).toBe(true)
+    expect(candidateTextIsCopyPasteReady('The morning light fell on the back of his neck!')).toBe(true)
+    expect(candidateTextIsCopyPasteReady('"Kingdom held still long enough for the choice to register."')).toBe(true)
+    expect(candidateTextIsCopyPasteReady('The sound reached them before the meaning did\u2026')).toBe(true)
+  })
+
   test('does not hide short prose based on overlap alone when text is not a direct restatement', () => {
     const visible = getRenderableCandidateText({
       candidateText: 'At the pivot, the paragraph lost cause-and-effect clarity, then he named it.',
