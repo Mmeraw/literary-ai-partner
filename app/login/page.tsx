@@ -138,7 +138,7 @@ export default function LoginPage() {
   }
 
   // ── OAuth sign-in ───────────────────────────────────────────────────────
-  const handleOAuthLogin = async (provider: 'google' | 'azure') => {
+  const handleOAuthLogin = async (provider: 'google' | 'azure' | 'apple' | 'facebook' | 'twitter') => {
     if (loading) return
     trackClientAuthEvent('oauth', 'attempt', { provider })
     setLoading(true)
@@ -317,6 +317,45 @@ export default function LoginPage() {
               <rect x="13" y="13" width="10" height="10" fill="#FFB900"/>
             </svg>
             Continue with Microsoft
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleOAuthLogin('apple')}
+            disabled={loading || !hasSupabaseAuthConfig}
+            className="w-full flex items-center justify-center gap-3 border border-rg-cream2/30 text-rg-cream2 font-rg-mono text-xs tracking-widest uppercase px-6 py-3 hover:border-rg-cream2/60 hover:text-rg-cream transition-colors duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            {/* Apple logo */}
+            <svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M17.05 20.28c-.98.95-2.05.88-3.08.4-1.09-.5-2.08-.48-3.24 0-1.44.62-2.2.44-3.06-.4C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/>
+            </svg>
+            Continue with Apple
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleOAuthLogin('facebook')}
+            disabled={loading || !hasSupabaseAuthConfig}
+            className="w-full flex items-center justify-center gap-3 border border-rg-cream2/30 text-rg-cream2 font-rg-mono text-xs tracking-widest uppercase px-6 py-3 hover:border-rg-cream2/60 hover:text-rg-cream transition-colors duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            {/* Facebook logo */}
+            <svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24">
+              <path fill="#1877F2" d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+            </svg>
+            Continue with Facebook
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleOAuthLogin('twitter')}
+            disabled={loading || !hasSupabaseAuthConfig}
+            className="w-full flex items-center justify-center gap-3 border border-rg-cream2/30 text-rg-cream2 font-rg-mono text-xs tracking-widest uppercase px-6 py-3 hover:border-rg-cream2/60 hover:text-rg-cream transition-colors duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            {/* X (Twitter) logo */}
+            <svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+            </svg>
+            Continue with X
           </button>
         </div>
 
