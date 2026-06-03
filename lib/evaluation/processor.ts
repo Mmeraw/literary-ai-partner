@@ -6825,6 +6825,11 @@ export async function processEvaluationJob(
           phase1aInvocationStartMs = Date.now();
 
           // Invocation budget guard — race preflight against remaining budget.
+          // Use the Vercel hard ceiling (800s maxDuration) rather than the soft
+          // invocationBudgetMs (240s). Track C runs alone in this path (chunks
+          // are already done) so it can safely use the full function duration.
+          // The soft budget caused 109K-word manuscripts to self-chain
+          // repeatedly at exactly 225s — never completing synthesis.
           //
           // Promise.race note: if the timeout wins, runPass3Preflight is NOT
           // cancelled (JS has no native cancellation). This is safe because
@@ -6832,9 +6837,11 @@ export async function processEvaluationJob(
           // invocation re-runs from scratch overwriting any late writes, and
           // the self-chain write persists track_c_status='running' so the next
           // invocation won't treat the job as Track C terminal.
+          const TRACK_C_HARD_CEILING_MS = 780_000; // 800s maxDuration - 20s safety
+          const elapsedSinceResetMs = Date.now() - phase1aInvocationStartMs;
           const preflightBudgetMs = Math.max(
             1_000,
-            phase1aConfig.invocationBudgetMs - phase1aConfig.safetyMarginMs - (Date.now() - phase1aInvocationStartMs),
+            TRACK_C_HARD_CEILING_MS - elapsedSinceResetMs,
           );
 
           type PreflightTimeoutSentinel = { __preflightTimedOut: true };
