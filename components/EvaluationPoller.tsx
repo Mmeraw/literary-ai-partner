@@ -534,7 +534,7 @@ export function EvaluationPoller({
 
   if (error && !job) {
     return (
-      <div className="p-4 bg-red-50 border border-red-200 rounded">
+      <div className="rounded-xl border border-red-200 bg-red-50 p-5">
         <p className="text-sm font-semibold text-red-800">Error</p>
         <p className="text-sm text-red-700 mt-1">{error}</p>
       </div>
@@ -543,8 +543,8 @@ export function EvaluationPoller({
 
   if (!job) {
     return (
-      <div className="p-4 bg-gray-50 border border-gray-200 rounded">
-        <p className="text-sm text-gray-600">Loading job status...</p>
+      <div className="rounded-xl border border-stone-200 bg-white p-5">
+        <p className="text-sm text-stone-500">Loading job status…</p>
       </div>
     );
   }
@@ -569,22 +569,22 @@ export function EvaluationPoller({
   }[job.status];
 
   const statusColor = {
-    queued: 'text-gray-600',
-    running: 'text-blue-600',
-    complete: isCompletingAnimation || isInterimComplete ? 'text-blue-600' : 'text-green-600',
-    failed: 'text-red-600',
+    queued: 'text-stone-500',
+    running: 'text-stone-800',
+    complete: isCompletingAnimation || isInterimComplete ? 'text-stone-700' : 'text-stone-800',
+    failed: 'text-red-700',
   }[job.status];
 
   return (
-    <div className="p-4 border border-gray-200 rounded bg-white">
-      <div className="space-y-4">
+    <div className="rounded-xl border border-stone-200 bg-white p-5 shadow-sm sm:p-6">
+      <div className="space-y-5">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="text-lg font-semibold text-gray-900">Job Status</h3>
-            <p className="text-sm text-gray-500 mt-1">ID: {job.id.slice(0, 8)}&hellip;</p>
+            <h3 className="font-rg-serif text-lg font-semibold text-stone-900">Job Status</h3>
+            <p className="text-sm text-stone-400 mt-1">ID: {job.id.slice(0, 8)}&hellip;</p>
           </div>
-          <p className={`text-lg font-semibold ${statusColor}`}>{statusLabel}</p>
+          <p className={`text-base font-semibold ${statusColor}`}>{statusLabel}</p>
         </div>
 
                 {/* Progress Bar — driven 100% from backend phase, no client-side drift */}
@@ -623,19 +623,19 @@ export function EvaluationPoller({
           // and final-complete states natively — no client-side overrides needed.
           const effectivePd = pd;
 
-          // Bar color classes derived from effectivePd.color
+          // Bar color classes derived from effectivePd.color — warm brand palette
           const barColorClass = {
-            blue: 'bg-blue-600',
-            amber: 'bg-amber-500',
-            red: 'bg-red-600',
-            green: 'bg-green-600',
+            blue: 'bg-gradient-to-r from-stone-600 to-stone-500',
+            amber: 'bg-gradient-to-r from-amber-600 to-amber-500',
+            red: 'bg-gradient-to-r from-red-700 to-red-600',
+            green: 'bg-gradient-to-r from-stone-700 to-stone-600',
           }[effectivePd.color];
 
           const labelColorClass = {
-            blue: 'text-gray-700',
+            blue: 'text-stone-700',
             amber: 'text-amber-800 font-semibold',
             red: 'text-red-800 font-semibold',
-            green: 'text-green-700',
+            green: 'text-stone-700',
           }[effectivePd.color];
 
           // Bar fill: use displayProgress (animated, seeded from backend) for all non-terminal states.
@@ -661,13 +661,13 @@ export function EvaluationPoller({
                 <p className={`text-sm ${labelColorClass}`}>{effectivePd.label}</p>
                 <p className="text-sm text-gray-600 shrink-0">{ratchetedValueLabel}</p>
               </div>
-              <div className="w-full bg-gray-200 rounded-full h-2">
+              <div className="w-full rounded-full h-2.5" style={{ backgroundColor: '#E8E4DD' }}>
                 <div
-                  className={`h-2 rounded-full transition-all duration-300 ${barColorClass}`}
+                  className={`h-2.5 rounded-full transition-all duration-500 ease-out ${barColorClass}`}
                   style={{ width: `${barWidth}%` }}
                 />
               </div>
-              <p className="text-xs text-gray-500">{effectivePd.helperText}</p>
+              <p className="text-xs text-stone-500">{effectivePd.helperText}</p>
               {isInterimComplete && (
                 <p className="text-xs text-gray-400 mt-1">
                   Your full diagnostic report is ready below — scores, evidence, confidence, and revision recommendations are all final.
@@ -682,15 +682,15 @@ export function EvaluationPoller({
                       setRefreshBump((prev) => Math.min(prev + 1, 5));
                       if (fetchJobRef.current) void fetchJobRef.current();
                     }}
-                    className="inline-flex items-center gap-1 rounded border border-gray-300 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                    className="inline-flex items-center gap-1 rounded-md border border-stone-300 bg-white px-2.5 py-1.5 text-xs font-medium text-stone-700 shadow-sm hover:bg-stone-50 transition-colors"
                   >
                     ↻ Refresh
                   </button>
-                  {job.status === 'queued' && pollCount > 5 && (
-                    <span className="text-xs text-gray-400">Still preparing?</span>
+                  {job.status === 'queued' && pollCount > 10 && (
+                    <span className="text-xs text-stone-400">Still preparing?</span>
                   )}
-                  {job.status === 'running' && pollCount > 10 && (
-                    <span className="text-xs text-gray-400">Taking longer than expected?</span>
+                  {job.status === 'running' && pollCount > 30 && (
+                    <span className="text-xs text-stone-400">Taking longer than expected?</span>
                   )}
                 </div>
               )}
@@ -701,18 +701,18 @@ export function EvaluationPoller({
         {/* Progress bar label + helper text is sufficient — no internal pipeline stages exposed */}
 
         {/* Timestamps — show relative/elapsed time, not raw timestamps */}
-        <div className="grid grid-cols-1 gap-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-4 text-sm sm:grid-cols-4" style={{ borderTop: '1px solid #E8E4DD', paddingTop: '1rem' }}>
           <div>
-            <p className="text-gray-600">Started</p>
-            <p className="text-gray-900">
+            <p className="text-xs font-medium uppercase tracking-wider text-stone-400">Started</p>
+            <p className="mt-1 text-sm text-stone-800">
               {formatRelativeTime(job.created_at)}
             </p>
           </div>
           <div>
-            <p className="text-gray-600">
+            <p className="text-xs font-medium uppercase tracking-wider text-stone-400">
               {job.status === 'complete' ? 'Completed' : 'Updated'}
             </p>
-            <p className="text-gray-900">
+            <p className="mt-1 text-sm text-stone-800">
               {job.status === 'running' || job.status === 'queued'
                 ? `Running for ${formatDuration(
                     job.pass3_started_at
@@ -725,18 +725,18 @@ export function EvaluationPoller({
           </div>
           {(job.status === 'running' || job.status === 'queued') && (
             <div>
-              <p className="text-gray-600">Total Elapsed</p>
-              <p className="text-gray-900 font-semibold">
+              <p className="text-xs font-medium uppercase tracking-wider text-stone-400">Total Elapsed</p>
+              <p className="mt-1 text-sm font-semibold text-stone-900">
                 {formatDuration(job.created_at)}
               </p>
             </div>
           )}
           {(job.status === 'queued' || job.status === 'running') && (
-            <div className="flex items-end justify-start sm:justify-end lg:justify-start">
+            <div className="flex items-end justify-start sm:justify-end">
               <CancelEvaluationButton
                 jobId={jobId}
                 label="Cancel Evaluation"
-                buttonClassName="inline-flex items-center rounded-md border border-red-600 bg-red-600 px-3 py-2 text-xs font-bold tracking-wide text-white shadow-sm hover:bg-red-700"
+                buttonClassName="inline-flex items-center rounded-md bg-red-800 border border-red-900 px-3 py-2 text-xs font-bold tracking-wide text-white shadow-sm transition-colors hover:bg-red-900"
               />
             </div>
           )}
@@ -747,12 +747,12 @@ export function EvaluationPoller({
           <div className="space-y-3">
             {/* Operational error detail — operators only */}
             {job.can_view_operational_details && job.last_error ? (
-              <div className="p-3 bg-red-50 border border-red-200 rounded">
+              <div className="rounded-lg border border-red-200 bg-red-50 p-3">
                 <p className="text-xs font-semibold text-red-800 uppercase">Error</p>
                 <p className="text-sm text-red-700 mt-2">{formatUserSafeError(job.last_error)}</p>
               </div>
             ) : !job.can_view_operational_details ? (
-              <div className="p-3 bg-amber-50 border border-amber-200 rounded">
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
                 <p className="text-sm text-amber-800">
                   {job.public_status_message ??
                     'This evaluation could not be completed. Please start a new evaluation or contact support if the problem continues.'}
@@ -773,7 +773,7 @@ export function EvaluationPoller({
 
         {/* Transient fetch errors should not be confused with terminal job failure */}
         {transientError && isPolling && (
-          <div className="p-3 bg-amber-50 border border-amber-200 rounded">
+          <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
             <p className="text-xs font-semibold text-amber-800 uppercase">Temporary connection issue</p>
             <p className="text-sm text-amber-700 mt-2">
               {formatUserSafeError(transientError)}
@@ -785,7 +785,7 @@ export function EvaluationPoller({
         )}
 
         {(job.status === 'queued' || job.status === 'running') && job.is_stalled && (
-          <div className="p-3 bg-red-50 border border-red-200 rounded">
+          <div className="rounded-lg border border-red-200 bg-red-50 p-3">
             <p className="text-xs font-semibold text-red-800 uppercase">Evaluation stalled</p>
             <p className="text-sm text-red-700 mt-2">
               {formatUserSafeError(
@@ -803,8 +803,8 @@ export function EvaluationPoller({
 
         {/* Completion CTA — Final state auto-redirects, Interim state offers manual view */}
         {isFinalComplete && redirectOnComplete && !redirectedRef.current && (
-          <div className="p-3 bg-green-50 border border-green-200 rounded">
-            <p className="text-sm text-green-800">
+          <div className="rounded-lg border p-3" style={{ backgroundColor: '#F2EFEA', borderColor: '#A98E4A' }}>
+            <p className="text-sm text-stone-800">
               {isLongForm ? 'Final report ready.' : 'Evaluation report ready.'}
               {pendingRedirectDelayMs != null
                 ? ` Redirecting automatically in ${Math.ceil(pendingRedirectDelayMs / 1000)}s.`
@@ -813,21 +813,21 @@ export function EvaluationPoller({
             <button
               type="button"
               onClick={navigateToReport}
-              className="mt-2 inline-flex rounded-md border border-green-300 bg-white px-3 py-1.5 text-xs font-medium text-green-800 hover:bg-green-100"
+              className="mt-2 inline-flex rounded-md border border-stone-300 bg-white px-3 py-1.5 text-xs font-semibold text-stone-800 shadow-sm hover:bg-stone-50"
             >
               {isLongForm ? 'View Final Report' : 'View Evaluation Report'}
             </button>
           </div>
         )}
         {isInterimComplete && redirectOnComplete && !redirectedRef.current && (
-          <div className="p-3 bg-blue-50 border border-blue-200 rounded">
-            <p className="text-sm text-blue-800">
+          <div className="rounded-lg border p-3" style={{ backgroundColor: '#F2EFEA', borderColor: '#D6D0C4' }}>
+            <p className="text-sm text-stone-700">
               Diagnostic report ready. Finalizing your report is still generating — the full report will appear automatically when complete.
             </p>
             <button
               type="button"
               onClick={navigateToReport}
-              className="mt-2 inline-flex rounded-md border border-blue-300 bg-white px-3 py-1.5 text-xs font-medium text-blue-800 hover:bg-blue-100"
+              className="mt-2 inline-flex rounded-md border border-stone-300 bg-white px-3 py-1.5 text-xs font-semibold text-stone-800 shadow-sm hover:bg-stone-50"
             >
               View Diagnostic Report
             </button>
