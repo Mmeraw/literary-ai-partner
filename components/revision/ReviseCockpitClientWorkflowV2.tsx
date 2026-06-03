@@ -4,6 +4,21 @@ import { useEffect, useRef } from "react";
 import type { WorkbenchQueuePayload } from "@/lib/revision/workbenchQueue";
 import ReviseCockpitClientWorkflowV1 from "./ReviseCockpitClientWorkflowV1";
 
+const FETCH_PATCH_FLAG = "__revisionGradeChicagoFetchGuardInstalled";
+
+declare global {
+  interface Window {
+    [FETCH_PATCH_FLAG]?: boolean;
+  }
+}
+
+function normalizeSetupForDialogue(value: string): string {
+  return value
+    .replace(/[,;:—–-]+$/u, "")
+    .replace(/[.!?]+$/u, "")
+    .trim();
+}
+
 function cleanCopy(value: string): string {
   let next = value
     .replace(/^\s*[?¿]+\s*/g, "")
@@ -12,10 +27,34 @@ function cleanCopy(value: string): string {
     .replace(/\bthe room heard the hurt underneath\b/gi, "the others caught the hurt underneath")
     .replace(/\bthe room\b/gi, "the clearing")
     .replace(/\broom\b/gi, "clearing")
-    .replace(/\beveryone\b/gi, "the others");
+    .replace(/\beveryone\b/gi, "the others")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  // Chicago-style punctuation hygiene for generated candidate prose.
+  next = next
+    .replace(/\s+([,.;:!?])/g, "$1")
+    .replace(/,\s*\./g, ".")
+    .replace(/\.\s*,/g, ".")
+    .replace(/,{2,}/g, ",")
+    .replace(/\.{2,}/g, ".")
+    .replace(/,\s*([”"])/g, "$1")
+    .replace(/([“"])([^”"]+?)[.!?][”"]\s+([A-Z][A-Za-z’'\-]+\s+(?:said|asked|whispered|muttered|shouted|called|cried))\./gu, "$1$2,” $3.")
+    .replace(/([“"])([^”"]+?),[”"]\s+([A-Z][A-Za-z’'\-]+\s+(?:said|asked|whispered|muttered|shouted|called|cried))\./gu, "$1$2,” $3.")
+    .replace(/([A-Z][A-Za-z’'\-]+\s+(?:said|asked|whispered|muttered|shouted|called|cried)),\s*([“"])([^”"]+?),[”"]?/gu, "$1, $2$3.”")
+    .replace(/([“"][^”"]+[.!?][”"])\s+([A-Z][A-Za-z’'\-]+\s+(?:said|asked|whispered|muttered|shouted|called|cried))\./gu, (_match, quote: string, tag: string) => {
+      const inner = quote.slice(1, -1).replace(/[.!?]+$/u, "");
+      return `${quote[0]}${inner},” ${tag}.`;
+    });
+
+  // Specific generated-compression repair: "Once the air cleared,. “I want...” Brutus said."
+  next = next.replace(
+    /^(Once the air cleared)[,.]*\s+[“"]([^”"]+?)[.!?]?[”"]\s+(Brutus\s+said)\.?$/iu,
+    (_match, setup: string, speech: string, tag: string) => `${normalizeSetupForDialogue(setup)}, “${speech.trim()},” ${tag}.`,
+  );
 
   next = next.replace(/(:\s+)([a-z])/g, (_match, prefix: string, letter: string) => `${prefix}${letter.toUpperCase()}`);
-  return next;
+  return next.trim();
 }
 
 function cleanVisibleText(root: HTMLElement) {
@@ -38,6 +77,24 @@ function hideSuggestedLabels(root: HTMLElement) {
     const text = (element.textContent ?? "").replace(/\s+/g, " ").trim().toUpperCase();
     if (text === "SUGGESTED INSERTIONS" || text === "SUGGESTED REPLACEMENTS" || text === "SUGGESTED REVISIONS") {
       element.style.display = "none";
+    }
+  }
+}
+
+function hideAuthorFacingInternalStatuses(root: HTMLElement) {
+  for (const element of Array.from(root.querySelectorAll("span")) as HTMLElement[]) {
+    const text = (element.textContent ?? "").replace(/\s+/g, " ").trim();
+    const upper = text.toUpperCase();
+    const shouldHide =
+      /^READY(?:\s+\d+)?$/i.test(text)
+      || /^NEEDS TARGETING(?:\s+\d+)?$/i.test(text)
+      || /^PENDING(?:\s+\d+)?$/i.test(text)
+      || /^ACCEPTED(?:\s+\d+)?$/i.test(text)
+      || upper === "UNREADY";
+
+    if (shouldHide) {
+      element.style.display = "none";
+      element.dataset.rgInternalStatusHidden = "true";
     }
   }
 }
@@ -100,7 +157,6 @@ function styleLedgerTable(ledger: HTMLElement) {
 function collapseLedger(ledger: HTMLElement) {
   if (ledger.dataset.rgCollapsed === "true") return;
 
-  // Find the scrollable table container (the div with max-h-32)
   const tableContainer = ledger.querySelector("div.max-h-32, div[class*='overflow-y-auto']") as HTMLElement | null;
   const scrollDiv = tableContainer ?? (ledger.querySelector("table")?.parentElement as HTMLElement | null);
   if (scrollDiv) {
@@ -109,7 +165,6 @@ function collapseLedger(ledger: HTMLElement) {
     scrollDiv.dataset.rgLedgerScroll = "true";
   }
 
-  // Hide filter buttons row (keep only the "Revision Ledger" label)
   const filterButtons = ledger.querySelectorAll("button") as NodeListOf<HTMLElement>;
   for (const btn of Array.from(filterButtons)) {
     const text = (btn.textContent ?? "").trim();
@@ -119,7 +174,6 @@ function collapseLedger(ledger: HTMLElement) {
     }
   }
 
-  // Add expand toggle if not already present
   if (!ledger.querySelector("[data-rg-toggle]")) {
     const toggle = document.createElement("button");
     toggle.type = "button";
@@ -134,7 +188,6 @@ function collapseLedger(ledger: HTMLElement) {
         collapseLedger(ledger);
       }
     });
-    // Insert toggle into the header area
     const headerRow = ledger.querySelector("div.mb-2, div:first-child") as HTMLElement | null;
     if (headerRow) {
       headerRow.style.display = "flex";
@@ -154,13 +207,11 @@ function expandLedger(ledger: HTMLElement) {
     scrollDiv.style.overflow = "auto";
   }
 
-  // Show filter buttons again
   const filterButtons = ledger.querySelectorAll("[data-rg-ledger-filter]") as NodeListOf<HTMLElement>;
   for (const btn of Array.from(filterButtons)) {
     btn.style.display = "";
   }
 
-  // Update toggle text
   const toggle = ledger.querySelector("[data-rg-toggle]") as HTMLElement | null;
   if (toggle) toggle.textContent = "Collapse";
 
@@ -248,9 +299,43 @@ function blankCompletedWorkspace(root: HTMLElement) {
   if (!existing) workspace.appendChild(createBlankWorkspace());
 }
 
+function cleanRevisionLedgerRequestBody(body: BodyInit | null | undefined): BodyInit | null | undefined {
+  if (typeof body !== "string") return body;
+  try {
+    const parsed = JSON.parse(body) as { entries?: Array<Record<string, unknown>> };
+    if (!Array.isArray(parsed.entries)) return body;
+
+    parsed.entries = parsed.entries.map((entry) => ({
+      ...entry,
+      selectedText: typeof entry.selectedText === "string" ? cleanCopy(entry.selectedText) : entry.selectedText,
+      customText: typeof entry.customText === "string" ? cleanCopy(entry.customText) : entry.customText,
+    }));
+
+    return JSON.stringify(parsed);
+  } catch {
+    return body;
+  }
+}
+
+function installChicagoFetchGuard() {
+  if (typeof window === "undefined" || window[FETCH_PATCH_FLAG]) return;
+
+  const originalFetch = window.fetch.bind(window);
+  window.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
+    const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+    if (url.includes("/api/revision-ledger") && init?.body) {
+      return originalFetch(input, { ...init, body: cleanRevisionLedgerRequestBody(init.body) });
+    }
+    return originalFetch(input, init);
+  }) as typeof window.fetch;
+
+  window[FETCH_PATCH_FLAG] = true;
+}
+
 function apply(root: HTMLElement) {
   cleanVisibleText(root);
   hideSuggestedLabels(root);
+  hideAuthorFacingInternalStatuses(root);
   styleWorkbenchManuscriptTitle(root);
   widenLedger(root);
   blankCompletedWorkspace(root);
@@ -262,6 +347,7 @@ export default function ReviseCockpitClientWorkflowV2({ payload }: { payload: Wo
   useEffect(() => {
     const root = ref.current;
     if (!root) return;
+    installChicagoFetchGuard();
     apply(root);
     const observer = new MutationObserver(() => apply(root));
     observer.observe(root, { childList: true, subtree: true, characterData: true });
