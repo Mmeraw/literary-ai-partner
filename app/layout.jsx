@@ -8,9 +8,9 @@ import ReportColorSystemHydrator from "../components/reports/ReportColorSystemHy
 import SiteAnalyticsTracker from "../components/analytics/SiteAnalyticsTracker";
 
 export const metadata = {
-  title: "RevisionGrade™",
+  title: "RevisionGrade | The Literary AI Partner",
   description:
-    "A governed revision operating system for serious manuscripts.",
+    "The Literary AI Partner for manuscript diagnosis, author-controlled revision, and professional submission preparation.",
 };
 
 export default function RootLayout({ children }) {
