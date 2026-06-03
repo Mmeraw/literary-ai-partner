@@ -22,6 +22,7 @@ import {
   POLISH_PASS_VERSION,
   buildPolishPassUserPrompt,
 } from "./pipeline/prompts/polish-pass";
+import { getCanonicalPolishModel } from "./policy";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -128,7 +129,7 @@ async function callPolishLLM(
 
   const response = await openai.chat.completions.create(
     {
-      model: "gpt-5.1",
+      model: getCanonicalPolishModel(),
       messages: [
         { role: "system", content: POLISH_PASS_SYSTEM_PROMPT },
         { role: "user", content: userPrompt },

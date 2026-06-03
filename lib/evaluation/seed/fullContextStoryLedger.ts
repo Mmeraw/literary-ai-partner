@@ -22,7 +22,7 @@ import { getEvalOpenAiTimeoutMs } from '@/lib/evaluation/config';
 import {
   buildOpenAIOutputTokenParam,
   buildOpenAITemperatureParam,
-  getCanonicalPipelineModel,
+  getCanonicalLedgerModel,
   isReasoningStyleModel,
 } from '@/lib/evaluation/policy';
 import {
@@ -524,7 +524,7 @@ function buildFullLedger(
 export async function generateFullContextStoryLedger(
   input: GenerateFullContextLedgerInput,
 ): Promise<GenerateFullContextLedgerResult> {
-  const model = getCanonicalPipelineModel(input.model);
+  const model = getCanonicalLedgerModel(input.model);
   const timeoutMs = input.timeoutMs ?? Math.max(getEvalOpenAiTimeoutMs(), 120_000);
   const apiKey = input.openaiApiKey?.trim() ?? process.env.OPENAI_API_KEY ?? '';
   const generatedAt = new Date().toISOString();

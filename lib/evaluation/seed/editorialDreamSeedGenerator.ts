@@ -15,7 +15,7 @@
  */
 
 import OpenAI from 'openai';
-import { getCanonicalPipelineModel } from '@/lib/evaluation/policy';
+import { getCanonicalSeedModel } from '@/lib/evaluation/policy';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -165,7 +165,7 @@ CRITICAL RULES:
 export async function generateEditorialDreamSeed(
   input: GenerateEditorialDreamSeedInput,
 ): Promise<GenerateEditorialDreamSeedResult> {
-  const model = input.model || getCanonicalPipelineModel();
+  const model = input.model || getCanonicalSeedModel();
   const apiKey = input.openaiApiKey || process.env.OPENAI_API_KEY || '';
   const timeoutMs = input.timeoutMs || 180_000;
 
