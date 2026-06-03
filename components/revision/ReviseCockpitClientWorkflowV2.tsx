@@ -42,6 +42,42 @@ function hideSuggestedLabels(root: HTMLElement) {
   }
 }
 
+function styleWorkbenchManuscriptTitle(root: HTMLElement) {
+  const title = root.querySelector("main > div > header h1") as HTMLElement | null;
+  if (!title) return;
+
+  const header = title.closest("header") as HTMLElement | null;
+  const titleBlock = title.parentElement as HTMLElement | null;
+  const pillRail = titleBlock?.nextElementSibling as HTMLElement | null;
+
+  if (header) {
+    header.style.height = "auto";
+    header.style.minHeight = "3.75rem";
+    header.style.gap = "0.75rem";
+    header.style.overflow = "hidden";
+  }
+
+  if (titleBlock) {
+    titleBlock.style.flex = "1 1 auto";
+    titleBlock.style.minWidth = "0";
+    titleBlock.style.overflow = "hidden";
+  }
+
+  if (pillRail) {
+    pillRail.style.flex = "0 0 auto";
+    pillRail.style.minWidth = "max-content";
+  }
+
+  title.style.display = "block";
+  title.style.maxWidth = "100%";
+  title.style.overflow = "hidden";
+  title.style.textOverflow = "ellipsis";
+  title.style.whiteSpace = "nowrap";
+  title.style.fontSize = "clamp(1.2rem, 1.15vw + 0.85rem, 1.6rem)";
+  title.style.lineHeight = "1.12";
+  title.style.fontWeight = "700";
+}
+
 function styleLedgerTable(ledger: HTMLElement) {
   ledger.style.gridColumn = "1 / -1";
   ledger.style.overflowX = "hidden";
@@ -215,6 +251,7 @@ function blankCompletedWorkspace(root: HTMLElement) {
 function apply(root: HTMLElement) {
   cleanVisibleText(root);
   hideSuggestedLabels(root);
+  styleWorkbenchManuscriptTitle(root);
   widenLedger(root);
   blankCompletedWorkspace(root);
 }
