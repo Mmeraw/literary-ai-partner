@@ -324,8 +324,8 @@ export function resolveEvaluationRuntimeConfig(
     return model;
   }
 
-  const pass1Model = resolvePassModel(["EVAL_PASS1_MODEL", "EVAL_CHUNK_MODEL"]);
-  const pass2Model = resolvePassModel(["EVAL_PASS2_MODEL", "EVAL_CHUNK_MODEL"]);
+  const pass1Model = resolvePassModel(["EVAL_PASS1_MODEL", "EVAL_CHUNK_MODEL", "EVAL_CHEAP_MODEL"]);
+  const pass2Model = resolvePassModel(["EVAL_PASS2_MODEL", "EVAL_CHUNK_MODEL", "EVAL_CHEAP_MODEL"]);
   const pass3Model = resolvePassModel(["EVAL_PASS3_MODEL", "EVAL_SYNTHESIS_MODEL"]);
   const pass3FallbackModel = resolvePassModel(["EVAL_PASS3_FALLBACK_MODEL", "EVAL_PASS3_MODEL", "EVAL_SYNTHESIS_MODEL"]);
 
