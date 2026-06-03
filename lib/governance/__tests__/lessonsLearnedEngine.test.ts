@@ -312,7 +312,7 @@ describe("Phase 0.2 lessons-learned rule engine", () => {
     expect(result.passed).toBe(false);
   });
 
-  it("evaluateLessonsLearnedRules blocks on ERROR failures", () => {
+  it("evaluateLessonsLearnedRules warns (not blocks) on WARNING-severity failures", () => {
     const input = makeInput({
       convergence_result: makeSynthesis(
         "Unscoped contradiction",
@@ -324,8 +324,9 @@ describe("Phase 0.2 lessons-learned rule engine", () => {
     const report = evaluateLessonsLearnedRules(input, "pre_artifact_generation");
     const decision = deriveLessonsLearnedEnforcementDecision(report);
 
-    expect(report.overall_pass).toBe(false);
-    expect(decision.action).toBe("BLOCK");
+    // All LLR rules are WARNING severity — they flag but never block
+    expect(report.overall_pass).toBe(true);
+    expect(decision.action).toBe("ALLOW_WITH_WARNINGS");
   });
 
   it("evaluateLessonsLearnedRules passes for canon-anchored coherent output", () => {
