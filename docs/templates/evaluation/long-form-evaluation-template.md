@@ -1,16 +1,16 @@
 # Long-Form Evaluation Template
 
-**Canonical mode:** `long_form_evaluation`  
-**Route:** `LONG_FORM`  
-**Output mode:** `standard_long_form`  
-**Typical scope:** manuscript or substantial submission of 25,000+ words that can be evaluated without a separate layer architecture map  
-**Authority:** `docs/governance/evaluation-output-mode-contract.md`  
-**Related authority:** existing DREAM long-form specifications remain authoritative where governed ledgers are required.  
+**Canonical mode:** `long_form_evaluation`
+**Route:** `LONG_FORM`
+**Output mode:** `standard_long_form`
+**Typical scope:** manuscript or substantial submission of 25,000+ words that can be evaluated without a separate layer architecture map
+**Authority:** `docs/governance/evaluation-output-mode-contract.md`
+**Related authority:** existing DREAM long-form specifications remain authoritative where governed ledgers are required.
 **Runtime impact:** Documentation only.
 
 ---
 
-## Product promise
+## Product Promise
 
 A long-form evaluation diagnoses the manuscript at manuscript scale. It evaluates the full 13 story criteria while accounting for continuity, promises, payoff, character/relationship movement, pacing architecture, and readiness risk across the submitted manuscript.
 
@@ -18,26 +18,38 @@ It is deeper than short-form evaluation, but it is not necessarily the full mult
 
 ---
 
-## Required public report shape
+## Required Report Shape
 
-1. Manuscript metadata
-2. Executive verdict
-3. Overall score or readiness score
-4. Top strengths / top risks
-5. Top Recommendations
-6. 13 Story Criteria score grid
-7. Criterion-by-criterion rationales
-8. Surfaced criterion opportunities where warranted
-9. Manuscript-scale continuity findings
-10. Promise / payoff / closure findings where material
-11. Character / relationship / symbol / evidence coverage notes where material
-12. Revision priority order in plain editorial language
-13. Confidence explanation
-14. Download/print rendering that expands surfaced criterion opportunities
+### Title Block
+
+```
+# Evaluation Report: [Manuscript Title]
+
+**Report Type:** Long-Form Evaluation
+**Overall Score:** [XX]/100
+**Verdict:** [Pass/Review]
+**Genre:** [Genre]
+**Shelf:** [Target Market]
+**Submitted Word Count:** [XXXX]
+**Estimated Manuscript Pages:** [XXX] at 250 words/page
+**Date Generated:** [Month Day, Year]
+```
+
+### Report Sections
+
+1. Title Block (Title, Report Type, Score, Verdict, Genre, Shelf, Word Count, Pages, Date)
+2. Executive Verdict (Narrative synthesis of manuscript status)
+3. Top Strengths & Top Risks (Parallel bulleted lists)
+4. Top Recommendations (Cross-criterion synthesis)
+5. 13 Criteria Score Grid (Full-width table: Criterion | Score | Confidence)
+6. Expanded Criterion Analysis (Rationales and surfaced opportunities per criterion)
+7. Manuscript-Scale Continuity Findings (Editorial diagnosis of promises/payoffs/arc drift)
+8. Revision Priority Plan (Location, Operation, Recommendation, Rationale)
+9. Confidence Explanation
 
 ---
 
-## Required 13 criteria
+## Required 13 Criteria
 
 Long-form evaluation uses the canonical 13 story criteria:
 
@@ -57,7 +69,31 @@ Long-form evaluation uses the canonical 13 story criteria:
 
 ---
 
-## Top Recommendations contract
+## 13 Criteria Score Grid
+
+The score grid must be a full-width table with right-aligned Score and Confidence columns:
+
+| Criterion | Score | Confidence |
+| :--- | ---: | ---: |
+| Concept & Core Premise | XX/10 | High |
+| Narrative Drive & Momentum | XX/10 | High |
+| Character Depth & Psychological Coherence | XX/10 | Moderate |
+| Point of View & Voice Control | XX/10 | High |
+| Scene Construction & Function | XX/10 | High |
+| Dialogue Authenticity & Subtext | XX/10 | Moderate |
+| Thematic Integration | XX/10 | High |
+| World-Building & Environmental Logic | XX/10 | High |
+| Pacing & Structural Balance | XX/10 | Moderate |
+| Prose Control & Line-Level Craft | XX/10 | High |
+| Tonal Authority & Consistency | XX/10 | High |
+| Narrative Closure & Promises Kept | XX/10 | Moderate |
+| Professional Readiness & Market Positioning | XX/10 | High |
+
+Column widths: Criterion (55%), Score (15%), Confidence (30%).
+
+---
+
+## Top Recommendations Contract
 
 Top Recommendations are executive summaries of the highest-impact manuscript-scale findings.
 
@@ -71,7 +107,7 @@ They must:
 
 ---
 
-## Criterion opportunity contract
+## Criterion Opportunity Contract
 
 Each criterion may show zero to three surfaced opportunities. Do not flood the report with the full Revise inventory.
 
@@ -88,7 +124,7 @@ Online report rendering should be compact: one primary opportunity visible by de
 
 ---
 
-## Long-form continuity surfaces
+## Long-Form Continuity Surfaces
 
 Long-form evaluation should identify manuscript-scale findings in plain editorial language, including where material:
 
@@ -104,7 +140,23 @@ These findings should be rendered for authors as editorial diagnosis, not protec
 
 ---
 
-## WAVE boundary
+## Revision Priority Plan
+
+The revision plan must be formatted as a clean editorial workplan. Replace all bracketed system tags with professional editorial headers:
+
+```
+**Priority 1: [Descriptive Name]**
+*   **Location:** [Chapter/Section]
+*   **Operation:** [Add/Edit/Compress/Replace]
+*   **Recommendation:** [Editorial guidance]
+*   **Rationale:** [Reason for fix]
+```
+
+Cross-references must use readable language (e.g., "see Priority 3: Deepen Ending Payoff") instead of system-internal references (e.g., `see revision_plan P3`).
+
+---
+
+## WAVE Boundary
 
 Long-form evaluation may be WAVE-informed. It may identify structural weakness, momentum drag, scene-function failure, voice/POV control issues, prose-control issues, revision order, readiness risk, and evidence-confidence issues.
 
@@ -112,7 +164,7 @@ It must not present WAVE as the revision workflow. WAVE is part of evaluation/re
 
 ---
 
-## DREAM / governed-ledger boundary
+## DREAM / Governed-Ledger Boundary
 
 Standard long-form evaluation may include compact coverage notes where material, but it does not automatically require the full long-form multi-layer governed-ledger report shape.
 
@@ -120,6 +172,18 @@ When manuscript complexity requires separate layer mapping, Story Ledger extract
 
 ---
 
-## Revise boundary
+## Formatting Guards
+
+- **Normalization:** All headings must be Title Case. Replace all system-internal keys (e.g., `narrativeDrive`) with human-readable labels (e.g., Narrative Drive & Momentum).
+- **Metadata Stripping:** Do not include raw pipeline flags, execution timestamps, or system-internal terminology in author-facing copy.
+- **Tables:** Criteria tables must be full-width with Score and Confidence columns right-aligned.
+- **Revision Plan:** Convert all `[KEY: value]` tags into professional editorial headers: Location, Operation, Recommendation, and Rationale.
+- **Cross-References:** Replace system-internal references (e.g., `see revision_plan P3`) with readable language (e.g., "see Priority 3: Deepen Ending Payoff").
+- **Score Layout:** Render as a single-line block: `Overall Score: 85/100`. Never split scores across lines.
+- **Typography:** Maintain clean professional fonts, 1.08–1.15 line spacing, and enforced block spacing before every heading. Retain Unicode punctuation (™, em dashes, en dashes).
+
+---
+
+## Revise Boundary
 
 Long-form evaluation may produce prioritized repair targets. It does not apply repairs. A/B/C repair proposals, author controls, TrustedPath, and manuscript-change application belong to Revise Queue.

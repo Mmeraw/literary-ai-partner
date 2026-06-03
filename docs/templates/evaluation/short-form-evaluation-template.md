@@ -1,14 +1,14 @@
 # Short-Form Evaluation Template
 
-**Canonical mode:** `short_form_evaluation`  
-**Route:** `SHORT_FORM`  
-**Typical scope:** excerpt, chapter, story, sample, or manuscript under 25,000 words  
-**Authority:** `docs/governance/evaluation-output-mode-contract.md`  
+**Canonical mode:** `short_form_evaluation`
+**Route:** `SHORT_FORM`
+**Typical scope:** excerpt, chapter, story, sample, or manuscript under 25,000 words
+**Authority:** `docs/governance/evaluation-output-mode-contract.md`
 **Runtime impact:** Documentation only.
 
 ---
 
-## Product promise
+## Product Promise
 
 A short-form evaluation diagnoses the submitted text against RevisionGrade's 13 story criteria. It gives the author a professional, evidence-backed view of what is working, what is underperforming, and what the highest-value repair targets are in the submitted material.
 
@@ -16,22 +16,35 @@ It does **not** claim full-manuscript continuity proof.
 
 ---
 
-## Required public report shape
+## Required Report Shape
 
-1. Report metadata
-2. Executive summary
-3. Overall score and verdict
-4. Top strengths / top risks
-5. Top Recommendations
-6. 13 Story Criteria score grid
-7. Criterion rationales
-8. Surfaced criterion opportunities where warranted
-9. Confidence explanation
-10. Download/print rendering that expands surfaced criterion opportunities
+### Title Block
+
+```
+# Evaluation Report: [Manuscript Title]
+
+**Report Type:** Short-Form Evaluation
+**Overall Score:** [XX]/100
+**Verdict:** [Pass/Review]
+**Genre:** [Genre]
+**Submitted Word Count:** [XXXX]
+**Date Generated:** [Month Day, Year]
+```
+
+### Report Sections
+
+1. Title Block (Title, Report Type, Score, Verdict, Genre, Word Count, Date)
+2. Executive Summary (Compact narrative synthesis)
+3. Top Strengths & Top Risks (Parallel bulleted lists)
+4. Top Recommendations (Cross-criterion summary)
+5. 13 Criteria Score Grid (Full-width table: Criterion | Score | Confidence)
+6. Criterion Rationales & Surfaced Opportunities (Six-part diagnostic structure)
+7. Confidence Explanation
+8. Download/print rendering that expands surfaced criterion opportunities
 
 ---
 
-## Required 13 criteria
+## Required 13 Criteria
 
 Short-form evaluation uses the canonical 13 story criteria:
 
@@ -51,7 +64,31 @@ Short-form evaluation uses the canonical 13 story criteria:
 
 ---
 
-## Top Recommendations contract
+## 13 Criteria Score Grid
+
+The score grid must be a full-width table with right-aligned Score and Confidence columns:
+
+| Criterion | Score | Confidence |
+| :--- | ---: | ---: |
+| Concept & Core Premise | XX/10 | High |
+| Narrative Drive & Momentum | XX/10 | High |
+| Character Depth & Psychological Coherence | XX/10 | Moderate |
+| Point of View & Voice Control | XX/10 | High |
+| Scene Construction & Function | XX/10 | High |
+| Dialogue Authenticity & Subtext | XX/10 | Moderate |
+| Thematic Integration | XX/10 | High |
+| World-Building & Environmental Logic | XX/10 | High |
+| Pacing & Structural Balance | XX/10 | Moderate |
+| Prose Control & Line-Level Craft | XX/10 | High |
+| Tonal Authority & Consistency | XX/10 | High |
+| Narrative Closure & Promises Kept | XX/10 | Moderate |
+| Professional Readiness & Market Positioning | XX/10 | High |
+
+Column widths: Criterion (55%), Score (15%), Confidence (30%).
+
+---
+
+## Top Recommendations Contract
 
 Top Recommendations are executive summaries of the highest-impact findings across the submission.
 
@@ -65,7 +102,7 @@ They must:
 
 ---
 
-## Criterion opportunity contract
+## Criterion Opportunity Contract
 
 Each criterion may show zero to three surfaced opportunities. Do not invent opportunities when a criterion is already performing well.
 
@@ -82,7 +119,7 @@ Online report rendering should be compact: one primary opportunity visible by de
 
 ---
 
-## Explicit non-promises
+## Explicit Non-Promises
 
 Short-form evaluation must not promise:
 
@@ -98,6 +135,16 @@ If a short-form submission contains a local structural or continuity issue, the 
 
 ---
 
-## Revise boundary
+## Formatting Guards
+
+- **Normalization:** All headings must be Title Case. Replace all system-internal keys (e.g., `narrativeDrive`) with human-readable labels (e.g., Narrative Drive & Momentum).
+- **Metadata Stripping:** Do not include WAVE Governance, Gate audit logs, Golden Spine ledgers, or execution timestamps.
+- **Tables:** Criteria tables must be full-width with Score and Confidence columns right-aligned.
+- **Score Layout:** Render as a single-line block: `Overall Score: 85/100`. Never split scores across lines.
+- **Typography:** Maintain clean professional fonts, 1.08–1.15 line spacing, and enforced block spacing before every heading.
+
+---
+
+## Revise Boundary
 
 Short-form evaluation may identify repair targets. It does not apply repairs. A/B/C repair proposals, author controls, TrustedPath, and manuscript-change application belong to Revise Queue.

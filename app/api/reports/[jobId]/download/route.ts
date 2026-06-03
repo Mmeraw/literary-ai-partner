@@ -267,6 +267,8 @@ function stripMachineResidue(text: string): string {
     .replace(/\[PRIORITY:\s*[^\]]*\]\s*/gi, '')
     .replace(/\[SEVERITY:\s*[^\]]*\]\s*/gi, '')
     .replace(/\[CONFIDENCE:\s*[^\]]*\]\s*/gi, '')
+    .replace(/\bsee\s+revision_plan\s+P(\d+)/gi, (_m, n) => `see Priority ${n}`)
+    .replace(/\brevision_plan\s+P(\d+)/gi, (_m, n) => `Priority ${n}`)
     .replace(/\s+/g, ' ')
     .trim();
 }
