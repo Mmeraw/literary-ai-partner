@@ -23,6 +23,7 @@ import { getEvalOpenAiTimeoutMs } from "@/lib/evaluation/config";
 import { emitLatencyTrace } from "@/lib/observability/latencyTrace";
 import { JsonBoundaryError, parseJsonObjectBoundary } from "@/lib/llm/jsonParseBoundary";
 import { getEvaluationRuntimeConfig } from "@/lib/config/evaluationRuntimeConfig";
+import { trackCompletionCost } from "@/lib/jobs/cost";
 import { summarizePromptCoverage } from "./promptInput";
 import { countWords } from "./submissionScope";
 import { getConfiguredChunkCap } from "./chunkCap";
@@ -809,6 +810,7 @@ export async function runPass1(opts: RunPass1Options): Promise<SinglePassOutput>
   const modelCallStartMs = nowMs();
   let { completion, configuredMaxTokens } = await requestCompletion(activeMaxTokens);
   let modelCallMs = nowMs() - modelCallStartMs;
+  trackCompletionCost({ jobId: opts.jobId ?? "unknown", phase: "pass1", model: selectedModel, usage: completion.usage });
 
   const parseValidationStartMs = nowMs();
 
@@ -839,6 +841,7 @@ export async function runPass1(opts: RunPass1Options): Promise<SinglePassOutput>
       const retryStartMs = nowMs();
       ({ completion, configuredMaxTokens } = await requestCompletion(activeMaxTokens));
       modelCallMs += nowMs() - retryStartMs;
+      trackCompletionCost({ jobId: opts.jobId ?? "unknown", phase: "pass1_retry", model: selectedModel, usage: completion.usage });
 
       firstChoice = completion.choices?.[0] as CompletionChoice | undefined;
       rawContent = firstChoice?.message?.content;

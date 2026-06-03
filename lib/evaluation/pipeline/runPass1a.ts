@@ -7,6 +7,7 @@ import {
 import type { Pass1aChunkOutput, Pass1aCharacterChunkEntry, ManuscriptChunkEvidence } from "./types";
 import { getCanonicalPass1Model, isReasoningStyleModel } from "@/lib/evaluation/policy";
 import { getEvalOpenAiTimeoutMs } from "@/lib/evaluation/config";
+import { trackCompletionCost } from "@/lib/jobs/cost";
 import { parseJsonObjectBoundary } from "@/lib/llm/jsonParseBoundary";
 import { sanitizeIdentityNameList, sanitizeIdentityNameToken } from "./identityNameHygiene";
 import {
@@ -236,6 +237,7 @@ async function runSingleChunk(params: {
   openai: OpenAI;
   model: string;
   chunkCache?: Map<number, Pass1aChunkOutput>;
+  jobId?: string;
 }): Promise<Pass1aChunkOutput> {
   const { chunk, title, workType, seedContextBlock, openai, model, chunkCache } = params;
   const cached = chunkCache?.get(chunk.chunk_index);
@@ -263,6 +265,7 @@ async function runSingleChunk(params: {
           { role: "user", content: userPrompt },
         ],
       });
+      trackCompletionCost({ jobId: params.jobId ?? "unknown", phase: `pass1a_chunk_${chunk.chunk_index}`, model, usage: completion.usage });
       const rawContent = completion.choices?.[0]?.message?.content;
       const finishReason = completion.choices?.[0]?.finish_reason;
       if (typeof rawContent !== "string" || rawContent.trim() === "") {
@@ -419,6 +422,7 @@ export async function runPass1a(opts: RunPass1aOptions): Promise<RunPass1aResult
       openai,
       model,
       chunkCache: opts._chunkCache,
+      jobId: opts.jobId,
     });
 
     // Add this chunk's summary to the bridge for subsequent chunks

@@ -134,6 +134,36 @@ export function calculateCostCents(
 }
 
 /**
+ * Fire-and-forget cost recording from an OpenAI completion response.
+ *
+ * Call this after every `openai.chat.completions.create()` to populate
+ * the `job_costs` table for CostOps dashboard visibility.
+ *
+ * Non-blocking — errors are logged but never propagate.
+ */
+export function trackCompletionCost(params: {
+  jobId: string;
+  phase: string;
+  model: string;
+  usage?: { prompt_tokens?: number; completion_tokens?: number } | null;
+}): void {
+  const { jobId, phase, model, usage } = params;
+  const inputTokens = usage?.prompt_tokens ?? 0;
+  const outputTokens = usage?.completion_tokens ?? 0;
+  if (inputTokens === 0 && outputTokens === 0) return;
+  const costCents = calculateCostCents(model, inputTokens, outputTokens);
+  recordCost({
+    jobId,
+    phase,
+    model,
+    inputTokens,
+    outputTokens,
+    costCents,
+    calledAt: new Date().toISOString(),
+  }).catch(() => {/* swallowed — recordCost already logs */});
+}
+
+/**
  * Record a cost entry for a job.
  *
  * Inserts into the job_costs table. Non-blocking — errors are logged
