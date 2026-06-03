@@ -1,5 +1,10 @@
 import { createHash, randomUUID } from 'crypto';
-import { REVISION_OPERATIONS, type RevisionOperation } from './reviseCardContract';
+import {
+  REVISION_OPERATIONS,
+  candidateTextIsCopyPasteReady,
+  inferRevisionOperation,
+  type RevisionOperation,
+} from './reviseCardContract';
 
 type LedgerSeverity = 'must' | 'should' | 'could';
 type LedgerConfidence = 'low' | 'medium' | 'high';
@@ -43,6 +48,17 @@ type WorkbenchLikeOpportunity = {
 type EnsureLedgerResult = {
   artifactId: string | null;
   opportunities: RevisionOpportunity[];
+};
+
+type CandidateBuildInput = {
+  criterion: string;
+  anchor: string;
+  rationale: string;
+  action?: string;
+  expectedImpact?: string;
+  fixDirection?: string;
+  symptom?: string;
+  revisionOperation?: RevisionOperation;
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -112,15 +128,40 @@ function normalizeOptionalText(raw: unknown): string | undefined {
 
 function normalizeProseSentence(raw: string): string {
   const clean = raw
-    .replace(/[\u201c\u201d]/g, '"')
     .replace(/\s+/g, ' ')
     .trim()
-    .replace(/^"+|"+$/g, '')
-    .replace(/[.!?\u2026]+$/g, '')
+    .replace(/^["\u201c]+|["\u201d]+$/g, '')
     .trim();
 
   if (!clean) return '';
-  return /[.!?]$/.test(clean) ? clean : `${clean}.`;
+  return /[.!?]["\u201d']?$/.test(clean) ? clean : `${clean}.`;
+}
+
+function stripEvidenceWrapper(raw: string): string {
+  return raw
+    .replace(/\s+/g, ' ')
+    .replace(/^Evidence:\s*/i, '')
+    .replace(/^Original Passage\s*/i, '')
+    .replace(/^Recommendation:\s*/i, '')
+    .replace(/^["\u201c](.+)["\u201d]$/u, '$1')
+    .trim();
+}
+
+function sentenceUnits(raw: string): string[] {
+  const clean = stripEvidenceWrapper(raw);
+  const matches = clean.match(/[^.!?]+[.!?][\u201d"']?/g);
+  if (matches && matches.length > 0) {
+    return matches.map((item) => item.trim()).filter(Boolean);
+  }
+  return clean ? [clean] : [];
+}
+
+function trimWords(value: string, maxWords: number): string {
+  const clean = normalizeProseSentence(value);
+  const words = clean.split(/\s+/).filter(Boolean);
+  if (words.length <= maxWords) return clean;
+  const shortened = words.slice(0, maxWords).join(' ').replace(/[,;:\u2014\u2013-]+$/, '').trim();
+  return normalizeProseSentence(shortened);
 }
 
 function extractQuotedSpan(raw: string): string {
@@ -136,12 +177,21 @@ function extractQuotedSpan(raw: string): string {
 function extractLeadName(raw: string): string {
   if (!raw) return '';
 
-  const tokens = raw.match(/\b[A-Z][a-z]{2,}\b/g) ?? [];
-  const banned = new Set(['Chapter', 'Move', 'Small', 'Fry', 'Why', 'There']);
+  const tokens = raw.match(/\b[A-Z][a-zA-Z\u2019'-]{2,}\b/g) ?? [];
+  const banned = new Set([
+    'Chapter', 'Line', 'Scene', 'Passage', 'Structural', 'Manuscript', 'Move', 'Small',
+    'Fry', 'Why', 'There', 'The', 'This', 'That', 'At', 'In', 'Item', 'Concept',
+    'Core', 'Premise', 'Needs', 'Targeting',
+  ]);
   for (const token of tokens) {
-    if (!banned.has(token)) return token;
+    const clean = token.replace(/\u2019s$/, '');
+    if (!banned.has(clean)) return clean;
   }
   return '';
+}
+
+function escapeRegExp(raw: string): string {
+  return raw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 function normalizeActionIntent(raw: string): string {
@@ -149,73 +199,158 @@ function normalizeActionIntent(raw: string): string {
   const clean = raw
     .replace(/^\s*(?:In|At)\s+the\s+[^,]+,\s*/i, '')
     .replace(/^\s*where\s+[^,]+,\s*/i, '')
-    .replace(/\b(?:replace|repair|fix|clarify|strengthen|insert|weave|expand)\b/gi, '')
+    .replace(/\b(?:replace|repair|fix|clarify|strengthen|insert|weave|expand|compress|tighten|trim|cut)\b/gi, '')
     .replace(/\s+/g, ' ')
     .trim();
 
   return clean;
 }
 
-function buildFallbackProseSeed(args: {
-  criterion: string;
-  anchor: string;
-  rationale: string;
-  action?: string;
-  expectedImpact?: string;
-  fixDirection?: string;
-  symptom?: string;
-}): string {
-  const quotedAnchor = normalizeProseSentence(extractQuotedSpan(args.anchor));
-  if (quotedAnchor) return quotedAnchor;
-
-  const actionQuote = normalizeProseSentence(extractQuotedSpan(args.action ?? ''));
-  if (actionQuote) return actionQuote;
-
-  const anchor = normalizeProseSentence(args.anchor);
-  if (anchor) return anchor;
-
-  const actionIntent = normalizeProseSentence(normalizeActionIntent(args.action ?? ''));
-  if (actionIntent) return actionIntent;
-
-  const symptom = normalizeProseSentence(args.symptom ?? '');
-  if (symptom) return symptom;
-
-  const rationale = normalizeProseSentence(args.rationale);
-  if (rationale) return rationale;
-
-  const fixDirection = normalizeProseSentence(args.fixDirection ?? '');
-  if (fixDirection) return fixDirection;
-
-  const criterionLabel = args.criterion.replace(/_/g, ' ').toLowerCase();
-  return `The ${criterionLabel} pressure in this moment is visible on the page.`;
+function inferLedgerRevisionOperation(input: CandidateBuildInput): RevisionOperation {
+  if (input.revisionOperation) return input.revisionOperation;
+  return inferRevisionOperation({
+    scope: input.fixDirection,
+    mode: undefined,
+    fixDirection: input.fixDirection,
+    recommendation: `${input.rationale} ${input.action ?? ''}`,
+  });
 }
 
-function buildFallbackCandidateTexts(input: {
-  criterion: string;
-  anchor: string;
-  rationale: string;
-  action?: string;
-  expectedImpact?: string;
-  fixDirection?: string;
-  symptom?: string;
-}): { a: string; b: string; c: string } {
-  const seed = buildFallbackProseSeed(input);
-  const leadName = extractLeadName(`${input.action ?? ''} ${input.anchor ?? ''}`) || 'The moment';
-  const impactHint = normalizeActionIntent(input.expectedImpact ?? '');
-
-  const endings = {
-    a: `${leadName} answers in motion, and the consequence lands without a pause for explanation.`,
-    b: `A physical beat carries the turn, so pressure stays visible and the scene keeps forward momentum.`,
-    c: impactHint
-      ? `${impactHint.charAt(0).toUpperCase()}${impactHint.slice(1)} The next line makes the cost immediate on the page.`
-      : 'The next line makes the cost immediate on the page, and no one in the room can pretend otherwise.',
-  };
-
+function extractSpeech(raw: string): { setup: string; speaker: string; verb: string; speech: string } | null {
+  const clean = stripEvidenceWrapper(raw);
+  const match = clean.match(/^(.*?)([A-Z][A-Za-z\u2019'\-]+)\s+(said|asked|whispered|muttered|shouted|called|cried),\s*[\u201c"](.+?)[\u201d"]\.?$/u);
+  if (!match) return null;
   return {
-    a: `${seed} ${endings.a}`.replace(/\s+/g, ' ').trim(),
-    b: `${seed} ${endings.b}`.replace(/\s+/g, ' ').trim(),
-    c: `${seed} ${endings.c}`.replace(/\s+/g, ' ').trim(),
+    setup: (match[1] ?? '').replace(/,\s*$/, '').trim(),
+    speaker: match[2],
+    verb: match[3],
+    speech: (match[4] ?? '').trim(),
   };
+}
+
+function quoteSpeech(value: string): string {
+  const clean = value.trim().replace(/^["\u201c\u201d]+|["\u201c\u201d]+$/g, '');
+  return `“${clean}”`;
+}
+
+function firstSpeechSentence(value: string): string {
+  const first = value.split(/(?<=[.!?])\s+/)[0]?.trim() ?? value.trim();
+  return normalizeProseSentence(first).replace(/^\s*["\u201c]|\s*["\u201d]$/g, '');
+}
+
+function ensureDistinctCandidates(candidates: { a: string; b: string; c: string }, seed: string): { a: string; b: string; c: string } {
+  const normalized = new Set<string>();
+  const names = ['a', 'b', 'c'] as const;
+  const repaired = { ...candidates };
+
+  for (const name of names) {
+    const clean = normalizeProseSentence(repaired[name]);
+    const key = clean.toLowerCase();
+    if (!candidateTextIsCopyPasteReady(clean) || normalized.has(key)) {
+      const suffix =
+        name === 'a'
+          ? 'The detail lands in the character’s next physical choice.'
+          : name === 'b'
+            ? 'The same pressure returns through a shorter, cleaner beat.'
+            : 'The line leans harder into the danger already present in the scene.';
+      repaired[name] = normalizeProseSentence(`${seed} ${suffix}`);
+    }
+    normalized.add(repaired[name].toLowerCase());
+  }
+
+  return repaired;
+}
+
+function buildCompressCandidates(input: CandidateBuildInput): { a: string; b: string; c: string } {
+  const anchor = stripEvidenceWrapper(input.anchor);
+  const speech = extractSpeech(anchor);
+  if (speech) {
+    const speechLine = firstSpeechSentence(speech.speech);
+    const addressee = extractLeadName(`${input.rationale} ${input.action ?? ''}`) || 'the others';
+    return ensureDistinctCandidates({
+      a: normalizeProseSentence(`${speech.setup ? `${speech.setup}, ` : ''}${speech.speaker} ${speech.verb}, ${quoteSpeech(speechLine)}`),
+      b: normalizeProseSentence(`${speech.setup ? `${speech.setup}. ` : ''}${quoteSpeech(speechLine)} ${speech.speaker} ${speech.verb}.`),
+      c: normalizeProseSentence(`${speech.speaker} waited for the air to clear, then looked toward ${addressee} and ${speech.verb}, ${quoteSpeech(speechLine)}`),
+    }, normalizeProseSentence(anchor));
+  }
+
+  const sentences = sentenceUnits(anchor);
+  const first = sentences[0] ?? anchor;
+  const second = sentences[1] ?? '';
+  return ensureDistinctCandidates({
+    a: trimWords(first, 32),
+    b: trimWords(second ? `${first} ${second}` : first, 42),
+    c: trimWords(first.replace(/\b(very|really|just|seemed to)\b/gi, '').replace(/\s+/g, ' '), 26),
+  }, normalizeProseSentence(first));
+}
+
+function buildReplacementCandidates(input: CandidateBuildInput): { a: string; b: string; c: string } {
+  const anchor = stripEvidenceWrapper(input.anchor);
+  const speech = extractSpeech(anchor);
+  if (speech) return buildCompressCandidates(input);
+
+  const sentences = sentenceUnits(anchor);
+  const first = sentences[0] ?? anchor;
+  const second = sentences[1] ?? '';
+  const leadName = extractLeadName(`${input.rationale} ${input.action ?? ''} ${anchor}`) || 'The moment';
+  const concreteObject = extractQuotedSpan(anchor) || first;
+  const seed = trimWords(concreteObject, 32);
+
+  return ensureDistinctCandidates({
+    a: trimWords(second ? `${first} ${second}` : first, 48),
+    b: normalizeProseSentence(`${leadName} held still long enough for the choice to register, and the moment tightened around it.`),
+    c: normalizeProseSentence(`${leadName} felt the cost before anyone named it, and the scene moved on with that pressure still in the air.`),
+  }, seed);
+}
+
+function buildInsertionCandidates(input: CandidateBuildInput): { a: string; b: string; c: string } {
+  const anchor = stripEvidenceWrapper(input.anchor);
+  const leadName = extractLeadName(`${input.rationale} ${input.action ?? ''} ${anchor}`) || 'He';
+  const secondName = extractLeadName(anchor.replace(new RegExp(`\\b${escapeRegExp(leadName)}\\b`, 'g'), '')) || 'the others';
+  const quoted = extractQuotedSpan(anchor);
+  const seed = quoted ? `${leadName} heard the words again: ${quoteSpeech(quoted)}` : `${leadName} paused inside the pressure of the moment.`;
+
+  return ensureDistinctCandidates({
+    a: normalizeProseSentence(`${leadName} hesitated, and the small delay told ${secondName} more than he meant to reveal.`),
+    b: normalizeProseSentence(`${seed} This time, the answer stayed in his body before it reached his mouth.`),
+    c: normalizeProseSentence(`${leadName} looked away first, and that was enough for the moment to claim its price.`),
+  }, normalizeProseSentence(seed));
+}
+
+function buildFallbackCandidateTexts(input: CandidateBuildInput): { a: string; b: string; c: string } {
+  const operation = inferLedgerRevisionOperation(input);
+
+  if (
+    operation === 'insert_before_selected_passage' ||
+    operation === 'insert_after_selected_passage'
+  ) {
+    return buildInsertionCandidates(input);
+  }
+
+  if (
+    operation === 'compress_selected_passage' ||
+    /\b(compress|tighten|trim|cut|shorten|condense)\b/i.test(`${input.action ?? ''} ${input.fixDirection ?? ''} ${input.rationale}`)
+  ) {
+    return buildCompressCandidates(input);
+  }
+
+  return buildReplacementCandidates(input);
+}
+
+function explicitCandidateOrFallback(
+  raw: unknown,
+  fallback: string,
+  issueStatement: string,
+): string {
+  const candidate = normalizeOptionalText(raw);
+  if (
+    candidate &&
+    candidateTextIsCopyPasteReady(candidate) &&
+    candidate.toLowerCase() !== issueStatement.trim().toLowerCase()
+  ) {
+    return candidate;
+  }
+  return fallback;
 }
 
 function normalizeRevisionOperation(raw: unknown): RevisionOperation | undefined {
@@ -267,6 +402,34 @@ function isCanonicalRevisionOpportunity(value: unknown): value is RevisionOpport
   );
 }
 
+function ensureOpportunityCandidates(opportunity: RevisionOpportunity): RevisionOpportunity {
+  const operation = opportunity.revision_operation ?? inferLedgerRevisionOperation({
+    criterion: opportunity.criterion,
+    anchor: opportunity.evidence_anchor,
+    rationale: opportunity.rationale,
+    fixDirection: opportunity.fix_direction,
+    symptom: opportunity.symptom,
+  });
+
+  const fallbackCandidates = buildFallbackCandidateTexts({
+    criterion: opportunity.criterion,
+    anchor: opportunity.evidence_anchor,
+    rationale: opportunity.rationale,
+    action: opportunity.rationale,
+    fixDirection: opportunity.fix_direction,
+    symptom: opportunity.symptom,
+    revisionOperation: operation,
+  });
+
+  return {
+    ...opportunity,
+    revision_operation: operation,
+    candidate_text_a: explicitCandidateOrFallback(opportunity.candidate_text_a, fallbackCandidates.a, opportunity.rationale),
+    candidate_text_b: explicitCandidateOrFallback(opportunity.candidate_text_b, fallbackCandidates.b, opportunity.rationale),
+    candidate_text_c: explicitCandidateOrFallback(opportunity.candidate_text_c, fallbackCandidates.c, opportunity.rationale),
+  };
+}
+
 function normalizeLegacyWorkbenchOpportunity(value: unknown): RevisionOpportunity | null {
   if (!isRecord(value)) return null;
   const workbench = value as WorkbenchLikeOpportunity;
@@ -293,7 +456,7 @@ function normalizeLegacyWorkbenchOpportunity(value: unknown): RevisionOpportunit
     buildOpportunityId({ criterion, rationale, anchor: evidenceAnchor, location: manuscriptCoordinates }),
   );
 
-  return {
+  return ensureOpportunityCandidates({
     opportunity_id: opportunityId,
     criterion,
     severity: normalizeSeverity(workbench.severity),
@@ -303,7 +466,7 @@ function normalizeLegacyWorkbenchOpportunity(value: unknown): RevisionOpportunit
     provenance,
     confidence: normalizeConfidenceFromUnknown(workbench.confidence),
     decision_state: 'open',
-  };
+  });
 }
 
 function normalizeExistingLedgerOpportunities(raw: unknown): RevisionOpportunity[] | null {
@@ -312,7 +475,7 @@ function normalizeExistingLedgerOpportunities(raw: unknown): RevisionOpportunity
   const canonical: RevisionOpportunity[] = [];
   for (const row of raw) {
     if (isCanonicalRevisionOpportunity(row)) {
-      canonical.push(row);
+      canonical.push(ensureOpportunityCandidates(row));
       continue;
     }
     const normalized = normalizeLegacyWorkbenchOpportunity(row);
@@ -323,6 +486,29 @@ function normalizeExistingLedgerOpportunities(raw: unknown): RevisionOpportunity
   }
 
   return canonical;
+}
+
+function recommendationCandidateInput(args: {
+  criterion: string;
+  evidenceAnchor: string;
+  rationale: string;
+  recommendationRow: Record<string, unknown>;
+  revisionOperation?: RevisionOperation;
+}): CandidateBuildInput {
+  return {
+    criterion: args.criterion,
+    anchor: args.evidenceAnchor,
+    rationale: args.rationale,
+    action: normalizeOptionalText(args.recommendationRow.action),
+    expectedImpact: normalizeOptionalText(args.recommendationRow.expected_impact),
+    fixDirection:
+      normalizeOptionalText(args.recommendationRow.fix_direction) ??
+      normalizeOptionalText(args.recommendationRow.specific_fix),
+    symptom:
+      normalizeOptionalText(args.recommendationRow.symptom) ??
+      normalizeOptionalText(args.recommendationRow.diagnosis),
+    revisionOperation: args.revisionOperation,
+  };
 }
 
 function extractCriteriaRecommendations(payload: Record<string, unknown>): RevisionOpportunity[] {
@@ -358,9 +544,7 @@ function extractCriteriaRecommendations(payload: Record<string, unknown>): Revis
         criterionEvidenceSnippet,
       );
 
-      if (!evidenceAnchor) {
-        continue;
-      }
+      if (!evidenceAnchor) continue;
 
       const rationale = firstNonEmptyString(
         recommendationRow.rationale,
@@ -372,9 +556,7 @@ function extractCriteriaRecommendations(payload: Record<string, unknown>): Revis
         criterionRow.rationale,
       );
 
-      if (!rationale) {
-        continue;
-      }
+      if (!rationale) continue;
 
       const manuscriptCoordinates = firstNonEmptyString(
         recommendationRow.manuscript_coordinates,
@@ -383,17 +565,25 @@ function extractCriteriaRecommendations(payload: Record<string, unknown>): Revis
         `${criterion}:recommendation`,
       );
 
-      const fallbackCandidates = buildFallbackCandidateTexts({
-        criterion,
-        anchor: evidenceAnchor,
-        rationale,
-        action: normalizeOptionalText(recommendationRow.action),
-        expectedImpact: normalizeOptionalText(recommendationRow.expected_impact),
-        fixDirection: normalizeOptionalText(recommendationRow.fix_direction) ?? normalizeOptionalText(recommendationRow.specific_fix),
-        symptom: normalizeOptionalText(recommendationRow.symptom) ?? normalizeOptionalText(recommendationRow.diagnosis),
-      });
+      const revisionOperation =
+        normalizeRevisionOperation(recommendationRow.revision_operation) ??
+        inferLedgerRevisionOperation({
+          criterion,
+          anchor: evidenceAnchor,
+          rationale,
+          action: normalizeOptionalText(recommendationRow.action),
+          fixDirection: normalizeOptionalText(recommendationRow.fix_direction) ?? normalizeOptionalText(recommendationRow.specific_fix),
+        });
 
-      opportunities.push({
+      const fallbackCandidates = buildFallbackCandidateTexts(recommendationCandidateInput({
+        criterion,
+        evidenceAnchor,
+        rationale,
+        recommendationRow,
+        revisionOperation,
+      }));
+
+      opportunities.push(ensureOpportunityCandidates({
         opportunity_id: buildOpportunityId({
           criterion,
           rationale,
@@ -408,16 +598,16 @@ function extractCriteriaRecommendations(payload: Record<string, unknown>): Revis
         provenance: 'evaluation_result.criteria.recommendations',
         confidence: normalizeConfidence(recommendationRow.confidence),
         decision_state: 'open',
-        revision_operation: normalizeRevisionOperation(recommendationRow.revision_operation),
-        candidate_text_a: normalizeOptionalText(recommendationRow.candidate_text_a) ?? fallbackCandidates.a,
-        candidate_text_b: normalizeOptionalText(recommendationRow.candidate_text_b) ?? fallbackCandidates.b,
-        candidate_text_c: normalizeOptionalText(recommendationRow.candidate_text_c) ?? fallbackCandidates.c,
+        revision_operation: revisionOperation,
+        candidate_text_a: explicitCandidateOrFallback(recommendationRow.candidate_text_a, fallbackCandidates.a, rationale),
+        candidate_text_b: explicitCandidateOrFallback(recommendationRow.candidate_text_b, fallbackCandidates.b, rationale),
+        candidate_text_c: explicitCandidateOrFallback(recommendationRow.candidate_text_c, fallbackCandidates.c, rationale),
         symptom: normalizeOptionalText(recommendationRow.symptom),
         cause: normalizeOptionalText(recommendationRow.cause),
         fix_direction: normalizeOptionalText(recommendationRow.fix_direction),
         reader_effect: normalizeOptionalText(recommendationRow.reader_effect),
         mistake_proofing: normalizeOptionalText(recommendationRow.mistake_proofing),
-      });
+      }));
     }
   }
 
@@ -449,9 +639,7 @@ function extractTopLevelRecommendations(payload: Record<string, unknown>): Revis
       recommendationRow.quote,
     );
 
-    if (!evidenceAnchor) {
-      continue;
-    }
+    if (!evidenceAnchor) continue;
 
     const criterion = normalizeCriterion(recommendationRow.criterion ?? recommendationRow.rule);
     const rationale = firstNonEmptyString(
@@ -463,9 +651,7 @@ function extractTopLevelRecommendations(payload: Record<string, unknown>): Revis
       recommendationRow.action,
     );
 
-    if (!rationale) {
-      continue;
-    }
+    if (!rationale) continue;
 
     const manuscriptCoordinates = firstNonEmptyString(
       recommendationRow.manuscript_coordinates,
@@ -474,17 +660,25 @@ function extractTopLevelRecommendations(payload: Record<string, unknown>): Revis
       `${criterion}:recommendation`,
     );
 
-    const fallbackCandidates = buildFallbackCandidateTexts({
-      criterion,
-      anchor: evidenceAnchor,
-      rationale,
-      action: normalizeOptionalText(recommendationRow.action),
-      expectedImpact: normalizeOptionalText(recommendationRow.expected_impact),
-      fixDirection: normalizeOptionalText(recommendationRow.fix_direction) ?? normalizeOptionalText(recommendationRow.specific_fix),
-      symptom: normalizeOptionalText(recommendationRow.symptom) ?? normalizeOptionalText(recommendationRow.diagnosis),
-    });
+    const revisionOperation =
+      normalizeRevisionOperation(recommendationRow.revision_operation) ??
+      inferLedgerRevisionOperation({
+        criterion,
+        anchor: evidenceAnchor,
+        rationale,
+        action: normalizeOptionalText(recommendationRow.action),
+        fixDirection: normalizeOptionalText(recommendationRow.fix_direction) ?? normalizeOptionalText(recommendationRow.specific_fix),
+      });
 
-    opportunities.push({
+    const fallbackCandidates = buildFallbackCandidateTexts(recommendationCandidateInput({
+      criterion,
+      evidenceAnchor,
+      rationale,
+      recommendationRow,
+      revisionOperation,
+    }));
+
+    opportunities.push(ensureOpportunityCandidates({
       opportunity_id: buildOpportunityId({
         criterion,
         rationale,
@@ -499,16 +693,16 @@ function extractTopLevelRecommendations(payload: Record<string, unknown>): Revis
       provenance: 'evaluation_result.recommendations',
       confidence: normalizeConfidence(recommendationRow.confidence),
       decision_state: 'open',
-      revision_operation: normalizeRevisionOperation(recommendationRow.revision_operation),
-      candidate_text_a: normalizeOptionalText(recommendationRow.candidate_text_a) ?? fallbackCandidates.a,
-      candidate_text_b: normalizeOptionalText(recommendationRow.candidate_text_b) ?? fallbackCandidates.b,
-      candidate_text_c: normalizeOptionalText(recommendationRow.candidate_text_c) ?? fallbackCandidates.c,
+      revision_operation: revisionOperation,
+      candidate_text_a: explicitCandidateOrFallback(recommendationRow.candidate_text_a, fallbackCandidates.a, rationale),
+      candidate_text_b: explicitCandidateOrFallback(recommendationRow.candidate_text_b, fallbackCandidates.b, rationale),
+      candidate_text_c: explicitCandidateOrFallback(recommendationRow.candidate_text_c, fallbackCandidates.c, rationale),
       symptom: normalizeOptionalText(recommendationRow.symptom),
       cause: normalizeOptionalText(recommendationRow.cause),
       fix_direction: normalizeOptionalText(recommendationRow.fix_direction),
       reader_effect: normalizeOptionalText(recommendationRow.reader_effect),
       mistake_proofing: normalizeOptionalText(recommendationRow.mistake_proofing),
-    });
+    }));
   }
 
   return opportunities;
@@ -530,8 +724,9 @@ export function buildRevisionOpportunitiesFromEvaluationPayload(payload: unknown
 
   const deduped = new Map<string, RevisionOpportunity>();
   for (const opportunity of merged) {
-    if (!deduped.has(opportunity.opportunity_id)) {
-      deduped.set(opportunity.opportunity_id, opportunity);
+    const canonical = ensureOpportunityCandidates(opportunity);
+    if (!deduped.has(canonical.opportunity_id)) {
+      deduped.set(canonical.opportunity_id, canonical);
     }
   }
 
@@ -541,6 +736,30 @@ export function buildRevisionOpportunitiesFromEvaluationPayload(payload: unknown
 
   all.sort((a, b) => (SEVERITY_RANK[a.severity] ?? 3) - (SEVERITY_RANK[b.severity] ?? 3));
   return all.slice(0, MAX_OPPORTUNITIES_PER_PASS);
+}
+
+async function persistHealedExistingLedger(input: {
+  supabase: any;
+  rowId: string | null;
+  currentContent: unknown;
+  opportunities: RevisionOpportunity[];
+}): Promise<void> {
+  if (!input.rowId || !isRecord(input.currentContent)) return;
+
+  const existing = input.currentContent.opportunities;
+  if (stableStringify(existing) === stableStringify(input.opportunities)) return;
+
+  await input.supabase
+    .from('evaluation_artifacts')
+    .update({
+      content: {
+        ...input.currentContent,
+        opportunities: input.opportunities,
+        candidate_generation_status: 'backend_filled_abc_v1',
+        candidate_generation_updated_at: new Date().toISOString(),
+      },
+    })
+    .eq('id', input.rowId);
 }
 
 export async function ensureRevisionOpportunityLedgerArtifact(supabase: any, jobId: string): Promise<EnsureLedgerResult> {
@@ -560,9 +779,17 @@ export async function ensureRevisionOpportunityLedgerArtifact(supabase: any, job
   );
 
   if (existingOpportunities && existingOpportunities.length > 0) {
+    const healed = existingOpportunities.map(ensureOpportunityCandidates);
+    await persistHealedExistingLedger({
+      supabase,
+      rowId: typeof existingLedgerRow?.id === 'string' ? existingLedgerRow.id : null,
+      currentContent: existingLedgerRow?.content,
+      opportunities: healed,
+    });
+
     return {
       artifactId: typeof existingLedgerRow?.id === 'string' ? existingLedgerRow.id : null,
-      opportunities: existingOpportunities,
+      opportunities: healed,
     };
   }
 
@@ -597,9 +824,6 @@ export async function ensureRevisionOpportunityLedgerArtifact(supabase: any, job
 
   const opportunities = buildRevisionOpportunitiesFromEvaluationPayload(evaluationPayload);
 
-  // Self-heal stale empty ledgers: if an existing canonical ledger exists but
-  // still resolves to zero opportunities after rebuild, avoid a no-op rewrite
-  // and return the current artifact as-is.
   if (existingOpportunities && existingOpportunities.length === 0 && opportunities.length === 0) {
     return {
       artifactId: typeof existingLedgerRow?.id === 'string' ? existingLedgerRow.id : null,
@@ -625,6 +849,7 @@ export async function ensureRevisionOpportunityLedgerArtifact(supabase: any, job
     artifact_version: 'v1',
     source_hash: sourceHash,
     generated_at: now,
+    candidate_generation_status: 'backend_filled_abc_v1',
     opportunities,
   };
 
