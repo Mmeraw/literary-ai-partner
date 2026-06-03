@@ -5988,7 +5988,11 @@ export async function processEvaluationJob(
       //   6. Persist Story Layer artifact
       //   7. Open Review Gate (phase_1a → awaiting_approval)
 
-      const phase1aInvocationStartMs = Date.now();
+      const phase1aInvocationEntryMs = Date.now();
+      // Budget timer is reset after seed/ledger setup completes so that
+      // the 240s invocation budget is reserved for chunk batch processing,
+      // not consumed by LLM-heavy seed generation (which can take 4+ min).
+      let phase1aInvocationStartMs = phase1aInvocationEntryMs;
       const phase1aConfig = runtimeConfig.phase1a;
 
       // Heartbeat renewal loop — keeps lease alive during chunk LLM calls.
@@ -6171,6 +6175,17 @@ export async function processEvaluationJob(
 
         // Stabilization pause after cache load — let DB writes settle before starting batch work.
         await stabilize();
+
+        // ── BUDGET TIMER RESET ─────────────────────────────────────────────
+        // Seed generation, ledger creation, cache load, and stabilization
+        // delays happen before any chunk work. Reset the budget timer here
+        // so the full invocationBudgetMs (240s) is available for batch
+        // processing. Without this reset, LLM-heavy setup (4+ min for
+        // ledger generation) consumes the budget and causes the worker to
+        // self-chain without processing a single chunk.
+        const setupDurationMs = Date.now() - phase1aInvocationEntryMs;
+        phase1aInvocationStartMs = Date.now();
+        console.log(`[phase_1a] ${jobId}: budget timer reset after setup (setup took ${setupDurationMs}ms, budget=${phase1aConfig.invocationBudgetMs}ms now starts fresh)`);
 
         // ── 4. Determine what this invocation should do ───────────────────
         const allChunksDone = pendingIndexes.length === 0;
