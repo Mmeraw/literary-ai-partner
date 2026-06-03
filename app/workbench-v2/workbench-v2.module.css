@@ -36,15 +36,15 @@
   flex: 1 1 auto !important;
   min-width: 0 !important;
   padding-right: 360px !important;
-  gap: 0.65rem !important;
+  gap: 1.15rem !important;
   flex-wrap: nowrap !important;
   align-items: center !important;
-  justify-content: flex-start !important;
+  justify-content: flex-end !important;
   overflow: hidden !important;
 }
 
 .route :global(main > div > header > div:last-child span) {
-  padding: 0.15rem 0.45rem !important;
+  padding: 0.18rem 0.62rem !important;
   font-size: 0.68rem !important;
   line-height: 0.9rem !important;
   white-space: nowrap !important;
@@ -103,5 +103,6 @@
     flex-wrap: wrap !important;
     justify-content: flex-start !important;
     padding-right: 0 !important;
+    gap: 0.75rem !important;
   }
 }
