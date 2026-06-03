@@ -64,6 +64,10 @@ function criterionOf(item: WorkbenchOpportunity): string {
   return item.criterion || item.crumb.split(" · ")[0]?.trim() || "General";
 }
 
+function formatCriterion(raw: string): string {
+  return raw.replace(/_/g, " ");
+}
+
 function effectiveOperation(item: WorkbenchOpportunity): RevisionOperation {
   const current = item.revisionOperation;
   const haystack = [item.title, item.issueStatement, item.fixDirection, item.diagnostic?.operationTargeting, sourceTextOf(item)]
@@ -467,7 +471,7 @@ export default function ReviseCockpitClientWorkflowV1({ payload }: { payload: Wo
         <header className="flex min-h-11 shrink-0 items-center justify-between gap-3 border-b border-[#2E261A] bg-[#151008] px-4 py-2">
           <div className="min-w-0">
             <p className="text-[10px] uppercase tracking-[0.2em] text-[#C8A96E]">Revision Cockpit · up to 100 prioritized opportunities per pass</p>
-            <h1 className="truncate text-sm font-semibold">{payload.manuscriptTitle}</h1>
+            <h1 className="text-sm font-semibold">{payload.manuscriptTitle}</h1>
           </div>
           {message && <div className="flex flex-wrap justify-end gap-2 text-[11px]"><span className="rounded border border-[#5D4C31] px-2 py-1 text-[#A9987D]">{message}</span></div>}
         </header>
@@ -484,8 +488,7 @@ export default function ReviseCockpitClientWorkflowV1({ payload }: { payload: Wo
           <aside className="flex min-h-0 flex-col border-r border-[#2E261A] bg-[#110D07]">
             <div className="space-y-2 border-b border-[#2E261A] p-2">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="text-[11px] uppercase tracking-[0.18em] text-[#C8A96E]">Search Queue</p>
-                <span className="rounded border border-[#C8A96E]/70 bg-[#C8A96E]/10 px-2 py-1 text-[11px] font-semibold text-[#F3E3C3]">Queue {filtered.length ? activeIndex + 1 : 0}/{filtered.length}</span>
+                <span className="rounded border border-[#C8A96E]/70 bg-[#C8A96E]/10 px-2 py-1 text-[11px] font-semibold text-[#F3E3C3]">Queue{"\u2003"}{filtered.length ? activeIndex + 1 : 0}/{filtered.length}</span>
               </div>
               <input value={filters.search} onChange={(event) => setFilters((current) => ({ ...current, search: event.target.value }))} placeholder="Search queue" className="h-8 w-full rounded border border-[#3A3022] bg-[#0D0A05] px-2 text-xs" />
               <div className="grid grid-cols-2 gap-2">
@@ -497,7 +500,7 @@ export default function ReviseCockpitClientWorkflowV1({ payload }: { payload: Wo
                 </select>
               </div>
               <select value={filters.criterion} onChange={(event) => setFilters((current) => ({ ...current, criterion: event.target.value }))} className="h-8 w-full rounded border border-[#3A3022] bg-[#0D0A05] px-2 text-xs">
-                <option value="all">All criteria</option>{criteria.map((criterion) => <option key={criterion} value={criterion}>{criterion}</option>)}
+                <option value="all">All Criteria</option>{criteria.map((criterion) => <option key={criterion} value={criterion}>{formatCriterion(criterion)}</option>)}
               </select>
             </div>
 
@@ -512,7 +515,7 @@ export default function ReviseCockpitClientWorkflowV1({ payload }: { payload: Wo
                       <span className="rounded border border-[#4E4333] px-1.5 py-0.5 text-[10px] text-[#A9987D]">pending</span>
                     </div>
                     <p className="line-clamp-2 text-xs leading-4">{index + 1}. {item.title}</p>
-                    <p className="mt-1 truncate text-[11px] text-[#A9987D]">{criterionOf(item)} · {item.anchor || item.meta}</p>
+                    <p className="mt-1 truncate text-[11px] text-[#A9987D]">{formatCriterion(criterionOf(item))} · {item.anchor || item.meta}</p>
                   </button>
                 </li>
               ))}
@@ -522,20 +525,20 @@ export default function ReviseCockpitClientWorkflowV1({ payload }: { payload: Wo
           <section className="flex min-w-0 flex-col overflow-hidden bg-[#1C160E]">
             {active ? (
               <>
-                <div className="shrink-0 border-b border-[#2E261A] p-2">
-                  <div className="flex flex-wrap items-center gap-2 text-[11px] uppercase tracking-wider">
-                    <span className={`rounded px-2 py-1 ${severityClass(active.severity)}`}>{active.severity}</span>
-                    <span className="rounded border border-[#5A4B33] px-2 py-1">{criterionOf(active)}</span>
-                    <span className="rounded border border-[#5A4B33] px-2 py-1">{active.scope}</span>
-                    <span className={`rounded border px-2 py-1 ${liveReady(active) ? "border-[#48603F] text-[#BBD8B4]" : "border-[#7A2B1A] text-[#F1B6A5]"}`}>{liveReady(active) ? "Ready" : "Needs Targeting"}</span>
+                <div className="shrink-0 border-b border-[#2E261A] px-2 pb-2 pt-1.5">
+                  <p className="mb-1 text-[10px] uppercase tracking-[0.18em] text-[#C8A96E]">Diagnosis & Guardrails</p>
+                  <div className="flex flex-wrap items-center gap-1.5 text-[10px] uppercase tracking-wider">
+                    <span className={`rounded px-1.5 py-0.5 ${severityClass(active.severity)}`}>{active.severity}</span>
+                    <span className="rounded border border-[#5A4B33] px-1.5 py-0.5">{formatCriterion(criterionOf(active))}</span>
+                    <span className="rounded border border-[#5A4B33] px-1.5 py-0.5">{active.scope}</span>
+                    <span className={`rounded border px-1.5 py-0.5 ${liveReady(active) ? "border-[#48603F] text-[#BBD8B4]" : "border-[#7A2B1A] text-[#F1B6A5]"}`}>{liveReady(active) ? "Ready" : "Needs Targeting"}</span>
                   </div>
-                  <h2 className="mt-1 truncate text-lg font-semibold">{active.title}</h2>
+                  <h2 className="mt-1 truncate text-base font-semibold">{active.title}</h2>
                 </div>
 
-                <div className="min-h-0 flex-1 overflow-y-auto p-3">
-                  <section className="rounded-xl border border-[#2E261A] bg-[#12100B] p-3">
-                    <p className="mb-2 text-[11px] uppercase tracking-[0.18em] text-[#C8A96E]">Diagnosis & Guardrails</p>
-                    <div className="grid gap-x-4 gap-y-1 text-sm leading-5 xl:grid-cols-2">
+                <div className="min-h-0 flex-1 overflow-y-auto px-2 py-1.5">
+                  <section className="rounded-lg border border-[#2E261A] bg-[#12100B] px-2 py-1.5">
+                    <div className="grid gap-x-3 gap-y-0.5 text-xs leading-4 xl:grid-cols-2">
                       <p><span className="text-[#C8A96E]">Symptom:</span> {diagnosticText(active, "symptom")}</p>
                       <p><span className="text-[#C8A96E]">Cause:</span> {diagnosticText(active, "cause")}</p>
                       <p><span className="text-[#C8A96E]">Fix:</span> {diagnosticText(active, "fix")}</p>
@@ -545,61 +548,56 @@ export default function ReviseCockpitClientWorkflowV1({ payload }: { payload: Wo
                     </div>
                   </section>
 
-                  <section className="mt-3 grid gap-3 xl:grid-cols-2">
-                    <div className="rounded-xl border border-[#2E261A] bg-[#12100B] p-3">
-                      <p className="text-[11px] uppercase tracking-[0.18em] text-[#C8A96E]">Original Passage</p>
-                      <p className="mt-2 max-h-20 overflow-y-auto text-sm leading-5">{sourceTextOf(active) || "No exact passage is available yet."}</p>
-                      <p className="mt-1 text-xs text-[#A9987D]">{active.anchor || active.meta || "Location pending"}</p>
+                  <section className="mt-1.5 grid gap-2 xl:grid-cols-2">
+                    <div className="rounded-lg border border-[#2E261A] bg-[#12100B] px-2 py-1.5">
+                      <p className="text-[10px] uppercase tracking-[0.18em] text-[#C8A96E]">Original Passage</p>
+                      <p className="mt-1 max-h-16 overflow-y-auto text-xs leading-4">{sourceTextOf(active) || "No exact passage is available yet."}</p>
+                      <p className="mt-0.5 text-[10px] text-[#A9987D]">{active.anchor || active.meta || "Location pending"}</p>
                     </div>
-                    <div className="rounded-xl border border-[#2E261A] bg-[#12100B] p-3">
-                      <p className="text-[11px] uppercase tracking-[0.18em] text-[#C8A96E]">Revision Task</p>
-                      <p className="mt-2 text-sm leading-5">{operationInstruction(active)} {compactGoal(active)}</p>
+                    <div className="rounded-lg border border-[#2E261A] bg-[#12100B] px-2 py-1.5">
+                      <p className="text-[10px] uppercase tracking-[0.18em] text-[#C8A96E]">Revision Task</p>
+                      <p className="mt-1 text-xs leading-4">{operationInstruction(active)} {compactGoal(active)}</p>
                     </div>
                   </section>
 
-                  <section className="mt-3 flex flex-wrap items-center justify-between gap-2">
-                    <p className="text-[11px] uppercase tracking-[0.18em] text-[#C8A96E]">{optionSectionLabel(active)}</p>
-                    {invalidCandidates && <p className="rounded border border-[#7A2B1A]/55 bg-[#7A2B1A]/15 px-2 py-1 text-xs text-[#E2B2A6]">Candidate generation still needs an exact passage before Accept/Copy can unlock.</p>}
-                  </section>
-
-                  <div className="mt-3 grid gap-3 xl:grid-cols-3">
-                    {OPTION_KEYS.map((key) => {
-                      const text = candidateText(active, key);
-                      const ok = canSelectOption(active, key);
-                      const focused = selectedOption === key;
-                      return (
-                        <article key={key} onClick={() => setSelectedOption(key)} className={`rounded-xl border p-3 transition ${focused ? "border-[#C8A96E] bg-[#12100B]" : "border-[#2E261A] bg-[#12100B]"}`}>
-                          <div className="flex items-start justify-between gap-2">
-                            <p className="text-sm font-semibold">{REVISION_OPTION_LABELS[key]}</p>
-                            <div className="flex gap-1">
-                              <button type="button" onClick={(event) => { event.stopPropagation(); void copyText(text); }} disabled={!ok} className="rounded border border-[#5D4C31] px-2 py-1 text-xs disabled:opacity-40">Copy</button>
-                              <button type="button" onClick={(event) => { event.stopPropagation(); decide(selectedDecisionFor(key), key, text); }} disabled={!ok} className="rounded bg-[#C8A96E] px-2 py-1 text-xs font-semibold text-[#1A140C] disabled:opacity-40">Accept {key}</button>
-                            </div>
+                  <section className="mt-1.5">
+                    <div className="flex items-center gap-1">
+                      {OPTION_KEYS.map((key) => {
+                        const focused = selectedOption === key;
+                        return <button key={key} type="button" onClick={() => setSelectedOption(key)} className={`rounded-t px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider transition ${focused ? "border border-b-0 border-[#C8A96E] bg-[#12100B] text-[#F3E3C3]" : "border border-transparent text-[#A9987D] hover:text-[#F3E3C3]"}`}>{REVISION_OPTION_LABELS[key]}</button>;
+                      })}
+                      {invalidCandidates && <span className="ml-auto text-[10px] text-[#E2B2A6]">Awaiting passage</span>}
+                    </div>
+                    {(() => { const key = selectedOption || "A"; const text = candidateText(active, key); const ok = canSelectOption(active, key); return (
+                      <div className="rounded-b-lg rounded-tr-lg border border-[#2E261A] bg-[#12100B] px-2 py-1.5">
+                        <div className="flex items-start justify-between gap-2">
+                          <p className={`line-clamp-3 whitespace-pre-wrap text-xs leading-4 ${ok ? "text-[#E5D8BE]" : "text-[#E2B2A6]"}`}>{text || "Candidate generation needs an exact source passage."}</p>
+                          <div className="flex shrink-0 gap-1">
+                            <button type="button" onClick={() => void copyText(text)} disabled={!ok} className="rounded border border-[#5D4C31] px-1.5 py-0.5 text-[10px] disabled:opacity-40">Copy</button>
                           </div>
-                          <p className={`mt-2 line-clamp-6 whitespace-pre-wrap text-sm leading-5 ${ok ? "text-[#E5D8BE]" : "text-[#E2B2A6]"}`}>{text || "Candidate generation needs an exact source passage."}</p>
-                        </article>
-                      );
-                    })}
-                  </div>
+                        </div>
+                      </div>
+                    ); })()}
+                  </section>
 
                   {customOpen && (
-                    <div className="mt-3 rounded-xl border border-[#C8A96E]/60 bg-[#120E08] p-3">
-                      <p className="text-xs uppercase tracking-[0.16em] text-[#C8A96E]">Author custom revision</p>
-                      <textarea value={customText} onChange={(event) => setCustomText(event.target.value)} rows={4} className="mt-2 w-full rounded border border-[#3A3022] bg-[#0D0A05] p-3 font-mono text-sm" />
-                      <button disabled={!customText.trim()} onClick={() => decide("custom", undefined, customText)} className="mt-2 rounded bg-[#C8A96E] px-3 py-1.5 text-sm font-semibold text-[#1A140C] disabled:opacity-50">Save custom + ledger</button>
+                    <div className="mt-1.5 rounded-lg border border-[#C8A96E]/60 bg-[#120E08] px-2 py-1.5">
+                      <p className="text-[10px] uppercase tracking-[0.16em] text-[#C8A96E]">Author custom revision</p>
+                      <textarea value={customText} onChange={(event) => setCustomText(event.target.value)} rows={3} className="mt-1 w-full rounded border border-[#3A3022] bg-[#0D0A05] p-2 font-mono text-xs" />
+                      <button disabled={!customText.trim()} onClick={() => decide("custom", undefined, customText)} className="mt-1 rounded bg-[#C8A96E] px-2 py-1 text-xs font-semibold text-[#1A140C] disabled:opacity-50">Save custom</button>
                     </div>
                   )}
                 </div>
 
-                <footer className="shrink-0 border-t border-[#2E261A] bg-[#120E08] p-3">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <button onClick={() => decide("accepted_a", "A", candidateText(active, "A"))} disabled={!canSelectOption(active, "A")} className="rounded bg-[#C8A96E] px-4 py-2 text-sm font-semibold text-[#1A140C] disabled:opacity-40">Accept A</button>
-                    <button onClick={() => decide("accepted_b", "B", candidateText(active, "B"))} disabled={!canSelectOption(active, "B")} className="rounded border border-[#C8A96E] px-4 py-2 text-sm disabled:opacity-40">Accept B</button>
-                    <button onClick={() => decide("accepted_c", "C", candidateText(active, "C"))} disabled={!canSelectOption(active, "C")} className="rounded border border-[#C8A96E] px-4 py-2 text-sm disabled:opacity-40">Accept C</button>
-                    <button onClick={() => decide("keep_original", undefined, "Kept original")} className="rounded border border-[#5D4C31] px-3 py-2 text-sm">Keep Original</button>
-                    <button onClick={() => decide("reject", undefined, "Rejected suggestions")} className="rounded border border-[#7A2B1A]/70 px-3 py-2 text-sm text-[#E2B2A6]">Reject</button>
-                    <button onClick={() => decide("deferred", undefined, "Deferred for later decision")} className="rounded border border-[#5C5140] px-3 py-2 text-sm">Defer</button>
-                    <button onClick={() => { if (customOpen && customText.trim()) { decide("custom", undefined, customText); } else { if (!customOpen) setCustomText(selectedText); setCustomOpen(true); } }} className="rounded border border-[#C8A96E] bg-[#C8A96E]/10 px-3 py-2 text-sm">{customOpen && customText.trim() ? "Save Custom" : (customOperationLabels[effectiveOperation(active)] ?? "Write Custom")}</button>
+                <footer className="shrink-0 border-t border-[#2E261A] bg-[#120E08] px-2 py-1.5">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <button onClick={() => decide("accepted_a", "A", candidateText(active, "A"))} disabled={!canSelectOption(active, "A")} className="rounded bg-[#C8A96E] px-2.5 py-1 text-xs font-semibold text-[#1A140C] disabled:opacity-40">Accept A</button>
+                    <button onClick={() => decide("accepted_b", "B", candidateText(active, "B"))} disabled={!canSelectOption(active, "B")} className="rounded border border-[#C8A96E] px-2.5 py-1 text-xs disabled:opacity-40">Accept B</button>
+                    <button onClick={() => decide("accepted_c", "C", candidateText(active, "C"))} disabled={!canSelectOption(active, "C")} className="rounded border border-[#C8A96E] px-2.5 py-1 text-xs disabled:opacity-40">Accept C</button>
+                    <button onClick={() => decide("keep_original", undefined, "Kept original")} className="rounded border border-[#5D4C31] px-2 py-1 text-xs">Keep Original</button>
+                    <button onClick={() => decide("reject", undefined, "Rejected suggestions")} className="rounded border border-[#7A2B1A]/70 px-2 py-1 text-xs text-[#E2B2A6]">Reject</button>
+                    <button onClick={() => decide("deferred", undefined, "Deferred for later decision")} className="rounded border border-[#5C5140] px-2 py-1 text-xs">Defer</button>
+                    <button onClick={() => { if (customOpen && customText.trim()) { decide("custom", undefined, customText); } else { if (!customOpen) setCustomText(selectedText); setCustomOpen(true); } }} className="rounded border border-[#C8A96E] bg-[#C8A96E]/10 px-2 py-1 text-xs">{customOpen && customText.trim() ? "Save Custom" : (customOperationLabels[effectiveOperation(active)] ?? "Write Custom")}</button>
                   </div>
                 </footer>
               </>
