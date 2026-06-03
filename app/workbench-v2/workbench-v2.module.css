@@ -10,15 +10,14 @@
 
 .route :global(main > div > header) {
   min-height: 2.05rem !important;
-  height: 2.05rem !important;
+  height: auto !important;
   padding-top: 0.05rem !important;
   padding-bottom: 0.05rem !important;
   gap: 1rem !important;
 }
 
 .route :global(main > div > header > div:first-child) {
-  flex: 0 1 26rem !important;
-  max-width: 32rem !important;
+  flex: 1 1 auto !important;
   min-width: 11rem !important;
   overflow: hidden !important;
 }
@@ -31,9 +30,10 @@
   font-size: 1.18rem !important;
   line-height: 1.22rem !important;
   font-weight: 700 !important;
-  overflow: hidden !important;
-  text-overflow: ellipsis !important;
-  white-space: nowrap !important;
+  overflow: visible !important;
+  text-overflow: unset !important;
+  white-space: normal !important;
+  word-break: break-word !important;
 }
 
 .route :global(main > div > header > div:last-child) {
@@ -69,7 +69,7 @@
 
 .route :global(main > div > section) {
   min-height: 0 !important;
-  border-top-width: 1px !important;
+  border-top-width: 0 !important;
 }
 
 .route :global(main > div > section > section > div:first-child) {

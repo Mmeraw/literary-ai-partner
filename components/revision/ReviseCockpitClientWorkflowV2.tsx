@@ -128,9 +128,10 @@ function styleWorkbenchManuscriptTitle(root: HTMLElement) {
 
   title.style.display = "block";
   title.style.maxWidth = "100%";
-  title.style.overflow = "hidden";
-  title.style.textOverflow = "ellipsis";
-  title.style.whiteSpace = "nowrap";
+  title.style.overflow = "visible";
+  title.style.textOverflow = "unset";
+  title.style.whiteSpace = "normal";
+  title.style.wordBreak = "break-word";
   title.style.fontSize = "clamp(1.2rem, 1.15vw + 0.85rem, 1.6rem)";
   title.style.lineHeight = "1.12";
   title.style.fontWeight = "700";

@@ -64,6 +64,10 @@ function criterionOf(item: WorkbenchOpportunity): string {
   return item.criterion || item.crumb.split(" · ")[0]?.trim() || "General";
 }
 
+function formatCriterion(raw: string): string {
+  return raw.replace(/_/g, " ");
+}
+
 function effectiveOperation(item: WorkbenchOpportunity): RevisionOperation {
   const current = item.revisionOperation;
   const haystack = [item.title, item.issueStatement, item.fixDirection, item.diagnostic?.operationTargeting, sourceTextOf(item)]
@@ -467,7 +471,7 @@ export default function ReviseCockpitClientWorkflowV1({ payload }: { payload: Wo
         <header className="flex min-h-11 shrink-0 items-center justify-between gap-3 border-b border-[#2E261A] bg-[#151008] px-4 py-2">
           <div className="min-w-0">
             <p className="text-[10px] uppercase tracking-[0.2em] text-[#C8A96E]">Revision Cockpit · up to 100 prioritized opportunities per pass</p>
-            <h1 className="truncate text-sm font-semibold">{payload.manuscriptTitle}</h1>
+            <h1 className="text-sm font-semibold">{payload.manuscriptTitle}</h1>
           </div>
           {message && <div className="flex flex-wrap justify-end gap-2 text-[11px]"><span className="rounded border border-[#5D4C31] px-2 py-1 text-[#A9987D]">{message}</span></div>}
         </header>
@@ -484,8 +488,7 @@ export default function ReviseCockpitClientWorkflowV1({ payload }: { payload: Wo
           <aside className="flex min-h-0 flex-col border-r border-[#2E261A] bg-[#110D07]">
             <div className="space-y-2 border-b border-[#2E261A] p-2">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="text-[11px] uppercase tracking-[0.18em] text-[#C8A96E]">Search Queue</p>
-                <span className="rounded border border-[#C8A96E]/70 bg-[#C8A96E]/10 px-2 py-1 text-[11px] font-semibold text-[#F3E3C3]">Queue {filtered.length ? activeIndex + 1 : 0}/{filtered.length}</span>
+                <span className="rounded border border-[#C8A96E]/70 bg-[#C8A96E]/10 px-2 py-1 text-[11px] font-semibold text-[#F3E3C3]">Queue{"\u2003"}{filtered.length ? activeIndex + 1 : 0}/{filtered.length}</span>
               </div>
               <input value={filters.search} onChange={(event) => setFilters((current) => ({ ...current, search: event.target.value }))} placeholder="Search queue" className="h-8 w-full rounded border border-[#3A3022] bg-[#0D0A05] px-2 text-xs" />
               <div className="grid grid-cols-2 gap-2">
@@ -497,7 +500,7 @@ export default function ReviseCockpitClientWorkflowV1({ payload }: { payload: Wo
                 </select>
               </div>
               <select value={filters.criterion} onChange={(event) => setFilters((current) => ({ ...current, criterion: event.target.value }))} className="h-8 w-full rounded border border-[#3A3022] bg-[#0D0A05] px-2 text-xs">
-                <option value="all">All criteria</option>{criteria.map((criterion) => <option key={criterion} value={criterion}>{criterion}</option>)}
+                <option value="all">All Criteria</option>{criteria.map((criterion) => <option key={criterion} value={criterion}>{formatCriterion(criterion)}</option>)}
               </select>
             </div>
 
@@ -512,7 +515,7 @@ export default function ReviseCockpitClientWorkflowV1({ payload }: { payload: Wo
                       <span className="rounded border border-[#4E4333] px-1.5 py-0.5 text-[10px] text-[#A9987D]">pending</span>
                     </div>
                     <p className="line-clamp-2 text-xs leading-4">{index + 1}. {item.title}</p>
-                    <p className="mt-1 truncate text-[11px] text-[#A9987D]">{criterionOf(item)} · {item.anchor || item.meta}</p>
+                    <p className="mt-1 truncate text-[11px] text-[#A9987D]">{formatCriterion(criterionOf(item))} · {item.anchor || item.meta}</p>
                   </button>
                 </li>
               ))}
@@ -525,7 +528,7 @@ export default function ReviseCockpitClientWorkflowV1({ payload }: { payload: Wo
                 <div className="shrink-0 border-b border-[#2E261A] p-2">
                   <div className="flex flex-wrap items-center gap-2 text-[11px] uppercase tracking-wider">
                     <span className={`rounded px-2 py-1 ${severityClass(active.severity)}`}>{active.severity}</span>
-                    <span className="rounded border border-[#5A4B33] px-2 py-1">{criterionOf(active)}</span>
+                    <span className="rounded border border-[#5A4B33] px-2 py-1">{formatCriterion(criterionOf(active))}</span>
                     <span className="rounded border border-[#5A4B33] px-2 py-1">{active.scope}</span>
                     <span className={`rounded border px-2 py-1 ${liveReady(active) ? "border-[#48603F] text-[#BBD8B4]" : "border-[#7A2B1A] text-[#F1B6A5]"}`}>{liveReady(active) ? "Ready" : "Needs Targeting"}</span>
                   </div>
