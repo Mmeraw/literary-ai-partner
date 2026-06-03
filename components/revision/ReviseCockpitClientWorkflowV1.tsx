@@ -560,49 +560,44 @@ export default function ReviseCockpitClientWorkflowV1({ payload }: { payload: Wo
                     </div>
                   </section>
 
-                  <section className="mt-1.5 flex flex-wrap items-center justify-between gap-1">
-                    <p className="text-[10px] uppercase tracking-[0.18em] text-[#C8A96E]">{optionSectionLabel(active)}</p>
-                    {invalidCandidates && <p className="rounded border border-[#7A2B1A]/55 bg-[#7A2B1A]/15 px-2 py-1 text-xs text-[#E2B2A6]">Candidate generation still needs an exact passage before Accept/Copy can unlock.</p>}
+                  <section className="mt-1.5">
+                    <div className="flex items-center gap-1">
+                      {OPTION_KEYS.map((key) => {
+                        const focused = selectedOption === key;
+                        return <button key={key} type="button" onClick={() => setSelectedOption(key)} className={`rounded-t px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider transition ${focused ? "border border-b-0 border-[#C8A96E] bg-[#12100B] text-[#F3E3C3]" : "border border-transparent text-[#A9987D] hover:text-[#F3E3C3]"}`}>{REVISION_OPTION_LABELS[key]}</button>;
+                      })}
+                      {invalidCandidates && <span className="ml-auto text-[10px] text-[#E2B2A6]">Awaiting passage</span>}
+                    </div>
+                    {(() => { const key = selectedOption || "A"; const text = candidateText(active, key); const ok = canSelectOption(active, key); return (
+                      <div className="rounded-b-lg rounded-tr-lg border border-[#2E261A] bg-[#12100B] px-2 py-1.5">
+                        <div className="flex items-start justify-between gap-2">
+                          <p className={`line-clamp-3 whitespace-pre-wrap text-xs leading-4 ${ok ? "text-[#E5D8BE]" : "text-[#E2B2A6]"}`}>{text || "Candidate generation needs an exact source passage."}</p>
+                          <div className="flex shrink-0 gap-1">
+                            <button type="button" onClick={() => void copyText(text)} disabled={!ok} className="rounded border border-[#5D4C31] px-1.5 py-0.5 text-[10px] disabled:opacity-40">Copy</button>
+                          </div>
+                        </div>
+                      </div>
+                    ); })()}
                   </section>
 
-                  <div className="mt-1.5 grid gap-2 xl:grid-cols-3">
-                    {OPTION_KEYS.map((key) => {
-                      const text = candidateText(active, key);
-                      const ok = canSelectOption(active, key);
-                      const focused = selectedOption === key;
-                      return (
-                        <article key={key} onClick={() => setSelectedOption(key)} className={`rounded-lg border px-2 py-1.5 transition ${focused ? "border-[#C8A96E] bg-[#12100B]" : "border-[#2E261A] bg-[#12100B]"}`}>
-                          <div className="flex items-start justify-between gap-1">
-                            <p className="text-xs font-semibold">{REVISION_OPTION_LABELS[key]}</p>
-                            <div className="flex gap-1">
-                              <button type="button" onClick={(event) => { event.stopPropagation(); void copyText(text); }} disabled={!ok} className="rounded border border-[#5D4C31] px-1.5 py-0.5 text-[10px] disabled:opacity-40">Copy</button>
-                              <button type="button" onClick={(event) => { event.stopPropagation(); decide(selectedDecisionFor(key), key, text); }} disabled={!ok} className="rounded bg-[#C8A96E] px-1.5 py-0.5 text-[10px] font-semibold text-[#1A140C] disabled:opacity-40">Accept {key}</button>
-                            </div>
-                          </div>
-                          <p className={`mt-1 line-clamp-4 whitespace-pre-wrap text-xs leading-4 ${ok ? "text-[#E5D8BE]" : "text-[#E2B2A6]"}`}>{text || "Candidate generation needs an exact source passage."}</p>
-                        </article>
-                      );
-                    })}
-                  </div>
-
                   {customOpen && (
-                    <div className="mt-3 rounded-xl border border-[#C8A96E]/60 bg-[#120E08] p-3">
-                      <p className="text-xs uppercase tracking-[0.16em] text-[#C8A96E]">Author custom revision</p>
-                      <textarea value={customText} onChange={(event) => setCustomText(event.target.value)} rows={4} className="mt-2 w-full rounded border border-[#3A3022] bg-[#0D0A05] p-3 font-mono text-sm" />
-                      <button disabled={!customText.trim()} onClick={() => decide("custom", undefined, customText)} className="mt-2 rounded bg-[#C8A96E] px-3 py-1.5 text-sm font-semibold text-[#1A140C] disabled:opacity-50">Save custom + ledger</button>
+                    <div className="mt-1.5 rounded-lg border border-[#C8A96E]/60 bg-[#120E08] px-2 py-1.5">
+                      <p className="text-[10px] uppercase tracking-[0.16em] text-[#C8A96E]">Author custom revision</p>
+                      <textarea value={customText} onChange={(event) => setCustomText(event.target.value)} rows={3} className="mt-1 w-full rounded border border-[#3A3022] bg-[#0D0A05] p-2 font-mono text-xs" />
+                      <button disabled={!customText.trim()} onClick={() => decide("custom", undefined, customText)} className="mt-1 rounded bg-[#C8A96E] px-2 py-1 text-xs font-semibold text-[#1A140C] disabled:opacity-50">Save custom</button>
                     </div>
                   )}
                 </div>
 
-                <footer className="shrink-0 border-t border-[#2E261A] bg-[#120E08] p-3">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <button onClick={() => decide("accepted_a", "A", candidateText(active, "A"))} disabled={!canSelectOption(active, "A")} className="rounded bg-[#C8A96E] px-4 py-2 text-sm font-semibold text-[#1A140C] disabled:opacity-40">Accept A</button>
-                    <button onClick={() => decide("accepted_b", "B", candidateText(active, "B"))} disabled={!canSelectOption(active, "B")} className="rounded border border-[#C8A96E] px-4 py-2 text-sm disabled:opacity-40">Accept B</button>
-                    <button onClick={() => decide("accepted_c", "C", candidateText(active, "C"))} disabled={!canSelectOption(active, "C")} className="rounded border border-[#C8A96E] px-4 py-2 text-sm disabled:opacity-40">Accept C</button>
-                    <button onClick={() => decide("keep_original", undefined, "Kept original")} className="rounded border border-[#5D4C31] px-3 py-2 text-sm">Keep Original</button>
-                    <button onClick={() => decide("reject", undefined, "Rejected suggestions")} className="rounded border border-[#7A2B1A]/70 px-3 py-2 text-sm text-[#E2B2A6]">Reject</button>
-                    <button onClick={() => decide("deferred", undefined, "Deferred for later decision")} className="rounded border border-[#5C5140] px-3 py-2 text-sm">Defer</button>
-                    <button onClick={() => { if (customOpen && customText.trim()) { decide("custom", undefined, customText); } else { if (!customOpen) setCustomText(selectedText); setCustomOpen(true); } }} className="rounded border border-[#C8A96E] bg-[#C8A96E]/10 px-3 py-2 text-sm">{customOpen && customText.trim() ? "Save Custom" : (customOperationLabels[effectiveOperation(active)] ?? "Write Custom")}</button>
+                <footer className="shrink-0 border-t border-[#2E261A] bg-[#120E08] px-2 py-1.5">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <button onClick={() => decide("accepted_a", "A", candidateText(active, "A"))} disabled={!canSelectOption(active, "A")} className="rounded bg-[#C8A96E] px-2.5 py-1 text-xs font-semibold text-[#1A140C] disabled:opacity-40">Accept A</button>
+                    <button onClick={() => decide("accepted_b", "B", candidateText(active, "B"))} disabled={!canSelectOption(active, "B")} className="rounded border border-[#C8A96E] px-2.5 py-1 text-xs disabled:opacity-40">Accept B</button>
+                    <button onClick={() => decide("accepted_c", "C", candidateText(active, "C"))} disabled={!canSelectOption(active, "C")} className="rounded border border-[#C8A96E] px-2.5 py-1 text-xs disabled:opacity-40">Accept C</button>
+                    <button onClick={() => decide("keep_original", undefined, "Kept original")} className="rounded border border-[#5D4C31] px-2 py-1 text-xs">Keep Original</button>
+                    <button onClick={() => decide("reject", undefined, "Rejected suggestions")} className="rounded border border-[#7A2B1A]/70 px-2 py-1 text-xs text-[#E2B2A6]">Reject</button>
+                    <button onClick={() => decide("deferred", undefined, "Deferred for later decision")} className="rounded border border-[#5C5140] px-2 py-1 text-xs">Defer</button>
+                    <button onClick={() => { if (customOpen && customText.trim()) { decide("custom", undefined, customText); } else { if (!customOpen) setCustomText(selectedText); setCustomOpen(true); } }} className="rounded border border-[#C8A96E] bg-[#C8A96E]/10 px-2 py-1 text-xs">{customOpen && customText.trim() ? "Save Custom" : (customOperationLabels[effectiveOperation(active)] ?? "Write Custom")}</button>
                   </div>
                 </footer>
               </>
