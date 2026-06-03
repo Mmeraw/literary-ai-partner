@@ -1,34 +1,33 @@
 /**
- * Phase A.5 Day 1: Admin Endpoint Authentication
- * 
+ * Admin Endpoint Authentication
+ *
  * Protects /api/admin/* routes with cookie-based admin session validation.
  * Returns 401/403 if unauthorized, null if OK.
- * 
+ *
  * Usage:
  *   const denied = await requireAdmin(request);
  *   if (denied) return denied;
- * 
+ *
  * @module lib/admin/requireAdmin
  */
 
 import { NextRequest, NextResponse } from "next/server";
 import type { User } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
+import { isPipelineHealthAdminEmail } from "@/lib/admin/pipelineHealthAllowlist";
 
 /**
- * Validates admin access via Supabase session cookies + admin claim
- * 
- * @param req - Next.js request object
- * @returns NextResponse with 401/500 if unauthorized, null if OK
+ * Validates admin access via Supabase session cookies.
+ *
+ * Canonical privileged access is app_metadata.role = admin/superadmin.
+ * Owner break-glass access is also allowed for tsavobc@hotmail.com so the
+ * protected Admin Control Center is available even before app metadata is set.
  */
 function isAdminUser(user: User | null): boolean {
   if (!user) return false;
 
-  // Canonical admin role check: app_metadata.role only.
-  // No fallbacks to user_metadata or permissions.
-  // This is audit-clean and server-trustable.
   const role = (user.app_metadata as any)?.role;
-  return role === "admin" || role === "superadmin";
+  return role === "admin" || role === "superadmin" || isPipelineHealthAdminEmail(user.email);
 }
 
 export async function requireAdmin(req: NextRequest): Promise<NextResponse | null> {
@@ -53,7 +52,7 @@ export async function requireAdmin(req: NextRequest): Promise<NextResponse | nul
     if (!isAdminUser(user)) {
       console.warn("[requireAdmin] Forbidden admin access attempt", {
         userId: user.id,
-        ip: req.headers.get("x-forwarded-for") || "unknown",
+        email: user.email ?? null,
         path: req.nextUrl.pathname,
       });
 
@@ -87,7 +86,7 @@ export async function requireAdmin(req: NextRequest): Promise<NextResponse | nul
 
 /**
  * Alternative: check if request is admin (session-based)
- * 
+ *
  * @param req - Next.js request object
  * @returns true if user is admin
  */
