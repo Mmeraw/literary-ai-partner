@@ -10,7 +10,7 @@ const CLIPBOARD_PATCH_FLAG = "__revisionGradeChicagoClipboardGuardInstalled";
 type GuardedWindow = Window & Record<typeof FETCH_PATCH_FLAG | typeof CLIPBOARD_PATCH_FLAG, boolean | undefined>;
 
 function guardedWindow(): GuardedWindow {
-  return window as GuardedWindow;
+  return window as unknown as GuardedWindow;
 }
 
 function normalizeSetupForDialogue(value: string): string {

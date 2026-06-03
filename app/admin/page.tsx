@@ -31,6 +31,14 @@ const adminCards = [
     priority: "Operations",
   },
   {
+    title: "CostOps",
+    href: "/admin/costs",
+    eyebrow: "Spend · budgets · alerts",
+    description:
+      "LLM spend telemetry, model/phase cost breakdowns, budget tracking, and spend alerts.",
+    priority: "Operations",
+  },
+  {
     title: "Jobs",
     href: "/admin/jobs",
     eyebrow: "Evaluation records",
