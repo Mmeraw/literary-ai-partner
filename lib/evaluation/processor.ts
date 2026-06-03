@@ -228,6 +228,16 @@ function getProcessorRuntimeDeps() {
 
 const EVALUATION_PROGRESS_TOTAL_UNITS = 100;
 
+// ─── Pipeline stabilization delays ──────────────────────────────────────────
+// Deliberate pauses between pipeline steps so the DB, cache, and worker
+// claims have time to commit and propagate. Without these, rapid-fire
+// self-chains cause thrashing where the worker re-enters before the
+// previous write is visible, leading to stale reads and wasted invocations.
+const STABILIZE_MS = 5_000;           // standard pause between steps
+const STABILIZE_SELF_CHAIN_MS = 10_000; // longer pause before self-chain kick
+const stabilize = (ms: number = STABILIZE_MS) =>
+  new Promise<void>(r => setTimeout(r, ms));
+
 // Below this word count we evaluate as a single structural unit (one chunk).
 // Above this, the adaptive chunker engages and emits chapter-aligned chunks.
 const STRUCTURAL_CHUNKING_THRESHOLD_WORDS = 3_000;
@@ -3354,8 +3364,8 @@ async function kickPhase1aWorker(): Promise<void> {
   const base = getConfiguredAppBaseUrl() ?? 'https://www.revisiongrade.com';
   const url = new URL('/api/workers/process-evaluations', base).toString();
 
-  // 150ms: let the phase_1a/queued DB write commit before the new worker claims
-  await new Promise(r => setTimeout(r, 150));
+  // Stabilization pause: let the DB write commit and propagate before the new worker claims.
+  await stabilize(STABILIZE_SELF_CHAIN_MS);
 
   try {
     const res = await fetch(url, {
@@ -4459,12 +4469,15 @@ export async function processEvaluationJob(
         return { success: false, error: msg };
       }
 
-      console.log(`[Processor/Phase0] ${jobId}: re-queued at phase_1a — kicking worker`);
+      console.log(`[Processor/Phase0] ${jobId}: re-queued at phase_1a — stabilizing before kick`);
+
+      // Stabilization pause after Phase 0 — let the re-queue write fully commit
+      // before kicking the Phase 1A worker so it reads fresh state.
+      await stabilize();
 
       // Kick the worker so phase_1a is claimed immediately (no 5-min cron wait).
       // MUST be awaited: if this is void/detached, Vercel may kill the function
-      // before the HTTP request goes out. 150ms delay inside kickPhase1aWorker
-      // ensures the phase_1a/queued write is visible to the new worker.
+      // before the HTTP request goes out.
       await kickPhase1aWorker();
 
       return { success: true };
@@ -5185,6 +5198,8 @@ export async function processEvaluationJob(
           if (budgetChainErr) {
             throw new Error(`Phase 3 budget self-chain failed: ${budgetChainErr.message}`);
           }
+          // Stabilization pause before Phase 3 self-chain return.
+          await stabilize(STABILIZE_SELF_CHAIN_MS);
           return { success: true };
         }
 
@@ -6154,6 +6169,9 @@ export async function processEvaluationJob(
 
         console.log(`[phase_1a] ${jobId}: batch state — completed=${completedIndexes.size}/${totalChunks} pending=${pendingIndexes.length} batchIndex=${batchIndex}`);
 
+        // Stabilization pause after cache load — let DB writes settle before starting batch work.
+        await stabilize();
+
         // ── 4. Determine what this invocation should do ───────────────────
         const allChunksDone = pendingIndexes.length === 0;
         const preflightStatus = (existingBatchState?.preflight_status as string | undefined) ?? 'NOT_STARTED';
@@ -6332,6 +6350,9 @@ export async function processEvaluationJob(
             const batchDurationMs = Date.now() - batchStartMs;
 
             console.log(`[phase_1a] ${jobId}: batch ${batchIndex + 1} complete in ${batchDurationMs}ms — success=${pass1aBatchResult.successful_chunks} failed=${pass1aBatchResult.failedChunkIndices.length}`);
+
+            // Stabilization pause after batch — let cache + pulse writes settle.
+            await stabilize();
 
             if (pass1aBatchResult.successful_chunks === 0 && pass1aBatchResult.total_chunks > 0) {
               // All chunks in this batch failed — this is a real failure, not self-chain.
@@ -6694,8 +6715,8 @@ export async function processEvaluationJob(
 
             console.log(`[phase_1a] ${jobId}: self-chained — batch ${batchIndex + 1}/${batchesTotal} done, ${pendingAfterBatch.length} chunks remain, track_c=${trackCStatusAfterBatch}`);
 
-            // Kick the next worker immediately — 150ms delay for DB commit visibility.
-            await new Promise(r => setTimeout(r, 150));
+            // Stabilization pause before kicking next worker.
+            await stabilize(STABILIZE_SELF_CHAIN_MS);
             await kickPhase1aWorker();
 
             clearInterval(leaseRenewalLoopP1a);
@@ -6877,7 +6898,8 @@ export async function processEvaluationJob(
               throw new Error(`Track C self-chain re-queue failed: ${chainErr.message}`);
             }
 
-            console.log(`[track_c] ${jobId}: self-chained — lease released, kicking next worker`);
+            console.log(`[track_c] ${jobId}: self-chained — stabilizing before next worker kick`);
+            await stabilize(STABILIZE_SELF_CHAIN_MS);
             await kickPhase1aWorker();
             clearInterval(leaseRenewalLoopP1a);
             return { success: true };
@@ -7774,16 +7796,9 @@ export async function processEvaluationJob(
       // phase1_completed_at === phase2_started_at to the millisecond, indicating
       // Phase 2 was triggered without any guard. Insert a deterministic settle
       // delay so any in-flight Phase 1 commit can land before Phase 2 reads.
-      const phase1CompletedAtRaw = progressState.phase1_completed_at as string | undefined;
-      if (phase1CompletedAtRaw) {
-        const phase1CompletedMs = Date.parse(phase1CompletedAtRaw);
-        const sinceCompleteMs = Date.now() - phase1CompletedMs;
-        if (Number.isFinite(phase1CompletedMs) && sinceCompleteMs < 500) {
-          const settleDelayMs = Math.max(500 - sinceCompleteMs, 0);
-          console.log(`[phase_2] ${jobId}: settle delay ${settleDelayMs}ms (phase1_completed_at is ${sinceCompleteMs}ms ago)`);
-          await new Promise((resolve) => setTimeout(resolve, settleDelayMs));
-        }
-      }
+      // Stabilization pause before Phase 2 — ensure Phase 1 artifacts are fully committed.
+      console.log(`[phase_2] ${jobId}: stabilizing before Phase 2 start`);
+      await stabilize();
 
       await markRunning('Resuming from phase 1 handoff', 55, 'phase_2');
       refreshPhaseDeadline(progressState.phase2_started_at as string | undefined);
@@ -9321,6 +9336,10 @@ export async function processEvaluationJob(
       });
 
       if (isWaveEligible) {
+        // Stabilization pause before WAVE — let synthesis artifacts fully commit.
+        console.log(`[Processor] ${jobId}: stabilizing before WAVE`);
+        await stabilize();
+
         if (executionPhase === 'phase_3') {
           // Already in phase_3 (Pass 3B synthesis just ran inline). Run WAVE
           // inline non-fatally and complete. Never re-queue phase_3.
@@ -9474,7 +9493,9 @@ export async function processEvaluationJob(
           console.error(`[Processor] ${jobId}: phase_3 queue transition FAILED (non-fatal — evaluation complete)`, phase3QueueErr.message);
           // Fall through: mark job complete even if WAVE queue fails
         } else if (phase3QueueRow?.status === JOB_STATUS.QUEUED) {
-          console.log(`[Processor] ${jobId}: phase_2 → phase_3 queued — WAVE will run in next invocation`);
+          console.log(`[Processor] ${jobId}: phase_2 → phase_3 queued — stabilizing before WAVE invocation`);
+          // Stabilization pause so the phase_3/queued write is visible to the next worker.
+          await stabilize(STABILIZE_SELF_CHAIN_MS);
           return { success: true };
         }
         // If queue transition returned 0 rows, job already transitioned — fall through to complete
