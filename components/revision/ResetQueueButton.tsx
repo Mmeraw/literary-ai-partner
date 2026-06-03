@@ -50,7 +50,7 @@ export default function ResetQueueButton({
   if (!evaluationJobId) return null;
 
   return (
-    <div className="text-center">
+    <div className="relative">
       {status === "confirming" && (
         <div className="absolute right-0 mt-2 w-[320px] rounded border border-[#E0BF78] bg-[#120E08] px-3 py-3 text-left text-[11px] leading-4 text-[#CBBDA4] shadow-lg z-50">
           <p className="font-bold text-[#F4E3B0]">Confirm Reset Queue</p>
@@ -77,7 +77,7 @@ export default function ResetQueueButton({
       {status === "idle" && (
         <button
           onClick={handleReset}
-          className="rounded border border-[#C8A96E] bg-[#1C160E] px-4 py-2 text-[12px] font-bold uppercase tracking-[0.08em] text-[#F3E3C3] shadow-lg transition hover:bg-[#2A2115]"
+          className="flex h-10 items-center justify-center rounded border border-[#C8A96E] bg-[#1C160E] px-4 text-[12px] font-bold uppercase tracking-[0.08em] text-[#F3E3C3] shadow-lg transition hover:bg-[#2A2115] whitespace-nowrap"
         >
           Reset Queue
         </button>
