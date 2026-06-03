@@ -525,20 +525,20 @@ export default function ReviseCockpitClientWorkflowV1({ payload }: { payload: Wo
           <section className="flex min-w-0 flex-col overflow-hidden bg-[#1C160E]">
             {active ? (
               <>
-                <div className="shrink-0 border-b border-[#2E261A] px-2 pb-3 pt-2">
-                  <p className="mb-1.5 text-[11px] uppercase tracking-[0.18em] text-[#C8A96E]">Diagnosis & Guardrails</p>
-                  <div className="flex flex-wrap items-center gap-2 text-[11px] uppercase tracking-wider">
-                    <span className={`rounded px-2 py-1 ${severityClass(active.severity)}`}>{active.severity}</span>
-                    <span className="rounded border border-[#5A4B33] px-2 py-1">{formatCriterion(criterionOf(active))}</span>
-                    <span className="rounded border border-[#5A4B33] px-2 py-1">{active.scope}</span>
-                    <span className={`rounded border px-2 py-1 ${liveReady(active) ? "border-[#48603F] text-[#BBD8B4]" : "border-[#7A2B1A] text-[#F1B6A5]"}`}>{liveReady(active) ? "Ready" : "Needs Targeting"}</span>
+                <div className="shrink-0 border-b border-[#2E261A] px-2 pb-2 pt-1.5">
+                  <p className="mb-1 text-[10px] uppercase tracking-[0.18em] text-[#C8A96E]">Diagnosis & Guardrails</p>
+                  <div className="flex flex-wrap items-center gap-1.5 text-[10px] uppercase tracking-wider">
+                    <span className={`rounded px-1.5 py-0.5 ${severityClass(active.severity)}`}>{active.severity}</span>
+                    <span className="rounded border border-[#5A4B33] px-1.5 py-0.5">{formatCriterion(criterionOf(active))}</span>
+                    <span className="rounded border border-[#5A4B33] px-1.5 py-0.5">{active.scope}</span>
+                    <span className={`rounded border px-1.5 py-0.5 ${liveReady(active) ? "border-[#48603F] text-[#BBD8B4]" : "border-[#7A2B1A] text-[#F1B6A5]"}`}>{liveReady(active) ? "Ready" : "Needs Targeting"}</span>
                   </div>
-                  <h2 className="mt-2 truncate text-lg font-semibold">{active.title}</h2>
+                  <h2 className="mt-1 truncate text-base font-semibold">{active.title}</h2>
                 </div>
 
-                <div className="min-h-0 flex-1 overflow-y-auto p-3">
-                  <section className="rounded-xl border border-[#2E261A] bg-[#12100B] p-3">
-                    <div className="grid gap-x-4 gap-y-1 text-sm leading-5 xl:grid-cols-2">
+                <div className="min-h-0 flex-1 overflow-y-auto px-2 py-1.5">
+                  <section className="rounded-lg border border-[#2E261A] bg-[#12100B] px-2 py-1.5">
+                    <div className="grid gap-x-3 gap-y-0.5 text-xs leading-4 xl:grid-cols-2">
                       <p><span className="text-[#C8A96E]">Symptom:</span> {diagnosticText(active, "symptom")}</p>
                       <p><span className="text-[#C8A96E]">Cause:</span> {diagnosticText(active, "cause")}</p>
                       <p><span className="text-[#C8A96E]">Fix:</span> {diagnosticText(active, "fix")}</p>
@@ -548,38 +548,38 @@ export default function ReviseCockpitClientWorkflowV1({ payload }: { payload: Wo
                     </div>
                   </section>
 
-                  <section className="mt-3 grid gap-3 xl:grid-cols-2">
-                    <div className="rounded-xl border border-[#2E261A] bg-[#12100B] p-3">
-                      <p className="text-[11px] uppercase tracking-[0.18em] text-[#C8A96E]">Original Passage</p>
-                      <p className="mt-2 max-h-20 overflow-y-auto text-sm leading-5">{sourceTextOf(active) || "No exact passage is available yet."}</p>
-                      <p className="mt-1 text-xs text-[#A9987D]">{active.anchor || active.meta || "Location pending"}</p>
+                  <section className="mt-1.5 grid gap-2 xl:grid-cols-2">
+                    <div className="rounded-lg border border-[#2E261A] bg-[#12100B] px-2 py-1.5">
+                      <p className="text-[10px] uppercase tracking-[0.18em] text-[#C8A96E]">Original Passage</p>
+                      <p className="mt-1 max-h-16 overflow-y-auto text-xs leading-4">{sourceTextOf(active) || "No exact passage is available yet."}</p>
+                      <p className="mt-0.5 text-[10px] text-[#A9987D]">{active.anchor || active.meta || "Location pending"}</p>
                     </div>
-                    <div className="rounded-xl border border-[#2E261A] bg-[#12100B] p-3">
-                      <p className="text-[11px] uppercase tracking-[0.18em] text-[#C8A96E]">Revision Task</p>
-                      <p className="mt-2 text-sm leading-5">{operationInstruction(active)} {compactGoal(active)}</p>
+                    <div className="rounded-lg border border-[#2E261A] bg-[#12100B] px-2 py-1.5">
+                      <p className="text-[10px] uppercase tracking-[0.18em] text-[#C8A96E]">Revision Task</p>
+                      <p className="mt-1 text-xs leading-4">{operationInstruction(active)} {compactGoal(active)}</p>
                     </div>
                   </section>
 
-                  <section className="mt-3 flex flex-wrap items-center justify-between gap-2">
-                    <p className="text-[11px] uppercase tracking-[0.18em] text-[#C8A96E]">{optionSectionLabel(active)}</p>
+                  <section className="mt-1.5 flex flex-wrap items-center justify-between gap-1">
+                    <p className="text-[10px] uppercase tracking-[0.18em] text-[#C8A96E]">{optionSectionLabel(active)}</p>
                     {invalidCandidates && <p className="rounded border border-[#7A2B1A]/55 bg-[#7A2B1A]/15 px-2 py-1 text-xs text-[#E2B2A6]">Candidate generation still needs an exact passage before Accept/Copy can unlock.</p>}
                   </section>
 
-                  <div className="mt-3 grid gap-3 xl:grid-cols-3">
+                  <div className="mt-1.5 grid gap-2 xl:grid-cols-3">
                     {OPTION_KEYS.map((key) => {
                       const text = candidateText(active, key);
                       const ok = canSelectOption(active, key);
                       const focused = selectedOption === key;
                       return (
-                        <article key={key} onClick={() => setSelectedOption(key)} className={`rounded-xl border p-3 transition ${focused ? "border-[#C8A96E] bg-[#12100B]" : "border-[#2E261A] bg-[#12100B]"}`}>
-                          <div className="flex items-start justify-between gap-2">
-                            <p className="text-sm font-semibold">{REVISION_OPTION_LABELS[key]}</p>
+                        <article key={key} onClick={() => setSelectedOption(key)} className={`rounded-lg border px-2 py-1.5 transition ${focused ? "border-[#C8A96E] bg-[#12100B]" : "border-[#2E261A] bg-[#12100B]"}`}>
+                          <div className="flex items-start justify-between gap-1">
+                            <p className="text-xs font-semibold">{REVISION_OPTION_LABELS[key]}</p>
                             <div className="flex gap-1">
-                              <button type="button" onClick={(event) => { event.stopPropagation(); void copyText(text); }} disabled={!ok} className="rounded border border-[#5D4C31] px-2 py-1 text-xs disabled:opacity-40">Copy</button>
-                              <button type="button" onClick={(event) => { event.stopPropagation(); decide(selectedDecisionFor(key), key, text); }} disabled={!ok} className="rounded bg-[#C8A96E] px-2 py-1 text-xs font-semibold text-[#1A140C] disabled:opacity-40">Accept {key}</button>
+                              <button type="button" onClick={(event) => { event.stopPropagation(); void copyText(text); }} disabled={!ok} className="rounded border border-[#5D4C31] px-1.5 py-0.5 text-[10px] disabled:opacity-40">Copy</button>
+                              <button type="button" onClick={(event) => { event.stopPropagation(); decide(selectedDecisionFor(key), key, text); }} disabled={!ok} className="rounded bg-[#C8A96E] px-1.5 py-0.5 text-[10px] font-semibold text-[#1A140C] disabled:opacity-40">Accept {key}</button>
                             </div>
                           </div>
-                          <p className={`mt-2 line-clamp-6 whitespace-pre-wrap text-sm leading-5 ${ok ? "text-[#E5D8BE]" : "text-[#E2B2A6]"}`}>{text || "Candidate generation needs an exact source passage."}</p>
+                          <p className={`mt-1 line-clamp-4 whitespace-pre-wrap text-xs leading-4 ${ok ? "text-[#E5D8BE]" : "text-[#E2B2A6]"}`}>{text || "Candidate generation needs an exact source passage."}</p>
                         </article>
                       );
                     })}
