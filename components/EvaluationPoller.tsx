@@ -562,7 +562,7 @@ export function EvaluationPoller({
     complete: isCompletingAnimation
       ? 'In progress'
       : isInterimComplete
-        ? 'Report Ready — Narrative Synthesis loading'
+        ? 'Report Ready — Narrative Synthesis loading (see below)'
         : isLongForm
           ? 'Full Report Ready'
           : 'Evaluation Report Ready',
