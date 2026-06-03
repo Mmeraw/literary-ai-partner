@@ -153,7 +153,7 @@ export default function CostOpsDashboardPage() {
   const [data, setData] = useState<CostOpsDashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [autoRefresh, setAutoRefresh] = useState(false);
+  const [autoRefresh, setAutoRefresh] = useState(true);
 
   const fetchData = useCallback(async () => {
     try {
@@ -174,7 +174,7 @@ export default function CostOpsDashboardPage() {
 
   useEffect(() => {
     if (!autoRefresh) return;
-    const id = setInterval(fetchData, 30_000);
+    const id = setInterval(fetchData, 120_000);
     return () => clearInterval(id);
   }, [autoRefresh, fetchData]);
 
@@ -248,7 +248,7 @@ export default function CostOpsDashboardPage() {
                   onChange={(e) => setAutoRefresh(e.target.checked)}
                   className="rounded"
                 />
-                Auto-refresh (30s)
+                Auto-refresh (2 min)
               </label>
               <button
                 onClick={fetchData}
