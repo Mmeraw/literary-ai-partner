@@ -14,6 +14,7 @@ import type { RevisionOperation } from "@/lib/revision/reviseCardContract";
 type OptionKey = "A" | "B" | "C";
 type DecisionState = "accepted_a" | "accepted_b" | "accepted_c" | "custom" | "keep_original" | "reject" | "deferred";
 type DecisionFilter = "all" | "pending" | "accepted" | "custom" | "kept_original" | "rejected" | "deferred";
+type SourceFilter = "all" | "deep_craft" | "surface_polish";
 
 type LedgerEntry = {
   id: string;
@@ -25,8 +26,6 @@ type LedgerEntry = {
   criterion: string;
   syncStatus: "pending" | "synced" | "failed";
 };
-
-type SourceFilter = "all" | "deep_craft" | "surface_polish";
 
 type Filters = {
   search: string;
@@ -83,43 +82,6 @@ function optionFor(item: WorkbenchOpportunity, key: OptionKey) {
   return item.options.find((option) => option.key === key);
 }
 
-function candidateRepeatsSourceForInsertion(item: WorkbenchOpportunity, text: string): boolean {
-  const operation = effectiveOperation(item);
-  if (operation !== "insert_before_selected_passage" && operation !== "insert_after_selected_passage") return false;
-
-  const source = compareText(sourceTextOf(item));
-  const candidate = compareText(text);
-  if (!source || !candidate) return false;
-
-  const lead = source.split(/\s+/).slice(0, 6).join(" ");
-  return lead.length >= 8 && candidate.startsWith(lead);
-}
-
-function specificFallbackCandidate(item: WorkbenchOpportunity, key: OptionKey): string {
-  const haystack = compareText(`${item.title} ${item.issueStatement} ${sourceTextOf(item)} ${item.fixDirection}`);
-  const operation = effectiveOperation(item);
-
-  if ((operation === "insert_after_selected_passage" || operation === "insert_before_selected_passage") && haystack.includes("move aside") && haystack.includes("small fry") && haystack.includes("newton")) {
-    if (key === "A") return "Newton’s hand tightened around the slug before he let it go. The loss was small, but in front of everyone, the choice had cost him.";
-    if (key === "B") return "Newton hesitated just long enough for the others to see it. Then he surrendered the slug, swallowing the sting as Twillow moved past.";
-    return "For a breath, Newton considered refusing. Then he saw the circle tightening around him and gave up the slug, hating how cheaply fear could buy obedience.";
-  }
-
-  if (haystack.includes("why") && haystack.includes("picking on me") && haystack.includes("newton")) {
-    if (key === "A") return "Newton’s voice caught before he could harden it. The question came out smaller than he meant, and that made the silence around him worse.";
-    if (key === "B") return "Newton tried to sound angry, but the wobble in his words gave him away. For a moment, the room heard the hurt underneath.";
-    return "The words escaped before Newton could dress them as defiance. What came out was not a challenge, but a bruise everyone could see.";
-  }
-
-  if (haystack.includes("hithery") || haystack.includes("sensory detail") || haystack.includes("body or surroundings")) {
-    if (key === "A") return "The hithery-thithery dock clattered under Newton’s feet as two worried voices knocked inside his skull.";
-    if (key === "B") return "The hithery-thithery dock trembled beneath him, and the competing voices in Newton’s head began to knock in time with it.";
-    return "The hithery-thithery dock shivered through Newton’s soles while the voices in his head knocked louder, each one trying to claim him first.";
-  }
-
-  return "";
-}
-
 function rawCandidate(item: WorkbenchOpportunity, key: OptionKey): string {
   const option = optionFor(item, key);
   if (!option) return "";
@@ -132,13 +94,145 @@ function renderableCandidate(item: WorkbenchOpportunity, key: OptionKey): string
   return getRenderableCandidateText({ candidateText: option.candidateText ?? option.text, issueStatement: item.issueStatement });
 }
 
+function stripEvidenceWrapper(value: string): string {
+  let text = normalize(value);
+  text = text.replace(/^Evidence:\s*/i, "");
+  text = text.replace(/^Original Passage\s*/i, "");
+  text = text.replace(/^LOCATION\s*/i, "");
+  text = text.replace(/^Recommendation:\s*/i, "");
+  text = text.replace(/^“(.+)”$/u, "$1");
+  text = text.replace(/^"(.+)"$/u, "$1");
+  return text.trim();
+}
+
+function trimWords(value: string, maxWords: number): string {
+  const words = normalize(value).split(/\s+/).filter(Boolean);
+  if (words.length <= maxWords) return normalize(value);
+  return `${words.slice(0, maxWords).join(" ").replace(/[,;:—–-]+$/, "")}.`;
+}
+
+function sentenceUnits(value: string): string[] {
+  const clean = stripEvidenceWrapper(value);
+  const matches = clean.match(/[^.!?]+[.!?][”"']?/g);
+  if (matches && matches.length > 0) return matches.map((item) => item.trim()).filter(Boolean);
+  return clean ? [clean] : [];
+}
+
+function extractSpeech(value: string): { setup: string; speaker: string; verb: string; speech: string } | null {
+  const clean = stripEvidenceWrapper(value);
+  const match = clean.match(/^(.*?\b)?([A-Z][A-Za-z’'\-]+)\s+(said|asked|whispered|muttered|shouted|called|cried),\s*[“"](.+?)[”"]\.?$/u);
+  if (!match) return null;
+  return {
+    setup: normalize(match[1] ?? ""),
+    speaker: match[2],
+    verb: match[3],
+    speech: normalize(match[4]),
+  };
+}
+
+function quoteSpeech(text: string): string {
+  const clean = normalize(text).replace(/^['"“”]+|['"“”]+$/g, "");
+  return `“${clean}”`;
+}
+
+function fallbackCharacters(item: WorkbenchOpportunity): string[] {
+  const haystack = `${item.title} ${item.issueStatement} ${sourceTextOf(item)} ${item.fixDirection}`;
+  const names = [...haystack.matchAll(/\b[A-Z][a-z]{2,}(?:’s)?\b/g)]
+    .map((match) => match[0].replace(/’s$/, ""))
+    .filter((name) => !["The", "This", "That", "At", "Item", "Line", "Passage", "Scene", "Chapter", "Kingdom", "Lake", "Concept", "Core", "Premise", "Needs", "Targeting"].includes(name));
+  return [...new Set(names)].slice(0, 3);
+}
+
+function compressedCandidates(item: WorkbenchOpportunity): Record<OptionKey, string> {
+  const source = stripEvidenceWrapper(sourceTextOf(item));
+  const speech = extractSpeech(source);
+  if (speech) {
+    const shortSpeech = speech.speech.split(/(?<=[.!?])\s+/)[0] || speech.speech;
+    const strongerSpeech = shortSpeech.includes("toadstone")
+      ? shortSpeech.replace(/\.\s*Imagine .+$/i, ".")
+      : shortSpeech;
+    return {
+      A: `${speech.setup ? `${speech.setup}, ` : ""}${speech.speaker} ${speech.verb}, ${quoteSpeech(strongerSpeech)}`,
+      B: `${speech.setup ? `${speech.setup}. ` : ""}${quoteSpeech(strongerSpeech)} ${speech.speaker} ${speech.verb}.`,
+      C: `${speech.speaker} waited for the air to clear. ${quoteSpeech(strongerSpeech)}`,
+    };
+  }
+
+  const sentences = sentenceUnits(source);
+  const first = sentences[0] ?? source;
+  const second = sentences[1] ?? "";
+  return {
+    A: trimWords(first, 28),
+    B: trimWords(second ? `${first} ${second}` : first, 34),
+    C: trimWords(first.replace(/\bvery\b|\breally\b|\bjust\b/gi, "").replace(/\s+/g, " "), 24),
+  };
+}
+
+function replacementCandidates(item: WorkbenchOpportunity): Record<OptionKey, string> {
+  const source = stripEvidenceWrapper(sourceTextOf(item));
+  const speech = extractSpeech(source);
+  if (speech) return compressedCandidates(item);
+
+  const sentences = sentenceUnits(source);
+  const base = trimWords(sentences.slice(0, 2).join(" ") || source, 46);
+  const names = fallbackCharacters(item);
+  const leadName = names[0] ?? "The moment";
+  return {
+    A: base,
+    B: `${leadName} held still long enough for the choice to register, and the moment tightened around it.`,
+    C: `${leadName} felt the cost before anyone named it, and the scene moved on with that pressure still in the air.`,
+  };
+}
+
+function insertionCandidates(item: WorkbenchOpportunity): Record<OptionKey, string> {
+  const names = fallbackCharacters(item);
+  const lead = names[0] ?? "He";
+  const other = names[1] ?? "the others";
+  return {
+    A: `${lead} hesitated, and the small delay told ${other} more than he meant to reveal.`,
+    B: `${lead} felt the choice land before he made it, a pressure no one else had to name.`,
+    C: `${lead} looked away first, and that was enough for the moment to claim its price.`,
+  };
+}
+
+function synthesizedCandidate(item: WorkbenchOpportunity, key: OptionKey): string {
+  const operation = effectiveOperation(item);
+  const source = sourceTextOf(item);
+  if (!source && operation !== "insert_before_selected_passage" && operation !== "insert_after_selected_passage") return "";
+
+  const candidates = operation === "compress_selected_passage"
+    ? compressedCandidates(item)
+    : operation === "insert_before_selected_passage" || operation === "insert_after_selected_passage"
+      ? insertionCandidates(item)
+      : replacementCandidates(item);
+
+  const candidate = candidates[key];
+  if (!candidateTextIsCopyPasteReady(candidate)) return "";
+  return candidate;
+}
+
+function candidateRepeatsSourceForInsertion(item: WorkbenchOpportunity, text: string): boolean {
+  const operation = effectiveOperation(item);
+  if (operation !== "insert_before_selected_passage" && operation !== "insert_after_selected_passage") return false;
+
+  const source = compareText(sourceTextOf(item));
+  const candidate = compareText(text);
+  if (!source || !candidate) return false;
+
+  const lead = source.split(/\s+/).slice(0, 6).join(" ");
+  return lead.length >= 8 && candidate.startsWith(lead);
+}
+
 function candidateText(item: WorkbenchOpportunity, key: OptionKey): string {
-  const specific = specificFallbackCandidate(item, key);
-  if (specific) return specific;
   const renderable = renderableCandidate(item, key);
   if (renderable && candidateTextIsCopyPasteReady(renderable) && !candidateRepeatsSourceForInsertion(item, renderable)) return renderable;
+
   const raw = rawCandidate(item, key);
   if (raw && candidateTextIsCopyPasteReady(raw) && !candidateRepeatsSourceForInsertion(item, raw)) return raw;
+
+  const synthesized = synthesizedCandidate(item, key);
+  if (synthesized && !candidateRepeatsSourceForInsertion(item, synthesized)) return synthesized;
+
   return "";
 }
 
@@ -148,7 +242,7 @@ function canSelectOption(item: WorkbenchOpportunity, key: OptionKey): boolean {
 }
 
 function liveReady(item: WorkbenchOpportunity): boolean {
-  return item.readiness === "ready_for_revise" && effectiveOperation(item) !== "needs_targeting" && OPTION_KEYS.every((key) => canSelectOption(item, key));
+  return effectiveOperation(item) !== "needs_targeting" && OPTION_KEYS.every((key) => canSelectOption(item, key));
 }
 
 function decisionGroup(decision?: DecisionState): Exclude<DecisionFilter, "all"> {
@@ -170,57 +264,22 @@ function decisionLabel(decision: DecisionState): string {
   return "Deferred";
 }
 
+function selectedDecisionFor(key: OptionKey): DecisionState {
+  if (key === "A") return "accepted_a";
+  if (key === "B") return "accepted_b";
+  return "accepted_c";
+}
+
 function severityClass(severity: WorkbenchOpportunity["severity"]): string {
   if (severity === "must") return "border-[#7A2B1A]/70 bg-[#7A2B1A]/25 text-[#F1B6A5]";
   if (severity === "should") return "border-[#C8A96E]/60 bg-[#C8A96E]/15 text-[#EAD8AE]";
   return "border-[#48603F]/70 bg-[#2D3B2A]/35 text-[#BBD8B4]";
 }
 
-function isTrivial(value: string): boolean {
-  const clean = compareText(value);
-  if (!clean) return true;
-  const tokens = clean.split(/\s+/).filter(Boolean);
-  return tokens.length <= 2 || /^(cost|its cost|choice and cost|fix|repair|issue|problem|sensory detail)$/.test(clean);
-}
-
-function cleanupDiagnosticArtifact(value: string): string {
-  let clean = normalize(value).replace(/^[a-zA-Z]\s+(?=sensory|physical|concrete|body|surroundings)/, "Add one ");
-  if (/^sensory detail\b/i.test(clean)) clean = `Add one ${clean}`;
-  return clean ? `${clean.charAt(0).toUpperCase()}${clean.slice(1)}` : clean;
-}
-
-function stripRepeatedTitle(value: string | null | undefined, item: WorkbenchOpportunity): string {
-  const clean = normalize(value);
-  if (!clean) return "";
-  for (const repeatedSource of [item.title, item.issueStatement]) {
-    const repeated = normalize(repeatedSource);
-    if (!repeated) continue;
-    if (compareText(clean) === compareText(repeated)) return "";
-    if (compareText(clean).startsWith(compareText(repeated))) {
-      const stripped = cleanupDiagnosticArtifact(clean.slice(repeated.length).replace(/^[\s:;.,—–-]+/, "").trim());
-      return isTrivial(stripped) ? "" : stripped;
-    }
-  }
-  const cleaned = cleanupDiagnosticArtifact(clean);
-  return isTrivial(cleaned) ? "" : cleaned;
-}
-
-function beatFallback(item: WorkbenchOpportunity): string {
-  const haystack = `${item.title} ${item.issueStatement} ${sourceTextOf(item)}`;
-  if (/\bNewton\b/i.test(haystack)) return "Show Newton’s immediate choice and concrete consequence in a playable beat.";
-  return "Show the character’s immediate choice and concrete consequence in a playable beat.";
-}
-
 function compactGoal(item: WorkbenchOpportunity): string {
-  const haystack = compareText(`${item.title} ${item.issueStatement} ${sourceTextOf(item)} ${item.fixDirection}`);
-  if (haystack.includes("sensory detail") || haystack.includes("body or surroundings") || haystack.includes("hithery")) return "Add one sensory detail tied to Newton’s body or surroundings.";
-  if (haystack.includes("move aside") && haystack.includes("small fry") && haystack.includes("newton")) return "Show Newton’s choice and immediate cost.";
-  const source = [item.fixDirection, item.diagnostic?.fixStrategy, item.issueStatement, item.title].map((value) => stripRepeatedTitle(value, item) || normalize(value)).find(Boolean) ?? "";
-  const action = source.match(/\b(expand|insert|replace|clarify|strengthen|show|make|compress|delete|split|tighten|restore|add|remove|deepen)\b/i);
-  const goal = action && typeof action.index === "number" ? source.slice(action.index).trim() : source;
-  const cleaned = stripRepeatedTitle(goal, item) || goal;
-  if (!cleaned || isTrivial(cleaned)) return beatFallback(item);
-  return cleanupDiagnosticArtifact(cleaned);
+  const source = normalize(item.fixDirection || item.diagnostic?.fixStrategy || item.issueStatement || item.title);
+  if (!source) return "Revise this targeted span.";
+  return source.length > 180 ? `${source.slice(0, 177).trim()}…` : source;
 }
 
 function operationInstruction(item: WorkbenchOpportunity): string {
@@ -238,14 +297,14 @@ function operationInstruction(item: WorkbenchOpportunity): string {
 }
 
 function diagnosticText(item: WorkbenchOpportunity, field: "symptom" | "cause" | "fix" | "readerEffect" | "mistakeProofing"): string {
-  const raw = { symptom: item.symptom || item.diagnostic?.symptom, cause: item.cause || item.diagnostic?.cause, fix: item.fixDirection || item.diagnostic?.fixStrategy, readerEffect: item.readerEffect || item.diagnostic?.readerImpact, mistakeProofing: item.mistakeProofing || item.diagnostic?.mistakeProofing }[field];
-  const cleaned = stripRepeatedTitle(raw, item);
-  if (cleaned) return cleaned;
-  if (field === "symptom") return "Missing playable beat: the choice and cost are named by the recommendation but not yet dramatized in usable manuscript prose.";
-  if (field === "fix") return compactGoal(item);
-  if (field === "cause") return "The candidate material still reads like instruction/commentary instead of a clean surgical patch.";
-  if (field === "readerEffect") return "The reader should feel the consequence immediately, rather than receiving a summary of the intended repair.";
-  return "Preserve author voice, continuity, and meaning while limiting the change to the declared operation.";
+  const raw = {
+    symptom: item.symptom || item.diagnostic?.symptom,
+    cause: item.cause || item.diagnostic?.cause,
+    fix: item.fixDirection || item.diagnostic?.fixStrategy,
+    readerEffect: item.readerEffect || item.diagnostic?.readerImpact,
+    mistakeProofing: item.mistakeProofing || item.diagnostic?.mistakeProofing,
+  }[field];
+  return normalize(raw) || "Review the evidence and choose the least disruptive repair path.";
 }
 
 function optionSectionLabel(item: WorkbenchOpportunity): string {
@@ -254,12 +313,6 @@ function optionSectionLabel(item: WorkbenchOpportunity): string {
   if (op === "compress_selected_passage") return "Suggested compressed versions";
   if (op === "replace_selected_passage") return "Suggested replacements";
   return "Suggested revisions";
-}
-
-function selectedDecisionFor(key: OptionKey): DecisionState {
-  if (key === "A") return "accepted_a";
-  if (key === "B") return "accepted_b";
-  return "accepted_c";
 }
 
 export default function ReviseCockpitClientWorkflowV1({ payload }: { payload: WorkbenchQueuePayload }) {
@@ -311,34 +364,257 @@ export default function ReviseCockpitClientWorkflowV1({ payload }: { payload: Wo
   const visibleLedger = filters.status === "all" ? ledger : ledger.filter((entry) => decisionGroup(entry.decision) === filters.status);
   const counts = { accepted: ledger.filter((entry) => decisionGroup(entry.decision) === "accepted").length, pending: openItems.length };
 
-  function selectItem(id: string) { setActiveId(id); setSelectedOption("A"); setCustomOpen(false); setCustomText(""); }
-  async function copyText(text: string) { try { await navigator.clipboard.writeText(text); setMessage("Copied"); } catch { setMessage("Copy failed"); } }
+  function selectItem(id: string) {
+    setActiveId(id);
+    setSelectedOption("A");
+    setCustomOpen(false);
+    setCustomText("");
+  }
+
+  async function copyText(text: string) {
+    try {
+      await navigator.clipboard.writeText(text);
+      setMessage("Copied");
+    } catch {
+      setMessage("Copy failed");
+    }
+  }
 
   async function sync(entry: LedgerEntry, item: WorkbenchOpportunity) {
     if (!payload.manuscriptId || !payload.evaluationJobId) return;
     try {
-      const response = await fetch("/api/revision-ledger", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ manuscriptId: payload.manuscriptId, evaluationJobId: payload.evaluationJobId, entries: [{ localId: entry.id, opportunityId: item.id, opportunityTitle: item.title, decision: entry.decision, selectedOption: entry.option ?? null, selectedText: entry.selectedText ?? null, customText: entry.decision === "custom" ? entry.selectedText ?? null : null, sourceExcerpt: sourceTextOf(item) || null, sourceLocation: item.anchor || item.meta || null, clientCreatedAt: new Date().toISOString(), isUndo: false, undoneLocalId: null, metadata: { source: "workflow-revise-cockpit-v1", revisionOperation: effectiveOperation(item), criterion: criterionOf(item), severity: item.severity, scope: item.scope } }] }) });
+      const response = await fetch("/api/revision-ledger", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          manuscriptId: payload.manuscriptId,
+          evaluationJobId: payload.evaluationJobId,
+          entries: [{
+            localId: entry.id,
+            opportunityId: item.id,
+            opportunityTitle: item.title,
+            decision: entry.decision,
+            selectedOption: entry.option ?? null,
+            selectedText: entry.selectedText ?? null,
+            customText: entry.decision === "custom" ? entry.selectedText ?? null : null,
+            sourceExcerpt: sourceTextOf(item) || null,
+            sourceLocation: item.anchor || item.meta || null,
+            clientCreatedAt: new Date().toISOString(),
+            isUndo: false,
+            undoneLocalId: null,
+            metadata: { source: "workflow-revise-cockpit-v1", revisionOperation: effectiveOperation(item), criterion: criterionOf(item), severity: item.severity, scope: item.scope },
+          }],
+        }),
+      });
       const json = await response.json().catch(() => null);
       if (!response.ok || !json?.ok) throw new Error(json?.error ?? "Ledger sync failed");
       setLedger((rows) => rows.map((row) => row.id === entry.id ? { ...row, syncStatus: "synced" } : row));
-    } catch { setLedger((rows) => rows.map((row) => row.id === entry.id ? { ...row, syncStatus: "failed" } : row)); }
+    } catch {
+      setLedger((rows) => rows.map((row) => row.id === entry.id ? { ...row, syncStatus: "failed" } : row));
+    }
   }
 
-  function advanceAfterDecision(item: WorkbenchOpportunity) { const currentIndex = filtered.findIndex((row) => row.id === item.id); const next = filtered.slice(currentIndex + 1).find((row) => row.id !== item.id) ?? filtered.find((row) => row.id !== item.id) ?? null; setActiveId(next?.id ?? ""); setSelectedOption("A"); setCustomOpen(false); setCustomText(""); }
-  function decide(decision: DecisionState, option?: OptionKey, text?: string) { if (!active) return; if (option && !canSelectOption(active, option)) return; const entry: LedgerEntry = { id: `local-${Date.now()}-${Math.random().toString(36).slice(2)}`, itemId: active.id, itemTitle: active.title, decision, option, selectedText: text?.trim() || undefined, criterion: criterionOf(active), syncStatus: "pending" }; setLedger((rows) => [entry, ...rows.filter((row) => row.itemId !== active.id)]); setMessage(option ? `Selected ${option} moved to ledger` : `${decisionLabel(decision)} moved to ledger`); void sync(entry, active); advanceAfterDecision(active); }
-  function unselect(entry: LedgerEntry) { setLedger((rows) => rows.filter((row) => row.itemId !== entry.itemId)); setActiveId(entry.itemId); setMessage("Choice removed — opportunity returned to queue"); }
+  function advanceAfterDecision(item: WorkbenchOpportunity) {
+    const currentIndex = filtered.findIndex((row) => row.id === item.id);
+    const next = filtered.slice(currentIndex + 1).find((row) => row.id !== item.id) ?? filtered.find((row) => row.id !== item.id) ?? null;
+    setActiveId(next?.id ?? "");
+    setSelectedOption("A");
+    setCustomOpen(false);
+    setCustomText("");
+  }
 
-  if (!payload.ok || items.length === 0) return <main className="fixed inset-x-0 bottom-0 top-[72px] flex items-center justify-center bg-[#0D0A05] px-4 pb-5 pt-3 text-[#F5EFE4]">No revision queue available.</main>;
+  function decide(decision: DecisionState, option?: OptionKey, text?: string) {
+    if (!active) return;
+    if (option && !canSelectOption(active, option)) return;
+    const entry: LedgerEntry = {
+      id: `local-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      itemId: active.id,
+      itemTitle: active.title,
+      decision,
+      option,
+      selectedText: text?.trim() || undefined,
+      criterion: criterionOf(active),
+      syncStatus: "pending",
+    };
+    setLedger((rows) => [entry, ...rows.filter((row) => row.itemId !== active.id)]);
+    setMessage(option ? `Selected ${option} moved to ledger` : `${decisionLabel(decision)} moved to ledger`);
+    void sync(entry, active);
+    advanceAfterDecision(active);
+  }
+
+  function unselect(entry: LedgerEntry) {
+    setLedger((rows) => rows.filter((row) => row.itemId !== entry.itemId));
+    setActiveId(entry.itemId);
+    setMessage("Choice removed — opportunity returned to queue");
+  }
+
+  if (!payload.ok || items.length === 0) {
+    return <main className="fixed inset-x-0 bottom-0 top-[72px] flex items-center justify-center bg-[#0D0A05] px-4 pb-5 pt-3 text-[#F5EFE4]">No revision queue available.</main>;
+  }
 
   return (
     <main className="fixed inset-x-0 bottom-0 top-[72px] z-10 overflow-hidden bg-[#0D0A05] px-4 pb-5 pt-3 text-[#F5EFE4]">
       <div className="mx-auto flex h-full max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-xl border border-[#2E261A] bg-[#151008] shadow-2xl">
-        <header className="flex h-11 shrink-0 items-center justify-between border-b border-[#2E261A] bg-[#151008] px-4">
-          <div className="min-w-0"><p className="text-[10px] uppercase tracking-[0.2em] text-[#C8A96E]">Revision Cockpit · up to 100 prioritized opportunities per pass</p><h1 className="truncate text-sm font-semibold">{payload.manuscriptTitle}</h1></div>
-          <div className="flex gap-2 text-[11px]"><span className="rounded border border-[#5D4C31] px-2 py-1">Queue {filtered.length ? activeIndex + 1 : 0}/{filtered.length}</span><span className="rounded border border-[#48603F] px-2 py-1 text-[#BBD8B4]">Ready {readyCount}</span><span className="rounded border border-[#7A2B1A] px-2 py-1 text-[#F1B6A5]">Needs Targeting {needsTargetingCount}</span><span className="rounded border border-[#C8A96E] px-2 py-1">Pending {counts.pending}</span><span className="rounded border border-[#5D4C31] px-2 py-1">Accepted {counts.accepted}</span>{message && <span className="rounded border border-[#5D4C31] px-2 py-1 text-[#A9987D]">{message}</span>}{openItems.length === 0 && ledger.length > 0 && <span className="rounded border border-[#48603F] bg-[#48603F]/10 px-2 py-1 text-[#BBD8B4]">All opportunities addressed — run a ReGrade to surface the next layer</span>}</div>
+        <header className="flex min-h-11 shrink-0 items-center justify-between gap-3 border-b border-[#2E261A] bg-[#151008] px-4 py-2">
+          <div className="min-w-0">
+            <p className="text-[10px] uppercase tracking-[0.2em] text-[#C8A96E]">Revision Cockpit · up to 100 prioritized opportunities per pass</p>
+            <h1 className="truncate text-sm font-semibold">{payload.manuscriptTitle}</h1>
+          </div>
+          <div className="flex flex-wrap justify-end gap-2 text-[11px]">
+            <span className="rounded border border-[#5D4C31] px-2 py-1">Queue {filtered.length ? activeIndex + 1 : 0}/{filtered.length}</span>
+            <span className="rounded border border-[#48603F] px-2 py-1 text-[#BBD8B4]">Ready {readyCount}</span>
+            <span className="rounded border border-[#7A2B1A] px-2 py-1 text-[#F1B6A5]">Needs Targeting {needsTargetingCount}</span>
+            <span className="rounded border border-[#C8A96E] px-2 py-1">Pending {counts.pending}</span>
+            <span className="rounded border border-[#5D4C31] px-2 py-1">Accepted {counts.accepted}</span>
+            {message && <span className="rounded border border-[#5D4C31] px-2 py-1 text-[#A9987D]">{message}</span>}
+          </div>
         </header>
-        <nav className="flex shrink-0 items-center gap-1 border-b border-[#2E261A] bg-[#110D07] px-4 py-1.5">{([["all", "All"], ["deep_craft", "Craft"], ["surface_polish", "Surface Polish"]] as const).map(([value, label]) => <button key={value} type="button" onClick={() => setFilters((current) => ({ ...current, sourceFilter: value }))} className={`rounded px-2.5 py-1 text-[11px] font-medium transition-colors ${filters.sourceFilter === value ? "bg-[#C8A96E]/20 text-[#F5EFE4] border border-[#C8A96E]" : "text-[#A9987D] hover:text-[#F5EFE4] border border-transparent"}`}>{label}{value === "surface_polish" && <span className="ml-1 rounded bg-[#B8922A]/20 px-1 py-0.5 text-[9px] text-[#C8A96E]">Polish</span>}</button>)}</nav>
-        <section className="grid min-h-0 flex-1 overflow-hidden xl:grid-cols-[310px_minmax(0,1fr)]"><aside className="flex min-h-0 flex-col border-r border-[#2E261A] bg-[#110D07]"><div className="space-y-2 border-b border-[#2E261A] p-2"><input value={filters.search} onChange={(event) => setFilters((current) => ({ ...current, search: event.target.value }))} placeholder="Search queue" className="h-8 w-full rounded border border-[#3A3022] bg-[#0D0A05] px-2 text-xs" /><div className="grid grid-cols-2 gap-2"><select value={filters.priority} onChange={(event) => setFilters((current) => ({ ...current, priority: event.target.value as Filters["priority"] }))} className="h-8 rounded border border-[#3A3022] bg-[#0D0A05] px-2 text-xs"><option value="all">All priority</option><option value="must">MUST</option><option value="should">SHOULD</option><option value="could">COULD</option></select><select value={filters.status} onChange={(event) => setFilters((current) => ({ ...current, status: event.target.value as DecisionFilter }))} className="h-8 rounded border border-[#3A3022] bg-[#0D0A05] px-2 text-xs"><option value="all">All status</option><option value="pending">Pending</option><option value="accepted">Accepted</option><option value="custom">Custom</option><option value="kept_original">Kept</option><option value="rejected">Rejected</option><option value="deferred">Deferred</option></select></div><select value={filters.criterion} onChange={(event) => setFilters((current) => ({ ...current, criterion: event.target.value }))} className="h-8 w-full rounded border border-[#3A3022] bg-[#0D0A05] px-2 text-xs"><option value="all">All criteria</option>{criteria.map((criterion) => <option key={criterion} value={criterion}>{criterion}</option>)}</select></div><ol className="min-h-0 flex-1 space-y-1 overflow-y-auto p-2">{filtered.map((item, index) => <li key={item.id}><button type="button" onClick={() => selectItem(item.id)} className={`w-full rounded-lg border p-2 text-left ${item.id === active?.id ? "border-[#C8A96E] bg-[#221B11]" : "border-[#2B241A] bg-[#161109]"}`}><div className="mb-1 flex flex-wrap gap-1"><span className={`rounded px-1.5 py-0.5 text-[10px] uppercase ${severityClass(item.severity)}`}>{item.severity}</span><span className="rounded border border-[#4E4333] px-1.5 py-0.5 text-[10px]">{item.scope}</span><span className={`rounded border px-1.5 py-0.5 text-[10px] ${liveReady(item) ? "border-[#48603F] text-[#BBD8B4]" : "border-[#7A2B1A] text-[#F1B6A5]"}`}>{liveReady(item) ? "Ready" : "Needs Targeting"}</span><span className="rounded border border-[#4E4333] px-1.5 py-0.5 text-[10px] text-[#A9987D]">pending</span>{item.source === "surface_polish" && <span className="rounded bg-[#B8922A]/20 px-1.5 py-0.5 text-[9px] text-[#C8A96E] border border-[#B8922A]/40">Polish</span>}</div><p className="line-clamp-2 text-xs leading-4">{index + 1}. {item.title}</p><p className="mt-1 truncate text-[11px] text-[#A9987D]">{criterionOf(item)} · {item.anchor || item.meta}</p></button></li>)}</ol></aside><section className="flex min-w-0 flex-col overflow-hidden bg-[#1C160E]">{active ? <><div className="shrink-0 border-b border-[#2E261A] p-2"><div className="flex flex-wrap items-center gap-2 text-[11px] uppercase tracking-wider"><span className={`rounded px-2 py-1 ${severityClass(active.severity)}`}>{active.severity}</span><span className="rounded border border-[#5A4B33] px-2 py-1">{criterionOf(active)}</span><span className="rounded border border-[#5A4B33] px-2 py-1">{active.scope}</span><span className={`rounded border px-2 py-1 ${liveReady(active) ? "border-[#48603F] text-[#BBD8B4]" : "border-[#7A2B1A] text-[#F1B6A5]"}`}>{liveReady(active) ? "Ready" : "Needs Targeting"}</span></div><h2 className="mt-1 truncate text-lg font-semibold">{active.title}</h2></div><div className="min-h-0 flex-1 overflow-y-auto p-3"><section className="rounded-xl border border-[#2E261A] bg-[#12100B] p-3"><p className="mb-2 text-[11px] uppercase tracking-[0.18em] text-[#C8A96E]">Diagnosis & Guardrails</p><div className="grid gap-x-4 gap-y-1 text-sm leading-5 xl:grid-cols-2"><p><span className="text-[#C8A96E]">Symptom:</span> {diagnosticText(active, "symptom")}</p><p><span className="text-[#C8A96E]">Cause:</span> {diagnosticText(active, "cause")}</p><p><span className="text-[#C8A96E]">Fix:</span> {diagnosticText(active, "fix")}</p><p><span className="text-[#C8A96E]">Reader effect:</span> {diagnosticText(active, "readerEffect")}</p><p><span className="text-[#C8A96E]">Mistake-proofing:</span> {diagnosticText(active, "mistakeProofing")}</p><p><span className="text-[#C8A96E]">Operation:</span> {operationLabels[effectiveOperation(active)]}</p></div></section><section className="mt-3 grid gap-3 xl:grid-cols-2"><div className="rounded-xl border border-[#2E261A] bg-[#12100B] p-3"><p className="text-[11px] uppercase tracking-[0.18em] text-[#C8A96E]">Original Passage</p><p className="mt-2 max-h-20 overflow-y-auto text-sm leading-5">{sourceTextOf(active) || "No exact passage is available yet."}</p><p className="mt-1 text-xs text-[#A9987D]">{active.anchor || active.meta || "Location pending"}</p></div><div className="rounded-xl border border-[#2E261A] bg-[#12100B] p-3"><p className="text-[11px] uppercase tracking-[0.18em] text-[#C8A96E]">Revision Task</p><p className="mt-2 text-sm leading-5">{operationInstruction(active)} {compactGoal(active)}</p></div></section><section className="mt-3 flex flex-wrap items-center justify-between gap-2"><p className="text-[11px] uppercase tracking-[0.18em] text-[#C8A96E]">{optionSectionLabel(active)}</p>{invalidCandidates && <p className="rounded border border-[#7A2B1A]/55 bg-[#7A2B1A]/15 px-2 py-1 text-xs text-[#E2B2A6]">Diagnostic mode: Accept/Copy unlock only when candidates are copy-ready for the declared operation.</p>}</section><div className="mt-3 grid gap-3 xl:grid-cols-3">{OPTION_KEYS.map((key) => { const text = candidateText(active, key); const ok = canSelectOption(active, key); const focused = selectedOption === key; return <article key={key} onClick={() => setSelectedOption(key)} className={`rounded-xl border p-3 transition ${focused ? "border-[#C8A96E] bg-[#12100B]" : "border-[#2E261A] bg-[#12100B]"}`}><div className="flex items-start justify-between gap-2"><p className="text-sm font-semibold">{REVISION_OPTION_LABELS[key]}</p><div className="flex gap-1"><button type="button" onClick={(event) => { event.stopPropagation(); void copyText(text); }} disabled={!ok} className="rounded border border-[#5D4C31] px-2 py-1 text-xs disabled:opacity-40">Copy</button><button type="button" onClick={(event) => { event.stopPropagation(); decide(selectedDecisionFor(key), key, text); }} disabled={!ok} className="rounded bg-[#C8A96E] px-2 py-1 text-xs font-semibold text-[#1A140C] disabled:opacity-40">Accept {key}</button></div></div><p className={`mt-2 line-clamp-6 whitespace-pre-wrap text-sm leading-5 ${ok ? "text-[#E5D8BE]" : "text-[#E2B2A6]"}`}>{text || "No candidate text available."}</p></article>; })}</div>{customOpen && <div className="mt-3 rounded-xl border border-[#C8A96E]/60 bg-[#120E08] p-3"><p className="text-xs uppercase tracking-[0.16em] text-[#C8A96E]">Author custom revision</p><textarea value={customText} onChange={(event) => setCustomText(event.target.value)} rows={4} className="mt-2 w-full rounded border border-[#3A3022] bg-[#0D0A05] p-3 font-mono text-sm" /><button disabled={!customText.trim()} onClick={() => decide("custom", undefined, customText)} className="mt-2 rounded bg-[#C8A96E] px-3 py-1.5 text-sm font-semibold text-[#1A140C] disabled:opacity-50">Save custom + ledger</button></div>}</div><footer className="shrink-0 border-t border-[#2E261A] bg-[#120E08] p-3"><div className="flex flex-wrap items-center gap-2"><button onClick={() => decide("accepted_a", "A", candidateText(active, "A"))} disabled={!canSelectOption(active, "A")} className="rounded bg-[#C8A96E] px-4 py-2 text-sm font-semibold text-[#1A140C] disabled:opacity-40">Accept A</button><button onClick={() => decide("accepted_b", "B", candidateText(active, "B"))} disabled={!canSelectOption(active, "B")} className="rounded border border-[#C8A96E] px-4 py-2 text-sm disabled:opacity-40">Accept B</button><button onClick={() => decide("accepted_c", "C", candidateText(active, "C"))} disabled={!canSelectOption(active, "C")} className="rounded border border-[#C8A96E] px-4 py-2 text-sm disabled:opacity-40">Accept C</button><button onClick={() => decide("keep_original", undefined, "Kept original")} className="rounded border border-[#5D4C31] px-3 py-2 text-sm">Keep Original</button><button onClick={() => decide("reject", undefined, "Rejected suggestions")} className="rounded border border-[#7A2B1A]/70 px-3 py-2 text-sm text-[#E2B2A6]">Reject</button><button onClick={() => decide("deferred", undefined, "Deferred for later decision")} className="rounded border border-[#5C5140] px-3 py-2 text-sm">Defer</button><button onClick={() => { if (customOpen && customText.trim()) { decide("custom", undefined, customText); } else { if (!customOpen) { setCustomText(selectedText); } setCustomOpen(true); } }} className="rounded border border-[#C8A96E] bg-[#C8A96E]/10 px-3 py-2 text-sm">{customOpen && customText.trim() ? "Save Custom" : (customOperationLabels[effectiveOperation(active)] ?? "Write Custom")}</button></div></footer></> : <div className="m-3 rounded-xl border border-[#2E261A] bg-[#12100B] p-6 text-[#CBBDA4]">No open opportunities match the current filters.</div>}<section className="shrink-0 border-t border-[#2E261A] bg-[#0D0A05] px-3 pb-3 pt-3">{ledger.length === 0 ? <div className="flex gap-3 rounded border border-[#2E261A] bg-[#120E08] px-3 py-2 text-xs"><span className="uppercase tracking-[0.16em] text-[#C8A96E]">Revision Ledger</span><span className="text-[#A9987D]">No decisions yet.</span></div> : <><div className="mb-2 flex flex-wrap gap-2 text-xs"><span className="mr-2 uppercase tracking-[0.16em] text-[#C8A96E]">Revision Ledger</span>{LEDGER_FILTERS.map((filter) => <button key={filter.value} type="button" onClick={() => setFilters((current) => ({ ...current, status: filter.value }))} className={`rounded border px-2 py-1 ${filters.status === filter.value ? "border-[#C8A96E]" : "border-[#3A3022] text-[#A9987D]"}`}>{filter.label}</button>)}</div><div className="max-h-32 overflow-y-auto rounded border border-[#2E261A]"><table className="w-full text-left text-xs"><thead className="sticky top-0 bg-[#161109] text-[#C8A96E]"><tr><th className="px-2 py-1">Decision</th><th className="px-2 py-1">Option</th><th className="px-2 py-1">Criterion</th><th className="px-2 py-1">Selected revision</th><th className="px-2 py-1">Opportunity</th><th className="px-2 py-1">Sync</th><th className="px-2 py-1">Action</th></tr></thead><tbody>{visibleLedger.map((entry) => <tr key={entry.id} className="border-t border-[#2E261A]"><td className="px-2 py-1">{decisionLabel(entry.decision)}</td><td className="px-2 py-1 font-semibold text-[#BFE4B9]">{entry.option ?? "—"}</td><td className="px-2 py-1">{entry.criterion}</td><td className="max-w-[520px] truncate px-2 py-1 text-[#E5D8BE]">{entry.selectedText ?? "—"}</td><td className="max-w-[360px] truncate px-2 py-1 text-[#A9987D]">{entry.itemTitle}</td><td className="px-2 py-1">{entry.syncStatus}</td><td className="px-2 py-1"><button type="button" onClick={() => unselect(entry)} className="rounded border border-[#5D4C31] px-2 py-1 text-[11px] text-[#F3E3C3]">Unselect</button></td></tr>)}</tbody></table></div></>}</section></section></section>
+
+        <nav className="flex shrink-0 items-center gap-1 border-b border-[#2E261A] bg-[#110D07] px-4 py-1.5">
+          {([ ["all", "All"], ["deep_craft", "Craft"], ["surface_polish", "Surface Polish"] ] as const).map(([value, label]) => (
+            <button key={value} type="button" onClick={() => setFilters((current) => ({ ...current, sourceFilter: value }))} className={`rounded px-2.5 py-1 text-[11px] font-medium transition-colors ${filters.sourceFilter === value ? "border border-[#C8A96E] bg-[#C8A96E]/20 text-[#F5EFE4]" : "border border-transparent text-[#A9987D] hover:text-[#F5EFE4]"}`}>
+              {label}{value === "surface_polish" && <span className="ml-1 rounded bg-[#B8922A]/20 px-1 py-0.5 text-[9px] text-[#C8A96E]">Polish</span>}
+            </button>
+          ))}
+        </nav>
+
+        <section className="grid min-h-0 flex-1 overflow-hidden xl:grid-cols-[310px_minmax(0,1fr)]">
+          <aside className="flex min-h-0 flex-col border-r border-[#2E261A] bg-[#110D07]">
+            <div className="space-y-2 border-b border-[#2E261A] p-2">
+              <input value={filters.search} onChange={(event) => setFilters((current) => ({ ...current, search: event.target.value }))} placeholder="Search queue" className="h-8 w-full rounded border border-[#3A3022] bg-[#0D0A05] px-2 text-xs" />
+              <div className="grid grid-cols-2 gap-2">
+                <select value={filters.priority} onChange={(event) => setFilters((current) => ({ ...current, priority: event.target.value as Filters["priority"] }))} className="h-8 rounded border border-[#3A3022] bg-[#0D0A05] px-2 text-xs">
+                  <option value="all">All priority</option><option value="must">MUST</option><option value="should">SHOULD</option><option value="could">COULD</option>
+                </select>
+                <select value={filters.status} onChange={(event) => setFilters((current) => ({ ...current, status: event.target.value as DecisionFilter }))} className="h-8 rounded border border-[#3A3022] bg-[#0D0A05] px-2 text-xs">
+                  <option value="all">All status</option><option value="pending">Pending</option><option value="accepted">Accepted</option><option value="custom">Custom</option><option value="kept_original">Kept</option><option value="rejected">Rejected</option><option value="deferred">Deferred</option>
+                </select>
+              </div>
+              <select value={filters.criterion} onChange={(event) => setFilters((current) => ({ ...current, criterion: event.target.value }))} className="h-8 w-full rounded border border-[#3A3022] bg-[#0D0A05] px-2 text-xs">
+                <option value="all">All criteria</option>{criteria.map((criterion) => <option key={criterion} value={criterion}>{criterion}</option>)}
+              </select>
+            </div>
+
+            <ol className="min-h-0 flex-1 space-y-1 overflow-y-auto p-2">
+              {filtered.map((item, index) => (
+                <li key={item.id}>
+                  <button type="button" onClick={() => selectItem(item.id)} className={`w-full rounded-lg border p-2 text-left ${item.id === active?.id ? "border-[#C8A96E] bg-[#221B11]" : "border-[#2B241A] bg-[#161109]"}`}>
+                    <div className="mb-1 flex flex-wrap gap-1">
+                      <span className={`rounded px-1.5 py-0.5 text-[10px] uppercase ${severityClass(item.severity)}`}>{item.severity}</span>
+                      <span className="rounded border border-[#4E4333] px-1.5 py-0.5 text-[10px]">{item.scope}</span>
+                      <span className={`rounded border px-1.5 py-0.5 text-[10px] ${liveReady(item) ? "border-[#48603F] text-[#BBD8B4]" : "border-[#7A2B1A] text-[#F1B6A5]"}`}>{liveReady(item) ? "Ready" : "Needs Targeting"}</span>
+                      <span className="rounded border border-[#4E4333] px-1.5 py-0.5 text-[10px] text-[#A9987D]">pending</span>
+                    </div>
+                    <p className="line-clamp-2 text-xs leading-4">{index + 1}. {item.title}</p>
+                    <p className="mt-1 truncate text-[11px] text-[#A9987D]">{criterionOf(item)} · {item.anchor || item.meta}</p>
+                  </button>
+                </li>
+              ))}
+            </ol>
+          </aside>
+
+          <section className="flex min-w-0 flex-col overflow-hidden bg-[#1C160E]">
+            {active ? (
+              <>
+                <div className="shrink-0 border-b border-[#2E261A] p-2">
+                  <div className="flex flex-wrap items-center gap-2 text-[11px] uppercase tracking-wider">
+                    <span className={`rounded px-2 py-1 ${severityClass(active.severity)}`}>{active.severity}</span>
+                    <span className="rounded border border-[#5A4B33] px-2 py-1">{criterionOf(active)}</span>
+                    <span className="rounded border border-[#5A4B33] px-2 py-1">{active.scope}</span>
+                    <span className={`rounded border px-2 py-1 ${liveReady(active) ? "border-[#48603F] text-[#BBD8B4]" : "border-[#7A2B1A] text-[#F1B6A5]"}`}>{liveReady(active) ? "Ready" : "Needs Targeting"}</span>
+                  </div>
+                  <h2 className="mt-1 truncate text-lg font-semibold">{active.title}</h2>
+                </div>
+
+                <div className="min-h-0 flex-1 overflow-y-auto p-3">
+                  <section className="rounded-xl border border-[#2E261A] bg-[#12100B] p-3">
+                    <p className="mb-2 text-[11px] uppercase tracking-[0.18em] text-[#C8A96E]">Diagnosis & Guardrails</p>
+                    <div className="grid gap-x-4 gap-y-1 text-sm leading-5 xl:grid-cols-2">
+                      <p><span className="text-[#C8A96E]">Symptom:</span> {diagnosticText(active, "symptom")}</p>
+                      <p><span className="text-[#C8A96E]">Cause:</span> {diagnosticText(active, "cause")}</p>
+                      <p><span className="text-[#C8A96E]">Fix:</span> {diagnosticText(active, "fix")}</p>
+                      <p><span className="text-[#C8A96E]">Reader effect:</span> {diagnosticText(active, "readerEffect")}</p>
+                      <p><span className="text-[#C8A96E]">Mistake-proofing:</span> {diagnosticText(active, "mistakeProofing")}</p>
+                      <p><span className="text-[#C8A96E]">Operation:</span> {operationLabels[effectiveOperation(active)]}</p>
+                    </div>
+                  </section>
+
+                  <section className="mt-3 grid gap-3 xl:grid-cols-2">
+                    <div className="rounded-xl border border-[#2E261A] bg-[#12100B] p-3">
+                      <p className="text-[11px] uppercase tracking-[0.18em] text-[#C8A96E]">Original Passage</p>
+                      <p className="mt-2 max-h-20 overflow-y-auto text-sm leading-5">{sourceTextOf(active) || "No exact passage is available yet."}</p>
+                      <p className="mt-1 text-xs text-[#A9987D]">{active.anchor || active.meta || "Location pending"}</p>
+                    </div>
+                    <div className="rounded-xl border border-[#2E261A] bg-[#12100B] p-3">
+                      <p className="text-[11px] uppercase tracking-[0.18em] text-[#C8A96E]">Revision Task</p>
+                      <p className="mt-2 text-sm leading-5">{operationInstruction(active)} {compactGoal(active)}</p>
+                    </div>
+                  </section>
+
+                  <section className="mt-3 flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-[11px] uppercase tracking-[0.18em] text-[#C8A96E]">{optionSectionLabel(active)}</p>
+                    {invalidCandidates && <p className="rounded border border-[#7A2B1A]/55 bg-[#7A2B1A]/15 px-2 py-1 text-xs text-[#E2B2A6]">Candidate generation still needs an exact passage before Accept/Copy can unlock.</p>}
+                  </section>
+
+                  <div className="mt-3 grid gap-3 xl:grid-cols-3">
+                    {OPTION_KEYS.map((key) => {
+                      const text = candidateText(active, key);
+                      const ok = canSelectOption(active, key);
+                      const focused = selectedOption === key;
+                      return (
+                        <article key={key} onClick={() => setSelectedOption(key)} className={`rounded-xl border p-3 transition ${focused ? "border-[#C8A96E] bg-[#12100B]" : "border-[#2E261A] bg-[#12100B]"}`}>
+                          <div className="flex items-start justify-between gap-2">
+                            <p className="text-sm font-semibold">{REVISION_OPTION_LABELS[key]}</p>
+                            <div className="flex gap-1">
+                              <button type="button" onClick={(event) => { event.stopPropagation(); void copyText(text); }} disabled={!ok} className="rounded border border-[#5D4C31] px-2 py-1 text-xs disabled:opacity-40">Copy</button>
+                              <button type="button" onClick={(event) => { event.stopPropagation(); decide(selectedDecisionFor(key), key, text); }} disabled={!ok} className="rounded bg-[#C8A96E] px-2 py-1 text-xs font-semibold text-[#1A140C] disabled:opacity-40">Accept {key}</button>
+                            </div>
+                          </div>
+                          <p className={`mt-2 line-clamp-6 whitespace-pre-wrap text-sm leading-5 ${ok ? "text-[#E5D8BE]" : "text-[#E2B2A6]"}`}>{text || "Candidate generation needs an exact source passage."}</p>
+                        </article>
+                      );
+                    })}
+                  </div>
+
+                  {customOpen && (
+                    <div className="mt-3 rounded-xl border border-[#C8A96E]/60 bg-[#120E08] p-3">
+                      <p className="text-xs uppercase tracking-[0.16em] text-[#C8A96E]">Author custom revision</p>
+                      <textarea value={customText} onChange={(event) => setCustomText(event.target.value)} rows={4} className="mt-2 w-full rounded border border-[#3A3022] bg-[#0D0A05] p-3 font-mono text-sm" />
+                      <button disabled={!customText.trim()} onClick={() => decide("custom", undefined, customText)} className="mt-2 rounded bg-[#C8A96E] px-3 py-1.5 text-sm font-semibold text-[#1A140C] disabled:opacity-50">Save custom + ledger</button>
+                    </div>
+                  )}
+                </div>
+
+                <footer className="shrink-0 border-t border-[#2E261A] bg-[#120E08] p-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button onClick={() => decide("accepted_a", "A", candidateText(active, "A"))} disabled={!canSelectOption(active, "A")} className="rounded bg-[#C8A96E] px-4 py-2 text-sm font-semibold text-[#1A140C] disabled:opacity-40">Accept A</button>
+                    <button onClick={() => decide("accepted_b", "B", candidateText(active, "B"))} disabled={!canSelectOption(active, "B")} className="rounded border border-[#C8A96E] px-4 py-2 text-sm disabled:opacity-40">Accept B</button>
+                    <button onClick={() => decide("accepted_c", "C", candidateText(active, "C"))} disabled={!canSelectOption(active, "C")} className="rounded border border-[#C8A96E] px-4 py-2 text-sm disabled:opacity-40">Accept C</button>
+                    <button onClick={() => decide("keep_original", undefined, "Kept original")} className="rounded border border-[#5D4C31] px-3 py-2 text-sm">Keep Original</button>
+                    <button onClick={() => decide("reject", undefined, "Rejected suggestions")} className="rounded border border-[#7A2B1A]/70 px-3 py-2 text-sm text-[#E2B2A6]">Reject</button>
+                    <button onClick={() => decide("deferred", undefined, "Deferred for later decision")} className="rounded border border-[#5C5140] px-3 py-2 text-sm">Defer</button>
+                    <button onClick={() => { if (customOpen && customText.trim()) { decide("custom", undefined, customText); } else { if (!customOpen) setCustomText(selectedText); setCustomOpen(true); } }} className="rounded border border-[#C8A96E] bg-[#C8A96E]/10 px-3 py-2 text-sm">{customOpen && customText.trim() ? "Save Custom" : (customOperationLabels[effectiveOperation(active)] ?? "Write Custom")}</button>
+                  </div>
+                </footer>
+              </>
+            ) : (
+              <div className="m-3 rounded-xl border border-[#2E261A] bg-[#12100B] p-6 text-[#CBBDA4]">No open opportunities match the current filters.</div>
+            )}
+
+            <section className="shrink-0 border-t border-[#2E261A] bg-[#0D0A05] px-3 pb-3 pt-3">
+              {ledger.length === 0 ? (
+                <div className="flex gap-3 rounded border border-[#2E261A] bg-[#120E08] px-3 py-2 text-xs"><span className="uppercase tracking-[0.16em] text-[#C8A96E]">Revision Ledger</span><span className="text-[#A9987D]">No decisions yet.</span></div>
+              ) : (
+                <>
+                  <div className="mb-2 flex flex-wrap gap-2 text-xs"><span className="mr-2 uppercase tracking-[0.16em] text-[#C8A96E]">Revision Ledger</span>{LEDGER_FILTERS.map((filter) => <button key={filter.value} type="button" onClick={() => setFilters((current) => ({ ...current, status: filter.value }))} className={`rounded border px-2 py-1 ${filters.status === filter.value ? "border-[#C8A96E] text-[#F5EFE4]" : "border-[#3A3022] text-[#A9987D]"}`}>{filter.label}</button>)}</div>
+                  <div className="max-h-32 overflow-y-auto rounded border border-[#2E261A]">
+                    <table className="w-full text-left text-xs"><thead className="sticky top-0 bg-[#171006] text-[#C8A96E]"><tr><th className="px-2 py-1">Decision</th><th className="px-2 py-1">Criterion</th><th className="px-2 py-1">Item</th><th className="px-2 py-1">Status</th><th className="px-2 py-1">Action</th></tr></thead><tbody>{visibleLedger.map((entry) => <tr key={entry.id} className="border-t border-[#2E261A]"><td className="px-2 py-1">{decisionLabel(entry.decision)}{entry.option ? ` (${entry.option})` : ""}</td><td className="px-2 py-1">{entry.criterion}</td><td className="px-2 py-1">{entry.itemTitle}</td><td className="px-2 py-1">{entry.syncStatus}</td><td className="px-2 py-1"><button onClick={() => unselect(entry)} className="rounded border border-[#5D4C31] px-2 py-0.5 text-[#C8A96E]">Unselect</button></td></tr>)}</tbody></table>
+                  </div>
+                </>
+              )}
+            </section>
+          </section>
+        </section>
       </div>
     </main>
   );
