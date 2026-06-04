@@ -56,7 +56,7 @@ export default function IndustryForgotPassword() {
           >
             Send Reset Link
           </button>
-          <p className="mt-4 text-sm text-center" style={{ color: C.ash }}>
+          <p className="mt-4 text-base text-center" style={{ color: C.ash }}>
             Reset links expire after 1 hour and are single-use.
           </p>
         </div>
@@ -64,7 +64,7 @@ export default function IndustryForgotPassword() {
         <p className="mt-8 text-center">
           <Link
             href="/storygate-studio/industry"
-            className="text-sm font-mono tracking-[0.14em] uppercase transition-opacity hover:opacity-70"
+            className="text-base font-mono tracking-[0.14em] uppercase transition-opacity hover:opacity-70"
             style={{ color: C.gold }}
           >
             ← Back to Sign In
