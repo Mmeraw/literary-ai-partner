@@ -108,6 +108,35 @@ function extractLastError(job: Record<string, unknown>): string | null {
   return typeof job.last_error === "string" ? job.last_error : null;
 }
 
+function extractRestartStage(job: Record<string, unknown>): string | null {
+  const progress = (job.progress ?? {}) as Record<string, unknown>;
+  const timeline = progress.timeline as Array<Record<string, unknown>> | undefined;
+  if (!Array.isArray(timeline)) return null;
+  // Find the last rescue/restart event
+  const rescueEvent = [...timeline].reverse().find(
+    (e) =>
+      typeof e.event === "string" &&
+      (e.event.includes("rescue") || e.event.includes("restart") || e.event.includes("requeue"))
+  );
+  if (!rescueEvent) return null;
+  return typeof rescueEvent.stage === "string" ? rescueEvent.stage : null;
+}
+
+function extractRestartReason(job: Record<string, unknown>): string | null {
+  const progress = (job.progress ?? {}) as Record<string, unknown>;
+  const timeline = progress.timeline as Array<Record<string, unknown>> | undefined;
+  if (!Array.isArray(timeline)) return null;
+  const rescueEvent = [...timeline].reverse().find(
+    (e) =>
+      typeof e.event === "string" &&
+      (e.event.includes("rescue") || e.event.includes("restart") || e.event.includes("requeue"))
+  );
+  if (!rescueEvent) return null;
+  if (typeof rescueEvent.reason === "string") return rescueEvent.reason;
+  if (typeof rescueEvent.event === "string") return rescueEvent.event;
+  return null;
+}
+
 type DiagnosticStatus = "available" | "missing" | "blocked_by_307" | "not_applicable";
 
 /**
@@ -355,10 +384,31 @@ function buildPipelineHealth(
       hasEvalV2: kinds.has("evaluation_result_v2"),
       hasDream: kinds.has("longform_document_v1"),
       hasPassDiag: kinds.has("pass_outputs_diagnostic_v1"),
+      // Section D — restart tracking
+      attemptCount: typeof job.attempt_count === "number" ? job.attempt_count : 0,
+      maxAttempts: typeof job.max_attempts === "number" ? job.max_attempts : 11,
+      restartedFrom: extractRestartStage(job),
+      restartReason: extractRestartReason(job),
     };
   });
 
   const blockedCount = jobs.filter((j) => jobDiagStatus(j) === "blocked_by_307").length;
+
+  // Section D — restart metrics
+  const restartedJobs = jobs.filter(
+    (j) => typeof j.attempt_count === "number" && j.attempt_count > 0
+  );
+  const totalRestarts = restartedJobs.reduce(
+    (sum, j) => sum + (j.attempt_count as number),
+    0
+  );
+
+  // Restart heatmap by stage
+  const restartsByStage: Record<string, number> = {};
+  for (const job of restartedJobs) {
+    const stage = inferStage(job);
+    restartsByStage[stage] = (restartsByStage[stage] ?? 0) + (job.attempt_count as number);
+  }
 
   return {
     generatedAt: new Date().toISOString(),
@@ -370,6 +420,11 @@ function buildPipelineHealth(
       runningJobs,
       failureRate: totalJobs > 0 ? failedJobs / totalJobs : 0,
       avgRuntimeMs: null,
+      // Restart metrics
+      totalRestarts,
+      restartedJobCount: restartedJobs.length,
+      restartRate: totalJobs > 0 ? restartedJobs.length / totalJobs : 0,
+      restartsByStage,
     },
     sipoc,
     failureHeatmap,
@@ -419,8 +474,8 @@ export async function GET(req: NextRequest) {
     let jobsQuery = supabase
       .from("evaluation_jobs")
       .select(
-        // Section A: added cross_check_* fields
-        "id, manuscript_id, status, phase, phase_status, progress, last_error, created_at, updated_at, cross_check_status, cross_check_error, cross_check_completed_at"
+        // Section A: added cross_check_* fields; Section D: restart tracking
+        "id, manuscript_id, status, phase, phase_status, progress, last_error, created_at, updated_at, cross_check_status, cross_check_error, cross_check_completed_at, attempt_count, max_attempts"
       )
       .gte("created_at", new Date(Date.now() - intervalToMs(interval)).toISOString())
       .order("updated_at", { ascending: false })

@@ -50,6 +50,11 @@ interface RecentJob {
   hasEvalV2: boolean;
   hasDream: boolean;
   hasPassDiag: boolean;
+  // Section D — restart tracking
+  attemptCount: number;
+  maxAttempts: number;
+  restartedFrom: string | null;
+  restartReason: string | null;
 }
 
 interface DreamPendingJob {
@@ -73,6 +78,11 @@ interface Summary {
   runningJobs: number;
   failureRate: number;
   avgRuntimeMs: number | null;
+  // Restart metrics
+  totalRestarts: number;
+  restartedJobCount: number;
+  restartRate: number;
+  restartsByStage: Record<string, number>;
 }
 
 interface Diagnostics {
@@ -319,12 +329,13 @@ export default function PipelineHealthPage() {
 
       {/* Summary bar */}
       <section>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
           {[
             { label: "Total", value: summary.totalJobs },
             { label: "Completed", value: summary.completedJobs },
             { label: "Failed", value: summary.failedJobs },
             { label: "In-flight", value: summary.runningJobs },
+            { label: "Restarted", value: summary.restartedJobCount ?? 0 },
           ].map(({ label, value }) => (
             <div
               key={label}
@@ -340,8 +351,30 @@ export default function PipelineHealthPage() {
           <span className={summary.failureRate > 0.1 ? "text-red-600 font-medium" : ""}>
             {(summary.failureRate * 100).toFixed(1)}%
           </span>
+          {" | "}Restart rate:{" "}
+          <span className={(summary.restartRate ?? 0) > 0.2 ? "text-orange-600 font-medium" : ""}>
+            {((summary.restartRate ?? 0) * 100).toFixed(1)}%
+          </span>
+          {" | "}Total restarts: {summary.totalRestarts ?? 0}
           {" "}over last {windowParam}
         </p>
+
+        {/* Restarts by Stage breakdown — only show when restarts exist */}
+        {(summary.totalRestarts ?? 0) > 0 && summary.restartsByStage && (
+          <div className="mt-3 p-3 bg-orange-50 rounded-md border border-orange-200">
+            <p className="text-xs font-semibold text-orange-800 mb-1">Restarts by Stage</p>
+            <div className="flex flex-wrap gap-3 text-xs">
+              {Object.entries(summary.restartsByStage)
+                .sort(([, a], [, b]) => b - a)
+                .map(([stage, count]) => (
+                  <span key={stage} className="inline-flex items-center gap-1 text-orange-700">
+                    <span className="font-mono">{stage}</span>
+                    <span className="font-bold">{count}</span>
+                  </span>
+                ))}
+            </div>
+          </div>
+        )}
       </section>
 
       {/* ------------------------------------------------------------------ */}
@@ -701,6 +734,7 @@ export default function PipelineHealthPage() {
                   "Created",
                   "Updated",
                   "Stage",
+                  "Restarts",
                   "Error Code",
                   "Failure Detail",
                   "Diagnostics",
@@ -743,6 +777,21 @@ export default function PipelineHealthPage() {
                       {fmtDate(job.updatedAt)}
                     </td>
                     <td className="px-3 py-2 font-mono text-xs">{job.pipelineStage}</td>
+                    {/* Section D — restart tracking */}
+                    <td className="px-3 py-2 text-xs">
+                      {job.attemptCount > 0 ? (
+                        <span
+                          className={`inline-flex items-center gap-1 font-medium ${
+                            job.attemptCount >= 3 ? "text-red-700" : "text-orange-600"
+                          }`}
+                          title={`Restarted from: ${job.restartedFrom ?? "unknown"}\nReason: ${job.restartReason ?? "unknown"}\nAttempt ${job.attemptCount}/${job.maxAttempts}`}
+                        >
+                          ↻ {job.attemptCount}/{job.maxAttempts}
+                        </span>
+                      ) : (
+                        <span className="text-gray-400">—</span>
+                      )}
+                    </td>
                     <td className="px-3 py-2">
                       {job.errorCode ? (
                         <span
@@ -977,6 +1026,26 @@ export default function PipelineHealthPage() {
               </li>
             </ul>
           </div>
+        </div>
+
+        {/* Restart Tracking */}
+        <div className="mt-6">
+          <h3 className="font-semibold text-gray-700 mb-2">Restart Tracking</h3>
+          <ul className="space-y-1.5 text-sm text-gray-600">
+            <li className="flex items-center gap-2">
+              <span className="text-orange-600 font-medium">↻ 1/11</span>
+              <span>Job restarted 1 time out of max 11 attempts (orange = 1–2 restarts)</span>
+            </li>
+            <li className="flex items-center gap-2">
+              <span className="text-red-700 font-medium">↻ 3/11</span>
+              <span>3+ restarts — possible pipeline instability at that stage (red = 3+ restarts)</span>
+            </li>
+            <li className="flex items-center gap-2">
+              <span className="text-gray-400">—</span>
+              <span>No restarts — ran successfully on first attempt</span>
+            </li>
+            <li className="mt-2 text-gray-500 text-xs">Hover the restart badge for: restarted-from stage, reason, and attempt number. Common reasons: orphan_rescue (timeout), self-chain resume, crash recovery.</li>
+          </ul>
         </div>
 
         {/* Live indicator legend */}
