@@ -24,7 +24,7 @@ export default function PaymentSuccessRedirect({ destination, sessionId, product
     <main className="min-h-screen bg-rg-ink px-6 py-20 text-rg-cream">
       <section className="mx-auto max-w-2xl border border-rg-gold/35 bg-rg-ink2/70 p-8 text-center shadow-2xl shadow-black/30">
         <p className="font-rg-mono text-xs uppercase tracking-[0.24em] text-rg-gold">RevisionGrade Checkout</p>
-        <h1 className="mt-5 font-rg-serif text-4xl leading-tight text-rg-cream sm:text-5xl">Thank you for getting RevisionGraded.</h1>
+        <h1 className="mt-5 font-rg-serif text-4xl leading-tight text-rg-cream sm:text-5xl">Thank you for getting RevisionGraded™.</h1>
         <p className="mt-5 text-base leading-8 text-rg-cream2/85">
           Your payment for {productName} was successful. We are opening your RevisionGrade product now.
         </p>
