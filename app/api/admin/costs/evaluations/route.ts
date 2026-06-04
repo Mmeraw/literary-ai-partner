@@ -106,7 +106,7 @@ const PHASE_COVERAGE_DEFINITIONS: PhaseCoverageDefinition[] = [
   {
     key: "phase0_intake",
     label: "Phase 0 / Intake",
-    description: "Deterministic job intake, file checks, and routing before model work begins.",
+    description: "Canonical job intake, file checks, and routing before model work begins.",
     aliases: ["phase0", "phase_0", "pass0", "intake"],
     noteWhenMissing: "No LLM spend is expected for deterministic intake unless a future Phase 0 model call is added.",
     notApplicable: true,
@@ -140,11 +140,11 @@ const PHASE_COVERAGE_DEFINITIONS: PhaseCoverageDefinition[] = [
     noteWhenMissing: "No Phase 3A preflight cost rows were found. If the job was long/full-context, inspect whether Pass 3A ran or only its telemetry is missing.",
   },
   {
-    key: "wave_read_ahead",
-    label: "WAVE / Read-Ahead",
-    description: "Heavy read-ahead / whole-manuscript calibration work before synthesis.",
-    aliases: ["wave", "read_ahead", "pass3_read_ahead", "read-ahead"],
-    noteWhenMissing: "No WAVE/read-ahead cost row was found. If WAVE is expected for this evaluation tier, this is either not running or not tracked.",
+    key: "pass3_read_ahead",
+    label: "Pass 3 Read-Ahead",
+    description: "LLM-heavy whole-manuscript pre-analysis that feeds synthesis.",
+    aliases: ["pass3_read_ahead", "read_ahead", "read-ahead"],
+    noteWhenMissing: "No Pass 3 read-ahead cost row was found. If read-ahead is expected for this evaluation tier, this is either not running or not tracked.",
   },
   {
     key: "phase3b_dream_document",
@@ -154,11 +154,11 @@ const PHASE_COVERAGE_DEFINITIONS: PhaseCoverageDefinition[] = [
     noteWhenMissing: "No Phase 3B/DREAM cost rows were found. This is expected for short evaluations, but not for long-form multi-layer jobs.",
   },
   {
-    key: "phase5_revise_queue",
-    label: "Phase 5 / Revise Queue",
-    description: "Revision queue or downstream revise-product generation tied to the evaluation.",
-    aliases: ["phase5", "phase_5", "pass5", "revise_queue", "revise"],
-    noteWhenMissing: "No Phase 5/revise cost row was found. This may be a separate product flow, not part of the evaluation job ledger.",
+    key: "wave_revision_phase5",
+    label: "WAVE Revision / Phase 5",
+    description: "Post-evaluation WAVE readiness/revision layer. Canonical repo phase: wave_revision.",
+    aliases: ["wave_revision", "wave", "execute_wave", "wave_modules", "phase5", "phase_5", "pass5", "revise_queue", "revise"],
+    noteWhenMissing: "No WAVE revision cost row was found. In the current repo, WAVE orchestration appears deterministic unless downstream modules add tracked LLM calls.",
   },
 ];
 
