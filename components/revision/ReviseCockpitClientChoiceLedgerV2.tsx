@@ -150,7 +150,11 @@ function candidateText(item: WorkbenchOpportunity, key: OptionKey): string {
   if (renderable && candidateTextIsCopyPasteReady(renderable) && !candidateRepeatsSourceForInsertion(item, renderable)) return renderable;
 
   const raw = rawCandidate(item, key);
-  if (raw && candidateTextIsCopyPasteReady(raw) && !candidateRepeatsSourceForInsertion(item, raw)) return raw;
+  // Prefer the LLM-generated candidate (5+ words) over generic fallback prose.
+  // The LLM was prompted to produce manuscript-specific text with character names
+  // and scene details — even if it fails strict copy-paste validation, it's always
+  // more useful than unrelated generic literary prose.
+  if (raw && raw.split(/\s+/).length >= 5 && !candidateRepeatsSourceForInsertion(item, raw)) return raw;
 
   return genericFallbackCandidate(item, key);
 }

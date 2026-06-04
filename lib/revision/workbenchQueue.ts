@@ -1044,15 +1044,19 @@ export async function getWorkbenchQueue(input: { manuscriptId?: string; evaluati
         : opportunity.severity === 'should'
           ? 'should'
           : 'could'
-    // Fidelity check: verify evidence actually appears in manuscript
+    // Fidelity check: verify evidence actually appears in manuscript.
+    // If the fidelity check fails, keep the original evidence rather than
+    // nullifying it — showing the LLM-extracted passage (even if imperfect)
+    // is always better than showing "No exact passage is available yet."
     let rawEvidence = sanitizeEvidenceExcerpt(opportunity.evidence_anchor) || null
     if (rawEvidence && manuscriptRawText && !evidenceMatchesManuscript(rawEvidence, manuscriptRawText)) {
       const corrected = findClosestManuscriptPassage(rawEvidence, manuscriptRawText)
       if (corrected) {
         rawEvidence = corrected
-      } else {
-        rawEvidence = null
       }
+      // If no corrected match found, keep the original rawEvidence as-is.
+      // Previously this nullified the evidence, causing "No exact passage"
+      // to appear in the workbench — which makes the queue item unusable.
     }
     const evidence = splitEvidence(rawEvidence)
     const candidateA = (opportunity.candidate_text_a ?? '').trim()
