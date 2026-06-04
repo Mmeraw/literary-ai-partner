@@ -64,7 +64,7 @@ export default function IndustryResetPassword() {
         <p className="mt-8 text-center">
           <Link
             href="/storygate-studio/industry"
-            className="text-sm font-mono tracking-[0.14em] uppercase transition-opacity hover:opacity-70"
+            className="text-base font-mono tracking-[0.14em] uppercase transition-opacity hover:opacity-70"
             style={{ color: C.gold }}
           >
             ← Back to Sign In

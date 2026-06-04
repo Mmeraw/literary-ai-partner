@@ -76,7 +76,7 @@ export default function StorygateApply() {
           Storygate Studio is not open to all projects. Placement requires two gates: a professional manuscript package and a minimum readiness threshold.
         </p>
         <p
-          className="text-sm px-4 py-3 border max-w-3xl"
+          className="text-base px-4 py-3 border max-w-3xl"
           style={{ borderColor: C.border, backgroundColor: C.panel, color: C.ash }}
         >
           There is no requirement to purchase RevisionGrade services to qualify. Creators may use equivalent professional materials created independently or through another service.
@@ -104,7 +104,7 @@ export default function StorygateApply() {
             <p className="text-xs tracking-[0.14em] uppercase font-mono mb-4" style={{ color: C.gold }}>{type}</p>
             <ul className="space-y-2">
               {items.map((item) => (
-                <li key={item} className="flex items-start gap-3 text-sm" style={{ color: C.ash }}>
+                <li key={item} className="flex items-start gap-3 text-base" style={{ color: C.ash }}>
                   <span style={{ color: C.gold, flexShrink: 0, marginTop: 2 }}>—</span>
                   <span>{item}</span>
                 </li>
@@ -160,7 +160,7 @@ export default function StorygateApply() {
               <span className="font-mono text-sm shrink-0 mt-0.5" style={{ color: C.gold }}>0{i + 1}</span>
               <div>
                 <p className="font-mono text-sm uppercase tracking-[0.1em] mb-1" style={{ color: C.text }}>{step}</p>
-                <p className="text-sm leading-relaxed" style={{ color: C.ash }}>{desc}</p>
+                <p className="text-base leading-relaxed" style={{ color: C.ash }}>{desc}</p>
               </div>
             </div>
           ))}
@@ -187,11 +187,11 @@ export default function StorygateApply() {
         className="py-8 px-6 text-center"
         style={{ borderTop: `1px solid ${C.borderAsh}` }}
       >
-        <p className="text-sm max-w-2xl mx-auto leading-relaxed" style={{ color: C.ash }}>
+        <p className="text-base max-w-2xl mx-auto leading-relaxed" style={{ color: C.ash }}>
           Storygate Studio™ does not guarantee representation, publication, placement, or any specific market response. It provides a controlled access environment for professionally prepared manuscript projects.
         </p>
         <p className="mt-4">
-          <Link href="/storygate-studio" className="text-xs font-mono tracking-[0.14em] uppercase transition-opacity hover:opacity-70" style={{ color: C.gold }}>
+          <Link href="/storygate-studio" className="text-base font-mono tracking-[0.14em] uppercase transition-opacity hover:opacity-70" style={{ color: C.gold }}>
             ← Back to Storygate Studio Overview
           </Link>
         </p>

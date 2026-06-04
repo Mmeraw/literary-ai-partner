@@ -55,7 +55,7 @@ export default function IndustryDashboardEntry() {
               "Decisions on materials are final and append-only within the system.",
               "Violation of access terms may result in immediate revocation.",
             ].map((item) => (
-              <li key={item} className="flex items-start gap-3 text-base" style={{ color: C.ash }}>
+              <li key={item} className="flex items-start gap-3 text-lg" style={{ color: C.ash }}>
                 <span style={{ color: C.gold, flexShrink: 0 }}>—</span>
                 <span>{item}</span>
               </li>
@@ -72,14 +72,14 @@ export default function IndustryDashboardEntry() {
           Open Industry Dashboard
         </Link>
 
-        <p className="text-sm" style={{ color: C.ash }}>
+        <p className="text-base" style={{ color: C.ash }}>
           Not your account?{" "}
           <Link href="/storygate-studio/industry" className="underline underline-offset-2 hover:opacity-70" style={{ color: C.gold }}>
             Sign in with a different account
           </Link>
         </p>
 
-        <p className="mt-10 text-sm leading-relaxed" style={{ color: C.ash, opacity: 0.75 }}>
+        <p className="mt-10 text-base leading-relaxed" style={{ color: C.ash, opacity: 0.75 }}>
           All project views, access requests, notes, and packet activity are logged and append-only.
         </p>
       </section>

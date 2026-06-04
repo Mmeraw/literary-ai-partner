@@ -63,10 +63,10 @@ export default function IndustryGate() {
           <p className="text-sm tracking-[0.16em] uppercase font-mono mb-3" style={{ color: C.gold }}>
             New to Storygate Studio
           </p>
-          <p className="text-base leading-relaxed mb-6" style={{ color: C.ash }}>
+          <p className="text-lg leading-relaxed mb-6" style={{ color: C.ash }}>
             Industry access requires verification. You will need to provide your professional affiliation, role, and contact information. Accounts are manually reviewed before access is granted.
           </p>
-          <p className="text-sm mb-6 px-4 py-3" style={{ backgroundColor: C.bg, border: `1px solid ${C.borderAsh}`, color: C.ash }}>
+          <p className="text-base mb-6 px-4 py-3" style={{ backgroundColor: C.bg, border: `1px solid ${C.borderAsh}`, color: C.ash }}>
             Required: Full name, company or affiliation, professional role, professional email address (no free email domains), and LinkedIn or company website.
           </p>
           <button
@@ -76,20 +76,20 @@ export default function IndustryGate() {
           >
             Request Industry Access—Opening Soon
           </button>
-          <p className="mt-4 text-sm text-center" style={{ color: C.ash }}>
+          <p className="mt-4 text-base text-center" style={{ color: C.ash }}>
             Industry access applications are currently by invitation only during the initial rollout.
           </p>
         </div>
 
         {/* Trust line */}
         <p
-          className="mt-10 text-sm text-center leading-relaxed"
+          className="mt-10 text-base text-center leading-relaxed"
           style={{ color: C.ash, borderTop: `1px solid ${C.borderAsh}`, paddingTop: "1.5rem" }}
         >
           All project views, access requests, notes, and packet activity are logged and append-only. Materials may not be copied, shared, or distributed outside this verified account.
         </p>
         <p
-          className="mt-3 text-sm text-center"
+          className="mt-3 text-base text-center"
           style={{ color: C.ash, opacity: 0.75 }}
         >
           Access does not imply representation or obligation.
@@ -97,7 +97,7 @@ export default function IndustryGate() {
       </section>
 
       <footer className="py-6 px-6 text-center" style={{ borderTop: `1px solid ${C.borderAsh}` }}>
-        <Link href="/storygate-studio" className="text-sm font-mono tracking-[0.14em] uppercase transition-opacity hover:opacity-70" style={{ color: C.gold }}>
+        <Link href="/storygate-studio" className="text-base font-mono tracking-[0.14em] uppercase transition-opacity hover:opacity-70" style={{ color: C.gold }}>
           ← Back to Storygate Studio Overview
         </Link>
       </footer>
