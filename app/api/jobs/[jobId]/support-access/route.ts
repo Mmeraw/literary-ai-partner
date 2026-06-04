@@ -72,12 +72,19 @@ export async function POST(
     return NextResponse.json({ ok: false, error: "Not found" }, { status: 404 });
   }
 
+  const VALID_SCOPES = ["evaluation_telemetry", "revision_data", "full"] as const;
+  type GrantScope = (typeof VALID_SCOPES)[number];
+
   let reason: string | null = null;
+  let scope: GrantScope = "evaluation_telemetry";
   try {
     const body = await req.json();
     reason = typeof body.reason === "string" ? body.reason.slice(0, 500) : null;
+    if (typeof body.scope === "string" && (VALID_SCOPES as readonly string[]).includes(body.scope)) {
+      scope = body.scope as GrantScope;
+    }
   } catch {
-    // No body or invalid JSON is fine — reason is optional
+    // No body or invalid JSON is fine — reason and scope are optional
   }
 
   const admin = createAdminClient();
@@ -89,7 +96,7 @@ export async function POST(
       evaluation_job_id: jobId,
       owner_user_id: user.id,
       granted_by_user_id: user.id,
-      scope: "evaluation_telemetry",
+      scope,
       reason,
       expires_at: expiresAt,
     })

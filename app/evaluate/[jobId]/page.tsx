@@ -14,6 +14,7 @@ import {
 import { EvaluationPoller, type JobState } from "@/components/EvaluationPoller";
 import DownloadReportButton from "@/components/reports/DownloadReportButton";
 import SupportAccessToggle from "@/components/reports/SupportAccessToggle";
+import ReportConcernForm from "@/components/reports/ReportConcernForm";
 import {
   buildTopRecommendations,
 } from "@/lib/evaluation/reportRecommendations";
@@ -1065,7 +1066,12 @@ export default async function EvaluationReportPage({
               </div>
             </section>
           )}
-          {isOwner && <SupportAccessToggle jobId={jobId} />}
+          {isOwner && (
+            <div className="space-y-3">
+              <SupportAccessToggle jobId={jobId} />
+              <ReportConcernForm jobId={jobId} page="evaluation-report" />
+            </div>
+          )}
           <div className="flex justify-end">
             <DownloadReportButton jobId={jobId} />
           </div>

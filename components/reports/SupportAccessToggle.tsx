@@ -11,14 +11,35 @@ type Grant = {
 
 type SupportAccessToggleProps = {
   jobId: string;
+  scope?: 'evaluation_telemetry' | 'revision_data' | 'full';
 };
 
-export default function SupportAccessToggle({ jobId }: SupportAccessToggleProps) {
+const SCOPE_COPY = {
+  evaluation_telemetry: {
+    off: 'Allow the RevisionGrade support team to view evaluation diagnostics for troubleshooting. Your manuscript text is never shared.',
+    on: 'Support team can view evaluation diagnostics for this submission. Your manuscript text is never shared.',
+    label: 'Evaluation Support Access',
+  },
+  revision_data: {
+    off: 'Allow the RevisionGrade support team to view your revision queue and diagnostic findings for this evaluation. Your manuscript text is never shared.',
+    on: 'Support team can view your revision queue and diagnostic findings. Your manuscript text is never shared.',
+    label: 'Revision Support Access',
+  },
+  full: {
+    off: 'Allow the RevisionGrade support team to view evaluation diagnostics and revision data for troubleshooting. Your manuscript text is never shared.',
+    on: 'Support team can view evaluation diagnostics and revision data for this submission. Your manuscript text is never shared.',
+    label: 'Full Support Access',
+  },
+} as const;
+
+export default function SupportAccessToggle({ jobId, scope = 'evaluation_telemetry' }: SupportAccessToggleProps) {
   const [granted, setGranted] = useState(false);
   const [grant, setGrant] = useState<Grant | null>(null);
   const [loading, setLoading] = useState(true);
   const [toggling, setToggling] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const copy = SCOPE_COPY[scope];
 
   const fetchStatus = useCallback(async () => {
     try {
@@ -58,7 +79,7 @@ export default function SupportAccessToggle({ jobId }: SupportAccessToggleProps)
         const res = await fetch(`/api/jobs/${jobId}/support-access`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ reason: 'Author-initiated support access' }),
+          body: JSON.stringify({ reason: 'Author-initiated support access', scope }),
         });
         const data = await res.json();
         if (data.ok) {
@@ -83,11 +104,9 @@ export default function SupportAccessToggle({ jobId }: SupportAccessToggleProps)
     <div className="rounded-md border border-gray-200 bg-white p-4">
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
-          <p className="text-sm font-medium text-gray-900">Support Access</p>
+          <p className="text-sm font-medium text-gray-900">{copy.label}</p>
           <p className="mt-0.5 text-xs text-gray-600 leading-relaxed">
-            {granted
-              ? 'Support team can view evaluation diagnostics for this submission. Your manuscript text is never shared.'
-              : 'Allow the RevisionGrade support team to view evaluation diagnostics for troubleshooting. Your manuscript text is never shared.'}
+            {granted ? copy.on : copy.off}
           </p>
           {granted && grant?.expires_at && (
             <p className="mt-1 text-xs text-gray-500">

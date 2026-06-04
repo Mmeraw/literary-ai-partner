@@ -66,6 +66,9 @@ export const MODEL_COMPLETION_TOKEN_CAPS: Readonly<Record<string, number>> = Obj
   "gpt-5.4-mini": 16384,
   "gpt-5.4": 32768,
   "gpt-5.5": 32768,
+  "gpt-4.1": 32768,
+  "gpt-4.1-mini": 32768,
+  "gpt-4.1-nano": 32768,
 });
 
 /**
@@ -260,6 +263,31 @@ export function getCanonicalSeedModel(overrideModel?: string): string {
 export function getCanonicalLedgerModel(overrideModel?: string): string {
   return resolveEnvBackedModel(["EVAL_LEDGER_MODEL", "EVAL_CHEAP_MODEL"], overrideModel);
 }
+
+/**
+ * Long-context ledger model resolver.
+ *
+ * Used when the full-context story ledger prompt exceeds the standard
+ * model's context window (120k token threshold). Routes to a cheaper
+ * model with a 1M token context window.
+ *
+ * Resolution order:
+ *  1) EVAL_LONG_CONTEXT_MODEL
+ *  2) hardcoded fallback: gpt-4.1-mini (1M context, $0.40/$1.60 per 1M tokens)
+ */
+export function getCanonicalLongContextLedgerModel(): string {
+  const envValue = process.env.EVAL_LONG_CONTEXT_MODEL;
+  if (typeof envValue === "string" && envValue.trim().length > 0) {
+    return envValue.trim();
+  }
+  return "gpt-4.1-mini";
+}
+
+/**
+ * Estimated token count threshold for switching to a long-context model.
+ * Set below the 128k hard limit to provide a safety buffer.
+ */
+export const LONG_CONTEXT_TOKEN_THRESHOLD = 120_000;
 
 /**
  * Polish pass model resolver.

@@ -23,7 +23,9 @@ import {
   buildOpenAIOutputTokenParam,
   buildOpenAITemperatureParam,
   getCanonicalLedgerModel,
+  getCanonicalLongContextLedgerModel,
   isReasoningStyleModel,
+  LONG_CONTEXT_TOKEN_THRESHOLD,
 } from '@/lib/evaluation/policy';
 import {
   buildSeedBenchmarkContext,
@@ -524,7 +526,7 @@ function buildFullLedger(
 export async function generateFullContextStoryLedger(
   input: GenerateFullContextLedgerInput,
 ): Promise<GenerateFullContextLedgerResult> {
-  const model = getCanonicalLedgerModel(input.model);
+  const defaultModel = getCanonicalLedgerModel(input.model);
   const timeoutMs = input.timeoutMs ?? Math.max(getEvalOpenAiTimeoutMs(), 120_000);
   const apiKey = input.openaiApiKey?.trim() ?? process.env.OPENAI_API_KEY ?? '';
   const generatedAt = new Date().toISOString();
@@ -533,14 +535,9 @@ export async function generateFullContextStoryLedger(
     throw new Error('Phase 0.5a: Missing OpenAI API key for full-context story ledger generation');
   }
 
-  const openai = new OpenAI({
-    apiKey,
-    timeout: timeoutMs,
-    maxRetries: 3,
-  });
-
   const startMs = Date.now();
 
+  const systemPrompt = buildFullContextSystemPrompt(input.workType);
   const userPrompt = buildUserPrompt({
     title: input.title,
     workType: input.workType,
@@ -548,12 +545,29 @@ export async function generateFullContextStoryLedger(
     manuscriptText: input.manuscriptText,
   });
 
+  // Estimate token count (~4 chars per token) and route to long-context model if needed
+  const estimatedTokens = Math.ceil((systemPrompt.length + userPrompt.length) / 4);
+  const needsLongContext = estimatedTokens > LONG_CONTEXT_TOKEN_THRESHOLD;
+  const model = needsLongContext ? getCanonicalLongContextLedgerModel() : defaultModel;
+
+  if (needsLongContext) {
+    console.log(
+      `[phase_0.5a] Routing to long-context model "${model}" — estimated ${estimatedTokens} tokens exceeds ${LONG_CONTEXT_TOKEN_THRESHOLD} threshold (default model: "${defaultModel}")`,
+    );
+  }
+
+  const openai = new OpenAI({
+    apiKey,
+    timeout: timeoutMs,
+    maxRetries: 3,
+  });
+
   const completion = await openai.chat.completions.create({
     model,
     ...(isReasoningStyleModel(model) ? {} : buildOpenAITemperatureParam(model, 0.1)),
     ...buildOpenAIOutputTokenParam(model, 16_000),
     messages: [
-      { role: 'system', content: buildFullContextSystemPrompt(input.workType) },
+      { role: 'system', content: systemPrompt },
       { role: 'user', content: userPrompt },
     ],
     response_format: { type: 'json_object' },

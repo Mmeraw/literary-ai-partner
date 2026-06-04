@@ -30,8 +30,11 @@ interface CostOpsSummary {
   monthlyBudgetCents: number | null;
   budgetRemainingCents: number | null;
   budgetUsedPct: number | null;
+  allTimeTotalCents: number;
   last7dUsageCents: number;
   jobsWithCosts: number;
+  totalEvaluationJobs: number;
+  untrackedJobs: number;
   callCount: number;
   avgUsageCostPerJobCents: number;
   failedJobUsageCents: number;
@@ -154,6 +157,8 @@ export default function CostOpsDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [autoRefresh, setAutoRefresh] = useState(true);
+  const [backfilling, setBackfilling] = useState(false);
+  const [backfillResult, setBackfillResult] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
     try {
@@ -257,6 +262,34 @@ export default function CostOpsDashboardPage() {
               >
                 {loading ? "Loading…" : "Refresh"}
               </button>
+              {summary.untrackedJobs > 0 && (
+                <button
+                  onClick={async () => {
+                    setBackfilling(true);
+                    setBackfillResult(null);
+                    try {
+                      const res = await fetch("/api/admin/costs/backfill", { method: "POST" });
+                      const json = await res.json();
+                      if (json.success) {
+                        setBackfillResult(
+                          `Backfilled ${json.data.backfilledCount} jobs (~${fmtUsd(json.data.estimatedTotalCents)} estimated)`,
+                        );
+                        fetchData();
+                      } else {
+                        setBackfillResult(`Error: ${json.message}`);
+                      }
+                    } catch (err) {
+                      setBackfillResult(`Error: ${err instanceof Error ? err.message : "Unknown"}`);
+                    } finally {
+                      setBackfilling(false);
+                    }
+                  }}
+                  disabled={backfilling}
+                  className="rounded border border-amber-500/40 bg-amber-900/20 px-4 py-2 font-rg-mono text-xs uppercase tracking-wider text-amber-300 transition hover:border-amber-400 hover:text-amber-200 disabled:opacity-40"
+                >
+                  {backfilling ? "Backfilling…" : `Backfill ${summary.untrackedJobs} Untracked`}
+                </button>
+              )}
               <Link
                 href="/admin"
                 className="rounded border border-rg-cream2/20 px-4 py-2 font-rg-mono text-xs uppercase tracking-wider text-rg-cream2 transition hover:border-rg-gold/60 hover:text-rg-cream"
@@ -266,6 +299,13 @@ export default function CostOpsDashboardPage() {
             </div>
           </div>
         </header>
+
+        {/* ── Backfill result ─────────────────────────────────────── */}
+        {backfillResult && (
+          <div className="rounded-lg border border-emerald-500/30 bg-emerald-900/20 p-4">
+            <p className="text-sm text-emerald-300">{backfillResult}</p>
+          </div>
+        )}
 
         {/* ── Warnings ────────────────────────────────────────────── */}
         {warnings.length > 0 && (
@@ -277,9 +317,10 @@ export default function CostOpsDashboardPage() {
         )}
 
         {/* ── KPI Cards ───────────────────────────────────────────── */}
-        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <KpiCard label="Today's Spend" value={fmtUsd(summary.today.totalCents)} />
+        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+          <KpiCard label="All-Time Total" value={fmtUsd(summary.allTimeTotalCents)} highlight />
           <KpiCard label="Month-to-Date" value={fmtUsd(summary.monthToDate.totalCents)} />
+          <KpiCard label="Today's Spend" value={fmtUsd(summary.today.totalCents)} />
           <KpiCard label="Projected Month-End" value={fmtUsd(summary.projectedMonthEndCents)} />
           <KpiCard label="Avg Cost / Evaluation" value={fmtUsd(summary.avgUsageCostPerJobCents)} />
         </section>
@@ -320,7 +361,7 @@ export default function CostOpsDashboardPage() {
         <section className="grid gap-4 md:grid-cols-3 xl:grid-cols-6">
           <MiniKpi label="Last 7 Days" value={fmtUsd(summary.last7dUsageCents)} />
           <MiniKpi label="Total Calls" value={summary.callCount.toLocaleString()} />
-          <MiniKpi label="Jobs Tracked" value={summary.jobsWithCosts.toLocaleString()} />
+          <MiniKpi label="Jobs Tracked" value={`${summary.jobsWithCosts} / ${summary.totalEvaluationJobs}`} />
           <MiniKpi label="Failed Spend (MTD)" value={fmtUsd(summary.failedJobUsageCents)} />
           <MiniKpi label="Top Model" value={summary.topModel ?? "—"} />
           <MiniKpi label="Top Phase" value={summary.topPhase ?? "—"} />
@@ -450,13 +491,13 @@ export default function CostOpsDashboardPage() {
 
 // ─── Sub-components ─────────────────────────────────────────────────
 
-function KpiCard({ label, value }: { label: string; value: string }) {
+function KpiCard({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
   return (
-    <div className="rounded-lg border border-rg-cream2/15 bg-rg-ink2/70 p-5">
+    <div className={`rounded-lg border p-5 ${highlight ? "border-rg-gold/30 bg-rg-ink2/90" : "border-rg-cream2/15 bg-rg-ink2/70"}`}>
       <div className="font-rg-mono text-[10px] uppercase tracking-[0.18em] text-rg-cream2/50">
         {label}
       </div>
-      <div className="mt-2 font-rg-serif text-2xl font-semibold text-rg-gold">
+      <div className={`mt-2 font-rg-serif text-2xl font-semibold ${highlight ? "text-rg-gold" : "text-rg-gold"}`}>
         {value}
       </div>
     </div>
