@@ -889,36 +889,36 @@ export default function PipelineHealthPage() {
       </section>
 
       {/* Legend */}
-      <section className="rounded-lg border border-gray-200 p-5">
-        <h2 className="text-lg font-semibold mb-4">Legend</h2>
+      <section className="rounded-lg border border-gray-200 dark:border-gray-700 p-5">
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Legend</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 text-sm">
           {/* Job Statuses */}
           <div>
-            <h3 className="font-semibold text-gray-700 mb-2">Job Status</h3>
+            <h3 className="font-semibold text-gray-700 dark:text-gray-200 mb-2">Job Status</h3>
             <ul className="space-y-1.5">
               <li className="flex items-center gap-2">
                 <span className="inline-block px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">complete</span>
-                <span className="text-gray-600">Evaluation finished successfully</span>
+                <span className="text-gray-600 dark:text-gray-300">Evaluation finished successfully</span>
               </li>
               <li className="flex items-center gap-2">
                 <span className="inline-block px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">running</span>
-                <span className="text-gray-600">Job actively executing in pipeline</span>
+                <span className="text-gray-600 dark:text-gray-300">Job actively executing in pipeline</span>
               </li>
               <li className="flex items-center gap-2">
                 <span className="inline-block px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800">queued</span>
-                <span className="text-gray-600">Waiting for execution slot</span>
+                <span className="text-gray-600 dark:text-gray-300">Waiting for execution slot</span>
               </li>
               <li className="flex items-center gap-2">
                 <span className="inline-block px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800">failed</span>
-                <span className="text-gray-600">Pipeline errored — see Error Code</span>
+                <span className="text-gray-600 dark:text-gray-300">Pipeline errored — see Error Code</span>
               </li>
             </ul>
           </div>
 
           {/* SIPOC Pipeline Stages */}
           <div>
-            <h3 className="font-semibold text-gray-700 mb-2">SIPOC Pipeline Stages</h3>
-            <ul className="space-y-1.5 text-gray-600">
+            <h3 className="font-semibold text-gray-700 dark:text-gray-200 mb-2">SIPOC Pipeline Stages</h3>
+            <ul className="space-y-1.5 text-gray-600 dark:text-gray-300">
               <li><strong>intake</strong> — manuscript received, validated</li>
               <li><strong>routing_chunking</strong> — word count routing + chunk splitting</li>
               <li><strong>phase_0_5a_seed</strong> — Phase 0.5a: story map seed generation (full-context story ledger)</li>
@@ -934,35 +934,35 @@ export default function PipelineHealthPage() {
 
           {/* SIPOC Stage Health */}
           <div>
-            <h3 className="font-semibold text-gray-700 mb-2">SIPOC Stage Health</h3>
+            <h3 className="font-semibold text-gray-700 dark:text-gray-200 mb-2">SIPOC Stage Health</h3>
             <ul className="space-y-1.5">
               <li className="flex items-center gap-2">
                 <span className="inline-block w-3 h-3 rounded-full bg-green-500" />
-                <span className="text-gray-600">All jobs passed this stage</span>
+                <span className="text-gray-600 dark:text-gray-300">All jobs passed this stage</span>
               </li>
               <li className="flex items-center gap-2">
                 <span className="inline-block w-3 h-3 rounded-full bg-red-500" />
-                <span className="text-gray-600">One or more jobs failed at this stage</span>
+                <span className="text-gray-600 dark:text-gray-300">One or more jobs failed at this stage</span>
               </li>
               <li className="flex items-center gap-2">
                 <span className="inline-block w-3 h-3 rounded-full bg-gray-300" />
-                <span className="text-gray-600">No jobs reached this stage in window</span>
+                <span className="text-gray-600 dark:text-gray-300">No jobs reached this stage in window</span>
               </li>
               <li className="flex items-center gap-2 mt-1">
                 <span className="text-green-600 font-bold text-sm">✓</span>
-                <span className="text-gray-600">OK count (passed)</span>
+                <span className="text-gray-600 dark:text-gray-300">OK count (passed)</span>
               </li>
               <li className="flex items-center gap-2">
                 <span className="text-red-500 font-bold text-sm">✗</span>
-                <span className="text-gray-600">Failed count</span>
+                <span className="text-gray-600 dark:text-gray-300">Failed count</span>
               </li>
             </ul>
           </div>
 
           {/* Artifacts */}
           <div>
-            <h3 className="font-semibold text-gray-700 mb-2">Artifacts (v2 | drm | diag)</h3>
-            <ul className="space-y-1.5 text-gray-600">
+            <h3 className="font-semibold text-gray-700 dark:text-gray-200 mb-2">Artifacts (v2 | drm | diag)</h3>
+            <ul className="space-y-1.5 text-gray-600 dark:text-gray-300">
               <li><strong>v2</strong> — EvaluationResultV2 (structured scores, criteria, recommendations)</li>
               <li><strong>drm</strong> — DREAM long-form narrative synthesis document (n/a for short-form)</li>
               <li><strong>diag</strong> — Pass diagnostics (internal quality/governance traces)</li>
@@ -983,46 +983,46 @@ export default function PipelineHealthPage() {
 
           {/* Diagnostics */}
           <div>
-            <h3 className="font-semibold text-gray-700 mb-2">Diagnostics Status</h3>
+            <h3 className="font-semibold text-gray-700 dark:text-gray-200 mb-2">Diagnostics Status</h3>
             <ul className="space-y-1.5">
               <li className="flex items-center gap-2">
                 <span className="inline-block px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">available</span>
-                <span className="text-gray-600">Full diagnostic trace present</span>
+                <span className="text-gray-600 dark:text-gray-300">Full diagnostic trace present</span>
               </li>
               <li className="flex items-center gap-2">
                 <span className="inline-block px-2 py-0.5 rounded text-xs font-medium bg-orange-100 text-orange-800">blocked_by_307</span>
-                <span className="text-gray-600">Blocked by issue #307 persistence work</span>
+                <span className="text-gray-600 dark:text-gray-300">Blocked by issue #307 persistence work</span>
               </li>
               <li className="flex items-center gap-2">
                 <span className="inline-block px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800">missing</span>
-                <span className="text-gray-600">Diagnostic artifact not found</span>
+                <span className="text-gray-600 dark:text-gray-300">Diagnostic artifact not found</span>
               </li>
               <li className="flex items-center gap-2">
                 <span className="inline-block px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-500">not_applicable</span>
-                <span className="text-gray-600">Job type does not produce diagnostics</span>
+                <span className="text-gray-600 dark:text-gray-300">Job type does not produce diagnostics</span>
               </li>
             </ul>
           </div>
 
           {/* Pass 4 (Cross-Check) */}
           <div>
-            <h3 className="font-semibold text-gray-700 mb-2">Pass 4 (Cross-Check)</h3>
+            <h3 className="font-semibold text-gray-700 dark:text-gray-200 mb-2">Pass 4 (Cross-Check)</h3>
             <ul className="space-y-1.5">
               <li className="flex items-center gap-2">
                 <span className="inline-block px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">completed</span>
-                <span className="text-gray-600">External adjudication verified scores</span>
+                <span className="text-gray-600 dark:text-gray-300">External adjudication verified scores</span>
               </li>
               <li className="flex items-center gap-2">
                 <span className="inline-block px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600">skipped</span>
-                <span className="text-gray-600">Cross-check not required for this mode</span>
+                <span className="text-gray-600 dark:text-gray-300">Cross-check not required for this mode</span>
               </li>
               <li className="flex items-center gap-2">
                 <span className="inline-block px-2 py-0.5 rounded text-xs font-medium bg-orange-100 text-orange-800">failed_soft</span>
-                <span className="text-gray-600">Cross-check failed but non-blocking</span>
+                <span className="text-gray-600 dark:text-gray-300">Cross-check failed but non-blocking</span>
               </li>
               <li className="flex items-center gap-2">
                 <span className="inline-block px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-700">—</span>
-                <span className="text-gray-600">Not yet reached or data unavailable</span>
+                <span className="text-gray-600 dark:text-gray-300">Not yet reached or data unavailable</span>
               </li>
             </ul>
           </div>
@@ -1030,8 +1030,8 @@ export default function PipelineHealthPage() {
 
         {/* Restart Tracking */}
         <div className="mt-6">
-          <h3 className="font-semibold text-gray-700 mb-2">Restart Tracking</h3>
-          <ul className="space-y-1.5 text-sm text-gray-600">
+          <h3 className="font-semibold text-gray-700 dark:text-gray-200 mb-2">Restart Tracking</h3>
+          <ul className="space-y-1.5 text-sm text-gray-600 dark:text-gray-300">
             <li className="flex items-center gap-2">
               <span className="text-orange-600 font-medium">↻ 1/11</span>
               <span>Job restarted 1 time out of max 11 attempts (orange = 1–2 restarts)</span>
@@ -1044,24 +1044,24 @@ export default function PipelineHealthPage() {
               <span className="text-gray-400">—</span>
               <span>No restarts — ran successfully on first attempt</span>
             </li>
-            <li className="mt-2 text-gray-500 text-xs">Hover the restart badge for: restarted-from stage, reason, and attempt number. Common reasons: orphan_rescue (timeout), self-chain resume, crash recovery.</li>
+            <li className="mt-2 text-gray-500 dark:text-gray-400 text-xs">Hover the restart badge for: restarted-from stage, reason, and attempt number. Common reasons: orphan_rescue (timeout), self-chain resume, crash recovery.</li>
           </ul>
         </div>
 
         {/* Live indicator legend */}
-        <div className="mt-5 pt-4 border-t border-gray-200">
-          <h3 className="font-semibold text-gray-700 mb-2">Status Indicator</h3>
+        <div className="mt-5 pt-4 border-t border-gray-200 dark:border-gray-700">
+          <h3 className="font-semibold text-gray-700 dark:text-gray-200 mb-2">Status Indicator</h3>
           <div className="flex gap-6 text-sm">
             <div className="flex items-center gap-2">
               <span className="relative flex h-4 w-4">
                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75" />
                 <span className="relative inline-flex h-4 w-4 rounded-full bg-green-500" />
               </span>
-              <span className="text-gray-600"><strong>LIVE</strong> — page auto-refreshes every 30 seconds</span>
+              <span className="text-gray-600 dark:text-gray-300"><strong>LIVE</strong> — page auto-refreshes every 30 seconds</span>
             </div>
             <div className="flex items-center gap-2">
               <span className="inline-flex h-4 w-4 rounded-full bg-red-500" />
-              <span className="text-gray-600"><strong>STALLED</strong> — refresh failed, data may be stale</span>
+              <span className="text-gray-600 dark:text-gray-300"><strong>STALLED</strong> — refresh failed, data may be stale</span>
             </div>
           </div>
         </div>
