@@ -10,8 +10,8 @@ import {
   ResponsiveContainer,
   Legend,
 } from 'recharts'
-import type { ErrorTrendPeriod } from '@/lib/dashboard/getDashboardAnalytics'
-import { CRITERION_SHORT_LABELS } from '@/lib/dashboard/getDashboardAnalytics'
+import type { ErrorTrendPeriod } from '@/lib/dashboard/dashboardAnalyticsTypes'
+import { CRITERION_SHORT_LABELS } from '@/lib/dashboard/dashboardAnalyticsTypes'
 
 type Props = {
   data: ErrorTrendPeriod[]

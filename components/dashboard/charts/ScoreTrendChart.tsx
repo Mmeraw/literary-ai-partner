@@ -11,7 +11,7 @@ import {
   ResponsiveContainer,
   Legend,
 } from 'recharts'
-import type { ScoreTrendPoint } from '@/lib/dashboard/getDashboardAnalytics'
+import type { ScoreTrendPoint } from '@/lib/dashboard/dashboardAnalyticsTypes'
 
 type Props = {
   data: ScoreTrendPoint[]

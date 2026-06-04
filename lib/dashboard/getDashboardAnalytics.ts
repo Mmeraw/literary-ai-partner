@@ -3,64 +3,30 @@
  *
  * Queries evaluation_artifacts and diagnostic_findings to build
  * interactive chart data for the Author Progress Ledger.
+ *
+ * Types are in dashboardAnalyticsTypes.ts to avoid pulling server-only
+ * imports into the client bundle.
  */
 
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getAuthenticatedUser } from '@/lib/supabase/server'
 import { CRITERIA_METADATA, type CriterionKey } from '@/schemas/criteria-keys'
+import { CRITERION_SHORT_LABELS } from './dashboardAnalyticsTypes'
 
-// ── Types ────────────────────────────────────────────────────────────
+export type {
+  ScoreTrendPoint,
+  ErrorTrendPeriod,
+  InsightCard,
+  DashboardAnalytics,
+} from './dashboardAnalyticsTypes'
 
-export type ScoreTrendPoint = {
-  date: string
-  jobId: string
-  manuscriptId: string
-  manuscriptTitle: string
-  overall: number | null
-  readiness: number | null
-  criterionScores: Partial<Record<CriterionKey, number>>
-}
+export { CRITERION_SHORT_LABELS } from './dashboardAnalyticsTypes'
 
-export type ErrorTrendPeriod = {
-  label: string
-  jobId: string
-  manuscriptTitle: string
-  date: string
-  counts: Record<string, number>
-}
-
-export type InsightCard = {
-  title: string
-  items: string[]
-}
-
-export type DashboardAnalytics = {
-  scoreTrend: ScoreTrendPoint[]
-  errorTrend: ErrorTrendPeriod[]
-  insights: {
-    mostImproved: InsightCard
-    stillBlocking: InsightCard
-    recentWins: InsightCard
-  }
-  manuscripts: { id: string; title: string }[]
-}
-
-// Short labels for chart display
-export const CRITERION_SHORT_LABELS: Record<string, string> = {
-  concept: 'Concept',
-  narrativeDrive: 'Narrative Drive',
-  character: 'Character',
-  voice: 'Voice & POV',
-  sceneConstruction: 'Scene Construction',
-  dialogue: 'Dialogue',
-  theme: 'Theme',
-  worldbuilding: 'World-Building',
-  pacing: 'Pacing',
-  proseControl: 'Prose',
-  tone: 'Tone',
-  narrativeClosure: 'Closure',
-  marketability: 'Market Position',
-}
+import type {
+  ScoreTrendPoint,
+  ErrorTrendPeriod,
+  DashboardAnalytics,
+} from './dashboardAnalyticsTypes'
 
 function shortLabel(key: string): string {
   return CRITERION_SHORT_LABELS[key] ?? CRITERIA_METADATA[key as CriterionKey]?.label ?? key

@@ -1,4 +1,4 @@
-import type { InsightCard } from '@/lib/dashboard/getDashboardAnalytics'
+import type { InsightCard } from '@/lib/dashboard/dashboardAnalyticsTypes'
 
 type Props = {
   mostImproved: InsightCard

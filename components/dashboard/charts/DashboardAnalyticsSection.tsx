@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from 'react'
 import dynamic from 'next/dynamic'
-import type { DashboardAnalytics, ScoreTrendPoint, ErrorTrendPeriod } from '@/lib/dashboard/getDashboardAnalytics'
+import type { DashboardAnalytics, ScoreTrendPoint, ErrorTrendPeriod } from '@/lib/dashboard/dashboardAnalyticsTypes'
 import InsightCards from './InsightCards'
 
 // Recharts requires client-side rendering
