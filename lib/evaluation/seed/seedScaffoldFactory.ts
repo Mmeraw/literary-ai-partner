@@ -61,9 +61,9 @@ export type CompleteEvaluationSeedV1 = {
   };
   reporting_template_path: {
     selected_template: string;
-    short_form_template: 'templates/evaluation/short-form-13-criteria-v1';
-    long_form_template: 'templates/evaluation/long-form-v1';
-    long_form_multilayer_template: 'templates/evaluation/long-form-multilayer-v1';
+    short_form_template: 'docs/templates/evaluation/short-form-evaluation-template.md';
+    long_form_template: 'docs/templates/evaluation/long-form-evaluation-template.md';
+    long_form_multilayer_template: 'docs/templates/evaluation/long-form-multi-layer-evaluation-template.md';
   };
   criterion_scaffolds: Array<{
     criterion_key: CriterionKey;
@@ -206,10 +206,10 @@ export function buildCompleteStorySeedV1(args: { generatedAt?: string }): Comple
 export function buildCompleteEvaluationSeedV1(args: { wordCount: number; workType?: string | null; generatedAt?: string; forceMultiLayer?: boolean }): CompleteEvaluationSeedV1 {
   const evaluationMode = deriveSeedEvaluationMode(args.wordCount, args.forceMultiLayer);
   const selected_template = evaluationMode === 'short_form_evaluation'
-    ? 'templates/evaluation/short-form-13-criteria-v1'
+    ? 'docs/templates/evaluation/short-form-evaluation-template.md'
     : evaluationMode === 'long_form_evaluation'
-      ? 'templates/evaluation/long-form-v1'
-      : 'templates/evaluation/long-form-multilayer-v1';
+      ? 'docs/templates/evaluation/long-form-evaluation-template.md'
+      : 'docs/templates/evaluation/long-form-multi-layer-evaluation-template.md';
 
   return {
     artifact_type: 'evaluation_seed_v1',
@@ -228,9 +228,9 @@ export function buildCompleteEvaluationSeedV1(args: { wordCount: number; workTyp
     },
     reporting_template_path: {
       selected_template,
-      short_form_template: 'templates/evaluation/short-form-13-criteria-v1',
-      long_form_template: 'templates/evaluation/long-form-v1',
-      long_form_multilayer_template: 'templates/evaluation/long-form-multilayer-v1',
+      short_form_template: 'docs/templates/evaluation/short-form-evaluation-template.md',
+      long_form_template: 'docs/templates/evaluation/long-form-evaluation-template.md',
+      long_form_multilayer_template: 'docs/templates/evaluation/long-form-multi-layer-evaluation-template.md',
     },
     criterion_scaffolds: CRITERIA_KEYS.map((criterion_key) => ({
       criterion_key,
