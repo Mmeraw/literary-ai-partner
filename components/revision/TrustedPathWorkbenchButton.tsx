@@ -46,7 +46,7 @@ export default function TrustedPathWorkbenchButton({ manuscriptId, evaluationJob
   const isDisabled = disabled || running || !manuscriptId || !evaluationJobId;
 
   return (
-    <div className="workbench-v2-trusted-path relative text-center">
+    <div className="workbench-v2-trusted-path relative">
       <button
         type="button"
         onClick={() => {
@@ -55,7 +55,7 @@ export default function TrustedPathWorkbenchButton({ manuscriptId, evaluationJob
           setConfirming(true);
         }}
         disabled={isDisabled}
-        className={`rounded border px-4 py-2 text-[12px] font-bold uppercase tracking-[0.08em] shadow-lg transition ${
+        className={`flex h-10 items-center justify-center rounded border px-4 text-[12px] font-bold uppercase tracking-[0.08em] shadow-lg transition whitespace-nowrap ${
           isDisabled
             ? "cursor-not-allowed border-[#3A3022] bg-[#120E08] text-[#7F735F]"
             : "border-[#E0BF78] bg-[#D5B36C] text-[#171006] hover:bg-[#E4C982]"
