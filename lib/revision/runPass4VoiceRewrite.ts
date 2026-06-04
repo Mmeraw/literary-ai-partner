@@ -1,16 +1,9 @@
 /**
- * Pass 4 — Voice-Conditioned Rewrite Runner
+ * Pass 4 - Voice-Conditioned Rewrite Runner
  *
- * Generates manuscript-ready A/B/C replacement prose for a single
- * revision opportunity using the author's voice extracted from
- * surrounding manuscript context.
- *
- * This module is designed to be called:
- * 1. During workbench queue build (batch mode) — for all ≤1200 word items
- * 2. On-demand via "Generate in Voice" button — for a single item
- *
- * Cost: ~$0.005 per call with gpt-4.1-mini (avg 800 input + 600 output tokens)
- * Budget: 100 items × 1 call each = ~$0.50 per evaluation
+ * Generates manuscript-ready A/B/C replacement prose for a single revision
+ * opportunity using the author's voice extracted from surrounding manuscript
+ * context.
  */
 
 import OpenAI from "openai";
@@ -21,6 +14,7 @@ import {
   type Pass4RewriteInput,
 } from "./prompts/pass4-voice-rewrite";
 import { withRetry } from "@/lib/evaluation/pipeline/openaiRetry";
+import { trackCompletionCost } from "@/lib/jobs/cost";
 
 export interface Pass4RewriteResult {
   a: string;
@@ -30,7 +24,6 @@ export interface Pass4RewriteResult {
   promptVersion: string;
   inputTokens: number;
   outputTokens: number;
-  /** Whether only variant A was generated (TrustedPath cost savings) */
   trustedPathOnly: boolean;
 }
 
@@ -52,41 +45,20 @@ function validateRewriteOutput(output: { a: string; b?: string; c?: string }, tr
   return true;
 }
 
-/**
- * Extract voice context from the manuscript around the target passage.
- * Returns ~500-800 words of surrounding text for voice conditioning.
- */
-export function extractVoiceContext(
-  manuscriptText: string,
-  targetPassage: string,
-  contextWords: number = 300,
-): string {
+export function extractVoiceContext(manuscriptText: string, targetPassage: string, contextWords: number = 300): string {
   if (!manuscriptText || !targetPassage) return "";
 
-  // Find the target passage in the manuscript
   const targetClean = targetPassage.replace(/\s+/g, " ").trim().slice(0, 100);
   const manuscriptClean = manuscriptText.replace(/\s+/g, " ");
   const idx = manuscriptClean.toLowerCase().indexOf(targetClean.toLowerCase().slice(0, 60));
 
   if (idx === -1) {
-    // Can't find exact location — use a representative sample from the middle
     const words = manuscriptClean.split(/\s+/);
     const mid = Math.floor(words.length / 2);
-    const start = Math.max(0, mid - contextWords);
-    const end = Math.min(words.length, mid + contextWords);
-    return words.slice(start, end).join(" ");
+    return words.slice(Math.max(0, mid - contextWords), Math.min(words.length, mid + contextWords)).join(" ");
   }
 
-  // Extract surrounding context
   const words = manuscriptClean.split(/\s+/);
-  const charToWord = new Map<number, number>();
-  let charPos = 0;
-  for (let i = 0; i < words.length; i++) {
-    charToWord.set(charPos, i);
-    charPos += words[i].length + 1;
-  }
-
-  // Find approximate word index for our target
   let targetWordIdx = 0;
   let runningChars = 0;
   for (let i = 0; i < words.length; i++) {
@@ -97,33 +69,26 @@ export function extractVoiceContext(
     runningChars += words[i].length + 1;
   }
 
-  // Get context before and after, excluding the target passage itself
   const targetWordCount = targetPassage.split(/\s+/).length;
-  const beforeStart = Math.max(0, targetWordIdx - contextWords);
-  const beforeEnd = targetWordIdx;
+  const before = words.slice(Math.max(0, targetWordIdx - contextWords), targetWordIdx).join(" ");
   const afterStart = Math.min(words.length, targetWordIdx + targetWordCount);
-  const afterEnd = Math.min(words.length, afterStart + contextWords);
-
-  const before = words.slice(beforeStart, beforeEnd).join(" ");
-  const after = words.slice(afterStart, afterEnd).join(" ");
+  const after = words.slice(afterStart, Math.min(words.length, afterStart + contextWords)).join(" ");
 
   return `${before}\n\n[...target passage location...]\n\n${after}`;
 }
 
-/**
- * Generate voice-conditioned A/B/C rewrites for a single revision opportunity.
- */
 export async function runPass4VoiceRewrite(
   input: Pass4RewriteInput,
   options?: {
     model?: string;
     temperature?: number;
     maxTokens?: number;
+    jobId?: string;
+    phase?: string;
   },
 ): Promise<Pass4RewriteResult> {
   const model = options?.model ?? process.env.EVAL_REWRITE_MODEL ?? "gpt-4.1-mini";
   const temperature = options?.temperature ?? 0.6;
-  // TrustedPath (A-only) uses fewer output tokens
   const maxTokens = options?.maxTokens ?? (input.trustedPathOnly ? 800 : 2000);
 
   const openai = new OpenAI();
@@ -144,6 +109,15 @@ export async function runPass4VoiceRewrite(
     { maxAttempts: 2, label: "pass4_voice_rewrite" },
   );
 
+  if (options?.jobId) {
+    trackCompletionCost({
+      jobId: options.jobId,
+      phase: options.phase ?? "pass4_voice_rewrite",
+      model,
+      usage: response.usage,
+    });
+  }
+
   const content = response.choices[0]?.message?.content ?? "";
   const usage = response.usage;
 
@@ -155,9 +129,7 @@ export async function runPass4VoiceRewrite(
   }
 
   if (!validateRewriteOutput(parsed, !!input.trustedPathOnly)) {
-    throw new Error(
-      `Pass 4 rewrite failed quality gate — output contains template tokens or is too short`,
-    );
+    throw new Error("Pass 4 rewrite failed quality gate - output contains template tokens or is too short");
   }
 
   return {
@@ -172,53 +144,38 @@ export async function runPass4VoiceRewrite(
   };
 }
 
-/**
- * Batch rewrite runner — processes multiple opportunities in sequence
- * with rate limiting between calls.
- */
 export async function runPass4BatchRewrite(
-  items: Array<{
-    opportunityId: string;
-    input: Pass4RewriteInput;
-  }>,
+  items: Array<{ opportunityId: string; input: Pass4RewriteInput }>,
   options?: {
     model?: string;
     delayBetweenCallsMs?: number;
     onProgress?: (completed: number, total: number) => void;
+    jobId?: string;
   },
-): Promise<{
-  results: Map<string, Pass4RewriteResult>;
-  errors: Pass4RewriteError[];
-  totalInputTokens: number;
-  totalOutputTokens: number;
-}> {
+): Promise<{ results: Map<string, Pass4RewriteResult>; errors: Pass4RewriteError[]; totalInputTokens: number; totalOutputTokens: number }> {
   const results = new Map<string, Pass4RewriteResult>();
   const errors: Pass4RewriteError[] = [];
   let totalInputTokens = 0;
   let totalOutputTokens = 0;
-
   const delay = options?.delayBetweenCallsMs ?? 200;
 
   for (let i = 0; i < items.length; i++) {
     const item = items[i];
     try {
-      const result = await runPass4VoiceRewrite(item.input, { model: options?.model });
+      const result = await runPass4VoiceRewrite(item.input, {
+        model: options?.model,
+        jobId: options?.jobId,
+        phase: `pass4_voice_rewrite_${i}`,
+      });
       results.set(item.opportunityId, result);
       totalInputTokens += result.inputTokens;
       totalOutputTokens += result.outputTokens;
     } catch (err) {
-      errors.push({
-        error: err instanceof Error ? err.message : "Unknown rewrite error",
-        opportunityId: item.opportunityId,
-      });
+      errors.push({ error: err instanceof Error ? err.message : "Unknown rewrite error", opportunityId: item.opportunityId });
     }
 
     options?.onProgress?.(i + 1, items.length);
-
-    // Rate limiting between calls
-    if (i < items.length - 1 && delay > 0) {
-      await new Promise((resolve) => setTimeout(resolve, delay));
-    }
+    if (i < items.length - 1 && delay > 0) await new Promise((resolve) => setTimeout(resolve, delay));
   }
 
   return { results, errors, totalInputTokens, totalOutputTokens };
