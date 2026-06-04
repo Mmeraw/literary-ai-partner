@@ -31,14 +31,6 @@ const adminCards = [
     priority: "Operations",
   },
   {
-    title: "CostOps",
-    href: "/admin/costs",
-    eyebrow: "Spend · budgets · alerts",
-    description:
-      "LLM spend telemetry, model/phase cost breakdowns, budget tracking, and spend alerts.",
-    priority: "Operations",
-  },
-  {
     title: "Jobs",
     href: "/admin/jobs",
     eyebrow: "Evaluation records",
@@ -61,6 +53,25 @@ const adminCards = [
     description:
       "View user evaluations with active support access grants. See diagnostic findings, revision decisions, and session state for troubleshooting.",
     priority: "Support",
+  },
+];
+
+const costCards = [
+  {
+    title: "CostOps",
+    href: "/admin/costs",
+    eyebrow: "Spend · budgets · alerts",
+    description:
+      "LLM spend telemetry, model/phase cost breakdowns, budget tracking, and spend alerts.",
+    priority: "Operations",
+  },
+  {
+    title: "Job Evaluation Costs",
+    href: "/admin/costs/evaluations",
+    eyebrow: "Per-job · per-phase · per-model",
+    description:
+      "Inspect the dedicated evaluation cost ledger for each job, including phase-level spend, model usage, and routing warnings.",
+    priority: "Operations",
   },
 ];
 
@@ -126,6 +137,45 @@ export default async function AdminDashboard() {
               </span>
             </Link>
           ))}
+        </section>
+
+        <section className="space-y-3">
+          <div>
+            <h2 className="font-rg-serif text-xl text-rg-cream">Cost modules</h2>
+            <p className="mt-1 text-sm text-rg-cream2/60">
+              Spend oversight is split into the general CostOps dashboard and the dedicated
+              evaluation cost ledger.
+            </p>
+          </div>
+          <div className="grid gap-4 md:grid-cols-2">
+            {costCards.map((card) => (
+              <Link
+                key={card.href}
+                href={card.href}
+                className="group flex min-h-52 flex-col justify-between rounded-lg border border-rg-cream2/15 bg-rg-ink2/70 p-5 shadow-sm transition hover:border-rg-gold/60 hover:bg-rg-ink2"
+              >
+                <div>
+                  <div className="flex items-start justify-between gap-3">
+                    <p className="font-rg-mono text-[10px] uppercase tracking-[0.18em] text-rg-gold/80">
+                      {card.eyebrow}
+                    </p>
+                    <span className="rounded border border-rg-cream2/15 px-2 py-1 font-rg-mono text-[10px] uppercase tracking-[0.14em] text-rg-cream2/55">
+                      {card.priority}
+                    </span>
+                  </div>
+                  <h2 className="mt-4 font-rg-serif text-2xl text-rg-cream group-hover:text-rg-gold">
+                    {card.title}
+                  </h2>
+                  <p className="mt-3 text-sm leading-6 text-rg-cream2/65">
+                    {card.description}
+                  </p>
+                </div>
+                <span className="mt-6 font-rg-mono text-xs uppercase tracking-[0.16em] text-rg-gold">
+                  Open →
+                </span>
+              </Link>
+            ))}
+          </div>
         </section>
 
         <section className="rounded-lg border border-rg-cream2/15 bg-rg-ink2/50 p-5">
