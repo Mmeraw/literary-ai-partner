@@ -16,6 +16,7 @@
 
 import OpenAI from 'openai';
 import { getCanonicalSeedModel } from '@/lib/evaluation/policy';
+import { buildCompactTemplateBlock, resolveTemplateKey } from '@/lib/evaluation/dreamTemplateLoader';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -175,10 +176,17 @@ export async function generateEditorialDreamSeed(
     maxRetries: 2,
   });
 
+  const templateKey = resolveTemplateKey(input.wordCount);
+  const dreamTemplateBlock = buildCompactTemplateBlock(templateKey);
+
   const userPrompt = `MANUSCRIPT TITLE: ${input.title}
 WORK TYPE: ${input.workType}
 WORD COUNT: ${input.wordCount}
-
+${dreamTemplateBlock ? `
+## DREAM EVALUATION TEMPLATE (Canonical Report Shape)
+Your diagnostic must prepare the manuscript for an evaluation that conforms to this template. Ensure your scoring, evidence distribution, and revision guidance align with the sections below.
+${dreamTemplateBlock}
+` : ""}
 Read the following manuscript IN FULL and produce the editorial diagnostic JSON.
 
 <manuscript>
