@@ -15,6 +15,8 @@
  * while providing enough grounding to prevent common extraction failures.
  */
 
+import { buildCompactTemplateBlock, buildCompactStoryLedgerBlock, type DreamTemplateKey } from "@/lib/evaluation/dreamTemplateLoader";
+
 export type SeedRoute = 'LONG_FORM' | 'SHORT_FORM';
 
 /**
@@ -29,175 +31,15 @@ export function inferSeedRoute(workType?: string | null): SeedRoute {
 }
 
 // ── 9-Layer Template Structure ──────────────────────────────────────────────
-
-const NINE_LAYER_TEMPLATE = `
-REQUIRED 9-LAYER STORY LEDGER STRUCTURE:
-Each layer MUST be populated. An empty layer is a failure unless the manuscript genuinely lacks that dimension.
-
-Layer 1 — Source Integrity
-  Required: scope, route (LONG_FORM/SHORT_FORM), work_type, evidence_distribution_required (list manuscript regions that MUST be cited downstream)
-  Failure: claiming full-manuscript confidence from partial evidence
-
-Layer 2 — POV Structure
-  Required: pov_characters (who holds narrative POV), camera_owners (whose perspective controls scenes), note (POV strategy)
-  Failure: saying "no POV characters identified" for a novel with obvious focal centers; confusing omniscient narration with absence of POV
-
-Layer 3 — Canonical Identity
-  Required: primary_entities (ALL plot-critical named characters/forces), must_not_omit (entities downstream MUST track)
-  Failure: missing major characters; splitting titles into fake characters; merging distinct characters incorrectly
-
-Layer 4 — Cast / Role Tier
-  Required: tiers (structural hierarchy of entities with obligations)
-  Failure: flattening all characters to equal importance; treating structural animals as objects; basing tier on mention count not plot function
-
-Layer 5 — Pronoun Transitions
-  Required: reviewable_transitions (genuine pronoun/identity shifts), do_not_flag (things that look like transitions but aren't)
-  Valid empty: "No reviewable pronoun-family transitions detected" when no real transitions exist
-  Failure: showing stable pronoun usage as review burden; treating species labels/titles/royal terms as pronoun transitions
-
-Layer 6 — Relationship Network
-  Required: relationships (pair, function, arc_summary with beginning→middle→ending)
-  Failure: missing benchmark-required relationships; reducing named relational arcs to generic "pressure"
-
-Layer 7 — Object / Symbol
-  Required: objects (name, attached_characters, mobility, lifecycle_note), contamination_model
-  Failure: classifying dialogue as object; treating doctrine as physical object; missing story-bearing objects; treating animals as objects
-
-Layer 8 — Timeline / Location / Worldstate
-  Required: timeline_sequence (phase, location, function), world_rules (rule, treatment)
-  Failure: collapsing full novel to opening/middle/end only; using machine chunk labels; ignoring transit chains
-
-Layer 9 — Threat / Pressure / Ending
-  Required: pressures (type, content), character_end_states (entity, end_state, is_terminal)
-  Failure: reducing all pressure to one villain; treating ending as mood only; misreporting unresolved ending as clean closure; omitting consequences for terminal states
-`.trim();
-
-// ── Per-Layer Failure Modes (compact) ────────────────────────────────────────
-
-const FAILURE_MODES_COMPACT = `
-LAYER FAILURE MODES — WHAT THE SEED MUST NOT DO:
-
-Layer health statuses (in order of quality):
-  valid → degraded_with_caution → suppressed_insufficient_evidence → suppressed_conflicting_signals → failed_benchmark_minimum
-
-Per-layer critical failures that will cause downstream rejection:
-1. Source: claiming complete coverage from partial read
-2. POV: "no POV characters identified" when focal centers exist; confusing role importance with focalization
-3. Identity: missing required entities; splitting titles into fake characters; merging distinct characters
-4. Cast: flattening primary forces to generic roles; treating animals/symbols as ordinary cast
-5. Pronoun: showing stable pronoun use as review task; treating titles/species/personification as transitions
-6. Relationships: collapsing named relational arcs to generic pressure; missing sustained relationships
-7. Objects: classifying dialogue/doctrine as physical objects; missing story-bearing objects
-8. Timeline: collapsing to three-act only; using machine chunk labels as locations
-9. Threat/Ending: single-villain reduction; reporting unresolved ending as closure; omitting terminal consequences
-
-GOLDEN RULE: If a layer cannot meet benchmark minimums, mark it degraded — do not fabricate content.
-`.trim();
-
-// ── Gold-Standard Example Shape ──────────────────────────────────────────────
-
-const GOLD_STANDARD_EXAMPLE = `
-GOLD-STANDARD BENCHMARK EXAMPLE (shape reference — adapt content to actual manuscript):
-
-A complete 9-layer Story Ledger for a benchmark novel includes:
-- Source Integrity: scope=full-manuscript, route=LONG_FORM, 5+ evidence distribution regions
-- POV Structure: 3-6 named POV/camera owners with structural function descriptions
-- Canonical Identity: 8-15 primary entities, each with identity obligations and merge/split risks
-- Cast Tier: 4-6 tiers (primary forces, authority, vulnerability, human pressure, symbolic, collective)
-- Pronoun: transitions only when genuinely ambiguous; "no reviewable transitions" is valid
-- Relationships: 5-10 named sustained relationships with beginning→middle→ending arcs
-- Objects: 4-8 story-bearing objects with lifecycle and contamination model
-- Timeline: 5-8 narrative phases with locations and functions; world rules documented
-- Threat/Ending: 3-6 pressure types; character end states for ALL major characters; terminal states marked
-
-COMPLETION STANDARD: A ledger is incomplete if it misses:
-- Any primary structural character
-- Any story-bearing object that drives plot/identity/closure
-- Any sustained named relationship
-- The ending accountability chain (who is alive, dead, transformed, unresolved)
-
-CANONICAL HARD FACTS: Include 10-20 declarative facts the manuscript proves. These travel downstream as MANDATORY CONSTRAINTS.
-FAILURE CONDITIONS: Include 5-15 specific, falsifiable claims that would indicate comprehension failure.
-ACCEPTANCE CHECKS: Include 8-12 Q&A pairs that verify the ledger is correct.
-`.trim();
+// Now loaded at runtime from docs/benchmarks/story-ledger/STORY_LEDGER_9_LAYER_TEMPLATE.md
+// via buildCompactStoryLedgerBlock(). The canonical .md file contains all 9 layers,
+// required fields, failure conditions, validation contract, and completion standard.
+// Hardcoded inline strings removed — single source of truth.
 
 // ── DREAM Evaluation Templates (route-specific) ─────────────────────────────
-
-const DREAM_LONGFORM_TEMPLATE = `
-DREAM LONG-FORM EVALUATION TEMPLATE:
-This is the template your seed must prepare the manuscript to be evaluated against.
-A successful long-form evaluation produces ALL of the following:
-
-1. MANUSCRIPT METADATA: title, word count, route=LONG_FORM, output mode (standard_long_form or multi_layer_long_form), chunk count, coverage statement, confidence level
-2. EXECUTIVE VERDICT: 1 paragraph naming governing ambition, primary emotional anchor, most significant architectural strength, most consequential drag, current readiness
-3. OVERALL QUALITY SCORE + READINESS SCORE (out of 100)
-4. FULL 13-CRITERIA SCORE GRID (each scored x/10 with confidence level):
-   - Concept & Core Premise
-   - Narrative Drive & Momentum
-   - Character Depth & Psychological Coherence
-   - Point of View & Voice Control
-   - Scene Construction & Function
-   - Dialogue Authenticity & Subtext
-   - Thematic Integration
-   - World-Building & Environmental Logic
-   - Pacing & Structural Balance
-   - Prose Control & Line-Level Craft
-   - Tonal Authority & Consistency
-   - Narrative Closure & Promises Kept
-   - Professional Readiness & Market Positioning
-5. PER-CRITERION BLOCKS: fit statement (what IS working) + gap statement (what FALLS SHORT) + anchored evidence excerpts + why-it-matters + how-to-revise
-6. STRUCTURAL STACK (for multi-layer): Layer & Voice Map, stack diagnosis, which layer is emotional anchor / interpretive frame / most fragile
-7. DREAM COMPLETENESS LEDGERS proving evaluation accounted for:
-   - Character coverage & arc accountability
-   - Relationship spine completeness
-   - Symbol-to-character payoff tracking
-   - Sensory/emotional register distribution
-   - Evidence distribution confidence gate
-   - Manuscript integrity classification
-8. WAVE-INFORMED REVISION PRIORITIES: ordered revision targets with recommended wave domains
-9. PRIORITIZED REVISION QUEUE (top 5): rank, criterion, gap, reasoning, estimated effort, estimated reader impact
-10. SIPOC DIAGNOSTIC APPENDIX: chunk coverage %, compression ratio, dark criteria, evidence density
-
-Your seed must extract enough ground truth that downstream phases can populate ALL of these sections with evidence-backed content.
-`.trim();
-
-const DREAM_SHORTFORM_TEMPLATE = `
-DREAM SHORT-FORM EVALUATION TEMPLATE:
-This is the template your seed must prepare the manuscript to be evaluated against.
-A successful short-form evaluation produces ALL of the following:
-
-1. REPORT METADATA: title, word count, route=SHORT_FORM, evaluation date, confidence level
-2. EXECUTIVE SUMMARY: concise verdict on strengths, weaknesses, and readiness
-3. OVERALL SCORE AND VERDICT
-4. TOP STRENGTHS / TOP RISKS
-5. TOP RECOMMENDATIONS: 3-5 paraphrased highest-impact author actions (not verbatim criterion repetitions)
-6. 13 STORY CRITERIA SCORE GRID (each scored x/10 with confidence level):
-   - Concept & Core Premise
-   - Narrative Drive & Momentum
-   - Character Depth & Psychological Coherence
-   - Point of View & Voice Control
-   - Scene Construction & Function
-   - Dialogue Authenticity & Subtext
-   - Thematic Integration
-   - World-Building & Environmental Logic
-   - Pacing & Structural Balance
-   - Prose Control & Line-Level Craft
-   - Tonal Authority & Consistency
-   - Narrative Closure & Promises Kept
-   - Professional Readiness & Market Positioning
-7. CRITERION RATIONALES: per-criterion strengths, drags, and typical recommendations
-8. SURFACED CRITERION OPPORTUNITIES (0-3 per criterion) with 6-part diagnostic:
-   - Evidence (where in the text)
-   - Symptom (the observable problem)
-   - Cause (the mechanism)
-   - Fix direction (bounded repair)
-   - Reader effect (what changes if repaired)
-   - Mistake-proofing (what must not be damaged)
-9. CONFIDENCE EXPLANATION
-
-Short-form does NOT promise: full Story Ledger, DREAM governed ledgers, WAVE continuity, A/B/C rewrite proposals.
-Your seed must extract enough ground truth from the submitted text to populate all scorable criteria with evidence.
-`.trim();
+// Templates are now loaded from docs/templates/evaluation/*.md via dreamTemplateLoader.
+// The loader reads the canonical .md files, caches them, and produces compact
+// prompt-ready blocks. Hardcoded summaries replaced with runtime file reads.
 
 // ── Completed Benchmark Exemplar (compact) ──────────────────────────────────
 
@@ -236,7 +78,8 @@ This is what a gold-standard short-form evaluation looks like. Use this as your 
  * benchmark exemplar.
  */
 export function buildSeedBenchmarkContext(route?: SeedRoute): string {
-  const dreamTemplate = route === 'SHORT_FORM' ? DREAM_SHORTFORM_TEMPLATE : DREAM_LONGFORM_TEMPLATE;
+  const templateKey: DreamTemplateKey = route === 'SHORT_FORM' ? 'short_form' : 'long_form';
+  const dreamTemplate = buildCompactTemplateBlock(templateKey);
   const exemplar = route === 'SHORT_FORM' ? BENCHMARK_EXEMPLAR_SHORTFORM : BENCHMARK_EXEMPLAR_LONGFORM;
 
   return [
@@ -248,11 +91,7 @@ export function buildSeedBenchmarkContext(route?: SeedRoute): string {
     'The completed benchmark exemplar shows what gold-standard output looks like.',
     'Your seed output becomes GOLDEN GROUND TRUTH — downstream phases need hard evidence to override anything you establish here.',
     '',
-    NINE_LAYER_TEMPLATE,
-    '',
-    FAILURE_MODES_COMPACT,
-    '',
-    GOLD_STANDARD_EXAMPLE,
+    buildCompactStoryLedgerBlock(),
     '',
     dreamTemplate,
     '',

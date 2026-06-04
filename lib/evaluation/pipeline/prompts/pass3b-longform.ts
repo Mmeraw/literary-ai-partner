@@ -27,6 +27,7 @@ import type { SubmissionScopeProfile } from "../submissionScope";
 import type { SynthesizedCriterion, ManuscriptChunkEvidence, Pass2aStructuredContext } from "../types";
 import { CRITERIA_METADATA } from "@/schemas/criteria-keys";
 import type { CriterionKey } from "@/schemas/criteria-keys";
+import { buildCompactTemplateBlock, resolveTemplateKey } from "@/lib/evaluation/dreamTemplateLoader";
 
 export const PASS3B_PROMPT_VERSION = "pass3b-longform-v4-quality-calibration";
 
@@ -351,7 +352,15 @@ export function buildPass3bUserPrompt(params: {
     ? `\nCHAPTER INDEX (authoritative — use these real chapter numbers in arc_map and revision_plan)\n${params.chapterIndex}\n`
     : "";
 
+  const templateKey = resolveTemplateKey(params.wordCount, params.mode?.includes('multi_layer'));
+  const dreamTemplateBlock = buildCompactTemplateBlock(templateKey);
+
   return `Produce the DREAM long-form evaluation document for the manuscript titled "${params.title}".
+${dreamTemplateBlock ? `
+## DREAM EVALUATION TEMPLATE (Canonical Report Shape)
+The output document MUST conform to this canonical template. Use it as the structural authority for what sections to produce and what each section must contain.
+${dreamTemplateBlock}
+` : ""}
 ${correctionsSection}
 MANUSCRIPT FACTS
 - Title: ${params.title}

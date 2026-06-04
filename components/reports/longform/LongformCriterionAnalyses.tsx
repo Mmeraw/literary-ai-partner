@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import type { LongformDreamDocument } from "@/lib/evaluation/pipeline/runPass3bLongform";
+import { getCriterionDisplayLabel } from "@/lib/evaluation/reportRenderSafety";
 
 type Props = { doc: LongformDreamDocument };
 
@@ -48,8 +49,8 @@ function CriterionCard({ a }: { a: LongformDreamDocument["criterion_analyses"][n
           <span className={`text-xl font-bold tabular-nums ${scoreColor}`}>
             {safeScore !== null ? safeScore.toFixed(1) : "—"}
           </span>
-          <span className="font-medium text-gray-800 capitalize text-sm">
-            {a.key.replace(/_/g, " ")}
+          <span className="font-medium text-gray-800 text-sm">
+            {getCriterionDisplayLabel(a.key)}
           </span>
           <span className={`hidden sm:inline-block px-2 py-0.5 rounded text-xs font-medium ${badge}`}>
             {a.confidence}

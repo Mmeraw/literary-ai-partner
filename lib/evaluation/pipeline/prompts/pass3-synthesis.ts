@@ -16,6 +16,7 @@ import {
   getDefaultSynthesisReferenceCharBudget,
   summarizePromptCoverage,
 } from "../promptInput";
+import { buildCompactTemplateBlock, resolveTemplateKey } from "@/lib/evaluation/dreamTemplateLoader";
 
 export const PASS3_PROMPT_VERSION = "pass3-synthesis-v21-rec-or-rationale-contract";
 
@@ -161,7 +162,7 @@ Recommendation density floor (for criteria scoring ≤8):
 - Score 8/10: emit 2–5 recommendations per criterion.
 - Each recommendation MUST target a unique anchor_snippet (no duplicate passage citations within the same criterion).
 - Spread recommendations across different sections/zones of the text — do not cluster all recommendations in the opening paragraphs.
-- TOTAL CAP: The evaluation may surface up to 100 revision opportunities across all criteria combined. Prioritize MUST severity first, then SHOULD, then COULD. If the evidence supports more than 100, emit the 100 most impactful opportunities and stop.
+- TOTAL CAP: The evaluation may surface up to 100 revision opportunities across all criteria combined for long-form manuscripts (≥25,000 words). For short-form manuscripts (<25,000 words), the cap is 50 revision opportunities. Prioritize MUST severity first, then SHOULD, then COULD. If the evidence supports more than the cap, emit the most impactful opportunities up to the cap and stop.
 
 HARD ENFORCEMENT — SCORE ≤8 RECOMMENDATION CONTRACT:
 Any criterion with final_score_0_10 ≤ 8 MUST include ALL of the following. Omission is a contract violation:
@@ -554,6 +555,13 @@ Coverage truth signal:
 - Reference snippet (context anchor only): ${referenceSnippet}
 ${params.scopeProfile ? `- Submission scope: ${params.scopeProfile.inputScale} (${params.scopeProfile.wordCount} words; ${params.scopeProfile.chunkCount} chunk(s); ${params.scopeProfile.scorableCount}/13 criteria non-NA for this scope; confidence cap ${params.scopeProfile.confidenceCapSummary})` : ""}
 
+${(() => {
+  const templateKey = resolveTemplateKey(params.scopeProfile?.wordCount);
+  const templateBlock = buildCompactTemplateBlock(templateKey);
+  return templateBlock
+    ? `\n## DREAM EVALUATION TEMPLATE (Canonical Report Shape)\nThe evaluation output MUST conform to this template. Every required section must be populated.\n${templateBlock}\n`
+    : "";
+})()}
 ${params.ledgerWarning ? `\n\n## CHARACTER LEDGER STATUS\n${params.ledgerWarning}\n` : ""}
 ${buildPreflightDraftBlock(params.compactPreflightSummary)}
 ## PASS2A_STRUCTURED_CONTEXT (Hard Input)

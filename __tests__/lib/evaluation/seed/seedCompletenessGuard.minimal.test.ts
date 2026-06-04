@@ -51,10 +51,10 @@ const evaluationSeed = () => ({
     work_type: 'novella',
   },
   reporting_template_path: {
-    selected_template: 'templates/evaluation/short-form-13-criteria-v1',
-    short_form_template: 'templates/evaluation/short-form-13-criteria-v1',
-    long_form_template: 'templates/evaluation/long-form-v1',
-    long_form_multilayer_template: 'templates/evaluation/long-form-multilayer-v1',
+    selected_template: 'docs/templates/evaluation/short-form-evaluation-template.md',
+    short_form_template: 'docs/templates/evaluation/short-form-evaluation-template.md',
+    long_form_template: 'docs/templates/evaluation/long-form-evaluation-template.md',
+    long_form_multilayer_template: 'docs/templates/evaluation/long-form-multi-layer-evaluation-template.md',
   },
   criterion_scaffolds: CRITERIA_KEYS.map((criterion_key) => ({
     criterion_key,

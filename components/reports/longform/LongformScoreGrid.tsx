@@ -1,6 +1,5 @@
 import type { LongformDreamDocument } from "@/lib/evaluation/pipeline/runPass3bLongform";
-import { CRITERIA_METADATA } from "@/schemas/criteria-keys";
-import type { CriterionKey } from "@/schemas/criteria-keys";
+import { getCriterionDisplayLabel } from "@/lib/evaluation/reportRenderSafety";
 
 type Props = { doc: LongformDreamDocument };
 
@@ -63,7 +62,7 @@ export default function LongformScoreGrid({ doc }: Props) {
             return (
               <tr key={i} className="border-b border-gray-100 align-top">
                 <td className="py-2.5 pr-4 font-medium text-gray-800">
-                  {CRITERIA_METADATA[a.key as CriterionKey]?.label ?? a.key.replace(/_/g, " ")}
+                  {getCriterionDisplayLabel(a.key)}
                 </td>
                 <td className="py-2.5 pr-6">{scoreBar(a.score)}</td>
                 <td className="py-2.5 pr-4">

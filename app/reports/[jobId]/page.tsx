@@ -37,6 +37,7 @@ import { resolveReportTitle } from '@/lib/evaluation/reportTitle';
 import { hasActiveSupportGrant, logSupportView } from '@/lib/support/checkSupportAccess';
 import type { LongformDreamDocument } from '@/lib/evaluation/pipeline/runPass3bLongform';
 import { SynthesisPoller } from '@/components/evaluation/SynthesisPoller';
+import CriterionOpportunities from '@/components/reports/CriterionOpportunities';
 import DownloadReportButton from '@/components/reports/DownloadReportButton';
 import AutoPrintOnLoad from '@/components/reports/AutoPrintOnLoad';
 import SupportAccessToggle from '@/components/reports/SupportAccessToggle';
@@ -586,6 +587,21 @@ export default async function ReportPage({
                       </div>
                     )}
                   </div>
+                )}
+                {/* Criterion Opportunities (6-part diagnostic) */}
+                {Array.isArray((criterion as Record<string, unknown>).recommendations) &&
+                  ((criterion as Record<string, unknown>).recommendations as Array<Record<string, unknown>>).length > 0 && (
+                  <CriterionOpportunities
+                    recommendations={(criterion as Record<string, unknown>).recommendations as Array<{
+                      priority?: string;
+                      anchor_snippet?: string;
+                      symptom?: string;
+                      mechanism?: string;
+                      specific_fix?: string;
+                      reader_effect?: string;
+                      mistake_proofing?: string;
+                    }>}
+                  />
                 )}
               </div>
             ))}
