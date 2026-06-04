@@ -10,28 +10,11 @@ import {
  * POST /api/revise/generate-rewrite
  *
  * On-demand voice-conditioned rewrite generator.
- * Takes a single revision opportunity and generates manuscript-ready
- * A/B/C candidates in the author's voice.
- *
- * Body: {
- *   evaluationJobId: string;
- *   manuscriptId: string;
- *   opportunityId: string;
- *   originalPassage: string;
- *   editorialInstruction: string;
- *   symptom: string;
- *   cause: string;
- *   mistakeProofing?: string;
- *   operation: string;
- *   location: string;
- * }
  */
 export async function POST(req: Request) {
   try {
     const user = await getAuthenticatedUser();
-    if (!user) {
-      return NextResponse.json({ ok: false, error: "Not authenticated" }, { status: 401 });
-    }
+    if (!user) return NextResponse.json({ ok: false, error: "Not authenticated" }, { status: 401 });
 
     const body = await req.json();
     const {
@@ -54,7 +37,6 @@ export async function POST(req: Request) {
       );
     }
 
-    // Word count gate — only generate for passages ≤ 1200 words
     const wordCount = originalPassage.split(/\s+/).length;
     if (wordCount > 1200) {
       return NextResponse.json(
@@ -65,7 +47,6 @@ export async function POST(req: Request) {
 
     const supabase = createAdminClient();
 
-    // Verify the user owns the manuscript
     const { data: manuscript, error: msError } = await supabase
       .from("manuscripts")
       .select("id, user_id")
@@ -73,11 +54,8 @@ export async function POST(req: Request) {
       .eq("user_id", user.id)
       .maybeSingle();
 
-    if (msError || !manuscript) {
-      return NextResponse.json({ ok: false, error: "Manuscript not found" }, { status: 404 });
-    }
+    if (msError || !manuscript) return NextResponse.json({ ok: false, error: "Manuscript not found" }, { status: 404 });
 
-    // Load manuscript text for voice conditioning
     const { data: versionData } = await supabase
       .from("evaluation_jobs")
       .select("manuscript_version_id")
@@ -95,7 +73,6 @@ export async function POST(req: Request) {
     }
 
     if (!manuscriptText) {
-      // Fallback: try loading from manuscripts table directly
       const { data: msText } = await supabase
         .from("manuscripts")
         .select("content")
@@ -104,20 +81,25 @@ export async function POST(req: Request) {
       manuscriptText = msText?.content ?? "";
     }
 
-    // Extract voice context from surrounding manuscript
     const voiceContext = extractVoiceContext(manuscriptText, originalPassage, 300);
 
-    const result = await runPass4VoiceRewrite({
-      originalPassage,
-      editorialInstruction: editorialInstruction || "Revise this passage to address the diagnosed issue.",
-      symptom: symptom || "",
-      cause: cause || "",
-      mistakeProofing: mistakeProofing || "",
-      operation: operation || "replace",
-      voiceContext,
-      location: location || "",
-      trustedPathOnly: !!trustedPath,
-    });
+    const result = await runPass4VoiceRewrite(
+      {
+        originalPassage,
+        editorialInstruction: editorialInstruction || "Revise this passage to address the diagnosed issue.",
+        symptom: symptom || "",
+        cause: cause || "",
+        mistakeProofing: mistakeProofing || "",
+        operation: operation || "replace",
+        voiceContext,
+        location: location || "",
+        trustedPathOnly: !!trustedPath,
+      },
+      {
+        jobId: evaluationJobId,
+        phase: trustedPath ? "pass4_voice_rewrite_trusted_path" : "pass4_voice_rewrite",
+      },
+    );
 
     return NextResponse.json({
       ok: true,

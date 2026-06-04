@@ -1,12 +1,7 @@
 /**
  * CostOps Dashboard API
  *
- * GET /api/admin/costs
- *
- * Returns full CostOps dashboard data: KPI summary, model/phase
- * breakdowns, recent job costs, alerts, and provider status.
- *
- * Auth: Requires admin session via requireAdmin.
+ * GET /api/admin/costs?range=24h|5d|30d|all
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -18,7 +13,8 @@ export async function GET(request: NextRequest) {
   if (denied) return denied;
 
   try {
-    const data = await getCostOpsDashboardData();
+    const range = request.nextUrl.searchParams.get("range");
+    const data = await getCostOpsDashboardData(range);
 
     return NextResponse.json({
       success: true,
