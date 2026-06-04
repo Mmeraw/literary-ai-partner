@@ -1,22 +1,17 @@
 /**
- * CostOps Dashboard — Data Layer
+ * CostOps Dashboard - Data Layer
  *
- * Aggregates LLM usage from the `job_costs` table into a single dashboard
- * payload: KPI summary, model/phase breakdowns, recent jobs, alerts, and
- * provider status.
- *
- * All monetary values are **integer USD cents** to avoid floating-point drift.
- *
- * @module lib/admin/costops
+ * Aggregates tracked LLM usage from `job_costs` and combines it with optional
+ * monthly provider overhead allocations so admin pages can show total operating
+ * cost by range without pretending unconfigured provider costs are known.
  */
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { resolveTrackedCostCents } from "@/lib/jobs/cost";
 import { formatUsdFromCents } from "@/lib/admin/formatMoney";
 
-// ─── Types ──────────────────────────────────────────────────────────
-
 export type CostOpsSeverity = "ok" | "watch" | "danger" | "unknown";
+export type CostOpsRange = "24h" | "5d" | "30d" | "all";
 
 export interface CostOpsMoneyBreakdown {
   usageCents: number;
@@ -24,10 +19,24 @@ export interface CostOpsMoneyBreakdown {
   totalCents: number;
 }
 
+export interface CostOpsProviderCostRow {
+  provider: string;
+  usageCents: number;
+  fixedAllocatedCents: number;
+  totalCents: number;
+  source: "tracked" | "configured_monthly" | "manual_required";
+  detail: string;
+}
+
 export interface CostOpsSummary {
   currency: "USD";
+  range: CostOpsRange;
+  rangeLabel: string;
+  rangeStart: string | null;
+  rangeEnd: string;
   today: CostOpsMoneyBreakdown;
   monthToDate: CostOpsMoneyBreakdown;
+  selectedRange: CostOpsMoneyBreakdown;
   projectedMonthEndCents: number;
   monthlyBudgetCents: number | null;
   budgetRemainingCents: number | null;
@@ -45,6 +54,7 @@ export interface CostOpsSummary {
   topPhase: string | null;
   mostExpensiveJobId: string | null;
   mostExpensiveJobCostCents: number;
+  completeness: "complete_if_overheads_configured" | "llm_only";
   generatedAt: string;
 }
 
@@ -63,6 +73,8 @@ export interface CostOpsJobRow {
   status: string | null;
   phase: string | null;
   usageCents: number;
+  allocatedOverheadCents: number;
+  totalCostCents: number;
   callCount: number;
   inputTokens: number;
   outputTokens: number;
@@ -85,6 +97,7 @@ export interface CostOpsProviderStatus {
 
 export interface CostOpsDashboardData {
   summary: CostOpsSummary;
+  providerCosts: CostOpsProviderCostRow[];
   modelBreakdown: CostOpsBreakdownRow[];
   phaseBreakdown: CostOpsBreakdownRow[];
   recentJobs: CostOpsJobRow[];
@@ -92,50 +105,6 @@ export interface CostOpsDashboardData {
   alerts: CostOpsAlert[];
   warnings: string[];
 }
-
-// ─── Helpers ────────────────────────────────────────────────────────
-
-function safeNum(v: unknown, fallback = 0): number {
-  return typeof v === "number" && Number.isFinite(v) ? v : fallback;
-}
-
-function startOfTodayIso(): string {
-  const d = new Date();
-  d.setUTCHours(0, 0, 0, 0);
-  return d.toISOString();
-}
-
-function startOfMonthIso(): string {
-  const d = new Date();
-  d.setUTCDate(1);
-  d.setUTCHours(0, 0, 0, 0);
-  return d.toISOString();
-}
-
-function sevenDaysAgoIso(): string {
-  return new Date(Date.now() - 7 * 86_400_000).toISOString();
-}
-
-function daysElapsedInMonth(): number {
-  const now = new Date();
-  return now.getUTCDate();
-}
-
-function daysInCurrentMonth(): number {
-  const now = new Date();
-  return new Date(now.getUTCFullYear(), now.getUTCMonth() + 1, 0).getUTCDate();
-}
-
-// ─── Monthly budget (env-configurable) ──────────────────────────────
-
-const MONTHLY_BUDGET_CENTS: number | null = (() => {
-  const raw = process.env.COSTOPS_MONTHLY_BUDGET_USD;
-  if (!raw) return null;
-  const n = Number(raw);
-  return Number.isFinite(n) && n > 0 ? Math.round(n * 100) : null;
-})();
-
-// ─── Data fetching ──────────────────────────────────────────────────
 
 interface RawCostRow {
   job_id: string;
@@ -145,6 +114,132 @@ interface RawCostRow {
   output_tokens: number | null;
   cost_cents: number | null;
   called_at: string | null;
+}
+
+interface RawJobRow {
+  id: string;
+  manuscript_id: string | null;
+  status: string | null;
+}
+
+const RANGE_LABELS: Record<CostOpsRange, string> = {
+  "24h": "Last 24 hours",
+  "5d": "Last 5 days",
+  "30d": "Last 30 days",
+  all: "All time",
+};
+
+const MONTHLY_BUDGET_CENTS = readUsdEnvCents("COSTOPS_MONTHLY_BUDGET_USD");
+
+function safeNum(v: unknown, fallback = 0): number {
+  return typeof v === "number" && Number.isFinite(v) ? v : fallback;
+}
+
+function readUsdEnvCents(name: string): number | null {
+  const raw = process.env[name];
+  if (!raw) return null;
+  const n = Number(raw);
+  return Number.isFinite(n) && n >= 0 ? n * 100 : null;
+}
+
+export function normalizeCostRange(value: string | null | undefined): CostOpsRange {
+  if (value === "24h" || value === "5d" || value === "30d" || value === "all") return value;
+  return "24h";
+}
+
+export function getCostRangeWindow(range: CostOpsRange, now = new Date()): { start: string | null; end: string; label: string; days: number | null } {
+  const end = now.toISOString();
+  if (range === "all") return { start: null, end, label: RANGE_LABELS.all, days: null };
+  const days = range === "24h" ? 1 : range === "5d" ? 5 : 30;
+  return {
+    start: new Date(now.getTime() - days * 86_400_000).toISOString(),
+    end,
+    label: RANGE_LABELS[range],
+    days,
+  };
+}
+
+function startOfTodayIso(now = new Date()): string {
+  const d = new Date(now);
+  d.setUTCHours(0, 0, 0, 0);
+  return d.toISOString();
+}
+
+function startOfMonthIso(now = new Date()): string {
+  const d = new Date(now);
+  d.setUTCDate(1);
+  d.setUTCHours(0, 0, 0, 0);
+  return d.toISOString();
+}
+
+function sevenDaysAgoIso(now = new Date()): string {
+  return new Date(now.getTime() - 7 * 86_400_000).toISOString();
+}
+
+function daysElapsedInMonth(now = new Date()): number {
+  return now.getUTCDate();
+}
+
+function daysInCurrentMonth(now = new Date()): number {
+  return new Date(now.getUTCFullYear(), now.getUTCMonth() + 1, 0).getUTCDate();
+}
+
+function rowCostCents(row: RawCostRow): number {
+  return resolveTrackedCostCents({
+    model: row.model,
+    inputTokens: row.input_tokens,
+    outputTokens: row.output_tokens,
+    recordedCostCents: row.cost_cents,
+  });
+}
+
+function filterRowsByStart(rows: RawCostRow[], start: string | null): RawCostRow[] {
+  if (!start) return rows;
+  return rows.filter((row) => (row.called_at ?? "") >= start);
+}
+
+function sumCents(rows: RawCostRow[]): number {
+  return rows.reduce((sum, row) => sum + rowCostCents(row), 0);
+}
+
+function getMonthlyOverheads(): Array<{ provider: string; cents: number | null; envName: string }> {
+  return [
+    { provider: "Vercel", cents: readUsdEnvCents("COSTOPS_VERCEL_MONTHLY_USD"), envName: "COSTOPS_VERCEL_MONTHLY_USD" },
+    { provider: "Supabase", cents: readUsdEnvCents("COSTOPS_SUPABASE_MONTHLY_USD"), envName: "COSTOPS_SUPABASE_MONTHLY_USD" },
+    { provider: "Other", cents: readUsdEnvCents("COSTOPS_OTHER_MONTHLY_USD"), envName: "COSTOPS_OTHER_MONTHLY_USD" },
+  ];
+}
+
+function allocateMonthlyOverheadCents(range: CostOpsRange, days: number | null, monthlyCents: number | null): number {
+  if (!monthlyCents) return 0;
+  if (range === "all") return 0;
+  return (monthlyCents / 30) * (days ?? 0);
+}
+
+export function getConfiguredOverheadForRange(range: CostOpsRange, days: number | null): { rows: CostOpsProviderCostRow[]; totalCents: number; missingProviders: string[] } {
+  const rows: CostOpsProviderCostRow[] = [];
+  const missingProviders: string[] = [];
+
+  for (const provider of getMonthlyOverheads()) {
+    const allocated = allocateMonthlyOverheadCents(range, days, provider.cents);
+    if (provider.cents === null) missingProviders.push(provider.provider);
+    rows.push({
+      provider: provider.provider,
+      usageCents: 0,
+      fixedAllocatedCents: allocated,
+      totalCents: allocated,
+      source: provider.cents === null ? "manual_required" : "configured_monthly",
+      detail: provider.cents === null
+        ? `Set ${provider.envName} to include this provider in total cost.`
+        : `${formatUsdFromCents(provider.cents)} monthly allocation prorated into the selected range.`,
+    });
+  }
+
+  return {
+    rows,
+    totalCents: rows.reduce((sum, row) => sum + row.totalCents, 0),
+    missingProviders,
+  };
 }
 
 async function fetchAllCosts(): Promise<RawCostRow[]> {
@@ -160,10 +255,7 @@ async function fetchAllCosts(): Promise<RawCostRow[]> {
       .range(from, from + pageSize - 1)
       .order("called_at", { ascending: false });
 
-    if (error) {
-      console.error("[costops] Error fetching costs:", error);
-      break;
-    }
+    if (error) throw new Error(error.message);
     if (!data || data.length === 0) break;
     rows.push(...(data as RawCostRow[]));
     if (data.length < pageSize) break;
@@ -173,18 +265,11 @@ async function fetchAllCosts(): Promise<RawCostRow[]> {
   return rows;
 }
 
-interface RawJobRow {
-  id: string;
-  manuscript_id: string | null;
-  status: string | null;
-}
-
 async function fetchJobMetadata(jobIds: string[]): Promise<Map<string, RawJobRow>> {
   if (jobIds.length === 0) return new Map();
   const supabase = createAdminClient();
   const map = new Map<string, RawJobRow>();
 
-  // Batch in groups of 100 for IN-filter safety
   for (let i = 0; i < jobIds.length; i += 100) {
     const batch = jobIds.slice(i, i + 100);
     const { data, error } = await supabase
@@ -192,290 +277,189 @@ async function fetchJobMetadata(jobIds: string[]): Promise<Map<string, RawJobRow
       .select("id, manuscript_id, status")
       .in("id", batch);
 
-    if (error) {
-      console.error("[costops] Error fetching job metadata:", error);
-      continue;
-    }
-    for (const row of data ?? []) {
-      map.set(row.id, row as RawJobRow);
-    }
+    if (error) continue;
+    for (const row of data ?? []) map.set(row.id, row as RawJobRow);
   }
 
   return map;
 }
 
-// ─── Aggregation ────────────────────────────────────────────────────
-
-function buildModelBreakdown(rows: RawCostRow[]): CostOpsBreakdownRow[] {
+function buildBreakdown(rows: RawCostRow[], keyFor: (row: RawCostRow) => string): CostOpsBreakdownRow[] {
   const map = new Map<string, { cost: number; calls: number; inTok: number; outTok: number }>();
 
-  for (const r of rows) {
-    const key = r.model ?? "unknown";
+  for (const row of rows) {
+    const key = keyFor(row);
     const entry = map.get(key) ?? { cost: 0, calls: 0, inTok: 0, outTok: 0 };
-    entry.cost += resolveTrackedCostCents({
-      model: r.model,
-      inputTokens: r.input_tokens,
-      outputTokens: r.output_tokens,
-      recordedCostCents: r.cost_cents,
-    });
+    entry.cost += rowCostCents(row);
     entry.calls += 1;
-    entry.inTok += safeNum(r.input_tokens);
-    entry.outTok += safeNum(r.output_tokens);
+    entry.inTok += safeNum(row.input_tokens);
+    entry.outTok += safeNum(row.output_tokens);
     map.set(key, entry);
   }
 
   return [...map.entries()]
-    .map(([key, v]) => ({
+    .map(([key, value]) => ({
       key,
-      usageCents: v.cost,
-      callCount: v.calls,
-      inputTokens: v.inTok,
-      outputTokens: v.outTok,
-      avgCostPerCallCents: v.calls > 0 ? v.cost / v.calls : 0,
+      usageCents: value.cost,
+      callCount: value.calls,
+      inputTokens: value.inTok,
+      outputTokens: value.outTok,
+      avgCostPerCallCents: value.calls > 0 ? value.cost / value.calls : 0,
     }))
     .sort((a, b) => b.usageCents - a.usageCents);
 }
 
-function buildPhaseBreakdown(rows: RawCostRow[]): CostOpsBreakdownRow[] {
-  const map = new Map<string, { cost: number; calls: number; inTok: number; outTok: number }>();
+function buildJobRows(rows: RawCostRow[], jobMeta: Map<string, RawJobRow>, allocatedOverheadCents: number): CostOpsJobRow[] {
+  const jobMap = new Map<string, { cost: number; calls: number; inTok: number; outTok: number; phases: Set<string>; first: string | null; last: string | null }>();
 
-  for (const r of rows) {
-    const key = r.phase ?? "unknown";
-    const entry = map.get(key) ?? { cost: 0, calls: 0, inTok: 0, outTok: 0 };
-    entry.cost += resolveTrackedCostCents({
-      model: r.model,
-      inputTokens: r.input_tokens,
-      outputTokens: r.output_tokens,
-      recordedCostCents: r.cost_cents,
-    });
+  for (const row of rows) {
+    const jobId = row.job_id;
+    if (!jobId) continue;
+    const entry = jobMap.get(jobId) ?? { cost: 0, calls: 0, inTok: 0, outTok: 0, phases: new Set<string>(), first: null, last: null };
+    entry.cost += rowCostCents(row);
     entry.calls += 1;
-    entry.inTok += safeNum(r.input_tokens);
-    entry.outTok += safeNum(r.output_tokens);
-    map.set(key, entry);
+    entry.inTok += safeNum(row.input_tokens);
+    entry.outTok += safeNum(row.output_tokens);
+    if (row.phase) entry.phases.add(row.phase);
+    if (row.called_at) {
+      if (!entry.first || row.called_at < entry.first) entry.first = row.called_at;
+      if (!entry.last || row.called_at > entry.last) entry.last = row.called_at;
+    }
+    jobMap.set(jobId, entry);
   }
 
-  return [...map.entries()]
-    .map(([key, v]) => ({
-      key,
-      usageCents: v.cost,
-      callCount: v.calls,
-      inputTokens: v.inTok,
-      outputTokens: v.outTok,
-      avgCostPerCallCents: v.calls > 0 ? v.cost / v.calls : 0,
-    }))
-    .sort((a, b) => b.usageCents - a.usageCents);
-}
+  const jobs = [...jobMap.entries()];
+  const totalLlm = jobs.reduce((sum, [, value]) => sum + value.cost, 0);
+  const equalShare = jobs.length > 0 ? allocatedOverheadCents / jobs.length : 0;
 
-function buildJobRows(
-  rows: RawCostRow[],
-  jobMeta: Map<string, RawJobRow>,
-): CostOpsJobRow[] {
-  const jobMap = new Map<
-    string,
-    {
-      cost: number;
-      calls: number;
-      inTok: number;
-      outTok: number;
-      phases: Set<string>;
-      first: string | null;
-      last: string | null;
-    }
-  >();
-
-  for (const r of rows) {
-    const jid = r.job_id;
-    const entry = jobMap.get(jid) ?? {
-      cost: 0,
-      calls: 0,
-      inTok: 0,
-      outTok: 0,
-      phases: new Set<string>(),
-      first: null,
-      last: null,
-    };
-    entry.cost += resolveTrackedCostCents({
-      model: r.model,
-      inputTokens: r.input_tokens,
-      outputTokens: r.output_tokens,
-      recordedCostCents: r.cost_cents,
-    });
-    entry.calls += 1;
-    entry.inTok += safeNum(r.input_tokens);
-    entry.outTok += safeNum(r.output_tokens);
-    if (r.phase) entry.phases.add(r.phase);
-    if (r.called_at) {
-      if (!entry.first || r.called_at < entry.first) entry.first = r.called_at;
-      if (!entry.last || r.called_at > entry.last) entry.last = r.called_at;
-    }
-    jobMap.set(jid, entry);
-  }
-
-  return [...jobMap.entries()]
-    .map(([jobId, v]) => {
+  return jobs
+    .map(([jobId, value]) => {
       const meta = jobMeta.get(jobId);
+      const overhead = totalLlm > 0 ? allocatedOverheadCents * (value.cost / totalLlm) : equalShare;
       return {
         jobId,
         manuscriptId: meta?.manuscript_id ?? null,
         status: meta?.status ?? null,
-        phase: [...v.phases].join(", ") || null,
-        usageCents: v.cost,
-        callCount: v.calls,
-        inputTokens: v.inTok,
-        outputTokens: v.outTok,
-        firstCalledAt: v.first,
-        lastCalledAt: v.last,
+        phase: [...value.phases].join(", ") || null,
+        usageCents: value.cost,
+        allocatedOverheadCents: overhead,
+        totalCostCents: value.cost + overhead,
+        callCount: value.calls,
+        inputTokens: value.inTok,
+        outputTokens: value.outTok,
+        firstCalledAt: value.first,
+        lastCalledAt: value.last,
       };
     })
-    .sort((a, b) => b.usageCents - a.usageCents)
+    .sort((a, b) => b.totalCostCents - a.totalCostCents)
     .slice(0, 50);
 }
 
-// ─── Alerts ─────────────────────────────────────────────────────────
-
-function buildAlerts(
-  todayCents: number,
-  mtdCents: number,
-  projectedCents: number,
-  budgetCents: number | null,
-  failedCents: number,
-  topModelPct: number,
-): CostOpsAlert[] {
+function buildAlerts(params: { selectedTotalCents: number; mtdTotalCents: number; projectedCents: number; budgetCents: number | null; failedCents: number; topModelPct: number; missingProviders: string[] }): CostOpsAlert[] {
   const alerts: CostOpsAlert[] = [];
 
-  if (budgetCents !== null && mtdCents > budgetCents) {
-    alerts.push({
-      code: "OVER_BUDGET",
-      severity: "danger",
-      title: "Over monthly budget",
-      detail: `Month-to-date spend (${formatUsdFromCents(mtdCents)}) exceeds the ${formatUsdFromCents(budgetCents)} budget.`,
-    });
-  } else if (budgetCents !== null && projectedCents > budgetCents) {
-    alerts.push({
-      code: "PROJECTED_OVER_BUDGET",
-      severity: "watch",
-      title: "Projected to exceed budget",
-      detail: `At current pace, month-end spend will be ~${formatUsdFromCents(projectedCents)} vs ${formatUsdFromCents(budgetCents)} budget.`,
-    });
+  if (params.budgetCents !== null && params.mtdTotalCents > params.budgetCents) {
+    alerts.push({ code: "OVER_BUDGET", severity: "danger", title: "Over monthly budget", detail: `Month-to-date total cost (${formatUsdFromCents(params.mtdTotalCents)}) exceeds the ${formatUsdFromCents(params.budgetCents)} budget.` });
+  } else if (params.budgetCents !== null && params.projectedCents > params.budgetCents) {
+    alerts.push({ code: "PROJECTED_OVER_BUDGET", severity: "watch", title: "Projected to exceed budget", detail: `At current pace, month-end total cost will be ~${formatUsdFromCents(params.projectedCents)}.` });
   }
 
-  if (todayCents > 500) {
-    alerts.push({
-      code: "HIGH_DAILY_SPEND",
-      severity: "watch",
-      title: "High daily spend",
-      detail: `Today's spend is ${formatUsdFromCents(todayCents)}. Review recent jobs for unexpected volume.`,
-    });
+  if (params.selectedTotalCents > 500) {
+    alerts.push({ code: "HIGH_RANGE_SPEND", severity: "watch", title: "High selected-range spend", detail: `Selected range total is ${formatUsdFromCents(params.selectedTotalCents)}.` });
   }
 
-  if (failedCents > 100) {
-    alerts.push({
-      code: "WASTED_ON_FAILURES",
-      severity: "watch",
-      title: "Spend on failed jobs",
-      detail: `${formatUsdFromCents(failedCents)} wasted on failed evaluation jobs this month.`,
-    });
+  if (params.failedCents > 100) {
+    alerts.push({ code: "WASTED_ON_FAILURES", severity: "watch", title: "Spend on failed jobs", detail: `${formatUsdFromCents(params.failedCents)} spent on failed jobs this month.` });
   }
 
-  if (topModelPct > 80) {
-    alerts.push({
-      code: "MODEL_CONCENTRATION",
-      severity: "watch",
-      title: "Model concentration risk",
-      detail: `Over ${Math.round(topModelPct)}% of spend is on a single model. Consider routing more phases to cheaper models.`,
-    });
+  if (params.topModelPct > 80) {
+    alerts.push({ code: "MODEL_CONCENTRATION", severity: "watch", title: "Model concentration risk", detail: `Over ${Math.round(params.topModelPct)}% of tracked LLM spend is on one model.` });
+  }
+
+  if (params.missingProviders.length > 0) {
+    alerts.push({ code: "MANUAL_COSTS_MISSING", severity: "watch", title: "Provider costs need configuration", detail: `${params.missingProviders.join(", ")} are not included until their monthly cost env vars are set.` });
   }
 
   if (alerts.length === 0) {
-    alerts.push({
-      code: "ALL_CLEAR",
-      severity: "ok",
-      title: "All clear",
-      detail: "No spend anomalies detected.",
-    });
+    alerts.push({ code: "ALL_CLEAR", severity: "ok", title: "All clear", detail: "No spend anomalies detected for this range." });
   }
 
   return alerts;
 }
 
-// ─── Provider status ────────────────────────────────────────────────
-
 function getProviderStatus(): CostOpsProviderStatus[] {
-  const statuses: CostOpsProviderStatus[] = [];
-
-  statuses.push({
-    provider: "OpenAI",
-    status: process.env.OPENAI_API_KEY ? "configured" : "missing_env",
-    detail: process.env.OPENAI_API_KEY
-      ? "API key set. Cost data from job_costs table."
-      : "OPENAI_API_KEY not set.",
-  });
-
-  statuses.push({
-    provider: "Supabase",
-    status: process.env.SUPABASE_SERVICE_ROLE_KEY ? "configured" : "missing_env",
-    detail: process.env.SUPABASE_SERVICE_ROLE_KEY
-      ? "Service role key set."
-      : "SUPABASE_SERVICE_ROLE_KEY not set.",
-  });
-
-  statuses.push({
-    provider: "Vercel",
-    status: "manual",
-    detail: "Vercel hosting costs tracked manually. Check your Vercel billing dashboard.",
-  });
-
-  return statuses;
+  return [
+    {
+      provider: "OpenAI",
+      status: process.env.OPENAI_API_KEY ? "configured" : "missing_env",
+      detail: process.env.OPENAI_API_KEY ? "Tracked from job_costs token telemetry." : "OPENAI_API_KEY not set.",
+    },
+    {
+      provider: "Supabase",
+      status: process.env.COSTOPS_SUPABASE_MONTHLY_USD ? "configured" : "manual",
+      detail: process.env.COSTOPS_SUPABASE_MONTHLY_USD ? "Monthly overhead allocation configured." : "Set COSTOPS_SUPABASE_MONTHLY_USD to include billing allocation.",
+    },
+    {
+      provider: "Vercel",
+      status: process.env.COSTOPS_VERCEL_MONTHLY_USD ? "configured" : "manual",
+      detail: process.env.COSTOPS_VERCEL_MONTHLY_USD ? "Monthly overhead allocation configured." : "Set COSTOPS_VERCEL_MONTHLY_USD to include billing allocation.",
+    },
+  ];
 }
 
-// ─── Main entry point ───────────────────────────────────────────────
-
-export async function getCostOpsDashboardData(): Promise<CostOpsDashboardData> {
+export async function getCostOpsDashboardData(rangeInput?: string | null): Promise<CostOpsDashboardData> {
   const supabase = createAdminClient();
   const warnings: string[] = [];
   const now = new Date();
+  const range = normalizeCostRange(rangeInput);
+  const rangeWindow = getCostRangeWindow(range, now);
 
-  let allRows: RawCostRow[];
+  let allRows: RawCostRow[] = [];
   try {
     allRows = await fetchAllCosts();
   } catch {
     warnings.push("Failed to fetch cost data from Supabase. Showing zeros.");
-    allRows = [];
   }
 
-  const todayIso = startOfTodayIso();
-  const monthIso = startOfMonthIso();
-  const sevenDaysIso = sevenDaysAgoIso();
+  const selectedRows = filterRowsByStart(allRows, rangeWindow.start);
+  const todayRows = filterRowsByStart(allRows, startOfTodayIso(now));
+  const mtdRows = filterRowsByStart(allRows, startOfMonthIso(now));
+  const last7dRows = filterRowsByStart(allRows, sevenDaysAgoIso(now));
 
-  const todayRows = allRows.filter((r) => (r.called_at ?? "") >= todayIso);
-  const mtdRows = allRows.filter((r) => (r.called_at ?? "") >= monthIso);
-  const last7dRows = allRows.filter((r) => (r.called_at ?? "") >= sevenDaysIso);
-
-  const sumCents = (rows: RawCostRow[]) => rows.reduce((s, r) => s + resolveTrackedCostCents({
-    model: r.model,
-    inputTokens: r.input_tokens,
-    outputTokens: r.output_tokens,
-    recordedCostCents: r.cost_cents,
-  }), 0);
-
-  const todayCents = sumCents(todayRows);
-  const mtdCents = sumCents(mtdRows);
+  const selectedLlmCents = sumCents(selectedRows);
+  const todayLlmCents = sumCents(todayRows);
+  const mtdLlmCents = sumCents(mtdRows);
   const last7dCents = sumCents(last7dRows);
-  const allTimeTotalCents = sumCents(allRows);
-  const totalCalls = allRows.length;
+  const allTimeLlmCents = sumCents(allRows);
+  const totalCalls = selectedRows.length;
 
-  const uniqueJobIds = [...new Set(allRows.map((r) => r.job_id).filter(Boolean))];
-  const jobsWithCosts = uniqueJobIds.length;
+  const overhead = getConfiguredOverheadForRange(range, rangeWindow.days);
+  const mtdOverhead = getConfiguredOverheadForRange("30d", daysElapsedInMonth(now));
+  const todayOverhead = getConfiguredOverheadForRange("24h", 1);
 
-  let jobMeta: Map<string, RawJobRow>;
+  const providerCosts: CostOpsProviderCostRow[] = [
+    {
+      provider: "OpenAI",
+      usageCents: selectedLlmCents,
+      fixedAllocatedCents: 0,
+      totalCents: selectedLlmCents,
+      source: "tracked",
+      detail: "Exact tracked LLM token spend from job_costs.",
+    },
+    ...overhead.rows,
+  ];
+
+  const uniqueJobIds = [...new Set(selectedRows.map((row) => row.job_id).filter(Boolean))];
+  const allUniqueJobIds = [...new Set(allRows.map((row) => row.job_id).filter(Boolean))];
+  const jobsWithCosts = allUniqueJobIds.length;
+
+  let jobMeta = new Map<string, RawJobRow>();
   try {
     jobMeta = await fetchJobMetadata(uniqueJobIds);
   } catch {
     warnings.push("Failed to fetch job metadata.");
-    jobMeta = new Map();
   }
 
-  // Count total evaluation jobs and untracked ones
   let totalEvaluationJobs = 0;
   let untrackedJobs = 0;
   try {
@@ -489,48 +473,44 @@ export async function getCostOpsDashboardData(): Promise<CostOpsDashboardData> {
     warnings.push("Could not count total evaluation jobs.");
   }
 
-  // Failed job spend (MTD)
   const failedJobIds = new Set<string>();
-  for (const [jid, meta] of jobMeta.entries()) {
-    if (meta.status === "failed") failedJobIds.add(jid);
+  for (const [jobId, meta] of jobMeta.entries()) {
+    if (meta.status === "failed") failedJobIds.add(jobId);
   }
-  const failedCents = sumCents(mtdRows.filter((r) => failedJobIds.has(r.job_id)));
+  const failedCents = sumCents(mtdRows.filter((row) => failedJobIds.has(row.job_id)));
 
-  // Avg cost per job (MTD)
-  const mtdJobIds = new Set(mtdRows.map((r) => r.job_id));
-  const avgUsageCostPerJobCents = mtdJobIds.size > 0 ? mtdCents / mtdJobIds.size : 0;
+  const selectedJobIds = new Set(selectedRows.map((row) => row.job_id).filter(Boolean));
+  const avgUsageCostPerJobCents = selectedJobIds.size > 0 ? (selectedLlmCents + overhead.totalCents) / selectedJobIds.size : 0;
 
-  // Month-end projection
-  const elapsed = daysElapsedInMonth();
-  const totalDays = daysInCurrentMonth();
-  const projectedCents = elapsed > 0 ? Math.round((mtdCents / elapsed) * totalDays) : 0;
+  const elapsed = daysElapsedInMonth(now);
+  const totalDays = daysInCurrentMonth(now);
+  const projectedCents = elapsed > 0 ? Math.round(((mtdLlmCents + mtdOverhead.totalCents) / elapsed) * totalDays) : 0;
 
-  // Top model + top phase
-  const modelBreakdown = buildModelBreakdown(allRows);
-  const phaseBreakdown = buildPhaseBreakdown(allRows);
+  const modelBreakdown = buildBreakdown(selectedRows, (row) => row.model ?? "unknown");
+  const phaseBreakdown = buildBreakdown(selectedRows, (row) => row.phase ?? "unknown");
   const topModel = modelBreakdown[0]?.key ?? null;
   const topPhase = phaseBreakdown[0]?.key ?? null;
+  const topModelPct = modelBreakdown[0] && selectedLlmCents > 0 ? (modelBreakdown[0].usageCents / selectedLlmCents) * 100 : 0;
 
-  const totalAllCents = sumCents(allRows);
-  const topModelPct = modelBreakdown[0] && totalAllCents > 0
-    ? (modelBreakdown[0].usageCents / totalAllCents) * 100
-    : 0;
-
-  // Most expensive job
-  const jobRows = buildJobRows(allRows, jobMeta);
+  const jobRows = buildJobRows(selectedRows, jobMeta, overhead.totalCents);
   const mostExpensiveJob = jobRows[0] ?? null;
+  const selectedTotalCents = selectedLlmCents + overhead.totalCents;
+  const mtdTotalCents = mtdLlmCents + mtdOverhead.totalCents;
 
   const summary: CostOpsSummary = {
     currency: "USD",
-    today: { usageCents: todayCents, fixedAllocatedCents: 0, totalCents: todayCents },
-    monthToDate: { usageCents: mtdCents, fixedAllocatedCents: 0, totalCents: mtdCents },
+    range,
+    rangeLabel: rangeWindow.label,
+    rangeStart: rangeWindow.start,
+    rangeEnd: rangeWindow.end,
+    today: { usageCents: todayLlmCents, fixedAllocatedCents: todayOverhead.totalCents, totalCents: todayLlmCents + todayOverhead.totalCents },
+    monthToDate: { usageCents: mtdLlmCents, fixedAllocatedCents: mtdOverhead.totalCents, totalCents: mtdTotalCents },
+    selectedRange: { usageCents: selectedLlmCents, fixedAllocatedCents: overhead.totalCents, totalCents: selectedTotalCents },
     projectedMonthEndCents: projectedCents,
     monthlyBudgetCents: MONTHLY_BUDGET_CENTS,
-    budgetRemainingCents: MONTHLY_BUDGET_CENTS !== null ? MONTHLY_BUDGET_CENTS - mtdCents : null,
-    budgetUsedPct: MONTHLY_BUDGET_CENTS !== null && MONTHLY_BUDGET_CENTS > 0
-      ? Math.round((mtdCents / MONTHLY_BUDGET_CENTS) * 100)
-      : null,
-    allTimeTotalCents,
+    budgetRemainingCents: MONTHLY_BUDGET_CENTS !== null ? MONTHLY_BUDGET_CENTS - mtdTotalCents : null,
+    budgetUsedPct: MONTHLY_BUDGET_CENTS !== null && MONTHLY_BUDGET_CENTS > 0 ? Math.round((mtdTotalCents / MONTHLY_BUDGET_CENTS) * 100) : null,
+    allTimeTotalCents: allTimeLlmCents,
     last7dUsageCents: last7dCents,
     jobsWithCosts,
     totalEvaluationJobs,
@@ -542,21 +522,28 @@ export async function getCostOpsDashboardData(): Promise<CostOpsDashboardData> {
     topModel,
     topPhase,
     mostExpensiveJobId: mostExpensiveJob?.jobId ?? null,
-    mostExpensiveJobCostCents: mostExpensiveJob?.usageCents ?? 0,
+    mostExpensiveJobCostCents: mostExpensiveJob?.totalCostCents ?? 0,
+    completeness: overhead.missingProviders.length === 0 ? "complete_if_overheads_configured" : "llm_only",
     generatedAt: now.toISOString(),
   };
 
-  const alerts = buildAlerts(
-    todayCents,
-    mtdCents,
+  if (range === "all" && overhead.rows.some((row) => row.source === "configured_monthly")) {
+    warnings.push("All-time view includes exact tracked LLM costs only; monthly overhead allocations apply to time-bounded ranges.");
+  }
+
+  const alerts = buildAlerts({
+    selectedTotalCents,
+    mtdTotalCents,
     projectedCents,
-    MONTHLY_BUDGET_CENTS,
+    budgetCents: MONTHLY_BUDGET_CENTS,
     failedCents,
     topModelPct,
-  );
+    missingProviders: overhead.missingProviders,
+  });
 
   return {
     summary,
+    providerCosts,
     modelBreakdown,
     phaseBreakdown,
     recentJobs: jobRows,
@@ -566,8 +553,6 @@ export async function getCostOpsDashboardData(): Promise<CostOpsDashboardData> {
   };
 }
 
-// ─── Backfill ───────────────────────────────────────────────────────
-
 export interface BackfillResult {
   backfilledCount: number;
   estimatedTotalCents: number;
@@ -575,29 +560,15 @@ export interface BackfillResult {
   errors: string[];
 }
 
-/**
- * Backfill estimated costs for completed evaluation jobs that have no
- * `job_costs` entries. Uses the average cost per tracked evaluation
- * (from existing data) or a configurable fallback.
- *
- * Inserts a single summary row per untracked job with phase="backfill_estimate"
- * so the data is clearly distinguishable from real tracked costs.
- *
- * Safe to call multiple times — skips jobs that already have cost entries.
- */
 export async function backfillHistoricalCosts(): Promise<BackfillResult> {
   const supabase = createAdminClient();
   const errors: string[] = [];
-
-  // 1. Get all job IDs that already have cost entries
   const trackedJobIds = new Set<string>();
   let from = 0;
   const pageSize = 1000;
+
   while (true) {
-    const { data, error } = await supabase
-      .from("job_costs")
-      .select("job_id")
-      .range(from, from + pageSize - 1);
+    const { data, error } = await supabase.from("job_costs").select("job_id").range(from, from + pageSize - 1);
     if (error) {
       errors.push(`Error fetching tracked job IDs: ${error.message}`);
       break;
@@ -608,19 +579,15 @@ export async function backfillHistoricalCosts(): Promise<BackfillResult> {
     from += pageSize;
   }
 
-  // 2. Calculate average cost per tracked evaluation
-  let avgCostCentsPerJob = 564; // fallback: $5.64 (reasonable estimate)
+  let avgCostCentsPerJob = 564;
   if (trackedJobIds.size > 0) {
-    const { data: costSums } = await supabase
-      .from("job_costs")
-      .select("cost_cents");
+    const { data: costSums } = await supabase.from("job_costs").select("cost_cents");
     if (costSums && costSums.length > 0) {
-      const totalTracked = costSums.reduce((s, r) => s + safeNum(r.cost_cents), 0);
+      const totalTracked = costSums.reduce((sum, row) => sum + safeNum(row.cost_cents), 0);
       avgCostCentsPerJob = Math.max(1, Math.round(totalTracked / trackedJobIds.size));
     }
   }
 
-  // 3. Get all completed/failed evaluation jobs
   const { data: allJobs, error: jobsError } = await supabase
     .from("evaluation_jobs")
     .select("id, status, created_at")
@@ -632,34 +599,26 @@ export async function backfillHistoricalCosts(): Promise<BackfillResult> {
     return { backfilledCount: 0, estimatedTotalCents: 0, skippedCount: 0, errors };
   }
 
-  // 4. Filter to untracked jobs
-  const untrackedJobs = (allJobs ?? []).filter((j) => !trackedJobIds.has(j.id));
+  const untrackedJobs = (allJobs ?? []).filter((job) => !trackedJobIds.has(job.id));
+  if (untrackedJobs.length === 0) return { backfilledCount: 0, estimatedTotalCents: 0, skippedCount: 0, errors };
 
-  if (untrackedJobs.length === 0) {
-    return { backfilledCount: 0, estimatedTotalCents: 0, skippedCount: 0, errors };
-  }
-
-  // 5. Insert backfill estimates in batches
   let backfilledCount = 0;
   let estimatedTotalCents = 0;
   let skippedCount = 0;
 
   for (let i = 0; i < untrackedJobs.length; i += 50) {
     const batch = untrackedJobs.slice(i, i + 50);
-    const rows = batch.map((j) => ({
-      job_id: j.id,
+    const rows = batch.map((job) => ({
+      job_id: job.id,
       phase: "backfill_estimate",
       model: "gpt-5.1",
       input_tokens: 0,
       output_tokens: 0,
       cost_cents: avgCostCentsPerJob,
-      called_at: j.created_at ?? new Date().toISOString(),
+      called_at: job.created_at ?? new Date().toISOString(),
     }));
 
-    const { error: insertError } = await supabase
-      .from("job_costs")
-      .insert(rows);
-
+    const { error: insertError } = await supabase.from("job_costs").insert(rows);
     if (insertError) {
       errors.push(`Batch insert error (offset ${i}): ${insertError.message}`);
       skippedCount += batch.length;
