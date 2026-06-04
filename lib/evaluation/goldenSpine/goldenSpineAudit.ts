@@ -61,6 +61,35 @@ const MOTIF_OBJECT_PATTERNS = [
 /** Named character patterns (capitalized proper nouns appearing in dialogue context) */
 const CHARACTER_NAME_PATTERN = /\b([A-Z][a-z]{2,}(?:\s[A-Z][a-z]{2,})?)\b/g;
 
+/** Common English words that match the capitalized pattern at sentence start.
+ *  Includes pronouns, conjunctions, prepositions, determiners, and structural labels. */
+const GOLDEN_SPINE_NAME_EXCLUSIONS = new Set([
+  // Pronouns (frequently capitalized at sentence start)
+  'She', 'Her', 'His', 'Him', 'They', 'Them', 'Their', 'Its',
+  'You', 'Your', 'Our', 'Who', 'Whom', 'Whose',
+  // Demonstratives & determiners
+  'The', 'This', 'That', 'These', 'Those', 'Each', 'Every', 'Some', 'Any', 'All', 'Both',
+  // Conjunctions & connectors
+  'And', 'But', 'For', 'Nor', 'Yet', 'Not', 'Now', 'Then', 'Than', 'Also',
+  // Prepositions
+  'With', 'From', 'Into', 'Over', 'After', 'Before', 'Between', 'Through',
+  'During', 'Under', 'Upon', 'About', 'Above', 'Below', 'Along', 'Among',
+  'Around', 'Behind', 'Beyond', 'Within', 'Without', 'Against', 'Across',
+  // Interrogatives & relatives
+  'What', 'When', 'Where', 'Which', 'How', 'Why',
+  // Common sentence starters
+  'There', 'Here', 'Once', 'Still', 'Just', 'Even', 'Only', 'Perhaps',
+  'Maybe', 'Never', 'Always', 'Often', 'Sometimes', 'Already', 'Soon',
+  // Structural / document labels
+  'Chapter', 'Part', 'Section', 'Act', 'Book', 'Volume', 'Prologue', 'Epilogue',
+  // Verbs commonly capitalized at sentence start
+  'Was', 'Were', 'Had', 'Has', 'Have', 'Did', 'Does', 'Could', 'Would',
+  'Should', 'May', 'Might', 'Will', 'Shall', 'Can', 'Must',
+  'Said', 'Told', 'Asked', 'Thought', 'Knew', 'Felt', 'Saw', 'Came',
+  'Made', 'Took', 'Went', 'Got', 'Let', 'Began', 'Seemed', 'Stood',
+  'Turned', 'Looked', 'Watched', 'Called', 'Heard',
+]);
+
 // ── Helpers ──────────────────────────────────────────────────────────────
 
 function countWords(text: string): number {
@@ -185,7 +214,7 @@ export function runGoldenSpineAudit(
   for (const m of nameMatches) {
     const name = m[1];
     // Filter out common English words that match capitalized pattern
-    if (['The', 'This', 'That', 'They', 'Then', 'There', 'What', 'When', 'Where', 'Which', 'Who', 'How', 'But', 'And', 'For', 'Not', 'With', 'From', 'Into', 'Over', 'After', 'Before', 'Between', 'Through', 'During', 'Chapter', 'Part', 'Section', 'Act'].includes(name)) continue;
+    if (GOLDEN_SPINE_NAME_EXCLUSIONS.has(name)) continue;
     nameFrequency.set(name, (nameFrequency.get(name) || 0) + 1);
   }
 

@@ -1053,15 +1053,15 @@ export default async function EvaluationReportPage({
             </>
           )}
 
-          {/* ── Finalizing your report (long-form) ── */}
+          {/* ── Narrative Synthesis (long-form) ── */}
           {isLongForm && isComplete && (
             <section className="rounded-lg border border-indigo-100 bg-white p-6 mb-4">
               <div className="mb-5">
                 <h2 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
-                  <span aria-hidden>📖</span> Finalizing your report
+                  <span aria-hidden>📖</span> {dreamDoc ? 'Narrative Synthesis' : 'Generating narrative synthesis'}
                 </h2>
                 <p className="text-sm text-gray-700 mt-0.5">
-                  Holistic craft assessment—long-form report finalization
+                  Holistic craft assessment—long-form narrative synthesis
                 </p>
               </div>
 
