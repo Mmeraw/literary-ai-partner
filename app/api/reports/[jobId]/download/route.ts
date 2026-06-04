@@ -58,7 +58,7 @@ const RG = {
   errorBg:    '#F9E8E8',
 } as const;
 
-const FOOTER_LINE = 'RevisionGrade(TM)  |  Manuscript diagnosis, author-controlled revision, and professional submission preparation.';
+const FOOTER_LINE = 'RevisionGrade\u2122  |  Manuscript diagnosis, author-controlled revision, and professional submission preparation.';
 
 type ExportFormat = 'pdf' | 'docx' | 'txt';
 type ExportableResult = EvaluationResultV1 | EvaluationResultV2;
@@ -106,9 +106,9 @@ type ExportRecommendation = {
 };
 
 function exportSeverity(priority?: string): string {
-  if (priority === 'high') return 'MUST';
-  if (priority === 'medium') return 'SHOULD';
-  return 'COULD';
+  if (priority === 'high') return 'RECOMMENDED';
+  if (priority === 'medium') return 'OPTIONAL';
+  return 'CONSIDER';
 }
 
 const SEVERITY_SORT_ORDER: Record<string, number> = { high: 0, medium: 1, low: 2 };
@@ -160,13 +160,14 @@ function pushTxtListBlock(lines: string[], label: string, values: unknown, optio
     .filter((item) => item.length > 0);
   if (cleaned.length === 0) return;
 
-  lines.push(`  ${label}:`);
+  lines.push('');
+  lines.push(`${label}:`);
   cleaned.forEach((item, idx) => {
     if (options.ordered) {
-      lines.push(`    ${idx + 1}. ${item}`);
+      lines.push(`  ${idx + 1}. ${item}`);
       return;
     }
-    lines.push(`    • ${item}`);
+    lines.push(`  • ${item}`);
   });
 }
 
@@ -382,7 +383,7 @@ function appendDreamTxtSections(lines: string[], dream: LongformDreamDocument): 
 
   push('');
   push(sep);
-  push('NARRATIVE SYNTHESIS—HOLISTIC CRAFT ASSESSMENT');
+  push('NARRATIVE SYNTHESIS — HOLISTIC CRAFT ASSESSMENT');
   push(sep);
   push('');
   push(`Quality: ${dream.dream_scores?.quality ?? '—'}/100`);
@@ -391,6 +392,7 @@ function appendDreamTxtSections(lines: string[], dream: LongformDreamDocument): 
   push(`Literary: ${dream.dream_scores?.literary ?? '—'}/100`);
   push('');
   push('Executive Verdict:');
+  push('');
   push(cleanReportText(dream.executive_verdict));
 
   if (dream.market_shelf) {
@@ -398,17 +400,21 @@ function appendDreamTxtSections(lines: string[], dream: LongformDreamDocument): 
     push(sub);
     push('MARKET SHELF');
     push(sub);
-    push(`Best shelf: ${cleanReportText(dream.market_shelf.best_shelf)}`);
-    push(`Marketable hook: ${cleanReportText(dream.market_shelf.marketable_hook)}`);
+    push('');
+    push(`Best Shelf: ${cleanReportText(dream.market_shelf.best_shelf)}`);
+    push(`Marketable Hook: ${cleanReportText(dream.market_shelf.marketable_hook)}`);
     if (Array.isArray(dream.market_shelf.shelf_neighbors) && dream.market_shelf.shelf_neighbors.length > 0) {
-      push('Shelf neighbors:');
+      push('');
+      push('Shelf Neighbors:');
       dream.market_shelf.shelf_neighbors.forEach((item) => push(`  • ${cleanReportText(item)}`));
     }
     if (Array.isArray(dream.market_shelf.comparison_space) && dream.market_shelf.comparison_space.length > 0) {
-      push('Comparison space:');
+      push('');
+      push('Comparison Space:');
       dream.market_shelf.comparison_space.forEach((item) => push(`  • ${cleanReportText(item)}`));
     }
-    push(`Market danger: ${cleanReportText(dream.market_shelf.market_danger)}`);
+    push('');
+    push(`Market Danger: ${cleanReportText(dream.market_shelf.market_danger)}`);
   }
 
   if (Array.isArray(dream.structural_stack) && dream.structural_stack.length > 0) {
@@ -418,9 +424,9 @@ function appendDreamTxtSections(lines: string[], dream: LongformDreamDocument): 
     push(sub);
     dream.structural_stack.forEach((layer) => {
       push('');
-      push(`${cleanReportText(layer.layer_name)}—${layer.status}`);
-      push(`  Function: ${cleanReportText(layer.function)}`);
-      push(`  Revision note: ${cleanReportText(layer.revision_note)}`);
+      push(`${cleanReportText(layer.layer_name)} — ${layer.status}`);
+      push(`Function: ${cleanReportText(layer.function)}`);
+      push(`Revision note: ${cleanReportText(layer.revision_note)}`);
     });
   }
 
@@ -432,8 +438,8 @@ function appendDreamTxtSections(lines: string[], dream: LongformDreamDocument): 
     dream.arc_map.forEach((act) => {
       push('');
       push(`${cleanReportText(act.act_name)} (${cleanReportText(act.chapter_range)})`);
-      push(`  Function: ${cleanReportText(act.primary_function)}`);
-      push(`  Revision priority: ${cleanReportText(act.revision_priority)}`);
+      push(`Function: ${cleanReportText(act.primary_function)}`);
+      push(`Revision priority: ${cleanReportText(act.revision_priority)}`);
     });
   }
 
@@ -444,10 +450,10 @@ function appendDreamTxtSections(lines: string[], dream: LongformDreamDocument): 
     push(sub);
     dream.criterion_analyses.forEach((a) => {
       push('');
-      push(`${getCriterionDisplayLabel(a.key)}—${a.score}/10 (${formatConfidenceLabel(a.confidence)})`);
-      pushTxtListBlock(lines, 'What is working', a.fit_evidence);
-      pushTxtListBlock(lines, 'What weakens impact', a.gap_evidence);
-      pushTxtListBlock(lines, 'Revision queue', a.revision_queue, { ordered: true, isRevisionQueue: true });
+      push(`${getCriterionDisplayLabel(a.key)} — ${a.score}/10 (${formatConfidenceLabel(a.confidence)})`);
+      pushTxtListBlock(lines, 'What Is Working', a.fit_evidence);
+      pushTxtListBlock(lines, 'What Weakens Impact', a.gap_evidence);
+      pushTxtListBlock(lines, 'Revision Queue', a.revision_queue, { ordered: true, isRevisionQueue: true });
     });
   }
 
@@ -460,9 +466,9 @@ function appendDreamTxtSections(lines: string[], dream: LongformDreamDocument): 
     revisionPlan.forEach((item) => {
       push('');
       push(`Priority ${item.displayPriority}: ${cleanReportText(item.title)}`);
-      push(`  Goal: ${cleanReportText(item.goal)}`);
+      push(`Goal: ${cleanReportText(item.goal)}`);
       pushTxtListBlock(lines, 'Actions', item.actions, { ordered: true });
-      if (item.acceptance_check) push(`  Acceptance check: ${cleanReportText(item.acceptance_check)}`);
+      if (item.acceptance_check) push(`Acceptance check: ${cleanReportText(item.acceptance_check)}`);
     });
   }
 }
@@ -490,45 +496,50 @@ function buildTxtReport(result: ExportableResult, title: string | null, jobId: s
   lines.push('');
 
   lines.push(sub);
-  lines.push('SUMMARY');
+  lines.push('EXECUTIVE SUMMARY');
   lines.push(sub);
+  lines.push('');
   lines.push(cleanReportText(result.overview.one_paragraph_summary, summaryFallback, { blockTruncation: true }));
   lines.push('');
 
   lines.push(sub);
   lines.push('TOP STRENGTHS');
   lines.push(sub);
+  lines.push('');
   result.overview.top_3_strengths.forEach((s, i) => lines.push(`${i + 1}. ${cleanReportText(s)}`));
   lines.push('');
 
   lines.push(sub);
   lines.push('TOP RISKS');
   lines.push(sub);
+  lines.push('');
   result.overview.top_3_risks.forEach((r, i) => lines.push(`${i + 1}. ${cleanReportText(r)}`));
   lines.push('');
 
   lines.push(sub);
   lines.push('CRITERIA SCORES');
   lines.push(sub);
+  lines.push('');
   result.criteria.forEach((c) => {
     const criterionRecord = c as Record<string, unknown>;
-    lines.push(`• ${getCriterionDisplayLabel(c.key)}—${scoreLabel(c.score_0_10, 10)}${c.confidence_level ? ` (${formatConfidenceLabel(c.confidence_level)})` : ''}`);
-    if (c.rationale) lines.push(`  Rationale: ${cleanReportText(c.rationale)}`);
+    lines.push(`${getCriterionDisplayLabel(c.key)} — ${scoreLabel(c.score_0_10, 10)}${c.confidence_level ? ` (${formatConfidenceLabel(c.confidence_level)})` : ''}`);
+    if (c.rationale) lines.push(`Rationale: ${cleanReportText(c.rationale)}`);
 
     if (typeof criterionRecord.fit_summary === 'string' && criterionRecord.fit_summary.trim()) {
-      lines.push(`  What's Working: ${cleanReportText(criterionRecord.fit_summary)}`);
+      lines.push(`What's Working: ${cleanReportText(criterionRecord.fit_summary)}`);
     }
     if (typeof criterionRecord.gap_summary === 'string' && criterionRecord.gap_summary.trim()) {
-      lines.push(`  Gap to Close: ${cleanReportText(criterionRecord.gap_summary)}`);
+      lines.push(`Gap to Close: ${cleanReportText(criterionRecord.gap_summary)}`);
     }
 
     const opportunities = getCriterionOpportunities(c as { recommendations?: unknown });
     if (opportunities.length > 0) {
-      lines.push('  Opportunities:');
+      lines.push('');
+      lines.push('Opportunities:');
       opportunities.forEach((opportunity, idx) => {
-        lines.push(`    ${idx + 1}. [${exportSeverity(opportunity.priority)}]`);
+        lines.push(`  ${idx + 1}. [${exportSeverity(opportunity.priority)}]`);
         opportunityRows(opportunity).forEach(([label, value]) => {
-          lines.push(`       ${label}: ${value}`);
+          lines.push(`     ${label}: ${value}`);
         });
       });
     }
@@ -538,113 +549,9 @@ function buildTxtReport(result: ExportableResult, title: string | null, jobId: s
 
   if (dream) appendDreamTxtSections(lines, dream);
 
-  if (waveGov) {
-    lines.push('');
-    lines.push(sub);
-    lines.push('WAVE GOVERNANCE & CANON EXECUTION');
-    lines.push(sub);
-    const waveStatusLabel = waveGov.planStatus === 'complete' ? 'EXECUTED'
-      : waveGov.planStatus === 'skipped' ? 'SKIPPED'
-      : waveGov.planStatus === 'failed' ? 'FAILED'
-      : waveGov.planStatus === 'timeout' ? 'TIMEOUT' : 'UNKNOWN';
-    lines.push(`WAVE Engine Status: ${waveStatusLabel}`);
-    lines.push(`Modules Run: ${waveGov.modulesRun}`);
-    lines.push(`Modules With Findings: ${waveGov.modulesWithFindings}`);
-    if (waveGov.planStatus === 'skipped' && waveGov.reasonCodes.length > 0) {
-      lines.push('Gate Failure Reasons:');
-      waveGov.reasonCodes.forEach((code) => lines.push(`  - ${code}`));
-    }
-    if (waveGov.wavePlanSummary) {
-      lines.push(`Derived Waves: ${waveGov.wavePlanSummary.derivedWaveIds.length}`);
-      lines.push(`Plan Valid: ${waveGov.wavePlanSummary.planValid ? 'Yes' : 'No'}`);
-    }
-    if (waveGov.waveRuns.length > 0) {
-      lines.push('');
-      lines.push('Wave Module Execution:');
-      waveGov.waveRuns.forEach((run) => {
-        lines.push(`  W-${String(run.waveNumber).padStart(2, '0')} | ${run.waveName} | ${run.category} | ${run.status} | ${run.changesCount} changes | ${run.durationMs > 0 ? (run.durationMs / 1000).toFixed(1) + 's' : '\u2014'}`);
-      });
-    }
-    if (waveGov.generatedAt) {
-      lines.push(`WAVE report generated: ${new Date(waveGov.generatedAt).toISOString()}`);
-    }
-  }
-
-  // Canon Governance: Gate 15
-  if (gate15) {
-    lines.push('');
-    lines.push(sub);
-    lines.push('GATE 15 — PAIRED GATE AUDIT');
-    lines.push(sub);
-    lines.push(`Overall Status: ${gate15.overallStatus}`);
-    lines.push(`Word Count: ${gate15.wordCount.toLocaleString()}`);
-    if (gate15.activatedBecause) lines.push(`Activated: ${gate15.activatedBecause}`);
-    if (gate15.skippedBecause) lines.push(`Skipped: ${gate15.skippedBecause}`);
-    if (gate15.gate15_1?.layer1) {
-      lines.push('');
-      lines.push('Gate 15.1 — Structural Purity:');
-      const l1 = gate15.gate15_1.layer1;
-      lines.push(`  Q1 Attribution Density: ${l1.attributionDensity.normalized}/1000 (threshold: ≤${l1.attributionDensity.threshold}/1000) → ${l1.attributionDensity.status}`);
-      lines.push(`  Q2 Soft-Tag Cap: ${l1.softTags.normalized}/ch (threshold: ≤${l1.softTags.threshold}/ch) → ${l1.softTags.status}`);
-      lines.push(`  Q3 Thought-Verb: ${l1.thoughtVerbs.normalized}/ch (threshold: ≤${l1.thoughtVerbs.threshold}/ch) → ${l1.thoughtVerbs.status}`);
-      lines.push(`  Q4 Physiological Filler: ${l1.physiologicalFillers.normalized}/ch (threshold: ≤${l1.physiologicalFillers.threshold}/ch) → ${l1.physiologicalFillers.status}`);
-      lines.push(`  Q5 Boundary Test: ${l1.boundaryTest.unmatchedQuotes} unmatched quotes, ${l1.boundaryTest.unmatchedItalics} unmatched italics → ${l1.boundaryTest.status}`);
-    }
-    if (gate15.gate15_2 && !gate15.gate15_2.skippedBecause) {
-      lines.push('');
-      lines.push('Gate 15.2 — Voice & Meaning Protection:');
-      lines.push(`  Protected: ${gate15.gate15_2.protectedSegments}, Trim: ${gate15.gate15_2.trimSegments}, Cut: ${gate15.gate15_2.cutSegments}`);
-      lines.push(`  Overcorrection Risk: ${gate15.gate15_2.overcorrectionRiskLevel}`);
-    }
-    gate15.summaryFindings.forEach(f => lines.push(`  • ${f}`));
-  }
-
-  // Canon Governance: Golden Spine
-  if (goldenSpine && goldenSpine.overallStatus !== 'skipped') {
-    lines.push('');
-    lines.push(sub);
-    lines.push('GOLDEN SPINE — MOTIF LEDGER');
-    lines.push(sub);
-    lines.push(`Continuity Score: ${goldenSpine.continuityScore}`);
-    lines.push(`Motifs Tracked: ${goldenSpine.motifLedger.length}`);
-    if (goldenSpine.spines.length > 0) {
-      lines.push('Narrative Spines:');
-      goldenSpine.spines.forEach(s => lines.push(`  ${s.type}: ${s.label}`));
-    }
-    goldenSpine.motifLedger.slice(0, 15).forEach(m => {
-      lines.push(`  ${m.motif} (${m.category}) | ${m.occurrences}x | ${m.firstAppearance}→${m.lastAppearance} | payoff: ${m.payoffStatus} | revision: ${m.revisionNeed}`);
-    });
-    goldenSpine.summaryFindings.forEach(f => lines.push(`  • ${f}`));
-  }
-
-  // Canon Governance: Dialogue Canon
-  if (dialogueCanon && dialogueCanon.overallStatus !== 'skipped') {
-    lines.push('');
-    lines.push(sub);
-    lines.push('DIALOGUE CANON AUDIT');
-    lines.push(sub);
-    lines.push(`Dialogue Status: ${dialogueCanon.dialogueStatus}`);
-    lines.push(`Lines: ${dialogueCanon.metrics.totalDialogueLines}, Speakers: ${dialogueCanon.metrics.uniqueSpeakers}, Attributed: ${dialogueCanon.metrics.attributedLines}`);
-    lines.push(`Exposition Leakage Rate: ${(dialogueCanon.metrics.expositionLeakageRate * 100).toFixed(1)}%`);
-    dialogueCanon.summaryFindings.forEach(f => lines.push(`  • ${f}`));
-  }
-
-  // Canon Governance: Revision Canon Metadata
-  if (revisionCanonMeta && revisionCanonMeta.overallStatus !== 'skipped') {
-    lines.push('');
-    lines.push(sub);
-    lines.push('REVISION CANON METADATA');
-    lines.push(sub);
-    lines.push(`Criteria Enriched: ${revisionCanonMeta.attributions.length}`);
-    const categories = revisionCanonMeta.attributions.reduce<Record<string, number>>((acc, a) => {
-      acc[a.canonRiskCategory] = (acc[a.canonRiskCategory] || 0) + 1;
-      return acc;
-    }, {});
-    Object.entries(categories).forEach(([cat, count]) => {
-      lines.push(`  ${cat.replace(/_/g, ' ')}: ${count} criteria`);
-    });
-    revisionCanonMeta.summaryFindings.forEach(f => lines.push(`  • ${f}`));
-  }
+  // Internal governance data (WAVE, Gate 15, Golden Spine, Dialogue Canon,
+  // Revision Canon) is intentionally omitted from customer-facing downloads.
+  // It remains accessible via the admin support view only.
 
   lines.push('');
   lines.push(sep);
@@ -712,20 +619,20 @@ async function buildPdfReport(result: ExportableResult, title: string | null, jo
     };
     const section = (text: unknown) => {
       ensureSpace(72);
-      doc.moveDown(0.8);
+      doc.moveDown(1.2);
       doc.font('Helvetica-Bold').fontSize(14).fillColor(RG.oxblood).text(toPdfSafeText(text), ml, doc.y, { width: contentWidth });
-      doc.moveDown(0.25);
+      doc.moveDown(0.3);
       goldRule();
     };
     const paragraph = (text: unknown) => {
       ensureSpace(70);
-      doc.font('Helvetica').fontSize(10.5).fillColor(RG.textPrimary).text(toPdfSafeText(text), ml, doc.y, { width: contentWidth, lineGap: 3 });
-      doc.moveDown(0.45);
+      doc.font('Helvetica').fontSize(10.5).fillColor(RG.textPrimary).text(toPdfSafeText(text), ml, doc.y, { width: contentWidth, lineGap: 3.5 });
+      doc.moveDown(0.55);
     };
     const bullet = (text: unknown, color: string = RG.textPrimary) => {
       ensureSpace(45);
-      doc.font('Helvetica').fontSize(10.5).fillColor(color).text(`  -  ${toPdfSafeText(text)}`, ml, doc.y, { width: contentWidth, indent: 8, lineGap: 2 });
-      doc.moveDown(0.25);
+      doc.font('Helvetica').fontSize(10.5).fillColor(color).text(`  \u2022  ${toPdfSafeText(text)}`, ml, doc.y, { width: contentWidth, indent: 8, lineGap: 2.5 });
+      doc.moveDown(0.3);
     };
     const labelValue = (label: string, value: unknown) => {
       const safeValue = toPdfSafeText(value, '');
@@ -744,7 +651,7 @@ async function buildPdfReport(result: ExportableResult, title: string | null, jo
 
     doc.moveDown(2.5);
     doc.font('Helvetica-Bold').fontSize(28).fillColor(RG.oxblood).text(
-      toPdfSafeText('RevisionGrade(TM)'),
+      toPdfSafeText('RevisionGrade\u2122'),
       { width: contentWidth, align: 'center' },
     );
     doc.moveDown(0.15);
@@ -1102,7 +1009,7 @@ async function buildPdfReport(result: ExportableResult, title: string | null, jo
         );
       } else {
         doc.font('Helvetica').fontSize(7).fillColor(RG.textFaint).text(
-          toPdfSafeText(`RevisionGrade(TM) Evaluation Report  --  Confidential  --  Page ${pageNumber}`),
+          toPdfSafeText(`RevisionGrade\u2122 Evaluation Report  --  Confidential  --  Page ${pageNumber}`),
           ml, footerY,
           { width: contentWidth, align: 'center', lineBreak: false },
         );
@@ -1135,16 +1042,16 @@ async function buildDocx(result: ExportableResult, title: string | null, jobId: 
   const metadata = buildMetadata(result, title, dream);
   const summaryFallback = buildSummaryFallback(result);
 
-  const spacer = () => new Paragraph({ spacing: { after: 120 }, children: [] });
+  const spacer = () => new Paragraph({ spacing: { after: 200 }, children: [] });
   const brandHeading = (text: string, level: (typeof HeadingLevel)[keyof typeof HeadingLevel]) =>
     new Paragraph({
       heading: level,
-      spacing: { before: 240, after: 80 },
+      spacing: { before: 320, after: 120 },
       children: [new TextRun({ text, color: RG.oxblood.replace('#', ''), bold: true })],
     });
   const bodyPara = (text: string, opts: { bold?: boolean; color?: string; size?: number; spacing?: number } = {}) =>
     new Paragraph({
-      spacing: { after: opts.spacing ?? 100 },
+      spacing: { after: opts.spacing ?? 140 },
       children: [new TextRun({
         text: cleanReportText(text),
         bold: opts.bold ?? false,
@@ -1155,7 +1062,7 @@ async function buildDocx(result: ExportableResult, title: string | null, jobId: 
     });
   const bulletPara = (text: string, color?: string) =>
     new Paragraph({
-      spacing: { after: 60 },
+      spacing: { after: 80 },
       children: [new TextRun({
         text: `  \u2022  ${cleanReportText(text)}`,
         size: 21,
@@ -1592,153 +1499,9 @@ async function buildDocx(result: ExportableResult, title: string | null, jobId: 
     }
   }
 
-  // ── WAVE Governance & Canon Execution ──────────────────────────────
-  if (waveGov) {
-    children.push(spacer());
-    children.push(brandHeading('WAVE Governance & Canon Execution', HeadingLevel.HEADING_2));
-
-    const waveStatusLabel = waveGov.planStatus === 'complete' ? 'EXECUTED'
-      : waveGov.planStatus === 'skipped' ? 'SKIPPED'
-      : waveGov.planStatus === 'failed' ? 'FAILED'
-      : waveGov.planStatus === 'timeout' ? 'TIMEOUT'
-      : 'UNKNOWN';
-    children.push(bodyPara(`WAVE Engine Status: ${waveStatusLabel}`, { bold: true }));
-    children.push(bodyPara(`Modules Run: ${waveGov.modulesRun}  |  Modules With Findings: ${waveGov.modulesWithFindings}`));
-
-    if (waveGov.planStatus === 'skipped' && waveGov.reasonCodes.length > 0) {
-      children.push(bodyPara('Gate Failure Reasons:', { bold: true }));
-      waveGov.reasonCodes.forEach((code) => children.push(bulletPara(code)));
-      if (waveGov.lowestCriteria.length > 0) {
-        children.push(bodyPara('Criteria Below Floor (6.0):', { bold: true }));
-        waveGov.lowestCriteria.forEach((c) =>
-          children.push(bulletPara(`${c.key.replace(/_/g, ' ')}: ${c.score.toFixed(1)}`))
-        );
-      }
-    }
-
-    if (waveGov.planStatus === 'failed' || waveGov.planStatus === 'timeout') {
-      children.push(bodyPara(`Reason: ${waveGov.planReason ?? 'Unknown'}`, { color: RG.error }));
-    }
-
-    if (waveGov.wavePlanSummary) {
-      children.push(bodyPara(
-        `Wave Plan: ${waveGov.wavePlanSummary.derivedWaveIds.length} derived waves | Valid: ${waveGov.wavePlanSummary.planValid ? 'Yes' : 'No'}`
-      ));
-    }
-
-    if (waveGov.waveRuns.length > 0) {
-      children.push(spacer());
-      children.push(bodyPara('Wave Module Execution:', { bold: true }));
-      const waveTableRows = waveGov.waveRuns.map((run) => {
-        const statusText = run.status === 'completed' ? 'Completed'
-          : run.status === 'failed' ? 'Failed'
-          : run.status === 'running' ? 'Running'
-          : 'Pending';
-        return new TableRow({
-          children: [
-            new TableCell({ width: { size: 10, type: WidthType.PERCENTAGE }, borders: DOCX_NO_BORDERS, children: [
-              new Paragraph({ children: [new TextRun({ text: `W-${String(run.waveNumber).padStart(2, '0')}`, size: 18, font: 'Calibri' })] }),
-            ] }),
-            new TableCell({ width: { size: 30, type: WidthType.PERCENTAGE }, borders: DOCX_NO_BORDERS, children: [
-              new Paragraph({ children: [new TextRun({ text: run.waveName, size: 18, font: 'Calibri' })] }),
-            ] }),
-            new TableCell({ width: { size: 20, type: WidthType.PERCENTAGE }, borders: DOCX_NO_BORDERS, children: [
-              new Paragraph({ children: [new TextRun({ text: run.category, size: 18, font: 'Calibri' })] }),
-            ] }),
-            new TableCell({ width: { size: 15, type: WidthType.PERCENTAGE }, borders: DOCX_NO_BORDERS, children: [
-              new Paragraph({ children: [new TextRun({ text: statusText, size: 18, font: 'Calibri' })] }),
-            ] }),
-            new TableCell({ width: { size: 10, type: WidthType.PERCENTAGE }, borders: DOCX_NO_BORDERS, children: [
-              new Paragraph({ alignment: AlignmentType.RIGHT, children: [new TextRun({ text: String(run.changesCount), size: 18, font: 'Calibri' })] }),
-            ] }),
-            new TableCell({ width: { size: 15, type: WidthType.PERCENTAGE }, borders: DOCX_NO_BORDERS, children: [
-              new Paragraph({ alignment: AlignmentType.RIGHT, children: [new TextRun({ text: run.durationMs > 0 ? `${(run.durationMs / 1000).toFixed(1)}s` : '\u2014', size: 18, font: 'Calibri' })] }),
-            ] }),
-          ],
-        });
-      });
-
-      const headerRow = new TableRow({
-        children: ['Wave', 'Name', 'Category', 'Status', 'Changes', 'Duration'].map((h, i) =>
-          new TableCell({
-            width: { size: [10, 30, 20, 15, 10, 15][i], type: WidthType.PERCENTAGE },
-            borders: DOCX_NO_BORDERS,
-            shading: { type: ShadingType.SOLID, color: RG.cream.replace('#', '') },
-            children: [new Paragraph({ children: [new TextRun({ text: h, bold: true, size: 16, font: 'Calibri', color: RG.textMuted.replace('#', '') })] })],
-          })
-        ),
-      });
-
-      children.push(new Table({
-        rows: [headerRow, ...waveTableRows],
-        width: { size: 100, type: WidthType.PERCENTAGE },
-      }));
-    }
-
-    if (waveGov.generatedAt) {
-      children.push(bodyPara(`WAVE report generated: ${new Date(waveGov.generatedAt).toISOString()}`, { size: 16, color: RG.textFaint }));
-    }
-  }
-
-  // ── Canon Governance: Gate 15 ──────────────────────────────────────
-  if (gate15 && gate15.overallStatus !== 'SKIPPED') {
-    children.push(spacer());
-    children.push(brandHeading('Gate 15 — Paired Gate Audit', HeadingLevel.HEADING_2));
-    children.push(bodyPara(`Overall: ${gate15.overallStatus} | Word Count: ${gate15.wordCount.toLocaleString()}`));
-    if (gate15.gate15_1?.layer1) {
-      children.push(bodyPara('Gate 15.1 — Structural Purity:', { bold: true }));
-      const l1 = gate15.gate15_1.layer1;
-      children.push(bodyPara(`  Q1 Attribution Density: ${l1.attributionDensity.normalized}/1000 (≤${l1.attributionDensity.threshold}) → ${l1.attributionDensity.status}`));
-      children.push(bodyPara(`  Q2 Soft-Tag Cap: ${l1.softTags.normalized}/ch (≤${l1.softTags.threshold}) → ${l1.softTags.status}`));
-      children.push(bodyPara(`  Q3 Thought-Verb: ${l1.thoughtVerbs.normalized}/ch (≤${l1.thoughtVerbs.threshold}) → ${l1.thoughtVerbs.status}`));
-      children.push(bodyPara(`  Q4 Physiological Filler: ${l1.physiologicalFillers.normalized}/ch (≤${l1.physiologicalFillers.threshold}) → ${l1.physiologicalFillers.status}`));
-      children.push(bodyPara(`  Q5 Boundary Test: ${l1.boundaryTest.unmatchedQuotes} quotes, ${l1.boundaryTest.unmatchedItalics} italics → ${l1.boundaryTest.status}`));
-    }
-    if (gate15.gate15_2 && !gate15.gate15_2.skippedBecause) {
-      children.push(bodyPara('Gate 15.2 — Voice & Meaning Protection:', { bold: true }));
-      children.push(bodyPara(`  Protected: ${gate15.gate15_2.protectedSegments} | Trim: ${gate15.gate15_2.trimSegments} | Cut: ${gate15.gate15_2.cutSegments} | Risk: ${gate15.gate15_2.overcorrectionRiskLevel}`));
-    }
-    gate15.summaryFindings.forEach(f => children.push(bodyPara(`• ${f}`, { size: 18 })));
-  }
-
-  // ── Canon Governance: Golden Spine ────────────────────────────────
-  if (goldenSpine && goldenSpine.overallStatus !== 'skipped') {
-    children.push(spacer());
-    children.push(brandHeading('Golden Spine — Motif Ledger', HeadingLevel.HEADING_2));
-    children.push(bodyPara(`Continuity: ${goldenSpine.continuityScore} | Motifs: ${goldenSpine.motifLedger.length}`));
-    if (goldenSpine.spines.length > 0) {
-      children.push(bodyPara('Narrative Spines:', { bold: true }));
-      goldenSpine.spines.forEach(s => children.push(bodyPara(`  ${s.type}: ${s.label}`)));
-    }
-    goldenSpine.motifLedger.slice(0, 15).forEach(m => {
-      children.push(bodyPara(`  ${m.motif} (${m.category}) | ${m.occurrences}x | ${m.payoffStatus} | revision: ${m.revisionNeed}`, { size: 18 }));
-    });
-    goldenSpine.summaryFindings.forEach(f => children.push(bodyPara(`• ${f}`, { size: 18 })));
-  }
-
-  // ── Canon Governance: Dialogue Canon ──────────────────────────────
-  if (dialogueCanon && dialogueCanon.overallStatus !== 'skipped') {
-    children.push(spacer());
-    children.push(brandHeading('Dialogue Canon Audit', HeadingLevel.HEADING_2));
-    children.push(bodyPara(`Status: ${dialogueCanon.dialogueStatus} | Lines: ${dialogueCanon.metrics.totalDialogueLines} | Speakers: ${dialogueCanon.metrics.uniqueSpeakers}`));
-    children.push(bodyPara(`Attribution: ${dialogueCanon.metrics.attributedLines} attributed, ${dialogueCanon.metrics.unattributedLines} unattributed | Leakage: ${(dialogueCanon.metrics.expositionLeakageRate * 100).toFixed(1)}%`));
-    dialogueCanon.summaryFindings.forEach(f => children.push(bodyPara(`• ${f}`, { size: 18 })));
-  }
-
-  // ── Canon Governance: Revision Canon Metadata ─────────────────────
-  if (revisionCanonMeta && revisionCanonMeta.overallStatus !== 'skipped') {
-    children.push(spacer());
-    children.push(brandHeading('Revision Canon Metadata', HeadingLevel.HEADING_2));
-    children.push(bodyPara(`Criteria Enriched: ${revisionCanonMeta.attributions.length}`));
-    const categories = revisionCanonMeta.attributions.reduce<Record<string, number>>((acc, a) => {
-      acc[a.canonRiskCategory] = (acc[a.canonRiskCategory] || 0) + 1;
-      return acc;
-    }, {});
-    Object.entries(categories).forEach(([cat, count]) => {
-      children.push(bodyPara(`  ${cat.replace(/_/g, ' ')}: ${count} criteria`, { size: 18 }));
-    });
-    revisionCanonMeta.summaryFindings.forEach(f => children.push(bodyPara(`• ${f}`, { size: 18 })));
-  }
+  // Internal governance data (WAVE, Gate 15, Golden Spine, Dialogue Canon,
+  // Revision Canon) is intentionally omitted from customer-facing downloads.
+  // It remains accessible via the admin support view only.
 
   // Gold divider
   children.push(new Table({
