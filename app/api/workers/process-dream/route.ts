@@ -690,6 +690,35 @@ async function processDreamJob(
   });
 
   console.log(`[DreamWorker] ${jobId}: persisted longform_document_v1 artifact ✓`);
+
+  // 7. Set pass3_completed_at so the poller promotes progress to 100%.
+  // Without this, long-form jobs stay at 92% even after narrative synthesis finishes.
+  const { data: currentJob } = await supabase
+    .from('evaluation_jobs')
+    .select('progress')
+    .eq('id', jobId)
+    .maybeSingle();
+
+  const existingProgress =
+    currentJob?.progress && typeof currentJob.progress === 'object' && !Array.isArray(currentJob.progress)
+      ? (currentJob.progress as Record<string, unknown>)
+      : {};
+
+  if (!existingProgress.pass3_completed_at) {
+    const now = new Date().toISOString();
+    await supabase
+      .from('evaluation_jobs')
+      .update({
+        progress: {
+          ...existingProgress,
+          pass3_completed_at: now,
+          completed_units: existingProgress.total_units ?? 100,
+        },
+      })
+      .eq('id', jobId);
+    console.log(`[DreamWorker] ${jobId}: set pass3_completed_at=${now} — progress bar will show 100%`);
+  }
+
   return { success: true };
 }
 
