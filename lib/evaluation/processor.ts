@@ -8841,6 +8841,7 @@ export async function processEvaluationJob(
       manuscriptText: manuscriptWithContent.content || "",
       title: manuscript.title ?? undefined,
       scopeProfile: scopeProfileForV2Gate,
+      llmEnrichment: pipelineResult.synthesis.enrichment,
     });
 
     // PR #506 — persist Pass 4 status onto the canonical JobProgress so the jobs
