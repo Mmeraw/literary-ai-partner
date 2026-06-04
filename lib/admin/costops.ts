@@ -30,8 +30,11 @@ export interface CostOpsSummary {
   monthlyBudgetCents: number | null;
   budgetRemainingCents: number | null;
   budgetUsedPct: number | null;
+  allTimeTotalCents: number;
   last7dUsageCents: number;
   jobsWithCosts: number;
+  totalEvaluationJobs: number;
+  untrackedJobs: number;
   callCount: number;
   avgUsageCostPerJobCents: number;
   failedJobUsageCents: number;
@@ -418,6 +421,7 @@ function getProviderStatus(): CostOpsProviderStatus[] {
 // ─── Main entry point ───────────────────────────────────────────────
 
 export async function getCostOpsDashboardData(): Promise<CostOpsDashboardData> {
+  const supabase = createAdminClient();
   const warnings: string[] = [];
   const now = new Date();
 
@@ -442,6 +446,7 @@ export async function getCostOpsDashboardData(): Promise<CostOpsDashboardData> {
   const todayCents = sumCents(todayRows);
   const mtdCents = sumCents(mtdRows);
   const last7dCents = sumCents(last7dRows);
+  const allTimeTotalCents = sumCents(allRows);
   const totalCalls = allRows.length;
 
   const uniqueJobIds = [...new Set(allRows.map((r) => r.job_id).filter(Boolean))];
@@ -453,6 +458,20 @@ export async function getCostOpsDashboardData(): Promise<CostOpsDashboardData> {
   } catch {
     warnings.push("Failed to fetch job metadata.");
     jobMeta = new Map();
+  }
+
+  // Count total evaluation jobs and untracked ones
+  let totalEvaluationJobs = 0;
+  let untrackedJobs = 0;
+  try {
+    const { count: totalCount } = await supabase
+      .from("evaluation_jobs")
+      .select("id", { count: "exact", head: true })
+      .in("status", ["complete", "failed"]);
+    totalEvaluationJobs = totalCount ?? 0;
+    untrackedJobs = Math.max(0, totalEvaluationJobs - jobsWithCosts);
+  } catch {
+    warnings.push("Could not count total evaluation jobs.");
   }
 
   // Failed job spend (MTD)
@@ -496,8 +515,11 @@ export async function getCostOpsDashboardData(): Promise<CostOpsDashboardData> {
     budgetUsedPct: MONTHLY_BUDGET_CENTS !== null && MONTHLY_BUDGET_CENTS > 0
       ? Math.round((mtdCents / MONTHLY_BUDGET_CENTS) * 100)
       : null,
+    allTimeTotalCents,
     last7dUsageCents: last7dCents,
     jobsWithCosts,
+    totalEvaluationJobs,
+    untrackedJobs,
     callCount: totalCalls,
     avgUsageCostPerJobCents,
     failedJobUsageCents: failedCents,
@@ -527,4 +549,110 @@ export async function getCostOpsDashboardData(): Promise<CostOpsDashboardData> {
     alerts,
     warnings,
   };
+}
+
+// ─── Backfill ───────────────────────────────────────────────────────
+
+export interface BackfillResult {
+  backfilledCount: number;
+  estimatedTotalCents: number;
+  skippedCount: number;
+  errors: string[];
+}
+
+/**
+ * Backfill estimated costs for completed evaluation jobs that have no
+ * `job_costs` entries. Uses the average cost per tracked evaluation
+ * (from existing data) or a configurable fallback.
+ *
+ * Inserts a single summary row per untracked job with phase="backfill_estimate"
+ * so the data is clearly distinguishable from real tracked costs.
+ *
+ * Safe to call multiple times — skips jobs that already have cost entries.
+ */
+export async function backfillHistoricalCosts(): Promise<BackfillResult> {
+  const supabase = createAdminClient();
+  const errors: string[] = [];
+
+  // 1. Get all job IDs that already have cost entries
+  const trackedJobIds = new Set<string>();
+  let from = 0;
+  const pageSize = 1000;
+  while (true) {
+    const { data, error } = await supabase
+      .from("job_costs")
+      .select("job_id")
+      .range(from, from + pageSize - 1);
+    if (error) {
+      errors.push(`Error fetching tracked job IDs: ${error.message}`);
+      break;
+    }
+    if (!data || data.length === 0) break;
+    for (const row of data) trackedJobIds.add(row.job_id);
+    if (data.length < pageSize) break;
+    from += pageSize;
+  }
+
+  // 2. Calculate average cost per tracked evaluation
+  let avgCostCentsPerJob = 564; // fallback: $5.64 (reasonable estimate)
+  if (trackedJobIds.size > 0) {
+    const { data: costSums } = await supabase
+      .from("job_costs")
+      .select("cost_cents");
+    if (costSums && costSums.length > 0) {
+      const totalTracked = costSums.reduce((s, r) => s + safeNum(r.cost_cents), 0);
+      avgCostCentsPerJob = Math.max(1, Math.round(totalTracked / trackedJobIds.size));
+    }
+  }
+
+  // 3. Get all completed/failed evaluation jobs
+  const { data: allJobs, error: jobsError } = await supabase
+    .from("evaluation_jobs")
+    .select("id, status, created_at")
+    .in("status", ["complete", "failed"])
+    .order("created_at", { ascending: true });
+
+  if (jobsError) {
+    errors.push(`Error fetching evaluation jobs: ${jobsError.message}`);
+    return { backfilledCount: 0, estimatedTotalCents: 0, skippedCount: 0, errors };
+  }
+
+  // 4. Filter to untracked jobs
+  const untrackedJobs = (allJobs ?? []).filter((j) => !trackedJobIds.has(j.id));
+
+  if (untrackedJobs.length === 0) {
+    return { backfilledCount: 0, estimatedTotalCents: 0, skippedCount: 0, errors };
+  }
+
+  // 5. Insert backfill estimates in batches
+  let backfilledCount = 0;
+  let estimatedTotalCents = 0;
+  let skippedCount = 0;
+
+  for (let i = 0; i < untrackedJobs.length; i += 50) {
+    const batch = untrackedJobs.slice(i, i + 50);
+    const rows = batch.map((j) => ({
+      job_id: j.id,
+      phase: "backfill_estimate",
+      model: "gpt-5.1",
+      input_tokens: 0,
+      output_tokens: 0,
+      cost_cents: avgCostCentsPerJob,
+      called_at: j.created_at ?? new Date().toISOString(),
+    }));
+
+    const { error: insertError } = await supabase
+      .from("job_costs")
+      .insert(rows);
+
+    if (insertError) {
+      errors.push(`Batch insert error (offset ${i}): ${insertError.message}`);
+      skippedCount += batch.length;
+    } else {
+      backfilledCount += batch.length;
+      estimatedTotalCents += avgCostCentsPerJob * batch.length;
+    }
+  }
+
+  return { backfilledCount, estimatedTotalCents, skippedCount, errors };
 }
