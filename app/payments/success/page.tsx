@@ -57,7 +57,7 @@ function PaymentFallback({ message }: { message: string }) {
     <main className="min-h-screen bg-rg-ink px-6 py-20 text-rg-cream">
       <section className="mx-auto max-w-2xl border border-rg-gold/35 bg-rg-ink2/70 p-8 text-center">
         <p className="font-rg-mono text-xs uppercase tracking-[0.24em] text-rg-gold">RevisionGrade Checkout</p>
-        <h1 className="mt-5 font-rg-serif text-4xl leading-tight text-rg-cream">Thank you for getting RevisionGraded.</h1>
+        <h1 className="mt-5 font-rg-serif text-4xl leading-tight text-rg-cream">Thank you for getting RevisionGraded™.</h1>
         <p className="mt-5 text-base leading-8 text-rg-cream2/80">{message}</p>
         <p className="mt-3 text-base leading-8 text-rg-cream2/80">
           If your card was charged, your Stripe receipt is the source of truth. You can continue into the product from here.
