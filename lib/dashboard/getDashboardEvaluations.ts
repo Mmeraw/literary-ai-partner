@@ -455,9 +455,8 @@ export function statusFromScores(
   // haven't been scored yet — do not label it "below standard."
   if (overall === null && readiness === null) return 'below_standard'
   const top = Math.max(overall ?? 0, readiness ?? 0)
-  if (top >= 8.0) return 'market_ready'
-  if (top >= 7.5) return 'near_ready'
-  if (top >= 6.5) return 'improving'
+  if (top >= 9.0) return 'market_ready'
+  if (top >= 6.0) return 'near_ready'
   return 'below_standard'
 }
 

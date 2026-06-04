@@ -236,11 +236,9 @@ function formatGeneratedDate(isoDate: string): string {
 
 function readinessLabel(score: unknown): string {
   if (typeof score !== 'number' || !Number.isFinite(score)) return '';
-  if (score >= 90) return ' — Publication Ready';
-  if (score >= 80) return ' — Market Ready';
-  if (score >= 70) return ' — Revision Recommended';
-  if (score >= 60) return ' — Significant Revision Needed';
-  return ' — Developmental Stage';
+  if (score >= 90) return ' — Market Ready';
+  if (score >= 60) return ' — Revise';
+  return ' — Not Ready';
 }
 
 function stripMachineResidue(text: string): string {

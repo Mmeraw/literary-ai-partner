@@ -182,7 +182,7 @@ export default function FinalReviewClient({ payload, printMode = false, view = "
           <div className="mt-5 grid gap-3 text-xs text-[#D8C6A4] md:grid-cols-5">
             <div className="rounded-lg border border-[#2D2519] bg-[#110D07] p-3"><span className="text-[#C8A96E]">Accepted</span><br /><strong className="text-2xl text-[#F6E8CE]">{payload.acceptedCount}</strong></div>
             <div className="rounded-lg border border-[#2D2519] bg-[#110D07] p-3"><span className="text-[#C8A96E]">Custom</span><br /><strong className="text-2xl text-[#F6E8CE]">{payload.customCount}</strong></div>
-            <div className="rounded-lg border border-[#2D2519] bg-[#110D07] p-3"><span className="text-[#C8A96E]">Kept</span><br /><strong className="text-2xl text-[#F6E8CE]">{payload.keptCount}</strong></div>
+            <div className="rounded-lg border border-[#2D2519] bg-[#110D07] p-3"><span className="text-[#C8A96E]">Author Kept Original</span><br /><strong className="text-2xl text-[#F6E8CE]">{payload.keptCount}</strong></div>
             <div className="rounded-lg border border-[#2D2519] bg-[#110D07] p-3"><span className="text-[#C8A96E]">Rejected</span><br /><strong className="text-2xl text-[#F6E8CE]">{payload.rejectedCount}</strong></div>
             <div className="rounded-lg border border-[#2D2519] bg-[#110D07] p-3"><span className="text-[#C8A96E]">Deferred</span><br /><strong className="text-2xl text-[#F6E8CE]">{payload.deferredCount}</strong></div>
           </div>
