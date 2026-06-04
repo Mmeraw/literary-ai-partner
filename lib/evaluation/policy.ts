@@ -19,6 +19,22 @@ export type ExternalAdjudicationMode = "optional" | "required" | "veto";
 
 import { getEvaluationRuntimeConfig } from "@/lib/config/evaluationRuntimeConfig";
 
+const GPT55_ALLOWED_ESCALATION_REASONS = new Set([
+  "premium_tier",
+  "quality_gate_failure",
+  "contradiction_detected",
+  "appeal",
+  "manual_override",
+  "black_label",
+]);
+
+function resolveEscalationReason(): string | null {
+  const raw = process.env.EVAL_ESCALATION_REASON;
+  if (typeof raw !== "string") return null;
+  const normalized = raw.trim().toLowerCase();
+  return normalized.length > 0 ? normalized : null;
+}
+
 export function isReasoningStyleModel(model: string): boolean {
   const normalizedModel = model.trim().toLowerCase();
   return (
@@ -135,6 +151,15 @@ export function getCanonicalPipelineModel(overrideModel?: string): string {
     throw new Error(
       `[Config] reasoning model '${candidate}' not permitted in production`,
     );
+  }
+
+  if (process.env.NODE_ENV === "production" && normalizedCandidate.startsWith("gpt-5.5")) {
+    const escalationReason = resolveEscalationReason();
+    if (!escalationReason || !GPT55_ALLOWED_ESCALATION_REASONS.has(escalationReason)) {
+      throw new Error(
+        `[Config] model '${candidate}' requires EVAL_ESCALATION_REASON ∈ {${Array.from(GPT55_ALLOWED_ESCALATION_REASONS).join(", ")}} in production`,
+      );
+    }
   }
 
   return candidate;

@@ -5,10 +5,10 @@ const C = {
   bg: "#0E0E0E",
   text: "#F2EFEA",
   gold: "#A98E4A",
-  ash: "#9A9A9A",
+  ash: "#C3BAAE",
   panel: "#161616",
   border: "rgba(161,142,74,0.2)",
-  borderAsh: "rgba(154,154,154,0.18)",
+  borderAsh: "rgba(195,186,174,0.28)",
 } as const;
 
 const creatorSteps = [
@@ -91,7 +91,7 @@ const faqs = [
 
 function SectionLabel({ children }: { children: ReactNode }) {
   return (
-    <p className="mb-4 font-mono text-xs uppercase tracking-[0.22em]" style={{ color: C.gold }}>
+    <p className="mb-4 font-mono text-sm uppercase tracking-[0.16em]" style={{ color: C.gold }}>
       {children}
     </p>
   );
@@ -103,35 +103,35 @@ function Card({ title, children }: { title: string; children: ReactNode }) {
       <h3 className="mb-3 text-lg font-semibold" style={{ color: C.text, fontFamily: "Playfair Display, Georgia, serif" }}>
         {title}
       </h3>
-      <div className="text-sm leading-7" style={{ color: C.ash }}>{children}</div>
+      <div className="text-base leading-8" style={{ color: C.ash }}>{children}</div>
     </article>
   );
 }
 
 export default function StorygateStudioFaqPage() {
   return (
-    <main className="min-h-screen" style={{ backgroundColor: C.bg, color: C.text }}>
-      <section className="mx-auto max-w-5xl px-6 py-24 text-center" style={{ borderBottom: `1px solid ${C.borderAsh}` }}>
+    <main className="storygate-studio-route min-h-screen" style={{ backgroundColor: C.bg, color: C.text }}>
+      <section className="mx-auto max-w-7xl px-6 py-16 text-center" style={{ borderBottom: `1px solid ${C.borderAsh}` }}>
         <SectionLabel>Storygate Studio™ FAQ</SectionLabel>
-        <h1 className="mx-auto mb-6 max-w-3xl text-4xl font-bold leading-tight md:text-5xl" style={{ fontFamily: "Playfair Display, Georgia, serif" }}>
+        <h1 className="mx-auto mb-6 max-w-5xl text-4xl font-bold leading-tight md:text-6xl" style={{ fontFamily: "Playfair Display, Georgia, serif" }}>
           How controlled manuscript access works.
         </h1>
-        <p className="mx-auto max-w-2xl text-base leading-8" style={{ color: C.ash }}>
+        <p className="mx-auto max-w-5xl text-lg leading-8" style={{ color: C.ash }}>
           Storygate Studio is manuscript-first, publishing-facing, and creator-controlled. This page explains who it is for, what materials are involved, how access works, and what Storygate does not promise.
         </p>
         <div className="mt-10 flex flex-wrap justify-center gap-4">
-          <Link href="/storygate-studio/apply" className="border px-5 py-3 font-mono text-xs uppercase tracking-[0.18em]" style={{ borderColor: C.gold, backgroundColor: C.gold, color: C.bg }}>
+          <Link href="/storygate-studio/apply" className="border px-5 py-3 font-mono text-sm uppercase tracking-[0.12em]" style={{ borderColor: C.gold, backgroundColor: C.gold, color: C.bg }}>
             Prepare a Project
           </Link>
-          <Link href="/storygate-studio/industry" className="border px-5 py-3 font-mono text-xs uppercase tracking-[0.18em]" style={{ borderColor: C.gold, color: C.gold }}>
+          <Link href="/storygate-studio/industry" className="border px-5 py-3 font-mono text-sm uppercase tracking-[0.12em]" style={{ borderColor: C.gold, color: C.gold }}>
             Request Publishing Access
           </Link>
         </div>
       </section>
 
-      <section className="mx-auto max-w-5xl px-6 py-20">
+      <section className="mx-auto max-w-7xl px-6 py-14">
         <SectionLabel>Creator Process</SectionLabel>
-        <h2 className="mb-10 text-3xl font-bold" style={{ fontFamily: "Playfair Display, Georgia, serif" }}>
+        <h2 className="mb-8 text-3xl md:text-4xl font-bold" style={{ fontFamily: "Playfair Display, Georgia, serif" }}>
           For authors preparing a project.
         </h2>
         <div className="grid gap-5 md:grid-cols-2">
@@ -141,9 +141,9 @@ export default function StorygateStudioFaqPage() {
         </div>
       </section>
 
-      <section className="mx-auto max-w-5xl px-6 py-6">
+      <section className="mx-auto max-w-7xl px-6 py-10">
         <SectionLabel>Publishing Access</SectionLabel>
-        <h2 className="mb-10 text-3xl font-bold" style={{ fontFamily: "Playfair Display, Georgia, serif" }}>
+        <h2 className="mb-8 text-3xl md:text-4xl font-bold" style={{ fontFamily: "Playfair Display, Georgia, serif" }}>
           For verified publishing professionals.
         </h2>
         <div className="grid gap-5 md:grid-cols-3">
@@ -153,29 +153,29 @@ export default function StorygateStudioFaqPage() {
         </div>
       </section>
 
-      <section className="mx-auto max-w-5xl px-6 py-20">
+      <section className="mx-auto max-w-7xl px-6 py-14">
         <SectionLabel>Access and Privacy Trust</SectionLabel>
-        <h2 className="mb-8 text-3xl font-bold" style={{ fontFamily: "Playfair Display, Georgia, serif" }}>
+        <h2 className="mb-7 text-3xl md:text-4xl font-bold" style={{ fontFamily: "Playfair Display, Georgia, serif" }}>
           Controlled discovery, not public exposure.
         </h2>
         <div className="grid gap-3 md:grid-cols-2">
           {trustRules.map((rule) => (
-            <div key={rule} className="p-4 text-sm leading-7" style={{ backgroundColor: C.panel, border: `1px solid ${C.borderAsh}`, color: C.ash }}>
+            <div key={rule} className="p-4 text-base leading-8" style={{ backgroundColor: C.panel, border: `1px solid ${C.borderAsh}`, color: C.ash }}>
               <span style={{ color: C.gold }}>—</span> {rule}
             </div>
           ))}
         </div>
       </section>
 
-      <section className="mx-auto max-w-4xl px-6 pb-24">
+      <section className="mx-auto max-w-7xl px-6 pb-16">
         <SectionLabel>Frequently Asked Questions</SectionLabel>
         <div className="space-y-7">
           {faqs.map((item) => (
             <div key={item.q} className="pb-7" style={{ borderBottom: `1px solid ${C.borderAsh}` }}>
-              <h3 className="mb-2 text-lg font-semibold" style={{ fontFamily: "Playfair Display, Georgia, serif" }}>
+              <h3 className="mb-2 text-xl font-semibold" style={{ fontFamily: "Playfair Display, Georgia, serif" }}>
                 {item.q}
               </h3>
-              <p className="text-sm leading-7" style={{ color: C.ash }}>
+              <p className="text-base leading-8" style={{ color: C.ash }}>
                 {item.a}
               </p>
             </div>

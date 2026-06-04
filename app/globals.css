@@ -297,6 +297,72 @@
   min-height: 44px;
 }
 
+/* === Storygate Studio readability guard ===
+ *
+ * Storygate pages use a dark palette with muted gray helper copy. Improve
+ * readability with slightly larger base text, clearer line rhythm, and
+ * brighter muted copy while preserving the canonical Storygate visual style.
+ */
+.storygate-studio-route {
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+.storygate-studio-route p,
+.storygate-studio-route li,
+.storygate-studio-route td,
+.storygate-studio-route span {
+  font-size: 16px;
+  line-height: 1.6;
+}
+
+.storygate-studio-route h1 {
+  font-size: clamp(2.1rem, 4vw, 3rem);
+  line-height: 1.2;
+}
+
+.storygate-studio-route h2 {
+  font-size: clamp(1.65rem, 3vw, 2.2rem);
+  line-height: 1.25;
+}
+
+.storygate-studio-route h3 {
+  font-size: clamp(1.35rem, 2.2vw, 1.75rem);
+  line-height: 1.3;
+}
+
+.storygate-studio-route h4 {
+  font-size: clamp(1.2rem, 1.8vw, 1.45rem);
+  line-height: 1.3;
+}
+
+.storygate-studio-route a {
+  text-underline-offset: 2px;
+}
+
+.storygate-studio-route input,
+.storygate-studio-route select,
+.storygate-studio-route textarea,
+.storygate-studio-route button,
+.storygate-studio-route th,
+.storygate-studio-route td {
+  font-size: 16px;
+  line-height: 1.45;
+}
+
+/* Brighten canonical muted Storygate helper copy colors only. */
+.storygate-studio-route [style*="color: rgb(123, 123, 123)"],
+.storygate-studio-route [style*="color:#7B7B7B"],
+.storygate-studio-route [style*="color: #7B7B7B"],
+.storygate-studio-route [style*="color:#7b7b7b"],
+.storygate-studio-route [style*="color: #7b7b7b"],
+.storygate-studio-route [style*="color:#9A9A9A"],
+.storygate-studio-route [style*="color: #9A9A9A"],
+.storygate-studio-route [style*="color:#9a9a9a"],
+.storygate-studio-route [style*="color: #9a9a9a"] {
+  color: #c4c4c4 !important;
+}
+
 /* Textareas should use available editor width. */
 .agent-readiness-route textarea {
   width: 100% !important;

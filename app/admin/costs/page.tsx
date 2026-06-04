@@ -296,6 +296,12 @@ export default function CostOpsDashboardPage() {
               >
                 ← Admin
               </Link>
+              <Link
+                href="/admin/costs/evaluations"
+                className="rounded border border-rg-gold/30 px-4 py-2 font-rg-mono text-xs uppercase tracking-wider text-rg-gold transition hover:border-rg-gold hover:text-rg-gold"
+              >
+                Job Ledger →
+              </Link>
             </div>
           </div>
         </header>
