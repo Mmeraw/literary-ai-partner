@@ -1,7 +1,8 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
+import PaymentSuccessRedirect from "@/components/payments/PaymentSuccessRedirect";
 
 export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
 interface PaymentSuccessPageProps {
   searchParams: Promise<{ session_id?: string }>;
@@ -14,6 +15,10 @@ function stripeAuthHeader(secretKey: string): string {
 function safeDestination(value: unknown): string {
   if (value === "/evaluate" || value === "/workbench-v2") return value;
   return "/dashboard";
+}
+
+function safeProductName(value: unknown): string {
+  return typeof value === "string" && value.trim() ? value : "RevisionGrade";
 }
 
 export default async function PaymentSuccessPage({ searchParams }: PaymentSuccessPageProps) {
@@ -38,8 +43,13 @@ export default async function PaymentSuccessPage({ searchParams }: PaymentSucces
     return <PaymentFallback message="This checkout session is not marked paid yet." />;
   }
 
-  const destination = safeDestination(session.metadata?.destination);
-  redirect(`${destination}?payment=success&session_id=${encodeURIComponent(sessionId)}`);
+  return (
+    <PaymentSuccessRedirect
+      destination={safeDestination(session.metadata?.destination)}
+      sessionId={sessionId}
+      productName={safeProductName(session.metadata?.product_name)}
+    />
+  );
 }
 
 function PaymentFallback({ message }: { message: string }) {
