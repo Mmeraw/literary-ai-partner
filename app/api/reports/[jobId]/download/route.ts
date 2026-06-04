@@ -1626,10 +1626,19 @@ export async function GET(
     loadDreamDocument(admin, jobId),
     getAllCanonGovernanceData(jobId),
   ]);
-  const waveGov = canonGov.waveGov;
+
+  // Governance sections (WAVE, Gate 15, Golden Spine, Dialogue Canon) are admin-only.
+  // Regular users should not see internal pipeline governance data in their downloads.
+  const userRole = (user.app_metadata as Record<string, unknown> | undefined)?.role;
+  const isAdminUser = userRole === 'admin' || userRole === 'superadmin';
+  const waveGov = isAdminUser ? canonGov.waveGov : null;
+  const exportGate15 = isAdminUser ? canonGov.gate15 : null;
+  const exportGoldenSpine = isAdminUser ? canonGov.goldenSpine : null;
+  const exportDialogueCanon = isAdminUser ? canonGov.dialogueCanon : null;
+  const exportRevisionCanonMeta = isAdminUser ? canonGov.revisionCanonMeta : null;
 
   if (format === 'txt') {
-    const body = buildTxtReport(result, title, jobId, dream, waveGov, canonGov.gate15, canonGov.goldenSpine, canonGov.dialogueCanon, canonGov.revisionCanonMeta);
+    const body = buildTxtReport(result, title, jobId, dream, waveGov, exportGate15, exportGoldenSpine, exportDialogueCanon, exportRevisionCanonMeta);
     return new Response(body, {
       headers: {
         'Content-Type': 'text/plain; charset=utf-8',
@@ -1670,7 +1679,7 @@ export async function GET(
     }
   }
 
-  const buffer = await buildDocx(result, title, jobId, dream, waveGov, canonGov.gate15, canonGov.goldenSpine, canonGov.dialogueCanon, canonGov.revisionCanonMeta);
+  const buffer = await buildDocx(result, title, jobId, dream, waveGov, exportGate15, exportGoldenSpine, exportDialogueCanon, exportRevisionCanonMeta);
   return new Response(new Uint8Array(buffer), {
     headers: {
       'Content-Type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',

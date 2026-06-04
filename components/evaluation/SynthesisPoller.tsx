@@ -82,6 +82,12 @@ export function SynthesisPoller({ jobId, wordCount, initialDreamDoc = null, onRe
         console.warn(`[SynthesisPoller] artifacts endpoint returned ${res.status} for job ${jobId}`);
         return;
       }
+      // Guard: Vercel may return HTML on cold-start/timeout even with 200 status
+      const ct = res.headers.get("content-type") ?? "";
+      if (!ct.includes("application/json")) {
+        console.warn(`[SynthesisPoller] non-JSON response (${ct}) for job ${jobId}`);
+        return;
+      }
       const data = await res.json() as { ok: boolean; artifact?: ArtifactRow | null };
       if (!data.ok || !data.artifact) return;
       if (data.artifact.artifact_type !== "longform_document_v1") return;
