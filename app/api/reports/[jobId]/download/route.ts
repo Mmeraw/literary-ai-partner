@@ -991,6 +991,7 @@ async function buildPdfReport(result: ExportableResult, title: string | null, jo
 
     // ── Branded footers on every page ─────────────────────────────────
     const range = doc.bufferedPageRange();
+    const pageCount = range.count;
     for (let i = range.start; i < range.start + range.count; i += 1) {
       doc.switchToPage(i);
       const pageNumber = i - range.start + 1;
