@@ -15,6 +15,8 @@
  * while providing enough grounding to prevent common extraction failures.
  */
 
+import { buildCompactTemplateBlock, type DreamTemplateKey } from "@/lib/evaluation/dreamTemplateLoader";
+
 export type SeedRoute = 'LONG_FORM' | 'SHORT_FORM';
 
 /**
@@ -122,82 +124,9 @@ ACCEPTANCE CHECKS: Include 8-12 Q&A pairs that verify the ledger is correct.
 `.trim();
 
 // ── DREAM Evaluation Templates (route-specific) ─────────────────────────────
-
-const DREAM_LONGFORM_TEMPLATE = `
-DREAM LONG-FORM EVALUATION TEMPLATE:
-This is the template your seed must prepare the manuscript to be evaluated against.
-A successful long-form evaluation produces ALL of the following:
-
-1. MANUSCRIPT METADATA: title, word count, route=LONG_FORM, output mode (standard_long_form or multi_layer_long_form), chunk count, coverage statement, confidence level
-2. EXECUTIVE VERDICT: 1 paragraph naming governing ambition, primary emotional anchor, most significant architectural strength, most consequential drag, current readiness
-3. OVERALL QUALITY SCORE + READINESS SCORE (out of 100)
-4. FULL 13-CRITERIA SCORE GRID (each scored x/10 with confidence level):
-   - Concept & Core Premise
-   - Narrative Drive & Momentum
-   - Character Depth & Psychological Coherence
-   - Point of View & Voice Control
-   - Scene Construction & Function
-   - Dialogue Authenticity & Subtext
-   - Thematic Integration
-   - World-Building & Environmental Logic
-   - Pacing & Structural Balance
-   - Prose Control & Line-Level Craft
-   - Tonal Authority & Consistency
-   - Narrative Closure & Promises Kept
-   - Professional Readiness & Market Positioning
-5. PER-CRITERION BLOCKS: fit statement (what IS working) + gap statement (what FALLS SHORT) + anchored evidence excerpts + why-it-matters + how-to-revise
-6. STRUCTURAL STACK (for multi-layer): Layer & Voice Map, stack diagnosis, which layer is emotional anchor / interpretive frame / most fragile
-7. DREAM COMPLETENESS LEDGERS proving evaluation accounted for:
-   - Character coverage & arc accountability
-   - Relationship spine completeness
-   - Symbol-to-character payoff tracking
-   - Sensory/emotional register distribution
-   - Evidence distribution confidence gate
-   - Manuscript integrity classification
-8. WAVE-INFORMED REVISION PRIORITIES: ordered revision targets with recommended wave domains
-9. PRIORITIZED REVISION QUEUE (top 5): rank, criterion, gap, reasoning, estimated effort, estimated reader impact
-10. SIPOC DIAGNOSTIC APPENDIX: chunk coverage %, compression ratio, dark criteria, evidence density
-
-Your seed must extract enough ground truth that downstream phases can populate ALL of these sections with evidence-backed content.
-`.trim();
-
-const DREAM_SHORTFORM_TEMPLATE = `
-DREAM SHORT-FORM EVALUATION TEMPLATE:
-This is the template your seed must prepare the manuscript to be evaluated against.
-A successful short-form evaluation produces ALL of the following:
-
-1. REPORT METADATA: title, word count, route=SHORT_FORM, evaluation date, confidence level
-2. EXECUTIVE SUMMARY: concise verdict on strengths, weaknesses, and readiness
-3. OVERALL SCORE AND VERDICT
-4. TOP STRENGTHS / TOP RISKS
-5. TOP RECOMMENDATIONS: 3-5 paraphrased highest-impact author actions (not verbatim criterion repetitions)
-6. 13 STORY CRITERIA SCORE GRID (each scored x/10 with confidence level):
-   - Concept & Core Premise
-   - Narrative Drive & Momentum
-   - Character Depth & Psychological Coherence
-   - Point of View & Voice Control
-   - Scene Construction & Function
-   - Dialogue Authenticity & Subtext
-   - Thematic Integration
-   - World-Building & Environmental Logic
-   - Pacing & Structural Balance
-   - Prose Control & Line-Level Craft
-   - Tonal Authority & Consistency
-   - Narrative Closure & Promises Kept
-   - Professional Readiness & Market Positioning
-7. CRITERION RATIONALES: per-criterion strengths, drags, and typical recommendations
-8. SURFACED CRITERION OPPORTUNITIES (0-3 per criterion) with 6-part diagnostic:
-   - Evidence (where in the text)
-   - Symptom (the observable problem)
-   - Cause (the mechanism)
-   - Fix direction (bounded repair)
-   - Reader effect (what changes if repaired)
-   - Mistake-proofing (what must not be damaged)
-9. CONFIDENCE EXPLANATION
-
-Short-form does NOT promise: full Story Ledger, DREAM governed ledgers, WAVE continuity, A/B/C rewrite proposals.
-Your seed must extract enough ground truth from the submitted text to populate all scorable criteria with evidence.
-`.trim();
+// Templates are now loaded from docs/templates/evaluation/*.md via dreamTemplateLoader.
+// The loader reads the canonical .md files, caches them, and produces compact
+// prompt-ready blocks. Hardcoded summaries replaced with runtime file reads.
 
 // ── Completed Benchmark Exemplar (compact) ──────────────────────────────────
 
@@ -236,7 +165,8 @@ This is what a gold-standard short-form evaluation looks like. Use this as your 
  * benchmark exemplar.
  */
 export function buildSeedBenchmarkContext(route?: SeedRoute): string {
-  const dreamTemplate = route === 'SHORT_FORM' ? DREAM_SHORTFORM_TEMPLATE : DREAM_LONGFORM_TEMPLATE;
+  const templateKey: DreamTemplateKey = route === 'SHORT_FORM' ? 'short_form' : 'long_form';
+  const dreamTemplate = buildCompactTemplateBlock(templateKey);
   const exemplar = route === 'SHORT_FORM' ? BENCHMARK_EXEMPLAR_SHORTFORM : BENCHMARK_EXEMPLAR_LONGFORM;
 
   return [

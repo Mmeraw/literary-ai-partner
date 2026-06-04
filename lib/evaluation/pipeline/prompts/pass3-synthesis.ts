@@ -16,6 +16,7 @@ import {
   getDefaultSynthesisReferenceCharBudget,
   summarizePromptCoverage,
 } from "../promptInput";
+import { buildCompactTemplateBlock, resolveTemplateKey } from "@/lib/evaluation/dreamTemplateLoader";
 
 export const PASS3_PROMPT_VERSION = "pass3-synthesis-v21-rec-or-rationale-contract";
 
@@ -554,6 +555,13 @@ Coverage truth signal:
 - Reference snippet (context anchor only): ${referenceSnippet}
 ${params.scopeProfile ? `- Submission scope: ${params.scopeProfile.inputScale} (${params.scopeProfile.wordCount} words; ${params.scopeProfile.chunkCount} chunk(s); ${params.scopeProfile.scorableCount}/13 criteria non-NA for this scope; confidence cap ${params.scopeProfile.confidenceCapSummary})` : ""}
 
+${(() => {
+  const templateKey = resolveTemplateKey(params.scopeProfile?.wordCount);
+  const templateBlock = buildCompactTemplateBlock(templateKey);
+  return templateBlock
+    ? `\n## DREAM EVALUATION TEMPLATE (Canonical Report Shape)\nThe evaluation output MUST conform to this template. Every required section must be populated.\n${templateBlock}\n`
+    : "";
+})()}
 ${params.ledgerWarning ? `\n\n## CHARACTER LEDGER STATUS\n${params.ledgerWarning}\n` : ""}
 ${buildPreflightDraftBlock(params.compactPreflightSummary)}
 ## PASS2A_STRUCTURED_CONTEXT (Hard Input)
