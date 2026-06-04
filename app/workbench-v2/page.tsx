@@ -8,6 +8,8 @@ import ResetQueueButton from "@/components/revision/ResetQueueButton";
 import { buildRevisionOpportunityLedger, persistRevisionOpportunityLedger } from "@/lib/revision/revisionOpportunityLedgerArtifact";
 import { redirect } from "next/navigation";
 import { resolveWorkbenchRouteTargetForUser } from "@/lib/revision/workbenchQueue";
+import SupportAccessToggle from "@/components/reports/SupportAccessToggle";
+import ReportConcernForm from "@/components/reports/ReportConcernForm";
 import styles from "./workbench-v2.module.css";
 
 export default async function WorkbenchV2Page({ searchParams }: { searchParams?: Promise<Record<string, string | string[] | undefined>> }) {
@@ -52,6 +54,12 @@ export default async function WorkbenchV2Page({ searchParams }: { searchParams?:
         </Link>
       </div>
       <ReviseCockpitClientWorkflowV2 payload={payload} />
+      {evaluationJobId && (
+        <div className="mx-auto mt-8 max-w-3xl space-y-3 px-4 pb-8">
+          <SupportAccessToggle jobId={evaluationJobId} scope="revision_data" />
+          <ReportConcernForm jobId={evaluationJobId} page="revise-workbench" />
+        </div>
+      )}
     </div>
   );
 }

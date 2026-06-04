@@ -54,6 +54,14 @@ const adminCards = [
       "Review failed jobs and retry or discard them when recovery is appropriate.",
     priority: "Recovery",
   },
+  {
+    title: "User Support View",
+    href: "/admin/support",
+    eyebrow: "Support · deconflict · investigate",
+    description:
+      "View user evaluations with active support access grants. See diagnostic findings, revision decisions, and session state for troubleshooting.",
+    priority: "Support",
+  },
 ];
 
 export default async function AdminDashboard() {
