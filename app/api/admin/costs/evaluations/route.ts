@@ -26,6 +26,20 @@ export interface EvalPhaseCostRow {
   lastCalledAt: string | null;
 }
 
+export interface EvalPhaseCoverageRow {
+  key: string;
+  label: string;
+  description: string;
+  status: "tracked" | "missing_or_not_run" | "not_applicable";
+  calls: number;
+  inputTokens: number;
+  outputTokens: number;
+  costCents: number;
+  models: string[];
+  phases: string[];
+  note: string;
+}
+
 export interface EvalJobCostRow {
   jobId: string;
   manuscriptId: string | null;
@@ -40,6 +54,8 @@ export interface EvalJobCostRow {
   firstCalledAt: string | null;
   lastCalledAt: string | null;
   phases: EvalPhaseCostRow[];
+  phaseCoverage: EvalPhaseCoverageRow[];
+  missingPhaseCount: number;
   warnings: string[];
 }
 
@@ -55,6 +71,7 @@ export interface EvalCostLedgerPayload {
   totalCostCents: number;
   totalCalls: number;
   runningJobCount: number;
+  missingPhaseCount: number;
   generatedAt: string;
   warnings: string[];
 }
@@ -75,6 +92,75 @@ interface RawJobMeta {
   status: string | null;
   manuscripts: { title: string | null } | null;
 }
+
+type PhaseCoverageDefinition = {
+  key: string;
+  label: string;
+  description: string;
+  aliases: string[];
+  noteWhenMissing: string;
+  notApplicable?: boolean;
+};
+
+const PHASE_COVERAGE_DEFINITIONS: PhaseCoverageDefinition[] = [
+  {
+    key: "phase0_intake",
+    label: "Phase 0 / Intake",
+    description: "Deterministic job intake, file checks, and routing before model work begins.",
+    aliases: ["phase0", "phase_0", "pass0", "intake"],
+    noteWhenMissing: "No LLM spend is expected for deterministic intake unless a future Phase 0 model call is added.",
+    notApplicable: true,
+  },
+  {
+    key: "seed_05a_story_ledger",
+    label: "Seed 0.5a / Story Ledger",
+    description: "Full-context or semantic story-ledger seed used as downstream ground truth.",
+    aliases: ["phase05_semantic_seed", "phase05a", "phase_0.5a", "phase0.5a", "0.5a", "full_context_ledger", "story_ledger"],
+    noteWhenMissing: "No 0.5a ledger cost row was found. If this job should have full-context ledger enabled, verify the seed ran and called trackCompletionCost.",
+  },
+  {
+    key: "seed_05b_dream",
+    label: "Seed 0.5b / DREAM Seed",
+    description: "Full-context editorial DREAM seed/calibration pass.",
+    aliases: ["phase05b", "phase_0.5b", "phase0.5b", "0.5b", "editorial_dream_seed", "dream_seed"],
+    noteWhenMissing: "No 0.5b DREAM seed cost row was found. It may be disabled, not applicable, or missing telemetry.",
+  },
+  {
+    key: "phase1a_character_sweep",
+    label: "Phase 1A / Character Sweep",
+    description: "Chunked character and evidence sweep.",
+    aliases: ["pass1a", "phase1a", "phase_1a", "character_sweep"],
+    noteWhenMissing: "No Phase 1A cost rows were found. For chunked evaluations, this is a pipeline or telemetry concern.",
+  },
+  {
+    key: "phase3a_independent_read",
+    label: "Phase 3A / Independent Read",
+    description: "Independent full-manuscript preflight reader and reducer.",
+    aliases: ["pass3a", "phase3a", "phase_3a", "preflight"],
+    noteWhenMissing: "No Phase 3A preflight cost rows were found. If the job was long/full-context, inspect whether Pass 3A ran or only its telemetry is missing.",
+  },
+  {
+    key: "wave_read_ahead",
+    label: "WAVE / Read-Ahead",
+    description: "Heavy read-ahead / whole-manuscript calibration work before synthesis.",
+    aliases: ["wave", "read_ahead", "pass3_read_ahead", "read-ahead"],
+    noteWhenMissing: "No WAVE/read-ahead cost row was found. If WAVE is expected for this evaluation tier, this is either not running or not tracked.",
+  },
+  {
+    key: "phase3b_dream_document",
+    label: "Phase 3B / DREAM Document",
+    description: "Long-form DREAM synthesis, criterion batches, and synthesis pass.",
+    aliases: ["pass3b", "phase3b", "phase_3b", "dream_document", "longform"],
+    noteWhenMissing: "No Phase 3B/DREAM cost rows were found. This is expected for short evaluations, but not for long-form multi-layer jobs.",
+  },
+  {
+    key: "phase5_revise_queue",
+    label: "Phase 5 / Revise Queue",
+    description: "Revision queue or downstream revise-product generation tied to the evaluation.",
+    aliases: ["phase5", "phase_5", "pass5", "revise_queue", "revise"],
+    noteWhenMissing: "No Phase 5/revise cost row was found. This may be a separate product flow, not part of the evaluation job ledger.",
+  },
+];
 
 function safeNum(v: unknown, fallback = 0): number {
   return typeof v === "number" && Number.isFinite(v) ? v : fallback;
@@ -130,6 +216,53 @@ async function fetchJobMetadata(supabase: ReturnType<typeof createAdminClient>, 
   }
 
   return map;
+}
+
+function phaseMatchesDefinition(phase: string, definition: PhaseCoverageDefinition): boolean {
+  const normalized = phase.toLowerCase().replace(/[\s-]+/g, "_");
+  return definition.aliases.some((alias) => normalized.includes(alias.toLowerCase().replace(/[\s-]+/g, "_")));
+}
+
+function buildPhaseCoverage(phases: EvalPhaseCostRow[]): EvalPhaseCoverageRow[] {
+  return PHASE_COVERAGE_DEFINITIONS.map((definition) => {
+    const matches = phases.filter((phase) => phaseMatchesDefinition(phase.phase, definition));
+    const models = [...new Set(matches.map((phase) => phase.model).filter(Boolean))];
+    const phaseNames = [...new Set(matches.map((phase) => phase.phase))];
+    const calls = matches.reduce((sum, phase) => sum + phase.calls, 0);
+    const inputTokens = matches.reduce((sum, phase) => sum + phase.inputTokens, 0);
+    const outputTokens = matches.reduce((sum, phase) => sum + phase.outputTokens, 0);
+    const costCents = matches.reduce((sum, phase) => sum + phase.costCents, 0);
+
+    if (matches.length > 0) {
+      return {
+        key: definition.key,
+        label: definition.label,
+        description: definition.description,
+        status: "tracked" as const,
+        calls,
+        inputTokens,
+        outputTokens,
+        costCents,
+        models,
+        phases: phaseNames,
+        note: "Tracked in job_costs.",
+      };
+    }
+
+    return {
+      key: definition.key,
+      label: definition.label,
+      description: definition.description,
+      status: definition.notApplicable ? "not_applicable" as const : "missing_or_not_run" as const,
+      calls: 0,
+      inputTokens: 0,
+      outputTokens: 0,
+      costCents: 0,
+      models: [],
+      phases: [],
+      note: definition.noteWhenMissing,
+    };
+  });
 }
 
 function buildLedger(rows: RawCostRow[], jobMeta: Map<string, RawJobMeta>, allocatedOverheadCents: number): EvalJobCostRow[] {
@@ -213,6 +346,12 @@ function buildLedger(rows: RawCostRow[], jobMeta: Map<string, RawJobMeta>, alloc
     }
 
     phases.sort((a, b) => b.costCents - a.costCents);
+    const phaseCoverage = buildPhaseCoverage(phases);
+    const missingPhaseCount = phaseCoverage.filter((row) => row.status === "missing_or_not_run").length;
+
+    if (missingPhaseCount > 0) {
+      warnings.push(`${missingPhaseCount} expected phase group(s) have no tracked cost rows for this job. They may be not applicable, skipped, or missing telemetry.`);
+    }
 
     const manuscripts = meta?.manuscripts;
     const manuscriptTitle = manuscripts && typeof manuscripts === "object" && !Array.isArray(manuscripts)
@@ -237,6 +376,8 @@ function buildLedger(rows: RawCostRow[], jobMeta: Map<string, RawJobMeta>, alloc
       firstCalledAt: agg.firstCalledAt,
       lastCalledAt: agg.lastCalledAt,
       phases,
+      phaseCoverage,
+      missingPhaseCount,
       warnings,
     });
   }
@@ -287,6 +428,11 @@ export async function GET(request: NextRequest) {
   const totalCostCents = jobs.reduce((sum, job) => sum + job.totalCostCents, 0);
   const totalCalls = jobs.reduce((sum, job) => sum + job.totalCalls, 0);
   const runningJobCount = jobs.filter((job) => job.status === "running" || job.status === "queued").length;
+  const missingPhaseCount = jobs.reduce((sum, job) => sum + job.missingPhaseCount, 0);
+
+  if (missingPhaseCount > 0) {
+    warnings.push(`${missingPhaseCount} expected evaluation phase group(s) across this range have no tracked rows. Use the Phase Coverage table to distinguish tracked spend from missing/not-run work.`);
+  }
 
   const payload: EvalCostLedgerPayload = {
     range,
@@ -303,6 +449,7 @@ export async function GET(request: NextRequest) {
     totalCostCents,
     totalCalls,
     runningJobCount,
+    missingPhaseCount,
     generatedAt: new Date().toISOString(),
     warnings,
   };
