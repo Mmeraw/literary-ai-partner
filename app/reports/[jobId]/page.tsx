@@ -497,6 +497,66 @@ export default async function ReportPage({
           </section>
         )}
 
+        {/* ── Enrichment Surfaces (Premise, Trigger Warnings, Metrics) ── */}
+        {(() => {
+          if (!isEvaluationResultV2(result)) return null;
+          const enrichment = (result as EvaluationResultV2).enrichment;
+          if (!enrichment) return null;
+          return (
+            <>
+              {enrichment.premise && (
+                <section className="bg-white rounded-lg shadow-sm p-6 mb-6">
+                  <h2 className="text-2xl font-semibold text-gray-900 mb-3">Premise</h2>
+                  <p className="text-gray-700 leading-relaxed italic">{enrichment.premise}</p>
+                </section>
+              )}
+              {enrichment.trigger_warnings && enrichment.trigger_warnings.length > 0 && (
+                <section className="bg-amber-50 border border-amber-200 rounded-lg shadow-sm p-6 mb-6">
+                  <h2 className="text-2xl font-semibold text-amber-900 mb-3">Content Warnings</h2>
+                  <ul className="space-y-2 text-amber-800">
+                    {enrichment.trigger_warnings.map((w, i) => (
+                      <li key={i} className="flex gap-2 items-start">
+                        <span className="shrink-0 mt-0.5">{"\u26A0\uFE0F"}</span>
+                        <span className="capitalize">{w}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="mt-4 text-sm text-amber-700">
+                    Consider including content warnings in book marketing or front matter.
+                  </p>
+                </section>
+              )}
+              {(enrichment.reading_grade_level != null || enrichment.dialogue_percentage != null) && (
+                <section className="bg-white rounded-lg shadow-sm p-6 mb-6">
+                  <h2 className="text-2xl font-semibold text-gray-900 mb-4">Manuscript Metrics</h2>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {enrichment.reading_grade_level != null && (
+                      <div className="rounded-md border bg-gray-50 p-4">
+                        <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Reading Grade Level</p>
+                        <p className="mt-1 text-2xl font-bold text-gray-900">{enrichment.reading_grade_level}</p>
+                        <p className="mt-1 text-xs text-gray-600">Flesch-Kincaid</p>
+                        <p className="mt-2 text-xs text-gray-500 leading-relaxed">
+                          Measures prose complexity only—not audience appropriateness. Cross-reference Content Warnings above for suitability guidance.
+                        </p>
+                      </div>
+                    )}
+                    {enrichment.dialogue_percentage != null && (
+                      <div className="rounded-md border bg-gray-50 p-4">
+                        <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Dialogue vs. Narrative</p>
+                        <p className="mt-1 text-2xl font-bold text-gray-900">{enrichment.dialogue_percentage}%<span className="text-base font-normal text-gray-500"> dialogue</span></p>
+                        <p className="mt-1 text-xs text-gray-600">{enrichment.narrative_percentage ?? (100 - enrichment.dialogue_percentage)}% narrative</p>
+                        <p className="mt-2 text-xs text-gray-500 leading-relaxed">
+                          Most commercially successful novels range 25–35% dialogue.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </section>
+              )}
+            </>
+          );
+        })()}
+
         {/* Criteria Scores — hidden for long-form once dreamDoc lands (full synthesis is canonical) */}
         {(!isLongForm || !dreamDoc) && (
         <section className="bg-white rounded-lg shadow-sm p-6 mb-6">

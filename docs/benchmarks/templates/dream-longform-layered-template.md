@@ -26,12 +26,22 @@ This format does four things:
 - Title: `<manuscript title>`
 - Scope: `<chapter / excerpt / full manuscript / cycle>`
 - Words analyzed: `<count>`
+- Reading Grade Level: `<X.X>` (Flesch-Kincaid)
+- Dialogue/Narrative Ratio: `<XX>%` dialogue / `<XX>%` narrative
 - Evaluation date: `<YYYY-MM-DD>`
 - Job ID: `<engine job id, if any>`
 - Engine build: `<engine/version or "human">`
 - Coverage statement: `<what was actually read>`
 - Confidence: `<High / Moderate / Mixed>`
 - Template mode: `multi-layer / multi-voice`
+
+## Premise
+
+`<1–2 sentence elevator pitch that captures the core dramatic situation: protagonist or central force, primary conflict/tension, and emotional/tonal register. Suitable for query letters, back-cover copy, or marketing.>`
+
+## Trigger Warnings
+
+`<Bulleted list of content categories requiring reader advisories — e.g., graphic violence, sexual assault, substance abuse, self-harm, animal cruelty, body horror, child endangerment. Only include warnings supported by textual evidence. If none detected, state: "No content warnings identified." Conclude with: "Consider including content warnings in book marketing or front matter.">`
 
 ## Executive verdict
 
