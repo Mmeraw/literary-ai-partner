@@ -1,10 +1,18 @@
 import Link from "next/link";
+import PricingCheckoutButton from "@/components/payments/PricingCheckoutButton";
+import { PRICING_PRODUCTS } from "@/lib/payments/pricing-products";
 
 export const metadata = {
   title: "Pricing | RevisionGrade™",
   description:
     "Fixed-price editorial audits and metered Editorial Actions for governed manuscript readiness.",
 };
+
+function formatPrice(productId: string): string {
+  const product = PRICING_PRODUCTS[productId];
+  if (!product) return "Custom";
+  return `$${Math.round(product.priceCents / 100).toLocaleString()}`;
+}
 
 const auditTiers = [
   {
@@ -14,54 +22,60 @@ const auditTiers = [
     actionAccess: "Readiness preview",
     bestFor: "Testing hook, voice, and opening-page narrative pressure.",
     features: ["Opening hook", "Voice signal", "Readiness preview", "Full-manuscript diagnostics not included"],
+    href: "/evaluate",
   },
   {
     name: "Short-Form Story Evaluation",
     wordCount: "Up to 24,999 words",
-    price: "$49",
+    price: formatPrice("short_form_evaluation"),
     actionAccess: "13 story criteria + Revise Queue",
     bestFor: "Chapters, excerpts, short stories, openings, and partial submissions.",
     features: ["13 story criteria", "Evidence-backed diagnosis", "Prioritized revision opportunities", "Readiness verdict"],
+    productId: "short_form_evaluation",
   },
   {
     name: "Full Manuscript Readiness Audit",
     wordCount: "25,000–120,000 words",
-    price: "$249",
+    price: formatPrice("full_manuscript_audit"),
     actionAccess: "Long-form evaluation + up to 100 revision opportunities",
     bestFor: "The Professional Standard for novels and long-form manuscripts. Includes diagnostic report and prioritized Revise Queue.",
     features: ["13 story criteria", "Up to 100 prioritized revision opportunities", "MUST / SHOULD / COULD severity ranking", "A/B/C copy-paste-ready revision variants", "Manuscript-scale continuity", "Setup/payoff and pacing over distance"],
     highlighted: true,
+    productId: "full_manuscript_audit",
   },
   {
     name: "Long Manuscript Readiness Audit",
     wordCount: "120,001–180,000 words",
-    price: "$399",
+    price: formatPrice("long_manuscript_audit"),
     actionAccess: "Expanded long-form evaluation + up to 100 revision opportunities",
     bestFor: "Epic-scale manuscripts and longer novels.",
     features: ["13 story criteria", "Up to 100 prioritized revision opportunities", "Advanced continuity diagnostics", "Expanded long-form analysis", "Scale-aware opportunity summary"],
+    productId: "long_manuscript_audit",
   },
   {
     name: "Multi-Layer Manuscript Audit",
     wordCount: "Complex long-form projects",
-    price: "$499+",
+    price: `${formatPrice("multilayer_manuscript_audit")}+`,
     actionAccess: "Deep architecture audit + up to 100 revision opportunities",
     bestFor: "Multi-POV, multi-timeline, genre-hybrid, experimental, memoir-fiction, or unusually structured long-form prose.",
     features: ["13 story criteria", "Up to 100 prioritized revision opportunities", "Layered evidence analysis", "Proprietary repair governance where appropriate", "Custom complexity handling"],
+    productId: "multilayer_manuscript_audit",
   },
   {
     name: "ReGrade Follow-Up Pass",
     wordCount: "After completing revisions",
-    price: "$149",
+    price: formatPrice("regrade_follow_up"),
     actionAccess: "Re-evaluation + next severity layer",
     bestFor: "Authors who completed their first batch of revisions and want the next layer of opportunities surfaced.",
     features: ["Re-evaluates revised manuscript", "Surfaces next severity layer", "Updated scores and diagnosis", "New revision opportunities ranked by impact"],
+    productId: "regrade_follow_up",
   },
 ];
 
 const actionPacks = [
-  { name: "Starter Pack", actions: "Targeted Editorial Actions", price: "$29" },
-  { name: "Professional Pack", actions: "Expanded Editorial Actions", price: "$89" },
-  { name: "Studio Pack", actions: "Studio Editorial Actions", price: "$199" },
+  { name: "Starter Pack", actions: "Targeted Editorial Actions", productId: "revise_starter_pack" },
+  { name: "Professional Pack", actions: "Expanded Editorial Actions", productId: "revise_professional_pack" },
+  { name: "Studio Pack", actions: "Studio Editorial Actions", productId: "revise_studio_pack" },
 ];
 
 const faqs = [
@@ -115,6 +129,14 @@ function SectionLabel({ children }: { children: string }) {
   );
 }
 
+function checkoutClass(highlighted?: boolean): string {
+  return `block border px-4 py-3 text-center font-rg-mono text-xs uppercase tracking-[0.16em] transition ${
+    highlighted
+      ? "border-rg-ink bg-rg-ink text-rg-cream hover:bg-transparent hover:text-rg-ink"
+      : "border-rg-gold text-rg-gold hover:bg-rg-gold hover:text-rg-ink"
+  }`;
+}
+
 export default function PricingPage() {
   return (
     <div className="bg-rg-ink text-rg-cream">
@@ -140,7 +162,7 @@ export default function PricingPage() {
               </h2>
             </div>
             <p className="max-w-xl text-sm leading-7 text-rg-cream2/70">
-              The Full Manuscript Readiness Audit is the professional baseline for authors preparing a serious manuscript for revision, editing, querying, or submission.
+              Paid audit selections open secure Stripe Checkout first. After successful payment, buyers are directed into the evaluation product.
             </p>
           </div>
 
@@ -179,16 +201,9 @@ export default function PricingPage() {
                     </ul>
                   </div>
                 </div>
-                <Link
-                  href="/evaluate"
-                  className={`mt-7 block border px-4 py-3 text-center font-rg-mono text-xs uppercase tracking-[0.16em] transition ${
-                    tier.highlighted
-                      ? "border-rg-ink bg-rg-ink text-rg-cream hover:bg-transparent hover:text-rg-ink"
-                      : "border-rg-gold text-rg-gold hover:bg-rg-gold hover:text-rg-ink"
-                  }`}
-                >
-                  Start Audit
-                </Link>
+                <PricingCheckoutButton productId={tier.productId} href={tier.href} className={checkoutClass(tier.highlighted)}>
+                  {tier.productId ? "Secure Checkout" : "Start Free Diagnostic"}
+                </PricingCheckoutButton>
               </article>
             ))}
           </div>
@@ -217,10 +232,15 @@ export default function PricingPage() {
         </div>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {actionPacks.map((pack) => (
-            <article key={pack.name} className="border border-rg-cream2/12 bg-rg-ink2/60 p-6 md:p-7">
-              <h3 className="font-rg-serif text-2xl text-rg-cream">{pack.name}</h3>
-              <p className="mt-3 font-rg-mono text-xs uppercase tracking-[0.14em] text-rg-gold">{pack.actions}</p>
-              <p className="mt-5 font-rg-serif text-4xl text-rg-cream sm:text-5xl">{pack.price}</p>
+            <article key={pack.name} className="flex flex-col border border-rg-cream2/12 bg-rg-ink2/60 p-6 md:p-7">
+              <div className="flex-1">
+                <h3 className="font-rg-serif text-2xl text-rg-cream">{pack.name}</h3>
+                <p className="mt-3 font-rg-mono text-xs uppercase tracking-[0.14em] text-rg-gold">{pack.actions}</p>
+                <p className="mt-5 font-rg-serif text-4xl text-rg-cream sm:text-5xl">{formatPrice(pack.productId)}</p>
+              </div>
+              <PricingCheckoutButton productId={pack.productId} className={checkoutClass(false)}>
+                Secure Checkout
+              </PricingCheckoutButton>
             </article>
           ))}
         </div>
