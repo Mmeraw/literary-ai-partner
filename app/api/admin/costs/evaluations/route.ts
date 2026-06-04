@@ -1,22 +1,20 @@
 /**
  * Per-Evaluation Cost Ledger API
  *
- * GET /api/admin/costs/evaluations
- *
- * Returns every evaluation job that has cost rows in `job_costs`, with a
- * full per-phase, per-model breakdown. Sorted most-recent first (by the
- * latest LLM call in the job). Running jobs are flagged so the UI can
- * auto-refresh them faster.
- *
- * Auth: Requires admin session via requireAdmin.
+ * GET /api/admin/costs/evaluations?range=24h|5d|30d|all
  */
 
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { resolveTrackedCostCents } from "@/lib/jobs/cost";
-
-// ─── Types ──────────────────────────────────────────────────────────
+import {
+  getConfiguredOverheadForRange,
+  getCostRangeWindow,
+  normalizeCostRange,
+  type CostOpsProviderCostRow,
+  type CostOpsRange,
+} from "@/lib/admin/costops";
 
 export interface EvalPhaseCostRow {
   phase: string;
@@ -33,6 +31,8 @@ export interface EvalJobCostRow {
   manuscriptId: string | null;
   manuscriptTitle: string | null;
   status: string | null;
+  llmCostCents: number;
+  allocatedOverheadCents: number;
   totalCostCents: number;
   totalCalls: number;
   totalInputTokens: number;
@@ -44,21 +44,20 @@ export interface EvalJobCostRow {
 }
 
 export interface EvalCostLedgerPayload {
+  range: CostOpsRange;
+  rangeLabel: string;
+  rangeStart: string | null;
+  rangeEnd: string;
   jobs: EvalJobCostRow[];
+  providerCosts: CostOpsProviderCostRow[];
+  llmCostCents: number;
+  allocatedOverheadCents: number;
   totalCostCents: number;
   totalCalls: number;
   runningJobCount: number;
   generatedAt: string;
   warnings: string[];
 }
-
-// ─── Helpers ────────────────────────────────────────────────────────
-
-function safeNum(v: unknown, fallback = 0): number {
-  return typeof v === "number" && Number.isFinite(v) ? v : fallback;
-}
-
-// ─── Data fetching ──────────────────────────────────────────────────
 
 interface RawCostRow {
   job_id: string;
@@ -70,18 +69,41 @@ interface RawCostRow {
   called_at: string | null;
 }
 
-async function fetchAllCostRows(supabase: ReturnType<typeof createAdminClient>): Promise<RawCostRow[]> {
+interface RawJobMeta {
+  id: string;
+  manuscript_id: string | null;
+  status: string | null;
+  manuscripts: { title: string | null } | null;
+}
+
+function safeNum(v: unknown, fallback = 0): number {
+  return typeof v === "number" && Number.isFinite(v) ? v : fallback;
+}
+
+function rowCostCents(row: RawCostRow): number {
+  return resolveTrackedCostCents({
+    model: row.model,
+    inputTokens: row.input_tokens,
+    outputTokens: row.output_tokens,
+    recordedCostCents: row.cost_cents,
+  });
+}
+
+async function fetchAllCostRows(supabase: ReturnType<typeof createAdminClient>, start: string | null): Promise<RawCostRow[]> {
   const rows: RawCostRow[] = [];
   let from = 0;
   const pageSize = 1000;
 
   while (true) {
-    const { data, error } = await supabase
+    let query = supabase
       .from("job_costs")
       .select("job_id, phase, model, input_tokens, output_tokens, cost_cents, called_at")
       .range(from, from + pageSize - 1)
       .order("called_at", { ascending: false });
 
+    if (start) query = query.gte("called_at", start);
+
+    const { data, error } = await query;
     if (error) throw new Error(`job_costs fetch error: ${error.message}`);
     if (!data || data.length === 0) break;
     rows.push(...(data as RawCostRow[]));
@@ -92,17 +114,7 @@ async function fetchAllCostRows(supabase: ReturnType<typeof createAdminClient>):
   return rows;
 }
 
-interface RawJobMeta {
-  id: string;
-  manuscript_id: string | null;
-  status: string | null;
-  manuscripts: { title: string | null } | null;
-}
-
-async function fetchJobMetadata(
-  supabase: ReturnType<typeof createAdminClient>,
-  jobIds: string[],
-): Promise<Map<string, RawJobMeta>> {
+async function fetchJobMetadata(supabase: ReturnType<typeof createAdminClient>, jobIds: string[]): Promise<Map<string, RawJobMeta>> {
   const map = new Map<string, RawJobMeta>();
   if (jobIds.length === 0) return map;
 
@@ -113,56 +125,37 @@ async function fetchJobMetadata(
       .select("id, manuscript_id, status, manuscripts(title)")
       .in("id", batch);
 
-    if (error) {
-      console.error("[eval-cost-ledger] job metadata fetch error:", error.message);
-      continue;
-    }
-    for (const row of data ?? []) {
-      map.set(row.id, row as unknown as RawJobMeta);
-    }
+    if (error) continue;
+    for (const row of data ?? []) map.set(row.id, row as unknown as RawJobMeta);
   }
 
   return map;
 }
 
-// ─── Aggregation ────────────────────────────────────────────────────
+function buildLedger(rows: RawCostRow[], jobMeta: Map<string, RawJobMeta>, allocatedOverheadCents: number): EvalJobCostRow[] {
+  type PhaseKey = string;
+  const jobMap = new Map<string, {
+    phases: Map<PhaseKey, { calls: number; inTok: number; outTok: number; costCents: number; lastCalledAt: string | null }>;
+    llmCostCents: number;
+    totalCalls: number;
+    totalInputTokens: number;
+    totalOutputTokens: number;
+    firstCalledAt: string | null;
+    lastCalledAt: string | null;
+  }>();
 
-function buildLedger(
-  rows: RawCostRow[],
-  jobMeta: Map<string, RawJobMeta>,
-): EvalJobCostRow[] {
-  // Group raw rows by job_id → phase+model key
-  type PhaseKey = string; // `${phase}||${model}`
-  const jobMap = new Map<
-    string,
-    {
-      phases: Map<PhaseKey, { calls: number; inTok: number; outTok: number; costCents: number; lastCalledAt: string | null }>;
-      totalCostCents: number;
-      totalCalls: number;
-      totalInputTokens: number;
-      totalOutputTokens: number;
-      firstCalledAt: string | null;
-      lastCalledAt: string | null;
-    }
-  >();
+  for (const row of rows) {
+    const jobId = row.job_id;
+    if (!jobId) continue;
 
-  for (const r of rows) {
-    const jid = r.job_id;
-    if (!jid) continue;
+    const costCents = rowCostCents(row);
+    const inputTokens = safeNum(row.input_tokens);
+    const outputTokens = safeNum(row.output_tokens);
+    const phaseKey: PhaseKey = `${row.phase ?? "unknown"}||${row.model ?? "unknown"}`;
 
-    const phaseKey: PhaseKey = `${r.phase ?? "unknown"}||${r.model ?? "unknown"}`;
-    const costCents = resolveTrackedCostCents({
-      model: r.model,
-      inputTokens: r.input_tokens,
-      outputTokens: r.output_tokens,
-      recordedCostCents: r.cost_cents,
-    });
-    const inTok = safeNum(r.input_tokens);
-    const outTok = safeNum(r.output_tokens);
-
-    const job = jobMap.get(jid) ?? {
+    const job = jobMap.get(jobId) ?? {
       phases: new Map(),
-      totalCostCents: 0,
+      llmCostCents: 0,
       totalCalls: 0,
       totalInputTokens: 0,
       totalOutputTokens: 0,
@@ -172,93 +165,88 @@ function buildLedger(
 
     const phase = job.phases.get(phaseKey) ?? { calls: 0, inTok: 0, outTok: 0, costCents: 0, lastCalledAt: null };
     phase.calls += 1;
-    phase.inTok += inTok;
-    phase.outTok += outTok;
+    phase.inTok += inputTokens;
+    phase.outTok += outputTokens;
     phase.costCents += costCents;
-    if (r.called_at && (!phase.lastCalledAt || r.called_at > phase.lastCalledAt)) {
-      phase.lastCalledAt = r.called_at;
-    }
+    if (row.called_at && (!phase.lastCalledAt || row.called_at > phase.lastCalledAt)) phase.lastCalledAt = row.called_at;
     job.phases.set(phaseKey, phase);
 
-    job.totalCostCents += costCents;
+    job.llmCostCents += costCents;
     job.totalCalls += 1;
-    job.totalInputTokens += inTok;
-    job.totalOutputTokens += outTok;
+    job.totalInputTokens += inputTokens;
+    job.totalOutputTokens += outputTokens;
 
-    if (r.called_at) {
-      if (!job.firstCalledAt || r.called_at < job.firstCalledAt) job.firstCalledAt = r.called_at;
-      if (!job.lastCalledAt || r.called_at > job.lastCalledAt) job.lastCalledAt = r.called_at;
+    if (row.called_at) {
+      if (!job.firstCalledAt || row.called_at < job.firstCalledAt) job.firstCalledAt = row.called_at;
+      if (!job.lastCalledAt || row.called_at > job.lastCalledAt) job.lastCalledAt = row.called_at;
     }
 
-    jobMap.set(jid, job);
+    jobMap.set(jobId, job);
   }
 
-  const result: EvalJobCostRow[] = [];
+  const totalLlm = [...jobMap.values()].reduce((sum, job) => sum + job.llmCostCents, 0);
+  const equalShare = jobMap.size > 0 ? allocatedOverheadCents / jobMap.size : 0;
+  const jobs: EvalJobCostRow[] = [];
 
   for (const [jobId, agg] of jobMap.entries()) {
     const meta = jobMeta.get(jobId);
     const warnings: string[] = [];
+    const phases: EvalPhaseCostRow[] = [];
 
-    // Detect expensive model usage in phases
-    const phaseRows: EvalPhaseCostRow[] = [];
-    for (const [key, p] of agg.phases.entries()) {
+    for (const [key, phaseAgg] of agg.phases.entries()) {
       const [phase, model] = key.split("||");
       if (model && model !== "unknown" && (model.includes("5.1") || model.includes("o1"))) {
-        // Flag if expensive model is used in a phase that typically runs cheap
         const cheapPhases = ["pass1", "pass2", "seed", "chunk", "ledger", "polish"];
-        if (cheapPhases.some((cp) => phase.toLowerCase().includes(cp))) {
-          warnings.push(`Expensive model "${model}" used in phase "${phase}" — verify cheap routing is active.`);
+        if (cheapPhases.some((cheapPhase) => phase.toLowerCase().includes(cheapPhase))) {
+          warnings.push(`Expensive model "${model}" used in phase "${phase}" - verify cheap routing is active.`);
         }
       }
-      phaseRows.push({
+      phases.push({
         phase,
         model,
-        calls: p.calls,
-        inputTokens: p.inTok,
-        outputTokens: p.outTok,
-        costCents: p.costCents,
-        lastCalledAt: p.lastCalledAt,
+        calls: phaseAgg.calls,
+        inputTokens: phaseAgg.inTok,
+        outputTokens: phaseAgg.outTok,
+        costCents: phaseAgg.costCents,
+        lastCalledAt: phaseAgg.lastCalledAt,
       });
     }
 
-    // Sort phases by cost descending
-    phaseRows.sort((a, b) => b.costCents - a.costCents);
+    phases.sort((a, b) => b.costCents - a.costCents);
 
     const manuscripts = meta?.manuscripts;
-    const manuscriptTitle =
-      manuscripts && typeof manuscripts === "object" && !Array.isArray(manuscripts)
-        ? (manuscripts as { title: string | null }).title
-        : Array.isArray(manuscripts) && manuscripts.length > 0
-          ? (manuscripts[0] as { title: string | null }).title
-          : null;
+    const manuscriptTitle = manuscripts && typeof manuscripts === "object" && !Array.isArray(manuscripts)
+      ? manuscripts.title
+      : Array.isArray(manuscripts) && manuscripts.length > 0
+        ? (manuscripts[0] as { title: string | null }).title
+        : null;
 
-    result.push({
+    const overhead = totalLlm > 0 ? allocatedOverheadCents * (agg.llmCostCents / totalLlm) : equalShare;
+
+    jobs.push({
       jobId,
       manuscriptId: meta?.manuscript_id ?? null,
       manuscriptTitle: manuscriptTitle ?? null,
       status: meta?.status ?? null,
-      totalCostCents: agg.totalCostCents,
+      llmCostCents: agg.llmCostCents,
+      allocatedOverheadCents: overhead,
+      totalCostCents: agg.llmCostCents + overhead,
       totalCalls: agg.totalCalls,
       totalInputTokens: agg.totalInputTokens,
       totalOutputTokens: agg.totalOutputTokens,
       firstCalledAt: agg.firstCalledAt,
       lastCalledAt: agg.lastCalledAt,
-      phases: phaseRows,
+      phases,
       warnings,
     });
   }
 
-  // Sort by lastCalledAt descending (most recent activity first)
-  result.sort((a, b) => {
+  return jobs.sort((a, b) => {
     if (!a.lastCalledAt) return 1;
     if (!b.lastCalledAt) return -1;
     return a.lastCalledAt > b.lastCalledAt ? -1 : 1;
   });
-
-  return result;
 }
-
-// ─── Route handler ──────────────────────────────────────────────────
 
 export async function GET(request: NextRequest) {
   const denied = await requireAdmin(request);
@@ -266,30 +254,52 @@ export async function GET(request: NextRequest) {
 
   const supabase = createAdminClient();
   const warnings: string[] = [];
+  const range = normalizeCostRange(request.nextUrl.searchParams.get("range"));
+  const rangeWindow = getCostRangeWindow(range);
+  const overhead = getConfiguredOverheadForRange(range, rangeWindow.days);
 
   let allRows: RawCostRow[] = [];
   try {
-    allRows = await fetchAllCostRows(supabase);
+    allRows = await fetchAllCostRows(supabase, rangeWindow.start);
   } catch (err) {
     warnings.push(`Failed to fetch cost rows: ${err instanceof Error ? err.message : String(err)}`);
   }
 
-  const uniqueJobIds = [...new Set(allRows.map((r) => r.job_id).filter(Boolean))];
+  const uniqueJobIds = [...new Set(allRows.map((row) => row.job_id).filter(Boolean))];
 
-  let jobMeta: Map<string, RawJobMeta> = new Map();
+  let jobMeta = new Map<string, RawJobMeta>();
   try {
     jobMeta = await fetchJobMetadata(supabase, uniqueJobIds);
   } catch (err) {
     warnings.push(`Failed to fetch job metadata: ${err instanceof Error ? err.message : String(err)}`);
   }
 
-  const jobs = buildLedger(allRows, jobMeta);
-  const totalCostCents = jobs.reduce((s, j) => s + j.totalCostCents, 0);
-  const totalCalls = jobs.reduce((s, j) => s + j.totalCalls, 0);
-  const runningJobCount = jobs.filter((j) => j.status === "running" || j.status === "queued").length;
+  if (range === "all" && overhead.rows.some((row) => row.source === "configured_monthly")) {
+    warnings.push("All-time ledger includes exact tracked LLM costs only; monthly overhead allocations apply to time-bounded ranges.");
+  }
+
+  if (overhead.missingProviders.length > 0) {
+    warnings.push(`${overhead.missingProviders.join(", ")} costs are not included until their monthly cost env vars are configured.`);
+  }
+
+  const jobs = buildLedger(allRows, jobMeta, overhead.totalCents);
+  const llmCostCents = jobs.reduce((sum, job) => sum + job.llmCostCents, 0);
+  const totalCostCents = jobs.reduce((sum, job) => sum + job.totalCostCents, 0);
+  const totalCalls = jobs.reduce((sum, job) => sum + job.totalCalls, 0);
+  const runningJobCount = jobs.filter((job) => job.status === "running" || job.status === "queued").length;
 
   const payload: EvalCostLedgerPayload = {
+    range,
+    rangeLabel: rangeWindow.label,
+    rangeStart: rangeWindow.start,
+    rangeEnd: rangeWindow.end,
     jobs,
+    providerCosts: [
+      { provider: "OpenAI", usageCents: llmCostCents, fixedAllocatedCents: 0, totalCents: llmCostCents, source: "tracked", detail: "Exact tracked LLM token spend from job_costs." },
+      ...overhead.rows,
+    ],
+    llmCostCents,
+    allocatedOverheadCents: overhead.totalCents,
     totalCostCents,
     totalCalls,
     runningJobCount,
