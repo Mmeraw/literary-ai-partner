@@ -38,6 +38,9 @@ export const dynamic = "force-dynamic";
 const STAGES = [
   "intake",
   "routing_chunking",
+  "phase_0_5a_seed",
+  "phase_0_5b_seed",
+  "pass1a_validation",
   "pass1_craft",
   "pass2_editorial",
   "pass3_synthesis",
@@ -67,7 +70,12 @@ function inferStage(job: Record<string, unknown>): SipocStage {
 
   const stage = typeof raw === "string" ? raw : "unknown";
 
-  if (stage.includes("pass1") || stage.includes("phase_1a")) return "pass1_craft";
+  // Phase 0.5a/0.5b seed generation
+  if (stage.includes("phase_0_5a") || stage.includes("0.5a") || stage.includes("story_map_seed")) return "phase_0_5a_seed";
+  if (stage.includes("phase_0_5b") || stage.includes("0.5b") || stage.includes("dream_seed") || stage.includes("editorial_seed")) return "phase_0_5b_seed";
+  // Phase 1a seed guard / validation
+  if (stage.includes("phase_1a") || stage.includes("pass1a") || stage.includes("seed_guard")) return "pass1a_validation";
+  if (stage.includes("pass1")) return "pass1_craft";
   if (stage.includes("pass2")) return "pass2_editorial";
   if (stage.includes("pass3")) return "pass3_synthesis";
   if (stage.includes("pass4") || stage.includes("quality")) return "quality_gate";

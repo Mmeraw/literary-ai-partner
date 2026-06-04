@@ -838,6 +838,165 @@ export default function PipelineHealthPage() {
         )}
         <p className="text-xs text-gray-400 mt-3">{diagnostics.note}</p>
       </section>
+
+      {/* Legend */}
+      <section className="rounded-lg border border-gray-200 p-5">
+        <h2 className="text-lg font-semibold mb-4">Legend</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 text-sm">
+          {/* Job Statuses */}
+          <div>
+            <h3 className="font-semibold text-gray-700 mb-2">Job Status</h3>
+            <ul className="space-y-1.5">
+              <li className="flex items-center gap-2">
+                <span className="inline-block px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">complete</span>
+                <span className="text-gray-600">Evaluation finished successfully</span>
+              </li>
+              <li className="flex items-center gap-2">
+                <span className="inline-block px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">running</span>
+                <span className="text-gray-600">Job actively executing in pipeline</span>
+              </li>
+              <li className="flex items-center gap-2">
+                <span className="inline-block px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800">queued</span>
+                <span className="text-gray-600">Waiting for execution slot</span>
+              </li>
+              <li className="flex items-center gap-2">
+                <span className="inline-block px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800">failed</span>
+                <span className="text-gray-600">Pipeline errored — see Error Code</span>
+              </li>
+            </ul>
+          </div>
+
+          {/* SIPOC Pipeline Stages */}
+          <div>
+            <h3 className="font-semibold text-gray-700 mb-2">SIPOC Pipeline Stages</h3>
+            <ul className="space-y-1.5 text-gray-600">
+              <li><strong>intake</strong> — manuscript received, validated</li>
+              <li><strong>routing_chunking</strong> — word count routing + chunk splitting</li>
+              <li><strong>phase_0_5a_seed</strong> — Phase 0.5a: story map seed generation (full-context story ledger)</li>
+              <li><strong>phase_0_5b_seed</strong> — Phase 0.5b: DREAM editorial seed (editorial calibration baseline)</li>
+              <li><strong>pass1a_validation</strong> — Phase 1a: seed guard validation (seed integrity + completeness gate)</li>
+              <li><strong>pass1_craft</strong> — Pass 1: criteria analysis per chunk</li>
+              <li><strong>pass2_editorial</strong> — Pass 2: cross-chunk editorial synthesis</li>
+              <li><strong>pass3_synthesis</strong> — Pass 3: final scores + recommendations</li>
+              <li><strong>quality_gate</strong> — Pass 4: validation + cross-check adjudication</li>
+              <li><strong>persistence_report</strong> — results written to database</li>
+            </ul>
+          </div>
+
+          {/* SIPOC Stage Health */}
+          <div>
+            <h3 className="font-semibold text-gray-700 mb-2">SIPOC Stage Health</h3>
+            <ul className="space-y-1.5">
+              <li className="flex items-center gap-2">
+                <span className="inline-block w-3 h-3 rounded-full bg-green-500" />
+                <span className="text-gray-600">All jobs passed this stage</span>
+              </li>
+              <li className="flex items-center gap-2">
+                <span className="inline-block w-3 h-3 rounded-full bg-red-500" />
+                <span className="text-gray-600">One or more jobs failed at this stage</span>
+              </li>
+              <li className="flex items-center gap-2">
+                <span className="inline-block w-3 h-3 rounded-full bg-gray-300" />
+                <span className="text-gray-600">No jobs reached this stage in window</span>
+              </li>
+              <li className="flex items-center gap-2 mt-1">
+                <span className="text-green-600 font-bold text-sm">✓</span>
+                <span className="text-gray-600">OK count (passed)</span>
+              </li>
+              <li className="flex items-center gap-2">
+                <span className="text-red-500 font-bold text-sm">✗</span>
+                <span className="text-gray-600">Failed count</span>
+              </li>
+            </ul>
+          </div>
+
+          {/* Artifacts */}
+          <div>
+            <h3 className="font-semibold text-gray-700 mb-2">Artifacts (v2 | drm | diag)</h3>
+            <ul className="space-y-1.5 text-gray-600">
+              <li><strong>v2</strong> — EvaluationResultV2 (structured scores, criteria, recommendations)</li>
+              <li><strong>drm</strong> — DREAM long-form narrative synthesis document (n/a for short-form)</li>
+              <li><strong>diag</strong> — Pass diagnostics (internal quality/governance traces)</li>
+              <li className="flex items-center gap-2 mt-1">
+                <span className="text-green-600 font-bold text-sm">✓</span>
+                <span>Artifact persisted</span>
+              </li>
+              <li className="flex items-center gap-2">
+                <span className="text-red-500 font-bold text-sm">✗</span>
+                <span>Artifact missing (expected after completion)</span>
+              </li>
+              <li className="flex items-center gap-2">
+                <span className="text-gray-300 text-xs">n/a</span>
+                <span>Not applicable (e.g. DREAM for short-form)</span>
+              </li>
+            </ul>
+          </div>
+
+          {/* Diagnostics */}
+          <div>
+            <h3 className="font-semibold text-gray-700 mb-2">Diagnostics Status</h3>
+            <ul className="space-y-1.5">
+              <li className="flex items-center gap-2">
+                <span className="inline-block px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">available</span>
+                <span className="text-gray-600">Full diagnostic trace present</span>
+              </li>
+              <li className="flex items-center gap-2">
+                <span className="inline-block px-2 py-0.5 rounded text-xs font-medium bg-orange-100 text-orange-800">blocked_by_307</span>
+                <span className="text-gray-600">Blocked by issue #307 persistence work</span>
+              </li>
+              <li className="flex items-center gap-2">
+                <span className="inline-block px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800">missing</span>
+                <span className="text-gray-600">Diagnostic artifact not found</span>
+              </li>
+              <li className="flex items-center gap-2">
+                <span className="inline-block px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-500">not_applicable</span>
+                <span className="text-gray-600">Job type does not produce diagnostics</span>
+              </li>
+            </ul>
+          </div>
+
+          {/* Pass 4 (Cross-Check) */}
+          <div>
+            <h3 className="font-semibold text-gray-700 mb-2">Pass 4 (Cross-Check)</h3>
+            <ul className="space-y-1.5">
+              <li className="flex items-center gap-2">
+                <span className="inline-block px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">completed</span>
+                <span className="text-gray-600">External adjudication verified scores</span>
+              </li>
+              <li className="flex items-center gap-2">
+                <span className="inline-block px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600">skipped</span>
+                <span className="text-gray-600">Cross-check not required for this mode</span>
+              </li>
+              <li className="flex items-center gap-2">
+                <span className="inline-block px-2 py-0.5 rounded text-xs font-medium bg-orange-100 text-orange-800">failed_soft</span>
+                <span className="text-gray-600">Cross-check failed but non-blocking</span>
+              </li>
+              <li className="flex items-center gap-2">
+                <span className="inline-block px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-700">—</span>
+                <span className="text-gray-600">Not yet reached or data unavailable</span>
+              </li>
+            </ul>
+          </div>
+        </div>
+
+        {/* Live indicator legend */}
+        <div className="mt-5 pt-4 border-t border-gray-200">
+          <h3 className="font-semibold text-gray-700 mb-2">Status Indicator</h3>
+          <div className="flex gap-6 text-sm">
+            <div className="flex items-center gap-2">
+              <span className="relative flex h-4 w-4">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75" />
+                <span className="relative inline-flex h-4 w-4 rounded-full bg-green-500" />
+              </span>
+              <span className="text-gray-600"><strong>LIVE</strong> — page auto-refreshes every 30 seconds</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="inline-flex h-4 w-4 rounded-full bg-red-500" />
+              <span className="text-gray-600"><strong>STALLED</strong> — refresh failed, data may be stale</span>
+            </div>
+          </div>
+        </div>
+      </section>
     </main>
   );
 }
