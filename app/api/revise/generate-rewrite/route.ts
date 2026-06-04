@@ -44,6 +44,7 @@ export async function POST(req: Request) {
       mistakeProofing,
       operation,
       location,
+      trustedPath,
     } = body;
 
     if (!evaluationJobId || !manuscriptId || !originalPassage) {
@@ -115,15 +116,16 @@ export async function POST(req: Request) {
       operation: operation || "replace",
       voiceContext,
       location: location || "",
+      trustedPathOnly: !!trustedPath,
     });
 
     return NextResponse.json({
       ok: true,
       candidates: {
         a: result.a,
-        b: result.b,
-        c: result.c,
+        ...(result.trustedPathOnly ? {} : { b: result.b, c: result.c }),
       },
+      trustedPathOnly: result.trustedPathOnly,
       meta: {
         model: result.model,
         promptVersion: result.promptVersion,

@@ -74,9 +74,23 @@ export interface Pass4RewriteInput {
   voiceContext: string;
   /** Optional: chapter/location for grounding */
   location: string;
+  /** TrustedPath mode: generate only variant A to save costs */
+  trustedPathOnly?: boolean;
 }
 
 export function buildPass4UserPrompt(input: Pass4RewriteInput): string {
+  const variantInstruction = input.trustedPathOnly
+    ? `Produce ONE manuscript-ready variant (the recommended fix) that addresses the diagnosed issue while maintaining the author's voice. Output as JSON:
+{
+  "a": "full replacement text"
+}`
+    : `Produce three manuscript-ready variants (A, B, C) that fix the diagnosed issue while maintaining the author's voice. Output as JSON:
+{
+  "a": "full replacement text for variant A",
+  "b": "full replacement text for variant B",
+  "c": "full replacement text for variant C"
+}`;
+
   return `VOICE CONTEXT (study this to match the author's style):
 """
 ${input.voiceContext}
@@ -93,10 +107,5 @@ CAUSE: ${input.cause}
 OPERATION: ${input.operation}
 ${input.mistakeProofing ? `PRESERVE (mistake-proofing): ${input.mistakeProofing}` : ""}
 
-Produce three manuscript-ready variants (A, B, C) that fix the diagnosed issue while maintaining the author's voice. Output as JSON:
-{
-  "a": "full replacement text for variant A",
-  "b": "full replacement text for variant B",
-  "c": "full replacement text for variant C"
-}`;
+${variantInstruction}`;
 }

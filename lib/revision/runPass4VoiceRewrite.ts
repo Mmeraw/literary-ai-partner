@@ -30,6 +30,8 @@ export interface Pass4RewriteResult {
   promptVersion: string;
   inputTokens: number;
   outputTokens: number;
+  /** Whether only variant A was generated (TrustedPath cost savings) */
+  trustedPathOnly: boolean;
 }
 
 export interface Pass4RewriteError {
@@ -39,8 +41,9 @@ export interface Pass4RewriteError {
 
 const TEMPLATE_TOKENS = /\b(LOCATION|OPERATION|CHARACTER|PROTAGONIST|ANTAGONIST)\b/;
 
-function validateRewriteOutput(output: { a: string; b: string; c: string }): boolean {
-  for (const key of ["a", "b", "c"] as const) {
+function validateRewriteOutput(output: { a: string; b?: string; c?: string }, trustedPathOnly: boolean): boolean {
+  const keys = trustedPathOnly ? ["a"] as const : ["a", "b", "c"] as const;
+  for (const key of keys) {
     const text = output[key];
     if (!text || text.trim().length < 20) return false;
     if (TEMPLATE_TOKENS.test(text)) return false;
@@ -120,7 +123,8 @@ export async function runPass4VoiceRewrite(
 ): Promise<Pass4RewriteResult> {
   const model = options?.model ?? process.env.EVAL_REWRITE_MODEL ?? "gpt-4.1-mini";
   const temperature = options?.temperature ?? 0.6;
-  const maxTokens = options?.maxTokens ?? 2000;
+  // TrustedPath (A-only) uses fewer output tokens
+  const maxTokens = options?.maxTokens ?? (input.trustedPathOnly ? 800 : 2000);
 
   const openai = new OpenAI();
   const userPrompt = buildPass4UserPrompt(input);
@@ -143,27 +147,28 @@ export async function runPass4VoiceRewrite(
   const content = response.choices[0]?.message?.content ?? "";
   const usage = response.usage;
 
-  let parsed: { a: string; b: string; c: string };
+  let parsed: { a: string; b?: string; c?: string };
   try {
     parsed = JSON.parse(content);
   } catch {
     throw new Error(`Pass 4 rewrite returned invalid JSON: ${content.slice(0, 200)}`);
   }
 
-  if (!validateRewriteOutput(parsed)) {
+  if (!validateRewriteOutput(parsed, !!input.trustedPathOnly)) {
     throw new Error(
       `Pass 4 rewrite failed quality gate — output contains template tokens or is too short`,
     );
   }
 
   return {
-    a: parsed.a.trim(),
-    b: parsed.b.trim(),
-    c: parsed.c.trim(),
+    a: parsed.a!.trim(),
+    b: input.trustedPathOnly ? "" : (parsed.b ?? "").trim(),
+    c: input.trustedPathOnly ? "" : (parsed.c ?? "").trim(),
     model,
     promptVersion: PASS4_REWRITE_VERSION,
     inputTokens: usage?.prompt_tokens ?? 0,
     outputTokens: usage?.completion_tokens ?? 0,
+    trustedPathOnly: !!input.trustedPathOnly,
   };
 }
 
