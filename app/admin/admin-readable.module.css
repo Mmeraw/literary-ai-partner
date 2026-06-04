@@ -1,0 +1,133 @@
+.adminRoute {
+  color: #fff8ea;
+  font-size: 18px;
+  line-height: 1.55;
+}
+
+.adminRoute :global(:where(p, li, a, button, input, label, select, textarea, th, td, span, small)) {
+  font-size: max(1rem, 16px) !important;
+  line-height: 1.55 !important;
+}
+
+.adminRoute :global(:where(button, input, select, textarea)) {
+  min-height: 44px;
+}
+
+.adminRoute :global(:where(h1)) {
+  color: #fff8ea !important;
+  font-size: clamp(2.6rem, 4vw, 4rem) !important;
+  line-height: 1.08 !important;
+}
+
+.adminRoute :global(:where(h2)) {
+  color: #fff8ea !important;
+  font-size: clamp(1.85rem, 2.8vw, 2.75rem) !important;
+  line-height: 1.15 !important;
+}
+
+.adminRoute :global(:where(h3)) {
+  color: #fff8ea !important;
+  font-size: clamp(1.35rem, 2vw, 1.8rem) !important;
+  line-height: 1.25 !important;
+}
+
+.adminRoute :global(.text-\[10px\]),
+.adminRoute :global(.text-\[11px\]),
+.adminRoute :global(.text-xs) {
+  font-size: 1rem !important;
+  line-height: 1.5 !important;
+}
+
+.adminRoute :global(.text-sm) {
+  font-size: 1.0625rem !important;
+  line-height: 1.6 !important;
+}
+
+.adminRoute :global(.text-base) {
+  font-size: 1.125rem !important;
+  line-height: 1.6 !important;
+}
+
+.adminRoute :global(.text-lg) {
+  font-size: 1.35rem !important;
+}
+
+.adminRoute :global(.text-xl) {
+  font-size: 1.6rem !important;
+}
+
+.adminRoute :global(.text-2xl) {
+  font-size: 2.25rem !important;
+}
+
+.adminRoute :global(.text-3xl) {
+  font-size: 3rem !important;
+}
+
+.adminRoute :global(.text-4xl) {
+  font-size: 3.6rem !important;
+}
+
+.adminRoute :global([class*="text-rg-cream2"]),
+.adminRoute :global([class*="text-rg-dim"]),
+.adminRoute :global([class*="text-gray-400"]),
+.adminRoute :global([class*="text-gray-500"]),
+.adminRoute :global([class*="text-gray-600"]) {
+  color: #fff0d2 !important;
+}
+
+.adminRoute :global([class*="text-rg-cream"]),
+.adminRoute :global([class*="text-white"]) {
+  color: #fff8ea !important;
+}
+
+.adminRoute :global([class*="text-rg-gold"]),
+.adminRoute :global([class*="text-amber"]),
+.adminRoute :global([class*="text-yellow"]) {
+  color: #ffd56a !important;
+}
+
+.adminRoute :global([class*="text-emerald"]),
+.adminRoute :global([class*="text-green"]) {
+  color: #86efac !important;
+}
+
+.adminRoute :global([class*="text-blue"]) {
+  color: #93d8ff !important;
+}
+
+.adminRoute :global([class*="text-red"]),
+.adminRoute :global([class*="text-rose"]) {
+  color: #ffb4b4 !important;
+}
+
+.adminRoute :global(.font-rg-mono) {
+  letter-spacing: 0.04em !important;
+}
+
+.adminRoute :global(table th),
+.adminRoute :global(table td) {
+  padding-top: 0.85rem !important;
+  padding-bottom: 0.85rem !important;
+}
+
+.adminRoute :global([class*="opacity-40"]),
+.adminRoute :global([class*="opacity-50"]),
+.adminRoute :global([class*="opacity-60"]),
+.adminRoute :global([class*="opacity-70"]) {
+  opacity: 1 !important;
+}
+
+@media (max-width: 768px) {
+  .adminRoute {
+    font-size: 17px;
+  }
+
+  .adminRoute :global(:where(p, li, a, button, input, label, select, textarea, th, td, span, small)) {
+    font-size: max(1rem, 16px) !important;
+  }
+
+  .adminRoute :global(:where(button, input, select, textarea)) {
+    min-height: 48px;
+  }
+}
