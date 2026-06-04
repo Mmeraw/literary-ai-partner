@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getJob } from "@/lib/jobs/store";
 import type { Job } from "@/lib/jobs/types";
 import { getAuthenticatedUser } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { canViewEvaluationOperationalDetails } from "@/lib/auth/evaluationOperationalAccess";
 
 type Params = Promise<{ jobId: string }>;
@@ -264,6 +265,47 @@ export async function GET(req: NextRequest, ctx: { params: Params }) {
     const rawHighWater = rawProgress?.progress_high_water;
     if (typeof rawHighWater === 'number' && rawHighWater > 0) {
       response.job.progress_high_water = rawHighWater;
+    }
+
+    // 6e3) Self-healing: if job is complete, long-form, and pass3_completed_at
+    // is missing, check for longform_document_v1 artifact and backfill.
+    const LONGFORM_THRESHOLD = 25000;
+    if (
+      job.status === 'complete' &&
+      !response.job.pass3_completed_at &&
+      typeof response.job.manuscript_word_count === 'number' &&
+      response.job.manuscript_word_count >= LONGFORM_THRESHOLD
+    ) {
+      try {
+        const admin = createAdminClient();
+        const { data: longformRow } = await admin
+          .from('evaluation_artifacts')
+          .select('created_at')
+          .eq('job_id', job.id)
+          .eq('artifact_type', 'longform_document_v1')
+          .maybeSingle();
+        if (longformRow?.created_at) {
+          const ts = longformRow.created_at as string;
+          response.job.pass3_completed_at = ts;
+          // Fire-and-forget: backfill progress JSONB
+          const existingProgress = (job.progress && typeof job.progress === 'object' && !Array.isArray(job.progress))
+            ? (job.progress as Record<string, unknown>)
+            : {};
+          admin
+            .from('evaluation_jobs')
+            .update({
+              progress: {
+                ...existingProgress,
+                pass3_completed_at: ts,
+                progress_high_water: 100,
+              },
+            })
+            .eq('id', job.id)
+            .then(() => {});
+        }
+      } catch {
+        // Non-blocking: self-healing is best-effort
+      }
     }
 
     // 6f) Surface operational visibility fields for explicit stuck-state UX.
