@@ -4,7 +4,7 @@
   margin: 0 auto;
 }
 
-section {
+.container section {
   padding: 2rem 1rem;
 }
 
@@ -52,5 +52,5 @@ section {
 @media (max-width: 768px) {
   .hero h1 { font-size: 1.6rem; }
   .ctaGroup { flex-direction: column; }
-  section { padding: 1.5rem 0.5rem; }
+  .container section { padding: 1.5rem 0.5rem; }
 }
