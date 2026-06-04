@@ -1933,9 +1933,20 @@ function buildBackfilledRationale(
         // Generate diagnostic-grounded rationale
         const parts: string[] = [base];
         
+        const RENDERING_MODE_LABELS: Record<string, string> = {
+          direct_speech: 'direct speech',
+          indirect_speech: 'indirect speech',
+          reported_speech: 'reported speech',
+          tagged_speech: 'tagged speech',
+          action_beat_attribution: 'action beats',
+          tagless_exchange: 'untagged exchanges',
+        };
         if (diagnostics.renderingModesDetected.length > 0) {
+          const readable = diagnostics.renderingModesDetected
+            .map((m) => RENDERING_MODE_LABELS[m] ?? m.replace(/_/g, ' '))
+            .join(', ');
           parts.push(
-            `Dialogue employs ${diagnostics.renderingModesDetected.join(" and ")} rendering modes, with explicit mechanism language anchoring speaker clarity.`
+            `Dialogue is generally clear in attribution, using a mix of ${readable}, with consistent speaker clarity.`
           );
         } else if (diagnostics.speakerAttributionStrategy.length > 0) {
           parts.push(
