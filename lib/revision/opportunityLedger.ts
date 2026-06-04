@@ -718,7 +718,114 @@ const MAX_OPPORTUNITIES_PER_PASS = 100;
 
 const SEVERITY_RANK: Record<string, number> = { must: 0, should: 1, could: 2 };
 
-export function buildRevisionOpportunitiesFromEvaluationPayload(payload: unknown): RevisionOpportunity[] {
+function extractChunkCacheRecommendations(chunkCachePayload: unknown): RevisionOpportunity[] {
+  if (!isRecord(chunkCachePayload)) return [];
+
+  const chunksRaw = chunkCachePayload.chunks;
+  if (!isRecord(chunksRaw)) return [];
+
+  const opportunities: RevisionOpportunity[] = [];
+
+  for (const [chunkIdx, chunkData] of Object.entries(chunksRaw)) {
+    if (!isRecord(chunkData)) continue;
+    const result = chunkData.result;
+    if (!isRecord(result)) continue;
+
+    const criteria = Array.isArray(result.criteria) ? result.criteria : [];
+    for (const criterionRow of criteria) {
+      if (!isRecord(criterionRow)) continue;
+
+      const criterion = normalizeCriterion(criterionRow.key ?? criterionRow.criterion_key);
+      const criterionScore = criterionRow.score_0_10;
+      const recommendations = Array.isArray(criterionRow.recommendations)
+        ? criterionRow.recommendations
+        : [];
+
+      for (const rec of recommendations) {
+        if (!isRecord(rec)) continue;
+
+        const evidenceAnchor = firstNonEmptyString(
+          rec.anchor_snippet,
+          rec.evidence_anchor,
+          rec.evidence_snippet,
+          rec.snippet,
+          rec.quote,
+        );
+
+        if (!evidenceAnchor) continue;
+
+        const rationale = firstNonEmptyString(
+          rec.rationale,
+          rec.diagnosis,
+          rec.why,
+          rec.justification,
+          rec.recommendation,
+          rec.action,
+        );
+
+        if (!rationale) continue;
+
+        const manuscriptCoordinates = firstNonEmptyString(
+          rec.manuscript_coordinates,
+          rec.location_ref,
+          rec.locationRef,
+          `chunk_${chunkIdx}:${criterion}:recommendation`,
+        );
+
+        const revisionOperation =
+          normalizeRevisionOperation(rec.revision_operation) ??
+          inferLedgerRevisionOperation({
+            criterion,
+            anchor: evidenceAnchor,
+            rationale,
+            action: normalizeOptionalText(rec.action),
+            fixDirection: normalizeOptionalText(rec.fix_direction) ?? normalizeOptionalText(rec.specific_fix),
+          });
+
+        const fallbackCandidates = buildFallbackCandidateTexts(recommendationCandidateInput({
+          criterion,
+          evidenceAnchor,
+          rationale,
+          recommendationRow: rec,
+          revisionOperation,
+        }));
+
+        opportunities.push(ensureOpportunityCandidates({
+          opportunity_id: buildOpportunityId({
+            criterion,
+            rationale,
+            anchor: evidenceAnchor,
+            location: manuscriptCoordinates,
+          }),
+          criterion,
+          severity: normalizeSeverity(rec.severity ?? rec.priority, criterionScore),
+          rationale,
+          evidence_anchor: evidenceAnchor,
+          manuscript_coordinates: manuscriptCoordinates,
+          provenance: `pass2_chunk_cache.chunk_${chunkIdx}.criteria.recommendations`,
+          confidence: normalizeConfidence(rec.confidence),
+          decision_state: 'open',
+          revision_operation: revisionOperation,
+          candidate_text_a: explicitCandidateOrFallback(rec.candidate_text_a, fallbackCandidates.a, rationale),
+          candidate_text_b: explicitCandidateOrFallback(rec.candidate_text_b, fallbackCandidates.b, rationale),
+          candidate_text_c: explicitCandidateOrFallback(rec.candidate_text_c, fallbackCandidates.c, rationale),
+          symptom: normalizeOptionalText(rec.symptom),
+          cause: normalizeOptionalText(rec.cause),
+          fix_direction: normalizeOptionalText(rec.fix_direction),
+          reader_effect: normalizeOptionalText(rec.reader_effect),
+          mistake_proofing: normalizeOptionalText(rec.mistake_proofing),
+        }));
+      }
+    }
+  }
+
+  return opportunities;
+}
+
+export function buildRevisionOpportunitiesFromEvaluationPayload(
+  payload: unknown,
+  chunkCachePayload?: unknown,
+): RevisionOpportunity[] {
   if (!isRecord(payload)) {
     return [];
   }
@@ -726,6 +833,7 @@ export function buildRevisionOpportunitiesFromEvaluationPayload(payload: unknown
   const merged = [
     ...extractCriteriaRecommendations(payload),
     ...extractTopLevelRecommendations(payload),
+    ...extractChunkCacheRecommendations(chunkCachePayload),
   ];
 
   const deduped = new Map<string, RevisionOpportunity>();
@@ -784,7 +892,12 @@ export async function ensureRevisionOpportunityLedgerArtifact(supabase: any, job
     existingLedgerRow?.content?.opportunities,
   );
 
-  if (existingOpportunities && existingOpportunities.length > 0) {
+  const existingLedgerEnrichedFromChunks =
+    isRecord(existingLedgerRow?.content) &&
+    typeof existingLedgerRow.content.candidate_generation_status === 'string' &&
+    existingLedgerRow.content.candidate_generation_status.includes('chunk_enriched');
+
+  if (existingOpportunities && existingOpportunities.length > 0 && existingLedgerEnrichedFromChunks) {
     const healed = existingOpportunities.map(ensureOpportunityCandidates);
     await persistHealedExistingLedger({
       supabase,
@@ -828,7 +941,23 @@ export async function ensureRevisionOpportunityLedgerArtifact(supabase: any, job
     );
   }
 
-  const opportunities = buildRevisionOpportunitiesFromEvaluationPayload(evaluationPayload);
+  // Load pass2 chunk cache for granular per-chunk recommendations
+  let chunkCachePayload: unknown = undefined;
+  try {
+    const { data: chunkCacheRow } = await supabase
+      .from('evaluation_artifacts')
+      .select('content')
+      .eq('job_id', jobId)
+      .eq('artifact_type', 'pass2_chunk_cache_v1')
+      .maybeSingle();
+    if (chunkCacheRow?.content) {
+      chunkCachePayload = chunkCacheRow.content;
+    }
+  } catch {
+    // Non-blocking: chunk cache enrichment degrades gracefully
+  }
+
+  const opportunities = buildRevisionOpportunitiesFromEvaluationPayload(evaluationPayload, chunkCachePayload);
 
   if (existingOpportunities && existingOpportunities.length === 0 && opportunities.length === 0) {
     return {
@@ -855,7 +984,7 @@ export async function ensureRevisionOpportunityLedgerArtifact(supabase: any, job
     artifact_version: 'v1',
     source_hash: sourceHash,
     generated_at: now,
-    candidate_generation_status: 'backend_filled_abc_v1',
+    candidate_generation_status: chunkCachePayload ? 'backend_filled_abc_v1_chunk_enriched' : 'backend_filled_abc_v1',
     opportunities,
   };
 
