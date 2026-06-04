@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import EvaluationModelRoutingPanel from "@/components/admin/EvaluationModelRoutingPanel";
 import { formatUsdFromCents } from "@/lib/admin/formatMoney";
 
 type CostRange = "24h" | "5d" | "30d" | "all";
@@ -277,6 +278,8 @@ export default function CostOpsDashboardPage() {
           <MiniKpi label="Top Model" value={summary.topModel ?? "-"} />
           <MiniKpi label="Coverage" value={summary.completeness === "complete_if_overheads_configured" ? "Configured" : "LLM only"} />
         </section>
+
+        <EvaluationModelRoutingPanel />
 
         <section>
           <h2 className="mb-3 font-rg-serif text-xl text-rg-cream">Cost Sources</h2>
