@@ -12,8 +12,8 @@ const C = {
   bg:       "#0E0E0E",
   text:     "#F2EFEA",
   oxblood:  "#7A1E1E",
-  gold:     "#A98E4A",
-  ash:      "#7B7B7B",
+  gold:     "#C4A86A",
+  ash:      "#C2BEB6",
   panel:    "#161616",
   border:   "rgba(161,142,74,0.18)",
   borderAsh:"rgba(123,123,123,0.18)",
@@ -23,7 +23,7 @@ function Divider() {
   return (
     <div
       style={{ height: 1, background: `linear-gradient(90deg, transparent, ${C.gold}44, transparent)` }}
-      className="my-20 w-full max-w-3xl mx-auto"
+      className="my-10 w-full max-w-5xl mx-auto"
     />
   );
 }
@@ -31,7 +31,7 @@ function Divider() {
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
     <p
-      className="text-xs tracking-[0.22em] uppercase mb-4 font-mono"
+      className="text-sm tracking-[0.22em] uppercase mb-4 font-mono"
       style={{ color: C.gold }}
     >
       {children}
@@ -84,20 +84,20 @@ export default function StorygateStudioLanding() {
       className="min-h-screen"
     >
       <section
-        className="pt-28 pb-24 px-6 text-center"
+        className="pt-16 pb-12 px-6 text-center"
         style={{ borderBottom: `1px solid ${C.borderAsh}` }}
       >
         <SectionLabel>Storygate Studio™</SectionLabel>
         <h1
-          className="text-4xl md:text-5xl font-bold mb-6 max-w-3xl mx-auto leading-tight"
+          className="text-4xl md:text-5xl lg:text-6xl font-bold mb-6 max-w-4xl mx-auto leading-tight"
           style={{ fontFamily: "Playfair Display, Georgia, serif", color: C.text }}
         >
           Controlled access for readiness-vetted manuscript projects.
         </h1>
-        <p className="text-base max-w-2xl mx-auto mb-3" style={{ color: C.ash }}>
+        <p className="text-lg max-w-3xl mx-auto mb-3" style={{ color: C.ash }}>
           Storygate Studio gives verified publishing professionals controlled access to creator-approved manuscript projects. Materials are not publicly searchable. Access is requested, approved, and logged.
         </p>
-        <p className="text-xs mb-10 tracking-wide" style={{ color: C.ash }}>
+        <p className="text-sm mb-10 tracking-wide" style={{ color: C.ash }}>
           Verified access only. Creator-approved visibility. Logged project activity.
         </p>
         <div className="flex flex-wrap gap-4 justify-center">
@@ -113,18 +113,18 @@ export default function StorygateStudioLanding() {
         </div>
       </section>
 
-      <section className="py-24 px-6 max-w-5xl mx-auto">
+      <section className="py-12 px-6 max-w-6xl mx-auto">
         <SectionLabel>Trust Model</SectionLabel>
         <h2
-          className="text-2xl md:text-3xl font-bold mb-12"
+          className="text-2xl md:text-3xl font-bold mb-6"
           style={{ fontFamily: "Playfair Display, Georgia, serif" }}
         >
           Built for controlled discovery, not open browsing.
         </h2>
-        <p className="text-sm mb-12 max-w-2xl" style={{ color: C.ash }}>
+        <p className="text-base mb-8 max-w-3xl" style={{ color: C.ash }}>
           Storygate Studio is designed for serious authors and legitimate publishing professionals. Projects are not publicly searchable. Access is granted by request, by role, and by creator approval.
         </p>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           {[
             ["Verified Access Only", "Publishing professionals must be approved before viewing project materials."],
             ["Creator Approval", "Industry users request access to specific manuscript projects. Creators approve or decline on a per-project basis."],
@@ -142,7 +142,7 @@ export default function StorygateStudioLanding() {
               >
                 {title}
               </p>
-              <p className="text-sm leading-relaxed" style={{ color: C.ash }}>
+              <p className="text-base leading-relaxed" style={{ color: C.ash }}>
                 {body}
               </p>
             </div>
@@ -152,7 +152,7 @@ export default function StorygateStudioLanding() {
 
       <Divider />
 
-      <section className="py-0 pb-24 px-6 max-w-5xl mx-auto">
+      <section className="py-12 px-6 max-w-6xl mx-auto">
         <SectionLabel>Materials</SectionLabel>
         <h2
           className="text-2xl md:text-3xl font-bold mb-6"
@@ -160,10 +160,10 @@ export default function StorygateStudioLanding() {
         >
           A clean professional manuscript package, not a cluttered submission dump.
         </h2>
-        <p className="text-sm mb-10 max-w-2xl" style={{ color: C.ash }}>
+        <p className="text-base mb-8 max-w-3xl" style={{ color: C.ash }}>
           Depending on creator permissions, verified publishing professionals may view:
         </p>
-        <ul className="space-y-3 mb-8">
+        <ul className="space-y-3 mb-8 grid grid-cols-1 sm:grid-cols-2 gap-x-8">
           {[
             "Query hook and short manuscript pitch",
             "Synopsis or book-project overview",
@@ -172,23 +172,23 @@ export default function StorygateStudioLanding() {
             "Optional evaluation summary or professional readiness assessment",
             "Optional comparables and manuscript positioning notes",
           ].map((item) => (
-            <li key={item} className="flex items-start gap-3 text-sm" style={{ color: C.text }}>
+            <li key={item} className="flex items-start gap-3 text-base" style={{ color: C.text }}>
               <span style={{ color: C.gold, flexShrink: 0, marginTop: 2 }}>—</span>
               <span>{item}</span>
             </li>
           ))}
         </ul>
-        <p className="text-xs italic" style={{ color: C.ash }}>
+        <p className="text-sm italic" style={{ color: C.ash }}>
           Storygate Studio gives professionals enough to assess interest without forcing creators to expose everything by default.
         </p>
       </section>
 
       <Divider />
 
-      <section className="py-0 pb-24 px-6 max-w-5xl mx-auto">
+      <section className="py-12 px-6 max-w-6xl mx-auto">
         <SectionLabel>Who It&apos;s For</SectionLabel>
         <h2
-          className="text-2xl md:text-3xl font-bold mb-12"
+          className="text-2xl md:text-3xl font-bold mb-6"
           style={{ fontFamily: "Playfair Display, Georgia, serif" }}
         >
           For publishing professionals and manuscript creators.
@@ -201,7 +201,7 @@ export default function StorygateStudioLanding() {
             <p className="text-xs tracking-[0.16em] uppercase mb-4 font-mono" style={{ color: C.gold }}>
               Publishing Professionals
             </p>
-            <p className="text-sm leading-relaxed mb-8" style={{ color: C.ash }}>
+            <p className="text-base leading-relaxed mb-8" style={{ color: C.ash }}>
               Discover readiness-vetted manuscript projects through a secure, request-based access layer. You can request access to projects that match your role, interests, and professional focus. Once approved, you see only the materials the creator has chosen to share.
             </p>
             <CTAButton href="/storygate-studio/industry" variant="gold">
@@ -216,7 +216,7 @@ export default function StorygateStudioLanding() {
             <p className="text-xs tracking-[0.16em] uppercase mb-4 font-mono" style={{ color: C.gold }}>
               Authors and Creators
             </p>
-            <p className="text-sm leading-relaxed mb-8" style={{ color: C.ash }}>
+            <p className="text-base leading-relaxed mb-8" style={{ color: C.ash }}>
               Prepare your manuscript project for professional consideration without losing control of access. Storygate Studio is for projects that have cleared a professional presentation and readiness threshold. Once eligible, your project can be placed into a controlled access environment where verified publishing professionals may request review.
             </p>
             <CTAButton href="/storygate-studio/apply" variant="ghost">
@@ -228,7 +228,7 @@ export default function StorygateStudioLanding() {
 
       <Divider />
 
-      <section className="py-0 pb-24 px-6 max-w-5xl mx-auto">
+      <section className="py-12 px-6 max-w-6xl mx-auto">
         <SectionLabel>Eligibility</SectionLabel>
         <h2
           className="text-2xl md:text-3xl font-bold mb-4"
@@ -236,7 +236,7 @@ export default function StorygateStudioLanding() {
         >
           Storygate placement requires two gates.
         </h2>
-        <p className="text-sm mb-12 max-w-2xl" style={{ color: C.ash }}>
+        <p className="text-base mb-8 max-w-3xl" style={{ color: C.ash }}>
           Storygate Studio is selective. Manuscript projects must satisfy both requirements before placement.
         </p>
 
@@ -254,7 +254,7 @@ export default function StorygateStudioLanding() {
             >
               Professional Manuscript Package
             </p>
-            <p className="text-sm mb-5" style={{ color: C.ash }}>
+            <p className="text-base mb-5" style={{ color: C.ash }}>
               Creators must provide a clear, professionally formatted package that communicates the manuscript quickly and credibly. This may include:
             </p>
             <ul className="space-y-2 mb-6">
@@ -265,14 +265,14 @@ export default function StorygateStudioLanding() {
                 "Sample pages or manuscript materials",
                 "Supporting materials—comparables, audience positioning, or optional readiness assessment",
               ].map((item) => (
-                <li key={item} className="flex items-start gap-3 text-xs" style={{ color: C.ash }}>
+                <li key={item} className="flex items-start gap-3 text-sm" style={{ color: C.ash }}>
                   <span style={{ color: C.gold, flexShrink: 0, marginTop: 1 }}>—</span>
                   <span>{item}</span>
                 </li>
               ))}
             </ul>
             <p
-              className="text-xs p-3 border"
+              className="text-sm p-3 border"
               style={{ color: C.ash, borderColor: C.border, backgroundColor: C.panel }}
             >
               A RevisionGrade-generated package may satisfy this requirement, but creators may also use equivalent professional materials created independently or through another service.{" "}
@@ -293,7 +293,7 @@ export default function StorygateStudioLanding() {
             >
               Minimum Readiness / Quality Threshold
             </p>
-            <p className="text-sm mb-5" style={{ color: C.ash }}>
+            <p className="text-base mb-5" style={{ color: C.ash }}>
               Manuscript projects must demonstrate a minimum professional standard through one of the following:
             </p>
             <ul className="space-y-2 mb-6">
@@ -301,14 +301,14 @@ export default function StorygateStudioLanding() {
                 "A RevisionGrade score of 8.0 or higher from a full manuscript evaluation, or",
                 "An equivalent professional manuscript assessment from a qualified third party—such as a literary agent, acquiring editor, professional editor, or recognized publishing evaluator",
               ].map((item) => (
-                <li key={item} className="flex items-start gap-3 text-xs" style={{ color: C.ash }}>
+                <li key={item} className="flex items-start gap-3 text-sm" style={{ color: C.ash }}>
                   <span style={{ color: C.gold, flexShrink: 0, marginTop: 1 }}>—</span>
                   <span>{item}</span>
                 </li>
               ))}
             </ul>
             <p
-              className="text-xs p-3 border"
+              className="text-sm p-3 border"
               style={{ color: C.ash, borderColor: C.border, backgroundColor: C.panel }}
             >
               Storygate Studio is not designed to replace professional judgment. It is designed to make professionally prepared manuscript projects easier to review, route, and protect.
@@ -319,28 +319,28 @@ export default function StorygateStudioLanding() {
 
       <Divider />
 
-      <section className="py-0 pb-24 px-6 max-w-5xl mx-auto">
+      <section className="py-12 px-6 max-w-6xl mx-auto">
         <SectionLabel>Why It Exists</SectionLabel>
         <h2
-          className="text-2xl md:text-3xl font-bold mb-6 max-w-2xl"
+          className="text-2xl md:text-3xl font-bold mb-6 max-w-3xl"
           style={{ fontFamily: "Playfair Display, Georgia, serif" }}
         >
           Good manuscript projects should not disappear into the black box.
         </h2>
-        <p className="text-sm mb-6 max-w-2xl leading-relaxed" style={{ color: C.ash }}>
+        <p className="text-base mb-6 max-w-3xl leading-relaxed" style={{ color: C.ash }}>
           Authors often face the same problem: silence, generic rejection, or no clear signal about whether the issue is manuscript readiness, market fit, timing, or access.
         </p>
-        <p className="text-sm mb-8 max-w-2xl" style={{ color: C.ash }}>
+        <p className="text-base mb-8 max-w-3xl" style={{ color: C.ash }}>
           Storygate Studio does not promise representation, publication, or commercial outcome. It creates a more disciplined bridge between prepared creators and verified publishing professionals:
         </p>
-        <ul className="space-y-3 mb-10 max-w-xl">
+        <ul className="space-y-3 mb-10 max-w-3xl grid grid-cols-1 sm:grid-cols-2 gap-x-8">
           {[
             "Creators keep control of their materials.",
             "Professionals see organized, readiness-vetted packages.",
             "Access is requested, approved, and logged.",
             "Projects are presented through a standard designed for serious review.",
           ].map((item) => (
-            <li key={item} className="flex items-start gap-3 text-sm" style={{ color: C.text }}>
+            <li key={item} className="flex items-start gap-3 text-base" style={{ color: C.text }}>
               <span style={{ color: C.gold, flexShrink: 0, marginTop: 2 }}>—</span>
               <span>{item}</span>
             </li>
@@ -350,10 +350,10 @@ export default function StorygateStudioLanding() {
 
       <Divider />
 
-      <section className="py-0 pb-24 px-6 max-w-5xl mx-auto">
+      <section className="py-12 px-6 max-w-6xl mx-auto">
         <SectionLabel>Current Scope</SectionLabel>
         <h2
-          className="text-2xl md:text-3xl font-bold mb-12"
+          className="text-2xl md:text-3xl font-bold mb-8"
           style={{ fontFamily: "Playfair Display, Georgia, serif" }}
         >
           Built for manuscript-first publishing pathways.
@@ -387,10 +387,10 @@ export default function StorygateStudioLanding() {
               >
                 {type}
               </p>
-              <p className="text-sm mb-4 leading-relaxed" style={{ color: C.text }}>
+              <p className="text-base mb-4 leading-relaxed" style={{ color: C.text }}>
                 {desc}
               </p>
-              <p className="text-xs leading-relaxed" style={{ color: C.ash }}>
+              <p className="text-sm leading-relaxed" style={{ color: C.ash }}>
                 {materials}
               </p>
             </div>
@@ -400,7 +400,7 @@ export default function StorygateStudioLanding() {
 
       <Divider />
 
-      <section className="py-0 pb-24 px-6 max-w-5xl mx-auto">
+      <section className="py-12 px-6 max-w-6xl mx-auto">
         <SectionLabel>Scope</SectionLabel>
         <h2
           className="text-2xl md:text-3xl font-bold mb-6"
@@ -408,7 +408,7 @@ export default function StorygateStudioLanding() {
         >
           A professional gateway, not a guarantee.
         </h2>
-        <p className="text-sm mb-6" style={{ color: C.ash }}>
+        <p className="text-base mb-6" style={{ color: C.ash }}>
           Storygate Studio is not:
         </p>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-8">
@@ -422,14 +422,14 @@ export default function StorygateStudioLanding() {
           ].map((item) => (
             <div
               key={item}
-              className="px-4 py-3 text-xs"
+              className="px-4 py-3 text-sm"
               style={{ backgroundColor: C.panel, border: `1px solid ${C.borderAsh}`, color: C.ash }}
             >
               {item}
             </div>
           ))}
         </div>
-        <p className="text-sm italic max-w-2xl" style={{ color: C.ash }}>
+        <p className="text-base italic max-w-3xl" style={{ color: C.ash }}>
           Storygate Studio is a selective access layer for professionally prepared manuscript projects. Industry response remains subjective and market-dependent.
         </p>
       </section>
@@ -437,22 +437,22 @@ export default function StorygateStudioLanding() {
       <Divider />
 
       <section
-        className="py-20 px-6 text-center"
+        className="py-12 px-6 text-center"
         style={{ backgroundColor: C.panel, borderTop: `1px solid ${C.border}`, borderBottom: `1px solid ${C.border}` }}
       >
         <SectionLabel>Enter the Right Door</SectionLabel>
         <h2
-          className="text-2xl md:text-3xl font-bold mb-12"
+          className="text-2xl md:text-3xl font-bold mb-8"
           style={{ fontFamily: "Playfair Display, Georgia, serif" }}
         >
           Ready to proceed?
         </h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-2xl mx-auto text-left">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-3xl mx-auto text-left">
           <div>
             <p className="text-xs tracking-[0.16em] uppercase mb-2 font-mono" style={{ color: C.gold }}>
               Publishing Professionals
             </p>
-            <p className="text-sm mb-5" style={{ color: C.ash }}>
+            <p className="text-base mb-5" style={{ color: C.ash }}>
               Request verified access to review selected manuscript projects.
             </p>
             <CTAButton href="/storygate-studio/industry" variant="gold">
@@ -463,7 +463,7 @@ export default function StorygateStudioLanding() {
             <p className="text-xs tracking-[0.16em] uppercase mb-2 font-mono" style={{ color: C.gold }}>
               Authors and Creators
             </p>
-            <p className="text-sm mb-5" style={{ color: C.ash }}>
+            <p className="text-base mb-5" style={{ color: C.ash }}>
               Prepare your manuscript project for eligibility and controlled publishing review.
             </p>
             <CTAButton href="/storygate-studio/apply" variant="ghost">
@@ -473,15 +473,15 @@ export default function StorygateStudioLanding() {
         </div>
       </section>
 
-      <section className="py-24 px-6 max-w-3xl mx-auto">
+      <section className="py-12 px-6 max-w-5xl mx-auto">
         <SectionLabel>FAQ</SectionLabel>
         <h2
-          className="text-2xl md:text-3xl font-bold mb-12"
+          className="text-2xl md:text-3xl font-bold mb-8"
           style={{ fontFamily: "Playfair Display, Georgia, serif" }}
         >
           Questions before you apply?
         </h2>
-        <div className="space-y-8">
+        <div className="space-y-6">
           {[
             {
               q: "Do I need to use RevisionGrade to qualify?",
@@ -510,12 +510,12 @@ export default function StorygateStudioLanding() {
               style={{ borderBottom: `1px solid ${C.borderAsh}` }}
             >
               <p
-                className="text-sm font-semibold mb-2"
+                className="text-base font-semibold mb-2"
                 style={{ fontFamily: "Playfair Display, Georgia, serif", color: C.text }}
               >
                 {q}
               </p>
-              <p className="text-sm leading-relaxed" style={{ color: C.ash }}>
+              <p className="text-base leading-relaxed" style={{ color: C.ash }}>
                 {a}
               </p>
             </div>
@@ -527,10 +527,10 @@ export default function StorygateStudioLanding() {
         className="py-8 px-6 text-center"
         style={{ borderTop: `1px solid ${C.borderAsh}` }}
       >
-        <p className="text-xs max-w-xl mx-auto leading-relaxed" style={{ color: C.ash }}>
+        <p className="text-sm max-w-2xl mx-auto leading-relaxed" style={{ color: C.ash }}>
           Storygate Studio™ is part of the RevisionGrade™ ecosystem. It is designed to support professional manuscript readiness, controlled access, and accountable review pathways for serious book projects.
         </p>
-        <p className="text-xs mt-3" style={{ color: C.gold, opacity: 0.6 }}>
+        <p className="text-sm mt-3 max-w-2xl mx-auto" style={{ color: C.gold, opacity: 0.75 }}>
           All project views, access requests, notes, and packet activity are logged and append-only. Materials may not be copied, shared, or distributed outside this verified account.
         </p>
       </footer>
