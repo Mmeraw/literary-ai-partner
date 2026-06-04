@@ -252,14 +252,10 @@ function ensureDistinctCandidates(candidates: { a: string; b: string; c: string 
   for (const name of names) {
     const clean = normalizeProseSentence(repaired[name]);
     const key = clean.toLowerCase();
-    if (!candidateTextIsCopyPasteReady(clean) || normalized.has(key)) {
-      const suffix =
-        name === 'a'
-          ? 'The detail lands in the character’s next physical choice.'
-          : name === 'b'
-            ? 'The same pressure returns through a shorter, cleaner beat.'
-            : 'The line leans harder into the danger already present in the scene.';
-      repaired[name] = normalizeProseSentence(`${seed} ${suffix}`);
+    if (!clean || clean.split(/\s+/).length < 5 || normalized.has(key)) {
+      // Use the seed (evidence passage) directly when available rather than
+      // generating unrelated generic literary prose.
+      repaired[name] = seed && seed.split(/\s+/).length >= 5 ? seed : clean || seed;
     }
     normalized.add(repaired[name].toLowerCase());
   }
@@ -349,11 +345,13 @@ function explicitCandidateOrFallback(
   issueStatement: string,
 ): string {
   const candidate = normalizeOptionalText(raw);
-  if (
-    candidate &&
-    candidateTextIsCopyPasteReady(candidate) &&
-    candidate.toLowerCase() !== issueStatement.trim().toLowerCase()
-  ) {
+  if (!candidate) return fallback;
+  // Always prefer the LLM-generated candidate if it has substantive content
+  // (5+ words and not identical to the issue statement). The LLM was prompted
+  // to produce manuscript-ready prose — even imperfect output is better than
+  // generic placeholder text that has no connection to the manuscript.
+  const words = candidate.split(/\s+/);
+  if (words.length >= 5 && candidate.toLowerCase() !== issueStatement.trim().toLowerCase()) {
     return candidate;
   }
   return fallback;

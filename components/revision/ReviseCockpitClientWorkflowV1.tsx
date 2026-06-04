@@ -241,7 +241,10 @@ function candidateText(item: WorkbenchOpportunity, key: OptionKey): string {
   if (renderable && candidateTextIsCopyPasteReady(renderable) && !candidateRepeatsSourceForInsertion(item, renderable)) return renderable;
 
   const raw = rawCandidate(item, key);
-  if (raw && candidateTextIsCopyPasteReady(raw) && !candidateRepeatsSourceForInsertion(item, raw)) return raw;
+  // Prefer LLM-generated candidate (5+ words) even if it fails strict copy-paste
+  // validation. The LLM was prompted to produce manuscript-specific text — even
+  // imperfect output is more useful than empty or generic placeholders.
+  if (raw && raw.split(/\s+/).length >= 5 && !candidateRepeatsSourceForInsertion(item, raw)) return raw;
 
   const synthesized = synthesizedCandidate(item, key);
   if (synthesized && !candidateRepeatsSourceForInsertion(item, synthesized)) return synthesized;
