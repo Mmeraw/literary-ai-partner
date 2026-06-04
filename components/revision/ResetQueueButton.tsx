@@ -50,7 +50,7 @@ export default function ResetQueueButton({
   if (!evaluationJobId) return null;
 
   return (
-    <div className="relative">
+    <div className="workbench-v2-reset-queue relative">
       {status === "confirming" && (
         <div className="absolute right-0 mt-2 w-[320px] rounded border border-[#E0BF78] bg-[#120E08] px-3 py-3 text-left text-[11px] leading-4 text-[#CBBDA4] shadow-lg z-50">
           <p className="font-bold text-[#F4E3B0]">Confirm Reset Queue</p>
