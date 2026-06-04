@@ -14,9 +14,6 @@ function phaseModelRows() {
   const config = getEvaluationRuntimeConfig();
   const routing = config.routing;
   const pass1aModel = envOrNull("EVAL_PASS1A_MODEL") ?? routing.pass1Model;
-  const pass3aModel = envOrNull("EVAL_PASS3A_MODEL") ?? routing.pass3Model;
-  const readAheadModel = envOrNull("EVAL_READ_AHEAD_MODEL") ?? routing.pass3Model;
-  const waveModel = envOrNull("EVAL_WAVE_MODEL") ?? routing.polishModel;
 
   return [
     {
@@ -64,8 +61,8 @@ function phaseModelRows() {
     {
       phase: "Phase 3a",
       purpose: "Preflight reader / reducer",
-      model: pass3aModel,
-      source: envOrNull("EVAL_PASS3A_MODEL") ? "EVAL_PASS3A_MODEL" : envOrNull("EVAL_PASS3_MODEL") ? "EVAL_PASS3_MODEL" : envOrNull("EVAL_SYNTHESIS_MODEL") ? "EVAL_SYNTHESIS_MODEL" : "EVAL_OPENAI_MODEL fallback",
+      model: routing.pass3Model,
+      source: envOrNull("EVAL_PASS3_MODEL") ? "EVAL_PASS3_MODEL" : envOrNull("EVAL_SYNTHESIS_MODEL") ? "EVAL_SYNTHESIS_MODEL" : "EVAL_OPENAI_MODEL fallback",
     },
     {
       phase: "Phase 3b",
@@ -80,10 +77,16 @@ function phaseModelRows() {
       source: envOrNull("EVAL_PASS3_MODEL") ? "EVAL_PASS3_MODEL" : envOrNull("EVAL_SYNTHESIS_MODEL") ? "EVAL_SYNTHESIS_MODEL" : "EVAL_OPENAI_MODEL fallback",
     },
     {
-      phase: "Read-ahead / WAVE-style analysis",
-      purpose: "Full-manuscript analytical read / repair guidance",
-      model: readAheadModel === routing.pass3Model ? waveModel : readAheadModel,
-      source: envOrNull("EVAL_READ_AHEAD_MODEL") ? "EVAL_READ_AHEAD_MODEL" : envOrNull("EVAL_WAVE_MODEL") ? "EVAL_WAVE_MODEL" : envOrNull("EVAL_POLISH_MODEL") ? "EVAL_POLISH_MODEL" : "Pass 3 / polish fallback",
+      phase: "Read-ahead",
+      purpose: "Full-manuscript analytical read",
+      model: routing.pass3Model,
+      source: envOrNull("EVAL_PASS3_MODEL") ? "EVAL_PASS3_MODEL" : envOrNull("EVAL_SYNTHESIS_MODEL") ? "EVAL_SYNTHESIS_MODEL" : "EVAL_OPENAI_MODEL fallback",
+    },
+    {
+      phase: "WAVE / repair guidance",
+      purpose: "Polish / repair-oriented guidance",
+      model: routing.polishModel,
+      source: envOrNull("EVAL_POLISH_MODEL") ? "EVAL_POLISH_MODEL" : envOrNull("EVAL_CHEAP_MODEL") ? "EVAL_CHEAP_MODEL" : "EVAL_OPENAI_MODEL fallback",
     },
   ];
 }
