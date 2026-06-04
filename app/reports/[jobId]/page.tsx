@@ -47,9 +47,11 @@ import LongformSymbolPayoffLedger from '@/components/reports/longform/LongformSy
 import LongformSensoryEmotionalRegister from '@/components/reports/longform/LongformSensoryEmotionalRegister';
 import LongformManuscriptIntegrityTable from '@/components/reports/longform/LongformManuscriptIntegrityTable';
 import LongformEvidenceDistributionGate from '@/components/reports/longform/LongformEvidenceDistributionGate';
-import WaveGovernanceSummary from '@/components/reports/WaveGovernanceSummary';
-import CanonGovernanceSummary from '@/components/reports/CanonGovernanceSummary';
-import { getAllCanonGovernanceData } from '@/lib/evaluation/waveGovernanceData';
+// WAVE/Canon governance imports removed — these sections are internal-only
+// and must never render on the user-facing reports page.
+// import WaveGovernanceSummary from '@/components/reports/WaveGovernanceSummary';
+// import CanonGovernanceSummary from '@/components/reports/CanonGovernanceSummary';
+// import { getAllCanonGovernanceData } from '@/lib/evaluation/waveGovernanceData';
 
 // D1 Boundary: server-only. Service key must not leak to client.
 // Hybrid owner-gate: SSR client for auth identity, admin client for
@@ -280,11 +282,8 @@ export default async function ReportPage({
   // DREAM long-form artifact — async Pass 3b, may not be ready yet.
   const wordCount = result.metrics?.manuscript?.word_count ?? 0;
   const isLongForm = wordCount >= 25000;
-  const [dreamDoc, canonGov] = await Promise.all([
-    isLongForm ? getDreamArtifact(params.jobId) : Promise.resolve(null),
-    getAllCanonGovernanceData(params.jobId),
-  ]);
-  const waveGovData = canonGov.waveGov;
+  const dreamDoc = isLongForm ? await getDreamArtifact(params.jobId) : null;
+  // Canon governance data intentionally NOT fetched — internal-only, never rendered.
   const dreamExecutiveVerdict = getDisplayText(dreamDoc?.executive_verdict, "No executive verdict available.");
   const dreamBestShelf = getDisplayDreamMarketField(dreamDoc, "best_shelf");
   const dreamMarketableHook = getDisplayDreamMarketField(dreamDoc, "marketable_hook");
@@ -1170,65 +1169,10 @@ export default async function ReportPage({
           </section>
         )}
 
-        {/* WAVE Governance & Canon Execution — admin/support only */}
-        {showTechnicalSections && waveGovData && (
-          <section className="bg-white rounded-lg shadow-sm p-6 mb-6 border border-indigo-100">
-            <h2 className="text-2xl font-semibold text-gray-900 mb-1 flex items-center gap-2">
-              WAVE Governance &amp; Canon Execution
-              <span className="text-xs font-normal text-amber-700 bg-amber-100 px-2 py-0.5 rounded">Support view</span>
-            </h2>
-            <p className="text-sm text-gray-700 mb-4">
-              WAVE engine execution trace, module-level audit, and gate diagnostics
-            </p>
-            <WaveGovernanceSummary data={waveGovData} wordCount={wordCount} />
-          </section>
-        )}
-
-        {/* Canon Governance: Gate 15 + Golden Spine + Dialogue Canon — admin/support only */}
-        {showTechnicalSections && (canonGov.gate15 || canonGov.goldenSpine || canonGov.dialogueCanon || canonGov.revisionCanonMeta) && (
-          <section className="bg-white rounded-lg shadow-sm p-6 mb-6 border border-indigo-100">
-            <h2 className="text-2xl font-semibold text-gray-900 mb-1 flex items-center gap-2">
-              Canon Governance Summary
-              <span className="text-xs font-normal text-amber-700 bg-amber-100 px-2 py-0.5 rounded">Support view</span>
-            </h2>
-            <p className="text-sm text-gray-700 mb-4">
-              Gate 15 mechanical purity &amp; voice protection, Golden Spine continuity, and Dialogue canon audit
-            </p>
-            <CanonGovernanceSummary
-              gate15={canonGov.gate15}
-              goldenSpine={canonGov.goldenSpine}
-              dialogueCanon={canonGov.dialogueCanon}
-              revisionCanonMeta={canonGov.revisionCanonMeta}
-            />
-          </section>
-        )}
-
-        {/* Generated Artifacts — admin/support only */}
-        {showTechnicalSections && artifacts.length > 0 && (
-          <section className="bg-white rounded-lg shadow-sm p-6 mb-6">
-            <h2 className="text-2xl font-semibold text-gray-900 mb-4 flex items-center gap-2">
-              Generated Artifacts
-              <span className="text-xs font-normal text-amber-700 bg-amber-100 px-2 py-0.5 rounded">Support view</span>
-            </h2>
-            <div className="space-y-2">
-              {artifacts.map((artifact) => (
-                <div key={artifact.artifact_id} className="flex items-center justify-between p-3 border border-gray-200 rounded">
-                  <div>
-                    <p className="font-semibold text-gray-900">{artifact.title}</p>
-                    <p className="text-sm text-gray-600 capitalize">{artifact.type.replace(/_/g, ' ')}</p>
-                  </div>
-                  <span className={`px-3 py-1 rounded text-sm ${
-                    artifact.status === 'ready' ? 'bg-green-100 text-green-800' :
-                    artifact.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                    'bg-red-100 text-red-800'
-                  }`}>
-                    {artifact.status}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </section>
-        )}
+        {/* WAVE Governance, Canon Governance, Generated Artifacts — REMOVED from
+            user-facing reports page entirely. These are internal pipeline diagnostics
+            that must never appear in any user's browser/print view. Access governance
+            data via the admin pipeline-health dashboard or direct DB queries only. */}
 
         {/* Technical sections — only visible to admin/support with active author grant */}
         {showTechnicalSections && (
