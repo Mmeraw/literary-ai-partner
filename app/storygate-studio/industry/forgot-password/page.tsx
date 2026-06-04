@@ -1,5 +1,5 @@
 import React from 'react';
-import styles from '../storygate-studio.module.css';
+import styles from '../../storygate-studio.module.css';
 
 export default function StorygateStudioPage() {
   return (
