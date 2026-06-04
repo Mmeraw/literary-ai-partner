@@ -1009,7 +1009,7 @@ async function buildPdfReport(result: ExportableResult, title: string | null, jo
         );
       } else {
         doc.font('Helvetica').fontSize(7).fillColor(RG.textFaint).text(
-          toPdfSafeText(`RevisionGrade\u2122 Evaluation Report  --  Confidential  --  Page ${pageNumber}`),
+          toPdfSafeText(`RevisionGrade\u2122 Evaluation Report  --  Confidential  --  Page ${pageNumber} of ${pageCount}`),
           ml, footerY,
           { width: contentWidth, align: 'center', lineBreak: false },
         );

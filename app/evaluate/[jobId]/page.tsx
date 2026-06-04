@@ -560,9 +560,40 @@ export default async function EvaluationReportPage({
 
   // Seed pass3_completed_at from progress JSONB so the poller can distinguish
   // interim-complete (synthesis pending) from final-complete on first render.
-  const progressPass3CompletedAt: string | null = (() => {
+  // Self-healing: if pass3_completed_at is missing but longform_document_v1
+  // artifact exists, use the artifact's created_at and backfill progress JSONB.
+  const progressPass3CompletedAt: string | null = await (async () => {
     const raw = progressJsonb?.pass3_completed_at;
-    return typeof raw === 'string' && raw.length > 0 ? raw : null;
+    if (typeof raw === 'string' && raw.length > 0) return raw;
+
+    if (job.status !== 'complete') return null;
+    const wordCount = pollerWordCount ?? artifact?.metrics?.manuscript?.word_count;
+    if (typeof wordCount !== 'number' || wordCount < 25000) return null;
+
+    const admin = createAdminClient();
+    const { data: longformRow } = await admin
+      .from('evaluation_artifacts')
+      .select('created_at')
+      .eq('job_id', jobId)
+      .eq('artifact_type', 'longform_document_v1')
+      .maybeSingle();
+
+    if (!longformRow?.created_at) return null;
+
+    const ts = longformRow.created_at as string;
+    // Fire-and-forget: backfill progress JSONB so future polls work correctly
+    admin
+      .from('evaluation_jobs')
+      .update({
+        progress: {
+          ...(typeof progressJsonb === 'object' && progressJsonb ? progressJsonb : {}),
+          pass3_completed_at: ts,
+          progress_high_water: 100,
+        },
+      })
+      .eq('id', jobId)
+      .then(() => {});
+    return ts;
   })();
 
   const initialPollerJob = {
@@ -1022,15 +1053,15 @@ export default async function EvaluationReportPage({
             </>
           )}
 
-          {/* ── Finalizing your report (long-form) ── */}
+          {/* ── Narrative Synthesis (long-form) ── */}
           {isLongForm && isComplete && (
             <section className="rounded-lg border border-indigo-100 bg-white p-6 mb-4">
               <div className="mb-5">
                 <h2 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
-                  <span aria-hidden>📖</span> Finalizing your report
+                  <span aria-hidden>📖</span> {dreamDoc ? 'Narrative Synthesis' : 'Generating narrative synthesis'}
                 </h2>
                 <p className="text-sm text-gray-700 mt-0.5">
-                  Holistic craft assessment—long-form report finalization
+                  Holistic craft assessment—long-form narrative synthesis
                 </p>
               </div>
 
