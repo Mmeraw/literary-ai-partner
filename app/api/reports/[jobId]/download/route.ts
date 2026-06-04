@@ -7,8 +7,11 @@ import { canReleaseEvaluationRead } from '@/lib/jobs/readReleaseGate';
 import { isEvaluationResultV1, type EvaluationResultV1 } from '@/schemas/evaluation-result-v1';
 import { isEvaluationResultV2, type EvaluationResultV2 } from '@/schemas/evaluation-result-v2';
 import type { LongformDreamDocument } from '@/lib/evaluation/pipeline/runPass3bLongform';
-// Internal governance data (WAVE, Gate 15, Golden Spine, Dialogue Canon, Revision Canon)
-// is intentionally excluded from customer-facing downloads — admin support view only.
+import { getAllCanonGovernanceData, type WaveGovernanceData } from '@/lib/evaluation/waveGovernanceData';
+import type { Gate15AuditArtifact } from '@/lib/evaluation/gate15/gate15_orchestrator';
+import type { GoldenSpineArtifact } from '@/lib/evaluation/goldenSpine/goldenSpineAudit';
+import type { DialogueCanonAuditArtifact } from '@/lib/evaluation/dialogueCanon/dialogueCanonAudit';
+import type { RevisionCanonMetadata } from '@/lib/evaluation/revisionCanonMetadata';
 import {
   filterAuthorFacingTextList,
   getRenumberedAuthorFacingRevisionPlan,
@@ -103,9 +106,9 @@ type ExportRecommendation = {
 };
 
 function exportSeverity(priority?: string): string {
-  if (priority === 'high') return 'MUST';
-  if (priority === 'medium') return 'SHOULD';
-  return 'COULD';
+  if (priority === 'high') return 'RECOMMENDED';
+  if (priority === 'medium') return 'OPTIONAL';
+  return 'CONSIDER';
 }
 
 const SEVERITY_SORT_ORDER: Record<string, number> = { high: 0, medium: 1, low: 2 };
@@ -157,13 +160,14 @@ function pushTxtListBlock(lines: string[], label: string, values: unknown, optio
     .filter((item) => item.length > 0);
   if (cleaned.length === 0) return;
 
-  lines.push(`  ${label}:`);
+  lines.push('');
+  lines.push(`${label}:`);
   cleaned.forEach((item, idx) => {
     if (options.ordered) {
-      lines.push(`    ${idx + 1}. ${item}`);
+      lines.push(`  ${idx + 1}. ${item}`);
       return;
     }
-    lines.push(`    • ${item}`);
+    lines.push(`  • ${item}`);
   });
 }
 
@@ -233,11 +237,9 @@ function formatGeneratedDate(isoDate: string): string {
 
 function readinessLabel(score: unknown): string {
   if (typeof score !== 'number' || !Number.isFinite(score)) return '';
-  if (score >= 90) return ' — Publication Ready';
-  if (score >= 80) return ' — Market Ready';
-  if (score >= 70) return ' — Revision Recommended';
-  if (score >= 60) return ' — Significant Revision Needed';
-  return ' — Developmental Stage';
+  if (score >= 90) return ' — Market Ready';
+  if (score >= 60) return ' — Revise';
+  return ' — Not Ready';
 }
 
 function stripMachineResidue(text: string): string {
@@ -245,10 +247,7 @@ function stripMachineResidue(text: string): string {
     .replace(/\bindirect_speech\b/g, 'indirect speech')
     .replace(/\breported_speech\b/g, 'reported speech')
     .replace(/\btagged_speech\b/g, 'tagged speech')
-    .replace(/\baction_beat_attribution\b/g, 'action beats')
-    .replace(/\btagless_exchange\b/g, 'untagged exchanges')
-    .replace(/\bdirect_speech\b/g, 'direct speech')
-    .replace(/\brendering\s+modes?\b/gi, 'attribution styles')
+    .replace(/\baction_beat_attribution\b/g, 'action-beat attribution')
     .replace(/\bHARD_FAIL\b/g, '')
     .replace(/\bDEGRADED_EXTRACTION\b/g, '')
     .replace(/\bSOURCE_INTEGRITY_REVIEW_REQUIRED\b/g, '')
@@ -384,7 +383,7 @@ function appendDreamTxtSections(lines: string[], dream: LongformDreamDocument): 
 
   push('');
   push(sep);
-  push('NARRATIVE SYNTHESIS—HOLISTIC CRAFT ASSESSMENT');
+  push('NARRATIVE SYNTHESIS — HOLISTIC CRAFT ASSESSMENT');
   push(sep);
   push('');
   push(`Quality: ${dream.dream_scores?.quality ?? '—'}/100`);
@@ -393,6 +392,7 @@ function appendDreamTxtSections(lines: string[], dream: LongformDreamDocument): 
   push(`Literary: ${dream.dream_scores?.literary ?? '—'}/100`);
   push('');
   push('Executive Verdict:');
+  push('');
   push(cleanReportText(dream.executive_verdict));
 
   if (dream.market_shelf) {
@@ -400,17 +400,21 @@ function appendDreamTxtSections(lines: string[], dream: LongformDreamDocument): 
     push(sub);
     push('MARKET SHELF');
     push(sub);
-    push(`Best shelf: ${cleanReportText(dream.market_shelf.best_shelf)}`);
-    push(`Marketable hook: ${cleanReportText(dream.market_shelf.marketable_hook)}`);
+    push('');
+    push(`Best Shelf: ${cleanReportText(dream.market_shelf.best_shelf)}`);
+    push(`Marketable Hook: ${cleanReportText(dream.market_shelf.marketable_hook)}`);
     if (Array.isArray(dream.market_shelf.shelf_neighbors) && dream.market_shelf.shelf_neighbors.length > 0) {
-      push('Shelf neighbors:');
+      push('');
+      push('Shelf Neighbors:');
       dream.market_shelf.shelf_neighbors.forEach((item) => push(`  • ${cleanReportText(item)}`));
     }
     if (Array.isArray(dream.market_shelf.comparison_space) && dream.market_shelf.comparison_space.length > 0) {
-      push('Comparison space:');
+      push('');
+      push('Comparison Space:');
       dream.market_shelf.comparison_space.forEach((item) => push(`  • ${cleanReportText(item)}`));
     }
-    push(`Market danger: ${cleanReportText(dream.market_shelf.market_danger)}`);
+    push('');
+    push(`Market Danger: ${cleanReportText(dream.market_shelf.market_danger)}`);
   }
 
   if (Array.isArray(dream.structural_stack) && dream.structural_stack.length > 0) {
@@ -420,9 +424,9 @@ function appendDreamTxtSections(lines: string[], dream: LongformDreamDocument): 
     push(sub);
     dream.structural_stack.forEach((layer) => {
       push('');
-      push(`${cleanReportText(layer.layer_name)}—${layer.status}`);
-      push(`  Function: ${cleanReportText(layer.function)}`);
-      push(`  Revision note: ${cleanReportText(layer.revision_note)}`);
+      push(`${cleanReportText(layer.layer_name)} — ${layer.status}`);
+      push(`Function: ${cleanReportText(layer.function)}`);
+      push(`Revision note: ${cleanReportText(layer.revision_note)}`);
     });
   }
 
@@ -434,8 +438,8 @@ function appendDreamTxtSections(lines: string[], dream: LongformDreamDocument): 
     dream.arc_map.forEach((act) => {
       push('');
       push(`${cleanReportText(act.act_name)} (${cleanReportText(act.chapter_range)})`);
-      push(`  Function: ${cleanReportText(act.primary_function)}`);
-      push(`  Revision priority: ${cleanReportText(act.revision_priority)}`);
+      push(`Function: ${cleanReportText(act.primary_function)}`);
+      push(`Revision priority: ${cleanReportText(act.revision_priority)}`);
     });
   }
 
@@ -446,10 +450,10 @@ function appendDreamTxtSections(lines: string[], dream: LongformDreamDocument): 
     push(sub);
     dream.criterion_analyses.forEach((a) => {
       push('');
-      push(`${getCriterionDisplayLabel(a.key)}—${a.score}/10 (${formatConfidenceLabel(a.confidence)})`);
-      pushTxtListBlock(lines, 'What is working', a.fit_evidence);
-      pushTxtListBlock(lines, 'What weakens impact', a.gap_evidence);
-      pushTxtListBlock(lines, 'Revision queue', a.revision_queue, { ordered: true, isRevisionQueue: true });
+      push(`${getCriterionDisplayLabel(a.key)} — ${a.score}/10 (${formatConfidenceLabel(a.confidence)})`);
+      pushTxtListBlock(lines, 'What Is Working', a.fit_evidence);
+      pushTxtListBlock(lines, 'What Weakens Impact', a.gap_evidence);
+      pushTxtListBlock(lines, 'Revision Queue', a.revision_queue, { ordered: true, isRevisionQueue: true });
     });
   }
 
@@ -462,14 +466,14 @@ function appendDreamTxtSections(lines: string[], dream: LongformDreamDocument): 
     revisionPlan.forEach((item) => {
       push('');
       push(`Priority ${item.displayPriority}: ${cleanReportText(item.title)}`);
-      push(`  Goal: ${cleanReportText(item.goal)}`);
+      push(`Goal: ${cleanReportText(item.goal)}`);
       pushTxtListBlock(lines, 'Actions', item.actions, { ordered: true });
-      if (item.acceptance_check) push(`  Acceptance check: ${cleanReportText(item.acceptance_check)}`);
+      if (item.acceptance_check) push(`Acceptance check: ${cleanReportText(item.acceptance_check)}`);
     });
   }
 }
 
-function buildTxtReport(result: ExportableResult, title: string | null, jobId: string, dream: LongformDreamDocument | null): string {
+function buildTxtReport(result: ExportableResult, title: string | null, jobId: string, dream: LongformDreamDocument | null, waveGov: WaveGovernanceData | null = null, gate15?: Gate15AuditArtifact | null, goldenSpine?: GoldenSpineArtifact | null, dialogueCanon?: DialogueCanonAuditArtifact | null, revisionCanonMeta?: RevisionCanonMetadata | null): string {
   const lines: string[] = [];
   const sep = '='.repeat(72);
   const sub = '-'.repeat(72);
@@ -492,45 +496,50 @@ function buildTxtReport(result: ExportableResult, title: string | null, jobId: s
   lines.push('');
 
   lines.push(sub);
-  lines.push('SUMMARY');
+  lines.push('EXECUTIVE SUMMARY');
   lines.push(sub);
+  lines.push('');
   lines.push(cleanReportText(result.overview.one_paragraph_summary, summaryFallback, { blockTruncation: true }));
   lines.push('');
 
   lines.push(sub);
   lines.push('TOP STRENGTHS');
   lines.push(sub);
+  lines.push('');
   result.overview.top_3_strengths.forEach((s, i) => lines.push(`${i + 1}. ${cleanReportText(s)}`));
   lines.push('');
 
   lines.push(sub);
   lines.push('TOP RISKS');
   lines.push(sub);
+  lines.push('');
   result.overview.top_3_risks.forEach((r, i) => lines.push(`${i + 1}. ${cleanReportText(r)}`));
   lines.push('');
 
   lines.push(sub);
   lines.push('CRITERIA SCORES');
   lines.push(sub);
+  lines.push('');
   result.criteria.forEach((c) => {
     const criterionRecord = c as Record<string, unknown>;
-    lines.push(`• ${getCriterionDisplayLabel(c.key)}—${scoreLabel(c.score_0_10, 10)}${c.confidence_level ? ` (${formatConfidenceLabel(c.confidence_level)})` : ''}`);
-    if (c.rationale) lines.push(`  Rationale: ${cleanReportText(c.rationale)}`);
+    lines.push(`${getCriterionDisplayLabel(c.key)} — ${scoreLabel(c.score_0_10, 10)}${c.confidence_level ? ` (${formatConfidenceLabel(c.confidence_level)})` : ''}`);
+    if (c.rationale) lines.push(`Rationale: ${cleanReportText(c.rationale)}`);
 
     if (typeof criterionRecord.fit_summary === 'string' && criterionRecord.fit_summary.trim()) {
-      lines.push(`  What's Working: ${cleanReportText(criterionRecord.fit_summary)}`);
+      lines.push(`What's Working: ${cleanReportText(criterionRecord.fit_summary)}`);
     }
     if (typeof criterionRecord.gap_summary === 'string' && criterionRecord.gap_summary.trim()) {
-      lines.push(`  Gap to Close: ${cleanReportText(criterionRecord.gap_summary)}`);
+      lines.push(`Gap to Close: ${cleanReportText(criterionRecord.gap_summary)}`);
     }
 
     const opportunities = getCriterionOpportunities(c as { recommendations?: unknown });
     if (opportunities.length > 0) {
-      lines.push('  Opportunities:');
+      lines.push('');
+      lines.push('Opportunities:');
       opportunities.forEach((opportunity, idx) => {
-        lines.push(`    ${idx + 1}. [${exportSeverity(opportunity.priority)}]`);
+        lines.push(`  ${idx + 1}. [${exportSeverity(opportunity.priority)}]`);
         opportunityRows(opportunity).forEach(([label, value]) => {
-          lines.push(`       ${label}: ${value}`);
+          lines.push(`     ${label}: ${value}`);
         });
       });
     }
@@ -541,8 +550,8 @@ function buildTxtReport(result: ExportableResult, title: string | null, jobId: s
   if (dream) appendDreamTxtSections(lines, dream);
 
   // Internal governance data (WAVE, Gate 15, Golden Spine, Dialogue Canon,
-  // Revision Canon) is intentionally excluded from customer-facing downloads.
-  // This data is available only through the admin support view.
+  // Revision Canon) is intentionally omitted from customer-facing downloads.
+  // It remains accessible via the admin support view only.
 
   lines.push('');
   lines.push(sep);
@@ -610,20 +619,20 @@ async function buildPdfReport(result: ExportableResult, title: string | null, jo
     };
     const section = (text: unknown) => {
       ensureSpace(72);
-      doc.moveDown(0.8);
+      doc.moveDown(1.2);
       doc.font('Helvetica-Bold').fontSize(14).fillColor(RG.oxblood).text(toPdfSafeText(text), ml, doc.y, { width: contentWidth });
-      doc.moveDown(0.25);
+      doc.moveDown(0.3);
       goldRule();
     };
     const paragraph = (text: unknown) => {
       ensureSpace(70);
-      doc.font('Helvetica').fontSize(10.5).fillColor(RG.textPrimary).text(toPdfSafeText(text), ml, doc.y, { width: contentWidth, lineGap: 3 });
-      doc.moveDown(0.45);
+      doc.font('Helvetica').fontSize(10.5).fillColor(RG.textPrimary).text(toPdfSafeText(text), ml, doc.y, { width: contentWidth, lineGap: 3.5 });
+      doc.moveDown(0.55);
     };
     const bullet = (text: unknown, color: string = RG.textPrimary) => {
       ensureSpace(45);
-      doc.font('Helvetica').fontSize(10.5).fillColor(color).text(`  -  ${toPdfSafeText(text)}`, ml, doc.y, { width: contentWidth, indent: 8, lineGap: 2 });
-      doc.moveDown(0.25);
+      doc.font('Helvetica').fontSize(10.5).fillColor(color).text(`  \u2022  ${toPdfSafeText(text)}`, ml, doc.y, { width: contentWidth, indent: 8, lineGap: 2.5 });
+      doc.moveDown(0.3);
     };
     const labelValue = (label: string, value: unknown) => {
       const safeValue = toPdfSafeText(value, '');
@@ -981,20 +990,9 @@ async function buildPdfReport(result: ExportableResult, title: string | null, jo
     }
 
     // ── Branded footers on every page ─────────────────────────────────
-    // Track the last page that has real content (cursor moved below top margin).
-    // Pages where the cursor never moved are trailing blanks and get no footer.
     const range = doc.bufferedPageRange();
-    let lastContentPage = range.start;
+    const pageCount = range.count;
     for (let i = range.start; i < range.start + range.count; i += 1) {
-      doc.switchToPage(i);
-      // A page with content will have y > top margin; blank trailing pages
-      // have y at the initial position (top margin).
-      const topMargin = doc.page.margins.top;
-      if (doc.y > topMargin + 10) lastContentPage = i;
-    }
-
-    const pageCount = lastContentPage - range.start + 1;
-    for (let i = range.start; i <= lastContentPage; i += 1) {
       doc.switchToPage(i);
       const pageNumber = i - range.start + 1;
       const footerY = doc.page.height - 40;
@@ -1020,13 +1018,6 @@ async function buildPdfReport(result: ExportableResult, title: string | null, jo
       doc.fillColor('#000000');
     }
 
-    // Remove trailing blank pages by switching back to the last content page
-    // before ending. PdfKit's flushPages() will only output pages up to the
-    // current page pointer, trimming any empty trailing pages.
-    if (lastContentPage < range.start + range.count - 1) {
-      doc.switchToPage(lastContentPage);
-    }
-
     doc.end();
   });
 }
@@ -1048,20 +1039,20 @@ function docxScoreColor(score: number | null | undefined): string {
 const DOCX_NONE_BORDER = { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' };
 const DOCX_NO_BORDERS = { top: DOCX_NONE_BORDER, bottom: DOCX_NONE_BORDER, left: DOCX_NONE_BORDER, right: DOCX_NONE_BORDER };
 
-async function buildDocx(result: ExportableResult, title: string | null, jobId: string, dream: LongformDreamDocument | null): Promise<Buffer> {
+async function buildDocx(result: ExportableResult, title: string | null, jobId: string, dream: LongformDreamDocument | null, waveGov: WaveGovernanceData | null = null, gate15?: Gate15AuditArtifact | null, goldenSpine?: GoldenSpineArtifact | null, dialogueCanon?: DialogueCanonAuditArtifact | null, revisionCanonMeta?: RevisionCanonMetadata | null): Promise<Buffer> {
   const metadata = buildMetadata(result, title, dream);
   const summaryFallback = buildSummaryFallback(result);
 
-  const spacer = () => new Paragraph({ spacing: { after: 120 }, children: [] });
+  const spacer = () => new Paragraph({ spacing: { after: 200 }, children: [] });
   const brandHeading = (text: string, level: (typeof HeadingLevel)[keyof typeof HeadingLevel]) =>
     new Paragraph({
       heading: level,
-      spacing: { before: 240, after: 80 },
+      spacing: { before: 320, after: 120 },
       children: [new TextRun({ text, color: RG.oxblood.replace('#', ''), bold: true })],
     });
   const bodyPara = (text: string, opts: { bold?: boolean; color?: string; size?: number; spacing?: number } = {}) =>
     new Paragraph({
-      spacing: { after: opts.spacing ?? 100 },
+      spacing: { after: opts.spacing ?? 140 },
       children: [new TextRun({
         text: cleanReportText(text),
         bold: opts.bold ?? false,
@@ -1072,7 +1063,7 @@ async function buildDocx(result: ExportableResult, title: string | null, jobId: 
     });
   const bulletPara = (text: string, color?: string) =>
     new Paragraph({
-      spacing: { after: 60 },
+      spacing: { after: 80 },
       children: [new TextRun({
         text: `  \u2022  ${cleanReportText(text)}`,
         size: 21,
@@ -1510,8 +1501,8 @@ async function buildDocx(result: ExportableResult, title: string | null, jobId: 
   }
 
   // Internal governance data (WAVE, Gate 15, Golden Spine, Dialogue Canon,
-  // Revision Canon) is intentionally excluded from customer-facing downloads.
-  // This data is available only through the admin support view.
+  // Revision Canon) is intentionally omitted from customer-facing downloads.
+  // It remains accessible via the admin support view only.
 
   // Gold divider
   children.push(new Table({
@@ -1631,10 +1622,14 @@ export async function GET(
   const result = rawResult as ExportableResult;
   const relationTitle = extractManuscriptTitle((job as { manuscripts?: unknown }).manuscripts);
   const title = relationTitle ?? result.metrics?.manuscript?.title ?? null;
-  const dream = await loadDreamDocument(admin, jobId);
+  const [dream, canonGov] = await Promise.all([
+    loadDreamDocument(admin, jobId),
+    getAllCanonGovernanceData(jobId),
+  ]);
+  const waveGov = canonGov.waveGov;
 
   if (format === 'txt') {
-    const body = buildTxtReport(result, title, jobId, dream);
+    const body = buildTxtReport(result, title, jobId, dream, waveGov, canonGov.gate15, canonGov.goldenSpine, canonGov.dialogueCanon, canonGov.revisionCanonMeta);
     return new Response(body, {
       headers: {
         'Content-Type': 'text/plain; charset=utf-8',
@@ -1675,7 +1670,7 @@ export async function GET(
     }
   }
 
-  const buffer = await buildDocx(result, title, jobId, dream);
+  const buffer = await buildDocx(result, title, jobId, dream, waveGov, canonGov.gate15, canonGov.goldenSpine, canonGov.dialogueCanon, canonGov.revisionCanonMeta);
   return new Response(new Uint8Array(buffer), {
     headers: {
       'Content-Type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',

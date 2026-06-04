@@ -24,9 +24,9 @@ const SEVERITY_COLORS: Record<WorkbenchSeverity, string> = {
 };
 
 const SEVERITY_LABELS: Record<WorkbenchSeverity, string> = {
-  must: "Must",
-  should: "Should",
-  could: "Could",
+  must: "Recommended",
+  should: "Optional",
+  could: "Consider",
 };
 
 const SCOPE_ORDER: WorkbenchScope[] = [
