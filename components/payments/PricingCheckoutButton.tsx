@@ -14,10 +14,6 @@ export default function PricingCheckoutButton({ productId, href, children, class
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  if (!productId && href) {
-    return <Link href={href} className={className}>{children}</Link>;
-  }
-
   async function startCheckout() {
     if (!productId) return;
     setLoading(true);
@@ -44,9 +40,13 @@ export default function PricingCheckoutButton({ productId, href, children, class
 
   return (
     <div className="mt-7">
-      <button type="button" onClick={startCheckout} disabled={loading} className={`${className} w-full disabled:cursor-wait disabled:opacity-70`}>
-        {loading ? "Opening Secure Checkout..." : children}
-      </button>
+      {productId ? (
+        <button type="button" onClick={startCheckout} disabled={loading} className={`${className} w-full disabled:cursor-wait disabled:opacity-70`}>
+          {loading ? "Opening Secure Checkout..." : children}
+        </button>
+      ) : href ? (
+        <Link href={href} className={className}>{children}</Link>
+      ) : null}
       {error && <p className="mt-3 text-center text-sm leading-6 text-red-300">{error}</p>}
     </div>
   );
