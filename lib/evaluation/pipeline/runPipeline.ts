@@ -113,6 +113,11 @@ import { computeEnrichment } from "@/lib/evaluation/enrichment/computeEnrichment
 import {
   getCanonicalPass1Model,
   getCanonicalPass2Model,
+  getCanonicalChunkModel,
+  getCanonicalSeedModel,
+  getCanonicalLedgerModel,
+  getCanonicalPolishModel,
+  getCanonicalSynthesisModel,
   getCanonicalPass3Model,
   getCanonicalPass3FallbackModel,
   getExternalAdjudicationMode,
@@ -835,6 +840,11 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
   const pipelineRouting: PipelineResultRouting = {
     pass1Model: getCanonicalPass1Model(opts.model),
     pass2Model: getCanonicalPass2Model(opts.model),
+    chunkModel: getCanonicalChunkModel(opts.model),
+    seedModel: getCanonicalSeedModel(opts.model),
+    ledgerModel: getCanonicalLedgerModel(opts.model),
+    polishModel: getCanonicalPolishModel(opts.model),
+    synthesisModel: getCanonicalSynthesisModel(opts.model),
     pass3Model: getCanonicalPass3Model(opts.model),
     pass3FallbackModel: getCanonicalPass3FallbackModel(opts.model),
   };

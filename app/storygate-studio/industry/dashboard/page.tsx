@@ -18,34 +18,35 @@ import Link from "next/link";
 const C = {
   bg:        "#0E0E0E",
   text:      "#F2EFEA",
-  gold:      "#C4A86A",
-  ash:       "#C2BEB6",
+  gold:      "#A98E4A",
+  ash:       "#B8AEA0",
   panel:     "#161616",
   border:    "rgba(161,142,74,0.18)",
-  borderAsh: "rgba(123,123,123,0.18)",
+  borderAsh: "rgba(184,174,160,0.28)",
 } as const;
 
 export default function IndustryDashboardEntry() {
   return (
     <main
+      className="storygate-studio-route"
       style={{ backgroundColor: C.bg, color: C.text, fontFamily: "Inter, system-ui, sans-serif", minHeight: "100vh" }}
     >
-      <section className="pt-16 pb-12 px-6 max-w-3xl mx-auto text-center">
-        <p className="text-sm tracking-[0.22em] uppercase font-mono mb-4" style={{ color: C.gold }}>
+      <section className="pt-20 pb-14 px-6 max-w-6xl mx-auto text-center">
+        <p className="text-sm tracking-[0.16em] uppercase font-mono mb-4" style={{ color: C.gold }}>
           Storygate Studio™
         </p>
         <h1
-          className="text-3xl md:text-4xl font-bold mb-6"
+          className="text-4xl md:text-5xl font-bold mb-5"
           style={{ fontFamily: "Playfair Display, Georgia, serif" }}
         >
           Industry Dashboard
         </h1>
-        <p className="text-lg leading-relaxed mb-10" style={{ color: C.ash }}>
+        <p className="text-lg leading-relaxed mb-9 max-w-5xl mx-auto" style={{ color: C.ash }}>
           You are entering the verified industry access area. This environment is logged. All activity—views, access requests, notes, and packet interactions—is recorded and append-only.
         </p>
 
-        <div className="p-8 mb-6 text-left" style={{ backgroundColor: C.panel, border: `1px solid ${C.border}` }}>
-          <p className="text-sm tracking-[0.14em] uppercase font-mono mb-3" style={{ color: C.gold }}>
+        <div className="p-8 mb-6 text-left max-w-5xl mx-auto" style={{ backgroundColor: C.panel, border: `1px solid ${C.border}` }}>
+          <p className="text-sm tracking-[0.11em] uppercase font-mono mb-3" style={{ color: C.gold }}>
             Access Policy
           </p>
           <ul className="space-y-3">
@@ -55,7 +56,7 @@ export default function IndustryDashboardEntry() {
               "Decisions on materials are final and append-only within the system.",
               "Violation of access terms may result in immediate revocation.",
             ].map((item) => (
-              <li key={item} className="flex items-start gap-3 text-lg" style={{ color: C.ash }}>
+              <li key={item} className="flex items-start gap-3 text-base" style={{ color: C.ash }}>
                 <span style={{ color: C.gold, flexShrink: 0 }}>—</span>
                 <span>{item}</span>
               </li>
@@ -66,7 +67,7 @@ export default function IndustryDashboardEntry() {
         {/* Primary CTA — links to the deployed Storygate Studio app */}
         <Link
           href="https://www.perplexity.ai/computer/a/storygate-studio-9n2UVN40RGiCPIz5u5tlwg#/storygate-studio/industry/dashboard"
-          className="inline-block w-full text-center px-6 py-4 text-sm tracking-[0.18em] uppercase font-mono transition-opacity hover:opacity-80 mb-4"
+          className="inline-block w-full max-w-5xl text-center px-6 py-4 text-sm tracking-[0.12em] uppercase font-mono transition-opacity hover:opacity-80 mb-4"
           style={{ backgroundColor: C.gold, color: C.bg }}
         >
           Open Industry Dashboard
@@ -79,7 +80,7 @@ export default function IndustryDashboardEntry() {
           </Link>
         </p>
 
-        <p className="mt-10 text-base leading-relaxed" style={{ color: C.ash, opacity: 0.75 }}>
+        <p className="mt-8 text-base leading-relaxed" style={{ color: C.ash, opacity: 0.75 }}>
           All project views, access requests, notes, and packet activity are logged and append-only.
         </p>
       </section>

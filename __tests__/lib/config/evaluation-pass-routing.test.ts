@@ -227,6 +227,11 @@ describe("runPipeline routing field in pipeline_result", () => {
       expect(result.routing).toBeDefined();
       expect(typeof result.routing?.pass1Model).toBe("string");
       expect(typeof result.routing?.pass2Model).toBe("string");
+      expect(typeof result.routing?.chunkModel).toBe("string");
+      expect(typeof result.routing?.seedModel).toBe("string");
+      expect(typeof result.routing?.ledgerModel).toBe("string");
+      expect(typeof result.routing?.polishModel).toBe("string");
+      expect(typeof result.routing?.synthesisModel).toBe("string");
       expect(typeof result.routing?.pass3Model).toBe("string");
       expect(typeof result.routing?.pass3FallbackModel).toBe("string");
     }

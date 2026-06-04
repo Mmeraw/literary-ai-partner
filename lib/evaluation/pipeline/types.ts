@@ -474,12 +474,17 @@ export type PassCompletionCapture = {
 
 export type PipelineProviderTelemetryEntry = {
   job_id: string;
+  phase?: "pass1" | "pass2" | "pass3";
   pass: 1 | 2 | 3;
   provider: "openai" | "perplexity";
   model: string;
   request_id?: string;
   finish_reason?: string;
   usage?: CompletionUsage;
+  cached_input_tokens?: number | null;
+  retry_attempt?: number;
+  estimated_cost_usd?: number;
+  called_at?: string;
   started_at: string;
   completed_at: string;
   duration_ms: number;
@@ -587,6 +592,11 @@ export type ExternalAdjudicationStatus =
 export type PipelineResultRouting = {
   pass1Model: string;
   pass2Model: string;
+  chunkModel: string;
+  seedModel: string;
+  ledgerModel: string;
+  polishModel: string;
+  synthesisModel: string;
   pass3Model: string;
   pass3FallbackModel: string;
 };

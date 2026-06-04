@@ -28,6 +28,16 @@ export interface EvaluationPassRouting {
   pass1Model: string;
   /** Resolved model for Pass 2 chunk evaluation. */
   pass2Model: string;
+  /** Resolved model for chunk map-phase calls. */
+  chunkModel: string;
+  /** Resolved model for seed generation. */
+  seedModel: string;
+  /** Resolved model for story ledger generation. */
+  ledgerModel: string;
+  /** Resolved model for polish pass. */
+  polishModel: string;
+  /** Resolved model for synthesis resolver chain (EVAL_SYNTHESIS_MODEL → default). */
+  synthesisModel: string;
   /** Resolved model for Pass 3 synthesis. */
   pass3Model: string;
   /** Resolved fallback model when Pass 3 primary route fails. */
@@ -326,6 +336,11 @@ export function resolveEvaluationRuntimeConfig(
 
   const pass1Model = resolvePassModel(["EVAL_PASS1_MODEL", "EVAL_CHUNK_MODEL", "EVAL_CHEAP_MODEL"]);
   const pass2Model = resolvePassModel(["EVAL_PASS2_MODEL", "EVAL_CHUNK_MODEL", "EVAL_CHEAP_MODEL"]);
+  const chunkModel = resolvePassModel(["EVAL_CHUNK_MODEL", "EVAL_CHEAP_MODEL"]);
+  const seedModel = resolvePassModel(["EVAL_SEED_MODEL", "EVAL_CHEAP_MODEL"]);
+  const ledgerModel = resolvePassModel(["EVAL_LEDGER_MODEL", "EVAL_CHEAP_MODEL"]);
+  const polishModel = resolvePassModel(["EVAL_POLISH_MODEL", "EVAL_CHEAP_MODEL"]);
+  const synthesisModel = resolvePassModel(["EVAL_SYNTHESIS_MODEL"]);
   const pass3Model = resolvePassModel(["EVAL_PASS3_MODEL", "EVAL_SYNTHESIS_MODEL"]);
   const pass3FallbackModel = resolvePassModel(["EVAL_PASS3_FALLBACK_MODEL", "EVAL_PASS3_MODEL", "EVAL_SYNTHESIS_MODEL"]);
 
@@ -431,6 +446,11 @@ export function resolveEvaluationRuntimeConfig(
     routing: {
       pass1Model,
       pass2Model,
+      chunkModel,
+      seedModel,
+      ledgerModel,
+      polishModel,
+      synthesisModel,
       pass3Model,
       pass3FallbackModel,
     },
