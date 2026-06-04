@@ -174,11 +174,15 @@ export default function PipelineHealthPage() {
   const [error, setError] = useState<string | null>(null);
   const [windowParam, setWindowParam] = useState("24h");
   const [showTestManuscripts, setShowTestManuscripts] = useState(false);
+  const [lastRefreshedAt, setLastRefreshedAt] = useState<Date | null>(null);
+  const [refreshFailed, setRefreshFailed] = useState(false);
 
   const fetchData = useCallback(
-    (win: string, showTest: boolean) => {
-      setLoading(true);
-      setError(null);
+    (win: string, showTest: boolean, isAutoRefresh = false) => {
+      if (!isAutoRefresh) {
+        setLoading(true);
+      }
+      if (!isAutoRefresh) setError(null);
       const showTestQs = showTest ? "&show_test=1" : "";
       fetch(`/api/admin/pipeline-health?window=${win}&limit=100${showTestQs}`)
         .then((res) => {
@@ -191,19 +195,35 @@ export default function PipelineHealthPage() {
         .then((json) => {
           if (!json) return;
           if (json.ok === false) {
-            setError(json.error ?? "Unknown error");
+            if (!isAutoRefresh) setError(json.error ?? "Unknown error");
+            setRefreshFailed(true);
             return;
           }
           setData(json as PipelineHealthData);
+          setLastRefreshedAt(new Date());
+          setRefreshFailed(false);
         })
-        .catch((err: Error) => setError(err.message))
-        .finally(() => setLoading(false));
+        .catch((err: Error) => {
+          if (!isAutoRefresh) setError(err.message);
+          setRefreshFailed(true);
+        })
+        .finally(() => {
+          if (!isAutoRefresh) setLoading(false);
+        });
     },
     [router]
   );
 
   useEffect(() => {
     fetchData(windowParam, showTestManuscripts);
+  }, [windowParam, showTestManuscripts, fetchData]);
+
+  // Auto-refresh every 30 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      fetchData(windowParam, showTestManuscripts, true);
+    }, 30_000);
+    return () => clearInterval(interval);
   }, [windowParam, showTestManuscripts, fetchData]);
 
   if (loading) {
@@ -240,9 +260,30 @@ export default function PipelineHealthPage() {
               ← Back to Admin
             </Link>
           </div>
-          <h1 className="text-2xl font-semibold">Pipeline Health</h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-semibold">Pipeline Health</h1>
+            {/* Big pulsing status light */}
+            <div className="relative flex items-center gap-2">
+              <span className="relative flex h-5 w-5">
+                {!refreshFailed && (
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75" />
+                )}
+                <span
+                  className={`relative inline-flex h-5 w-5 rounded-full ${
+                    refreshFailed ? "bg-red-500" : "bg-green-500"
+                  }`}
+                />
+              </span>
+              <span className={`text-sm font-semibold ${refreshFailed ? "text-red-600" : "text-green-600"}`}>
+                {refreshFailed ? "STALLED" : "LIVE"}
+              </span>
+            </div>
+          </div>
           <p className="text-xs text-gray-400 mt-0.5">
             Generated {fmtDate(data.generatedAt)} · Source: evaluation_jobs · Read-only
+            {lastRefreshedAt && (
+              <span> · Auto-refreshing every 30s (last: {lastRefreshedAt.toLocaleTimeString()})</span>
+            )}
           </p>
         </div>
 
