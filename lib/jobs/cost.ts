@@ -1,41 +1,22 @@
 /**
  * Job Cost Tracker
  *
- * Tracks per-job cost accumulation for LLM API calls.
- * Provides read-only queries for system visibility (diagnostics).
- *
- * Cost is tracked in **USD cents** (integer) to avoid floating point drift.
- * Each job can accumulate costs across multiple phases.
- *
- * @module lib/jobs/cost
- * @see docs/PHASE_A5_DAY2_BACKPRESSURE_COST.md
+ * Tracks per-job cost accumulation for LLM API calls. Provides read-only
+ * queries for system visibility and CostOps dashboards.
  */
 
 import { createAdminClient } from "@/lib/supabase/admin";
 
-/**
- * Cost entry for a single LLM call within a job
- */
 export interface CostEntry {
-  /** Job ID */
   jobId: string;
-  /** Processing phase (e.g., "evaluation", "revision", "conversion") */
   phase: string;
-  /** LLM model used (e.g., "gpt-5.1", "gpt-5-mini") */
   model: string;
-  /** Input tokens consumed */
   inputTokens: number;
-  /** Output tokens consumed */
   outputTokens: number;
-  /** Cost in USD cents (integer) */
   costCents: number;
-  /** Timestamp of the API call (ISO string preferred) */
   calledAt: string;
 }
 
-/**
- * Aggregated cost summary for a single job
- */
 export interface JobCostSummary {
   jobId: string;
   manuscriptId: string | null;
@@ -48,29 +29,16 @@ export interface JobCostSummary {
   status: string;
 }
 
-/**
- * System-wide cost snapshot
- */
 export interface CostSnapshot {
-  /** Total cost in USD cents across all jobs */
   totalCostCents: number;
-  /** Cost in the last 24 hours (cents) */
   costLast24hCents: number;
-  /** Cost in the last 7 days (cents) */
   costLast7dCents: number;
-  /** Average cost per job (cents) */
   avgCostPerJobCents: number;
-  /** Number of jobs with cost data */
   jobsWithCosts: number;
-  /** Most expensive model */
   topModel: string | null;
-  /** Snapshot timestamp */
   snapshotAt: string;
 }
 
-/**
- * Cost breakdown by model
- */
 export interface ModelCostBreakdown {
   model: string;
   totalCostCents: number;
@@ -80,30 +48,21 @@ export interface ModelCostBreakdown {
   totalOutputTokens: number;
 }
 
-// ─── Model Pricing (USD per 1K tokens) ─────────────────────────────
-//
-// Values are OpenAI public standard rates (https://openai.com/api/pricing/)
-// expressed in USD per 1K tokens. Cost calculation returns an integer number
-// of cents. Add new entries here when adopting new models so cost telemetry
-// stays accurate.
-//
-// Last refreshed: 2026-05 — added GPT-5.x families, corrected legacy entries
-// that were previously stored at ~100x the real rate.
-//
+// USD per 1K tokens. Keep in sync with OpenAI pricing when models change.
 const MODEL_PRICING_USD_PER_1K: Record<string, { input: number; output: number }> = {
-  // GPT-5.x family (current production canonical)
   "gpt-5.1": { input: 0.00125, output: 0.01 },
   "gpt-5": { input: 0.00125, output: 0.01 },
   "gpt-5-mini": { input: 0.00025, output: 0.002 },
   "gpt-5-nano": { input: 0.00005, output: 0.0004 },
   "gpt-5.4": { input: 0.0025, output: 0.015 },
   "gpt-5.5": { input: 0.005, output: 0.03 },
-  // Legacy GPT-4 family (retained for backfill / historical job cost lookups)
+  "gpt-4.1": { input: 0.002, output: 0.008 },
+  "gpt-4.1-mini": { input: 0.0004, output: 0.0016 },
+  "gpt-4.1-nano": { input: 0.0001, output: 0.0004 },
   "gpt-4o": { input: 0.0025, output: 0.01 },
   "gpt-4o-mini": { input: 0.00015, output: 0.0006 },
   "gpt-4-turbo": { input: 0.01, output: 0.03 },
   "gpt-3.5-turbo": { input: 0.0005, output: 0.0015 },
-  // o-series (reasoning, retained for backfill)
   "o3": { input: 0.002, output: 0.008 },
   "o3-mini": { input: 0.0011, output: 0.0044 },
 };
@@ -114,6 +73,9 @@ function normalizeModelForPricing(model: string): string | null {
 
   if (MODEL_PRICING_USD_PER_1K[raw]) return raw;
 
+  if (raw.startsWith("gpt-4.1-mini")) return "gpt-4.1-mini";
+  if (raw.startsWith("gpt-4.1-nano")) return "gpt-4.1-nano";
+  if (raw.startsWith("gpt-4.1")) return "gpt-4.1";
   if (raw.startsWith("gpt-4o-mini")) return "gpt-4o-mini";
   if (raw.startsWith("gpt-4o")) return "gpt-4o";
   if (raw.startsWith("gpt-5-mini")) return "gpt-5-mini";
@@ -132,57 +94,24 @@ function safeNumber(n: unknown, fallback = 0): number {
   return typeof n === "number" && Number.isFinite(n) ? n : fallback;
 }
 
-/**
- * Calculate cost in USD cents (integer) for a given model and token usage.
- */
-export function calculateCostCents(
-  model: string,
-  inputTokens: number,
-  outputTokens: number
-): number {
+export function calculateCostCents(model: string, inputTokens: number, outputTokens: number): number {
   const normalized = normalizeModelForPricing(model);
   if (!normalized) return 0;
   const pricing = MODEL_PRICING_USD_PER_1K[normalized];
-
   const inTok = Math.max(0, Math.floor(safeNumber(inputTokens, 0)));
   const outTok = Math.max(0, Math.floor(safeNumber(outputTokens, 0)));
-
-  const inputUsd = (inTok / 1000) * pricing.input;
-  const outputUsd = (outTok / 1000) * pricing.output;
-
-  // Return integer cents.
-  return Math.round((inputUsd + outputUsd) * 100);
+  return Math.round(((inTok / 1000) * pricing.input + (outTok / 1000) * pricing.output) * 100);
 }
 
-/**
- * Estimate cost in cents using token counts with sub-cent precision.
- *
- * This is intentionally non-rounded so admin aggregators can sum many tiny
- * calls (e.g., gpt-4o-mini) without losing spend to per-call integer rounding.
- */
-export function estimateCostCentsPrecise(
-  model: string,
-  inputTokens: number,
-  outputTokens: number,
-): number | null {
+export function estimateCostCentsPrecise(model: string, inputTokens: number, outputTokens: number): number | null {
   const normalized = normalizeModelForPricing(model);
   if (!normalized) return null;
-
   const pricing = MODEL_PRICING_USD_PER_1K[normalized];
   const inTok = Math.max(0, Math.floor(safeNumber(inputTokens, 0)));
   const outTok = Math.max(0, Math.floor(safeNumber(outputTokens, 0)));
-
-  const inputUsd = (inTok / 1000) * pricing.input;
-  const outputUsd = (outTok / 1000) * pricing.output;
-  return (inputUsd + outputUsd) * 100;
+  return ((inTok / 1000) * pricing.input + (outTok / 1000) * pricing.output) * 100;
 }
 
-/**
- * Resolve the best-available cost cents for a telemetry row.
- *
- * - Uses model+tokens estimate when model pricing is known.
- * - Falls back to recorded integer cost_cents when model is unknown.
- */
 export function resolveTrackedCostCents(params: {
   model: string | null | undefined;
   inputTokens: number | null | undefined;
@@ -190,11 +119,7 @@ export function resolveTrackedCostCents(params: {
   recordedCostCents: number | null | undefined;
 }): number {
   const recorded = safeNumber(params.recordedCostCents, 0);
-  const estimated = estimateCostCentsPrecise(
-    params.model ?? "",
-    params.inputTokens ?? 0,
-    params.outputTokens ?? 0,
-  );
+  const estimated = estimateCostCentsPrecise(params.model ?? "", params.inputTokens ?? 0, params.outputTokens ?? 0);
 
   if (estimated !== null) {
     if (estimated > 0) return estimated;
@@ -205,14 +130,6 @@ export function resolveTrackedCostCents(params: {
   return recorded;
 }
 
-/**
- * Fire-and-forget cost recording from an OpenAI completion response.
- *
- * Call this after every `openai.chat.completions.create()` to populate
- * the `job_costs` table for CostOps dashboard visibility.
- *
- * Non-blocking — errors are logged but never propagate.
- */
 export function trackCompletionCost(params: {
   jobId: string;
   phase: string;
@@ -223,27 +140,20 @@ export function trackCompletionCost(params: {
   const inputTokens = usage?.prompt_tokens ?? 0;
   const outputTokens = usage?.completion_tokens ?? 0;
   if (inputTokens === 0 && outputTokens === 0) return;
-  const costCents = calculateCostCents(model, inputTokens, outputTokens);
+
   recordCost({
     jobId,
     phase,
     model,
     inputTokens,
     outputTokens,
-    costCents,
+    costCents: calculateCostCents(model, inputTokens, outputTokens),
     calledAt: new Date().toISOString(),
-  }).catch(() => {/* swallowed — recordCost already logs */});
+  }).catch(() => {});
 }
 
-/**
- * Record a cost entry for a job.
- *
- * Inserts into the job_costs table. Non-blocking — errors are logged
- * but do not fail the calling operation.
- */
 export async function recordCost(entry: CostEntry): Promise<void> {
   const supabase = createAdminClient();
-
   const { error } = await supabase.from("job_costs").insert({
     job_id: entry.jobId,
     phase: entry.phase,
@@ -253,49 +163,33 @@ export async function recordCost(entry: CostEntry): Promise<void> {
     cost_cents: entry.costCents,
     called_at: entry.calledAt,
   });
-
-  if (error) {
-    console.error("[cost] Failed to record cost:", error);
-    // Non-blocking: don't throw
-  }
+  if (error) console.error("[cost] Failed to record cost:", error);
 }
 
-/**
- * Get cost summary for a specific job.
- */
 export async function getJobCostSummary(jobId: string): Promise<JobCostSummary | null> {
   const supabase = createAdminClient();
-
   const { data: costs, error: costsError } = await supabase
     .from("job_costs")
     .select("phase, model, input_tokens, output_tokens, cost_cents")
     .eq("job_id", jobId);
 
-  if (costsError) {
-    console.error("[cost] Error fetching job costs:", costsError);
-    throw costsError;
-  }
-
+  if (costsError) throw costsError;
   if (!costs || costs.length === 0) return null;
 
-  const { data: job, error: jobError } = await supabase
+  const { data: job } = await supabase
     .from("evaluation_jobs")
     .select("manuscript_id, status, created_at")
     .eq("id", jobId)
     .single();
 
-  if (jobError) {
-    console.error("[cost] Error fetching job:", jobError);
-  }
-
-  const phases = [...new Set(costs.map((c) => c.phase))];
+  const phases = [...new Set(costs.map((cost) => cost.phase))];
 
   return {
     jobId,
     manuscriptId: job?.manuscript_id ?? null,
-    totalCostCents: costs.reduce((sum, c) => sum + (c.cost_cents ?? 0), 0),
-    totalInputTokens: costs.reduce((sum, c) => sum + (c.input_tokens ?? 0), 0),
-    totalOutputTokens: costs.reduce((sum, c) => sum + (c.output_tokens ?? 0), 0),
+    totalCostCents: costs.reduce((sum, cost) => sum + resolveTrackedCostCents({ model: cost.model, inputTokens: cost.input_tokens, outputTokens: cost.output_tokens, recordedCostCents: cost.cost_cents }), 0),
+    totalInputTokens: costs.reduce((sum, cost) => sum + (cost.input_tokens ?? 0), 0),
+    totalOutputTokens: costs.reduce((sum, cost) => sum + (cost.output_tokens ?? 0), 0),
     callCount: costs.length,
     phases,
     createdAt: job?.created_at ?? "",
@@ -303,50 +197,28 @@ export async function getJobCostSummary(jobId: string): Promise<JobCostSummary |
   };
 }
 
-/**
- * Get system-wide cost snapshot.
- */
 export async function getCostSnapshot(): Promise<CostSnapshot> {
   const supabase = createAdminClient();
   const now = new Date();
-
   const twentyFourHoursAgoIso = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
   const sevenDaysAgoIso = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
-  // Fetch all costs (simple + predictable for Day 2 scope).
-  const { data: allCosts, error: allError } = await supabase
+  const { data: allCosts, error } = await supabase
     .from("job_costs")
-    .select("job_id, cost_cents, model, called_at");
+    .select("job_id, cost_cents, model, input_tokens, output_tokens, called_at");
 
-  if (allError) {
-    console.error("[cost] Error fetching all costs:", allError);
-    throw allError;
-  }
-
+  if (error) throw error;
   const costs = allCosts ?? [];
+  const resolved = (cost: typeof costs[number]) => resolveTrackedCostCents({ model: cost.model, inputTokens: cost.input_tokens, outputTokens: cost.output_tokens, recordedCostCents: cost.cost_cents });
+  const totalCostCents = costs.reduce((sum, cost) => sum + resolved(cost), 0);
+  const costLast24hCents = costs.filter((cost) => (cost.called_at ?? "") >= twentyFourHoursAgoIso).reduce((sum, cost) => sum + resolved(cost), 0);
+  const costLast7dCents = costs.filter((cost) => (cost.called_at ?? "") >= sevenDaysAgoIso).reduce((sum, cost) => sum + resolved(cost), 0);
+  const uniqueJobs = new Set(costs.map((cost) => cost.job_id).filter(Boolean));
 
-  const totalCostCents = costs.reduce((sum, c) => sum + (c.cost_cents ?? 0), 0);
-
-  // Because called_at is expected to be ISO timestamps, string compare is safe here.
-  const costLast24hCents = costs
-    .filter((c) => (c.called_at ?? "") >= twentyFourHoursAgoIso)
-    .reduce((sum, c) => sum + (c.cost_cents ?? 0), 0);
-
-  const costLast7dCents = costs
-    .filter((c) => (c.called_at ?? "") >= sevenDaysAgoIso)
-    .reduce((sum, c) => sum + (c.cost_cents ?? 0), 0);
-
-  const uniqueJobs = new Set(costs.map((c) => c.job_id).filter(Boolean));
-  const jobsWithCosts = uniqueJobs.size;
-
-  const avgCostPerJobCents =
-    jobsWithCosts > 0 ? Math.round(totalCostCents / jobsWithCosts) : 0;
-
-  // Top model by total cost
   const modelCosts = new Map<string, number>();
-  for (const c of costs) {
-    const model = c.model ?? "unknown";
-    modelCosts.set(model, (modelCosts.get(model) ?? 0) + (c.cost_cents ?? 0));
+  for (const cost of costs) {
+    const model = cost.model ?? "unknown";
+    modelCosts.set(model, (modelCosts.get(model) ?? 0) + resolved(cost));
   }
 
   let topModel: string | null = null;
@@ -362,61 +234,40 @@ export async function getCostSnapshot(): Promise<CostSnapshot> {
     totalCostCents,
     costLast24hCents,
     costLast7dCents,
-    avgCostPerJobCents,
-    jobsWithCosts,
+    avgCostPerJobCents: uniqueJobs.size > 0 ? totalCostCents / uniqueJobs.size : 0,
+    jobsWithCosts: uniqueJobs.size,
     topModel,
     snapshotAt: now.toISOString(),
   };
 }
 
-/**
- * Get cost breakdown by model.
- */
 export async function getModelCostBreakdown(): Promise<ModelCostBreakdown[]> {
   const supabase = createAdminClient();
-
   const { data: costs, error } = await supabase
     .from("job_costs")
     .select("model, cost_cents, input_tokens, output_tokens");
 
-  if (error) {
-    console.error("[cost] Error fetching model costs:", error);
-    throw error;
-  }
+  if (error) throw error;
 
-  const modelMap = new Map<
-    string,
-    { totalCost: number; count: number; inputTokens: number; outputTokens: number }
-  >();
-
-  for (const c of costs ?? []) {
-    const model = c.model ?? "unknown";
-    const entry = modelMap.get(model) ?? {
-      totalCost: 0,
-      count: 0,
-      inputTokens: 0,
-      outputTokens: 0,
-    };
-
-    entry.totalCost += c.cost_cents ?? 0;
+  const modelMap = new Map<string, { totalCost: number; count: number; inputTokens: number; outputTokens: number }>();
+  for (const cost of costs ?? []) {
+    const model = cost.model ?? "unknown";
+    const entry = modelMap.get(model) ?? { totalCost: 0, count: 0, inputTokens: 0, outputTokens: 0 };
+    entry.totalCost += resolveTrackedCostCents({ model: cost.model, inputTokens: cost.input_tokens, outputTokens: cost.output_tokens, recordedCostCents: cost.cost_cents });
     entry.count += 1;
-    entry.inputTokens += c.input_tokens ?? 0;
-    entry.outputTokens += c.output_tokens ?? 0;
-
+    entry.inputTokens += cost.input_tokens ?? 0;
+    entry.outputTokens += cost.output_tokens ?? 0;
     modelMap.set(model, entry);
   }
 
-  const breakdown: ModelCostBreakdown[] = [];
-  modelMap.forEach((entry, model) => {
-    breakdown.push({
+  return [...modelMap.entries()]
+    .map(([model, entry]) => ({
       model,
       totalCostCents: entry.totalCost,
       callCount: entry.count,
       avgCostPerCallCents: entry.count > 0 ? entry.totalCost / entry.count : 0,
       totalInputTokens: entry.inputTokens,
       totalOutputTokens: entry.outputTokens,
-    });
-  });
-
-  return breakdown.sort((a, b) => b.totalCostCents - a.totalCostCents);
+    }))
+    .sort((a, b) => b.totalCostCents - a.totalCostCents);
 }
