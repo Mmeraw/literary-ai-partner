@@ -7,7 +7,7 @@ import { canReleaseEvaluationRead } from '@/lib/jobs/readReleaseGate';
 import { isEvaluationResultV1, type EvaluationResultV1 } from '@/schemas/evaluation-result-v1';
 import { isEvaluationResultV2, type EvaluationResultV2 } from '@/schemas/evaluation-result-v2';
 import type { LongformDreamDocument } from '@/lib/evaluation/pipeline/runPass3bLongform';
-import { getAllCanonGovernanceData, type WaveGovernanceData } from '@/lib/evaluation/waveGovernanceData';
+import type { WaveGovernanceData } from '@/lib/evaluation/waveGovernanceData';
 import type { Gate15AuditArtifact } from '@/lib/evaluation/gate15/gate15_orchestrator';
 import type { GoldenSpineArtifact } from '@/lib/evaluation/goldenSpine/goldenSpineAudit';
 import type { DialogueCanonAuditArtifact } from '@/lib/evaluation/dialogueCanon/dialogueCanonAudit';
@@ -1622,20 +1622,14 @@ export async function GET(
   const result = rawResult as ExportableResult;
   const relationTitle = extractManuscriptTitle((job as { manuscripts?: unknown }).manuscripts);
   const title = relationTitle ?? result.metrics?.manuscript?.title ?? null;
-  const [dream, canonGov] = await Promise.all([
-    loadDreamDocument(admin, jobId),
-    getAllCanonGovernanceData(jobId),
-  ]);
-
-  // Governance sections (WAVE, Gate 15, Golden Spine, Dialogue Canon) are admin-only.
-  // Regular users should not see internal pipeline governance data in their downloads.
-  const userRole = (user.app_metadata as Record<string, unknown> | undefined)?.role;
-  const isAdminUser = userRole === 'admin' || userRole === 'superadmin';
-  const waveGov = isAdminUser ? canonGov.waveGov : null;
-  const exportGate15 = isAdminUser ? canonGov.gate15 : null;
-  const exportGoldenSpine = isAdminUser ? canonGov.goldenSpine : null;
-  const exportDialogueCanon = isAdminUser ? canonGov.dialogueCanon : null;
-  const exportRevisionCanonMeta = isAdminUser ? canonGov.revisionCanonMeta : null;
+  const dream = await loadDreamDocument(admin, jobId);
+  // Governance data (WAVE, Gate 15, Golden Spine, Dialogue Canon) is internal
+  // pipeline diagnostics — never included in user-facing downloads.
+  const waveGov = null;
+  const exportGate15 = null;
+  const exportGoldenSpine = null;
+  const exportDialogueCanon = null;
+  const exportRevisionCanonMeta = null;
 
   if (format === 'txt') {
     const body = buildTxtReport(result, title, jobId, dream, waveGov, exportGate15, exportGoldenSpine, exportDialogueCanon, exportRevisionCanonMeta);
