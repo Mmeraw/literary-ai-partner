@@ -407,12 +407,15 @@ export default async function ReportPage({
             </div>
             <div className="shrink-0 flex items-center gap-3 print-hidden">
               {manuscriptId && (
-                <Link
-                  href={`/workbench?manuscriptId=${manuscriptId}&evaluationJobId=${params.jobId}`}
-                  className="inline-flex items-center gap-1.5 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-indigo-700"
-                >
-                  Revise now
-                </Link>
+                <div className="flex flex-col items-center gap-0.5">
+                  <Link
+                    href={`/workbench?manuscriptId=${manuscriptId}&evaluationJobId=${params.jobId}`}
+                    className="inline-flex items-center gap-1.5 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-indigo-700"
+                  >
+                    Revise now
+                  </Link>
+                  <span className="text-[10px] text-gray-400 leading-tight">May take 1–2 min to load</span>
+                </div>
               )}
               <DownloadReportButton jobId={params.jobId} />
             </div>
