@@ -18,6 +18,7 @@
  */
 
 import OpenAI from 'openai';
+import { trackCompletionCost } from '@/lib/jobs/cost';
 import { getEvalOpenAiTimeoutMs } from '@/lib/evaluation/config';
 import {
   buildOpenAIOutputTokenParam,
@@ -571,6 +572,13 @@ export async function generateFullContextStoryLedger(
       { role: 'user', content: userPrompt },
     ],
     response_format: { type: 'json_object' },
+  });
+
+  trackCompletionCost({
+    jobId: input.jobId,
+    phase: 'phase05a_full_context_ledger',
+    model,
+    usage: completion.usage,
   });
 
   const raw = completion.choices?.[0]?.message?.content ?? '';

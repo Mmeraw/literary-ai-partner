@@ -108,6 +108,26 @@ const MODEL_PRICING_USD_PER_1K: Record<string, { input: number; output: number }
   "o3-mini": { input: 0.0011, output: 0.0044 },
 };
 
+function normalizeModelForPricing(model: string): string | null {
+  const raw = String(model ?? "").trim().toLowerCase();
+  if (!raw) return null;
+
+  if (MODEL_PRICING_USD_PER_1K[raw]) return raw;
+
+  if (raw.startsWith("gpt-4o-mini")) return "gpt-4o-mini";
+  if (raw.startsWith("gpt-4o")) return "gpt-4o";
+  if (raw.startsWith("gpt-5-mini")) return "gpt-5-mini";
+  if (raw.startsWith("gpt-5-nano")) return "gpt-5-nano";
+  if (raw.startsWith("gpt-5.1")) return "gpt-5.1";
+  if (raw.startsWith("gpt-5")) return "gpt-5";
+  if (raw.startsWith("o3-mini")) return "o3-mini";
+  if (raw.startsWith("o3")) return "o3";
+  if (raw.startsWith("gpt-4-turbo")) return "gpt-4-turbo";
+  if (raw.startsWith("gpt-3.5-turbo")) return "gpt-3.5-turbo";
+
+  return null;
+}
+
 function safeNumber(n: unknown, fallback = 0): number {
   return typeof n === "number" && Number.isFinite(n) ? n : fallback;
 }
@@ -120,8 +140,9 @@ export function calculateCostCents(
   inputTokens: number,
   outputTokens: number
 ): number {
-  const pricing =
-    MODEL_PRICING_USD_PER_1K[model] ?? MODEL_PRICING_USD_PER_1K["gpt-5.1"];
+  const normalized = normalizeModelForPricing(model);
+  if (!normalized) return 0;
+  const pricing = MODEL_PRICING_USD_PER_1K[normalized];
 
   const inTok = Math.max(0, Math.floor(safeNumber(inputTokens, 0)));
   const outTok = Math.max(0, Math.floor(safeNumber(outputTokens, 0)));
@@ -131,6 +152,57 @@ export function calculateCostCents(
 
   // Return integer cents.
   return Math.round((inputUsd + outputUsd) * 100);
+}
+
+/**
+ * Estimate cost in cents using token counts with sub-cent precision.
+ *
+ * This is intentionally non-rounded so admin aggregators can sum many tiny
+ * calls (e.g., gpt-4o-mini) without losing spend to per-call integer rounding.
+ */
+export function estimateCostCentsPrecise(
+  model: string,
+  inputTokens: number,
+  outputTokens: number,
+): number | null {
+  const normalized = normalizeModelForPricing(model);
+  if (!normalized) return null;
+
+  const pricing = MODEL_PRICING_USD_PER_1K[normalized];
+  const inTok = Math.max(0, Math.floor(safeNumber(inputTokens, 0)));
+  const outTok = Math.max(0, Math.floor(safeNumber(outputTokens, 0)));
+
+  const inputUsd = (inTok / 1000) * pricing.input;
+  const outputUsd = (outTok / 1000) * pricing.output;
+  return (inputUsd + outputUsd) * 100;
+}
+
+/**
+ * Resolve the best-available cost cents for a telemetry row.
+ *
+ * - Uses model+tokens estimate when model pricing is known.
+ * - Falls back to recorded integer cost_cents when model is unknown.
+ */
+export function resolveTrackedCostCents(params: {
+  model: string | null | undefined;
+  inputTokens: number | null | undefined;
+  outputTokens: number | null | undefined;
+  recordedCostCents: number | null | undefined;
+}): number {
+  const recorded = safeNumber(params.recordedCostCents, 0);
+  const estimated = estimateCostCentsPrecise(
+    params.model ?? "",
+    params.inputTokens ?? 0,
+    params.outputTokens ?? 0,
+  );
+
+  if (estimated !== null) {
+    if (estimated > 0) return estimated;
+    if (recorded > 0) return recorded;
+    return estimated;
+  }
+
+  return recorded;
 }
 
 /**
@@ -340,7 +412,7 @@ export async function getModelCostBreakdown(): Promise<ModelCostBreakdown[]> {
       model,
       totalCostCents: entry.totalCost,
       callCount: entry.count,
-      avgCostPerCallCents: entry.count > 0 ? Math.round(entry.totalCost / entry.count) : 0,
+      avgCostPerCallCents: entry.count > 0 ? entry.totalCost / entry.count : 0,
       totalInputTokens: entry.inputTokens,
       totalOutputTokens: entry.outputTokens,
     });

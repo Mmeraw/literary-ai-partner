@@ -17,6 +17,7 @@
 
 import { randomUUID } from "crypto";
 import OpenAI from "openai";
+import { trackCompletionCost } from "@/lib/jobs/cost";
 import {
   POLISH_PASS_SYSTEM_PROMPT,
   POLISH_PASS_VERSION,
@@ -119,6 +120,7 @@ async function callPolishLLM(
   title: string,
   genre: string,
   wordCount: number,
+  tracking?: { jobId: string; phase: string },
 ): Promise<PolishFinding[]> {
   const userPrompt = buildPolishPassUserPrompt({
     manuscriptText: chunkText,
@@ -140,6 +142,15 @@ async function callPolishLLM(
     },
     { timeout: POLISH_TIMEOUT_MS },
   );
+
+  if (tracking) {
+    trackCompletionCost({
+      jobId: tracking.jobId,
+      phase: tracking.phase,
+      model: getCanonicalPolishModel(),
+      usage: response.usage,
+    });
+  }
 
   const raw = response.choices[0]?.message?.content ?? "";
   return parsePolishResponse(raw);
@@ -213,6 +224,7 @@ function deduplicateFindings(findings: PolishFinding[]): PolishFinding[] {
 // ─── Main Runner ─────────────────────────────────────────────────────────────
 
 export async function runPolishPass(opts: {
+  jobId?: string;
   manuscriptText: string;
   title: string;
   genre: string;
@@ -241,6 +253,12 @@ export async function runPolishPass(opts: {
           opts.title,
           opts.genre,
           opts.wordCount,
+          opts.jobId
+            ? {
+                jobId: opts.jobId,
+                phase: `polish_pass_chunk_${idx}`,
+              }
+            : undefined,
         );
         allFindings.push(...findings);
         console.log(`[PolishPass] Chunk ${idx + 1}/${chunks.length}: ${findings.length} findings`);

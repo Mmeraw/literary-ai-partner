@@ -235,7 +235,7 @@ export default function EvaluationCostLedgerPage() {
 
   const fetchData = useCallback(async () => {
     try {
-      const res = await fetch("/api/admin/costs/evaluations");
+      const res = await fetch("/api/admin/costs/evaluations", { cache: "no-store" });
       const json = await res.json();
       if (!res.ok) throw new Error(json.message ?? "Failed to fetch evaluation costs");
       setData(json.data as EvalCostLedgerPayload);

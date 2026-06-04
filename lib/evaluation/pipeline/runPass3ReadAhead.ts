@@ -54,6 +54,7 @@ import { getCanonicalPass3Model } from "@/lib/evaluation/policy";
 import { getEvalOpenAiTimeoutMs } from "@/lib/evaluation/config";
 import { parseJsonObjectBoundary } from "@/lib/llm/jsonParseBoundary";
 import type { ManuscriptChunkEvidence } from "./types";
+import { trackCompletionCost } from "@/lib/jobs/cost";
 
 export const PASS3_READ_AHEAD_VERSION = "pass3-read-ahead-v2-analytical";
 
@@ -401,6 +402,15 @@ Produce the full analytical pre-analysis as specified. Return ONLY the JSON obje
         { role: "user", content: userPrompt },
       ],
     });
+
+    if (opts.jobId) {
+      trackCompletionCost({
+        jobId: opts.jobId,
+        phase: "pass3_read_ahead",
+        model,
+        usage: completion.usage,
+      });
+    }
 
     const rawContent = completion.choices?.[0]?.message?.content;
     if (typeof rawContent !== "string" || rawContent.trim() === "") {

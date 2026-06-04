@@ -10,7 +10,6 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import OAuthProviderButtons from '@/components/auth/OAuthProviderButtons'
 import {
   clearAuthFailures,
   getAuthBackoffMs,
@@ -18,7 +17,6 @@ import {
   recordAuthFailure,
 } from '@/lib/auth/clientAuthGuards'
 import { trackClientAuthEvent } from '@/lib/auth/telemetry'
-import type { OAuthProviderId } from '@/lib/auth/oauthProviders'
 
 const hasSupabaseAuthConfig = Boolean(
   process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -45,7 +43,7 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false)
 
   // If user is already authenticated, redirect to dashboard immediately.
-  // Also detect OAuth callback failures via ?error= param.
+  // Also detect callback failures via ?error= param.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     if (params.get('error') === 'callback_failed') {
@@ -136,59 +134,6 @@ export default function LoginPage() {
       trackClientAuthEvent('login', 'unexpected_error', { provider: 'password' })
       setError('Sign-in failed unexpectedly. Please try again.')
     } finally {
-      setLoading(false)
-    }
-  }
-
-  // ── OAuth sign-in ───────────────────────────────────────────────────────
-  const handleOAuthLogin = async (provider: OAuthProviderId) => {
-    if (loading) return
-    trackClientAuthEvent('oauth', 'attempt', { provider })
-    setLoading(true)
-    setError(null)
-
-    if (!hasSupabaseAuthConfig) {
-      trackClientAuthEvent('oauth', 'blocked_backoff', { provider, reason: 'missing_supabase_env' })
-      setError(AUTH_UNAVAILABLE_MESSAGE)
-      setLoading(false)
-      return
-    }
-
-    const supabase = createClient()
-
-    const backoffMs = getAuthBackoffMs('oauth')
-    if (backoffMs > 0) {
-      trackClientAuthEvent('oauth', 'blocked_backoff', { provider })
-      setError(`Too many OAuth attempts. Try again in ${Math.ceil(backoffMs / 1000)}s.`)
-      setLoading(false)
-      return
-    }
-
-    try {
-      const { data, error } = await supabase.auth.signInWithOAuth({
-        provider,
-        options: { redirectTo: `${window.location.origin}/api/auth/callback` },
-      })
-      if (error) {
-        recordAuthFailure('oauth')
-        trackClientAuthEvent('oauth', 'failed', { provider })
-        setError(getSafeAuthErrorMessage(error.message))
-        setLoading(false)
-        return
-      }
-      if (!data?.url) {
-        recordAuthFailure('oauth')
-        trackClientAuthEvent('oauth', 'failed', { provider, reason: 'missing_redirect_url' })
-        setError('Could not start OAuth redirect. Please try again.')
-        setLoading(false)
-        return
-      }
-      clearAuthFailures('oauth')
-      trackClientAuthEvent('oauth', 'redirect_started', { provider })
-    } catch {
-      recordAuthFailure('oauth')
-      trackClientAuthEvent('oauth', 'unexpected_error', { provider })
-      setError('OAuth sign-in failed unexpectedly. Please try again.')
       setLoading(false)
     }
   }
@@ -299,20 +244,6 @@ export default function LoginPage() {
             {loading ? 'Signing in…' : 'Sign in'}
           </button>
         </form>
-
-        {/* Divider */}
-        <div className="my-6 flex items-center gap-3">
-          <div className="flex-1 h-px bg-rg-cream2/15" />
-          <span className="font-rg-mono text-xs tracking-widest uppercase text-rg-cream2">or</span>
-          <div className="flex-1 h-px bg-rg-cream2/15" />
-        </div>
-
-        {/* OAuth buttons */}
-        <OAuthProviderButtons
-          loading={loading}
-          hasSupabaseAuthConfig={hasSupabaseAuthConfig}
-          onProviderClick={handleOAuthLogin}
-        />
 
         {/* Sign up link */}
         <p className="mt-8 text-center font-rg-serif text-rg-cream2 text-xs">

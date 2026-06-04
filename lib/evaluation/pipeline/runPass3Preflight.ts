@@ -41,6 +41,7 @@ import { upsertEvaluationArtifact, sha256Hex } from "@/lib/evaluation/artifactPe
 import { getEvaluationRuntimeConfig } from "@/lib/config/evaluationRuntimeConfig";
 import { getEvalOpenAiTimeoutMs } from "@/lib/evaluation/config";
 import { parseJsonObjectBoundary } from "@/lib/llm/jsonParseBoundary";
+import { trackCompletionCost } from "@/lib/jobs/cost";
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
 
@@ -391,7 +392,7 @@ async function createOpenAICompletion(params: {
   temperature: number;
   maxTokens: number;
   timeoutMs: number;
-}): Promise<string> {
+}): Promise<{ content: string; usage?: { prompt_tokens?: number; completion_tokens?: number } | null }> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), params.timeoutMs);
   try {
@@ -408,7 +409,15 @@ async function createOpenAICompletion(params: {
       },
       { signal: controller.signal },
     );
-    return response.choices[0]?.message?.content ?? "";
+    return {
+      content: response.choices[0]?.message?.content ?? "",
+      usage: response.usage
+        ? {
+            prompt_tokens: response.usage.prompt_tokens,
+            completion_tokens: response.usage.completion_tokens,
+          }
+        : null,
+    };
   } finally {
     clearTimeout(timer);
   }
@@ -491,7 +500,7 @@ export async function runPass3Preflight(
           workType: opts.workType,
         });
 
-        const raw = await createOpenAICompletion({
+        const result = await createOpenAICompletion({
           openai,
           model,
           systemPrompt: PASS3A_CHUNK_READER_SYSTEM_PROMPT,
@@ -500,8 +509,14 @@ export async function runPass3Preflight(
           maxTokens: PASS3A_MAX_OUTPUT_TOKENS,
           timeoutMs,
         });
+        trackCompletionCost({
+          jobId: opts.jobId,
+          phase: `pass3a_chunk_reader_${i}`,
+          model,
+          usage: result.usage,
+        });
 
-        const rawParsed = parseJsonObjectBoundary(raw);
+        const rawParsed = parseJsonObjectBoundary(result.content);
         if (typeof rawParsed !== "object" || rawParsed === null) {
           throw new Error("Parsed observation is null");
         }
@@ -592,7 +607,7 @@ export async function runPass3Preflight(
   const REDUCER_MAX_ATTEMPTS = 2;
   for (let attempt = 1; attempt <= REDUCER_MAX_ATTEMPTS; attempt++) {
     try {
-      const raw = await createOpenAICompletion({
+      const result = await createOpenAICompletion({
         openai,
         model,
         systemPrompt: PASS3A_REDUCER_SYSTEM_PROMPT,
@@ -601,8 +616,14 @@ export async function runPass3Preflight(
         maxTokens: PASS3A_MAX_OUTPUT_TOKENS * 2, // reducer output is larger
         timeoutMs,
       });
+      trackCompletionCost({
+        jobId: opts.jobId,
+        phase: "pass3a_reducer",
+        model,
+        usage: result.usage,
+      });
 
-      reducerOutput = parseJsonObjectBoundary(raw) as unknown as Partial<Pass3PreflightDraft>;
+      reducerOutput = parseJsonObjectBoundary(result.content) as unknown as Partial<Pass3PreflightDraft>;
       console.log(`[Pass3A] Reduce phase complete (attempt ${attempt}/${REDUCER_MAX_ATTEMPTS})`);
       reducerFailureReason = null;
       break;

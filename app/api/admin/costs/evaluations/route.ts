@@ -14,6 +14,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { resolveTrackedCostCents } from "@/lib/jobs/cost";
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -150,7 +151,12 @@ function buildLedger(
     if (!jid) continue;
 
     const phaseKey: PhaseKey = `${r.phase ?? "unknown"}||${r.model ?? "unknown"}`;
-    const costCents = safeNum(r.cost_cents);
+    const costCents = resolveTrackedCostCents({
+      model: r.model,
+      inputTokens: r.input_tokens,
+      outputTokens: r.output_tokens,
+      recordedCostCents: r.cost_cents,
+    });
     const inTok = safeNum(r.input_tokens);
     const outTok = safeNum(r.output_tokens);
 

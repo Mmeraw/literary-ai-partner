@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 import OpenAI from 'openai';
+import { trackCompletionCost } from '@/lib/jobs/cost';
 import { CRITERIA_KEYS, type CriterionKey } from '@/schemas/criteria-keys';
 import { getEvalOpenAiTimeoutMs } from '@/lib/evaluation/config';
 import {
@@ -241,7 +242,7 @@ async function createOpenAICompletion(params: {
   systemPrompt: string;
   userPrompt: string;
   timeoutMs: number;
-}): Promise<string> {
+}): Promise<{ content: string; usage?: { prompt_tokens?: number; completion_tokens?: number } | null }> {
   const openai = new OpenAI({ apiKey: params.apiKey, timeout: params.timeoutMs, maxRetries: 0 });
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), params.timeoutMs);
@@ -263,7 +264,15 @@ async function createOpenAICompletion(params: {
       { signal: controller.signal },
     );
 
-    return completion.choices?.[0]?.message?.content ?? '';
+    return {
+      content: completion.choices?.[0]?.message?.content ?? '',
+      usage: completion.usage
+        ? {
+            prompt_tokens: completion.usage.prompt_tokens,
+            completion_tokens: completion.usage.completion_tokens,
+          }
+        : null,
+    };
   } finally {
     clearTimeout(timer);
   }
@@ -295,14 +304,20 @@ export async function generateSemanticSeedArtifacts(input: GenerateSemanticSeedA
   } else {
     try {
       const route = inferSeedRoute(workType);
-      const raw = await createOpenAICompletion({
+      const completion = await createOpenAICompletion({
         apiKey,
         model,
         systemPrompt: buildStorySeedSystemPrompt(route),
         userPrompt,
         timeoutMs,
       });
-      record = parseSeedResponse(raw, { title, workType });
+      trackCompletionCost({
+        jobId: input.jobId,
+        phase: 'phase05_semantic_seed',
+        model,
+        usage: completion.usage,
+      });
+      record = parseSeedResponse(completion.content, { title, workType });
     } catch (error) {
       const parseError = error instanceof Error && error.name === 'AbortError'
         ? 'provider_timeout'

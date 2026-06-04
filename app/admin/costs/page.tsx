@@ -13,6 +13,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
+import { formatUsdFromCents } from "@/lib/admin/formatMoney";
 
 // ─── Types (mirroring lib/admin/costops.ts) ─────────────────────────
 
@@ -93,12 +94,7 @@ interface CostOpsDashboardData {
 
 // ─── Helpers ────────────────────────────────────────────────────────
 
-function fmtUsd(cents: number): string {
-  const d = cents / 100;
-  return d < 0.01 && d > 0
-    ? "<$0.01"
-    : `$${d.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
+const fmtUsd = formatUsdFromCents;
 
 function fmtTokens(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
@@ -163,7 +159,7 @@ export default function CostOpsDashboardPage() {
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await fetch("/api/admin/costs");
+      const res = await fetch("/api/admin/costs", { cache: "no-store" });
       const json = await res.json();
       if (!res.ok) throw new Error(json.message ?? "Failed to fetch CostOps data");
       setData(json.data);
@@ -268,7 +264,7 @@ export default function CostOpsDashboardPage() {
                     setBackfilling(true);
                     setBackfillResult(null);
                     try {
-                      const res = await fetch("/api/admin/costs/backfill", { method: "POST" });
+                      const res = await fetch("/api/admin/costs/backfill", { method: "POST", cache: "no-store" });
                       const json = await res.json();
                       if (json.success) {
                         setBackfillResult(

@@ -11,6 +11,8 @@
  */
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import { resolveTrackedCostCents } from "@/lib/jobs/cost";
+import { formatUsdFromCents } from "@/lib/admin/formatMoney";
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -95,13 +97,6 @@ export interface CostOpsDashboardData {
 
 function safeNum(v: unknown, fallback = 0): number {
   return typeof v === "number" && Number.isFinite(v) ? v : fallback;
-}
-
-export function formatUsdFromCents(cents: number): string {
-  const dollars = cents / 100;
-  return dollars < 0.01 && dollars > 0
-    ? "<$0.01"
-    : `$${dollars.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 function startOfTodayIso(): string {
@@ -217,7 +212,12 @@ function buildModelBreakdown(rows: RawCostRow[]): CostOpsBreakdownRow[] {
   for (const r of rows) {
     const key = r.model ?? "unknown";
     const entry = map.get(key) ?? { cost: 0, calls: 0, inTok: 0, outTok: 0 };
-    entry.cost += safeNum(r.cost_cents);
+    entry.cost += resolveTrackedCostCents({
+      model: r.model,
+      inputTokens: r.input_tokens,
+      outputTokens: r.output_tokens,
+      recordedCostCents: r.cost_cents,
+    });
     entry.calls += 1;
     entry.inTok += safeNum(r.input_tokens);
     entry.outTok += safeNum(r.output_tokens);
@@ -231,7 +231,7 @@ function buildModelBreakdown(rows: RawCostRow[]): CostOpsBreakdownRow[] {
       callCount: v.calls,
       inputTokens: v.inTok,
       outputTokens: v.outTok,
-      avgCostPerCallCents: v.calls > 0 ? Math.round(v.cost / v.calls) : 0,
+      avgCostPerCallCents: v.calls > 0 ? v.cost / v.calls : 0,
     }))
     .sort((a, b) => b.usageCents - a.usageCents);
 }
@@ -242,7 +242,12 @@ function buildPhaseBreakdown(rows: RawCostRow[]): CostOpsBreakdownRow[] {
   for (const r of rows) {
     const key = r.phase ?? "unknown";
     const entry = map.get(key) ?? { cost: 0, calls: 0, inTok: 0, outTok: 0 };
-    entry.cost += safeNum(r.cost_cents);
+    entry.cost += resolveTrackedCostCents({
+      model: r.model,
+      inputTokens: r.input_tokens,
+      outputTokens: r.output_tokens,
+      recordedCostCents: r.cost_cents,
+    });
     entry.calls += 1;
     entry.inTok += safeNum(r.input_tokens);
     entry.outTok += safeNum(r.output_tokens);
@@ -256,7 +261,7 @@ function buildPhaseBreakdown(rows: RawCostRow[]): CostOpsBreakdownRow[] {
       callCount: v.calls,
       inputTokens: v.inTok,
       outputTokens: v.outTok,
-      avgCostPerCallCents: v.calls > 0 ? Math.round(v.cost / v.calls) : 0,
+      avgCostPerCallCents: v.calls > 0 ? v.cost / v.calls : 0,
     }))
     .sort((a, b) => b.usageCents - a.usageCents);
 }
@@ -289,7 +294,12 @@ function buildJobRows(
       first: null,
       last: null,
     };
-    entry.cost += safeNum(r.cost_cents);
+    entry.cost += resolveTrackedCostCents({
+      model: r.model,
+      inputTokens: r.input_tokens,
+      outputTokens: r.output_tokens,
+      recordedCostCents: r.cost_cents,
+    });
     entry.calls += 1;
     entry.inTok += safeNum(r.input_tokens);
     entry.outTok += safeNum(r.output_tokens);
@@ -441,7 +451,12 @@ export async function getCostOpsDashboardData(): Promise<CostOpsDashboardData> {
   const mtdRows = allRows.filter((r) => (r.called_at ?? "") >= monthIso);
   const last7dRows = allRows.filter((r) => (r.called_at ?? "") >= sevenDaysIso);
 
-  const sumCents = (rows: RawCostRow[]) => rows.reduce((s, r) => s + safeNum(r.cost_cents), 0);
+  const sumCents = (rows: RawCostRow[]) => rows.reduce((s, r) => s + resolveTrackedCostCents({
+    model: r.model,
+    inputTokens: r.input_tokens,
+    outputTokens: r.output_tokens,
+    recordedCostCents: r.cost_cents,
+  }), 0);
 
   const todayCents = sumCents(todayRows);
   const mtdCents = sumCents(mtdRows);
@@ -483,7 +498,7 @@ export async function getCostOpsDashboardData(): Promise<CostOpsDashboardData> {
 
   // Avg cost per job (MTD)
   const mtdJobIds = new Set(mtdRows.map((r) => r.job_id));
-  const avgUsageCostPerJobCents = mtdJobIds.size > 0 ? Math.round(mtdCents / mtdJobIds.size) : 0;
+  const avgUsageCostPerJobCents = mtdJobIds.size > 0 ? mtdCents / mtdJobIds.size : 0;
 
   // Month-end projection
   const elapsed = daysElapsedInMonth();

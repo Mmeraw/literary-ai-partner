@@ -213,6 +213,7 @@ export async function runSurfacePolishForManuscriptVersion(input: {
       : countWords(manuscriptText);
 
   const result = await runPolishPass({
+    jobId: eligibilityEvaluation.id,
     manuscriptText,
     title: manuscript.title || "Untitled",
     genre: manuscript.work_type || "fiction",

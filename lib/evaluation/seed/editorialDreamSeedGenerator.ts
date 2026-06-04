@@ -15,6 +15,7 @@
  */
 
 import OpenAI from 'openai';
+import { trackCompletionCost } from '@/lib/jobs/cost';
 import { getCanonicalSeedModel } from '@/lib/evaluation/policy';
 import { buildCompactTemplateBlock, resolveTemplateKey } from '@/lib/evaluation/dreamTemplateLoader';
 
@@ -204,6 +205,13 @@ Produce your editorial diagnostic now. Remember: evidence must be distributed ac
     temperature: 0.3,
     max_completion_tokens: 8000,
     response_format: { type: 'json_object' },
+  });
+
+  trackCompletionCost({
+    jobId: input.jobId,
+    phase: 'phase05b_editorial_dream_seed',
+    model,
+    usage: response.usage,
   });
 
   const content = response.choices?.[0]?.message?.content || '{}';

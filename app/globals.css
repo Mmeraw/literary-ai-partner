@@ -540,6 +540,55 @@
   padding-top: 1rem !important;
 }
 
+/* === Admin readability guard ===
+ *
+ * Admin pages are operational control surfaces and must be readable at a
+ * glance. Enforce a hard 16px minimum for all body/control text and brighten
+ * muted copy so high-density dashboards remain legible.
+ */
+.admin-route {
+  font-size: 16px;
+}
+
+.admin-route :where(p, li, a, button, input, label, select, textarea, th, td, span, small) {
+  font-size: max(1rem, 16px) !important;
+  line-height: 1.5;
+}
+
+.admin-route :where(h1) {
+  font-size: clamp(2rem, 3.2vw, 3rem) !important;
+  line-height: 1.12;
+}
+
+.admin-route :where(h2) {
+  font-size: clamp(1.5rem, 2.4vw, 2.25rem) !important;
+  line-height: 1.2;
+}
+
+.admin-route :where(h3) {
+  font-size: clamp(1.2rem, 1.8vw, 1.6rem) !important;
+  line-height: 1.25;
+}
+
+.admin-route [class*="text-rg-cream2"] {
+  color: #e6dece !important;
+}
+
+.admin-route [class*="text-rg-dim"] {
+  color: #cfc4b0 !important;
+}
+
+.admin-route [class*="text-gray-400"],
+.admin-route [class*="text-gray-500"],
+.admin-route [class*="text-gray-600"] {
+  color: #e6dcc8 !important;
+}
+
+.admin-route [class*="text-blue-600"],
+.admin-route [class*="text-blue-500"] {
+  color: #7dd3fc !important;
+}
+
 @media (max-width: 1100px) {
   .workbench-v2-route main {
     top: 150px !important;

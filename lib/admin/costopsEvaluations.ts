@@ -9,6 +9,7 @@
  */
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import { resolveTrackedCostCents } from "@/lib/jobs/cost";
 
 export interface CostOpsEvaluationSummary {
   currency: "USD";
@@ -205,7 +206,12 @@ function buildJobRows(costRows: RawCostRow[], jobMeta: Map<string, RawJobRow>): 
 
     const phase = row.phase ?? "unknown_phase";
     const model = row.model ?? "unknown_model";
-    const cost = safeNum(row.cost_cents);
+    const cost = resolveTrackedCostCents({
+      model: row.model,
+      inputTokens: row.input_tokens,
+      outputTokens: row.output_tokens,
+      recordedCostCents: row.cost_cents,
+    });
     const inputTokens = safeNum(row.input_tokens);
     const outputTokens = safeNum(row.output_tokens);
 
@@ -250,7 +256,7 @@ function buildJobRows(costRows: RawCostRow[], jobMeta: Map<string, RawJobRow>): 
           callCount: phase.callCount,
           inputTokens: phase.inputTokens,
           outputTokens: phase.outputTokens,
-          avgCostPerCallCents: phase.callCount > 0 ? Math.round(phase.usageCents / phase.callCount) : 0,
+          avgCostPerCallCents: phase.callCount > 0 ? phase.usageCents / phase.callCount : 0,
           firstCalledAt: phase.firstCalledAt,
           lastCalledAt: phase.lastCalledAt,
         }))
