@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import type { WorkbenchOpportunity, WorkbenchQueuePayload } from "@/lib/revision/workbenchQueue";
 import {
   candidateTextIsCopyPasteReady,
@@ -241,7 +241,10 @@ function candidateText(item: WorkbenchOpportunity, key: OptionKey): string {
   if (renderable && candidateTextIsCopyPasteReady(renderable) && !candidateRepeatsSourceForInsertion(item, renderable)) return renderable;
 
   const raw = rawCandidate(item, key);
-  if (raw && candidateTextIsCopyPasteReady(raw) && !candidateRepeatsSourceForInsertion(item, raw)) return raw;
+  // Prefer LLM-generated candidate (5+ words) even if it fails strict copy-paste
+  // validation. The LLM was prompted to produce manuscript-specific text — even
+  // imperfect output is more useful than empty or generic placeholders.
+  if (raw && raw.split(/\s+/).length >= 5 && !candidateRepeatsSourceForInsertion(item, raw)) return raw;
 
   const synthesized = synthesizedCandidate(item, key);
   if (synthesized && !candidateRepeatsSourceForInsertion(item, synthesized)) return synthesized;
@@ -249,8 +252,44 @@ function candidateText(item: WorkbenchOpportunity, key: OptionKey): string {
   return "";
 }
 
+// ─── Template residue detection (quality gate) ─────────────────────────────
+// Candidates containing pipeline template tokens are NOT manuscript-ready.
+// Fall back to "revision strategy" mode instead of showing residue.
+const TEMPLATE_TOKENS = /\b(LOCATION|OPERATION|CHARACTER|PROTAGONIST|ANTAGONIST)\b/;
+
+function hasTemplateResidue(text: string): boolean {
+  return TEMPLATE_TOKENS.test(text);
+}
+
+// ─── Three-tier display mode ────────────────────────────────────────────────
+// ≤300 words: full original + full A/B/C replacement prose
+// 300–1200 words: anchor excerpt + A/B/C insertions/replacement chunks
+// >1200 words: anchor excerpt + diagnosis + rewrite strategy only
+type RevisionDisplayMode = "full_replacement" | "excerpt_insertion" | "strategy_only";
+
+function displayMode(item: WorkbenchOpportunity): RevisionDisplayMode {
+  const source = sourceTextOf(item);
+  const wordCount = source ? source.split(/\s+/).length : 0;
+  if (wordCount > 1200) return "strategy_only";
+  if (wordCount > 300) return "excerpt_insertion";
+  return "full_replacement";
+}
+
+function excerptText(text: string, maxSentences: number = 3): string {
+  const sentences = text.match(/[^.!?]+[.!?][""']?\s*/g);
+  if (!sentences || sentences.length <= maxSentences) return text;
+  return sentences.slice(0, maxSentences).join("").trim() + " …";
+}
+
+function candidateDisplayText(item: WorkbenchOpportunity, key: OptionKey): string {
+  const text = candidateText(item, key);
+  if (!text || hasTemplateResidue(text)) return "";
+  return text;
+}
+
 function canSelectOption(item: WorkbenchOpportunity, key: OptionKey): boolean {
   const text = candidateText(item, key);
+  if (hasTemplateResidue(text)) return false;
   return candidateTextIsCopyPasteReady(text) && !candidateRepeatsSourceForInsertion(item, text);
 }
 
@@ -337,6 +376,44 @@ export default function ReviseCockpitClientWorkflowV1({ payload }: { payload: Wo
   const [customOpen, setCustomOpen] = useState(false);
   const [customText, setCustomText] = useState("");
   const [message, setMessage] = useState<string | null>(null);
+  const [rewriteCache, setRewriteCache] = useState<Record<string, { a: string; b: string; c: string }>>({});
+  const [rewriteLoading, setRewriteLoading] = useState<string | null>(null);
+
+  const generateVoiceRewrite = useCallback(async (item: WorkbenchOpportunity) => {
+    if (rewriteLoading) return;
+    setRewriteLoading(item.id);
+    setMessage("Generating rewrites in author voice…");
+    try {
+      const response = await fetch("/api/revise/generate-rewrite", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          evaluationJobId: payload.evaluationJobId,
+          manuscriptId: payload.manuscriptId,
+          opportunityId: item.id,
+          originalPassage: sourceTextOf(item),
+          editorialInstruction: item.fixDirection || item.diagnostic?.fixStrategy || "",
+          symptom: item.symptom || item.diagnostic?.symptom || "",
+          cause: item.cause || item.diagnostic?.cause || "",
+          mistakeProofing: item.mistakeProofing || item.diagnostic?.mistakeProofing || "",
+          operation: effectiveOperation(item),
+          location: item.anchor || item.meta || "",
+        }),
+      });
+      const data = await response.json();
+      if (data.ok && data.candidates) {
+        setRewriteCache((prev) => ({ ...prev, [item.id]: data.candidates }));
+        setMessage("Voice rewrites generated!");
+      } else {
+        setMessage(data.error || "Rewrite generation failed");
+      }
+    } catch {
+      setMessage("Network error generating rewrites");
+    } finally {
+      setRewriteLoading(null);
+      setTimeout(() => setMessage(null), 3000);
+    }
+  }, [rewriteLoading, payload.evaluationJobId, payload.manuscriptId]);
 
   const items = useMemo(() => {
     const seen = new Set<string>();
@@ -493,10 +570,10 @@ export default function ReviseCockpitClientWorkflowV1({ payload }: { payload: Wo
               <input value={filters.search} onChange={(event) => setFilters((current) => ({ ...current, search: event.target.value }))} placeholder="Search queue" className="h-8 w-full rounded border border-[#3A3022] bg-[#0D0A05] px-2 text-xs" />
               <div className="grid grid-cols-2 gap-2">
                 <select value={filters.priority} onChange={(event) => setFilters((current) => ({ ...current, priority: event.target.value as Filters["priority"] }))} className="h-8 rounded border border-[#3A3022] bg-[#0D0A05] px-2 text-xs">
-                  <option value="all">All priority</option><option value="must">MUST</option><option value="should">SHOULD</option><option value="could">COULD</option>
+                  <option value="all">All priority</option><option value="must">Recommended</option><option value="should">Optional</option><option value="could">Consider</option>
                 </select>
                 <select value={filters.status} onChange={(event) => setFilters((current) => ({ ...current, status: event.target.value as DecisionFilter }))} className="h-8 rounded border border-[#3A3022] bg-[#0D0A05] px-2 text-xs">
-                  <option value="all">All status</option><option value="pending">Pending</option><option value="accepted">Accepted</option><option value="custom">Custom</option><option value="kept_original">Kept</option><option value="rejected">Rejected</option><option value="deferred">Deferred</option>
+                  <option value="all">All status</option><option value="pending">Pending</option><option value="accepted">Accepted</option><option value="custom">Custom</option><option value="kept_original">Author Kept Original</option><option value="rejected">Rejected</option><option value="deferred">Deferred</option>
                 </select>
               </div>
               <select value={filters.criterion} onChange={(event) => setFilters((current) => ({ ...current, criterion: event.target.value }))} className="h-8 w-full rounded border border-[#3A3022] bg-[#0D0A05] px-2 text-xs">
@@ -548,37 +625,144 @@ export default function ReviseCockpitClientWorkflowV1({ payload }: { payload: Wo
                     </div>
                   </section>
 
-                  <section className="mt-1.5 grid gap-2 xl:grid-cols-2">
-                    <div className="rounded-lg border border-[#2E261A] bg-[#12100B] px-2 py-1.5">
-                      <p className="text-[10px] uppercase tracking-[0.18em] text-[#C8A96E]">Original Passage</p>
-                      <p className="mt-1 max-h-16 overflow-y-auto text-xs leading-4">{sourceTextOf(active) || "No exact passage is available yet."}</p>
-                      <p className="mt-0.5 text-[10px] text-[#A9987D]">{active.anchor || active.meta || "Location pending"}</p>
-                    </div>
-                    <div className="rounded-lg border border-[#2E261A] bg-[#12100B] px-2 py-1.5">
-                      <p className="text-[10px] uppercase tracking-[0.18em] text-[#C8A96E]">Revision Task</p>
-                      <p className="mt-1 text-xs leading-4">{operationInstruction(active)} {compactGoal(active)}</p>
-                    </div>
-                  </section>
+                  {/* ── Three-tier display: passage + candidates ── */}
+                  {(() => {
+                    const mode = displayMode(active);
+                    const source = sourceTextOf(active);
+                    const allCandidatesHaveResidue = OPTION_KEYS.every((k) => {
+                      const t = candidateText(active, k);
+                      return !t || hasTemplateResidue(t);
+                    });
+                    const effectiveMode = allCandidatesHaveResidue ? "strategy_only" : mode;
 
-                  <section className="mt-1.5">
-                    <div className="flex items-center gap-1">
-                      {OPTION_KEYS.map((key) => {
-                        const focused = selectedOption === key;
-                        return <button key={key} type="button" onClick={() => setSelectedOption(key)} className={`rounded-t px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider transition ${focused ? "border border-b-0 border-[#C8A96E] bg-[#12100B] text-[#F3E3C3]" : "border border-transparent text-[#A9987D] hover:text-[#F3E3C3]"}`}>{REVISION_OPTION_LABELS[key]}</button>;
-                      })}
-                      {invalidCandidates && <span className="ml-auto text-[10px] text-[#E2B2A6]">Awaiting passage</span>}
-                    </div>
-                    {(() => { const key = selectedOption || "A"; const text = candidateText(active, key); const ok = canSelectOption(active, key); return (
-                      <div className="rounded-b-lg rounded-tr-lg border border-[#2E261A] bg-[#12100B] px-2 py-1.5">
-                        <div className="flex items-start justify-between gap-2">
-                          <p className={`line-clamp-3 whitespace-pre-wrap text-xs leading-4 ${ok ? "text-[#E5D8BE]" : "text-[#E2B2A6]"}`}>{text || "Candidate generation needs an exact source passage."}</p>
-                          <div className="flex shrink-0 gap-1">
-                            <button type="button" onClick={() => void copyText(text)} disabled={!ok} className="rounded border border-[#5D4C31] px-1.5 py-0.5 text-[10px] disabled:opacity-40">Copy</button>
+                    return (
+                      <>
+                        {/* Original Passage — adapts by mode */}
+                        <section className="mt-1.5 grid gap-2 xl:grid-cols-2">
+                          <div className="rounded-lg border border-[#2E261A] bg-[#12100B] px-2 py-1.5">
+                            <div className="flex items-center justify-between">
+                              <p className="text-[10px] uppercase tracking-[0.18em] text-[#C8A96E]">Original Passage</p>
+                              {effectiveMode !== "full_replacement" && source && (
+                                <span className="text-[9px] text-[#A9987D]">
+                                  {source.split(/\s+/).length} words
+                                  {effectiveMode === "excerpt_insertion" && " · excerpt shown"}
+                                  {effectiveMode === "strategy_only" && " · anchor only"}
+                                </span>
+                              )}
+                            </div>
+                            {effectiveMode === "full_replacement" ? (
+                              <p className="mt-1 max-h-24 overflow-y-auto text-xs leading-4">{source || "No exact passage is available yet."}</p>
+                            ) : (
+                              <>
+                                <p className="mt-1 max-h-20 overflow-y-auto text-xs leading-4 text-[#E5D8BE]">
+                                  {source ? excerptText(source, effectiveMode === "strategy_only" ? 2 : 3) : "No exact passage is available yet."}
+                                </p>
+                                {source && source.split(/\s+/).length > (effectiveMode === "strategy_only" ? 50 : 80) && (
+                                  <details className="mt-1">
+                                    <summary className="cursor-pointer text-[10px] text-[#C8A96E] hover:text-[#F3E3C3]">View full passage</summary>
+                                    <p className="mt-1 max-h-40 overflow-y-auto rounded border border-[#2E261A] bg-[#0D0A05] p-2 text-xs leading-4">{source}</p>
+                                  </details>
+                                )}
+                              </>
+                            )}
+                            <p className="mt-0.5 text-[10px] text-[#A9987D]">{active.anchor || active.meta || "Location pending"}</p>
                           </div>
-                        </div>
-                      </div>
-                    ); })()}
-                  </section>
+                          <div className="rounded-lg border border-[#2E261A] bg-[#12100B] px-2 py-1.5">
+                            <p className="text-[10px] uppercase tracking-[0.18em] text-[#C8A96E]">Revision Task</p>
+                            <p className="mt-1 text-xs leading-4">{operationInstruction(active)} {compactGoal(active)}</p>
+                          </div>
+                        </section>
+
+                        {/* A/B/C Candidates — full prose OR strategy mode */}
+                        {effectiveMode === "strategy_only" ? (
+                          <section className="mt-1.5 rounded-lg border border-[#2E261A] bg-[#12100B] px-2 py-2">
+                            {rewriteCache[active.id] ? (
+                              <>
+                                <div className="flex items-center justify-between mb-1.5">
+                                  <p className="text-[10px] uppercase tracking-[0.18em] text-[#C8A96E]">Voice-Generated Rewrites</p>
+                                  <span className="text-[9px] text-[#6B8F5E]">Generated in author voice</span>
+                                </div>
+                                <div className="space-y-2">
+                                  {OPTION_KEYS.map((key) => {
+                                    const label = key === "A" ? "Recommended" : key === "B" ? "Quieter" : "Bolder";
+                                    const rewrite = rewriteCache[active.id][key.toLowerCase() as "a" | "b" | "c"];
+                                    return (
+                                      <div key={key} className={`rounded border px-2 py-1.5 ${selectedOption === key ? "border-[#C8A96E] bg-[#1A140C]" : "border-[#2E261A]"}`}>
+                                        <button type="button" onClick={() => setSelectedOption(key)} className="w-full text-left">
+                                          <span className="text-[10px] font-semibold uppercase tracking-wider text-[#C8A96E]">{REVISION_OPTION_LABELS[key]} — {label}</span>
+                                          <p className="mt-0.5 max-h-24 overflow-y-auto whitespace-pre-wrap text-xs leading-4 text-[#E5D8BE]">{rewrite}</p>
+                                        </button>
+                                        <div className="mt-1 flex gap-1">
+                                          <button type="button" onClick={() => void navigator.clipboard.writeText(rewrite).then(() => setMessage("Copied"))} className="rounded border border-[#5D4C31] px-1.5 py-0.5 text-[10px] text-[#C8A96E]">Copy</button>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </>
+                            ) : (
+                              <>
+                                <p className="text-[10px] uppercase tracking-[0.18em] text-[#C8A96E] mb-1.5">Revision Strategies</p>
+                                <p className="text-[10px] text-[#A9987D] mb-2">
+                                  {source && source.split(/\s+/).length > 1200
+                                    ? "Passage too large for inline replacement. Choose a strategy approach:"
+                                    : "Template residue detected. Choose a strategy approach or generate voice rewrites:"}
+                                </p>
+                                <div className="space-y-2">
+                                  {OPTION_KEYS.map((key) => {
+                                    const label = key === "A" ? "Conservative" : key === "B" ? "Scene-driven" : "Bolder";
+                                    const text = candidateDisplayText(active, key);
+                                    const strategyText = text || compactGoal(active);
+                                    return (
+                                      <div key={key} className={`rounded border px-2 py-1.5 ${selectedOption === key ? "border-[#C8A96E] bg-[#1A140C]" : "border-[#2E261A]"}`}>
+                                        <button type="button" onClick={() => setSelectedOption(key)} className="w-full text-left">
+                                          <span className="text-[10px] font-semibold uppercase tracking-wider text-[#C8A96E]">{REVISION_OPTION_LABELS[key]} — {label}</span>
+                                          <p className="mt-0.5 text-xs leading-4 text-[#E5D8BE]">{strategyText}</p>
+                                        </button>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                                {/* Generate in Voice button — only for ≤1200 word passages */}
+                                {source && source.split(/\s+/).length <= 1200 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => void generateVoiceRewrite(active)}
+                                    disabled={rewriteLoading === active.id}
+                                    className="mt-2 w-full rounded border border-[#6B8F5E] bg-[#6B8F5E]/10 px-3 py-1.5 text-xs font-semibold text-[#A8D99C] hover:bg-[#6B8F5E]/20 disabled:opacity-50"
+                                  >
+                                    {rewriteLoading === active.id ? "Generating in author voice…" : "Generate Draft in Author Voice"}
+                                  </button>
+                                )}
+                              </>
+                            )}
+                          </section>
+                        ) : (
+                          <section className="mt-1.5">
+                            <div className="flex items-center gap-1">
+                              {OPTION_KEYS.map((key) => {
+                                const focused = selectedOption === key;
+                                return <button key={key} type="button" onClick={() => setSelectedOption(key)} className={`rounded-t px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider transition ${focused ? "border border-b-0 border-[#C8A96E] bg-[#12100B] text-[#F3E3C3]" : "border border-transparent text-[#A9987D] hover:text-[#F3E3C3]"}`}>{REVISION_OPTION_LABELS[key]}</button>;
+                              })}
+                              {invalidCandidates && <span className="ml-auto text-[10px] text-[#E2B2A6]">Awaiting passage</span>}
+                            </div>
+                            {(() => { const key = selectedOption || "A"; const text = candidateDisplayText(active, key); const ok = canSelectOption(active, key); return (
+                              <div className="rounded-b-lg rounded-tr-lg border border-[#2E261A] bg-[#12100B] px-2 py-1.5">
+                                <div className="flex items-start justify-between gap-2">
+                                  <p className={`max-h-32 overflow-y-auto whitespace-pre-wrap text-xs leading-4 ${ok ? "text-[#E5D8BE]" : "text-[#E2B2A6]"}`}>
+                                    {text || "Candidate generation needs an exact source passage."}
+                                  </p>
+                                  <div className="flex shrink-0 gap-1">
+                                    <button type="button" onClick={() => void copyText(text)} disabled={!ok} className="rounded border border-[#5D4C31] px-1.5 py-0.5 text-[10px] disabled:opacity-40">Copy</button>
+                                  </div>
+                                </div>
+                              </div>
+                            ); })()}
+                          </section>
+                        )}
+                      </>
+                    );
+                  })()}
 
                   {customOpen && (
                     <div className="mt-1.5 rounded-lg border border-[#C8A96E]/60 bg-[#120E08] px-2 py-1.5">
@@ -591,13 +775,47 @@ export default function ReviseCockpitClientWorkflowV1({ payload }: { payload: Wo
 
                 <footer className="shrink-0 border-t border-[#2E261A] bg-[#120E08] px-2 py-1.5">
                   <div className="flex flex-wrap items-center gap-1.5">
-                    <button onClick={() => decide("accepted_a", "A", candidateText(active, "A"))} disabled={!canSelectOption(active, "A")} className="rounded bg-[#C8A96E] px-2.5 py-1 text-xs font-semibold text-[#1A140C] disabled:opacity-40">Accept A</button>
-                    <button onClick={() => decide("accepted_b", "B", candidateText(active, "B"))} disabled={!canSelectOption(active, "B")} className="rounded border border-[#C8A96E] px-2.5 py-1 text-xs disabled:opacity-40">Accept B</button>
-                    <button onClick={() => decide("accepted_c", "C", candidateText(active, "C"))} disabled={!canSelectOption(active, "C")} className="rounded border border-[#C8A96E] px-2.5 py-1 text-xs disabled:opacity-40">Accept C</button>
-                    <button onClick={() => decide("keep_original", undefined, "Kept original")} className="rounded border border-[#5D4C31] px-2 py-1 text-xs">Keep Original</button>
-                    <button onClick={() => decide("reject", undefined, "Rejected suggestions")} className="rounded border border-[#7A2B1A]/70 px-2 py-1 text-xs text-[#E2B2A6]">Reject</button>
-                    <button onClick={() => decide("deferred", undefined, "Deferred for later decision")} className="rounded border border-[#5C5140] px-2 py-1 text-xs">Defer</button>
-                    <button onClick={() => { if (customOpen && customText.trim()) { decide("custom", undefined, customText); } else { if (!customOpen) setCustomText(selectedText); setCustomOpen(true); } }} className="rounded border border-[#C8A96E] bg-[#C8A96E]/10 px-2 py-1 text-xs">{customOpen && customText.trim() ? "Save Custom" : (customOperationLabels[effectiveOperation(active)] ?? "Write Custom")}</button>
+                    {(() => {
+                      const mode = displayMode(active);
+                      const allResidue = OPTION_KEYS.every((k) => { const t = candidateText(active, k); return !t || hasTemplateResidue(t); });
+                      const effectiveMode = allResidue ? "strategy_only" : mode;
+                      const insertLabel = effectiveMode === "excerpt_insertion" ? "Insert" : "Accept";
+
+                      if (effectiveMode === "strategy_only") {
+                        const hasVoiceRewrite = !!rewriteCache[active.id];
+                        if (hasVoiceRewrite) {
+                          const rw = rewriteCache[active.id];
+                          return (
+                            <>
+                              <button onClick={() => decide("accepted_a", "A", rw.a)} className="rounded bg-[#C8A96E] px-2.5 py-1 text-xs font-semibold text-[#1A140C]">Accept A</button>
+                              <button onClick={() => decide("accepted_b", "B", rw.b)} className="rounded border border-[#C8A96E] px-2.5 py-1 text-xs">Accept B</button>
+                              <button onClick={() => decide("accepted_c", "C", rw.c)} className="rounded border border-[#C8A96E] px-2.5 py-1 text-xs">Accept C</button>
+                              <button onClick={() => decide("keep_original", undefined, "Kept original")} className="rounded border border-[#5D4C31] px-2 py-1 text-xs">Keep Original</button>
+                              <button onClick={() => decide("deferred", undefined, "Deferred for later decision")} className="rounded border border-[#5C5140] px-2 py-1 text-xs">Defer</button>
+                              <button onClick={() => { if (!customOpen) setCustomText(rw.a); setCustomOpen(true); }} className="rounded border border-[#C8A96E] bg-[#C8A96E]/10 px-2 py-1 text-xs">Edit Custom</button>
+                            </>
+                          );
+                        }
+                        return (
+                          <>
+                            <button onClick={() => decide("accepted_a", "A", compactGoal(active))} className="rounded bg-[#C8A96E] px-2.5 py-1 text-xs font-semibold text-[#1A140C]">Mark as Manual Revision</button>
+                            <button onClick={() => decide("deferred", undefined, "Deferred for later decision")} className="rounded border border-[#5C5140] px-2 py-1 text-xs">Defer</button>
+                            <button onClick={() => { if (!customOpen) setCustomText(selectedText); setCustomOpen(true); }} className="rounded border border-[#C8A96E] bg-[#C8A96E]/10 px-2 py-1 text-xs">Write Custom</button>
+                          </>
+                        );
+                      }
+                      return (
+                        <>
+                          <button onClick={() => decide("accepted_a", "A", candidateText(active, "A"))} disabled={!canSelectOption(active, "A")} className="rounded bg-[#C8A96E] px-2.5 py-1 text-xs font-semibold text-[#1A140C] disabled:opacity-40">{insertLabel} A</button>
+                          <button onClick={() => decide("accepted_b", "B", candidateText(active, "B"))} disabled={!canSelectOption(active, "B")} className="rounded border border-[#C8A96E] px-2.5 py-1 text-xs disabled:opacity-40">{insertLabel} B</button>
+                          <button onClick={() => decide("accepted_c", "C", candidateText(active, "C"))} disabled={!canSelectOption(active, "C")} className="rounded border border-[#C8A96E] px-2.5 py-1 text-xs disabled:opacity-40">{insertLabel} C</button>
+                          <button onClick={() => decide("keep_original", undefined, "Kept original")} className="rounded border border-[#5D4C31] px-2 py-1 text-xs">Keep Original</button>
+                          <button onClick={() => decide("reject", undefined, "Rejected suggestions")} className="rounded border border-[#7A2B1A]/70 px-2 py-1 text-xs text-[#E2B2A6]">Reject</button>
+                          <button onClick={() => decide("deferred", undefined, "Deferred for later decision")} className="rounded border border-[#5C5140] px-2 py-1 text-xs">Defer</button>
+                          <button onClick={() => { if (customOpen && customText.trim()) { decide("custom", undefined, customText); } else { if (!customOpen) setCustomText(selectedText); setCustomOpen(true); } }} className="rounded border border-[#C8A96E] bg-[#C8A96E]/10 px-2 py-1 text-xs">{customOpen && customText.trim() ? "Save Custom" : (customOperationLabels[effectiveOperation(active)] ?? "Write Custom")}</button>
+                        </>
+                      );
+                    })()}
                   </div>
                 </footer>
               </>

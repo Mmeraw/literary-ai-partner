@@ -109,6 +109,7 @@ import {
   normalizeSummaryWithBottomWeaknesses,
   summarizePropagationIntegrity,
 } from "./propagationIntegrity";
+import { computeEnrichment } from "@/lib/evaluation/enrichment/computeEnrichment";
 import {
   getCanonicalPass1Model,
   getCanonicalPass2Model,
@@ -1982,6 +1983,11 @@ export interface SynthesisToEvaluationResultOptions {
   /** Optional manuscript text for metrics enrichment when the caller has it available. */
   manuscriptText?: string;
   scopeProfile?: SubmissionScopeProfile;
+  /** LLM-extracted enrichment fields (premise, trigger warnings) from synthesis pass. */
+  llmEnrichment?: {
+    premise?: string;
+    trigger_warnings?: string[];
+  };
 }
 
 const DEFAULT_ADAPTER_CONFIDENCE = 0.85;
@@ -2451,6 +2457,9 @@ export function synthesisToEvaluationResultV2(
       },
       processing: {},
     },
+    enrichment: opts.manuscriptText
+      ? computeEnrichment(opts.manuscriptText, opts.llmEnrichment)
+      : undefined,
     artifacts: [],
     governance: {
       confidence:

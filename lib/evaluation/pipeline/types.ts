@@ -292,6 +292,11 @@ export type SynthesisOutput = {
     analyzedWords: number;
     strategy: CoverageStrategy;
   };
+  /** LLM-extracted enrichment surfaces from synthesis pass. */
+  enrichment?: {
+    premise?: string;
+    trigger_warnings?: string[];
+  };
 };
 
 // ── Pass 4: Quality gate result ──────────────────────────────────────────────

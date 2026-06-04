@@ -132,6 +132,13 @@ type ArtifactContentV1 = {
     manuscript?: { title?: string; word_count?: number; char_count?: number; genre?: string };
     processing?: { segment_count?: number; total_tokens_estimated?: number; runtime_ms?: number };
   };
+  enrichment?: {
+    premise?: string;
+    trigger_warnings?: string[];
+    reading_grade_level?: number;
+    dialogue_percentage?: number;
+    narrative_percentage?: number;
+  };
   governance?: {
     confidence?: number;
     warnings?: string[];
@@ -870,6 +877,63 @@ export default async function EvaluationReportPage({
               {safeTruncateToWordBoundary(artifact.overview?.one_paragraph_summary || artifact.summary || "No summary available")}
             </p>
           </section>
+
+          {/* ── Premise (Elevator Pitch) ── */}
+          {artifact.enrichment?.premise && (
+            <section className="rounded-lg border bg-white p-6 mb-4">
+              <h2 className="text-xl font-semibold text-gray-900">Premise</h2>
+              <p className="mt-3 text-sm leading-relaxed text-gray-700 italic">
+                {artifact.enrichment.premise}
+              </p>
+            </section>
+          )}
+
+          {/* ── Trigger Warnings ── */}
+          {artifact.enrichment?.trigger_warnings && artifact.enrichment.trigger_warnings.length > 0 && (
+            <section className="rounded-lg border border-amber-200 bg-amber-50 p-6 mb-4">
+              <h2 className="text-xl font-semibold text-amber-900">Content Warnings</h2>
+              <ul className="mt-3 space-y-1 text-sm text-amber-800">
+                {artifact.enrichment.trigger_warnings.map((w, i) => (
+                  <li key={i} className="flex gap-2">
+                    <span className="mt-0.5 shrink-0">⚠️</span>
+                    <span className="capitalize">{w}</span>
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-3 text-xs text-amber-700">
+                Consider including content warnings in book marketing or front matter.
+              </p>
+            </section>
+          )}
+
+          {/* ── Reading Grade Level + Dialogue Ratio ── */}
+          {(artifact.enrichment?.reading_grade_level != null || artifact.enrichment?.dialogue_percentage != null) && (
+            <section className="rounded-lg border bg-white p-6 mb-4">
+              <h2 className="text-xl font-semibold text-gray-900">Manuscript Metrics</h2>
+              <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {artifact.enrichment?.reading_grade_level != null && (
+                  <div className="rounded-md border bg-gray-50 p-4">
+                    <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Reading Grade Level</p>
+                    <p className="mt-1 text-2xl font-bold text-gray-900">{artifact.enrichment.reading_grade_level}</p>
+                    <p className="mt-1 text-xs text-gray-600">Flesch-Kincaid</p>
+                    <p className="mt-2 text-xs text-gray-500 leading-relaxed">
+                      Measures prose complexity only—not audience appropriateness. Cross-reference Content Warnings above for suitability guidance.
+                    </p>
+                  </div>
+                )}
+                {artifact.enrichment?.dialogue_percentage != null && (
+                  <div className="rounded-md border bg-gray-50 p-4">
+                    <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Dialogue vs. Narrative</p>
+                    <p className="mt-1 text-2xl font-bold text-gray-900">{artifact.enrichment.dialogue_percentage}%<span className="text-base font-normal text-gray-500"> dialogue</span></p>
+                    <p className="mt-1 text-xs text-gray-600">{artifact.enrichment.narrative_percentage ?? (100 - artifact.enrichment.dialogue_percentage)}% narrative</p>
+                    <p className="mt-2 text-xs text-gray-500 leading-relaxed">
+                      Most commercially successful novels range 25–35% dialogue.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </section>
+          )}
 
           {(() => {
             const topRecs = buildTopRecommendations(artifact);

@@ -1060,6 +1060,17 @@ export function parsePass3Response(
 
   const sanitizedOverall = sanitizeCMOSOverall(rawOverallObj as Record<string, unknown>) as typeof rawOverallObj;
 
+  // Extract enrichment surfaces (premise + trigger warnings) from LLM output
+  const rawEnrichment = typeof obj["enrichment"] === "object" && obj["enrichment"] !== null
+    ? (obj["enrichment"] as Record<string, unknown>)
+    : {};
+  const extractedPremise = typeof rawEnrichment["premise"] === "string" && rawEnrichment["premise"].trim()
+    ? rawEnrichment["premise"].trim()
+    : undefined;
+  const extractedTriggerWarnings = Array.isArray(rawEnrichment["trigger_warnings"])
+    ? (rawEnrichment["trigger_warnings"] as unknown[]).filter((w): w is string => typeof w === "string" && w.trim().length > 0).map(w => w.trim().toLowerCase())
+    : undefined;
+
   return {
     criteria: sanitizedCriteria,
     overall: sanitizedOverall,
@@ -1076,6 +1087,9 @@ export function parsePass3Response(
       generated_at: new Date().toISOString(),
     },
     partial_evaluation: false, // will be overridden by runPass3Synthesis with real value
+    enrichment: (extractedPremise || extractedTriggerWarnings?.length)
+      ? { premise: extractedPremise, trigger_warnings: extractedTriggerWarnings }
+      : undefined,
   };
 }
 

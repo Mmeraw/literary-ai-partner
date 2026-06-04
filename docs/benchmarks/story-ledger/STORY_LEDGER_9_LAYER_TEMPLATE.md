@@ -67,6 +67,10 @@ One of: `complete_with_confidence` | `complete_with_review_flags` | `degraded_wi
 | Route | `<LONG_FORM / SHORT_FORM>` |
 | Work type | `<novel / novella / short_story / etc>` |
 | Word count | `<approximate word count>` |
+| Reading Grade Level | `<X.X>` (Flesch-Kincaid — computed algorithmically, no LLM required) |
+| Dialogue/Narrative Ratio | `<XX>%` dialogue / `<XX>%` narrative (computed algorithmically) |
+| Premise | `<1–2 sentence elevator pitch: protagonist, conflict, tonal register>` |
+| Trigger Warnings | `<bulleted content categories requiring reader advisories, or "None identified">` |
 | Evidence distribution required | `<list 5+ manuscript regions that MUST be cited in downstream evidence: opening, early-middle, mid-point, late-middle, climax, resolution>` |
 
 Evidence distribution example (long-form): Opening setup (Ch 1-3), early escalation (Ch 4-8), mid-point pivot (Ch 12-15), late escalation (Ch 20-25), climax/resolution (final chapters).

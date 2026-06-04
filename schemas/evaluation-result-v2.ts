@@ -198,6 +198,19 @@ export type EvaluationResultV2 = {
       runtime_ms?: number;
     };
   };
+  /** Enrichment surfaces — computed algorithmically or via lightweight LLM extraction. */
+  enrichment?: {
+    /** 1–2 sentence elevator pitch of the manuscript's core dramatic situation. */
+    premise?: string;
+    /** Content advisory categories requiring reader warnings. */
+    trigger_warnings?: string[];
+    /** Flesch-Kincaid Grade Level computed from manuscript text. */
+    reading_grade_level?: number;
+    /** Percentage of text identified as quoted dialogue (0–100). */
+    dialogue_percentage?: number;
+    /** Percentage of text identified as narrative prose (0–100). */
+    narrative_percentage?: number;
+  };
   artifacts: Array<{
     type:
       | "evaluation_report"
