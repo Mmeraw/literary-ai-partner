@@ -32,20 +32,24 @@ It is deeper than short-form evaluation, but it is not necessarily the full mult
 **Shelf:** [Target Market]
 **Submitted Word Count:** [XXXX]
 **Estimated Manuscript Pages:** [XXX] at 250 words/page
+**Reading Grade Level:** [X.X] (Flesch-Kincaid)
+**Dialogue/Narrative Ratio:** [XX]% dialogue / [XX]% narrative
 **Date Generated:** [Month Day, Year]
 ```
 
 ### Report Sections
 
-1. Title Block (Title, Report Type, Score, Verdict, Genre, Shelf, Word Count, Pages, Date)
-2. Executive Verdict (Narrative synthesis of manuscript status)
-3. Top Strengths & Top Risks (Parallel bulleted lists)
-4. Top Recommendations (Cross-criterion synthesis)
-5. 13 Criteria Score Grid (Full-width table: Criterion | Score | Confidence)
-6. Expanded Criterion Analysis (Rationales and surfaced opportunities per criterion)
-7. Manuscript-Scale Continuity Findings (Editorial diagnosis of promises/payoffs/arc drift)
-8. Revision Priority Plan (Location, Operation, Recommendation, Rationale)
-9. Confidence Explanation
+1. Title Block (Title, Report Type, Score, Verdict, Genre, Shelf, Word Count, Pages, Reading Grade Level, Dialogue/Narrative Ratio, Date)
+2. Premise (1–2 sentence elevator pitch of the manuscript)
+3. Trigger Warnings (Content advisories for readers, if applicable)
+4. Executive Verdict (Narrative synthesis of manuscript status)
+5. Top Strengths & Top Risks (Parallel bulleted lists)
+6. Top Recommendations (Cross-criterion synthesis)
+7. 13 Criteria Score Grid (Full-width table: Criterion | Score | Confidence)
+8. Expanded Criterion Analysis (Rationales and surfaced opportunities per criterion)
+9. Manuscript-Scale Continuity Findings (Editorial diagnosis of promises/payoffs/arc drift)
+10. Revision Priority Plan (Location, Operation, Recommendation, Rationale)
+11. Confidence Explanation
 
 ---
 
@@ -134,6 +138,54 @@ Each surfaced opportunity should use this six-part diagnostic structure when evi
 6. **Mistake-proofing** — what must not be damaged during repair.
 
 Online report rendering should be compact: one primary opportunity visible by default, with additional surfaced opportunities behind a click. Print and downloads should show all surfaced opportunities and diagnostic details.
+
+---
+
+## Premise Contract
+
+The Premise is a 1–2 sentence elevator pitch that captures the core dramatic situation of the manuscript. It must:
+
+- name the protagonist or central force;
+- identify the primary conflict or tension;
+- convey the emotional/tonal register;
+- be author-facing and suitable for query letters, back-cover copy, or marketing;
+- never exceed 3 sentences.
+
+---
+
+## Trigger Warnings Contract
+
+Trigger Warnings identify content that may require reader advisories. They appear near the top of the report, immediately after the Premise.
+
+Requirements:
+
+- List specific content categories present in the manuscript (e.g., graphic violence, sexual assault, substance abuse, self-harm, animal cruelty, body horror, child endangerment).
+- Only include warnings supported by textual evidence in the manuscript.
+- Use plain, direct language — not euphemism or clinical jargon.
+- If no trigger-worthy content is detected, display: "No content warnings identified."
+- Conclude with advisory note: "Consider including content warnings in book marketing or front matter."
+
+---
+
+## Reading Grade Level Contract
+
+Reading Grade Level is computed algorithmically (Flesch-Kincaid Grade Level formula) from the manuscript text. It requires no LLM inference.
+
+Display format: `Reading Grade Level: X.X (Flesch-Kincaid)`
+
+Include a brief contextual note: "This means the average passage requires reading skills at the [Nth]-grade level. This does not indicate intended audience age — it measures prose complexity only."
+
+**Critical disclaimer (must always appear):** "Reading Grade Level measures prose complexity, NOT audience appropriateness. A manuscript may score at a young-adult reading level (grades 6–8) while containing graphic violence, sexual content, or other material unsuitable for younger readers. Always cross-reference Trigger Warnings above for content suitability guidance."
+
+---
+
+## Dialogue vs. Narrative Ratio Contract
+
+Dialogue/Narrative Ratio is computed algorithmically by identifying quoted speech versus narrative prose. It requires no LLM inference.
+
+Display format: `Dialogue/Narrative Ratio: XX% dialogue / XX% narrative`
+
+Include contextual guidance: "Most commercially successful novels contain 25–35% dialogue. Genre expectations vary: literary fiction trends lower (15–25%), thrillers and romance trend higher (30–45%)."
 
 ---
 
