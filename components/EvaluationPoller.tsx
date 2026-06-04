@@ -293,12 +293,20 @@ export function EvaluationPoller({
       });
       setPollCount((c) => c + 1);
 
+      // Guard: detect non-JSON responses (Vercel timeout HTML pages, 502/504 gateways)
+      const contentType = res.headers.get('content-type') ?? '';
+      const isJsonResponse = contentType.includes('application/json');
+
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
+        const data = isJsonResponse
+          ? await res.json().catch(() => ({}))
+          : {};
         const serverError =
           typeof data?.error === 'string' && data.error.trim()
             ? data.error
-            : `Failed to fetch job (HTTP ${res.status})`;
+            : !isJsonResponse
+              ? `Server returned non-JSON response (HTTP ${res.status}). This usually means a temporary infrastructure timeout — your evaluation is likely still running.`
+              : `Failed to fetch job (HTTP ${res.status})`;
 
         // Treat auth/not-found as terminal fetch failures for this page load.
         if (res.status === 401 || res.status === 404) {
@@ -310,6 +318,16 @@ export function EvaluationPoller({
         // Non-terminal API errors: continue polling with temporary backoff.
         networkErrorCountRef.current += 1;
         setTransientError(serverError);
+        scheduleNextPoll(getAdaptiveDelay(unchangedCountRef.current, networkErrorCountRef.current));
+        return;
+      }
+
+      // Guard: 200 OK but non-JSON body (rare Vercel edge case during cold starts)
+      if (!isJsonResponse) {
+        networkErrorCountRef.current += 1;
+        setTransientError(
+          'Server returned a non-JSON response despite 200 status. This is a temporary infrastructure issue — your evaluation is still running. Retrying shortly.'
+        );
         scheduleNextPoll(getAdaptiveDelay(unchangedCountRef.current, networkErrorCountRef.current));
         return;
       }

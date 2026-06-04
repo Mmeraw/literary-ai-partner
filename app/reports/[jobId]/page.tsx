@@ -1110,11 +1110,12 @@ export default async function ReportPage({
           </section>
         )}
 
-        {/* WAVE Governance & Canon Execution */}
-        {waveGovData && (
+        {/* WAVE Governance & Canon Execution — admin/support only */}
+        {showTechnicalSections && waveGovData && (
           <section className="bg-white rounded-lg shadow-sm p-6 mb-6 border border-indigo-100">
             <h2 className="text-2xl font-semibold text-gray-900 mb-1 flex items-center gap-2">
               WAVE Governance &amp; Canon Execution
+              <span className="text-xs font-normal text-amber-700 bg-amber-100 px-2 py-0.5 rounded">Support view</span>
             </h2>
             <p className="text-sm text-gray-700 mb-4">
               WAVE engine execution trace, module-level audit, and gate diagnostics
@@ -1123,11 +1124,12 @@ export default async function ReportPage({
           </section>
         )}
 
-        {/* Canon Governance: Gate 15 + Golden Spine + Dialogue Canon */}
-        {(canonGov.gate15 || canonGov.goldenSpine || canonGov.dialogueCanon || canonGov.revisionCanonMeta) && (
+        {/* Canon Governance: Gate 15 + Golden Spine + Dialogue Canon — admin/support only */}
+        {showTechnicalSections && (canonGov.gate15 || canonGov.goldenSpine || canonGov.dialogueCanon || canonGov.revisionCanonMeta) && (
           <section className="bg-white rounded-lg shadow-sm p-6 mb-6 border border-indigo-100">
             <h2 className="text-2xl font-semibold text-gray-900 mb-1 flex items-center gap-2">
               Canon Governance Summary
+              <span className="text-xs font-normal text-amber-700 bg-amber-100 px-2 py-0.5 rounded">Support view</span>
             </h2>
             <p className="text-sm text-gray-700 mb-4">
               Gate 15 mechanical purity &amp; voice protection, Golden Spine continuity, and Dialogue canon audit
@@ -1141,10 +1143,13 @@ export default async function ReportPage({
           </section>
         )}
 
-        {/* Artifacts */}
-        {artifacts.length > 0 && (
+        {/* Generated Artifacts — admin/support only */}
+        {showTechnicalSections && artifacts.length > 0 && (
           <section className="bg-white rounded-lg shadow-sm p-6 mb-6">
-            <h2 className="text-2xl font-semibold text-gray-900 mb-4">Generated Artifacts</h2>
+            <h2 className="text-2xl font-semibold text-gray-900 mb-4 flex items-center gap-2">
+              Generated Artifacts
+              <span className="text-xs font-normal text-amber-700 bg-amber-100 px-2 py-0.5 rounded">Support view</span>
+            </h2>
             <div className="space-y-2">
               {artifacts.map((artifact) => (
                 <div key={artifact.artifact_id} className="flex items-center justify-between p-3 border border-gray-200 rounded">
