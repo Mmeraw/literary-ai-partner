@@ -99,5 +99,9 @@ export function getSafeAuthErrorMessage(raw: string | null | undefined): string 
     return 'Network error. Check your connection and try again.';
   }
 
+  if (message.includes('unsupported provider') || message.includes('provider is not enabled')) {
+    return 'That sign-in option is not enabled right now. Please use another sign-in method.';
+  }
+
   return 'Authentication failed. Please try again.';
 }
