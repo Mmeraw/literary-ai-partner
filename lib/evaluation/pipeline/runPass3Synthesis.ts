@@ -980,6 +980,39 @@ export function parsePass3Response(
     }
   }
 
+  // ── Post-synthesis total recommendation cap: 100 for long-form (≥25k), 50 for short-form (<25k) ──
+  const TOTAL_REC_CAP_LONG_FORM = 100;
+  const TOTAL_REC_CAP_SHORT_FORM = 50;
+  const wordCount = manuscriptText ? manuscriptText.split(/\s+/).filter(Boolean).length : undefined;
+  const totalRecCap = (wordCount !== undefined && wordCount < 25_000)
+    ? TOTAL_REC_CAP_SHORT_FORM
+    : TOTAL_REC_CAP_LONG_FORM;
+
+  const allRecs: Array<{ criterionIdx: number; recIdx: number; priority: "high" | "medium" | "low" }> = [];
+  for (let ci = 0; ci < criteria.length; ci++) {
+    for (let ri = 0; ri < criteria[ci].recommendations.length; ri++) {
+      allRecs.push({ criterionIdx: ci, recIdx: ri, priority: criteria[ci].recommendations[ri].priority });
+    }
+  }
+
+  if (allRecs.length > totalRecCap) {
+    // Sort by severity: high (MUST) first, then medium (SHOULD), then low (COULD)
+    const SEVERITY_ORDER: Record<string, number> = { high: 0, medium: 1, low: 2 };
+    allRecs.sort((a, b) => (SEVERITY_ORDER[a.priority] ?? 2) - (SEVERITY_ORDER[b.priority] ?? 2));
+
+    // Mark recommendations beyond the cap for removal
+    const keepSet = new Set(allRecs.slice(0, totalRecCap).map(r => `${r.criterionIdx}:${r.recIdx}`));
+    for (let ci = 0; ci < criteria.length; ci++) {
+      criteria[ci].recommendations = criteria[ci].recommendations.filter(
+        (_, ri) => keepSet.has(`${ci}:${ri}`),
+      );
+    }
+
+    console.info(
+      `[Pass3-Cap] Enforced total recommendation cap: ${allRecs.length} → ${totalRecCap} (wordCount=${wordCount ?? "unknown"}, mode=${wordCount !== undefined && wordCount < 25_000 ? "short-form" : "long-form"})`,
+    );
+  }
+
   // Build overall
   const rawOverall = typeof obj["overall"] === "object" && obj["overall"] !== null
     ? (obj["overall"] as Record<string, unknown>)

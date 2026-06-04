@@ -102,9 +102,22 @@ They must:
 
 ---
 
+## Recommendation Density & Total Cap
+
+Recommendation density floors (for criteria scoring ≤8):
+
+- Score ≤5/10: 5–10 recommendations per criterion
+- Score 6–7/10: 4–8 recommendations per criterion
+- Score 8/10: 2–5 recommendations per criterion
+- Score 9–10/10: no recommendations (fit statement only)
+
+**Total cap:** 50 revision opportunities across all criteria combined for short-form evaluations. Prioritize by severity: MUST first, then SHOULD, then COULD.
+
+---
+
 ## Criterion Opportunity Contract
 
-Each criterion may show zero to three surfaced opportunities. Do not invent opportunities when a criterion is already performing well.
+Each criterion may show zero to three surfaced opportunities in the report surface. The full set of generated recommendations (up to 50 total) is available in the Revise Queue. Do not invent opportunities when a criterion is already performing well.
 
 Each surfaced opportunity should use this six-part diagnostic structure when evidence supports it:
 
