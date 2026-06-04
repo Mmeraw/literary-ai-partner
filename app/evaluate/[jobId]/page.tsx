@@ -622,15 +622,6 @@ export default async function EvaluationReportPage({
         <div className="min-w-0">
           <div className="flex items-center gap-3 flex-wrap">
             <h1 className="font-rg-serif text-2xl font-bold text-stone-950 sm:text-3xl">Evaluation Report</h1>
-            <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold tracking-wide ${
-              job.status === "complete" ? "text-stone-800" :
-              job.status === "failed" ? "bg-red-50 text-red-800 border border-red-200" :
-              "text-stone-700"
-            }`}
-            style={job.status === "complete" ? { backgroundColor: '#F2EFEA', border: '1px solid #A98E4A' } : job.status !== "failed" ? { backgroundColor: '#F2EFEA', border: '1px solid #D6D0C4' } : undefined}
-            >
-              {job.status === "complete" ? "✓ Report ready" : job.status === "failed" ? "⚠ Needs attention" : "⟳ In progress"}
-            </span>
           </div>
           <p className="mt-1 text-lg font-semibold text-stone-900">{displayTitle}</p>
           {manuscriptTitle && chapterTitle && manuscriptTitle !== chapterTitle && (
