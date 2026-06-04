@@ -7,11 +7,12 @@ import { canReleaseEvaluationRead } from '@/lib/jobs/readReleaseGate';
 import { isEvaluationResultV1, type EvaluationResultV1 } from '@/schemas/evaluation-result-v1';
 import { isEvaluationResultV2, type EvaluationResultV2 } from '@/schemas/evaluation-result-v2';
 import type { LongformDreamDocument } from '@/lib/evaluation/pipeline/runPass3bLongform';
-import type { WaveGovernanceData } from '@/lib/evaluation/waveGovernanceData';
-import type { Gate15AuditArtifact } from '@/lib/evaluation/gate15/gate15_orchestrator';
-import type { GoldenSpineArtifact } from '@/lib/evaluation/goldenSpine/goldenSpineAudit';
-import type { DialogueCanonAuditArtifact } from '@/lib/evaluation/dialogueCanon/dialogueCanonAudit';
-import type { RevisionCanonMetadata } from '@/lib/evaluation/revisionCanonMetadata';
+// Governance types retained as comments — internal-only, never exported to users.
+// import type { WaveGovernanceData } from '@/lib/evaluation/waveGovernanceData';
+// import type { Gate15AuditArtifact } from '@/lib/evaluation/gate15/gate15_orchestrator';
+// import type { GoldenSpineArtifact } from '@/lib/evaluation/goldenSpine/goldenSpineAudit';
+// import type { DialogueCanonAuditArtifact } from '@/lib/evaluation/dialogueCanon/dialogueCanonAudit';
+// import type { RevisionCanonMetadata } from '@/lib/evaluation/revisionCanonMetadata';
 import {
   filterAuthorFacingTextList,
   getRenumberedAuthorFacingRevisionPlan,
@@ -62,6 +63,13 @@ const FOOTER_LINE = 'RevisionGrade\u2122  |  Manuscript diagnosis, author-contro
 
 type ExportFormat = 'pdf' | 'docx' | 'txt';
 type ExportableResult = EvaluationResultV1 | EvaluationResultV2;
+type EnrichmentData = {
+  premise?: string;
+  trigger_warnings?: string[];
+  reading_grade_level?: number;
+  dialogue_percentage?: number;
+  narrative_percentage?: number;
+} | null;
 
 type ExportableResultShape = {
   generated_at?: unknown;
@@ -471,9 +479,85 @@ function appendDreamTxtSections(lines: string[], dream: LongformDreamDocument): 
       if (item.acceptance_check) push(`Acceptance check: ${cleanReportText(item.acceptance_check)}`);
     });
   }
+
+  // Symbolic / Doctrine Audit
+  if (dream.symbolic_audit) {
+    push('');
+    push(sub);
+    push('SYMBOLIC / DOCTRINE AUDIT');
+    push(sub);
+    if (Array.isArray(dream.symbolic_audit.preserved_symbols) && dream.symbolic_audit.preserved_symbols.length > 0) {
+      push('');
+      push('Preserved Symbols:');
+      dream.symbolic_audit.preserved_symbols.forEach((sym) => {
+        push(`  • ${cleanReportText(sym.symbol)} — ${cleanReportText(sym.current_function)}`);
+        if (sym.revision_instruction) push(`    Revision: ${cleanReportText(sym.revision_instruction)}`);
+      });
+    }
+    if (Array.isArray(dream.symbolic_audit.doctrine_strengths) && dream.symbolic_audit.doctrine_strengths.length > 0) {
+      push('');
+      push('Doctrine Strengths:');
+      dream.symbolic_audit.doctrine_strengths.forEach((s) => push(`  • ${cleanReportText(s)}`));
+    }
+    if (Array.isArray(dream.symbolic_audit.doctrine_risks) && dream.symbolic_audit.doctrine_risks.length > 0) {
+      push('');
+      push('Doctrine Risks:');
+      dream.symbolic_audit.doctrine_risks.forEach((r) => push(`  • ${cleanReportText(r)}`));
+    }
+    if (dream.symbolic_audit.audit_conclusion) {
+      push('');
+      push(`Audit Conclusion: ${cleanReportText(dream.symbolic_audit.audit_conclusion)}`);
+    }
+  }
+
+  // Reader Experience
+  if (dream.reader_experience) {
+    push('');
+    push(sub);
+    push('READER EXPERIENCE');
+    push(sub);
+    const re = dream.reader_experience;
+    if (re.first_act) {
+      push('');
+      push('First Act:');
+      push(`  Reader question: ${cleanReportText(re.first_act.reader_question)}`);
+      push(`  Emotional state: ${cleanReportText(re.first_act.emotional_state)}`);
+      push(`  Risk: ${cleanReportText(re.first_act.risk)}`);
+    }
+    if (re.middle) {
+      push('');
+      push('Middle:');
+      push(`  Reader question: ${cleanReportText(re.middle.reader_question)}`);
+      push(`  Emotional state: ${cleanReportText(re.middle.emotional_state)}`);
+      push(`  Risk: ${cleanReportText(re.middle.risk)}`);
+    }
+    if (re.final_act) {
+      push('');
+      push('Final Act:');
+      push(`  Reader question: ${cleanReportText(re.final_act.reader_question)}`);
+      push(`  Emotional state: ${cleanReportText(re.final_act.emotional_state)}`);
+      push(`  Risk: ${cleanReportText(re.final_act.risk)}`);
+    }
+    if (re.aftertaste) {
+      push('');
+      push(`Aftertaste: ${cleanReportText(re.aftertaste)}`);
+    }
+  }
+
+  // Releasability
+  if (Array.isArray(dream.releasability) && dream.releasability.length > 0) {
+    push('');
+    push(sub);
+    push('RELEASABILITY');
+    push(sub);
+    push('');
+    dream.releasability.forEach((dim) => {
+      push(`${cleanReportText(dim.dimension)}: ${cleanReportText(dim.current_status)} [${dim.verdict}]`);
+    });
+  }
 }
 
-function buildTxtReport(result: ExportableResult, title: string | null, jobId: string, dream: LongformDreamDocument | null, waveGov: WaveGovernanceData | null = null, gate15?: Gate15AuditArtifact | null, goldenSpine?: GoldenSpineArtifact | null, dialogueCanon?: DialogueCanonAuditArtifact | null, revisionCanonMeta?: RevisionCanonMetadata | null): string {
+function buildTxtReport(result: ExportableResult, title: string | null, jobId: string, dream: LongformDreamDocument | null, enrichment: EnrichmentData = null): string {
   const lines: string[] = [];
   const sep = '='.repeat(72);
   const sub = '-'.repeat(72);
@@ -489,11 +573,62 @@ function buildTxtReport(result: ExportableResult, title: string | null, jobId: s
   if (metadata.shelf) lines.push(`Shelf: ${metadata.shelf}`);
   if (metadata.wordCount) lines.push(`Submitted Word Count: ${metadata.wordCount.toLocaleString()}`);
   if (metadata.estimatedPages) lines.push(`Estimated Manuscript Pages: ${metadata.estimatedPages.toLocaleString()} at ${WORDS_PER_MANUSCRIPT_PAGE} words/page`);
+  if (enrichment?.reading_grade_level != null) lines.push(`Reading Grade Level: ${enrichment.reading_grade_level.toFixed(1)} (Flesch-Kincaid)`);
+  if (enrichment?.dialogue_percentage != null && enrichment?.narrative_percentage != null) lines.push(`Dialogue/Narrative Ratio: ${Math.round(enrichment.dialogue_percentage)}% dialogue / ${Math.round(enrichment.narrative_percentage)}% narrative`);
   lines.push(`Generated: ${metadata.generatedAt}`);
   lines.push(`Overall Score: ${metadata.score}`);
   lines.push(`Verdict: ${metadata.verdict}`);
   lines.push('Confidentiality: Prepared for author/editorial use.');
   lines.push('');
+
+  if (enrichment?.premise) {
+    lines.push(sub);
+    lines.push('PREMISE');
+    lines.push(sub);
+    lines.push('');
+    lines.push(cleanReportText(enrichment.premise));
+    lines.push('');
+  }
+
+  if (enrichment?.trigger_warnings && enrichment.trigger_warnings.length > 0) {
+    lines.push(sub);
+    lines.push('TRIGGER WARNINGS');
+    lines.push(sub);
+    lines.push('');
+    enrichment.trigger_warnings.forEach((w) => lines.push(`• ${cleanReportText(w)}`));
+    lines.push('');
+    lines.push('Consider including content warnings in book marketing or front matter.');
+    lines.push('');
+  }
+
+  if (enrichment?.reading_grade_level != null) {
+    lines.push(sub);
+    lines.push('READING GRADE LEVEL');
+    lines.push(sub);
+    lines.push('');
+    lines.push(`Grade Level: ${enrichment.reading_grade_level.toFixed(1)} (Flesch-Kincaid)`);
+    lines.push('');
+    lines.push('Reading Grade Level measures prose complexity, NOT audience appropriateness.');
+    lines.push('A manuscript may score at a young-adult reading level (grades 6-8) while');
+    lines.push('containing graphic violence, sexual content, or other material unsuitable');
+    lines.push('for younger readers. Always cross-reference Trigger Warnings above for');
+    lines.push('content suitability guidance.');
+    lines.push('');
+  }
+
+  if (enrichment?.dialogue_percentage != null) {
+    lines.push(sub);
+    lines.push('DIALOGUE VS. NARRATIVE RATIO');
+    lines.push(sub);
+    lines.push('');
+    lines.push(`Dialogue: ${Math.round(enrichment.dialogue_percentage)}%`);
+    lines.push(`Narrative: ${Math.round(enrichment.narrative_percentage ?? (100 - enrichment.dialogue_percentage))}%`);
+    lines.push('');
+    lines.push('Most commercially successful novels contain 25-35% dialogue. Genre');
+    lines.push('expectations vary: literary fiction trends lower (15-25%), thrillers');
+    lines.push('and romance trend higher (30-45%).');
+    lines.push('');
+  }
 
   lines.push(sub);
   lines.push('EXECUTIVE SUMMARY');
@@ -589,7 +724,7 @@ function scoreBarColor(score: number | null | undefined): string {
   return RG.error;
 }
 
-async function buildPdfReport(result: ExportableResult, title: string | null, jobId: string, dream: LongformDreamDocument | null): Promise<Buffer> {
+async function buildPdfReport(result: ExportableResult, title: string | null, jobId: string, dream: LongformDreamDocument | null, enrichment: EnrichmentData = null): Promise<Buffer> {
   return await new Promise<Buffer>((resolve, reject) => {
     const metadata = buildMetadata(result, title, dream);
     const summaryFallback = buildSummaryFallback(result);
@@ -714,6 +849,8 @@ async function buildPdfReport(result: ExportableResult, title: string | null, jo
     labelValue('Shelf', metadata.shelf);
     labelValue('Submitted Word Count', metadata.wordCount ? metadata.wordCount.toLocaleString() : null);
     labelValue('Estimated Manuscript Pages', metadata.estimatedPages ? `${metadata.estimatedPages.toLocaleString()} at ${WORDS_PER_MANUSCRIPT_PAGE} words/page` : null);
+    if (enrichment?.reading_grade_level != null) labelValue('Reading Grade Level', `${enrichment.reading_grade_level.toFixed(1)} (Flesch-Kincaid)`);
+    if (enrichment?.dialogue_percentage != null && enrichment?.narrative_percentage != null) labelValue('Dialogue/Narrative Ratio', `${Math.round(enrichment.dialogue_percentage)}% dialogue / ${Math.round(enrichment.narrative_percentage)}% narrative`);
     labelValue('Generated', metadata.generatedAt);
     labelValue('Confidentiality', 'Prepared for author/editorial use');
     doc.moveDown(1.5);
@@ -728,6 +865,43 @@ async function buildPdfReport(result: ExportableResult, title: string | null, jo
 
     // ── Page 2+: Report content ───────────────────────────────────────
     doc.addPage();
+
+    // ── Enrichment sections ─────────────────────────────────────────────
+    if (enrichment?.premise) {
+      section('Premise');
+      paragraph(enrichment.premise);
+    }
+
+    if (enrichment?.trigger_warnings && enrichment.trigger_warnings.length > 0) {
+      section('Trigger Warnings');
+      enrichment.trigger_warnings.forEach((w) => bullet(w, RG.warning));
+      doc.moveDown(0.3);
+      doc.font('Helvetica').fontSize(9).fillColor(RG.textMuted).text(
+        'Consider including content warnings in book marketing or front matter.',
+        ml, doc.y, { width: contentWidth },
+      );
+      doc.moveDown(0.5);
+    }
+
+    if (enrichment?.reading_grade_level != null) {
+      section('Reading Grade Level');
+      paragraph(`Grade Level: ${enrichment.reading_grade_level.toFixed(1)} (Flesch-Kincaid)`);
+      doc.font('Helvetica').fontSize(9).fillColor(RG.textMuted).text(
+        'Reading Grade Level measures prose complexity, NOT audience appropriateness. A manuscript may score at a young-adult reading level (grades 6\u20138) while containing graphic violence, sexual content, or other material unsuitable for younger readers. Always cross-reference Trigger Warnings above for content suitability guidance.',
+        ml, doc.y, { width: contentWidth, lineGap: 2 },
+      );
+      doc.moveDown(0.5);
+    }
+
+    if (enrichment?.dialogue_percentage != null) {
+      section('Dialogue vs. Narrative Ratio');
+      paragraph(`${Math.round(enrichment.dialogue_percentage)}% dialogue / ${Math.round(enrichment.narrative_percentage ?? (100 - enrichment.dialogue_percentage))}% narrative`);
+      doc.font('Helvetica').fontSize(9).fillColor(RG.textMuted).text(
+        'Most commercially successful novels contain 25\u201335% dialogue. Genre expectations vary: literary fiction trends lower (15\u201325%), thrillers and romance trend higher (30\u201345%).',
+        ml, doc.y, { width: contentWidth, lineGap: 2 },
+      );
+      doc.moveDown(0.5);
+    }
 
     section('Executive Summary');
     paragraph(cleanReportText(result.overview.one_paragraph_summary, summaryFallback, { blockTruncation: true }));
@@ -987,6 +1161,98 @@ async function buildPdfReport(result: ExportableResult, title: string | null, jo
           thinRule();
         });
       }
+
+      // Symbolic / Doctrine Audit
+      if (dream.symbolic_audit) {
+        section('Symbolic / Doctrine Audit');
+        if (Array.isArray(dream.symbolic_audit.preserved_symbols) && dream.symbolic_audit.preserved_symbols.length > 0) {
+          doc.font('Helvetica-Bold').fontSize(10.5).fillColor(RG.textPrimary).text('Preserved Symbols:', ml, doc.y, { width: contentWidth });
+          doc.moveDown(0.2);
+          dream.symbolic_audit.preserved_symbols.forEach((sym) => {
+            ensureSpace(50);
+            bullet(`${sym.symbol} \u2014 ${sym.current_function}`);
+            if (sym.revision_instruction) {
+              doc.font('Helvetica').fontSize(9).fillColor(RG.textMuted).text(
+                `    Revision: ${toPdfSafeText(sym.revision_instruction)}`,
+                ml, doc.y, { width: contentWidth, indent: 20 },
+              );
+              doc.moveDown(0.15);
+            }
+          });
+        }
+        if (Array.isArray(dream.symbolic_audit.doctrine_strengths) && dream.symbolic_audit.doctrine_strengths.length > 0) {
+          doc.moveDown(0.3);
+          doc.font('Helvetica-Bold').fontSize(10.5).fillColor(RG.success).text('Doctrine Strengths:', ml, doc.y, { width: contentWidth });
+          doc.moveDown(0.1);
+          dream.symbolic_audit.doctrine_strengths.forEach((s) => bullet(s, RG.success));
+        }
+        if (Array.isArray(dream.symbolic_audit.doctrine_risks) && dream.symbolic_audit.doctrine_risks.length > 0) {
+          doc.moveDown(0.3);
+          doc.font('Helvetica-Bold').fontSize(10.5).fillColor(RG.warning).text('Doctrine Risks:', ml, doc.y, { width: contentWidth });
+          doc.moveDown(0.1);
+          dream.symbolic_audit.doctrine_risks.forEach((r) => bullet(r, RG.warning));
+        }
+        if (dream.symbolic_audit.audit_conclusion) {
+          doc.moveDown(0.3);
+          paragraph(`Audit Conclusion: ${dream.symbolic_audit.audit_conclusion}`);
+        }
+      }
+
+      // Reader Experience
+      if (dream.reader_experience) {
+        section('Reader Experience');
+        const re = dream.reader_experience;
+        if (re.first_act) {
+          ensureSpace(80);
+          doc.font('Helvetica-Bold').fontSize(10.5).fillColor(RG.textPrimary).text('First Act:', ml, doc.y, { width: contentWidth });
+          doc.moveDown(0.15);
+          paragraph(`Reader question: ${re.first_act.reader_question}`);
+          paragraph(`Emotional state: ${re.first_act.emotional_state}`);
+          paragraph(`Risk: ${re.first_act.risk}`);
+        }
+        if (re.middle) {
+          ensureSpace(80);
+          doc.font('Helvetica-Bold').fontSize(10.5).fillColor(RG.textPrimary).text('Middle:', ml, doc.y, { width: contentWidth });
+          doc.moveDown(0.15);
+          paragraph(`Reader question: ${re.middle.reader_question}`);
+          paragraph(`Emotional state: ${re.middle.emotional_state}`);
+          paragraph(`Risk: ${re.middle.risk}`);
+        }
+        if (re.final_act) {
+          ensureSpace(80);
+          doc.font('Helvetica-Bold').fontSize(10.5).fillColor(RG.textPrimary).text('Final Act:', ml, doc.y, { width: contentWidth });
+          doc.moveDown(0.15);
+          paragraph(`Reader question: ${re.final_act.reader_question}`);
+          paragraph(`Emotional state: ${re.final_act.emotional_state}`);
+          paragraph(`Risk: ${re.final_act.risk}`);
+        }
+        if (re.aftertaste) {
+          doc.moveDown(0.3);
+          paragraph(`Aftertaste: ${re.aftertaste}`);
+        }
+      }
+
+      // Releasability
+      if (Array.isArray(dream.releasability) && dream.releasability.length > 0) {
+        section('Releasability');
+        dream.releasability.forEach((dim) => {
+          ensureSpace(40);
+          const verdictCol = dim.verdict === 'Ready' ? RG.success : dim.verdict === 'Near-ready' ? RG.gold : RG.warning;
+          doc.font('Helvetica-Bold').fontSize(10.5).fillColor(RG.textPrimary).text(
+            toPdfSafeText(dim.dimension),
+            ml, doc.y, { width: contentWidth - 100, continued: false },
+          );
+          doc.font('Helvetica').fontSize(9.5).fillColor(RG.textMuted).text(
+            toPdfSafeText(dim.current_status),
+            ml + 12, doc.y, { width: contentWidth - 100 },
+          );
+          doc.font('Helvetica-Bold').fontSize(9.5).fillColor(verdictCol).text(
+            `[${dim.verdict}]`,
+            ml + contentWidth - 80, doc.y - 12, { width: 80, align: 'right' },
+          );
+          doc.moveDown(0.3);
+        });
+      }
     }
 
     // ── Branded footers on every page ─────────────────────────────────
@@ -1039,7 +1305,7 @@ function docxScoreColor(score: number | null | undefined): string {
 const DOCX_NONE_BORDER = { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' };
 const DOCX_NO_BORDERS = { top: DOCX_NONE_BORDER, bottom: DOCX_NONE_BORDER, left: DOCX_NONE_BORDER, right: DOCX_NONE_BORDER };
 
-async function buildDocx(result: ExportableResult, title: string | null, jobId: string, dream: LongformDreamDocument | null, waveGov: WaveGovernanceData | null = null, gate15?: Gate15AuditArtifact | null, goldenSpine?: GoldenSpineArtifact | null, dialogueCanon?: DialogueCanonAuditArtifact | null, revisionCanonMeta?: RevisionCanonMetadata | null): Promise<Buffer> {
+async function buildDocx(result: ExportableResult, title: string | null, jobId: string, dream: LongformDreamDocument | null, enrichment: EnrichmentData = null): Promise<Buffer> {
   const metadata = buildMetadata(result, title, dream);
   const summaryFallback = buildSummaryFallback(result);
 
@@ -1161,11 +1427,40 @@ async function buildDocx(result: ExportableResult, title: string | null, jobId: 
     metaRow('Shelf', metadata.shelf),
     metaRow('Submitted Word Count', metadata.wordCount ? metadata.wordCount.toLocaleString() : null),
     metaRow('Estimated Manuscript Pages', metadata.estimatedPages ? `${metadata.estimatedPages.toLocaleString()} at ${WORDS_PER_MANUSCRIPT_PAGE} words/page` : null),
+    metaRow('Reading Grade Level', enrichment?.reading_grade_level != null ? `${enrichment.reading_grade_level.toFixed(1)} (Flesch-Kincaid)` : null),
+    metaRow('Dialogue/Narrative Ratio', enrichment?.dialogue_percentage != null && enrichment?.narrative_percentage != null ? `${Math.round(enrichment.dialogue_percentage)}% dialogue / ${Math.round(enrichment.narrative_percentage)}% narrative` : null),
     metaRow('Generated', metadata.generatedAt),
     metaRow('Confidentiality', 'Prepared for author/editorial use'),
   ].filter((p): p is Paragraph => p !== null);
   metaLines.forEach((p) => children.push(p));
   children.push(spacer());
+
+  // ── Enrichment sections ────────────────────────────────────────
+  if (enrichment?.premise) {
+    children.push(brandHeading('Premise', HeadingLevel.HEADING_2));
+    children.push(new Paragraph({
+      spacing: { after: 140 },
+      children: [new TextRun({ text: cleanReportText(enrichment.premise), italics: true, size: 21, color: RG.textPrimary.replace('#', ''), font: 'Calibri' })],
+    }));
+  }
+
+  if (enrichment?.trigger_warnings && enrichment.trigger_warnings.length > 0) {
+    children.push(brandHeading('Trigger Warnings', HeadingLevel.HEADING_2));
+    enrichment.trigger_warnings.forEach((w) => children.push(bulletPara(w, RG.warning)));
+    children.push(bodyPara('Consider including content warnings in book marketing or front matter.', { size: 18, color: RG.textMuted }));
+  }
+
+  if (enrichment?.reading_grade_level != null) {
+    children.push(brandHeading('Reading Grade Level', HeadingLevel.HEADING_2));
+    children.push(bodyPara(`Grade Level: ${enrichment.reading_grade_level.toFixed(1)} (Flesch-Kincaid)`));
+    children.push(bodyPara('Reading Grade Level measures prose complexity, NOT audience appropriateness. A manuscript may score at a young-adult reading level (grades 6\u20138) while containing graphic violence, sexual content, or other material unsuitable for younger readers. Always cross-reference Trigger Warnings above for content suitability guidance.', { size: 18, color: RG.textMuted }));
+  }
+
+  if (enrichment?.dialogue_percentage != null) {
+    children.push(brandHeading('Dialogue vs. Narrative Ratio', HeadingLevel.HEADING_2));
+    children.push(bodyPara(`${Math.round(enrichment.dialogue_percentage)}% dialogue / ${Math.round(enrichment.narrative_percentage ?? (100 - enrichment.dialogue_percentage))}% narrative`));
+    children.push(bodyPara('Most commercially successful novels contain 25\u201335% dialogue. Genre expectations vary: literary fiction trends lower (15\u201325%), thrillers and romance trend higher (30\u201345%).', { size: 18, color: RG.textMuted }));
+  }
 
   // ── Summary ─────────────────────────────────────────────────────
   children.push(brandHeading('Executive Summary', HeadingLevel.HEADING_2));
@@ -1498,6 +1793,74 @@ async function buildDocx(result: ExportableResult, title: string | null, jobId: 
         children.push(spacer());
       });
     }
+
+    // Symbolic / Doctrine Audit
+    if (dream.symbolic_audit) {
+      children.push(brandHeading('Symbolic / Doctrine Audit', HeadingLevel.HEADING_2));
+      if (Array.isArray(dream.symbolic_audit.preserved_symbols) && dream.symbolic_audit.preserved_symbols.length > 0) {
+        children.push(bodyPara('Preserved Symbols:', { bold: true }));
+        dream.symbolic_audit.preserved_symbols.forEach((sym) => {
+          children.push(bulletPara(`${sym.symbol} \u2014 ${sym.current_function}`));
+          if (sym.revision_instruction) children.push(bodyPara(`  Revision: ${sym.revision_instruction}`, { size: 18, color: RG.textMuted }));
+        });
+      }
+      if (Array.isArray(dream.symbolic_audit.doctrine_strengths) && dream.symbolic_audit.doctrine_strengths.length > 0) {
+        children.push(bodyPara('Doctrine Strengths:', { bold: true, color: RG.success }));
+        dream.symbolic_audit.doctrine_strengths.forEach((s) => children.push(bulletPara(s, RG.success)));
+      }
+      if (Array.isArray(dream.symbolic_audit.doctrine_risks) && dream.symbolic_audit.doctrine_risks.length > 0) {
+        children.push(bodyPara('Doctrine Risks:', { bold: true, color: RG.warning }));
+        dream.symbolic_audit.doctrine_risks.forEach((r) => children.push(bulletPara(r, RG.warning)));
+      }
+      if (dream.symbolic_audit.audit_conclusion) {
+        children.push(bodyPara(`Audit Conclusion: ${dream.symbolic_audit.audit_conclusion}`));
+      }
+      children.push(spacer());
+    }
+
+    // Reader Experience
+    if (dream.reader_experience) {
+      children.push(brandHeading('Reader Experience', HeadingLevel.HEADING_2));
+      const re = dream.reader_experience;
+      if (re.first_act) {
+        children.push(bodyPara('First Act:', { bold: true }));
+        children.push(bodyPara(`Reader question: ${re.first_act.reader_question}`, { size: 19, color: RG.textMuted }));
+        children.push(bodyPara(`Emotional state: ${re.first_act.emotional_state}`, { size: 19, color: RG.textMuted }));
+        children.push(bodyPara(`Risk: ${re.first_act.risk}`, { size: 19, color: RG.textMuted }));
+      }
+      if (re.middle) {
+        children.push(bodyPara('Middle:', { bold: true }));
+        children.push(bodyPara(`Reader question: ${re.middle.reader_question}`, { size: 19, color: RG.textMuted }));
+        children.push(bodyPara(`Emotional state: ${re.middle.emotional_state}`, { size: 19, color: RG.textMuted }));
+        children.push(bodyPara(`Risk: ${re.middle.risk}`, { size: 19, color: RG.textMuted }));
+      }
+      if (re.final_act) {
+        children.push(bodyPara('Final Act:', { bold: true }));
+        children.push(bodyPara(`Reader question: ${re.final_act.reader_question}`, { size: 19, color: RG.textMuted }));
+        children.push(bodyPara(`Emotional state: ${re.final_act.emotional_state}`, { size: 19, color: RG.textMuted }));
+        children.push(bodyPara(`Risk: ${re.final_act.risk}`, { size: 19, color: RG.textMuted }));
+      }
+      if (re.aftertaste) {
+        children.push(bodyPara(`Aftertaste: ${re.aftertaste}`));
+      }
+      children.push(spacer());
+    }
+
+    // Releasability
+    if (Array.isArray(dream.releasability) && dream.releasability.length > 0) {
+      children.push(brandHeading('Releasability', HeadingLevel.HEADING_2));
+      dream.releasability.forEach((dim) => {
+        children.push(new Paragraph({
+          spacing: { after: 60 },
+          children: [
+            new TextRun({ text: `${dim.dimension}: `, bold: true, size: 20, color: RG.textPrimary.replace('#', ''), font: 'Calibri' }),
+            new TextRun({ text: `${dim.current_status} `, size: 20, color: RG.textMuted.replace('#', ''), font: 'Calibri' }),
+            new TextRun({ text: `[${dim.verdict}]`, bold: true, size: 20, color: (dim.verdict === 'Ready' ? RG.success : dim.verdict === 'Near-ready' ? RG.gold : RG.warning).replace('#', ''), font: 'Calibri' }),
+          ],
+        }));
+      });
+      children.push(spacer());
+    }
   }
 
   // Internal governance data (WAVE, Gate 15, Golden Spine, Dialogue Canon,
@@ -1625,14 +1988,12 @@ export async function GET(
   const dream = await loadDreamDocument(admin, jobId);
   // Governance data (WAVE, Gate 15, Golden Spine, Dialogue Canon) is internal
   // pipeline diagnostics — never included in user-facing downloads.
-  const waveGov = null;
-  const exportGate15 = null;
-  const exportGoldenSpine = null;
-  const exportDialogueCanon = null;
-  const exportRevisionCanonMeta = null;
+
+  // Extract enrichment data from V2 results
+  const enrichment = isEvaluationResultV2(result) ? (result as EvaluationResultV2).enrichment ?? null : null;
 
   if (format === 'txt') {
-    const body = buildTxtReport(result, title, jobId, dream, waveGov, exportGate15, exportGoldenSpine, exportDialogueCanon, exportRevisionCanonMeta);
+    const body = buildTxtReport(result, title, jobId, dream, enrichment);
     return new Response(body, {
       headers: {
         'Content-Type': 'text/plain; charset=utf-8',
@@ -1644,7 +2005,7 @@ export async function GET(
 
   if (format === 'pdf') {
     try {
-      const buffer = await buildPdfReport(result, title, jobId, dream);
+      const buffer = await buildPdfReport(result, title, jobId, dream, enrichment);
       if (buffer.subarray(0, 4).toString('ascii') !== '%PDF') {
         throw new Error('Generated artifact does not contain valid PDF header bytes');
       }
@@ -1673,7 +2034,7 @@ export async function GET(
     }
   }
 
-  const buffer = await buildDocx(result, title, jobId, dream, waveGov, exportGate15, exportGoldenSpine, exportDialogueCanon, exportRevisionCanonMeta);
+  const buffer = await buildDocx(result, title, jobId, dream, enrichment);
   return new Response(new Uint8Array(buffer), {
     headers: {
       'Content-Type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
