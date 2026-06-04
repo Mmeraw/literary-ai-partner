@@ -1,9 +1,11 @@
 import EmptyState from '@/components/dashboard/EmptyState'
 import AuthorProgressLedger from '@/components/dashboard/AuthorProgressLedger'
+import DashboardAnalyticsSection from '@/components/dashboard/charts/DashboardAnalyticsSection'
 import {
   getDashboardEvaluations,
   computeDashboardKpis,
 } from '@/lib/dashboard/getDashboardEvaluations'
+import { getDashboardAnalytics } from '@/lib/dashboard/getDashboardAnalytics'
 
 export const dynamic = 'force-dynamic'
 
@@ -37,10 +39,16 @@ export default async function DashboardPage() {
   }
 
   const kpis = computeDashboardKpis(rows)
+  const analytics = await getDashboardAnalytics()
 
   return (
     <div className="rg-dash-page">
       <AuthorProgressLedger rows={rows} kpis={kpis} reviseAnalytics={reviseAnalytics} />
+      {analytics && (
+        <div className="mt-8">
+          <DashboardAnalyticsSection analytics={analytics} />
+        </div>
+      )}
       <p className="rg-dash-footnote">
         Agent readiness indicates a manuscript has reached a RevisionGrade quality
         threshold associated with stronger submission potential. It is a curation
