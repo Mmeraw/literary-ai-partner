@@ -980,7 +980,7 @@ export default function ReviseQueueV2Client({ payload }: { payload: WorkbenchQue
               <p className="mt-3 max-w-3xl text-sm text-[#CBBDA4]">
                 {summary.priorityCounts.must > 0
                   ? "Review highest-impact, evidence-backed recommendations first."
-                  : "No MUST repairs found. Start with SHOULD recommendations, then review COULD-level refinements."}
+                  : "No high-priority repairs found. Start with Optional recommendations, then review Consider-level refinements."}
               </p>
             </div>
             <Link href={referenceHref} className="rounded border border-[#5D4C31] px-3 py-2 text-xs text-[#E8DABF] hover:border-[#C8A96E]">
@@ -1014,7 +1014,7 @@ export default function ReviseQueueV2Client({ payload }: { payload: WorkbenchQue
 
           <div className="mt-4 grid gap-3 rounded-lg border border-[#2D2519] bg-[#110D07] p-3 text-xs text-[#D8C6A4] md:grid-cols-2 xl:grid-cols-4">
             <div><span className="text-[#C8A96E]">Total:</span> {summary.total} opportunities</div>
-            <div><span className="text-[#C8A96E]">Priority:</span> {summary.priorityCounts.must} MUST · {summary.priorityCounts.should} SHOULD · {summary.priorityCounts.could} COULD</div>
+            <div><span className="text-[#C8A96E]">Priority:</span> {summary.priorityCounts.must} Recommended · {summary.priorityCounts.should} Optional · {summary.priorityCounts.could} Consider</div>
             <div><span className="text-[#C8A96E]">Decisions:</span> Accepted {summary.decisionCounts.accepted} · Custom {summary.decisionCounts.custom} · Pending {summary.decisionCounts.pending}</div>
             <div><span className="text-[#C8A96E]">Queue health:</span> Evidence {summary.queueHealth.evidenceCompleteness}% · Clustered {summary.queueHealth.clusterRatio}%</div>
           </div>
@@ -1031,9 +1031,9 @@ export default function ReviseQueueV2Client({ payload }: { payload: WorkbenchQue
 
             <select value={filters.priority} onChange={(event) => updateFilter("priority", event.target.value as Filters["priority"])} className="rounded border border-[#3A3022] bg-[#0D0A05] px-3 py-2 text-sm">
               <option value="all">Priority: All</option>
-              <option value="must">Must</option>
-              <option value="should">Should</option>
-              <option value="could">Could</option>
+              <option value="must">Recommended</option>
+              <option value="should">Optional</option>
+              <option value="could">Consider</option>
             </select>
 
             <select value={filters.criterion} onChange={(event) => updateFilter("criterion", event.target.value)} className="rounded border border-[#3A3022] bg-[#0D0A05] px-3 py-2 text-sm">

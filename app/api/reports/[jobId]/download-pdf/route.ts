@@ -143,7 +143,7 @@ function buildReportLines(result: ExportableResult, title: string | null): PdfLi
   lines.push({ text: `High Priority: ${opportunitySummary.high}` });
   lines.push({ text: `Medium Priority: ${opportunitySummary.medium}` });
   lines.push({ text: `Low Priority: ${opportunitySummary.low}` });
-  addWrapped(lines, 'Priority labels are polite alternatives to MUST / SHOULD / COULD labels.', {}, 92);
+  addWrapped(lines, 'Priority labels indicate the recommended urgency of each revision opportunity.', {}, 92);
 
   lines.push({ text: 'Executive Summary', bold: true, size: 14, gapBefore: 18 });
   addWrapped(lines, result.overview.one_paragraph_summary, {}, 92);

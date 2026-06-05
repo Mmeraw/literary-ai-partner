@@ -18,9 +18,9 @@ type Recommendation = {
 };
 
 function severityLabel(priority?: string): string {
-  if (priority === "high") return "Must";
-  if (priority === "medium") return "Should";
-  return "Could";
+  if (priority === "high") return "Recommended";
+  if (priority === "medium") return "Optional";
+  return "Consider";
 }
 
 function severityClasses(priority?: string): string {
@@ -49,7 +49,7 @@ function hasExpandableDetails(r: Recommendation): boolean {
   return Boolean(r.mechanism || r.reader_effect || r.mistake_proofing || r.expected_impact);
 }
 
-function OpportunityCard({ r, defaultExpanded }: { r: Recommendation; defaultExpanded: boolean }) {
+function OpportunityCard({ r, index, defaultExpanded }: { r: Recommendation; index: number; defaultExpanded: boolean }) {
   const [expanded, setExpanded] = useState(defaultExpanded);
   const showExpander = hasExpandableDetails(r);
   const detailClass = expanded ? "block" : "hidden print:block";
@@ -59,7 +59,7 @@ function OpportunityCard({ r, defaultExpanded }: { r: Recommendation; defaultExp
       <div className="min-w-0">
         {r.priority && (
           <span className={`mb-1.5 inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${severityClasses(r.priority)}`}>
-            {severityLabel(r.priority)}
+            {severityLabel(r.priority)} #{index}
           </span>
         )}
         {r.anchor_snippet && (
@@ -141,10 +141,10 @@ export default function CriterionOpportunities({ recommendations }: { recommenda
         {visible.length === 1 ? "Highest-Priority Opportunity:" : `Top Opportunities (${visible.length} surfaced, severity-ordered):`}
       </p>
       <ul className="mt-2 space-y-3">
-        <OpportunityCard r={primary} defaultExpanded />
+        <OpportunityCard r={primary} index={1} defaultExpanded />
         {hasMore && additional.map((r, ri) => (
           <div key={ri} className={showMore ? "block" : "hidden print:block"}>
-            <OpportunityCard r={r} defaultExpanded={false} />
+            <OpportunityCard r={r} index={ri + 2} defaultExpanded={false} />
           </div>
         ))}
       </ul>
