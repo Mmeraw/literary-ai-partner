@@ -715,7 +715,9 @@ function extractTopLevelRecommendations(payload: Record<string, unknown>): Revis
   return opportunities;
 }
 
-const MAX_OPPORTUNITIES_PER_PASS = 100;
+const MAX_OPPORTUNITIES_SHORT_FORM = 50;
+const MAX_OPPORTUNITIES_LONG_FORM = 100;
+const LONG_FORM_WORD_THRESHOLD = 25_000;
 
 const SEVERITY_RANK: Record<string, number> = { must: 0, should: 1, could: 2 };
 
@@ -1038,6 +1040,7 @@ export function buildRevisionOpportunitiesFromEvaluationPayload(
   payload: unknown,
   chunkCachePayload?: unknown,
   longformPayload?: unknown,
+  options?: { wordCount?: number },
 ): RevisionOpportunity[] {
   if (!isRecord(payload)) {
     return [];
@@ -1061,10 +1064,15 @@ export function buildRevisionOpportunitiesFromEvaluationPayload(
 
   const all = [...deduped.values()];
 
-  if (all.length <= MAX_OPPORTUNITIES_PER_PASS) return all;
+  // Enforce 50 for short-form (<25k words), 100 for long-form (≥25k words)
+  const maxOpportunities = (options?.wordCount ?? 0) >= LONG_FORM_WORD_THRESHOLD
+    ? MAX_OPPORTUNITIES_LONG_FORM
+    : MAX_OPPORTUNITIES_SHORT_FORM;
+
+  if (all.length <= maxOpportunities) return all;
 
   all.sort((a, b) => (SEVERITY_RANK[a.severity] ?? 3) - (SEVERITY_RANK[b.severity] ?? 3));
-  return all.slice(0, MAX_OPPORTUNITIES_PER_PASS);
+  return all.slice(0, maxOpportunities);
 }
 
 async function persistHealedExistingLedger(input: {
@@ -1188,7 +1196,18 @@ export async function ensureRevisionOpportunityLedgerArtifact(supabase: any, job
     // Non-blocking: longform enrichment degrades gracefully
   }
 
-  const opportunities = buildRevisionOpportunitiesFromEvaluationPayload(evaluationPayload, chunkCachePayload, longformPayload);
+  // Determine word count for short/long-form opportunity cap (50 vs 100)
+  const evalPayloadRecord = isRecord(evaluationPayload) ? evaluationPayload : {};
+  const overviewRecord = isRecord(evalPayloadRecord.overview) ? evalPayloadRecord.overview : {};
+  const wordCount = typeof overviewRecord.word_count === 'number'
+    ? overviewRecord.word_count
+    : typeof evalPayloadRecord.word_count === 'number'
+      ? evalPayloadRecord.word_count
+      : 0;
+
+  const opportunities = buildRevisionOpportunitiesFromEvaluationPayload(
+    evaluationPayload, chunkCachePayload, longformPayload, { wordCount },
+  );
 
   if (existingOpportunities && existingOpportunities.length === 0 && opportunities.length === 0) {
     return {
