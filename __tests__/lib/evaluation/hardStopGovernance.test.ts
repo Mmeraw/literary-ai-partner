@@ -3,6 +3,7 @@ export {};
 import {
   classifyQueuedHardStop,
   classifySplitBrain,
+  isGlobalSlaExceeded,
   isPostPhase0HandoffLimbo,
   partitionMaxAgeKillSwitchCandidates,
   isSplitBrainState,
@@ -100,6 +101,42 @@ describe('hardStopGovernance', () => {
         progress: { phase: 'phase_1a', phase_status: 'queued' },
       }),
     ).toBe('none');
+  });
+
+  test('isGlobalSlaExceeded resets clock on resume_requested_at', () => {
+    const createdAt = '2026-06-05T05:00:00.000Z';
+    const resumeAt = '2026-06-05T06:00:00.000Z';
+    const nowMs = Date.parse('2026-06-05T06:10:00.000Z'); // 10 min after resume
+
+    // Without resume: 70 minutes since created — exceeds 15-min short-form SLA
+    expect(
+      isGlobalSlaExceeded(
+        {
+          id: 'job-1',
+          status: 'queued',
+          phase: 'phase_1a',
+          phase_status: 'queued',
+          created_at: createdAt,
+          progress: {},
+        },
+        { nowMs, shortFormSlaMs: 15 * 60_000, longFormSlaMs: 60 * 60_000 },
+      ),
+    ).toBe(true);
+
+    // With resume: only 10 minutes since resume — within 15-min SLA
+    expect(
+      isGlobalSlaExceeded(
+        {
+          id: 'job-1',
+          status: 'queued',
+          phase: 'phase_1a',
+          phase_status: 'queued',
+          created_at: createdAt,
+          progress: { resume_requested_at: resumeAt },
+        },
+        { nowMs, shortFormSlaMs: 15 * 60_000, longFormSlaMs: 60 * 60_000 },
+      ),
+    ).toBe(false);
   });
 
   test('partitions max-age kill-switch rows into legal transition buckets', () => {
