@@ -33,6 +33,99 @@ export interface MaxAgeKillSwitchPartition {
   queuedSkippedIds: string[];
 }
 
+const PHASE_ADVANCE_ORDER = [
+  'phase_0',
+  'seed_0_5a',
+  'seed_0_5b',
+  'phase_1a',
+  'review_gate',
+  'phase_2',
+  'phase_3a',
+  'phase_3',
+  'phase_3b',
+  'wave_revision',
+  'phase_5',
+] as const;
+
+const PHASE_ALIASES: Readonly<Record<string, (typeof PHASE_ADVANCE_ORDER)[number]>> = {
+  phase0: 'phase_0',
+  pass0: 'phase_0',
+  intake: 'phase_0',
+  phase_0_5a: 'seed_0_5a',
+  phase_05a: 'seed_0_5a',
+  phase0_5a: 'seed_0_5a',
+  phase05a: 'seed_0_5a',
+  pass_0_5a: 'seed_0_5a',
+  story_ledger: 'seed_0_5a',
+  full_context_ledger: 'seed_0_5a',
+  phase_0_5b: 'seed_0_5b',
+  phase_05b: 'seed_0_5b',
+  phase0_5b: 'seed_0_5b',
+  phase05b: 'seed_0_5b',
+  pass_0_5b: 'seed_0_5b',
+  dream_seed: 'seed_0_5b',
+  editorial_dream_seed: 'seed_0_5b',
+  phase_1: 'phase_1a',
+  phase1: 'phase_1a',
+  pass1: 'phase_1a',
+  pass_1: 'phase_1a',
+  pass1a: 'phase_1a',
+  pass_1a: 'phase_1a',
+  phase1a: 'phase_1a',
+  quality_gate: 'review_gate',
+  phase2: 'phase_2',
+  pass2: 'phase_2',
+  pass_2: 'phase_2',
+  phase3a: 'phase_3a',
+  pass3a: 'phase_3a',
+  pass_3a: 'phase_3a',
+  independent_read: 'phase_3a',
+  phase3: 'phase_3',
+  pass3: 'phase_3',
+  pass_3: 'phase_3',
+  read_ahead: 'phase_3',
+  phase3b: 'phase_3b',
+  pass3b: 'phase_3b',
+  pass_3b: 'phase_3b',
+  dream_document: 'phase_3b',
+  wave: 'wave_revision',
+  wave_revision: 'wave_revision',
+  phase5: 'phase_5',
+  pass5: 'phase_5',
+  pass_5: 'phase_5',
+  revision_queue: 'phase_5',
+};
+
+function normalizePhaseKey(value: string | null): (typeof PHASE_ADVANCE_ORDER)[number] | null {
+  if (!value) return null;
+  const normalized = value.trim().toLowerCase().replace(/[\s.-]+/g, '_');
+  if ((PHASE_ADVANCE_ORDER as readonly string[]).includes(normalized)) {
+    return normalized as (typeof PHASE_ADVANCE_ORDER)[number];
+  }
+  return Object.hasOwn(PHASE_ALIASES, normalized) ? PHASE_ALIASES[normalized] : null;
+}
+
+function isExpectedQueuedPhaseHandoff(args: {
+  jobStatus: string;
+  jobPhase: string | null;
+  jobPhaseStatus: string | null;
+  progressPhase: string | null;
+  progressPhaseStatus: string | null;
+}): boolean {
+  if (args.jobStatus !== 'queued') return false;
+  if (args.jobPhaseStatus !== 'queued') return false;
+  if (args.progressPhaseStatus !== 'complete') return false;
+
+  const previousPhase = normalizePhaseKey(args.progressPhase);
+  const nextPhase = normalizePhaseKey(args.jobPhase);
+  if (!previousPhase || !nextPhase) return false;
+
+  const previousIndex = PHASE_ADVANCE_ORDER.indexOf(previousPhase);
+  const nextIndex = PHASE_ADVANCE_ORDER.indexOf(nextPhase);
+
+  return nextIndex === previousIndex + 1;
+}
+
 /**
  * Partition max-age kill-switch candidates into legally writable transition sets.
  *
@@ -73,39 +166,42 @@ function toIsoMs(value: string | null | undefined): number | null {
 }
 
 export function isSplitBrainState(job: QueueHardStopCandidate): boolean {
-  const progress = job.progress ?? {};
-  const progressPhase = typeof progress.phase === 'string' ? progress.phase : null;
-  const progressPhaseStatus = typeof progress.phase_status === 'string' ? progress.phase_status : null;
-
-  if (progressPhase && job.phase && progressPhase !== job.phase) {
-    return true;
-  }
-
-  if (progressPhaseStatus && job.phase_status && progressPhaseStatus !== job.phase_status) {
-    return true;
-  }
-
-  return false;
+  return classifySplitBrain(job) !== 'none';
 }
 
 /**
- * Determine if a split-brain state is auto-healable (only progress.phase_status
- * diverges from the column) vs structural (phase itself diverges).
+ * Determine whether a state mismatch is recoverable or structurally unsafe.
  *
- * Auto-healable: column is source of truth — just sync progress to match.
- * Structural: phases disagree — requires full investigation / failure.
+ * Healable:
+ *   - only phase_status diverges; or
+ *   - progress records the previous phase/pass as complete while the row is
+ *     already queued for the next phase/pass. That is a normal handoff window
+ *     and must not kill the user's evaluation.
+ *
+ * Structural:
+ *   - phases diverge in any non-sequential, non-handoff shape.
  */
 export function classifySplitBrain(job: QueueHardStopCandidate): 'healable' | 'structural' | 'none' {
   const progress = job.progress ?? {};
   const progressPhase = typeof progress.phase === 'string' ? progress.phase : null;
   const progressPhaseStatus = typeof progress.phase_status === 'string' ? progress.phase_status : null;
 
-  // Phase divergence = structural (can't auto-heal)
   if (progressPhase && job.phase && progressPhase !== job.phase) {
+    if (
+      isExpectedQueuedPhaseHandoff({
+        jobStatus: job.status,
+        jobPhase: job.phase,
+        jobPhaseStatus: job.phase_status,
+        progressPhase,
+        progressPhaseStatus,
+      })
+    ) {
+      return 'healable';
+    }
+
     return 'structural';
   }
 
-  // Only phase_status diverges = auto-healable (column is authoritative)
   if (progressPhaseStatus && job.phase_status && progressPhaseStatus !== job.phase_status) {
     return 'healable';
   }
@@ -138,8 +234,6 @@ export function isGlobalSlaExceeded(job: QueueHardStopCandidate, args: {
   if (job.status === 'complete' || job.status === 'failed') return false;
   if (job.phase === 'review_gate' && job.phase_status === 'awaiting_approval') return false;
 
-  // SLA clock resets on resume/retry — use the most recent of created_at,
-  // resume_requested_at, or retry_requested_at as the effective start time.
   const progress = job.progress ?? {};
   const resumeAt = typeof progress.resume_requested_at === 'string' ? progress.resume_requested_at : null;
   const retryAt = typeof progress.retry_requested_at === 'string' ? progress.retry_requested_at : null;
@@ -184,7 +278,8 @@ export function classifyQueuedHardStop(job: QueueHardStopCandidate, args: {
   longFormSlaMs: number;
   hasSeedArtifacts: boolean;
 }): HardStopDecision | null {
-  if (isSplitBrainState(job)) {
+  const splitBrain = classifySplitBrain(job);
+  if (splitBrain === 'structural') {
     return {
       code: 'STATE_SPLIT_BRAIN_DETECTED',
       reason: `Split-brain state detected: phase=${job.phase ?? 'null'}, phase_status=${job.phase_status ?? 'null'}, progress.phase=${String(job.progress?.phase ?? 'null')}, progress.phase_status=${String(job.progress?.phase_status ?? 'null')}`,

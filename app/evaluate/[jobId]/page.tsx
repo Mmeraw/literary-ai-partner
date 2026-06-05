@@ -13,6 +13,7 @@ import {
 } from "@/schemas/criteria-keys";
 import { EvaluationPoller, type JobState } from "@/components/EvaluationPoller";
 import DownloadReportButton from "@/components/reports/DownloadReportButton";
+import CopyReferenceIdButton from "@/components/reports/CopyReferenceIdButton";
 import SupportAccessToggle from "@/components/reports/SupportAccessToggle";
 import ReportConcernForm from "@/components/reports/ReportConcernForm";
 import {
@@ -711,6 +712,14 @@ export default async function EvaluationReportPage({
             {manuscriptTitle && chapterTitle && manuscriptTitle !== chapterTitle && (
               <p className="mt-2 text-base font-medium text-stone-700">{manuscriptTitle}</p>
             )}
+            <p className="mt-2 text-sm text-stone-500">
+              <span className="font-medium text-stone-700">Reference ID:</span>{' '}
+              <span className="font-mono text-stone-900">{jobId}</span>{' '}
+              <CopyReferenceIdButton
+                value={jobId}
+                className="ml-2 inline-flex items-center rounded-md border border-stone-300 px-2.5 py-1 text-xs font-medium text-stone-700 transition hover:bg-stone-100"
+              />
+            </p>
             <dl className="mt-5 grid gap-x-6 gap-y-3 text-base sm:grid-cols-2">
               <div><dt className="font-semibold text-stone-950">Report Type</dt><dd className="mt-1 text-stone-700">{reportType}</dd></div>
               <div><dt className="font-semibold text-stone-950">Genre</dt><dd className="mt-1 capitalize text-stone-700">{genre}</dd></div>

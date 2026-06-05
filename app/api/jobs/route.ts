@@ -15,6 +15,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { backpressureGuard } from "@/lib/jobs/backpressure";
 import { triggerEvaluationWorker } from "@/lib/jobs/triggerWorker";
 import { resolveManuscriptTitle } from "@/lib/manuscripts/title";
+import { computeEnrichment, type EnrichmentResult } from "@/lib/evaluation/enrichment";
 
 function isRateLimited(
   result: RateLimitResult
@@ -27,6 +28,70 @@ const ALLOWED_JOB_TYPES = new Set<string>(Object.values(JOB_TYPES));
 function normalizeWordCountCandidate(value: unknown): number | null {
   if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) return null;
   return Math.trunc(value);
+}
+
+function decodeInlineManuscriptText(fileUrl: string | null | undefined): string {
+  if (typeof fileUrl !== "string" || fileUrl.trim().length === 0) return "";
+  const trimmed = fileUrl.trim();
+  if (!trimmed.startsWith("data:")) return "";
+  const comma = trimmed.indexOf(",");
+  if (comma === -1) return "";
+
+  try {
+    return decodeURIComponent(trimmed.slice(comma + 1));
+  } catch {
+    return "";
+  }
+}
+
+function buildInstantEnrichmentProgress(enrichment: EnrichmentResult | null): Record<string, unknown> {
+  if (!enrichment) return {};
+  return {
+    enrichment_reading_grade_level: enrichment.reading_grade_level ?? null,
+    enrichment_dialogue_percentage: enrichment.dialogue_percentage ?? null,
+    enrichment_narrative_percentage: enrichment.narrative_percentage ?? null,
+    enrichment_computed_at: new Date().toISOString(),
+    enrichment_source: "job_intake",
+  };
+}
+
+async function readOwnedManuscriptText(params: {
+  manuscriptId: number;
+  userId: string;
+  trace_id: string;
+  request_id: string;
+}): Promise<string> {
+  try {
+    const supabaseAdmin = createAdminClient();
+    const { data, error } = await supabaseAdmin
+      .from("manuscripts")
+      .select("file_url")
+      .eq("id", params.manuscriptId)
+      .eq("user_id", params.userId)
+      .maybeSingle();
+
+    if (error) {
+      logger.warn("Failed to read manuscript text for evaluation intake enrichment", {
+        trace_id: params.trace_id,
+        request_id: params.request_id,
+        event: "api.jobs.create.manuscript_text_lookup_failed",
+        manuscript_id: params.manuscriptId,
+        error: error.message,
+      });
+      return "";
+    }
+
+    return decodeInlineManuscriptText(data?.file_url as string | null | undefined);
+  } catch (error) {
+    logger.warn("Failed to read manuscript text for evaluation intake enrichment", {
+      trace_id: params.trace_id,
+      request_id: params.request_id,
+      event: "api.jobs.create.manuscript_text_lookup_exception",
+      manuscript_id: params.manuscriptId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return "";
+  }
 }
 
 async function readOwnedManuscriptWordCount(params: {
@@ -71,12 +136,17 @@ async function readOwnedManuscriptWordCount(params: {
 async function seedJobIntakeProgress(params: {
   job: { id: string; progress?: Record<string, unknown> | null };
   manuscriptWordCount: number | null;
+  instantEnrichment: Record<string, unknown>;
   fastTrackPhase0: boolean;
   trace_id: string;
   request_id: string;
   manuscript_id: number | string;
 }): Promise<void> {
-  if (params.manuscriptWordCount === null && !params.fastTrackPhase0) return;
+  if (
+    params.manuscriptWordCount === null &&
+    Object.keys(params.instantEnrichment).length === 0 &&
+    !params.fastTrackPhase0
+  ) return;
 
   const supabaseAdmin = createAdminClient();
   const now = new Date().toISOString();
@@ -89,6 +159,7 @@ async function seedJobIntakeProgress(params: {
 
   const nextProgress: Record<string, unknown> = {
     ...existingProgress,
+    ...params.instantEnrichment,
     ...(params.manuscriptWordCount !== null
       ? {
           manuscript_word_count: params.manuscriptWordCount,
@@ -228,6 +299,7 @@ export async function POST(req: Request) {
     const user_tier = body?.user_tier as "free" | "premium" | "agent" | undefined;
     let immediateManuscriptWordCount: number | null = null;
     let resolvedManuscriptWordCount: number | null = null;
+    let intakeManuscriptText = "";
 
     if (!manuscript_id && !manuscript_text) {
       logger.warn("Job creation validation failed", {
@@ -360,6 +432,7 @@ export async function POST(req: Request) {
 
     if (!manuscript_id && typeof manuscript_text === "string") {
       const trimmedText = manuscript_text.trim();
+      intakeManuscriptText = trimmedText;
       if (trimmedText.length === 0) {
         return NextResponse.json(
           { ok: false, error: "manuscript_text cannot be empty", trace_id },
@@ -439,6 +512,19 @@ export async function POST(req: Request) {
         request_id,
       });
     }
+
+    if (!intakeManuscriptText && typeof manuscript_id === "number") {
+      intakeManuscriptText = await readOwnedManuscriptText({
+        manuscriptId: manuscript_id,
+        userId,
+        trace_id,
+        request_id,
+      });
+    }
+
+    const instantEnrichment = buildInstantEnrichmentProgress(
+      intakeManuscriptText ? computeEnrichment(intakeManuscriptText) : null,
+    );
 
     const featureAccess = await checkFeatureAccess(userId, validatedJobType, user_tier);
 
@@ -521,6 +607,7 @@ export async function POST(req: Request) {
     await seedJobIntakeProgress({
       job,
       manuscriptWordCount: resolvedManuscriptWordCount ?? immediateManuscriptWordCount,
+      instantEnrichment,
       fastTrackPhase0: shouldFastTrackPhase0,
       trace_id,
       request_id,
