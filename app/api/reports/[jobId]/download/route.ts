@@ -993,17 +993,24 @@ function renderPremiumReportHtml(
 async function buildChromiumPdf(html: string): Promise<Buffer> {
   const chromiumModule = await import('@sparticuz/chromium');
   const puppeteerModule = await import('puppeteer-core');
-  const chromium = chromiumModule.default ?? chromiumModule;
+  const chromium = (chromiumModule.default ?? chromiumModule) as {
+    args: string[];
+    defaultViewport: { width: number; height: number } | null;
+    executablePath: string | (() => Promise<string>);
+    headless?: boolean | "shell";
+  };
   const puppeteer = puppeteerModule.default ?? puppeteerModule;
+  const executablePath =
+    typeof chromium.executablePath === "function"
+      ? await chromium.executablePath()
+      : chromium.executablePath;
 
   const browser = await puppeteer.launch({
     // @ts-expect-error — dynamic import type mismatch with @sparticuz/chromium
     args: chromium.args,
     // @ts-expect-error — dynamic import type mismatch with @sparticuz/chromium
     defaultViewport: chromium.defaultViewport,
-    // @ts-expect-error — dynamic import type mismatch with @sparticuz/chromium
-    executablePath: await chromium.executablePath(),
-    // @ts-expect-error — dynamic import type mismatch with @sparticuz/chromium
+    executablePath,
     headless: chromium.headless ?? true,
   });
 
