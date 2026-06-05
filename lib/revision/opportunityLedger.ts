@@ -351,6 +351,10 @@ function explicitCandidateOrFallback(
       return candidate;
     }
   }
+  const normalizedFallback = (fallback ?? '').trim();
+  if (normalizedFallback && normalizedFallback.split(/\s+/).length >= 5) {
+    return normalizedFallback;
+  }
   return fallback;
 }
 

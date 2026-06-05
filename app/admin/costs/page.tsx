@@ -93,6 +93,11 @@ interface CostOpsDashboardData {
   providerStatus: CostOpsProviderStatus[];
   alerts: CostOpsAlert[];
   warnings: string[];
+  nonEvalSpend?: {
+    agentReadinessCents: number;
+    reviseQueueCents: number;
+    totalNonEvalCents: number;
+  };
 }
 
 const RANGE_OPTIONS: Array<{ value: CostRange; label: string }> = [
@@ -192,7 +197,7 @@ export default function CostOpsDashboardPage() {
 
   if (!data) return null;
 
-  const { summary, providerCosts, modelBreakdown, phaseBreakdown, recentJobs, alerts, providerStatus, warnings } = data;
+  const { summary, providerCosts, modelBreakdown, phaseBreakdown, recentJobs, alerts, providerStatus, warnings, nonEvalSpend } = data;
 
   return (
     <main className="min-h-screen bg-rg-ink px-4 py-8 text-rg-cream sm:px-6 lg:px-8">
@@ -280,6 +285,43 @@ export default function CostOpsDashboardPage() {
         </section>
 
         <EvaluationModelRoutingPanel />
+
+        {/* ── Non-evaluation spend rollup ── */}
+        {nonEvalSpend && nonEvalSpend.totalNonEvalCents >= 0 && (
+          <section>
+            <h2 className="mb-3 font-rg-serif text-xl text-rg-cream">Non-Evaluation LLM Spend</h2>
+            <div className="grid gap-3 md:grid-cols-3">
+              <div className="rounded-lg border border-rg-cream2/15 bg-rg-ink2/70 p-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-semibold text-rg-cream">Agent Readiness</h3>
+                  <span className="font-rg-mono text-xs font-semibold text-rg-gold">{fmtUsd(nonEvalSpend.agentReadinessCents)}</span>
+                </div>
+                <p className="mt-2 text-xs text-rg-cream2/55">Query letters, synopses, comparables, bio, pitch auto-generation.</p>
+                <Link href="/admin/costs/agent-readiness" className="mt-3 inline-block font-rg-mono text-xs uppercase tracking-wider text-rg-gold hover:underline">View Ledger →</Link>
+              </div>
+              <div className="rounded-lg border border-rg-cream2/15 bg-rg-ink2/70 p-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-semibold text-rg-cream">Revise Queue</h3>
+                  <span className="font-rg-mono text-xs font-semibold text-rg-gold">{fmtUsd(nonEvalSpend.reviseQueueCents)}</span>
+                </div>
+                <p className="mt-2 text-xs text-rg-cream2/55">Pass 4 voice-conditioned rewrites: A/B/C candidates and TrustedPath™.</p>
+                <Link href="/admin/costs/revise-queue" className="mt-3 inline-block font-rg-mono text-xs uppercase tracking-wider text-rg-gold hover:underline">View Ledger →</Link>
+              </div>
+              <div className="rounded-lg border border-rg-cream2/15 bg-rg-ink2/90 p-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-semibold text-rg-cream">Combined Non-Eval</h3>
+                  <span className="font-rg-mono text-xs font-semibold text-rg-gold">{fmtUsd(nonEvalSpend.totalNonEvalCents)}</span>
+                </div>
+                <p className="mt-2 text-xs text-rg-cream2/55">
+                  Evaluation pipeline spend: {fmtUsd(summary.selectedRange.usageCents)}
+                  {nonEvalSpend.totalNonEvalCents > 0 && (
+                    <> · Total including non-eval: {fmtUsd(summary.selectedRange.usageCents + nonEvalSpend.totalNonEvalCents)}</>
+                  )}
+                </p>
+              </div>
+            </div>
+          </section>
+        )}
 
         <section>
           <h2 className="mb-3 font-rg-serif text-xl text-rg-cream">Cost Sources</h2>
