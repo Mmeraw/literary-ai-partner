@@ -45,6 +45,45 @@ describe('hardStopGovernance', () => {
     ).toBeNull();
   });
 
+  test('does not hard-stop expected queued handoffs across all evaluation phases and passes', () => {
+    const handoffs: Array<[string, string]> = [
+      ['phase_0', 'seed_0_5a'],
+      ['seed_0_5a', 'seed_0_5b'],
+      ['seed_0_5b', 'phase_1a'],
+      ['phase_1a', 'review_gate'],
+      ['review_gate', 'phase_2'],
+      ['phase_2', 'phase_3a'],
+      ['phase_3a', 'phase_3'],
+      ['phase_3', 'phase_3b'],
+      ['phase_3b', 'wave_revision'],
+      ['wave_revision', 'phase_5'],
+      ['pass_2', 'pass_3a'],
+      ['pass_3b', 'wave'],
+      ['wave', 'revision_queue'],
+    ];
+
+    for (const [previousPhase, nextPhase] of handoffs) {
+      const job = {
+        id: `job-${previousPhase}-${nextPhase}`,
+        status: 'queued',
+        phase: nextPhase,
+        phase_status: 'queued',
+        progress: { phase: previousPhase, phase_status: 'complete' },
+      };
+
+      expect(classifySplitBrain(job)).toBe('healable');
+      expect(
+        classifyQueuedHardStop(job, {
+          nowMs: Date.now(),
+          graceMs: 90_000,
+          shortFormSlaMs: 15 * 60_000,
+          longFormSlaMs: 60 * 60_000,
+          hasSeedArtifacts: true,
+        }),
+      ).toBeNull();
+    }
+  });
+
   test('keeps non-sequential phase mismatches structural', () => {
     const job = {
       id: 'job-1',
