@@ -23,6 +23,49 @@ describe('hardStopGovernance', () => {
     ).toBe(true);
   });
 
+  test('does not hard-stop normal queued handoff from completed previous phase', () => {
+    const job = {
+      id: 'job-1',
+      status: 'queued',
+      phase: 'phase_3',
+      phase_status: 'queued',
+      progress: { phase: 'phase_2', phase_status: 'complete' },
+    };
+
+    expect(isSplitBrainState(job)).toBe(true);
+    expect(classifySplitBrain(job)).toBe('healable');
+    expect(
+      classifyQueuedHardStop(job, {
+        nowMs: Date.now(),
+        graceMs: 90_000,
+        shortFormSlaMs: 15 * 60_000,
+        longFormSlaMs: 60 * 60_000,
+        hasSeedArtifacts: true,
+      }),
+    ).toBeNull();
+  });
+
+  test('keeps non-sequential phase mismatches structural', () => {
+    const job = {
+      id: 'job-1',
+      status: 'queued',
+      phase: 'phase_3',
+      phase_status: 'queued',
+      progress: { phase: 'phase_0', phase_status: 'complete' },
+    };
+
+    expect(classifySplitBrain(job)).toBe('structural');
+    expect(
+      classifyQueuedHardStop(job, {
+        nowMs: Date.now(),
+        graceMs: 90_000,
+        shortFormSlaMs: 15 * 60_000,
+        longFormSlaMs: 60 * 60_000,
+        hasSeedArtifacts: true,
+      })?.code,
+    ).toBe('STATE_SPLIT_BRAIN_DETECTED');
+  });
+
   test('detects post-phase0 limbo when seeds are missing and grace elapses', () => {
     expect(
       isPostPhase0HandoffLimbo(
@@ -79,7 +122,7 @@ describe('hardStopGovernance', () => {
     ).toBe('healable');
   });
 
-  test('classifySplitBrain returns structural when phase diverges', () => {
+  test('classifySplitBrain returns structural when phase diverges outside a clean handoff', () => {
     expect(
       classifySplitBrain({
         id: 'job-1',
@@ -106,9 +149,8 @@ describe('hardStopGovernance', () => {
   test('isGlobalSlaExceeded resets clock on resume_requested_at', () => {
     const createdAt = '2026-06-05T05:00:00.000Z';
     const resumeAt = '2026-06-05T06:00:00.000Z';
-    const nowMs = Date.parse('2026-06-05T06:10:00.000Z'); // 10 min after resume
+    const nowMs = Date.parse('2026-06-05T06:10:00.000Z');
 
-    // Without resume: 70 minutes since created — exceeds 15-min short-form SLA
     expect(
       isGlobalSlaExceeded(
         {
@@ -123,7 +165,6 @@ describe('hardStopGovernance', () => {
       ),
     ).toBe(true);
 
-    // With resume: only 10 minutes since resume — within 15-min SLA
     expect(
       isGlobalSlaExceeded(
         {
