@@ -425,10 +425,13 @@ export async function persistEvaluationResultV2(params: {
 
   const evaluationScope = evaluationResult.governance?.transparency?.evaluation_scope;
   const coverageSummary = evaluationResult.governance?.transparency?.coverage_summary;
+  const explicitGroundingStatus =
+    evaluationResult.governance?.transparency?.backward_relook?.grounding_status;
   const backwardRelook = runEvaluationBackwardRelook({
     structuralOk: structuralValidation.ok,
     boundaryGateDecision: gate.decision,
     reasonCodes: validation.reasonCodes,
+    explicitGroundingStatus,
     manuscriptWideCertifiable:
       typeof evaluationScope?.manuscript_wide_certifiable === "boolean"
         ? evaluationScope.manuscript_wide_certifiable
@@ -494,7 +497,7 @@ export async function persistEvaluationResultV2(params: {
       .eq("id", params.jobId);
 
     if (failureUpdateError && isMissingSchemaCacheColumnError(failureUpdateError, "validity_status")) {
-      console.warn("[Eval2Boundary] stale schema cache; retrying Backward Relook rejection update without optional validity_status", {
+      console.warn("[PersistEvalV2] stale schema cache; retrying Backward Relook rejection update without optional validity_status", {
         job_id: params.jobId,
         manuscript_id: params.manuscriptId,
       });

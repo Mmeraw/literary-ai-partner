@@ -64,9 +64,6 @@ export function runEvaluationBackwardRelook(
   }
 
   if (isSlaeGroundingStatus(explicitStatus) && !explicitStatusAllowsReport(explicitStatus)) {
-    if (explicitStatus === 'unsupported_blocked') {
-      uniqueReasonCodes.push('UNSUPPORTED_GROUNDING_STATUS');
-    }
     return blocked(explicitStatus, uniqueReasonCodes, 'Explicit grounding status blocks report persistence.');
   }
 
