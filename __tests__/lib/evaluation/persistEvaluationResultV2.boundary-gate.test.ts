@@ -1,7 +1,8 @@
 export {};
 
-import { describe, expect, jest, test } from "@jest/globals";
+import { describe, expect, test } from "@jest/globals";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { runEvaluationBackwardRelook } from "@/lib/evaluation/backwardRelook";
 import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
 import type { EvaluationResultV2 } from "@/schemas/evaluation-result-v2";
 import { persistEvaluationResultV2 } from "../../../lib/evaluation/persistEvaluationResultV2";
@@ -222,9 +223,29 @@ describe("persistEvaluationResultV2 Step 1 boundary gate", () => {
         reasons: ["mixed_confidence_profile"],
       },
       reason_codes: expect.any(Array),
+      backward_relook: {
+        grounding_status: "supported_after_relook",
+        grounding_note: expect.any(String),
+        report_persistence: "allow",
+        validity_status: "valid",
+        reason_codes: expect.any(Array),
+      },
     });
     expect((gateEnforcement?.gate_reason as string).length).toBeGreaterThan(0);
     expect(isIsoTimestamp(gateEnforcement?.validated_at)).toBe(true);
+
+    const artifactBackwardRelook = (
+      rpcPayload.p_artifact_content as EvaluationResultV2 | undefined
+    )?.governance?.transparency?.backward_relook;
+    expect(artifactBackwardRelook).toMatchObject({
+      grounding_status: "supported_after_relook",
+      report_persistence: "allow",
+      validity_status: "valid",
+      reason_codes: expect.any(Array),
+    });
+    expect((rpcPayload.p_evaluation_result as EvaluationResultV2).governance?.transparency?.backward_relook).toEqual(
+      artifactBackwardRelook,
+    );
   });
 
   test("structural rejection writes structured gate_enforcement trace on failed status", async () => {
@@ -347,7 +368,7 @@ describe("persistEvaluationResultV2 Step 1 boundary gate", () => {
     ).rejects.toThrow(/no artifact_id/i);
   });
 
-  test("rejects uncertified long-form artifact before persistence", async () => {
+  test("rejects uncertified long-form artifact before persistence and never writes complete", async () => {
     const supabase = makeSupabaseStub();
     const invalid = makeValidEvaluationResultV2();
 
@@ -356,16 +377,8 @@ describe("persistEvaluationResultV2 Step 1 boundary gate", () => {
         route: "LONG_FORM",
         input_scale: "full_manuscript",
         manuscript_wide_certifiable: false,
-        reason_codes: ["LONG_FORM_PARTIAL_EVALUATION", "LONG_FORM_SAMPLED_COVERAGE"],
+        reason_codes: ["LONG_FORM_SAMPLED_COVERAGE"],
         criterion_scope_policy_version: "v0.2",
-      },
-      coverage_summary: {
-        partial_evaluation: true,
-        sampling_strategy: "sampled_beginning_middle_end",
-        source_word_count: 29519,
-        analyzed_word_count: 6263,
-        source_char_count: 160000,
-        analyzed_char_count: 40000,
       },
     };
 
@@ -384,5 +397,55 @@ describe("persistEvaluationResultV2 Step 1 boundary gate", () => {
     expect(result.gateDecision).toBe("FAIL");
     expect(supabase.rpcCalls).toHaveLength(0);
     expect(result.reason).toMatch(/LONG_FORM_UNCERTIFIED_MANUSCRIPT_WIDE_SCORE/);
+
+    const completeWrites = supabase.evaluationJobUpdates.filter((p) => p.status === "complete");
+    expect(completeWrites).toHaveLength(0);
+  });
+
+  test("rejects partial evaluation artifact before persistence and never writes complete", async () => {
+    const supabase = makeSupabaseStub();
+    const invalid = makeValidEvaluationResultV2();
+
+    invalid.governance.transparency = {
+      coverage_summary: {
+        partial_evaluation: true,
+        sampling_strategy: "sampled_beginning_middle_end",
+        source_word_count: 29519,
+        analyzed_word_count: 6263,
+        source_char_count: 160000,
+        analyzed_char_count: 40000,
+      },
+    };
+
+    const result = await persistEvaluationResultV2({
+      supabase: supabase as unknown as SupabaseClient,
+      jobId: "job-step1-partial-eval-fail",
+      manuscriptId: 108,
+      evaluationResult: invalid,
+      sourceHash: "sha256:partial-eval-fail",
+      progressSnapshot: { phase: "phase_2", phase_status: "running" },
+      totalUnits: 5,
+      completedUnits: 4,
+    });
+
+    expect(result.persisted).toBe(false);
+    expect(result.gateDecision).toBe("FAIL");
+    expect(supabase.rpcCalls).toHaveLength(0);
+    expect(result.reason).toMatch(/LONG_FORM_PARTIAL_EVALUATION/);
+    expect(supabase.evaluationJobUpdates.filter((p) => p.status === "complete")).toHaveLength(0);
+  });
+
+  test("future fallback contamination flags block persistence via Backward Relook", () => {
+    const decision = runEvaluationBackwardRelook({
+      structuralOk: true,
+      boundaryGateDecision: "PASS",
+      usedFallbackPath: true,
+    });
+
+    expect(decision).toMatchObject({
+      status: "uncertain_after_relook_blocked",
+      reportPersistence: "block",
+    });
+    expect(decision.reasonCodes).toContain("FALLBACK_GENERATOR_USED");
   });
 });

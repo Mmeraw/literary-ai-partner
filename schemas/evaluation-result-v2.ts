@@ -18,6 +18,7 @@ import type {
   VoicePreservationMode,
 } from '@/lib/evaluation/modeDetection';
 import type { ModeTelemetryEvent } from '@/lib/evaluation/modeGate';
+import type { SlaeGroundingStatus } from '@/lib/revision/slae';
 
 export type ScoreDenominatorPolicy = "full_canonical" | "scorable_only";
 
@@ -293,6 +294,13 @@ export type EvaluationResultV2 = {
         analyzed_word_count?: number;
         source_char_count?: number;
         analyzed_char_count?: number;
+      };
+      backward_relook?: {
+        grounding_status: SlaeGroundingStatus;
+        grounding_note?: string | null;
+        report_persistence: "allow" | "block";
+        validity_status: "valid" | "invalid" | "quarantined";
+        reason_codes: string[];
       };
       /**
        * PR #506 — explicit Pass 4 external adjudication provenance.
