@@ -58,6 +58,40 @@ export const WAVE_MIN_WORDS = 25_000;
 /** Minimum per-criterion score (0–10) for WAVE eligibility — no red criteria */
 export const WAVE_MIN_CRITERION_SCORE = 6.0;
 
+const WAVE_ACTION_THRESHOLD_SCORE = 7.0;
+const WAVE_DEFAULT_LONG_FORM_IDS = [1, 2, 7, 31, 36, 45, 51, 59, 60];
+const WAVE_CRITERION_FALLBACK_IDS: Record<string, number[]> = {
+  concept: [1, 2, 9],
+  narrativeDrive: [2, 7, 31, 32, 36],
+  character: [15, 16, 17, 18, 20],
+  voice: [5, 11, 12, 13, 14],
+  sceneConstruction: [2, 3, 42, 43, 44],
+  dialogue: [21, 22, 24, 26, 27, 28],
+  theme: [1, 9, 31],
+  worldbuilding: [4, 39, 45, 46, 49],
+  pacing: [7, 31, 32, 33, 35],
+  proseControl: [33, 34, 40, 51, 52, 53, 54, 55, 60],
+  tone: [11, 13, 14, 41, 48],
+  narrativeClosure: [9, 31, 44, 50, 59],
+  marketability: [1, 2, 6, 51, 59, 60],
+};
+
+function uniqueWaveIds(ids: number[]): number[] {
+  return Array.from(
+    new Set(ids.filter(id => Number.isInteger(id) && id >= 1 && id <= 60)),
+  ).sort((a, b) => a - b);
+}
+
+function deriveMandatoryWaveFallbackIds(handoff: WaveHandoff): number[] {
+  const criterionWaveIds = handoff.synthesis.criteria.flatMap(c =>
+    c.final_score_0_10 <= WAVE_ACTION_THRESHOLD_SCORE
+      ? (WAVE_CRITERION_FALLBACK_IDS[c.key] ?? [])
+      : [],
+  );
+
+  return uniqueWaveIds([...criterionWaveIds, ...WAVE_DEFAULT_LONG_FORM_IDS]);
+}
+
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const WAVE_SOURCE_VERSION_RESOLUTION_WARN_MS = 1_500;
@@ -369,22 +403,48 @@ export async function executeWaveRevision(
     throw sessionErr; // Caller handles with 60s timeout wrapper
   }
 
-  // Step 2: Derive wave targets and build plan
-  const layerResult = await executeWaveLayer({
+  // Step 2: Derive wave targets and build plan. If the normal derivation returns
+  // no actionable WAVE IDs, fall back to a mandatory long-form safety sweep.
+  let layerResult = await executeWaveLayer({
     revision_session_id: revisionSessionId,
     revision_mode: 'standard',
     pass3_findings: pass3Findings,
   });
+  let fallbackWaveIds: number[] = [];
+  let fallbackReason: string | null = null;
+
+  if (layerResult.plan.orderedWaveIds.length === 0) {
+    fallbackWaveIds = deriveMandatoryWaveFallbackIds(handoff);
+    fallbackReason = 'NO_DERIVED_WAVES_FROM_PASS3_FINDINGS';
+    console.warn(`[WAVE] Empty wave plan for job ${handoff.jobId}; applying mandatory fallback`, {
+      fallback_wave_ids: fallbackWaveIds,
+      criteria_count: handoff.synthesis.criteria.length,
+    });
+
+    layerResult = await executeWaveLayer({
+      revision_session_id: revisionSessionId,
+      revision_mode: 'standard',
+      pass3_findings: pass3Findings,
+      explicit_wave_ids: fallbackWaveIds,
+    });
+  }
 
   console.log(`[WAVE] Wave plan built for job ${handoff.jobId}`, {
     derived_wave_ids: layerResult.derived_wave_ids.length,
+    ordered_wave_ids: layerResult.plan.orderedWaveIds.length,
+    fallback_reason: fallbackReason,
     plan_valid: layerResult.validation.valid,
     violations: layerResult.validation.violations,
   });
 
   // Step 3: Execute wave modules against the full manuscript text.
-  // WavePlan uses orderedWaveIds — build targets from that list.
+  // WavePlan uses orderedWaveIds to build targets from that list.
   const requestedWaveIds = layerResult.plan.orderedWaveIds;
+  if (requestedWaveIds.length === 0) {
+    throw new Error(
+      `WAVE_REQUIRED_EMPTY_PLAN: no WAVE modules selected for eligible job ${handoff.jobId}`,
+    );
+  }
 
   const waveTargets = requestedWaveIds.map((waveId: number) => ({
     zone: 'full_manuscript',
@@ -402,6 +462,12 @@ export async function executeWaveRevision(
     requestedWaves: requestedWaveIds,
     mode: 'standard',
   });
+
+  if (moduleResult.results.length === 0) {
+    throw new Error(
+      `WAVE_REQUIRED_ZERO_MODULES: WAVE selected modules but executed none for job ${handoff.jobId}`,
+    );
+  }
 
   const modulesWithFindings = moduleResult.results.filter(
     r => r.changes && r.changes.length > 0,
@@ -424,6 +490,9 @@ export async function executeWaveRevision(
       revision_session_id: revisionSessionId,
       wave_plan_summary: {
         derived_wave_ids: layerResult.derived_wave_ids,
+        ordered_wave_ids: layerResult.plan.orderedWaveIds,
+        fallback_wave_ids: fallbackWaveIds,
+        fallback_reason: fallbackReason,
         plan_valid: layerResult.validation.valid,
         violations: layerResult.validation.violations,
         persisted: layerResult.persisted,
