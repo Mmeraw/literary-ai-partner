@@ -67,6 +67,7 @@ docs/operations/evidence/runs/*/*
 your-repo.git/
 revisiongrade-governance.bundle
 *.bundle
+evaluation-*-continuity-files.zip
 
 # Prevent accidental nested git dirs
 **/.git/
