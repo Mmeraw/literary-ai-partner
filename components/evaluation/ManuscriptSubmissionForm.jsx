@@ -144,8 +144,6 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess }) {
 
   const [englishVariant, setEnglishVariant] = useState("us");
   const [manuscriptStructure, setManuscriptStructure] = useState("chapters");
-  const [sensitivityMode, setSensitivityMode] = useState("STANDARD");
-  const [voicePreservation, setVoicePreservation] = useState("BALANCED");
 
   const wordCount = useMemo(() => {
     return manuscriptText.trim().split(/\s+/).filter(Boolean).length;
@@ -386,8 +384,6 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess }) {
         manuscript_title: projectTitle,
         english_variant: englishVariant,
         manuscript_structure: manuscriptStructure,
-        sensitivity_mode: sensitivityMode,
-        voice_preservation_level: voicePreservation.toLowerCase(),
         processing_terms_accepted: true,
         ...(hasSelectedManuscript
           ? { manuscript_id: selectedManuscriptId }
@@ -857,43 +853,6 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess }) {
                       <span>Standalone story</span>
                     </label>
                   </div>
-                </div>
-              </div>
-
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div>
-                  <label className="mb-1 block text-sm font-semibold text-stone-700">Evaluation Mode</label>
-                  <select
-                    value={sensitivityMode}
-                    onChange={(e) => setSensitivityMode(e.target.value)}
-                    disabled={isSubmitting || isUploading}
-                    className="w-full rounded-lg border border-stone-300 bg-white px-3 py-2.5 text-base text-stone-900"
-                  >
-                    <option value="STANDARD">Standard</option>
-                    <option value="TRANSGRESSIVE">Transgressive</option>
-                    <option value="TESTIMONY">Testimony</option>
-                  </select>
-                  <p className="mt-1 text-xs text-stone-500">
-                    {sensitivityMode === "STANDARD" && "Default mode for most manuscripts."}
-                    {sensitivityMode === "TRANSGRESSIVE" && "For work with intentional register breaks, non-standard structure, or boundary-pushing craft."}
-                    {sensitivityMode === "TESTIMONY" && "For testimony-like, memoir, or sensitive lived-experience material."}
-                  </p>
-                </div>
-                <div>
-                  <label className="mb-1 block text-sm font-semibold text-stone-700">Voice Preservation</label>
-                  <select
-                    value={voicePreservation}
-                    onChange={(e) => setVoicePreservation(e.target.value)}
-                    disabled={isSubmitting || isUploading}
-                    className="w-full rounded-lg border border-stone-300 bg-white px-3 py-2.5 text-base text-stone-900"
-                  >
-                    <option value="MAXIMUM">Maximum — preserve my voice</option>
-                    <option value="BALANCED">Balanced</option>
-                    <option value="POLISHED">Polished — prioritize readability</option>
-                  </select>
-                  <p className="mt-1 text-xs text-stone-500">
-                    Controls how aggressively revision recommendations rewrite your prose.
-                  </p>
                 </div>
               </div>
 
