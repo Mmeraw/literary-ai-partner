@@ -996,7 +996,7 @@ export default async function EvaluationReportPage({
                 </div>
               </div>
               <p className="mt-4 text-base leading-7 text-gray-700">
-                Priority labels are polite alternatives to MUST / SHOULD / COULD labels.
+                Priority labels indicate the recommended urgency of each revision opportunity.
               </p>
             </section>
           )}

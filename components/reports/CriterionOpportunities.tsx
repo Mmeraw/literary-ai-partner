@@ -12,9 +12,9 @@ type Opportunity = {
 };
 
 function severityLabel(priority?: string): string {
-  if (priority === "high") return "MUST";
-  if (priority === "medium") return "SHOULD";
-  return "COULD";
+  if (priority === "high") return "RECOMMENDED";
+  if (priority === "medium") return "OPTIONAL";
+  return "CONSIDER";
 }
 
 function severityColor(priority?: string): string {

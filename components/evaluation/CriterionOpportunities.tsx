@@ -18,9 +18,9 @@ type Recommendation = {
 };
 
 function severityLabel(priority?: string): string {
-  if (priority === "high") return "Must";
-  if (priority === "medium") return "Should";
-  return "Could";
+  if (priority === "high") return "Recommended";
+  if (priority === "medium") return "Optional";
+  return "Consider";
 }
 
 function severityClasses(priority?: string): string {

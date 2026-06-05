@@ -87,7 +87,7 @@ Medium Priority: [X]
 Low Priority: [X]
 ```
 
-Priority labels are polite alternatives to MUST / SHOULD / COULD labels.
+Priority labels indicate the recommended urgency of each revision opportunity.
 
 ---
 

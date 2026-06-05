@@ -638,7 +638,7 @@ function buildTxtReport(result: ExportableResult, title: string | null, jobId: s
   lines.push(`Medium Priority: ${opportunitySummary.medium}`);
   lines.push(`Low Priority: ${opportunitySummary.low}`);
   lines.push('');
-  lines.push('Priority labels are polite alternatives to MUST / SHOULD / COULD labels.');
+  lines.push('Priority labels indicate the recommended urgency of each revision opportunity.');
   lines.push('');
 
   if (enrichment?.reading_grade_level != null) {
@@ -973,7 +973,7 @@ function renderPremiumReportHtml(
   <section class="section"><h2>Content Warnings</h2>${renderHtmlList(enrichment?.trigger_warnings, 'No content warnings identified.')}<p><em>Consider including content warnings in book marketing or front matter.</em></p></section>
   <section class="section"><h2>Revision Opportunity Summary</h2><div class="score-grid">${[
     ['Total', opportunitySummary.total], ['High Priority', opportunitySummary.high], ['Medium Priority', opportunitySummary.medium], ['Low Priority', opportunitySummary.low],
-  ].map(([label, value]) => `<div><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`).join('')}</div><p>Priority labels are polite alternatives to MUST / SHOULD / COULD labels.</p></section>
+  ].map(([label, value]) => `<div><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`).join('')}</div><p>Priority labels indicate the recommended urgency of each revision opportunity.</p></section>
   ${enrichment?.reading_grade_level != null ? `<section class="section"><h2>Reading Grade Level</h2>${renderHtmlParagraph(`Grade Level: ${enrichment.reading_grade_level.toFixed(1)} (Flesch-Kincaid)`)}<p>Reading Grade Level measures prose complexity, not audience appropriateness. Always cross-reference Content Warnings for content suitability guidance.</p></section>` : ''}
   ${enrichment?.dialogue_percentage != null ? `<section class="section"><h2>Dialogue vs. Narrative Ratio</h2>${renderHtmlParagraph(dialogueRatio)}</section>` : ''}
   <section class="section allow-break"><h2>Executive Summary</h2>${renderHtmlParagraph(result.overview.one_paragraph_summary, summaryFallback)}</section>
@@ -1228,7 +1228,7 @@ async function buildDocx(result: ExportableResult, title: string | null, jobId: 
     })],
     width: { size: 100, type: WidthType.PERCENTAGE },
   }));
-  children.push(bodyPara('Priority labels are polite alternatives to MUST / SHOULD / COULD labels.', { size: 18, color: RG.textMuted }));
+  children.push(bodyPara('Priority labels indicate the recommended urgency of each revision opportunity.', { size: 18, color: RG.textMuted }));
 
   if (enrichment?.reading_grade_level != null) {
     children.push(brandHeading('Reading Grade Level', HeadingLevel.HEADING_2));

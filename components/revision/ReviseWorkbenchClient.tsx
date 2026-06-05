@@ -530,7 +530,7 @@ export default function ReviseWorkbenchClient({ payload }: { payload: WorkbenchQ
             )}
           </div>
           <div className="mt-5 grid gap-3 rounded-lg border border-[#2D2519] bg-[#110D07] p-3 text-xs text-[#D8C6A4] md:grid-cols-2">
-            <div><span className="text-[#C8A96E]">Priority:</span> {effectivePayload.totals.must} MUST · {effectivePayload.totals.should} SHOULD · {effectivePayload.totals.could} COULD</div>
+            <div><span className="text-[#C8A96E]">Priority:</span> {effectivePayload.totals.must} Recommended · {effectivePayload.totals.should} Optional · {effectivePayload.totals.could} Consider</div>
             <div><span className="text-[#C8A96E]">Decisions:</span> {deferred} Deferred · {accepted} Accepted · {custom} Custom · {rejected} Rejected · {pending} Pending</div>
           </div>
 
@@ -576,7 +576,8 @@ export default function ReviseWorkbenchClient({ payload }: { payload: WorkbenchQ
               {(["all", "must", "should", "could"] as const).map((sev) => {
                 const isActive = severityFilter === sev;
                 const count = sev === "all" ? opportunities.length : effectivePayload.totals[sev];
-                return <button key={sev} type="button" onClick={() => setSeverityFilter(sev)} className={`rounded px-2 py-1 text-[10px] uppercase tracking-wider transition ${isActive ? "bg-[#C8A96E]/30 text-[#F2E8D6] border border-[#C8A96E]" : "bg-[#1B150E] text-[#A9987D] border border-[#3A3022] hover:border-[#5D4C31]"}`}>{sev === "all" ? "All" : sev} ({count})</button>;
+                const label = sev === "all" ? "All" : sev === "must" ? "Recommended" : sev === "should" ? "Optional" : "Consider";
+                return <button key={sev} type="button" onClick={() => setSeverityFilter(sev)} className={`rounded px-2 py-1 text-[10px] uppercase tracking-wider transition ${isActive ? "bg-[#C8A96E]/30 text-[#F2E8D6] border border-[#C8A96E]" : "bg-[#1B150E] text-[#A9987D] border border-[#3A3022] hover:border-[#5D4C31]"}`}>{label} ({count})</button>;
               })}
             </div>
             <div className="mb-4 flex flex-wrap gap-1.5">
