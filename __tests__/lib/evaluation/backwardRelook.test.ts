@@ -79,7 +79,6 @@ describe('runEvaluationBackwardRelook', () => {
     });
     expect(decision.reportPersistence).toBe('block');
     expect(decision.status).toBe('uncertain_after_relook_blocked');
-    expect(decision.status).toBe('uncertain_after_relook_blocked');
   });
 
   test('preserves reportable explicit uncertainty without blocking', () => {
