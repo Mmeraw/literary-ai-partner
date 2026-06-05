@@ -9,7 +9,8 @@ export type PhasePrerequisiteName =
   | 'seed_0_5b_dream'
   | 'phase_1a_story_layer'
   | 'phase_1a_ledger_quality'
-  | 'phase_2_handoff';
+  | 'phase_2_handoff'
+  | 'manuscript_evidence_coverage';
 
 export interface PhasePrerequisiteCheck {
   name: PhasePrerequisiteName;
@@ -37,9 +38,18 @@ export interface PhasePrerequisiteProgress {
   phase0_calibration_word_count?: unknown;
 }
 
+export interface EvidenceCoverageInput {
+  coveragePercent?: number | null;
+  criticalGapPresent?: boolean | null;
+  deterministicReviewSafe?: boolean | null;
+  missingSpanLabels?: string[] | null;
+}
+
 const PHASE0_MIN_DURATION_MS = 11_900;
 const PHASE0_MIN_WORDS = 500;
 const LONG_FORM_WORD_THRESHOLD = 25_000;
+const LONG_FORM_COVERAGE_HARD_STOP_PERCENT = 98;
+const LONG_FORM_COVERAGE_SAFE_PERCENT = 99.5;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value && typeof value === 'object' && !Array.isArray(value));
@@ -188,6 +198,80 @@ export function classifyPhase0Prerequisite(progress: PhasePrerequisiteProgress |
   };
 }
 
+export function classifyEvidenceCoveragePrerequisite(args: {
+  route: EvaluationRoute;
+  coverage?: EvidenceCoverageInput | null;
+}): PhasePrerequisiteCheck {
+  if (args.route === 'short_form') {
+    return {
+      name: 'manuscript_evidence_coverage',
+      status: 'valid',
+      required: false,
+      reason: 'Short-form coverage is handled by the complete source text submitted for the evaluation.',
+    };
+  }
+
+  const coveragePercent = asFiniteNumber(args.coverage?.coveragePercent);
+  const missingLabels = args.coverage?.missingSpanLabels?.filter(Boolean).join(', ');
+
+  if (coveragePercent === null) {
+    return {
+      name: 'manuscript_evidence_coverage',
+      status: 'missing',
+      required: true,
+      code: 'MANUSCRIPT_COVERAGE_MISSING',
+      reason: 'Long-form manuscript coverage ledger is missing.',
+    };
+  }
+
+  if (args.coverage?.criticalGapPresent) {
+    return {
+      name: 'manuscript_evidence_coverage',
+      status: 'blocked',
+      required: true,
+      code: 'MANUSCRIPT_COVERAGE_CRITICAL_GAP',
+      reason: `Long-form coverage is missing a critical manuscript span${missingLabels ? `: ${missingLabels}` : ''}.`,
+    };
+  }
+
+  if (coveragePercent < LONG_FORM_COVERAGE_HARD_STOP_PERCENT) {
+    return {
+      name: 'manuscript_evidence_coverage',
+      status: 'blocked',
+      required: true,
+      code: 'MANUSCRIPT_COVERAGE_BELOW_MINIMUM',
+      reason: `Long-form coverage is ${coveragePercent.toFixed(2)}%, below the ${LONG_FORM_COVERAGE_HARD_STOP_PERCENT}% minimum.`,
+    };
+  }
+
+  if (coveragePercent < LONG_FORM_COVERAGE_SAFE_PERCENT) {
+    if (args.coverage?.deterministicReviewSafe) {
+      return {
+        name: 'manuscript_evidence_coverage',
+        status: 'degraded_allowed',
+        required: true,
+        code: 'MANUSCRIPT_COVERAGE_DEGRADED_ALLOWED',
+        reason: `Long-form coverage is ${coveragePercent.toFixed(2)}%; deterministic review found no critical missing span.`,
+      };
+    }
+
+    return {
+      name: 'manuscript_evidence_coverage',
+      status: 'blocked',
+      required: true,
+      code: 'MANUSCRIPT_COVERAGE_REVIEW_REQUIRED',
+      reason: `Long-form coverage is ${coveragePercent.toFixed(2)}% and requires deterministic safety review before continuing.`,
+    };
+  }
+
+  return {
+    name: 'manuscript_evidence_coverage',
+    status: 'valid',
+    required: true,
+    reason: `Long-form coverage is ${coveragePercent.toFixed(2)}% with no critical gaps.`,
+  };
+}
+
 function findArtifact(artifacts: PhasePrerequisiteArtifact[], artifactType: string): PhasePrerequisiteArtifact | null {
   return artifacts.find((artifact) => artifact.artifact_type === artifactType) ?? null;
 }
@@ -196,6 +280,7 @@ export function evaluatePhase1aPrerequisites(args: {
   progress?: PhasePrerequisiteProgress | null;
   artifacts?: PhasePrerequisiteArtifact[] | null;
   route: EvaluationRoute;
+  coverage?: EvidenceCoverageInput | null;
   allowDegradedSeeds?: boolean;
 }): PhasePrerequisiteDecision {
   const artifacts = args.artifacts ?? [];
@@ -204,6 +289,7 @@ export function evaluatePhase1aPrerequisites(args: {
 
   const checks: PhasePrerequisiteCheck[] = [
     classifyPhase0Prerequisite(args.progress),
+    classifyEvidenceCoveragePrerequisite({ route: args.route, coverage: args.coverage }),
     statusFromArtifact(findArtifact(artifacts, 'story_map_seed_v1'), {
       name: 'seed_0_5a_story_map',
       required: true,
