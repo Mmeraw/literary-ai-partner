@@ -483,7 +483,7 @@ export async function persistEvaluationResultV2(params: {
         gate_enforcement: gateTrace,
       },
       last_error: relookFailureMessage,
-      failure_code: "EVALUATION_BACKWARD_RELOOK_BLOCKED",
+      failure_code: "EVALUATION_GATE_REJECTED",
       last_heartbeat: relookRejectedAt,
       last_heartbeat_at: relookRejectedAt,
       heartbeat_at: relookRejectedAt,

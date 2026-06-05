@@ -30,7 +30,6 @@ const BLOCKING_REASON_CODES = new Set([
   'LONG_FORM_SAMPLED_COVERAGE',
   'FALLBACK_GENERATOR_USED',
   'UNRESOLVED_EVIDENCE_MISMATCH',
-  'UNSUPPORTED_GROUNDING_STATUS',
 ]);
 
 function normalizeReasonCodes(reasonCodes: readonly string[] | undefined): string[] {
@@ -55,7 +54,6 @@ export function runEvaluationBackwardRelook(
   const explicitStatus = input.explicitGroundingStatus;
 
   if (explicitStatus != null && !isSlaeGroundingStatus(explicitStatus)) {
-    uniqueReasonCodes.push('UNSUPPORTED_GROUNDING_STATUS');
     return blocked(
       'unsupported_blocked',
       uniqueReasonCodes,

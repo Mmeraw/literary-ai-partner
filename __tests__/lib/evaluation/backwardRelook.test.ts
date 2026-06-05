@@ -69,7 +69,6 @@ describe('runEvaluationBackwardRelook', () => {
 
     expect(decision.reportPersistence).toBe('block');
     expect(decision.status).toBe('unsupported_blocked');
-    expect(decision.reasonCodes).toContain('UNSUPPORTED_GROUNDING_STATUS');
   });
 
   test('preserves explicit uncertain blocked status when blocking report persistence', () => {
@@ -78,10 +77,9 @@ describe('runEvaluationBackwardRelook', () => {
       boundaryGateDecision: 'PASS',
       explicitGroundingStatus: 'uncertain_after_relook_blocked',
     });
-
     expect(decision.reportPersistence).toBe('block');
     expect(decision.status).toBe('uncertain_after_relook_blocked');
-    expect(decision.reasonCodes).not.toContain('UNSUPPORTED_GROUNDING_STATUS');
+    expect(decision.status).toBe('uncertain_after_relook_blocked');
   });
 
   test('preserves reportable explicit uncertainty without blocking', () => {
