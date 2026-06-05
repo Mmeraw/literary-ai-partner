@@ -1027,7 +1027,7 @@ function inferCriterionFromRevisionPlanTitle(title: string): string {
   if (lower.includes('prose') || lower.includes('voice')) return 'proseControl';
   if (lower.includes('scene')) return 'sceneConstruction';
   if (lower.includes('closure') || lower.includes('payoff') || lower.includes('symbolic')) return 'narrativeClosure';
-  if (lower.includes('drive') || lower.includes('tension') || lower.includes('stakes')) return 'narrativeDrive';
+  if (lower.includes('narrativedrive')) return 'narrativeDrive';
   if (lower.includes('world')) return 'worldbuilding';
   if (lower.includes('theme')) return 'theme';
   if (lower.includes('tone')) return 'tone';
