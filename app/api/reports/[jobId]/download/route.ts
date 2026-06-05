@@ -1037,7 +1037,8 @@ async function buildPdfReport(result: ExportableResult, title: string | null, jo
     const topRecommendations = buildTopRecommendations(result, 5);
 
     const html = renderPremiumReportHtml(result, metadata, summaryFallback, dream, enrichment);
-    return await buildChromiumPdf(html);
+    buildChromiumPdf(html).then(resolve).catch(reject);
+    return;
 
     const doc = new PDFDocument({ size: 'LETTER', margin: 48, bufferPages: true });
     const chunks: Buffer[] = [];
