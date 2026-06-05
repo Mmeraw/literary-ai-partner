@@ -3,6 +3,7 @@
 **Authority:** Applies to short-form, long-form, and long-form multi-layer evaluation reports.
 **Runtime impact:** Authoritative contract for web, PDF, DOCX, TXT, and print-friendly report views.
 **Style authority:** The Chicago Manual of Style governs formatting, grammar, spelling, punctuation, capitalization, heading style, number style, table presentation, and author-facing editorial prose.
+**Premium product standard:** RevisionGrade is a premium literary product. CMOS compliance is a required output standard, not a preference or optional polish pass.
 
 ---
 
@@ -67,8 +68,29 @@ Priority labels are polite alternatives to MUST / SHOULD / COULD labels.
 - Criteria tables must be full width where the surface supports tables.
 - Score and Confidence columns must be right-aligned where the surface supports alignment.
 - Overall scores must render as a single-line block, for example: `Overall Score: 85/100`.
+- Market readiness must render with the score header on the same report-header row where the surface supports a two-column header.
 - Author-facing output must remove system metadata, raw pipeline flags, execution timestamps, gate logs, and protected governance terminology.
 - Web, PDF, DOCX, TXT, and print-friendly views must use the same report content and order.
+
+---
+
+## CMOS Quality Bar
+
+All author-facing evaluation content must be CMOS-compliant before it is shown on the webpage or emitted in PDF, DOCX, TXT, or print-friendly output.
+
+This includes:
+
+- heading capitalization and Title Case;
+- grammar, spelling, and punctuation;
+- quotation-mark punctuation;
+- number style and score presentation;
+- capitalization of literary and editorial terms;
+- clean table labels and column alignment;
+- unindented bullets;
+- professional spacing between report sections;
+- removal of internal metadata and pipeline language.
+
+Known CMOS or formatting violations must be treated as output defects. Do not knowingly ship evaluation output with malformed headings, indented bullets, cramped sections, inconsistent score labels, broken punctuation, or mismatched webpage/download content.
 
 ---
 
