@@ -105,7 +105,7 @@ const searchGuideCards = [
     title: "Developmental Editing AI",
     href: "/developmental-editing-ai",
     eyebrow: "Editing guide",
-    copy: "Positions RevisionGrade against developmental-editing needs: structure, scene function, reader trust, and author sovereignty.",
+    copy: "Positions RevisionGrade against developmental-editing needs: scene construction, scene function, reader trust, and author sovereignty.",
   },
   {
     title: "Manuscript Readiness Report",

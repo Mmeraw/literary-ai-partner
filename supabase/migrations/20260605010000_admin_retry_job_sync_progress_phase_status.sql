@@ -11,6 +11,8 @@
 -- Fix: atomically sync progress.phase_status = 'queued' in the same UPDATE.
 --   Also sync progress.phase to the column value for consistency.
 
+DROP FUNCTION IF EXISTS public.admin_retry_job(uuid, text, uuid);
+
 CREATE OR REPLACE FUNCTION public.admin_retry_job(
   p_job_id uuid,
   p_reason text default null,

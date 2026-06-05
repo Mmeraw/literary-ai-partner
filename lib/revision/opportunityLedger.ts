@@ -351,14 +351,11 @@ function explicitCandidateOrFallback(
       return candidate;
     }
   }
-  // No usable explicit candidate: use the contextually-built fallback.
-  // The fallback is synthesized from anchor snippets and recommendation signals,
-  // not generic template prose, so it is grounded in the recommendation context.
   const normalizedFallback = (fallback ?? '').trim();
   if (normalizedFallback && normalizedFallback.split(/\s+/).length >= 5) {
     return normalizedFallback;
   }
-  return '';
+  return fallback;
 }
 
 function normalizeRevisionOperation(raw: unknown): RevisionOperation | undefined {
@@ -1028,7 +1025,7 @@ function inferCriterionFromRevisionPlanTitle(title: string): string {
   if (lower.includes('prose') || lower.includes('voice')) return 'proseControl';
   if (lower.includes('scene')) return 'sceneConstruction';
   if (lower.includes('closure') || lower.includes('payoff') || lower.includes('symbolic')) return 'narrativeClosure';
-  if (lower.includes('drive') || lower.includes('tension') || lower.includes('stakes')) return 'narrativeDrive';
+  if (lower.includes('narrativedrive')) return 'narrativeDrive';
   if (lower.includes('world')) return 'worldbuilding';
   if (lower.includes('theme')) return 'theme';
   if (lower.includes('tone')) return 'tone';
