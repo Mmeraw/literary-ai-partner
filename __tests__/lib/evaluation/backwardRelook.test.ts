@@ -60,6 +60,30 @@ describe('runEvaluationBackwardRelook', () => {
     expect(decision.status).toBe('unsupported_blocked');
   });
 
+  test('fails closed on non-canonical explicit grounding status', () => {
+    const decision = runEvaluationBackwardRelook({
+      structuralOk: true,
+      boundaryGateDecision: 'PASS',
+      explicitGroundingStatus: 'typo_status',
+    });
+
+    expect(decision.reportPersistence).toBe('block');
+    expect(decision.status).toBe('unsupported_blocked');
+    expect(decision.reasonCodes).toContain('UNSUPPORTED_GROUNDING_STATUS');
+  });
+
+  test('preserves explicit uncertain blocked status when blocking report persistence', () => {
+    const decision = runEvaluationBackwardRelook({
+      structuralOk: true,
+      boundaryGateDecision: 'PASS',
+      explicitGroundingStatus: 'uncertain_after_relook_blocked',
+    });
+
+    expect(decision.reportPersistence).toBe('block');
+    expect(decision.status).toBe('uncertain_after_relook_blocked');
+    expect(decision.reasonCodes).not.toContain('UNSUPPORTED_GROUNDING_STATUS');
+  });
+
   test('preserves reportable explicit uncertainty without blocking', () => {
     const decision = runEvaluationBackwardRelook({
       structuralOk: true,

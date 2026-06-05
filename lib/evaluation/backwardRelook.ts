@@ -54,9 +54,20 @@ export function runEvaluationBackwardRelook(
   const uniqueReasonCodes = normalizeReasonCodes(reasonCodes);
   const explicitStatus = input.explicitGroundingStatus;
 
-  if (isSlaeGroundingStatus(explicitStatus) && !explicitStatusAllowsReport(explicitStatus)) {
+  if (explicitStatus != null && !isSlaeGroundingStatus(explicitStatus)) {
     uniqueReasonCodes.push('UNSUPPORTED_GROUNDING_STATUS');
-    return blocked('unsupported_blocked', uniqueReasonCodes, 'Explicit grounding status blocks report persistence.');
+    return blocked(
+      'unsupported_blocked',
+      uniqueReasonCodes,
+      'Explicit grounding status is non-canonical and blocks report persistence.',
+    );
+  }
+
+  if (isSlaeGroundingStatus(explicitStatus) && !explicitStatusAllowsReport(explicitStatus)) {
+    if (explicitStatus === 'unsupported_blocked') {
+      uniqueReasonCodes.push('UNSUPPORTED_GROUNDING_STATUS');
+    }
+    return blocked(explicitStatus, uniqueReasonCodes, 'Explicit grounding status blocks report persistence.');
   }
 
   if (!input.structuralOk) {
