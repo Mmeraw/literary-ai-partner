@@ -993,7 +993,7 @@ function renderPremiumReportHtml(
 async function buildChromiumPdf(html: string): Promise<Buffer> {
   const chromiumModule = await import('@sparticuz/chromium');
   const puppeteerModule = await import('puppeteer-core');
-  const chromium = (chromiumModule.default ?? chromiumModule) as {
+  const chromium = (chromiumModule.default ?? chromiumModule) as unknown as {
     args: string[];
     defaultViewport: { width: number; height: number } | null;
     executablePath: string | (() => Promise<string>);
@@ -1006,9 +1006,7 @@ async function buildChromiumPdf(html: string): Promise<Buffer> {
       : chromium.executablePath;
 
   const browser = await puppeteer.launch({
-    // @ts-expect-error — dynamic import type mismatch with @sparticuz/chromium
     args: chromium.args,
-    // @ts-expect-error — dynamic import type mismatch with @sparticuz/chromium
     defaultViewport: chromium.defaultViewport,
     executablePath,
     headless: chromium.headless ?? true,
