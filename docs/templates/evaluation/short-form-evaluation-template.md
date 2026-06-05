@@ -4,7 +4,9 @@
 **Route:** `SHORT_FORM`
 **Typical scope:** excerpt, chapter, story, sample, or manuscript under 25,000 words
 **Authority:** `docs/governance/evaluation-output-mode-contract.md`
-**Runtime impact:** Documentation only.
+**Rendering authority:** `docs/templates/evaluation/evaluation-rendering-contract.md`
+**Style authority:** The Chicago Manual of Style governs formatting, grammar, spelling, punctuation, capitalization, heading style, number style, table presentation, and author-facing editorial prose.
+**Runtime impact:** Authoritative rendering contract for web, PDF, DOCX, TXT, and print-friendly views.
 
 ---
 
@@ -20,31 +22,72 @@ It does **not** claim full-manuscript continuity proof.
 
 ### Title Block
 
-```
+```text
 # Evaluation Report: [Manuscript Title]
 
-**Report Type:** Short-Form Evaluation
-**Overall Score:** [XX]/100
-**Verdict:** [Pass/Review]
-**Genre:** [Genre]
-**Submitted Word Count:** [XXXX]
-**Reading Grade Level:** [X.X] (Flesch-Kincaid)
-**Dialogue/Narrative Ratio:** [XX]% dialogue / [XX]% narrative
-**Date Generated:** [Month Day, Year]
+Report Type: Short-Form Evaluation
+Overall Score: [XX]/100
+Verdict: [Pass/Review]
+Genre: [Genre]
+Submitted Word Count: [XXXX]
+Reading Grade Level: [X.X] (Flesch-Kincaid)
+Dialogue/Narrative Ratio: [XX]% dialogue / [XX]% narrative
+Date Generated: [Month Day, Year]
 ```
 
-### Report Sections
+### Required Shared Sections
 
-1. Title Block (Title, Report Type, Score, Verdict, Genre, Word Count, Reading Grade Level, Dialogue/Narrative Ratio, Date)
-2. Premise (1–2 sentence elevator pitch of the submitted work)
-3. Trigger Warnings (Content advisories for readers, if applicable)
-4. Executive Summary (Compact narrative synthesis)
-5. Top Strengths & Top Risks (Parallel bulleted lists)
-6. Top Recommendations (Cross-criterion summary)
-7. 13 Criteria Score Grid (Full-width table: Criterion | Score | Confidence)
-8. Criterion Rationales & Surfaced Opportunities (Six-part diagnostic structure)
-9. Confidence Explanation
-10. Download/print rendering that expands surfaced criterion opportunities
+1. Title Block
+2. One-Paragraph Pitch
+3. One-Sentence Pitch
+4. Premise, when available
+5. Content Warnings
+6. Revision Opportunity Summary
+7. Executive Summary
+8. Top Strengths
+9. Top Risks
+10. Top Recommendations
+11. 13 Criteria Score Grid
+12. Criterion Rationales & Surfaced Opportunities
+13. Confidence Explanation
+14. Author-facing disclaimer
+
+PDF, DOCX, TXT, web, and print-friendly views must preserve this content and order.
+
+---
+
+## Pitch Contract
+
+The report must include both pitch surfaces:
+
+```text
+## One-Paragraph Pitch
+
+[A concise 3-5 sentence author-facing pitch that captures the core premise, central force, conflict, and tonal register.]
+
+## One-Sentence Pitch
+
+[A single-sentence hook that captures the submitted work's core dramatic situation.]
+```
+
+Use the submitted premise when available. Fall back to the executive summary only when the premise is unavailable.
+
+---
+
+## Revision Opportunity Summary
+
+Every completed report must include aggregate revision-opportunity counts:
+
+```text
+## Revision Opportunity Summary
+
+Total Revision Opportunities: [XX]
+High Priority: [X]
+Medium Priority: [X]
+Low Priority: [X]
+```
+
+Priority labels are polite alternatives to MUST / SHOULD / COULD labels.
 
 ---
 
@@ -106,81 +149,72 @@ They must:
 
 ---
 
-## Recommendation Density & Total Cap
-
-Recommendation density floors (for criteria scoring ≤8):
-
-- Score ≤5/10: 5–10 recommendations per criterion
-- Score 6–7/10: 4–8 recommendations per criterion
-- Score 8/10: 2–5 recommendations per criterion
-- Score 9–10/10: no recommendations (fit statement only)
-
-**Total cap:** 50 revision opportunities across all criteria combined for short-form evaluations. Prioritize by severity: MUST first, then SHOULD, then COULD.
-
----
-
 ## Criterion Opportunity Contract
 
-Each criterion may show zero to three surfaced opportunities in the report surface. The full set of generated recommendations (up to 50 total) is available in the Revise Queue. Do not invent opportunities when a criterion is already performing well.
+Each criterion may show zero to three surfaced opportunities in the report surface. The full set of generated recommendations, up to the mode cap, is available in the Revise Queue. Do not invent opportunities when a criterion is already performing well.
 
 Each surfaced opportunity should use this six-part diagnostic structure when evidence supports it:
 
-1. **Evidence** — where in the submitted text the issue appears.
-2. **Symptom** — the observable problem or underperformance.
-3. **Cause** — the mechanism producing the symptom.
-4. **Fix direction** — the bounded repair direction.
-5. **Reader effect** — what changes for the reader if repaired.
-6. **Mistake-proofing** — what must not be damaged during repair.
+1. **Evidence**: where in the submitted text the issue appears.
+2. **Symptom**: the observable problem or underperformance.
+3. **Cause**: the mechanism producing the symptom.
+4. **Fix Direction**: the bounded repair direction.
+5. **Reader Effect**: what changes for the reader if repaired.
+6. **Mistake-Proofing**: what must not be damaged during repair.
 
 Online report rendering should be compact: one primary opportunity visible by default, with additional surfaced opportunities behind a click. Print and downloads should show all surfaced opportunities and diagnostic details.
 
 ---
 
+## Recommendation Density & Total Cap
+
+Recommendation density floors for criteria scoring 8/10 or lower:
+
+- Score 5/10 or lower: 5-10 recommendations per criterion
+- Score 6-7/10: 4-8 recommendations per criterion
+- Score 8/10: 2-5 recommendations per criterion
+- Score 9-10/10: no recommendations; fit statement only
+
+**Total cap:** 50 revision opportunities across all criteria combined for short-form evaluations.
+
+---
+
 ## Premise Contract
 
-The Premise is a 1–2 sentence elevator pitch that captures the core dramatic situation of the submitted work. It must:
+The Premise is a 1-2 sentence elevator pitch that captures the core dramatic situation of the submitted work. It must:
 
 - name the protagonist or central force;
 - identify the primary conflict or tension;
-- convey the emotional/tonal register;
+- convey the emotional or tonal register;
 - be author-facing and suitable for query letters, back-cover copy, or marketing;
-- never exceed 3 sentences.
+- never exceed three sentences.
 
 ---
 
-## Trigger Warnings Contract
+## Content Warnings Contract
 
-Trigger Warnings identify content that may require reader advisories. They appear near the top of the report, immediately after the Premise.
+Content Warnings identify content that may require reader advisories. They appear near the top of the report, after the pitch and premise surfaces.
 
 Requirements:
 
-- List specific content categories present in the manuscript (e.g., graphic violence, sexual assault, substance abuse, self-harm, animal cruelty, body horror, child endangerment).
+- List specific content categories present in the manuscript.
 - Only include warnings supported by textual evidence in the submission.
-- Use plain, direct language — not euphemism or clinical jargon.
-- If no trigger-worthy content is detected, display: "No content warnings identified."
-- Conclude with advisory note: "Consider including content warnings in book marketing or front matter."
+- Use plain, direct language, not euphemism or clinical jargon.
+- If no warning-worthy content is detected, display: "No content warnings identified."
+- Conclude with: "Consider including content warnings in book marketing or front matter."
 
 ---
 
-## Reading Grade Level Contract
+## Formatting Guards
 
-Reading Grade Level is computed algorithmically (Flesch-Kincaid Grade Level formula) from the manuscript text. It requires no LLM inference.
-
-Display format: `Reading Grade Level: X.X (Flesch-Kincaid)`
-
-Include a brief contextual note: "This means the average passage requires reading skills at the [Nth]-grade level. This does not indicate intended audience age — it measures prose complexity only."
-
-**Critical disclaimer (must always appear):** "Reading Grade Level measures prose complexity, NOT audience appropriateness. A manuscript may score at a young-adult reading level (grades 6–8) while containing graphic violence, sexual content, or other material unsuitable for younger readers. Always cross-reference Trigger Warnings above for content suitability guidance."
-
----
-
-## Dialogue vs. Narrative Ratio Contract
-
-Dialogue/Narrative Ratio is computed algorithmically by identifying quoted speech versus narrative prose. It requires no LLM inference.
-
-Display format: `Dialogue/Narrative Ratio: XX% dialogue / XX% narrative`
-
-Include contextual guidance: "Most commercially successful novels contain 25–35% dialogue. Genre expectations vary: literary fiction trends lower (15–25%), thrillers and romance trend higher (30–45%)."
+- **CMOS:** Web, PDF, DOCX, TXT, and print views must use Chicago Manual of Style-governed grammar, spelling, punctuation, capitalization, heading style, number style, and table presentation.
+- **Headings:** All section headings must start with capital letters and use CMOS-compliant Title Case.
+- **Bullets:** Evaluation reports must not indent bullets. Bullet markers align with the left edge of the section body.
+- **Spacing:** Every report section must have visible breathing room before and after it.
+- **Metadata Stripping:** Do not include WAVE Governance, gate audit logs, Golden Spine ledgers, execution timestamps, raw pipeline flags, or protected internal terminology.
+- **Tables:** Criteria tables must be full width with Score and Confidence columns right-aligned.
+- **Score Layout:** Render as a single-line block: `Overall Score: 85/100`. Never split scores across lines.
+- **Surface Parity:** PDF, DOCX, TXT, web, and print-friendly views must include the same author-facing content in the same order.
 
 ---
 
@@ -188,7 +222,7 @@ Include contextual guidance: "Most commercially successful novels contain 25–3
 
 Short-form evaluation must not promise:
 
-- Golden Spine / full-manuscript spine analysis;
+- Golden Spine or full-manuscript spine analysis;
 - DREAM governed ledgers;
 - WAVE-level long-form continuity coverage;
 - full Story Ledger extraction;
@@ -197,16 +231,6 @@ Short-form evaluation must not promise:
 - A/B/C rewrite proposals.
 
 If a short-form submission contains a local structural or continuity issue, the report may name it only as local to the submitted text unless the full manuscript was provided.
-
----
-
-## Formatting Guards
-
-- **Normalization:** All headings must be Title Case. Replace all system-internal keys (e.g., `narrativeDrive`) with human-readable labels (e.g., Narrative Drive & Momentum).
-- **Metadata Stripping:** Do not include WAVE Governance, Gate audit logs, Golden Spine ledgers, or execution timestamps.
-- **Tables:** Criteria tables must be full-width with Score and Confidence columns right-aligned.
-- **Score Layout:** Render as a single-line block: `Overall Score: 85/100`. Never split scores across lines.
-- **Typography:** Maintain clean professional fonts, 1.08–1.15 line spacing, and enforced block spacing before every heading.
 
 ---
 
