@@ -53,11 +53,13 @@ describe('hardStopGovernance', () => {
       ['phase_1a', 'review_gate'],
       ['review_gate', 'phase_2'],
       ['phase_2', 'phase_3a'],
+      ['phase_2', 'phase_3'],
       ['phase_3a', 'phase_3'],
       ['phase_3', 'phase_3b'],
       ['phase_3b', 'wave_revision'],
       ['wave_revision', 'phase_5'],
       ['pass_2', 'pass_3a'],
+      ['pass_2', 'pass_3'],
       ['pass_3b', 'wave'],
       ['wave', 'revision_queue'],
     ];
