@@ -96,6 +96,12 @@ const PHASE_ALIASES: Readonly<Record<string, (typeof PHASE_ADVANCE_ORDER)[number
   revision_queue: 'phase_5',
 };
 
+const OPTIONAL_PHASE_HANDOFFS = new Set<string>([
+  // Short-form evaluations do not run the long-form independent-read lane.
+  'phase_2->phase_3',
+  'pass_2->pass_3',
+]);
+
 function normalizePhaseKey(value: string | null): (typeof PHASE_ADVANCE_ORDER)[number] | null {
   if (!value) return null;
   const normalized = value.trim().toLowerCase().replace(/[\s.-]+/g, '_');
@@ -119,6 +125,13 @@ function isExpectedQueuedPhaseHandoff(args: {
   const previousPhase = normalizePhaseKey(args.progressPhase);
   const nextPhase = normalizePhaseKey(args.jobPhase);
   if (!previousPhase || !nextPhase) return false;
+
+  if (OPTIONAL_PHASE_HANDOFFS.has(`${args.progressPhase}->${args.jobPhase}`)) {
+    return true;
+  }
+  if (OPTIONAL_PHASE_HANDOFFS.has(`${previousPhase}->${nextPhase}`)) {
+    return true;
+  }
 
   const previousIndex = PHASE_ADVANCE_ORDER.indexOf(previousPhase);
   const nextIndex = PHASE_ADVANCE_ORDER.indexOf(nextPhase);
