@@ -13,6 +13,11 @@ import { buildScoreLedger, computeAuthorityComposite } from "@/lib/evaluation/pi
 import type { ArtifactGateResult, ArtifactValidationSummary, EvaluationArtifact } from "@/lib/evaluation/pipeline/types";
 import { validateEvaluationArtifact } from "@/lib/evaluation/pipeline/validateEvaluationArtifact";
 import { EVALUATION_ARTIFACT_VALIDATION_FAILED } from "@/lib/evaluation/pipeline/failures";
+import {
+  assertReportPersistenceAllowed,
+  runEvaluationBackwardRelook,
+  type EvaluationBackwardRelookDecision,
+} from "@/lib/evaluation/backwardRelook";
 
 type PipelineFailureEnvelope = {
   failure_origin: string;
@@ -66,10 +71,46 @@ type PropagationSummary =
     >
   >;
 
+type BackwardRelookTrace = {
+  grounding_status: EvaluationBackwardRelookDecision["status"];
+  grounding_note: string | null;
+  report_persistence: EvaluationBackwardRelookDecision["reportPersistence"];
+  validity_status: EvaluationBackwardRelookDecision["validityStatus"];
+  reason_codes: string[];
+};
+
 function readPropagationSummary(
   evaluationResult: EvaluationResultV2,
 ): PropagationSummary | undefined {
   return evaluationResult.governance?.transparency?.propagation_summary;
+}
+
+function buildBackwardRelookTrace(
+  backwardRelook: EvaluationBackwardRelookDecision,
+): BackwardRelookTrace {
+  return {
+    grounding_status: backwardRelook.status,
+    grounding_note: backwardRelook.note,
+    report_persistence: backwardRelook.reportPersistence,
+    validity_status: backwardRelook.validityStatus,
+    reason_codes: backwardRelook.reasonCodes,
+  };
+}
+
+function attachBackwardRelookMetadata(
+  evaluationResult: EvaluationResultV2,
+  backwardRelook: EvaluationBackwardRelookDecision,
+): EvaluationResultV2 {
+  return {
+    ...evaluationResult,
+    governance: {
+      ...evaluationResult.governance,
+      transparency: {
+        ...(evaluationResult.governance?.transparency ?? {}),
+        backward_relook: buildBackwardRelookTrace(backwardRelook),
+      },
+    },
+  };
 }
 
 function applyAuthorityCompositeCap(evaluationResult: EvaluationResultV2): EvaluationResultV2 {
@@ -382,18 +423,121 @@ export async function persistEvaluationResultV2(params: {
     };
   }
 
+  const evaluationScope = evaluationResult.governance?.transparency?.evaluation_scope;
+  const coverageSummary = evaluationResult.governance?.transparency?.coverage_summary;
+  const explicitGroundingStatus =
+    evaluationResult.governance?.transparency?.backward_relook?.grounding_status;
+  const backwardRelook = runEvaluationBackwardRelook({
+    structuralOk: structuralValidation.ok,
+    boundaryGateDecision: gate.decision,
+    reasonCodes: validation.reasonCodes,
+    explicitGroundingStatus,
+    manuscriptWideCertifiable:
+      typeof evaluationScope?.manuscript_wide_certifiable === "boolean"
+        ? evaluationScope.manuscript_wide_certifiable
+        : null,
+    partialEvaluation:
+      typeof coverageSummary?.partial_evaluation === "boolean"
+        ? coverageSummary.partial_evaluation
+        : null,
+  });
+
+  try {
+    assertReportPersistenceAllowed(backwardRelook);
+  } catch (error) {
+    const relookRejectedAt = new Date().toISOString();
+    const failedStatus = normalizeEvaluationJobStatus(JOB_STATUS.FAILED) as JobStatus;
+    const invalidValidity = normalizeEvaluationValidityStatus(backwardRelook.validityStatus);
+    const relookFailureMessage =
+      error instanceof Error
+        ? error.message
+        : `[EvaluationBackwardRelook] report persistence blocked; grounding_status=${backwardRelook.status}`;
+
+    const gateTrace = {
+      validation_result: validation.result,
+      reason_codes: backwardRelook.reasonCodes,
+      validated_at: validation.validatedAt,
+      gate_decision: gate.decision,
+      gate_reason: gate.reason,
+      confidence,
+      propagation: readPropagationSummary(evaluationResult),
+      backward_relook: buildBackwardRelookTrace(backwardRelook),
+    };
+
+    const failurePayloadBase = {
+      status: failedStatus,
+      validity_status: invalidValidity,
+      phase: "phase_2",
+      phase_status: "failed",
+      total_units: params.totalUnits,
+      completed_units: params.completedUnits,
+      progress: {
+        ...params.progressSnapshot,
+        finalized_at: relookRejectedAt,
+        phase: "phase_2",
+        phase_status: "failed",
+        total_units: params.totalUnits,
+        completed_units: params.completedUnits,
+        message: "Evaluation rejected by Backward Relook grounding gate",
+        finished_at: relookRejectedAt,
+        gate_enforcement: gateTrace,
+      },
+      last_error: relookFailureMessage,
+      failure_code: "EVALUATION_GATE_REJECTED",
+      last_heartbeat: relookRejectedAt,
+      last_heartbeat_at: relookRejectedAt,
+      heartbeat_at: relookRejectedAt,
+      failed_at: relookRejectedAt,
+      updated_at: relookRejectedAt,
+    };
+
+    let { error: failureUpdateError } = await params.supabase
+      .from("evaluation_jobs")
+      .update(failurePayloadBase)
+      .eq("id", params.jobId);
+
+    if (failureUpdateError && isMissingSchemaCacheColumnError(failureUpdateError, "validity_status")) {
+      console.warn("[PersistEvalV2] stale schema cache; retrying Backward Relook rejection update without optional validity_status", {
+        job_id: params.jobId,
+        manuscript_id: params.manuscriptId,
+      });
+      ({ error: failureUpdateError } = await params.supabase
+        .from("evaluation_jobs")
+        .update({
+          ...failurePayloadBase,
+          validity_status: undefined,
+        })
+        .eq("id", params.jobId));
+    }
+
+    if (failureUpdateError) {
+      throw new Error(`Backward Relook rejection update failed: ${failureUpdateError.message}`);
+    }
+
+    return {
+      persisted: false,
+      completedAt: relookRejectedAt,
+      gateDecision: "FAIL",
+      validationResult: validation.result,
+      confidence,
+      reason: relookFailureMessage,
+    };
+  }
+
   const completionTime = new Date().toISOString();
   const completionStatus = normalizeEvaluationJobStatus(JOB_STATUS.COMPLETE) as JobStatus;
   const validValidity = normalizeEvaluationValidityStatus("valid");
+  const persistedEvaluationResult = attachBackwardRelookMetadata(evaluationResult, backwardRelook);
 
   const gateTrace = {
     validation_result: validation.result,
-    reason_codes: validation.reasonCodes,
+    reason_codes: backwardRelook.reasonCodes,
     validated_at: validation.validatedAt,
     gate_decision: gate.decision,
     gate_reason: gate.reason,
     confidence,
     propagation: readPropagationSummary(evaluationResult),
+    backward_relook: buildBackwardRelookTrace(backwardRelook),
   };
 
   const completionPayloadBase = {
@@ -415,7 +559,7 @@ export async function persistEvaluationResultV2(params: {
       finished_at: completionTime,
       gate_enforcement: gateTrace,
     },
-    evaluation_result: evaluationResult,
+    evaluation_result: persistedEvaluationResult,
     evaluation_result_version: "evaluation_result_v2",
     last_heartbeat: completionTime,
     last_heartbeat_at: completionTime,
@@ -432,10 +576,10 @@ export async function persistEvaluationResultV2(params: {
       p_job_id: params.jobId,
       p_manuscript_id: params.manuscriptId,
       p_artifact_type: "evaluation_result_v2",
-      p_artifact_content: evaluationResult,
+      p_artifact_content: persistedEvaluationResult,
       p_source_hash: params.sourceHash,
       p_artifact_version: "evaluation_result_v2",
-      p_evaluation_result: evaluationResult,
+      p_evaluation_result: persistedEvaluationResult,
       p_progress: completionPayloadBase.progress,
       p_completed_at: completionTime,
       p_phase2_completed_at: completionTime,
