@@ -6,7 +6,7 @@ import { getWorkbenchQueue } from "@/lib/revision/workbenchQueue";
 jest.mock("@/lib/revision/workbenchQueue", () => ({
   getWorkbenchQueue: jest.fn(),
 }));
-\n\njest.mock("@/lib/revision/revisionOpportunityLedgerArtifact", () => ({
+jest.mock("@/lib/revision/revisionOpportunityLedgerArtifact", () => ({
   buildRevisionOpportunityLedger: jest.fn(() => ({ version: "revision_opportunity_ledger_v1", opportunities: [] })),
   persistRevisionOpportunityLedger: jest.fn(async () => undefined),
 }));
