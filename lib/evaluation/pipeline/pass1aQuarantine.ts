@@ -137,7 +137,7 @@ const BLOCKED_CANONICAL_NAMES = new Set(
  */
 const SHORT_PROPER_NAMES = new Set([
   "al", "ed", "jo", "bo", "cy", "ty", "vi", "lu", "mo", "bj",
-  "ida", "ada", "ava", "eva", "ian", "max", "mia", "leo", "kai",
+  "ida", "ada", "ava", "eva", "ian", "max", "mia", "leo", "kai", "pip",
   "eli", "sam", "ben", "dan", "don", "eve", "fay", "gus", "hal",
   "ira", "jan", "jay", "jon", "joy", "kim", "kit", "lea", "lee",
   "les", "liz", "lou", "luz", "mae", "may", "meg", "mel", "nan",
