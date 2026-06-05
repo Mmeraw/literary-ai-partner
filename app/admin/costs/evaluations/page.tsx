@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { formatUsdFromCents } from "@/lib/admin/formatMoney";
@@ -171,7 +171,7 @@ function JobRow({ job }: { job: EvalJobCostRow }) {
   );
 }
 
-export default function EvaluationCostLedgerPage() {
+function EvaluationCostLedgerPageContent() {
   const searchParams = useSearchParams();
   const [range, setRange] = useState<CostRange>(() => normalizeRange(searchParams.get("range")));
   const [data, setData] = useState<EvalCostLedgerPayload | null>(null);
@@ -276,6 +276,14 @@ export default function EvaluationCostLedgerPage() {
         </footer>
       </div>
     </main>
+  );
+}
+
+export default function EvaluationCostLedgerPage() {
+  return (
+    <Suspense fallback={<main className="min-h-screen bg-rg-ink px-4 py-8 text-rg-cream"><div className="mx-auto max-w-6xl animate-pulse text-lg">Loading evaluation costs...</div></main>}>
+      <EvaluationCostLedgerPageContent />
+    </Suspense>
   );
 }
 
