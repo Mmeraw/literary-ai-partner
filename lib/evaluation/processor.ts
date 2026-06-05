@@ -3435,9 +3435,10 @@ export function buildPhase0RequeueProgressPatch(args: {
 }
 
 const POST_PHASE0_HANDOFF_GRACE_MS = 90_000;
-const SHORT_FORM_GLOBAL_SLA_MS = 15 * 60_000;
-const LONG_FORM_GLOBAL_SLA_MS = 60 * 60_000;
+const SHORT_FORM_GLOBAL_SLA_MS = 3 * 60_000;
+const LONG_FORM_GLOBAL_SLA_MS = 20 * 60_000;
 const QUEUED_HARD_STOP_HALT_THRESHOLD = 3;
+const SLA_AUTO_REQUEUE_MAX = 1;
 
 async function terminalizeQueuedHardStops(): Promise<{
   hardStopped: number;
@@ -3518,6 +3519,44 @@ async function terminalizeQueuedHardStops(): Promise<{
 
     if (!decision) {
       continue;
+    }
+
+    // ── SLA AUTO-REQUEUE ────────────────────────────────────────────────────
+    // On first SLA timeout, auto-requeue the job silently instead of failing.
+    // This gives the worker one more chance without bothering the user.
+    // Only fail on the second consecutive SLA timeout.
+    if (decision.code === 'PIPELINE_GLOBAL_SLA_EXCEEDED') {
+      const existingProgress = row.progress && typeof row.progress === 'object' ? row.progress : {};
+      const slaRequeueCount = typeof existingProgress.sla_auto_requeue_count === 'number'
+        ? existingProgress.sla_auto_requeue_count
+        : 0;
+
+      if (slaRequeueCount < SLA_AUTO_REQUEUE_MAX) {
+        const requeueProgress = {
+          ...existingProgress,
+          sla_auto_requeue_count: slaRequeueCount + 1,
+          sla_auto_requeued_at: nowIso,
+          phase: row.phase,
+          phase_status: 'queued',
+        };
+        const { error: requeueErr } = await supabase
+          .from('evaluation_jobs')
+          .update({
+            status: JOB_STATUS.QUEUED,
+            phase_status: 'queued',
+            updated_at: nowIso,
+            progress: requeueProgress,
+          })
+          .eq('id', row.id)
+          .eq('status', JOB_STATUS.QUEUED);
+
+        if (!requeueErr) {
+          console.log(`[Watchdog] SLA auto-requeue for job ${row.id} (attempt ${slaRequeueCount + 1}/${SLA_AUTO_REQUEUE_MAX})`);
+          continue;
+        }
+        console.warn(`[Watchdog] SLA auto-requeue failed for job ${row.id}:`, requeueErr.message);
+        // Fall through to hard-stop if requeue fails
+      }
     }
 
     const hardStopProgress = {
