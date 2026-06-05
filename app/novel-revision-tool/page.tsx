@@ -19,7 +19,7 @@ export default function NovelRevisionToolPage() {
         {
           title: "Find the real problem",
           copy: "Novel revision fails when writers polish around structural issues. RevisionGrade separates story diagnosis from surface improvement.",
-          bullets: ["structure", "pacing", "character arc", "voice and POV"],
+          bullets: ["scene construction", "pacing", "character arc", "voice and POV"],
         },
         {
           title: "Work one opportunity at a time",

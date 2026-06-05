@@ -26,6 +26,8 @@ jest.mock('@/lib/evaluation/pipeline/runPass3bLongform', () => ({
 
 jest.mock('@/lib/evaluation/pipeline/buildPass2aStructuredContext', () => ({
   buildPass2aStructuredContext: jest.fn(() => ({ mocked: 'pass2a-context' })),
+  buildChapterIndex: jest.fn(() => []),
+  formatChapterIndex: jest.fn(() => null),
 }));
 
 jest.mock('@/lib/evaluation/artifactPersistence', () => ({
@@ -289,8 +291,8 @@ describe('GET /api/workers/process-dream', () => {
       }),
     );
 
-    // No error write on happy path.
-    expect(table.lastUpdate).toBeUndefined();
+    // Happy path may update progress (pass3_completed_at); it must not write an error.
+    expect((table.lastUpdate as { last_error?: unknown } | undefined)?.last_error).toBeUndefined();
   });
 
   test('error path: writes evaluation_jobs.last_error when synthesis throws', async () => {
