@@ -569,6 +569,21 @@ export default async function EvaluationReportPage({
     typeof progressJsonb?.hard_fail_present === 'boolean' ? (progressJsonb.hard_fail_present as boolean) : null;
   const pollerWordCount = progressWordCount ?? artifact?.metrics?.manuscript?.word_count ?? null;
 
+  // Instant enrichment: reading grade + dialogue ratio stored in progress at submission time.
+  // Falls back to artifact enrichment once evaluation completes.
+  const instantReadingGrade: number | null =
+    typeof progressJsonb?.enrichment_reading_grade_level === 'number'
+      ? (progressJsonb.enrichment_reading_grade_level as number)
+      : null;
+  const instantDialoguePercentage: number | null =
+    typeof progressJsonb?.enrichment_dialogue_percentage === 'number'
+      ? (progressJsonb.enrichment_dialogue_percentage as number)
+      : null;
+  const instantNarrativePercentage: number | null =
+    typeof progressJsonb?.enrichment_narrative_percentage === 'number'
+      ? (progressJsonb.enrichment_narrative_percentage as number)
+      : null;
+
   // Seed pass3_completed_at from progress JSONB so the poller can distinguish
   // interim-complete (synthesis pending) from final-complete on first render.
   // Self-healing: if pass3_completed_at is missing but longform_document_v1
@@ -701,8 +716,8 @@ export default async function EvaluationReportPage({
               <div><dt className="font-semibold text-stone-950">Genre</dt><dd className="mt-1 capitalize text-stone-700">{genre}</dd></div>
               <div><dt className="font-semibold text-stone-950">Submitted Word Count</dt><dd className="mt-1 text-stone-700">{typeof displayWordCount === 'number' ? displayWordCount.toLocaleString() : 'Calculating'}</dd></div>
               <div><dt className="font-semibold text-stone-950">Estimated Manuscript Pages</dt><dd className="mt-1 text-stone-700">{estimatedPages ? `${estimatedPages.toLocaleString()} at 250 words/page` : 'Not available'}</dd></div>
-              <div><dt className="font-semibold text-stone-950">Reading Grade Level</dt><dd className="mt-1 text-stone-700">{artifact?.enrichment?.reading_grade_level != null ? `${artifact.enrichment.reading_grade_level} (Flesch-Kincaid)` : 'Not available'}</dd></div>
-              <div><dt className="font-semibold text-stone-950">Dialogue/Narrative Ratio</dt><dd className="mt-1 text-stone-700">{artifact?.enrichment?.dialogue_percentage != null ? `${artifact.enrichment.dialogue_percentage}% dialogue / ${artifact.enrichment.narrative_percentage ?? 100 - artifact.enrichment.dialogue_percentage}% narrative` : 'Not available'}</dd></div>
+              <div><dt className="font-semibold text-stone-950">Reading Grade Level</dt><dd className="mt-1 text-stone-700">{(artifact?.enrichment?.reading_grade_level ?? instantReadingGrade) != null ? `${artifact?.enrichment?.reading_grade_level ?? instantReadingGrade} (Flesch-Kincaid)` : 'Not available'}</dd></div>
+              <div><dt className="font-semibold text-stone-950">Dialogue/Narrative Ratio</dt><dd className="mt-1 text-stone-700">{(artifact?.enrichment?.dialogue_percentage ?? instantDialoguePercentage) != null ? `${artifact?.enrichment?.dialogue_percentage ?? instantDialoguePercentage}% dialogue / ${artifact?.enrichment?.narrative_percentage ?? instantNarrativePercentage ?? 100 - (artifact?.enrichment?.dialogue_percentage ?? instantDialoguePercentage ?? 0)}% narrative` : 'Not available'}</dd></div>
               <div><dt className="font-semibold text-stone-950">Date Generated</dt><dd className="mt-1 text-stone-700">{generatedLabel}</dd></div>
             </dl>
           </div>

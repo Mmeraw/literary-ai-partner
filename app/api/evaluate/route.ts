@@ -7,6 +7,7 @@ import { triggerEvaluationWorker } from '@/lib/jobs/triggerWorker';
 import { triggerEvaluationWorkflow } from '@/lib/jobs/triggerWorkflow';
 import { generateTraceId } from '@/lib/observability/logger';
 import { resolveManuscriptTitle } from '@/lib/manuscripts/title';
+import { computeEnrichment } from '@/lib/evaluation/enrichment/computeEnrichment';
 
 export async function POST(req: Request) {
   const trace_id = generateTraceId();
@@ -156,7 +157,52 @@ export async function POST(req: Request) {
       manuscriptId = manuscript.id;
     }
 
-    // Step 2: Create evaluation job
+    // Step 2: Compute instant enrichment (reading grade, dialogue ratio) from manuscript text.
+    // These are pure algorithmic computations — available immediately before evaluation starts.
+    let instantEnrichment: Record<string, unknown> = {};
+    const enrichmentSourceText = trimmedText || null;
+
+    if (enrichmentSourceText && enrichmentSourceText.length > 0) {
+      const enrichResult = computeEnrichment(enrichmentSourceText);
+      instantEnrichment = {
+        enrichment_reading_grade_level: enrichResult.reading_grade_level ?? null,
+        enrichment_dialogue_percentage: enrichResult.dialogue_percentage ?? null,
+        enrichment_narrative_percentage: enrichResult.narrative_percentage ?? null,
+        enrichment_computed_at: new Date().toISOString(),
+      };
+    } else if (manuscriptId) {
+      // For existing manuscripts, fetch text from file_url to compute enrichment
+      const { data: msRow } = await supabase
+        .from('manuscripts')
+        .select('file_url')
+        .eq('id', manuscriptId)
+        .single();
+
+      if (msRow?.file_url && typeof msRow.file_url === 'string') {
+        try {
+          let msText = '';
+          if (msRow.file_url.startsWith('data:')) {
+            const commaIdx = msRow.file_url.indexOf(',');
+            if (commaIdx > -1) {
+              msText = decodeURIComponent(msRow.file_url.slice(commaIdx + 1));
+            }
+          }
+          if (msText.length > 0) {
+            const enrichResult = computeEnrichment(msText);
+            instantEnrichment = {
+              enrichment_reading_grade_level: enrichResult.reading_grade_level ?? null,
+              enrichment_dialogue_percentage: enrichResult.dialogue_percentage ?? null,
+              enrichment_narrative_percentage: enrichResult.narrative_percentage ?? null,
+              enrichment_computed_at: new Date().toISOString(),
+            };
+          }
+        } catch {
+          // Non-fatal: enrichment is best-effort at submission
+        }
+      }
+    }
+
+    // Step 3: Create evaluation job
     const { data, error } = await supabase
       .from('evaluation_jobs')
       .insert({
@@ -170,6 +216,7 @@ export async function POST(req: Request) {
         voice_preservation_level: 'balanced',
         english_variant: 'us',
         queued_at: new Date().toISOString(),
+        ...(Object.keys(instantEnrichment).length > 0 ? { progress: instantEnrichment } : {}),
       })
       .select()
       .single();
