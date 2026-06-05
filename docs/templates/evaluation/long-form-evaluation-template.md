@@ -5,8 +5,10 @@
 **Output mode:** `standard_long_form`
 **Typical scope:** manuscript or substantial submission of 25,000+ words that can be evaluated without a separate layer architecture map
 **Authority:** `docs/governance/evaluation-output-mode-contract.md`
-**Related authority:** existing DREAM long-form specifications remain authoritative where governed ledgers are required.
-**Runtime impact:** Documentation only.
+**Rendering authority:** `docs/templates/evaluation/evaluation-rendering-contract.md`
+**Style authority:** The Chicago Manual of Style governs formatting, grammar, spelling, punctuation, capitalization, heading style, number style, table presentation, and author-facing editorial prose.
+**Related authority:** Existing DREAM long-form specifications remain authoritative where governed ledgers are required.
+**Runtime impact:** Authoritative rendering contract for web, PDF, DOCX, TXT, and print-friendly views.
 
 ---
 
@@ -14,7 +16,7 @@
 
 A long-form evaluation diagnoses the manuscript at manuscript scale. It evaluates the full 13 story criteria while accounting for continuity, promises, payoff, character/relationship movement, pacing architecture, and readiness risk across the submitted manuscript.
 
-It is deeper than short-form evaluation, but it is not necessarily the full multi-layer / Story Ledger / governed-ledger path.
+It is deeper than short-form evaluation, but it is not necessarily the full multi-layer, Story Ledger, or governed-ledger path.
 
 ---
 
@@ -22,34 +24,76 @@ It is deeper than short-form evaluation, but it is not necessarily the full mult
 
 ### Title Block
 
-```
+```text
 # Evaluation Report: [Manuscript Title]
 
-**Report Type:** Long-Form Evaluation
-**Overall Score:** [XX]/100
-**Verdict:** [Pass/Review]
-**Genre:** [Genre]
-**Shelf:** [Target Market]
-**Submitted Word Count:** [XXXX]
-**Estimated Manuscript Pages:** [XXX] at 250 words/page
-**Reading Grade Level:** [X.X] (Flesch-Kincaid)
-**Dialogue/Narrative Ratio:** [XX]% dialogue / [XX]% narrative
-**Date Generated:** [Month Day, Year]
+Report Type: Long-Form Evaluation
+Overall Score: [XX]/100
+Verdict: [Pass/Review]
+Genre: [Genre]
+Shelf: [Target Market]
+Submitted Word Count: [XXXX]
+Estimated Manuscript Pages: [XXX] at 250 words/page
+Reading Grade Level: [X.X] (Flesch-Kincaid)
+Dialogue/Narrative Ratio: [XX]% dialogue / [XX]% narrative
+Date Generated: [Month Day, Year]
 ```
 
-### Report Sections
+### Required Shared Sections
 
-1. Title Block (Title, Report Type, Score, Verdict, Genre, Shelf, Word Count, Pages, Reading Grade Level, Dialogue/Narrative Ratio, Date)
-2. Premise (1–2 sentence elevator pitch of the manuscript)
-3. Trigger Warnings (Content advisories for readers, if applicable)
-4. Executive Verdict (Narrative synthesis of manuscript status)
-5. Top Strengths & Top Risks (Parallel bulleted lists)
-6. Top Recommendations (Cross-criterion synthesis)
-7. 13 Criteria Score Grid (Full-width table: Criterion | Score | Confidence)
-8. Expanded Criterion Analysis (Rationales and surfaced opportunities per criterion)
-9. Manuscript-Scale Continuity Findings (Editorial diagnosis of promises/payoffs/arc drift)
-10. Revision Priority Plan (Location, Operation, Recommendation, Rationale)
-11. Confidence Explanation
+1. Title Block
+2. One-Paragraph Pitch
+3. One-Sentence Pitch
+4. Premise, when available
+5. Content Warnings
+6. Revision Opportunity Summary
+7. Executive Verdict
+8. Top Strengths
+9. Top Risks
+10. Top Recommendations
+11. 13 Criteria Score Grid
+12. Expanded Criterion Analysis
+13. Manuscript-Scale Continuity Findings
+14. Revision Priority Plan
+15. Confidence Explanation
+16. Author-facing disclaimer
+
+PDF, DOCX, TXT, web, and print-friendly views must preserve this content and order.
+
+---
+
+## Pitch Contract
+
+The report must include both pitch surfaces:
+
+```text
+## One-Paragraph Pitch
+
+[A concise 3-5 sentence author-facing pitch that captures the full manuscript's core premise, protagonist or central force, conflict, stakes, and tonal register.]
+
+## One-Sentence Pitch
+
+[A single-sentence hook that captures the manuscript's core dramatic situation.]
+```
+
+Use the submitted premise when available. Fall back to the executive verdict or summary only when the premise is unavailable.
+
+---
+
+## Revision Opportunity Summary
+
+Every completed report must include aggregate revision-opportunity counts:
+
+```text
+## Revision Opportunity Summary
+
+Total Revision Opportunities: [XX]
+High Priority: [X]
+Medium Priority: [X]
+Low Priority: [X]
+```
+
+Priority labels are polite alternatives to MUST / SHOULD / COULD labels.
 
 ---
 
@@ -111,93 +155,45 @@ They must:
 
 ---
 
-## Recommendation Density & Total Cap
-
-Recommendation density floors (for criteria scoring ≤8):
-
-- Score ≤5/10: 5–10 recommendations per criterion
-- Score 6–7/10: 4–8 recommendations per criterion
-- Score 8/10: 2–5 recommendations per criterion
-- Score 9–10/10: no recommendations (fit statement only)
-
-**Total cap:** 100 revision opportunities across all criteria combined for long-form evaluations. Prioritize by severity: MUST first, then SHOULD, then COULD.
-
----
-
 ## Criterion Opportunity Contract
 
-Each criterion may show zero to three surfaced opportunities in the report surface. The full set of generated recommendations (up to 100 total) is available in the Revise Queue. Do not flood the report with the full Revise inventory.
+Each criterion may show zero to three surfaced opportunities in the report surface. The full generated recommendation set, up to the mode cap, is available in the Revise Queue. Do not flood the report with the full Revise inventory.
 
 Each surfaced opportunity should use this six-part diagnostic structure when evidence supports it:
 
-1. **Evidence** — where in the manuscript the issue appears.
-2. **Symptom** — the observable problem or underperformance.
-3. **Cause** — the mechanism producing the symptom.
-4. **Fix direction** — the bounded repair direction.
-5. **Reader effect** — what changes for the reader if repaired.
-6. **Mistake-proofing** — what must not be damaged during repair.
+1. **Evidence**: where in the manuscript the issue appears.
+2. **Symptom**: the observable problem or underperformance.
+3. **Cause**: the mechanism producing the symptom.
+4. **Fix Direction**: the bounded repair direction.
+5. **Reader Effect**: what changes for the reader if repaired.
+6. **Mistake-Proofing**: what must not be damaged during repair.
 
 Online report rendering should be compact: one primary opportunity visible by default, with additional surfaced opportunities behind a click. Print and downloads should show all surfaced opportunities and diagnostic details.
 
 ---
 
-## Premise Contract
+## Recommendation Density & Total Cap
 
-The Premise is a 1–2 sentence elevator pitch that captures the core dramatic situation of the manuscript. It must:
+Recommendation density floors for criteria scoring 8/10 or lower:
 
-- name the protagonist or central force;
-- identify the primary conflict or tension;
-- convey the emotional/tonal register;
-- be author-facing and suitable for query letters, back-cover copy, or marketing;
-- never exceed 3 sentences.
+- Score 5/10 or lower: 5-10 recommendations per criterion
+- Score 6-7/10: 4-8 recommendations per criterion
+- Score 8/10: 2-5 recommendations per criterion
+- Score 9-10/10: no recommendations; fit statement only
 
----
-
-## Trigger Warnings Contract
-
-Trigger Warnings identify content that may require reader advisories. They appear near the top of the report, immediately after the Premise.
-
-Requirements:
-
-- List specific content categories present in the manuscript (e.g., graphic violence, sexual assault, substance abuse, self-harm, animal cruelty, body horror, child endangerment).
-- Only include warnings supported by textual evidence in the manuscript.
-- Use plain, direct language — not euphemism or clinical jargon.
-- If no trigger-worthy content is detected, display: "No content warnings identified."
-- Conclude with advisory note: "Consider including content warnings in book marketing or front matter."
-
----
-
-## Reading Grade Level Contract
-
-Reading Grade Level is computed algorithmically (Flesch-Kincaid Grade Level formula) from the manuscript text. It requires no LLM inference.
-
-Display format: `Reading Grade Level: X.X (Flesch-Kincaid)`
-
-Include a brief contextual note: "This means the average passage requires reading skills at the [Nth]-grade level. This does not indicate intended audience age — it measures prose complexity only."
-
-**Critical disclaimer (must always appear):** "Reading Grade Level measures prose complexity, NOT audience appropriateness. A manuscript may score at a young-adult reading level (grades 6–8) while containing graphic violence, sexual content, or other material unsuitable for younger readers. Always cross-reference Trigger Warnings above for content suitability guidance."
-
----
-
-## Dialogue vs. Narrative Ratio Contract
-
-Dialogue/Narrative Ratio is computed algorithmically by identifying quoted speech versus narrative prose. It requires no LLM inference.
-
-Display format: `Dialogue/Narrative Ratio: XX% dialogue / XX% narrative`
-
-Include contextual guidance: "Most commercially successful novels contain 25–35% dialogue. Genre expectations vary: literary fiction trends lower (15–25%), thrillers and romance trend higher (30–45%)."
+**Total cap:** 100 revision opportunities across all criteria combined for long-form evaluations.
 
 ---
 
 ## Long-Form Continuity Surfaces
 
-Long-form evaluation should identify manuscript-scale findings in plain editorial language, including where material:
+Long-form evaluation should identify manuscript-scale findings in plain editorial language, including where material has:
 
 - promises opened and not paid off;
 - payoff that arrives too late, too early, or without adequate preparation;
 - protagonist or major-character arc drift;
 - relationship movement or stagnation;
-- recurring symbol/object lifecycle issues;
+- recurring symbol or object lifecycle issues;
 - pacing valleys or escalation plateaus;
 - closure and readiness risks.
 
@@ -209,15 +205,35 @@ These findings should be rendered for authors as editorial diagnosis, not protec
 
 The revision plan must be formatted as a clean editorial workplan. Replace all bracketed system tags with professional editorial headers:
 
-```
-**Priority 1: [Descriptive Name]**
-*   **Location:** [Chapter/Section]
-*   **Operation:** [Add/Edit/Compress/Replace]
-*   **Recommendation:** [Editorial guidance]
-*   **Rationale:** [Reason for fix]
+```text
+Priority 1: [Descriptive Name]
+Location: [Chapter/Section]
+Operation: [Add/Edit/Compress/Replace]
+Recommendation: [Editorial guidance]
+Rationale: [Reason for fix]
 ```
 
-Cross-references must use readable language (e.g., "see Priority 3: Deepen Ending Payoff") instead of system-internal references (e.g., `see revision_plan P3`).
+Cross-references must use readable language, for example, "see Priority 3: Deepen Ending Payoff," instead of system-internal references.
+
+---
+
+## Reading Grade Level Contract
+
+Reading Grade Level is computed algorithmically from the manuscript text. It requires no LLM inference.
+
+Display format: `Reading Grade Level: X.X (Flesch-Kincaid)`
+
+Critical disclaimer: "Reading Grade Level measures prose complexity, not audience appropriateness. A manuscript may score at a young-adult reading level while containing graphic violence, sexual content, or other material unsuitable for younger readers. Always cross-reference Content Warnings above for content suitability guidance."
+
+---
+
+## Dialogue vs. Narrative Ratio Contract
+
+Dialogue/Narrative Ratio is computed algorithmically by identifying quoted speech versus narrative prose. It requires no LLM inference.
+
+Display format: `Dialogue/Narrative Ratio: XX% dialogue / XX% narrative`
+
+Include contextual guidance: "Most commercially successful novels contain 25-35% dialogue. Genre expectations vary: literary fiction trends lower, while thrillers and romance often trend higher."
 
 ---
 
@@ -239,13 +255,16 @@ When manuscript complexity requires separate layer mapping, Story Ledger extract
 
 ## Formatting Guards
 
-- **Normalization:** All headings must be Title Case. Replace all system-internal keys (e.g., `narrativeDrive`) with human-readable labels (e.g., Narrative Drive & Momentum).
-- **Metadata Stripping:** Do not include raw pipeline flags, execution timestamps, or system-internal terminology in author-facing copy.
-- **Tables:** Criteria tables must be full-width with Score and Confidence columns right-aligned.
-- **Revision Plan:** Convert all `[KEY: value]` tags into professional editorial headers: Location, Operation, Recommendation, and Rationale.
-- **Cross-References:** Replace system-internal references (e.g., `see revision_plan P3`) with readable language (e.g., "see Priority 3: Deepen Ending Payoff").
+- **CMOS:** Web, PDF, DOCX, TXT, and print views must use Chicago Manual of Style-governed grammar, spelling, punctuation, capitalization, heading style, number style, and table presentation.
+- **Headings:** All section headings must start with capital letters and use CMOS-compliant Title Case.
+- **Bullets:** Evaluation reports must not indent bullets. Bullet markers align with the left edge of the section body.
+- **Spacing:** Every report section must have visible breathing room before and after it.
+- **Metadata Stripping:** Do not include raw pipeline flags, execution timestamps, gate audit logs, or protected internal terminology in author-facing copy.
+- **Tables:** Criteria tables must be full width with Score and Confidence columns right-aligned.
+- **Revision Plan:** Convert all internal tags into professional editorial headers: Location, Operation, Recommendation, and Rationale.
+- **Cross-References:** Replace system-internal references with readable language.
 - **Score Layout:** Render as a single-line block: `Overall Score: 85/100`. Never split scores across lines.
-- **Typography:** Maintain clean professional fonts, 1.08–1.15 line spacing, and enforced block spacing before every heading. Retain Unicode punctuation (™, em dashes, en dashes).
+- **Surface Parity:** PDF, DOCX, TXT, web, and print-friendly views must include the same author-facing content in the same order.
 
 ---
 
