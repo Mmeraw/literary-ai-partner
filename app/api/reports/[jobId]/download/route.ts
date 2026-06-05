@@ -847,10 +847,10 @@ function renderPremiumReportHtml(
   const criteriaCards = result.criteria.map((criterion) => {
     const opportunities = getCriterionOpportunities(criterion as { recommendations?: unknown });
     const opportunityHtml = opportunities.length > 0
-      ? `<div class="opportunities"><h4>Opportunities</h4>${opportunities.map((opportunity) => {
+      ? `<div class="opportunities"><h4>Opportunities</h4>${opportunities.map((opportunity, idx) => {
           const rows = opportunityRows(opportunity);
           return `<div class="opportunity">
-            <p class="opportunity-label">${escapeHtml(exportSeverity(opportunity.priority))}</p>
+            <p class="opportunity-label">${escapeHtml(exportSeverity(opportunity.priority))} #${idx + 1}</p>
             ${rows.map(([label, value]) => `<p><strong>${escapeHtml(label)}:</strong> ${escapeHtml(value)}</p>`).join('')}
           </div>`;
         }).join('')}</div>`
