@@ -78,7 +78,7 @@ describe('reportCriterionDisplay helpers', () => {
 
     expect(getCriterionPrimaryBadge(criterion)).toEqual(
       expect.objectContaining({
-        label: '7 / 10',
+        label: 'Score: 7/10',
         numeric: true,
       }),
     );
