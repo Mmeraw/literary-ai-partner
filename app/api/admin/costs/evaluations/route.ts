@@ -351,7 +351,7 @@ function buildLedger(rows: RawCostRow[], jobMeta: Map<string, RawJobMeta>, alloc
       const [phase, model] = key.split("||");
       if (model && model !== "unknown" && (model.includes("5.1") || model.includes("o1"))) {
         const cheapPhases = ["pass1", "pass2", "seed", "chunk", "ledger", "polish"];
-        if (cheapPhases.some((cheapPhase) => phase.toLowerCase().includes(cheapPhase))) {
+        if (cheapPhases.some((cheapPhase) => matchesNormalizedPhaseAlias(phase, cheapPhase))) {
           warnings.push(`Expensive model "${model}" used in phase "${phase}" - verify cheap routing is active.`);
         }
       }
