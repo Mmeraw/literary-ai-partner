@@ -29,6 +29,12 @@ const OPTIONS: { label: string; format: Format; description?: string }[] = [
   },
 ];
 
+const MIME_TYPES: Record<Format, string> = {
+  pdf: 'application/pdf',
+  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  txt: 'text/plain',
+};
+
 export default function DownloadReportButton({
   jobId,
   disabled,
@@ -36,6 +42,8 @@ export default function DownloadReportButton({
 }: DownloadReportButtonProps) {
   const [open, setOpen] = useState(false);
   const [status, setStatus] = useState<JobStatus>('unknown');
+  const [downloading, setDownloading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const wrapperRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -84,11 +92,49 @@ export default function DownloadReportButton({
     if (resolvedDisabled) setOpen(false);
   }, [resolvedDisabled]);
 
-  function handleSelect(format: Format) {
-    if (resolvedDisabled) return;
+  async function handleSelect(format: Format) {
+    if (resolvedDisabled || downloading) return;
     setOpen(false);
+    setErrorMessage(null);
+    setDownloading(true);
 
-    window.open(`/api/reports/${jobId}/download?format=${format}`, '_self');
+    try {
+      const res = await fetch(`/api/reports/${jobId}/download?format=${format}`);
+
+      if (!res.ok) {
+        // Try to extract the user-friendly error message from JSON response
+        let userMessage = 'Download failed. Please try again.';
+        try {
+          const body = await res.json();
+          if (body?.error && typeof body.error === 'string') {
+            userMessage = body.error;
+          }
+        } catch {
+          // Response wasn't JSON — use default message
+        }
+        setErrorMessage(userMessage);
+        return;
+      }
+
+      // Trigger browser download from the successful response
+      const blob = await res.blob();
+      const contentDisposition = res.headers.get('Content-Disposition');
+      const filenameMatch = contentDisposition?.match(/filename="([^"]+)"/);
+      const filename = filenameMatch?.[1] ?? `revision-grade-report.${format}`;
+
+      const url = URL.createObjectURL(new Blob([blob], { type: MIME_TYPES[format] }));
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch {
+      setErrorMessage('Download failed due to a network error. Please try again.');
+    } finally {
+      setDownloading(false);
+    }
   }
 
   return (
@@ -96,26 +142,29 @@ export default function DownloadReportButton({
       <button
         type="button"
         onClick={() => {
-          if (!resolvedDisabled) setOpen((v) => !v);
+          if (!resolvedDisabled && !downloading) {
+            setErrorMessage(null);
+            setOpen((v) => !v);
+          }
         }}
         aria-haspopup={resolvedDisabled ? undefined : 'menu'}
         aria-expanded={resolvedDisabled ? undefined : open}
-        aria-disabled={resolvedDisabled}
-        title={resolvedDisabled ? unavailableLabel : 'Download report'}
+        aria-disabled={resolvedDisabled || downloading}
+        title={resolvedDisabled ? unavailableLabel : downloading ? 'Downloading…' : 'Download report'}
         className={`border rounded-md px-4 py-2 text-sm font-medium shadow-sm flex items-center gap-2 ${
-          resolvedDisabled
+          resolvedDisabled || downloading
             ? 'bg-gray-100 border-gray-200 text-gray-500 cursor-not-allowed'
             : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
         }`}
       >
-        <span>Download Report</span>
+        <span>{downloading ? 'Downloading…' : 'Download Report'}</span>
         {resolvedDisabled ? (
           <span className="text-xs font-normal text-gray-500">{unavailableLabel}</span>
-        ) : (
+        ) : !downloading ? (
           <span aria-hidden="true">{'▾'}</span>
-        )}
+        ) : null}
       </button>
-      {!resolvedDisabled && open && (
+      {!resolvedDisabled && open && !downloading && (
         <div
           role="menu"
           className="absolute right-0 mt-1 w-64 bg-white border border-gray-200 rounded-md shadow-lg z-10"
@@ -125,7 +174,7 @@ export default function DownloadReportButton({
               key={opt.format}
               type="button"
               role="menuitem"
-              onClick={() => handleSelect(opt.format)}
+              onClick={() => void handleSelect(opt.format)}
               className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
             >
               <span className="block font-medium">{opt.label}</span>
@@ -135,6 +184,18 @@ export default function DownloadReportButton({
             </button>
           ))}
 
+        </div>
+      )}
+      {errorMessage && (
+        <div className="mt-2 max-w-sm rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 shadow-sm">
+          <p>{errorMessage}</p>
+          <button
+            type="button"
+            onClick={() => setErrorMessage(null)}
+            className="mt-1 text-xs text-amber-600 underline hover:text-amber-800"
+          >
+            Dismiss
+          </button>
         </div>
       )}
     </div>

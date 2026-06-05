@@ -813,6 +813,19 @@ export default async function EvaluationReportPage({
               </Link>
             </div>
           </section>
+        ) : job.last_error?.includes("quality issue") ? (
+          <section className="rounded-lg border border-blue-200 bg-blue-50 p-5">
+            <h2 className="text-lg font-semibold text-blue-900">Quality Review in Progress</h2>
+            <p className="mt-2 text-sm text-blue-800">
+              We&apos;ve detected a quality issue with your evaluation and our team is investigating.
+              You&apos;ll receive an email when your report is ready. Your manuscript and all completed
+              analysis have been preserved — no action is needed on your part.
+            </p>
+            <p className="mt-2 text-xs text-blue-600">
+              Questions? Contact us at{" "}
+              <a href="mailto:support@revisiongrade.com" className="underline">support@revisiongrade.com</a>.
+            </p>
+          </section>
         ) : (
           <section className="rounded-lg border border-amber-200 bg-amber-50 p-5">
             <h2 className="text-lg font-semibold text-amber-900">Evaluation needs attention</h2>
@@ -919,12 +932,15 @@ export default async function EvaluationReportPage({
                   Open the revision workbench to review and repair opportunities.
                 </p>
               </div>
-              <Link
-                href={`/workbench-v2?manuscriptId=${job.manuscript_id}&evaluationJobId=${jobId}`}
-                className="inline-flex rounded-md bg-indigo-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-indigo-700"
-              >
-                Revise
-              </Link>
+              <div className="flex items-center gap-3">
+                <DownloadReportButton jobId={jobId} />
+                <Link
+                  href={`/workbench-v2?manuscriptId=${job.manuscript_id}&evaluationJobId=${jobId}`}
+                  className="inline-flex rounded-md bg-indigo-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-indigo-700"
+                >
+                  Revise
+                </Link>
+              </div>
             </div>
           </section>
 
