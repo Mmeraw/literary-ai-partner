@@ -19,6 +19,7 @@ import {
   filterAuthorFacingTextList,
   getRenumberedAuthorFacingRevisionPlan,
   getCriterionDisplayLabel,
+  mistakeProofText,
 } from '@/lib/evaluation/reportRenderSafety';
 import { buildTopRecommendations } from '@/lib/evaluation/reportRecommendations';
 import {
@@ -348,14 +349,10 @@ function safeTruncateText(text: string): string {
   return result;
 }
 
-function cleanReportText(text: unknown, fallback = '—', options: { blockTruncation?: boolean } = {}): string {
-  const raw = asText(text);
-  if (!raw) return fallback;
-  const cleaned = stripMachineResidue(raw);
-  if (options.blockTruncation && looksTruncated(cleaned)) {
-    return sanitizeCMOS(safeTruncateText(cleaned) || fallback);
-  }
-  return sanitizeCMOS(cleaned);
+function cleanReportText(text: unknown, fallback = '—', _options: { blockTruncation?: boolean } = {}): string {
+  // Mistake-proofing: ALL text now goes through the full quality gate
+  // regardless of blockTruncation flag (previously only some paths were covered).
+  return mistakeProofText(text, fallback);
 }
 
 function toPdfSafeText(value: unknown, fallback = '-'): string {
@@ -1362,9 +1359,9 @@ async function buildDocx(result: ExportableResult, title: string | null, jobId: 
 
     children.push(brandHeading(getCriterionDisplayLabel(c.key), HeadingLevel.HEADING_3));
 
-    // Rationale
+    // Rationale (mistake-proofed)
     if (c.rationale) {
-      children.push(bodyPara(c.rationale, { size: 19, color: RG.textMuted }));
+      children.push(bodyPara(mistakeProofText(c.rationale), { size: 19, color: RG.textMuted }));
     }
 
     // Fit summary (what's working)

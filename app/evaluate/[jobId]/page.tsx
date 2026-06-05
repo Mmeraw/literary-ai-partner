@@ -34,7 +34,7 @@ import {
 } from "@/lib/evaluation/reportCriterionDisplay";
 import { resolveReportTitle } from "@/lib/evaluation/reportTitle";
 import { backfillManuscriptTitleIfMissing } from "@/lib/manuscripts/titleBackfill";
-import { safeTruncateToWordBoundary } from "@/lib/evaluation/reportRenderSafety";
+import { mistakeProofText } from "@/lib/evaluation/reportRenderSafety";
 import CriterionOpportunities from "@/components/evaluation/CriterionOpportunities";
 import PolishPassButton from "@/components/evaluation/PolishPassButton";
 import { hasActiveSupportGrant, logSupportView } from "@/lib/support/checkSupportAccess";
@@ -720,7 +720,7 @@ export default async function EvaluationReportPage({
                 {readinessConfidence && <p className="mt-2 text-base font-medium text-stone-700">{readinessConfidence.label}</p>}
                 {readinessCriterion.rationale && (
                   <p className="mt-3 text-base leading-7 text-stone-700">
-                    {safeTruncateToWordBoundary(readinessCriterion.rationale)}
+                    {mistakeProofText(readinessCriterion.rationale)}
                   </p>
                 )}
               </div>
@@ -928,7 +928,7 @@ export default async function EvaluationReportPage({
             <section className="rounded-lg border bg-white p-7 mb-7">
               <h2 className="text-2xl font-semibold text-gray-900">One-Paragraph Pitch</h2>
               <p className="mt-4 text-base leading-7 text-gray-800">
-                {reportPitches.oneParagraphPitch}
+                {mistakeProofText(reportPitches.oneParagraphPitch)}
               </p>
             </section>
           )}
@@ -938,7 +938,7 @@ export default async function EvaluationReportPage({
             <section className="rounded-lg border bg-white p-7 mb-7">
               <h2 className="text-2xl font-semibold text-gray-900">One-Sentence Pitch</h2>
               <p className="mt-4 text-base font-medium leading-7 text-gray-900">
-                {reportPitches.oneSentencePitch}
+                {mistakeProofText(reportPitches.oneSentencePitch)}
               </p>
             </section>
           )}
@@ -948,7 +948,7 @@ export default async function EvaluationReportPage({
             <section className="rounded-lg border bg-white p-7 mb-7">
               <h2 className="text-2xl font-semibold text-gray-900">Premise</h2>
               <p className="mt-4 text-base leading-7 text-gray-800 italic">
-                {artifact.enrichment.premise}
+                {mistakeProofText(artifact.enrichment.premise)}
               </p>
             </section>
           )}
@@ -1037,7 +1037,7 @@ export default async function EvaluationReportPage({
           <section className="rounded-lg border bg-white p-7 mb-7">
             <h2 className="text-2xl font-semibold text-gray-900">Executive Summary</h2>
             <p className="mt-4 text-base leading-7 text-gray-800">
-              {safeTruncateToWordBoundary(artifact.overview?.one_paragraph_summary || artifact.summary || "No summary available")}
+              {mistakeProofText(artifact.overview?.one_paragraph_summary || artifact.summary || "No summary available")}
             </p>
           </section>
 
@@ -1047,7 +1047,7 @@ export default async function EvaluationReportPage({
               <h2 className="text-2xl font-semibold text-gray-900">Top Strengths</h2>
               <ol className="mt-5 space-y-4 list-decimal list-inside text-base leading-7 text-gray-800">
                 {artifact.overview.top_3_strengths.map((s, i) => (
-                  <li key={i}>{s}</li>
+                  <li key={i}>{mistakeProofText(s)}</li>
                 ))}
               </ol>
             </section>
@@ -1059,7 +1059,7 @@ export default async function EvaluationReportPage({
               <h2 className="text-2xl font-semibold text-gray-900">Top Risks</h2>
               <ol className="mt-5 space-y-4 list-decimal list-inside text-base leading-7 text-gray-800">
                 {artifact.overview.top_3_risks.map((r, i) => (
-                  <li key={i}>{r}</li>
+                  <li key={i}>{mistakeProofText(r)}</li>
                 ))}
               </ol>
             </section>
@@ -1076,7 +1076,7 @@ export default async function EvaluationReportPage({
                   {topRecs.map((r, i) => (
                     <li key={i} className="flex gap-2">
                       <span className="mt-0.5 shrink-0 text-gray-600">•</span>
-                      <span>{r}</span>
+                      <span>{mistakeProofText(r)}</span>
                     </li>
                   ))}
                 </ul>

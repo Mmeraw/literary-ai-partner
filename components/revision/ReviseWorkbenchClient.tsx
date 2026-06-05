@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import type { WorkbenchOpportunity, WorkbenchQueuePayload, WorkbenchScope, WorkbenchSource } from "@/lib/revision/workbenchQueue";
 import { getRenderableCandidateText } from "@/lib/revision/reviseCardContract";
+import { mistakeProofText } from "@/lib/evaluation/reportRenderSafety";
 
 type DecisionState = "pending" | "accepted_a" | "accepted_b" | "accepted_c" | "custom" | "keep_original" | "reject" | "deferred";
 type SyncStatus = "pending" | "synced" | "failed";
@@ -612,8 +613,8 @@ export default function ReviseWorkbenchClient({ payload }: { payload: WorkbenchQ
               <div className="mt-3 flex flex-wrap gap-2"><span className={`rounded px-2 py-1 text-[11px] uppercase tracking-wider ${severityClasses(active.severity)}`}>{active.severity}</span><span className="rounded border border-[#5A4B33] bg-[#231C12] px-2 py-1 text-[11px] uppercase tracking-wider text-[#D7C6A8]">{active.scope}</span><span className="rounded border border-[#5A4B33] bg-[#231C12] px-2 py-1 text-[11px] uppercase tracking-wider text-[#D7C6A8]">{active.mode === "repair-brief" ? "Repair Brief" : "Direct Rewrite"}</span><span className="rounded border border-[#5A4B33] bg-[#231C12] px-2 py-1 text-[11px] uppercase tracking-wider text-[#D7C6A8]">{active.confidence}</span><span className="rounded border border-[#5A4B33] bg-[#231C12] px-2 py-1 text-[11px] uppercase tracking-wider text-[#D7C6A8]">{sourceLabel(active.source)}</span></div>
               {active.mode === "repair-brief" && <div className="mt-4 rounded-lg border border-[#C8A96E]/45 bg-[#120E08] p-3 text-sm text-[#E8DCC4]"><strong className="text-[#C8A96E]">Repair Brief:</strong> this is larger-scope work. A/B/C are repair plans, not sentence swaps.</div>}
               <section className="mt-5 rounded-lg border border-[#2E261A] bg-[#12100B] p-4"><h3 className="text-xs uppercase tracking-[0.16em] text-[#C8A96E]">Evidence</h3><blockquote className="mt-2 border-l border-[#C8A96E]/60 pl-3 text-sm leading-relaxed text-[#E9DCC4]"><span className="text-[#F8F1E2]">“{active.quoteHighlight}”</span>{active.quoteRest}</blockquote><p className="mt-2 text-xs text-[#9D8D72]">{active.anchor}</p></section>
-              <section className="mt-4 grid gap-3 md:grid-cols-2">{[["Symptom", active.symptom], ["Cause", active.cause], ["Fix direction", active.fixDirection], ["Reader effect", active.readerEffect]].map(([label, text]) => <div key={label} className="rounded-lg border border-[#2E261A] bg-[#12100B] p-3"><p className="text-xs uppercase tracking-[0.14em] text-[#C8A96E]">{label}</p><p className="mt-1 text-sm leading-6 text-[#E8DCC4]">{text}</p></div>)}</section>
-              <section className="mt-4 rounded-lg border border-[#2E261A] bg-[#12100B] p-3"><p className="text-xs uppercase tracking-[0.14em] text-[#C8A96E]">Mistake-proofing</p><p className="mt-1 text-sm text-[#E8DCC4]">{active.mistakeProofing}</p></section>
+              <section className="mt-4 grid gap-3 md:grid-cols-2">{[["Symptom", active.symptom], ["Cause", active.cause], ["Fix direction", active.fixDirection], ["Reader effect", active.readerEffect]].map(([label, text]) => <div key={label} className="rounded-lg border border-[#2E261A] bg-[#12100B] p-3"><p className="text-xs uppercase tracking-[0.14em] text-[#C8A96E]">{label}</p><p className="mt-1 text-sm leading-6 text-[#E8DCC4]">{mistakeProofText(text)}</p></div>)}</section>
+              <section className="mt-4 rounded-lg border border-[#2E261A] bg-[#12100B] p-3"><p className="text-xs uppercase tracking-[0.14em] text-[#C8A96E]">Mistake-proofing</p><p className="mt-1 text-sm text-[#E8DCC4]">{mistakeProofText(active.mistakeProofing)}</p></section>
               <section className="mt-5 space-y-3">
                 {active.options.map((option) => {
                   const isSelected = selectedOption === option.key;
@@ -621,8 +622,8 @@ export default function ReviseWorkbenchClient({ payload }: { payload: WorkbenchQ
                   return (
                     <button key={option.key} type="button" onClick={() => { setSelectedOption(option.key); if (isDraftOpen) setDraftText(candidateText); }} className={`w-full rounded-lg border p-4 text-left transition ${isSelected ? "border-[#C8A96E] bg-[#221B11]" : "border-[#2E261A] bg-[#12100B] hover:border-[#5D4C31]"}`}>
                       <div className="flex items-center justify-between gap-3"><p className="text-sm font-semibold text-[#F2E8D6]">{option.key} · {option.mechanism}</p><span className="text-xs text-[#B29F7D]">{active.mode === "repair-brief" ? "Plan" : "Proposal"}</span></div>
-                      {candidateText ? <pre className="mt-2 whitespace-pre-wrap text-sm leading-6 text-[#E5D8BE]">{candidateText}</pre> : <p className="mt-2 text-sm text-[#E2B2A6]">Candidate text failed the render-safe prose contract. Route this item to Needs Targeting.</p>}
-                      <p className="mt-2 text-xs text-[#BDAE91]">{option.rationale}</p>
+                      {candidateText ? <pre className="mt-2 whitespace-pre-wrap text-sm leading-6 text-[#E5D8BE]">{mistakeProofText(candidateText)}</pre> : <p className="mt-2 text-sm text-[#E2B2A6]">Candidate text failed the render-safe prose contract. Route this item to Needs Targeting.</p>}
+                      <p className="mt-2 text-xs text-[#BDAE91]">{mistakeProofText(option.rationale)}</p>
                     </button>
                   );
                 })}

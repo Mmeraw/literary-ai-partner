@@ -1,3 +1,5 @@
+import { mistakeProofText } from '@/lib/evaluation/reportRenderSafety';
+
 export type RenderableCriterion = {
   score_0_10?: number | null;
   status?: "NOT_APPLICABLE" | "NO_SIGNAL" | "INSUFFICIENT_SIGNAL" | "SCORABLE";
@@ -135,7 +137,8 @@ export function getCriterionRationalePresentation(
 ): CriterionRationalePresentation | null {
   const raw = (rationale ?? "").trim();
   if (!raw) return null;
-  const text = repairTruncatedQuotes(raw);
+  // Mistake-proofing: run full quality gate, then repair truncated quotes.
+  const text = repairTruncatedQuotes(mistakeProofText(raw));
 
   if (isCertifiedCriterion(criterion)) {
     return {
