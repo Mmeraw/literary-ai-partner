@@ -1,0 +1,96 @@
+# Evaluation Rendering Contract
+
+**Authority:** Applies to short-form, long-form, and long-form multi-layer evaluation reports.
+**Runtime impact:** Authoritative contract for web, PDF, DOCX, TXT, and print-friendly report views.
+**Style authority:** The Chicago Manual of Style governs formatting, grammar, spelling, punctuation, capitalization, heading style, number style, table presentation, and author-facing editorial prose.
+
+---
+
+## Required Shared Report Order
+
+Every evaluation surface must preserve the same author-facing content order unless a surface cannot technically render a section:
+
+1. Title Block
+2. One-Paragraph Pitch
+3. One-Sentence Pitch
+4. Premise, when available
+5. Content Warnings
+6. Revision Opportunity Summary
+7. Executive Summary or Executive Verdict
+8. Top Strengths
+9. Top Risks
+10. Top Recommendations
+11. 13 Criteria Score Grid
+12. Criterion Rationales & Surfaced Opportunities
+13. Mode-specific long-form, multi-layer, continuity, ledger, or readiness sections when applicable
+14. Confidence Explanation
+15. Author-facing disclaimer
+
+PDF, DOCX, TXT, web, and print-friendly views must not disagree on section order or omit author-facing diagnostic content that another surface includes.
+
+---
+
+## Pitch Contract
+
+The One-Paragraph Pitch and One-Sentence Pitch are required in every completed evaluation report.
+
+- Use the submitted premise when available.
+- Fall back to the report summary when a premise is unavailable.
+- Fall back to a neutral title-based sentence only when both premise and summary are unavailable.
+- Keep the one-sentence pitch to a single sentence.
+- Keep both pitches author-facing and suitable for editorial handoff, agent handoff, query preparation, or marketing development.
+
+---
+
+## Revision Opportunity Summary Contract
+
+Every completed evaluation report must include aggregate revision-opportunity counts:
+
+```text
+Revision Opportunity Summary
+
+Total Revision Opportunities: [XX]
+High Priority: [X]
+Medium Priority: [X]
+Low Priority: [X]
+```
+
+Priority labels are polite alternatives to MUST / SHOULD / COULD labels.
+
+---
+
+## Formatting Rules
+
+- Headings must begin with capital letters and use CMOS-compliant Title Case.
+- Bullets must not be indented. Bullet markers align with the left edge of the section body.
+- Report sections must have visible breathing room before and after each section.
+- Criteria tables must be full width where the surface supports tables.
+- Score and Confidence columns must be right-aligned where the surface supports alignment.
+- Overall scores must render as a single-line block, for example: `Overall Score: 85/100`.
+- Author-facing output must remove system metadata, raw pipeline flags, execution timestamps, gate logs, and protected governance terminology.
+- Web, PDF, DOCX, TXT, and print-friendly views must use the same report content and order.
+
+---
+
+## CMOS Sanitizing Requirement
+
+Author-facing evaluation text must pass through deterministic CMOS sanitizing before display or export where the code surface supports sanitization.
+
+Minimum sanitizer coverage includes:
+
+- closed-up em dashes;
+- double-hyphen repair;
+- punctuation placement around quotation marks;
+- plain-English replacements for common Latin abbreviations in running prose;
+- preservation of professional title casing and readable editorial labels.
+
+---
+
+## Download Requirements
+
+Downloaded artifacts are documents an author can hand to an editor, agent, or publishing professional. They must be polished, complete, and free of unnecessary internal metadata.
+
+- PDF and DOCX must contain the same content and report order.
+- TXT must preserve the same content order even when visual formatting is simplified.
+- PDF and DOCX must use professional spacing, readable type, and clean section separation.
+- Downloads must expand surfaced criterion opportunities and diagnostic details when the web view keeps some detail collapsed.
