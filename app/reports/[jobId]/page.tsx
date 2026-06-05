@@ -40,6 +40,7 @@ import type { LongformDreamDocument } from '@/lib/evaluation/pipeline/runPass3bL
 import { SynthesisPoller } from '@/components/evaluation/SynthesisPoller';
 import CriterionOpportunities from '@/components/reports/CriterionOpportunities';
 import DownloadReportButton from '@/components/reports/DownloadReportButton';
+import CopyReferenceIdButton from '@/components/reports/CopyReferenceIdButton';
 import AutoPrintOnLoad from '@/components/reports/AutoPrintOnLoad';
 import SupportAccessToggle from '@/components/reports/SupportAccessToggle';
 import LongformCharacterCoverageArcLedger from '@/components/reports/longform/LongformCharacterCoverageArcLedger';
@@ -404,6 +405,14 @@ export default async function ReportPage({
               )}
               <p className="mt-1 text-sm text-gray-500">
                 Generated {getDisplayDateTime(result.generated_at, "Unknown")}
+              </p>
+              <p className="mt-1 text-sm text-gray-500">
+                <span className="font-medium text-gray-700">Reference ID:</span>{' '}
+                <span className="font-mono text-gray-900">{params.jobId}</span>{' '}
+                <CopyReferenceIdButton
+                  value={params.jobId}
+                  className="ml-2 inline-flex items-center rounded-md border border-gray-300 px-2.5 py-1 text-xs font-medium text-gray-700 transition hover:bg-gray-100"
+                />
               </p>
             </div>
             <div className="shrink-0 flex items-center gap-3 print-hidden">
