@@ -48,6 +48,45 @@ const mockGetAuthenticatedUser = getAuthenticatedUser as jest.MockedFunction<typ
 const mockFetch = jest.fn();
 const originalFetch = global.fetch;
 
+function buildDefaultAdminClientMock() {
+  const evaluationJobsUpdateEq = jest.fn(async () => ({ error: null }));
+  const evaluationJobsUpdate = jest.fn(() => ({ eq: evaluationJobsUpdateEq }));
+
+  const evaluationJobsSelectLimit = jest.fn(async () => ({ data: [], error: null }));
+  const evaluationJobsSelectIn = jest.fn(() => ({ limit: evaluationJobsSelectLimit }));
+  const evaluationJobsSelectEq = jest.fn(() => ({ in: evaluationJobsSelectIn }));
+  const evaluationJobsSelect = jest.fn(() => ({ eq: evaluationJobsSelectEq }));
+
+  const manuscriptsMaybeSingle = jest.fn(async () => ({ data: { word_count: 4412 }, error: null }));
+  const manuscriptsEqUser = jest.fn(() => ({ maybeSingle: manuscriptsMaybeSingle }));
+  const manuscriptsEqId = jest.fn(() => ({ eq: manuscriptsEqUser }));
+  const manuscriptsSelect = jest.fn(() => ({ eq: manuscriptsEqId }));
+
+  return {
+    from: jest.fn((table: string) => {
+      if (table === "evaluation_jobs") {
+        return {
+          select: evaluationJobsSelect,
+          update: evaluationJobsUpdate,
+        };
+      }
+
+      if (table === "manuscripts") {
+        return {
+          select: manuscriptsSelect,
+          insert: jest.fn(() => ({
+            select: () => ({
+              single: async () => ({ data: { id: 321 }, error: null }),
+            }),
+          })),
+        };
+      }
+
+      throw new Error(`Unexpected table in default admin client mock: ${table}`);
+    }),
+  };
+}
+
 describe("POST /api/jobs input contract", () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -55,6 +94,7 @@ describe("POST /api/jobs input contract", () => {
     global.fetch = mockFetch as typeof fetch;
     process.env.CRON_SECRET = "test-cron-secret";
     mockGetAuthenticatedUser.mockResolvedValue({ id: "user-1" } as never);
+    mockCreateAdminClient.mockReturnValue(buildDefaultAdminClientMock() as never);
   });
 
   afterAll(() => {
@@ -123,6 +163,13 @@ describe("POST /api/jobs input contract", () => {
 
         if (table === "evaluation_jobs") {
           return {
+            select: jest.fn(() => ({
+              eq: jest.fn(() => ({
+                in: jest.fn(() => ({
+                  limit: jest.fn(async () => ({ data: [], error: null })),
+                })),
+              })),
+            })),
             update: updateMock,
           };
         }
@@ -227,6 +274,13 @@ describe("POST /api/jobs input contract", () => {
 
         if (table === "evaluation_jobs") {
           return {
+            select: jest.fn(() => ({
+              eq: jest.fn(() => ({
+                in: jest.fn(() => ({
+                  limit: jest.fn(async () => ({ data: [], error: null })),
+                })),
+              })),
+            })),
             update: updateMock,
           };
         }
@@ -291,6 +345,13 @@ describe("POST /api/jobs input contract", () => {
 
         if (table === "evaluation_jobs") {
           return {
+            select: jest.fn(() => ({
+              eq: jest.fn(() => ({
+                in: jest.fn(() => ({
+                  limit: jest.fn(async () => ({ data: [], error: null })),
+                })),
+              })),
+            })),
             update: updateMock,
           };
         }
