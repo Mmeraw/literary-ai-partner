@@ -170,10 +170,10 @@ function getProgressDisplayRaw(
 
     if (isLongForm && !hasSynthesis) {
       return {
-        label: "Report ready — narrative synthesis loading (see below)",
+        label: "Finalizing your report in progress",
         valueLabel: "92%",
         helperText:
-          "Your full diagnostic report is ready below. The Narrative Synthesis section will appear automatically once it finishes generating.",
+          "Your diagnostic report is ready below. Finalizing your report is still in progress; the Narrative Synthesis section will appear automatically once it finishes generating.",
         indeterminate: false,
         percentage: 92,
         color: "blue",

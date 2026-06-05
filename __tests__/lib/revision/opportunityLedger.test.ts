@@ -81,7 +81,7 @@ describe('buildRevisionOpportunitiesFromEvaluationPayload', () => {
     expect(opportunities[0].severity).toBe('should');
   });
 
-  it('synthesizes distinct copy-ready fallback candidate texts when A/B/C are missing', () => {
+  it('fails closed when A/B/C candidates are missing', () => {
     const payload = {
       criteria: [
         {
@@ -107,12 +107,55 @@ describe('buildRevisionOpportunitiesFromEvaluationPayload', () => {
     expect(typeof row.candidate_text_b).toBe('string');
     expect(typeof row.candidate_text_c).toBe('string');
 
-    expect(candidateTextIsCopyPasteReady(row.candidate_text_a)).toBe(true);
-    expect(candidateTextIsCopyPasteReady(row.candidate_text_b)).toBe(true);
-    expect(candidateTextIsCopyPasteReady(row.candidate_text_c)).toBe(true);
+    expect(row.candidate_text_a).toBe('');
+    expect(row.candidate_text_b).toBe('');
+    expect(row.candidate_text_c).toBe('');
+    expect(candidateTextIsCopyPasteReady(row.candidate_text_a)).toBe(false);
+    expect(candidateTextIsCopyPasteReady(row.candidate_text_b)).toBe(false);
+    expect(candidateTextIsCopyPasteReady(row.candidate_text_c)).toBe(false);
+    expect(row.grounding_status).toBe('unsupported_blocked');
+  });
 
-    const normalized = [row.candidate_text_a, row.candidate_text_b, row.candidate_text_c].map((value) => value?.trim().toLowerCase());
-    expect(new Set(normalized).size).toBe(3);
+  it('regression: blocks contamination terms for The Silence Begins when explicit candidates are absent', () => {
+    const payload = {
+      criteria: [
+        {
+          key: 'sceneConstruction',
+          recommendations: [
+            {
+              diagnosis: 'The scene shift lands abruptly.',
+              recommendation: 'Bridge the turn with grounded consequences.',
+              anchor_snippet: 'The Silence Begins opened on a cold stairwell and held on breath.',
+              location_ref: 'chapter:2',
+              confidence: 0.82,
+            },
+          ],
+        },
+      ],
+    };
+
+    const longformPayload = {
+      longform_document: {
+        criterion_analyses: [
+          {
+            key: 'sceneConstruction',
+            score: 6,
+            revision_queue: [
+              '[LOCATION: Chapter 2] [OPERATION: replace_selected_passage] Paolito studies the Cartel Babies file while the Unnamed Boy watches the hallway.',
+            ],
+          },
+        ],
+      },
+    };
+
+    const opportunities = buildRevisionOpportunitiesFromEvaluationPayload(payload, undefined, longformPayload);
+
+    expect(opportunities.length).toBeGreaterThan(0);
+    for (const row of opportunities) {
+      const merged = `${row.candidate_text_a ?? ''} ${row.candidate_text_b ?? ''} ${row.candidate_text_c ?? ''}`;
+      expect(merged).not.toMatch(/Paolito|Unnamed Boy|Cartel Babies/i);
+      expect(row.grounding_status).toBe('unsupported_blocked');
+    }
   });
 });
 

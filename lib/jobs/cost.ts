@@ -152,7 +152,17 @@ export function trackCompletionCost(params: {
   }).catch(() => {});
 }
 
+
+function isUuidLike(value: unknown): value is string {
+  return typeof value === "string"
+    && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
 export async function recordCost(entry: CostEntry): Promise<void> {
+  if (!isUuidLike(jobId)) {
+    return;
+  }
+
   const supabase = createAdminClient();
   const { error } = await supabase.from("job_costs").insert({
     job_id: entry.jobId,

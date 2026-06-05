@@ -8,6 +8,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { resolveTrackedCostCents } from "@/lib/jobs/cost";
+import { matchesNormalizedPhaseAlias } from "@/lib/admin/phaseAliasMatch";
 import {
   getConfiguredOverheadForRange,
   getCostRangeWindow,
@@ -240,8 +241,7 @@ async function fetchJobMetadata(supabase: ReturnType<typeof createAdminClient>, 
 }
 
 function phaseMatchesDefinition(phase: string, definition: PhaseCoverageDefinition): boolean {
-  const normalized = phase.toLowerCase().replace(/[\s-]+/g, "_");
-  return definition.aliases.some((alias) => normalized.includes(alias.toLowerCase().replace(/[\s-]+/g, "_")));
+  return definition.aliases.some((alias) => matchesNormalizedPhaseAlias(phase, alias));
 }
 
 function buildPhaseCoverage(phases: EvalPhaseCostRow[]): EvalPhaseCoverageRow[] {
@@ -351,7 +351,7 @@ function buildLedger(rows: RawCostRow[], jobMeta: Map<string, RawJobMeta>, alloc
       const [phase, model] = key.split("||");
       if (model && model !== "unknown" && (model.includes("5.1") || model.includes("o1"))) {
         const cheapPhases = ["pass1", "pass2", "seed", "chunk", "ledger", "polish"];
-        if (cheapPhases.some((cheapPhase) => phase.toLowerCase().includes(cheapPhase))) {
+        if (cheapPhases.some((cheapPhase) => matchesNormalizedPhaseAlias(phase, cheapPhase))) {
           warnings.push(`Expensive model "${model}" used in phase "${phase}" - verify cheap routing is active.`);
         }
       }

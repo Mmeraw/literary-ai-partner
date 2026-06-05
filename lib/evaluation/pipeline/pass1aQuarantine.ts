@@ -144,6 +144,7 @@ const SHORT_PROPER_NAMES = new Set([
   "ned", "pat", "pam", "ray", "rex", "rob", "rod", "ron", "roy",
   "sal", "sue", "ted", "tom", "val", "van", "wes", "zoe",
   "anya", "aria", "carl", "cole", "cora", "dale", "dave", "dean",
+  "ari",
   "drew", "earl", "emma", "eric", "fern", "fred", "gary", "gail",
   "glen", "gwen", "hans", "hope", "iris", "ivan", "jack", "jade",
   "jake", "jane", "jean", "jess", "jill", "joel", "john", "jose",
