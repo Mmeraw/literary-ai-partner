@@ -96,6 +96,7 @@ import {
 } from '@/lib/config/evaluationRuntimeConfig';
 import {
   classifyQueuedHardStop,
+  classifySplitBrain,
   partitionMaxAgeKillSwitchCandidates,
   resolveProviderBudget,
   type QueueHardStopCandidate,
@@ -2484,11 +2485,12 @@ export async function failStaleRunningJobs(): Promise<{
 
           const rescuedProgress = {
             ...currentProgress,
+            phase:                      rescueTargetPhase,
+            phase_status:               rescueTargetPhaseStatus,
             watchdog_last_rescue_at:    rescueNow,
             watchdog_last_rescue_code:  currentProgress.error_code ?? null,
             watchdog_last_rescue_phase: currentProgress.phase ?? null,
             watchdog_rescue_count:      ((currentProgress.watchdog_rescue_count as number | null) ?? 0) + 1,
-            phase_status:               rescueTargetPhaseStatus,
           };
 
           const { data: updateResult, error: updateErr } = await supabase
@@ -2748,6 +2750,8 @@ export async function failStaleRunningJobs(): Promise<{
             updated_at: staleRescueNow,
             progress: {
               ...currentProgress,
+              phase: rescueTargetPhase,
+              phase_status: JOB_STATUS.QUEUED,
               watchdog_last_rescue_at: staleRescueNow,
               watchdog_last_rescue_phase: currentPhaseForRescue,
               watchdog_rescue_count: ((currentProgress.watchdog_rescue_count as number | null) ?? 0) + 1,
@@ -3476,6 +3480,34 @@ async function terminalizeQueuedHardStops(): Promise<{
   const hardStoppedIds: string[] = [];
 
   for (const row of rows) {
+    // ── SPLIT-BRAIN AUTO-HEAL ─────────────────────────────────────────────────
+    // Before classifying hard-stops, attempt to auto-heal trivial split-brain
+    // states where only progress.phase_status diverges from the column (the
+    // column is authoritative). This prevents user-visible failures caused by
+    // stale progress JSONB left behind after a rescue/retry reset.
+    const splitBrainClass = classifySplitBrain(row);
+    if (splitBrainClass === 'healable') {
+      const healedProgress = {
+        ...(row.progress && typeof row.progress === 'object' ? row.progress : {}),
+        phase: row.phase,
+        phase_status: row.phase_status,
+        split_brain_healed_at: nowIso,
+      };
+      const { error: healErr } = await supabase
+        .from('evaluation_jobs')
+        .update({ progress: healedProgress, updated_at: nowIso })
+        .eq('id', row.id)
+        .eq('status', JOB_STATUS.QUEUED);
+
+      if (!healErr) {
+        console.log(`[Watchdog] Auto-healed split-brain for job ${row.id}: synced progress.phase_status=${row.phase_status}`);
+        // Healed — skip hard-stop classification for this row
+        continue;
+      }
+      console.warn(`[Watchdog] Split-brain auto-heal failed for job ${row.id}:`, healErr.message);
+      // Fall through to hard-stop classification if heal fails
+    }
+
     const decision = classifyQueuedHardStop(row, {
       nowMs,
       graceMs: POST_PHASE0_HANDOFF_GRACE_MS,

@@ -2,6 +2,7 @@ export {};
 
 import {
   classifyQueuedHardStop,
+  classifySplitBrain,
   isPostPhase0HandoffLimbo,
   partitionMaxAgeKillSwitchCandidates,
   isSplitBrainState,
@@ -63,6 +64,42 @@ describe('hardStopGovernance', () => {
     );
 
     expect(decision?.code).toBe('STATE_SPLIT_BRAIN_DETECTED');
+  });
+
+  test('classifySplitBrain returns healable when only phase_status diverges', () => {
+    expect(
+      classifySplitBrain({
+        id: 'job-1',
+        status: 'queued',
+        phase: 'phase_1a',
+        phase_status: 'queued',
+        progress: { phase: 'phase_1a', phase_status: 'running' },
+      }),
+    ).toBe('healable');
+  });
+
+  test('classifySplitBrain returns structural when phase diverges', () => {
+    expect(
+      classifySplitBrain({
+        id: 'job-1',
+        status: 'queued',
+        phase: 'phase_1a',
+        phase_status: 'queued',
+        progress: { phase: 'phase_0', phase_status: 'queued' },
+      }),
+    ).toBe('structural');
+  });
+
+  test('classifySplitBrain returns none when no divergence', () => {
+    expect(
+      classifySplitBrain({
+        id: 'job-1',
+        status: 'queued',
+        phase: 'phase_1a',
+        phase_status: 'queued',
+        progress: { phase: 'phase_1a', phase_status: 'queued' },
+      }),
+    ).toBe('none');
   });
 
   test('partitions max-age kill-switch rows into legal transition buckets', () => {
