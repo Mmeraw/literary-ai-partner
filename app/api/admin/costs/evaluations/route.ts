@@ -8,6 +8,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { resolveTrackedCostCents } from "@/lib/jobs/cost";
+import { matchesNormalizedPhaseAlias } from "@/lib/admin/phaseAliasMatch";
 import {
   getConfiguredOverheadForRange,
   getCostRangeWindow,
@@ -240,8 +241,7 @@ async function fetchJobMetadata(supabase: ReturnType<typeof createAdminClient>, 
 }
 
 function phaseMatchesDefinition(phase: string, definition: PhaseCoverageDefinition): boolean {
-  const normalized = phase.toLowerCase().replace(/[\s-]+/g, "_");
-  return definition.aliases.some((alias) => normalized.includes(alias.toLowerCase().replace(/[\s-]+/g, "_")));
+  return definition.aliases.some((alias) => matchesNormalizedPhaseAlias(phase, alias));
 }
 
 function buildPhaseCoverage(phases: EvalPhaseCostRow[]): EvalPhaseCoverageRow[] {

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin/requireAdmin";
+import { matchesNormalizedPhaseAlias } from "@/lib/admin/phaseAliasMatch";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { TEST_MANUSCRIPT_ID_MIN } from "@/lib/manuscripts/testRange";
 
@@ -71,20 +72,24 @@ function inferStage(job: Record<string, unknown>): SipocStage {
   const stage = typeof raw === "string" ? raw : "unknown";
 
   // Phase 0.5a/0.5b seed generation
-  if (stage.includes("phase_0_5a") || stage.includes("0.5a") || stage.includes("story_map_seed")) return "phase_0_5a_seed";
-  if (stage.includes("phase_0_5b") || stage.includes("0.5b") || stage.includes("dream_seed") || stage.includes("editorial_seed")) return "phase_0_5b_seed";
+  if (stageMatchesAny(stage, ["phase_0_5a", "phase0.5a", "0.5a", "story_map_seed"])) return "phase_0_5a_seed";
+  if (stageMatchesAny(stage, ["phase_0_5b", "phase0.5b", "0.5b", "dream_seed", "editorial_seed"])) return "phase_0_5b_seed";
   // Phase 1a seed guard / validation
-  if (stage.includes("phase_1a") || stage.includes("pass1a") || stage.includes("seed_guard")) return "pass1a_validation";
-  if (stage.includes("pass1")) return "pass1_craft";
-  if (stage.includes("pass2")) return "pass2_editorial";
-  if (stage.includes("pass3")) return "pass3_synthesis";
-  if (stage.includes("pass4") || stage.includes("quality")) return "quality_gate";
-  if (stage.includes("persist") || stage.includes("report")) return "persistence_report";
+  if (stageMatchesAny(stage, ["phase_1a", "pass1a", "seed_guard"])) return "pass1a_validation";
+  if (stageMatchesAny(stage, ["pass1"])) return "pass1_craft";
+  if (stageMatchesAny(stage, ["pass2"])) return "pass2_editorial";
+  if (stageMatchesAny(stage, ["pass3"])) return "pass3_synthesis";
+  if (stageMatchesAny(stage, ["pass4", "quality"])) return "quality_gate";
+  if (stageMatchesAny(stage, ["persist", "report"])) return "persistence_report";
 
   const routing = (progress.chunk_routing ?? {}) as Record<string, unknown>;
   if (routing.route) return "routing_chunking";
 
   return "intake";
+}
+
+function stageMatchesAny(stage: string, aliases: string[]): boolean {
+  return aliases.some((alias) => matchesNormalizedPhaseAlias(stage, alias));
 }
 
 function extractErrorCode(job: Record<string, unknown>): string | null {

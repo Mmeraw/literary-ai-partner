@@ -5,6 +5,7 @@ import {
   inferRevisionOperation,
   type RevisionOperation,
 } from './reviseCardContract';
+import { type SlaeGroundingStatus } from './slae';
 
 type LedgerSeverity = 'must' | 'should' | 'could';
 type LedgerConfidence = 'low' | 'medium' | 'high';
@@ -23,6 +24,8 @@ type RevisionOpportunity = {
   candidate_text_a?: string;
   candidate_text_b?: string;
   candidate_text_c?: string;
+  grounding_status?: SlaeGroundingStatus;
+  grounding_note?: string | null;
   symptom?: string;
   cause?: string;
   fix_direction?: string;
@@ -341,7 +344,7 @@ function buildFallbackCandidateTexts(input: CandidateBuildInput): { a: string; b
 
 function explicitCandidateOrFallback(
   raw: unknown,
-  fallback: string,
+  _fallback: string,
   issueStatement: string,
 ): string {
   const candidate = normalizeOptionalText(raw);
@@ -351,11 +354,9 @@ function explicitCandidateOrFallback(
       return candidate;
     }
   }
-  const normalizedFallback = (fallback ?? '').trim();
-  if (normalizedFallback && normalizedFallback.split(/\s+/).length >= 5) {
-    return normalizedFallback;
-  }
-  return fallback;
+  // SLAE enforcement: fail closed when explicit prose is missing/malformed.
+  // Backend-generated fallback prose is not allowed to become executable A/B/C text.
+  return '';
 }
 
 function normalizeRevisionOperation(raw: unknown): RevisionOperation | undefined {
@@ -426,12 +427,21 @@ function ensureOpportunityCandidates(opportunity: RevisionOpportunity): Revision
     revisionOperation: operation,
   });
 
+  const candidateA = explicitCandidateOrFallback(opportunity.candidate_text_a, fallbackCandidates.a, opportunity.rationale);
+  const candidateB = explicitCandidateOrFallback(opportunity.candidate_text_b, fallbackCandidates.b, opportunity.rationale);
+  const candidateC = explicitCandidateOrFallback(opportunity.candidate_text_c, fallbackCandidates.c, opportunity.rationale);
+  const blocked = !candidateA || !candidateB || !candidateC;
+
   return {
     ...opportunity,
     revision_operation: operation,
-    candidate_text_a: explicitCandidateOrFallback(opportunity.candidate_text_a, fallbackCandidates.a, opportunity.rationale),
-    candidate_text_b: explicitCandidateOrFallback(opportunity.candidate_text_b, fallbackCandidates.b, opportunity.rationale),
-    candidate_text_c: explicitCandidateOrFallback(opportunity.candidate_text_c, fallbackCandidates.c, opportunity.rationale),
+    candidate_text_a: candidateA,
+    candidate_text_b: candidateB,
+    candidate_text_c: candidateC,
+    grounding_status: blocked ? 'unsupported_blocked' : (opportunity.grounding_status ?? 'supported'),
+    grounding_note: blocked
+      ? 'Explicit candidate prose missing or malformed; backend fallback prose blocked by SLAE.'
+      : (opportunity.grounding_note ?? null),
   };
 }
 
@@ -906,9 +916,11 @@ function extractLongformCriterionRevisionQueue(longformPayload: unknown): Revisi
         confidence: normalizeConfidence(itemRecord?.confidence),
         decision_state: 'open',
         revision_operation: revisionOperation,
-        candidate_text_a: fallbackCandidates.a,
-        candidate_text_b: fallbackCandidates.b,
-        candidate_text_c: fallbackCandidates.c,
+        candidate_text_a: '',
+        candidate_text_b: '',
+        candidate_text_c: '',
+        grounding_status: 'unsupported_blocked',
+        grounding_note: 'Longform revision queue item had no explicit candidate prose; backend fallback blocked by SLAE.',
         symptom: null,
         cause: null,
         fix_direction: operation,
@@ -1002,9 +1014,11 @@ function extractLongformRevisionPlan(longformPayload: unknown): RevisionOpportun
         confidence: normalizeConfidence(null),
         decision_state: 'open',
         revision_operation: revisionOperation,
-        candidate_text_a: fallbackCandidates.a,
-        candidate_text_b: fallbackCandidates.b,
-        candidate_text_c: fallbackCandidates.c,
+        candidate_text_a: '',
+        candidate_text_b: '',
+        candidate_text_c: '',
+        grounding_status: 'unsupported_blocked',
+        grounding_note: 'Longform revision-plan action had no explicit candidate prose; backend fallback blocked by SLAE.',
         symptom: null,
         cause: null,
         fix_direction: `${planTitle} (Priority ${priority})`,

@@ -16,6 +16,7 @@ import {
   type RevisionReadiness,
   validateReviseCardContract,
 } from './reviseCardContract'
+import { type SlaeGroundingStatus } from './slae'
 
 export type WorkbenchSeverity = 'must' | 'should' | 'could'
 export type WorkbenchScope = 'Line' | 'Passage' | 'Scene' | 'Chapter' | 'Structural' | 'Manuscript'
@@ -67,6 +68,8 @@ export type WorkbenchOpportunity = {
   revisionOperation: RevisionOperation
   readiness: RevisionReadiness
   readinessReason: string | null
+  groundingStatus?: SlaeGroundingStatus
+  groundingNote?: string | null
   options: WorkbenchOption[]
 }
 
@@ -1045,18 +1048,26 @@ export async function getWorkbenchQueue(input: { manuscriptId?: string; evaluati
           ? 'should'
           : 'could'
     // Fidelity check: verify evidence actually appears in manuscript.
-    // If the fidelity check fails, keep the original evidence rather than
-    // nullifying it — showing the LLM-extracted passage (even if imperfect)
-    // is always better than showing "No exact passage is available yet."
+    // SLAE fail-closed rule: unresolved mismatch blocks executable readiness.
+    // If correction fails, evidence is blanked and opportunity is forced into
+    // needs_targeting via contract validation.
     let rawEvidence = sanitizeEvidenceExcerpt(opportunity.evidence_anchor) || null
+    let groundingStatus: SlaeGroundingStatus = rawEvidence ? 'supported' : 'uncertain_after_relook_reportable'
+    let groundingNote: string | null = rawEvidence
+      ? null
+      : 'No evidence excerpt available in ledger; requires targeting before revise.'
+
     if (rawEvidence && manuscriptRawText && !evidenceMatchesManuscript(rawEvidence, manuscriptRawText)) {
       const corrected = findClosestManuscriptPassage(rawEvidence, manuscriptRawText)
       if (corrected) {
         rawEvidence = corrected
+        groundingStatus = 'supported_after_relook'
+        groundingNote = 'Evidence excerpt required manuscript relook correction before rendering.'
+      } else {
+        rawEvidence = null
+        groundingStatus = 'uncertain_after_relook_blocked'
+        groundingNote = 'Evidence excerpt did not match manuscript and could not be corrected; blocked by SLAE.'
       }
-      // If no corrected match found, keep the original rawEvidence as-is.
-      // Previously this nullified the evidence, causing "No exact passage"
-      // to appear in the workbench — which makes the queue item unusable.
     }
     const evidence = splitEvidence(rawEvidence)
     const candidateA = (opportunity.candidate_text_a ?? '').trim()
@@ -1102,7 +1113,7 @@ export async function getWorkbenchQueue(input: { manuscriptId?: string; evaluati
       fallbackMistakeProofing(mode),
     )
 
-    return applyReviseCardContract({
+    const contracted = applyReviseCardContract({
       id: opportunity.opportunity_id,
       severity,
       scope,
@@ -1139,6 +1150,12 @@ export async function getWorkbenchQueue(input: { manuscriptId?: string; evaluati
     }, {
       revisionOperation: normalizeRevisionOperation(opportunity.revision_operation),
     })
+
+    return {
+      ...contracted,
+      groundingStatus,
+      groundingNote,
+    }
   })
 
   const readyForRevise = opportunities.filter((opportunity) => opportunity.readiness === 'ready_for_revise')
