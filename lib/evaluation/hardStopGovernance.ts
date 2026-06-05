@@ -35,12 +35,75 @@ export interface MaxAgeKillSwitchPartition {
 
 const PHASE_ADVANCE_ORDER = [
   'phase_0',
+  'seed_0_5a',
+  'seed_0_5b',
   'phase_1a',
   'review_gate',
   'phase_2',
+  'phase_3a',
   'phase_3',
+  'phase_3b',
   'wave_revision',
+  'phase_5',
 ] as const;
+
+const PHASE_ALIASES: Readonly<Record<string, (typeof PHASE_ADVANCE_ORDER)[number]>> = {
+  phase0: 'phase_0',
+  pass0: 'phase_0',
+  intake: 'phase_0',
+  phase_0_5a: 'seed_0_5a',
+  phase_05a: 'seed_0_5a',
+  phase0_5a: 'seed_0_5a',
+  phase05a: 'seed_0_5a',
+  pass_0_5a: 'seed_0_5a',
+  story_ledger: 'seed_0_5a',
+  full_context_ledger: 'seed_0_5a',
+  phase_0_5b: 'seed_0_5b',
+  phase_05b: 'seed_0_5b',
+  phase0_5b: 'seed_0_5b',
+  phase05b: 'seed_0_5b',
+  pass_0_5b: 'seed_0_5b',
+  dream_seed: 'seed_0_5b',
+  editorial_dream_seed: 'seed_0_5b',
+  phase_1: 'phase_1a',
+  phase1: 'phase_1a',
+  pass1: 'phase_1a',
+  pass_1: 'phase_1a',
+  pass1a: 'phase_1a',
+  pass_1a: 'phase_1a',
+  phase1a: 'phase_1a',
+  quality_gate: 'review_gate',
+  phase2: 'phase_2',
+  pass2: 'phase_2',
+  pass_2: 'phase_2',
+  phase3a: 'phase_3a',
+  pass3a: 'phase_3a',
+  pass_3a: 'phase_3a',
+  independent_read: 'phase_3a',
+  phase3: 'phase_3',
+  pass3: 'phase_3',
+  pass_3: 'phase_3',
+  read_ahead: 'phase_3',
+  phase3b: 'phase_3b',
+  pass3b: 'phase_3b',
+  pass_3b: 'phase_3b',
+  dream_document: 'phase_3b',
+  wave: 'wave_revision',
+  wave_revision: 'wave_revision',
+  phase5: 'phase_5',
+  pass5: 'phase_5',
+  pass_5: 'phase_5',
+  revision_queue: 'phase_5',
+};
+
+function normalizePhaseKey(value: string | null): (typeof PHASE_ADVANCE_ORDER)[number] | null {
+  if (!value) return null;
+  const normalized = value.trim().toLowerCase().replace(/[\s.-]+/g, '_');
+  if ((PHASE_ADVANCE_ORDER as readonly string[]).includes(normalized)) {
+    return normalized as (typeof PHASE_ADVANCE_ORDER)[number];
+  }
+  return Object.hasOwn(PHASE_ALIASES, normalized) ? PHASE_ALIASES[normalized] : null;
+}
 
 function isExpectedQueuedPhaseHandoff(args: {
   jobStatus: string;
@@ -52,16 +115,14 @@ function isExpectedQueuedPhaseHandoff(args: {
   if (args.jobStatus !== 'queued') return false;
   if (args.jobPhaseStatus !== 'queued') return false;
   if (args.progressPhaseStatus !== 'complete') return false;
-  if (!args.jobPhase || !args.progressPhase) return false;
 
-  const previousIndex = PHASE_ADVANCE_ORDER.indexOf(
-    args.progressPhase as (typeof PHASE_ADVANCE_ORDER)[number],
-  );
-  const nextIndex = PHASE_ADVANCE_ORDER.indexOf(
-    args.jobPhase as (typeof PHASE_ADVANCE_ORDER)[number],
-  );
+  const previousPhase = normalizePhaseKey(args.progressPhase);
+  const nextPhase = normalizePhaseKey(args.jobPhase);
+  if (!previousPhase || !nextPhase) return false;
 
-  if (previousIndex < 0 || nextIndex < 0) return false;
+  const previousIndex = PHASE_ADVANCE_ORDER.indexOf(previousPhase);
+  const nextIndex = PHASE_ADVANCE_ORDER.indexOf(nextPhase);
+
   return nextIndex === previousIndex + 1;
 }
 
@@ -113,9 +174,9 @@ export function isSplitBrainState(job: QueueHardStopCandidate): boolean {
  *
  * Healable:
  *   - only phase_status diverges; or
- *   - progress records the previous phase as complete while the row is already
- *     queued for the next phase. That is a normal handoff window and must not
- *     kill the user's evaluation.
+ *   - progress records the previous phase/pass as complete while the row is
+ *     already queued for the next phase/pass. That is a normal handoff window
+ *     and must not kill the user's evaluation.
  *
  * Structural:
  *   - phases diverge in any non-sequential, non-handoff shape.
