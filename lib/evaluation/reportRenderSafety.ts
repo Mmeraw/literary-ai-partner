@@ -2,6 +2,7 @@
 // Reason: 'commercial' below is a DREAM subscore dimension (publishing shelf axis),
 // not a canonical evaluation criterion key alias.
 import type { LongformDreamDocument } from "@/lib/evaluation/pipeline/runPass3bLongform";
+import { sanitizeCMOS } from "@/lib/evaluation/cmosSanitizer";
 import {
   CRITERIA_KEYS,
   type CriterionKey,
@@ -30,7 +31,7 @@ export function getCriterionDisplayLabel(key: string): string {
   if (canonical) {
     return getCanonicalCriterionLabel(canonical);
   }
-  return key.replace(/([A-Z])/g, " $1").replace(/^./, (c) => c.toUpperCase()).trim();
+  return sanitizeCMOS(key.replace(/([A-Z])/g, " $1").replace(/^./, (c) => c.toUpperCase()).trim());
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -47,7 +48,7 @@ export function getDisplayRecord(value: unknown): Record<string, unknown> | null
 export function getDisplayText(value: unknown, fallback = "—"): string {
   if (typeof value === "string") {
     const trimmed = value.trim();
-    return trimmed.length > 0 ? trimmed : fallback;
+    return trimmed.length > 0 ? sanitizeCMOS(trimmed) : fallback;
   }
 
   if (typeof value === "number" && Number.isFinite(value)) {
@@ -63,12 +64,14 @@ export function getDisplayText(value: unknown, fallback = "—"): string {
  * "this chapter" when it evaluated a full novel.
  */
 export function correctScopeLanguage(text: string, isLongForm: boolean): string {
-  if (!isLongForm) return text;
-  return text
-    .replace(/\bthis chapter\b/gi, 'this manuscript')
-    .replace(/\bthe chapter\b/gi, 'the manuscript')
-    .replace(/\bchapter-level\b/gi, 'manuscript-level')
-    .replace(/\bper[- ]chapter\b/gi, 'overall');
+  const scoped = isLongForm
+    ? text
+        .replace(/\bthis chapter\b/gi, 'this manuscript')
+        .replace(/\bthe chapter\b/gi, 'the manuscript')
+        .replace(/\bchapter-level\b/gi, 'manuscript-level')
+        .replace(/\bper[- ]chapter\b/gi, 'overall')
+    : text;
+  return sanitizeCMOS(scoped);
 }
 
 export function getDisplayDateTime(isoLike: string | null | undefined, fallback = "Unknown"): string {
@@ -98,7 +101,7 @@ export function getDisplayDreamScore(
 export function getDisplayDreamList(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
   return value
-    .map((entry) => (typeof entry === "string" ? entry.trim() : ""))
+    .map((entry) => (typeof entry === "string" ? sanitizeCMOS(entry.trim()) : ""))
     .filter((entry) => entry.length > 0);
 }
 
@@ -116,7 +119,7 @@ export function getDisplayObjectArray(value: unknown): Array<Record<string, unkn
  * trim back to the last complete word boundary and append an ellipsis.
  */
 export function safeTruncateToWordBoundary(text: string): string {
-  const trimmed = text.trim();
+  const trimmed = sanitizeCMOS(text.trim());
   if (!trimmed) return trimmed;
 
   // Already ends with sentence-terminal punctuation — no truncation needed.
@@ -135,7 +138,7 @@ export function safeTruncateToWordBoundary(text: string): string {
 
   // If we stripped something, add ellipsis.
   if (result.length < trimmed.length) {
-    return result + "…";
+    return sanitizeCMOS(result + "…");
   }
 
   // Ends cleanly on a complete word — likely fine, but check for partial words.
@@ -146,7 +149,7 @@ export function safeTruncateToWordBoundary(text: string): string {
   if (lastSegment.length <= 3 && !/[aeiou]/i.test(lastSegment)) {
     const upToLastSpace = result.slice(0, lastSpace).trimEnd();
     const cleaned = upToLastSpace.replace(DANGLING_TAIL, "").replace(/[,;:\s]+$/, "");
-    return cleaned + "…";
+    return sanitizeCMOS(cleaned + "…");
   }
 
   return result;
@@ -157,7 +160,7 @@ export function safeTruncateToWordBoundary(text: string): string {
  * Trims to the last complete word and adds ellipsis if truncated.
  */
 export function safeEvidenceQuote(snippet: string): string {
-  const trimmed = snippet.trim();
+  const trimmed = sanitizeCMOS(snippet.trim());
   if (!trimmed) return trimmed;
 
   // Already ends with closing punctuation — no fix needed.
@@ -165,15 +168,15 @@ export function safeEvidenceQuote(snippet: string): string {
 
   // Ends with a complete word — append ellipsis to signal continuation.
   const lastSpace = trimmed.lastIndexOf(" ");
-  if (lastSpace === -1) return trimmed + "…";
+  if (lastSpace === -1) return sanitizeCMOS(trimmed + "…");
 
   const lastWord = trimmed.slice(lastSpace + 1);
   // Partial word: trim back.
   if (lastWord.length <= 2 && !/[aeiou]/i.test(lastWord)) {
-    return trimmed.slice(0, lastSpace).replace(/[,;:\s]+$/, "") + "…";
+    return sanitizeCMOS(trimmed.slice(0, lastSpace).replace(/[,;:\s]+$/, "") + "…");
   }
 
-  return trimmed + "…";
+  return sanitizeCMOS(trimmed + "…");
 }
 
 export function getDisplayDreamMarketField(
@@ -202,17 +205,17 @@ export function getDisplayDreamMarketList(
  * on sentence endings.
  */
 export function splitIntoParagraphs(text: string): string[] {
-  const trimmed = text.trim();
+  const trimmed = sanitizeCMOS(text.trim());
   if (!trimmed) return [];
 
   // If the text already has double-newlines, respect those.
   if (/\n\s*\n/.test(trimmed)) {
-    return trimmed.split(/\n\s*\n/).map((p) => p.trim()).filter((p) => p.length > 0);
+    return trimmed.split(/\n\s*\n/).map((p) => sanitizeCMOS(p.trim())).filter((p) => p.length > 0);
   }
 
   // If the text has single newlines, use those as paragraph breaks.
   if (/\n/.test(trimmed)) {
-    return trimmed.split(/\n/).map((p) => p.trim()).filter((p) => p.length > 0);
+    return trimmed.split(/\n/).map((p) => sanitizeCMOS(p.trim())).filter((p) => p.length > 0);
   }
 
   // Single block of text: split at sentence boundaries around 150 words.
@@ -224,7 +227,7 @@ export function splitIntoParagraphs(text: string): string[] {
   for (const sentence of sentences) {
     const sentenceWords = sentence.trim().split(/\s+/).length;
     if (wordCount > 0 && wordCount + sentenceWords > 150) {
-      paragraphs.push(current.trim());
+      paragraphs.push(sanitizeCMOS(current.trim()));
       current = sentence;
       wordCount = sentenceWords;
     } else {
@@ -232,7 +235,7 @@ export function splitIntoParagraphs(text: string): string[] {
       wordCount += sentenceWords;
     }
   }
-  if (current.trim()) paragraphs.push(current.trim());
+  if (current.trim()) paragraphs.push(sanitizeCMOS(current.trim()));
 
   return paragraphs.length > 0 ? paragraphs : [trimmed];
 }
@@ -291,6 +294,7 @@ export function filterAuthorFacingTextList(value: unknown): string[] {
   return getDisplayDreamList(value)
     .filter((entry) => !isInternalDiagnosticText(entry))
     .map(stripLeadingNumberPrefix)
+    .map(sanitizeCMOS)
     .filter((entry) => entry.length > 0);
 }
 
