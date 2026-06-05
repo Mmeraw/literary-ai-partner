@@ -33,6 +33,9 @@ export interface MaxAgeKillSwitchPartition {
   queuedSkippedIds: string[];
 }
 
+const AUTHOR_SAFE_SYNC_MESSAGE =
+  'Evaluation paused while synchronizing progress. Your manuscript and completed analysis have been preserved. Continue Evaluation will resume from the safest available checkpoint.';
+
 const PHASE_ADVANCE_ORDER = [
   'phase_0',
   'seed_0_5a',
@@ -295,7 +298,7 @@ export function classifyQueuedHardStop(job: QueueHardStopCandidate, args: {
   if (splitBrain === 'structural') {
     return {
       code: 'STATE_SPLIT_BRAIN_DETECTED',
-      reason: `Split-brain state detected: phase=${job.phase ?? 'null'}, phase_status=${job.phase_status ?? 'null'}, progress.phase=${String(job.progress?.phase ?? 'null')}, progress.phase_status=${String(job.progress?.phase_status ?? 'null')}`,
+      reason: AUTHOR_SAFE_SYNC_MESSAGE,
     };
   }
 
