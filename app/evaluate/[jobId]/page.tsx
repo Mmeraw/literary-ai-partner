@@ -663,35 +663,75 @@ export default async function EvaluationReportPage({
       })
     : null;
   const opportunitySummary = artifact ? summarizeRevisionOpportunities(artifact.criteria) : null;
+  const overallScore = artifact
+    ? Math.round(artifact.overall_score ?? artifact.overview?.overall_score_0_100 ?? 0)
+    : null;
+  const verdict = artifact?.overview?.verdict?.trim() || (overallScore !== null && overallScore >= 85 ? "Pass" : "Revise");
+  const generatedAt = artifact?.generated_at ? new Date(artifact.generated_at) : job.updated_at ? new Date(job.updated_at) : null;
+  const generatedLabel = generatedAt
+    ? generatedAt.toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" })
+    : "Not available";
+  const reportType = isLongForm ? "Long-Form Evaluation Report" : "Short-Form Evaluation Report";
+  const displayWordCount = wordCount ?? progressWordCount;
+  const estimatedPages = typeof displayWordCount === "number" ? Math.ceil(displayWordCount / 250) : null;
+  const genre = artifact?.metrics?.manuscript?.genre?.trim() || "Not specified";
+  const readinessCriterion = orderedCriteria.find((criterion) => {
+    const key = criterion.key.toLowerCase();
+    const label = isCriterionKey(criterion.key) ? getCriterionDisplayLabel(criterion.key, evaluationScope).toLowerCase() : key;
+    return key.includes("readiness") || key.includes("market") || label.includes("readiness") || label.includes("market");
+  });
+  const readinessScore = readinessCriterion?.score_0_10;
+  const readinessConfidence = readinessCriterion ? getConfidencePresentation(readinessCriterion) : null;
   const hasDetectedMode = Boolean(artifact?.detected_mode);
   const hasConfirmedMode = Boolean(artifact?.confirmed_mode);
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: '#F8F6F1' }}>
-      <main className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
-      <div className="mb-4 flex items-start justify-between gap-4">
-        <div className="min-w-0">
-          <div className="flex items-center gap-3 flex-wrap">
-            <h1 className="font-rg-serif text-2xl font-bold text-stone-950 sm:text-3xl">Evaluation Report</h1>
+      <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
+      <div className="mb-7 rounded-xl border border-stone-300 bg-white p-6 shadow-sm sm:p-8">
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#8A6A1F]">Evaluation Report</p>
+            <h1 className="mt-2 font-rg-serif text-3xl font-bold leading-tight text-stone-950 sm:text-4xl">{displayTitle}</h1>
+            {manuscriptTitle && chapterTitle && manuscriptTitle !== chapterTitle && (
+              <p className="mt-2 text-base font-medium text-stone-700">{manuscriptTitle}</p>
+            )}
+            <dl className="mt-5 grid gap-x-6 gap-y-3 text-base sm:grid-cols-2">
+              <div><dt className="font-semibold text-stone-950">Report Type</dt><dd className="mt-1 text-stone-700">{reportType}</dd></div>
+              <div><dt className="font-semibold text-stone-950">Genre</dt><dd className="mt-1 capitalize text-stone-700">{genre}</dd></div>
+              <div><dt className="font-semibold text-stone-950">Submitted Word Count</dt><dd className="mt-1 text-stone-700">{typeof displayWordCount === 'number' ? displayWordCount.toLocaleString() : 'Calculating'}</dd></div>
+              <div><dt className="font-semibold text-stone-950">Estimated Manuscript Pages</dt><dd className="mt-1 text-stone-700">{estimatedPages ? `${estimatedPages.toLocaleString()} at 250 words/page` : 'Not available'}</dd></div>
+              <div><dt className="font-semibold text-stone-950">Reading Grade Level</dt><dd className="mt-1 text-stone-700">{artifact?.enrichment?.reading_grade_level != null ? `${artifact.enrichment.reading_grade_level} (Flesch-Kincaid)` : 'Not available'}</dd></div>
+              <div><dt className="font-semibold text-stone-950">Dialogue/Narrative Ratio</dt><dd className="mt-1 text-stone-700">{artifact?.enrichment?.dialogue_percentage != null ? `${artifact.enrichment.dialogue_percentage}% dialogue / ${artifact.enrichment.narrative_percentage ?? 100 - artifact.enrichment.dialogue_percentage}% narrative` : 'Not available'}</dd></div>
+              <div><dt className="font-semibold text-stone-950">Date Generated</dt><dd className="mt-1 text-stone-700">{generatedLabel}</dd></div>
+            </dl>
           </div>
-          <p className="mt-1 text-lg font-semibold text-stone-900">{displayTitle}</p>
-          {manuscriptTitle && chapterTitle && manuscriptTitle !== chapterTitle && (
-            <p className="text-sm text-gray-600">{manuscriptTitle}</p>
-          )}
-          <p className="mt-1 text-sm text-gray-500">
-            {(() => {
-              const displayCount = wordCount ?? progressWordCount;
-              if (typeof displayCount === 'number') return `${displayCount.toLocaleString()} words`;
-              if (isComplete) return '';
-              return 'Word count: calculating…';
-            })()}
-          </p>
-        </div>
-        <div className="flex items-center gap-3 shrink-0">
-          {isComplete && <DownloadReportButton jobId={jobId} />}
-          <Link href="/evaluate" className="text-sm font-medium text-stone-600 hover:text-stone-900 underline underline-offset-2">
-            Back to Evaluate
-          </Link>
+
+          <aside className="grid w-full shrink-0 gap-4 lg:w-72">
+            <div className="rounded-lg border border-[#B8922A]/45 bg-[#1C1814] p-5 text-[#F5EFE0]">
+              <p className="text-sm font-semibold uppercase tracking-[0.16em] text-[#C8A96E]">Overall Score</p>
+              <p className="mt-3 font-rg-serif text-5xl font-bold leading-none text-white">{overallScore !== null ? overallScore : 'N/A'}<span className="text-2xl text-[#C8A96E]">/100</span></p>
+              <p className="mt-3 inline-flex rounded-full border border-[#C8A96E]/50 px-3 py-1 text-base font-semibold uppercase tracking-wide text-[#F5E9C8]">{verdict}</p>
+            </div>
+            {readinessCriterion && (
+              <div className="rounded-lg border border-stone-300 bg-stone-50 p-5">
+                <p className="text-sm font-semibold uppercase tracking-[0.16em] text-stone-600">Market Readiness</p>
+                <p className="mt-3 text-3xl font-bold text-stone-950">{typeof readinessScore === 'number' ? `${readinessScore}/10` : 'Not scored'}</p>
+                {readinessConfidence && <p className="mt-2 text-base font-medium text-stone-700">{readinessConfidence.label}</p>}
+                {readinessCriterion.rationale && (
+                  <p className="mt-3 text-base leading-7 text-stone-700">
+                    {safeTruncateToWordBoundary(readinessCriterion.rationale)}
+                  </p>
+                )}
+              </div>
+            )}
+            <div className="flex flex-wrap gap-3">
+              {isComplete && <DownloadReportButton jobId={jobId} />}
+              <Link href="/evaluate" className="inline-flex items-center rounded-md border border-stone-300 bg-white px-4 py-2 text-base font-medium text-stone-700 hover:bg-stone-50">
+                Back to Evaluate
+              </Link>
+            </div>
+          </aside>
         </div>
       </div>
 

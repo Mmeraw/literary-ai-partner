@@ -176,7 +176,7 @@ function pushTxtListBlock(lines: string[], label: string, values: unknown, optio
 
   lines.push('');
   lines.push(`${label}:`);
-    cleaned.forEach((item, idx) => {
+  cleaned.forEach((item, idx) => {
     if (options.ordered) {
       lines.push(`${idx + 1}. ${item}`);
       return;
@@ -783,6 +783,247 @@ function scoreBarColor(score: number | null | undefined): string {
   return RG.error;
 }
 
+
+function escapeHtml(value: unknown): string {
+  return toPdfSafeText(value, '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function renderHtmlParagraph(value: unknown, fallback = ''): string {
+  const text = cleanReportText(value, fallback, { blockTruncation: true });
+  if (!text) return '';
+  return `<p>${escapeHtml(text)}</p>`;
+}
+
+function renderHtmlList(items: unknown, empty = 'None supplied.'): string {
+  const values = filterAuthorFacingTextList(items);
+  if (values.length === 0) return `<p>${escapeHtml(empty)}</p>`;
+  return `<ul>${values.map((item) => `<li>${escapeHtml(cleanReportText(item, ''))}</li>`).join('')}</ul>`;
+}
+
+function renderMetric(label: string, value: unknown): string {
+  const safeValue = escapeHtml(value ?? 'Not available');
+  return `<div class="metric"><dt>${escapeHtml(label)}</dt><dd>${safeValue}</dd></div>`;
+}
+
+function renderScoreClass(score: number | null | undefined): string {
+  if (typeof score !== 'number') return 'score-muted';
+  if (score >= 8) return 'score-strong';
+  if (score >= 6) return 'score-watch';
+  return 'score-risk';
+}
+
+function renderPremiumReportHtml(
+  result: ExportableResult,
+  metadata: ReportMetadata,
+  summaryFallback: string,
+  dream: LongformDreamDocument | null,
+  enrichment: EnrichmentData,
+): string {
+  const pitches = buildReportPitches({
+    premise: enrichment?.premise,
+    summary: result.overview.one_paragraph_summary,
+    title: metadata.displayTitle,
+  });
+  const opportunitySummary = summarizeRevisionOpportunities(result.criteria);
+  const topRecommendations = buildTopRecommendations(result, 5);
+  const readinessCriterion = result.criteria.find((criterion) => {
+    const key = criterion.key.toLowerCase();
+    const label = getCriterionDisplayLabel(criterion.key).toLowerCase();
+    return key.includes('readiness') || key.includes('market') || label.includes('readiness') || label.includes('market');
+  });
+  const readinessScore = readinessCriterion?.score_0_10;
+  const readinessConfidence = readinessCriterion?.confidence_level ? formatConfidenceLabel(readinessCriterion.confidence_level) : null;
+  const dialogueRatio = enrichment?.dialogue_percentage != null
+    ? `${Math.round(enrichment.dialogue_percentage)}% dialogue / ${Math.round(enrichment.narrative_percentage ?? (100 - enrichment.dialogue_percentage))}% narrative`
+    : null;
+
+  const criteriaRows = result.criteria.map((criterion) => {
+    const score = criterion.score_0_10;
+    return `
+      <tr>
+        <td>${escapeHtml(getCriterionDisplayLabel(criterion.key))}</td>
+        <td class="score-cell ${renderScoreClass(score)}">${escapeHtml(scoreLabel(score, 10))}</td>
+        <td>${escapeHtml(criterion.confidence_level ? formatConfidenceLabel(criterion.confidence_level) : 'Not available')}</td>
+      </tr>`;
+  }).join('');
+
+  const criteriaCards = result.criteria.map((criterion) => {
+    const opportunities = getCriterionOpportunities(criterion as { recommendations?: unknown });
+    const opportunityHtml = opportunities.length > 0
+      ? `<div class="opportunities"><h4>Opportunities</h4>${opportunities.map((opportunity) => {
+          const rows = opportunityRows(opportunity);
+          return `<div class="opportunity">
+            <p class="opportunity-label">${escapeHtml(exportSeverity(opportunity.priority))}</p>
+            ${rows.map(([label, value]) => `<p><strong>${escapeHtml(label)}:</strong> ${escapeHtml(value)}</p>`).join('')}
+          </div>`;
+        }).join('')}</div>`
+      : '';
+    return `<article class="criterion-card">
+      <div class="criterion-head">
+        <h3>${escapeHtml(getCriterionDisplayLabel(criterion.key))}</h3>
+        <div class="criterion-score ${renderScoreClass(criterion.score_0_10)}">${escapeHtml(scoreLabel(criterion.score_0_10, 10))}</div>
+      </div>
+      <p class="confidence">${escapeHtml(criterion.confidence_level ? formatConfidenceLabel(criterion.confidence_level) : 'Confidence not available')}</p>
+      ${renderHtmlParagraph(criterion.rationale)}
+      ${opportunityHtml}
+    </article>`;
+  }).join('');
+
+  const dreamHtml = dream ? `<section class="section page-break-before">
+    <h2>Narrative Synthesis</h2>
+    <div class="score-grid four">
+      ${[
+        ['Quality', dream.dream_scores?.quality],
+        ['Readiness', dream.dream_scores?.readiness],
+        ['Commercial', dream.dream_scores?.commercial],
+        ['Literary', dream.dream_scores?.literary],
+      ].map(([label, value]) => `<div><span>${escapeHtml(label)}</span><strong>${escapeHtml(value ?? 'N/A')}</strong><small>/100</small></div>`).join('')}
+    </div>
+  </section>` : '';
+
+  return `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>${escapeHtml(metadata.displayTitle)} - RevisionGrade Report</title>
+  <style>
+    @page {
+      size: Letter;
+      margin: 0.72in 0.72in 0.82in;
+      @bottom-left { content: "RevisionGrade?"; color: #8a8175; font-size: 9pt; }
+      @bottom-right { content: counter(page); color: #8a8175; font-size: 9pt; }
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; color: #1c1814; background: #faf7f2; font-family: Georgia, "Times New Roman", serif; font-size: 11.5pt; line-height: 1.55; }
+    .cover { min-height: 8.9in; padding: 0.35in 0 0; page-break-after: always; }
+    .brand { color: #8b2e2e; font-family: Helvetica, Arial, sans-serif; font-size: 22pt; font-weight: 700; letter-spacing: 0.02em; }
+    .tagline { margin-top: 0.08in; color: #5c5549; font-family: Helvetica, Arial, sans-serif; font-size: 10pt; }
+    .rule { height: 3px; margin: 0.28in 0 0.35in; background: #b8922a; }
+    h1 { margin: 0; max-width: 6.4in; font-size: 26pt; line-height: 1.12; color: #1c1814; font-weight: 700; }
+    .subtitle { margin-top: 0.12in; color: #5c5549; font-family: Helvetica, Arial, sans-serif; font-size: 12pt; }
+    .cover-grid { display: grid; grid-template-columns: 1fr 2in; gap: 0.28in; margin-top: 0.35in; align-items: start; }
+    .metadata { display: grid; grid-template-columns: 1fr 1fr; gap: 0.12in 0.18in; }
+    .metric { padding: 0.12in 0.14in; background: #fffdf9; border: 1px solid #d9d0c3; border-radius: 6px; }
+    dt { margin: 0; color: #5c5549; font-family: Helvetica, Arial, sans-serif; font-size: 8.5pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
+    dd { margin: 0.04in 0 0; color: #1c1814; font-family: Helvetica, Arial, sans-serif; font-size: 10.5pt; font-weight: 600; }
+    .score-card { padding: 0.22in; color: #f5efe0; background: #1c1814; border: 2px solid #b8922a; border-radius: 8px; }
+    .score-card span { display: block; color: #c8a96e; font-family: Helvetica, Arial, sans-serif; font-size: 8.5pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; }
+    .score-card strong { display: block; margin-top: 0.08in; font-family: Georgia, "Times New Roman", serif; font-size: 38pt; line-height: 1; color: #fff; }
+    .score-card small { color: #c8a96e; font-size: 16pt; }
+    .badge { display: inline-block; margin-top: 0.12in; padding: 0.04in 0.12in; border: 1px solid #c8a96e; border-radius: 999px; color: #f5e9c8; font-family: Helvetica, Arial, sans-serif; font-size: 10pt; font-weight: 700; text-transform: uppercase; }
+    .readiness { margin-top: 0.16in; padding: 0.16in; background: #fffdf9; border: 1px solid #d9d0c3; border-radius: 8px; }
+    .readiness h2 { margin: 0; font-family: Helvetica, Arial, sans-serif; color: #5c5549; font-size: 9pt; text-transform: uppercase; letter-spacing: 0.08em; }
+    .readiness strong { display: block; margin-top: 0.08in; color: #1c1814; font-size: 18pt; }
+    .readiness p { margin: 0.05in 0 0; color: #5c5549; font-family: Helvetica, Arial, sans-serif; font-size: 9.5pt; line-height: 1.45; }
+    .disclaimer { margin-top: 0.35in; color: #5c5549; font-family: Helvetica, Arial, sans-serif; font-size: 9.5pt; line-height: 1.45; }
+    .section { margin: 0 0 0.34in; padding: 0.22in 0.24in; background: #fffdf9; border: 1px solid #d9d0c3; border-radius: 8px; break-inside: avoid; }
+    .section.allow-break { break-inside: auto; }
+    h2 { margin: 0 0 0.12in; color: #8b2e2e; font-family: Helvetica, Arial, sans-serif; font-size: 15pt; line-height: 1.2; }
+    h3 { margin: 0; color: #1c1814; font-family: Helvetica, Arial, sans-serif; font-size: 12.5pt; line-height: 1.25; }
+    h4 { margin: 0.12in 0 0.06in; color: #8b2e2e; font-family: Helvetica, Arial, sans-serif; font-size: 10.5pt; }
+    p { margin: 0 0 0.11in; }
+    ul { margin: 0.03in 0 0; padding-left: 0.2in; }
+    li { margin-bottom: 0.08in; padding-left: 0.02in; }
+    .score-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.1in; }
+    .score-grid div { padding: 0.12in; background: #faf7f2; border: 1px solid #d9d0c3; border-radius: 6px; text-align: center; }
+    .score-grid span { display: block; color: #5c5549; font-family: Helvetica, Arial, sans-serif; font-size: 8.5pt; font-weight: 700; text-transform: uppercase; }
+    .score-grid strong { display: block; margin-top: 0.04in; font-size: 18pt; color: #1c1814; }
+    table { width: 100%; border-collapse: collapse; font-family: Helvetica, Arial, sans-serif; font-size: 9.5pt; }
+    th { padding: 0.08in; color: #5c5549; text-align: left; text-transform: uppercase; letter-spacing: 0.04em; border-bottom: 2px solid #b8922a; }
+    td { padding: 0.08in; border-bottom: 1px solid #e6ded2; vertical-align: top; }
+    th:nth-child(2), th:nth-child(3), td:nth-child(2), td:nth-child(3) { text-align: right; }
+    .score-cell, .criterion-score { font-weight: 700; white-space: nowrap; }
+    .score-strong { color: #3a6b2a; } .score-watch { color: #8b5e1a; } .score-risk { color: #8b2020; } .score-muted { color: #5c5549; }
+    .criterion-card { margin: 0 0 0.22in; padding: 0.18in 0.2in; background: #fffdf9; border: 1px solid #d9d0c3; border-radius: 8px; break-inside: avoid; }
+    .criterion-head { display: grid; grid-template-columns: 1fr auto; gap: 0.16in; align-items: start; }
+    .criterion-score { font-family: Helvetica, Arial, sans-serif; font-size: 13pt; }
+    .confidence { margin-top: 0.03in; color: #5c5549; font-family: Helvetica, Arial, sans-serif; font-size: 9.5pt; font-weight: 700; }
+    .opportunity { margin-top: 0.09in; padding: 0.12in 0.14in; background: #faf7f2; border-left: 3px solid #b8922a; }
+    .opportunity p { margin-bottom: 0.06in; font-size: 10pt; line-height: 1.45; }
+    .opportunity-label { color: #8b2e2e; font-family: Helvetica, Arial, sans-serif; font-weight: 700; text-transform: uppercase; }
+    .page-break-before { page-break-before: always; }
+  </style>
+</head>
+<body>
+  <section class="cover">
+    <div class="brand">RevisionGrade?</div>
+    <div class="tagline">Manuscript diagnosis, author-controlled revision, and professional submission preparation.</div>
+    <div class="rule"></div>
+    <h1>${escapeHtml(metadata.displayTitle)}</h1>
+    <p class="subtitle">${escapeHtml(metadata.reportType)}</p>
+    <div class="cover-grid">
+      <dl class="metadata">
+        ${renderMetric('Genre', metadata.genre ?? 'Not specified')}
+        ${renderMetric('Shelf', metadata.shelf ?? 'Not specified')}
+        ${renderMetric('Submitted Word Count', metadata.wordCount ? metadata.wordCount.toLocaleString() : 'Not available')}
+        ${renderMetric('Estimated Manuscript Pages', metadata.estimatedPages ? `${metadata.estimatedPages.toLocaleString()} at ${WORDS_PER_MANUSCRIPT_PAGE} words/page` : 'Not available')}
+        ${renderMetric('Reading Grade Level', enrichment?.reading_grade_level != null ? `${enrichment.reading_grade_level.toFixed(1)} (Flesch-Kincaid)` : 'Not available')}
+        ${renderMetric('Dialogue/Narrative Ratio', dialogueRatio ?? 'Not available')}
+        ${renderMetric('Date Generated', metadata.generatedAt)}
+        ${renderMetric('Confidentiality', 'Prepared for author/editorial use')}
+      </dl>
+      <aside>
+        <div class="score-card"><span>Overall Score</span><strong>${escapeHtml(Math.round(result.overview.overall_score_0_100))}<small>/100</small></strong><div class="badge">${escapeHtml(metadata.verdict)}</div></div>
+        ${readinessCriterion ? `<div class="readiness"><h2>Market Readiness</h2><strong>${escapeHtml(scoreLabel(readinessScore, 10))}</strong>${readinessConfidence ? `<p>${escapeHtml(readinessConfidence)}</p>` : ''}${readinessCriterion.rationale ? `<p>${escapeHtml(cleanReportText(readinessCriterion.rationale, '', { blockTruncation: true }))}</p>` : ''}</div>` : ''}
+      </aside>
+    </div>
+    <p class="disclaimer">${escapeHtml(EXPORT_DISCLAIMER)}</p>
+  </section>
+
+  <section class="section"><h2>One-Paragraph Pitch</h2>${renderHtmlParagraph(pitches.oneParagraphPitch)}</section>
+  <section class="section"><h2>One-Sentence Pitch</h2>${renderHtmlParagraph(pitches.oneSentencePitch)}</section>
+  ${enrichment?.premise ? `<section class="section"><h2>Premise</h2>${renderHtmlParagraph(enrichment.premise)}</section>` : ''}
+  <section class="section"><h2>Content Warnings</h2>${renderHtmlList(enrichment?.trigger_warnings, 'No content warnings identified.')}<p><em>Consider including content warnings in book marketing or front matter.</em></p></section>
+  <section class="section"><h2>Revision Opportunity Summary</h2><div class="score-grid">${[
+    ['Total', opportunitySummary.total], ['High Priority', opportunitySummary.high], ['Medium Priority', opportunitySummary.medium], ['Low Priority', opportunitySummary.low],
+  ].map(([label, value]) => `<div><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`).join('')}</div><p>Priority labels are polite alternatives to MUST / SHOULD / COULD labels.</p></section>
+  ${enrichment?.reading_grade_level != null ? `<section class="section"><h2>Reading Grade Level</h2>${renderHtmlParagraph(`Grade Level: ${enrichment.reading_grade_level.toFixed(1)} (Flesch-Kincaid)`)}<p>Reading Grade Level measures prose complexity, not audience appropriateness. Always cross-reference Content Warnings for content suitability guidance.</p></section>` : ''}
+  ${enrichment?.dialogue_percentage != null ? `<section class="section"><h2>Dialogue vs. Narrative Ratio</h2>${renderHtmlParagraph(dialogueRatio)}</section>` : ''}
+  <section class="section allow-break"><h2>Executive Summary</h2>${renderHtmlParagraph(result.overview.one_paragraph_summary, summaryFallback)}</section>
+  <section class="section"><h2>Top Strengths</h2>${renderHtmlList(result.overview.top_3_strengths, 'No strengths supplied.')}</section>
+  <section class="section"><h2>Top Risks</h2>${renderHtmlList(result.overview.top_3_risks, 'No risks supplied.')}</section>
+  ${topRecommendations.length > 0 ? `<section class="section"><h2>Top Recommendations</h2><ul>${topRecommendations.map((item) => `<li>${escapeHtml(cleanReportText(item))}</li>`).join('')}</ul></section>` : ''}
+  <section class="section page-break-before"><h2>13 Criteria Score Grid</h2><table><thead><tr><th>Criterion</th><th>Score</th><th>Confidence</th></tr></thead><tbody>${criteriaRows}</tbody></table></section>
+  <section class="allow-break"><h2>Criterion Rationales &amp; Surfaced Opportunities</h2>${criteriaCards}</section>
+  ${dreamHtml}
+</body>
+</html>`;
+}
+
+async function buildChromiumPdf(html: string): Promise<Buffer> {
+  const chromiumModule = await import('@sparticuz/chromium');
+  const puppeteerModule = await import('puppeteer-core');
+  const chromium = chromiumModule.default ?? chromiumModule;
+  const puppeteer = puppeteerModule.default ?? puppeteerModule;
+
+  const browser = await puppeteer.launch({
+    args: chromium.args,
+    defaultViewport: chromium.defaultViewport,
+    executablePath: await chromium.executablePath(),
+    headless: chromium.headless ?? true,
+  });
+
+  try {
+    const page = await browser.newPage();
+    await page.setContent(html, { waitUntil: 'networkidle0', timeout: 30_000 });
+    const pdf = await page.pdf({
+      format: 'letter',
+      printBackground: true,
+      preferCSSPageSize: true,
+      margin: { top: '0in', right: '0in', bottom: '0in', left: '0in' },
+    });
+    return Buffer.from(pdf);
+  } finally {
+    await browser.close();
+  }
+}
+
+
 async function buildPdfReport(result: ExportableResult, title: string | null, jobId: string, dream: LongformDreamDocument | null, enrichment: EnrichmentData = null): Promise<Buffer> {
   return await new Promise<Buffer>((resolve, reject) => {
     const metadata = buildMetadata(result, title, dream);
@@ -794,7 +1035,11 @@ async function buildPdfReport(result: ExportableResult, title: string | null, jo
     });
     const opportunitySummary = summarizeRevisionOpportunities(result.criteria);
     const topRecommendations = buildTopRecommendations(result, 5);
-    const doc = new PDFDocument({ size: 'LETTER', margin: 54, bufferPages: true });
+
+    const html = renderPremiumReportHtml(result, metadata, summaryFallback, dream, enrichment);
+    return await buildChromiumPdf(html);
+
+    const doc = new PDFDocument({ size: 'LETTER', margin: 48, bufferPages: true });
     const chunks: Buffer[] = [];
     doc.on('data', (chunk: Buffer | Uint8Array) => chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)));
     doc.on('end', () => resolve(Buffer.concat(chunks)));
@@ -802,7 +1047,7 @@ async function buildPdfReport(result: ExportableResult, title: string | null, jo
 
     const ml = doc.page.margins.left;
     const contentWidth = doc.page.width - ml - doc.page.margins.right;
-    const bottomY = () => doc.page.height - doc.page.margins.bottom - 48;
+    const bottomY = () => doc.page.height - doc.page.margins.bottom - 36;
     const ensureSpace = (height = 90) => {
       if (doc.y + height > bottomY()) doc.addPage();
     };
@@ -816,34 +1061,34 @@ async function buildPdfReport(result: ExportableResult, title: string | null, jo
     const thinRule = () => {
       doc.moveTo(ml, doc.y).lineTo(ml + contentWidth, doc.y).strokeColor(RG.border).lineWidth(0.5).stroke();
       doc.strokeColor('#000000').lineWidth(1);
-      doc.moveDown(0.3);
+      doc.moveDown(0.45);
     };
     const section = (text: unknown) => {
       ensureSpace(72);
       doc.moveDown(1.2);
-      doc.font('Helvetica-Bold').fontSize(14).fillColor(RG.oxblood).text(toPdfSafeText(text), ml, doc.y, { width: contentWidth });
-      doc.moveDown(0.3);
+      doc.font('Helvetica-Bold').fontSize(18).fillColor(RG.oxblood).text(toPdfSafeText(text), ml, doc.y, { width: contentWidth });
+      doc.moveDown(0.45);
       goldRule();
     };
     const paragraph = (text: unknown) => {
-      ensureSpace(70);
-      doc.font('Helvetica').fontSize(10.5).fillColor(RG.textPrimary).text(toPdfSafeText(text), ml, doc.y, { width: contentWidth, lineGap: 3.5 });
-      doc.moveDown(0.55);
+      ensureSpace(95);
+      doc.font('Helvetica').fontSize(12).fillColor(RG.textPrimary).text(toPdfSafeText(text), ml, doc.y, { width: contentWidth, lineGap: 5 });
+      doc.moveDown(0.85);
     };
     const bullet = (text: unknown, color: string = RG.textPrimary) => {
-      ensureSpace(45);
-      doc.font('Helvetica').fontSize(10.5).fillColor(color).text(`\u2022 ${toPdfSafeText(text)}`, ml, doc.y, { width: contentWidth, lineGap: 2.5 });
-      doc.moveDown(0.3);
+      ensureSpace(60);
+      doc.font('Helvetica').fontSize(11.5).fillColor(color).text(`\u2022 ${toPdfSafeText(text)}`, ml + 8, doc.y, { width: contentWidth - 8, lineGap: 4 });
+      doc.moveDown(0.45);
     };
     const labelValue = (label: string, value: unknown) => {
       const safeValue = toPdfSafeText(value, '');
       if (!safeValue) return;
       const labelStr = `${toPdfSafeText(label)}:  `;
-      doc.font('Helvetica-Bold').fontSize(10);
+      doc.font('Helvetica-Bold').fontSize(11.5);
       const labelWidth = doc.widthOfString(labelStr);
       doc.fillColor(RG.textMuted).text(labelStr, ml, doc.y, { continued: true });
       doc.font('Helvetica').fillColor(RG.textPrimary).text(safeValue, { width: contentWidth - labelWidth });
-      doc.moveDown(0.2);
+      doc.moveDown(0.35);
     };
 
     // ── Cover page ────────────────────────────────────────────────────
@@ -851,12 +1096,12 @@ async function buildPdfReport(result: ExportableResult, title: string | null, jo
     doc.rect(0, 0, doc.page.width, 6).fill(RG.gold);
 
     doc.moveDown(2.5);
-    doc.font('Helvetica-Bold').fontSize(28).fillColor(RG.oxblood).text(
+    doc.font('Helvetica-Bold').fontSize(34).fillColor(RG.oxblood).text(
       toPdfSafeText('RevisionGrade\u2122'),
       { width: contentWidth, align: 'center' },
     );
     doc.moveDown(0.15);
-    doc.font('Helvetica').fontSize(10).fillColor(RG.textMuted).text(
+    doc.font('Helvetica').fontSize(12).fillColor(RG.textMuted).text(
       'Manuscript diagnosis, author-controlled revision, and professional submission preparation.',
       { width: contentWidth, align: 'center' },
     );
@@ -865,12 +1110,12 @@ async function buildPdfReport(result: ExportableResult, title: string | null, jo
     doc.moveDown(0.5);
 
     // Title
-    doc.font('Helvetica-Bold').fontSize(20).fillColor(RG.textPrimary).text(
+    doc.font('Helvetica-Bold').fontSize(24).fillColor(RG.textPrimary).text(
       toPdfSafeText(metadata.displayTitle),
       { width: contentWidth, align: 'center' },
     );
-    doc.moveDown(0.3);
-    doc.font('Helvetica').fontSize(11).fillColor(RG.textMuted).text(
+    doc.moveDown(0.45);
+    doc.font('Helvetica').fontSize(13).fillColor(RG.textMuted).text(
       metadata.reportType,
       { width: contentWidth, align: 'center' },
     );
@@ -883,12 +1128,12 @@ async function buildPdfReport(result: ExportableResult, title: string | null, jo
     const circleX = ml + contentWidth / 2;
     const circleY = doc.y + 36;
     doc.circle(circleX, circleY, 34).fillAndStroke(RG.surface, RG.gold);
-    doc.font('Helvetica-Bold').fontSize(26).fillColor(RG.textPrimary).text(
+    doc.font('Helvetica-Bold').fontSize(30).fillColor(RG.textPrimary).text(
       `${Math.round(scoreNum)}`,
       circleX - 30, circleY - 16,
       { width: 60, align: 'center' },
     );
-    doc.font('Helvetica').fontSize(8).fillColor(RG.textMuted).text(
+    doc.font('Helvetica').fontSize(11.25).fillColor(RG.textMuted).text(
       'out of 100',
       circleX - 30, circleY + 12,
       { width: 60, align: 'center' },
@@ -900,7 +1145,7 @@ async function buildPdfReport(result: ExportableResult, title: string | null, jo
     const badgeWidth = 100;
     const badgeX = circleX - badgeWidth / 2;
     doc.roundedRect(badgeX, doc.y, badgeWidth, 22, 4).fill(vColors.bg);
-    doc.font('Helvetica-Bold').fontSize(11).fillColor(vColors.text).text(
+    doc.font('Helvetica-Bold').fontSize(12).fillColor(vColors.text).text(
       metadata.verdict,
       badgeX, doc.y + 5,
       { width: badgeWidth, align: 'center' },
@@ -910,7 +1155,7 @@ async function buildPdfReport(result: ExportableResult, title: string | null, jo
 
     // Metadata block
     thinRule();
-    doc.moveDown(0.3);
+    doc.moveDown(0.45);
     labelValue('Genre', metadata.genre);
     labelValue('Shelf', metadata.shelf);
     labelValue('Submitted Word Count', metadata.wordCount ? metadata.wordCount.toLocaleString() : null);
@@ -923,8 +1168,8 @@ async function buildPdfReport(result: ExportableResult, title: string | null, jo
 
     // Bottom gold accent bar on cover
     thinRule();
-    doc.moveDown(0.3);
-    doc.font('Helvetica').fontSize(8.5).fillColor(RG.textFaint).text(
+    doc.moveDown(0.45);
+    doc.font('Helvetica').fontSize(9.5).fillColor(RG.textFaint).text(
       toPdfSafeText(EXPORT_DISCLAIMER),
       { width: contentWidth, align: 'center' },
     );
@@ -950,8 +1195,8 @@ async function buildPdfReport(result: ExportableResult, title: string | null, jo
     } else {
       paragraph('No content warnings identified.');
     }
-    doc.moveDown(0.3);
-    doc.font('Helvetica').fontSize(9).fillColor(RG.textMuted).text(
+    doc.moveDown(0.45);
+    doc.font('Helvetica').fontSize(10.5).fillColor(RG.textMuted).text(
       'Consider including content warnings in book marketing or front matter.',
       ml, doc.y, { width: contentWidth },
     );
@@ -962,7 +1207,7 @@ async function buildPdfReport(result: ExportableResult, title: string | null, jo
     labelValue('High Priority', String(opportunitySummary.high));
     labelValue('Medium Priority', String(opportunitySummary.medium));
     labelValue('Low Priority', String(opportunitySummary.low));
-    doc.font('Helvetica').fontSize(9).fillColor(RG.textMuted).text(
+    doc.font('Helvetica').fontSize(10.5).fillColor(RG.textMuted).text(
       'Priority labels are polite alternatives to MUST / SHOULD / COULD labels.',
       ml, doc.y, { width: contentWidth },
     );
@@ -971,7 +1216,7 @@ async function buildPdfReport(result: ExportableResult, title: string | null, jo
     if (enrichment?.reading_grade_level != null) {
       section('Reading Grade Level');
       paragraph(`Grade Level: ${enrichment.reading_grade_level.toFixed(1)} (Flesch-Kincaid)`);
-      doc.font('Helvetica').fontSize(9).fillColor(RG.textMuted).text(
+      doc.font('Helvetica').fontSize(10.5).fillColor(RG.textMuted).text(
         'Reading Grade Level measures prose complexity, NOT audience appropriateness. A manuscript may score at a young-adult reading level (grades 6\u20138) while containing graphic violence, sexual content, or other material unsuitable for younger readers. Always cross-reference Trigger Warnings above for content suitability guidance.',
         ml, doc.y, { width: contentWidth, lineGap: 2 },
       );
@@ -981,7 +1226,7 @@ async function buildPdfReport(result: ExportableResult, title: string | null, jo
     if (enrichment?.dialogue_percentage != null) {
       section('Dialogue vs. Narrative Ratio');
       paragraph(`${Math.round(enrichment.dialogue_percentage)}% dialogue / ${Math.round(enrichment.narrative_percentage ?? (100 - enrichment.dialogue_percentage))}% narrative`);
-      doc.font('Helvetica').fontSize(9).fillColor(RG.textMuted).text(
+      doc.font('Helvetica').fontSize(10.5).fillColor(RG.textMuted).text(
         'Most commercially successful novels contain 25\u201335% dialogue. Genre expectations vary: literary fiction trends lower (15\u201325%), thrillers and romance trend higher (30\u201345%).',
         ml, doc.y, { width: contentWidth, lineGap: 2 },
       );
@@ -1014,18 +1259,18 @@ async function buildPdfReport(result: ExportableResult, title: string | null, jo
     // ── Criteria Scores with visual bars ──────────────────────────────
     section('13 Criteria Score Grid');
     result.criteria.forEach((c) => {
-      ensureSpace(32);
+      ensureSpace(42);
       const score = c.score_0_10;
-      doc.font('Helvetica').fontSize(9.5).fillColor(RG.textPrimary).text(
+      doc.font('Helvetica').fontSize(11).fillColor(RG.textPrimary).text(
         toPdfSafeText(getCriterionDisplayLabel(c.key)),
         ml, doc.y,
-        { width: contentWidth - 160, continued: true },
+        { width: contentWidth - 190, continued: true },
       );
-      doc.font('Helvetica-Bold').fontSize(9.5).fillColor(scoreBarColor(score)).text(
+      doc.font('Helvetica-Bold').fontSize(11).fillColor(scoreBarColor(score)).text(
         toPdfSafeText(scoreLabel(score, 10)),
-        { width: 60, align: 'right', continued: true },
+        { width: 75, align: 'right', continued: true },
       );
-      doc.font('Helvetica').fontSize(8.5).fillColor(confidenceColor(c.confidence_level)).text(
+      doc.font('Helvetica').fontSize(10).fillColor(confidenceColor(c.confidence_level)).text(
         `  ${toPdfSafeText(c.confidence_level ? formatConfidenceLabel(c.confidence_level) : '—')}`,
       );
       doc.moveDown(0.15);
@@ -1033,20 +1278,20 @@ async function buildPdfReport(result: ExportableResult, title: string | null, jo
 
     section('Criterion Rationales & Surfaced Opportunities');
     result.criteria.forEach((c) => {
-      ensureSpace(100);
+      ensureSpace(150);
       const score = c.score_0_10;
       const barColor = scoreBarColor(score);
       const confColor = confidenceColor(c.confidence_level);
 
       // Criterion name + score
-      doc.font('Helvetica-Bold').fontSize(11).fillColor(RG.textPrimary).text(
+      doc.font('Helvetica-Bold').fontSize(14).fillColor(RG.textPrimary).text(
         toPdfSafeText(getCriterionDisplayLabel(c.key)),
         ml, doc.y,
         { width: contentWidth - 80, continued: false },
       );
       // Score on the right
       const scoreY = doc.y - 14;
-      doc.font('Helvetica-Bold').fontSize(13).fillColor(barColor).text(
+      doc.font('Helvetica-Bold').fontSize(15).fillColor(barColor).text(
         scoreLabel(score, 10),
         ml + contentWidth - 70, scoreY,
         { width: 70, align: 'right' },
@@ -1066,7 +1311,7 @@ async function buildPdfReport(result: ExportableResult, title: string | null, jo
       }
       // Confidence label
       if (c.confidence_level) {
-        doc.font('Helvetica').fontSize(8).fillColor(confColor).text(
+        doc.font('Helvetica').fontSize(9.5).fillColor(confColor).text(
           formatConfidenceLabel(c.confidence_level),
           ml + barWidth + 8, barY - 1,
           { width: 80 },
@@ -1076,7 +1321,7 @@ async function buildPdfReport(result: ExportableResult, title: string | null, jo
 
       // Rationale
       if (c.rationale) {
-        doc.font('Helvetica').fontSize(9.5).fillColor(RG.textMuted).text(
+        doc.font('Helvetica').fontSize(11.25).fillColor(RG.textMuted).text(
           toPdfSafeText(c.rationale),
           ml + 4, doc.y,
           { width: contentWidth - 8, lineGap: 2 },
@@ -1085,15 +1330,15 @@ async function buildPdfReport(result: ExportableResult, title: string | null, jo
 
       const opportunities = getCriterionOpportunities(c as { recommendations?: unknown });
       if (opportunities.length > 0) {
-        doc.moveDown(0.3);
-        doc.font('Helvetica-Bold').fontSize(9.5).fillColor(RG.oxblood).text('Opportunities', ml + 4, doc.y, {
+        doc.moveDown(0.45);
+        doc.font('Helvetica-Bold').fontSize(11.5).fillColor(RG.oxblood).text('Opportunities', ml + 4, doc.y, {
           width: contentWidth - 8,
         });
         doc.moveDown(0.15);
 
         opportunities.forEach((opportunity) => {
-          ensureSpace(90);
-          doc.font('Helvetica-Bold').fontSize(9).fillColor(RG.textPrimary).text(
+          ensureSpace(120);
+          doc.font('Helvetica-Bold').fontSize(10.5).fillColor(RG.textPrimary).text(
             `[${exportSeverity(opportunity.priority)}]`,
             ml + 10,
             doc.y,
@@ -1105,7 +1350,7 @@ async function buildPdfReport(result: ExportableResult, title: string | null, jo
           const detailRows = rows.filter(([label]) => label !== 'Evidence');
 
           if (evidence) {
-            doc.font('Helvetica-Oblique').fontSize(8.5).fillColor(RG.textMuted).text(
+            doc.font('Helvetica-Oblique').fontSize(10).fillColor(RG.textMuted).text(
               `Evidence: "${toPdfSafeText(evidence[1])}"`,
               ml + 14,
               doc.y + 1,
@@ -1114,13 +1359,13 @@ async function buildPdfReport(result: ExportableResult, title: string | null, jo
           }
 
           detailRows.forEach(([label, value]) => {
-            doc.font('Helvetica-Bold').fontSize(8.5).fillColor(RG.textMuted).text(
+            doc.font('Helvetica-Bold').fontSize(10).fillColor(RG.textMuted).text(
               `${label}: `,
               ml + 14,
               doc.y + 1,
               { continued: true },
             );
-            doc.font('Helvetica').fontSize(8.5).fillColor(RG.textPrimary).text(toPdfSafeText(value), {
+            doc.font('Helvetica').fontSize(10).fillColor(RG.textPrimary).text(toPdfSafeText(value), {
               width: contentWidth - 24,
               lineGap: 2,
             });
@@ -1130,7 +1375,7 @@ async function buildPdfReport(result: ExportableResult, title: string | null, jo
         });
       }
 
-      doc.moveDown(0.6);
+      doc.moveDown(1.0);
       thinRule();
     });
 
@@ -1178,7 +1423,7 @@ async function buildPdfReport(result: ExportableResult, title: string | null, jo
       if (Array.isArray(dream.structural_stack) && dream.structural_stack.length > 0) {
         section('Structural Stack');
         dream.structural_stack.forEach((layer) => {
-          ensureSpace(90);
+          ensureSpace(120);
           doc.font('Helvetica-Bold').fontSize(10.5).fillColor(RG.textPrimary).text(
             toPdfSafeText(`${cleanReportText(layer.layer_name)} -- ${layer.status}`),
             ml, doc.y,
@@ -1206,7 +1451,7 @@ async function buildPdfReport(result: ExportableResult, title: string | null, jo
       if (revisionPlan.length > 0) {
         section('Revision Plan');
         revisionPlan.forEach((item) => {
-          ensureSpace(90);
+          ensureSpace(120);
           doc.font('Helvetica-Bold').fontSize(10.5).fillColor(RG.textPrimary).text(
             toPdfSafeText(`Priority ${item.displayPriority}: ${cleanReportText(item.title)}`),
             { width: contentWidth },
@@ -1223,7 +1468,7 @@ async function buildPdfReport(result: ExportableResult, title: string | null, jo
         dream.criterion_analyses.forEach((a) => {
           ensureSpace(120);
           const confLabel = formatConfidenceLabel(a.confidence);
-          doc.font('Helvetica-Bold').fontSize(11).fillColor(RG.textPrimary).text(
+          doc.font('Helvetica-Bold').fontSize(14).fillColor(RG.textPrimary).text(
             toPdfSafeText(getCriterionDisplayLabel(a.key)),
             ml, doc.y,
             { width: contentWidth - 120, continued: true },
@@ -1281,7 +1526,7 @@ async function buildPdfReport(result: ExportableResult, title: string | null, jo
             ensureSpace(50);
             bullet(`${sym.symbol} \u2014 ${sym.current_function}`);
             if (sym.revision_instruction) {
-              doc.font('Helvetica').fontSize(9).fillColor(RG.textMuted).text(
+              doc.font('Helvetica').fontSize(10.5).fillColor(RG.textMuted).text(
                 `    Revision: ${toPdfSafeText(sym.revision_instruction)}`,
                 ml, doc.y, { width: contentWidth, indent: 20 },
               );
@@ -1290,19 +1535,19 @@ async function buildPdfReport(result: ExportableResult, title: string | null, jo
           });
         }
         if (Array.isArray(dream.symbolic_audit.doctrine_strengths) && dream.symbolic_audit.doctrine_strengths.length > 0) {
-          doc.moveDown(0.3);
+          doc.moveDown(0.45);
           doc.font('Helvetica-Bold').fontSize(10.5).fillColor(RG.success).text('Doctrine Strengths:', ml, doc.y, { width: contentWidth });
           doc.moveDown(0.1);
           dream.symbolic_audit.doctrine_strengths.forEach((s) => bullet(s, RG.success));
         }
         if (Array.isArray(dream.symbolic_audit.doctrine_risks) && dream.symbolic_audit.doctrine_risks.length > 0) {
-          doc.moveDown(0.3);
+          doc.moveDown(0.45);
           doc.font('Helvetica-Bold').fontSize(10.5).fillColor(RG.warning).text('Doctrine Risks:', ml, doc.y, { width: contentWidth });
           doc.moveDown(0.1);
           dream.symbolic_audit.doctrine_risks.forEach((r) => bullet(r, RG.warning));
         }
         if (dream.symbolic_audit.audit_conclusion) {
-          doc.moveDown(0.3);
+          doc.moveDown(0.45);
           paragraph(`Audit Conclusion: ${dream.symbolic_audit.audit_conclusion}`);
         }
       }
@@ -1336,7 +1581,7 @@ async function buildPdfReport(result: ExportableResult, title: string | null, jo
           paragraph(`Risk: ${re.final_act.risk}`);
         }
         if (re.aftertaste) {
-          doc.moveDown(0.3);
+          doc.moveDown(0.45);
           paragraph(`Aftertaste: ${re.aftertaste}`);
         }
       }
@@ -1351,7 +1596,7 @@ async function buildPdfReport(result: ExportableResult, title: string | null, jo
             toPdfSafeText(dim.dimension),
             ml, doc.y, { width: contentWidth - 100, continued: false },
           );
-          doc.font('Helvetica').fontSize(9.5).fillColor(RG.textMuted).text(
+          doc.font('Helvetica').fontSize(11.25).fillColor(RG.textMuted).text(
             toPdfSafeText(dim.current_status),
             ml + 12, doc.y, { width: contentWidth - 100 },
           );
@@ -1359,7 +1604,7 @@ async function buildPdfReport(result: ExportableResult, title: string | null, jo
             `[${dim.verdict}]`,
             ml + contentWidth - 80, doc.y - 12, { width: 80, align: 'right' },
           );
-          doc.moveDown(0.3);
+          doc.moveDown(0.45);
         });
       }
     }
