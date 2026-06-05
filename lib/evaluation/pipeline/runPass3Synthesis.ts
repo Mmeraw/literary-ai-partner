@@ -25,6 +25,9 @@ import type {
   Pass2aStructuredContext,
   Pass1aCharacterLedger,
   CharacterLedgerV2,
+  IssueFamily,
+  StrategicLever,
+  RevisionGranularity,
 } from "./types";
 import type { Pass3ReadAheadResult } from "./runPass3ReadAhead";
 import type { CanonRegistry } from "@/lib/governance/canonRegistry";
@@ -957,16 +960,6 @@ export function parsePass3Response(
     const bucket = c.final_score_0_10 <= 5 ? "<=5" : c.final_score_0_10 <= 7 ? "6-7" : "8";
     const minRecs = DENSITY_FLOOR[bucket] ?? 2;
     if (c.recommendations.length < minRecs) {
-      const defect = {
-        code: "SCORE_LE8_EMPTY_RECOMMENDATIONS" as const,
-        author_facing_reason:
-          `Criterion "${c.key}" scored ${c.final_score_0_10}/10 but returned ${c.recommendations.length} recommendation(s) (minimum ${minRecs} required). This is a pipeline defect — the evaluation engine will attempt to backfill.`,
-        retryable: true,
-      };
-      c.technical_defects = [...(c.technical_defects ?? []), defect];
-      console.warn(
-        `[Pass3-Gate] SCORE_LE8_EMPTY_RECOMMENDATIONS: ${c.key} score=${c.final_score_0_10} recs=${c.recommendations.length} min=${minRecs}`,
-      );
       // Backfill fit_summary and gap_summary from rationale if missing
       if (!c.fit_summary && c.final_rationale) {
         c.fit_summary = c.final_rationale.split(".").slice(0, 2).join(".").trim() + ".";
@@ -976,6 +969,30 @@ export function parsePass3Response(
         c.gap_summary = sentences.length > 2
           ? sentences.slice(-3, -1).join(".").trim() + "."
           : `Score ${c.final_score_0_10}/10 indicates room for improvement on ${c.key}.`;
+      }
+
+      // Synthesize missing recommendations from rationale + evidence + gap_summary
+      const shortfall = minRecs - c.recommendations.length;
+      const synthesized = synthesizeRecommendationsFromRationale(c, shortfall);
+      if (synthesized.length > 0) {
+        c.recommendations = [...c.recommendations, ...synthesized];
+        console.info(
+          `[Pass3-Gate] Backfilled ${synthesized.length} recommendation(s) for ${c.key} (score=${c.final_score_0_10}, had=${c.recommendations.length - synthesized.length}, now=${c.recommendations.length}, min=${minRecs})`,
+        );
+      }
+
+      // If still below floor after backfill, log defect
+      if (c.recommendations.length < minRecs) {
+        const defect = {
+          code: "SCORE_LE8_EMPTY_RECOMMENDATIONS" as const,
+          author_facing_reason:
+            `Criterion "${c.key}" scored ${c.final_score_0_10}/10 but has ${c.recommendations.length} recommendation(s) after backfill (minimum ${minRecs} required).`,
+          retryable: true,
+        };
+        c.technical_defects = [...(c.technical_defects ?? []), defect];
+        console.warn(
+          `[Pass3-Gate] SCORE_LE8_EMPTY_RECOMMENDATIONS: ${c.key} score=${c.final_score_0_10} recs=${c.recommendations.length} min=${minRecs} (backfill exhausted)`,
+        );
       }
     }
   }
@@ -2070,6 +2087,116 @@ function backfillRecommendationsFromAxis(
   }
 
   return deduped;
+}
+
+/**
+ * Criterion key → default issue_family mapping for backfill recommendations.
+ */
+const CRITERION_ISSUE_FAMILY: Record<string, IssueFamily> = {
+  concept: "concept",
+  narrativeDrive: "pacing",
+  character: "characterization",
+  voice: "voice",
+  sceneConstruction: "scene_structure",
+  dialogue: "dialogue",
+  theme: "theme",
+  worldbuilding: "worldbuilding",
+  pacing: "pacing",
+  proseControl: "prose_control",
+  tone: "voice",
+  narrativeClosure: "closure",
+  marketability: "market_positioning",
+};
+
+const CRITERION_STRATEGIC_LEVER: Record<string, StrategicLever> = {
+  concept: "structural_commitment",
+  narrativeDrive: "momentum_visibility",
+  character: "character_voice_differentiation",
+  voice: "pov_rendering_precision",
+  sceneConstruction: "scene_goal_clarity",
+  dialogue: "dialogue_exposition_density",
+  theme: "thematic_grounding",
+  worldbuilding: "sensory_specificity",
+  pacing: "momentum_visibility",
+  proseControl: "prose_compression",
+  tone: "pov_rendering_precision",
+  narrativeClosure: "closure_state_lock",
+  marketability: "market_signal_clarity",
+};
+
+/**
+ * Synthesize recommendations from a criterion's rationale, gap_summary, and evidence
+ * when the LLM failed to produce enough. Each synthesized recommendation uses the
+ * 6-part diagnostic structure derived deterministically from available signals.
+ */
+function synthesizeRecommendationsFromRationale(
+  criterion: SynthesizedCriterion,
+  count: number,
+): SynthesizedCriterion["recommendations"] {
+  const results: SynthesizedCriterion["recommendations"] = [];
+  const { key, final_rationale, gap_summary, evidence, final_score_0_10 } = criterion;
+
+  // Split rationale into usable sentences
+  const sentences = final_rationale
+    .split(/(?<=[.!?])\s+/)
+    .map((s) => s.trim())
+    .filter((s) => s.length > 15);
+
+  // Use gap_summary sentences as primary source for actions
+  const gapSentences = (gap_summary ?? "")
+    .split(/(?<=[.!?])\s+/)
+    .map((s) => s.trim())
+    .filter((s) => s.length > 15);
+
+  // Combine: gap sentences first (more actionable), then rationale sentences
+  const actionSources = [...gapSentences, ...sentences];
+  // De-dup by lowercased prefix
+  const seen = new Set<string>();
+  const uniqueSources = actionSources.filter((s) => {
+    const sig = s.toLowerCase().substring(0, 60);
+    if (seen.has(sig)) return false;
+    seen.add(sig);
+    return true;
+  });
+
+  const issueFamily = CRITERION_ISSUE_FAMILY[key] ?? "prose_control";
+  const strategicLever = CRITERION_STRATEGIC_LEVER[key] ?? "structural_commitment";
+  const priority: "high" | "medium" | "low" =
+    final_score_0_10 <= 4 ? "high" : final_score_0_10 <= 6 ? "medium" : "low";
+
+  for (let i = 0; i < count && i < uniqueSources.length; i++) {
+    const source = uniqueSources[i];
+    const anchor = evidence[i]?.snippet ?? evidence[0]?.snippet ?? "";
+
+    // Build the 6-part diagnostic from available signals
+    const symptom = source;
+    const mechanism = i < sentences.length
+      ? sentences[Math.min(i + 1, sentences.length - 1)]
+      : `This issue affects ${key} performance at score ${final_score_0_10}/10.`;
+    const specificFix = gap_summary
+      ? `Address the gap: ${gap_summary.split(".")[0]?.trim() ?? gap_summary}.`
+      : `Revise the ${key} signals in the identified passage.`;
+    const readerEffect = `Strengthening ${key} here improves the reader's experience and moves the score closer to the target range.`;
+    const mistakeProofing = `Preserve existing strengths in ${key} while making targeted revisions.`;
+
+    results.push({
+      priority,
+      action: source.length > 300 ? source.substring(0, 297) + "..." : source,
+      expected_impact: readerEffect,
+      anchor_snippet: anchor.substring(0, 200),
+      source_pass: 3,
+      issue_family: issueFamily,
+      strategic_lever: strategicLever,
+      revision_granularity: "scene" as RevisionGranularity,
+      mechanism,
+      specific_fix: specificFix,
+      reader_effect: readerEffect,
+      symptom,
+      mistake_proofing: mistakeProofing,
+    });
+  }
+
+  return results;
 }
 
 function parseStringArray(raw: unknown, maxItems: number): string[] {

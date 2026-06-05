@@ -109,6 +109,17 @@ type ReportMetadata = {
   genre: string | null;
 };
 
+type LedgerTotals = {
+  must: number;
+  should: number;
+  could: number;
+};
+
+type RevisionLedgerSummary = {
+  totalItems: number;
+  ledgerTotals: LedgerTotals | null;
+};
+
 type ExportRecommendation = {
   priority?: 'high' | 'medium' | 'low';
   action?: string;
@@ -185,6 +196,37 @@ function pushTxtListBlock(lines: string[], label: string, values: unknown, optio
     }
     lines.push(`• ${item}`);
   });
+}
+
+// ── Confidence Explanation (template section 13) ────────────────────
+const CONFIDENCE_EXPLANATION = {
+  title: 'What Does Confidence Mean?',
+  intro: 'Confidence reflects how strongly each diagnosis is supported by direct evidence in your manuscript.',
+  levels: [
+    { label: 'High', description: 'Strong textual evidence supports this diagnosis.' },
+    { label: 'Moderate', description: 'Enough evidence to identify the issue, but some ambiguity remains.' },
+    { label: 'Low', description: 'Limited or conflicting evidence—treat as a prompt for review, not a final judgment.' },
+  ],
+} as const;
+
+// Merge inline criteria recommendation counts with master ledger totals.
+// Ledger totals are authoritative when available; inline counts are fallback.
+function effectiveOpportunitySummary(
+  inlineSummary: { total: number; high: number; medium: number; low: number },
+  ledger: RevisionLedgerSummary,
+): { total: number; high: number; medium: number; low: number } {
+  if (ledger.totalItems > 0 && ledger.ledgerTotals) {
+    return {
+      total: ledger.totalItems,
+      high: ledger.ledgerTotals.must,
+      medium: ledger.ledgerTotals.should,
+      low: ledger.ledgerTotals.could,
+    };
+  }
+  if (ledger.totalItems > 0) {
+    return { ...inlineSummary, total: Math.max(inlineSummary.total, ledger.totalItems) };
+  }
+  return inlineSummary;
 }
 
 function isExportableResultCandidate(value: unknown): value is ExportableResult {
@@ -561,7 +603,7 @@ function appendDreamTxtSections(lines: string[], dream: LongformDreamDocument): 
   }
 }
 
-function buildTxtReport(result: ExportableResult, title: string | null, jobId: string, dream: LongformDreamDocument | null, enrichment: EnrichmentData = null): string {
+function buildTxtReport(result: ExportableResult, title: string | null, jobId: string, dream: LongformDreamDocument | null, enrichment: EnrichmentData = null, ledger: RevisionLedgerSummary = { totalItems: 0, ledgerTotals: null }): string {
   const lines: string[] = [];
   const sep = '='.repeat(72);
   const sub = '-'.repeat(72);
@@ -572,7 +614,8 @@ function buildTxtReport(result: ExportableResult, title: string | null, jobId: s
     summary: result.overview.one_paragraph_summary,
     title: metadata.displayTitle,
   });
-  const opportunitySummary = summarizeRevisionOpportunities(result.criteria);
+  const inlineSummary = summarizeRevisionOpportunities(result.criteria);
+  const opportunitySummary = effectiveOpportunitySummary(inlineSummary, ledger);
   const topRecommendations = buildTopRecommendations(result, 5);
 
   lines.push(sep);
@@ -600,6 +643,7 @@ function buildTxtReport(result: ExportableResult, title: string | null, jobId: s
     const rConf = txtReadinessCriterion.confidence_level ? ` (${formatConfidenceLabel(txtReadinessCriterion.confidence_level)})` : '';
     lines.push(`Market Readiness: ${rScore}${rConf}`);
   }
+  if (ledger.totalItems > 0) lines.push(`Revision Queue Items: ${ledger.totalItems}`);
   lines.push('Confidentiality: Prepared for author/editorial use.');
   lines.push('');
 
@@ -701,14 +745,16 @@ function buildTxtReport(result: ExportableResult, title: string | null, jobId: s
   result.overview.top_3_risks.forEach((r, i) => lines.push(`${i + 1}. ${cleanReportText(r)}`));
   lines.push('');
 
+  lines.push(sub);
+  lines.push('TOP RECOMMENDATIONS');
+  lines.push(sub);
+  lines.push('');
   if (topRecommendations.length > 0) {
-    lines.push(sub);
-    lines.push('TOP RECOMMENDATIONS');
-    lines.push(sub);
-    lines.push('');
     topRecommendations.forEach((r, i) => lines.push(`${i + 1}. ${cleanReportText(r)}`));
-    lines.push('');
+  } else {
+    lines.push('See per-criterion opportunities below for detailed revision guidance.');
   }
+  lines.push('');
 
   lines.push(sub);
   lines.push('13 CRITERIA SCORE GRID');
@@ -750,6 +796,20 @@ function buildTxtReport(result: ExportableResult, title: string | null, jobId: s
     lines.push('');
   });
 
+  // ── Confidence Explanation (template section 13) ──
+  lines.push(sub);
+  lines.push('CONFIDENCE EXPLANATION');
+  lines.push(sub);
+  lines.push('');
+  lines.push(CONFIDENCE_EXPLANATION.title);
+  lines.push('');
+  lines.push(CONFIDENCE_EXPLANATION.intro);
+  lines.push('');
+  for (const level of CONFIDENCE_EXPLANATION.levels) {
+    lines.push(`  ${level.label}: ${level.description}`);
+  }
+  lines.push('');
+
   if (dream) appendDreamTxtSections(lines, dream);
 
   // Internal governance data (WAVE, Gate 15, Golden Spine, Dialogue Canon,
@@ -787,7 +847,8 @@ function scoreBarColor(score: number | null | undefined): string {
 
 
 function escapeHtml(value: unknown): string {
-  return toPdfSafeText(value, '')
+  const text = typeof value === 'number' ? String(value) : value;
+  return toPdfSafeText(text, '')
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
@@ -825,13 +886,15 @@ function renderPremiumReportHtml(
   summaryFallback: string,
   dream: LongformDreamDocument | null,
   enrichment: EnrichmentData,
+  ledger: RevisionLedgerSummary = { totalItems: 0, ledgerTotals: null },
 ): string {
   const pitches = buildReportPitches({
     premise: enrichment?.premise,
     summary: result.overview.one_paragraph_summary,
     title: metadata.displayTitle,
   });
-  const opportunitySummary = summarizeRevisionOpportunities(result.criteria);
+  const inlineSummary = summarizeRevisionOpportunities(result.criteria);
+  const opportunitySummary = effectiveOpportunitySummary(inlineSummary, ledger);
   const topRecommendations = buildTopRecommendations(result, 5);
   const readinessCriterion = result.criteria.find((criterion) => {
     const key = criterion.key.toLowerCase();
@@ -897,7 +960,7 @@ function renderPremiumReportHtml(
     @page {
       size: Letter;
       margin: 0.72in 0.72in 0.82in;
-      @bottom-left { content: "RevisionGrade?"; color: #8a8175; font-size: 9pt; }
+      @bottom-left { content: "RevisionGrade\\2122"; color: #8a8175; font-size: 9pt; }
       @bottom-right { content: counter(page); color: #8a8175; font-size: 9pt; }
     }
     * { box-sizing: border-box; }
@@ -953,7 +1016,7 @@ function renderPremiumReportHtml(
 </head>
 <body>
   <section class="cover">
-    <div class="brand">RevisionGrade?</div>
+    <div class="brand">RevisionGrade&#8482;</div>
     <div class="tagline">Manuscript diagnosis, author-controlled revision, and professional submission preparation.</div>
     <div class="rule"></div>
     <h1>${escapeHtml(metadata.displayTitle)}</h1>
@@ -967,6 +1030,7 @@ function renderPremiumReportHtml(
         ${renderMetric('Reading Grade Level', enrichment?.reading_grade_level != null ? `${enrichment.reading_grade_level.toFixed(1)} (Flesch-Kincaid)` : 'Not available')}
         ${renderMetric('Dialogue/Narrative Ratio', dialogueRatio ?? 'Not available')}
         ${renderMetric('Date Generated', metadata.generatedAt)}
+        ${ledger.totalItems > 0 ? renderMetric('Revision Queue Items', String(ledger.totalItems)) : ''}
         ${renderMetric('Confidentiality', 'Prepared for author/editorial use')}
       </dl>
       <aside>
@@ -985,13 +1049,14 @@ function renderPremiumReportHtml(
     ['Total', opportunitySummary.total], ['High Priority', opportunitySummary.high], ['Medium Priority', opportunitySummary.medium], ['Low Priority', opportunitySummary.low],
   ].map(([label, value]) => `<div><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`).join('')}</div><p>Priority labels indicate the recommended urgency of each revision opportunity.</p></section>
   ${enrichment?.reading_grade_level != null ? `<section class="section"><h2>Reading Grade Level</h2>${renderHtmlParagraph(`Grade Level: ${enrichment.reading_grade_level.toFixed(1)} (Flesch-Kincaid)`)}<p>Reading Grade Level measures prose complexity, not audience appropriateness. Always cross-reference Content Warnings for content suitability guidance.</p></section>` : ''}
-  ${enrichment?.dialogue_percentage != null ? `<section class="section"><h2>Dialogue vs. Narrative Ratio</h2>${renderHtmlParagraph(dialogueRatio)}</section>` : ''}
+  ${enrichment?.dialogue_percentage != null ? `<section class="section"><h2>Dialogue vs. Narrative Ratio</h2>${renderHtmlParagraph(dialogueRatio)}<p>Most commercially successful novels contain 25\u201335% dialogue. Genre expectations vary: literary fiction trends lower (15\u201325%), thrillers and romance trend higher (30\u201345%).</p></section>` : ''}
   <section class="section allow-break"><h2>Executive Summary</h2>${renderHtmlParagraph(result.overview.one_paragraph_summary, summaryFallback)}</section>
   <section class="section"><h2>Top Strengths</h2>${renderHtmlList(result.overview.top_3_strengths, 'No strengths supplied.')}</section>
   <section class="section"><h2>Top Risks</h2>${renderHtmlList(result.overview.top_3_risks, 'No risks supplied.')}</section>
-  ${topRecommendations.length > 0 ? `<section class="section"><h2>Top Recommendations</h2><ul>${topRecommendations.map((item) => `<li>${escapeHtml(cleanReportText(item))}</li>`).join('')}</ul></section>` : ''}
+  <section class="section"><h2>Top Recommendations</h2>${topRecommendations.length > 0 ? `<ul>${topRecommendations.map((item) => `<li>${escapeHtml(cleanReportText(item))}</li>`).join('')}</ul>` : `<p>See per-criterion opportunities below for detailed revision guidance.</p>`}</section>
   <section class="section page-break-before"><h2>13 Criteria Score Grid</h2><table><thead><tr><th>Criterion</th><th>Score</th><th>Confidence</th></tr></thead><tbody>${criteriaRows}</tbody></table></section>
   <section class="allow-break"><h2>Criterion Rationales &amp; Surfaced Opportunities</h2>${criteriaCards}</section>
+  <section class="section"><h2>Confidence Explanation</h2><p><strong>${escapeHtml(CONFIDENCE_EXPLANATION.title)}</strong></p><p>${escapeHtml(CONFIDENCE_EXPLANATION.intro)}</p><ul>${CONFIDENCE_EXPLANATION.levels.map((l) => `<li><strong>${escapeHtml(l.label)}:</strong> ${escapeHtml(l.description)}</li>`).join('')}</ul></section>
   ${dreamHtml}
   <section class="section" style="margin-top:0.5in;border:none;background:none;padding:0;">
     <p style="color:#5c5549;font-size:9.5pt;line-height:1.5;">${escapeHtml(EXPORT_DISCLAIMER)}</p>
@@ -1038,10 +1103,10 @@ async function buildChromiumPdf(html: string): Promise<Buffer> {
 }
 
 
-async function buildPdfReport(result: ExportableResult, title: string | null, _jobId: string, dream: LongformDreamDocument | null, enrichment: EnrichmentData = null): Promise<Buffer> {
+async function buildPdfReport(result: ExportableResult, title: string | null, _jobId: string, dream: LongformDreamDocument | null, enrichment: EnrichmentData = null, ledger: RevisionLedgerSummary = { totalItems: 0, ledgerTotals: null }): Promise<Buffer> {
   const metadata = buildMetadata(result, title, dream);
   const summaryFallback = buildSummaryFallback(result);
-  const html = renderPremiumReportHtml(result, metadata, summaryFallback, dream, enrichment);
+  const html = renderPremiumReportHtml(result, metadata, summaryFallback, dream, enrichment, ledger);
   return await buildChromiumPdf(html);
 }
 
@@ -1062,7 +1127,7 @@ function docxScoreColor(score: number | null | undefined): string {
 const DOCX_NONE_BORDER = { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' };
 const DOCX_NO_BORDERS = { top: DOCX_NONE_BORDER, bottom: DOCX_NONE_BORDER, left: DOCX_NONE_BORDER, right: DOCX_NONE_BORDER };
 
-async function buildDocx(result: ExportableResult, title: string | null, jobId: string, dream: LongformDreamDocument | null, enrichment: EnrichmentData = null): Promise<Buffer> {
+async function buildDocx(result: ExportableResult, title: string | null, jobId: string, dream: LongformDreamDocument | null, enrichment: EnrichmentData = null, ledger: RevisionLedgerSummary = { totalItems: 0, ledgerTotals: null }): Promise<Buffer> {
   const metadata = buildMetadata(result, title, dream);
   const summaryFallback = buildSummaryFallback(result);
   const pitches = buildReportPitches({
@@ -1070,7 +1135,8 @@ async function buildDocx(result: ExportableResult, title: string | null, jobId: 
     summary: result.overview.one_paragraph_summary,
     title: metadata.displayTitle,
   });
-  const opportunitySummary = summarizeRevisionOpportunities(result.criteria);
+  const inlineSummary = summarizeRevisionOpportunities(result.criteria);
+  const opportunitySummary = effectiveOpportunitySummary(inlineSummary, ledger);
   const topRecommendations = buildTopRecommendations(result, 5);
 
   const spacer = () => new Paragraph({ spacing: { after: 200 }, children: [] });
@@ -1289,9 +1355,14 @@ async function buildDocx(result: ExportableResult, title: string | null, jobId: 
   children.push(brandHeading('Top Risks', HeadingLevel.HEADING_2));
   result.overview.top_3_risks.forEach((r) => children.push(bulletPara(r, RG.warning)));
 
+  children.push(brandHeading('Top Recommendations', HeadingLevel.HEADING_2));
   if (topRecommendations.length > 0) {
-    children.push(brandHeading('Top Recommendations', HeadingLevel.HEADING_2));
     topRecommendations.forEach((r) => children.push(bulletPara(r, RG.oxblood)));
+  } else {
+    children.push(new Paragraph({
+      children: [new TextRun({ text: 'See per-criterion opportunities below for detailed revision guidance.', italics: true, color: '666666', size: 20 })],
+      spacing: { before: 100, after: 100 },
+    }));
   }
 
   // ── Criteria Score Table ────────────────────────────────────────
@@ -1741,6 +1812,37 @@ async function loadCanonicalEvaluationResult(admin: ReturnType<typeof createAdmi
   return artifact?.content ?? null;
 }
 
+async function loadRevisionLedgerSummary(admin: ReturnType<typeof createAdminClient>, jobId: string): Promise<RevisionLedgerSummary> {
+  const { data: ledgerRow } = await admin
+    .from('evaluation_artifacts')
+    .select('content')
+    .eq('job_id', jobId)
+    .eq('artifact_type', 'revision_opportunity_ledger_v1')
+    .maybeSingle();
+
+  const content = ledgerRow?.content as {
+    opportunities?: unknown[];
+    totals?: Record<string, number>;
+  } | null | undefined;
+
+  if (!content?.opportunities || !Array.isArray(content.opportunities)) {
+    return { totalItems: 0, ledgerTotals: null };
+  }
+
+  const totals = content.totals && typeof content.totals === 'object'
+    ? {
+        must: typeof content.totals.must === 'number' ? content.totals.must : 0,
+        should: typeof content.totals.should === 'number' ? content.totals.should : 0,
+        could: typeof content.totals.could === 'number' ? content.totals.could : 0,
+      }
+    : null;
+
+  return {
+    totalItems: content.opportunities.length,
+    ledgerTotals: totals,
+  };
+}
+
 async function loadDreamDocument(admin: ReturnType<typeof createAdminClient>, jobId: string): Promise<LongformDreamDocument | null> {
   const { data: dreamRow } = await admin
     .from('evaluation_artifacts')
@@ -1753,6 +1855,81 @@ async function loadDreamDocument(admin: ReturnType<typeof createAdminClient>, jo
     return content.longform_document as LongformDreamDocument;
   }
   return null;
+}
+
+// ── Download Parity Gate ─────────────────────────────────────────────
+// Validates that the evaluation artifact has the data needed for a
+// complete, template-compliant download BEFORE generating the file.
+// If the check fails, the download is not served.
+
+type DownloadParityViolation = {
+  code: string;
+  message: string;
+};
+
+function validateDownloadParity(result: ExportableResult): {
+  pass: boolean;
+  violations: DownloadParityViolation[];
+} {
+  const violations: DownloadParityViolation[] = [];
+  const r = result as Record<string, unknown>;
+
+  // 1. Must have criteria
+  const criteria = Array.isArray(r.criteria) ? r.criteria : [];
+  if (criteria.length === 0) {
+    violations.push({ code: 'NO_CRITERIA', message: 'Evaluation has no criteria data.' });
+  }
+
+  // 2. Must have overall score (various shapes across V1/V2)
+  const hasOverall =
+    r.overall != null ||
+    r.score != null ||
+    r.authority_composite != null ||
+    (typeof r.overview === 'object' && r.overview != null && 'score' in (r.overview as Record<string, unknown>));
+  if (!hasOverall) {
+    violations.push({ code: 'NO_OVERALL_SCORE', message: 'No overall score found.' });
+  }
+
+  // 3. Must have one_paragraph_summary
+  const summary = r.one_paragraph_summary;
+  if (!summary || (typeof summary === 'string' && summary.trim().length === 0)) {
+    violations.push({ code: 'NO_SUMMARY', message: 'Missing one_paragraph_summary.' });
+  }
+
+  // 4. Top strengths — at least one required
+  const strengths = r.top_3_strengths;
+  const strengthCount = Array.isArray(strengths)
+    ? strengths.filter((s) => typeof s === 'string' && s.trim()).length
+    : 0;
+  if (strengthCount === 0) {
+    violations.push({ code: 'NO_TOP_STRENGTHS', message: 'No top strengths present.' });
+  }
+
+  // 5. Top risks — at least one required
+  const risks = r.top_3_risks;
+  const riskCount = Array.isArray(risks)
+    ? risks.filter((s) => typeof s === 'string' && s.trim()).length
+    : 0;
+  if (riskCount === 0) {
+    violations.push({ code: 'NO_TOP_RISKS', message: 'No top risks present.' });
+  }
+
+  // 6. Each criterion must have a score and rationale
+  for (const c of criteria) {
+    if (typeof c !== 'object' || c == null) continue;
+    const cObj = c as Record<string, unknown>;
+    const key = cObj.key ?? cObj.criterion ?? 'unknown';
+    const score = cObj.score_0_10 ?? cObj.score;
+    if (score == null) {
+      violations.push({ code: 'CRITERION_NO_SCORE', message: `Criterion "${key}" has no score.` });
+    }
+    const rationale = cObj.rationale;
+    if (!rationale || (typeof rationale === 'string' && rationale.trim().length === 0)) {
+      violations.push({ code: 'CRITERION_NO_RATIONALE', message: `Criterion "${key}" has no rationale.` });
+    }
+  }
+
+  return { pass: violations.length === 0, violations };
 }
 
 export async function GET(
@@ -1803,9 +1980,37 @@ export async function GET(
   }
 
   const result = rawResult as ExportableResult;
+
+  // ── Download Parity Gate — reject incomplete artifacts before building ──
+  const parity = validateDownloadParity(result);
+  if (!parity.pass) {
+    console.error('[report-download] Download parity gate FAILED', {
+      jobId,
+      format,
+      violations: parity.violations,
+    });
+    return NextResponse.json(
+      {
+        error:
+          'This download is temporarily unavailable while we verify content accuracy. ' +
+          'Our team has been notified and is looking into it. ' +
+          'In the meantime, you can save a copy of your evaluation by right-clicking ' +
+          'anywhere on the report page, selecting "Print," and choosing "Save as PDF." ' +
+          'The file will appear in your downloads folder. ' +
+          'If you need further assistance, reach out to support@revisiongrade.com.',
+        code: 'DOWNLOAD_PARITY_FAILED',
+        violations: parity.violations.map((v) => v.code),
+      },
+      { status: 422 },
+    );
+  }
+
   const relationTitle = extractManuscriptTitle((job as { manuscripts?: unknown }).manuscripts);
   const title = relationTitle ?? result.metrics?.manuscript?.title ?? null;
-  const dream = await loadDreamDocument(admin, jobId);
+  const [dream, ledgerSummary] = await Promise.all([
+    loadDreamDocument(admin, jobId),
+    loadRevisionLedgerSummary(admin, jobId),
+  ]);
   // Governance data (WAVE, Gate 15, Golden Spine, Dialogue Canon) is internal
   // pipeline diagnostics — never included in user-facing downloads.
 
@@ -1813,7 +2018,7 @@ export async function GET(
   const enrichment = isEvaluationResultV2(result) ? (result as EvaluationResultV2).enrichment ?? null : null;
 
   if (format === 'txt') {
-    const body = buildTxtReport(result, title, jobId, dream, enrichment);
+    const body = buildTxtReport(result, title, jobId, dream, enrichment, ledgerSummary);
     return new Response(body, {
       headers: {
         'Content-Type': 'text/plain; charset=utf-8',
@@ -1825,7 +2030,7 @@ export async function GET(
 
   if (format === 'pdf') {
     try {
-      const buffer = await buildPdfReport(result, title, jobId, dream, enrichment);
+      const buffer = await buildPdfReport(result, title, jobId, dream, enrichment, ledgerSummary);
       if (buffer.subarray(0, 4).toString('ascii') !== '%PDF') {
         throw new Error('Generated artifact does not contain valid PDF header bytes');
       }
@@ -1854,7 +2059,7 @@ export async function GET(
     }
   }
 
-  const buffer = await buildDocx(result, title, jobId, dream, enrichment);
+  const buffer = await buildDocx(result, title, jobId, dream, enrichment, ledgerSummary);
   return new Response(new Uint8Array(buffer), {
     headers: {
       'Content-Type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
