@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import type { WorkbenchOpportunity, WorkbenchQueuePayload, WorkbenchScope, WorkbenchSource } from "@/lib/revision/workbenchQueue";
 import { getRenderableCandidateText, REVISION_OPTION_LABELS } from "@/lib/revision/reviseCardContract";
+import { mistakeProofText } from "@/lib/evaluation/reportRenderSafety";
 
 type DecisionState = "pending" | "accepted_a" | "accepted_b" | "accepted_c" | "custom" | "keep_original" | "reject" | "deferred";
 type DecisionFilter = "pending" | "accepted" | "custom" | "kept_original" | "rejected" | "deferred";
@@ -1230,7 +1231,7 @@ export default function ReviseQueueV2Client({ payload }: { payload: WorkbenchQue
 
                 <section className="mt-4 rounded-lg border border-[#2E261A] bg-[#12100B] p-4">
                   <h3 className="text-xs uppercase tracking-[0.16em] text-[#C8A96E]">Issue</h3>
-                  <p className="mt-2 text-sm leading-relaxed text-[#E9DCC4]">{active.base.issueStatement}</p>
+                  <p className="mt-2 text-sm leading-relaxed text-[#E9DCC4]">{mistakeProofText(active.base.issueStatement)}</p>
                 </section>
 
                 <section className="mt-4 rounded-lg border border-[#2E261A] bg-[#12100B] p-4">
@@ -1250,19 +1251,19 @@ export default function ReviseQueueV2Client({ payload }: { payload: WorkbenchQue
                   ].map(([label, text]) => (
                     <div key={label} className="rounded-lg border border-[#2E261A] bg-[#12100B] p-3">
                       <p className="text-xs uppercase tracking-[0.14em] text-[#C8A96E]">{label}</p>
-                      <p className="mt-1 text-sm leading-6 text-[#E8DCC4]">{text}</p>
+                      <p className="mt-1 text-sm leading-6 text-[#E8DCC4]">{mistakeProofText(text)}</p>
                     </div>
                   ))}
                 </section>
 
                 <section className="mt-4 rounded-lg border border-[#2E261A] bg-[#12100B] p-3">
                   <p className="text-xs uppercase tracking-[0.14em] text-[#C8A96E]">Operation / Targeting</p>
-                  <p className="mt-1 text-sm text-[#E8DCC4]">{active.base.diagnostic.operationTargeting}</p>
+                  <p className="mt-1 text-sm text-[#E8DCC4]">{mistakeProofText(active.base.diagnostic.operationTargeting)}</p>
                 </section>
 
                 <section className="mt-4 rounded-lg border border-[#2E261A] bg-[#12100B] p-3">
                   <p className="text-xs uppercase tracking-[0.14em] text-[#C8A96E]">Mistake-proofing</p>
-                  <p className="mt-1 text-sm text-[#E8DCC4]">{active.base.diagnostic.mistakeProofing}</p>
+                  <p className="mt-1 text-sm text-[#E8DCC4]">{mistakeProofText(active.base.diagnostic.mistakeProofing)}</p>
                 </section>
 
                 <section className="mt-5 space-y-3">
@@ -1282,8 +1283,8 @@ export default function ReviseQueueV2Client({ payload }: { payload: WorkbenchQue
                           <p className="text-sm font-semibold text-[#F2E8D6]">{optionRoleLabel(option.key)}</p>
                           <span className="text-xs text-[#B29F7D]">{active.queueType === "repair_plan" ? "Plan" : "Proposal"}</span>
                         </div>
-                        <pre className="mt-2 whitespace-pre-wrap text-sm leading-6 text-[#E5D8BE]">{candidateTextOf(option, active.base.issueStatement) || "Candidate revision prose is being prepared."}</pre>
-                        <p className="mt-2 text-xs text-[#BDAE91]">{option.rationale}</p>
+                        <pre className="mt-2 whitespace-pre-wrap text-sm leading-6 text-[#E5D8BE]">{mistakeProofText(candidateTextOf(option, active.base.issueStatement)) || "Candidate revision prose is being prepared."}</pre>
+                        <p className="mt-2 text-xs text-[#BDAE91]">{mistakeProofText(option.rationale)}</p>
                       </button>
                     );
                   })}

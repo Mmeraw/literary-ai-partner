@@ -29,6 +29,7 @@ import {
   filterAuthorFacingTextList,
   getRenumberedAuthorFacingRevisionPlan,
   safeTruncateToWordBoundary,
+  mistakeProofText,
   getCriterionDisplayLabel,
   splitIntoParagraphs,
   correctScopeLanguage,
@@ -466,7 +467,7 @@ export default async function ReportPage({
               </div>
             </div>
             <p className="text-gray-700 mb-6 leading-relaxed">
-              {safeTruncateToWordBoundary(correctScopeLanguage(chapterTitle ? `In ${displayTitle}, ${overview.one_paragraph_summary.replace(/^This\s/, 'this ')}` : overview.one_paragraph_summary, isLongForm))}
+              {mistakeProofText(correctScopeLanguage(chapterTitle ? `In ${displayTitle}, ${overview.one_paragraph_summary.replace(/^This\s/, 'this ')}` : overview.one_paragraph_summary, isLongForm))}
             </p>
             <div className="grid md:grid-cols-2 gap-6">
               <div>
@@ -509,7 +510,7 @@ export default async function ReportPage({
               {enrichment.premise && (
                 <section className="bg-white rounded-lg shadow-sm p-6 mb-6">
                   <h2 className="text-2xl font-semibold text-gray-900 mb-3">Premise</h2>
-                  <p className="text-gray-700 leading-relaxed italic">{enrichment.premise}</p>
+                  <p className="text-gray-700 leading-relaxed italic">{mistakeProofText(enrichment.premise)}</p>
                 </section>
               )}
               {enrichment.trigger_warnings && enrichment.trigger_warnings.length > 0 && (

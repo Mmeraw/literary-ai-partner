@@ -179,6 +179,127 @@ export function safeEvidenceQuote(snippet: string): string {
   return sanitizeCMOS(trimmed + "…");
 }
 
+// ── Mistake-Proofing Pre-Render Sanitizer ─────────────────────────────────
+// Applied to ALL author-facing text before display/download.
+// Catches: truncated sentences, extra whitespace, orphaned punctuation,
+// machine-residue tokens, and incomplete fragments.
+
+const MACHINE_RESIDUE_PATTERNS: RegExp[] = [
+  /\bindirect_speech\b/g,
+  /\breported_speech\b/g,
+  /\btagged_speech\b/g,
+  /\baction_beat_attribution\b/g,
+  /\bHARD_FAIL\b/g,
+  /\bDEGRADED_EXTRACTION\b/g,
+  /\bSOURCE_INTEGRITY_REVIEW_REQUIRED\b/g,
+  /\bPass\s*[0-9][A-Za-z]?\b/g,
+  /\bWAVE\s*(I{1,4}|[1-4])\b/g,
+  /\bpipeline\s+(failure|error|status|diagnostic)\b/gi,
+  /\bextraction\s+semantics?\b/gi,
+  /\bschema\s+validation\b/gi,
+  /\bgate[-_]?identifier\b/gi,
+  /\bdoctrine[-_]?id\b/gi,
+  /\bvalidator[-_]?name\b/gi,
+  /\bprompt[-_]?mechanic\w*/gi,
+  /\bgovernance[-_]?machinery\b/gi,
+];
+
+const DANGLING_CONNECTORS = /\s+(and|or|but|the|a|an|in|on|at|to|of|for|with|by|than|from|into|as|that|which|who|whose|where|when|while|although|because|before|after|during|between|among|through|about|like|more|less|over|under|also|yet|so|if|whether|not|nor|both|either|neither|each|every|some|any|most|such)\s*$/i;
+
+function stripMachineTokens(text: string): string {
+  let result = text;
+  for (const pattern of MACHINE_RESIDUE_PATTERNS) {
+    result = result.replace(pattern, '');
+  }
+  // Strip internal bracket markers: [LOCATION:...], [OPERATION:...], etc.
+  result = result.replace(/\[(LOCATION|OPERATION|PRIORITY|SEVERITY|CONFIDENCE):\s*[^\]]*\]\s*/gi, '');
+  return result;
+}
+
+function repairTruncatedEnding(text: string): string {
+  const trimmed = text.trim();
+  if (!trimmed) return trimmed;
+
+  // Already ends with terminal punctuation — no repair needed.
+  if (/[.!?;:"')\]]\s*$/.test(trimmed)) return trimmed;
+
+  // Find last complete sentence boundary.
+  const lastSentenceEnd = Math.max(
+    trimmed.lastIndexOf('. '),
+    trimmed.lastIndexOf('.\n'),
+    trimmed.lastIndexOf('? '),
+    trimmed.lastIndexOf('! '),
+    trimmed.lastIndexOf('."'),
+    trimmed.lastIndexOf('?"'),
+    trimmed.lastIndexOf('!"'),
+  );
+
+  // If we can cut to a clean sentence that preserves >30% of text, do so.
+  if (lastSentenceEnd > trimmed.length * 0.3) {
+    return trimmed.slice(0, lastSentenceEnd + 1).trim();
+  }
+
+  // Strip dangling connectors iteratively.
+  let result = trimmed;
+  while (DANGLING_CONNECTORS.test(result)) {
+    result = result.replace(DANGLING_CONNECTORS, '');
+  }
+
+  // Strip trailing partial words (≤2 chars with no vowel).
+  const lastSpace = result.lastIndexOf(' ');
+  if (lastSpace > 0) {
+    const lastWord = result.slice(lastSpace + 1);
+    if (/[—\-]$/.test(lastWord) || (lastWord.length <= 2 && !/^[AI]$/.test(lastWord) && !/[aeiou]/i.test(lastWord))) {
+      result = result.slice(0, lastSpace).trim();
+    }
+  }
+  result = result.replace(/[,;:\s—\-]+$/, '');
+
+  if (result.length < trimmed.length) {
+    return result + '…';
+  }
+  return result;
+}
+
+/**
+ * Mistake-proof a text block before rendering to any user-facing format.
+ * Applies ALL quality gates:
+ * 1. Normalize whitespace (multi-space → single, trim)
+ * 2. Strip machine-residue tokens (pipeline internals)
+ * 3. Repair truncated endings (cut to last complete sentence)
+ * 4. CMOS style enforcement (em dashes, quotes, abbreviations)
+ * 5. Fix orphaned/doubled punctuation
+ */
+export function mistakeProofText(text: unknown, fallback = ''): string {
+  if (typeof text !== 'string' || !text.trim()) return fallback;
+
+  let result = text;
+
+  // 1. Normalize whitespace: collapse multi-space, trim.
+  result = result.replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
+
+  // 2. Strip machine-residue tokens.
+  result = stripMachineTokens(result);
+
+  // 3. Fix doubled/orphaned punctuation.
+  result = result
+    .replace(/\.\s*\./g, '.')        // double periods
+    .replace(/,\s*,/g, ',')          // double commas
+    .replace(/\s+([.,;:!?])/g, '$1') // space before punctuation
+    .replace(/([.!?])\1+/g, '$1');   // repeated terminal punctuation
+
+  // 4. Repair truncated endings.
+  result = repairTruncatedEnding(result);
+
+  // 5. Re-collapse any whitespace introduced by stripping.
+  result = result.replace(/  +/g, ' ').trim();
+
+  // 6. CMOS style pass.
+  result = sanitizeCMOS(result);
+
+  return result || fallback;
+}
+
 export function getDisplayDreamMarketField(
   dreamDoc: LongformDreamDocument | null | undefined,
   field: "best_shelf" | "marketable_hook" | "market_danger",

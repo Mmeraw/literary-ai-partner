@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { mistakeProofText } from "@/lib/evaluation/reportRenderSafety";
 
 type Recommendation = {
   action: string;
@@ -69,12 +70,12 @@ function OpportunityCard({ r, index, defaultExpanded }: { r: Recommendation; ind
         )}
         {r.symptom && (
           <p className="mt-1 text-xs text-gray-600">
-            <span className="font-semibold text-gray-500 cursor-help" style={{ borderBottom: '1px dotted #9ca3af' }} title="What the reader experiences — the visible effect of the underlying craft issue.">Symptom:</span> {r.symptom}
+            <span className="font-semibold text-gray-500 cursor-help" style={{ borderBottom: '1px dotted #9ca3af' }} title="What the reader experiences — the visible effect of the underlying craft issue.">Symptom:</span> {mistakeProofText(r.symptom)}
           </p>
         )}
         {r.specific_fix ? (
           <p className="mt-1.5 text-xs text-gray-600">
-            <span className="font-semibold text-gray-500 cursor-help" style={{ borderBottom: '1px dotted #9ca3af' }} title="A concrete editorial action the author can take — not a rewrite, but a direction.">Fix direction:</span> {r.specific_fix}
+            <span className="font-semibold text-gray-500 cursor-help" style={{ borderBottom: '1px dotted #9ca3af' }} title="A concrete editorial action the author can take — not a rewrite, but a direction.">Fix direction:</span> {mistakeProofText(r.specific_fix)}
           </p>
         ) : (
           <p className="mt-1.5 font-medium">{normalizeAction(r.action)}</p>
@@ -84,12 +85,12 @@ function OpportunityCard({ r, index, defaultExpanded }: { r: Recommendation; ind
         <div className={`${detailClass} mt-2 space-y-1 border-t border-gray-100 pt-2`}>
           {r.mechanism && (
             <p className="text-xs text-gray-600">
-              <span className="font-semibold text-gray-500 cursor-help" style={{ borderBottom: '1px dotted #9ca3af' }} title="The underlying craft mechanism producing the symptom — why it happens.">Cause:</span> {r.mechanism}
+              <span className="font-semibold text-gray-500 cursor-help" style={{ borderBottom: '1px dotted #9ca3af' }} title="The underlying craft mechanism producing the symptom — why it happens.">Cause:</span> {mistakeProofText(r.mechanism)}
             </p>
           )}
           {r.reader_effect && (
             <p className="text-xs text-gray-600">
-              <span className="font-semibold text-gray-500 cursor-help" style={{ borderBottom: '1px dotted #9ca3af' }} title="How a reader is likely to experience this issue — emotional, cognitive, or trust impact.">Reader effect:</span> {r.reader_effect}
+              <span className="font-semibold text-gray-500 cursor-help" style={{ borderBottom: '1px dotted #9ca3af' }} title="How a reader is likely to experience this issue — emotional, cognitive, or trust impact.">Reader effect:</span> {mistakeProofText(r.reader_effect)}
             </p>
           )}
           {r.expected_impact && !r.reader_effect && (
@@ -97,7 +98,7 @@ function OpportunityCard({ r, index, defaultExpanded }: { r: Recommendation; ind
           )}
           {r.mistake_proofing && (
             <p className="text-xs text-gray-600">
-              <span className="font-semibold text-gray-500 cursor-help" style={{ borderBottom: '1px dotted #9ca3af' }} title="A guardrail or check the author can use during revision to prevent reintroducing this issue.">Mistake-proofing:</span> {r.mistake_proofing}
+              <span className="font-semibold text-gray-500 cursor-help" style={{ borderBottom: '1px dotted #9ca3af' }} title="A guardrail or check the author can use during revision to prevent reintroducing this issue.">Mistake-proofing:</span> {mistakeProofText(r.mistake_proofing)}
             </p>
           )}
         </div>
