@@ -1530,6 +1530,7 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
       chunkOutputs: pass1aResult.chunkOutputs,
       jobId: opts.jobId ?? "unknown",
       totalChunksInManuscript: totalChunks,
+      manuscriptText: opts.manuscriptText || undefined,
     });
 
     // Build all 6 ledgers (identity, state-timelines, relationship,
