@@ -5,7 +5,6 @@ import {
   runPass4VoiceRewrite,
   extractVoiceContext,
 } from "@/lib/revision/runPass4VoiceRewrite";
-import { recordLlmCostEvent } from "@/lib/cost/llmCostEvents";
 
 /**
  * POST /api/revise/generate-rewrite
@@ -84,8 +83,6 @@ export async function POST(req: Request) {
 
     const voiceContext = extractVoiceContext(manuscriptText, originalPassage, 300);
 
-    const activity = trustedPath ? "pass4_trusted_path" : "pass4_rewrite";
-
     const result = await runPass4VoiceRewrite(
       {
         originalPassage,
@@ -103,22 +100,6 @@ export async function POST(req: Request) {
         phase: trustedPath ? "pass4_voice_rewrite_trusted_path" : "pass4_voice_rewrite",
       },
     );
-
-    // Fire-and-forget — cost capture must not block the rewrite response
-    recordLlmCostEvent({
-      source: "revise_queue",
-      activity,
-      model: result.model,
-      inputTokens: result.inputTokens,
-      outputTokens: result.outputTokens,
-      userId: user.id,
-      evaluationJobId: evaluationJobId ?? null,
-      manuscriptId: typeof manuscriptId === "number" ? manuscriptId : null,
-      metadata: {
-        trusted_path: !!trustedPath,
-        operation: operation ?? null,
-      },
-    }).catch(() => {});
 
     return NextResponse.json({
       ok: true,

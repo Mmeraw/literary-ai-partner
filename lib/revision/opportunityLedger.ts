@@ -301,7 +301,7 @@ function buildReplacementCandidates(input: CandidateBuildInput): { a: string; b:
   return ensureDistinctCandidates({
     a: trimWords(second ? `${first} ${second}` : first, 48),
     b: normalizeProseSentence(`${leadName} held still long enough for the choice to register, and the moment tightened around it.`),
-    c: normalizeProseSentence(`${leadName} knew it before anyone said it, and that weight was enough to keep the air still.`),
+    c: normalizeProseSentence(`${leadName} felt the cost before anyone named it, and the scene moved on with that pressure still in the air.`),
   }, seed);
 }
 
@@ -341,22 +341,21 @@ function buildFallbackCandidateTexts(input: CandidateBuildInput): { a: string; b
 
 function explicitCandidateOrFallback(
   raw: unknown,
-  fallback: string,
+  _fallback: string,
   issueStatement: string,
 ): string {
   const candidate = normalizeOptionalText(raw);
-  if (candidate) {
-    const words = candidate.split(/\s+/);
-    if (words.length >= 5 && candidate.toLowerCase() !== issueStatement.trim().toLowerCase()) {
-      return candidate;
-    }
-  }
-  // No usable explicit candidate: use the contextually-built fallback.
-  // The fallback is synthesized from anchor snippets and recommendation signals,
-  // not generic template prose, so it is grounded in the recommendation context.
-  const normalizedFallback = (fallback ?? '').trim();
-  if (normalizedFallback && normalizedFallback.split(/\s+/).length >= 5) {
-    return normalizedFallback;
+  // GROUNDING RULE: Never use template-generated fallback prose.
+  // If the LLM did not produce a manuscript-ready candidate, leave empty.
+  // The workbench will show "Needs targeting" for empty candidates.
+  // Template prose (e.g., "He hesitated...") is ungrounded and causes
+  // cross-manuscript contamination when names are extracted from rationale text.
+  if (!candidate) return '';
+  // Accept the LLM-generated candidate if it has substantive content
+  // (5+ words and not identical to the issue statement).
+  const words = candidate.split(/\s+/);
+  if (words.length >= 5 && candidate.toLowerCase() !== issueStatement.trim().toLowerCase()) {
+    return candidate;
   }
   return '';
 }
