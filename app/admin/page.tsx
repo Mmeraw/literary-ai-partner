@@ -62,7 +62,7 @@ const costCards = [
     href: "/admin/costs",
     eyebrow: "Spend · budgets · alerts",
     description:
-      "LLM spend telemetry, model/phase cost breakdowns, budget tracking, and spend alerts.",
+      "LLM spend telemetry, model/phase cost breakdowns, budget tracking, and spend alerts. Includes rollup from evaluation, Agent Readiness, and Revise Queue.",
     priority: "Operations",
   },
   {
@@ -71,6 +71,22 @@ const costCards = [
     eyebrow: "Per-job · per-phase · per-model",
     description:
       "Inspect the dedicated evaluation cost ledger for each job, including phase-level spend, model usage, and routing warnings.",
+    priority: "Operations",
+  },
+  {
+    title: "Agent Readiness Costs",
+    href: "/admin/costs/agent-readiness",
+    eyebrow: "Query letter · synopsis · bio · comps",
+    description:
+      "LLM spend for Agent Readiness Package™ auto-generation: query letters, synopses, comparables, author bio, and pitch. No manuscript text is stored.",
+    priority: "Operations",
+  },
+  {
+    title: "Revise Queue Costs",
+    href: "/admin/costs/revise-queue",
+    eyebrow: "Pass 4 · TrustedPath™ · A/B/C rewrites",
+    description:
+      "LLM spend for voice-conditioned Pass 4 rewrites: standard A/B/C candidates and TrustedPath™ single-candidate rewrites. No passage text is stored.",
     priority: "Operations",
   },
 ];
@@ -143,11 +159,10 @@ export default async function AdminDashboard() {
           <div>
             <h2 className="font-rg-serif text-xl text-rg-cream">Cost modules</h2>
             <p className="mt-1 text-sm text-rg-cream2/60">
-              Spend oversight is split into the general CostOps dashboard and the dedicated
-              evaluation cost ledger.
+              Spend oversight is split across evaluation jobs, Agent Readiness package generation, and Revise Queue rewrites.
             </p>
           </div>
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             {costCards.map((card) => (
               <Link
                 key={card.href}
