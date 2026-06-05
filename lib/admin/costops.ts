@@ -67,6 +67,47 @@ export interface CostOpsBreakdownRow {
   avgCostPerCallCents: number;
 }
 
+const EXPECTED_PHASE_BREAKDOWN_KEYS = [
+  "Phase 0 / Intake",
+  "Seed 0.5a / Story Ledger",
+  "Seed 0.5b / DREAM Seed",
+  "Phase 1A / Character Sweep",
+  "Phase 3A / Independent Read",
+  "Pass 3 Read-Ahead",
+  "Phase 3B / DREAM Document",
+  "WAVE Revision (expected gpt-5.1 if LLM-backed)",
+  "Phase 5 / Revision Queue (expected gpt-5.1 if LLM-backed)",
+];
+
+function normalizePhaseKey(phase: string | null): string {
+  const raw = (phase ?? "unknown").toLowerCase().replace(/[\s-]+/g, "_");
+  if (raw === "phase_0" || raw === "phase0" || raw.includes("pass0") || raw.includes("intake")) return "Phase 0 / Intake";
+  if (/phase0?\.5a|phase_?0_?5a|phase05a|0_?5a|story_ledger|full_context_ledger/.test(raw)) return "Seed 0.5a / Story Ledger";
+  if (/phase0?\.5b|phase_?0_?5b|phase05b|0_?5b|dream_seed|editorial_dream_seed/.test(raw)) return "Seed 0.5b / DREAM Seed";
+  if (/phase_?1a|pass1a|character_sweep/.test(raw)) return "Phase 1A / Character Sweep";
+  if (/phase_?3a|pass3a|preflight|independent_read/.test(raw)) return "Phase 3A / Independent Read";
+  if (/pass3_read_ahead|read_ahead/.test(raw)) return "Pass 3 Read-Ahead";
+  if (/phase_?3b|pass3b|dream_document|longform/.test(raw)) return "Phase 3B / DREAM Document";
+  if (/wave_revision|execute_wave|wave_modules|wave_readiness|wave_layer/.test(raw) || raw === "wave") return "WAVE Revision (expected gpt-5.1 if LLM-backed)";
+  if (/phase_?5|pass5|revision_queue|revise_queue|trustedpath|trusted_path/.test(raw) || raw === "revise" || raw === "rev") return "Phase 5 / Revision Queue (expected gpt-5.1 if LLM-backed)";
+  return phase ?? "unknown";
+}
+
+function includeExpectedPhaseBreakdownRows(rows: CostOpsBreakdownRow[]): CostOpsBreakdownRow[] {
+  const existing = new Set(rows.map((row) => row.key));
+  const expectedRows = EXPECTED_PHASE_BREAKDOWN_KEYS
+    .filter((key) => !existing.has(key))
+    .map((key) => ({
+      key,
+      usageCents: 0,
+      callCount: 0,
+      inputTokens: 0,
+      outputTokens: 0,
+      avgCostPerCallCents: 0,
+    }));
+  return [...rows, ...expectedRows];
+}
+
 export interface CostOpsJobRow {
   jobId: string;
   manuscriptId: string | null;
@@ -487,9 +528,9 @@ export async function getCostOpsDashboardData(rangeInput?: string | null): Promi
   const projectedCents = elapsed > 0 ? Math.round(((mtdLlmCents + mtdOverhead.totalCents) / elapsed) * totalDays) : 0;
 
   const modelBreakdown = buildBreakdown(selectedRows, (row) => row.model ?? "unknown");
-  const phaseBreakdown = buildBreakdown(selectedRows, (row) => row.phase ?? "unknown");
+  const phaseBreakdown = includeExpectedPhaseBreakdownRows(buildBreakdown(selectedRows, (row) => normalizePhaseKey(row.phase)));
   const topModel = modelBreakdown[0]?.key ?? null;
-  const topPhase = phaseBreakdown[0]?.key ?? null;
+  const topPhase = phaseBreakdown.find((row) => row.callCount > 0)?.key ?? null;
   const topModelPct = modelBreakdown[0] && selectedLlmCents > 0 ? (modelBreakdown[0].usageCents / selectedLlmCents) * 100 : 0;
 
   const jobRows = buildJobRows(selectedRows, jobMeta, overhead.totalCents);
