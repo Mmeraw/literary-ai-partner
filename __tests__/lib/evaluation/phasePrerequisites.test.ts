@@ -1,4 +1,5 @@
 import {
+  classifyEvidenceCoveragePrerequisite,
   classifyPhase0Prerequisite,
   evaluatePhase1aPrerequisites,
   evaluatePhase2Prerequisites,
@@ -16,6 +17,11 @@ const validSeedArtifacts = [
   { artifact_type: 'story_map_seed_v1', content: { schema_valid: true, semantic_status: 'valid' } },
   { artifact_type: 'evaluation_seed_v1', content: { schema_valid: true, semantic_status: 'valid' } },
 ];
+
+const healthyLongFormCoverage = {
+  coveragePercent: 99.8,
+  criticalGapPresent: false,
+};
 
 describe('phase prerequisite contract', () => {
   test('blocks when Phase 0 did not complete', () => {
@@ -61,6 +67,7 @@ describe('phase prerequisite contract', () => {
       progress: completePhase0,
       artifacts: validSeedArtifacts,
       route: 'long_form',
+      coverage: healthyLongFormCoverage,
     });
 
     expect(decision.ok).toBe(false);
@@ -75,6 +82,7 @@ describe('phase prerequisite contract', () => {
         { artifact_type: 'editorial_dream_seed_v1', content: { schema_valid: true, semantic_status: 'degraded_with_reasons' } },
       ],
       route: 'long_form',
+      coverage: healthyLongFormCoverage,
       allowDegradedSeeds: true,
     });
 
@@ -95,6 +103,64 @@ describe('phase prerequisite contract', () => {
 
     expect(decision.ok).toBe(true);
     expect(decision.checks.filter((check) => check.status === 'degraded_allowed')).toHaveLength(2);
+  });
+
+  test('requires long-form evidence coverage before Phase 1A', () => {
+    const decision = evaluatePhase1aPrerequisites({
+      progress: completePhase0,
+      artifacts: [
+        ...validSeedArtifacts,
+        { artifact_type: 'editorial_dream_seed_v1', content: { schema_valid: true, semantic_status: 'valid' } },
+      ],
+      route: 'long_form',
+    });
+
+    expect(decision.ok).toBe(false);
+    expect(decision.blockingCodes).toContain('MANUSCRIPT_COVERAGE_MISSING');
+  });
+
+  test('blocks long-form coverage below 98 percent', () => {
+    const check = classifyEvidenceCoveragePrerequisite({
+      route: 'long_form',
+      coverage: { coveragePercent: 97.9, criticalGapPresent: false },
+    });
+
+    expect(check.status).toBe('blocked');
+    expect(check.code).toBe('MANUSCRIPT_COVERAGE_BELOW_MINIMUM');
+  });
+
+  test('blocks long-form coverage below 99.5 percent until deterministic review says safe', () => {
+    const check = classifyEvidenceCoveragePrerequisite({
+      route: 'long_form',
+      coverage: { coveragePercent: 99, criticalGapPresent: false },
+    });
+
+    expect(check.status).toBe('blocked');
+    expect(check.code).toBe('MANUSCRIPT_COVERAGE_REVIEW_REQUIRED');
+  });
+
+  test('allows degraded-safe long-form coverage after deterministic review', () => {
+    const check = classifyEvidenceCoveragePrerequisite({
+      route: 'long_form',
+      coverage: { coveragePercent: 99, criticalGapPresent: false, deterministicReviewSafe: true },
+    });
+
+    expect(check.status).toBe('degraded_allowed');
+    expect(check.code).toBe('MANUSCRIPT_COVERAGE_DEGRADED_ALLOWED');
+  });
+
+  test('blocks any critical long-form coverage gap', () => {
+    const check = classifyEvidenceCoveragePrerequisite({
+      route: 'long_form',
+      coverage: {
+        coveragePercent: 99.9,
+        criticalGapPresent: true,
+        missingSpanLabels: ['ending', 'protagonist arc turn'],
+      },
+    });
+
+    expect(check.status).toBe('blocked');
+    expect(check.code).toBe('MANUSCRIPT_COVERAGE_CRITICAL_GAP');
   });
 
   test('blocks Phase 2 when Phase 1A story layer is missing', () => {
