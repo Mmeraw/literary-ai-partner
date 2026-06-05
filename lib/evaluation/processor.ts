@@ -7183,11 +7183,31 @@ export async function processEvaluationJob(
           .eq('id', jobId)
           .eq('status', JOB_STATUS.RUNNING);
 
+        // ── Load seed story ledger for 9-layer grounding gate ──────────────
+        let seedLedgerForGrounding: FullContextStoryLedger | null = null;
+        try {
+          const { data: seedLedgerRows } = await supabase
+            .from('evaluation_artifacts')
+            .select('content')
+            .eq('job_id', String(job.id))
+            .eq('artifact_type', 'full_context_story_ledger_v1')
+            .limit(1);
+          if (seedLedgerRows && seedLedgerRows.length > 0) {
+            seedLedgerForGrounding = (seedLedgerRows[0] as { content: FullContextStoryLedger }).content;
+          }
+        } catch (seedLoadErr) {
+          console.warn(`[Processor] ${jobId}: failed to load seed ledger for grounding gate (non-fatal)`, seedLoadErr);
+        }
+
         // Use cleaned (contamination-filtered) chunk outputs for ledger assembly
+        // Pass seed ledger + manuscript text for 9-layer grounding validation
         const characterLedger: Pass1aCharacterLedger = reduceCharacterEvidence({
           chunkOutputs: cleanedChunkOutputs,
           jobId: String(job.id),
           totalChunksInManuscript: totalChunks,
+          manuscriptText: manuscriptWithContent.content || undefined,
+          seedLedger: seedLedgerForGrounding,
+          seedEntityNames: seedEntityNamesForConsistency.length > 0 ? seedEntityNamesForConsistency : undefined,
         });
 
         const characterLedgerV2Phase1a: CharacterLedgerV2 = buildCharacterLedgerV2({

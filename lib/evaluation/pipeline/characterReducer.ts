@@ -49,6 +49,11 @@ import {
   sanitizeIdentityNameList,
   sanitizeIdentityNameToken,
 } from "./identityNameHygiene";
+import {
+  buildGroundingIndex,
+  filterUngroundedCharacters,
+} from "./seedGroundingGate";
+import type { FullContextStoryLedger } from '@/lib/evaluation/seed/fullContextStoryLedger';
 
 // Hard caps
 const MAX_LEDGER_ENTRIES = 15;
@@ -459,6 +464,19 @@ export function reduceCharacterEvidence(params: {
   chunkOutputs: Pass1aChunkOutput[];
   jobId: string;
   totalChunksInManuscript: number;
+  /** Raw manuscript text for character grounding validation. When provided,
+   *  any character whose canonical_name does not appear in the manuscript
+   *  (case-insensitive substring match) will be rejected from the ledger. */
+  manuscriptText?: string;
+  /** Full 9-layer seed story ledger (Phase 0.5a). When provided, all
+   *  character names are validated against all 9 layers + manuscript text.
+   *  Characters not grounded in the seed OR manuscript are rejected. */
+  seedLedger?: FullContextStoryLedger | null;
+  /** Canonical entity names from the seed story ledger (Phase 0.5a).
+   *  Characters appearing in this set are always accepted regardless of
+   *  manuscript text matching (they were already validated at seed time).
+   *  @deprecated Use seedLedger instead for full 9-layer grounding. */
+  seedEntityNames?: string[];
 }): Pass1aCharacterLedger {
   const { jobId, totalChunksInManuscript } = params;
 
@@ -880,7 +898,7 @@ export function reduceCharacterEvidence(params: {
   }
 
   // Sort by narrative importance, then mention count
-  const sorted = ledgerEntries
+  const sortedRaw = ledgerEntries
     .sort((a, b) => {
       const roleDiff = (ROLE_PRIORITY[b.role] ?? 0) - (ROLE_PRIORITY[a.role] ?? 0);
       if (roleDiff !== 0) return roleDiff;
@@ -889,6 +907,37 @@ export function reduceCharacterEvidence(params: {
       return b.mention_count - a.mention_count;
     })
     .slice(0, MAX_LEDGER_ENTRIES);
+
+  // ── Character grounding gate (9-layer seed authority) ────────────────────
+  // Reject any character whose canonical_name does not appear in the
+  // 9-layer seed story ledger OR the manuscript text. Prevents cross-
+  // contamination from LLM hallucination or context window bleed.
+  let sorted: typeof sortedRaw;
+  if (params.manuscriptText || params.seedLedger || params.seedEntityNames) {
+    const groundingIndex = buildGroundingIndex({
+      seedLedger: params.seedLedger,
+      manuscriptText: params.manuscriptText,
+    });
+    // If legacy seedEntityNames are provided, add them to the index
+    if (params.seedEntityNames) {
+      for (const name of params.seedEntityNames) {
+        groundingIndex.allGroundedTokens.add(name.toLowerCase());
+        groundingIndex.canonicalEntities.add(name.toLowerCase());
+      }
+    }
+    const grounding = filterUngroundedCharacters(sortedRaw, groundingIndex, jobId);
+    sorted = grounding.accepted;
+    if (grounding.rejected.length > 0) {
+      console.warn(`[Pass1A-GroundingGate] Rejected ${grounding.rejected.length} ungrounded character(s)`, {
+        job_id: jobId,
+        rejected: grounding.rejected.map(e => e.canonical_name),
+        diagnostics: grounding.diagnostics,
+      });
+    }
+  } else {
+    // No grounding data available — pass through (legacy behavior)
+    sorted = sortedRaw;
+  }
 
   // Build global relational engines list (character pairs, deduplicated)
   const globalRelationalEngines: string[] = [];

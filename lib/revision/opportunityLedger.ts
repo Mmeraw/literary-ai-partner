@@ -341,20 +341,23 @@ function buildFallbackCandidateTexts(input: CandidateBuildInput): { a: string; b
 
 function explicitCandidateOrFallback(
   raw: unknown,
-  fallback: string,
+  _fallback: string,
   issueStatement: string,
 ): string {
   const candidate = normalizeOptionalText(raw);
-  if (!candidate) return fallback;
-  // Always prefer the LLM-generated candidate if it has substantive content
-  // (5+ words and not identical to the issue statement). The LLM was prompted
-  // to produce manuscript-ready prose — even imperfect output is better than
-  // generic placeholder text that has no connection to the manuscript.
+  // GROUNDING RULE: Never use template-generated fallback prose.
+  // If the LLM did not produce a manuscript-ready candidate, leave empty.
+  // The workbench will show "Needs targeting" for empty candidates.
+  // Template prose (e.g., "He hesitated...") is ungrounded and causes
+  // cross-manuscript contamination when names are extracted from rationale text.
+  if (!candidate) return '';
+  // Accept the LLM-generated candidate if it has substantive content
+  // (5+ words and not identical to the issue statement).
   const words = candidate.split(/\s+/);
   if (words.length >= 5 && candidate.toLowerCase() !== issueStatement.trim().toLowerCase()) {
     return candidate;
   }
-  return fallback;
+  return '';
 }
 
 function normalizeRevisionOperation(raw: unknown): RevisionOperation | undefined {
