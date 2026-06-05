@@ -94,7 +94,9 @@ describe("ReviseQueueV2Client smoke", () => {
     render(<ReviseQueueV2Client payload={payload} />);
 
     expect(screen.getByText("Untitled Manuscript")).toBeTruthy();
-    expect(screen.getByText(/No MUST repairs found\./)).toBeTruthy();
+    expect(screen.getByRole("option", { name: "Recommended" })).toBeTruthy();
+    expect(screen.getByRole("option", { name: "Optional" })).toBeTruthy();
+    expect(screen.getByRole("option", { name: "Consider" })).toBeTruthy();
     expect(screen.getByPlaceholderText("Search queue")).toBeTruthy();
     expect(screen.getByText("Revision Ledger")).toBeTruthy();
 
