@@ -9,6 +9,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { resolveTrackedCostCents } from "@/lib/jobs/cost";
 import { formatUsdFromCents } from "@/lib/admin/formatMoney";
+import { getLlmEventRollup } from "@/lib/admin/costopsLlmEvents";
 
 export type CostOpsSeverity = "ok" | "watch" | "danger" | "unknown";
 export type CostOpsRange = "24h" | "5d" | "30d" | "all";
@@ -145,6 +146,12 @@ export interface CostOpsDashboardData {
   providerStatus: CostOpsProviderStatus[];
   alerts: CostOpsAlert[];
   warnings: string[];
+  /** Rollup spend totals from llm_cost_events (non-evaluation sources). */
+  nonEvalSpend: {
+    agentReadinessCents: number;
+    reviseQueueCents: number;
+    totalNonEvalCents: number;
+  };
 }
 
 interface RawCostRow {
@@ -572,6 +579,19 @@ export async function getCostOpsDashboardData(rangeInput?: string | null): Promi
     warnings.push("All-time view includes exact tracked LLM costs only; monthly overhead allocations apply to time-bounded ranges.");
   }
 
+  // ── Non-evaluation rollup from llm_cost_events ───────────────────────────
+  let agentReadinessCents = 0;
+  let reviseQueueCents = 0;
+  try {
+    const rollup = await getLlmEventRollup(rangeInput);
+    for (const row of rollup) {
+      if (row.source === "agent_readiness") agentReadinessCents = row.totalCostCents;
+      else if (row.source === "revise_queue") reviseQueueCents = row.totalCostCents;
+    }
+  } catch {
+    warnings.push("Could not fetch Agent Readiness / Revise Queue cost rollup from llm_cost_events.");
+  }
+
   const alerts = buildAlerts({
     selectedTotalCents,
     mtdTotalCents,
@@ -591,6 +611,11 @@ export async function getCostOpsDashboardData(rangeInput?: string | null): Promi
     providerStatus: getProviderStatus(),
     alerts,
     warnings,
+    nonEvalSpend: {
+      agentReadinessCents,
+      reviseQueueCents,
+      totalNonEvalCents: agentReadinessCents + reviseQueueCents,
+    },
   };
 }
 
