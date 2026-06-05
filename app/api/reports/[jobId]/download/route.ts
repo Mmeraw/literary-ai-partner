@@ -997,14 +997,19 @@ async function buildChromiumPdf(html: string): Promise<Buffer> {
   const puppeteer = puppeteerModule.default ?? puppeteerModule;
 
   const browser = await puppeteer.launch({
+    // @ts-expect-error — dynamic import type mismatch with @sparticuz/chromium
     args: chromium.args,
+    // @ts-expect-error — dynamic import type mismatch with @sparticuz/chromium
     defaultViewport: chromium.defaultViewport,
+    // @ts-expect-error — dynamic import type mismatch with @sparticuz/chromium
     executablePath: await chromium.executablePath(),
+    // @ts-expect-error — dynamic import type mismatch with @sparticuz/chromium
     headless: chromium.headless ?? true,
   });
 
   try {
     const page = await browser.newPage();
+    // @ts-expect-error — puppeteer-core type mismatch for waitUntil value
     await page.setContent(html, { waitUntil: 'networkidle0', timeout: 30_000 });
     const pdf = await page.pdf({
       format: 'letter',
