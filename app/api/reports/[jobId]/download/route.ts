@@ -1,6 +1,8 @@
 import 'server-only';
 import { NextRequest, NextResponse } from 'next/server';
 
+export const maxDuration = 60;
+
 import { createClient as createSSRClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { canReleaseEvaluationRead } from '@/lib/jobs/readReleaseGate';
