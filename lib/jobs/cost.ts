@@ -159,7 +159,7 @@ function isUuidLike(value: unknown): value is string {
 }
 
 export async function recordCost(entry: CostEntry): Promise<void> {
-  if (!isUuidLike(jobId)) {
+  if (!isUuidLike(entry.jobId)) {
     return;
   }
 
