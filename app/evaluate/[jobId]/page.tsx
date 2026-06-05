@@ -18,6 +18,10 @@ import ReportConcernForm from "@/components/reports/ReportConcernForm";
 import {
   buildTopRecommendations,
 } from "@/lib/evaluation/reportRecommendations";
+import {
+  buildReportPitches,
+  summarizeRevisionOpportunities,
+} from "@/lib/evaluation/reportTemplateContract";
 
 import { SynthesisPoller } from "@/components/evaluation/SynthesisPoller";
 import { classifyEvaluationIntegrityBanner } from "@/lib/evaluation/warningClassification";
@@ -651,6 +655,14 @@ export default async function EvaluationReportPage({
   const wordCount = artifact?.metrics?.manuscript?.word_count ?? manuscriptWordCount ?? null;
   const isLongForm = typeof wordCount === "number" && wordCount >= DREAM_WORD_COUNT_THRESHOLD;
   const dreamDoc = isComplete && isLongForm ? await getDreamArtifact(jobId) : null;
+  const reportPitches = artifact
+    ? buildReportPitches({
+        premise: artifact.enrichment?.premise,
+        summary: artifact.overview?.one_paragraph_summary || artifact.summary,
+        title: displayTitle,
+      })
+    : null;
+  const opportunitySummary = artifact ? summarizeRevisionOpportunities(artifact.criteria) : null;
   const hasDetectedMode = Boolean(artifact?.detected_mode);
   const hasConfirmedMode = Boolean(artifact?.confirmed_mode);
 
@@ -871,18 +883,63 @@ export default async function EvaluationReportPage({
             </div>
           )}
 
-          <section className="rounded-lg border bg-white p-6 mb-4">
+          {reportPitches && (
+            <>
+              <section className="rounded-lg border bg-white p-7 mb-7">
+                <h2 className="text-2xl font-semibold text-gray-900">One-Paragraph Pitch</h2>
+                <p className="mt-4 text-base leading-7 text-gray-800">
+                  {reportPitches.oneParagraphPitch}
+                </p>
+              </section>
+
+              <section className="rounded-lg border bg-white p-7 mb-7">
+                <h2 className="text-2xl font-semibold text-gray-900">One-Sentence Pitch</h2>
+                <p className="mt-4 text-base font-medium leading-7 text-gray-900">
+                  {reportPitches.oneSentencePitch}
+                </p>
+              </section>
+            </>
+          )}
+
+          {opportunitySummary && (
+            <section className="rounded-lg border bg-white p-7 mb-7">
+              <h2 className="text-2xl font-semibold text-gray-900">Revision Opportunity Summary</h2>
+              <div className="mt-5 grid grid-cols-2 gap-4 sm:grid-cols-4">
+                <div className="rounded-md border bg-gray-50 p-4">
+                  <p className="text-sm font-medium text-gray-600">Total</p>
+                  <p className="mt-2 text-3xl font-bold text-gray-950">{opportunitySummary.total}</p>
+                </div>
+                <div className="rounded-md border bg-red-50 p-4">
+                  <p className="text-sm font-medium text-red-700">High Priority</p>
+                  <p className="mt-2 text-3xl font-bold text-red-900">{opportunitySummary.high}</p>
+                </div>
+                <div className="rounded-md border bg-amber-50 p-4">
+                  <p className="text-sm font-medium text-amber-700">Medium Priority</p>
+                  <p className="mt-2 text-3xl font-bold text-amber-900">{opportunitySummary.medium}</p>
+                </div>
+                <div className="rounded-md border bg-gray-50 p-4">
+                  <p className="text-sm font-medium text-gray-600">Low Priority</p>
+                  <p className="mt-2 text-3xl font-bold text-gray-950">{opportunitySummary.low}</p>
+                </div>
+              </div>
+              <p className="mt-4 text-base leading-7 text-gray-700">
+                Priority labels are polite alternatives to MUST / SHOULD / COULD labels.
+              </p>
+            </section>
+          )}
+
+          <section className="rounded-lg border bg-white p-7 mb-7">
             <h2 className="text-xl font-semibold text-gray-900">Overall Summary</h2>
-            <p className="mt-3 text-sm leading-relaxed text-gray-700">
+            <p className="mt-4 text-base leading-7 text-gray-800">
               {safeTruncateToWordBoundary(artifact.overview?.one_paragraph_summary || artifact.summary || "No summary available")}
             </p>
           </section>
 
           {/* ── Premise (Elevator Pitch) ── */}
           {artifact.enrichment?.premise && (
-            <section className="rounded-lg border bg-white p-6 mb-4">
-              <h2 className="text-xl font-semibold text-gray-900">Premise</h2>
-              <p className="mt-3 text-sm leading-relaxed text-gray-700 italic">
+            <section className="rounded-lg border bg-white p-7 mb-7">
+              <h2 className="text-2xl font-semibold text-gray-900">Premise</h2>
+              <p className="mt-4 text-base leading-7 text-gray-800 italic">
                 {artifact.enrichment.premise}
               </p>
             </section>
@@ -892,7 +949,7 @@ export default async function EvaluationReportPage({
           {artifact.enrichment?.trigger_warnings && artifact.enrichment.trigger_warnings.length > 0 && (
             <section className="rounded-lg border border-amber-200 bg-amber-50 p-6 mb-4">
               <h2 className="text-xl font-semibold text-amber-900">Content Warnings</h2>
-              <ul className="mt-3 space-y-1 text-sm text-amber-800">
+              <ul className="mt-4 space-y-3 text-base text-amber-900">
                 {artifact.enrichment.trigger_warnings.map((w, i) => (
                   <li key={i} className="flex gap-2">
                     <span className="mt-0.5 shrink-0">⚠️</span>
@@ -900,7 +957,7 @@ export default async function EvaluationReportPage({
                   </li>
                 ))}
               </ul>
-              <p className="mt-3 text-xs text-amber-700">
+              <p className="mt-4 text-base text-amber-800">
                 Consider including content warnings in book marketing or front matter.
               </p>
             </section>
@@ -939,9 +996,9 @@ export default async function EvaluationReportPage({
             const topRecs = buildTopRecommendations(artifact);
             if (topRecs.length === 0) return null;
             return (
-              <section className="rounded-lg border bg-white p-6 mb-4">
-                <h2 className="text-xl font-semibold text-gray-900">Top Recommendations</h2>
-                <ul className="mt-3 space-y-2 text-sm text-gray-700">
+              <section className="rounded-lg border bg-white p-7 mb-7">
+                <h2 className="text-2xl font-semibold text-gray-900">Top Recommendations</h2>
+                <ul className="mt-5 space-y-4 text-base leading-7 text-gray-800">
                   {topRecs.map((r, i) => (
                     <li key={i} className="flex gap-2">
                       <span className="mt-0.5 shrink-0 text-gray-600">•</span>
@@ -955,14 +1012,14 @@ export default async function EvaluationReportPage({
 
               {/* ── 13 Story Criteria Scores ── */}
               {orderedCriteria.length > 0 && (
-                <section className="rounded-lg border bg-white p-6 mb-4">
-                  <h2 className="text-xl font-semibold text-gray-900">Story Criteria Scores</h2>
-                  <div className="mt-4 rounded-md border bg-gray-50 p-3 text-xs text-gray-700">
-                    <p className="font-medium">What does Confidence mean?</p>
-                    <p className="mt-1">
+                <section className="rounded-lg border bg-white p-7 mb-7">
+                  <h2 className="text-2xl font-semibold text-gray-900">13 Criteria Score Grid</h2>
+                  <div className="mt-5 rounded-md border bg-gray-50 p-5 text-base leading-7 text-gray-800">
+                    <p className="font-medium">What Does Confidence Mean?</p>
+                    <p className="mt-2">
                       Confidence reflects how strongly each diagnosis is supported by direct evidence in your manuscript.
                     </p>
-                    <ul className="mt-2 space-y-1.5">
+                    <ul className="mt-4 space-y-3">
                       <li className="flex items-start gap-2">
                         <span className="inline-flex items-center rounded-full bg-emerald-100 text-emerald-800 px-2 py-0.5 text-xs font-medium shrink-0">High</span>
                         <span>Strong textual evidence supports this diagnosis.</span>
@@ -977,12 +1034,12 @@ export default async function EvaluationReportPage({
                       </li>
                     </ul>
                   </div>
-                  <p className="mt-3 text-sm font-medium text-gray-700">
+                  <p className="mt-5 text-base font-medium leading-7 text-gray-800">
                     {getCertifiedCriteriaSummary(orderedCriteria)}
                   </p>
-                  <div className="mt-4 space-y-4">
+                  <div className="mt-6 space-y-6">
                     {orderedCriteria.map((c) => (
-                      <div key={c.key} className="rounded-md border bg-white p-5">
+                      <div key={c.key} className="rounded-md border bg-white p-6">
                         {(() => {
                           const scorable = isScorableCriterion(c);
                           const confidence = getConfidencePresentation(c);
@@ -990,7 +1047,7 @@ export default async function EvaluationReportPage({
 
                           return (
                         <div className="flex items-start justify-between gap-3">
-                          <h3 className="text-base font-semibold text-gray-900">
+                          <h3 className="text-xl font-semibold text-gray-900">
                             {isCriterionKey(c.key) ? getCriterionDisplayLabel(c.key, evaluationScope) : c.key}
                           </h3>
                           <div className="flex shrink-0 items-center gap-2">
@@ -1007,7 +1064,7 @@ export default async function EvaluationReportPage({
                           );
                         })()}
                         {criterionStatusLabel(c) && (
-                          <p className="mt-2 text-xs font-medium text-gray-700">{criterionStatusLabel(c)}</p>
+                          <p className="mt-3 text-base font-medium text-gray-800">{criterionStatusLabel(c)}</p>
                         )}
                         {(() => {
                           const rationalePresentation = getCriterionRationalePresentation(c, c.rationale);
@@ -1020,7 +1077,7 @@ export default async function EvaluationReportPage({
                                   {rationalePresentation.label}
                                 </p>
                               )}
-                              <p className="text-sm text-gray-600">{rationalePresentation.text}</p>
+                              <p className="text-base leading-7 text-gray-800">{rationalePresentation.text}</p>
                             </div>
                           );
                         })()}

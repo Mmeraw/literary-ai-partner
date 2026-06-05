@@ -18,6 +18,12 @@ import {
   getRenumberedAuthorFacingRevisionPlan,
   getCriterionDisplayLabel,
 } from '@/lib/evaluation/reportRenderSafety';
+import { buildTopRecommendations } from '@/lib/evaluation/reportRecommendations';
+import {
+  buildReportPitches,
+  hasRevisionOpportunities,
+  summarizeRevisionOpportunities,
+} from '@/lib/evaluation/reportTemplateContract';
 import { sanitizeCMOS } from '@/lib/evaluation/cmosSanitizer';
 import {
   Document, Packer, Paragraph, TextRun, HeadingLevel,
@@ -170,12 +176,12 @@ function pushTxtListBlock(lines: string[], label: string, values: unknown, optio
 
   lines.push('');
   lines.push(`${label}:`);
-  cleaned.forEach((item, idx) => {
+    cleaned.forEach((item, idx) => {
     if (options.ordered) {
-      lines.push(`  ${idx + 1}. ${item}`);
+      lines.push(`${idx + 1}. ${item}`);
       return;
     }
-    lines.push(`  • ${item}`);
+    lines.push(`• ${item}`);
   });
 }
 
@@ -414,12 +420,12 @@ function appendDreamTxtSections(lines: string[], dream: LongformDreamDocument): 
     if (Array.isArray(dream.market_shelf.shelf_neighbors) && dream.market_shelf.shelf_neighbors.length > 0) {
       push('');
       push('Shelf Neighbors:');
-      dream.market_shelf.shelf_neighbors.forEach((item) => push(`  • ${cleanReportText(item)}`));
+      dream.market_shelf.shelf_neighbors.forEach((item) => push(`• ${cleanReportText(item)}`));
     }
     if (Array.isArray(dream.market_shelf.comparison_space) && dream.market_shelf.comparison_space.length > 0) {
       push('');
       push('Comparison Space:');
-      dream.market_shelf.comparison_space.forEach((item) => push(`  • ${cleanReportText(item)}`));
+      dream.market_shelf.comparison_space.forEach((item) => push(`• ${cleanReportText(item)}`));
     }
     push('');
     push(`Market Danger: ${cleanReportText(dream.market_shelf.market_danger)}`);
@@ -490,19 +496,19 @@ function appendDreamTxtSections(lines: string[], dream: LongformDreamDocument): 
       push('');
       push('Preserved Symbols:');
       dream.symbolic_audit.preserved_symbols.forEach((sym) => {
-        push(`  • ${cleanReportText(sym.symbol)} — ${cleanReportText(sym.current_function)}`);
+        push(`• ${cleanReportText(sym.symbol)} — ${cleanReportText(sym.current_function)}`);
         if (sym.revision_instruction) push(`    Revision: ${cleanReportText(sym.revision_instruction)}`);
       });
     }
     if (Array.isArray(dream.symbolic_audit.doctrine_strengths) && dream.symbolic_audit.doctrine_strengths.length > 0) {
       push('');
       push('Doctrine Strengths:');
-      dream.symbolic_audit.doctrine_strengths.forEach((s) => push(`  • ${cleanReportText(s)}`));
+      dream.symbolic_audit.doctrine_strengths.forEach((s) => push(`• ${cleanReportText(s)}`));
     }
     if (Array.isArray(dream.symbolic_audit.doctrine_risks) && dream.symbolic_audit.doctrine_risks.length > 0) {
       push('');
       push('Doctrine Risks:');
-      dream.symbolic_audit.doctrine_risks.forEach((r) => push(`  • ${cleanReportText(r)}`));
+      dream.symbolic_audit.doctrine_risks.forEach((r) => push(`• ${cleanReportText(r)}`));
     }
     if (dream.symbolic_audit.audit_conclusion) {
       push('');
@@ -563,6 +569,13 @@ function buildTxtReport(result: ExportableResult, title: string | null, jobId: s
   const sub = '-'.repeat(72);
   const metadata = buildMetadata(result, title, dream);
   const summaryFallback = buildSummaryFallback(result);
+  const pitches = buildReportPitches({
+    premise: enrichment?.premise,
+    summary: result.overview.one_paragraph_summary,
+    title: metadata.displayTitle,
+  });
+  const opportunitySummary = summarizeRevisionOpportunities(result.criteria);
+  const topRecommendations = buildTopRecommendations(result, 5);
 
   lines.push(sep);
   lines.push('REVISIONGRADE™ EVALUATION REPORT');
@@ -581,6 +594,20 @@ function buildTxtReport(result: ExportableResult, title: string | null, jobId: s
   lines.push('Confidentiality: Prepared for author/editorial use.');
   lines.push('');
 
+  lines.push(sub);
+  lines.push('ONE-PARAGRAPH PITCH');
+  lines.push(sub);
+  lines.push('');
+  lines.push(cleanReportText(pitches.oneParagraphPitch));
+  lines.push('');
+
+  lines.push(sub);
+  lines.push('ONE-SENTENCE PITCH');
+  lines.push(sub);
+  lines.push('');
+  lines.push(cleanReportText(pitches.oneSentencePitch));
+  lines.push('');
+
   if (enrichment?.premise) {
     lines.push(sub);
     lines.push('PREMISE');
@@ -590,16 +617,30 @@ function buildTxtReport(result: ExportableResult, title: string | null, jobId: s
     lines.push('');
   }
 
+  lines.push(sub);
+  lines.push('TRIGGER WARNINGS');
+  lines.push(sub);
+  lines.push('');
   if (enrichment?.trigger_warnings && enrichment.trigger_warnings.length > 0) {
-    lines.push(sub);
-    lines.push('TRIGGER WARNINGS');
-    lines.push(sub);
-    lines.push('');
     enrichment.trigger_warnings.forEach((w) => lines.push(`• ${cleanReportText(w)}`));
-    lines.push('');
-    lines.push('Consider including content warnings in book marketing or front matter.');
-    lines.push('');
+  } else {
+    lines.push('No content warnings identified.');
   }
+  lines.push('');
+  lines.push('Consider including content warnings in book marketing or front matter.');
+  lines.push('');
+
+  lines.push(sub);
+  lines.push('REVISION OPPORTUNITY SUMMARY');
+  lines.push(sub);
+  lines.push('');
+  lines.push(`Total Revision Opportunities: ${opportunitySummary.total}`);
+  lines.push(`High Priority: ${opportunitySummary.high}`);
+  lines.push(`Medium Priority: ${opportunitySummary.medium}`);
+  lines.push(`Low Priority: ${opportunitySummary.low}`);
+  lines.push('');
+  lines.push('Priority labels are polite alternatives to MUST / SHOULD / COULD labels.');
+  lines.push('');
 
   if (enrichment?.reading_grade_level != null) {
     lines.push(sub);
@@ -651,8 +692,26 @@ function buildTxtReport(result: ExportableResult, title: string | null, jobId: s
   result.overview.top_3_risks.forEach((r, i) => lines.push(`${i + 1}. ${cleanReportText(r)}`));
   lines.push('');
 
+  if (topRecommendations.length > 0) {
+    lines.push(sub);
+    lines.push('TOP RECOMMENDATIONS');
+    lines.push(sub);
+    lines.push('');
+    topRecommendations.forEach((r, i) => lines.push(`${i + 1}. ${cleanReportText(r)}`));
+    lines.push('');
+  }
+
   lines.push(sub);
-  lines.push('CRITERIA SCORES');
+  lines.push('13 CRITERIA SCORE GRID');
+  lines.push(sub);
+  lines.push('');
+  result.criteria.forEach((c) => {
+    lines.push(`${getCriterionDisplayLabel(c.key)} | ${scoreLabel(c.score_0_10, 10)} | ${c.confidence_level ? formatConfidenceLabel(c.confidence_level) : '—'}`);
+  });
+  lines.push('');
+
+  lines.push(sub);
+  lines.push('CRITERION RATIONALES & SURFACED OPPORTUNITIES');
   lines.push(sub);
   lines.push('');
   result.criteria.forEach((c) => {
@@ -728,6 +787,13 @@ async function buildPdfReport(result: ExportableResult, title: string | null, jo
   return await new Promise<Buffer>((resolve, reject) => {
     const metadata = buildMetadata(result, title, dream);
     const summaryFallback = buildSummaryFallback(result);
+    const pitches = buildReportPitches({
+      premise: enrichment?.premise,
+      summary: result.overview.one_paragraph_summary,
+      title: metadata.displayTitle,
+    });
+    const opportunitySummary = summarizeRevisionOpportunities(result.criteria);
+    const topRecommendations = buildTopRecommendations(result, 5);
     const doc = new PDFDocument({ size: 'LETTER', margin: 54, bufferPages: true });
     const chunks: Buffer[] = [];
     doc.on('data', (chunk: Buffer | Uint8Array) => chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)));
@@ -766,7 +832,7 @@ async function buildPdfReport(result: ExportableResult, title: string | null, jo
     };
     const bullet = (text: unknown, color: string = RG.textPrimary) => {
       ensureSpace(45);
-      doc.font('Helvetica').fontSize(10.5).fillColor(color).text(`  \u2022  ${toPdfSafeText(text)}`, ml, doc.y, { width: contentWidth, indent: 8, lineGap: 2.5 });
+      doc.font('Helvetica').fontSize(10.5).fillColor(color).text(`\u2022 ${toPdfSafeText(text)}`, ml, doc.y, { width: contentWidth, lineGap: 2.5 });
       doc.moveDown(0.3);
     };
     const labelValue = (label: string, value: unknown) => {
@@ -866,22 +932,41 @@ async function buildPdfReport(result: ExportableResult, title: string | null, jo
     // ── Page 2+: Report content ───────────────────────────────────────
     doc.addPage();
 
+    section('One-Paragraph Pitch');
+    paragraph(pitches.oneParagraphPitch);
+
+    section('One-Sentence Pitch');
+    paragraph(pitches.oneSentencePitch);
+
     // ── Enrichment sections ─────────────────────────────────────────────
     if (enrichment?.premise) {
       section('Premise');
       paragraph(enrichment.premise);
     }
 
+    section('Trigger Warnings');
     if (enrichment?.trigger_warnings && enrichment.trigger_warnings.length > 0) {
-      section('Trigger Warnings');
       enrichment.trigger_warnings.forEach((w) => bullet(w, RG.warning));
-      doc.moveDown(0.3);
-      doc.font('Helvetica').fontSize(9).fillColor(RG.textMuted).text(
-        'Consider including content warnings in book marketing or front matter.',
-        ml, doc.y, { width: contentWidth },
-      );
-      doc.moveDown(0.5);
+    } else {
+      paragraph('No content warnings identified.');
     }
+    doc.moveDown(0.3);
+    doc.font('Helvetica').fontSize(9).fillColor(RG.textMuted).text(
+      'Consider including content warnings in book marketing or front matter.',
+      ml, doc.y, { width: contentWidth },
+    );
+    doc.moveDown(0.5);
+
+    section('Revision Opportunity Summary');
+    labelValue('Total Revision Opportunities', String(opportunitySummary.total));
+    labelValue('High Priority', String(opportunitySummary.high));
+    labelValue('Medium Priority', String(opportunitySummary.medium));
+    labelValue('Low Priority', String(opportunitySummary.low));
+    doc.font('Helvetica').fontSize(9).fillColor(RG.textMuted).text(
+      'Priority labels are polite alternatives to MUST / SHOULD / COULD labels.',
+      ml, doc.y, { width: contentWidth },
+    );
+    doc.moveDown(0.5);
 
     if (enrichment?.reading_grade_level != null) {
       section('Reading Grade Level');
@@ -921,8 +1006,32 @@ async function buildPdfReport(result: ExportableResult, title: string | null, jo
       paragraph('(none)');
     }
 
+    if (topRecommendations.length > 0) {
+      section('Top Recommendations');
+      topRecommendations.forEach((r, i) => bullet(`${i + 1}. ${cleanReportText(r)}`, RG.textPrimary));
+    }
+
     // ── Criteria Scores with visual bars ──────────────────────────────
-    section('Criteria Scores');
+    section('13 Criteria Score Grid');
+    result.criteria.forEach((c) => {
+      ensureSpace(32);
+      const score = c.score_0_10;
+      doc.font('Helvetica').fontSize(9.5).fillColor(RG.textPrimary).text(
+        toPdfSafeText(getCriterionDisplayLabel(c.key)),
+        ml, doc.y,
+        { width: contentWidth - 160, continued: true },
+      );
+      doc.font('Helvetica-Bold').fontSize(9.5).fillColor(scoreBarColor(score)).text(
+        toPdfSafeText(scoreLabel(score, 10)),
+        { width: 60, align: 'right', continued: true },
+      );
+      doc.font('Helvetica').fontSize(8.5).fillColor(confidenceColor(c.confidence_level)).text(
+        `  ${toPdfSafeText(c.confidence_level ? formatConfidenceLabel(c.confidence_level) : '—')}`,
+      );
+      doc.moveDown(0.15);
+    });
+
+    section('Criterion Rationales & Surfaced Opportunities');
     result.criteria.forEach((c) => {
       ensureSpace(100);
       const score = c.score_0_10;
@@ -1149,9 +1258,9 @@ async function buildPdfReport(result: ExportableResult, title: string | null, jo
             revItems.forEach((item, idx) => {
               ensureSpace(35);
               doc.font('Helvetica').fontSize(10).fillColor(RG.textPrimary).text(
-                `  ${idx + 1}. ${toPdfSafeText(formatRevisionQueueItem(item))}`,
+                `${idx + 1}. ${toPdfSafeText(formatRevisionQueueItem(item))}`,
                 ml, doc.y,
-                { width: contentWidth, indent: 8, lineGap: 2 },
+                { width: contentWidth, lineGap: 2 },
               );
               doc.moveDown(0.15);
             });
@@ -1308,6 +1417,13 @@ const DOCX_NO_BORDERS = { top: DOCX_NONE_BORDER, bottom: DOCX_NONE_BORDER, left:
 async function buildDocx(result: ExportableResult, title: string | null, jobId: string, dream: LongformDreamDocument | null, enrichment: EnrichmentData = null): Promise<Buffer> {
   const metadata = buildMetadata(result, title, dream);
   const summaryFallback = buildSummaryFallback(result);
+  const pitches = buildReportPitches({
+    premise: enrichment?.premise,
+    summary: result.overview.one_paragraph_summary,
+    title: metadata.displayTitle,
+  });
+  const opportunitySummary = summarizeRevisionOpportunities(result.criteria);
+  const topRecommendations = buildTopRecommendations(result, 5);
 
   const spacer = () => new Paragraph({ spacing: { after: 200 }, children: [] });
   const brandHeading = (text: string, level: (typeof HeadingLevel)[keyof typeof HeadingLevel]) =>
@@ -1331,7 +1447,7 @@ async function buildDocx(result: ExportableResult, title: string | null, jobId: 
     new Paragraph({
       spacing: { after: 80 },
       children: [new TextRun({
-        text: `  \u2022  ${cleanReportText(text)}`,
+        text: `\u2022 ${cleanReportText(text)}`,
         size: 21,
         color: (color ?? RG.textPrimary).replace('#', ''),
         font: 'Calibri',
@@ -1436,6 +1552,12 @@ async function buildDocx(result: ExportableResult, title: string | null, jobId: 
   children.push(spacer());
 
   // ── Enrichment sections ────────────────────────────────────────
+  children.push(brandHeading('One-Paragraph Pitch', HeadingLevel.HEADING_2));
+  children.push(bodyPara(pitches.oneParagraphPitch));
+
+  children.push(brandHeading('One-Sentence Pitch', HeadingLevel.HEADING_2));
+  children.push(bodyPara(pitches.oneSentencePitch, { bold: true, size: 22, color: RG.oxblood }));
+
   if (enrichment?.premise) {
     children.push(brandHeading('Premise', HeadingLevel.HEADING_2));
     children.push(new Paragraph({
@@ -1444,11 +1566,35 @@ async function buildDocx(result: ExportableResult, title: string | null, jobId: 
     }));
   }
 
+  children.push(brandHeading('Trigger Warnings', HeadingLevel.HEADING_2));
   if (enrichment?.trigger_warnings && enrichment.trigger_warnings.length > 0) {
-    children.push(brandHeading('Trigger Warnings', HeadingLevel.HEADING_2));
     enrichment.trigger_warnings.forEach((w) => children.push(bulletPara(w, RG.warning)));
-    children.push(bodyPara('Consider including content warnings in book marketing or front matter.', { size: 18, color: RG.textMuted }));
+  } else {
+    children.push(bodyPara('No content warnings identified.', { size: 19, color: RG.textMuted }));
   }
+  children.push(bodyPara('Consider including content warnings in book marketing or front matter.', { size: 18, color: RG.textMuted }));
+
+  children.push(brandHeading('Revision Opportunity Summary', HeadingLevel.HEADING_2));
+  children.push(new Table({
+    rows: [new TableRow({
+      children: [
+        ['Total', opportunitySummary.total],
+        ['High Priority', opportunitySummary.high],
+        ['Medium Priority', opportunitySummary.medium],
+        ['Low Priority', opportunitySummary.low],
+      ].map(([label, value]) => new TableCell({
+        width: { size: 25, type: WidthType.PERCENTAGE },
+        borders: DOCX_NO_BORDERS,
+        shading: { type: ShadingType.SOLID, color: RG.surface.replace('#', '') },
+        children: [
+          new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: String(label), size: 17, color: RG.textMuted.replace('#', ''), font: 'Calibri' })] }),
+          new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: String(value), bold: true, size: 26, color: RG.textPrimary.replace('#', ''), font: 'Georgia' })] }),
+        ],
+      })),
+    })],
+    width: { size: 100, type: WidthType.PERCENTAGE },
+  }));
+  children.push(bodyPara('Priority labels are polite alternatives to MUST / SHOULD / COULD labels.', { size: 18, color: RG.textMuted }));
 
   if (enrichment?.reading_grade_level != null) {
     children.push(brandHeading('Reading Grade Level', HeadingLevel.HEADING_2));
@@ -1473,8 +1619,13 @@ async function buildDocx(result: ExportableResult, title: string | null, jobId: 
   children.push(brandHeading('Top Risks', HeadingLevel.HEADING_2));
   result.overview.top_3_risks.forEach((r) => children.push(bulletPara(r, RG.warning)));
 
+  if (topRecommendations.length > 0) {
+    children.push(brandHeading('Top Recommendations', HeadingLevel.HEADING_2));
+    topRecommendations.forEach((r) => children.push(bulletPara(r, RG.oxblood)));
+  }
+
   // ── Criteria Score Table ────────────────────────────────────────
-  children.push(brandHeading('Criteria Scores', HeadingLevel.HEADING_2));
+  children.push(brandHeading('13 Criteria Score Grid', HeadingLevel.HEADING_2));
   // Header row
   const headerRow = new TableRow({
     children: [
@@ -1531,7 +1682,7 @@ async function buildDocx(result: ExportableResult, title: string | null, jobId: 
   children.push(spacer());
 
   // Per-criterion: Rationale + Fit/Gap + Opportunities
-  let globalOpportunityIdx = 0;
+  children.push(brandHeading('Criterion Rationales & Surfaced Opportunities', HeadingLevel.HEADING_2));
   result.criteria.forEach((c) => {
     const criterionRecord = c as Record<string, unknown>;
     if (!c.rationale && !criterionRecord.fit_summary) return;
@@ -1583,9 +1734,8 @@ async function buildDocx(result: ExportableResult, title: string | null, jobId: 
 
     // Opportunities (only for scores ≤8 — suppressed for 9-10 by pipeline)
     const opportunities = getCriterionOpportunities(c as { recommendations?: unknown });
-    opportunities.forEach((opportunity) => {
-      globalOpportunityIdx++;
-      children.push(bodyPara(`${exportSeverity(opportunity.priority)} #${globalOpportunityIdx}`, {
+    opportunities.forEach((opportunity, idx) => {
+      children.push(bodyPara(`${exportSeverity(opportunity.priority)} #${idx + 1}`, {
         bold: true,
         size: 18,
         color: RG.oxblood,
@@ -1785,7 +1935,7 @@ async function buildDocx(result: ExportableResult, title: string | null, jobId: 
           revItems.forEach((item, idx) => {
             children.push(new Paragraph({
               spacing: { after: 40 },
-              children: [new TextRun({ text: `  ${idx + 1}. ${formatRevisionQueueItem(item)}`, size: 19, color: RG.textPrimary.replace('#', ''), font: 'Calibri' })],
+              children: [new TextRun({ text: `${idx + 1}. ${formatRevisionQueueItem(item)}`, size: 19, color: RG.textPrimary.replace('#', ''), font: 'Calibri' })],
             }));
           });
         }
