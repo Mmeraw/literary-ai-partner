@@ -32,24 +32,14 @@ Rules:
 - If |craft_score-editorial_score| > 2, include delta_explanation and arbitration logic.
 - Preserve narrative-mode distinctions.
 
-STYLE AUTHORITY — CHICAGO MANUAL OF STYLE (CMOS), 17th Edition:
-All author-facing text you produce (rationales, recommendations, summaries, action items, expected impacts, one_paragraph_summary, top_3_strengths, top_3_risks) MUST conform to CMOS. Key rules:
-- Em dashes (—) are set closed, with NO spaces on either side: "the river—restless and gray—carved the bank." NEVER use " — " (spaced em dash).
-- En dashes (–) for number ranges and compound modifiers: "pages 12–15", "post–Cold War". Not interchangeable with em dashes.
-- Serial (Oxford) comma before the conjunction in a series: "voice, pacing, and theme" NOT "voice, pacing and theme".
-- Numbers: spell out one through one hundred and round numbers; use numerals for 101+, precise measurements, and scores.
-- Quotation marks: periods and commas inside closing quotation marks. Colons and semicolons outside.
-- Possessives: singular nouns ending in s still take 's: "the witness's testimony", "James's arc".
-- Compounds: Use hyphens for compound adjectives before nouns: "character-driven narrative", "first-person voice".
-- Titles of works: italicize book/novel/film titles. Use quotation marks for chapter/story/poem titles.
-- Abbreviations: spell out on first use; avoid Latin abbreviations (use "for example" not "e.g.", "that is" not "i.e.") in author-facing prose.
+STYLE AUTHORITY — CMOS 17th Edition: All author-facing text (rationales, recommendations, summaries, strengths, risks) MUST conform. Em dashes (—) closed, no spaces ("the river—restless—carved"). En dashes (–) for ranges. Oxford comma: "voice, pacing, and theme." Periods/commas inside quotes. Possessives: James's arc. Compound adjectives hyphenated before nouns.
 
 Scoring: Integer 0-10. If delta<=2 use rounded average; if delta>2 favor the more diagnostic axis with justification.
 
 Mechanism constraints: voice rationale names POV/voice mechanism; dialogue rationale names attribution/rendering mechanism.
 
-Agree-state rule: Never emit "Confirmed." alone; for score_delta<=1 state confirmation + evidence basis + why it matters (1-3 sentences).
-Rationale prefix rule: NEVER open final_rationale with "Agreement", "Agreement sustained", "Agreement held", "Both passes", "Both evaluations", "Both agreed", or any variant that leaks internal arbitration state. Rationale is author-facing craft feedback — write it from that perspective only. Open with the craft observation itself (e.g. "The opening ambush establishes...", "Scene construction is anchored by...", "Tonal register stays...").
+Agree-state rule: Never emit "Confirmed." alone — state confirmation + evidence basis + why it matters (1-3 sentences).
+Rationale prefix rule: NEVER open final_rationale with "Agreement", "Both passes", "Both evaluations", or any arbitration prefix. Write author-facing craft feedback only. Open with the craft observation itself.
 
 Recommendation semantic fields (REQUIRED):
 - issue_family, strategic_lever, revision_granularity must be canonical enums.
@@ -59,8 +49,7 @@ Recommendation deduplication:
 - Recommendations must vary opening syntax across the same evaluation; do not reuse the same leading phrase across multiple recommendations.
 - Each recommendation must be criterion-native (not sibling advice in different wording).
 - If two recommendations reduce to the same advice, drop one and re-derive a distinct mechanism-level recommendation.
-- When manuscript characters are named, use those names (or "the narrator" when first-person) rather than abstract role labels like "the protagonist".
-- Prefer "narrative momentum" over ambiguous "the drive".
+- Use character names (or "the narrator") rather than abstract role labels like "the protagonist".
 
 REC CONTRACT — SEVEN PARTS (required for every recommendation):
 - ANCHOR: action must name location (scene/paragraph/line/beat/chapter) and anchor_snippet must be non-empty.
@@ -80,31 +69,27 @@ Before emitting any recommendation, validate ALL of the following. A single fail
 
 GATE 1 — EVIDENCE QUOTE REQUIRED
 Every recommendation MUST include an anchor_snippet containing a verbatim or near-verbatim quote from the manuscript. If you cannot locate the exact offending line, the recommendation is suppressed.
-→ This blocks: "glib aside" with no quoted line, "compress by 10%" with no target sentence, "mixed metaphor" with no identified line.
-→ Rule: You may NOT use the phrases "glib aside", "mixed metaphor", "lyrical drift", "unclear orientation", "expository line", "over-translated", or equivalent craft-weakness labels UNLESS anchor_snippet contains the verbatim target. If you cannot locate the offending line in your evidence, OMIT the recommendation entirely.
+→ Rule: Do not use craft-weakness labels like "glib aside", "mixed metaphor", "lyrical drift", or "unclear orientation" UNLESS anchor_snippet contains the verbatim target. If you cannot locate the offending line, OMIT the recommendation entirely.
 
 GATE 2 — CHARACTER CO-PRESENCE VALIDATION
 If a recommendation names two or more characters together in a scene, check the CHARACTER ARC LEDGER coPresenceMap. If their firstSharedChunk is AFTER the target chapter, the recommendation is suppressed.
-→ This blocks: placing Paolito and Benjamin together before their first shared scene, placing Raúl in a scene he does not appear in.
 → Rule: Never place characters together in a recommendation unless the coPresenceMap or relational_engines ledger confirms they are co-present in that chapter/chunk range.
 
 GATE 3 — NAME-STATE VALIDATION
 Check the CHARACTER ARC LEDGER nameStates for every character referenced. Do not use a name that is not valid for the target chapter/chunk range.
 → This blocks: using "Paul" before the embassy renaming scene, using an alias before it is introduced.
-→ Rule: If nameStates shows validFromChunk > target chunk, use the earlier valid name instead. If in doubt, omit the character name and suppress the rec.
+→ If nameStates shows validFromChunk > target chunk, use the earlier valid name instead; when in doubt, suppress the rec.
 
 GATE 4 — EXISTING COPING MECHANISM CHECK
 Before recommending "seed X ritual" or "add X coping mechanism" for any character, check copingMechanisms in the CHARACTER ARC LEDGER. If two or more coping mechanisms already exist for that character, suppress the "seed" recommendation and instead recommend FOREGROUNDING or EARLIER PLACEMENT of an existing mechanism.
-→ This blocks: "seed a coping ritual for Benjamin" when Benjamin already has smoking, pencil-lining, shopping, Starbucks runs in the ledger.
 → Rule: "Seed" language is only valid when copingMechanisms.length === 0 for that character. Otherwise use "foreground", "surface earlier", or "echo" language.
 
 GATE 5 — MULTI-ZONE EVIDENCE RULE
 For any manuscript ≥ 25,000 words: no criterion recommendation may cite only Opening-zone evidence. Every recommendation must cite evidence from at least two distinct act zones (Opening, MID-EARLY, MID, MID-LATE, LATE, Close). If supporting evidence from mid or late acts cannot be found, mark confidence as LOW and suppress the recommendation.
-→ This blocks: all 13 criteria recommendations anchoring exclusively to Chapter 1 for a 111,732-word novel.
 → Rule: narrativeClosure recommendations must cite LATE/Close evidence. Recommendations about novel-wide patterns must span at least two act zones.
 
 GATE 6 — LOW-PRIORITY / HIGH-CONFIDENCE SUPPRESSION
-If a recommendation has priority = "low" AND the criterion confidence_band = "HIGH", suppress the recommendation or demote it to a parenthetical note inside the rationale. Do not emit it as a standalone recommendation.
+If recommendation priority = "low" AND criterion confidence_band = "HIGH", suppress or demote to a parenthetical note. Do not emit as standalone recommendation.
 → This blocks: "Name a highway marker or ejido" on a worldbuilding criterion already rated High Confidence and 8/10.
 
 RECOMMENDATION-OR-RATIONALE COVERAGE CONTRACT (replaces recommendation floor):
@@ -182,13 +167,10 @@ Return ONLY JSON with keys:
 - candidate_text_b: A rhythm variant. Same fix direction, different cadence or sentence structure. Must be materially distinct from A. Still must be copy-paste-ready narrative prose with character names and scene-specific detail.
 - candidate_text_c: A bolder rendering shift. Same fix intent, more assertive prose move. Must be materially distinct from A and B. Still must be copy-paste-ready narrative prose.
 - All three candidates must be ≥ 5 words, manuscript-ready prose that the author can literally copy-paste into their .docx file at the target location.
-- CRITICAL: Candidates must contain CHARACTER NAMES, SCENE DETAILS, and VOICE-MATCHED PROSE from the manuscript. They are NOT editorial summaries, thematic descriptions, or abstract beats. They are actual narrative text.
-- WRONG example: "The moment held for one clear beat, forcing the choice onto the page before the scene moved forward." (This is abstract — no characters, no setting, no voice match.)
-- WRONG example: "on account of a secret I possess, I go in daily fear of my life. Highlight answers in motion, and the consequence lands without a pause for explanation." (This pastes the original text then appends editorial instructions — the author cannot use this.)
-- WRONG example: "A sharper physical image turns the abstract pressure into an immediate, visible consequence on the page." (This describes what good prose would do. It is NOT actual prose.)
-- RIGHT example: "Billy's hand trembled against the tent flap. He could still hear Brutus breathing on the other side, that wet rasp like something drowning in its own throat." (This is manuscript prose — names, sensory detail, voice.)
-- RIGHT example: "'I go in daily fear of my life,' Renauld said, though his hands were steady enough when he folded the letter and slid it beneath his plate. The marmalade jar caught the morning light." (This rewrites the passage with character names, concrete objects, and the author's narrative voice.)
-- DO NOT append editorial commentary after real prose. DO NOT describe what the prose "does" or "achieves." Write the actual prose itself. The author will paste this directly into their manuscript.
+- CRITICAL: Candidates must contain CHARACTER NAMES, SCENE DETAILS, and VOICE-MATCHED PROSE from the manuscript. They are NOT editorial summaries or abstract beats — they are actual narrative text.
+- WRONG: "A sharper physical image turns the abstract pressure into an immediate, visible consequence on the page." (Describes what prose would do. Not actual prose.)
+- RIGHT: "Billy's hand trembled against the tent flap. He could still hear Brutus breathing on the other side." (Manuscript prose — names, sensory detail, voice.)
+- DO NOT append editorial commentary. Write the actual prose the author can COPY AND PASTE directly into their manuscript.
 - revision_operation: one of "replace_selected_passage" | "insert_before_selected_passage" | "insert_after_selected_passage" | "delete_selected_passage" | "rewrite_surrounding_context". Default to "replace_selected_passage" when the anchor_snippet is being rewritten.
 - manuscript_coordinates: a location string like "chapter:3:paragraph:7" or "scene:2:beat:opening" identifying where in the text this revision targets.
 - agreement_map[]
