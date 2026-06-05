@@ -6,11 +6,17 @@ import { canReleaseEvaluationRead } from '@/lib/jobs/readReleaseGate';
 import { isEvaluationResultV1, type EvaluationResultV1 } from '@/schemas/evaluation-result-v1';
 import { isEvaluationResultV2, type EvaluationResultV2 } from '@/schemas/evaluation-result-v2';
 import { getCriterionDisplayLabel } from '@/lib/evaluation/reportRenderSafety';
+import { sanitizeCMOS } from '@/lib/evaluation/cmosSanitizer';
+import { buildTopRecommendations } from '@/lib/evaluation/reportRecommendations';
+import {
+  buildReportPitches,
+  summarizeRevisionOpportunities,
+} from '@/lib/evaluation/reportTemplateContract';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const WORDS_PER_MANUSCRIPT_PAGE = 250;
 const PAGE_WIDTH = 612;
 const PAGE_HEIGHT = 792;
@@ -31,7 +37,7 @@ type PdfLine = {
 
 function sanitizePdfText(value: unknown, fallback = ''): string {
   if (typeof value !== 'string') return fallback;
-  return value
+  return sanitizeCMOS(value)
     .normalize('NFKC')
     .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '')
     .replace(/[\u2018\u2019\u201A\u201B]/g, "'")
@@ -91,11 +97,19 @@ function addWrapped(lines: PdfLine[], text: unknown, options: Omit<PdfLine, 'tex
   });
 }
 
-function buildReportLines(result: ExportableResult, title: string | null, jobId: string): PdfLine[] {
+function buildReportLines(result: ExportableResult, title: string | null): PdfLine[] {
   const manuscript = result.metrics?.manuscript;
   const displayTitle = title ?? manuscript?.title ?? 'Untitled Manuscript';
   const wordCount = typeof manuscript?.word_count === 'number' ? manuscript.word_count : null;
   const estimatedPages = wordCount ? Math.max(1, Math.ceil(wordCount / WORDS_PER_MANUSCRIPT_PAGE)) : null;
+  const enrichment = isEvaluationResultV2(result) ? result.enrichment : undefined;
+  const pitches = buildReportPitches({
+    premise: enrichment?.premise,
+    summary: result.overview.one_paragraph_summary,
+    title: displayTitle,
+  });
+  const opportunitySummary = summarizeRevisionOpportunities(result.criteria);
+  const topRecommendations = buildTopRecommendations(result, 5);
   const lines: PdfLine[] = [];
 
   lines.push({ text: 'RevisionGrade\u2122 Evaluation Report', bold: true, size: 18 });
@@ -104,7 +118,32 @@ function buildReportLines(result: ExportableResult, title: string | null, jobId:
   if (manuscript?.genre) lines.push({ text: `Genre: ${sanitizePdfText(manuscript.genre)}` });
   if (wordCount) lines.push({ text: `Submitted Word Count: ${wordCount.toLocaleString()}${estimatedPages ? ` (${estimatedPages} estimated pages)` : ''}` });
   lines.push({ text: `Generated: ${sanitizePdfText(result.generated_at)}` });
-  lines.push({ text: `Job ID: ${jobId}` });
+
+  lines.push({ text: 'One-Paragraph Pitch', bold: true, size: 14, gapBefore: 18 });
+  addWrapped(lines, pitches.oneParagraphPitch, {}, 92);
+
+  lines.push({ text: 'One-Sentence Pitch', bold: true, size: 14, gapBefore: 18 });
+  addWrapped(lines, pitches.oneSentencePitch, {}, 92);
+
+  if (enrichment?.premise) {
+    lines.push({ text: 'Premise', bold: true, size: 14, gapBefore: 18 });
+    addWrapped(lines, enrichment.premise, {}, 92);
+  }
+
+  lines.push({ text: 'Trigger Warnings', bold: true, size: 14, gapBefore: 18 });
+  if (enrichment?.trigger_warnings?.length) {
+    enrichment.trigger_warnings.forEach((item) => addWrapped(lines, `- ${item}`, {}, 92));
+  } else {
+    addWrapped(lines, 'No content warnings identified.', {}, 92);
+  }
+  addWrapped(lines, 'Consider including content warnings in book marketing or front matter.', {}, 92);
+
+  lines.push({ text: 'Revision Opportunity Summary', bold: true, size: 14, gapBefore: 18 });
+  lines.push({ text: `Total Revision Opportunities: ${opportunitySummary.total}` });
+  lines.push({ text: `High Priority: ${opportunitySummary.high}` });
+  lines.push({ text: `Medium Priority: ${opportunitySummary.medium}` });
+  lines.push({ text: `Low Priority: ${opportunitySummary.low}` });
+  addWrapped(lines, 'Priority labels are polite alternatives to MUST / SHOULD / COULD labels.', {}, 92);
 
   lines.push({ text: 'Executive Summary', bold: true, size: 14, gapBefore: 18 });
   addWrapped(lines, result.overview.one_paragraph_summary, {}, 92);
@@ -115,7 +154,20 @@ function buildReportLines(result: ExportableResult, title: string | null, jobId:
   lines.push({ text: 'Top Risks', bold: true, size: 14, gapBefore: 18 });
   result.overview.top_3_risks.forEach((item, index) => addWrapped(lines, `${index + 1}. ${item}`, {}, 90));
 
-  lines.push({ text: 'Detailed Scores', bold: true, size: 14, gapBefore: 18 });
+  if (topRecommendations.length > 0) {
+    lines.push({ text: 'Top Recommendations', bold: true, size: 14, gapBefore: 18 });
+    topRecommendations.forEach((item, index) => addWrapped(lines, `${index + 1}. ${item}`, {}, 90));
+  }
+
+  lines.push({ text: '13 Criteria Score Grid', bold: true, size: 14, gapBefore: 18 });
+  result.criteria.forEach((criterion) => {
+    lines.push({
+      text: `${getCriterionDisplayLabel(criterion.key)} | ${scoreLabel(criterion.score_0_10, 10)}${criterion.confidence_level ? ` | ${criterion.confidence_level} confidence` : ''}`,
+      gapBefore: 4,
+    });
+  });
+
+  lines.push({ text: 'Criterion Rationales & Surfaced Opportunities', bold: true, size: 14, gapBefore: 18 });
   result.criteria.forEach((criterion) => {
     lines.push({
       text: `${getCriterionDisplayLabel(criterion.key)} - ${scoreLabel(criterion.score_0_10, 10)}${criterion.confidence_level ? ` (${criterion.confidence_level} confidence)` : ''}`,
@@ -125,20 +177,6 @@ function buildReportLines(result: ExportableResult, title: string | null, jobId:
     if (criterion.rationale) addWrapped(lines, criterion.rationale, {}, 92);
   });
 
-  if (result.recommendations?.quick_wins?.length || result.recommendations?.strategic_revisions?.length) {
-    lines.push({ text: 'Action Items', bold: true, size: 14, gapBefore: 18 });
-    result.recommendations.quick_wins.forEach((item, index) => {
-      addWrapped(lines, `Quick Win ${index + 1}: ${item.action}`, { bold: true, gapBefore: 8 }, 88);
-      addWrapped(lines, item.why, {}, 92);
-    });
-    result.recommendations.strategic_revisions.forEach((item, index) => {
-      addWrapped(lines, `Strategic Revision ${index + 1}: ${item.action}`, { bold: true, gapBefore: 8 }, 88);
-      addWrapped(lines, item.why, {}, 92);
-    });
-  }
-
-  lines.push({ text: 'Technical Metadata', bold: true, size: 14, gapBefore: 18 });
-  lines.push({ text: `Schema: ${sanitizePdfText(result.schema_version)}` });
   lines.push({ text: 'Generated by RevisionGrade\u2122. Author retains ownership of manuscript content. This report is an editorial diagnostic and does not guarantee publication, representation, or commercial outcome.', gapBefore: 8 });
 
   return lines;
@@ -183,7 +221,6 @@ function buildDependencyFreePdf(lines: PdfLine[]): Buffer {
   const boldFontId = addObject('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>');
 
   const pageIds: number[] = [];
-  const contentIds: number[] = [];
 
   pages.forEach((pageLines, pageIndex) => {
     let cursorY = TOP_Y;
@@ -207,7 +244,6 @@ function buildDependencyFreePdf(lines: PdfLine[]): Buffer {
     const stream = commands.join('\n');
     const contentId = addObject(`<< /Length ${Buffer.byteLength(stream, 'ascii')} >>\nstream\n${stream}\nendstream`);
     const pageId = addObject(`<< /Type /Page /Parent ${pagesId} 0 R /MediaBox [0 0 ${PAGE_WIDTH} ${PAGE_HEIGHT}] /Resources << /Font << /F1 ${regularFontId} 0 R /F2 ${boldFontId} 0 R >> >> /Contents ${contentId} 0 R >>`);
-    contentIds.push(contentId);
     pageIds.push(pageId);
   });
 
@@ -270,7 +306,7 @@ export async function GET(
   }
 
   const title = extractManuscriptTitle((job as { manuscripts?: unknown }).manuscripts) ?? rawResult.metrics?.manuscript?.title ?? null;
-  const pdf = buildDependencyFreePdf(buildReportLines(rawResult, title, jobId));
+  const pdf = buildDependencyFreePdf(buildReportLines(rawResult, title));
 
   if (pdf.subarray(0, 4).toString('ascii') !== '%PDF') {
     return NextResponse.json({ error: 'PDF generation failed' }, { status: 500 });
