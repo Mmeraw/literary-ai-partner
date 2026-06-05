@@ -998,13 +998,22 @@ function renderPremiumReportHtml(
 async function buildChromiumPdf(html: string): Promise<Buffer> {
   const chromiumModule = await import('@sparticuz/chromium');
   const puppeteerModule = await import('puppeteer-core');
-  const chromium = chromiumModule.default ?? chromiumModule;
+  const chromium = (chromiumModule.default ?? chromiumModule) as {
+    args: string[];
+    defaultViewport: { width: number; height: number } | null;
+    executablePath: string | (() => Promise<string>);
+    headless?: boolean | "shell";
+  };
   const puppeteer = puppeteerModule.default ?? puppeteerModule;
+  const executablePath =
+    typeof chromium.executablePath === "function"
+      ? await chromium.executablePath()
+      : chromium.executablePath;
 
   const browser = await puppeteer.launch({
     args: chromium.args,
     defaultViewport: chromium.defaultViewport,
-    executablePath: await chromium.executablePath(),
+    executablePath,
     headless: chromium.headless ?? true,
   });
 
