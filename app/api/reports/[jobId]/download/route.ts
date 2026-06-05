@@ -592,6 +592,17 @@ function buildTxtReport(result: ExportableResult, title: string | null, jobId: s
   lines.push(`Generated: ${metadata.generatedAt}`);
   lines.push(`Overall Score: ${metadata.score}`);
   lines.push(`Verdict: ${metadata.verdict}`);
+  // Market Readiness (when the criterion exists in the evaluation)
+  const txtReadinessCriterion = result.criteria.find((criterion) => {
+    const key = criterion.key.toLowerCase();
+    const label = getCriterionDisplayLabel(criterion.key).toLowerCase();
+    return key.includes('readiness') || key.includes('market') || label.includes('readiness') || label.includes('market');
+  });
+  if (txtReadinessCriterion) {
+    const rScore = typeof txtReadinessCriterion.score_0_10 === 'number' ? `${txtReadinessCriterion.score_0_10}/10` : 'Not scored';
+    const rConf = txtReadinessCriterion.confidence_level ? ` (${formatConfidenceLabel(txtReadinessCriterion.confidence_level)})` : '';
+    lines.push(`Market Readiness: ${rScore}${rConf}`);
+  }
   lines.push('Confidentiality: Prepared for author/editorial use.');
   lines.push('');
 
@@ -1016,7 +1027,6 @@ async function buildChromiumPdf(html: string): Promise<Buffer> {
 
   try {
     const page = await browser.newPage();
-    // @ts-expect-error — puppeteer-core type mismatch for waitUntil value
     await page.setContent(html, { waitUntil: 'networkidle0', timeout: 30_000 });
     const pdf = await page.pdf({
       format: 'letter',
@@ -1176,6 +1186,28 @@ async function buildDocx(result: ExportableResult, title: string | null, jobId: 
     })],
     width: { size: 100, type: WidthType.PERCENTAGE },
   }));
+  children.push(spacer());
+
+  // ── Market Readiness (when criterion exists) ────────────────────
+  const readinessCriterion = result.criteria.find((criterion) => {
+    const key = criterion.key.toLowerCase();
+    const label = getCriterionDisplayLabel(criterion.key).toLowerCase();
+    return key.includes('readiness') || key.includes('market') || label.includes('readiness') || label.includes('market');
+  });
+  if (readinessCriterion) {
+    const readinessScore = readinessCriterion.score_0_10;
+    const readinessConfidence = readinessCriterion.confidence_level
+      ? formatConfidenceLabel(readinessCriterion.confidence_level)
+      : null;
+    children.push(new Paragraph({
+      spacing: { after: 60 },
+      children: [
+        new TextRun({ text: 'Market Readiness: ', bold: true, size: 22, color: RG.textMuted.replace('#', ''), font: 'Calibri' }),
+        new TextRun({ text: typeof readinessScore === 'number' ? `${readinessScore}/10` : 'Not scored', bold: true, size: 22, color: RG.textPrimary.replace('#', ''), font: 'Calibri' }),
+        ...(readinessConfidence ? [new TextRun({ text: ` (${readinessConfidence})`, size: 20, color: RG.textMuted.replace('#', ''), font: 'Calibri' })] : []),
+      ],
+    }));
+  }
   children.push(spacer());
 
   // Metadata block
