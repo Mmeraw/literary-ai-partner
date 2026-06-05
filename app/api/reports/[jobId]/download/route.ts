@@ -1,6 +1,6 @@
 import 'server-only';
 import { NextRequest, NextResponse } from 'next/server';
-import PDFDocument from 'pdfkit';
+
 import { createClient as createSSRClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { canReleaseEvaluationRead } from '@/lib/jobs/readReleaseGate';
@@ -21,7 +21,6 @@ import {
 import { buildTopRecommendations } from '@/lib/evaluation/reportRecommendations';
 import {
   buildReportPitches,
-  hasRevisionOpportunities,
   summarizeRevisionOpportunities,
 } from '@/lib/evaluation/reportTemplateContract';
 import { sanitizeCMOS } from '@/lib/evaluation/cmosSanitizer';
@@ -618,7 +617,7 @@ function buildTxtReport(result: ExportableResult, title: string | null, jobId: s
   }
 
   lines.push(sub);
-  lines.push('TRIGGER WARNINGS');
+  lines.push('CONTENT WARNINGS');
   lines.push(sub);
   lines.push('');
   if (enrichment?.trigger_warnings && enrichment.trigger_warnings.length > 0) {
@@ -652,7 +651,7 @@ function buildTxtReport(result: ExportableResult, title: string | null, jobId: s
     lines.push('Reading Grade Level measures prose complexity, NOT audience appropriateness.');
     lines.push('A manuscript may score at a young-adult reading level (grades 6-8) while');
     lines.push('containing graphic violence, sexual content, or other material unsuitable');
-    lines.push('for younger readers. Always cross-reference Trigger Warnings above for');
+    lines.push('for younger readers. Always cross-reference Content Warnings above for');
     lines.push('content suitability guidance.');
     lines.push('');
   }
@@ -751,13 +750,6 @@ function buildTxtReport(result: ExportableResult, title: string | null, jobId: s
   lines.push(sep);
   lines.push(EXPORT_DISCLAIMER);
   return lines.join('\n');
-}
-
-function verdictColors(verdict: string): { bg: string; text: string } {
-  const v = verdict.toLowerCase();
-  if (v === 'pass') return { bg: RG.successBg, text: RG.success };
-  if (v === 'revise') return { bg: RG.warningBg, text: RG.warning };
-  return { bg: RG.errorBg, text: RG.error };
 }
 
 function confidenceColor(level: string | undefined): string {
@@ -991,6 +983,9 @@ function renderPremiumReportHtml(
   <section class="section page-break-before"><h2>13 Criteria Score Grid</h2><table><thead><tr><th>Criterion</th><th>Score</th><th>Confidence</th></tr></thead><tbody>${criteriaRows}</tbody></table></section>
   <section class="allow-break"><h2>Criterion Rationales &amp; Surfaced Opportunities</h2>${criteriaCards}</section>
   ${dreamHtml}
+  <section class="section" style="margin-top:0.5in;border:none;background:none;padding:0;">
+    <p style="color:#5c5549;font-size:9.5pt;line-height:1.5;">${escapeHtml(EXPORT_DISCLAIMER)}</p>
+  </section>
 </body>
 </html>`;
 }
@@ -1024,622 +1019,11 @@ async function buildChromiumPdf(html: string): Promise<Buffer> {
 }
 
 
-async function buildPdfReport(result: ExportableResult, title: string | null, jobId: string, dream: LongformDreamDocument | null, enrichment: EnrichmentData = null): Promise<Buffer> {
-  return await new Promise<Buffer>((resolve, reject) => {
-    const metadata = buildMetadata(result, title, dream);
-    const summaryFallback = buildSummaryFallback(result);
-    const pitches = buildReportPitches({
-      premise: enrichment?.premise,
-      summary: result.overview.one_paragraph_summary,
-      title: metadata.displayTitle,
-    });
-    const opportunitySummary = summarizeRevisionOpportunities(result.criteria);
-    const topRecommendations = buildTopRecommendations(result, 5);
-
-    const html = renderPremiumReportHtml(result, metadata, summaryFallback, dream, enrichment);
-    return await buildChromiumPdf(html);
-
-    const doc = new PDFDocument({ size: 'LETTER', margin: 48, bufferPages: true });
-    const chunks: Buffer[] = [];
-    doc.on('data', (chunk: Buffer | Uint8Array) => chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)));
-    doc.on('end', () => resolve(Buffer.concat(chunks)));
-    doc.on('error', reject);
-
-    const ml = doc.page.margins.left;
-    const contentWidth = doc.page.width - ml - doc.page.margins.right;
-    const bottomY = () => doc.page.height - doc.page.margins.bottom - 36;
-    const ensureSpace = (height = 90) => {
-      if (doc.y + height > bottomY()) doc.addPage();
-    };
-
-    // ── Branded helpers ───────────────────────────────────────────────
-    const goldRule = () => {
-      doc.moveTo(ml, doc.y).lineTo(ml + contentWidth, doc.y).strokeColor(RG.gold).lineWidth(1.5).stroke();
-      doc.strokeColor('#000000').lineWidth(1);
-      doc.moveDown(0.4);
-    };
-    const thinRule = () => {
-      doc.moveTo(ml, doc.y).lineTo(ml + contentWidth, doc.y).strokeColor(RG.border).lineWidth(0.5).stroke();
-      doc.strokeColor('#000000').lineWidth(1);
-      doc.moveDown(0.45);
-    };
-    const section = (text: unknown) => {
-      ensureSpace(72);
-      doc.moveDown(1.2);
-      doc.font('Helvetica-Bold').fontSize(18).fillColor(RG.oxblood).text(toPdfSafeText(text), ml, doc.y, { width: contentWidth });
-      doc.moveDown(0.45);
-      goldRule();
-    };
-    const paragraph = (text: unknown) => {
-      ensureSpace(95);
-      doc.font('Helvetica').fontSize(12).fillColor(RG.textPrimary).text(toPdfSafeText(text), ml, doc.y, { width: contentWidth, lineGap: 5 });
-      doc.moveDown(0.85);
-    };
-    const bullet = (text: unknown, color: string = RG.textPrimary) => {
-      ensureSpace(60);
-      doc.font('Helvetica').fontSize(11.5).fillColor(color).text(`\u2022 ${toPdfSafeText(text)}`, ml + 8, doc.y, { width: contentWidth - 8, lineGap: 4 });
-      doc.moveDown(0.45);
-    };
-    const labelValue = (label: string, value: unknown) => {
-      const safeValue = toPdfSafeText(value, '');
-      if (!safeValue) return;
-      const labelStr = `${toPdfSafeText(label)}:  `;
-      doc.font('Helvetica-Bold').fontSize(11.5);
-      const labelWidth = doc.widthOfString(labelStr);
-      doc.fillColor(RG.textMuted).text(labelStr, ml, doc.y, { continued: true });
-      doc.font('Helvetica').fillColor(RG.textPrimary).text(safeValue, { width: contentWidth - labelWidth });
-      doc.moveDown(0.35);
-    };
-
-    // ── Cover page ────────────────────────────────────────────────────
-    // Top gold accent bar
-    doc.rect(0, 0, doc.page.width, 6).fill(RG.gold);
-
-    doc.moveDown(2.5);
-    doc.font('Helvetica-Bold').fontSize(34).fillColor(RG.oxblood).text(
-      toPdfSafeText('RevisionGrade\u2122'),
-      { width: contentWidth, align: 'center' },
-    );
-    doc.moveDown(0.15);
-    doc.font('Helvetica').fontSize(12).fillColor(RG.textMuted).text(
-      'Manuscript diagnosis, author-controlled revision, and professional submission preparation.',
-      { width: contentWidth, align: 'center' },
-    );
-    doc.moveDown(1.5);
-    goldRule();
-    doc.moveDown(0.5);
-
-    // Title
-    doc.font('Helvetica-Bold').fontSize(24).fillColor(RG.textPrimary).text(
-      toPdfSafeText(metadata.displayTitle),
-      { width: contentWidth, align: 'center' },
-    );
-    doc.moveDown(0.45);
-    doc.font('Helvetica').fontSize(13).fillColor(RG.textMuted).text(
-      metadata.reportType,
-      { width: contentWidth, align: 'center' },
-    );
-    doc.moveDown(1.5);
-
-    // Score + Verdict block
-    const vColors = verdictColors(metadata.verdict);
-    const scoreNum = result.overview.overall_score_0_100;
-    // Score circle area
-    const circleX = ml + contentWidth / 2;
-    const circleY = doc.y + 36;
-    doc.circle(circleX, circleY, 34).fillAndStroke(RG.surface, RG.gold);
-    doc.font('Helvetica-Bold').fontSize(30).fillColor(RG.textPrimary).text(
-      `${Math.round(scoreNum)}`,
-      circleX - 30, circleY - 16,
-      { width: 60, align: 'center' },
-    );
-    doc.font('Helvetica').fontSize(11.25).fillColor(RG.textMuted).text(
-      'out of 100',
-      circleX - 30, circleY + 12,
-      { width: 60, align: 'center' },
-    );
-    doc.y = circleY + 46;
-
-    // Verdict badge
-    doc.moveDown(0.5);
-    const badgeWidth = 100;
-    const badgeX = circleX - badgeWidth / 2;
-    doc.roundedRect(badgeX, doc.y, badgeWidth, 22, 4).fill(vColors.bg);
-    doc.font('Helvetica-Bold').fontSize(12).fillColor(vColors.text).text(
-      metadata.verdict,
-      badgeX, doc.y + 5,
-      { width: badgeWidth, align: 'center' },
-    );
-    doc.y += 32;
-    doc.moveDown(1.2);
-
-    // Metadata block
-    thinRule();
-    doc.moveDown(0.45);
-    labelValue('Genre', metadata.genre);
-    labelValue('Shelf', metadata.shelf);
-    labelValue('Submitted Word Count', metadata.wordCount ? metadata.wordCount.toLocaleString() : null);
-    labelValue('Estimated Manuscript Pages', metadata.estimatedPages ? `${metadata.estimatedPages.toLocaleString()} at ${WORDS_PER_MANUSCRIPT_PAGE} words/page` : null);
-    if (enrichment?.reading_grade_level != null) labelValue('Reading Grade Level', `${enrichment.reading_grade_level.toFixed(1)} (Flesch-Kincaid)`);
-    if (enrichment?.dialogue_percentage != null && enrichment?.narrative_percentage != null) labelValue('Dialogue/Narrative Ratio', `${Math.round(enrichment.dialogue_percentage)}% dialogue / ${Math.round(enrichment.narrative_percentage)}% narrative`);
-    labelValue('Generated', metadata.generatedAt);
-    labelValue('Confidentiality', 'Prepared for author/editorial use');
-    doc.moveDown(1.5);
-
-    // Bottom gold accent bar on cover
-    thinRule();
-    doc.moveDown(0.45);
-    doc.font('Helvetica').fontSize(9.5).fillColor(RG.textFaint).text(
-      toPdfSafeText(EXPORT_DISCLAIMER),
-      { width: contentWidth, align: 'center' },
-    );
-
-    // ── Page 2+: Report content ───────────────────────────────────────
-    doc.addPage();
-
-    section('One-Paragraph Pitch');
-    paragraph(pitches.oneParagraphPitch);
-
-    section('One-Sentence Pitch');
-    paragraph(pitches.oneSentencePitch);
-
-    // ── Enrichment sections ─────────────────────────────────────────────
-    if (enrichment?.premise) {
-      section('Premise');
-      paragraph(enrichment.premise);
-    }
-
-    section('Trigger Warnings');
-    if (enrichment?.trigger_warnings && enrichment.trigger_warnings.length > 0) {
-      enrichment.trigger_warnings.forEach((w) => bullet(w, RG.warning));
-    } else {
-      paragraph('No content warnings identified.');
-    }
-    doc.moveDown(0.45);
-    doc.font('Helvetica').fontSize(10.5).fillColor(RG.textMuted).text(
-      'Consider including content warnings in book marketing or front matter.',
-      ml, doc.y, { width: contentWidth },
-    );
-    doc.moveDown(0.5);
-
-    section('Revision Opportunity Summary');
-    labelValue('Total Revision Opportunities', String(opportunitySummary.total));
-    labelValue('High Priority', String(opportunitySummary.high));
-    labelValue('Medium Priority', String(opportunitySummary.medium));
-    labelValue('Low Priority', String(opportunitySummary.low));
-    doc.font('Helvetica').fontSize(10.5).fillColor(RG.textMuted).text(
-      'Priority labels are polite alternatives to MUST / SHOULD / COULD labels.',
-      ml, doc.y, { width: contentWidth },
-    );
-    doc.moveDown(0.5);
-
-    if (enrichment?.reading_grade_level != null) {
-      section('Reading Grade Level');
-      paragraph(`Grade Level: ${enrichment.reading_grade_level.toFixed(1)} (Flesch-Kincaid)`);
-      doc.font('Helvetica').fontSize(10.5).fillColor(RG.textMuted).text(
-        'Reading Grade Level measures prose complexity, NOT audience appropriateness. A manuscript may score at a young-adult reading level (grades 6\u20138) while containing graphic violence, sexual content, or other material unsuitable for younger readers. Always cross-reference Trigger Warnings above for content suitability guidance.',
-        ml, doc.y, { width: contentWidth, lineGap: 2 },
-      );
-      doc.moveDown(0.5);
-    }
-
-    if (enrichment?.dialogue_percentage != null) {
-      section('Dialogue vs. Narrative Ratio');
-      paragraph(`${Math.round(enrichment.dialogue_percentage)}% dialogue / ${Math.round(enrichment.narrative_percentage ?? (100 - enrichment.dialogue_percentage))}% narrative`);
-      doc.font('Helvetica').fontSize(10.5).fillColor(RG.textMuted).text(
-        'Most commercially successful novels contain 25\u201335% dialogue. Genre expectations vary: literary fiction trends lower (15\u201325%), thrillers and romance trend higher (30\u201345%).',
-        ml, doc.y, { width: contentWidth, lineGap: 2 },
-      );
-      doc.moveDown(0.5);
-    }
-
-    section('Executive Summary');
-    paragraph(cleanReportText(result.overview.one_paragraph_summary, summaryFallback, { blockTruncation: true }));
-
-    // Strengths & Risks side by side concept (rendered sequentially for pdfkit)
-    section('Top Strengths');
-    if (result.overview.top_3_strengths.length > 0) {
-      result.overview.top_3_strengths.forEach((s) => bullet(s, RG.success));
-    } else {
-      paragraph('(none)');
-    }
-
-    section('Top Risks');
-    if (result.overview.top_3_risks.length > 0) {
-      result.overview.top_3_risks.forEach((r) => bullet(r, RG.warning));
-    } else {
-      paragraph('(none)');
-    }
-
-    if (topRecommendations.length > 0) {
-      section('Top Recommendations');
-      topRecommendations.forEach((r, i) => bullet(`${i + 1}. ${cleanReportText(r)}`, RG.textPrimary));
-    }
-
-    // ── Criteria Scores with visual bars ──────────────────────────────
-    section('13 Criteria Score Grid');
-    result.criteria.forEach((c) => {
-      ensureSpace(42);
-      const score = c.score_0_10;
-      doc.font('Helvetica').fontSize(11).fillColor(RG.textPrimary).text(
-        toPdfSafeText(getCriterionDisplayLabel(c.key)),
-        ml, doc.y,
-        { width: contentWidth - 190, continued: true },
-      );
-      doc.font('Helvetica-Bold').fontSize(11).fillColor(scoreBarColor(score)).text(
-        toPdfSafeText(scoreLabel(score, 10)),
-        { width: 75, align: 'right', continued: true },
-      );
-      doc.font('Helvetica').fontSize(10).fillColor(confidenceColor(c.confidence_level)).text(
-        `  ${toPdfSafeText(c.confidence_level ? formatConfidenceLabel(c.confidence_level) : '—')}`,
-      );
-      doc.moveDown(0.15);
-    });
-
-    section('Criterion Rationales & Surfaced Opportunities');
-    result.criteria.forEach((c) => {
-      ensureSpace(150);
-      const score = c.score_0_10;
-      const barColor = scoreBarColor(score);
-      const confColor = confidenceColor(c.confidence_level);
-
-      // Criterion name + score
-      doc.font('Helvetica-Bold').fontSize(14).fillColor(RG.textPrimary).text(
-        toPdfSafeText(getCriterionDisplayLabel(c.key)),
-        ml, doc.y,
-        { width: contentWidth - 80, continued: false },
-      );
-      // Score on the right
-      const scoreY = doc.y - 14;
-      doc.font('Helvetica-Bold').fontSize(15).fillColor(barColor).text(
-        scoreLabel(score, 10),
-        ml + contentWidth - 70, scoreY,
-        { width: 70, align: 'right' },
-      );
-      doc.y = Math.max(doc.y, scoreY + 16);
-
-      // Score bar
-      const barY = doc.y;
-      const barWidth = contentWidth - 90;
-      const barHeight = 6;
-      // Background bar
-      doc.roundedRect(ml, barY, barWidth, barHeight, 3).fill(RG.border);
-      // Filled bar
-      if (typeof score === 'number' && score > 0) {
-        const fillWidth = Math.max(6, (score / 10) * barWidth);
-        doc.roundedRect(ml, barY, fillWidth, barHeight, 3).fill(barColor);
-      }
-      // Confidence label
-      if (c.confidence_level) {
-        doc.font('Helvetica').fontSize(9.5).fillColor(confColor).text(
-          formatConfidenceLabel(c.confidence_level),
-          ml + barWidth + 8, barY - 1,
-          { width: 80 },
-        );
-      }
-      doc.y = barY + barHeight + 6;
-
-      // Rationale
-      if (c.rationale) {
-        doc.font('Helvetica').fontSize(11.25).fillColor(RG.textMuted).text(
-          toPdfSafeText(c.rationale),
-          ml + 4, doc.y,
-          { width: contentWidth - 8, lineGap: 2 },
-        );
-      }
-
-      const opportunities = getCriterionOpportunities(c as { recommendations?: unknown });
-      if (opportunities.length > 0) {
-        doc.moveDown(0.45);
-        doc.font('Helvetica-Bold').fontSize(11.5).fillColor(RG.oxblood).text('Opportunities', ml + 4, doc.y, {
-          width: contentWidth - 8,
-        });
-        doc.moveDown(0.15);
-
-        opportunities.forEach((opportunity) => {
-          ensureSpace(120);
-          doc.font('Helvetica-Bold').fontSize(10.5).fillColor(RG.textPrimary).text(
-            `[${exportSeverity(opportunity.priority)}]`,
-            ml + 10,
-            doc.y,
-            { width: contentWidth - 20 },
-          );
-
-          const rows = opportunityRows(opportunity);
-          const evidence = rows.find(([label]) => label === 'Evidence');
-          const detailRows = rows.filter(([label]) => label !== 'Evidence');
-
-          if (evidence) {
-            doc.font('Helvetica-Oblique').fontSize(10).fillColor(RG.textMuted).text(
-              `Evidence: "${toPdfSafeText(evidence[1])}"`,
-              ml + 14,
-              doc.y + 1,
-              { width: contentWidth - 24, lineGap: 2 },
-            );
-          }
-
-          detailRows.forEach(([label, value]) => {
-            doc.font('Helvetica-Bold').fontSize(10).fillColor(RG.textMuted).text(
-              `${label}: `,
-              ml + 14,
-              doc.y + 1,
-              { continued: true },
-            );
-            doc.font('Helvetica').fontSize(10).fillColor(RG.textPrimary).text(toPdfSafeText(value), {
-              width: contentWidth - 24,
-              lineGap: 2,
-            });
-          });
-
-          doc.moveDown(0.2);
-        });
-      }
-
-      doc.moveDown(1.0);
-      thinRule();
-    });
-
-    // ── Dream / Narrative Synthesis (longform) ────────────────────────
-    if (dream) {
-      section('Narrative Synthesis');
-      // Dream scores row
-      ensureSpace(60);
-      const dreamLabels = ['Quality', 'Readiness', 'Commercial', 'Literary'];
-      const dreamScores = [
-        dream.dream_scores?.quality,
-        dream.dream_scores?.readiness,
-        dream.dream_scores?.commercial,
-        dream.dream_scores?.literary,
-      ];
-      const colW = contentWidth / 4;
-      const rowY = doc.y;
-      dreamLabels.forEach((label, i) => {
-        const x = ml + i * colW;
-        const val = dreamScores[i];
-        doc.font('Helvetica').fontSize(8).fillColor(RG.textMuted).text(label, x, rowY, { width: colW, align: 'center' });
-        doc.font('Helvetica-Bold').fontSize(16).fillColor(RG.textPrimary).text(
-          `${val ?? '-'}`,
-          x, rowY + 12,
-          { width: colW, align: 'center' },
-        );
-        doc.font('Helvetica').fontSize(7).fillColor(RG.textFaint).text('/100', x, rowY + 30, { width: colW, align: 'center' });
-      });
-      doc.x = ml;
-      doc.y = rowY + 44;
-      doc.moveDown(0.5);
-      thinRule();
-
-      doc.font('Helvetica-Bold').fontSize(12).fillColor(RG.oxblood).text('Executive Verdict', ml, doc.y, { width: contentWidth });
-      doc.moveDown(0.2);
-      paragraph(dream.executive_verdict);
-
-      if (dream.market_shelf) {
-        section('Market Shelf');
-        labelValue('Best Shelf', dream.market_shelf.best_shelf);
-        labelValue('Marketable Hook', dream.market_shelf.marketable_hook);
-        labelValue('Market Danger', dream.market_shelf.market_danger);
-      }
-
-      if (Array.isArray(dream.structural_stack) && dream.structural_stack.length > 0) {
-        section('Structural Stack');
-        dream.structural_stack.forEach((layer) => {
-          ensureSpace(120);
-          doc.font('Helvetica-Bold').fontSize(10.5).fillColor(RG.textPrimary).text(
-            toPdfSafeText(`${cleanReportText(layer.layer_name)} -- ${layer.status}`),
-            ml, doc.y,
-            { width: contentWidth },
-          );
-          paragraph(`Function: ${cleanReportText(layer.function)}`);
-          paragraph(`Revision note: ${cleanReportText(layer.revision_note)}`);
-        });
-      }
-
-      if (Array.isArray(dream.arc_map) && dream.arc_map.length > 0) {
-        section('Arc Map');
-        dream.arc_map.forEach((act) => {
-          ensureSpace(80);
-          doc.font('Helvetica-Bold').fontSize(10.5).fillColor(RG.textPrimary).text(
-            toPdfSafeText(`${cleanReportText(act.act_name)} (${cleanReportText(act.chapter_range)})`),
-            { width: contentWidth },
-          );
-          paragraph(`Function: ${cleanReportText(act.primary_function)}`);
-          paragraph(`Revision priority: ${cleanReportText(act.revision_priority)}`);
-        });
-      }
-
-      const revisionPlan = getRenumberedAuthorFacingRevisionPlan(dream.revision_plan);
-      if (revisionPlan.length > 0) {
-        section('Revision Plan');
-        revisionPlan.forEach((item) => {
-          ensureSpace(120);
-          doc.font('Helvetica-Bold').fontSize(10.5).fillColor(RG.textPrimary).text(
-            toPdfSafeText(`Priority ${item.displayPriority}: ${cleanReportText(item.title)}`),
-            { width: contentWidth },
-          );
-          paragraph(`Goal: ${cleanReportText(item.goal)}`);
-          if (Array.isArray(item.actions) && item.actions.length > 0) item.actions.forEach((a) => bullet(a));
-          if (item.acceptance_check) paragraph(`Acceptance check: ${cleanReportText(item.acceptance_check)}`);
-        });
-      }
-
-      // Expanded Criterion Analysis from dream document
-      if (Array.isArray(dream.criterion_analyses) && dream.criterion_analyses.length > 0) {
-        section('Expanded Criterion Analysis');
-        dream.criterion_analyses.forEach((a) => {
-          ensureSpace(120);
-          const confLabel = formatConfidenceLabel(a.confidence);
-          doc.font('Helvetica-Bold').fontSize(14).fillColor(RG.textPrimary).text(
-            toPdfSafeText(getCriterionDisplayLabel(a.key)),
-            ml, doc.y,
-            { width: contentWidth - 120, continued: true },
-          );
-          doc.font('Helvetica-Bold').fontSize(11).fillColor(scoreBarColor(a.score)).text(
-            toPdfSafeText(` -- ${a.score}/10`),
-            { continued: true },
-          );
-          doc.font('Helvetica').fontSize(9.5).fillColor(confidenceColor(a.confidence)).text(
-            ` (${toPdfSafeText(confLabel)})`,
-          );
-          doc.moveDown(0.25);
-
-          const fitItems = filterAuthorFacingTextList(a.fit_evidence);
-          if (fitItems.length > 0) {
-            doc.font('Helvetica-Bold').fontSize(9.5).fillColor(RG.success).text('What Is Working:', ml, doc.y, { width: contentWidth });
-            doc.moveDown(0.1);
-            fitItems.forEach((item) => bullet(item, RG.success));
-          }
-
-          const gapItems = filterAuthorFacingTextList(a.gap_evidence);
-          if (gapItems.length > 0) {
-            doc.font('Helvetica-Bold').fontSize(9.5).fillColor(RG.warning).text('What Weakens Impact:', ml, doc.y, { width: contentWidth });
-            doc.moveDown(0.1);
-            gapItems.forEach((item) => bullet(item, RG.warning));
-          }
-
-          const revItems = filterAuthorFacingTextList(a.revision_queue);
-          if (revItems.length > 0) {
-            doc.font('Helvetica-Bold').fontSize(9.5).fillColor(RG.oxblood).text('Revision Queue:', ml, doc.y, { width: contentWidth });
-            doc.moveDown(0.1);
-            revItems.forEach((item, idx) => {
-              ensureSpace(35);
-              doc.font('Helvetica').fontSize(10).fillColor(RG.textPrimary).text(
-                `${idx + 1}. ${toPdfSafeText(formatRevisionQueueItem(item))}`,
-                ml, doc.y,
-                { width: contentWidth, lineGap: 2 },
-              );
-              doc.moveDown(0.15);
-            });
-          }
-
-          doc.moveDown(0.4);
-          thinRule();
-        });
-      }
-
-      // Symbolic / Doctrine Audit
-      if (dream.symbolic_audit) {
-        section('Symbolic / Doctrine Audit');
-        if (Array.isArray(dream.symbolic_audit.preserved_symbols) && dream.symbolic_audit.preserved_symbols.length > 0) {
-          doc.font('Helvetica-Bold').fontSize(10.5).fillColor(RG.textPrimary).text('Preserved Symbols:', ml, doc.y, { width: contentWidth });
-          doc.moveDown(0.2);
-          dream.symbolic_audit.preserved_symbols.forEach((sym) => {
-            ensureSpace(50);
-            bullet(`${sym.symbol} \u2014 ${sym.current_function}`);
-            if (sym.revision_instruction) {
-              doc.font('Helvetica').fontSize(10.5).fillColor(RG.textMuted).text(
-                `    Revision: ${toPdfSafeText(sym.revision_instruction)}`,
-                ml, doc.y, { width: contentWidth, indent: 20 },
-              );
-              doc.moveDown(0.15);
-            }
-          });
-        }
-        if (Array.isArray(dream.symbolic_audit.doctrine_strengths) && dream.symbolic_audit.doctrine_strengths.length > 0) {
-          doc.moveDown(0.45);
-          doc.font('Helvetica-Bold').fontSize(10.5).fillColor(RG.success).text('Doctrine Strengths:', ml, doc.y, { width: contentWidth });
-          doc.moveDown(0.1);
-          dream.symbolic_audit.doctrine_strengths.forEach((s) => bullet(s, RG.success));
-        }
-        if (Array.isArray(dream.symbolic_audit.doctrine_risks) && dream.symbolic_audit.doctrine_risks.length > 0) {
-          doc.moveDown(0.45);
-          doc.font('Helvetica-Bold').fontSize(10.5).fillColor(RG.warning).text('Doctrine Risks:', ml, doc.y, { width: contentWidth });
-          doc.moveDown(0.1);
-          dream.symbolic_audit.doctrine_risks.forEach((r) => bullet(r, RG.warning));
-        }
-        if (dream.symbolic_audit.audit_conclusion) {
-          doc.moveDown(0.45);
-          paragraph(`Audit Conclusion: ${dream.symbolic_audit.audit_conclusion}`);
-        }
-      }
-
-      // Reader Experience
-      if (dream.reader_experience) {
-        section('Reader Experience');
-        const re = dream.reader_experience;
-        if (re.first_act) {
-          ensureSpace(80);
-          doc.font('Helvetica-Bold').fontSize(10.5).fillColor(RG.textPrimary).text('First Act:', ml, doc.y, { width: contentWidth });
-          doc.moveDown(0.15);
-          paragraph(`Reader question: ${re.first_act.reader_question}`);
-          paragraph(`Emotional state: ${re.first_act.emotional_state}`);
-          paragraph(`Risk: ${re.first_act.risk}`);
-        }
-        if (re.middle) {
-          ensureSpace(80);
-          doc.font('Helvetica-Bold').fontSize(10.5).fillColor(RG.textPrimary).text('Middle:', ml, doc.y, { width: contentWidth });
-          doc.moveDown(0.15);
-          paragraph(`Reader question: ${re.middle.reader_question}`);
-          paragraph(`Emotional state: ${re.middle.emotional_state}`);
-          paragraph(`Risk: ${re.middle.risk}`);
-        }
-        if (re.final_act) {
-          ensureSpace(80);
-          doc.font('Helvetica-Bold').fontSize(10.5).fillColor(RG.textPrimary).text('Final Act:', ml, doc.y, { width: contentWidth });
-          doc.moveDown(0.15);
-          paragraph(`Reader question: ${re.final_act.reader_question}`);
-          paragraph(`Emotional state: ${re.final_act.emotional_state}`);
-          paragraph(`Risk: ${re.final_act.risk}`);
-        }
-        if (re.aftertaste) {
-          doc.moveDown(0.45);
-          paragraph(`Aftertaste: ${re.aftertaste}`);
-        }
-      }
-
-      // Releasability
-      if (Array.isArray(dream.releasability) && dream.releasability.length > 0) {
-        section('Releasability');
-        dream.releasability.forEach((dim) => {
-          ensureSpace(40);
-          const verdictCol = dim.verdict === 'Ready' ? RG.success : dim.verdict === 'Near-ready' ? RG.gold : RG.warning;
-          doc.font('Helvetica-Bold').fontSize(10.5).fillColor(RG.textPrimary).text(
-            toPdfSafeText(dim.dimension),
-            ml, doc.y, { width: contentWidth - 100, continued: false },
-          );
-          doc.font('Helvetica').fontSize(11.25).fillColor(RG.textMuted).text(
-            toPdfSafeText(dim.current_status),
-            ml + 12, doc.y, { width: contentWidth - 100 },
-          );
-          doc.font('Helvetica-Bold').fontSize(9.5).fillColor(verdictCol).text(
-            `[${dim.verdict}]`,
-            ml + contentWidth - 80, doc.y - 12, { width: 80, align: 'right' },
-          );
-          doc.moveDown(0.45);
-        });
-      }
-    }
-
-    // ── Branded footers on every page ─────────────────────────────────
-    const range = doc.bufferedPageRange();
-    const pageCount = range.count;
-    for (let i = range.start; i < range.start + range.count; i += 1) {
-      doc.switchToPage(i);
-      const pageNumber = i - range.start + 1;
-      const footerY = doc.page.height - 40;
-
-      // Gold line above footer
-      doc.moveTo(ml, footerY - 8).lineTo(ml + contentWidth, footerY - 8)
-        .strokeColor(RG.gold).lineWidth(0.5).stroke();
-      doc.strokeColor('#000000').lineWidth(1);
-
-      if (pageNumber === 1) {
-        doc.font('Helvetica').fontSize(7).fillColor(RG.textFaint).text(
-          toPdfSafeText(FOOTER_LINE),
-          ml, footerY,
-          { width: contentWidth, align: 'center', lineBreak: false },
-        );
-      } else {
-        doc.font('Helvetica').fontSize(7).fillColor(RG.textFaint).text(
-          toPdfSafeText(`RevisionGrade\u2122 Evaluation Report  --  Confidential  --  Page ${pageNumber} of ${pageCount}`),
-          ml, footerY,
-          { width: contentWidth, align: 'center', lineBreak: false },
-        );
-      }
-      doc.fillColor('#000000');
-    }
-
-    doc.end();
-  });
+async function buildPdfReport(result: ExportableResult, title: string | null, _jobId: string, dream: LongformDreamDocument | null, enrichment: EnrichmentData = null): Promise<Buffer> {
+  const metadata = buildMetadata(result, title, dream);
+  const summaryFallback = buildSummaryFallback(result);
+  const html = renderPremiumReportHtml(result, metadata, summaryFallback, dream, enrichment);
+  return await buildChromiumPdf(html);
 }
 
 function docxVerdictColor(verdict: string): string {
@@ -1811,7 +1195,7 @@ async function buildDocx(result: ExportableResult, title: string | null, jobId: 
     }));
   }
 
-  children.push(brandHeading('Trigger Warnings', HeadingLevel.HEADING_2));
+  children.push(brandHeading('Content Warnings', HeadingLevel.HEADING_2));
   if (enrichment?.trigger_warnings && enrichment.trigger_warnings.length > 0) {
     enrichment.trigger_warnings.forEach((w) => children.push(bulletPara(w, RG.warning)));
   } else {
@@ -1844,7 +1228,7 @@ async function buildDocx(result: ExportableResult, title: string | null, jobId: 
   if (enrichment?.reading_grade_level != null) {
     children.push(brandHeading('Reading Grade Level', HeadingLevel.HEADING_2));
     children.push(bodyPara(`Grade Level: ${enrichment.reading_grade_level.toFixed(1)} (Flesch-Kincaid)`));
-    children.push(bodyPara('Reading Grade Level measures prose complexity, NOT audience appropriateness. A manuscript may score at a young-adult reading level (grades 6\u20138) while containing graphic violence, sexual content, or other material unsuitable for younger readers. Always cross-reference Trigger Warnings above for content suitability guidance.', { size: 18, color: RG.textMuted }));
+    children.push(bodyPara('Reading Grade Level measures prose complexity, NOT audience appropriateness. A manuscript may score at a young-adult reading level (grades 6\u20138) while containing graphic violence, sexual content, or other material unsuitable for younger readers. Always cross-reference Content Warnings above for content suitability guidance.', { size: 18, color: RG.textMuted }));
   }
 
   if (enrichment?.dialogue_percentage != null) {

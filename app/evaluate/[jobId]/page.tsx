@@ -923,24 +923,57 @@ export default async function EvaluationReportPage({
             </div>
           )}
 
+          {/* ── §2 One-Paragraph Pitch ── */}
           {reportPitches && (
-            <>
-              <section className="rounded-lg border bg-white p-7 mb-7">
-                <h2 className="text-2xl font-semibold text-gray-900">One-Paragraph Pitch</h2>
-                <p className="mt-4 text-base leading-7 text-gray-800">
-                  {reportPitches.oneParagraphPitch}
-                </p>
-              </section>
-
-              <section className="rounded-lg border bg-white p-7 mb-7">
-                <h2 className="text-2xl font-semibold text-gray-900">One-Sentence Pitch</h2>
-                <p className="mt-4 text-base font-medium leading-7 text-gray-900">
-                  {reportPitches.oneSentencePitch}
-                </p>
-              </section>
-            </>
+            <section className="rounded-lg border bg-white p-7 mb-7">
+              <h2 className="text-2xl font-semibold text-gray-900">One-Paragraph Pitch</h2>
+              <p className="mt-4 text-base leading-7 text-gray-800">
+                {reportPitches.oneParagraphPitch}
+              </p>
+            </section>
           )}
 
+          {/* ── §3 One-Sentence Pitch ── */}
+          {reportPitches && (
+            <section className="rounded-lg border bg-white p-7 mb-7">
+              <h2 className="text-2xl font-semibold text-gray-900">One-Sentence Pitch</h2>
+              <p className="mt-4 text-base font-medium leading-7 text-gray-900">
+                {reportPitches.oneSentencePitch}
+              </p>
+            </section>
+          )}
+
+          {/* ── §4 Premise ── */}
+          {artifact.enrichment?.premise && (
+            <section className="rounded-lg border bg-white p-7 mb-7">
+              <h2 className="text-2xl font-semibold text-gray-900">Premise</h2>
+              <p className="mt-4 text-base leading-7 text-gray-800 italic">
+                {artifact.enrichment.premise}
+              </p>
+            </section>
+          )}
+
+          {/* ── §5 Content Warnings ── */}
+          <section className="rounded-lg border border-amber-200 bg-amber-50 p-6 mb-7">
+            <h2 className="text-xl font-semibold text-amber-900">Content Warnings</h2>
+            {artifact.enrichment?.trigger_warnings && artifact.enrichment.trigger_warnings.length > 0 ? (
+              <ul className="mt-4 space-y-3 text-base text-amber-900">
+                {artifact.enrichment.trigger_warnings.map((w, i) => (
+                  <li key={i} className="flex gap-2">
+                    <span className="mt-0.5 shrink-0">⚠️</span>
+                    <span className="capitalize">{w}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="mt-4 text-base text-amber-800">No content warnings identified.</p>
+            )}
+            <p className="mt-4 text-base text-amber-800">
+              Consider including content warnings in book marketing or front matter.
+            </p>
+          </section>
+
+          {/* ── §6 Revision Opportunity Summary ── */}
           {opportunitySummary && (
             <section className="rounded-lg border bg-white p-7 mb-7">
               <h2 className="text-2xl font-semibold text-gray-900">Revision Opportunity Summary</h2>
@@ -968,70 +1001,71 @@ export default async function EvaluationReportPage({
             </section>
           )}
 
+          {/* ── §6a Reading Grade Level ── */}
+          {artifact.enrichment?.reading_grade_level != null && (
+            <section className="rounded-lg border bg-white p-7 mb-7">
+              <h2 className="text-2xl font-semibold text-gray-900">Reading Grade Level</h2>
+              <p className="mt-4 text-xl font-bold text-gray-900">
+                {artifact.enrichment.reading_grade_level} <span className="text-base font-normal text-gray-600">(Flesch-Kincaid)</span>
+              </p>
+              <p className="mt-3 text-base leading-7 text-gray-700">
+                Reading Grade Level measures prose complexity, NOT audience appropriateness.
+                A manuscript may score at a young-adult reading level (grades 6–8) while
+                containing graphic violence, sexual content, or other material unsuitable
+                for younger readers. Always cross-reference Content Warnings above for
+                content suitability guidance.
+              </p>
+            </section>
+          )}
+
+          {/* ── §6b Dialogue vs. Narrative Ratio ── */}
+          {artifact.enrichment?.dialogue_percentage != null && (
+            <section className="rounded-lg border bg-white p-7 mb-7">
+              <h2 className="text-2xl font-semibold text-gray-900">Dialogue vs. Narrative Ratio</h2>
+              <p className="mt-4 text-xl font-bold text-gray-900">
+                {Math.round(artifact.enrichment.dialogue_percentage)}% dialogue / {Math.round(artifact.enrichment.narrative_percentage ?? (100 - artifact.enrichment.dialogue_percentage))}% narrative
+              </p>
+              <p className="mt-3 text-base leading-7 text-gray-700">
+                Most commercially successful novels contain 25–35% dialogue. Genre
+                expectations vary: literary fiction trends lower (15–25%), thrillers
+                and romance trend higher (30–45%).
+              </p>
+            </section>
+          )}
+
+          {/* ── §7 Executive Summary ── */}
           <section className="rounded-lg border bg-white p-7 mb-7">
-            <h2 className="text-xl font-semibold text-gray-900">Overall Summary</h2>
+            <h2 className="text-2xl font-semibold text-gray-900">Executive Summary</h2>
             <p className="mt-4 text-base leading-7 text-gray-800">
               {safeTruncateToWordBoundary(artifact.overview?.one_paragraph_summary || artifact.summary || "No summary available")}
             </p>
           </section>
 
-          {/* ── Premise (Elevator Pitch) ── */}
-          {artifact.enrichment?.premise && (
+          {/* ── §8 Top Strengths ── */}
+          {artifact.overview?.top_3_strengths && artifact.overview.top_3_strengths.length > 0 && (
             <section className="rounded-lg border bg-white p-7 mb-7">
-              <h2 className="text-2xl font-semibold text-gray-900">Premise</h2>
-              <p className="mt-4 text-base leading-7 text-gray-800 italic">
-                {artifact.enrichment.premise}
-              </p>
-            </section>
-          )}
-
-          {/* ── Trigger Warnings ── */}
-          {artifact.enrichment?.trigger_warnings && artifact.enrichment.trigger_warnings.length > 0 && (
-            <section className="rounded-lg border border-amber-200 bg-amber-50 p-6 mb-4">
-              <h2 className="text-xl font-semibold text-amber-900">Content Warnings</h2>
-              <ul className="mt-4 space-y-3 text-base text-amber-900">
-                {artifact.enrichment.trigger_warnings.map((w, i) => (
-                  <li key={i} className="flex gap-2">
-                    <span className="mt-0.5 shrink-0">⚠️</span>
-                    <span className="capitalize">{w}</span>
-                  </li>
+              <h2 className="text-2xl font-semibold text-gray-900">Top Strengths</h2>
+              <ol className="mt-5 space-y-4 list-decimal list-inside text-base leading-7 text-gray-800">
+                {artifact.overview.top_3_strengths.map((s, i) => (
+                  <li key={i}>{s}</li>
                 ))}
-              </ul>
-              <p className="mt-4 text-base text-amber-800">
-                Consider including content warnings in book marketing or front matter.
-              </p>
+              </ol>
             </section>
           )}
 
-          {/* ── Reading Grade Level + Dialogue Ratio ── */}
-          {(artifact.enrichment?.reading_grade_level != null || artifact.enrichment?.dialogue_percentage != null) && (
-            <section className="rounded-lg border bg-white p-6 mb-4">
-              <h2 className="text-xl font-semibold text-gray-900">Manuscript Metrics</h2>
-              <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {artifact.enrichment?.reading_grade_level != null && (
-                  <div className="rounded-md border bg-gray-50 p-4">
-                    <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Reading Grade Level</p>
-                    <p className="mt-1 text-2xl font-bold text-gray-900">{artifact.enrichment.reading_grade_level}</p>
-                    <p className="mt-1 text-xs text-gray-600">Flesch-Kincaid</p>
-                    <p className="mt-2 text-xs text-gray-500 leading-relaxed">
-                      Measures prose complexity only—not audience appropriateness. Cross-reference Content Warnings above for suitability guidance.
-                    </p>
-                  </div>
-                )}
-                {artifact.enrichment?.dialogue_percentage != null && (
-                  <div className="rounded-md border bg-gray-50 p-4">
-                    <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Dialogue vs. Narrative</p>
-                    <p className="mt-1 text-2xl font-bold text-gray-900">{artifact.enrichment.dialogue_percentage}%<span className="text-base font-normal text-gray-500"> dialogue</span></p>
-                    <p className="mt-1 text-xs text-gray-600">{artifact.enrichment.narrative_percentage ?? (100 - artifact.enrichment.dialogue_percentage)}% narrative</p>
-                    <p className="mt-2 text-xs text-gray-500 leading-relaxed">
-                      Most commercially successful novels range 25–35% dialogue.
-                    </p>
-                  </div>
-                )}
-              </div>
+          {/* ── §9 Top Risks ── */}
+          {artifact.overview?.top_3_risks && artifact.overview.top_3_risks.length > 0 && (
+            <section className="rounded-lg border bg-white p-7 mb-7">
+              <h2 className="text-2xl font-semibold text-gray-900">Top Risks</h2>
+              <ol className="mt-5 space-y-4 list-decimal list-inside text-base leading-7 text-gray-800">
+                {artifact.overview.top_3_risks.map((r, i) => (
+                  <li key={i}>{r}</li>
+                ))}
+              </ol>
             </section>
           )}
 
+          {/* ── §10 Top Recommendations ── */}
           {(() => {
             const topRecs = buildTopRecommendations(artifact);
             if (topRecs.length === 0) return null;
@@ -1214,7 +1248,7 @@ export default async function EvaluationReportPage({
             </>
           )}
 
-          {/* ── Narrative Synthesis (long-form) ── */}
+          {/* ── §13 Narrative Synthesis (long-form only) ── */}
           {isLongForm && isComplete && (
             <section className="rounded-lg border border-indigo-100 bg-white p-6 mb-4">
               <div className="mb-5">
@@ -1240,6 +1274,14 @@ export default async function EvaluationReportPage({
             </section>
           )}
 
+          {/* ── §15 Author-facing Disclaimer ── */}
+          <section className="rounded-lg border border-stone-200 bg-stone-50 p-6 mt-8">
+            <p className="text-sm leading-relaxed text-stone-600">
+              Generated by RevisionGrade™. Author retains ownership of manuscript content.
+              This report is an editorial diagnostic and does not guarantee publication,
+              representation, or commercial outcome.
+            </p>
+          </section>
 
         </>
       )}
