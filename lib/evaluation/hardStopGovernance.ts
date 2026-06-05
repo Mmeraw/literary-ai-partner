@@ -138,14 +138,26 @@ export function isGlobalSlaExceeded(job: QueueHardStopCandidate, args: {
   if (job.status === 'complete' || job.status === 'failed') return false;
   if (job.phase === 'review_gate' && job.phase_status === 'awaiting_approval') return false;
 
-  const createdAtMs = toIsoMs(job.created_at ?? job.updated_at);
-  if (createdAtMs === null) return false;
+  // SLA clock resets on resume/retry — use the most recent of created_at,
+  // resume_requested_at, or retry_requested_at as the effective start time.
+  const progress = job.progress ?? {};
+  const resumeAt = typeof progress.resume_requested_at === 'string' ? progress.resume_requested_at : null;
+  const retryAt = typeof progress.retry_requested_at === 'string' ? progress.retry_requested_at : null;
+
+  const candidates = [
+    toIsoMs(job.created_at ?? job.updated_at),
+    toIsoMs(resumeAt),
+    toIsoMs(retryAt),
+  ].filter((ms): ms is number => ms !== null);
+
+  const slaStartMs = candidates.length > 0 ? Math.max(...candidates) : null;
+  if (slaStartMs === null) return false;
 
   const wordCount = Number.isFinite(job.manuscript_word_count as number)
     ? Number(job.manuscript_word_count)
     : 0;
   const slaMs = wordCount >= 12_000 ? args.longFormSlaMs : args.shortFormSlaMs;
-  return args.nowMs - createdAtMs >= slaMs;
+  return args.nowMs - slaStartMs >= slaMs;
 }
 
 export function resolveProviderBudget(args: {
