@@ -3436,7 +3436,7 @@ export function buildPhase0RequeueProgressPatch(args: {
 
 const POST_PHASE0_HANDOFF_GRACE_MS = 90_000;
 const SHORT_FORM_GLOBAL_SLA_MS = 3 * 60_000;
-const LONG_FORM_GLOBAL_SLA_MS = 3 * 60_000;
+const LONG_FORM_GLOBAL_SLA_MS = 20 * 60_000;
 const QUEUED_HARD_STOP_HALT_THRESHOLD = 3;
 const SLA_AUTO_REQUEUE_MAX = 1;
 
