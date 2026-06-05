@@ -104,9 +104,21 @@ export async function POST(req: NextRequest, context: RouteContext) {
     }
 
     // Success: job was retried.
-    // Compensating write: admin_retry_job sets status='queued' but does NOT set
-    // phase_status='queued'. The claim predicate requires BOTH. Patch it here
-    // until the SQL function is updated to include phase_status in its SET clause.
+    // Compensating write: admin_retry_job sets status='queued' and phase_status='queued'
+    // in the DB columns, but does NOT update progress.phase_status in the JSONB field.
+    // Sync progress.phase_status to prevent split-brain detection by the watchdog.
+    const { data: retriedRow } = await supabase
+      .from("evaluation_jobs")
+      .select("progress, phase")
+      .eq("id", jobId)
+      .eq("status", "queued")
+      .single();
+
+    const currentProgress =
+      retriedRow?.progress && typeof retriedRow.progress === "object"
+        ? (retriedRow.progress as Record<string, unknown>)
+        : {};
+
     const { error: phaseStatusError } = await supabase
       .from("evaluation_jobs")
       .update({
@@ -116,6 +128,11 @@ export async function POST(req: NextRequest, context: RouteContext) {
         lease_token: null,
         last_error: null,
         failed_at: null,
+        progress: {
+          ...currentProgress,
+          phase: retriedRow?.phase ?? currentProgress.phase,
+          phase_status: "queued",
+        },
       })
       .eq("id", jobId)
       .eq("status", "queued"); // guard: only touch the row if RPC already flipped it
@@ -125,8 +142,8 @@ export async function POST(req: NextRequest, context: RouteContext) {
         `[Admin Retry] Failed to set phase_status=queued for job ${jobId}:`,
         phaseStatusError
       );
-      // Log but don't fail — job was already retried; worker will skip it but
-      // repair-queued-phase-status.mjs can clean it up.
+      // Log but don't fail — job was already retried; watchdog auto-heal will
+      // reconcile progress.phase_status if this write fails.
     }
 
     // Optionally log to audit table (non-blocking)

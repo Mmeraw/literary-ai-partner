@@ -88,6 +88,31 @@ export function isSplitBrainState(job: QueueHardStopCandidate): boolean {
   return false;
 }
 
+/**
+ * Determine if a split-brain state is auto-healable (only progress.phase_status
+ * diverges from the column) vs structural (phase itself diverges).
+ *
+ * Auto-healable: column is source of truth — just sync progress to match.
+ * Structural: phases disagree — requires full investigation / failure.
+ */
+export function classifySplitBrain(job: QueueHardStopCandidate): 'healable' | 'structural' | 'none' {
+  const progress = job.progress ?? {};
+  const progressPhase = typeof progress.phase === 'string' ? progress.phase : null;
+  const progressPhaseStatus = typeof progress.phase_status === 'string' ? progress.phase_status : null;
+
+  // Phase divergence = structural (can't auto-heal)
+  if (progressPhase && job.phase && progressPhase !== job.phase) {
+    return 'structural';
+  }
+
+  // Only phase_status diverges = auto-healable (column is authoritative)
+  if (progressPhaseStatus && job.phase_status && progressPhaseStatus !== job.phase_status) {
+    return 'healable';
+  }
+
+  return 'none';
+}
+
 export function isPostPhase0HandoffLimbo(job: QueueHardStopCandidate, args: {
   nowMs: number;
   graceMs: number;
