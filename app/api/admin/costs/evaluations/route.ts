@@ -154,11 +154,18 @@ const PHASE_COVERAGE_DEFINITIONS: PhaseCoverageDefinition[] = [
     noteWhenMissing: "No Phase 3B/DREAM cost rows were found. This is expected for short evaluations, but not for long-form multi-layer jobs.",
   },
   {
-    key: "wave_revision_phase5",
-    label: "WAVE Revision / Phase 5",
-    description: "Post-evaluation WAVE readiness/revision layer. Canonical repo phase: wave_revision.",
-    aliases: ["wave_revision", "wave", "execute_wave", "wave_modules", "phase5", "phase_5", "pass5", "revise_queue", "revise"],
-    noteWhenMissing: "No WAVE revision cost row was found. In the current repo, WAVE orchestration appears deterministic unless downstream modules add tracked LLM calls.",
+    key: "wave_revision",
+    label: "WAVE Revision",
+    description: "Post-evaluation WAVE readiness layer and WAVE module execution. Expected premium lane: gpt-5.1 if LLM calls are added/tracked.",
+    aliases: ["wave_revision", "wave", "execute_wave", "wave_modules", "wave_readiness", "wave_layer"],
+    noteWhenMissing: "No WAVE cost row was found. If WAVE ran deterministically, tracked LLM spend may be $0; if gpt-5.1 WAVE calls are expected, verify telemetry calls trackCompletionCost.",
+  },
+  {
+    key: "phase5_revision_queue",
+    label: "Phase 5 / Revision Queue",
+    description: "Post-evaluation revision handoff, Phase 5 planning, and Revise Queue preparation. Expected premium lane: gpt-5.1 when model work is used.",
+    aliases: ["phase5", "phase_5", "pass5", "revision_queue", "revise_queue", "revise", "trustedpath", "trusted_path"],
+    noteWhenMissing: "No Phase 5/Revision Queue cost row was found. If Phase 5 should perform model work, this is either not running or not tracked.",
   },
 ];
 
