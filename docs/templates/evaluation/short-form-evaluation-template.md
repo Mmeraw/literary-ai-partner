@@ -27,8 +27,9 @@ It does **not** claim full-manuscript continuity proof.
 
 Report Type: Short-Form Evaluation
 Overall Score: [XX]/100
-Verdict: [Pass/Review]
+Market Readiness: [Market Ready / Near Market Ready / Not Market Ready]
 Genre: [Genre]
+Target Audience: [Pipeline-diagnosed target audience]
 Submitted Word Count: [XXXX]
 Reading Grade Level: [X.X] (Flesch-Kincaid)
 Dialogue/Narrative Ratio: [XX]% dialogue / [XX]% narrative

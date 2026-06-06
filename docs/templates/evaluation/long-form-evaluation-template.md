@@ -29,8 +29,9 @@ It is deeper than short-form evaluation, but it is not necessarily the full mult
 
 Report Type: Long-Form Evaluation
 Overall Score: [XX]/100
-Verdict: [Pass/Review]
+Market Readiness: [Market Ready / Near Market Ready / Not Market Ready]
 Genre: [Genre]
+Target Audience: [Pipeline-diagnosed target audience]
 Shelf: [Target Market]
 Submitted Word Count: [XXXX]
 Estimated Manuscript Pages: [XXX] at 250 words/page

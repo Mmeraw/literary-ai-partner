@@ -179,9 +179,11 @@ Return ONLY JSON with keys:
   - top_3_strengths and top_3_risks must be non-mirrored aspects.
   - never emit queryable_now when verdict=fail or when 3+ criteria are below 5.
   - one_paragraph_summary MUST name every criterion scoring <=5 by readable key.
-- enrichment { premise, trigger_warnings[] }
+- enrichment { premise, trigger_warnings[], diagnosed_genre, target_audience }
   - premise: 1–2 sentence elevator pitch that captures the core dramatic situation — protagonist or central force, primary conflict/tension, and emotional/tonal register. Suitable for query letters, back-cover copy, or marketing. Do not begin with the title or "This is a story about."
   - trigger_warnings: Array of content advisory categories this manuscript requires. Use specific, standardized terms from: graphic violence, sexual assault, domestic abuse, substance abuse, self-harm, suicidal ideation, animal cruelty, body horror, child endangerment, eating disorders, racial violence, homophobia, transphobia, torture, kidnapping, stalking, gun violence, war/combat, genocide, miscarriage/infant loss, sexual content (explicit), non-consensual sexual contact. Only include categories supported by textual evidence. If no warnings apply, emit an empty array [].
+  - diagnosed_genre: The specific literary genre diagnosed from the text. Must be a recognized publishing genre — NOT a format like "novel" or "short story." Examples: literary fiction, memoir, fantasy, romance, thriller, mystery, science fiction, horror, western, historical fiction, self-help, cookbook, young adult, magical realism, speculative fiction, confessional fiction, spiritual memoir, crime fiction, etc. Diagnose the genre that best fits the submitted text based on its content, themes, voice, and conventions.
+  - target_audience: A concise 1–2 sentence description of who this manuscript is written for, based on content analysis. Name the reader demographic, reading preferences, and comparable audience. Example: "Readers of confessional literary fiction comfortable with sexually explicit content and spiritual themes, comparable to audiences of Garth Greenwell or Sheila Heti."
 - metadata { generated_at } (do NOT emit pass1_model/pass2_model/pass3_model; stamped server-side)
 
 Criteria keys:

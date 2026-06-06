@@ -143,6 +143,8 @@ type ArtifactContentV1 = {
     reading_grade_level?: number;
     dialogue_percentage?: number;
     narrative_percentage?: number;
+    diagnosed_genre?: string;
+    target_audience?: string;
   };
   governance?: {
     confidence?: number;
@@ -682,7 +684,9 @@ export default async function EvaluationReportPage({
   const overallScore = artifact
     ? Math.round(artifact.overall_score ?? artifact.overview?.overall_score_0_100 ?? 0)
     : null;
-  const verdict = artifact?.overview?.verdict?.trim() || (overallScore !== null && overallScore >= 85 ? "Pass" : "Revise");
+  const verdict = overallScore !== null
+    ? (overallScore >= 90 ? "Market Ready" : overallScore >= 60 ? "Near Market Ready" : "Not Market Ready")
+    : "Review";
   const generatedAt = artifact?.generated_at ? new Date(artifact.generated_at) : job.updated_at ? new Date(job.updated_at) : null;
   const generatedLabel = generatedAt
     ? generatedAt.toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" })
@@ -690,7 +694,10 @@ export default async function EvaluationReportPage({
   const reportType = isLongForm ? "Long-Form Evaluation Report" : "Short-Form Evaluation Report";
   const displayWordCount = wordCount ?? progressWordCount;
   const estimatedPages = typeof displayWordCount === "number" ? Math.ceil(displayWordCount / 250) : null;
-  const genre = artifact?.metrics?.manuscript?.genre?.trim() || "Not specified";
+  const pipelineGenre = artifact?.metrics?.manuscript?.genre?.trim() || null;
+  const diagnosedGenre = artifact?.enrichment?.diagnosed_genre?.trim() || null;
+  const genre = diagnosedGenre ?? (pipelineGenre && pipelineGenre.toLowerCase() !== 'novel' && pipelineGenre.toLowerCase() !== 'short story' ? pipelineGenre : null) ?? 'Not specified';
+  const targetAudience = artifact?.enrichment?.target_audience?.trim() || null;
   const readinessCriterion = orderedCriteria.find((criterion) => {
     const key = criterion.key.toLowerCase();
     const label = isCriterionKey(criterion.key) ? getCriterionDisplayLabel(criterion.key, evaluationScope).toLowerCase() : key;
@@ -723,6 +730,7 @@ export default async function EvaluationReportPage({
             <dl className="mt-5 grid gap-x-6 gap-y-3 text-base sm:grid-cols-2">
               <div><dt className="font-semibold text-stone-950">Report Type</dt><dd className="mt-1 text-stone-700">{reportType}</dd></div>
               <div><dt className="font-semibold text-stone-950">Genre</dt><dd className="mt-1 capitalize text-stone-700">{genre}</dd></div>
+              {targetAudience && <div className="sm:col-span-2"><dt className="font-semibold text-stone-950">Target Audience</dt><dd className="mt-1 text-stone-700">{targetAudience}</dd></div>}
               <div><dt className="font-semibold text-stone-950">Submitted Word Count</dt><dd className="mt-1 text-stone-700">{typeof displayWordCount === 'number' ? displayWordCount.toLocaleString() : 'Calculating'}</dd></div>
               <div><dt className="font-semibold text-stone-950">Estimated Manuscript Pages</dt><dd className="mt-1 text-stone-700">{estimatedPages ? `${estimatedPages.toLocaleString()} at 250 words/page` : 'Not available'}</dd></div>
               <div><dt className="font-semibold text-stone-950">Reading Grade Level</dt><dd className="mt-1 text-stone-700">{(artifact?.enrichment?.reading_grade_level ?? instantReadingGrade) != null ? `${artifact?.enrichment?.reading_grade_level ?? instantReadingGrade} (Flesch-Kincaid)` : 'Not available'}</dd></div>
@@ -1108,18 +1116,21 @@ export default async function EvaluationReportPage({
           {/* ── §10 Top Recommendations ── */}
           {(() => {
             const topRecs = buildTopRecommendations(artifact);
-            if (topRecs.length === 0) return null;
             return (
               <section className="rounded-lg border bg-white p-7 mb-7">
                 <h2 className="text-2xl font-semibold text-gray-900">Top Recommendations</h2>
-                <ul className="mt-5 space-y-4 text-base leading-7 text-gray-800">
-                  {topRecs.map((r, i) => (
-                    <li key={i} className="flex gap-2">
-                      <span className="mt-0.5 shrink-0 text-gray-600">•</span>
-                      <span>{mistakeProofText(r)}</span>
-                    </li>
-                  ))}
-                </ul>
+                {topRecs.length > 0 ? (
+                  <ul className="mt-5 space-y-4 text-base leading-7 text-gray-800">
+                    {topRecs.map((r, i) => (
+                      <li key={i} className="flex gap-2">
+                        <span className="mt-0.5 shrink-0 text-gray-600">•</span>
+                        <span>{mistakeProofText(r)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="mt-5 text-base leading-7 text-gray-600 italic">See per-criterion opportunities below for detailed revision guidance.</p>
+                )}
               </section>
             );
           })()}

@@ -296,6 +296,8 @@ export type SynthesisOutput = {
   enrichment?: {
     premise?: string;
     trigger_warnings?: string[];
+    diagnosed_genre?: string;
+    target_audience?: string;
   };
 };
 

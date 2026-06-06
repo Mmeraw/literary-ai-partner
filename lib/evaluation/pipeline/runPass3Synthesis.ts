@@ -1087,6 +1087,12 @@ export function parsePass3Response(
   const extractedTriggerWarnings = Array.isArray(rawEnrichment["trigger_warnings"])
     ? (rawEnrichment["trigger_warnings"] as unknown[]).filter((w): w is string => typeof w === "string" && w.trim().length > 0).map(w => w.trim().toLowerCase())
     : undefined;
+  const extractedDiagnosedGenre = typeof rawEnrichment["diagnosed_genre"] === "string" && rawEnrichment["diagnosed_genre"].trim()
+    ? rawEnrichment["diagnosed_genre"].trim()
+    : undefined;
+  const extractedTargetAudience = typeof rawEnrichment["target_audience"] === "string" && rawEnrichment["target_audience"].trim()
+    ? rawEnrichment["target_audience"].trim()
+    : undefined;
 
   return {
     criteria: sanitizedCriteria,
@@ -1104,8 +1110,8 @@ export function parsePass3Response(
       generated_at: new Date().toISOString(),
     },
     partial_evaluation: false, // will be overridden by runPass3Synthesis with real value
-    enrichment: (extractedPremise || extractedTriggerWarnings?.length)
-      ? { premise: extractedPremise, trigger_warnings: extractedTriggerWarnings }
+    enrichment: (extractedPremise || extractedTriggerWarnings?.length || extractedDiagnosedGenre || extractedTargetAudience)
+      ? { premise: extractedPremise, trigger_warnings: extractedTriggerWarnings, diagnosed_genre: extractedDiagnosedGenre, target_audience: extractedTargetAudience }
       : undefined,
   };
 }
