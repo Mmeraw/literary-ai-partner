@@ -46,6 +46,110 @@ jest.mock("@supabase/supabase-js", () => ({
   createClient: (...args: any[]) => createClientMock(...args),
 }));
 
+/**
+ * Helper: builds a gate-compliant EvaluationResultV2 mock.
+ *
+ * Every field satisfies the Template Completeness Gate:
+ *  - 13 canonical criteria with confidence_level
+ *  - score 9 (no density floor → no recommendations required)
+ *  - meaningful rationale, evidence, summary, strengths, risks
+ *  - enrichment with diagnosed_genre + target_audience + premise
+ */
+function makeGateCompliantEvaluationResult(overrides?: Record<string, unknown>) {
+  const CRITERION_KEYS = [
+    "concept", "narrativeDrive", "character", "voice",
+    "sceneConstruction", "dialogue", "theme", "worldbuilding",
+    "pacing", "proseControl", "tone", "narrativeClosure", "marketability",
+  ];
+
+  return {
+    schema_version: "evaluation_result_v2",
+    ids: {
+      evaluation_run_id: "run-1",
+      manuscript_id: 456,
+      user_id: "00000000-0000-0000-0000-000000000001",
+    },
+    generated_at: new Date().toISOString(),
+    engine: {
+      model: "o3",
+      provider: "openai",
+      prompt_version: "test",
+    },
+    overview: {
+      verdict: "pass",
+      overall_score_0_100: 82,
+      one_paragraph_summary:
+        "The manuscript demonstrates strong prose control and thematic integration, with a distinctive voice that carries the narrative forward effectively.",
+      top_3_strengths: [
+        "Exceptional prose control with precise, intentional sentence-level craft throughout the submission.",
+        "Strong thematic integration where themes emerge through action and consequence rather than exposition.",
+        "Distinctive narrative voice that maintains tonal authority and consistency across all sections.",
+      ],
+      top_3_risks: [
+        "Pacing occasionally stalls in mid-section transitions, reducing narrative momentum between key scenes.",
+        "Character psychological coherence wavers when secondary figures appear without sufficient motivation.",
+        "World-building environmental details are sparse in interior scenes, weakening spatial grounding.",
+      ],
+    },
+    one_paragraph_summary:
+      "The manuscript demonstrates strong prose control and thematic integration, with a distinctive voice that carries the narrative forward effectively.",
+    one_sentence_summary:
+      "A tonally assured piece with strong craft whose pacing and secondary characterization need tightening.",
+    top_3_strengths: [
+      "Exceptional prose control with precise, intentional sentence-level craft throughout the submission.",
+      "Strong thematic integration where themes emerge through action and consequence rather than exposition.",
+      "Distinctive narrative voice that maintains tonal authority and consistency across all sections.",
+    ],
+    top_3_risks: [
+      "Pacing occasionally stalls in mid-section transitions, reducing narrative momentum between key scenes.",
+      "Character psychological coherence wavers when secondary figures appear without sufficient motivation.",
+      "World-building environmental details are sparse in interior scenes, weakening spatial grounding.",
+    ],
+    criteria: CRITERION_KEYS.map((key) => ({
+      key,
+      scorable: true,
+      status: "SCORABLE",
+      signal_present: true,
+      signal_strength: "SUFFICIENT",
+      confidence_band: "MEDIUM",
+      confidence_level: "Moderate",
+      score_0_10: 9,
+      rationale:
+        "Criterion is well-supported by manuscript evidence and multi-pass synthesis confirms consistent quality.",
+      evidence: [
+        { snippet: "Evidence anchor from the submitted manuscript demonstrating this criterion in context." },
+      ],
+      recommendations: [],
+    })),
+    recommendations: {
+      quick_wins: [],
+      strategic_revisions: [],
+    },
+    metrics: {
+      manuscript: {
+        genre: "literary fiction",
+        target_audience: "Adult readers of contemporary literary fiction",
+        word_count: 12000,
+      },
+      processing: {},
+    },
+    enrichment: {
+      premise:
+        "A deeply personal narrative exploring identity and transformation through unflinching confessional prose.",
+      diagnosed_genre: "Contemporary Literary Fiction",
+      target_audience: "Adult readers of contemporary literary fiction",
+    },
+    artifacts: [],
+    governance: {
+      confidence: 0.9,
+      warnings: [],
+      limitations: [],
+      policy_family: "multi-pass-dual-axis",
+    },
+    ...overrides,
+  };
+}
+
 function makeSupabaseStub() {
   const evaluationJobUpdates: Array<Record<string, unknown>> = [];
   const rpcCalls: Array<{ fn: string; args?: Record<string, unknown> }> = [];
@@ -281,9 +385,17 @@ describe("processEvaluationJob canonical pipeline integration", () => {
         overall: {
           overall_score_0_100: 82,
           verdict: "pass",
-          one_paragraph_summary: "Summary",
-          top_3_strengths: [],
-          top_3_risks: [],
+          one_paragraph_summary: "The manuscript demonstrates strong prose control and thematic integration.",
+          top_3_strengths: [
+            "Exceptional prose control throughout the submission.",
+            "Strong thematic integration through action and consequence.",
+            "Distinctive narrative voice with tonal authority.",
+          ],
+          top_3_risks: [
+            "Pacing occasionally stalls in mid-section transitions.",
+            "Character coherence wavers for secondary figures.",
+            "World-building details are sparse in interior scenes.",
+          ],
         },
         metadata: {
           pass1_model: "gpt-4o",
@@ -341,68 +453,7 @@ describe("processEvaluationJob canonical pipeline integration", () => {
       ],
     });
 
-    synthesisToEvaluationResultV2Mock.mockReturnValue({
-      schema_version: "evaluation_result_v2",
-      ids: {
-        evaluation_run_id: "run-1",
-        manuscript_id: 456,
-        user_id: "00000000-0000-0000-0000-000000000001",
-      },
-      generated_at: new Date().toISOString(),
-      engine: {
-        model: "o3",
-        provider: "openai",
-        prompt_version: "test",
-      },
-      overview: {
-        verdict: "pass",
-        overall_score_0_100: 82,
-        one_paragraph_summary: "Summary",
-        top_3_strengths: [],
-        top_3_risks: [],
-      },
-      criteria: new Array(13).fill(null).map((_, idx) => ({
-        key: [
-          "concept",
-          "narrativeDrive",
-          "character",
-          "voice",
-          "sceneConstruction",
-          "dialogue",
-          "theme",
-          "worldbuilding",
-          "pacing",
-          "proseControl",
-          "tone",
-          "narrativeClosure",
-          "marketability",
-        ][idx],
-        scorable: true,
-        status: "SCORABLE",
-        signal_present: true,
-        signal_strength: "SUFFICIENT",
-        confidence_band: "MEDIUM",
-        score_0_10: 7,
-        rationale: "Criterion is supported by manuscript evidence and synthesis.",
-        evidence: [{ snippet: "Evidence snippet with sufficient detail for quality gate checks." }],
-        recommendations: [],
-      })),
-      recommendations: {
-        quick_wins: [],
-        strategic_revisions: [],
-      },
-      metrics: {
-        manuscript: {},
-        processing: {},
-      },
-      artifacts: [],
-      governance: {
-        confidence: 0.9,
-        warnings: [],
-        limitations: [],
-        policy_family: "multi-pass-dual-axis",
-      },
-    });
+    synthesisToEvaluationResultV2Mock.mockReturnValue(makeGateCompliantEvaluationResult());
 
     runQualityGateV2Mock.mockReturnValue({
       pass: true,
@@ -487,9 +538,17 @@ describe("processEvaluationJob canonical pipeline integration", () => {
         overall: {
           overall_score_0_100: 82,
           verdict: "pass",
-          one_paragraph_summary: "Summary",
-          top_3_strengths: [],
-          top_3_risks: [],
+          one_paragraph_summary: "The manuscript demonstrates strong prose control and thematic integration.",
+          top_3_strengths: [
+            "Exceptional prose control throughout the submission.",
+            "Strong thematic integration through action and consequence.",
+            "Distinctive narrative voice with tonal authority.",
+          ],
+          top_3_risks: [
+            "Pacing occasionally stalls in mid-section transitions.",
+            "Character coherence wavers for secondary figures.",
+            "World-building details are sparse in interior scenes.",
+          ],
         },
         metadata: {
           pass1_model: "gpt-4o",
@@ -506,68 +565,7 @@ describe("processEvaluationJob canonical pipeline integration", () => {
       pass4_governance: { ok: true },
     });
 
-    synthesisToEvaluationResultV2Mock.mockReturnValue({
-      schema_version: "evaluation_result_v2",
-      ids: {
-        evaluation_run_id: "run-1",
-        manuscript_id: 456,
-        user_id: "00000000-0000-0000-0000-000000000001",
-      },
-      generated_at: new Date().toISOString(),
-      engine: {
-        model: "o3",
-        provider: "openai",
-        prompt_version: "test",
-      },
-      overview: {
-        verdict: "pass",
-        overall_score_0_100: 82,
-        one_paragraph_summary: "Summary",
-        top_3_strengths: [],
-        top_3_risks: [],
-      },
-      criteria: new Array(13).fill(null).map((_, idx) => ({
-        key: [
-          "concept",
-          "narrativeDrive",
-          "character",
-          "voice",
-          "sceneConstruction",
-          "dialogue",
-          "theme",
-          "worldbuilding",
-          "pacing",
-          "proseControl",
-          "tone",
-          "narrativeClosure",
-          "marketability",
-        ][idx],
-        scorable: true,
-        status: "SCORABLE",
-        signal_present: true,
-        signal_strength: "SUFFICIENT",
-        confidence_band: "MEDIUM",
-        score_0_10: 7,
-        rationale: "Criterion is supported by manuscript evidence and synthesis.",
-        evidence: [{ snippet: "Evidence snippet with sufficient detail for quality gate checks." }],
-        recommendations: [],
-      })),
-      recommendations: {
-        quick_wins: [],
-        strategic_revisions: [],
-      },
-      metrics: {
-        manuscript: {},
-        processing: {},
-      },
-      artifacts: [],
-      governance: {
-        confidence: 0.9,
-        warnings: [],
-        limitations: [],
-        policy_family: "multi-pass-dual-axis",
-      },
-    });
+    synthesisToEvaluationResultV2Mock.mockReturnValue(makeGateCompliantEvaluationResult());
 
     runQualityGateV2Mock.mockReturnValue({
       pass: true,
@@ -607,9 +605,17 @@ describe("processEvaluationJob canonical pipeline integration", () => {
         overall: {
           overall_score_0_100: 82,
           verdict: "pass",
-          one_paragraph_summary: "Summary",
-          top_3_strengths: [],
-          top_3_risks: [],
+          one_paragraph_summary: "The manuscript demonstrates strong prose control and thematic integration.",
+          top_3_strengths: [
+            "Exceptional prose control throughout the submission.",
+            "Strong thematic integration through action and consequence.",
+            "Distinctive narrative voice with tonal authority.",
+          ],
+          top_3_risks: [
+            "Pacing occasionally stalls in mid-section transitions.",
+            "Character coherence wavers for secondary figures.",
+            "World-building details are sparse in interior scenes.",
+          ],
         },
         metadata: {
           pass1_model: "gpt-4o",
@@ -626,68 +632,7 @@ describe("processEvaluationJob canonical pipeline integration", () => {
       pass4_governance: { ok: true },
     });
 
-    const baseEvaluationResult = {
-      schema_version: "evaluation_result_v2",
-      ids: {
-        evaluation_run_id: "run-1",
-        manuscript_id: 456,
-        user_id: "00000000-0000-0000-0000-000000000001",
-      },
-      generated_at: new Date().toISOString(),
-      engine: {
-        model: "o3",
-        provider: "openai",
-        prompt_version: "test",
-      },
-      overview: {
-        verdict: "pass",
-        overall_score_0_100: 82,
-        one_paragraph_summary: "Summary",
-        top_3_strengths: [],
-        top_3_risks: [],
-      },
-      criteria: new Array(13).fill(null).map((_, idx) => ({
-        key: [
-          "concept",
-          "narrativeDrive",
-          "character",
-          "voice",
-          "sceneConstruction",
-          "dialogue",
-          "theme",
-          "worldbuilding",
-          "pacing",
-          "proseControl",
-          "tone",
-          "narrativeClosure",
-          "marketability",
-        ][idx],
-        scorable: true,
-        status: "SCORABLE",
-        signal_present: true,
-        signal_strength: "SUFFICIENT",
-        confidence_band: "MEDIUM",
-        score_0_10: 7,
-        rationale: "Criterion is supported by manuscript evidence and synthesis.",
-        evidence: [{ snippet: "Evidence snippet with sufficient detail for quality gate checks." }],
-        recommendations: [],
-      })),
-      recommendations: {
-        quick_wins: [],
-        strategic_revisions: [],
-      },
-      metrics: {
-        manuscript: {},
-        processing: {},
-      },
-      artifacts: [],
-      governance: {
-        confidence: 0.9,
-        warnings: [],
-        limitations: [],
-        policy_family: "multi-pass-dual-axis",
-      },
-    };
+    const baseEvaluationResult = makeGateCompliantEvaluationResult();
 
     synthesisToEvaluationResultV2Mock.mockReturnValue(baseEvaluationResult);
 
@@ -1275,11 +1220,19 @@ describe("processEvaluationJob canonical pipeline integration", () => {
       synthesis: {
         criteria: [],
         overall: {
-          overall_score_0_100: 50,
-          verdict: "revise",
-          one_paragraph_summary: "Summary",
-          top_3_strengths: [],
-          top_3_risks: [],
+          overall_score_0_100: 82,
+          verdict: "pass",
+          one_paragraph_summary: "The manuscript demonstrates strong prose control and thematic integration.",
+          top_3_strengths: [
+            "Exceptional prose control throughout the submission.",
+            "Strong thematic integration through action and consequence.",
+            "Distinctive narrative voice with tonal authority.",
+          ],
+          top_3_risks: [
+            "Pacing occasionally stalls in mid-section transitions.",
+            "Character coherence wavers for secondary figures.",
+            "World-building details are sparse in interior scenes.",
+          ],
         },
         metadata: {
           pass1_model: "gpt-4o",
@@ -1296,60 +1249,22 @@ describe("processEvaluationJob canonical pipeline integration", () => {
       pass4_governance: { ok: true },
     });
 
-    synthesisToEvaluationResultV2Mock.mockReturnValue({
-      schema_version: "evaluation_result_v2",
-      ids: {
-        evaluation_run_id: "run-log-mode-1",
-        manuscript_id: 456,
-        user_id: "00000000-0000-0000-0000-000000000001",
-      },
-      generated_at: new Date().toISOString(),
-      engine: { model: "o3", provider: "openai", prompt_version: "test" },
-      overview: {
-        verdict: "revise",
-        overall_score_0_100: 50,
-        scored_criteria_count: 13,
-        one_paragraph_summary: "Summary",
-        top_3_strengths: [],
-        top_3_risks: [],
-      },
-      criteria: new Array(13).fill(null).map((_, idx) => ({
-        key: [
-          "concept",
-          "narrativeDrive",
-          "character",
-          "voice",
-          "sceneConstruction",
-          "dialogue",
-          "theme",
-          "worldbuilding",
-          "pacing",
-          "proseControl",
-          "tone",
-          "narrativeClosure",
-          "marketability",
-        ][idx],
-        scorable: true,
-        status: "SCORABLE",
-        signal_present: true,
-        signal_strength: "SUFFICIENT",
-        confidence_band: "MEDIUM",
-        score_0_10: 7,
-        rationale: "Criterion rationale",
-        evidence: [{ snippet: "Evidence snippet with sufficient detail for quality gate checks." }],
-        recommendations: [],
-      })),
-      recommendations: { quick_wins: [], strategic_revisions: [] },
-      metrics: { manuscript: {}, processing: {} },
-      artifacts: [],
-      governance: {
-        confidence: 0.9,
-        warnings: [],
-        limitations: [],
-        policy_family: "multi-pass-dual-axis",
-        transparency: {},
-      },
-    });
+    synthesisToEvaluationResultV2Mock.mockReturnValue(
+      makeGateCompliantEvaluationResult({
+        ids: {
+          evaluation_run_id: "run-log-mode-1",
+          manuscript_id: 456,
+          user_id: "00000000-0000-0000-0000-000000000001",
+        },
+        governance: {
+          confidence: 0.9,
+          warnings: [],
+          limitations: [],
+          policy_family: "multi-pass-dual-axis",
+          transparency: {},
+        },
+      }),
+    );
 
     runQualityGateV2Mock.mockReturnValue({
       pass: true,
