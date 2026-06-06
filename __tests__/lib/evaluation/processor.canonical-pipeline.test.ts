@@ -40,6 +40,10 @@ jest.mock("openai", () => ({
   default: OpenAIMock,
 }));
 
+jest.mock("@/lib/evaluation/pipeline/templateCompletenessGate", () => ({
+  validateTemplateCompleteness: () => ({ pass: true, violations: [], warnings: [], summary: "ok" }),
+}));
+
 const createClientMock = jest.fn();
 
 jest.mock("@supabase/supabase-js", () => ({
