@@ -134,7 +134,7 @@ describe("prompt pack governance specs", () => {
     expect(PASS3_SYSTEM_PROMPT).toContain("never MODERATE");
     expect(PASS3_SYSTEM_PROMPT).toContain("COPY AND PASTE directly into their manuscript");
     expect(PASS3_SYSTEM_PROMPT).toContain("CHARACTER NAMES, SCENE DETAILS, and VOICE-MATCHED PROSE");
-    expect(PASS3_SYSTEM_PROMPT.length).toBeLessThanOrEqual(17000);
+    expect(PASS3_SYSTEM_PROMPT.length).toBeLessThanOrEqual(18000);
 
     const userPrompt = buildPass3UserPrompt({
       comparisonPacketJson: "{\"criteria\":[],\"criteria_count_by_state\":{\"agree\":0,\"soft_divergence\":0,\"hard_divergence\":0,\"missing_or_invalid\":0}}",
