@@ -240,6 +240,8 @@ export type SynthesizedCriterion = {
     symptom?: string;
     /** What must not be damaged or lost when applying this fix. */
     mistake_proofing?: string;
+    /** What this revision could damage — craft element at risk if this fix is applied. */
+    potential_damage?: string;
   }[];
   /** Deterministic confidence score derived from evidence support + explanation quality (0-100). */
   confidence_score_0_100?: number;
@@ -298,6 +300,8 @@ export type SynthesisOutput = {
     trigger_warnings?: string[];
     diagnosed_genre?: string;
     target_audience?: string;
+    /** The manuscript's primary technique for generating reader engagement. */
+    dominant_craft_engine?: string;
   };
 };
 

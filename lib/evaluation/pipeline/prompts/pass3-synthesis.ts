@@ -59,6 +59,7 @@ REC CONTRACT — SEVEN PARTS (required for every recommendation):
 - READER EFFECT: expected_impact must include reader-facing outcome (reader/urgency/clarity/momentum/immersion/engagement/stakes/tension/payoff/coherence/trust/comprehension).
 - MISTAKE-PROOFING: emit a "mistake_proofing" field — what must NOT be damaged, lost, or overwritten when applying this fix (preserve voice, preserve mystery, do not resolve tension too early, do not overexplain, etc.). If no guardrail is needed, omit the field.
 - CAUSE DIAGNOSIS: mechanism field must explain WHY the issue exists structurally (not just WHAT to change).
+- HARM TEST (REQUIRED): Before emitting any recommendation, evaluate: "What could this revision DAMAGE?" Emit a "potential_damage" field naming the specific craft element at risk (e.g., "Compressing this passage may damage the father-son chemistry that grounds the chapter's emotional core," or "Cutting this digression removes a thematic echo of human control vs. nature"). If the potential damage outweighs the expected improvement, suppress the recommendation entirely and emit recommendation_status = "gate_suppressed_no_safe_recommendation" with rationale. If the recommendation survives the harm test, the potential_damage field serves as a guardrail the author can use when revising.
 
 Reject patterns: no location/symptom/mechanism/concrete move/reader effect, or generic whole-manuscript advice.
 
@@ -92,6 +93,18 @@ GATE 6 — LOW-PRIORITY / HIGH-CONFIDENCE SUPPRESSION
 If recommendation priority = "low" AND criterion confidence_band = "HIGH", suppress or demote to a parenthetical note. Do not emit as standalone recommendation.
 → This blocks: "Name a highway marker or ejido" on a worldbuilding criterion already rated High Confidence and 8/10.
 
+GATE 7 — GENRE-FIT OVERRIDE (CRITICAL)
+Before emitting ANY recommendation that advises increasing momentum, pacing, forward motion, hook strength, plot closure, decision beats, or narrative acceleration, you MUST first evaluate:
+"Is this actually a weakness for the DIAGNOSED GENRE of this manuscript?"
+
+Genre-aware suppression rules:
+- Literary fiction, speculative literary fiction, memoir, spiritual memoir, confessional fiction, eco-fiction, and contemplative fiction often derive power from atmosphere, implication, reflection, thematic resonance, emotional accumulation, and environmental tension rather than plot acceleration.
+- For these genres: atmosphere IS plot. Ambiguity IS closure. Reflection IS momentum.
+- Do NOT recommend "increase momentum," "add a decision beat," "foreground suspense," or "strengthen hook" when the manuscript is deliberately using contemplative pacing, accumulating silence, environmental dread, or thematic layering as its primary craft engine.
+- Instead, reframe as: recommendation_status = "genre_appropriate_no_revision_warranted" with recommendation_status_rationale explaining that the technique serves the diagnosed genre.
+- If you still believe a trim or tightening would help, frame it as OPTIONAL with explicit acknowledgment: "This passage serves [function]. If the author finds it runs long, consider trimming by 10–15% while preserving [function]."
+→ Rule: Never apply commercial-fiction pacing standards to literary fiction. A thriller chapter that ends on atmosphere is a bug. A literary fiction chapter that ends on atmosphere is working as intended.
+
 RECOMMENDATION-OR-RATIONALE COVERAGE CONTRACT (replaces recommendation floor):
 Every scored criterion MUST return either:
 - at least one valid evidence-grounded recommendation; OR
@@ -104,6 +117,7 @@ When recommendations is empty, emit BOTH fields on the criterion object:
 Allowed recommendation_status values (exact spellings):
 - recommendation_provided
 - no_recommendation_warranted
+- genre_appropriate_no_revision_warranted
 - criterion_not_applicable
 - insufficient_evidence
 - gate_suppressed_no_safe_recommendation
@@ -149,19 +163,20 @@ Recommendation density floor (for criteria scoring ≤8):
 - Spread recommendations across different sections/zones of the text — do not cluster all recommendations in the opening paragraphs.
 - TOTAL CAP: The evaluation may surface up to 100 revision opportunities across all criteria combined for long-form manuscripts (≥25,000 words). For short-form manuscripts (<25,000 words), the cap is 50 revision opportunities. Prioritize MUST severity first, then SHOULD, then COULD. If the evidence supports more than the cap, emit the most impactful opportunities up to the cap and stop.
 
-HARD ENFORCEMENT — SCORE ≤8 RECOMMENDATION CONTRACT:
-Any criterion with final_score_0_10 ≤ 8 MUST include ALL of the following. Omission is a contract violation:
+SCORE ≤8 RECOMMENDATION CONTRACT:
+Any criterion with final_score_0_10 ≤ 8 MUST include:
 1. fit_summary — 2–3 sentences (REQUIRED, non-empty)
 2. gap_summary — 2–3 sentences (REQUIRED, non-empty)
-3. recommendations[] — NON-EMPTY array with at least 2 entries for score 8, at least 4 for score 6–7, at least 5 for score ≤5
+3. recommendations[] — For score ≤5: at least 2 entries. For score 6–7: at least 1 entry. For score 8: 0–2 entries (recommendations are OPTIONAL at score 8 — only emit when a genuinely evidence-backed, genre-appropriate revision opportunity exists).
 4. Each recommendation must include the full seven-part contract (priority, action, expected_impact, anchor_snippet, issue_family, strategic_lever, revision_granularity) PLUS candidate_text_a/b/c
-5. recommendation_status = "recommendations_provided"
-DO NOT return an empty recommendations array for any criterion scoring ≤8. If you scored a criterion 8 or below, you MUST have evidence-backed recommendations to justify that score. A score ≤8 with zero recommendations is self-contradictory and will be flagged as a pipeline defect.
+5. recommendation_status = "recommendations_provided" when recommendations are emitted; "genre_appropriate_no_revision_warranted" or "no_recommendation_warranted" when recommendations[] is empty at score 8.
+
+IMPORTANT: A score of 8 with zero recommendations is NOT self-contradictory — it means the gap is real but minor, and no safe revision can be recommended without risking damage to existing strengths. For score ≤7 with zero recommendations, recommendation_status MUST be "insufficient_evidence" or "gate_suppressed_no_safe_recommendation" with a concrete rationale.
 
 Return ONLY JSON with keys:
 - criteria MUST be a flat array (not grouped by state).
 - Per-criterion fields: key, final_score_0_10, fit_summary, gap_summary, final_rationale, recommendations[]; hard_divergence adds disputed=true.
-- Each recommendation: priority, action, expected_impact, anchor_snippet, source_pass, issue_family, strategic_lever, revision_granularity, mechanism, specific_fix, reader_effect, symptom, mistake_proofing, candidate_text_a, candidate_text_b, candidate_text_c, revision_operation, manuscript_coordinates.
+- Each recommendation: priority, action, expected_impact, anchor_snippet, source_pass, issue_family, strategic_lever, revision_granularity, mechanism, specific_fix, reader_effect, symptom, mistake_proofing, potential_damage, candidate_text_a, candidate_text_b, candidate_text_c, revision_operation, manuscript_coordinates.
 - Each recommendation.action MUST be one sentence and <= 300 characters.
 - candidate_text_a: The primary recommended prose repair. This MUST be verbatim manuscript-ready text the author can COPY AND PASTE directly into their manuscript file. Write it in the author's voice using their characters' names, their world's vocabulary, and their prose rhythm. It must read as a seamless continuation or replacement of the anchor_snippet.
 - candidate_text_b: A rhythm variant. Same fix direction, different cadence or sentence structure. Must be materially distinct from A. Still must be copy-paste-ready narrative prose with character names and scene-specific detail.
@@ -179,7 +194,8 @@ Return ONLY JSON with keys:
   - top_3_strengths and top_3_risks must be non-mirrored aspects.
   - never emit queryable_now when verdict=fail or when 3+ criteria are below 5.
   - one_paragraph_summary MUST name every criterion scoring <=5 by readable key.
-- enrichment { premise, trigger_warnings[], diagnosed_genre, target_audience }
+- enrichment { premise, trigger_warnings[], diagnosed_genre, target_audience, dominant_craft_engine }
+  - dominant_craft_engine: Identify the manuscript's PRIMARY technique for generating reader engagement. Choose exactly one: "suspense_engine" (plot-driven tension, cliffhangers, reveals), "atmosphere_engine" (environmental dread, accumulating silence, sensory immersion, tonal pressure), "voice_engine" (narrator personality, humor, rhetorical style carries the reader), "emotional_engine" (character interiority, relationship dynamics, grief/joy/fear), "thematic_engine" (ideas, philosophical argument, moral complexity drives interest), "structural_engine" (timeline manipulation, POV shifts, formal innovation). Include a 1-sentence rationale. This field calibrates recommendations — an atmosphere_engine manuscript should not receive "increase plot momentum" advice.
   - premise: 1–2 sentence elevator pitch that captures the core dramatic situation — protagonist or central force, primary conflict/tension, and emotional/tonal register. Suitable for query letters, back-cover copy, or marketing. Do not begin with the title or "This is a story about."
   - trigger_warnings: Array of content advisory categories this manuscript requires. Use specific, standardized terms from: graphic violence, sexual assault, domestic abuse, substance abuse, self-harm, suicidal ideation, animal cruelty, body horror, child endangerment, eating disorders, racial violence, homophobia, transphobia, torture, kidnapping, stalking, gun violence, war/combat, genocide, miscarriage/infant loss, sexual content (explicit), non-consensual sexual contact. Only include categories supported by textual evidence. If no warnings apply, emit an empty array [].
   - diagnosed_genre: The specific literary genre diagnosed from the text. Must be a recognized publishing genre — NOT a format like "novel" or "short story." Examples: literary fiction, memoir, fantasy, romance, thriller, mystery, science fiction, horror, western, historical fiction, self-help, cookbook, young adult, magical realism, speculative fiction, confessional fiction, spiritual memoir, crime fiction, etc. Diagnose the genre that best fits the submitted text based on its content, themes, voice, and conventions.

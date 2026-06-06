@@ -1093,6 +1093,9 @@ export function parsePass3Response(
   const extractedTargetAudience = typeof rawEnrichment["target_audience"] === "string" && rawEnrichment["target_audience"].trim()
     ? rawEnrichment["target_audience"].trim()
     : undefined;
+  const extractedDominantCraftEngine = typeof rawEnrichment["dominant_craft_engine"] === "string" && rawEnrichment["dominant_craft_engine"].trim()
+    ? rawEnrichment["dominant_craft_engine"].trim()
+    : undefined;
 
   return {
     criteria: sanitizedCriteria,
@@ -1110,8 +1113,8 @@ export function parsePass3Response(
       generated_at: new Date().toISOString(),
     },
     partial_evaluation: false, // will be overridden by runPass3Synthesis with real value
-    enrichment: (extractedPremise || extractedTriggerWarnings?.length || extractedDiagnosedGenre || extractedTargetAudience)
-      ? { premise: extractedPremise, trigger_warnings: extractedTriggerWarnings, diagnosed_genre: extractedDiagnosedGenre, target_audience: extractedTargetAudience }
+    enrichment: (extractedPremise || extractedTriggerWarnings?.length || extractedDiagnosedGenre || extractedTargetAudience || extractedDominantCraftEngine)
+      ? { premise: extractedPremise, trigger_warnings: extractedTriggerWarnings, diagnosed_genre: extractedDiagnosedGenre, target_audience: extractedTargetAudience, dominant_craft_engine: extractedDominantCraftEngine }
       : undefined,
   };
 }
