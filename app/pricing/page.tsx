@@ -80,6 +80,16 @@ const actionPacks = [
 
 const faqs = [
   {
+    question: "What can RevisionGrade evaluate?",
+    answer:
+      "RevisionGrade evaluates full manuscripts, partial manuscripts, individual chapters, and serious narrative excerpts, including novels, novellas, book-length memoirs, narrative nonfiction manuscripts, and serious fiction or nonfiction excerpts.",
+  },
+  {
+    question: "What does RevisionGrade not evaluate?",
+    answer:
+      "RevisionGrade does not evaluate personal letters, business letters, professional correspondence, employment cover letters, resumes or CVs, academic papers, research papers, legal documents, contracts, marketing copy, sales materials, query letters, synopses, or author biographies.",
+  },
+  {
     question: "What is the difference between an audit and an Editorial Action?",
     answer:
       "An audit is the fixed-price diagnostic: it reveals the manuscript’s readiness profile, including strengths, priority signals, and the kind of editorial support the work may benefit from next. Editorial Actions unlock and repair specific opportunities through granular opportunity cards and governed repair proposals.",
@@ -119,6 +129,34 @@ const faqs = [
     answer:
       "No. RevisionGrade helps you understand what kind of editorial help your manuscript may benefit from before you spend money on the wrong intervention: developmental editing, line editing, copyediting, proofreading, market positioning, or deeper structural repair.",
   },
+];
+
+const evaluates = [
+  "Full novels",
+  "Partial novels",
+  "Individual chapters",
+  "Novel excerpts",
+  "Novellas",
+  "Book-length memoirs",
+  "Narrative nonfiction manuscripts",
+  "Serious fiction and nonfiction excerpts",
+];
+
+const unsupported = [
+  "Personal letters",
+  "Business letters",
+  "Professional correspondence",
+  "Employment cover letters",
+  "Resumes or CVs",
+  "Academic papers",
+  "Research papers",
+  "Legal documents",
+  "Contracts",
+  "Marketing copy",
+  "Sales materials",
+  "Query letters",
+  "Synopses",
+  "Author biographies",
 ];
 
 function SectionLabel({ children }: { children: string }) {
@@ -162,7 +200,7 @@ export default function PricingPage() {
               </h2>
             </div>
             <p className="max-w-xl text-sm leading-7 text-rg-cream2/70">
-              Paid audit selections open secure Stripe Checkout first. After successful payment, buyers are directed into the evaluation product.
+              Paid audit selections open a purchase acknowledgment first, then secure Stripe Checkout. After successful payment, buyers are directed into the evaluation product.
             </p>
           </div>
 
@@ -206,6 +244,13 @@ export default function PricingPage() {
                 </PricingCheckoutButton>
               </article>
             ))}
+          </div>
+
+          <div className="mt-8 rounded-2xl border border-rg-gold/30 bg-rg-ink/80 p-5 text-sm leading-7 text-rg-cream2/80">
+            <p className="font-rg-mono text-[0.65rem] uppercase tracking-[0.18em] text-rg-gold">Before purchasing</p>
+            <p className="mt-3">
+              RevisionGrade evaluates full manuscripts, partial manuscripts, chapters, and serious narrative excerpts. It does not evaluate letters, resumes, academic papers, legal documents, contracts, marketing materials, query letters, synopses, or author biographies. Paid checkout requires acknowledgment of these limits before purchase.
+            </p>
           </div>
 
           <div className="mt-8 rounded-2xl border border-rg-gold/30 bg-rg-ink/80 p-5 text-sm leading-7 text-rg-cream2/80">
@@ -265,6 +310,34 @@ export default function PricingPage() {
               Structural problems need structural diagnosis. Polish comes later.
             </p>
           </div>
+        </div>
+      </section>
+
+      <section className="mx-auto max-w-7xl px-5 py-16 sm:px-6 md:py-20">
+        <SectionLabel>What RevisionGrade Can Evaluate</SectionLabel>
+        <h2 className="mt-4 font-rg-serif text-3xl text-rg-cream sm:text-4xl md:text-5xl">
+          Manuscript diagnosis, not generic document scoring.
+        </h2>
+        <div className="mt-10 grid gap-5 lg:grid-cols-2">
+          <article className="border border-rg-gold/30 bg-rg-ink2/60 p-6 md:p-7">
+            <h3 className="font-rg-serif text-2xl text-rg-cream">RevisionGrade evaluates</h3>
+            <ul className="mt-5 grid gap-2 text-sm leading-6 text-rg-cream2/80 sm:grid-cols-2">
+              {evaluates.map((item) => (
+                <li key={item}>• {item}</li>
+              ))}
+            </ul>
+          </article>
+          <article className="border border-rg-cream2/12 bg-rg-ink2/60 p-6 md:p-7">
+            <h3 className="font-rg-serif text-2xl text-rg-cream">RevisionGrade does not evaluate</h3>
+            <ul className="mt-5 grid gap-2 text-sm leading-6 text-rg-cream2/80 sm:grid-cols-2">
+              {unsupported.map((item) => (
+                <li key={item}>• {item}</li>
+              ))}
+            </ul>
+            <p className="mt-5 text-sm leading-7 text-rg-cream2/75">
+              Agent Readiness™ may help create and prepare query letters, synopses, author biographies, and submission materials, but these materials are not evaluated through RevisionGrade&apos;s manuscript-evaluation engine.
+            </p>
+          </article>
         </div>
       </section>
 
