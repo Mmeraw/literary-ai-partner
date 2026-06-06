@@ -112,8 +112,15 @@ function updateOperations(operations: RecordedOperation[]) {
 }
 
 describe('cancelEvaluationAsUser', () => {
+  let consoleErrorSpy: jest.SpyInstance;
+
   beforeEach(() => {
     jest.clearAllMocks();
+    consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+  });
+
+  afterEach(() => {
+    consoleErrorSpy.mockRestore();
   });
 
   test('cancels queued jobs through a legal queued -> running -> failed sequence', async () => {
