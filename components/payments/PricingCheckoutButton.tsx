@@ -96,7 +96,7 @@ export default function PricingCheckoutButton({ productId, href, children, class
                     checked={acceptedItems[index]}
                     onChange={() => toggleAccepted(index)}
                     disabled={loading}
-                    className="mt-1 h-5 w-5 shrink-0 accent-rg-gold"
+                    className="mt-1 h-5 w-5 shrink-0 accent-[#A36A00]"
                   />
                   <span>{item}</span>
                 </label>
