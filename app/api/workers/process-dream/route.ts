@@ -31,6 +31,8 @@ import { checkServiceRoleAuth } from '@/lib/auth/api';
 import crypto from 'crypto';
 import { getEvaluationRuntimeConfig } from '@/lib/config/evaluationRuntimeConfig';
 import { isPipelineEnabled, pipelineDisabledResponse } from '@/lib/config/pipelineGuard';
+import { enforceApiRateLimit } from '@/lib/security/apiRateLimit';
+import { requireWorkerSecret } from '@/lib/security/apiGuards';
 import { runPass3bLongform } from '@/lib/evaluation/pipeline/runPass3bLongform';
 import {
   buildPass2aStructuredContext,
@@ -725,6 +727,17 @@ async function processDreamJob(
 // ── Route handler ─────────────────────────────────────────────────────────────
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
+  const rateLimitDenied = enforceApiRateLimit(req, {
+    bucket: 'worker_process_dream',
+    limit: 120,
+    windowMs: 60 * 1000,
+    keySuffix: req.headers.get('x-vercel-id') || undefined,
+  });
+  if (rateLimitDenied) return rateLimitDenied;
+
+  const workerSecretDenied = requireWorkerSecret(req);
+  if (workerSecretDenied) return workerSecretDenied;
+
   const traceId = crypto.randomUUID().slice(0, 8);
   const startMs = Date.now();
 
@@ -821,7 +834,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     const errMsg = err instanceof Error ? err.message : String(err);
     console.error(`[DreamWorker] ${traceId}: fatal error: ${errMsg}`);
     return NextResponse.json(
-      { ok: false, error: errMsg, trace_id: traceId, elapsed_ms: Date.now() - startMs },
+      { ok: false, error: 'Worker failed', trace_id: traceId, elapsed_ms: Date.now() - startMs },
       { status: 500 },
     );
   }

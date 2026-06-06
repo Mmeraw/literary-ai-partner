@@ -23,6 +23,8 @@ import { failStaleRunningJobs } from '@/lib/evaluation/processor';
 import { rescueOrphanedJob } from '@/lib/jobs/rescueOrphanedJob';
 import { calculateNextAttemptAt } from '@/lib/jobs/retryBackoff';
 import { createClient } from '@supabase/supabase-js';
+import { enforceApiRateLimit } from '@/lib/security/apiRateLimit';
+import { requireWorkerSecret } from '@/lib/security/apiGuards';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -217,6 +219,17 @@ async function rescueNullPulseOrphans(): Promise<{ found: number; rescued: numbe
 }
 
 export async function GET(req: NextRequest) {
+  const rateLimitDenied = enforceApiRateLimit(req, {
+    bucket: 'worker_watchdog',
+    limit: 120,
+    windowMs: 60 * 1000,
+    keySuffix: req.headers.get('x-vercel-id') || undefined,
+  });
+  if (rateLimitDenied) return rateLimitDenied;
+
+  const workerSecretDenied = requireWorkerSecret(req);
+  if (workerSecretDenied) return workerSecretDenied;
+
   if (!isAuthorized(req)) {
     return NextResponse.json({ ok: false, error: 'Unauthorized' }, { status: 401 });
   }
@@ -270,7 +283,7 @@ export async function GET(req: NextRequest) {
     console.error(`[Watchdog] traceId=${traceId} error: ${message}`);
 
     return NextResponse.json(
-      { ok: false, traceId, error: message, durationMs, timestamp: new Date().toISOString() },
+      { ok: false, traceId, error: 'Watchdog failed', durationMs, timestamp: new Date().toISOString() },
       { status: 500 },
     );
   }

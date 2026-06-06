@@ -4,8 +4,9 @@ import React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { appendUserActivity } from "@/lib/activity/userActivity";
+import { canShowCancelEvaluation } from "@/lib/evaluation/cancelEvaluationPolicy";
 import { useJobs } from "../../lib/jobs/useJobs";
-import { getJobDisplayInfo, sortJobsByCreatedAtDesc, canShowCancelButton } from "../../lib/jobs/ui-helpers";
+import { sortJobsByCreatedAtDesc } from "../../lib/jobs/ui-helpers";
 import ManuscriptSubmissionForm from "./ManuscriptSubmissionForm";
 import CompletionBanner from "./CompletionBanner";
 import { CancelEvaluationButton } from "./CancelEvaluationButton";
@@ -40,48 +41,6 @@ function formatSubmittedAt(value) {
   });
 }
 
-function formatPhaseName(value) {
-  const normalized = String(value).replace(/^phase_/i, "").replace(/_/g, " ").trim();
-  if (!normalized) return "—";
-  if (/^0$/.test(normalized)) return "Phase 0";
-  if (/^1a$/i.test(normalized)) return "Phase 1A";
-  if (/^2$/.test(normalized)) return "Phase 2";
-  if (/^3a$/i.test(normalized)) return "Phase 3A";
-  if (/^3b$/i.test(normalized)) return "Phase 3B";
-  return normalized.replace(/\b\w/g, (char) => char.toUpperCase());
-}
-
-function compactFailureMessage(message) {
-  const normalized = String(message).replace(/[_-]/g, " ").replace(/\s+/g, " ").trim();
-  if (!normalized) return "Failed";
-  if (/pass\s*3a|phase\s*3a/i.test(normalized)) return "3A failed";
-  if (/gold|calibration|phase\s*0/i.test(normalized)) return "Gold-standard";
-  if (/quality gate/i.test(normalized)) return "Quality gate";
-  if (/timeout/i.test(normalized)) return "Timed out";
-  return normalized.length > 44 ? `${normalized.slice(0, 41)}…` : normalized;
-}
-
-function getPhaseLabel(job, displayInfo) {
-  const phaseDetail = displayInfo?.phaseDetail || {};
-  const rawPhase = phaseDetail.phase || job.progress?.phase || job.phase || "";
-  const rawPhaseStatus = phaseDetail.phase_status || job.progress?.phase_status || job.phase_status || "";
-  const message = displayInfo?.message || displayInfo?.progress?.display || "";
-
-  if (job.status === "complete") return "Complete";
-  if (job.status === "queued") return rawPhase ? `${formatPhaseName(rawPhase)} queued` : "Queued";
-  if (job.status === "failed") {
-    if (message) return compactFailureMessage(message);
-    if (rawPhase) return `${formatPhaseName(rawPhase)} failed`;
-    return "Failed";
-  }
-  if (job.status === "running") {
-    if (message) return message;
-    if (rawPhase) return rawPhaseStatus ? `${formatPhaseName(rawPhase)} ${rawPhaseStatus}` : formatPhaseName(rawPhase);
-    return "Running";
-  }
-  return rawPhase ? formatPhaseName(rawPhase) : "—";
-}
-
 const CALIBRATION_PATTERNS = [
   /\(TEST FILE\)/i,
   /\bCALIBRATION\b/i,
@@ -97,10 +56,10 @@ function detectPurpose(title) {
 }
 
 function evalStatusLabel(job, purpose) {
-  if (job.status === "running") return purpose === "calibration" ? "Calibration in progress" : "In progress";
-  if (job.status === "queued") return purpose === "calibration" ? "Calibration queued" : "Queued";
-  if (job.status === "failed") return purpose === "calibration" ? "Calibration failed" : "Evaluation failed";
-  if (job.status === "complete") return purpose === "calibration" ? "Calibration complete" : "Complete";
+  if (job.status === "running") return purpose === "calibration" ? "Calibration in progress" : "Preparing report";
+  if (job.status === "queued") return purpose === "calibration" ? "Calibration queued" : "Processing";
+  if (job.status === "failed") return purpose === "calibration" ? "Calibration failed" : "Needs attention";
+  if (job.status === "complete") return purpose === "calibration" ? "Calibration complete" : "Report ready";
   return "—";
 }
 
@@ -124,7 +83,7 @@ function EvaluationHistoryTable({ jobs }) {
         <table className="min-w-full divide-y divide-stone-300 text-left text-base">
           <thead className="bg-[#F4EFE5]">
             <tr>
-              {['Status', 'Manuscript', 'Submitted', 'Phase', 'Report', 'Actions'].map((heading) => (
+                {['Status', 'Manuscript', 'Submitted', 'Progress', 'Report', 'Actions'].map((heading) => (
                 <th key={heading} className={`px-5 py-4 font-rg-mono text-[0.8rem] font-bold uppercase tracking-[0.12em] text-stone-900 ${heading === 'Actions' ? 'text-right' : ''}`}>
                   {heading}
                 </th>
@@ -143,14 +102,27 @@ function EvaluationHistoryTable({ jobs }) {
 }
 
 function EvaluationHistoryRow({ job }) {
-  const displayInfo = getJobDisplayInfo(job);
   const title = job.manuscript_title || "Untitled Manuscript";
   const purpose = detectPurpose(title);
   const isComplete = job.status === "complete";
   const isQueued = job.status === "queued";
   const isRunning = job.status === "running";
+  const showCancelAction = canShowCancelEvaluation({
+    status: job.status,
+    dashboardStatus: job.progress?.dashboard_status,
+    phaseStatus: job.progress?.phase_status,
+    progress: job.progress,
+  });
   const reportHref = getReportHref(job);
   const detailHref = `/evaluate/${job.id}`;
+  const publicProgress =
+    job.status === "complete"
+      ? "Report ready"
+      : job.status === "failed"
+        ? "Needs attention"
+        : job.status === "running"
+          ? "Preparing report"
+          : "Processing";
 
   return (
     <tr className="align-middle transition hover:bg-[#FBFAF7]">
@@ -169,8 +141,8 @@ function EvaluationHistoryRow({ job }) {
         {formatSubmittedAt(job.created_at)}
       </td>
       <td className="max-w-[20rem] px-5 py-4 text-base font-medium text-stone-800">
-        <Link href={detailHref} className="line-clamp-2 underline-offset-4 hover:text-stone-950 hover:underline" title={displayInfo.message || displayInfo.progress?.display || undefined}>
-          {getPhaseLabel(job, displayInfo)}
+        <Link href={detailHref} className="line-clamp-2 underline-offset-4 hover:text-stone-950 hover:underline" title={publicProgress}>
+              {publicProgress}
         </Link>
       </td>
       <td className="whitespace-nowrap px-5 py-4 text-base">
@@ -182,17 +154,22 @@ function EvaluationHistoryRow({ job }) {
           >
             Open report
           </Link>
-        ) : (
-          <span className="font-medium text-stone-500">—</span>
-        )}
+            ) : (
+              <span className="font-medium text-stone-500">—</span>
+            )}
       </td>
       <td className="whitespace-nowrap px-5 py-4 text-right">
         <div className="flex items-center justify-end gap-2">
           <Link href={detailHref} className="inline-flex min-h-[40px] items-center rounded-lg border border-stone-300 bg-stone-50 px-4 py-2 font-rg-mono text-sm font-bold uppercase tracking-[0.08em] text-stone-900 transition hover:bg-stone-100">
-            {isRunning ? "Live" : isQueued ? "Queued" : "Details"}
+            Details
           </Link>
-          {canShowCancelButton(job.status, job.progress) && (
-            <CancelEvaluationButton jobId={job.id} label="Cancel" buttonClassName="inline-flex min-h-[40px] items-center rounded-lg bg-red-700 px-4 py-2 font-rg-mono text-sm font-bold uppercase tracking-[0.08em] text-white shadow-sm transition-colors hover:bg-red-800" />
+          {showCancelAction && (
+            <CancelEvaluationButton
+              jobId={job.id}
+              label="Cancel Evaluation"
+              returnHref="/evaluate"
+              buttonClassName="inline-flex min-h-[40px] items-center rounded-lg bg-red-700 px-4 py-2 font-rg-mono text-sm font-bold uppercase tracking-[0.08em] text-white shadow-sm transition-colors hover:bg-red-800"
+            />
           )}
         </div>
       </td>
@@ -305,7 +282,7 @@ export default function EvaluateEntry() {
               <p className="font-rg-mono text-[0.82rem] font-bold uppercase tracking-[0.16em] text-[#8A5A00]">History</p>
               <h2 className="mt-1 font-rg-serif text-4xl text-stone-950">Recent evaluations</h2>
               <p className="mt-2 max-w-3xl text-base leading-7 text-stone-800">
-                Each evaluation is shown as one readable job row with its status, ID, phase, next action, and report link.
+                Each evaluation is shown as one readable job row with its status, ID, progress, next action, and report link.
               </p>
             </div>
           </div>

@@ -2,12 +2,31 @@
 import { createAdminClient } from '@/lib/supabase/admin';
 import { PHASES } from '@/lib/jobs/types';
 import { getDevHeaderActor } from '@/lib/auth/devHeaderActor';
-import { getAuthenticatedUser } from '@/lib/supabase/server';
 import { triggerEvaluationWorker } from '@/lib/jobs/triggerWorker';
 import { triggerEvaluationWorkflow } from '@/lib/jobs/triggerWorkflow';
 import { generateTraceId } from '@/lib/observability/logger';
 import { resolveManuscriptTitle } from '@/lib/manuscripts/title';
+import { createInitialVersion } from '@/lib/manuscripts/versions';
 import { computeEnrichment } from '@/lib/evaluation/enrichment/computeEnrichment';
+import { routeNarrativeEvaluationPreflight } from '@/lib/evaluation/preflight/manuscriptTypeRouting';
+import { enforceApiRateLimit } from '@/lib/security/apiRateLimit';
+import { requireUser } from '@/lib/security/apiGuards';
+
+function decodeDataUrlText(fileUrl: string): string | null {
+  if (!fileUrl.startsWith('data:')) return null;
+
+  const commaIndex = fileUrl.indexOf(',');
+  if (commaIndex < 0) return null;
+
+  const payload = fileUrl.slice(commaIndex + 1);
+  if (!payload) return null;
+
+  try {
+    return decodeURIComponent(payload);
+  } catch {
+    return null;
+  }
+}
 
 const MAX_PASTED_MANUSCRIPT_BYTES = 6 * 1024 * 1024;
 const MAX_EVALUATION_JOBS_PER_HOUR = 10;
@@ -73,6 +92,13 @@ export async function POST(req: Request) {
   const request_id = generateTraceId();
 
   try {
+    const rateLimitDenied = enforceApiRateLimit(req, {
+      bucket: 'evaluate_submit',
+      limit: 20,
+      windowMs: 60 * 60 * 1000,
+    });
+    if (rateLimitDenied) return rateLimitDenied;
+
     // Use admin client to bypass RLS for trusted server operations
     const supabase = createAdminClient();
 
@@ -85,8 +111,11 @@ export async function POST(req: Request) {
       userId = actor.userId;
     } else {
       // Production path: Supabase session cookie
-      const user = await getAuthenticatedUser();
-      userId = user?.id ?? null;
+      const auth = await requireUser();
+      if (!auth.ok) {
+        return auth.response;
+      }
+      userId = auth.user.id;
     }
 
     if (!userId) {
@@ -112,8 +141,11 @@ export async function POST(req: Request) {
         : typeof body?.title === 'string'
           ? body.title
           : 'Untitled Manuscript';
+    const trimmedText = manuscriptTextInput.trim();
 
     let manuscriptId: number | null = null;
+    let sourceManuscriptText: string | null = null;
+    let sourceManuscriptWordCount: number | undefined;
 
     if (manuscriptIdInput !== undefined && manuscriptIdInput !== null) {
       // Reject ambiguous input: both manuscript_id and new text together is a contract violation.
@@ -131,7 +163,7 @@ export async function POST(req: Request) {
       const { data: existingManuscript, error: manuscriptLookupError } =
         await supabase
           .from('manuscripts')
-          .select('id,user_id')
+          .select('id,user_id,file_url,word_count')
           .eq('id', manuscriptId)
           .single();
 
@@ -142,9 +174,43 @@ export async function POST(req: Request) {
       if (existingManuscript.user_id !== userId) {
         return jsonError('Forbidden: manuscript does not belong to user', 403);
       }
+
+      const existingText =
+        typeof existingManuscript.file_url === 'string'
+          ? decodeDataUrlText(existingManuscript.file_url)
+          : null;
+
+      if (!existingText || existingText.trim().length === 0) {
+        return Response.json(
+          {
+            ok: false,
+            error:
+              'Missing manuscript source snapshot: unable to bind immutable Version 1 for evaluation.',
+          },
+          { status: 500 }
+        );
+      }
+
+      const preflightDecision = routeNarrativeEvaluationPreflight(existingText);
+      if (!preflightDecision.allowed) {
+        return Response.json(
+          {
+            ok: false,
+            error: preflightDecision.userMessage,
+            code: 'NARRATIVE_EVALUATION_PREFLIGHT_REJECTED',
+            manuscript_type: preflightDecision.detectedType,
+          },
+          { status: 422 }
+        );
+      }
+
+      sourceManuscriptText = existingText;
+      sourceManuscriptWordCount =
+        typeof existingManuscript.word_count === 'number'
+          ? existingManuscript.word_count
+          : existingText.split(/\s+/).filter(Boolean).length;
     }
 
-    const trimmedText = manuscriptTextInput.trim();
     if (!manuscriptId && trimmedText.length === 0) {
       return jsonError('Missing manuscript input: provide manuscript_id or manuscript_text/content', 400);
     }
@@ -156,6 +222,21 @@ export async function POST(req: Request) {
           `Manuscript text is too large for direct paste upload. Please upload a file instead.`,
           413,
           { max_bytes: MAX_PASTED_MANUSCRIPT_BYTES }
+        );
+      }
+    }
+
+    if (!manuscriptId && trimmedText.length > 0) {
+      const preflightDecision = routeNarrativeEvaluationPreflight(trimmedText);
+      if (!preflightDecision.allowed) {
+        return Response.json(
+          {
+            ok: false,
+            error: preflightDecision.userMessage,
+            code: 'NARRATIVE_EVALUATION_PREFLIGHT_REJECTED',
+            manuscript_type: preflightDecision.detectedType,
+          },
+          { status: 422 }
         );
       }
     }
@@ -199,6 +280,48 @@ export async function POST(req: Request) {
         return jsonError('Manuscript creation failed. Please try again.', 500);
       }
       manuscriptId = manuscript.id;
+      sourceManuscriptText = trimmedText;
+      sourceManuscriptWordCount = wordCount;
+    }
+
+    // Step 1b: Enforce immutable source snapshot before any evaluation job is created.
+    if (!sourceManuscriptText || sourceManuscriptText.trim().length === 0) {
+      return Response.json(
+        {
+          ok: false,
+          error:
+            'Missing manuscript source snapshot: immutable Version 1 is required before evaluation.',
+        },
+        { status: 500 }
+      );
+    }
+
+    let sourceVersionId: string;
+    try {
+      const sourceVersion = await createInitialVersion({
+        manuscript_id: manuscriptId,
+        raw_text: sourceManuscriptText,
+        word_count: sourceManuscriptWordCount,
+        created_by: userId,
+      });
+
+      sourceVersionId = sourceVersion.id;
+    } catch (snapshotError: unknown) {
+      const snapshotMessage =
+        snapshotError instanceof Error ? snapshotError.message : String(snapshotError);
+      console.error('Failed to create/bind manuscript source snapshot', {
+        manuscript_id: manuscriptId,
+        user_id: userId,
+        error: snapshotMessage,
+      });
+
+      return Response.json(
+        {
+          ok: false,
+          error: 'Failed to create manuscript source snapshot',
+        },
+        { status: 500 }
+      );
     }
 
     // Step 2: Compute instant enrichment (reading grade, dialogue ratio) from manuscript text.
@@ -251,6 +374,7 @@ export async function POST(req: Request) {
       .from('evaluation_jobs')
       .insert({
         manuscript_id: manuscriptId,
+        manuscript_version_id: sourceVersionId,
         user_id: userId,
         job_type: 'full_evaluation',
         validity_status: 'pending',
@@ -330,8 +454,14 @@ export async function POST(req: Request) {
       { status: 200 }
     );
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Internal server error';
     console.error('Hard fail in /api/evaluate:', err);
-    return jsonError(message, 500);
+    return Response.json(
+      {
+        ok: false,
+        error: 'Evaluation request failed',
+        code: 'EVALUATION_SUBMIT_FAILED',
+      },
+      { status: 500 }
+    );
   }
 }

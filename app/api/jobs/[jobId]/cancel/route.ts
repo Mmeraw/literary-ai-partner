@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cancelJob } from "../../../../../lib/jobs/cancel";
 import { checkServiceRoleAuth } from "@/lib/auth/api";
+import { getAuthenticatedUser } from '@/lib/supabase/server';
+import { cancelEvaluationAsUser } from '@/lib/jobs/userCancel';
 
 /**
  * POST /api/jobs/[jobId]/cancel
@@ -12,11 +14,6 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ jobId: string }> }
 ) {
-  // GOVERNANCE: Service role only (internal/daemon use)
-  if (!checkServiceRoleAuth(request)) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
-
   const { jobId } = await params;
 
   if (!jobId) {
@@ -27,18 +24,58 @@ export async function POST(
   }
 
   try {
-    const result = await cancelJob(jobId);
+    // Internal daemon/service-role callers retain direct access.
+    if (checkServiceRoleAuth(request)) {
+      const result = await cancelJob(jobId);
 
-    if (!result.success) {
+      if (!result.success) {
+        return NextResponse.json(
+          { error: "error" in result ? result.error : "Failed to cancel job" },
+          { status: 400 },
+        );
+      }
+
       return NextResponse.json(
-        { error: "error" in result ? result.error : "Failed to cancel job" },
-        { status: 400 },
+        {
+          success: true,
+          message: "Job canceled successfully",
+          status: 'cancelled',
+          dashboard_status: 'cancelled',
+        },
+        { status: 200 },
+      );
+    }
+
+    // User callers: owner-authenticated cancel path.
+    const user = await getAuthenticatedUser();
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const body = await request.json().catch(() => ({})) as { reason?: string };
+    const result = await cancelEvaluationAsUser({
+      jobId,
+      userId: user.id,
+      reason: body?.reason,
+    });
+
+    if (!result.ok) {
+      return NextResponse.json(
+        {
+          error: result.message,
+          status: result.jobStatus ?? 'unknown',
+        },
+        { status: result.status },
       );
     }
 
     return NextResponse.json(
       {
-        message: "Job canceled successfully",
+        success: true,
+        message: result.alreadyCancelled ? 'Evaluation already cancelled' : 'Evaluation cancelled by user',
+        status: 'cancelled',
+        cancelled_at: result.cancelledAt,
+        dashboard_status: 'cancelled',
       },
       { status: 200 },
     );

@@ -47,7 +47,7 @@ export default function ReportPage({ params }: { params: { jobId: string } }) {
       if ((json as Ok).ok) {
         // Governance: report page requires canonical artifact source
         if ((json as any).source === "inline_job_result") {
-          setMessage("Phase 2 artifact not yet available. Showing job detail page instead may provide interim results.");
+          setMessage("Final report artifact not yet available. Showing job detail page instead may provide interim results.");
           return;
         }
         setData(json as Ok);

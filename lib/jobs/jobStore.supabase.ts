@@ -164,6 +164,7 @@ function hasObjectId(value: unknown): value is { id: string | number } & Record<
 
 export async function createJob(input: {
   manuscript_id: string;
+  manuscript_version_id?: string;
   user_id: string;
   job_type: JobType;
   sensitivity_mode?: string;
@@ -210,14 +211,16 @@ export async function createJob(input: {
 
   // Early-bind manuscript_version_id so the Revise workbench can load
   // findings even if WAVE revision is skipped or fails later.
-  let manuscriptVersionId: string | null = null;
-  try {
-    const latestVersion = await getLatestVersionForManuscript(manuscriptId);
-    if (latestVersion) {
-      manuscriptVersionId = latestVersion.id;
+  let manuscriptVersionId: string | null = input.manuscript_version_id ?? null;
+  if (!manuscriptVersionId) {
+    try {
+      const latestVersion = await getLatestVersionForManuscript(manuscriptId);
+      if (latestVersion) {
+        manuscriptVersionId = latestVersion.id;
+      }
+    } catch {
+      // Non-fatal: WAVE will retry version binding later if needed.
     }
-  } catch {
-    // Non-fatal: WAVE will retry version binding later if needed.
   }
 
   const payload = {

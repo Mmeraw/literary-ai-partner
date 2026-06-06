@@ -58,6 +58,29 @@ export async function POST(
     const jobRow = job as Record<string, unknown>;
     const jobFailureCode = jobRow.failure_code as string | null | undefined;
     const jobManuscriptId = jobRow.manuscript_id as number;
+    const jobProgress =
+      jobRow.progress && typeof jobRow.progress === 'object' && !Array.isArray(jobRow.progress)
+        ? (jobRow.progress as Record<string, unknown>)
+        : {};
+
+    const cancelledByUser =
+      jobFailureCode === 'USER_CANCELLED'
+      || jobProgress.cancelled_by_user === true
+      || typeof jobProgress.cancelled_at === 'string'
+      || typeof jobProgress.canceled_at === 'string'
+      || jobProgress.dashboard_status === 'cancelled'
+      || jobProgress.dashboard_status === 'canceled';
+
+    if (cancelledByUser) {
+      return NextResponse.json(
+        {
+          error: 'This evaluation was cancelled and cannot be resumed. Start a new evaluation to continue.',
+          failure_code: jobFailureCode ?? 'USER_CANCELLED',
+          resumable: false,
+        },
+        { status: 409 },
+      );
+    }
 
     if (isTerminalFailureCode(jobFailureCode)) {
       const deniedAt = new Date().toISOString();

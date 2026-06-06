@@ -16,6 +16,8 @@ import { backpressureGuard } from "@/lib/jobs/backpressure";
 import { triggerEvaluationWorker } from "@/lib/jobs/triggerWorker";
 import { resolveManuscriptTitle } from "@/lib/manuscripts/title";
 import { computeEnrichment, type EnrichmentResult } from "@/lib/evaluation/enrichment";
+import { routeNarrativeEvaluationPreflight } from "@/lib/evaluation/preflight/manuscriptTypeRouting";
+import { createInitialVersion } from "@/lib/manuscripts/versions";
 
 function isRateLimited(
   result: RateLimitResult
@@ -300,6 +302,7 @@ export async function POST(req: Request) {
     let immediateManuscriptWordCount: number | null = null;
     let resolvedManuscriptWordCount: number | null = null;
     let intakeManuscriptText = "";
+    let sourceVersionId: string | null = null;
 
     if (!manuscript_id && !manuscript_text) {
       logger.warn("Job creation validation failed", {
@@ -440,6 +443,21 @@ export async function POST(req: Request) {
         );
       }
 
+      const preflightDecision = routeNarrativeEvaluationPreflight(trimmedText);
+      if (!preflightDecision.allowed) {
+        return NextResponse.json(
+          {
+            ok: false,
+            error: preflightDecision.userMessage,
+            code: "NARRATIVE_EVALUATION_PREFLIGHT_REJECTED",
+            manuscript_type: preflightDecision.detectedType,
+            details: preflightDecision.details,
+            trace_id,
+          },
+          { status: 422 }
+        );
+      }
+
       const encodedText = encodeURIComponent(trimmedText);
       const fileUrl = `data:text/plain;charset=utf-8,${encodedText}`;
       const wordCount = trimmedText.split(/\s+/).filter(Boolean).length;
@@ -522,6 +540,56 @@ export async function POST(req: Request) {
       });
     }
 
+    if (typeof manuscript_id === "number") {
+      if (!intakeManuscriptText || intakeManuscriptText.trim().length === 0) {
+        return NextResponse.json(
+          {
+            ok: false,
+            error: "Source snapshot missing. Please repair before evaluating.",
+            code: "MANUSCRIPT_SOURCE_SNAPSHOT_MISSING",
+            trace_id,
+          },
+          { status: 422 }
+        );
+      }
+
+      const preflightDecision = routeNarrativeEvaluationPreflight(intakeManuscriptText);
+      if (!preflightDecision.allowed) {
+        return NextResponse.json(
+          {
+            ok: false,
+            error: preflightDecision.userMessage,
+            code: "NARRATIVE_EVALUATION_PREFLIGHT_REJECTED",
+            manuscript_type: preflightDecision.detectedType,
+            details: preflightDecision.details,
+            trace_id,
+          },
+          { status: 422 }
+        );
+      }
+
+      try {
+        const sourceVersion = await createInitialVersion({
+          manuscript_id,
+          raw_text: intakeManuscriptText,
+          word_count: resolvedManuscriptWordCount ?? immediateManuscriptWordCount ?? undefined,
+          created_by: userId,
+        });
+        sourceVersionId = sourceVersion.id;
+      } catch (snapshotError: unknown) {
+        return NextResponse.json(
+          {
+            ok: false,
+            error: "Failed to create manuscript source snapshot",
+            details:
+              snapshotError instanceof Error ? snapshotError.message : String(snapshotError),
+            trace_id,
+          },
+          { status: 500 }
+        );
+      }
+    }
+
     const instantEnrichment = buildInstantEnrichmentProgress(
       intakeManuscriptText ? computeEnrichment(intakeManuscriptText) : null,
     );
@@ -596,6 +664,7 @@ export async function POST(req: Request) {
 
     const job = await createJob({
       manuscript_id,
+      manuscript_version_id: sourceVersionId ?? undefined,
       user_id: userId,
       job_type: validatedJobType,
       sensitivity_mode,

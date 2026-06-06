@@ -36,7 +36,7 @@ export function WorkspaceSyncProvider({
         <div className="h-5 w-5 border-2 border-t-transparent border-emerald-500 rounded-full animate-spin mb-4" />
         <h3 className="text-sm font-semibold tracking-tight text-zinc-200">Analysis Engine Processing</h3>
         <p className="text-xs text-zinc-400 mt-1 max-w-sm">
-          RevisionGrade is evaluating phase <span className="font-mono text-emerald-400">{state.phase}</span> of this manuscript.
+          RevisionGrade is preparing your evaluation results for this manuscript.
           Workspace interactions are locked while background caches refresh.
         </p>
       </div>

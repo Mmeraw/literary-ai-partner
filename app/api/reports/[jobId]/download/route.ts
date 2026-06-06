@@ -3,7 +3,6 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export const maxDuration = 60;
 
-import { createClient as createSSRClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { canReleaseEvaluationRead } from '@/lib/jobs/readReleaseGate';
 import { isEvaluationResultV1, type EvaluationResultV1 } from '@/schemas/evaluation-result-v1';
@@ -26,7 +25,14 @@ import {
   buildReportPitches,
   summarizeRevisionOpportunities,
 } from '@/lib/evaluation/reportTemplateContract';
+import {
+  buildUnifiedEvaluationDocument,
+  type CanonicalEvaluationMode,
+  type UnifiedEvaluationDocument,
+} from '@/lib/evaluation/unifiedEvaluationDocument';
 import { sanitizeCMOS } from '@/lib/evaluation/cmosSanitizer';
+import { enforceApiRateLimit } from '@/lib/security/apiRateLimit';
+import { requireUser } from '@/lib/security/apiGuards';
 import {
   Document, Packer, Paragraph, TextRun, HeadingLevel,
   Table, TableRow, TableCell, WidthType, BorderStyle,
@@ -80,6 +86,8 @@ type EnrichmentData = {
   diagnosed_genre?: string;
   target_audience?: string;
 } | null;
+
+type ArtifactContentRow = { content?: unknown | null };
 
 type ExportableResultShape = {
   generated_at?: unknown;
@@ -255,6 +263,51 @@ function safeFilename(title: string | null, jobId: string, ext: string): string 
   return `revision-grade-${base}.${ext}`;
 }
 
+function asRecord(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  return value as Record<string, unknown>;
+}
+
+function normalizeCanonicalMode(raw: unknown, wordCount: number | null): CanonicalEvaluationMode {
+  if (raw === 'short_form_evaluation' || raw === 'long_form_evaluation' || raw === 'long_form_multi_layer_evaluation') {
+    return raw;
+  }
+  if (typeof wordCount === 'number' && wordCount >= LONG_FORM_WORD_THRESHOLD) return 'long_form_evaluation';
+  return 'short_form_evaluation';
+}
+
+async function loadCanonicalEvaluationMode(
+  admin: ReturnType<typeof createAdminClient>,
+  jobId: string,
+  rawResult: unknown,
+  progress: unknown,
+  wordCount: number | null,
+): Promise<CanonicalEvaluationMode> {
+  const resultRecord = asRecord(rawResult);
+  const metadataRecord = asRecord(resultRecord?.metadata);
+  const progressRecord = asRecord(progress);
+
+  const direct = normalizeCanonicalMode(resultRecord?.evaluation_mode, null);
+  if (direct !== 'short_form_evaluation' || resultRecord?.evaluation_mode === 'short_form_evaluation') return direct;
+
+  const metadataMode = normalizeCanonicalMode(metadataRecord?.evaluation_mode, null);
+  if (metadataMode !== 'short_form_evaluation' || metadataRecord?.evaluation_mode === 'short_form_evaluation') return metadataMode;
+
+  const progressMode = normalizeCanonicalMode(progressRecord?.evaluation_mode, null);
+  if (progressMode !== 'short_form_evaluation' || progressRecord?.evaluation_mode === 'short_form_evaluation') return progressMode;
+
+  const { data: seed } = await admin
+    .from('evaluation_artifacts')
+    .select('content')
+    .eq('job_id', jobId)
+    .eq('artifact_type', 'evaluation_seed_v1')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const seedContent = asRecord((seed as ArtifactContentRow | null)?.content);
+  return normalizeCanonicalMode(seedContent?.scope_mode, wordCount);
+}
+
 function extractManuscriptTitle(manuscripts: unknown): string | null {
   const relation = Array.isArray(manuscripts) ? manuscripts[0] : manuscripts;
   const title =
@@ -299,15 +352,19 @@ function formatGeneratedDate(isoDate: string): string {
 function readinessLabel(score: unknown): string {
   if (typeof score !== 'number' || !Number.isFinite(score)) return '';
   if (score >= 90) return ' — Market Ready';
-  if (score >= 60) return ' — Near Market Ready';
+  if (score >= 80) return ' — Near Market Ready';
   return ' — Not Market Ready';
 }
 
-function marketReadinessVerdict(score: unknown): string {
-  if (typeof score !== 'number' || !Number.isFinite(score)) return 'REVIEW';
-  if (score >= 90) return 'MARKET READY';
-  if (score >= 60) return 'NEAR MARKET READY';
-  return 'NOT MARKET READY';
+function overallVerdictLabel(score: unknown, fallbackVerdict?: unknown): string {
+  if (typeof score === 'number' && Number.isFinite(score)) {
+    if (score >= 90) return 'MARKET READY';
+    if (score >= 80) return 'NEAR MARKET READY';
+    return 'NOT MARKET READY';
+  }
+
+  const fallback = typeof fallbackVerdict === 'string' ? fallbackVerdict.trim() : '';
+  return fallback.length > 0 ? fallback.toUpperCase() : 'NOT MARKET READY';
 }
 
 function stripMachineResidue(text: string): string {
@@ -431,11 +488,13 @@ function buildMetadata(result: ExportableResult, title: string | null, dream: Lo
   // Prefer AI-diagnosed genre; fall back to pipeline genre but filter out format words like "novel"
   const genre = diagnosedGenre ?? (pipelineGenre && pipelineGenre.toLowerCase() !== 'novel' && pipelineGenre.toLowerCase() !== 'short story' ? pipelineGenre : null);
   const targetAudience = enrichment?.target_audience ?? (typeof result.metrics?.manuscript?.target_audience === 'string' && result.metrics.manuscript.target_audience.trim() ? result.metrics.manuscript.target_audience.trim() : null);
+  const overallScore = result.overview.overall_score_0_100;
+
   return {
     displayTitle,
     generatedAt: formatGeneratedDate(result.generated_at),
-    score: `${scoreLabel(result.overview.overall_score_0_100, 100)}${readinessLabel(result.overview.overall_score_0_100)}`,
-    verdict: marketReadinessVerdict(result.overview.overall_score_0_100),
+    score: `${scoreLabel(overallScore, 100)}${readinessLabel(overallScore)}`,
+    verdict: overallVerdictLabel(overallScore, result.overview.verdict),
     wordCount,
     estimatedPages: estimatePages(wordCount),
     reportType: inferReportType(wordCount),
@@ -836,6 +895,425 @@ function buildTxtReport(result: ExportableResult, title: string | null, jobId: s
   lines.push(sep);
   lines.push(EXPORT_DISCLAIMER);
   return lines.join('\n');
+}
+
+function buildCanonicalTemplateDocument(
+  result: ExportableResult,
+  title: string | null,
+  enrichment: EnrichmentData,
+  mode: CanonicalEvaluationMode,
+  dream: LongformDreamDocument | null,
+): UnifiedEvaluationDocument {
+  const displayTitle = title?.trim() || result.metrics?.manuscript?.title?.trim() || 'Untitled Manuscript';
+
+  return buildUnifiedEvaluationDocument({
+    mode,
+    result: {
+      generated_at: typeof result.generated_at === 'string' ? result.generated_at : undefined,
+      overview: {
+        overall_score_0_100: result.overview?.overall_score_0_100,
+        verdict: result.overview?.verdict,
+        one_paragraph_summary: result.overview?.one_paragraph_summary,
+        top_3_strengths: result.overview?.top_3_strengths,
+        top_3_risks: result.overview?.top_3_risks,
+      },
+      metrics: {
+        manuscript: {
+          title: displayTitle,
+          word_count: result.metrics?.manuscript?.word_count,
+          genre: result.metrics?.manuscript?.genre,
+          target_audience: result.metrics?.manuscript?.target_audience,
+        },
+      },
+      enrichment: {
+        premise: enrichment?.premise,
+        trigger_warnings: enrichment?.trigger_warnings,
+        reading_grade_level: enrichment?.reading_grade_level,
+        dialogue_percentage: enrichment?.dialogue_percentage,
+        narrative_percentage: enrichment?.narrative_percentage,
+      },
+      criteria: result.criteria,
+      recommendations: result.recommendations,
+    },
+    displayTitle,
+    dream,
+  });
+}
+
+function buildCanonicalTemplateTxt(doc: UnifiedEvaluationDocument): string {
+  const lines: string[] = [];
+  const sep = '='.repeat(72);
+  const sub = '-'.repeat(72);
+
+  lines.push(sep);
+  lines.push('REVISIONGRADE™ EVALUATION REPORT');
+  lines.push(sep);
+  lines.push(`Manuscript Title: ${doc.title}`);
+  lines.push(`Report Type: ${doc.titleBlock.reportType}`);
+  lines.push(`Genre: ${doc.titleBlock.genre}`);
+  lines.push(`Target Audience: ${doc.titleBlock.targetAudience}`);
+  lines.push(`Submitted Word Count: ${doc.titleBlock.submittedWordCount}`);
+  lines.push(`Estimated Manuscript Pages: ${doc.titleBlock.estimatedPages}`);
+  lines.push(`Reading Grade Level: ${doc.titleBlock.readingGradeLevel}`);
+  lines.push(`Dialogue/Narrative Ratio: ${doc.titleBlock.dialogueNarrativeRatio}`);
+  lines.push(`Generated: ${doc.titleBlock.dateGenerated}`);
+  lines.push(`Overall Score: ${doc.titleBlock.overallScoreLabel}`);
+  lines.push(`Market Readiness: ${doc.titleBlock.marketReadiness}`);
+  lines.push('Confidentiality: Prepared for author/editorial use.');
+  lines.push('');
+
+  lines.push(sub);
+  lines.push('ONE-PARAGRAPH PITCH');
+  lines.push(sub);
+  lines.push('');
+  lines.push(cleanReportText(doc.oneParagraphPitch));
+  lines.push('');
+
+  lines.push(sub);
+  lines.push('ONE-SENTENCE PITCH');
+  lines.push(sub);
+  lines.push('');
+  lines.push(cleanReportText(doc.oneSentencePitch));
+  lines.push('');
+
+  if (doc.premise) {
+    lines.push(sub);
+    lines.push('PREMISE');
+    lines.push(sub);
+    lines.push('');
+    lines.push(cleanReportText(doc.premise));
+    lines.push('');
+  }
+
+  lines.push(sub);
+  lines.push('CONTENT WARNINGS');
+  lines.push(sub);
+  lines.push('');
+  doc.contentWarnings.forEach((warning) => lines.push(`• ${cleanReportText(warning)}`));
+  lines.push('');
+
+  lines.push(sub);
+  lines.push('REVISION OPPORTUNITY SUMMARY');
+  lines.push(sub);
+  lines.push('');
+  lines.push(`Total Revision Opportunities: ${doc.revisionOpportunitySummary.total}`);
+  lines.push(`High Priority: ${doc.revisionOpportunitySummary.high}`);
+  lines.push(`Medium Priority: ${doc.revisionOpportunitySummary.medium}`);
+  lines.push(`Low Priority: ${doc.revisionOpportunitySummary.low}`);
+  lines.push('');
+
+  lines.push(sub);
+  lines.push('EXECUTIVE SUMMARY');
+  lines.push(sub);
+  lines.push('');
+  lines.push(cleanReportText(doc.executiveSummary));
+  lines.push('');
+
+  lines.push(sub);
+  lines.push('TOP STRENGTHS');
+  lines.push(sub);
+  lines.push('');
+  doc.topStrengths.forEach((item, i) => lines.push(`${i + 1}. ${cleanReportText(item)}`));
+  lines.push('');
+
+  lines.push(sub);
+  lines.push('TOP RISKS');
+  lines.push(sub);
+  lines.push('');
+  doc.topRisks.forEach((item, i) => lines.push(`${i + 1}. ${cleanReportText(item)}`));
+  lines.push('');
+
+  if (doc.topRecommendations.length > 0) {
+    lines.push(sub);
+    lines.push('TOP RECOMMENDATIONS');
+    lines.push(sub);
+    lines.push('');
+    doc.topRecommendations.forEach((item, i) => lines.push(`${i + 1}. ${cleanReportText(item)}`));
+    lines.push('');
+  }
+
+  lines.push(sub);
+  lines.push('13 CRITERIA SCORE GRID');
+  lines.push(sub);
+  lines.push('');
+  doc.criteriaScoreGrid.forEach((row) => {
+    lines.push(`${row.label} | ${row.scoreLabel} | ${row.confidenceLabel}`);
+  });
+  lines.push('');
+
+  lines.push(sub);
+  lines.push('CRITERION RATIONALES & SURFACED OPPORTUNITIES');
+  lines.push(sub);
+  lines.push('');
+  doc.criterionDetails.forEach((detail) => {
+    lines.push(`${detail.label} — ${detail.scoreLabel} (${detail.confidenceLabel})`);
+    if (detail.supportLabel) lines.push(`Status: ${cleanReportText(detail.supportLabel)}`);
+    if (detail.rationaleLabel) lines.push(`${detail.rationaleLabel}:`);
+    lines.push(cleanReportText(detail.rationaleText));
+
+    if (detail.recommendations.length > 0) {
+      lines.push('Opportunities:');
+      detail.recommendations.forEach((recommendation, index) => {
+        lines.push(`  ${index + 1}. [${exportSeverity(recommendation.priority)}] ${cleanReportText(recommendation.action, 'No action provided.')}`);
+      });
+    }
+
+    lines.push('');
+  });
+
+  lines.push(sub);
+  lines.push('CONFIDENCE EXPLANATION');
+  lines.push(sub);
+  lines.push('');
+  lines.push(cleanReportText(doc.confidenceExplanation));
+  lines.push('');
+
+  if (doc.templateMode === 'long_form_evaluation' || doc.templateMode === 'long_form_multi_layer_evaluation') {
+    lines.push(sub);
+    lines.push('MANUSCRIPT-SCALE CONTINUITY FINDINGS');
+    lines.push(sub);
+    lines.push('');
+    doc.modeSpecific.manuscriptScaleContinuityFindings.forEach((item) => lines.push(`• ${cleanReportText(item)}`));
+    lines.push('');
+
+    lines.push(sub);
+    lines.push('REVISION PRIORITY PLAN');
+    lines.push(sub);
+    lines.push('');
+    doc.modeSpecific.revisionPriorityPlan.forEach((item) => {
+      lines.push(`Priority ${item.priority}: ${cleanReportText(item.title)}`);
+      lines.push(`Location: ${cleanReportText(item.location)}`);
+      lines.push(`Operation: ${cleanReportText(item.operation)}`);
+      lines.push(`Recommendation: ${cleanReportText(item.recommendation)}`);
+      lines.push(`Rationale: ${cleanReportText(item.rationale)}`);
+      lines.push('');
+    });
+  }
+
+  if (doc.templateMode === 'long_form_multi_layer_evaluation') {
+    const pushList = (heading: string, items: string[]) => {
+      lines.push(sub);
+      lines.push(heading);
+      lines.push(sub);
+      lines.push('');
+      items.forEach((item) => lines.push(`• ${cleanReportText(item)}`));
+      lines.push('');
+    };
+
+    pushList('STORY LEDGER OR LAYER-AWARE ARCHITECTURE MAP', doc.modeSpecific.storyLedgerArchitectureMap);
+    pushList('REVIEW GATE READINESS SURFACE', doc.modeSpecific.reviewGateReadinessSurface);
+    pushList('GOVERNED LEDGERS OR COMPACT ADDENDA', doc.modeSpecific.governedLedgerAddenda);
+    pushList('CROSS-LAYER SYNTHESIS', doc.modeSpecific.crossLayerSynthesis);
+    pushList('LAYER-AWARE REVISION SEQUENCING', doc.modeSpecific.layerAwareRevisionSequencing);
+    pushList('LONG-FORM CONTINUITY AND COVERAGE PROOF', doc.modeSpecific.continuityCoverageProof);
+
+    lines.push(sub);
+    lines.push('READINESS / RELEASABILITY POSTURE');
+    lines.push(sub);
+    lines.push('');
+    lines.push(cleanReportText(doc.modeSpecific.readinessReleasabilityPosture));
+    lines.push('');
+  }
+
+  lines.push(sub);
+  lines.push('AUTHOR DISCLAIMER');
+  lines.push(sub);
+  lines.push('');
+  lines.push(cleanReportText(doc.disclaimer));
+
+  return lines.join('\n');
+}
+
+function renderCanonicalTemplateHtml(doc: UnifiedEvaluationDocument): string {
+  const list = (items: string[]) =>
+    items.length > 0 ? `<ul>${items.map((item) => `<li>${escapeHtml(cleanReportText(item))}</li>`).join('')}</ul>` : '<p>None supplied.</p>';
+
+  const criteriaRows = doc.criteriaScoreGrid
+    .map((row) => `<tr><td>${escapeHtml(row.label)}</td><td>${escapeHtml(row.scoreLabel)}</td><td>${escapeHtml(row.confidenceLabel)}</td></tr>`)
+    .join('');
+
+  const detailCards = doc.criterionDetails
+    .map((detail) => `
+      <article class="card">
+        <h3>${escapeHtml(detail.label)} <small>${escapeHtml(detail.scoreLabel)} · ${escapeHtml(detail.confidenceLabel)}</small></h3>
+        ${detail.supportLabel ? `<p><strong>Status:</strong> ${escapeHtml(detail.supportLabel)}</p>` : ''}
+        ${detail.rationaleLabel ? `<p><strong>${escapeHtml(detail.rationaleLabel)}:</strong></p>` : ''}
+        <p>${escapeHtml(cleanReportText(detail.rationaleText))}</p>
+        ${detail.recommendations.length > 0 ? `<ul>${detail.recommendations.map((r) => `<li>${escapeHtml(cleanReportText(r.action, 'No action provided.'))}</li>`).join('')}</ul>` : '<p>No surfaced opportunities for this criterion.</p>'}
+      </article>`)
+    .join('');
+
+  return `<!doctype html><html><head><meta charset="utf-8" /><title>${escapeHtml(doc.title)} - RevisionGrade Report</title><style>
+    body{font-family:Georgia,serif;color:#1C1814;background:#FAF7F2;margin:0;padding:32px;line-height:1.55}
+    section{background:#fff;border:1px solid #D9D0C3;border-radius:8px;padding:20px;margin:0 0 16px}
+    h1,h2{margin:0 0 10px;color:#8B2E2E} h3{margin:0 0 8px} small{font-weight:normal;color:#5C5549}
+    table{width:100%;border-collapse:collapse} th,td{border-bottom:1px solid #E6DED2;padding:8px;text-align:left}
+    .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.metric{padding:10px;border:1px solid #E6DED2;background:#FFFDF9;border-radius:6px}
+    .card{margin-bottom:12px;padding:12px;border:1px solid #E6DED2;background:#FFFDF9;border-radius:6px}
+  </style></head><body>
+    <section>
+      <h1>${escapeHtml(doc.title)}</h1>
+      <p><strong>${escapeHtml(doc.titleBlock.reportType)}</strong></p>
+      <div class="grid">
+        <div class="metric"><strong>Score</strong><div>${escapeHtml(doc.titleBlock.overallScoreLabel)}</div></div>
+        <div class="metric"><strong>Market Readiness</strong><div>${escapeHtml(doc.titleBlock.marketReadiness)}</div></div>
+        <div class="metric"><strong>Genre</strong><div>${escapeHtml(doc.titleBlock.genre)}</div></div>
+        <div class="metric"><strong>Target Audience</strong><div>${escapeHtml(doc.titleBlock.targetAudience)}</div></div>
+        <div class="metric"><strong>Word Count</strong><div>${escapeHtml(doc.titleBlock.submittedWordCount)}</div></div>
+        <div class="metric"><strong>Estimated Pages</strong><div>${escapeHtml(doc.titleBlock.estimatedPages)}</div></div>
+        <div class="metric"><strong>Generated</strong><div>${escapeHtml(doc.titleBlock.dateGenerated)}</div></div>
+      </div>
+    </section>
+    <section><h2>One-Paragraph Pitch</h2><p>${escapeHtml(cleanReportText(doc.oneParagraphPitch))}</p></section>
+    <section><h2>One-Sentence Pitch</h2><p>${escapeHtml(cleanReportText(doc.oneSentencePitch))}</p></section>
+    ${doc.premise ? `<section><h2>Premise</h2><p>${escapeHtml(cleanReportText(doc.premise))}</p></section>` : ''}
+    <section><h2>Content Warnings</h2>${list(doc.contentWarnings)}</section>
+    <section><h2>Revision Opportunity Summary</h2><div class="grid"><div class="metric">Total: ${doc.revisionOpportunitySummary.total}</div><div class="metric">High: ${doc.revisionOpportunitySummary.high}</div><div class="metric">Medium: ${doc.revisionOpportunitySummary.medium}</div><div class="metric">Low: ${doc.revisionOpportunitySummary.low}</div></div></section>
+    <section><h2>Executive Summary</h2><p>${escapeHtml(cleanReportText(doc.executiveSummary))}</p></section>
+    <section><h2>Top Strengths</h2>${list(doc.topStrengths)}</section>
+    <section><h2>Top Risks</h2>${list(doc.topRisks)}</section>
+    <section><h2>Top Recommendations</h2>${list(doc.topRecommendations)}</section>
+    <section><h2>13 Criteria Score Grid</h2><table><thead><tr><th>Criterion</th><th>Score</th><th>Confidence</th></tr></thead><tbody>${criteriaRows}</tbody></table></section>
+    <section><h2>Criterion Rationales &amp; Surfaced Opportunities</h2>${detailCards}</section>
+    <section><h2>Confidence Explanation</h2><p>${escapeHtml(cleanReportText(doc.confidenceExplanation))}</p></section>
+    ${(doc.templateMode === 'long_form_evaluation' || doc.templateMode === 'long_form_multi_layer_evaluation') ? `<section><h2>Manuscript-Scale Continuity Findings</h2>${list(doc.modeSpecific.manuscriptScaleContinuityFindings)}</section>` : ''}
+    ${(doc.templateMode === 'long_form_evaluation' || doc.templateMode === 'long_form_multi_layer_evaluation') ? `<section><h2>Revision Priority Plan</h2>${doc.modeSpecific.revisionPriorityPlan.map((item) => `<article class="card"><h3>Priority ${item.priority}: ${escapeHtml(cleanReportText(item.title))}</h3><p><strong>Location:</strong> ${escapeHtml(cleanReportText(item.location))}</p><p><strong>Operation:</strong> ${escapeHtml(cleanReportText(item.operation))}</p><p><strong>Recommendation:</strong> ${escapeHtml(cleanReportText(item.recommendation))}</p><p><strong>Rationale:</strong> ${escapeHtml(cleanReportText(item.rationale))}</p></article>`).join('')}</section>` : ''}
+    ${doc.templateMode === 'long_form_multi_layer_evaluation' ? `<section><h2>Story Ledger or Layer-Aware Architecture Map</h2>${list(doc.modeSpecific.storyLedgerArchitectureMap)}</section>` : ''}
+    ${doc.templateMode === 'long_form_multi_layer_evaluation' ? `<section><h2>Review Gate Readiness Surface</h2>${list(doc.modeSpecific.reviewGateReadinessSurface)}</section>` : ''}
+    ${doc.templateMode === 'long_form_multi_layer_evaluation' ? `<section><h2>Governed Ledgers or Compact Addenda</h2>${list(doc.modeSpecific.governedLedgerAddenda)}</section>` : ''}
+    ${doc.templateMode === 'long_form_multi_layer_evaluation' ? `<section><h2>Cross-Layer Synthesis</h2>${list(doc.modeSpecific.crossLayerSynthesis)}</section>` : ''}
+    ${doc.templateMode === 'long_form_multi_layer_evaluation' ? `<section><h2>Layer-Aware Revision Sequencing</h2>${list(doc.modeSpecific.layerAwareRevisionSequencing)}</section>` : ''}
+    ${doc.templateMode === 'long_form_multi_layer_evaluation' ? `<section><h2>Long-Form Continuity and Coverage Proof</h2>${list(doc.modeSpecific.continuityCoverageProof)}</section>` : ''}
+    ${doc.templateMode === 'long_form_multi_layer_evaluation' ? `<section><h2>Readiness / Releasability Posture</h2><p>${escapeHtml(cleanReportText(doc.modeSpecific.readinessReleasabilityPosture))}</p></section>` : ''}
+    <section><h2>Author Disclaimer</h2><p>${escapeHtml(cleanReportText(doc.disclaimer))}</p></section>
+  </body></html>`;
+}
+
+async function buildCanonicalTemplateDocx(doc: UnifiedEvaluationDocument): Promise<Buffer> {
+  const makeHeading = (text: string) =>
+    new Paragraph({
+      heading: HeadingLevel.HEADING_2,
+      spacing: { before: 220, after: 80 },
+      children: [new TextRun({ text, bold: true, color: RG.oxblood.replace('#', '') })],
+    });
+  const para = (text: string) =>
+    new Paragraph({ spacing: { after: 90 }, children: [new TextRun({ text: cleanReportText(text), size: 22 })] });
+
+  const children: (Paragraph | Table)[] = [
+    new Paragraph({
+      heading: HeadingLevel.TITLE,
+      children: [new TextRun({ text: doc.title, bold: true })],
+      spacing: { after: 140 },
+    }),
+    para(`${doc.titleBlock.reportType} · ${doc.titleBlock.overallScoreLabel} · ${doc.titleBlock.marketReadiness}`),
+    para(`Genre: ${doc.titleBlock.genre}`),
+    para(`Target Audience: ${doc.titleBlock.targetAudience}`),
+    para(`Word Count: ${doc.titleBlock.submittedWordCount}`),
+    para(`Estimated Pages: ${doc.titleBlock.estimatedPages}`),
+    para(`Generated: ${doc.titleBlock.dateGenerated}`),
+    makeHeading('One-Paragraph Pitch'),
+    para(doc.oneParagraphPitch),
+    makeHeading('One-Sentence Pitch'),
+    para(doc.oneSentencePitch),
+  ];
+
+  if (doc.premise) {
+    children.push(makeHeading('Premise'));
+    children.push(para(doc.premise));
+  }
+
+  children.push(makeHeading('Content Warnings'));
+  doc.contentWarnings.forEach((item) => children.push(para(`• ${item}`)));
+
+  children.push(makeHeading('Revision Opportunity Summary'));
+  children.push(para(`Total: ${doc.revisionOpportunitySummary.total}`));
+  children.push(para(`High: ${doc.revisionOpportunitySummary.high} | Medium: ${doc.revisionOpportunitySummary.medium} | Low: ${doc.revisionOpportunitySummary.low}`));
+  children.push(makeHeading('Executive Summary'));
+  children.push(para(doc.executiveSummary));
+  children.push(makeHeading('Top Strengths'));
+  doc.topStrengths.forEach((item) => children.push(para(`• ${item}`)));
+  children.push(makeHeading('Top Risks'));
+  doc.topRisks.forEach((item) => children.push(para(`• ${item}`)));
+  children.push(makeHeading('Top Recommendations'));
+  doc.topRecommendations.forEach((item) => children.push(para(`• ${item}`)));
+
+  children.push(makeHeading('13 Criteria Score Grid'));
+  children.push(
+    new Table({
+      rows: [
+        new TableRow({
+          children: [
+            new TableCell({ children: [new Paragraph('Criterion')] }),
+            new TableCell({ children: [new Paragraph('Score')] }),
+            new TableCell({ children: [new Paragraph('Confidence')] }),
+          ],
+        }),
+        ...doc.criteriaScoreGrid.map(
+          (row) =>
+            new TableRow({
+              children: [
+                new TableCell({ children: [new Paragraph(row.label)] }),
+                new TableCell({ children: [new Paragraph(row.scoreLabel)] }),
+                new TableCell({ children: [new Paragraph(row.confidenceLabel)] }),
+              ],
+            }),
+        ),
+      ],
+      width: { size: 100, type: WidthType.PERCENTAGE },
+    }),
+  );
+
+  children.push(makeHeading('Criterion Rationales & Surfaced Opportunities'));
+  doc.criterionDetails.forEach((detail) => {
+    children.push(para(`${detail.label} — ${detail.scoreLabel} (${detail.confidenceLabel})`));
+    if (detail.supportLabel) children.push(para(`Status: ${detail.supportLabel}`));
+    if (detail.rationaleLabel) children.push(para(`${detail.rationaleLabel}:`));
+    children.push(para(detail.rationaleText));
+    if (detail.recommendations.length > 0) {
+      detail.recommendations.forEach((rec) => children.push(para(`• ${cleanReportText(rec.action, 'No action provided.')}`)));
+    }
+  });
+
+  children.push(makeHeading('Confidence Explanation'));
+  children.push(para(doc.confidenceExplanation));
+
+  if (doc.templateMode === 'long_form_evaluation' || doc.templateMode === 'long_form_multi_layer_evaluation') {
+    children.push(makeHeading('Manuscript-Scale Continuity Findings'));
+    doc.modeSpecific.manuscriptScaleContinuityFindings.forEach((item) => children.push(para(`• ${item}`)));
+
+    children.push(makeHeading('Revision Priority Plan'));
+    doc.modeSpecific.revisionPriorityPlan.forEach((item) => {
+      children.push(para(`Priority ${item.priority}: ${item.title}`));
+      children.push(para(`Location: ${item.location}`));
+      children.push(para(`Operation: ${item.operation}`));
+      children.push(para(`Recommendation: ${item.recommendation}`));
+      children.push(para(`Rationale: ${item.rationale}`));
+    });
+  }
+
+  if (doc.templateMode === 'long_form_multi_layer_evaluation') {
+    const appendHeadingList = (heading: string, items: string[]) => {
+      children.push(makeHeading(heading));
+      items.forEach((item) => children.push(para(`• ${item}`)));
+    };
+
+    appendHeadingList('Story Ledger or Layer-Aware Architecture Map', doc.modeSpecific.storyLedgerArchitectureMap);
+    appendHeadingList('Review Gate Readiness Surface', doc.modeSpecific.reviewGateReadinessSurface);
+    appendHeadingList('Governed Ledgers or Compact Addenda', doc.modeSpecific.governedLedgerAddenda);
+    appendHeadingList('Cross-Layer Synthesis', doc.modeSpecific.crossLayerSynthesis);
+    appendHeadingList('Layer-Aware Revision Sequencing', doc.modeSpecific.layerAwareRevisionSequencing);
+    appendHeadingList('Long-Form Continuity and Coverage Proof', doc.modeSpecific.continuityCoverageProof);
+    children.push(makeHeading('Readiness / Releasability Posture'));
+    children.push(para(doc.modeSpecific.readinessReleasabilityPosture));
+  }
+  children.push(makeHeading('Author Disclaimer'));
+  children.push(para(doc.disclaimer));
+
+  const docxDoc = new Document({
+    sections: [{ children }],
+  });
+
+  return await Packer.toBuffer(docxDoc);
 }
 
 function confidenceColor(level: string | undefined): string {
@@ -1969,6 +2447,13 @@ export async function GET(
   request: NextRequest,
   { params }: { params: { jobId: string } | Promise<{ jobId: string }> },
 ) {
+  const rateLimitDenied = enforceApiRateLimit(request, {
+    bucket: 'report_download',
+    limit: 80,
+    windowMs: 10 * 60 * 1000,
+  });
+  if (rateLimitDenied) return rateLimitDenied;
+
   const resolved = await Promise.resolve(params);
   const jobId = resolved.jobId;
 
@@ -1983,21 +2468,22 @@ export async function GET(
   }
   const format = formatParam as ExportFormat;
 
-  const ssrSupabase = await createSSRClient();
-  const {
-    data: { user },
-  } = await ssrSupabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const auth = await requireUser();
+  if (auth.ok === false) return auth.response;
+  const user = auth.user;
 
   const admin = createAdminClient();
   const { data: job, error } = await admin
     .from('evaluation_jobs')
-    .select(`evaluation_result, status, validity_status, manuscripts!inner(user_id, title)`)
+    .select('evaluation_result, status, validity_status, user_id, progress, manuscripts(title)')
     .eq('id', jobId)
-    .eq('manuscripts.user_id', user.id)
-    .single();
+    .maybeSingle();
 
   if (error || !job) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
+
+  if (job.user_id !== user.id) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
 
@@ -2049,9 +2535,14 @@ export async function GET(
 
   // Extract enrichment data from V2 results
   const enrichment = isEvaluationResultV2(result) ? (result as EvaluationResultV2).enrichment ?? null : null;
+  const manuscriptWordCount = typeof result.metrics?.manuscript?.word_count === 'number'
+    ? result.metrics.manuscript.word_count
+    : null;
+  const evaluationMode = await loadCanonicalEvaluationMode(admin, jobId, rawResult, (job as { progress?: unknown }).progress, manuscriptWordCount);
+  const canonicalDoc = buildCanonicalTemplateDocument(result, title, enrichment, evaluationMode, dream);
 
   if (format === 'txt') {
-    const body = buildTxtReport(result, title, jobId, dream, enrichment, ledgerSummary);
+    const body = buildCanonicalTemplateTxt(canonicalDoc);
     return new Response(body, {
       headers: {
         'Content-Type': 'text/plain; charset=utf-8',
@@ -2063,7 +2554,8 @@ export async function GET(
 
   if (format === 'pdf') {
     try {
-      const buffer = await buildPdfReport(result, title, jobId, dream, enrichment, ledgerSummary);
+      const html = renderCanonicalTemplateHtml(canonicalDoc);
+      const buffer = await buildChromiumPdf(html);
       if (buffer.subarray(0, 4).toString('ascii') !== '%PDF') {
         throw new Error('Generated artifact does not contain valid PDF header bytes');
       }
@@ -2076,7 +2568,7 @@ export async function GET(
         },
       });
     } catch (err) {
-      console.error('[report-download] PDF export failed', {
+      console.error('[report-download] Canonical template PDF export failed', {
         jobId,
         error: err instanceof Error ? err.message : String(err),
         stack: err instanceof Error ? err.stack : undefined,
@@ -2092,7 +2584,7 @@ export async function GET(
     }
   }
 
-  const buffer = await buildDocx(result, title, jobId, dream, enrichment, ledgerSummary);
+  const buffer = await buildCanonicalTemplateDocx(canonicalDoc);
   return new Response(new Uint8Array(buffer), {
     headers: {
       'Content-Type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',

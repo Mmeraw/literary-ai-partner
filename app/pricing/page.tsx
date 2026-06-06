@@ -183,6 +183,22 @@ export default function PricingPage() {
               RevisionGrade evaluates full manuscripts, partial manuscripts, chapters, and serious narrative excerpts. It does not evaluate letters, resumes, academic papers, legal documents, contracts, marketing materials, query letters, synopses, or author biographies. Paid checkout requires acknowledgment of these limits before purchase.
             </p>
           </div>
+
+          <div className="mt-6 rounded-2xl border border-rg-gold/30 bg-rg-ink/80 p-5 text-sm leading-7 text-rg-cream2/80">
+            <p className="font-rg-mono text-[0.65rem] uppercase tracking-[0.18em] text-rg-gold">What we do / don&apos;t do</p>
+            <p className="mt-3 text-rg-cream2/90">
+              <span className="font-semibold text-rg-cream">RevisionGrade evaluates:</span> novels, novellas, book-length memoirs, narrative nonfiction manuscripts, and serious narrative excerpts.
+            </p>
+            <p className="mt-3 text-rg-cream2/90">
+              <span className="font-semibold text-rg-cream">RevisionGrade does not evaluate:</span> personal/business letters, professional correspondence, query letters, synopses, author bios, resumes/CVs, academic/research papers, legal documents, contracts, or marketing/sales copy.
+            </p>
+            <p className="mt-3">
+              If unsupported content is submitted, evaluation will not proceed and you&apos;ll receive guidance to submit an eligible manuscript.
+            </p>
+            <Link href="/faq" className="mt-3 inline-block font-rg-mono text-xs uppercase tracking-[0.16em] text-rg-gold hover:text-rg-cream">
+              Read full eligibility policy →
+            </Link>
+          </div>
         </div>
       </section>
 

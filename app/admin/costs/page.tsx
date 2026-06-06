@@ -33,6 +33,18 @@ interface CostOpsSummary {
   callCount: number;
   avgUsageCostPerJobCents: number;
   failedJobUsageCents: number;
+  lowestCostJobId: string | null;
+  lowestCostJobCostCents: number;
+  mostExpensiveJobId: string | null;
+  mostExpensiveJobCostCents: number;
+  grossRevenueCents: number;
+  stripeFeesCents: number;
+  refundCents: number;
+  netRevenueCents: number;
+  grossProfitCents: number;
+  grossMarginPct: number | null;
+  avgRevenuePerEvaluationCents: number;
+  documentGenerationCents: number;
   topModel: string | null;
   topPhase: string | null;
   completeness: "complete_if_overheads_configured" | "llm_only";
@@ -98,6 +110,8 @@ interface CostOpsDashboardData {
     reviseQueueCents: number;
     totalNonEvalCents: number;
   };
+  costComponentsIncluded?: string[];
+  costComponentsMissing?: string[];
 }
 
 const RANGE_OPTIONS: Array<{ value: CostRange; label: string }> = [
@@ -267,12 +281,21 @@ export default function CostOpsDashboardPage() {
         {backfillResult && <Notice text={backfillResult} kind="ok" />}
         {warnings.map((warning, i) => <Notice key={i} text={warning} kind="watch" />)}
 
-        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-          <KpiCard label={`${summary.rangeLabel} Total`} value={fmtUsd(summary.selectedRange.totalCents)} highlight />
-          <KpiCard label="Tracked LLM" value={fmtUsd(summary.selectedRange.usageCents)} />
-          <KpiCard label="Allocated Overhead" value={fmtUsd(summary.selectedRange.fixedAllocatedCents)} />
-          <KpiCard label="Projected Month-End" value={fmtUsd(summary.projectedMonthEndCents)} />
-          <KpiCard label="Avg Cost / Evaluation" value={fmtUsd(summary.avgUsageCostPerJobCents)} />
+        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <KpiCard label="Total Cost" value={fmtUsd(summary.selectedRange.totalCents)} highlight />
+          <KpiCard label="Average Cost / Evaluation" value={fmtUsd(summary.avgUsageCostPerJobCents)} />
+          <KpiCard label="Evaluation Count" value={summary.jobsWithCosts.toLocaleString()} />
+          <KpiCard label="Revenue" value={fmtUsd(summary.netRevenueCents)} />
+          <KpiCard label="Gross Profit" value={fmtUsd(summary.grossProfitCents)} />
+          <KpiCard label="Gross Margin" value={summary.grossMarginPct === null ? "N/A" : `${summary.grossMarginPct.toFixed(1)}%`} />
+          <KpiCard
+            label="Highest Cost Evaluation"
+            value={summary.mostExpensiveJobId ? `${summary.mostExpensiveJobId.slice(0, 8)}… · ${fmtUsd(summary.mostExpensiveJobCostCents)}` : "-"}
+          />
+          <KpiCard
+            label="Lowest Cost Evaluation"
+            value={summary.lowestCostJobId ? `${summary.lowestCostJobId.slice(0, 8)}… · ${fmtUsd(summary.lowestCostJobCostCents)}` : "-"}
+          />
         </section>
 
         <section className="grid gap-4 md:grid-cols-3 xl:grid-cols-6">
@@ -282,6 +305,29 @@ export default function CostOpsDashboardPage() {
           <MiniKpi label="Jobs Tracked" value={`${summary.jobsWithCosts} / ${summary.totalEvaluationJobs}`} />
           <MiniKpi label="Top Model" value={summary.topModel ?? "-"} />
           <MiniKpi label="Coverage" value={summary.completeness === "complete_if_overheads_configured" ? "Configured" : "LLM only"} />
+        </section>
+
+        <section className="grid gap-4 md:grid-cols-2">
+          <div className="rounded-lg border border-rg-cream2/15 bg-rg-ink2/70 p-5">
+            <h2 className="mb-3 font-rg-serif text-lg text-rg-cream">Cost Components Included</h2>
+            <ul className="space-y-2 text-sm text-rg-cream2/80">
+              {(data.costComponentsIncluded ?? []).map((item) => (
+                <li key={item}>• {item}</li>
+              ))}
+            </ul>
+          </div>
+          <div className="rounded-lg border border-amber-500/30 bg-amber-900/20 p-5">
+            <h2 className="mb-3 font-rg-serif text-lg text-amber-200">Cost Components Not Yet Included</h2>
+            {(data.costComponentsMissing ?? []).length > 0 ? (
+              <ul className="space-y-2 text-sm text-amber-200/90">
+                {(data.costComponentsMissing ?? []).map((item) => (
+                  <li key={item}>• {item}</li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-sm text-amber-100/80">All configured categories are currently included.</p>
+            )}
+          </div>
         </section>
 
         <EvaluationModelRoutingPanel />

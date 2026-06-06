@@ -279,6 +279,7 @@ function buildPipelineHealth(
   jobs: Record<string, unknown>[],
   windowParam: string,
   artifactKindsByJob: Map<string, Set<string>>,
+  ownerEmailByUserId: Map<string, string | null>,
   dreamSynthesis: DreamSynthesisData
 ) {
   const totalJobs = jobs.length;
@@ -361,6 +362,8 @@ function buildPipelineHealth(
 
     return {
       jobId: job.id,
+      ownerEmail:
+        typeof job.user_id === "string" ? ownerEmailByUserId.get(job.user_id) ?? null : null,
       manuscriptId: job.manuscript_id,
       createdAt,
       updatedAt,
@@ -480,7 +483,7 @@ export async function GET(req: NextRequest) {
       .from("evaluation_jobs")
       .select(
         // Section A: added cross_check_* fields; Section D: restart tracking
-        "id, manuscript_id, status, phase, phase_status, progress, last_error, created_at, updated_at, cross_check_status, cross_check_error, cross_check_completed_at, attempt_count, max_attempts"
+        "id, user_id, manuscript_id, status, phase, phase_status, progress, last_error, created_at, updated_at, cross_check_status, cross_check_error, cross_check_completed_at, attempt_count, max_attempts"
       )
       .gte("created_at", new Date(Date.now() - intervalToMs(interval)).toISOString())
       .order("updated_at", { ascending: false })
@@ -502,6 +505,18 @@ export async function GET(req: NextRequest) {
 
     const allJobs = (jobs ?? []) as Record<string, unknown>[];
 
+    // Batch-resolve owner emails for failed/recent job triage visibility.
+    const ownerUserIds = [...new Set(
+      allJobs
+        .map((job) => (typeof job.user_id === "string" ? job.user_id : null))
+        .filter((id): id is string => Boolean(id)),
+    )];
+    let ownerEmailByUserId = new Map<string, string | null>();
+    if (ownerUserIds.length > 0) {
+      const { data: { users } } = await supabase.auth.admin.listUsers({ perPage: 1000 });
+      ownerEmailByUserId = new Map((users ?? []).map((u) => [u.id, u.email ?? null]));
+    }
+
     // Load ALL artifact kinds for all jobs (one round-trip covers Sections A + C)
     const allJobIds = allJobs
       .map((j) => String(j.id ?? ""))
@@ -512,7 +527,13 @@ export async function GET(req: NextRequest) {
     // Section B — DREAM synthesis data (separate query, global scope not window-limited)
     const dreamSynthesis = await loadDreamSynthesisData(supabase);
 
-    const payload = buildPipelineHealth(allJobs, windowParam, artifactKindsByJob, dreamSynthesis);
+    const payload = buildPipelineHealth(
+      allJobs,
+      windowParam,
+      artifactKindsByJob,
+      ownerEmailByUserId,
+      dreamSynthesis,
+    );
 
     return NextResponse.json({
       ok: true,

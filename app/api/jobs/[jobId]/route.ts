@@ -243,6 +243,21 @@ export async function GET(req: NextRequest, ctx: { params: Params }) {
 
     // 6d) Surface hard_fail_present and block_code for review_gate blocked state display
     const rawProgress = job.progress as Record<string, unknown> | null;
+    const rawDashboardStatus = rawProgress?.dashboard_status;
+    if (typeof rawDashboardStatus === 'string' && rawDashboardStatus.length > 0) {
+      response.job.dashboard_status = rawDashboardStatus;
+    }
+    if (
+      job.status === 'failed' &&
+      (
+        rawProgress?.cancelled_by_user === true
+        || typeof rawProgress?.canceled_at === 'string'
+        || typeof rawProgress?.cancelled_at === 'string'
+      )
+    ) {
+      response.job.dashboard_status = 'cancelled';
+    }
+
     const rawBlockCode = rawProgress?.block_code;
     if (typeof rawBlockCode === 'string' && rawBlockCode.length > 0) {
       response.job.block_code = rawBlockCode;
@@ -344,8 +359,10 @@ export async function GET(req: NextRequest, ctx: { params: Params }) {
 
     // 10) For failed jobs viewed by non-operators, emit a safe public message.
     if (job.status === "failed" && !canSeeOperationalDetails) {
-      response.job.public_status_message =
-        "This evaluation could not be completed. Please start a new evaluation or contact support if the problem continues.";
+      const cancelledByUser = response.job.dashboard_status === 'cancelled';
+      response.job.public_status_message = cancelledByUser
+        ? 'Evaluation cancelled. Your manuscript was not evaluated to completion. No score or report was generated.'
+        : "This evaluation could not be completed. Please start a new evaluation or contact support if the problem continues.";
     }
 
     return jsonNoStore(response);

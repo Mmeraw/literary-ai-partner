@@ -26,6 +26,8 @@ import os from 'os';
 import { getEvaluationRuntimeConfig } from '@/lib/config/evaluationRuntimeConfig';
 import { isPipelineEnabled, pipelineDisabledResponse } from '@/lib/config/pipelineGuard';
 import { getConfiguredAppBaseUrl } from '@/lib/jobs/triggerWorker';
+import { enforceApiRateLimit } from '@/lib/security/apiRateLimit';
+import { requireWorkerSecret } from '@/lib/security/apiGuards';
 
 // Force Node.js runtime (required for crypto module)
 export const runtime = 'nodejs';
@@ -362,9 +364,20 @@ function buildWorkerId(traceId: string): string {
 // ============================================================================
 
 export async function GET(request: NextRequest) {
+  const rateLimitDenied = enforceApiRateLimit(request, {
+    bucket: 'worker_process_evaluations',
+    limit: 240,
+    windowMs: 60 * 1000,
+    keySuffix: request.headers.get('x-vercel-id') || undefined,
+  });
+  if (rateLimitDenied) return rateLimitDenied;
+
   const traceId = generateTraceId();
   const startTime = Date.now();
   const workerConfig = getWorkerConfig();
+
+  const workerSecretDenied = requireWorkerSecret(request);
+  if (workerSecretDenied) return workerSecretDenied;
 
   const auth = checkAuthorization(request);
 
@@ -561,7 +574,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       success: false,
       traceId,
-      error: errorMessage,
+      error: 'Worker failed',
       durationMs,
       timestamp: new Date().toISOString(),
     }, { status: 500 });

@@ -204,8 +204,8 @@ function getProgressDisplayRaw(
         : "Awaiting Story Layer Approval",
       valueLabel: "50%",
       helperText: hasHardFail
-        ? "The story layer could not be approved automatically. Review the Story Ledger to resolve narrative conflicts before Phase 2 can begin."
-        : "Phase 1A is complete. Review your Story Ledger and approve to continue to Phase 2.",
+        ? "The story layer could not be approved automatically. Review the Story Ledger to resolve narrative conflicts before evaluation can continue."
+        : "Story Layer review is complete. Approve to continue your evaluation.",
       indeterminate: false,
       percentage: 50,
       color: hasHardFail ? "red" : "amber",

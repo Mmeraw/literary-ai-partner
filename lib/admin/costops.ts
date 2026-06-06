@@ -10,6 +10,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { resolveTrackedCostCents } from "@/lib/jobs/cost";
 import { formatUsdFromCents } from "@/lib/admin/formatMoney";
 import { getLlmEventRollup } from "@/lib/admin/costopsLlmEvents";
+import { getRevenueForRange } from "@/lib/admin/revenueEvents";
 
 export type CostOpsSeverity = "ok" | "watch" | "danger" | "unknown";
 export type CostOpsRange = "24h" | "5d" | "30d" | "all";
@@ -55,6 +56,16 @@ export interface CostOpsSummary {
   topPhase: string | null;
   mostExpensiveJobId: string | null;
   mostExpensiveJobCostCents: number;
+  lowestCostJobId: string | null;
+  lowestCostJobCostCents: number;
+  grossRevenueCents: number;
+  stripeFeesCents: number;
+  refundCents: number;
+  netRevenueCents: number;
+  grossProfitCents: number;
+  grossMarginPct: number | null;
+  avgRevenuePerEvaluationCents: number;
+  documentGenerationCents: number;
   completeness: "complete_if_overheads_configured" | "llm_only";
   generatedAt: string;
 }
@@ -152,6 +163,8 @@ export interface CostOpsDashboardData {
     reviseQueueCents: number;
     totalNonEvalCents: number;
   };
+  costComponentsIncluded: string[];
+  costComponentsMissing: string[];
 }
 
 interface RawCostRow {
@@ -255,6 +268,9 @@ function getMonthlyOverheads(): Array<{ provider: string; cents: number | null; 
     { provider: "Vercel", cents: readUsdEnvCents("COSTOPS_VERCEL_MONTHLY_USD"), envName: "COSTOPS_VERCEL_MONTHLY_USD" },
     { provider: "Supabase", cents: readUsdEnvCents("COSTOPS_SUPABASE_MONTHLY_USD"), envName: "COSTOPS_SUPABASE_MONTHLY_USD" },
     { provider: "Other", cents: readUsdEnvCents("COSTOPS_OTHER_MONTHLY_USD"), envName: "COSTOPS_OTHER_MONTHLY_USD" },
+    { provider: "Email", cents: readUsdEnvCents("COSTOPS_EMAIL_MONTHLY_USD"), envName: "COSTOPS_EMAIL_MONTHLY_USD" },
+    { provider: "Monitoring", cents: readUsdEnvCents("COSTOPS_MONITORING_MONTHLY_USD"), envName: "COSTOPS_MONITORING_MONTHLY_USD" },
+    { provider: "Bandwidth", cents: readUsdEnvCents("COSTOPS_BANDWIDTH_MONTHLY_USD"), envName: "COSTOPS_BANDWIDTH_MONTHLY_USD" },
   ];
 }
 
@@ -262,6 +278,36 @@ function allocateMonthlyOverheadCents(range: CostOpsRange, days: number | null, 
   if (!monthlyCents) return 0;
   if (range === "all") return 0;
   return (monthlyCents / 30) * (days ?? 0);
+}
+
+function getDocumentGenerationEstimateCents(params: { range: CostOpsRange; days: number | null; evaluationCount: number }): { cents: number; configured: boolean; detail: string } {
+  const monthly = readUsdEnvCents("COSTOPS_DOCUMENT_GENERATION_MONTHLY_USD");
+  const pdfPerDoc = readUsdEnvCents("COSTOPS_PDF_GENERATION_PER_DOC_USD");
+  const wordPerDoc = readUsdEnvCents("COSTOPS_WORD_GENERATION_PER_DOC_USD");
+
+  if ((pdfPerDoc ?? 0) > 0 || (wordPerDoc ?? 0) > 0) {
+    const perDoc = (pdfPerDoc ?? 0) + (wordPerDoc ?? 0);
+    return {
+      cents: perDoc * params.evaluationCount,
+      configured: true,
+      detail: `Per-document estimate (${formatUsdFromCents(perDoc)} x ${params.evaluationCount} evaluations).`,
+    };
+  }
+
+  if ((monthly ?? 0) > 0) {
+    const cents = allocateMonthlyOverheadCents(params.range, params.days, monthly);
+    return {
+      cents,
+      configured: true,
+      detail: `Monthly document generation estimate (${formatUsdFromCents(monthly ?? 0)}) prorated to range.`,
+    };
+  }
+
+  return {
+    cents: 0,
+    configured: false,
+    detail: "Document generation not configured (set COSTOPS_PDF_GENERATION_PER_DOC_USD / COSTOPS_WORD_GENERATION_PER_DOC_USD or COSTOPS_DOCUMENT_GENERATION_MONTHLY_USD).",
+  };
 }
 
 export function getConfiguredOverheadForRange(range: CostOpsRange, days: number | null): { rows: CostOpsProviderCostRow[]; totalCents: number; missingProviders: string[] } {
@@ -500,6 +546,7 @@ export async function getCostOpsDashboardData(rangeInput?: string | null): Promi
   const uniqueJobIds = [...new Set(selectedRows.map((row) => row.job_id).filter(Boolean))];
   const allUniqueJobIds = [...new Set(allRows.map((row) => row.job_id).filter(Boolean))];
   const jobsWithCosts = allUniqueJobIds.length;
+  const selectedEvaluationCount = uniqueJobIds.length;
 
   let jobMeta = new Map<string, RawJobRow>();
   try {
@@ -528,7 +575,25 @@ export async function getCostOpsDashboardData(rangeInput?: string | null): Promi
   const failedCents = sumCents(mtdRows.filter((row) => failedJobIds.has(row.job_id)));
 
   const selectedJobIds = new Set(selectedRows.map((row) => row.job_id).filter(Boolean));
-  const avgUsageCostPerJobCents = selectedJobIds.size > 0 ? (selectedLlmCents + overhead.totalCents) / selectedJobIds.size : 0;
+  const documentGeneration = getDocumentGenerationEstimateCents({
+    range,
+    days: rangeWindow.days,
+    evaluationCount: selectedJobIds.size,
+  });
+
+  providerCosts.push({
+    provider: "Document Generation",
+    usageCents: documentGeneration.cents,
+    fixedAllocatedCents: 0,
+    totalCents: documentGeneration.cents,
+    source: documentGeneration.configured ? "configured_monthly" : "manual_required",
+    detail: documentGeneration.detail,
+  });
+
+  const { totals: revenueTotals } = await getRevenueForRange(range);
+
+  const totalSelectedCostCents = selectedLlmCents + overhead.totalCents + documentGeneration.cents;
+  const avgUsageCostPerJobCents = selectedJobIds.size > 0 ? totalSelectedCostCents / selectedJobIds.size : 0;
 
   const elapsed = daysElapsedInMonth(now);
   const totalDays = daysInCurrentMonth(now);
@@ -542,8 +607,14 @@ export async function getCostOpsDashboardData(rangeInput?: string | null): Promi
 
   const jobRows = buildJobRows(selectedRows, jobMeta, overhead.totalCents);
   const mostExpensiveJob = jobRows[0] ?? null;
-  const selectedTotalCents = selectedLlmCents + overhead.totalCents;
+  const lowestCostJob = jobRows.length > 0 ? [...jobRows].sort((a, b) => a.totalCostCents - b.totalCostCents)[0] : null;
+  const selectedTotalCents = totalSelectedCostCents;
   const mtdTotalCents = mtdLlmCents + mtdOverhead.totalCents;
+
+  const grossProfitCents = revenueTotals.netRevenueCents - selectedTotalCents;
+  const grossMarginPct = revenueTotals.netRevenueCents > 0
+    ? (grossProfitCents / revenueTotals.netRevenueCents) * 100
+    : null;
 
   const summary: CostOpsSummary = {
     currency: "USD",
@@ -571,12 +642,26 @@ export async function getCostOpsDashboardData(rangeInput?: string | null): Promi
     topPhase,
     mostExpensiveJobId: mostExpensiveJob?.jobId ?? null,
     mostExpensiveJobCostCents: mostExpensiveJob?.totalCostCents ?? 0,
+    lowestCostJobId: lowestCostJob?.jobId ?? null,
+    lowestCostJobCostCents: lowestCostJob?.totalCostCents ?? 0,
+    grossRevenueCents: revenueTotals.grossRevenueCents,
+    stripeFeesCents: revenueTotals.stripeFeesCents,
+    refundCents: revenueTotals.refundCents,
+    netRevenueCents: revenueTotals.netRevenueCents,
+    grossProfitCents,
+    grossMarginPct,
+    avgRevenuePerEvaluationCents: selectedEvaluationCount > 0 ? revenueTotals.netRevenueCents / selectedEvaluationCount : 0,
+    documentGenerationCents: documentGeneration.cents,
     completeness: overhead.missingProviders.length === 0 ? "complete_if_overheads_configured" : "llm_only",
     generatedAt: now.toISOString(),
   };
 
   if (range === "all" && overhead.rows.some((row) => row.source === "configured_monthly")) {
     warnings.push("All-time view includes exact tracked LLM costs only; monthly overhead allocations apply to time-bounded ranges.");
+  }
+
+  if (!documentGeneration.configured) {
+    warnings.push(documentGeneration.detail);
   }
 
   // ── Non-evaluation rollup from llm_cost_events ───────────────────────────
@@ -616,6 +701,17 @@ export async function getCostOpsDashboardData(rangeInput?: string | null): Promi
       reviseQueueCents,
       totalNonEvalCents: agentReadinessCents + reviseQueueCents,
     },
+    costComponentsIncluded: [
+      "OpenAI/API usage from job_costs",
+      "Evaluation pipeline execution costs by phase",
+      "Configured monthly infrastructure overhead allocation",
+      documentGeneration.configured ? "Configured document generation allocation" : "",
+      revenueTotals.netRevenueCents >= 0 ? "Revenue ledger from revenue_events" : "",
+    ].filter(Boolean),
+    costComponentsMissing: [
+      ...overhead.missingProviders,
+      ...(!documentGeneration.configured ? ["PDF/Word generation cost configuration"] : []),
+    ],
   };
 }
 

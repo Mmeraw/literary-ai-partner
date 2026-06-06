@@ -1,8 +1,9 @@
 import 'server-only';
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient as createSSRClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { canReleaseEvaluationRead } from '@/lib/jobs/readReleaseGate';
+import { enforceApiRateLimit } from '@/lib/security/apiRateLimit';
+import { requireUser } from '@/lib/security/apiGuards';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -13,6 +14,13 @@ export async function GET(
   request: NextRequest,
   { params }: { params: { jobId: string } | Promise<{ jobId: string }> },
 ) {
+  const rateLimitDenied = enforceApiRateLimit(request, {
+    bucket: 'report_print',
+    limit: 60,
+    windowMs: 10 * 60 * 1000,
+  });
+  if (rateLimitDenied) return rateLimitDenied;
+
   const resolved = await Promise.resolve(params);
   const jobId = resolved.jobId;
 
@@ -20,14 +28,9 @@ export async function GET(
     return NextResponse.json({ error: 'Invalid job ID' }, { status: 400 });
   }
 
-  const ssrSupabase = await createSSRClient();
-  const {
-    data: { user },
-  } = await ssrSupabase.auth.getUser();
-
-  if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  const auth = await requireUser();
+  if (auth.ok === false) return auth.response;
+  const user = auth.user;
 
   const admin = createAdminClient();
   const { data: job, error } = await admin
