@@ -32,7 +32,7 @@ const auditTiers = [
     price: "$0",
     bestFor: "Testing hook, voice, and opening-page narrative pressure.",
     features: ["Opening hook", "Voice signal", "Readiness preview", "Full-manuscript diagnostics not included"],
-    href: "/evaluate",
+    href: "/evaluate?trial=free",
   },
   {
     name: "Short-Form Story Evaluation",

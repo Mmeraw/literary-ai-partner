@@ -30,7 +30,7 @@ function isValidEmail(value: string): boolean {
 
 // ── Shared input class ──────────────────────────────────────────────────────
 const inputCls =
-  'block w-full bg-rg-ink border border-rg-cream2/30 text-rg-cream font-rg-serif text-sm px-4 py-3 ' +
+  'block w-full bg-rg-ink border border-rg-cream2/30 text-rg-cream font-rg-serif text-lg px-5 py-4 ' +
   'placeholder:text-rg-cream2/40 focus:outline-none focus:border-rg-gold transition-colors duration-150'
 
 export default function LoginPage() {
@@ -147,33 +147,33 @@ export default function LoginPage() {
         <span className="inline-flex h-8 w-8 items-center justify-center border border-rg-gold/60 text-rg-gold font-rg-serif text-sm group-hover:border-rg-gold transition-colors">
           R
         </span>
-        <span className="font-rg-serif text-rg-cream text-sm tracking-wide">RevisionGrade&#8482;</span>
+        <span className="font-rg-serif text-rg-cream text-lg tracking-wide">RevisionGrade&#8482;</span>
       </Link>
 
       {/* Section label */}
-      <p className="font-rg-mono text-xs tracking-[0.25em] uppercase text-rg-cream2 mb-8">
+      <p className="font-rg-mono text-sm tracking-[0.25em] uppercase text-rg-cream2 mb-8">
         <span className="text-rg-red mr-2">●</span>
         Internal Access
       </p>
 
       {/* Card */}
-      <div className="border border-rg-cream2/20 bg-rg-ink2 w-full max-w-sm px-8 py-10">
+      <div className="border border-rg-cream2/20 bg-rg-ink2 w-full max-w-xl px-10 py-12 sm:px-12">
 
-        <h1 className="font-rg-serif text-rg-cream text-2xl mb-6 text-center">
+        <h1 className="font-rg-serif text-rg-cream text-4xl mb-8 text-center">
           Sign in
         </h1>
 
         {/* Error message */}
         {error && (
-          <div className="mb-5 border border-rg-red/60 bg-rg-red/10 px-4 py-3 font-rg-mono text-xs text-rg-cream2 leading-relaxed">
+          <div className="mb-6 border border-rg-red/60 bg-rg-red/10 px-5 py-4 font-rg-mono text-sm text-rg-cream2 leading-relaxed">
             {error}
           </div>
         )}
 
         {/* Email/password form */}
-        <form className="space-y-4" onSubmit={handleLogin}>
+        <form className="space-y-6" onSubmit={handleLogin}>
           <div>
-            <label htmlFor="email" className="block font-rg-mono text-xs tracking-widest uppercase text-rg-cream2 mb-2">
+            <label htmlFor="email" className="block font-rg-mono text-sm tracking-widest uppercase text-rg-cream2 mb-3">
               Email
             </label>
             <input
@@ -194,12 +194,12 @@ export default function LoginPage() {
 
           <div>
             <div className="flex items-baseline justify-between mb-2">
-              <label htmlFor="password" className="block font-rg-mono text-xs tracking-widest uppercase text-rg-cream2">
+              <label htmlFor="password" className="block font-rg-mono text-sm tracking-widest uppercase text-rg-cream2">
                 Password
               </label>
               <Link
                 href="/forgot-password"
-                className="font-rg-mono text-xs tracking-widest uppercase text-rg-cream2 hover:text-rg-gold transition-colors"
+                className="font-rg-mono text-sm tracking-widest uppercase text-rg-cream2 hover:text-rg-gold transition-colors"
               >
                 Forgot?
               </Link>
@@ -239,14 +239,14 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading || !hasSupabaseAuthConfig}
-            className="mt-2 w-full border border-rg-cream2/50 text-rg-cream font-rg-mono text-xs tracking-widest uppercase px-6 py-3 hover:border-rg-gold hover:text-rg-gold transition-colors duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
+            className="mt-3 w-full border border-rg-cream2/50 text-rg-cream font-rg-mono text-sm tracking-widest uppercase px-7 py-4 hover:border-rg-gold hover:text-rg-gold transition-colors duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
           >
             {loading ? 'Signing in…' : 'Sign in'}
           </button>
         </form>
 
         {/* Sign up link */}
-        <p className="mt-8 text-center font-rg-serif text-rg-cream2 text-xs">
+        <p className="mt-9 text-center font-rg-serif text-rg-cream2 text-base">
           No account?{' '}
           <Link href="/signup" className="text-rg-cream2 hover:text-rg-gold transition-colors">
             Sign up
@@ -256,7 +256,7 @@ export default function LoginPage() {
       </div>
 
       {/* Footer doctrine line */}
-      <p className="mt-10 font-rg-mono text-xs tracking-[0.2em] uppercase text-rg-cream2 text-center">
+      <p className="mt-10 font-rg-mono text-sm tracking-[0.2em] uppercase text-rg-cream2 text-center">
         Powered by the WAVE Revision System · 13 Story Evaluation Criteria
       </p>
 

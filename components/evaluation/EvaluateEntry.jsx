@@ -179,6 +179,8 @@ function EvaluationHistoryRow({ job }) {
 
 export default function EvaluateEntry() {
   const router = useRouter();
+  const isFreeDiagnosticTrial =
+    typeof window !== "undefined" && new URLSearchParams(window.location.search).get("trial") === "free";
   const { jobs, isLoading, isError } = useJobs();
 
   React.useEffect(() => {
@@ -254,6 +256,7 @@ export default function EvaluateEntry() {
         </section>
 
         <ManuscriptSubmissionForm
+          freeDiagnosticTrial={isFreeDiagnosticTrial}
           onSubmitSuccess={(data) => {
             const jobId = data?.job_id;
             if (!jobId) return;

@@ -143,7 +143,7 @@ function getSubmissionSourceSummary({ selectedDashboardManuscript, manuscriptTex
  * Track A: Evaluation Entry
  * Single UI entry point to create evaluate_full jobs via POST /api/jobs
  */
-export default function ManuscriptSubmissionForm({ onSubmitSuccess }) {
+export default function ManuscriptSubmissionForm({ onSubmitSuccess, freeDiagnosticTrial = false }) {
   const uploadInputRef = useRef(null);
 
   const [activeInputMethod, setActiveInputMethod] = useState("saved");
@@ -419,6 +419,7 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess }) {
 
       const payload = {
         job_type: "evaluate_full",
+        ...(freeDiagnosticTrial ? { user_tier: "free" } : {}),
         manuscript_title: projectTitle,
         english_variant: englishVariant,
         manuscript_structure: manuscriptStructure,

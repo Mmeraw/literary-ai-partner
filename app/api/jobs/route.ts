@@ -18,6 +18,7 @@ import { resolveManuscriptTitle } from "@/lib/manuscripts/title";
 import { computeEnrichment, type EnrichmentResult } from "@/lib/evaluation/enrichment";
 import { routeNarrativeEvaluationPreflight } from "@/lib/evaluation/preflight/manuscriptTypeRouting";
 import { createInitialVersion } from "@/lib/manuscripts/versions";
+import { attachFreeDiagnosticJob, claimFreeDiagnostic } from "@/lib/freeDiagnostic/claims";
 
 function isRateLimited(
   result: RateLimitResult
@@ -419,6 +420,7 @@ export async function POST(req: Request) {
       (process.env.ALLOW_HEADER_USER_ID === "true"
         ? req.headers.get("x-user-id")
         : null);
+    const userEmail = authenticatedUser?.email ?? null;
 
     if (!userId) {
       logger.warn("Job creation blocked: missing authenticated user", {
@@ -609,6 +611,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: reason, trace_id }, { status: 403 });
     }
 
+    const isFreeDiagnosticClaim = user_tier === "free" && isEvaluationJobType(validatedJobType);
+    let freeDiagnosticClaimId: string | null = null;
+
     const backpressureBlock = await backpressureGuard();
     if (backpressureBlock) {
       logger.warn("Job creation blocked by backpressure", {
@@ -662,6 +667,38 @@ export async function POST(req: Request) {
       }
     }
 
+    if (isFreeDiagnosticClaim) {
+      const claimResult = await claimFreeDiagnostic({
+        supabase: createAdminClient(),
+        req,
+        userId,
+        email: userEmail,
+        manuscriptId: manuscript_id,
+      });
+
+      if (!claimResult.ok) {
+        logger.warn("Free diagnostic claim blocked", {
+          trace_id,
+          request_id,
+          event: "api.jobs.create.free_diagnostic_blocked",
+          user_id: userId,
+          code: claimResult.code,
+        });
+
+        return NextResponse.json(
+          {
+            ok: false,
+            error: claimResult.message,
+            code: claimResult.code,
+            trace_id,
+          },
+          { status: claimResult.status },
+        );
+      }
+
+      freeDiagnosticClaimId = claimResult.claimId;
+    }
+
     const job = await createJob({
       manuscript_id,
       manuscript_version_id: sourceVersionId ?? undefined,
@@ -670,6 +707,14 @@ export async function POST(req: Request) {
       sensitivity_mode,
       voice_preservation_level,
     });
+
+    if (freeDiagnosticClaimId) {
+      await attachFreeDiagnosticJob({
+        supabase: createAdminClient(),
+        claimId: freeDiagnosticClaimId,
+        jobId: job.id,
+      });
+    }
 
     const shouldFastTrackPhase0 = false;
 

@@ -40,6 +40,7 @@ export default function SignupPage() {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
+  const [accountExists, setAccountExists] = useState(false)
   const [loading, setLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
@@ -86,6 +87,7 @@ export default function SignupPage() {
     setLoading(true)
     setError(null)
     setSuccess(null)
+    setAccountExists(false)
 
     if (!hasSupabaseAuthConfig) {
       trackClientAuthEvent('signup', 'blocked_backoff', { reason: 'missing_supabase_env' })
@@ -127,6 +129,20 @@ export default function SignupPage() {
     }
 
     try {
+      const emailCheck = await fetch('/api/auth/check-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: normalizedEmail }),
+      }).then((res) => (res.ok ? res.json() : null)).catch(() => null)
+
+      if (emailCheck?.exists === true) {
+        trackClientAuthEvent('signup', 'validation_failed', { reason: 'account_exists' })
+        setAccountExists(true)
+        setError('An account already exists for this email. Please sign in or reset your password instead.')
+        setLoading(false)
+        return
+      }
+
       const { data, error } = await supabase.auth.signUp({
         email: normalizedEmail,
         password,
@@ -164,7 +180,7 @@ export default function SignupPage() {
   }
 
   const inputCls =
-    'block w-full bg-rg-ink border border-rg-cream2/30 text-rg-cream font-rg-serif text-sm px-4 py-3 ' +
+    'block w-full bg-rg-ink border border-rg-cream2/30 text-rg-cream font-rg-serif text-lg px-5 py-4 ' +
     'placeholder:text-rg-cream2/40 focus:outline-none focus:border-rg-gold transition-colors duration-150'
 
   return (
@@ -175,32 +191,38 @@ export default function SignupPage() {
         <span className="inline-flex h-8 w-8 items-center justify-center border border-rg-gold/60 text-rg-gold font-rg-serif text-sm group-hover:border-rg-gold transition-colors">
           R
         </span>
-        <span className="font-rg-serif text-rg-cream text-sm tracking-wide">RevisionGrade&#8482;</span>
+        <span className="font-rg-serif text-rg-cream text-lg tracking-wide">RevisionGrade&#8482;</span>
       </Link>
 
       {/* Section label */}
-      <p className="font-rg-mono text-xs tracking-[0.25em] uppercase text-rg-cream2 mb-8">
+      <p className="font-rg-mono text-sm tracking-[0.25em] uppercase text-rg-cream2 mb-8">
         <span className="text-rg-red mr-2">&bull;</span>
         Create Account
       </p>
 
       {/* Card */}
-      <div className="border border-rg-cream2/20 bg-rg-ink2 w-full max-w-sm px-8 py-10">
+      <div className="border border-rg-cream2/20 bg-rg-ink2 w-full max-w-xl px-10 py-12 sm:px-12">
 
-        <h1 className="font-rg-serif text-rg-cream text-2xl mb-6 text-center">
+        <h1 className="font-rg-serif text-rg-cream text-4xl mb-8 text-center">
           Sign up
         </h1>
 
         {/* Error message */}
         {error && (
-          <div className="mb-5 border border-rg-red/60 bg-rg-red/10 px-4 py-3 font-rg-mono text-xs text-rg-cream2 leading-relaxed">
-            {error}
+          <div className="mb-6 border border-rg-red/60 bg-rg-red/10 px-5 py-4 font-rg-mono text-sm text-rg-cream2 leading-relaxed">
+            <p>{error}</p>
+            {accountExists && (
+              <div className="mt-4 flex flex-wrap gap-4">
+                <Link href="/login" className="text-rg-gold underline hover:text-rg-cream">Sign in</Link>
+                <Link href="/forgot-password" className="text-rg-gold underline hover:text-rg-cream">Reset password</Link>
+              </div>
+            )}
           </div>
         )}
 
         {/* Success message */}
         {success && (
-          <div className="mb-5 border border-rg-gold/60 bg-rg-gold/10 px-4 py-3 font-rg-mono text-xs text-rg-cream2 leading-relaxed">
+          <div className="mb-6 border border-rg-gold/60 bg-rg-gold/10 px-5 py-4 font-rg-mono text-sm text-rg-cream2 leading-relaxed">
             <p>{success}</p>
             <div className="mt-3">
               <Link href="/login" className="font-rg-mono text-xs text-rg-gold hover:text-rg-cream transition-colors underline">
@@ -210,9 +232,9 @@ export default function SignupPage() {
           </div>
         )}
 
-        <form className="space-y-4" onSubmit={handleSignup}>
+        <form className="space-y-6" onSubmit={handleSignup}>
           <div>
-            <label htmlFor="email" className="block font-rg-mono text-xs tracking-widest uppercase text-rg-cream2 mb-2">
+            <label htmlFor="email" className="block font-rg-mono text-sm tracking-widest uppercase text-rg-cream2 mb-3">
               Email
             </label>
             <input
@@ -232,7 +254,7 @@ export default function SignupPage() {
           </div>
 
           <div>
-            <label htmlFor="password" className="block font-rg-mono text-xs tracking-widest uppercase text-rg-cream2 mb-2">
+            <label htmlFor="password" className="block font-rg-mono text-sm tracking-widest uppercase text-rg-cream2 mb-3">
               Password
             </label>
             <div className="relative">
@@ -266,13 +288,13 @@ export default function SignupPage() {
                 )}
               </button>
             </div>
-            <p className="mt-1 font-rg-mono text-xs text-rg-cream2/50">
+            <p className="mt-2 font-rg-mono text-sm text-rg-cream2/60 leading-6">
               At least {PASSWORD_MIN_LENGTH} characters with uppercase, lowercase, and a number.
             </p>
           </div>
 
           <div>
-            <label htmlFor="confirmPassword" className="block font-rg-mono text-xs tracking-widest uppercase text-rg-cream2 mb-2">
+            <label htmlFor="confirmPassword" className="block font-rg-mono text-sm tracking-widest uppercase text-rg-cream2 mb-3">
               Confirm Password
             </label>
             <div className="relative">
@@ -311,13 +333,13 @@ export default function SignupPage() {
           <button
             type="submit"
             disabled={loading || !hasSupabaseAuthConfig}
-            className="mt-2 w-full border border-rg-cream2/50 text-rg-cream font-rg-mono text-xs tracking-widest uppercase px-6 py-3 hover:border-rg-gold hover:text-rg-gold transition-colors duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
+            className="mt-3 w-full border border-rg-cream2/50 text-rg-cream font-rg-mono text-sm tracking-widest uppercase px-7 py-4 hover:border-rg-gold hover:text-rg-gold transition-colors duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
           >
             {loading ? 'Creating account…' : 'Create account'}
           </button>
         </form>
 
-        <p className="mt-6 text-center font-rg-mono text-xs text-rg-cream2">
+        <p className="mt-8 text-center font-rg-mono text-sm text-rg-cream2">
           Already have an account?{' '}
           <Link href="/login" className="text-rg-gold hover:text-rg-cream transition-colors">
             Sign in

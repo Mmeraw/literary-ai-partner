@@ -6,6 +6,7 @@ const isProduction = process.env.NODE_ENV === 'production'
 
 const PUBLIC_API_PATHS = [
   '/api/auth/callback',
+  '/api/auth/check-email',
   '/api/stripe/webhook',
   '/api/health',
   '/api/contact',
@@ -159,6 +160,7 @@ export async function middleware(request: NextRequest) {
     '/forgot-password',
     '/reset-password',
     '/api/auth/callback',
+    '/api/auth/check-email',
     '/auth/callback',
     '/marketing-preview',
     '/api/cron',
