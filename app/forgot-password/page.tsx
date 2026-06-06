@@ -40,7 +40,7 @@ function getResetRedirectUrl(): string {
 }
 
 const inputCls =
-  'block w-full bg-rg-ink border border-rg-cream2/30 text-rg-cream font-rg-serif text-sm px-4 py-3 ' +
+  'block w-full bg-rg-ink border border-rg-cream2/35 text-rg-cream font-rg-serif text-lg px-5 py-4 ' +
   'placeholder:text-rg-cream2/40 focus:outline-none focus:border-rg-gold transition-colors duration-150'
 
 export default function ForgotPasswordPage() {
@@ -111,44 +111,42 @@ export default function ForgotPasswordPage() {
   }
 
   return (
-    <div className="min-h-[calc(100vh-3.5rem)] bg-rg-ink flex flex-col items-center justify-center px-6 py-16">
-
-      <Link href="/" className="flex items-center gap-3 mb-10 group">
-        <span className="inline-flex h-8 w-8 items-center justify-center border border-rg-gold/60 text-rg-gold font-rg-serif text-sm group-hover:border-rg-gold transition-colors">
+    <div className="min-h-[calc(100vh-3.5rem)] bg-rg-ink flex flex-col items-center justify-center px-6 py-14 md:py-20">
+      <Link href="/" className="mb-10 flex items-center gap-4 group">
+        <span className="inline-flex h-11 w-11 items-center justify-center border border-rg-gold/70 text-rg-gold font-rg-serif text-xl group-hover:border-rg-gold transition-colors">
           R
         </span>
-        <span className="font-rg-serif text-rg-cream text-sm tracking-wide">RevisionGrade&#8482;</span>
+        <span className="font-rg-serif text-rg-cream text-xl tracking-wide">RevisionGrade&#8482;</span>
       </Link>
 
-      <p className="font-rg-mono text-xs tracking-[0.25em] uppercase text-rg-cream2 mb-8">
+      <p className="font-rg-mono text-sm tracking-[0.22em] uppercase text-rg-cream2 mb-8">
         <span className="text-rg-red mr-2">●</span>
         Password Reset
       </p>
 
-      <div className="border border-rg-cream2/20 bg-rg-ink2 w-full max-w-sm px-8 py-10">
-
-        <h1 className="font-rg-serif text-rg-cream text-2xl mb-3 text-center">
+      <div className="border border-rg-cream2/20 bg-rg-ink2 w-full max-w-lg px-8 py-10 md:px-12 md:py-12">
+        <h1 className="font-rg-serif text-rg-cream text-4xl mb-4 text-center">
           Reset your password
         </h1>
-        <p className="font-rg-serif text-rg-cream2 text-xs text-center mb-6 leading-relaxed">
+        <p className="font-rg-serif text-rg-cream2 text-lg text-center mb-8 leading-8">
           Enter your email and we&apos;ll send you a link to set a new password.
         </p>
 
         {error && (
-          <div className="mb-5 border border-rg-red/60 bg-rg-red/10 px-4 py-3 font-rg-mono text-xs text-rg-cream2 leading-relaxed">
+          <div className="mb-6 border border-rg-red/60 bg-rg-red/10 px-5 py-4 font-rg-mono text-sm text-rg-cream2 leading-relaxed">
             {error}
           </div>
         )}
 
         {success && (
-          <div className="mb-5 border border-rg-gold/50 bg-rg-gold/5 px-4 py-3 font-rg-mono text-xs text-rg-cream2 leading-relaxed">
+          <div className="mb-6 border border-rg-gold/50 bg-rg-gold/5 px-5 py-4 font-rg-mono text-sm text-rg-cream2 leading-relaxed">
             {success}
           </div>
         )}
 
-        <form className="space-y-4" onSubmit={handleSubmit}>
+        <form className="space-y-6" onSubmit={handleSubmit}>
           <div>
-            <label htmlFor="email" className="block font-rg-mono text-xs tracking-widest uppercase text-rg-cream2 mb-2">
+            <label htmlFor="email" className="block font-rg-mono text-sm tracking-widest uppercase text-rg-cream2 mb-3">
               Email
             </label>
             <input
@@ -170,25 +168,23 @@ export default function ForgotPasswordPage() {
           <button
             type="submit"
             disabled={loading || !hasSupabaseAuthConfig}
-            className="mt-2 w-full border border-rg-cream2/50 text-rg-cream font-rg-mono text-xs tracking-widest uppercase px-6 py-3 hover:border-rg-gold hover:text-rg-gold transition-colors duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
+            className="mt-2 w-full border border-rg-cream2/50 text-rg-cream font-rg-mono text-sm tracking-widest uppercase px-6 py-4 hover:border-rg-gold hover:text-rg-gold transition-colors duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
           >
             {loading ? 'Sending…' : 'Send reset link'}
           </button>
         </form>
 
-        <p className="mt-8 text-center font-rg-serif text-rg-cream2 text-xs">
+        <p className="mt-8 text-center font-rg-serif text-rg-cream2 text-lg">
           Remember your password?{' '}
           <Link href="/login" className="text-rg-cream2 hover:text-rg-gold transition-colors">
             Back to sign in
           </Link>
         </p>
-
       </div>
 
-      <p className="mt-10 font-rg-mono text-xs tracking-[0.2em] uppercase text-rg-cream2 text-center">
+      <p className="mt-10 max-w-2xl font-rg-mono text-sm tracking-[0.16em] uppercase text-rg-cream2 text-center leading-7">
         Powered by the WAVE Revision System · 13 Story Evaluation Criteria
       </p>
-
     </div>
   )
 }
