@@ -455,7 +455,7 @@ function deriveDominantCraftEngineFromPasses(pass1: SinglePassOutput, pass2: Sin
   const topKey = merged[0]?.key;
   if (topKey === "narrativeDrive" || topKey === "pacing" || topKey === "sceneConstruction") return "propulsion";
   if (topKey === "voice") return "voice";
-  if (topKey === "theme" || topKey === "tone") return "mood";
+  if (topKey === "theme" || topKey === "tone") return "tonal_pressure";
   if (topKey === "worldbuilding" || topKey === "concept") return "world_concept";
   if (topKey === "dialogue" || topKey === "character") return "emotional_payoff";
   if (topKey === "marketability") return "hybrid";

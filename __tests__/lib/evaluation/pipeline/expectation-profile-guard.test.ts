@@ -96,7 +96,7 @@ describe("expectation profile recommendation guard", () => {
       workType: "literaryFictionGeneral",
       diagnosedGenre: "literary_fiction",
       shelfTargetAudience: "adult literary",
-      dominantCraftEngine: "mood",
+      dominantCraftEngine: "tonal_pressure",
     });
 
     const parsed = parsePass3Response(

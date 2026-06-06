@@ -137,7 +137,7 @@ export async function GET(req: NextRequest) {
     // Generate next cursor from last job
     let nextCursor: string | null = null;
     if (has_more && resultJobs.length > 0) {
-      const lastJob = resultJobs[resultJobs.length - 1] as {
+      const lastJob = resultJobs[resultJobs.length - 1] as unknown as {
         failed_at: string | null;
         created_at: string;
         id: string;

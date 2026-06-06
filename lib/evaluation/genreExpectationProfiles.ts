@@ -14,7 +14,7 @@ export type ExpectationProfile =
 
 export type DominantCraftEngine =
   | "propulsion"
-  | "mood"
+  | "tonal_pressure"
   | "atmosphere"
   | "reflection"
   | "voice"
@@ -102,7 +102,7 @@ const GENRE_PROFILE_RULES: Array<{ pattern: RegExp; profiles: ExpectationProfile
 
 const CRAFT_ENGINE_PROFILE_MAP: Record<DominantCraftEngine, ExpectationProfile[]> = {
   propulsion: ["propulsion_forward"],
-  mood: ["mood_forward"],
+  tonal_pressure: ["mood_forward"],
   atmosphere: ["atmosphere_forward"],
   reflection: ["reflection_forward"],
   voice: ["voice_forward"],
@@ -121,9 +121,9 @@ function normalizeKey(input: string): string {
 function coerceCraftEngine(raw: string | DominantCraftEngine | null | undefined): DominantCraftEngine {
   const value = String(raw ?? "").toLowerCase().trim();
   if (!value) return "unknown";
-  if (value.includes("propulsion") || value.includes("momentum") || value.includes("pace")) return "propulsion";
+  if (value.includes("propulsion") || value.includes("drive") || value.includes("pace")) return "propulsion";
   if (value.includes("atmosphere")) return "atmosphere";
-  if (value.includes("mood")) return "mood";
+  if (value.includes("tonal") || value.includes("tone")) return "tonal_pressure";
   if (value.includes("reflect")) return "reflection";
   if (value.includes("voice")) return "voice";
   if (value.includes("emotional") || value.includes("relationship")) return "emotional_payoff";
