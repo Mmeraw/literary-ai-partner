@@ -719,6 +719,156 @@ export async function runPass3Synthesis(opts: RunPass3Options): Promise<Synthesi
     throw error;
   }
 
+  // ── Candidate prose retry loop ("kick backward") ──
+  // After parsing, scan for recommendations flagged CANDIDATE_PROSE_MISSING.
+  // Collect them, send a focused LLM call to generate just the missing A/B/C prose,
+  // backfill, and clear resolved defects. Retry at most once — if still missing,
+  // the defect remains and the opportunity ledger will hold the item.
+  const candidateRetryItems: Array<{
+    criterionIdx: number;
+    recIdx: number;
+    criterion: string;
+    action: string;
+    anchor_snippet: string;
+    missing: string[];
+  }> = [];
+
+  for (let ci = 0; ci < synthesis.criteria.length; ci++) {
+    const c = synthesis.criteria[ci];
+    if (!c.technical_defects?.some(d => d.code === "CANDIDATE_PROSE_MISSING")) continue;
+    for (let ri = 0; ri < c.recommendations.length; ri++) {
+      const rec = c.recommendations[ri];
+      if (!rec.anchor_snippet) continue;
+      const hasA = typeof rec.candidate_text_a === 'string' && rec.candidate_text_a.trim().length >= 5;
+      const hasB = typeof rec.candidate_text_b === 'string' && rec.candidate_text_b.trim().length >= 5;
+      const hasC = typeof rec.candidate_text_c === 'string' && rec.candidate_text_c.trim().length >= 5;
+      if (!hasA || !hasB || !hasC) {
+        candidateRetryItems.push({
+          criterionIdx: ci,
+          recIdx: ri,
+          criterion: c.key,
+          action: rec.action,
+          anchor_snippet: rec.anchor_snippet,
+          missing: [...(!hasA ? ['A'] : []), ...(!hasB ? ['B'] : []), ...(!hasC ? ['C'] : [])],
+        });
+      }
+    }
+  }
+
+  if (candidateRetryItems.length > 0) {
+    console.info(
+      `[Pass3-Retry] ${candidateRetryItems.length} recommendation(s) missing candidate prose — invoking targeted retry`,
+    );
+
+    const retryPayload = candidateRetryItems.slice(0, 20).map((ir, idx) => ({
+      id: idx,
+      criterion: ir.criterion,
+      action: ir.action,
+      anchor_snippet: ir.anchor_snippet.slice(0, 600),
+      missing_slots: ir.missing,
+    }));
+
+    const candidateRetryPrompt = `You are a prose revision assistant. The evaluation pipeline produced recommendations but is missing candidate prose for them.
+
+For each item below, generate the missing candidate text slots. Each candidate MUST be:
+- Real, copy-paste-ready manuscript prose (not editorial instructions)
+- Written in the author's voice using their characters' names and scene details
+- At least 5 words long
+- NEVER a copy of the anchor_snippet (the original passage)
+
+Slot definitions:
+- candidate_text_a: The primary recommended prose repair — conservative fix preserving the author's voice.
+- candidate_text_b: A rhythm variant — same fix direction, different sentence structure and cadence. Materially distinct from A.
+- candidate_text_c: A bolder rendering shift — more assertive revision, bigger creative swing. Materially distinct from A and B.
+
+Items needing candidate prose:
+${JSON.stringify(retryPayload, null, 2)}
+
+Respond with a JSON object: { "items": [ { "id": <number>, "candidate_text_a": "...", "candidate_text_b": "...", "candidate_text_c": "..." }, ... ] }
+Only include slots that were listed in missing_slots for each item. Omit slots the item already has.`;
+
+    try {
+      const retryHeartbeat = opts.onHeartbeat
+        ? setInterval(() => { void opts.onHeartbeat?.(); }, 20_000)
+        : null;
+      let retryCompletion;
+      try {
+        retryCompletion = await createCompletion({
+          model: selectedModel,
+          messages: [
+            { role: "system", content: "You generate copy-paste-ready manuscript prose for literary revision recommendations. Output valid JSON only." },
+            { role: "user", content: candidateRetryPrompt },
+          ],
+          ...buildOpenAITemperatureParam(selectedModel, 0.4),
+          ...buildOpenAIOutputTokenParam(selectedModel, 4000),
+          response_format: { type: "json_object" },
+        });
+      } finally {
+        if (retryHeartbeat) clearInterval(retryHeartbeat);
+      }
+      trackCompletionCost({ jobId: opts.jobId ?? "unknown", phase: "pass3_candidate_retry", model: selectedModel, usage: retryCompletion.usage });
+
+      const retryContent = retryCompletion.choices?.[0]?.message?.content;
+      const retryText = typeof retryContent === 'string' ? retryContent : '';
+      if (retryText.trim()) {
+        try {
+          const retryParsed = JSON.parse(retryText);
+          const retryResults = Array.isArray(retryParsed?.items) ? retryParsed.items : [];
+          let backfilledCount = 0;
+
+          for (const item of retryResults) {
+            const id = typeof item?.id === 'number' ? item.id : -1;
+            if (id < 0 || id >= candidateRetryItems.length) continue;
+            const ir = candidateRetryItems[id];
+            const rec = synthesis.criteria[ir.criterionIdx].recommendations[ir.recIdx];
+            const anchor = rec.anchor_snippet ?? '';
+
+            for (const slot of ['candidate_text_a', 'candidate_text_b', 'candidate_text_c'] as const) {
+              const val = typeof item[slot] === 'string' ? item[slot].trim() : '';
+              if (val.length < 5) continue;
+              // Reject anchor echoes
+              const normVal = val.toLowerCase().replace(/[^a-z0-9\s]/g, '').replace(/\s+/g, ' ').trim();
+              const normAnchor = anchor.toLowerCase().replace(/[^a-z0-9\s]/g, '').replace(/\s+/g, ' ').trim();
+              if (normAnchor.length >= 20 && (normVal === normAnchor || normVal.includes(normAnchor) || normAnchor.includes(normVal))) {
+                continue;
+              }
+              // Only backfill slots that were actually missing
+              const existing = rec[slot];
+              if (typeof existing === 'string' && existing.trim().length >= 5) continue;
+              (rec as Record<string, unknown>)[slot] = val;
+              backfilledCount++;
+            }
+          }
+
+          console.info(`[Pass3-Retry] Backfilled ${backfilledCount} candidate slot(s) from retry response`);
+
+          // Clear CANDIDATE_PROSE_MISSING defects for recs that are now complete
+          if (backfilledCount > 0) {
+            for (const ir of candidateRetryItems) {
+              const rec = synthesis.criteria[ir.criterionIdx].recommendations[ir.recIdx];
+              const nowHasA = typeof rec.candidate_text_a === 'string' && rec.candidate_text_a.trim().length >= 5;
+              const nowHasB = typeof rec.candidate_text_b === 'string' && rec.candidate_text_b.trim().length >= 5;
+              const nowHasC = typeof rec.candidate_text_c === 'string' && rec.candidate_text_c.trim().length >= 5;
+              if (nowHasA && nowHasB && nowHasC) {
+                const c = synthesis.criteria[ir.criterionIdx];
+                c.technical_defects = (c.technical_defects ?? []).filter(
+                  d => !(d.code === "CANDIDATE_PROSE_MISSING" && d.author_facing_reason.includes(`"${c.key}"`)),
+                );
+                if (c.technical_defects.length === 0) {
+                  c.technical_defects = undefined;
+                }
+              }
+            }
+          }
+        } catch (parseErr) {
+          console.warn(`[Pass3-Retry] Failed to parse retry response: ${parseErr}`);
+        }
+      }
+    } catch (retryErr) {
+      console.warn(`[Pass3-Retry] Candidate prose retry call failed (non-fatal): ${retryErr}`);
+    }
+  }
+
   if (opts.jobId) {
     void pipelineLog({
       jobId: opts.jobId,
@@ -730,6 +880,8 @@ export async function runPass3Synthesis(opts: RunPass3Options): Promise<Synthesi
         truncationDetected:
           initialFinishReason === "length" || initialTruncatedRecommendation,
         retryFired,
+        candidateProseRetryFired: candidateRetryItems.length > 0,
+        candidateProseRetryCount: candidateRetryItems.length,
       },
     });
   }
@@ -999,11 +1151,11 @@ export function parsePass3Response(
 
   // ── Post-synthesis candidate prose completeness gate ──
   // Every recommendation with an anchor_snippet MUST have all three candidate_text fields populated.
-  // Missing candidates are flagged as CANDIDATE_PROSE_MISSING technical defects so the opportunity
-  // ledger can hold them (unsupported_blocked) instead of surfacing empty prose in the workbench.
+  // Missing candidates are flagged as CANDIDATE_PROSE_MISSING technical defects.
+  // The retry loop in runPass3Synthesis will attempt to backfill these before the pipeline continues.
   for (const c of criteria) {
     for (const rec of c.recommendations) {
-      if (!rec.anchor_snippet) continue; // anchorless recs can't have candidates
+      if (!rec.anchor_snippet) continue;
       const hasA = typeof rec.candidate_text_a === 'string' && rec.candidate_text_a.trim().length >= 5;
       const hasB = typeof rec.candidate_text_b === 'string' && rec.candidate_text_b.trim().length >= 5;
       const hasC = typeof rec.candidate_text_c === 'string' && rec.candidate_text_c.trim().length >= 5;
