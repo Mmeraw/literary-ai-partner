@@ -17,6 +17,7 @@ type Ok = {
 type Err = {
   ok: false;
   error: string;
+  details?: string;
 };
 
 export async function GET(
@@ -91,6 +92,7 @@ export async function GET(
       const payload: Err = {
         ok: false,
         error: "Evaluation not releasable",
+        details: releaseDecision.reason,
       };
       return NextResponse.json(payload, { status: 409 });
     }

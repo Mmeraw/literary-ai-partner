@@ -64,8 +64,19 @@ function hasFinalExternalAudit(job: Pick<PhaseInputs, "final_external_audit_comp
   return typeof job.final_external_audit_completed_at === "string" && job.final_external_audit_completed_at.trim().length > 0;
 }
 
+function expectsFinalExternalAudit(job: Pick<PhaseInputs, "final_external_audit_completed_at" | "final_external_audit_verdict" | "final_external_audit_blocking">): boolean {
+  return (
+    typeof job.final_external_audit_completed_at === "string" ||
+    typeof job.final_external_audit_verdict === "string" ||
+    typeof job.final_external_audit_blocking === "boolean"
+  );
+}
+
 function isLongFormInterimComplete(job: PhaseInputs): boolean {
-  return job.status === "complete" && isLongFormJob(job) && (!hasLongFormNarrativeSynthesis(job) || !hasFinalExternalAudit(job));
+  return job.status === "complete" && isLongFormJob(job) && (
+    !hasLongFormNarrativeSynthesis(job) ||
+    (expectsFinalExternalAudit(job) && !hasFinalExternalAudit(job))
+  );
 }
 
 function elapsedDrift(
@@ -179,10 +190,10 @@ function getProgressDisplayRaw(
 
     if (isLongForm && !hasSynthesis) {
       return {
-        label: "Scoring complete. Preparing narrative synthesis.",
+        label: "Finalizing your report in progress",
         valueLabel: "92%",
         helperText:
-          "Your scoring pass is complete. The long-form narrative synthesis is still being prepared before the full report is released.",
+          "Your diagnostic report is ready. Finalizing your report with long-form narrative synthesis before the full report is released.",
         indeterminate: false,
         percentage: 92,
         color: "blue",
@@ -202,7 +213,7 @@ function getProgressDisplayRaw(
       };
     }
 
-    if (isLongForm && !hasFinalExternalAudit(job)) {
+    if (isLongForm && expectsFinalExternalAudit(job) && !hasFinalExternalAudit(job)) {
       return {
         label: "Final verification in progress.",
         valueLabel: "96%",

@@ -64,7 +64,7 @@ export function getCriterionPrimaryBadge(criterion: RenderableCriterion): {
 
   if (!isCertifiedCriterion(criterion)) {
     return {
-      label: `${formatScoreOutOfTen(criterion.score_0_10)} (Not certified)`,
+      label: "Score not certified",
       classes: "bg-slate-100 text-slate-700",
       numeric: false,
     };

@@ -25,6 +25,7 @@ function collectUserFacingText(result: EvaluationResultV2): string {
   return [
     result.overview?.verdict,
     result.overview?.one_paragraph_summary,
+    (result.overview as { summary?: unknown } | undefined)?.summary,
     ...(Array.isArray(result.criteria) ? result.criteria.map((criterion) => criterion.rationale) : []),
   ].filter((value): value is string => typeof value === 'string').join('\n');
 }
