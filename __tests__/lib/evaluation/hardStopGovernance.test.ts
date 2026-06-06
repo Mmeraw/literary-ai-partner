@@ -54,8 +54,9 @@ describe('hardStopGovernance', () => {
       ['seed_0_5b', 'phase_1a'],
       ['phase_1a', 'review_gate'],
       ['review_gate', 'phase_2'],
+      ['phase_1a', 'phase_2'],    // short-form: bypasses review_gate
       ['phase_2', 'phase_3a'],
-      ['phase_2', 'phase_3'],
+      ['phase_2', 'phase_3'],     // short-form: bypasses phase_3a
       ['phase_3a', 'phase_3'],
       ['phase_3', 'phase_3b'],
       ['phase_3b', 'wave_revision'],
