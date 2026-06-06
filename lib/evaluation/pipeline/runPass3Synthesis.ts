@@ -2182,8 +2182,9 @@ function synthesizeRecommendationsFromRationale(
     const specificFix = gap_summary
       ? `Address the gap: ${gap_summary.split(".")[0]?.trim() ?? gap_summary}.`
       : `Revise the ${key} signals in the identified passage.`;
-    const readerEffect = `Strengthening ${key} here improves the reader's experience and moves the score closer to the target range.`;
-    const mistakeProofing = `Preserve existing strengths in ${key} while making targeted revisions.`;
+    const displayKey = key.replace(/([a-z])([A-Z])/g, "$1 $2").replace(/_/g, " ").toLowerCase();
+    const readerEffect = `Strengthening ${displayKey} here improves the reader's experience and moves the score closer to the target range.`;
+    const mistakeProofing = `Preserve existing strengths in ${displayKey} while making targeted revisions.`;
 
     results.push({
       priority,
