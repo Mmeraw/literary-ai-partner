@@ -4,8 +4,7 @@ import { PRICING_PRODUCTS } from "@/lib/payments/pricing-products";
 
 export const metadata = {
   title: "Pricing | RevisionGrade™",
-  description:
-    "Fixed-price editorial audits and metered Editorial Actions for governed manuscript readiness.",
+  description: "Fixed-price editorial audits and metered Editorial Actions for governed manuscript readiness.",
 };
 
 function formatPrice(productId: string): string {
@@ -14,119 +13,8 @@ function formatPrice(productId: string): string {
   return `$${Math.round(product.priceCents / 100).toLocaleString()}`;
 }
 
-const auditTiers = [
-  {
-    name: "Free Opening Diagnostic",
-    wordCount: "Up to 3,000 words",
-    price: "$0",
-    actionAccess: "Readiness preview",
-    bestFor: "Testing hook, voice, and opening-page narrative pressure.",
-    features: ["Opening hook", "Voice signal", "Readiness preview", "Full-manuscript diagnostics not included"],
-    href: "/evaluate",
-  },
-  {
-    name: "Short-Form Story Evaluation",
-    wordCount: "Up to 24,999 words",
-    price: formatPrice("short_form_evaluation"),
-    actionAccess: "13 story criteria + Revise Queue",
-    bestFor: "Chapters, excerpts, short stories, openings, and partial submissions.",
-    features: ["13 story criteria", "Evidence-backed diagnosis", "Prioritized revision opportunities", "Readiness verdict"],
-    productId: "short_form_evaluation",
-  },
-  {
-    name: "Full Manuscript Readiness Audit",
-    wordCount: "25,000–120,000 words",
-    price: formatPrice("full_manuscript_audit"),
-    actionAccess: "Long-form evaluation + up to 100 revision opportunities",
-    bestFor: "The Professional Standard for novels and long-form manuscripts. Includes diagnostic report and prioritized Revise Queue.",
-    features: ["13 story criteria", "Up to 100 prioritized revision opportunities", "MUST / SHOULD / COULD severity ranking", "A/B/C copy-paste-ready revision variants", "Manuscript-scale continuity", "Setup/payoff and pacing over distance"],
-    highlighted: true,
-    productId: "full_manuscript_audit",
-  },
-  {
-    name: "Long Manuscript Readiness Audit",
-    wordCount: "120,001–180,000 words",
-    price: formatPrice("long_manuscript_audit"),
-    actionAccess: "Expanded long-form evaluation + up to 100 revision opportunities",
-    bestFor: "Epic-scale manuscripts and longer novels.",
-    features: ["13 story criteria", "Up to 100 prioritized revision opportunities", "Advanced continuity diagnostics", "Expanded long-form analysis", "Scale-aware opportunity summary"],
-    productId: "long_manuscript_audit",
-  },
-  {
-    name: "Multi-Layer Manuscript Audit",
-    wordCount: "Complex long-form projects",
-    price: `${formatPrice("multilayer_manuscript_audit")}+`,
-    actionAccess: "Deep architecture audit + up to 100 revision opportunities",
-    bestFor: "Multi-POV, multi-timeline, genre-hybrid, experimental, memoir-fiction, or unusually structured long-form prose.",
-    features: ["13 story criteria", "Up to 100 prioritized revision opportunities", "Layered evidence analysis", "Proprietary repair governance where appropriate", "Custom complexity handling"],
-    productId: "multilayer_manuscript_audit",
-  },
-  {
-    name: "ReGrade Follow-Up Pass",
-    wordCount: "After completing revisions",
-    price: formatPrice("regrade_follow_up"),
-    actionAccess: "Re-evaluation + next severity layer",
-    bestFor: "Authors who completed their first batch of revisions and want the next layer of opportunities surfaced.",
-    features: ["Re-evaluates revised manuscript", "Surfaces next severity layer", "Updated scores and diagnosis", "New revision opportunities ranked by impact"],
-    productId: "regrade_follow_up",
-  },
-];
-
-const actionPacks = [
-  { name: "Starter Pack", actions: "Targeted Editorial Actions", productId: "revise_starter_pack" },
-  { name: "Professional Pack", actions: "Expanded Editorial Actions", productId: "revise_professional_pack" },
-  { name: "Studio Pack", actions: "Studio Editorial Actions", productId: "revise_studio_pack" },
-];
-
-const faqs = [
-  {
-    question: "What is the difference between an audit and an Editorial Action?",
-    answer:
-      "An audit is the fixed-price diagnostic: it reveals the manuscript’s readiness profile, including strengths, priority signals, and the kind of editorial support the work may benefit from next. Editorial Actions unlock and repair specific opportunities through granular opportunity cards and governed repair proposals.",
-  },
-  {
-    question: "When do long-form diagnostics apply?",
-    answer:
-      "Short-form evaluations apply under 25,000 words and use the 13 story criteria only. Long-form evaluation begins at 25,000+ words, where manuscript-scale continuity, recurrence, payoff, pacing over distance, and structural readiness can be judged.",
-  },
-  {
-    question: "When does multi-layer analysis apply?",
-    answer:
-      "Long-form multi-layer evaluation is the deeper architecture tier for complex manuscripts. It may include layered evidence views, manuscript-scale continuity, proprietary repair governance, dialogue and speech protection, and deeper structural analysis where appropriate.",
-  },
-  {
-    question: "How many revision opportunities does one pass surface?",
-    answer:
-      "Each RevisionGrade pass surfaces up to 100 prioritized revision opportunities, ranked by severity: MUST first, then SHOULD, then COULD. Some manuscripts produce fewer opportunities because the writing is cleaner, the submission is shorter, or the evidence does not justify additional recommendations.",
-  },
-  {
-    question: "What is a ReGrade follow-up pass?",
-    answer:
-      "After completing your first batch of revisions, a ReGrade pass re-evaluates your revised manuscript at a reduced price and surfaces the next layer of opportunities. This teaches the correct editorial workflow: diagnose, repair, re-check, then polish.",
-  },
-  {
-    question: "Why not offer unlimited revisions?",
-    answer:
-      "Unlimited revision encourages vague rewriting. RevisionGrade uses scoped repair opportunities so each change is tied to evidence, rationale, and author approval.",
-  },
-  {
-    question: "Are evaluation purchases refundable?",
-    answer:
-      "Paid evaluations are final once processing begins because each report is a custom digital analysis that consumes editorial, computational, and system resources immediately. Refunds are not offered for disagreement with the score, editorial findings, change of mind, or agent/market outcome. Billing errors, duplicate charges, or verified non-delivery will be reviewed.",
-  },
-  {
-    question: "Is RevisionGrade replacing human editors?",
-    answer:
-      "No. RevisionGrade helps you understand what kind of editorial help your manuscript may benefit from before you spend money on the wrong intervention: developmental editing, line editing, copyediting, proofreading, market positioning, or deeper structural repair.",
-  },
-];
-
 function SectionLabel({ children }: { children: string }) {
-  return (
-    <p className="font-rg-mono text-xs uppercase tracking-[0.24em] text-rg-gold">
-      {children}
-    </p>
-  );
+  return <p className="font-rg-mono text-xs uppercase tracking-[0.24em] text-rg-gold">{children}</p>;
 }
 
 function checkoutClass(highlighted?: boolean): string {
@@ -136,6 +24,111 @@ function checkoutClass(highlighted?: boolean): string {
       : "border-rg-gold text-rg-gold hover:bg-rg-gold hover:text-rg-ink"
   }`;
 }
+
+const auditTiers = [
+  {
+    name: "Free Opening Diagnostic",
+    wordCount: "Up to 3,000 words",
+    price: "$0",
+    bestFor: "Testing hook, voice, and opening-page narrative pressure.",
+    features: ["Opening hook", "Voice signal", "Readiness preview", "Full-manuscript diagnostics not included"],
+    href: "/evaluate",
+  },
+  {
+    name: "Short-Form Story Evaluation",
+    wordCount: "Up to 24,999 words",
+    price: formatPrice("short_form_evaluation"),
+    bestFor: "Chapters, excerpts, short stories, openings, and partial submissions.",
+    features: ["13 story criteria", "Evidence-backed diagnosis", "Prioritized revision opportunities", "Readiness verdict"],
+    productId: "short_form_evaluation",
+  },
+  {
+    name: "Full Manuscript Readiness Audit",
+    wordCount: "25,000–120,000 words",
+    price: formatPrice("full_manuscript_audit"),
+    bestFor: "The Professional Standard for novels and long-form manuscripts.",
+    features: ["13 story criteria", "Up to 100 prioritized revision opportunities", "Manuscript-scale continuity", "Setup/payoff and pacing over distance"],
+    highlighted: true,
+    productId: "full_manuscript_audit",
+  },
+  {
+    name: "Long Manuscript Readiness Audit",
+    wordCount: "120,001–180,000 words",
+    price: formatPrice("long_manuscript_audit"),
+    bestFor: "Epic-scale manuscripts and longer novels.",
+    features: ["13 story criteria", "Advanced continuity diagnostics", "Expanded long-form analysis", "Scale-aware opportunity summary"],
+    productId: "long_manuscript_audit",
+  },
+  {
+    name: "Multi-Layer Manuscript Audit",
+    wordCount: "Complex long-form projects",
+    price: `${formatPrice("multilayer_manuscript_audit")}+`,
+    bestFor: "Multi-POV, multi-timeline, genre-hybrid, memoir-fiction, or unusually structured long-form prose.",
+    features: ["13 story criteria", "Layered evidence analysis", "Deep architecture audit", "Custom complexity handling"],
+    productId: "multilayer_manuscript_audit",
+  },
+  {
+    name: "ReGrade Follow-Up Pass",
+    wordCount: "After completing revisions",
+    price: formatPrice("regrade_follow_up"),
+    bestFor: "Authors who completed revisions and want the next layer surfaced.",
+    features: ["Re-evaluates revised manuscript", "Updated scores and diagnosis", "New revision opportunities ranked by impact"],
+    productId: "regrade_follow_up",
+  },
+];
+
+const actionPacks = [
+  { name: "Starter Pack", productId: "revise_starter_pack" },
+  { name: "Professional Pack", productId: "revise_professional_pack" },
+  { name: "Studio Pack", productId: "revise_studio_pack" },
+];
+
+const evaluates = [
+  "Full novels",
+  "Partial novels",
+  "Individual chapters",
+  "Novel excerpts",
+  "Novellas",
+  "Book-length memoirs",
+  "Narrative nonfiction manuscripts",
+  "Serious fiction and nonfiction excerpts",
+];
+
+const unsupported = [
+  "Personal letters",
+  "Business letters",
+  "Professional correspondence",
+  "Employment cover letters",
+  "Resumes or CVs",
+  "Academic papers",
+  "Research papers",
+  "Legal documents",
+  "Contracts",
+  "Marketing copy",
+  "Sales materials",
+  "Query letters",
+  "Synopses",
+  "Author biographies",
+];
+
+const faqs = [
+  {
+    question: "What can RevisionGrade evaluate?",
+    answer: "RevisionGrade evaluates full manuscripts, partial manuscripts, individual chapters, and serious narrative excerpts, including novels, novellas, book-length memoirs, narrative nonfiction manuscripts, and serious fiction or nonfiction excerpts.",
+  },
+  {
+    question: "What does RevisionGrade not evaluate?",
+    answer: "RevisionGrade does not evaluate letters, resumes, academic papers, legal documents, contracts, marketing copy, query letters, synopses, author biographies, or other general documents.",
+  },
+  {
+    question: "Are evaluation purchases refundable?",
+    answer: "Paid evaluations are final once processing begins because each report is a custom digital analysis. Billing errors, duplicate charges, or verified non-delivery will be reviewed.",
+  },
+  {
+    question: "Is RevisionGrade replacing human editors?",
+    answer: "No. RevisionGrade helps you understand what kind of editorial help your manuscript may benefit from before you spend money on the wrong intervention.",
+  },
+];
 
 export default function PricingPage() {
   return (
@@ -147,7 +140,7 @@ export default function PricingPage() {
             Before you pay for polish, diagnose readiness.
           </h1>
           <p className="mt-8 max-w-3xl text-base leading-8 text-rg-cream2/80 sm:text-lg">
-            Each RevisionGrade™ pass surfaces up to 100 prioritized revision opportunities, ranked by severity. Fix the highest-impact issues first, then run a lower-cost ReGrade to surface the next layer.
+            Each RevisionGrade™ pass surfaces prioritized revision opportunities. Fix the highest-impact issues first, then run a lower-cost ReGrade to surface the next layer.
           </p>
         </div>
       </section>
@@ -157,49 +150,25 @@ export default function PricingPage() {
           <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
             <div className="max-w-3xl">
               <SectionLabel>Editorial Audit Pricing</SectionLabel>
-              <h2 className="mt-4 font-rg-serif text-3xl leading-tight text-rg-cream sm:text-4xl md:text-5xl">
-                Fixed-price readiness audits.
-              </h2>
+              <h2 className="mt-4 font-rg-serif text-3xl leading-tight text-rg-cream sm:text-4xl md:text-5xl">Fixed-price readiness audits.</h2>
             </div>
             <p className="max-w-xl text-sm leading-7 text-rg-cream2/70">
-              Paid audit selections open secure Stripe Checkout first. After successful payment, buyers are directed into the evaluation product.
+              Paid audit selections show a purchase acknowledgment first, then open secure Stripe Checkout.
             </p>
           </div>
 
           <div className="mt-10 grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
             {auditTiers.map((tier) => (
-              <article
-                key={tier.name}
-                className={`relative flex min-h-full flex-col border p-6 md:p-7 ${
-                  tier.highlighted
-                    ? "border-rg-gold bg-rg-cream text-rg-ink shadow-2xl shadow-black/30"
-                    : "border-rg-cream2/12 bg-rg-ink/70 text-rg-cream"
-                }`}
-              >
-                {tier.highlighted && (
-                  <div className="absolute -top-3 left-5 bg-rg-gold px-3 py-1 font-rg-mono text-[0.62rem] uppercase tracking-[0.16em] text-rg-ink">
-                    Professional Standard
-                  </div>
-                )}
+              <article key={tier.name} className={`relative flex min-h-full flex-col border p-6 md:p-7 ${tier.highlighted ? "border-rg-gold bg-rg-cream text-rg-ink shadow-2xl shadow-black/30" : "border-rg-cream2/12 bg-rg-ink/70 text-rg-cream"}`}>
+                {tier.highlighted && <div className="absolute -top-3 left-5 bg-rg-gold px-3 py-1 font-rg-mono text-[0.62rem] uppercase tracking-[0.16em] text-rg-ink">Professional Standard</div>}
                 <div className="flex-1">
                   <h3 className="font-rg-serif text-2xl leading-tight sm:text-3xl">{tier.name}</h3>
-                  <p className={`mt-3 font-rg-mono text-[0.68rem] uppercase tracking-[0.14em] ${tier.highlighted ? "text-rg-ink/65" : "text-rg-gold"}`}>
-                    {tier.wordCount}
-                  </p>
+                  <p className={`mt-3 font-rg-mono text-[0.68rem] uppercase tracking-[0.14em] ${tier.highlighted ? "text-rg-ink/65" : "text-rg-gold"}`}>{tier.wordCount}</p>
                   <p className="mt-5 font-rg-serif text-4xl sm:text-5xl">{tier.price}</p>
-                  <p className={`mt-4 text-sm leading-6 ${tier.highlighted ? "text-rg-ink/70" : "text-rg-cream2/75"}`}>
-                    {tier.bestFor}
-                  </p>
-                  <div className={`mt-6 border-t pt-5 ${tier.highlighted ? "border-rg-ink/15" : "border-rg-cream2/10"}`}>
-                    <p className="font-rg-mono text-[0.65rem] uppercase tracking-[0.14em]">
-                      {tier.actionAccess}
-                    </p>
-                    <ul className={`mt-4 space-y-2 text-sm leading-6 ${tier.highlighted ? "text-rg-ink/75" : "text-rg-cream2/75"}`}>
-                      {tier.features.map((feature) => (
-                        <li key={feature}>• {feature}</li>
-                      ))}
-                    </ul>
-                  </div>
+                  <p className={`mt-4 text-sm leading-6 ${tier.highlighted ? "text-rg-ink/70" : "text-rg-cream2/75"}`}>{tier.bestFor}</p>
+                  <ul className={`mt-6 space-y-2 border-t pt-5 text-sm leading-6 ${tier.highlighted ? "border-rg-ink/15 text-rg-ink/75" : "border-rg-cream2/10 text-rg-cream2/75"}`}>
+                    {tier.features.map((feature) => <li key={feature}>• {feature}</li>)}
+                  </ul>
                 </div>
                 <PricingCheckoutButton productId={tier.productId} href={tier.href} className={checkoutClass(tier.highlighted)}>
                   {tier.productId ? "Secure Checkout" : "Start Free Diagnostic"}
@@ -209,25 +178,42 @@ export default function PricingPage() {
           </div>
 
           <div className="mt-8 rounded-2xl border border-rg-gold/30 bg-rg-ink/80 p-5 text-sm leading-7 text-rg-cream2/80">
-            <p className="font-rg-mono text-[0.65rem] uppercase tracking-[0.18em] text-rg-gold">Refund policy</p>
+            <p className="font-rg-mono text-[0.65rem] uppercase tracking-[0.18em] text-rg-gold">Before purchasing</p>
             <p className="mt-3">
-              RevisionGrade evaluations are custom digital services. Paid evaluation purchases are final once processing begins. Refunds are not provided for disagreement with results, change of mind, editorial judgment, score outcome, or agent/market response. Billing errors, duplicate charges, or verified non-delivery will be reviewed.
+              RevisionGrade evaluates full manuscripts, partial manuscripts, chapters, and serious narrative excerpts. It does not evaluate letters, resumes, academic papers, legal documents, contracts, marketing materials, query letters, synopses, or author biographies. Paid checkout requires acknowledgment of these limits before purchase.
             </p>
-            <Link href="/terms" className="mt-3 inline-block font-rg-mono text-xs uppercase tracking-[0.16em] text-rg-gold hover:text-rg-cream">
-              Read terms →
-            </Link>
           </div>
+        </div>
+      </section>
+
+      <section className="mx-auto max-w-7xl px-5 py-16 sm:px-6 md:py-20">
+        <SectionLabel>What RevisionGrade Can Evaluate</SectionLabel>
+        <h2 className="mt-4 font-rg-serif text-3xl text-rg-cream sm:text-4xl md:text-5xl">Manuscript diagnosis, not generic document scoring.</h2>
+        <div className="mt-10 grid gap-5 lg:grid-cols-2">
+          <article className="border border-rg-gold/30 bg-rg-ink2/60 p-6 md:p-7">
+            <h3 className="font-rg-serif text-2xl text-rg-cream">RevisionGrade evaluates</h3>
+            <ul className="mt-5 grid gap-2 text-sm leading-6 text-rg-cream2/80 sm:grid-cols-2">
+              {evaluates.map((item) => <li key={item}>• {item}</li>)}
+            </ul>
+          </article>
+          <article className="border border-rg-cream2/12 bg-rg-ink2/60 p-6 md:p-7">
+            <h3 className="font-rg-serif text-2xl text-rg-cream">RevisionGrade does not evaluate</h3>
+            <ul className="mt-5 grid gap-2 text-sm leading-6 text-rg-cream2/80 sm:grid-cols-2">
+              {unsupported.map((item) => <li key={item}>• {item}</li>)}
+            </ul>
+            <p className="mt-5 text-sm leading-7 text-rg-cream2/75">
+              Agent Readiness™ may help create and prepare query letters, synopses, author biographies, and submission materials, but these materials are not evaluated through RevisionGrade&apos;s manuscript-evaluation engine.
+            </p>
+          </article>
         </div>
       </section>
 
       <section className="mx-auto grid max-w-7xl gap-10 px-5 py-16 sm:px-6 md:py-20 lg:grid-cols-[0.85fr_1.15fr]">
         <div>
           <SectionLabel>Editorial Actions</SectionLabel>
-          <h2 className="mt-4 font-rg-serif text-3xl leading-tight text-rg-cream sm:text-4xl md:text-5xl">
-            Metered repair. No unlimited revision.
-          </h2>
+          <h2 className="mt-4 font-rg-serif text-3xl leading-tight text-rg-cream sm:text-4xl md:text-5xl">Metered repair. No unlimited revision.</h2>
           <p className="mt-6 leading-8 text-rg-cream2/75">
-            Once your audit is complete, Editorial Actions unlock granular opportunity cards and generate governed, continuity-aware repair proposals for specific story opportunities.
+            Once your audit is complete, Editorial Actions unlock granular opportunity cards and generate governed repair proposals for specific story opportunities.
           </p>
         </div>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -235,12 +221,10 @@ export default function PricingPage() {
             <article key={pack.name} className="flex flex-col border border-rg-cream2/12 bg-rg-ink2/60 p-6 md:p-7">
               <div className="flex-1">
                 <h3 className="font-rg-serif text-2xl text-rg-cream">{pack.name}</h3>
-                <p className="mt-3 font-rg-mono text-xs uppercase tracking-[0.14em] text-rg-gold">{pack.actions}</p>
+                <p className="mt-3 font-rg-mono text-xs uppercase tracking-[0.14em] text-rg-gold">Editorial Actions</p>
                 <p className="mt-5 font-rg-serif text-4xl text-rg-cream sm:text-5xl">{formatPrice(pack.productId)}</p>
               </div>
-              <PricingCheckoutButton productId={pack.productId} className={checkoutClass(false)}>
-                Secure Checkout
-              </PricingCheckoutButton>
+              <PricingCheckoutButton productId={pack.productId} className={checkoutClass(false)}>Secure Checkout</PricingCheckoutButton>
             </article>
           ))}
         </div>
@@ -250,29 +234,19 @@ export default function PricingPage() {
         <div className="mx-auto grid max-w-7xl gap-10 px-5 py-16 sm:px-6 md:py-20 lg:grid-cols-[0.8fr_1.2fr]">
           <div>
             <p className="font-rg-mono text-xs uppercase tracking-[0.24em] text-rg-gold">A Note on Editorial Readiness</p>
-            <h2 className="mt-4 font-rg-serif text-3xl leading-tight sm:text-4xl md:text-5xl">
-              RevisionGrade™ is not a blank-page writing tool.
-            </h2>
+            <h2 className="mt-4 font-rg-serif text-3xl leading-tight sm:text-4xl md:text-5xl">RevisionGrade™ is not a blank-page writing tool.</h2>
           </div>
           <div className="space-y-5 text-base leading-8 text-rg-ink/75 sm:text-lg">
-            <p>
-              It is a manuscript readiness and repair system for work that already exists. Each paid audit provides a structural diagnosis: where the story is already working, where readiness can be improved, and what kind of editorial support may help next.
-            </p>
-            <p>
-              Do not buy sentence polish for a structural problem. RevisionGrade diagnoses the level of intervention before you spend money on the wrong one.
-            </p>
-            <p className="font-rg-serif text-2xl leading-tight text-rg-ink sm:text-3xl">
-              Structural problems need structural diagnosis. Polish comes later.
-            </p>
+            <p>It is a manuscript readiness and repair system for work that already exists.</p>
+            <p>Do not buy sentence polish for a structural problem. RevisionGrade diagnoses the level of intervention before you spend money on the wrong one.</p>
+            <p className="font-rg-serif text-2xl leading-tight text-rg-ink sm:text-3xl">Structural problems need structural diagnosis. Polish comes later.</p>
           </div>
         </div>
       </section>
 
       <section className="mx-auto max-w-7xl px-5 py-16 sm:px-6 md:py-20">
         <SectionLabel>FAQ</SectionLabel>
-        <h2 className="mt-4 font-rg-serif text-3xl text-rg-cream sm:text-4xl md:text-5xl">
-          Fixed-price audit. Metered repair.
-        </h2>
+        <h2 className="mt-4 font-rg-serif text-3xl text-rg-cream sm:text-4xl md:text-5xl">Fixed-price audit. Metered repair.</h2>
         <div className="mt-10 grid grid-cols-1 gap-4 md:grid-cols-2">
           {faqs.map((item) => (
             <article key={item.question} className="border border-rg-cream2/12 bg-rg-ink2/60 p-6 md:p-7">
