@@ -30,6 +30,7 @@ import {
   type CanonicalEvaluationMode,
   type UnifiedEvaluationDocument,
 } from '@/lib/evaluation/unifiedEvaluationDocument';
+import { validateDownloadParity } from '@/lib/evaluation/downloadParityGate';
 import { sanitizeCMOS } from '@/lib/evaluation/cmosSanitizer';
 import { enforceApiRateLimit } from '@/lib/security/apiRateLimit';
 import { requireUser } from '@/lib/security/apiGuards';
@@ -2366,81 +2367,6 @@ async function loadDreamDocument(admin: ReturnType<typeof createAdminClient>, jo
     return content.longform_document as LongformDreamDocument;
   }
   return null;
-}
-
-// ── Download Parity Gate ─────────────────────────────────────────────
-// Validates that the evaluation artifact has the data needed for a
-// complete, template-compliant download BEFORE generating the file.
-// If the check fails, the download is not served.
-
-type DownloadParityViolation = {
-  code: string;
-  message: string;
-};
-
-function validateDownloadParity(result: ExportableResult): {
-  pass: boolean;
-  violations: DownloadParityViolation[];
-} {
-  const violations: DownloadParityViolation[] = [];
-  const r = result as Record<string, unknown>;
-
-  // 1. Must have criteria
-  const criteria = Array.isArray(r.criteria) ? r.criteria : [];
-  if (criteria.length === 0) {
-    violations.push({ code: 'NO_CRITERIA', message: 'Evaluation has no criteria data.' });
-  }
-
-  // 2. Must have overall score (various shapes across V1/V2)
-  const hasOverall =
-    r.overall != null ||
-    r.score != null ||
-    r.authority_composite != null ||
-    (typeof r.overview === 'object' && r.overview != null && 'score' in (r.overview as Record<string, unknown>));
-  if (!hasOverall) {
-    violations.push({ code: 'NO_OVERALL_SCORE', message: 'No overall score found.' });
-  }
-
-  // 3. Must have one_paragraph_summary
-  const summary = r.one_paragraph_summary;
-  if (!summary || (typeof summary === 'string' && summary.trim().length === 0)) {
-    violations.push({ code: 'NO_SUMMARY', message: 'Missing one_paragraph_summary.' });
-  }
-
-  // 4. Top strengths — at least one required
-  const strengths = r.top_3_strengths;
-  const strengthCount = Array.isArray(strengths)
-    ? strengths.filter((s) => typeof s === 'string' && s.trim()).length
-    : 0;
-  if (strengthCount === 0) {
-    violations.push({ code: 'NO_TOP_STRENGTHS', message: 'No top strengths present.' });
-  }
-
-  // 5. Top risks — at least one required
-  const risks = r.top_3_risks;
-  const riskCount = Array.isArray(risks)
-    ? risks.filter((s) => typeof s === 'string' && s.trim()).length
-    : 0;
-  if (riskCount === 0) {
-    violations.push({ code: 'NO_TOP_RISKS', message: 'No top risks present.' });
-  }
-
-  // 6. Each criterion must have a score and rationale
-  for (const c of criteria) {
-    if (typeof c !== 'object' || c == null) continue;
-    const cObj = c as Record<string, unknown>;
-    const key = cObj.key ?? cObj.criterion ?? 'unknown';
-    const score = cObj.score_0_10 ?? cObj.score;
-    if (score == null) {
-      violations.push({ code: 'CRITERION_NO_SCORE', message: `Criterion "${key}" has no score.` });
-    }
-    const rationale = cObj.rationale;
-    if (!rationale || (typeof rationale === 'string' && rationale.trim().length === 0)) {
-      violations.push({ code: 'CRITERION_NO_RATIONALE', message: `Criterion "${key}" has no rationale.` });
-    }
-  }
-
-  return { pass: violations.length === 0, violations };
 }
 
 export async function GET(
