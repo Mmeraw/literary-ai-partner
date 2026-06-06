@@ -342,15 +342,35 @@ function buildFallbackCandidateTexts(input: CandidateBuildInput): { a: string; b
   return buildReplacementCandidates(input);
 }
 
+function normalizedForComparison(text: string): string {
+  return text.toLowerCase().replace(/[^a-z0-9\s]/g, '').replace(/\s+/g, ' ').trim();
+}
+
+function candidateEchoesAnchor(candidate: string, anchor: string): boolean {
+  const normCandidate = normalizedForComparison(candidate);
+  const normAnchor = normalizedForComparison(anchor);
+  if (!normCandidate || !normAnchor) return false;
+  // Exact match or one is a substring of the other (handles truncation)
+  if (normCandidate === normAnchor) return true;
+  if (normAnchor.length >= 20 && normCandidate.includes(normAnchor)) return true;
+  if (normCandidate.length >= 20 && normAnchor.includes(normCandidate)) return true;
+  return false;
+}
+
 function explicitCandidateOrFallback(
   raw: unknown,
   _fallback: string,
   issueStatement: string,
+  anchorSnippet?: string,
 ): string {
   const candidate = normalizeOptionalText(raw);
   if (candidate) {
     const words = candidate.split(/\s+/);
     if (words.length >= 5 && candidate.toLowerCase() !== issueStatement.trim().toLowerCase()) {
+      // Reject candidates that merely echo the anchor/original passage
+      if (anchorSnippet && candidateEchoesAnchor(candidate, anchorSnippet)) {
+        return '';
+      }
       return candidate;
     }
   }
@@ -427,9 +447,10 @@ function ensureOpportunityCandidates(opportunity: RevisionOpportunity): Revision
     revisionOperation: operation,
   });
 
-  const candidateA = explicitCandidateOrFallback(opportunity.candidate_text_a, fallbackCandidates.a, opportunity.rationale);
-  const candidateB = explicitCandidateOrFallback(opportunity.candidate_text_b, fallbackCandidates.b, opportunity.rationale);
-  const candidateC = explicitCandidateOrFallback(opportunity.candidate_text_c, fallbackCandidates.c, opportunity.rationale);
+  const anchor = opportunity.evidence_anchor;
+  const candidateA = explicitCandidateOrFallback(opportunity.candidate_text_a, fallbackCandidates.a, opportunity.rationale, anchor);
+  const candidateB = explicitCandidateOrFallback(opportunity.candidate_text_b, fallbackCandidates.b, opportunity.rationale, anchor);
+  const candidateC = explicitCandidateOrFallback(opportunity.candidate_text_c, fallbackCandidates.c, opportunity.rationale, anchor);
   const blocked = !candidateA || !candidateB || !candidateC;
 
   return {
@@ -614,9 +635,9 @@ function extractCriteriaRecommendations(payload: Record<string, unknown>): Revis
         confidence: normalizeConfidence(recommendationRow.confidence),
         decision_state: 'open',
         revision_operation: revisionOperation,
-        candidate_text_a: explicitCandidateOrFallback(recommendationRow.candidate_text_a, fallbackCandidates.a, rationale),
-        candidate_text_b: explicitCandidateOrFallback(recommendationRow.candidate_text_b, fallbackCandidates.b, rationale),
-        candidate_text_c: explicitCandidateOrFallback(recommendationRow.candidate_text_c, fallbackCandidates.c, rationale),
+        candidate_text_a: explicitCandidateOrFallback(recommendationRow.candidate_text_a, fallbackCandidates.a, rationale, evidenceAnchor),
+        candidate_text_b: explicitCandidateOrFallback(recommendationRow.candidate_text_b, fallbackCandidates.b, rationale, evidenceAnchor),
+        candidate_text_c: explicitCandidateOrFallback(recommendationRow.candidate_text_c, fallbackCandidates.c, rationale, evidenceAnchor),
         symptom: normalizeOptionalText(recommendationRow.symptom),
         cause: normalizeOptionalText(recommendationRow.cause),
         fix_direction: normalizeOptionalText(recommendationRow.fix_direction),
@@ -709,9 +730,9 @@ function extractTopLevelRecommendations(payload: Record<string, unknown>): Revis
       confidence: normalizeConfidence(recommendationRow.confidence),
       decision_state: 'open',
       revision_operation: revisionOperation,
-      candidate_text_a: explicitCandidateOrFallback(recommendationRow.candidate_text_a, fallbackCandidates.a, rationale),
-      candidate_text_b: explicitCandidateOrFallback(recommendationRow.candidate_text_b, fallbackCandidates.b, rationale),
-      candidate_text_c: explicitCandidateOrFallback(recommendationRow.candidate_text_c, fallbackCandidates.c, rationale),
+      candidate_text_a: explicitCandidateOrFallback(recommendationRow.candidate_text_a, fallbackCandidates.a, rationale, evidenceAnchor),
+      candidate_text_b: explicitCandidateOrFallback(recommendationRow.candidate_text_b, fallbackCandidates.b, rationale, evidenceAnchor),
+      candidate_text_c: explicitCandidateOrFallback(recommendationRow.candidate_text_c, fallbackCandidates.c, rationale, evidenceAnchor),
       symptom: normalizeOptionalText(recommendationRow.symptom),
       cause: normalizeOptionalText(recommendationRow.cause),
       fix_direction: normalizeOptionalText(recommendationRow.fix_direction),
@@ -817,9 +838,9 @@ function extractChunkCacheRecommendations(chunkCachePayload: unknown): RevisionO
           confidence: normalizeConfidence(rec.confidence),
           decision_state: 'open',
           revision_operation: revisionOperation,
-          candidate_text_a: explicitCandidateOrFallback(rec.candidate_text_a, fallbackCandidates.a, rationale),
-          candidate_text_b: explicitCandidateOrFallback(rec.candidate_text_b, fallbackCandidates.b, rationale),
-          candidate_text_c: explicitCandidateOrFallback(rec.candidate_text_c, fallbackCandidates.c, rationale),
+          candidate_text_a: explicitCandidateOrFallback(rec.candidate_text_a, fallbackCandidates.a, rationale, evidenceAnchor),
+          candidate_text_b: explicitCandidateOrFallback(rec.candidate_text_b, fallbackCandidates.b, rationale, evidenceAnchor),
+          candidate_text_c: explicitCandidateOrFallback(rec.candidate_text_c, fallbackCandidates.c, rationale, evidenceAnchor),
           symptom: normalizeOptionalText(rec.symptom),
           cause: normalizeOptionalText(rec.cause),
           fix_direction: normalizeOptionalText(rec.fix_direction),

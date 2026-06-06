@@ -750,7 +750,7 @@ export default function ReviseCockpitClientWorkflowV1({ payload }: { payload: Wo
                               <div className="rounded-b-lg rounded-tr-lg border border-[#2E261A] bg-[#12100B] px-2 py-1.5">
                                 <div className="flex items-start justify-between gap-2">
                                   <p className={`max-h-32 overflow-y-auto whitespace-pre-wrap text-xs leading-4 ${ok ? "text-[#E5D8BE]" : "text-[#E2B2A6]"}`}>
-                                    {text || "Candidate generation needs an exact source passage."}
+                                    {text || "No candidate prose available. Route this item to Needs Targeting."}
                                   </p>
                                   <div className="flex shrink-0 gap-1">
                                     <button type="button" onClick={() => void copyText(text)} disabled={!ok} className="rounded border border-[#5D4C31] px-1.5 py-0.5 text-[10px] disabled:opacity-40">Copy</button>
