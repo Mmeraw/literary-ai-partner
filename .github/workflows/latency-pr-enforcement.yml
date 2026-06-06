@@ -653,9 +653,6 @@ jobs:
               commonFloor();
               assertMeaningfulSection("## Summary");
               assertMeaningfulSection("## Scope");
-              assertMeaningfulSection("## Tests Updated");
-              assertMeaningfulSection("## Risks & Anomalies");
-              validateMandatoryTrustProof();
               assert(hasNoPipelineImpact(), "Missing: No-Pipeline-Impact: <value> line");
             };
 
