@@ -997,6 +997,30 @@ export function parsePass3Response(
     }
   }
 
+  // ── Post-synthesis candidate prose completeness gate ──
+  // Every recommendation with an anchor_snippet MUST have all three candidate_text fields populated.
+  // Missing candidates are flagged as CANDIDATE_PROSE_MISSING technical defects so the opportunity
+  // ledger can hold them (unsupported_blocked) instead of surfacing empty prose in the workbench.
+  for (const c of criteria) {
+    for (const rec of c.recommendations) {
+      if (!rec.anchor_snippet) continue; // anchorless recs can't have candidates
+      const hasA = typeof rec.candidate_text_a === 'string' && rec.candidate_text_a.trim().length >= 5;
+      const hasB = typeof rec.candidate_text_b === 'string' && rec.candidate_text_b.trim().length >= 5;
+      const hasC = typeof rec.candidate_text_c === 'string' && rec.candidate_text_c.trim().length >= 5;
+      if (!hasA || !hasB || !hasC) {
+        const missing = [!hasA && 'A', !hasB && 'B', !hasC && 'C'].filter(Boolean).join(', ');
+        c.technical_defects = [...(c.technical_defects ?? []), {
+          code: "CANDIDATE_PROSE_MISSING" as const,
+          author_facing_reason: `Recommendation for "${c.key}" is missing candidate prose (${missing}). The revision workbench will hold this item until prose is generated.`,
+          retryable: true,
+        }];
+        console.warn(
+          `[Pass3-Gate] CANDIDATE_PROSE_MISSING: ${c.key} rec="${rec.action.slice(0, 60)}" missing=[${missing}]`,
+        );
+      }
+    }
+  }
+
   // ── Post-synthesis total recommendation cap: 100 for long-form (≥25k), 50 for short-form (<25k) ──
   const TOTAL_REC_CAP_LONG_FORM = 100;
   const TOTAL_REC_CAP_SHORT_FORM = 50;
@@ -1433,6 +1457,11 @@ function parseRecommendations(
         // 6-part diagnostic contract fields (v19+)
         symptom: typeof r["symptom"] === "string" ? r["symptom"].trim() : undefined,
         mistake_proofing: typeof r["mistake_proofing"] === "string" ? r["mistake_proofing"].trim() : undefined,
+        // Candidate prose fields — copy-paste-ready manuscript text
+        candidate_text_a: typeof r["candidate_text_a"] === "string" ? r["candidate_text_a"].trim() : undefined,
+        candidate_text_b: typeof r["candidate_text_b"] === "string" ? r["candidate_text_b"].trim() : undefined,
+        candidate_text_c: typeof r["candidate_text_c"] === "string" ? r["candidate_text_c"].trim() : undefined,
+        revision_operation: typeof r["revision_operation"] === "string" ? r["revision_operation"].trim() : undefined,
       };
 
       // Surface-integrity check on ORIGINAL action (before normalization/backfill).
