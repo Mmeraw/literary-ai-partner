@@ -193,6 +193,22 @@ const authorFaqs = [
     a: "RevisionGrade evaluates manuscript-level craft, structure, reader trust, and readiness across thirteen story criteria. Longer manuscripts may qualify for long-form or multi-layer analysis when there is enough text to judge manuscript-scale behavior.",
   },
   {
+    q: "What types of documents can RevisionGrade evaluate?",
+    a: "RevisionGrade evaluates manuscripts and serious narrative excerpts: novels, novellas, book-length memoirs, narrative nonfiction manuscripts, partial manuscripts, individual chapters, and serious fiction or nonfiction excerpts. Depending on length and complexity, submissions may receive short-form, long-form, or long-form multi-layer evaluation.",
+  },
+  {
+    q: "Does RevisionGrade evaluate query letters, synopses, author bios, or agent materials?",
+    a: "No. RevisionGrade may help authors create or prepare query letters, synopses, author biographies, and agent submission materials through Agent Readiness™, but those materials are not evaluated through RevisionGrade’s manuscript-evaluation engine.",
+  },
+  {
+    q: "What documents are not supported?",
+    a: "RevisionGrade is not designed for general document critique, including personal letters, business letters, professional correspondence, employment cover letters, resumes or CVs, academic papers, research papers, legal documents, contracts, marketing copy, or sales materials. These document types require different standards than manuscript diagnosis.",
+  },
+  {
+    q: "What happens if I submit an unsupported document?",
+    a: "If RevisionGrade determines that a submission is not a manuscript or serious narrative excerpt, the evaluation will not proceed. The system will explain why the document type is unsupported and invite you to submit an eligible manuscript instead. Our goal is reliable manuscript diagnostics — not generic document scoring.",
+  },
+  {
     q: "Is this only a score?",
     a: "No. A score is only useful when connected to evidence, confidence, issue severity, and revision priority. RevisionGrade is designed to produce diagnosis, not just a number.",
   },
@@ -335,7 +351,7 @@ export default function ResourcesPage() {
           <SectionHeader
             eyebrow="Author FAQ"
             title="Practical answers before you evaluate."
-            copy="Short answers for the most important product boundaries: what RevisionGrade evaluates, what reports mean, what remains author-controlled, and what no evaluation can promise."
+            copy="Short answers for the most important product boundaries: what RevisionGrade evaluates, what it does not evaluate, what reports mean, what remains author-controlled, and what no evaluation can promise."
           />
           <div className="mt-10 grid gap-4 md:grid-cols-2">
             {authorFaqs.map((item) => (
