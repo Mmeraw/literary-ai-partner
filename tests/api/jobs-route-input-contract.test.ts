@@ -2,6 +2,7 @@ import { POST } from "@/app/api/jobs/route";
 import { createJob } from "@/lib/jobs/store";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getAuthenticatedUser } from "@/lib/supabase/server";
+import { createInitialVersion } from "@/lib/manuscripts/versions";
 
 jest.mock("@/lib/jobs/store", () => ({
   createJob: jest.fn(),
@@ -38,6 +39,10 @@ jest.mock("@/lib/supabase/admin", () => ({
   createAdminClient: jest.fn(),
 }));
 
+jest.mock("@/lib/manuscripts/versions", () => ({
+  createInitialVersion: jest.fn(),
+}));
+
 jest.mock("@/lib/jobs/backpressure", () => ({
   backpressureGuard: jest.fn(async () => null),
 }));
@@ -45,6 +50,7 @@ jest.mock("@/lib/jobs/backpressure", () => ({
 const mockCreateJob = createJob as jest.MockedFunction<typeof createJob>;
 const mockCreateAdminClient = createAdminClient as jest.MockedFunction<typeof createAdminClient>;
 const mockGetAuthenticatedUser = getAuthenticatedUser as jest.MockedFunction<typeof getAuthenticatedUser>;
+const mockCreateInitialVersion = createInitialVersion as jest.MockedFunction<typeof createInitialVersion>;
 const mockFetch = jest.fn();
 const originalFetch = global.fetch;
 
@@ -57,7 +63,13 @@ function buildDefaultAdminClientMock() {
   const evaluationJobsSelectEq = jest.fn(() => ({ in: evaluationJobsSelectIn }));
   const evaluationJobsSelect = jest.fn(() => ({ eq: evaluationJobsSelectEq }));
 
-  const manuscriptsMaybeSingle = jest.fn(async () => ({ data: { word_count: 4412 }, error: null }));
+  const manuscriptsMaybeSingle = jest.fn(async () => ({
+    data: {
+      word_count: 4412,
+      file_url: `data:text/plain;charset=utf-8,${encodeURIComponent("He walked to the door and said, \"Wait.\"")}`,
+    },
+    error: null,
+  }));
   const manuscriptsEqUser = jest.fn(() => ({ maybeSingle: manuscriptsMaybeSingle }));
   const manuscriptsEqId = jest.fn(() => ({ eq: manuscriptsEqUser }));
   const manuscriptsSelect = jest.fn(() => ({ eq: manuscriptsEqId }));
@@ -95,6 +107,7 @@ describe("POST /api/jobs input contract", () => {
     process.env.CRON_SECRET = "test-cron-secret";
     mockGetAuthenticatedUser.mockResolvedValue({ id: "user-1" } as never);
     mockCreateAdminClient.mockReturnValue(buildDefaultAdminClientMock() as never);
+    mockCreateInitialVersion.mockResolvedValue({ id: "version-1" } as never);
   });
 
   afterAll(() => {
@@ -209,10 +222,33 @@ describe("POST /api/jobs input contract", () => {
     expect(mockCreateJob).toHaveBeenCalledWith(
       expect.objectContaining({
         manuscript_id: 321,
+        manuscript_version_id: "version-1",
         user_id: "user-1",
         job_type: "evaluate_full",
       }),
     );
+  });
+
+  test("rejects unsupported letter-style submissions before job creation", async () => {
+    const req = new Request("https://localhost:3000/api/jobs", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        manuscript_text:
+          "Dear Andrew, I am writing to share professional coaching feedback. Best regards, Mentor.",
+        job_type: "evaluate_full",
+        processing_terms_accepted: true,
+      }),
+    });
+
+    const response = await POST(req);
+    const json = (await response.json()) as { ok: boolean; code: string; error: string };
+
+    expect(response.status).toBe(422);
+    expect(json.ok).toBe(false);
+    expect(json.code).toBe("NARRATIVE_EVALUATION_PREFLIGHT_REJECTED");
+    expect(json.error).toMatch(/letter|essay|synopsis|non-fiction/i);
+    expect(mockCreateJob).not.toHaveBeenCalled();
   });
 
   test("kicks off the evaluation worker after successful job creation", async () => {
@@ -265,7 +301,13 @@ describe("POST /api/jobs input contract", () => {
             select: jest.fn(() => ({
               eq: jest.fn(() => ({
                 eq: jest.fn(() => ({
-                  maybeSingle: async () => ({ data: { word_count: 4412 }, error: null }),
+                  maybeSingle: async () => ({
+                    data: {
+                      word_count: 4412,
+                      file_url: `data:text/plain;charset=utf-8,${encodeURIComponent("She closed the letter and stepped into the rain.")}`,
+                    },
+                    error: null,
+                  }),
                 })),
               })),
             })),
@@ -336,7 +378,13 @@ describe("POST /api/jobs input contract", () => {
             select: jest.fn(() => ({
               eq: jest.fn(() => ({
                 eq: jest.fn(() => ({
-                  maybeSingle: async () => ({ data: { word_count: 4412 }, error: null }),
+                  maybeSingle: async () => ({
+                    data: {
+                      word_count: 4412,
+                      file_url: `data:text/plain;charset=utf-8,${encodeURIComponent("The town went quiet as the bell struck midnight.")}`,
+                    },
+                    error: null,
+                  }),
                 })),
               })),
             })),

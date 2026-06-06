@@ -28,6 +28,7 @@ interface HeatmapEntry {
 
 interface RecentJob {
   jobId: string;
+  ownerEmail: string | null;
   manuscriptId: string | null;
   createdAt: string;
   updatedAt: string;
@@ -592,16 +593,17 @@ export default function PipelineHealthPage() {
         <section>
           <h2 className="text-lg font-semibold mb-3">
             Recent Failed Jobs{" "}
-            <span className="text-sm font-normal text-gray-500">
+            <span className="text-sm font-normal text-gray-300">
               ({failedJobs.length})
             </span>
           </h2>
           <div className="overflow-x-auto">
-            <table className="min-w-full text-sm border border-gray-200">
-              <thead className="bg-gray-50">
+            <table className="min-w-full text-sm border border-stone-700 bg-[#0D0A05] text-stone-100">
+              <thead className="bg-[#1A140C]">
                 <tr>
                   {[
                     "Job ID",
+                    "Owner Email",
                     "Manuscript",
                     "Created",
                     "Updated",
@@ -621,67 +623,70 @@ export default function PipelineHealthPage() {
                   ].map((h) => (
                     <th
                       key={h}
-                      className="px-3 py-2 text-left font-medium text-gray-600 whitespace-nowrap"
+                      className="px-3 py-2 text-left font-medium text-stone-200 whitespace-nowrap"
                     >
                       {h}
                     </th>
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-200">
+              <tbody className="divide-y divide-stone-700 bg-[#0D0A05]">
                 {failedJobs.map((job) => {
                   const isLongForm =
                     job.manuscriptWords !== null && job.manuscriptWords >= 25000;
                   return (
-                    <tr key={job.jobId} className="hover:bg-gray-50">
-                      <td className="px-3 py-2 font-mono text-xs">
+                    <tr key={job.jobId} className="hover:bg-[#17110B]">
+                      <td className="px-3 py-2 font-mono text-xs text-stone-100">
                         <Link
                           href={`/evaluate/${job.jobId}`}
-                          className="text-blue-600 underline"
+                          className="text-sky-300 underline"
                         >
                           {job.jobId.slice(0, 8)}…
                         </Link>
                       </td>
-                      <td className="px-3 py-2 text-xs text-gray-700">
+                      <td className="px-3 py-2 text-xs text-stone-200">
+                        {job.ownerEmail ?? "—"}
+                      </td>
+                      <td className="px-3 py-2 text-xs text-stone-200">
                         {job.manuscriptId ?? "—"}
                       </td>
-                      <td className="px-3 py-2 text-xs text-gray-500 whitespace-nowrap">
+                      <td className="px-3 py-2 text-xs text-stone-300 whitespace-nowrap">
                         {fmtDate(job.createdAt)}
                       </td>
-                      <td className="px-3 py-2 text-xs text-gray-500 whitespace-nowrap">
+                      <td className="px-3 py-2 text-xs text-stone-300 whitespace-nowrap">
                         {fmtDate(job.updatedAt)}
                       </td>
-                      <td className="px-3 py-2 font-mono text-xs">{job.pipelineStage}</td>
+                      <td className="px-3 py-2 font-mono text-xs text-stone-100">{job.pipelineStage}</td>
                       <td className="px-3 py-2">
                         {job.errorCode ? (
                           <span
                             className={`font-mono text-xs ${
                               job.errorCode.startsWith("QG_")
-                                ? "text-orange-700 font-semibold"
-                                : "text-red-700"
+                                ? "text-amber-300 font-semibold"
+                                : "text-red-300"
                             }`}
                           >
                             {job.errorCode}
                           </span>
                         ) : (
-                          <span className="text-gray-400 text-xs">—</span>
+                          <span className="text-stone-500 text-xs">—</span>
                         )}
                       </td>
-                      <td className="px-3 py-2 text-xs">
+                      <td className="px-3 py-2 text-xs text-stone-200">
                         <span title={job.lastError ?? "No detail available"}>
                           {truncateStr(job.lastError)}
                         </span>
                       </td>
-                      <td className="px-3 py-2 text-xs">{job.phase ?? "—"}</td>
-                      <td className="px-3 py-2 text-xs">{job.phaseStatus ?? "—"}</td>
-                      <td className="px-3 py-2 text-xs">
+                      <td className="px-3 py-2 text-xs text-stone-200">{job.phase ?? "—"}</td>
+                      <td className="px-3 py-2 text-xs text-stone-200">{job.phaseStatus ?? "—"}</td>
+                      <td className="px-3 py-2 text-xs text-stone-200">
                         {job.manuscriptWords !== null ? job.manuscriptWords.toLocaleString() : "—"}
                       </td>
-                      <td className="px-3 py-2 text-xs">{job.route ?? "—"}</td>
-                      <td className="px-3 py-2 text-xs">
+                      <td className="px-3 py-2 text-xs text-stone-200">{job.route ?? "—"}</td>
+                      <td className="px-3 py-2 text-xs text-stone-200">
                         {job.chunkCount !== null ? job.chunkCount : "—"}
                       </td>
-                      <td className="px-3 py-2 text-xs">{fmtMs(job.durationMs)}</td>
+                      <td className="px-3 py-2 text-xs text-stone-200">{fmtMs(job.durationMs)}</td>
                       <td className="px-3 py-2">
                         <span className={diagBadge(job.diagnosticStatus)}>
                           {job.diagnosticStatus}
@@ -693,7 +698,7 @@ export default function PipelineHealthPage() {
                           {job.crossCheckStatus ?? "null"}
                         </span>
                       </td>
-                      <td className="px-3 py-2 text-xs text-red-700">
+                      <td className="px-3 py-2 text-xs text-rose-200">
                         {truncateStr(job.crossCheckError, 40)}
                       </td>
                       {/* Section C — artifacts */}
@@ -705,7 +710,7 @@ export default function PipelineHealthPage() {
                           <span className="text-gray-300">|</span>
                           <span title="pass_diag">{artifactDot(job.hasPassDiag)}</span>
                         </div>
-                        <div className="text-gray-400 text-xs mt-0.5">v2|drm|diag</div>
+                        <div className="text-stone-400 text-xs mt-0.5">v2|drm|diag</div>
                       </td>
                     </tr>
                   );
