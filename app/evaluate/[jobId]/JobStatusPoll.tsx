@@ -9,6 +9,8 @@ import {
   useFailedJobRecovery,
   deriveCheckpointFromProgress,
 } from "@/components/evaluation/FailedJobRecovery";
+import { CancelEvaluationButton } from "@/components/evaluation/CancelEvaluationButton";
+import { canShowCancelEvaluation } from "@/lib/evaluation/cancelEvaluationPolicy";
 
 // GOVERNANCE: This component polls the read-only API and renders canonical truth only.
 // No derived statuses. No ETAs. No fabricated progress.
@@ -185,6 +187,14 @@ export function JobStatusPoll({ jobId, initialJob, isLedgerAdmin = false }: JobS
   const isTerminal = job.status === "complete" || job.status === "failed";
   const isActive = job.status === "queued" || job.status === "running";
   const atReviewGate = isAtReviewGate(job);
+  const showCancelAction = canShowCancelEvaluation({
+    status: job.status,
+    dashboardStatus:
+      (job as unknown as { progress?: { dashboard_status?: string } }).progress
+        ?.dashboard_status ?? null,
+    phaseStatus: (job as unknown as { phase_status?: string }).phase_status ?? null,
+    progress: (job as unknown as { progress?: Record<string, unknown> }).progress ?? null,
+  });
 
   return (
     <div className="space-y-6">
@@ -203,19 +213,6 @@ export function JobStatusPoll({ jobId, initialJob, isLedgerAdmin = false }: JobS
               <span className="font-mono text-xs">{job.status}</span>
             )}
           </div>
-
-          {/* Phase badge — show review_gate visually distinct */}
-          {(job as unknown as { phase?: string }).phase && (
-            <div>
-              <span className="text-gray-600">Phase:</span>{" "}
-              <PhaseBadge
-                phase={(job as unknown as { phase: string }).phase}
-                phaseStatus={
-                  (job as unknown as { phase_status?: string }).phase_status
-                }
-              />
-            </div>
-          )}
 
           {/* GOVERNANCE: Only show progress if both values exist */}
           {(job as unknown as { progress?: { completed_units?: unknown; total_units?: unknown } }).progress
@@ -339,6 +336,16 @@ export function JobStatusPoll({ jobId, initialJob, isLedgerAdmin = false }: JobS
               </p>
             </div>
           </div>
+          {showCancelAction && (
+            <div className="mt-3">
+              <CancelEvaluationButton
+                jobId={jobId}
+                label="Cancel Evaluation"
+                returnHref="/evaluate"
+                buttonClassName="inline-flex items-center rounded-md bg-red-700 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-white hover:bg-red-800"
+              />
+            </div>
+          )}
         </div>
       )}
 
@@ -355,14 +362,16 @@ export function JobStatusPoll({ jobId, initialJob, isLedgerAdmin = false }: JobS
       )}
 
       {job.status === "failed" && (
-        <FailedJobRecovery
-          jobId={jobId}
-          checkpoint={checkpoint}
-          resumeLoading={resumeLoading}
-          resumeError={resumeError}
-          resumed={resumed}
-          onResume={handleResume}
-        />
+        <div className="space-y-3">
+          <FailedJobRecovery
+            jobId={jobId}
+            checkpoint={checkpoint}
+            resumeLoading={resumeLoading}
+            resumeError={resumeError}
+            resumed={resumed}
+            onResume={handleResume}
+          />
+        </div>
       )}
     </div>
   );
@@ -387,37 +396,6 @@ function StatusBadge({
       className={`inline-flex items-center rounded-md border px-2 py-0.5 font-mono text-xs font-medium ${styles[status]}`}
     >
       {status}
-    </span>
-  );
-}
-
-/**
- * PhaseBadge — renders the phase + phase_status pair.
- * review_gate/awaiting_approval gets a distinct amber treatment.
- */
-function PhaseBadge({
-  phase,
-  phaseStatus,
-}: {
-  phase: string;
-  phaseStatus?: string | null;
-}) {
-  const isGate =
-    phase === "review_gate" && phaseStatus === "awaiting_approval";
-
-  if (isGate) {
-    return (
-      <span className="inline-flex items-center gap-1 rounded-md border border-amber-300 bg-amber-100 px-2 py-0.5 font-mono text-xs font-medium text-amber-800">
-        <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
-        review_gate · awaiting_approval
-      </span>
-    );
-  }
-
-  return (
-    <span className="inline-flex items-center rounded-md border border-gray-200 bg-gray-50 px-2 py-0.5 font-mono text-xs font-medium text-gray-700">
-      {phase}
-      {phaseStatus ? ` · ${phaseStatus}` : ""}
     </span>
   );
 }

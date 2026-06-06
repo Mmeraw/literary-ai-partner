@@ -25,7 +25,6 @@ import {
 } from "@/lib/evaluation/reportTemplateContract";
 
 import { SynthesisPoller } from "@/components/evaluation/SynthesisPoller";
-import { CancelEvaluationButton } from "@/components/evaluation/CancelEvaluationButton";
 import { classifyEvaluationIntegrityBanner } from "@/lib/evaluation/warningClassification";
 import {
   getCertifiedCriteriaSummary,
@@ -798,53 +797,7 @@ export default async function EvaluationReportPage({
         />
       </section>
 
-      {job.status === "failed" ? (
-        canSeeOperationalDetails && job.last_error ? (
-          <section className="rounded-lg border border-red-200 bg-red-50 p-5">
-            <h2 className="text-lg font-semibold text-red-900">Evaluation failed</h2>
-            <p className="mt-2 text-sm text-red-800">{job.last_error}</p>
-            <div className="mt-4 flex gap-3">
-              <Link
-                href="/evaluate"
-                className="inline-flex rounded-md border border-red-300 px-3 py-2 text-sm font-medium text-red-900"
-              >
-                Return to job list
-              </Link>
-              <CancelEvaluationButton jobId={jobId} label="Cancel Evaluation" buttonClassName="inline-flex items-center rounded-md bg-red-700 px-3 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-red-800" />
-            </div>
-          </section>
-        ) : job.last_error?.includes("quality issue") ? (
-          <section className="rounded-lg border border-blue-200 bg-blue-50 p-5">
-            <h2 className="text-lg font-semibold text-blue-900">Quality Review in Progress</h2>
-            <p className="mt-2 text-sm text-blue-800">
-              We&apos;ve detected a quality issue with your evaluation and our team is investigating.
-              You&apos;ll receive an email when your report is ready. Your manuscript and all completed
-              analysis have been preserved — no action is needed on your part.
-            </p>
-            <p className="mt-2 text-xs text-blue-600">
-              Questions? Contact us at{" "}
-              <a href="mailto:support@revisiongrade.com" className="underline">support@revisiongrade.com</a>.
-            </p>
-          </section>
-        ) : (
-          <section className="rounded-lg border border-amber-200 bg-amber-50 p-5">
-            <h2 className="text-lg font-semibold text-amber-900">Evaluation needs attention</h2>
-            <p className="mt-2 text-sm text-amber-800">
-              This evaluation could not be completed. Please start a new evaluation or contact
-              support if the problem continues.
-            </p>
-            <div className="mt-4 flex gap-3">
-              <Link
-                href="/evaluate"
-                className="inline-flex rounded-md border border-amber-300 px-3 py-2 text-sm font-medium text-amber-900"
-              >
-                Start New Evaluation
-              </Link>
-              <CancelEvaluationButton jobId={jobId} label="Cancel Evaluation" buttonClassName="inline-flex items-center rounded-md bg-red-700 px-3 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-red-800" />
-            </div>
-          </section>
-        )
-      ) : !isComplete ? (
+      {job.status === "failed" ? null : !isComplete ? (
         job.phase === 'review_gate' && isLedgerAdmin ? (
           <section
             className="rounded-lg border p-5"
@@ -895,7 +848,7 @@ export default async function EvaluationReportPage({
           <p className="mt-2 text-sm text-gray-600">
             {isProduction
               ? "Job is marked complete but canonical evaluation artifact is missing (expected evaluation_result_v2 or legacy evaluation_result_v1). This indicates an invariant violation; please re-run evaluation from the Evaluate page."
-              : "Job completed but no evaluation artifact was found. Phase 2 may still be persisting results. Please refresh in a moment."}
+              : "Job completed but no evaluation artifact was found. Processing may still be finalizing results. Please refresh in a moment."}
           </p>
           <div className="mt-4">
             <Link
@@ -950,7 +903,7 @@ export default async function EvaluationReportPage({
           {!isProduction && artifactSource === "inline_job_result" && (
             <div className="mb-4 rounded-md bg-amber-50 border border-amber-300 p-4">
               <p className="text-sm font-medium text-amber-800">
-                ⚠️ Showing Phase 1 inline output. Phase 2 artifact not yet persisted.
+                ⚠️ Showing interim inline output. Final report artifact not yet persisted.
               </p>
               <p className="mt-1 text-xs text-amber-700">
                 This is an interim result from evaluation_jobs.evaluation_result, not the canonical evaluation_artifacts row.

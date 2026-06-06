@@ -9,6 +9,7 @@ import {
   FailedJobRecovery,
   useFailedJobRecovery,
 } from './evaluation/FailedJobRecovery';
+import { canShowCancelEvaluation, isUserCancelled } from '@/lib/evaluation/cancelEvaluationPolicy';
 
 // No client-side progress drift. Progress is driven 100% from backend phase state
 // via getProgressDisplay. Constants below retained only for redirect animation.
@@ -95,6 +96,7 @@ export interface JobState {
   public_status_message?: string | null;
   /** Monotonic ratchet — highest progress percentage ever reported. Bar never renders below this. */
   progress_high_water?: number | null;
+  dashboard_status?: string | null;
 }
 
 function isLongFormJob(job: Pick<JobState, 'manuscript_word_count'> | null): boolean {
@@ -573,26 +575,37 @@ export function EvaluationPoller({
   const isCompletingAnimation = job.status === 'complete' && (!isLongForm || hasNarrativeSynthesis) && displayProgress < 100;
   const isInterimComplete = job.status === 'complete' && isLongForm && !hasNarrativeSynthesis && !isCompletingAnimation;
   const isFinalComplete = job.status === 'complete' && (!isLongForm || hasNarrativeSynthesis) && !isCompletingAnimation;
+  const showCancelAction =
+    (job.status === 'queued' || job.status === 'running') &&
+    canShowCancelEvaluation({
+    status: job.status,
+    dashboardStatus: job.dashboard_status,
+    phaseStatus: job.phase_status,
+    progress: (job as unknown as { progress?: Record<string, unknown> }).progress ?? null,
+  });
+  const cancelledByUser =
+    job.status === 'failed'
+    && isUserCancelled((job as unknown as { progress?: Record<string, unknown> }).progress ?? null);
 
   const statusLabel = {
-    queued: 'Preparing your evaluation',
-    running: 'In progress',
+    queued: 'Processing',
+    running: 'Preparing report',
     complete: isCompletingAnimation
-      ? 'In progress'
+      ? 'Preparing report'
       : isInterimComplete
-        ? 'Report Ready — Narrative Synthesis loading (see below)'
+        ? 'Report ready — finalizing additional sections'
         : isLongForm
-          ? 'Full Report Ready'
-          : 'Evaluation Report Ready',
-    failed: '⚠ Needs attention',
-  }[job.status];
+          ? 'Report ready'
+          : 'Report ready',
+    failed: 'Needs attention',
+  }[job.status] ?? 'Needs attention';
 
   const statusColor = {
     queued: 'text-stone-500',
     running: 'text-stone-800',
     complete: isCompletingAnimation || isInterimComplete ? 'text-stone-700' : 'text-stone-800',
     failed: 'text-red-700',
-  }[job.status];
+  }[job.status] ?? 'text-red-700';
 
   return (
     <div className="rounded-xl border border-stone-200 bg-white p-5 shadow-sm sm:p-6">
@@ -757,11 +770,12 @@ export function EvaluationPoller({
               </p>
             </div>
           )}
-          {job.status !== 'complete' && (
+          {showCancelAction && (
             <div className="flex items-end justify-start sm:justify-end">
               <CancelEvaluationButton
                 jobId={jobId}
                 label="Cancel Evaluation"
+                returnHref="/evaluate"
                 buttonClassName="inline-flex items-center rounded-md bg-red-800 border border-red-900 px-3 py-2 text-xs font-bold tracking-wide text-white shadow-sm transition-colors hover:bg-red-900"
               />
             </div>
@@ -777,13 +791,6 @@ export function EvaluationPoller({
                 <p className="text-xs font-semibold text-red-800 uppercase">Error</p>
                 <p className="text-sm text-red-700 mt-2">{formatUserSafeError(job.last_error)}</p>
               </div>
-            ) : !job.can_view_operational_details ? (
-              <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
-                <p className="text-sm text-amber-800">
-                  {job.public_status_message ??
-                    'This evaluation could not be completed. Please start a new evaluation or contact support if the problem continues.'}
-                </p>
-              </div>
             ) : null}
             <FailedJobRecovery
               jobId={jobId}
@@ -793,6 +800,7 @@ export function EvaluationPoller({
               resumed={resumed}
               onResume={handleResume}
               showOperationalDetails={job.can_view_operational_details ?? false}
+              cancelledByUser={cancelledByUser}
             />
           </div>
         )}

@@ -4,6 +4,16 @@ import { trackAuthBypass, trackAuthCheck, trackAuthRedirect } from '@/lib/auth/t
 
 const isProduction = process.env.NODE_ENV === 'production'
 
+const PUBLIC_API_PATHS = [
+  '/api/auth/callback',
+  '/api/auth/check-email',
+  '/api/stripe/webhook',
+  '/api/health',
+  '/api/contact',
+  '/api/analytics/track',
+  '/api/dev/metrics-smoke',
+]
+
 function buildContentSecurityPolicy(): string {
   const directives = [
     "default-src 'self'",
@@ -54,6 +64,10 @@ function secureRedirect(url: URL): NextResponse {
   return applySecurityHeaders(NextResponse.redirect(url))
 }
 
+function isPublicApiPath(pathname: string): boolean {
+  return PUBLIC_API_PATHS.some((path) => pathname === path || pathname.startsWith(`${path}/`))
+}
+
 export async function middleware(request: NextRequest) {
     const matchesPath = (pathname: string, basePath: string): boolean => {
       if (basePath === '/') return pathname === '/'
@@ -81,7 +95,7 @@ export async function middleware(request: NextRequest) {
     if (process.env.CI || process.env.NODE_ENV === 'test') {
       console.warn('Supabase env vars missing in CI/test, bypassing auth')
       trackAuthBypass('ci_test_missing_env')
-      return supabaseResponse
+      return applySecurityHeaders(supabaseResponse)
     }
     throw new Error('NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY are required')
   }
@@ -147,14 +161,10 @@ export async function middleware(request: NextRequest) {
     '/forgot-password',
     '/reset-password',
     '/api/auth/callback',
+    '/api/auth/check-email',
     '/auth/callback',
     '/marketing-preview',
     '/api/cron',
-    '/api/workers',
-    '/api/admin/proof/jobs',
-    '/api/health',
-    '/api/evaluate',
-    '/api/dev/metrics-smoke',
   ]
 
   const protectedPrefixes = [
@@ -163,13 +173,7 @@ export async function middleware(request: NextRequest) {
     '/workbench',
     '/admin',
     '/reports',
-    '/api/jobs',
-    '/api/evaluations',
-    '/api/internal',
-    '/api/manuscripts',
-    '/api/report-shares',
-    '/api/reports',
-    '/api/workflows/evaluate',
+    '/api',
   ]
 
   const isPublicPath = publicPaths.some(path =>
@@ -179,11 +183,65 @@ export async function middleware(request: NextRequest) {
     matchesPath(request.nextUrl.pathname, path)
   )
 
+  if (matchesPath(request.nextUrl.pathname, '/api/workers')) {
+    const workerSecret = process.env.WORKER_SECRET
+    const presentedWorkerSecret = request.headers.get('x-worker-secret')?.trim() || ''
+    const allowWorkerSecretBypass =
+      process.env.NODE_ENV === 'test' ||
+      process.env.CI === 'true'
+
+    if (!allowWorkerSecretBypass && !workerSecret) {
+      return applySecurityHeaders(
+        NextResponse.json(
+          {
+            ok: false,
+            error: 'Unauthorized',
+            code: 'WORKER_SECRET_REQUIRED',
+          },
+          { status: 401 }
+        )
+      )
+    }
+
+    if (!allowWorkerSecretBypass && presentedWorkerSecret !== workerSecret) {
+      return applySecurityHeaders(
+        NextResponse.json(
+          {
+            ok: false,
+            error: 'Unauthorized',
+            code: 'WORKER_SECRET_REQUIRED',
+          },
+          { status: 401 }
+        )
+      )
+    }
+  }
+
   // Gate only protected paths for unauthenticated users.
   if (!user && isProtectedPath && !isPublicPath) {
+    if (matchesPath(request.nextUrl.pathname, '/api') && isPublicApiPath(request.nextUrl.pathname)) {
+      return applySecurityHeaders(supabaseResponse)
+    }
+
     if (shouldBypassProtectedApiAuthGate) {
       trackAuthBypass('header_actor_test_mode')
-      return supabaseResponse
+      return applySecurityHeaders(supabaseResponse)
+    }
+
+    // API routes must return JSON auth errors (not HTML redirects)
+    // so clients do not hit JSON parse errors on unauthorized calls.
+    if (matchesPath(request.nextUrl.pathname, '/api')) {
+      trackAuthRedirect('login_required')
+      return applySecurityHeaders(
+        NextResponse.json(
+          {
+            ok: false,
+            error: 'Unauthorized',
+            code: 'AUTH_REQUIRED',
+          },
+          { status: 401 }
+        )
+      )
     }
 
     const redirectUrl = request.nextUrl.clone()
@@ -200,7 +258,7 @@ export async function middleware(request: NextRequest) {
     return secureRedirect(redirectUrl)
   }
 
-  return supabaseResponse
+  return applySecurityHeaders(supabaseResponse)
 }
 
 export const config = {

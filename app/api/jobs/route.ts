@@ -16,6 +16,9 @@ import { backpressureGuard } from "@/lib/jobs/backpressure";
 import { triggerEvaluationWorker } from "@/lib/jobs/triggerWorker";
 import { resolveManuscriptTitle } from "@/lib/manuscripts/title";
 import { computeEnrichment, type EnrichmentResult } from "@/lib/evaluation/enrichment";
+import { routeNarrativeEvaluationPreflight } from "@/lib/evaluation/preflight/manuscriptTypeRouting";
+import { createInitialVersion } from "@/lib/manuscripts/versions";
+import { attachFreeDiagnosticJob, claimFreeDiagnostic } from "@/lib/freeDiagnostic/claims";
 
 function isRateLimited(
   result: RateLimitResult
@@ -300,6 +303,7 @@ export async function POST(req: Request) {
     let immediateManuscriptWordCount: number | null = null;
     let resolvedManuscriptWordCount: number | null = null;
     let intakeManuscriptText = "";
+    let sourceVersionId: string | null = null;
 
     if (!manuscript_id && !manuscript_text) {
       logger.warn("Job creation validation failed", {
@@ -416,6 +420,7 @@ export async function POST(req: Request) {
       (process.env.ALLOW_HEADER_USER_ID === "true"
         ? req.headers.get("x-user-id")
         : null);
+    const userEmail = authenticatedUser?.email ?? null;
 
     if (!userId) {
       logger.warn("Job creation blocked: missing authenticated user", {
@@ -437,6 +442,21 @@ export async function POST(req: Request) {
         return NextResponse.json(
           { ok: false, error: "manuscript_text cannot be empty", trace_id },
           { status: 400 }
+        );
+      }
+
+      const preflightDecision = routeNarrativeEvaluationPreflight(trimmedText);
+      if (!preflightDecision.allowed) {
+        return NextResponse.json(
+          {
+            ok: false,
+            error: preflightDecision.userMessage,
+            code: "NARRATIVE_EVALUATION_PREFLIGHT_REJECTED",
+            manuscript_type: preflightDecision.detectedType,
+            details: preflightDecision.details,
+            trace_id,
+          },
+          { status: 422 }
         );
       }
 
@@ -522,6 +542,56 @@ export async function POST(req: Request) {
       });
     }
 
+    if (typeof manuscript_id === "number") {
+      if (!intakeManuscriptText || intakeManuscriptText.trim().length === 0) {
+        return NextResponse.json(
+          {
+            ok: false,
+            error: "Source snapshot missing. Please repair before evaluating.",
+            code: "MANUSCRIPT_SOURCE_SNAPSHOT_MISSING",
+            trace_id,
+          },
+          { status: 422 }
+        );
+      }
+
+      const preflightDecision = routeNarrativeEvaluationPreflight(intakeManuscriptText);
+      if (!preflightDecision.allowed) {
+        return NextResponse.json(
+          {
+            ok: false,
+            error: preflightDecision.userMessage,
+            code: "NARRATIVE_EVALUATION_PREFLIGHT_REJECTED",
+            manuscript_type: preflightDecision.detectedType,
+            details: preflightDecision.details,
+            trace_id,
+          },
+          { status: 422 }
+        );
+      }
+
+      try {
+        const sourceVersion = await createInitialVersion({
+          manuscript_id,
+          raw_text: intakeManuscriptText,
+          word_count: resolvedManuscriptWordCount ?? immediateManuscriptWordCount ?? undefined,
+          created_by: userId,
+        });
+        sourceVersionId = sourceVersion.id;
+      } catch (snapshotError: unknown) {
+        return NextResponse.json(
+          {
+            ok: false,
+            error: "Failed to create manuscript source snapshot",
+            details:
+              snapshotError instanceof Error ? snapshotError.message : String(snapshotError),
+            trace_id,
+          },
+          { status: 500 }
+        );
+      }
+    }
+
     const instantEnrichment = buildInstantEnrichmentProgress(
       intakeManuscriptText ? computeEnrichment(intakeManuscriptText) : null,
     );
@@ -540,6 +610,9 @@ export async function POST(req: Request) {
       });
       return NextResponse.json({ ok: false, error: reason, trace_id }, { status: 403 });
     }
+
+    const isFreeDiagnosticClaim = user_tier === "free" && isEvaluationJobType(validatedJobType);
+    let freeDiagnosticClaimId: string | null = null;
 
     const backpressureBlock = await backpressureGuard();
     if (backpressureBlock) {
@@ -594,13 +667,54 @@ export async function POST(req: Request) {
       }
     }
 
+    if (isFreeDiagnosticClaim) {
+      const claimResult = await claimFreeDiagnostic({
+        supabase: createAdminClient(),
+        req,
+        userId,
+        email: userEmail,
+        manuscriptId: manuscript_id,
+      });
+
+      if (claimResult.ok === false) {
+        logger.warn("Free diagnostic claim blocked", {
+          trace_id,
+          request_id,
+          event: "api.jobs.create.free_diagnostic_blocked",
+          user_id: userId,
+          code: claimResult.code,
+        });
+
+        return NextResponse.json(
+          {
+            ok: false,
+            error: claimResult.message,
+            code: claimResult.code,
+            trace_id,
+          },
+          { status: claimResult.status },
+        );
+      }
+
+      freeDiagnosticClaimId = claimResult.claimId;
+    }
+
     const job = await createJob({
       manuscript_id,
+      manuscript_version_id: sourceVersionId ?? undefined,
       user_id: userId,
       job_type: validatedJobType,
       sensitivity_mode,
       voice_preservation_level,
     });
+
+    if (freeDiagnosticClaimId) {
+      await attachFreeDiagnosticJob({
+        supabase: createAdminClient(),
+        claimId: freeDiagnosticClaimId,
+        jobId: job.id,
+      });
+    }
 
     const shouldFastTrackPhase0 = false;
 

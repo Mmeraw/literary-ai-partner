@@ -1,6 +1,7 @@
 import { POST } from "@/app/api/evaluate/route";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getDevHeaderActor } from "@/lib/auth/devHeaderActor";
+import { createInitialVersion } from "@/lib/manuscripts/versions";
 
 jest.mock("@/lib/supabase/admin", () => ({
   createAdminClient: jest.fn(),
@@ -14,8 +15,15 @@ jest.mock("@/lib/supabase/server", () => ({
   getAuthenticatedUser: jest.fn(),
 }));
 
+jest.mock("@/lib/manuscripts/versions", () => ({
+  createInitialVersion: jest.fn(),
+}));
+
 const mockCreateAdminClient = createAdminClient as jest.MockedFunction<typeof createAdminClient>;
 const mockGetDevHeaderActor = getDevHeaderActor as jest.MockedFunction<typeof getDevHeaderActor>;
+const mockCreateInitialVersion = createInitialVersion as jest.MockedFunction<
+  typeof createInitialVersion
+>;
 const originalFetch = global.fetch;
 
 // ---------------------------------------------------------------------------
@@ -55,6 +63,7 @@ describe("POST /api/evaluate input contract", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockGetDevHeaderActor.mockReturnValue({ userId: "user-1", isAdmin: false });
+    mockCreateInitialVersion.mockResolvedValue({ id: "version-1" } as never);
     delete process.env.CRON_SECRET;
     global.fetch = originalFetch;
   });
@@ -94,6 +103,40 @@ describe("POST /api/evaluate input contract", () => {
     expect(json.error).toBe(
       "Ambiguous manuscript source: provide either manuscript_id or manuscript_text, not both.",
     );
+  });
+
+  test("rejects short non-fiction letter submissions with a clean preflight message", async () => {
+    let evalJobsCalls = 0;
+    const supabase = {
+      from: jest.fn((table: string) => {
+        if (table === "evaluation_jobs") {
+          evalJobsCalls++;
+          return makeAbuseLimitStub();
+        }
+        return {};
+      }),
+    };
+    mockCreateAdminClient.mockReturnValue(supabase as never);
+
+    const req = new Request("https://localhost:3000/api/evaluate", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        manuscript_title: "Coaching Letter",
+        manuscript_text:
+          "Dear Andrew, I am writing to provide coaching feedback on your recent draft. Best regards, Mentor.",
+      }),
+    });
+
+    const response = await POST(req);
+    const json = (await response.json()) as { ok: boolean; error: string; code: string };
+
+    expect(response.status).toBe(422);
+    expect(json.ok).toBe(false);
+    expect(json.code).toBe("NARRATIVE_EVALUATION_PREFLIGHT_REJECTED");
+    expect(json.error).toMatch(/letter|essay|synopsis|non-fiction/i);
+    expect(evalJobsCalls).toBe(2);
+    expect(supabase.from).toHaveBeenCalledWith("evaluation_jobs");
   });
 
   test("accepts text-only input and creates manuscript + evaluation job", async () => {
@@ -160,6 +203,19 @@ describe("POST /api/evaluate input contract", () => {
     expect(json.ok).toBe(true);
     expect(json.job.id).toBe("job-abc");
     expect(json.job.manuscript_id).toBe(987);
+    expect(mockCreateInitialVersion).toHaveBeenCalledWith(
+      expect.objectContaining({
+        manuscript_id: 987,
+        raw_text: "Chapter text only",
+      }),
+    );
+
+    expect(jobInsertMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        manuscript_id: 987,
+        manuscript_version_id: "version-1",
+      }),
+    );
 
     expect(supabase.from).toHaveBeenCalledWith("manuscripts");
     expect(supabase.from).toHaveBeenCalledWith("evaluation_jobs");
@@ -413,5 +469,64 @@ describe("POST /api/evaluate input contract", () => {
     expect(warnLog).toContain("wake-up failed");
 
     warnSpy.mockRestore();
+  });
+
+  test("fails closed when manuscript source snapshot creation fails", async () => {
+    const manuscriptInsertMock = jest.fn(() => ({
+      select: () => ({
+        single: async () => ({ data: { id: 333 }, error: null }),
+      }),
+    }));
+
+    const jobInsertMock = jest.fn(() => ({
+      select: () => ({
+        single: async () => ({
+          data: {
+            id: "job-should-not-exist",
+            status: "queued",
+          },
+          error: null,
+        }),
+      }),
+    }));
+
+    let evalJobsCalls = 0;
+    const supabase = {
+      from: jest.fn((table: string) => {
+        if (table === "evaluation_jobs") {
+          evalJobsCalls++;
+          if (evalJobsCalls <= 2) return makeAbuseLimitStub();
+        }
+
+        if (table === "manuscripts") {
+          return { insert: manuscriptInsertMock };
+        }
+
+        return {
+          insert: jobInsertMock,
+          ...makeJobsSelectBackStub("job-should-not-exist"),
+        };
+      }),
+    };
+
+    mockCreateAdminClient.mockReturnValue(supabase as never);
+    mockCreateInitialVersion.mockRejectedValue(new Error("snapshot insert failed"));
+
+    const req = new Request("https://localhost:3000/api/evaluate", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        manuscript_text: "Snapshot must exist first",
+        manuscript_title: "No Snapshot No Job",
+      }),
+    });
+
+    const response = await POST(req);
+    const json = (await response.json()) as { ok: boolean; error: string };
+
+    expect(response.status).toBe(500);
+    expect(json.ok).toBe(false);
+    expect(json.error).toBe("Failed to create manuscript source snapshot");
+    expect(jobInsertMock).not.toHaveBeenCalled();
   });
 });

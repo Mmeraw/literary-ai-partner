@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getAuthenticatedUser } from "@/lib/supabase/server";
 import { normalizeFinalReviewText } from "@/lib/revision/finalReviewSourceText";
+import RepairSourceSnapshotButton from "@/components/manuscripts/RepairSourceSnapshotButton";
 
 export const dynamic = "force-dynamic";
 
@@ -56,6 +57,8 @@ export default async function ManuscriptSourcePage({ params }: PageProps) {
     .eq("manuscript_id", manuscriptId)
     .order("version_number", { ascending: true });
 
+  const hasSourceSnapshot = Array.isArray(versions) && versions.length > 0;
+
   const previewText = decodeDataText((manuscript as { file_url?: string | null }).file_url).slice(0, 8000);
 
   return (
@@ -66,14 +69,26 @@ export default async function ManuscriptSourcePage({ params }: PageProps) {
             <p className="font-rg-mono text-xs uppercase tracking-[0.22em] text-[#C8A96E]">Manuscript source</p>
             <h1 className="mt-3 font-rg-serif text-4xl leading-tight text-[#F8F1E6] md:text-5xl">{manuscript.title || "Untitled Manuscript"}</h1>
             <p className="mt-3 max-w-3xl text-sm leading-6 text-[#CBBDA4]">
-              This is the saved source manuscript RevisionGrade uses for evaluations, Revise, Final Review, and revised-manuscript generation.
+              {hasSourceSnapshot
+                ? "This is the saved source manuscript RevisionGrade uses for evaluations, Revise, Final Review, and revised-manuscript generation."
+                : "Source snapshot missing. Please repair before evaluating."}
             </p>
           </div>
           <div className="flex flex-wrap gap-2 text-xs">
             <Link href="/manuscripts" className="rounded border border-[#5D4C31] px-3 py-2 text-[#E8D8BA] hover:border-[#C8A96E]">All manuscripts</Link>
-            <Link href={`/evaluate?manuscriptId=${manuscript.id}`} className="rounded border border-[#C8A96E] bg-[#C8A96E] px-3 py-2 font-semibold text-[#1A140C] hover:bg-[#D8BB7B]">Evaluate this manuscript</Link>
+            {hasSourceSnapshot ? (
+              <Link href={`/evaluate?manuscriptId=${manuscript.id}`} className="rounded border border-[#C8A96E] bg-[#C8A96E] px-3 py-2 font-semibold text-[#1A140C] hover:bg-[#D8BB7B]">Evaluate this manuscript</Link>
+            ) : null}
           </div>
         </div>
+
+        {!hasSourceSnapshot ? (
+          <div className="mt-6 rounded-xl border border-[#6D332D] bg-[#2A130F] p-4">
+            <p className="text-sm font-semibold text-[#FFD8CC]">Source snapshot missing. Please repair before evaluating.</p>
+            <p className="mt-1 text-xs text-[#F4C6B9]">This manuscript has no immutable Version 1 source snapshot yet. Evaluation is blocked until repaired.</p>
+            <RepairSourceSnapshotButton manuscriptId={manuscriptId} />
+          </div>
+        ) : null}
 
         <div className="mt-8 grid gap-3 md:grid-cols-4">
           <div className="rounded-xl border border-[#2D2519] bg-[#120E08] p-4"><p className="text-xs uppercase tracking-[0.14em] text-[#C8A96E]">Words</p><p className="mt-2 text-2xl font-semibold">{formatWords(manuscript.word_count)}</p></div>
@@ -105,7 +120,7 @@ export default async function ManuscriptSourcePage({ params }: PageProps) {
                   {version.source_version_id && <p className="mt-1 text-xs text-[#A9987D]">Derived from prior source</p>}
                 </div>
               )) : (
-                <p className="rounded-xl border border-dashed border-[#3A3022] p-4 text-sm text-[#A9987D]">No version snapshot has been created yet.</p>
+                <p className="rounded-xl border border-dashed border-[#3A3022] p-4 text-sm text-[#A9987D]">Source snapshot missing. Please repair before evaluating.</p>
               )}
             </div>
           </aside>

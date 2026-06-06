@@ -148,6 +148,19 @@ function rowCostCents(row: RawCostRow): number {
   return resolveTrackedCostCents({ model: row.model, inputTokens: row.input_tokens, outputTokens: row.output_tokens, recordedCostCents: row.cost_cents });
 }
 
+function readUsdEnvCents(name: string): number | null {
+  const raw = process.env[name];
+  if (!raw) return null;
+  const n = Number(raw);
+  return Number.isFinite(n) && n >= 0 ? n * 100 : null;
+}
+
+function getDocumentGenerationPerJobCents(): number {
+  const pdfPerDoc = readUsdEnvCents("COSTOPS_PDF_GENERATION_PER_DOC_USD") ?? 0;
+  const wordPerDoc = readUsdEnvCents("COSTOPS_WORD_GENERATION_PER_DOC_USD") ?? 0;
+  return pdfPerDoc + wordPerDoc;
+}
+
 async function fetchAllCostRows(supabase: ReturnType<typeof createAdminClient>, start: string | null): Promise<RawCostRow[]> {
   const rows: RawCostRow[] = [];
   let from = 0;

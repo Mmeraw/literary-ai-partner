@@ -31,6 +31,8 @@ import { checkServiceRoleAuth } from '@/lib/auth/api';
 import crypto from 'crypto';
 import { getEvaluationRuntimeConfig } from '@/lib/config/evaluationRuntimeConfig';
 import { isPipelineEnabled, pipelineDisabledResponse } from '@/lib/config/pipelineGuard';
+import { enforceApiRateLimit } from '@/lib/security/apiRateLimit';
+import { requireWorkerSecret } from '@/lib/security/apiGuards';
 import { runPass3bLongform } from '@/lib/evaluation/pipeline/runPass3bLongform';
 import {
   buildPass2aStructuredContext,
@@ -41,6 +43,7 @@ import {
   stableSourceHash,
   upsertEvaluationArtifact,
 } from '@/lib/evaluation/artifactPersistence';
+import { persistFinalExternalAudit } from '@/lib/evaluation/pipeline/finalExternalAudit';
 import { checkJobCancellation } from '@/lib/jobs/cancellationCheck';
 import type { ManuscriptChunkEvidence } from '@/lib/evaluation/pipeline/types';
 
@@ -691,6 +694,36 @@ async function processDreamJob(
 
   console.log(`[DreamWorker] ${jobId}: persisted longform_document_v1 artifact ✓`);
 
+  const { data: readinessRows } = await supabase
+    .from('evaluation_artifacts')
+    .select('artifact_type, created_at, artifact_version')
+    .eq('job_id', jobId)
+    .in('artifact_type', ['evaluation_result_v2', 'longform_document_v1', 'revision_opportunity_ledger_v1', 'wave_revision_plan_v1']);
+
+  const artifactMap = new Map((readinessRows ?? []).map((row) => [row.artifact_type as string, row]));
+  const checkedArtifacts = Object.fromEntries(
+    ['evaluation_result_v2', 'longform_document_v1', 'revision_opportunity_ledger_v1', 'wave_revision_plan_v1'].map((artifactType) => {
+      const row = artifactMap.get(artifactType);
+      return [artifactType, {
+        present: Boolean(row),
+        ...(row ? { metadata: { created_at: row.created_at, artifact_version: row.artifact_version } } : {}),
+      }];
+    }),
+  );
+
+  const finalAudit = await persistFinalExternalAudit({
+    supabase,
+    jobId,
+    manuscriptId,
+    userId,
+    wordCount,
+    workType: manuscript?.work_type ?? null,
+    evaluationResult: artifactContent as Record<string, unknown>,
+    checkedArtifacts,
+  });
+
+  console.log(`[DreamWorker] ${jobId}: persisted final_external_audit_v1 artifact verdict=${finalAudit.verdict}`);
+
   // 7. Set pass3_completed_at so the poller promotes progress to 100%.
   // Without this, long-form jobs stay at 92% even after narrative synthesis finishes.
   const { data: currentJob } = await supabase
@@ -712,7 +745,10 @@ async function processDreamJob(
         progress: {
           ...existingProgress,
           pass3_completed_at: now,
-          completed_units: existingProgress.total_units ?? 100,
+          final_external_audit_completed_at: finalAudit.generated_at,
+          final_external_audit_verdict: finalAudit.verdict,
+          final_external_audit_blocking: finalAudit.blocking,
+          completed_units: finalAudit.blocking ? existingProgress.completed_units ?? 96 : existingProgress.total_units ?? 100,
         },
       })
       .eq('id', jobId);
@@ -725,6 +761,17 @@ async function processDreamJob(
 // ── Route handler ─────────────────────────────────────────────────────────────
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
+  const rateLimitDenied = enforceApiRateLimit(req, {
+    bucket: 'worker_process_dream',
+    limit: 120,
+    windowMs: 60 * 1000,
+    keySuffix: req.headers.get('x-vercel-id') || undefined,
+  });
+  if (rateLimitDenied) return rateLimitDenied;
+
+  const workerSecretDenied = requireWorkerSecret(req);
+  if (workerSecretDenied) return workerSecretDenied;
+
   const traceId = crypto.randomUUID().slice(0, 8);
   const startMs = Date.now();
 
@@ -821,7 +868,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     const errMsg = err instanceof Error ? err.message : String(err);
     console.error(`[DreamWorker] ${traceId}: fatal error: ${errMsg}`);
     return NextResponse.json(
-      { ok: false, error: errMsg, trace_id: traceId, elapsed_ms: Date.now() - startMs },
+      { ok: false, error: 'Worker failed', trace_id: traceId, elapsed_ms: Date.now() - startMs },
       { status: 500 },
     );
   }

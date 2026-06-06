@@ -3,6 +3,12 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getAuthenticatedUser } from "@/lib/supabase/server";
 import { createInitialVersion } from "@/lib/manuscripts/versions";
 
+const mockExtractRawText = jest.fn(async (_args?: unknown) => ({ value: "" }));
+
+jest.mock("mammoth", () => ({
+  extractRawText: (args: unknown) => mockExtractRawText(args),
+}));
+
 jest.mock("@/lib/supabase/admin", () => ({
   createAdminClient: jest.fn(),
 }));
@@ -132,6 +138,80 @@ describe("/api/manuscripts route", () => {
         user_id: "user-1",
       }),
     );
+  });
+
+  test("POST uploads docx manuscript and extracts text", async () => {
+    mockExtractRawText.mockResolvedValueOnce({ value: "Docx words from manuscript" });
+
+    const singleMock = jest.fn(async () => ({
+      data: {
+        id: 323,
+        title: "River Draft",
+        word_count: 4,
+        file_size: 88,
+        source: "upload",
+        updated_at: "2026-05-04T00:00:00.000Z",
+      },
+      error: null,
+    }));
+
+    const insertMock = jest.fn(() => ({
+      select: jest.fn(() => ({
+        single: singleMock,
+      })),
+    }));
+
+    const supabase = {
+      from: jest.fn(() => ({
+        insert: insertMock,
+      })),
+    };
+
+    mockCreateAdminClient.mockReturnValue(supabase as never);
+
+    const form = new FormData();
+    form.set("title", "River Draft");
+    form.set("english_variant", "us");
+    form.set(
+      "file",
+      new File(["fake-docx-bytes"], "river.docx", {
+        type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      }),
+    );
+
+    const req = new Request("https://localhost:3000/api/manuscripts", {
+      method: "POST",
+      body: form,
+    });
+
+    const response = await POST(req);
+    const json = (await response.json()) as {
+      ok: boolean;
+      manuscript: { id: number; source: string };
+    };
+
+    expect(response.status).toBe(201);
+    expect(json.ok).toBe(true);
+    expect(json.manuscript.id).toBe(323);
+    expect(json.manuscript.source).toBe("upload");
+    expect(mockExtractRawText).toHaveBeenCalledTimes(1);
+  });
+
+  test("POST rejects non-multipart upload requests", async () => {
+    const req = new Request("https://localhost:3000/api/manuscripts", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ file: "not-a-file" }),
+    });
+
+    const response = await POST(req);
+    const json = (await response.json()) as { ok: boolean; error: string };
+
+    expect(response.status).toBe(415);
+    expect(json.ok).toBe(false);
+    expect(json.error).toMatch(/Invalid upload request/i);
   });
 
   test("POST derives a meaningful title when upload title is blank", async () => {

@@ -76,6 +76,10 @@ type CanonicalJobResponse = {
   phase2_completed_at?: string | null;
   pass3_started_at?: string | null;
   pass3_completed_at?: string | null;
+  final_external_audit_started_at?: string | null;
+  final_external_audit_completed_at?: string | null;
+  final_external_audit_verdict?: "PASS" | "WARN" | "BLOCK" | "SKIP" | null;
+  final_external_audit_blocking?: boolean | null;
   /** Authoritative Phase 0 telemetry from progress JSONB — not column timestamp deltas */
   phase0_total_duration_ms?: number | null;
   phase0_calibration_word_count?: number | null;
@@ -103,6 +107,8 @@ type CanonicalJobResponse = {
   public_status_message?: string | null;
   /** Monotonic ratchet — highest progress percentage ever reported. Bar never renders below this. */
   progress_high_water?: number | null;
+  /** UI-only cancellation display state, sourced from progress JSONB; lifecycle status remains canonical. */
+  dashboard_status?: string | null;
 };
 
 const NO_STORE_HEADERS = {
@@ -234,6 +240,18 @@ export async function GET(req: NextRequest, ctx: { params: Params }) {
     if (stageTiming.pass3_completed_at !== undefined) {
       response.job.pass3_completed_at = stageTiming.pass3_completed_at;
     }
+    if (stageTiming.final_external_audit_started_at !== undefined) {
+      response.job.final_external_audit_started_at = stageTiming.final_external_audit_started_at;
+    }
+    if (stageTiming.final_external_audit_completed_at !== undefined) {
+      response.job.final_external_audit_completed_at = stageTiming.final_external_audit_completed_at;
+    }
+    if (stageTiming.final_external_audit_verdict !== undefined) {
+      response.job.final_external_audit_verdict = stageTiming.final_external_audit_verdict;
+    }
+    if (stageTiming.final_external_audit_blocking !== undefined) {
+      response.job.final_external_audit_blocking = stageTiming.final_external_audit_blocking;
+    }
     if (canSeeOperationalDetails && stageTiming.phase0_total_duration_ms !== undefined) {
       response.job.phase0_total_duration_ms = stageTiming.phase0_total_duration_ms;
     }
@@ -243,6 +261,21 @@ export async function GET(req: NextRequest, ctx: { params: Params }) {
 
     // 6d) Surface hard_fail_present and block_code for review_gate blocked state display
     const rawProgress = job.progress as Record<string, unknown> | null;
+    const rawDashboardStatus = rawProgress?.dashboard_status;
+    if (typeof rawDashboardStatus === 'string' && rawDashboardStatus.length > 0) {
+      response.job.dashboard_status = rawDashboardStatus;
+    }
+    if (
+      job.status === 'failed' &&
+      (
+        rawProgress?.cancelled_by_user === true
+        || typeof rawProgress?.canceled_at === 'string'
+        || typeof rawProgress?.cancelled_at === 'string'
+      )
+    ) {
+      response.job.dashboard_status = 'cancelled';
+    }
+
     const rawBlockCode = rawProgress?.block_code;
     if (typeof rawBlockCode === 'string' && rawBlockCode.length > 0) {
       response.job.block_code = rawBlockCode;
@@ -297,7 +330,6 @@ export async function GET(req: NextRequest, ctx: { params: Params }) {
               progress: {
                 ...existingProgress,
                 pass3_completed_at: ts,
-                progress_high_water: 100,
               },
             })
             .eq('id', job.id)
@@ -305,6 +337,32 @@ export async function GET(req: NextRequest, ctx: { params: Params }) {
         }
       } catch {
         // Non-blocking: self-healing is best-effort
+      }
+    }
+
+    if (
+      job.status === 'complete' &&
+      response.job.pass3_completed_at &&
+      typeof response.job.manuscript_word_count === 'number' &&
+      response.job.manuscript_word_count >= LONGFORM_THRESHOLD &&
+      !response.job.final_external_audit_completed_at
+    ) {
+      try {
+        const admin = createAdminClient();
+        const { data: auditRow } = await admin
+          .from('evaluation_artifacts')
+          .select('content, created_at')
+          .eq('job_id', job.id)
+          .eq('artifact_type', 'final_external_audit_v1')
+          .maybeSingle();
+        const content = auditRow?.content as Record<string, unknown> | undefined;
+        if (auditRow?.created_at && content) {
+          response.job.final_external_audit_completed_at = auditRow.created_at as string;
+          response.job.final_external_audit_verdict = typeof content.verdict === 'string' ? content.verdict as CanonicalJobResponse['final_external_audit_verdict'] : null;
+          response.job.final_external_audit_blocking = content.blocking === true;
+        }
+      } catch {
+        // Best-effort readiness enrichment only.
       }
     }
 
@@ -344,8 +402,10 @@ export async function GET(req: NextRequest, ctx: { params: Params }) {
 
     // 10) For failed jobs viewed by non-operators, emit a safe public message.
     if (job.status === "failed" && !canSeeOperationalDetails) {
-      response.job.public_status_message =
-        "This evaluation could not be completed. Please start a new evaluation or contact support if the problem continues.";
+      const cancelledByUser = response.job.dashboard_status === 'cancelled';
+      response.job.public_status_message = cancelledByUser
+        ? 'Evaluation cancelled. Your manuscript was not evaluated to completion. No score or report was generated.'
+        : "This evaluation could not be completed. Please start a new evaluation or contact support if the problem continues.";
     }
 
     return jsonNoStore(response);
@@ -493,6 +553,10 @@ function extractStageTiming(job: Job): {
   phase2_completed_at?: string | null;
   pass3_started_at?: string | null;
   pass3_completed_at?: string | null;
+  final_external_audit_started_at?: string | null;
+  final_external_audit_completed_at?: string | null;
+  final_external_audit_verdict?: "PASS" | "WARN" | "BLOCK" | "SKIP" | null;
+  final_external_audit_blocking?: boolean | null;
   phase0_total_duration_ms?: number | null;
   phase0_calibration_word_count?: number | null;
 } {
@@ -521,6 +585,10 @@ function extractStageTiming(job: Job): {
     phase2_completed_at: pickTimestamp(p.phase2_completed_at),
     pass3_started_at: pickTimestamp(p.pass3_started_at),
     pass3_completed_at: pickTimestamp(p.pass3_completed_at),
+    final_external_audit_started_at: pickTimestamp(p.final_external_audit_started_at),
+    final_external_audit_completed_at: pickTimestamp(p.final_external_audit_completed_at),
+    final_external_audit_verdict: typeof p.final_external_audit_verdict === 'string' && ['PASS', 'WARN', 'BLOCK', 'SKIP'].includes(p.final_external_audit_verdict) ? p.final_external_audit_verdict as "PASS" | "WARN" | "BLOCK" | "SKIP" : p.final_external_audit_verdict === null ? null : undefined,
+    final_external_audit_blocking: typeof p.final_external_audit_blocking === 'boolean' ? p.final_external_audit_blocking : p.final_external_audit_blocking === null ? null : undefined,
     phase0_total_duration_ms: typeof p.phase0_total_duration_ms === 'number' ? p.phase0_total_duration_ms
       : typeof p.phase0_total_duration_ms === 'string' ? Number(p.phase0_total_duration_ms) || null
       : null,

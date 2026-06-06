@@ -25,9 +25,6 @@ import type {
   Pass2aStructuredContext,
   Pass1aCharacterLedger,
   CharacterLedgerV2,
-  IssueFamily,
-  StrategicLever,
-  RevisionGranularity,
 } from "./types";
 import type { Pass3ReadAheadResult } from "./runPass3ReadAhead";
 import type { CanonRegistry } from "@/lib/governance/canonRegistry";
@@ -63,6 +60,21 @@ import {
 import { analyzeDialogueAttributionForGate } from "@/lib/evaluation/pov/analyzeDialogueAttribution";
 import { getEvaluationRuntimeConfig } from "@/lib/config/evaluationRuntimeConfig";
 import { trackCompletionCost } from "@/lib/jobs/cost";
+import {
+  resolveExpectationProfiles,
+  shouldSuppressByExpectationProfile,
+  type DominantCraftEngine,
+  type ResolvedExpectationContext,
+} from "@/lib/evaluation/genreExpectationProfiles";
+import {
+  filterGenericRecommendations,
+  type GenericGuardDecision,
+} from "@/lib/evaluation/pipeline/genericRecommendationGuard";
+import {
+  extractDiagnosticSpine,
+  UNAVAILABLE_SPINE,
+  type DiagnosticSpine,
+} from "@/lib/evaluation/diagnosticSpine";
 // PR-K (2026-05-16): Pass 3 and QualityGateV2 must use the SAME helper for
 // summary weakness enforcement. Previously Pass 3 had a local implementation
 // with "ANY mention satisfies" (.some) + slice(0,3) semantics, while the gate
@@ -361,6 +373,12 @@ export interface RunPass3Options {
   manuscriptText: string;
   manuscriptChunks?: ManuscriptChunkEvidence[];
   title: string;
+  /** Structural canonical work type from intake routing. */
+  workType?: string;
+  /** Optional diagnosed genre signal if available upstream. */
+  diagnosedGenre?: string;
+  /** Optional shelf / target-audience signal if available upstream. */
+  shelfTargetAudience?: string;
   /**
    * Optional evaluation_jobs.id (uuid). When present, structured pipeline
    * audit-log entries are emitted to the pipeline_logs table.
@@ -427,6 +445,302 @@ function evaluateCharacterLedger(ledger: Pass1aCharacterLedger | undefined): str
   return null;
 }
 
+function deriveDominantCraftEngineFromPasses(pass1: SinglePassOutput, pass2: SinglePassOutput): DominantCraftEngine {
+  const merged = CRITERIA_KEYS.map((key) => {
+    const p1 = pass1.criteria.find((c) => c.key === key)?.score_0_10 ?? 0;
+    const p2 = pass2.criteria.find((c) => c.key === key)?.score_0_10 ?? 0;
+    return { key, score: (p1 + p2) / 2 };
+  }).sort((a, b) => b.score - a.score);
+
+  const topKey = merged[0]?.key;
+  if (topKey === "narrativeDrive" || topKey === "pacing" || topKey === "sceneConstruction") return "propulsion";
+  if (topKey === "voice") return "voice";
+  if (topKey === "theme" || topKey === "tone") return "tonal_pressure";
+  if (topKey === "worldbuilding" || topKey === "concept") return "world_concept";
+  if (topKey === "dialogue" || topKey === "character") return "emotional_payoff";
+  if (topKey === "marketability") return "hybrid";
+  return "unknown";
+}
+
+function applyExpectationProfileRecommendationGuard(args: {
+  criteria: SynthesizedCriterion[];
+  expectationContext: ResolvedExpectationContext;
+}): SynthesizedCriterion[] {
+  const protectedProfiles = new Set(["mood_forward", "reflection_forward", "atmosphere_forward", "dread_forward"]);
+
+  return args.criteria.map((criterion) => {
+    const kept = criterion.recommendations.filter((rec) =>
+      shouldSuppressByExpectationProfile(args.expectationContext, {
+        action: rec.action,
+        expected_impact: rec.expected_impact,
+        mechanism: rec.mechanism,
+        anchor_snippet: rec.anchor_snippet,
+      }).allowed,
+    );
+
+    if (kept.length > 0 || criterion.recommendations.length === 0) {
+      return criterion;
+    }
+
+    const blockedByProtectedProfile = args.expectationContext.expectation_profiles.some((profile) =>
+      protectedProfiles.has(profile),
+    );
+
+    if (!blockedByProtectedProfile) {
+      return {
+        ...criterion,
+        recommendations: kept,
+      };
+    }
+
+    return {
+      ...criterion,
+      recommendations: kept,
+      technical_defects: [
+        ...(criterion.technical_defects ?? []),
+        {
+          code: "SCORE_LE8_EMPTY_RECOMMENDATIONS",
+          author_facing_reason:
+            "Recommendation guard suppressed unsafe momentum/hook directives for the resolved expectation profile because explicit malfunction evidence was not present.",
+          retryable: false,
+        },
+      ],
+    };
+  });
+}
+
+const DIAGNOSTIC_SPINE_PROMISE_ATMOSPHERIC_MARKERS = [
+  "slow accumulation",
+  "atmosphere",
+  "atmospheric",
+  "dread",
+  "reflective",
+  "reflection",
+  "meditative",
+  "interiority",
+  "quiet tension",
+  "lingering",
+  "ambiguity",
+  "unease",
+] as const;
+
+const DIAGNOSTIC_SPINE_PROMISE_PROPULSIVE_MARKERS = [
+  "propulsive",
+  "high velocity",
+  "page-turning",
+  "rapid escalation",
+  "relentless",
+  "suspense pressure",
+  "breakneck",
+] as const;
+
+const DIAGNOSTIC_SPINE_REC_PROPULSION_MARKERS = [
+  "increase momentum",
+  "add a decision beat",
+  "clearer next step",
+  "strengthen hook",
+  "accelerate",
+  "speed up",
+  "raise the pace",
+  "faster pacing",
+] as const;
+
+const DIAGNOSTIC_SPINE_REC_SLOWDOWN_MARKERS = [
+  "slow down",
+  "linger",
+  "extend reflection",
+  "more atmosphere",
+  "more introspection",
+  "reduce pace",
+] as const;
+
+function normalizeForPromiseMatch(value: string): string {
+  return value.toLowerCase().replace(/\s+/g, " ").trim();
+}
+
+function containsAnyMarker(haystack: string, markers: readonly string[]): boolean {
+  return markers.some((marker) => haystack.includes(marker));
+}
+
+function recommendationConflictsWithPrimaryReaderPromise(
+  recommendation: SynthesizedCriterion["recommendations"][number],
+  primaryReaderPromise: string,
+): boolean {
+  const promise = normalizeForPromiseMatch(primaryReaderPromise);
+  if (!promise) return false;
+
+  const recommendationText = normalizeForPromiseMatch(
+    [
+      recommendation.action,
+      recommendation.expected_impact,
+      recommendation.mechanism,
+      recommendation.specific_fix,
+      recommendation.reader_effect,
+    ]
+      .filter(Boolean)
+      .join(" "),
+  );
+
+  if (!recommendationText) return false;
+
+  const atmosphericPromise = containsAnyMarker(
+    promise,
+    DIAGNOSTIC_SPINE_PROMISE_ATMOSPHERIC_MARKERS,
+  );
+  const propulsivePromise = containsAnyMarker(
+    promise,
+    DIAGNOSTIC_SPINE_PROMISE_PROPULSIVE_MARKERS,
+  );
+
+  if (atmosphericPromise && containsAnyMarker(recommendationText, DIAGNOSTIC_SPINE_REC_PROPULSION_MARKERS)) {
+    return true;
+  }
+
+  if (propulsivePromise && containsAnyMarker(recommendationText, DIAGNOSTIC_SPINE_REC_SLOWDOWN_MARKERS)) {
+    return true;
+  }
+
+  return false;
+}
+
+function recommendationConflictsWithCentralArgument(
+  recommendation: SynthesizedCriterion["recommendations"][number],
+  centralArgument: string,
+): boolean {
+  const argument = normalizeForPromiseMatch(centralArgument);
+  if (!argument) return false;
+
+  const recommendationText = normalizeForPromiseMatch(
+    [
+      recommendation.action,
+      recommendation.expected_impact,
+      recommendation.mechanism,
+      recommendation.specific_fix,
+      recommendation.reader_effect,
+    ]
+      .filter(Boolean)
+      .join(" "),
+  );
+
+  if (!recommendationText) return false;
+
+  const atmosphericArgument = containsAnyMarker(
+    argument,
+    DIAGNOSTIC_SPINE_PROMISE_ATMOSPHERIC_MARKERS,
+  );
+  const propulsiveArgument = containsAnyMarker(
+    argument,
+    DIAGNOSTIC_SPINE_PROMISE_PROPULSIVE_MARKERS,
+  );
+
+  if (atmosphericArgument && containsAnyMarker(recommendationText, DIAGNOSTIC_SPINE_REC_PROPULSION_MARKERS)) {
+    return true;
+  }
+
+  if (propulsiveArgument && containsAnyMarker(recommendationText, DIAGNOSTIC_SPINE_REC_SLOWDOWN_MARKERS)) {
+    return true;
+  }
+
+  return false;
+}
+
+function applyDiagnosticSpineRecommendationGuard(args: {
+  criteria: SynthesizedCriterion[];
+  diagnosticSpine: DiagnosticSpine;
+}): SynthesizedCriterion[] {
+  const primaryReaderPromise = args.diagnosticSpine.primary_reader_promise.trim();
+  const centralArgument = args.diagnosticSpine.central_argument.trim();
+  if (!primaryReaderPromise && !centralArgument) return args.criteria;
+
+  return args.criteria.map((criterion) => {
+    let promiseConflictSeen = false;
+    let centralArgumentConflictSeen = false;
+
+    const kept = criterion.recommendations.filter((rec) => {
+      const promiseConflict = primaryReaderPromise
+        ? recommendationConflictsWithPrimaryReaderPromise(rec, primaryReaderPromise)
+        : false;
+      const centralArgumentConflict = centralArgument
+        ? recommendationConflictsWithCentralArgument(rec, centralArgument)
+        : false;
+
+      if (promiseConflict) promiseConflictSeen = true;
+      if (centralArgumentConflict) centralArgumentConflictSeen = true;
+
+      return !(promiseConflict || centralArgumentConflict);
+    });
+
+    if (kept.length === criterion.recommendations.length) {
+      return criterion;
+    }
+
+    const newDefects: NonNullable<SynthesizedCriterion["technical_defects"]> = [];
+    if (promiseConflictSeen) {
+      newDefects.push({
+        code: "DIAGNOSTIC_SPINE_PROMISE_MISMATCH",
+        author_facing_reason:
+          "One or more recommendations were suppressed because they contradicted the diagnostic spine's primary reader promise.",
+        retryable: false,
+      });
+    }
+    if (centralArgumentConflictSeen) {
+      newDefects.push({
+        code: "DIAGNOSTIC_SPINE_CENTRAL_ARGUMENT_MISMATCH",
+        author_facing_reason:
+          "One or more recommendations were suppressed because they contradicted the diagnostic spine's central argument.",
+        retryable: false,
+      });
+    }
+
+    return {
+      ...criterion,
+      recommendations: kept,
+      technical_defects: dedupeTechnicalDefects([...(criterion.technical_defects ?? []), ...newDefects]),
+    };
+  });
+}
+
+function shouldRequireStrictDiagnosticSpine(
+  scopeProfile?: SubmissionScopeProfile,
+  manuscriptText?: string,
+): boolean {
+  if (scopeProfile?.requiresAcceptedStoryLedger === true) return true;
+  if (scopeProfile?.evaluationMode === "long_form_evaluation") return true;
+  const manuscriptWordCount = manuscriptText ? countWords(manuscriptText) : 0;
+  return manuscriptWordCount >= 25_000;
+}
+
+function applyWeakDiagnosticSpineConfidenceDegrade(args: {
+  criteria: SynthesizedCriterion[];
+  strictMode: boolean;
+}): SynthesizedCriterion[] {
+  return args.criteria.map((criterion) => {
+    const reasons = [
+      ...(criterion.confidence_reasons ?? []),
+      args.strictMode
+        ? "Diagnostic spine is weak for long-form governance; confidence downgraded pending regeneration."
+        : "Diagnostic spine is partial; confidence downgraded.",
+    ];
+    const technicalDefects = dedupeTechnicalDefects([
+      ...(criterion.technical_defects ?? []),
+      {
+        code: "DIAGNOSTIC_SPINE_WEAK_OR_ABSENT",
+        author_facing_reason: args.strictMode
+          ? "Diagnostic spine is weak for long-form evaluation; confidence has been downgraded and regeneration is recommended."
+          : "Diagnostic spine is partial; recommendation confidence has been downgraded.",
+        retryable: args.strictMode,
+      },
+    ]);
+
+    return {
+      ...criterion,
+      confidence_level: "low",
+      confidence_reasons: Array.from(new Set(reasons)),
+      technical_defects: technicalDefects,
+    };
+  });
+}
+
 function assertPass2aStructuredContext(context: Pass2aStructuredContext | undefined): asserts context is Pass2aStructuredContext {
   if (!context) {
     throw new Error("[Pass3] PASS2A_STRUCTURED_CONTEXT_MISSING");
@@ -474,6 +788,13 @@ export async function runPass3Synthesis(opts: RunPass3Options): Promise<Synthesi
     criteria_count_by_state: comparisonPacket.criteria_count_by_state,
   };
 
+  const expectationContext = resolveExpectationProfiles({
+    workType: opts.workType,
+    diagnosedGenre: opts.diagnosedGenre ?? opts.workType,
+    shelfTargetAudience: opts.shelfTargetAudience ?? opts.title,
+    dominantCraftEngine: deriveDominantCraftEngineFromPasses(opts.pass1, opts.pass2),
+  });
+
   const userPrompt = buildPass3UserPrompt({
     comparisonPacketJson,
     pass2aStructuredContext: opts.pass2aStructuredContext,
@@ -486,6 +807,7 @@ export async function runPass3Synthesis(opts: RunPass3Options): Promise<Synthesi
     ledgerWarning,
     // readAheadResult deliberately NOT forwarded — Pass 3A is now the independent reader.
     compactPreflightSummary: opts.compactPreflightSummary,
+    expectationContext,
   });
   assertPass3PromptTripwires(userPrompt);
 
@@ -693,7 +1015,15 @@ export async function runPass3Synthesis(opts: RunPass3Options): Promise<Synthesi
 
   let synthesis: SynthesisOutput;
   try {
-    synthesis = parsePass3Response(responseText, opts.pass1, opts.pass2, selectedModel, opts.manuscriptText);
+    synthesis = parsePass3Response(
+      responseText,
+      opts.pass1,
+      opts.pass2,
+      selectedModel,
+      opts.manuscriptText,
+      expectationContext,
+      opts.scopeProfile,
+    );
 
     // Normalization and required-field validation happen inside parsePass3Response
     // (parseRecommendations + parseSubmissionReadiness are fail-closed at parse boundary).
@@ -719,156 +1049,6 @@ export async function runPass3Synthesis(opts: RunPass3Options): Promise<Synthesi
     throw error;
   }
 
-  // ── Candidate prose retry loop ("kick backward") ──
-  // After parsing, scan for recommendations flagged CANDIDATE_PROSE_MISSING.
-  // Collect them, send a focused LLM call to generate just the missing A/B/C prose,
-  // backfill, and clear resolved defects. Retry at most once — if still missing,
-  // the defect remains and the opportunity ledger will hold the item.
-  const candidateRetryItems: Array<{
-    criterionIdx: number;
-    recIdx: number;
-    criterion: string;
-    action: string;
-    anchor_snippet: string;
-    missing: string[];
-  }> = [];
-
-  for (let ci = 0; ci < synthesis.criteria.length; ci++) {
-    const c = synthesis.criteria[ci];
-    if (!c.technical_defects?.some(d => d.code === "CANDIDATE_PROSE_MISSING")) continue;
-    for (let ri = 0; ri < c.recommendations.length; ri++) {
-      const rec = c.recommendations[ri];
-      if (!rec.anchor_snippet) continue;
-      const hasA = typeof rec.candidate_text_a === 'string' && rec.candidate_text_a.trim().length >= 5;
-      const hasB = typeof rec.candidate_text_b === 'string' && rec.candidate_text_b.trim().length >= 5;
-      const hasC = typeof rec.candidate_text_c === 'string' && rec.candidate_text_c.trim().length >= 5;
-      if (!hasA || !hasB || !hasC) {
-        candidateRetryItems.push({
-          criterionIdx: ci,
-          recIdx: ri,
-          criterion: c.key,
-          action: rec.action,
-          anchor_snippet: rec.anchor_snippet,
-          missing: [...(!hasA ? ['A'] : []), ...(!hasB ? ['B'] : []), ...(!hasC ? ['C'] : [])],
-        });
-      }
-    }
-  }
-
-  if (candidateRetryItems.length > 0) {
-    console.info(
-      `[Pass3-Retry] ${candidateRetryItems.length} recommendation(s) missing candidate prose — invoking targeted retry`,
-    );
-
-    const retryPayload = candidateRetryItems.slice(0, 20).map((ir, idx) => ({
-      id: idx,
-      criterion: ir.criterion,
-      action: ir.action,
-      anchor_snippet: ir.anchor_snippet.slice(0, 600),
-      missing_slots: ir.missing,
-    }));
-
-    const candidateRetryPrompt = `You are a prose revision assistant. The evaluation pipeline produced recommendations but is missing candidate prose for them.
-
-For each item below, generate the missing candidate text slots. Each candidate MUST be:
-- Real, copy-paste-ready manuscript prose (not editorial instructions)
-- Written in the author's voice using their characters' names and scene details
-- At least 5 words long
-- NEVER a copy of the anchor_snippet (the original passage)
-
-Slot definitions:
-- candidate_text_a: The primary recommended prose repair — conservative fix preserving the author's voice.
-- candidate_text_b: A rhythm variant — same fix direction, different sentence structure and cadence. Materially distinct from A.
-- candidate_text_c: A bolder rendering shift — more assertive revision, bigger creative swing. Materially distinct from A and B.
-
-Items needing candidate prose:
-${JSON.stringify(retryPayload, null, 2)}
-
-Respond with a JSON object: { "items": [ { "id": <number>, "candidate_text_a": "...", "candidate_text_b": "...", "candidate_text_c": "..." }, ... ] }
-Only include slots that were listed in missing_slots for each item. Omit slots the item already has.`;
-
-    try {
-      const retryHeartbeat = opts.onHeartbeat
-        ? setInterval(() => { void opts.onHeartbeat?.(); }, 20_000)
-        : null;
-      let retryCompletion;
-      try {
-        retryCompletion = await createCompletion({
-          model: selectedModel,
-          messages: [
-            { role: "system", content: "You generate copy-paste-ready manuscript prose for literary revision recommendations. Output valid JSON only." },
-            { role: "user", content: candidateRetryPrompt },
-          ],
-          ...buildOpenAITemperatureParam(selectedModel, 0.4),
-          ...buildOpenAIOutputTokenParam(selectedModel, 4000),
-          response_format: { type: "json_object" },
-        });
-      } finally {
-        if (retryHeartbeat) clearInterval(retryHeartbeat);
-      }
-      trackCompletionCost({ jobId: opts.jobId ?? "unknown", phase: "pass3_candidate_retry", model: selectedModel, usage: retryCompletion.usage });
-
-      const retryContent = retryCompletion.choices?.[0]?.message?.content;
-      const retryText = typeof retryContent === 'string' ? retryContent : '';
-      if (retryText.trim()) {
-        try {
-          const retryParsed = JSON.parse(retryText);
-          const retryResults = Array.isArray(retryParsed?.items) ? retryParsed.items : [];
-          let backfilledCount = 0;
-
-          for (const item of retryResults) {
-            const id = typeof item?.id === 'number' ? item.id : -1;
-            if (id < 0 || id >= candidateRetryItems.length) continue;
-            const ir = candidateRetryItems[id];
-            const rec = synthesis.criteria[ir.criterionIdx].recommendations[ir.recIdx];
-            const anchor = rec.anchor_snippet ?? '';
-
-            for (const slot of ['candidate_text_a', 'candidate_text_b', 'candidate_text_c'] as const) {
-              const val = typeof item[slot] === 'string' ? item[slot].trim() : '';
-              if (val.length < 5) continue;
-              // Reject anchor echoes
-              const normVal = val.toLowerCase().replace(/[^a-z0-9\s]/g, '').replace(/\s+/g, ' ').trim();
-              const normAnchor = anchor.toLowerCase().replace(/[^a-z0-9\s]/g, '').replace(/\s+/g, ' ').trim();
-              if (normAnchor.length >= 20 && (normVal === normAnchor || normVal.includes(normAnchor) || normAnchor.includes(normVal))) {
-                continue;
-              }
-              // Only backfill slots that were actually missing
-              const existing = rec[slot];
-              if (typeof existing === 'string' && existing.trim().length >= 5) continue;
-              (rec as Record<string, unknown>)[slot] = val;
-              backfilledCount++;
-            }
-          }
-
-          console.info(`[Pass3-Retry] Backfilled ${backfilledCount} candidate slot(s) from retry response`);
-
-          // Clear CANDIDATE_PROSE_MISSING defects for recs that are now complete
-          if (backfilledCount > 0) {
-            for (const ir of candidateRetryItems) {
-              const rec = synthesis.criteria[ir.criterionIdx].recommendations[ir.recIdx];
-              const nowHasA = typeof rec.candidate_text_a === 'string' && rec.candidate_text_a.trim().length >= 5;
-              const nowHasB = typeof rec.candidate_text_b === 'string' && rec.candidate_text_b.trim().length >= 5;
-              const nowHasC = typeof rec.candidate_text_c === 'string' && rec.candidate_text_c.trim().length >= 5;
-              if (nowHasA && nowHasB && nowHasC) {
-                const c = synthesis.criteria[ir.criterionIdx];
-                c.technical_defects = (c.technical_defects ?? []).filter(
-                  d => !(d.code === "CANDIDATE_PROSE_MISSING" && d.author_facing_reason.includes(`"${c.key}"`)),
-                );
-                if (c.technical_defects.length === 0) {
-                  c.technical_defects = undefined;
-                }
-              }
-            }
-          }
-        } catch (parseErr) {
-          console.warn(`[Pass3-Retry] Failed to parse retry response: ${parseErr}`);
-        }
-      }
-    } catch (retryErr) {
-      console.warn(`[Pass3-Retry] Candidate prose retry call failed (non-fatal): ${retryErr}`);
-    }
-  }
-
   if (opts.jobId) {
     void pipelineLog({
       jobId: opts.jobId,
@@ -880,8 +1060,6 @@ Only include slots that were listed in missing_slots for each item. Omit slots t
         truncationDetected:
           initialFinishReason === "length" || initialTruncatedRecommendation,
         retryFired,
-        candidateProseRetryFired: candidateRetryItems.length > 0,
-        candidateProseRetryCount: candidateRetryItems.length,
       },
     });
   }
@@ -927,6 +1105,8 @@ export function parsePass3Response(
   pass2: SinglePassOutput,
   fallbackModel?: string,
   manuscriptText?: string,
+  expectationContext?: ResolvedExpectationContext,
+  scopeProfile?: SubmissionScopeProfile,
 ): SynthesisOutput {
   const resolvedFallback =
     typeof fallbackModel === "string" && fallbackModel.length > 0
@@ -950,6 +1130,27 @@ export function parsePass3Response(
   }
 
   const obj = parsed;
+  const rawSpineObj =
+    typeof obj["diagnostic_spine"] === "object" && obj["diagnostic_spine"] !== null
+      ? obj["diagnostic_spine"]
+      : null;
+  const extractedSpine = rawSpineObj ? extractDiagnosticSpine(rawSpineObj) : UNAVAILABLE_SPINE;
+  const strictDiagnosticSpineRequired = shouldRequireStrictDiagnosticSpine(scopeProfile, manuscriptText);
+
+  if (strictDiagnosticSpineRequired && extractedSpine.confidence === "unavailable") {
+    throw new Error(
+      "[Pass3] DIAGNOSTIC_SPINE_REQUIRED_LONG_FORM: diagnostic_spine is absent or unusable for long-form/multi-layer evaluation.",
+    );
+  }
+
+  if (!rawSpineObj) {
+    console.warn("[Pass3] diagnostic_spine missing from LLM output — evaluation spine will be unavailable");
+  } else if (extractedSpine.confidence === "unavailable") {
+    console.warn("[Pass3] diagnostic_spine extracted but confidence=unavailable — fields were thin or absent");
+  } else if (extractedSpine.confidence === "partial") {
+    console.warn("[Pass3] diagnostic_spine extracted with confidence=partial — degrading recommendation confidence");
+  }
+
   const rawCriteria = Array.isArray(obj["criteria"]) ? (obj["criteria"] as unknown[]) : [];
 
   // Build a lookup from key → pass outputs (deterministic fallback)
@@ -1105,13 +1306,43 @@ export function parsePass3Response(
     });
   }
 
+  const guardedCriteria = expectationContext
+    ? applyExpectationProfileRecommendationGuard({ criteria, expectationContext })
+    : criteria;
+
+  const spineGovernedCriteria =
+    extractedSpine.confidence === "unavailable"
+      ? guardedCriteria
+      : applyDiagnosticSpineRecommendationGuard({
+          criteria: guardedCriteria,
+          diagnosticSpine: extractedSpine,
+        });
+
+  const finalCriteria =
+    extractedSpine.confidence === "partial"
+      ? applyWeakDiagnosticSpineConfidenceDegrade({
+          criteria: spineGovernedCriteria,
+          strictMode: strictDiagnosticSpineRequired,
+        })
+      : spineGovernedCriteria;
+
   // ── Post-synthesis validation gate: enforce recommendation density for score ≤8 ──
-  const DENSITY_FLOOR: Record<string, number> = { "<=5": 2, "6-7": 1, "8": 0 };
-  for (const c of criteria) {
+  const DENSITY_FLOOR: Record<string, number> = { "<=5": 5, "6-7": 4, "8": 2 };
+  for (const c of finalCriteria) {
     if (c.final_score_0_10 >= 9) continue;
     const bucket = c.final_score_0_10 <= 5 ? "<=5" : c.final_score_0_10 <= 7 ? "6-7" : "8";
     const minRecs = DENSITY_FLOOR[bucket] ?? 2;
     if (c.recommendations.length < minRecs) {
+      const defect = {
+        code: "SCORE_LE8_EMPTY_RECOMMENDATIONS" as const,
+        author_facing_reason:
+          `Criterion "${c.key}" scored ${c.final_score_0_10}/10 but returned ${c.recommendations.length} recommendation(s) (minimum ${minRecs} required). This is a pipeline defect — the evaluation engine will attempt to backfill.`,
+        retryable: true,
+      };
+      c.technical_defects = [...(c.technical_defects ?? []), defect];
+      console.warn(
+        `[Pass3-Gate] SCORE_LE8_EMPTY_RECOMMENDATIONS: ${c.key} score=${c.final_score_0_10} recs=${c.recommendations.length} min=${minRecs}`,
+      );
       // Backfill fit_summary and gap_summary from rationale if missing
       if (!c.fit_summary && c.final_rationale) {
         c.fit_summary = c.final_rationale.split(".").slice(0, 2).join(".").trim() + ".";
@@ -1121,54 +1352,6 @@ export function parsePass3Response(
         c.gap_summary = sentences.length > 2
           ? sentences.slice(-3, -1).join(".").trim() + "."
           : `Score ${c.final_score_0_10}/10 indicates room for improvement on ${c.key}.`;
-      }
-
-      // Synthesize missing recommendations from rationale + evidence + gap_summary
-      const shortfall = minRecs - c.recommendations.length;
-      const synthesized = synthesizeRecommendationsFromRationale(c, shortfall);
-      if (synthesized.length > 0) {
-        c.recommendations = [...c.recommendations, ...synthesized];
-        console.info(
-          `[Pass3-Gate] Backfilled ${synthesized.length} recommendation(s) for ${c.key} (score=${c.final_score_0_10}, had=${c.recommendations.length - synthesized.length}, now=${c.recommendations.length}, min=${minRecs})`,
-        );
-      }
-
-      // If still below floor after backfill, log defect
-      if (c.recommendations.length < minRecs) {
-        const defect = {
-          code: "SCORE_LE8_EMPTY_RECOMMENDATIONS" as const,
-          author_facing_reason:
-            `Criterion "${c.key}" scored ${c.final_score_0_10}/10 but has ${c.recommendations.length} recommendation(s) after backfill (minimum ${minRecs} required).`,
-          retryable: true,
-        };
-        c.technical_defects = [...(c.technical_defects ?? []), defect];
-        console.warn(
-          `[Pass3-Gate] SCORE_LE8_EMPTY_RECOMMENDATIONS: ${c.key} score=${c.final_score_0_10} recs=${c.recommendations.length} min=${minRecs} (backfill exhausted)`,
-        );
-      }
-    }
-  }
-
-  // ── Post-synthesis candidate prose completeness gate ──
-  // Every recommendation with an anchor_snippet MUST have all three candidate_text fields populated.
-  // Missing candidates are flagged as CANDIDATE_PROSE_MISSING technical defects.
-  // The retry loop in runPass3Synthesis will attempt to backfill these before the pipeline continues.
-  for (const c of criteria) {
-    for (const rec of c.recommendations) {
-      if (!rec.anchor_snippet) continue;
-      const hasA = typeof rec.candidate_text_a === 'string' && rec.candidate_text_a.trim().length >= 5;
-      const hasB = typeof rec.candidate_text_b === 'string' && rec.candidate_text_b.trim().length >= 5;
-      const hasC = typeof rec.candidate_text_c === 'string' && rec.candidate_text_c.trim().length >= 5;
-      if (!hasA || !hasB || !hasC) {
-        const missing = [!hasA && 'A', !hasB && 'B', !hasC && 'C'].filter(Boolean).join(', ');
-        c.technical_defects = [...(c.technical_defects ?? []), {
-          code: "CANDIDATE_PROSE_MISSING" as const,
-          author_facing_reason: `Recommendation for "${c.key}" is missing candidate prose (${missing}). The revision workbench will hold this item until prose is generated.`,
-          retryable: true,
-        }];
-        console.warn(
-          `[Pass3-Gate] CANDIDATE_PROSE_MISSING: ${c.key} rec="${rec.action.slice(0, 60)}" missing=[${missing}]`,
-        );
       }
     }
   }
@@ -1182,9 +1365,9 @@ export function parsePass3Response(
     : TOTAL_REC_CAP_LONG_FORM;
 
   const allRecs: Array<{ criterionIdx: number; recIdx: number; priority: "high" | "medium" | "low" }> = [];
-  for (let ci = 0; ci < criteria.length; ci++) {
-    for (let ri = 0; ri < criteria[ci].recommendations.length; ri++) {
-      allRecs.push({ criterionIdx: ci, recIdx: ri, priority: criteria[ci].recommendations[ri].priority });
+  for (let ci = 0; ci < finalCriteria.length; ci++) {
+    for (let ri = 0; ri < finalCriteria[ci].recommendations.length; ri++) {
+      allRecs.push({ criterionIdx: ci, recIdx: ri, priority: finalCriteria[ci].recommendations[ri].priority });
     }
   }
 
@@ -1195,8 +1378,8 @@ export function parsePass3Response(
 
     // Mark recommendations beyond the cap for removal
     const keepSet = new Set(allRecs.slice(0, totalRecCap).map(r => `${r.criterionIdx}:${r.recIdx}`));
-    for (let ci = 0; ci < criteria.length; ci++) {
-      criteria[ci].recommendations = criteria[ci].recommendations.filter(
+    for (let ci = 0; ci < finalCriteria.length; ci++) {
+      finalCriteria[ci].recommendations = finalCriteria[ci].recommendations.filter(
         (_, ri) => keepSet.has(`${ci}:${ri}`),
       );
     }
@@ -1211,7 +1394,7 @@ export function parsePass3Response(
     ? (obj["overall"] as Record<string, unknown>)
     : {};
 
-  const avgScore = criteria.reduce((sum, c) => sum + c.final_score_0_10, 0) / criteria.length;
+  const avgScore = finalCriteria.reduce((sum, c) => sum + c.final_score_0_10, 0) / finalCriteria.length;
   const overallScore0_100 = typeof rawOverall["overall_score_0_100"] === "number"
     // PR-D: overall 0-100 derives from criterion averages where each criterion >= 1,
     // so the achievable floor is 10. Floor at 10 to reflect canonical constraint.
@@ -1238,7 +1421,7 @@ export function parsePass3Response(
     : {};
 
   // CMOS 17th Ed. — deterministic post-processing of all author-facing text
-  const sanitizedCriteria = criteria.map(
+  const sanitizedCriteria = finalCriteria.map(
     (c) => sanitizeCMOSCriterion(c as unknown as Record<string, unknown>) as unknown as typeof c,
   );
 
@@ -1248,7 +1431,7 @@ export function parsePass3Response(
     one_paragraph_summary: summary,
     top_3_strengths: strengths,
     top_3_risks: risks,
-    submission_readiness: parseSubmissionReadiness(rawOverall["submission_readiness"], verdict, criteria),
+    submission_readiness: parseSubmissionReadiness(rawOverall["submission_readiness"], verdict, guardedCriteria),
   };
 
   const sanitizedOverall = sanitizeCMOSOverall(rawOverallObj as Record<string, unknown>) as typeof rawOverallObj;
@@ -1262,15 +1445,6 @@ export function parsePass3Response(
     : undefined;
   const extractedTriggerWarnings = Array.isArray(rawEnrichment["trigger_warnings"])
     ? (rawEnrichment["trigger_warnings"] as unknown[]).filter((w): w is string => typeof w === "string" && w.trim().length > 0).map(w => w.trim().toLowerCase())
-    : undefined;
-  const extractedDiagnosedGenre = typeof rawEnrichment["diagnosed_genre"] === "string" && rawEnrichment["diagnosed_genre"].trim()
-    ? rawEnrichment["diagnosed_genre"].trim()
-    : undefined;
-  const extractedTargetAudience = typeof rawEnrichment["target_audience"] === "string" && rawEnrichment["target_audience"].trim()
-    ? rawEnrichment["target_audience"].trim()
-    : undefined;
-  const extractedDominantCraftEngine = typeof rawEnrichment["dominant_craft_engine"] === "string" && rawEnrichment["dominant_craft_engine"].trim()
-    ? rawEnrichment["dominant_craft_engine"].trim()
     : undefined;
 
   return {
@@ -1289,9 +1463,10 @@ export function parsePass3Response(
       generated_at: new Date().toISOString(),
     },
     partial_evaluation: false, // will be overridden by runPass3Synthesis with real value
-    enrichment: (extractedPremise || extractedTriggerWarnings?.length || extractedDiagnosedGenre || extractedTargetAudience || extractedDominantCraftEngine)
-      ? { premise: extractedPremise, trigger_warnings: extractedTriggerWarnings, diagnosed_genre: extractedDiagnosedGenre, target_audience: extractedTargetAudience, dominant_craft_engine: extractedDominantCraftEngine }
+    enrichment: (extractedPremise || extractedTriggerWarnings?.length)
+      ? { premise: extractedPremise, trigger_warnings: extractedTriggerWarnings }
       : undefined,
+    diagnostic_spine: rawSpineObj ? extractedSpine : undefined,
   };
 }
 
@@ -1581,7 +1756,7 @@ function parseRecommendations(
   criterionKey: SynthesizedCriterion["key"],
 ): SynthesizedCriterion["recommendations"] {
   if (!Array.isArray(raw)) return [];
-  return raw
+  const parsed_all = raw
     .filter((r): r is Record<string, unknown> => typeof r === "object" && r !== null)
     .map((r) => {
       const priority = String(r["priority"] ?? "medium");
@@ -1602,30 +1777,26 @@ function parseRecommendations(
           (normalizeStrategicLever(r["strategic_lever"]) ?? r["strategic_lever"] ?? "scene_goal_clarity") as SynthesizedCriterion["recommendations"][number]["strategic_lever"],
         revision_granularity:
           (normalizeRevisionGranularity(r["revision_granularity"]) ?? r["revision_granularity"] ?? "scene") as SynthesizedCriterion["recommendations"][number]["revision_granularity"],
-        // Structured editorial specificity triple — parsed from LLM output; normalized/repaired below
         mechanism: String(r["mechanism"] ?? "").trim(),
         specific_fix: String(r["specific_fix"] ?? "").trim(),
         reader_effect: String(r["reader_effect"] ?? "").trim(),
-        // 6-part diagnostic contract fields (v19+)
         symptom: typeof r["symptom"] === "string" ? r["symptom"].trim() : undefined,
         mistake_proofing: typeof r["mistake_proofing"] === "string" ? r["mistake_proofing"].trim() : undefined,
-        // Candidate prose fields — copy-paste-ready manuscript text
-        candidate_text_a: typeof r["candidate_text_a"] === "string" ? r["candidate_text_a"].trim() : undefined,
-        candidate_text_b: typeof r["candidate_text_b"] === "string" ? r["candidate_text_b"].trim() : undefined,
-        candidate_text_c: typeof r["candidate_text_c"] === "string" ? r["candidate_text_c"].trim() : undefined,
-        revision_operation: typeof r["revision_operation"] === "string" ? r["revision_operation"].trim() : undefined,
+        potential_damage: Array.isArray(r["potential_damage"])
+          ? (r["potential_damage"] as unknown[]).filter((d): d is string => typeof d === "string" && d.trim().length > 0).map(d => d.trim())
+          : undefined,
       };
 
+      // Generic recommendation guard — suppress cliché phrases without 7-part evidence
+      // before surface-integrity or normalization runs.
+      const genericDecision = filterGenericRecommendations([parsed], (_, d: GenericGuardDecision) => {
+        console.warn(
+          `[Pass3][GenericGuard] suppressed: criterion=${criterionKey} pattern="${d.matchedPattern ?? "unknown"}" missing=${d.reasons.join(",")} action="${parsed.action.slice(0, 80)}"`,
+        );
+      });
+      if (genericDecision.length === 0) return null;
+
       // Surface-integrity check on ORIGINAL action (before normalization/backfill).
-      //
-      // Contract (per #364 acceptance): the gate applies to all recommendations,
-      // anchored or anchorless. REJECT drops the recommendation; FLAG preserves
-      // it but annotates expected_impact so the surface defect is visible to
-      // downstream rendering and QA.
-      //
-      // Anchored recs additionally pass through the rhetorical-family repair
-      // layer below; anchorless recs return early (no manuscript context to
-      // anchor a repair). Both branches must honor REJECT/FLAG on the original.
       const originalIntegrity = checkSurfaceIntegrity(parsed.action);
       const originalIntegrityStatus = originalIntegrity.status;
       if (originalIntegrityStatus === "REJECT") {
@@ -1646,13 +1817,10 @@ function parseRecommendations(
         };
       }
 
-      // For anchored recommendations that passed the original integrity check:
-      // preserve the original FLAG status if present, or apply bounded repair
       let actionForOutput = normalized.action;
       let integrityStatus = originalIntegrityStatus;
 
       if (integrityStatus === "ACCEPT") {
-        // Only re-check integrity on the normalized action if the original was ACCEPT
         const normalizedIntegrity = checkSurfaceIntegrity(normalized.action);
         if (normalizedIntegrity.status === "REJECT") {
           const repairedAction = repairSurfaceIntegrity(actionForOutput, normalizedIntegrity.reasons);
@@ -1668,10 +1836,8 @@ function parseRecommendations(
         }
       }
 
-      // Annotate if original or normalized action is FLAG
       const annotationReasons: string[] = [];
       if (originalIntegrityStatus === "FLAG" && integrityStatus !== "FLAG") {
-        // Original was FLAG; preserve that signal
         annotationReasons.push("borderline_comparative_needs_noun_anchor");
       }
 
@@ -1691,6 +1857,7 @@ function parseRecommendations(
         recommendation,
       ): recommendation is SynthesizedCriterion["recommendations"][number] => recommendation !== null,
     );
+  return parsed_all;
 }
 
 function normalizeRecommendationContract(
@@ -2277,117 +2444,6 @@ function backfillRecommendationsFromAxis(
   }
 
   return deduped;
-}
-
-/**
- * Criterion key → default issue_family mapping for backfill recommendations.
- */
-const CRITERION_ISSUE_FAMILY: Record<string, IssueFamily> = {
-  concept: "concept",
-  narrativeDrive: "pacing",
-  character: "characterization",
-  voice: "voice",
-  sceneConstruction: "scene_structure",
-  dialogue: "dialogue",
-  theme: "theme",
-  worldbuilding: "worldbuilding",
-  pacing: "pacing",
-  proseControl: "prose_control",
-  tone: "voice",
-  narrativeClosure: "closure",
-  marketability: "market_positioning",
-};
-
-const CRITERION_STRATEGIC_LEVER: Record<string, StrategicLever> = {
-  concept: "structural_commitment",
-  narrativeDrive: "momentum_visibility",
-  character: "character_voice_differentiation",
-  voice: "pov_rendering_precision",
-  sceneConstruction: "scene_goal_clarity",
-  dialogue: "dialogue_exposition_density",
-  theme: "thematic_grounding",
-  worldbuilding: "sensory_specificity",
-  pacing: "momentum_visibility",
-  proseControl: "prose_compression",
-  tone: "pov_rendering_precision",
-  narrativeClosure: "closure_state_lock",
-  marketability: "market_signal_clarity",
-};
-
-/**
- * Synthesize recommendations from a criterion's rationale, gap_summary, and evidence
- * when the LLM failed to produce enough. Each synthesized recommendation uses the
- * 6-part diagnostic structure derived deterministically from available signals.
- */
-function synthesizeRecommendationsFromRationale(
-  criterion: SynthesizedCriterion,
-  count: number,
-): SynthesizedCriterion["recommendations"] {
-  const results: SynthesizedCriterion["recommendations"] = [];
-  const { key, final_rationale, gap_summary, evidence, final_score_0_10 } = criterion;
-
-  // Split rationale into usable sentences
-  const sentences = final_rationale
-    .split(/(?<=[.!?])\s+/)
-    .map((s) => s.trim())
-    .filter((s) => s.length > 15);
-
-  // Use gap_summary sentences as primary source for actions
-  const gapSentences = (gap_summary ?? "")
-    .split(/(?<=[.!?])\s+/)
-    .map((s) => s.trim())
-    .filter((s) => s.length > 15);
-
-  // Combine: gap sentences first (more actionable), then rationale sentences
-  const actionSources = [...gapSentences, ...sentences];
-  // De-dup by lowercased prefix
-  const seen = new Set<string>();
-  const uniqueSources = actionSources.filter((s) => {
-    const sig = s.toLowerCase().substring(0, 60);
-    if (seen.has(sig)) return false;
-    seen.add(sig);
-    return true;
-  });
-
-  const issueFamily = CRITERION_ISSUE_FAMILY[key] ?? "prose_control";
-  const strategicLever = CRITERION_STRATEGIC_LEVER[key] ?? "structural_commitment";
-  const priority: "high" | "medium" | "low" =
-    final_score_0_10 <= 4 ? "high" : final_score_0_10 <= 6 ? "medium" : "low";
-
-  for (let i = 0; i < count && i < uniqueSources.length; i++) {
-    const source = uniqueSources[i];
-    const anchor = evidence[i]?.snippet ?? evidence[0]?.snippet ?? "";
-
-    // Build the 6-part diagnostic from available signals
-    const symptom = source;
-    const mechanism = i < sentences.length
-      ? sentences[Math.min(i + 1, sentences.length - 1)]
-      : `This issue affects ${key} performance at score ${final_score_0_10}/10.`;
-    const specificFix = gap_summary
-      ? `Address the gap: ${gap_summary.split(".")[0]?.trim() ?? gap_summary}.`
-      : `Revise the ${key} signals in the identified passage.`;
-    const displayKey = key.replace(/([a-z])([A-Z])/g, "$1 $2").replace(/_/g, " ").toLowerCase();
-    const readerEffect = `Strengthening ${displayKey} here improves the reader's experience and moves the score closer to the target range.`;
-    const mistakeProofing = `Preserve existing strengths in ${displayKey} while making targeted revisions.`;
-
-    results.push({
-      priority,
-      action: source.length > 300 ? source.substring(0, 297) + "..." : source,
-      expected_impact: readerEffect,
-      anchor_snippet: anchor.substring(0, 200),
-      source_pass: 3,
-      issue_family: issueFamily,
-      strategic_lever: strategicLever,
-      revision_granularity: "scene" as RevisionGranularity,
-      mechanism,
-      specific_fix: specificFix,
-      reader_effect: readerEffect,
-      symptom,
-      mistake_proofing: mistakeProofing,
-    });
-  }
-
-  return results;
 }
 
 function parseStringArray(raw: unknown, maxItems: number): string[] {

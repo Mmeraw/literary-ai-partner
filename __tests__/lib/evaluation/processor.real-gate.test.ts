@@ -694,10 +694,11 @@ describe("processEvaluationJob — real synthesisToEvaluationResultV2 + real run
         score_0_10: null,
         scorability_status: "non_scorable",
         model_emitted_score_unverified: 8,
-        insufficient_signal_reason: {
-          looked_for: ["CERTIFIED_ANCHORS_FOR_HIGH_CONFIDENCE_SCORING"],
-          not_found: ["LOW_CONFIDENCE_HIGH_SCORE_WITHOUT_CERTIFIED_ANCHORS"],
-        },
+        insufficient_signal_reason: expect.objectContaining({
+          looked_for: expect.any(Array),
+          not_found: expect.arrayContaining(["NO_DIRECT_TEXTUAL_ANCHOR"]),
+        }),
+        confidence_reasons: expect.arrayContaining(["EVIDENCE_CONFIDENCE_LOW"]),
       }),
     );
 

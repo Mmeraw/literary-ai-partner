@@ -1,6 +1,7 @@
 import { runPolishPass, polishFindingsToOpportunities } from "@/lib/evaluation/polishPass";
 import { upsertEvaluationArtifact } from "@/lib/evaluation/artifactPersistence";
 import { resolveFinalReviewSourceText } from "@/lib/revision/finalReviewSourceText";
+import { createInitialVersion } from "@/lib/manuscripts/versions";
 
 type SupabaseLike = any;
 
@@ -87,6 +88,7 @@ async function resolveVersion(input: {
   supabase: SupabaseLike;
   manuscriptId: number;
   versionId: string;
+  userId: string;
 }): Promise<PolishVersionRow> {
   const versionId = normalizeVersionId(input.versionId);
   if (!versionId) throw new SurfacePolishPathwayError("Missing manuscript version id.", 400);
@@ -104,8 +106,52 @@ async function resolveVersion(input: {
 
   const { data, error } = await query.maybeSingle();
   if (error) throw new SurfacePolishPathwayError(error.message, 500);
-  if (!data) throw new SurfacePolishPathwayError("Manuscript version not found.", 404);
-  return data as PolishVersionRow;
+  if (data) return data as PolishVersionRow;
+
+  // Fallback 1: stale explicit version_id on the evaluation job.
+  // If the bound version no longer exists, try the latest version for this manuscript.
+  if (versionId.toLowerCase() !== "latest") {
+    const { data: latestData, error: latestError } = await input.supabase
+      .from("manuscript_versions")
+      .select("id, manuscript_id, version_number, source_version_id, raw_text, word_count")
+      .eq("manuscript_id", input.manuscriptId)
+      .order("version_number", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (latestError) throw new SurfacePolishPathwayError(latestError.message, 500);
+    if (latestData) return latestData as PolishVersionRow;
+  }
+
+  // Fallback 2: no manuscript_versions rows exist yet.
+  // Recover source text from the manuscript file URL and create version 1.
+  const hydratedSourceText = await resolveFinalReviewSourceText({
+    supabase: input.supabase,
+    manuscriptId: input.manuscriptId,
+    userId: input.userId,
+    sourceVersionId: versionId,
+    fallbackRawText: null,
+  });
+
+  if (!hydratedSourceText) {
+    throw new SurfacePolishPathwayError("Manuscript version not found.", 404);
+  }
+
+  const created = await createInitialVersion({
+    manuscript_id: input.manuscriptId,
+    raw_text: hydratedSourceText,
+    word_count: countWords(hydratedSourceText),
+    created_by: input.userId,
+  });
+
+  return {
+    id: created.id,
+    manuscript_id: created.manuscript_id,
+    version_number: created.version_number,
+    source_version_id: created.source_version_id,
+    raw_text: created.raw_text,
+    word_count: created.word_count,
+  };
 }
 
 async function resolveEligibilityEvaluation(input: {
@@ -187,6 +233,7 @@ export async function runSurfacePolishForManuscriptVersion(input: {
     supabase: input.supabase,
     manuscriptId: input.manuscriptId,
     versionId: input.versionId,
+    userId: input.userId,
   });
 
   const eligibilityEvaluation = await resolveEligibilityEvaluation({

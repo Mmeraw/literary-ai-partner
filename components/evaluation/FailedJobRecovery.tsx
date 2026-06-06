@@ -160,17 +160,45 @@ type FailedJobRecoveryProps = {
   onResume: () => void;
   /** When false (non-operator), hides internal checkpoint detail and recovery mode pill */
   showOperationalDetails?: boolean;
+  cancelledByUser?: boolean;
 };
 
 export function FailedJobRecovery({
+  jobId,
   checkpoint,
   resumeLoading,
   resumeError,
   resumed,
   onResume,
   showOperationalDetails = false,
+  cancelledByUser = false,
 }: FailedJobRecoveryProps) {
   const { hasPhase2Handoff, resumeMode, checked, cachedChunks, totalExpectedChunks } = checkpoint;
+
+  if (cancelledByUser) {
+    return (
+      <div className="space-y-4 rounded-lg border border-red-200 bg-red-50 p-5">
+        <p className="text-sm font-semibold text-red-900">Evaluation cancelled</p>
+        <p className="text-sm text-red-800">
+          Your manuscript was not evaluated to completion. No score or report was generated.
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <Link
+            href="/evaluate"
+            className="inline-flex items-center gap-2 rounded-md border border-stone-300 bg-white px-4 py-2 text-sm font-medium text-stone-800 transition-colors hover:bg-stone-50"
+          >
+            Return to job list
+          </Link>
+          <Link
+            href="/evaluate"
+            className="inline-flex items-center gap-2 rounded-md bg-stone-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-stone-800"
+          >
+            Start new evaluation
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   if (!showOperationalDetails) {
     return (
@@ -179,12 +207,20 @@ export function FailedJobRecovery({
           This evaluation could not be completed from the current saved state. Please start a new
           evaluation.
         </p>
-        <Link
-          href="/evaluate"
-          className="inline-flex items-center gap-2 rounded-md bg-blue-700 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-800"
-        >
-          Start New Evaluation
-        </Link>
+        <div className="flex flex-wrap gap-2">
+          <Link
+            href="/evaluate"
+            className="inline-flex items-center gap-2 rounded-md bg-stone-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-stone-800"
+          >
+            Start New Evaluation
+          </Link>
+          <Link
+            href="/contact"
+            className="inline-flex items-center gap-2 rounded-md border border-stone-300 bg-white px-4 py-2 text-sm font-medium text-stone-800 transition-colors hover:bg-stone-50"
+          >
+            Contact Support
+          </Link>
+        </div>
       </div>
     );
   }
@@ -251,22 +287,30 @@ export function FailedJobRecovery({
         </div>
       )}
 
-      <button
-        onClick={onResume}
-        disabled={resumeLoading || !checked || resumed}
-        className="inline-flex items-center gap-2 rounded-md bg-blue-700 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-50"
-      >
-        {resumeLoading ? (
-          <>
-            <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/40 border-t-white" />
-            Continuing evaluation…
-          </>
-        ) : resumed ? (
-          "Evaluation Continuing"
-        ) : (
-          "Continue Evaluation"
-        )}
-      </button>
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          onClick={onResume}
+          disabled={resumeLoading || !checked || resumed}
+          className="inline-flex items-center gap-2 rounded-md bg-blue-700 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {resumeLoading ? (
+            <>
+              <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+              Continuing evaluation…
+            </>
+          ) : resumed ? (
+            "Evaluation Continuing"
+          ) : (
+            "Continue Evaluation"
+          )}
+        </button>
+        <Link
+          href="/evaluate"
+          className="inline-flex items-center gap-2 rounded-md border border-stone-300 bg-white px-4 py-2 text-sm font-medium text-stone-800 transition-colors hover:bg-stone-50"
+        >
+          Return to job list
+        </Link>
+      </div>
     </div>
   );
 }

@@ -282,10 +282,17 @@ describe('GET /api/workers/process-dream', () => {
     expect(body.success).toBe(1);
 
     expect(mockRunPass3bLongform).toHaveBeenCalledTimes(1);
-    expect(mockUpsertEvaluationArtifact).toHaveBeenCalledTimes(1);
+    expect(mockUpsertEvaluationArtifact).toHaveBeenCalledTimes(2);
     expect(mockUpsertEvaluationArtifact).toHaveBeenCalledWith(
       expect.objectContaining({
         artifactType: 'longform_document_v1',
+        jobId: 'job-1',
+        manuscriptId: 42,
+      }),
+    );
+    expect(mockUpsertEvaluationArtifact).toHaveBeenCalledWith(
+      expect.objectContaining({
+        artifactType: 'final_external_audit_v1',
         jobId: 'job-1',
         manuscriptId: 42,
       }),

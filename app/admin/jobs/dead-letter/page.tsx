@@ -5,6 +5,8 @@ import Link from "next/link";
 
 type FailedJob = {
   id: string;
+  user_id: string;
+  owner_email: string | null;
   manuscript_id: number;
   job_type: string;
   status: string;
@@ -150,6 +152,9 @@ export default function DeadLetterQueuePage() {
                   Manuscript
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Owner Email
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Phase
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -179,6 +184,9 @@ export default function DeadLetterQueuePage() {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                     {job.manuscript_id}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    {job.owner_email ?? "—"}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                     <div>

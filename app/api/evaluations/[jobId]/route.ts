@@ -1,9 +1,10 @@
 // app/api/evaluations/[jobId]/route.ts
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getAuthenticatedUser } from "@/lib/supabase/server";
 import { getDevHeaderActor } from "@/lib/auth/devHeaderActor";
 import { getEvaluationReleaseDecision } from "@/lib/jobs/readReleaseGate";
+import { enforceApiRateLimit } from "@/lib/security/apiRateLimit";
+import { requireUser } from "@/lib/security/apiGuards";
 
 type Ok = {
   ok: true;
@@ -16,7 +17,6 @@ type Ok = {
 type Err = {
   ok: false;
   error: string;
-  details?: string;
 };
 
 export async function GET(
@@ -24,6 +24,13 @@ export async function GET(
   ctx: { params: { jobId: string } }
 ) {
   try {
+    const rateLimitDenied = enforceApiRateLimit(req, {
+      bucket: "evaluation_read",
+      limit: 120,
+      windowMs: 10 * 60 * 1000,
+    });
+    if (rateLimitDenied) return rateLimitDenied;
+
     // 1) Auth: dev header actor (test-mode only) OR production session
     const actor = getDevHeaderActor(req);
     let userId: string | null = null;
@@ -32,9 +39,9 @@ export async function GET(
       // Dev-only user identity from x-user-id header
       userId = actor.userId;
     } else {
-      // Production path: Supabase session cookie
-      const user = await getAuthenticatedUser();
-      userId = user?.id ?? null;
+      const auth = await requireUser();
+      if (auth.ok === false) return auth.response;
+      userId = auth.user.id;
     }
 
     if (!userId) {
@@ -56,7 +63,6 @@ export async function GET(
       const payload: Err = {
         ok: false,
         error: "Failed to load job",
-        details: error.message,
       };
       return NextResponse.json(payload, { status: 500 });
     }
@@ -85,7 +91,6 @@ export async function GET(
       const payload: Err = {
         ok: false,
         error: "Evaluation not releasable",
-        details: releaseDecision.reason,
       };
       return NextResponse.json(payload, { status: 409 });
     }
@@ -117,7 +122,6 @@ export async function GET(
       const payload: Err = {
         ok: false,
         error: "Evaluation result not found",
-        details: "Job completed but no evaluation result or artifact is available.",
       };
       return NextResponse.json(payload, { status: 404 });
     }
@@ -134,7 +138,6 @@ export async function GET(
     const payload: Err = {
       ok: false,
       error: "Unexpected error",
-      details: err instanceof Error ? err.message : "Unknown error",
     };
     return NextResponse.json(payload, { status: 500 });
   }

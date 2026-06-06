@@ -1584,7 +1584,9 @@ function Module2ReviewGate({
             </button>
           ) : (
             <form
-              action={async (fd: FormData) => {
+              onSubmit={async (event: React.FormEvent<HTMLFormElement>) => {
+                event.preventDefault();
+                const fd = new FormData(event.currentTarget);
                 fd.set("author_notes", notes);
                 fd.set("edit_requests", editText);
                 if (Object.keys(layerDecisions).length > 0) {
@@ -1647,7 +1649,9 @@ function Module2ReviewGate({
           )}
 
           <form
-            action={async (fd: FormData) => {
+            onSubmit={async (event: React.FormEvent<HTMLFormElement>) => {
+              event.preventDefault();
+              const fd = new FormData(event.currentTarget);
               fd.set("author_notes", notes);
               try {
                 await rejectLedgerAction(fd);

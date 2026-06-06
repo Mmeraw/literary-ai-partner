@@ -2,6 +2,8 @@ import { POST } from "@/app/api/jobs/route";
 import { createJob } from "@/lib/jobs/store";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getAuthenticatedUser } from "@/lib/supabase/server";
+import { createInitialVersion } from "@/lib/manuscripts/versions";
+import { attachFreeDiagnosticJob, claimFreeDiagnostic } from "@/lib/freeDiagnostic/claims";
 
 jest.mock("@/lib/jobs/store", () => ({
   createJob: jest.fn(),
@@ -38,6 +40,15 @@ jest.mock("@/lib/supabase/admin", () => ({
   createAdminClient: jest.fn(),
 }));
 
+jest.mock("@/lib/manuscripts/versions", () => ({
+  createInitialVersion: jest.fn(),
+}));
+
+jest.mock("@/lib/freeDiagnostic/claims", () => ({
+  claimFreeDiagnostic: jest.fn(),
+  attachFreeDiagnosticJob: jest.fn(),
+}));
+
 jest.mock("@/lib/jobs/backpressure", () => ({
   backpressureGuard: jest.fn(async () => null),
 }));
@@ -45,6 +56,9 @@ jest.mock("@/lib/jobs/backpressure", () => ({
 const mockCreateJob = createJob as jest.MockedFunction<typeof createJob>;
 const mockCreateAdminClient = createAdminClient as jest.MockedFunction<typeof createAdminClient>;
 const mockGetAuthenticatedUser = getAuthenticatedUser as jest.MockedFunction<typeof getAuthenticatedUser>;
+const mockCreateInitialVersion = createInitialVersion as jest.MockedFunction<typeof createInitialVersion>;
+const mockClaimFreeDiagnostic = claimFreeDiagnostic as jest.MockedFunction<typeof claimFreeDiagnostic>;
+const mockAttachFreeDiagnosticJob = attachFreeDiagnosticJob as jest.MockedFunction<typeof attachFreeDiagnosticJob>;
 const mockFetch = jest.fn();
 const originalFetch = global.fetch;
 
@@ -57,7 +71,13 @@ function buildDefaultAdminClientMock() {
   const evaluationJobsSelectEq = jest.fn(() => ({ in: evaluationJobsSelectIn }));
   const evaluationJobsSelect = jest.fn(() => ({ eq: evaluationJobsSelectEq }));
 
-  const manuscriptsMaybeSingle = jest.fn(async () => ({ data: { word_count: 4412 }, error: null }));
+  const manuscriptsMaybeSingle = jest.fn(async () => ({
+    data: {
+      word_count: 4412,
+      file_url: `data:text/plain;charset=utf-8,${encodeURIComponent("He walked to the door and said, \"Wait.\"")}`,
+    },
+    error: null,
+  }));
   const manuscriptsEqUser = jest.fn(() => ({ maybeSingle: manuscriptsMaybeSingle }));
   const manuscriptsEqId = jest.fn(() => ({ eq: manuscriptsEqUser }));
   const manuscriptsSelect = jest.fn(() => ({ eq: manuscriptsEqId }));
@@ -93,8 +113,11 @@ describe("POST /api/jobs input contract", () => {
     mockFetch.mockReset();
     global.fetch = mockFetch as typeof fetch;
     process.env.CRON_SECRET = "test-cron-secret";
-    mockGetAuthenticatedUser.mockResolvedValue({ id: "user-1" } as never);
+    mockGetAuthenticatedUser.mockResolvedValue({ id: "user-1", email: "writer@example.com" } as never);
     mockCreateAdminClient.mockReturnValue(buildDefaultAdminClientMock() as never);
+    mockCreateInitialVersion.mockResolvedValue({ id: "version-1" } as never);
+    mockClaimFreeDiagnostic.mockResolvedValue({ ok: true, claimId: "claim-1", ipHash: "hash-1" });
+    mockAttachFreeDiagnosticJob.mockResolvedValue(undefined);
   });
 
   afterAll(() => {
@@ -209,10 +232,33 @@ describe("POST /api/jobs input contract", () => {
     expect(mockCreateJob).toHaveBeenCalledWith(
       expect.objectContaining({
         manuscript_id: 321,
+        manuscript_version_id: "version-1",
         user_id: "user-1",
         job_type: "evaluate_full",
       }),
     );
+  });
+
+  test("rejects unsupported letter-style submissions before job creation", async () => {
+    const req = new Request("https://localhost:3000/api/jobs", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        manuscript_text:
+          "Dear Andrew, I am writing to share professional coaching feedback. Best regards, Mentor.",
+        job_type: "evaluate_full",
+        processing_terms_accepted: true,
+      }),
+    });
+
+    const response = await POST(req);
+    const json = (await response.json()) as { ok: boolean; code: string; error: string };
+
+    expect(response.status).toBe(422);
+    expect(json.ok).toBe(false);
+    expect(json.code).toBe("NARRATIVE_EVALUATION_PREFLIGHT_REJECTED");
+    expect(json.error).toMatch(/letter|essay|synopsis|non-fiction/i);
+    expect(mockCreateJob).not.toHaveBeenCalled();
   });
 
   test("kicks off the evaluation worker after successful job creation", async () => {
@@ -265,7 +311,13 @@ describe("POST /api/jobs input contract", () => {
             select: jest.fn(() => ({
               eq: jest.fn(() => ({
                 eq: jest.fn(() => ({
-                  maybeSingle: async () => ({ data: { word_count: 4412 }, error: null }),
+                  maybeSingle: async () => ({
+                    data: {
+                      word_count: 4412,
+                      file_url: `data:text/plain;charset=utf-8,${encodeURIComponent("She closed the letter and stepped into the rain.")}`,
+                    },
+                    error: null,
+                  }),
                 })),
               })),
             })),
@@ -324,6 +376,101 @@ describe("POST /api/jobs input contract", () => {
     expect(insertMock).not.toHaveBeenCalled();
   });
 
+  test("reserves a free diagnostic claim and links it to the created job", async () => {
+    mockCreateJob.mockResolvedValue({
+      id: "job-free-1",
+      manuscript_id: 1200,
+      job_type: "evaluate_full",
+      status: "queued",
+    } as never);
+    mockFetch.mockResolvedValue({ ok: true } as Response);
+
+    const req = new Request("https://example.test/api/jobs", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-forwarded-for": "203.0.113.10" },
+      body: JSON.stringify({
+        manuscript_id: 1200,
+        job_type: "evaluate_full",
+        user_tier: "free",
+        processing_terms_accepted: true,
+      }),
+    });
+
+    const response = await POST(req);
+    const json = (await response.json()) as { ok: boolean; job_id: string };
+
+    expect(response.status).toBe(201);
+    expect(json.ok).toBe(true);
+    expect(json.job_id).toBe("job-free-1");
+    expect(mockClaimFreeDiagnostic).toHaveBeenCalledWith(
+      expect.objectContaining({
+        req,
+        userId: "user-1",
+        email: "writer@example.com",
+        manuscriptId: 1200,
+      }),
+    );
+    expect(mockAttachFreeDiagnosticJob).toHaveBeenCalledWith(
+      expect.objectContaining({ claimId: "claim-1", jobId: "job-free-1" }),
+    );
+  });
+
+  test("blocks duplicate free diagnostic claims before creating a job", async () => {
+    mockClaimFreeDiagnostic.mockResolvedValueOnce({
+      ok: false,
+      status: 409,
+      code: "FREE_DIAGNOSTIC_ALREADY_USED",
+      message: "This account or email has already used the free diagnostic. Please choose a paid evaluation to continue.",
+    });
+
+    const req = new Request("https://example.test/api/jobs", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        manuscript_id: 1201,
+        job_type: "evaluate_full",
+        user_tier: "free",
+        processing_terms_accepted: true,
+      }),
+    });
+
+    const response = await POST(req);
+    const json = (await response.json()) as { ok: boolean; code: string; error: string };
+
+    expect(response.status).toBe(409);
+    expect(json.ok).toBe(false);
+    expect(json.code).toBe("FREE_DIAGNOSTIC_ALREADY_USED");
+    expect(json.error).toContain("already used the free diagnostic");
+    expect(mockCreateJob).not.toHaveBeenCalled();
+    expect(mockAttachFreeDiagnosticJob).not.toHaveBeenCalled();
+  });
+
+  test("does not claim a free diagnostic for paid or default evaluation submissions", async () => {
+    mockCreateJob.mockResolvedValue({
+      id: "job-paid-1",
+      manuscript_id: 1202,
+      job_type: "evaluate_full",
+      status: "queued",
+    } as never);
+    mockFetch.mockResolvedValue({ ok: true } as Response);
+
+    const req = new Request("https://example.test/api/jobs", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        manuscript_id: 1202,
+        job_type: "evaluate_full",
+        processing_terms_accepted: true,
+      }),
+    });
+
+    const response = await POST(req);
+
+    expect(response.status).toBe(201);
+    expect(mockClaimFreeDiagnostic).not.toHaveBeenCalled();
+    expect(mockAttachFreeDiagnosticJob).not.toHaveBeenCalled();
+  });
+
   test("never fast-tracks Phase 0 — all submissions require full Phase 0 dwell", async () => {
     const updateMock = jest.fn(() => ({
       eq: jest.fn(async () => ({ error: null })),
@@ -336,7 +483,13 @@ describe("POST /api/jobs input contract", () => {
             select: jest.fn(() => ({
               eq: jest.fn(() => ({
                 eq: jest.fn(() => ({
-                  maybeSingle: async () => ({ data: { word_count: 4412 }, error: null }),
+                  maybeSingle: async () => ({
+                    data: {
+                      word_count: 4412,
+                      file_url: `data:text/plain;charset=utf-8,${encodeURIComponent("The town went quiet as the bell struck midnight.")}`,
+                    },
+                    error: null,
+                  }),
                 })),
               })),
             })),

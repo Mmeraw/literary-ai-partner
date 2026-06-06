@@ -44,6 +44,27 @@ const faqSections = [
     ],
   },
   {
+    label: "Document eligibility",
+    items: [
+      {
+        q: "What types of documents can RevisionGrade evaluate?",
+        a: "RevisionGrade currently evaluates novels, novellas, book-length memoirs, narrative nonfiction manuscripts, and serious fiction/nonfiction excerpts. Depending on length and complexity, eligible manuscripts route to short-form, long-form, or long-form multi-layer evaluation.",
+      },
+      {
+        q: "Does RevisionGrade evaluate letters, synopses, bios, or query letters?",
+        a: "No. Letters, synopses, query letters, and author bios are not evaluated by the manuscript-evaluation engine. RevisionGrade may help prepare these through Agent Readiness Package™, but they are packaging materials, not manuscript diagnostics.",
+      },
+      {
+        q: "What documents are not currently supported for evaluation?",
+        a: "RevisionGrade is not designed for general document critique such as personal/business correspondence, employment cover letters, resumes/CVs, academic or research papers, legal documents, contracts, marketing copy, or sales materials.",
+      },
+      {
+        q: "What happens if I submit an unsupported document type?",
+        a: "If a submission is detected as non-manuscript content (for example a letter, synopsis, or bio), evaluation will not proceed. The system returns a clear explanation that the document type is unsupported and invites you to submit an eligible manuscript or narrative excerpt instead.",
+      },
+    ],
+  },
+  {
     label: "Evaluation modes",
     items: [
       {

@@ -92,6 +92,25 @@ function pluralizeManuscript(count) {
   return count === 1 ? "manuscript" : "manuscripts";
 }
 
+async function parseJsonResponseSafe(response) {
+  const contentType = (response.headers.get("content-type") || "").toLowerCase();
+  if (!contentType.includes("application/json")) {
+    return null;
+  }
+  return await response.json().catch(() => null);
+}
+
+function normalizeClientError(message, fallback) {
+  if (!message || typeof message !== "string") return fallback;
+  const lowered = message.toLowerCase();
+  const looksLikeJsonParseIssue =
+    lowered.includes("unexpected token") ||
+    lowered.includes("json") ||
+    lowered.includes("doctype") ||
+    lowered.includes("not valid json");
+  return looksLikeJsonParseIssue ? fallback : message;
+}
+
 function getSubmissionSourceSummary({ selectedDashboardManuscript, manuscriptText, wordCount }) {
   if (selectedDashboardManuscript) {
     const isUploaded = selectedDashboardManuscript.source === "upload";
@@ -124,7 +143,7 @@ function getSubmissionSourceSummary({ selectedDashboardManuscript, manuscriptTex
  * Track A: Evaluation Entry
  * Single UI entry point to create evaluate_full jobs via POST /api/jobs
  */
-export default function ManuscriptSubmissionForm({ onSubmitSuccess }) {
+export default function ManuscriptSubmissionForm({ onSubmitSuccess, freeDiagnosticTrial = false }) {
   const uploadInputRef = useRef(null);
 
   const [activeInputMethod, setActiveInputMethod] = useState("saved");
@@ -321,12 +340,24 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess }) {
         method: "POST",
         body: form,
       });
-      const data = await response.json();
+      const data = await parseJsonResponseSafe(response);
       if (!response.ok) {
-        throw new Error(data.details ? `${data.error}: ${data.details}` : data.error || "Upload failed");
+        if (response.status === 401) {
+          throw new Error("Your session has expired. Please sign in again, then retry upload.");
+        }
+
+        const apiError =
+          data?.details && data?.error ? `${data.error}: ${data.details}` : data?.error || "Upload failed";
+
+        throw new Error(
+          normalizeClientError(
+            apiError,
+            "We couldn't read that DOCX file. Please try again or upload a .txt/.docx file.",
+          ),
+        );
       }
 
-      if (data.manuscript) {
+      if (data?.manuscript) {
         setDashboardManuscripts((prev) => [data.manuscript, ...prev.filter((m) => m.id !== data.manuscript.id)]);
         setSelectedManuscriptId(data.manuscript.id);
         setHiddenManuscriptIds((prev) => prev.filter((id) => id !== data.manuscript.id));
@@ -334,7 +365,12 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess }) {
         setActiveInputMethod("upload");
       }
     } catch (err) {
-      setError(err.message || "Upload failed");
+      setError(
+        normalizeClientError(
+          err?.message,
+          "We couldn't read that DOCX file. Please try again or upload a .txt/.docx file.",
+        ),
+      );
     } finally {
       setIsUploading(false);
     }
@@ -383,6 +419,7 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess }) {
 
       const payload = {
         job_type: "evaluate_full",
+        ...(freeDiagnosticTrial ? { user_tier: "free" } : {}),
         manuscript_title: projectTitle,
         english_variant: englishVariant,
         manuscript_structure: manuscriptStructure,
@@ -405,9 +442,14 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess }) {
         body: JSON.stringify(payload),
       });
 
-      const data = await response.json();
+      const data = await parseJsonResponseSafe(response);
       if (!response.ok) {
-        throw new Error(data.error || "Failed to create evaluation job");
+        if (response.status === 401) {
+          throw new Error("Your session has expired. Please sign in again, then retry.");
+        }
+        throw new Error(
+          normalizeClientError(data?.error || "Failed to create evaluation job", "Failed to create evaluation job"),
+        );
       }
 
       setManuscriptText("");
@@ -416,7 +458,7 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess }) {
         onSubmitSuccess(data);
       }
     } catch (err) {
-      setError(err.message);
+      setError(normalizeClientError(err?.message, "Failed to create evaluation job"));
     } finally {
       setIsSubmitting(false);
     }
@@ -958,6 +1000,26 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess }) {
                   <li>Full manuscripts enable long-form continuity analysis.</li>
                   <li>Short excerpts receive criteria-based story diagnosis only.</li>
                 </ul>
+              </div>
+
+              <div className="rounded-2xl border border-[#A36A00]/45 bg-[#FFF8E8] p-5">
+                <p className="font-rg-mono text-[0.78rem] font-bold uppercase tracking-[0.14em] text-[#8A5A00]">Document eligibility</p>
+                <h4 className="mt-2 font-rg-serif text-2xl leading-tight text-stone-950">What can be evaluated</h4>
+                <p className="mt-2 text-base leading-7 text-stone-800">
+                  RevisionGrade evaluates manuscripts and serious narrative excerpts: novels, novellas, book-length memoirs, narrative nonfiction manuscripts, and substantial fiction/nonfiction excerpts.
+                </p>
+                <p className="mt-3 text-base leading-7 text-stone-800">
+                  It does <span className="font-semibold">not</span> evaluate general documents such as personal/business letters, professional correspondence, query letters, synopses, author bios, resumes/CVs, academic papers, research papers, legal documents, contracts, or marketing/sales copy.
+                </p>
+                <p className="mt-3 text-base leading-7 text-stone-800">
+                  If unsupported content is detected, evaluation will not proceed. You&apos;ll receive a clear explanation and can resubmit with an eligible manuscript.
+                </p>
+                <a
+                  href="/faq"
+                  className="mt-3 inline-flex text-sm font-bold text-blue-800 underline underline-offset-2 hover:text-stone-950"
+                >
+                  Read full eligibility policy
+                </a>
               </div>
             </aside>
           </div>

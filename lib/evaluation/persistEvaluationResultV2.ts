@@ -18,6 +18,8 @@ import {
   runEvaluationBackwardRelook,
   type EvaluationBackwardRelookDecision,
 } from "@/lib/evaluation/backwardRelook";
+import { applyShortFormEvidenceGate, runShortFormEvidenceGate } from "@/lib/evaluation/pipeline/shortFormEvidenceGate";
+import { runShortFormFinalSanityCheck } from "@/lib/evaluation/pipeline/shortFormFinalSanityCheck";
 
 type PipelineFailureEnvelope = {
   failure_origin: string;
@@ -110,6 +112,62 @@ function attachBackwardRelookMetadata(
         backward_relook: buildBackwardRelookTrace(backwardRelook),
       },
     },
+  };
+}
+
+function readManuscriptWordCount(progressSnapshot: Record<string, unknown>): number | null {
+  const direct = progressSnapshot.manuscript_word_count;
+  if (typeof direct === "number" && Number.isFinite(direct) && direct > 0) return direct;
+  const chunkRouting = progressSnapshot.chunk_routing;
+  if (chunkRouting && typeof chunkRouting === "object" && !Array.isArray(chunkRouting)) {
+    const routing = chunkRouting as Record<string, unknown>;
+    const words = routing.manuscript_words ?? routing.source_manuscript_words;
+    if (typeof words === "number" && Number.isFinite(words) && words > 0) return words;
+  }
+  return null;
+}
+
+function applyShortFormReadinessMetadata(
+  evaluationResult: EvaluationResultV2,
+  wordCount: number | null,
+): { result: EvaluationResultV2; blockingReason: string | null } {
+  if (typeof wordCount !== "number" || wordCount >= 25_000) {
+    return { result: evaluationResult, blockingReason: null };
+  }
+
+  const evidenceGate = runShortFormEvidenceGate({
+    wordCount,
+    criteria: evaluationResult.criteria,
+  });
+  const gatedResult: EvaluationResultV2 = {
+    ...evaluationResult,
+    criteria: applyShortFormEvidenceGate(evaluationResult.criteria, evidenceGate),
+  };
+  const sanityCheck = runShortFormFinalSanityCheck({
+    wordCount,
+    evaluationResult: gatedResult,
+    evidenceGate,
+  });
+
+  return {
+    result: {
+      ...gatedResult,
+      governance: {
+        ...gatedResult.governance,
+        transparency: {
+          ...(gatedResult.governance?.transparency ?? {}),
+          short_form_evidence_gate: evidenceGate,
+          short_form_final_sanity_check: sanityCheck,
+          short_form_external_qa: {
+            mode: process.env.SHORT_FORM_EXTERNAL_QA_MODE ?? "off",
+            default_provider_call: false,
+          },
+        },
+      },
+    },
+    blockingReason: sanityCheck.blocking
+      ? `[ShortFormFinalSanityCheck] ${sanityCheck.codes.join(",")}`
+      : null,
   };
 }
 
@@ -233,7 +291,80 @@ export async function persistEvaluationResultV2(params: {
     throw new Error(`Invalid manuscript_id for persistEvaluationResultV2: ${params.manuscriptId}`);
   }
 
-  const evaluationResult = applyAuthorityCompositeCap(params.evaluationResult);
+  const wordCount = readManuscriptWordCount(params.progressSnapshot);
+  const shortFormReadiness = applyShortFormReadinessMetadata(params.evaluationResult, wordCount);
+  const evaluationResult = applyAuthorityCompositeCap(shortFormReadiness.result);
+
+  if (shortFormReadiness.blockingReason) {
+    const rejectedAt = new Date().toISOString();
+    const failedStatus = normalizeEvaluationJobStatus(JOB_STATUS.FAILED) as JobStatus;
+    const invalidValidity = normalizeEvaluationValidityStatus("invalid");
+    const failurePayloadBase = {
+      status: failedStatus,
+      validity_status: invalidValidity,
+      phase: "phase_2",
+      phase_status: "failed",
+      total_units: params.totalUnits,
+      completed_units: params.completedUnits,
+      progress: {
+        ...params.progressSnapshot,
+        finalized_at: rejectedAt,
+        phase: "phase_2",
+        phase_status: "failed",
+        total_units: params.totalUnits,
+        completed_units: params.completedUnits,
+        message: "Evaluation rejected by short-form final sanity check",
+        finished_at: rejectedAt,
+        short_form_final_sanity_check: evaluationResult.governance?.transparency?.short_form_final_sanity_check,
+      },
+      evaluation_result: evaluationResult,
+      evaluation_result_version: "evaluation_result_v2",
+      last_error: shortFormReadiness.blockingReason,
+      failure_code: "SHORT_FORM_FINAL_SANITY_BLOCKED",
+      last_heartbeat: rejectedAt,
+      last_heartbeat_at: rejectedAt,
+      heartbeat_at: rejectedAt,
+      failed_at: rejectedAt,
+      updated_at: rejectedAt,
+    };
+
+    let { error: failureUpdateError } = await params.supabase
+      .from("evaluation_jobs")
+      .update(failurePayloadBase)
+      .eq("id", params.jobId);
+
+    if (failureUpdateError && isMissingSchemaCacheColumnError(failureUpdateError, "validity_status")) {
+      ({ error: failureUpdateError } = await params.supabase
+        .from("evaluation_jobs")
+        .update({ ...failurePayloadBase, validity_status: undefined })
+        .eq("id", params.jobId));
+    }
+
+    if (failureUpdateError) {
+      throw new Error(`Short-form final sanity rejection update failed: ${failureUpdateError.message}`);
+    }
+
+    return {
+      persisted: false,
+      completedAt: rejectedAt,
+      gateDecision: "FAIL",
+      validationResult: "FAIL",
+      confidence: deriveConfidence({
+        criterionCompletenessPassed: false,
+        anchorIntegrityPassed: false,
+        governancePassed: false,
+        passConvergencePassed: false,
+        hasMaterialPassDisagreement: false,
+        pass1UnresolvedWarningCount: 0,
+        usedFallbackPath: false,
+        executionDegraded: false,
+        invalidOutput: true,
+        quarantinedOutput: false,
+        evidenceCoverage: "thin",
+      }),
+      reason: shortFormReadiness.blockingReason,
+    };
+  }
 
   const structuralValidation = validateStructuralArtifact(evaluationResult);
   if (!structuralValidation.ok) {

@@ -22,6 +22,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { getQueueHealth } from '@/lib/monitoring/queueHealth';
 import type { QueueHealthLevel } from '@/lib/monitoring/healthThresholds';
+import { enforceApiRateLimit } from '@/lib/security/apiRateLimit';
+import { requireWorkerSecret } from '@/lib/security/apiGuards';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -174,6 +176,17 @@ const DEGRADED_COOLDOWN_MS = 25 * 60 * 1000; // 25 min — slightly under 30-min
 // ─── Main handler ─────────────────────────────────────────────────────────────
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
+  const rateLimitDenied = enforceApiRateLimit(req, {
+    bucket: 'worker_health_alert',
+    limit: 120,
+    windowMs: 60 * 1000,
+    keySuffix: req.headers.get('x-vercel-id') || undefined,
+  });
+  if (rateLimitDenied) return rateLimitDenied;
+
+  const workerSecretDenied = requireWorkerSecret(req);
+  if (workerSecretDenied) return workerSecretDenied;
+
   if (!isAuthorized(req)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
@@ -198,7 +211,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       health: 'unknown',
       alerted: emailResult.sent,
       reason: 'health_fetch_failed',
-      email_error: emailResult.error,
+      email_error: emailResult.error ? 'alert_send_failed' : undefined,
     });
   }
 
@@ -254,7 +267,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     checked:     true,
     health:      level,
     alerted:     emailResult.sent,
-    email_error: emailResult.error,
+    email_error: emailResult.error ? 'alert_send_failed' : undefined,
     reasons,
   });
 }

@@ -38,6 +38,10 @@ type PhaseInputs = {
   phase3_started_at?: string | null;
   /** Narrative Synthesis (Pass 3b) completion timestamp — null/absent while synthesis is still running */
   pass3_completed_at?: string | null;
+  /** Final external verification completion timestamp — null/absent while verification is pending */
+  final_external_audit_completed_at?: string | null;
+  final_external_audit_verdict?: "PASS" | "WARN" | "BLOCK" | "SKIP" | null;
+  final_external_audit_blocking?: boolean | null;
   /** Manuscript word count — used to determine if this is a long-form job (≥25k words) */
   manuscript_word_count?: number | null;
   /** Monotonic ratchet — highest percentage ever shown. Bar never renders below this. */
@@ -55,8 +59,13 @@ function hasLongFormNarrativeSynthesis(job: Pick<PhaseInputs, "pass3_completed_a
   return typeof job.pass3_completed_at === "string" && job.pass3_completed_at.trim().length > 0;
 }
 
+function hasFinalExternalAudit(job: Pick<PhaseInputs, "final_external_audit_completed_at" | "final_external_audit_verdict">): boolean {
+  if (job.final_external_audit_verdict === "SKIP") return true;
+  return typeof job.final_external_audit_completed_at === "string" && job.final_external_audit_completed_at.trim().length > 0;
+}
+
 function isLongFormInterimComplete(job: PhaseInputs): boolean {
-  return job.status === "complete" && isLongFormJob(job) && !hasLongFormNarrativeSynthesis(job);
+  return job.status === "complete" && isLongFormJob(job) && (!hasLongFormNarrativeSynthesis(job) || !hasFinalExternalAudit(job));
 }
 
 function elapsedDrift(
@@ -170,12 +179,36 @@ function getProgressDisplayRaw(
 
     if (isLongForm && !hasSynthesis) {
       return {
-        label: "Finalizing your report in progress",
+        label: "Scoring complete. Preparing narrative synthesis.",
         valueLabel: "92%",
         helperText:
-          "Your diagnostic report is ready below. Finalizing your report is still in progress; the Narrative Synthesis section will appear automatically once it finishes generating.",
+          "Your scoring pass is complete. The long-form narrative synthesis is still being prepared before the full report is released.",
         indeterminate: false,
         percentage: 92,
+        color: "blue",
+        hardStop: false,
+      };
+    }
+
+    if (isLongForm && job.final_external_audit_blocking === true) {
+      return {
+        label: "Final verification needs attention",
+        valueLabel: "96%",
+        helperText: "Final verification found a required-artifact or coverage issue. Support can review the evaluation before release.",
+        indeterminate: false,
+        percentage: 96,
+        color: "red",
+        hardStop: true,
+      };
+    }
+
+    if (isLongForm && !hasFinalExternalAudit(job)) {
+      return {
+        label: "Final verification in progress.",
+        valueLabel: "96%",
+        helperText: "Narrative synthesis is complete. Final verification is checking required artifacts before the report is marked ready.",
+        indeterminate: false,
+        percentage: 96,
         color: "blue",
         hardStop: false,
       };
@@ -204,8 +237,8 @@ function getProgressDisplayRaw(
         : "Awaiting Story Layer Approval",
       valueLabel: "50%",
       helperText: hasHardFail
-        ? "The story layer could not be approved automatically. Review the Story Ledger to resolve narrative conflicts before Phase 2 can begin."
-        : "Phase 1A is complete. Review your Story Ledger and approve to continue to Phase 2.",
+        ? "The story layer could not be approved automatically. Review the Story Ledger to resolve narrative conflicts before evaluation can continue."
+        : "Story Layer review is complete. Approve to continue your evaluation.",
       indeterminate: false,
       percentage: 50,
       color: hasHardFail ? "red" : "amber",

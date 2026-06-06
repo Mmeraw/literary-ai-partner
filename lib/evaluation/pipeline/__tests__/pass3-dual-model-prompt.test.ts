@@ -12,6 +12,7 @@ import { describe, expect, test } from "@jest/globals";
 import { buildPass3UserPrompt } from "../prompts/pass3-synthesis";
 import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
 import type { Pass2aStructuredContext, SinglePassOutput , Pass1aCharacterLedger } from "../types";
+import type { ResolvedExpectationContext } from "@/lib/evaluation/genreExpectationProfiles";
 
 const emptyContext: Pass2aStructuredContext = {
   character_ledger: [],
@@ -235,5 +236,33 @@ describe("buildPass3UserPrompt — manuscript entity roster grounding", () => {
     expect(prompt).toContain("MANUSCRIPT ENTITY ROSTER");
     expect(prompt).toContain("DUAL-MODEL PARALLEL SCORING");
     expect(prompt).toContain("Benjamin");
+  });
+});
+
+describe("buildPass3UserPrompt — expectation profile structured input", () => {
+  test("renders expectation profile block when provided", () => {
+    const expectationContext: ResolvedExpectationContext = {
+      work_type: "literaryFictionGeneral",
+      diagnosed_genre: "atmospheric_horror",
+      shelf_target_audience: "adult literary horror readers",
+      dominant_craft_engine: "atmosphere",
+      expectation_profiles: ["atmosphere_forward", "dread_forward", "mood_forward"],
+      resolution_notes: ["work_type:literaryFictionGeneral=>mood_forward,voice_forward"],
+    };
+
+    const prompt = buildPass3UserPrompt({
+      comparisonPacketJson: "{}",
+      pass2aStructuredContext: emptyContext,
+      manuscriptText: "minimal manuscript text",
+      title: "Test",
+      expectationContext,
+      characterLedger: MINIMAL_CHARACTER_LEDGER,
+    });
+
+    expect(prompt).toContain("EXPECTATION PROFILE (STRUCTURED INPUT — APPLY BEFORE RECOMMENDATION EMISSION)");
+    expect(prompt).toContain("\"expectation_profiles\"");
+    expect(prompt).toContain("atmosphere_forward");
+    expect(prompt).toContain("dread_forward");
+    expect(prompt).toContain("mood_forward");
   });
 });

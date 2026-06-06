@@ -102,11 +102,17 @@ import {
 } from '@/lib/config/evaluationRuntimeConfig';
 import {
   classifyQueuedHardStop,
+  decideSplitBrainRecovery,
   classifySplitBrain,
   partitionMaxAgeKillSwitchCandidates,
   resolveProviderBudget,
   type QueueHardStopCandidate,
 } from '@/lib/evaluation/hardStopGovernance';
+import {
+  sendRecoverySupportAlert,
+  shouldAlertSupportForRecoveryAction,
+  toUserSafeRecoveryMessage,
+} from '@/lib/evaluation/recoverySupportAlertMailer';
 import {
   emitLatencyTrace,
   finishLatencyStage,
@@ -3457,7 +3463,7 @@ async function terminalizeQueuedHardStops(): Promise<{
 
   const { data: queuedRows, error } = await supabase
     .from('evaluation_jobs')
-    .select('id, status, phase, phase_status, created_at, updated_at, phase0_completed_at, manuscript_word_count, progress')
+    .select('id, manuscript_id, status, phase, phase_status, created_at, updated_at, phase0_completed_at, manuscript_word_count, progress')
     .eq('status', JOB_STATUS.QUEUED)
     .limit(50);
 
@@ -3470,6 +3476,84 @@ async function terminalizeQueuedHardStops(): Promise<{
   if (rows.length === 0) {
     return { hardStopped: 0, ids: [], shouldHaltProcessing: false };
   }
+
+  const manuscriptUserIdCache = new Map<number, string | null>();
+
+  const resolveUserIdForManuscript = async (manuscriptId: number | null): Promise<string | null> => {
+    if (typeof manuscriptId !== 'number' || !Number.isFinite(manuscriptId)) {
+      return null;
+    }
+
+    if (manuscriptUserIdCache.has(manuscriptId)) {
+      return manuscriptUserIdCache.get(manuscriptId) ?? null;
+    }
+
+    const { data, error: manuscriptErr } = await supabase
+      .from('manuscripts')
+      .select('user_id')
+      .eq('id', manuscriptId)
+      .maybeSingle();
+
+    if (manuscriptErr) {
+      console.warn('[Watchdog] failed to resolve manuscript user for recovery alert', {
+        manuscript_id: manuscriptId,
+        error: manuscriptErr.message,
+      });
+      manuscriptUserIdCache.set(manuscriptId, null);
+      return null;
+    }
+
+    const userId = typeof data?.user_id === 'string' ? data.user_id : null;
+    manuscriptUserIdCache.set(manuscriptId, userId);
+    return userId;
+  };
+
+  const sendRecoveryAlert = async (args: {
+    row: QueueHardStopCandidate & { manuscript_id?: number | null };
+    recoveryAction: Parameters<typeof shouldAlertSupportForRecoveryAction>[0];
+    recoveryKey: string | null | undefined;
+    internalDiagnosis: string | null | undefined;
+    userSafeMessage: string | null | undefined;
+  }) => {
+    if (!shouldAlertSupportForRecoveryAction(args.recoveryAction)) {
+      return;
+    }
+
+    const progress =
+      args.row.progress && typeof args.row.progress === 'object'
+        ? (args.row.progress as Record<string, unknown>)
+        : {};
+    const manuscriptId =
+      typeof args.row.manuscript_id === 'number' && Number.isFinite(args.row.manuscript_id)
+        ? args.row.manuscript_id
+        : null;
+    const userId = await resolveUserIdForManuscript(manuscriptId);
+
+    const alertResult = await sendRecoverySupportAlert({
+      job_id: args.row.id,
+      manuscript_id: manuscriptId,
+      user_id: userId,
+      phase: args.row.phase,
+      phase_status: args.row.phase_status,
+      progress_phase: typeof progress.phase === 'string' ? progress.phase : null,
+      progress_phase_status: typeof progress.phase_status === 'string' ? progress.phase_status : null,
+      recovery_key: args.recoveryKey ?? `SPLIT_BRAIN:UNKNOWN:${args.row.id}`,
+      recovery_action: args.recoveryAction,
+      internal_diagnosis: args.internalDiagnosis ?? 'Split-brain recovery triggered without internal diagnosis',
+      user_safe_message: toUserSafeRecoveryMessage(args.userSafeMessage),
+      created_at: args.row.created_at ?? null,
+      updated_at: args.row.updated_at ?? null,
+    });
+
+    if (!alertResult.sent) {
+      console.warn('[Watchdog] recovery support alert not sent', {
+        job_id: args.row.id,
+        recovery_action: args.recoveryAction,
+        recovery_key: args.recoveryKey ?? null,
+        error: alertResult.error ?? null,
+      });
+    }
+  };
 
   const { data: seedArtifacts } = await supabase
     .from('evaluation_artifacts')
@@ -3487,6 +3571,8 @@ async function terminalizeQueuedHardStops(): Promise<{
   const hardStoppedIds: string[] = [];
 
   for (const row of rows) {
+    const recovery = decideSplitBrainRecovery(row);
+
     // ── SPLIT-BRAIN AUTO-HEAL ─────────────────────────────────────────────────
     // Before classifying hard-stops, attempt to auto-heal trivial split-brain
     // states where only progress.phase_status diverges from the column (the
@@ -3507,6 +3593,13 @@ async function terminalizeQueuedHardStops(): Promise<{
         .eq('status', JOB_STATUS.QUEUED);
 
       if (!healErr) {
+        await sendRecoveryAlert({
+          row,
+          recoveryAction: recovery.action,
+          recoveryKey: recovery.recoveryKey,
+          internalDiagnosis: recovery.internalReason,
+          userSafeMessage: recovery.publicReason,
+        });
         console.log(`[Watchdog] Auto-healed split-brain for job ${row.id}: synced progress.phase_status=${row.phase_status}`);
         // Healed — skip hard-stop classification for this row
         continue;
@@ -3623,6 +3716,14 @@ async function terminalizeQueuedHardStops(): Promise<{
       console.warn('[Watchdog] queued-hard-stop fail failed:', row.id, failErr.message);
       continue;
     }
+
+    await sendRecoveryAlert({
+      row,
+      recoveryAction: decision.recoveryAction,
+      recoveryKey: decision.recoveryKey,
+      internalDiagnosis: decision.internalReason,
+      userSafeMessage: decision.reason,
+    });
 
     hardStopped += 1;
     hardStoppedIds.push(row.id);

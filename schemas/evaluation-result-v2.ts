@@ -49,6 +49,9 @@ export type TechnicalDefectCode =
   | "PROSE_CONTROL_ANCHOR_EXTRACTION_FAILED"
   | "RECOMMENDATION_TRUNCATED"
   | "SCORE_LE8_EMPTY_RECOMMENDATIONS"
+  | "DIAGNOSTIC_SPINE_PROMISE_MISMATCH"
+  | "DIAGNOSTIC_SPINE_CENTRAL_ARGUMENT_MISMATCH"
+  | "DIAGNOSTIC_SPINE_WEAK_OR_ABSENT"
   | "CANDIDATE_PROSE_MISSING";
 
 export type CriterionTechnicalDefect = {
@@ -323,7 +326,11 @@ export type EvaluationResultV2 = {
         packet_chars?: number;
         packet_compression_ratio?: number;
       };
+      short_form_evidence_gate?: unknown;
+      short_form_final_sanity_check?: unknown;
+      short_form_external_qa?: unknown;
     };
+    provider_telemetry?: unknown;
   };
 };
 

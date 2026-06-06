@@ -17,6 +17,8 @@ import {
   summarizePromptCoverage,
 } from "../promptInput";
 import { buildCompactTemplateBlock, resolveTemplateKey } from "@/lib/evaluation/dreamTemplateLoader";
+import type { ResolvedExpectationContext } from "@/lib/evaluation/genreExpectationProfiles";
+import { buildDiagnosticSpinePromptBlock } from "@/lib/evaluation/diagnosticSpine";
 
 export const PASS3_PROMPT_VERSION = "pass3-synthesis-v21-rec-or-rationale-contract";
 
@@ -204,6 +206,7 @@ Return ONLY JSON with keys:
   - diagnosed_genre: The specific literary genre diagnosed from the text. Must be a recognized publishing genre — NOT a format like "novel" or "short story." Examples: literary fiction, memoir, fantasy, romance, thriller, mystery, science fiction, horror, western, historical fiction, self-help, cookbook, young adult, magical realism, speculative fiction, confessional fiction, spiritual memoir, crime fiction, etc. Diagnose the genre that best fits the submitted text based on its content, themes, voice, and conventions.
   - target_audience: A concise 1–2 sentence description of who this manuscript is written for, based on content analysis. Name the reader demographic, reading preferences, and comparable audience. Example: "Readers of confessional literary fiction comfortable with sexually explicit content and spiritual themes, comparable to audiences of Garth Greenwell or Sheila Heti."
 - metadata { generated_at } (do NOT emit pass1_model/pass2_model/pass3_model; stamped server-side)
+- diagnostic_spine { central_argument, core_story_question, dominant_conflict_engine, primary_reader_promise, primary_structural_gap } — emit this first; all criterion rationales must anchor back to this spine
 
 Criteria keys:
 ${CRITERIA_KEYS.join(", ")}`;
@@ -476,6 +479,11 @@ export function buildPass3UserPrompt(params: {
    * When absent, Pass 3B synthesizes from P1+P2 only (with an UNAVAILABLE note).
    */
   compactPreflightSummary?: string;
+  /**
+   * Resolved expectation profile context for recommendation calibration.
+   * This is explicit structured input, not implied helper behavior.
+   */
+  expectationContext?: ResolvedExpectationContext;
 }): string {
   const executionMode = params.executionMode ?? "TRUSTED_PATH";
   const synthesisBudget = getDefaultSynthesisReferenceCharBudget();
@@ -527,7 +535,26 @@ Dual-model synthesis rules (REQUIRED):
 - Do not invent disagreement where the two models concur, and do not paper over disagreement where they diverge.`
       : "";
 
-  return `Synthesize these two independent evaluation passes for the manuscript titled "${params.title}".${dualModelBlock}
+  const expectationProfileBlock = params.expectationContext
+    ? `
+
+## EXPECTATION PROFILE (STRUCTURED INPUT — APPLY BEFORE RECOMMENDATION EMISSION)
+${JSON.stringify(params.expectationContext, null, 2)}
+
+Expectation-profile guard rules (REQUIRED):
+- Apply expectation_profiles BEFORE deciding whether to emit momentum/closure/hook/next-step recommendations.
+- For actions containing "increase momentum", "add a decision beat", "strengthen hook", or "clearer next step":
+  - If profile includes mood_forward, reflection_forward, atmosphere_forward, or dread_forward, suppress unless explicit manuscript evidence proves malfunction for that profile.
+  - Explicit malfunction evidence requires anchor_snippet + mechanism-level explanation of reader-facing failure.
+- Do not suppress legitimate propulsion diagnostics for propulsion_forward, puzzle_forward, hybrid_literary_commercial, or commercial-thriller/suspense contexts when evidence supports the diagnosis.
+- When suppression occurs, set recommendation_status = "gate_suppressed_no_safe_recommendation" with recommendation_status_rationale.
+`
+    : "";
+
+  return `Synthesize these two independent evaluation passes for the manuscript titled "${params.title}".${dualModelBlock}${expectationProfileBlock}
+
+${buildDiagnosticSpinePromptBlock()}
+
 
 Execution mode: ${executionMode}
 

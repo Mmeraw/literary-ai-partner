@@ -105,7 +105,7 @@ export async function GET(req: NextRequest) {
 
     // Test-manuscript filter — post-RPC (admin_list_jobs has no manuscript_id
     // filter parameter). See OPERATIONS.md.
-    const resultJobs = showTestManuscripts
+    const filteredJobs = showTestManuscripts
       ? rawJobs
       : rawJobs.filter((j) => {
           const id = j.manuscript_id;
@@ -113,10 +113,31 @@ export async function GET(req: NextRequest) {
           return !isTestManuscript(id as number | string);
         });
 
+    // Enrich with owner email for admin/operator triage.
+    const ownerUserIds = [...new Set(
+      filteredJobs
+        .map((j) => (typeof j.user_id === "string" ? j.user_id : null))
+        .filter((id): id is string => Boolean(id)),
+    )];
+
+    let ownerEmailByUserId = new Map<string, string | null>();
+    if (ownerUserIds.length > 0) {
+      const { data: { users } } = await supabase.auth.admin.listUsers({ perPage: 1000 });
+      ownerEmailByUserId = new Map((users ?? []).map((u) => [u.id, u.email ?? null]));
+    }
+
+    const resultJobs = filteredJobs.map((j) => ({
+      ...j,
+      owner_email:
+        typeof j.user_id === "string"
+          ? ownerEmailByUserId.get(j.user_id) ?? null
+          : null,
+    }));
+
     // Generate next cursor from last job
     let nextCursor: string | null = null;
     if (has_more && resultJobs.length > 0) {
-      const lastJob = resultJobs[resultJobs.length - 1] as {
+      const lastJob = resultJobs[resultJobs.length - 1] as unknown as {
         failed_at: string | null;
         created_at: string;
         id: string;
