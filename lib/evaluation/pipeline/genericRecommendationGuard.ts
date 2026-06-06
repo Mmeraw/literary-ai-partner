@@ -84,6 +84,10 @@ const FIX_VERB_RE =
 const READER_EFFECT_RE =
   /\b(reader|readers|clarity|comprehension|urgency|momentum|immersion|engagement|stakes|tension|payoff|coherence|trust|forward\s+pull|narrative\s+drive)\b/i;
 
+const CONTEXTUAL_ACTION_LEAD_RE = /^(?:In|Within|During|When|Where)\s+[^,]{3,120},\s+\S+/i;
+const CONCRETE_CONTEXTUAL_MOVE_RE =
+  /\b(add(?:ing)?|balance|deepen|inject|streamline|rewrite|replace|cut|trim|split|merge|move|reorder|expand|compress|clarify|specify|anchor|insert|delete|foreshadow|escalate|tighten|seed|stage|show|name|shift|ground|contextualize|reframe|focus|connect|develop|resolve|surface|thread|motivate|concretize|externalize|recast|frontload|backload|echo|contrast)\b/i;
+
 function hasSufficientEvidence(rec: RecommendationForGenericCheck): boolean {
   return (rec.anchor_snippet ?? "").trim().length > 10;
 }
@@ -117,6 +121,12 @@ function matchedGenericPattern(action: string): string | undefined {
   return undefined;
 }
 
+function hasAnchoredContextualAction(rec: RecommendationForGenericCheck): boolean {
+  return hasSufficientEvidence(rec)
+    && CONTEXTUAL_ACTION_LEAD_RE.test(rec.action)
+    && CONCRETE_CONTEXTUAL_MOVE_RE.test(rec.action);
+}
+
 /**
  * Evaluate a single recommendation against the 7-part contract.
  *
@@ -134,6 +144,10 @@ export function evaluateRecommendationGenericContract(
 
   if (!matchedPattern) {
     return { suppress: false, reasons: ["passes_all"] };
+  }
+
+  if (hasAnchoredContextualAction(rec)) {
+    return { suppress: false, reasons: ["passes_all"], matchedPattern };
   }
 
   const reasons: RecommendationContractStatus[] = [];
