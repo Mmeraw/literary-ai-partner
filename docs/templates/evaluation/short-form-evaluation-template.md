@@ -171,9 +171,9 @@ Online report rendering should be compact: one primary opportunity visible by de
 
 Recommendation density floors for criteria scoring 8/10 or lower:
 
-- Score 5/10 or lower: 5-10 recommendations per criterion
-- Score 6-7/10: 4-8 recommendations per criterion
-- Score 8/10: 2-5 recommendations per criterion
+- Score 5/10 or lower: 2-5 recommendations per criterion
+- Score 6-7/10: 1-3 recommendations per criterion
+- Score 8/10: 0-2 recommendations per criterion
 - Score 9-10/10: no recommendations; fit statement only
 
 **Total cap:** 50 revision opportunities across all criteria combined for short-form evaluations.

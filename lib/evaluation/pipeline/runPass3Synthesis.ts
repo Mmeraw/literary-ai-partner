@@ -954,7 +954,7 @@ export function parsePass3Response(
   }
 
   // ── Post-synthesis validation gate: enforce recommendation density for score ≤8 ──
-  const DENSITY_FLOOR: Record<string, number> = { "<=5": 5, "6-7": 4, "8": 2 };
+  const DENSITY_FLOOR: Record<string, number> = { "<=5": 2, "6-7": 1, "8": 0 };
   for (const c of criteria) {
     if (c.final_score_0_10 >= 9) continue;
     const bucket = c.final_score_0_10 <= 5 ? "<=5" : c.final_score_0_10 <= 7 ? "6-7" : "8";

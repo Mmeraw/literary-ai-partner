@@ -56,7 +56,8 @@ jest.mock("@supabase/supabase-js", () => ({
  *  - enrichment with diagnosed_genre + target_audience + premise
  */
 /**
- * 4 meaningful recommendations satisfying the density floor for score 6-7.
+ * Meaningful recommendations satisfying the density floor for any score bucket.
+ * Floors: <=5 → min 2, 6-7 → min 1, 8 → min 0, 9-10 → 0.
  * Each has at least 2 meaningful fields including a specific_fix.
  */
 const GATE_COMPLIANT_RECOMMENDATIONS = [

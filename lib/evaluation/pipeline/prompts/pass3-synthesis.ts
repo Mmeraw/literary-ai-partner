@@ -142,9 +142,9 @@ Score-based suppression rules:
 - Never fabricate advice for perfect or near-perfect work. If the score is 9–10, the fit statement alone is sufficient.
 
 Recommendation density floor (for criteria scoring ≤8):
-- Score ≤5/10: emit 5–10 recommendations per criterion, each anchored to a DIFFERENT passage. These are the most impactful revision opportunities. Surface every evidence-backed opportunity — do not artificially limit.
-- Score 6–7/10: emit 4–8 recommendations per criterion, each anchored to a different passage.
-- Score 8/10: emit 2–5 recommendations per criterion.
+- Score ≤5/10: emit 2–5 recommendations per criterion, each anchored to a DIFFERENT passage. These are the most impactful revision opportunities. Surface every evidence-backed opportunity — do not artificially limit.
+- Score 6–7/10: emit 1–3 recommendations per criterion, each anchored to a different passage.
+- Score 8/10: emit 0–2 recommendations per criterion.
 - Each recommendation MUST target a unique anchor_snippet (no duplicate passage citations within the same criterion).
 - Spread recommendations across different sections/zones of the text — do not cluster all recommendations in the opening paragraphs.
 - TOTAL CAP: The evaluation may surface up to 100 revision opportunities across all criteria combined for long-form manuscripts (≥25,000 words). For short-form manuscripts (<25,000 words), the cap is 50 revision opportunities. Prioritize MUST severity first, then SHOULD, then COULD. If the evidence supports more than the cap, emit the most impactful opportunities up to the cap and stop.

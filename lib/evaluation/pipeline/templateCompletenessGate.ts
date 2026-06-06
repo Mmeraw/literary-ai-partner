@@ -81,9 +81,9 @@ type EvaluationResultLike = {
 };
 
 const DENSITY_FLOOR: Record<string, number> = {
-  '<=5': 5,
-  '6-7': 4,
-  '8': 2,
+  '<=5': 2,
+  '6-7': 1,
+  '8': 0,
 };
 
 const FORMAT_WORDS = new Set([
@@ -107,10 +107,10 @@ const PLACEHOLDER_RE = /\b(?:n\/?a|none|not specified|tbd|todo|placeholder|examp
 const GENERIC_RE = /\b(?:improve|strengthen|clarify|develop|enhance|expand|tighten|revise)\s+(?:the\s+)?(?:writing|story|manuscript|novel|chapter|section|piece)\b/i;
 
 function getDensityBucket(score: number): string | null {
-  if (score >= 9) return null;
-  if (score <= 5) return '<=5';
-  if (score <= 7) return '6-7';
-  return '8';
+  if (score >= 9) return null;  // 9-10: no minimum
+  if (score <= 5) return '<=5'; // <=5: minimum 2
+  if (score <= 7) return '6-7'; // 6-7: minimum 1
+  return '8';                  // 8: minimum 0
 }
 
 function nonEmptyText(value: unknown): string | null {
