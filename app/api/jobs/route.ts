@@ -676,7 +676,7 @@ export async function POST(req: Request) {
         manuscriptId: manuscript_id,
       });
 
-      if (!claimResult.ok) {
+      if (claimResult.ok === false) {
         logger.warn("Free diagnostic claim blocked", {
           trace_id,
           request_id,

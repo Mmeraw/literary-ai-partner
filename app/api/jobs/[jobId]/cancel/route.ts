@@ -59,7 +59,7 @@ export async function POST(
       reason: body?.reason,
     });
 
-    if (!result.ok) {
+    if (result.ok === false) {
       return NextResponse.json(
         {
           error: result.message,

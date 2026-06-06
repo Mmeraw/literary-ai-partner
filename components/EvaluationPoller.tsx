@@ -39,7 +39,7 @@ function getInitialDisplayProgress(job: Parameters<typeof getProgressDisplay>[0]
 
 export interface JobState {
   id: string;
-  status: string;
+  status: 'queued' | 'running' | 'complete' | 'failed';
   progress: number; // 0-100
   created_at: string;
   updated_at: string;

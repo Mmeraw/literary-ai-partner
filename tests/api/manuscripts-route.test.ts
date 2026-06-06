@@ -3,10 +3,10 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getAuthenticatedUser } from "@/lib/supabase/server";
 import { createInitialVersion } from "@/lib/manuscripts/versions";
 
-const mockExtractRawText = jest.fn(async () => ({ value: "" }));
+const mockExtractRawText = jest.fn(async (_args?: unknown) => ({ value: "" }));
 
 jest.mock("mammoth", () => ({
-  extractRawText: (...args: unknown[]) => mockExtractRawText(...args),
+  extractRawText: (args: unknown) => mockExtractRawText(args),
 }));
 
 jest.mock("@/lib/supabase/admin", () => ({

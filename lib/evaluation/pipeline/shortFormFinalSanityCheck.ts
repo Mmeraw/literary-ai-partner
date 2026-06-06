@@ -24,7 +24,7 @@ function criterionHasAnchor(criterion: EvaluationCriterionV2): boolean {
 function collectUserFacingText(result: EvaluationResultV2): string {
   return [
     result.overview?.verdict,
-    result.overview?.summary,
+    result.overview?.one_paragraph_summary,
     ...(Array.isArray(result.criteria) ? result.criteria.map((criterion) => criterion.rationale) : []),
   ].filter((value): value is string => typeof value === 'string').join('\n');
 }

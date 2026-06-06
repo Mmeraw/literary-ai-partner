@@ -230,7 +230,7 @@ export async function middleware(request: NextRequest) {
     // API routes must return JSON auth errors (not HTML redirects)
     // so clients do not hit JSON parse errors on unauthorized calls.
     if (matchesPath(request.nextUrl.pathname, '/api')) {
-      trackAuthRedirect('api_auth_required')
+      trackAuthRedirect('login_required')
       return applySecurityHeaders(
         NextResponse.json(
           {

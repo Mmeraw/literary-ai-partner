@@ -87,7 +87,7 @@ async function extractTextFromUpload(file: File): Promise<string> {
 export async function GET() {
   try {
     const auth = await requireUser();
-    if (!auth.ok) return auth.response;
+    if (auth.ok === false) return auth.response;
     const user = auth.user;
 
     const supabase = createAdminClient();
@@ -127,7 +127,7 @@ export async function POST(req: Request) {
     if (rateLimitDenied) return rateLimitDenied;
 
     const auth = await requireUser();
-    if (!auth.ok) return auth.response;
+    if (auth.ok === false) return auth.response;
     const user = auth.user;
 
     const contentType = (req.headers.get("content-type") ?? "").toLowerCase();
@@ -287,7 +287,7 @@ export async function POST(req: Request) {
 export async function DELETE(req: Request) {
   try {
     const auth = await requireUser();
-    if (!auth.ok) return auth.response;
+    if (auth.ok === false) return auth.response;
     const user = auth.user;
 
     const manuscriptIdParam = new URL(req.url).searchParams.get("id");

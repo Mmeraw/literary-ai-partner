@@ -40,7 +40,7 @@ export async function GET(
       userId = actor.userId;
     } else {
       const auth = await requireUser();
-      if (!auth.ok) return auth.response;
+      if (auth.ok === false) return auth.response;
       userId = auth.user.id;
     }
 

@@ -107,6 +107,8 @@ type CanonicalJobResponse = {
   public_status_message?: string | null;
   /** Monotonic ratchet — highest progress percentage ever reported. Bar never renders below this. */
   progress_high_water?: number | null;
+  /** UI-only cancellation display state, sourced from progress JSONB; lifecycle status remains canonical. */
+  dashboard_status?: string | null;
 };
 
 const NO_STORE_HEADERS = {

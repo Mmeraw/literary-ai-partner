@@ -112,7 +112,7 @@ export async function POST(req: Request) {
     } else {
       // Production path: Supabase session cookie
       const auth = await requireUser();
-      if (!auth.ok) {
+      if (auth.ok === false) {
         return auth.response;
       }
       userId = auth.user.id;
