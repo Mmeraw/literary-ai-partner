@@ -897,7 +897,6 @@ export default async function EvaluationReportPage({
             >
               Return to job list
             </Link>
-            <CancelEvaluationButton jobId={jobId} label="Cancel Evaluation" buttonClassName="inline-flex items-center rounded-md bg-red-700 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-red-800" />
           </div>
         </section>
         )
