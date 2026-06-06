@@ -711,8 +711,8 @@ export default async function EvaluationReportPage({
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: '#F8F6F1' }}>
-      <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
-      <div className="mb-7 rounded-xl border border-stone-300 bg-white p-6 shadow-sm sm:p-8">
+      <main className="mx-auto max-w-6xl px-4 py-4 sm:px-6 sm:py-6">
+      <div className="mb-4 rounded-xl border border-stone-300 bg-white p-4 shadow-sm sm:p-5">
         <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
           <div className="min-w-0 flex-1">
             <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#8A6A1F]">Evaluation Report</p>
@@ -728,15 +728,15 @@ export default async function EvaluationReportPage({
                 className="ml-2 inline-flex items-center rounded-md border border-stone-300 px-2.5 py-1 text-xs font-medium text-stone-700 transition hover:bg-stone-100"
               />
             </p>
-            <dl className="mt-5 grid gap-x-6 gap-y-3 text-base sm:grid-cols-2">
-              <div><dt className="font-semibold text-stone-950">Report Type</dt><dd className="mt-1 text-stone-700">{reportType}</dd></div>
-              <div><dt className="font-semibold text-stone-950">Genre</dt><dd className="mt-1 capitalize text-stone-700">{genre}</dd></div>
-              {targetAudience && <div className="sm:col-span-2"><dt className="font-semibold text-stone-950">Target Audience</dt><dd className="mt-1 text-stone-700">{targetAudience}</dd></div>}
-              <div><dt className="font-semibold text-stone-950">Submitted Word Count</dt><dd className="mt-1 text-stone-700">{typeof displayWordCount === 'number' ? displayWordCount.toLocaleString() : 'Calculating'}</dd></div>
-              <div><dt className="font-semibold text-stone-950">Estimated Manuscript Pages</dt><dd className="mt-1 text-stone-700">{estimatedPages ? `${estimatedPages.toLocaleString()} at 250 words/page` : 'Not available'}</dd></div>
-              <div><dt className="font-semibold text-stone-950">Reading Grade Level</dt><dd className="mt-1 text-stone-700">{(artifact?.enrichment?.reading_grade_level ?? instantReadingGrade) != null ? `${artifact?.enrichment?.reading_grade_level ?? instantReadingGrade} (Flesch-Kincaid)` : 'Not available'}</dd></div>
-              <div><dt className="font-semibold text-stone-950">Dialogue/Narrative Ratio</dt><dd className="mt-1 text-stone-700">{(artifact?.enrichment?.dialogue_percentage ?? instantDialoguePercentage) != null ? `${artifact?.enrichment?.dialogue_percentage ?? instantDialoguePercentage}% dialogue / ${artifact?.enrichment?.narrative_percentage ?? instantNarrativePercentage ?? 100 - (artifact?.enrichment?.dialogue_percentage ?? instantDialoguePercentage ?? 0)}% narrative` : 'Not available'}</dd></div>
-              <div><dt className="font-semibold text-stone-950">Date Generated</dt><dd className="mt-1 text-stone-700">{generatedLabel}</dd></div>
+            <dl className="mt-3 grid gap-x-4 gap-y-2 text-sm sm:grid-cols-2 lg:grid-cols-3">
+              <div><dt className="font-semibold text-stone-950">Report Type</dt><dd className="text-stone-700">{reportType}</dd></div>
+              <div><dt className="font-semibold text-stone-950">Genre</dt><dd className="capitalize text-stone-700">{genre}</dd></div>
+              <div><dt className="font-semibold text-stone-950">Submitted Word Count</dt><dd className="text-stone-700">{typeof displayWordCount === 'number' ? displayWordCount.toLocaleString() : 'Calculating'}</dd></div>
+              <div><dt className="font-semibold text-stone-950">Estimated Manuscript Pages</dt><dd className="text-stone-700">{estimatedPages ? `${estimatedPages.toLocaleString()} at 250 words/page` : 'Not available'}</dd></div>
+              <div><dt className="font-semibold text-stone-950">Reading Grade Level</dt><dd className="text-stone-700">{(artifact?.enrichment?.reading_grade_level ?? instantReadingGrade) != null ? `${artifact?.enrichment?.reading_grade_level ?? instantReadingGrade} (Flesch-Kincaid)` : 'Not available'}</dd></div>
+              <div><dt className="font-semibold text-stone-950">Dialogue/Narrative Ratio</dt><dd className="text-stone-700">{(artifact?.enrichment?.dialogue_percentage ?? instantDialoguePercentage) != null ? `${artifact?.enrichment?.dialogue_percentage ?? instantDialoguePercentage}% dialogue / ${artifact?.enrichment?.narrative_percentage ?? instantNarrativePercentage ?? 100 - (artifact?.enrichment?.dialogue_percentage ?? instantDialoguePercentage ?? 0)}% narrative` : 'Not available'}</dd></div>
+              <div><dt className="font-semibold text-stone-950">Date Generated</dt><dd className="text-stone-700">{generatedLabel}</dd></div>
+              {targetAudience && <div className="sm:col-span-2 lg:col-span-3"><dt className="font-semibold text-stone-950">Target Audience</dt><dd className="text-stone-700">{targetAudience}</dd></div>}
             </dl>
           </div>
 
@@ -800,7 +800,7 @@ export default async function EvaluationReportPage({
         </div>
       )}
 
-      <section className="mt-4">
+      <section className="mt-3">
         <EvaluationPoller
           jobId={jobId}
           initialJob={initialPollerJob}
@@ -884,16 +884,15 @@ export default async function EvaluationReportPage({
             </div>
           </section>
         ) : (
-        <section className="rounded-xl border border-stone-200 bg-white p-5 shadow-sm">
-          <h2 className="font-rg-serif text-lg font-semibold text-stone-900">Report not ready yet</h2>
-          <p className="mt-2 text-sm leading-relaxed text-stone-600">
-            This evaluation hasn&apos;t completed. Once the status is &quot;complete,&quot; your
-            report will appear here automatically.
+        <section className="rounded-xl border border-stone-200 bg-white px-4 py-3 shadow-sm">
+          <h2 className="font-rg-serif text-base font-semibold text-stone-900">Report not ready yet</h2>
+          <p className="mt-1 text-sm text-stone-600">
+            Once the status is &quot;complete,&quot; your report will appear here automatically.
           </p>
-          <div className="mt-4 flex gap-3">
+          <div className="mt-2 flex gap-3">
             <Link
               href="/evaluate"
-              className="inline-flex rounded-md border border-stone-300 bg-white px-4 py-2 text-sm font-semibold text-stone-800 shadow-sm transition-colors hover:bg-stone-50"
+              className="inline-flex rounded-md border border-stone-300 bg-white px-3 py-1.5 text-sm font-semibold text-stone-800 shadow-sm transition-colors hover:bg-stone-50"
             >
               Return to job list
             </Link>
