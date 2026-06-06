@@ -105,6 +105,13 @@ function normalizePhaseKey(value: string | null): (typeof PHASE_ADVANCE_ORDER)[n
   return Object.hasOwn(PHASE_ALIASES, normalized) ? PHASE_ALIASES[normalized] : null;
 }
 
+// Short-form manuscripts skip certain phases. These are valid handoff pairs
+// even though they are not strictly adjacent in PHASE_ADVANCE_ORDER.
+const SHORT_FORM_SKIP_PAIRS: ReadonlySet<string> = new Set([
+  'phase_1a->phase_2',   // short-form bypasses review_gate
+  'phase_2->phase_3',    // short-form bypasses phase_3a (diagnosis)
+]);
+
 function isExpectedQueuedPhaseHandoff(args: {
   jobStatus: string;
   jobPhase: string | null;
@@ -123,7 +130,10 @@ function isExpectedQueuedPhaseHandoff(args: {
   const previousIndex = PHASE_ADVANCE_ORDER.indexOf(previousPhase);
   const nextIndex = PHASE_ADVANCE_ORDER.indexOf(nextPhase);
 
-  return nextIndex === previousIndex + 1;
+  if (nextIndex === previousIndex + 1) return true;
+
+  // Allow known short-form skip patterns where phases are non-adjacent but valid.
+  return SHORT_FORM_SKIP_PAIRS.has(`${previousPhase}->${nextPhase}`);
 }
 
 /**
