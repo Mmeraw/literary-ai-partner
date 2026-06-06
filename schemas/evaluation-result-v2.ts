@@ -262,11 +262,370 @@ export type EvaluationResultV2 = {
         verdict: "submission-ready" | "close-but-not-ready" | "not-yet-ready";
         blocking_criteria: string[];
       };
-    };
-    slae?: {
-      grounding_status: SlaeGroundingStatus;
-      blocked: boolean;
-      reasons: string[];
+      propagation_summary?: {
+        low_confidence_count: number;
+        moderate_confidence_count: number;
+        weak_evidence_count: number;
+        missing_evidence_count: number;
+        scorable_low_confidence_count: number;
+        bottom_score_criteria: string[];
+        upstream_integrity: "strong" | "mixed" | "weak";
+        authority_level: "normal" | "constrained" | "blocked";
+        reasons: string[];
+      };
+      evaluation_scope?: {
+        route?: "SHORT_FORM" | "LONG_FORM";
+        input_scale?:
+          | "micro_excerpt"
+          | "light_chapter"
+          | "standard_chapter"
+          | "multi_chapter"
+          | "novelette"
+          | "novella"
+          | "full_manuscript";
+        manuscript_wide_certifiable?: boolean;
+        reason_codes?: string[];
+        criterion_scope_policy_version?: string;
+      };
+      coverage_summary?: {
+        partial_evaluation?: boolean;
+        sampling_strategy?:
+          | "full_text"
+          | "sampled_beginning_middle_end"
+          | "full_chunk_map_reduce"
+          | "partial_chunk_map_reduce";
+        source_word_count?: number;
+        analyzed_word_count?: number;
+        source_char_count?: number;
+        analyzed_char_count?: number;
+      };
+      backward_relook?: {
+        grounding_status: SlaeGroundingStatus;
+        grounding_note?: string | null;
+        report_persistence: "allow" | "block";
+        validity_status: "valid" | "invalid" | "quarantined";
+        reason_codes: string[];
+      };
+      /**
+       * PR #506 — explicit Pass 4 external adjudication provenance.
+       *
+       * Surfaces whether Perplexity cross-check was performed, skipped, or failed,
+       * along with the resolved adjudication mode and the evidence-packet
+       * metadata (packet_chars / compression_ratio) when available. Eliminates
+       * the silent-skip path that hid Pass 4 absence on the Froggin Noggin run.
+       */
+      external_adjudication?: {
+        status: "cross_check_completed" | "skipped" | "failed_soft" | "failed_blocking";
+        mode: "optional" | "required" | "veto";
+        cross_check_returned: boolean;
+        reason?: string;
+        packet_chars?: number;
+        packet_compression_ratio?: number;
+      };
     };
   };
 };
+
+export function isEvaluationResultV2(obj: unknown): obj is EvaluationResultV2 {
+  if (!obj || typeof obj !== "object") return false;
+  const result = obj as Partial<EvaluationResultV2>;
+
+  return (
+    result.schema_version === "evaluation_result_v2" &&
+    (result.score_denominator_policy === undefined ||
+      result.score_denominator_policy === "full_canonical" ||
+      result.score_denominator_policy === "scorable_only") &&
+    typeof result.ids === "object" &&
+    typeof result.overview === "object" &&
+    Array.isArray(result.criteria) &&
+    Array.isArray(result.artifacts)
+  );
+}
+
+export function validateEvaluationResultV2(
+  result: EvaluationResultV2,
+): { valid: boolean; errors: string[] } {
+  const errors: string[] = [];
+
+  if (result.schema_version !== "evaluation_result_v2") {
+    errors.push(`Invalid schema_version: ${result.schema_version}`);
+  }
+
+  if (
+    result.score_denominator_policy !== undefined &&
+    result.score_denominator_policy !== "full_canonical" &&
+    result.score_denominator_policy !== "scorable_only"
+  ) {
+    errors.push(`Invalid score_denominator_policy: ${String(result.score_denominator_policy)}`);
+  }
+
+  if (!result.ids.evaluation_run_id) errors.push("Missing ids.evaluation_run_id");
+  if (!result.ids.manuscript_id) errors.push("Missing ids.manuscript_id");
+  if (!result.ids.user_id) errors.push("Missing ids.user_id");
+
+  if (result.detected_mode !== undefined) {
+    const detected = result.detected_mode;
+    if (
+      detected.proposedEvaluationMode !== "STANDARD" &&
+      detected.proposedEvaluationMode !== "TRANSGRESSIVE" &&
+      detected.proposedEvaluationMode !== "TESTIMONY"
+    ) {
+      errors.push("detected_mode.proposedEvaluationMode invalid");
+    }
+
+    if (
+      detected.proposedVoicePreservationMode !== "MAXIMUM" &&
+      detected.proposedVoicePreservationMode !== "BALANCED" &&
+      detected.proposedVoicePreservationMode !== "POLISHED"
+    ) {
+      errors.push("detected_mode.proposedVoicePreservationMode invalid");
+    }
+
+    if (
+      detected.confidence !== "LOW" &&
+      detected.confidence !== "MODERATE" &&
+      detected.confidence !== "HIGH"
+    ) {
+      errors.push("detected_mode.confidence invalid");
+    }
+
+    if (!Array.isArray(detected.evidence) || detected.evidence.length === 0) {
+      errors.push("detected_mode.evidence must be a non-empty array");
+    }
+  }
+
+  if (result.confirmed_mode !== undefined && result.confirmed_mode !== null) {
+    const confirmed = result.confirmed_mode;
+    if (
+      confirmed.evaluationMode !== "STANDARD" &&
+      confirmed.evaluationMode !== "TRANSGRESSIVE" &&
+      confirmed.evaluationMode !== "TESTIMONY"
+    ) {
+      errors.push("confirmed_mode.evaluationMode invalid");
+    }
+
+    if (
+      confirmed.voicePreservationMode !== "MAXIMUM" &&
+      confirmed.voicePreservationMode !== "BALANCED" &&
+      confirmed.voicePreservationMode !== "POLISHED"
+    ) {
+      errors.push("confirmed_mode.voicePreservationMode invalid");
+    }
+  }
+
+  if (result.mode_telemetry !== undefined && !Array.isArray(result.mode_telemetry)) {
+    errors.push("mode_telemetry must be an array when present");
+  }
+
+  if (!Array.isArray(result.criteria)) {
+    errors.push("criteria must be an array");
+    return { valid: false, errors };
+  }
+
+  if (result.criteria.length !== CRITERIA_KEYS.length) {
+    errors.push(`Expected ${CRITERIA_KEYS.length} criteria, got ${result.criteria.length}`);
+  }
+
+  // Full-coverage + uniqueness check (no duplicates, no omissions)
+  const seen = new Set<CriterionKey>();
+  for (const [idx, c] of result.criteria.entries()) {
+    if (!CRITERIA_KEYS.includes(c.key)) {
+      errors.push(`criteria[${idx}].key invalid: ${String(c.key)}`);
+      continue;
+    }
+
+    if (seen.has(c.key)) {
+      errors.push(`Duplicate criterion key: ${c.key}`);
+    }
+    seen.add(c.key);
+
+    if (c.confidence_score_0_100 !== undefined) {
+      if (
+        typeof c.confidence_score_0_100 !== "number" ||
+        c.confidence_score_0_100 < 0 ||
+        c.confidence_score_0_100 > 100
+      ) {
+        errors.push(`criteria[${idx}].confidence_score_0_100 must be 0-100 when present`);
+      }
+    }
+
+    if (c.model_emitted_score_unverified !== undefined) {
+      if (
+        typeof c.model_emitted_score_unverified !== "number" ||
+        !Number.isFinite(c.model_emitted_score_unverified) ||
+        !Number.isInteger(c.model_emitted_score_unverified) ||
+        c.model_emitted_score_unverified < 0 ||
+        c.model_emitted_score_unverified > 10
+      ) {
+        errors.push(`criteria[${idx}].model_emitted_score_unverified must be an integer 0-10 when present`);
+      }
+    }
+
+    if (
+      c.confidence_level !== undefined &&
+      c.confidence_level !== "high" &&
+      c.confidence_level !== "moderate" &&
+      c.confidence_level !== "low"
+    ) {
+      errors.push(`criteria[${idx}].confidence_level invalid: ${String(c.confidence_level)}`);
+    }
+
+    if (
+      c.scorability_status !== undefined &&
+      c.scorability_status !== "scorable" &&
+      c.scorability_status !== "scorable_low_confidence" &&
+      c.scorability_status !== "non_scorable"
+    ) {
+      errors.push(`criteria[${idx}].scorability_status invalid: ${String(c.scorability_status)}`);
+    }
+
+    if (c.confidence_reasons !== undefined && !Array.isArray(c.confidence_reasons)) {
+      errors.push(`criteria[${idx}].confidence_reasons must be an array when present`);
+    }
+
+    if (!c.rationale || c.rationale.trim().length === 0) {
+      errors.push(`criteria[${idx}].rationale is empty`);
+    }
+
+    if (c.status === "SCORABLE") {
+      if (c.scorable !== true) {
+        errors.push(`criteria[${idx}] SCORABLE must have scorable=true`);
+      }
+      if (typeof c.score_0_10 !== "number" || !Number.isInteger(c.score_0_10) || c.score_0_10 < 0 || c.score_0_10 > 10) {
+        errors.push(`criteria[${idx}] SCORABLE score_0_10 must be integer 0-10`);
+      }
+      if (c.signal_strength !== "SUFFICIENT" && c.signal_strength !== "STRONG") {
+        errors.push(`criteria[${idx}] SCORABLE must have SUFFICIENT|STRONG signal_strength`);
+      }
+      if ((c as unknown as NonScorableCriterionV2).insufficient_signal_reason) {
+        errors.push(`criteria[${idx}] SCORABLE must not carry insufficient_signal_reason`);
+      }
+    }
+
+    if (c.status === "NO_SIGNAL" || c.status === "INSUFFICIENT_SIGNAL") {
+      const nsStatus: string = c.status;
+      if (c.scorable !== false) {
+        errors.push(`criteria[${idx}] ${nsStatus} must have scorable=false`);
+      }
+      if (c.score_0_10 !== null) {
+        errors.push(`criteria[${idx}] ${nsStatus} must have score_0_10=null`);
+      }
+      if (c.signal_strength !== "NONE" && c.signal_strength !== "WEAK") {
+        errors.push(`criteria[${idx}] ${nsStatus} must have NONE|WEAK signal_strength`);
+      }
+      const reason = (c as unknown as NonScorableCriterionV2).insufficient_signal_reason;
+      if (!reason || !Array.isArray(reason.looked_for) || reason.looked_for.length === 0 || !Array.isArray(reason.not_found)) {
+        errors.push(`criteria[${idx}] ${c.status} must include structured insufficient_signal_reason`);
+      }
+    }
+
+    if (c.status === "NOT_APPLICABLE") {
+      if (c.scorable !== false) {
+        errors.push(`criteria[${idx}] NOT_APPLICABLE must have scorable=false`);
+      }
+      if (c.score_0_10 !== null) {
+        errors.push(`criteria[${idx}] NOT_APPLICABLE must have score_0_10=null`);
+      }
+      if (c.signal_strength !== "NONE") {
+        errors.push(`criteria[${idx}] NOT_APPLICABLE must have signal_strength=NONE`);
+      }
+      if ((c as unknown as NonScorableCriterionV2).insufficient_signal_reason) {
+        errors.push(`criteria[${idx}] NOT_APPLICABLE must not carry insufficient_signal_reason`);
+      }
+    }
+  }
+
+  for (const canonKey of CRITERIA_KEYS) {
+    if (!seen.has(canonKey)) {
+      errors.push(`Missing canonical criterion key: ${canonKey}`);
+    }
+  }
+
+  const scoredCount = result.criteria.filter((c) => c.status === "SCORABLE").length;
+  if (result.overview.scored_criteria_count !== scoredCount) {
+    errors.push(
+      `overview.scored_criteria_count (${result.overview.scored_criteria_count}) does not match actual scored criteria (${scoredCount})`,
+    );
+  }
+
+  if (scoredCount === 0) {
+    if (result.overview.overall_score_0_100 !== null) {
+      errors.push("overview.overall_score_0_100 must be null when scored_criteria_count is 0");
+    }
+  } else {
+    if (
+      typeof result.overview.overall_score_0_100 !== "number" ||
+      result.overview.overall_score_0_100 < 0 ||
+      result.overview.overall_score_0_100 > 100
+    ) {
+      errors.push("overview.overall_score_0_100 must be 0-100 when scored criteria exist");
+    }
+  }
+
+  if (!result.governance || typeof result.governance.confidence !== "number" || result.governance.confidence < 0 || result.governance.confidence > 1) {
+    errors.push("governance.confidence must be 0.0-1.0");
+  }
+
+  if (
+    result.governance?.confidence_label !== undefined &&
+    result.governance.confidence_label !== "high" &&
+    result.governance.confidence_label !== "medium" &&
+    result.governance.confidence_label !== "low" &&
+    result.governance.confidence_label !== "withheld"
+  ) {
+    errors.push("governance.confidence_label invalid");
+  }
+
+  if (
+    result.governance?.confidence_reasons !== undefined &&
+    !Array.isArray(result.governance.confidence_reasons)
+  ) {
+    errors.push("governance.confidence_reasons must be an array when present");
+  }
+
+  const propagationSummary = result.governance?.transparency?.propagation_summary;
+  if (propagationSummary !== undefined) {
+    if (
+      typeof propagationSummary.low_confidence_count !== "number" ||
+      typeof propagationSummary.moderate_confidence_count !== "number" ||
+      typeof propagationSummary.weak_evidence_count !== "number" ||
+      typeof propagationSummary.missing_evidence_count !== "number" ||
+      typeof propagationSummary.scorable_low_confidence_count !== "number"
+    ) {
+      errors.push("governance.transparency.propagation_summary count fields must be numbers");
+    }
+
+    if (!Array.isArray(propagationSummary.bottom_score_criteria)) {
+      errors.push("governance.transparency.propagation_summary.bottom_score_criteria must be an array");
+    }
+
+    if (
+      propagationSummary.upstream_integrity !== "strong" &&
+      propagationSummary.upstream_integrity !== "mixed" &&
+      propagationSummary.upstream_integrity !== "weak"
+    ) {
+      errors.push("governance.transparency.propagation_summary.upstream_integrity invalid");
+    }
+
+    if (
+      propagationSummary.authority_level !== "normal" &&
+      propagationSummary.authority_level !== "constrained" &&
+      propagationSummary.authority_level !== "blocked"
+    ) {
+      errors.push("governance.transparency.propagation_summary.authority_level invalid");
+    }
+
+    if (!Array.isArray(propagationSummary.reasons)) {
+      errors.push("governance.transparency.propagation_summary.reasons must be an array");
+    }
+
+    if (
+      propagationSummary.upstream_integrity === "weak" &&
+      result.governance?.confidence_label === "high"
+    ) {
+      errors.push("governance.confidence_label cannot be high when propagation upstream_integrity is weak");
+    }
+  }
+
+  return { valid: errors.length === 0, errors };
+}
