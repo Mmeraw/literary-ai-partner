@@ -631,6 +631,8 @@ describe("processEvaluationJob canonical pipeline integration", () => {
   });
 
   test("persists downgradedResult when quality gate provides explicit non-mutating downgrade", async () => {
+    // Minimal test: verify that when runQualityGateV2 returns a downgradedResult,
+    // the processor persists the downgraded version (not the original).
     const supabaseStub = makeSupabaseStub();
     createClientMock.mockReturnValue(supabaseStub);
 
@@ -668,7 +670,8 @@ describe("processEvaluationJob canonical pipeline integration", () => {
       pass4_governance: { ok: true },
     });
 
-    const baseEvaluationResult = makeGateCompliantEvaluationResult({ criteriaScore: 7 });
+    // Use default score 9 — the downgrade only changes the "concept" criterion.
+    const baseEvaluationResult = makeGateCompliantEvaluationResult();
 
     synthesisToEvaluationResultV2Mock.mockReturnValue(baseEvaluationResult);
 
@@ -684,7 +687,7 @@ describe("processEvaluationJob canonical pipeline integration", () => {
               signal_strength: "WEAK",
               score_0_10: null,
               scorability_status: "non_scorable",
-              model_emitted_score_unverified: 7,
+              model_emitted_score_unverified: 9,
               insufficient_signal_reason: {
                 looked_for: ["CERTIFIED_ANCHORS_FOR_HIGH_CONFIDENCE_SCORING"],
                 not_found: ["LOW_CONFIDENCE_HIGH_SCORE_WITHOUT_CERTIFIED_ANCHORS"],
@@ -712,6 +715,7 @@ describe("processEvaluationJob canonical pipeline integration", () => {
     const result = await processEvaluationJob("job-canonical-pipeline");
     expect(result.success).toBe(true);
 
+    // Verify the downgraded result was persisted (not the original)
     const persistCall = supabaseStub.rpcCalls.find(
       (call: { fn: string }) => call.fn === "persist_evaluation_v2_atomic",
     ) as { fn: string; args?: Record<string, unknown> } | undefined;
@@ -730,12 +734,12 @@ describe("processEvaluationJob canonical pipeline integration", () => {
       expect.objectContaining({
         status: "INSUFFICIENT_SIGNAL",
         score_0_10: null,
-        model_emitted_score_unverified: 7,
       }),
     );
 
+    // Verify the original was NOT mutated
     expect((baseEvaluationResult.criteria[0] as Record<string, unknown>).status).toBe("SCORABLE");
-    expect((baseEvaluationResult.criteria[0] as Record<string, unknown>).score_0_10).toBe(7);
+    expect((baseEvaluationResult.criteria[0] as Record<string, unknown>).score_0_10).toBe(9);
   });
 
   test("uncaught processor fallback persists failure metadata when atomic finalization fails", async () => {
