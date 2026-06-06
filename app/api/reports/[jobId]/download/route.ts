@@ -643,8 +643,8 @@ function buildTxtReport(result: ExportableResult, title: string | null, jobId: s
   if (metadata.shelf) lines.push(`Shelf: ${metadata.shelf}`);
   if (metadata.wordCount) lines.push(`Submitted Word Count: ${metadata.wordCount.toLocaleString()}`);
   if (metadata.estimatedPages) lines.push(`Estimated Manuscript Pages: ${metadata.estimatedPages.toLocaleString()} at ${WORDS_PER_MANUSCRIPT_PAGE} words/page`);
-  if (enrichment?.reading_grade_level != null) lines.push(`Reading Grade Level: ${enrichment.reading_grade_level.toFixed(1)} (Flesch-Kincaid)`);
-  if (enrichment?.dialogue_percentage != null && enrichment?.narrative_percentage != null) lines.push(`Dialogue/Narrative Ratio: ${Math.round(enrichment.dialogue_percentage)}% dialogue / ${Math.round(enrichment.narrative_percentage)}% narrative`);
+  if (enrichment?.reading_grade_level != null) lines.push(`Reading Grade Level: ${Math.floor(enrichment.reading_grade_level)} (Flesch-Kincaid)`);
+  if (enrichment?.dialogue_percentage != null && enrichment?.narrative_percentage != null) lines.push(`Dialogue/Narrative Ratio: ${Math.floor(enrichment.dialogue_percentage)}% dialogue / ${Math.floor(enrichment.narrative_percentage)}% narrative`);
   lines.push(`Generated: ${metadata.generatedAt}`);
   lines.push(`Overall Score: ${metadata.score}`);
   lines.push(`Market Readiness: ${metadata.verdict}`);
@@ -716,7 +716,7 @@ function buildTxtReport(result: ExportableResult, title: string | null, jobId: s
     lines.push('READING GRADE LEVEL');
     lines.push(sub);
     lines.push('');
-    lines.push(`Grade Level: ${enrichment.reading_grade_level.toFixed(1)} (Flesch-Kincaid)`);
+    lines.push(`Grade Level: ${Math.floor(enrichment.reading_grade_level)} (Flesch-Kincaid)`);
     lines.push('');
     lines.push('Reading Grade Level measures prose complexity, NOT audience appropriateness.');
     lines.push('A manuscript may score at a young-adult reading level (grades 6-8) while');
@@ -731,8 +731,8 @@ function buildTxtReport(result: ExportableResult, title: string | null, jobId: s
     lines.push('DIALOGUE VS. NARRATIVE RATIO');
     lines.push(sub);
     lines.push('');
-    lines.push(`Dialogue: ${Math.round(enrichment.dialogue_percentage)}%`);
-    lines.push(`Narrative: ${Math.round(enrichment.narrative_percentage ?? (100 - enrichment.dialogue_percentage))}%`);
+    lines.push(`Dialogue: ${Math.floor(enrichment.dialogue_percentage)}%`);
+    lines.push(`Narrative: ${Math.floor(enrichment.narrative_percentage ?? (100 - enrichment.dialogue_percentage))}%`);
     lines.push('');
     lines.push('Most commercially successful novels contain 25-35% dialogue. Genre');
     lines.push('expectations vary: literary fiction trends lower (15-25%), thrillers');
@@ -920,7 +920,7 @@ function renderPremiumReportHtml(
   const readinessScore = readinessCriterion?.score_0_10;
   const readinessConfidence = readinessCriterion?.confidence_level ? formatConfidenceLabel(readinessCriterion.confidence_level) : null;
   const dialogueRatio = enrichment?.dialogue_percentage != null
-    ? `${Math.round(enrichment.dialogue_percentage)}% dialogue / ${Math.round(enrichment.narrative_percentage ?? (100 - enrichment.dialogue_percentage))}% narrative`
+    ? `${Math.floor(enrichment.dialogue_percentage)}% dialogue / ${Math.floor(enrichment.narrative_percentage ?? (100 - enrichment.dialogue_percentage))}% narrative`
     : null;
 
   const criteriaRows = result.criteria.map((criterion) => {
@@ -1044,7 +1044,7 @@ function renderPremiumReportHtml(
         ${renderMetric('Shelf', metadata.shelf ?? 'Not specified')}
         ${renderMetric('Submitted Word Count', metadata.wordCount ? metadata.wordCount.toLocaleString() : 'Not available')}
         ${renderMetric('Estimated Manuscript Pages', metadata.estimatedPages ? `${metadata.estimatedPages.toLocaleString()} at ${WORDS_PER_MANUSCRIPT_PAGE} words/page` : 'Not available')}
-        ${renderMetric('Reading Grade Level', enrichment?.reading_grade_level != null ? `${enrichment.reading_grade_level.toFixed(1)} (Flesch-Kincaid)` : 'Not available')}
+        ${renderMetric('Reading Grade Level', enrichment?.reading_grade_level != null ? `${Math.floor(enrichment.reading_grade_level)} (Flesch-Kincaid)` : 'Not available')}
         ${renderMetric('Dialogue/Narrative Ratio', dialogueRatio ?? 'Not available')}
         ${renderMetric('Date Generated', metadata.generatedAt)}
         ${ledger.totalItems > 0 ? renderMetric('Revision Queue Items', String(ledger.totalItems)) : ''}
@@ -1065,7 +1065,7 @@ function renderPremiumReportHtml(
   <section class="section"><h2>Revision Opportunity Summary</h2><div class="score-grid">${[
     ['Total', opportunitySummary.total], ['High Priority', opportunitySummary.high], ['Medium Priority', opportunitySummary.medium], ['Low Priority', opportunitySummary.low],
   ].map(([label, value]) => `<div><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`).join('')}</div><p>Priority labels indicate the recommended urgency of each revision opportunity.</p></section>
-  ${enrichment?.reading_grade_level != null ? `<section class="section"><h2>Reading Grade Level</h2>${renderHtmlParagraph(`Grade Level: ${enrichment.reading_grade_level.toFixed(1)} (Flesch-Kincaid)`)}<p>Reading Grade Level measures prose complexity, not audience appropriateness. Always cross-reference Content Warnings for content suitability guidance.</p></section>` : ''}
+  ${enrichment?.reading_grade_level != null ? `<section class="section"><h2>Reading Grade Level</h2>${renderHtmlParagraph(`Grade Level: ${Math.floor(enrichment.reading_grade_level)} (Flesch-Kincaid)`)}<p>Reading Grade Level measures prose complexity, not audience appropriateness. Always cross-reference Content Warnings for content suitability guidance.</p></section>` : ''}
   ${enrichment?.dialogue_percentage != null ? `<section class="section"><h2>Dialogue vs. Narrative Ratio</h2>${renderHtmlParagraph(dialogueRatio)}<p>Most commercially successful novels contain 25\u201335% dialogue. Genre expectations vary: literary fiction trends lower (15\u201325%), thrillers and romance trend higher (30\u201345%).</p></section>` : ''}
   <section class="section allow-break"><h2>Executive Summary</h2>${renderHtmlParagraph(result.overview.one_paragraph_summary, summaryFallback)}</section>
   <section class="section"><h2>Top Strengths</h2>${renderHtmlList(result.overview.top_3_strengths, 'No strengths supplied.')}</section>
@@ -1297,8 +1297,8 @@ async function buildDocx(result: ExportableResult, title: string | null, jobId: 
     metaRow('Shelf', metadata.shelf),
     metaRow('Submitted Word Count', metadata.wordCount ? metadata.wordCount.toLocaleString() : null),
     metaRow('Estimated Manuscript Pages', metadata.estimatedPages ? `${metadata.estimatedPages.toLocaleString()} at ${WORDS_PER_MANUSCRIPT_PAGE} words/page` : null),
-    metaRow('Reading Grade Level', enrichment?.reading_grade_level != null ? `${enrichment.reading_grade_level.toFixed(1)} (Flesch-Kincaid)` : null),
-    metaRow('Dialogue/Narrative Ratio', enrichment?.dialogue_percentage != null && enrichment?.narrative_percentage != null ? `${Math.round(enrichment.dialogue_percentage)}% dialogue / ${Math.round(enrichment.narrative_percentage)}% narrative` : null),
+    metaRow('Reading Grade Level', enrichment?.reading_grade_level != null ? `${Math.floor(enrichment.reading_grade_level)} (Flesch-Kincaid)` : null),
+    metaRow('Dialogue/Narrative Ratio', enrichment?.dialogue_percentage != null && enrichment?.narrative_percentage != null ? `${Math.floor(enrichment.dialogue_percentage)}% dialogue / ${Math.floor(enrichment.narrative_percentage)}% narrative` : null),
     metaRow('Generated', metadata.generatedAt),
     metaRow('Confidentiality', 'Prepared for author/editorial use'),
   ].filter((p): p is Paragraph => p !== null);
@@ -1352,13 +1352,13 @@ async function buildDocx(result: ExportableResult, title: string | null, jobId: 
 
   if (enrichment?.reading_grade_level != null) {
     children.push(brandHeading('Reading Grade Level', HeadingLevel.HEADING_2));
-    children.push(bodyPara(`Grade Level: ${enrichment.reading_grade_level.toFixed(1)} (Flesch-Kincaid)`));
+    children.push(bodyPara(`Grade Level: ${Math.floor(enrichment.reading_grade_level)} (Flesch-Kincaid)`));
     children.push(bodyPara('Reading Grade Level measures prose complexity, NOT audience appropriateness. A manuscript may score at a young-adult reading level (grades 6\u20138) while containing graphic violence, sexual content, or other material unsuitable for younger readers. Always cross-reference Content Warnings above for content suitability guidance.', { size: 18, color: RG.textMuted }));
   }
 
   if (enrichment?.dialogue_percentage != null) {
     children.push(brandHeading('Dialogue vs. Narrative Ratio', HeadingLevel.HEADING_2));
-    children.push(bodyPara(`${Math.round(enrichment.dialogue_percentage)}% dialogue / ${Math.round(enrichment.narrative_percentage ?? (100 - enrichment.dialogue_percentage))}% narrative`));
+    children.push(bodyPara(`${Math.floor(enrichment.dialogue_percentage)}% dialogue / ${Math.floor(enrichment.narrative_percentage ?? (100 - enrichment.dialogue_percentage))}% narrative`));
     children.push(bodyPara('Most commercially successful novels contain 25\u201335% dialogue. Genre expectations vary: literary fiction trends lower (15\u201325%), thrillers and romance trend higher (30\u201345%).', { size: 18, color: RG.textMuted }));
   }
 

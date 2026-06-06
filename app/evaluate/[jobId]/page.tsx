@@ -733,8 +733,8 @@ export default async function EvaluationReportPage({
               <div><dt className="font-semibold text-stone-950">Genre</dt><dd className="capitalize text-stone-700">{genre}</dd></div>
               <div><dt className="font-semibold text-stone-950">Submitted Word Count</dt><dd className="text-stone-700">{typeof displayWordCount === 'number' ? displayWordCount.toLocaleString() : 'Calculating'}</dd></div>
               <div><dt className="font-semibold text-stone-950">Estimated Manuscript Pages</dt><dd className="text-stone-700">{estimatedPages ? `${estimatedPages.toLocaleString()} at 250 words/page` : 'Not available'}</dd></div>
-              <div><dt className="font-semibold text-stone-950">Reading Grade Level</dt><dd className="text-stone-700">{(artifact?.enrichment?.reading_grade_level ?? instantReadingGrade) != null ? `${Math.round(Number(artifact?.enrichment?.reading_grade_level ?? instantReadingGrade))} (Flesch-Kincaid)` : 'Not available'}</dd></div>
-              <div><dt className="font-semibold text-stone-950">Dialogue/Narrative Ratio</dt><dd className="text-stone-700">{(artifact?.enrichment?.dialogue_percentage ?? instantDialoguePercentage) != null ? `${Math.round(Number(artifact?.enrichment?.dialogue_percentage ?? instantDialoguePercentage))}% dialogue / ${Math.round(Number(artifact?.enrichment?.narrative_percentage ?? instantNarrativePercentage ?? 100 - (artifact?.enrichment?.dialogue_percentage ?? instantDialoguePercentage ?? 0)))}% narrative` : 'Not available'}</dd></div>
+              <div><dt className="font-semibold text-stone-950">Reading Grade Level</dt><dd className="text-stone-700">{(artifact?.enrichment?.reading_grade_level ?? instantReadingGrade) != null ? `${Math.floor(Number(artifact?.enrichment?.reading_grade_level ?? instantReadingGrade))} (Flesch-Kincaid)` : 'Not available'}</dd></div>
+              <div><dt className="font-semibold text-stone-950">Dialogue/Narrative Ratio</dt><dd className="text-stone-700">{(artifact?.enrichment?.dialogue_percentage ?? instantDialoguePercentage) != null ? `${Math.floor(Number(artifact?.enrichment?.dialogue_percentage ?? instantDialoguePercentage))}% dialogue / ${Math.floor(Number(artifact?.enrichment?.narrative_percentage ?? instantNarrativePercentage ?? 100 - (artifact?.enrichment?.dialogue_percentage ?? instantDialoguePercentage ?? 0)))}% narrative` : 'Not available'}</dd></div>
               <div><dt className="font-semibold text-stone-950">Date Generated</dt><dd className="text-stone-700">{generatedLabel}</dd></div>
               {targetAudience && <div className="sm:col-span-2 lg:col-span-3"><dt className="font-semibold text-stone-950">Target Audience</dt><dd className="text-stone-700">{targetAudience}</dd></div>}
             </dl>
@@ -1066,7 +1066,7 @@ export default async function EvaluationReportPage({
             <section className="rounded-lg border bg-white p-7 mb-7">
               <h2 className="text-2xl font-semibold text-gray-900">Dialogue vs. Narrative Ratio</h2>
               <p className="mt-4 text-xl font-bold text-gray-900">
-                {Math.round(artifact.enrichment.dialogue_percentage)}% dialogue / {Math.round(artifact.enrichment.narrative_percentage ?? (100 - artifact.enrichment.dialogue_percentage))}% narrative
+                {Math.floor(artifact.enrichment.dialogue_percentage)}% dialogue / {Math.floor(artifact.enrichment.narrative_percentage ?? (100 - artifact.enrichment.dialogue_percentage))}% narrative
               </p>
               <p className="mt-3 text-base leading-7 text-gray-700">
                 Most commercially successful novels contain 25–35% dialogue. Genre
