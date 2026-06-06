@@ -11,6 +11,7 @@ const PUBLIC_API_PATHS = [
   '/api/health',
   '/api/contact',
   '/api/analytics/track',
+  '/api/dev/metrics-smoke',
 ]
 
 function buildContentSecurityPolicy(): string {
