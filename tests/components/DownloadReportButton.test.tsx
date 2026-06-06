@@ -2,53 +2,95 @@
  * @jest-environment jsdom
  */
 
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, act } from '@testing-library/react';
 
 import DownloadReportButton from '@/components/reports/DownloadReportButton';
 
 describe('DownloadReportButton', () => {
+  let fetchMock: jest.Mock;
+
   beforeEach(() => {
-    global.fetch = jest.fn().mockResolvedValue({ ok: false }) as unknown as typeof fetch;
-    window.open = jest.fn();
+    fetchMock = jest.fn();
+    global.fetch = fetchMock as unknown as typeof fetch;
+    window.URL.createObjectURL = jest.fn(() => 'blob:mock');
+    window.URL.revokeObjectURL = jest.fn();
   });
 
   afterEach(() => {
     jest.resetAllMocks();
   });
 
-  it('routes PDF option to canonical download endpoint', () => {
+  function mockJobStatusComplete() {
+    fetchMock.mockImplementation((url: string) => {
+      if (url.includes('/api/jobs/')) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ job: { status: 'complete' } }),
+        });
+      }
+      if (url.includes('/api/reports/')) {
+        return Promise.resolve({
+          ok: true,
+          blob: () => Promise.resolve(new Blob(['test'], { type: 'application/pdf' })),
+          headers: new Headers({ 'Content-Disposition': 'attachment; filename="report.pdf"' }),
+        });
+      }
+      return Promise.resolve({ ok: false });
+    });
+  }
+
+  it('routes PDF option to canonical download endpoint', async () => {
+    mockJobStatusComplete();
     render(<DownloadReportButton jobId="e5ced7ac-117f-4d13-8cd0-3957c15dc189" disabled={false} />);
+
+    // Wait for status fetch to complete and button to become enabled
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Download Report/i })).not.toHaveAttribute('aria-disabled', 'true');
+    });
 
     fireEvent.click(screen.getByRole('button', { name: /Download Report/i }));
     fireEvent.click(screen.getByRole('menuitem', { name: /PDF \(.pdf\)/i }));
 
-    expect(window.open).toHaveBeenCalledWith(
-      '/api/reports/e5ced7ac-117f-4d13-8cd0-3957c15dc189/download?format=pdf',
-      '_self',
-    );
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/reports/e5ced7ac-117f-4d13-8cd0-3957c15dc189/download?format=pdf',
+      );
+    });
   });
 
-  it('routes TXT option to canonical download endpoint', () => {
+  it('routes TXT option to canonical download endpoint', async () => {
+    mockJobStatusComplete();
     render(<DownloadReportButton jobId="e5ced7ac-117f-4d13-8cd0-3957c15dc189" disabled={false} />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Download Report/i })).not.toHaveAttribute('aria-disabled', 'true');
+    });
 
     fireEvent.click(screen.getByRole('button', { name: /Download Report/i }));
     fireEvent.click(screen.getByRole('menuitem', { name: /Plain Text \(.txt\)/i }));
 
-    expect(window.open).toHaveBeenCalledWith(
-      '/api/reports/e5ced7ac-117f-4d13-8cd0-3957c15dc189/download?format=txt',
-      '_self',
-    );
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/reports/e5ced7ac-117f-4d13-8cd0-3957c15dc189/download?format=txt',
+      );
+    });
   });
 
-  it('routes Word option to canonical download endpoint', () => {
+  it('routes Word option to canonical download endpoint', async () => {
+    mockJobStatusComplete();
     render(<DownloadReportButton jobId="e5ced7ac-117f-4d13-8cd0-3957c15dc189" disabled={false} />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Download Report/i })).not.toHaveAttribute('aria-disabled', 'true');
+    });
 
     fireEvent.click(screen.getByRole('button', { name: /Download Report/i }));
     fireEvent.click(screen.getByRole('menuitem', { name: /Word \(.docx\)/i }));
 
-    expect(window.open).toHaveBeenCalledWith(
-      '/api/reports/e5ced7ac-117f-4d13-8cd0-3957c15dc189/download?format=docx',
-      '_self',
-    );
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/reports/e5ced7ac-117f-4d13-8cd0-3957c15dc189/download?format=docx',
+      );
+    });
   });
 });
