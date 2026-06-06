@@ -77,12 +77,14 @@ type EnrichmentData = {
   reading_grade_level?: number;
   dialogue_percentage?: number;
   narrative_percentage?: number;
+  diagnosed_genre?: string;
+  target_audience?: string;
 } | null;
 
 type ExportableResultShape = {
   generated_at?: unknown;
   schema_version?: unknown;
-  metrics?: { manuscript?: { title?: unknown; word_count?: unknown; genre?: unknown } };
+  metrics?: { manuscript?: { title?: unknown; word_count?: unknown; genre?: unknown; target_audience?: unknown } };
   overview?: {
     verdict?: unknown;
     overall_score_0_100?: unknown;
@@ -107,6 +109,7 @@ type ReportMetadata = {
   reportType: string;
   shelf: string | null;
   genre: string | null;
+  targetAudience: string | null;
 };
 
 type LedgerTotals = {
@@ -296,8 +299,15 @@ function formatGeneratedDate(isoDate: string): string {
 function readinessLabel(score: unknown): string {
   if (typeof score !== 'number' || !Number.isFinite(score)) return '';
   if (score >= 90) return ' — Market Ready';
-  if (score >= 60) return ' — Revise';
-  return ' — Not Ready';
+  if (score >= 60) return ' — Near Market Ready';
+  return ' — Not Market Ready';
+}
+
+function marketReadinessVerdict(score: unknown): string {
+  if (typeof score !== 'number' || !Number.isFinite(score)) return 'REVIEW';
+  if (score >= 90) return 'MARKET READY';
+  if (score >= 60) return 'NEAR MARKET READY';
+  return 'NOT MARKET READY';
 }
 
 function stripMachineResidue(text: string): string {
@@ -412,21 +422,26 @@ function toPdfSafeText(value: unknown, fallback = '-'): string {
     .trim();
 }
 
-function buildMetadata(result: ExportableResult, title: string | null, dream: LongformDreamDocument | null): ReportMetadata {
+function buildMetadata(result: ExportableResult, title: string | null, dream: LongformDreamDocument | null, enrichment: EnrichmentData = null): ReportMetadata {
   const wordCount = typeof result.metrics?.manuscript?.word_count === 'number' ? result.metrics.manuscript.word_count : null;
   const displayTitle = title ?? result.metrics?.manuscript?.title ?? 'Untitled Manuscript';
   const shelf = dream?.market_shelf?.best_shelf ?? null;
-  const genre = result.metrics?.manuscript?.genre ?? null;
+  const pipelineGenre = result.metrics?.manuscript?.genre ?? null;
+  const diagnosedGenre = enrichment?.diagnosed_genre ?? null;
+  // Prefer AI-diagnosed genre; fall back to pipeline genre but filter out format words like "novel"
+  const genre = diagnosedGenre ?? (pipelineGenre && pipelineGenre.toLowerCase() !== 'novel' && pipelineGenre.toLowerCase() !== 'short story' ? pipelineGenre : null);
+  const targetAudience = enrichment?.target_audience ?? (typeof result.metrics?.manuscript?.target_audience === 'string' && result.metrics.manuscript.target_audience.trim() ? result.metrics.manuscript.target_audience.trim() : null);
   return {
     displayTitle,
     generatedAt: formatGeneratedDate(result.generated_at),
     score: `${scoreLabel(result.overview.overall_score_0_100, 100)}${readinessLabel(result.overview.overall_score_0_100)}`,
-    verdict: result.overview.verdict.toUpperCase(),
+    verdict: marketReadinessVerdict(result.overview.overall_score_0_100),
     wordCount,
     estimatedPages: estimatePages(wordCount),
     reportType: inferReportType(wordCount),
     shelf,
-    genre: genre ?? null,
+    genre,
+    targetAudience,
   };
 }
 
@@ -607,7 +622,7 @@ function buildTxtReport(result: ExportableResult, title: string | null, jobId: s
   const lines: string[] = [];
   const sep = '='.repeat(72);
   const sub = '-'.repeat(72);
-  const metadata = buildMetadata(result, title, dream);
+  const metadata = buildMetadata(result, title, dream, enrichment);
   const summaryFallback = buildSummaryFallback(result);
   const pitches = buildReportPitches({
     premise: enrichment?.premise,
@@ -624,6 +639,7 @@ function buildTxtReport(result: ExportableResult, title: string | null, jobId: s
   lines.push(`Manuscript Title: ${metadata.displayTitle}`);
   lines.push(`Report Type: ${metadata.reportType}`);
   if (metadata.genre) lines.push(`Genre: ${metadata.genre}`);
+  if (metadata.targetAudience) lines.push(`Target Audience: ${metadata.targetAudience}`);
   if (metadata.shelf) lines.push(`Shelf: ${metadata.shelf}`);
   if (metadata.wordCount) lines.push(`Submitted Word Count: ${metadata.wordCount.toLocaleString()}`);
   if (metadata.estimatedPages) lines.push(`Estimated Manuscript Pages: ${metadata.estimatedPages.toLocaleString()} at ${WORDS_PER_MANUSCRIPT_PAGE} words/page`);
@@ -631,7 +647,7 @@ function buildTxtReport(result: ExportableResult, title: string | null, jobId: s
   if (enrichment?.dialogue_percentage != null && enrichment?.narrative_percentage != null) lines.push(`Dialogue/Narrative Ratio: ${Math.round(enrichment.dialogue_percentage)}% dialogue / ${Math.round(enrichment.narrative_percentage)}% narrative`);
   lines.push(`Generated: ${metadata.generatedAt}`);
   lines.push(`Overall Score: ${metadata.score}`);
-  lines.push(`Verdict: ${metadata.verdict}`);
+  lines.push(`Market Readiness: ${metadata.verdict}`);
   // Market Readiness (when the criterion exists in the evaluation)
   const txtReadinessCriterion = result.criteria.find((criterion) => {
     const key = criterion.key.toLowerCase();
@@ -965,7 +981,7 @@ function renderPremiumReportHtml(
     }
     * { box-sizing: border-box; }
     body { margin: 0; color: #1c1814; background: #faf7f2; font-family: Georgia, "Times New Roman", serif; font-size: 11.5pt; line-height: 1.55; }
-    .cover { min-height: 8.9in; padding: 0.35in 0 0; page-break-after: always; }
+    .cover { padding: 0.35in 0 0; page-break-after: always; }
     .brand { color: #8b2e2e; font-family: Helvetica, Arial, sans-serif; font-size: 22pt; font-weight: 700; letter-spacing: 0.02em; }
     .tagline { margin-top: 0.08in; color: #5c5549; font-family: Helvetica, Arial, sans-serif; font-size: 10pt; }
     .rule { height: 3px; margin: 0.28in 0 0.35in; background: #b8922a; }
@@ -984,7 +1000,7 @@ function renderPremiumReportHtml(
     .readiness { margin-top: 0.16in; padding: 0.16in; background: #fffdf9; border: 1px solid #d9d0c3; border-radius: 8px; }
     .readiness h2 { margin: 0; font-family: Helvetica, Arial, sans-serif; color: #5c5549; font-size: 9pt; text-transform: uppercase; letter-spacing: 0.08em; }
     .readiness strong { display: block; margin-top: 0.08in; color: #1c1814; font-size: 18pt; }
-    .readiness p { margin: 0.05in 0 0; color: #5c5549; font-family: Helvetica, Arial, sans-serif; font-size: 9.5pt; line-height: 1.45; }
+    .readiness p { margin: 0.05in 0 0; color: #5c5549; font-family: Helvetica, Arial, sans-serif; font-size: 9.5pt; line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
     .disclaimer { margin-top: 0.35in; color: #5c5549; font-family: Helvetica, Arial, sans-serif; font-size: 9.5pt; line-height: 1.45; }
     .section { margin: 0 0 0.34in; padding: 0.22in 0.24in; background: #fffdf9; border: 1px solid #d9d0c3; border-radius: 8px; break-inside: avoid; }
     .section.allow-break { break-inside: auto; }
@@ -1024,6 +1040,7 @@ function renderPremiumReportHtml(
     <div class="cover-grid">
       <dl class="metadata">
         ${renderMetric('Genre', metadata.genre ?? 'Not specified')}
+        ${metadata.targetAudience ? renderMetric('Target Audience', metadata.targetAudience) : ''}
         ${renderMetric('Shelf', metadata.shelf ?? 'Not specified')}
         ${renderMetric('Submitted Word Count', metadata.wordCount ? metadata.wordCount.toLocaleString() : 'Not available')}
         ${renderMetric('Estimated Manuscript Pages', metadata.estimatedPages ? `${metadata.estimatedPages.toLocaleString()} at ${WORDS_PER_MANUSCRIPT_PAGE} words/page` : 'Not available')}
@@ -1104,7 +1121,7 @@ async function buildChromiumPdf(html: string): Promise<Buffer> {
 
 
 async function buildPdfReport(result: ExportableResult, title: string | null, _jobId: string, dream: LongformDreamDocument | null, enrichment: EnrichmentData = null, ledger: RevisionLedgerSummary = { totalItems: 0, ledgerTotals: null }): Promise<Buffer> {
-  const metadata = buildMetadata(result, title, dream);
+  const metadata = buildMetadata(result, title, dream, enrichment);
   const summaryFallback = buildSummaryFallback(result);
   const html = renderPremiumReportHtml(result, metadata, summaryFallback, dream, enrichment, ledger);
   return await buildChromiumPdf(html);
@@ -1112,8 +1129,8 @@ async function buildPdfReport(result: ExportableResult, title: string | null, _j
 
 function docxVerdictColor(verdict: string): string {
   const v = verdict.toLowerCase();
-  if (v === 'pass') return RG.success;
-  if (v === 'revise') return RG.warning;
+  if (v === 'market ready' || v === 'pass') return RG.success;
+  if (v === 'near market ready' || v === 'revise') return RG.warning;
   return RG.error;
 }
 
@@ -1128,7 +1145,7 @@ const DOCX_NONE_BORDER = { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' };
 const DOCX_NO_BORDERS = { top: DOCX_NONE_BORDER, bottom: DOCX_NONE_BORDER, left: DOCX_NONE_BORDER, right: DOCX_NONE_BORDER };
 
 async function buildDocx(result: ExportableResult, title: string | null, jobId: string, dream: LongformDreamDocument | null, enrichment: EnrichmentData = null, ledger: RevisionLedgerSummary = { totalItems: 0, ledgerTotals: null }): Promise<Buffer> {
-  const metadata = buildMetadata(result, title, dream);
+  const metadata = buildMetadata(result, title, dream, enrichment);
   const summaryFallback = buildSummaryFallback(result);
   const pitches = buildReportPitches({
     premise: enrichment?.premise,
@@ -1276,6 +1293,7 @@ async function buildDocx(result: ExportableResult, title: string | null, jobId: 
   // Metadata block
   const metaLines = [
     metaRow('Genre', metadata.genre),
+    metaRow('Target Audience', metadata.targetAudience),
     metaRow('Shelf', metadata.shelf),
     metaRow('Submitted Word Count', metadata.wordCount ? metadata.wordCount.toLocaleString() : null),
     metaRow('Estimated Manuscript Pages', metadata.estimatedPages ? `${metadata.estimatedPages.toLocaleString()} at ${WORDS_PER_MANUSCRIPT_PAGE} words/page` : null),
@@ -1770,6 +1788,21 @@ async function buildDocx(result: ExportableResult, title: string | null, jobId: 
     })],
     width: { size: 100, type: WidthType.PERCENTAGE },
   }));
+  // ── §13 Confidence Explanation ──
+  children.push(brandHeading('Confidence Explanation', HeadingLevel.HEADING_2));
+  children.push(bodyPara(CONFIDENCE_EXPLANATION.title, { bold: true }));
+  children.push(bodyPara(CONFIDENCE_EXPLANATION.intro));
+  for (const level of CONFIDENCE_EXPLANATION.levels) {
+    children.push(new Paragraph({
+      spacing: { after: 80 },
+      children: [
+        new TextRun({ text: `${level.label}: `, bold: true, size: 20, font: 'Georgia' }),
+        new TextRun({ text: level.description, size: 20, font: 'Georgia' }),
+      ],
+    }));
+  }
+
+  // ── §14 Author-facing disclaimer ──
   children.push(bodyPara(EXPORT_DISCLAIMER, { size: 16, color: RG.textFaint, spacing: 40 }));
 
   const docxDoc = new Document({

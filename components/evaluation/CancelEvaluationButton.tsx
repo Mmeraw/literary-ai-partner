@@ -102,7 +102,7 @@ export function CancelEvaluationButton({
           >
             <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
               <h2 id="cancel-evaluation-title" className="text-lg font-semibold text-gray-900">
-                {isCancelled ? 'Evaluation cancelled' : 'Cancel this evaluation?'}
+                {isCancelled ? 'Evaluation cancelled' : 'Cancel evaluation?'}
               </h2>
               <button
                 type="button"
@@ -120,14 +120,14 @@ export function CancelEvaluationButton({
             <div className="px-6 py-4 space-y-4">
               {isCancelled ? (
                 <div className="rounded-md bg-green-50 border border-green-200 p-4">
-                  <p className="text-sm font-semibold text-green-900">Cancellation confirmed.</p>
+                  <p className="text-sm font-semibold text-green-900">Evaluation cancelled</p>
                   <p className="text-sm text-green-800 mt-2">
-                    This evaluation has been stopped and will appear as Cancelled on the dashboard. No report will be generated for this job.
+                    Your manuscript was not evaluated to completion. No score or report was generated.
                   </p>
                 </div>
               ) : (
                 <p className="text-sm text-gray-700">
-                  This will stop the job and no final report will be generated unless the core evaluation has already completed. You will not be charged if analysis has not begun.
+                  This will stop the current evaluation. Completed analysis may be preserved, but no final report will be generated unless you start again.
                 </p>
               )}
 
@@ -147,17 +147,17 @@ export function CancelEvaluationButton({
                 <>
                   <button
                     type="button"
-                    onClick={closeAndRefresh}
+                    onClick={() => { setIsOpen(false); router.push('/evaluate'); router.refresh(); }}
                     className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
                   >
-                    Stay here
+                    Return to job list
                   </button>
                   <button
                     type="button"
-                    onClick={goToDashboard}
-                    className="px-4 py-2 text-sm font-medium text-white bg-green-700 hover:bg-green-800 rounded-md transition-colors"
+                    onClick={() => { setIsOpen(false); router.push('/evaluate'); router.refresh(); }}
+                    className="px-4 py-2 text-sm font-medium text-white bg-stone-800 hover:bg-stone-900 rounded-md transition-colors"
                   >
-                    Back to Dashboard
+                    Start new evaluation
                   </button>
                 </>
               ) : (
@@ -172,7 +172,7 @@ export function CancelEvaluationButton({
                     disabled={isLoading}
                     className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors disabled:opacity-50"
                   >
-                    {error ? 'Close' : 'Keep Running'}
+                    {error ? 'Close' : 'Keep Evaluation'}
                   </button>
                   <button
                     type="button"

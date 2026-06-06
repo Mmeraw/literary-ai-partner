@@ -16,6 +16,17 @@
 
 import type { Job, Phase, JobStatus, PhaseStatus } from "./types";
 
+/**
+ * Shared cancel-visibility predicate.
+ * Show "Cancel Evaluation" on any job that hasn't reached a terminal state.
+ * Terminal = complete, or progress includes canceled_at.
+ */
+export function canShowCancelButton(status: string, progress?: { canceled_at?: string | null } | null): boolean {
+  if (status === "complete") return false;
+  if (progress?.canceled_at) return false;
+  return true;
+}
+
 export type JobStatusBadge = JobStatus; // CANON only: queued, running, complete, failed
 
 /**

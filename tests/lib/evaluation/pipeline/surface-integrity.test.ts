@@ -112,7 +112,12 @@ describe("#364 integration in parsePass3Response", () => {
     );
 
     const criterion = result.criteria.find((c) => c.key === "character");
-    expect(criterion?.recommendations).toHaveLength(0);
+    // The original REJECT-ed recommendation is dropped.
+    // The density floor (score 6-7 → min 1) may backfill a replacement from
+    // rationale/gap_summary, so we verify the original vague action is gone
+    // rather than asserting length === 0.
+    const actions = (criterion?.recommendations ?? []).map((r) => r.action);
+    expect(actions).not.toContain("Improve the pacing.");
   });
 
   test("FLAG action is retained with bounded annotation", () => {

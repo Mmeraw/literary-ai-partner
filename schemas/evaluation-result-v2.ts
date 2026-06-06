@@ -205,6 +205,10 @@ export type EvaluationResultV2 = {
     premise?: string;
     /** Content advisory categories requiring reader warnings. */
     trigger_warnings?: string[];
+    /** Pipeline-diagnosed publishing genre/category; must not be merely a work format such as "novel". */
+    diagnosed_genre?: string;
+    /** Pipeline-diagnosed likely audience/readership for the submitted text. */
+    target_audience?: string;
     /** Flesch-Kincaid Grade Level computed from manuscript text. */
     reading_grade_level?: number;
     /** Percentage of text identified as quoted dialogue (0–100). */

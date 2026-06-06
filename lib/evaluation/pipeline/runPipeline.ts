@@ -1984,10 +1984,12 @@ export interface SynthesisToEvaluationResultOptions {
   /** Optional manuscript text for metrics enrichment when the caller has it available. */
   manuscriptText?: string;
   scopeProfile?: SubmissionScopeProfile;
-  /** LLM-extracted enrichment fields (premise, trigger warnings) from synthesis pass. */
+  /** LLM-extracted enrichment fields from synthesis pass. */
   llmEnrichment?: {
     premise?: string;
     trigger_warnings?: string[];
+    diagnosed_genre?: string;
+    target_audience?: string;
   };
 }
 
