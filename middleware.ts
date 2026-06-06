@@ -2,6 +2,58 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 import { trackAuthBypass, trackAuthCheck, trackAuthRedirect } from '@/lib/auth/telemetry'
 
+const isProduction = process.env.NODE_ENV === 'production'
+
+function buildContentSecurityPolicy(): string {
+  const directives = [
+    "default-src 'self'",
+    "base-uri 'self'",
+    "object-src 'none'",
+    "frame-ancestors 'none'",
+    "form-action 'self'",
+    "img-src 'self' data: blob: https:",
+    "font-src 'self' data:",
+    "style-src 'self' 'unsafe-inline'",
+    // Next.js currently needs unsafe-inline/unsafe-eval in some runtime/dev paths.
+    // Keep the policy enforced but compatible; tighten later with nonce/hash once app shell is stable.
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://vercel.live",
+    "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.openai.com https://api.perplexity.ai https://api.resend.com https://vercel.live https://*.vercel-insights.com https://*.vercel-analytics.com",
+    "frame-src 'self' https://vercel.live",
+    "worker-src 'self' blob:",
+    "manifest-src 'self'",
+    'upgrade-insecure-requests',
+  ]
+
+  return directives.join('; ')
+}
+
+function applySecurityHeaders(response: NextResponse): NextResponse {
+  response.headers.set('X-Frame-Options', 'DENY')
+  response.headers.set('X-Content-Type-Options', 'nosniff')
+  response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin')
+  response.headers.set(
+    'Permissions-Policy',
+    'camera=(), microphone=(), geolocation=(), payment=(), usb=(), bluetooth=(), accelerometer=(), gyroscope=(), magnetometer=()'
+  )
+  response.headers.set('Cross-Origin-Opener-Policy', 'same-origin')
+  response.headers.set('Cross-Origin-Resource-Policy', 'same-origin')
+  response.headers.set('Content-Security-Policy', buildContentSecurityPolicy())
+
+  if (isProduction) {
+    response.headers.set('Strict-Transport-Security', 'max-age=63072000; includeSubDomains; preload')
+  }
+
+  return response
+}
+
+function secureNextResponse(request: NextRequest): NextResponse {
+  return applySecurityHeaders(NextResponse.next({ request }))
+}
+
+function secureRedirect(url: URL): NextResponse {
+  return applySecurityHeaders(NextResponse.redirect(url))
+}
+
 export async function middleware(request: NextRequest) {
     const matchesPath = (pathname: string, basePath: string): boolean => {
       if (basePath === '/') return pathname === '/'
@@ -19,9 +71,7 @@ export async function middleware(request: NextRequest) {
     hasHeaderActor &&
     matchesPath(request.nextUrl.pathname, '/api')
 
-  let supabaseResponse = NextResponse.next({
-    request,
-  })
+  let supabaseResponse = secureNextResponse(request)
 
   // Fail closed if env vars missing (prevents crash loops in CI)
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -45,10 +95,8 @@ export async function middleware(request: NextRequest) {
           return request.cookies.getAll()
         },
         setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) => request.cookies.set(name, value))
-          supabaseResponse = NextResponse.next({
-            request,
-          })
+          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
+          supabaseResponse = secureNextResponse(request)
           cookiesToSet.forEach(({ name, value, options }) =>
             supabaseResponse.cookies.set(name, value, options)
           )
@@ -141,7 +189,7 @@ export async function middleware(request: NextRequest) {
     const redirectUrl = request.nextUrl.clone()
     redirectUrl.pathname = '/login'
     trackAuthRedirect('login_required')
-    return NextResponse.redirect(redirectUrl)
+    return secureRedirect(redirectUrl)
   }
 
   // Redirect logged-in users away from auth entry pages
@@ -149,7 +197,7 @@ export async function middleware(request: NextRequest) {
     const redirectUrl = request.nextUrl.clone()
     redirectUrl.pathname = '/dashboard'
     trackAuthRedirect('already_authenticated')
-    return NextResponse.redirect(redirectUrl)
+    return secureRedirect(redirectUrl)
   }
 
   return supabaseResponse
@@ -157,6 +205,6 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|.*\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 }

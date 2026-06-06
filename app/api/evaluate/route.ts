@@ -9,6 +9,65 @@ import { generateTraceId } from '@/lib/observability/logger';
 import { resolveManuscriptTitle } from '@/lib/manuscripts/title';
 import { computeEnrichment } from '@/lib/evaluation/enrichment/computeEnrichment';
 
+const MAX_PASTED_MANUSCRIPT_BYTES = 6 * 1024 * 1024;
+const MAX_EVALUATION_JOBS_PER_HOUR = 10;
+const MAX_ACTIVE_EVALUATION_JOBS = 5;
+
+function jsonError(error: string, status: number, extra: Record<string, unknown> = {}) {
+  return Response.json({ ok: false, error, ...extra }, { status });
+}
+
+function byteLength(text: string): number {
+  return new TextEncoder().encode(text).length;
+}
+
+async function enforceUserEvaluationAbuseLimits(args: {
+  supabase: ReturnType<typeof createAdminClient>;
+  userId: string;
+}): Promise<Response | null> {
+  const { supabase, userId } = args;
+  const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+
+  const { count: recentCount, error: recentErr } = await supabase
+    .from('evaluation_jobs')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', userId)
+    .gte('created_at', oneHourAgo);
+
+  if (recentErr) {
+    console.error('[/api/evaluate] rate-limit recent-count failed', recentErr);
+    return jsonError('Unable to verify evaluation quota. Please try again shortly.', 503);
+  }
+
+  if ((recentCount ?? 0) >= MAX_EVALUATION_JOBS_PER_HOUR) {
+    return jsonError(
+      `Too many evaluation requests. Please wait before starting another evaluation.`,
+      429,
+      { retry_after_seconds: 3600 }
+    );
+  }
+
+  const { count: activeCount, error: activeErr } = await supabase
+    .from('evaluation_jobs')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', userId)
+    .in('status', ['queued', 'running']);
+
+  if (activeErr) {
+    console.error('[/api/evaluate] active-job limit check failed', activeErr);
+    return jsonError('Unable to verify active evaluation limit. Please try again shortly.', 503);
+  }
+
+  if ((activeCount ?? 0) >= MAX_ACTIVE_EVALUATION_JOBS) {
+    return jsonError(
+      `You already have ${MAX_ACTIVE_EVALUATION_JOBS} evaluations queued or running. Please wait for one to finish before starting another.`,
+      429
+    );
+  }
+
+  return null;
+}
+
 export async function POST(req: Request) {
   const trace_id = generateTraceId();
   const request_id = generateTraceId();
@@ -31,11 +90,11 @@ export async function POST(req: Request) {
     }
 
     if (!userId) {
-      return Response.json(
-        { ok: false, error: 'Unauthorized' },
-        { status: 401 }
-      );
+      return jsonError('Unauthorized', 401);
     }
+
+    const abuseLimitResponse = await enforceUserEvaluationAbuseLimits({ supabase, userId });
+    if (abuseLimitResponse) return abuseLimitResponse;
 
     const body = await req.json().catch(() => ({}));
     const manuscriptIdInput = body?.manuscript_id;
@@ -60,22 +119,12 @@ export async function POST(req: Request) {
       // Reject ambiguous input: both manuscript_id and new text together is a contract violation.
       const trimmedTextForConflictCheck = manuscriptTextInput.trim();
       if (trimmedTextForConflictCheck.length > 0) {
-        return Response.json(
-          {
-            ok: false,
-            error:
-              'Ambiguous manuscript source: provide either manuscript_id or manuscript_text, not both.',
-          },
-          { status: 400 }
-        );
+        return jsonError('Ambiguous manuscript source: provide either manuscript_id or manuscript_text, not both.', 400);
       }
 
       const parsed = Number.parseInt(String(manuscriptIdInput), 10);
       if (!Number.isFinite(parsed) || parsed <= 0) {
-        return Response.json(
-          { ok: false, error: 'Invalid manuscript_id' },
-          { status: 400 }
-        );
+        return jsonError('Invalid manuscript_id', 400);
       }
       manuscriptId = parsed;
 
@@ -87,37 +136,35 @@ export async function POST(req: Request) {
           .single();
 
       if (manuscriptLookupError || !existingManuscript) {
-        return Response.json(
-          { ok: false, error: 'manuscript_id not found' },
-          { status: 404 }
-        );
+        return jsonError('manuscript_id not found', 404);
       }
 
       if (existingManuscript.user_id !== userId) {
-        return Response.json(
-          { ok: false, error: 'Forbidden: manuscript does not belong to user' },
-          { status: 403 }
-        );
+        return jsonError('Forbidden: manuscript does not belong to user', 403);
       }
     }
 
     const trimmedText = manuscriptTextInput.trim();
     if (!manuscriptId && trimmedText.length === 0) {
-      return Response.json(
-        {
-          ok: false,
-          error:
-            'Missing manuscript input: provide manuscript_id or manuscript_text/content',
-        },
-        { status: 400 }
-      );
+      return jsonError('Missing manuscript input: provide manuscript_id or manuscript_text/content', 400);
+    }
+
+    if (!manuscriptId) {
+      const inputBytes = byteLength(trimmedText);
+      if (inputBytes > MAX_PASTED_MANUSCRIPT_BYTES) {
+        return jsonError(
+          `Manuscript text is too large for direct paste upload. Please upload a file instead.`,
+          413,
+          { max_bytes: MAX_PASTED_MANUSCRIPT_BYTES }
+        );
+      }
     }
 
     // Step 1: Create manuscript
     if (!manuscriptId) {
       const encodedText = encodeURIComponent(trimmedText);
       const fileUrl = `data:text/plain;charset=utf-8,${encodedText}`;
-      const fileSize = new TextEncoder().encode(trimmedText).length;
+      const fileSize = byteLength(trimmedText);
       const wordCount = trimmedText.split(/\s+/).filter(Boolean).length;
       const resolvedTitle = resolveManuscriptTitle({
         explicitTitle: manuscriptTitleInput,
@@ -149,10 +196,7 @@ export async function POST(req: Request) {
 
       if (manuscriptError || !manuscript) {
         console.error('Manuscript insert error:', manuscriptError);
-        return Response.json(
-          { ok: false, error: `Manuscript error: ${manuscriptError?.message}` },
-          { status: 500 }
-        );
+        return jsonError('Manuscript creation failed. Please try again.', 500);
       }
       manuscriptId = manuscript.id;
     }
@@ -223,10 +267,7 @@ export async function POST(req: Request) {
 
     if (error) {
       console.error('Evaluation job insert error:', error);
-      return Response.json(
-        { ok: false, error: `Database error: ${error.message}` },
-        { status: 500 }
-      );
+      return jsonError('Evaluation job creation failed. Please try again.', 500);
     }
 
     // MISTAKE-PROOF: SELECT-back verification before the job ID ever leaves this process.
@@ -246,13 +287,7 @@ export async function POST(req: Request) {
         'Probable silent rollback. Refusing to send job ID to client.',
         { job_id: data.id, verifyError }
       );
-      return Response.json(
-        {
-          ok: false,
-          error: 'Job creation failed — database verification failed. Please try again.',
-        },
-        { status: 500 }
-      );
+      return jsonError('Job creation failed — database verification failed. Please try again.', 500);
     }
 
     // Belt-and-suspenders dispatch: cron remains fallback.
@@ -297,9 +332,6 @@ export async function POST(req: Request) {
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Internal server error';
     console.error('Hard fail in /api/evaluate:', err);
-    return Response.json(
-      { ok: false, error: message },
-      { status: 500 }
-    );
+    return jsonError(message, 500);
   }
 }
