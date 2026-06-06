@@ -2,7 +2,7 @@
  * @jest-environment jsdom
  */
 
-import { fireEvent, render, screen, waitFor, act } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 
 import DownloadReportButton from '@/components/reports/DownloadReportButton';
 
@@ -45,7 +45,7 @@ describe('DownloadReportButton', () => {
 
     // Wait for status fetch to complete and button to become enabled
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /Download Report/i })).not.toHaveAttribute('aria-disabled', 'true');
+      expect(screen.getByRole('button', { name: /Download Report/i }).getAttribute('aria-disabled')).not.toBe('true');
     });
 
     fireEvent.click(screen.getByRole('button', { name: /Download Report/i }));
@@ -63,7 +63,7 @@ describe('DownloadReportButton', () => {
     render(<DownloadReportButton jobId="e5ced7ac-117f-4d13-8cd0-3957c15dc189" disabled={false} />);
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /Download Report/i })).not.toHaveAttribute('aria-disabled', 'true');
+      expect(screen.getByRole('button', { name: /Download Report/i }).getAttribute('aria-disabled')).not.toBe('true');
     });
 
     fireEvent.click(screen.getByRole('button', { name: /Download Report/i }));
@@ -81,7 +81,7 @@ describe('DownloadReportButton', () => {
     render(<DownloadReportButton jobId="e5ced7ac-117f-4d13-8cd0-3957c15dc189" disabled={false} />);
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /Download Report/i })).not.toHaveAttribute('aria-disabled', 'true');
+      expect(screen.getByRole('button', { name: /Download Report/i }).getAttribute('aria-disabled')).not.toBe('true');
     });
 
     fireEvent.click(screen.getByRole('button', { name: /Download Report/i }));
