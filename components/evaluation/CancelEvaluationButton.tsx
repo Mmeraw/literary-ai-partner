@@ -36,6 +36,13 @@ export function CancelEvaluationButton({
     router.refresh();
   };
 
+  const returnToEvaluations = () => {
+    setIsOpen(false);
+    setError(null);
+    router.push(returnHref);
+    router.refresh();
+  };
+
   const goToJobList = () => {
     setIsOpen(false);
     router.push(returnHref);
@@ -68,6 +75,7 @@ export function CancelEvaluationButton({
       setState('cancelled');
       setError(null);
       onSuccess?.();
+      router.push(returnHref);
       router.refresh();
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Cancellation could not be saved. Please refresh and try again.';
@@ -98,7 +106,10 @@ export function CancelEvaluationButton({
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"
           onClick={() => {
-            if (!isLoading) closeAndRefresh();
+            if (!isLoading) {
+              if (state === 'error' || isCancelled) returnToEvaluations();
+              else closeAndRefresh();
+            }
           }}
         >
           <div
@@ -114,7 +125,7 @@ export function CancelEvaluationButton({
               </h2>
               <button
                 type="button"
-                onClick={closeAndRefresh}
+                onClick={state === 'error' || isCancelled ? returnToEvaluations : closeAndRefresh}
                 disabled={isLoading}
                 className="text-gray-400 hover:text-gray-600 disabled:opacity-50"
                 aria-label="Close"
@@ -158,7 +169,7 @@ export function CancelEvaluationButton({
                     onClick={goToJobList}
                     className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
                   >
-                    Return to job list
+                    Return to Evaluations
                   </button>
                   <button
                     type="button"
@@ -173,6 +184,10 @@ export function CancelEvaluationButton({
                   <button
                     type="button"
                     onClick={() => {
+                      if (error) {
+                        returnToEvaluations();
+                        return;
+                      }
                       setIsOpen(false);
                       setError(null);
                       setState('idle');
@@ -180,7 +195,7 @@ export function CancelEvaluationButton({
                     disabled={isLoading}
                     className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors disabled:opacity-50"
                   >
-                    {error ? 'Close' : 'Keep Evaluation'}
+                    {error ? 'Return to Evaluations' : 'Keep Evaluation'}
                   </button>
                   <button
                     type="button"
