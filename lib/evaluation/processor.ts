@@ -73,6 +73,12 @@ import type { ProviderTelemetryEntry } from '@/lib/evaluation/pipeline/providerT
 import { classifySubmissionScope, countWords } from '@/lib/evaluation/pipeline/submissionScope';
 import { runQualityGateV2, QG_MAX_HIGH_SCORE_WHEN_LOW_CONFIDENCE } from '@/lib/evaluation/pipeline/qualityGate';
 import {
+  validateTemplateCompleteness,
+  sendCompletenessAlertEmail,
+  TEMPLATE_COMPLETENESS_USER_MESSAGE,
+  TEMPLATE_COMPLETENESS_FAILURE_CODE,
+} from '@/lib/evaluation/pipeline/templateCompletenessGate';
+import {
   buildScoreLedger,
   computeAuthorityComposite,
 } from '@/lib/evaluation/pipeline/buildScoreLedger';
@@ -9389,6 +9395,40 @@ export async function processEvaluationJob(
       await markFailed(invalidManuscriptIdError);
 
       return { success: false, error: invalidManuscriptIdError };
+    }
+
+    // ── Template Completeness Gate ──────────────────────────────────────────
+    // Validates that the evaluation artifact meets the short-form template's
+    // structural requirements BEFORE persisting. If critical violations are
+    // detected, the artifact is NOT persisted and support is alerted.
+    const templateCompletenessCheck = validateTemplateCompleteness(effectiveEvaluationResult);
+    if (!templateCompletenessCheck.pass) {
+      console.error(
+        `[Processor] ${jobId}: Template completeness gate FAILED — ${templateCompletenessCheck.violations.length} violation(s)`,
+        templateCompletenessCheck.summary,
+      );
+
+      // Send support alert (fail-soft — don't crash if email fails)
+      try {
+        const emailResult = await sendCompletenessAlertEmail(jobId, templateCompletenessCheck.violations);
+        console.log(`[Processor] ${jobId}: completeness alert email sent=${emailResult.sent}`);
+      } catch (emailError) {
+        console.warn(`[Processor] ${jobId}: failed to send completeness alert email`, emailError);
+      }
+
+      await markFailed(
+        TEMPLATE_COMPLETENESS_USER_MESSAGE,
+        TEMPLATE_COMPLETENESS_FAILURE_CODE,
+      );
+
+      return { success: false, error: templateCompletenessCheck.summary };
+    }
+
+    if (templateCompletenessCheck.violations.length > 0) {
+      console.warn(
+        `[Processor] ${jobId}: Template completeness gate passed with ${templateCompletenessCheck.violations.length} warning(s)`,
+        templateCompletenessCheck.violations.map((v) => v.code),
+      );
     }
 
     const persistArtifactsStartedAt = startLatencyStage({

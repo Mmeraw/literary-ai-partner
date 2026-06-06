@@ -4,6 +4,11 @@ export type HardStopCode =
   | 'PIPELINE_GLOBAL_SLA_EXCEEDED'
   | 'PROVIDER_BUDGET_EXCEEDED';
 
+export type SplitBrainRecoveryAction =
+  | 'repair_to_expected_handoff'
+  | 'sync_progress_to_job_state'
+  | 'halt_for_engineering_review';
+
 export interface QueueHardStopCandidate {
   id: string;
   status: string;
@@ -16,9 +21,29 @@ export interface QueueHardStopCandidate {
   progress?: Record<string, unknown> | null;
 }
 
+export interface SupportAlertPayload {
+  to: typeof REVISIONGRADE_SUPPORT_EMAIL;
+  subject: string;
+  severity: 'warning' | 'critical';
+  body: string;
+}
+
 export interface HardStopDecision {
   code: HardStopCode;
   reason: string;
+  internalReason?: string;
+  recoveryKey?: string;
+  recoveryAction?: SplitBrainRecoveryAction;
+  notifySupport?: SupportAlertPayload;
+}
+
+export interface SplitBrainRecoveryDecision {
+  state: 'none' | 'healable' | 'structural';
+  action: SplitBrainRecoveryAction | 'none';
+  recoveryKey: string | null;
+  publicReason: string | null;
+  internalReason: string | null;
+  notifySupport: SupportAlertPayload | null;
 }
 
 export interface MaxAgeKillSwitchCandidate {
@@ -32,6 +57,11 @@ export interface MaxAgeKillSwitchPartition {
   queuedEligibleIds: string[];
   queuedSkippedIds: string[];
 }
+
+export const REVISIONGRADE_SUPPORT_EMAIL = 'support@revisiongrade.com' as const;
+
+const AUTHOR_SAFE_SYNC_MESSAGE =
+  'Evaluation paused while synchronizing progress. Your manuscript and completed analysis have been preserved. Continue Evaluation will resume from the safest available checkpoint.';
 
 const PHASE_ADVANCE_ORDER = [
   'phase_0',
@@ -96,6 +126,12 @@ const PHASE_ALIASES: Readonly<Record<string, (typeof PHASE_ADVANCE_ORDER)[number
   revision_queue: 'phase_5',
 };
 
+const OPTIONAL_PHASE_HANDOFFS = new Set<string>([
+  // Short-form evaluations do not run the long-form independent-read lane.
+  'phase_2->phase_3',
+  'pass_2->pass_3',
+]);
+
 function normalizePhaseKey(value: string | null): (typeof PHASE_ADVANCE_ORDER)[number] | null {
   if (!value) return null;
   const normalized = value.trim().toLowerCase().replace(/[\s.-]+/g, '_');
@@ -112,6 +148,44 @@ const SHORT_FORM_SKIP_PAIRS: ReadonlySet<string> = new Set([
   'phase_2->phase_3',    // short-form bypasses phase_3a (diagnosis)
 ]);
 
+function buildSplitBrainInternalReason(job: QueueHardStopCandidate): string {
+  const progress = job.progress ?? {};
+  return `Split-brain state detected: job_id=${job.id}, status=${job.status}, phase=${job.phase ?? 'null'}, phase_status=${job.phase_status ?? 'null'}, progress.phase=${String(progress.phase ?? 'null')}, progress.phase_status=${String(progress.phase_status ?? 'null')}`;
+}
+
+function buildRecoveryKey(job: QueueHardStopCandidate, state: 'healable' | 'structural'): string {
+  const progress = job.progress ?? {};
+  return [
+    'SPLIT_BRAIN',
+    state.toUpperCase(),
+    job.id,
+    job.phase ?? 'null',
+    job.phase_status ?? 'null',
+    String(progress.phase ?? 'null'),
+    String(progress.phase_status ?? 'null'),
+  ].join(':');
+}
+
+function buildSupportAlert(job: QueueHardStopCandidate, args: {
+  severity: 'warning' | 'critical';
+  action: SplitBrainRecoveryAction;
+  recoveryKey: string;
+  internalReason: string;
+}): SupportAlertPayload {
+  return {
+    to: REVISIONGRADE_SUPPORT_EMAIL,
+    subject: `[RevisionGrade] ${args.severity === 'critical' ? 'Critical' : 'Warning'} evaluation state recovery: ${args.recoveryKey}`,
+    severity: args.severity,
+    body: [
+      args.internalReason,
+      `recovery_key=${args.recoveryKey}`,
+      `recovery_action=${args.action}`,
+      `created_at=${job.created_at ?? 'null'}`,
+      `updated_at=${job.updated_at ?? 'null'}`,
+      'Action required: inspect the phase transition writer that allowed job state and progress state to diverge.',
+    ].join('\n'),
+  };
+}
 function isExpectedQueuedPhaseHandoff(args: {
   jobStatus: string;
   jobPhase: string | null;
@@ -126,6 +200,13 @@ function isExpectedQueuedPhaseHandoff(args: {
   const previousPhase = normalizePhaseKey(args.progressPhase);
   const nextPhase = normalizePhaseKey(args.jobPhase);
   if (!previousPhase || !nextPhase) return false;
+
+  if (OPTIONAL_PHASE_HANDOFFS.has(`${args.progressPhase}->${args.jobPhase}`)) {
+    return true;
+  }
+  if (OPTIONAL_PHASE_HANDOFFS.has(`${previousPhase}->${nextPhase}`)) {
+    return true;
+  }
 
   const previousIndex = PHASE_ADVANCE_ORDER.indexOf(previousPhase);
   const nextIndex = PHASE_ADVANCE_ORDER.indexOf(nextPhase);
@@ -219,6 +300,36 @@ export function classifySplitBrain(job: QueueHardStopCandidate): 'healable' | 's
   return 'none';
 }
 
+export function decideSplitBrainRecovery(job: QueueHardStopCandidate): SplitBrainRecoveryDecision {
+  const state = classifySplitBrain(job);
+  if (state === 'none') {
+    return {
+      state,
+      action: 'none',
+      recoveryKey: null,
+      publicReason: null,
+      internalReason: null,
+      notifySupport: null,
+    };
+  }
+
+  const internalReason = buildSplitBrainInternalReason(job);
+  const recoveryKey = buildRecoveryKey(job, state);
+  const action: SplitBrainRecoveryAction = state === 'healable'
+    ? (job.progress?.phase !== job.phase ? 'repair_to_expected_handoff' : 'sync_progress_to_job_state')
+    : 'halt_for_engineering_review';
+  const severity = state === 'structural' ? 'critical' : 'warning';
+
+  return {
+    state,
+    action,
+    recoveryKey,
+    publicReason: state === 'structural' ? AUTHOR_SAFE_SYNC_MESSAGE : null,
+    internalReason,
+    notifySupport: buildSupportAlert(job, { severity, action, recoveryKey, internalReason }),
+  };
+}
+
 export function isPostPhase0HandoffLimbo(job: QueueHardStopCandidate, args: {
   nowMs: number;
   graceMs: number;
@@ -288,11 +399,15 @@ export function classifyQueuedHardStop(job: QueueHardStopCandidate, args: {
   longFormSlaMs: number;
   hasSeedArtifacts: boolean;
 }): HardStopDecision | null {
-  const splitBrain = classifySplitBrain(job);
-  if (splitBrain === 'structural') {
+  const splitBrainRecovery = decideSplitBrainRecovery(job);
+  if (splitBrainRecovery.state === 'structural') {
     return {
       code: 'STATE_SPLIT_BRAIN_DETECTED',
-      reason: `Split-brain state detected: phase=${job.phase ?? 'null'}, phase_status=${job.phase_status ?? 'null'}, progress.phase=${String(job.progress?.phase ?? 'null')}, progress.phase_status=${String(job.progress?.phase_status ?? 'null')}`,
+      reason: splitBrainRecovery.publicReason ?? AUTHOR_SAFE_SYNC_MESSAGE,
+      internalReason: splitBrainRecovery.internalReason ?? undefined,
+      recoveryKey: splitBrainRecovery.recoveryKey ?? undefined,
+      recoveryAction: splitBrainRecovery.action === 'none' ? undefined : splitBrainRecovery.action,
+      notifySupport: splitBrainRecovery.notifySupport ?? undefined,
     };
   }
 

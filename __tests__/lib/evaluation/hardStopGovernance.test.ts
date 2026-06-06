@@ -3,10 +3,12 @@ export {};
 import {
   classifyQueuedHardStop,
   classifySplitBrain,
+  decideSplitBrainRecovery,
   isGlobalSlaExceeded,
   isPostPhase0HandoffLimbo,
   partitionMaxAgeKillSwitchCandidates,
   isSplitBrainState,
+  REVISIONGRADE_SUPPORT_EMAIL,
   resolveProviderBudget,
 } from '../../../lib/evaluation/hardStopGovernance';
 
@@ -60,6 +62,7 @@ describe('hardStopGovernance', () => {
       ['phase_3b', 'wave_revision'],
       ['wave_revision', 'phase_5'],
       ['pass_2', 'pass_3a'],
+      ['pass_2', 'pass_3'],
       ['pass_3b', 'wave'],
       ['wave', 'revision_queue'],
     ];
@@ -105,6 +108,49 @@ describe('hardStopGovernance', () => {
         hasSeedArtifacts: true,
       })?.code,
     ).toBe('STATE_SPLIT_BRAIN_DETECTED');
+  });
+
+  test('structural split-brain creates recovery key and support alert', () => {
+    const decision = classifyQueuedHardStop(
+      {
+        id: 'job-structural',
+        status: 'queued',
+        phase: 'phase_3',
+        phase_status: 'queued',
+        progress: { phase: 'phase_0', phase_status: 'complete' },
+      },
+      {
+        nowMs: Date.now(),
+        graceMs: 90_000,
+        shortFormSlaMs: 15 * 60_000,
+        longFormSlaMs: 60 * 60_000,
+        hasSeedArtifacts: true,
+      },
+    );
+
+    expect(decision?.code).toBe('STATE_SPLIT_BRAIN_DETECTED');
+    expect(decision?.reason).not.toMatch(/Split-brain state detected/);
+    expect(decision?.internalReason).toMatch(/Split-brain state detected/);
+    expect(decision?.recoveryKey).toContain('SPLIT_BRAIN:STRUCTURAL:job-structural');
+    expect(decision?.recoveryAction).toBe('halt_for_engineering_review');
+    expect(decision?.notifySupport?.to).toBe(REVISIONGRADE_SUPPORT_EMAIL);
+    expect(decision?.notifySupport?.severity).toBe('critical');
+  });
+
+  test('healable split-brain chooses deterministic recovery without hard stop', () => {
+    const recovery = decideSplitBrainRecovery({
+      id: 'job-healable',
+      status: 'queued',
+      phase: 'phase_3',
+      phase_status: 'queued',
+      progress: { phase: 'phase_2', phase_status: 'complete' },
+    });
+
+    expect(recovery.state).toBe('healable');
+    expect(recovery.action).toBe('repair_to_expected_handoff');
+    expect(recovery.recoveryKey).toContain('SPLIT_BRAIN:HEALABLE:job-healable');
+    expect(recovery.notifySupport?.to).toBe(REVISIONGRADE_SUPPORT_EMAIL);
+    expect(recovery.notifySupport?.severity).toBe('warning');
   });
 
   test('detects post-phase0 limbo when seeds are missing and grace elapses', () => {
