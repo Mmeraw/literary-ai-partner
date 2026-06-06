@@ -27,6 +27,17 @@ function makePass(pass: 1 | 2, axis: "craft_execution" | "editorial_literary"): 
 
 function makePass3Completion(): CreateCompletionFn {
   const payload = {
+    diagnostic_spine: {
+      central_argument:
+        "Institutional pressure turns private grief into a public test of whether memory can survive political convenience.",
+      core_story_question:
+        "Can Crown Hyla preserve a truthful memory of the chamber without being absorbed by the institution that benefits from forgetting it?",
+      dominant_conflict_engine: "institutional pressure against personal memory",
+      primary_reader_promise:
+        "The manuscript promises a slow-burn reckoning where atmospheric evidence and personal stakes expose the cost of official silence.",
+      primary_structural_gap:
+        "The evaluated section still needs sharper causal bridges between observed chamber details and the protagonist's irreversible decisions.",
+    },
     criteria: CRITERIA_KEYS.map((key) => ({
       key,
       craft_score: 7,
