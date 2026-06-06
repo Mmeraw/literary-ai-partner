@@ -161,7 +161,10 @@ export type ArtifactType =
    * source wave/gate attribution, severity justification, and canon risk
    * classification. Long-form only (≥25,000 words). Non-blocking.
    */
-  | "revision_canon_metadata_v1";
+  /** Compact final verification rail for long-form report readiness. */
+  | "revision_canon_metadata_v1"
+  /** Compact final verification rail for long-form report readiness. */
+  | "final_external_audit_v1";
 
 /**
  * Compute SHA256 hex digest of input string

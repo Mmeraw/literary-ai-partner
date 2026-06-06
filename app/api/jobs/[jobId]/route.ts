@@ -76,6 +76,10 @@ type CanonicalJobResponse = {
   phase2_completed_at?: string | null;
   pass3_started_at?: string | null;
   pass3_completed_at?: string | null;
+  final_external_audit_started_at?: string | null;
+  final_external_audit_completed_at?: string | null;
+  final_external_audit_verdict?: "PASS" | "WARN" | "BLOCK" | "SKIP" | null;
+  final_external_audit_blocking?: boolean | null;
   /** Authoritative Phase 0 telemetry from progress JSONB — not column timestamp deltas */
   phase0_total_duration_ms?: number | null;
   phase0_calibration_word_count?: number | null;
@@ -234,6 +238,18 @@ export async function GET(req: NextRequest, ctx: { params: Params }) {
     if (stageTiming.pass3_completed_at !== undefined) {
       response.job.pass3_completed_at = stageTiming.pass3_completed_at;
     }
+    if (stageTiming.final_external_audit_started_at !== undefined) {
+      response.job.final_external_audit_started_at = stageTiming.final_external_audit_started_at;
+    }
+    if (stageTiming.final_external_audit_completed_at !== undefined) {
+      response.job.final_external_audit_completed_at = stageTiming.final_external_audit_completed_at;
+    }
+    if (stageTiming.final_external_audit_verdict !== undefined) {
+      response.job.final_external_audit_verdict = stageTiming.final_external_audit_verdict;
+    }
+    if (stageTiming.final_external_audit_blocking !== undefined) {
+      response.job.final_external_audit_blocking = stageTiming.final_external_audit_blocking;
+    }
     if (canSeeOperationalDetails && stageTiming.phase0_total_duration_ms !== undefined) {
       response.job.phase0_total_duration_ms = stageTiming.phase0_total_duration_ms;
     }
@@ -312,7 +328,6 @@ export async function GET(req: NextRequest, ctx: { params: Params }) {
               progress: {
                 ...existingProgress,
                 pass3_completed_at: ts,
-                progress_high_water: 100,
               },
             })
             .eq('id', job.id)
@@ -320,6 +335,32 @@ export async function GET(req: NextRequest, ctx: { params: Params }) {
         }
       } catch {
         // Non-blocking: self-healing is best-effort
+      }
+    }
+
+    if (
+      job.status === 'complete' &&
+      response.job.pass3_completed_at &&
+      typeof response.job.manuscript_word_count === 'number' &&
+      response.job.manuscript_word_count >= LONGFORM_THRESHOLD &&
+      !response.job.final_external_audit_completed_at
+    ) {
+      try {
+        const admin = createAdminClient();
+        const { data: auditRow } = await admin
+          .from('evaluation_artifacts')
+          .select('content, created_at')
+          .eq('job_id', job.id)
+          .eq('artifact_type', 'final_external_audit_v1')
+          .maybeSingle();
+        const content = auditRow?.content as Record<string, unknown> | undefined;
+        if (auditRow?.created_at && content) {
+          response.job.final_external_audit_completed_at = auditRow.created_at as string;
+          response.job.final_external_audit_verdict = typeof content.verdict === 'string' ? content.verdict as CanonicalJobResponse['final_external_audit_verdict'] : null;
+          response.job.final_external_audit_blocking = content.blocking === true;
+        }
+      } catch {
+        // Best-effort readiness enrichment only.
       }
     }
 
@@ -510,6 +551,10 @@ function extractStageTiming(job: Job): {
   phase2_completed_at?: string | null;
   pass3_started_at?: string | null;
   pass3_completed_at?: string | null;
+  final_external_audit_started_at?: string | null;
+  final_external_audit_completed_at?: string | null;
+  final_external_audit_verdict?: "PASS" | "WARN" | "BLOCK" | "SKIP" | null;
+  final_external_audit_blocking?: boolean | null;
   phase0_total_duration_ms?: number | null;
   phase0_calibration_word_count?: number | null;
 } {
@@ -538,6 +583,10 @@ function extractStageTiming(job: Job): {
     phase2_completed_at: pickTimestamp(p.phase2_completed_at),
     pass3_started_at: pickTimestamp(p.pass3_started_at),
     pass3_completed_at: pickTimestamp(p.pass3_completed_at),
+    final_external_audit_started_at: pickTimestamp(p.final_external_audit_started_at),
+    final_external_audit_completed_at: pickTimestamp(p.final_external_audit_completed_at),
+    final_external_audit_verdict: typeof p.final_external_audit_verdict === 'string' && ['PASS', 'WARN', 'BLOCK', 'SKIP'].includes(p.final_external_audit_verdict) ? p.final_external_audit_verdict as "PASS" | "WARN" | "BLOCK" | "SKIP" : p.final_external_audit_verdict === null ? null : undefined,
+    final_external_audit_blocking: typeof p.final_external_audit_blocking === 'boolean' ? p.final_external_audit_blocking : p.final_external_audit_blocking === null ? null : undefined,
     phase0_total_duration_ms: typeof p.phase0_total_duration_ms === 'number' ? p.phase0_total_duration_ms
       : typeof p.phase0_total_duration_ms === 'string' ? Number(p.phase0_total_duration_ms) || null
       : null,
