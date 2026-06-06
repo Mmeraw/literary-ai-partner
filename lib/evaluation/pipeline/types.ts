@@ -261,6 +261,7 @@ export type SynthesizedCriterion = {
       | "RECOMMENDATION_TRUNCATED"
       | "SCORE_LE8_EMPTY_RECOMMENDATIONS"
       | "DIAGNOSTIC_SPINE_PROMISE_MISMATCH"
+      | "DIAGNOSTIC_SPINE_CENTRAL_ARGUMENT_MISMATCH"
       | "DIAGNOSTIC_SPINE_WEAK_OR_ABSENT";
     author_facing_reason: string;
     retryable: boolean;

@@ -340,6 +340,86 @@ describe("parsePass3Response — diagnostic_spine integration", () => {
     expect(pacing?.recommendations).toHaveLength(0);
     expect(pacing?.technical_defects?.some((d) => d.code === "DIAGNOSTIC_SPINE_PROMISE_MISMATCH")).toBe(true);
   });
+
+  test("ACCEPTANCE: recommendation inconsistent with central_argument is suppressed", () => {
+    const raw = JSON.stringify({
+      diagnostic_spine: {
+        ...FULL_SPINE_RAW,
+        central_argument:
+          "The manuscript's governing thesis is a slow accumulation of atmospheric dread and reflective unease, where pressure compounds through stillness rather than velocity.",
+        primary_reader_promise:
+          "The opening establishes a contract around institutional contradiction and emotional cost.",
+      },
+      criteria: CRITERIA_KEYS.map((key) => ({
+        key,
+        craft_score: 7,
+        editorial_score: 6,
+        final_score_0_10: 7,
+        final_rationale: `Rationale for ${key}.`,
+        evidence: [{ snippet: `Evidence for ${key}.` }],
+        recommendations:
+          key === "pacing"
+            ? [
+                {
+                  priority: "medium",
+                  action:
+                    "In chapter 3, increase momentum by adding a decision beat and a clearer next step.",
+                  expected_impact: "Faster pacing and stronger propulsion.",
+                  anchor_snippet: "The marsh breathed in long, quiet swells.",
+                  source_pass: 3,
+                  issue_family: "pacing",
+                  strategic_lever: "momentum_visibility",
+                  revision_granularity: "scene",
+                  mechanism: "the section is too atmospheric",
+                  specific_fix: "add a decision beat",
+                  reader_effect: "higher speed",
+                  symptom: "reader urgency remains too diffuse at the scene turn",
+                  mistake_proofing: "preserve atmospheric texture while adjusting scene movement",
+                },
+              ]
+            : [
+                {
+                  priority: "medium",
+                  action: `In chapter 2 for ${key}, tighten one sentence because the turn is diffuse.`,
+                  expected_impact: "Gives the reader clearer progression.",
+                  anchor_snippet: `Anchor for ${key}.`,
+                  source_pass: 3,
+                  issue_family: "scene_structure",
+                  strategic_lever: "scene_goal_clarity",
+                  revision_granularity: "scene",
+                  mechanism: "the turn is diffuse",
+                  specific_fix: "tighten one sentence",
+                  reader_effect: "clearer progression",
+                },
+              ],
+      })),
+      overall: {
+        overall_score_0_100: 72,
+        verdict: "revise",
+        one_paragraph_summary: "Strong atmosphere, but selective structural drag.",
+        top_3_strengths: ["voice", "theme", "worldbuilding"],
+        top_3_risks: ["narrativeClosure", "pacing", "marketability"],
+        submission_readiness: "nearly_ready",
+      },
+    });
+
+    const result = parsePass3Response(
+      raw,
+      pass1,
+      pass2,
+      "o3",
+      "word ".repeat(26_000),
+      undefined,
+      longFormScope,
+    );
+
+    const pacing = result.criteria.find((c) => c.key === "pacing");
+    expect(pacing).toBeDefined();
+    expect(pacing?.recommendations).toHaveLength(0);
+    expect(
+      pacing?.technical_defects?.some((d) => d.code === "DIAGNOSTIC_SPINE_CENTRAL_ARGUMENT_MISMATCH"),
+    ).toBe(true);
+  });
 });
 
 // ── Golden Spine isolation tests ──────────────────────────────────────────────

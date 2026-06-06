@@ -603,34 +603,99 @@ function recommendationConflictsWithPrimaryReaderPromise(
   return false;
 }
 
+function recommendationConflictsWithCentralArgument(
+  recommendation: SynthesizedCriterion["recommendations"][number],
+  centralArgument: string,
+): boolean {
+  const argument = normalizeForPromiseMatch(centralArgument);
+  if (!argument) return false;
+
+  const recommendationText = normalizeForPromiseMatch(
+    [
+      recommendation.action,
+      recommendation.expected_impact,
+      recommendation.mechanism,
+      recommendation.specific_fix,
+      recommendation.reader_effect,
+    ]
+      .filter(Boolean)
+      .join(" "),
+  );
+
+  if (!recommendationText) return false;
+
+  const atmosphericArgument = containsAnyMarker(
+    argument,
+    DIAGNOSTIC_SPINE_PROMISE_ATMOSPHERIC_MARKERS,
+  );
+  const propulsiveArgument = containsAnyMarker(
+    argument,
+    DIAGNOSTIC_SPINE_PROMISE_PROPULSIVE_MARKERS,
+  );
+
+  if (atmosphericArgument && containsAnyMarker(recommendationText, DIAGNOSTIC_SPINE_REC_PROPULSION_MARKERS)) {
+    return true;
+  }
+
+  if (propulsiveArgument && containsAnyMarker(recommendationText, DIAGNOSTIC_SPINE_REC_SLOWDOWN_MARKERS)) {
+    return true;
+  }
+
+  return false;
+}
+
 function applyDiagnosticSpineRecommendationGuard(args: {
   criteria: SynthesizedCriterion[];
   diagnosticSpine: DiagnosticSpine;
 }): SynthesizedCriterion[] {
   const primaryReaderPromise = args.diagnosticSpine.primary_reader_promise.trim();
-  if (!primaryReaderPromise) return args.criteria;
+  const centralArgument = args.diagnosticSpine.central_argument.trim();
+  if (!primaryReaderPromise && !centralArgument) return args.criteria;
 
   return args.criteria.map((criterion) => {
-    const kept = criterion.recommendations.filter(
-      (rec) => !recommendationConflictsWithPrimaryReaderPromise(rec, primaryReaderPromise),
-    );
+    let promiseConflictSeen = false;
+    let centralArgumentConflictSeen = false;
+
+    const kept = criterion.recommendations.filter((rec) => {
+      const promiseConflict = primaryReaderPromise
+        ? recommendationConflictsWithPrimaryReaderPromise(rec, primaryReaderPromise)
+        : false;
+      const centralArgumentConflict = centralArgument
+        ? recommendationConflictsWithCentralArgument(rec, centralArgument)
+        : false;
+
+      if (promiseConflict) promiseConflictSeen = true;
+      if (centralArgumentConflict) centralArgumentConflictSeen = true;
+
+      return !(promiseConflict || centralArgumentConflict);
+    });
 
     if (kept.length === criterion.recommendations.length) {
       return criterion;
     }
 
+    const newDefects: NonNullable<SynthesizedCriterion["technical_defects"]> = [];
+    if (promiseConflictSeen) {
+      newDefects.push({
+        code: "DIAGNOSTIC_SPINE_PROMISE_MISMATCH",
+        author_facing_reason:
+          "One or more recommendations were suppressed because they contradicted the diagnostic spine's primary reader promise.",
+        retryable: false,
+      });
+    }
+    if (centralArgumentConflictSeen) {
+      newDefects.push({
+        code: "DIAGNOSTIC_SPINE_CENTRAL_ARGUMENT_MISMATCH",
+        author_facing_reason:
+          "One or more recommendations were suppressed because they contradicted the diagnostic spine's central argument.",
+        retryable: false,
+      });
+    }
+
     return {
       ...criterion,
       recommendations: kept,
-      technical_defects: dedupeTechnicalDefects([
-        ...(criterion.technical_defects ?? []),
-        {
-          code: "DIAGNOSTIC_SPINE_PROMISE_MISMATCH",
-          author_facing_reason:
-            "One or more recommendations were suppressed because they contradicted the diagnostic spine's primary reader promise.",
-          retryable: false,
-        },
-      ]),
+      technical_defects: dedupeTechnicalDefects([...(criterion.technical_defects ?? []), ...newDefects]),
     };
   });
 }
