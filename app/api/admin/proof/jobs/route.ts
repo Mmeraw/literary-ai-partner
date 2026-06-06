@@ -5,6 +5,7 @@ import { JOB_TYPES, type JobType } from "@/lib/jobs/types";
 import { generateTraceId, jobLogger, logger } from "@/lib/observability/logger";
 import { emitLatencyTrace } from "@/lib/observability/latencyTrace";
 import { triggerEvaluationWorker } from "@/lib/jobs/triggerWorker";
+import { failEvaluationJobTerminally } from "@/lib/jobs/failJobTerminal";
 
 const ALLOWED_JOB_TYPES = new Set<string>(Object.values(JOB_TYPES));
 
@@ -176,7 +177,7 @@ export async function POST(req: Request) {
       },
     });
 
-    void triggerEvaluationWorker({
+    const kickoffResult = await triggerEvaluationWorker({
       req,
       jobId: job.id,
       trace_id,
@@ -184,6 +185,34 @@ export async function POST(req: Request) {
       source: "api.admin.proof.jobs.create",
       kickoffDispatchStartedAt,
     });
+
+    const targetClaimFailed = kickoffResult.ok && kickoffResult.targetClaimed === false;
+    const noJobsClaimed = kickoffResult.ok && kickoffResult.claimed !== null && kickoffResult.claimed < 1;
+    if (!kickoffResult.ok || targetClaimFailed || noJobsClaimed) {
+      const reason = !kickoffResult.ok
+        ? kickoffResult.error
+        : targetClaimFailed
+          ? "worker_did_not_claim_created_job"
+          : "worker_returned_zero_claims";
+
+      await failEvaluationJobTerminally({
+        supabase: createAdminClient(),
+        jobId: job.id,
+        failureCode: "WORKER_KICKOFF_FAILED",
+        message: `Evaluation worker did not accept the job: ${reason}`,
+        source: "api.admin.proof.jobs.worker_kickoff_guard",
+      });
+
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "Evaluation worker is temporarily unavailable. Please try again shortly.",
+          code: "WORKER_KICKOFF_FAILED",
+          trace_id,
+        },
+        { status: 503 },
+      );
+    }
 
     logger.info("Proof job created successfully", {
       trace_id,
