@@ -34,6 +34,23 @@ function makeJobsSelectBackStub(jobId: string) {
   };
 }
 
+// ---------------------------------------------------------------------------
+// Helper: stub the abuse-limit queries that run before input validation.
+// enforceUserEvaluationAbuseLimits calls:
+//   supabase.from('evaluation_jobs').select('id', {count,head}).eq('user_id',...).gte(...)
+//   supabase.from('evaluation_jobs').select('id', {count,head}).eq('user_id',...).in(...)
+// ---------------------------------------------------------------------------
+function makeAbuseLimitStub() {
+  return {
+    select: jest.fn(() => ({
+      eq: jest.fn(() => ({
+        gte: jest.fn(async () => ({ count: 0, error: null })),
+        in: jest.fn(async () => ({ count: 0, error: null })),
+      })),
+    })),
+  };
+}
+
 describe("POST /api/evaluate input contract", () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -47,8 +64,16 @@ describe("POST /api/evaluate input contract", () => {
   });
 
   test("returns 400 when both manuscript_id and manuscript_text are provided", async () => {
+    const abuseLimitStub = {
+      select: jest.fn(() => ({
+        eq: jest.fn(() => ({
+          gte: jest.fn(async () => ({ count: 0, error: null })),
+          in: jest.fn(async () => ({ count: 0, error: null })),
+        })),
+      })),
+    };
     const supabase = {
-      from: jest.fn(),
+      from: jest.fn(() => abuseLimitStub),
     };
     mockCreateAdminClient.mockReturnValue(supabase as never);
 
@@ -69,7 +94,6 @@ describe("POST /api/evaluate input contract", () => {
     expect(json.error).toBe(
       "Ambiguous manuscript source: provide either manuscript_id or manuscript_text, not both.",
     );
-    expect(supabase.from).not.toHaveBeenCalled();
   });
 
   test("accepts text-only input and creates manuscript + evaluation job", async () => {
@@ -98,12 +122,16 @@ describe("POST /api/evaluate input contract", () => {
       }),
     }));
 
+    let evalJobsCalls = 0;
     const supabase = {
       from: jest.fn((table: string) => {
         if (table === "manuscripts") {
           return { insert: manuscriptInsertMock };
         }
-        // evaluation_jobs: handle both INSERT and SELECT-back
+        // First two evaluation_jobs calls are abuse-limit checks
+        evalJobsCalls++;
+        if (evalJobsCalls <= 2) return makeAbuseLimitStub();
+        // Subsequent calls: INSERT and SELECT-back
         return {
           insert: jobInsertMock,
           ...makeJobsSelectBackStub("job-abc"),
@@ -163,11 +191,14 @@ describe("POST /api/evaluate input contract", () => {
       }),
     }));
 
+    let evalJobsCalls2 = 0;
     const supabase = {
       from: jest.fn((table: string) => {
         if (table === "manuscripts") {
           return { insert: manuscriptInsertMock };
         }
+        evalJobsCalls2++;
+        if (evalJobsCalls2 <= 2) return makeAbuseLimitStub();
         return {
           insert: jobInsertMock,
           ...makeJobsSelectBackStub("job-derived-title"),
@@ -251,13 +282,16 @@ describe("POST /api/evaluate input contract", () => {
     let jobSelectBackCallCount = 0;
     const jobIds = ["job-first", "job-second"];
 
+    let evalJobsCalls3 = 0;
     const supabase = {
       from: jest.fn((table: string) => {
         if (table === "manuscripts") {
           return { insert: manuscriptInsertMock };
         }
-        // evaluation_jobs: INSERT + SELECT-back (alternates per request)
-        const currentJobId = jobIds[jobSelectBackCallCount] ?? "job-first";
+        evalJobsCalls3++;
+        // First 2 calls per POST are abuse-limit checks (4 total for 2 requests)
+        if (evalJobsCalls3 <= 2 || (evalJobsCalls3 >= 5 && evalJobsCalls3 <= 6)) return makeAbuseLimitStub();
+        // Remaining: INSERT + SELECT-back
         return {
           insert: jobInsertMock,
           select: jest.fn(() => ({
@@ -324,11 +358,14 @@ describe("POST /api/evaluate input contract", () => {
       }),
     }));
 
+    let evalJobsCalls4 = 0;
     const supabase = {
       from: jest.fn((table: string) => {
         if (table === "manuscripts") {
           return { insert: manuscriptInsertMock };
         }
+        evalJobsCalls4++;
+        if (evalJobsCalls4 <= 2) return makeAbuseLimitStub();
         return {
           insert: jobInsertMock,
           ...makeJobsSelectBackStub("job-trigger"),
