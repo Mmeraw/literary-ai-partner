@@ -55,12 +55,47 @@ jest.mock("@supabase/supabase-js", () => ({
  *  - meaningful rationale, evidence, summary, strengths, risks
  *  - enrichment with diagnosed_genre + target_audience + premise
  */
-function makeGateCompliantEvaluationResult(overrides?: Record<string, unknown>) {
+/**
+ * 4 meaningful recommendations satisfying the density floor for score 6-7.
+ * Each has at least 2 meaningful fields including a specific_fix.
+ */
+const GATE_COMPLIANT_RECOMMENDATIONS = [
+  {
+    anchor_snippet: "The opening scene establishes tone but lacks a clear inciting event within the first three pages.",
+    symptom: "Reader engagement drops when the narrative premise is not established early enough.",
+    specific_fix: "Move the protagonist's discovery of the letter to page one instead of page four.",
+    reader_effect: "Readers gain immediate emotional investment when stakes are visible from the opening paragraph.",
+  },
+  {
+    anchor_snippet: "Dialogue between secondary characters in chapter two reads as exposition rather than conversation.",
+    symptom: "Information delivery through dialogue feels unnatural when characters explain what they both already know.",
+    specific_fix: "Rewrite the scene so each speaker reveals only information the other character does not possess.",
+    reader_effect: "Natural-sounding dialogue maintains immersion and avoids pulling readers out of the story world.",
+  },
+  {
+    anchor_snippet: "The transition between the flashback and present timeline on page twelve lacks a clear visual or temporal marker.",
+    symptom: "Temporal disorientation occurs when the reader cannot distinguish past from present narrative layers.",
+    specific_fix: "Add a section break with an italicized date stamp before each timeline shift throughout the manuscript.",
+    reader_effect: "Clear temporal markers let readers track the dual timeline without rereading prior passages.",
+  },
+  {
+    anchor_snippet: "The climactic confrontation resolves too quickly relative to the buildup across the preceding chapters.",
+    symptom: "Pacing imbalance when dramatic tension accumulated over many pages deflates in a single paragraph.",
+    specific_fix: "Expand the confrontation scene to at least three pages with beat-by-beat emotional escalation.",
+    reader_effect: "Extended resolution allows readers to experience the full emotional payoff of sustained dramatic tension.",
+  },
+];
+
+function makeGateCompliantEvaluationResult(overrides?: Record<string, unknown> & { criteriaScore?: number }) {
   const CRITERION_KEYS = [
     "concept", "narrativeDrive", "character", "voice",
     "sceneConstruction", "dialogue", "theme", "worldbuilding",
     "pacing", "proseControl", "tone", "narrativeClosure", "marketability",
   ];
+
+  const score = overrides?.criteriaScore ?? 9;
+  const needsRecs = score <= 8;
+  const { criteriaScore: _unused, ...restOverrides } = overrides ?? {};
 
   return {
     schema_version: "evaluation_result_v2",
@@ -113,17 +148,17 @@ function makeGateCompliantEvaluationResult(overrides?: Record<string, unknown>) 
       signal_strength: "SUFFICIENT",
       confidence_band: "MEDIUM",
       confidence_level: "Moderate",
-      score_0_10: 9,
+      score_0_10: score,
       rationale:
         "Criterion is well-supported by manuscript evidence and multi-pass synthesis confirms consistent quality.",
       evidence: [
         { snippet: "Evidence anchor from the submitted manuscript demonstrating this criterion in context." },
       ],
-      recommendations: [],
+      recommendations: needsRecs ? [...GATE_COMPLIANT_RECOMMENDATIONS] : [],
     })),
     recommendations: {
-      quick_wins: [],
-      strategic_revisions: [],
+      quick_wins: needsRecs ? [GATE_COMPLIANT_RECOMMENDATIONS[0]] : [],
+      strategic_revisions: needsRecs ? [GATE_COMPLIANT_RECOMMENDATIONS[1]] : [],
     },
     metrics: {
       manuscript: {
@@ -146,7 +181,7 @@ function makeGateCompliantEvaluationResult(overrides?: Record<string, unknown>) 
       limitations: [],
       policy_family: "multi-pass-dual-axis",
     },
-    ...overrides,
+    ...restOverrides,
   };
 }
 
@@ -632,13 +667,13 @@ describe("processEvaluationJob canonical pipeline integration", () => {
       pass4_governance: { ok: true },
     });
 
-    const baseEvaluationResult = makeGateCompliantEvaluationResult();
+    const baseEvaluationResult = makeGateCompliantEvaluationResult({ criteriaScore: 7 });
 
     synthesisToEvaluationResultV2Mock.mockReturnValue(baseEvaluationResult);
 
     const downgradedResult = {
       ...baseEvaluationResult,
-      criteria: baseEvaluationResult.criteria.map((criterion: any) =>
+      criteria: baseEvaluationResult.criteria.map((criterion: Record<string, unknown>) =>
         criterion.key !== "concept"
           ? criterion
           : {
