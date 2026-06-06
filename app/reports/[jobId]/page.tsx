@@ -461,7 +461,7 @@ export default async function ReportPage({
         {(!isLongForm || dreamDoc) && (
           <section className="bg-white rounded-lg shadow-sm p-6 mb-6">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-2xl font-semibold text-gray-900">Overview</h2>
+              <h2 className="text-2xl font-semibold text-gray-900">Executive Summary</h2>
               <div className="flex items-center gap-4">
                 <span className={`px-4 py-2 rounded-full text-sm font-semibold ${
                   overview.verdict === 'pass' ? 'bg-green-100 text-green-800' :

@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { appendUserActivity } from "@/lib/activity/userActivity";
 import { useJobs } from "../../lib/jobs/useJobs";
-import { getJobDisplayInfo, sortJobsByCreatedAtDesc } from "../../lib/jobs/ui-helpers";
+import { getJobDisplayInfo, sortJobsByCreatedAtDesc, canShowCancelButton } from "../../lib/jobs/ui-helpers";
 import ManuscriptSubmissionForm from "./ManuscriptSubmissionForm";
 import CompletionBanner from "./CompletionBanner";
 import { CancelEvaluationButton } from "./CancelEvaluationButton";
@@ -191,7 +191,7 @@ function EvaluationHistoryRow({ job }) {
           <Link href={detailHref} className="inline-flex min-h-[40px] items-center rounded-lg border border-stone-300 bg-stone-50 px-4 py-2 font-rg-mono text-sm font-bold uppercase tracking-[0.08em] text-stone-900 transition hover:bg-stone-100">
             {isRunning ? "Live" : isQueued ? "Queued" : "Details"}
           </Link>
-          {(isRunning || isQueued) && (
+          {canShowCancelButton(job.status, job.progress) && (
             <CancelEvaluationButton jobId={job.id} label="Cancel" buttonClassName="inline-flex min-h-[40px] items-center rounded-lg bg-red-700 px-4 py-2 font-rg-mono text-sm font-bold uppercase tracking-[0.08em] text-white shadow-sm transition-colors hover:bg-red-800" />
           )}
         </div>

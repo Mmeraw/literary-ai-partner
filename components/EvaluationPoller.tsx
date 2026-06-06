@@ -757,7 +757,7 @@ export function EvaluationPoller({
               </p>
             </div>
           )}
-          {(job.status === 'queued' || job.status === 'running') && (
+          {job.status !== 'complete' && (
             <div className="flex items-end justify-start sm:justify-end">
               <CancelEvaluationButton
                 jobId={jobId}

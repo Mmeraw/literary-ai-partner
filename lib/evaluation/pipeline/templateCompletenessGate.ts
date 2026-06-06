@@ -78,6 +78,11 @@ type EvaluationResultLike = {
     diagnosed_genre?: unknown;
     target_audience?: unknown;
   };
+  overview?: {
+    one_paragraph_summary?: string;
+    top_3_strengths?: string[];
+    top_3_risks?: string[];
+  };
 };
 
 const DENSITY_FLOOR: Record<string, number> = {
@@ -220,7 +225,7 @@ export function validateTemplateCompleteness(
     });
   }
 
-  if (!meaningfulText(result.one_paragraph_summary, 40)) {
+  if (!meaningfulText(result.one_paragraph_summary, 40) && !meaningfulText(result.overview?.one_paragraph_summary, 40)) {
     pushViolation(violations, {
       code: 'MISSING_ONE_PARAGRAPH_SUMMARY',
       message: 'Template requires a substantive one_paragraph_summary / One-Paragraph Pitch.',
@@ -240,7 +245,7 @@ export function validateTemplateCompleteness(
     });
   }
 
-  const strengths = meaningfulTextList(result.top_3_strengths);
+  const strengths = meaningfulTextList(result.top_3_strengths ?? result.overview?.top_3_strengths);
   if (strengths.length < 3) {
     pushViolation(violations, {
       code: 'INCOMPLETE_TOP_STRENGTHS',
@@ -249,7 +254,7 @@ export function validateTemplateCompleteness(
     });
   }
 
-  const risks = meaningfulTextList(result.top_3_risks);
+  const risks = meaningfulTextList(result.top_3_risks ?? result.overview?.top_3_risks);
   if (risks.length < 3) {
     pushViolation(violations, {
       code: 'INCOMPLETE_TOP_RISKS',

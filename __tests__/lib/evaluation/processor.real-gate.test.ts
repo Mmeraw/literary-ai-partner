@@ -125,6 +125,12 @@ function makeRealSynthesisOutput() {
           expected_impact: `Improves ${key} specificity while sustaining momentum, clarity, and reader trust through the revision beat.`,
           anchor_snippet: criterionAnchorSet(key).b,
         },
+        {
+          priority: "low" as const,
+          action: `Strengthen the ${CRITERION_TERMS[key]} foundation for ${key} by adding a preparatory beat at the first anchor to establish stakes before the escalation.`,
+          expected_impact: `Deepens ${key} grounding through earlier setup, giving the reader more context for the payoff.`,
+          anchor_snippet: criterionAnchorSet(key).a,
+        },
       ],
     })),
     overall: {
@@ -132,14 +138,27 @@ function makeRealSynthesisOutput() {
       verdict: "revise" as const,
       one_paragraph_summary:
         "The manuscript demonstrates measurable craft with targeted revision opportunities, with pacing and theme as the weakest criteria requiring focused revision.",
-      top_3_strengths: ["voice", "character", "dialogue"],
-      top_3_risks: ["pacing", "theme", "narrativeClosure"],
+      top_3_strengths: [
+        "Distinctive authorial voice with tonal authority across scenes",
+        "Character motivation is grounded in concrete scene-level decisions",
+        "Dialogue carries subtext and advances conflict naturally",
+      ],
+      top_3_risks: [
+        "Pacing stalls in mid-section transitions between major scenes",
+        "Thematic integration relies on repetition rather than escalation",
+        "Narrative closure leaves key causal threads unresolved for the reader",
+      ],
     },
     metadata: {
       pass1_model: "gpt-4o",
       pass2_model: "o3",
       pass3_model: "o3",
       generated_at: new Date().toISOString(),
+    },
+    enrichment: {
+      premise: "A manuscript exploring craft fundamentals across thirteen criteria with targeted revision opportunities in pacing and thematic integration.",
+      diagnosed_genre: "literary fiction",
+      target_audience: "Adult readers of character-driven literary fiction with interest in craft-forward narrative.",
     },
   };
 }
@@ -462,12 +481,15 @@ describe("processEvaluationJob — real synthesisToEvaluationResultV2 + real run
       index < 3
         ? {
             ...c,
-            // Keep exactly one weak anchor and intentionally vague rationale to force
-            // low confidence while retaining a numeric score within U2 cap.
-            final_score_0_10: 5,
+            // Score 9 with weak evidence (snippet "x") forces low confidence via
+            // enforceTextualAnchorConfidence — the snippet is < 20 chars so
+            // hasTextualAnchorSignal returns false. Score 9 means missing evidence
+            // is only a WARNING (not critical) in the completeness gate, so the
+            // gate still passes. This isolates the confidence check.
+            final_score_0_10: 9,
             evidence: [{ snippet: "x" }],
             recommendations: [],
-            final_rationale: "Overall this generally works but could be improved.",
+            final_rationale: "Overall this generally works but could be improved across the full manuscript with more concrete anchoring.",
           }
         : c,
     );
@@ -524,6 +546,11 @@ describe("processEvaluationJob — real synthesisToEvaluationResultV2 + real run
           priority: "medium" as const,
           action: `Refine ${c.key} with a focused revision tied to this excerpt and its reader effect.`,
           expected_impact: `Improves ${c.key} specificity and coherence.`,
+        },
+        {
+          priority: "low" as const,
+          action: `Add a second anchor for ${c.key} to strengthen the evidentiary base for this criterion.`,
+          expected_impact: `Deepens ${c.key} grounding through additional manuscript evidence.`,
         },
       ],
       final_rationale:

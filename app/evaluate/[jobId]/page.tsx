@@ -25,6 +25,7 @@ import {
 } from "@/lib/evaluation/reportTemplateContract";
 
 import { SynthesisPoller } from "@/components/evaluation/SynthesisPoller";
+import { CancelEvaluationButton } from "@/components/evaluation/CancelEvaluationButton";
 import { classifyEvaluationIntegrityBanner } from "@/lib/evaluation/warningClassification";
 import {
   getCertifiedCriteriaSummary,
@@ -740,12 +741,14 @@ export default async function EvaluationReportPage({
           </div>
 
           <aside className="grid w-full shrink-0 gap-4 lg:w-72">
-            <div className="rounded-lg border border-[#B8922A]/45 bg-[#1C1814] p-5 text-[#F5EFE0]">
-              <p className="text-sm font-semibold uppercase tracking-[0.16em] text-[#C8A96E]">Overall Score</p>
-              <p className="mt-3 font-rg-serif text-5xl font-bold leading-none text-white">{overallScore !== null ? overallScore : 'N/A'}<span className="text-2xl text-[#C8A96E]">/100</span></p>
-              <p className="mt-3 inline-flex rounded-full border border-[#C8A96E]/50 px-3 py-1 text-base font-semibold uppercase tracking-wide text-[#F5E9C8]">{verdict}</p>
-            </div>
-            {readinessCriterion && (
+            {isComplete && (
+              <div className="rounded-lg border border-[#B8922A]/45 bg-[#1C1814] p-5 text-[#F5EFE0]">
+                <p className="text-sm font-semibold uppercase tracking-[0.16em] text-[#C8A96E]">Overall Score</p>
+                <p className="mt-3 font-rg-serif text-5xl font-bold leading-none text-white">{overallScore !== null ? overallScore : 'N/A'}<span className="text-2xl text-[#C8A96E]">/100</span></p>
+                <p className="mt-3 inline-flex rounded-full border border-[#C8A96E]/50 px-3 py-1 text-base font-semibold uppercase tracking-wide text-[#F5E9C8]">{verdict}</p>
+              </div>
+            )}
+            {isComplete && readinessCriterion && (
               <div className="rounded-lg border border-stone-300 bg-stone-50 p-5">
                 <p className="text-sm font-semibold uppercase tracking-[0.16em] text-stone-600">Market Readiness</p>
                 <p className="mt-3 text-3xl font-bold text-stone-950">{typeof readinessScore === 'number' ? `${readinessScore}/10` : 'Not scored'}</p>
@@ -812,13 +815,14 @@ export default async function EvaluationReportPage({
           <section className="rounded-lg border border-red-200 bg-red-50 p-5">
             <h2 className="text-lg font-semibold text-red-900">Evaluation failed</h2>
             <p className="mt-2 text-sm text-red-800">{job.last_error}</p>
-            <div className="mt-4">
+            <div className="mt-4 flex gap-3">
               <Link
                 href="/evaluate"
                 className="inline-flex rounded-md border border-red-300 px-3 py-2 text-sm font-medium text-red-900"
               >
                 Return to job list
               </Link>
+              <CancelEvaluationButton jobId={jobId} label="Cancel Evaluation" buttonClassName="inline-flex items-center rounded-md bg-red-700 px-3 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-red-800" />
             </div>
           </section>
         ) : job.last_error?.includes("quality issue") ? (
@@ -841,13 +845,14 @@ export default async function EvaluationReportPage({
               This evaluation could not be completed. Please start a new evaluation or contact
               support if the problem continues.
             </p>
-            <div className="mt-4">
+            <div className="mt-4 flex gap-3">
               <Link
                 href="/evaluate"
                 className="inline-flex rounded-md border border-amber-300 px-3 py-2 text-sm font-medium text-amber-900"
               >
                 Start New Evaluation
               </Link>
+              <CancelEvaluationButton jobId={jobId} label="Cancel Evaluation" buttonClassName="inline-flex items-center rounded-md bg-red-700 px-3 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-red-800" />
             </div>
           </section>
         )
@@ -885,13 +890,14 @@ export default async function EvaluationReportPage({
             This evaluation hasn&apos;t completed. Once the status is &quot;complete,&quot; your
             report will appear here automatically.
           </p>
-          <div className="mt-4">
+          <div className="mt-4 flex gap-3">
             <Link
               href="/evaluate"
               className="inline-flex rounded-md border border-stone-300 bg-white px-4 py-2 text-sm font-semibold text-stone-800 shadow-sm transition-colors hover:bg-stone-50"
             >
               Return to job list
             </Link>
+            <CancelEvaluationButton jobId={jobId} label="Cancel Evaluation" buttonClassName="inline-flex items-center rounded-md bg-red-700 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-red-800" />
           </div>
         </section>
         )
