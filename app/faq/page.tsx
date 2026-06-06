@@ -7,7 +7,27 @@ const faqSections = [
     items: [
       {
         q: "What does RevisionGrade evaluate?",
-        a: "RevisionGrade evaluates manuscript readiness across thirteen story criteria: concept, narrative drive, character, voice, scene construction, dialogue, theme, worldbuilding, pacing, prose control, tone, narrative closure, and marketability. The goal is diagnosis, not generic encouragement or a single opaque score.",
+        a: "RevisionGrade evaluates full manuscripts, partial manuscripts, individual chapters, and serious narrative excerpts across thirteen story criteria: concept, narrative drive, character, voice, scene construction, dialogue, theme, worldbuilding, pacing, prose control, tone, narrative closure, and marketability. The goal is diagnosis, not generic encouragement or a single opaque score.",
+      },
+      {
+        q: "What types of documents can RevisionGrade evaluate?",
+        a: "RevisionGrade evaluates manuscripts and serious narrative excerpts: novels, novellas, book-length memoirs, narrative nonfiction manuscripts, partial manuscripts, individual chapters, and serious fiction or nonfiction excerpts. Depending on length and complexity, submissions may receive short-form, long-form, or long-form multi-layer evaluation.",
+      },
+      {
+        q: "Does RevisionGrade evaluate query letters, synopses, author bios, or agent materials?",
+        a: "No. RevisionGrade may help authors create or prepare query letters, synopses, author biographies, and agent submission materials through Agent Readiness™, but those materials are not evaluated through RevisionGrade’s manuscript-evaluation engine.",
+      },
+      {
+        q: "What documents are not supported?",
+        a: "RevisionGrade is not designed for general document critique, including personal letters, business letters, professional correspondence, employment cover letters, resumes or CVs, academic papers, research papers, legal documents, contracts, marketing copy, or sales materials. These document types require different standards than manuscript diagnosis.",
+      },
+      {
+        q: "Why doesn't RevisionGrade evaluate letters, synopses, or bios?",
+        a: "RevisionGrade’s evaluation engine is built for literary and narrative analysis: story structure, character development, point of view, pacing, narrative cohesion, reader promise, and manuscript readiness. Letters, synopses, query letters, and author bios serve different purposes. RevisionGrade may help create or improve publishing materials, but it does not score them as manuscripts.",
+      },
+      {
+        q: "What happens if I submit an unsupported document?",
+        a: "If RevisionGrade determines that a submission is not a manuscript or serious narrative excerpt, the evaluation will not proceed. The system will explain why the document type is unsupported and invite you to submit an eligible manuscript instead. Our goal is reliable manuscript diagnostics — not generic document scoring.",
       },
       {
         q: "Is RevisionGrade only a score?",
@@ -112,7 +132,7 @@ const faqSections = [
     items: [
       {
         q: "What is Agent Readiness Package™?",
-        a: "Agent Readiness Package™ helps prepare publishing-facing submission materials such as query letters, synopses, author bios, comparables, and manuscript positioning. It does not guarantee agent interest.",
+        a: "Agent Readiness Package™ helps prepare publishing-facing submission materials such as query letters, synopses, author bios, comparables, and manuscript positioning. It does not evaluate those materials as manuscripts and does not guarantee agent interest.",
       },
       {
         q: "What is Storygate Studio™ right now?",
@@ -154,7 +174,7 @@ export default function AuthorFaqPage() {
             Straight answers before you upload serious work.
           </h1>
           <p className="mt-8 max-w-3xl text-lg leading-8 text-rg-cream2/85">
-            RevisionGrade is built to separate manuscript readiness from the publishing black box. This FAQ explains what the system evaluates, what it does not promise, how revision works, and where author control remains absolute.
+            RevisionGrade is built to separate manuscript readiness from the publishing black box. This FAQ explains what the system evaluates, what it does not support, how revision works, and where author control remains absolute.
           </p>
           <div className="mt-10 flex flex-wrap gap-4 font-rg-mono text-xs uppercase tracking-[0.18em]">
             <Link href="/evaluate" className="border border-rg-gold bg-rg-gold px-5 py-3 text-rg-ink transition hover:bg-transparent hover:text-rg-gold">Begin Evaluation</Link>
@@ -164,9 +184,9 @@ export default function AuthorFaqPage() {
 
         <div className="border border-rg-gold/35 bg-rg-ink2/70 p-7">
           <Eyebrow>Current scope</Eyebrow>
-          <h2 className="mt-4 font-rg-serif text-3xl leading-tight">Manuscripts, readiness, revision, and publishing-facing preparation.</h2>
+          <h2 className="mt-4 font-rg-serif text-3xl leading-tight">Manuscripts, partial manuscripts, chapters, excerpts, readiness, revision, and publishing-facing preparation.</h2>
           <p className="mt-5 text-sm leading-7 text-rg-cream2/80">
-            This FAQ intentionally avoids unsupported non-book claims. The current product promise is manuscript-first.
+            RevisionGrade evaluates manuscript evidence. It is not a generic document-scoring tool for letters, resumes, academic papers, legal documents, or marketing copy.
           </p>
         </div>
       </section>
