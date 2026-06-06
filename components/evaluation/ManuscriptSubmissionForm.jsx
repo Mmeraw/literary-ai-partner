@@ -148,6 +148,7 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess, freeDiagnost
 
   const [activeInputMethod, setActiveInputMethod] = useState("saved");
   const [manuscriptText, setManuscriptText] = useState("");
+  const [authorName, setAuthorName] = useState("");
   const [projectTitle, setProjectTitle] = useState("");
   const [selectedManuscriptId, setSelectedManuscriptId] = useState(null);
   const [dashboardManuscripts, setDashboardManuscripts] = useState([]);
@@ -420,6 +421,7 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess, freeDiagnost
       const payload = {
         job_type: "evaluate_full",
         ...(freeDiagnosticTrial ? { user_tier: "free" } : {}),
+        author_name: authorName.trim() || null,
         manuscript_title: projectTitle,
         english_variant: englishVariant,
         manuscript_structure: manuscriptStructure,
@@ -506,6 +508,21 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess, freeDiagnost
 
           <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_21rem]">
             <section className="space-y-4">
+              <div>
+                <label htmlFor="author-name" className="mb-2 block text-[0.95rem] font-semibold text-stone-900">
+                  Author Name <span className="font-normal text-stone-700">(optional)</span>
+                </label>
+                <input
+                  id="author-name"
+                  type="text"
+                  value={authorName}
+                  onChange={(e) => setAuthorName(e.target.value)}
+                  placeholder="e.g., Michael J. Meraw or pen name"
+                  className="min-h-[48px] w-full rounded-lg border border-stone-400 bg-white px-4 py-3 text-base text-stone-950 placeholder:text-stone-500 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-600/20"
+                  disabled={isSubmitting}
+                />
+              </div>
+
               <div>
                 <label htmlFor="project-title" className="mb-2 block text-[0.95rem] font-semibold text-stone-900">
                   Project Title <span className="font-normal text-stone-700">(optional)</span>
