@@ -3,7 +3,7 @@ export {};
 import {
   classifyQueuedHardStop,
   classifySplitBrain,
- a  decideSplitBrainRecovery,
+  decideSplitBrainRecovery,
   isGlobalSlaExceeded,
   isPostPhase0HandoffLimbo,
   partitionMaxAgeKillSwitchCandidates,
