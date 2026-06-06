@@ -34,6 +34,10 @@ function validatePassword(value: string): string | null {
   return null
 }
 
+const inputCls =
+  'block w-full bg-rg-ink border border-rg-cream2/35 text-rg-cream font-rg-serif text-lg px-5 py-4 ' +
+  'placeholder:text-rg-cream2/40 focus:outline-none focus:border-rg-gold transition-colors duration-150'
+
 export default function SignupPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -60,8 +64,6 @@ export default function SignupPage() {
     if (error) setError(null)
   }
 
-  // Poll server-side auth to confirm the session cookie is established
-  // before navigating. Prevents the middleware redirect-back race.
   const waitForServerSession = async (maxAttempts = 10, intervalMs = 300): Promise<boolean> => {
     for (let i = 0; i < maxAttempts; i++) {
       try {
@@ -70,7 +72,9 @@ export default function SignupPage() {
           const data = await res.json()
           if (data?.user?.email) return true
         }
-      } catch { /* retry */ }
+      } catch {
+        // Retry.
+      }
       await new Promise((r) => setTimeout(r, intervalMs))
     }
     return false
@@ -163,56 +167,45 @@ export default function SignupPage() {
     }
   }
 
-  const inputCls =
-    'block w-full bg-rg-ink border border-rg-cream2/30 text-rg-cream font-rg-serif text-sm px-4 py-3 ' +
-    'placeholder:text-rg-cream2/40 focus:outline-none focus:border-rg-gold transition-colors duration-150'
-
   return (
-    <div className="min-h-[calc(100vh-3.5rem)] bg-rg-ink flex flex-col items-center justify-center px-6 py-16">
-
-      {/* Logo lockup */}
-      <Link href="/" className="flex items-center gap-3 mb-10 group">
-        <span className="inline-flex h-8 w-8 items-center justify-center border border-rg-gold/60 text-rg-gold font-rg-serif text-sm group-hover:border-rg-gold transition-colors">
+    <div className="min-h-[calc(100vh-3.5rem)] bg-rg-ink flex flex-col items-center justify-center px-6 py-14 md:py-20">
+      <Link href="/" className="mb-10 flex items-center gap-4 group">
+        <span className="inline-flex h-11 w-11 items-center justify-center border border-rg-gold/70 text-rg-gold font-rg-serif text-xl group-hover:border-rg-gold transition-colors">
           R
         </span>
-        <span className="font-rg-serif text-rg-cream text-sm tracking-wide">RevisionGrade&#8482;</span>
+        <span className="font-rg-serif text-rg-cream text-xl tracking-wide">RevisionGrade&#8482;</span>
       </Link>
 
-      {/* Section label */}
-      <p className="font-rg-mono text-xs tracking-[0.25em] uppercase text-rg-cream2 mb-8">
+      <p className="font-rg-mono text-sm tracking-[0.22em] uppercase text-rg-cream2 mb-8">
         <span className="text-rg-red mr-2">&bull;</span>
         Create Account
       </p>
 
-      {/* Card */}
-      <div className="border border-rg-cream2/20 bg-rg-ink2 w-full max-w-sm px-8 py-10">
-
-        <h1 className="font-rg-serif text-rg-cream text-2xl mb-6 text-center">
-          Sign up
+      <div className="border border-rg-cream2/20 bg-rg-ink2 w-full max-w-lg px-8 py-10 md:px-12 md:py-12">
+        <h1 className="font-rg-serif text-rg-cream text-4xl mb-8 text-center">
+          Create account
         </h1>
 
-        {/* Error message */}
         {error && (
-          <div className="mb-5 border border-rg-red/60 bg-rg-red/10 px-4 py-3 font-rg-mono text-xs text-rg-cream2 leading-relaxed">
+          <div className="mb-6 border border-rg-red/60 bg-rg-red/10 px-5 py-4 font-rg-mono text-sm text-rg-cream2 leading-relaxed">
             {error}
           </div>
         )}
 
-        {/* Success message */}
         {success && (
-          <div className="mb-5 border border-rg-gold/60 bg-rg-gold/10 px-4 py-3 font-rg-mono text-xs text-rg-cream2 leading-relaxed">
+          <div className="mb-6 border border-rg-gold/60 bg-rg-gold/10 px-5 py-4 font-rg-mono text-sm text-rg-cream2 leading-relaxed">
             <p>{success}</p>
-            <div className="mt-3">
-              <Link href="/login" className="font-rg-mono text-xs text-rg-gold hover:text-rg-cream transition-colors underline">
+            <div className="mt-4">
+              <Link href="/login" className="font-rg-mono text-sm text-rg-gold hover:text-rg-cream transition-colors underline">
                 Continue to sign in
               </Link>
             </div>
           </div>
         )}
 
-        <form className="space-y-4" onSubmit={handleSignup}>
+        <form className="space-y-6" onSubmit={handleSignup}>
           <div>
-            <label htmlFor="email" className="block font-rg-mono text-xs tracking-widest uppercase text-rg-cream2 mb-2">
+            <label htmlFor="email" className="block font-rg-mono text-sm tracking-widest uppercase text-rg-cream2 mb-3">
               Email
             </label>
             <input
@@ -232,7 +225,7 @@ export default function SignupPage() {
           </div>
 
           <div>
-            <label htmlFor="password" className="block font-rg-mono text-xs tracking-widest uppercase text-rg-cream2 mb-2">
+            <label htmlFor="password" className="block font-rg-mono text-sm tracking-widest uppercase text-rg-cream2 mb-3">
               Password
             </label>
             <div className="relative">
@@ -245,34 +238,25 @@ export default function SignupPage() {
                 minLength={PASSWORD_MIN_LENGTH}
                 value={password}
                 onChange={(e) => setSafePassword(e.target.value)}
-                className={inputCls + ' pr-10'}
+                className={inputCls + ' pr-24'}
                 placeholder="••••••••"
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-rg-cream2/50 hover:text-rg-gold transition-colors"
+                className="absolute right-4 top-1/2 -translate-y-1/2 font-rg-mono text-sm uppercase tracking-widest text-rg-cream2/70 hover:text-rg-gold transition-colors"
                 aria-label={showPassword ? 'Hide password' : 'Show password'}
               >
-                {showPassword ? (
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L3 3m6.878 6.878L21 21" />
-                  </svg>
-                ) : (
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                  </svg>
-                )}
+                {showPassword ? 'Hide' : 'Show'}
               </button>
             </div>
-            <p className="mt-1 font-rg-mono text-xs text-rg-cream2/50">
+            <p className="mt-3 font-rg-mono text-sm text-rg-cream2/70 leading-6">
               At least {PASSWORD_MIN_LENGTH} characters with uppercase, lowercase, and a number.
             </p>
           </div>
 
           <div>
-            <label htmlFor="confirmPassword" className="block font-rg-mono text-xs tracking-widest uppercase text-rg-cream2 mb-2">
+            <label htmlFor="confirmPassword" className="block font-rg-mono text-sm tracking-widest uppercase text-rg-cream2 mb-3">
               Confirm Password
             </label>
             <div className="relative">
@@ -285,25 +269,16 @@ export default function SignupPage() {
                 minLength={PASSWORD_MIN_LENGTH}
                 value={confirmPassword}
                 onChange={(e) => setSafeConfirmPassword(e.target.value)}
-                className={inputCls + ' pr-10'}
+                className={inputCls + ' pr-24'}
                 placeholder="••••••••"
               />
               <button
                 type="button"
                 onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-rg-cream2/50 hover:text-rg-gold transition-colors"
+                className="absolute right-4 top-1/2 -translate-y-1/2 font-rg-mono text-sm uppercase tracking-widest text-rg-cream2/70 hover:text-rg-gold transition-colors"
                 aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
               >
-                {showConfirmPassword ? (
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L3 3m6.878 6.878L21 21" />
-                  </svg>
-                ) : (
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                  </svg>
-                )}
+                {showConfirmPassword ? 'Hide' : 'Show'}
               </button>
             </div>
           </div>
@@ -311,13 +286,13 @@ export default function SignupPage() {
           <button
             type="submit"
             disabled={loading || !hasSupabaseAuthConfig}
-            className="mt-2 w-full border border-rg-cream2/50 text-rg-cream font-rg-mono text-xs tracking-widest uppercase px-6 py-3 hover:border-rg-gold hover:text-rg-gold transition-colors duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
+            className="mt-2 w-full border border-rg-cream2/50 text-rg-cream font-rg-mono text-sm tracking-widest uppercase px-6 py-4 hover:border-rg-gold hover:text-rg-gold transition-colors duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
           >
             {loading ? 'Creating account…' : 'Create account'}
           </button>
         </form>
 
-        <p className="mt-6 text-center font-rg-mono text-xs text-rg-cream2">
+        <p className="mt-8 text-center font-rg-serif text-rg-cream2 text-lg">
           Already have an account?{' '}
           <Link href="/login" className="text-rg-gold hover:text-rg-cream transition-colors">
             Sign in
