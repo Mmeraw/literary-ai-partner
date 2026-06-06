@@ -63,7 +63,7 @@ describe("EvaluateEntry failed history row", () => {
     const { container } = render(<EvaluateEntry />);
 
     expect(screen.getAllByText("Needs attention").length).toBeGreaterThanOrEqual(1);
-    expect(screen.queryByRole("button", { name: /Cancel Evaluation/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Cancel Evaluation/i })).toBeNull();
 
     const pageText = container.textContent || "";
     expect(pageText).not.toMatch(/\bPhase\b/i);
