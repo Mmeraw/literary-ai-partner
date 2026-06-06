@@ -182,10 +182,13 @@ Return ONLY JSON with keys:
 - candidate_text_b: A rhythm variant. Same fix direction, different cadence or sentence structure. Must be materially distinct from A. Still must be copy-paste-ready narrative prose with character names and scene-specific detail.
 - candidate_text_c: A bolder rendering shift. Same fix intent, more assertive prose move. Must be materially distinct from A and B. Still must be copy-paste-ready narrative prose.
 - All three candidates must be ≥ 5 words, manuscript-ready prose that the author can literally copy-paste into their .docx file at the target location.
+- CANDIDATE PROSE IS MANDATORY. Every recommendation MUST include all three candidate_text fields (a, b, c) populated with real manuscript prose. A recommendation with empty candidate_text fields is INVALID and will be rejected by the pipeline. If you emit a recommendation, you MUST write the prose. No exceptions.
 - CRITICAL: Candidates must contain CHARACTER NAMES, SCENE DETAILS, and VOICE-MATCHED PROSE from the manuscript. They are NOT editorial summaries or abstract beats — they are actual narrative text.
+- NEVER echo the anchor_snippet as candidate prose. Each candidate must be DIFFERENT from the original passage. If candidate A, B, or C is identical or near-identical to the anchor_snippet, the pipeline will reject it.
 - WRONG: "A sharper physical image turns the abstract pressure into an immediate, visible consequence on the page." (Describes what prose would do. Not actual prose.)
 - RIGHT: "Billy's hand trembled against the tent flap. He could still hear Brutus breathing on the other side." (Manuscript prose — names, sensory detail, voice.)
 - DO NOT append editorial commentary. Write the actual prose the author can COPY AND PASTE directly into their manuscript.
+- ENFORCEMENT: Recommendations without all three candidate_text_a/b/c populated with real, distinct, copy-paste-ready prose will be stripped from the final output. This is a hard pipeline requirement, not a suggestion.
 - revision_operation: one of "replace_selected_passage" | "insert_before_selected_passage" | "insert_after_selected_passage" | "delete_selected_passage" | "rewrite_surrounding_context". Default to "replace_selected_passage" when the anchor_snippet is being rewritten.
 - manuscript_coordinates: a location string like "chapter:3:paragraph:7" or "scene:2:beat:opening" identifying where in the text this revision targets.
 - agreement_map[]
