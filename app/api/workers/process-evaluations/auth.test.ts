@@ -171,6 +171,23 @@ describe('Process Evaluations Worker Auth', () => {
       
       expect(response.status).toBe(200);
     });
+
+    it('should not require x-worker-secret when CRON_SECRET bearer auth is valid', async () => {
+      setEnv('CRON_SECRET', 'valid-secret-456');
+      setEnv('WORKER_SECRET', 'defense-in-depth-worker-secret');
+      setEnv('NODE_ENV', 'production');
+
+      const req = createMockRequest({
+        headers: { authorization: 'Bearer valid-secret-456' },
+        searchParams: { dry_run: '1' },
+      });
+      const response = await GET(req);
+
+      expect(response.status).toBe(200);
+      const body = await response.json();
+      expect(body.authMethod).toBe('bearer');
+      expect(body.dryRun).toBe(true);
+    });
   });
 
   describe('Vercel Cron Auth', () => {
@@ -193,6 +210,27 @@ describe('Process Evaluations Worker Auth', () => {
       expect(response.status).toBe(200);
       const body = await response.json();
       expect(body.authMethod).toBe('vercel_cron');
+    });
+
+    it('should not require x-worker-secret for platform Vercel Cron invocations', async () => {
+      setEnv('CRON_SECRET', 'any-secret');
+      setEnv('WORKER_SECRET', 'defense-in-depth-worker-secret');
+      setEnv('VERCEL', '1');
+      setEnv('NODE_ENV', 'production');
+
+      const req = createMockRequest({
+        headers: {
+          'x-vercel-cron': '1',
+          'x-vercel-id': 'iad1::abc123',
+        },
+        searchParams: { dry_run: '1' },
+      });
+      const response = await GET(req);
+
+      expect(response.status).toBe(200);
+      const body = await response.json();
+      expect(body.authMethod).toBe('vercel_cron');
+      expect(body.dryRun).toBe(true);
     });
 
     it('should require x-vercel-id header along with x-vercel-cron', async () => {

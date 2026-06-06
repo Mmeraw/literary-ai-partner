@@ -68,6 +68,18 @@ function isPublicApiPath(pathname: string): boolean {
   return PUBLIC_API_PATHS.some((path) => pathname === path || pathname.startsWith(`${path}/`))
 }
 
+function hasBearerAuthorization(request: NextRequest): boolean {
+  return /^Bearer\s+\S+/i.test(request.headers.get('authorization')?.trim() ?? '')
+}
+
+function isVercelCronInvocation(request: NextRequest): boolean {
+  return (
+    request.headers.get('x-vercel-cron') === '1' &&
+    Boolean(request.headers.get('x-vercel-id')) &&
+    (process.env.VERCEL === '1' || Boolean(process.env.VERCEL_ENV))
+  )
+}
+
 export async function middleware(request: NextRequest) {
     const matchesPath = (pathname: string, basePath: string): boolean => {
       if (basePath === '/') return pathname === '/'
@@ -190,6 +202,18 @@ export async function middleware(request: NextRequest) {
       process.env.NODE_ENV === 'test' ||
       process.env.CI === 'true'
 
+    // Vercel Cron cannot send custom x-worker-secret headers, and internal
+    // worker kicks use Authorization: Bearer $CRON_SECRET. Middleware must let
+    // those requests reach the route-local timing-safe auth checks; otherwise
+    // jobs can remain queued with no claim, lease, or heartbeat.
+    const allowRouteLocalWorkerAuth =
+      isVercelCronInvocation(request) ||
+      hasBearerAuthorization(request)
+
+    if (allowRouteLocalWorkerAuth) {
+      return applySecurityHeaders(supabaseResponse)
+    }
+
     if (!allowWorkerSecretBypass && !workerSecret) {
       return applySecurityHeaders(
         NextResponse.json(
@@ -215,6 +239,8 @@ export async function middleware(request: NextRequest) {
         )
       )
     }
+
+    return applySecurityHeaders(supabaseResponse)
   }
 
   // Gate only protected paths for unauthenticated users.
