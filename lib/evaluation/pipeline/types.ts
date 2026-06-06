@@ -240,16 +240,12 @@ export type SynthesizedCriterion = {
     symptom?: string;
     /** What must not be damaged or lost when applying this fix. */
     mistake_proofing?: string;
-    /** What this revision could damage — craft element at risk if this fix is applied. */
-    potential_damage?: string;
-    /** Primary recommended prose repair — copy-paste-ready manuscript text. */
-    candidate_text_a?: string;
-    /** Rhythm variant — same fix direction, different cadence. */
-    candidate_text_b?: string;
-    /** Bolder rendering shift — more assertive prose move. */
-    candidate_text_c?: string;
-    /** Operation type: replace, insert_before, insert_after, delete, rewrite_context. */
-    revision_operation?: string;
+    /**
+     * Harm test — what existing strengths could this recommendation damage?
+     * Emitted when the recommendation guard identifies suppression risk.
+     * Format: array of asset names, e.g. ["atmosphere", "voice", "dread accumulation"]
+     */
+    potential_damage?: string[];
   }[];
   /** Deterministic confidence score derived from evidence support + explanation quality (0-100). */
   confidence_score_0_100?: number;
@@ -260,7 +256,12 @@ export type SynthesizedCriterion = {
   /** Scorability semantics separated from confidence semantics. */
   scorability_status?: "scorable" | "scorable_low_confidence" | "non_scorable";
   technical_defects?: Array<{
-    code: "PROSE_CONTROL_ANCHOR_EXTRACTION_FAILED" | "RECOMMENDATION_TRUNCATED" | "SCORE_LE8_EMPTY_RECOMMENDATIONS" | "CANDIDATE_PROSE_MISSING";
+    code:
+      | "PROSE_CONTROL_ANCHOR_EXTRACTION_FAILED"
+      | "RECOMMENDATION_TRUNCATED"
+      | "SCORE_LE8_EMPTY_RECOMMENDATIONS"
+      | "DIAGNOSTIC_SPINE_PROMISE_MISMATCH"
+      | "DIAGNOSTIC_SPINE_WEAK_OR_ABSENT";
     author_facing_reason: string;
     retryable: boolean;
   }>;
@@ -306,11 +307,14 @@ export type SynthesisOutput = {
   enrichment?: {
     premise?: string;
     trigger_warnings?: string[];
-    diagnosed_genre?: string;
-    target_audience?: string;
-    /** The manuscript's primary technique for generating reader engagement. */
-    dominant_craft_engine?: string;
   };
+  /**
+   * Diagnostic spine — extracted by Pass 3 before criteria scoring begins.
+   * The manuscript's governing thesis, story question, conflict engine,
+   * reader promise, and primary structural gap.
+   * Absent when Pass 3 did not produce a usable spine.
+   */
+  diagnostic_spine?: import("@/lib/evaluation/diagnosticSpine").DiagnosticSpine;
 };
 
 // ── Pass 4: Quality gate result ──────────────────────────────────────────────
