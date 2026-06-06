@@ -748,18 +748,7 @@ export default async function EvaluationReportPage({
                 <p className="mt-3 inline-flex rounded-full border border-[#C8A96E]/50 px-3 py-1 text-base font-semibold uppercase tracking-wide text-[#F5E9C8]">{verdict}</p>
               </div>
             )}
-            {isComplete && readinessCriterion && (
-              <div className="rounded-lg border border-stone-300 bg-stone-50 p-5">
-                <p className="text-sm font-semibold uppercase tracking-[0.16em] text-stone-600">Market Readiness</p>
-                <p className="mt-3 text-3xl font-bold text-stone-950">{typeof readinessScore === 'number' ? `${readinessScore}/10` : 'Not scored'}</p>
-                {readinessConfidence && <p className="mt-2 text-base font-medium text-stone-700">{readinessConfidence.label}</p>}
-                {readinessCriterion.rationale && (
-                  <p className="mt-3 text-base leading-7 text-stone-700">
-                    {mistakeProofText(readinessCriterion.rationale)}
-                  </p>
-                )}
-              </div>
-            )}
+
             {!isComplete && (
               <Link href="/evaluate" className="inline-flex items-center rounded-md border border-stone-300 bg-white px-4 py-2 text-base font-medium text-stone-700 hover:bg-stone-50">
                 Back to Evaluate
