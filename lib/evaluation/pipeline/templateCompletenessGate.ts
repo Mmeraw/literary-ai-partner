@@ -22,8 +22,6 @@
 import { REVISIONGRADE_SUPPORT_EMAIL } from '@/lib/evaluation/hardStopGovernance';
 import { CRITERIA_KEYS } from '@/schemas/criteria-keys';
 
-// ── Types ────────────────────────────────────────────────────────────────────
-
 export type TemplateViolation = {
   code: string;
   criterion?: string;
@@ -39,6 +37,7 @@ export type TemplateCompletenessResult = {
 
 type RecommendationLike = {
   action?: unknown;
+  why?: unknown;
   expected_impact?: unknown;
   anchor_snippet?: unknown;
   symptom?: unknown;
@@ -50,10 +49,8 @@ type RecommendationLike = {
 
 type CriterionLike = {
   key: string;
-  score_0_10?: number;
+  score_0_10?: number | null;
   rationale?: string;
-  fit_summary?: string;
-  gap_summary?: string;
   evidence?: { snippet?: string }[];
   recommendations?: unknown[];
   confidence_level?: string;
@@ -77,12 +74,11 @@ type EvaluationResultLike = {
     };
   };
   enrichment?: {
+    premise?: unknown;
     diagnosed_genre?: unknown;
     target_audience?: unknown;
   };
 };
-
-// ── Completeness policy ──────────────────────────────────────────────────────
 
 const DENSITY_FLOOR: Record<string, number> = {
   '<=5': 5,
@@ -107,7 +103,6 @@ const FORMAT_WORDS = new Set([
 ]);
 
 const VALID_CONFIDENCE_LEVELS = new Set(['high', 'moderate', 'medium', 'low']);
-
 const PLACEHOLDER_RE = /\b(?:n\/?a|none|not specified|tbd|todo|placeholder|example|lorem ipsum|\[location|\[operation|\[priority|\[severity|\[confidence)\b/i;
 const GENERIC_RE = /\b(?:improve|strengthen|clarify|develop|enhance|expand|tighten|revise)\s+(?:the\s+)?(?:writing|story|manuscript|novel|chapter|section|piece)\b/i;
 
@@ -132,12 +127,11 @@ function meaningfulText(value: unknown, minLength = 12): string | null {
   return trimmed;
 }
 
-function meaningfulTextList(values: unknown, minItems: number): string[] {
+function meaningfulTextList(values: unknown): string[] {
   if (!Array.isArray(values)) return [];
   return values
     .map((item) => meaningfulText(item))
-    .filter((item): item is string => Boolean(item))
-    .slice(0, Math.max(minItems, values.length));
+    .filter((item): item is string => Boolean(item));
 }
 
 function normalizedGenre(value: unknown): string | null {
@@ -157,6 +151,7 @@ function isMeaningfulRecommendation(value: unknown): value is RecommendationLike
     rec.mechanism,
     rec.specific_fix,
     rec.action,
+    rec.why,
     rec.reader_effect,
     rec.expected_impact,
     rec.mistake_proofing,
@@ -171,11 +166,12 @@ function isMeaningfulRecommendation(value: unknown): value is RecommendationLike
   const actionish = meaningfulText(rec.specific_fix) ?? meaningfulText(rec.action);
   if (!actionish) return false;
 
-  // A generic action can pass only when paired with manuscript-specific evidence.
+  // A generic action can pass only when paired with manuscript-specific evidence/reasoning.
   if (GENERIC_RE.test(actionish)) {
     const anchor = meaningfulText(rec.anchor_snippet, 20);
     const symptom = meaningfulText(rec.symptom, 20);
-    return Boolean(anchor || symptom);
+    const why = meaningfulText(rec.why, 20) ?? meaningfulText(rec.expected_impact, 20);
+    return Boolean(anchor || symptom || why);
   }
 
   return true;
@@ -191,8 +187,7 @@ function pushViolation(violations: TemplateViolation[], violation: TemplateViola
 }
 
 function escapeHtml(value: unknown): string {
-  const raw = String(value ?? '');
-  return raw
+  return String(value ?? '')
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
@@ -200,14 +195,11 @@ function escapeHtml(value: unknown): string {
     .replace(/'/g, '&#39;');
 }
 
-// ── Gate ──────────────────────────────────────────────────────────────────────
-
 export function validateTemplateCompleteness(
   result: EvaluationResultLike,
 ): TemplateCompletenessResult {
   const violations: TemplateViolation[] = [];
 
-  // Title-block / upper-report enrichment now required for new artifacts.
   const genre = normalizedGenre(result.enrichment?.diagnosed_genre) ?? normalizedGenre(result.metrics?.manuscript?.genre);
   if (!genre) {
     pushViolation(violations, {
@@ -228,7 +220,6 @@ export function validateTemplateCompleteness(
     });
   }
 
-  // 1. One-paragraph pitch / summary
   if (!meaningfulText(result.one_paragraph_summary, 40)) {
     pushViolation(violations, {
       code: 'MISSING_ONE_PARAGRAPH_SUMMARY',
@@ -237,17 +228,19 @@ export function validateTemplateCompleteness(
     });
   }
 
-  // 2. One-sentence pitch / summary
-  if (!meaningfulText(result.one_sentence_summary, 20)) {
+  // Current persisted schema does not always carry a distinct one_sentence_summary.
+  // Accept a substantive premise as the same upper-report pitch contract until the
+  // schema grows a dedicated one-sentence pitch field.
+  const oneSentenceOrPremise = meaningfulText(result.one_sentence_summary, 20) ?? meaningfulText(result.enrichment?.premise, 20);
+  if (!oneSentenceOrPremise) {
     pushViolation(violations, {
-      code: 'MISSING_ONE_SENTENCE_SUMMARY',
-      message: 'Template requires a substantive one_sentence_summary / One-Sentence Pitch.',
+      code: 'MISSING_ONE_SENTENCE_PITCH',
+      message: 'Template requires a substantive one-sentence pitch or premise in enrichment.',
       severity: 'critical',
     });
   }
 
-  // 3. Top strengths and risks. These are called top_3; do not pass with a single token.
-  const strengths = meaningfulTextList(result.top_3_strengths, 3);
+  const strengths = meaningfulTextList(result.top_3_strengths);
   if (strengths.length < 3) {
     pushViolation(violations, {
       code: 'INCOMPLETE_TOP_STRENGTHS',
@@ -256,7 +249,7 @@ export function validateTemplateCompleteness(
     });
   }
 
-  const risks = meaningfulTextList(result.top_3_risks, 3);
+  const risks = meaningfulTextList(result.top_3_risks);
   if (risks.length < 3) {
     pushViolation(violations, {
       code: 'INCOMPLETE_TOP_RISKS',
@@ -265,7 +258,6 @@ export function validateTemplateCompleteness(
     });
   }
 
-  // 4. Criteria completeness — exact canonical 13, no duplicates, no invented keys.
   const observedKeys = result.criteria.map((c) => c.key).filter(Boolean);
   const observedSet = new Set(observedKeys);
   const duplicateKeys = observedKeys.filter((key, index) => observedKeys.indexOf(key) !== index);
@@ -284,19 +276,28 @@ export function validateTemplateCompleteness(
     });
   }
 
-  // 5. Per-criterion checks.
   let hasAnyDensityViolation = false;
   for (const c of result.criteria) {
     const score = c.score_0_10;
 
-    if (typeof score !== 'number' || !Number.isFinite(score) || score < 0 || score > 10) {
+    // Non-scorable/NA criteria may carry null scores in v2; they still need rationale/evidence/confidence,
+    // but recommendation density only applies to numeric scorable criteria.
+    const hasNumericScore = typeof score === 'number' && Number.isFinite(score);
+    if (score !== null && !hasNumericScore) {
+      pushViolation(violations, {
+        code: 'INVALID_CRITERION_SCORE',
+        criterion: c.key,
+        message: `Criterion "${c.key}" must have a numeric score from 0 to 10 or null for governed non-scorable criteria.`,
+        severity: 'critical',
+      });
+    }
+    if (hasNumericScore && (score < 0 || score > 10)) {
       pushViolation(violations, {
         code: 'INVALID_CRITERION_SCORE',
         criterion: c.key,
         message: `Criterion "${c.key}" must have a numeric score from 0 to 10.`,
         severity: 'critical',
       });
-      continue;
     }
 
     if (!meaningfulText(c.rationale, 40)) {
@@ -314,7 +315,7 @@ export function validateTemplateCompleteness(
         code: 'MISSING_EVIDENCE',
         criterion: c.key,
         message: `Criterion "${c.key}" has no usable manuscript evidence anchor.`,
-        severity: score <= 8 ? 'critical' : 'warning',
+        severity: hasNumericScore && score <= 8 ? 'critical' : 'warning',
       });
     }
 
@@ -328,40 +329,41 @@ export function validateTemplateCompleteness(
       });
     }
 
-    const bucket = getDensityBucket(score);
-    if (bucket) {
-      const minRecs = DENSITY_FLOOR[bucket] ?? 2;
-      const recCount = countMeaningfulRecommendations(c.recommendations);
-      if (recCount < minRecs) {
-        pushViolation(violations, {
-          code: 'DENSITY_FLOOR_VIOLATION',
-          criterion: c.key,
-          message: `Criterion "${c.key}" scored ${score}/10 — requires ${minRecs} meaningful recommendations, has ${recCount}.`,
-          severity: 'critical',
-        });
-        hasAnyDensityViolation = true;
-      }
-    } else if (Array.isArray(c.recommendations)) {
-      const rawCount = c.recommendations.length;
-      const meaningfulCount = countMeaningfulRecommendations(c.recommendations);
-      if (rawCount > 0 && meaningfulCount === 0) {
-        pushViolation(violations, {
-          code: 'INVALID_HIGH_SCORE_RECOMMENDATIONS',
-          criterion: c.key,
-          message: `Criterion "${c.key}" has recommendations, but none contain usable diagnostic content.`,
-          severity: 'warning',
-        });
+    if (hasNumericScore) {
+      const bucket = getDensityBucket(score);
+      if (bucket) {
+        const minRecs = DENSITY_FLOOR[bucket] ?? 2;
+        const recCount = countMeaningfulRecommendations(c.recommendations);
+        if (recCount < minRecs) {
+          pushViolation(violations, {
+            code: 'DENSITY_FLOOR_VIOLATION',
+            criterion: c.key,
+            message: `Criterion "${c.key}" scored ${score}/10 — requires ${minRecs} meaningful recommendations, has ${recCount}.`,
+            severity: 'critical',
+          });
+          hasAnyDensityViolation = true;
+        }
+      } else if (Array.isArray(c.recommendations)) {
+        const rawCount = c.recommendations.length;
+        const meaningfulCount = countMeaningfulRecommendations(c.recommendations);
+        if (rawCount > 0 && meaningfulCount === 0) {
+          pushViolation(violations, {
+            code: 'INVALID_HIGH_SCORE_RECOMMENDATIONS',
+            criterion: c.key,
+            message: `Criterion "${c.key}" has recommendations, but none contain usable diagnostic content.`,
+            severity: 'warning',
+          });
+        }
       }
     }
   }
 
-  // 6. Cross-cutting recommendations (quick_wins / strategic_revisions).
   const hasLowScoring = result.criteria.some(
     (c) => typeof c.score_0_10 === 'number' && c.score_0_10 <= 8,
   );
   if (hasLowScoring) {
-    const quickWins = meaningfulTextList(result.recommendations?.quick_wins, 1).length;
-    const strategic = meaningfulTextList(result.recommendations?.strategic_revisions, 1).length;
+    const quickWins = countMeaningfulRecommendations(result.recommendations?.quick_wins);
+    const strategic = countMeaningfulRecommendations(result.recommendations?.strategic_revisions);
     if (quickWins === 0 && strategic === 0) {
       pushViolation(violations, {
         code: 'MISSING_TOP_RECOMMENDATIONS',
@@ -380,8 +382,6 @@ export function validateTemplateCompleteness(
 
   return { pass, violations, summary };
 }
-
-// ── Support alert email ──────────────────────────────────────────────────────
 
 export async function sendCompletenessAlertEmail(
   jobId: string,
@@ -461,8 +461,6 @@ export async function sendCompletenessAlertEmail(
     };
   }
 }
-
-// ── User-facing message ──────────────────────────────────────────────────────
 
 export const TEMPLATE_COMPLETENESS_USER_MESSAGE =
   "We've detected a quality issue with your evaluation and our team is investigating. " +
