@@ -1,4 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/admin';
+import { randomUUID } from 'node:crypto';
 
 type CancelReason = 'wrong_file' | 'wrong_mode' | 'user_cancelled' | 'other';
 
@@ -94,6 +95,58 @@ function buildCancelledProgress(args: {
   };
 }
 
+function buildFailureEnvelope(args: {
+  cancelMessage: string;
+  jobPhase: unknown;
+  nowIso: string;
+  reason: CancelReason;
+}) {
+  return {
+    error_code: 'USER_CANCELLED',
+    code: 'USER_CANCELLED',
+    message: args.cancelMessage,
+    retryable: false,
+    phase: args.jobPhase ?? null,
+    provider: null,
+    occurred_at: args.nowIso,
+    context: {
+      reason: args.reason,
+      cancelled_by_user: true,
+    },
+  };
+}
+
+function buildTerminalCancellationUpdate(args: {
+  cancelMessage: string;
+  nextProgress: Record<string, unknown>;
+  nowIso: string;
+  reason: CancelReason;
+  jobPhase: unknown;
+}) {
+  return {
+    status: 'failed',
+    phase_status: 'failed',
+    progress: args.nextProgress,
+    last_error: args.cancelMessage,
+    failure_code: 'USER_CANCELLED',
+    failure_envelope: buildFailureEnvelope({
+      cancelMessage: args.cancelMessage,
+      jobPhase: args.jobPhase,
+      nowIso: args.nowIso,
+      reason: args.reason,
+    }),
+    claimed_by: null,
+    claimed_at: null,
+    lease_token: null,
+    lease_until: null,
+    last_heartbeat_at: null,
+    last_heartbeat: null,
+    worker_pulse_at: null,
+    failed_at: args.nowIso,
+    updated_at: args.nowIso,
+  };
+}
+
 export async function cancelEvaluationAsUser(args: {
   jobId: string;
   userId: string;
@@ -110,6 +163,7 @@ export async function cancelEvaluationAsUser(args: {
     .maybeSingle();
 
   if (jobError) {
+    console.error('UserCancelJobFetchError', { jobId: args.jobId, message: (jobError as {message?: string}).message, code: (jobError as {code?: string}).code, details: (jobError as {details?: string}).details });
     return {
       ok: false,
       code: 'internal',
@@ -166,7 +220,17 @@ export async function cancelEvaluationAsUser(args: {
     };
   }
 
-  if (!['queued', 'running', 'failed'].includes(job.status)) {
+  if (job.status === 'failed') {
+    return {
+      ok: false,
+      code: 'conflict',
+      message: 'This evaluation has already failed and can no longer be cancelled.',
+      status: 409,
+      jobStatus: job.status,
+    };
+  }
+
+  if (!['queued', 'running'].includes(job.status)) {
     return {
       ok: false,
       code: 'conflict',
@@ -186,44 +250,125 @@ export async function cancelEvaluationAsUser(args: {
     fromPhase: typeof job.phase === 'string' ? job.phase : null,
     fromPhaseStatus: typeof job.phase_status === 'string' ? job.phase_status : null,
   });
+  const terminalUpdate = buildTerminalCancellationUpdate({
+    cancelMessage,
+    nextProgress,
+    nowIso,
+    reason,
+    jobPhase: job.phase,
+  });
+
+  if (job.status === 'queued') {
+    if (job.phase_status === 'awaiting_approval') {
+      const { error: normalizeError } = await admin
+        .from('evaluation_jobs')
+        .update({
+          phase_status: 'queued',
+          updated_at: nowIso,
+        })
+        .eq('id', args.jobId)
+        .eq('status', 'queued')
+        .eq('phase_status', 'awaiting_approval');
+
+      if (normalizeError) {
+        console.error('UserCancelNormalizeError', { jobId: args.jobId, message: (normalizeError as {message?: string}).message, code: (normalizeError as {code?: string}).code, details: (normalizeError as {details?: string}).details });
+        return {
+          ok: false,
+          code: 'internal',
+          message: 'Cancellation could not prepare this evaluation for a safe stop. Please refresh and try again.',
+          status: 500,
+        };
+      }
+    }
+
+    const cancellationClaimId = `user-cancel:${args.userId}`;
+    const cancellationLeaseToken = randomUUID();
+    const cancellationLeaseUntil = new Date(Date.parse(nowIso) + 60_000).toISOString();
+    const { data: claimedForCancellation, error: claimError } = await admin
+      .from('evaluation_jobs')
+      .update({
+        status: 'running',
+        phase_status: 'running',
+        claimed_by: cancellationClaimId,
+        worker_id: cancellationClaimId,
+        claimed_at: nowIso,
+        lease_token: cancellationLeaseToken,
+        lease_until: cancellationLeaseUntil,
+        last_heartbeat_at: nowIso,
+        last_heartbeat: nowIso,
+        worker_pulse_at: nowIso,
+        updated_at: nowIso,
+      })
+      .eq('id', args.jobId)
+      .eq('status', 'queued')
+      .select('id')
+      .maybeSingle();
+
+    if (claimError) {
+      console.error('UserCancelClaimError', { jobId: args.jobId, message: (claimError as {message?: string}).message, code: (claimError as {code?: string}).code, details: (claimError as {details?: string}).details });
+      return {
+        ok: false,
+        code: 'internal',
+        message: 'Cancellation could not safely claim this queued evaluation. Please refresh and try again.',
+        status: 500,
+      };
+    }
+
+    if (!claimedForCancellation) {
+      return {
+        ok: false,
+        code: 'conflict',
+        message: 'This evaluation is no longer queued. Please refresh for the latest status.',
+        status: 409,
+      };
+    }
+
+    const { data: cancelledClaimedJob, error: claimedCancelError } = await admin
+      .from('evaluation_jobs')
+      .update(terminalUpdate)
+      .eq('id', args.jobId)
+      .eq('status', 'running')
+      .eq('lease_token', cancellationLeaseToken)
+      .select('id, status, progress, updated_at')
+      .maybeSingle();
+
+    if (claimedCancelError) {
+      console.error('UserCancelFinalizeError', { jobId: args.jobId, message: (claimedCancelError as {message?: string}).message, code: (claimedCancelError as {code?: string}).code, details: (claimedCancelError as {details?: string}).details });
+      return {
+        ok: false,
+        code: 'internal',
+        message: 'Cancellation could not be saved. Please refresh and try again.',
+        status: 500,
+      };
+    }
+
+    if (!cancelledClaimedJob) {
+      return {
+        ok: false,
+        code: 'conflict',
+        message: 'This evaluation changed while cancellation was being saved. Please refresh for the latest status.',
+        status: 409,
+      };
+    }
+
+    return {
+      ok: true,
+      jobId: args.jobId,
+      status: 'cancelled',
+      cancelledAt: nowIso,
+    };
+  }
 
   const { data: cancelledJob, error: cancelError } = await admin
     .from('evaluation_jobs')
-    .update({
-      status: 'failed',
-      phase_status: 'failed',
-      progress: nextProgress,
-      last_error: cancelMessage,
-      failure_code: 'USER_CANCELLED',
-      failure_envelope: {
-        error_code: 'USER_CANCELLED',
-        code: 'USER_CANCELLED',
-        message: cancelMessage,
-        retryable: false,
-        phase: job.phase ?? null,
-        provider: null,
-        occurred_at: nowIso,
-        context: {
-          reason,
-          cancelled_by_user: true,
-        },
-      },
-      claimed_by: null,
-      claimed_at: null,
-      lease_token: null,
-      lease_until: null,
-      last_heartbeat_at: null,
-      last_heartbeat: null,
-      worker_pulse_at: null,
-      failed_at: nowIso,
-      updated_at: nowIso,
-    })
+    .update(terminalUpdate)
     .eq('id', args.jobId)
-    .in('status', ['queued', 'running', 'failed'])
+    .eq('status', 'running')
     .select('id, status, progress, updated_at')
     .maybeSingle();
 
   if (cancelError) {
+    console.error('UserCancelTerminalError', { jobId: args.jobId, message: (cancelError as {message?: string}).message, code: (cancelError as {code?: string}).code, details: (cancelError as {details?: string}).details });
     return {
       ok: false,
       code: 'internal',
