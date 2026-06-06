@@ -240,6 +240,16 @@ export type SynthesizedCriterion = {
     symptom?: string;
     /** What must not be damaged or lost when applying this fix. */
     mistake_proofing?: string;
+    /** What this revision could damage — craft element at risk if this fix is applied. */
+    potential_damage?: string;
+    /** Primary recommended prose repair — copy-paste-ready manuscript text. */
+    candidate_text_a?: string;
+    /** Rhythm variant — same fix direction, different cadence. */
+    candidate_text_b?: string;
+    /** Bolder rendering shift — more assertive prose move. */
+    candidate_text_c?: string;
+    /** Operation type: replace, insert_before, insert_after, delete, rewrite_context. */
+    revision_operation?: string;
   }[];
   /** Deterministic confidence score derived from evidence support + explanation quality (0-100). */
   confidence_score_0_100?: number;
@@ -250,7 +260,7 @@ export type SynthesizedCriterion = {
   /** Scorability semantics separated from confidence semantics. */
   scorability_status?: "scorable" | "scorable_low_confidence" | "non_scorable";
   technical_defects?: Array<{
-    code: "PROSE_CONTROL_ANCHOR_EXTRACTION_FAILED" | "RECOMMENDATION_TRUNCATED" | "SCORE_LE8_EMPTY_RECOMMENDATIONS";
+    code: "PROSE_CONTROL_ANCHOR_EXTRACTION_FAILED" | "RECOMMENDATION_TRUNCATED" | "SCORE_LE8_EMPTY_RECOMMENDATIONS" | "CANDIDATE_PROSE_MISSING";
     author_facing_reason: string;
     retryable: boolean;
   }>;
@@ -298,6 +308,8 @@ export type SynthesisOutput = {
     trigger_warnings?: string[];
     diagnosed_genre?: string;
     target_audience?: string;
+    /** The manuscript's primary technique for generating reader engagement. */
+    dominant_craft_engine?: string;
   };
 };
 

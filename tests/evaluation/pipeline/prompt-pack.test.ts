@@ -134,7 +134,14 @@ describe("prompt pack governance specs", () => {
     expect(PASS3_SYSTEM_PROMPT).toContain("never MODERATE");
     expect(PASS3_SYSTEM_PROMPT).toContain("COPY AND PASTE directly into their manuscript");
     expect(PASS3_SYSTEM_PROMPT).toContain("CHARACTER NAMES, SCENE DETAILS, and VOICE-MATCHED PROSE");
-    expect(PASS3_SYSTEM_PROMPT.length).toBeLessThanOrEqual(18000);
+    expect(PASS3_SYSTEM_PROMPT).toContain("GENRE-FIT OVERRIDE");
+    expect(PASS3_SYSTEM_PROMPT).toContain("HARM TEST");
+    expect(PASS3_SYSTEM_PROMPT).toContain("potential_damage");
+    expect(PASS3_SYSTEM_PROMPT).toContain("dominant_craft_engine");
+    expect(PASS3_SYSTEM_PROMPT).toContain("genre_appropriate_no_revision_warranted");
+    expect(PASS3_SYSTEM_PROMPT).toContain("CANDIDATE PROSE IS MANDATORY");
+    expect(PASS3_SYSTEM_PROMPT).toContain("NEVER echo the anchor_snippet as candidate prose");
+    expect(PASS3_SYSTEM_PROMPT.length).toBeLessThanOrEqual(23000);
 
     const userPrompt = buildPass3UserPrompt({
       comparisonPacketJson: "{\"criteria\":[],\"criteria_count_by_state\":{\"agree\":0,\"soft_divergence\":0,\"hard_divergence\":0,\"missing_or_invalid\":0}}",
