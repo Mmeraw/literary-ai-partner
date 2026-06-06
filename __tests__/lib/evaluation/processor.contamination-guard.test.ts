@@ -25,6 +25,13 @@ jest.mock("@/lib/evaluation/pipeline/qualityGate", () => ({
   runQualityGateV2: (...args: any[]) => runQualityGateV2Mock(...args),
 }));
 
+jest.mock("@/lib/evaluation/pipeline/templateCompletenessGate", () => ({
+  validateTemplateCompleteness: () => ({ pass: true, violations: [], warnings: [], summary: "ok" }),
+  sendCompletenessAlertEmail: jest.fn(),
+  TEMPLATE_COMPLETENESS_USER_MESSAGE: "quality issue",
+  TEMPLATE_COMPLETENESS_FAILURE_CODE: "TEMPLATE_COMPLETENESS_GATE_FAILED",
+}));
+
 jest.mock("@/lib/governance/evaluationBridge", () => ({
   mapEvaluationResultV2ToGovernanceEnvelope: (...args: any[]) =>
     mapEvaluationResultV2ToGovernanceEnvelopeMock(...args),
