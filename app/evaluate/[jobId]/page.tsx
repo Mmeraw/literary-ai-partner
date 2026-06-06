@@ -1001,7 +1001,7 @@ export default async function EvaluationReportPage({
           {artifact.enrichment?.premise && (
             <section className="rounded-lg border bg-white p-7 mb-7">
               <h2 className="text-2xl font-semibold text-gray-900">Premise</h2>
-              <p className="mt-4 text-base leading-7 text-gray-800 italic">
+              <p className="mt-4 text-base leading-7 text-gray-800">
                 {mistakeProofText(artifact.enrichment.premise)}
               </p>
             </section>
@@ -1135,7 +1135,7 @@ export default async function EvaluationReportPage({
                     ))}
                   </ul>
                 ) : (
-                  <p className="mt-5 text-base leading-7 text-gray-600 italic">See per-criterion opportunities below for detailed revision guidance.</p>
+                  <p className="mt-5 text-base leading-7 text-gray-600">See per-criterion opportunities below for detailed revision guidance.</p>
                 )}
               </section>
             );
