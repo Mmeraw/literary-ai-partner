@@ -8,7 +8,7 @@ describe('evaluation poller final audit readiness', () => {
       pass3_completed_at: null,
     });
 
-    expect(display?.label).toBe('Scoring complete. Preparing narrative synthesis.');
+    expect(display?.label).toBe('Finalizing your report in progress');
     expect(display?.percentage).toBe(92);
   });
 

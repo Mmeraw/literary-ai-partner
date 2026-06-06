@@ -66,9 +66,9 @@ function hasFinalExternalAudit(job: Pick<PhaseInputs, "final_external_audit_comp
 
 function expectsFinalExternalAudit(job: Pick<PhaseInputs, "final_external_audit_completed_at" | "final_external_audit_verdict" | "final_external_audit_blocking">): boolean {
   return (
-    typeof job.final_external_audit_completed_at === "string" ||
-    typeof job.final_external_audit_verdict === "string" ||
-    typeof job.final_external_audit_blocking === "boolean"
+    Object.prototype.hasOwnProperty.call(job, "final_external_audit_completed_at") ||
+    Object.prototype.hasOwnProperty.call(job, "final_external_audit_verdict") ||
+    Object.prototype.hasOwnProperty.call(job, "final_external_audit_blocking")
   );
 }
 
