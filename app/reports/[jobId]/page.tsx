@@ -545,7 +545,7 @@ export default async function ReportPage({
                     {enrichment.reading_grade_level != null && (
                       <div className="rounded-md border bg-gray-50 p-4">
                         <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Reading Grade Level</p>
-                        <p className="mt-1 text-2xl font-bold text-gray-900">{enrichment.reading_grade_level}</p>
+                        <p className="mt-1 text-2xl font-bold text-gray-900">{Math.round(Number(enrichment.reading_grade_level))}</p>
                         <p className="mt-1 text-xs text-gray-600">Flesch-Kincaid</p>
                         <p className="mt-2 text-xs text-gray-500 leading-relaxed">
                           Measures prose complexity only—not audience appropriateness. Cross-reference Content Warnings above for suitability guidance.
@@ -555,8 +555,8 @@ export default async function ReportPage({
                     {enrichment.dialogue_percentage != null && (
                       <div className="rounded-md border bg-gray-50 p-4">
                         <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Dialogue vs. Narrative</p>
-                        <p className="mt-1 text-2xl font-bold text-gray-900">{enrichment.dialogue_percentage}%<span className="text-base font-normal text-gray-500"> dialogue</span></p>
-                        <p className="mt-1 text-xs text-gray-600">{enrichment.narrative_percentage ?? (100 - enrichment.dialogue_percentage)}% narrative</p>
+                        <p className="mt-1 text-2xl font-bold text-gray-900">{Math.round(Number(enrichment.dialogue_percentage))}%<span className="text-base font-normal text-gray-500"> dialogue</span></p>
+                        <p className="mt-1 text-xs text-gray-600">{Math.round(Number(enrichment.narrative_percentage ?? (100 - enrichment.dialogue_percentage)))}% narrative</p>
                         <p className="mt-2 text-xs text-gray-500 leading-relaxed">
                           Most commercially successful novels range 25–35% dialogue.
                         </p>
