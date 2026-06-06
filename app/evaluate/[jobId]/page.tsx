@@ -760,12 +760,11 @@ export default async function EvaluationReportPage({
                 )}
               </div>
             )}
-            <div className="flex flex-wrap gap-3">
-              {isComplete && <DownloadReportButton jobId={jobId} />}
+            {!isComplete && (
               <Link href="/evaluate" className="inline-flex items-center rounded-md border border-stone-300 bg-white px-4 py-2 text-base font-medium text-stone-700 hover:bg-stone-50">
                 Back to Evaluate
               </Link>
-            </div>
+            )}
           </aside>
         </div>
       </div>
@@ -945,6 +944,9 @@ export default async function EvaluationReportPage({
                 </p>
               </div>
               <div className="flex items-center gap-3">
+                <Link href="/evaluate" className="inline-flex items-center rounded-md border border-stone-300 bg-white px-4 py-2 text-sm font-medium text-stone-700 hover:bg-stone-50">
+                  Back to Evaluate
+                </Link>
                 <DownloadReportButton jobId={jobId} />
                 <Link
                   href={`/workbench-v2?manuscriptId=${job.manuscript_id}&evaluationJobId=${jobId}`}
