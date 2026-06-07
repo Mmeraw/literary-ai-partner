@@ -11,6 +11,7 @@ export type TerminalJobFailureInput = {
   failureCode: string;
   message: string;
   source: string;
+  diagnostics?: Record<string, unknown>;
 };
 
 function buildProgressPatch(args: {
@@ -56,6 +57,7 @@ function terminalFailurePayload(args: {
   failureCode: string;
   message: string;
   source: string;
+  diagnostics?: Record<string, unknown>;
 }) {
   return {
     status: 'failed',
@@ -70,7 +72,10 @@ function terminalFailurePayload(args: {
       retryable: false,
       provider: null,
       occurred_at: args.nowIso,
-      context: { source: args.source },
+      context: {
+        source: args.source,
+        ...(args.diagnostics ? { diagnostics: args.diagnostics } : {}),
+      },
     },
     claimed_by: null,
     claimed_at: null,
@@ -129,6 +134,7 @@ export async function failEvaluationJobTerminally(args: TerminalJobFailureInput)
     failureCode: args.failureCode,
     message: args.message,
     source: args.source,
+    diagnostics: args.diagnostics,
   });
 
   let expectedLeaseToken: string | null = null;
@@ -205,6 +211,7 @@ export async function failEvaluationJobTerminally(args: TerminalJobFailureInput)
       progress_phase_status: 'failed',
       retry_eligible: false,
       updated_at: nowIso,
+      diagnostics: args.diagnostics ?? null,
     });
 
     if (!alertResult.sent) {
