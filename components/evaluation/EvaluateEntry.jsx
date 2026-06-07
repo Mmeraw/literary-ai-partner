@@ -83,7 +83,7 @@ function EvaluationHistoryTable({ jobs }) {
         <table className="min-w-full divide-y divide-stone-300 text-left text-base">
           <thead className="bg-[#F4EFE5]">
             <tr>
-                {['Status', 'Manuscript', 'Submitted', 'Progress', 'Report', 'Actions'].map((heading) => (
+                {['Status', 'Manuscript', 'Submitted', 'Report', 'Actions'].map((heading) => (
                 <th key={heading} className={`px-5 py-4 font-rg-mono text-[0.8rem] font-bold uppercase tracking-[0.12em] text-stone-900 ${heading === 'Actions' ? 'text-right' : ''}`}>
                   {heading}
                 </th>
@@ -115,19 +115,11 @@ function EvaluationHistoryRow({ job }) {
   });
   const reportHref = getReportHref(job);
   const detailHref = `/evaluate/${job.id}`;
-  const publicProgress =
-    job.status === "complete"
-      ? "Report ready"
-      : job.status === "failed"
-        ? "Needs attention"
-        : job.status === "running"
-          ? "Preparing report"
-          : "Processing";
 
   return (
     <tr className="align-middle transition hover:bg-[#FBFAF7]">
       <td className="whitespace-nowrap px-5 py-4">
-        <span className={`inline-flex rounded-full border px-3 py-1.5 text-sm font-bold ${evalStatusTone(job, purpose)}`}>
+        <span className={`inline-flex rounded-full border px-4 py-2 text-base font-bold leading-5 sm:text-lg ${evalStatusTone(job, purpose)}`}>
           {evalStatusLabel(job, purpose)}
         </span>
       </td>
@@ -139,11 +131,6 @@ function EvaluationHistoryRow({ job }) {
       </td>
       <td className="whitespace-nowrap px-5 py-4 text-base font-medium text-stone-800" title={job.created_at ? new Date(job.created_at).toLocaleString() : undefined}>
         {formatSubmittedAt(job.created_at)}
-      </td>
-      <td className="max-w-[20rem] px-5 py-4 text-base font-medium text-stone-800">
-        <Link href={detailHref} className="line-clamp-2 underline-offset-4 hover:text-stone-950 hover:underline" title={publicProgress}>
-              {publicProgress}
-        </Link>
       </td>
       <td className="whitespace-nowrap px-5 py-4 text-base">
         {isComplete ? (
