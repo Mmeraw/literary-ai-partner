@@ -3,9 +3,21 @@
  *
  * Tracks per-job cost accumulation for LLM API calls. Provides read-only
  * queries for system visibility and CostOps dashboards.
+ *
+ * Internal cost caps are operational quality guards, not customer-facing
+ * allowances. If a job exceeds its cap, the job is failed with the standard
+ * quality/technical-issue path while support receives COST_CAP_EXCEEDED
+ * diagnostics.
  */
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import { failEvaluationJobTerminally } from "@/lib/jobs/failJobTerminal";
+import {
+  FULL_SHORT_FORM_MAX_WORDS,
+  MICRO_EXCERPT_MAX_WORDS,
+  SHORT_EXCERPT_MAX_WORDS,
+  SHORT_FORM_PATTERN_MAX_WORDS,
+} from "@/lib/evaluation/modeRouting";
 
 export interface CostEntry {
   jobId: string;
@@ -47,6 +59,33 @@ export interface ModelCostBreakdown {
   totalInputTokens: number;
   totalOutputTokens: number;
 }
+
+export type EvaluationCostCapBand =
+  | "micro_excerpt_diagnostic"
+  | "short_excerpt_evaluation"
+  | "short_form_pattern_read"
+  | "full_short_form_evaluation"
+  | "long_form_evaluation"
+  | "long_form_multi_layer_guard";
+
+export interface EvaluationCostCap {
+  band: EvaluationCostCapBand;
+  maxCostCents: number;
+}
+
+const USER_SAFE_COST_CAP_MESSAGE =
+  "We detected a quality issue with your evaluation and our team is investigating. Your manuscript and completed analysis have been preserved.";
+
+// Internal hard caps. These are deliberately above observed normal spend, but
+// low enough to stop runaway duplicate calls, loops, or retry storms quickly.
+const EVALUATION_COST_CAPS: Record<EvaluationCostCapBand, number> = {
+  micro_excerpt_diagnostic: 100,       // $1.00 · 200–999 words
+  short_excerpt_evaluation: 200,       // $2.00 · 1,000–3,999 words
+  short_form_pattern_read: 300,        // $3.00 · 4,000–7,000 words
+  full_short_form_evaluation: 750,     // $7.50 · 7,001–24,999 words
+  long_form_evaluation: 2000,          // $20.00 · 25,000–99,999 words
+  long_form_multi_layer_guard: 2500,   // $25.00 · 100,000+ words / heavy long-form guard
+};
 
 // USD per 1K tokens. Keep in sync with OpenAI pricing when models change.
 const MODEL_PRICING_USD_PER_1K: Record<string, { input: number; output: number }> = {
@@ -92,6 +131,58 @@ function normalizeModelForPricing(model: string): string | null {
 
 function safeNumber(n: unknown, fallback = 0): number {
   return typeof n === "number" && Number.isFinite(n) ? n : fallback;
+}
+
+function readUsdEnvCents(name: string, fallbackCents: number): number {
+  const raw = process.env[name];
+  if (!raw) return fallbackCents;
+  const dollars = Number(raw);
+  if (!Number.isFinite(dollars) || dollars <= 0) return fallbackCents;
+  return Math.round(dollars * 100);
+}
+
+export function resolveEvaluationCostCap(wordCount: number): EvaluationCostCap {
+  const words = Math.max(0, Math.floor(safeNumber(wordCount, 0)));
+
+  if (words <= MICRO_EXCERPT_MAX_WORDS) {
+    return {
+      band: "micro_excerpt_diagnostic",
+      maxCostCents: readUsdEnvCents("EVAL_COST_CAP_MICRO_USD", EVALUATION_COST_CAPS.micro_excerpt_diagnostic),
+    };
+  }
+
+  if (words <= SHORT_EXCERPT_MAX_WORDS) {
+    return {
+      band: "short_excerpt_evaluation",
+      maxCostCents: readUsdEnvCents("EVAL_COST_CAP_SHORT_EXCERPT_USD", EVALUATION_COST_CAPS.short_excerpt_evaluation),
+    };
+  }
+
+  if (words <= SHORT_FORM_PATTERN_MAX_WORDS) {
+    return {
+      band: "short_form_pattern_read",
+      maxCostCents: readUsdEnvCents("EVAL_COST_CAP_SHORT_PATTERN_USD", EVALUATION_COST_CAPS.short_form_pattern_read),
+    };
+  }
+
+  if (words <= FULL_SHORT_FORM_MAX_WORDS) {
+    return {
+      band: "full_short_form_evaluation",
+      maxCostCents: readUsdEnvCents("EVAL_COST_CAP_FULL_SHORT_USD", EVALUATION_COST_CAPS.full_short_form_evaluation),
+    };
+  }
+
+  if (words >= 100_000) {
+    return {
+      band: "long_form_multi_layer_guard",
+      maxCostCents: readUsdEnvCents("EVAL_COST_CAP_LONG_MULTI_LAYER_USD", EVALUATION_COST_CAPS.long_form_multi_layer_guard),
+    };
+  }
+
+  return {
+    band: "long_form_evaluation",
+    maxCostCents: readUsdEnvCents("EVAL_COST_CAP_LONG_USD", EVALUATION_COST_CAPS.long_form_evaluation),
+  };
 }
 
 export function calculateCostCents(model: string, inputTokens: number, outputTokens: number): number {
@@ -152,10 +243,86 @@ export function trackCompletionCost(params: {
   }).catch(() => {});
 }
 
-
 function isUuidLike(value: unknown): value is string {
   return typeof value === "string"
     && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
+async function getResolvedJobCostCents(jobId: string): Promise<{ totalCostCents: number; callCount: number }> {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("job_costs")
+    .select("model, input_tokens, output_tokens, cost_cents")
+    .eq("job_id", jobId);
+
+  if (error) throw error;
+
+  const rows = data ?? [];
+  return {
+    totalCostCents: rows.reduce((sum, row) => sum + resolveTrackedCostCents({
+      model: row.model,
+      inputTokens: row.input_tokens,
+      outputTokens: row.output_tokens,
+      recordedCostCents: row.cost_cents,
+    }), 0),
+    callCount: rows.length,
+  };
+}
+
+async function enforceEvaluationCostCap(jobId: string, latestEntry: CostEntry): Promise<void> {
+  const supabase = createAdminClient();
+  const { data: job, error: jobError } = await supabase
+    .from("evaluation_jobs")
+    .select("id,status,phase,phase_status,manuscript_id,manuscripts(word_count)")
+    .eq("id", jobId)
+    .maybeSingle();
+
+  if (jobError || !job) return;
+  if (job.status === "failed" || job.status === "complete") return;
+
+  const manuscriptRelation = Array.isArray(job.manuscripts)
+    ? job.manuscripts[0]
+    : job.manuscripts;
+  const wordCount = safeNumber(manuscriptRelation?.word_count, 0);
+  const cap = resolveEvaluationCostCap(wordCount);
+  const cost = await getResolvedJobCostCents(jobId);
+
+  if (cost.totalCostCents <= cap.maxCostCents) return;
+
+  console.error("[EvaluationCostCapExceeded]", {
+    job_id: jobId,
+    manuscript_id: job.manuscript_id ?? null,
+    word_count: wordCount,
+    cap_band: cap.band,
+    cap_cents: cap.maxCostCents,
+    total_cost_cents: cost.totalCostCents,
+    call_count: cost.callCount,
+    latest_phase: latestEntry.phase,
+    latest_model: latestEntry.model,
+  });
+
+  await failEvaluationJobTerminally({
+    supabase,
+    jobId,
+    failureCode: "COST_CAP_EXCEEDED",
+    message: USER_SAFE_COST_CAP_MESSAGE,
+    source: "jobs.cost.enforceEvaluationCostCap",
+    diagnostics: {
+      internal_reason: "Evaluation exceeded internal hard cost cap; investigate loop, retry storm, duplicate worker, or unexpectedly expensive model routing.",
+      manuscript_id: job.manuscript_id ?? null,
+      word_count: wordCount,
+      cost_cap_band: cap.band,
+      cost_cap_cents: cap.maxCostCents,
+      observed_total_cost_cents: cost.totalCostCents,
+      observed_call_count: cost.callCount,
+      latest_phase: latestEntry.phase,
+      latest_model: latestEntry.model,
+      latest_input_tokens: latestEntry.inputTokens,
+      latest_output_tokens: latestEntry.outputTokens,
+      latest_cost_cents: latestEntry.costCents,
+      latest_called_at: latestEntry.calledAt,
+    },
+  });
 }
 
 export async function recordCost(entry: CostEntry): Promise<void> {
@@ -173,7 +340,12 @@ export async function recordCost(entry: CostEntry): Promise<void> {
     cost_cents: entry.costCents,
     called_at: entry.calledAt,
   });
-  if (error) console.error("[cost] Failed to record cost:", error);
+  if (error) {
+    console.error("[cost] Failed to record cost:", error);
+    return;
+  }
+
+  await enforceEvaluationCostCap(entry.jobId, entry);
 }
 
 export async function getJobCostSummary(jobId: string): Promise<JobCostSummary | null> {
