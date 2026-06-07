@@ -1,5 +1,5 @@
 ---
-canon_status: doctrine_candidate
+canon_status: draft
 domain: genre-expectations-volume-ii-and-revise-mode-contract
 supersedes: []
 superseded_by: null
