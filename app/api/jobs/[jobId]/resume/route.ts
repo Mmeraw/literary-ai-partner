@@ -5,7 +5,6 @@ import { isTerminalFailureCode, classifyFailureBucket } from '@/lib/evaluation/p
 import { upsertEvaluationArtifact } from '@/lib/evaluation/artifactPersistence';
 import { selectResumeCheckpoint } from '@/lib/evaluation/phase-architecture-v2/checklistRuntimeWiring';
 import { triggerEvaluationWorker, isTriggerWorkerFailure, type TriggerWorkerResult } from '@/lib/jobs/triggerWorker';
-import { failEvaluationJobTerminally } from '@/lib/jobs/failJobTerminal';
 
 /** Short deployed git SHA — same pattern as processor.ts */
 const RESUME_DEPLOYED_SHA: string =
@@ -13,17 +12,11 @@ const RESUME_DEPLOYED_SHA: string =
 
 type Params = Promise<{ jobId: string }>;
 
-function workerDidNotAcceptJob(result: TriggerWorkerResult): boolean {
-  if (isTriggerWorkerFailure(result)) return true;
-  if (result.targetClaimed === false) return true;
-  return result.claimed !== null && result.claimed < 1;
-}
-
-function workerFailureReason(result: TriggerWorkerResult): string {
+function workerKickoffWarningReason(result: TriggerWorkerResult): string | null {
   if (isTriggerWorkerFailure(result)) return result.reason;
   if (result.targetClaimed === false) return 'worker_did_not_claim_resumed_job';
   if (result.claimed !== null && result.claimed < 1) return 'worker_returned_zero_claims';
-  return 'unknown_worker_resume_failure';
+  return null;
 }
 
 /**
@@ -164,24 +157,17 @@ export async function POST(
         request_id: RESUME_DEPLOYED_SHA,
         source: 'api.jobs.resume.active_queued',
       });
-
-      if (workerDidNotAcceptJob(activeKickoff)) {
-        return NextResponse.json(
-          {
-            error: 'Evaluation recovery is queued, but the worker is temporarily unavailable. Please try again shortly.',
-            code: 'WORKER_KICKOFF_FAILED',
-            reason: workerFailureReason(activeKickoff),
-          },
-          { status: 503 },
-        );
-      }
+      const kickoffWarning = workerKickoffWarningReason(activeKickoff);
 
       return NextResponse.json(
         {
           success: true,
           job_id: jobId,
           current_status: job.status,
-          message: 'Evaluation recovery has been restarted.',
+          message: kickoffWarning
+            ? 'Evaluation recovery is queued. The worker did not claim it immediately, but the queued job remains recoverable and will be picked up by the worker/cron fallback.'
+            : 'Evaluation recovery has been restarted.',
+          worker_kickoff_warning: kickoffWarning,
         },
         { status: 202 },
       );
@@ -300,25 +286,7 @@ export async function POST(
       kickoffDispatchStartedAt: now,
     });
 
-    if (workerDidNotAcceptJob(kickoffResult)) {
-      const reason = workerFailureReason(kickoffResult);
-      await failEvaluationJobTerminally({
-        supabase: admin,
-        jobId,
-        failureCode: 'WORKER_KICKOFF_FAILED',
-        message: `Evaluation worker did not accept resumed job: ${reason}`,
-        source: 'api.jobs.resume.worker_kickoff_guard',
-      });
-
-      return NextResponse.json(
-        {
-          error: 'Evaluation recovery could not start because the worker is temporarily unavailable. Please try again shortly.',
-          code: 'WORKER_KICKOFF_FAILED',
-          reason,
-        },
-        { status: 503 },
-      );
-    }
+    const kickoffWarning = workerKickoffWarningReason(kickoffResult);
 
     return NextResponse.json(
       {
@@ -333,6 +301,10 @@ export async function POST(
         target_phase: targetPhase,
         checkpoint_artifact_type: checkpointDecision.checkpoint_artifact_type ?? null,
         checkpoint_artifact_id: checkpointDecision.checkpoint_artifact_id ?? null,
+        worker_kickoff_warning: kickoffWarning,
+        message: kickoffWarning
+          ? 'Evaluation recovery is queued. The worker did not claim it immediately, but the queued job remains recoverable and will be picked up by the worker/cron fallback.'
+          : 'Evaluation recovery has been restarted.',
       },
       { status: 202 },
     );

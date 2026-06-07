@@ -2,7 +2,6 @@ import { POST } from '@/app/api/jobs/[jobId]/resume/route';
 import { getAuthenticatedUser } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { triggerEvaluationWorker } from '@/lib/jobs/triggerWorker';
-import { failEvaluationJobTerminally } from '@/lib/jobs/failJobTerminal';
 
 jest.mock('@/lib/supabase/server', () => ({
   getAuthenticatedUser: jest.fn(),
@@ -42,14 +41,9 @@ jest.mock('@/lib/jobs/triggerWorker', () => ({
   isTriggerWorkerFailure: jest.fn((result: { ok: boolean }) => !result.ok),
 }));
 
-jest.mock('@/lib/jobs/failJobTerminal', () => ({
-  failEvaluationJobTerminally: jest.fn(async () => ({ ok: true, jobId: 'job-resume-1' })),
-}));
-
 const mockGetAuthenticatedUser = getAuthenticatedUser as jest.MockedFunction<typeof getAuthenticatedUser>;
 const mockCreateAdminClient = createAdminClient as jest.MockedFunction<typeof createAdminClient>;
 const mockTriggerEvaluationWorker = triggerEvaluationWorker as jest.MockedFunction<typeof triggerEvaluationWorker>;
-const mockFailEvaluationJobTerminally = failEvaluationJobTerminally as jest.MockedFunction<typeof failEvaluationJobTerminally>;
 
 function makeJob(overrides: Record<string, unknown> = {}) {
   return {
@@ -113,6 +107,14 @@ function makeRequest() {
   return new Request('https://example.test/api/jobs/job-resume-1/resume', { method: 'POST' });
 }
 
+function firstUpdatePayload(admin: ReturnType<typeof makeAdminMock>): Record<string, unknown> {
+  const payload = (admin.update as jest.Mock).mock.calls[0]?.[0] as Record<string, unknown> | undefined;
+  if (!payload) {
+    throw new Error('Expected evaluation_jobs update payload');
+  }
+  return payload;
+}
+
 describe('POST /api/jobs/[jobId]/resume', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -120,7 +122,7 @@ describe('POST /api/jobs/[jobId]/resume', () => {
     process.env.CRON_SECRET = 'cron-secret';
   });
 
-  test('requeues failed recoverable job, clears terminal fields, and requires exact worker claim', async () => {
+  test('requeues failed recoverable job, clears terminal fields, and kicks worker best-effort', async () => {
     const admin = makeAdminMock(makeJob());
     mockCreateAdminClient.mockReturnValue(admin as never);
 
@@ -132,7 +134,7 @@ describe('POST /api/jobs/[jobId]/resume', () => {
     expect(json.job_id).toBe('job-resume-1');
     expect(json.target_phase).toBe('phase_3');
 
-    const updatePayload = admin.update.mock.calls[0]?.[0];
+    const updatePayload = firstUpdatePayload(admin);
     expect(updatePayload).toEqual(expect.objectContaining({
       status: 'queued',
       phase: 'phase_3',
@@ -175,7 +177,7 @@ describe('POST /api/jobs/[jobId]/resume', () => {
     expect(json.checkpoint_artifact_type).toBe('pass12_handoff_v1');
     expect(json.checkpoint_artifact_id).toBe('artifact-1');
 
-    const updatePayload = admin.update.mock.calls[0]?.[0];
+    const updatePayload = firstUpdatePayload(admin);
     expect(updatePayload).toEqual(expect.objectContaining({
       status: 'queued',
       phase: 'phase_3',
@@ -206,7 +208,7 @@ describe('POST /api/jobs/[jobId]/resume', () => {
     }));
   });
 
-  test('terminalizes resumed job when worker does not claim exact job', async () => {
+  test('keeps resumed job queued when worker does not claim exact job immediately', async () => {
     const admin = makeAdminMock(makeJob());
     mockCreateAdminClient.mockReturnValue(admin as never);
     mockTriggerEvaluationWorker.mockResolvedValueOnce({
@@ -219,15 +221,18 @@ describe('POST /api/jobs/[jobId]/resume', () => {
     });
 
     const response = await POST(makeRequest() as never, { params: Promise.resolve({ jobId: 'job-resume-1' }) });
-    const json = (await response.json()) as { code: string; reason: string };
+    const json = (await response.json()) as { success: boolean; worker_kickoff_warning: string; message: string };
 
-    expect(response.status).toBe(503);
-    expect(json.code).toBe('WORKER_KICKOFF_FAILED');
-    expect(json.reason).toBe('worker_did_not_claim_resumed_job');
-    expect(mockFailEvaluationJobTerminally).toHaveBeenCalledWith(expect.objectContaining({
-      jobId: 'job-resume-1',
-      failureCode: 'WORKER_KICKOFF_FAILED',
-      source: 'api.jobs.resume.worker_kickoff_guard',
+    expect(response.status).toBe(202);
+    expect(json.success).toBe(true);
+    expect(json.worker_kickoff_warning).toBe('worker_did_not_claim_resumed_job');
+    expect(json.message).toContain('queued job remains recoverable');
+
+    const updatePayload = firstUpdatePayload(admin);
+    expect(updatePayload).toEqual(expect.objectContaining({
+      status: 'queued',
+      failure_code: null,
+      last_error: null,
     }));
   });
 });
