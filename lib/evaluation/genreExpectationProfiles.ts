@@ -30,6 +30,16 @@ export type RecommendationGuardDecision = {
   reason: string;
 };
 
+export type GenreExpectationMetadata = {
+  diagnosed_genre: string;
+  shelf_target_audience: string;
+  dominant_craft_engine: DominantCraftEngine;
+  expectation_profiles: ExpectationProfile[];
+  genre_expectation_ids: string[];
+  genre_expectation_labels: string[];
+  resolution_notes: string[];
+};
+
 export type GenreExpectationDetail = {
   id: string;
   label: string;
@@ -66,10 +76,16 @@ const PROTECTED_MOMENTUM_PROFILES = new Set<ExpectationProfile>([
 ]);
 
 const MOMENTUM_DIRECTIVE_RE =
-  /\b(increase momentum|add a decision beat|strengthen hook|clearer next step)\b/i;
+  /\b(increase momentum|add a decision beat|strengthen hook|clearer next step|accelerate|speed up|raise the pace|faster pacing|make (?:it|this|the scene) move faster)\b/i;
 
 const DIALOGUE_QUANTITY_DIRECTIVE_RE =
   /\b(add (?:more )?dialogue|increase dialogue|more dialogue|more exchanges|convert (?:reflection|summary|interiority|narration) into dialogue|turn (?:reflection|summary|interiority|narration) into dialogue)\b/i;
+
+const WORLDBUILDING_REDUCTION_DIRECTIVE_RE =
+  /\b(?:cut|trim|reduce|compress|remove|speed past|minimize)\b.{0,48}\b(?:lore|worldbuilding|world-building|invented terminology|exposition|setup|council scene|travel scene)\b/i;
+
+const GENERIC_COMMERCIAL_DIRECTIVE_RE =
+  /\b(?:make (?:it|this) more commercial|commercial pacing|more market-friendly|broaden appeal by speeding|page-turner pacing)\b/i;
 
 const MALFUNCTION_EVIDENCE_RE =
   /\b(stall(?:s|ed|ing)?|unclear|confus(?:e|ing|ion)|diffus(?:e|ing)|break(?:s|ing)|not landing|undercut(?:s|ting)?|reader (?:loses|lost)|fails? to|malfunction(?:ing)?)\b/i;
@@ -450,9 +466,9 @@ const GENRE_EXPECTATION_RULES: Array<{ pattern: RegExp; profiles: ExpectationPro
       id: "instructional_nonfiction",
       label: "Instructional / practical nonfiction",
       reader_promise: "Clear usable guidance, sequence, credibility, examples, and reader outcome—not novelistic scene propulsion.",
-      craft_expectations: ["instructional clarity", "sequence", "authority", "reader usability", "example quality"],
+      craft_expectations: ["instructional clarity", "sequence", "credibility", "reader usability", "example quality"],
       protected_behaviors: ["lists", "steps", "direct address", "procedural repetition"],
-      failure_modes: ["unclear sequence", "unsupported authority", "missing examples", "reader outcome vague"],
+      failure_modes: ["unclear sequence", "unsupported credibility", "missing examples", "reader outcome vague"],
       pacing_norm: "Pacing means usability and cognitive load, not dramatic acceleration.",
       dialogue_norm: "Dialogue is usually not required; evaluate examples, instructions, and reader clarity instead.",
     }),
@@ -559,7 +575,13 @@ export function recommendationNeedsProfileEvidence(rec: {
   mechanism?: string;
   anchor_snippet?: string;
 }): boolean {
-  return MOMENTUM_DIRECTIVE_RE.test(rec.action) || DIALOGUE_QUANTITY_DIRECTIVE_RE.test(rec.action);
+  const text = [rec.action, rec.expected_impact ?? "", rec.mechanism ?? ""].join(" ");
+  return (
+    MOMENTUM_DIRECTIVE_RE.test(text) ||
+    DIALOGUE_QUANTITY_DIRECTIVE_RE.test(text) ||
+    WORLDBUILDING_REDUCTION_DIRECTIVE_RE.test(text) ||
+    GENERIC_COMMERCIAL_DIRECTIVE_RE.test(text)
+  );
 }
 
 export function hasExplicitProfileMalfunctionEvidence(rec: {
@@ -587,6 +609,40 @@ export function shouldSuppressByExpectationProfile(
     return { allowed: true, reason: "action_not_profile_sensitive" };
   }
 
+  const signalText = [rec.action, rec.expected_impact ?? "", rec.mechanism ?? ""].join(" ");
+
+  if (hasExplicitProfileMalfunctionEvidence(rec)) {
+    return { allowed: true, reason: "explicit_malfunction_evidence_present" };
+  }
+
+  const genreExpectationIds = new Set(context.genre_expectations.map((detail) => detail.id));
+
+  if (genreExpectationIds.has("epic_fantasy") && WORLDBUILDING_REDUCTION_DIRECTIVE_RE.test(signalText)) {
+    return {
+      allowed: false,
+      reason:
+        "profile_guard_suppressed: epic fantasy protects lore/worldbuilding density unless explicit malfunction evidence is present",
+    };
+  }
+
+  if (GENERIC_COMMERCIAL_DIRECTIVE_RE.test(signalText)) {
+    const commercialProtected = context.expectation_profiles.some((profile) =>
+      profile === "mood_forward" ||
+      profile === "reflection_forward" ||
+      profile === "atmosphere_forward" ||
+      profile === "dread_forward" ||
+      profile === "experimental_form_forward",
+    );
+
+    if (commercialProtected) {
+      return {
+        allowed: false,
+        reason:
+          "profile_guard_suppressed: commercial-fiction advice requires explicit malfunction evidence for protected genre/craft-engine profiles",
+      };
+    }
+  }
+
   const intersectsProtectedProfile = context.expectation_profiles.some((profile) =>
     PROTECTED_MOMENTUM_PROFILES.has(profile),
   );
@@ -595,13 +651,89 @@ export function shouldSuppressByExpectationProfile(
     return { allowed: true, reason: "profile_allows_propulsion_guidance" };
   }
 
-  if (hasExplicitProfileMalfunctionEvidence(rec)) {
-    return { allowed: true, reason: "explicit_malfunction_evidence_present" };
-  }
-
   return {
     allowed: false,
     reason:
       "profile_guard_suppressed: mood/reflection/atmosphere/dread-forward profile requires explicit malfunction evidence for propulsion directives",
   };
+}
+
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((item) => typeof item === "string");
+}
+
+function isExpectationProfile(value: string): value is ExpectationProfile {
+  return [
+    "propulsion_forward",
+    "slow_burn",
+    "mood_forward",
+    "atmosphere_forward",
+    "dread_forward",
+    "reflection_forward",
+    "voice_forward",
+    "emotional_payoff_forward",
+    "puzzle_forward",
+    "world_concept_forward",
+    "experimental_form_forward",
+    "hybrid_literary_commercial",
+  ].includes(value as ExpectationProfile);
+}
+
+function isDominantCraftEngine(value: string): value is DominantCraftEngine {
+  return [
+    "propulsion",
+    "tonal_pressure",
+    "atmosphere",
+    "reflection",
+    "voice",
+    "emotional_payoff",
+    "puzzle",
+    "world_concept",
+    "experimental_form",
+    "hybrid",
+    "unknown",
+  ].includes(value as DominantCraftEngine);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+export function genreExpectationContextForMetadata(
+  context: ResolvedExpectationContext,
+): GenreExpectationMetadata {
+  return {
+    diagnosed_genre: context.diagnosed_genre,
+    shelf_target_audience: context.shelf_target_audience,
+    dominant_craft_engine: context.dominant_craft_engine,
+    expectation_profiles: context.expectation_profiles,
+    genre_expectation_ids: context.genre_expectations.map((detail) => detail.id),
+    genre_expectation_labels: context.genre_expectations.map((detail) => detail.label),
+    resolution_notes: context.resolution_notes,
+  };
+}
+
+export function isGenreExpectationMetadata(value: unknown): value is GenreExpectationMetadata {
+  if (!isRecord(value)) return false;
+  return (
+    typeof value.diagnosed_genre === "string" &&
+    typeof value.shelf_target_audience === "string" &&
+    typeof value.dominant_craft_engine === "string" &&
+    isDominantCraftEngine(value.dominant_craft_engine) &&
+    isStringArray(value.expectation_profiles) &&
+    value.expectation_profiles.every(isExpectationProfile) &&
+    isStringArray(value.genre_expectation_ids) &&
+    isStringArray(value.genre_expectation_labels) &&
+    isStringArray(value.resolution_notes)
+  );
+}
+
+export function extractGenreExpectationMetadataFromEvaluationPayload(
+  payload: unknown,
+): GenreExpectationMetadata | null {
+  if (!isRecord(payload)) return null;
+  const governance = isRecord(payload.governance) ? payload.governance : null;
+  const transparency = governance && isRecord(governance.transparency) ? governance.transparency : null;
+  const context = transparency?.genre_expectation_context;
+  return isGenreExpectationMetadata(context) ? context : null;
 }

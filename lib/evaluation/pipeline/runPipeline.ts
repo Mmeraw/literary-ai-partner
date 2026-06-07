@@ -2482,6 +2482,9 @@ export function synthesisToEvaluationResultV2(
       policy_family: "multi-pass-dual-axis",
       observability_warnings: observabilityWarnings,
       transparency: {
+        ...(synthesis.metadata.genre_expectation_context
+          ? { genre_expectation_context: synthesis.metadata.genre_expectation_context }
+          : {}),
         evaluation_scope: {
           route: certification.route,
           input_scale: opts.scopeProfile?.inputScale,

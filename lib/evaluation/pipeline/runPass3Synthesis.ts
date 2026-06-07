@@ -61,6 +61,7 @@ import { analyzeDialogueAttributionForGate } from "@/lib/evaluation/pov/analyzeD
 import { getEvaluationRuntimeConfig } from "@/lib/config/evaluationRuntimeConfig";
 import { trackCompletionCost } from "@/lib/jobs/cost";
 import {
+  genreExpectationContextForMetadata,
   resolveExpectationProfiles,
   shouldSuppressByExpectationProfile,
   type DominantCraftEngine,
@@ -741,6 +742,17 @@ function applyWeakDiagnosticSpineConfidenceDegrade(args: {
   });
 }
 
+function hasGovernanceSuppressedRecommendations(
+  criterion: SynthesizedCriterion,
+): boolean {
+  return (criterion.technical_defects ?? []).some((defect) =>
+    defect.code === "DIAGNOSTIC_SPINE_PROMISE_MISMATCH" ||
+    defect.code === "DIAGNOSTIC_SPINE_CENTRAL_ARGUMENT_MISMATCH" ||
+    defect.author_facing_reason.includes("Recommendation guard suppressed unsafe") ||
+    defect.author_facing_reason.includes("recommendations were suppressed because they contradicted"),
+  );
+}
+
 function assertPass2aStructuredContext(context: Pass2aStructuredContext | undefined): asserts context is Pass2aStructuredContext {
   if (!context) {
     throw new Error("[Pass3] PASS2A_STRUCTURED_CONTEXT_MISSING");
@@ -1330,6 +1342,7 @@ export function parsePass3Response(
   const DENSITY_FLOOR: Record<string, number> = { "<=5": 5, "6-7": 4, "8": 2 };
   for (const c of finalCriteria) {
     if (c.final_score_0_10 >= 9) continue;
+    if (hasGovernanceSuppressedRecommendations(c)) continue;
     const bucket = c.final_score_0_10 <= 5 ? "<=5" : c.final_score_0_10 <= 7 ? "6-7" : "8";
     const minRecs = DENSITY_FLOOR[bucket] ?? 2;
     if (c.recommendations.length < minRecs) {
@@ -1364,6 +1377,7 @@ export function parsePass3Response(
   const TEMPLATE_GATE_DENSITY_FLOOR: Record<string, number> = { "<=5": 2, "6-7": 1, "8": 0 };
   for (const c of finalCriteria) {
     if (c.final_score_0_10 >= 9) continue;
+    if (hasGovernanceSuppressedRecommendations(c)) continue;
     const bucket = c.final_score_0_10 <= 5 ? "<=5" : c.final_score_0_10 <= 7 ? "6-7" : "8";
     const minRecs = TEMPLATE_GATE_DENSITY_FLOOR[bucket] ?? 0;
     if (minRecs === 0) continue;
@@ -1508,6 +1522,9 @@ export function parsePass3Response(
       pass2_model: String(pass2.model),
       pass3_model: String(resolvedFallback),
       generated_at: new Date().toISOString(),
+      ...(expectationContext
+        ? { genre_expectation_context: genreExpectationContextForMetadata(expectationContext) }
+        : {}),
     },
     partial_evaluation: false, // will be overridden by runPass3Synthesis with real value
     enrichment: (extractedPremise || extractedTriggerWarnings?.length || extractedDiagnosedGenre || extractedTargetAudience)

@@ -11,6 +11,7 @@
  */
 
 import { isTrustedPathEligible, type CrossCheckVerdict } from "@/lib/revision/repairCrossCheck";
+import { extractGenreExpectationMetadataFromEvaluationPayload } from "@/lib/evaluation/genreExpectationProfiles";
 
 // ─── Test 1: TrustedPath gate only allows approve ──────────────────────────
 
@@ -85,6 +86,31 @@ describe("TrustedPath ledger entry metadata", () => {
   it("localId follows trustedpath naming convention", () => {
     const localId = `trustedpath-${Date.now()}-abcdef12`;
     expect(localId).toMatch(/^trustedpath-\d+-[a-f0-9]+$/);
+  });
+
+  it("requires explicit genre expectation context before automation can inherit genre contract", () => {
+    expect(extractGenreExpectationMetadataFromEvaluationPayload({ governance: { transparency: {} } })).toBeNull();
+
+    const payload = {
+      governance: {
+        transparency: {
+          genre_expectation_context: {
+            diagnosed_genre: "memoir",
+            shelf_target_audience: "adult memoir readers",
+            dominant_craft_engine: "reflection",
+            expectation_profiles: ["reflection_forward", "voice_forward"],
+            genre_expectation_ids: ["memoir_creative_nonfiction"],
+            genre_expectation_labels: ["Memoir / creative nonfiction"],
+            resolution_notes: ["genre_expectation:memoir_creative_nonfiction"],
+          },
+        },
+      },
+    };
+
+    expect(extractGenreExpectationMetadataFromEvaluationPayload(payload)).toMatchObject({
+      diagnosed_genre: "memoir",
+      dominant_craft_engine: "reflection",
+    });
   });
 });
 

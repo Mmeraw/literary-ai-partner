@@ -8,6 +8,7 @@
  */
 
 import type { CriterionKey } from "@/schemas/criteria-keys";
+import type { GenreExpectationMetadata } from "@/lib/evaluation/genreExpectationProfiles";
 
 // ── Recommendation semantic vocabulary ───────────────────────────────────────
 
@@ -293,6 +294,7 @@ export type SynthesisOutput = {
     pass2_model: string;
     pass3_model: string;
     generated_at: string;
+    genre_expectation_context?: GenreExpectationMetadata;
   };
   /** TRUTH ENFORCEMENT: Was manuscript truncated/sampled for evaluation? */
   partial_evaluation: boolean;

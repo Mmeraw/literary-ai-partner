@@ -7,6 +7,7 @@ import {
 } from './reviseCardContract';
 import { type SlaeGroundingStatus } from './slae';
 import { modeContractForMetadata, resolveRevisionModeContract } from './modeContract';
+import { extractGenreExpectationMetadataFromEvaluationPayload } from '@/lib/evaluation/genreExpectationProfiles';
 
 type LedgerSeverity = 'must' | 'should' | 'could';
 type LedgerConfidence = 'low' | 'medium' | 'high';
@@ -1128,17 +1129,23 @@ async function persistHealedExistingLedger(input: {
   rowId: string | null;
   currentContent: unknown;
   opportunities: RevisionOpportunity[];
+  extraContent?: Record<string, unknown>;
 }): Promise<void> {
   if (!input.rowId || !isRecord(input.currentContent)) return;
 
   const existing = input.currentContent.opportunities;
-  if (stableStringify(existing) === stableStringify(input.opportunities)) return;
+  const extraContent = input.extraContent ?? {};
+  const extraContentUnchanged = Object.entries(extraContent).every(
+    ([key, value]) => stableStringify(input.currentContent[key]) === stableStringify(value),
+  );
+  if (stableStringify(existing) === stableStringify(input.opportunities) && extraContentUnchanged) return;
 
   await input.supabase
     .from('evaluation_artifacts')
     .update({
       content: {
         ...input.currentContent,
+        ...extraContent,
         opportunities: input.opportunities,
         candidate_generation_status: 'backend_filled_abc_v1',
         candidate_generation_updated_at: new Date().toISOString(),
@@ -1192,6 +1199,11 @@ export async function ensureRevisionOpportunityLedgerArtifact(supabase: any, job
     : typeof jobEvaluationPayloadRecord.word_count === 'number'
       ? jobEvaluationPayloadRecord.word_count
       : 0;
+  const modeContract = resolveRevisionModeContract({
+    evaluationPayload,
+    job: jobRow,
+  });
+  const genreExpectationContext = extractGenreExpectationMetadataFromEvaluationPayload(evaluationPayload);
 
   const existingLedgerFullyEnriched =
     isRecord(existingLedgerRow?.content) &&
@@ -1208,6 +1220,10 @@ export async function ensureRevisionOpportunityLedgerArtifact(supabase: any, job
       rowId: typeof existingLedgerRow?.id === 'string' ? existingLedgerRow.id : null,
       currentContent: existingLedgerRow?.content,
       opportunities: healed,
+      extraContent: {
+        mode_contract: modeContractForMetadata(modeContract),
+        genre_expectation_context: genreExpectationContext,
+      },
     });
 
     return {
@@ -1267,11 +1283,6 @@ export async function ensureRevisionOpportunityLedgerArtifact(supabase: any, job
     evaluationPayload, chunkCachePayload, longformPayload, { wordCount },
   );
 
-  const modeContract = resolveRevisionModeContract({
-    evaluationPayload,
-    job: jobRow,
-  });
-
   if (existingOpportunities && existingOpportunities.length === 0 && opportunities.length === 0) {
     return {
       artifactId: typeof existingLedgerRow?.id === 'string' ? existingLedgerRow.id : null,
@@ -1285,6 +1296,7 @@ export async function ensureRevisionOpportunityLedgerArtifact(supabase: any, job
     job_id: jobId,
     evaluation_source_hash: evaluationResultRow.source_hash ?? null,
     mode_contract: modeContractForMetadata(modeContract),
+    genre_expectation_context: genreExpectationContext,
     opportunities,
   });
 
@@ -1304,6 +1316,7 @@ export async function ensureRevisionOpportunityLedgerArtifact(supabase: any, job
         ? 'backend_filled_abc_v1_chunk_enriched'
         : 'backend_filled_abc_v1',
     mode_contract: modeContractForMetadata(modeContract),
+      genre_expectation_context: genreExpectationContext,
     opportunities,
   };
 

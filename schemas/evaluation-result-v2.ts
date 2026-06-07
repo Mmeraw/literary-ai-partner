@@ -19,6 +19,7 @@ import type {
 } from '@/lib/evaluation/modeDetection';
 import type { ModeTelemetryEvent } from '@/lib/evaluation/modeGate';
 import type { SlaeGroundingStatus } from '@/lib/revision/slae';
+import type { GenreExpectationMetadata } from '@/lib/evaluation/genreExpectationProfiles';
 
 export type ScoreDenominatorPolicy = "full_canonical" | "scorable_only";
 
@@ -310,6 +311,12 @@ export type EvaluationResultV2 = {
         validity_status: "valid" | "invalid" | "quarantined";
         reason_codes: string[];
       };
+      /**
+       * Genre Expectations Volume II runtime contract.
+       * Explicitly records the resolved genre/reader-promise/craft-engine context
+       * that governed recommendation suppression and Revise/TrustedPath propagation.
+       */
+      genre_expectation_context?: GenreExpectationMetadata;
       /**
        * PR #506 — explicit Pass 4 external adjudication provenance.
        *

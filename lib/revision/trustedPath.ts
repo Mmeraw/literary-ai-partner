@@ -29,6 +29,7 @@ import {
   modeContractToConfirmedMode,
   resolveRevisionModeContract,
 } from "./modeContract";
+import { extractGenreExpectationMetadataFromEvaluationPayload } from "@/lib/evaluation/genreExpectationProfiles";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -117,6 +118,10 @@ export async function applyTrustedPath(input: {
   });
   if (!hasExplicitRevisionModeContract(modeContract)) {
     return emptyResult("TrustedPath™ is blocked: evaluation mode contract is unavailable.");
+  }
+  const genreExpectationContext = extractGenreExpectationMetadataFromEvaluationPayload(evaluationArtifact?.content);
+  if (!genreExpectationContext) {
+    return emptyResult("TrustedPath™ is blocked: genre expectation contract is unavailable.");
   }
   const eligibility = deriveReviseEligibilityLabel({
     confirmedMode: modeContractToConfirmedMode(modeContract),
@@ -222,6 +227,7 @@ export async function applyTrustedPath(input: {
         source: "trustedpath-auto-apply",
         crossCheckVerdict: "approve",
         modeContract: modeContractForMetadata(modeContract),
+        genreExpectationContext,
       },
     });
 
@@ -303,6 +309,9 @@ export async function previewTrustedPath(input: {
     job,
   });
   if (!hasExplicitRevisionModeContract(modeContract)) return { eligible: 0, alreadyDecided: 0, total: 0 };
+  if (!extractGenreExpectationMetadataFromEvaluationPayload(evaluationArtifact?.content)) {
+    return { eligible: 0, alreadyDecided: 0, total: 0 };
+  }
   const eligibility = deriveReviseEligibilityLabel({
     confirmedMode: modeContractToConfirmedMode(modeContract),
   });
