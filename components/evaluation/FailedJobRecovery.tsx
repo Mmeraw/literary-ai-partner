@@ -17,6 +17,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
+import { CancelEvaluationButton } from "@/components/evaluation/CancelEvaluationButton";
 
 export type ResumeMode = "phase2_handoff" | "chunk_checkpoint" | "full_restart";
 
@@ -215,11 +216,17 @@ export function FailedJobRecovery({
             Start New Evaluation
           </Link>
           <Link
-            href="/contact"
+            href="/evaluate"
             className="inline-flex items-center gap-2 rounded-md border border-stone-300 bg-white px-4 py-2 text-sm font-medium text-stone-800 transition-colors hover:bg-stone-50"
           >
-            Contact Support
+            Return to job list
           </Link>
+          <CancelEvaluationButton
+            jobId={jobId}
+            label="Cancel"
+            returnHref="/evaluate"
+            buttonClassName="inline-flex items-center gap-2 rounded-md bg-red-700 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-red-800"
+          />
         </div>
       </div>
     );
@@ -310,6 +317,12 @@ export function FailedJobRecovery({
         >
           Return to job list
         </Link>
+        <CancelEvaluationButton
+          jobId={jobId}
+          label="Cancel"
+          returnHref="/evaluate"
+          buttonClassName="inline-flex items-center gap-2 rounded-md bg-red-700 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-red-800"
+        />
       </div>
     </div>
   );

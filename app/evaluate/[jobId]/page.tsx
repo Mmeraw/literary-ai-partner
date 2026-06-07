@@ -30,6 +30,14 @@ import {
   getCriterionSupportLabel,
   isCertifiedCriterion,
 } from "@/lib/evaluation/reportCriterionDisplay";
+import {
+  deriveGenreConfidence,
+  deriveMarketReadinessConfidence,
+  deriveOverallScoreConfidence,
+  getAudienceConfidence,
+  getConfidenceLabelClasses,
+  type CanonicalConfidenceLabel,
+} from "@/lib/evaluation/confidenceFieldPolicy";
 import { resolveReportTitle } from "@/lib/evaluation/reportTitle";
 import { backfillManuscriptTitleIfMissing } from "@/lib/manuscripts/titleBackfill";
 import CriterionOpportunities from "@/components/evaluation/CriterionOpportunities";
@@ -393,38 +401,28 @@ function criterionStatusLabel(
 
 function getConfidencePresentation(
   c: NonNullable<ArtifactContentV1["criteria"]>[number],
-): { label: string; classes: string } | null {
+): { label: CanonicalConfidenceLabel; classes: string } | null {
   const confidenceLevel = c.confidence_level;
   const confidenceScore = c.confidence_score_0_100;
 
-  if (confidenceLevel === "high" || (typeof confidenceScore === "number" && confidenceScore >= 80)) {
-    return {
-      label: "High Confidence",
-      classes: "bg-emerald-200 text-emerald-900 ring-1 ring-emerald-400",
-    };
-  }
+  let label: CanonicalConfidenceLabel | null = null;
 
-  if (
+  if (confidenceLevel === "high" || (typeof confidenceScore === "number" && confidenceScore >= 80)) {
+    label = "High Confidence";
+  } else if (
     confidenceLevel === "moderate" ||
     (typeof confidenceScore === "number" && confidenceScore >= 60)
   ) {
-    return {
-      label: "Moderate Confidence",
-      classes: "bg-amber-200 text-amber-900 ring-1 ring-amber-400",
-    };
-  }
-
-  if (
+    label = "Moderate Confidence";
+  } else if (
     confidenceLevel === "low" ||
     (typeof confidenceScore === "number" && confidenceScore >= 0)
   ) {
-    return {
-      label: "Low Confidence",
-      classes: "bg-rose-200 text-rose-900 ring-1 ring-rose-400",
-    };
+    label = "Low Confidence";
   }
 
-  return null;
+  if (!label) return null;
+  return { label, classes: getConfidenceLabelClasses(label) };
 }
 
 function getOverallReadinessPresentation(score: number | null): { label: string; classes: string } {
@@ -758,6 +756,19 @@ export default async function EvaluationReportPage({
     return key.includes("readiness") || key.includes("market") || label.includes("readiness") || label.includes("market");
   });
 
+  // Confidence labels for interpretive header fields (policy: confidenceFieldPolicy.ts)
+  // Each field derives confidence from its OWN evidence signal — no shared source.
+  const governanceConfidence01 = typeof artifact?.governance?.confidence === "number"
+    ? artifact.governance.confidence
+    : null;
+  const scorableCriteriaCount = orderedCriteria.filter((c) => isCertifiedCriterion(c)).length;
+  const totalCriteriaCount = orderedCriteria.length;
+
+  const genreConfidenceLabel = deriveGenreConfidence(displayWordCount);
+  const marketReadinessConfidenceLabel = deriveMarketReadinessConfidence(scorableCriteriaCount, totalCriteriaCount);
+  const overallScoreConfidenceLabel = deriveOverallScoreConfidence(scorableCriteriaCount, totalCriteriaCount, governanceConfidence01);
+  const audienceConfidence = getAudienceConfidence(displayWordCount);
+
   return (
     <div className="min-h-screen" style={{ backgroundColor: '#F8F6F1' }}>
       <main className="mx-auto max-w-6xl px-4 py-4 sm:px-6 sm:py-6">
@@ -779,15 +790,46 @@ export default async function EvaluationReportPage({
             </p>
             <dl className="mt-3 grid gap-x-4 gap-y-2 text-sm sm:grid-cols-2 lg:grid-cols-3">
               <div><dt className="font-semibold text-stone-950">Report Type</dt><dd className="text-stone-700">{reportType}</dd></div>
-              <div><dt className="font-semibold text-stone-950">Genre</dt><dd className="capitalize text-stone-700">{genre}</dd></div>
+              <div>
+                <dt className="font-semibold text-stone-950">Genre</dt>
+                <dd className="capitalize text-stone-700">
+                  {genre}
+                  {genreConfidenceLabel && (
+                    <span className={`ml-2 inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${getConfidenceLabelClasses(genreConfidenceLabel)}`}>
+                      {genreConfidenceLabel}
+                    </span>
+                  )}
+                </dd>
+              </div>
               {canonicalDoc?.titleBlock.shelf && <div><dt className="font-semibold text-stone-950">Shelf</dt><dd className="text-stone-700">{canonicalDoc.titleBlock.shelf}</dd></div>}
               <div><dt className="font-semibold text-stone-950">Submitted Word Count</dt><dd className="text-stone-700">{canonicalDoc?.titleBlock.submittedWordCount ?? (typeof displayWordCount === 'number' ? displayWordCount.toLocaleString() : 'Calculating')}</dd></div>
               <div><dt className="font-semibold text-stone-950">Estimated Manuscript Pages</dt><dd className="text-stone-700">{canonicalDoc?.titleBlock.estimatedPages ?? (estimatedPages ? `${estimatedPages.toLocaleString()} at 250 words/page` : 'Not available')}</dd></div>
               <div><dt className="font-semibold text-stone-950">Reading Grade Level</dt><dd className="text-stone-700">{canonicalDoc?.titleBlock.readingGradeLevel ?? ((artifact?.enrichment?.reading_grade_level ?? instantReadingGrade) != null ? `${Math.floor(Number(artifact?.enrichment?.reading_grade_level ?? instantReadingGrade))} (Flesch-Kincaid)` : 'Not available')}</dd></div>
               <div><dt className="font-semibold text-stone-950">Dialogue/Narrative Ratio</dt><dd className="text-stone-700">{canonicalDoc?.titleBlock.dialogueNarrativeRatio ?? ((artifact?.enrichment?.dialogue_percentage ?? instantDialoguePercentage) != null ? `${Math.floor(Number(artifact?.enrichment?.dialogue_percentage ?? instantDialoguePercentage))}% dialogue / ${Math.floor(Number(artifact?.enrichment?.narrative_percentage ?? instantNarrativePercentage ?? 100 - (artifact?.enrichment?.dialogue_percentage ?? instantDialoguePercentage ?? 0)))}% narrative` : 'Not available')}</dd></div>
-              <div><dt className="font-semibold text-stone-950">Market Readiness</dt><dd className="text-stone-700">{verdict}</dd></div>
+              <div>
+                <dt className="font-semibold text-stone-950">Market Readiness</dt>
+                <dd className="text-stone-700">
+                  {verdict}
+                  {marketReadinessConfidenceLabel && (
+                    <span className={`ml-2 inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${getConfidenceLabelClasses(marketReadinessConfidenceLabel)}`}>
+                      {marketReadinessConfidenceLabel}
+                    </span>
+                  )}
+                </dd>
+              </div>
               <div><dt className="font-semibold text-stone-950">Date Generated</dt><dd className="text-stone-700">{generatedLabel}</dd></div>
-              <div className="sm:col-span-2 lg:col-span-3"><dt className="font-semibold text-stone-950">Target Audience</dt><dd className="text-stone-700">{targetAudience}</dd></div>
+              <div className="sm:col-span-2 lg:col-span-3">
+                <dt className="font-semibold text-stone-950">Target Audience</dt>
+                <dd className="text-stone-700">
+                  {audienceConfidence.tentative && (
+                    <span className="mr-1 text-stone-500 italic">Tentative:</span>
+                  )}
+                  {targetAudience}
+                  <span className={`ml-2 inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${getConfidenceLabelClasses(audienceConfidence.label)}`}>
+                    {audienceConfidence.label}
+                  </span>
+                </dd>
+              </div>
             </dl>
           </div>
 
@@ -797,6 +839,11 @@ export default async function EvaluationReportPage({
                 <p className="text-sm font-semibold uppercase tracking-[0.16em] text-[#C8A96E]">Overall Score</p>
                 <p className="mt-3 font-rg-serif text-5xl font-bold leading-none text-white">{overallScore !== null ? overallScore : 'N/A'}<span className="text-2xl text-[#C8A96E]">/100</span></p>
                 <p className={`mt-3 inline-flex rounded-full border px-3 py-1 text-base font-semibold uppercase tracking-wide ${verdictPresentation.classes}`}>{verdict}</p>
+                {overallScoreConfidenceLabel && (
+                  <p className={`mt-2 inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${getConfidenceLabelClasses(overallScoreConfidenceLabel)}`}>
+                    {overallScoreConfidenceLabel}
+                  </p>
+                )}
               </div>
             )}
 
