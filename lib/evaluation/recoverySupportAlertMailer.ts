@@ -90,6 +90,16 @@ export function toUserSafeRecoveryMessage(message: string | null | undefined): s
   return message.trim();
 }
 
+function renderUnknown(value: unknown): string {
+  if (value === null || value === undefined) return 'null';
+  if (typeof value === 'string') return value;
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return String(value);
+  }
+}
+
 function renderRecoveryEmailBody(payload: RecoverySupportAlertPayload): string {
   return [
     `job_id: ${payload.job_id}`,
@@ -111,7 +121,21 @@ function renderRecoveryEmailBody(payload: RecoverySupportAlertPayload): string {
 function renderEvaluationFailureEmailBody(payload: EvaluationFailureSupportAlertPayload): string {
   return [
     `job_id: ${payload.job_id}`,
+    `manuscript_id: ${payload.manuscript_id ?? 'null'}`,
+    `user_id: ${payload.user_id ?? 'null'}`,
     `failure_type: ${payload.failure_code}`,
+    `failure_message: ${payload.failure_message}`,
+    `source: ${payload.source}`,
+    `phase: ${payload.phase ?? 'null'}`,
+    `phase_status: ${payload.phase_status ?? 'null'}`,
+    `progress.phase: ${payload.progress_phase ?? 'null'}`,
+    `progress.phase_status: ${payload.progress_phase_status ?? 'null'}`,
+    `pipeline_stage: ${payload.pipeline_stage ?? 'null'}`,
+    `retry_eligible: ${payload.retry_eligible ?? 'null'}`,
+    `created_at: ${payload.created_at ?? 'null'}`,
+    `updated_at: ${payload.updated_at ?? 'null'}`,
+    'diagnostics:',
+    renderUnknown(payload.diagnostics),
   ].join('\n');
 }
 
@@ -367,11 +391,8 @@ export async function sendEvaluationMajorIssueUserAlert(
       body: JSON.stringify({
         from: fromEmail,
         to: userEmail,
-        subject: `[RevisionGrade] Evaluation support update: ${shortJobId}`,
-        text: renderEvaluationMajorIssueUserEmailBody({
-          ...payload,
-          user_email: userEmail,
-        }),
+        subject: `[RevisionGrade] Evaluation issue (${shortJobId})`,
+        text: renderEvaluationMajorIssueUserEmailBody(payload),
       }),
     });
 
