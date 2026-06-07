@@ -342,38 +342,45 @@ export function EvaluationPoller({
         const nextJob = data.job as JobState;
         const previousJob = job;
 
-        setJob((prev) => {
-          const unchanged =
-            prev &&
-            prev.status === nextJob.status &&
-            prev.progress === nextJob.progress &&
-            prev.updated_at === nextJob.updated_at &&
-            prev.last_error === nextJob.last_error &&
-            prev.phase === nextJob.phase &&
-            prev.phase_status === nextJob.phase_status &&
-            prev.total_units === nextJob.total_units &&
-            prev.completed_units === nextJob.completed_units &&
-            prev.cross_check_status === nextJob.cross_check_status &&
-            prev.phase1_started_at === nextJob.phase1_started_at &&
-            prev.phase1_completed_at === nextJob.phase1_completed_at &&
-            prev.phase2_started_at === nextJob.phase2_started_at &&
-            prev.phase2_completed_at === nextJob.phase2_completed_at &&
-            prev.pass3_started_at === nextJob.pass3_started_at &&
-            prev.pass3_completed_at === nextJob.pass3_completed_at &&
-            prev.manuscript_word_count === nextJob.manuscript_word_count &&
-            prev.phase0_total_duration_ms === nextJob.phase0_total_duration_ms &&
-            prev.phase_message === nextJob.phase_message &&
-            prev.heartbeat_age_seconds === nextJob.heartbeat_age_seconds &&
-            prev.retry_count === nextJob.retry_count &&
-            prev.is_stalled === nextJob.is_stalled &&
-            prev.stalled_reason === nextJob.stalled_reason &&
-            prev.failure_code === nextJob.failure_code;
+        // Compute unchanged comparison synchronously before any state updates.
+        // This keeps the side-effect (ref mutation) out of the setJob updater
+        // function, which is critical for React concurrent mode correctness
+        // and prevents the updater from blocking user interactions.
+        const unchanged =
+          previousJob != null &&
+          previousJob.status === nextJob.status &&
+          previousJob.progress === nextJob.progress &&
+          previousJob.updated_at === nextJob.updated_at &&
+          previousJob.last_error === nextJob.last_error &&
+          previousJob.phase === nextJob.phase &&
+          previousJob.phase_status === nextJob.phase_status &&
+          previousJob.total_units === nextJob.total_units &&
+          previousJob.completed_units === nextJob.completed_units &&
+          previousJob.cross_check_status === nextJob.cross_check_status &&
+          previousJob.phase1_started_at === nextJob.phase1_started_at &&
+          previousJob.phase1_completed_at === nextJob.phase1_completed_at &&
+          previousJob.phase2_started_at === nextJob.phase2_started_at &&
+          previousJob.phase2_completed_at === nextJob.phase2_completed_at &&
+          previousJob.pass3_started_at === nextJob.pass3_started_at &&
+          previousJob.pass3_completed_at === nextJob.pass3_completed_at &&
+          previousJob.manuscript_word_count === nextJob.manuscript_word_count &&
+          previousJob.phase0_total_duration_ms === nextJob.phase0_total_duration_ms &&
+          previousJob.phase_message === nextJob.phase_message &&
+          previousJob.heartbeat_age_seconds === nextJob.heartbeat_age_seconds &&
+          previousJob.retry_count === nextJob.retry_count &&
+          previousJob.is_stalled === nextJob.is_stalled &&
+          previousJob.stalled_reason === nextJob.stalled_reason &&
+          previousJob.failure_code === nextJob.failure_code;
+        unchangedCountRef.current = unchanged ? unchangedCountRef.current + 1 : 0;
 
-          unchangedCountRef.current = unchanged ? unchangedCountRef.current + 1 : 0;
-          return nextJob;
+        // Wrap non-urgent poll state updates in startTransition so that any
+        // user interaction (click, keypress) is not blocked by the re-render
+        // triggered by the polling response. This is the primary fix for the
+        // 248ms INP regression on body.overflow-x-hidden.antialiased.
+        startTransition(() => {
+          setJob(nextJob);
+          setError(null);
         });
-
-        setError(null);
 
         // Auto-redirect to Story Ledger when pipeline reaches review_gate
         if (

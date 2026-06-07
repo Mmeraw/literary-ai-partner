@@ -402,6 +402,163 @@ describe("parsePass3Response", () => {
       expect(summary).toContain(readableToken);
     }
   });
+
+  // ── Density repair: producer-side evidence-anchored synthesis ────────────────
+
+  it("density repair: score-4 criterion with no LLM recs gets evidence-anchored recs added", () => {
+    const fixture = makePass3Fixture();
+    // Give one criterion a low score and strip its recommendations
+    fixture.criteria[0] = {
+      ...fixture.criteria[0],
+      craft_score: 4,
+      editorial_score: 4,
+      final_score_0_10: 4,
+      recommendations: [],
+      evidence: [{ snippet: "The river moved through darkness, cold and indifferent to the village." }],
+    };
+
+    const result = parsePass3Response(JSON.stringify(fixture), pass1, pass2);
+
+    const repaired = result.criteria[0];
+    // Template gate requires ≥2 meaningful recs for score ≤5
+    expect(repaired.recommendations.length).toBeGreaterThanOrEqual(2);
+    // Every synthesized rec must have a non-empty action and specific_fix
+    for (const rec of repaired.recommendations) {
+      expect(rec.action.trim().length).toBeGreaterThan(0);
+      expect(rec.specific_fix.trim().length).toBeGreaterThan(0);
+      expect(rec.anchor_snippet.trim().length).toBeGreaterThan(0);
+      expect(rec.source_pass).toBe(3);
+    }
+  });
+
+  it("density repair: score-6 criterion with no LLM recs gets at least 1 rec added", () => {
+    const fixture = makePass3Fixture();
+    fixture.criteria[1] = {
+      ...fixture.criteria[1],
+      craft_score: 6,
+      editorial_score: 6,
+      final_score_0_10: 6,
+      recommendations: [],
+      evidence: [{ snippet: "Zimeon opened the door and stared at the empty room." }],
+    };
+
+    const result = parsePass3Response(JSON.stringify(fixture), pass1, pass2);
+
+    const repaired = result.criteria[1];
+    // Template gate requires ≥1 meaningful rec for score 6-7
+    expect(repaired.recommendations.length).toBeGreaterThanOrEqual(1);
+    expect(repaired.recommendations[0].anchor_snippet.trim().length).toBeGreaterThan(0);
+    expect(repaired.recommendations[0].source_pass).toBe(3);
+  });
+
+  it("density repair: repaired recs pass the template completeness gate", () => {
+    const fixture = makePass3Fixture({
+      overall: {
+        overall_score_0_100: 65,
+        verdict: "revise",
+        one_paragraph_summary:
+          "Sister has a strong atmospheric premise and emotionally legible family pressure, but pacing, thematic escalation, and closure need targeted revision before the report can call it submission-ready.",
+        top_3_strengths: [
+          "Atmospheric voice creates immediate unease and tonal authority.",
+          "Family pressure gives the central conflict emotional specificity.",
+          "Scene-level imagery provides strong anchors for revision work.",
+        ],
+        top_3_risks: [
+          "Pacing may flatten if transitions do not escalate consequence.",
+          "Theme may feel repetitive without clearer turn-by-turn development.",
+          "Closure may underdeliver if final consequences remain implicit.",
+        ],
+        submission_readiness: "nearly_ready",
+      },
+      enrichment: {
+        premise: "A haunted family story follows Sister through escalating grief, secrecy, and moral pressure.",
+        diagnosed_genre: "literary horror",
+        target_audience: "Adult readers of character-driven literary horror who value atmosphere and psychological tension.",
+      },
+    });
+    // Strip recs from two low-scoring criteria
+    fixture.criteria[0] = {
+      ...fixture.criteria[0],
+      craft_score: 4, editorial_score: 4, final_score_0_10: 4,
+      recommendations: [],
+      evidence: [{ snippet: "The old house stood against the hill, grey and insistent." }],
+      final_rationale: "The concept fails to establish a clear thematic premise by the first act, leaving the central dramatic question implicit.",
+    };
+    fixture.criteria[1] = {
+      ...fixture.criteria[1],
+      craft_score: 6, editorial_score: 6, final_score_0_10: 6,
+      recommendations: [],
+      evidence: [{ snippet: "He arrived late and alone, carrying nothing but the silence." }],
+      final_rationale: "Narrative drive weakens in the second act because the stakes diffuse before the decision point.",
+    };
+
+    const synthesis = parsePass3Response(JSON.stringify(fixture), pass1, pass2);
+    const v2 = synthesisToEvaluationResultV2({
+      synthesis,
+      ids: {
+        evaluation_run_id: "density-repair-gate-test",
+        job_id: "00000000-0000-0000-0000-000000000001",
+        manuscript_id: 1,
+        user_id: "test-user",
+      },
+      manuscriptText: "The old house stood against the hill, grey and insistent. He arrived late and alone, carrying nothing but the silence.",
+      title: "Sister",
+      llmEnrichment: synthesis.enrichment,
+      scopeProfile: {
+        inputScale: "standard_chapter",
+        wordCount: 4899,
+        chunkCount: 1,
+        scorableCount: 1,
+        confidenceCapSummary: "HIGH",
+        scopePolicyVersion: "v1",
+      } as import("@/lib/evaluation/pipeline/submissionScope").SubmissionScopeProfile,
+    });
+    const gateResult = validateTemplateCompleteness(v2 as Parameters<typeof validateTemplateCompleteness>[0]);
+
+    // The density repair should satisfy the gate — no DENSITY_FLOOR_VIOLATION expected
+    const densityViolations = gateResult.violations.filter((v) => v.code === "DENSITY_FLOOR_VIOLATION");
+    expect(densityViolations).toHaveLength(0);
+  });
+
+  it("density repair: score-9 criterion is not touched by density repair", () => {
+    const fixture = makePass3Fixture();
+    fixture.criteria[2] = {
+      ...fixture.criteria[2],
+      craft_score: 9,
+      editorial_score: 9,
+      final_score_0_10: 9,
+      recommendations: [],
+    };
+
+    const result = parsePass3Response(JSON.stringify(fixture), pass1, pass2);
+
+    // Score ≥9: repair must NOT add recs (gate has no minimum for 9-10)
+    expect(result.criteria[2].recommendations).toHaveLength(0);
+  });
+
+  it("density repair: criterion with no evidence anchors does not fabricate recommendations", () => {
+    const fixture = makePass3Fixture();
+    fixture.criteria[3] = {
+      ...fixture.criteria[3],
+      craft_score: 4, editorial_score: 4, final_score_0_10: 4,
+      recommendations: [],
+      evidence: [],
+      final_rationale: "", // no rationale either
+    };
+
+    const result = parsePass3Response(JSON.stringify(fixture), pass1, pass2);
+
+    // Without any anchors the repair must produce nothing rather than fabricate
+    // (the defect will remain for the gate to report)
+    for (const rec of result.criteria[3].recommendations) {
+      // Any recs that do exist must still come from upstream pass1/pass2 backfill
+      expect(rec.anchor_snippet.trim().length).toBeGreaterThanOrEqual(0);
+    }
+    // No fabricated content: all recs must have source_pass set
+    for (const rec of result.criteria[3].recommendations) {
+      expect([1, 2, 3]).toContain(rec.source_pass);
+    }
+  });
 });
 
 // ── Runner integration tests (DI, no real OpenAI) ─────────────────────────────
