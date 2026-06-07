@@ -1,0 +1,74 @@
+import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { buildSeedBenchmarkContext } from '@/lib/evaluation/seed/benchmarkContextBuilder';
+
+const REPO_ROOT = process.cwd();
+const STORY_LEDGER_DIR = join(REPO_ROOT, 'docs/benchmarks/story-ledger');
+const CARTEL_LEDGER_PATH = join(STORY_LEDGER_DIR, 'IDEAL_STORY_LEDGER_9_LAYER_BENCHMARK_CARTEL_BABIES.md');
+const FROGGIN_LEDGER_PATH = join(STORY_LEDGER_DIR, 'IDEAL_STORY_LEDGER_9_LAYER_BENCHMARK_FROGGIN_NOGGIN.md');
+const RIVER_LEDGER_PATH = join(STORY_LEDGER_DIR, 'IDEAL_STORY_LEDGER_9_LAYER_BENCHMARK_LET_THE_RIVER_DECIDE.md');
+const INDEX_PATH = join(REPO_ROOT, 'docs/benchmarks/DREAM_LONGFORM_BENCHMARK_INDEX.md');
+
+function read(filePath: string): string {
+  return readFileSync(filePath, 'utf8');
+}
+
+describe('Native Story Ledger canon — Cartel Babies primary example', () => {
+  it('keeps all native Story Ledger answer keys present', () => {
+    expect(existsSync(CARTEL_LEDGER_PATH)).toBe(true);
+    expect(existsSync(FROGGIN_LEDGER_PATH)).toBe(true);
+    expect(existsSync(RIVER_LEDGER_PATH)).toBe(true);
+  });
+
+  it('uses Cartel Babies as the canonical required-gold product example', () => {
+    const ledger = read(CARTEL_LEDGER_PATH);
+
+    expect(ledger).toContain('benchmark-schema: ideal-story-ledger-9-layer-v1');
+    expect(ledger).toContain('benchmark-tier: required-gold');
+    expect(ledger).toContain('revised: 2026-05-31T03:56:00Z');
+    expect(ledger).toContain('docs/benchmarks/cartel-babies-dream.md');
+    expect(ledger).toContain('docs/benchmarks/cartel-babies-dream-v2-governed-ledger-addendum.md');
+  });
+
+  it('guards the Cartel Babies completion standard and nine-layer doctrine', () => {
+    const ledger = read(CARTEL_LEDGER_PATH);
+
+    for (const token of [
+      'Benjamin as dual-POV co-protagonist',
+      'Paolito-to-Paul identity transformation',
+      'Raúl / Navarro governance conflict',
+      'Cobra as critical hidden-traitor',
+      'Diego as loyalty-tax / weak-link pressure',
+      "El Tomatero's red bat",
+      'pig pen / pigs as disposal-terror object-system',
+      'Radio-channel punishment system',
+      'Canadian Embassy / CBSA / Public Safety Canada',
+      'Layer 9 — Threat / Pressure / Ending',
+    ]) {
+      expect(ledger).toContain(token);
+    }
+  });
+
+  it('keeps DREAM index authority aligned with native Story Ledger tiers', () => {
+    const index = read(INDEX_PATH);
+
+    expect(index).toContain('| *Cartel Babies* | [`cartel-babies-dream.md`](./cartel-babies-dream.md)');
+    expect(index).toContain('| Required gold |');
+    expect(index).toContain('| *Let the River Decide* | [`let-the-river-decide-dream.md`](./let-the-river-decide-dream.md)');
+    expect(index).toContain('| Calibration |');
+  });
+
+  it('injects Cartel Babies, not retired benchmarks, as the seed exemplar for both routes', () => {
+    const longFormContext = buildSeedBenchmarkContext('LONG_FORM');
+    const shortFormContext = buildSeedBenchmarkContext('SHORT_FORM');
+    const retiredDisplayName = ['Ancient', 'Bloodlines'].join(' ');
+    const retiredSlug = ['ancient', 'bloodlines'].join('-');
+
+    for (const context of [longFormContext, shortFormContext]) {
+      expect(context).toContain('COMPLETED BENCHMARK EXEMPLAR — STORY LEDGER (Cartel Babies, required-gold)');
+      expect(context).toContain('IDEAL_STORY_LEDGER_9_LAYER_BENCHMARK_CARTEL_BABIES.md');
+      expect(context).not.toContain(retiredDisplayName);
+      expect(context).not.toContain(retiredSlug);
+    }
+  });
+});

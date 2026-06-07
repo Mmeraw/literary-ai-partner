@@ -149,7 +149,7 @@ export default function LongformCharacterCoverageArcLedger({ doc, showInternalSe
               <p className="text-xs font-semibold uppercase tracking-wide text-emerald-600 mb-2">
                 Required detections <span className="text-amber-700">(internal)</span>
               </p>
-              <ul className="space-y-1">
+              <ul className="list-none space-y-1 pl-0">
                 {characterDetections.map((d, i) => (
                   <li key={i} className="text-xs text-gray-600 flex gap-2">
                     <span className="text-emerald-400 shrink-0">✓</span>
@@ -164,7 +164,7 @@ export default function LongformCharacterCoverageArcLedger({ doc, showInternalSe
               <p className="text-xs font-semibold uppercase tracking-wide text-rose-600 mb-2">
                 Failure conditions <span className="text-amber-700">(internal)</span>
               </p>
-              <ul className="space-y-1">
+              <ul className="list-none space-y-1 pl-0">
                 {characterFailures.map((f, i) => (
                   <li key={i} className="text-xs text-gray-600 flex gap-2">
                     <span className="text-rose-400 shrink-0">⚠</span>
@@ -208,37 +208,40 @@ function CriterionMiniBlock({ criterion }: { criterion: CriterionEntry }) {
       {criterion.fit_evidence?.length > 0 && (
         <div>
           <p className="text-xs font-medium text-emerald-600 mb-1">Fit evidence</p>
-          <ol className="space-y-0.5 list-decimal list-inside">
+          <ul className="list-none space-y-0.5 pl-0">
             {criterion.fit_evidence.map((e, i) => (
-              <li key={i} className="text-xs text-gray-600">
-                {e}
+              <li key={i} className="flex gap-1.5 text-xs text-gray-600">
+                <span className="shrink-0 text-gray-500">•</span>
+                <span>{e}</span>
               </li>
             ))}
-          </ol>
+          </ul>
         </div>
       )}
       {criterion.gap_evidence?.length > 0 && (
         <div>
           <p className="text-xs font-medium text-rose-600 mb-1">Gap evidence</p>
-          <ol className="space-y-0.5 list-decimal list-inside">
+          <ul className="list-none space-y-0.5 pl-0">
             {criterion.gap_evidence.map((e, i) => (
-              <li key={i} className="text-xs text-gray-600">
-                {e}
+              <li key={i} className="flex gap-1.5 text-xs text-gray-600">
+                <span className="shrink-0 text-gray-500">•</span>
+                <span>{e}</span>
               </li>
             ))}
-          </ol>
+          </ul>
         </div>
       )}
       {criterion.revision_queue?.length > 0 && (
         <div>
           <p className="text-xs font-medium text-indigo-600 mb-1">Revision queue</p>
-          <ol className="space-y-0.5 list-decimal list-inside">
+          <ul className="list-none space-y-0.5 pl-0">
             {criterion.revision_queue.map((r, i) => (
-              <li key={i} className="text-xs text-gray-700">
-                {r}
+              <li key={i} className="flex gap-1.5 text-xs text-gray-700">
+                <span className="shrink-0 text-gray-500">{i + 1}.</span>
+                <span>{r}</span>
               </li>
             ))}
-          </ol>
+          </ul>
         </div>
       )}
     </div>

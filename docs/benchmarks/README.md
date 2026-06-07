@@ -36,27 +36,19 @@ These files belong to the DREAM governed-ledger benchmark family in substance ev
 
 ---
 
-## Legacy / historical reference files
+## Retired benchmark references
 
-Some benchmark-adjacent files are preserved because they teach a regression lesson, but they are **not current production-output authority**.
+Obsolete benchmark references must not remain active as tests, fixtures, product exemplars, release gates, or Story Ledger authority.
 
-Legacy reference files may be used to preserve lessons such as canon continuity, missing-evidence handling, or craft-vs-intelligence separation. They must not override the canonical 13-criterion registry, the current scope policy, or the product-facing templates.
-
-Current examples:
-
-| File | Legacy status | Allowed use | Not allowed to do |
-|---|---|---|---|
-| [`ancient-bloodlines-shortform-model.md`](./ancient-bloodlines-shortform-model.md) | Preserved `EvaluationReportV1` / 12-criterion historical short-form model | Teach canon continuity, missing-evidence handling, and craft-vs-intelligence separation | Claim current 13-criterion production shape |
-| [`../testdata/evaluation/ancient-bloodlines.shortform.model.json`](../testdata/evaluation/ancient-bloodlines.shortform.model.json) | Preserved fixture backing legacy tests | Drive explicit legacy-reference guards only | Serve as a current scoring fixture, benchmark gate, release gate, or Story Ledger authority |
-| [`ancient-bloodlines-longform-layered-template.md`](./ancient-bloodlines-longform-layered-template.md) | Historical path for a blank multi-layer format template | Backward-compatible reference only | Replace `docs/templates/evaluation/long-form-multi-layer-evaluation-template.md` as product template authority |
-
-Legacy tests must say so in their header. They should verify that preserved files remain useful **and** that they do not masquerade as current mode/template authority.
+The active native Story Ledger / DREAM benchmark authorities are the three entries above plus the filled answer keys in [`story-ledger/`](./story-ledger/). New or replacement tests should use those files, with `Cartel Babies` as the primary required-gold Story Ledger exemplar when a single example is needed.
 
 ---
 
 ## The Gold Standard
 
-**[`froggin-noggin-dream.md`](./froggin-noggin-dream.md)** — *Froggin Noggin* (Michael J. Me Raw). Full long-form multi-layer gold-standard evaluation: 13-criteria score grid, layered architecture analysis, canon/doctrine audit, revision plan, releasability assessment, and DREAM governed-ledger expectations where applicable. This is a calibration target — when production output disputes a criterion or long-form diagnosis, this file helps determine which side is closer to ground truth.
+**[`cartel-babies-dream.md`](./cartel-babies-dream.md)** + **[`story-ledger/IDEAL_STORY_LEDGER_9_LAYER_BENCHMARK_CARTEL_BABIES.md`](./story-ledger/IDEAL_STORY_LEDGER_9_LAYER_BENCHMARK_CARTEL_BABIES.md)** — *Cartel Babies* (Michael J. Meraw). Required-gold long-form multi-layer benchmark plus revised nine-layer Story Ledger answer key. Use this as the primary product exemplar for seed / Phase 1A Story Ledger testing because it combines dual-protagonist tracking, identity transition, institutional rescue/protection, symbolic object lifecycles, cartel pressure systems, and explicit completion/failure conditions.
+
+`Froggin Noggin` remains a required-gold DREAM benchmark, and `Let the River Decide` remains calibration-tier. When a single code or test example is needed, prefer `Cartel Babies`.
 
 Schema family: `canonical-13` / `dream-longform-v2-governed-ledgers` / `long_form_multi_layer_evaluation` where front matter and index opt in. Shape validation is handled by `tests/evaluation/benchmarks/gold-standard-shape.test.ts` where applicable.
 

@@ -54,13 +54,14 @@ export default function LongformStructuralStack({ doc }: Props) {
           <p className="text-xs font-semibold uppercase tracking-wide text-gray-600 mb-2">
             What this manuscript must not become
           </p>
-          <ol className="space-y-1.5 list-decimal list-inside">
+          <ul className="list-none space-y-1.5 pl-0">
             {antiPatterns.map((item, i) => (
-              <li key={i} className="text-sm text-gray-700">
-                {item}
+              <li key={i} className="flex gap-2 text-sm text-gray-700">
+                <span className="shrink-0 text-gray-500">•</span>
+                <span>{item}</span>
               </li>
             ))}
-          </ol>
+          </ul>
         </div>
       )}
     </div>

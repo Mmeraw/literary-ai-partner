@@ -27,7 +27,7 @@ export default function LongformMarketShelf({ doc }: Props) {
           {shelf.shelf_neighbors?.length > 0 && (
             <div>
               <p className="text-xs font-semibold uppercase tracking-wide text-gray-600 mb-1">Shelf neighbors</p>
-              <ul className="space-y-0.5">
+              <ul className="list-none space-y-0.5 pl-0">
                 {shelf.shelf_neighbors.map((n, i) => (
                   <li key={i} className="text-sm text-gray-600 before:content-['·'] before:mr-1.5 before:text-gray-500">{n}</li>
                 ))}
@@ -37,7 +37,7 @@ export default function LongformMarketShelf({ doc }: Props) {
           {shelf.comparison_space?.length > 0 && (
             <div>
               <p className="text-xs font-semibold uppercase tracking-wide text-gray-600 mb-1">Comparison space</p>
-              <ul className="space-y-0.5">
+              <ul className="list-none space-y-0.5 pl-0">
                 {shelf.comparison_space.map((c, i) => (
                   <li key={i} className="text-sm text-gray-600 before:content-['·'] before:mr-1.5 before:text-gray-500">{c}</li>
                 ))}

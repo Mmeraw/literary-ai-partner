@@ -804,7 +804,7 @@ export default async function EvaluationReportPage({
               <div>
                 <dt className="font-semibold text-stone-950">Genre</dt>
                 <dd className="capitalize text-stone-700">
-                  {genre}
+                  <span>{genre}</span>
                   {genreConfidenceLabel && (
                     <span className={`ml-2 inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${getConfidenceLabelClasses(genreConfidenceLabel)}`}>
                       {genreConfidenceLabel}
@@ -843,7 +843,7 @@ export default async function EvaluationReportPage({
               <div>
                 <dt className="font-semibold text-stone-950">Market Readiness</dt>
                 <dd className="text-stone-700">
-                  {verdict}
+                  <span>{verdict}</span>
                   {marketReadinessConfidenceLabel && (
                     <span className={`ml-2 inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${getConfidenceLabelClasses(marketReadinessConfidenceLabel)}`}>
                       {marketReadinessConfidenceLabel}
@@ -858,7 +858,7 @@ export default async function EvaluationReportPage({
                   {audienceConfidence.tentative && (
                     <span className="mr-1 text-stone-500 italic">Tentative:</span>
                   )}
-                  {targetAudience}
+                  <span>{targetAudience}</span>
                   <span className={`ml-2 inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${getConfidenceLabelClasses(audienceConfidence.label)}`}>
                     {audienceConfidence.label}
                   </span>
@@ -1086,7 +1086,7 @@ export default async function EvaluationReportPage({
           <section className="rounded-lg border border-amber-200 bg-amber-50 p-6 mb-7">
             <h2 className="text-xl font-semibold text-amber-900">Content Warnings</h2>
             {canonicalDoc && canonicalDoc.contentWarnings.length > 0 ? (
-              <ul className="mt-4 space-y-3 text-base text-amber-900">
+              <ul className="mt-4 list-none space-y-3 pl-0 text-base text-amber-900">
                 {canonicalDoc.contentWarnings.map((w, i) => (
                   <li key={i} className="flex gap-2">
                     <span className="mt-0.5 shrink-0">⚠️</span>
@@ -1142,11 +1142,14 @@ export default async function EvaluationReportPage({
           {canonicalDoc && canonicalDoc.topStrengths.length > 0 && (
             <section className="rounded-lg border bg-white p-7 mb-7">
               <h2 className="text-2xl font-semibold text-gray-900">Top Strengths</h2>
-              <ol className="mt-5 space-y-4 list-decimal list-inside text-base leading-7 text-gray-800">
+              <ul className="mt-5 list-none space-y-4 pl-0 text-base leading-7 text-gray-800">
                 {canonicalDoc.topStrengths.map((s, i) => (
-                  <li key={i}>{s}</li>
+                  <li key={i} className="flex gap-2">
+                    <span className="shrink-0 text-gray-600">{i + 1}.</span>
+                    <span>{s}</span>
+                  </li>
                 ))}
-              </ol>
+              </ul>
             </section>
           )}
 
@@ -1154,11 +1157,14 @@ export default async function EvaluationReportPage({
           {canonicalDoc && canonicalDoc.topRisks.length > 0 && (
             <section className="rounded-lg border bg-white p-7 mb-7">
               <h2 className="text-2xl font-semibold text-gray-900">Top Risks</h2>
-              <ol className="mt-5 space-y-4 list-decimal list-inside text-base leading-7 text-gray-800">
+              <ul className="mt-5 list-none space-y-4 pl-0 text-base leading-7 text-gray-800">
                 {canonicalDoc.topRisks.map((r, i) => (
-                  <li key={i}>{r}</li>
+                  <li key={i} className="flex gap-2">
+                    <span className="shrink-0 text-gray-600">{i + 1}.</span>
+                    <span>{r}</span>
+                  </li>
                 ))}
-              </ol>
+              </ul>
             </section>
           )}
 
@@ -1166,7 +1172,7 @@ export default async function EvaluationReportPage({
           <section className="rounded-lg border bg-white p-7 mb-7">
             <h2 className="text-2xl font-semibold text-gray-900">Top Recommendations</h2>
             {canonicalDoc && canonicalDoc.topRecommendations.length > 0 ? (
-              <ul className="mt-5 space-y-4 text-base leading-7 text-gray-800">
+              <ul className="mt-5 list-none space-y-4 pl-0 text-base leading-7 text-gray-800">
                 {canonicalDoc.topRecommendations.map((r, i) => (
                   <li key={i} className="flex gap-2">
                     <span className="mt-0.5 shrink-0 text-gray-600">•</span>
@@ -1311,9 +1317,12 @@ export default async function EvaluationReportPage({
                   {artifact.governance?.limitations && artifact.governance.limitations.length > 0 && (
                     <div className="mt-3 pt-3 border-t">
                       <p className="text-xs font-medium text-gray-700 mb-1">Limitations:</p>
-                      <ul className="list-disc pl-5 text-xs text-gray-800 space-y-1">
+                      <ul className="list-none pl-0 text-xs text-gray-800 space-y-1">
                         {artifact.governance.limitations.map((limitation: string, i: number) => (
-                          <li key={i}>{limitation}</li>
+                          <li key={i} className="flex gap-1.5">
+                            <span className="shrink-0 text-gray-600">•</span>
+                            <span>{limitation}</span>
+                          </li>
                         ))}
                       </ul>
                     </div>
@@ -1355,7 +1364,7 @@ export default async function EvaluationReportPage({
             <p className="mt-4 text-base leading-7 text-gray-800">
               Confidence reflects how strongly each diagnosis is supported by direct evidence in your manuscript.
             </p>
-            <ul className="mt-4 space-y-3 text-base leading-7 text-gray-800">
+            <ul className="mt-4 list-none space-y-3 pl-0 text-base leading-7 text-gray-800">
               <li className="flex items-start gap-2">
                 <span className="inline-flex items-center rounded-full bg-emerald-100 text-emerald-800 px-2 py-0.5 text-xs font-medium shrink-0">High</span>
                 <span>Strong textual evidence supports this diagnosis.</span>

@@ -106,7 +106,7 @@ export default function LongformExecutiveVerdict({ doc }: Props) {
 
       {/* Executive verdict — parsed into labeled bullets */}
       {segments.length > 0 && (
-        <ul className="space-y-3">
+        <ul className="list-none space-y-3 pl-0">
           {segments.map((seg, i) => (
             <li key={i} className="flex gap-3 text-sm leading-relaxed">
               <span className="mt-0.5 h-2 w-2 shrink-0 rounded-full bg-indigo-400 mt-[7px]" aria-hidden />

@@ -129,7 +129,7 @@ export default function LongformEvidenceDistributionGate({ doc, showInternalSect
                 className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm"
               >
                 <p className="font-medium text-amber-800 mb-1">{getCriterionDisplayLabel(c.key)}</p>
-                <ol className="space-y-0.5 list-decimal list-inside">
+                <ul className="list-none space-y-0.5 pl-0">
                   {c.gap_evidence
                     .filter((g) =>
                       /distribution|opening.heavy|narrow|insufficient|single|limited|concentrated/i.test(
@@ -137,11 +137,12 @@ export default function LongformEvidenceDistributionGate({ doc, showInternalSect
                       )
                     )
                     .map((g, j) => (
-                      <li key={j} className="text-xs text-amber-700">
-                        {g}
+                      <li key={j} className="flex gap-1.5 text-xs text-amber-700">
+                        <span className="shrink-0 text-amber-500">•</span>
+                        <span>{g}</span>
                       </li>
                     ))}
-                </ol>
+                </ul>
               </div>
             ))}
           </div>
@@ -156,7 +157,7 @@ export default function LongformEvidenceDistributionGate({ doc, showInternalSect
               <p className="text-xs font-semibold uppercase tracking-wide text-emerald-600 mb-2">
                 Required evidence coverage <span className="text-amber-700">(internal)</span>
               </p>
-              <ul className="space-y-1">
+              <ul className="list-none space-y-1 pl-0">
                 {evidenceDetections.map((d, i) => (
                   <li key={i} className="text-xs text-gray-600 flex gap-2">
                     <span className="text-emerald-400 shrink-0">✓</span>
@@ -171,7 +172,7 @@ export default function LongformEvidenceDistributionGate({ doc, showInternalSect
               <p className="text-xs font-semibold uppercase tracking-wide text-rose-600 mb-2">
                 Failure conditions <span className="text-amber-700">(internal)</span>
               </p>
-              <ul className="space-y-1">
+              <ul className="list-none space-y-1 pl-0">
                 {evidenceFailures.map((f, i) => (
                   <li key={i} className="text-xs text-gray-600 flex gap-2">
                     <span className="text-rose-400 shrink-0">⚠</span>
@@ -190,7 +191,7 @@ export default function LongformEvidenceDistributionGate({ doc, showInternalSect
           <p className="text-xs font-semibold uppercase tracking-wide text-gray-600 mb-2">
             Calibration notes — evidence coverage <span className="text-amber-700">(internal)</span>
           </p>
-          <ul className="space-y-1">
+          <ul className="list-none space-y-1 pl-0">
             {distributionNotes.map((n, i) => (
               <li key={i} className="text-xs text-gray-600 flex gap-2">
                 <span className="text-indigo-400 shrink-0">◆</span>

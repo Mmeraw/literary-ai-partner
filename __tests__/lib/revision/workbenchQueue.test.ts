@@ -35,7 +35,7 @@ function buildSupabaseMock(jobId: string, manuscriptVersionId: string, options: 
   const manuscriptMaybeSingle = jest.fn(async () => ({
     data: {
       id: 6074,
-      title: 'Ancient Bloodlines—Love Between Species',
+      title: 'Cartel Babies',
       user_id: 'user-1',
     },
     error: null,

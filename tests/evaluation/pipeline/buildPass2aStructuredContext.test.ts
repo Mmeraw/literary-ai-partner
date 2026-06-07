@@ -30,11 +30,11 @@ describe('buildPass2aStructuredContext prep hardening', () => {
     );
   });
 
-  it('keeps timeline anchors non-empty for Ancient Bloodlines spelled-out-only temporal anchors', () => {
+  it('keeps timeline anchors non-empty for Cartel Babies styled spelled-out-only temporal anchors', () => {
     const manuscriptText = [
-      'One year later, Newton crossed the ridge again.',
-      'After eleven years, Thorander reopened the old debate.',
-      'A century later, the lake remembered the same wound.',
+      'One year later, Michael crossed the yard again.',
+      'After eleven years, Benjamin reopened the old file.',
+      'A century later, the corridor remembered the same wound.',
     ].join(' ');
 
     const context = buildPass2aStructuredContext({ manuscriptText });

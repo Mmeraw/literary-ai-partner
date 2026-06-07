@@ -2438,7 +2438,7 @@ function buildDensityRepairRecommendations(
 
     repaired.push({
       priority: c.final_score_0_10 <= 5 ? "high" : "medium",
-      action,
+      action: clampRecommendationAction(action),
       expected_impact: expectedImpact,
       anchor_snippet: anchorSnippet,
       source_pass: 3,

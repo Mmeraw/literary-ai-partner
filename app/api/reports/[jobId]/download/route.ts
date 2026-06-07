@@ -279,6 +279,17 @@ function pushTxtListBlock(lines: string[], label: string, values: unknown, optio
   });
 }
 
+function docxListPara(text: string, marker = '\u2022'): Paragraph {
+  return new Paragraph({
+    indent: { left: 0, hanging: 0 },
+    spacing: { after: 90 },
+    children: [
+      new TextRun({ text: `${marker} `, size: 22, color: docxHex(RG.textMuted) }),
+      new TextRun({ text: cleanReportText(text), size: 22, color: docxHex(RG.textPrimary) }),
+    ],
+  });
+}
+
 // ── Confidence Explanation (template section 13) ────────────────────
 const CONFIDENCE_EXPLANATION = {
   title: 'What Does Confidence Mean?',
@@ -1213,8 +1224,10 @@ function buildCanonicalTemplateTxt(doc: UnifiedEvaluationDocument): string {
 }
 
 function renderCanonicalTemplateHtml(doc: UnifiedEvaluationDocument): string {
-  const list = (items: string[]) =>
-    items.length > 0 ? `<ul>${items.map((item) => `<li>${escapeHtml(cleanReportText(item))}</li>`).join('')}</ul>` : '<p>None supplied.</p>';
+  const list = (items: string[], options: { ordered?: boolean } = {}) =>
+    items.length > 0
+      ? `<ul class="${options.ordered ? 'rg-ordered-list' : 'rg-bullet-list'}">${items.map((item, index) => `<li><span class="rg-list-marker">${options.ordered ? `${index + 1}.` : '\u2022'}</span><span>${escapeHtml(cleanReportText(item))}</span></li>`).join('')}</ul>`
+      : '<p>None supplied.</p>';
 
   const criteriaRows = doc.criteriaScoreGrid
     .map((row) => `<tr><td>${escapeHtml(row.label)}</td><td class="score-cell ${scorePaletteClassFromLabel(row.scoreLabel)}">${escapeHtml(row.scoreLabel)}</td><td><span class="confidence-pill ${confidencePaletteClass(row.confidenceLabel)}">${escapeHtml(row.confidenceLabel)}</span></td></tr>`)
@@ -1227,7 +1240,7 @@ function renderCanonicalTemplateHtml(doc: UnifiedEvaluationDocument): string {
         ${detail.supportLabel ? `<p><strong>Status:</strong> ${escapeHtml(detail.supportLabel)}</p>` : ''}
         ${detail.rationaleLabel ? `<p><strong>${escapeHtml(detail.rationaleLabel)}:</strong></p>` : ''}
         <p>${escapeHtml(cleanReportText(detail.rationaleText))}</p>
-        ${detail.recommendations.length > 0 ? `<ul>${detail.recommendations.map((r) => `<li>${escapeHtml(cleanReportText(r.action, 'No action provided.'))}</li>`).join('')}</ul>` : '<p>No surfaced opportunities for this criterion.</p>'}
+        ${detail.recommendations.length > 0 ? `<ul class="rg-ordered-list">${detail.recommendations.map((r, index) => `<li><span class="rg-list-marker">${index + 1}.</span><span>${escapeHtml(cleanReportText(r.action, 'No action provided.'))}</span></li>`).join('')}</ul>` : '<p>No surfaced opportunities for this criterion.</p>'}
       </article>`)
     .join('');
 
@@ -1235,6 +1248,7 @@ function renderCanonicalTemplateHtml(doc: UnifiedEvaluationDocument): string {
     body{font-family:Georgia,serif;color:#1C1814;background:#FAF7F2;margin:0;padding:32px;line-height:1.55}
     section{background:#fff;border:1px solid #D9D0C3;border-radius:8px;padding:20px;margin:0 0 16px}
     h1,h2{margin:0 0 10px;color:#8B2E2E} h3{margin:0 0 8px} small{font-weight:normal;color:#5C5549}
+    ul.rg-bullet-list,ul.rg-ordered-list{margin:6px 0 0;padding-left:0;list-style:none}.rg-bullet-list li,.rg-ordered-list li{display:flex;gap:6px;margin:0 0 6px;padding-left:0}.rg-list-marker{flex:0 0 auto;color:#5C5549;font-weight:700}
     table{width:100%;border-collapse:collapse} th,td{border-bottom:1px solid #E6DED2;padding:8px;text-align:left}
     .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.metric{padding:10px;border:1px solid #E6DED2;background:#FFFDF9;border-radius:6px}
     .card{margin-bottom:12px;padding:12px;border:1px solid #E6DED2;background:#FFFDF9;border-radius:6px}
@@ -1264,9 +1278,9 @@ function renderCanonicalTemplateHtml(doc: UnifiedEvaluationDocument): string {
     <section><h2>Content Warnings</h2>${list(doc.contentWarnings)}</section>
     <section><h2>Revision Opportunity Summary</h2><div class="grid"><div class="metric">Total: ${doc.revisionOpportunitySummary.total}</div><div class="metric">High: ${doc.revisionOpportunitySummary.high}</div><div class="metric">Medium: ${doc.revisionOpportunitySummary.medium}</div><div class="metric">Low: ${doc.revisionOpportunitySummary.low}</div></div></section>
     <section><h2>Executive Summary</h2><p>${escapeHtml(cleanReportText(doc.executiveSummary))}</p></section>
-    <section><h2>Top Strengths</h2>${list(doc.topStrengths)}</section>
-    <section><h2>Top Risks</h2>${list(doc.topRisks)}</section>
-    <section><h2>Top Recommendations</h2>${doc.topRecommendations.length > 0 ? list(doc.topRecommendations) : '<p>See per-criterion opportunities below for detailed revision guidance.</p>'}</section>
+    <section><h2>Top Strengths</h2>${list(doc.topStrengths, { ordered: true })}</section>
+    <section><h2>Top Risks</h2>${list(doc.topRisks, { ordered: true })}</section>
+    <section><h2>Top Recommendations</h2>${doc.topRecommendations.length > 0 ? list(doc.topRecommendations, { ordered: true }) : '<p>See per-criterion opportunities below for detailed revision guidance.</p>'}</section>
     <section><h2>13 Criteria Score Grid</h2><table><thead><tr><th>Criterion</th><th>Score</th><th>Confidence</th></tr></thead><tbody>${criteriaRows}</tbody></table></section>
     <section><h2>Criterion Rationales &amp; Surfaced Opportunities</h2>${detailCards}</section>
     ${(doc.templateMode === 'long_form_evaluation' || doc.templateMode === 'long_form_multi_layer_evaluation') ? `<section><h2>Manuscript-Scale Continuity Findings</h2>${list(doc.modeSpecific.manuscriptScaleContinuityFindings)}</section>` : ''}
@@ -1369,7 +1383,7 @@ async function buildCanonicalTemplateDocx(doc: UnifiedEvaluationDocument): Promi
   }
 
   children.push(makeHeading('Content Warnings'));
-  doc.contentWarnings.forEach((item) => children.push(para(`• ${item}`)));
+  doc.contentWarnings.forEach((item) => children.push(docxListPara(item)));
 
   children.push(makeHeading('Revision Opportunity Summary'));
   children.push(para(`Total: ${doc.revisionOpportunitySummary.total}`));
@@ -1377,12 +1391,12 @@ async function buildCanonicalTemplateDocx(doc: UnifiedEvaluationDocument): Promi
   children.push(makeHeading('Executive Summary'));
   children.push(para(doc.executiveSummary));
   children.push(makeHeading('Top Strengths'));
-  doc.topStrengths.forEach((item) => children.push(para(`• ${item}`)));
+  doc.topStrengths.forEach((item, index) => children.push(docxListPara(item, `${index + 1}.`)));
   children.push(makeHeading('Top Risks'));
-  doc.topRisks.forEach((item) => children.push(para(`• ${item}`)));
+  doc.topRisks.forEach((item, index) => children.push(docxListPara(item, `${index + 1}.`)));
   children.push(makeHeading('Top Recommendations'));
   if (doc.topRecommendations.length > 0) {
-    doc.topRecommendations.forEach((item) => children.push(para(`• ${item}`)));
+    doc.topRecommendations.forEach((item, index) => children.push(docxListPara(item, `${index + 1}.`)));
   } else {
     children.push(para('See per-criterion opportunities below for detailed revision guidance.'));
   }
@@ -1443,13 +1457,13 @@ async function buildCanonicalTemplateDocx(doc: UnifiedEvaluationDocument): Promi
     if (detail.rationaleLabel) children.push(para(`${detail.rationaleLabel}:`));
     children.push(para(detail.rationaleText));
     if (detail.recommendations.length > 0) {
-      detail.recommendations.forEach((rec) => children.push(para(`• ${cleanReportText(rec.action, 'No action provided.')}`)));
+      detail.recommendations.forEach((rec, index) => children.push(docxListPara(cleanReportText(rec.action, 'No action provided.'), `${index + 1}.`)));
     }
   });
 
   if (doc.templateMode === 'long_form_evaluation' || doc.templateMode === 'long_form_multi_layer_evaluation') {
     children.push(makeHeading('Manuscript-Scale Continuity Findings'));
-    doc.modeSpecific.manuscriptScaleContinuityFindings.forEach((item) => children.push(para(`• ${item}`)));
+    doc.modeSpecific.manuscriptScaleContinuityFindings.forEach((item) => children.push(docxListPara(item)));
 
     children.push(makeHeading('Revision Priority Plan'));
     doc.modeSpecific.revisionPriorityPlan.forEach((item) => {
@@ -1464,7 +1478,7 @@ async function buildCanonicalTemplateDocx(doc: UnifiedEvaluationDocument): Promi
   if (doc.templateMode === 'long_form_multi_layer_evaluation') {
     const appendHeadingList = (heading: string, items: string[]) => {
       children.push(makeHeading(heading));
-      items.forEach((item) => children.push(para(`• ${item}`)));
+      items.forEach((item) => children.push(docxListPara(item)));
     };
 
     appendHeadingList('Story Ledger or Layer-Aware Architecture Map', doc.modeSpecific.storyLedgerArchitectureMap);
@@ -1516,7 +1530,13 @@ function renderHtmlParagraph(value: unknown, fallback = ''): string {
 function renderHtmlList(items: unknown, empty = 'None supplied.'): string {
   const values = filterAuthorFacingTextList(items);
   if (values.length === 0) return `<p>${escapeHtml(empty)}</p>`;
-  return `<ul>${values.map((item) => `<li>${escapeHtml(cleanReportText(item, ''))}</li>`).join('')}</ul>`;
+  return `<ul class="rg-bullet-list">${values.map((item) => `<li><span class="rg-list-marker">\u2022</span><span>${escapeHtml(cleanReportText(item, ''))}</span></li>`).join('')}</ul>`;
+}
+
+function renderHtmlOrderedList(items: unknown, empty = 'None supplied.'): string {
+  const values = filterAuthorFacingTextList(items);
+  if (values.length === 0) return `<p>${escapeHtml(empty)}</p>`;
+  return `<ul class="rg-ordered-list">${values.map((item, index) => `<li><span class="rg-list-marker">${index + 1}.</span><span>${escapeHtml(cleanReportText(item, ''))}</span></li>`).join('')}</ul>`;
 }
 
 function renderMetric(label: string, value: unknown): string {
@@ -1643,8 +1663,9 @@ function renderPremiumReportHtml(
     h3 { margin: 0; color: #1c1814; font-family: Helvetica, Arial, sans-serif; font-size: 12.5pt; line-height: 1.25; }
     h4 { margin: 0.12in 0 0.06in; color: #8b2e2e; font-family: Helvetica, Arial, sans-serif; font-size: 10.5pt; }
     p { margin: 0 0 0.11in; }
-    ul { margin: 0.03in 0 0; padding-left: 0.2in; }
-    li { margin-bottom: 0.08in; padding-left: 0.02in; }
+    ul.rg-bullet-list, ul.rg-ordered-list { margin: 0.03in 0 0; padding-left: 0; list-style: none; }
+    .rg-bullet-list li, .rg-ordered-list li { display: flex; gap: 0.08in; margin-bottom: 0.08in; padding-left: 0; }
+    .rg-list-marker { flex: 0 0 auto; color: #5c5549; font-weight: 700; }
     .score-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.1in; }
     .score-grid div { padding: 0.12in; background: #faf7f2; border: 1px solid #d9d0c3; border-radius: 6px; text-align: center; }
     .score-grid span { display: block; color: #5c5549; font-family: Helvetica, Arial, sans-serif; font-size: 8.5pt; font-weight: 700; text-transform: uppercase; }
@@ -1703,12 +1724,12 @@ function renderPremiumReportHtml(
   ${enrichment?.reading_grade_level != null ? `<section class="section"><h2>Reading Grade Level</h2>${renderHtmlParagraph(`Grade Level: ${Math.floor(enrichment.reading_grade_level)} (Flesch-Kincaid)`)}<p>Reading Grade Level measures prose complexity, not audience appropriateness. Always cross-reference Content Warnings for content suitability guidance.</p></section>` : ''}
   ${enrichment?.dialogue_percentage != null ? `<section class="section"><h2>Dialogue vs. Narrative Ratio</h2>${renderHtmlParagraph(dialogueRatio)}<p>Most commercially successful novels contain 25\u201335% dialogue. Genre expectations vary: literary fiction trends lower (15\u201325%), thrillers and romance trend higher (30\u201345%).</p></section>` : ''}
   <section class="section allow-break"><h2>Executive Summary</h2>${renderHtmlParagraph(result.overview.one_paragraph_summary, summaryFallback)}</section>
-  <section class="section"><h2>Top Strengths</h2>${renderHtmlList(result.overview.top_3_strengths, 'No strengths supplied.')}</section>
-  <section class="section"><h2>Top Risks</h2>${renderHtmlList(result.overview.top_3_risks, 'No risks supplied.')}</section>
-  <section class="section"><h2>Top Recommendations</h2>${topRecommendations.length > 0 ? `<ul>${topRecommendations.map((item) => `<li>${escapeHtml(cleanReportText(item))}</li>`).join('')}</ul>` : `<p>See per-criterion opportunities below for detailed revision guidance.</p>`}</section>
+  <section class="section"><h2>Top Strengths</h2>${renderHtmlOrderedList(result.overview.top_3_strengths, 'No strengths supplied.')}</section>
+  <section class="section"><h2>Top Risks</h2>${renderHtmlOrderedList(result.overview.top_3_risks, 'No risks supplied.')}</section>
+  <section class="section"><h2>Top Recommendations</h2>${topRecommendations.length > 0 ? renderHtmlOrderedList(topRecommendations) : `<p>See per-criterion opportunities below for detailed revision guidance.</p>`}</section>
   <section class="section page-break-before"><h2>13 Criteria Score Grid</h2><table><thead><tr><th>Criterion</th><th>Score</th><th>Confidence</th></tr></thead><tbody>${criteriaRows}</tbody></table></section>
   <section class="allow-break"><h2>Criterion Rationales &amp; Surfaced Opportunities</h2>${criteriaCards}</section>
-  <section class="section"><h2>Confidence Explanation</h2><p><strong>${escapeHtml(CONFIDENCE_EXPLANATION.title)}</strong></p><p>${escapeHtml(CONFIDENCE_EXPLANATION.intro)}</p><ul>${CONFIDENCE_EXPLANATION.levels.map((l) => `<li><strong>${escapeHtml(l.label)}:</strong> ${escapeHtml(l.description)}</li>`).join('')}</ul></section>
+  <section class="section"><h2>Confidence Explanation</h2><p><strong>${escapeHtml(CONFIDENCE_EXPLANATION.title)}</strong></p><p>${escapeHtml(CONFIDENCE_EXPLANATION.intro)}</p><ul class="rg-bullet-list">${CONFIDENCE_EXPLANATION.levels.map((l) => `<li><span class="rg-list-marker">\u2022</span><span><strong>${escapeHtml(l.label)}:</strong> ${escapeHtml(l.description)}</span></li>`).join('')}</ul></section>
   ${dreamHtml}
   <section class="section" style="margin-top:0.5in;border:none;background:none;padding:0;">
     <p style="color:#5c5549;font-size:9.5pt;line-height:1.5;">${escapeHtml(EXPORT_DISCLAIMER)}</p>
@@ -1811,13 +1832,22 @@ async function buildDocx(result: ExportableResult, title: string | null, jobId: 
     });
   const bulletPara = (text: string, color?: string) =>
     new Paragraph({
+      indent: { left: 0, hanging: 0 },
       spacing: { after: 80 },
-      children: [new TextRun({
-        text: `\u2022 ${cleanReportText(text)}`,
-        size: 21,
-        color: (color ?? RG.textPrimary).replace('#', ''),
-        font: 'Calibri',
-      })],
+      children: [
+        new TextRun({
+          text: '\u2022 ',
+          size: 21,
+          color: (color ?? RG.textPrimary).replace('#', ''),
+          font: 'Calibri',
+        }),
+        new TextRun({
+          text: cleanReportText(text),
+          size: 21,
+          color: (color ?? RG.textPrimary).replace('#', ''),
+          font: 'Calibri',
+        }),
+      ],
     });
   const metaRow = (label: string, value: string | null) => {
     if (!value) return null;

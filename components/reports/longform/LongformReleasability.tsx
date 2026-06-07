@@ -59,13 +59,14 @@ export default function LongformReleasability({ doc, showInternalSections = fals
               <p className="text-xs font-semibold uppercase tracking-wide text-gray-600 mb-2">
                 Required detection <span className="text-amber-700">(internal)</span>
               </p>
-              <ol className="space-y-1 list-decimal list-inside">
+              <ul className="list-none space-y-1 pl-0">
                 {checks.required_detection.map((item, i) => (
-                  <li key={i} className="text-xs text-gray-600">
-                    {item}
+                  <li key={i} className="flex gap-1.5 text-xs text-gray-600">
+                    <span className="shrink-0 text-gray-500">•</span>
+                    <span>{item}</span>
                   </li>
                 ))}
-              </ol>
+              </ul>
             </div>
           )}
           {(checks.failure_conditions?.length ?? 0) > 0 && (
@@ -73,13 +74,14 @@ export default function LongformReleasability({ doc, showInternalSections = fals
               <p className="text-xs font-semibold uppercase tracking-wide text-gray-600 mb-2">
                 Failure conditions <span className="text-amber-700">(internal)</span>
               </p>
-              <ol className="space-y-1 list-decimal list-inside">
+              <ul className="list-none space-y-1 pl-0">
                 {checks.failure_conditions.map((item, i) => (
-                  <li key={i} className="text-xs text-gray-600">
-                    {item}
+                  <li key={i} className="flex gap-1.5 text-xs text-gray-600">
+                    <span className="shrink-0 text-gray-500">•</span>
+                    <span>{item}</span>
                   </li>
                 ))}
-              </ol>
+              </ul>
             </div>
           )}
         </div>

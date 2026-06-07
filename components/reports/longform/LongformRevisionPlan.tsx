@@ -31,7 +31,7 @@ export default function LongformRevisionPlan({ doc }: Props) {
                   <p className="text-xs text-gray-600 leading-relaxed">{item.goal}</p>
                 )}
                 {item.actions?.length > 0 && (
-                  <ul className="space-y-1 mt-1">
+                  <ul className="list-none space-y-1 pl-0 mt-1">
                     {item.actions.map((action, j) => (
                       <li key={j} className="text-xs text-gray-600 flex gap-2">
                         <span className="shrink-0 text-gray-600">→</span>

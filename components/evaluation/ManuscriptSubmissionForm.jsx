@@ -22,6 +22,8 @@ const INPUT_METHODS = [
 
 const UNTITLED_MANUSCRIPT_PATTERN = /^untitled(?:\s+manuscript)?$/i;
 
+const PASTE_WORD_LIMIT = 250000;
+
 function getDocumentTitle(doc) {
   return String(doc?.title || "").trim();
 }
@@ -88,6 +90,43 @@ function formatWordCount(value) {
   return Number(value || 0).toLocaleString();
 }
 
+function isWhitespaceCode(code) {
+  return (
+    code <= 32 ||
+    code === 160 ||
+    code === 5760 ||
+    (code >= 8192 && code <= 8202) ||
+    code === 8232 ||
+    code === 8233 ||
+    code === 8239 ||
+    code === 8287 ||
+    code === 12288
+  );
+}
+
+function hasNonWhitespaceText(text) {
+  for (let index = 0; index < text.length; index += 1) {
+    if (!isWhitespaceCode(text.charCodeAt(index))) return true;
+  }
+  return false;
+}
+
+function countWordsInText(text) {
+  let count = 0;
+  let inWord = false;
+
+  for (let index = 0; index < text.length; index += 1) {
+    if (isWhitespaceCode(text.charCodeAt(index))) {
+      inWord = false;
+    } else if (!inWord) {
+      count += 1;
+      inWord = true;
+    }
+  }
+
+  return count;
+}
+
 function pluralizeManuscript(count) {
   return count === 1 ? "manuscript" : "manuscripts";
 }
@@ -111,7 +150,7 @@ function normalizeClientError(message, fallback) {
   return looksLikeJsonParseIssue ? fallback : message;
 }
 
-function getSubmissionSourceSummary({ selectedDashboardManuscript, manuscriptText, wordCount }) {
+function getSubmissionSourceSummary({ selectedDashboardManuscript, hasPastedText, wordCount }) {
   if (selectedDashboardManuscript) {
     const isUploaded = selectedDashboardManuscript.source === "upload";
     return {
@@ -122,7 +161,7 @@ function getSubmissionSourceSummary({ selectedDashboardManuscript, manuscriptTex
     };
   }
 
-  if (manuscriptText.trim()) {
+  if (hasPastedText) {
     return {
       label: "Pasted text selected",
       title: "Manual text submission",
@@ -145,9 +184,12 @@ function getSubmissionSourceSummary({ selectedDashboardManuscript, manuscriptTex
  */
 export default function ManuscriptSubmissionForm({ onSubmitSuccess, freeDiagnosticTrial = false }) {
   const uploadInputRef = useRef(null);
+  const manuscriptTextareaRef = useRef(null);
+  const manuscriptTextRef = useRef("");
+  const pastedTextSummaryTimerRef = useRef(null);
 
   const [activeInputMethod, setActiveInputMethod] = useState("saved");
-  const [manuscriptText, setManuscriptText] = useState("");
+  const [pastedTextSummary, setPastedTextSummary] = useState({ hasText: false, wordCount: 0 });
   const [authorName, setAuthorName] = useState("");
   const [projectTitle, setProjectTitle] = useState("");
   const [selectedManuscriptId, setSelectedManuscriptId] = useState(null);
@@ -167,9 +209,8 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess, freeDiagnost
   const [sensitivityMode, setSensitivityMode] = useState("STANDARD");
   const [voicePreservation, setVoicePreservation] = useState("BALANCED");
 
-  const wordCount = useMemo(() => {
-    return manuscriptText.trim().split(/\s+/).filter(Boolean).length;
-  }, [manuscriptText]);
+  const wordCount = pastedTextSummary.wordCount;
+  const isOverPasteLimit = wordCount > PASTE_WORD_LIMIT;
 
   const selectedDashboardManuscript = useMemo(
     () => dashboardManuscripts.find((doc) => doc.id === selectedManuscriptId) || null,
@@ -181,7 +222,7 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess, freeDiagnost
   const evaluationMode = getEvaluationMode(activeWordCount, manuscriptStructure);
   const submissionSourceSummary = getSubmissionSourceSummary({
     selectedDashboardManuscript,
-    manuscriptText,
+    hasPastedText: pastedTextSummary.hasText,
     wordCount,
   });
 
@@ -200,6 +241,47 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess, freeDiagnost
     if (pendingBulkDeleteMode === "unnamed") return unnamedDashboardManuscripts;
     return [];
   }, [pendingBulkDeleteMode, unnamedDashboardManuscripts, visibleDashboardManuscripts]);
+
+  const clearPendingPastedTextSummary = () => {
+    if (pastedTextSummaryTimerRef.current !== null) {
+      window.clearTimeout(pastedTextSummaryTimerRef.current);
+      pastedTextSummaryTimerRef.current = null;
+    }
+  };
+
+  const getCurrentPastedText = () => {
+    const currentText = manuscriptTextareaRef.current?.value ?? manuscriptTextRef.current;
+    manuscriptTextRef.current = currentText;
+    return currentText;
+  };
+
+  const updatePastedTextSummaryNow = (text) => {
+    setPastedTextSummary({ hasText: hasNonWhitespaceText(text), wordCount: countWordsInText(text) });
+  };
+
+  const setPastedTextValue = (nextText) => {
+    manuscriptTextRef.current = nextText;
+    if (manuscriptTextareaRef.current && manuscriptTextareaRef.current.value !== nextText) {
+      manuscriptTextareaRef.current.value = nextText;
+    }
+    clearPendingPastedTextSummary();
+    updatePastedTextSummaryNow(nextText);
+  };
+
+  const handlePastedTextChange = (event) => {
+    manuscriptTextRef.current = event.currentTarget.value;
+
+    if (manuscriptTextRef.current.length > 0) {
+      if (selectedManuscriptId !== null) setSelectedManuscriptId(null);
+      if (activeInputMethod !== "paste") setActiveInputMethod("paste");
+    }
+
+    clearPendingPastedTextSummary();
+    pastedTextSummaryTimerRef.current = window.setTimeout(() => {
+      pastedTextSummaryTimerRef.current = null;
+      updatePastedTextSummaryNow(getCurrentPastedText());
+    }, 180);
+  };
 
   const removeManuscriptsLocally = (manuscriptIds) => {
     const ids = new Set(manuscriptIds);
@@ -306,6 +388,12 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess, freeDiagnost
     };
   }, []);
 
+  useEffect(() => {
+    return () => {
+      clearPendingPastedTextSummary();
+    };
+  }, []);
+
   const handleInputMethodChange = (methodId) => {
     setActiveInputMethod(methodId);
     setError(null);
@@ -319,7 +407,7 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess, freeDiagnost
     }
 
     if (methodId === "saved" || methodId === "upload") {
-      setManuscriptText("");
+      setPastedTextValue("");
     }
   };
 
@@ -362,7 +450,7 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess, freeDiagnost
         setDashboardManuscripts((prev) => [data.manuscript, ...prev.filter((m) => m.id !== data.manuscript.id)]);
         setSelectedManuscriptId(data.manuscript.id);
         setHiddenManuscriptIds((prev) => prev.filter((id) => id !== data.manuscript.id));
-        setManuscriptText("");
+        setPastedTextValue("");
         setActiveInputMethod("upload");
       }
     } catch (err) {
@@ -379,7 +467,7 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess, freeDiagnost
 
   const toggleManuscriptSelection = (manuscriptId) => {
     setSelectedManuscriptId((current) => (current === manuscriptId ? null : manuscriptId));
-    setManuscriptText("");
+    setPastedTextValue("");
     setActiveInputMethod("saved");
     setPendingDeleteManuscriptId(null);
     setPendingBulkDeleteMode(null);
@@ -391,8 +479,16 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess, freeDiagnost
   const handleSubmit = async (e) => {
     e.preventDefault();
 
+    const manuscriptText = getCurrentPastedText();
     const hasSelectedManuscript = Number.isInteger(selectedManuscriptId);
-    const hasPastedText = manuscriptText.trim().length > 0;
+    const hasPastedText = hasNonWhitespaceText(manuscriptText);
+
+    if (!hasSelectedManuscript && hasPastedText && countWordsInText(manuscriptText) > PASTE_WORD_LIMIT) {
+      setError(
+        `Your pasted text exceeds the 250,000-word limit for direct paste. Please use the Upload File tab to submit manuscripts of this length.`,
+      );
+      return;
+    }
 
     if (!processingTermsAccepted) {
       setError("Please confirm the processing terms before continuing.");
@@ -454,7 +550,7 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess, freeDiagnost
         );
       }
 
-      setManuscriptText("");
+      setPastedTextValue("");
       setProcessingTermsAccepted(false);
       if (onSubmitSuccess) {
         onSubmitSuccess(data);
@@ -832,21 +928,37 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess, freeDiagnost
                   </p>
                   <textarea
                     id="manuscript-text"
-                    value={manuscriptText}
-                    onChange={(e) => {
-                      setManuscriptText(e.target.value);
-                      if (e.target.value.trim().length > 0) {
-                        setSelectedManuscriptId(null);
-                        setActiveInputMethod("paste");
-                      }
-                    }}
+                    ref={manuscriptTextareaRef}
+                    defaultValue={manuscriptTextRef.current}
+                    onChange={handlePastedTextChange}
                     placeholder="Formatting is preserved where supported..."
                     rows={12}
-                    className="w-full rounded-lg border border-stone-400 bg-white px-4 py-3 text-base leading-7 text-stone-950 placeholder:text-stone-500 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-600/20"
+                    className={`w-full rounded-lg border bg-white px-4 py-3 text-base leading-7 text-stone-950 placeholder:text-stone-500 focus:outline-none focus:ring-2 ${isOverPasteLimit ? "border-red-500 focus:border-red-500 focus:ring-red-500/20" : "border-stone-400 focus:border-blue-600 focus:ring-blue-600/20"}`}
                     disabled={isSubmitting}
                   />
-                  <p className="mt-2 text-base text-stone-700">Current pasted word count: {formatWordCount(wordCount)}</p>
-                  <p className="text-base text-stone-700">Paste up to 150k words.</p>
+                  <div className="mt-2 flex flex-wrap items-start justify-between gap-2">
+                    <p className={`text-base font-semibold ${isOverPasteLimit ? "text-red-700" : "text-stone-700"}`}>
+                      Current pasted word count: {formatWordCount(wordCount)}
+                    </p>
+                    <p className="text-base text-stone-500">Maximum: {formatWordCount(PASTE_WORD_LIMIT)} words</p>
+                  </div>
+                  {isOverPasteLimit && (
+                    <div className="mt-3 rounded-xl border border-red-300 bg-red-50 p-4">
+                      <p className="text-base font-bold text-red-900">
+                        Paste limit exceeded — {formatWordCount(wordCount)} of {formatWordCount(PASTE_WORD_LIMIT)} words maximum.
+                      </p>
+                      <p className="mt-1 text-base text-red-800">
+                        Manuscripts over 250,000 words must be submitted via file upload. Use the Upload File tab to continue.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => handleInputMethodChange("upload")}
+                        className="mt-3 inline-flex min-h-[42px] items-center rounded-lg bg-blue-700 px-5 py-2 text-sm font-bold text-white shadow-sm hover:bg-blue-800"
+                      >
+                        Switch to Upload File
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -983,7 +1095,7 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess, freeDiagnost
 
               <button
                 type="submit"
-                disabled={isSubmitting || isUploading || !processingTermsAccepted}
+                disabled={isSubmitting || isUploading || !processingTermsAccepted || isOverPasteLimit}
                 className="min-h-[56px] w-full rounded-xl bg-blue-700 px-6 py-4 font-rg-mono text-base font-bold uppercase tracking-[0.16em] text-white shadow-sm transition hover:bg-blue-800 disabled:cursor-not-allowed disabled:bg-stone-300 disabled:text-stone-700 disabled:opacity-100"
               >
                 {isSubmitting ? "Starting Evaluation..." : "Begin Editorial Evaluation"}

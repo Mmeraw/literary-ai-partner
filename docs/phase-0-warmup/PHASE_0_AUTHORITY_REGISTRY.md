@@ -101,16 +101,9 @@ docs/benchmarks/story-ledger/FROGGIN_NOGGIN_9_LAYER_OPTIMIZATION_ADDENDUM.md
 docs/benchmarks/story-ledger/LET_THE_RIVER_DECIDE_9_LAYER_OPTIMIZATION_ADDENDUM.md
 ```
 
-### F. Legacy Ancient Bloodlines references — not current Story Ledger authority
+### F. Retired benchmark references — not current Story Ledger authority
 
-Ancient Bloodlines has been superseded by the nine-layer Story Ledger benchmark set for current Story Ledger calibration. These references are retained only for historical regression context and must not be treated as current warmup authority, benchmark gate, or release gate.
-
-```text
-docs/benchmarks/ancient-bloodlines-longform-layered-template.md
-docs/benchmarks/ancient-bloodlines-longform-layered.md
-docs/benchmarks/ancient-bloodlines-shortform-model.md
-docs/benchmarks/BENCHMARK-CHARTER.md
-```
+Retired benchmark references have been removed from the active authority set and must not be treated as current warmup authority, benchmark gate, release gate, or Story Ledger exemplar. Use the nine-layer Story Ledger benchmark set above; when a single product example is required, use `IDEAL_STORY_LEDGER_9_LAYER_BENCHMARK_CARTEL_BABIES.md`.
 
 ### G. Registered canon and governance — required for 0.5A/0.5B authority grounding
 

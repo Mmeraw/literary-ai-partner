@@ -6584,6 +6584,7 @@ export async function processEvaluationJob(
                 title: manuscriptWithContent.title,
                 workType: manuscriptWithContent.work_type || 'novel',
                 wordCount: wordCountForDream,
+                isMultiLayer: wordCountForDream >= 75_000,
                 openaiApiKey,
                 model: openAiModel,
                 timeoutMs: Math.max(evalOpenAiTimeoutMs, 180_000),

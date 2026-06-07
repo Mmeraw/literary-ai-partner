@@ -113,13 +113,14 @@ export default function LongformRelationshipSpineLedger({ doc, showInternalSecti
                 </p>
                 <p className="text-xs text-indigo-700 mb-1">{p.goal}</p>
                 {p.actions?.length > 0 && (
-                  <ol className="list-decimal list-inside space-y-0.5">
+                  <ul className="list-none space-y-0.5 pl-0">
                     {p.actions.map((a, j) => (
-                      <li key={j} className="text-xs text-indigo-600">
-                        {a}
+                      <li key={j} className="flex gap-1.5 text-xs text-indigo-600">
+                        <span className="shrink-0 text-indigo-500">{j + 1}.</span>
+                        <span>{a}</span>
                       </li>
                     ))}
-                  </ol>
+                  </ul>
                 )}
                 {p.acceptance_check && (
                   <p className="text-xs text-emerald-700 mt-1 border-t border-indigo-200 pt-1">
@@ -141,13 +142,14 @@ export default function LongformRelationshipSpineLedger({ doc, showInternalSecti
               <p className="text-xs font-semibold uppercase tracking-wide text-emerald-600 mb-2">
                 Required detections <span className="text-amber-700">(internal)</span>
               </p>
-              <ol className="space-y-1 list-decimal list-inside">
+              <ul className="list-none space-y-1 pl-0">
                 {requiredDetections.map((d, i) => (
-                  <li key={i} className="text-xs text-gray-600">
-                    {d}
+                  <li key={i} className="flex gap-1.5 text-xs text-gray-600">
+                    <span className="shrink-0 text-gray-500">•</span>
+                    <span>{d}</span>
                   </li>
                 ))}
-              </ol>
+              </ul>
             </div>
           )}
           {failureConditions.length > 0 && (
@@ -155,13 +157,14 @@ export default function LongformRelationshipSpineLedger({ doc, showInternalSecti
               <p className="text-xs font-semibold uppercase tracking-wide text-rose-600 mb-2">
                 Failure conditions <span className="text-amber-700">(internal)</span>
               </p>
-              <ol className="space-y-1 list-decimal list-inside">
+              <ul className="list-none space-y-1 pl-0">
                 {failureConditions.map((f, i) => (
-                  <li key={i} className="text-xs text-gray-600">
-                    {f}
+                  <li key={i} className="flex gap-1.5 text-xs text-gray-600">
+                    <span className="shrink-0 text-gray-500">•</span>
+                    <span>{f}</span>
                   </li>
                 ))}
-              </ol>
+              </ul>
             </div>
           )}
         </div>

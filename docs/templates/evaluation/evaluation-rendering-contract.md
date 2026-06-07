@@ -76,7 +76,11 @@ Priority labels indicate the recommended urgency of each revision opportunity.
 ## Formatting Rules
 
 - Headings must begin with capital letters and use CMOS-compliant Title Case.
-- Bullets must not be indented. Bullet markers align with the left edge of the section body.
+- Bullets must be used only for short, parallel items where order does not matter.
+- Numbered markers must be used when sequence, ranking, priority, or first/second/third language matters.
+- Bullets and numbered markers must not be indented. Markers align with the left edge of the section body.
+- Web and HTML/PDF renderers must not use browser-default indented lists, `list-inside`, `pl-5`, or `padding-left: 0.2in` for report lists.
+- DOCX renderers must not use native bullet or numbering definitions for author-facing report lists. Use explicit marker text such as `• Item text` or `1. Item text` with paragraph indent and hanging indent set to zero.
 - Report sections must have visible breathing room before and after each section.
 - Criteria tables must be full width where the surface supports tables.
 - Score and Confidence columns must be right-aligned where the surface supports alignment.
@@ -99,7 +103,7 @@ This includes:
 - number style and score presentation;
 - capitalization of literary and editorial terms;
 - clean table labels and column alignment;
-- unindented bullets;
+- unindented bullets and numbered markers;
 - professional spacing between report sections;
 - removal of internal metadata and pipeline language.
 

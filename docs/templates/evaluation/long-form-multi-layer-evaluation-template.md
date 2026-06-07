@@ -766,7 +766,8 @@ If the manuscript is strong, the report may say so. It must still avoid outcome 
 
 - **CMOS:** Web, PDF, DOCX, TXT, and print views must use Chicago Manual of Style-governed grammar, spelling, punctuation, capitalization, heading style, number style, and table presentation.
 - **Headings:** All section headings must start with capital letters and use CMOS-compliant Title Case.
-- **Bullets:** Evaluation reports must not indent bullets. Bullet markers align with the left edge of the section body.
+- **Lists:** Use bullets only for short, parallel items where order does not matter. Use numbered markers when sequence, ranking, priority, or first/second/third language matters.
+- **List Formatting:** Evaluation reports must not indent bullets or numbered markers. Markers align with the left edge of the section body. Web and HTML/PDF renderers must not use browser-default indented lists, `list-inside`, `pl-5`, or `padding-left: 0.2in`; DOCX renderers must use explicit marker text with zero paragraph and hanging indent instead of native bullet/numbering definitions.
 - **Spacing:** Every report section must have visible breathing room before and after it.
 - **Metadata Stripping:** Do not include raw pipeline flags, execution timestamps, gate audit logs, reducer status, model/provider labels, or protected internal terminology in author-facing copy.
 - **Tables:** Criteria tables must be full width with Score and Confidence columns right-aligned.

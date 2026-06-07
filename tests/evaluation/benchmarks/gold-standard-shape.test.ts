@@ -15,9 +15,9 @@
  *   - a disclaimer is present stating the file is a manual reference,
  *     not a production assertion
  *
- * Files without the opt-in are ignored. This lets legacy benchmark
- * variants (e.g. the original Ancient Bloodlines files, which use
- * abbreviated criterion names) coexist with newer canonical-13 files.
+ * Files without the opt-in are ignored. This lets noncanonical historical
+ * variants coexist with newer canonical-13 files without granting them
+ * current benchmark authority.
  *
  * This test does NOT compare any production output to these scores.
  * The benchmarks are manual reference quality bars (see

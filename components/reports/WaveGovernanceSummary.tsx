@@ -86,9 +86,12 @@ export default function WaveGovernanceSummary({ data, wordCount }: Props) {
       {data.planStatus === 'skipped' && data.reasonCodes.length > 0 && (
         <div className="rounded-lg border border-amber-200 bg-amber-50/50 p-4">
           <h4 className="text-sm font-semibold text-amber-900 mb-2">WAVE Gate — Not Met</h4>
-          <ul className="list-disc list-inside text-sm text-amber-800 space-y-1">
+          <ul className="list-none space-y-1 pl-0 text-sm text-amber-800">
             {data.reasonCodes.map((code, i) => (
-              <li key={i}>{code}</li>
+              <li key={i} className="flex gap-2">
+                <span className="shrink-0 text-amber-600">•</span>
+                <span>{code}</span>
+              </li>
             ))}
           </ul>
           {data.lowestCriteria.length > 0 && (
@@ -137,9 +140,12 @@ export default function WaveGovernanceSummary({ data, wordCount }: Props) {
           {data.wavePlanSummary.violations.length > 0 && (
             <div className="mt-2">
               <p className="text-xs font-medium text-gray-500 mb-1">Violations:</p>
-              <ul className="list-disc list-inside text-xs text-red-700 space-y-0.5">
+              <ul className="list-none space-y-0.5 pl-0 text-xs text-red-700">
                 {data.wavePlanSummary.violations.map((v, i) => (
-                  <li key={i}>{v}</li>
+                  <li key={i} className="flex gap-1.5">
+                    <span className="shrink-0 text-red-500">•</span>
+                    <span>{v}</span>
+                  </li>
                 ))}
               </ul>
             </div>

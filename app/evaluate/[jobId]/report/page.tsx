@@ -114,10 +114,10 @@ export default function ReportPage({ params }: { params: { jobId: string } }) {
 
           <div>
             <strong>Metrics</strong>
-            <ul>
-              <li>completeness: {data.evaluation_result?.metrics?.completeness ?? "—"}</li>
-              <li>coherence: {data.evaluation_result?.metrics?.coherence ?? "—"}</li>
-              <li>readiness: {data.evaluation_result?.metrics?.readiness ?? "—"}</li>
+            <ul style={{ listStyle: "none", margin: "8px 0 0", paddingLeft: 0 }}>
+              <li>• completeness: {data.evaluation_result?.metrics?.completeness ?? "—"}</li>
+              <li>• coherence: {data.evaluation_result?.metrics?.coherence ?? "—"}</li>
+              <li>• readiness: {data.evaluation_result?.metrics?.readiness ?? "—"}</li>
             </ul>
           </div>
 

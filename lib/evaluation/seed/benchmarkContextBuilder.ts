@@ -43,30 +43,18 @@ export function inferSeedRoute(workType?: string | null): SeedRoute {
 
 // ── Completed Benchmark Exemplar (compact) ──────────────────────────────────
 
-const BENCHMARK_EXEMPLAR_LONGFORM = `
-COMPLETED BENCHMARK EXEMPLAR — LONG-FORM (Froggin Noggin, 127K words, novel):
-This is what a gold-standard evaluation looks like when completed. Use this as your target shape.
+const BENCHMARK_EXEMPLAR_CARTEL_BABIES = `
+COMPLETED BENCHMARK EXEMPLAR — STORY LEDGER (Cartel Babies, required-gold):
+This is the canonical product example for seed and Phase 1A Story Ledger quality. Use this as your target shape for the nine-layer scaffold; shrink breadth for shorter submissions, but do not weaken evidence discipline.
 
-- Executive verdict: Named governing ambition (eco-satirical myth), primary emotional anchor (amphibian world), greatest asset (originality/world-system), principal drag (overabundance without hierarchy), readiness (not yet submission-ready, one major pass away)
-- Overall quality: 66/100, Readiness: 58/100
-- Structural stack: 4 layers identified (Human damage, Amphibian polity, Mythic/doctrinal, Environmental/ecological) with dependencies mapped
-- 13 criteria scored: Concept 7, Drive 6, Character 6, POV/Voice 6, Scene 6, Dialogue 5, Theme 7, World 7, Prose 5, Pacing 5, Closure NE, Market 4
-- Per-criterion: fit/gap with anchored evidence, why-it-matters, how-to-revise
-- DREAM ledgers: character arcs for 8+ entities, relationship spine for 6+ pairs, symbol payoff for shard/toadstone/Gorf, sensory register across layers
-- Revision priorities: architecture before stylistic, preserve weirdness, reorganize collision spine, tighten transitions
-- Key learning: The seed MUST identify ALL major characters, their end states, ALL story-bearing objects, and the contamination model — because downstream phases CANNOT invent these
-`.trim();
-
-const BENCHMARK_EXEMPLAR_SHORTFORM = `
-COMPLETED BENCHMARK EXEMPLAR — SHORT-FORM (Ancient Bloodlines, 18K words, novella):
-This is what a gold-standard short-form evaluation looks like. Use this as your target shape.
-
-- Verdict: Ambitious eco-fable with distinctive cross-species love story and moral battleground; pacing uneven where lore outruns conflict; character interiority lags behind world-building
-- 13 criteria scored: Concept 7, Drive 6, Character 6, POV 6, Scene 6, Dialogue 5, Theme 7, World 7, Prose 5, Pacing 5, Closure NE, Market 4
-- Top 3 actions: (1) Tighten central conflict in opening, (2) Fold world-building into live conflict, (3) Deepen interiority at choice-points
-- Per-criterion: strengths, drags, and specific recommendations with evidence
-- Confidence: Mixed — full text evaluated but some areas limited by scope
-- Key learning: The seed MUST identify the central conflict, major characters with their roles, and the core thematic architecture — because short-form downstream cannot fill gaps from surrounding chapters
+- Required-gold source docs: docs/benchmarks/cartel-babies-dream.md, docs/benchmarks/cartel-babies-dream-v2-governed-ledger-addendum.md, docs/benchmarks/story-ledger/IDEAL_STORY_LEDGER_9_LAYER_BENCHMARK_CARTEL_BABIES.md
+- Completion standard: must capture Michael and Benjamin as dual protagonists, Paolito/Paul identity transformation, Raúl/Navarro governance conflict, Cobra betrayal, Diego loyalty-tax pressure, El Tomatero/red bat, pigs/pig-pen disposal terror, cartel product/lab pressure, radio-channel punishment code, embassy/new-identity transition, and Vancouver aftercare
+- Source integrity: distinguish true structural defects from motif, table-of-contents artifact, anchor issue, package note, or manual-verification concern
+- POV / identity: preserve Michael captivity POV, Benjamin search/origin lane, Paolito→Paul rename chain, and cartel/institutional systems as distinct canonical entities
+- Relationship network: map Michael/Benjamin, Michael/Raúl, Michael/Paolito-Paul, Raúl/Paolito, Raúl/Navarro, Raúl/Cobra, Raúl/Diego, Raúl/El Tomatero/Paolito, radio channels/camp population, and protected-family aftercare
+- Object / symbol: track blue evil-eye charm, keys, embassy papers, red bat, pig pen, product/lab substances, radio channels, Beethoven's Fifth, table tennis, and local Sinaloa anchors as lifecycle-bearing systems
+- Threat / pressure / ending: include individual, institutional, chemical, disposal-terror, encoded-punishment, family, legal-identity, and aftercare pressures; do not collapse the manuscript to a single villain or generic cartel setting
+- Key learning: The seed MUST identify all story-bearing people, systems, objects, pressure codes, identity transitions, and ending obligations because downstream phases must verify or reject claims from manuscript evidence — they must not invent missing architecture
 `.trim();
 
 // ── Public API ───────────────────────────────────────────────────────────────
@@ -80,7 +68,7 @@ This is what a gold-standard short-form evaluation looks like. Use this as your 
 export function buildSeedBenchmarkContext(route?: SeedRoute): string {
   const templateKey: DreamTemplateKey = route === 'SHORT_FORM' ? 'short_form' : 'long_form';
   const dreamTemplate = buildCompactTemplateBlock(templateKey);
-  const exemplar = route === 'SHORT_FORM' ? BENCHMARK_EXEMPLAR_SHORTFORM : BENCHMARK_EXEMPLAR_LONGFORM;
+  const exemplar = BENCHMARK_EXEMPLAR_CARTEL_BABIES;
 
   return [
     '═══ BENCHMARK GROUNDING CONTEXT (Phase 0 Warmup) ═══',

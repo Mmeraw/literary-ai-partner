@@ -77,7 +77,7 @@ describe("ReviseCockpitClient smoke", () => {
       error: null,
       manuscriptId: "6074",
       evaluationJobId: "e5ced7ac-117f-4d13-8cd0-3957c15dc189",
-      manuscriptTitle: "Ancient Bloodlines—Love Between Species",
+      manuscriptTitle: "Cartel Babies",
       opportunities: [],
       needsTargeting: [makeNeedsTargetingOpportunity("nt-1")],
       readinessTotals: {
@@ -129,7 +129,7 @@ describe("ReviseCockpitClient smoke", () => {
       error: null,
       manuscriptId: "6074",
       evaluationJobId: "e5ced7ac-117f-4d13-8cd0-3957c15dc189",
-      manuscriptTitle: "Ancient Bloodlines—Love Between Species",
+      manuscriptTitle: "Cartel Babies",
       opportunities: [],
       needsTargeting: [item],
       readinessTotals: {

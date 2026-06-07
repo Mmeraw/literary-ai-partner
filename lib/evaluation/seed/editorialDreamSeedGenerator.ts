@@ -87,6 +87,7 @@ export type GenerateEditorialDreamSeedInput = {
   title: string;
   workType: string;
   wordCount: number;
+  isMultiLayer?: boolean;
   openaiApiKey?: string | null;
   model?: string;
   timeoutMs?: number;
@@ -177,7 +178,7 @@ export async function generateEditorialDreamSeed(
     maxRetries: 2,
   });
 
-  const templateKey = resolveTemplateKey(input.wordCount);
+  const templateKey = resolveTemplateKey(input.wordCount, input.isMultiLayer);
   const dreamTemplateBlock = buildCompactTemplateBlock(templateKey);
 
   const userPrompt = `MANUSCRIPT TITLE: ${input.title}

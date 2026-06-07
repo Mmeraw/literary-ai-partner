@@ -75,16 +75,9 @@ docs/benchmarks/story-ledger/LET_THE_RIVER_DECIDE_9_LAYER_OPTIMIZATION_ADDENDUM.
 
 Note: The template (`STORY_LEDGER_9_LAYER_TEMPLATE.md`) defines the blank structure that seeds MUST populate. The benchmark files are filled gold-standard examples showing what good output looks like. The template structure is compiled into the seed generator prompts at runtime via `lib/evaluation/seed/benchmarkContextBuilder.ts`.
 
-## Legacy benchmark-related references — not current warmup authority
+## Retired benchmark references — not current warmup authority
 
-Ancient Bloodlines references are retained only as historical regression material. They are not current Story Ledger benchmark gates and must not override the nine-layer Story Ledger files in this manifest.
-
-```text
-docs/benchmarks/ancient-bloodlines-longform-layered-template.md
-docs/benchmarks/ancient-bloodlines-longform-layered.md
-docs/benchmarks/ancient-bloodlines-shortform-model.md
-docs/benchmarks/BENCHMARK-CHARTER.md
-```
+Retired benchmark references must not be used as current Story Ledger benchmark gates. Current warmup authority is the nine-layer Story Ledger file set in this manifest, with `IDEAL_STORY_LEDGER_9_LAYER_BENCHMARK_CARTEL_BABIES.md` as the primary product exemplar when a single example is needed.
 
 ## Runtime hierarchy
 

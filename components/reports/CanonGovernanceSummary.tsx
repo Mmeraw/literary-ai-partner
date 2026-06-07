@@ -193,7 +193,7 @@ function Gate15Section({ data }: { data: Gate15AuditArtifact }) {
       {data.summaryFindings.length > 0 && (
         <div className="mt-3 bg-gray-50 rounded-lg p-3">
           <h4 className="text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wider">Findings</h4>
-          <ul className="text-sm text-gray-700 space-y-0.5">
+          <ul className="list-none pl-0 text-sm text-gray-700 space-y-0.5">
             {data.summaryFindings.map((f, i) => (
               <li key={i}>• {f}</li>
             ))}
@@ -286,7 +286,7 @@ function GoldenSpineSection({ data }: { data: GoldenSpineArtifact }) {
       {data.summaryFindings.length > 0 && (
         <div className="mt-3 bg-gray-50 rounded-lg p-3">
           <h4 className="text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wider">Findings</h4>
-          <ul className="text-sm text-gray-700 space-y-0.5">
+          <ul className="list-none pl-0 text-sm text-gray-700 space-y-0.5">
             {data.summaryFindings.map((f, i) => (
               <li key={i}>• {f}</li>
             ))}
@@ -349,7 +349,7 @@ function DialogueCanonSection({ data }: { data: DialogueCanonAuditArtifact }) {
       {data.expositionLeakage.length > 0 && (
         <div className="mb-3">
           <h4 className="text-sm font-semibold text-gray-700 mb-1">Exposition Leakage ({data.expositionLeakage.length})</h4>
-          <ul className="text-xs text-gray-600 space-y-1 max-h-32 overflow-y-auto">
+          <ul className="list-none pl-0 text-xs text-gray-600 space-y-1 max-h-32 overflow-y-auto">
             {data.expositionLeakage.slice(0, 5).map((inst, i) => (
               <li key={i} className="bg-red-50 rounded p-1.5">
                 &ldquo;{inst.text}&rdquo;
@@ -363,7 +363,7 @@ function DialogueCanonSection({ data }: { data: DialogueCanonAuditArtifact }) {
       {data.protectedSpeech.length > 0 && (
         <div className="mb-3">
           <h4 className="text-sm font-semibold text-gray-700 mb-1">Protected Speech Segments ({data.protectedSpeech.length})</h4>
-          <ul className="text-xs text-gray-600 space-y-1 max-h-32 overflow-y-auto">
+          <ul className="list-none pl-0 text-xs text-gray-600 space-y-1 max-h-32 overflow-y-auto">
             {data.protectedSpeech.slice(0, 5).map((seg, i) => (
               <li key={i} className="bg-emerald-50 rounded p-1.5">
                 <span className="font-medium text-emerald-700">[{seg.protectionReason}]</span> &ldquo;{seg.text}&rdquo;
@@ -376,7 +376,7 @@ function DialogueCanonSection({ data }: { data: DialogueCanonAuditArtifact }) {
       {data.summaryFindings.length > 0 && (
         <div className="mt-3 bg-gray-50 rounded-lg p-3">
           <h4 className="text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wider">Findings</h4>
-          <ul className="text-sm text-gray-700 space-y-0.5">
+          <ul className="list-none pl-0 text-sm text-gray-700 space-y-0.5">
             {data.summaryFindings.map((f, i) => (
               <li key={i}>• {f}</li>
             ))}
@@ -448,7 +448,7 @@ function RevisionCanonMetadataSection({ data }: { data: RevisionCanonMetadata })
       {data.summaryFindings.length > 0 && (
         <div className="bg-gray-50 rounded-lg p-3">
           <h4 className="text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wider">Findings</h4>
-          <ul className="text-sm text-gray-700 space-y-0.5">
+          <ul className="list-none pl-0 text-sm text-gray-700 space-y-0.5">
             {data.summaryFindings.map((f, i) => (
               <li key={i}>• {f}</li>
             ))}

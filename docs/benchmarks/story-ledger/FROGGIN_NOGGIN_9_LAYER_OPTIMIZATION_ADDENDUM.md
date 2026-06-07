@@ -51,7 +51,7 @@ Phase 2 cannot proceed cleanly if the governing Story Ledger omits the following
 
 ## Version-contamination guard
 
-Snappy belongs to Ancient Bloodlines, not this Froggin Noggin FULL NOVEL review copy unless a different edition proves otherwise. A Froggin ledger that imports Snappy from Ancient Bloodlines is contaminated.
+Do not import entities, objects, or continuity from retired cross-work benchmark material into this Froggin Noggin FULL NOVEL review copy unless a specific manuscript edition proves them. A Froggin ledger that imports foreign entities from another work is contaminated.
 
 ---
 
@@ -63,7 +63,7 @@ The Source Integrity layer must add these guards:
 2. Human-contamination guard: Brutus's human chemical-workspace, mine disposal lane, road-trip pursuit, and final retaliation are structural, not incidental background.
 3. Council/governance guard: Hyla's council, enforcement roles, secrecy roles, reproductive policy, and disease/blight governance must be tracked.
 4. Ending guard: the ending is unresolved escalation, not clean closure.
-5. Benchmark contamination guard: Ancient Bloodlines-only entities must not appear in this Froggin benchmark unless the specific manuscript edition proves them.
+5. Benchmark contamination guard: retired cross-work entities must not appear in this Froggin benchmark unless the specific manuscript edition proves them.
 
 ---
 
@@ -336,4 +336,4 @@ A generated Story Ledger for Froggin Noggin must produce a `seed_fit_gap_report_
 6. Hyla's council/governance system beyond vague “frog polity.”
 7. Elemental Gorf manifestations correctly routed as doctrine/worldview, not accidental extra characters.
 8. Ending classified as unresolved escalation/dependency/human retaliation, not clean closure.
-9. Ancient Bloodlines contamination guard: no Snappy unless this specific manuscript edition proves Snappy exists.
+9. Retired cross-work contamination guard: no foreign entity import unless this specific manuscript edition proves the entity exists.

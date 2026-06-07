@@ -63,9 +63,13 @@ function makeSupabaseStub(shortText: string) {
           }),
           update: (payload: UpdatePayload) => {
             evaluationJobUpdates.push(payload);
-            return {
-              eq: async () => ({ error: null }),
+            // Return a chainable query object supporting .eq().eq()... and .then()
+            const query: any = {
+              eq: () => query,
+              then: (resolve: (value: { error: null }) => unknown) =>
+                Promise.resolve(resolve({ error: null })),
             };
+            return query;
           },
         };
       }

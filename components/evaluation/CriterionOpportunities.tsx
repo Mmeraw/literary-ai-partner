@@ -141,7 +141,7 @@ export default function CriterionOpportunities({ recommendations }: { recommenda
       <p className="text-xs font-semibold uppercase tracking-wide text-gray-600">
         {visible.length === 1 ? "Highest-Priority Opportunity:" : `Top Opportunities (${visible.length} surfaced, severity-ordered):`}
       </p>
-      <ul className="mt-2 space-y-3">
+      <ul className="mt-2 list-none space-y-3 pl-0">
         <OpportunityCard r={primary} index={1} defaultExpanded />
         {hasMore && additional.map((r, ri) => (
           <div key={ri} className={showMore ? "block" : "hidden print:block"}>

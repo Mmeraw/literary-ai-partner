@@ -93,13 +93,14 @@ export default function LongformSensoryEmotionalRegister({ doc }: Props) {
               <p className="text-xs font-semibold uppercase tracking-wide text-emerald-600 mb-2">
                 Sensory governance strengths
               </p>
-              <ol className="space-y-1 list-decimal list-inside">
+              <ul className="list-none space-y-1 pl-0">
                 {doctrineSensory.map((s, i) => (
-                  <li key={i} className="text-xs text-gray-600">
-                    {s}
+                  <li key={i} className="flex gap-1.5 text-xs text-gray-600">
+                    <span className="shrink-0 text-gray-500">•</span>
+                    <span>{s}</span>
                   </li>
                 ))}
-              </ol>
+              </ul>
             </div>
           )}
           {doctureRiskSensory.length > 0 && (
@@ -107,13 +108,14 @@ export default function LongformSensoryEmotionalRegister({ doc }: Props) {
               <p className="text-xs font-semibold uppercase tracking-wide text-rose-600 mb-2">
                 Sensory governance risks
               </p>
-              <ol className="space-y-1 list-decimal list-inside">
+              <ul className="list-none space-y-1 pl-0">
                 {doctureRiskSensory.map((r, i) => (
-                  <li key={i} className="text-xs text-gray-600">
-                    {r}
+                  <li key={i} className="flex gap-1.5 text-xs text-gray-600">
+                    <span className="shrink-0 text-gray-500">•</span>
+                    <span>{r}</span>
                   </li>
                 ))}
-              </ol>
+              </ul>
             </div>
           )}
         </div>

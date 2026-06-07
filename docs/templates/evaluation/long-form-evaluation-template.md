@@ -31,10 +31,15 @@ Reference ID: [UUID]
 
 Report Type: Long-Form Evaluation
 Overall Score: [XX]/100
+Overall Score Confidence: [Very High Confidence / High Confidence / Moderate Confidence / Low Confidence / Insufficient Evidence]
 Market Readiness: [Market Ready / Near Market Ready / Not Market Ready]
+Market Readiness Confidence: [Very High Confidence / High Confidence / Moderate Confidence / Low Confidence / Insufficient Evidence]
 Genre: [Genre]
+Genre Confidence: [Very High Confidence / High Confidence / Moderate Confidence / Low Confidence / Insufficient Evidence]
 Target Audience: [Pipeline-diagnosed target audience]
+Target Audience Confidence: [Very High Confidence / High Confidence / Moderate Confidence / Low Confidence / Insufficient Evidence]
 Shelf: [Pipeline-diagnosed manuscript shelf]
+Shelf Confidence: [Very High Confidence / High Confidence / Moderate Confidence / Low Confidence / Insufficient Evidence]
 Submitted Word Count: [XXXX]
 Estimated Manuscript Pages: [XXX] at 250 words/page
 Reading Grade Level: [X.X] (Flesch-Kincaid)
@@ -69,13 +74,16 @@ PDF, DOCX, TXT, web, and print-friendly views must preserve this content and ord
 
 The Title Block fields above are required for every completed long-form evaluation.
 
-- **Target Audience** is required.
-- The canonical evaluation document must populate **Target Audience** during report generation.
-- **Shelf** is required for long-form manuscript evaluation.
+- **Genre** is required and must carry **Genre Confidence**.
+- **Target Audience** is required and must carry **Target Audience Confidence**.
+- **Shelf** is required for long-form manuscript evaluation and must carry **Shelf Confidence**.
+- **Overall Score** is required and must carry **Overall Score Confidence**.
+- **Market Readiness** is required and must carry **Market Readiness Confidence**.
+- The canonical evaluation document must populate **Genre**, **Target Audience**, **Overall Score**, and **Market Readiness** during report generation.
 - The canonical evaluation document must populate **Shelf** during report generation as the manuscript's professional bookstore/library/market-positioning shelf when evidence supports a shelf diagnosis.
 - **Shelf** is not the same field as **Target Audience**. **Target Audience** identifies the intended reader group; **Shelf** identifies where the manuscript would be positioned professionally.
-- Renderers must not invent, override, omit, or reinterpret **Target Audience** or **Shelf**.
-- A missing **Target Audience** or **Shelf** value is a report-completeness defect.
+- Renderers must not invent, override, omit, or reinterpret **Genre**, **Target Audience**, **Shelf**, **Overall Score**, **Market Readiness**, or their confidence labels.
+- A missing required value or confidence label is a report-completeness defect.
 - **Reading Grade Level** is Title Block metadata only for standard long-form evaluation.
 - **Dialogue/Narrative Ratio** is Title Block metadata only for standard long-form evaluation.
 - Renderers must not create standalone Reading Grade Level or Dialogue/Narrative Ratio sections unless this template is explicitly revised to authorize them.
@@ -409,7 +417,8 @@ Long-form evaluation must not promise:
 
 - **CMOS:** Web, PDF, DOCX, TXT, and print views must use Chicago Manual of Style-governed grammar, spelling, punctuation, capitalization, heading style, number style, and table presentation.
 - **Headings:** All section headings must start with capital letters and use CMOS-compliant Title Case.
-- **Bullets:** Evaluation reports must not indent bullets. Bullet markers align with the left edge of the section body.
+- **Lists:** Use bullets only for short, parallel items where order does not matter. Use numbered markers when sequence, ranking, priority, or first/second/third language matters.
+- **List Formatting:** Evaluation reports must not indent bullets or numbered markers. Markers align with the left edge of the section body. Web and HTML/PDF renderers must not use browser-default indented lists, `list-inside`, `pl-5`, or `padding-left: 0.2in`; DOCX renderers must use explicit marker text with zero paragraph and hanging indent instead of native bullet/numbering definitions.
 - **Spacing:** Every report section must have visible breathing room before and after it.
 - **Metadata Stripping:** Do not include raw pipeline flags, execution timestamps, gate audit logs, or protected internal terminology in author-facing copy.
 - **Tables:** Criteria tables must be full width with Score and Confidence columns right-aligned.

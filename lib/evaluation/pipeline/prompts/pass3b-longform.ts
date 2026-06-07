@@ -51,8 +51,8 @@ This output format is defined by:
 - Benchmark index: docs/benchmarks/DREAM_LONGFORM_BENCHMARK_INDEX.md
 
 Gold-standard benchmarks (all long_form_multi_layer_evaluation / multi_layer_long_form):
-- Froggin Noggin DREAM evaluation (docs/benchmarks/froggin-noggin-dream.md)
-- Cartel Babies DREAM evaluation (docs/benchmarks/cartel-babies-dream.md)
+- Cartel Babies DREAM evaluation (docs/benchmarks/cartel-babies-dream.md) — primary required-gold product exemplar
+- Froggin Noggin DREAM evaluation (docs/benchmarks/froggin-noggin-dream.md) — required-gold benchmark
 - Let the River Decide DREAM evaluation (docs/benchmarks/let-the-river-decide-dream.md, calibration-tier)
 
 Every section below is mandatory. Omitting a section is a benchmark failure.

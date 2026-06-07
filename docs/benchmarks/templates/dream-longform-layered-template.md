@@ -2,8 +2,9 @@
 file-role: format-template
 note: >
   This is a blank reusable format template for multi-layer / multi-voice long-form evaluations.
-  It is NOT an Ancient Bloodlines evaluation. The actual Ancient Bloodlines gold-standard
-  evaluation is at docs/benchmarks/ancient-bloodlines-longform-layered.md.
+  It is not a benchmark evaluation. Current native long-form multi-layer examples are
+  governed by docs/benchmarks/DREAM_LONGFORM_BENCHMARK_INDEX.md and the Story Ledger
+  answer keys under docs/benchmarks/story-ledger/.
   Moved to templates/ for repo hygiene (was previously at docs/benchmarks/ root,
   which created a false impression of being a duplicate evaluation file).
 ---

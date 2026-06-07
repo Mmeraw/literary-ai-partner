@@ -141,6 +141,11 @@ export function formatConfidenceLabelForExport(
  * classifications. Word count is the primary signal because the data model
  * does not carry a per-field genre confidence score.
  *
+ * This is scope-informed rather than a replacement for classifySubmissionScope:
+ * - micro_excerpt (<1,000 words): Insufficient Evidence
+ * - light_chapter / short excerpt ranges: Low Confidence by default
+ * - standard chapter and lower multi-chapter ranges: confidence may rise as evidence grows
+ *
  * Returns null when we have no word count (hide the label rather than guess).
  */
 export function deriveGenreConfidence(
