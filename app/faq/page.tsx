@@ -101,6 +101,10 @@ const faqSections = [
         a: "Confidence and severity help prevent overreach. A low-confidence observation should not be treated like a proven structural defect, and a small local issue should not be handled like a manuscript-level failure.",
       },
       {
+        q: "Why does RevisionGrade show a dialogue/narrative ratio?",
+        a: "The dialogue/narrative ratio is a pacing and texture signal. It helps show whether the manuscript relies mostly on scene dialogue, mostly on narration, or a balanced mix. A very low dialogue percentage may suggest a dense, interior, descriptive, or summary-heavy reading experience; a very high dialogue percentage may suggest a fast, theatrical, or thinly narrated reading experience. The ratio is not a score by itself. It is measured so authors can understand how the manuscript may feel to readers and whether the balance supports the genre, voice, and story strategy.",
+      },
+      {
         q: "Can I use the report with a human editor?",
         a: "Yes. A RevisionGrade report can help clarify whether the manuscript needs structure, scene repair, line polish, market positioning, voice protection, or another specific intervention before you hire or brief a human editor.",
       },
