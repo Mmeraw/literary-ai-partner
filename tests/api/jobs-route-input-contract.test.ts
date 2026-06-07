@@ -560,80 +560,68 @@ describe("POST /api/jobs input contract", () => {
     }
   });
 
-  test("fails closed and terminalizes when worker kickoff fetch rejects", async () => {
+  test("returns 201 and logs async when worker kickoff fetch rejects", async () => {
     mockCreateJob.mockResolvedValue({
       id: "job-1000",
       manuscript_id: 1000,
       job_type: "evaluate_full",
       status: "queued",
     } as never);
+    // Worker fetch throws — kickoff is async so this must not affect the HTTP response.
     mockFetch.mockRejectedValue(new Error("worker unavailable"));
-    const { logger: mockedLogger } = jest.requireMock("@/lib/observability/logger");(mockedLogger.warn as jest.Mock).mockClear();
 
-    try {
-      const req = new Request("https://example.test/api/jobs", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          manuscript_id: 1000,
-          job_type: "evaluate_full",
-          processing_terms_accepted: true,
-        }),
-      });
+    const req = new Request("https://example.test/api/jobs", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        manuscript_id: 1000,
+        job_type: "evaluate_full",
+        processing_terms_accepted: true,
+      }),
+    });
 
-      const response = await POST(req);
-      const json = (await response.json()) as { ok: boolean; code: string };
+    const response = await POST(req);
+    const json = (await response.json()) as { ok: boolean; job_id: string };
 
-      expect(response.status).toBe(503);
-      expect(json.ok).toBe(false);
-      expect(json.code).toBe("WORKER_KICKOFF_FAILED");
-      expect(mockedLogger.warn).toHaveBeenCalled();
-      expect(mockFailEvaluationJobTerminally).toHaveBeenCalledWith(
-        expect.objectContaining({
-          jobId: "job-1000",
-          failureCode: "WORKER_KICKOFF_FAILED",
-        }),
-      );
-    } finally {
-    }
+    // Job is created and returned immediately — kickoff failure is handled async.
+    expect(response.status).toBe(201);
+    expect(json.ok).toBe(true);
+    expect(json.job_id).toBe("job-1000");
+    // failEvaluationJobTerminally is NOT called — the job stays queued for the
+    // next worker poll cycle rather than being terminated by the API layer.
+    expect(mockFailEvaluationJobTerminally).not.toHaveBeenCalled();
   });
 
-  test("fails closed and terminalizes when worker kickoff responds with ok false", async () => {
+  test("returns 201 and logs async when worker kickoff responds with ok false", async () => {
     mockCreateJob.mockResolvedValue({
       id: "job-1001",
       manuscript_id: 1001,
       job_type: "evaluate_full",
       status: "queued",
     } as never);
+    // Worker returns ok:false — kickoff is async so this must not affect the HTTP response.
     mockFetch.mockResolvedValue({ ok: false, status: 503, json: async () => ({ success: false }) } as Response);
-    const { logger: mockedLogger } = jest.requireMock("@/lib/observability/logger");(mockedLogger.warn as jest.Mock).mockClear();
 
-    try {
-      const req = new Request("https://example.test/api/jobs", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          manuscript_id: 1001,
-          job_type: "evaluate_full",
-          processing_terms_accepted: true,
-        }),
-      });
+    const req = new Request("https://example.test/api/jobs", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        manuscript_id: 1001,
+        job_type: "evaluate_full",
+        processing_terms_accepted: true,
+      }),
+    });
 
-      const response = await POST(req);
-      const json = (await response.json()) as { ok: boolean; code: string };
+    const response = await POST(req);
+    const json = (await response.json()) as { ok: boolean; job_id: string };
 
-      expect(response.status).toBe(503);
-      expect(json.ok).toBe(false);
-      expect(json.code).toBe("WORKER_KICKOFF_FAILED");
-      expect(mockedLogger.warn).toHaveBeenCalled();
-      expect(mockFailEvaluationJobTerminally).toHaveBeenCalledWith(
-        expect.objectContaining({
-          jobId: "job-1001",
-          failureCode: "WORKER_KICKOFF_FAILED",
-        }),
-      );
-    } finally {
-    }
+    // Job is created and returned immediately — kickoff failure is handled async.
+    expect(response.status).toBe(201);
+    expect(json.ok).toBe(true);
+    expect(json.job_id).toBe("job-1001");
+    // failEvaluationJobTerminally is NOT called — the job stays queued for the
+    // next worker poll cycle rather than being terminated by the API layer.
+    expect(mockFailEvaluationJobTerminally).not.toHaveBeenCalled();
   });
 
   test("returns 409 with actionable message when duplicate active job constraint is hit", async () => {
