@@ -263,11 +263,13 @@ describe("parsePass3Response", () => {
       title: "Sister",
       llmEnrichment: parsed.enrichment,
       scopeProfile: {
-        route: "SHORT_FORM",
         inputScale: "standard_chapter",
-        manuscriptWideCertifiable: true,
-        reasonCodes: [],
-      },
+        wordCount: 4899,
+        chunkCount: 1,
+        scorableCount: 1,
+        confidenceCapSummary: "HIGH",
+        scopePolicyVersion: "v1",
+      } as import("@/lib/evaluation/pipeline/submissionScope").SubmissionScopeProfile,
     });
 
     const gate = validateTemplateCompleteness(resultV2);

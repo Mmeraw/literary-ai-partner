@@ -89,6 +89,7 @@ describe("ReviseQueueV2Client smoke", () => {
       totals: { must: 0, should: 3, could: 0 },
       scopes: { Line: 3, Passage: 0, Scene: 0, Chapter: 0, Structural: 0, Manuscript: 0 },
       criteria: {},
+      modeContract: null,
     };
 
     render(<ReviseQueueV2Client payload={payload} />);

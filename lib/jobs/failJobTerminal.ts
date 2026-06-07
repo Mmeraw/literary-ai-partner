@@ -201,7 +201,7 @@ export async function failEvaluationJobTerminally(args: TerminalJobFailureInput)
       source: args.source,
       phase: typeof job.phase === 'string' ? job.phase : null,
       phase_status: 'failed',
-      progress_phase: typeof progress.phase === 'string' ? progress.phase : null,
+      progress_phase: typeof (progress as Record<string, unknown>).phase === 'string' ? (progress as Record<string, unknown>).phase as string : null,
       progress_phase_status: 'failed',
       retry_eligible: false,
       updated_at: nowIso,

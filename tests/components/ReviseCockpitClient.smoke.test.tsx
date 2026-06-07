@@ -87,8 +87,7 @@ describe("ReviseCockpitClient smoke", () => {
       totals: { must: 0, should: 0, could: 0 },
       scopes: { Line: 0, Passage: 0, Scene: 0, Chapter: 0, Structural: 0, Manuscript: 0 },
       criteria: {},
-      synthesis: { admitted: 0, clustered: 0, held: 1, suppressed: 0 },
-    };
+      synthesis: { admitted: 0, clustered: 0, held: 1, suppressed: 0 },      modeContract: null,    };
 
     render(<ReviseCockpitClient payload={payload} />);
 
@@ -141,6 +140,7 @@ describe("ReviseCockpitClient smoke", () => {
       scopes: { Line: 0, Passage: 0, Scene: 0, Chapter: 0, Structural: 0, Manuscript: 0 },
       criteria: {},
       synthesis: { admitted: 0, clustered: 0, held: 1, suppressed: 0 },
+      modeContract: null,
     };
 
     render(<ReviseCockpitClient payload={payload} />);

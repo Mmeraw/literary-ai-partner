@@ -107,6 +107,7 @@ describe("ReviseWorkbenchClient smoke", () => {
       scopes: { Line: 0, Passage: 1, Scene: 0, Chapter: 0, Structural: 0, Manuscript: 0 },
       criteria: { Pacing: 1 },
       synthesis: { admitted: 1, clustered: 0, held: 0, suppressed: 0 },
+      modeContract: null,
     };
 
     render(<ReviseWorkbenchClient payload={payload} />);
