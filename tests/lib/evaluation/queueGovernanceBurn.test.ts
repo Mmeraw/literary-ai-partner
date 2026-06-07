@@ -5,14 +5,14 @@ const mockSendEvaluationFailureSupportAlert = jest.fn(async () => ({ attempted: 
 const mockSendEvaluationMajorIssueUserAlert = jest.fn(async () => ({ attempted: true, sent: true }));
 
 jest.mock('@supabase/supabase-js', () => ({
-  createClient: (...args: unknown[]) => createClientMock(...args),
+  createClient: (...args: unknown[]) => createClientMock.apply(null, args),
 }));
 
 jest.mock('@/lib/evaluation/recoverySupportAlertMailer', () => ({
   MAJOR_TECHNICAL_ISSUE_PUBLIC_MESSAGE:
     'We hit a technical issue that needs engineering support. Our team has been alerted and is investigating. Your manuscript and completed analysis have been preserved; you do not need to retry. We will notify you by email when the problem has been fixed.',
-  sendEvaluationFailureSupportAlert: (...args: unknown[]) => mockSendEvaluationFailureSupportAlert(...args),
-  sendEvaluationMajorIssueUserAlert: (...args: unknown[]) => mockSendEvaluationMajorIssueUserAlert(...args),
+  sendEvaluationFailureSupportAlert: (...args: unknown[]) => mockSendEvaluationFailureSupportAlert.apply(null, args),
+  sendEvaluationMajorIssueUserAlert: (...args: unknown[]) => mockSendEvaluationMajorIssueUserAlert.apply(null, args),
   sendRecoverySupportAlert: jest.fn(async () => ({ attempted: true, sent: true })),
   shouldAlertSupportForRecoveryAction: jest.fn(() => true),
   toUserSafeRecoveryMessage: jest.fn((message: string | null | undefined) => message ?? 'safe recovery message'),

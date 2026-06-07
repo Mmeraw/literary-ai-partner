@@ -27,6 +27,7 @@ const mockEnsureLedger = ensureRevisionOpportunityLedgerArtifact as jest.MockedF
 const mockLoadReviseQueueWarmupCorpus = loadReviseQueueWarmupCorpus as jest.MockedFunction<typeof loadReviseQueueWarmupCorpus>;
 
 function buildSupabaseMock(jobId: string, manuscriptVersionId: string, options: {
+  jobStatus?: string;
   policyFamily?: string;
   voicePreservationLevel?: string;
   evaluationArtifactContent?: unknown;
@@ -55,7 +56,7 @@ function buildSupabaseMock(jobId: string, manuscriptVersionId: string, options: 
   const jobMaybeSingle = jest.fn(async () => ({
     data: {
       id: jobId,
-      status: 'complete',
+      status: options.jobStatus ?? 'complete',
       manuscript_id: 6074,
       manuscript_version_id: manuscriptVersionId,
       policy_family: options.policyFamily ?? 'standard',
@@ -183,6 +184,21 @@ describe('getWorkbenchQueue', () => {
 
     expect(result.ok).toBe(false);
     expect(result.error).toContain('saved revision package');
+    expect(mockEnsureLedger).not.toHaveBeenCalled();
+  });
+
+  it('kicks back incomplete upstream evaluations instead of fabricating a Revise queue', async () => {
+    const supabase = buildSupabaseMock('job-running', 'version-running', {
+      jobStatus: 'running',
+    });
+    mockCreateAdminClient.mockReturnValue(supabase as never);
+
+    const result = await getWorkbenchQueue({ manuscriptId: '6074', evaluationJobId: 'job-running' });
+
+    expect(result.ok).toBe(false);
+    expect(result.error).toBe('This evaluation is not complete yet. Revise can load after the report is finished.');
+    expect(result.opportunities).toHaveLength(0);
+    expect(result.needsTargeting).toHaveLength(0);
     expect(mockEnsureLedger).not.toHaveBeenCalled();
   });
 

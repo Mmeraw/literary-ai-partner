@@ -101,13 +101,14 @@ docs/benchmarks/story-ledger/FROGGIN_NOGGIN_9_LAYER_OPTIMIZATION_ADDENDUM.md
 docs/benchmarks/story-ledger/LET_THE_RIVER_DECIDE_9_LAYER_OPTIMIZATION_ADDENDUM.md
 ```
 
-### F. Ancient Bloodlines benchmark references — required when evaluating or regression-testing Ancient Bloodlines
+### F. Legacy Ancient Bloodlines references — not current Story Ledger authority
+
+Ancient Bloodlines has been superseded by the nine-layer Story Ledger benchmark set for current Story Ledger calibration. These references are retained only for historical regression context and must not be treated as current warmup authority, benchmark gate, or release gate.
 
 ```text
 docs/benchmarks/ancient-bloodlines-longform-layered-template.md
 docs/benchmarks/ancient-bloodlines-longform-layered.md
 docs/benchmarks/ancient-bloodlines-shortform-model.md
-docs/benchmarks/github-ancient-bloodlines-gold-standard-brief.md
 docs/benchmarks/BENCHMARK-CHARTER.md
 ```
 

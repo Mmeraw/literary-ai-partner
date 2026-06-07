@@ -19,7 +19,7 @@ beforeAll(async () => {
 
   const openaiApiKey = process.env.OPENAI_API_KEY;
   if (!openaiApiKey) {
-    throw new Error("OPENAI_API_KEY is required for test:benchmark:ancient-bloodlines:live");
+    throw new Error("OPENAI_API_KEY is required for the legacy Ancient Bloodlines live-parity check");
   }
 
   const rawManuscriptPath = process.env.ANCIENT_BLOODLINES_MANUSCRIPT_PATH;

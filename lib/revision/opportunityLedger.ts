@@ -54,6 +54,10 @@ type EnsureLedgerResult = {
   opportunities: RevisionOpportunity[];
 };
 
+export const REVISE_QUEUE_LONG_FORM_WORD_THRESHOLD = 25_000 as const;
+export const REVISE_QUEUE_MAX_SHORT_FORM = 50 as const;
+export const REVISE_QUEUE_MAX_LONG_FORM = 100 as const;
+
 type CandidateBuildInput = {
   criterion: string;
   anchor: string;
@@ -89,6 +93,24 @@ function stableStringify(value: unknown): string {
       .join(',')}}`;
   }
   return JSON.stringify(value);
+}
+
+export function getReviseQueueMaxOpportunities(wordCount: number | null | undefined): number {
+  return typeof wordCount === 'number' && Number.isFinite(wordCount) && wordCount >= REVISE_QUEUE_LONG_FORM_WORD_THRESHOLD
+    ? REVISE_QUEUE_MAX_LONG_FORM
+    : REVISE_QUEUE_MAX_SHORT_FORM;
+}
+
+function capRevisionOpportunities(
+  opportunities: RevisionOpportunity[],
+  wordCount: number | null | undefined,
+): RevisionOpportunity[] {
+  const maxOpportunities = getReviseQueueMaxOpportunities(wordCount);
+  if (opportunities.length <= maxOpportunities) return opportunities;
+
+  return [...opportunities]
+    .sort((a, b) => (SEVERITY_RANK[a.severity] ?? 3) - (SEVERITY_RANK[b.severity] ?? 3))
+    .slice(0, maxOpportunities);
 }
 
 function sourceHashFor(payload: unknown): string {
@@ -745,9 +767,9 @@ function extractTopLevelRecommendations(payload: Record<string, unknown>): Revis
   return opportunities;
 }
 
-const MAX_OPPORTUNITIES_SHORT_FORM = 50;
-const MAX_OPPORTUNITIES_LONG_FORM = 100;
-const LONG_FORM_WORD_THRESHOLD = 25_000;
+const MAX_OPPORTUNITIES_SHORT_FORM = REVISE_QUEUE_MAX_SHORT_FORM;
+const MAX_OPPORTUNITIES_LONG_FORM = REVISE_QUEUE_MAX_LONG_FORM;
+const LONG_FORM_WORD_THRESHOLD = REVISE_QUEUE_LONG_FORM_WORD_THRESHOLD;
 
 const SEVERITY_RANK: Record<string, number> = { must: 0, should: 1, could: 2 };
 
@@ -1098,15 +1120,7 @@ export function buildRevisionOpportunitiesFromEvaluationPayload(
 
   const all = [...deduped.values()];
 
-  // Enforce 50 for short-form (<25k words), 100 for long-form (≥25k words)
-  const maxOpportunities = (options?.wordCount ?? 0) >= LONG_FORM_WORD_THRESHOLD
-    ? MAX_OPPORTUNITIES_LONG_FORM
-    : MAX_OPPORTUNITIES_SHORT_FORM;
-
-  if (all.length <= maxOpportunities) return all;
-
-  all.sort((a, b) => (SEVERITY_RANK[a.severity] ?? 3) - (SEVERITY_RANK[b.severity] ?? 3));
-  return all.slice(0, maxOpportunities);
+  return capRevisionOpportunities(all, options?.wordCount);
 }
 
 async function persistHealedExistingLedger(input: {
@@ -1149,26 +1163,6 @@ export async function ensureRevisionOpportunityLedgerArtifact(supabase: any, job
     existingLedgerRow?.content?.opportunities,
   );
 
-  const existingLedgerFullyEnriched =
-    isRecord(existingLedgerRow?.content) &&
-    typeof existingLedgerRow.content.candidate_generation_status === 'string' &&
-    existingLedgerRow.content.candidate_generation_status.includes('longform_enriched');
-
-  if (existingOpportunities && existingOpportunities.length > 0 && existingLedgerFullyEnriched) {
-    const healed = existingOpportunities.map(ensureOpportunityCandidates);
-    await persistHealedExistingLedger({
-      supabase,
-      rowId: typeof existingLedgerRow?.id === 'string' ? existingLedgerRow.id : null,
-      currentContent: existingLedgerRow?.content,
-      opportunities: healed,
-    });
-
-    return {
-      artifactId: typeof existingLedgerRow?.id === 'string' ? existingLedgerRow.id : null,
-      opportunities: healed,
-    };
-  }
-
   const { data: jobRow, error: jobReadError } = await supabase
     .from('evaluation_jobs')
     .select('id, manuscript_id, evaluation_project_id, evaluation_result, policy_family, voice_preservation_level')
@@ -1191,6 +1185,36 @@ export async function ensureRevisionOpportunityLedgerArtifact(supabase: any, job
   const evaluationPayload =
     evaluationResultRow?.content ??
     (isRecord(jobRow.evaluation_result) ? jobRow.evaluation_result : null);
+  const jobEvaluationPayloadRecord = isRecord(evaluationPayload) ? evaluationPayload : {};
+  const jobOverviewRecord = isRecord(jobEvaluationPayloadRecord.overview) ? jobEvaluationPayloadRecord.overview : {};
+  const jobWordCount = typeof jobOverviewRecord.word_count === 'number'
+    ? jobOverviewRecord.word_count
+    : typeof jobEvaluationPayloadRecord.word_count === 'number'
+      ? jobEvaluationPayloadRecord.word_count
+      : 0;
+
+  const existingLedgerFullyEnriched =
+    isRecord(existingLedgerRow?.content) &&
+    typeof existingLedgerRow.content.candidate_generation_status === 'string' &&
+    existingLedgerRow.content.candidate_generation_status.includes('longform_enriched');
+
+  if (existingOpportunities && existingOpportunities.length > 0 && existingLedgerFullyEnriched) {
+    const healed = capRevisionOpportunities(
+      existingOpportunities.map(ensureOpportunityCandidates),
+      jobWordCount,
+    );
+    await persistHealedExistingLedger({
+      supabase,
+      rowId: typeof existingLedgerRow?.id === 'string' ? existingLedgerRow.id : null,
+      currentContent: existingLedgerRow?.content,
+      opportunities: healed,
+    });
+
+    return {
+      artifactId: typeof existingLedgerRow?.id === 'string' ? existingLedgerRow.id : null,
+      opportunities: healed,
+    };
+  }
 
   if (evaluationResultError || !evaluationPayload) {
     throw new Error(
@@ -1237,7 +1261,7 @@ export async function ensureRevisionOpportunityLedgerArtifact(supabase: any, job
     ? overviewRecord.word_count
     : typeof evalPayloadRecord.word_count === 'number'
       ? evalPayloadRecord.word_count
-      : 0;
+      : jobWordCount;
 
   const opportunities = buildRevisionOpportunitiesFromEvaluationPayload(
     evaluationPayload, chunkCachePayload, longformPayload, { wordCount },

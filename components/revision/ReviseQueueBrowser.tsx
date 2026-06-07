@@ -8,6 +8,7 @@ import type {
   WorkbenchSeverity,
   WorkbenchScope,
 } from "@/lib/revision/workbenchQueue";
+import { getReviseQueueLedgerColumnLabel } from "@/lib/revision/reviseQueueLedgerContract";
 import ResetQueueButton from "@/components/revision/ResetQueueButton";
 
 type FilterState = {
@@ -273,14 +274,14 @@ export default function ReviseQueueBrowser({ payload }: { payload: WorkbenchQueu
         <table className="w-full text-left text-sm">
           <thead>
             <tr className="border-b border-[#F3E3C3]/10 text-[10px] font-bold uppercase tracking-[0.12em] text-[#F3E3C3]/40">
-              <th className="px-2 py-2.5 w-8">#</th>
-              <th className="px-2 py-2.5 w-16">Severity</th>
-              <th className="px-2 py-2.5 w-20">Scope</th>
-              <th className="px-2 py-2.5 w-14">Chapter</th>
-              <th className="px-2 py-2.5 min-w-[120px]">Criterion</th>
-              <th className="px-2 py-2.5 min-w-[280px]">Issue</th>
-              <th className="px-2 py-2.5 w-20">Options</th>
-              <th className="px-2 py-2.5 w-20">Status</th>
+              <th className="px-2 py-2.5 w-8">{getReviseQueueLedgerColumnLabel("index")}</th>
+              <th className="px-2 py-2.5 w-16">{getReviseQueueLedgerColumnLabel("severity")}</th>
+              <th className="px-2 py-2.5 w-20">{getReviseQueueLedgerColumnLabel("scope")}</th>
+              <th className="px-2 py-2.5 w-14">{getReviseQueueLedgerColumnLabel("chapter")}</th>
+              <th className="px-2 py-2.5 min-w-[120px]">{getReviseQueueLedgerColumnLabel("criterion")}</th>
+              <th className="px-2 py-2.5 min-w-[280px]">{getReviseQueueLedgerColumnLabel("issue")}</th>
+              <th className="px-2 py-2.5 w-20">{getReviseQueueLedgerColumnLabel("options")}</th>
+              <th className="px-2 py-2.5 w-20">{getReviseQueueLedgerColumnLabel("status")}</th>
             </tr>
           </thead>
           <tbody>

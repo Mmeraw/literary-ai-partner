@@ -47,7 +47,7 @@ Current examples:
 | File | Legacy status | Allowed use | Not allowed to do |
 |---|---|---|---|
 | [`ancient-bloodlines-shortform-model.md`](./ancient-bloodlines-shortform-model.md) | Preserved `EvaluationReportV1` / 12-criterion historical short-form model | Teach canon continuity, missing-evidence handling, and craft-vs-intelligence separation | Claim current 13-criterion production shape |
-| [`../testdata/evaluation/ancient-bloodlines.shortform.model.json`](../testdata/evaluation/ancient-bloodlines.shortform.model.json) | Preserved fixture backing legacy tests | Drive explicit legacy-reference guards | Serve as a current scoring fixture |
+| [`../testdata/evaluation/ancient-bloodlines.shortform.model.json`](../testdata/evaluation/ancient-bloodlines.shortform.model.json) | Preserved fixture backing legacy tests | Drive explicit legacy-reference guards only | Serve as a current scoring fixture, benchmark gate, release gate, or Story Ledger authority |
 | [`ancient-bloodlines-longform-layered-template.md`](./ancient-bloodlines-longform-layered-template.md) | Historical path for a blank multi-layer format template | Backward-compatible reference only | Replace `docs/templates/evaluation/long-form-multi-layer-evaluation-template.md` as product template authority |
 
 Legacy tests must say so in their header. They should verify that preserved files remain useful **and** that they do not masquerade as current mode/template authority.
