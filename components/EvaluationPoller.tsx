@@ -693,7 +693,7 @@ export function EvaluationPoller({
           const barWidth = Math.max(rawBarWidth, highWaterMarkRef.current);
           return (
             <div className="space-y-2">
-              <p className={`text-lg font-semibold leading-7 sm:text-xl ${labelColorClass}`}>{effectivePd.label}</p>
+              <p className={`text-xl font-semibold leading-8 sm:text-2xl ${labelColorClass}`}>{effectivePd.label}</p>
               <div className="w-full rounded-full h-2.5" style={{ backgroundColor: '#E8E4DD' }}>
                 <div
                   className={`h-2.5 rounded-full transition-all duration-500 ease-out ${barColorClass}`}
