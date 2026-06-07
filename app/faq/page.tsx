@@ -192,7 +192,7 @@ function Eyebrow({ children }: { children: ReactNode }) {
 export default function AuthorFaqPage() {
   return (
     <div className="bg-rg-ink text-rg-cream">
-      <section className="mx-auto grid min-h-[calc(100vh-3.5rem)] max-w-7xl items-center gap-12 px-6 py-20 lg:grid-cols-[1fr_0.9fr]">
+      <section className="mx-auto grid max-w-7xl items-center gap-12 px-6 py-12 lg:grid-cols-[1fr_0.9fr] lg:py-16">
         <div>
           <Eyebrow>Author FAQ</Eyebrow>
           <h1 className="mt-6 max-w-5xl font-rg-serif text-5xl leading-[0.98] tracking-tight md:text-7xl">
