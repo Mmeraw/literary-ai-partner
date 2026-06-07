@@ -4,6 +4,13 @@
  * Aggregates tracked LLM usage from `job_costs` and combines it with optional
  * monthly provider overhead allocations so admin pages can show total operating
  * cost by range without pretending unconfigured provider costs are known.
+ *
+ * Important range contract:
+ * - Evaluation ranges are filtered by `evaluation_jobs.created_at`, not by
+ *   `job_costs.called_at`.
+ * - `job_costs.called_at` remains telemetry timing only. Late telemetry,
+ *   retries, backfills, and resumed jobs must not make an old evaluation appear
+ *   as if it was newly submitted in the last 24h / 5d / 30d windows.
  */
 
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -157,7 +164,6 @@ export interface CostOpsDashboardData {
   providerStatus: CostOpsProviderStatus[];
   alerts: CostOpsAlert[];
   warnings: string[];
-  /** Rollup spend totals from llm_cost_events (non-evaluation sources). */
   nonEvalSpend: {
     agentReadinessCents: number;
     reviseQueueCents: number;
@@ -181,6 +187,7 @@ interface RawJobRow {
   id: string;
   manuscript_id: string | null;
   status: string | null;
+  created_at: string | null;
 }
 
 const RANGE_LABELS: Record<CostOpsRange, string> = {
@@ -254,9 +261,14 @@ function rowCostCents(row: RawCostRow): number {
   });
 }
 
-function filterRowsByStart(rows: RawCostRow[], start: string | null): RawCostRow[] {
+function isInWindow(iso: string | null | undefined, start: string | null): boolean {
+  if (!start) return true;
+  return (iso ?? "") >= start;
+}
+
+function filterRowsByJobCreatedAt(rows: RawCostRow[], jobMeta: Map<string, RawJobRow>, start: string | null): RawCostRow[] {
   if (!start) return rows;
-  return rows.filter((row) => (row.called_at ?? "") >= start);
+  return rows.filter((row) => isInWindow(jobMeta.get(row.job_id)?.created_at, start));
 }
 
 function sumCents(rows: RawCostRow[]): number {
@@ -368,7 +380,7 @@ async function fetchJobMetadata(jobIds: string[]): Promise<Map<string, RawJobRow
     const batch = jobIds.slice(i, i + 100);
     const { data, error } = await supabase
       .from("evaluation_jobs")
-      .select("id, manuscript_id, status")
+      .select("id, manuscript_id, status, created_at")
       .in("id", batch);
 
     if (error) continue;
@@ -449,7 +461,7 @@ function buildJobRows(rows: RawCostRow[], jobMeta: Map<string, RawJobRow>, alloc
     .slice(0, 50);
 }
 
-function buildAlerts(params: { selectedTotalCents: number; mtdTotalCents: number; projectedCents: number; budgetCents: number | null; failedCents: number; topModelPct: number; missingProviders: string[] }): CostOpsAlert[] {
+function buildAlerts(params: { selectedTotalCents: number; mtdTotalCents: number; projectedCents: number; budgetCents: number | null; failedCents: number; topModelPct: number; missingProviders: string[]; lateTelemetryCount: number }): CostOpsAlert[] {
   const alerts: CostOpsAlert[] = [];
 
   if (params.budgetCents !== null && params.mtdTotalCents > params.budgetCents) {
@@ -468,6 +480,10 @@ function buildAlerts(params: { selectedTotalCents: number; mtdTotalCents: number
 
   if (params.topModelPct > 80) {
     alerts.push({ code: "MODEL_CONCENTRATION", severity: "watch", title: "Model concentration risk", detail: `Over ${Math.round(params.topModelPct)}% of tracked LLM spend is on one model.` });
+  }
+
+  if (params.lateTelemetryCount > 0) {
+    alerts.push({ code: "LATE_COST_TELEMETRY", severity: "watch", title: "Late cost telemetry excluded", detail: `${params.lateTelemetryCount} cost row(s) were recorded inside the selected time window for evaluations submitted before the window. They are excluded from the range total.` });
   }
 
   if (params.missingProviders.length > 0) {
@@ -515,10 +531,24 @@ export async function getCostOpsDashboardData(rangeInput?: string | null): Promi
     warnings.push("Failed to fetch cost data from Supabase. Showing zeros.");
   }
 
-  const selectedRows = filterRowsByStart(allRows, rangeWindow.start);
-  const todayRows = filterRowsByStart(allRows, startOfTodayIso(now));
-  const mtdRows = filterRowsByStart(allRows, startOfMonthIso(now));
-  const last7dRows = filterRowsByStart(allRows, sevenDaysAgoIso(now));
+  const allUniqueJobIds = [...new Set(allRows.map((row) => row.job_id).filter(Boolean))];
+  let allJobMeta = new Map<string, RawJobRow>();
+  try {
+    allJobMeta = await fetchJobMetadata(allUniqueJobIds);
+  } catch {
+    warnings.push("Failed to fetch job metadata.");
+  }
+
+  const selectedRows = filterRowsByJobCreatedAt(allRows, allJobMeta, rangeWindow.start);
+  const todayRows = filterRowsByJobCreatedAt(allRows, allJobMeta, startOfTodayIso(now));
+  const mtdRows = filterRowsByJobCreatedAt(allRows, allJobMeta, startOfMonthIso(now));
+  const last7dRows = filterRowsByJobCreatedAt(allRows, allJobMeta, sevenDaysAgoIso(now));
+
+  const telemetryWindowRows = rangeWindow.start ? allRows.filter((row) => (row.called_at ?? "") >= rangeWindow.start) : selectedRows;
+  const selectedRowKeys = new Set(selectedRows.map((row) => `${row.job_id}|${row.phase ?? ""}|${row.model ?? ""}|${row.called_at ?? ""}|${row.input_tokens ?? 0}|${row.output_tokens ?? 0}`));
+  const lateTelemetryCount = rangeWindow.start
+    ? telemetryWindowRows.filter((row) => !selectedRowKeys.has(`${row.job_id}|${row.phase ?? ""}|${row.model ?? ""}|${row.called_at ?? ""}|${row.input_tokens ?? 0}|${row.output_tokens ?? 0}`)).length
+    : 0;
 
   const selectedLlmCents = sumCents(selectedRows);
   const todayLlmCents = sumCents(todayRows);
@@ -533,27 +563,19 @@ export async function getCostOpsDashboardData(rangeInput?: string | null): Promi
 
   const providerCosts: CostOpsProviderCostRow[] = [
     {
-      provider: "OpenAI",
+      provider: "OpenAI / LLM",
       usageCents: selectedLlmCents,
       fixedAllocatedCents: 0,
       totalCents: selectedLlmCents,
       source: "tracked",
-      detail: "Exact tracked LLM token spend from job_costs.",
+      detail: "Exact tracked LLM token spend from job_costs for evaluations submitted in the selected range.",
     },
     ...overhead.rows,
   ];
 
-  const uniqueJobIds = [...new Set(selectedRows.map((row) => row.job_id).filter(Boolean))];
-  const allUniqueJobIds = [...new Set(allRows.map((row) => row.job_id).filter(Boolean))];
+  const selectedJobIds = new Set(selectedRows.map((row) => row.job_id).filter(Boolean));
+  const selectedEvaluationCount = selectedJobIds.size;
   const jobsWithCosts = allUniqueJobIds.length;
-  const selectedEvaluationCount = uniqueJobIds.length;
-
-  let jobMeta = new Map<string, RawJobRow>();
-  try {
-    jobMeta = await fetchJobMetadata(uniqueJobIds);
-  } catch {
-    warnings.push("Failed to fetch job metadata.");
-  }
 
   let totalEvaluationJobs = 0;
   let untrackedJobs = 0;
@@ -569,16 +591,15 @@ export async function getCostOpsDashboardData(rangeInput?: string | null): Promi
   }
 
   const failedJobIds = new Set<string>();
-  for (const [jobId, meta] of jobMeta.entries()) {
+  for (const [jobId, meta] of allJobMeta.entries()) {
     if (meta.status === "failed") failedJobIds.add(jobId);
   }
   const failedCents = sumCents(mtdRows.filter((row) => failedJobIds.has(row.job_id)));
 
-  const selectedJobIds = new Set(selectedRows.map((row) => row.job_id).filter(Boolean));
   const documentGeneration = getDocumentGenerationEstimateCents({
     range,
     days: rangeWindow.days,
-    evaluationCount: selectedJobIds.size,
+    evaluationCount: selectedEvaluationCount,
   });
 
   providerCosts.push({
@@ -593,7 +614,7 @@ export async function getCostOpsDashboardData(rangeInput?: string | null): Promi
   const { totals: revenueTotals } = await getRevenueForRange(range);
 
   const totalSelectedCostCents = selectedLlmCents + overhead.totalCents + documentGeneration.cents;
-  const avgUsageCostPerJobCents = selectedJobIds.size > 0 ? totalSelectedCostCents / selectedJobIds.size : 0;
+  const avgUsageCostPerJobCents = selectedEvaluationCount > 0 ? totalSelectedCostCents / selectedEvaluationCount : 0;
 
   const elapsed = daysElapsedInMonth(now);
   const totalDays = daysInCurrentMonth(now);
@@ -605,7 +626,7 @@ export async function getCostOpsDashboardData(rangeInput?: string | null): Promi
   const topPhase = phaseBreakdown.find((row) => row.callCount > 0)?.key ?? null;
   const topModelPct = modelBreakdown[0] && selectedLlmCents > 0 ? (modelBreakdown[0].usageCents / selectedLlmCents) * 100 : 0;
 
-  const jobRows = buildJobRows(selectedRows, jobMeta, overhead.totalCents);
+  const jobRows = buildJobRows(selectedRows, allJobMeta, overhead.totalCents);
   const mostExpensiveJob = jobRows[0] ?? null;
   const lowestCostJob = jobRows.length > 0 ? [...jobRows].sort((a, b) => a.totalCostCents - b.totalCostCents)[0] : null;
   const selectedTotalCents = totalSelectedCostCents;
@@ -656,6 +677,10 @@ export async function getCostOpsDashboardData(rangeInput?: string | null): Promi
     generatedAt: now.toISOString(),
   };
 
+  if (lateTelemetryCount > 0) {
+    warnings.push(`${lateTelemetryCount} cost row(s) were recorded inside ${rangeWindow.label} for evaluations submitted before this window. They were excluded so old jobs do not appear as new evaluations.`);
+  }
+
   if (range === "all" && overhead.rows.some((row) => row.source === "configured_monthly")) {
     warnings.push("All-time view includes exact tracked LLM costs only; monthly overhead allocations apply to time-bounded ranges.");
   }
@@ -664,7 +689,6 @@ export async function getCostOpsDashboardData(rangeInput?: string | null): Promi
     warnings.push(documentGeneration.detail);
   }
 
-  // ── Non-evaluation rollup from llm_cost_events ───────────────────────────
   let agentReadinessCents = 0;
   let reviseQueueCents = 0;
   try {
@@ -685,6 +709,7 @@ export async function getCostOpsDashboardData(rangeInput?: string | null): Promi
     failedCents,
     topModelPct,
     missingProviders: overhead.missingProviders,
+    lateTelemetryCount,
   });
 
   return {
@@ -702,7 +727,8 @@ export async function getCostOpsDashboardData(rangeInput?: string | null): Promi
       totalNonEvalCents: agentReadinessCents + reviseQueueCents,
     },
     costComponentsIncluded: [
-      "OpenAI/API usage from job_costs",
+      "Evaluation jobs are filtered by evaluation_jobs.created_at",
+      "OpenAI/API usage from job_costs for jobs submitted in the selected range",
       "Evaluation pipeline execution costs by phase",
       "Configured monthly infrastructure overhead allocation",
       documentGeneration.configured ? "Configured document generation allocation" : "",
