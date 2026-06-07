@@ -2,6 +2,13 @@ import { NextResponse } from "next/server";
 import { getWorkbenchQueue, type WorkbenchOpportunity } from "@/lib/revision/workbenchQueue";
 import { getRenderableCandidateText } from "@/lib/revision/reviseCardContract";
 import { syncRevisionLedgerDecisions, type SyncRevisionLedgerEntryInput } from "@/lib/revision/ledger";
+import { deriveReviseEligibilityLabel } from "@/lib/evaluation/modeGate";
+import {
+  hasExplicitRevisionModeContract,
+  modeContractForMetadata,
+  modeContractToConfirmedMode,
+  type RevisionModeContract,
+} from "@/lib/revision/modeContract";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -47,7 +54,7 @@ function optionA(item: WorkbenchOpportunity): string {
   return candidate;
 }
 
-function buildEntry(item: WorkbenchOpportunity, selectedText: string): SyncRevisionLedgerEntryInput {
+function buildEntry(item: WorkbenchOpportunity, selectedText: string, modeContract: RevisionModeContract): SyncRevisionLedgerEntryInput {
   return {
     localId: `trusted-path:${item.id}:accepted_a`,
     opportunityId: item.id,
@@ -68,6 +75,7 @@ function buildEntry(item: WorkbenchOpportunity, selectedText: string): SyncRevis
       criterion: criterionOf(item),
       severity: item.severity,
       scope: item.scope,
+      modeContract: modeContractForMetadata(modeContract),
     },
   };
 }
@@ -83,6 +91,20 @@ export async function POST(req: Request) {
 
     const payload = await getWorkbenchQueue({ manuscriptId: String(manuscriptId), evaluationJobId: String(evaluationJobId) });
     if (!payload.ok) return NextResponse.json({ ok: false, error: payload.error ?? "Revise Queue is unavailable." }, { status: 409 });
+    if (!hasExplicitRevisionModeContract(payload.modeContract)) {
+      return NextResponse.json({ ok: false, error: "TrustedPath™ is blocked: evaluation mode contract is unavailable." }, { status: 409 });
+    }
+
+    const eligibility = deriveReviseEligibilityLabel({
+      confirmedMode: modeContractToConfirmedMode(payload.modeContract),
+    });
+    if (eligibility !== "Eligible for Trustpath") {
+      return NextResponse.json({
+        ok: false,
+        error: `TrustedPath™ is blocked for ${payload.modeContract.evaluation_mode} / ${payload.modeContract.voice_preservation}. Use manual Revise review.`,
+        modeContract: modeContractForMetadata(payload.modeContract),
+      }, { status: 409 });
+    }
 
     const allItems = [...payload.opportunities, ...(payload.needsTargeting ?? [])];
     const entries: SyncRevisionLedgerEntryInput[] = [];
@@ -97,7 +119,7 @@ export async function POST(req: Request) {
         skipped.push({ id: item.id, title: item.title, reason: item.readiness === "ready_for_revise" ? "Recommended Repair A is not copy-ready." : "Needs Targeting requires manual review." });
         continue;
       }
-      entries.push(buildEntry(item, selectedText));
+      entries.push(buildEntry(item, selectedText, payload.modeContract));
     }
 
     if (entries.length === 0) {

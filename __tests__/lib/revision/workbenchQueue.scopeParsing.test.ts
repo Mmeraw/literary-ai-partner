@@ -20,6 +20,19 @@ describe('scopeFromCoordinates', () => {
     expect(scopeFromCoordinates('xchapter:12')).toBe('Passage');
   });
 
+  it.each([
+    ['Chapter 2 — Search for Mr. Hyde', 'Chapter'],
+    ['Ch. 7 paragraph 4', 'Chapter'],
+    ['Chapters 8-10 climax repair', 'Chapter'],
+    ['Scene 4 marketplace reversal', 'Scene'],
+    ['line 12', 'Line'],
+    ['whole manuscript pattern', 'Manuscript'],
+    ['across the manuscript', 'Manuscript'],
+    ['structural midpoint reversal', 'Structural'],
+  ] as const)('maps natural-language coordinate %s -> %s', (coordinates, expected) => {
+    expect(scopeFromCoordinates(coordinates)).toBe(expected);
+  });
+
   it('does not misclassify by substring matches', () => {
     expect(scopeFromCoordinates('note:this mentions manuscript but is not typed')).toBe('Passage');
     expect(scopeFromCoordinates('meta:chapter-like wording only')).toBe('Passage');

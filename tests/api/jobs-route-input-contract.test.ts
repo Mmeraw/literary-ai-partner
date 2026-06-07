@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getAuthenticatedUser } from "@/lib/supabase/server";
 import { createInitialVersion } from "@/lib/manuscripts/versions";
 import { attachFreeDiagnosticJob, claimFreeDiagnostic } from "@/lib/freeDiagnostic/claims";
+import { failEvaluationJobTerminally } from "@/lib/jobs/failJobTerminal";
 
 jest.mock("@/lib/jobs/store", () => ({
   createJob: jest.fn(),
@@ -53,14 +54,32 @@ jest.mock("@/lib/jobs/backpressure", () => ({
   backpressureGuard: jest.fn(async () => null),
 }));
 
+jest.mock("@/lib/jobs/failJobTerminal", () => ({
+  failEvaluationJobTerminally: jest.fn(async () => ({ ok: true, jobId: "job-terminal" })),
+}));
+
 const mockCreateJob = createJob as jest.MockedFunction<typeof createJob>;
 const mockCreateAdminClient = createAdminClient as jest.MockedFunction<typeof createAdminClient>;
 const mockGetAuthenticatedUser = getAuthenticatedUser as jest.MockedFunction<typeof getAuthenticatedUser>;
 const mockCreateInitialVersion = createInitialVersion as jest.MockedFunction<typeof createInitialVersion>;
 const mockClaimFreeDiagnostic = claimFreeDiagnostic as jest.MockedFunction<typeof claimFreeDiagnostic>;
 const mockAttachFreeDiagnosticJob = attachFreeDiagnosticJob as jest.MockedFunction<typeof attachFreeDiagnosticJob>;
+const mockFailEvaluationJobTerminally = failEvaluationJobTerminally as jest.MockedFunction<typeof failEvaluationJobTerminally>;
 const mockFetch = jest.fn();
 const originalFetch = global.fetch;
+
+function mockWorkerClaimSuccess() {
+  mockFetch.mockResolvedValue({
+    ok: true,
+    status: 200,
+    json: async () => ({
+      success: true,
+      claimed: 1,
+      processed: 1,
+      targetClaimed: true,
+    }),
+  } as Response);
+}
 
 function buildDefaultAdminClientMock() {
   const evaluationJobsUpdateEq = jest.fn(async () => ({ error: null }));
@@ -113,6 +132,7 @@ describe("POST /api/jobs input contract", () => {
     mockFetch.mockReset();
     global.fetch = mockFetch as typeof fetch;
     process.env.CRON_SECRET = "test-cron-secret";
+    mockWorkerClaimSuccess();
     mockGetAuthenticatedUser.mockResolvedValue({ id: "user-1", email: "writer@example.com" } as never);
     mockCreateAdminClient.mockReturnValue(buildDefaultAdminClientMock() as never);
     mockCreateInitialVersion.mockResolvedValue({ id: "version-1" } as never);
@@ -208,7 +228,6 @@ describe("POST /api/jobs input contract", () => {
       job_type: "evaluate_full",
       status: "queued",
     } as never);
-    mockFetch.mockResolvedValue({ ok: true } as Response);
 
     const req = new Request("https://localhost:3000/api/jobs", {
       method: "POST",
@@ -268,7 +287,6 @@ describe("POST /api/jobs input contract", () => {
       job_type: "evaluate_full",
       status: "queued",
     } as never);
-    mockFetch.mockResolvedValue({ ok: true } as Response);
 
     const req = new Request("https://example.test/api/jobs", {
       method: "POST",
@@ -289,6 +307,7 @@ describe("POST /api/jobs input contract", () => {
         method: "GET",
         headers: expect.objectContaining({
           Authorization: "Bearer test-cron-secret",
+          "x-job-id": "job-999",
         }),
       }),
     );
@@ -348,7 +367,6 @@ describe("POST /api/jobs input contract", () => {
       job_type: "evaluate_full",
       status: "queued",
     } as never);
-    mockFetch.mockResolvedValue({ ok: true } as Response);
 
     const req = new Request("https://example.test/api/jobs", {
       method: "POST",
@@ -383,7 +401,6 @@ describe("POST /api/jobs input contract", () => {
       job_type: "evaluate_full",
       status: "queued",
     } as never);
-    mockFetch.mockResolvedValue({ ok: true } as Response);
 
     const req = new Request("https://example.test/api/jobs", {
       method: "POST",
@@ -452,7 +469,6 @@ describe("POST /api/jobs input contract", () => {
       job_type: "evaluate_full",
       status: "queued",
     } as never);
-    mockFetch.mockResolvedValue({ ok: true } as Response);
 
     const req = new Request("https://example.test/api/jobs", {
       method: "POST",
@@ -521,7 +537,6 @@ describe("POST /api/jobs input contract", () => {
       status: "queued",
       progress: {},
     } as never);
-    mockFetch.mockResolvedValue({ ok: true } as Response);
 
     const req = new Request("https://example.test/api/jobs", {
       method: "POST",
@@ -545,7 +560,7 @@ describe("POST /api/jobs input contract", () => {
     }
   });
 
-  test("returns 201 and logs a warning when worker kickoff fetch rejects", async () => {
+  test("fails closed and terminalizes when worker kickoff fetch rejects", async () => {
     mockCreateJob.mockResolvedValue({
       id: "job-1000",
       manuscript_id: 1000,
@@ -567,21 +582,30 @@ describe("POST /api/jobs input contract", () => {
       });
 
       const response = await POST(req);
+      const json = (await response.json()) as { ok: boolean; code: string };
 
-      expect(response.status).toBe(201);
+      expect(response.status).toBe(503);
+      expect(json.ok).toBe(false);
+      expect(json.code).toBe("WORKER_KICKOFF_FAILED");
       expect(mockedLogger.warn).toHaveBeenCalled();
+      expect(mockFailEvaluationJobTerminally).toHaveBeenCalledWith(
+        expect.objectContaining({
+          jobId: "job-1000",
+          failureCode: "WORKER_KICKOFF_FAILED",
+        }),
+      );
     } finally {
     }
   });
 
-  test("returns 201 and logs a warning when worker kickoff responds with ok false", async () => {
+  test("fails closed and terminalizes when worker kickoff responds with ok false", async () => {
     mockCreateJob.mockResolvedValue({
       id: "job-1001",
       manuscript_id: 1001,
       job_type: "evaluate_full",
       status: "queued",
     } as never);
-    mockFetch.mockResolvedValue({ ok: false } as Response);
+    mockFetch.mockResolvedValue({ ok: false, status: 503, json: async () => ({ success: false }) } as Response);
     const { logger: mockedLogger } = jest.requireMock("@/lib/observability/logger");(mockedLogger.warn as jest.Mock).mockClear();
 
     try {
@@ -596,9 +620,18 @@ describe("POST /api/jobs input contract", () => {
       });
 
       const response = await POST(req);
+      const json = (await response.json()) as { ok: boolean; code: string };
 
-      expect(response.status).toBe(201);
+      expect(response.status).toBe(503);
+      expect(json.ok).toBe(false);
+      expect(json.code).toBe("WORKER_KICKOFF_FAILED");
       expect(mockedLogger.warn).toHaveBeenCalled();
+      expect(mockFailEvaluationJobTerminally).toHaveBeenCalledWith(
+        expect.objectContaining({
+          jobId: "job-1001",
+          failureCode: "WORKER_KICKOFF_FAILED",
+        }),
+      );
     } finally {
     }
   });

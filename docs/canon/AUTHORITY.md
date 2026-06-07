@@ -123,6 +123,7 @@ Not allowed:
 ### volumes/
 
 - `registered/volumes/CANON-III-LESSONS-OF-THE-LIVING-SYSTEM.md`
+- `registered/volumes/GENRE_EXPECTATIONS_VOLUME_II_AND_REVISE_MODE_CONTRACT.md`
 - `registered/volumes/REVISIONGRADE-EVALUATION-RUNTIME-GOVERNANCE.md`
 - `registered/volumes/RITUAL-EDITOR-1.md`
 - `registered/volumes/VOLUME-I-II-MERGED-ADDENDUMS-PROSE-ENFORCEMENT.md`

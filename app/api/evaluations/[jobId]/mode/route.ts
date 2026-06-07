@@ -5,6 +5,10 @@ import { getDevHeaderActor } from "@/lib/auth/devHeaderActor";
 import type { EvaluationResultV2 } from "@/schemas/evaluation-result-v2";
 import type { ConfirmedMode, ModeConfirmationAction } from "@/lib/evaluation/modeGate";
 import { resolveModeConfirmation } from "@/lib/evaluation/modeGate";
+import {
+  policyFamilyForEvaluationMode,
+  voicePreservationLevelForMode,
+} from "@/lib/revision/modeContract";
 
 export async function POST(req: Request, ctx: { params: { jobId: string } }) {
   try {
@@ -91,6 +95,19 @@ export async function POST(req: Request, ctx: { params: { jobId: string } }) {
 
     if (updateError) {
       return NextResponse.json({ ok: false, error: updateError.message }, { status: 500 });
+    }
+
+    const { error: jobUpdateError } = await supabase
+      .from("evaluation_jobs")
+      .update({
+        policy_family: policyFamilyForEvaluationMode(resolved.confirmedMode.evaluationMode),
+        voice_preservation_level: voicePreservationLevelForMode(resolved.confirmedMode.voicePreservationMode),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", jobId);
+
+    if (jobUpdateError) {
+      return NextResponse.json({ ok: false, error: jobUpdateError.message }, { status: 500 });
     }
 
     return NextResponse.json({

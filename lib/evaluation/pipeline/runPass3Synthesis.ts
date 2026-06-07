@@ -1436,7 +1436,10 @@ export function parsePass3Response(
 
   const sanitizedOverall = sanitizeCMOSOverall(rawOverallObj as Record<string, unknown>) as typeof rawOverallObj;
 
-  // Extract enrichment surfaces (premise + trigger warnings) from LLM output
+  // Extract enrichment surfaces from LLM output.
+  // These fields feed the final EvaluationResultV2 template-completeness gate;
+  // dropping diagnosed_genre / target_audience here causes otherwise valid
+  // short-form evaluations to fail closed before artifact persistence.
   const rawEnrichment = typeof obj["enrichment"] === "object" && obj["enrichment"] !== null
     ? (obj["enrichment"] as Record<string, unknown>)
     : {};
@@ -1445,6 +1448,12 @@ export function parsePass3Response(
     : undefined;
   const extractedTriggerWarnings = Array.isArray(rawEnrichment["trigger_warnings"])
     ? (rawEnrichment["trigger_warnings"] as unknown[]).filter((w): w is string => typeof w === "string" && w.trim().length > 0).map(w => w.trim().toLowerCase())
+    : undefined;
+  const extractedDiagnosedGenre = typeof rawEnrichment["diagnosed_genre"] === "string" && rawEnrichment["diagnosed_genre"].trim()
+    ? rawEnrichment["diagnosed_genre"].trim()
+    : undefined;
+  const extractedTargetAudience = typeof rawEnrichment["target_audience"] === "string" && rawEnrichment["target_audience"].trim()
+    ? rawEnrichment["target_audience"].trim()
     : undefined;
 
   return {
@@ -1463,8 +1472,13 @@ export function parsePass3Response(
       generated_at: new Date().toISOString(),
     },
     partial_evaluation: false, // will be overridden by runPass3Synthesis with real value
-    enrichment: (extractedPremise || extractedTriggerWarnings?.length)
-      ? { premise: extractedPremise, trigger_warnings: extractedTriggerWarnings }
+    enrichment: (extractedPremise || extractedTriggerWarnings?.length || extractedDiagnosedGenre || extractedTargetAudience)
+      ? {
+          premise: extractedPremise,
+          trigger_warnings: extractedTriggerWarnings,
+          diagnosed_genre: extractedDiagnosedGenre,
+          target_audience: extractedTargetAudience,
+        }
       : undefined,
     diagnostic_spine: rawSpineObj ? extractedSpine : undefined,
   };

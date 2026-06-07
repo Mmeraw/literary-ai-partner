@@ -31,6 +31,50 @@ export interface TriggerWorkerArgs {
   kickoffDispatchStartedAt?: string;
 }
 
+export type TriggerWorkerResult =
+  | {
+      ok: true;
+      workerStatus: number;
+      claimed: number | null;
+      processed: number | null;
+      targetClaimed: boolean | null;
+      body: Record<string, unknown> | null;
+    }
+  | {
+      ok: false;
+      reason:
+        | 'missing_cron_secret'
+        | 'no_trusted_base_url'
+        | 'non_ok_response'
+        | 'network_or_timeout'
+        | 'worker_rejected'
+        | 'worker_halted';
+      workerStatus?: number;
+      error?: string;
+      body?: Record<string, unknown> | null;
+    };
+
+/**
+ * Type guard for the failure variant of TriggerWorkerResult.
+ *
+ * Use this instead of `!result.ok` for discriminated-union narrowing so that
+ * Next.js production type checking (which runs tsc in a separate worker process
+ * with stricter control-flow analysis) accepts `.reason` / `.error` accesses.
+ *
+ * Pattern for every kickoff caller:
+ *
+ *   const reason = isTriggerWorkerFailure(kickoffResult)
+ *     ? (kickoffResult.error ?? kickoffResult.reason)
+ *     : targetClaimFailed
+ *       ? 'worker_did_not_claim_created_job'
+ *       : 'worker_returned_zero_claims';
+ */
+export function isTriggerWorkerFailure(
+  result: TriggerWorkerResult,
+): result is Extract<TriggerWorkerResult, { ok: false }> {
+  return !result.ok;
+}
+
 export function getConfiguredAppBaseUrl(): string | null {
   const explicit = process.env.WORKER_KICKOFF_BASE_URL?.trim();
   if (explicit) {
@@ -72,12 +116,13 @@ function buildWorkerUrlFromTrustedOrigin(req: Request): string | null {
 }
 
 /**
- * Fire-and-forget GET to /api/workers/process-evaluations.
- * Always resolves — never throws. Caller must use `void triggerEvaluationWorker(...)`.
+ * GET /api/workers/process-evaluations.
+ * Always resolves — never throws. Callers that create user-visible jobs should
+ * inspect the returned result and fail closed if the worker did not accept work.
  */
 export async function triggerEvaluationWorker(
   args: TriggerWorkerArgs,
-): Promise<void> {
+): Promise<TriggerWorkerResult> {
   const { req, jobId, trace_id, request_id, source, kickoffDispatchStartedAt } = args;
 
   const kickoffStartAt = startLatencyStage({
@@ -116,7 +161,7 @@ export async function triggerEvaluationWorker(
       job_id: jobId,
       source,
     });
-    return;
+    return { ok: false, reason: 'missing_cron_secret' };
   }
 
   const workerUrl = buildWorkerUrlFromTrustedOrigin(req);
@@ -139,7 +184,7 @@ export async function triggerEvaluationWorker(
       job_id: jobId,
       source,
     });
-    return;
+    return { ok: false, reason: 'no_trusted_base_url' };
   }
 
   try {
@@ -153,6 +198,8 @@ export async function triggerEvaluationWorker(
       },
       cache: 'no-store',
     });
+
+    const body = await response.json().catch(() => null) as Record<string, unknown> | null;
 
     if (!response.ok) {
       finishLatencyStage({
@@ -175,8 +222,62 @@ export async function triggerEvaluationWorker(
         source,
         worker_status: response.status,
         worker_url: workerUrl,
+        worker_body: body,
       });
-      return;
+      return { ok: false, reason: 'non_ok_response', workerStatus: response.status, body };
+    }
+
+    if (body?.success === false) {
+      finishLatencyStage({
+        jobId,
+        stage: 'worker_kickoff',
+        startedAt: kickoffStartAt,
+        state: 'failed',
+        metadata: {
+          finish_reason: 'worker_rejected',
+          worker_status: response.status,
+          source,
+        },
+      });
+
+      logger.warn('Worker kickoff rejected by worker response', {
+        trace_id,
+        request_id,
+        event: 'worker.kickoff.rejected',
+        job_id: jobId,
+        source,
+        worker_status: response.status,
+        worker_url: workerUrl,
+        worker_body: body,
+      });
+      return { ok: false, reason: 'worker_rejected', workerStatus: response.status, body };
+    }
+
+    if (body?.halted === true || body?.disabled === true) {
+      finishLatencyStage({
+        jobId,
+        stage: 'worker_kickoff',
+        startedAt: kickoffStartAt,
+        state: 'failed',
+        metadata: {
+          finish_reason: 'worker_halted',
+          worker_status: response.status,
+          source,
+          reason: body?.reason,
+        },
+      });
+
+      logger.warn('Worker kickoff halted by worker configuration', {
+        trace_id,
+        request_id,
+        event: 'worker.kickoff.halted',
+        job_id: jobId,
+        source,
+        worker_status: response.status,
+        worker_url: workerUrl,
+        worker_body: body,
+      });
+      return { ok: false, reason: 'worker_halted', workerStatus: response.status, body };
     }
 
     finishLatencyStage({
@@ -197,7 +298,19 @@ export async function triggerEvaluationWorker(
       job_id: jobId,
       source,
       worker_url: workerUrl,
+      claimed: typeof body?.claimed === 'number' ? body.claimed : null,
+      processed: typeof body?.processed === 'number' ? body.processed : null,
+      targetClaimed: typeof body?.targetClaimed === 'boolean' ? body.targetClaimed : null,
     });
+
+    return {
+      ok: true,
+      workerStatus: response.status,
+      claimed: typeof body?.claimed === 'number' ? body.claimed : null,
+      processed: typeof body?.processed === 'number' ? body.processed : null,
+      targetClaimed: typeof body?.targetClaimed === 'boolean' ? body.targetClaimed : null,
+      body,
+    };
   } catch (error) {
     finishLatencyStage({
       jobId,
@@ -218,5 +331,10 @@ export async function triggerEvaluationWorker(
       source,
       error: error instanceof Error ? error.message : String(error),
     });
+    return {
+      ok: false,
+      reason: 'network_or_timeout',
+      error: error instanceof Error ? error.message : String(error),
+    };
   }
 }

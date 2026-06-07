@@ -74,7 +74,6 @@ import { classifySubmissionScope, countWords } from '@/lib/evaluation/pipeline/s
 import { runQualityGateV2, QG_MAX_HIGH_SCORE_WHEN_LOW_CONFIDENCE } from '@/lib/evaluation/pipeline/qualityGate';
 import {
   validateTemplateCompleteness,
-  sendCompletenessAlertEmail,
   TEMPLATE_COMPLETENESS_USER_MESSAGE,
   TEMPLATE_COMPLETENESS_FAILURE_CODE,
 } from '@/lib/evaluation/pipeline/templateCompletenessGate';
@@ -109,6 +108,7 @@ import {
   type QueueHardStopCandidate,
 } from '@/lib/evaluation/hardStopGovernance';
 import {
+  sendEvaluationFailureSupportAlert,
   sendRecoverySupportAlert,
   shouldAlertSupportForRecoveryAction,
   toUserSafeRecoveryMessage,
@@ -1814,6 +1814,7 @@ const TERMINAL_FAILURE_PREFIXES = [
   'PASS3_FAILED',           // LEGACY: old code path, treat as terminal
   'PASS2_INDEPENDENCE_REWRITE_FAILED', // Deterministic editorial failure
   'EVALUATION_GATE_REJECTED', // Gate rejected — content-driven
+  'TEMPLATE_COMPLETENESS_GATE_FAILED', // Template/mapper contract failure — code fix required before retry
 ];
 
 /**
@@ -4264,6 +4265,14 @@ export async function processEvaluationJob(
 
     expectedLeaseToken = typeof job.lease_token === 'string' ? job.lease_token : null;
     expectedClaimedBy = typeof job.claimed_by === 'string' ? job.claimed_by : null;
+    let failureAlertManuscriptId =
+      typeof job.manuscript_id === 'number' && Number.isFinite(job.manuscript_id)
+        ? job.manuscript_id
+        : null;
+    let failureAlertUserId =
+      typeof (job as Record<string, unknown>).user_id === 'string'
+        ? ((job as Record<string, unknown>).user_id as string)
+        : null;
 
     const canonicalStartedAt = resolveSafeStartedAt({
       candidate: (job as Record<string, unknown>).started_at,
@@ -4452,6 +4461,37 @@ export async function processEvaluationJob(
 
       Object.assign(progressState, nextProgress);
 
+      const sendFailureSupportAlert = async (source: string) => {
+        const alertResult = await sendEvaluationFailureSupportAlert({
+          job_id: jobId,
+          manuscript_id: failureAlertManuscriptId,
+          user_id: failureAlertUserId,
+          phase: failedPhase,
+          phase_status: 'failed',
+          progress_phase: typeof nextProgress.phase === 'string' ? nextProgress.phase : null,
+          progress_phase_status: typeof nextProgress.phase_status === 'string' ? nextProgress.phase_status : null,
+          failure_code: errorCode,
+          failure_message: errorMessage,
+          source,
+          pipeline_stage: failureContext?.pipelineStage ?? null,
+          retry_eligible: false,
+          diagnostics: pipelineFailureDiagnostics ?? failureContext?.diagnostics ?? null,
+          created_at: typeof (job as Record<string, unknown>).created_at === 'string'
+            ? ((job as Record<string, unknown>).created_at as string)
+            : null,
+          updated_at: now,
+        });
+
+        if (!alertResult.sent) {
+          console.warn('[Processor] evaluation failure support alert not sent', {
+            job_id: jobId,
+            failure_code: errorCode,
+            attempted: alertResult.attempted,
+            error: alertResult.error ?? null,
+          });
+        }
+      };
+
       const phaseLabel = failedPhase === 'phase_2' ? 'phase2' : 'phase1';
       logProcessorStageBoundary({
         jobId,
@@ -4537,6 +4577,8 @@ export async function processEvaluationJob(
           );
         }
 
+        await sendFailureSupportAlert('processor:lease_guarded_failure_finalizer');
+
         return;
       }
 
@@ -4551,6 +4593,8 @@ export async function processEvaluationJob(
           `[Processor] Failed to persist terminal failure state for ${jobId}: ${fallbackError.message}`,
         );
       }
+
+      await sendFailureSupportAlert('processor:fallback_failure_write');
     };
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -4713,6 +4757,11 @@ export async function processEvaluationJob(
     });
 
     console.log(`[Processor] Manuscript ${manuscript.id} fetched: "${manuscript.title}"`);
+    failureAlertManuscriptId =
+      typeof manuscript.id === 'number' && Number.isFinite(manuscript.id)
+        ? manuscript.id
+        : failureAlertManuscriptId;
+    failureAlertUserId = typeof manuscript.user_id === 'string' ? manuscript.user_id : failureAlertUserId;
 
     const { text: resolvedManuscriptText } = await resolveManuscriptText(supabase, manuscript as Manuscript);
     const stripResult = stripNonEvaluativeSections(resolvedManuscriptText || '');
@@ -9509,17 +9558,29 @@ export async function processEvaluationJob(
         templateCompletenessCheck.summary,
       );
 
-      // Send support alert (fail-soft — don't crash if email fails)
-      try {
-        const emailResult = await sendCompletenessAlertEmail(jobId, templateCompletenessCheck.violations);
-        console.log(`[Processor] ${jobId}: completeness alert email sent=${emailResult.sent}`);
-      } catch (emailError) {
-        console.warn(`[Processor] ${jobId}: failed to send completeness alert email`, emailError);
-      }
-
       await markFailed(
         TEMPLATE_COMPLETENESS_USER_MESSAGE,
         TEMPLATE_COMPLETENESS_FAILURE_CODE,
+        {
+          pipelineStage: 'template_completeness_gate',
+          reasonCodes: templateCompletenessCheck.violations.map((violation) => violation.code),
+          diagnostics: {
+            gate: 'template_completeness',
+            summary: templateCompletenessCheck.summary,
+            critical_count: templateCompletenessCheck.violations.filter(
+              (violation) => violation.severity === 'critical',
+            ).length,
+            warning_count: templateCompletenessCheck.violations.filter(
+              (violation) => violation.severity === 'warning',
+            ).length,
+            violations: templateCompletenessCheck.violations.map((violation) => ({
+              code: violation.code,
+              criterion: violation.criterion ?? null,
+              severity: violation.severity,
+              message: violation.message,
+            })),
+          },
+        },
       );
 
       return { success: false, error: templateCompletenessCheck.summary };
@@ -10086,17 +10147,76 @@ export async function claimQueuedJobs(
 }
 
 /**
+ * Atomically claim one specific queued evaluation job.
+ * Used by post-submit worker kickoff so the API can prove the exact job it just
+ * created was accepted by the worker, not merely that some older queued row was
+ * claimed from the backlog.
+ */
+export async function claimQueuedJobById(
+  options: {
+    jobId: string;
+    workerId: string;
+    leaseMs?: number;
+  },
+): Promise<{ id: string; phase: string; claimedAt?: string } | null> {
+  const supabase = createClient(supabaseUrl, supabaseServiceKey);
+  const leaseMsRaw = Number(options.leaseMs ?? 800_000);
+  const leaseMs = Number.isFinite(leaseMsRaw)
+    ? Math.min(800_000, Math.max(30_000, Math.floor(leaseMsRaw)))
+    : 800_000;
+  const leaseToken = randomUUID();
+  const leaseExpiresAt = new Date(Date.now() + leaseMs).toISOString();
+
+  console.log('[Processor] claim_evaluation_job_by_id request', {
+    job_id: options.jobId,
+    worker_id: options.workerId,
+    lease_ms: leaseMs,
+    lease_token: leaseToken,
+    lease_expires_at: leaseExpiresAt,
+  });
+
+  const { data, error } = await supabase.rpc('claim_evaluation_job_by_id', {
+    p_job_id: options.jobId,
+    p_worker_id: options.workerId,
+    p_lease_token: leaseToken,
+    p_lease_expires_at: leaseExpiresAt,
+  });
+
+  if (error) {
+    console.error('[Processor] claim_evaluation_job_by_id RPC error:', error);
+    throw error;
+  }
+
+  if (!data || data.length === 0) {
+    console.warn('[Processor] claim_evaluation_job_by_id returned no rows', {
+      job_id: options.jobId,
+    });
+    return null;
+  }
+
+  const [claimed] = assertClaimedJobsContract(data);
+  return {
+    id: claimed.id,
+    phase: claimed.phase,
+    claimedAt: claimed.claimed_at ?? undefined,
+  };
+}
+
+/**
  * Process all queued evaluation jobs
  */
 export async function processQueuedJobs(options?: {
   workerId?: string;
   batchSize?: number;
   leaseMs?: number;
+  targetJobId?: string;
 }): Promise<{
   processed: number;
   succeeded: number;
   failed: number;
   claimed: number;
+  targetJobId?: string;
+  targetClaimed?: boolean;
   errors: Array<{ jobId: string; error: string }>;
 }> {
   // Kill switch — refuse to claim before touching DB or runtime config.
@@ -10236,25 +10356,51 @@ export async function processQueuedJobs(options?: {
   // Safety net: recover jobs left in running due to platform hard timeout/crash.
   await failStaleRunningJobs();
 
-  // Atomically claim a batch of queued jobs via SKIP LOCKED RPC.
+  // Atomically claim the submitted job by ID when requested; otherwise claim a
+  // batch of queued jobs via SKIP LOCKED RPC.
   let jobs: Array<{ id: string; phase: string; claimedAt?: string }> = [];
+  let targetClaimed = false;
   try {
-    jobs = await claimQueuedJobs({
-      workerId: effectiveWorkerId,
-      batchSize: requestedBatchSize,
-      leaseMs: requestedLeaseMs,
-    });
+    if (options?.targetJobId) {
+      const targetedJob = await claimQueuedJobById({
+        jobId: options.targetJobId,
+        workerId: effectiveWorkerId,
+        leaseMs: requestedLeaseMs,
+      });
+      targetClaimed = Boolean(targetedJob);
+      jobs = targetedJob ? [targetedJob] : [];
+    } else {
+      jobs = await claimQueuedJobs({
+        workerId: effectiveWorkerId,
+        batchSize: requestedBatchSize,
+        leaseMs: requestedLeaseMs,
+      });
+    }
   } catch (claimError) {
     // If claiming fails hard, return early rather than silently double-processing.
     const message = claimError instanceof Error ? claimError.message : String(claimError);
     const stack = claimError instanceof Error ? claimError.stack : undefined;
     console.error('[Processor] Fatal error during job claiming; aborting batch', { message, stack });
-    return { processed: 0, succeeded: 0, failed: 0, claimed: 0, errors: [{ jobId: 'claim', error: message }] };
+    return {
+      processed: 0,
+      succeeded: 0,
+      failed: 0,
+      claimed: 0,
+      ...(options?.targetJobId ? { targetJobId: options.targetJobId, targetClaimed: false } : {}),
+      errors: [{ jobId: 'claim', error: message }],
+    };
   }
 
   if (jobs.length === 0) {
     console.log('[Processor] No queued jobs claimed');
-    return { processed: 0, succeeded: 0, failed: 0, claimed: 0, errors: [] };
+    return {
+      processed: 0,
+      succeeded: 0,
+      failed: 0,
+      claimed: 0,
+      ...(options?.targetJobId ? { targetJobId: options.targetJobId, targetClaimed } : {}),
+      errors: [],
+    };
   }
 
   const phaseBreakdown = jobs.reduce<Record<string, number>>((acc, row) => {
@@ -10291,6 +10437,7 @@ export async function processQueuedJobs(options?: {
     claimed: jobs.length,
     succeeded: 0,
     failed: 0,
+    ...(options?.targetJobId ? { targetJobId: options.targetJobId, targetClaimed } : {}),
     errors: [] as Array<{ jobId: string; error: string }>
   };
 

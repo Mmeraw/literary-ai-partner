@@ -4,7 +4,7 @@ import { createJob } from "@/lib/jobs/store";
 import { JOB_TYPES, type JobType } from "@/lib/jobs/types";
 import { generateTraceId, jobLogger, logger } from "@/lib/observability/logger";
 import { emitLatencyTrace } from "@/lib/observability/latencyTrace";
-import { triggerEvaluationWorker } from "@/lib/jobs/triggerWorker";
+import { isTriggerWorkerFailure, triggerEvaluationWorker } from "@/lib/jobs/triggerWorker";
 import { failEvaluationJobTerminally } from "@/lib/jobs/failJobTerminal";
 
 const ALLOWED_JOB_TYPES = new Set<string>(Object.values(JOB_TYPES));
@@ -189,11 +189,14 @@ export async function POST(req: Request) {
     const targetClaimFailed = kickoffResult.ok && kickoffResult.targetClaimed === false;
     const noJobsClaimed = kickoffResult.ok && kickoffResult.claimed !== null && kickoffResult.claimed < 1;
     if (!kickoffResult.ok || targetClaimFailed || noJobsClaimed) {
-      const reason = !kickoffResult.ok
-        ? kickoffResult.error
-        : targetClaimFailed
-          ? "worker_did_not_claim_created_job"
-          : "worker_returned_zero_claims";
+      let reason: string;
+      if (isTriggerWorkerFailure(kickoffResult)) {
+        reason = kickoffResult.error ?? kickoffResult.reason;
+      } else if (targetClaimFailed) {
+        reason = "worker_did_not_claim_created_job";
+      } else {
+        reason = "worker_returned_zero_claims";
+      }
 
       await failEvaluationJobTerminally({
         supabase: createAdminClient(),

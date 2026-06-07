@@ -9,7 +9,7 @@
  * - required arrays must contain meaningful, non-placeholder content
  * - recommendation density must be supported by usable diagnostic content
  * - genre must be a publishing/category diagnosis, not a work format such as "novel"
- * - support-alert HTML must escape all model/user-derived strings
+ * - support-alert email contains only job ID + failure type; details stay in admin diagnostics
  *
  * When critical violations are detected:
  * 1. The artifact is NOT persisted
@@ -189,15 +189,6 @@ function countMeaningfulRecommendations(values: unknown): number {
 
 function pushViolation(violations: TemplateViolation[], violation: TemplateViolation): void {
   violations.push(violation);
-}
-
-function escapeHtml(value: unknown): string {
-  return String(value ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
 }
 
 export function validateTemplateCompleteness(
@@ -390,49 +381,18 @@ export function validateTemplateCompleteness(
 
 export async function sendCompletenessAlertEmail(
   jobId: string,
-  violations: TemplateViolation[],
+  _violations: TemplateViolation[],
 ): Promise<{ sent: boolean; error?: string }> {
   const apiKey = process.env.RESEND_API_KEY;
-
-  const criticalViolations = violations.filter((v) => v.severity === 'critical');
-  const warningViolations = violations.filter((v) => v.severity === 'warning');
-
-  const subject = `[Template Completeness] Job ${jobId.slice(0, 8)}… — ${criticalViolations.length} critical violation(s)`;
-
-  const violationRows = violations
-    .map(
-      (v) =>
-        `<tr>
-          <td style="padding:4px 8px;border:1px solid #ddd;font-weight:${v.severity === 'critical' ? 'bold' : 'normal'};color:${v.severity === 'critical' ? '#dc2626' : '#d97706'}">
-            ${escapeHtml(v.severity.toUpperCase())}
-          </td>
-          <td style="padding:4px 8px;border:1px solid #ddd;font-family:monospace;font-size:12px">${escapeHtml(v.code)}</td>
-          <td style="padding:4px 8px;border:1px solid #ddd">${escapeHtml(v.criterion ?? '—')}</td>
-          <td style="padding:4px 8px;border:1px solid #ddd">${escapeHtml(v.message)}</td>
-        </tr>`,
-    )
-    .join('');
-
-  const html = `<!DOCTYPE html><html><body style="font-family:system-ui,sans-serif;color:#1a1a1a;padding:20px">
-    <h2 style="color:#dc2626">Template Completeness Gate Failed</h2>
-    <p><strong>Job ID:</strong> <code>${escapeHtml(jobId)}</code></p>
-    <p><strong>Critical:</strong> ${criticalViolations.length} · <strong>Warnings:</strong> ${warningViolations.length}</p>
-    <p>The evaluation artifact does not meet the evaluation template's structural requirements. The artifact has NOT been persisted — the user sees a quality-review message.</p>
-    <table style="border-collapse:collapse;margin-top:12px;font-size:13px">
-      <thead><tr>
-        <th style="padding:4px 8px;border:1px solid #ddd;background:#f5f5f5">Severity</th>
-        <th style="padding:4px 8px;border:1px solid #ddd;background:#f5f5f5">Code</th>
-        <th style="padding:4px 8px;border:1px solid #ddd;background:#f5f5f5">Criterion</th>
-        <th style="padding:4px 8px;border:1px solid #ddd;background:#f5f5f5">Message</th>
-      </tr></thead>
-      <tbody>${violationRows}</tbody>
-    </table>
-    <p style="margin-top:16px;font-size:12px;color:#666">Once resolved, re-run the evaluation or use the admin retry endpoint to re-process this job.</p>
-  </body></html>`;
+  const subject = `[RevisionGrade] Evaluation failed: ${TEMPLATE_COMPLETENESS_FAILURE_CODE} (${jobId.slice(0, 8)}…)`;
+  const text = [
+    `job_id: ${jobId}`,
+    `failure_type: ${TEMPLATE_COMPLETENESS_FAILURE_CODE}`,
+  ].join('\n');
 
   if (!apiKey) {
     console.warn('[TemplateCompletenessGate] RESEND_API_KEY not set — email suppressed');
-    console.warn('[TemplateCompletenessGate] Violations:', JSON.stringify(violations, null, 2));
+    console.warn('[TemplateCompletenessGate] Violations:', JSON.stringify(_violations, null, 2));
     return { sent: false, error: 'RESEND_API_KEY not configured' };
   }
 
@@ -447,7 +407,7 @@ export async function sendCompletenessAlertEmail(
         from: 'RevisionGrade Alerts <alerts@revisiongrade.com>',
         to: [REVISIONGRADE_SUPPORT_EMAIL],
         subject,
-        html,
+        text,
       }),
     });
 

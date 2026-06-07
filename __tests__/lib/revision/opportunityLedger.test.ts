@@ -5,6 +5,20 @@ import {
 import { candidateTextIsCopyPasteReady } from '@/lib/revision/reviseCardContract';
 
 describe('buildRevisionOpportunitiesFromEvaluationPayload', () => {
+  function makeRecommendation(index: number, priority: 'high' | 'medium' | 'low' = 'medium') {
+    return {
+      diagnosis: `Revision issue ${index} weakens the local reader signal.`,
+      recommendation: `Repair issue ${index} with manuscript-specific evidence and targeted prose.`,
+      anchor_snippet: `A concrete manuscript sentence for issue ${index} gives the queue an evidence anchor.`,
+      location_ref: `passage:${index}`,
+      priority,
+      confidence: 0.82,
+      candidate_text_a: `Mara held the door open for issue ${index}, letting the silence settle before she answered.`,
+      candidate_text_b: `For issue ${index}, Mara paused at the threshold until the room understood her choice.`,
+      candidate_text_c: `The answer for issue ${index} stayed in Mara's hand before it reached her voice.`,
+    };
+  }
+
   it('builds opportunities from criteria recommendations with evidence anchors', () => {
     const payload = {
       criteria: [
@@ -114,6 +128,40 @@ describe('buildRevisionOpportunitiesFromEvaluationPayload', () => {
     expect(candidateTextIsCopyPasteReady(row.candidate_text_b)).toBe(false);
     expect(candidateTextIsCopyPasteReady(row.candidate_text_c)).toBe(false);
     expect(row.grounding_status).toBe('unsupported_blocked');
+  });
+
+  it('caps short-form revision opportunities at 50', () => {
+    const payload = {
+      criteria: [
+        {
+          key: 'pacing',
+          recommendations: Array.from({ length: 60 }, (_, index) => makeRecommendation(index + 1)),
+        },
+      ],
+    };
+
+    const opportunities = buildRevisionOpportunitiesFromEvaluationPayload(payload, undefined, undefined, {
+      wordCount: 4_899,
+    });
+
+    expect(opportunities).toHaveLength(50);
+  });
+
+  it('caps long-form revision opportunities at 100', () => {
+    const payload = {
+      criteria: [
+        {
+          key: 'sceneConstruction',
+          recommendations: Array.from({ length: 120 }, (_, index) => makeRecommendation(index + 1)),
+        },
+      ],
+    };
+
+    const opportunities = buildRevisionOpportunitiesFromEvaluationPayload(payload, undefined, undefined, {
+      wordCount: 25_000,
+    });
+
+    expect(opportunities).toHaveLength(100);
   });
 
   it('regression: blocks contamination terms for The Silence Begins when explicit candidates are absent', () => {
@@ -259,5 +307,35 @@ describe('ensureRevisionOpportunityLedgerArtifact', () => {
     expect(result.artifactId).toBe('ledger-new');
     expect(result.opportunities.length).toBeGreaterThan(0);
     expect(upsertSpy).toHaveBeenCalledTimes(1);
+    const persisted = upsertSpy.mock.calls[0][0] as { content: Record<string, unknown> };
+    expect(persisted.content).toMatchObject({
+      job_id: 'job-123',
+      evaluation_project_id: null,
+      manuscript_id: 6074,
+      artifact_type: 'revision_opportunity_ledger_v1',
+      artifact_version: 'v1',
+      mode_contract: {
+        evaluation_mode: 'STANDARD',
+        voice_preservation: 'BALANCED',
+        source: 'evaluation_jobs',
+      },
+    });
+    expect(typeof persisted.content.artifact_id).toBe('string');
+    expect(typeof persisted.content.source_hash).toBe('string');
+    expect(typeof persisted.content.manuscript_version_hash).toBe('string');
+    expect(typeof persisted.content.generated_at).toBe('string');
+
+    const [opportunity] = persisted.content.opportunities as Array<Record<string, unknown>>;
+    expect(opportunity).toMatchObject({
+      criterion: 'PACING',
+      severity: 'should',
+      decision_state: 'open',
+      provenance: 'evaluation_result.criteria.recommendations',
+    });
+    expect(typeof opportunity.opportunity_id).toBe('string');
+    expect(typeof opportunity.rationale).toBe('string');
+    expect(typeof opportunity.evidence_anchor).toBe('string');
+    expect(typeof opportunity.manuscript_coordinates).toBe('string');
+    expect(['low', 'medium', 'high']).toContain(opportunity.confidence);
   });
 });

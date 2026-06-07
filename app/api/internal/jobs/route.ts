@@ -2,7 +2,9 @@ import { NextResponse } from "next/server";
 import { createJob, getAllJobs } from "@/lib/jobs/store";
 import * as metrics from "@/lib/jobs/metrics";
 import { PHASES } from "@/lib/jobs/types";
-import { triggerEvaluationWorker } from "@/lib/jobs/triggerWorker";
+import { isTriggerWorkerFailure, triggerEvaluationWorker } from "@/lib/jobs/triggerWorker";
+import { failEvaluationJobTerminally } from "@/lib/jobs/failJobTerminal";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { generateTraceId } from "@/lib/observability/logger";
 
 /**
@@ -127,15 +129,36 @@ export async function POST(req: Request) {
     // Emit metrics
     metrics.onJobCreated(job.id, job_type);
 
-    // Belt-and-suspenders dispatch for internal job creation paths.
-    // Keep fail-soft and fire-and-forget: cron remains fallback.
-    void triggerEvaluationWorker({
+    const kickoffResult = await triggerEvaluationWorker({
       req,
       jobId: job.id,
       trace_id,
       request_id,
       source: "api.internal.jobs.create",
     });
+
+    const targetClaimFailed = kickoffResult.ok && kickoffResult.targetClaimed === false;
+    const noJobsClaimed = kickoffResult.ok && kickoffResult.claimed !== null && kickoffResult.claimed < 1;
+    if (!kickoffResult.ok || targetClaimFailed || noJobsClaimed) {
+      const reason = isTriggerWorkerFailure(kickoffResult)
+        ? (kickoffResult.error ?? kickoffResult.reason)
+        : targetClaimFailed
+          ? "worker_did_not_claim_created_job"
+          : "worker_returned_zero_claims";
+
+      await failEvaluationJobTerminally({
+        supabase: createAdminClient(),
+        jobId: job.id,
+        failureCode: "WORKER_KICKOFF_FAILED",
+        message: `Evaluation worker did not accept the job: ${reason}`,
+        source: "api.internal.jobs.worker_kickoff_guard",
+      });
+
+      return NextResponse.json(
+        { ok: false, error: "Evaluation worker is temporarily unavailable", code: "WORKER_KICKOFF_FAILED" },
+        { status: 503 },
+      );
+    }
 
     return NextResponse.json(
       { 

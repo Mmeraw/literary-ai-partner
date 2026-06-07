@@ -18,6 +18,7 @@ This document is intentionally scoped to active evaluation runtime flow and excl
 4. `docs/canon/intake/_md/VOLUME III — FINAL PIPELINE DIAGRAM + STATE MODEL.md`
 5. `docs/canon/intake/_md/E2E Evaluation Flow Architecture.md`
 6. `docs/canon/intake/_md/PHASE 0.1–0.3 — CANON INTEGRATION & GOVERNANCE ENFORCEMENT SPEC.md`
+7. `docs/canon/registered/volumes/GENRE_EXPECTATIONS_VOLUME_II_AND_REVISE_MODE_CONTRACT.md`
 
 ### Spec
 
@@ -59,6 +60,7 @@ Primary required telemetry surfaces:
 7. Telemetry is mandatory for all gate failures.
 8. Stages accept only certified upstream outputs.
 9. Deterministic gates may not be bypassed by heuristic confidence.
+10. Evaluation must consider diagnosed genre, reader promise, dominant craft engine, and author-selected mode/voice contract; it must not penalize genre-appropriate pacing, dialogue density, structure, or voice as generic defects.
 
 ## Evaluation Critical Path
 
@@ -75,6 +77,12 @@ Primary required telemetry surfaces:
 `Pass 3 -> EvaluationResultV2 normalization -> QualityGateV2 -> Persistence`
 
 Reason: this seam carries synthesis correctness, normalization semantics, deterministic gate enforcement, and fail-closed persistence guarantees in one boundary chain.
+
+**Genre/mode consideration seam (explicit):**
+
+`Pass 3 expectation profile -> EvaluationResultV2 enrichment -> Revision Opportunity Ledger -> Revise Queue -> TrustedPath`
+
+Reason: this seam carries diagnosed genre, target audience, dominant craft engine, confirmed mode, and voice preservation into revision automation. It must follow `GENRE_EXPECTATIONS_VOLUME_II_AND_REVISE_MODE_CONTRACT.md` and fail closed when the mode/voice/genre contract needed for automation is missing.
 
 **Seeding seam (explicit):**
 

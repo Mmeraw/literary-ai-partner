@@ -12,15 +12,18 @@
 | # | Field | Template | Webpage | PDF | DOCX | TXT |
 |---|-------|----------|---------|-----|------|-----|
 | 1 | Manuscript Title | Required | `page.tsx` title block | Cover page heading | Title paragraph | Line 1 header |
-| 2 | Report Type | `Short-Form Evaluation` | Title block badge | Cover grid `renderMetric` | `metaRow` | Header line |
-| 3 | Overall Score | `[XX]/100` | Score circle + label | Cover grid `renderMetric` | `metaRow` | Header line |
-| 4 | Market Readiness | `Market Ready / Near Market Ready / Not Market Ready` | Badge via `marketReadinessVerdict()` | Cover badge + `readinessLabel()` | `metaRow` verdict | `Market Readiness:` line |
-| 5 | Genre | Required (AI-diagnosed) | Title block `genre` | Cover grid `renderMetric` | `metaRow` | Header line |
-| 6 | Target Audience | Required (pipeline-diagnosed) | Title block `targetAudience` | Cover grid `renderMetric` | `metaRow` | Header line |
-| 7 | Submitted Word Count | `[XXXX]` | Title block | Cover grid `renderMetric` | `metaRow` | Header line |
-| 8 | Reading Grade Level | `[X.X] (Flesch-Kincaid)` | Title block | Cover grid `renderMetric` | `metaRow` | Header line |
-| 9 | Dialogue/Narrative Ratio | `[XX]% / [XX]%` | Title block | Cover grid `renderMetric` | `metaRow` | Header line |
-| 10 | Date Generated | `[Month Day, Year]` | Title block | Cover grid `renderMetric` | `metaRow` | Header line |
+| 2 | Reference ID | Required | `page.tsx` title block | Title block line | Title paragraph | Header line |
+| 3 | Report Type | `Short-Form Evaluation` / `Long-Form Evaluation` / `Long-Form Multi-Layer Evaluation` | Title block badge | Cover grid `renderMetric` | `metaRow` | Header line |
+| 4 | Overall Score | `[XX]/100` | Score circle + label | Cover grid `renderMetric` | `metaRow` | Header line |
+| 5 | Market Readiness | `Market Ready / Near Market Ready / Not Market Ready` | Badge via canonical title block | Cover badge + canonical title block | `metaRow` verdict | `Market Readiness:` line |
+| 6 | Genre | Required (AI-diagnosed) | Title block `genre` | Cover grid `renderMetric` | `metaRow` | Header line |
+| 7 | Target Audience | Required (pipeline-diagnosed) | Title block `targetAudience` | Cover grid `renderMetric` | `metaRow` | Header line |
+| 8 | Shelf | Required for long-form and long-form multi-layer | Title block for long-form modes | Cover grid for long-form modes | `metaRow` for long-form modes | Header line for long-form modes |
+| 9 | Submitted Word Count | `[XXXX]` | Title block | Cover grid `renderMetric` | `metaRow` | Header line |
+| 10 | Estimated Manuscript Pages | `[XX] at 250 words/page` | Title block | Cover grid `renderMetric` | `metaRow` | Header line |
+| 11 | Reading Grade Level | `[X.X] (Flesch-Kincaid)` | Title block | Cover grid `renderMetric` | `metaRow` | Header line |
+| 12 | Dialogue/Narrative Ratio | `[XX]% / [XX]%` | Title block | Cover grid `renderMetric` | `metaRow` | Header line |
+| 13 | Date Generated | `[Month Day, Year]` | Title block | Cover grid `renderMetric` | `metaRow` | Header line |
 
 ## Required Sections (14)
 

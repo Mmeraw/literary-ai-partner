@@ -541,11 +541,16 @@ Dual-model synthesis rules (REQUIRED):
 ## EXPECTATION PROFILE (STRUCTURED INPUT — APPLY BEFORE RECOMMENDATION EMISSION)
 ${JSON.stringify(params.expectationContext, null, 2)}
 
+Canonical doctrine reference: docs/canon/registered/volumes/GENRE_EXPECTATIONS_VOLUME_II_AND_REVISE_MODE_CONTRACT.md
+
 Expectation-profile guard rules (REQUIRED):
+- Apply Genre Expectations Volume II doctrine: evaluate against diagnosed genre, reader promise, dominant craft engine, and author-selected mode/voice contract — not a generic idea that faster pacing, more dialogue, more action, or more commercial acceleration is automatically better.
 - Apply expectation_profiles BEFORE deciding whether to emit momentum/closure/hook/next-step recommendations.
+- Apply genre_expectations BEFORE scoring or recommending against pacing, dialogue density, structure, exposition, worldbuilding, suspense delay, humor timing, relationship progression, or reflective passages.
 - For actions containing "increase momentum", "add a decision beat", "strengthen hook", or "clearer next step":
   - If profile includes mood_forward, reflection_forward, atmosphere_forward, or dread_forward, suppress unless explicit manuscript evidence proves malfunction for that profile.
   - Explicit malfunction evidence requires anchor_snippet + mechanism-level explanation of reader-facing failure.
+- For memoir, spiritual memoir, creative nonfiction, literary, contemplative, atmosphere-forward, and slow-burn contexts: sparse dialogue, reflection, atmosphere, ambiguity, or slower pacing are protected behaviors unless the manuscript evidence shows actual malfunction for that genre's reader promise.
 - Do not suppress legitimate propulsion diagnostics for propulsion_forward, puzzle_forward, hybrid_literary_commercial, or commercial-thriller/suspense contexts when evidence supports the diagnosis.
 - When suppression occurs, set recommendation_status = "gate_suppressed_no_safe_recommendation" with recommendation_status_rationale.
 `

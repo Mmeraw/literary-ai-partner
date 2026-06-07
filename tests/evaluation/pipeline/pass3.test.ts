@@ -8,6 +8,8 @@
 import { describe, it, expect } from "@jest/globals";
 import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
 import { parsePass3Response, runPass3Synthesis } from "@/lib/evaluation/pipeline/runPass3Synthesis";
+import { synthesisToEvaluationResultV2 } from "@/lib/evaluation/pipeline/runPipeline";
+import { validateTemplateCompleteness } from "@/lib/evaluation/pipeline/templateCompletenessGate";
 import { PASS3_PROMPT_VERSION } from "@/lib/evaluation/pipeline/prompts/pass3-synthesis";
 import type { CreateCompletionFn } from "@/lib/evaluation/pipeline/runPass3Synthesis";
 import type { SinglePassOutput , Pass1aCharacterLedger } from "@/lib/evaluation/pipeline/types";
@@ -196,6 +198,82 @@ describe("parsePass3Response", () => {
     expect(result.overall.overall_score_0_100).toBe(70);
     expect(result.overall.verdict).toBe("revise");
     expect(result.metadata.pass1_model).toBe("gpt-4o-mini");
+  });
+
+  it("preserves template-required semantic enrichment for final report assembly", () => {
+    const fixture = makePass3Fixture({
+      enrichment: {
+        premise:
+          "A haunted family story follows Sister through escalating grief, secrecy, and moral pressure.",
+        trigger_warnings: ["grief", "family trauma"],
+        diagnosed_genre: "literary horror",
+        target_audience:
+          "Adult readers of character-driven literary horror who value atmosphere, family secrets, and psychological tension.",
+      },
+    });
+
+    const result = parsePass3Response(JSON.stringify(fixture), pass1, pass2);
+
+    expect(result.enrichment?.premise).toContain("haunted family story");
+    expect(result.enrichment?.trigger_warnings).toEqual(["grief", "family trauma"]);
+    expect(result.enrichment?.diagnosed_genre).toBe("literary horror");
+    expect(result.enrichment?.target_audience).toContain("Adult readers");
+  });
+
+  it("maps parsed short-form Phase 3 output into a template-complete EvaluationResultV2", () => {
+    const fixture = makePass3Fixture({
+      overall: {
+        overall_score_0_100: 70,
+        verdict: "revise",
+        one_paragraph_summary:
+          "Sister has a strong atmospheric premise and emotionally legible family pressure, but pacing, thematic escalation, and closure need targeted revision before the report can call it submission-ready.",
+        top_3_strengths: [
+          "Atmospheric voice creates immediate unease and tonal authority.",
+          "Family pressure gives the central conflict emotional specificity.",
+          "Scene-level imagery provides strong anchors for revision work.",
+        ],
+        top_3_risks: [
+          "Pacing may flatten if transitions do not escalate consequence.",
+          "Theme may feel repetitive without clearer turn-by-turn development.",
+          "Closure may underdeliver if final consequences remain implicit.",
+        ],
+        submission_readiness: "nearly_ready",
+      },
+      enrichment: {
+        premise:
+          "A haunted family story follows Sister through escalating grief, secrecy, and moral pressure.",
+        trigger_warnings: ["grief", "family trauma"],
+        diagnosed_genre: "literary horror",
+        target_audience:
+          "Adult readers of character-driven literary horror who value atmosphere, family secrets, and psychological tension.",
+      },
+    });
+
+    const parsed = parsePass3Response(JSON.stringify(fixture), pass1, pass2);
+    const manuscriptText = CRITERIA_KEYS.map((key) => `The river moved slowly while Sister carried ${key} pressure through the room.`).join(" ");
+    const resultV2 = synthesisToEvaluationResultV2({
+      synthesis: parsed,
+      ids: {
+        evaluation_run_id: "job-1dce7039-regression",
+        job_id: "1dce7039-674d-44d6-b647-0742e0e696ec",
+        manuscript_id: 7497,
+        user_id: "test-user",
+      },
+      manuscriptText,
+      title: "Sister",
+      llmEnrichment: parsed.enrichment,
+      scopeProfile: {
+        route: "SHORT_FORM",
+        inputScale: "standard_chapter",
+        manuscriptWideCertifiable: true,
+        reasonCodes: [],
+      },
+    });
+
+    const gate = validateTemplateCompleteness(resultV2);
+
+    expect(gate.pass).toBe(true);
+    expect(gate.violations.filter((violation) => violation.severity === "critical")).toEqual([]);
   });
 
   it("clips overall_score_0_100 to 0-100 range", () => {

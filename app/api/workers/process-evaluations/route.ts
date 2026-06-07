@@ -499,10 +499,12 @@ export async function GET(request: NextRequest) {
     }
 
     const workerId = buildWorkerId(traceId);
+    const targetJobId = request.headers.get('x-job-id')?.trim() || undefined;
     const results = await processQueuedJobs({
       workerId,
       batchSize: workerConfig.batchSize,
       leaseMs: workerConfig.leaseMs,
+      targetJobId,
     });
     const durationMs = Date.now() - startTime;
 
@@ -534,6 +536,8 @@ export async function GET(request: NextRequest) {
         processed: results.processed,
         succeeded: results.succeeded,
         failed: results.failed,
+        targetJobId: results.targetJobId,
+        targetClaimed: results.targetClaimed,
         batchSize: workerConfig.batchSize,
       },
       service: 'process-evaluations-worker',
@@ -549,6 +553,8 @@ export async function GET(request: NextRequest) {
       processed: results.processed,
       succeeded: results.succeeded,
       failed: results.failed,
+      targetJobId: results.targetJobId,
+      targetClaimed: results.targetClaimed,
       batchSize: workerConfig.batchSize,
       errors: results.errors,
       timestamp: new Date().toISOString(),

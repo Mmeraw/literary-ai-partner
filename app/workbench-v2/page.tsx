@@ -5,7 +5,6 @@ import { getWorkbenchQueue } from "@/lib/revision/workbenchQueue";
 import ReviseCockpitClientWorkflowV2 from "@/components/revision/ReviseCockpitClientWorkflowV2";
 import TrustedPathWorkbenchButton from "@/components/revision/TrustedPathWorkbenchButton";
 import ResetQueueButton from "@/components/revision/ResetQueueButton";
-import { buildRevisionOpportunityLedger, persistRevisionOpportunityLedger } from "@/lib/revision/revisionOpportunityLedgerArtifact";
 import { redirect } from "next/navigation";
 import { resolveWorkbenchRouteTargetForUser } from "@/lib/revision/workbenchQueue";
 import SupportAccessToggle from "@/components/reports/SupportAccessToggle";
@@ -27,18 +26,6 @@ export default async function WorkbenchV2Page({ searchParams }: { searchParams?:
   }
 
   const payload = await getWorkbenchQueue({ manuscriptId, evaluationJobId });
-  const manuscriptNumericId = Number(manuscriptId);
-  if (payload.ok && manuscriptId && evaluationJobId && Number.isInteger(manuscriptNumericId)) {
-    try {
-      await persistRevisionOpportunityLedger({
-        jobId: evaluationJobId,
-        manuscriptId: manuscriptNumericId,
-        ledger: buildRevisionOpportunityLedger({ jobId: evaluationJobId, manuscriptId, payload }),
-      });
-    } catch (error) {
-      console.error("Failed to persist revision_opportunity_ledger_v1", error);
-    }
-  }
 
   const finalReviewHref = manuscriptId && evaluationJobId
     ? `/workbench/final-review?${new URLSearchParams({ manuscriptId, evaluationJobId }).toString()}`

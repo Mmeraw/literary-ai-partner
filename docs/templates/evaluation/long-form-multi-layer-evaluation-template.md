@@ -38,6 +38,7 @@ Overall Score: [XX]/100
 Market Readiness: [Market Ready / Near Market Ready / Not Market Ready]
 Genre: [Genre]
 Target Audience: [Audience]
+Shelf: [Target Market]
 Submitted Word Count: [XXXX]
 Estimated Manuscript Pages: [XXX] at 250 words/page
 Reading Grade Level: [X.X] (Flesch-Kincaid)

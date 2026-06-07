@@ -19,12 +19,29 @@ jest.mock("@/lib/manuscripts/versions", () => ({
   createInitialVersion: jest.fn(),
 }));
 
+jest.mock("@/lib/jobs/failJobTerminal", () => ({
+  failEvaluationJobTerminally: jest.fn(async () => ({ ok: true, status: "failed" })),
+}));
+
+import { failEvaluationJobTerminally } from "@/lib/jobs/failJobTerminal";
+
 const mockCreateAdminClient = createAdminClient as jest.MockedFunction<typeof createAdminClient>;
 const mockGetDevHeaderActor = getDevHeaderActor as jest.MockedFunction<typeof getDevHeaderActor>;
 const mockCreateInitialVersion = createInitialVersion as jest.MockedFunction<
   typeof createInitialVersion
 >;
+const mockFailEvaluationJobTerminally = failEvaluationJobTerminally as jest.MockedFunction<
+  typeof failEvaluationJobTerminally
+>;
 const originalFetch = global.fetch;
+
+function mockWorkerClaimSuccess() {
+  global.fetch = jest.fn().mockResolvedValue({
+    ok: true,
+    status: 200,
+    json: async () => ({ success: true, claimed: 1, processed: 1, targetClaimed: true }),
+  } as Response) as typeof fetch;
+}
 
 // ---------------------------------------------------------------------------
 // Helper: build the evaluation_jobs SELECT-back stub.
@@ -66,6 +83,7 @@ describe("POST /api/evaluate input contract", () => {
     mockCreateInitialVersion.mockResolvedValue({ id: "version-1" } as never);
     delete process.env.CRON_SECRET;
     global.fetch = originalFetch;
+    mockFailEvaluationJobTerminally.mockResolvedValue({ ok: true, status: "failed" });
   });
 
   afterAll(() => {
@@ -85,6 +103,8 @@ describe("POST /api/evaluate input contract", () => {
       from: jest.fn(() => abuseLimitStub),
     };
     mockCreateAdminClient.mockReturnValue(supabase as never);
+    process.env.CRON_SECRET = "cron-secret";
+    mockWorkerClaimSuccess();
 
     const req = new Request("https://localhost:3000/api/evaluate", {
       method: "POST",
@@ -117,6 +137,8 @@ describe("POST /api/evaluate input contract", () => {
       }),
     };
     mockCreateAdminClient.mockReturnValue(supabase as never);
+    process.env.CRON_SECRET = "cron-secret";
+    mockWorkerClaimSuccess();
 
     const req = new Request("https://localhost:3000/api/evaluate", {
       method: "POST",
@@ -183,6 +205,8 @@ describe("POST /api/evaluate input contract", () => {
     };
 
     mockCreateAdminClient.mockReturnValue(supabase as never);
+  process.env.CRON_SECRET = "cron-secret";
+  mockWorkerClaimSuccess();
 
     const req = new Request("https://localhost:3000/api/evaluate", {
       method: "POST",
@@ -219,6 +243,71 @@ describe("POST /api/evaluate input contract", () => {
 
     expect(supabase.from).toHaveBeenCalledWith("manuscripts");
     expect(supabase.from).toHaveBeenCalledWith("evaluation_jobs");
+  });
+
+  test("persists selected evaluation mode and voice preservation on legacy evaluate intake", async () => {
+    const manuscriptInsertMock = jest.fn(() => ({
+      select: () => ({
+        single: async () => ({ data: { id: 988 }, error: null }),
+      }),
+    }));
+
+    const jobInsertMock = jest.fn(() => ({
+      select: () => ({
+        single: async () => ({
+          data: {
+            id: "job-mode-legacy",
+            status: "queued",
+            phase: "phase_1",
+            phase_1_status: null,
+            policy_family: "testimony",
+            voice_preservation_level: "maximum",
+            english_variant: "us",
+          },
+          error: null,
+        }),
+      }),
+    }));
+
+    let evalJobsCalls = 0;
+    const supabase = {
+      from: jest.fn((table: string) => {
+        if (table === "manuscripts") {
+          return { insert: manuscriptInsertMock };
+        }
+        evalJobsCalls++;
+        if (evalJobsCalls <= 2) return makeAbuseLimitStub();
+        return {
+          insert: jobInsertMock,
+          ...makeJobsSelectBackStub("job-mode-legacy"),
+        };
+      }),
+    };
+
+    mockCreateAdminClient.mockReturnValue(supabase as never);
+    process.env.CRON_SECRET = "cron-secret";
+    mockWorkerClaimSuccess();
+
+    const req = new Request("https://localhost:3000/api/evaluate", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        manuscript_text: "Chapter text with mode contract",
+        manuscript_title: "Modeful Draft",
+        sensitivity_mode: "TESTIMONY",
+        voice_preservation_level: "maximum",
+      }),
+    });
+
+    const response = await POST(req);
+
+    expect(response.status).toBe(200);
+    expect(jobInsertMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        policy_family: "testimony",
+        voice_preservation_level: "maximum",
+      }),
+    );
   });
 
   test("derives a meaningful manuscript title when none is provided", async () => {
@@ -263,6 +352,8 @@ describe("POST /api/evaluate input contract", () => {
     };
 
     mockCreateAdminClient.mockReturnValue(supabase as never);
+  process.env.CRON_SECRET = "cron-secret";
+  mockWorkerClaimSuccess();
 
     const req = new Request("https://localhost:3000/api/evaluate", {
       method: "POST",
@@ -364,6 +455,8 @@ describe("POST /api/evaluate input contract", () => {
     };
 
     mockCreateAdminClient.mockReturnValue(supabase as never);
+    process.env.CRON_SECRET = "cron-secret";
+    mockWorkerClaimSuccess();
 
     const buildRequest = () => new Request("https://localhost:3000/api/evaluate", {
       method: "POST",
@@ -384,12 +477,13 @@ describe("POST /api/evaluate input contract", () => {
     expect(jobInsertMock).toHaveBeenCalledTimes(2);
   });
 
-  test("returns 200 even when the best-effort worker trigger rejects", async () => {
+  test("fails closed and terminalizes the job when worker kickoff rejects", async () => {
     process.env.CRON_SECRET = "cron-secret";
     const fetchMock = jest.fn().mockRejectedValue(new Error("wake-up failed"));
     global.fetch = fetchMock as typeof fetch;
 
     const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
+    const errorSpy = jest.spyOn(console, "error").mockImplementation(() => {});
 
     const manuscriptInsertMock = jest.fn(() => ({
       select: () => ({
@@ -443,14 +537,21 @@ describe("POST /api/evaluate input contract", () => {
     const response = await POST(req);
     const json = (await response.json()) as {
       ok: boolean;
-      job: { id: string; manuscript_id: number };
+      error: string;
+      code: string;
     };
 
     await Promise.resolve();
 
-    expect(response.status).toBe(200);
-    expect(json.ok).toBe(true);
-    expect(json.job.id).toBe("job-trigger");
+    expect(response.status).toBe(503);
+    expect(json.ok).toBe(false);
+    expect(json.code).toBe("WORKER_KICKOFF_FAILED");
+    expect(mockFailEvaluationJobTerminally).toHaveBeenCalledWith(
+      expect.objectContaining({
+        jobId: "job-trigger",
+        failureCode: "WORKER_KICKOFF_FAILED",
+      }),
+    );
     expect(fetchMock).toHaveBeenCalledWith(
       "https://preview.example.com/api/workers/process-evaluations",
       {
@@ -469,6 +570,7 @@ describe("POST /api/evaluate input contract", () => {
     expect(warnLog).toContain("wake-up failed");
 
     warnSpy.mockRestore();
+    errorSpy.mockRestore();
   });
 
   test("fails closed when manuscript source snapshot creation fails", async () => {

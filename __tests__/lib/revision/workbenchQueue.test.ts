@@ -26,7 +26,11 @@ const mockGetAuthenticatedUser = getAuthenticatedUser as jest.MockedFunction<typ
 const mockEnsureLedger = ensureRevisionOpportunityLedgerArtifact as jest.MockedFunction<typeof ensureRevisionOpportunityLedgerArtifact>;
 const mockLoadReviseQueueWarmupCorpus = loadReviseQueueWarmupCorpus as jest.MockedFunction<typeof loadReviseQueueWarmupCorpus>;
 
-function buildSupabaseMock(jobId: string, manuscriptVersionId: string) {
+function buildSupabaseMock(jobId: string, manuscriptVersionId: string, options: {
+  policyFamily?: string;
+  voicePreservationLevel?: string;
+  evaluationArtifactContent?: unknown;
+} = {}) {
   const manuscriptMaybeSingle = jest.fn(async () => ({
     data: {
       id: 6074,
@@ -54,6 +58,8 @@ function buildSupabaseMock(jobId: string, manuscriptVersionId: string) {
       status: 'complete',
       manuscript_id: 6074,
       manuscript_version_id: manuscriptVersionId,
+      policy_family: options.policyFamily ?? 'standard',
+      voice_preservation_level: options.voicePreservationLevel ?? 'balanced',
     },
     error: null,
   }));
@@ -71,7 +77,7 @@ function buildSupabaseMock(jobId: string, manuscriptVersionId: string) {
   }));
 
   const evaluationArtifactsMaybeSingle = jest.fn(async () => ({
-    data: null,
+    data: options.evaluationArtifactContent ? { content: options.evaluationArtifactContent } : null,
     error: null,
   }));
 
@@ -255,6 +261,72 @@ describe('getWorkbenchQueue', () => {
     expect(result.needsTargeting).toHaveLength(1);
     expect(result.needsTargeting[0].quoteHighlight).toBe('No excerpt available');
     expect(result.needsTargeting[0].readiness).toBe('needs_targeting');
+  });
+
+  it('preserves natural-language chapter-scale coordinates as Chapter cards instead of passage cards', async () => {
+    const supabase = buildSupabaseMock('job-structural', 'version-structural');
+    mockCreateAdminClient.mockReturnValue(supabase as never);
+
+    mockEnsureLedger.mockResolvedValueOnce({
+      artifactId: 'ledger-structural',
+      opportunities: [
+        {
+          opportunity_id: 'opp-chapter-scale',
+          criterion: 'STRUCTURE',
+          severity: 'must',
+          confidence: 'high',
+          manuscript_coordinates: 'Chapter 12 — midpoint reversal',
+          evidence_anchor: 'The midpoint reversal changes the bargain before Mara has chosen what it costs.',
+          rationale: 'The chapter-scale reversal needs exact targeting before prose can be accepted.',
+          symptom: 'The chapter-scale reversal is under-targeted.',
+          cause: 'The issue spans multiple beats rather than one local passage.',
+          fix_direction: 'Target the exact chapter beats before drafting A/B/C prose.',
+          reader_effect: 'Readers need the structural turn to preserve cause and effect.',
+          mistake_proofing: 'Do not solve a chapter-scale issue with a passage-level rewrite.',
+          candidate_text_a: '',
+          candidate_text_b: '',
+          candidate_text_c: '',
+          revision_operation: 'needs_targeting',
+          provenance: 'evaluation_result_v2',
+        },
+      ] as never,
+    });
+
+    const result = await getWorkbenchQueue({ manuscriptId: '6074', evaluationJobId: 'job-structural' });
+
+    expect(result.ok).toBe(true);
+    expect(result.opportunities).toHaveLength(0);
+    expect(result.needsTargeting).toHaveLength(1);
+    expect(result.needsTargeting[0].scope).toBe('Chapter');
+    expect(result.needsTargeting[0].mode).toBe('repair-brief');
+    expect(result.needsTargeting[0].readiness).toBe('needs_targeting');
+  });
+
+  it('carries confirmed evaluation mode and voice preservation into the Revise queue contract', async () => {
+    const supabase = buildSupabaseMock('job-mode', 'version-mode', {
+      policyFamily: 'standard',
+      voicePreservationLevel: 'balanced',
+      evaluationArtifactContent: {
+        confirmed_mode: {
+          evaluationMode: 'TESTIMONY',
+          voicePreservationMode: 'MAXIMUM',
+        },
+      },
+    });
+    mockCreateAdminClient.mockReturnValue(supabase as never);
+
+    mockEnsureLedger.mockResolvedValueOnce({ artifactId: 'ledger-mode', opportunities: [] as never });
+
+    const result = await getWorkbenchQueue({ manuscriptId: '6074', evaluationJobId: 'job-mode' });
+
+    expect(result.ok).toBe(true);
+    expect(result.modeContract).toMatchObject({
+      evaluation_mode: 'TESTIMONY',
+      voice_preservation: 'MAXIMUM',
+      source: 'evaluation_result_v2.confirmed_mode',
+      policy_family: 'standard',
+      voice_preservation_level: 'balanced',
+    });
   });
 
   it('renders queue with caution when phase 0 warmup corpus cannot be loaded', async () => {

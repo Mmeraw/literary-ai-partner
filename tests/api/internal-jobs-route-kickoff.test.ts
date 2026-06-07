@@ -31,7 +31,11 @@ describe('POST /api/internal/jobs kickoff behavior', () => {
     Object.assign(process.env, { NODE_ENV: 'development' });
     process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-role-key';
     process.env.CRON_SECRET = 'cron-secret';
-    global.fetch = jest.fn().mockResolvedValue({ ok: true } as Response) as typeof fetch;
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ success: true, claimed: 1, processed: 1, targetClaimed: true }),
+    } as Response) as typeof fetch;
   });
 
   afterAll(() => {

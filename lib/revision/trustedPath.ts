@@ -22,6 +22,13 @@ import { isTrustedPathEligible, type CrossCheckVerdict } from "./repairCrossChec
 import type { SyncRevisionLedgerEntryInput } from "./ledger";
 import { syncRevisionLedgerDecisions } from "./ledger";
 import { ensureOperationalRevisionFindings } from './operationalQueueBuilder';
+import { deriveReviseEligibilityLabel } from "@/lib/evaluation/modeGate";
+import {
+  hasExplicitRevisionModeContract,
+  modeContractForMetadata,
+  modeContractToConfirmedMode,
+  resolveRevisionModeContract,
+} from "./modeContract";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -86,7 +93,7 @@ export async function applyTrustedPath(input: {
   // Verify evaluation job
   const { data: job, error: jobError } = await supabase
     .from("evaluation_jobs")
-    .select("id, status, manuscript_id, manuscript_version_id")
+    .select("id, status, manuscript_id, manuscript_version_id, policy_family, voice_preservation_level")
     .eq("id", input.evaluationJobId)
     .eq("manuscript_id", manuscriptId)
     .maybeSingle();
@@ -94,6 +101,29 @@ export async function applyTrustedPath(input: {
   if (jobError) return emptyResult(jobError.message);
   if (!job) return emptyResult("Evaluation job not found for this manuscript");
   if (job.status !== "complete") return emptyResult("Evaluation is not complete yet");
+
+  const { data: evaluationArtifact } = await supabase
+    .from("evaluation_artifacts")
+    .select("content")
+    .eq("job_id", input.evaluationJobId)
+    .eq("artifact_type", "evaluation_result_v2")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const modeContract = resolveRevisionModeContract({
+    evaluationPayload: evaluationArtifact?.content,
+    job,
+  });
+  if (!hasExplicitRevisionModeContract(modeContract)) {
+    return emptyResult("TrustedPath™ is blocked: evaluation mode contract is unavailable.");
+  }
+  const eligibility = deriveReviseEligibilityLabel({
+    confirmedMode: modeContractToConfirmedMode(modeContract),
+  });
+  if (eligibility !== "Eligible for Trustpath") {
+    return emptyResult(`TrustedPath™ is blocked for ${modeContract.evaluation_mode} / ${modeContract.voice_preservation}. Use manual Revise review.`);
+  }
 
   await ensureOperationalRevisionFindings(
     input.evaluationJobId,
@@ -191,6 +221,7 @@ export async function applyTrustedPath(input: {
       metadata: {
         source: "trustedpath-auto-apply",
         crossCheckVerdict: "approve",
+        modeContract: modeContractForMetadata(modeContract),
       },
     });
 
@@ -250,6 +281,32 @@ export async function previewTrustedPath(input: {
   if (!Number.isInteger(manuscriptId)) return { eligible: 0, alreadyDecided: 0, total: 0 };
 
   const supabase = createAdminClient();
+
+  const { data: job } = await supabase
+    .from("evaluation_jobs")
+    .select("id, status, manuscript_id, policy_family, voice_preservation_level")
+    .eq("id", input.evaluationJobId)
+    .eq("manuscript_id", manuscriptId)
+    .maybeSingle();
+
+  const { data: evaluationArtifact } = await supabase
+    .from("evaluation_artifacts")
+    .select("content")
+    .eq("job_id", input.evaluationJobId)
+    .eq("artifact_type", "evaluation_result_v2")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const modeContract = resolveRevisionModeContract({
+    evaluationPayload: evaluationArtifact?.content,
+    job,
+  });
+  if (!hasExplicitRevisionModeContract(modeContract)) return { eligible: 0, alreadyDecided: 0, total: 0 };
+  const eligibility = deriveReviseEligibilityLabel({
+    confirmedMode: modeContractToConfirmedMode(modeContract),
+  });
+  if (eligibility !== "Eligible for Trustpath") return { eligible: 0, alreadyDecided: 0, total: 0 };
 
   const { data: approvedChecks } = await supabase
     .from("revision_repair_cross_checks")

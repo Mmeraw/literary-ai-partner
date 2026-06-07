@@ -587,36 +587,15 @@ export function EvaluationPoller({
     job.status === 'failed'
     && isUserCancelled((job as unknown as { progress?: Record<string, unknown> }).progress ?? null);
 
-  const statusLabel = {
-    queued: 'Processing',
-    running: 'Preparing report',
-    complete: isCompletingAnimation
-      ? 'Preparing report'
-      : isInterimComplete
-        ? 'Report ready — finalizing additional sections'
-        : isLongForm
-          ? 'Report ready'
-          : 'Report ready',
-    failed: 'Needs attention',
-  }[job.status] ?? 'Needs attention';
-
-  const statusColor = {
-    queued: 'text-stone-500',
-    running: 'text-stone-800',
-    complete: isCompletingAnimation || isInterimComplete ? 'text-stone-700' : 'text-stone-800',
-    failed: 'text-red-700',
-  }[job.status] ?? 'text-red-700';
-
   return (
     <div className="rounded-xl border border-stone-200 bg-white p-5 shadow-sm sm:p-6">
       <div className="space-y-5">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div>
           <div>
             <h3 className="font-rg-serif text-lg font-semibold text-stone-900">Job Status</h3>
             <p className="text-sm text-stone-400 mt-1">ID: {job.id.slice(0, 8)}&hellip;</p>
           </div>
-          <p className={`text-base font-semibold ${statusColor}`}>{statusLabel}</p>
         </div>
 
                 {/* Progress Bar — driven 100% from backend phase, no client-side drift */}
@@ -683,16 +662,9 @@ export function EvaluationPoller({
             highWaterMarkRef.current = rawBarWidth;
           }
           const barWidth = Math.max(rawBarWidth, highWaterMarkRef.current);
-          // Ratcheted value label: if bar is higher than pd says, show ratcheted %
-          const ratchetedValueLabel = barWidth > (effectivePd.percentage ?? 0)
-            ? `${Math.round(barWidth)}%`
-            : effectivePd.valueLabel;
           return (
             <div className="space-y-2">
-              <div className="flex items-start justify-between gap-4">
-                <p className={`text-sm ${labelColorClass}`}>{effectivePd.label}</p>
-                <p className="text-sm text-gray-600 shrink-0">{ratchetedValueLabel}</p>
-              </div>
+              <p className={`text-base font-semibold sm:text-lg ${labelColorClass}`}>{effectivePd.label}</p>
               <div className="w-full rounded-full h-2.5" style={{ backgroundColor: '#E8E4DD' }}>
                 <div
                   className={`h-2.5 rounded-full transition-all duration-500 ease-out ${barColorClass}`}

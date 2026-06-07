@@ -10,6 +10,7 @@ export type UnifiedEvaluationDocument = Omit<ReturnType<typeof buildShortFormEva
   templateMode: CanonicalEvaluationMode;
   titleBlock: ReturnType<typeof buildShortFormEvaluationDocument>['titleBlock'] & {
     targetAudience: string;
+    shelf: string | null;
   };
   modeSpecific: {
     manuscriptScaleContinuityFindings: string[];
@@ -85,13 +86,19 @@ export function buildUnifiedEvaluationDocument(input: {
     displayTitle: input.displayTitle,
     reportType:
       input.mode === 'short_form_evaluation'
-        ? 'Short-Form Evaluation Report'
+        ? 'Short-Form Evaluation'
         : input.mode === 'long_form_evaluation'
-        ? 'Long-Form Evaluation Report'
-        : 'Long-Form Multi-Layer Evaluation Report',
+        ? 'Long-Form Evaluation'
+        : 'Long-Form Multi-Layer Evaluation',
   });
 
   const overallScore = input.result.overview?.overall_score_0_100 ?? null;
+  const shelf =
+    input.mode === 'short_form_evaluation'
+      ? null
+      : typeof input.dream?.market_shelf?.best_shelf === 'string' && input.dream.market_shelf.best_shelf.trim().length > 0
+      ? input.dream.market_shelf.best_shelf.trim()
+      : 'Not available';
   const targetAudience = deriveTargetAudience({
     explicit: input.result.metrics?.manuscript?.target_audience,
     genre: input.result.metrics?.manuscript?.genre,
@@ -162,6 +169,7 @@ export function buildUnifiedEvaluationDocument(input: {
     titleBlock: {
       ...base.titleBlock,
       targetAudience,
+      shelf,
     },
     modeSpecific: {
       manuscriptScaleContinuityFindings,

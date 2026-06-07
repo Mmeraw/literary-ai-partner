@@ -13,7 +13,8 @@ import { emitLatencyTrace } from "@/lib/observability/latencyTrace";
 import { getAuthenticatedUser } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { backpressureGuard } from "@/lib/jobs/backpressure";
-import { triggerEvaluationWorker } from "@/lib/jobs/triggerWorker";
+import { isTriggerWorkerFailure, triggerEvaluationWorker } from "@/lib/jobs/triggerWorker";
+import { failEvaluationJobTerminally } from "@/lib/jobs/failJobTerminal";
 import { resolveManuscriptTitle } from "@/lib/manuscripts/title";
 import { computeEnrichment, type EnrichmentResult } from "@/lib/evaluation/enrichment";
 import { routeNarrativeEvaluationPreflight } from "@/lib/evaluation/preflight/manuscriptTypeRouting";
@@ -762,7 +763,7 @@ export async function POST(req: Request) {
         phase0_fast_track: shouldFastTrackPhase0,
       },
     });
-    void triggerEvaluationWorker({
+    const kickoffResult = await triggerEvaluationWorker({
       req,
       jobId: job.id,
       trace_id,
@@ -770,6 +771,43 @@ export async function POST(req: Request) {
       source: "api.jobs.create",
       kickoffDispatchStartedAt,
     });
+
+    const targetClaimFailed = kickoffResult.ok && kickoffResult.targetClaimed === false;
+    const noJobsClaimed = kickoffResult.ok && kickoffResult.claimed !== null && kickoffResult.claimed < 1;
+    if (!kickoffResult.ok || targetClaimFailed || noJobsClaimed) {
+      const reason = isTriggerWorkerFailure(kickoffResult)
+        ? (kickoffResult.error ?? kickoffResult.reason)
+        : targetClaimFailed
+          ? "worker_did_not_claim_created_job"
+          : "worker_returned_zero_claims";
+
+      logger.error("Worker kickoff failed closed after job creation", {
+        trace_id,
+        request_id,
+        event: "api.jobs.create.worker_kickoff_failed_closed",
+        job_id: job.id,
+        reason,
+        worker_body: kickoffResult.ok ? kickoffResult.body : kickoffResult.body,
+      });
+
+      await failEvaluationJobTerminally({
+        supabase: createAdminClient(),
+        jobId: job.id,
+        failureCode: "WORKER_KICKOFF_FAILED",
+        message: `Evaluation worker did not accept the job: ${reason}`,
+        source: "api.jobs.worker_kickoff_guard",
+      });
+
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "Evaluation worker is temporarily unavailable. Please try again shortly.",
+          code: "WORKER_KICKOFF_FAILED",
+          trace_id,
+        },
+        { status: 503 },
+      );
+    }
 
     logger.info("Job created successfully", {
       trace_id,

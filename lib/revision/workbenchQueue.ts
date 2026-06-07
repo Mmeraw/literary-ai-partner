@@ -17,6 +17,11 @@ import {
   validateReviseCardContract,
 } from './reviseCardContract'
 import { type SlaeGroundingStatus } from './slae'
+import {
+  modeContractForMetadata,
+  resolveRevisionModeContract,
+  type RevisionModeContract,
+} from './modeContract'
 
 export type WorkbenchSeverity = 'must' | 'should' | 'could'
 export type WorkbenchScope = 'Line' | 'Passage' | 'Scene' | 'Chapter' | 'Structural' | 'Manuscript'
@@ -79,6 +84,7 @@ export type WorkbenchQueuePayload = {
   manuscriptId: string | null
   evaluationJobId: string | null
   revisionPackage?: RevisionPackage | null
+  modeContract: RevisionModeContract | null
   manuscriptTitle: string
   opportunities: WorkbenchOpportunity[]
   needsTargeting: WorkbenchOpportunity[]
@@ -524,6 +530,29 @@ function scopeFromCoordinates(coordinates: string): WorkbenchScope {
     case 'manuscript':
       return 'Manuscript'
     default:
+      if (prefix) {
+        // Safe fallback for unknown typed coordinates. Do not infer from
+        // arbitrary metadata like "note:this mentions manuscript".
+        return 'Passage'
+      }
+      if (/\b(?:whole\s+book|whole\s+manuscript|full\s+manuscript|manuscript-wide|across\s+the\s+manuscript)\b/.test(normalized)) {
+        return 'Manuscript'
+      }
+      if (/\b(?:chapters?|ch\.)\s*\d+/i.test(coordinates)) {
+        return 'Chapter'
+      }
+      if (/\b(?:structural|spine|arc|midpoint|climax|global\s+plot)\b/.test(normalized)) {
+        return 'Structural'
+      }
+      if (/\bscene\s*\d+/i.test(coordinates)) {
+        return 'Scene'
+      }
+      if (/\bline\s*\d+/i.test(coordinates)) {
+        return 'Line'
+      }
+      if (/\b(?:paragraph|para\.|passage)\s*\d+/i.test(coordinates)) {
+        return 'Passage'
+      }
       // Safe fallback for unknown or malformed coordinates.
       return 'Passage'
   }
@@ -835,6 +864,7 @@ function emptyPayload(error: string | null): WorkbenchQueuePayload {
     manuscriptId: null,
     evaluationJobId: null,
     revisionPackage: null,
+    modeContract: null,
     manuscriptTitle: 'Revise Workbench',
     opportunities: [],
     needsTargeting: [],
@@ -950,6 +980,23 @@ async function loadEvaluationArtifactPayload(
   return extractRichRecommendations(data.content)
 }
 
+async function loadEvaluationResultPayload(
+  supabase: ReturnType<typeof createAdminClient>,
+  evaluationJobId: string,
+): Promise<unknown> {
+  const { data, error } = await supabase
+    .from('evaluation_artifacts')
+    .select('content')
+    .eq('job_id', evaluationJobId)
+    .in('artifact_type', ['evaluation_result_v2', 'evaluation_result_v1'])
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (error) return null
+  return data?.content ?? null
+}
+
 export async function getWorkbenchQueue(input: { manuscriptId?: string; evaluationJobId?: string }): Promise<WorkbenchQueuePayload> {
   let warmupCorpus: Awaited<ReturnType<typeof loadReviseQueueWarmupCorpus>> | null = null
   let warmupWarning: string | null = null
@@ -986,7 +1033,7 @@ export async function getWorkbenchQueue(input: { manuscriptId?: string; evaluati
 
   const { data: job, error: jobError } = await supabase
     .from('evaluation_jobs')
-    .select('id, status, manuscript_id, manuscript_version_id')
+    .select('id, status, manuscript_id, manuscript_version_id, policy_family, voice_preservation_level')
     .eq('id', evaluationJobId)
     .eq('manuscript_id', manuscriptNumericId)
     .maybeSingle()
@@ -994,6 +1041,12 @@ export async function getWorkbenchQueue(input: { manuscriptId?: string; evaluati
   if (jobError) return emptyPayload(jobError.message)
   if (!job) return emptyPayload('Evaluation job not found for this manuscript.')
   if (job.status !== 'complete') return emptyPayload('This evaluation is not complete yet. Revise can load after the report is finished.')
+
+  const evaluationResultPayload = await loadEvaluationResultPayload(supabase, evaluationJobId)
+  const modeContract = resolveRevisionModeContract({
+    evaluationPayload: evaluationResultPayload,
+    job,
+  })
 
   let boundManuscriptVersionId: string | null = null
   try {
@@ -1155,6 +1208,7 @@ export async function getWorkbenchQueue(input: { manuscriptId?: string; evaluati
       ...contracted,
       groundingStatus,
       groundingNote,
+      modeContract: modeContractForMetadata(modeContract),
     }
   })
 
@@ -1184,6 +1238,7 @@ export async function getWorkbenchQueue(input: { manuscriptId?: string; evaluati
     manuscriptId,
     evaluationJobId,
     revisionPackage,
+    modeContract,
     manuscriptTitle: manuscript.title ?? (await backfillManuscriptTitleIfMissing(manuscriptNumericId)) ?? 'Untitled Manuscript',
     opportunities: readyForRevise,
     needsTargeting,

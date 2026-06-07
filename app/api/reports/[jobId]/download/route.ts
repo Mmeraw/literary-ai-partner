@@ -74,6 +74,80 @@ const RG = {
   errorBg:    '#F9E8E8',
 } as const;
 
+function docxHex(color: string): string {
+  return color.replace('#', '');
+}
+
+function parseScoreLabel(label: string): { score: number; denominator: 10 | 100 } | null {
+  const match = label.match(/(\d+(?:\.\d+)?)\s*\/\s*(10|100)/);
+  if (!match) return null;
+  const score = Number(match[1]);
+  const denominator = Number(match[2]) as 10 | 100;
+  return Number.isFinite(score) ? { score, denominator } : null;
+}
+
+function scorePaletteColorFromLabel(label: string): string {
+  const parsed = parseScoreLabel(label);
+  if (!parsed) return RG.textFaint;
+
+  if (parsed.denominator === 100) {
+    if (parsed.score >= 90) return RG.success;
+    if (parsed.score >= 80) return RG.warning;
+    return RG.error;
+  }
+
+  if (parsed.score >= 8) return RG.success;
+  if (parsed.score >= 6) return RG.warning;
+  return RG.error;
+}
+
+function scorePaletteClassFromLabel(label: string): string {
+  const parsed = parseScoreLabel(label);
+  if (!parsed) return 'score-muted';
+
+  if (parsed.denominator === 100) {
+    if (parsed.score >= 90) return 'score-strong';
+    if (parsed.score >= 80) return 'score-watch';
+    return 'score-risk';
+  }
+
+  if (parsed.score >= 8) return 'score-strong';
+  if (parsed.score >= 6) return 'score-watch';
+  return 'score-risk';
+}
+
+function readinessPaletteColor(label: string): string {
+  const normalized = label.trim().toLowerCase();
+  if (normalized.startsWith('near market ready')) return RG.warning;
+  if (normalized.startsWith('market ready')) return RG.success;
+  if (normalized.startsWith('not market ready')) return RG.error;
+  return RG.textMuted;
+}
+
+function readinessPaletteClass(label: string): string {
+  const normalized = label.trim().toLowerCase();
+  if (normalized.startsWith('near market ready')) return 'readiness-watch';
+  if (normalized.startsWith('market ready')) return 'readiness-strong';
+  if (normalized.startsWith('not market ready')) return 'readiness-risk';
+  return 'readiness-muted';
+}
+
+function confidencePaletteColor(label: string): string {
+  const normalized = label.trim().toLowerCase();
+  if (normalized.startsWith('high')) return RG.success;
+  if (normalized.startsWith('moderate')) return RG.warning;
+  if (normalized.startsWith('low')) return RG.error;
+  return RG.textMuted;
+}
+
+function confidencePaletteClass(label: string): string {
+  const normalized = label.trim().toLowerCase();
+  if (normalized.startsWith('high')) return 'confidence-high';
+  if (normalized.startsWith('moderate')) return 'confidence-moderate';
+  if (normalized.startsWith('low')) return 'confidence-low';
+  return 'confidence-muted';
+}
+
 const FOOTER_LINE = 'RevisionGrade\u2122  |  Manuscript diagnosis, author-controlled revision, and professional submission preparation.';
 
 type ExportFormat = 'pdf' | 'docx' | 'txt';
@@ -922,8 +996,8 @@ function buildCanonicalTemplateDocument(
         manuscript: {
           title: displayTitle,
           word_count: result.metrics?.manuscript?.word_count,
-          genre: result.metrics?.manuscript?.genre,
-          target_audience: result.metrics?.manuscript?.target_audience,
+          genre: enrichment?.diagnosed_genre ?? result.metrics?.manuscript?.genre,
+          target_audience: enrichment?.target_audience ?? result.metrics?.manuscript?.target_audience,
         },
       },
       enrichment: {
@@ -953,11 +1027,12 @@ function buildCanonicalTemplateTxt(doc: UnifiedEvaluationDocument): string {
   lines.push(`Report Type: ${doc.titleBlock.reportType}`);
   lines.push(`Genre: ${doc.titleBlock.genre}`);
   lines.push(`Target Audience: ${doc.titleBlock.targetAudience}`);
+  if (doc.titleBlock.shelf) lines.push(`Shelf: ${doc.titleBlock.shelf}`);
   lines.push(`Submitted Word Count: ${doc.titleBlock.submittedWordCount}`);
   lines.push(`Estimated Manuscript Pages: ${doc.titleBlock.estimatedPages}`);
   lines.push(`Reading Grade Level: ${doc.titleBlock.readingGradeLevel}`);
   lines.push(`Dialogue/Narrative Ratio: ${doc.titleBlock.dialogueNarrativeRatio}`);
-  lines.push(`Generated: ${doc.titleBlock.dateGenerated}`);
+  lines.push(`Date Generated: ${doc.titleBlock.dateGenerated}`);
   lines.push(`Overall Score: ${doc.titleBlock.overallScoreLabel}`);
   lines.push(`Market Readiness: ${doc.titleBlock.marketReadiness}`);
   lines.push('Confidentiality: Prepared for author/editorial use.');
@@ -1024,14 +1099,16 @@ function buildCanonicalTemplateTxt(doc: UnifiedEvaluationDocument): string {
   doc.topRisks.forEach((item, i) => lines.push(`${i + 1}. ${cleanReportText(item)}`));
   lines.push('');
 
+  lines.push(sub);
+  lines.push('TOP RECOMMENDATIONS');
+  lines.push(sub);
+  lines.push('');
   if (doc.topRecommendations.length > 0) {
-    lines.push(sub);
-    lines.push('TOP RECOMMENDATIONS');
-    lines.push(sub);
-    lines.push('');
     doc.topRecommendations.forEach((item, i) => lines.push(`${i + 1}. ${cleanReportText(item)}`));
-    lines.push('');
+  } else {
+    lines.push('See per-criterion opportunities below for detailed revision guidance.');
   }
+  lines.push('');
 
   lines.push(sub);
   lines.push('13 CRITERIA SCORE GRID');
@@ -1061,13 +1138,6 @@ function buildCanonicalTemplateTxt(doc: UnifiedEvaluationDocument): string {
 
     lines.push('');
   });
-
-  lines.push(sub);
-  lines.push('CONFIDENCE EXPLANATION');
-  lines.push(sub);
-  lines.push('');
-  lines.push(cleanReportText(doc.confidenceExplanation));
-  lines.push('');
 
   if (doc.templateMode === 'long_form_evaluation' || doc.templateMode === 'long_form_multi_layer_evaluation') {
     lines.push(sub);
@@ -1117,7 +1187,14 @@ function buildCanonicalTemplateTxt(doc: UnifiedEvaluationDocument): string {
   }
 
   lines.push(sub);
-  lines.push('AUTHOR DISCLAIMER');
+  lines.push('CONFIDENCE EXPLANATION');
+  lines.push(sub);
+  lines.push('');
+  lines.push(cleanReportText(doc.confidenceExplanation));
+  lines.push('');
+
+  lines.push(sub);
+  lines.push('AUTHOR-FACING DISCLAIMER');
   lines.push(sub);
   lines.push('');
   lines.push(cleanReportText(doc.disclaimer));
@@ -1130,13 +1207,13 @@ function renderCanonicalTemplateHtml(doc: UnifiedEvaluationDocument): string {
     items.length > 0 ? `<ul>${items.map((item) => `<li>${escapeHtml(cleanReportText(item))}</li>`).join('')}</ul>` : '<p>None supplied.</p>';
 
   const criteriaRows = doc.criteriaScoreGrid
-    .map((row) => `<tr><td>${escapeHtml(row.label)}</td><td>${escapeHtml(row.scoreLabel)}</td><td>${escapeHtml(row.confidenceLabel)}</td></tr>`)
+    .map((row) => `<tr><td>${escapeHtml(row.label)}</td><td class="score-cell ${scorePaletteClassFromLabel(row.scoreLabel)}">${escapeHtml(row.scoreLabel)}</td><td><span class="confidence-pill ${confidencePaletteClass(row.confidenceLabel)}">${escapeHtml(row.confidenceLabel)}</span></td></tr>`)
     .join('');
 
   const detailCards = doc.criterionDetails
     .map((detail) => `
       <article class="card">
-        <h3>${escapeHtml(detail.label)} <small>${escapeHtml(detail.scoreLabel)} · ${escapeHtml(detail.confidenceLabel)}</small></h3>
+        <h3>${escapeHtml(detail.label)} <small><span class="criterion-score ${scorePaletteClassFromLabel(detail.scoreLabel)}">${escapeHtml(detail.scoreLabel)}</span> · <span class="confidence-text ${confidencePaletteClass(detail.confidenceLabel)}">${escapeHtml(detail.confidenceLabel)}</span></small></h3>
         ${detail.supportLabel ? `<p><strong>Status:</strong> ${escapeHtml(detail.supportLabel)}</p>` : ''}
         ${detail.rationaleLabel ? `<p><strong>${escapeHtml(detail.rationaleLabel)}:</strong></p>` : ''}
         <p>${escapeHtml(cleanReportText(detail.rationaleText))}</p>
@@ -1151,18 +1228,23 @@ function renderCanonicalTemplateHtml(doc: UnifiedEvaluationDocument): string {
     table{width:100%;border-collapse:collapse} th,td{border-bottom:1px solid #E6DED2;padding:8px;text-align:left}
     .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.metric{padding:10px;border:1px solid #E6DED2;background:#FFFDF9;border-radius:6px}
     .card{margin-bottom:12px;padding:12px;border:1px solid #E6DED2;background:#FFFDF9;border-radius:6px}
+    .score-cell,.criterion-score,.overall-value,.readiness-value{font-weight:700}.score-strong,.readiness-strong{color:#3A6B2A}.score-watch,.readiness-watch{color:#8B5E1A}.score-risk,.readiness-risk{color:#8B2020}.score-muted,.readiness-muted{color:#5C5549}
+    .confidence-pill{display:inline-block;border-radius:999px;padding:2px 8px;font-weight:700}.confidence-high,.confidence-text.confidence-high{color:#3A6B2A}.confidence-moderate,.confidence-text.confidence-moderate{color:#8B5E1A}.confidence-low,.confidence-text.confidence-low{color:#8B2020}.confidence-muted,.confidence-text.confidence-muted{color:#5C5549}.confidence-pill.confidence-high{background:#EBF4E6}.confidence-pill.confidence-moderate{background:#FBF1DC}.confidence-pill.confidence-low{background:#F9E8E8}.confidence-pill.confidence-muted{background:#FAF7F2}
   </style></head><body>
     <section>
       <h1>${escapeHtml(doc.title)}</h1>
       <p><strong>${escapeHtml(doc.titleBlock.reportType)}</strong></p>
       <div class="grid">
-        <div class="metric"><strong>Score</strong><div>${escapeHtml(doc.titleBlock.overallScoreLabel)}</div></div>
-        <div class="metric"><strong>Market Readiness</strong><div>${escapeHtml(doc.titleBlock.marketReadiness)}</div></div>
+        <div class="metric"><strong>Overall Score</strong><div class="overall-value ${scorePaletteClassFromLabel(doc.titleBlock.overallScoreLabel)}">${escapeHtml(doc.titleBlock.overallScoreLabel)}</div></div>
+        <div class="metric"><strong>Market Readiness</strong><div class="readiness-value ${readinessPaletteClass(doc.titleBlock.marketReadiness)}">${escapeHtml(doc.titleBlock.marketReadiness)}</div></div>
         <div class="metric"><strong>Genre</strong><div>${escapeHtml(doc.titleBlock.genre)}</div></div>
         <div class="metric"><strong>Target Audience</strong><div>${escapeHtml(doc.titleBlock.targetAudience)}</div></div>
+        ${doc.titleBlock.shelf ? `<div class="metric"><strong>Shelf</strong><div>${escapeHtml(doc.titleBlock.shelf)}</div></div>` : ''}
         <div class="metric"><strong>Word Count</strong><div>${escapeHtml(doc.titleBlock.submittedWordCount)}</div></div>
         <div class="metric"><strong>Estimated Pages</strong><div>${escapeHtml(doc.titleBlock.estimatedPages)}</div></div>
-        <div class="metric"><strong>Generated</strong><div>${escapeHtml(doc.titleBlock.dateGenerated)}</div></div>
+        <div class="metric"><strong>Reading Grade Level</strong><div>${escapeHtml(doc.titleBlock.readingGradeLevel)}</div></div>
+        <div class="metric"><strong>Dialogue/Narrative Ratio</strong><div>${escapeHtml(doc.titleBlock.dialogueNarrativeRatio)}</div></div>
+        <div class="metric"><strong>Date Generated</strong><div>${escapeHtml(doc.titleBlock.dateGenerated)}</div></div>
       </div>
     </section>
     <section><h2>One-Paragraph Pitch</h2><p>${escapeHtml(cleanReportText(doc.oneParagraphPitch))}</p></section>
@@ -1173,10 +1255,9 @@ function renderCanonicalTemplateHtml(doc: UnifiedEvaluationDocument): string {
     <section><h2>Executive Summary</h2><p>${escapeHtml(cleanReportText(doc.executiveSummary))}</p></section>
     <section><h2>Top Strengths</h2>${list(doc.topStrengths)}</section>
     <section><h2>Top Risks</h2>${list(doc.topRisks)}</section>
-    <section><h2>Top Recommendations</h2>${list(doc.topRecommendations)}</section>
+    <section><h2>Top Recommendations</h2>${doc.topRecommendations.length > 0 ? list(doc.topRecommendations) : '<p>See per-criterion opportunities below for detailed revision guidance.</p>'}</section>
     <section><h2>13 Criteria Score Grid</h2><table><thead><tr><th>Criterion</th><th>Score</th><th>Confidence</th></tr></thead><tbody>${criteriaRows}</tbody></table></section>
     <section><h2>Criterion Rationales &amp; Surfaced Opportunities</h2>${detailCards}</section>
-    <section><h2>Confidence Explanation</h2><p>${escapeHtml(cleanReportText(doc.confidenceExplanation))}</p></section>
     ${(doc.templateMode === 'long_form_evaluation' || doc.templateMode === 'long_form_multi_layer_evaluation') ? `<section><h2>Manuscript-Scale Continuity Findings</h2>${list(doc.modeSpecific.manuscriptScaleContinuityFindings)}</section>` : ''}
     ${(doc.templateMode === 'long_form_evaluation' || doc.templateMode === 'long_form_multi_layer_evaluation') ? `<section><h2>Revision Priority Plan</h2>${doc.modeSpecific.revisionPriorityPlan.map((item) => `<article class="card"><h3>Priority ${item.priority}: ${escapeHtml(cleanReportText(item.title))}</h3><p><strong>Location:</strong> ${escapeHtml(cleanReportText(item.location))}</p><p><strong>Operation:</strong> ${escapeHtml(cleanReportText(item.operation))}</p><p><strong>Recommendation:</strong> ${escapeHtml(cleanReportText(item.recommendation))}</p><p><strong>Rationale:</strong> ${escapeHtml(cleanReportText(item.rationale))}</p></article>`).join('')}</section>` : ''}
     ${doc.templateMode === 'long_form_multi_layer_evaluation' ? `<section><h2>Story Ledger or Layer-Aware Architecture Map</h2>${list(doc.modeSpecific.storyLedgerArchitectureMap)}</section>` : ''}
@@ -1186,7 +1267,8 @@ function renderCanonicalTemplateHtml(doc: UnifiedEvaluationDocument): string {
     ${doc.templateMode === 'long_form_multi_layer_evaluation' ? `<section><h2>Layer-Aware Revision Sequencing</h2>${list(doc.modeSpecific.layerAwareRevisionSequencing)}</section>` : ''}
     ${doc.templateMode === 'long_form_multi_layer_evaluation' ? `<section><h2>Long-Form Continuity and Coverage Proof</h2>${list(doc.modeSpecific.continuityCoverageProof)}</section>` : ''}
     ${doc.templateMode === 'long_form_multi_layer_evaluation' ? `<section><h2>Readiness / Releasability Posture</h2><p>${escapeHtml(cleanReportText(doc.modeSpecific.readinessReleasabilityPosture))}</p></section>` : ''}
-    <section><h2>Author Disclaimer</h2><p>${escapeHtml(cleanReportText(doc.disclaimer))}</p></section>
+    <section><h2>Confidence Explanation</h2><p>${escapeHtml(cleanReportText(doc.confidenceExplanation))}</p></section>
+    <section><h2>Author-Facing Disclaimer</h2><p>${escapeHtml(cleanReportText(doc.disclaimer))}</p></section>
   </body></html>`;
 }
 
@@ -1195,10 +1277,20 @@ async function buildCanonicalTemplateDocx(doc: UnifiedEvaluationDocument): Promi
     new Paragraph({
       heading: HeadingLevel.HEADING_2,
       spacing: { before: 220, after: 80 },
-      children: [new TextRun({ text, bold: true, color: RG.oxblood.replace('#', '') })],
+      children: [new TextRun({ text, bold: true, color: docxHex(RG.oxblood) })],
     });
-  const para = (text: string) =>
-    new Paragraph({ spacing: { after: 90 }, children: [new TextRun({ text: cleanReportText(text), size: 22 })] });
+  const para = (text: string, opts: { bold?: boolean; color?: string } = {}) =>
+    new Paragraph({
+      spacing: { after: 90 },
+      children: [
+        new TextRun({
+          text: cleanReportText(text),
+          size: 22,
+          bold: opts.bold,
+          color: docxHex(opts.color ?? RG.textPrimary),
+        }),
+      ],
+    });
 
   const children: (Paragraph | Table)[] = [
     new Paragraph({
@@ -1206,12 +1298,17 @@ async function buildCanonicalTemplateDocx(doc: UnifiedEvaluationDocument): Promi
       children: [new TextRun({ text: doc.title, bold: true })],
       spacing: { after: 140 },
     }),
-    para(`${doc.titleBlock.reportType} · ${doc.titleBlock.overallScoreLabel} · ${doc.titleBlock.marketReadiness}`),
+    para(`Report Type: ${doc.titleBlock.reportType}`),
+    para(`Overall Score: ${doc.titleBlock.overallScoreLabel}`, { bold: true, color: scorePaletteColorFromLabel(doc.titleBlock.overallScoreLabel) }),
+    para(`Market Readiness: ${doc.titleBlock.marketReadiness}`, { bold: true, color: readinessPaletteColor(doc.titleBlock.marketReadiness) }),
     para(`Genre: ${doc.titleBlock.genre}`),
     para(`Target Audience: ${doc.titleBlock.targetAudience}`),
+    ...(doc.titleBlock.shelf ? [para(`Shelf: ${doc.titleBlock.shelf}`)] : []),
     para(`Word Count: ${doc.titleBlock.submittedWordCount}`),
     para(`Estimated Pages: ${doc.titleBlock.estimatedPages}`),
-    para(`Generated: ${doc.titleBlock.dateGenerated}`),
+    para(`Reading Grade Level: ${doc.titleBlock.readingGradeLevel}`),
+    para(`Dialogue/Narrative Ratio: ${doc.titleBlock.dialogueNarrativeRatio}`),
+    para(`Date Generated: ${doc.titleBlock.dateGenerated}`),
     makeHeading('One-Paragraph Pitch'),
     para(doc.oneParagraphPitch),
     makeHeading('One-Sentence Pitch'),
@@ -1236,7 +1333,11 @@ async function buildCanonicalTemplateDocx(doc: UnifiedEvaluationDocument): Promi
   children.push(makeHeading('Top Risks'));
   doc.topRisks.forEach((item) => children.push(para(`• ${item}`)));
   children.push(makeHeading('Top Recommendations'));
-  doc.topRecommendations.forEach((item) => children.push(para(`• ${item}`)));
+  if (doc.topRecommendations.length > 0) {
+    doc.topRecommendations.forEach((item) => children.push(para(`• ${item}`)));
+  } else {
+    children.push(para('See per-criterion opportunities below for detailed revision guidance.'));
+  }
 
   children.push(makeHeading('13 Criteria Score Grid'));
   children.push(
@@ -1254,8 +1355,20 @@ async function buildCanonicalTemplateDocx(doc: UnifiedEvaluationDocument): Promi
             new TableRow({
               children: [
                 new TableCell({ children: [new Paragraph(row.label)] }),
-                new TableCell({ children: [new Paragraph(row.scoreLabel)] }),
-                new TableCell({ children: [new Paragraph(row.confidenceLabel)] }),
+                new TableCell({
+                  children: [
+                    new Paragraph({
+                      children: [new TextRun({ text: row.scoreLabel, bold: true, color: docxHex(scorePaletteColorFromLabel(row.scoreLabel)) })],
+                    }),
+                  ],
+                }),
+                new TableCell({
+                  children: [
+                    new Paragraph({
+                      children: [new TextRun({ text: row.confidenceLabel, bold: true, color: docxHex(confidencePaletteColor(row.confidenceLabel)) })],
+                    }),
+                  ],
+                }),
               ],
             }),
         ),
@@ -1266,7 +1379,18 @@ async function buildCanonicalTemplateDocx(doc: UnifiedEvaluationDocument): Promi
 
   children.push(makeHeading('Criterion Rationales & Surfaced Opportunities'));
   doc.criterionDetails.forEach((detail) => {
-    children.push(para(`${detail.label} — ${detail.scoreLabel} (${detail.confidenceLabel})`));
+    children.push(
+      new Paragraph({
+        spacing: { after: 90 },
+        children: [
+          new TextRun({ text: `${detail.label} — `, bold: true, size: 22, color: docxHex(RG.textPrimary) }),
+          new TextRun({ text: detail.scoreLabel, bold: true, size: 22, color: docxHex(scorePaletteColorFromLabel(detail.scoreLabel)) }),
+          new TextRun({ text: ' (', size: 22, color: docxHex(RG.textMuted) }),
+          new TextRun({ text: detail.confidenceLabel, bold: true, size: 22, color: docxHex(confidencePaletteColor(detail.confidenceLabel)) }),
+          new TextRun({ text: ')', size: 22, color: docxHex(RG.textMuted) }),
+        ],
+      }),
+    );
     if (detail.supportLabel) children.push(para(`Status: ${detail.supportLabel}`));
     if (detail.rationaleLabel) children.push(para(`${detail.rationaleLabel}:`));
     children.push(para(detail.rationaleText));
@@ -1274,9 +1398,6 @@ async function buildCanonicalTemplateDocx(doc: UnifiedEvaluationDocument): Promi
       detail.recommendations.forEach((rec) => children.push(para(`• ${cleanReportText(rec.action, 'No action provided.')}`)));
     }
   });
-
-  children.push(makeHeading('Confidence Explanation'));
-  children.push(para(doc.confidenceExplanation));
 
   if (doc.templateMode === 'long_form_evaluation' || doc.templateMode === 'long_form_multi_layer_evaluation') {
     children.push(makeHeading('Manuscript-Scale Continuity Findings'));
@@ -1307,7 +1428,10 @@ async function buildCanonicalTemplateDocx(doc: UnifiedEvaluationDocument): Promi
     children.push(makeHeading('Readiness / Releasability Posture'));
     children.push(para(doc.modeSpecific.readinessReleasabilityPosture));
   }
-  children.push(makeHeading('Author Disclaimer'));
+  children.push(makeHeading('Confidence Explanation'));
+  children.push(para(doc.confidenceExplanation));
+
+  children.push(makeHeading('Author-Facing Disclaimer'));
   children.push(para(doc.disclaimer));
 
   const docxDoc = new Document({

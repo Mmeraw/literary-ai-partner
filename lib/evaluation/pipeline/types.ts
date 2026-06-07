@@ -308,6 +308,8 @@ export type SynthesisOutput = {
   enrichment?: {
     premise?: string;
     trigger_warnings?: string[];
+    diagnosed_genre?: string;
+    target_audience?: string;
   };
   /**
    * Diagnostic spine — extracted by Pass 3 before criteria scoring begins.

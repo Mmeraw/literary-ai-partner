@@ -2,8 +2,9 @@
 import { createAdminClient } from '@/lib/supabase/admin';
 import { PHASES } from '@/lib/jobs/types';
 import { getDevHeaderActor } from '@/lib/auth/devHeaderActor';
-import { triggerEvaluationWorker } from '@/lib/jobs/triggerWorker';
+import { isTriggerWorkerFailure, triggerEvaluationWorker } from '@/lib/jobs/triggerWorker';
 import { triggerEvaluationWorkflow } from '@/lib/jobs/triggerWorkflow';
+import { failEvaluationJobTerminally } from '@/lib/jobs/failJobTerminal';
 import { generateTraceId } from '@/lib/observability/logger';
 import { resolveManuscriptTitle } from '@/lib/manuscripts/title';
 import { createInitialVersion } from '@/lib/manuscripts/versions';
@@ -11,6 +12,12 @@ import { computeEnrichment } from '@/lib/evaluation/enrichment/computeEnrichment
 import { routeNarrativeEvaluationPreflight } from '@/lib/evaluation/preflight/manuscriptTypeRouting';
 import { enforceApiRateLimit } from '@/lib/security/apiRateLimit';
 import { requireUser } from '@/lib/security/apiGuards';
+import {
+  normalizeEvaluationMode,
+  normalizeVoicePreservationMode,
+  policyFamilyForEvaluationMode,
+  voicePreservationLevelForMode,
+} from '@/lib/revision/modeContract';
 
 function decodeDataUrlText(fileUrl: string): string | null {
   if (!fileUrl.startsWith('data:')) return null;
@@ -141,6 +148,22 @@ export async function POST(req: Request) {
         : typeof body?.title === 'string'
           ? body.title
           : 'Untitled Manuscript';
+    const selectedEvaluationMode = normalizeEvaluationMode(
+      typeof body?.sensitivity_mode === 'string'
+        ? body.sensitivity_mode
+        : typeof body?.evaluation_mode === 'string'
+          ? body.evaluation_mode
+          : typeof body?.policy_family === 'string'
+            ? body.policy_family
+            : undefined,
+    );
+    const selectedVoicePreservationMode = normalizeVoicePreservationMode(
+      typeof body?.voice_preservation_level === 'string'
+        ? body.voice_preservation_level
+        : typeof body?.voice_preservation_mode === 'string'
+          ? body.voice_preservation_mode
+          : undefined,
+    );
     const trimmedText = manuscriptTextInput.trim();
 
     let manuscriptId: number | null = null;
@@ -380,8 +403,8 @@ export async function POST(req: Request) {
         validity_status: 'pending',
         phase: PHASES.PHASE_0,   // All new jobs start at phase_0 (gold-standard warm-up)
         phase_status: 'queued',
-        policy_family: 'standard',
-        voice_preservation_level: 'balanced',
+        policy_family: policyFamilyForEvaluationMode(selectedEvaluationMode),
+        voice_preservation_level: voicePreservationLevelForMode(selectedVoicePreservationMode),
         english_variant: 'us',
         queued_at: new Date().toISOString(),
         ...(Object.keys(instantEnrichment).length > 0 ? { progress: instantEnrichment } : {}),
@@ -427,13 +450,44 @@ export async function POST(req: Request) {
         source: 'api.evaluate.create',
       });
     } else {
-      void triggerEvaluationWorker({
+      const kickoffResult = await triggerEvaluationWorker({
         req,
         jobId: data.id,
         trace_id,
         request_id,
         source: 'api.evaluate.create',
       });
+
+      const targetClaimFailed = kickoffResult.ok && kickoffResult.targetClaimed === false;
+      const noJobsClaimed = kickoffResult.ok && kickoffResult.claimed !== null && kickoffResult.claimed < 1;
+
+      if (!kickoffResult.ok || targetClaimFailed || noJobsClaimed) {
+        const reason = isTriggerWorkerFailure(kickoffResult)
+          ? (kickoffResult.error ?? kickoffResult.reason)
+          : targetClaimFailed
+            ? 'worker_did_not_claim_created_job'
+            : 'worker_returned_zero_claims';
+        console.error('[/api/evaluate] Worker kickoff did not claim the created job; terminal-failing intake row', {
+          job_id: data.id,
+          reason,
+          worker_status: kickoffResult.ok ? kickoffResult.workerStatus : kickoffResult.workerStatus,
+          worker_body: kickoffResult.ok ? kickoffResult.body : kickoffResult.body,
+        });
+
+        await failEvaluationJobTerminally({
+          supabase,
+          jobId: data.id,
+          failureCode: 'WORKER_KICKOFF_FAILED',
+          message: `Evaluation worker did not accept the job: ${reason}`,
+          source: 'api.evaluate.worker_kickoff_guard',
+        });
+
+        return jsonError(
+          'Evaluation worker is temporarily unavailable. Please try again shortly.',
+          503,
+          { code: 'WORKER_KICKOFF_FAILED' },
+        );
+      }
     }
 
     return Response.json(

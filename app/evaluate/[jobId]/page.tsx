@@ -17,12 +17,9 @@ import CopyReferenceIdButton from "@/components/reports/CopyReferenceIdButton";
 import SupportAccessToggle from "@/components/reports/SupportAccessToggle";
 import ReportConcernForm from "@/components/reports/ReportConcernForm";
 import {
-  buildTopRecommendations,
-} from "@/lib/evaluation/reportRecommendations";
-import {
-  buildReportPitches,
-  summarizeRevisionOpportunities,
-} from "@/lib/evaluation/reportTemplateContract";
+  buildUnifiedEvaluationDocument,
+  type CanonicalEvaluationMode,
+} from "@/lib/evaluation/unifiedEvaluationDocument";
 
 import { SynthesisPoller } from "@/components/evaluation/SynthesisPoller";
 import { classifyEvaluationIntegrityBanner } from "@/lib/evaluation/warningClassification";
@@ -35,7 +32,6 @@ import {
 } from "@/lib/evaluation/reportCriterionDisplay";
 import { resolveReportTitle } from "@/lib/evaluation/reportTitle";
 import { backfillManuscriptTitleIfMissing } from "@/lib/manuscripts/titleBackfill";
-import { mistakeProofText } from "@/lib/evaluation/reportRenderSafety";
 import CriterionOpportunities from "@/components/evaluation/CriterionOpportunities";
 import PolishPassButton from "@/components/evaluation/PolishPassButton";
 import { hasActiveSupportGrant, logSupportView } from "@/lib/support/checkSupportAccess";
@@ -414,7 +410,7 @@ function getConfidencePresentation(
   ) {
     return {
       label: "Moderate Confidence",
-      classes: "bg-yellow-200 text-yellow-900 ring-1 ring-yellow-400",
+      classes: "bg-amber-200 text-amber-900 ring-1 ring-amber-400",
     };
   }
 
@@ -429,6 +425,34 @@ function getConfidencePresentation(
   }
 
   return null;
+}
+
+function getOverallReadinessPresentation(score: number | null): { label: string; classes: string } {
+  if (typeof score !== "number" || !Number.isFinite(score)) {
+    return {
+      label: "Review",
+      classes: "border-stone-400/50 bg-stone-200 text-stone-900 ring-1 ring-stone-400/60",
+    };
+  }
+
+  if (score >= 90) {
+    return {
+      label: "Market Ready",
+      classes: "border-emerald-500/60 bg-emerald-200 text-emerald-950 ring-1 ring-emerald-500/70",
+    };
+  }
+
+  if (score >= 80) {
+    return {
+      label: "Near Market Ready",
+      classes: "border-amber-500/60 bg-amber-200 text-amber-950 ring-1 ring-amber-500/70",
+    };
+  }
+
+  return {
+    label: "Not Market Ready",
+    classes: "border-rose-500/60 bg-rose-200 text-rose-950 ring-1 ring-rose-500/70",
+  };
 }
 
 function inferEvaluationScope(jobType?: string, genre?: string): EvaluationScope {
@@ -673,40 +697,66 @@ export default async function EvaluationReportPage({
   const wordCount = artifact?.metrics?.manuscript?.word_count ?? manuscriptWordCount ?? null;
   const isLongForm = typeof wordCount === "number" && wordCount >= DREAM_WORD_COUNT_THRESHOLD;
   const dreamDoc = isComplete && isLongForm ? await getDreamArtifact(jobId) : null;
-  const reportPitches = artifact
-    ? buildReportPitches({
-        premise: artifact.enrichment?.premise,
-        summary: artifact.overview?.one_paragraph_summary || artifact.summary,
-        title: displayTitle,
-      })
-    : null;
-  const opportunitySummary = artifact ? summarizeRevisionOpportunities(artifact.criteria) : null;
-  const overallScore = artifact
-    ? Math.round(artifact.overall_score ?? artifact.overview?.overall_score_0_100 ?? 0)
-    : null;
-  const verdict = overallScore !== null
-    ? (overallScore >= 90 ? "Market Ready" : overallScore >= 60 ? "Near Market Ready" : "Not Market Ready")
-    : "Review";
-  const generatedAt = artifact?.generated_at ? new Date(artifact.generated_at) : job.updated_at ? new Date(job.updated_at) : null;
-  const generatedLabel = generatedAt
-    ? generatedAt.toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" })
-    : "Not available";
-  const reportType = isLongForm ? "Long-Form Evaluation Report" : "Short-Form Evaluation Report";
-  const displayWordCount = wordCount ?? progressWordCount;
-  const estimatedPages = typeof displayWordCount === "number" ? Math.ceil(displayWordCount / 250) : null;
   const pipelineGenre = artifact?.metrics?.manuscript?.genre?.trim() || null;
   const diagnosedGenre = artifact?.enrichment?.diagnosed_genre?.trim() || null;
   const genre = diagnosedGenre ?? (pipelineGenre && pipelineGenre.toLowerCase() !== 'novel' && pipelineGenre.toLowerCase() !== 'short story' ? pipelineGenre : null) ?? 'Not specified';
-  const targetAudience = artifact?.enrichment?.target_audience?.trim() || null;
+  const rawTemplateMode = artifact ? (artifact as Record<string, unknown>).evaluation_mode : null;
+  const canonicalMode: CanonicalEvaluationMode =
+    rawTemplateMode === 'long_form_multi_layer_evaluation'
+      ? 'long_form_multi_layer_evaluation'
+      : isLongForm
+      ? 'long_form_evaluation'
+      : 'short_form_evaluation';
+  const canonicalDoc = artifact
+    ? buildUnifiedEvaluationDocument({
+        mode: canonicalMode,
+        displayTitle,
+        dream: dreamDoc,
+        result: {
+          generated_at: artifact.generated_at,
+          overview: {
+            overall_score_0_100: artifact.overview?.overall_score_0_100 ?? artifact.overall_score,
+            verdict: artifact.overview?.verdict,
+            one_paragraph_summary: artifact.overview?.one_paragraph_summary ?? artifact.summary,
+            top_3_strengths: artifact.overview?.top_3_strengths,
+            top_3_risks: artifact.overview?.top_3_risks,
+          },
+          metrics: {
+            manuscript: {
+              title: displayTitle,
+              word_count: wordCount ?? undefined,
+              genre,
+              target_audience: artifact.enrichment?.target_audience,
+            },
+          },
+          enrichment: artifact.enrichment,
+          criteria: artifact.criteria ?? [],
+          recommendations: artifact.recommendations,
+        },
+      })
+    : null;
+  const reportPitches = canonicalDoc
+    ? {
+        oneParagraphPitch: canonicalDoc.oneParagraphPitch,
+        oneSentencePitch: canonicalDoc.oneSentencePitch,
+      }
+    : null;
+  const opportunitySummary = canonicalDoc?.revisionOpportunitySummary ?? null;
+  const overallScore = artifact
+    ? Math.round(artifact.overall_score ?? artifact.overview?.overall_score_0_100 ?? 0)
+    : null;
+  const verdictPresentation = getOverallReadinessPresentation(overallScore);
+  const verdict = verdictPresentation.label;
+  const generatedLabel = canonicalDoc?.titleBlock.dateGenerated ?? "Not available";
+  const reportType = canonicalDoc?.titleBlock.reportType ?? (isLongForm ? "Long-Form Evaluation" : "Short-Form Evaluation");
+  const displayWordCount = wordCount ?? progressWordCount;
+  const estimatedPages = typeof displayWordCount === "number" ? Math.ceil(displayWordCount / 250) : null;
+  const targetAudience = canonicalDoc?.titleBlock.targetAudience ?? 'Not available';
   const readinessCriterion = orderedCriteria.find((criterion) => {
     const key = criterion.key.toLowerCase();
     const label = isCriterionKey(criterion.key) ? getCriterionDisplayLabel(criterion.key, evaluationScope).toLowerCase() : key;
     return key.includes("readiness") || key.includes("market") || label.includes("readiness") || label.includes("market");
   });
-  const readinessScore = readinessCriterion?.score_0_10;
-  const readinessConfidence = readinessCriterion ? getConfidencePresentation(readinessCriterion) : null;
-  const hasDetectedMode = Boolean(artifact?.detected_mode);
-  const hasConfirmedMode = Boolean(artifact?.confirmed_mode);
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: '#F8F6F1' }}>
@@ -730,12 +780,14 @@ export default async function EvaluationReportPage({
             <dl className="mt-3 grid gap-x-4 gap-y-2 text-sm sm:grid-cols-2 lg:grid-cols-3">
               <div><dt className="font-semibold text-stone-950">Report Type</dt><dd className="text-stone-700">{reportType}</dd></div>
               <div><dt className="font-semibold text-stone-950">Genre</dt><dd className="capitalize text-stone-700">{genre}</dd></div>
-              <div><dt className="font-semibold text-stone-950">Submitted Word Count</dt><dd className="text-stone-700">{typeof displayWordCount === 'number' ? displayWordCount.toLocaleString() : 'Calculating'}</dd></div>
-              <div><dt className="font-semibold text-stone-950">Estimated Manuscript Pages</dt><dd className="text-stone-700">{estimatedPages ? `${estimatedPages.toLocaleString()} at 250 words/page` : 'Not available'}</dd></div>
-              <div><dt className="font-semibold text-stone-950">Reading Grade Level</dt><dd className="text-stone-700">{(artifact?.enrichment?.reading_grade_level ?? instantReadingGrade) != null ? `${Math.floor(Number(artifact?.enrichment?.reading_grade_level ?? instantReadingGrade))} (Flesch-Kincaid)` : 'Not available'}</dd></div>
-              <div><dt className="font-semibold text-stone-950">Dialogue/Narrative Ratio</dt><dd className="text-stone-700">{(artifact?.enrichment?.dialogue_percentage ?? instantDialoguePercentage) != null ? `${Math.floor(Number(artifact?.enrichment?.dialogue_percentage ?? instantDialoguePercentage))}% dialogue / ${Math.floor(Number(artifact?.enrichment?.narrative_percentage ?? instantNarrativePercentage ?? 100 - (artifact?.enrichment?.dialogue_percentage ?? instantDialoguePercentage ?? 0)))}% narrative` : 'Not available'}</dd></div>
+              {canonicalDoc?.titleBlock.shelf && <div><dt className="font-semibold text-stone-950">Shelf</dt><dd className="text-stone-700">{canonicalDoc.titleBlock.shelf}</dd></div>}
+              <div><dt className="font-semibold text-stone-950">Submitted Word Count</dt><dd className="text-stone-700">{canonicalDoc?.titleBlock.submittedWordCount ?? (typeof displayWordCount === 'number' ? displayWordCount.toLocaleString() : 'Calculating')}</dd></div>
+              <div><dt className="font-semibold text-stone-950">Estimated Manuscript Pages</dt><dd className="text-stone-700">{canonicalDoc?.titleBlock.estimatedPages ?? (estimatedPages ? `${estimatedPages.toLocaleString()} at 250 words/page` : 'Not available')}</dd></div>
+              <div><dt className="font-semibold text-stone-950">Reading Grade Level</dt><dd className="text-stone-700">{canonicalDoc?.titleBlock.readingGradeLevel ?? ((artifact?.enrichment?.reading_grade_level ?? instantReadingGrade) != null ? `${Math.floor(Number(artifact?.enrichment?.reading_grade_level ?? instantReadingGrade))} (Flesch-Kincaid)` : 'Not available')}</dd></div>
+              <div><dt className="font-semibold text-stone-950">Dialogue/Narrative Ratio</dt><dd className="text-stone-700">{canonicalDoc?.titleBlock.dialogueNarrativeRatio ?? ((artifact?.enrichment?.dialogue_percentage ?? instantDialoguePercentage) != null ? `${Math.floor(Number(artifact?.enrichment?.dialogue_percentage ?? instantDialoguePercentage))}% dialogue / ${Math.floor(Number(artifact?.enrichment?.narrative_percentage ?? instantNarrativePercentage ?? 100 - (artifact?.enrichment?.dialogue_percentage ?? instantDialoguePercentage ?? 0)))}% narrative` : 'Not available')}</dd></div>
+              <div><dt className="font-semibold text-stone-950">Market Readiness</dt><dd className="text-stone-700">{verdict}</dd></div>
               <div><dt className="font-semibold text-stone-950">Date Generated</dt><dd className="text-stone-700">{generatedLabel}</dd></div>
-              {targetAudience && <div className="sm:col-span-2 lg:col-span-3"><dt className="font-semibold text-stone-950">Target Audience</dt><dd className="text-stone-700">{targetAudience}</dd></div>}
+              <div className="sm:col-span-2 lg:col-span-3"><dt className="font-semibold text-stone-950">Target Audience</dt><dd className="text-stone-700">{targetAudience}</dd></div>
             </dl>
           </div>
 
@@ -744,7 +796,7 @@ export default async function EvaluationReportPage({
               <div className="rounded-lg border border-[#B8922A]/45 bg-[#1C1814] p-5 text-[#F5EFE0]">
                 <p className="text-sm font-semibold uppercase tracking-[0.16em] text-[#C8A96E]">Overall Score</p>
                 <p className="mt-3 font-rg-serif text-5xl font-bold leading-none text-white">{overallScore !== null ? overallScore : 'N/A'}<span className="text-2xl text-[#C8A96E]">/100</span></p>
-                <p className="mt-3 inline-flex rounded-full border border-[#C8A96E]/50 px-3 py-1 text-base font-semibold uppercase tracking-wide text-[#F5E9C8]">{verdict}</p>
+                <p className={`mt-3 inline-flex rounded-full border px-3 py-1 text-base font-semibold uppercase tracking-wide ${verdictPresentation.classes}`}>{verdict}</p>
               </div>
             )}
 
@@ -924,7 +976,7 @@ export default async function EvaluationReportPage({
             <section className="rounded-lg border bg-white p-7 mb-7">
               <h2 className="text-2xl font-semibold text-gray-900">One-Paragraph Pitch</h2>
               <p className="mt-4 text-base leading-7 text-gray-800">
-                {mistakeProofText(reportPitches.oneParagraphPitch)}
+                {reportPitches.oneParagraphPitch}
               </p>
             </section>
           )}
@@ -934,17 +986,17 @@ export default async function EvaluationReportPage({
             <section className="rounded-lg border bg-white p-7 mb-7">
               <h2 className="text-2xl font-semibold text-gray-900">One-Sentence Pitch</h2>
               <p className="mt-4 text-base font-medium leading-7 text-gray-900">
-                {mistakeProofText(reportPitches.oneSentencePitch)}
+                {reportPitches.oneSentencePitch}
               </p>
             </section>
           )}
 
           {/* ── §4 Premise ── */}
-          {artifact.enrichment?.premise && (
+          {canonicalDoc?.premise && (
             <section className="rounded-lg border bg-white p-7 mb-7">
               <h2 className="text-2xl font-semibold text-gray-900">Premise</h2>
               <p className="mt-4 text-base leading-7 text-gray-800">
-                {mistakeProofText(artifact.enrichment.premise)}
+                {canonicalDoc.premise}
               </p>
             </section>
           )}
@@ -952,12 +1004,12 @@ export default async function EvaluationReportPage({
           {/* ── §5 Content Warnings ── */}
           <section className="rounded-lg border border-amber-200 bg-amber-50 p-6 mb-7">
             <h2 className="text-xl font-semibold text-amber-900">Content Warnings</h2>
-            {artifact.enrichment?.trigger_warnings && artifact.enrichment.trigger_warnings.length > 0 ? (
+            {canonicalDoc && canonicalDoc.contentWarnings.length > 0 ? (
               <ul className="mt-4 space-y-3 text-base text-amber-900">
-                {artifact.enrichment.trigger_warnings.map((w, i) => (
+                {canonicalDoc.contentWarnings.map((w, i) => (
                   <li key={i} className="flex gap-2">
                     <span className="mt-0.5 shrink-0">⚠️</span>
-                    <span className="capitalize">{w}</span>
+                    <span>{w}</span>
                   </li>
                 ))}
               </ul>
@@ -997,116 +1049,59 @@ export default async function EvaluationReportPage({
             </section>
           )}
 
-          {/* ── §6a Reading Grade Level ── */}
-          {artifact.enrichment?.reading_grade_level != null && (
-            <section className="rounded-lg border bg-white p-7 mb-7">
-              <h2 className="text-2xl font-semibold text-gray-900">Reading Grade Level</h2>
-              <p className="mt-4 text-xl font-bold text-gray-900">
-                {artifact.enrichment.reading_grade_level} <span className="text-base font-normal text-gray-600">(Flesch-Kincaid)</span>
-              </p>
-              <p className="mt-3 text-base leading-7 text-gray-700">
-                Reading Grade Level measures prose complexity, NOT audience appropriateness.
-                A manuscript may score at a young-adult reading level (grades 6–8) while
-                containing graphic violence, sexual content, or other material unsuitable
-                for younger readers. Always cross-reference Content Warnings above for
-                content suitability guidance.
-              </p>
-            </section>
-          )}
-
-          {/* ── §6b Dialogue vs. Narrative Ratio ── */}
-          {artifact.enrichment?.dialogue_percentage != null && (
-            <section className="rounded-lg border bg-white p-7 mb-7">
-              <h2 className="text-2xl font-semibold text-gray-900">Dialogue vs. Narrative Ratio</h2>
-              <p className="mt-4 text-xl font-bold text-gray-900">
-                {Math.floor(artifact.enrichment.dialogue_percentage)}% dialogue / {Math.floor(artifact.enrichment.narrative_percentage ?? (100 - artifact.enrichment.dialogue_percentage))}% narrative
-              </p>
-              <p className="mt-3 text-base leading-7 text-gray-700">
-                Most commercially successful novels contain 25–35% dialogue. Genre
-                expectations vary: literary fiction trends lower (15–25%), thrillers
-                and romance trend higher (30–45%).
-              </p>
-            </section>
-          )}
-
           {/* ── §7 Executive Summary ── */}
           <section className="rounded-lg border bg-white p-7 mb-7">
             <h2 className="text-2xl font-semibold text-gray-900">Executive Summary</h2>
             <p className="mt-4 text-base leading-7 text-gray-800">
-              {mistakeProofText(artifact.overview?.one_paragraph_summary || artifact.summary || "No summary available")}
+              {canonicalDoc?.executiveSummary ?? "No summary available"}
             </p>
           </section>
 
           {/* ── §8 Top Strengths ── */}
-          {artifact.overview?.top_3_strengths && artifact.overview.top_3_strengths.length > 0 && (
+          {canonicalDoc && canonicalDoc.topStrengths.length > 0 && (
             <section className="rounded-lg border bg-white p-7 mb-7">
               <h2 className="text-2xl font-semibold text-gray-900">Top Strengths</h2>
               <ol className="mt-5 space-y-4 list-decimal list-inside text-base leading-7 text-gray-800">
-                {artifact.overview.top_3_strengths.map((s, i) => (
-                  <li key={i}>{mistakeProofText(s)}</li>
+                {canonicalDoc.topStrengths.map((s, i) => (
+                  <li key={i}>{s}</li>
                 ))}
               </ol>
             </section>
           )}
 
           {/* ── §9 Top Risks ── */}
-          {artifact.overview?.top_3_risks && artifact.overview.top_3_risks.length > 0 && (
+          {canonicalDoc && canonicalDoc.topRisks.length > 0 && (
             <section className="rounded-lg border bg-white p-7 mb-7">
               <h2 className="text-2xl font-semibold text-gray-900">Top Risks</h2>
               <ol className="mt-5 space-y-4 list-decimal list-inside text-base leading-7 text-gray-800">
-                {artifact.overview.top_3_risks.map((r, i) => (
-                  <li key={i}>{mistakeProofText(r)}</li>
+                {canonicalDoc.topRisks.map((r, i) => (
+                  <li key={i}>{r}</li>
                 ))}
               </ol>
             </section>
           )}
 
           {/* ── §10 Top Recommendations ── */}
-          {(() => {
-            const topRecs = buildTopRecommendations(artifact);
-            return (
-              <section className="rounded-lg border bg-white p-7 mb-7">
-                <h2 className="text-2xl font-semibold text-gray-900">Top Recommendations</h2>
-                {topRecs.length > 0 ? (
-                  <ul className="mt-5 space-y-4 text-base leading-7 text-gray-800">
-                    {topRecs.map((r, i) => (
-                      <li key={i} className="flex gap-2">
-                        <span className="mt-0.5 shrink-0 text-gray-600">•</span>
-                        <span>{mistakeProofText(r)}</span>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="mt-5 text-base leading-7 text-gray-600">See per-criterion opportunities below for detailed revision guidance.</p>
-                )}
-              </section>
-            );
-          })()}
+          <section className="rounded-lg border bg-white p-7 mb-7">
+            <h2 className="text-2xl font-semibold text-gray-900">Top Recommendations</h2>
+            {canonicalDoc && canonicalDoc.topRecommendations.length > 0 ? (
+              <ul className="mt-5 space-y-4 text-base leading-7 text-gray-800">
+                {canonicalDoc.topRecommendations.map((r, i) => (
+                  <li key={i} className="flex gap-2">
+                    <span className="mt-0.5 shrink-0 text-gray-600">•</span>
+                    <span>{r}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="mt-5 text-base leading-7 text-gray-600">See per-criterion opportunities below for detailed revision guidance.</p>
+            )}
+          </section>
 
               {/* ── 13 Story Criteria Scores ── */}
               {orderedCriteria.length > 0 && (
                 <section className="rounded-lg border bg-white p-7 mb-7">
                   <h2 className="text-2xl font-semibold text-gray-900">13 Criteria Score Grid</h2>
-                  <div className="mt-5 rounded-md border bg-gray-50 p-5 text-base leading-7 text-gray-800">
-                    <p className="font-medium">What Does Confidence Mean?</p>
-                    <p className="mt-2">
-                      Confidence reflects how strongly each diagnosis is supported by direct evidence in your manuscript.
-                    </p>
-                    <ul className="mt-4 space-y-3">
-                      <li className="flex items-start gap-2">
-                        <span className="inline-flex items-center rounded-full bg-emerald-100 text-emerald-800 px-2 py-0.5 text-xs font-medium shrink-0">High</span>
-                        <span>Strong textual evidence supports this diagnosis.</span>
-                      </li>
-                      <li className="flex items-start gap-2">
-                        <span className="inline-flex items-center rounded-full bg-amber-100 text-amber-800 px-2 py-0.5 text-xs font-medium shrink-0">Moderate</span>
-                        <span>Enough evidence to identify the issue, but some ambiguity remains.</span>
-                      </li>
-                      <li className="flex items-start gap-2">
-                        <span className="inline-flex items-center rounded-full bg-rose-100 text-rose-800 px-2 py-0.5 text-xs font-medium shrink-0">Low</span>
-                        <span>Limited or conflicting evidence—treat as a prompt for review, not a final judgment.</span>
-                      </li>
-                    </ul>
-                  </div>
                   <p className="mt-5 text-base font-medium leading-7 text-gray-800">
                     {getCertifiedCriteriaSummary(orderedCriteria)}
                   </p>
@@ -1273,8 +1268,31 @@ export default async function EvaluationReportPage({
             </section>
           )}
 
+          {/* ── §14 Confidence Explanation ── */}
+          <section className="rounded-lg border bg-white p-7 mb-7">
+            <h2 className="text-2xl font-semibold text-gray-900">Confidence Explanation</h2>
+            <p className="mt-4 text-base leading-7 text-gray-800">
+              Confidence reflects how strongly each diagnosis is supported by direct evidence in your manuscript.
+            </p>
+            <ul className="mt-4 space-y-3 text-base leading-7 text-gray-800">
+              <li className="flex items-start gap-2">
+                <span className="inline-flex items-center rounded-full bg-emerald-100 text-emerald-800 px-2 py-0.5 text-xs font-medium shrink-0">High</span>
+                <span>Strong textual evidence supports this diagnosis.</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="inline-flex items-center rounded-full bg-amber-100 text-amber-800 px-2 py-0.5 text-xs font-medium shrink-0">Moderate</span>
+                <span>Enough evidence to identify the issue, but some ambiguity remains.</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="inline-flex items-center rounded-full bg-rose-100 text-rose-800 px-2 py-0.5 text-xs font-medium shrink-0">Low</span>
+                <span>Limited or conflicting evidence—treat as a prompt for review, not a final judgment.</span>
+              </li>
+            </ul>
+          </section>
+
           {/* ── §15 Author-facing Disclaimer ── */}
           <section className="rounded-lg border border-stone-200 bg-stone-50 p-6 mt-8">
+            <h2 className="text-2xl font-semibold text-gray-900">Author-Facing Disclaimer</h2>
             <p className="text-sm leading-relaxed text-stone-600">
               Generated by RevisionGrade™. Author retains ownership of manuscript content.
               This report is an editorial diagnostic and does not guarantee publication,

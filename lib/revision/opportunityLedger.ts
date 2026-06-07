@@ -6,6 +6,7 @@ import {
   type RevisionOperation,
 } from './reviseCardContract';
 import { type SlaeGroundingStatus } from './slae';
+import { modeContractForMetadata, resolveRevisionModeContract } from './modeContract';
 
 type LedgerSeverity = 'must' | 'should' | 'could';
 type LedgerConfidence = 'low' | 'medium' | 'high';
@@ -1170,7 +1171,7 @@ export async function ensureRevisionOpportunityLedgerArtifact(supabase: any, job
 
   const { data: jobRow, error: jobReadError } = await supabase
     .from('evaluation_jobs')
-    .select('id, manuscript_id, evaluation_project_id, evaluation_result')
+    .select('id, manuscript_id, evaluation_project_id, evaluation_result, policy_family, voice_preservation_level')
     .eq('id', jobId)
     .maybeSingle();
 
@@ -1242,6 +1243,11 @@ export async function ensureRevisionOpportunityLedgerArtifact(supabase: any, job
     evaluationPayload, chunkCachePayload, longformPayload, { wordCount },
   );
 
+  const modeContract = resolveRevisionModeContract({
+    evaluationPayload,
+    job: jobRow,
+  });
+
   if (existingOpportunities && existingOpportunities.length === 0 && opportunities.length === 0) {
     return {
       artifactId: typeof existingLedgerRow?.id === 'string' ? existingLedgerRow.id : null,
@@ -1254,6 +1260,7 @@ export async function ensureRevisionOpportunityLedgerArtifact(supabase: any, job
   const sourceHash = sourceHashFor({
     job_id: jobId,
     evaluation_source_hash: evaluationResultRow.source_hash ?? null,
+    mode_contract: modeContractForMetadata(modeContract),
     opportunities,
   });
 
@@ -1272,6 +1279,7 @@ export async function ensureRevisionOpportunityLedgerArtifact(supabase: any, job
       : chunkCachePayload
         ? 'backend_filled_abc_v1_chunk_enriched'
         : 'backend_filled_abc_v1',
+    mode_contract: modeContractForMetadata(modeContract),
     opportunities,
   };
 

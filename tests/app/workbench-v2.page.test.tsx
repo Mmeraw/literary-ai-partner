@@ -2,6 +2,10 @@ import React from "react";
 
 import WorkbenchV2Page from "@/app/workbench-v2/page";
 import { getWorkbenchQueue } from "@/lib/revision/workbenchQueue";
+import {
+  buildRevisionOpportunityLedger,
+  persistRevisionOpportunityLedger,
+} from "@/lib/revision/revisionOpportunityLedgerArtifact";
 
 jest.mock("@/lib/revision/workbenchQueue", () => ({
   getWorkbenchQueue: jest.fn(),
@@ -17,6 +21,10 @@ jest.mock("@/components/revision/ReviseQueueV2Client", () => ({
 }));
 
 describe("/workbench-v2 page", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
   it("loads queue payload and renders ReviseQueueV2Client", async () => {
     const mockedPayload = {
       ok: true,
@@ -44,5 +52,7 @@ describe("/workbench-v2 page", () => {
     });
 
     expect(React.isValidElement(element)).toBe(true);
+    expect(buildRevisionOpportunityLedger).not.toHaveBeenCalled();
+    expect(persistRevisionOpportunityLedger).not.toHaveBeenCalled();
   });
 });

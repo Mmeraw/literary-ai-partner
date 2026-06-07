@@ -1,6 +1,7 @@
 export {};
 
 import {
+  sendEvaluationFailureSupportAlert,
   sendRecoverySupportAlert,
   shouldAlertSupportForRecoveryAction,
   toUserSafeRecoveryMessage,
@@ -102,6 +103,57 @@ describe('recoverySupportAlertMailer', () => {
     expect(warnSpy).toHaveBeenCalled();
 
     warnSpy.mockRestore();
+  });
+
+  test('failed evaluation alert emails only job id and failure type to support', async () => {
+    process.env.RESEND_API_KEY = 'test-key';
+
+    const fetchMock = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () => '',
+    });
+
+    const result = await sendEvaluationFailureSupportAlert(
+      {
+        job_id: '1dce7039-674d-44d6-b647-0742e0e696ec',
+        manuscript_id: 7497,
+        user_id: 'user-should-not-be-emailed',
+        phase: 'phase_3',
+        phase_status: 'failed',
+        progress_phase: 'phase_3',
+        progress_phase_status: 'failed',
+        failure_code: 'TEMPLATE_COMPLETENESS_GATE_FAILED',
+        failure_message: 'internal failure details should stay in admin diagnostics',
+        source: 'processor',
+        pipeline_stage: 'template_completeness_gate',
+        retry_eligible: false,
+        diagnostics: {
+          violations: [{ code: 'MISSING_TARGET_AUDIENCE', message: 'do not email this' }],
+        },
+        created_at: '2026-06-06T22:49:06.845Z',
+        updated_at: '2026-06-06T22:57:26.953Z',
+      },
+      { fetchFn: fetchMock as unknown as typeof fetch },
+    );
+
+    expect(result.sent).toBe(true);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    const [, requestInit] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const parsedBody = JSON.parse(String(requestInit.body));
+
+    expect(parsedBody.to).toBe(REVISIONGRADE_SUPPORT_EMAIL);
+    expect(parsedBody.subject).toBe(
+      '[RevisionGrade] Evaluation failed: TEMPLATE_COMPLETENESS_GATE_FAILED (1dce7039…)',
+    );
+    expect(parsedBody.text).toBe(
+      'job_id: 1dce7039-674d-44d6-b647-0742e0e696ec\n' +
+        'failure_type: TEMPLATE_COMPLETENESS_GATE_FAILED',
+    );
+    expect(String(parsedBody.text)).not.toContain('user-should-not-be-emailed');
+    expect(String(parsedBody.text)).not.toContain('MISSING_TARGET_AUDIENCE');
+    expect(String(parsedBody.text)).not.toContain('internal failure details');
   });
 
   test('unsafe user message is sanitized before exposure', () => {

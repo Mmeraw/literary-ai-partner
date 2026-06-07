@@ -13,6 +13,7 @@
 import { NextRequest } from 'next/server';
 import { GET } from './route';
 import { resetEvaluationRuntimeConfigCacheForTests } from '@/lib/config/evaluationRuntimeConfig';
+import { processQueuedJobs } from '@/lib/evaluation/processor';
 
 // Mock processQueuedJobs so auth-only tests don't crash without DB
 jest.mock('@/lib/evaluation/processor', () => ({
@@ -390,6 +391,24 @@ describe('Process Evaluations Worker Auth', () => {
       const body = await response.json();
       
       expect(typeof body.durationMs).toBe('undefined'); // dry_run doesn't include durationMs in this implementation
+    });
+
+    it('passes x-job-id through as targetJobId for exact post-submit claiming', async () => {
+      setEnv('CRON_SECRET', 'valid-secret-456');
+      setEnv('NODE_ENV', 'production');
+
+      const req = createMockRequest({
+        headers: {
+          authorization: 'Bearer valid-secret-456',
+          'x-job-id': 'job-target-123',
+        },
+      });
+      const response = await GET(req);
+
+      expect(response.status).toBe(200);
+      expect(processQueuedJobs).toHaveBeenCalledWith(
+        expect.objectContaining({ targetJobId: 'job-target-123' }),
+      );
     });
   });
 

@@ -247,6 +247,18 @@ describe("buildPass3UserPrompt — expectation profile structured input", () => 
       shelf_target_audience: "adult literary horror readers",
       dominant_craft_engine: "atmosphere",
       expectation_profiles: ["atmosphere_forward", "dread_forward", "mood_forward"],
+      genre_expectations: [
+        {
+          id: "gothic_atmospheric",
+          label: "Gothic / atmospheric fiction",
+          reader_promise: "Atmosphere and dread are the reader promise.",
+          craft_expectations: ["atmospheric accumulation"],
+          protected_behaviors: ["slow dread"],
+          failure_modes: ["dread does not escalate"],
+          pacing_norm: "Atmosphere can be the engine.",
+          dialogue_norm: "Silence and subtext may carry pressure.",
+        },
+      ],
       resolution_notes: ["work_type:literaryFictionGeneral=>mood_forward,voice_forward"],
     };
 
@@ -264,5 +276,9 @@ describe("buildPass3UserPrompt — expectation profile structured input", () => 
     expect(prompt).toContain("atmosphere_forward");
     expect(prompt).toContain("dread_forward");
     expect(prompt).toContain("mood_forward");
+    expect(prompt).toContain("docs/canon/registered/volumes/GENRE_EXPECTATIONS_VOLUME_II_AND_REVISE_MODE_CONTRACT.md");
+    expect(prompt).toContain("Genre Expectations Volume II doctrine");
+    expect(prompt).toContain("genre_expectations");
+    expect(prompt).toContain("Atmosphere and dread are the reader promise.");
   });
 });

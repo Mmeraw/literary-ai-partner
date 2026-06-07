@@ -2,6 +2,7 @@ import { describe, expect, test } from "@jest/globals";
 import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
 import { parsePass3Response } from "@/lib/evaluation/pipeline/runPass3Synthesis";
 import { resolveExpectationProfiles } from "@/lib/evaluation/genreExpectationProfiles";
+import { shouldSuppressByExpectationProfile } from "@/lib/evaluation/genreExpectationProfiles";
 import type { SinglePassOutput } from "@/lib/evaluation/pipeline/types";
 
 function makePassOutput(pass: 1 | 2): SinglePassOutput {
@@ -165,5 +166,44 @@ describe("expectation profile recommendation guard", () => {
     const pacing = parsed.criteria.find((c) => c.key === "pacing");
     expect(pacing).toBeDefined();
     expect((pacing?.recommendations.length ?? 0)).toBeGreaterThan(0);
+  });
+
+  test("resolves memoir genre expectations so displayed genre is also evaluation input", () => {
+    const context = resolveExpectationProfiles({
+      workType: "memoirChapterNarrative",
+      diagnosedGenre: "spiritual memoir",
+      shelfTargetAudience: "adult memoir readers",
+      dominantCraftEngine: "reflection",
+    });
+
+    expect(context.expectation_profiles).toEqual(expect.arrayContaining(["reflection_forward", "voice_forward"]));
+    expect(context.genre_expectations).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "spiritual_memoir",
+          reader_promise: expect.stringContaining("Interior transformation"),
+          protected_behaviors: expect.arrayContaining(["low dialogue density"]),
+        }),
+      ]),
+    );
+  });
+
+  test("suppresses memoir dialogue-quantity directives without explicit malfunction evidence", () => {
+    const context = resolveExpectationProfiles({
+      workType: "memoirChapterNarrative",
+      diagnosedGenre: "memoir",
+      shelfTargetAudience: "adult memoir readers",
+      dominantCraftEngine: "reflection",
+    });
+
+    const decision = shouldSuppressByExpectationProfile(context, {
+      action: "Add more dialogue to increase reader engagement in this reflective passage.",
+      expected_impact: "More spoken exchange would make the passage feel faster.",
+      mechanism: "The passage currently relies on interior memory and reflection.",
+      anchor_snippet: "I remembered the kitchen light and the silence after my father left.",
+    });
+
+    expect(decision.allowed).toBe(false);
+    expect(decision.reason).toContain("profile_guard_suppressed");
   });
 });
