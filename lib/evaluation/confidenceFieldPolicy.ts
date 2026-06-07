@@ -30,6 +30,7 @@ export const CONFIDENCE_FIELD_POLICY = {
 
   // Interpretive header fields
   genre: "inline_quiet",
+  shelf: "inline_quiet",
   target_audience: "warning_required",
   market_readiness: "inline_quiet",
   overall_score: "inline_quiet",
@@ -151,6 +152,19 @@ export function deriveGenreConfidence(
   if (wordCount < 15000) return "Moderate Confidence";
   if (wordCount < 40000) return "High Confidence";
   return "Very High Confidence";
+}
+
+/**
+ * Derive Shelf confidence from the presence of a DREAM/pipeline shelf plus
+ * manuscript scale. Shelf is a professional market-positioning inference, so
+ * missing shelf evidence is always Insufficient Evidence rather than hidden.
+ */
+export function deriveShelfConfidence(params: {
+  wordCount: number | null | undefined;
+  hasShelf: boolean;
+}): CanonicalConfidenceLabel {
+  if (!params.hasShelf) return "Insufficient Evidence";
+  return deriveGenreConfidence(params.wordCount) ?? "Insufficient Evidence";
 }
 
 /**

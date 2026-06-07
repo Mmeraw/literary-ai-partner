@@ -11,6 +11,13 @@ import {
   getAudienceConfidence,
   type CanonicalConfidenceLabel,
 } from '@/lib/evaluation/confidenceFieldPolicy';
+import type { GenreExpectationMetadata } from '@/lib/evaluation/genreExpectationProfiles';
+import {
+  buildGenreExpectationHeader,
+  getReportHeaderContract,
+  type GenreExpectationHeader,
+  type ReportHeaderContract,
+} from '@/lib/evaluation/reportHeaderPolicy';
 
 export type ShortFormCriterionRecommendation = {
   priority?: 'high' | 'medium' | 'low';
@@ -64,6 +71,11 @@ export type ShortFormResultLike = {
     reading_grade_level?: number;
     dialogue_percentage?: number;
     narrative_percentage?: number;
+  };
+  governance?: {
+    transparency?: {
+      genre_expectation_context?: GenreExpectationMetadata;
+    };
   };
   criteria: ShortFormCriterion[];
   recommendations?: {
@@ -128,6 +140,10 @@ export type ShortFormEvaluationDocument = {
     /** Always present — policy is warning_required for target audience. */
     audienceConfidenceLabel: CanonicalConfidenceLabel;
     audienceTentative: boolean;
+    /** Canonical header requirements for the current report mode. */
+    headerContract: ReportHeaderContract;
+    /** Dedicated genre contract resolved from canon-backed expectation metadata. */
+    genreExpectationContract: GenreExpectationHeader | null;
   };
   oneParagraphPitch: string;
   oneSentencePitch: string;
@@ -260,6 +276,10 @@ export function buildShortFormEvaluationDocument(input: {
   const marketConf = deriveMarketReadinessConfidence(scorableCount, orderedCriteria.length);
   const overallConf = deriveOverallScoreConfidence(scorableCount, orderedCriteria.length, null);
   const audienceConf = getAudienceConfidence(rawWordCount);
+  const headerContract = getReportHeaderContract('short_form_evaluation');
+  const genreExpectationContract = buildGenreExpectationHeader(
+    result.governance?.transparency?.genre_expectation_context,
+  );
 
   const criteriaScoreGrid: ShortFormCriterionGridRow[] = orderedCriteria.map((criterion) => {
     return {
@@ -324,6 +344,8 @@ export function buildShortFormEvaluationDocument(input: {
       overallScoreConfidenceLabel: overallConf,
       audienceConfidenceLabel: audienceConf.label,
       audienceTentative: audienceConf.tentative,
+      headerContract,
+      genreExpectationContract,
     },
     oneParagraphPitch: mistakeProofText(pitches.oneParagraphPitch),
     oneSentencePitch: mistakeProofText(pitches.oneSentencePitch),

@@ -34,6 +34,7 @@ import {
   deriveGenreConfidence,
   deriveMarketReadinessConfidence,
   deriveOverallScoreConfidence,
+  deriveShelfConfidence,
   getAudienceConfidence,
   getConfidenceLabelClasses,
   type CanonicalConfidenceLabel,
@@ -169,9 +170,12 @@ type ArtifactContentV1 = {
         verdict: "submission-ready" | "close-but-not-ready" | "not-yet-ready";
         blocking_criteria: string[];
       };
+      genre_expectation_context?: unknown;
     };
   };
 };
+
+type ShortFormResultLikeForPage = Parameters<typeof buildUnifiedEvaluationDocument>[0]['result'];
 
 async function getJob(jobId: string): Promise<Job | null> {
   try {
@@ -728,6 +732,7 @@ export default async function EvaluationReportPage({
             },
           },
           enrichment: artifact.enrichment,
+          governance: artifact.governance as ShortFormResultLikeForPage['governance'],
           criteria: artifact.criteria ?? [],
           recommendations: artifact.recommendations,
         },
@@ -768,6 +773,12 @@ export default async function EvaluationReportPage({
   const marketReadinessConfidenceLabel = deriveMarketReadinessConfidence(scorableCriteriaCount, totalCriteriaCount);
   const overallScoreConfidenceLabel = deriveOverallScoreConfidence(scorableCriteriaCount, totalCriteriaCount, governanceConfidence01);
   const audienceConfidence = getAudienceConfidence(displayWordCount);
+  const shelfConfidenceLabel = canonicalDoc?.titleBlock.shelf
+    ? canonicalDoc.titleBlock.shelfConfidenceLabel ?? deriveShelfConfidence({
+        wordCount: displayWordCount,
+        hasShelf: canonicalDoc.titleBlock.shelf !== 'Not available',
+      })
+    : null;
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: '#F8F6F1' }}>
@@ -801,7 +812,30 @@ export default async function EvaluationReportPage({
                   )}
                 </dd>
               </div>
-              {canonicalDoc?.titleBlock.shelf && <div><dt className="font-semibold text-stone-950">Shelf</dt><dd className="text-stone-700">{canonicalDoc.titleBlock.shelf}</dd></div>}
+              {canonicalDoc?.titleBlock.shelf && (
+                <div>
+                  <dt className="font-semibold text-stone-950">Shelf</dt>
+                  <dd className="text-stone-700">
+                    {canonicalDoc.titleBlock.shelf}
+                    {shelfConfidenceLabel && (
+                      <span className={`ml-2 inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${getConfidenceLabelClasses(shelfConfidenceLabel)}`}>
+                        {shelfConfidenceLabel}
+                      </span>
+                    )}
+                  </dd>
+                </div>
+              )}
+              {canonicalDoc?.titleBlock.genreExpectationContract && (
+                <div className="sm:col-span-2 lg:col-span-3">
+                  <dt className="font-semibold text-stone-950">Genre Contract</dt>
+                  <dd className="text-stone-700">
+                    {canonicalDoc.titleBlock.genreExpectationContract.contractSummary}
+                    <span className="ml-2 text-stone-500">
+                      ({canonicalDoc.titleBlock.genreExpectationContract.expectationProfiles.join(', ')})
+                    </span>
+                  </dd>
+                </div>
+              )}
               <div><dt className="font-semibold text-stone-950">Submitted Word Count</dt><dd className="text-stone-700">{canonicalDoc?.titleBlock.submittedWordCount ?? (typeof displayWordCount === 'number' ? displayWordCount.toLocaleString() : 'Calculating')}</dd></div>
               <div><dt className="font-semibold text-stone-950">Estimated Manuscript Pages</dt><dd className="text-stone-700">{canonicalDoc?.titleBlock.estimatedPages ?? (estimatedPages ? `${estimatedPages.toLocaleString()} at 250 words/page` : 'Not available')}</dd></div>
               <div><dt className="font-semibold text-stone-950">Reading Grade Level</dt><dd className="text-stone-700">{canonicalDoc?.titleBlock.readingGradeLevel ?? ((artifact?.enrichment?.reading_grade_level ?? instantReadingGrade) != null ? `${Math.floor(Number(artifact?.enrichment?.reading_grade_level ?? instantReadingGrade))} (Flesch-Kincaid)` : 'Not available')}</dd></div>

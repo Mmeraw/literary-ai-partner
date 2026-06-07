@@ -43,9 +43,13 @@ describe("processEvaluationJob phase routing guard", () => {
       created_at: new Date().toISOString(),
     };
 
-    const updateMock = jest.fn(() => ({
-      eq: () => ({ error: null }),
-    }));
+    const updateMock = jest.fn(() => {
+      const query: any = {
+        eq: () => query,
+        then: (resolve: (value: { error: null }) => unknown) => Promise.resolve(resolve({ error: null })),
+      };
+      return query;
+    });
 
     const supabaseStub = {
       from(table: string) {
@@ -121,9 +125,13 @@ describe("processEvaluationJob phase routing guard", () => {
                 single: async () => ({ data: queuedPhase1aJob, error: null }),
               }),
             }),
-            update: () => ({
-              eq: () => ({ error: null }),
-            }),
+            update: () => {
+              const query: any = {
+                eq: () => query,
+                then: (resolve: (value: { error: null }) => unknown) => Promise.resolve(resolve({ error: null })),
+              };
+              return query;
+            },
           };
         }
 

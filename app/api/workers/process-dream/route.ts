@@ -46,6 +46,7 @@ import {
 import { persistFinalExternalAudit } from '@/lib/evaluation/pipeline/finalExternalAudit';
 import { checkJobCancellation } from '@/lib/jobs/cancellationCheck';
 import type { ManuscriptChunkEvidence } from '@/lib/evaluation/pipeline/types';
+import { extractGenreExpectationMetadataFromEvaluationPayload } from '@/lib/evaluation/genreExpectationProfiles';
 
 // Force Node.js runtime (required for crypto module)
 export const runtime = 'nodejs';
@@ -645,6 +646,7 @@ async function processDreamJob(
 
   // 5. Run Pass 3b — DREAM synthesis
   // openaiApiKey already resolved and validated by preflight (Check 4 + Check 5 ping).
+  const genreExpectationContext = extractGenreExpectationMetadataFromEvaluationPayload(artifactContent);
   const longformDoc = await runPass3bLongform({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     criteria: normalizedCriteria as any,
@@ -660,6 +662,7 @@ async function processDreamJob(
     authorCorrectionsBlock,
     chapterIndex,
     jobId,
+    genreExpectationContext,
   });
 
   console.log(`[DreamWorker] ${jobId}: DREAM synthesis complete — persisting artifact`);
@@ -672,7 +675,7 @@ async function processDreamJob(
     jobId,
     userId,
     manuscriptText: `chunks:${manuscriptChunks.length}`,
-    promptVersion: `longform_document_v1:${longformDoc.prompt_version}`,
+    promptVersion: `longform_document_v1:${longformDoc.prompt_version}:genre=${genreExpectationContext?.genre_expectation_ids.join(',') ?? 'none'}`,
     model: longformDoc.model,
   });
 

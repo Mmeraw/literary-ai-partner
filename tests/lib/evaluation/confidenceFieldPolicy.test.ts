@@ -3,6 +3,7 @@ import path from "path";
 import {
   getConfidenceDisplayMode,
   deriveGenreConfidence,
+  deriveShelfConfidence,
   deriveMarketReadinessConfidence,
   deriveOverallScoreConfidence,
   getAudienceConfidence,
@@ -60,8 +61,9 @@ describe("CONFIDENCE_FIELD_POLICY map", () => {
     expect(criteriaFields).toHaveLength(13);
   });
 
-  test("genre, market_readiness, overall_score are 'inline_quiet'", () => {
+  test("genre, shelf, market_readiness, overall_score are 'inline_quiet'", () => {
     expect(CONFIDENCE_FIELD_POLICY.genre).toBe("inline_quiet");
+    expect(CONFIDENCE_FIELD_POLICY.shelf).toBe("inline_quiet");
     expect(CONFIDENCE_FIELD_POLICY.market_readiness).toBe("inline_quiet");
     expect(CONFIDENCE_FIELD_POLICY.overall_score).toBe("inline_quiet");
   });
@@ -128,6 +130,22 @@ describe("deriveGenreConfidence — word-count based, not governance", () => {
     // If someone adds a second param by mistake, the type system and this test both catch it.
     const fn = deriveGenreConfidence as (wc: number | null | undefined) => unknown;
     expect(fn.length).toBe(1);
+  });
+});
+
+// ── Shelf confidence ─────────────────────────────────────────────────────────
+
+describe("deriveShelfConfidence — shelf presence + word-count based", () => {
+  test("missing shelf evidence is Insufficient Evidence", () => {
+    expect(deriveShelfConfidence({ wordCount: 100000, hasShelf: false })).toBe("Insufficient Evidence");
+  });
+
+  test("present shelf follows genre-scale confidence", () => {
+    expect(deriveShelfConfidence({ wordCount: 999, hasShelf: true })).toBe("Insufficient Evidence");
+    expect(deriveShelfConfidence({ wordCount: 3000, hasShelf: true })).toBe("Low Confidence");
+    expect(deriveShelfConfidence({ wordCount: 10000, hasShelf: true })).toBe("Moderate Confidence");
+    expect(deriveShelfConfidence({ wordCount: 30000, hasShelf: true })).toBe("High Confidence");
+    expect(deriveShelfConfidence({ wordCount: 100000, hasShelf: true })).toBe("Very High Confidence");
   });
 });
 

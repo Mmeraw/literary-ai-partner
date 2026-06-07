@@ -45,6 +45,7 @@ import type {
 } from "./types";
 import type { SubmissionScopeProfile } from "./submissionScope";
 import { CRITERIA_METADATA } from "@/schemas/criteria-keys";
+import type { GenreExpectationMetadata } from "@/lib/evaluation/genreExpectationProfiles";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -194,6 +195,8 @@ export interface LongformDreamDocument {
   prompt_version: string;
   generated_at: string;
   model: string;
+  /** Server-stamped genre expectation contract consumed by Pass 3B. */
+  genre_expectation_context?: GenreExpectationMetadata;
 }
 
 export interface RunPass3bOptions {
@@ -216,6 +219,8 @@ export interface RunPass3bOptions {
   chapterIndex?: string | null;
   /** Job ID for cost tracking */
   jobId?: string;
+  /** Canon-backed genre expectation context from EvaluationResultV2 governance transparency. */
+  genreExpectationContext?: GenreExpectationMetadata | null;
 }
 
 export type TruthfulFallbackReport = {
@@ -573,6 +578,19 @@ function isChunkedEnabled(): boolean {
   return process.env.EVAL_PASS3B_CHUNKED === 'true';
 }
 
+function formatGenreExpectationContractForPass3b(context?: GenreExpectationMetadata | null): string {
+  if (!context) return "";
+  return `GENRE EXPECTATION CONTRACT (canon-backed; do not override with generic commercial assumptions)
+- Diagnosed genre: ${context.diagnosed_genre}
+- Shelf/target audience: ${context.shelf_target_audience}
+- Dominant craft engine: ${context.dominant_craft_engine}
+- Expectation profiles: ${context.expectation_profiles.join(", ")}
+- Genre expectation labels: ${context.genre_expectation_labels.join(", ")}
+- Genre expectation IDs: ${context.genre_expectation_ids.join(", ")}
+Apply these requirements when interpreting pacing, dialogue density, atmosphere, reflection, worldbuilding, and recommendation risk. If a genre-protected behavior appears functional, protect it; critique it only when manuscript evidence shows malfunction.
+`;
+}
+
 function buildCriterionBatchPrompt(params: {
   title: string;
   wordCount: number;
@@ -580,6 +598,7 @@ function buildCriterionBatchPrompt(params: {
   criteria: SynthesizedCriterion[];
   chunkSample: ManuscriptChunkEvidence[];
   chapterIndex?: string | null;
+  genreExpectationContext?: GenreExpectationMetadata | null;
 }): string {
   const scoreSummary = params.criteria.map((c) => {
     const label = CRITERIA_METADATA[c.key as keyof typeof CRITERIA_METADATA]?.label ?? c.key;
@@ -616,11 +635,13 @@ function buildCriterionBatchPrompt(params: {
   const chapterIndexBlock = params.chapterIndex
     ? `\nCHAPTER INDEX (use these real chapter numbers for location references):\n${params.chapterIndex}\n`
     : "";
+  const genreContractBlock = formatGenreExpectationContractForPass3b(params.genreExpectationContext);
 
   return `Generate criterion_analyses for the following criteria ONLY: ${criterionKeys}
 
 MANUSCRIPT: "${params.title}" (${params.wordCount.toLocaleString()} words, ${params.workType})
 ${chapterIndexBlock}
+${genreContractBlock}
 PASS 3 SCORES (do not re-score — expand with evidence):
 ${scoreSummary}
 
@@ -653,6 +674,7 @@ function buildSynthesisPrompt(params: {
   authorCorrectionsBlock?: string | null;
   criteria: SynthesizedCriterion[];
   chapterIndex?: string | null;
+  genreExpectationContext?: GenreExpectationMetadata | null;
 }): string {
   const scoreSummary = params.criteria.map((c) => {
     const label = CRITERIA_METADATA[c.key as keyof typeof CRITERIA_METADATA]?.label ?? c.key;
@@ -683,6 +705,7 @@ function buildSynthesisPrompt(params: {
   const chapterIndexSection = params.chapterIndex
     ? `\nCHAPTER INDEX (authoritative — use these real chapter numbers in arc_map and revision_plan)\n${params.chapterIndex}\n`
     : "";
+  const genreContractSection = formatGenreExpectationContractForPass3b(params.genreExpectationContext);
 
   return `Produce the DREAM long-form evaluation document (EXCLUDING criterion_analyses — those are pre-computed below).
 ${correctionsSection}
@@ -694,6 +717,7 @@ MANUSCRIPT FACTS
 - Evaluation mode: ${params.mode ?? "long_form_multi_layer_evaluation"}
 ${params.scopeProfile ? `- Scope: ${params.scopeProfile.inputScale} (${params.scopeProfile.chunkCount} chunks analyzed)` : ""}
 ${chapterIndexSection}
+${genreContractSection}
 
 SCORE GRID:
 ${scoreSummary}
@@ -755,6 +779,7 @@ async function runPass3bChunked(
       criteria: batch,
       chunkSample: opts.manuscriptChunks,
       chapterIndex: opts.chapterIndex,
+      genreExpectationContext: opts.genreExpectationContext,
     });
 
     const completion = await createCompletion({
@@ -812,6 +837,7 @@ async function runPass3bChunked(
     authorCorrectionsBlock: opts.authorCorrectionsBlock,
     criteria: opts.criteria,
     chapterIndex: opts.chapterIndex,
+    genreExpectationContext: opts.genreExpectationContext,
   });
 
   const synthesisCompletion = await createCompletion({
@@ -898,6 +924,9 @@ export async function runPass3bLongform(
     sanitizedDocument.prompt_version = PASS3B_PROMPT_VERSION + ':chunked';
     sanitizedDocument.generated_at = new Date().toISOString();
     sanitizedDocument.model = selectedModel;
+    if (opts.genreExpectationContext) {
+      sanitizedDocument.genre_expectation_context = opts.genreExpectationContext;
+    }
     console.log(`[Pass3b:chunked] complete title="${opts.title}" integrity_issues=${sanitizedDocument.manuscript_integrity_issues.length} revision_priorities=${sanitizedDocument.revision_plan.length}`);
     return sanitizedDocument;
   }
@@ -915,6 +944,7 @@ export async function runPass3bLongform(
     scopeProfile: opts.scopeProfile,
     authorCorrectionsBlock: opts.authorCorrectionsBlock,
     chapterIndex: opts.chapterIndex,
+    genreExpectationContext: opts.genreExpectationContext,
   });
 
   console.log(`[Pass3b] request model=${selectedModel} max_tokens=${maxTokens} title="${opts.title}" words=${opts.wordCount} chunks=${opts.manuscriptChunks.length}`);
@@ -1018,6 +1048,9 @@ export async function runPass3bLongform(
   sanitizedDocument.prompt_version = PASS3B_PROMPT_VERSION;
   sanitizedDocument.generated_at = new Date().toISOString();
   sanitizedDocument.model = selectedModel;
+  if (opts.genreExpectationContext) {
+    sanitizedDocument.genre_expectation_context = opts.genreExpectationContext;
+  }
 
   console.log(`[Pass3b] complete title="${opts.title}" integrity_issues=${sanitizedDocument.manuscript_integrity_issues.length} revision_priorities=${sanitizedDocument.revision_plan.length}`);
 

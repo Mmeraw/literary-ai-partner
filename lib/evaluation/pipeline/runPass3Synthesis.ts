@@ -1507,6 +1507,14 @@ export function parsePass3Response(
   const extractedTargetAudience = typeof rawEnrichment["target_audience"] === "string" && rawEnrichment["target_audience"].trim()
     ? rawEnrichment["target_audience"].trim()
     : undefined;
+  const metadataExpectationContext = expectationContext
+    ? resolveExpectationProfiles({
+        workType: expectationContext.work_type,
+        diagnosedGenre: extractedDiagnosedGenre ?? expectationContext.diagnosed_genre,
+        shelfTargetAudience: extractedTargetAudience ?? expectationContext.shelf_target_audience,
+        dominantCraftEngine: expectationContext.dominant_craft_engine,
+      })
+    : null;
 
   return {
     criteria: sanitizedCriteria,
@@ -1522,8 +1530,8 @@ export function parsePass3Response(
       pass2_model: String(pass2.model),
       pass3_model: String(resolvedFallback),
       generated_at: new Date().toISOString(),
-      ...(expectationContext
-        ? { genre_expectation_context: genreExpectationContextForMetadata(expectationContext) }
+      ...(metadataExpectationContext
+        ? { genre_expectation_context: genreExpectationContextForMetadata(metadataExpectationContext) }
         : {}),
     },
     partial_evaluation: false, // will be overridden by runPass3Synthesis with real value

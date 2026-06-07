@@ -28,6 +28,7 @@ import type { SynthesizedCriterion, ManuscriptChunkEvidence, Pass2aStructuredCon
 import { CRITERIA_METADATA } from "@/schemas/criteria-keys";
 import type { CriterionKey } from "@/schemas/criteria-keys";
 import { buildCompactTemplateBlock, resolveTemplateKey } from "@/lib/evaluation/dreamTemplateLoader";
+import type { GenreExpectationMetadata } from "@/lib/evaluation/genreExpectationProfiles";
 
 export const PASS3B_PROMPT_VERSION = "pass3b-longform-v4-quality-calibration";
 
@@ -285,6 +286,8 @@ export function buildPass3bUserPrompt(params: {
   authorCorrectionsBlock?: string | null;
   /** Formatted chapter-to-chunk index string from buildChapterIndex + formatChapterIndex. */
   chapterIndex?: string | null;
+  /** Canon-backed genre expectation contract from EvaluationResultV2 transparency metadata. */
+  genreExpectationContext?: GenreExpectationMetadata | null;
 }): string {
   // Build the score grid summary so Pass 3b has all 13 scores in compact form
   const scoreSummary = params.criteria.map((c) => {
@@ -352,6 +355,10 @@ export function buildPass3bUserPrompt(params: {
     ? `\nCHAPTER INDEX (authoritative — use these real chapter numbers in arc_map and revision_plan)\n${params.chapterIndex}\n`
     : "";
 
+  const genreExpectationSection = params.genreExpectationContext
+    ? `\nGENRE EXPECTATION CONTRACT (canon-backed; do not override with generic commercial assumptions)\n- Diagnosed genre: ${params.genreExpectationContext.diagnosed_genre}\n- Shelf/target audience: ${params.genreExpectationContext.shelf_target_audience}\n- Dominant craft engine: ${params.genreExpectationContext.dominant_craft_engine}\n- Expectation profiles: ${params.genreExpectationContext.expectation_profiles.join(", ")}\n- Genre expectation labels: ${params.genreExpectationContext.genre_expectation_labels.join(", ")}\n- Genre expectation IDs: ${params.genreExpectationContext.genre_expectation_ids.join(", ")}\nApply these requirements when interpreting pacing, dialogue density, atmosphere, reflection, worldbuilding, and recommendation risk. If a genre-protected behavior appears functional, protect it; critique it only when manuscript evidence shows malfunction.\n`
+    : "";
+
   const templateKey = resolveTemplateKey(params.wordCount, params.mode?.includes('multi_layer'));
   const dreamTemplateBlock = buildCompactTemplateBlock(templateKey);
 
@@ -370,6 +377,7 @@ MANUSCRIPT FACTS
 - Evaluation mode: ${params.mode ?? "long_form_multi_layer_evaluation"}
 ${params.scopeProfile ? `- Scope: ${params.scopeProfile.inputScale} (${params.scopeProfile.chunkCount} chunks analyzed)` : ""}
 ${chapterIndexSection}
+${genreExpectationSection}
 PASS 3 SCORE GRID (do not re-score — expand with evidence)
 ${scoreSummary}
 

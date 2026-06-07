@@ -1,5 +1,7 @@
 import { buildShortFormEvaluationDocument, type ShortFormResultLike } from '@/lib/evaluation/shortFormReportDocument';
 import type { LongformDreamDocument } from '@/lib/evaluation/pipeline/runPass3bLongform';
+import { getReportHeaderContract } from '@/lib/evaluation/reportHeaderPolicy';
+import { deriveShelfConfidence, type CanonicalConfidenceLabel } from '@/lib/evaluation/confidenceFieldPolicy';
 
 export type CanonicalEvaluationMode =
   | 'short_form_evaluation'
@@ -11,6 +13,7 @@ export type UnifiedEvaluationDocument = Omit<ReturnType<typeof buildShortFormEva
   titleBlock: ReturnType<typeof buildShortFormEvaluationDocument>['titleBlock'] & {
     targetAudience: string;
     shelf: string | null;
+    shelfConfidenceLabel: CanonicalConfidenceLabel | null;
   };
   modeSpecific: {
     manuscriptScaleContinuityFindings: string[];
@@ -99,6 +102,12 @@ export function buildUnifiedEvaluationDocument(input: {
       : typeof input.dream?.market_shelf?.best_shelf === 'string' && input.dream.market_shelf.best_shelf.trim().length > 0
       ? input.dream.market_shelf.best_shelf.trim()
       : 'Not available';
+  const shelfConfidenceLabel = input.mode === 'short_form_evaluation'
+    ? null
+    : deriveShelfConfidence({
+        wordCount: input.result.metrics?.manuscript?.word_count,
+        hasShelf: shelf !== null && shelf !== 'Not available',
+      });
   const targetAudience = deriveTargetAudience({
     explicit: input.result.metrics?.manuscript?.target_audience,
     genre: input.result.metrics?.manuscript?.genre,
@@ -170,6 +179,8 @@ export function buildUnifiedEvaluationDocument(input: {
       ...base.titleBlock,
       targetAudience,
       shelf,
+      shelfConfidenceLabel,
+      headerContract: getReportHeaderContract(input.mode),
     },
     modeSpecific: {
       manuscriptScaleContinuityFindings,

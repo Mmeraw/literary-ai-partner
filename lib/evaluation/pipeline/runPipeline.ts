@@ -1624,7 +1624,7 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
         title: opts.title,
         workType: opts.workType,
         diagnosedGenre: opts.workType,
-        shelfTargetAudience: opts.title,
+        shelfTargetAudience: opts.workType,
         jobId: opts.jobId,
         executionMode: opts.executionMode,
         model: opts.model,

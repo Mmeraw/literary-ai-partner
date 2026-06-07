@@ -39,6 +39,7 @@ import {
   getConfidenceExportPaletteClass as confidencePaletteClass,
   getConfidenceExportPaletteColor as confidencePaletteColor,
 } from '@/lib/evaluation/confidenceFieldPolicy';
+import { isGenreExpectationMetadata } from '@/lib/evaluation/genreExpectationProfiles';
 import {
   Document, Packer, Paragraph, TextRun, HeadingLevel,
   Table, TableRow, TableCell, WidthType, BorderStyle,
@@ -168,6 +169,11 @@ type ExportableResultShape = {
   recommendations?: {
     quick_wins?: unknown;
     strategic_revisions?: unknown;
+  };
+  governance?: {
+    transparency?: {
+      genre_expectation_context?: unknown;
+    };
   };
 };
 
@@ -969,6 +975,7 @@ function buildCanonicalTemplateDocument(
   dream: LongformDreamDocument | null,
 ): UnifiedEvaluationDocument {
   const displayTitle = title?.trim() || result.metrics?.manuscript?.title?.trim() || 'Untitled Manuscript';
+  const genreExpectationContext = (result as ExportableResultShape).governance?.transparency?.genre_expectation_context;
 
   return buildUnifiedEvaluationDocument({
     mode,
@@ -996,6 +1003,9 @@ function buildCanonicalTemplateDocument(
         dialogue_percentage: enrichment?.dialogue_percentage,
         narrative_percentage: enrichment?.narrative_percentage,
       },
+      governance: isGenreExpectationMetadata(genreExpectationContext)
+        ? { transparency: { genre_expectation_context: genreExpectationContext } }
+        : undefined,
       criteria: result.criteria,
       recommendations: result.recommendations,
     },
@@ -1016,9 +1026,16 @@ function buildCanonicalTemplateTxt(doc: UnifiedEvaluationDocument): string {
   lines.push(`Report Type: ${doc.titleBlock.reportType}`);
   const genreConf = doc.titleBlock.genreConfidenceLabel ? ` (${doc.titleBlock.genreConfidenceLabel})` : '';
   lines.push(`Genre: ${doc.titleBlock.genre}${genreConf}`);
+  if (doc.titleBlock.genreExpectationContract) {
+    lines.push(`Genre Contract: ${doc.titleBlock.genreExpectationContract.contractSummary}`);
+    lines.push(`Genre Expectation Profiles: ${doc.titleBlock.genreExpectationContract.expectationProfiles.join(', ')}`);
+  }
   const audiencePrefix = doc.titleBlock.audienceTentative ? 'Tentative: ' : '';
   lines.push(`Target Audience: ${audiencePrefix}${doc.titleBlock.targetAudience} (${doc.titleBlock.audienceConfidenceLabel})`);
-  if (doc.titleBlock.shelf) lines.push(`Shelf: ${doc.titleBlock.shelf}`);
+  if (doc.titleBlock.shelf) {
+    const shelfConf = doc.titleBlock.shelfConfidenceLabel ? ` (${doc.titleBlock.shelfConfidenceLabel})` : '';
+    lines.push(`Shelf: ${doc.titleBlock.shelf}${shelfConf}`);
+  }
   lines.push(`Submitted Word Count: ${doc.titleBlock.submittedWordCount}`);
   lines.push(`Estimated Manuscript Pages: ${doc.titleBlock.estimatedPages}`);
   lines.push(`Reading Grade Level: ${doc.titleBlock.readingGradeLevel}`);
@@ -1231,8 +1248,9 @@ function renderCanonicalTemplateHtml(doc: UnifiedEvaluationDocument): string {
         <div class="metric"><strong>Overall Score</strong><div class="overall-value ${scorePaletteClassFromLabel(doc.titleBlock.overallScoreLabel)}">${escapeHtml(doc.titleBlock.overallScoreLabel)}${doc.titleBlock.overallScoreConfidenceLabel ? ` <span class="confidence-pill ${confidencePaletteClass(doc.titleBlock.overallScoreConfidenceLabel)}">${escapeHtml(doc.titleBlock.overallScoreConfidenceLabel)}</span>` : ''}</div></div>
         <div class="metric"><strong>Market Readiness</strong><div class="readiness-value ${readinessPaletteClass(doc.titleBlock.marketReadiness)}">${escapeHtml(doc.titleBlock.marketReadiness)}${doc.titleBlock.marketReadinessConfidenceLabel ? ` <span class="confidence-pill ${confidencePaletteClass(doc.titleBlock.marketReadinessConfidenceLabel)}">${escapeHtml(doc.titleBlock.marketReadinessConfidenceLabel)}</span>` : ''}</div></div>
         <div class="metric"><strong>Genre</strong><div>${escapeHtml(doc.titleBlock.genre)}${doc.titleBlock.genreConfidenceLabel ? ` <span class="confidence-pill ${confidencePaletteClass(doc.titleBlock.genreConfidenceLabel)}">${escapeHtml(doc.titleBlock.genreConfidenceLabel)}</span>` : ''}</div></div>
+        ${doc.titleBlock.genreExpectationContract ? `<div class="metric"><strong>Genre Contract</strong><div>${escapeHtml(doc.titleBlock.genreExpectationContract.contractSummary)}<br /><small>${escapeHtml(doc.titleBlock.genreExpectationContract.expectationProfiles.join(', '))}</small></div></div>` : ''}
         <div class="metric"><strong>Target Audience</strong><div>${doc.titleBlock.audienceTentative ? '<em>Tentative: </em>' : ''}${escapeHtml(doc.titleBlock.targetAudience)} <span class="confidence-pill ${confidencePaletteClass(doc.titleBlock.audienceConfidenceLabel)}">${escapeHtml(doc.titleBlock.audienceConfidenceLabel)}</span></div></div>
-        ${doc.titleBlock.shelf ? `<div class="metric"><strong>Shelf</strong><div>${escapeHtml(doc.titleBlock.shelf)}</div></div>` : ''}
+        ${doc.titleBlock.shelf ? `<div class="metric"><strong>Shelf</strong><div>${escapeHtml(doc.titleBlock.shelf)}${doc.titleBlock.shelfConfidenceLabel ? ` <span class="confidence-pill ${confidencePaletteClass(doc.titleBlock.shelfConfidenceLabel)}">${escapeHtml(doc.titleBlock.shelfConfidenceLabel)}</span>` : ''}</div></div>` : ''}
         <div class="metric"><strong>Word Count</strong><div>${escapeHtml(doc.titleBlock.submittedWordCount)}</div></div>
         <div class="metric"><strong>Estimated Pages</strong><div>${escapeHtml(doc.titleBlock.estimatedPages)}</div></div>
         <div class="metric"><strong>Reading Grade Level</strong><div>${escapeHtml(doc.titleBlock.readingGradeLevel)}</div></div>
@@ -1316,6 +1334,7 @@ async function buildCanonicalTemplateDocx(doc: UnifiedEvaluationDocument): Promi
         ...(doc.titleBlock.genreConfidenceLabel ? [new TextRun({ text: `  ${doc.titleBlock.genreConfidenceLabel}`, size: 20, color: docxHex(confidencePaletteColor(doc.titleBlock.genreConfidenceLabel)) })] : []),
       ],
     }),
+    ...(doc.titleBlock.genreExpectationContract ? [para(`Genre Contract: ${doc.titleBlock.genreExpectationContract.contractSummary} (${doc.titleBlock.genreExpectationContract.expectationProfiles.join(', ')})`)] : []),
     new Paragraph({
       spacing: { after: 90 },
       children: [
@@ -1325,7 +1344,14 @@ async function buildCanonicalTemplateDocx(doc: UnifiedEvaluationDocument): Promi
         new TextRun({ text: `  ${doc.titleBlock.audienceConfidenceLabel}`, size: 20, color: docxHex(confidencePaletteColor(doc.titleBlock.audienceConfidenceLabel)) }),
       ],
     }),
-    ...(doc.titleBlock.shelf ? [para(`Shelf: ${doc.titleBlock.shelf}`)] : []),
+    ...(doc.titleBlock.shelf ? [new Paragraph({
+      spacing: { after: 90 },
+      children: [
+        new TextRun({ text: 'Shelf: ', size: 22, color: docxHex(RG.textPrimary) }),
+        new TextRun({ text: doc.titleBlock.shelf, size: 22, color: docxHex(RG.textPrimary) }),
+        ...(doc.titleBlock.shelfConfidenceLabel ? [new TextRun({ text: `  ${doc.titleBlock.shelfConfidenceLabel}`, size: 20, color: docxHex(confidencePaletteColor(doc.titleBlock.shelfConfidenceLabel)) })] : []),
+      ],
+    })] : []),
     para(`Word Count: ${doc.titleBlock.submittedWordCount}`),
     para(`Estimated Pages: ${doc.titleBlock.estimatedPages}`),
     para(`Reading Grade Level: ${doc.titleBlock.readingGradeLevel}`),
