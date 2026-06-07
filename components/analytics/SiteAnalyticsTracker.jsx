@@ -91,8 +91,14 @@ export default function SiteAnalyticsTracker() {
 
   useEffect(() => {
     const handler = (event) => {
-      const inferred = clickEventFromElement(event.target);
-      if (inferred) track(inferred.eventName, inferred);
+      // Capture target synchronously (the element may be gone after the timeout),
+      // then yield to the browser before doing any analytics work so the click
+      // interaction can paint without being blocked by DOM traversal + fetch.
+      const target = event.target;
+      window.setTimeout(() => {
+        const inferred = clickEventFromElement(target);
+        if (inferred) track(inferred.eventName, inferred);
+      }, 0);
     };
     document.addEventListener("click", handler, true);
     return () => document.removeEventListener("click", handler, true);

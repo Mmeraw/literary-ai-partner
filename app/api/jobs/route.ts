@@ -14,7 +14,6 @@ import { getAuthenticatedUser } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { backpressureGuard } from "@/lib/jobs/backpressure";
 import { isTriggerWorkerFailure, triggerEvaluationWorker } from "@/lib/jobs/triggerWorker";
-import { failEvaluationJobTerminally } from "@/lib/jobs/failJobTerminal";
 import { resolveManuscriptTitle } from "@/lib/manuscripts/title";
 import { computeEnrichment, type EnrichmentResult } from "@/lib/evaluation/enrichment";
 import { routeNarrativeEvaluationPreflight } from "@/lib/evaluation/preflight/manuscriptTypeRouting";
@@ -763,51 +762,55 @@ export async function POST(req: Request) {
         phase0_fast_track: shouldFastTrackPhase0,
       },
     });
-    const kickoffResult = await triggerEvaluationWorker({
+    // Do not block the user-facing job creation response on worker kickoff.
+    // The evaluation page/poller can show queued/running state while the worker claims the job.
+    void triggerEvaluationWorker({
       req,
       jobId: job.id,
       trace_id,
       request_id,
       source: "api.jobs.create",
       kickoffDispatchStartedAt,
-    });
+    }).then((kickoffResult) => {
+      const targetClaimFailed = kickoffResult.ok && kickoffResult.targetClaimed === false;
+      const noJobsClaimed = kickoffResult.ok && kickoffResult.claimed !== null && kickoffResult.claimed < 1;
 
-    const targetClaimFailed = kickoffResult.ok && kickoffResult.targetClaimed === false;
-    const noJobsClaimed = kickoffResult.ok && kickoffResult.claimed !== null && kickoffResult.claimed < 1;
-    if (!kickoffResult.ok || targetClaimFailed || noJobsClaimed) {
-      const reason = isTriggerWorkerFailure(kickoffResult)
-        ? (kickoffResult.error ?? kickoffResult.reason)
-        : targetClaimFailed
-          ? "worker_did_not_claim_created_job"
-          : "worker_returned_zero_claims";
+      if (!kickoffResult.ok || targetClaimFailed || noJobsClaimed) {
+        const reason = isTriggerWorkerFailure(kickoffResult)
+          ? (kickoffResult.error ?? kickoffResult.reason)
+          : targetClaimFailed
+            ? "worker_did_not_claim_created_job"
+            : "worker_returned_zero_claims";
 
-      logger.error("Worker kickoff failed closed after job creation", {
+        logger.error("Worker kickoff failed after job creation", {
+          trace_id,
+          request_id,
+          event: "api.jobs.create.worker_kickoff_failed_async",
+          job_id: job.id,
+          reason,
+          worker_body: kickoffResult.ok ? kickoffResult.body : kickoffResult.body,
+        });
+
+        return;
+      }
+
+      logger.info("Worker kickoff accepted job asynchronously", {
         trace_id,
         request_id,
-        event: "api.jobs.create.worker_kickoff_failed_closed",
+        event: "api.jobs.create.worker_kickoff_async_ok",
         job_id: job.id,
-        reason,
-        worker_body: kickoffResult.ok ? kickoffResult.body : kickoffResult.body,
+      });
+    }).catch((error) => {
+      logger.error("Worker kickoff threw after job creation", {
+        trace_id,
+        request_id,
+        event: "api.jobs.create.worker_kickoff_async_exception",
+        job_id: job.id,
+        error: error instanceof Error ? error.message : String(error),
       });
 
-      await failEvaluationJobTerminally({
-        supabase: createAdminClient(),
-        jobId: job.id,
-        failureCode: "WORKER_KICKOFF_FAILED",
-        message: `Evaluation worker did not accept the job: ${reason}`,
-        source: "api.jobs.worker_kickoff_guard",
-      });
-
-      return NextResponse.json(
-        {
-          ok: false,
-          error: "Evaluation worker is temporarily unavailable. Please try again shortly.",
-          code: "WORKER_KICKOFF_FAILED",
-          trace_id,
-        },
-        { status: 503 },
-      );
-    }
+      return;
+    });
 
     logger.info("Job created successfully", {
       trace_id,
