@@ -217,9 +217,9 @@ export default function AuthorFaqPage() {
       </section>
 
       <section className="border-y border-rg-cream2/10 bg-rg-ink2/50">
-        <div className="mx-auto max-w-7xl px-6 py-12">
+        <div className="mx-auto max-w-7xl px-6 py-8">
           <Eyebrow>Quick path</Eyebrow>
-          <div className="mt-6 flex flex-wrap gap-3">
+          <div className="mt-5 flex flex-wrap gap-3">
             {quickLinks.map(([label, href]) => (
               <Link key={href} href={href} className="border border-rg-cream2/15 bg-rg-ink/70 px-4 py-3 font-rg-mono text-xs uppercase tracking-[0.16em] text-rg-cream2 transition hover:border-rg-gold hover:text-rg-gold">
                 {label}
@@ -230,10 +230,10 @@ export default function AuthorFaqPage() {
       </section>
 
       {faqSections.map((section, sectionIndex) => (
-        <section key={section.label} className={sectionIndex % 2 === 0 ? "mx-auto max-w-7xl px-6 py-20" : "border-y border-rg-cream2/10 bg-rg-ink2/50"}>
-          <div className={sectionIndex % 2 === 0 ? "" : "mx-auto max-w-7xl px-6 py-20"}>
+        <section key={section.label} className={sectionIndex % 2 === 0 ? "mx-auto max-w-7xl px-6 py-12" : "border-y border-rg-cream2/10 bg-rg-ink2/50"}>
+          <div className={sectionIndex % 2 === 0 ? "" : "mx-auto max-w-7xl px-6 py-12"}>
             <Eyebrow>{section.label}</Eyebrow>
-            <div className="mt-10 grid gap-4 md:grid-cols-2">
+            <div className="mt-6 grid gap-4 md:grid-cols-2">
               {section.items.map((item) => (
                 <article key={item.q} className="border border-rg-cream2/12 bg-rg-ink/70 p-6">
                   <h2 className="font-rg-serif text-2xl text-rg-cream">{item.q}</h2>
@@ -245,7 +245,7 @@ export default function AuthorFaqPage() {
         </section>
       ))}
 
-      <section className="mx-auto max-w-5xl px-6 py-20 text-center">
+      <section className="mx-auto max-w-5xl px-6 py-12 text-center">
         <Eyebrow>Next step</Eyebrow>
         <h2 className="mt-5 font-rg-serif text-4xl leading-tight md:text-5xl">
           The best answer is still the manuscript evidence.
@@ -253,7 +253,7 @@ export default function AuthorFaqPage() {
         <p className="mx-auto mt-5 max-w-2xl leading-8 text-rg-cream2/75">
           Read the methodology for the evaluation model, or begin an evaluation when you are ready to see where the manuscript stands.
         </p>
-        <div className="mt-10 flex flex-wrap justify-center gap-4 font-rg-mono text-xs uppercase tracking-[0.18em]">
+        <div className="mt-8 flex flex-wrap justify-center gap-4 font-rg-mono text-xs uppercase tracking-[0.18em]">
           <Link href="/methodology" className="border border-rg-cream2/30 px-5 py-3 text-rg-cream transition hover:border-rg-gold hover:text-rg-gold">Read Methodology</Link>
           <Link href="/evaluate" className="border border-rg-gold bg-rg-gold px-5 py-3 text-rg-ink transition hover:bg-transparent hover:text-rg-gold">Begin Evaluation</Link>
         </div>
