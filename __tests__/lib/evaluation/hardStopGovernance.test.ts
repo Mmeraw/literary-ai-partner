@@ -5,6 +5,7 @@ import {
   classifySplitBrain,
   decideSplitBrainRecovery,
   isGlobalSlaExceeded,
+  isMaxAgeKillSwitchExpired,
   isPostPhase0HandoffLimbo,
   partitionMaxAgeKillSwitchCandidates,
   isSplitBrainState,
@@ -267,6 +268,53 @@ describe('hardStopGovernance', () => {
     ).toBe(false);
   });
 
+  test('does not hard-stop short-form evaluations at seven minutes', () => {
+    const createdAt = '2026-06-07T00:56:18.322Z';
+    const nowMs = Date.parse('2026-06-07T01:03:18.322Z');
+
+    expect(
+      isGlobalSlaExceeded(
+        {
+          id: 'job-short-form-4899',
+          status: 'queued',
+          phase: 'phase_3',
+          phase_status: 'queued',
+          created_at: createdAt,
+          manuscript_word_count: 4899,
+          progress: {},
+        },
+        { nowMs, shortFormSlaMs: 15 * 60_000, longFormSlaMs: 60 * 60_000 },
+      ),
+    ).toBe(false);
+  });
+
+  test('global SLA hard-stop reason is author-safe and keeps raw timestamps internal', () => {
+    const decision = classifyQueuedHardStop(
+      {
+        id: 'job-sla-safe-message',
+        status: 'queued',
+        phase: 'phase_3',
+        phase_status: 'queued',
+        created_at: '2026-06-07T00:56:18.322Z',
+        updated_at: '2026-06-07T01:12:00.000Z',
+        manuscript_word_count: 4899,
+        progress: {},
+      },
+      {
+        nowMs: Date.parse('2026-06-07T01:12:00.000Z'),
+        graceMs: 90_000,
+        shortFormSlaMs: 15 * 60_000,
+        longFormSlaMs: 60 * 60_000,
+        hasSeedArtifacts: true,
+      },
+    );
+
+    expect(decision?.code).toBe('PIPELINE_GLOBAL_SLA_EXCEEDED');
+    expect(decision?.reason).toBe('Evaluation delayed — recovery is in progress. Your manuscript and completed analysis have been preserved.');
+    expect(decision?.reason).not.toContain('created_at=');
+    expect(decision?.internalReason).toContain('created_at=2026-06-07T00:56:18.322Z');
+  });
+
   test('partitions max-age kill-switch rows into legal transition buckets', () => {
     const partition = partitionMaxAgeKillSwitchCandidates([
       { id: 'run-1', status: 'running', phase_status: 'running' },
@@ -278,5 +326,41 @@ describe('hardStopGovernance', () => {
     expect(partition.runningIds).toEqual(['run-1']);
     expect(partition.queuedEligibleIds).toEqual(['q-ok']);
     expect(partition.queuedSkippedIds).toEqual(['q-await', 'q-null']);
+  });
+
+  test('max-age kill switch honors recent manual resume requests for old jobs', () => {
+    expect(
+      isMaxAgeKillSwitchExpired(
+        {
+          id: 'resumed-old-job',
+          status: 'queued',
+          phase_status: 'queued',
+          created_at: '2026-06-07T00:00:00.000Z',
+          progress: { resume_requested_at: '2026-06-07T02:59:00.000Z' },
+        },
+        {
+          nowMs: Date.parse('2026-06-07T03:00:00.000Z'),
+          maxAgeMs: 2 * 60 * 60 * 1000,
+        },
+      ),
+    ).toBe(false);
+  });
+
+  test('max-age kill switch expires after the recovery window ages out', () => {
+    expect(
+      isMaxAgeKillSwitchExpired(
+        {
+          id: 'stale-resumed-job',
+          status: 'queued',
+          phase_status: 'queued',
+          created_at: '2026-06-07T00:00:00.000Z',
+          progress: { retry_requested_at: '2026-06-07T01:00:00.000Z' },
+        },
+        {
+          nowMs: Date.parse('2026-06-07T03:00:00.001Z'),
+          maxAgeMs: 2 * 60 * 60 * 1000,
+        },
+      ),
+    ).toBe(true);
   });
 });

@@ -50,6 +50,9 @@ export interface MaxAgeKillSwitchCandidate {
   id: string;
   status: string;
   phase_status?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+  progress?: Record<string, unknown> | null;
 }
 
 export interface MaxAgeKillSwitchPartition {
@@ -256,6 +259,29 @@ function toIsoMs(value: string | null | undefined): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+export function resolveEffectiveRuntimeStartMs(job: Pick<QueueHardStopCandidate, 'created_at' | 'updated_at' | 'progress'>): number | null {
+  const progress = job.progress ?? {};
+  const resumeAt = typeof progress.resume_requested_at === 'string' ? progress.resume_requested_at : null;
+  const retryAt = typeof progress.retry_requested_at === 'string' ? progress.retry_requested_at : null;
+
+  const candidates = [
+    toIsoMs(job.created_at ?? job.updated_at),
+    toIsoMs(resumeAt),
+    toIsoMs(retryAt),
+  ].filter((ms): ms is number => ms !== null);
+
+  return candidates.length > 0 ? Math.max(...candidates) : null;
+}
+
+export function isMaxAgeKillSwitchExpired(job: MaxAgeKillSwitchCandidate, args: {
+  nowMs: number;
+  maxAgeMs: number;
+}): boolean {
+  const startMs = resolveEffectiveRuntimeStartMs(job);
+  if (startMs === null) return false;
+  return args.nowMs - startMs >= args.maxAgeMs;
+}
+
 export function isSplitBrainState(job: QueueHardStopCandidate): boolean {
   return classifySplitBrain(job) !== 'none';
 }
@@ -355,17 +381,7 @@ export function isGlobalSlaExceeded(job: QueueHardStopCandidate, args: {
   if (job.status === 'complete' || job.status === 'failed') return false;
   if (job.phase === 'review_gate' && job.phase_status === 'awaiting_approval') return false;
 
-  const progress = job.progress ?? {};
-  const resumeAt = typeof progress.resume_requested_at === 'string' ? progress.resume_requested_at : null;
-  const retryAt = typeof progress.retry_requested_at === 'string' ? progress.retry_requested_at : null;
-
-  const candidates = [
-    toIsoMs(job.created_at ?? job.updated_at),
-    toIsoMs(resumeAt),
-    toIsoMs(retryAt),
-  ].filter((ms): ms is number => ms !== null);
-
-  const slaStartMs = candidates.length > 0 ? Math.max(...candidates) : null;
+  const slaStartMs = resolveEffectiveRuntimeStartMs(job);
   if (slaStartMs === null) return false;
 
   const wordCount = Number.isFinite(job.manuscript_word_count as number)
@@ -421,7 +437,8 @@ export function classifyQueuedHardStop(job: QueueHardStopCandidate, args: {
   if (isGlobalSlaExceeded(job, args)) {
     return {
       code: 'PIPELINE_GLOBAL_SLA_EXCEEDED',
-      reason: `Global pipeline SLA exceeded for non-terminal job: created_at=${job.created_at ?? 'null'}.`,
+      reason: 'Evaluation delayed — recovery is in progress. Your manuscript and completed analysis have been preserved.',
+      internalReason: `Global pipeline SLA exceeded for non-terminal job: created_at=${job.created_at ?? 'null'}, updated_at=${job.updated_at ?? 'null'}.`,
     };
   }
 

@@ -240,13 +240,14 @@ export function JobStatusPoll({ jobId, initialJob, isLedgerAdmin = false }: JobS
             )}
         </div>
 
-        {/* GOVERNANCE: Show last_error verbatim if present */}
-        {job.last_error && (
+        {/* Author-facing safety: never show raw pipeline/database errors here. */}
+        {job.status === "failed" && (
           <div className="mt-3 rounded-md border border-red-200 bg-red-50 p-3">
-            <p className="text-sm font-medium text-red-900">Error</p>
-            <pre className="mt-1 whitespace-pre-wrap text-xs text-red-700">
-              {job.last_error}
-            </pre>
+            <p className="text-sm font-medium text-red-900">Evaluation needs attention</p>
+            <p className="mt-1 text-sm text-red-700">
+              {(job as unknown as { public_status_message?: string | null }).public_status_message
+                ?? "Evaluation delayed — recovery is in progress. Your manuscript and completed analysis have been preserved."}
+            </p>
           </div>
         )}
 

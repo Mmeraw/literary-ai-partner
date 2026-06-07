@@ -8,9 +8,25 @@ export {};
  */
 
 const createClientMock = jest.fn();
+const mockSendEvaluationFailureSupportAlert = jest.fn(async () => ({ attempted: true, sent: true }));
+const mockSendEvaluationMajorIssueUserAlert = jest.fn(async () => ({ attempted: true, sent: true }));
 
 jest.mock('@supabase/supabase-js', () => ({
   createClient: (...args: unknown[]) => createClientMock(...args),
+}));
+
+jest.mock('@/lib/evaluation/recoverySupportAlertMailer', () => ({
+  MAJOR_TECHNICAL_ISSUE_PUBLIC_MESSAGE:
+    'We hit a technical issue that needs engineering support. Our team has been alerted and is investigating. Your manuscript and completed analysis have been preserved; you do not need to retry. We will notify you by email when the problem has been fixed.',
+  sendEvaluationFailureSupportAlert: (...args: unknown[]) => mockSendEvaluationFailureSupportAlert(...args),
+  sendEvaluationMajorIssueUserAlert: (...args: unknown[]) => mockSendEvaluationMajorIssueUserAlert(...args),
+  sendRecoverySupportAlert: jest.fn(async () => ({ attempted: true, sent: true })),
+  shouldAlertSupportForRecoveryAction: jest.fn((action: string | null | undefined) => (
+    action === 'repair_to_expected_handoff'
+      || action === 'sync_progress_to_job_state'
+      || action === 'halt_for_engineering_review'
+  )),
+  toUserSafeRecoveryMessage: jest.fn((message: string | null | undefined) => message ?? 'safe recovery message'),
 }));
 
 // Mock crypto so randomUUID returns deterministic values in tests
@@ -832,6 +848,255 @@ describe('processEvaluationJob — started_at sanitization', () => {
 
     const runningPayload = updateMock.mock.calls[0]?.[0];
     expect(runningPayload?.started_at).not.toBe('1970-01-01T00:00:00.000Z');
+    const runningUpdateEq = updateMock.mock.results[0]?.value?.eq as jest.Mock;
+    expect(runningUpdateEq).toHaveBeenCalledWith('id', 'job-1');
+    expect(runningUpdateEq).toHaveBeenCalledWith('status', 'running');
+    expect(runningUpdateEq).toHaveBeenCalledWith('claimed_by', 'worker-abc');
+    expect(runningUpdateEq).toHaveBeenCalledWith('lease_token', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
+  });
+
+  test('treats terminal-state running update rejection as lease loss, not uncaught processor failure', async () => {
+    const createdAt = new Date().toISOString();
+    const jobRow = makeJob({
+      status: 'running',
+      phase: 'phase_3',
+      phase_status: 'running',
+      created_at: createdAt,
+      started_at: createdAt,
+      claimed_by: 'worker-abc',
+      lease_token: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+      lease_expires_at: new Date(Date.now() + 180_000).toISOString(),
+      progress: { phase: 'phase_3', phase_status: 'running' },
+    });
+
+    const updateMock = jest.fn().mockReturnValue({
+      error: {
+        message: 'CRITICAL_QUEUE_ERROR: Terminal phase_status failed can only be reset to queued by an explicit operator retry, not running.',
+      },
+      eq: jest.fn().mockReturnThis(),
+    });
+
+    createClientMock.mockReturnValue({
+      rpc: jest.fn().mockResolvedValue({ data: [], error: null }),
+      from: jest.fn().mockImplementation((table: string) => {
+        if (table === 'evaluation_jobs') {
+          return {
+            select: jest.fn().mockReturnValue({
+              eq: jest.fn().mockReturnThis(),
+              single: jest.fn().mockResolvedValue({ data: jobRow, error: null }),
+            }),
+            update: updateMock,
+          };
+        }
+
+        return {
+          select: jest.fn().mockReturnValue({
+            eq: jest.fn().mockReturnThis(),
+            single: jest.fn().mockResolvedValue({ data: null, error: { message: 'not found' } }),
+            order: jest.fn().mockReturnThis(),
+          }),
+          update: updateMock,
+        };
+      }),
+    } as any);
+
+    const { processEvaluationJob } = await import('../../../lib/evaluation/processor');
+    const result = await processEvaluationJob('job-1');
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('Processor lease ownership changed');
+    expect(result.error).not.toContain('PROCESSOR_UNCAUGHT_ERROR');
+  });
+});
+
+describe('selfRecoverRetryableFailedJobs', () => {
+  beforeEach(() => {
+    jest.resetModules();
+    jest.clearAllMocks();
+    process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://example.supabase.co';
+    process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-role-key';
+    process.env.OPENAI_API_KEY = 'sk-test';
+    process.env.EVAL_PASS_TIMEOUT_MS = '180000';
+    process.env.EVAL_OPENAI_TIMEOUT_MS = '180000';
+    process.env.EVAL_EXTERNAL_ADJUDICATION_MODE = 'optional';
+  });
+
+  function buildSelfRecoveryStub(
+    rows: Array<Record<string, unknown>>,
+    artifacts: Array<Record<string, unknown>> = [],
+  ) {
+    const updateMock = jest.fn(() => ({
+      eq: jest.fn().mockReturnThis(),
+      select: jest.fn().mockReturnThis(),
+      maybeSingle: jest.fn(async () => ({ data: { id: 'updated-row' }, error: null })),
+    }));
+
+    const jobsSelectChain = {
+      eq: jest.fn().mockReturnThis(),
+      limit: jest.fn(async () => ({ data: rows, error: null })),
+    };
+
+    const artifactsSelectChain = {
+      eq: jest.fn().mockReturnThis(),
+      order: jest.fn(async () => ({ data: artifacts, error: null })),
+    };
+
+    const stub = {
+      updateMock,
+      jobsSelectChain,
+      artifactsSelectChain,
+      auth: {
+        admin: {
+          getUserById: jest.fn(async () => ({ data: { user: { email: 'writer@example.com' } }, error: null })),
+        },
+      },
+      from: jest.fn((table: string) => {
+        if (table === 'evaluation_jobs') {
+          return {
+            select: jest.fn(() => jobsSelectChain),
+            update: updateMock,
+          };
+        }
+
+        if (table === 'evaluation_artifacts') {
+          return {
+            select: jest.fn(() => artifactsSelectChain),
+          };
+        }
+
+        if (table === 'manuscripts') {
+          return {
+            select: jest.fn(() => ({
+              eq: jest.fn().mockReturnThis(),
+              maybeSingle: jest.fn(async () => ({ data: { user_id: 'user-1' }, error: null })),
+            })),
+          };
+        }
+
+        throw new Error(`Unexpected table: ${table}`);
+      }),
+    };
+
+    return stub;
+  }
+
+  test('requeues recoverable failed jobs from last verified checkpoint without author action', async () => {
+    const stub = buildSelfRecoveryStub(
+      [
+        makeJob({
+          id: 'recoverable-job',
+          status: 'failed',
+          phase: 'phase_3',
+          phase_status: 'failed',
+          failure_code: 'PROCESSOR_UNCAUGHT_ERROR',
+          progress: { phase: 'phase_3', phase_status: 'failed', self_recovery_count: 1 },
+        }),
+      ],
+      [
+        {
+          id: 'handoff-1',
+          artifact_type: 'pass12_handoff_v1',
+          content: { schema_valid: true, semantic_status: 'valid', is_resume_safe: true },
+          source_hash: 'hash-1',
+          created_at: '2026-06-07T01:00:00.000Z',
+        },
+      ],
+    );
+    createClientMock.mockReturnValue(stub as never);
+
+    const { selfRecoverRetryableFailedJobs, maxSelfRecoveryAttemptsForFailureCode } = await import('../../../lib/evaluation/processor');
+    const result = await selfRecoverRetryableFailedJobs({ targetJobId: 'recoverable-job' });
+
+    expect(maxSelfRecoveryAttemptsForFailureCode('PROCESSOR_UNCAUGHT_ERROR')).toBe(2);
+    expect(result.recovered).toBe(1);
+    expect(result.ids).toEqual(['recoverable-job']);
+    const updatePayload = stub.updateMock.mock.calls[0]?.[0];
+    expect(updatePayload).toEqual(expect.objectContaining({
+      status: 'queued',
+      phase: 'phase_2',
+      phase_status: 'queued',
+      last_error: null,
+      failure_code: null,
+      failure_envelope: null,
+      claimed_by: null,
+      lease_token: null,
+    }));
+    expect(updatePayload.progress).toEqual(expect.objectContaining({
+      phase: 'phase_2',
+      phase_status: 'queued',
+      self_recovery_count: 2,
+      self_recovery_source: 'worker_auto_recovery',
+      self_recovery_failure_code: 'PROCESSOR_UNCAUGHT_ERROR',
+      self_recovery_max_attempts: 2,
+      self_recovery_resume_mode: 'checklist_resume_safe',
+      self_recovery_checkpoint_artifact_type: 'pass12_handoff_v1',
+      dashboard_status: 'recovery_in_progress',
+    }));
+  });
+
+  test('stops self-recovery after failure-specific cap and marks technical review required', async () => {
+    const stub = buildSelfRecoveryStub([
+      makeJob({
+        id: 'exhausted-job',
+        status: 'failed',
+        manuscript_id: 123,
+        phase: 'phase_3',
+        phase_status: 'failed',
+        failure_code: 'PROCESSOR_UNCAUGHT_ERROR',
+        progress: { phase: 'phase_3', phase_status: 'failed', self_recovery_count: 2 },
+      }),
+    ]);
+    createClientMock.mockReturnValue(stub as never);
+
+    const { selfRecoverRetryableFailedJobs } = await import('../../../lib/evaluation/processor');
+    const result = await selfRecoverRetryableFailedJobs({ targetJobId: 'exhausted-job' });
+
+    expect(result.recovered).toBe(0);
+    expect(result.exhausted).toBe(1);
+    const updatePayload = stub.updateMock.mock.calls[0]?.[0];
+    expect(updatePayload).toEqual(expect.objectContaining({
+      failure_code: 'TECHNICAL_FAILURE_REQUIRES_REVIEW',
+      last_error: 'Self-recovery exhausted for PROCESSOR_UNCAUGHT_ERROR',
+    }));
+    expect(updatePayload.progress).toEqual(expect.objectContaining({
+      self_recovery_exhausted_reason: 'PROCESSOR_UNCAUGHT_ERROR',
+      dashboard_status: 'technical_review_required',
+      recovery_message: expect.stringContaining('engineering support'),
+    }));
+    expect(mockSendEvaluationFailureSupportAlert).toHaveBeenCalledWith(expect.objectContaining({
+      job_id: 'exhausted-job',
+      failure_code: 'TECHNICAL_FAILURE_REQUIRES_REVIEW',
+      failure_message: 'Self-recovery exhausted for PROCESSOR_UNCAUGHT_ERROR',
+      source: 'worker_auto_recovery_exhausted',
+      retry_eligible: false,
+    }));
+    expect(mockSendEvaluationMajorIssueUserAlert).toHaveBeenCalledWith({
+      job_id: 'exhausted-job',
+      manuscript_id: 123,
+      user_email: 'writer@example.com',
+    });
+  });
+
+  test('does not self-recover user-cancelled jobs', async () => {
+    const stub = buildSelfRecoveryStub([
+      makeJob({
+        id: 'cancelled-job',
+        status: 'failed',
+        phase: 'phase_3',
+        phase_status: 'failed',
+        failure_code: 'USER_CANCELLED',
+        progress: { cancelled_by_user: true },
+      }),
+    ]);
+    createClientMock.mockReturnValue(stub as never);
+
+    const { selfRecoverRetryableFailedJobs, isTerminalFailureCode } = await import('../../../lib/evaluation/processor');
+    const result = await selfRecoverRetryableFailedJobs({ targetJobId: 'cancelled-job' });
+
+    expect(isTerminalFailureCode('USER_CANCELLED')).toBe(true);
+    expect(result.recovered).toBe(0);
+    expect(result.skippedTerminal).toBe(1);
+    expect(stub.updateMock).not.toHaveBeenCalled();
   });
 });
 

@@ -43,6 +43,12 @@ export interface EvaluationFailureSupportAlertPayload {
   updated_at?: string | null;
 }
 
+export interface EvaluationMajorIssueUserAlertPayload {
+  job_id: string;
+  manuscript_id?: number | null;
+  user_email: string;
+}
+
 interface RecoverySupportAlertDeps {
   fetchFn?: typeof fetch;
   logger?: Pick<typeof console, 'warn' | 'error'>;
@@ -50,6 +56,9 @@ interface RecoverySupportAlertDeps {
 
 const RECOVERY_ALERT_DEFAULT_SAFE_MESSAGE =
   'Evaluation paused while synchronizing progress. Your manuscript and completed analysis have been preserved. Continue Evaluation will resume from the safest available checkpoint.';
+
+export const MAJOR_TECHNICAL_ISSUE_PUBLIC_MESSAGE =
+  'We hit a technical issue that needs engineering support. Our team has been alerted and is investigating. Your manuscript and completed analysis have been preserved; you do not need to retry. We will notify you by email when the problem has been fixed.';
 
 export function shouldAlertSupportForRecoveryAction(
   action: SplitBrainRecoveryAction | 'none' | null | undefined,
@@ -95,6 +104,23 @@ function renderEvaluationFailureEmailBody(payload: EvaluationFailureSupportAlert
   return [
     `job_id: ${payload.job_id}`,
     `failure_type: ${payload.failure_code}`,
+  ].join('\n');
+}
+
+function renderEvaluationMajorIssueUserEmailBody(payload: EvaluationMajorIssueUserAlertPayload): string {
+  return [
+    'Hi,',
+    '',
+    'We hit a technical issue with your evaluation.',
+    '',
+    `Job ID: ${payload.job_id}`,
+    ...(typeof payload.manuscript_id === 'number' ? [`Manuscript ID: ${payload.manuscript_id}`] : []),
+    '',
+    'Engineering support has been alerted and is investigating. Your manuscript and completed analysis have been preserved, and you do not need to retry.',
+    '',
+    'We will email you again when the problem has been fixed.',
+    '',
+    'RevisionGrade Support',
   ].join('\n');
 }
 
@@ -249,6 +275,97 @@ export async function sendEvaluationFailureSupportAlert(
       message,
       job_id: payload.job_id,
       failure_code: payload.failure_code,
+    });
+    return { attempted: true, sent: false, error: message };
+  }
+}
+
+export async function sendEvaluationMajorIssueUserAlert(
+  payload: EvaluationMajorIssueUserAlertPayload,
+  deps: RecoverySupportAlertDeps = {},
+): Promise<RecoverySupportAlertResult> {
+  const logger = deps.logger ?? console;
+  const userEmail = payload.user_email.trim().toLowerCase();
+  if (!userEmail || !userEmail.includes('@')) {
+    logger.warn('[EvaluationMajorIssueUserAlert] missing_user_email', {
+      job_id: payload.job_id,
+    });
+    return { attempted: false, sent: false, error: 'user_email not configured' };
+  }
+
+  const provider = (
+    process.env.EVALUATION_MAJOR_ISSUE_USER_EMAIL_PROVIDER
+    ?? process.env.EVALUATION_FAILURE_ALERT_EMAIL_PROVIDER
+    ?? process.env.RECOVERY_ALERT_EMAIL_PROVIDER
+    ?? 'resend'
+  ).trim().toLowerCase();
+
+  if (provider !== 'resend') {
+    logger.warn('[EvaluationMajorIssueUserAlert] unsupported_email_provider', {
+      provider,
+      job_id: payload.job_id,
+    });
+    return { attempted: false, sent: false, error: `unsupported provider: ${provider}` };
+  }
+
+  const resendApiKey = process.env.RESEND_API_KEY;
+  const fromEmail =
+    process.env.EVALUATION_MAJOR_ISSUE_USER_FROM_EMAIL
+    ?? process.env.EVALUATION_FAILURE_ALERT_FROM_EMAIL
+    ?? process.env.RECOVERY_ALERT_FROM_EMAIL
+    ?? process.env.RESEND_FROM_EMAIL
+    ?? 'RevisionGrade Support <noreply@revisiongrade.com>';
+
+  if (!resendApiKey) {
+    logger.warn('[EvaluationMajorIssueUserAlert] missing_provider_config', {
+      provider,
+      job_id: payload.job_id,
+      missing: ['RESEND_API_KEY'],
+      to: userEmail,
+    });
+    return { attempted: false, sent: false, error: 'RESEND_API_KEY not configured' };
+  }
+
+  const fetchFn = deps.fetchFn ?? fetch;
+  const shortJobId = payload.job_id.length > 8 ? `${payload.job_id.slice(0, 8)}…` : payload.job_id;
+
+  try {
+    const res = await fetchFn('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${resendApiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from: fromEmail,
+        to: userEmail,
+        subject: `[RevisionGrade] Evaluation support update: ${shortJobId}`,
+        text: renderEvaluationMajorIssueUserEmailBody({
+          ...payload,
+          user_email: userEmail,
+        }),
+      }),
+    });
+
+    if (!res.ok) {
+      const body = await res.text();
+      logger.error('[EvaluationMajorIssueUserAlert] resend_send_failed', {
+        status: res.status,
+        job_id: payload.job_id,
+      });
+      return {
+        attempted: true,
+        sent: false,
+        error: `Resend API error ${res.status}: ${body}`,
+      };
+    }
+
+    return { attempted: true, sent: true };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    logger.error('[EvaluationMajorIssueUserAlert] send_exception', {
+      message,
+      job_id: payload.job_id,
     });
     return { attempted: true, sent: false, error: message };
   }

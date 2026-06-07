@@ -4,12 +4,27 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { isTerminalFailureCode, classifyFailureBucket } from '@/lib/evaluation/processor';
 import { upsertEvaluationArtifact } from '@/lib/evaluation/artifactPersistence';
 import { selectResumeCheckpoint } from '@/lib/evaluation/phase-architecture-v2/checklistRuntimeWiring';
+import { triggerEvaluationWorker, type TriggerWorkerResult } from '@/lib/jobs/triggerWorker';
+import { failEvaluationJobTerminally } from '@/lib/jobs/failJobTerminal';
 
 /** Short deployed git SHA — same pattern as processor.ts */
 const RESUME_DEPLOYED_SHA: string =
   (process.env.VERCEL_GIT_COMMIT_SHA ?? '').substring(0, 7) || 'local';
 
 type Params = Promise<{ jobId: string }>;
+
+function workerDidNotAcceptJob(result: TriggerWorkerResult): boolean {
+  if (!result.ok) return true;
+  if (result.targetClaimed === false) return true;
+  return result.claimed !== null && result.claimed < 1;
+}
+
+function workerFailureReason(result: TriggerWorkerResult): string {
+  if (!result.ok) return result.reason;
+  if (result.targetClaimed === false) return 'worker_did_not_claim_resumed_job';
+  if (result.claimed !== null && result.claimed < 1) return 'worker_returned_zero_claims';
+  return 'unknown_worker_resume_failure';
+}
 
 /**
  * POST /api/jobs/[jobId]/resume
@@ -22,7 +37,7 @@ type Params = Promise<{ jobId: string }>;
  *   3. Use full restart only when no valid checkpoint exists.
  */
 export async function POST(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Params },
 ) {
   const { jobId } = await params;
@@ -129,19 +144,55 @@ export async function POST(
       );
     }
 
-    if (job.status !== 'failed') {
+    if (job.status === 'running') {
       return NextResponse.json(
         {
-          error: `Job cannot be resumed: status is '${job.status}'. Only failed jobs are resumable.`,
+          success: true,
+          job_id: jobId,
           current_status: job.status,
+          message: 'Evaluation is already running.',
         },
-        { status: 409 },
+        { status: 202 },
       );
     }
 
-    if (job.status === 'queued' || job.status === 'running') {
+    if (job.status === 'queued') {
+      const activeKickoff = await triggerEvaluationWorker({
+        req: request,
+        jobId,
+        trace_id: RESUME_DEPLOYED_SHA,
+        request_id: RESUME_DEPLOYED_SHA,
+        source: 'api.jobs.resume.active_queued',
+      });
+
+      if (workerDidNotAcceptJob(activeKickoff)) {
+        return NextResponse.json(
+          {
+            error: 'Evaluation recovery is queued, but the worker is temporarily unavailable. Please try again shortly.',
+            code: 'WORKER_KICKOFF_FAILED',
+            reason: workerFailureReason(activeKickoff),
+          },
+          { status: 503 },
+        );
+      }
+
       return NextResponse.json(
-        { error: 'Job is already active', current_status: job.status },
+        {
+          success: true,
+          job_id: jobId,
+          current_status: job.status,
+          message: 'Evaluation recovery has been restarted.',
+        },
+        { status: 202 },
+      );
+    }
+
+    if (job.status !== 'failed') {
+      return NextResponse.json(
+        {
+          error: `Job cannot be resumed: status is '${job.status}'. Only failed or queued jobs are resumable.`,
+          current_status: job.status,
+        },
         { status: 409 },
       );
     }
@@ -218,7 +269,15 @@ export async function POST(
         phase: targetPhase,
         phase_status: 'queued',
         last_error: null,
+        failure_code: null,
         failure_envelope: null,
+        failed_at: null,
+        claimed_by: null,
+        claimed_at: null,
+        lease_token: null,
+        lease_until: null,
+        last_heartbeat_at: null,
+        worker_pulse_at: null,
         updated_at: now,
         progress: resumeProgress,
       })
@@ -229,6 +288,35 @@ export async function POST(
       return NextResponse.json(
         { error: `Failed to requeue job: ${requeueError.message}` },
         { status: 500 },
+      );
+    }
+
+    const kickoffResult = await triggerEvaluationWorker({
+      req: request,
+      jobId,
+      trace_id: RESUME_DEPLOYED_SHA,
+      request_id: RESUME_DEPLOYED_SHA,
+      source: 'api.jobs.resume',
+      kickoffDispatchStartedAt: now,
+    });
+
+    if (workerDidNotAcceptJob(kickoffResult)) {
+      const reason = workerFailureReason(kickoffResult);
+      await failEvaluationJobTerminally({
+        supabase: admin,
+        jobId,
+        failureCode: 'WORKER_KICKOFF_FAILED',
+        message: `Evaluation worker did not accept resumed job: ${reason}`,
+        source: 'api.jobs.resume.worker_kickoff_guard',
+      });
+
+      return NextResponse.json(
+        {
+          error: 'Evaluation recovery could not start because the worker is temporarily unavailable. Please try again shortly.',
+          code: 'WORKER_KICKOFF_FAILED',
+          reason,
+        },
+        { status: 503 },
       );
     }
 

@@ -103,12 +103,15 @@ import {
   classifyQueuedHardStop,
   decideSplitBrainRecovery,
   classifySplitBrain,
+  isMaxAgeKillSwitchExpired,
   partitionMaxAgeKillSwitchCandidates,
   resolveProviderBudget,
   type QueueHardStopCandidate,
 } from '@/lib/evaluation/hardStopGovernance';
 import {
+  MAJOR_TECHNICAL_ISSUE_PUBLIC_MESSAGE,
   sendEvaluationFailureSupportAlert,
+  sendEvaluationMajorIssueUserAlert,
   sendRecoverySupportAlert,
   shouldAlertSupportForRecoveryAction,
   toUserSafeRecoveryMessage,
@@ -128,9 +131,14 @@ import { detectContextContamination } from '@/lib/evaluation/governance/contextC
 import { assertClaimedJobsContract } from '@/lib/jobs/contracts/claimEvaluationJobs.contract';
 import { finalizeJobFailure } from '@/lib/jobs/jobStore.supabase';
 import {
+  ProcessorLeaseLostError,
   finalizeProcessorFailureWithLeaseGuard,
   isProcessorLeaseLostError,
 } from '@/lib/evaluation/processorLeaseFailureFinalizer';
+import {
+  selectResumeCheckpoint,
+  type RuntimeArtifactRow,
+} from '@/lib/evaluation/phase-architecture-v2/checklistRuntimeWiring';
 import { ensureChunksFromText } from '@/lib/manuscripts/chunks';
 import {
   selectChunkerConfig,
@@ -1817,6 +1825,12 @@ const TERMINAL_FAILURE_PREFIXES = [
   'TEMPLATE_COMPLETENESS_GATE_FAILED', // Template/mapper contract failure — code fix required before retry
 ];
 
+const TERMINAL_FAILURE_EXACT = new Set<string>([
+  'USER_CANCELLED',
+  'REVIEW_GATE_REJECTED_BY_AUTHOR',
+  'TECHNICAL_FAILURE_REQUIRES_REVIEW',
+]);
+
 /**
  * Returns true if a failure code is terminal (must NOT be rescued or retried).
  * A terminal failure means re-running will produce the same failure.
@@ -1826,7 +1840,36 @@ export function isTerminalFailureCode(code: string | null | undefined): boolean 
   if (code === 'LLR_PRE_ARTIFACT_GENERATION_BLOCK') {
     return false;
   }
+  if (TERMINAL_FAILURE_EXACT.has(code)) return true;
   return TERMINAL_FAILURE_PREFIXES.some((prefix) => code.startsWith(prefix));
+}
+
+export function maxSelfRecoveryAttemptsForFailureCode(code: string | null | undefined): number {
+  if (isTerminalFailureCode(code)) return 0;
+  if (!code) return 2;
+
+  if (code === 'PROCESSOR_UNCAUGHT_ERROR') return 2;
+
+  if (
+    code === 'PIPELINE_GLOBAL_SLA_EXCEEDED' ||
+    code === 'LEASE_EXPIRED' ||
+    code === 'PROCESSOR_LEASE_LOST' ||
+    code === 'MARK_RUNNING_LEASE_LOST' ||
+    code.startsWith('WORKER_TIMEOUT') ||
+    code.startsWith('VERCEL_')
+  ) {
+    return 3;
+  }
+
+  if (
+    code.startsWith('OPENAI_') ||
+    code.startsWith('PERPLEXITY_') ||
+    code === 'PASS4_EXTERNAL_ADJUDICATION_FAILED'
+  ) {
+    return 3;
+  }
+
+  return 2;
 }
 
 /**
@@ -3448,10 +3491,11 @@ export function buildPhase0RequeueProgressPatch(args: {
 }
 
 const POST_PHASE0_HANDOFF_GRACE_MS = 90_000;
-const SHORT_FORM_GLOBAL_SLA_MS = 3 * 60_000;
-const LONG_FORM_GLOBAL_SLA_MS = 3 * 60_000;
+const SHORT_FORM_GLOBAL_SLA_MS = 15 * 60_000;
+const LONG_FORM_GLOBAL_SLA_MS = 60 * 60_000;
 const QUEUED_HARD_STOP_HALT_THRESHOLD = 3;
-const SLA_AUTO_REQUEUE_MAX = 1;
+const SLA_AUTO_REQUEUE_MAX = 3;
+const FAILED_SELF_RECOVERY_MAX = 3;
 
 async function terminalizeQueuedHardStops(): Promise<{
   hardStopped: number;
@@ -3636,6 +3680,10 @@ async function terminalizeQueuedHardStops(): Promise<{
           ...existingProgress,
           sla_auto_requeue_count: slaRequeueCount + 1,
           sla_auto_requeued_at: nowIso,
+          dashboard_status: 'recovery_in_progress',
+          recovery_message: 'Evaluation delayed — recovery is in progress.',
+          hard_stop_code: decision.code,
+          hard_stop_internal_reason: decision.internalReason ?? null,
           phase: row.phase,
           phase_status: 'queued',
         };
@@ -3663,6 +3711,7 @@ async function terminalizeQueuedHardStops(): Promise<{
       ...(row.progress && typeof row.progress === 'object' ? row.progress : {}),
       hard_stop_code: decision.code,
       hard_stop_reason: decision.reason,
+      hard_stop_internal_reason: decision.internalReason ?? null,
       hard_stop_at: nowIso,
       hard_stop_halted: true,
     };
@@ -3740,6 +3789,313 @@ async function terminalizeQueuedHardStops(): Promise<{
     ids: hardStoppedIds,
     shouldHaltProcessing: hardStopped >= QUEUED_HARD_STOP_HALT_THRESHOLD,
   };
+}
+
+export async function selfRecoverRetryableFailedJobs(options?: { targetJobId?: string }): Promise<{
+  recovered: number;
+  skippedTerminal: number;
+  exhausted: number;
+  ids: string[];
+}> {
+  const supabase = createClient(supabaseUrl, supabaseServiceKey);
+  const nowIso = new Date().toISOString();
+
+  const resolveLoginEmailForManuscript = async (manuscriptId: number | null | undefined): Promise<string | null> => {
+    if (typeof manuscriptId !== 'number' || !Number.isFinite(manuscriptId)) return null;
+
+    const { data: manuscript, error: manuscriptError } = await supabase
+      .from('manuscripts')
+      .select('user_id')
+      .eq('id', manuscriptId)
+      .maybeSingle();
+
+    if (manuscriptError) {
+      console.warn('[Worker] failed to resolve manuscript owner for major issue user email', {
+        manuscript_id: manuscriptId,
+        error: manuscriptError.message,
+      });
+      return null;
+    }
+
+    const userId = typeof manuscript?.user_id === 'string' ? manuscript.user_id : null;
+    if (!userId) return null;
+
+    try {
+      const authAdmin = (supabase as unknown as {
+        auth?: {
+          admin?: {
+            getUserById?: (id: string) => Promise<{ data?: { user?: { email?: string | null } | null }; error?: { message?: string } | null }>;
+            listUsers?: (options?: { perPage?: number }) => Promise<{ data?: { users?: Array<{ id: string; email?: string | null }> }; error?: { message?: string } | null }>;
+          };
+        };
+      }).auth?.admin;
+
+      if (typeof authAdmin?.getUserById === 'function') {
+        const { data, error: userError } = await authAdmin.getUserById(userId);
+        if (userError) {
+          console.warn('[Worker] failed to resolve auth user email for major issue user email', {
+            user_id: userId,
+            error: userError.message,
+          });
+          return null;
+        }
+        return typeof data?.user?.email === 'string' ? data.user.email : null;
+      }
+
+      if (typeof authAdmin?.listUsers === 'function') {
+        const { data, error: listError } = await authAdmin.listUsers({ perPage: 1000 });
+        if (listError) {
+          console.warn('[Worker] failed to list auth users for major issue user email', {
+            user_id: userId,
+            error: listError.message,
+          });
+          return null;
+        }
+        const user = (data?.users ?? []).find((candidate) => candidate.id === userId);
+        return typeof user?.email === 'string' ? user.email : null;
+      }
+    } catch (error) {
+      console.warn('[Worker] failed to resolve login email for major issue user email', {
+        user_id: userId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+
+    return null;
+  };
+
+  let query = supabase
+    .from('evaluation_jobs')
+    .select('id, manuscript_id, status, phase, phase_status, failure_code, progress, attempt_count, max_attempts, created_at, updated_at')
+    .eq('status', JOB_STATUS.FAILED);
+
+  if (options?.targetJobId) {
+    query = query.eq('id', options.targetJobId);
+  }
+
+  const { data: failedRows, error } = await query.limit(options?.targetJobId ? 1 : 20);
+
+  if (error) {
+    console.warn('[Worker] failed self-recovery scan failed:', error.message);
+    return { recovered: 0, skippedTerminal: 0, exhausted: 0, ids: [] };
+  }
+
+  let recovered = 0;
+  let skippedTerminal = 0;
+  let exhausted = 0;
+  const ids: string[] = [];
+
+  for (const row of (failedRows ?? []) as Array<{
+    id: string;
+    status: string;
+    phase: string | null;
+    phase_status: string | null;
+    failure_code: string | null;
+    progress: Record<string, unknown> | null;
+    manuscript_id?: number | null;
+    attempt_count?: number | null;
+    max_attempts?: number | null;
+    created_at?: string | null;
+    updated_at?: string | null;
+  }>) {
+    const failureCode = row.failure_code ?? null;
+    if (isTerminalFailureCode(failureCode)) {
+      skippedTerminal += 1;
+      continue;
+    }
+
+    const existingProgress = row.progress && typeof row.progress === 'object' ? row.progress : {};
+    const selfRecoveryCount = typeof existingProgress.self_recovery_count === 'number'
+      ? existingProgress.self_recovery_count
+      : 0;
+
+    const maxSelfRecoveryAttempts = maxSelfRecoveryAttemptsForFailureCode(failureCode);
+    if (selfRecoveryCount >= Math.min(FAILED_SELF_RECOVERY_MAX, maxSelfRecoveryAttempts)) {
+      const exhaustedProgress = {
+        ...existingProgress,
+        self_recovery_exhausted_at: nowIso,
+        self_recovery_exhausted_reason: failureCode ?? 'unknown_failure_code',
+        dashboard_status: 'technical_review_required',
+        recovery_message: MAJOR_TECHNICAL_ISSUE_PUBLIC_MESSAGE,
+      };
+      const { data: exhaustedUpdateRow, error: exhaustedUpdateError } = await supabase
+        .from('evaluation_jobs')
+        .update({
+          failure_code: 'TECHNICAL_FAILURE_REQUIRES_REVIEW',
+          last_error: `Self-recovery exhausted for ${failureCode ?? 'unknown_failure_code'}`,
+          progress: exhaustedProgress,
+          updated_at: nowIso,
+        })
+        .eq('id', row.id)
+        .eq('status', JOB_STATUS.FAILED)
+        .select('id')
+        .maybeSingle();
+      if (exhaustedUpdateError) {
+        console.warn('[Worker] failed self-recovery exhaustion update failed:', {
+          job_id: row.id,
+          failure_code: failureCode,
+          error: exhaustedUpdateError.message,
+        });
+        continue;
+      }
+      if (!exhaustedUpdateRow) {
+        console.warn('[Worker] failed self-recovery exhaustion skipped; guarded row was already claimed or changed:', {
+          job_id: row.id,
+          failure_code: failureCode,
+        });
+        continue;
+      }
+      exhausted += 1;
+      const alertResult = await sendEvaluationFailureSupportAlert({
+        job_id: row.id,
+        manuscript_id: typeof row.manuscript_id === 'number' ? row.manuscript_id : null,
+        phase: row.phase,
+        phase_status: row.phase_status,
+        progress_phase: typeof existingProgress.phase === 'string' ? existingProgress.phase : null,
+        progress_phase_status: typeof existingProgress.phase_status === 'string' ? existingProgress.phase_status : null,
+        failure_code: 'TECHNICAL_FAILURE_REQUIRES_REVIEW',
+        failure_message: `Self-recovery exhausted for ${failureCode ?? 'unknown_failure_code'}`,
+        source: 'worker_auto_recovery_exhausted',
+        pipeline_stage: typeof existingProgress.phase === 'string' ? existingProgress.phase : null,
+        retry_eligible: false,
+        diagnostics: {
+          exhausted_failure_code: failureCode ?? 'unknown_failure_code',
+          self_recovery_count: selfRecoveryCount,
+          max_self_recovery_attempts: maxSelfRecoveryAttempts,
+        },
+        created_at: row.created_at ?? null,
+        updated_at: nowIso,
+      });
+      if (!alertResult.sent) {
+        console.warn('[Worker] exhausted self-recovery support alert not sent', {
+          job_id: row.id,
+          failure_code: failureCode,
+          attempted: alertResult.attempted,
+          error: alertResult.error ?? null,
+        });
+      }
+      const userEmail = await resolveLoginEmailForManuscript(row.manuscript_id);
+      if (userEmail) {
+        const userAlertResult = await sendEvaluationMajorIssueUserAlert({
+          job_id: row.id,
+          manuscript_id: typeof row.manuscript_id === 'number' ? row.manuscript_id : null,
+          user_email: userEmail,
+        });
+        if (!userAlertResult.sent) {
+          console.warn('[Worker] exhausted self-recovery user alert not sent', {
+            job_id: row.id,
+            attempted: userAlertResult.attempted,
+            error: userAlertResult.error ?? null,
+          });
+        }
+      } else {
+        console.warn('[Worker] exhausted self-recovery user alert skipped; no login email resolved', {
+          job_id: row.id,
+          manuscript_id: row.manuscript_id ?? null,
+        });
+      }
+      continue;
+    }
+
+    const { data: artifactRows, error: artifactError } = await supabase
+      .from('evaluation_artifacts')
+      .select('id, artifact_type, content, source_hash, created_at')
+      .eq('job_id', row.id)
+      .order('created_at', { ascending: true });
+
+    if (artifactError) {
+      console.warn('[Worker] failed self-recovery artifact scan failed:', {
+        job_id: row.id,
+        error: artifactError.message,
+      });
+    }
+
+    const resumeRows = (artifactRows ?? []) as RuntimeArtifactRow[];
+    const hasLegacyPhase2Handoff = resumeRows.some((artifact) => artifact.artifact_type === 'pass12_handoff_v1');
+    const hasLegacyChunkCheckpoint = resumeRows.some((artifact) =>
+      artifact.artifact_type === 'pass1_chunk_cache_v1' ||
+      artifact.artifact_type === 'pass2_chunk_cache_v1',
+    );
+    const checkpointDecision = selectResumeCheckpoint({
+      rows: resumeRows,
+      hasLegacyPhase2Handoff,
+      hasLegacyChunkCheckpoint,
+    });
+    const targetPhase = checkpointDecision.target_phase;
+    const nextProgress = {
+      ...existingProgress,
+      phase: targetPhase,
+      phase_status: 'queued',
+      retry_requested_at: nowIso,
+      resume_requested_at: nowIso,
+      self_recovery_count: selfRecoveryCount + 1,
+      self_recovered_at: nowIso,
+      self_recovery_source: 'worker_auto_recovery',
+      self_recovery_failure_code: failureCode,
+      self_recovery_max_attempts: maxSelfRecoveryAttempts,
+      self_recovery_resume_mode: checkpointDecision.resume_mode,
+      self_recovery_checkpoint_artifact_type: checkpointDecision.checkpoint_artifact_type ?? null,
+      self_recovery_checkpoint_artifact_id: checkpointDecision.checkpoint_artifact_id ?? null,
+      dashboard_status: 'recovery_in_progress',
+      recovery_message: 'Evaluation delayed — recovery is in progress.',
+    };
+
+    const { data: updateRow, error: updateError } = await supabase
+      .from('evaluation_jobs')
+      .update({
+        status: JOB_STATUS.QUEUED,
+        phase: targetPhase,
+        phase_status: JOB_STATUS.QUEUED,
+        last_error: null,
+        failure_code: null,
+        failure_envelope: null,
+        failed_at: null,
+        claimed_by: null,
+        claimed_at: null,
+        lease_token: null,
+        lease_until: null,
+        last_heartbeat_at: null,
+        last_heartbeat: null,
+        worker_pulse_at: null,
+        updated_at: nowIso,
+        progress: nextProgress,
+      })
+      .eq('id', row.id)
+      .eq('status', JOB_STATUS.FAILED)
+      .select('id')
+      .maybeSingle();
+
+    if (updateError) {
+      console.warn('[Worker] failed self-recovery update failed:', {
+        job_id: row.id,
+        failure_code: failureCode,
+        error: updateError.message,
+      });
+      continue;
+    }
+
+    if (!updateRow) {
+      console.warn('[Worker] failed self-recovery skipped; guarded row was already claimed or changed:', {
+        job_id: row.id,
+        failure_code: failureCode,
+      });
+      continue;
+    }
+
+    recovered += 1;
+    ids.push(row.id);
+  }
+
+  if (recovered > 0 || skippedTerminal > 0 || exhausted > 0) {
+    console.log('[Worker] failed self-recovery scan complete', {
+      recovered,
+      skippedTerminal,
+      exhausted,
+      ids,
+    });
+  }
+
+  return { recovered, skippedTerminal, exhausted, ids };
 }
 
 type SeedClaimStatus =
@@ -4381,11 +4737,17 @@ export async function processEvaluationJob(
       const { error: markRunningWriteError } = await supabase
         .from('evaluation_jobs')
         .update(runningPayload)
-        .eq('id', jobId);
+        .eq('id', jobId)
+        .eq('status', JOB_STATUS.RUNNING)
+        .eq('claimed_by', expectedClaimedBy)
+        .eq('lease_token', expectedLeaseToken);
 
       if (markRunningWriteError) {
         const message = `Running state update failed for job ${jobId}: ${markRunningWriteError.message}`;
         console.error(`[Processor] ${message}`);
+        if (/terminal phase_status|lease|claim|not running|failed can only be reset/i.test(markRunningWriteError.message)) {
+          throw new ProcessorLeaseLostError({ jobId, failureCode: 'MARK_RUNNING_LEASE_LOST' });
+        }
         throw new Error(message);
       }
 
@@ -10236,17 +10598,30 @@ export async function processQueuedJobs(options?: {
     const supabaseForKill = createClient(supabaseUrl, supabaseServiceKey);
     const { data: staleJobs } = await supabaseForKill
       .from('evaluation_jobs')
-      .select('id,status,phase_status')
+      .select('id,status,phase_status,created_at,updated_at,progress')
       .in('status', ['queued', 'running'])
       .lt('created_at', killCutoff)
       .limit(20);
 
     if (staleJobs && staleJobs.length > 0) {
+      const killNowMs = Date.parse(killNow);
+      const expiredJobs = (staleJobs as Array<{
+        id: string;
+        status: string;
+        phase_status: string | null;
+        created_at?: string | null;
+        updated_at?: string | null;
+        progress?: Record<string, unknown> | null;
+      }>).filter((job) => isMaxAgeKillSwitchExpired(job, {
+        nowMs: killNowMs,
+        maxAgeMs: MAX_JOB_AGE_MS,
+      }));
+
       const {
         runningIds,
         queuedEligibleIds,
         queuedSkippedIds,
-      } = partitionMaxAgeKillSwitchCandidates(staleJobs as Array<{ id: string; status: string; phase_status: string | null }>);
+      } = partitionMaxAgeKillSwitchCandidates(expiredJobs);
 
       if (queuedSkippedIds.length > 0) {
         console.warn('[Worker] KILL_SWITCH: skipped queued rows with non-queued phase_status', {
@@ -10355,6 +10730,16 @@ export async function processQueuedJobs(options?: {
 
   // Safety net: recover jobs left in running due to platform hard timeout/crash.
   await failStaleRunningJobs();
+
+  // Self-heal recoverable failed jobs. Manual "Continue Evaluation" remains a
+  // fallback, but platform/SLA/lease failures should requeue themselves on the
+  // next worker/cron invocation unless their failure code is deterministic/fatal.
+  const failedSelfRecovery = await selfRecoverRetryableFailedJobs({
+    targetJobId: options?.targetJobId,
+  });
+  if (failedSelfRecovery.recovered > 0) {
+    console.log('[Worker] self-requeued recoverable failed jobs before claim', failedSelfRecovery);
+  }
 
   // Atomically claim the submitted job by ID when requested; otherwise claim a
   // batch of queued jobs via SKIP LOCKED RPC.

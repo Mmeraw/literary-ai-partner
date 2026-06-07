@@ -4,6 +4,8 @@ import type { Job } from "@/lib/jobs/types";
 import { getAuthenticatedUser } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { canViewEvaluationOperationalDetails } from "@/lib/auth/evaluationOperationalAccess";
+import { isTerminalFailureCode } from "@/lib/evaluation/processor";
+import { MAJOR_TECHNICAL_ISSUE_PUBLIC_MESSAGE } from "@/lib/evaluation/recoverySupportAlertMailer";
 
 type Params = Promise<{ jobId: string }>;
 
@@ -403,8 +405,21 @@ export async function GET(req: NextRequest, ctx: { params: Params }) {
     // 10) For failed jobs viewed by non-operators, emit a safe public message.
     if (job.status === "failed" && !canSeeOperationalDetails) {
       const cancelledByUser = response.job.dashboard_status === 'cancelled';
+      const technicalReviewRequired = response.job.dashboard_status === 'technical_review_required'
+        || job.failure_code === 'TECHNICAL_FAILURE_REQUIRES_REVIEW';
+      const recoverableFailure = !cancelledByUser && !isTerminalFailureCode(job.failure_code ?? null);
+      const progressRecord = job.progress && typeof job.progress === 'object' && !Array.isArray(job.progress)
+        ? job.progress as Record<string, unknown>
+        : {};
+      const recoveryMessage = typeof progressRecord.recovery_message === 'string'
+        ? progressRecord.recovery_message
+        : null;
       response.job.public_status_message = cancelledByUser
         ? 'Evaluation cancelled. Your manuscript was not evaluated to completion. No score or report was generated.'
+        : technicalReviewRequired
+          ? recoveryMessage ?? MAJOR_TECHNICAL_ISSUE_PUBLIC_MESSAGE
+        : recoverableFailure
+          ? recoveryMessage ?? 'Evaluation delayed — recovery is in progress. Your manuscript and completed analysis have been preserved.'
         : "This evaluation could not be completed. Please start a new evaluation or contact support if the problem continues.";
     }
 

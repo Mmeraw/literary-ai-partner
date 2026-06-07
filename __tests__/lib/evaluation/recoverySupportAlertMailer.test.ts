@@ -2,6 +2,7 @@ export {};
 
 import {
   sendEvaluationFailureSupportAlert,
+  sendEvaluationMajorIssueUserAlert,
   sendRecoverySupportAlert,
   shouldAlertSupportForRecoveryAction,
   toUserSafeRecoveryMessage,
@@ -154,6 +155,40 @@ describe('recoverySupportAlertMailer', () => {
     expect(String(parsedBody.text)).not.toContain('user-should-not-be-emailed');
     expect(String(parsedBody.text)).not.toContain('MISSING_TARGET_AUDIENCE');
     expect(String(parsedBody.text)).not.toContain('internal failure details');
+  });
+
+  test('major issue user alert emails the login address with short proforma copy and job id', async () => {
+    process.env.RESEND_API_KEY = 'test-key';
+
+    const fetchMock = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () => '',
+    });
+
+    const result = await sendEvaluationMajorIssueUserAlert(
+      {
+        job_id: '1dce7039-674d-44d6-b647-0742e0e696ec',
+        manuscript_id: 7497,
+        user_email: 'Writer@Example.com',
+      },
+      { fetchFn: fetchMock as unknown as typeof fetch },
+    );
+
+    expect(result.sent).toBe(true);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    const [, requestInit] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const parsedBody = JSON.parse(String(requestInit.body));
+
+    expect(parsedBody.to).toBe('writer@example.com');
+    expect(parsedBody.subject).toBe('[RevisionGrade] Evaluation support update: 1dce7039…');
+    expect(parsedBody.text).toContain('Job ID: 1dce7039-674d-44d6-b647-0742e0e696ec');
+    expect(parsedBody.text).toContain('Manuscript ID: 7497');
+    expect(parsedBody.text).toContain('Engineering support has been alerted and is investigating');
+    expect(parsedBody.text).toContain('We will email you again when the problem has been fixed.');
+    expect(parsedBody.text).not.toContain('PROCESSOR_UNCAUGHT_ERROR');
+    expect(parsedBody.text).not.toContain('created_at=');
   });
 
   test('unsafe user message is sanitized before exposure', () => {
