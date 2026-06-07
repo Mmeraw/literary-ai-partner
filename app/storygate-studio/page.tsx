@@ -7,6 +7,7 @@
  */
 
 import Link from "next/link";
+import StorygateReadinessBridge from "@/components/storygate/StorygateReadinessBridge";
 
 const C = {
   bg:       "#0E0E0E",
@@ -112,6 +113,10 @@ export default function StorygateStudioLanding() {
           </CTAButton>
         </div>
       </section>
+
+      <StorygateReadinessBridge />
+
+      <Divider />
 
       <section className="py-16 px-6 max-w-7xl mx-auto">
         <SectionLabel>Trust Model</SectionLabel>
