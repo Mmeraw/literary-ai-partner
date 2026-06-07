@@ -4,7 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { isTerminalFailureCode, classifyFailureBucket } from '@/lib/evaluation/processor';
 import { upsertEvaluationArtifact } from '@/lib/evaluation/artifactPersistence';
 import { selectResumeCheckpoint } from '@/lib/evaluation/phase-architecture-v2/checklistRuntimeWiring';
-import { triggerEvaluationWorker, type TriggerWorkerResult } from '@/lib/jobs/triggerWorker';
+import { triggerEvaluationWorker, isTriggerWorkerFailure, type TriggerWorkerResult } from '@/lib/jobs/triggerWorker';
 import { failEvaluationJobTerminally } from '@/lib/jobs/failJobTerminal';
 
 /** Short deployed git SHA — same pattern as processor.ts */
@@ -14,13 +14,13 @@ const RESUME_DEPLOYED_SHA: string =
 type Params = Promise<{ jobId: string }>;
 
 function workerDidNotAcceptJob(result: TriggerWorkerResult): boolean {
-  if (!result.ok) return true;
+  if (isTriggerWorkerFailure(result)) return true;
   if (result.targetClaimed === false) return true;
   return result.claimed !== null && result.claimed < 1;
 }
 
 function workerFailureReason(result: TriggerWorkerResult): string {
-  if (!result.ok) return result.reason;
+  if (isTriggerWorkerFailure(result)) return result.reason;
   if (result.targetClaimed === false) return 'worker_did_not_claim_resumed_job';
   if (result.claimed !== null && result.claimed < 1) return 'worker_returned_zero_claims';
   return 'unknown_worker_resume_failure';
