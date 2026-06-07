@@ -810,6 +810,22 @@ export default async function EvaluationReportPage({
                 className="ml-2 inline-flex items-center rounded-md border border-stone-300 px-2.5 py-1 text-xs font-medium text-stone-700 transition hover:bg-stone-100"
               />
             </p>
+            {(submittedAuthorName || submittedProjectTitle) && (
+              <dl className="mt-3 grid gap-x-4 gap-y-2 text-sm sm:grid-cols-2 lg:grid-cols-3">
+                {submittedAuthorName && (
+                  <div>
+                    <dt className="font-semibold text-stone-950">Author Name</dt>
+                    <dd className="text-stone-700">{submittedAuthorName}</dd>
+                  </div>
+                )}
+                {submittedProjectTitle && (
+                  <div>
+                    <dt className="font-semibold text-stone-950">Project Title</dt>
+                    <dd className="text-stone-700">{submittedProjectTitle}</dd>
+                  </div>
+                )}
+              </dl>
+            )}
             <dl className="mt-3 grid gap-x-4 gap-y-2 text-sm sm:grid-cols-2 lg:grid-cols-3">
               <div><dt className="font-semibold text-stone-950">Report Type</dt><dd className="text-stone-700">{reportType}</dd></div>
               <div>
