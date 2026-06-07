@@ -74,7 +74,10 @@ function buildRequest() {
 describe('POST /api/admin/proof/jobs kickoff behavior', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    process.env.NODE_ENV = 'test';
+    Object.defineProperty(process.env, 'NODE_ENV', {
+      value: 'test',
+      configurable: true,
+    });
     process.env.PROOF_RUN_SECRET = 'proof-secret';
     process.env.CRON_SECRET = 'cron-secret';
     mockCreateAdminClient.mockReturnValue(buildAdminClientMock() as never);
