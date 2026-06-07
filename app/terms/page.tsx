@@ -13,6 +13,9 @@ export default function TermsPage() {
             <p className="font-rg-mono text-xs uppercase tracking-[0.2em] text-rg-gold">Payments, refunds, and digital services</p>
             <div className="mt-5 space-y-5">
               <p>
+                RevisionGrade currently operates on a pay-as-you-go, pay-per-service basis. Unless expressly stated otherwise at checkout, purchases are one-time transactions and do not create a subscription, automatic renewal, membership term, or recurring payment obligation.
+              </p>
+              <p>
                 RevisionGrade evaluations are custom digital services. Once a manuscript, excerpt, query package, or related writing material has been submitted for evaluation and processing has begun, the purchase is final.
               </p>
               <p>
@@ -20,9 +23,6 @@ export default function TermsPage() {
               </p>
               <p>
                 Refunds may be considered only in limited cases, including duplicate charges, billing error, or a verified system failure where RevisionGrade is unable to deliver the purchased evaluation and no replacement credit or corrected report is provided.
-              </p>
-              <p>
-                Subscription fees are not refundable once the billing period begins. Users may cancel future renewal at any time before the next billing date.
               </p>
               <p>
                 Nothing in this policy limits any non-waivable consumer rights required by applicable law.
@@ -33,7 +33,7 @@ export default function TermsPage() {
           <section>
             <p className="font-rg-mono text-xs uppercase tracking-[0.2em] text-rg-gold">Required acknowledgement</p>
             <p className="mt-3">
-              Before paid checkout or paid evaluation processing begins, users may be required to confirm that they understand RevisionGrade evaluations are custom digital services and that the purchase becomes final once processing begins.
+              Before paid checkout or paid evaluation processing begins, users may be required to confirm that they understand RevisionGrade evaluations are custom digital services, that purchases are pay-as-you-go unless expressly stated otherwise, and that the purchase becomes final once processing begins.
             </p>
           </section>
         </div>
