@@ -1235,6 +1235,31 @@ describe("processEvaluationJob canonical pipeline integration", () => {
         }),
       }),
     );
+    expect(envelopePatch).toEqual(
+      expect.objectContaining({
+        phase: "phase_3",
+        phase_status: "failed",
+        claimed_by: null,
+        claimed_at: null,
+        lease_token: null,
+        lease_until: null,
+        last_heartbeat_at: null,
+        last_heartbeat: null,
+        worker_pulse_at: null,
+        next_attempt_at: null,
+        failure_envelope: expect.objectContaining({
+          code: "PASS1_FAILED",
+          retryable: false,
+          phase: "phase_3",
+        }),
+      }),
+    );
+    expect(envelopePatch?.progress).toEqual(
+      expect.objectContaining({
+        dashboard_status: "technical_review_required",
+        recovery_message: expect.stringContaining("quality issue"),
+      }),
+    );
   });
 
   test("Phase 3 failure re-queues for retry instead of immediately failing", async () => {

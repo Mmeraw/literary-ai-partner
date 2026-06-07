@@ -1,7 +1,15 @@
 {
-  "typescript.tsserver.maxTsServerMemory": 2048,
-  "typescript.tsserver.experimental.enableProjectDiagnostics": false,
-  "typescript.suggest.autoImports": false,
-  "javascript.suggest.autoImports": false,
-  "typescript.preferences.includePackageJsonAutoImports": "off"
+  "typescript.tsserver.maxTsServerMemory": 4096,
+  "typescript.disableAutomaticTypeAcquisition": true,
+  "files.watcherExclude": {
+    "**/node_modules/**": true,
+    "**/.next/**": true,
+    "**/coverage/**": true,
+    "**/.git/**": true
+  },
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/.next": true,
+    "**/coverage": true
+  }
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { startTransition, useCallback, useEffect, useRef, useState } from 'react';
 import { getProgressDisplay } from '@/components/evaluation-poller-display';
 import { formatRelativeTime, formatDuration } from '@/lib/ui/time-helpers';
 import { useRouter } from 'next/navigation';
@@ -454,6 +454,28 @@ export function EvaluationPoller({
     userId,
   ]);
 
+  const handleManualRefresh = useCallback(() => {
+    startTransition(() => {
+      setRefreshBump((prev) => Math.min(prev + 1, 5));
+      setIsRefreshing(true);
+    });
+
+    // Keep the click handler itself tiny for INP: let the browser paint the
+    // pressed/loading state before running the no-store poll and downstream
+    // React reconciliation for the report page.
+    window.setTimeout(() => {
+      void (async () => {
+        try {
+          if (fetchJobRef.current) await fetchJobRef.current();
+        } finally {
+          window.setTimeout(() => {
+            startTransition(() => setIsRefreshing(false));
+          }, 600);
+        }
+      })();
+    }, 0);
+  }, []);
+
   useEffect(() => {
     if (pendingRedirectDelayMs == null) {
       if (redirectCountdownIntervalRef.current) {
@@ -683,15 +705,7 @@ export function EvaluationPoller({
                   <button
                     type="button"
                     disabled={isRefreshing}
-                    onClick={async () => {
-                      setRefreshBump((prev) => Math.min(prev + 1, 5));
-                      setIsRefreshing(true);
-                      try {
-                        if (fetchJobRef.current) await fetchJobRef.current();
-                      } finally {
-                        setTimeout(() => setIsRefreshing(false), 600);
-                      }
-                    }}
+                    onClick={handleManualRefresh}
                     className={`inline-flex items-center gap-1 rounded-md border border-stone-300 bg-white px-2.5 py-1.5 text-xs font-medium shadow-sm transition-colors ${isRefreshing ? 'text-stone-400 cursor-wait' : 'text-stone-700 hover:bg-stone-50'}`}
                   >
                     <span className={isRefreshing ? 'animate-spin inline-block' : ''}>↻</span>

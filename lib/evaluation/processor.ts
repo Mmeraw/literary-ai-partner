@@ -4799,6 +4799,8 @@ export async function processEvaluationJob(
         ...progressState,
         phase: failedPhase,
         phase_status: 'failed',
+        dashboard_status: 'technical_review_required',
+        recovery_message: 'We\'ve detected a quality issue with your evaluation and our team is investigating. You\'ll receive an email when your report is ready. Your manuscript and all completed analysis have been preserved — no action is needed on your part.',
         total_units:
           typeof progressState.total_units === 'number'
             ? progressState.total_units
@@ -4878,7 +4880,24 @@ export async function processEvaluationJob(
         progress: nextProgress,
         last_error: errorMessage,
         failure_code: errorCode,
+        failure_envelope: {
+          code: errorCode,
+          message: errorMessage,
+          retryable: false,
+          bucket: pipelineFailureEnvelope.bucket,
+          phase: failedPhase,
+          pipeline_stage: pipelineFailureEnvelope.pipeline_stage,
+          operator_action_needed: 'Review finalization/template diagnostics before retrying this job.',
+        },
         failed_at: now,
+        claimed_by: null,
+        claimed_at: null,
+        lease_token: null,
+        lease_until: null,
+        last_heartbeat_at: null,
+        last_heartbeat: null,
+        worker_pulse_at: null,
+        next_attempt_at: null,
         updated_at: now,
       };
 
@@ -4928,7 +4947,26 @@ export async function processEvaluationJob(
         const { error: progressPatchError } = await supabase
           .from('evaluation_jobs')
           .update({
+            phase: failedPhase,
+            phase_status: 'failed',
             progress: nextProgress,
+            failure_envelope: {
+              code: errorCode,
+              message: errorMessage,
+              retryable: false,
+              bucket: pipelineFailureEnvelope.bucket,
+              phase: failedPhase,
+              pipeline_stage: pipelineFailureEnvelope.pipeline_stage,
+              operator_action_needed: 'Review finalization/template diagnostics before retrying this job.',
+            },
+            claimed_by: null,
+            claimed_at: null,
+            lease_token: null,
+            lease_until: null,
+            last_heartbeat_at: null,
+            last_heartbeat: null,
+            worker_pulse_at: null,
+            next_attempt_at: null,
             updated_at: now,
           })
           .eq('id', jobId);
