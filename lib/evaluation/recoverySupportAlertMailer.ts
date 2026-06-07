@@ -60,6 +60,14 @@ const RECOVERY_ALERT_DEFAULT_SAFE_MESSAGE =
 export const MAJOR_TECHNICAL_ISSUE_PUBLIC_MESSAGE =
   'We hit a technical issue that needs engineering support. Our team has been alerted and is investigating. Your manuscript and completed analysis have been preserved; you do not need to retry. We will notify you by email when the problem has been fixed.';
 
+function buildEmailIdempotencyKey(parts: Array<string | number | null | undefined>): string {
+  return parts
+    .map((part) => String(part ?? 'none').trim().toLowerCase())
+    .map((part) => part.replace(/[^a-z0-9._:-]+/g, '-'))
+    .join(':')
+    .slice(0, 240);
+}
+
 export function shouldAlertSupportForRecoveryAction(
   action: SplitBrainRecoveryAction | 'none' | null | undefined,
 ): action is SplitBrainRecoveryAction {
@@ -164,6 +172,13 @@ export async function sendRecoverySupportAlert(
       headers: {
         Authorization: `Bearer ${resendApiKey}`,
         'Content-Type': 'application/json',
+        'Idempotency-Key': buildEmailIdempotencyKey([
+          'revisiongrade',
+          'recovery-support-alert',
+          payload.job_id,
+          payload.recovery_key,
+          REVISIONGRADE_SUPPORT_EMAIL,
+        ]),
       },
       body: JSON.stringify({
         from: fromEmail,
@@ -245,6 +260,13 @@ export async function sendEvaluationFailureSupportAlert(
       headers: {
         Authorization: `Bearer ${resendApiKey}`,
         'Content-Type': 'application/json',
+        'Idempotency-Key': buildEmailIdempotencyKey([
+          'revisiongrade',
+          'evaluation-failure-support-alert',
+          payload.job_id,
+          payload.failure_code,
+          REVISIONGRADE_SUPPORT_EMAIL,
+        ]),
       },
       body: JSON.stringify({
         from: fromEmail,
@@ -335,6 +357,12 @@ export async function sendEvaluationMajorIssueUserAlert(
       headers: {
         Authorization: `Bearer ${resendApiKey}`,
         'Content-Type': 'application/json',
+        'Idempotency-Key': buildEmailIdempotencyKey([
+          'revisiongrade',
+          'evaluation-major-issue-user-alert',
+          payload.job_id,
+          userEmail,
+        ]),
       },
       body: JSON.stringify({
         from: fromEmail,
