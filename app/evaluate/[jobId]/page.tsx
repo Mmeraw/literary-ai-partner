@@ -57,6 +57,8 @@ type Job = {
     | Array<{ user_id: string | null; title?: string | null }>
     | null;
   job_type?: string;
+  author_name?: string | null;
+  manuscript_title?: string | null;
   status: "queued" | "running" | "failed" | "complete";
   phase?: string | null;
   phase_status?: string | null;
@@ -183,7 +185,7 @@ async function getJob(jobId: string): Promise<Job | null> {
 
     const { data: job, error } = await supabase
       .from("evaluation_jobs")
-      .select("id, user_id, manuscript_id, job_type, status, phase, phase_status, total_units, completed_units, failed_units, created_at, updated_at, last_error, progress, policy_family, voice_preservation_level, manuscripts(user_id,title)")
+      .select("id, user_id, manuscript_id, job_type, author_name, manuscript_title, status, phase, phase_status, total_units, completed_units, failed_units, created_at, updated_at, last_error, progress, policy_family, voice_preservation_level, manuscripts(user_id,title)")
       .eq("id", jobId)
       .maybeSingle();
 
@@ -689,8 +691,17 @@ export default async function EvaluationReportPage({
   const evaluationScope = inferEvaluationScope(job.job_type, artifact?.metrics?.manuscript?.genre);
   const integrityBanner = artifact ? classifyEvaluationIntegrityBanner(artifact) : null;
   const chapterTitle = artifact?.metrics?.manuscript?.title?.trim() || null;
+  const submittedAuthorName =
+    typeof job.author_name === "string" && job.author_name.trim().length > 0
+      ? job.author_name.trim()
+      : null;
+  const submittedProjectTitle =
+    typeof job.manuscript_title === "string" && job.manuscript_title.trim().length > 0
+      ? job.manuscript_title.trim()
+      : null;
+
   let manuscriptTitle =
-    getRelatedManuscriptTitle(job) || (await getManuscriptTitleById(job.manuscript_id));
+    submittedProjectTitle || getRelatedManuscriptTitle(job) || (await getManuscriptTitleById(job.manuscript_id));
   if (!manuscriptTitle && job.manuscript_id) {
     manuscriptTitle = await backfillManuscriptTitleIfMissing(job.manuscript_id);
   }
@@ -799,6 +810,22 @@ export default async function EvaluationReportPage({
                 className="ml-2 inline-flex items-center rounded-md border border-stone-300 px-2.5 py-1 text-xs font-medium text-stone-700 transition hover:bg-stone-100"
               />
             </p>
+            {(submittedAuthorName || submittedProjectTitle) && (
+              <dl className="mt-3 grid gap-x-4 gap-y-2 text-sm sm:grid-cols-2 lg:grid-cols-3">
+                {submittedAuthorName && (
+                  <div>
+                    <dt className="font-semibold text-stone-950">Author Name</dt>
+                    <dd className="text-stone-700">{submittedAuthorName}</dd>
+                  </div>
+                )}
+                {submittedProjectTitle && (
+                  <div>
+                    <dt className="font-semibold text-stone-950">Project Title</dt>
+                    <dd className="text-stone-700">{submittedProjectTitle}</dd>
+                  </div>
+                )}
+              </dl>
+            )}
             <dl className="mt-3 grid gap-x-4 gap-y-2 text-sm sm:grid-cols-2 lg:grid-cols-3">
               <div><dt className="font-semibold text-stone-950">Report Type</dt><dd className="text-stone-700">{reportType}</dd></div>
               <div>
