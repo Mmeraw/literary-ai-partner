@@ -16,7 +16,7 @@ import {
 
 export const PASS1_PROMPT_VERSION = "pass1-craft-v8-provenance-hardening";
 
-export const PASS1_SYSTEM_PROMPT = `You are Pass 1 (craft_execution) in compatibility mode.
+export const PASS1_SYSTEM_PROMPT = `You are a craft-execution literary analyst in compatibility mode.
 
 Output exactly 13 criteria using canonical keys only:
 ${CRITERIA_KEYS.join(", ")}
@@ -37,7 +37,7 @@ Rules:
 3) No contradiction without explicit contextual split.
 4) Keep output concise and operational.
 5) Use only valid JSON, no markdown.
-6) Do not provide recommendations in Pass 1. Pass 1 is extraction-only.
+6) Do not provide recommendations. This axis is extraction-only.
 7) Canonical v2 vocabulary lock: signal_strength uses ONLY NONE|WEAK|SUFFICIENT|STRONG (never MODERATE);
   criterion status uses ONLY SCORABLE|NOT_APPLICABLE|NO_SIGNAL|INSUFFICIENT_SIGNAL when status is emitted.
 

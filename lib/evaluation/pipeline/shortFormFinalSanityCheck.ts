@@ -10,7 +10,10 @@ export type ShortFormFinalSanityCheck = {
   internal_reason?: string;
 };
 
-const INTERNAL_PROCESS_PATTERNS = /\b(PHASE|Pass\s*[1234]|Phase\s*3B|WAVE internals|seed names|job pipeline|pipeline internals)\b/i;
+// Matches only the internal pipeline labels that should never appear in user-facing text.
+// "PHASE" alone is intentionally excluded — it is common editorial prose (e.g. "each phase
+// of the narrative arc"). Only explicit pipeline identifiers are blocked.
+const INTERNAL_PROCESS_PATTERNS = /\b(Pass\s*[1234]|Phase\s*3B|Phase\s*[012](?:[._a-z]|\s|$)|WAVE\s+internals|seed\s+names|job\s+pipeline|pipeline\s+internals)\b/i;
 const WHOLE_MANUSCRIPT_PATTERNS = /\b(full[- ]novel|whole[- ]book|whole[- ]manuscript|entire manuscript|complete manuscript|ending payoff|whole-book arc|market ready)\b/i;
 
 function unique(values: string[]): string[] {

@@ -49,6 +49,18 @@ describe('short-form final sanity check', () => {
     expect(result.codes).toContain('SHORT_FORM_INTERNAL_PROCESS_LEAK');
   });
 
+  test('does not block normal editorial use of the word "phase"', () => {
+    const result = runShortFormFinalSanityCheck({
+      wordCount: 1000,
+      evaluationResult: {
+        overview: { summary: 'Each phase of the opening establishes tone effectively.', verdict: 'Needs revision' },
+        criteria: [criterion()],
+      } as any,
+    });
+
+    expect(result.codes).not.toContain('SHORT_FORM_INTERNAL_PROCESS_LEAK');
+  });
+
   test('blocks scored criteria without anchors', () => {
     const result = runShortFormFinalSanityCheck({
       wordCount: 1000,
