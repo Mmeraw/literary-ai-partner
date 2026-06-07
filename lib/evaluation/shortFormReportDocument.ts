@@ -3,6 +3,14 @@ import { buildTopRecommendations } from '@/lib/evaluation/reportRecommendations'
 import { buildReportPitches, summarizeRevisionOpportunities, type RevisionOpportunitySummary } from '@/lib/evaluation/reportTemplateContract';
 import { getCriterionRationalePresentation, getCriterionSupportLabel, type RenderableCriterion } from '@/lib/evaluation/reportCriterionDisplay';
 import { mistakeProofText } from '@/lib/evaluation/reportRenderSafety';
+import {
+  formatCriterionConfidenceLabel,
+  deriveGenreConfidence,
+  deriveMarketReadinessConfidence,
+  deriveOverallScoreConfidence,
+  getAudienceConfidence,
+  type CanonicalConfidenceLabel,
+} from '@/lib/evaluation/confidenceFieldPolicy';
 
 export type ShortFormCriterionRecommendation = {
   priority?: 'high' | 'medium' | 'low';
@@ -113,6 +121,13 @@ export type ShortFormEvaluationDocument = {
     readingGradeLevel: string;
     dialogueNarrativeRatio: string;
     dateGenerated: string;
+    /** Derived from word count via confidenceFieldPolicy — null when unavailable. */
+    genreConfidenceLabel: CanonicalConfidenceLabel | null;
+    marketReadinessConfidenceLabel: CanonicalConfidenceLabel | null;
+    overallScoreConfidenceLabel: CanonicalConfidenceLabel | null;
+    /** Always present — policy is warning_required for target audience. */
+    audienceConfidenceLabel: CanonicalConfidenceLabel;
+    audienceTentative: boolean;
   };
   oneParagraphPitch: string;
   oneSentencePitch: string;
@@ -175,10 +190,8 @@ function scoreOutOfTen(value: number | null): string {
 }
 
 function confidenceLabel(criterion: ShortFormCriterion): string {
-  if (criterion.confidence_level === 'high') return 'High';
-  if (criterion.confidence_level === 'moderate') return 'Moderate';
-  if (criterion.confidence_level === 'low') return 'Low';
-  return 'Not certified';
+  // Delegates entirely to canonical policy — no local confidence rules.
+  return formatCriterionConfidenceLabel(criterion.confidence_level, criterion.confidence_score_0_100) ?? 'Not certified';
 }
 
 function deriveVerdict(overallScore: number | null, fallbackVerdict?: string): string {
@@ -239,6 +252,15 @@ export function buildShortFormEvaluationDocument(input: {
   const opportunitySummary = summarizeRevisionOpportunities(orderedCriteria);
   const topRecommendations = buildTopRecommendations(result as never, 5);
 
+  const rawWordCount = typeof result.metrics?.manuscript?.word_count === 'number'
+    ? result.metrics.manuscript.word_count
+    : null;
+  const scorableCount = orderedCriteria.filter(c => c.scorability_status !== 'non_scorable').length;
+  const genreConf = deriveGenreConfidence(rawWordCount);
+  const marketConf = deriveMarketReadinessConfidence(scorableCount, orderedCriteria.length);
+  const overallConf = deriveOverallScoreConfidence(scorableCount, orderedCriteria.length, null);
+  const audienceConf = getAudienceConfidence(rawWordCount);
+
   const criteriaScoreGrid: ShortFormCriterionGridRow[] = orderedCriteria.map((criterion) => {
     return {
       key: criterion.key,
@@ -297,6 +319,11 @@ export function buildShortFormEvaluationDocument(input: {
           ? `${dialogue}% dialogue / ${(typeof narrative === 'number' ? narrative : computedNarrative ?? 0)}% narrative`
           : 'Not available',
       dateGenerated: formatDate(result.generated_at),
+      genreConfidenceLabel: genreConf,
+      marketReadinessConfidenceLabel: marketConf,
+      overallScoreConfidenceLabel: overallConf,
+      audienceConfidenceLabel: audienceConf.label,
+      audienceTentative: audienceConf.tentative,
     },
     oneParagraphPitch: mistakeProofText(pitches.oneParagraphPitch),
     oneSentencePitch: mistakeProofText(pitches.oneSentencePitch),

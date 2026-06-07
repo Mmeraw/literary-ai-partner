@@ -1,4 +1,5 @@
 import type { LongformDreamDocument } from "@/lib/evaluation/pipeline/runPass3bLongform";
+import { formatCriterionConfidenceLabel, getConfidenceLabelClasses } from "@/lib/evaluation/confidenceFieldPolicy";
 import { getCriterionDisplayLabel } from "@/lib/evaluation/reportRenderSafety";
 
 type Props = { doc: LongformDreamDocument };
@@ -160,19 +161,17 @@ export default function LongformSensoryEmotionalRegister({ doc }: Props) {
           </p>
           <div className="space-y-2">
             {toneOrProseCriteria.map((c, i) => {
-              const confidenceColor =
-                c.confidence === "High"
-                  ? "text-emerald-700"
-                  : c.confidence === "Low"
-                  ? "text-rose-700"
-                  : "text-amber-700";
+              const confidenceLabel = formatCriterionConfidenceLabel(c.confidence, undefined);
+              const confidenceClasses = confidenceLabel
+                ? getConfidenceLabelClasses(confidenceLabel)
+                : "bg-stone-200 text-stone-700 ring-1 ring-stone-300";
               return (
                 <div key={i} className="rounded-lg border border-gray-200 p-3 text-sm">
                   <div className="flex items-center gap-3 mb-2">
                     <span className="font-semibold text-gray-800">{getCriterionDisplayLabel(c.key)}</span>
                     <span className="text-lg font-bold text-indigo-700">{c.score}/10</span>
-                    <span className={`text-xs font-semibold ${confidenceColor}`}>
-                      {c.confidence}
+                    <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${confidenceClasses}`}>
+                      {confidenceLabel ?? c.confidence}
                     </span>
                   </div>
                   {c.fit_evidence?.length > 0 && (

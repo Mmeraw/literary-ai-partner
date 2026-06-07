@@ -1,3 +1,5 @@
+import { readFileSync } from "fs";
+import path from "path";
 import {
   getConfidenceDisplayMode,
   deriveGenreConfidence,
@@ -5,10 +7,17 @@ import {
   deriveOverallScoreConfidence,
   getAudienceConfidence,
   getConfidenceLabelClasses,
+  getConfidenceExportPaletteClass,
+  getConfidenceExportPaletteColor,
+  formatConfidenceLabelForExport,
   formatCriterionConfidenceLabel,
   CONFIDENCE_FIELD_POLICY,
   type CanonicalConfidenceLabel,
 } from "@/lib/evaluation/confidenceFieldPolicy";
+
+function readRepoFile(relativePath: string): string {
+  return readFileSync(path.join(process.cwd(), relativePath), "utf8");
+}
 
 // ── Policy map ────────────────────────────────────────────────────────────────
 
@@ -235,6 +244,10 @@ describe("formatCriterionConfidenceLabel", () => {
     expect(formatCriterionConfidenceLabel("high", undefined)).toBe("High Confidence");
   });
 
+  test("legacy confidence_level 'Moderate-High' → High Confidence", () => {
+    expect(formatCriterionConfidenceLabel("Moderate-High", undefined)).toBe("High Confidence");
+  });
+
   test("confidence_level 'moderate' → Moderate Confidence", () => {
     expect(formatCriterionConfidenceLabel("moderate", undefined)).toBe("Moderate Confidence");
   });
@@ -294,6 +307,64 @@ describe("getConfidenceLabelClasses", () => {
 
   test("Insufficient Evidence is stone-200 (neutral, not red)", () => {
     expect(getConfidenceLabelClasses("Insufficient Evidence")).toContain("stone-200");
+  });
+});
+
+// ── Export palette helpers ──────────────────────────────────────────────────
+
+describe("export confidence palette helpers", () => {
+  test("HTML/PDF/DOCX export class mapping comes from policy", () => {
+    expect(getConfidenceExportPaletteClass("Very High Confidence")).toBe("confidence-high");
+    expect(getConfidenceExportPaletteClass("High Confidence")).toBe("confidence-high");
+    expect(getConfidenceExportPaletteClass("Moderate Confidence")).toBe("confidence-moderate");
+    expect(getConfidenceExportPaletteClass("Low Confidence")).toBe("confidence-low");
+    expect(getConfidenceExportPaletteClass("Insufficient Evidence")).toBe("confidence-muted");
+  });
+
+  test("DOCX/PDF export color mapping comes from policy", () => {
+    expect(getConfidenceExportPaletteColor("High Confidence")).toBe("#3A6B2A");
+    expect(getConfidenceExportPaletteColor("Moderate Confidence")).toBe("#8B5E1A");
+    expect(getConfidenceExportPaletteColor("Low Confidence")).toBe("#8B2020");
+    expect(getConfidenceExportPaletteColor("Insufficient Evidence")).toBe("#5C5549");
+  });
+
+  test("legacy raw confidence strings normalize before export rendering", () => {
+    expect(formatConfidenceLabelForExport("High")).toBe("High Confidence");
+    expect(formatConfidenceLabelForExport("Moderate")).toBe("Moderate Confidence");
+    expect(formatConfidenceLabelForExport("Low")).toBe("Low Confidence");
+    expect(formatConfidenceLabelForExport(undefined)).toBe("—");
+    expect(getConfidenceExportPaletteClass("High")).toBe("confidence-high");
+    expect(getConfidenceExportPaletteColor("Low")).toBe("#8B2020");
+  });
+});
+
+// ── Renderer no-duplication guard ───────────────────────────────────────────
+
+describe("renderer confidence-policy consolidation", () => {
+  test("download route does not define local confidence formatting or palette helpers", () => {
+    const source = readRepoFile("app/api/reports/[jobId]/download/route.ts");
+
+    expect(source).toContain("formatConfidenceLabelForExport as formatConfidenceLabel");
+    expect(source).toContain("getConfidenceExportPaletteClass as confidencePaletteClass");
+    expect(source).toContain("getConfidenceExportPaletteColor as confidencePaletteColor");
+
+    expect(source).not.toMatch(/function\s+(formatConfidenceLabel|confidenceColor|confidencePaletteClass|confidencePaletteColor)\b/);
+    expect(source).not.toMatch(/const\s+(formatConfidenceLabel|confidenceColor|confidencePaletteClass|confidencePaletteColor)\b/);
+  });
+
+  test("longform report components do not implement local High/Low confidence color branches", () => {
+    const files = [
+      "components/reports/longform/LongformSensoryEmotionalRegister.tsx",
+      "components/reports/longform/LongformCharacterCoverageArcLedger.tsx",
+      "components/reports/longform/LongformEvidenceDistributionGate.tsx",
+    ];
+
+    for (const file of files) {
+      const source = readRepoFile(file);
+      expect(source).toContain("@/lib/evaluation/confidenceFieldPolicy");
+      expect(source).not.toMatch(/confidence\s*===\s*["']High["']/);
+      expect(source).not.toMatch(/confidence\s*===\s*["']Low["']/);
+    }
   });
 });
 

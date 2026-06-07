@@ -1,4 +1,5 @@
 import type { LongformDreamDocument } from "@/lib/evaluation/pipeline/runPass3bLongform";
+import { formatCriterionConfidenceLabel, getConfidenceLabelClasses } from "@/lib/evaluation/confidenceFieldPolicy";
 import { getDisplayText } from "@/lib/evaluation/reportRenderSafety";
 
 type Props = { doc: LongformDreamDocument; showInternalSections?: boolean };
@@ -191,19 +192,17 @@ type CriterionEntry = {
 };
 
 function CriterionMiniBlock({ criterion }: { criterion: CriterionEntry }) {
-  const confidenceColor =
-    criterion.confidence === "High"
-      ? "text-emerald-700"
-      : criterion.confidence === "Low"
-      ? "text-rose-700"
-      : "text-amber-700";
+  const confidenceLabel = formatCriterionConfidenceLabel(criterion.confidence, undefined);
+  const confidenceClasses = confidenceLabel
+    ? getConfidenceLabelClasses(confidenceLabel)
+    : "bg-stone-200 text-stone-700 ring-1 ring-stone-300";
 
   return (
     <div className="rounded-lg border border-gray-200 p-3 text-sm space-y-2">
       <div className="flex items-center gap-3">
         <span className="text-lg font-bold text-indigo-700">{criterion.score}/10</span>
-        <span className={`text-xs font-semibold ${confidenceColor}`}>
-          {criterion.confidence} confidence
+        <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${confidenceClasses}`}>
+          {confidenceLabel ?? `${criterion.confidence} confidence`}
         </span>
       </div>
       {criterion.fit_evidence?.length > 0 && (

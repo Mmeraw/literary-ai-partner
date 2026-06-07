@@ -35,6 +35,11 @@ import { sanitizeCMOS } from '@/lib/evaluation/cmosSanitizer';
 import { enforceApiRateLimit } from '@/lib/security/apiRateLimit';
 import { requireUser } from '@/lib/security/apiGuards';
 import {
+  formatConfidenceLabelForExport as formatConfidenceLabel,
+  getConfidenceExportPaletteClass as confidencePaletteClass,
+  getConfidenceExportPaletteColor as confidencePaletteColor,
+} from '@/lib/evaluation/confidenceFieldPolicy';
+import {
   Document, Packer, Paragraph, TextRun, HeadingLevel,
   Table, TableRow, TableCell, WidthType, BorderStyle,
   AlignmentType, ShadingType, Header, Footer,
@@ -130,22 +135,6 @@ function readinessPaletteClass(label: string): string {
   if (normalized.startsWith('market ready')) return 'readiness-strong';
   if (normalized.startsWith('not market ready')) return 'readiness-risk';
   return 'readiness-muted';
-}
-
-function confidencePaletteColor(label: string): string {
-  const normalized = label.trim().toLowerCase();
-  if (normalized.startsWith('high')) return RG.success;
-  if (normalized.startsWith('moderate')) return RG.warning;
-  if (normalized.startsWith('low')) return RG.error;
-  return RG.textMuted;
-}
-
-function confidencePaletteClass(label: string): string {
-  const normalized = label.trim().toLowerCase();
-  if (normalized.startsWith('high')) return 'confidence-high';
-  if (normalized.startsWith('moderate')) return 'confidence-moderate';
-  if (normalized.startsWith('low')) return 'confidence-low';
-  return 'confidence-muted';
 }
 
 const FOOTER_LINE = 'RevisionGrade\u2122  |  Manuscript diagnosis, author-controlled revision, and professional submission preparation.';
@@ -1025,16 +1014,20 @@ function buildCanonicalTemplateTxt(doc: UnifiedEvaluationDocument): string {
   lines.push(sep);
   lines.push(`Manuscript Title: ${doc.title}`);
   lines.push(`Report Type: ${doc.titleBlock.reportType}`);
-  lines.push(`Genre: ${doc.titleBlock.genre}`);
-  lines.push(`Target Audience: ${doc.titleBlock.targetAudience}`);
+  const genreConf = doc.titleBlock.genreConfidenceLabel ? ` (${doc.titleBlock.genreConfidenceLabel})` : '';
+  lines.push(`Genre: ${doc.titleBlock.genre}${genreConf}`);
+  const audiencePrefix = doc.titleBlock.audienceTentative ? 'Tentative: ' : '';
+  lines.push(`Target Audience: ${audiencePrefix}${doc.titleBlock.targetAudience} (${doc.titleBlock.audienceConfidenceLabel})`);
   if (doc.titleBlock.shelf) lines.push(`Shelf: ${doc.titleBlock.shelf}`);
   lines.push(`Submitted Word Count: ${doc.titleBlock.submittedWordCount}`);
   lines.push(`Estimated Manuscript Pages: ${doc.titleBlock.estimatedPages}`);
   lines.push(`Reading Grade Level: ${doc.titleBlock.readingGradeLevel}`);
   lines.push(`Dialogue/Narrative Ratio: ${doc.titleBlock.dialogueNarrativeRatio}`);
   lines.push(`Date Generated: ${doc.titleBlock.dateGenerated}`);
-  lines.push(`Overall Score: ${doc.titleBlock.overallScoreLabel}`);
-  lines.push(`Market Readiness: ${doc.titleBlock.marketReadiness}`);
+  const overallScoreConf = doc.titleBlock.overallScoreConfidenceLabel ? ` (${doc.titleBlock.overallScoreConfidenceLabel})` : '';
+  lines.push(`Overall Score: ${doc.titleBlock.overallScoreLabel}${overallScoreConf}`);
+  const marketConf = doc.titleBlock.marketReadinessConfidenceLabel ? ` (${doc.titleBlock.marketReadinessConfidenceLabel})` : '';
+  lines.push(`Market Readiness: ${doc.titleBlock.marketReadiness}${marketConf}`);
   lines.push('Confidentiality: Prepared for author/editorial use.');
   lines.push('');
 
@@ -1235,10 +1228,10 @@ function renderCanonicalTemplateHtml(doc: UnifiedEvaluationDocument): string {
       <h1>${escapeHtml(doc.title)}</h1>
       <p><strong>${escapeHtml(doc.titleBlock.reportType)}</strong></p>
       <div class="grid">
-        <div class="metric"><strong>Overall Score</strong><div class="overall-value ${scorePaletteClassFromLabel(doc.titleBlock.overallScoreLabel)}">${escapeHtml(doc.titleBlock.overallScoreLabel)}</div></div>
-        <div class="metric"><strong>Market Readiness</strong><div class="readiness-value ${readinessPaletteClass(doc.titleBlock.marketReadiness)}">${escapeHtml(doc.titleBlock.marketReadiness)}</div></div>
-        <div class="metric"><strong>Genre</strong><div>${escapeHtml(doc.titleBlock.genre)}</div></div>
-        <div class="metric"><strong>Target Audience</strong><div>${escapeHtml(doc.titleBlock.targetAudience)}</div></div>
+        <div class="metric"><strong>Overall Score</strong><div class="overall-value ${scorePaletteClassFromLabel(doc.titleBlock.overallScoreLabel)}">${escapeHtml(doc.titleBlock.overallScoreLabel)}${doc.titleBlock.overallScoreConfidenceLabel ? ` <span class="confidence-pill ${confidencePaletteClass(doc.titleBlock.overallScoreConfidenceLabel)}">${escapeHtml(doc.titleBlock.overallScoreConfidenceLabel)}</span>` : ''}</div></div>
+        <div class="metric"><strong>Market Readiness</strong><div class="readiness-value ${readinessPaletteClass(doc.titleBlock.marketReadiness)}">${escapeHtml(doc.titleBlock.marketReadiness)}${doc.titleBlock.marketReadinessConfidenceLabel ? ` <span class="confidence-pill ${confidencePaletteClass(doc.titleBlock.marketReadinessConfidenceLabel)}">${escapeHtml(doc.titleBlock.marketReadinessConfidenceLabel)}</span>` : ''}</div></div>
+        <div class="metric"><strong>Genre</strong><div>${escapeHtml(doc.titleBlock.genre)}${doc.titleBlock.genreConfidenceLabel ? ` <span class="confidence-pill ${confidencePaletteClass(doc.titleBlock.genreConfidenceLabel)}">${escapeHtml(doc.titleBlock.genreConfidenceLabel)}</span>` : ''}</div></div>
+        <div class="metric"><strong>Target Audience</strong><div>${doc.titleBlock.audienceTentative ? '<em>Tentative: </em>' : ''}${escapeHtml(doc.titleBlock.targetAudience)} <span class="confidence-pill ${confidencePaletteClass(doc.titleBlock.audienceConfidenceLabel)}">${escapeHtml(doc.titleBlock.audienceConfidenceLabel)}</span></div></div>
         ${doc.titleBlock.shelf ? `<div class="metric"><strong>Shelf</strong><div>${escapeHtml(doc.titleBlock.shelf)}</div></div>` : ''}
         <div class="metric"><strong>Word Count</strong><div>${escapeHtml(doc.titleBlock.submittedWordCount)}</div></div>
         <div class="metric"><strong>Estimated Pages</strong><div>${escapeHtml(doc.titleBlock.estimatedPages)}</div></div>
@@ -1299,10 +1292,39 @@ async function buildCanonicalTemplateDocx(doc: UnifiedEvaluationDocument): Promi
       spacing: { after: 140 },
     }),
     para(`Report Type: ${doc.titleBlock.reportType}`),
-    para(`Overall Score: ${doc.titleBlock.overallScoreLabel}`, { bold: true, color: scorePaletteColorFromLabel(doc.titleBlock.overallScoreLabel) }),
-    para(`Market Readiness: ${doc.titleBlock.marketReadiness}`, { bold: true, color: readinessPaletteColor(doc.titleBlock.marketReadiness) }),
-    para(`Genre: ${doc.titleBlock.genre}`),
-    para(`Target Audience: ${doc.titleBlock.targetAudience}`),
+    new Paragraph({
+      spacing: { after: 90 },
+      children: [
+        new TextRun({ text: 'Overall Score: ', size: 22, color: docxHex(RG.textPrimary) }),
+        new TextRun({ text: doc.titleBlock.overallScoreLabel, bold: true, size: 22, color: docxHex(scorePaletteColorFromLabel(doc.titleBlock.overallScoreLabel)) }),
+        ...(doc.titleBlock.overallScoreConfidenceLabel ? [new TextRun({ text: `  ${doc.titleBlock.overallScoreConfidenceLabel}`, size: 20, color: docxHex(confidencePaletteColor(doc.titleBlock.overallScoreConfidenceLabel)) })] : []),
+      ],
+    }),
+    new Paragraph({
+      spacing: { after: 90 },
+      children: [
+        new TextRun({ text: 'Market Readiness: ', size: 22, color: docxHex(RG.textPrimary) }),
+        new TextRun({ text: doc.titleBlock.marketReadiness, bold: true, size: 22, color: docxHex(readinessPaletteColor(doc.titleBlock.marketReadiness)) }),
+        ...(doc.titleBlock.marketReadinessConfidenceLabel ? [new TextRun({ text: `  ${doc.titleBlock.marketReadinessConfidenceLabel}`, size: 20, color: docxHex(confidencePaletteColor(doc.titleBlock.marketReadinessConfidenceLabel)) })] : []),
+      ],
+    }),
+    new Paragraph({
+      spacing: { after: 90 },
+      children: [
+        new TextRun({ text: 'Genre: ', size: 22, color: docxHex(RG.textPrimary) }),
+        new TextRun({ text: doc.titleBlock.genre, size: 22, color: docxHex(RG.textPrimary) }),
+        ...(doc.titleBlock.genreConfidenceLabel ? [new TextRun({ text: `  ${doc.titleBlock.genreConfidenceLabel}`, size: 20, color: docxHex(confidencePaletteColor(doc.titleBlock.genreConfidenceLabel)) })] : []),
+      ],
+    }),
+    new Paragraph({
+      spacing: { after: 90 },
+      children: [
+        ...(doc.titleBlock.audienceTentative ? [new TextRun({ text: 'Tentative: ', size: 22, italics: true, color: docxHex(RG.textMuted) })] : []),
+        new TextRun({ text: 'Target Audience: ', size: 22, color: docxHex(RG.textPrimary) }),
+        new TextRun({ text: doc.titleBlock.targetAudience, size: 22, color: docxHex(RG.textPrimary) }),
+        new TextRun({ text: `  ${doc.titleBlock.audienceConfidenceLabel}`, size: 20, color: docxHex(confidencePaletteColor(doc.titleBlock.audienceConfidenceLabel)) }),
+      ],
+    }),
     ...(doc.titleBlock.shelf ? [para(`Shelf: ${doc.titleBlock.shelf}`)] : []),
     para(`Word Count: ${doc.titleBlock.submittedWordCount}`),
     para(`Estimated Pages: ${doc.titleBlock.estimatedPages}`),
@@ -1439,22 +1461,6 @@ async function buildCanonicalTemplateDocx(doc: UnifiedEvaluationDocument): Promi
   });
 
   return await Packer.toBuffer(docxDoc);
-}
-
-function confidenceColor(level: string | undefined): string {
-  if (level === 'high') return RG.success;
-  if (level === 'moderate') return RG.warning;
-  if (level === 'low') return RG.error;
-  return RG.textMuted;
-}
-
-function formatConfidenceLabel(level: string | undefined): string {
-  if (!level) return '—';
-  const normalized = level.trim().toLowerCase();
-  if (normalized === 'high') return 'High Confidence';
-  if (normalized === 'moderate') return 'Moderate Confidence';
-  if (normalized === 'low') return 'Low Confidence';
-  return `${level.charAt(0).toUpperCase()}${level.slice(1)} Confidence`;
 }
 
 function scoreBarColor(score: number | null | undefined): string {
@@ -2031,7 +2037,7 @@ async function buildDocx(result: ExportableResult, title: string | null, jobId: 
         new TableCell({
           shading: { type: ShadingType.SOLID, color: rowShading },
           borders: DOCX_NO_BORDERS,
-          children: [new Paragraph({ children: [new TextRun({ text: confStr, size: 20, color: confidenceColor(c.confidence_level).replace('#', ''), font: 'Calibri' })] })],
+          children: [new Paragraph({ children: [new TextRun({ text: confStr, size: 20, color: confidencePaletteColor(c.confidence_level).replace('#', ''), font: 'Calibri' })] })],
         }),
       ],
     });
@@ -2266,7 +2272,7 @@ async function buildDocx(result: ExportableResult, title: string | null, jobId: 
           children: [
             new TextRun({ text: `${getCriterionDisplayLabel(a.key)}`, bold: true, size: 22, color: RG.textPrimary.replace('#', ''), font: 'Georgia' }),
             new TextRun({ text: ` — ${a.score}/10`, bold: true, size: 20, color: docxScoreColor(a.score).replace('#', ''), font: 'Calibri' }),
-            new TextRun({ text: ` (${formatConfidenceLabel(a.confidence)})`, size: 18, color: confidenceColor(a.confidence).replace('#', ''), font: 'Calibri' }),
+            new TextRun({ text: ` (${formatConfidenceLabel(a.confidence)})`, size: 18, color: confidencePaletteColor(a.confidence).replace('#', ''), font: 'Calibri' }),
           ],
         }));
 

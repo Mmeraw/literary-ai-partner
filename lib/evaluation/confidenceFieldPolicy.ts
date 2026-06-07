@@ -80,6 +80,20 @@ export type CanonicalConfidenceLabel =
   | "Low Confidence"
   | "Insufficient Evidence";
 
+function normalizeRawConfidenceLevel(
+  confidenceLevel: string | null | undefined,
+): CanonicalConfidenceLabel | null {
+  const normalized = confidenceLevel?.trim().toLowerCase().replace(/[_-]+/g, " ") ?? "";
+  if (!normalized) return null;
+  if (normalized === "very high" || normalized === "very high confidence") return "Very High Confidence";
+  if (normalized === "moderate high" || normalized === "moderate high confidence") return "High Confidence";
+  if (normalized === "high" || normalized === "high confidence") return "High Confidence";
+  if (normalized === "moderate" || normalized === "medium" || normalized === "moderate confidence" || normalized === "medium confidence") return "Moderate Confidence";
+  if (normalized === "low" || normalized === "low confidence") return "Low Confidence";
+  if (normalized === "insufficient" || normalized === "insufficient evidence") return "Insufficient Evidence";
+  return null;
+}
+
 /**
  * Map raw criterion confidence_level / confidence_score_0_100 to a canonical
  * display label. Returns null when no confidence signal is present.
@@ -88,22 +102,30 @@ export function formatCriterionConfidenceLabel(
   confidenceLevel: string | null | undefined,
   confidenceScore: number | null | undefined,
 ): CanonicalConfidenceLabel | null {
-  if (confidenceLevel === "high" || (typeof confidenceScore === "number" && confidenceScore >= 80)) {
-    return "High Confidence";
+  const labelFromLevel = normalizeRawConfidenceLevel(confidenceLevel);
+  if (labelFromLevel) {
+    return labelFromLevel;
   }
-  if (
-    confidenceLevel === "moderate" ||
-    (typeof confidenceScore === "number" && confidenceScore >= 60)
-  ) {
-    return "Moderate Confidence";
-  }
-  if (
-    confidenceLevel === "low" ||
-    (typeof confidenceScore === "number" && confidenceScore >= 0)
-  ) {
-    return "Low Confidence";
+
+  if (typeof confidenceScore === "number") {
+    if (confidenceScore >= 80) return "High Confidence";
+    if (confidenceScore >= 60) return "Moderate Confidence";
+    if (confidenceScore >= 0) return "Low Confidence";
   }
   return null;
+}
+
+/**
+ * Export/web shared formatter for legacy render paths that still receive a raw
+ * criterion confidence level. The derivation remains canonical here; renderers
+ * only choose the fallback text for missing confidence.
+ */
+export function formatConfidenceLabelForExport(
+  confidenceLevel: string | null | undefined,
+  confidenceScore: number | null | undefined = undefined,
+  fallback = "—",
+): CanonicalConfidenceLabel | string {
+  return formatCriterionConfidenceLabel(confidenceLevel, confidenceScore) ?? fallback;
 }
 
 // ── Per-field derivation functions ────────────────────────────────────────────
@@ -244,4 +266,36 @@ export function getConfidenceLabelClasses(label: CanonicalConfidenceLabel): stri
     case "Insufficient Evidence":
       return "bg-stone-200 text-stone-700 ring-1 ring-stone-300";
   }
+}
+
+// ── Export palette classes/colors for canonical labels ──────────────────────
+// PDF/HTML/DOCX/TXT exporters must not implement their own label → style rules.
+
+export type ConfidenceExportPaletteClass =
+  | "confidence-high"
+  | "confidence-moderate"
+  | "confidence-low"
+  | "confidence-muted";
+
+const CONFIDENCE_EXPORT_PALETTE: Record<
+  CanonicalConfidenceLabel,
+  { className: ConfidenceExportPaletteClass; color: string }
+> = {
+  "Very High Confidence": { className: "confidence-high", color: "#3A6B2A" },
+  "High Confidence": { className: "confidence-high", color: "#3A6B2A" },
+  "Moderate Confidence": { className: "confidence-moderate", color: "#8B5E1A" },
+  "Low Confidence": { className: "confidence-low", color: "#8B2020" },
+  "Insufficient Evidence": { className: "confidence-muted", color: "#5C5549" },
+};
+
+export function getConfidenceExportPaletteClass(
+  label: string | null | undefined,
+): ConfidenceExportPaletteClass {
+  const canonical = normalizeRawConfidenceLevel(label);
+  return canonical ? CONFIDENCE_EXPORT_PALETTE[canonical].className : "confidence-muted";
+}
+
+export function getConfidenceExportPaletteColor(label: string | null | undefined): string {
+  const canonical = normalizeRawConfidenceLevel(label);
+  return canonical ? CONFIDENCE_EXPORT_PALETTE[canonical].color : "#5C5549";
 }

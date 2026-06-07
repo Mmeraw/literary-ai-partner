@@ -1,14 +1,12 @@
 import type { LongformDreamDocument } from "@/lib/evaluation/pipeline/runPass3bLongform";
+import {
+  formatCriterionConfidenceLabel,
+  getConfidenceLabelClasses,
+  type CanonicalConfidenceLabel,
+} from "@/lib/evaluation/confidenceFieldPolicy";
 import { getCriterionDisplayLabel } from "@/lib/evaluation/reportRenderSafety";
 
 type Props = { doc: LongformDreamDocument; showInternalSections?: boolean };
-
-const CONFIDENCE_COLORS: Record<string, string> = {
-  High: "bg-emerald-100 text-emerald-800 border-emerald-200",
-  "Moderate-High": "bg-blue-100 text-blue-800 border-blue-200",
-  Moderate: "bg-amber-100 text-amber-800 border-amber-200",
-  Low: "bg-rose-100 text-rose-800 border-rose-200",
-};
 
 export default function LongformEvidenceDistributionGate({ doc, showInternalSections = false }: Props) {
   // Evidence distribution / confidence gate surfaces through:
@@ -25,9 +23,6 @@ export default function LongformEvidenceDistributionGate({ doc, showInternalSect
   }));
 
   const distributionGaps = criteriaWithConfidence.filter((c) => c.hasDistributionGap);
-  const lowConfidence = criteriaWithConfidence.filter(
-    (c) => c.confidence === "Low" || c.confidence === "Moderate"
-  );
 
   const evidenceFailures = (doc.acceptance_checks?.failure_conditions ?? []).filter((f) =>
     /evidence|distribution|opening.heavy|confidence|narrow|insufficient/i.test(f)
@@ -41,15 +36,17 @@ export default function LongformEvidenceDistributionGate({ doc, showInternalSect
   );
 
   // Build confidence summary
-  const confidenceCounts: Record<string, number> = {
-    High: 0,
-    "Moderate-High": 0,
-    Moderate: 0,
-    Low: 0,
+  const confidenceCounts: Record<CanonicalConfidenceLabel, number> = {
+    "Very High Confidence": 0,
+    "High Confidence": 0,
+    "Moderate Confidence": 0,
+    "Low Confidence": 0,
+    "Insufficient Evidence": 0,
   };
   criteriaWithConfidence.forEach((c) => {
-    if (c.confidence in confidenceCounts) {
-      confidenceCounts[c.confidence]++;
+    const confidenceLabel = formatCriterionConfidenceLabel(c.confidence, undefined);
+    if (confidenceLabel) {
+      confidenceCounts[confidenceLabel]++;
     }
   });
 
@@ -72,12 +69,11 @@ export default function LongformEvidenceDistributionGate({ doc, showInternalSect
             {Object.entries(confidenceCounts)
               .filter(([, count]) => count > 0)
               .map(([level, count]) => {
-                const colorClass =
-                  CONFIDENCE_COLORS[level] ?? "bg-gray-100 text-gray-700 border-gray-200";
+                const colorClass = getConfidenceLabelClasses(level as CanonicalConfidenceLabel);
                 return (
                   <span
                     key={level}
-                    className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold ${colorClass}`}
+                    className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${colorClass}`}
                   >
                     {level}: {count}
                   </span>
@@ -88,8 +84,10 @@ export default function LongformEvidenceDistributionGate({ doc, showInternalSect
           {/* Per-criterion confidence grid */}
           <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-2">
             {criteriaWithConfidence.map((c, i) => {
-              const colorClass =
-                CONFIDENCE_COLORS[c.confidence] ?? "bg-gray-100 text-gray-700 border-gray-200";
+              const confidenceLabel = formatCriterionConfidenceLabel(c.confidence, undefined);
+              const colorClass = confidenceLabel
+                ? getConfidenceLabelClasses(confidenceLabel)
+                : "bg-stone-200 text-stone-700 ring-1 ring-stone-300";
               return (
                 <div
                   key={i}
@@ -102,9 +100,9 @@ export default function LongformEvidenceDistributionGate({ doc, showInternalSect
                   <div className="flex items-center justify-between gap-1 mb-0.5">
                     <span className="font-medium text-gray-800">{getCriterionDisplayLabel(c.key)}</span>
                     <span
-                      className={`inline-flex items-center rounded-full border px-1.5 py-0.5 text-xs font-semibold ${colorClass}`}
+                      className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-xs font-semibold ${colorClass}`}
                     >
-                      {c.confidence}
+                      {confidenceLabel ?? c.confidence}
                     </span>
                   </div>
                   <span className="text-gray-700">{c.score}/10</span>
