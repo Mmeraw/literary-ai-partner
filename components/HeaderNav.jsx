@@ -28,6 +28,7 @@ const storygateLinks = [
 
 const resourceLinks = [
   ["Resources Hub",                 "/resources"],
+  ["Author FAQ",                    "/faq"],
   ["The Black Box Problem",         "/black-box-problem"],
   ["Methodology",                   "/methodology"],
   ["Editorial Doctrine",            "/reliability"],
@@ -40,6 +41,7 @@ const resourceLinks = [
 
 const resourceActiveHrefs = [
   "/resources",
+  "/faq",
   "/black-box-problem",
   "/methodology",
   "/reliability",
@@ -323,6 +325,7 @@ export default function HeaderNav() {
             <MobileLink href="/agent-readiness">Agent Readiness&#8482;</MobileLink>
             <MobileLink href="/storygate-studio">Storygate Studio&#8482;</MobileLink>
             <MobileLink href="/resources">Resources</MobileLink>
+            <MobileLink href="/faq">Author FAQ</MobileLink>
             <MobileLink href="/pricing">Pricing</MobileLink>
             {isAuthed && isAdmin && <MobileLink href="/admin">Admin</MobileLink>}
             {isAuthed && (
