@@ -19,6 +19,32 @@ function workerKickoffWarningReason(result: TriggerWorkerResult): string | null 
   return null;
 }
 
+function includesShortFormInternalProcessLeak(value: unknown): boolean {
+  if (typeof value === 'string') return value.includes('SHORT_FORM_INTERNAL_PROCESS_LEAK');
+  if (!value || typeof value !== 'object') return false;
+
+  try {
+    return JSON.stringify(value).includes('SHORT_FORM_INTERNAL_PROCESS_LEAK');
+  } catch {
+    return false;
+  }
+}
+
+function isRecoverableLegacyShortFormLeakFailure(params: {
+  failureCode: string | null | undefined;
+  lastError: unknown;
+  failureEnvelope: unknown;
+  progress: Record<string, unknown>;
+}): boolean {
+  if (params.failureCode !== 'QG_FAILED') return false;
+
+  return (
+    includesShortFormInternalProcessLeak(params.lastError) ||
+    includesShortFormInternalProcessLeak(params.failureEnvelope) ||
+    includesShortFormInternalProcessLeak(params.progress)
+  );
+}
+
 /**
  * POST /api/jobs/[jobId]/resume
  *
@@ -50,7 +76,7 @@ export async function POST(
     const { data: job, error: jobError } = await admin
       .from('evaluation_jobs')
       .select(
-        'id, manuscript_id, status, phase, phase_status, attempt_count, max_attempts, progress, failure_code, manuscripts!inner(user_id)',
+        'id, manuscript_id, status, phase, phase_status, attempt_count, max_attempts, progress, failure_code, last_error, failure_envelope, manuscripts!inner(user_id)',
       )
       .eq('id', jobId)
       .eq('manuscripts.user_id', user.id)
@@ -70,6 +96,12 @@ export async function POST(
       jobRow.progress && typeof jobRow.progress === 'object' && !Array.isArray(jobRow.progress)
         ? (jobRow.progress as Record<string, unknown>)
         : {};
+    const recoverableLegacyShortFormLeakFailure = isRecoverableLegacyShortFormLeakFailure({
+      failureCode: jobFailureCode,
+      lastError: jobRow.last_error,
+      failureEnvelope: jobRow.failure_envelope,
+      progress: jobProgress,
+    });
 
     const cancelledByUser =
       jobFailureCode === 'USER_CANCELLED'
@@ -90,7 +122,7 @@ export async function POST(
       );
     }
 
-    if (isTerminalFailureCode(jobFailureCode)) {
+    if (isTerminalFailureCode(jobFailureCode) && !recoverableLegacyShortFormLeakFailure) {
       const deniedAt = new Date().toISOString();
       const bucket = classifyFailureBucket(jobFailureCode);
 

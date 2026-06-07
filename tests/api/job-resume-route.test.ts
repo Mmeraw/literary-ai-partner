@@ -1,6 +1,7 @@
 import { POST } from '@/app/api/jobs/[jobId]/resume/route';
 import { getAuthenticatedUser } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { isTerminalFailureCode } from '@/lib/evaluation/processor';
 import { triggerEvaluationWorker } from '@/lib/jobs/triggerWorker';
 
 jest.mock('@/lib/supabase/server', () => ({
@@ -44,6 +45,7 @@ jest.mock('@/lib/jobs/triggerWorker', () => ({
 const mockGetAuthenticatedUser = getAuthenticatedUser as jest.MockedFunction<typeof getAuthenticatedUser>;
 const mockCreateAdminClient = createAdminClient as jest.MockedFunction<typeof createAdminClient>;
 const mockTriggerEvaluationWorker = triggerEvaluationWorker as jest.MockedFunction<typeof triggerEvaluationWorker>;
+const mockIsTerminalFailureCode = isTerminalFailureCode as jest.MockedFunction<typeof isTerminalFailureCode>;
 
 function makeJob(overrides: Record<string, unknown> = {}) {
   return {
@@ -118,6 +120,7 @@ function firstUpdatePayload(admin: ReturnType<typeof makeAdminMock>): Record<str
 describe('POST /api/jobs/[jobId]/resume', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockIsTerminalFailureCode.mockImplementation((code: string | null | undefined) => code === 'USER_CANCELLED');
     mockGetAuthenticatedUser.mockResolvedValue({ id: 'user-1', email: 'writer@example.com' } as never);
     process.env.CRON_SECRET = 'cron-secret';
   });
@@ -190,6 +193,65 @@ describe('POST /api/jobs/[jobId]/resume', () => {
       resume_checkpoint_artifact_type: 'pass12_handoff_v1',
       resume_checkpoint_artifact_id: 'artifact-1',
     }));
+  });
+
+  test('requeues legacy QG_FAILED when the saved failure is the fixed short-form internal-process leak', async () => {
+    mockIsTerminalFailureCode.mockImplementation(
+      (code: string | null | undefined) => code === 'USER_CANCELLED' || code === 'QG_FAILED',
+    );
+    const admin = makeAdminMock(makeJob({
+      failure_code: 'QG_FAILED',
+      last_error: '[ShortFormFinalSanityCheck] SHORT_FORM_INTERNAL_PROCESS_LEAK',
+      failure_envelope: {
+        code: 'QG_FAILED',
+        message: '[ShortFormFinalSanityCheck] SHORT_FORM_INTERNAL_PROCESS_LEAK',
+      },
+    }));
+    mockCreateAdminClient.mockReturnValue(admin as never);
+
+    const response = await POST(makeRequest() as never, { params: Promise.resolve({ jobId: 'job-resume-1' }) });
+    const json = (await response.json()) as { success: boolean; target_phase: string };
+
+    expect(response.status).toBe(202);
+    expect(json.success).toBe(true);
+    expect(json.target_phase).toBe('phase_3');
+
+    const updatePayload = firstUpdatePayload(admin);
+    expect(updatePayload).toEqual(expect.objectContaining({
+      status: 'queued',
+      phase_status: 'queued',
+      last_error: null,
+      failure_code: null,
+      failure_envelope: null,
+    }));
+    expect(mockTriggerEvaluationWorker).toHaveBeenCalledWith(expect.objectContaining({
+      jobId: 'job-resume-1',
+      source: 'api.jobs.resume',
+    }));
+  });
+
+  test('keeps generic QG_FAILED terminal when it is not the fixed short-form leak', async () => {
+    mockIsTerminalFailureCode.mockImplementation(
+      (code: string | null | undefined) => code === 'USER_CANCELLED' || code === 'QG_FAILED',
+    );
+    const admin = makeAdminMock(makeJob({
+      failure_code: 'QG_FAILED',
+      last_error: '[QualityGate] QG_FAILED: evidence anchors missing',
+      failure_envelope: {
+        code: 'QG_FAILED',
+        message: '[QualityGate] QG_FAILED: evidence anchors missing',
+      },
+    }));
+    mockCreateAdminClient.mockReturnValue(admin as never);
+
+    const response = await POST(makeRequest() as never, { params: Promise.resolve({ jobId: 'job-resume-1' }) });
+    const json = (await response.json()) as { resumable: boolean; failure_code: string };
+
+    expect(response.status).toBe(409);
+    expect(json.resumable).toBe(false);
+    expect(json.failure_code).toBe('QG_FAILED');
+    expect(admin.update).not.toHaveBeenCalled();
+    expect(mockTriggerEvaluationWorker).not.toHaveBeenCalled();
   });
 
   test('queued recovery request kicks the worker instead of returning a dead already-active conflict', async () => {
