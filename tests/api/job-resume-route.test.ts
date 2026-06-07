@@ -39,6 +39,7 @@ jest.mock('@/lib/jobs/triggerWorker', () => ({
     targetClaimed: true,
     body: { success: true },
   })),
+  isTriggerWorkerFailure: jest.fn((result: { ok: boolean }) => !result.ok),
 }));
 
 jest.mock('@/lib/jobs/failJobTerminal', () => ({

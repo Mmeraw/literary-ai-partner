@@ -301,7 +301,7 @@ describe("GET /api/jobs/[jobId]", () => {
 
     expect(json.ok).toBe(true);
     expect(json.job.can_view_operational_details).toBe(false);
-    expect(json.job.public_status_message).toContain("could not be completed");
+    expect(json.job.public_status_message).toContain("recovery is in progress");
     expect(json.job.last_error).toBeUndefined();
     expect(json.job.failure_code).toBeUndefined();
     expect(json.job.phase0_total_duration_ms).toBeUndefined();
