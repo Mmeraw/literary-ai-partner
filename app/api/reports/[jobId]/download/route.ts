@@ -1258,8 +1258,9 @@ function renderCanonicalTemplateHtml(doc: UnifiedEvaluationDocument): string {
     .score-box{background:#1C1814;border:2px solid #B8922A;border-radius:8px;padding:12px;color:#F5EFE0}
     .score-box .label{font-family:Helvetica,Arial,sans-serif;font-size:9pt;text-transform:uppercase;color:#C8A96E;letter-spacing:.06em}
     .score-box .value{font-size:34pt;font-weight:700;line-height:1.05;margin-top:4px}
-    .score-box .verdict{margin-top:8px;font-family:Helvetica,Arial,sans-serif;font-size:10pt;text-transform:uppercase;color:#F5E9C8}
+    .score-box .verdict{margin-top:8px;font-family:Helvetica,Arial,sans-serif;font-size:8pt;text-transform:uppercase;color:#F5E9C8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:12px}.metric{padding:10px;border:1px solid #E6DED2;background:#FFFDF9;border-radius:6px}
+    .metric--wide{grid-column:span 2}
     .metric strong{display:block;font-family:Helvetica,Arial,sans-serif;color:#5C5549;font-size:8pt;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px}
     .metric div{font-family:Helvetica,Arial,sans-serif;font-size:10pt;color:#1C1814}
     section{background:#fff;border:1px solid #D9D0C3;border-radius:8px;padding:20px;margin:0 0 16px;break-inside:avoid}
@@ -1287,7 +1288,7 @@ function renderCanonicalTemplateHtml(doc: UnifiedEvaluationDocument): string {
       </div>
       <div class="grid">
         <div class="metric"><strong>Genre</strong><div>${escapeHtml(doc.titleBlock.genre)}${doc.titleBlock.genreConfidenceLabel ? ` <span class="confidence-pill ${confidencePaletteClass(doc.titleBlock.genreConfidenceLabel)}">${escapeHtml(doc.titleBlock.genreConfidenceLabel)}</span>` : ''}</div></div>
-        <div class="metric"><strong>Target Audience</strong><div>${doc.titleBlock.audienceTentative ? '<em>Tentative: </em>' : ''}${escapeHtml(doc.titleBlock.targetAudience)} <span class="confidence-pill ${confidencePaletteClass(doc.titleBlock.audienceConfidenceLabel)}">${escapeHtml(doc.titleBlock.audienceConfidenceLabel)}</span></div></div>
+        <div class="metric metric--wide"><strong>Target Audience</strong><div>${doc.titleBlock.audienceTentative ? '<em>Tentative: </em>' : ''}${escapeHtml(doc.titleBlock.targetAudience)} <span class="confidence-pill ${confidencePaletteClass(doc.titleBlock.audienceConfidenceLabel)}">${escapeHtml(doc.titleBlock.audienceConfidenceLabel)}</span></div></div>
         <div class="metric"><strong>Submitted Word Count</strong><div>${escapeHtml(doc.titleBlock.submittedWordCount)}</div></div>
         <div class="metric"><strong>Estimated Pages</strong><div>${escapeHtml(doc.titleBlock.estimatedPages)}</div></div>
         <div class="metric"><strong>Reading Grade Level</strong><div>${escapeHtml(doc.titleBlock.readingGradeLevel)}</div></div>
@@ -1412,21 +1413,21 @@ async function buildCanonicalTemplateDocx(doc: UnifiedEvaluationDocument): Promi
           children: [
             new TableCell({
               width: { size: 50, type: WidthType.PERCENTAGE },
-              shading: { type: ShadingType.SOLID, color: docxHex(RG.surfaceAlt) },
+              shading: { type: ShadingType.SOLID, color: docxHex(RG.ink) },
               children: [
-                new Paragraph({ children: [new TextRun({ text: 'Overall Score', bold: true, size: 18, color: docxHex(RG.textMuted) })] }),
+                new Paragraph({ children: [new TextRun({ text: 'Overall Score', bold: true, size: 18, color: docxHex(RG.goldMid) })] }),
                 new Paragraph({
-                  children: [new TextRun({ text: doc.titleBlock.overallScoreLabel, bold: true, size: 30, color: docxHex(scorePaletteColorFromLabel(doc.titleBlock.overallScoreLabel)) })],
+                  children: [new TextRun({ text: doc.titleBlock.overallScoreLabel, bold: true, size: 32, color: docxHex(RG.cream) })],
                 }),
               ],
             }),
             new TableCell({
               width: { size: 50, type: WidthType.PERCENTAGE },
-              shading: { type: ShadingType.SOLID, color: docxHex(RG.surfaceAlt) },
+              shading: { type: ShadingType.SOLID, color: docxHex(RG.ink2) },
               children: [
-                new Paragraph({ children: [new TextRun({ text: 'Market Readiness', bold: true, size: 18, color: docxHex(RG.textMuted) })] }),
+                new Paragraph({ children: [new TextRun({ text: 'Market Readiness', bold: true, size: 18, color: docxHex(RG.goldMid) })] }),
                 new Paragraph({
-                  children: [new TextRun({ text: cleanReportText(doc.titleBlock.marketReadiness), bold: true, size: 28, color: docxHex(readinessPaletteColor(doc.titleBlock.marketReadiness)) })],
+                  children: [new TextRun({ text: cleanReportText(doc.titleBlock.marketReadiness), bold: true, size: 26, color: docxHex(RG.goldLight) })],
                 }),
               ],
             }),
@@ -1459,8 +1460,9 @@ async function buildCanonicalTemplateDocx(doc: UnifiedEvaluationDocument): Promi
   doc.contentWarnings.forEach((item) => children.push(docxListPara(item)));
 
   children.push(makeHeading('Revision Opportunity Summary'));
-  children.push(para(`Total: ${doc.revisionOpportunitySummary.total}`));
-  children.push(para(`High: ${doc.revisionOpportunitySummary.high} | Medium: ${doc.revisionOpportunitySummary.medium} | Low: ${doc.revisionOpportunitySummary.low}`));
+  const rs = doc.revisionOpportunitySummary;
+  children.push(new Paragraph({ spacing: { after: 100 }, children: [new TextRun({ text: `Total: ${rs.total}`, size: 22, color: docxHex(RG.textPrimary) })] }));
+  children.push(new Paragraph({ spacing: { after: 100 }, children: [new TextRun({ text: `High: ${rs.high}  ·  Medium: ${rs.medium}  ·  Low: ${rs.low}`, size: 22, color: docxHex(RG.textMuted) })] }));
   children.push(makeHeading('Executive Summary'));
   children.push(para(doc.executiveSummary));
   children.push(makeHeading('Top Strengths'));
@@ -1480,28 +1482,43 @@ async function buildCanonicalTemplateDocx(doc: UnifiedEvaluationDocument): Promi
     new Table({
       rows: [
         new TableRow({
+          tableHeader: true,
           children: [
-            new TableCell({ children: [new Paragraph('Criterion')] }),
-            new TableCell({ children: [new Paragraph('Score')] }),
-            new TableCell({ children: [new Paragraph('Confidence')] }),
+            new TableCell({
+              shading: { type: ShadingType.SOLID, color: docxHex(RG.ink) },
+              children: [new Paragraph({ children: [new TextRun({ text: 'Criterion', bold: true, size: 20, color: docxHex(RG.cream) })] })],
+            }),
+            new TableCell({
+              shading: { type: ShadingType.SOLID, color: docxHex(RG.ink) },
+              children: [new Paragraph({ children: [new TextRun({ text: 'Score', bold: true, size: 20, color: docxHex(RG.cream) })] })],
+            }),
+            new TableCell({
+              shading: { type: ShadingType.SOLID, color: docxHex(RG.ink) },
+              children: [new Paragraph({ children: [new TextRun({ text: 'Confidence', bold: true, size: 20, color: docxHex(RG.cream) })] })],
+            }),
           ],
         }),
         ...doc.criteriaScoreGrid.map(
-          (row) =>
+          (row, rowIndex) =>
             new TableRow({
               children: [
-                new TableCell({ children: [new Paragraph(row.label)] }),
                 new TableCell({
+                  shading: { type: ShadingType.SOLID, color: rowIndex % 2 === 0 ? docxHex(RG.surface) : docxHex(RG.surfaceAlt) },
+                  children: [new Paragraph({ children: [new TextRun({ text: row.label, size: 20, color: docxHex(RG.textPrimary) })] })],
+                }),
+                new TableCell({
+                  shading: { type: ShadingType.SOLID, color: rowIndex % 2 === 0 ? docxHex(RG.surface) : docxHex(RG.surfaceAlt) },
                   children: [
                     new Paragraph({
-                      children: [new TextRun({ text: row.scoreLabel, bold: true, color: docxHex(scorePaletteColorFromLabel(row.scoreLabel)) })],
+                      children: [new TextRun({ text: row.scoreLabel, bold: true, size: 20, color: docxHex(scorePaletteColorFromLabel(row.scoreLabel)) })],
                     }),
                   ],
                 }),
                 new TableCell({
+                  shading: { type: ShadingType.SOLID, color: rowIndex % 2 === 0 ? docxHex(RG.surface) : docxHex(RG.surfaceAlt) },
                   children: [
                     new Paragraph({
-                      children: [new TextRun({ text: row.confidenceLabel, bold: true, color: docxHex(confidencePaletteColor(row.confidenceLabel)) })],
+                      children: [new TextRun({ text: row.confidenceLabel, bold: true, size: 20, color: docxHex(confidencePaletteColor(row.confidenceLabel)) })],
                     }),
                   ],
                 }),
