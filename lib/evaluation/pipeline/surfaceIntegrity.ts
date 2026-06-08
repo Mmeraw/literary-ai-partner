@@ -5,9 +5,10 @@ export type SurfaceIntegrityResult = {
   reasons: string[];
 };
 
-const ACTION_CLAMP_MAX_CHARS = 300;
-const ACTION_CLAMP_PREFIX_BUDGET = 180;
-const ACTION_CLAMP_SUFFIX_BUDGET = 119;
+/** Pathological runaway cap for the recommendation action body. Must stay in sync
+ * with QG_MAX_REC_LENGTH in qualityGate.ts and clampRecommendationAction in
+ * runPass3Synthesis.ts (witness-pair contract). */
+const ACTION_CLAMP_MAX_CHARS = 1500;
 
 function normalizeText(text: string): string {
   return text.replace(/\s+/g, " ").trim();
@@ -77,33 +78,9 @@ function finalizeClampedAction(text: string): string {
 function simulateRecommendationClamp(action: string): string {
   const normalized = normalizeText(action);
   if (normalized.length <= ACTION_CLAMP_MAX_CHARS) return finalizeClampedAction(normalized);
-
-  const mechanismMatch = normalized.match(/\b(because|since|so that)\b/i);
-  if (!mechanismMatch || mechanismMatch.index === undefined) {
-    return finalizeClampedAction(
-      normalized.slice(0, ACTION_CLAMP_MAX_CHARS).replace(/\s+\S*$/, "").trim(),
-    );
-  }
-
-  const mechanismIndex = mechanismMatch.index;
-  const prefix = normalized.slice(0, mechanismIndex).trim();
-  const suffix = normalized.slice(mechanismIndex).trim();
-
-  const safePrefix =
-    prefix.length > ACTION_CLAMP_PREFIX_BUDGET
-      ? prefix.slice(0, ACTION_CLAMP_PREFIX_BUDGET).replace(/\s+\S*$/, "").trim()
-      : prefix;
-
-  const safeSuffix =
-    suffix.length > ACTION_CLAMP_SUFFIX_BUDGET
-      ? suffix.slice(0, ACTION_CLAMP_SUFFIX_BUDGET).replace(/\s+\S*$/, "").trim()
-      : suffix;
-
-  const clamped = `${safePrefix} ${safeSuffix}`.trim();
+  // Hard pathological cap: truncate at last word boundary within ACTION_CLAMP_MAX_CHARS.
   return finalizeClampedAction(
-    clamped.length <= ACTION_CLAMP_MAX_CHARS
-      ? clamped
-      : clamped.slice(0, ACTION_CLAMP_MAX_CHARS).replace(/\s+\S*$/, "").trim(),
+    normalized.slice(0, ACTION_CLAMP_MAX_CHARS).replace(/\s+\S*$/, "").trim(),
   );
 }
 

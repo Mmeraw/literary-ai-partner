@@ -1781,39 +1781,18 @@ function finalizeClampedAction(text: string): string {
   return ensureTerminalPunctuation(backoffStrandedConnectorClamp(text));
 }
 
+/**
+ * Clamps the recommendation action body at the pathological-runaway cap (1500 chars).
+ * Values within 1500 chars are preserved in full — the action field carries substantive
+ * editorial analysis, not a short display teaser. Display layers that need a short card
+ * label should truncate the rendered string independently.
+ */
 function clampRecommendationAction(action: string): string {
   const normalized = action.replace(/\s+/g, " ").trim();
-  if (normalized.length <= 300) return finalizeClampedAction(normalized);
-
-  const mechanismMatch = normalized.match(/\b(because|since|so that)\b/i);
-  if (!mechanismMatch || mechanismMatch.index === undefined) {
-    return finalizeClampedAction(
-      normalized.slice(0, 300).replace(/\s+\S*$/, "").trim(),
-    );
-  }
-
-  const mechanismIndex = mechanismMatch.index;
-  const prefix = normalized.slice(0, mechanismIndex).trim();
-  const suffix = normalized.slice(mechanismIndex).trim();
-
-  const prefixBudget = 180;
-  const suffixBudget = 119;
-
-  const safePrefix =
-    prefix.length > prefixBudget
-      ? prefix.slice(0, prefixBudget).replace(/\s+\S*$/, "").trim()
-      : prefix;
-
-  const safeSuffix =
-    suffix.length > suffixBudget
-      ? suffix.slice(0, suffixBudget).replace(/\s+\S*$/, "").trim()
-      : suffix;
-
-  const clamped = `${safePrefix} ${safeSuffix}`.trim();
+  if (normalized.length <= 1500) return finalizeClampedAction(normalized);
+  // Hard pathological cap: truncate at the last word boundary within 1500 chars.
   return finalizeClampedAction(
-    clamped.length <= 300
-      ? clamped
-      : clamped.slice(0, 300).replace(/\s+\S*$/, "").trim(),
+    normalized.slice(0, 1500).replace(/\s+\S*$/, "").trim(),
   );
 }
 
@@ -1859,6 +1838,11 @@ function parseRecommendations(
         reader_effect: String(r["reader_effect"] ?? "").trim(),
         symptom: typeof r["symptom"] === "string" ? r["symptom"].trim() : undefined,
         mistake_proofing: typeof r["mistake_proofing"] === "string" ? r["mistake_proofing"].trim() : undefined,
+        candidate_text_a: typeof r["candidate_text_a"] === "string" ? r["candidate_text_a"].trim() : undefined,
+        candidate_text_b: typeof r["candidate_text_b"] === "string" ? r["candidate_text_b"].trim() : undefined,
+        candidate_text_c: typeof r["candidate_text_c"] === "string" ? r["candidate_text_c"].trim() : undefined,
+        revision_operation: typeof r["revision_operation"] === "string" ? r["revision_operation"].trim() : undefined,
+        manuscript_coordinates: typeof r["manuscript_coordinates"] === "string" ? r["manuscript_coordinates"].trim() : undefined,
         potential_damage: Array.isArray(r["potential_damage"])
           ? (r["potential_damage"] as unknown[]).filter((d): d is string => typeof d === "string" && d.trim().length > 0).map(d => d.trim())
           : undefined,

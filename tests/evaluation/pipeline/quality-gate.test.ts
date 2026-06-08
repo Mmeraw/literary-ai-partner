@@ -175,11 +175,17 @@ describe("runQualityGate", () => {
   });
 
   // ── QG_LONG_REC ──────────────────────────────────────────────────────────
+  // The action field carries substantive editorial analysis; the gate only fires
+  // on pathological runaway text (> 1500 chars), not normal editorial guidance.
 
-  it("rejects recommendation action > 300 chars (QG_LONG_REC)", () => {
-    const longAction =
-      'At the moment where the protagonist first encounters the river — "The river moved slowly" — consider rewriting this scene to include a visceral sensory detail that grounds the reader in the setting, because simply describing movement without anchoring in texture, sound, or smell fails to evoke the full world and leaves readers feeling distanced from the moment of arrival at this important location in the story.';
-    expect(longAction.length).toBeGreaterThan(300);
+  it("rejects recommendation action body > 1500 chars (QG_LONG_REC)", () => {
+    // Programmatically guaranteed to exceed 1500 chars: normal editorial
+    // sentence repeated enough times to be clearly pathological/runaway.
+    const sentence =
+      'In the opening scene, rewrite the river-arrival passage to include visceral sensory anchoring because the current prose reports movement without grounding the reader in texture, sound, or smell, which leaves the protagonist\'s emotional state abstract when it should feel immediate and embodied.';
+    // ~290 chars × 6 = ~1740 chars — well above the 1500-char pathological cap.
+    const longAction = sentence.repeat(6);
+    expect(longAction.length).toBeGreaterThan(1500);
     const synthesis = makeValidSynthesis([
       {
         recommendations: [

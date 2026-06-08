@@ -241,6 +241,16 @@ export type SynthesizedCriterion = {
     symptom?: string;
     /** What must not be damaged or lost when applying this fix. */
     mistake_proofing?: string;
+    /** Primary copy-paste-ready candidate repair prose for Revise Queue. */
+    candidate_text_a?: string;
+    /** Rhythm/cadence variant candidate repair prose for Revise Queue. */
+    candidate_text_b?: string;
+    /** Bolder rendering-shift candidate repair prose for Revise Queue. */
+    candidate_text_c?: string;
+    /** Operation contract for applying or targeting the candidate repair. */
+    revision_operation?: string;
+    /** Human/location coordinate for the selected manuscript span. */
+    manuscript_coordinates?: string;
     /**
      * Harm test — what existing strengths could this recommendation damage?
      * Emitted when the recommendation guard identifies suppression risk.

@@ -16,6 +16,7 @@
 import { describe, expect, it } from "@jest/globals";
 import { runQualityGate } from "@/lib/evaluation/pipeline/qualityGate";
 import { PASS3_PROMPT_VERSION, PASS3_SYSTEM_PROMPT } from "@/lib/evaluation/pipeline/prompts/pass3-synthesis";
+import { synthesisToEvaluationResultV2 } from "@/lib/evaluation/pipeline/runPipeline";
 import { CRITERIA_KEYS, type CriterionKey } from "@/schemas/criteria-keys";
 import type { SynthesisOutput, SynthesizedCriterion } from "@/lib/evaluation/pipeline/types";
 
@@ -83,6 +84,52 @@ it("prompt includes canonical recommendation_status taxonomy and canonical-score
   expect(PASS3_SYSTEM_PROMPT).toContain("9/10 may include a recommendation, but recommendation emission is NOT required");
   expect(PASS3_SYSTEM_PROMPT).toContain("Never fabricate advice for perfect or near-perfect work");
   expect(PASS3_SYSTEM_PROMPT).toContain("MUST NOT silently return an empty recommendations array");
+});
+
+it("preserves Revise Queue candidate prose, operation, and coordinates in EvaluationResultV2", () => {
+  const synthesis = makeSynthesis({
+    concept: {
+      recommendations: [{
+        priority: "medium",
+        action: "In chapter 2, replace the abstract policy bridge because the current transition diffuses the family-level stakes.",
+        expected_impact: "Gives the reader clearer cause-and-effect between public policy and the narrator's private dilemma.",
+        anchor_snippet: "There are approximately 5,500 users of INSITE, Vancouver’s safe injection site.",
+        source_pass: 3,
+        issue_family: "scene_structure",
+        strategic_lever: "scene_goal_clarity",
+        revision_granularity: "beat",
+        mechanism: "the current transition diffuses the family-level stakes",
+        specific_fix: "replace the abstract policy bridge",
+        reader_effect: "clearer cause-and-effect between public policy and the narrator's private dilemma",
+        candidate_text_a: "Christine set the mug down before I finished the statistic, and for once the numbers had a kitchen around them.",
+        candidate_text_b: "The number stayed with me only after Christine looked toward Nicolas's closed door and let the house go quiet.",
+        candidate_text_c: "Five thousand five hundred strangers became less abstract when Christine's hallway answered with Nicolas's locked door.",
+        revision_operation: "replace_selected_passage",
+        manuscript_coordinates: "Chapter 2 · INSITE transition",
+      }],
+    },
+  });
+
+  const result = synthesisToEvaluationResultV2({
+    synthesis,
+    ids: {
+      evaluation_run_id: "run-candidate-preservation",
+      job_id: "job-candidate-preservation",
+      manuscript_id: 7503,
+      user_id: "00000000-0000-0000-0000-000000007503",
+    },
+    sourceText: "There are approximately 5,500 users of INSITE, Vancouver’s safe injection site.",
+    manuscriptText: "There are approximately 5,500 users of INSITE, Vancouver’s safe injection site.",
+  });
+
+  const recommendation = result.criteria.find((criterion) => criterion.key === "concept")?.recommendations[0];
+  expect(recommendation).toMatchObject({
+    candidate_text_a: "Christine set the mug down before I finished the statistic, and for once the numbers had a kitchen around them.",
+    candidate_text_b: "The number stayed with me only after Christine looked toward Nicolas's closed door and let the house go quiet.",
+    candidate_text_c: "Five thousand five hundred strangers became less abstract when Christine's hallway answered with Nicolas's locked door.",
+    revision_operation: "replace_selected_passage",
+    manuscript_coordinates: "Chapter 2 · INSITE transition",
+  });
 });
 
 // ── Five-part contract: passing fixtures ─────────────────────────────────────

@@ -103,11 +103,17 @@ export default function DiagnosticsPage() {
 
   const formatDuration = (ms: number | null) => {
     if (ms === null) return "N/A";
-    const seconds = Math.floor(ms / 1000);
-    if (seconds < 60) return `${seconds}s`;
-    const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = seconds % 60;
-    return `${minutes}m ${remainingSeconds}s`;
+    const totalSeconds = Math.floor(ms / 1000);
+    if (totalSeconds < 60) return `${totalSeconds}s`;
+    const totalMinutes = Math.floor(totalSeconds / 60);
+    const remainingSeconds = totalSeconds % 60;
+    if (totalMinutes < 60) return `${totalMinutes}m ${remainingSeconds}s`;
+    const hours = Math.floor(totalMinutes / 60);
+    const remainingMinutes = totalMinutes % 60;
+    if (hours < 24) return `${hours}h ${remainingMinutes}m`;
+    const days = Math.floor(hours / 24);
+    const remainingHours = hours % 24;
+    return `${days}d ${remainingHours}h ${remainingMinutes}m`;
   };
 
   const formatTimestamp = (iso: string) => {
@@ -117,15 +123,15 @@ export default function DiagnosticsPage() {
   const getStatusColor = (status: string) => {
     switch (status) {
       case "complete":
-        return "text-green-600 bg-green-50";
+        return "text-green-800 bg-green-100 border border-green-200";
       case "failed":
-        return "text-red-600 bg-red-50";
+        return "text-red-800 bg-red-100 border border-red-200";
       case "running":
-        return "text-blue-600 bg-blue-50";
+        return "text-blue-800 bg-blue-100 border border-blue-200";
       case "queued":
-        return "text-yellow-600 bg-yellow-50";
+        return "text-yellow-800 bg-yellow-100 border border-yellow-200";
       default:
-        return "text-gray-600 bg-gray-50";
+        return "text-gray-800 bg-gray-100 border border-gray-200";
     }
   };
 
@@ -176,12 +182,12 @@ export default function DiagnosticsPage() {
         <div className="mb-8 flex justify-between items-center">
           <div>
             <h1 className="text-3xl font-bold text-gray-900 mb-2">System Diagnostics</h1>
-            <p className="text-gray-600">
+            <p className="text-gray-700 font-medium">
               Last updated: {formatTimestamp(snapshot.snapshotAt)}
             </p>
           </div>
           <div className="flex gap-4">
-            <label className="flex items-center gap-2 text-sm text-gray-700">
+            <label className="flex items-center gap-2 text-sm text-gray-900 font-medium">
               <input
                 type="checkbox"
                 checked={autoRefresh}
@@ -259,19 +265,19 @@ export default function DiagnosticsPage() {
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
                       Phase
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
                       Count
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
                       Avg Duration
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
                       P50
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
                       P95
                     </th>
                   </tr>
@@ -282,16 +288,16 @@ export default function DiagnosticsPage() {
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                         {metric.phase}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-800">
                         {metric.count}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-800">
                         {formatDuration(metric.avgDurationMs)}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-800">
                         {formatDuration(metric.p50DurationMs)}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-800">
                         {formatDuration(metric.p95DurationMs)}
                       </td>
                     </tr>
@@ -311,14 +317,14 @@ export default function DiagnosticsPage() {
                 <div key={failure.id} className="border border-red-200 rounded-lg p-4 bg-red-50">
                   <div className="flex justify-between items-start mb-2">
                     <div>
-                      <span className="text-sm font-medium text-gray-900">Job ID:</span>
-                      <span className="text-sm text-gray-600 ml-2 font-mono">{failure.id}</span>
+                      <span className="text-sm font-bold text-gray-900">Job ID:</span>
+                      <span className="text-sm text-gray-800 ml-2 font-mono">{failure.id}</span>
                     </div>
-                    <span className="text-xs text-gray-500">{formatTimestamp(failure.failed_at)}</span>
+                    <span className="text-xs text-gray-700 font-medium">{formatTimestamp(failure.failed_at)}</span>
                   </div>
-                  <div className="text-sm text-gray-700 mb-2">
-                    <span className="font-medium">Phase:</span> {failure.phase} | 
-                    <span className="font-medium ml-2">Manuscript:</span> {failure.manuscript_id}
+                  <div className="text-sm text-gray-900 font-medium mb-2">
+                    <span className="font-bold">Phase:</span> {failure.phase} | 
+                    <span className="font-bold ml-2">Manuscript:</span> {failure.manuscript_id}
                   </div>
                   {failure.last_error && (
                     <pre className="text-xs text-red-700 bg-red-100 p-2 rounded overflow-x-auto">
@@ -349,17 +355,17 @@ interface MetricCardProps {
 
 function MetricCard({ title, value, color }: MetricCardProps) {
   const colorClasses = {
-    blue: "bg-blue-50 text-blue-900 border-blue-200",
-    red: "bg-red-50 text-red-900 border-red-200",
-    green: "bg-green-50 text-green-900 border-green-200",
-    yellow: "bg-yellow-50 text-yellow-900 border-yellow-200",
-    purple: "bg-purple-50 text-purple-900 border-purple-200",
-    gray: "bg-gray-50 text-gray-900 border-gray-200",
+    blue: "bg-blue-100 text-blue-950 border-blue-300",
+    red: "bg-red-100 text-red-950 border-red-300",
+    green: "bg-green-100 text-green-950 border-green-300",
+    yellow: "bg-yellow-100 text-yellow-950 border-yellow-300",
+    purple: "bg-purple-100 text-purple-950 border-purple-300",
+    gray: "bg-gray-100 text-gray-950 border-gray-300",
   };
 
   return (
     <div className={`rounded-lg border p-6 ${colorClasses[color]}`}>
-      <div className="text-sm font-medium mb-2 opacity-75">{title}</div>
+      <div className="text-sm font-bold mb-2 uppercase tracking-wide opacity-90">{title}</div>
       <div className="text-3xl font-bold">{value}</div>
     </div>
   );

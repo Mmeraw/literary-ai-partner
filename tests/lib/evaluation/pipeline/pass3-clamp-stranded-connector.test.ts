@@ -146,8 +146,8 @@ describe("Pass3 clamp · stranded-connector regression contract", () => {
     ({ action }) => {
       const clamped = characterAction(buildRaw(action));
 
-      // 1. Length contract.
-      expect(clamped.length).toBeLessThanOrEqual(300);
+      // 1. Length contract (pathological cap: 1500 chars).
+      expect(clamped.length).toBeLessThanOrEqual(1500);
 
       // 2. Surface-clean contract: the clamped tail must pass surface-integrity
       //    on its own. This is the inverse of the bug — the post-clamp surface

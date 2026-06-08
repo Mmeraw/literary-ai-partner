@@ -8,8 +8,8 @@
  *   QG_GENERIC_REC        — recommendation missing anchor snippet
  *   QG_DUPLICATE_REC      — same action text duplicated across criteria
  *   QG_SHORT_REC          — action < 50 chars
- *   QG_LONG_REC           — recommendation action > 300 chars
- *   QG_LONG_EVIDENCE      — evidence snippet > 200 chars
+ *   QG_LONG_REC           — recommendation action body > 1500 chars (pathological runaway)
+ *   QG_LONG_EVIDENCE      — evidence snippet > 200 chars (keep concise for card display)
  *   QG_LONG_OVERVIEW      — one_paragraph_summary > 500 chars
  *   QG_CRITERIA_MISSING   — output does not contain all 13 criteria
  *   QG_SCORE_RANGE        — score not in integer 0-10
@@ -70,7 +70,9 @@ import {
 } from "./editorialRecommendationContract";
 
 export const QG_MIN_REC_LENGTH = 50;
-export const QG_MAX_REC_LENGTH = 300;
+/** Pathological runaway cap for the recommendation action body. Display teasers rendered from
+ * this field should be truncated in the UI layer; the pipeline allows substantive editorial text. */
+export const QG_MAX_REC_LENGTH = 1500;
 export const QG_MAX_EVIDENCE_LENGTH = 200;
 export const QG_MAX_OVERVIEW_LENGTH = 500;
 export const QG_INDEPENDENCE_NGRAM_SIZE = 8;
@@ -371,7 +373,7 @@ export function runQualityGate(
         : "All recommendations have anchor_snippet",
   });
 
-  // ── Check 4: Recommendation length (50-300 chars) ────────────────────────
+  // ── Check 4: Recommendation length (50–1500 chars) ──────────────────────
   const shortRecs: string[] = [];
   const longRecs: string[] = [];
   for (const c of synthesis.criteria) {

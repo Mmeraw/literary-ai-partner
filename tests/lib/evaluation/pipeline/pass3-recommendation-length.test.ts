@@ -9,7 +9,8 @@ describe("Pass3 recommendation length contract", () => {
 
   const makeLongAction = () =>
     "In the opening scene, rewrite the dialogue exchange to clarify character intent and emotional stakes because the current phrasing is vague and does not establish clear motivation, which reduces reader engagement and weakens narrative momentum across the entire interaction.";
-
+  // Exceeds the 1500-char pathological cap (makeLongAction is ~271 chars; ×6 ≈ 1626)
+  const makePathologicalAction = () => makeLongAction().repeat(6);
   const observedLongPacingAction =
     "Cut one reflective sentence and insert one immediate external action trigger; Scene momentum drops near years of bureaucratic observation, maps over maps. when reflection resolves before action. Re-sequencing the turn as trigger → reaction → consequence would streamline dense informational sections to maintain narrative momentum because the reflective passage stalls forward momentum before the narrative urgency peaks.";
 
@@ -53,18 +54,18 @@ describe("Pass3 recommendation length contract", () => {
     });
   }
 
-  test("1. raw overlong recommendation is clamped", () => {
+  test("1. raw pathologically-overlong recommendation is clamped at 1500 chars", () => {
     const result = parsePass3Response(
-      buildRaw(makeLongAction().repeat(3)),
+      buildRaw(makePathologicalAction()),
       basePass as any,
       basePass as any
     );
 
     const action = characterAction(result);
-    expect(action.length).toBeLessThanOrEqual(300);
+    expect(action.length).toBeLessThanOrEqual(1500);
   });
 
-  test("2. normalized/repaired recommendation is also clamped", () => {
+  test("2. normalized/repaired recommendation is within the pathological cap", () => {
     const result = parsePass3Response(
       buildRaw("Rewrite dialogue"),
       basePass as any,
@@ -72,7 +73,7 @@ describe("Pass3 recommendation length contract", () => {
     );
 
     const action = characterAction(result);
-    expect(action.length).toBeLessThanOrEqual(300);
+    expect(action.length).toBeLessThanOrEqual(1500);
   });
 
   test("3. preserves anchor/location phrase", () => {
@@ -108,7 +109,8 @@ describe("Pass3 recommendation length contract", () => {
     expect(action).toMatch(/rewrite|cut|insert|replace|move|clarify/);
   });
 
-  test("6. does not trigger QG_LONG_REC", () => {
+  test("6. does not trigger QG_LONG_REC for substantive but non-pathological action", () => {
+    // ~813 chars — long editorial prose, well within 1500-char pathological cap
     const result = parsePass3Response(
       buildRaw(makeLongAction().repeat(3)),
       basePass as any,
@@ -123,7 +125,7 @@ describe("Pass3 recommendation length contract", () => {
     expect(longRecFailure).toBeUndefined();
   });
 
-  test("7. backfilled recommendations are clamped", () => {
+  test("7. backfilled recommendations are clamped at 1500 chars", () => {
     const passWithLongRecommendation = {
       criteria: [
         {
@@ -134,7 +136,7 @@ describe("Pass3 recommendation length contract", () => {
           recommendations: [
             {
               priority: "high",
-              action: makeLongAction().repeat(3),
+              action: makePathologicalAction(),
               expected_impact: "Improves clarity and engagement for the reader.",
               anchor_snippet: "opening scene",
               source_pass: 1,
@@ -174,7 +176,7 @@ describe("Pass3 recommendation length contract", () => {
     );
 
     const action = characterAction(result);
-    expect(action.length).toBeLessThanOrEqual(300);
+    expect(action.length).toBeLessThanOrEqual(1500);
 
     const gate = runQualityGate(result);
     const longRecFailure = gate.checks.find(
@@ -183,7 +185,8 @@ describe("Pass3 recommendation length contract", () => {
     expect(longRecFailure).toBeUndefined();
   });
 
-  test("8. clamps exact observed 421-char failure shape", () => {
+  test("8. observed 421-char pacing action is preserved in full (within 1500-char cap)", () => {
+    // Previously this was clamped to 300; with the correct 1500-char policy it passes through.
     const result = parsePass3Response(
       JSON.stringify({
         criteria: [
@@ -219,7 +222,9 @@ describe("Pass3 recommendation length contract", () => {
     );
 
     const pacing = result.criteria.find((c) => c.key === "pacing");
-    expect(pacing?.recommendations[0]?.action.length).toBeLessThanOrEqual(300);
+    // 421 chars is well within the 1500-char cap — must be preserved, not truncated.
+    expect(pacing?.recommendations[0]?.action.length).toBeLessThanOrEqual(1500);
+    expect(pacing?.recommendations[0]?.action.length).toBeGreaterThan(300);
 
     const gate = runQualityGate(result);
     const longRecFailure = gate.checks.find(

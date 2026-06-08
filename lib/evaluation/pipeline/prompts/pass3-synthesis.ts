@@ -179,7 +179,7 @@ Return ONLY JSON with keys:
 - criteria MUST be a flat array (not grouped by state).
 - Per-criterion fields: key, final_score_0_10, fit_summary, gap_summary, final_rationale, recommendations[]; hard_divergence adds disputed=true.
 - Each recommendation: priority, action, expected_impact, anchor_snippet, source_pass, issue_family, strategic_lever, revision_granularity, mechanism, specific_fix, reader_effect, symptom, mistake_proofing, potential_damage, candidate_text_a, candidate_text_b, candidate_text_c, revision_operation, manuscript_coordinates.
-- Each recommendation.action MUST be one sentence and <= 300 characters.
+- Each recommendation.action must be specific, actionable editorial guidance, 50–1500 characters. It may span two sentences when needed to name the mechanism and the expected craft outcome.
 - candidate_text_a: The primary recommended prose repair. This MUST be verbatim manuscript-ready text the author can COPY AND PASTE directly into their manuscript file. Write it in the author's voice using their characters' names, their world's vocabulary, and their prose rhythm. It must read as a seamless continuation or replacement of the anchor_snippet.
 - candidate_text_b: A rhythm variant. Same fix direction, different cadence or sentence structure. Must be materially distinct from A. Still must be copy-paste-ready narrative prose with character names and scene-specific detail.
 - candidate_text_c: A bolder rendering shift. Same fix intent, more assertive prose move. Must be materially distinct from A and B. Still must be copy-paste-ready narrative prose.

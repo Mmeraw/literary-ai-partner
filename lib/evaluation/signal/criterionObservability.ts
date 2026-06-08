@@ -44,6 +44,19 @@ export type RawCriterionInput = {
     action?: string;
     expected_impact?: string;
     anchor_snippet?: string;
+    mechanism?: string;
+    specific_fix?: string;
+    reader_effect?: string;
+    symptom?: string;
+    mistake_proofing?: string;
+    candidate_text_a?: string;
+    candidate_text_b?: string;
+    candidate_text_c?: string;
+    revision_operation?: string;
+    manuscript_coordinates?: string;
+    issue_family?: string;
+    strategic_lever?: string;
+    revision_granularity?: string;
   }>;
   technical_defects?: CriterionTechnicalDefect[];
   insufficient_signal_reason?: InsufficientSignalReason;
@@ -303,6 +316,20 @@ export function normalizeCriterion(
       action: r.action!,
       expected_impact: r.expected_impact ?? "",
       anchor_snippet: r.anchor_snippet,
+      // Preserve Revise Queue fields — must not be dropped during normalization
+      ...(r.mechanism ? { mechanism: r.mechanism } : {}),
+      ...(r.specific_fix ? { specific_fix: r.specific_fix } : {}),
+      ...(r.reader_effect ? { reader_effect: r.reader_effect } : {}),
+      ...(r.symptom ? { symptom: r.symptom } : {}),
+      ...(r.mistake_proofing ? { mistake_proofing: r.mistake_proofing } : {}),
+      ...(r.candidate_text_a ? { candidate_text_a: r.candidate_text_a } : {}),
+      ...(r.candidate_text_b ? { candidate_text_b: r.candidate_text_b } : {}),
+      ...(r.candidate_text_c ? { candidate_text_c: r.candidate_text_c } : {}),
+      ...(r.revision_operation ? { revision_operation: r.revision_operation } : {}),
+      ...(r.manuscript_coordinates ? { manuscript_coordinates: r.manuscript_coordinates } : {}),
+      ...(r.issue_family ? { issue_family: r.issue_family } : {}),
+      ...(r.strategic_lever ? { strategic_lever: r.strategic_lever } : {}),
+      ...(r.revision_granularity ? { revision_granularity: r.revision_granularity } : {}),
     }));
 
   const technical_defects = Array.isArray(raw.technical_defects)

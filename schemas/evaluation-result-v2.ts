@@ -104,6 +104,11 @@ type CriterionBase = {
     reader_effect?: string;
     symptom?: string;
     mistake_proofing?: string;
+    candidate_text_a?: string;
+    candidate_text_b?: string;
+    candidate_text_c?: string;
+    revision_operation?: string;
+    manuscript_coordinates?: string;
     issue_family?: string;
     strategic_lever?: string;
     revision_granularity?: string;

@@ -675,7 +675,7 @@ describe("Pass 3 backfill quality", () => {
     expect(repaired).not.toContain("(");
     expect(repaired.toLowerCase()).not.toContain("criterion-specific move");
     expect(repaired).toMatch(/[.!?]$/);
-    expect(repaired.length).toBeLessThanOrEqual(300);
+    expect(repaired.length).toBeLessThanOrEqual(1500);
   });
 
   test("does not auto-repair anchorless generic recommendation and QG still fails", () => {
