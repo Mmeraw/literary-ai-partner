@@ -1248,38 +1248,62 @@ function renderCanonicalTemplateHtml(doc: UnifiedEvaluationDocument): string {
     .join('');
 
   return `<!doctype html><html><head><meta charset="utf-8" /><title>${escapeHtml(doc.title)} - RevisionGrade Report</title><style>
-    body{font-family:Georgia,serif;color:#1C1814;background:#FAF7F2;margin:0;padding:32px;line-height:1.55}
-    section{background:#fff;border:1px solid #D9D0C3;border-radius:8px;padding:20px;margin:0 0 16px}
-    h1,h2{margin:0 0 10px;color:#8B2E2E} h3{margin:0 0 8px} small{font-weight:normal;color:#5C5549}
+    @page{size:Letter;margin:0.72in 0.7in 0.82in;@bottom-center{content:'RevisionGrade™ | Page ' counter(page);color:#9A9087;font-size:9pt}}
+    body{font-family:Georgia,serif;color:#1C1814;background:#FAF7F2;margin:0;padding:0.2in;line-height:1.55}
+    .cover{background:#fff;border:1px solid #D9D0C3;border-radius:10px;padding:22px 24px;margin:0 0 16px;break-after:page}
+    .brand{font-family:Helvetica,Arial,sans-serif;font-size:19pt;font-weight:800;color:#8B2E2E;letter-spacing:.02em}
+    .tag{font-family:Helvetica,Arial,sans-serif;font-size:9.5pt;color:#5C5549;margin-top:4px}
+    .hero{display:grid;grid-template-columns:1fr 220px;gap:12px;margin-top:14px}
+    .title{font-size:24pt;line-height:1.18;color:#1C1814;margin:0 0 6px}.subtitle{font-family:Helvetica,Arial,sans-serif;color:#5C5549;font-size:11pt;margin:0}
+    .score-box{background:#1C1814;border:2px solid #B8922A;border-radius:8px;padding:12px;color:#F5EFE0}
+    .score-box .label{font-family:Helvetica,Arial,sans-serif;font-size:9pt;text-transform:uppercase;color:#C8A96E;letter-spacing:.06em}
+    .score-box .value{font-size:34pt;font-weight:700;line-height:1.05;margin-top:4px}
+    .score-box .verdict{margin-top:8px;font-family:Helvetica,Arial,sans-serif;font-size:10pt;text-transform:uppercase;color:#F5E9C8}
+    .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:12px}.metric{padding:10px;border:1px solid #E6DED2;background:#FFFDF9;border-radius:6px}
+    .metric strong{display:block;font-family:Helvetica,Arial,sans-serif;color:#5C5549;font-size:8pt;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px}
+    .metric div{font-family:Helvetica,Arial,sans-serif;font-size:10pt;color:#1C1814}
+    section{background:#fff;border:1px solid #D9D0C3;border-radius:8px;padding:20px;margin:0 0 16px;break-inside:avoid}
+    h2{margin:0 0 10px;color:#8B2E2E;font-family:Helvetica,Arial,sans-serif} h3{margin:0 0 8px} small{font-weight:normal;color:#5C5549}
     ul.rg-bullet-list,ul.rg-ordered-list{margin:6px 0 0;padding-left:0;list-style:none}.rg-bullet-list li,.rg-ordered-list li{display:flex;gap:6px;margin:0 0 6px;padding-left:0}.rg-list-marker{flex:0 0 auto;color:#5C5549;font-weight:700}
-    table{width:100%;border-collapse:collapse} th,td{border-bottom:1px solid #E6DED2;padding:8px;text-align:left}
-    .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.metric{padding:10px;border:1px solid #E6DED2;background:#FFFDF9;border-radius:6px}
+    table{width:100%;border-collapse:collapse} th,td{border-bottom:1px solid #E6DED2;padding:8px;text-align:left;vertical-align:top}
     .card{margin-bottom:12px;padding:12px;border:1px solid #E6DED2;background:#FFFDF9;border-radius:6px}
     .score-cell,.criterion-score,.overall-value,.readiness-value{font-weight:700}.score-strong,.readiness-strong{color:#3A6B2A}.score-watch,.readiness-watch{color:#8B5E1A}.score-risk,.readiness-risk{color:#8B2020}.score-muted,.readiness-muted{color:#5C5549}
     .confidence-pill{display:inline-block;border-radius:999px;padding:2px 8px;font-weight:700}.confidence-high,.confidence-text.confidence-high{color:#3A6B2A}.confidence-moderate,.confidence-text.confidence-moderate{color:#8B5E1A}.confidence-low,.confidence-text.confidence-low{color:#8B2020}.confidence-muted,.confidence-text.confidence-muted{color:#5C5549}.confidence-pill.confidence-high{background:#EBF4E6}.confidence-pill.confidence-moderate{background:#FBF1DC}.confidence-pill.confidence-low{background:#F9E8E8}.confidence-pill.confidence-muted{background:#FAF7F2}
+    .footnote{font-family:Helvetica,Arial,sans-serif;color:#5C5549;font-size:9pt;line-height:1.45}
   </style></head><body>
-    <section>
-      <h1>${escapeHtml(doc.title)}</h1>
-      <p><strong>${escapeHtml(doc.titleBlock.reportType)}</strong></p>
+    <header class="cover">
+      <div class="brand">RevisionGrade™ Evaluation Report</div>
+      <div class="tag">Manuscript diagnosis, author-controlled revision, and professional submission preparation.</div>
+      <div class="hero">
+        <div>
+          <h1 class="title">${escapeHtml(doc.title)}</h1>
+          <p class="subtitle">${escapeHtml(doc.titleBlock.reportType)}</p>
+        </div>
+        <aside class="score-box">
+          <div class="label">Overall Score</div>
+          <div class="value ${scorePaletteClassFromLabel(doc.titleBlock.overallScoreLabel)}">${escapeHtml(doc.titleBlock.overallScoreLabel)}</div>
+          <div class="verdict ${readinessPaletteClass(doc.titleBlock.marketReadiness)}">${escapeHtml(doc.titleBlock.marketReadiness)}</div>
+        </aside>
+      </div>
       <div class="grid">
-        <div class="metric"><strong>Overall Score</strong><div class="overall-value ${scorePaletteClassFromLabel(doc.titleBlock.overallScoreLabel)}">${escapeHtml(doc.titleBlock.overallScoreLabel)}${doc.titleBlock.overallScoreConfidenceLabel ? ` <span class="confidence-pill ${confidencePaletteClass(doc.titleBlock.overallScoreConfidenceLabel)}">${escapeHtml(doc.titleBlock.overallScoreConfidenceLabel)}</span>` : ''}</div></div>
-        <div class="metric"><strong>Market Readiness</strong><div class="readiness-value ${readinessPaletteClass(doc.titleBlock.marketReadiness)}">${escapeHtml(doc.titleBlock.marketReadiness)}${doc.titleBlock.marketReadinessConfidenceLabel ? ` <span class="confidence-pill ${confidencePaletteClass(doc.titleBlock.marketReadinessConfidenceLabel)}">${escapeHtml(doc.titleBlock.marketReadinessConfidenceLabel)}</span>` : ''}</div></div>
         <div class="metric"><strong>Genre</strong><div>${escapeHtml(doc.titleBlock.genre)}${doc.titleBlock.genreConfidenceLabel ? ` <span class="confidence-pill ${confidencePaletteClass(doc.titleBlock.genreConfidenceLabel)}">${escapeHtml(doc.titleBlock.genreConfidenceLabel)}</span>` : ''}</div></div>
-        ${doc.titleBlock.genreExpectationContract ? `<div class="metric"><strong>Genre Expectations</strong><div>${escapeHtml(doc.titleBlock.genreExpectationContract.contractSummary)}${doc.titleBlock.genreExpectationContract.expectationProfileLabels.length > 0 ? `<br /><small>Reader emphasis: ${escapeHtml(doc.titleBlock.genreExpectationContract.expectationProfileLabels.join(', '))}</small>` : ''}</div></div>` : ''}
         <div class="metric"><strong>Target Audience</strong><div>${doc.titleBlock.audienceTentative ? '<em>Tentative: </em>' : ''}${escapeHtml(doc.titleBlock.targetAudience)} <span class="confidence-pill ${confidencePaletteClass(doc.titleBlock.audienceConfidenceLabel)}">${escapeHtml(doc.titleBlock.audienceConfidenceLabel)}</span></div></div>
-        ${doc.titleBlock.shelf ? `<div class="metric"><strong>Shelf</strong><div>${escapeHtml(doc.titleBlock.shelf)}${doc.titleBlock.shelfConfidenceLabel ? ` <span class="confidence-pill ${confidencePaletteClass(doc.titleBlock.shelfConfidenceLabel)}">${escapeHtml(doc.titleBlock.shelfConfidenceLabel)}</span>` : ''}</div></div>` : ''}
-        <div class="metric"><strong>Word Count</strong><div>${escapeHtml(doc.titleBlock.submittedWordCount)}</div></div>
+        <div class="metric"><strong>Submitted Word Count</strong><div>${escapeHtml(doc.titleBlock.submittedWordCount)}</div></div>
         <div class="metric"><strong>Estimated Pages</strong><div>${escapeHtml(doc.titleBlock.estimatedPages)}</div></div>
         <div class="metric"><strong>Reading Grade Level</strong><div>${escapeHtml(doc.titleBlock.readingGradeLevel)}</div></div>
         <div class="metric"><strong>Dialogue/Narrative Ratio</strong><div>${escapeHtml(doc.titleBlock.dialogueNarrativeRatio)}</div></div>
         <div class="metric"><strong>Date Generated</strong><div>${escapeHtml(doc.titleBlock.dateGenerated)}</div></div>
+        <div class="metric"><strong>Confidentiality</strong><div>Prepared for author/editorial use.</div></div>
+        ${doc.titleBlock.shelf ? `<div class="metric"><strong>Shelf</strong><div>${escapeHtml(doc.titleBlock.shelf)}${doc.titleBlock.shelfConfidenceLabel ? ` <span class="confidence-pill ${confidencePaletteClass(doc.titleBlock.shelfConfidenceLabel)}">${escapeHtml(doc.titleBlock.shelfConfidenceLabel)}</span>` : ''}</div></div>` : ''}
+        ${doc.titleBlock.genreExpectationContract ? `<div class="metric"><strong>Genre Expectations</strong><div>${escapeHtml(doc.titleBlock.genreExpectationContract.contractSummary)}${doc.titleBlock.genreExpectationContract.expectationProfileLabels.length > 0 ? `<br /><small>Reader emphasis: ${escapeHtml(doc.titleBlock.genreExpectationContract.expectationProfileLabels.join(', '))}</small>` : ''}</div></div>` : ''}
       </div>
-    </section>
+      <p class="footnote">${escapeHtml(EXPORT_DISCLAIMER)}</p>
+    </header>
     <section><h2>One-Paragraph Pitch</h2><p>${escapeHtml(cleanReportText(doc.oneParagraphPitch))}</p></section>
     <section><h2>One-Sentence Pitch</h2><p>${escapeHtml(cleanReportText(doc.oneSentencePitch))}</p></section>
     ${doc.premise ? `<section><h2>Premise</h2><p>${escapeHtml(cleanReportText(doc.premise))}</p></section>` : ''}
     <section><h2>Content Warnings</h2>${list(doc.contentWarnings)}</section>
-    <section><h2>Revision Opportunity Summary</h2><div class="grid"><div class="metric">Total: ${doc.revisionOpportunitySummary.total}</div><div class="metric">High: ${doc.revisionOpportunitySummary.high}</div><div class="metric">Medium: ${doc.revisionOpportunitySummary.medium}</div><div class="metric">Low: ${doc.revisionOpportunitySummary.low}</div></div></section>
+    <section><h2>Revision Opportunity Summary</h2><div class="grid"><div class="metric"><strong>Total</strong><div>${doc.revisionOpportunitySummary.total}</div></div><div class="metric"><strong>High Priority</strong><div>${doc.revisionOpportunitySummary.high}</div></div><div class="metric"><strong>Medium Priority</strong><div>${doc.revisionOpportunitySummary.medium}</div></div><div class="metric"><strong>Low Priority</strong><div>${doc.revisionOpportunitySummary.low}</div></div></div></section>
     <section><h2>Executive Summary</h2><p>${escapeHtml(cleanReportText(doc.executiveSummary))}</p></section>
     <section><h2>Top Strengths</h2>${list(doc.topStrengths, { ordered: true })}</section>
     <section><h2>Top Risks</h2>${list(doc.topRisks, { ordered: true })}</section>

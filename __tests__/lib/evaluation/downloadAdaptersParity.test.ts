@@ -55,6 +55,9 @@ describe('download adapters parity (Option A canonicalDoc)', () => {
     expect(html).toContain('A concise summary for parity output checks.');
     expect(html).toContain('Voice consistency');
     expect(html).toContain('Pacing drift');
+    expect(html).toContain('RevisionGrade™ Evaluation Report');
+    expect(html).toContain('class="cover"');
+    expect(html).toContain('Submitted Word Count');
 
     const docxBuffer = await testing.buildCanonicalTemplateDocx(canonicalDoc);
     expect(docxBuffer.length).toBeGreaterThan(100);
