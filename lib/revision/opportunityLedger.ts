@@ -1125,7 +1125,7 @@ export function buildRevisionOpportunitiesFromEvaluationPayload(
   // Second-pass dedup: same anchor + same operation across different criteria creates
   // redundant cards for the user. Keep only the highest-severity opportunity per
   // (anchor_fingerprint, revision_operation) pair.
-  const SEVERITY_RANK: Record<string, number> = { critical: 4, important: 3, should: 2, could: 1 };
+  const SEVERITY_RANK: Record<string, number> = { must: 3, should: 2, could: 1 };
   const anchorOpKey = (o: RevisionOpportunity) =>
     `${o.revision_operation ?? 'replace'}::${o.evidence_anchor.trim().toLowerCase().slice(0, 80)}`;
   const anchorOpDeduped = new Map<string, RevisionOpportunity>();
