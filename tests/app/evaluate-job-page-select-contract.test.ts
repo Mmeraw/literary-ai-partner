@@ -38,8 +38,22 @@ describe('evaluate job page query contract', () => {
     expect(source).toContain('submitted_author_name');
     expect(source).toContain('submitted_project_title');
     expect(source).toContain('Author Name');
-    expect(source).toContain('Project Title');
+    expect(source).toContain('Project Name');
     expect(source).toContain('Not provided');
+    expect(source).toContain('<HeaderField label="Author Name" value={submittedAuthorName ?? "Not provided"} />');
+    expect(source).toContain('<HeaderField label="Project Name" value={submittedProjectTitle ?? manuscriptTitle ?? "Not provided"} />');
+  });
+
+  test('report header uses trailing confidence cells instead of inline squeezed badges', () => {
+    expect(source).toContain('const HeaderField = ({');
+    expect(source).toContain('sm:grid-cols-[minmax(0,1fr)_max-content]');
+    expect(source).toContain('sm:pt-6 sm:text-right');
+    expect(source).toContain('whitespace-nowrap rounded-full');
+    expect(source).toContain('label="Genre"');
+    expect(source).toContain('label="Market Readiness"');
+    expect(source).toContain('label="Target Audience"');
+    expect(source).toContain('label="Shelf"');
+    expect(source).toContain('gap-x-8 gap-y-4');
   });
 
   test('unavailable state uses an active no-cache reload control instead of a same-route link', () => {

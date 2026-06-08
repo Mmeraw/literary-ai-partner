@@ -234,6 +234,7 @@ describe("POST /api/jobs input contract", () => {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         manuscript_text: "Fresh chapter text",
+        author_name: "Michael Meraw",
         manuscript_title: "Let the River Decide",
         job_type: "evaluate_full",
         processing_terms_accepted: true,
@@ -256,6 +257,9 @@ describe("POST /api/jobs input contract", () => {
         job_type: "evaluate_full",
       }),
     );
+    const updatePayload = (updateMock.mock.calls as unknown[][])[0]?.[0] as { progress?: Record<string, unknown> } | undefined;
+    expect(updatePayload?.progress?.submitted_author_name).toBe("Michael Meraw");
+    expect(updatePayload?.progress?.submitted_project_title).toBe("Let the River Decide");
   });
 
   test("rejects unsupported letter-style submissions before job creation", async () => {

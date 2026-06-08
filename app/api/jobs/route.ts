@@ -304,6 +304,7 @@ export async function POST(req: Request) {
     let manuscript_id = body?.manuscript_id;
     const job_type = body?.job_type;
     const manuscript_text = body?.manuscript_text;
+    const author_name = body?.author_name;
     const manuscript_title = body?.manuscript_title;
     const manuscript_size = body?.manuscript_size;
     const english_variant = typeof body?.english_variant === "string" && body.english_variant.trim() ? body.english_variant.trim().toLowerCase() : "us";
