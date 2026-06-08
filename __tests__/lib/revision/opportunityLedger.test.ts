@@ -445,35 +445,39 @@ describe('ensureRevisionOpportunityLedgerArtifact — hydration status suffix an
     const recs = makeBlockedRecommendations(3);
     const upsertSpy = jest.fn();
 
-    // Hydration fills all 3 opportunities
-    mockHydrate.mockResolvedValueOnce({
-      hydratedCount: 3,
-      skippedCount: 0,
-      candidates: new Map(
-        recs.map((_, i) => [
-          // opportunity_id is a sha hash; we can't predict it, so return a
-          // full Map by providing entries for all IDs after the call.
-          // Instead, just verify the suffix — we don't need per-ID matching here.
-          `placeholder_${i}`,
+    // Use mockImplementation so we can read the actual blockedOpps argument
+    // and return candidates keyed by the real opportunity_ids generated inside
+    // ensureRevisionOpportunityLedgerArtifact. This is the only way to prove
+    // that stillBlocked === 0 and _ai_hydrated_complete is written.
+    mockHydrate.mockImplementation(async (blockedOpps) => {
+      const candidatesMap = new Map(
+        blockedOpps.map((o: { opportunity_id: string }) => [
+          o.opportunity_id,
           {
-            candidate_text_a: `Revised prose A for rec ${i} — this is the revised manuscript text with enough words.`,
-            candidate_text_b: `Revised prose B for rec ${i} — this is the revised manuscript text with enough words.`,
-            candidate_text_c: `Revised prose C for rec ${i} — this is the revised manuscript text with enough words.`,
+            candidate_text_a: `Revised prose A — ${o.opportunity_id} with enough words to satisfy the SLAE minimum check.`,
+            candidate_text_b: `Revised prose B — ${o.opportunity_id} with enough words to satisfy the SLAE minimum check.`,
+            candidate_text_c: `Revised prose C — ${o.opportunity_id} with enough words to satisfy the SLAE minimum check.`,
           },
         ]),
-      ),
+      );
+      return { hydratedCount: blockedOpps.length, skippedCount: 0, candidates: candidatesMap };
     });
 
     const supabase = makeMinimalSupabase({ criteriaRecommendations: recs, upsertSpy });
     await ensureRevisionOpportunityLedgerArtifact(supabase, 'job-complete');
 
     const persisted = upsertSpy.mock.calls[0]?.[0] as { content: Record<string, unknown> };
-    // When hydratedCount matches blockedOpps count, stillBlocked may be > 0
-    // (candidates Map keys won't match real IDs), but we assert the
-    // suffix reflects actual post-hydration state — which is _partial here
-    // because mock IDs don't match real opportunity_ids. This is expected.
-    // The important assertion is that the persisted status is set AT ALL.
-    expect(typeof persisted.content.candidate_generation_status).toBe('string');
+    const status = persisted.content.candidate_generation_status as string;
+
+    // All 3 opportunities were hydrated with matching IDs → stillBlocked === 0
+    // → suffix must be _ai_hydrated_complete (not just "string exists")
+    expect(status).toContain('ai_hydrated_complete');
+    expect(status).not.toContain('ai_hydrated_partial');
+
+    // Verify the persisted opportunities were actually updated
+    const opps = persisted.content.opportunities as Array<Record<string, unknown>>;
+    expect(opps.every((o) => o.grounding_status === 'supported')).toBe(true);
+    expect(opps.every((o) => typeof o.candidate_text_a === 'string' && (o.candidate_text_a as string).length > 0)).toBe(true);
   });
 
   it('writes _ai_hydrated_partial when some opportunities remain blocked, preventing stable-guard cache', async () => {
