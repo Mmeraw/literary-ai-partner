@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { mistakeProofText } from "@/lib/evaluation/reportRenderSafety";
+import { mistakeProofText, safeEvidenceQuote } from "@/lib/evaluation/reportRenderSafety";
+import { normalizeRecommendationActionForDisplay } from "@/lib/evaluation/reportRecommendations";
 
 type Recommendation = {
   action: string;
@@ -31,19 +32,7 @@ function severityClasses(priority?: string): string {
 }
 
 function normalizeAction(action: string): string {
-  let result = action.trim();
-  const familyPrefixPattern = /^\s*[•*\-]?\s*(quick win|strategic revision)\s*:\s*/i;
-  while (familyPrefixPattern.test(result)) {
-    result = result.replace(familyPrefixPattern, "");
-  }
-  return result
-    .replace(/^in the anchored moment\s+"[^"]+",\s*/i, "")
-    .replace(/^at the passage beginning\s+"[^"]+",\s*/i, "")
-    .replace(/^in the closing beat beginning\s+"[^"]+",\s*/i, "")
-    .replace(/^starting from\s+"[^"]+",\s*/i, "")
-    .replace(/^at the line\s+"[^"]+",\s*/i, "")
-    .replace(/\band\s+a\s+because\b/gi, "because")
-    .trim();
+  return mistakeProofText(normalizeRecommendationActionForDisplay(action));
 }
 
 function hasExpandableDetails(r: Recommendation): boolean {
@@ -65,7 +54,7 @@ function OpportunityCard({ r, index, defaultExpanded }: { r: Recommendation; ind
         )}
         {r.anchor_snippet && (
           <p className="mb-2 border-l-2 border-gray-300 pl-2 text-xs italic text-gray-500">
-            {"\u201c"}{r.anchor_snippet}{"\u201d"}
+            {"\u201c"}{safeEvidenceQuote(r.anchor_snippet)}{"\u201d"}
           </p>
         )}
         {r.symptom && (

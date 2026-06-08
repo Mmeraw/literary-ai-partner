@@ -884,8 +884,9 @@ export default async function EvaluationReportPage({
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: '#F8F6F1' }}>
-      <main className="mx-auto max-w-6xl px-4 py-4 sm:px-6 sm:py-6">
-      <div className="mb-4 rounded-xl border border-stone-300 bg-white p-4 shadow-sm sm:p-5">
+      <style>{`@media print { header, nav, footer, [data-print-hidden="true"] { display: none !important; } body { background: #fff !important; } .rg-print-report { max-width: none !important; padding: 0 !important; } .rg-report-section { break-inside: avoid; page-break-inside: avoid; } }`}</style>
+      <main className="rg-print-report mx-auto max-w-6xl px-4 py-4 sm:px-6 sm:py-6 print:max-w-none print:px-0 print:py-0">
+      <div className="mb-4 rounded-xl border border-stone-300 bg-white p-4 shadow-sm sm:p-5 print:border-0 print:shadow-none">
         <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
           <div className="min-w-0 flex-1">
             <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#8A6A1F]">Evaluation Report</p>
@@ -911,12 +912,14 @@ export default async function EvaluationReportPage({
               )}
               {canonicalDoc?.titleBlock.genreExpectationContract && (
                 <div className="sm:col-span-2 lg:col-span-3">
-                  <dt className="font-semibold text-stone-950">Genre Contract</dt>
+                  <dt className="font-semibold text-stone-950">Genre Expectations</dt>
                   <dd className="text-stone-700">
                     {canonicalDoc.titleBlock.genreExpectationContract.contractSummary}
-                    <span className="ml-2 text-stone-500">
-                      ({canonicalDoc.titleBlock.genreExpectationContract.expectationProfiles.join(', ')})
-                    </span>
+                    {canonicalDoc.titleBlock.genreExpectationContract.expectationProfileLabels.length > 0 && (
+                      <span className="ml-2 text-stone-500">
+                        Reader emphasis: {canonicalDoc.titleBlock.genreExpectationContract.expectationProfileLabels.join(', ')}
+                      </span>
+                    )}
                   </dd>
                 </div>
               )}
@@ -951,9 +954,9 @@ export default async function EvaluationReportPage({
 
           <aside className="grid w-full shrink-0 gap-4 lg:w-72">
             {isComplete && (
-              <div className="rounded-lg border border-[#B8922A]/45 bg-[#1C1814] p-5 text-[#F5EFE0]">
-                <p className="text-sm font-semibold uppercase tracking-[0.16em] text-[#C8A96E]">Overall Score</p>
-                <p className="mt-3 font-rg-serif text-5xl font-bold leading-none text-white">{overallScore !== null ? overallScore : 'N/A'}<span className="text-2xl text-[#C8A96E]">/100</span></p>
+              <div className="rounded-lg border border-[#D7BE78] bg-[#FFF8E8] p-5 text-stone-950 shadow-sm print:border-stone-300 print:bg-white print:shadow-none">
+                <p className="text-sm font-semibold uppercase tracking-[0.16em] text-[#8A6A1F]">Overall Score</p>
+                <p className="mt-3 font-rg-serif text-5xl font-bold leading-none text-stone-950">{overallScore !== null ? overallScore : 'N/A'}<span className="text-2xl text-[#8A6A1F]">/100</span></p>
                 <p className={`mt-3 inline-flex rounded-full border px-3 py-1 text-base font-semibold uppercase tracking-wide ${verdictPresentation.classes}`}>{verdict}</p>
                 {overallScoreConfidenceLabel && (
                   <p className={`mt-2 inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${getConfidenceLabelClasses(overallScoreConfidenceLabel)}`}>
@@ -1002,7 +1005,7 @@ export default async function EvaluationReportPage({
         </div>
       )}
 
-      <section className="mt-3">
+      <section className="mt-3" data-print-hidden="true">
         <EvaluationPoller
           jobId={jobId}
           initialJob={initialPollerJob}
@@ -1127,7 +1130,7 @@ export default async function EvaluationReportPage({
         <>
           {/* Mode settings are now chosen at submission time — display read-only summary */}
           {job.policy_family && (
-            <section className="rounded-lg border bg-white p-4 mb-4">
+            <section className="rounded-lg border bg-white p-4 mb-4" data-print-hidden="true">
               <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm text-gray-700">
                 <span>
                   <span className="font-semibold text-gray-900">Evaluation Mode:</span>{" "}
@@ -1141,7 +1144,7 @@ export default async function EvaluationReportPage({
             </section>
           )}
 
-          <section className="rounded-lg border bg-white p-6 mb-4">
+          <section className="rounded-lg border bg-white p-6 mb-4" data-print-hidden="true">
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-xl font-semibold text-gray-900">Revise</h2>
@@ -1165,7 +1168,7 @@ export default async function EvaluationReportPage({
           </section>
 
           {!isProduction && artifactSource === "inline_job_result" && (
-            <div className="mb-4 rounded-md bg-amber-50 border border-amber-300 p-4">
+            <div className="mb-4 rounded-md bg-amber-50 border border-amber-300 p-4" data-print-hidden="true">
               <p className="text-sm font-medium text-amber-800">
                 ⚠️ Showing interim inline output. Final report artifact not yet persisted.
               </p>
@@ -1177,7 +1180,7 @@ export default async function EvaluationReportPage({
 
           {/* ── Governance Warnings (Classified: provenance vs quality vs structural) ── */}
           {integrityBanner && (
-            <div className={`mb-4 ${integrityBanner.containerClassName}`}>
+            <div className={`mb-4 ${integrityBanner.containerClassName}`} data-print-hidden="true">
               <p className={integrityBanner.titleClassName}>{integrityBanner.title}</p>
               <p className={integrityBanner.detailClassName}>{integrityBanner.message}</p>
             </div>
@@ -1185,7 +1188,7 @@ export default async function EvaluationReportPage({
 
           {/* ── §2 One-Paragraph Pitch ── */}
           {reportPitches && (
-            <section className="rounded-lg border bg-white p-7 mb-7">
+            <section className="rg-report-section rounded-lg border bg-white p-7 mb-7">
               <h2 className="text-2xl font-semibold text-gray-900">One-Paragraph Pitch</h2>
               <p className="mt-4 text-base leading-7 text-gray-800">
                 {reportPitches.oneParagraphPitch}
@@ -1524,7 +1527,7 @@ export default async function EvaluationReportPage({
         </>
       )}
       {isComplete && (
-        <div className="mt-8 space-y-4">
+        <div className="mt-8 space-y-4" data-print-hidden="true">
           {isOwner && (
             <section className="rounded-lg border border-[#B8922A]/30 bg-[#B8922A]/5 p-4">
               <div className="flex items-center justify-between">

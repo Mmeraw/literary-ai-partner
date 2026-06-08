@@ -202,7 +202,7 @@ function formatDate(value?: string): string {
 }
 
 function scoreOutOfTen(value: number | null): string {
-  if (typeof value !== 'number' || !Number.isFinite(value)) return '—/10';
+  if (typeof value !== 'number' || !Number.isFinite(value)) return 'Not scorable';
   return `${Math.floor(value)}/10`;
 }
 

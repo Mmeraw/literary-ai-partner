@@ -88,9 +88,12 @@ describe('canonical report header policy', () => {
     expect(doc.titleBlock.shelfConfidenceLabel).toBe('Very High Confidence');
     expect(doc.titleBlock.genreExpectationContract).toMatchObject({
       diagnosedGenre: 'epic fantasy',
-      contractSummary: 'Epic fantasy · world concept',
+      contractSummary: 'Epic fantasy · World concept focus',
       genreExpectationIds: ['epic_fantasy'],
+      expectationProfileLabels: ['World concept', 'Slow burn'],
     });
+    expect(doc.titleBlock.genreExpectationContract?.contractSummary).not.toContain('world_concept');
+    expect(doc.titleBlock.genreExpectationContract?.expectationProfileLabels.join(', ')).not.toContain('world_concept_forward');
   });
 
   test('Pass 3B prompt includes genre expectation contract', () => {

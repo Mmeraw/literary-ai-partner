@@ -22,28 +22,32 @@ export type CriterionRationalePresentation = {
   provisional: boolean;
 };
 
+function hasFiniteScore(criterion: RenderableCriterion): boolean {
+  return typeof criterion.score_0_10 === "number" && Number.isFinite(criterion.score_0_10);
+}
+
 export function isCertifiedCriterion(criterion: RenderableCriterion): boolean {
   if (typeof criterion.scorable === "boolean") {
-    return criterion.scorable;
+    return criterion.scorable && hasFiniteScore(criterion);
   }
 
   if (criterion.status) {
-    return criterion.status === "SCORABLE";
+    return criterion.status === "SCORABLE" && hasFiniteScore(criterion);
   }
 
   if (criterion.scorability_status) {
     return (
       criterion.scorability_status !== "non_scorable" &&
-      typeof criterion.score_0_10 === "number"
+      hasFiniteScore(criterion)
     );
   }
 
-  return typeof criterion.score_0_10 === "number";
+  return hasFiniteScore(criterion);
 }
 
 function formatScoreOutOfTen(score: number | null | undefined): string {
   if (typeof score !== "number" || !Number.isFinite(score)) {
-    return "Score: —/10";
+    return "Score omitted";
   }
 
   return `Score: ${Math.floor(score)}/10`;
@@ -64,7 +68,7 @@ export function getCriterionPrimaryBadge(criterion: RenderableCriterion): {
 
   if (!isCertifiedCriterion(criterion)) {
     return {
-      label: "Score not certified",
+      label: "Not scorable",
       classes: "bg-slate-100 text-slate-700",
       numeric: false,
     };
@@ -108,9 +112,12 @@ export function getCriterionSupportLabel(criterion: RenderableCriterion): string
     return "N/A — Not applicable for this evaluation context";
   }
   if (criterion.status === "NO_SIGNAL") {
-    return "Score not certified — no observable evidence";
+    return "Not scorable — no observable evidence in the submitted text";
   }
-  return "Score not certified — technical evidence certification shortfall";
+  if (!hasFiniteScore(criterion)) {
+    return "Score omitted — insufficient confidence in what the submitted text presented for this criterion";
+  }
+  return "Not scorable — insufficient confidence in what the submitted text presented for this criterion";
 }
 
 function repairTruncatedQuotes(text: string): string {
@@ -170,7 +177,7 @@ export function getCertifiedCriteriaSummary(criteria: RenderableCriterion[]): st
   if (scorable === total) {
     return `${scorable} of ${total} criteria scored — confidence varies per criterion (see badges below)`;
   }
-  return `${scorable} of ${total} criteria scored — ${total - scorable} non-scorable; confidence varies per criterion (see badges below)`;
+  return `${scorable} of ${total} criteria scored — ${total - scorable} marked Not scorable; confidence varies per criterion (see badges below)`;
 }
 
 export function sanitizeRenderData<T>(value: T): T {

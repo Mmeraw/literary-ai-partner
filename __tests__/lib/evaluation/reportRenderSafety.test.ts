@@ -4,6 +4,7 @@ import {
   getDisplayDreamMarketField,
   getDisplayDreamScore,
   getDisplayText,
+  mistakeProofText,
 } from "@/lib/evaluation/reportRenderSafety";
 import {
   canonicalDreamSectionKeys,
@@ -55,5 +56,17 @@ describe("reportRenderSafety", () => {
     for (const key of canonicalDreamSectionKeys) {
       expect(Object.prototype.hasOwnProperty.call(fullDreamDocFixture, key)).toBe(true);
     }
+  });
+
+  test("mistakeProofText removes premium-report truncation fragments and internal profile ids", () => {
+    const cleaned = mistakeProofText(
+      "However, uneven pacing, scattered line-level errors, and an abrupt, unf. Main weaknesses center on narrative closure and reflection_forward emphasis.",
+    );
+
+    expect(cleaned).toBe(
+      "However, uneven pacing, scattered line-level errors. Main weaknesses center on narrative closure and emphasis.",
+    );
+    expect(cleaned).not.toContain("unf.");
+    expect(cleaned).not.toContain("reflection_forward");
   });
 });

@@ -9,7 +9,7 @@ import {
 } from '@/lib/evaluation/reportCriterionDisplay';
 
 describe('reportCriterionDisplay helpers', () => {
-  test('non-certified criterion renders Score not certified without numeric badge', () => {
+  test('non-certified criterion renders Not scorable without numeric badge', () => {
     const criterion: RenderableCriterion = {
       status: 'INSUFFICIENT_SIGNAL',
       score_0_10: null,
@@ -23,13 +23,13 @@ describe('reportCriterionDisplay helpers', () => {
     expect(isCertifiedCriterion(criterion)).toBe(false);
     expect(getCriterionPrimaryBadge(criterion)).toEqual(
       expect.objectContaining({
-        label: 'Score not certified',
+        label: 'Not scorable',
         numeric: false,
       }),
     );
     expect(getCriterionPrimaryBadge(criterion).label).not.toContain('/ 10');
     expect(getCriterionSupportLabel(criterion)).toBe(
-      'Score not certified — technical evidence certification shortfall',
+      'Score omitted — insufficient confidence in what the submitted text presented for this criterion',
     );
   });
 
@@ -44,7 +44,7 @@ describe('reportCriterionDisplay helpers', () => {
     ];
 
     expect(getCertifiedCriteriaSummary(criteria)).toBe(
-      '2 of 3 criteria scored — 1 non-scorable; confidence varies per criterion (see badges below)',
+      '2 of 3 criteria scored — 1 marked Not scorable; confidence varies per criterion (see badges below)',
     );
   });
 
@@ -104,7 +104,7 @@ describe('reportCriterionDisplay helpers', () => {
     expect(JSON.stringify(sanitized)).not.toContain('9');
   });
 
-  test('NO_SIGNAL criteria surface explicit non-certified support label', () => {
+  test('NO_SIGNAL criteria surface explicit Not scorable support label', () => {
     const criterion: RenderableCriterion = {
       status: 'NO_SIGNAL',
       score_0_10: null,
@@ -112,7 +112,7 @@ describe('reportCriterionDisplay helpers', () => {
     };
 
     expect(getCriterionSupportLabel(criterion)).toBe(
-      'Score not certified — no observable evidence',
+      'Not scorable — no observable evidence in the submitted text',
     );
   });
 

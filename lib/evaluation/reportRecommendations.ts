@@ -144,6 +144,10 @@ export function normalizeRecommendationActionForDisplay(action: string): string 
   // Repair soft seam artifact that can appear after clamp in summary surfaces.
   return withoutAnchorLeadIn
     .replace(/\band\s+a\s+because\b/gi, "because")
+    .replace(/;\s*At the scene level,\s*[^.;!?]{1,220}?\s+would benefit from one because\b/gi, "; This passage needs a concrete scene-level revision because")
+    .replace(/;\s*At the scene level,\s*[^.;!?]{1,220}?\s+would because\b/gi, "; This passage needs a concrete scene-level revision because")
+    .replace(/\bconcrete criterion-specific move\b/gi, "concrete revision move")
+    .replace(/\bcriterion signal\b/gi, "reader signal")
     .trim();
 }
 

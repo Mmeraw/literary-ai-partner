@@ -137,7 +137,7 @@ export function buildUnifiedEvaluationDocument(input: {
     : unique([
         ...base.topRisks,
         ...base.criterionDetails
-          .filter((detail) => detail.scoreLabel !== '—/10')
+          .filter((detail) => detail.scoreLabel !== 'Not scorable')
           .slice(0, 3)
           .map((detail) => `${detail.label}: ${detail.rationaleText}`),
       ]).slice(0, 8);

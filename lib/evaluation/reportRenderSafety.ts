@@ -189,6 +189,10 @@ const MACHINE_RESIDUE_PATTERNS: RegExp[] = [
   /\breported_speech\b/g,
   /\btagged_speech\b/g,
   /\baction_beat_attribution\b/g,
+  /\breflection_forward\b/g,
+  /\bvoice_forward\b/g,
+  /\bemotional_payoff_forward\b/g,
+  /\b[a-z]+_forward\b/g,
   /\bHARD_FAIL\b/g,
   /\bDEGRADED_EXTRACTION\b/g,
   /\bSOURCE_INTEGRITY_REVIEW_REQUIRED\b/g,
@@ -261,6 +265,25 @@ function repairTruncatedEnding(text: string): string {
   return result;
 }
 
+function repairInternalTruncatedFragments(text: string): string {
+  let result = text;
+
+  // Example observed in a paid report: "..., and an abrupt, unf. Main weaknesses..."
+  // Preserve the completed thought before the fragment, then continue cleanly.
+  result = result.replace(
+    /,\s*(?:and|or|but)\s+(?:an?\s+|the\s+)?(?:abrupt|unfinished|incomplete|partial|truncated)?\s*,?\s*\b[a-z]{1,4}\.(?=\s+[A-Z]|$)/g,
+    '.',
+  );
+
+  // Drop standalone machine-truncation crumbs between otherwise complete sentences.
+  result = result.replace(
+    /(?:^|\s)(?:unf|incom|trunc|frag)\.(?=\s+[A-Z]|$)/gi,
+    ' ',
+  );
+
+  return result;
+}
+
 /**
  * Mistake-proof a text block before rendering to any user-facing format.
  * Applies ALL quality gates:
@@ -287,6 +310,10 @@ export function mistakeProofText(text: unknown, fallback = ''): string {
     .replace(/,\s*,/g, ',')          // double commas
     .replace(/\s+([.,;:!?])/g, '$1') // space before punctuation
     .replace(/([.!?])\1+/g, '$1');   // repeated terminal punctuation
+
+  // 3b. Remove obvious mid-paragraph truncation fragments before they become
+  // embarrassing paid-report prose.
+  result = repairInternalTruncatedFragments(result);
 
   // 4. Repair truncated endings.
   result = repairTruncatedEnding(result);

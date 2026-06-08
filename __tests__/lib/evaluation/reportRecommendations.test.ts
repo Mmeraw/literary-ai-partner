@@ -146,4 +146,26 @@ describe("normalizeRecommendationActionForDisplay", () => {
     expect(normalized.toLowerCase()).not.toContain("quick win:");
     expect(normalized).not.toContain("In the anchored moment");
   });
+
+  test("repairs scene-level seam artifacts from generated opportunity actions", () => {
+    const normalized = normalizeRecommendationActionForDisplay(
+      "Cut one reflective sentence and insert one immediate external action trigger; At the scene level, 70% of those who use illegal drugs are working, meaning would benefit from one because the reflective passage stalls forward momentum before the narrative urgency peaks.",
+    );
+
+    expect(normalized).toBe(
+      "Cut one reflective sentence and insert one immediate external action trigger; This passage needs a concrete scene-level revision because the reflective passage stalls forward momentum before the narrative urgency peaks.",
+    );
+    expect(normalized).not.toContain("would benefit from one because");
+    expect(normalized).not.toContain("At the scene level");
+  });
+
+  test("removes internal criterion wording from recommendation actions", () => {
+    const normalized = normalizeRecommendationActionForDisplay(
+      "Replace one abstract sentence with a concrete criterion-specific move because the current phrasing diffuses the criterion signal before the decision point.",
+    );
+
+    expect(normalized).toBe(
+      "Replace one abstract sentence with a concrete revision move because the current phrasing diffuses the reader signal before the decision point.",
+    );
+  });
 });

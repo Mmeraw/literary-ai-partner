@@ -42,6 +42,7 @@ export type GenreExpectationHeader = {
   shelfTargetAudience: string;
   dominantCraftEngine: GenreExpectationMetadata['dominant_craft_engine'];
   expectationProfiles: GenreExpectationMetadata['expectation_profiles'];
+  expectationProfileLabels: string[];
   genreExpectationIds: string[];
   genreExpectationLabels: string[];
   contractSummary: string;
@@ -68,8 +69,8 @@ const BASE_REQUIREMENTS: HeaderMetricRequirement[] = [
   },
   {
     id: 'genre_expectation_contract',
-    label: 'Genre Contract',
-    requirement: 'Expose the resolved reader-promise profile that governed recommendation suppression and genre fit.',
+    label: 'Genre Expectations',
+    requirement: 'Display the author-facing reader expectations used to assess genre fit; never expose internal profile identifiers.',
     source: 'genre_expectation_policy',
   },
   {
@@ -185,14 +186,28 @@ export function buildGenreExpectationHeader(
   const label = metadata.genre_expectation_labels.length > 0
     ? metadata.genre_expectation_labels.join(' + ')
     : metadata.diagnosed_genre;
+  const dominantCraftEngineLabel = humanizeExpectationLabel(metadata.dominant_craft_engine);
+  const expectationProfileLabels = metadata.expectation_profiles.map(humanizeExpectationLabel);
 
   return {
     diagnosedGenre: metadata.diagnosed_genre,
     shelfTargetAudience: metadata.shelf_target_audience,
     dominantCraftEngine: metadata.dominant_craft_engine,
     expectationProfiles: metadata.expectation_profiles,
+    expectationProfileLabels,
     genreExpectationIds: metadata.genre_expectation_ids,
     genreExpectationLabels: metadata.genre_expectation_labels,
-    contractSummary: `${label} · ${metadata.dominant_craft_engine.replace(/_/g, ' ')}`,
+    contractSummary: `${label} · ${dominantCraftEngineLabel} focus`,
   };
+}
+
+function humanizeExpectationLabel(value: string): string {
+  const cleaned = value
+    .replace(/_forward$/i, '')
+    .replace(/_/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (!cleaned) return 'Reader expectations';
+  return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
 }
