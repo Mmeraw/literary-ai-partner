@@ -44,6 +44,7 @@ function candidateRepeatsSourceForInsertion(item: WorkbenchOpportunity, text: st
 
 function optionA(item: WorkbenchOpportunity): string {
   if (item.readiness !== "ready_for_revise") return "";
+  if (item.cardType !== "copy_paste_rewrite" || item.trustedPathStatus !== "eligible") return "";
   const option = item.options.find((entry) => entry.key === "A");
   if (!option) return "";
   const candidate = getRenderableCandidateText({
@@ -75,6 +76,9 @@ function buildEntry(item: WorkbenchOpportunity, selectedText: string, modeContra
       criterion: criterionOf(item),
       severity: item.severity,
       scope: item.scope,
+      cardType: item.cardType,
+      trustedPathStatus: item.trustedPathStatus,
+      executabilityReasons: item.executabilityReasons ?? [],
       modeContract: modeContractForMetadata(modeContract),
     },
   };

@@ -2,6 +2,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getAuthenticatedUser } from "@/lib/supabase/server";
 import { createDerivedVersion } from "@/lib/manuscripts/versions";
 import { resolveFinalReviewSourceText, scrubInternalReportLeakage } from "@/lib/revision/finalReviewSourceText";
+import { getWorkbenchQueue } from "@/lib/revision/workbenchQueue";
 
 export type FinalReviewExportFormat = "clean" | "marked" | "changelog";
 export type FinalReviewExportFile = "txt" | "pdf" | "docx";
@@ -20,6 +21,14 @@ type RuntimeContext = {
   sourceVersionId: string;
   sourceText: string;
   decisions: RuntimeDecision[];
+  queueSummary: RuntimeQueueSummary;
+};
+
+type RuntimeQueueSummary = {
+  copyPasteOpportunityIds: Set<string>;
+  copyPasteCount: number;
+  strategyCount: number;
+  withheldBlockedCount: number;
 };
 
 type RuntimeDecision = {
@@ -32,10 +41,18 @@ type RuntimeDecision = {
   selected_text: string | null;
   source_excerpt: string | null;
   source_location: string | null;
+  metadata: Record<string, unknown> | null;
   created_at: string;
 };
 
 const APPLICABLE = new Set(["accepted_a", "accepted_b", "accepted_c", "custom"]);
+
+const EMPTY_QUEUE_SUMMARY: RuntimeQueueSummary = {
+  copyPasteOpportunityIds: new Set(),
+  copyPasteCount: 0,
+  strategyCount: 0,
+  withheldBlockedCount: 0,
+};
 
 function safeFilename(title: string, suffix: string, ext: string): string {
   const base = title.replace(/[^a-z0-9]+/gi, "-").toLowerCase().replace(/^-|-$/g, "").slice(0, 50) || "manuscript";
@@ -84,7 +101,7 @@ async function loadRuntimeContext(input: FinalReviewRuntimeInput): Promise<Runti
 
   const { data: rows, error: ledgerError } = await supabase
     .from("revision_ledger_decisions")
-    .select("id, opportunity_id, opportunity_title, decision, selected_option, custom_text, selected_text, source_excerpt, source_location, created_at")
+    .select("id, opportunity_id, opportunity_title, decision, selected_option, custom_text, selected_text, source_excerpt, source_location, metadata, created_at")
     .eq("user_id", user.id)
     .eq("manuscript_id", manuscriptId)
     .eq("evaluation_job_id", input.evaluationJobId)
@@ -106,6 +123,23 @@ async function loadRuntimeContext(input: FinalReviewRuntimeInput): Promise<Runti
     fallbackRawText: version.raw_text ?? "",
   });
 
+  let queueSummary = EMPTY_QUEUE_SUMMARY;
+  const queuePayload = await getWorkbenchQueue({
+    manuscriptId: String(manuscriptId),
+    evaluationJobId: String(input.evaluationJobId),
+  });
+  if (queuePayload.ok) {
+    const copyPasteOpportunityIds = new Set(queuePayload.opportunities.map((opportunity) => opportunity.id));
+    const strategyCount = queuePayload.needsTargeting.filter((opportunity) => opportunity.cardType === "revision_strategy").length;
+    const withheldBlockedCount = queuePayload.withheldUnsupported.length + queuePayload.needsTargeting.filter((opportunity) => opportunity.cardType !== "revision_strategy").length;
+    queueSummary = {
+      copyPasteOpportunityIds,
+      copyPasteCount: copyPasteOpportunityIds.size,
+      strategyCount,
+      withheldBlockedCount,
+    };
+  }
+
   return {
     supabase,
     userId: user.id,
@@ -115,11 +149,17 @@ async function loadRuntimeContext(input: FinalReviewRuntimeInput): Promise<Runti
     sourceVersionId: job.manuscript_version_id,
     sourceText,
     decisions: [...latestByOpportunity.values()],
+    queueSummary,
   };
 }
 
-function applicableDecisions(decisions: RuntimeDecision[]): RuntimeDecision[] {
-  return decisions.filter((d) => APPLICABLE.has(d.decision));
+function isCopyPasteExecutableDecision(ctx: RuntimeContext, decision: RuntimeDecision): boolean {
+  if (!APPLICABLE.has(decision.decision)) return false;
+  return ctx.queueSummary.copyPasteOpportunityIds.has(decision.opportunity_id);
+}
+
+function applicableDecisions(ctx: RuntimeContext): RuntimeDecision[] {
+  return ctx.decisions.filter((decision) => isCopyPasteExecutableDecision(ctx, decision));
 }
 
 function decisionLabel(decision: RuntimeDecision): string {
@@ -140,6 +180,14 @@ function cleanLocation(value: string | null): string | null {
 
 function buildChangelog(ctx: RuntimeContext): string {
   const lines = ["RevisionGrade Final Review Changelog", `Manuscript: ${ctx.manuscriptTitle}`, ""];
+
+  const executable = applicableDecisions(ctx);
+  lines.push("TrustedPath summary");
+  lines.push(`${executable.length} safe copy-paste repair${executable.length === 1 ? "" : "s"} applied or ready to apply.`);
+  lines.push(`${ctx.queueSummary.strategyCount} Strategy Card${ctx.queueSummary.strategyCount === 1 ? "" : "s"} require author decision and were not applied.`);
+  lines.push(`${ctx.queueSummary.withheldBlockedCount} withheld/blocked card${ctx.queueSummary.withheldBlockedCount === 1 ? "" : "s"} stayed invisible to the semi-revised manuscript.`);
+  lines.push("TrustedPath applies only safe, local copy-paste repairs. More complex revision opportunities remain available as Strategy Cards for author review. Your downloaded semi-revised manuscript preserves all unchanged sections exactly as submitted.");
+  lines.push("");
 
   if (ctx.decisions.length === 0) {
     lines.push("No synced revision decisions were found.");
@@ -193,7 +241,7 @@ function applyTextSnapshots(ctx: RuntimeContext): { text: string; applied: Runti
     return { text: "", applied, blocked: ["Full manuscript source text is unavailable for this legacy evaluation."] };
   }
 
-  for (const decision of applicableDecisions(ctx.decisions)) {
+  for (const decision of applicableDecisions(ctx)) {
     const replacement = scrubInternalReportLeakage(decision.decision === "custom" ? decision.custom_text ?? "" : decision.selected_text ?? "");
     const source = scrubInternalReportLeakage(decision.source_excerpt ?? "");
 
@@ -251,7 +299,7 @@ export async function applyFinalReviewDecisions(input: FinalReviewRuntimeInput) 
     await recordRun(ctx, {
       status: "blocked",
       mode: "apply",
-      skippedDecisionIds: applicableDecisions(ctx.decisions).map((d) => d.id),
+      skippedDecisionIds: ctx.decisions.filter((decision) => APPLICABLE.has(decision.decision)).map((d) => d.id),
       blockedReason: result.blocked.join(" | ") || "No applicable accepted/custom decisions with persisted text snapshots.",
       metadata: { blocked: result.blocked },
     });
@@ -270,8 +318,13 @@ export async function applyFinalReviewDecisions(input: FinalReviewRuntimeInput) 
     mode: "apply",
     revisedVersionId: version.id,
     appliedDecisionIds: result.applied.map((d) => d.id),
-    skippedDecisionIds: ctx.decisions.filter((d) => !APPLICABLE.has(d.decision)).map((d) => d.id),
-    metadata: { applied_count: result.applied.length },
+    skippedDecisionIds: ctx.decisions.filter((decision) => !isCopyPasteExecutableDecision(ctx, decision)).map((d) => d.id),
+    metadata: {
+      applied_count: result.applied.length,
+      copy_paste_repair_count: ctx.queueSummary.copyPasteCount,
+      strategy_card_count: ctx.queueSummary.strategyCount,
+      withheld_blocked_count: ctx.queueSummary.withheldBlockedCount,
+    },
   });
 
   return { ok: true, revisedVersionId: version.id, appliedCount: result.applied.length };
@@ -299,16 +352,23 @@ export async function buildFinalReviewExport(input: FinalReviewRuntimeInput & { 
     } else {
       content = applied.text;
     }
-    suffix = "clean-draft";
+    suffix = "semi-revised-draft";
   }
 
   await recordRun(ctx, {
     status: "exported",
     mode: format === "clean" ? "export_clean" : format === "marked" ? "export_marked" : "export_changelog",
     appliedDecisionIds: applied.applied.map((d) => d.id),
-    skippedDecisionIds: ctx.decisions.filter((d) => !APPLICABLE.has(d.decision)).map((d) => d.id),
+    skippedDecisionIds: ctx.decisions.filter((decision) => !isCopyPasteExecutableDecision(ctx, decision)).map((d) => d.id),
     exportFormat: file,
-    metadata: { export_kind: format, requested_file: file, blocked: applied.blocked },
+    metadata: {
+      export_kind: format,
+      requested_file: file,
+      blocked: applied.blocked,
+      copy_paste_repair_count: ctx.queueSummary.copyPasteCount,
+      strategy_card_count: ctx.queueSummary.strategyCount,
+      withheld_blocked_count: ctx.queueSummary.withheldBlockedCount,
+    },
   });
 
   return {
