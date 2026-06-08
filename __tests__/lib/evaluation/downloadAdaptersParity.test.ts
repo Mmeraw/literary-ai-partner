@@ -1,4 +1,5 @@
 import { buildShortFormEvaluationDocument } from '../../../lib/evaluation/shortFormReportDocument';
+import mammoth from 'mammoth';
 
 describe('download adapters parity (Option A canonicalDoc)', () => {
   test('TXT and HTML adapters include canonical section content in consistent order', async () => {
@@ -59,5 +60,11 @@ describe('download adapters parity (Option A canonicalDoc)', () => {
     expect(docxBuffer.length).toBeGreaterThan(100);
     expect(docxBuffer[0]).toBe(0x50); // PK zip magic header
     expect(docxBuffer[1]).toBe(0x4b);
+
+    const { value: docxText } = await mammoth.extractRawText({ buffer: docxBuffer });
+    expect(docxText).toContain('RevisionGrade');
+    expect(docxText).toContain('One-Paragraph Pitch');
+    expect(docxText).toContain('Submitted Word Count');
+    expect(docxText).toContain('Confidentiality');
   });
 });

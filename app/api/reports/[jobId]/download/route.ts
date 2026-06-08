@@ -1304,76 +1304,122 @@ async function buildCanonicalTemplateDocx(doc: UnifiedEvaluationDocument): Promi
   const makeHeading = (text: string) =>
     new Paragraph({
       heading: HeadingLevel.HEADING_2,
-      spacing: { before: 220, after: 80 },
-      children: [new TextRun({ text, bold: true, color: docxHex(RG.oxblood) })],
+      spacing: { before: 260, after: 90 },
+      children: [new TextRun({ text, bold: true, color: docxHex(RG.oxblood), size: 28 })],
     });
-  const para = (text: string, opts: { bold?: boolean; color?: string } = {}) =>
+
+  const makeDivider = () =>
+    new Table({
+      width: { size: 100, type: WidthType.PERCENTAGE },
+      rows: [
+        new TableRow({
+          children: [
+            new TableCell({
+              borders: DOCX_NO_BORDERS,
+              shading: { type: ShadingType.SOLID, color: docxHex(RG.goldMid) },
+              children: [new Paragraph({ spacing: { after: 0 }, children: [new TextRun({ text: ' ', size: 4 })] })],
+            }),
+          ],
+        }),
+      ],
+    });
+
+  const para = (text: string, opts: { bold?: boolean; color?: string; italics?: boolean } = {}) =>
     new Paragraph({
-      spacing: { after: 90 },
+      spacing: { after: 100 },
       children: [
         new TextRun({
           text: cleanReportText(text),
           size: 22,
           bold: opts.bold,
+          italics: opts.italics,
           color: docxHex(opts.color ?? RG.textPrimary),
         }),
       ],
     });
 
+  const metadataTableRows: TableRow[] = [
+    ['Report Type', doc.titleBlock.reportType],
+    ['Overall Score', `${doc.titleBlock.overallScoreLabel}${doc.titleBlock.overallScoreConfidenceLabel ? ` (${doc.titleBlock.overallScoreConfidenceLabel})` : ''}`],
+    ['Market Readiness', `${doc.titleBlock.marketReadiness}${doc.titleBlock.marketReadinessConfidenceLabel ? ` (${doc.titleBlock.marketReadinessConfidenceLabel})` : ''}`],
+    ['Genre', `${doc.titleBlock.genre}${doc.titleBlock.genreConfidenceLabel ? ` (${doc.titleBlock.genreConfidenceLabel})` : ''}`],
+    ['Target Audience', `${doc.titleBlock.audienceTentative ? 'Tentative: ' : ''}${doc.titleBlock.targetAudience} (${doc.titleBlock.audienceConfidenceLabel})`],
+    ...(doc.titleBlock.shelf ? [['Shelf', `${doc.titleBlock.shelf}${doc.titleBlock.shelfConfidenceLabel ? ` (${doc.titleBlock.shelfConfidenceLabel})` : ''}`] as [string, string]] : []),
+    ['Submitted Word Count', doc.titleBlock.submittedWordCount],
+    ['Estimated Pages', doc.titleBlock.estimatedPages],
+    ['Reading Grade Level', doc.titleBlock.readingGradeLevel],
+    ['Dialogue/Narrative Ratio', doc.titleBlock.dialogueNarrativeRatio],
+    ['Date Generated', doc.titleBlock.dateGenerated],
+    ['Confidentiality', 'Prepared for author/editorial use.'],
+  ].map(
+    ([label, value]) =>
+      new TableRow({
+        children: [
+          new TableCell({
+            width: { size: 36, type: WidthType.PERCENTAGE },
+            shading: { type: ShadingType.SOLID, color: docxHex(RG.surface) },
+            children: [new Paragraph({ children: [new TextRun({ text: label, bold: true, size: 20, color: docxHex(RG.textMuted) })] })],
+          }),
+          new TableCell({
+            width: { size: 64, type: WidthType.PERCENTAGE },
+            children: [new Paragraph({ children: [new TextRun({ text: cleanReportText(value), size: 20, color: docxHex(RG.textPrimary) })] })],
+          }),
+        ],
+      }),
+  );
+
   const children: (Paragraph | Table)[] = [
     new Paragraph({
+      alignment: AlignmentType.CENTER,
       heading: HeadingLevel.TITLE,
-      children: [new TextRun({ text: doc.title, bold: true })],
-      spacing: { after: 140 },
-    }),
-    para(`Report Type: ${doc.titleBlock.reportType}`),
-    new Paragraph({
-      spacing: { after: 90 },
-      children: [
-        new TextRun({ text: 'Overall Score: ', size: 22, color: docxHex(RG.textPrimary) }),
-        new TextRun({ text: doc.titleBlock.overallScoreLabel, bold: true, size: 22, color: docxHex(scorePaletteColorFromLabel(doc.titleBlock.overallScoreLabel)) }),
-        ...(doc.titleBlock.overallScoreConfidenceLabel ? [new TextRun({ text: `  ${doc.titleBlock.overallScoreConfidenceLabel}`, size: 20, color: docxHex(confidencePaletteColor(doc.titleBlock.overallScoreConfidenceLabel)) })] : []),
-      ],
+      spacing: { before: 120, after: 120 },
+      children: [new TextRun({ text: 'RevisionGrade™ Evaluation Report', bold: true, size: 42, color: docxHex(RG.oxblood) })],
     }),
     new Paragraph({
-      spacing: { after: 90 },
-      children: [
-        new TextRun({ text: 'Market Readiness: ', size: 22, color: docxHex(RG.textPrimary) }),
-        new TextRun({ text: doc.titleBlock.marketReadiness, bold: true, size: 22, color: docxHex(readinessPaletteColor(doc.titleBlock.marketReadiness)) }),
-        ...(doc.titleBlock.marketReadinessConfidenceLabel ? [new TextRun({ text: `  ${doc.titleBlock.marketReadinessConfidenceLabel}`, size: 20, color: docxHex(confidencePaletteColor(doc.titleBlock.marketReadinessConfidenceLabel)) })] : []),
+      alignment: AlignmentType.CENTER,
+      spacing: { after: 220 },
+      children: [new TextRun({ text: cleanReportText(doc.title), bold: true, size: 34, color: docxHex(RG.textPrimary) })],
+    }),
+    makeDivider(),
+    new Table({
+      width: { size: 100, type: WidthType.PERCENTAGE },
+      rows: [
+        new TableRow({
+          children: [
+            new TableCell({
+              width: { size: 50, type: WidthType.PERCENTAGE },
+              shading: { type: ShadingType.SOLID, color: docxHex(RG.surfaceAlt) },
+              children: [
+                new Paragraph({ children: [new TextRun({ text: 'Overall Score', bold: true, size: 18, color: docxHex(RG.textMuted) })] }),
+                new Paragraph({
+                  children: [new TextRun({ text: doc.titleBlock.overallScoreLabel, bold: true, size: 30, color: docxHex(scorePaletteColorFromLabel(doc.titleBlock.overallScoreLabel)) })],
+                }),
+              ],
+            }),
+            new TableCell({
+              width: { size: 50, type: WidthType.PERCENTAGE },
+              shading: { type: ShadingType.SOLID, color: docxHex(RG.surfaceAlt) },
+              children: [
+                new Paragraph({ children: [new TextRun({ text: 'Market Readiness', bold: true, size: 18, color: docxHex(RG.textMuted) })] }),
+                new Paragraph({
+                  children: [new TextRun({ text: cleanReportText(doc.titleBlock.marketReadiness), bold: true, size: 28, color: docxHex(readinessPaletteColor(doc.titleBlock.marketReadiness)) })],
+                }),
+              ],
+            }),
+          ],
+        }),
       ],
     }),
-    new Paragraph({
-      spacing: { after: 90 },
-      children: [
-        new TextRun({ text: 'Genre: ', size: 22, color: docxHex(RG.textPrimary) }),
-        new TextRun({ text: doc.titleBlock.genre, size: 22, color: docxHex(RG.textPrimary) }),
-        ...(doc.titleBlock.genreConfidenceLabel ? [new TextRun({ text: `  ${doc.titleBlock.genreConfidenceLabel}`, size: 20, color: docxHex(confidencePaletteColor(doc.titleBlock.genreConfidenceLabel)) })] : []),
-      ],
+    new Paragraph({ spacing: { after: 140 }, children: [new TextRun({ text: ' ' })] }),
+    new Table({
+      width: { size: 100, type: WidthType.PERCENTAGE },
+      rows: metadataTableRows,
     }),
-    ...(doc.titleBlock.genreExpectationContract ? [para(`Genre Expectations: ${doc.titleBlock.genreExpectationContract.contractSummary}${doc.titleBlock.genreExpectationContract.expectationProfileLabels.length > 0 ? ` — Reader emphasis: ${doc.titleBlock.genreExpectationContract.expectationProfileLabels.join(', ')}` : ''}`)] : []),
-    new Paragraph({
-      spacing: { after: 90 },
-      children: [
-        ...(doc.titleBlock.audienceTentative ? [new TextRun({ text: 'Tentative: ', size: 22, italics: true, color: docxHex(RG.textMuted) })] : []),
-        new TextRun({ text: 'Target Audience: ', size: 22, color: docxHex(RG.textPrimary) }),
-        new TextRun({ text: doc.titleBlock.targetAudience, size: 22, color: docxHex(RG.textPrimary) }),
-        new TextRun({ text: `  ${doc.titleBlock.audienceConfidenceLabel}`, size: 20, color: docxHex(confidencePaletteColor(doc.titleBlock.audienceConfidenceLabel)) }),
-      ],
-    }),
-    ...(doc.titleBlock.shelf ? [new Paragraph({
-      spacing: { after: 90 },
-      children: [
-        new TextRun({ text: 'Shelf: ', size: 22, color: docxHex(RG.textPrimary) }),
-        new TextRun({ text: doc.titleBlock.shelf, size: 22, color: docxHex(RG.textPrimary) }),
-        ...(doc.titleBlock.shelfConfidenceLabel ? [new TextRun({ text: `  ${doc.titleBlock.shelfConfidenceLabel}`, size: 20, color: docxHex(confidencePaletteColor(doc.titleBlock.shelfConfidenceLabel)) })] : []),
-      ],
-    })] : []),
-    para(`Word Count: ${doc.titleBlock.submittedWordCount}`),
-    para(`Estimated Pages: ${doc.titleBlock.estimatedPages}`),
-    para(`Reading Grade Level: ${doc.titleBlock.readingGradeLevel}`),
-    para(`Dialogue/Narrative Ratio: ${doc.titleBlock.dialogueNarrativeRatio}`),
-    para(`Date Generated: ${doc.titleBlock.dateGenerated}`),
+    ...(doc.titleBlock.genreExpectationContract
+      ? [para(`Genre Expectations: ${doc.titleBlock.genreExpectationContract.contractSummary}${doc.titleBlock.genreExpectationContract.expectationProfileLabels.length > 0 ? ` — Reader emphasis: ${doc.titleBlock.genreExpectationContract.expectationProfileLabels.join(', ')}` : ''}`, { color: RG.textMuted })]
+      : []),
+    new Paragraph({ spacing: { after: 120 }, children: [new TextRun({ text: EXPORT_DISCLAIMER, size: 18, color: docxHex(RG.textMuted), italics: true })] }),
+    makeDivider(),
     makeHeading('One-Paragraph Pitch'),
     para(doc.oneParagraphPitch),
     makeHeading('One-Sentence Pitch'),
@@ -1405,6 +1451,7 @@ async function buildCanonicalTemplateDocx(doc: UnifiedEvaluationDocument): Promi
   }
 
   children.push(makeHeading('13 Criteria Score Grid'));
+  children.push(new Paragraph({ pageBreakBefore: true, children: [new TextRun({ text: '' })] }));
   children.push(
     new Table({
       rows: [
@@ -1500,7 +1547,24 @@ async function buildCanonicalTemplateDocx(doc: UnifiedEvaluationDocument): Promi
   children.push(para(doc.disclaimer));
 
   const docxDoc = new Document({
-    sections: [{ children }],
+    sections: [
+      {
+        footers: {
+          default: new Footer({
+            children: [
+              new Paragraph({
+                alignment: AlignmentType.CENTER,
+                children: [
+                  new TextRun({ text: `${FOOTER_LINE}  |  Page `, size: 16, color: docxHex(RG.textFaint) }),
+                  new TextRun({ children: [PageNumber.CURRENT], size: 16, color: docxHex(RG.textFaint) }),
+                ],
+              }),
+            ],
+          }),
+        },
+        children,
+      },
+    ],
   });
 
   return await Packer.toBuffer(docxDoc);
