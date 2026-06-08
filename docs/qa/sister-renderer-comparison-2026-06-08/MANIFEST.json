@@ -1,0 +1,29 @@
+[
+  {
+    "file": "Evaluation Report Sister WEBPAGE VIEW (different format)(1).pdf",
+    "role": "webpage browser-print PDF",
+    "observed_pages": 16,
+    "bytes": 333475,
+    "sha256": "984370f636c3e49d3a5caeaf28716885cd95379aceb12414aa68e828e9ac559b"
+  },
+  {
+    "file": "revision-grade-sister (1).pdf",
+    "role": "product PDF export",
+    "observed_pages": 10,
+    "bytes": 196024,
+    "sha256": "b42dc4fb2e14c03062b0cd377d59a50d3ce3b50f8ea5694e9e7dfd5581fe9c78"
+  },
+  {
+    "file": "revision-grade-sister (1).docx",
+    "role": "product Word export",
+    "observed_pages": 6,
+    "bytes": 16792,
+    "sha256": "555de51afa4e356f16572fa7e4877042085515bccba4a2abdd2c36ad59eea3d2"
+  },
+  {
+    "file": "revision-grade-sister (1).txt",
+    "role": "product TXT export",
+    "bytes": 22440,
+    "sha256": "3a3268dcf755c14c649e6f6e2bbda67f30c54ddacffad15771d5c89ca30af8c0"
+  }
+]
