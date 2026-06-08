@@ -578,6 +578,32 @@ function scopeFromCoordinates(coordinates: string): WorkbenchScope {
   }
 }
 
+function hasPlaceholderCoordinates(coordinates: string): boolean {
+  const normalized = coordinates.trim()
+  if (!normalized) return true
+  if (/^[A-Z_]+:recommendation$/i.test(normalized)) return true
+  if (
+    /\b(?:recommendation|criteria\.recommendations|evaluation_result)\b/i.test(normalized)
+    && !/\b(?:chunk|chapter|scene|paragraph|line|passage|act|page)\b/i.test(normalized)
+  ) {
+    return true
+  }
+  return false
+}
+
+function isSupportedForUserQueue(opportunity: WorkbenchOpportunity): boolean {
+  if (opportunity.readiness !== 'ready_for_revise') return false
+  if (opportunity.groundingStatus !== 'supported') return false
+  // Fail-closed: only explicitly preflight-passed cards are user-admissible.
+  // Legacy/stale rows missing preflight metadata must be withheld.
+  if (opportunity.preflightStatus !== 'passed') return false
+  if (hasPlaceholderCoordinates(opportunity.anchor)) return false
+  if ((opportunity.hydrationFailureReasons?.length ?? 0) > 0) return false
+  if ((opportunity.resBlockerReasons?.length ?? 0) > 0) return false
+  if (opportunity.revisionOperation === 'needs_targeting') return false
+  return true
+}
+
 function fallbackReaderEffect(criterion: string, scope: WorkbenchScope): string {
   const key = criterion.toLowerCase()
   if (scope === 'Structural' || scope === 'Manuscript') return 'Repairing this can restore cause-and-effect continuity across the manuscript.'
@@ -1259,8 +1285,8 @@ export async function getWorkbenchQueue(input: { manuscriptId?: string; evaluati
 
   const readyForRevise = opportunities.filter((opportunity) => opportunity.readiness === 'ready_for_revise')
   const needsTargeting = opportunities.filter((opportunity) => opportunity.readiness === 'needs_targeting')
-  const supportedReadyForRevise = readyForRevise.filter((opportunity) => opportunity.groundingStatus === 'supported')
-  const withheldUnsupported = readyForRevise.filter((opportunity) => opportunity.groundingStatus !== 'supported')
+  const supportedReadyForRevise = readyForRevise.filter(isSupportedForUserQueue)
+  const withheldUnsupported = readyForRevise.filter((opportunity) => !isSupportedForUserQueue(opportunity))
 
   const synthesisResult = {
     admitted: supportedReadyForRevise.length,
@@ -1324,4 +1350,5 @@ export const __testing = {
   hasActionableEvidence,
   synthesizeFindingsForWorkbench,
   scopeFromCoordinates,
+  hasPlaceholderCoordinates,
 }

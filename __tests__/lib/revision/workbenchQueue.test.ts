@@ -366,6 +366,46 @@ describe('getWorkbenchQueue', () => {
     expect(result.needsTargeting[0].readiness).toBe('needs_targeting');
   });
 
+  it('withholds ready-looking cards when preflight status is missing (fail-closed admission)', async () => {
+    const supabase = buildSupabaseMock('job-missing-preflight', 'version-missing-preflight');
+    mockCreateAdminClient.mockReturnValue(supabase as never);
+
+    mockEnsureLedger.mockResolvedValueOnce({
+      artifactId: 'ledger-missing-preflight',
+      opportunities: [
+        {
+          opportunity_id: 'opp-missing-preflight',
+          criterion: 'NARRATIVE_DRIVE',
+          severity: 'must',
+          confidence: 'high',
+          manuscript_coordinates: 'passage:12',
+          evidence_anchor: 'He stopped at the threshold and let the room settle before answering.',
+          rationale: 'Bridge the transition with one concrete beat that carries immediate consequence.',
+          symptom: 'Transition lands abruptly.',
+          cause: 'Connective bridge beat is missing.',
+          fix_direction: 'Insert one bridge beat that preserves continuity.',
+          reader_effect: 'Readers can follow cause-and-effect without losing momentum.',
+          mistake_proofing: 'Do not add new events or alter intent.',
+          candidate_text_a: 'He paused at the threshold, letting the room settle before he answered.',
+          candidate_text_b: 'At the doorway, he measured the silence, then answered without forcing the beat.',
+          candidate_text_c: 'He held one breath at the threshold and answered only when the silence could carry it.',
+          revision_operation: 'insert_after_selected_passage',
+          provenance: 'evaluation_result_v2',
+          grounding_status: 'supported',
+          // intentionally no preflight_status
+        },
+      ] as never,
+    });
+
+    const result = await getWorkbenchQueue({ manuscriptId: '6074', evaluationJobId: 'job-missing-preflight' });
+
+    expect(result.ok).toBe(true);
+    expect(result.opportunities).toHaveLength(0);
+    expect(result.withheldUnsupported).toHaveLength(1);
+    expect(result.readinessTotals.ready_for_revise).toBe(0);
+    expect(result.readinessTotals.withheld_unsupported).toBe(1);
+  });
+
   it('carries confirmed evaluation mode and voice preservation into the Revise queue contract', async () => {
     const supabase = buildSupabaseMock('job-mode', 'version-mode', {
       policyFamily: 'standard',
