@@ -373,6 +373,7 @@ function makeMinimalSupabase(overrides: {
   evaluationPayloadExtras?: Record<string, unknown>;
   ledgerQualityReportContent?: Record<string, unknown> | null;
   jobFields?: Record<string, unknown>;
+  manuscriptChunks?: Array<{ content: string }>;
   upsertSpy?: jest.Mock;
 }) {
   const upsertSpy = overrides.upsertSpy ?? jest.fn();
@@ -384,10 +385,18 @@ function makeMinimalSupabase(overrides: {
         filters: {},
       };
       const chain: any = {
+        data: null,
+        error: null,
         select: (v: string) => { state.selectClause = v; return chain; },
         eq: (col: string, val: unknown) => { state.filters[col] = val; return chain; },
         in: () => chain,
-        order: () => chain,
+        order: () => {
+          if (table === 'manuscript_chunks' && state.selectClause === 'content') {
+            chain.data = overrides.manuscriptChunks ?? [];
+            chain.error = null;
+          }
+          return chain;
+        },
         limit: () => chain,
         maybeSingle: async () => {
           // Existing ledger row
@@ -466,6 +475,7 @@ describe('ensureRevisionOpportunityLedgerArtifact — hydration status suffix an
   it('writes _ai_hydrated_complete when all blocked opportunities are hydrated', async () => {
     const recs = makeBlockedRecommendations(3);
     const upsertSpy = jest.fn();
+    const manuscriptChunks = recs.map((r) => ({ content: r.anchor_snippet }));
 
     // Use mockImplementation so we can read the actual blockedOpps argument
     // and return candidates keyed by the real opportunity_ids generated inside
@@ -485,7 +495,7 @@ describe('ensureRevisionOpportunityLedgerArtifact — hydration status suffix an
       return { hydratedCount: blockedOpps.length, skippedCount: 0, candidates: candidatesMap };
     });
 
-    const supabase = makeMinimalSupabase({ criteriaRecommendations: recs, upsertSpy });
+    const supabase = makeMinimalSupabase({ criteriaRecommendations: recs, manuscriptChunks, upsertSpy });
     await ensureRevisionOpportunityLedgerArtifact(supabase, 'job-complete');
 
     const persisted = upsertSpy.mock.calls[0]?.[0] as { content: Record<string, unknown> };
@@ -506,6 +516,7 @@ describe('ensureRevisionOpportunityLedgerArtifact — hydration status suffix an
     // 20 blocked recommendations; hydration only fills 15 (the first batch)
     const recs = makeBlockedRecommendations(20);
     const upsertSpy = jest.fn();
+    const manuscriptChunks = recs.map((r) => ({ content: r.anchor_snippet }));
 
     // Hydration reports 15 hydrated but the Map has 0 matching entries
     // (IDs don't match) — so stillBlocked will equal 20. The important
@@ -516,7 +527,7 @@ describe('ensureRevisionOpportunityLedgerArtifact — hydration status suffix an
       candidates: new Map(), // No matching IDs → opportunities stay blocked
     });
 
-    const supabase = makeMinimalSupabase({ criteriaRecommendations: recs, upsertSpy });
+    const supabase = makeMinimalSupabase({ criteriaRecommendations: recs, manuscriptChunks, upsertSpy });
     await ensureRevisionOpportunityLedgerArtifact(supabase, 'job-partial');
 
     const persisted = upsertSpy.mock.calls[0]?.[0] as { content: Record<string, unknown> };
@@ -528,6 +539,7 @@ describe('ensureRevisionOpportunityLedgerArtifact — hydration status suffix an
 
   it('stable-guard short-circuits on ai_hydrated_complete but NOT on ai_hydrated_partial', async () => {
     const recs = makeBlockedRecommendations(3);
+    const manuscriptChunks = recs.map((r) => ({ content: r.anchor_snippet }));
 
     // Scenario 1: existing artifact has _ai_hydrated_complete — should short-circuit (no upsert)
     const upsertSpyComplete = jest.fn();
@@ -558,6 +570,7 @@ describe('ensureRevisionOpportunityLedgerArtifact — hydration status suffix an
         },
       },
       criteriaRecommendations: recs,
+      manuscriptChunks,
       upsertSpy: upsertSpyComplete,
     });
     await ensureRevisionOpportunityLedgerArtifact(completeSupabase, 'job-stable-complete');
@@ -598,6 +611,7 @@ describe('ensureRevisionOpportunityLedgerArtifact — hydration status suffix an
         },
       },
       criteriaRecommendations: recs,
+      manuscriptChunks,
       upsertSpy: upsertSpyPartial,
     });
     await ensureRevisionOpportunityLedgerArtifact(partialSupabase, 'job-stable-partial');
@@ -689,5 +703,70 @@ describe('ensureRevisionOpportunityLedgerArtifact — hydration status suffix an
     expect(opp.grounding_status).toBe('unsupported_blocked');
     expect(opp.candidate_text_a).toBe('');
     expect(persisted.content.candidate_generation_status).toContain('res_preflight_complete');
+  });
+
+  it('blocks hydration for passed opportunities with missing context/coordinates and exposes admin actions', async () => {
+    const upsertSpy = jest.fn();
+
+    const supabase = makeMinimalSupabase({
+      upsertSpy,
+      criteriaRecommendations: [
+        {
+          diagnosis: 'Insert one concrete stakes beat that lands the deferred decision at the current scene turn; At the scene level, studies are mixed on the success of safe injection sites.',
+          recommendation: 'Insert one concrete stakes beat that lands the deferred decision at the current scene turn; At the scene level, studies are mixed on the success of safe injection sites.',
+          anchor_snippet: 'Studies are mixed on the success of safe injection sites.',
+          location_ref: 'NARRATIVEDRIVE:recommendation',
+          confidence: 0.75,
+          revision_operation: 'insert_after_selected_passage',
+        },
+      ],
+      manuscriptChunks: [],
+    });
+
+    await ensureRevisionOpportunityLedgerArtifact(supabase, 'job-hydration-input-incomplete');
+
+    expect(mockHydrate).not.toHaveBeenCalled();
+    const persisted = upsertSpy.mock.calls[0]?.[0] as { content: Record<string, unknown> };
+    const [opp] = persisted.content.opportunities as Array<Record<string, unknown>>;
+    expect(opp.preflight_status).toBe('blocked');
+    expect(opp.preflight_reasons).toContain('hydration_context_not_found');
+    expect(opp.preflight_reasons).toContain('hydration_placeholder_coordinates');
+    expect(opp.grounding_status).toBe('unsupported_blocked');
+    expect(opp.grounding_note).toContain('Hydration input incomplete');
+    expect(opp.admin_actions).toContain('Regenerate recommendation');
+    expect(opp.admin_actions).toContain('Rewrite anchor');
+    expect(opp.admin_actions).toContain('Discard unsafe card');
+    expect(opp.admin_actions).toContain('Regenerate from source manuscript context');
+  });
+
+  it('flags hydration_input_contaminated for recommendation rationale contaminated by leaked excerpt text', async () => {
+    const upsertSpy = jest.fn();
+
+    const supabase = makeMinimalSupabase({
+      upsertSpy,
+      criteriaRecommendations: [
+        {
+          recommendation: 'Strengthen the transition with one concrete beat; INSITE has drawn criticism from the Bush Administration White House Office of National Drug Control Policy.',
+          rationale: 'Strengthen the transition with one concrete beat; INSITE has drawn criticism from the Bush Administration White House Office of National Drug Control Policy.',
+          anchor_snippet: 'INSITE has drawn criticism from the Bush Administration White House Office of National Drug Control Policy.',
+          location_ref: 'MARKETABILITY:recommendation',
+          confidence: 0.81,
+          revision_operation: 'replace_selected_passage',
+        },
+      ],
+      manuscriptChunks: [
+        {
+          content: 'INSITE has drawn criticism from the Bush Administration White House Office of National Drug Control Policy, which argued the policy framework normalizes harm reduction.',
+        },
+      ],
+    });
+
+    await ensureRevisionOpportunityLedgerArtifact(supabase, 'job-hydration-input-contaminated');
+
+    const persisted = upsertSpy.mock.calls[0]?.[0] as { content: Record<string, unknown> };
+    const [opp] = persisted.content.opportunities as Array<Record<string, unknown>>;
+    expect(opp.preflight_status).toBe('blocked');
+    expect(opp.preflight_reasons).toContain('hydration_input_contaminated');
+    expect(opp.admin_actions).toContain('Regenerate from source manuscript context');
   });
 });

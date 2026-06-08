@@ -17,6 +17,14 @@ type RecommendationPreflightStatus = 'passed' | 'limited_context' | 'blocked';
 
 const REVISE_QUEUE_PREFLIGHT_GATE_VERSION = 'revise_queue_preflight_gate_v1' as const;
 
+const BLOCKED_CARD_ADMIN_ACTIONS = [
+  'Regenerate recommendation',
+  'Rewrite anchor',
+  'Discard unsafe card',
+] as const;
+
+const HYDRATION_INPUT_INCOMPLETE_ADMIN_ACTION = 'Regenerate from source manuscript context' as const;
+
 type RevisionOpportunity = {
   opportunity_id: string;
   criterion: string;
@@ -37,6 +45,9 @@ type RevisionOpportunity = {
   preflight_status?: RecommendationPreflightStatus;
   preflight_reasons?: string[];
   preflight_note?: string;
+  hydration_eligible?: boolean;
+  hydration_ineligibility_reasons?: string[];
+  admin_actions?: string[];
   symptom?: string;
   cause?: string;
   fix_direction?: string;
@@ -497,6 +508,46 @@ function anchorLooksTruncated(anchor: string): boolean {
   return /^(hav|basem|becaus|althou|withou|throug|everythin|someth|anythin|beginn|lookin|talkin|playin|workin)$/i.test(lastWord);
 }
 
+function hasPlaceholderCoordinates(opportunity: RevisionOpportunity): boolean {
+  const coordinates = (opportunity.manuscript_coordinates ?? '').trim();
+  if (!coordinates) return true;
+  if (/^[A-Z_]+:recommendation$/i.test(coordinates)) return true;
+  if (/\b(?:recommendation|criteria\.recommendations|evaluation_result)\b/i.test(coordinates) && !/\b(?:chunk|chapter|scene|paragraph|line|passage|act|page)\b/i.test(coordinates)) {
+    return true;
+  }
+  if (!opportunity.revision_operation || opportunity.revision_operation === 'needs_targeting') return true;
+  return false;
+}
+
+function hasContaminatedRationale(opportunity: RevisionOpportunity): boolean {
+  const rationale = `${opportunity.rationale} ${opportunity.fix_direction ?? ''} ${opportunity.symptom ?? ''}`.trim();
+  if (!rationale) return true;
+  const normalizedRationale = normalizedForComparison(rationale);
+  const normalizedAnchor = normalizedForComparison(opportunity.evidence_anchor);
+  if (!normalizedAnchor) return true;
+
+  const rationaleTokens = normalizedRationale.split(' ').filter(Boolean);
+  const anchorTokens = normalizedAnchor.split(' ').filter(Boolean);
+  const shortTail = /(\s|^)[a-z]{1,3}\s*$/i.test(rationale) || /[\u2026…]\s*$/.test(rationale);
+
+  // Rationale that embeds most of the anchor tends to yield echo prose in hydration.
+  const overlap = jaccardSimilarity(new Set(rationaleTokens), new Set(anchorTokens));
+  if (overlap >= 0.72) return true;
+
+  // Semicolon joins often indicate recommendation + leaked excerpt concatenation.
+  if (rationale.includes(';') && overlap >= 0.5) return true;
+
+  return shortTail;
+}
+
+function blockedAdminActions(reasons: string[]): string[] {
+  const actions = new Set<string>(BLOCKED_CARD_ADMIN_ACTIONS);
+  if (reasons.some((reason) => reason.startsWith('hydration_'))) {
+    actions.add(HYDRATION_INPUT_INCOMPLETE_ADMIN_ACTION);
+  }
+  return [...actions];
+}
+
 function hasDirectSpeech(raw: string): boolean {
   return /["\u201c][^"\u201d]{2,}["\u201d]/u.test(raw);
 }
@@ -563,16 +614,18 @@ function candidateComplianceReasons(opportunity: RevisionOpportunity, evaluation
 }
 
 function blockOpportunityByPreflight(opportunity: RevisionOpportunity, reasons: string[]): RevisionOpportunity {
+  const combinedReasons = [...new Set([...(opportunity.preflight_reasons ?? []), ...reasons])];
   return {
     ...opportunity,
     candidate_text_a: '',
     candidate_text_b: '',
     candidate_text_c: '',
     grounding_status: 'unsupported_blocked',
-    grounding_note: `Blocked by ${REVISE_QUEUE_PREFLIGHT_GATE_VERSION}: ${reasons.join(', ')}`,
+    grounding_note: `Blocked by ${REVISE_QUEUE_PREFLIGHT_GATE_VERSION}: ${combinedReasons.join(', ')}`,
     preflight_status: 'blocked',
-    preflight_reasons: [...new Set(reasons)],
+    preflight_reasons: combinedReasons,
     preflight_note: 'Recommendation requires rewrite or admin review before it can become a user-facing Revise Queue card.',
+    admin_actions: blockedAdminActions(combinedReasons),
   };
 }
 
@@ -581,11 +634,14 @@ function preflightReasonsForOpportunity(
   contextQuality: ReviseContextQuality,
   evaluationMode?: string,
 ): string[] {
-  const reasons: string[] = [];
+  const reasons: string[] = [...(opportunity.preflight_reasons ?? [])];
   if (contextQuality === 'blocked') reasons.push('canon_authority_blocked');
   if (anchorLooksTruncated(opportunity.evidence_anchor)) reasons.push('truncated_anchor');
   if (!hasConcreteAction(opportunity)) reasons.push('recommendation_requires_rewrite');
   if (!anchorRationaleIsCoherent(opportunity) && !recommendationCanTargetStructuralIssue(opportunity)) reasons.push('anchor_mismatch');
+  if (opportunity.hydration_eligible === false) {
+    reasons.push(...(opportunity.hydration_ineligibility_reasons ?? []));
+  }
   if (evaluationMode === 'TESTIMONY' && hasDialogueIntent(opportunity) && !hasDirectSpeech(opportunity.evidence_anchor)) {
     reasons.push('testimony_fabrication_risk');
   }
@@ -625,6 +681,7 @@ function applyReviseQueuePreflight(
       preflight_note: contextQuality === 'limited'
         ? 'Generated under limited context because ledger_quality_report_v1 did not certify clean story canon.'
         : undefined,
+      admin_actions: undefined,
     };
   });
 }
@@ -1443,7 +1500,11 @@ async function persistHealedExistingLedger(input: {
     .eq('id', input.rowId);
 }
 
-export async function ensureRevisionOpportunityLedgerArtifact(supabase: any, jobId: string): Promise<EnsureLedgerResult> {
+export async function ensureRevisionOpportunityLedgerArtifact(
+  supabase: any,
+  jobId: string,
+  options?: { forceRebuild?: boolean },
+): Promise<EnsureLedgerResult> {
   const { data: existingLedgerRow, error: existingLedgerError } = await supabase
     .from('evaluation_artifacts')
     .select('id, content')
@@ -1530,7 +1591,7 @@ export async function ensureRevisionOpportunityLedgerArtifact(supabase: any, job
      existingLedgerRow.content.candidate_generation_status.includes('ai_hydrated_complete') ||
      existingLedgerRow.content.candidate_generation_status.includes('res_preflight_complete'));
 
-  if (existingOpportunities && existingOpportunities.length > 0 && existingLedgerStable) {
+  if (existingOpportunities && existingOpportunities.length > 0 && existingLedgerStable && !options?.forceRebuild) {
     const healed = capRevisionOpportunities(
       existingOpportunities.map(ensureOpportunityCandidates),
       jobWordCount,
@@ -1603,32 +1664,36 @@ export async function ensureRevisionOpportunityLedgerArtifact(supabase: any, job
     evaluationPayload, chunkCachePayload, longformPayload, { wordCount },
   );
 
-  // ── Carry-forward pass: preserve previously hydrated candidates ──────────────
-  // When the existing ledger is _ai_hydrated_partial, some opportunities were
-  // already successfully hydrated in a prior run. Carry their candidates forward
-  // so that only the still-blocked subset is sent to OpenAI on this pass.
-  // Without this, every partial retry starts from all-blocked and can go backward.
-  const existingIsPartial =
-    isRecord(existingLedgerRow?.content) &&
-    typeof existingLedgerRow.content.candidate_generation_status === 'string' &&
-    existingLedgerRow.content.candidate_generation_status.includes('ai_hydrated_partial') &&
-    !existingLedgerRow.content.candidate_generation_status.includes('ai_hydrated_complete');
-
-  if (existingIsPartial && existingOpportunities && existingOpportunities.length > 0) {
-    const prevHydratedMap = new Map(
+  // ── Carry-forward pass: preserve stable supported cards per opportunity ─────
+  // This makes rebuilds idempotent under hydration nondeterminism: already-safe
+  // supported cards are preserved, and only unstable/blocked cards are retried.
+  if (existingOpportunities && existingOpportunities.length > 0) {
+    const prevStableSupportedMap = new Map(
       existingOpportunities
-        .filter((o: any) => o.candidate_text_a && o.candidate_text_b && o.candidate_text_c)
+        .filter((o: any) =>
+          typeof o.candidate_text_a === 'string' && o.candidate_text_a.trim().length > 0 &&
+          typeof o.candidate_text_b === 'string' && o.candidate_text_b.trim().length > 0 &&
+          typeof o.candidate_text_c === 'string' && o.candidate_text_c.trim().length > 0 &&
+          o.grounding_status === 'supported' &&
+          o.preflight_status === 'passed' &&
+          o.context_quality === 'clean',
+        )
         .map((o: any) => [o.opportunity_id, o]),
     );
+
     for (const opp of opportunities) {
-      const prev = prevHydratedMap.get(opp.opportunity_id);
-      if (prev) {
-        opp.candidate_text_a = prev.candidate_text_a;
-        opp.candidate_text_b = prev.candidate_text_b;
-        opp.candidate_text_c = prev.candidate_text_c;
-        opp.grounding_status = 'supported';
-        opp.grounding_note = null;
-      }
+      const prev = prevStableSupportedMap.get(opp.opportunity_id);
+      if (!prev) continue;
+      opp.candidate_text_a = prev.candidate_text_a;
+      opp.candidate_text_b = prev.candidate_text_b;
+      opp.candidate_text_c = prev.candidate_text_c;
+      opp.grounding_status = 'supported';
+      opp.grounding_note = null;
+      opp.preflight_status = 'passed';
+      opp.preflight_reasons = [];
+      opp.context_quality = 'clean';
+      opp.preflight_note = undefined;
+      opp.admin_actions = undefined;
     }
   }
 
@@ -1667,47 +1732,125 @@ export async function ensureRevisionOpportunityLedgerArtifact(supabase: any, job
    */
   function findChunkForAnchor(anchor: string): string | undefined {
     if (!anchor || manuscriptChunksByContent.length === 0) return undefined;
-    const normAnchor = anchor.slice(0, 200).toLowerCase();
+    const normalizeHydrationText = (raw: string): string =>
+      raw
+        .replace(/[\u2018\u2019]/g, "'")
+        .replace(/[\u201C\u201D]/g, '"')
+        .replace(/[\u2026…]/g, ' ')
+        .replace(/\.\.\./g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .toLowerCase();
+
+    const normAnchor = normalizeHydrationText(anchor).slice(0, 200);
+    if (!normAnchor) return undefined;
+
     // Exact substring match (most reliable)
     const exact = manuscriptChunksByContent.find((c) =>
-      c.content.toLowerCase().includes(normAnchor),
+      normalizeHydrationText(c.content).includes(normAnchor),
     );
     if (exact) return exact.content;
-    // Partial overlap: find chunk with longest shared prefix
-    let best: { chunk: string; overlap: number } | null = null;
-    for (const c of manuscriptChunksByContent) {
-      const cl = c.content.toLowerCase();
-      let overlap = 0;
-      for (let i = 0; i < Math.min(normAnchor.length, cl.length); i++) {
-        if (normAnchor[i] === cl[i]) overlap++;
-        else break;
-      }
-      if (!best || overlap > best.overlap) best = { chunk: c.content, overlap };
+
+    // Prefix match for truncated anchors (e.g., trailing ellipsis)
+    const anchorPrefix = normAnchor.split(/[.!?]/)[0]?.trim() ?? '';
+    if (anchorPrefix.length >= 24) {
+      const prefixMatch = manuscriptChunksByContent.find((c) =>
+        normalizeHydrationText(c.content).includes(anchorPrefix),
+      );
+      if (prefixMatch) return prefixMatch.content;
     }
-    return best && best.overlap > 20 ? best.chunk : undefined;
+
+    // Guarded fuzzy fallback for long, non-truncated anchors only.
+    if (!anchorLooksTruncated(anchor) && normAnchor.length >= 80) {
+      const anchorTokens = new Set(normAnchor.split(' ').filter((token) => token.length >= 4));
+      let best: { chunk: string; overlap: number; matchedTokens: number } | null = null;
+
+      for (const c of manuscriptChunksByContent) {
+        const chunkNorm = normalizeHydrationText(c.content);
+        const chunkTokens = new Set(chunkNorm.split(' ').filter((token) => token.length >= 4));
+        if (chunkTokens.size === 0 || anchorTokens.size === 0) continue;
+
+        let matched = 0;
+        for (const token of anchorTokens) {
+          if (chunkTokens.has(token)) matched++;
+        }
+        const overlap = matched / Math.max(anchorTokens.size, 1);
+        if (!best || overlap > best.overlap) best = { chunk: c.content, overlap, matchedTokens: matched };
+      }
+
+      if (best && best.overlap >= 0.55 && best.matchedTokens >= 6) {
+        return best.chunk;
+      }
+    }
+
+    return undefined;
   }
 
   let hydrationStatusSuffix = '';
   if (opportunities.length > 0) {
     const openaiApiKey = process.env.OPENAI_API_KEY?.trim();
     if (openaiApiKey) {
-      const blockedOpps: HydrationOpportunity[] = opportunities
-        .filter((o) => o.preflight_status !== 'blocked' && (!o.candidate_text_a || !o.candidate_text_b || !o.candidate_text_c))
-        .map((o) => ({
+      const blockedOpps: HydrationOpportunity[] = [];
+
+      for (const o of opportunities) {
+        const needsCandidates = !o.candidate_text_a || !o.candidate_text_b || !o.candidate_text_c;
+        const needsHydration = o.preflight_status === 'passed'
+          && o.grounding_status !== 'supported'
+          && needsCandidates;
+        if (!needsHydration) continue;
+
+        const manuscriptContext = findChunkForAnchor(o.evidence_anchor);
+        const eligibilityReasons: string[] = [];
+
+        const contextNotFound = !o.evidence_anchor.trim() || !manuscriptContext?.trim();
+        const anchorTruncated = anchorLooksTruncated(o.evidence_anchor);
+        const placeholderCoordinates = hasPlaceholderCoordinates(o);
+        const inputContaminated = hasContaminatedRationale(o);
+
+        if (contextNotFound) eligibilityReasons.push('hydration_context_not_found');
+        if (anchorTruncated) eligibilityReasons.push('hydration_anchor_truncated');
+        if (inputContaminated) eligibilityReasons.push('hydration_input_contaminated');
+        // Placeholder coordinates are a hydration blocker only when paired with
+        // unrecoverable context contamination/missing context. Placeholder labels
+        // alone can still be safely hydrated when anchor+context are strong.
+        if (placeholderCoordinates && (contextNotFound || inputContaminated)) {
+          eligibilityReasons.push('hydration_placeholder_coordinates');
+        }
+
+        if (eligibilityReasons.length > 0) {
+          o.hydration_eligible = false;
+          o.hydration_ineligibility_reasons = [...new Set(eligibilityReasons)];
+          o.preflight_reasons = [...new Set([...(o.preflight_reasons ?? []), ...o.hydration_ineligibility_reasons])];
+          o.preflight_status = 'blocked';
+          o.preflight_note = 'Needs hydration repair: anchor/context or targeting metadata is not recoverable for safe candidate generation.';
+          o.grounding_status = 'unsupported_blocked';
+          o.grounding_note = `Hydration input incomplete: ${o.hydration_ineligibility_reasons.join(', ')}`;
+          o.admin_actions = blockedAdminActions(o.preflight_reasons);
+          o.candidate_text_a = '';
+          o.candidate_text_b = '';
+          o.candidate_text_c = '';
+          continue;
+        }
+
+        o.hydration_eligible = true;
+        blockedOpps.push({
           opportunity_id: o.opportunity_id,
           evidence_anchor: o.evidence_anchor,
           rationale: o.rationale,
           revision_operation: o.revision_operation,
           evaluation_mode: modeContract.evaluation_mode,
-          manuscript_context: findChunkForAnchor(o.evidence_anchor),
-        }));
+          manuscript_context: manuscriptContext,
+        });
+      }
+
+      preflightSummary = summarizePreflight(opportunities);
 
       if (blockedOpps.length > 0) {
         try {
           const hydration = await hydrateLedgerCandidates(blockedOpps, openaiApiKey);
           if (!hydration || !(hydration.candidates instanceof Map)) {
             console.warn(`[CandidateHydration] ${jobId}: hydration returned no usable result`);
-          } else if (hydration.hydratedCount > 0) {
+          } else {
             for (const opp of opportunities) {
               const filled = hydration.candidates.get(opp.opportunity_id);
               if (filled) {
@@ -1716,8 +1859,27 @@ export async function ensureRevisionOpportunityLedgerArtifact(supabase: any, job
                 opp.candidate_text_c = filled.candidate_text_c;
                 opp.grounding_status = 'supported';
                 opp.grounding_note = null;
+                opp.hydration_ineligibility_reasons = undefined;
+                opp.hydration_eligible = true;
+                opp.preflight_reasons = (opp.preflight_reasons ?? []).filter((reason) => !reason.startsWith('hydration_'));
+                continue;
+              }
+
+              const rejectionReason = hydration.rejectionReasons?.get(opp.opportunity_id);
+              if (rejectionReason === 'hydration_candidate_rejected_overlap') {
+                const mergedReasons = [...new Set([...(opp.preflight_reasons ?? []), rejectionReason])];
+                opp.preflight_status = 'blocked';
+                opp.preflight_reasons = mergedReasons;
+                opp.preflight_note = 'Needs hydration repair: generated candidates echoed anchor evidence and were blocked for safety.';
+                opp.grounding_status = 'unsupported_blocked';
+                opp.grounding_note = 'Hydration candidates were rejected for anchor overlap.';
+                opp.admin_actions = blockedAdminActions(mergedReasons);
+                opp.candidate_text_a = '';
+                opp.candidate_text_b = '';
+                opp.candidate_text_c = '';
               }
             }
+
             const postHydrationPreflighted = applyReviseQueuePreflight(opportunities, {
               contextQuality: contextQualityDecision.status,
               evaluationMode: modeContract.evaluation_mode,

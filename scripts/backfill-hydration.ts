@@ -91,25 +91,15 @@ async function main() {
     console.log(`\n[${job_id}]`);
     console.log(`  Before: ${beforeStatus} | opps=${beforeOpps.length} supported=${beforeSupported} blocked=${beforeBlocked}`);
 
-    // FORCE_REBUILD: delete the artifact so ensureRevisionOpportunityLedgerArtifact
-    // rebuilds from scratch, applying any updated dedup/criterion logic.
-    // Normal mode: do NOT delete — carry-forward preserves previously hydrated candidates.
     if (forceRebuild) {
-      const { error: delErr } = await supabase
-        .from('evaluation_artifacts')
-        .delete()
-        .eq('id', row.id);
-
-      if (delErr) {
-        console.error(`  ERROR deleting artifact ${row.id}: ${delErr.message}`);
-        continue;
-      }
-      console.log(`  Deleted stale artifact ${row.id}.`);
+      console.log('  FORCE_REBUILD enabled: preserving existing stable supported candidates while retrying unstable cards.');
     }
 
     // Rebuild — runs full pipeline including dedup, criterion_id, and AI hydration
     try {
-      const result = await ensureRevisionOpportunityLedgerArtifact(supabase, job_id);
+      const result = await ensureRevisionOpportunityLedgerArtifact(supabase, job_id, {
+        forceRebuild,
+      });
       const afterSupported = result.opportunities.filter((o: any) => o.grounding_status === 'supported').length;
       const afterBlocked = result.opportunities.filter((o: any) => !o.candidate_text_a || o.grounding_status === 'unsupported_blocked').length;
 

@@ -60,6 +60,8 @@ export type HydrationResult = {
   skippedCount: number;
   /** Map from opportunity_id → validated candidates. Only contains entries where A/B/C all passed. */
   candidates: Map<string, HydrationCandidates>;
+  /** Map from opportunity_id → hydration-specific rejection reason code. */
+  rejectionReasons?: Map<string, string>;
 };
 
 // ── SLAE-equivalent validation ────────────────────────────────────────────────
@@ -245,9 +247,10 @@ export async function hydrateLedgerCandidates(
   openaiApiKey: string,
 ): Promise<HydrationResult> {
   const candidates = new Map<string, HydrationCandidates>();
+  const rejectionReasons = new Map<string, string>();
 
   if (blocked.length === 0) {
-    return { hydratedCount: 0, skippedCount: 0, candidates };
+    return { hydratedCount: 0, skippedCount: 0, candidates, rejectionReasons };
   }
 
   const openai = new OpenAI({
@@ -309,6 +312,21 @@ export async function hydrateLedgerCandidates(
             candidate_text_c: c,
           });
           hydratedCount++;
+          rejectionReasons.delete(id);
+          continue;
+        }
+
+        const rawCandidates = [r.candidate_a, r.candidate_b, r.candidate_c]
+          .filter((candidate): candidate is string => typeof candidate === 'string' && candidate.trim().length > 0);
+        if (rawCandidates.some((candidate) => candidateEchoesAnchor(candidate, opp.evidence_anchor))) {
+          rejectionReasons.set(id, 'hydration_candidate_rejected_overlap');
+          continue;
+        }
+        if (
+          (opp.revision_operation === 'insert_before_selected_passage' || opp.revision_operation === 'insert_after_selected_passage') &&
+          rawCandidates.some((candidate) => tokenOverlapRatio(candidate, opp.evidence_anchor) >= 0.55)
+        ) {
+          rejectionReasons.set(id, 'hydration_candidate_rejected_overlap');
         }
       }
     } catch (err) {
@@ -318,5 +336,5 @@ export async function hydrateLedgerCandidates(
     }
   }
 
-  return { hydratedCount, skippedCount: 0, candidates };
+  return { hydratedCount, skippedCount: 0, candidates, rejectionReasons };
 }

@@ -279,6 +279,54 @@ describe('getWorkbenchQueue', () => {
     expect(result.needsTargeting[0].readiness).toBe('needs_targeting');
   });
 
+  it('surfaces hydration failure reasons separately from RES blockers for admin triage', async () => {
+    const supabase = buildSupabaseMock('job-hydration-split', 'version-hydration-split');
+    mockCreateAdminClient.mockReturnValue(supabase as never);
+
+    mockEnsureLedger.mockResolvedValueOnce({
+      artifactId: 'ledger-hydration-split',
+      opportunities: [
+        {
+          opportunity_id: 'opp-hydration-split',
+          criterion: 'NARRATIVE_DRIVE',
+          severity: 'should',
+          confidence: 'medium',
+          manuscript_coordinates: 'NARRATIVEDRIVE:recommendation',
+          evidence_anchor: 'Studies are mixed on the success of safe injection sites.',
+          rationale: 'Insert one concrete stakes beat that lands the deferred decision at the current scene turn.',
+          symptom: 'The transition is abrupt.',
+          cause: 'The scene skips connective prose.',
+          fix_direction: 'Insert a bridge beat with explicit consequence.',
+          reader_effect: 'Readers lose momentum at the scene turn.',
+          mistake_proofing: 'Do not invent new events.',
+          candidate_text_a: '',
+          candidate_text_b: '',
+          candidate_text_c: '',
+          revision_operation: 'insert_after_selected_passage',
+          provenance: 'evaluation_result.criteria.recommendations',
+          preflight_status: 'blocked',
+          preflight_reasons: ['hydration_context_not_found', 'hydration_placeholder_coordinates', 'anchor_mismatch'],
+          preflight_note: 'Needs hydration repair: anchor/context not recoverable.',
+          admin_actions: ['Regenerate from source manuscript context'],
+          grounding_status: 'unsupported_blocked',
+        },
+      ] as never,
+    });
+
+    const result = await getWorkbenchQueue({ manuscriptId: '6074', evaluationJobId: 'job-hydration-split' });
+
+    expect(result.ok).toBe(true);
+    expect(result.opportunities).toHaveLength(0);
+    expect(result.needsTargeting).toHaveLength(1);
+    const blocked = result.needsTargeting[0];
+    expect(blocked.readinessReason).toBe('Needs hydration repair');
+    expect(blocked.hydrationFailureReasons).toEqual(['hydration_context_not_found', 'hydration_placeholder_coordinates']);
+    expect(blocked.resBlockerReasons).toEqual(['anchor_mismatch']);
+    expect(blocked.adminRepairLabel).toBe('Needs hydration repair');
+    expect(blocked.adminRepairReason).toBe('anchor/context not recoverable');
+    expect(blocked.adminActions).toContain('Regenerate from source manuscript context');
+  });
+
   it('preserves natural-language chapter-scale coordinates as Chapter cards instead of passage cards', async () => {
     const supabase = buildSupabaseMock('job-structural', 'version-structural');
     mockCreateAdminClient.mockReturnValue(supabase as never);

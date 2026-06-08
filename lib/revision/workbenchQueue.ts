@@ -78,8 +78,22 @@ export type WorkbenchOpportunity = {
   contextQuality?: 'clean' | 'limited' | 'blocked'
   preflightStatus?: 'passed' | 'limited_context' | 'blocked'
   preflightReasons?: string[]
+  hydrationFailureReasons?: string[]
+  resBlockerReasons?: string[]
   preflightNote?: string | null
+  adminRepairLabel?: string | null
+  adminRepairReason?: string | null
+  adminActions?: string[]
   options: WorkbenchOption[]
+}
+
+const HYDRATION_REASON_PREFIX = 'hydration_'
+
+function splitPreflightReasonsByClass(reasons: string[] | undefined): { hydration: string[]; res: string[] } {
+  const all = Array.isArray(reasons) ? reasons.filter((reason) => typeof reason === 'string' && reason.trim().length > 0) : []
+  const hydration = all.filter((reason) => reason.startsWith(HYDRATION_REASON_PREFIX))
+  const res = all.filter((reason) => !reason.startsWith(HYDRATION_REASON_PREFIX))
+  return { hydration, res }
 }
 
 export type WorkbenchQueuePayload = {
@@ -1213,14 +1227,29 @@ export async function getWorkbenchQueue(input: { manuscriptId?: string; evaluati
       revisionOperation: normalizeRevisionOperation(opportunity.revision_operation),
     })
 
+    const splitReasons = splitPreflightReasonsByClass(opportunity.preflight_reasons)
+    const hydrationRepairNeeded = splitReasons.hydration.length > 0
+
     return {
       ...contracted,
+      readinessReason: hydrationRepairNeeded
+        ? 'Needs hydration repair'
+        : contracted.readinessReason,
       groundingStatus,
       groundingNote,
       contextQuality: opportunity.context_quality,
       preflightStatus: opportunity.preflight_status,
       preflightReasons: opportunity.preflight_reasons,
+      hydrationFailureReasons: splitReasons.hydration,
+      resBlockerReasons: splitReasons.res,
       preflightNote: opportunity.preflight_note ?? null,
+      adminRepairLabel: hydrationRepairNeeded ? 'Needs hydration repair' : null,
+      adminRepairReason: hydrationRepairNeeded
+        ? 'anchor/context not recoverable'
+        : null,
+      adminActions: Array.isArray((opportunity as any).admin_actions)
+        ? ((opportunity as any).admin_actions as string[])
+        : undefined,
       modeContract: modeContractForMetadata(modeContract),
     }
   })
