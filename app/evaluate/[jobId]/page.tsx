@@ -41,6 +41,7 @@ import {
 } from "@/lib/evaluation/confidenceFieldPolicy";
 import { resolveReportTitle } from "@/lib/evaluation/reportTitle";
 import { backfillManuscriptTitleIfMissing } from "@/lib/manuscripts/titleBackfill";
+import { getManuscriptText } from "@/lib/manuscripts/chunks";
 import CriterionOpportunities from "@/components/evaluation/CriterionOpportunities";
 import PolishPassButton from "@/components/evaluation/PolishPassButton";
 import { hasActiveSupportGrant, logSupportView } from "@/lib/support/checkSupportAccess";
@@ -57,8 +58,6 @@ type Job = {
     | Array<{ user_id: string | null; title?: string | null }>
     | null;
   job_type?: string;
-  author_name?: string | null;
-  manuscript_title?: string | null;
   status: "queued" | "running" | "failed" | "complete";
   phase?: string | null;
   phase_status?: string | null;
@@ -185,7 +184,7 @@ async function getJob(jobId: string): Promise<Job | null> {
 
     const { data: job, error } = await supabase
       .from("evaluation_jobs")
-      .select("id, user_id, manuscript_id, job_type, author_name, manuscript_title, status, phase, phase_status, total_units, completed_units, failed_units, created_at, updated_at, last_error, progress, policy_family, voice_preservation_level, manuscripts(user_id,title)")
+      .select("id, user_id, manuscript_id, job_type, status, phase, phase_status, total_units, completed_units, failed_units, created_at, updated_at, last_error, progress, policy_family, voice_preservation_level, manuscripts(user_id,title)")
       .eq("id", jobId)
       .maybeSingle();
 
@@ -277,6 +276,26 @@ async function getManuscriptWordCountById(manuscriptId?: number): Promise<number
     return typeof wordCount === "number" && wordCount > 0 ? wordCount : null;
   } catch (err) {
     console.warn(`[getManuscriptWordCountById] Unexpected error for manuscript ${manuscriptId}:`, err);
+    return null;
+  }
+}
+
+function firstWords(text: string, limit: number): string | null {
+  const words = text.trim().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return null;
+  const preview = words.slice(0, limit).join(" ");
+  return words.length > limit ? `${preview}…` : preview;
+}
+
+async function getSubmissionPreviewByManuscriptId(manuscriptId?: number): Promise<string | null> {
+  if (!Number.isFinite(manuscriptId) || (manuscriptId as number) <= 0) {
+    return null;
+  }
+
+  try {
+    return firstWords(await getManuscriptText(manuscriptId as number), 200);
+  } catch (err) {
+    console.warn(`[getSubmissionPreviewByManuscriptId] Failed to load preview for manuscript ${manuscriptId}:`, err);
     return null;
   }
 }
@@ -691,13 +710,16 @@ export default async function EvaluationReportPage({
   const evaluationScope = inferEvaluationScope(job.job_type, artifact?.metrics?.manuscript?.genre);
   const integrityBanner = artifact ? classifyEvaluationIntegrityBanner(artifact) : null;
   const chapterTitle = artifact?.metrics?.manuscript?.title?.trim() || null;
+  // Author name and project title are optional intake fields. They must never be
+  // required to load a report/status page; jobId is the canonical access key.
+  // Use progress metadata when available, with persisted manuscript/artifact title fallbacks.
   const submittedAuthorName =
-    typeof job.author_name === "string" && job.author_name.trim().length > 0
-      ? job.author_name.trim()
+    typeof progressJsonb?.submitted_author_name === "string" && progressJsonb.submitted_author_name.trim().length > 0
+      ? progressJsonb.submitted_author_name.trim()
       : null;
   const submittedProjectTitle =
-    typeof job.manuscript_title === "string" && job.manuscript_title.trim().length > 0
-      ? job.manuscript_title.trim()
+    typeof progressJsonb?.submitted_project_title === "string" && progressJsonb.submitted_project_title.trim().length > 0
+      ? progressJsonb.submitted_project_title.trim()
       : null;
 
   let manuscriptTitle =
@@ -705,6 +727,7 @@ export default async function EvaluationReportPage({
   if (!manuscriptTitle && job.manuscript_id) {
     manuscriptTitle = await backfillManuscriptTitleIfMissing(job.manuscript_id);
   }
+  const submissionPreview = await getSubmissionPreviewByManuscriptId(job.manuscript_id);
   const { displayTitle } = resolveReportTitle({ chapterTitle, manuscriptTitle });
   const manuscriptWordCount = await getManuscriptWordCountById(job.manuscript_id);
   const wordCount = artifact?.metrics?.manuscript?.word_count ?? manuscriptWordCount ?? null;
@@ -810,18 +833,22 @@ export default async function EvaluationReportPage({
                 className="ml-2 inline-flex items-center rounded-md border border-stone-300 px-2.5 py-1 text-xs font-medium text-stone-700 transition hover:bg-stone-100"
               />
             </p>
-            {(submittedAuthorName || submittedProjectTitle) && (
+            {(submittedAuthorName || manuscriptTitle || submissionPreview) && (
               <dl className="mt-3 grid gap-x-4 gap-y-2 text-sm sm:grid-cols-2 lg:grid-cols-3">
-                {submittedAuthorName && (
-                  <div>
-                    <dt className="font-semibold text-stone-950">Author Name</dt>
-                    <dd className="text-stone-700">{submittedAuthorName}</dd>
-                  </div>
-                )}
-                {submittedProjectTitle && (
-                  <div>
-                    <dt className="font-semibold text-stone-950">Project Title</dt>
-                    <dd className="text-stone-700">{submittedProjectTitle}</dd>
+                <div>
+                  <dt className="font-semibold text-stone-950">Author Name</dt>
+                  <dd className="text-stone-700">{submittedAuthorName ?? "Not provided"}</dd>
+                </div>
+                <div>
+                  <dt className="font-semibold text-stone-950">Project Title</dt>
+                  <dd className="text-stone-700">{submittedProjectTitle ?? manuscriptTitle ?? "Not provided"}</dd>
+                </div>
+                {submissionPreview && (
+                  <div className="sm:col-span-2 lg:col-span-3">
+                    <dt className="font-semibold text-stone-950">Submission Preview</dt>
+                    <dd className="mt-1 max-w-4xl rounded-lg border border-stone-200 bg-stone-50 p-3 text-stone-700">
+                      {submissionPreview}
+                    </dd>
                   </div>
                 )}
               </dl>

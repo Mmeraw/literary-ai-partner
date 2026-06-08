@@ -140,6 +140,8 @@ async function seedJobIntakeProgress(params: {
   job: { id: string; progress?: Record<string, unknown> | null };
   manuscriptWordCount: number | null;
   instantEnrichment: Record<string, unknown>;
+  submittedAuthorName: string | null;
+  submittedProjectTitle: string | null;
   fastTrackPhase0: boolean;
   trace_id: string;
   request_id: string;
@@ -148,6 +150,8 @@ async function seedJobIntakeProgress(params: {
   if (
     params.manuscriptWordCount === null &&
     Object.keys(params.instantEnrichment).length === 0 &&
+    params.submittedAuthorName === null &&
+    params.submittedProjectTitle === null &&
     !params.fastTrackPhase0
   ) return;
 
@@ -163,6 +167,12 @@ async function seedJobIntakeProgress(params: {
   const nextProgress: Record<string, unknown> = {
     ...existingProgress,
     ...params.instantEnrichment,
+    ...(params.submittedAuthorName !== null
+      ? { submitted_author_name: params.submittedAuthorName }
+      : {}),
+    ...(params.submittedProjectTitle !== null
+      ? { submitted_project_title: params.submittedProjectTitle }
+      : {}),
     ...(params.manuscriptWordCount !== null
       ? {
           manuscript_word_count: params.manuscriptWordCount,
@@ -722,6 +732,8 @@ export async function POST(req: Request) {
       job,
       manuscriptWordCount: resolvedManuscriptWordCount ?? immediateManuscriptWordCount,
       instantEnrichment,
+      submittedAuthorName: typeof author_name === "string" && author_name.trim().length > 0 ? author_name.trim() : null,
+      submittedProjectTitle: typeof manuscript_title === "string" && manuscript_title.trim().length > 0 ? manuscript_title.trim() : null,
       fastTrackPhase0: shouldFastTrackPhase0,
       trace_id,
       request_id,
