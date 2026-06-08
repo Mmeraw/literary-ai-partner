@@ -31,6 +31,7 @@ const BLOCKED_CARD_ADMIN_ACTIONS = [
 ] as const;
 
 const HYDRATION_INPUT_INCOMPLETE_ADMIN_ACTION = 'Regenerate from source manuscript context' as const;
+const REGENERATE_CANDIDATE_PROSE_ADMIN_ACTION = 'Regenerate candidate prose' as const;
 
 type RevisionOpportunity = {
   opportunity_id: string;
@@ -552,6 +553,9 @@ function blockedAdminActions(reasons: string[]): string[] {
   if (reasons.some((reason) => reason.startsWith('hydration_'))) {
     actions.add(HYDRATION_INPUT_INCOMPLETE_ADMIN_ACTION);
   }
+  if (reasons.includes('candidate_quality_failed')) {
+    actions.add(REGENERATE_CANDIDATE_PROSE_ADMIN_ACTION);
+  }
   return [...actions];
 }
 
@@ -598,6 +602,112 @@ function candidateSetHasLowDiversity(opportunity: RevisionOpportunity): boolean 
   );
 }
 
+function tokenArray(raw: string): string[] {
+  return normalizedForComparison(raw).split(' ').filter(Boolean);
+}
+
+function candidateLooksGenericAdvice(text: string): boolean {
+  return /\b(should|needs to|must|try to|consider|revise|rewrite|replace|insert|add|improve|clarify|strengthen|tighten)\b/i.test(text)
+    || /\b(this (passage|scene|paragraph|section)|the reader|narrative|manuscript|revision)\b/i.test(text);
+}
+
+function candidateLooksSummaryNotProse(text: string): boolean {
+  return /\b(this (shows|demonstrates|indicates|suggests)|the scene (shows|demonstrates|indicates)|the passage (shows|demonstrates|indicates))\b/i.test(text)
+    || /\b(summary|in summary|overall|ultimately)\b/i.test(text);
+}
+
+function candidateLooksStilted(text: string): boolean {
+  if (/\b(very\s+very|really\s+really|just\s+just)\b/i.test(text)) return true;
+  if (/[,;:]{2,}|\.{3,}/.test(text)) return true;
+  return false;
+}
+
+function candidateLooksRepetitive(text: string): boolean {
+  const tokens = tokenArray(text).filter((token) => token.length >= 3);
+  if (tokens.length < 10) return false;
+  const unique = new Set(tokens);
+  return unique.size / tokens.length < 0.45;
+}
+
+function candidateIntroducesUnsupportedFacts(candidate: string, anchor: string): boolean {
+  const anchorTokens = normalizedTokenSet(anchor);
+  const candidateTokens = normalizedTokenSet(candidate);
+  const candidateNumbers = candidate.match(/\b\d+(?:,\d{3})*(?:\.\d+)?\b/g) ?? [];
+  const anchorNumbers = new Set(anchor.match(/\b\d+(?:,\d{3})*(?:\.\d+)?\b/g) ?? []);
+  if (candidateNumbers.some((num) => !anchorNumbers.has(num))) return true;
+
+  const candidateNames = new Set((candidate.match(/\b[A-Z][a-zA-Z'\u2019-]{2,}\b/g) ?? []).map((name) => name.toLowerCase()));
+  const anchorNames = new Set((anchor.match(/\b[A-Z][a-zA-Z'\u2019-]{2,}\b/g) ?? []).map((name) => name.toLowerCase()));
+  let unseenNames = 0;
+  for (const name of candidateNames) {
+    if (!anchorNames.has(name) && !anchorTokens.has(name) && !candidateTokens.has('i')) {
+      unseenNames += 1;
+    }
+  }
+  return unseenNames >= 2;
+}
+
+function candidateVoiceMismatch(text: string): boolean {
+  return /\b(reader|narrative|theme|arc|stakes|craft|manuscript|criterion|diagnostic)\b/i.test(text);
+}
+
+function candidateFitsContext(candidate: string, anchor: string, rationale: string): boolean {
+  const candidateTokens = normalizedTokenSet(candidate);
+  const anchorTokens = normalizedTokenSet(anchor);
+  const rationaleTokens = normalizedTokenSet(rationale);
+  if (candidateTokens.size === 0) return false;
+  const overlapAnchor = jaccardSimilarity(candidateTokens, anchorTokens);
+  const overlapRationale = jaccardSimilarity(candidateTokens, rationaleTokens);
+  return overlapAnchor >= 0.05 || overlapRationale >= 0.05;
+}
+
+function candidateQualityFailureCodes(opportunity: RevisionOpportunity, candidate: string): string[] {
+  const reasons: string[] = [];
+  if (!candidateTextIsCopyPasteReady(candidate)) reasons.push('candidate_quality_not_copy_ready');
+
+  const words = tokenArray(candidate);
+  if (words.length < 8) reasons.push('candidate_quality_too_short');
+
+  if (candidateLooksGenericAdvice(candidate)) reasons.push('candidate_quality_generic');
+  if (candidateLooksSummaryNotProse(candidate)) reasons.push('candidate_quality_summary');
+  if (candidateLooksStilted(candidate)) reasons.push('candidate_quality_stilted');
+  if (candidateLooksRepetitive(candidate)) reasons.push('candidate_quality_repetitive');
+
+  const overlap = overlapScoreWithAnchor(candidate, opportunity.evidence_anchor);
+  if (overlap >= 0.82) reasons.push('candidate_quality_anchor_overlap');
+  if (overlap >= 0.92) reasons.push('candidate_quality_weak_improvement');
+
+  if (candidateIntroducesUnsupportedFacts(candidate, opportunity.evidence_anchor)) {
+    reasons.push('candidate_quality_unsupported_facts');
+  }
+
+  if (candidateVoiceMismatch(candidate)) reasons.push('candidate_quality_voice_mismatch');
+  if (!candidateFitsContext(candidate, opportunity.evidence_anchor, opportunity.rationale)) {
+    reasons.push('candidate_quality_context_mismatch');
+  }
+
+  return [...new Set(reasons)];
+}
+
+function candidateQualityReasons(opportunity: RevisionOpportunity): string[] {
+  const candidates = [
+    opportunity.candidate_text_a,
+    opportunity.candidate_text_b,
+    opportunity.candidate_text_c,
+  ];
+
+  if (candidates.some((candidate) => typeof candidate !== 'string' || candidate.trim().length === 0)) {
+    return [];
+  }
+
+  const perCandidate = candidates.map((candidate) => candidateQualityFailureCodes(opportunity, candidate ?? ''));
+  const passCount = perCandidate.filter((reasons) => reasons.length === 0).length;
+  if (passCount >= 2) return [];
+
+  const mergedReasons = [...new Set(perCandidate.flat())];
+  return ['candidate_quality_failed', ...mergedReasons];
+}
+
 function candidateComplianceReasons(opportunity: RevisionOpportunity, evaluationMode?: string): string[] {
   const candidates = [opportunity.candidate_text_a, opportunity.candidate_text_b, opportunity.candidate_text_c];
   if (candidates.some((candidate) => typeof candidate !== 'string' || candidate.trim().length === 0)) return [];
@@ -608,6 +718,10 @@ function candidateComplianceReasons(opportunity: RevisionOpportunity, evaluation
   }
   if (candidateSetHasLowDiversity(opportunity)) {
     reasons.push('candidate_low_diversity');
+  }
+  const qualityReasons = candidateQualityReasons(opportunity);
+  if (qualityReasons.length > 0) {
+    reasons.push(...qualityReasons);
   }
   if (
     evaluationMode === 'TESTIMONY' &&
@@ -753,6 +867,7 @@ function deriveTelemetryRejectionReasons(opportunity: RevisionOpportunity): stri
 function selectPrimaryRejectionReason(reasons: string[]): string {
   const priority = [
     'canon_authority_blocked',
+    'candidate_quality_failed',
     'anchor_mismatch',
     'truncated_anchor',
     'testimony_fabrication_risk',

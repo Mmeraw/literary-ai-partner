@@ -496,9 +496,9 @@ describe('ensureRevisionOpportunityLedgerArtifact — hydration status suffix an
         blockedOpps.map((o: { opportunity_id: string }) => [
           o.opportunity_id,
           {
-            candidate_text_a: 'She paused at the doorway long enough for the room to understand what had changed.',
-            candidate_text_b: 'The hallway went quiet, and the silence carried the answer before anyone spoke.',
-            candidate_text_c: 'A glass trembled on the table, making the consequence visible before she moved.',
+            candidate_text_a: 'The character moved through the space, then paused when the implication finally caught up with the moment.',
+            candidate_text_b: 'As the character crossed the room, the implication of what had happened settled into the silence around them.',
+            candidate_text_c: 'The character kept moving, but the space changed once the implication became impossible to ignore.',
           },
         ]),
       );
@@ -778,6 +778,40 @@ describe('ensureRevisionOpportunityLedgerArtifact — hydration status suffix an
     expect(opp.preflight_status).toBe('blocked');
     expect(opp.preflight_reasons).toContain('hydration_input_contaminated');
     expect(opp.admin_actions).toContain('Regenerate from source manuscript context');
+  });
+
+  it('blocks user-visible admission when fewer than two candidates pass quality gate', async () => {
+    delete process.env.OPENAI_API_KEY;
+    const upsertSpy = jest.fn();
+
+    const supabase = makeMinimalSupabase({
+      upsertSpy,
+      criteriaRecommendations: [
+        {
+          diagnosis: 'The transition beat is abrupt.',
+          recommendation: 'Insert one concrete bridge beat before the scene turn.',
+          anchor_snippet: 'Christine paused at the kitchen doorway and listened to the quiet in the hall.',
+          location_ref: 'passage:candidate-quality',
+          confidence: 0.88,
+          revision_operation: 'insert_after_selected_passage',
+          candidate_text_a: 'This passage should be revised to improve clarity for the reader and strengthen narrative cohesion.',
+          candidate_text_b: 'Overall, this scene demonstrates unresolved stakes and indicates the narrative needs stronger connective tissue.',
+          candidate_text_c: 'Revise the paragraph for better pacing.',
+        },
+      ],
+      manuscriptChunks: [
+        { content: 'Christine paused at the kitchen doorway and listened to the quiet in the hall.' },
+      ],
+    });
+
+    await ensureRevisionOpportunityLedgerArtifact(supabase, 'job-candidate-quality-fail');
+
+    const persisted = upsertSpy.mock.calls[0]?.[0] as { content: Record<string, unknown> };
+    const [opp] = persisted.content.opportunities as Array<Record<string, unknown>>;
+    expect(opp.preflight_status).toBe('blocked');
+    expect(opp.preflight_reasons).toContain('candidate_quality_failed');
+    expect(opp.grounding_status).toBe('unsupported_blocked');
+    expect(opp.admin_actions).toContain('Regenerate candidate prose');
   });
 
   it('emits REVISION_CANDIDATE_REJECTED for blocked opportunities with privacy-safe metadata only', async () => {
