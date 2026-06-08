@@ -25,6 +25,71 @@ export interface ReviseAdmissionResult {
   passedCandidateCount: number;
 }
 
+export interface WorkbenchAdmissionInput {
+  id: string;
+  readiness?: string | null;
+  groundingStatus?: string | null;
+  preflightStatus?: string | null;
+  contextQuality?: string | null;
+  anchor?: string | null;
+  quoteHighlight?: string | null;
+  quoteRest?: string | null;
+  options?: Array<{
+    key?: string | null;
+    candidateText?: string | null;
+    text?: string | null;
+  }>;
+}
+
+function optionText(
+  opportunity: WorkbenchAdmissionInput,
+  key: 'A' | 'B' | 'C',
+): string | null {
+  const option = opportunity.options?.find((item) => item.key === key);
+  return option?.candidateText?.trim() || option?.text?.trim() || null;
+}
+
+export function toReviseAdmissionOpportunity(
+  opportunity: WorkbenchAdmissionInput,
+): ReviseAdmissionOpportunity {
+  return {
+    opportunity_id: opportunity.id,
+    grounding_status: opportunity.groundingStatus,
+    preflight_status: opportunity.preflightStatus,
+    context_quality: opportunity.contextQuality,
+    evidence_anchor: opportunity.anchor,
+    manuscript_context: {
+      before: opportunity.quoteHighlight,
+      after: opportunity.quoteRest,
+    },
+    candidate_text_a: optionText(opportunity, 'A'),
+    candidate_text_b: optionText(opportunity, 'B'),
+    candidate_text_c: optionText(opportunity, 'C'),
+  };
+}
+
+export function runWorkbenchAdmissionGate(
+  opportunity: WorkbenchAdmissionInput,
+): ReviseAdmissionResult {
+  const reasons: string[] = [];
+
+  if (opportunity.readiness !== 'ready_for_revise') {
+    reasons.push('NOT_READY_FOR_REVISE');
+  }
+
+  const result = runReviseAdmissionGate(toReviseAdmissionOpportunity(opportunity));
+  const uniqueReasons = Array.from(new Set([...reasons, ...result.reasons]));
+
+  return {
+    admission_status:
+      uniqueReasons.length === 0 && result.admission_status === 'admission_passed'
+        ? 'admission_passed'
+        : 'withheld',
+    reasons: uniqueReasons,
+    passedCandidateCount: result.passedCandidateCount,
+  };
+}
+
 export function runReviseAdmissionGate(opportunity: ReviseAdmissionOpportunity): ReviseAdmissionResult {
   const reasons: string[] = [];
 
