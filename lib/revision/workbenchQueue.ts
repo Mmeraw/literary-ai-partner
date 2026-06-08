@@ -23,6 +23,11 @@ import {
   type RevisionModeContract,
 } from './modeContract'
 import { runWorkbenchAdmissionGate } from './reviseAdmissionGate'
+import {
+  evaluateRecommendationExecutability,
+  type RecommendationCardType,
+  type TrustedPathStatus,
+} from './recommendationExecutability'
 
 export type WorkbenchSeverity = 'must' | 'should' | 'could'
 export type WorkbenchScope = 'Line' | 'Passage' | 'Scene' | 'Chapter' | 'Structural' | 'Manuscript'
@@ -74,6 +79,9 @@ export type WorkbenchOpportunity = {
   revisionOperation: RevisionOperation
   readiness: RevisionReadiness
   readinessReason: string | null
+  cardType?: RecommendationCardType
+  trustedPathStatus?: TrustedPathStatus
+  executabilityReasons?: string[]
   groundingStatus?: SlaeGroundingStatus
   groundingNote?: string | null
   contextQuality?: 'clean' | 'limited' | 'blocked'
@@ -95,6 +103,49 @@ function splitPreflightReasonsByClass(reasons: string[] | undefined): { hydratio
   const hydration = all.filter((reason) => reason.startsWith(HYDRATION_REASON_PREFIX))
   const res = all.filter((reason) => !reason.startsWith(HYDRATION_REASON_PREFIX))
   return { hydration, res }
+}
+
+function passageLengthForExecutability(scope: WorkbenchScope, sourceText: string): 'short' | 'moderate' | 'long' {
+  if (scope === 'Chapter' || scope === 'Structural' || scope === 'Manuscript') return 'long'
+  const words = sourceText.split(/\s+/).filter(Boolean).length
+  if (words <= 35) return 'short'
+  if (words <= 120) return 'moderate'
+  return 'long'
+}
+
+function hasReasonMatching(reasons: string[] | undefined, pattern: RegExp): boolean {
+  return (reasons ?? []).some((reason) => pattern.test(reason))
+}
+
+function classifyWorkbenchExecutability(opportunity: WorkbenchOpportunity) {
+  const sourceText = `${opportunity.quoteHighlight ?? ''}${opportunity.quoteRest ?? ''}`.trim()
+  const admission = runWorkbenchAdmissionGate(opportunity)
+  const preflightReasons = opportunity.preflightReasons ?? []
+  const scopeRequiresStrategy = opportunity.mode === 'repair-brief'
+  const hasEvidence = sourceText.length > 0 && !/no excerpt available/i.test(sourceText)
+
+  return evaluateRecommendationExecutability({
+    evidencePresent: hasEvidence,
+    contextPresent: opportunity.contextQuality === 'clean' && opportunity.preflightStatus === 'passed',
+    canonClear:
+      opportunity.contextQuality !== 'blocked' &&
+      !hasReasonMatching(preflightReasons, /canon|ledger_conflict|anchor_mismatch|testimony_fabrication/i),
+    diagnosisSupported:
+      (opportunity.groundingStatus === 'supported' || opportunity.groundingStatus === 'supported_after_relook') &&
+      opportunity.preflightStatus === 'passed',
+    anchorPrecise: !hasPlaceholderCoordinates(opportunity.anchor),
+    passageLength: passageLengthForExecutability(opportunity.scope, sourceText),
+    beforeAfterContextSufficient: hasEvidence && opportunity.contextQuality === 'clean',
+    ledgerConflictPossible: hasReasonMatching(preflightReasons, /ledger|anchor_mismatch|context_mismatch|canon/i),
+    canonConflict: hasReasonMatching(preflightReasons, /canon_authority_blocked|canon_conflict|canon_drift/i),
+    affectsSceneArchitecture: scopeRequiresStrategy,
+    affectsPOVVoiceCanonMetaphor: hasReasonMatching(preflightReasons, /voice|pov|metaphor|canon|testimony/i),
+    downstreamContinuityRisk: scopeRequiresStrategy || opportunity.scope === 'Scene',
+    voiceFingerprintStable: !hasReasonMatching(preflightReasons, /voice|pov|testimony_fabrication/i),
+    localOperation: opportunity.mode === 'direct-rewrite' && opportunity.revisionOperation !== 'needs_targeting',
+    passingCandidateCount: admission.passedCandidateCount,
+    candidateProseNarrativeSafe: admission.admission_status === 'admission_passed',
+  })
 }
 
 export type WorkbenchQueuePayload = {
@@ -1259,8 +1310,7 @@ export async function getWorkbenchQueue(input: { manuscriptId?: string; evaluati
 
     const splitReasons = splitPreflightReasonsByClass(opportunity.preflight_reasons)
     const hydrationRepairNeeded = splitReasons.hydration.length > 0
-
-    return {
+    const baseOpportunity = {
       ...contracted,
       readinessReason: hydrationRepairNeeded
         ? 'Needs hydration repair'
@@ -1282,16 +1332,35 @@ export async function getWorkbenchQueue(input: { manuscriptId?: string; evaluati
         : undefined,
       modeContract: modeContractForMetadata(modeContract),
     }
+    const executability = classifyWorkbenchExecutability(baseOpportunity)
+
+    return {
+      ...baseOpportunity,
+      cardType: executability.cardType,
+      trustedPathStatus: executability.trustedPathStatus,
+      executabilityReasons: executability.reasons,
+    }
   })
 
   const readyForRevise = opportunities.filter((opportunity) => opportunity.readiness === 'ready_for_revise')
-  const needsTargeting = opportunities.filter((opportunity) => opportunity.readiness === 'needs_targeting')
+  const strategyReadyForReview = readyForRevise.filter((opportunity) =>
+    isSupportedForUserQueue(opportunity) &&
+    opportunity.cardType === 'revision_strategy' &&
+    runWorkbenchAdmissionGate(opportunity).admission_status === 'admission_passed',
+  )
+  const needsTargeting = [
+    ...opportunities.filter((opportunity) => opportunity.readiness === 'needs_targeting'),
+    ...strategyReadyForReview,
+  ]
   const supportedReadyForRevise = readyForRevise.filter((opportunity) => {
     if (!isSupportedForUserQueue(opportunity)) return false
+    if (opportunity.cardType !== 'copy_paste_rewrite' || opportunity.trustedPathStatus !== 'eligible') return false
     return runWorkbenchAdmissionGate(opportunity).admission_status === 'admission_passed'
   })
   const withheldUnsupported = readyForRevise.filter((opportunity) => {
     if (!isSupportedForUserQueue(opportunity)) return true
+    if (opportunity.cardType === 'revision_strategy' && runWorkbenchAdmissionGate(opportunity).admission_status === 'admission_passed') return false
+    if (opportunity.cardType === 'withheld') return true
     return runWorkbenchAdmissionGate(opportunity).admission_status !== 'admission_passed'
   })
 
