@@ -23,9 +23,13 @@ import OpenAI from 'openai';
 const HYDRATION_MODEL = process.env.EVAL_HYDRATION_MODEL ?? 'gpt-4o-mini';
 /** Hard cap on completion tokens per batch call. */
 const HYDRATION_MAX_TOKENS = 6000;
-/** Per-call timeout — generous enough for 15 opportunities, strict enough to not starve the serverless function. */
+/** Per-call timeout — generous enough for one batch, strict enough not to starve the serverless function. */
 const HYDRATION_TIMEOUT_MS = 45_000;
-/** Max opportunities to send in one OpenAI call (token budget guard). */
+/**
+ * Max opportunities sent in a single OpenAI call (token budget guard).
+ * All blocked opportunities are still processed — the function loops through
+ * batches sequentially until every opportunity has been attempted.
+ */
 export const HYDRATION_MAX_BATCH_SIZE = 15;
 /** Minimum word count a candidate must meet to pass SLAE. */
 const SLAE_MIN_WORDS = 5;
@@ -133,12 +137,18 @@ Return ONLY this JSON object (no other text):
 // ── Main hydration function ───────────────────────────────────────────────────
 
 /**
- * Generate A/B/C revision candidates for blocked opportunities via a single
- * batched OpenAI call. Returns a Map from opportunity_id → validated candidates.
+ * Generate A/B/C revision candidates for blocked opportunities.
+ *
+ * All blocked opportunities are processed — if there are more than
+ * HYDRATION_MAX_BATCH_SIZE, the function makes sequential OpenAI calls
+ * (one per chunk) until every opportunity has been attempted.
+ * Any individual call failure is non-fatal: that chunk's opportunities
+ * remain blocked while subsequent chunks continue.
  *
  * @param blocked  Opportunities with missing/blocked candidates.
  * @param openaiApiKey  Caller-supplied key; must not be empty.
  * @returns HydrationResult — always resolves, never rejects.
+ *          `skippedCount` is always 0 (all opportunities are attempted).
  */
 export async function hydrateLedgerCandidates(
   blocked: HydrationOpportunity[],
@@ -150,72 +160,73 @@ export async function hydrateLedgerCandidates(
     return { hydratedCount: 0, skippedCount: 0, candidates };
   }
 
-  const batch = blocked.slice(0, HYDRATION_MAX_BATCH_SIZE);
-  const skippedCount = blocked.length - batch.length;
+  const openai = new OpenAI({
+    apiKey: openaiApiKey,
+    timeout: HYDRATION_TIMEOUT_MS,
+    maxRetries: 1,
+  });
 
-  try {
-    const openai = new OpenAI({
-      apiKey: openaiApiKey,
-      timeout: HYDRATION_TIMEOUT_MS,
-      maxRetries: 1,
-    });
-
-    const completion = await openai.chat.completions.create({
-      model: HYDRATION_MODEL,
-      messages: [
-        { role: 'system', content: SYSTEM_MESSAGE },
-        { role: 'user', content: buildUserMessage(batch) },
-      ],
-      response_format: { type: 'json_object' },
-      temperature: 0.7,
-      max_tokens: HYDRATION_MAX_TOKENS,
-    });
-
-    const rawContent = completion.choices[0]?.message?.content ?? '';
-    if (!rawContent) {
-      console.warn('[CandidateHydration] OpenAI returned empty content');
-      return { hydratedCount: 0, skippedCount, candidates };
-    }
-
-    let parsed: Record<string, unknown>;
+  // Split into chunks of HYDRATION_MAX_BATCH_SIZE and process each sequentially.
+  let hydratedCount = 0;
+  for (let offset = 0; offset < blocked.length; offset += HYDRATION_MAX_BATCH_SIZE) {
+    const chunk = blocked.slice(offset, offset + HYDRATION_MAX_BATCH_SIZE);
     try {
-      parsed = JSON.parse(rawContent) as Record<string, unknown>;
-    } catch {
-      console.warn('[CandidateHydration] Failed to parse OpenAI response as JSON');
-      return { hydratedCount: 0, skippedCount, candidates };
-    }
+      const completion = await openai.chat.completions.create({
+        model: HYDRATION_MODEL,
+        messages: [
+          { role: 'system', content: SYSTEM_MESSAGE },
+          { role: 'user', content: buildUserMessage(chunk) },
+        ],
+        response_format: { type: 'json_object' },
+        temperature: 0.7,
+        max_tokens: HYDRATION_MAX_TOKENS,
+      });
 
-    const results = Array.isArray(parsed.results) ? parsed.results : [];
-    let hydratedCount = 0;
-
-    for (const item of results) {
-      if (typeof item !== 'object' || item === null) continue;
-      const r = item as Record<string, unknown>;
-
-      const id = typeof r.id === 'string' ? r.id.trim() : null;
-      if (!id) continue;
-
-      const opp = batch.find((o) => o.opportunity_id === id);
-      if (!opp) continue;
-
-      const a = slaeValidate(r.candidate_a, opp.evidence_anchor, opp.rationale);
-      const b = slaeValidate(r.candidate_b, opp.evidence_anchor, opp.rationale);
-      const c = slaeValidate(r.candidate_c, opp.evidence_anchor, opp.rationale);
-
-      if (a && b && c) {
-        candidates.set(id, {
-          candidate_text_a: a,
-          candidate_text_b: b,
-          candidate_text_c: c,
-        });
-        hydratedCount++;
+      const rawContent = completion.choices[0]?.message?.content ?? '';
+      if (!rawContent) {
+        console.warn(`[CandidateHydration] OpenAI returned empty content for chunk offset=${offset}`);
+        continue;
       }
-    }
 
-    return { hydratedCount, skippedCount, candidates };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    console.error('[CandidateHydration] OpenAI call failed (non-fatal):', message);
-    return { hydratedCount: 0, skippedCount, candidates };
+      let parsed: Record<string, unknown>;
+      try {
+        parsed = JSON.parse(rawContent) as Record<string, unknown>;
+      } catch {
+        console.warn(`[CandidateHydration] Failed to parse OpenAI response as JSON for chunk offset=${offset}`);
+        continue;
+      }
+
+      const results = Array.isArray(parsed.results) ? parsed.results : [];
+
+      for (const item of results) {
+        if (typeof item !== 'object' || item === null) continue;
+        const r = item as Record<string, unknown>;
+
+        const id = typeof r.id === 'string' ? r.id.trim() : null;
+        if (!id) continue;
+
+        const opp = chunk.find((o) => o.opportunity_id === id);
+        if (!opp) continue;
+
+        const a = slaeValidate(r.candidate_a, opp.evidence_anchor, opp.rationale);
+        const b = slaeValidate(r.candidate_b, opp.evidence_anchor, opp.rationale);
+        const c = slaeValidate(r.candidate_c, opp.evidence_anchor, opp.rationale);
+
+        if (a && b && c) {
+          candidates.set(id, {
+            candidate_text_a: a,
+            candidate_text_b: b,
+            candidate_text_c: c,
+          });
+          hydratedCount++;
+        }
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error(`[CandidateHydration] OpenAI call failed for chunk offset=${offset} (non-fatal):`, message);
+      // Continue to the next chunk rather than aborting entirely.
+    }
   }
+
+  return { hydratedCount, skippedCount: 0, candidates };
 }

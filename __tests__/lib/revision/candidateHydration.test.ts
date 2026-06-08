@@ -169,9 +169,10 @@ describe('hydrateLedgerCandidates', () => {
     expect(result.candidates.size).toBe(2);
   });
 
-  it('caps batch at HYDRATION_MAX_BATCH_SIZE and reports skippedCount', async () => {
+  it('processes ALL opportunities across multiple OpenAI calls when count exceeds HYDRATION_MAX_BATCH_SIZE', async () => {
+    const totalOpps = HYDRATION_MAX_BATCH_SIZE + 5;
     const lotsOfOpps: HydrationOpportunity[] = Array.from(
-      { length: HYDRATION_MAX_BATCH_SIZE + 5 },
+      { length: totalOpps },
       (_, i) => ({
         opportunity_id: `rol:opp${i}`,
         evidence_anchor: `Anchor excerpt number ${i} appears here in the manuscript text for testing.`,
@@ -179,32 +180,39 @@ describe('hydrateLedgerCandidates', () => {
       }),
     );
 
-    // Only return results for the first MAX_BATCH_SIZE
-    getMockCreate().mockResolvedValueOnce(
+    const makeChunkCompletion = (opps: HydrationOpportunity[]) =>
       makeCompletion(
-        lotsOfOpps.slice(0, HYDRATION_MAX_BATCH_SIZE).map((o) => ({
+        opps.map((o) => ({
           id: o.opportunity_id,
           candidate_a: `Revised prose A for ${o.opportunity_id} with sufficient word count to meet the minimum.`,
           candidate_b: `Revised prose B for ${o.opportunity_id} with sufficient word count to meet the minimum.`,
           candidate_c: `Revised prose C for ${o.opportunity_id} with sufficient word count to meet the minimum.`,
         })),
-      ),
-    );
+      );
+
+    // First call: first MAX_BATCH_SIZE opportunities
+    getMockCreate().mockResolvedValueOnce(makeChunkCompletion(lotsOfOpps.slice(0, HYDRATION_MAX_BATCH_SIZE)));
+    // Second call: remaining 5 opportunities
+    getMockCreate().mockResolvedValueOnce(makeChunkCompletion(lotsOfOpps.slice(HYDRATION_MAX_BATCH_SIZE)));
 
     const result = await hydrateLedgerCandidates(lotsOfOpps, 'sk-test');
 
-    expect(result.skippedCount).toBe(5);
-    expect(result.hydratedCount).toBe(HYDRATION_MAX_BATCH_SIZE);
-    // The prompt only received MAX_BATCH_SIZE items
-    expect(getMockCreate()).toHaveBeenCalledTimes(1);
-    const callArg = getMockCreate().mock.calls[0][0] as { messages: Array<{ content: string }> };
-    const userContent = callArg.messages[1].content;
-    // Verify over-limit opportunities are not in prompt
-    expect(userContent).not.toContain(`rol:opp${HYDRATION_MAX_BATCH_SIZE}`);
+    // All opportunities processed across 2 calls — nothing skipped
+    expect(result.skippedCount).toBe(0);
+    expect(result.hydratedCount).toBe(totalOpps);
+    expect(getMockCreate()).toHaveBeenCalledTimes(2);
+
+    // First call's prompt should not contain second chunk's opportunity ids
+    const firstCallArg = getMockCreate().mock.calls[0][0] as { messages: Array<{ content: string }> };
+    expect(firstCallArg.messages[1].content).not.toContain(`rol:opp${HYDRATION_MAX_BATCH_SIZE}`);
+
+    // Second call's prompt should contain the overflow opportunities
+    const secondCallArg = getMockCreate().mock.calls[1][0] as { messages: Array<{ content: string }> };
+    expect(secondCallArg.messages[1].content).toContain(`rol:opp${HYDRATION_MAX_BATCH_SIZE}`);
   });
 
-  it('returns empty result and does not throw when OpenAI call fails', async () => {
-    getMockCreate().mockRejectedValueOnce(new Error('network error'));
+  it('returns empty result and does not throw when all OpenAI calls fail', async () => {
+    getMockCreate().mockRejectedValue(new Error('network error'));
 
     const result = await hydrateLedgerCandidates([oppA], 'sk-test');
 
