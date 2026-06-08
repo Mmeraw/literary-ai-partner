@@ -31,6 +31,14 @@ const adminCards = [
     priority: "Operations",
   },
   {
+    title: "Rejected Revise Analytics",
+    href: "/admin/analytics/rejected-revise-candidates",
+    eyebrow: "Telemetry aggregates only",
+    description:
+      "Aggregate-only analytics for REVISION_CANDIDATE_REJECTED telemetry: reasons, criteria, operations, overlap/length buckets, and model/prompt failure patterns. No prose.",
+    priority: "Operations",
+  },
+  {
     title: "Jobs",
     href: "/admin/jobs",
     eyebrow: "Evaluation records",
