@@ -96,7 +96,7 @@ function candidateLooksLikeCommentary(text: string): boolean {
 function hasUnsupportedEntity(input: CandidateQualityInput, text: string): boolean {
   const known = new Set([...(input.knownEntities ?? []), ...(input.allowedNewEntities ?? [])].map((x) => x.toLowerCase()));
   if (known.size === 0) return false;
-  const properNouns = text.match(/\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\b/g) ?? [];
+  const properNouns: string[] = text.match(/\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\b/g) ?? [];
   return properNouns.some((name) => !known.has(name.toLowerCase()));
 }
 
