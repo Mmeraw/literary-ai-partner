@@ -192,10 +192,10 @@ describe('storyLayerDependencyHealth', () => {
       ],
       activeBlockers: [
         {
-          blockerId: 'name_state_violation:Tom+Thomas',
+          blockerId: 'name_state_violation:Tom+identity_conflict',
           type: 'name_state_violation',
           severity: 'suppress',
-          rule: 'Name "Thomas" is not yet valid for Tom.',
+          rule: 'Invalid canonical name conflict: unresolved alias collision for Tom / Thomas.',
           involvedCharacters: ['Tom'],
           affectedRecommendationTypes: ['characterization'],
         },
@@ -231,5 +231,42 @@ describe('storyLayerDependencyHealth', () => {
       visible_to_user: true,
       visible_to_admin: true,
     });
+  });
+
+  it('does not degrade canonical identity for temporal suppress-only recommendation guardrails', () => {
+    const layers = makeStoryLayers();
+    const ledgerV2 = makeLedgerV2({
+      activeBlockers: [
+        {
+          blockerId: 'name_state_violation:The landlord+The landlord',
+          type: 'name_state_violation',
+          severity: 'suppress',
+          rule: 'Name "The landlord" for The landlord is only valid from chunk 1. Do not use this name in recommendations targeting earlier chapters.',
+          validAfterChapter: 'chunk 1',
+          involvedCharacters: ['The landlord'],
+          affectedRecommendationTypes: ['characterization'],
+        },
+        {
+          blockerId: 'co_presence_violation:Israel+narrator',
+          type: 'co_presence_violation',
+          severity: 'suppress',
+          rule: 'Israel and narrator do not share a scene until chunk 0 (chunk 0). Recommendations must not place them together before this point.',
+          validAfterChapter: 'chunk 0',
+          involvedCharacters: ['Israel', 'narrator'],
+          affectedRecommendationTypes: ['characterization', 'scene_structure'],
+        },
+      ],
+    });
+
+    const assessment = assessStoryLayerIdentityDependencies({
+      ledger: makeLedger(),
+      ledgerV2,
+      layers,
+    });
+
+    expect(assessment.canonicalIdentityHealth.truth_status).toBe('clean');
+    expect(assessment.canonicalIdentityHealth.warning_codes).not.toContain('IDENTITY_BLOCKER_ACTIVE');
+    expect(assessment.canonicalIdentityHealth.warning_codes).not.toContain('INVALID_IDENTITY_NAME_STATE_TOKEN_WARNING');
+    expect(assessment.dependencyWarnings).toEqual([]);
   });
 });

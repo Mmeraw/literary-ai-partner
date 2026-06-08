@@ -77,15 +77,36 @@ function normalizeName(value: string): string {
 }
 
 function collectIdentityBlockers(ledgerV2: CharacterLedgerV2): RecommendationBlocker[] {
-  const identityLedgerBlockers = ledgerV2.identityLedger.flatMap((entry) => entry.recommendationBlockers ?? []);
-  const activeIdentityBlockers = (ledgerV2.activeBlockers ?? []).filter((blocker) => isIdentityBlocker(blocker));
+  const identityLedgerBlockers = ledgerV2.identityLedger
+    .flatMap((entry) => entry.recommendationBlockers ?? [])
+    .filter((blocker) => isCanonicalIdentityDefectBlocker(blocker));
+  const activeIdentityBlockers = (ledgerV2.activeBlockers ?? []).filter((blocker) =>
+    isCanonicalIdentityDefectBlocker(blocker),
+  );
   return [...identityLedgerBlockers, ...activeIdentityBlockers];
 }
 
-function isIdentityBlocker(blocker: RecommendationBlocker): boolean {
-  if (blocker.type === 'name_state_violation') return true;
+function isTemporalRecommendationGuardrail(blocker: RecommendationBlocker): boolean {
+  if (blocker.severity !== 'suppress') return false;
 
   const rule = blocker.rule.toLowerCase();
+  const hasTemporalBoundary =
+    typeof blocker.validAfterChapter === 'string' && blocker.validAfterChapter.trim().length > 0;
+
+  return hasTemporalBoundary || /before|until|not yet valid|do not use this name|not introduced|do not share a scene/.test(rule);
+}
+
+function isCanonicalIdentityDefectBlocker(blocker: RecommendationBlocker): boolean {
+  if (isTemporalRecommendationGuardrail(blocker)) {
+    return false;
+  }
+
+  const rule = blocker.rule.toLowerCase();
+
+  if (blocker.type === 'name_state_violation') {
+    return /invalid canonical|placeholder|contradict|conflict|collision|ambiguous|unresolved alias|missing required character id/.test(rule);
+  }
+
   return /identity|alias|name/.test(rule);
 }
 

@@ -318,14 +318,16 @@ function runQualityChecks(
     });
   }
 
-  // Suppress-severity blockers
+  // Suppress-severity blockers are negative-knowledge recommendation guardrails,
+  // not story-ledger repair findings by default. Keep them passively observable
+  // without counting them toward repair_required / clean-canon degradation.
   const suppressBlockers = (ledgerV2.activeBlockers ?? []).filter(
     (b) => b.severity === 'suppress',
   );
   for (const blocker of suppressBlockers) {
     results.push({
       key: `suppress_blocker:${blocker.blockerId}`,
-      severity: 'warning',
+      severity: 'info',
       message: `SUPPRESS blocker active: ${blocker.rule}`,
       layer: 'threat_antagonist_ending_layer',
       evidenceReference: `blocker.${blocker.blockerId}`,

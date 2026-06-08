@@ -8,14 +8,14 @@
  *   - NO Pass 1 / Pass 2 data
  *   - Temperature: 0.4 — allow genuine independent judgment
  *   - Output: Pass3AChunkObservation JSON
- *   - Max evidence quotes: 6 per chunk
+ *   - Compact map output: signals only, no essays
  *   - Full chunk text (no cap) — caller passes chunk.content directly.
  */
 
 import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
 import type { Pass3AActZone } from "../types";
 
-export const PASS3A_CHUNK_READER_PROMPT_VERSION = "pass3a-chunk-reader-v1";
+export const PASS3A_CHUNK_READER_PROMPT_VERSION = "pass3a-chunk-reader-v2-compact-map";
 export const PASS3A_CHUNK_READER_TEMPERATURE = 0.4;
 
 export const PASS3A_CHUNK_READER_SYSTEM_PROMPT = `You are Pass 3A: the independent manuscript reader.
@@ -31,10 +31,26 @@ You capture:
 - Any anomalies that might represent continuity errors, retrieval failures, or location violations
 
 RULES:
+- Return compact JSON only.
+- No explanations.
+- No paragraphs.
+- No criterion essays.
 - NEVER emit any numeric score or rating.
 - NEVER reference Pass 1, Pass 2, or any character ledger.
 - NEVER make novel-wide judgments — stay local to what this chunk shows.
-- Quote verbatim text as evidence (max 6 quotes, ≤80 chars each).
+- COMPACT OUTPUT ONLY: signals, not report prose.
+- Emit only signals that materially affect downstream judgment.
+- Do NOT fill every possible field.
+- Quote verbatim text sparingly (max 2 quotes per signal, ≤60 chars each).
+- Keep every descriptive string ≤50 chars unless a field below says shorter.
+- Do NOT emit "no_signal" criterion entries.
+- Do NOT return all 13 criteria.
+- Return max 8 strongest criterion signals only.
+- The reducer will reconstruct the full 13-criterion draft.
+- If budget is tight, omit lower-value optional arrays before increasing verbosity.
+- Hard caps: narrativeEvents ≤5, criterionSignals ≤8, characterObservations ≤6,
+  objectSymbolObservations ≤4, promisePayoffSignals ≤3, closureSignals ≤2,
+  arbitrationWarnings ≤2.
 - Character names: record exactly as they appear in the text (Paolito vs Paul matters).
 - Location: record exactly where characters are stated to be, or "unstated" if absent.
 - Flag any character appearing in a location that contradicts what was last known.
@@ -61,60 +77,46 @@ Approximate word count in this chunk: ${params.wordCount}
 ${params.chunkText}
 ---CHUNK TEXT END---
 
-Observe this chunk independently. Return a JSON object with this exact shape:
+Observe this chunk independently. Return compact JSON in the Pass3AChunkObservation shape.
+
+HARD OUTPUT BUDGET:
+- This is a MAP pass, not a final report.
+- Do NOT explain, justify, summarize broadly, or write paragraph prose.
+- Do NOT produce one essay per criterion.
+- Use fragments, not sentences, wherever valid JSON allows.
+- Prefer short fragments over full sentences.
+- Omit optional arrays when there is no meaningful signal.
+- Return valid MINIFIED JSON under ~1400 tokens.
+- Do NOT copy this schema back.
+- Do NOT include comments.
+- Do NOT include empty arrays unless the key is required below.
+- Required top-level keys: chunkIndex, actZone, wordCount, narrativeEvents, criterionSignals.
+- Optional top-level keys only when materially present: characterObservations,
+  objectSymbolObservations, promisePayoffSignals, closureSignals, arbitrationWarnings.
 
 {
   "chunkIndex": ${params.chunkIndex},
   "actZone": "${params.actZone}",
   "wordCount": ${params.wordCount},
   "narrativeEvents": [
-    // array of strings — key events, decisions, or structural beats visible in this chunk
+    "<max 5 key events, each ≤45 chars>"
   ],
   "criterionSignals": [
-    // one entry per criterion where you observed SOMETHING (omit criteria with zero signal)
     {
       "criterion": "<one of the 13 criterion keys>",
-      "signal": "strength" | "weakness" | "mixed" | "no_signal",
-      "evidenceQuotes": ["<verbatim quote ≤80 chars>"],
-      "provisionalNote": "<what you saw — max 200 chars>"
-    }
-  ],
-  "characterObservations": [
-    {
-      "name": "<exact name as written in chunk>",
-      "locationAtObservation": "<where they are, or 'unstated'>",
-      "copingBehaviorsObserved": [],
-      "nameStateNote": "<optional — e.g. 'Uses Paolito here'>"
-    }
-  ],
-  "objectSymbolObservations": [
-    {
-      "objectName": "<object or motif name>",
-      "ownerAtObservation": "<who has/mentions it, or 'none'>",
-      "symbolicNote": "<what it seems to mean in context — max 120 chars>"
-    }
-  ],
-  "promisePayoffSignals": [
-    {
-      "type": "promise_opened" | "promise_escalated" | "promise_paid" | "promise_unresolved",
-      "description": "<what promise or payoff — max 150 chars>"
-    }
-  ],
-  "closureSignals": [
-    {
-      "signal": "<what you observed — max 120 chars>",
-      "strength": "strong" | "partial" | "absent"
-    }
-  ],
-  "arbitrationWarnings": [
-    // ONLY flag genuine anomalies — do not over-flag
-    {
-      "warning": "<what seems wrong — max 150 chars>",
-      "blockerType": "retrieval_failure_suspected" | "location_violation_suspected" | "name_state_violation_suspected" | "opening_overbias_suspected" | "missing_object_system_suspected" | "co_presence_violation_suspected" | "insufficient_coverage",
-      "evidence": "<verbatim quote ≤80 chars>"
+      "signal": "strength" | "weakness" | "mixed",
+      "evidenceQuotes": ["<max 1 quote, ≤45 chars>"],
+      "provisionalNote": "<signal fragment, ≤45 chars>"
     }
   ]
 }
+
+Optional object examples, include only if materially present:
+- characterObservations item: {"name":"Mike","locationAtObservation":"Toronto","copingBehaviorsObserved":["avoids call"],"nameStateNote":""}
+- objectSymbolObservations item: {"objectName":"ring","ownerAtObservation":"Christine","symbolicNote":"family debt"}
+- promisePayoffSignals item: {"type":"promise_opened","description":"Nicolas conflict"}
+- closureSignals item: {"signal":"local rupture unresolved","strength":"partial"}
+- arbitrationWarnings item: {"warning":"possible location conflict","blockerType":"location_violation_suspected","evidence":"..."}
 
 Criteria keys for reference:
 ${criteriaList}

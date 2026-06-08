@@ -51,7 +51,10 @@ export const PASS3A_DEFAULT_CHUNK_CONCURRENCY = 10;
 /** Max chars per zone summary sent to the reducer */
 const PASS3A_ZONE_SUMMARY_CAP = 3000;
 const PASS3A_DEFAULT_MODEL = "gpt-5.1";
-const PASS3A_MAX_OUTPUT_TOKENS = 4096;
+/** Map phase: signals-only output — keep well below 4096 to avoid truncation on large chunks. */
+const PASS3A_MAP_MAX_OUTPUT_TOKENS = 2048;
+/** Reducer phase: holistic synthesis — needs more room for all 13 criterion drafts. */
+const PASS3A_REDUCER_MAX_OUTPUT_TOKENS = 8192;
 
 // ─── Act-zone classification ────────────────────────────────────────────────
 
@@ -92,6 +95,25 @@ function capText(text: string, maxChars: number): string {
   return text.slice(0, maxChars) + " [truncated]";
 }
 
+function debugPass3A(event: string, payload: Record<string, unknown>): void {
+  if (process.env.PASS3A_DEBUG !== "1") return;
+  console.log(`[Pass3A][debug] ${event} ${JSON.stringify(payload)}`);
+}
+
+function positiveIntFromEnv(name: string, fallback: number): number {
+  const raw = process.env[name]?.trim();
+  if (!raw) return fallback;
+  const parsed = Number(raw);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+export function unwrapJsonBoundary<T extends Record<string, unknown>>(
+  raw: string,
+  label: string,
+): T {
+  return parseJsonObjectBoundary<T>(raw, { label }).value;
+}
+
 // Tolerant act-zone normalizer — handles common model casing errors so a
 // "late" emit still routes to the canonical "Late" Pass3AActZone value.
 function normalizeActZone(z: unknown): Pass3AActZone {
@@ -111,7 +133,7 @@ function normalizeActZone(z: unknown): Pass3AActZone {
 // `observation`) or new (`criterionSignals`, `signal`, `provisionalNote`)
 // field shape from the model and normalize to the canonical
 // Pass3AChunkObservation contract before aggregation.
-function normalizeChunkObservation(raw: unknown): Pass3AChunkObservation {
+export function normalizeChunkObservation(raw: unknown): Pass3AChunkObservation {
   const r = (raw ?? {}) as Record<string, unknown>;
   const rawSignals = (r.criterionSignals ?? r.criteriaSignals ?? []) as Array<Record<string, unknown>>;
   const allowedSignals = new Set(["strength", "weakness", "mixed", "no_signal"]);
@@ -392,7 +414,7 @@ async function createOpenAICompletion(params: {
   temperature: number;
   maxTokens: number;
   timeoutMs: number;
-}): Promise<{ content: string; usage?: { prompt_tokens?: number; completion_tokens?: number } | null }> {
+}): Promise<{ content: string; finishReason: string | null; usage?: { prompt_tokens?: number; completion_tokens?: number } | null }> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), params.timeoutMs);
   try {
@@ -411,6 +433,7 @@ async function createOpenAICompletion(params: {
     );
     return {
       content: response.choices[0]?.message?.content ?? "",
+      finishReason: response.choices[0]?.finish_reason ?? null,
       usage: response.usage
         ? {
             prompt_tokens: response.usage.prompt_tokens,
@@ -434,10 +457,15 @@ export interface RunPass3PreflightOptions {
   openaiApiKey?: string | null;
   openAiTimeoutMs?: number;
   supabase: SupabaseClient;
-  /** Chunk concurrency — default 2 */
+  /** Chunk concurrency — default PASS3A_DEFAULT_CHUNK_CONCURRENCY */
   _chunkConcurrency?: number;
   /** Forced heartbeat after each chunk settles */
   _onChunkHeartbeat?: (chunkIndex: number) => void;
+  /** Override map-phase max output tokens (default: PASS3A_MAP_MAX_OUTPUT_TOKENS = 2048).
+   *  Keep below 4096 — the map prompt is signals-only and large chunks overflow 4096. */
+  _mapMaxOutputTokens?: number;
+  /** Override reducer max output tokens (default: PASS3A_REDUCER_MAX_OUTPUT_TOKENS = 8192). */
+  _reducerMaxOutputTokens?: number;
 }
 
 export interface RunPass3PreflightResult {
@@ -454,6 +482,8 @@ export async function runPass3Preflight(
   const totalChunks = opts.manuscriptChunks.length;
   const concurrency = opts._chunkConcurrency ?? PASS3A_DEFAULT_CHUNK_CONCURRENCY;
   const timeoutMs = opts.openAiTimeoutMs ?? getEvalOpenAiTimeoutMs();
+  const mapMaxTokens = opts._mapMaxOutputTokens ?? positiveIntFromEnv("PASS3A_MAP_MAX_OUTPUT_TOKENS", PASS3A_MAP_MAX_OUTPUT_TOKENS);
+  const reducerMaxTokens = opts._reducerMaxOutputTokens ?? positiveIntFromEnv("PASS3A_REDUCER_MAX_OUTPUT_TOKENS", PASS3A_REDUCER_MAX_OUTPUT_TOKENS);
   const model = PASS3A_DEFAULT_MODEL;
 
   const effectiveApiKey =
@@ -488,6 +518,9 @@ export async function runPass3Preflight(
       const actZone = classifyChunkToZone(i, totalChunks);
       const chunkText = chunk.content ?? "";
       const wordCount = (chunk.content ?? "").trim().split(/\s+/).length;
+      let rawResponseLength: number | null = null;
+
+      console.log(`[Pass3A][map:start] chunk=${i} zone=${actZone} words=${wordCount} chars=${chunkText.length}`);
 
       try {
         const userPrompt = buildPass3AChunkReaderUserPrompt({
@@ -500,15 +533,26 @@ export async function runPass3Preflight(
           workType: opts.workType,
         });
 
+        console.log(`[Pass3A][map:calling] chunk=${i} model=${model} maxTokens=${mapMaxTokens} timeoutMs=${timeoutMs}`);
         const result = await createOpenAICompletion({
           openai,
           model,
           systemPrompt: PASS3A_CHUNK_READER_SYSTEM_PROMPT,
           userPrompt,
           temperature: PASS3A_CHUNK_READER_TEMPERATURE,
-          maxTokens: PASS3A_MAX_OUTPUT_TOKENS,
+          maxTokens: mapMaxTokens,
           timeoutMs,
         });
+        rawResponseLength = result.content.length;
+        console.log(`[Pass3A][map:raw] chunk=${i} chars=${rawResponseLength} finishReason=${result.finishReason} usage=${JSON.stringify(result.usage ?? null)}`);
+        // Hard guard: if the model stopped because it hit the token cap, the JSON
+        // will be truncated. Treat this as a retryable technical failure with a
+        // clear error code so repair scripts/admins can identify the cause.
+        if (result.finishReason === 'length') {
+          throw new Error(
+            `technical_retryable_truncated_output: chunk=${i} hit maxTokens=${mapMaxTokens} (finishReason=length). Raise _mapMaxOutputTokens or shorten chunk.`,
+          );
+        }
         trackCompletionCost({
           jobId: opts.jobId,
           phase: `pass3a_chunk_reader_${i}`,
@@ -516,11 +560,25 @@ export async function runPass3Preflight(
           usage: result.usage,
         });
 
-        const rawParsed = parseJsonObjectBoundary(result.content);
+        const rawParsed = unwrapJsonBoundary<Record<string, unknown>>(
+          result.content,
+          "Pass3A chunk observation",
+        );
         if (typeof rawParsed !== "object" || rawParsed === null) {
           throw new Error("Parsed observation is null");
         }
+        console.log(`[Pass3A][map:parsed] chunk=${i} ok=true keys=${Object.keys(rawParsed).join(",")}`);
         const parsed = normalizeChunkObservation(rawParsed);
+        debugPass3A("chunk_parse", {
+          chunkIndex: i,
+          rawResponseLength,
+          parsedOk: true,
+          hasValue: true,
+          criterionSignalsCount: parsed.criterionSignals?.length ?? 0,
+          narrativeEventsCount: parsed.narrativeEvents?.length ?? 0,
+          characterObservationsCount: parsed.characterObservations?.length ?? 0,
+          errorMessage: null,
+        });
         parsed.chunkIndex = i;
         parsed.actZone = actZone;
         parsed.wordCount = wordCount;
@@ -528,6 +586,19 @@ export async function runPass3Preflight(
         console.log(`[Pass3A] Chunk ${i + 1}/${totalChunks} (${actZone}) ✓`);
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
+        const stack = err instanceof Error ? err.stack : undefined;
+        debugPass3A("chunk_parse", {
+          chunkIndex: i,
+          rawResponseLength,
+          parsedOk: false,
+          hasValue: false,
+          criterionSignalsCount: null,
+          narrativeEventsCount: null,
+          characterObservationsCount: null,
+          errorMessage: msg,
+        });
+        console.error(`[Pass3A][map:error] chunk=${i} rawChars=${rawResponseLength ?? 0} error=${msg}`);
+        if (stack) console.error(`[Pass3A][map:stack] chunk=${i}`, stack);
         console.warn(`[Pass3A] Chunk ${i + 1}/${totalChunks} failed: ${msg}`);
         failedChunkIndices.push(i);
       } finally {
@@ -606,6 +677,7 @@ export async function runPass3Preflight(
   // with a brief pause resolves most transient failures.
   const REDUCER_MAX_ATTEMPTS = 2;
   for (let attempt = 1; attempt <= REDUCER_MAX_ATTEMPTS; attempt++) {
+    let rawResponseLength: number | null = null;
     try {
       const result = await createOpenAICompletion({
         openai,
@@ -613,9 +685,10 @@ export async function runPass3Preflight(
         systemPrompt: PASS3A_REDUCER_SYSTEM_PROMPT,
         userPrompt: reducerUserPrompt,
         temperature: PASS3A_REDUCER_TEMPERATURE,
-        maxTokens: PASS3A_MAX_OUTPUT_TOKENS * 2, // reducer output is larger
+        maxTokens: reducerMaxTokens,
         timeoutMs,
       });
+      rawResponseLength = result.content.length;
       trackCompletionCost({
         jobId: opts.jobId,
         phase: "pass3a_reducer",
@@ -623,12 +696,35 @@ export async function runPass3Preflight(
         usage: result.usage,
       });
 
-      reducerOutput = parseJsonObjectBoundary(result.content) as unknown as Partial<Pass3PreflightDraft>;
+      const parsedReducerOutput = unwrapJsonBoundary<Partial<Pass3PreflightDraft> & Record<string, unknown>>(
+        result.content,
+        "Pass3A reducer",
+      );
+      const parsedCriterionDrafts = extractReducerCriterionDrafts(parsedReducerOutput);
+      debugPass3A("reducer_parse", {
+        attempt,
+        rawResponseLength,
+        parsedOk: true,
+        hasValue: true,
+        hasCriterionDrafts: Array.isArray(parsedCriterionDrafts),
+        criterionDraftsCount: parsedCriterionDrafts?.length ?? 0,
+        errorMessage: null,
+      });
+      reducerOutput = parsedReducerOutput;
       console.log(`[Pass3A] Reduce phase complete (attempt ${attempt}/${REDUCER_MAX_ATTEMPTS})`);
       reducerFailureReason = null;
       break;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
+      debugPass3A("reducer_parse", {
+        attempt,
+        rawResponseLength,
+        parsedOk: false,
+        hasValue: false,
+        hasCriterionDrafts: false,
+        criterionDraftsCount: 0,
+        errorMessage: msg,
+      });
       reducerFailureReason = msg;
       if (attempt < REDUCER_MAX_ATTEMPTS) {
         const backoffMs = 3_000 * attempt;
